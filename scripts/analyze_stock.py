@@ -12,11 +12,12 @@ from data.sec_edgar import SECEdgarClient
 from data.yfinance_client import YFinanceClient
 from models.capm import calculate_beta, expected_return
 from models.dcf import calculate_dcf
-from models.comparisons import compute_ratios
+from models.comparisons import compute_ratios, calculate_roic
 
 RISK_FREE_RATE = 0.04
 MARKET_TICKER = "^GSPC"
 TERMINAL_GROWTH_RATE = 0.03
+ROIC_THRESHOLD = 0.10
 
 
 def _read_wiki_tables(url):
@@ -81,8 +82,13 @@ def run_dcf(yf_data, discount_rate):
     return calculate_dcf(fcf_values, discount_rate, terminal_value, periods)
 
 
-def format_summary(ticker, beta, er, dcf_value, ratios):
+def format_summary(ticker, beta, er, dcf_value, ratios, roic_data):
     lines = [f"Ticker: {ticker}", ""]
+    if roic_data:
+        lines.append(f"5Y Avg ROIC: {roic_data['avg_roic']:.2%}")
+        for year, roic in sorted(roic_data['roic_by_year'].items()):
+            lines.append(f"  {year}: {roic:.2%}")
+    lines.append("")
     if beta is not None:
         lines.append(f"CAPM Beta: {beta:.4f}")
         lines.append(f"Expected Return: {er:.2%}")
@@ -103,47 +109,61 @@ def format_summary(ticker, beta, er, dcf_value, ratios):
 
 
 if __name__ == "__main__":
-    ticker = "MSFT"
+    sp500 = set(get_sp500_tickers())
+    nyse = set(get_nyse_tickers())
+    dow = set(get_dow_tickers())
+    all_tickers = sorted(sp500 | nyse | dow)
+
     sec_email = "your_email@example.com"  # Replace with your email
     sec_client = SECEdgarClient(sec_email)
     yf_client = YFinanceClient()
 
+    # Phase 1: Screen tickers by 5-year average ROIC >= 10%
+    print(f"Screening {len(all_tickers)} tickers for 5Y avg ROIC >= {ROIC_THRESHOLD:.0%}...")
+    qualifying = []
+    roic_cache = {}
+    for i, ticker in enumerate(all_tickers, 1):
+        try:
+            yf_data = yf_client.fetch_financials(ticker)
+            roic_data = calculate_roic(yf_data)
+            if roic_data and roic_data['avg_roic'] >= ROIC_THRESHOLD:
+                qualifying.append(ticker)
+                roic_cache[ticker] = roic_data
+                print(f"  [{i}/{len(all_tickers)}] {ticker} - ROIC {roic_data['avg_roic']:.2%} PASS")
+            else:
+                avg = roic_data['avg_roic'] if roic_data else None
+                print(f"  [{i}/{len(all_tickers)}] {ticker} - ROIC {avg:.2% if avg is not None else 'N/A'} skip")
+        except Exception as e:
+            print(f"  [{i}/{len(all_tickers)}] {ticker} - error: {e}")
+
+    print(f"\n{len(qualifying)} tickers passed ROIC screen out of {len(all_tickers)} total.\n")
+
+    # Phase 2: Full analysis on qualifying tickers
     print("Fetching market history for CAPM benchmark...")
     market_history = yf_client.fetch_history(MARKET_TICKER, period="5y")
 
     os.makedirs("output", exist_ok=True)
     pdf_filename = os.path.join("output", "stock_analysis_results.pdf")
-    try:
-        with PdfPages(pdf_filename) as pdf:
+    with PdfPages(pdf_filename) as pdf:
+        for ticker in qualifying:
             print(f"Analyzing {ticker}...")
-            sec_data = sec_client.fetch_filings(ticker)
-            print(f"SEC EDGAR data: {sec_data}")
-            yf_data = yf_client.fetch_financials(ticker)
-            print(f"yFinance data: {yf_data}")
+            try:
+                sec_data = sec_client.fetch_filings(ticker)
+                yf_data = yf_client.fetch_financials(ticker)
+                roic_data = roic_cache.get(ticker)
 
-            # CAPM
-            beta, er = run_capm(yf_client, ticker, market_history)
-            print(f"CAPM beta: {beta}, expected return: {er}")
+                beta, er = run_capm(yf_client, ticker, market_history)
+                discount_rate = er if er and er > 0 else 0.10
+                dcf_value = run_dcf(yf_data, discount_rate)
+                ratios = compute_ratios(yf_data)
 
-            # DCF
-            discount_rate = er if er and er > 0 else 0.10
-            dcf_value = run_dcf(yf_data, discount_rate)
-            print(f"DCF value: {dcf_value}")
-
-            # Comparison ratios
-            ratios = compute_ratios(yf_data)
-            print(f"Comparison ratios: {ratios}")
-
-            # PDF summary page
-            fig, ax = plt.subplots(figsize=(8, 6))
-            ax.axis('off')
-            summary = format_summary(ticker, beta, er, dcf_value, ratios)
-            if not summary.strip():
-                summary = "No data available for MSFT.\nCheck data sources and model calculations."
-            ax.text(0.05, 0.95, summary, va='top', ha='left', fontsize=10,
-                    family='monospace', transform=ax.transAxes)
-            pdf.savefig(fig)
-            plt.close(fig)
-        print(f"Analysis complete. Results saved to {pdf_filename}")
-    except Exception as e:
-        print(f"PDF creation failed: {e}")
+                fig, ax = plt.subplots(figsize=(8, 6))
+                ax.axis('off')
+                summary = format_summary(ticker, beta, er, dcf_value, ratios, roic_data)
+                ax.text(0.05, 0.95, summary, va='top', ha='left', fontsize=10,
+                        family='monospace', transform=ax.transAxes)
+                pdf.savefig(fig)
+                plt.close(fig)
+            except Exception as e:
+                print(f"Error analyzing {ticker}: {e}")
+    print(f"Analysis complete. Results saved to {pdf_filename}")
