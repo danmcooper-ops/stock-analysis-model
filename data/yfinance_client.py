@@ -11,3 +11,7 @@ class YFinanceClient:
             'cash_flow': stock.cashflow
         }
         return financials
+
+    def fetch_history(self, ticker, period="5y"):
+        stock = yf.Ticker(ticker)
+        return stock.history(period=period)['Close']
