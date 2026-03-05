@@ -1,0 +1,5 @@
+yfinance
+requests
+pandas
+finnhub-python
+sec-edgar-downloader
