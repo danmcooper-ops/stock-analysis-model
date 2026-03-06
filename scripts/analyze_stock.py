@@ -10,9 +10,9 @@ from urllib.request import urlopen, Request
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from data.sec_edgar import SECEdgarClient
 from data.yfinance_client import YFinanceClient
-from models.capm import calculate_beta, expected_return
-from models.dcf import calculate_dcf
-from models.comparisons import compute_ratios, calculate_roic
+from models.capm import calculate_beta, expected_return, geometric_annualized_return
+from models.dcf import calculate_dcf, project_fcf, calculate_terminal_value
+from models.comparisons import compute_ratios, calculate_roic, compute_ratios_trend
 
 RISK_FREE_RATE = 0.04
 MARKET_TICKER = "^GSPC"
@@ -53,13 +53,27 @@ def run_capm(yf_client, ticker, market_history):
     stock_history = yf_client.fetch_history(ticker, period="5y")
     aligned = pd.DataFrame({'stock': stock_history, 'market': market_history}).dropna()
     if len(aligned) < 30:
-        return None, None
+        return None
+
     stock_returns = aligned['stock'].pct_change().dropna().values
     market_returns = aligned['market'].pct_change().dropna().values
-    beta = calculate_beta(stock_returns, market_returns)
-    market_annual_return = (1 + aligned['market'].pct_change().mean()) ** 252 - 1
-    er = expected_return(RISK_FREE_RATE, beta, market_annual_return)
-    return beta, er
+
+    beta_result = calculate_beta(stock_returns, market_returns, adjust=True)
+    market_annual_return = geometric_annualized_return(market_returns)
+
+    if market_annual_return is None:
+        return None
+
+    er = expected_return(RISK_FREE_RATE, beta_result['adjusted_beta'], market_annual_return)
+
+    return {
+        'beta': beta_result['adjusted_beta'],
+        'raw_beta': beta_result['raw_beta'],
+        'r_squared': beta_result['r_squared'],
+        'se_beta': beta_result['se_beta'],
+        'expected_return': er,
+        'n_observations': beta_result['n_observations'],
+    }
 
 
 def run_dcf(yf_data, discount_rate):
@@ -73,38 +87,77 @@ def run_dcf(yf_data, discount_rate):
             break
     if fcf_row is None:
         return None
+
     fcf_values = fcf_row.dropna().sort_index().values.tolist()
     if not fcf_values or discount_rate is None or discount_rate <= 0:
         return None
-    last_fcf = fcf_values[-1]
-    terminal_value = last_fcf * (1 + TERMINAL_GROWTH_RATE) / (discount_rate - TERMINAL_GROWTH_RATE)
-    periods = len(fcf_values)
-    return calculate_dcf(fcf_values, discount_rate, terminal_value, periods)
+
+    projection = project_fcf(fcf_values, projection_years=5)
+    if projection is None:
+        return None
+
+    tv_result = calculate_terminal_value(
+        projection['projected_fcfs'][-1],
+        discount_rate,
+        TERMINAL_GROWTH_RATE,
+    )
+
+    ev = calculate_dcf(
+        projection['projected_fcfs'],
+        discount_rate,
+        tv_result['terminal_value'],
+    )
+
+    return {
+        'enterprise_value': ev,
+        'growth_rate': projection['growth_rate'],
+        'terminal_value': tv_result['terminal_value'],
+        'tv_clamped': tv_result['was_clamped'],
+    }
 
 
-def format_summary(ticker, beta, er, dcf_value, ratios, roic_data):
+def format_summary(ticker, capm_result, dcf_result, ratios, roic_data, trend_data=None):
     lines = [f"Ticker: {ticker}", ""]
+
     if roic_data:
         lines.append(f"5Y Avg ROIC: {roic_data['avg_roic']:.2%}")
         for year, roic in sorted(roic_data['roic_by_year'].items()):
             lines.append(f"  {year}: {roic:.2%}")
     lines.append("")
-    if beta is not None:
-        lines.append(f"CAPM Beta: {beta:.4f}")
-        lines.append(f"Expected Return: {er:.2%}")
+
+    if capm_result:
+        lines.append(f"CAPM Raw Beta: {capm_result['raw_beta']:.4f}")
+        lines.append(f"CAPM Adj Beta: {capm_result['beta']:.4f}")
+        lines.append(f"R-squared: {capm_result['r_squared']:.4f}")
+        if capm_result['se_beta'] is not None:
+            lines.append(f"Beta Std Error: {capm_result['se_beta']:.4f}")
+        lines.append(f"Expected Return: {capm_result['expected_return']:.2%}")
+        lines.append(f"Observations: {capm_result['n_observations']}")
     else:
         lines.append("CAPM: insufficient data")
     lines.append("")
-    if dcf_value is not None:
-        lines.append(f"DCF Enterprise Value: ${dcf_value:,.0f}")
+
+    if dcf_result:
+        lines.append(f"DCF Enterprise Value: ${dcf_result['enterprise_value']:,.0f}")
+        lines.append(f"FCF Growth Rate: {dcf_result['growth_rate']:.2%}")
+        if dcf_result['tv_clamped']:
+            lines.append("  (terminal growth rate was clamped)")
     else:
         lines.append("DCF: insufficient data")
     lines.append("")
+
     if ratios:
         for name, val in ratios.items():
             lines.append(f"{name}: {val:.4f}")
     else:
         lines.append("Ratios: insufficient data")
+
+    if trend_data and trend_data.get('trends'):
+        lines.append("")
+        lines.append("Trends:")
+        for name, direction in trend_data['trends'].items():
+            lines.append(f"  {name}: {direction}")
+
     return "\n".join(lines)
 
 
@@ -114,7 +167,9 @@ if __name__ == "__main__":
     dow = set(get_dow_tickers())
     all_tickers = sorted(sp500 | nyse | dow)
 
-    sec_email = "your_email@example.com"  # Replace with your email
+    sec_email = os.environ.get('SEC_EDGAR_EMAIL', 'your_email@example.com')
+    if sec_email == 'your_email@example.com':
+        print("WARNING: Set SEC_EDGAR_EMAIL env var for SEC EDGAR access.")
     sec_client = SECEdgarClient(sec_email)
     yf_client = YFinanceClient()
 
@@ -152,14 +207,18 @@ if __name__ == "__main__":
                 yf_data = yf_client.fetch_financials(ticker)
                 roic_data = roic_cache.get(ticker)
 
-                beta, er = run_capm(yf_client, ticker, market_history)
-                discount_rate = er if er and er > 0 else 0.10
-                dcf_value = run_dcf(yf_data, discount_rate)
+                capm_result = run_capm(yf_client, ticker, market_history)
+                if capm_result and capm_result['expected_return'] and capm_result['expected_return'] > 0:
+                    discount_rate = capm_result['expected_return']
+                else:
+                    discount_rate = 0.10
+                dcf_result = run_dcf(yf_data, discount_rate)
                 ratios = compute_ratios(yf_data)
+                trend_data = compute_ratios_trend(yf_data)
 
                 fig, ax = plt.subplots(figsize=(8, 6))
                 ax.axis('off')
-                summary = format_summary(ticker, beta, er, dcf_value, ratios, roic_data)
+                summary = format_summary(ticker, capm_result, dcf_result, ratios, roic_data, trend_data)
                 ax.text(0.05, 0.95, summary, va='top', ha='left', fontsize=10,
                         family='monospace', transform=ax.transAxes)
                 pdf.savefig(fig)
