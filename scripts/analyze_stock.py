@@ -9,16 +9,11 @@ from urllib.request import urlopen, Request
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from data.sec_edgar import SECEdgarClient
 from data.yfinance_client import YFinanceClient
-from models.capm import (calculate_beta, expected_return, calculate_r2,
-                          calculate_alpha, calculate_residual_sigma,
-                          r2_diagnostic, ggm_implied_re, buildup_re,
-                          geometric_annualized_return)
-from models.dcf import (calculate_dcf, project_forward_dcf,
+from models.capm import (ggm_implied_re, buildup_re)
+from models.dcf import (project_forward_dcf,
                          fair_value_per_share, dcf_sensitivity, ggm_value)
-from data.sentiment import fetch_sentiment
-from data.social_sentiment import fetch_social_sentiment
 from models.comparisons import (compute_ratios, calculate_roic, calculate_wacc,
-                                  calculate_earnings_quality, calculate_altman_z,
+                                  calculate_earnings_quality,
                                   calculate_piotroski_f, calculate_revenue_cagr,
                                   compute_relative_multiples, calculate_interest_coverage,
                                   calculate_net_debt_ebitda, get_net_debt,
@@ -27,7 +22,6 @@ from models.comparisons import (compute_ratios, calculate_roic, calculate_wacc,
 # --- Constants ---
 RISK_FREE_RATE = 0.04          # 10-yr Treasury proxy
 ERP = 0.055                    # Equity Risk Premium (Damodaran)
-MARKET_TICKER = "^GSPC"
 TERMINAL_GROWTH_RATE = 0.03
 MIN_MARKET_CAP = 10e9          # Worksheet Step 1: Market Cap > $10B
 
@@ -65,72 +59,25 @@ def get_dow_tickers():
 # CAPM / cost-of-equity helpers (Worksheet Steps 4A-4B)
 # ---------------------------------------------------------------------------
 
-def run_capm(yf_client, ticker, market_history):
-    """Returns a dict with beta, r2, alpha, residual_sigma, capm_er — or None."""
-    stock_history = yf_client.fetch_history(ticker, period="5y")
-    aligned = pd.DataFrame({'stock': stock_history, 'market': market_history}).dropna()
-    if len(aligned) < 60:
-        return None
-    stock_returns = aligned['stock'].pct_change().dropna().values
-    market_returns = aligned['market'].pct_change().dropna().values
-    min_len = min(len(stock_returns), len(market_returns))
-    if min_len < 30:
-        return None
-    stock_returns = stock_returns[-min_len:]
-    market_returns = market_returns[-min_len:]
 
-    beta_result = calculate_beta(stock_returns, market_returns, adjust=True)
-    r2 = calculate_r2(stock_returns, market_returns)
-    alpha = calculate_alpha(stock_returns, market_returns)
-    residual_sigma = calculate_residual_sigma(stock_returns, market_returns)
-    market_annual_return = geometric_annualized_return(market_returns)
-    if market_annual_return is None:
-        market_annual_return = (1 + np.mean(market_returns)) ** 252 - 1
-    capm_er = expected_return(RISK_FREE_RATE, beta_result['adjusted_beta'], market_annual_return)
-    r2_class, re_method = r2_diagnostic(r2)
-
-    return {
-        'beta': beta_result['adjusted_beta'],
-        'raw_beta': beta_result['raw_beta'],
-        'r2': r2, 'alpha': alpha,
-        'residual_sigma': residual_sigma,
-        'se_beta': beta_result['se_beta'],
-        'n_observations': beta_result['n_observations'],
-        'r2_class': r2_class, 're_method': re_method,
-        'capm_er': capm_er,
-    }
-
-
-def select_cost_of_equity(capm_data, financials):
+def select_cost_of_equity(financials):
     """
-    Worksheet Step 4B: gate cost-of-equity method by R².
+    Cost-of-equity via GGM-implied or Build-Up method.
     Returns (cost_of_equity, method_label).
     """
     info = (financials.get('info') or {}) if financials else {}
-    # Compute dividend yield from rate/price (yfinance dividendYield is unreliable format)
     div_rate = info.get('dividendRate')
     price = info.get('currentPrice') or info.get('regularMarketPrice')
     div_yield = (div_rate / price) if (div_rate and price and price > 0) else None
 
-    # Fallback alternative: GGM-implied or Build-Up
-    alt_re = None
+    re = None
     if div_yield and div_yield > 0:
-        alt_re = ggm_implied_re(div_yield, TERMINAL_GROWTH_RATE)
-    if alt_re is None or not (0.04 < alt_re < 0.30):
-        alt_re = buildup_re(RISK_FREE_RATE, ERP)
+        re = ggm_implied_re(div_yield, TERMINAL_GROWTH_RATE)
+    if re is None or not (0.04 < re < 0.30):
+        re = buildup_re(RISK_FREE_RATE, ERP)
 
-    if capm_data is None:
-        return alt_re, 'buildup_fallback'
-
-    re_method = capm_data['re_method']
-    capm_er = capm_data['capm_er']
-
-    if re_method == 'capm':
-        return capm_er, 'capm'
-    elif re_method == 'capm_plus_alternative':
-        return (capm_er + alt_re) / 2, 'capm+alt_midpoint'
-    else:
-        return alt_re, 'ggm_or_buildup'
+    method = 'ggm' if (div_yield and div_yield > 0 and re == ggm_implied_re(div_yield, TERMINAL_GROWTH_RATE)) else 'buildup'
+    return re, method
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +136,279 @@ def run_forward_dcf(yf_data, wacc):
 
 
 # ---------------------------------------------------------------------------
-# HTML report builder (tabbed table, Plotly charts)
+# Excel report builder
+# ---------------------------------------------------------------------------
+
+def build_excel(rows, filename):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+
+    # --- Column definitions per sheet ---
+    sheets_config = {
+        'Overview': [
+            ('Ticker', 'ticker', None),
+            ('Rating', 'rating', None),
+            ('Sector', 'sector', None),
+            ('Industry', 'industry', None),
+            ('Price', 'price', '$#,##0.00'),
+            ('Mkt Cap ($B)', '_mcap_b', '#,##0.0'),
+            ('ROIC', 'roic', '0.0%'),
+            ('WACC', 'wacc', '0.0%'),
+            ('Spread', 'spread', '0.0%'),
+            ('DCF FV', 'dcf_fv', '$#,##0.00'),
+            ('MoS', 'mos', '0.0%'),
+            ('P/E', 'pe', '0.0'),
+            ('EV/EBITDA', 'ev_ebitda', '0.0'),
+            ('Piotroski', 'piotroski', '0'),
+            ('Analyst', 'analyst_rec', None),
+        ],
+        'Valuation': [
+            ('Ticker', 'ticker', None),
+            ('Price', 'price', '$#,##0.00'),
+            ('DCF FV', 'dcf_fv', '$#,##0.00'),
+            ('MoS', 'mos', '0.0%'),
+            ('DCF Bear', '_dcf_bear', '$#,##0.00'),
+            ('DCF Bull', '_dcf_bull', '$#,##0.00'),
+            ('FCF Growth', 'fcf_growth', '0.0%'),
+            ('P/E', 'pe', '0.0'),
+            ('EV/EBITDA', 'ev_ebitda', '0.0'),
+            ('P/FCF', 'pfcf', '0.0'),
+            ('P/B', 'pb', '0.0'),
+            ('Analyst Rec', 'analyst_rec', None),
+            ('# Analysts', 'num_analysts', '0'),
+            ('Target Mean', 'target_mean', '$#,##0.00'),
+            ('Target Low', 'target_low', '$#,##0.00'),
+            ('Target High', 'target_high', '$#,##0.00'),
+        ],
+        'Profitability': [
+            ('Ticker', 'ticker', None),
+            ('ROIC', 'roic', '0.0%'),
+            ('ROE', 'roe', '0.0%'),
+            ('ROA', 'roa', '0.0%'),
+            ('Cash Conv', 'cash_conv', '0.0'),
+            ('Accruals', 'accruals', '0.00'),
+            ('Rev CAGR (5y)', 'rev_cagr', '0.0%'),
+            ('FCF Growth', 'fcf_growth', '0.0%'),
+        ],
+        'Financial Health': [
+            ('Ticker', 'ticker', None),
+            ('Piotroski F', 'piotroski', '0'),
+            ('Interest Cov', 'int_cov', '0.0'),
+            ('Net Debt/EBITDA', 'nd_ebitda', '0.0'),
+            ('D/E', 'de', '0.0'),
+            ('Current Ratio', 'cr', '0.00'),
+        ],
+    }
+
+    # Color map for ratings
+    rating_fills = {
+        'BUY': PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid'),
+        'LEAN BUY': PatternFill(start_color='D5F5E3', end_color='D5F5E3', fill_type='solid'),
+        'HOLD': PatternFill(start_color='FFF3CD', end_color='FFF3CD', fill_type='solid'),
+        'PASS': PatternFill(start_color='F8D7DA', end_color='F8D7DA', fill_type='solid'),
+    }
+
+    header_font = Font(bold=True, color='FF000000', size=11)
+    header_fill = PatternFill(start_color='FFD6DCE4', end_color='FFD6DCE4', fill_type='solid')
+    header_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    thin_border = Border(
+        bottom=Side(style='thin', color='DDDDDD'),
+    )
+
+    # Pre-compute derived fields
+    for r in rows:
+        r['_mcap_b'] = r['mcap'] / 1e9 if r.get('mcap') else None
+        sens = r.get('dcf_sens_range')
+        if sens and len(sens) == 2:
+            r['_dcf_bear'] = sens[0]
+            r['_dcf_bull'] = sens[1]
+        else:
+            r['_dcf_bear'] = None
+            r['_dcf_bull'] = None
+
+    first = True
+    for sheet_name, cols in sheets_config.items():
+        ws = wb.active if first else wb.create_sheet()
+        first = False
+        ws.title = sheet_name
+
+        # Header row
+        for ci, (label, _, _) in enumerate(cols, 1):
+            cell = ws.cell(row=1, column=ci, value=label)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_align
+
+        # Data rows
+        from openpyxl.comments import Comment
+        for ri, row in enumerate(rows, 2):
+            for ci, (_, key, fmt) in enumerate(cols, 1):
+                val = row.get(key)
+                cell = ws.cell(row=ri, column=ci, value=val)
+                cell.border = thin_border
+                if fmt:
+                    cell.number_format = fmt
+                # Color rating cells
+                if key == 'rating' and val in rating_fills:
+                    cell.fill = rating_fills[val]
+                # Add company description as hover comment on ticker cell
+                if key == 'ticker':
+                    desc = row.get('description_full') or row.get('description') or ''
+                    if desc:
+                        cell.comment = Comment(desc[:255], 'Stock Analysis')
+
+        # Auto-fit column widths
+        for ci, (label, _, _) in enumerate(cols, 1):
+            max_len = len(label) + 2
+            for ri in range(2, min(len(rows) + 2, 50)):
+                val = ws.cell(row=ri, column=ci).value
+                if val is not None:
+                    max_len = max(max_len, len(str(val)) + 1)
+            ws.column_dimensions[get_column_letter(ci)].width = min(max_len, 22)
+
+        # Freeze header row
+        ws.freeze_panes = 'A2'
+        # Auto-filter
+        ws.auto_filter.ref = f"A1:{get_column_letter(len(cols))}{len(rows) + 1}"
+
+    # --- Charts sheet ---
+    from openpyxl.chart import BarChart, ScatterChart, Reference, Series
+    from openpyxl.chart.label import DataLabelList
+    from openpyxl.chart.series import DataPoint
+
+    ws_charts = wb.create_sheet('Charts')
+
+    # Helper: write a mini data table starting at (start_row, start_col)
+    # and return (data_start_row, data_end_row, start_col, end_col)
+    def _write_mini_table(ws, data_rows, headers, start_row, start_col):
+        for ci, h in enumerate(headers):
+            c = ws.cell(row=start_row, column=start_col + ci, value=h)
+            c.font = Font(bold=True, size=9)
+        for ri, dr in enumerate(data_rows):
+            for ci, val in enumerate(dr):
+                ws.cell(row=start_row + 1 + ri, column=start_col + ci, value=val)
+        return start_row, start_row + len(data_rows), start_col, start_col + len(headers) - 1
+
+    n = len(rows)
+
+    # ---- Chart 1: Top 20 by ROIC-WACC Spread (bar chart) ----
+    top_spread = sorted([r for r in rows if r.get('spread')], key=lambda x: x['spread'], reverse=True)[:20]
+    r1 = 1
+    _write_mini_table(ws_charts, [[r['ticker'], r['spread']] for r in top_spread],
+                      ['Ticker', 'Spread'], r1, 1)
+    chart1 = BarChart()
+    chart1.type = 'col'
+    chart1.title = 'Top 20 — ROIC-WACC Spread'
+    chart1.y_axis.title = 'Spread'
+    chart1.y_axis.numFmt = '0%'
+    chart1.x_axis.title = None
+    chart1.style = 10
+    chart1.width = 28
+    chart1.height = 14
+    cats1 = Reference(ws_charts, min_col=1, min_row=r1+1, max_row=r1+len(top_spread))
+    vals1 = Reference(ws_charts, min_col=2, min_row=r1, max_row=r1+len(top_spread))
+    chart1.add_data(vals1, titles_from_data=True)
+    chart1.set_categories(cats1)
+    chart1.legend = None
+    ws_charts.add_chart(chart1, 'D1')
+
+    # ---- Chart 2: DCF Fair Value vs Price — Top 20 undervalued (MoS) ----
+    top_mos = sorted([r for r in rows if r.get('mos') and r.get('dcf_fv') and r.get('price')],
+                     key=lambda x: x['mos'], reverse=True)[:20]
+    r2 = r1 + len(top_spread) + 3
+    _write_mini_table(ws_charts,
+                      [[r['ticker'], r['price'], r['dcf_fv'], r['mos']] for r in top_mos],
+                      ['Ticker', 'Price', 'DCF FV', 'MoS%'], r2, 1)
+    chart2 = BarChart()
+    chart2.type = 'col'
+    chart2.title = 'Top 20 Undervalued — Price vs DCF Fair Value'
+    chart2.y_axis.title = 'USD'
+    chart2.y_axis.numFmt = '$#,##0'
+    chart2.style = 10
+    chart2.width = 28
+    chart2.height = 14
+    cats2 = Reference(ws_charts, min_col=1, min_row=r2+1, max_row=r2+len(top_mos))
+    vals2_price = Reference(ws_charts, min_col=2, min_row=r2, max_row=r2+len(top_mos))
+    vals2_dcf = Reference(ws_charts, min_col=3, min_row=r2, max_row=r2+len(top_mos))
+    chart2.add_data(vals2_price, titles_from_data=True)
+    chart2.add_data(vals2_dcf, titles_from_data=True)
+    chart2.set_categories(cats2)
+    ws_charts.add_chart(chart2, 'D' + str(r2))
+
+    # ---- Chart 3: Rating Distribution (pie-like bar) ----
+    from collections import Counter
+    rating_counts = Counter(r.get('rating', 'N/A') for r in rows)
+    rating_order = ['BUY', 'LEAN BUY', 'HOLD', 'PASS']
+    r3 = r2 + len(top_mos) + 3
+    rating_data = [[rt, rating_counts.get(rt, 0)] for rt in rating_order]
+    _write_mini_table(ws_charts, rating_data, ['Rating', 'Count'], r3, 1)
+    chart3 = BarChart()
+    chart3.type = 'col'
+    chart3.title = 'Rating Distribution'
+    chart3.y_axis.title = 'Count'
+    chart3.style = 10
+    chart3.width = 14
+    chart3.height = 12
+    cats3 = Reference(ws_charts, min_col=1, min_row=r3+1, max_row=r3+len(rating_data))
+    vals3 = Reference(ws_charts, min_col=2, min_row=r3, max_row=r3+len(rating_data))
+    chart3.add_data(vals3, titles_from_data=True)
+    chart3.set_categories(cats3)
+    chart3.legend = None
+    ws_charts.add_chart(chart3, 'D' + str(r3))
+
+    # ---- Chart 4: P/E vs ROIC Scatter ----
+    scatter_data = sorted(
+        [r for r in rows if r.get('pe') and r.get('roic') and 0 < r['pe'] < 100],
+        key=lambda x: x['roic'], reverse=True
+    )[:40]
+    r4 = r3 + len(rating_data) + 3
+    _write_mini_table(ws_charts,
+                      [[r['ticker'], r['roic'], r['pe']] for r in scatter_data],
+                      ['Ticker', 'ROIC', 'P/E'], r4, 1)
+    chart4 = ScatterChart()
+    chart4.title = 'ROIC vs P/E (Top 40 by ROIC)'
+    chart4.x_axis.title = 'ROIC'
+    chart4.x_axis.numFmt = '0%'
+    chart4.y_axis.title = 'P/E'
+    chart4.style = 13
+    chart4.width = 14
+    chart4.height = 12
+    xvals4 = Reference(ws_charts, min_col=2, min_row=r4+1, max_row=r4+len(scatter_data))
+    yvals4 = Reference(ws_charts, min_col=3, min_row=r4+1, max_row=r4+len(scatter_data))
+    series4 = Series(yvals4, xvals4, title='P/E vs ROIC')
+    chart4.series.append(series4)
+    ws_charts.add_chart(chart4, 'L' + str(r3))
+
+    # ---- Chart 5: Sector breakdown ----
+    sector_counts = Counter(r.get('sector', 'Unknown') for r in rows)
+    sector_sorted = sorted(sector_counts.items(), key=lambda x: x[1], reverse=True)
+    r5 = r4 + len(scatter_data) + 3
+    _write_mini_table(ws_charts,
+                      [[s, c] for s, c in sector_sorted],
+                      ['Sector', 'Count'], r5, 1)
+    chart5 = BarChart()
+    chart5.type = 'bar'
+    chart5.title = 'Qualifying Stocks by Sector'
+    chart5.x_axis.title = None
+    chart5.y_axis.title = 'Count'
+    chart5.style = 10
+    chart5.width = 28
+    chart5.height = 14
+    cats5 = Reference(ws_charts, min_col=1, min_row=r5+1, max_row=r5+len(sector_sorted))
+    vals5 = Reference(ws_charts, min_col=2, min_row=r5, max_row=r5+len(sector_sorted))
+    chart5.add_data(vals5, titles_from_data=True)
+    chart5.set_categories(cats5)
+    chart5.legend = None
+    ws_charts.add_chart(chart5, 'D' + str(r5))
+
+    wb.save(filename)
+
+
+# ---------------------------------------------------------------------------
+# HTML report builder (tabbed table)
 # ---------------------------------------------------------------------------
 
 def fmt_pct(val):
@@ -264,47 +483,29 @@ def build_html(rows, filename):
     chart_data = json.dumps([{
         'ticker': r['ticker'],
         'roic': r.get('roic'), 'wacc': r.get('wacc'), 'spread': r.get('spread'),
-        'beta': r.get('beta'), 'r2': r.get('r2'), 'er': r.get('er'),
         'dcf_fv': r.get('dcf_fv'), 'price': r.get('price'), 'mos': r.get('mos'),
-        'piotroski': r.get('piotroski'), 'altman_z': r.get('altman_z'),
+        'piotroski': r.get('piotroski'),
         'pe': r.get('pe'), 'ev_ebitda': r.get('ev_ebitda'),
         'rating': r.get('rating'), 'analyst_rec': r.get('analyst_rec'),
         'description': (r.get('description') or '')[:200],
         'sector': r.get('sector'),
         'industry': r.get('industry'),
         'ceo': r.get('ceo'),
-        'sentiment_score': r.get('sentiment_score'),
-        'sentiment_label': r.get('sentiment_label'),
-        'social_score': r.get('social_score'),
-        'social_label': r.get('social_label'),
         # Detail modal fields
         'description_full': r.get('description') or '',
         'ceo_bio': r.get('ceo_bio') or '',
         'mcap': r.get('mcap'),
         'roic_by_year': r.get('roic_by_year'),
-        'raw_beta': r.get('raw_beta'),
-        'alpha': r.get('alpha'),
-        'residual_sigma': r.get('residual_sigma'),
-        'se_beta': r.get('se_beta'),
-        'n_observations': r.get('n_observations'),
+        'er': r.get('er'),
         're_method': r.get('re_method'),
         'dcf_sens_range': list(r['dcf_sens_range']) if r.get('dcf_sens_range') else None,
         'fcf_growth': r.get('fcf_growth'),
         'pfcf': r.get('pfcf'),
         'pb': r.get('pb'),
-        'peg': r.get('peg'),
         'num_analysts': r.get('num_analysts'),
         'target_mean': r.get('target_mean'),
         'target_high': r.get('target_high'),
         'target_low': r.get('target_low'),
-        'sentiment_articles': r.get('sentiment_articles'),
-        'sentiment_bull': r.get('sentiment_bull'),
-        'sentiment_bear': r.get('sentiment_bear'),
-        'st_bull_pct': r.get('st_bull_pct'),
-        'st_bear_pct': r.get('st_bear_pct'),
-        'st_labeled': r.get('st_labeled'),
-        'reddit_score': r.get('reddit_score'),
-        'reddit_posts': r.get('reddit_posts'),
         'cash_conv': r.get('cash_conv'),
         'accruals': r.get('accruals'),
         'rev_cagr': r.get('rev_cagr'),
@@ -327,10 +528,6 @@ def build_html(rows, filename):
         pf_style = ''
         if pf is not None:
             pf_style = ' style="color:#1a9850;font-weight:600"' if pf >= 7 else (' style="color:#de2d26"' if pf <= 3 else '')
-        az = r.get('altman_z')
-        az_style = ''
-        if az is not None:
-            az_style = ' style="color:#1a9850;font-weight:600"' if az > 2.99 else (' style="color:#de2d26"' if az < 1.81 else ' style="color:#fd8d3c"')
         cc = r.get('cash_conv')
         cc_style = ' style="color:#1a9850;font-weight:600"' if (cc is not None and cc > 0.8) else ''
 
@@ -345,24 +542,6 @@ def build_html(rows, filename):
 
         rating = r.get('rating') or 'N/A'
         rec = r.get('analyst_rec')
-        sent_label = r.get('sentiment_label')
-        sent_score = r.get('sentiment_score')
-        sent_articles = r.get('sentiment_articles') or 0
-        sent_display = f"{sent_label} ({sent_score:+.2f}, {sent_articles}n)" if sent_label and sent_score is not None else 'N/A'
-        # Social media sentiment display
-        social_label = r.get('social_label')
-        social_score = r.get('social_score')
-        st_bull = r.get('st_bull_pct')
-        st_bear = r.get('st_bear_pct')
-        st_labeled = r.get('st_labeled') or 0
-        rd_score = r.get('reddit_score')
-        rd_posts = r.get('reddit_posts') or 0
-        social_parts = []
-        if st_labeled > 0 and st_bull is not None:
-            social_parts.append(f"ST:{st_bull:.0%}↑/{st_bear:.0%}↓ ({st_labeled})")
-        if rd_posts > 0 and rd_score is not None:
-            social_parts.append(f"Reddit:{rd_score:+.2f} ({rd_posts}p)")
-        social_display = " | ".join(social_parts) if social_parts else 'N/A'
         desc = (r.get('description') or '').replace('"', '&quot;').replace("'", '&#39;')
         ceo = r.get('ceo') or 'N/A'
         ceo_bio = (r.get('ceo_bio') or ceo).replace('"', '&quot;').replace("'", '&#39;')
@@ -389,19 +568,11 @@ def build_html(rows, filename):
             f"<td class='grp-val' data-value='{_dv(r.get('price'))}'>{fmt_dollar(r.get('price'))}</td>"
             f"<td class='grp-val' data-value='{_dv(mos)}'{mos_style}>{fmt_pct(mos)}</td>"
             f"<td class='grp-con' data-value='{_rec_num(rec)}'{_rec_style(rec)}>{analyst_label}</td>"
-            f"<td class='grp-con' data-value='{_dv(sent_score)}'{_sentiment_style(sent_label)}>{sent_display}</td>"
-            f"<td class='grp-con' data-value='{_dv(social_score)}'{_sentiment_style(social_label)}>{social_display}</td>"
             f"<td class='grp-val' data-value='{_dv(target_mean)}'>{fmt_dollar(target_mean)}</td>"
             f"<td class='grp-val' data-value='{_dv(r.get('pe'))}'>{fmt_num(r.get('pe'), 1)}</td>"
             f"<td class='grp-val' data-value='{_dv(r.get('ev_ebitda'))}'>{fmt_num(r.get('ev_ebitda'), 1)}</td>"
             f"<td class='grp-val' data-value='{_dv(r.get('pfcf'))}'>{fmt_num(r.get('pfcf'), 1)}</td>"
             f"<td class='grp-val' data-value='{_dv(r.get('pb'))}'>{fmt_num(r.get('pb'), 2)}</td>"
-            f"<td class='grp-val' data-value='{_dv(r.get('peg'))}'>{fmt_num(r.get('peg'), 2)}</td>"
-            # Risk
-            f"<td class='grp-risk' data-value='{_dv(r.get('beta'))}'>{fmt_num(r.get('beta'), 2)}</td>"
-            f"<td class='grp-risk' data-value='{_dv(r.get('r2'))}'>{fmt_pct(r.get('r2'))}</td>"
-            f"<td class='grp-risk' data-value='{_dv(r.get('alpha'))}'>{fmt_pct(r.get('alpha'))}</td>"
-            f"<td class='grp-risk' data-value='{_dv(r.get('er'))}'>{fmt_pct(r.get('er'))}</td>"
             # Profitability
             f"<td class='grp-prof' data-value='{_dv(r.get('roe'))}'>{fmt_pct(r.get('roe'))}</td>"
             f"<td class='grp-prof' data-value='{_dv(r.get('roa'))}'>{fmt_pct(r.get('roa'))}</td>"
@@ -410,7 +581,6 @@ def build_html(rows, filename):
             f"<td class='grp-prof' data-value='{_dv(r.get('rev_cagr'))}'>{fmt_pct(r.get('rev_cagr'))}</td>"
             # Financial Health
             f"<td class='grp-hlth' data-value='{_dv(pf)}'{pf_style}>{fmt_num(pf, 0) if pf is not None else 'N/A'}</td>"
-            f"<td class='grp-hlth' data-value='{_dv(az)}'{az_style}>{fmt_num(az, 2) if az is not None else 'N/A'}</td>"
             f"<td class='grp-hlth' data-value='{_dv(r.get('int_cov'))}'>{fmt_num(r.get('int_cov'), 1) if r.get('int_cov') is not None else 'N/A'}</td>"
             f"<td class='grp-hlth' data-value='{_dv(r.get('nd_ebitda'))}'>{fmt_num(r.get('nd_ebitda'), 2) if r.get('nd_ebitda') is not None else 'N/A'}</td>"
             f"<td class='grp-hlth' data-value='{_dv(r.get('de'))}'>{fmt_num(r.get('de'), 2)}</td>"
@@ -431,7 +601,6 @@ def build_html(rows, filename):
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stock Analysis — Securities Analyst Worksheet Screen</title>
-<script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
 <style>
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #333; }}
@@ -443,8 +612,8 @@ def build_html(rows, filename):
   .stat .val {{ font-size: 1.4em; font-weight: bold; }}
   .stat .label {{ font-size: 0.8em; opacity: 0.8; }}
   .container {{ max-width: 1600px; margin: 0 auto; padding: 20px; }}
-  .charts {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }}
-  .chart-box {{ background: white; border-radius: 10px; padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }}
+  .charts {{ display: none; }}
+  .chart-box {{ display: none; }}
   .toolbar {{ display: flex; align-items: center; gap: 12px; margin: 16px 0; flex-wrap: wrap; }}
   .tab-btn {{ padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85em; font-weight: 500;
               background: #dde; color: #555; transition: all 0.15s; }}
@@ -461,7 +630,6 @@ def build_html(rows, filename):
   th:hover {{ background: #2c3e50; }}
   th .arrow {{ margin-left: 3px; font-size: 0.7em; }}
   th.grp-val  {{ background: #1a3a5c; }}
-  th.grp-risk {{ background: #2c1a5c; }}
   th.grp-prof {{ background: #1a4a2c; }}
   th.grp-hlth {{ background: #3a2a10; }}
   th.grp-con  {{ background: #4a1a2a; }}
@@ -488,14 +656,13 @@ def build_html(rows, filename):
   /* Per-tab active color matches column group header */
   .tab-btn[data-tab="ovr"].active  {{ background: #1a252f; }}
   .tab-btn[data-tab="val"].active  {{ background: #1a3a5c; }}
-  .tab-btn[data-tab="risk"].active {{ background: #2c1a5c; }}
   .tab-btn[data-tab="prof"].active {{ background: #1a4a2c; }}
   .tab-btn[data-tab="hlth"].active {{ background: #3a2a10; }}
   .tab-btn[data-tab="con"].active  {{ background: #4a1a2a; }}
   .tab-btn[data-tab="proj"].active {{ background: #164a4a; }}
   .tab-btn[data-tab="all"].active  {{ background: #444;    }}
   /* Chart section header */
-  .chart-section-hdr {{ display: flex; align-items: baseline; gap: 12px; margin: 14px 0 8px; padding: 10px 16px; background: white; border-radius: 8px; box-shadow: 0 1px 5px rgba(0,0,0,0.06); border-left: 4px solid #1a252f; transition: border-color 0.25s; }}
+  .chart-section-hdr {{ display: none; }}
   #chart-tab-label {{ font-size: 1em; font-weight: 700; color: #1a252f; min-width: 110px; }}
   #chart-tab-desc  {{ font-size: 0.82em; color: #666; line-height: 1.4; }}
   /* --- Detail Modal --- */
@@ -580,7 +747,6 @@ def build_html(rows, filename):
   <div class="tabs-row">
     <button class="tab-btn active" data-tab="ovr" onclick="showTab('ovr')">Overview</button>
     <button class="tab-btn" data-tab="val" onclick="showTab('val')">Valuation</button>
-    <button class="tab-btn" data-tab="risk" onclick="showTab('risk')">Risk</button>
     <button class="tab-btn" data-tab="prof" onclick="showTab('prof')">Profitability</button>
     <button class="tab-btn" data-tab="hlth" onclick="showTab('hlth')">Financial Health</button>
     <button class="tab-btn" data-tab="con" onclick="showTab('con')">Consensus</button>
@@ -603,7 +769,7 @@ def build_html(rows, filename):
         <label><input type="checkbox" data-colkey="roic" checked onchange="toggleColumn('roic',this.checked)"> ROIC</label>
         <label><input type="checkbox" data-colkey="wacc" checked onchange="toggleColumn('wacc',this.checked)"> WACC</label>
         <label><input type="checkbox" data-colkey="spread" checked onchange="toggleColumn('spread',this.checked)"> Spread</label>
-        <div class="col-grp-hdr">Valuation <span class="grp-btns"><button onclick="setGroup(['dcf_fv','price','mos','target_mean','pe','ev_ebitda','pfcf','pb','peg'],true)">All</button><button onclick="setGroup(['dcf_fv','price','mos','target_mean','pe','ev_ebitda','pfcf','pb','peg'],false)">None</button></span></div>
+        <div class="col-grp-hdr">Valuation <span class="grp-btns"><button onclick="setGroup(['dcf_fv','price','mos','target_mean','pe','ev_ebitda','pfcf','pb'],true)">All</button><button onclick="setGroup(['dcf_fv','price','mos','target_mean','pe','ev_ebitda','pfcf','pb'],false)">None</button></span></div>
         <label><input type="checkbox" data-colkey="dcf_fv" checked onchange="toggleColumn('dcf_fv',this.checked)"> DCF/Shr</label>
         <label><input type="checkbox" data-colkey="price" checked onchange="toggleColumn('price',this.checked)"> Price</label>
         <label><input type="checkbox" data-colkey="mos" checked onchange="toggleColumn('mos',this.checked)"> MoS%</label>
@@ -612,30 +778,21 @@ def build_html(rows, filename):
         <label><input type="checkbox" data-colkey="ev_ebitda" checked onchange="toggleColumn('ev_ebitda',this.checked)"> EV/EBITDA</label>
         <label><input type="checkbox" data-colkey="pfcf" checked onchange="toggleColumn('pfcf',this.checked)"> P/FCF</label>
         <label><input type="checkbox" data-colkey="pb" checked onchange="toggleColumn('pb',this.checked)"> P/B</label>
-        <label><input type="checkbox" data-colkey="peg" checked onchange="toggleColumn('peg',this.checked)"> PEG</label>
-        <div class="col-grp-hdr">Risk <span class="grp-btns"><button onclick="setGroup(['beta','r2','alpha','er'],true)">All</button><button onclick="setGroup(['beta','r2','alpha','er'],false)">None</button></span></div>
-        <label><input type="checkbox" data-colkey="beta" checked onchange="toggleColumn('beta',this.checked)"> Beta</label>
-        <label><input type="checkbox" data-colkey="r2" checked onchange="toggleColumn('r2',this.checked)"> R&#178;</label>
-        <label><input type="checkbox" data-colkey="alpha" checked onchange="toggleColumn('alpha',this.checked)"> Alpha</label>
-        <label><input type="checkbox" data-colkey="er" checked onchange="toggleColumn('er',this.checked)"> Exp Ret</label>
         <div class="col-grp-hdr">Profitability <span class="grp-btns"><button onclick="setGroup(['roe','roa','cash_conv','accruals','rev_cagr'],true)">All</button><button onclick="setGroup(['roe','roa','cash_conv','accruals','rev_cagr'],false)">None</button></span></div>
         <label><input type="checkbox" data-colkey="roe" checked onchange="toggleColumn('roe',this.checked)"> ROE</label>
         <label><input type="checkbox" data-colkey="roa" checked onchange="toggleColumn('roa',this.checked)"> ROA</label>
         <label><input type="checkbox" data-colkey="cash_conv" checked onchange="toggleColumn('cash_conv',this.checked)"> CashConv</label>
         <label><input type="checkbox" data-colkey="accruals" checked onchange="toggleColumn('accruals',this.checked)"> Accruals</label>
         <label><input type="checkbox" data-colkey="rev_cagr" checked onchange="toggleColumn('rev_cagr',this.checked)"> Rev CAGR</label>
-        <div class="col-grp-hdr">Financial Health <span class="grp-btns"><button onclick="setGroup(['piotroski','altman_z','int_cov','nd_ebitda','de','cr'],true)">All</button><button onclick="setGroup(['piotroski','altman_z','int_cov','nd_ebitda','de','cr'],false)">None</button></span></div>
+        <div class="col-grp-hdr">Financial Health <span class="grp-btns"><button onclick="setGroup(['piotroski','int_cov','nd_ebitda','de','cr'],true)">All</button><button onclick="setGroup(['piotroski','int_cov','nd_ebitda','de','cr'],false)">None</button></span></div>
         <label><input type="checkbox" data-colkey="piotroski" checked onchange="toggleColumn('piotroski',this.checked)"> F-Score</label>
-        <label><input type="checkbox" data-colkey="altman_z" checked onchange="toggleColumn('altman_z',this.checked)"> Altman Z</label>
         <label><input type="checkbox" data-colkey="int_cov" checked onchange="toggleColumn('int_cov',this.checked)"> Int Cov</label>
         <label><input type="checkbox" data-colkey="nd_ebitda" checked onchange="toggleColumn('nd_ebitda',this.checked)"> ND/EBITDA</label>
         <label><input type="checkbox" data-colkey="de" checked onchange="toggleColumn('de',this.checked)"> D/E</label>
         <label><input type="checkbox" data-colkey="cr" checked onchange="toggleColumn('cr',this.checked)"> Curr R</label>
-        <div class="col-grp-hdr">Consensus <span class="grp-btns"><button onclick="setGroup(['rating','analyst_rec','sentiment_score','social_score'],true)">All</button><button onclick="setGroup(['rating','analyst_rec','sentiment_score','social_score'],false)">None</button></span></div>
+        <div class="col-grp-hdr">Consensus <span class="grp-btns"><button onclick="setGroup(['rating','analyst_rec'],true)">All</button><button onclick="setGroup(['rating','analyst_rec'],false)">None</button></span></div>
         <label><input type="checkbox" data-colkey="rating" checked onchange="toggleColumn('rating',this.checked)"> Rating</label>
         <label><input type="checkbox" data-colkey="analyst_rec" checked onchange="toggleColumn('analyst_rec',this.checked)"> Analyst Rec</label>
-        <label><input type="checkbox" data-colkey="sentiment_score" checked onchange="toggleColumn('sentiment_score',this.checked)"> News Sentiment</label>
-        <label><input type="checkbox" data-colkey="social_score" checked onchange="toggleColumn('social_score',this.checked)"> Social Sentiment</label>
         <div class="col-grp-hdr">Projections <span class="grp-btns"><button onclick="setGroup(['dcf_bear','dcf_bull','p2yr','p5yr','p10yr'],true)">All</button><button onclick="setGroup(['dcf_bear','dcf_bull','p2yr','p5yr','p10yr'],false)">None</button></span></div>
         <label><input type="checkbox" data-colkey="dcf_bear" checked onchange="toggleColumn('dcf_bear',this.checked)"> DCF Bear</label>
         <label><input type="checkbox" data-colkey="dcf_bull" checked onchange="toggleColumn('dcf_bull',this.checked)"> DCF Bull</label>
@@ -687,25 +844,17 @@ def build_html(rows, filename):
         <th class="grp-val" data-col="price" onclick="sortCol('price')" title="Current market price per share at time of analysis, sourced from yfinance. Compare to DCF/Shr to determine whether the stock trades at a discount or premium to intrinsic value.">Price <span class="arrow"></span></th>
         <th class="grp-val" data-col="mos" onclick="sortCol('mos')" title="Margin of Safety = (DCF Fair Value - Price) / DCF Fair Value. &gt;15%: potential undervaluation — consider as a buy signal (green). &lt;0%: price exceeds DCF estimate — avoid initiating. 0-15%: fairly valued. Only initiate a position when MoS &gt;15% to protect against model error.">MoS% <span class="arrow"></span></th>
         <th class="grp-con" data-col="analyst_rec" onclick="sortCol('analyst_rec')" title="Wall Street consensus recommendation from all sell-side analysts covering the stock: Strong Buy, Buy, Hold, Sell, Strong Sell. Higher analyst count improves reliability. Use as a confirming signal alongside the model rating, not as a standalone trigger.">Analyst Rec <span class="arrow"></span></th>
-        <th class="grp-con" data-col="sentiment_score" onclick="sortCol('sentiment_score')" title="News sentiment score from VADER analysis of recent headlines via yfinance. Score = Sum(VADER compound scores) / n. Range: -1 (very negative) to +1 (very positive). |score| &gt;0.05 labels as Positive/Negative. Used as a real-time market mood indicator.">News Sentiment <span class="arrow"></span></th>
-        <th class="grp-con" data-col="social_score" onclick="sortCol('social_score')" title="Composite social media sentiment. Formula: Score = 0.6 x StockTwits (Bullish%-Bearish%) + 0.4 x Reddit VADER score. StockTwits uses crowdsourced Bullish/Bearish labels; Reddit aggregates r/stocks, r/wallstreetbets, r/investing. High retail interest can amplify short-term volatility.">Social Sentiment <span class="arrow"></span></th>
         <th class="grp-val" data-col="target_mean" onclick="sortCol('target_mean')" title="Analyst consensus mean 12-month price target from all covering analysts. Implied upside = (Target - Price) / Price. Higher analyst count improves reliability. Use in conjunction with DCF MoS% as a cross-check on fair value.">Target $ <span class="arrow"></span></th>
         <th class="grp-val" data-col="pe" onclick="sortCol('pe')" title="Price-to-Earnings = Market Price / Trailing 12-month EPS. Lower P/E relative to sector median may indicate cheapness. Compare to the company's own 5-year average P/E for context. Negative P/E means earnings are negative — exclude from peer comparisons.">P/E <span class="arrow"></span></th>
         <th class="grp-val" data-col="ev_ebitda" onclick="sortCol('ev_ebitda')" title="EV/EBITDA = Enterprise Value / EBITDA. EV = Market Cap + Total Debt - Cash. EBITDA = Earnings before Interest, Tax, Depreciation &amp; Amortization. Capital-structure-neutral — useful for comparing companies with different leverage. Benchmark: &lt;10x attractive for mature businesses; tech often trades &gt;20x.">EV/EBITDA <span class="arrow"></span></th>
         <th class="grp-val" data-col="pfcf" onclick="sortCol('pfcf')" title="Price-to-Free Cash Flow = Market Cap / FCF. FCF = Operating Cash Flow - Capital Expenditures. Often more reliable than P/E since FCF is harder to manipulate with accounting choices. Lower P/FCF means you pay less per dollar of real cash generated by the business.">P/FCF <span class="arrow"></span></th>
         <th class="grp-val" data-col="pb" onclick="sortCol('pb')" title="Price-to-Book = Market Price / Book Value Per Share. Book Value = Total Equity / Shares Outstanding. P/B &lt;1 may signal undervaluation or impaired assets. High-ROIC companies typically command a premium to book. Adjust interpretation using P/B / ROE ratio.">P/B <span class="arrow"></span></th>
-        <th class="grp-val" data-col="peg" onclick="sortCol('peg')" title="PEG Ratio = P/E / EPS Annual Growth Rate (%). Adjusts P/E for growth to avoid penalizing fast-growers. PEG &lt;1 often suggests undervaluation relative to growth; PEG &gt;2 may be expensive. Invalid (shown as N/A) when P/E or growth rate is negative.">PEG <span class="arrow"></span></th>
-        <th class="grp-risk" data-col="beta" onclick="sortCol('beta')" title="CAPM Beta = Cov(Rs, Rm) / Var(Rm). Estimated from 5-year monthly regression vs S&amp;P 500. Beta=1: moves with market. Beta&gt;1: amplifies market swings. Beta&lt;1: more defensive. Treat as unreliable if R-squared &lt;40% — use alternative cost-of-equity in that case.">Beta <span class="arrow"></span></th>
-        <th class="grp-risk" data-col="r2" onclick="sortCol('r2')" title="R-squared from 5-year monthly CAPM regression. Formula: R2 = [Corr(Rs, Rm)]^2. Fraction of return variance explained by market movements. Interpretation: &gt;=60% = beta is reliable; 40-60% = directional only; &lt;40% = beta unreliable, use GGM or Build-Up cost of equity instead.">R&sup2; <span class="arrow"></span></th>
-        <th class="grp-risk" data-col="alpha" onclick="sortCol('alpha')" title="Jensen's Alpha = Annualized actual return - CAPM expected return. Formula: Alpha = Rs - [Rf + Beta x (Rm - Rf)]. Positive alpha = stock outperformed its level of systematic risk. Rf=4.0% (10-yr Treasury), ERP=5.5% (Damodaran). Only meaningful when R-squared &gt;=40%.">Alpha <span class="arrow"></span></th>
-        <th class="grp-risk" data-col="er" onclick="sortCol('er')" title="CAPM Expected Return = Rf + Beta x (Rm - Rf). With Rf=4.0% (10-yr Treasury proxy) and ERP=5.5% (Damodaran equity risk premium). This is the theoretically required return to compensate for systematic market risk. Compare to ROIC: if ROIC &gt; Exp Ret, the company earns above its cost of capital.">Exp Ret <span class="arrow"></span></th>
         <th class="grp-prof" data-col="roe" onclick="sortCol('roe')" title="Return on Equity = Net Income / Average Shareholders Equity. Measures return earned for equity holders. High ROE with low D/E indicates genuine profitability; high ROE driven by high leverage may be misleading. Target &gt;15% for a quality business. Compare alongside ROA to assess leverage impact.">ROE <span class="arrow"></span></th>
         <th class="grp-prof" data-col="roa" onclick="sortCol('roa')" title="Return on Assets = Net Income / Average Total Assets. Asset efficiency unaffected by capital structure — comparable across companies with different leverage. Target &gt;10% for a capital-light, high-quality business. Always compare within the same industry.">ROA <span class="arrow"></span></th>
         <th class="grp-prof" data-col="cash_conv" onclick="sortCol('cash_conv')" title="Cash Conversion = Operating Cash Flow / Net Income. &gt;1.0 means every reported dollar of earnings is backed by real cash — high earnings quality. &lt;0.8 suggests heavy accruals or non-recurring items inflating reported net income. Look for sustained CashConv &gt;0.8 as a quality signal.">CashConv <span class="arrow"></span></th>
         <th class="grp-prof" data-col="accruals" onclick="sortCol('accruals')" title="Accruals Ratio = (Net Income - Operating Cash Flow) / Average Total Assets. Based on Sloan (1996): high accruals predict subsequent earnings reversals. Lower (more negative) = higher quality earnings. Target &lt;0.05; values &gt;0.10 warrant investigation into revenue recognition or expense deferrals.">Accruals <span class="arrow"></span></th>
         <th class="grp-prof" data-col="rev_cagr" onclick="sortCol('rev_cagr')" title="5-Year Revenue CAGR = (Revenue_now / Revenue_5yr_ago)^(1/5) - 1. Measures organic top-line growth trajectory. Target &gt;7-10% for sustained demand growth. Combine with margin trends: growing revenue with shrinking margins signals price competition or cost pressure.">Rev CAGR <span class="arrow"></span></th>
         <th class="grp-hlth" data-col="piotroski" onclick="sortCol('piotroski')" title="Piotroski F-Score (0-9). Sum of 9 binary signals (0 or 1 each): Profitability — ROA&gt;0, delta-ROA&gt;0, OCF&gt;0, Accruals&lt;0; Leverage — delta-Leverage&lt;0, delta-Liquidity&gt;0, No new shares; Efficiency — delta-Gross Margin&gt;0, delta-Asset Turnover&gt;0. Score 7-9: strong (green). Score 0-3: weak (red). Score 4-6: neutral.">F-Score <span class="arrow"></span></th>
-        <th class="grp-hlth" data-col="altman_z" onclick="sortCol('altman_z')" title="Altman Z-Score = 1.2xX1 + 1.4xX2 + 3.3xX3 + 0.6xX4 + 1.0xX5. X1=Working Capital/Assets, X2=Retained Earnings/Assets, X3=EBIT/Assets, X4=Mkt Cap/Total Liabilities, X5=Revenue/Assets. &gt;2.99: Safe zone. 1.81-2.99: Grey zone. &lt;1.81: Distress zone. Developed for manufacturing; adjust interpretation for asset-light companies.">Altman Z <span class="arrow"></span></th>
         <th class="grp-hlth" data-col="int_cov" onclick="sortCol('int_cov')" title="Interest Coverage = EBIT / Interest Expense. Measures how many times operating earnings cover debt servicing obligations. &gt;3x: comfortable. 1.5-3x: watch closely. &lt;1.5x: potential financial distress. Negative EBIT makes the ratio meaningless — flag separately.">Int Cov <span class="arrow"></span></th>
         <th class="grp-hlth" data-col="nd_ebitda" onclick="sortCol('nd_ebitda')" title="Net Debt / EBITDA = (Total Debt - Cash) / EBITDA. How many years of earnings needed to repay all net debt. &lt;2x: conservative leverage. 2-3x: moderate. &gt;4x: high leverage, watch for covenant risk. Negative value = net cash position (fortress balance sheet).">ND/EBITDA <span class="arrow"></span></th>
         <th class="grp-hlth" data-col="de" onclick="sortCol('de')" title="Debt-to-Equity = Total Debt / Total Shareholders Equity. Measures financial leverage. Higher D/E = more debt in the capital structure = higher financial risk. Capital-intensive industries (utilities, airlines, banks) naturally carry higher D/E. &lt;1x is generally conservative for most sectors.">D/E <span class="arrow"></span></th>
@@ -740,10 +889,9 @@ def build_html(rows, filename):
     <div class="detail-description" id="detail-description"></div>
     <div class="detail-grid">
       <div class="detail-section"><h3>Valuation</h3><div class="detail-kv-grid" id="detail-val-kvs"></div></div>
-      <div class="detail-section"><h3>Risk (CAPM)</h3><div class="detail-kv-grid" id="detail-risk-kvs"></div></div>
       <div class="detail-section"><h3>Quality &amp; Profitability</h3><div class="detail-kv-grid" id="detail-quality-kvs"></div></div>
       <div class="detail-section"><h3>Financial Health</h3><div class="detail-kv-grid" id="detail-health-kvs"></div></div>
-      <div class="detail-section" style="grid-column:1/-1"><h3>Analyst &amp; Sentiment</h3><div class="detail-kv-grid" id="detail-sentiment-kvs"></div></div>
+      <div class="detail-section" style="grid-column:1/-1"><h3>Analyst Consensus</h3><div class="detail-kv-grid" id="detail-analyst-kvs"></div></div>
     </div>
     <div class="detail-charts">
       <div class="detail-chart-box"><div id="detail-chart-roic"></div></div>
@@ -1236,9 +1384,10 @@ function renderCharts(tab) {{
        barmode: 'group', xaxis: {{title:'',tickangle:-30}}, yaxis: {{title:'Cumulative Revenue Growth (%)'}},
        legend: {{x:0.01,y:0.99}} }}), _cfg);
   }}
+}}
 
 // --- Tab switcher ---
-const GROUPS = ['ovr','val','risk','prof','hlth','con','proj'];
+const GROUPS = ['ovr','val','prof','hlth','con','proj'];
 function showTab(tab) {{
   // Reset all grouped elements first
   GROUPS.forEach(g => {{
@@ -1251,11 +1400,9 @@ function showTab(tab) {{
   }});
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelector('[data-tab="' + tab + '"]').classList.add('active');
-  renderCharts(tab);
   const _tabMeta = {{
     ovr:  ['Overview',          'Capital efficiency screening — ROIC vs WACC spread, DCF vs price, top-spread ranking, and model vs analyst rating breakdown.',  '#1a252f'],
     val:  ['Valuation',         'Valuation multiples — DCF fair value vs price, margin of safety distribution, P/E, and analyst consensus.',                       '#1a3a5c'],
-    risk: ['Risk',              'CAPM risk metrics — Beta vs R², beta and R² distributions, and regression reliability tiers.',                                    '#2c1a5c'],
     prof: ['Profitability',     'Earnings quality — ROE vs ROA scatter, cash conversion ratio, Sloan accruals, and 5-year revenue CAGR.',                          '#1a4a2c'],
     hlth: ['Financial Health',  'Balance-sheet strength — Piotroski F-score, Altman Z-score zones, interest coverage, and net debt/EBITDA.',                       '#3a2a10'],
     con:  ['Consensus',         'Market sentiment — model rating distribution, model vs analyst comparison, and news/social VADER sentiment scores.',               '#4a1a2a'],
@@ -1399,22 +1546,8 @@ function openDetail(d) {{
     ['EV/EBITDA', _fmtNum(d.ev_ebitda, 1)],
     ['P/FCF', _fmtNum(d.pfcf, 1)],
     ['P/B', _fmtNum(d.pb, 2)],
-    ['PEG', _fmtNum(d.peg, 2)],
     ['Analyst Target (Mean)', _fmtDollar(d.target_mean)],
     ['Analyst Target Range', d.target_low != null ? _fmtDollar(d.target_low) + ' \u2013 ' + _fmtDollar(d.target_high) : 'N/A']
-  ]);
-
-  // Risk
-  _buildKV('detail-risk-kvs', [
-    ['Adj. Beta', _fmtNum(d.beta, 2)],
-    ['Raw Beta', _fmtNum(d.raw_beta, 2)],
-    ['R-squared', _fmtPct(d.r2)],
-    ['Jensen Alpha', _fmtPct(d.alpha)],
-    ['Residual Sigma', _fmtPct(d.residual_sigma)],
-    ['SE(Beta)', _fmtNum(d.se_beta, 3)],
-    ['Observations', d.n_observations != null ? d.n_observations.toString() : 'N/A'],
-    ['Expected Return', _fmtPct(d.er)],
-    ['Cost-of-Equity Method', d.re_method || 'N/A']
   ]);
 
   // Quality
@@ -1432,28 +1565,20 @@ function openDetail(d) {{
   ]);
 
   // Health
-  var azStyle = d.altman_z != null ? (d.altman_z > 2.99 ? 'color:#1a9850;font-weight:700' : (d.altman_z < 1.81 ? 'color:#de2d26;font-weight:700' : 'color:#fd8d3c')) : '';
   _buildKV('detail-health-kvs', [
-    ['Altman Z-Score', _fmtNum(d.altman_z, 2), azStyle],
     ['Interest Coverage', _fmtNum(d.int_cov, 1)],
     ['Net Debt / EBITDA', _fmtNum(d.nd_ebitda, 2)],
     ['Debt / Equity', _fmtNum(d.de, 2)],
     ['Current Ratio', _fmtNum(d.cr, 2)]
   ]);
 
-  // Sentiment
-  var sentStyle = d.sentiment_label === 'Positive' ? 'color:#1a9850;font-weight:600' : (d.sentiment_label === 'Negative' ? 'color:#de2d26;font-weight:600' : '');
+  // Analyst
   var recLabels = {{strong_buy:'Strong Buy',buy:'Buy',hold:'Hold',sell:'Sell',strong_sell:'Strong Sell'}};
   var recLabel = recLabels[d.analyst_rec] || d.analyst_rec || 'N/A';
-  _buildKV('detail-sentiment-kvs', [
+  _buildKV('detail-analyst-kvs', [
     ['Analyst Consensus', recLabel + (d.num_analysts ? ' (' + d.num_analysts + ' analysts)' : '')],
-    ['News Sentiment', (d.sentiment_label || 'N/A') + (d.sentiment_score != null ? ' (' + d.sentiment_score.toFixed(2) + ')' : ''), sentStyle],
-    ['News Articles', d.sentiment_articles != null ? d.sentiment_articles.toString() : 'N/A'],
-    ['News Bullish %', d.sentiment_bull != null ? (d.sentiment_bull * 100).toFixed(0) + '%' : 'N/A'],
-    ['News Bearish %', d.sentiment_bear != null ? (d.sentiment_bear * 100).toFixed(0) + '%' : 'N/A'],
-    ['Social Score', d.social_score != null ? d.social_score.toFixed(2) : 'N/A'],
-    ['StockTwits Bull/Bear', d.st_bull_pct != null ? (d.st_bull_pct*100).toFixed(0)+'%/'+(d.st_bear_pct*100).toFixed(0)+'% ('+d.st_labeled+')' : 'N/A'],
-    ['Reddit Score', d.reddit_score != null ? d.reddit_score.toFixed(2) + ' (' + (d.reddit_posts||0) + ' posts)' : 'N/A']
+    ['Target Mean', _fmtDollar(d.target_mean)],
+    ['Target Range', d.target_low != null ? _fmtDollar(d.target_low) + ' \u2013 ' + _fmtDollar(d.target_high) : 'N/A']
   ]);
 
   // Charts
@@ -1537,9 +1662,6 @@ if __name__ == "__main__":
     sec_client = SECEdgarClient("your_email@example.com")
     yf_client = YFinanceClient()
 
-    print("Fetching market history for CAPM benchmark...")
-    market_history = yf_client.fetch_history(MARKET_TICKER, period="5y")
-
     # -----------------------------------------------------------------------
     # Phase 1: Screen — ROIC > WACC + market cap filter (Worksheet Steps 1, 4)
     # -----------------------------------------------------------------------
@@ -1558,13 +1680,17 @@ if __name__ == "__main__":
                 print(f"  [{i}/{len(all_tickers)}] {ticker} - mcap ${mcap/1e9:.1f}B < $10B skip")
                 continue
 
+            sector = info.get('sector', '')
+            if sector == 'Financial Services':
+                print(f"  [{i}/{len(all_tickers)}] {ticker} - Financial Services skip")
+                continue
+
             roic_data = calculate_roic(yf_data)
             if not roic_data:
                 print(f"  [{i}/{len(all_tickers)}] {ticker} - ROIC N/A skip")
                 continue
 
-            capm_data = run_capm(yf_client, ticker, market_history)
-            cost_of_equity, re_method = select_cost_of_equity(capm_data, yf_data)
+            cost_of_equity, re_method = select_cost_of_equity(yf_data)
             wacc = calculate_wacc(yf_data, cost_of_equity)
 
             if wacc is None:
@@ -1576,7 +1702,7 @@ if __name__ == "__main__":
                 qualifying.append(ticker)
                 screen_cache[ticker] = {
                     'roic_data': roic_data, 'wacc': wacc,
-                    'capm_data': capm_data, 'cost_of_equity': cost_of_equity,
+                    'cost_of_equity': cost_of_equity,
                     're_method': re_method, 'yf_data': yf_data,
                 }
                 print(f"  [{i}/{len(all_tickers)}] {ticker} - ROIC {roic_data['avg_roic']:.1%} "
@@ -1598,7 +1724,6 @@ if __name__ == "__main__":
         try:
             cached = screen_cache[ticker]
             yf_data = cached['yf_data']
-            capm_data = cached['capm_data']
             wacc = cached['wacc']
             roic_data = cached['roic_data']
             cost_of_equity = cached['cost_of_equity']
@@ -1644,17 +1769,6 @@ if __name__ == "__main__":
             # Analyst consensus (Worksheet Step 8)
             analyst = compute_analyst_consensus(yf_data)
 
-            # Consumer sentiment (news headlines via VADER)
-            sentiment = fetch_sentiment(ticker)
-
-            # Social media sentiment (StockTwits + Reddit)
-            social = fetch_social_sentiment(ticker)
-
-            # Step 4: Risk decomposition
-            beta = capm_data['beta'] if capm_data else None
-            r2 = capm_data['r2'] if capm_data else None
-            alpha = capm_data['alpha'] if capm_data else None
-
             # Step 5A: Forward DCF
             dcf_fv, dcf_sens_range, fcf_growth = run_forward_dcf(yf_data, wacc)
             mos = (dcf_fv - current_price) / dcf_fv if (dcf_fv and current_price and dcf_fv > 0) else None
@@ -1662,8 +1776,7 @@ if __name__ == "__main__":
             # Step 3A/3B: Earnings quality
             eq = calculate_earnings_quality(yf_data)
 
-            # Step 3B: Altman Z, Piotroski F
-            altman_z = calculate_altman_z(yf_data)
+            # Step 3B: Piotroski F
             piotroski = calculate_piotroski_f(yf_data)
 
             # Revenue CAGR
@@ -1690,14 +1803,6 @@ if __name__ == "__main__":
                 'wacc': wacc,
                 'spread': roic_data['avg_roic'] - wacc,
                 'mcap': multiples.get('market_cap'),
-                # Risk (Step 4)
-                'beta': beta,
-                'raw_beta': capm_data.get('raw_beta') if capm_data else None,
-                'r2': r2,
-                'alpha': alpha,
-                'residual_sigma': capm_data.get('residual_sigma') if capm_data else None,
-                'se_beta': capm_data.get('se_beta') if capm_data else None,
-                'n_observations': capm_data.get('n_observations') if capm_data else None,
                 'er': cost_of_equity,
                 're_method': cached['re_method'],
                 # Valuation (Step 5)
@@ -1711,30 +1816,14 @@ if __name__ == "__main__":
                 'ev_ebitda': multiples.get('ev_ebitda'),
                 'pfcf': multiples.get('pfcf'),
                 'pb': multiples.get('pb'),
-                'peg': multiples.get('peg'),
                 # Analyst consensus (Step 8)
                 'analyst_rec': analyst.get('rec_key'),
                 'num_analysts': analyst.get('num_analysts'),
                 'target_mean': analyst.get('target_mean'),
                 'target_high': analyst.get('target_high'),
                 'target_low': analyst.get('target_low'),
-                # Consumer sentiment (VADER on news headlines)
-                'sentiment_score': sentiment.get('score'),
-                'sentiment_label': sentiment.get('label'),
-                'sentiment_articles': sentiment.get('article_count'),
-                'sentiment_bull': sentiment.get('bullish_pct'),
-                'sentiment_bear': sentiment.get('bearish_pct'),
-                # Social media sentiment (StockTwits + Reddit)
-                'social_score': social.get('social_score'),
-                'social_label': social.get('social_label'),
-                'st_bull_pct': social.get('st_bull_pct'),
-                'st_bear_pct': social.get('st_bear_pct'),
-                'st_labeled': social.get('st_labeled'),
-                'reddit_score': social.get('reddit_score'),
-                'reddit_posts': social.get('reddit_posts'),
                 # Quality (Step 3B)
                 'piotroski': piotroski,
-                'altman_z': altman_z,
                 'cash_conv': eq.get('cash_conversion'),
                 'accruals': eq.get('accruals_ratio'),
                 'rev_cagr': rev_cagr,
@@ -1758,4 +1847,8 @@ if __name__ == "__main__":
     os.makedirs("output", exist_ok=True)
     html_filename = os.path.join("output", "stock_analysis_results.html")
     build_html(results, html_filename)
-    print(f"\nAnalysis complete. {len(results)} stocks. Results saved to {html_filename}")
+    xlsx_filename = os.path.join("output", "stock_analysis_results.xlsx")
+    build_excel(results, xlsx_filename)
+    print(f"\nAnalysis complete. {len(results)} stocks.")
+    print(f"  HTML: {html_filename}")
+    print(f"  Excel: {xlsx_filename}")

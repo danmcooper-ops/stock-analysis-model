@@ -457,12 +457,6 @@ def compute_rating(row):
         if pf >= 7:   score += 2
         elif pf <= 3: score -= 2
 
-    # Altman Z (Step 3C)
-    az = row.get('altman_z')
-    if az is not None:
-        if az > 2.99:   score += 1
-        elif az < 1.81: score -= 2
-
     # Earnings quality: cash conversion (Step 3B)
     cc = row.get('cash_conv')
     if cc is not None:

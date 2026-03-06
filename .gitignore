@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Output files
+output/
+
+# Claude Code
+.claude/
+
+# SEC filings data
+sec-edgar-filings/
+
+# OS
+.DS_Store
