@@ -37,29 +37,12 @@ class YFinanceClient:
                 'balance_sheet': stock.balance_sheet,
                 'income_statement': stock.financials,
                 'cash_flow': stock.cashflow,
+                'info': stock.info,
             }
 
         financials = self._retry(_fetch)
         self._financials_cache[ticker] = financials
         return financials
-
-    def fetch_shares_outstanding(self, ticker):
-        stock = yf.Ticker(ticker)
-
-        def _fetch():
-            info = stock.info
-            return info.get('sharesOutstanding') or info.get('impliedSharesOutstanding')
-
-        return self._retry(_fetch)
-
-    def fetch_market_price(self, ticker):
-        stock = yf.Ticker(ticker)
-
-        def _fetch():
-            info = stock.info
-            return info.get('currentPrice') or info.get('regularMarketPrice')
-
-        return self._retry(_fetch)
 
     def fetch_history(self, ticker, period="5y"):
         cache_key = (ticker, period)

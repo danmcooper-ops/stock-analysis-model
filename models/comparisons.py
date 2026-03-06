@@ -345,7 +345,9 @@ def compute_relative_multiples(financials):
         'enterprise_value': info.get('enterpriseValue'),
         'shares': info.get('sharesOutstanding'),
         'price': info.get('currentPrice') or info.get('regularMarketPrice'),
-        'div_yield': info.get('dividendYield'),
+        'div_yield': (info.get('dividendRate') / (info.get('currentPrice') or info.get('regularMarketPrice')))
+                     if (info.get('dividendRate') and (info.get('currentPrice') or info.get('regularMarketPrice')))
+                     else None,
         'payout_ratio': info.get('payoutRatio'),
         'eps': info.get('trailingEps'),
     }

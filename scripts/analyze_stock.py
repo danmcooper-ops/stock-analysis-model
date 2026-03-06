@@ -107,7 +107,10 @@ def select_cost_of_equity(capm_data, financials):
     Returns (cost_of_equity, method_label).
     """
     info = (financials.get('info') or {}) if financials else {}
-    div_yield = info.get('dividendYield')
+    # Compute dividend yield from rate/price (yfinance dividendYield is unreliable format)
+    div_rate = info.get('dividendRate')
+    price = info.get('currentPrice') or info.get('regularMarketPrice')
+    div_yield = (div_rate / price) if (div_rate and price and price > 0) else None
 
     # Fallback alternative: GGM-implied or Build-Up
     alt_re = None
