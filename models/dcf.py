@@ -47,6 +47,47 @@ def calculate_terminal_value(final_fcf, discount_rate, terminal_growth_rate, min
     }
 
 
+def dcf_sensitivity(historical_fcfs, base_discount_rate, terminal_growth_rate,
+                    projection_years=5, dr_spread=0.02, gr_spread=0.02):
+    base_proj = project_fcf(historical_fcfs, projection_years=projection_years)
+    if base_proj is None:
+        return None
+
+    base_gr = base_proj['growth_rate']
+    growth_rates = [base_gr - gr_spread, base_gr, base_gr + gr_spread]
+    discount_rates = [base_discount_rate - dr_spread, base_discount_rate, base_discount_rate + dr_spread]
+
+    # Clamp growth rates to valid bounds
+    growth_rates = [max(-0.20, min(0.30, g)) for g in growth_rates]
+    discount_rates = [d for d in discount_rates if d > 0]
+    if not discount_rates:
+        return None
+
+    matrix = {}
+    for dr in discount_rates:
+        for gr in growth_rates:
+            proj = project_fcf(historical_fcfs, projection_years=projection_years, growth_rate=gr)
+            if proj is None:
+                continue
+            tv = calculate_terminal_value(proj['projected_fcfs'][-1], dr, terminal_growth_rate)
+            ev = calculate_dcf(proj['projected_fcfs'], dr, tv['terminal_value'])
+            if ev is not None:
+                matrix[(dr, gr)] = ev
+
+    if not matrix:
+        return None
+
+    values = list(matrix.values())
+    return {
+        'matrix': matrix,
+        'low': min(values),
+        'base': matrix.get((base_discount_rate, base_gr)),
+        'high': max(values),
+        'discount_rates': sorted(set(dr for dr, _ in matrix)),
+        'growth_rates': sorted(set(gr for _, gr in matrix)),
+    }
+
+
 def calculate_dcf(free_cash_flows, discount_rate, terminal_value, periods=None):
     if discount_rate <= 0:
         return None
