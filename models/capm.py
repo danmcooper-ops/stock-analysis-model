@@ -23,27 +23,6 @@ def calculate_beta(stock_returns, market_returns, adjust=True):
     }
 
 
-def calculate_r2(stock_returns, market_returns):
-    """R² from regression of stock returns on market returns."""
-    corr = np.corrcoef(stock_returns, market_returns)[0, 1]
-    return corr ** 2
-
-
-def calculate_alpha(stock_returns, market_returns):
-    """Annualized regression alpha (Jensen's alpha proxy): intercept * 252."""
-    beta = calculate_beta(stock_returns, market_returns, adjust=False)['raw_beta']
-    daily_alpha = np.mean(stock_returns) - beta * np.mean(market_returns)
-    return daily_alpha * 252
-
-
-def calculate_residual_sigma(stock_returns, market_returns):
-    """Annualized residual standard deviation from OLS regression."""
-    beta = calculate_beta(stock_returns, market_returns, adjust=False)['raw_beta']
-    alpha_daily = np.mean(stock_returns) - beta * np.mean(market_returns)
-    residuals = stock_returns - (alpha_daily + beta * market_returns)
-    return np.std(residuals) * np.sqrt(252)
-
-
 def r2_diagnostic(r2):
     """
     Worksheet Step 4A gate: determines cost-of-equity method based on R².
@@ -58,16 +37,6 @@ def r2_diagnostic(r2):
         return 'directional', 'capm_plus_alternative'
     else:
         return 'unreliable', 'fundamental_only'
-
-
-def geometric_annualized_return(daily_returns, trading_days=252):
-    if len(daily_returns) == 0:
-        return None
-    cum = np.prod(1 + daily_returns) - 1
-    years = len(daily_returns) / trading_days
-    if years <= 0 or cum <= -1:
-        return None
-    return (1 + cum) ** (1 / years) - 1
 
 
 def expected_return(risk_free_rate, beta, market_return):

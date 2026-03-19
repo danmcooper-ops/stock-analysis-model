@@ -13,5 +13,8 @@ output/
 # SEC filings data
 sec-edgar-filings/
 
+# Financial data cache
+data/cache/
+
 # OS
 .DS_Store
