@@ -122,7 +122,7 @@ class TestContinuousScoring:
         r = rows[0]
         assert '_score_mos' in r
         assert '_score_piotroski' in r
-        assert '_score_cash_conv' in r
+        assert '_score_accruals' in r
 
     def test_higher_quality_gives_higher_score(self):
         """Better metrics → higher composite score."""

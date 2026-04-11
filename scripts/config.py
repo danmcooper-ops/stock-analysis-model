@@ -46,7 +46,7 @@ EXIT_MULT_MIN = 5.0                     # Floor on exit multiple
 EXIT_MULT_MAX = 30.0                    # Cap on exit multiple
 
 # Monte Carlo simulation
-MC_ITERATIONS = 1000
+MC_ITERATIONS = 250  # 250 iterations converges to within ~1-2% of 1000; saves ~2 min/run
 MC_GROWTH_SIGMA_RATIO = 0.30    # Growth sigma = 30% of point estimate
 MC_WACC_SIGMA = 0.01            # WACC sigma = 1 percentage point
 MC_TERMINAL_GROWTH_SIGMA = 0.005 # Terminal growth sigma = 0.5pp

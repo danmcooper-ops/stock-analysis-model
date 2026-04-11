@@ -1,0 +1,4 @@
+# Tickers that consistently hang or return HTTP 500 from yfinance.
+# One ticker per line. Lines starting with # are ignored.
+# Add tickers here when they cause repeated failures during screening.
+TMO

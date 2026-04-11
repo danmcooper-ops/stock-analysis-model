@@ -149,10 +149,11 @@ class TestValidateParams:
         """A valid non-default set should pass validation."""
         p = merge_params({
             'erp': 0.06,
-            'score_weight_valuation': 0.35,
-            'score_weight_quality': 0.25,
+            'score_weight_valuation': 0.30,
+            'score_weight_quality': 0.20,
             'score_weight_moat': 0.20,
             'score_weight_growth': 0.20,
+            'score_weight_ownership': 0.10,
             'blend_dcf_weight': 0.55,
             'blend_mult_weight': 0.45,
         })

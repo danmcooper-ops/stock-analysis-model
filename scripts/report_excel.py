@@ -32,6 +32,7 @@ def build_excel(rows, filename):
         r['_float_m'] = r['float_shares'] / 1e6 if r.get('float_shares') else None
         r['_short_m'] = r['shares_short'] / 1e6 if r.get('shares_short') else None
         r['_fcf_m'] = r['fcf'] / 1e6 if r.get('fcf') else None
+        r['_insider_net_value_m'] = r['insider_net_value'] / 1e6 if r.get('insider_net_value') else None
         r['_founder_led'] = 'Yes' if r.get('founder_led') else 'No'
         p, fv = r.get('price'), r.get('dcf_fv')
         r['_price_fv'] = p / fv if p and fv else None
@@ -134,18 +135,29 @@ def build_excel(rows, filename):
             ('# Analysts',       'num_analysts',      '0'),
         ]),
         ('Ownership', [
-            ('Ticker',            'ticker',           '@'),
-            ('Rating',            'rating',           '@'),
-            ('Gates Passed',      '_gates_passed',    '@'),
-            ('Sector',            'sector',           '@'),
-            ('Mkt Cap ($B)',      '_mcap_b',          '#,##0.0'),
-            ('Shares Out (M)',    '_shares_out_m',    '#,##0.0'),
-            ('Float (M)',         '_float_m',         '#,##0.0'),
-            ('Insider %',         'insider_pct',      '0.00%'),
-            ('Institutional %',   'inst_pct',         '0.00%'),
-            ('Shares Short (M)',  '_short_m',         '#,##0.0'),
-            ('Short Ratio',       'short_ratio',      '0.00'),
-            ('Short % Float',     'short_pct_float',  '0.00%'),
+            ('Ticker',            'ticker',                  '@'),
+            ('Rating',            'rating',                  '@'),
+            ('Gates Passed',      '_gates_passed',           '@'),
+            ('Sector',            'sector',                  '@'),
+            ('Mkt Cap ($B)',      '_mcap_b',                 '#,##0.0'),
+            ('Shares Out (M)',    '_shares_out_m',           '#,##0.0'),
+            ('Float (M)',         '_float_m',                '#,##0.0'),
+            ('Insider %',         'insider_pct',             '0.00%'),
+            ('Institutional %',   'inst_pct',                '0.00%'),
+            ('Shares Short (M)',  '_short_m',                '#,##0.0'),
+            ('Short Ratio',       'short_ratio',             '0.00'),
+            ('Short % Float',     'short_pct_float',         '0.00%'),
+            ('Share Turnover',    'share_turnover_rate',     '0.00%'),
+            ('Buyback Rate',      'share_buyback_rate',      '0.00%'),
+            ('Shrhldr Yield',     'shareholder_yield',       '0.00%'),
+            ('Div Yield',         'div_yield',               '0.00%'),
+            ('Payout Ratio',      'payout_ratio',            '0.0%'),
+            ('Ins Buy Ratio',     'insider_buy_ratio',       '0%'),
+            ('Ins Buys 90d',      'insider_buy_count_90d',   '0'),
+            ('Ins Sells 90d',     'insider_sell_count_90d',  '0'),
+            ('Ins Buys 1y',       'insider_buy_count_365d',  '0'),
+            ('Ins Sells 1y',      'insider_sell_count_365d', '0'),
+            ('Net Ins Val ($M)',  '_insider_net_value_m',    '#,##0.0'),
         ]),
         ('Company', [
             ('Ticker',       'ticker',        None),
@@ -165,40 +177,52 @@ def build_excel(rows, filename):
             ('Composite',       '_composite_score', '0"%"'),
             ('Gates Passed',    '_gates_passed',    '@'),
             ('Sector',          'sector',           '@'),
-            # --- Valuation (30%) ---
+            # --- Valuation (15%) ---
             ('MoS',             '_gate_mos',        '0.0%'),
             ('MoS Score',       '_score_mos',       '0"%"'),
             ('Price/FV',        '_gate_price_fv',   '0.00'),
             ('P/FV Score',      '_score_price_fv',  '0"%"'),
             ('EPV P/FV',        '_gate_epv_p_fv',   '0.00'),
             ('EPV P/FV Score',  '_score_epv_p_fv',  '0"%"'),
-            ('Val Total',       '_score_valuation',  '0"%"'),
-            # --- Quality (25%) ---
+            ('Val Total',       '_score_valuation', '0"%"'),
+            # --- Quality (10%) ---
             ('Piotroski',       '_gate_piotroski',  '0'),
             ('Piotroski Score', '_score_piotroski', '0"%"'),
             ('Int Cov',         '_gate_int_coverage', '0.00'),
             ('Int Cov Score',   '_score_int_coverage', '0"%"'),
             ('Accruals',        '_gate_accruals',   '0.0%'),
             ('Accruals Score',  '_score_accruals',  '0"%"'),
-            ('Shrhldr Yld',     '_gate_shrhldr_yield', '0.0%'),
-            ('Shrhldr Score',   '_score_shrhldr_yield', '0"%"'),
-            ('Qual Total',      '_score_quality',    '0"%"'),
-            # --- Moat (25%) ---
+            ('Qual Total',      '_score_quality',   '0"%"'),
+            # --- Moat (35%) ---
             ('ROIC CV',         '_gate_roic_consistency', '0.0%'),
             ('ROIC CV Score',   '_score_roic_consistency', '0"%"'),
             ('Spread > 5%',     '_gate_spread_>_5%', '0.0%'),
             ('Spread Score',    '_score_spread',    '0"%"'),
             ('Gross Margin',    '_gate_gross_margin', '0.0%'),
             ('Gross Mgn Score', '_score_gross_margin', '0"%"'),
-            ('Moat Total',      '_score_moat',       '0"%"'),
-            # --- Growth (20%) ---
+            ('Moat Total',      '_score_moat',      '0"%"'),
+            # --- Growth (30%) ---
             ('Fund Growth',     '_gate_fund_growth', '0.0%'),
             ('FG Score',        '_score_fund_growth', '0"%"'),
-            ('Margins',         '_gate_margins',     '0.0%'),
+            ('Margins',         '_gate_margins',    '0.0%'),
             ('Margins Score',   '_score_margins',   '0"%"'),
-            ('Surprise',        '_gate_surprise',    '0.0%'),
+            ('Surprise',        '_gate_surprise',   '0.0%'),
             ('Surprise Score',  '_score_surprise',  '0"%"'),
-            ('Growth Total',    '_score_growth',     '0"%"'),
+            ('Profit Pool',     '_gate_profit_pool', '0.00'),
+            ('PP Score',        '_score_profit_pool', '0"%"'),
+            ('Growth Total',    '_score_growth',    '0"%"'),
+            # --- Ownership (10%) ---
+            ('Shrhldr Yld',     '_gate_shrhldr_yield',  '0.0%'),
+            ('Shrhldr Score',   '_score_shrhldr_yield', '0"%"'),
+            ('Insider %',       '_gate_insider_own',    '0.0%'),
+            ('Ins Own Score',   '_score_insider_own',   '0"%"'),
+            ('Turnover',        '_gate_turnover',       '0.0%'),
+            ('Turn Score',      '_score_turnover',      '0"%"'),
+            ('Buyback',         '_gate_buyback_rate',   '0.0%'),
+            ('Buyback Score',   '_score_buyback_rate',  '0"%"'),
+            ('Ins Buying',      '_gate_insider_buying', '0%'),
+            ('Ins Buy Score',   '_score_insider_buying', '0"%"'),
+            ('Own Total',       '_score_ownership',     '0"%"'),
         ]),
     ])
 
@@ -241,6 +265,11 @@ def build_excel(rows, filename):
             '_mcap_b': 15, '_shares_out_m': 16, '_float_m': 13,
             'insider_pct': 14, 'inst_pct': 17, '_short_m': 18,
             'short_ratio': 13, 'short_pct_float': 15,
+            'share_turnover_rate': 15, 'share_buyback_rate': 14,
+            'shareholder_yield': 14, 'div_yield': 11, 'payout_ratio': 14,
+            'insider_buy_ratio': 14, 'insider_buy_count_90d': 14,
+            'insider_sell_count_90d': 15, 'insider_buy_count_365d': 13,
+            'insider_sell_count_365d': 14, '_insider_net_value_m': 16,
         },
         'Company': {
             'ticker': 8, '_gates_passed': 14, 'ceo_bio': 40,
@@ -257,7 +286,6 @@ def build_excel(rows, filename):
             '_gate_piotroski': 11, '_score_piotroski': 14,
             '_gate_int_coverage': 11, '_score_int_coverage': 14,
             '_gate_accruals': 10, '_score_accruals': 13,
-            '_gate_shrhldr_yield': 12, '_score_shrhldr_yield': 14,
             '_score_quality': 10,
             '_gate_roic_consistency': 13, '_score_roic_consistency': 14,
             '_gate_spread_>_5%': 12, '_score_spread': 12,
@@ -266,7 +294,14 @@ def build_excel(rows, filename):
             '_gate_fund_growth': 12, '_score_fund_growth': 10,
             '_gate_margins': 10, '_score_margins': 13,
             '_gate_surprise': 10, '_score_surprise': 13,
+            '_gate_profit_pool': 12, '_score_profit_pool': 10,
             '_score_growth': 12,
+            '_gate_shrhldr_yield': 12, '_score_shrhldr_yield': 14,
+            '_gate_insider_own': 11, '_score_insider_own': 13,
+            '_gate_turnover': 11, '_score_turnover': 12,
+            '_gate_buyback_rate': 11, '_score_buyback_rate': 14,
+            '_gate_insider_buying': 12, '_score_insider_buying': 13,
+            '_score_ownership': 11,
         },
     }
 
@@ -378,14 +413,16 @@ def build_excel(rows, filename):
 
                 # Category groups: (label, first_key, last_key, dark_hex, light_hex)
                 _cat_groups = [
-                    ('VALUATION (15%)', '_gate_mos',        '_score_valuation',
+                    ('VALUATION (15%)', '_gate_mos',           '_score_valuation',
                      '2F5496', 'D6E4F0'),
-                    ('QUALITY (15%)',   '_gate_piotroski',   '_score_quality',
+                    ('QUALITY (10%)',   '_gate_piotroski',     '_score_quality',
                      '548235', 'E2EFDA'),
-                    ('MOAT (40%)',      '_gate_roic_consistency', '_score_moat',
+                    ('MOAT (35%)',      '_gate_roic_consistency', '_score_moat',
                      'C55A11', 'FCE4CC'),
-                    ('GROWTH (30%)',    '_gate_fund_growth',  '_score_growth',
+                    ('GROWTH (30%)',    '_gate_fund_growth',   '_score_growth',
                      '7030A0', 'E4CCEF'),
+                    ('OWNERSHIP (10%)', '_gate_shrhldr_yield', '_score_ownership',
+                     'BF8F00', 'FFF2CC'),
                 ]
                 _cat_font = Font(bold=True, color='FFFFFF', size=11)
                 _cat_align = Alignment(horizontal='center', vertical='center')
@@ -433,19 +470,24 @@ def build_excel(rows, filename):
 
                 # Row 3 — threshold descriptions
                 gate_thresholds = {
-                    '_gate_mos':        'MoS > 0%',
-                    '_gate_price_fv':   'Price/FV < 1.2',
-                    '_gate_epv_p_fv':   'EPV P/FV < 1.2',
-                    '_gate_piotroski':  'F-Score ≥ 5',
-                    '_gate_int_coverage': 'IC > 3×',
-                    '_gate_accruals':   '|Accruals| < 8%',
-                    '_gate_shrhldr_yield': 'Yield > 0%',
+                    '_gate_mos':            'MoS > 0%',
+                    '_gate_price_fv':       'Price/FV < 1.2',
+                    '_gate_epv_p_fv':       'EPV P/FV < 1.2',
+                    '_gate_piotroski':      'F-Score ≥ 5',
+                    '_gate_int_coverage':   'IC > 3×',
+                    '_gate_accruals':       '|Accruals| < 8%',
                     '_gate_roic_consistency': 'CV < 30%',
-                    '_gate_spread_>_5%': 'Spread > 5%',
-                    '_gate_gross_margin': 'GM > 25%',
-                    '_gate_fund_growth': 'FG > 3%',
-                    '_gate_margins':     'Margin ≥ 0',
-                    '_gate_surprise':    'Surprise > 0',
+                    '_gate_spread_>_5%':    'Spread > 5%',
+                    '_gate_gross_margin':   'GM > 25%',
+                    '_gate_fund_growth':    'FG > 3%',
+                    '_gate_margins':        'Margin ≥ 0',
+                    '_gate_surprise':       'Surprise > 0',
+                    '_gate_profit_pool':    'PP ≥ 1.0×',
+                    '_gate_shrhldr_yield':  'Yield > 0%',
+                    '_gate_insider_own':    'Insider ≥ 5%',
+                    '_gate_turnover':       'Turnover < 2%',
+                    '_gate_buyback_rate':   'Buyback > 0%',
+                    '_gate_insider_buying': 'Buy Ratio > 50%',
                 }
                 desc_font = Font(italic=True, color='666666', size=10)
                 for ci, (_, key, _) in enumerate(cols, 1):
@@ -506,6 +548,186 @@ def build_excel(rows, filename):
                 ws.row_dimensions[ri].height = 13
 
         ws.freeze_panes = freeze_config.get(sheet_name, 'A2')
+
+    # --- Profit Pool tab ---
+    pp_ws = wb.create_sheet('Profit Pool')
+
+    # Pre-compute display fields
+    def _pp_strength(mult):
+        if mult is None:    return ''
+        if mult >= 2.0:     return 'Dominant'
+        if mult >= 1.5:     return 'Strong'
+        if mult >= 1.0:     return 'Above Avg'
+        if mult >= 0.5:     return 'Below Avg'
+        return 'Weak'
+
+    def _hhi_label(hhi):
+        if hhi is None:     return ''
+        if hhi > 0.25:      return 'Concentrated'
+        if hhi > 0.15:      return 'Moderate'
+        return 'Competitive'
+
+    # Pre-compute sector ranks and profit share gap
+    from collections import defaultdict
+    _sector_pp = defaultdict(list)
+    for r in rows:
+        if r.get('pp_multiple') is not None:
+            _sector_pp[r.get('sector') or ''].append(r)
+    for sector_rows_pp in _sector_pp.values():
+        sector_rows_pp.sort(key=lambda r: r.get('pp_multiple') or 0, reverse=True)
+        for rank_i, r in enumerate(sector_rows_pp, 1):
+            r['_pp_sector_rank'] = rank_i
+
+    for r in rows:
+        r['_pp_rev_b']    = r['revenue'] / 1e9 if r.get('revenue') else None
+        r['_pp_oi_m']     = r['operating_income'] / 1e6 if r.get('operating_income') else None
+        r['_pp_strength'] = _pp_strength(r.get('pp_multiple'))
+        r['_hhi_label']   = _hhi_label(r.get('pp_sector_hhi'))
+        rs = r.get('pp_revenue_share')
+        ps = r.get('pp_profit_share')
+        r['_pp_gap'] = (ps - rs) if (rs is not None and ps is not None) else None
+        if '_pp_sector_rank' not in r:
+            r['_pp_sector_rank'] = None
+
+    # Columns — triage order: key signals first, supporting data after, context last
+    # (label, key, number_format, width)
+    pp_cols = [
+        # --- Frozen identifiers (4) ---
+        ('Ticker',          'ticker',                   '@',            8),
+        ('Rating',          'rating',                   '@',            9),
+        ('Score',           '_composite_score',         '0"%"',        10),
+        ('Sector',          'sector',                   '@',           22),
+        # --- Primary signals: pool dominance + margin moat ---
+        ('PP Multiple',     'pp_multiple',              '0.00"×"',     13),
+        ('Strength',        '_pp_strength',             '@',           12),
+        ('Sector Rank',     '_pp_sector_rank',          '0',           11),
+        ('Margin Adv.',     'pp_margin_advantage',      '+0.0%;-0.0%', 12),
+        # --- Secondary signals: how the share gap breaks down ---
+        ('Profit Gap',      '_pp_gap',                  '+0.00%;-0.00%', 12),
+        ('Rev Share',       'pp_revenue_share',         '0.00%',       11),
+        ('Profit Share',    'pp_profit_share',          '0.00%',       12),
+        ('Peer Pctile',     '_peer_pctile_pp_multiple', '0%',          11),
+        # --- Margin detail ---
+        ('Op. Margin',      'operating_margin',         '0.0%',        11),
+        ('Sector Med. OPM', '_sector_median_opm',       '0.0%',        15),
+        # --- Scale ---
+        ('Revenue ($B)',    '_pp_rev_b',                '#,##0.0',     13),
+        ('Op. Income ($M)', '_pp_oi_m',                 '#,##0.0',     15),
+        # --- Sector structure ---
+        ('HHI',             'pp_sector_hhi',            '0.000',       10),
+        ('Mkt Structure',   '_hhi_label',               '@',           14),
+        ('CR4',             'pp_sector_cr4',            '0.0%',        10),
+        ('# in Sector',     'pp_sector_count',          '0',           11),
+    ]
+    n_pp_frozen = 4
+
+    # Header row
+    for ci, (label, _, _, _) in enumerate(pp_cols, 1):
+        cell = pp_ws.cell(row=1, column=ci, value=label)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+    pp_ws.row_dimensions[1].height = 13
+
+    # Tiered fills for PP Multiple
+    pp_dominant_fill = PatternFill(start_color='1a9850', end_color='1a9850', fill_type='solid')
+    pp_strong_fill   = PatternFill(start_color='74c476', end_color='74c476', fill_type='solid')
+    pp_above_fill    = PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid')
+    pp_below_fill    = PatternFill(start_color='FFEB9C', end_color='FFEB9C', fill_type='solid')
+    pp_weak_fill     = PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')
+    pp_neutral_fill  = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
+    pp_dominant_font = Font(color='FFFFFF', bold=True)
+    pp_strong_font   = Font(color='FFFFFF')
+    margin_pos_fill  = PatternFill(start_color='E2EFDA', end_color='E2EFDA', fill_type='solid')
+    margin_neg_fill  = PatternFill(start_color='FCE4D6', end_color='FCE4D6', fill_type='solid')
+
+    def _pp_mult_fill(val):
+        if val is None:   return pp_neutral_fill, data_font
+        if val >= 2.0:    return pp_dominant_fill, pp_dominant_font
+        if val >= 1.5:    return pp_strong_fill,   pp_strong_font
+        if val >= 1.0:    return pp_above_fill,    data_font
+        if val >= 0.5:    return pp_below_fill,    data_font
+        return pp_weak_fill, data_font
+
+    # Flat list: sector A-Z, then PP Multiple descending within sector
+    pp_rows_all = [r for r in rows if r.get('pp_multiple') is not None]
+    pp_rows_all.sort(key=lambda r: (r.get('sector') or '', -(r.get('pp_multiple') or 0)))
+
+    current_row = 2
+    for row in pp_rows_all:
+        for ci, (_, key, fmt, _) in enumerate(pp_cols, 1):
+            val = row.get(key)
+            cell = pp_ws.cell(row=current_row, column=ci, value=val)
+            if fmt:
+                cell.number_format = fmt
+
+            if key == 'pp_multiple':
+                fill, font = _pp_mult_fill(val)
+                cell.fill = fill
+                cell.font = font
+                cell.alignment = Alignment(horizontal='center')
+            elif key == '_pp_strength':
+                fill, font = _pp_mult_fill(row.get('pp_multiple'))
+                cell.fill = fill
+                cell.font = font
+                cell.alignment = Alignment(horizontal='center')
+            elif key == '_pp_sector_rank':
+                # Rank 1 = top earner in sector — highlight gold/green
+                if val == 1:
+                    cell.fill = PatternFill(start_color='FFD700', end_color='FFD700', fill_type='solid')
+                    cell.font = Font(bold=True, color='000000')
+                elif val == 2:
+                    cell.fill = gate_yellow_fill
+                    cell.font = data_font
+                else:
+                    cell.fill = white_fill
+                    cell.font = data_font
+                cell.alignment = Alignment(horizontal='center')
+            elif key == 'pp_margin_advantage':
+                # Match HTML threshold: ±5pp = meaningful
+                if val is not None and val > 0.05:
+                    cell.fill = margin_pos_fill
+                    cell.font = Font(color='27AE60', bold=True)
+                elif val is not None and val < -0.05:
+                    cell.fill = margin_neg_fill
+                    cell.font = Font(color='C0392B', bold=True)
+                else:
+                    cell.fill = white_fill
+                    cell.font = data_font
+            elif key == '_pp_gap':
+                # Profit share excess over revenue share
+                if val is not None and val > 0.05:
+                    cell.fill = margin_pos_fill
+                    cell.font = Font(color='27AE60', bold=True)
+                elif val is not None and val < -0.05:
+                    cell.fill = margin_neg_fill
+                    cell.font = Font(color='C0392B', bold=True)
+                else:
+                    cell.fill = white_fill
+                    cell.font = data_font
+            elif key == '_peer_pctile_pp_multiple' and isinstance(val, (int, float)):
+                if val >= 0.75:
+                    cell.fill = gate_pass_fill
+                elif val >= 0.25:
+                    cell.fill = gate_yellow_fill
+                else:
+                    cell.fill = gate_fail_fill
+                cell.alignment = Alignment(horizontal='center')
+                cell.font = data_font
+            elif ci <= n_pp_frozen:
+                cell.fill = row_header_fill
+                cell.font = row_header_font
+            else:
+                cell.fill = white_fill
+                cell.font = data_font
+        pp_ws.row_dimensions[current_row].height = 13
+        current_row += 1
+
+    # Column widths
+    for ci, (_, _, _, w) in enumerate(pp_cols, 1):
+        pp_ws.column_dimensions[get_column_letter(ci)].width = w
+
+    pp_ws.freeze_panes = 'E2'
 
     # --- Add hyperlinks from Gates Passed cells → Matrix tab ---
     link_font = Font(color='4472C4', underline='single')  # blue underline

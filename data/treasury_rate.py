@@ -21,6 +21,8 @@ def fetch_risk_free_rate(fallback=0.04):
         return _cached_rate
 
     try:
+        # yfinance 1.x manages its own curl_cffi session internally;
+        # do NOT pass a custom session — it breaks cookie/crumb auth.
         tnx = yf.Ticker('^TNX')
         price = tnx.info.get('regularMarketPrice')
         if price and 0.5 < price < 20.0:  # sanity: yield between 0.5% and 20%

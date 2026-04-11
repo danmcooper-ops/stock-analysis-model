@@ -33,7 +33,7 @@ from scripts.config import (
     DCF_BLEND_WEIGHT_WITH_DDM, DDM_DIVERGENCE_THRESHOLD,
     BLEND_TRIGGER, BLEND_DCF_WEIGHT, BLEND_MULT_WEIGHT,
     SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
-    SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH,
+    SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH, SCORE_WEIGHT_OWNERSHIP,
 )
 
 
@@ -105,6 +105,7 @@ def default_params():
         'score_weight_quality': SCORE_WEIGHT_QUALITY,
         'score_weight_moat': SCORE_WEIGHT_MOAT,
         'score_weight_growth': SCORE_WEIGHT_GROWTH,
+        'score_weight_ownership': SCORE_WEIGHT_OWNERSHIP,
     }
 
 
@@ -146,7 +147,8 @@ def validate_params(params):
     sw = (params.get('score_weight_valuation', 0)
           + params.get('score_weight_quality', 0)
           + params.get('score_weight_moat', 0)
-          + params.get('score_weight_growth', 0))
+          + params.get('score_weight_growth', 0)
+          + params.get('score_weight_ownership', 0))
     if abs(sw - 1.0) > 0.01:
         errors.append(f"Scoring weights sum to {sw:.3f}, expected 1.0")
 

@@ -126,16 +126,6 @@ def apply_screening_matrix(results):
 
         r['_gates_passed'] = f'{passed}/{total}' if total > 0 else 'N/A'
         r['_gates_passed_num'] = passed if total > 0 else -1
-        pct = passed / total if total > 0 else 1.0
-
-        # Override logic — only downgrades (legacy pass_ratio, superseded by composite score)
-        rating = r['rating']
-        if rating == 'BUY' and pct < 0.50:
-            r['rating'] = 'HOLD'
-        elif rating == 'BUY' and pct < 0.75:
-            r['rating'] = 'LEAN BUY'
-        elif rating == 'LEAN BUY' and pct < 0.50:
-            r['rating'] = 'HOLD'
 
 
 def _print_validation_stats(results, screen_outcomes):
@@ -377,7 +367,15 @@ def compute_continuous_scores(results, params=None):
 
 
 def apply_composite_rating_override(results, params=None):
-    """Override ratings using composite scores (finer-grained than pass_ratio).
+    """Override ratings using the weighted composite score.
+
+    Sole arbiter of rating overrides — only downgrades, never upgrades.
+    Thresholds are calibrated so that rating, composite, and gate pass ratio
+    move together directionally:
+
+      BUY        requires composite >= 60  (strong across weighted categories)
+      LEAN BUY   requires composite >= 40  (solid but not exceptional)
+      HOLD       composite < 40            (meaningful weakness somewhere)
 
     Args:
         results: List of stock result dicts.
@@ -388,9 +386,9 @@ def apply_composite_rating_override(results, params=None):
         if cs is None:
             continue
         rating = r['rating']
-        if rating == 'BUY' and cs < 35:
+        if rating == 'BUY' and cs < 40:
             r['rating'] = 'HOLD'
-        elif rating == 'BUY' and cs < 55:
+        elif rating == 'BUY' and cs < 60:
             r['rating'] = 'LEAN BUY'
-        elif rating == 'LEAN BUY' and cs < 25:
+        elif rating == 'LEAN BUY' and cs < 40:
             r['rating'] = 'HOLD'
