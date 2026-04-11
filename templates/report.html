@@ -99,49 +99,70 @@ td.ct{font-weight:700;}
 .dt td.tk2:hover{color:var(--accent);}
 .dt tr:nth-child(even){background:#f8f9fa;}
 .dt tr:hover{background:#eaf4fd;}
-.detail-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.55);z-index:1000;overflow-y:auto;}
-.detail-modal.open{display:flex;justify-content:center;padding:30px 20px;}
-.detail-content{background:#fff;border-radius:12px;max-width:1060px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.25);position:relative;padding:28px;max-height:calc(100vh - 60px);overflow-y:auto;display:flex;flex-direction:column;gap:16px;}
-.detail-close{position:absolute;top:10px;right:14px;border:none;background:none;font-size:1.8em;color:#888;cursor:pointer;}
-.detail-close:hover{color:#333;}
-.dh{display:flex;align-items:center;gap:14px;margin-bottom:6px;flex-wrap:wrap;}
-.dh .dtk{font-size:1.7em;font-weight:800;color:#1a252f;}
-.dh .drt{font-size:0.95em;font-weight:700;padding:4px 14px;border-radius:6px;color:white;}
-.dh .dcs{font-size:1.1em;font-weight:700;padding:4px 10px;border-radius:6px;color:white;}
-.dpb{margin-left:auto;text-align:right;padding-top:18px;}
-.dpb .dp{font-size:1.3em;font-weight:700;color:#1a252f;}
-.dpb .dm{display:block;font-size:0.78em;color:#888;}
-.dmeta{font-size:0.82em;color:#666;margin-bottom:8px;}
-.score-bar{display:flex;height:28px;border-radius:6px;overflow:hidden;margin-bottom:16px;font-size:0.75em;font-weight:700;color:white;}
+.detail-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(8,12,28,0.75);backdrop-filter:blur(4px);z-index:1000;overflow-y:auto;}
+.detail-modal.open{display:flex;justify-content:center;padding:24px 20px;}
+.detail-content{background:#f0f4ff;border-radius:18px;max-width:1080px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);position:relative;padding:0;max-height:calc(100vh - 48px);overflow-y:auto;}
+.d-header-band{flex-shrink:0;}
+.detail-close{position:absolute;top:12px;right:14px;border:none;background:rgba(255,255,255,0.18);width:30px;height:30px;border-radius:50%;font-size:1.1em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;}
+.detail-close:hover{background:rgba(255,255,255,0.35);}
+.d-header-band{background:linear-gradient(135deg,#0d1f42 0%,#1a3a6e 55%,#1f4fa0 100%);border-radius:18px 18px 0 0;padding:22px 26px 18px;position:relative;overflow:hidden;}
+.d-header-band::before{content:'';position:absolute;top:-60px;right:-60px;width:220px;height:220px;background:radial-gradient(circle,rgba(255,255,255,0.06) 0%,transparent 70%);pointer-events:none;}
+.d-body{padding:16px 22px 24px;display:flex;flex-direction:column;gap:14px;}
+.det-nav-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:linear-gradient(90deg,#0d1f42,#1f4fa0);border-radius:0 0 18px 18px;position:sticky;bottom:0;z-index:5;}
+.det-nav-btn{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:6px;width:28px;height:28px;font-size:16px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
+.det-nav-btn:hover:not(:disabled){background:rgba(255,255,255,0.28);}
+.det-nav-btn:disabled{opacity:0.25;cursor:default;}
+.det-nav-pos{font-size:0.68em;color:rgba(255,255,255,0.6);}
+.dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:44px;}
+.dh .dtk{font-size:2.1em;font-weight:900;color:#fff;letter-spacing:-0.5px;text-shadow:0 2px 12px rgba(0,0,0,0.4);}
+.dh .drt{font-size:0.80em;font-weight:700;padding:5px 16px;border-radius:20px;color:white;box-shadow:0 2px 10px rgba(0,0,0,0.25);}
+.dh .dcs{font-size:0.95em;font-weight:800;padding:5px 13px;border-radius:20px;color:white;box-shadow:0 2px 10px rgba(0,0,0,0.25);}
+.dmeta{font-size:0.76em;color:rgba(255,255,255,0.6);margin-top:5px;letter-spacing:0.01em;}
+.d-kmetrics{display:flex;flex-wrap:nowrap;align-items:stretch;background:linear-gradient(90deg,#0d1f42,#1f4fa0);border-radius:10px;padding:0;gap:0;overflow:hidden;box-shadow:0 3px 12px rgba(13,31,66,0.22);}
+.d-kmetrics .km-cell{display:flex;flex-direction:column;gap:2px;flex:1 1 0;min-width:58px;padding:10px 13px;border-right:1px solid rgba(255,255,255,0.1);}
+.d-kmetrics .km-cell:last-child{border-right:none;}
+.d-kmetrics .km-k{font-size:0.57em;color:rgba(255,255,255,0.55);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;}
+.d-kmetrics .km-v{font-size:0.82em;font-weight:700;color:#fff;white-space:nowrap;}
+.d-gate-values{margin:6px 0 14px;display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+.gv-col{display:flex;flex-direction:column;border-radius:7px;overflow:hidden;border:1px solid #e0e4ec;}
+.gv-cat{font-size:0.68em;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;padding:5px 10px;white-space:nowrap;text-align:center;}
+.gv-items{display:flex;flex-direction:column;gap:0;background:#fff;flex:1;}
+.gv-item{display:flex;flex-direction:row;justify-content:space-between;align-items:center;padding:4px 10px;border-bottom:1px solid #f0f2f6;}
+.gv-item:last-child{border-bottom:none;}
+.gv-item:nth-child(even){background:#fafbfd;}
+.gv-k{font-size:0.65em;color:#666;white-space:nowrap;}
+.gv-v{font-size:0.68em;font-weight:700;color:#1a252f;white-space:nowrap;text-align:right;}
+.gv-v.pass{color:#1a9850;}.gv-v.fail{color:#de2d26;}
+.score-bar{display:flex;height:34px;border-radius:9px;overflow:hidden;font-size:0.75em;font-weight:700;color:white;box-shadow:0 3px 10px rgba(0,0,0,0.15);}
 .score-bar div{display:flex;align-items:center;justify-content:center;}
-.ddesc{font-size:0.8em;color:#555;line-height:1.6;margin-bottom:14px;padding:10px 14px;background:#f8f9fa;border-radius:6px;border-left:3px solid var(--accent);}
-.sig-wrap{margin-top:6px;margin-bottom:16px;}
-.sig-title{font-size:0.85em;font-weight:700;color:#333;margin-bottom:8px;}
+.ddesc{font-size:0.8em;color:#3a4a5c;line-height:1.7;padding:13px 16px;background:linear-gradient(135deg,#eef3ff,#f5f8ff);border-radius:9px;border-left:4px solid #3b6fd4;box-shadow:inset 0 1px 3px rgba(59,111,212,0.08);}
+.sig-wrap{margin:0;}
+.sig-title{font-size:0.82em;font-weight:700;color:#333;margin-bottom:8px;}
 .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.sig-hw,.sig-tw{font-size:0.78em;line-height:1.55;padding:10px 12px;border-radius:6px;}
-.sig-hw{background:#fff5f5;border-left:3px solid #e53e3e;}
-.sig-tw{background:#f0fff4;border-left:3px solid #38a169;}
+.sig-hw,.sig-tw{font-size:0.78em;line-height:1.6;padding:12px 14px;border-radius:9px;}
+.sig-hw{background:linear-gradient(135deg,#fff5f5,#fff0f0);border-left:4px solid #e53e3e;box-shadow:0 2px 8px rgba(229,62,62,0.08);}
+.sig-tw{background:linear-gradient(135deg,#f0fff4,#eafff0);border-left:4px solid #38a169;box-shadow:0 2px 8px rgba(56,161,105,0.08);}
 .sig-hw b,.sig-tw b{display:block;margin-bottom:6px;font-size:0.9em;}
 .sig-hw ul,.sig-tw ul{margin:0;padding-left:16px;}
 .sig-hw li,.sig-tw li{margin-bottom:4px;}
 #d-news a:hover{text-decoration:underline;}
-.nl-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;}
+.nl-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .nl-grid>div{min-width:0;}
 .dtxn{width:100%;border-collapse:collapse;font-size:0.7em;margin-top:6px;}
 .dtxn th{text-align:left;border-bottom:1px solid #ddd;padding:2px 4px;color:#666;font-weight:600;}
 .dtxn td{padding:2px 4px;border-bottom:1px solid #f0f0f0;}
 .dq-badge{display:inline-block;padding:1px 6px;border-radius:8px;color:#fff;font-size:0.65em;font-weight:600;margin-left:8px;vertical-align:middle;}
 .dq-warning{background:#fff3cd;border:1px solid #ffc107;color:#856404;padding:6px 10px;border-radius:4px;margin:8px 0;font-size:0.72em;}
-.flag-star{cursor:pointer;font-size:1.4em;user-select:none;transition:transform 0.1s;}
-.flag-star:hover{transform:scale(1.25);}
-.flag-star.flagged{color:#f5a623;}.flag-star:not(.flagged){color:#ccc;}
-.flag-btn{padding:7px 16px;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:0.95em;background:#f5f5f5;color:#555;transition:all 0.15s;}
+.flag-star{cursor:pointer;font-size:1.5em;user-select:none;transition:transform 0.15s;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3));}
+.flag-star:hover{transform:scale(1.3);}
+.flag-star.flagged{color:#f5a623;}.flag-star:not(.flagged){color:rgba(255,255,255,0.35);}
+.flag-btn{padding:7px 16px;border:1px solid #ddd;border-radius:6px;cursor:pointer;font-size:0.95em;background:#f5f5f5;color:#555;transition:all 0.15s;}
 .flag-btn:hover{background:#e0e0e0;}
 .flag-btn.active{background:#fdf0d5;border-color:#f5a623;color:#b87a00;font-weight:600;}
 .flag-count{font-size:0.72em;color:#b87a00;margin-left:2px;}
-.ps-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;}
-.ps-col{background:#f8f9fb;border-radius:6px;padding:8px 12px;max-height:220px;overflow-y:auto;}
-.ps-col h3{font-size:0.72em;text-transform:uppercase;letter-spacing:0.04em;color:#1a252f;margin:0 0 6px;padding-bottom:4px;border-bottom:1px solid #e0e0e0;}
+.ps-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.ps-col{background:#f4f7ff;border-radius:9px;padding:10px 13px;max-height:220px;overflow-y:auto;border:1px solid #dde4f5;}
+.ps-col h3{font-size:0.70em;text-transform:uppercase;letter-spacing:0.05em;color:#1a3a6b;font-weight:700;margin:0 0 7px;padding-bottom:5px;border-bottom:2px solid #c8d6f0;}
 .pp-bar{height:6px;border-radius:3px;background:#e8e8e8;margin:3px 0;position:relative;overflow:hidden;}.pp-bar-fill{height:100%;border-radius:3px;position:absolute;left:0;top:0;}
 .pp-mult{font-size:1.3em;font-weight:700;letter-spacing:-0.5px;}
 .ps-tbl{width:100%;border-collapse:collapse;font-size:0.72em;}
@@ -155,6 +176,10 @@ td.ct{font-weight:700;}
 .ps-nm{color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px;display:inline-block;vertical-align:middle;font-size:0.9em;}
 .ps-ext{color:#bbb;font-size:0.85em;font-style:italic;}
 .tk-tip{display:none;position:fixed;z-index:2000;background:#fff;border:1px solid #d0d4db;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.15);padding:14px 16px;width:320px;font-size:0.78em;pointer-events:none;}
+#col-tip{display:none;position:fixed;z-index:2001;background:#1a252f;color:#e8edf5;border:1px solid #2c3e50;border-radius:10px;box-shadow:0 6px 28px rgba(0,0,0,0.35);padding:11px 15px;max-width:360px;min-width:180px;font-size:0.77em;line-height:1.55;pointer-events:none;}
+#col-tip .ct-name{font-weight:700;font-size:1.05em;color:#fff;margin-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:5px;}
+#col-tip .ct-body{color:#c0cfe0;}
+#col-tip .ct-pass{margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.1);color:#74c476;font-weight:600;font-size:0.9em;}
 .tk-tip .tip-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
 .tk-tip .tip-tk{font-size:1.3em;font-weight:700;color:#1a252f;}
 .tk-tip .tip-rt{padding:2px 8px;border-radius:4px;color:#fff;font-weight:700;font-size:0.85em;}
@@ -164,17 +189,18 @@ td.ct{font-weight:700;}
 .tk-tip .tip-kv{display:flex;justify-content:space-between;}
 .tk-tip .tip-k{color:#888;}
 .tk-tip .tip-v{font-weight:600;color:#1a252f;}
-.dgrid{display:flex;flex-direction:column;gap:18px;}
-.dgroup{border:1px solid #e0e4ea;border-radius:10px;padding:14px;background:#fff;}
-.dgroup-title{font-size:0.82em;text-transform:uppercase;letter-spacing:0.08em;color:#1a252f;font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--accent);display:flex;align-items:center;gap:8px;}
-.dgroup-title .dg-icon{width:18px;height:18px;border-radius:4px;display:inline-block;}
-.dgrid-inner{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.dgrid{display:flex;flex-direction:column;gap:12px;}
+.dgroup{border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.07);border:1px solid rgba(0,0,0,0.07);}
+.dgroup-title{font-size:0.75em;text-transform:uppercase;letter-spacing:0.09em;font-weight:700;padding:10px 16px;display:flex;align-items:center;gap:9px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.2);}
+.dgroup-title .dg-icon{width:14px;height:14px;border-radius:3px;display:inline-block;background:rgba(255,255,255,0.35);flex-shrink:0;}
+.dgrid-inner{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 16px;background:#fff;}
 @media(max-width:700px){.dgrid-inner{grid-template-columns:1fr;}}
-.dsec{background:#f8f9fb;border-radius:8px;padding:12px 14px;}
-.dsec h3{font-size:0.78em;text-transform:uppercase;letter-spacing:0.05em;color:#1a252f;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid var(--border);}
-.dkvg{display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;}
-.dkv{display:flex;justify-content:space-between;padding:2px 0;font-size:0.8em;border-bottom:1px solid #eee;}
-.dkv .kl{color:#888;}.dkv .kv{font-weight:600;color:#333;}
+.dsec{background:#f5f8ff;border-radius:9px;padding:12px 14px;border:1px solid #dde5f5;}
+.dsec h3{font-size:0.73em;text-transform:uppercase;letter-spacing:0.06em;color:#1a3a6b;font-weight:700;margin-bottom:9px;padding-bottom:5px;border-bottom:2px solid #c8d6f0;}
+.dkvg{display:grid;grid-template-columns:1fr 1fr;gap:1px 10px;}
+.dkv{display:flex;justify-content:space-between;padding:4px 6px;font-size:0.79em;border-radius:4px;}
+.dkv:nth-child(odd){background:rgba(59,111,212,0.04);}
+.dkv .kl{color:#6a7a90;}.dkv .kv{font-weight:600;color:#1a252f;}
 .legend{font-size:0.75em;color:#888;margin:6px 0 10px;padding:6px 0;}
 @media(max-width:768px){.header h1{font-size:1.4em;}.stats{gap:10px;}.filter-bar{flex-direction:column;align-items:stretch;}.filter-bar input[type="text"]{width:100%;}}
 .pool-sector{margin-bottom:14px;background:white;border-radius:8px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,0.07);}
@@ -233,6 +259,7 @@ td.ct{font-weight:700;}
     <span class="range-label">&ge; <span id="comp-val">0</span>%</span>
     <input type="range" id="f-comp" min="0" max="100" value="0" oninput="document.getElementById('comp-val').textContent=this.value;applyFilters()">
     <button class="flag-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
+    <button class="flag-btn" id="f-founder" onclick="toggleFounderFilter()" title="Show only founder-led companies">&#9733; Founder-Led</button>
     <button class="filter-clear" onclick="clearFilters()">Clear</button>
     <span class="filter-count" id="f-count"></span>
   </div>
@@ -263,25 +290,38 @@ td.ct{font-weight:700;}
 <div id="det-modal" class="detail-modal" onclick="if(event.target===this)closeDetail()">
   <div class="detail-content">
     <button class="detail-close" onclick="closeDetail()">&times;</button>
-    <div class="dh"><div class="dtk" id="d-tk"></div><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-dq"></span><div class="dpb"><span class="dp" id="d-pr"></span><span class="dm" id="d-mc"></span></div></div>
-    <div class="dmeta" id="d-meta"></div>
-    <div id="d-sbar" class="score-bar"></div>
-    <div id="d-section-overview" class="dgroup"><div class="dgroup-title"><span class="dg-icon" style="background:#5b6abf"></span>Company Description</div><div class="ddesc" id="d-desc"></div></div>
-    <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title"><span class="dg-icon" style="background:#3498db"></span>Financial Summary</div><div id="d-fin-summary"></div></div>
-    <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title"><span class="dg-icon" style="background:#2ecc71"></span>Upside &amp; Downside</div><div id="d-sector-signals"></div></div>
-    <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title"><span class="dg-icon" style="background:#2980b9"></span>News &amp; Filings</div><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div>
-    <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title"><span class="dg-icon" style="background:#6c5ce7"></span>Peers &amp; Supply Chain</div><div id="d-peers-supply"></div></div>
-    <div id="d-section-profitpool" class="dgroup" style="display:none"><div class="dgroup-title"><span class="dg-icon" style="background:#7030a0"></span>Profit Pool Analysis</div><div class="dgrid-inner" id="d-profitpool-content"></div></div>
-    <div class="dgrid" id="d-grid"></div>
+    <div class="d-header-band">
+      <div class="dh"><div class="dtk" id="d-tk"></div><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div></div>
+      <div class="dmeta" id="d-meta"></div>
+    </div>
+    <div class="d-body">
+      <div id="d-kmetrics" class="d-kmetrics"></div>
+      <div id="d-sbar" class="score-bar"></div>
+      <div id="d-gate-values" class="d-gate-values"></div>
+      <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>Company Description</div><div style="padding:14px 16px;background:#fff"><div class="ddesc" id="d-desc"></div></div></div>
+      <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>Financial Summary</div><div style="padding:14px 16px;background:#fff"><div id="d-fin-summary"></div></div></div>
+      <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Upside &amp; Downside</div><div style="padding:14px 16px;background:#fff"><div id="d-sector-signals"></div></div></div>
+      <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:#fff"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
+      <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:#fff"><div id="d-peers-supply"></div></div></div>
+      <div id="d-section-profitpool" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Profit Pool Analysis</div><div class="dgrid-inner" id="d-profitpool-content"></div></div>
+      <div class="dgrid" id="d-grid"></div>
+    </div>
+    <div id="det-nav" class="det-nav-bar">
+      <button class="det-nav-prev det-nav-btn" onclick="navDet(-1)" title="Previous stock (← ↑)">&#8249;</button>
+      <span class="det-nav-pos"></span>
+      <button class="det-nav-next det-nav-btn" onclick="navDet(1)" title="Next stock (→ ↓)">&#8250;</button>
+    </div>
   </div>
 </div>
 <div id="tk-tip" class="tk-tip"></div>
+<div id="col-tip"></div>
 <script>
 /* === DATA === */
 var DATA={{ chart_data }};
 var GM={{ gate_meta }};
 var RC={'BUY':'#1a9850','LEAN BUY':'#74c476','HOLD':'#fd8d3c','PASS':'#de2d26'};
 var curView='matrix',curTSub='ovr';
+var _detNav=[],_detIdx=-1;
 /* === FLAGS (localStorage) === */
 var _FLAG_KEY='stock_flags_v1';
 var _flags=(function(){try{return JSON.parse(localStorage.getItem(_FLAG_KEY))||{};}catch(e){return{};}})();
@@ -291,6 +331,8 @@ function isFlagged(tk){return !!_flags[tk];}
 function toggleFlag(tk,e){if(e)e.stopPropagation();_flags[tk]?delete _flags[tk]:_flags[tk]=1;_saveFlags();_updateFlagCount();applyFilters();}
 function toggleFlagDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;toggleFlag(tk);var el=document.getElementById('d-flag');el.textContent=isFlagged(tk)?'\u2691':'\u2690';el.className='flag-star'+(isFlagged(tk)?' flagged':'');}
 function toggleFlagFilter(){_flagOnly=!_flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);applyFilters();}
+var _founderOnly=false;
+function toggleFounderFilter(){_founderOnly=!_founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);applyFilters();}
 function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.getElementById('flag-count-label');el.textContent=n>0?' ('+n+')':'';}
 function _starHtml(tk){return '<span class="flag-star'+(isFlagged(tk)?' flagged':'')+'" onclick="toggleFlag(\''+tk.replace(/'/g,"\\'")+'\',event)" title="Flag">'+(isFlagged(tk)?'\u2691':'\u2690')+'</span>';}
 _updateFlagCount();
@@ -403,7 +445,19 @@ insider_own:'Insider Ownership gate tests management alignment. Passes when insi
 turnover:'Share Turnover gate tests shareholder base stability. Passes when daily turnover < 2% (avg daily volume / shares outstanding). Lower turnover signals patient, long-term holders. Scored from 5% daily (worst) to 0.1% (best). High turnover may indicate speculative activity.',
 buyback_rate:'Buyback Rate gate tests whether the company is a net buyer of its own shares. Passes when buyback rate > 0% (net repurchases / market cap). Scored linearly from \u22122% (dilution) to +5% (aggressive buybacks). Positive buybacks signal management confidence and reduce share count over time.',
 insider_buying:'Insider Buying gate tracks open-market purchases vs sales from SEC Form 4 filings over the past year. Passes when buy ratio > 50% (more buys than sells). Excludes option exercises and awards. Net insider buying is one of the strongest predictive signals for future stock performance.',
-edgar_quality_score:'Cross-validation score comparing yfinance financial data against SEC EDGAR XBRL filings. 100 = perfect match. Deductions of 20 points per field with >5% discrepancy. Fields checked: Revenue, Net Income, Total Assets, Equity, Debt.'
+edgar_quality_score:'Cross-validation score comparing yfinance financial data against SEC EDGAR XBRL filings. 100 = perfect match. Deductions of 20 points per field with >5% discrepancy. Fields checked: Revenue, Net Income, Total Assets, Equity, Debt.',
+// Core columns missing from earlier definitions
+ticker:'Stock ticker symbol. Click any row to open the full detail panel with valuation, scoring breakdown, narrative, news, insiders, and supply chain.',
+rating:'Composite investment rating derived from DCF valuation signals, then overridden downward by the weighted composite score. BUY \u2265 60 composite. LEAN BUY 40\u201360. HOLD < 40 or missing a margin of safety.',
+_composite_score:'Weighted composite score (0\u2013100) across five categories: Moat 35%, Growth 30%, Valuation 15%, Quality 10%, Ownership 10%. Each category is the average of its gate scores. The Monte Carlo penalty reduces the score by up to 15% when valuation uncertainty is high.',
+_gates_passed:'Gates passed out of total available. Each gate is a binary pass/fail threshold (e.g. Piotroski \u2265 5, Spread > 5%). The count reflects only gates where data was available. Note: all gates are shown but only the composite score (not a raw count) drives the rating.',
+sector:'GICS sector from yfinance. Sector membership drives sector-relative scoring for gross margin, accruals, and revenue-per-employee \u2014 each stock is compared only to peers in the same sector.',
+industry:'GICS industry sub-classification \u2014 more granular than sector. Used in peer comparison and profit pool concentration analysis.',
+mcap:'Market capitalisation = Price \u00d7 Shares Outstanding. Minimum $10B to enter the screen. Used to compute shareholder yield and position sizing.',
+roic:'Return on Invested Capital = NOPAT / Invested Capital (average of debt + equity). The primary quality filter \u2014 stocks must have ROIC > WACC to pass the initial screen. Averaged over up to 5 fiscal years for stability.',
+roic_cv:'ROIC Coefficient of Variation = StdDev / Mean over available years. Measures consistency of capital returns. Below 30% = durable moat; 30\u201360% = moderate; above 60% = volatile or cyclical. Gate passes when CV < 30%.',
+wacc:'Weighted Average Cost of Capital = blend of after-tax cost of debt and cost of equity (from CAPM). Used as the DCF discount rate and the profitability hurdle. A higher WACC compresses fair value \u2014 sensitive to beta and risk-free rate.',
+spread:'ROIC \u2212 WACC. Positive spread = the company earns more than its cost of capital, creating economic value. Gate passes when spread > 5%. A wide, stable spread over many years is the hallmark of a durable competitive moat.'
 };
 function tt(k){return TT[k]||'';}
 
@@ -466,6 +520,7 @@ function applyFilters(){
   var metricKey=document.getElementById('f-metric').value;
   FD=DATA.filter(function(d){
     if(_flagOnly&&!isFlagged(d.ticker))return false;
+    if(_founderOnly&&!d.founder_led)return false;
     if(q&&(d.ticker||'').toUpperCase().indexOf(q)<0&&(d.description||'').toUpperCase().indexOf(q)<0)return false;
     if(!allRatings&&ratings.indexOf(d.rating)<0)return false;
     if(!allSectors&&sectors.indexOf(d.sector)<0)return false;
@@ -483,6 +538,7 @@ function clearFilters(){
   document.getElementById('f-comp').value='0';
   document.getElementById('comp-val').textContent='0';
   _flagOnly=false;document.getElementById('f-flagged').classList.remove('active');
+  _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
   applyFilters();
 }
 function onMetricChange(){
@@ -499,20 +555,21 @@ function renderMatrix(){
   GM.gates.forEach(function(g){if(!g.hideMatrix)cg2[g.category].push(g);});
   var h1='<tr>';
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.2em" onclick="mSort(\'_flagged\')" title="Flagged">\u2691'+(mSC==='_flagged'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'ticker\')" title="'+tt('ticker')+'">Ticker'+(mSC==='ticker'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" title="'+tt('rating')+'">Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_composite_score\')" title="'+tt('_composite_score')+'">Comp.'+(mSC==='_composite_score'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_gates_passed\')" title="'+tt('_gates_passed')+'">Gates'+(mSC==='_gates_passed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'sector\')" title="'+tt('sector')+'">Sector'+(mSC==='sector'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'ticker\')" data-col-tip="ticker" data-col-label="Ticker">Ticker'+(mSC==='ticker'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" data-col-tip="rating" data-col-label="Rating">Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_composite_score\')" data-col-tip="_composite_score" data-col-label="Composite Score">Comp.'+(mSC==='_composite_score'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_gates_passed\')" data-col-tip="_gates_passed" data-col-label="Gates Passed">Gates'+(mSC==='_gates_passed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'sector\')" data-col-tip="sector" data-col-label="Sector">Sector'+(mSC==='sector'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   GM.categories.forEach(function(c){var n=cg2[c.name].length*2+1;h1+='<th class="cat-header" colspan="'+n+'" style="background:'+c.dark+'">'+c.name+' ('+Math.round(c.weight*100)+'%)</th>';});
   h1+='</tr>';
   var h2='<tr>';
-  GM.categories.forEach(function(c){cg2[c.name].forEach(function(g){var gtt=tt(g.key)||tt(g.key.replace(/^_gate_/,''));h2+='<th class="col-header sortable" style="background:'+c.light+';color:#333;cursor:pointer" onclick="mSort(\''+g.key+'\')" title="'+(gtt?gtt+(g.threshold?' | Pass: '+g.threshold:''):g.threshold||'')+'">'+g.label+(mSC===g.key?(mSA?' \u25B2':' \u25BC'):'')+'</th>';h2+='<th class="col-header sortable" style="background:'+c.light+';color:#333;cursor:pointer" onclick="mSort(\''+g.scoreKey+'\')" title="Gate score for '+g.label+'">Score'+(mSC===g.scoreKey?(mSA?' \u25B2':' \u25BC'):'')+'</th>';});h2+='<th class="col-header sortable" style="background:'+c.dark+';color:white;cursor:pointer" onclick="mSort(\''+c.scoreKey+'\')" title="Weighted total for '+c.name+'">Total'+(mSC===c.scoreKey?(mSA?' \u25B2':' \u25BC'):'')+'</th>';});
+  GM.categories.forEach(function(c){cg2[c.name].forEach(function(g){var tipKey=g.key.replace(/^_gate_/,'');h2+='<th class="col-header sortable" style="background:'+c.light+';color:#333;cursor:pointer" onclick="mSort(\''+g.key+'\')" data-col-tip="'+tipKey+'" data-col-label="'+g.label+'" data-col-threshold="'+(g.threshold||'')+'">'+g.label+(mSC===g.key?(mSA?' \u25B2':' \u25BC'):'')+'</th>';h2+='<th class="col-header sortable" style="background:'+c.light+';color:#333;cursor:pointer" onclick="mSort(\''+g.scoreKey+'\')" data-col-tip="'+g.scoreKey+'" data-col-label="Score \u2014 '+g.label+'">Score'+(mSC===g.scoreKey?(mSA?' \u25B2':' \u25BC'):'')+'</th>';});h2+='<th class="col-header sortable" style="background:'+c.dark+';color:white;cursor:pointer" onclick="mSort(\''+c.scoreKey+'\')" data-col-tip="'+c.scoreKey+'" data-col-label="'+c.name+' Total">Total'+(mSC===c.scoreKey?(mSA?' \u25B2':' \u25BC'):'')+'</th>';});
   h2+='</tr>';
   th.innerHTML=h1+h2;
   var sd=FD.slice();
   var RO={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
   if(mSC){sd.sort(function(a,b){var va,vb;if(mSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else{va=a[mSC];vb=b[mSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(mSC==='_gates_passed'){var na=parseInt(va),nb=parseInt(vb);if(!isNaN(na)&&!isNaN(nb))return mSA?na-nb:nb-na;}if(mSC==='rating'){var ra=RO[va]||99,rb2=RO[vb]||99;return mSA?ra-rb2:rb2-ra;}if(typeof va==='boolean'){va=va?1:0;vb=vb?1:0;return mSA?va-vb:vb-va;}if(typeof va==='string')return mSA?va.localeCompare(vb):vb.localeCompare(va);return mSA?va-vb:vb-va;});}
+  _detNav=sd.map(function(d){return d.ticker;});
   var html='';
   sd.forEach(function(d){
     var t=d.ticker.replace(/'/g,"\\'");
@@ -572,11 +629,12 @@ function swTSub(s){curTSub=s;tSC=null;tSA=true;renderTSubs();renderTable();}
 function renderTable(){
   var cols=TC[curTSub]||TC.ovr;
   var th=document.getElementById('dt-h'),tb=document.getElementById('dt-b');
-  var hh='<tr>';hh+='<th style="width:28px;cursor:pointer;font-size:1.2em" onclick="tSort(\'_flagged\')" title="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" title="'+tt(c.k)+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
+  var hh='<tr>';hh+='<th style="width:28px;cursor:pointer;font-size:1.2em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
   th.innerHTML=hh;
   var sd=FD.slice();
   var RO2={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
   if(tSC){sd.sort(function(a,b){var va,vb;if(tSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else{va=a[tSC];vb=b[tSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(tSC==='rating'){var ra=RO2[va]||99,rb2=RO2[vb]||99;return tSA?ra-rb2:rb2-ra;}if(typeof va==='string')return tSA?va.localeCompare(vb):vb.localeCompare(va);return tSA?va-vb:vb-va;});}
+  _detNav=sd.map(function(d){return d.ticker;});
   var bh='';sd.forEach(function(d){var t=d.ticker.replace(/'/g,"\\'");bh+='<tr>';bh+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';cols.forEach(function(c){var r=ftc(d[c.k],c.f);var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';bh+='<td'+cls+' data-value="'+r.v+'">'+r.t+'</td>';});bh+='</tr>';});
   tb.innerHTML=bh;
 }
@@ -597,14 +655,16 @@ function _showTip(tk,x,y){
   if(sec.length)h+='<div class="tip-sec">'+esc(sec.join(' \u00b7 '))+'</div>';
   h+='<div class="tip-grid">';
   var rows=[
+    ['Mkt Cap',fds(d.mcap),''],
     ['Price',fd(d.price),''],
     ['Fair Value',fd(d.dcf_fv),''],
     ['MoS',fp(d.mos),d.mos!=null?(d.mos>0.15?'color:#1a9850':(d.mos<0?'color:#de2d26':'')):''],
     ['ROIC',fp(d.roic),''],
-    ['P/E',fn(d.pe,1),''],
     ['Spread',fp(d.spread),d.spread!=null?(d.spread>0.05?'color:#1a9850':(d.spread<0?'color:#de2d26':'')):''],
-    ['Piotroski',d.piotroski!=null?d.piotroski+'/9':'N/A',d.piotroski!=null?(d.piotroski>=7?'color:#1a9850':(d.piotroski<=3?'color:#de2d26':'')):''],
-    ['52W Pos',d.range_52w_position!=null?Math.round(d.range_52w_position)+'%':'N/A','']
+    ['Gross Margin',fp(d.gross_margin),''],
+    ['ROE',fp(d.roe),''],
+    ['P/B',fn(d.pb,2),''],
+    ['Current Ratio',d.cr!=null?d.cr.toFixed(2):'N/A','']
   ];
   rows.forEach(function(r){h+='<div class="tip-kv"><span class="tip-k">'+r[0]+'</span><span class="tip-v"'+(r[2]?' style="'+r[2]+'"':'')+'>'+r[1]+'</span></div>';});
   h+='</div>';
@@ -622,6 +682,47 @@ function _showTip(tk,x,y){
   _tipEl.style.left=left+'px';_tipEl.style.top=top+'px';
 }
 function _hideTip(){_tipEl.style.display='none';}
+
+/* === COLUMN HEADER TOOLTIP === */
+var _ctEl=document.getElementById('col-tip'),_ctTimer=null;
+function _showColTip(label,body,threshold,x,y){
+  var h='<div class="ct-name">'+esc(label)+'</div>';
+  if(body)h+='<div class="ct-body">'+esc(body)+'</div>';
+  if(threshold)h+='<div class="ct-pass">\u2714 Pass: '+esc(threshold)+'</div>';
+  _ctEl.innerHTML=h;
+  _ctEl.style.display='block';
+  var cw=_ctEl.offsetWidth,ch=_ctEl.offsetHeight;
+  var vw=window.innerWidth,vh=window.innerHeight;
+  var left=x-cw/2,top=y+8;
+  if(left+cw>vw-10)left=vw-cw-10;
+  if(left<10)left=10;
+  if(top+ch>vh-10)top=y-ch-8;
+  if(top<10)top=10;
+  _ctEl.style.left=left+'px';_ctEl.style.top=top+'px';
+}
+function _hideColTip(){clearTimeout(_ctTimer);_ctEl.style.display='none';}
+document.addEventListener('mouseover',function(e){
+  var th=e.target.closest('th[data-col-tip]');
+  if(!th)return;
+  clearTimeout(_ctTimer);
+  var key=th.getAttribute('data-col-tip');
+  var label=th.getAttribute('data-col-label')||key;
+  var threshold=th.getAttribute('data-col-threshold')||'';
+  var body=TT[key]||'';
+  /* generic fallback for score columns */
+  if(!body&&key.indexOf('_score_')===0){var gname=key.replace('_score_','').replace(/_/g,' ');body='Continuous score 0\u2013100 for the '+gname+' gate. Averaged within its category to produce the category total.';}
+  if(!body&&key.indexOf('_gate_')===0){var gname2=key.replace('_gate_','').replace(/_/g,' ');body='Raw metric value for the '+gname2+' gate.';}
+  var rect=th.getBoundingClientRect();
+  _ctTimer=setTimeout(function(){_showColTip(label,body,threshold,rect.left+rect.width/2,rect.bottom);},180);
+},false);
+document.addEventListener('mouseout',function(e){
+  var th=e.target.closest('th[data-col-tip]');
+  if(!th)return;
+  var to=e.relatedTarget;
+  if(to&&th.contains(to))return;
+  _hideColTip();
+},false);
+
 document.addEventListener('mouseover',function(e){
   var cell=e.target.closest('.tk,.tk2');
   if(!cell)return;
@@ -642,23 +743,68 @@ document.addEventListener('mouseout',function(e){
 function openDet(tk){
   var d=DATA.find(function(x){return x.ticker===tk;});
   if(!d)return;
+  _detIdx=_detNav.indexOf(tk);
+  var prev=_detIdx>0,next=_detIdx>=0&&_detIdx<_detNav.length-1;
+  var nb=document.getElementById('det-nav');
+  nb.querySelector('.det-nav-prev').disabled=!prev;
+  nb.querySelector('.det-nav-next').disabled=!next;
+  nb.querySelector('.det-nav-pos').textContent=_detIdx>=0?(_detIdx+1)+' / '+_detNav.length:'';
   document.getElementById('d-tk').textContent=d.ticker;
   var dfEl=document.getElementById('d-flag');dfEl.textContent=isFlagged(d.ticker)?'\u2691':'\u2690';dfEl.className='flag-star'+(isFlagged(d.ticker)?' flagged':'');
   var rEl=document.getElementById('d-rt');rEl.textContent=d.rating||'N/A';rEl.style.background=RC[d.rating]||'#888';
   var cEl=document.getElementById('d-cs');var cs=d._composite_score;cEl.textContent=cs!=null?Math.round(cs)+'%':'N/A';cEl.style.background=cc(cs);
-  var dqEl=document.getElementById('d-dq');
-  if(d.edgar_quality_score!=null){var eqc=d.edgar_quality_score>=80?'#1a9850':d.edgar_quality_score>=60?'#fd8d3c':'#de2d26';dqEl.innerHTML='<span class="dq-badge" style="background:'+eqc+'" title="EDGAR cross-validation score: '+d.edgar_quality_score+'/100">DQ:'+d.edgar_quality_score+'</span>';}else{dqEl.innerHTML='';}
-  document.getElementById('d-pr').textContent=d.price!=null?'$'+d.price.toLocaleString(undefined,{maximumFractionDigits:2}):'N/A';
-  document.getElementById('d-mc').textContent=fds(d.mcap);
   var meta=[];if(d.sector)meta.push(d.sector);if(d.industry)meta.push(d.industry);if(d.ceo)meta.push('CEO: '+d.ceo+(d.founder_led?' \u2605 Founder':''));
   document.getElementById('d-meta').textContent=meta.join('  \u00B7  ');
   var sb=document.getElementById('d-sbar');
   sb.innerHTML=GM.categories.map(function(c){var v=d[c.scoreKey];var w=Math.round(c.weight*100);return'<div style="width:'+w+'%;background:'+c.dark+'" title="'+c.name+': '+(v!=null?Math.round(v)+'%':'N/A')+'">'+c.name.charAt(0)+' '+(v!=null?Math.round(v):'—')+'</div>';}).join('');
-  document.getElementById('d-desc').textContent=d.description_full||d.description||'';
+  (function(){
+    var el=document.getElementById('d-desc');
+    var desc=d.description_full||d.description||'';
+    if(d.culture_narrative){
+      el.innerHTML='<span>'+esc(desc)+'</span>'
+        +(desc?' ':'')
+        +'<mark style="background:rgba(59,111,212,0.12);color:#1a3a6a;border-radius:3px;padding:1px 3px;font-style:italic;">'+esc(d.culture_narrative)+'</mark>';
+    } else {
+      el.textContent=desc;
+    }
+  })();
+  var _km=document.getElementById('d-kmetrics');
+  var _krows=[
+    ['Mkt Cap',fds(d.mcap),''],
+    ['Price',d.price!=null?'$'+d.price.toLocaleString(undefined,{maximumFractionDigits:2}):'N/A',''],
+    ['Fair Value',fd(d.dcf_fv),''],
+    ['MoS',d.mos!=null?(d.mos*100).toFixed(1)+'%':'N/A',d.mos!=null?(d.mos>0.15?'color:#1a9850':(d.mos<0?'color:#de2d26':'')):''],
+    ['ROIC',d.roic!=null?(d.roic*100).toFixed(1)+'%':'N/A',''],
+    ['ROIC–WACC',d.spread!=null?(d.spread*100).toFixed(1)+'%':'N/A',d.spread!=null?(d.spread>0.05?'color:#1a9850':(d.spread<0?'color:#de2d26':'')):''],
+    ['Gross Margin',d.gross_margin!=null?(d.gross_margin*100).toFixed(1)+'%':'N/A',''],
+    ['ROE',d.roe!=null?(d.roe*100).toFixed(1)+'%':'N/A',''],
+    ['P/B',d.pb!=null?d.pb.toFixed(2)+'x':'N/A',''],
+    ['Current Ratio',d.cr!=null?d.cr.toFixed(2):'N/A',''],
+  ];
+  _km.innerHTML=_krows.map(function(r){return'<div class="km-cell"><span class="km-k">'+r[0]+'</span><span class="km-v"'+(r[2]?' style="'+r[2]+'"':'')+'>'+r[1]+'</span></div>';}).join('');
+  /* --- Gate values section --- */
+  try{
+    var _gvEl=document.getElementById('d-gate-values');
+    var _fmtGate=function(v,fmt){if(v==null)return'\u2014';if(fmt==='pct1')return(v*100).toFixed(1)+'%';if(fmt==='ratio')return v.toFixed(2)+'\u00d7';if(fmt==='int')return Math.round(v)+'';return v.toFixed?v.toFixed(2):String(v);};
+    var _gvHtml='';
+    GM.categories.forEach(function(c){
+      var gates=GM.gates.filter(function(g){return g.category===c.name;});
+      if(!gates.length)return;
+      _gvHtml+='<div class="gv-col"><div class="gv-cat" style="background:'+c.dark+'">'+c.name+'</div><div class="gv-items">';
+      gates.forEach(function(g){
+        var raw=d[g.key];
+        var pass=d[g.gpKey];
+        var cls=pass===true?' pass':pass===false?' fail':'';
+        _gvHtml+='<div class="gv-item"><span class="gv-k">'+g.label+'</span><span class="gv-v'+cls+'">'+_fmtGate(raw,g.fmt)+'</span></div>';
+      });
+      _gvHtml+='</div></div>';
+    });
+    _gvEl.innerHTML=_gvHtml;
+  }catch(e){console.error('gate values error:',e);}
   var fsEl=document.getElementById('d-fin-summary'),fsSec=document.getElementById('d-section-finsummary');if(d.financial_summary){fsEl.innerHTML='<div style="padding:10px 14px;background:#f4f6fb;border-left:3px solid #3498db;border-radius:0 5px 5px 0;font-size:0.82em;line-height:1.6;color:#333">'+esc(d.financial_summary)+'</div>';fsSec.style.display='';}else{fsEl.innerHTML='';fsSec.style.display='none';}
   var hw=d.sector_headwinds||[],tw=d.sector_tailwinds||[],sigEl=document.getElementById('d-sector-signals'),sigSec=document.getElementById('d-section-signals');
   if(hw.length||tw.length){var sh='<div class="sig-wrap"><div class="sig-grid">';sh+='<div class="sig-tw"><b>\u2714 Upside</b>'+(tw.length?'<ul>'+tw.map(function(t){return'<li>'+esc(t)+'</li>';}).join('')+'</ul>':'<p style="margin:0;color:#999">None identified</p>')+'</div>';sh+='<div class="sig-hw"><b>\u26A0 Downside</b>'+(hw.length?'<ul>'+hw.map(function(h){return'<li>'+esc(h)+'</li>';}).join('')+'</ul>':'<p style="margin:0;color:#999">None identified</p>')+'</div>';sh+='</div></div>';sigEl.innerHTML=sh;sigSec.style.display='';}else{sigEl.innerHTML='';sigSec.style.display='none';}
-  var newsEl=document.getElementById('d-news'),newsItems=d.news_headlines||[];if(newsItems.length){var nh='<div class="sig-title" style="font-size:0.78em;margin-bottom:4px">\uD83D\uDCF0 Recent News<span style="font-weight:400;color:#888;font-size:0.85em;margin-left:6px">('+newsItems.length+')</span></div><div style="max-height:160px;overflow-y:auto;background:#f8f9fb;border-radius:5px;padding:4px 8px">';newsItems.forEach(function(n){var badge=n.origin==='google_news'?'<span style="background:#e8eaf6;color:#3949ab;padding:0 4px;border-radius:3px;font-size:0.65em;margin-right:3px">Sector</span>':'';nh+='<div style="padding:2px 0;border-bottom:1px solid #eee;font-size:0.72em"><span style="color:#888;font-size:0.85em;min-width:58px;display:inline-block">'+esc(n.date||'')+'</span> '+badge+'<a href="'+esc(n.link||'#')+'" target="_blank" rel="noopener" style="color:#2980b9;text-decoration:none">'+esc(n.title||'')+'</a>'+(n.source?' <span style="color:#aaa;font-size:0.85em">\u2014 '+esc(n.source)+'</span>':'')+'</div>';});nh+='</div>';newsEl.innerHTML=nh;}else{newsEl.innerHTML='';}
+  var newsEl=document.getElementById('d-news'),newsItems=d.news_headlines||[];if(newsItems.length){var _ns=d.news_sentiment;var _sentBadge='';if(_ns&&_ns.label){var _sentColor=_ns.label==='Positive'?'#27ae60':(_ns.label==='Negative'?'#e74c3c':'#7f8c8d');var _sentBg=_ns.label==='Positive'?'#eafaf1':(_ns.label==='Negative'?'#fdedec':'#f2f3f4');var _sentArrow=_ns.label==='Positive'?'\u25b2':(_ns.label==='Negative'?'\u25bc':'\u25a0');var _bullPct=_ns.bullish_pct!=null?Math.round(_ns.bullish_pct*100)+'% bull':'';var _bearPct=_ns.bearish_pct!=null?Math.round(_ns.bearish_pct*100)+'% bear':'';var _sentTip=_ns.article_count+' articles scored \u2014 '+[_bullPct,_bearPct].filter(Boolean).join(', ');_sentBadge='<span title="'+esc(_sentTip)+'" style="background:'+_sentBg+';color:'+_sentColor+';padding:1px 7px;border-radius:10px;font-size:0.68em;font-weight:600;margin-left:8px;border:1px solid '+_sentColor+'22;cursor:default">'+_sentArrow+' '+esc(_ns.label)+'</span>';}var nh='<div class="sig-title" style="font-size:0.78em;margin-bottom:4px">\uD83D\uDCF0 Recent News<span style="font-weight:400;color:#888;font-size:0.85em;margin-left:6px">('+newsItems.length+')</span>'+_sentBadge+'</div><div style="max-height:160px;overflow-y:auto;background:#f8f9fb;border-radius:5px;padding:4px 8px">';newsItems.forEach(function(n){var badge=n.origin==='google_news'?'<span style="background:#e8eaf6;color:#3949ab;padding:0 4px;border-radius:3px;font-size:0.65em;margin-right:3px">Sector</span>':'';var _sc=n.sentiment!=null?(n.sentiment>0.05?'#27ae60':(n.sentiment<-0.05?'#e74c3c':'#95a5a6')):'';var _sdot=_sc?'<span title="Sentiment: '+n.sentiment+'" style="display:inline-block;width:5px;height:5px;border-radius:50%;background:'+_sc+';margin-right:4px;vertical-align:middle;cursor:default"></span>':'';nh+='<div style="padding:2px 0;border-bottom:1px solid #eee;font-size:0.72em"><span style="color:#888;font-size:0.85em;min-width:58px;display:inline-block">'+esc(n.date||'')+'</span> '+badge+_sdot+'<a href="'+esc(n.link||'#')+'" target="_blank" rel="noopener" style="color:#2980b9;text-decoration:none">'+esc(n.title||'')+'</a>'+(n.source?' <span style="color:#aaa;font-size:0.85em">\u2014 '+esc(n.source)+'</span>':'')+'</div>';});nh+='</div>';newsEl.innerHTML=nh;}else{newsEl.innerHTML='';}
   var legalEl=document.getElementById('d-legal'),legalItems=d.legal_filings||[];if(legalItems.length){var _formLabel={'10-K':'Annual Report','10-K/A':'Annual Report (Amended)','10-Q':'Quarterly Report','10-Q/A':'Quarterly Report (Amended)','8-K':'Current Report','8-K/A':'Current Report (Amended)','20-F':'Annual Report (Foreign)','6-K':'Foreign Issuer Report'};function _legalSumm(f){if(f.summary)return f.summary;var ft=f.form_type||'',desc=(f.description||'').toUpperCase().trim(),lbl=_formLabel[ft]||ft;if(desc&&desc!==ft.toUpperCase()&&desc!=='FORM '+ft.toUpperCase()&&desc!==''){var nice=f.description.trim().replace(/\b\w/g,function(c){return c.toUpperCase();});if(ft.indexOf('8-K')===0)return lbl+': '+nice;return lbl+' \u2014 '+nice;}if(ft.indexOf('10-K')===0)return lbl+' \u2014 legal proceedings disclosure';if(ft.indexOf('10-Q')===0)return lbl+' \u2014 legal proceedings disclosure';if(ft.indexOf('8-K')===0)return lbl+' \u2014 material event disclosure';return lbl;}var lh='<div class="sig-title" style="font-size:0.78em;margin-bottom:4px">\u2696\uFE0F Legal Proceedings <span style="font-weight:400;color:#888;font-size:0.85em">('+legalItems.length+' filing'+(legalItems.length>1?'s':'')+', past 2 yrs)</span></div><div style="max-height:200px;overflow-y:auto;background:#fef9f9;border-radius:5px;padding:4px 8px;border-left:3px solid #e74c3c">';legalItems.forEach(function(f){var fc={'10-K':'background:#2c3e50','10-Q':'background:#2980b9','8-K':'background:#8e44ad','8-K/A':'background:#8e44ad'};var fbg=fc[f.form_type]||'background:#888';var summ=_legalSumm(f);lh+='<div style="padding:4px 0;border-bottom:1px solid #f0e0e0;font-size:0.72em"><div><span style="color:#888;font-size:0.85em;min-width:58px;display:inline-block">'+esc(f.filing_date||'')+'</span> <span style="'+fbg+';color:#fff;padding:0 5px;border-radius:3px;font-size:0.65em;font-weight:600;margin-right:3px">'+esc(f.form_type||'')+'</span>'+(f.url?'<a href="'+esc(f.url)+'" target="_blank" rel="noopener" style="color:#c0392b;text-decoration:none">View Filing \u2197</a>':'')+'</div><div style="color:#666;font-size:0.9em;margin-top:1px;padding-left:62px">'+esc(summ)+'</div></div>';});lh+='</div>';legalEl.innerHTML=lh;}else{legalEl.innerHTML='';}
   document.getElementById('d-section-news').style.display=(newsItems.length||legalItems.length)?'':'none';
   /* --- Peers & Suppliers two-column section with financial snapshots --- */
@@ -700,15 +846,23 @@ function openDet(tk){
     h+='</tbody></table>';
     return hasRows?h:'';
   }
-  if(_allPeers.length>0||_allSupp.length>0){
+  /* Deduplicate customers */
+  var _cArr=d.customers||[];
+  var _seenC={},_allCust=[];
+  _cArr.forEach(function(c){var sym=(c.symbol||'').trim();if(sym&&!_seenC[sym]&&sym!==d.ticker){_seenC[sym]=1;_allCust.push(c);}});
+  if(_allPeers.length>0||_allSupp.length>0||_allCust.length>0){
     psH+='<div class="ps-grid">';
     /* LEFT: Peers */
     psH+='<div class="ps-col"><h3>\uD83C\uDFED Peers ('+_allPeers.length+')</h3>';
     if(_allPeers.length>0){psH+=_snapTbl(_allPeers,false);}else{psH+='<div style="color:#aaa;font-size:0.78em;padding:6px 0">No peers found</div>';}
     psH+='</div>';
-    /* RIGHT: Suppliers */
+    /* MIDDLE: Suppliers */
     psH+='<div class="ps-col"><h3>\uD83D\uDCE6 Key Suppliers ('+_allSupp.length+')</h3>';
     if(_allSupp.length>0){psH+=_snapTbl(_allSupp,true);}else if(d.supply_chain_available===false){psH+='<div style="color:#aaa;font-size:0.78em;padding:6px 0">No supplier data found in 10-K</div>';}else{psH+='<div style="color:#aaa;font-size:0.78em;padding:6px 0">No suppliers found</div>';}
+    psH+='</div>';
+    /* RIGHT: Customers */
+    psH+='<div class="ps-col"><h3>\uD83D\uDED2 Key Customers ('+_allCust.length+')</h3>';
+    if(_allCust.length>0){psH+=_snapTbl(_allCust,true);}else if(d.supply_chain_available===false){psH+='<div style="color:#aaa;font-size:0.78em;padding:6px 0">No customer data found in 10-K</div>';}else{psH+='<div style="color:#aaa;font-size:0.78em;padding:6px 0">No customers found</div>';}
     psH+='</div></div>';
   }
   psEl.innerHTML=psH;
@@ -720,31 +874,31 @@ function openDet(tk){
   var rl2={strong_buy:'Strong Buy',buy:'Buy',hold:'Hold',sell:'Sell',strong_sell:'Strong Sell'};
   var gh='';
   /* --- GROUP 1: PRICE CONTEXT --- */
-  gh+='<div class="dgroup"><div class="dgroup-title"><span class="dg-icon" style="background:var(--accent)"></span>Price Context</div><div class="dgrid-inner">';
+  gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2e86c1)"><span class="dg-icon"></span>Price Context</div><div class="dgrid-inner">';
   if(d.high_52w!=null&&d.low_52w!=null){var rp=d.range_52w_position!=null?d.range_52w_position:50;var rpC=rp<25?'color:#1a9850;font-weight:700':(rp>75?'color:#de2d26':'');gh+='<div class="dsec"><h3>52-Week Range</h3><div style="margin:8px 0;background:#e9ecef;border-radius:6px;height:18px;position:relative"><div style="position:absolute;left:'+Math.min(Math.max(rp,0),100)+'%;top:-2px;width:3px;height:22px;background:#2980b9;border-radius:2px" title="Current"></div></div><div class="dkvg">'+bkv([['52W High',fd(d.high_52w)],['52W Low',fd(d.low_52w)],['% from High',fp(d.pct_from_52w_high)],['Range Position',d.range_52w_position!=null?Math.round(d.range_52w_position)+'%':'N/A',rpC]])+'</div></div>';}
   gh+='<div class="dsec"><h3>Valuation Multiples</h3><div class="dkvg">'+bkv([['P/E',fn(d.pe,1)],['EV/EBITDA',fn(d.ev_ebitda,1)],['P/FCF',fn(d.pfcf,1)],['P/B',fn(d.pb,2)],['EPV P/FV',fn(d._gate_epv_p_fv,2)],['Analyst Target',fd(d.target_mean)]])+'</div></div>';
   gh+='</div></div>';
   /* --- GROUP 2: INTRINSIC VALUE --- */
-  gh+='<div class="dgroup"><div class="dgroup-title"><span class="dg-icon" style="background:var(--cat-val-dark)"></span>Intrinsic Value</div><div class="dgrid-inner">';
+  gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a2f5e,#2f5496)"><span class="dg-icon"></span>Intrinsic Value</div><div class="dgrid-inner">';
   gh+='<div class="dsec"><h3>DCF Breakdown</h3><div class="dkvg">'+bkv([['DCF Fair Value',fd(d.dcf_fv)],['Current Price',fd(d.price)],['Margin of Safety',fp(d.mos),ms],['Sensitivity Range',sr],['FCF Growth',fp(d.fcf_growth)],['WACC',fp(d.wacc)],['Terminal Growth',fp(d.terminal_growth)],['MC Confidence',d.mc_confidence!=null?d.mc_confidence:'N/A'],['MC CV',fp(d.mc_cv)],['MC P10',fd(d.mc_p10_fv)],['MC P90',fd(d.mc_p90_fv)],['Blend Method',d._blended_method||'DCF']])+'</div></div>';
   if(d.ddm_eligible){var ddmFlag=d.ddm_payout_flag?'color:#de2d26;font-weight:700':'';gh+='<div class="dsec"><h3>Dividend Discount Model</h3><div class="dkvg">'+bkv([['DDM Fair Value',fd(d.ddm_fv)],['H-Model FV',fd(d.ddm_h_fv)],['DDM Growth',fp(d.ddm_growth)],['Div CAGR',fp(d.ddm_div_cagr)],['Sustainable Growth',fp(d.ddm_sustainable_growth)],['Consec. Years',d.ddm_consecutive_years!=null?d.ddm_consecutive_years+'':'N/A'],['Payout Flag',d.ddm_payout_flag?'Yes':'No',ddmFlag],['DDM MC Median',fd(d.ddm_mc_median)],['DDM MC P10',fd(d.ddm_mc_p10)],['DDM MC P90',fd(d.ddm_mc_p90)],['DDM MC CV',fp(d.ddm_mc_cv)]])+'</div></div>';}
   gh+='<div class="dsec"><h3>Alternative Valuations</h3><div class="dkvg">'+bkv([['EPV Fair Value',fd(d.epv_fv)],['EPV MoS',fp(d.epv_mos)],['EPV Growth-Adj',fd(d.epv_growth_fv)],['RIM Fair Value',fd(d.rim_fv)],['RIM MoS',fp(d.rim_mos)],['Implied Growth (Rev DCF)',fp(d.implied_growth)],['Impl. vs Est.',fp(d.implied_vs_estimated)]])+'</div></div>';
   gh+='</div></div>';
   /* --- GROUP 3: BUSINESS QUALITY --- */
-  gh+='<div class="dgroup"><div class="dgroup-title"><span class="dg-icon" style="background:var(--cat-qual-dark)"></span>Business Quality</div><div class="dgrid-inner">';
+  gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1e4d20,#548235)"><span class="dg-icon"></span>Business Quality</div><div class="dgrid-inner">';
   gh+='<div class="dsec"><h3>Quality &amp; Profitability</h3><div class="dkvg">'+bkv([['ROIC (5Y)',fp(d.roic)],['ROE',fp(d.roe)],['ROA',fp(d.roa)],['Int Coverage',fn(d.int_cov,1)],['Cash Conversion',fn(d.cash_conv,2)],['Accruals',fn(d.accruals,3)],['Piotroski',d.piotroski!=null?d.piotroski+'/9':'N/A',ps]])+'</div></div>';
   if(d.dupont_margin!=null){gh+='<div class="dsec"><h3>DuPont Decomposition</h3><div class="dkvg">'+bkv([['Net Margin',fp(d.dupont_margin)],['Asset Turnover',fn(d.dupont_turnover,2)],['Equity Multiplier',fn(d.dupont_leverage,2)],['ROE (DuPont)',fp(d.dupont_margin!=null&&d.dupont_turnover!=null&&d.dupont_leverage!=null?d.dupont_margin*d.dupont_turnover*d.dupont_leverage:null)]])+'</div></div>';}
   gh+='<div class="dsec"><h3>Risk Indicators</h3><div class="dkvg">'+bkv([['Altman Z-Score',d.altman_z!=null?d.altman_z.toFixed(2):'N/A'],['Z Zone',zc,zs],['Beneish M-Score',d.beneish_m!=null?d.beneish_m.toFixed(2):'N/A'],['Manipulation Flag',d.beneish_flag===true?'Yes':d.beneish_flag===false?'No':'N/A',bs2]])+'</div></div>';
   gh+='<div class="dsec"><h3>Financial Health</h3><div class="dkvg">'+bkv([['Interest Coverage',fn(d.int_cov,1)],['Net Debt/EBITDA',fn(d.nd_ebitda,2)],['Debt/Equity',fn(d.de,2)],['Current Ratio',fn(d.cr,2)]])+'</div></div>';
   gh+='</div></div>';
   /* --- GROUP 4: OUTLOOK --- */
-  gh+='<div class="dgroup"><div class="dgroup-title"><span class="dg-icon" style="background:var(--cat-grow-dark)"></span>Outlook</div><div class="dgrid-inner">';
+  gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a1070,#7030a0)"><span class="dg-icon"></span>Outlook</div><div class="dgrid-inner">';
   gh+='<div class="dsec"><h3>Growth Signals</h3><div class="dkvg">'+bkv([['Analyst LTG',fp(d.analyst_ltg)],['Margin Trend',fp(d.margin_trend)],['Earnings Surprise',fp(d.surprise_avg)],['Fundamental Growth',fp(d.fundamental_growth)],['Reinvestment Rate',fp(d.reinvestment_rate)],['Rev CAGR (3Y)',fp(d.rev_cagr)],['Rev CAGR (5Y)',fp(d.rev_cagr_5y)],['Rev CAGR (10Y)',fp(d.rev_cagr_10y)]])+'</div></div>';
   gh+='<div class="dsec"><h3>Analyst Consensus</h3><div class="dkvg">'+bkv([['Recommendation',(rl2[d.analyst_rec]||d.analyst_rec||'N/A')+(d.num_analysts?' ('+d.num_analysts+')':'')],['Target Mean',fd(d.target_mean)],['Target Low',fd(d.target_low)],['Target High',fd(d.target_high)]])+'</div></div>';
   if(d.position_weight!=null){gh+='<div class="dsec"><h3>Portfolio</h3><div class="dkvg">'+bkv([['Position Weight',fp(d.position_weight)]])+'</div></div>';}
   gh+='</div></div>';
   /* --- GROUP 5: OWNERSHIP --- */
-  gh+='<div class="dgroup"><div class="dgroup-title"><span class="dg-icon" style="background:var(--cat-own-dark)"></span>Ownership</div><div class="dgrid-inner">';
+  gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#7a5800,#bf8f00)"><span class="dg-icon"></span>Ownership</div><div class="dgrid-inner">';
   function _fpCap(v,cap){if(v!=null&&v>cap)return'N/A';return fp(v);}
   gh+='<div class="dsec"><h3>Shareholder Returns</h3><div class="dkvg">'+bkv([['Shrhldr Yield',_fpCap(d.shareholder_yield,0.5)],['Buyback Rate',_fpCap(d.share_buyback_rate,0.5)],['Dividend Yield',fp(d.div_yield)]])+'</div></div>';
   /* Insider Activity (Form 4) */
@@ -797,7 +951,16 @@ function openDet(tk){
   document.body.style.overflow='hidden';
 }
 function closeDetail(){document.getElementById('det-modal').classList.remove('open');document.body.style.overflow='';}
-document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDetail();});
+function navDet(dir){var idx=_detIdx+dir;if(idx<0||idx>=_detNav.length)return;openDet(_detNav[idx]);var sc=document.querySelector('.detail-content');if(sc)sc.scrollTop=0;}
+document.addEventListener('keydown',function(e){
+  if(document.getElementById('det-modal').classList.contains('open')){
+    if(e.key==='Escape')closeDetail();
+    else if(e.key==='ArrowLeft'){e.preventDefault();navDet(-1);}
+    else if(e.key==='ArrowRight'){e.preventDefault();navDet(1);}
+    else if(e.key==='ArrowUp'){e.preventDefault();var m=document.querySelector('.detail-content');if(m)m.scrollTop-=80;}
+    else if(e.key==='ArrowDown'){e.preventDefault();var m=document.querySelector('.detail-content');if(m)m.scrollTop+=80;}
+  }
+});
 
 /* === VIEW CONTROLLER === */
 function showView(v){

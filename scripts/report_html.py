@@ -238,6 +238,7 @@ def build_html(rows, filename):
         'sector_headwinds': r.get('sector_headwinds', []),
         'sector_tailwinds': r.get('sector_tailwinds', []),
         'news_headlines': r.get('news_headlines', []),
+        'news_sentiment': r.get('news_sentiment'),
         'legal_filings': r.get('legal_filings', []),
         'legal_count': r.get('legal_count', 0),
         'legal_latest': r.get('legal_latest'),
@@ -299,6 +300,27 @@ def build_html(rows, filename):
         'range_52w_position': r.get('range_52w_position'),
         # Portfolio
         'position_weight': r.get('position_weight'),
+        # Culture narrative (descriptive, woven into company description)
+        'culture_narrative': r.get('culture_narrative'),
+        # Culture raw inputs
+        'employees': r.get('employees'),
+        'ceo_total_pay': r.get('ceo_total_pay'),
+        'compensation_risk': r.get('compensation_risk'),
+        'sbc': r.get('sbc'),
+        # Glassdoor (best-effort)
+        'glassdoor_rating': r.get('glassdoor_rating'),
+        'glassdoor_ceo_pct': r.get('glassdoor_ceo_pct'),
+        'glassdoor_rec_pct': r.get('glassdoor_rec_pct'),
+        # Derived culture metrics
+        'revenue_per_emp': r.get('revenue_per_emp'),
+        'fcf_per_emp': r.get('fcf_per_emp'),
+        'ceo_pay_ratio': r.get('ceo_pay_ratio'),
+        'sbc_per_emp': r.get('sbc_per_emp'),
+        'rpe_cagr': r.get('rpe_cagr'),
+        # Culture signals
+        'employment_legal_flag': r.get('employment_legal_flag', False),
+        'layoff_news_signal': r.get('layoff_news_signal', False),
+        'culture_award_signal': r.get('culture_award_signal', False),
     } for r in rows], default=_json_default)
 
     # Gate metadata for Matrix view rendering in JavaScript
@@ -328,14 +350,14 @@ def build_html(rows, filename):
             {'key': '_gate_insider_own', 'label': 'Insider %', 'gpKey': '_gp_insider_own',
              'scoreKey': '_score_insider_own', 'threshold': 'Insider >= 5%',
              'category': 'Ownership', 'fmt': 'pct1'},
+            {'key': '_gate_insider_buying', 'label': 'Ins Buy', 'gpKey': '_gp_insider_buying',
+             'scoreKey': '_score_insider_buying', 'threshold': 'Buy Ratio > 50%',
+             'category': 'Ownership', 'fmt': 'pct1'},
             {'key': '_gate_turnover', 'label': 'Turnover', 'gpKey': '_gp_turnover',
              'scoreKey': '_score_turnover', 'threshold': 'Turnover < 2%',
              'category': 'Ownership', 'fmt': 'pct1'},
             {'key': '_gate_buyback_rate', 'label': 'Buyback', 'gpKey': '_gp_buyback_rate',
              'scoreKey': '_score_buyback_rate', 'threshold': 'Buyback > 0%',
-             'category': 'Ownership', 'fmt': 'pct1'},
-            {'key': '_gate_insider_buying', 'label': 'Ins Buy', 'gpKey': '_gp_insider_buying',
-             'scoreKey': '_score_insider_buying', 'threshold': 'Buy Ratio > 50%',
              'category': 'Ownership', 'fmt': 'pct1'},
             {'key': '_gate_roic_consistency', 'label': 'ROIC CV', 'gpKey': '_gp_roic_consistency',
              'scoreKey': '_score_roic_consistency', 'threshold': 'CV < 30%',

@@ -245,6 +245,11 @@ class SECSupplyClient:
     def _find_names_in_window(self, window):
         """Scan a text window for known company names using word-boundary regex.
 
+        Uses a two-stage approach for performance:
+          1. Fast plain-string pre-filter — skips ~99% of candidates instantly.
+          2. Word-boundary regex — only runs on names that passed stage 1,
+             ensuring precision (no false positives from partial matches).
+
         Returns:
             set of ticker symbols found.
         """
@@ -252,6 +257,10 @@ class SECSupplyClient:
         window_norm = self._normalize(window)
         found = set()
         for name_key, (ticker, pat) in self._reverse_map.items():
+            # Stage 1: cheap substring check before running the regex
+            if name_key not in window_norm:
+                continue
+            # Stage 2: word-boundary regex for precision
             if pat.search(window_norm):
                 found.add(ticker)
         return found
