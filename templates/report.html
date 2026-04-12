@@ -148,7 +148,7 @@ td.ct{font-weight:700;}
 .det-nav-btn:hover:not(:disabled){background:rgba(255,255,255,0.28);}
 .det-nav-btn:disabled{opacity:0.25;cursor:default;}
 .det-nav-right{display:flex;align-items:center;gap:10px;margin-left:auto;}
-.det-nav-pos{font-size:0.68em;color:rgba(255,255,255,0.6);}
+.det-nav-pos{font-size:0.68em;color:rgba(255,255,255,0.6);flex:1;text-align:center;}
 .dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:44px;justify-content:space-between;}
 .dh-left{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .dh-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
@@ -196,17 +196,17 @@ td.ct{font-weight:700;}
 .dtxn td{padding:2px 4px;border-bottom:1px solid #f0f0f0;}
 .dq-badge{display:inline-block;padding:1px 6px;border-radius:8px;color:#fff;font-size:0.65em;font-weight:600;margin-left:8px;vertical-align:middle;}
 .dq-warning{background:#fff3cd;border:1px solid #ffc107;color:#856404;padding:6px 10px;border-radius:4px;margin:8px 0;font-size:0.72em;}
-.flag-star{cursor:pointer;font-size:1.5em;user-select:none;transition:transform 0.15s;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3));}
+.flag-star{cursor:pointer;font-size:1.3em;user-select:none;transition:transform 0.15s;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3));}
 .flag-star:hover{transform:scale(1.3);}
-.flag-star.flagged{color:#f5a623;}.flag-star:not(.flagged){color:rgba(255,255,255,0.35);}
+.flag-star.flagged{color:#f5a623;}.flag-star:not(.flagged){color:rgba(0,0,0,0.2);}.det-nav-bar .flag-star:not(.flagged),.d-header-band .flag-star:not(.flagged){color:rgba(255,255,255,0.35);}
 .flag-count{font-size:0.72em;margin-left:2px;opacity:0.8;}
-.rev-chk{cursor:pointer;font-size:1.1em;user-select:none;transition:transform 0.12s;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;border:2px solid #ccc;background:#fff;color:transparent;font-weight:700;line-height:1;vertical-align:middle;}
-.rev-chk:hover{border-color:var(--accent);transform:scale(1.12);}
-.rev-chk.checked{background:#27ae60;border-color:#27ae60;color:#fff;}
-.rev-chk-det{cursor:pointer;font-size:0.72em;font-weight:600;padding:4px 12px;border-radius:16px;user-select:none;transition:all 0.15s;border:1px solid rgba(255,255,255,0.3);display:inline-flex;align-items:center;gap:5px;}
-.rev-chk-det:not(.checked){background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.6);}
-.rev-chk-det:not(.checked):hover{background:rgba(255,255,255,0.22);color:#fff;}
-.rev-chk-det.checked{background:#27ae60;color:#fff;border-color:#27ae60;}
+.rev-chk{cursor:pointer;font-size:1.6em;user-select:none;transition:all 0.12s;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;font-weight:700;line-height:1;vertical-align:middle;color:transparent;-webkit-text-stroke:1.5px rgba(0,0,0,0.2);}
+.rev-chk:hover{transform:scale(1.12);-webkit-text-stroke:1.5px rgba(0,0,0,0.45);}
+.rev-chk.checked{color:#27ae60;-webkit-text-stroke:0;}
+.rev-chk-det{cursor:pointer;font-size:1.6em;font-weight:700;padding:0;user-select:none;transition:all 0.15s;border:none;background:transparent;display:inline-flex;align-items:center;justify-content:center;line-height:1;}
+.rev-chk-det:not(.checked){color:transparent;-webkit-text-stroke:1.5px rgba(255,255,255,0.35);}
+.rev-chk-det:not(.checked):hover{color:transparent;-webkit-text-stroke:1.5px rgba(255,255,255,0.7);}
+.rev-chk-det.checked{color:#27ae60;-webkit-text-stroke:0;}
 .rev-overlay{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;border-radius:5px;}
 .rev-overlay.checked{background:rgba(39,174,96,0.04);}
 .ps-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
@@ -267,6 +267,8 @@ td.ct{font-weight:700;}
 .pp-desc .pp-section-label{background:#3572b8;}
 .pp-insights{background:#fff7e6;border-left:5px solid #b8860b;}
 .pp-insights .pp-section-label{background:#b8860b;}
+.pp-headwinds{background:#fdf2f2;border-left:5px solid #c0392b;}
+.pp-headwinds .pp-section-label{background:#c0392b;}
 .pp-players{background:#eef8f1;border-left:5px solid #2e7d48;}
 .pp-players .pp-section-label{background:#2e7d48;}
 .pp-chart{background:white;padding:18px 20px 22px;border-left:5px solid #546e7a;}
@@ -353,15 +355,7 @@ td.ct{font-weight:700;}
   </div>
   <div id="view-pool" class="view">
     <div class="pool-controls">
-      <label style="font-size:0.85em;color:#555;font-weight:600">Sector:</label>
-      <select id="pool-sector-sel" onchange="renderPool()"><option value="__all__">All Sectors</option></select>
-      <div class="pool-legend">
-        <span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span>
-        <span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span>
-        <span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span>
-        <span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span>
-      </div>
-      <span style="font-size:0.73em;color:#aaa">Bar width = revenue share &nbsp;&middot;&nbsp; Bar height = operating margin &nbsp;&middot;&nbsp; Click to open detail</span>
+      <select id="pool-sector-sel" onchange="renderPool()" style="display:none"><option value="__all__">All Sectors</option></select>
     </div>
     <div id="pool-chart-area"></div>
     <div id="pool-sector-table"></div>
@@ -390,7 +384,7 @@ td.ct{font-weight:700;}
     <div id="det-nav" class="det-nav-bar">
       <button class="det-nav-prev det-nav-btn" onclick="navDet(-1)" title="Previous stock (← ↑)">&#8249;</button>
       <span class="det-nav-pos"></span>
-      <div class="det-nav-right"><span id="d-rev2" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag2" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock" style="font-size:1.2em"></span><button class="det-nav-next det-nav-btn" onclick="navDet(1)" title="Next stock (→ ↓)">&#8250;</button></div>
+      <div class="det-nav-right"><span id="d-rev2" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag2" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span><button class="det-nav-next det-nav-btn" onclick="navDet(1)" title="Next stock (→ ↓)">&#8250;</button></div>
     </div>
   </div>
 </div>
@@ -427,11 +421,11 @@ var _revFilter=0; /* 0=off,1=unreviewed,2=reviewed */
 function _saveRevd(){try{localStorage.setItem(_REV_KEY,JSON.stringify(_revd));}catch(e){}}
 function isReviewed(tk){return !!_revd[tk];}
 function toggleReviewed(tk,e){if(e)e.stopPropagation();_revd[tk]?delete _revd[tk]:_revd[tk]=1;_saveRevd();_updateRevCount();applyFilters();}
-function _syncRevDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;var c=isReviewed(tk)?'rev-chk-det checked':'rev-chk-det';var h=isReviewed(tk)?'\u2714 Reviewed':'\u25CB Mark Reviewed';['d-rev','d-rev2'].forEach(function(id){var el=document.getElementById(id);if(el){el.className=c;el.innerHTML=h;}});}
+function _syncRevDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;var c=isReviewed(tk)?'rev-chk-det checked':'rev-chk-det';['d-rev','d-rev2'].forEach(function(id){var el=document.getElementById(id);if(el){el.className=c;el.innerHTML='\u2714';el.title=isReviewed(tk)?'Reviewed — click to unmark':'Mark as reviewed';}});}
 function toggleReviewedDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;toggleReviewed(tk);_syncRevDet();}
 function cycleRevFilter(){_revFilter=(_revFilter+1)%3;var el=document.getElementById('f-reviewed');el.classList.toggle('active',_revFilter>0);el.innerHTML='\u2714 '+(['All','Unreviewed','Reviewed'])[_revFilter];applyFilters();}
 function _updateRevCount(){var n=Object.keys(_revd).length;var el=document.getElementById('rev-count-label');if(el)el.textContent=n>0?' ('+n+')':'';}
-function _revHtml(tk){var c=isReviewed(tk);return '<span class="rev-chk'+(c?' checked':'')+'" onclick="toggleReviewed(\''+tk.replace(/'/g,"\\'")+'\',event)" title="'+(c?'Reviewed — click to unmark':'Mark as reviewed')+'">'+(c?'\u2714':'')+'</span>';}
+function _revHtml(tk){var c=isReviewed(tk);return '<span class="rev-chk'+(c?' checked':'')+'" onclick="toggleReviewed(\''+tk.replace(/'/g,"\\'")+'\',event)" title="'+(c?'Reviewed — click to unmark':'Mark as reviewed')+'">\u2714</span>';}
 _updateRevCount();
 
 /* === HELPERS === */
@@ -713,8 +707,8 @@ function renderMatrix(){
   var cg2={};GM.categories.forEach(function(c){cg2[c.name]=[];});
   GM.gates.forEach(function(g){if(!g.hideMatrix)cg2[g.category].push(g);});
   var h1='<tr>';
-  h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.2em" onclick="mSort(\'_flagged\')" title="Flagged">\u2691'+(mSC==='_flagged'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:0.82em" onclick="mSort(\'_reviewed\')" title="Reviewed">\u2714'+(mSC==='_reviewed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.3em" onclick="mSort(\'_flagged\')" title="Flagged">\u2691'+(mSC==='_flagged'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.3em" onclick="mSort(\'_reviewed\')" title="Reviewed">\u2714'+(mSC==='_reviewed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'ticker\')" data-col-tip="ticker" data-col-label="Ticker">Ticker'+(mSC==='ticker'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" data-col-tip="rating" data-col-label="Rating">Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_composite_score\')" data-col-tip="_composite_score" data-col-label="Composite Score">Comp.'+(mSC==='_composite_score'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
@@ -790,7 +784,7 @@ function swTSub(s){curTSub=s;tSC=null;tSA=true;renderTSubs();renderTable();}
 function renderTable(){
   var cols=TC[curTSub]||TC.ovr;
   var th=document.getElementById('dt-h'),tb=document.getElementById('dt-b');
-  var hh='<tr>';hh+='<th style="width:28px;cursor:pointer;font-size:1.2em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';hh+='<th style="width:28px;cursor:pointer;font-size:0.82em" onclick="tSort(\'_reviewed\')" data-col-tip="_reviewed" data-col-label="Reviewed">\u2714 <span class="arrow">'+(tSC==='_reviewed'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
+  var hh='<tr>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_reviewed\')" data-col-tip="_reviewed" data-col-label="Reviewed">\u2714 <span class="arrow">'+(tSC==='_reviewed'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
   th.innerHTML=hh;
   var sd=FD.slice();
   var RO2={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
@@ -982,15 +976,13 @@ function openDet(tk){
     function _hwLi(h,clr){return '<li style="color:#000;margin:4px 0"><span style="color:#37474f">'+esc(h.text)+'</span></li>';}
     var _hwHtml='';
     if(_hwRed.length){
-      _hwHtml+='<div style="font-size:0.72em;font-weight:600;color:#c0392b;text-transform:uppercase;letter-spacing:0.05em;margin:6px 0 2px">\u26A0 Red flags</div>';
-      _hwHtml+='<ul style="margin:0;padding-left:20px;list-style:disc">'+_hwRed.map(function(h){return _hwLi(h,'#c0392b');}).join('')+'</ul>';
+      _hwHtml+='<ul style="margin:6px 0 0;padding-left:20px;list-style:disc">'+_hwRed.map(function(h){return _hwLi(h,'#c0392b');}).join('')+'</ul>';
     }
     if(_hwAmber.length){
       _hwHtml+='<ul style="margin:6px 0 0;padding-left:20px;list-style:disc">'+_hwAmber.map(function(h){return _hwLi(h,'#e67e22');}).join('')+'</ul>';
     }
     if(_hwThesis.length){
-      _hwHtml+='<div style="font-size:0.72em;font-weight:600;color:#7d3c98;text-transform:uppercase;letter-spacing:0.05em;margin:8px 0 2px">Fat-tail risk</div>';
-      _hwHtml+='<ul style="margin:0;padding-left:20px;list-style:disc">'+_hwThesis.map(function(h){return _hwLi(h,'#7d3c98');}).join('')+'</ul>';
+      _hwHtml+='<ul style="margin:6px 0 0;padding-left:20px;list-style:disc">'+_hwThesis.map(function(h){return _hwLi(h,'#7d3c98');}).join('')+'</ul>';
     }
     if(!_hwNorm.length) _hwHtml='<p style="margin:0;color:#999">None identified</p>';
     var sh='<div class="sig-wrap"><div class="sig-grid">';
@@ -1154,6 +1146,7 @@ document.addEventListener('keydown',function(e){
     else if(e.key==='ArrowRight'){e.preventDefault();navDet(1);}
     else if(e.key==='ArrowUp'){e.preventDefault();var m=document.querySelector('.detail-content');if(m)m.scrollTop-=80;}
     else if(e.key==='ArrowDown'){e.preventDefault();var m=document.querySelector('.detail-content');if(m)m.scrollTop+=80;}
+    else if(e.key==='Enter'){e.preventDefault();var tk=document.getElementById('d-tk').textContent;if(tk&&!isReviewed(tk)){toggleReviewed(tk);_syncRevDet();}navDet(1);}
   }
 });
 
@@ -1185,7 +1178,10 @@ function renderPoolPrimer(sec){
   var parts=[];
   if(n.education)parts.push(_esc(n.education));
   if(n.education_cycle)parts.push(_esc(n.education_cycle));
-  return '<p style="margin:0;font-size:0.82em;line-height:1.55;color:#37474f">'+parts.join(' ')+'</p>';
+  var html='<p style="margin:0;font-size:0.82em;line-height:1.55;color:#37474f">'+parts.join(' ')+'</p>';
+  var thesisList=[],_tSeen={};DATA.forEach(function(d){if(d.sector===sec&&d.sector_headwinds){d.sector_headwinds.forEach(function(h){if(typeof h!=='string'&&h.cat==='thesis_risk'&&h.text&&!_tSeen[h.text]){_tSeen[h.text]=1;thesisList.push(h.text);}});}});
+  if(thesisList.length){html+='<div style="margin:10px 0 0;font-size:0.82em;line-height:1.55;color:#8b3a3a;border-top:1px solid rgba(0,0,0,0.08);padding-top:8px"><strong style="color:#c0392b">⚠ Key risks:</strong><ul style="margin:4px 0 0;padding-left:18px;list-style:disc">'+thesisList.map(function(t){return '<li style="margin:2px 0">'+_esc(t.replace(/^Thesis-breaker:\s*/i,''))+'</li>';}).join('')+'</ul></div>';}
+  return html;
 }
 function renderPoolDescription(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
@@ -1209,7 +1205,7 @@ function renderPoolKeyPlayers(sec){
     var tk=p.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     out+='<div onclick="openDet(\''+tk+'\')" style="cursor:pointer;background:white;border-left:4px solid '+col+';border-radius:5px;padding:9px 12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);border-top:1px solid #eef1f4;border-right:1px solid #eef1f4;border-bottom:1px solid #eef1f4;font-size:0.82em;line-height:1.55;color:#37474f;transition:transform 0.1s,box-shadow 0.1s" onmouseenter="this.style.transform=\'translateY(-1px)\';this.style.boxShadow=\'0 3px 8px rgba(0,0,0,0.1)\'" onmouseleave="this.style.transform=\'none\';this.style.boxShadow=\'0 1px 4px rgba(0,0,0,0.06)\'">';
     out+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
-    out+='<span style="display:flex;align-items:center;gap:6px"><span style="font-weight:700;color:#1a252f">'+_esc(p.ticker)+'</span>'+_revHtml(p.ticker)+(p.company_name?' <span style="font-weight:400;color:#888;font-size:0.9em">'+_esc(p.company_name).slice(0,24)+'</span>':'')+'</span>';
+    out+='<span style="display:flex;align-items:center;gap:6px"><span style="font-weight:700;color:#1a252f">'+_esc(p.ticker)+'</span>'+_revHtml(p.ticker)+_starHtml(p.ticker)+(p.company_name?' <span style="font-weight:400;color:#888;font-size:0.9em">'+_esc(p.company_name).slice(0,24)+'</span>':'')+'</span>';
     out+='<span style="font-size:0.7em;font-weight:700;color:white;background:'+col+';padding:2px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:0.03em">'+_esc(p.role_label)+'</span>';
     out+='</div>';
     var chips=[];
@@ -1289,10 +1285,11 @@ function renderPool(){
     if(insightsHtml){
       chartHtml+='<div class="pp-section pp-insights"><span class="pp-section-label">Insights</span>'+insightsHtml+'</div>';
     }
+
     if(playersHtml){
       chartHtml+='<div class="pp-section pp-players"><span class="pp-section-label">Key Players</span>'+playersHtml+'</div>';
     }
-    chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Chart</span><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg></div>';
+    chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Chart</span><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span></div><span style="font-size:0.7em;color:#aaa">Bar width = revenue share &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>';
     chartHtml+='</div>';
     var wtdM=sorted.reduce(function(s,d){return s+(d.operating_margin||0)*(d.pp_revenue_share||0);},0)/totalRev;
     var best=sorted.reduce(function(a,b){return(a.pp_multiple||0)>(b.pp_multiple||0)?a:b;});

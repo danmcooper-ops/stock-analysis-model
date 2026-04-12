@@ -887,63 +887,110 @@ _SECTOR_EDUCATION = {
 
 
 _SECTOR_THESIS_RISKS = {
-    'Technology': (
-        'Thesis-breaker: antitrust and platform-regulation risk — the larger the network effect, '
-        'the larger the regulatory target on its back, and a single consent decree can reset the moat.'
-    ),
-    'Communication Services': (
-        'Thesis-breaker: advertising-cycle exposure and content/regulatory risk — '
-        'a single platform policy shift or ad-spend contraction cascades through the P&L quickly.'
-    ),
-    'Consumer Cyclical': (
-        'Thesis-breaker: consumer demand is fundamentally cyclical — '
-        'a recession compresses both unit volume and pricing power, and operating leverage cuts both ways.'
-    ),
-    'Consumer Defensive': (
-        'Thesis-breaker: slow-motion taste and channel shifts — private label, Gen-Z health preferences, '
-        'or a DTC disruption can erode decade-old brand moats without a single dramatic quarter.'
-    ),
-    'Energy': (
-        'Thesis-breaker: the commodity cycle — revenue and free cash flow are ultimately hostage to '
-        'a price the company does not set, and the long-run energy-transition arc adds a structural overhang.'
-    ),
-    'Financial Services': (
-        'Thesis-breaker: credit cycles and regulatory capital — losses accumulate invisibly in good years '
-        'and appear all at once, and Buffett warns the time to worry is when underwriting standards are loosest.'
-    ),
-    'Healthcare': (
-        'Thesis-breaker: patent cliffs, drug-pricing reform, and reimbursement pressure — '
-        'a single regulatory change can reset the pricing power that justifies the multiple.'
-    ),
-    'Industrials': (
-        'Thesis-breaker: cyclicality and capital intensity — order books turn on a dime, '
-        'and the heavy fixed cost base that creates the moat also magnifies the downturn.'
-    ),
-    'Basic Materials': (
-        'Thesis-breaker: commodity price volatility and cost-curve position — '
-        'in a downturn only the lowest-cost producer has a business, and the rest carry the overhead.'
-    ),
-    'Utilities': (
-        'Thesis-breaker: regulatory rate-case risk and rising cost of capital — '
-        'the allowed return is set by commissions, and the business lives or dies by that negotiation.'
-    ),
-    'Real Estate': (
-        'Thesis-breaker: interest-rate sensitivity and tenant-credit risk — '
-        'cap rates and refinancing costs move faster than the 10-year leases can absorb.'
-    ),
+    'Technology': [
+        'Antitrust and platform-regulation risk — the larger the network effect, '
+        'the larger the regulatory target on its back, and a single consent decree can reset the moat.',
+        'AI disruption of existing software moats — incumbents with durable margins face commoditisation '
+        'as AI-native competitors replicate features at a fraction of the R&D cost.',
+        'Cybersecurity liability and talent cost inflation — a single breach can erase years of goodwill, '
+        'and the war for engineering talent compresses margins even at scale.',
+    ],
+    'Communication Services': [
+        'Advertising-cycle exposure and content/regulatory risk — '
+        'a single platform policy shift or ad-spend contraction cascades through the P&L quickly.',
+        'Cord-cutting acceleration and audience fragmentation — legacy distribution bundles unravel '
+        'faster than subscription revenue can replace them.',
+        'AI-generated content commoditisation — as creation costs collapse toward zero, '
+        'content libraries lose pricing power and differentiation narrows.',
+    ],
+    'Consumer Cyclical': [
+        'Consumer demand is fundamentally cyclical — '
+        'a recession compresses both unit volume and pricing power, and operating leverage cuts both ways.',
+        'E-commerce margin compression and tariff exposure — digital competition erodes pricing power '
+        'while trade policy reshuffles supply-chain cost structures overnight.',
+        'Brand relevance decay — shifting consumer preferences and social-media-driven trends '
+        'can strand inventory and invalidate positioning faster than product cycles can adapt.',
+    ],
+    'Consumer Defensive': [
+        'Slow-motion taste and channel shifts — private label, Gen-Z health preferences, '
+        'or a DTC disruption can erode decade-old brand moats without a single dramatic quarter.',
+        'Input cost inflation from agricultural commodities — when raw materials spike, '
+        'pass-through pricing lags and margin compression is immediate.',
+        'GLP-1 and health-trend demand destruction — weight-loss drugs and wellness shifts '
+        'are structurally reducing consumption in snack, beverage, and packaged food categories.',
+    ],
+    'Energy': [
+        'The commodity cycle — revenue and free cash flow are ultimately hostage to '
+        'a price the company does not set, and the long-run energy-transition arc adds a structural overhang.',
+        'ESG-driven capital flight and stranded asset risk — tightening climate policy and investor mandates '
+        'raise the cost of capital and risk leaving reserves permanently in the ground.',
+        'Geopolitical supply shocks — wars, sanctions, and OPEC decisions create volatility '
+        'that no hedging programme can fully neutralise.',
+    ],
+    'Financial Services': [
+        'Credit cycles and regulatory capital — losses accumulate invisibly in good years '
+        'and appear all at once, and Buffett warns the time to worry is when underwriting standards are loosest.',
+        'Fintech disintermediation — neobanks, embedded finance, and blockchain rails are unbundling '
+        'the fee streams that traditional banks took for granted.',
+        'Interest rate regime shifts — a rapid move in rates can invert the yield curve, '
+        'crush bond portfolios, and trigger deposit flight simultaneously.',
+    ],
+    'Healthcare': [
+        'Patent cliffs, drug-pricing reform, and reimbursement pressure — '
+        'a single regulatory change can reset the pricing power that justifies the multiple.',
+        'Clinical trial concentration risk — binary FDA outcomes on a lead asset '
+        'can wipe out billions in market cap in a single session.',
+        'GLP-1 disruption across sub-sectors — weight-loss drugs are reshaping demand for '
+        'orthopaedics, cardiovascular devices, and sleep-apnea treatments in ways not yet priced in.',
+    ],
+    'Industrials': [
+        'Cyclicality and capital intensity — order books turn on a dime, '
+        'and the heavy fixed cost base that creates the moat also magnifies the downturn.',
+        'Supply chain reshoring costs and labour shortages — onshoring mandates raise capex requirements '
+        'while a shrinking skilled-labour pool inflates operating costs.',
+        'Tariff and trade-policy exposure — industrial exporters sit squarely in the crosshairs '
+        'of protectionist policy, and retaliatory tariffs can close markets without warning.',
+    ],
+    'Basic Materials': [
+        'Commodity price volatility and cost-curve position — '
+        'in a downturn only the lowest-cost producer has a business, and the rest carry the overhead.',
+        'Environmental remediation liability — tightening regulations on emissions, tailings, and water use '
+        'create open-ended balance-sheet risk that grows with each legislative cycle.',
+        'Trade policy and tariff whiplash — materials producers are first-order casualties '
+        'of protectionist swings, and margin gets squeezed from both input and output pricing.',
+    ],
+    'Utilities': [
+        'Regulatory rate-case risk and rising cost of capital — '
+        'the allowed return is set by commissions, and the business lives or dies by that negotiation.',
+        'Grid modernisation capex burden — aging infrastructure requires massive reinvestment '
+        'that regulators may not fully allow into rate base, compressing earned returns.',
+        'Wildfire and climate liability — extreme weather events create catastrophic, '
+        'uninsurable losses that can push even investment-grade utilities toward restructuring.',
+    ],
+    'Real Estate': [
+        'Interest-rate sensitivity and tenant-credit risk — '
+        'cap rates and refinancing costs move faster than the 10-year leases can absorb.',
+        'Remote work structural vacancy — the post-pandemic shift to hybrid work '
+        'has permanently impaired demand for urban office space across most markets.',
+        'Climate and insurance cost escalation — rising premiums and coverage withdrawals '
+        'in flood/fire zones are repricing assets that the market once treated as perpetuities.',
+    ],
 }
 
 
 def _thesis_breaker_signal(row):
-    """Always-on forward-looking fat-tail risk, one per company, by sector.
+    """Always-on forward-looking fat-tail risks, up to 3 per company, by sector.
 
-    Returns a dict {text, sev, cat} or None if sector unmapped.
+    Returns a list of dicts [{text, sev, cat}, ...] or empty list if sector unmapped.
     """
     sector = row.get('sector', '')
-    msg = _SECTOR_THESIS_RISKS.get(sector)
-    if not msg:
-        return None
-    return {'text': msg, 'sev': 'amber', 'cat': 'thesis_risk'}
+    msgs = _SECTOR_THESIS_RISKS.get(sector)
+    if not msgs:
+        return []
+    # Support both legacy single-string and new list format
+    if isinstance(msgs, str):
+        msgs = [msgs]
+    return [{'text': m, 'sev': 'amber', 'cat': 'thesis_risk'} for m in msgs]
 
 
 # ---------------------------------------------------------------------------
@@ -1301,16 +1348,17 @@ def generate_stock_narrative(row, sector_data=None, macro_regime_result=None,
     # Stable within each tier so category ordering (stock → peer → …) is preserved.
     all_hw.sort(key=lambda h: _SEV_RANK.get(h.get('sev'), 2))
 
-    # Cap, then append thesis-breaker so it always appears even if we'd otherwise truncate
+    # Cap, then append thesis-breakers so they always appear even if we'd otherwise truncate
     capped_hw = all_hw[:max_per_side]
-    if thesis is not None:
-        # Avoid double-adding if it slipped in somehow
-        if not any(h.get('cat') == 'thesis_risk' for h in capped_hw):
-            # Ensure thesis-breaker is visible even at the cap — evict the last
-            # amber item if we're already at capacity
+    thesis_signals = _thesis_breaker_signal(row)
+    if thesis_signals:
+        # Avoid double-adding if any slipped in somehow
+        existing_thesis = {h.get('text') for h in capped_hw if h.get('cat') == 'thesis_risk'}
+        new_thesis = [t for t in thesis_signals if t['text'] not in existing_thesis]
+        for t in new_thesis:
             if len(capped_hw) >= max_per_side:
                 capped_hw = capped_hw[:max_per_side - 1]
-            capped_hw.append(thesis)
+            capped_hw.append(t)
 
     return capped_hw, all_tw[:max_per_side]
 
