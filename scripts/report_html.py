@@ -6,6 +6,15 @@ import jinja2
 from datetime import date
 import numpy as np
 
+import sys as _sys
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if os.path.join(_HERE, '..') not in _sys.path:
+    _sys.path.append(os.path.join(_HERE, '..'))
+try:
+    from models.narrative import generate_sector_profit_pool_narrative
+except Exception:
+    generate_sector_profit_pool_narrative = None
+
 
 def _json_default(obj):
     """Convert numpy types to native Python types for JSON serialization."""
@@ -85,6 +94,8 @@ def build_html(rows, filename):
         'ceo_bio': r.get('ceo_bio') or '',
         'founder_led': r.get('founder_led', False),
         'fcf': r.get('fcf'),
+        'fcf_margin': r.get('fcf_margin'),
+        'sbc_pct_rev': r.get('sbc_pct_rev'),
         'mcap': r.get('mcap'),
         'roic_by_year': r.get('roic_by_year'),
         'roic_cv': r.get('roic_cv'),
@@ -162,7 +173,7 @@ def build_html(rows, filename):
         # Gate values (actual metric)
         '_gate_mos': r.get('_gate_mos'),
         '_gate_price_fv': r.get('_gate_price_fv'),
-        '_gate_epv_p_fv': r.get('_gate_epv_p_fv'),
+        '_gate_p_fcf': r.get('_gate_p_fcf'),
         '_gate_piotroski': r.get('_gate_piotroski'),
         '_gate_int_coverage': r.get('_gate_int_coverage'),
         '_gate_accruals': r.get('_gate_accruals'),
@@ -177,11 +188,17 @@ def build_html(rows, filename):
         '_gate_turnover': r.get('_gate_turnover'),
         '_gate_buyback_rate': r.get('_gate_buyback_rate'),
         '_gate_insider_buying': r.get('_gate_insider_buying'),
-        '_gate_profit_pool': r.get('_gate_profit_pool'),
+        '_gate_roe': r.get('_gate_roe'),
+        '_gate_net_debt_ebitda': r.get('_gate_net_debt_ebitda'),
+        '_gate_cash_conv': r.get('_gate_cash_conv'),
+        '_gate_rev_durability': r.get('_gate_rev_durability'),
+        '_gate_sbc_dilution': r.get('_gate_sbc_dilution'),
+        '_gate_price_book': r.get('_gate_price_book'),
+        '_gate_fcf_margin': r.get('_gate_fcf_margin'),
         # Gate pass/fail booleans
         '_gp_mos': r.get('_gp_mos'),
         '_gp_price_fv': r.get('_gp_price_fv'),
-        '_gp_epv_p_fv': r.get('_gp_epv_p_fv'),
+        '_gp_p_fcf': r.get('_gp_p_fcf'),
         '_gp_piotroski': r.get('_gp_piotroski'),
         '_gp_int_coverage': r.get('_gp_int_coverage'),
         '_gp_accruals': r.get('_gp_accruals'),
@@ -196,11 +213,17 @@ def build_html(rows, filename):
         '_gp_turnover': r.get('_gp_turnover'),
         '_gp_buyback_rate': r.get('_gp_buyback_rate'),
         '_gp_insider_buying': r.get('_gp_insider_buying'),
-        '_gp_profit_pool': r.get('_gp_profit_pool'),
+        '_gp_roe': r.get('_gp_roe'),
+        '_gp_net_debt_ebitda': r.get('_gp_net_debt_ebitda'),
+        '_gp_cash_conv': r.get('_gp_cash_conv'),
+        '_gp_rev_durability': r.get('_gp_rev_durability'),
+        '_gp_sbc_dilution': r.get('_gp_sbc_dilution'),
+        '_gp_price_book': r.get('_gp_price_book'),
+        '_gp_fcf_margin': r.get('_gp_fcf_margin'),
         # Continuous scores (0-100)
         '_score_mos': r.get('_score_mos'),
         '_score_price_fv': r.get('_score_price_fv'),
-        '_score_epv_p_fv': r.get('_score_epv_p_fv'),
+        '_score_p_fcf': r.get('_score_p_fcf'),
         '_score_piotroski': r.get('_score_piotroski'),
         '_score_int_coverage': r.get('_score_int_coverage'),
         '_score_accruals': r.get('_score_accruals'),
@@ -215,7 +238,13 @@ def build_html(rows, filename):
         '_score_turnover': r.get('_score_turnover'),
         '_score_buyback_rate': r.get('_score_buyback_rate'),
         '_score_insider_buying': r.get('_score_insider_buying'),
-        '_score_profit_pool': r.get('_score_profit_pool'),
+        '_score_roe': r.get('_score_roe'),
+        '_score_net_debt_ebitda': r.get('_score_net_debt_ebitda'),
+        '_score_cash_conv': r.get('_score_cash_conv'),
+        '_score_rev_durability': r.get('_score_rev_durability'),
+        '_score_sbc_dilution': r.get('_score_sbc_dilution'),
+        '_score_price_book': r.get('_score_price_book'),
+        '_score_fcf_margin': r.get('_score_fcf_margin'),
         # Category totals + composite
         '_score_valuation': r.get('_score_valuation'),
         '_score_quality': r.get('_score_quality'),
@@ -234,7 +263,7 @@ def build_html(rows, filename):
         'macro_regime': r.get('macro_regime'),
         'macro_composite': r.get('macro_composite'),
         'macro_erp': r.get('macro_erp'),
-        'financial_summary': r.get('financial_summary', ''),
+        'financial_summary': r.get('financial_summary', []),
         'sector_headwinds': r.get('sector_headwinds', []),
         'sector_tailwinds': r.get('sector_tailwinds', []),
         'news_headlines': r.get('news_headlines', []),
@@ -332,12 +361,9 @@ def build_html(rows, filename):
             {'key': '_gate_price_fv', 'label': 'Price/FV', 'gpKey': '_gp_price_fv',
              'scoreKey': '_score_price_fv', 'threshold': 'P/FV < 1.2',
              'category': 'Valuation', 'fmt': 'ratio'},
-            {'key': '_gate_epv_p_fv', 'label': 'EPV P/FV', 'gpKey': '_gp_epv_p_fv',
-             'scoreKey': '_score_epv_p_fv', 'threshold': 'EPV P/FV < 1.2',
+            {'key': '_gate_p_fcf', 'label': 'P/FCF', 'gpKey': '_gp_p_fcf',
+             'scoreKey': '_score_p_fcf', 'threshold': 'P/FCF \u2264 25\u00d7',
              'category': 'Valuation', 'fmt': 'ratio'},
-            {'key': '_gate_piotroski', 'label': 'Piotroski', 'gpKey': '_gp_piotroski',
-             'scoreKey': '_score_piotroski', 'threshold': 'F-Score >= 5',
-             'category': 'Quality', 'fmt': 'int'},
             {'key': '_gate_int_coverage', 'label': 'Int Cov', 'gpKey': '_gp_int_coverage',
              'scoreKey': '_score_int_coverage', 'threshold': 'IC > 3\u00d7',
              'category': 'Quality', 'fmt': 'ratio'},
@@ -345,17 +371,14 @@ def build_html(rows, filename):
              'scoreKey': '_score_accruals', 'threshold': '|Acr| < 8%',
              'category': 'Quality', 'fmt': 'pct1'},
             {'key': '_gate_shrhldr_yield', 'label': 'Shrhldr Yld', 'gpKey': '_gp_shrhldr_yield',
-             'scoreKey': '_score_shrhldr_yield', 'threshold': 'Yield > 0%',
-             'category': 'Ownership', 'fmt': 'pct1', 'hideMatrix': True},
+             'scoreKey': '_score_shrhldr_yield', 'threshold': 'Yield > 2%',
+             'category': 'Ownership', 'fmt': 'pct1'},
             {'key': '_gate_insider_own', 'label': 'Insider %', 'gpKey': '_gp_insider_own',
              'scoreKey': '_score_insider_own', 'threshold': 'Insider >= 5%',
              'category': 'Ownership', 'fmt': 'pct1'},
-            {'key': '_gate_insider_buying', 'label': 'Ins Buy', 'gpKey': '_gp_insider_buying',
-             'scoreKey': '_score_insider_buying', 'threshold': 'Buy Ratio > 50%',
-             'category': 'Ownership', 'fmt': 'pct1'},
-            {'key': '_gate_turnover', 'label': 'Turnover', 'gpKey': '_gp_turnover',
-             'scoreKey': '_score_turnover', 'threshold': 'Turnover < 2%',
-             'category': 'Ownership', 'fmt': 'pct1'},
+            {'key': '_gate_roe', 'label': 'ROE', 'gpKey': '_gp_roe',
+             'scoreKey': '_score_roe', 'threshold': 'ROE > 15%',
+             'category': 'Growth', 'fmt': 'pct1'},
             {'key': '_gate_buyback_rate', 'label': 'Buyback', 'gpKey': '_gp_buyback_rate',
              'scoreKey': '_score_buyback_rate', 'threshold': 'Buyback > 0%',
              'category': 'Ownership', 'fmt': 'pct1'},
@@ -374,26 +397,56 @@ def build_html(rows, filename):
             {'key': '_gate_margins', 'label': 'Margins', 'gpKey': '_gp_margins',
              'scoreKey': '_score_margins', 'threshold': 'Margin >= 0',
              'category': 'Growth', 'fmt': 'pct1'},
-            {'key': '_gate_surprise', 'label': 'Surprise', 'gpKey': '_gp_surprise',
-             'scoreKey': '_score_surprise', 'threshold': 'Surp > 0',
+            {'key': '_gate_net_debt_ebitda', 'label': 'ND/EBITDA', 'gpKey': '_gp_net_debt_ebitda',
+             'scoreKey': '_score_net_debt_ebitda', 'threshold': 'ND/EBITDA \u2264 2\u00d7',
+             'category': 'Quality', 'fmt': 'ratio'},
+            {'key': '_gate_cash_conv', 'label': 'Cash Conv', 'gpKey': '_gp_cash_conv',
+             'scoreKey': '_score_cash_conv', 'threshold': 'CashConv \u2265 0.85\u00d7',
+             'category': 'Quality', 'fmt': 'ratio'},
+            {'key': '_gate_rev_durability', 'label': '10Y Rev CAGR', 'gpKey': '_gp_rev_durability',
+             'scoreKey': '_score_rev_durability', 'threshold': '10Y RevCAGR > 2%',
              'category': 'Growth', 'fmt': 'pct1'},
-            {'key': '_gate_profit_pool', 'label': 'Profit Pool', 'gpKey': '_gp_profit_pool',
-             'scoreKey': '_score_profit_pool', 'threshold': 'PP \u2265 1.0\u00d7',
-             'category': 'Growth', 'fmt': 'ratio'},
+            {'key': '_gate_sbc_dilution', 'label': 'SBC/Rev', 'gpKey': '_gp_sbc_dilution',
+             'scoreKey': '_score_sbc_dilution', 'threshold': 'SBC/Rev \u2264 3%',
+             'category': 'Ownership', 'fmt': 'pct1'},
+            {'key': '_gate_price_book', 'label': 'P/B', 'gpKey': '_gp_price_book',
+             'scoreKey': '_score_price_book', 'threshold': 'P/B \u2264 5\u00d7',
+             'category': 'Valuation', 'fmt': 'ratio'},
+            {'key': '_gate_fcf_margin', 'label': 'FCF Margin', 'gpKey': '_gp_fcf_margin',
+             'scoreKey': '_score_fcf_margin', 'threshold': 'FCF Margin > 10%',
+             'category': 'Moat', 'fmt': 'pct1'},
         ],
         'categories': [
-            {'name': 'Valuation', 'weight': 0.15, 'dark': '#2F5496', 'light': '#D6E4F0',
+            {'name': 'Valuation', 'weight': 0.20, 'dark': '#2F5496', 'light': '#D6E4F0',
              'scoreKey': '_score_valuation'},
-            {'name': 'Quality', 'weight': 0.10, 'dark': '#548235', 'light': '#E2EFDA',
+            {'name': 'Quality', 'weight': 0.20, 'dark': '#548235', 'light': '#E2EFDA',
              'scoreKey': '_score_quality'},
-            {'name': 'Moat', 'weight': 0.35, 'dark': '#C55A11', 'light': '#FCE4CC',
+            {'name': 'Moat', 'weight': 0.40, 'dark': '#C55A11', 'light': '#FCE4CC',
              'scoreKey': '_score_moat'},
-            {'name': 'Growth', 'weight': 0.30, 'dark': '#7030A0', 'light': '#E4CCEF',
+            {'name': 'Growth', 'weight': 0.05, 'dark': '#7030A0', 'light': '#E4CCEF',
              'scoreKey': '_score_growth'},
-            {'name': 'Ownership', 'weight': 0.10, 'dark': '#BF8F00', 'light': '#FFF2CC',
+            {'name': 'Ownership', 'weight': 0.15, 'dark': '#BF8F00', 'light': '#FFF2CC',
              'scoreKey': '_score_ownership'},
         ],
     }, default=_json_default)
+
+    # Per-sector profit pool narratives (top-level Profit Pool tab)
+    sector_pool_data = {}
+    if generate_sector_profit_pool_narrative is not None:
+        _by_sector = {}
+        for r in rows:
+            s = r.get('sector')
+            if not s or r.get('pp_revenue_share') is None:
+                continue
+            _by_sector.setdefault(s, []).append(r)
+        for s, srows in _by_sector.items():
+            try:
+                narr = generate_sector_profit_pool_narrative(s, srows)
+                if narr:
+                    sector_pool_data[s] = narr
+            except Exception as e:
+                print(f"[warn] sector pool narrative failed for {s}: {e}")
+    sector_pool_json = json.dumps(sector_pool_data, default=_json_default)
 
     # Render Jinja2 template
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
@@ -410,6 +463,7 @@ def build_html(rows, filename):
         lean_buy_count=lean_buy_count,
         chart_data=chart_data,
         gate_meta=gate_meta,
+        sector_pool_json=sector_pool_json,
         generated_at=date.today().strftime('%Y-%m-%d'),
     )
 

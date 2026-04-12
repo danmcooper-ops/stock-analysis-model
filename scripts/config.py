@@ -59,12 +59,12 @@ DDM_BLEND_WEIGHT = 0.30               # DDM weight in blended fair value
 DCF_BLEND_WEIGHT_WITH_DDM = 0.70      # DCF weight when DDM is available
 DDM_DIVERGENCE_THRESHOLD = 0.50       # Flag low confidence if DDM/DCF diverge >50%
 
-# Continuous scoring weights by category (calibrated via Cohen's d grid search)
-SCORE_WEIGHT_VALUATION = 0.15
-SCORE_WEIGHT_QUALITY = 0.10
-SCORE_WEIGHT_MOAT = 0.35
-SCORE_WEIGHT_GROWTH = 0.30
-SCORE_WEIGHT_OWNERSHIP = 0.10
+# Continuous scoring weights by category (Buffett-style: moat-first, quality/ownership over growth)
+SCORE_WEIGHT_VALUATION = 0.20
+SCORE_WEIGHT_QUALITY = 0.20
+SCORE_WEIGHT_MOAT = 0.40
+SCORE_WEIGHT_GROWTH = 0.05
+SCORE_WEIGHT_OWNERSHIP = 0.15
 
 # Post-processing
 BLEND_TRIGGER = 1.5            # DCF > 1.5× multiples-FV triggers blending

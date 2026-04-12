@@ -41,12 +41,9 @@ SCREENING_GATES = [
      'price',
      lambda v, r: (v / r['dcf_fv']) < 1.2
      if v and r.get('dcf_fv') else None),
-    ('Valuation: EPV P/FV',
-     'epv_pfv',
-     lambda v, r: v < 1.2 if v is not None else None),
-    ('Quality: Piotroski',
-     'piotroski',
-     lambda v, r: v >= 5 if v is not None else None),
+    ('Valuation: P/FCF',
+     'pfcf',
+     lambda v, r: 0 < v <= 25 if v is not None else None),
     ('Quality: Int Coverage',
      'int_cov',
      lambda v, r: v > 3.0 if v is not None else None),
@@ -55,19 +52,13 @@ SCREENING_GATES = [
      lambda v, r: abs(v) < 0.08 if v is not None else None),
     ('Ownership: Shrhldr Yield',
      'shareholder_yield',
-     lambda v, r: v > 0.0 if v is not None else None),
+     lambda v, r: v > 0.02 if v is not None else None),
     ('Ownership: Insider Own',
      'insider_pct',
      lambda v, r: v >= 0.05 if v is not None else None),
-    ('Ownership: Turnover',
-     'share_turnover_rate',
-     lambda v, r: v < 0.02 if v is not None else None),
     ('Ownership: Buyback Rate',
      'share_buyback_rate',
      lambda v, r: v > 0.0 if v is not None else None),
-    ('Ownership: Insider Buying',
-     'insider_buy_ratio',
-     lambda v, r: v > 0.50 if v is not None else None),
     ('Moat: ROIC Consistency',
      'roic_cv',
      lambda v, r: v < 0.30 if v is not None else None),
@@ -83,12 +74,28 @@ SCREENING_GATES = [
     ('Growth: Margins',
      'margin_trend',
      lambda v, r: v >= 0 if v is not None else None),
-    ('Growth: Surprise',
-     'surprise_avg',
-     lambda v, r: v > 0 if v is not None else None),
-    ('Growth: Profit Pool',
-     'pp_multiple',
-     lambda v, r: v >= 1.0 if v is not None else None),
+    ('Growth: ROE',
+     'roe',
+     lambda v, r: v > 0.15 if v is not None else None),
+    # Buffett additions — balance sheet conservatism + owner earnings quality
+    ('Quality: Net Debt/EBITDA',
+     'nd_ebitda',
+     lambda v, r: v <= 2.0 if v is not None else None),
+    ('Quality: Cash Conv',
+     'cash_conv',
+     lambda v, r: v >= 0.85 if v is not None else None),
+    ('Growth: Rev Durability',
+     'rev_cagr_10y',
+     lambda v, r: v > 0.02 if v is not None else None),
+    ('Ownership: SBC Dilution',
+     'sbc_pct_rev',
+     lambda v, r: v <= 0.03 if v is not None else None),
+    ('Valuation: Price/Book',
+     'pb',
+     lambda v, r: v <= 5.0 if v is not None else None),
+    ('Moat: FCF Margin',
+     'fcf_margin',
+     lambda v, r: v > 0.10 if v is not None else None),
 ]
 
 
@@ -100,6 +107,14 @@ def apply_screening_matrix(results):
     True (pass) / False (fail) / None (N/A) for colour formatting.
     Only downgrades ratings — never upgrades.
     """
+    # Pre-compute derived gate fields
+    for r in results:
+        sbc = r.get('sbc')
+        rev = r.get('revenue')
+        fcf = r.get('fcf')
+        r['sbc_pct_rev'] = (sbc / rev) if (sbc is not None and rev and rev > 0) else None
+        r['fcf_margin'] = (fcf / rev) if (fcf is not None and rev and rev > 0) else None
+
     for r in results:
         r['rating_raw'] = r['rating']
         passed = 0
@@ -217,10 +232,9 @@ SCORING_GATES = [
      lambda v, r, pct: _score_linear(v, -0.20, 0.40), False, True),
     ('Valuation: Price/FV', '_price_fv', 'Valuation',
      lambda v, r, pct: _score_linear(v, 1.5, 0.7), False, True),
-    ('Valuation: EPV P/FV', 'epv_pfv', 'Valuation',
-     lambda v, r, pct: _score_linear(v, 1.5, 0.7), False, True),
-    ('Quality: Piotroski', 'piotroski', 'Quality',
-     lambda v, r, pct: _score_linear(v, 0, 9), False, True),
+    ('Valuation: P/FCF', 'pfcf', 'Valuation',
+     lambda v, r, pct: _score_linear(v, 50.0, 10.0) if v is not None and v > 0 else 0.0,
+     False, True),   # lower=better; 50× worst, 10× best; negative FCF scores 0
     ('Quality: Int Coverage', 'int_cov', 'Quality',
      lambda v, r, pct: _score_linear(min(v, 40) if v is not None else None, 1.0, 20.0),
      False, True),
@@ -229,13 +243,9 @@ SCORING_GATES = [
     ('Ownership: Shrhldr Yield', 'shareholder_yield', 'Ownership',
      lambda v, r, pct: _score_linear(v, -0.01, 0.08), False, True),
     ('Ownership: Insider Own', 'insider_pct', 'Ownership',
-     lambda v, r, pct: _score_linear(v, 0.0, 0.02), False, True),
-    ('Ownership: Turnover', 'share_turnover_rate', 'Ownership',
-     lambda v, r, pct: _score_linear(v, 0.02, 0.005), False, True),
+     lambda v, r, pct: _score_linear(v, 0.0, 0.15), False, True),
     ('Ownership: Buyback Rate', 'share_buyback_rate', 'Ownership',
      lambda v, r, pct: _score_linear(v, -0.01, 0.05), False, True),
-    ('Ownership: Insider Buying', 'insider_buy_ratio', 'Ownership',
-     lambda v, r, pct: _score_linear(v, 0.0, 1.0), False, True),
     ('Moat: ROIC Consistency', 'roic_cv', 'Moat',
      lambda v, r, pct: _score_linear(v, 0.60, 0.0), False, True),
     ('Moat: Spread', 'spread', 'Moat',
@@ -246,10 +256,21 @@ SCORING_GATES = [
      lambda v, r, pct: _score_linear(v, 0.0, 0.10), False, True),
     ('Growth: Margins', 'margin_trend', 'Growth',
      lambda v, r, pct: _score_linear(v, -0.05, 0.05), False, True),
-    ('Growth: Surprise', 'surprise_avg', 'Growth',
-     lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True),
-    ('Growth: Profit Pool', 'pp_multiple', 'Growth',
-     lambda v, r, pct: _score_linear(v, 0.3, 2.0), False, True),
+    ('Growth: ROE', 'roe', 'Growth',
+     lambda v, r, pct: _score_linear(v, 0.0, 0.30), False, True),  # 0% worst, 30%+ best
+    # Buffett additions
+    ('Quality: Net Debt/EBITDA', 'nd_ebitda', 'Quality',
+     lambda v, r, pct: _score_linear(v, 5.0, 0.0), False, True),   # lower=better; net cash → clamped to 100
+    ('Quality: Cash Conv', 'cash_conv', 'Quality',
+     lambda v, r, pct: _score_linear(v, 0.0, 1.5), False, True),   # higher=better; >1.5 clamped to 100
+    ('Growth: Rev Durability', 'rev_cagr_10y', 'Growth',
+     lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True),  # decimal; -5% worst, 15% best
+    ('Ownership: SBC Dilution', 'sbc_pct_rev', 'Ownership',
+     lambda v, r, pct: _score_linear(v, 0.10, 0.0), False, True),    # lower=better; 10% worst, 0% best
+    ('Valuation: Price/Book', 'pb', 'Valuation',
+     lambda v, r, pct: _score_linear(v, 15.0, 0.5), False, True),    # lower=better; 15× worst, 0.5× best
+    ('Moat: FCF Margin', 'fcf_margin', 'Moat',
+     lambda v, r, pct: _score_linear(v, 0.0, 0.20), False, True),    # higher=better; 0% worst, 20% best
 ]
 
 
