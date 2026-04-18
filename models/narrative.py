@@ -1688,12 +1688,45 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
     else:
         education_model = None
         education_cycle = None
+    # Top 4 by revenue share
+    by_rev = sorted(cos, key=lambda r: r.get('pp_revenue_share') or 0, reverse=True)
+    _rank_labels = ['Largest player', 'Second-largest', 'Third-largest', 'Fourth-largest']
+    cr4_companies = []
+    for _i, r in enumerate(by_rev[:4]):
+        _rev_share = r.get('pp_revenue_share')
+        _opm = r.get('operating_margin')
+        _mult = r.get('pp_multiple')
+        _ma = r.get('pp_margin_advantage')
+        _parts = [_rank_labels[_i] + ' by revenue'
+                  + (f' ({_rev_share*100:.0f}% of sector)' if _rev_share else '')]
+        if _ma is not None:
+            if _ma > 0.03:
+                _parts.append(f'margin runs {_ma*100:.1f}pp above sector median')
+            elif _ma < -0.03:
+                _parts.append(f'margin trails sector median by {abs(_ma)*100:.1f}pp')
+            else:
+                _parts.append('margin is near the sector median')
+        if _mult is not None:
+            if _mult >= 1.2:
+                _parts.append(f'captures profit disproportionately ({_mult:.2f}x share)')
+            elif _mult <= 0.8:
+                _parts.append(f'under-earns its size ({_mult:.2f}x profit-to-revenue ratio)')
+        cr4_companies.append({
+            'ticker': r['ticker'],
+            'company_name': r.get('company_name', ''),
+            'revenue_share': _rev_share,
+            'op_margin': _opm,
+            'rating': r.get('rating'),
+            'note': '; '.join(_parts) + '.',
+        })
+
     return {
         'education': education_model,
         'education_cycle': education_cycle,
         'overview': overview,
         'concentration': concentration,
         'key_players': key_players,
+        'cr4_companies': cr4_companies,
         'insights': insights,
         'stats': {
             'total_revenue': total_rev,

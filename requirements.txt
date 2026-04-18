@@ -3,3 +3,4 @@ pandas
 openpyxl
 pytest
 jinja2
+lxml

@@ -5,7 +5,7 @@
 DEFAULT_RISK_FREE_RATE = 0.04  # Fallback if live Treasury fetch fails
 ERP = 0.055                    # Equity Risk Premium (Damodaran)
 TERMINAL_GROWTH_RATE = 0.03
-MIN_MARKET_CAP = 10e9          # Worksheet Step 1: Market Cap > $10B
+MIN_MARKET_CAP = 0             # No market-cap floor
 WACC_FLOOR = 0.07              # Morningstar-aligned WACC bounds (global default)
 WACC_CAP = 0.13
 

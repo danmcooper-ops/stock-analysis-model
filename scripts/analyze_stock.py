@@ -1,4 +1,5 @@
 # scripts/analyze_stock.py
+import gc
 import sys
 import os
 import io
@@ -221,12 +222,14 @@ def _get_analyst_lt_growth(yf_data):
     ge = yf_data.get('growth_estimates')
     if ge is not None and hasattr(ge, 'empty') and not ge.empty:
         try:
-            if 'stockTrend' not in ge.columns:
+            # yfinance column name varies across versions: 'stockTrend', 'Stock', etc.
+            col = next((c for c in ('stockTrend', 'Stock') if c in ge.columns), None)
+            if col is None:
                 return None
             # Try LTG first, then +1y, then 0y
             for period in ['LTG', '+1y', '0y']:
                 if period in ge.index:
-                    val = ge.loc[period, 'stockTrend']
+                    val = ge.loc[period, col]
                     if pd.notna(val) and isinstance(val, (int, float)):
                         return float(val)
         except Exception:
@@ -764,6 +767,10 @@ def _annualise_dividends(div_series):
     """
     if div_series is None or len(div_series) == 0:
         return []
+    # Normalise DataFrame → Series (yfinance >=1.2 may return a single-column
+    # DataFrame from stock.dividends instead of the expected Series).
+    if isinstance(div_series, pd.DataFrame):
+        div_series = div_series.iloc[:, 0] if not div_series.empty else pd.Series(dtype=float)
     annual = div_series.groupby(div_series.index.year).sum()
     return annual.sort_index().tolist()
 
@@ -985,9 +992,9 @@ def _main():
         print('Tiingo API not configured (set TIINGO_API_KEY) — falling back to yfinance/Google RSS.')
 
     # -----------------------------------------------------------------------
-    # Phase 1: Screen — ROIC > WACC + market cap filter (Worksheet Steps 1, 4)
+    # Phase 1: Screen — ROIC > WACC (Worksheet Step 4)
     # -----------------------------------------------------------------------
-    print(f"Screening {len(all_tickers)} tickers (ROIC > WACC, mkt cap > $10B)...")
+    print(f"Screening {len(all_tickers)} tickers (ROIC > WACC)...")
     qualifying = []
     screen_cache = {}
     screen_outcomes = {'quality': {'total': 0, 'passed': 0},
@@ -1005,12 +1012,6 @@ def _main():
             if dq['quality_score'] < DATA_QUALITY_MIN:
                 print(f"  [{i}/{len(all_tickers)}] {ticker} - data quality "
                       f"{dq['quality_score']}/100 skip")
-                continue
-
-            # Market cap filter (Worksheet Step 1)
-            mcap = info.get('marketCap') or 0
-            if mcap < MIN_MARKET_CAP:
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - mcap ${mcap/1e9:.1f}B < $10B skip")
                 continue
 
             sector = info.get('sector', '')
@@ -1053,6 +1054,14 @@ def _main():
 
         except Exception as e:
             print(f"  [{i}/{len(all_tickers)}] {ticker} - error: {e}")
+        # Flush after every ticker so the log reflects progress if OOM-killed
+        sys.stdout.flush()
+
+    # Free memory: drop ALL cached financials and price histories.
+    # Qualifying tickers' data survives via screen_cache references.
+    yf_client.evict_financials()
+    yf_client.clear_history_cache()
+    gc.collect()
 
     print(f"\n{len(qualifying)} tickers passed screen out of {len(all_tickers)} total.")
     if args.validation:
@@ -1161,13 +1170,15 @@ def _main():
                     var_r = sum((x - mean_r) ** 2 for x in vals) / (len(vals) - 1)
                     roic_cv = (var_r ** 0.5) / mean_r
 
+            # Company description and CEO (Worksheet Step 3)
+            info = yf_data.get('info') or {}
+            # mcap must be read from THIS ticker's info, not the stale Phase 1 variable
+            mcap = info.get('marketCap') or 0
+
             # Shareholder yield (dividends + buybacks) / market cap
             sy_result = _compute_shareholder_yield(yf_data, mcap)
             shareholder_yield = sy_result['shareholder_yield'] if sy_result else None
             share_buyback_rate = sy_result['buyback_rate'] if sy_result else None
-
-            # Company description and CEO (Worksheet Step 3)
-            info = yf_data.get('info') or {}
             description = info.get('longBusinessSummary') or ''
             company_name = info.get('shortName') or info.get('longName') or ''
             sector = info.get('sector') or ''
@@ -1193,6 +1204,9 @@ def _main():
             xbrl_validation = sec_xbrl_client.validate_against_yfinance(ticker, yf_data)
             # SEC EDGAR: long-duration revenue/earnings history
             edgar_history = sec_xbrl_client.fetch_historical_financials(ticker, min_years=10)
+            # Evict the raw XBRL JSON blob (~1-10 MB) now that both
+            # validate_against_yfinance and fetch_historical_financials are done.
+            sec_xbrl_client._cache.pop(ticker, None)
             # SEC EDGAR: insider transactions from Form 4
             insider_data = sec_insider_client.fetch_insider_activity(ticker, days_back=365)
 
@@ -1550,6 +1564,7 @@ def _main():
                 'edgar_quality_score': xbrl_validation.get('edgar_quality_score') if xbrl_validation else None,
                 'edgar_fields_flagged': xbrl_validation.get('fields_flagged', 0) if xbrl_validation else 0,
                 'edgar_discrepancies': xbrl_validation.get('discrepancies', []) if xbrl_validation else [],
+                'edgar_history': edgar_history,
                 # Balance sheet (Step 3C)
                 'int_cov': int_cov,
                 'nd_ebitda': nd_ebitda,
@@ -1629,6 +1644,16 @@ def _main():
             results.append(row)
         except Exception as e:
             print(f"  Error analyzing {ticker}: {e}")
+        finally:
+            # Drop the heavy yf_data reference now that this ticker is done
+            if ticker in screen_cache:
+                screen_cache[ticker].pop('yf_data', None)
+            sys.stdout.flush()
+
+    # All per-ticker analysis complete — release remaining caches
+    screen_cache.clear()
+    yf_client.evict_financials()
+    gc.collect()
 
     # -----------------------------------------------------------------------
     # Post-processing: sector-median EV/EBITDA comparison + DCF cross-check

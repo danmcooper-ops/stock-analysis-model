@@ -6,24 +6,27 @@ from datetime import date
 import yfinance as yf
 import pandas as pd
 
+
+# Module-level executor shared across all timeout calls.  Using a single
+# thread avoids the memory/thread leak of creating (and never joining) a
+# fresh ThreadPoolExecutor per yfinance call.  max_workers=4 allows light
+# concurrency for overlapping timeout calls while capping thread count.
+_TIMEOUT_EXECUTOR = ThreadPoolExecutor(max_workers=4)
+
+
 def _run_with_timeout(func, timeout_seconds):
-    """Run *func* in a dedicated thread and raise TimeoutError if it exceeds
-    the wall-clock limit.
+    """Run *func* in the shared thread pool and raise TimeoutError if it
+    exceeds the wall-clock limit.
 
     Unlike socket.setdefaulttimeout(), this works regardless of the HTTP
     library used internally (urllib3, requests, etc.) because it enforces a
     deadline on the entire call, not just per-socket idle time.
-
-    A fresh executor is used each time so that a timed-out thread (which keeps
-    running in the background until its blocking call eventually returns or the
-    process exits) never blocks the next ticker's fetch.
     """
-    executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(func)
-    executor.shutdown(wait=False)   # don't block on cleanup
+    future = _TIMEOUT_EXECUTOR.submit(func)
     try:
         return future.result(timeout=timeout_seconds)
     except FuturesTimeoutError:
+        future.cancel()
         raise TimeoutError(
             f"yfinance call timed out after {timeout_seconds}s"
         )
@@ -38,6 +41,21 @@ class YFinanceClient:
         self._last_request_time = 0
         self._snapshot_cache = snapshot_cache  # Optional SnapshotCache instance
         self._fetch_timeout = fetch_timeout    # hard wall-clock limit per fetch
+
+    def evict_financials(self, keep_tickers=None):
+        """Free cached financial data.  If *keep_tickers* is given, only those
+        tickers are retained; otherwise the entire cache is cleared."""
+        if keep_tickers is None:
+            self._financials_cache.clear()
+        else:
+            keep = set(keep_tickers)
+            for t in list(self._financials_cache):
+                if t not in keep:
+                    del self._financials_cache[t]
+
+    def clear_history_cache(self):
+        """Free all cached price histories and dividend series."""
+        self._history_cache.clear()
 
     def _throttle(self):
         elapsed = time.time() - self._last_request_time
@@ -152,6 +170,13 @@ class YFinanceClient:
             dividends = self._retry(_fetch)
             if dividends is None:
                 dividends = pd.Series(dtype=float)
+            # yfinance >=1.2 may return a single-column DataFrame instead of
+            # a Series.  Normalise to Series so all callers stay consistent.
+            if isinstance(dividends, pd.DataFrame):
+                if dividends.empty:
+                    dividends = pd.Series(dtype=float)
+                else:
+                    dividends = dividends.iloc[:, 0]
         except Exception:
             dividends = pd.Series(dtype=float)
         self._history_cache[cache_key] = dividends
@@ -164,7 +189,12 @@ class YFinanceClient:
         stock = yf.Ticker(ticker)
 
         def _fetch():
-            return stock.history(period=period)['Close']
+            hist = stock.history(period=period)
+            # Guard against empty DataFrame or renamed column ('close' vs 'Close')
+            for col in ('Close', 'close'):
+                if col in hist.columns:
+                    return hist[col]
+            return pd.Series(dtype=float)
 
         history = self._retry(_fetch)
         self._history_cache[cache_key] = history
