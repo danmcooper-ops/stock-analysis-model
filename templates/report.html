@@ -381,7 +381,7 @@ td.ct{font-weight:700;}
   <div class="detail-content">
     <button class="detail-close" onclick="closeDetail()">&times;</button>
     <div class="d-header-band">
-      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><div class="dh-right"><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div></div></div>
+      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><div class="dh-right"><div class="drt" id="d-rt"></div><div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div class="dcs" id="d-cs"></div><div id="d-gp" style="font-size:0.72em;font-weight:600;color:#7f8c9a;letter-spacing:0.02em;white-space:nowrap"></div></div></div></div>
       <div class="dmeta" id="d-meta"></div>
     </div>
     <div class="d-body">
@@ -929,6 +929,7 @@ function openDet(tk){
   _syncRevDet();
   var rEl=document.getElementById('d-rt');rEl.textContent=d.rating||'N/A';rEl.style.background=RC[d.rating]||'#888';
   var cEl=document.getElementById('d-cs');var cs=d._composite_score;cEl.textContent=cs!=null?Math.round(cs)+'%':'N/A';cEl.style.background=cc(cs);
+  var gpEl=document.getElementById('d-gp');if(gpEl)gpEl.textContent=d._gates_passed!=null?d._gates_passed+' gates':'';
   var meta=[];if(d.sector)meta.push(d.sector);if(d.industry)meta.push(d.industry);if(d.ceo)meta.push('CEO: '+d.ceo+(d.founder_led?' \u2605 Founder':''));
   document.getElementById('d-meta').textContent=meta.join('  \u00B7  ');
   var sb=document.getElementById('d-sbar');
