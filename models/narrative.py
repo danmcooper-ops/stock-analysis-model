@@ -1581,7 +1581,16 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
                 f"disadvantage or a turnaround still in progress."
             )
 
-    key_players = key_players[:5]
+    # Pad to exactly 4 using remaining top-profit companies
+    for r in by_profit:
+        if len(key_players) >= 4:
+            break
+        if r['ticker'] in seen:
+            continue
+        ps = (r.get('pp_profit_share') or 0) * 100
+        _add_player(r, 'notable', 'Notable Player',
+                    f"Holds {ps:.0f}% of sector profits.")
+    key_players = key_players[:4]
 
     # ----- INSIGHTS -----
     insights = []
