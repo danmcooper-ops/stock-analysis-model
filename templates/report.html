@@ -939,15 +939,6 @@ function openDet(tk){
       var bizDesc=sents.slice(0,7).join(' ').trim();
       if(bizDesc) html+=P+esc(bizDesc)+'</p>';
     }
-    /* --- Financial snapshot (generated inline) --- */
-    var fSnip=[];
-    if(d.revenue!=null) fSnip.push('Annual revenue of '+fds(d.revenue));
-    if(d.gross_margin!=null) fSnip.push('gross margin '+(d.gross_margin*100).toFixed(0)+'%');
-    if(d.operating_margin!=null) fSnip.push('operating margin '+(d.operating_margin*100).toFixed(0)+'%');
-    if(d.fcf_margin!=null) fSnip.push('FCF margin '+(d.fcf_margin*100).toFixed(0)+'%');
-    if(d.roic!=null) fSnip.push('ROIC '+(d.roic*100).toFixed(0)+'%');
-    if(d.employees!=null) fSnip.push((d.employees/1000).toFixed(0)+'K employees');
-    if(fSnip.length>1) html+=PS+fSnip.join(' \u00b7 ')+'.</p>';
     /* --- Workforce & culture --- */
     if(d.culture_narrative) html+=PS+esc(d.culture_narrative)+'</p>';
     el.innerHTML=html||P+esc(full)+'</p>';
