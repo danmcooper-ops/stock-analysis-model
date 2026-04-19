@@ -932,11 +932,11 @@ function openDet(tk){
     var P='<p style="margin:0 0 10px;font-size:0.86em;line-height:1.65;color:#2c3e50">';
     var PS='<p style="margin:0 0 10px;font-size:0.86em;line-height:1.65;color:#455a64;border-top:1px solid #e8edf2;padding-top:10px">';
     var html='';
-    /* --- Business model (up to 7 sentences from description_full) --- */
+    /* --- Business model (up to 3 sentences from description_full) --- */
     var full=d.description_full||d.description||'';
     if(full){
       var sents=(full.match(/[^.!?]+[.!?]+(\s|$)/g)||[]).map(function(s){return s.trim();});
-      var bizDesc=sents.slice(0,7).join(' ').trim();
+      var bizDesc=sents.slice(0,3).join(' ').trim();
       if(bizDesc) html+=P+esc(bizDesc)+'</p>';
     }
     /* --- Workforce & culture --- */
