@@ -18,3 +18,7 @@ data/cache/
 
 # OS
 .DS_Store
+
+# Business plan (local only)
+business_plan.docx
+gen_business_plan.py
