@@ -944,10 +944,9 @@ function openDet(tk){
         bizDesc=candidate;
       }
       if(!bizDesc&&full) bizDesc=full.slice(0,640).replace(/\s+\S*$/,'')+'\u2026';
+      if(d.culture_narrative) bizDesc+=(bizDesc?' ':'')+d.culture_narrative;
       if(bizDesc) html+=P+esc(bizDesc)+'</p>';
     }
-    /* --- Workforce & culture --- */
-    if(d.culture_narrative) html+=PS+esc(d.culture_narrative)+'</p>';
     el.innerHTML=html||P+esc(full)+'</p>';
   })();
   var _km=document.getElementById('d-kmetrics');
