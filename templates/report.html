@@ -957,7 +957,7 @@ function openDet(tk){
   var meta=[];if(d.sector)meta.push(d.sector);if(d.industry)meta.push(d.industry);if(d.ceo)meta.push('CEO: '+d.ceo+(d.founder_led?' \u2605 Founder':''));
   document.getElementById('d-meta').textContent=meta.join('  \u00B7  ');
   var sb=document.getElementById('d-sbar');
-  sb.innerHTML=GM.categories.map(function(c){var v=d[c.scoreKey];var w=Math.round(c.weight*100);return'<div style="width:'+w+'%;background:'+c.dark+'" title="'+c.name+': '+(v!=null?Math.round(v)+'%':'N/A')+'">'+c.name.charAt(0)+' '+(v!=null?Math.round(v):'—')+'</div>';}).join('');
+  sb.innerHTML=GM.categories.map(function(c){var v=d[c.scoreKey];var w=Math.round(c.weight*100);return'<div style="width:'+w+'%;background:'+c.dark+'" title="'+c.name+': '+(v!=null?Math.round(v)+'%':'N/A')+'">'+c.name.charAt(0)+' '+(v!=null?Math.round(v):'—')+' ('+w+'%)</div>';}).join('');
   (function(){
     var el=document.getElementById('d-desc');
     var P='<p style="margin:0 0 10px;font-size:0.86em;line-height:1.65;color:#2c3e50">';
