@@ -929,21 +929,28 @@ function openDet(tk){
   sb.innerHTML=GM.categories.map(function(c){var v=d[c.scoreKey];var w=Math.round(c.weight*100);return'<div style="width:'+w+'%;background:'+c.dark+'" title="'+c.name+': '+(v!=null?Math.round(v)+'%':'N/A')+'">'+c.name.charAt(0)+' '+(v!=null?Math.round(v):'—')+'</div>';}).join('');
   (function(){
     var el=document.getElementById('d-desc');
-    var desc=d.description_full||d.description||'';
-    // Trim to first 1-2 sentences so this section acts as a lede for
-    // "The Business" below, not a competing wall of boilerplate.
-    if(desc){
-      var m=desc.match(/^[\s\S]*?[.!?](?=\s|$)(?:\s+[\s\S]*?[.!?](?=\s|$))?/);
-      if(m) desc=m[0].trim();
-      // Safety cap in case regex missed (e.g. no terminal punctuation)
-      if(desc.length>320) desc=desc.slice(0,317).replace(/\s+\S*$/,'')+'...';
+    var P='<p style="margin:0 0 10px;font-size:0.86em;line-height:1.65;color:#2c3e50">';
+    var PS='<p style="margin:0 0 10px;font-size:0.86em;line-height:1.65;color:#455a64;border-top:1px solid #e8edf2;padding-top:10px">';
+    var html='';
+    /* --- Business model (up to 7 sentences from description_full) --- */
+    var full=d.description_full||d.description||'';
+    if(full){
+      var sents=(full.match(/[^.!?]+[.!?]+(\s|$)/g)||[]).map(function(s){return s.trim();});
+      var bizDesc=sents.slice(0,7).join(' ').trim();
+      if(bizDesc) html+=P+esc(bizDesc)+'</p>';
     }
-    if(d.culture_narrative){
-      var combined=desc?(desc+' '+d.culture_narrative):d.culture_narrative;
-      el.textContent=combined;
-    } else {
-      el.textContent=desc;
-    }
+    /* --- Financial snapshot (generated inline) --- */
+    var fSnip=[];
+    if(d.revenue!=null) fSnip.push('Annual revenue of '+fds(d.revenue));
+    if(d.gross_margin!=null) fSnip.push('gross margin '+(d.gross_margin*100).toFixed(0)+'%');
+    if(d.operating_margin!=null) fSnip.push('operating margin '+(d.operating_margin*100).toFixed(0)+'%');
+    if(d.fcf_margin!=null) fSnip.push('FCF margin '+(d.fcf_margin*100).toFixed(0)+'%');
+    if(d.roic!=null) fSnip.push('ROIC '+(d.roic*100).toFixed(0)+'%');
+    if(d.employees!=null) fSnip.push((d.employees/1000).toFixed(0)+'K employees');
+    if(fSnip.length>1) html+=PS+fSnip.join(' \u00b7 ')+'.</p>';
+    /* --- Workforce & culture --- */
+    if(d.culture_narrative) html+=PS+esc(d.culture_narrative)+'</p>';
+    el.innerHTML=html||P+esc(full)+'</p>';
   })();
   var _km=document.getElementById('d-kmetrics');
   var _krows=[
