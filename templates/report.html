@@ -936,7 +936,13 @@ function openDet(tk){
          all major segments, geography, and distribution without boilerplate --- */
     var full=d.description_full||d.description||'';
     if(full){
-      var sents=(full.match(/[^.!?]+[.!?]+(\s|$)/g)||[]).map(function(s){return s.trim();});
+      var rawSents=(full.match(/[^.!?]+[.!?]+(\s|$)/g)||[]).map(function(s){return s.trim();});
+      /* Merge abbreviation fragments (e.g. "Adobe Inc.") into the following sentence */
+      var sents=[];
+      for(var ri=0;ri<rawSents.length;ri++){
+        if(rawSents[ri].length<25&&ri+1<rawSents.length){rawSents[ri+1]=rawSents[ri]+' '+rawSents[ri+1];}
+        else{sents.push(rawSents[ri]);}
+      }
       var bizDesc='';
       for(var si=0;si<Math.min(5,sents.length);si++){
         var candidate=bizDesc+(bizDesc?' ':'')+sents[si];
