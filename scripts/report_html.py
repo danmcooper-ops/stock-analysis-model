@@ -464,7 +464,7 @@ def build_html(rows, filename):
         chart_data=chart_data,
         gate_meta=gate_meta,
         sector_pool_json=sector_pool_json,
-        generated_at=date.today().strftime('%Y-%m-%d'),
+        generated_at=date.today().strftime('%B %-d, %Y'),
     )
 
     with open(filename, 'w') as f:
