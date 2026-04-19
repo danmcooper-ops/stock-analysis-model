@@ -937,10 +937,12 @@ function openDet(tk){
     var full=d.description_full||d.description||'';
     if(full){
       var rawSents=(full.match(/[^.!?]+[.!?]+(\s|$)/g)||[]).map(function(s){return s.trim();});
-      /* Merge abbreviation fragments (e.g. "Adobe Inc.") into the following sentence */
+      /* Merge name-only fragments (corporate suffixes) into the following sentence */
+      var _corpSfx=/\b(Inc|Corp|Ltd|Co|LLC|L\.P|plc|PLC|N\.V|S\.A|AG|SE|Incorporated|Corporation|Company|Companies|International)\.$/ ;
       var sents=[];
       for(var ri=0;ri<rawSents.length;ri++){
-        if(rawSents[ri].length<25&&ri+1<rawSents.length){rawSents[ri+1]=rawSents[ri]+' '+rawSents[ri+1];}
+        var isNameFrag=rawSents[ri].length<35||_corpSfx.test(rawSents[ri]);
+        if(isNameFrag&&ri+1<rawSents.length){rawSents[ri+1]=rawSents[ri]+' '+rawSents[ri+1];}
         else{sents.push(rawSents[ri]);}
       }
       var bizDesc='';
