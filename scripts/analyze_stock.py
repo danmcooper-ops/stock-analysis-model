@@ -992,9 +992,9 @@ def _main():
         print('Tiingo API not configured (set TIINGO_API_KEY) — falling back to yfinance/Google RSS.')
 
     # -----------------------------------------------------------------------
-    # Phase 1: Screen — ROIC > WACC (Worksheet Step 4)
+    # Phase 1: Collect data for full universe (no ROIC > WACC pre-filter)
     # -----------------------------------------------------------------------
-    print(f"Screening {len(all_tickers)} tickers (ROIC > WACC)...")
+    print(f"Processing {len(all_tickers)} tickers (full universe)...")
     qualifying = []
     screen_cache = {}
     screen_outcomes = {'quality': {'total': 0, 'passed': 0},
@@ -1006,51 +1006,31 @@ def _main():
         try:
             yf_data = yf_client.fetch_financials(ticker)
             info = yf_data.get('info') or {}
-
-            # Data quality validation
-            dq = validate_financials(yf_data, ticker)
-            if dq['quality_score'] < DATA_QUALITY_MIN:
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - data quality "
-                      f"{dq['quality_score']}/100 skip")
-                continue
-
             sector = info.get('sector', '')
-            if sector == 'Financial Services':
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - Financial Services skip")
-                continue
 
             roic_data = calculate_roic(yf_data)
-            if not roic_data:
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - ROIC N/A skip")
-                continue
-
             cost_of_equity, re_method, beta_diag = select_cost_of_equity(
                 yf_data, risk_free_rate, yf_client, ticker, erp=effective_erp,
                 tiingo_client=tiingo_client)
             wacc = calculate_wacc(yf_data, cost_of_equity)
-            # Fix D: Sector-specific WACC clamping
             if wacc is not None:
                 s_cfg = _get_sector_config(sector)
                 wacc = max(s_cfg['wacc_floor'], min(s_cfg['wacc_cap'], wacc))
 
-            if wacc is None:
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - WACC N/A skip")
-                continue
-
-            spread = roic_data['avg_roic'] - wacc
-            if spread > 0:
-                qualifying.append(ticker)
-                screen_outcomes[_grp]['passed'] += 1
-                screen_cache[ticker] = {
-                    'roic_data': roic_data, 'wacc': wacc,
-                    'cost_of_equity': cost_of_equity,
-                    're_method': re_method, 'yf_data': yf_data,
-                    'beta_diag': beta_diag,
-                }
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - ROIC {roic_data['avg_roic']:.1%} "
-                      f"WACC {wacc:.1%} spread {spread:.1%} [{re_method}] PASS")
-            else:
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - spread {spread:.1%} skip")
+            spread = (roic_data['avg_roic'] - wacc
+                      if (roic_data and wacc is not None) else None)
+            qualifying.append(ticker)
+            screen_outcomes[_grp]['passed'] += 1
+            screen_cache[ticker] = {
+                'roic_data': roic_data, 'wacc': wacc,
+                'cost_of_equity': cost_of_equity,
+                're_method': re_method, 'yf_data': yf_data,
+                'beta_diag': beta_diag,
+            }
+            roic_str = f"ROIC {roic_data['avg_roic']:.1%} " if roic_data else "ROIC N/A "
+            wacc_str = f"WACC {wacc:.1%} " if wacc is not None else "WACC N/A "
+            spread_str = f"spread {spread:.1%}" if spread is not None else "spread N/A"
+            print(f"  [{i}/{len(all_tickers)}] {ticker} - {roic_str}{wacc_str}{spread_str} [{re_method}]")
 
         except Exception as e:
             print(f"  [{i}/{len(all_tickers)}] {ticker} - error: {e}")
@@ -1063,7 +1043,7 @@ def _main():
     yf_client.clear_history_cache()
     gc.collect()
 
-    print(f"\n{len(qualifying)} tickers passed screen out of {len(all_tickers)} total.")
+    print(f"\n{len(qualifying)} tickers collected out of {len(all_tickers)} total.")
     if args.validation:
         for grp in ('quality', 'poor'):
             o = screen_outcomes[grp]
