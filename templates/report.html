@@ -166,6 +166,12 @@ td.ct{font-weight:700;}
 .det-nav-btn:disabled{opacity:0.25;cursor:default;}
 .det-nav-right{display:flex;align-items:center;gap:10px;margin-left:auto;}
 .det-nav-pos{font-size:0.68em;color:rgba(255,255,255,0.6);flex:1;text-align:center;}
+.det-fs-btn{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:6px;width:28px;height:28px;cursor:pointer;color:#fff;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;flex-shrink:0;}
+.det-fs-btn:hover{background:rgba(255,255,255,0.28);}
+.detail-modal.det-fs{padding:0;align-items:stretch;}
+.detail-modal.det-fs .detail-content{max-width:100%;width:100%;max-height:100vh;height:100vh;border-radius:0;margin:0;}
+.detail-modal.det-fs .d-header-band{border-radius:0;}
+.detail-modal.det-fs .det-nav-bar{border-radius:0;}
 .dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:44px;justify-content:space-between;}
 .dh-left{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .dh-right{display:flex;align-items:flex-start;gap:8px;flex-shrink:0;}
@@ -432,7 +438,7 @@ td.ct{font-weight:700;}
     <div id="det-nav" class="det-nav-bar">
       <button class="det-nav-prev det-nav-btn" onclick="navDet(-1)" title="Previous stock (← ↑)">&#8249;</button>
       <span class="det-nav-pos"></span>
-      <div class="det-nav-right"><span id="d-rev2" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag2" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span><button class="det-nav-next det-nav-btn" onclick="navDet(1)" title="Next stock (→ ↓)">&#8250;</button></div>
+      <div class="det-nav-right"><span id="d-rev2" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag2" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span><button class="det-fs-btn" id="det-fs-btn" onclick="toggleDetFS()" title="Fullscreen"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,5 1,1 5,1"/><polyline points="11,1 15,1 15,5"/><polyline points="15,11 15,15 11,15"/><polyline points="5,15 1,15 1,11"/></svg></button><button class="det-nav-next det-nav-btn" onclick="navDet(1)" title="Next stock (→ ↓)">&#8250;</button></div>
     </div>
   </div>
 </div>
@@ -1240,7 +1246,41 @@ function openDet(tk){
   document.getElementById('det-modal').classList.add('open');
   document.body.style.overflow='hidden';
 }
-function closeDetail(){document.getElementById('det-modal').classList.remove('open');document.body.style.overflow='';}
+function closeDetail(){
+  var modal=document.getElementById('det-modal');
+  modal.classList.remove('open','det-fs');
+  document.body.style.overflow='';
+  if(document.fullscreenElement||document.webkitFullscreenElement){
+    try{(document.exitFullscreen||document.webkitExitFullscreen).call(document);}catch(e){}
+  }
+}
+var _FS_EXPAND='<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,5 1,1 5,1"/><polyline points="11,1 15,1 15,5"/><polyline points="15,11 15,15 11,15"/><polyline points="5,15 1,15 1,11"/></svg>';
+var _FS_COLLAPSE='<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,1 5,5 1,5"/><polyline points="11,5 15,5 15,1"/><polyline points="15,11 11,11 11,15"/><polyline points="1,11 5,11 5,15"/></svg>';
+function _syncFsBtn(isFS){
+  var btn=document.getElementById('det-fs-btn');
+  if(!btn)return;
+  btn.innerHTML=isFS?_FS_COLLAPSE:_FS_EXPAND;
+  btn.title=isFS?'Exit fullscreen':'Fullscreen';
+}
+function toggleDetFS(){
+  var modal=document.getElementById('det-modal');
+  var isFS=modal.classList.toggle('det-fs');
+  _syncFsBtn(isFS);
+  if(isFS){
+    try{if(modal.requestFullscreen)modal.requestFullscreen();else if(modal.webkitRequestFullscreen)modal.webkitRequestFullscreen();}catch(e){}
+  }else{
+    try{if(document.exitFullscreen)document.exitFullscreen();else if(document.webkitExitFullscreen)document.webkitExitFullscreen();}catch(e){}
+  }
+}
+(function(){
+  function _onFSChange(){
+    var inFS=!!(document.fullscreenElement||document.webkitFullscreenElement);
+    var modal=document.getElementById('det-modal');
+    if(modal){modal.classList.toggle('det-fs',inFS);_syncFsBtn(inFS);}
+  }
+  document.addEventListener('fullscreenchange',_onFSChange);
+  document.addEventListener('webkitfullscreenchange',_onFSChange);
+})();
 function _easeScroll(el,to,ms){var start=el.scrollTop,diff=to-start,t0=performance.now();(function step(now){var p=Math.min((now-t0)/ms,1),ease=p<0.5?4*p*p*p:(1-Math.pow(-2*p+2,3)/2);el.scrollTop=start+diff*ease;if(p<1)requestAnimationFrame(step);})(t0);}
 function navDet(dir){var idx=_detIdx+dir;if(idx<0||idx>=_detNav.length)return;openDet(_detNav[idx]);var sc=document.querySelector('.detail-content');if(sc)_easeScroll(sc,0,320);}
 /* Velocity-based glide scroll for press-and-hold arrow keys */
