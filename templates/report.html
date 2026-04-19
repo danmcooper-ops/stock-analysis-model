@@ -189,8 +189,8 @@ td.ct{font-weight:700;}
 .gv-v{font-size:0.68em;font-weight:700;color:#1a252f;white-space:nowrap;text-align:right;}
 .gv-v.pass{color:#1a9850;}.gv-v.fail{color:#de2d26;}
 .gv-thr{font-size:0.82em;font-weight:400;color:#aaa;white-space:nowrap;}
-.score-bar{display:flex;height:34px;border-radius:9px;overflow:hidden;font-size:0.75em;font-weight:700;color:white;box-shadow:0 3px 10px rgba(0,0,0,0.15);}
-.score-bar div{display:flex;align-items:center;justify-content:center;}
+.score-bar{display:flex;height:34px;border-radius:9px;overflow:hidden;font-weight:700;color:white;box-shadow:0 3px 10px rgba(0,0,0,0.15);}
+.score-bar div{display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;padding:0 3px;}
 .ddesc{font-size:0.82em;color:#37474f;line-height:1.55;padding:13px 16px;background:linear-gradient(135deg,#eef3ff,#f5f8ff);border-radius:9px;border-left:4px solid #3b6fd4;box-shadow:inset 0 1px 3px rgba(59,111,212,0.08);}
 .fin-list{margin:0;padding:10px 14px 10px 30px;background:#f4f6fb;border-left:3px solid #3498db;border-radius:0 5px 5px 0;font-size:0.82em;line-height:1.55;color:#37474f;list-style:disc;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
 .fin-list li{margin:4px 0;}
@@ -957,7 +957,7 @@ function openDet(tk){
   var meta=[];if(d.sector)meta.push(d.sector);if(d.industry)meta.push(d.industry);if(d.ceo)meta.push('CEO: '+d.ceo+(d.founder_led?' \u2605 Founder':''));
   document.getElementById('d-meta').textContent=meta.join('  \u00B7  ');
   var sb=document.getElementById('d-sbar');
-  sb.innerHTML=GM.categories.map(function(c){var v=d[c.scoreKey];var w=Math.round(c.weight*100);return'<div style="width:'+w+'%;background:'+c.dark+'" title="'+c.name+': '+(v!=null?Math.round(v)+'%':'N/A')+'">'+c.name.charAt(0)+' '+(v!=null?Math.round(v):'—')+' ('+w+'%)</div>';}).join('');
+  sb.innerHTML=GM.categories.map(function(c){var v=d[c.scoreKey];var w=Math.round(c.weight*100);var fs=(Math.max(0.48,w/30*0.76)).toFixed(2);return'<div style="width:'+w+'%;background:'+c.dark+';font-size:'+fs+'em" title="'+c.name+': '+(v!=null?Math.round(v)+'%':'N/A')+'">'+c.name.charAt(0)+' '+(v!=null?Math.round(v):'—')+' ('+w+'%)</div>';}).join('');
   (function(){
     var el=document.getElementById('d-desc');
     var P='<p style="margin:0 0 10px;font-size:0.86em;line-height:1.65;color:#2c3e50">';
