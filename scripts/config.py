@@ -5,7 +5,7 @@
 DEFAULT_RISK_FREE_RATE = 0.04  # Fallback if live Treasury fetch fails
 ERP = 0.055                    # Equity Risk Premium (Damodaran)
 TERMINAL_GROWTH_RATE = 0.03
-MIN_MARKET_CAP = 10e9          # Worksheet Step 1: Market Cap > $10B
+MIN_MARKET_CAP = 0             # No market-cap floor
 WACC_FLOOR = 0.07              # Morningstar-aligned WACC bounds (global default)
 WACC_CAP = 0.13
 
@@ -46,7 +46,7 @@ EXIT_MULT_MIN = 5.0                     # Floor on exit multiple
 EXIT_MULT_MAX = 30.0                    # Cap on exit multiple
 
 # Monte Carlo simulation
-MC_ITERATIONS = 1000
+MC_ITERATIONS = 250  # 250 iterations converges to within ~1-2% of 1000; saves ~2 min/run
 MC_GROWTH_SIGMA_RATIO = 0.30    # Growth sigma = 30% of point estimate
 MC_WACC_SIGMA = 0.01            # WACC sigma = 1 percentage point
 MC_TERMINAL_GROWTH_SIGMA = 0.005 # Terminal growth sigma = 0.5pp
@@ -59,12 +59,12 @@ DDM_BLEND_WEIGHT = 0.30               # DDM weight in blended fair value
 DCF_BLEND_WEIGHT_WITH_DDM = 0.70      # DCF weight when DDM is available
 DDM_DIVERGENCE_THRESHOLD = 0.50       # Flag low confidence if DDM/DCF diverge >50%
 
-# Continuous scoring weights by category (calibrated via Cohen's d grid search)
-SCORE_WEIGHT_VALUATION = 0.15
-SCORE_WEIGHT_QUALITY = 0.10
-SCORE_WEIGHT_MOAT = 0.35
-SCORE_WEIGHT_GROWTH = 0.30
-SCORE_WEIGHT_OWNERSHIP = 0.10
+# Continuous scoring weights by category (Buffett-style: moat-first, quality/ownership over growth)
+SCORE_WEIGHT_VALUATION = 0.20
+SCORE_WEIGHT_QUALITY = 0.20
+SCORE_WEIGHT_MOAT = 0.40
+SCORE_WEIGHT_GROWTH = 0.05
+SCORE_WEIGHT_OWNERSHIP = 0.15
 
 # Post-processing
 BLEND_TRIGGER = 1.5            # DCF > 1.5× multiples-FV triggers blending

@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ portfolio_name }} — Portfolio Report</title>
+<style>
+:root {
+  --cat-val-dark:#2F5496;--cat-val-light:#D6E4F0;
+  --cat-qual-dark:#548235;--cat-qual-light:#E2EFDA;
+  --cat-moat-dark:#C55A11;--cat-moat-light:#FCE4CC;
+  --cat-grow-dark:#7030A0;--cat-grow-light:#E4CCEF;
+  --cat-own-dark:#BF8F00;--cat-own-light:#FFF2CC;
+  --bg:#f0f2f5;--surface:#fff;--text:#333;--text-muted:#666;
+  --border:#e0e4ea;--header-bg:#1a252f;--accent:#2980b9;
+  --green:#1a9850;--red:#d73027;--amber:#fd8d3c;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);}
+
+/* ---- Header ---- */
+.header{background:linear-gradient(135deg,#1a252f,#2980b9);color:white;padding:28px 20px;text-align:center;position:relative;}
+.header h1{font-size:1.8em;margin-bottom:4px;}
+.header p{font-size:0.9em;opacity:0.8;}
+.last-updated{position:absolute;top:12px;right:18px;font-size:0.75em;opacity:0.75;}
+
+/* ---- Summary bar ---- */
+.summary-bar{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;padding:16px 20px;background:var(--surface);border-bottom:2px solid var(--border);box-shadow:0 2px 6px rgba(0,0,0,0.06);}
+.stat-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px 20px;text-align:center;min-width:130px;}
+.stat-card .val{font-size:1.4em;font-weight:700;line-height:1.2;}
+.stat-card .label{font-size:0.72em;color:var(--text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:0.04em;}
+.stat-card.positive .val{color:var(--green);}
+.stat-card.negative .val{color:var(--red);}
+.stat-card.neutral .val{color:var(--accent);}
+.stat-card.alert-high .val{color:var(--red);}
+.stat-card.alert-med .val{color:var(--amber);}
+
+/* ---- Container & tabs ---- */
+.container{max-width:1800px;margin:0 auto;padding:16px 20px;}
+.primary-nav{display:flex;gap:4px;padding:14px 0 8px;border-bottom:2px solid var(--border);}
+.nav-btn{padding:8px 20px;border:none;border-radius:6px 6px 0 0;cursor:pointer;font-size:0.9em;font-weight:600;background:#dde;color:#555;transition:all 0.15s;}
+.nav-btn.active{background:var(--accent);color:white;}
+.nav-btn:hover:not(.active){background:#c8d0e0;}
+.view{display:none;padding-top:16px;}.view.active{display:block;}
+
+/* ---- Alerts panel ---- */
+.alerts-panel{margin-bottom:16px;}
+.alert-card{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-radius:8px;margin-bottom:8px;border-left:4px solid;}
+.alert-card.HIGH{background:#fff0f0;border-color:var(--red);}
+.alert-card.MEDIUM{background:#fff8e6;border-color:var(--amber);}
+.alert-card.LOW{background:#f0fff4;border-color:var(--green);}
+.alert-icon{font-size:1.2em;flex-shrink:0;}
+.alert-body .ticker{font-weight:700;font-size:0.95em;}
+.alert-body .msg{font-size:0.85em;color:var(--text-muted);margin-top:2px;}
+.alert-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.72em;font-weight:700;margin-left:8px;}
+.alert-badge.HIGH{background:var(--red);color:white;}
+.alert-badge.MEDIUM{background:var(--amber);color:white;}
+.alert-badge.LOW{background:var(--green);color:white;}
+.no-alerts{padding:20px;text-align:center;color:var(--text-muted);font-size:0.9em;background:var(--surface);border-radius:8px;}
+
+/* ---- Holdings table ---- */
+.filter-bar{display:flex;gap:10px;padding:10px 0;flex-wrap:wrap;align-items:center;}
+.filter-bar input,.filter-bar select{padding:6px 12px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;outline:none;}
+.filter-bar input:focus,.filter-bar select:focus{border-color:var(--accent);}
+.filter-bar input[type="text"]{width:200px;}
+.table-wrap{overflow-x:auto;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);}
+.dt{width:100%;border-collapse:collapse;background:white;white-space:nowrap;}
+.dt thead{position:sticky;top:0;z-index:10;}
+.dt th{background:#1a252f;color:white;padding:10px 8px;text-align:right;cursor:pointer;user-select:none;font-size:0.78em;border-right:1px solid #2c3e50;}
+.dt th:first-child{text-align:left;}
+.dt th .arrow{margin-left:3px;font-size:0.7em;}
+.dt td{padding:8px;text-align:right;font-size:0.82em;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;}
+.dt td.tk{text-align:left;font-weight:600;color:#1a252f;}
+.dt tr:nth-child(even){background:#f8f9fa;}
+.dt tr:hover{background:#eaf4fd!important;}
+.rb{display:inline-block;padding:2px 8px;border-radius:4px;color:white;font-weight:700;font-size:0.82em;}
+.rb.BUY{background:#1a9850;}
+.rb.LEAN-BUY{background:#74c476;color:#333;}
+.rb.HOLD{background:#fd8d3c;}
+.rb.PASS,.rb.NOT-IN-UNIVERSE{background:#de2d26;}
+.pnl-pos{color:var(--green);font-weight:600;}
+.pnl-neg{color:var(--red);font-weight:600;}
+.alpha-pos{color:var(--green);}
+.alpha-neg{color:var(--red);}
+.score-cell{font-weight:600;}
+.score-good{color:var(--green);}
+.score-mid{color:#b8860b;}
+.score-poor{color:var(--red);}
+.alert-flag{color:var(--amber);font-size:0.9em;margin-left:4px;}
+
+/* ---- Score heatmap ---- */
+.heatmap-wrap{overflow-x:auto;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-top:12px;}
+.heatmap{width:100%;border-collapse:collapse;background:white;white-space:nowrap;font-size:0.82em;}
+.heatmap th{padding:8px 10px;text-align:center;font-size:0.8em;font-weight:700;border:1px solid #ccc;}
+.heatmap th.tk-head{text-align:left;background:#1a252f;color:white;}
+.heatmap th.cat-head{color:white;}
+.heatmap th.cat-val{background:var(--cat-val-dark);}
+.heatmap th.cat-qual{background:var(--cat-qual-dark);}
+.heatmap th.cat-moat{background:var(--cat-moat-dark);}
+.heatmap th.cat-grow{background:var(--cat-grow-dark);}
+.heatmap th.cat-own{background:var(--cat-own-dark);}
+.heatmap td{padding:7px 10px;text-align:center;border:1px solid #e8e8e8;font-weight:600;}
+.heatmap td.tk-cell{text-align:left;background:#1a252f;color:white;font-weight:700;padding:7px 12px;}
+.hm-good{background:#C6EFCE;color:#006100;}
+.hm-mid{background:#FFEB9C;color:#6B5900;}
+.hm-poor{background:#FFC7CE;color:#9C0006;}
+.hm-na{background:#D9D9D9;color:#666;}
+
+/* ---- Charts ---- */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:4px;}
+@media(max-width:900px){.charts-grid{grid-template-columns:1fr;}}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.chart-card h3{font-size:0.95em;font-weight:700;margin-bottom:12px;color:var(--header-bg);}
+.chart-placeholder{height:300px;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="last-updated">Generated {{ generated_at }}</span>
+  <h1>{{ portfolio_name }}</h1>
+  <p>Linked to Stock Analysis Model &nbsp;·&nbsp; Benchmark: {{ benchmark }} &nbsp;·&nbsp; Macro: {{ macro_regime }}</p>
+</div>
+
+<!-- Summary bar -->
+<div class="summary-bar">
+  <div class="stat-card neutral">
+    <div class="val">{% if total_mv is not none %}${{ '{:,.0f}'.format(total_mv) }}{% else %}N/A{% endif %}</div>
+    <div class="label">Market Value</div>
+  </div>
+  <div class="stat-card {% if upnl is not none and upnl >= 0 %}positive{% elif upnl is not none %}negative{% else %}neutral{% endif %}">
+    <div class="val">{% if upnl is not none %}{{ fmt_dollar(upnl) }}{% else %}N/A{% endif %}</div>
+    <div class="label">Unrealized P&amp;L{% if upnl_pct is not none %} ({{ fmt_pct(upnl_pct) }}){% endif %}</div>
+  </div>
+  {% if realized_ytd %}
+  <div class="stat-card {% if realized_ytd >= 0 %}positive{% else %}negative{% endif %}">
+    <div class="val">{{ fmt_dollar(realized_ytd) }}</div>
+    <div class="label">Realized YTD</div>
+  </div>
+  {% endif %}
+  <div class="stat-card {% if port_ytd is not none and port_ytd >= 0 %}positive{% elif port_ytd is not none %}negative{% else %}neutral{% endif %}">
+    <div class="val">{% if port_ytd is not none %}{{ fmt_pct(port_ytd) }}{% else %}N/A{% endif %}</div>
+    <div class="label">Portfolio YTD</div>
+  </div>
+  <div class="stat-card neutral">
+    <div class="val">{% if bench_ytd is not none %}{{ fmt_pct(bench_ytd) }}{% else %}N/A{% endif %}</div>
+    <div class="label">{{ benchmark }} YTD</div>
+  </div>
+  <div class="stat-card {% if alpha_ytd is not none and alpha_ytd >= 0 %}positive{% elif alpha_ytd is not none %}negative{% else %}neutral{% endif %}">
+    <div class="val">{% if alpha_ytd is not none %}{{ fmt_pct(alpha_ytd) }}{% else %}N/A{% endif %}</div>
+    <div class="label">Alpha YTD</div>
+  </div>
+  <div class="stat-card {% if high_alerts > 0 %}alert-high{% elif med_alerts > 0 %}alert-med{% else %}neutral{% endif %}">
+    <div class="val">{{ high_alerts + med_alerts }}</div>
+    <div class="label">Alerts{% if high_alerts > 0 %} ({{ high_alerts }} HIGH){% endif %}</div>
+  </div>
+  <div class="stat-card neutral">
+    <div class="val">{{ n_holdings }}</div>
+    <div class="label">Holdings</div>
+  </div>
+</div>
+
+<!-- Main content -->
+<div class="container">
+
+  <!-- Tabs -->
+  <div class="primary-nav">
+    <button class="nav-btn active" onclick="switchTab('holdings')">Holdings</button>
+    <button class="nav-btn" onclick="switchTab('alerts')">Alerts{% if high_alerts + med_alerts > 0 %} ({{ high_alerts + med_alerts }}){% endif %}</button>
+    <button class="nav-btn" onclick="switchTab('scores')">Score Heatmap</button>
+    <button class="nav-btn" onclick="switchTab('charts')">Charts</button>
+  </div>
+
+  <!-- Holdings tab -->
+  <div id="tab-holdings" class="view active">
+    <div class="filter-bar">
+      <input type="text" id="search" placeholder="Search ticker / name..." oninput="filterTable()">
+      <select id="rating-filter" onchange="filterTable()">
+        <option value="">All Ratings</option>
+        <option>BUY</option>
+        <option>LEAN BUY</option>
+        <option>HOLD</option>
+        <option>NOT IN UNIVERSE</option>
+      </select>
+      <select id="sort-col" onchange="sortTable(this.value)">
+        <option value="">Sort by...</option>
+        <option value="market_value">Market Value</option>
+        <option value="unrealized_pnl_pct">P&L %</option>
+        <option value="alpha">Alpha</option>
+        <option value="_composite_score">Composite Score</option>
+        <option value="position_weight">Weight</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table class="dt" id="holdings-table">
+        <thead>
+          <tr>
+            <th onclick="sortTable('ticker')">Ticker <span class="arrow">↕</span></th>
+            <th onclick="sortTable('company_name')">Name <span class="arrow">↕</span></th>
+            <th onclick="sortTable('sector')">Sector <span class="arrow">↕</span></th>
+            <th onclick="sortTable('shares')">Shares <span class="arrow">↕</span></th>
+            <th onclick="sortTable('cost_basis')">Cost <span class="arrow">↕</span></th>
+            <th onclick="sortTable('current_price')">Price <span class="arrow">↕</span></th>
+            <th onclick="sortTable('market_value')">Value <span class="arrow">↕</span></th>
+            <th onclick="sortTable('position_weight')">Weight <span class="arrow">↕</span></th>
+            <th onclick="sortTable('unrealized_pnl_pct')">P&L % <span class="arrow">↕</span></th>
+            <th onclick="sortTable('alpha')">Alpha <span class="arrow">↕</span></th>
+            <th onclick="sortTable('rating')">Rating <span class="arrow">↕</span></th>
+            <th onclick="sortTable('dcf_fv')">DCF FV <span class="arrow">↕</span></th>
+            <th onclick="sortTable('mos')">MoS <span class="arrow">↕</span></th>
+            <th onclick="sortTable('_composite_score')">Score <span class="arrow">↕</span></th>
+          </tr>
+        </thead>
+        <tbody id="holdings-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Alerts tab -->
+  <div id="tab-alerts" class="view">
+    <div class="alerts-panel" id="alerts-panel"></div>
+  </div>
+
+  <!-- Score heatmap tab -->
+  <div id="tab-scores" class="view">
+    <div class="heatmap-wrap">
+      <table class="heatmap" id="score-table">
+        <thead>
+          <tr>
+            <th class="tk-head">Ticker</th>
+            <th class="cat-head cat-val">Valuation</th>
+            <th class="cat-head cat-qual">Quality</th>
+            <th class="cat-head cat-moat">Moat</th>
+            <th class="cat-head cat-grow">Growth</th>
+            <th class="cat-head cat-own">Ownership</th>
+            <th class="cat-head" style="background:#555;">Composite</th>
+          </tr>
+        </thead>
+        <tbody id="score-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Charts tab -->
+  <div id="tab-charts" class="view">
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Sector Allocation</h3>
+        <div id="sector-chart" class="chart-placeholder"></div>
+      </div>
+      <div class="chart-card">
+        <h3>P&amp;L by Holding</h3>
+        <div id="pnl-chart" class="chart-placeholder"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Alpha by Holding</h3>
+        <div id="alpha-chart" class="chart-placeholder"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Composite Score by Holding</h3>
+        <div id="score-chart" class="chart-placeholder"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- Plotly -->
+<script src="plotly-2.27.0.min.js"></script>
+<script>
+const HOLDINGS = {{ holdings_json }};
+const ALERTS = {{ alerts_json }};
+const SECTOR_DATA = {{ sector_chart_data }};
+
+// ---- Utility ----
+function fmtPct(v, decimals=1) {
+  if (v == null) return 'N/A';
+  const sign = v >= 0 ? '+' : '';
+  return sign + (v * 100).toFixed(decimals) + '%';
+}
+function fmtDollar(v) {
+  if (v == null) return 'N/A';
+  const sign = v >= 0 ? '+$' : '-$';
+  return sign + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtDollarShort(v) {
+  if (v == null) return 'N/A';
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (abs >= 1e9) return sign + '$' + (abs/1e9).toFixed(1) + 'B';
+  if (abs >= 1e6) return sign + '$' + (abs/1e6).toFixed(1) + 'M';
+  if (abs >= 1e3) return sign + '$' + (abs/1e3).toFixed(1) + 'K';
+  return sign + '$' + abs.toFixed(2);
+}
+function scoreClass(v) {
+  if (v == null) return 'hm-na';
+  if (v >= 60) return 'hm-good';
+  if (v >= 40) return 'hm-mid';
+  return 'hm-poor';
+}
+function pnlClass(v) {
+  if (v == null) return '';
+  return v >= 0 ? 'pnl-pos' : 'pnl-neg';
+}
+function alphaClass(v) {
+  if (v == null) return '';
+  return v >= 0 ? 'alpha-pos' : 'alpha-neg';
+}
+function ratingClass(r) {
+  if (!r) return '';
+  return r.replace(/\s+/g, '-');
+}
+
+// ---- Holdings table ----
+let currentData = [...HOLDINGS];
+let sortKey = null;
+let sortAsc = true;
+
+function renderTable(data) {
+  const tbody = document.getElementById('holdings-body');
+  tbody.innerHTML = '';
+  for (const h of data) {
+    const alertFlag = h.valuation_gap_alert ? '<span class="alert-flag" title="Valuation gap alert">⚠</span>' : '';
+    const row = `<tr>
+      <td class="tk">${h.ticker}${alertFlag}</td>
+      <td style="text-align:left;max-width:160px;overflow:hidden;text-overflow:ellipsis">${h.company_name||''}</td>
+      <td style="text-align:left">${h.sector||''}</td>
+      <td>${h.shares!=null ? h.shares.toFixed(1) : 'N/A'}</td>
+      <td>${h.cost_basis!=null ? '$'+h.cost_basis.toFixed(2) : 'N/A'}</td>
+      <td>${h.current_price!=null ? '$'+h.current_price.toFixed(2) : 'N/A'}</td>
+      <td>${h.market_value!=null ? fmtDollarShort(h.market_value) : 'N/A'}</td>
+      <td>${h.position_weight!=null ? fmtPct(h.position_weight,1) : 'N/A'}</td>
+      <td class="${pnlClass(h.unrealized_pnl_pct)}">${fmtPct(h.unrealized_pnl_pct)}</td>
+      <td class="${alphaClass(h.alpha)}">${fmtPct(h.alpha)}</td>
+      <td><span class="rb ${ratingClass(h.rating)}">${h.rating||'N/A'}</span></td>
+      <td>${h.dcf_fv!=null ? '$'+h.dcf_fv.toFixed(2) : 'N/A'}</td>
+      <td class="${pnlClass(h.mos)}">${fmtPct(h.mos)}</td>
+      <td class="score-cell ${scoreClass(h._composite_score)}">${h._composite_score!=null ? h._composite_score.toFixed(1) : 'N/A'}</td>
+    </tr>`;
+    tbody.insertAdjacentHTML('beforeend', row);
+  }
+}
+
+function filterTable() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const rating = document.getElementById('rating-filter').value;
+  let data = HOLDINGS.filter(h => {
+    const matchSearch = !search ||
+      h.ticker.toLowerCase().includes(search) ||
+      (h.company_name||'').toLowerCase().includes(search) ||
+      (h.sector||'').toLowerCase().includes(search);
+    const matchRating = !rating || h.rating === rating;
+    return matchSearch && matchRating;
+  });
+  if (sortKey) {
+    data = sortBy(data, sortKey, sortAsc);
+  }
+  currentData = data;
+  renderTable(data);
+}
+
+function sortBy(data, key, asc) {
+  return [...data].sort((a, b) => {
+    const av = a[key], bv = b[key];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === 'string') return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+    return asc ? av - bv : bv - av;
+  });
+}
+
+function sortTable(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = key !== 'market_value' && key !== '_composite_score'; }
+  document.getElementById('sort-col').value = '';
+  filterTable();
+}
+
+// ---- Alerts panel ----
+function renderAlerts() {
+  const panel = document.getElementById('alerts-panel');
+  if (!ALERTS || ALERTS.length === 0) {
+    panel.innerHTML = '<div class="no-alerts">✅ No alerts today — all holdings look good.</div>';
+    return;
+  }
+  const icons = {HIGH: '🔴', MEDIUM: '🟡', LOW: '🟢'};
+  panel.innerHTML = ALERTS.map(a => `
+    <div class="alert-card ${a.severity}">
+      <span class="alert-icon">${icons[a.severity]||'⚪'}</span>
+      <div class="alert-body">
+        <div><span class="ticker">${a.ticker}</span><span class="alert-badge ${a.severity}">${a.severity}</span></div>
+        <div class="msg">${a.message}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ---- Score heatmap ----
+function renderHeatmap() {
+  const tbody = document.getElementById('score-body');
+  tbody.innerHTML = '';
+  for (const h of HOLDINGS) {
+    const row = `<tr>
+      <td class="tk-cell">${h.ticker}</td>
+      <td class="${scoreClass(h._score_valuation)}">${h._score_valuation!=null ? h._score_valuation.toFixed(0) : 'N/A'}</td>
+      <td class="${scoreClass(h._score_quality)}">${h._score_quality!=null ? h._score_quality.toFixed(0) : 'N/A'}</td>
+      <td class="${scoreClass(h._score_moat)}">${h._score_moat!=null ? h._score_moat.toFixed(0) : 'N/A'}</td>
+      <td class="${scoreClass(h._score_growth)}">${h._score_growth!=null ? h._score_growth.toFixed(0) : 'N/A'}</td>
+      <td class="${scoreClass(h._score_ownership)}">${h._score_ownership!=null ? h._score_ownership.toFixed(0) : 'N/A'}</td>
+      <td class="${scoreClass(h._composite_score)}" style="font-size:1.05em">${h._composite_score!=null ? h._composite_score.toFixed(1) : 'N/A'}</td>
+    </tr>`;
+    tbody.insertAdjacentHTML('beforeend', row);
+  }
+}
+
+// ---- Charts ----
+function renderCharts() {
+  // Sector donut
+  if (SECTOR_DATA && SECTOR_DATA.length > 0) {
+    Plotly.newPlot('sector-chart', [{
+      type: 'pie',
+      labels: SECTOR_DATA.map(d => d.sector),
+      values: SECTOR_DATA.map(d => d.weight),
+      hole: 0.45,
+      textinfo: 'label+percent',
+      textfont: {size: 11},
+    }], {
+      margin: {t:10,b:10,l:10,r:10},
+      height: 300,
+      showlegend: false,
+    }, {responsive: true});
+  }
+
+  const tickers = HOLDINGS.map(h => h.ticker);
+
+  // P&L bar
+  if (HOLDINGS.length > 0) {
+    const pnlVals = HOLDINGS.map(h => h.unrealized_pnl_pct != null ? +(h.unrealized_pnl_pct * 100).toFixed(2) : null);
+    Plotly.newPlot('pnl-chart', [{
+      type: 'bar',
+      x: tickers,
+      y: pnlVals,
+      marker: {color: pnlVals.map(v => v == null ? '#ccc' : v >= 0 ? '#1a9850' : '#d73027')},
+      text: pnlVals.map(v => v == null ? '' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%'),
+      textposition: 'outside',
+    }], {
+      margin: {t:10,b:40,l:50,r:10},
+      height: 300,
+      yaxis: {title: 'Unrealized P&L %', ticksuffix: '%'},
+      xaxis: {tickfont: {size: 11}},
+    }, {responsive: true});
+
+    // Alpha bar
+    const alphaVals = HOLDINGS.map(h => h.alpha != null ? +(h.alpha * 100).toFixed(2) : null);
+    Plotly.newPlot('alpha-chart', [{
+      type: 'bar',
+      x: tickers,
+      y: alphaVals,
+      marker: {color: alphaVals.map(v => v == null ? '#ccc' : v >= 0 ? '#2980b9' : '#fd8d3c')},
+      text: alphaVals.map(v => v == null ? 'N/A' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%'),
+      textposition: 'outside',
+    }], {
+      margin: {t:10,b:40,l:50,r:10},
+      height: 300,
+      yaxis: {title: 'Alpha vs Benchmark %', ticksuffix: '%'},
+      xaxis: {tickfont: {size: 11}},
+    }, {responsive: true});
+
+    // Score bar
+    const scoreVals = HOLDINGS.map(h => h._composite_score);
+    Plotly.newPlot('score-chart', [{
+      type: 'bar',
+      x: tickers,
+      y: scoreVals,
+      marker: {color: scoreVals.map(v => v == null ? '#ccc' : v >= 60 ? '#1a9850' : v >= 40 ? '#fd8d3c' : '#d73027')},
+      text: scoreVals.map(v => v == null ? 'N/A' : v.toFixed(1)),
+      textposition: 'outside',
+    }], {
+      margin: {t:10,b:40,l:50,r:10},
+      height: 300,
+      yaxis: {title: 'Composite Score', range: [0, 105]},
+      xaxis: {tickfont: {size: 11}},
+    }, {responsive: true});
+  }
+}
+
+// ---- Tab switching ----
+let chartsRendered = false;
+function switchTab(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'charts' && !chartsRendered) {
+    renderCharts();
+    chartsRendered = true;
+  }
+}
+
+// ---- Init ----
+renderTable(HOLDINGS);
+renderAlerts();
+renderHeatmap();
+</script>
+</body>
+</html>

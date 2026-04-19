@@ -1,0 +1,54 @@
+{
+  "portfolio_name": "My Portfolio",
+  "benchmark": "SPY",
+  "holdings": [
+    {
+      "ticker": "DECK",
+      "shares": 25,
+      "cost_basis": 88.50,
+      "purchase_date": "2024-06-10",
+      "notes": "Core position — strong brand moat"
+    },
+    {
+      "ticker": "ADSK",
+      "shares": 15,
+      "cost_basis": 220.00,
+      "purchase_date": "2024-09-03"
+    },
+    {
+      "ticker": "FFIV",
+      "shares": 10,
+      "cost_basis": 245.00,
+      "purchase_date": "2025-01-15"
+    },
+    {
+      "ticker": "CL",
+      "shares": 40,
+      "cost_basis": 92.00,
+      "purchase_date": "2024-03-20",
+      "notes": "Defensive anchor"
+    },
+    {
+      "ticker": "ANET",
+      "shares": 30,
+      "cost_basis": 98.75,
+      "purchase_date": "2024-11-08"
+    },
+    {
+      "ticker": "CF",
+      "shares": 20,
+      "cost_basis": 110.00,
+      "purchase_date": "2025-02-01"
+    }
+  ],
+  "realized_gains": [
+    {
+      "ticker": "MSFT",
+      "shares_sold": 10,
+      "cost_basis": 310.00,
+      "sale_price": 415.00,
+      "sale_date": "2025-09-12",
+      "notes": "Trimmed after valuation stretched"
+    }
+  ]
+}

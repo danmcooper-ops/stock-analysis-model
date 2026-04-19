@@ -216,13 +216,15 @@ def _apply_derived_params(candidate):
     """
     derived = dict(candidate)
 
-    # Derive score_weight_growth only when scoring weights are being tuned
+    # Derive score_weight_growth only when scoring weights are being tuned.
+    # Ownership weight is fixed at its default; growth absorbs the remainder.
     sw_keys = ('score_weight_valuation', 'score_weight_quality', 'score_weight_moat')
     if any(k in candidate for k in sw_keys):
         defs = default_params()
         sw_sum = (candidate.get('score_weight_valuation', defs['score_weight_valuation'])
                   + candidate.get('score_weight_quality', defs['score_weight_quality'])
-                  + candidate.get('score_weight_moat', defs['score_weight_moat']))
+                  + candidate.get('score_weight_moat', defs['score_weight_moat'])
+                  + candidate.get('score_weight_ownership', defs['score_weight_ownership']))
         sw_growth = round(1.0 - sw_sum, 4)
         if sw_growth < 0.05:
             return None  # Constraint violation

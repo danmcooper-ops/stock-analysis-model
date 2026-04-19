@@ -1,4 +1,5 @@
 # scripts/analyze_stock.py
+import gc
 import sys
 import os
 import io
@@ -8,6 +9,17 @@ from statistics import median as _median
 import pandas as pd
 from urllib.request import urlopen, Request
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Load .env from project root (simple key=value parser, no dependency needed)
+_env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+if os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith('#') and '=' in _line:
+                _k, _v = _line.split('=', 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
+
 from data.yfinance_client import YFinanceClient
 from data.treasury_rate import fetch_risk_free_rate
 from data.validation import validate_financials
@@ -36,11 +48,13 @@ from models.macro import (assess_macro_regime, compute_macro_adjustments,
                           print_macro_summary, generate_sector_signals)
 from models.narrative import generate_stock_narrative, generate_financial_summary
 from data.news_client import NewsClient
+from data.tiingo_client import TiingoClient
 from data.sec_legal_client import SECLegalClient
 from data.finnhub_supply_client import FinnhubSupplyClient
 from data.sec_supply_client import SECSupplyClient
 from data.sec_xbrl_client import SECXBRLClient
 from data.sec_insider_client import SECInsiderClient
+from data.culture_client import CultureClient
 
 from scripts.config import (DEFAULT_RISK_FREE_RATE, ERP, TERMINAL_GROWTH_RATE,
                             MIN_MARKET_CAP, WACC_FLOOR, WACC_CAP,
@@ -107,7 +121,7 @@ def get_dow_tickers():
 
 
 def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=None,
-                          erp=None):
+                          erp=None, tiingo_client=None):
     """Select cost of equity using a four-level hierarchy.
 
     Tries each method in order, returning the first that passes validation:
@@ -136,6 +150,12 @@ def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=Non
         try:
             stock_prices = yf_client.fetch_history(ticker, period="5y")
             market_prices = yf_client.fetch_history('SPY', period="5y")
+            # Fall back to Tiingo if yfinance returns insufficient price data
+            if tiingo_client and tiingo_client.available:
+                if stock_prices is None or len(stock_prices) <= 60:
+                    stock_prices = tiingo_client.fetch_history(ticker, period="5y")
+                if market_prices is None or len(market_prices) <= 60:
+                    market_prices = tiingo_client.fetch_history('SPY', period="5y")
             if (stock_prices is not None and market_prices is not None
                     and len(stock_prices) > 60):
                 combined = pd.DataFrame({
@@ -202,12 +222,14 @@ def _get_analyst_lt_growth(yf_data):
     ge = yf_data.get('growth_estimates')
     if ge is not None and hasattr(ge, 'empty') and not ge.empty:
         try:
-            if 'stockTrend' not in ge.columns:
+            # yfinance column name varies across versions: 'stockTrend', 'Stock', etc.
+            col = next((c for c in ('stockTrend', 'Stock') if c in ge.columns), None)
+            if col is None:
                 return None
             # Try LTG first, then +1y, then 0y
             for period in ['LTG', '+1y', '0y']:
                 if period in ge.index:
-                    val = ge.loc[period, 'stockTrend']
+                    val = ge.loc[period, col]
                     if pd.notna(val) and isinstance(val, (int, float)):
                         return float(val)
         except Exception:
@@ -745,6 +767,10 @@ def _annualise_dividends(div_series):
     """
     if div_series is None or len(div_series) == 0:
         return []
+    # Normalise DataFrame → Series (yfinance >=1.2 may return a single-column
+    # DataFrame from stock.dividends instead of the expected Series).
+    if isinstance(div_series, pd.DataFrame):
+        div_series = div_series.iloc[:, 0] if not div_series.empty else pd.Series(dtype=float)
     annual = div_series.groupby(div_series.index.year).sum()
     return annual.sort_index().tolist()
 
@@ -958,10 +984,17 @@ def _main():
 
     yf_client = YFinanceClient()
 
+    # Tiingo client initialized here so it's available for Phase 1 beta calculation
+    tiingo_client = TiingoClient(request_delay=0.5)
+    if tiingo_client.available:
+        print('Tiingo API configured — using as primary news source.')
+    else:
+        print('Tiingo API not configured (set TIINGO_API_KEY) — falling back to yfinance/Google RSS.')
+
     # -----------------------------------------------------------------------
-    # Phase 1: Screen — ROIC > WACC + market cap filter (Worksheet Steps 1, 4)
+    # Phase 1: Collect data for full universe (no ROIC > WACC pre-filter)
     # -----------------------------------------------------------------------
-    print(f"Screening {len(all_tickers)} tickers (ROIC > WACC, mkt cap > $10B)...")
+    print(f"Processing {len(all_tickers)} tickers (full universe)...")
     qualifying = []
     screen_cache = {}
     screen_outcomes = {'quality': {'total': 0, 'passed': 0},
@@ -973,61 +1006,44 @@ def _main():
         try:
             yf_data = yf_client.fetch_financials(ticker)
             info = yf_data.get('info') or {}
-
-            # Data quality validation
-            dq = validate_financials(yf_data, ticker)
-            if dq['quality_score'] < DATA_QUALITY_MIN:
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - data quality "
-                      f"{dq['quality_score']}/100 skip")
-                continue
-
-            # Market cap filter (Worksheet Step 1)
-            mcap = info.get('marketCap') or 0
-            if mcap < MIN_MARKET_CAP:
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - mcap ${mcap/1e9:.1f}B < $10B skip")
-                continue
-
             sector = info.get('sector', '')
-            if sector == 'Financial Services':
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - Financial Services skip")
-                continue
 
             roic_data = calculate_roic(yf_data)
-            if not roic_data:
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - ROIC N/A skip")
-                continue
-
             cost_of_equity, re_method, beta_diag = select_cost_of_equity(
-                yf_data, risk_free_rate, yf_client, ticker, erp=effective_erp)
+                yf_data, risk_free_rate, yf_client, ticker, erp=effective_erp,
+                tiingo_client=tiingo_client)
             wacc = calculate_wacc(yf_data, cost_of_equity)
-            # Fix D: Sector-specific WACC clamping
             if wacc is not None:
                 s_cfg = _get_sector_config(sector)
                 wacc = max(s_cfg['wacc_floor'], min(s_cfg['wacc_cap'], wacc))
 
-            if wacc is None:
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - WACC N/A skip")
-                continue
-
-            spread = roic_data['avg_roic'] - wacc
-            if spread > 0:
-                qualifying.append(ticker)
-                screen_outcomes[_grp]['passed'] += 1
-                screen_cache[ticker] = {
-                    'roic_data': roic_data, 'wacc': wacc,
-                    'cost_of_equity': cost_of_equity,
-                    're_method': re_method, 'yf_data': yf_data,
-                    'beta_diag': beta_diag,
-                }
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - ROIC {roic_data['avg_roic']:.1%} "
-                      f"WACC {wacc:.1%} spread {spread:.1%} [{re_method}] PASS")
-            else:
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - spread {spread:.1%} skip")
+            spread = (roic_data['avg_roic'] - wacc
+                      if (roic_data and wacc is not None) else None)
+            qualifying.append(ticker)
+            screen_outcomes[_grp]['passed'] += 1
+            screen_cache[ticker] = {
+                'roic_data': roic_data, 'wacc': wacc,
+                'cost_of_equity': cost_of_equity,
+                're_method': re_method, 'yf_data': yf_data,
+                'beta_diag': beta_diag,
+            }
+            roic_str = f"ROIC {roic_data['avg_roic']:.1%} " if roic_data else "ROIC N/A "
+            wacc_str = f"WACC {wacc:.1%} " if wacc is not None else "WACC N/A "
+            spread_str = f"spread {spread:.1%}" if spread is not None else "spread N/A"
+            print(f"  [{i}/{len(all_tickers)}] {ticker} - {roic_str}{wacc_str}{spread_str} [{re_method}]")
 
         except Exception as e:
             print(f"  [{i}/{len(all_tickers)}] {ticker} - error: {e}")
+        # Flush after every ticker so the log reflects progress if OOM-killed
+        sys.stdout.flush()
 
-    print(f"\n{len(qualifying)} tickers passed screen out of {len(all_tickers)} total.")
+    # Free memory: drop ALL cached financials and price histories.
+    # Qualifying tickers' data survives via screen_cache references.
+    yf_client.evict_financials()
+    yf_client.clear_history_cache()
+    gc.collect()
+
+    print(f"\n{len(qualifying)} tickers collected out of {len(all_tickers)} total.")
     if args.validation:
         for grp in ('quality', 'poor'):
             o = screen_outcomes[grp]
@@ -1059,7 +1075,7 @@ def _main():
                 min(EXIT_MULT_MAX, sector_exit_multiples[s] + effective_exit_mult_adj))
 
     # -----------------------------------------------------------------------
-    # News pipeline: prefetch sector-level headlines
+    # News pipeline: Tiingo (primary) + yfinance/Google RSS (fallback)
     # -----------------------------------------------------------------------
     news_client = NewsClient(request_delay=1.0, max_age_days=30)
     _sectors_for_news = set(
@@ -1104,6 +1120,9 @@ def _main():
         max_form4_files=15,
     )
 
+    # Culture metrics client (no external API — derives signals from yfinance)
+    culture_client = CultureClient()
+
     # -----------------------------------------------------------------------
     # Phase 2: Full analysis on qualifying tickers (Worksheet Steps 2-5)
     # -----------------------------------------------------------------------
@@ -1131,18 +1150,30 @@ def _main():
                     var_r = sum((x - mean_r) ** 2 for x in vals) / (len(vals) - 1)
                     roic_cv = (var_r ** 0.5) / mean_r
 
+            # Company description and CEO (Worksheet Step 3)
+            info = yf_data.get('info') or {}
+            # mcap must be read from THIS ticker's info, not the stale Phase 1 variable
+            mcap = info.get('marketCap') or 0
+
             # Shareholder yield (dividends + buybacks) / market cap
             sy_result = _compute_shareholder_yield(yf_data, mcap)
             shareholder_yield = sy_result['shareholder_yield'] if sy_result else None
             share_buyback_rate = sy_result['buyback_rate'] if sy_result else None
-
-            # Company description and CEO (Worksheet Step 3)
-            info = yf_data.get('info') or {}
             description = info.get('longBusinessSummary') or ''
             company_name = info.get('shortName') or info.get('longName') or ''
             sector = info.get('sector') or ''
             industry = info.get('industry') or ''
-            ticker_news = news_client.get_combined_news(ticker, sector, max_total=12)
+            # Tiingo is primary news source; fall back to yfinance/Google RSS
+            if tiingo_client.available:
+                tiingo_news = tiingo_client.fetch_ticker_news(ticker, max_age_days=30, max_items=12)
+            else:
+                tiingo_news = []
+            if tiingo_news:
+                ticker_news = tiingo_news
+                news_sentiment = tiingo_client.fetch_ticker_sentiment(ticker, max_age_days=30, max_items=12)
+            else:
+                ticker_news = news_client.get_combined_news(ticker, sector, max_total=12)
+                news_sentiment = None
             legal_data = sec_client.fetch_legal_filings(ticker, days_back=730)
             supply_data = supply_client.fetch_supply_chain(ticker)
             if not supply_data.get('available'):
@@ -1153,6 +1184,9 @@ def _main():
             xbrl_validation = sec_xbrl_client.validate_against_yfinance(ticker, yf_data)
             # SEC EDGAR: long-duration revenue/earnings history
             edgar_history = sec_xbrl_client.fetch_historical_financials(ticker, min_years=10)
+            # Evict the raw XBRL JSON blob (~1-10 MB) now that both
+            # validate_against_yfinance and fetch_historical_financials are done.
+            sec_xbrl_client._cache.pop(ticker, None)
             # SEC EDGAR: insider transactions from Form 4
             insider_data = sec_insider_client.fetch_insider_activity(ticker, days_back=365)
 
@@ -1183,6 +1217,10 @@ def _main():
                     fy = ceo_officer.get('fiscalYear', '')
                     bio_parts.append(f"Compensation: {pay_str}" + (f" (FY{fy})" if fy else ""))
                 ceo_bio = " | ".join(p for p in bio_parts if p)
+
+            # Culture raw metrics: employees, CEO pay, comp risk, SBC
+            _culture_raw = culture_client.extract(info, yf_data)
+            _culture_gd = culture_client.fetch_glassdoor(company_name, ticker)
 
             # Step 2: Relative multiples
             multiples = compute_relative_multiples(yf_data)
@@ -1407,6 +1445,14 @@ def _main():
                 'ceo': ceo,
                 'ceo_bio': ceo_bio,
                 'founder_led': founder_led,
+                # Culture raw inputs (narrative built in post-processing)
+                'employees': _culture_raw.get('employees'),
+                'ceo_total_pay': _culture_raw.get('ceo_total_pay'),
+                'compensation_risk': _culture_raw.get('compensation_risk'),
+                'sbc': _culture_raw.get('sbc'),
+                'glassdoor_rating': _culture_gd.get('glassdoor_rating'),
+                'glassdoor_ceo_pct': _culture_gd.get('glassdoor_ceo_pct'),
+                'glassdoor_rec_pct': _culture_gd.get('glassdoor_rec_pct'),
                 'fcf': fcf,
                 # Ownership
                 'shares_out': shares_out,
@@ -1498,6 +1544,7 @@ def _main():
                 'edgar_quality_score': xbrl_validation.get('edgar_quality_score') if xbrl_validation else None,
                 'edgar_fields_flagged': xbrl_validation.get('fields_flagged', 0) if xbrl_validation else 0,
                 'edgar_discrepancies': xbrl_validation.get('discrepancies', []) if xbrl_validation else [],
+                'edgar_history': edgar_history,
                 # Balance sheet (Step 3C)
                 'int_cov': int_cov,
                 'nd_ebitda': nd_ebitda,
@@ -1513,6 +1560,7 @@ def _main():
                 'sector_headwinds': sector_signals.get(sector, {}).get('headwinds', []),
                 'sector_tailwinds': sector_signals.get(sector, {}).get('tailwinds', []),
                 'news_headlines': ticker_news,
+                'news_sentiment': news_sentiment,
                 'legal_filings': legal_data.get('filings', []),
                 'legal_count': legal_data.get('count', 0),
                 'legal_latest': legal_data.get('latest_date'),
@@ -1576,6 +1624,16 @@ def _main():
             results.append(row)
         except Exception as e:
             print(f"  Error analyzing {ticker}: {e}")
+        finally:
+            # Drop the heavy yf_data reference now that this ticker is done
+            if ticker in screen_cache:
+                screen_cache[ticker].pop('yf_data', None)
+            sys.stdout.flush()
+
+    # All per-ticker analysis complete — release remaining caches
+    screen_cache.clear()
+    yf_client.evict_financials()
+    gc.collect()
 
     # -----------------------------------------------------------------------
     # Post-processing: sector-median EV/EBITDA comparison + DCF cross-check
@@ -1794,6 +1852,232 @@ def _main():
                 r[f'_peer_pctile_{metric}'] = round(pctile, 2)
             else:
                 r[f'_peer_pctile_{metric}'] = None
+
+    # -----------------------------------------------------------------------
+    # Culture narrative: workforce productivity, pay, ownership culture
+    # -----------------------------------------------------------------------
+    # Step 1 — derive per-employee metrics
+    for r in results:
+        emp     = r.get('employees')
+        rev     = r.get('revenue')
+        fcf_val = r.get('fcf')
+        ceo_pay = r.get('ceo_total_pay')
+        sbc     = r.get('sbc')
+
+        rpe = (rev / emp) if (emp and rev and rev > 0) else None
+        r['revenue_per_emp'] = rpe
+        r['fcf_per_emp']  = (fcf_val / emp) if (emp and fcf_val is not None) else None
+        r['ceo_pay_ratio'] = (ceo_pay / rpe) if (ceo_pay and rpe and rpe > 0) else None
+        r['sbc_per_emp']   = (sbc / emp) if (sbc and emp) else None
+
+    # Step 2 — sector-percentile buckets for revenue per employee
+    _cult_sector_rpe: dict = {}
+    for r in results:
+        s, rpe = r.get('sector'), r.get('revenue_per_emp')
+        if s and rpe and rpe > 0:
+            _cult_sector_rpe.setdefault(s, []).append(rpe)
+    for s in _cult_sector_rpe:
+        _cult_sector_rpe[s].sort()
+
+    # Step 3 — multi-year RPE trend from EDGAR revenue history
+    for r in results:
+        emp = r.get('employees')
+        if not emp:
+            r['rpe_cagr'] = None
+            continue
+        rev_hist = (r.get('edgar_history') or {}).get('revenue_history') or {}
+        years = sorted(rev_hist.keys())
+        if len(years) >= 3:
+            earliest = rev_hist[years[0]]
+            latest   = rev_hist[years[-1]]
+            n_years  = years[-1] - years[0]
+            if earliest and latest and earliest > 0 and n_years > 0:
+                rpe_earliest = earliest / emp
+                rpe_latest   = latest   / emp
+                r['rpe_cagr'] = (rpe_latest / rpe_earliest) ** (1 / n_years) - 1
+            else:
+                r['rpe_cagr'] = None
+        else:
+            r['rpe_cagr'] = None
+
+    # Step 4 — employment-related legal flag
+    _EMPLOYMENT_KEYWORDS = {
+        'labor', 'labour', 'employee', 'employment', 'wage', 'salary',
+        'discrimination', 'wrongful termination', 'class action', 'nlrb',
+        'union', 'strike', 'layoff', 'hostile work',
+    }
+    for r in results:
+        filings = r.get('legal_filings') or []
+        flag = False
+        for f in filings:
+            text = ' '.join([
+                (f.get('description') or ''),
+                (f.get('summary') or ''),
+            ]).lower()
+            if any(kw in text for kw in _EMPLOYMENT_KEYWORDS):
+                flag = True
+                break
+        r['employment_legal_flag'] = flag
+
+    # Step 5 — layoff / culture news signal
+    _LAYOFF_KEYWORDS = {
+        'layoff', 'lay off', 'laid off', 'job cut', 'workforce reduction',
+        'redundan', 'downsiz', 'restructur', 'reorg',
+    }
+    _CULTURE_POS_KEYWORDS = {
+        'best place', 'top employer', 'great place to work',
+        'best company', 'culture award',
+    }
+    for r in results:
+        headlines = r.get('news_headlines') or []
+        layoff_signal = False
+        culture_award = False
+        for h in headlines:
+            text = (h.get('title') or '').lower()
+            if any(kw in text for kw in _LAYOFF_KEYWORDS):
+                layoff_signal = True
+            if any(kw in text for kw in _CULTURE_POS_KEYWORDS):
+                culture_award = True
+        r['layoff_news_signal'] = layoff_signal
+        r['culture_award_signal'] = culture_award
+
+    # Step 6 — plain-English narrative
+    def _fmt_emp(n):
+        if n >= 1_000_000: return f"{n / 1_000_000:.1f}M"
+        if n >= 1_000:     return f"{n // 1_000:,}K"
+        return str(n)
+
+    def _fmt_money(v):
+        if abs(v) >= 1_000_000: return f"${v / 1_000_000:.1f}M"
+        if abs(v) >= 1_000:     return f"${v / 1_000:.0f}K"
+        return f"${v:.0f}"
+
+    for r in results:
+        s         = r.get('sector') or 'its sector'
+        emp       = r.get('employees')
+        rpe       = r.get('revenue_per_emp')
+        rpe_cagr  = r.get('rpe_cagr')
+        fcf_pe    = r.get('fcf_per_emp')
+        ceo_ratio = r.get('ceo_pay_ratio')
+        sbc_pe    = r.get('sbc_per_emp')
+        rd        = r.get('rd_intensity')
+        crisk     = r.get('compensation_risk')
+        gd_rating = r.get('glassdoor_rating')
+        gd_ceo    = r.get('glassdoor_ceo_pct')
+        gd_rec    = r.get('glassdoor_rec_pct')
+        emp_legal = r.get('employment_legal_flag', False)
+        layoff    = r.get('layoff_news_signal', False)
+        cult_award = r.get('culture_award_signal', False)
+
+        sector_rpes = _cult_sector_rpe.get(r.get('sector'), [])
+        rpe_pct = None
+        if rpe and len(sector_rpes) >= 3:
+            rpe_pct = sum(1 for x in sector_rpes if x < rpe) / len(sector_rpes)
+
+        sentences = []
+
+        # --- Glassdoor (highest credibility — leads if available) ---------
+        if gd_rating is not None:
+            stars = f"{gd_rating:.1f}/5"
+            rec_str = f", with {gd_rec}% of employees recommending it to a friend" if gd_rec else ""
+            ceo_str = f" and {gd_ceo}% CEO approval" if gd_ceo else ""
+            sentences.append(
+                f"Glassdoor-rated {stars}{rec_str}{ceo_str}."
+            )
+
+        # --- Workforce size -----------------------------------------------
+        if emp:
+            sentences.append(f"Employs approximately {_fmt_emp(emp)} people.")
+
+        # --- Revenue per employee with trend -----------------------------
+        if rpe and rpe_pct is not None:
+            if rpe_pct >= 0.75:   pct_desc = "top quartile"
+            elif rpe_pct >= 0.50: pct_desc = "above the sector median"
+            elif rpe_pct >= 0.25: pct_desc = "below the sector median"
+            else:                 pct_desc = "bottom quartile"
+            trend_str = ""
+            if rpe_cagr is not None:
+                if rpe_cagr > 0.05:
+                    trend_str = f", improving at {rpe_cagr:.0%}/yr — growing workforce leverage"
+                elif rpe_cagr < -0.05:
+                    trend_str = f", declining at {abs(rpe_cagr):.0%}/yr — weakening productivity"
+            sentences.append(
+                f"Revenue per employee of {_fmt_money(rpe)} ranks in the "
+                f"{pct_desc} among {s} peers{trend_str}."
+            )
+        elif rpe:
+            sentences.append(f"Revenue per employee is {_fmt_money(rpe)}.")
+
+        # --- FCF per employee --------------------------------------------
+        if fcf_pe and fcf_pe > 0 and emp:
+            sentences.append(
+                f"Each employee generates {_fmt_money(fcf_pe)} of free cash flow annually."
+            )
+
+        # --- SBC per employee (ownership culture) ------------------------
+        if sbc_pe and sbc_pe > 0:
+            sentences.append(
+                f"Stock-based compensation of {_fmt_money(sbc_pe)} per employee "
+                f"reflects an ownership culture."
+            )
+
+        # --- CEO pay alignment -------------------------------------------
+        if ceo_ratio is not None:
+            if ceo_ratio <= 10:   ratio_desc = "modest"
+            elif ceo_ratio <= 30: ratio_desc = "reasonable"
+            elif ceo_ratio <= 75: ratio_desc = "elevated"
+            elif ceo_ratio <= 150: ratio_desc = "high"
+            else:                  ratio_desc = "very high"
+            sentences.append(
+                f"CEO compensation is {ceo_ratio:.0f}\u00d7 revenue per employee "
+                f"({ratio_desc} relative to workforce productivity)."
+            )
+
+        # --- yfinance compensation risk ----------------------------------
+        if crisk is not None:
+            if crisk <= 3:
+                crisk_desc = "low compensation governance risk"
+            elif crisk <= 6:
+                crisk_desc = "moderate compensation governance risk"
+            else:
+                crisk_desc = "elevated compensation governance risk"
+            sentences.append(
+                f"Governance score flags {crisk_desc} ({crisk}/10)."
+            )
+
+        # --- R&D intensity -----------------------------------------------
+        if rd and rd > 0.01:
+            if rd >= 0.20:   rd_desc = "heavy"
+            elif rd >= 0.10: rd_desc = "significant"
+            elif rd >= 0.05: rd_desc = "moderate"
+            else:            rd_desc = "limited"
+            sentences.append(
+                f"R&D investment of {rd:.0%} of revenue ({rd_desc}) signals "
+                f"commitment to product development and talent."
+            )
+
+        # --- Contradiction detection -------------------------------------
+        if rpe_pct is not None and rd and rd >= 0.10 and rpe_pct < 0.25:
+            sentences.append(
+                "Note: heavy R&D investment has not yet translated to "
+                "above-average workforce productivity — watch for commercialisation lag."
+            )
+
+        # --- External signals --------------------------------------------
+        if cult_award:
+            sentences.append(
+                "Recent news includes recognition as a top employer or culture award."
+            )
+        if layoff:
+            sentences.append(
+                "Recent headlines include layoff or workforce-reduction announcements."
+            )
+        if emp_legal:
+            sentences.append(
+                "Active legal proceedings include employment or labour-related filings."
+            )
+
+        r['culture_narrative'] = " ".join(sentences) if sentences else None
 
     # -----------------------------------------------------------------------
     # Stock-level narrative (replaces sector-only headwinds/tailwinds)

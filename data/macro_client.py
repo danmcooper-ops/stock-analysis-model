@@ -40,6 +40,7 @@ class MacroClient:
         self._last_req = 0
         self._cache = None
         self._sector_cache = None
+        # yfinance 1.x manages its own curl_cffi session; no custom session needed.
 
     def _throttle(self):
         elapsed = time.time() - self._last_req

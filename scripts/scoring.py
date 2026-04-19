@@ -36,17 +36,14 @@ def _score_linear(value, worst, best):
 SCREENING_GATES = [
     ('Valuation: MoS',
      'mos',
-     lambda v, r: v > 0 if v is not None else None),
+     lambda v, r: v > 0.10 if v is not None else None),
     ('Valuation: Price/FV',
      'price',
-     lambda v, r: (v / r['dcf_fv']) < 1.2
+     lambda v, r: (v / r['dcf_fv']) < 1.0
      if v and r.get('dcf_fv') else None),
-    ('Valuation: EPV P/FV',
-     'epv_pfv',
-     lambda v, r: v < 1.2 if v is not None else None),
-    ('Quality: Piotroski',
-     'piotroski',
-     lambda v, r: v >= 5 if v is not None else None),
+    ('Valuation: P/FCF',
+     'pfcf',
+     lambda v, r: 0 < v <= 20 if v is not None else None),
     ('Quality: Int Coverage',
      'int_cov',
      lambda v, r: v > 3.0 if v is not None else None),
@@ -55,40 +52,50 @@ SCREENING_GATES = [
      lambda v, r: abs(v) < 0.08 if v is not None else None),
     ('Ownership: Shrhldr Yield',
      'shareholder_yield',
-     lambda v, r: v > 0.0 if v is not None else None),
+     lambda v, r: v > 0.02 if v is not None else None),
     ('Ownership: Insider Own',
      'insider_pct',
      lambda v, r: v >= 0.05 if v is not None else None),
-    ('Ownership: Turnover',
-     'share_turnover_rate',
-     lambda v, r: v < 0.02 if v is not None else None),
     ('Ownership: Buyback Rate',
      'share_buyback_rate',
-     lambda v, r: v > 0.0 if v is not None else None),
-    ('Ownership: Insider Buying',
-     'insider_buy_ratio',
-     lambda v, r: v > 0.50 if v is not None else None),
+     lambda v, r: v > 0.01 if v is not None else None),
     ('Moat: ROIC Consistency',
      'roic_cv',
      lambda v, r: v < 0.30 if v is not None else None),
     ('Moat: Spread > 5%',
      'spread',
-     lambda v, r: v > 0.05 if v is not None else None),
+     lambda v, r: v > 0.07 if v is not None else None),
     ('Moat: Gross Margin',
      'gross_margin',
-     lambda v, r: v > 0.25 if v is not None else None),
+     lambda v, r: v > 0.35 if v is not None else None),
     ('Growth: Fund Growth',
      'fundamental_growth',
      lambda v, r: v > 0.03 if v is not None else None),
     ('Growth: Margins',
      'margin_trend',
      lambda v, r: v >= 0 if v is not None else None),
-    ('Growth: Surprise',
-     'surprise_avg',
-     lambda v, r: v > 0 if v is not None else None),
-    ('Growth: Profit Pool',
-     'pp_multiple',
-     lambda v, r: v >= 1.0 if v is not None else None),
+    ('Growth: ROE',
+     'roe',
+     lambda v, r: v > 0.20 if v is not None else None),
+    # Buffett additions — balance sheet conservatism + owner earnings quality
+    ('Quality: Net Debt/EBITDA',
+     'nd_ebitda',
+     lambda v, r: v <= 1.5 if v is not None else None),
+    ('Quality: Cash Conv',
+     'cash_conv',
+     lambda v, r: v >= 0.85 if v is not None else None),
+    ('Growth: Rev Durability',
+     'rev_cagr_10y',
+     lambda v, r: v > 0.02 if v is not None else None),
+    ('Ownership: SBC Dilution',
+     'sbc_pct_rev',
+     lambda v, r: v <= 0.02 if v is not None else None),
+    ('Valuation: Price/Book',
+     'pb',
+     lambda v, r: v <= 5.0 if v is not None else None),
+    ('Moat: FCF Margin',
+     'fcf_margin',
+     lambda v, r: v > 0.12 if v is not None else None),
 ]
 
 
@@ -100,6 +107,14 @@ def apply_screening_matrix(results):
     True (pass) / False (fail) / None (N/A) for colour formatting.
     Only downgrades ratings — never upgrades.
     """
+    # Pre-compute derived gate fields
+    for r in results:
+        sbc = r.get('sbc')
+        rev = r.get('revenue')
+        fcf = r.get('fcf')
+        r['sbc_pct_rev'] = (sbc / rev) if (sbc is not None and rev and rev > 0) else None
+        r['fcf_margin'] = (fcf / rev) if (fcf is not None and rev and rev > 0) else None
+
     for r in results:
         r['rating_raw'] = r['rating']
         passed = 0
@@ -126,16 +141,6 @@ def apply_screening_matrix(results):
 
         r['_gates_passed'] = f'{passed}/{total}' if total > 0 else 'N/A'
         r['_gates_passed_num'] = passed if total > 0 else -1
-        pct = passed / total if total > 0 else 1.0
-
-        # Override logic — only downgrades (legacy pass_ratio, superseded by composite score)
-        rating = r['rating']
-        if rating == 'BUY' and pct < 0.50:
-            r['rating'] = 'HOLD'
-        elif rating == 'BUY' and pct < 0.75:
-            r['rating'] = 'LEAN BUY'
-        elif rating == 'LEAN BUY' and pct < 0.50:
-            r['rating'] = 'HOLD'
 
 
 def _print_validation_stats(results, screen_outcomes):
@@ -224,13 +229,12 @@ def _print_validation_stats(results, screen_outcomes):
 # score_fn: (value, row, percentile_or_None) -> 0-100
 SCORING_GATES = [
     ('Valuation: MoS', 'mos', 'Valuation',
-     lambda v, r, pct: _score_linear(v, -0.20, 0.40), False, True),
+     lambda v, r, pct: _score_linear(v, -0.10, 0.40), False, True),   # tightened: worst raised -20%→-10%
     ('Valuation: Price/FV', '_price_fv', 'Valuation',
-     lambda v, r, pct: _score_linear(v, 1.5, 0.7), False, True),
-    ('Valuation: EPV P/FV', 'epv_pfv', 'Valuation',
-     lambda v, r, pct: _score_linear(v, 1.5, 0.7), False, True),
-    ('Quality: Piotroski', 'piotroski', 'Quality',
-     lambda v, r, pct: _score_linear(v, 0, 9), False, True),
+     lambda v, r, pct: _score_linear(v, 1.2, 0.7), False, True),      # tightened: worst 1.5→1.2
+    ('Valuation: P/FCF', 'pfcf', 'Valuation',
+     lambda v, r, pct: _score_linear(v, 40.0, 8.0) if v is not None and v > 0 else 0.0,
+     False, True),   # tightened: worst 50→40, best 10→8
     ('Quality: Int Coverage', 'int_cov', 'Quality',
      lambda v, r, pct: _score_linear(min(v, 40) if v is not None else None, 1.0, 20.0),
      False, True),
@@ -239,27 +243,34 @@ SCORING_GATES = [
     ('Ownership: Shrhldr Yield', 'shareholder_yield', 'Ownership',
      lambda v, r, pct: _score_linear(v, -0.01, 0.08), False, True),
     ('Ownership: Insider Own', 'insider_pct', 'Ownership',
-     lambda v, r, pct: _score_linear(v, 0.0, 0.02), False, True),
-    ('Ownership: Turnover', 'share_turnover_rate', 'Ownership',
-     lambda v, r, pct: _score_linear(v, 0.02, 0.005), False, True),
+     lambda v, r, pct: _score_linear(v, 0.0, 0.15), False, True),
     ('Ownership: Buyback Rate', 'share_buyback_rate', 'Ownership',
-     lambda v, r, pct: _score_linear(v, -0.01, 0.05), False, True),
-    ('Ownership: Insider Buying', 'insider_buy_ratio', 'Ownership',
-     lambda v, r, pct: _score_linear(v, 0.0, 1.0), False, True),
+     lambda v, r, pct: _score_linear(v, 0.0, 0.05), False, True),     # tightened: worst -1%→0%
     ('Moat: ROIC Consistency', 'roic_cv', 'Moat',
      lambda v, r, pct: _score_linear(v, 0.60, 0.0), False, True),
     ('Moat: Spread', 'spread', 'Moat',
-     lambda v, r, pct: _score_linear(v, 0.0, 0.25), False, True),
+     lambda v, r, pct: _score_linear(v, 0.0, 0.20), False, True),     # tightened: best 25%→20%
     ('Moat: Gross Margin', 'gross_margin', 'Moat',
      lambda v, r, pct: pct, 'sector', True),
     ('Growth: Fund Growth', 'fundamental_growth', 'Growth',
      lambda v, r, pct: _score_linear(v, 0.0, 0.10), False, True),
     ('Growth: Margins', 'margin_trend', 'Growth',
      lambda v, r, pct: _score_linear(v, -0.05, 0.05), False, True),
-    ('Growth: Surprise', 'surprise_avg', 'Growth',
+    ('Growth: ROE', 'roe', 'Growth',
+     lambda v, r, pct: _score_linear(v, 0.0, 0.35), False, True),     # tightened: best 30%→35%
+    # Buffett additions
+    ('Quality: Net Debt/EBITDA', 'nd_ebitda', 'Quality',
+     lambda v, r, pct: _score_linear(v, 4.0, -0.5), False, True),     # tightened: worst 5→4, best 0→-0.5 (net cash rewarded)
+    ('Quality: Cash Conv', 'cash_conv', 'Quality',
+     lambda v, r, pct: _score_linear(v, 0.0, 1.5), False, True),
+    ('Growth: Rev Durability', 'rev_cagr_10y', 'Growth',
      lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True),
-    ('Growth: Profit Pool', 'pp_multiple', 'Growth',
-     lambda v, r, pct: _score_linear(v, 0.3, 2.0), False, True),
+    ('Ownership: SBC Dilution', 'sbc_pct_rev', 'Ownership',
+     lambda v, r, pct: _score_linear(v, 0.06, 0.0), False, True),     # tightened: worst 10%→6%
+    ('Valuation: Price/Book', 'pb', 'Valuation',
+     lambda v, r, pct: _score_linear(v, 15.0, 0.5), False, True),
+    ('Moat: FCF Margin', 'fcf_margin', 'Moat',
+     lambda v, r, pct: _score_linear(v, 0.05, 0.25), False, True),    # tightened: worst 0%→5%, best 20%→25%
 ]
 
 
@@ -377,7 +388,15 @@ def compute_continuous_scores(results, params=None):
 
 
 def apply_composite_rating_override(results, params=None):
-    """Override ratings using composite scores (finer-grained than pass_ratio).
+    """Override ratings using the weighted composite score.
+
+    Sole arbiter of rating overrides — only downgrades, never upgrades.
+    Thresholds are calibrated so that rating, composite, and gate pass ratio
+    move together directionally:
+
+      BUY        requires composite >= 60  (strong across weighted categories)
+      LEAN BUY   requires composite >= 40  (solid but not exceptional)
+      HOLD       composite < 40            (meaningful weakness somewhere)
 
     Args:
         results: List of stock result dicts.
@@ -388,9 +407,9 @@ def apply_composite_rating_override(results, params=None):
         if cs is None:
             continue
         rating = r['rating']
-        if rating == 'BUY' and cs < 35:
+        if rating == 'BUY' and cs < 40:
             r['rating'] = 'HOLD'
-        elif rating == 'BUY' and cs < 55:
+        elif rating == 'BUY' and cs < 60:
             r['rating'] = 'LEAN BUY'
-        elif rating == 'LEAN BUY' and cs < 25:
+        elif rating == 'LEAN BUY' and cs < 40:
             r['rating'] = 'HOLD'

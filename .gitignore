@@ -22,3 +22,6 @@ data/cache/
 # Business plan (local only)
 business_plan.docx
 gen_business_plan.py
+
+# API keys — never commit
+.env
