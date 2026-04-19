@@ -270,7 +270,25 @@ td.ct{font-weight:700;}
 .dkv:nth-child(odd){background:rgba(59,111,212,0.04);}
 .dkv .kl{color:#6a7a90;}.dkv .kv{font-weight:600;color:#1a252f;}
 .legend{font-size:0.75em;color:#888;margin:6px 0 10px;padding:6px 0;}
-@media(max-width:600px){.header{padding:12px 20px 12px 20px;}.last-updated{position:static;transform:none;text-align:center;margin-top:6px;opacity:0.6;}}@media(max-width:768px){.header h1{font-size:1.4em;}.stats{gap:10px;}.filter-bar{flex-direction:column;align-items:stretch;}.filter-bar input[type="text"]{width:100%;}}
+.mob-filter-btn{display:none;padding:5px 10px;font-size:0.82em;border:1px solid #b0b8c8;border-radius:5px;background:#fff;cursor:pointer;color:#445;white-space:nowrap;align-items:center;gap:4px;flex-shrink:0;}
+.mob-filter-btn.active{background:#e8f0ff;border-color:var(--accent);color:var(--accent);}
+@media(max-width:768px){
+  .header{padding:7px 12px;min-height:36px;}
+  .header>p{display:none;}
+  .header h1{font-size:1.05em;margin:0;}
+  .last-updated{display:none;}
+  .container{padding:8px 10px;}
+  .nav-btn{padding:5px 10px;font-size:0.78em;}
+  .filter-bar{flex-direction:row;flex-wrap:nowrap;padding:5px 0;gap:6px;}
+  .filter-bar input[type="text"]{width:auto;flex:1;min-width:0;}
+  .filter-bar .ms-wrap,.filter-bar .filter-divider,.filter-bar .fpop-wrap,.filter-bar .filter-clear,.filter-bar .filter-count{display:none;}
+  .mob-filter-btn{display:inline-flex;}
+  .filter-bar.mob-expanded{flex-wrap:wrap;}
+  .filter-bar.mob-expanded .ms-wrap,.filter-bar.mob-expanded .fpop-wrap,.filter-bar.mob-expanded .filter-clear{display:block;}
+  .filter-bar.mob-expanded .filter-count{display:inline;}
+  .secondary-nav{padding:4px 0;gap:4px;}
+  .sub-btn{padding:5px 10px;font-size:0.75em;}
+}
 .pool-sector{margin-bottom:20px;background:white;border-radius:10px;padding:0;box-shadow:0 3px 12px rgba(0,0,0,0.08);overflow:hidden;border:1px solid #e8ecef;}
 .pool-sec-hdr{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 18px;background:linear-gradient(135deg,#1a252f 0%,#2c3e50 100%);color:white;border-bottom:3px solid var(--accent,#3498db);}
 .pool-sec-name{font-weight:700;font-size:1.05em;color:white;letter-spacing:0.01em;}
@@ -332,8 +350,9 @@ td.ct{font-weight:700;}
     <button class="nav-btn" data-view="table" onclick="showView('table')">Financial Data</button>
     <button class="nav-btn" data-view="pool" onclick="showView('pool')">Profit Pool Analysis</button>
   </div>
-  <div class="filter-bar">
+  <div class="filter-bar" id="filter-bar">
     <input type="text" id="f-search" placeholder="Search ticker..." oninput="applyFilters()">
+    <button class="mob-filter-btn" id="mob-filter-btn" onclick="toggleMobFilters()">&#9776; Filters</button>
     <div class="ms-wrap" id="ms-rating">
       <div class="ms-btn" onclick="msToggle('ms-rating')">All Ratings</div>
       <div class="ms-drop">
@@ -673,6 +692,12 @@ function clearColFilters(){
   document.getElementById('col-filters').innerHTML='';
   addColFilter();
   applyFilters();
+}
+function toggleMobFilters(){
+  var fb=document.getElementById('filter-bar');
+  var btn=document.getElementById('mob-filter-btn');
+  var open=fb.classList.toggle('mob-expanded');
+  if(btn)btn.classList.toggle('active',open);
 }
 function clearFilters(){
   document.getElementById('f-search').value='';
