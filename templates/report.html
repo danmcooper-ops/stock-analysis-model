@@ -959,7 +959,11 @@ function openDet(tk){
       if(d.culture_narrative) bizDesc+=(bizDesc?' ':'')+d.culture_narrative;
       if(bizDesc) html+=P+esc(bizDesc)+'</p>';
     }
-    el.innerHTML=html||P+esc(full)+'</p>';
+    if(!html){
+      var fallback=(d.company_name||d.ticker||'')+(d.sector?' \u00b7 '+d.sector:'')+(d.industry?' \u00b7 '+d.industry:'');
+      html=P+'<span style="opacity:0.5;font-style:italic">No business description available.'+(fallback?' ('+esc(fallback)+')':'')+'</span></p>';
+    }
+    el.innerHTML=html;
   })();
   var _km=document.getElementById('d-kmetrics');
   var _krows=[
