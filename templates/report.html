@@ -939,9 +939,8 @@ function openDet(tk){
       if(desc.length>320) desc=desc.slice(0,317).replace(/\s+\S*$/,'')+'...';
     }
     if(d.culture_narrative){
-      el.innerHTML='<span>'+esc(desc)+'</span>'
-        +(desc?' ':'')
-        +'<em>'+esc(d.culture_narrative)+'</em>';
+      var combined=desc?(desc+' '+d.culture_narrative):d.culture_narrative;
+      el.textContent=combined;
     } else {
       el.textContent=desc;
     }
