@@ -960,8 +960,8 @@ function openDet(tk){
   sb.innerHTML=GM.categories.map(function(c){var v=d[c.scoreKey];var w=Math.round(c.weight*100);return'<div style="width:'+w+'%;background:'+c.dark+'" title="'+c.name+': '+(v!=null?Math.round(v)+'%':'N/A')+'">'+c.name.charAt(0)+' '+(v!=null?Math.round(v):'—')+' ('+w+'%)</div>';}).join('');
   (function(){
     var el=document.getElementById('d-desc');
-    var P='<p style="margin:0 0 10px;font-size:0.86em;line-height:1.65;color:#2c3e50">';
-    var PS='<p style="margin:0 0 10px;font-size:0.86em;line-height:1.65;color:#455a64;border-top:1px solid #e8edf2;padding-top:10px">';
+    var P='<p style="margin:0 0 10px;line-height:1.65;color:#2c3e50">';
+    var PS='<p style="margin:0 0 10px;line-height:1.65;color:#455a64;border-top:1px solid #e8edf2;padding-top:10px">';
     var html='';
     /* --- Business model: up to 5 sentences, capped at 640 chars to cover
          all major segments, geography, and distribution without boilerplate --- */
@@ -988,7 +988,7 @@ function openDet(tk){
       }
       if(!bizDesc&&full) bizDesc=full.slice(0,640).replace(/\s+\S*$/,'')+'\u2026';
       if(d.culture_narrative) bizDesc+=(bizDesc?' ':'')+d.culture_narrative;
-      if(bizDesc) html+=P+esc(bizDesc)+'</p>';
+      if(bizDesc){bizDesc=bizDesc.charAt(0).toUpperCase()+bizDesc.slice(1);html+=P+esc(bizDesc)+'</p>';}
     }
     if(!html){
       var fallback=(d.company_name||d.ticker||'')+(d.sector?' \u00b7 '+d.sector:'')+(d.industry?' \u00b7 '+d.industry:'');
