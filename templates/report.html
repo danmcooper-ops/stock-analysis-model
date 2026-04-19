@@ -936,7 +936,11 @@ function openDet(tk){
          all major segments, geography, and distribution without boilerplate --- */
     var full=d.description_full||d.description||'';
     if(full){
-      var rawSents=(full.match(/[^.!?]+[.!?]+(\s|$)/g)||[]).map(function(s){return s.trim();});
+      /* Replace "Suffix.," (e.g. "Co., Inc." / "Paychex, Inc.,") dots with
+         a placeholder so the sentence splitter doesn't skip the company name */
+      var _PH='\u200B';
+      var safe=full.replace(/\b(Inc|Corp|Ltd|Co|LLC|L\.P|plc|PLC|N\.V|S\.A|AG|SE)\.,/g,function(m){return m.replace('.',_PH);});
+      var rawSents=(safe.match(/[^.!?]+[.!?]+(\s|$)/g)||[]).map(function(s){return s.replace(new RegExp(_PH,'g'),'.').trim();});
       /* Merge name-only fragments (corporate suffixes) into the following sentence */
       var _corpSfx=/\b(Inc|Corp|Ltd|Co|LLC|L\.P|plc|PLC|N\.V|S\.A|AG|SE|Incorporated|Corporation|Company|Companies|International)\.$/ ;
       var sents=[];
