@@ -17,24 +17,64 @@
   --border:#e0e4ea;--header-bg:#1a252f;--accent:#2980b9;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);}
-.header{background:linear-gradient(135deg,#1a252f,#2980b9);color:white;padding:7px 20px;text-align:center;}
-.header h1{font-size:2em;margin-bottom:4px;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+.header{background:linear-gradient(135deg,#1a252f,#2980b9);color:white;padding:14px 160px 14px 20px;text-align:center;min-height:64px;display:flex;flex-direction:column;justify-content:center;}
+.header h1{font-size:2em;margin-bottom:0;}
 .header p{font-size:0.95em;opacity:0.85;}
+.mob-filter-btn{display:none;padding:5px 10px;font-size:0.82em;border:1px solid #b0b8c8;border-radius:5px;background:#fff;cursor:pointer;color:#445;white-space:nowrap;align-items:center;gap:4px;flex-shrink:0;}
+.mob-filter-btn.active{background:#e8f0ff;border-color:var(--accent);color:var(--accent);}
+@media(max-width:768px){
+  .header{padding:4px 10px;min-height:28px;}
+  .header>p{display:none;}
+  .header h1{font-size:0.92em;margin:0;}
+  .last-updated{display:none;}
+  .container{padding:3px 6px;}
+  .primary-nav{padding:2px 0 2px;border-bottom:1px solid var(--border);}
+  .nav-btn{padding:3px 8px;font-size:0.73em;}
+  .secondary-nav{padding:1px 0;gap:3px;}
+  .sub-btn{padding:2px 7px;font-size:0.7em;}
+  .dt th{padding:5px 5px;}
+  .dt td{padding:4px 5px;font-size:0.78em;}
+  .matrix-table th{padding:4px 5px;}
+  .matrix-table td{padding:3px 5px;}
+  /* Popup: fill entire screen on mobile */
+  .detail-modal.open{padding:0;align-items:stretch;}
+  .detail-content{max-width:100%;max-height:100vh;max-height:100dvh;border-radius:0;}
+  .d-header-band{border-radius:0;padding:14px 16px 10px;}
+  .det-nav-bar{border-radius:0;padding:8px 14px;}
+  .det-nav-btn{width:44px;height:44px;font-size:22px;border-radius:8px;}
+  .det-nav-bar .flag-star{font-size:1.6em;}
+  .det-nav-bar .rev-chk-det{font-size:1.0em;}
+  .det-nav-right{gap:12px;}
+  .det-nav-pos{font-size:0.72em;}
+  .d-body{padding:10px 12px 10px;gap:10px;}
+}
+/* Phone-only: collapse filter bar behind ☰ button */
+@media(max-width:600px){
+  .filter-bar{flex-direction:row;flex-wrap:nowrap;padding:2px 0;gap:5px;}
+  .filter-bar input[type="text"]{width:auto;flex:1;min-width:0;padding:3px 8px;font-size:0.8em;}
+  .filter-bar .ms-wrap,.filter-bar .filter-divider,.filter-bar .fpop-wrap,.filter-bar .filter-clear,.filter-bar .filter-count{display:none;}
+  .mob-filter-btn{display:inline-flex;padding:3px 8px;font-size:0.78em;}
+  .filter-bar.mob-expanded{flex-wrap:wrap;}
+  .filter-bar.mob-expanded .ms-wrap,.filter-bar.mob-expanded .fpop-wrap,.filter-bar.mob-expanded .filter-clear{display:block;}
+  .filter-bar.mob-expanded .filter-count{display:inline;}
+}
 .stats{display:flex;gap:20px;justify-content:center;margin-top:14px;flex-wrap:wrap;}
 .stat{background:rgba(255,255,255,0.15);padding:8px 18px;border-radius:8px;}
 .stat .val{font-size:1.3em;font-weight:bold;}
 .stat .label{font-size:0.78em;opacity:0.8;}
 .container{max-width:1800px;margin:0 auto;padding:16px 20px;}
-.primary-nav{display:flex;gap:4px;padding:14px 0 8px;border-bottom:2px solid var(--border);}
-.nav-btn{padding:8px 20px;border:none;border-radius:6px 6px 0 0;cursor:pointer;font-size:0.9em;font-weight:600;background:#dde;color:#555;transition:all 0.15s;}
+.primary-nav{display:flex;gap:4px;padding:9px 0 7px;border-bottom:2px solid var(--border);align-items:center;}
+.nav-btn{padding:7px 20px;border:none;border-radius:6px 6px 0 0;cursor:pointer;font-size:0.9em;font-weight:600;background:#dde;color:#555;transition:all 0.15s;}
 .nav-btn.active{background:var(--accent);color:white;}
 .nav-btn:hover:not(.active){background:#c8d0e0;}
-.secondary-nav{display:flex;gap:6px;padding:10px 0;flex-wrap:wrap;}
-.sub-btn{padding:6px 16px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.8em;font-weight:600;background:white;color:#546e7a;transition:all 0.15s;white-space:nowrap;line-height:1;}
+.secondary-nav{display:flex;gap:6px;padding:9px 0;flex-wrap:nowrap;overflow-x:auto;align-items:center;scrollbar-width:none;}
+.secondary-nav::-webkit-scrollbar{display:none;}
+.sub-btn{padding:8px 16px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.8em;font-weight:600;background:white;color:#546e7a;transition:all 0.15s;white-space:nowrap;line-height:1;flex-shrink:0;}
 .sub-btn.active{background:#1a252f;color:white;border-color:#1a252f;}
 .sub-btn:hover:not(.active){background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
-.filter-bar{display:flex;gap:10px;padding:10px 0;flex-wrap:wrap;align-items:center;}
+.filter-bar{display:flex;gap:10px;padding:9px 0;flex-wrap:nowrap;align-items:center;overflow-x:auto;scrollbar-width:none;}
+.filter-bar::-webkit-scrollbar{display:none;}
 .filter-bar input,.filter-bar select{padding:6px 12px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;outline:none;}
 .filter-bar input:focus,.filter-bar select:focus{border-color:var(--accent);}
 .filter-bar input[type="text"]{width:200px;}
@@ -47,7 +87,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .fpop-btn.active:hover{background:#1a6fae;}
 .fpop-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:#fff;color:var(--accent);font-size:0.75em;font-weight:700;padding:0 4px;line-height:1;}
 .fpop-btn.active .fpop-badge{background:rgba(255,255,255,0.25);color:#fff;}
-.fpop-panel{display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:500;background:#fff;border:1px solid #ccd;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,0.14);min-width:340px;max-width:480px;max-height:min(72vh,520px);display:none;flex-direction:column;}
+.fpop-panel{display:none;position:fixed;top:0;left:0;z-index:1200;background:#fff;border:1px solid #ccd;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,0.14);min-width:340px;max-width:480px;max-height:min(72vh,520px);flex-direction:column;}
 .fpop-panel.open{display:flex;}
 .fpop-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid #eee;flex-shrink:0;}
 .fpop-title{font-size:0.85em;font-weight:700;color:#1a252f;}
@@ -83,7 +123,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .ms-btn{padding:6px 28px 6px 12px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;position:relative;user-select:none;}
 .ms-btn::after{content:'\25BC';font-size:0.6em;position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#888;}
 .ms-btn:hover{border-color:var(--accent);}
-.ms-drop{display:none;position:absolute;top:100%;left:0;min-width:100%;max-height:260px;overflow-y:auto;background:#fff;border:1px solid #ccc;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;margin-top:2px;}
+.ms-drop{display:none;position:fixed;top:0;left:0;min-width:140px;max-height:260px;overflow-y:auto;background:#fff;border:1px solid #ccc;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;}
 .ms-wrap.open .ms-drop{display:block;}
 .ms-drop label{display:flex;align-items:center;padding:6px 12px;font-size:0.85em;cursor:pointer;gap:6px;white-space:nowrap;}
 .ms-drop label:hover{background:#f0f4ff;}
@@ -109,21 +149,36 @@ td.sm{background-color:var(--score-mid)!important;color:#6B5900;}
 td.sp{background-color:var(--score-poor)!important;color:#9C0006;}
 td.ct{font-weight:700;}
 .rb{display:inline-block;padding:2px 8px;border-radius:4px;color:white;font-weight:700;font-size:0.82em;}
-.table-wrap{overflow-x:auto;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);}
+/* === FROZEN HEADERS — wrappers scroll X+Y; thead and first 3 cols stay fixed === */
+.table-wrap{overflow-x:auto;overflow-y:auto;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);-webkit-overflow-scrolling:touch;}
+.matrix-wrap{overflow-x:auto;overflow-y:auto;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);-webkit-overflow-scrolling:touch;}
 .dt{width:100%;border-collapse:collapse;background:white;white-space:nowrap;}
-.dt thead{position:sticky;top:0;z-index:10;}
-.dt th:nth-child(2){position:sticky;left:0;z-index:11;box-shadow:2px 0 5px rgba(0,0,0,0.1);}
-.dt td.tk2{position:sticky;left:0;z-index:2;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-.dt tr:nth-child(even) td.tk2{background:#f8f9fa;}
-.dt tr:hover td.tk2{background:#eaf4fd!important;}
-.matrix-table thead{position:sticky;top:0;z-index:10;}
-.matrix-table thead tr:first-child th:nth-child(2){position:sticky;left:0;z-index:15;box-shadow:2px 0 5px rgba(0,0,0,0.1);}
-.matrix-table td.tk{position:sticky;left:0;z-index:2;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-.matrix-table tr:nth-child(even) td.tk{background:rgba(255,255,255,0.97);}
-.matrix-table tr:hover td.tk{background:#eaf4fd!important;}
-.last-updated{position:absolute;top:50%;right:18px;transform:translateY(-50%);font-size:0.7em;opacity:0.65;text-align:right;display:flex;flex-direction:column;gap:2px;}
+/* Freeze top header row */
+.dt thead{position:-webkit-sticky;position:sticky;top:0;z-index:10;}
+.matrix-table thead{position:-webkit-sticky;position:sticky;top:0;z-index:10;}
+/* Freeze left 3 cols in DT header (flag · reviewed · ticker) */
+.dt th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:12;background:#1a252f;}
+.dt th:nth-child(2){position:-webkit-sticky;position:sticky;left:28px;z-index:12;background:#1a252f;}
+.dt th:nth-child(3){position:-webkit-sticky;position:sticky;left:56px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+/* Freeze left 3 cols in DT body */
+.dt tbody td:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:3;background:#fff;}
+.dt tbody td:nth-child(2){position:-webkit-sticky;position:sticky;left:28px;z-index:3;background:#fff;}
+.dt td.tk2{position:-webkit-sticky;position:sticky;left:56px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.dt tr:nth-child(even) td:nth-child(1),.dt tr:nth-child(even) td:nth-child(2),.dt tr:nth-child(even) td.tk2{background:#f8f9fa;}
+.dt tr:hover td:nth-child(1),.dt tr:hover td:nth-child(2),.dt tr:hover td.tk2{background:#eaf4fd!important;}
+/* Freeze left 3 cols in matrix header (first row only — second row has gate sub-headers) */
+.matrix-table thead tr:first-child th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:15;background:#1a252f;}
+.matrix-table thead tr:first-child th:nth-child(2){position:-webkit-sticky;position:sticky;left:28px;z-index:15;background:#1a252f;}
+.matrix-table thead tr:first-child th:nth-child(3){position:-webkit-sticky;position:sticky;left:56px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+/* Freeze left 3 cols in matrix body */
+.matrix-table tbody td:nth-child(1){position:sticky;left:0;z-index:3;background:#fff;}
+.matrix-table tbody td:nth-child(2){position:sticky;left:28px;z-index:3;background:#fff;}
+.matrix-table td.tk{position:sticky;left:56px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk{background:rgba(255,255,255,0.97);}
+.matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk{background:#eaf4fd!important;}
+.last-updated{position:absolute;top:50%;right:20px;transform:translateY(-50%);font-size:0.7em;opacity:0.65;text-align:right;display:flex;flex-direction:column;gap:2px;white-space:nowrap;}
 .header{position:relative;}
-.dt th{background:#1a252f;color:white;padding:10px 8px;text-align:right;cursor:pointer;user-select:none;font-size:0.78em;border-right:1px solid #2c3e50;}
+.dt th{background:#1a252f;color:white;padding:10px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.78em;border-right:1px solid #2c3e50;}
 .dt th:first-child{text-align:left;}
 .dt th .arrow{margin-left:3px;font-size:0.7em;}
 .dt th.gv{background:#1a3a5c;}.dt th.gp2{background:#1a4a2c;}
@@ -136,19 +191,19 @@ td.ct{font-weight:700;}
 .dt tr:hover{background:#eaf4fd;}
 .detail-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(8,12,28,0.75);backdrop-filter:blur(4px);z-index:1000;overflow-y:auto;}
 .detail-modal.open{display:flex;justify-content:center;padding:24px 20px;}
-.detail-content{background:#f0f4ff;border-radius:18px;max-width:1080px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);position:relative;padding:0;max-height:calc(100vh - 48px);overflow-y:auto;scroll-behavior:smooth;}
+.detail-content{background:#f0f4ff;border-radius:18px;max-width:1080px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);position:relative;padding:0;max-height:calc(100vh - 48px);overflow-y:auto;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;}
 .d-header-band{flex-shrink:0;}
 .detail-close{position:absolute;top:12px;right:14px;border:none;background:rgba(255,255,255,0.18);width:30px;height:30px;border-radius:50%;font-size:1.1em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;}
 .detail-close:hover{background:rgba(255,255,255,0.35);}
 .d-header-band{background:linear-gradient(135deg,#0d1f42 0%,#1a3a6e 55%,#1f4fa0 100%);border-radius:18px 18px 0 0;padding:22px 26px 18px;position:relative;overflow:hidden;}
 .d-header-band::before{content:'';position:absolute;top:-60px;right:-60px;width:220px;height:220px;background:radial-gradient(circle,rgba(255,255,255,0.06) 0%,transparent 70%);pointer-events:none;}
 .d-body{padding:16px 22px 24px;display:flex;flex-direction:column;gap:14px;}
-.det-nav-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:linear-gradient(90deg,#0d1f42,#1f4fa0);border-radius:0 0 18px 18px;position:sticky;bottom:0;z-index:5;}
-.det-nav-btn{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:6px;width:28px;height:28px;font-size:16px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
+.det-nav-bar{display:flex;align-items:center;justify-content:space-between;padding:3px 10px;background:linear-gradient(90deg,#0d1f42,#1f4fa0);border-radius:0 0 18px 18px;position:-webkit-sticky;position:sticky;bottom:0;z-index:5;}
+.det-nav-btn{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:5px;width:24px;height:24px;font-size:14px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
 .det-nav-btn:hover:not(:disabled){background:rgba(255,255,255,0.28);}
 .det-nav-btn:disabled{opacity:0.25;cursor:default;}
-.det-nav-right{display:flex;align-items:center;gap:10px;margin-left:auto;}
-.det-nav-pos{font-size:0.68em;color:rgba(255,255,255,0.6);flex:1;text-align:center;}
+.det-nav-right{display:flex;align-items:center;gap:7px;margin-left:auto;}
+.det-nav-pos{font-size:0.62em;color:rgba(255,255,255,0.6);flex:1;text-align:center;}
 .dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:44px;justify-content:space-between;}
 .dh-left{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .dh-right{display:flex;align-items:flex-start;gap:8px;flex-shrink:0;}
@@ -172,9 +227,11 @@ td.ct{font-weight:700;}
 .gv-v{font-size:0.68em;font-weight:700;color:#1a252f;white-space:nowrap;text-align:right;}
 .gv-v.pass{color:#1a9850;}.gv-v.fail{color:#de2d26;}
 .gv-thr{font-size:0.82em;font-weight:400;color:#aaa;white-space:nowrap;}
-.score-bar{display:flex;height:34px;border-radius:9px;overflow:hidden;font-size:0.75em;font-weight:700;color:white;box-shadow:0 3px 10px rgba(0,0,0,0.15);}
-.score-bar div{display:flex;align-items:center;justify-content:center;}
+.score-bar{display:flex;height:34px;border-radius:9px;overflow:hidden;font-size:0.62em;font-weight:700;color:white;box-shadow:0 3px 10px rgba(0,0,0,0.15);}
+.score-bar div{display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;padding:0 3px;}
 .ddesc{font-size:0.82em;color:#37474f;line-height:1.55;padding:13px 16px;background:linear-gradient(135deg,#eef3ff,#f5f8ff);border-radius:9px;border-left:4px solid #3b6fd4;box-shadow:inset 0 1px 3px rgba(59,111,212,0.08);}
+.fin-list{margin:0;padding:10px 14px 10px 30px;background:#f4f6fb;border-left:3px solid #3498db;border-radius:0 5px 5px 0;font-size:0.82em;line-height:1.55;color:#37474f;list-style:disc;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+.fin-list li{margin:4px 0;}
 .utx{font-size:0.82em;line-height:1.55;color:#37474f;}
 .utx p{margin:0 0 8px;}.utx p:last-child{margin-bottom:0;}
 .utx ul{margin:0;padding-left:18px;list-style:disc;}
@@ -191,22 +248,23 @@ td.ct{font-weight:700;}
 #d-news a:hover{text-decoration:underline;}
 .nl-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .nl-grid>div{min-width:0;}
-.dtxn{width:100%;border-collapse:collapse;font-size:0.7em;margin-top:6px;}
+.dtxn{width:100%;border-collapse:collapse;font-size:0.82em;margin-top:6px;}
 .dtxn th{text-align:left;border-bottom:1px solid #ddd;padding:2px 4px;color:#666;font-weight:600;}
 .dtxn td{padding:2px 4px;border-bottom:1px solid #f0f0f0;}
 .dq-badge{display:inline-block;padding:1px 6px;border-radius:8px;color:#fff;font-size:0.65em;font-weight:600;margin-left:8px;vertical-align:middle;}
 .dq-warning{background:#fff3cd;border:1px solid #ffc107;color:#856404;padding:6px 10px;border-radius:4px;margin:8px 0;font-size:0.72em;}
-.flag-star{cursor:pointer;font-size:1.7em;user-select:none;transition:transform 0.15s;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3));}
+.flag-star{cursor:pointer;touch-action:manipulation;font-size:1.7em;user-select:none;transition:transform 0.15s;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3));}
 .flag-star:hover{transform:scale(1.3);}
 .flag-star.flagged{color:#f5a623;}.flag-star:not(.flagged){color:rgba(0,0,0,0.2);}.det-nav-bar .flag-star:not(.flagged),.d-header-band .flag-star:not(.flagged){color:rgba(255,255,255,0.35);}
+.det-nav-bar .flag-star{font-size:1.1em;}.det-nav-bar .rev-chk-det{font-size:0.65em;}
 .flag-count{font-size:0.72em;margin-left:2px;opacity:0.8;}
-.rev-chk{cursor:pointer;font-size:2em;user-select:none;transition:all 0.12s;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;font-weight:700;line-height:1;vertical-align:middle;color:transparent;-webkit-text-stroke:1.5px rgba(0,0,0,0.2);}
-.rev-chk:hover{transform:scale(1.12);-webkit-text-stroke:1.5px rgba(0,0,0,0.45);}
-.rev-chk.checked{color:#27ae60;-webkit-text-stroke:0;}
-.rev-chk-det{cursor:pointer;font-size:1.6em;font-weight:700;padding:0;user-select:none;transition:all 0.15s;border:none;background:transparent;display:inline-flex;align-items:center;justify-content:center;line-height:1;}
-.rev-chk-det:not(.checked){color:transparent;-webkit-text-stroke:1.5px rgba(255,255,255,0.35);}
-.rev-chk-det:not(.checked):hover{color:transparent;-webkit-text-stroke:1.5px rgba(255,255,255,0.7);}
-.rev-chk-det.checked{color:#27ae60;-webkit-text-stroke:0;}
+.rev-chk{cursor:pointer;touch-action:manipulation;font-size:1em;user-select:none;transition:all 0.12s;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;line-height:1;vertical-align:middle;color:rgba(0,0,0,0.3);--chk-bg:none;--chk-border:rgba(0,0,0,0.3);--chk-mark:rgba(0,0,0,0.3);}
+.rev-chk:hover{transform:scale(1.12);--chk-border:rgba(0,0,0,0.55);--chk-mark:rgba(0,0,0,0.55);}
+.rev-chk.checked{--chk-bg:#27ae60;--chk-border:#27ae60;--chk-mark:white;}
+.rev-chk-det{cursor:pointer;touch-action:manipulation;font-size:0.75em;padding:0;user-select:none;transition:all 0.15s;border:none;background:transparent;display:inline-flex;align-items:center;justify-content:center;line-height:1;}
+.rev-chk-det:not(.checked){--chk-bg:none;--chk-border:rgba(255,255,255,0.4);--chk-mark:rgba(255,255,255,0.4);}
+.rev-chk-det:not(.checked):hover{--chk-border:rgba(255,255,255,0.75);--chk-mark:rgba(255,255,255,0.75);}
+.rev-chk-det.checked{--chk-bg:#27ae60;--chk-border:#27ae60;--chk-mark:white;}
 .rev-overlay{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;border-radius:5px;}
 .rev-overlay.checked{background:rgba(39,174,96,0.04);}
 .ps-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
@@ -214,7 +272,7 @@ td.ct{font-weight:700;}
 .ps-col h3{font-size:0.70em;text-transform:uppercase;letter-spacing:0.05em;color:#1a3a6b;font-weight:700;margin:0 0 7px;padding-bottom:5px;border-bottom:2px solid #c8d6f0;}
 .pp-bar{height:6px;border-radius:3px;background:#e8e8e8;margin:3px 0;position:relative;overflow:hidden;}.pp-bar-fill{height:100%;border-radius:3px;position:absolute;left:0;top:0;}
 .pp-mult{font-size:0.95em;font-weight:700;letter-spacing:-0.3px;}
-.ps-tbl{width:100%;border-collapse:collapse;font-size:0.72em;}
+.ps-tbl{width:100%;border-collapse:collapse;font-size:0.82em;}
 .ps-tbl th{text-align:right;padding:2px 5px;font-size:0.85em;color:#888;font-weight:600;border-bottom:1px solid #ddd;}
 .ps-tbl th:first-child{text-align:left;}
 .ps-tbl td{padding:3px 5px;text-align:right;border-bottom:1px solid #f0f0f0;}
@@ -251,7 +309,6 @@ td.ct{font-weight:700;}
 .dkv:nth-child(odd){background:rgba(59,111,212,0.04);}
 .dkv .kl{color:#6a7a90;}.dkv .kv{font-weight:600;color:#1a252f;}
 .legend{font-size:0.75em;color:#888;margin:6px 0 10px;padding:6px 0;}
-@media(max-width:768px){.header h1{font-size:1.4em;}.stats{gap:10px;}.filter-bar{flex-direction:column;align-items:stretch;}.filter-bar input[type="text"]{width:100%;}}
 .pool-sector{margin-bottom:20px;background:white;border-radius:10px;padding:0;box-shadow:0 3px 12px rgba(0,0,0,0.08);overflow:hidden;border:1px solid #e8ecef;}
 .pool-sec-hdr{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 18px;background:linear-gradient(135deg,#1a252f 0%,#2c3e50 100%);color:white;border-bottom:3px solid var(--accent,#3498db);}
 .pool-sec-name{font-weight:700;font-size:1.05em;color:white;letter-spacing:0.01em;}
@@ -280,6 +337,7 @@ td.ct{font-weight:700;}
 .pool-legend-item{display:flex;align-items:center;gap:4px;}
 .pool-legend-dot{width:11px;height:11px;border-radius:2px;flex-shrink:0;}
 .pool-tt{position:fixed;background:#1a252f;color:white;padding:8px 12px;border-radius:6px;font-size:0.78em;pointer-events:none;z-index:9999;display:none;line-height:1.6;max-width:240px;box-shadow:0 4px 12px rgba(0,0,0,0.3);}
+.pp-quad-tip{position:fixed;border-left:4px solid #ccc;padding:12px 16px;border-radius:6px;pointer-events:none;z-index:9999;display:none;max-width:300px;box-shadow:0 6px 20px rgba(0,0,0,0.15);}
 .xsect-dashboard{background:white;border-radius:10px;padding:22px 24px 20px;box-shadow:0 3px 14px rgba(0,0,0,0.09);margin-bottom:22px;border-top:4px solid #1a252f;}
 .xsect-title{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:3px;}
 .xsect-sub{font-size:0.78em;color:#8a9bb0;margin-bottom:16px;}
@@ -304,7 +362,6 @@ td.ct{font-weight:700;}
 <div class="header">
   <div class="last-updated"><span>Last updated</span><span>{{ generated_at }}</span><span>n = {{ total }}</span></div>
   <h1 style="font-size:1.35em;margin:0">Securities Analysis</h1>
-  <p style="margin:4px 0 0;font-size:0.85em;opacity:0.75;letter-spacing:0.02em">ROIC&gt;WACC</p>
 </div>
 <div class="container">
   <div class="primary-nav">
@@ -312,8 +369,9 @@ td.ct{font-weight:700;}
     <button class="nav-btn" data-view="table" onclick="showView('table')">Financial Data</button>
     <button class="nav-btn" data-view="pool" onclick="showView('pool')">Profit Pool Analysis</button>
   </div>
-  <div class="filter-bar">
+  <div class="filter-bar" id="filter-bar">
     <input type="text" id="f-search" placeholder="Search ticker..." oninput="applyFilters()">
+    <button class="mob-filter-btn" id="mob-filter-btn" onclick="toggleMobFilters()">&#9776; Filters</button>
     <div class="ms-wrap" id="ms-rating">
       <div class="ms-btn" onclick="msToggle('ms-rating')">All Ratings</div>
       <div class="ms-drop">
@@ -343,7 +401,7 @@ td.ct{font-weight:700;}
           <div class="fpop-toggles">
             <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
             <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
-            <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()">&#10004; All<span id="rev-count-label"></span></button>
+            <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style=\"width:16px;height:16px;vertical-align:middle;display:inline-block\"><circle cx=\"11\" cy=\"11\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><polyline points=\"6,11 9.5,15 16,7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg> All<span id="rev-count-label"></span></button>
           </div>
           <div class="fpop-section-label" style="margin-top:10px">Column Filters</div>
           <div id="col-filters" class="col-filters-wrap"></div>
@@ -368,6 +426,7 @@ td.ct{font-weight:700;}
     <div id="pool-chart-area"></div>
     <div id="pool-sector-table"></div>
     <div class="pool-tt" id="pool-tt"></div>
+    <div class="pp-quad-tip" id="pp-quad-tip"></div>
   </div>
 </div>
 <div id="det-modal" class="detail-modal" onclick="if(event.target===this)closeDetail()">
@@ -425,18 +484,19 @@ function _starHtml(tk){return '<span class="flag-star'+(isFlagged(tk)?' flagged'
 _updateFlagCount();
 
 /* === REVIEWED (localStorage) === */
+var _CHK_SVG='<svg viewBox="0 0 22 22" style="width:1.4em;height:1.4em;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="var(--chk-bg,none)" stroke="var(--chk-border,currentColor)" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="var(--chk-mark,currentColor)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 var _REV_KEY='stock_reviewed_v1';
 var _revd=(function(){try{return JSON.parse(localStorage.getItem(_REV_KEY))||{};}catch(e){return{};}})();
 var _revFilter=0; /* 0=off,1=unreviewed,2=reviewed */
 function _saveRevd(){try{localStorage.setItem(_REV_KEY,JSON.stringify(_revd));}catch(e){}}
 function isReviewed(tk){return !!_revd[tk];}
 function toggleReviewed(tk,e){if(e)e.stopPropagation();_revd[tk]?delete _revd[tk]:_revd[tk]=1;_saveRevd();_updateRevCount();applyFilters();}
-function _syncRevDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;var c=isReviewed(tk)?'rev-chk-det checked':'rev-chk-det';['d-rev','d-rev2'].forEach(function(id){var el=document.getElementById(id);if(el){el.className=c;el.innerHTML='\u2714';el.title=isReviewed(tk)?'Reviewed — click to unmark':'Mark as reviewed';}});}
+function _syncRevDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;var c=isReviewed(tk)?'rev-chk-det checked':'rev-chk-det';['d-rev','d-rev2'].forEach(function(id){var el=document.getElementById(id);if(el){el.className=c;el.innerHTML=_CHK_SVG;el.title=isReviewed(tk)?'Reviewed — click to unmark':'Mark as reviewed';}});}
 function toggleReviewedDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;toggleReviewed(tk);_syncRevDet();}
-function cycleRevFilter(){_revFilter=(_revFilter+1)%3;var el=document.getElementById('f-reviewed');el.classList.toggle('active',_revFilter>0);el.innerHTML='\u2714 '+(['All','Unreviewed','Reviewed'])[_revFilter];applyFilters();}
+function cycleRevFilter(){_revFilter=(_revFilter+1)%3;var el=document.getElementById('f-reviewed');el.classList.toggle('active',_revFilter>0);el.innerHTML=_CHK_SVG+' '+(['All','Unreviewed','Reviewed'])[_revFilter];applyFilters();}
 function _updateRevCount(){var n=Object.keys(_revd).length;var el=document.getElementById('rev-count-label');if(el)el.textContent=n>0?' ('+n+')':'';}
 function clearAllReviewed(){if(!Object.keys(_revd).length)return;if(!confirm('Clear all '+Object.keys(_revd).length+' reviewed checkmarks?'))return;_revd={};_saveRevd();_updateRevCount();_syncRevDet();applyFilters();}
-function _revHtml(tk){var c=isReviewed(tk);return '<span class="rev-chk'+(c?' checked':'')+'" onclick="toggleReviewed(\''+tk.replace(/'/g,"\\'")+'\',event)" title="'+(c?'Reviewed — click to unmark':'Mark as reviewed')+'">\u2714</span>';}
+function _revHtml(tk){var c=isReviewed(tk);return '<span class="rev-chk'+(c?' checked':'')+'" onclick="toggleReviewed(\''+tk.replace(/'/g,"\\'")+'\',event)" title="'+(c?'Reviewed — click to unmark':'Mark as reviewed')+'">'+_CHK_SVG+'</span>';}
 _updateRevCount();
 
 /* === HELPERS === */
@@ -554,7 +614,11 @@ function msToggle(id){
   var wrap=document.getElementById(id);
   var wasOpen=wrap.classList.contains('open');
   document.querySelectorAll('.ms-wrap.open').forEach(function(w){w.classList.remove('open');});
-  if(!wasOpen)wrap.classList.add('open');
+  if(!wasOpen){
+    wrap.classList.add('open');
+    var btn=wrap.querySelector('.ms-btn'),drop=wrap.querySelector('.ms-drop');
+    if(btn&&drop){var r=btn.getBoundingClientRect();drop.style.top=(r.bottom+2)+'px';drop.style.left=r.left+'px';drop.style.minWidth=r.width+'px';drop.style.maxHeight=Math.min(400,window.innerHeight-r.bottom-14)+'px';}
+  }
 }
 function msGetSelected(id){
   var boxes=document.querySelectorAll('#'+id+' .ms-drop input[type="checkbox"][value]');
@@ -648,6 +712,12 @@ function clearColFilters(){
   addColFilter();
   applyFilters();
 }
+function toggleMobFilters(){
+  var fb=document.getElementById('filter-bar');
+  var btn=document.getElementById('mob-filter-btn');
+  var open=fb.classList.toggle('mob-expanded');
+  if(btn)btn.classList.toggle('active',open);
+}
 function clearFilters(){
   document.getElementById('f-search').value='';
   msToggleAll('ms-rating',true);
@@ -656,14 +726,19 @@ function clearFilters(){
   addColFilter();
   _flagOnly=false;document.getElementById('f-flagged').classList.remove('active');
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
-  _revFilter=0;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.remove('active');rEl.innerHTML='\u2714 All';}
+  _revFilter=0;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.remove('active');rEl.innerHTML=_CHK_SVG+' All';}
   _revd={};_saveRevd();_updateRevCount();
   applyFilters();
 }
 function toggleFilterPopup(e){
   if(e)e.stopPropagation();
   var panel=document.getElementById('fpop-panel');
+  var wasOpen=panel.classList.contains('open');
   panel.classList.toggle('open');
+  if(!wasOpen){
+    var btn=document.getElementById('fpop-btn');
+    if(btn){var r=btn.getBoundingClientRect();panel.style.top=(r.bottom+6)+'px';panel.style.left=r.left+'px';}
+  }
 }
 document.addEventListener('click',function(e){
   var wrap=document.getElementById('fpop-wrap');
@@ -721,7 +796,7 @@ function renderMatrix(){
   GM.gates.forEach(function(g){if(!g.hideMatrix)cg2[g.category].push(g);});
   var h1='<tr>';
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.3em" onclick="mSort(\'_flagged\')" title="Flagged">\u2691'+(mSC==='_flagged'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.3em" onclick="mSort(\'_reviewed\')" title="Reviewed">\u2714'+(mSC==='_reviewed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;color:#555" onclick="mSort(\'_reviewed\')" title="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'+(mSC==='_reviewed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'ticker\')" data-col-tip="ticker" data-col-label="Ticker">Ticker'+(mSC==='ticker'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" data-col-tip="rating" data-col-label="Rating">Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_composite_score\')" data-col-tip="_composite_score" data-col-label="Composite Score">Comp.'+(mSC==='_composite_score'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
@@ -797,7 +872,7 @@ function swTSub(s){curTSub=s;tSC=null;tSA=true;renderTSubs();renderTable();}
 function renderTable(){
   var cols=TC[curTSub]||TC.ovr;
   var th=document.getElementById('dt-h'),tb=document.getElementById('dt-b');
-  var hh='<tr>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_reviewed\')" data-col-tip="_reviewed" data-col-label="Reviewed">\u2714 <span class="arrow">'+(tSC==='_reviewed'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
+  var hh='<tr>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';hh+='<th style="width:28px;cursor:pointer" onclick="tSort(\'_reviewed\')" data-col-tip="_reviewed" data-col-label="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="arrow">'+(tSC==='_reviewed'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
   th.innerHTML=hh;
   var sd=FD.slice();
   var RO2={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
@@ -926,11 +1001,11 @@ function openDet(tk){
   var meta=[];if(d.sector)meta.push(d.sector);if(d.industry)meta.push(d.industry);if(d.ceo)meta.push('CEO: '+d.ceo+(d.founder_led?' \u2605 Founder':''));
   document.getElementById('d-meta').textContent=meta.join('  \u00B7  ');
   var sb=document.getElementById('d-sbar');
-  sb.innerHTML=GM.categories.map(function(c){var v=d[c.scoreKey];var w=Math.round(c.weight*100);return'<div style="width:'+w+'%;background:'+c.dark+'" title="'+c.name+': '+(v!=null?Math.round(v)+'%':'N/A')+'">'+c.name.charAt(0)+' '+(v!=null?Math.round(v):'—')+'</div>';}).join('');
+  sb.innerHTML=GM.categories.map(function(c){var v=d[c.scoreKey];var w=Math.round(c.weight*100);return'<div style="width:'+w+'%;background:'+c.dark+'" title="'+c.name+': '+(v!=null?Math.round(v)+'%':'N/A')+'">'+c.name.charAt(0)+' '+(v!=null?Math.round(v):'—')+' ('+w+'%)</div>';}).join('');
   (function(){
     var el=document.getElementById('d-desc');
-    var P='<p style="margin:0 0 10px;font-size:0.86em;line-height:1.65;color:#2c3e50">';
-    var PS='<p style="margin:0 0 10px;font-size:0.86em;line-height:1.65;color:#455a64;border-top:1px solid #e8edf2;padding-top:10px">';
+    var P='<p style="margin:0 0 10px;line-height:1.65;color:#2c3e50">';
+    var PS='<p style="margin:0 0 10px;line-height:1.65;color:#455a64;border-top:1px solid #e8edf2;padding-top:10px">';
     var html='';
     /* --- Business model: up to 5 sentences, capped at 640 chars to cover
          all major segments, geography, and distribution without boilerplate --- */
@@ -957,7 +1032,7 @@ function openDet(tk){
       }
       if(!bizDesc&&full) bizDesc=full.slice(0,640).replace(/\s+\S*$/,'')+'\u2026';
       if(d.culture_narrative) bizDesc+=(bizDesc?' ':'')+d.culture_narrative;
-      if(bizDesc) html+=P+esc(bizDesc)+'</p>';
+      if(bizDesc){bizDesc=bizDesc.charAt(0).toUpperCase()+bizDesc.slice(1);html+=P+esc(bizDesc)+'</p>';}
     }
     if(!html){
       var fallback=(d.company_name||d.ticker||'')+(d.sector?' \u00b7 '+d.sector:'')+(d.industry?' \u00b7 '+d.industry:'');
@@ -997,7 +1072,7 @@ function openDet(tk){
     });
     _gvEl.innerHTML=_gvHtml;
   }catch(e){console.error('gate values error:',e);}
-  var fsEl=document.getElementById('d-fin-summary'),fsSec=document.getElementById('d-section-finsummary');var _fs=d.financial_summary;var _fsItems=Array.isArray(_fs)?_fs:(_fs?[_fs]:[]);if(_fsItems.length){var _fsHtml='<ul style="margin:0;padding:10px 14px 10px 30px;background:#f4f6fb;border-left:3px solid #3498db;border-radius:0 5px 5px 0;font-size:0.82em;line-height:1.55;color:#37474f;list-style:disc">'+_fsItems.map(function(s){return '<li style="margin:4px 0">'+esc(s)+'</li>';}).join('')+'</ul>';fsEl.innerHTML=_fsHtml;fsSec.style.display='';}else{fsEl.innerHTML='';fsSec.style.display='none';}
+  var fsEl=document.getElementById('d-fin-summary'),fsSec=document.getElementById('d-section-finsummary');var _fs=d.financial_summary;var _fsItems=Array.isArray(_fs)?_fs:(_fs?[_fs]:[]);if(_fsItems.length){var _fsHtml='<ul class="fin-list">'+_fsItems.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul>';fsEl.innerHTML=_fsHtml;fsSec.style.display='';}else{fsEl.innerHTML='';fsSec.style.display='none';}
   var hw=d.sector_headwinds||[],tw=d.sector_tailwinds||[],sigEl=document.getElementById('d-sector-signals'),sigSec=document.getElementById('d-section-signals');
   if(hw.length||tw.length){
     /* Headwinds may arrive as structured {text, sev, cat} dicts or legacy plain strings.
@@ -1024,8 +1099,8 @@ function openDet(tk){
     sh+='</div></div>';
     sigEl.innerHTML=sh;sigSec.style.display='';
   }else{sigEl.innerHTML='';sigSec.style.display='none';}
-  var newsEl=document.getElementById('d-news'),newsItems=d.news_headlines||[];if(newsItems.length){var _ns=d.news_sentiment;var _sentBadge='';if(_ns&&_ns.label){var _sentColor=_ns.label==='Positive'?'#27ae60':(_ns.label==='Negative'?'#e74c3c':'#7f8c8d');var _sentBg=_ns.label==='Positive'?'#eafaf1':(_ns.label==='Negative'?'#fdedec':'#f2f3f4');var _sentArrow=_ns.label==='Positive'?'\u25b2':(_ns.label==='Negative'?'\u25bc':'\u25a0');var _bullPct=_ns.bullish_pct!=null?Math.round(_ns.bullish_pct*100)+'% bull':'';var _bearPct=_ns.bearish_pct!=null?Math.round(_ns.bearish_pct*100)+'% bear':'';var _sentTip=_ns.article_count+' articles scored \u2014 '+[_bullPct,_bearPct].filter(Boolean).join(', ');_sentBadge='<span title="'+esc(_sentTip)+'" style="background:'+_sentBg+';color:'+_sentColor+';padding:1px 7px;border-radius:10px;font-size:0.68em;font-weight:600;margin-left:8px;border:1px solid '+_sentColor+'22;cursor:default">'+_sentArrow+' '+esc(_ns.label)+'</span>';}var nh='<div class="sig-title" style="font-size:0.78em;margin-bottom:4px">\uD83D\uDCF0 Recent News<span style="font-weight:400;color:#888;font-size:0.85em;margin-left:6px">('+newsItems.length+')</span>'+_sentBadge+'</div><div style="max-height:160px;overflow-y:auto;background:#f8f9fb;border-radius:5px;padding:4px 8px">';newsItems.forEach(function(n){var badge=n.origin==='google_news'?'<span style="background:#e8eaf6;color:#3949ab;padding:0 4px;border-radius:3px;font-size:0.65em;margin-right:3px">Sector</span>':'';var _sc=n.sentiment!=null?(n.sentiment>0.05?'#27ae60':(n.sentiment<-0.05?'#e74c3c':'#95a5a6')):'';var _sdot=_sc?'<span title="Sentiment: '+n.sentiment+'" style="display:inline-block;width:5px;height:5px;border-radius:50%;background:'+_sc+';margin-right:4px;vertical-align:middle;cursor:default"></span>':'';nh+='<div style="padding:2px 0;border-bottom:1px solid #eee;font-size:0.72em"><span style="color:#888;font-size:0.85em;min-width:58px;display:inline-block">'+esc(n.date||'')+'</span> '+badge+_sdot+'<a href="'+esc(n.link||'#')+'" target="_blank" rel="noopener" style="color:#2980b9;text-decoration:none">'+esc(n.title||'')+'</a>'+(n.source?' <span style="color:#aaa;font-size:0.85em">\u2014 '+esc(n.source)+'</span>':'')+'</div>';});nh+='</div>';newsEl.innerHTML=nh;}else{newsEl.innerHTML='';}
-  var legalEl=document.getElementById('d-legal'),legalItems=d.legal_filings||[];if(legalItems.length){var _formLabel={'10-K':'Annual Report','10-K/A':'Annual Report (Amended)','10-Q':'Quarterly Report','10-Q/A':'Quarterly Report (Amended)','8-K':'Current Report','8-K/A':'Current Report (Amended)','20-F':'Annual Report (Foreign)','6-K':'Foreign Issuer Report'};function _legalSumm(f){if(f.summary)return f.summary;var ft=f.form_type||'',desc=(f.description||'').toUpperCase().trim(),lbl=_formLabel[ft]||ft;if(desc&&desc!==ft.toUpperCase()&&desc!=='FORM '+ft.toUpperCase()&&desc!==''){var nice=f.description.trim().replace(/\b\w/g,function(c){return c.toUpperCase();});if(ft.indexOf('8-K')===0)return lbl+': '+nice;return lbl+' \u2014 '+nice;}if(ft.indexOf('10-K')===0)return lbl+' \u2014 legal proceedings disclosure';if(ft.indexOf('10-Q')===0)return lbl+' \u2014 legal proceedings disclosure';if(ft.indexOf('8-K')===0)return lbl+' \u2014 material event disclosure';return lbl;}var lh='<div class="sig-title" style="font-size:0.78em;margin-bottom:4px">\u2696\uFE0F Legal Proceedings <span style="font-weight:400;color:#888;font-size:0.85em">('+legalItems.length+' filing'+(legalItems.length>1?'s':'')+', past 2 yrs)</span></div><div style="max-height:200px;overflow-y:auto;background:#fef9f9;border-radius:5px;padding:4px 8px;border-left:3px solid #e74c3c">';legalItems.forEach(function(f){var fc={'10-K':'background:#2c3e50','10-Q':'background:#2980b9','8-K':'background:#8e44ad','8-K/A':'background:#8e44ad'};var fbg=fc[f.form_type]||'background:#888';var summ=_legalSumm(f);lh+='<div style="padding:4px 0;border-bottom:1px solid #f0e0e0;font-size:0.72em"><div><span style="color:#888;font-size:0.85em;min-width:58px;display:inline-block">'+esc(f.filing_date||'')+'</span> <span style="'+fbg+';color:#fff;padding:0 5px;border-radius:3px;font-size:0.65em;font-weight:600;margin-right:3px">'+esc(f.form_type||'')+'</span>'+(f.url?'<a href="'+esc(f.url)+'" target="_blank" rel="noopener" style="color:#c0392b;text-decoration:none">View Filing \u2197</a>':'')+'</div><div style="color:#666;font-size:0.9em;margin-top:1px;padding-left:62px">'+esc(summ)+'</div></div>';});lh+='</div>';legalEl.innerHTML=lh;}else{legalEl.innerHTML='';}
+  var newsEl=document.getElementById('d-news'),newsItems=d.news_headlines||[];if(newsItems.length){var _ns=d.news_sentiment;var _sentBadge='';if(_ns&&_ns.label){var _sentColor=_ns.label==='Positive'?'#27ae60':(_ns.label==='Negative'?'#e74c3c':'#7f8c8d');var _sentBg=_ns.label==='Positive'?'#eafaf1':(_ns.label==='Negative'?'#fdedec':'#f2f3f4');var _sentArrow=_ns.label==='Positive'?'\u25b2':(_ns.label==='Negative'?'\u25bc':'\u25a0');var _bullPct=_ns.bullish_pct!=null?Math.round(_ns.bullish_pct*100)+'% bull':'';var _bearPct=_ns.bearish_pct!=null?Math.round(_ns.bearish_pct*100)+'% bear':'';var _sentTip=_ns.article_count+' articles scored \u2014 '+[_bullPct,_bearPct].filter(Boolean).join(', ');_sentBadge='<span title="'+esc(_sentTip)+'" style="background:'+_sentBg+';color:'+_sentColor+';padding:1px 7px;border-radius:10px;font-size:0.68em;font-weight:600;margin-left:8px;border:1px solid '+_sentColor+'22;cursor:default">'+_sentArrow+' '+esc(_ns.label)+'</span>';}var nh='<div class="sig-title" style="font-size:0.78em;margin-bottom:4px">\uD83D\uDCF0 Recent News<span style="font-weight:400;color:#888;font-size:0.85em;margin-left:6px">('+newsItems.length+')</span>'+_sentBadge+'</div><div style="max-height:160px;overflow-y:auto;background:#f8f9fb;border-radius:5px;padding:4px 8px">';newsItems.forEach(function(n){var badge=n.origin==='google_news'?'<span style="background:#e8eaf6;color:#3949ab;padding:0 4px;border-radius:3px;font-size:0.65em;margin-right:3px">Sector</span>':'';var _sc=n.sentiment!=null?(n.sentiment>0.05?'#27ae60':(n.sentiment<-0.05?'#e74c3c':'#95a5a6')):'';var _sdot=_sc?'<span title="Sentiment: '+n.sentiment+'" style="display:inline-block;width:5px;height:5px;border-radius:50%;background:'+_sc+';margin-right:4px;vertical-align:middle;cursor:default"></span>':'';nh+='<div style="padding:2px 0;border-bottom:1px solid #eee;font-size:0.82em"><span style="color:#888;font-size:0.85em;min-width:58px;display:inline-block">'+esc(n.date||'')+'</span> '+badge+_sdot+'<a href="'+esc(n.link||'#')+'" target="_blank" rel="noopener" style="color:#2980b9;text-decoration:none">'+esc(n.title||'')+'</a>'+(n.source?' <span style="color:#aaa;font-size:0.85em">\u2014 '+esc(n.source)+'</span>':'')+'</div>';});nh+='</div>';newsEl.innerHTML=nh;}else{newsEl.innerHTML='';}
+  var legalEl=document.getElementById('d-legal'),legalItems=d.legal_filings||[];if(legalItems.length){var _formLabel={'10-K':'Annual Report','10-K/A':'Annual Report (Amended)','10-Q':'Quarterly Report','10-Q/A':'Quarterly Report (Amended)','8-K':'Current Report','8-K/A':'Current Report (Amended)','20-F':'Annual Report (Foreign)','6-K':'Foreign Issuer Report'};function _legalSumm(f){if(f.summary)return f.summary;var ft=f.form_type||'',desc=(f.description||'').toUpperCase().trim(),lbl=_formLabel[ft]||ft;if(desc&&desc!==ft.toUpperCase()&&desc!=='FORM '+ft.toUpperCase()&&desc!==''){var nice=f.description.trim().replace(/\b\w/g,function(c){return c.toUpperCase();});if(ft.indexOf('8-K')===0)return lbl+': '+nice;return lbl+' \u2014 '+nice;}if(ft.indexOf('10-K')===0)return lbl+' \u2014 legal proceedings disclosure';if(ft.indexOf('10-Q')===0)return lbl+' \u2014 legal proceedings disclosure';if(ft.indexOf('8-K')===0)return lbl+' \u2014 material event disclosure';return lbl;}var lh='<div class="sig-title" style="font-size:0.78em;margin-bottom:4px">\u2696\uFE0F Legal Proceedings <span style="font-weight:400;color:#888;font-size:0.85em">('+legalItems.length+' filing'+(legalItems.length>1?'s':'')+', past 2 yrs)</span></div><div style="max-height:200px;overflow-y:auto;background:#fef9f9;border-radius:5px;padding:4px 8px;border-left:3px solid #e74c3c">';legalItems.forEach(function(f){var fc={'10-K':'background:#2c3e50','10-Q':'background:#2980b9','8-K':'background:#8e44ad','8-K/A':'background:#8e44ad'};var fbg=fc[f.form_type]||'background:#888';var summ=_legalSumm(f);lh+='<div style="padding:4px 0;border-bottom:1px solid #f0e0e0;font-size:0.82em"><div><span style="color:#888;font-size:0.85em;min-width:58px;display:inline-block">'+esc(f.filing_date||'')+'</span> <span style="'+fbg+';color:#fff;padding:0 5px;border-radius:3px;font-size:0.65em;font-weight:600;margin-right:3px">'+esc(f.form_type||'')+'</span>'+(f.url?'<a href="'+esc(f.url)+'" target="_blank" rel="noopener" style="color:#c0392b;text-decoration:none">View Filing \u2197</a>':'')+'</div><div style="color:#666;font-size:0.9em;margin-top:1px;padding-left:62px">'+esc(summ)+'</div></div>';});lh+='</div>';legalEl.innerHTML=lh;}else{legalEl.innerHTML='';}
   document.getElementById('d-section-news').style.display=(newsItems.length||legalItems.length)?'':'none';
   /* --- Peers & Suppliers two-column section with financial snapshots --- */
   var psEl=document.getElementById('d-peers-supply');
@@ -1096,14 +1171,28 @@ function openDet(tk){
   /* --- GROUP 1: PRICE CONTEXT --- */
   gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2e86c1)"><span class="dg-icon"></span>Price Context</div><div class="dgrid-inner">';
   if(d.high_52w!=null&&d.low_52w!=null){var rp=d.range_52w_position!=null?d.range_52w_position:50;var rpC=rp<25?'color:#1a9850;font-weight:700':(rp>75?'color:#de2d26':'');gh+='<div class="dsec"><h3>52-Week Range</h3><div style="margin:8px 0;background:#e9ecef;border-radius:6px;height:18px;position:relative"><div style="position:absolute;left:'+Math.min(Math.max(rp,0),100)+'%;top:-2px;width:3px;height:22px;background:#2980b9;border-radius:2px" title="Current"></div></div><div class="dkvg">'+bkv([['52W High',fd(d.high_52w)],['52W Low',fd(d.low_52w)],['% from High',fp(d.pct_from_52w_high)],['Range Position',d.range_52w_position!=null?Math.round(d.range_52w_position)+'%':'N/A',rpC]])+'</div></div>';}
-  gh+='<div class="dsec"><h3>Valuation Multiples</h3><div class="dkvg">'+bkv([['P/E',fn(d.pe,1)],['EV/EBITDA',fn(d.ev_ebitda,1)],['P/FCF',fn(d.pfcf,1)],['P/B',fn(d.pb,2)],['EPV P/FV',fn(d._gate_epv_p_fv,2)],['Analyst Target',fd(d.target_mean)]])+'</div></div>';
+  gh+='<div class="dsec"><h3>Valuation Multiples</h3><div class="dkvg">'+bkv([['P/E',fn(d.pe,1)],['EV/EBITDA',fn(d.ev_ebitda,1)],['P/FCF',fn(d.pfcf,1)],['P/B',fn(d.pb,2)],['EPV P/FV',fn(d.epv_pfv,2)],['Analyst Target',fd(d.target_mean)]])+'</div></div>';
   gh+='</div></div>';
   /* --- GROUP 2: INTRINSIC VALUE --- */
   gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a2f5e,#2f5496)"><span class="dg-icon"></span>Intrinsic Value</div><div class="dgrid-inner">';
-  gh+='<div class="dsec"><h3>DCF Breakdown</h3><div class="dkvg">'+bkv([['DCF Fair Value',fd(d.dcf_fv)],['Current Price',fd(d.price)],['Margin of Safety',fp(d.mos),ms],['Sensitivity Range',sr],['FCF Growth',fp(d.fcf_growth)],['WACC',fp(d.wacc)],['Terminal Growth',fp(d.terminal_growth)],['MC Confidence',d.mc_confidence!=null?d.mc_confidence:'N/A'],['MC CV',fp(d.mc_cv)],['MC P10',fd(d.mc_p10_fv)],['MC P90',fd(d.mc_p90_fv)],['Blend Method',d._blended_method||'DCF']])+'</div></div>';
-  if(d.ddm_eligible){var ddmFlag=d.ddm_payout_flag?'color:#de2d26;font-weight:700':'';gh+='<div class="dsec"><h3>Dividend Discount Model</h3><div class="dkvg">'+bkv([['DDM Fair Value',fd(d.ddm_fv)],['H-Model FV',fd(d.ddm_h_fv)],['DDM Growth',fp(d.ddm_growth)],['Div CAGR',fp(d.ddm_div_cagr)],['Sustainable Growth',fp(d.ddm_sustainable_growth)],['Consec. Years',d.ddm_consecutive_years!=null?d.ddm_consecutive_years+'':'N/A'],['Payout Flag',d.ddm_payout_flag?'Yes':'No',ddmFlag],['DDM MC Median',fd(d.ddm_mc_median)],['DDM MC P10',fd(d.ddm_mc_p10)],['DDM MC P90',fd(d.ddm_mc_p90)],['DDM MC CV',fp(d.ddm_mc_cv)]])+'</div></div>';}
-  gh+='<div class="dsec"><h3>Alternative Valuations</h3><div class="dkvg">'+bkv([['EPV Fair Value',fd(d.epv_fv)],['EPV MoS',fp(d.epv_mos)],['EPV Growth-Adj',fd(d.epv_growth_fv)],['RIM Fair Value',fd(d.rim_fv)],['RIM MoS',fp(d.rim_mos)],['Implied Growth (Rev DCF)',fp(d.implied_growth)],['Impl. vs Est.',fp(d.implied_vs_estimated)]])+'</div></div>';
-  gh+='</div></div>';
+  /* Row 1: DCF model (left) | DCF Monte Carlo (right) */
+  gh+='<div class="dsec"><h3>DCF Model</h3><div class="dkvg">'+bkv([['Current Price',fd(d.price)],['DCF Fair Value',fd(d.dcf_fv)],['DCF MoS',fp(d.mos),ms],['Expected Return',fp(d.er)],['Blend Method',d._blended_method||'DCF']])+'</div></div>';
+  gh+='<div class="dsec"><h3>DCF Monte Carlo</h3><div class="dkvg">'+bkv([['MC Confidence',d.mc_confidence!=null?d.mc_confidence:'N/A'],['MC CV',fp(d.mc_cv)],['MC P10 Fair Value',fd(d.mc_p10_fv)],['MC P90 Fair Value',fd(d.mc_p90_fv)]])+'</div></div>';
+  /* Row 2 (conditional): DDM (left) | DDM Monte Carlo (right) */
+  if(d.ddm_eligible){var ddmFlag=d.ddm_payout_flag?'color:#de2d26;font-weight:700':'';var ddmLcFlag=d._ddm_low_confidence?'color:#e67e22;font-weight:700':'';gh+='<div class="dsec"><h3>Dividend Discount Model</h3><div class="dkvg">'+bkv([['DDM Fair Value',fd(d.ddm_fv)],['H-Model FV',fd(d.ddm_h_fv)],['DDM Growth',fp(d.ddm_growth)],['Div CAGR',fp(d.ddm_div_cagr)],['Sustainable Growth',fp(d.ddm_sustainable_growth)],['Consec. Years',d.ddm_consecutive_years!=null?d.ddm_consecutive_years+'':'N/A'],['Payout Flag',d.ddm_payout_flag?'Yes':'No',ddmFlag],['Low Confidence',d._ddm_low_confidence?'Yes':'No',ddmLcFlag]])+'</div></div>';gh+='<div class="dsec"><h3>DDM Monte Carlo</h3><div class="dkvg">'+bkv([['MC Median',fd(d.ddm_mc_median)],['MC P10',fd(d.ddm_mc_p10)],['MC P90',fd(d.ddm_mc_p90)],['MC CV',fp(d.ddm_mc_cv)]])+'</div></div>';}
+  /* Row 3: EPV & RIM (left) | Implied / Reverse Check (right) */
+  gh+='<div class="dsec"><h3>EPV &amp; RIM</h3><div class="dkvg">'+bkv([['EPV Fair Value',fd(d.epv_fv)],['EPV MoS',fp(d.epv_mos)],['EPV Growth-Adj',fd(d.epv_growth_fv)],['RIM Fair Value',fd(d.rim_fv)],['RIM MoS',fp(d.rim_mos)]])+'</div></div>';
+  gh+='<div class="dsec"><h3>Implied / Reverse Check</h3><div class="dkvg">'+bkv([['Implied Growth (Rev DCF)',fp(d.implied_growth)],['Impl. vs Est.',fp(d.implied_vs_estimated)]])+'</div></div>';
+  gh+='</div>';
+  gh+='<div style="background:#eef2fb;border-top:1px solid #d0daf0;padding:7px 16px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">'
+    +'<span style="font-size:0.56em;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#1a3a6b;flex-shrink:0">Model Assumptions</span>'
+    +'<span style="font-size:0.63em;color:#546e7a">FCF Growth&nbsp;<strong style="color:#1a2f5e">'+( fp(d.fcf_growth)||'N/A')+'</strong></span>'
+    +'<span style="font-size:0.63em;color:#546e7a">WACC&nbsp;<strong style="color:#1a2f5e">'+(fp(d.wacc)||'N/A')+'</strong></span>'
+    +'<span style="font-size:0.63em;color:#546e7a">ERP&nbsp;<strong style="color:#1a2f5e">'+(fp(d.macro_erp)||'N/A')+'</strong></span>'
+    +'<span style="font-size:0.63em;color:#546e7a">Terminal Growth&nbsp;<strong style="color:#1a2f5e">'+(fp(d.terminal_growth)||'N/A')+'</strong></span>'
+    +'<span style="font-size:0.63em;color:#546e7a">Sensitivity&nbsp;<strong style="color:#1a2f5e">'+sr+'</strong></span>'
+  +'</div>'
+  +'</div>';
   /* --- GROUP 3: BUSINESS QUALITY --- */
   gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1e4d20,#548235)"><span class="dg-icon"></span>Business Quality</div><div class="dgrid-inner">';
   gh+='<div class="dsec"><h3>Quality &amp; Profitability</h3><div class="dkvg">'+bkv([['ROIC (5Y)',fp(d.roic)],['ROE',fp(d.roe)],['ROA',fp(d.roa)],['Int Coverage',fn(d.int_cov,1)],['Cash Conversion',fn(d.cash_conv,2)],['Accruals',fn(d.accruals,3)],['Piotroski',d.piotroski!=null?d.piotroski+'/9':'N/A',ps]])+'</div></div>';
@@ -1171,18 +1260,34 @@ function openDet(tk){
   document.body.style.overflow='hidden';
 }
 function closeDetail(){document.getElementById('det-modal').classList.remove('open');document.body.style.overflow='';}
-function _easeScroll(el,to,ms){var start=el.scrollTop,diff=to-start,t0=performance.now();(function step(now){var p=Math.min((now-t0)/ms,1),ease=p<0.5?4*p*p*p:(1-Math.pow(-2*p+2,3)/2);el.scrollTop=start+diff*ease;if(p<1)requestAnimationFrame(step);})( t0);}
+function _easeScroll(el,to,ms){var start=el.scrollTop,diff=to-start,t0=performance.now();(function step(now){var p=Math.min((now-t0)/ms,1),ease=p<0.5?4*p*p*p:(1-Math.pow(-2*p+2,3)/2);el.scrollTop=start+diff*ease;if(p<1)requestAnimationFrame(step);})(t0);}
 function navDet(dir){var idx=_detIdx+dir;if(idx<0||idx>=_detNav.length)return;openDet(_detNav[idx]);var sc=document.querySelector('.detail-content');if(sc)_easeScroll(sc,0,320);}
+/* Velocity-based glide scroll for press-and-hold arrow keys */
+var _sv=0,_sdir=0,_sraf=null;
+function _scrollLoop(el){
+  if(_sdir!==0)_sv=Math.min(_sv+2.2,22);
+  else _sv*=0.91;
+  if(_sv<0.4){_sv=0;_sraf=null;return;}
+  el.scrollTop+=_sv*_sdir;
+  _sraf=requestAnimationFrame(function(){_scrollLoop(el);});
+}
+function _startGlide(el,dir){
+  if(_sdir===dir)return;
+  _sdir=dir;
+  if(!_sraf)_sraf=requestAnimationFrame(function(){_scrollLoop(el);});
+}
+function _stopGlide(){_sdir=0;}
 document.addEventListener('keydown',function(e){
   if(document.getElementById('det-modal').classList.contains('open')){
     if(e.key==='Escape')closeDetail();
     else if(e.key==='ArrowLeft'){e.preventDefault();navDet(-1);}
     else if(e.key==='ArrowRight'){e.preventDefault();navDet(1);}
-    else if(e.key==='ArrowUp'){e.preventDefault();var m=document.querySelector('.detail-content');if(m)_easeScroll(m,Math.max(0,m.scrollTop-120),220);}
-    else if(e.key==='ArrowDown'){e.preventDefault();var m=document.querySelector('.detail-content');if(m)_easeScroll(m,Math.min(m.scrollHeight,m.scrollTop+120),220);}
+    else if(e.key==='ArrowUp'){e.preventDefault();var m=document.querySelector('.detail-content');if(m)_startGlide(m,-1);}
+    else if(e.key==='ArrowDown'){e.preventDefault();var m=document.querySelector('.detail-content');if(m)_startGlide(m,1);}
     else if(e.key==='Enter'){e.preventDefault();var tk=document.getElementById('d-tk').textContent;if(tk&&!isReviewed(tk)){toggleReviewed(tk);_syncRevDet();}navDet(1);}
   }
 });
+document.addEventListener('keyup',function(e){if(e.key==='ArrowUp'||e.key==='ArrowDown')_stopGlide();});
 
 /* === VIEW CONTROLLER === */
 function moveFilterBar(v){
@@ -1199,6 +1304,19 @@ function moveFilterBar(v){
     if(vm&&vm.firstChild!==fb)vm.insertBefore(fb,vm.firstChild);
   }
 }
+/* Set table container max-height so thead sticky works relative to the scroll box */
+function _setTableH(){
+  var map={matrix:'.matrix-wrap',table:'.table-wrap'};
+  ['matrix','table'].forEach(function(v){
+    var vw=document.getElementById('view-'+v);if(!vw)return;
+    var wrap=vw.querySelector(map[v]);if(!wrap)return;
+    var rect=wrap.getBoundingClientRect();
+    if(rect.width===0&&rect.height===0)return; /* hidden view */
+    var h=Math.max(240,window.innerHeight-rect.top-2);
+    wrap.style.maxHeight=h+'px';
+  });
+}
+window.addEventListener('resize',_setTableH);
 function showView(v){
   curView=v;
   document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active')});
@@ -1207,6 +1325,7 @@ function showView(v){
   document.getElementById('view-'+v).classList.add('active');
   moveFilterBar(v);
   renderCur();
+  setTimeout(_setTableH,0);
 }
 function renderCur(){
   if(curView==='matrix')renderMatrix();
@@ -1349,79 +1468,88 @@ function renderCrossSectorDashboard(){
       +'</div></div>';
   });
 
-  var SW=500,SH=280,spL=52,spR=16,spT=22,spB=36;
-  var sCW=SW-spL-spR,sCH=SH-spT-spB;
-  var maxHHI=0.23,maxSM=Math.max(0.40,maxM*1.08);
-  var qxMid=spL+(0.15/maxHHI)*sCW;
-  var qyMid=spT+sCH-(0.20/maxSM)*sCH;
-  var svg='<svg viewBox="0 0 '+SW+' '+SH+'" style="display:block;width:100%;height:auto">';
-  svg+='<rect x="'+spL+'" y="'+spT+'" width="'+(qxMid-spL).toFixed(1)+'" height="'+(qyMid-spT).toFixed(1)+'" fill="#e8f5e9" opacity="0.55"/>';
-  svg+='<rect x="'+qxMid.toFixed(1)+'" y="'+spT+'" width="'+(spL+sCW-qxMid).toFixed(1)+'" height="'+(qyMid-spT).toFixed(1)+'" fill="#f3e5f5" opacity="0.55"/>';
-  svg+='<rect x="'+spL+'" y="'+qyMid.toFixed(1)+'" width="'+(qxMid-spL).toFixed(1)+'" height="'+(spT+sCH-qyMid).toFixed(1)+'" fill="#f5f5f5" opacity="0.55"/>';
-  svg+='<rect x="'+qxMid.toFixed(1)+'" y="'+qyMid.toFixed(1)+'" width="'+(spL+sCW-qxMid).toFixed(1)+'" height="'+(spT+sCH-qyMid).toFixed(1)+'" fill="#fde8e8" opacity="0.55"/>';
-  svg+='<line x1="'+spL+'" y1="'+spT+'" x2="'+spL+'" y2="'+(spT+sCH)+'" stroke="#ccc" stroke-width="1"/>';
-  svg+='<line x1="'+spL+'" y1="'+(spT+sCH)+'" x2="'+(spL+sCW)+'" y2="'+(spT+sCH)+'" stroke="#ccc" stroke-width="1"/>';
-  svg+='<line x1="'+qxMid.toFixed(1)+'" y1="'+spT+'" x2="'+qxMid.toFixed(1)+'" y2="'+(spT+sCH)+'" stroke="#bbb" stroke-width="1" stroke-dasharray="4,3"/>';
-  svg+='<line x1="'+spL+'" y1="'+qyMid.toFixed(1)+'" x2="'+(spL+sCW)+'" y2="'+qyMid.toFixed(1)+'" stroke="#bbb" stroke-width="1" stroke-dasharray="4,3"/>';
-  svg+='<text x="'+(spL+5)+'" y="'+(spT+12)+'" font-size="8" fill="#43a047" font-weight="700">Quality</text>';
-  svg+='<text x="'+(qxMid+5)+'" y="'+(spT+12)+'" font-size="8" fill="#8e24aa" font-weight="700">Profitable Oligopoly</text>';
-  svg+='<text x="'+(spL+5)+'" y="'+(spT+sCH-5)+'" font-size="8" fill="#9e9e9e" font-weight="700">Fragmented</text>';
-  svg+='<text x="'+(qxMid+5)+'" y="'+(spT+sCH-5)+'" font-size="8" fill="#e53935" font-weight="700">Value Trap</text>';
-  [0,0.10,0.20,0.30,0.40,0.50,0.60].forEach(function(v){
-    if(v>maxSM+0.01)return;
-    var ty=spT+sCH-(v/maxSM)*sCH;
-    svg+='<text x="'+(spL-4)+'" y="'+(ty+3).toFixed(1)+'" text-anchor="end" font-size="7.5" fill="#aaa">'+(v*100).toFixed(0)+'%</text>';
-    if(v>0)svg+='<line x1="'+spL+'" y1="'+ty.toFixed(1)+'" x2="'+(spL+sCW)+'" y2="'+ty.toFixed(1)+'" stroke="#f0f0f0" stroke-width="1"/>';
-  });
-  [0,0.05,0.10,0.15,0.20].forEach(function(v){
-    var tx=spL+(v/maxHHI)*sCW;
-    svg+='<text x="'+tx.toFixed(1)+'" y="'+(spT+sCH+12)+'" text-anchor="middle" font-size="7.5" fill="#aaa">'+v.toFixed(2)+'</text>';
-  });
-  svg+='<text x="'+(spL+sCW/2)+'" y="'+(SH-3)+'" text-anchor="middle" font-size="8.5" fill="#bbb">HHI (Concentration \u2192 more concentrated)</text>';
-  svg+='<text x="11" y="'+(spT+sCH/2)+'" text-anchor="middle" font-size="8.5" fill="#bbb" transform="rotate(-90,11,'+(spT+sCH/2)+')">Operating Margin \u2192</text>';
-  allStats.forEach(function(s){
-    var cx=spL+Math.min(s.hhi/maxHHI,0.999)*sCW;
-    var cy=spT+sCH-Math.min(s.margin/maxSM,0.999)*sCH;
-    var col=s.margin>=0.25?'#1a9850':s.margin>=0.15?'#4caf50':s.margin>=0.10?'#ff9800':'#e53935';
-    var sEscS=s.name.replace(/'/g,"\\'");
-    var scClick='onclick="showPoolTab(\''+sEscS+'\')" style="cursor:pointer" title="Go to '+s.name+'"';
-    svg+='<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="9" fill="'+col+'" opacity="0.88" stroke="white" stroke-width="1.5" '+scClick+' title="'+s.name+'"/>';
-    var lx=cx+12,ly=cy-3,ta='start';
-    if(cx>spL+sCW*0.65){lx=cx-12;ta='end';}
-    if(cy<spT+18){ly=cy+18;}
-    svg+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="'+ta+'" font-size="8" fill="#333" font-weight="600" '+scClick+'>'+s.name+'</text>';
-  });
-  svg+='</svg>';
+  window._xsStats=allStats;window._xsMaxM=maxM;
 
   var narItems=[];
-  var top3=byMargin.slice(0,3).map(function(s){return s.name;}).join(', ');
-  var bot2=byMargin.slice(-2).map(function(s){return s.name;}).reverse().join(' and ');
-  narItems.push('<strong>Margin leaders \u2014 '+top3+':</strong> These sectors generate the highest blended operating margins ('+(byMargin[0].margin*100).toFixed(0)+'\u2013'+(byMargin[2].margin*100).toFixed(0)+'%), driven by structural pricing power, recurring revenue, or asset-based regulatory moats.');
-  narItems.push('<strong>Margin challenged \u2014 '+bot2+':</strong> Thin blended margins ('+(byMargin[byMargin.length-1].margin*100).toFixed(0)+'\u2013'+(byMargin[byMargin.length-2].margin*100).toFixed(0)+'%) reflect commodity pricing, high pass-through costs, or volume-driven models where scale matters more than pricing.');
+  var top3Detail=byMargin.slice(0,3).map(function(s){return s.name+'\u00a0('+(s.margin*100).toFixed(1)+'%)';}).join(', ');
+  var bot2Detail=byMargin.slice(-2).reverse().map(function(s){return s.name+'\u00a0('+(s.margin*100).toFixed(1)+'%)';}).join(' and ');
+  narItems.push('<strong>Margin leaders \u2014 '+top3Detail+':</strong> These sectors sustain blended operating margins that consistently support ROIC well above cost of capital. Pricing power at this level is structurally embedded \u2014 through proprietary platforms, brand-enforced switching costs, or regulated cost pass-through \u2014 rather than cyclically contingent. Reversion is slow because the underlying economics are hard to replicate at scale.');
+  narItems.push('<strong>Margin challenged \u2014 '+bot2Detail+':</strong> Structurally thin margins reflect economics where pricing is market-determined, not firm-determined: commodity input costs, compressed processing spreads, or capital-intensive distribution compress returns toward cost of capital. Margin expansion in these pools is hard-won and frequently gives back in competitive reversion. Stock selection here requires identifying firms with structural cost advantages, not just sector-level exposure.');
   var oligopolies=allStats.filter(function(s){return s.hhi>0.25;});
   var highConc=byHHI.filter(function(s){return s.hhi>0.15&&s.hhi<=0.25;});
-  if(oligopolies.length){narItems.push('<strong>Oligopoly structure \u2014 '+oligopolies.map(function(s){return s.name+' (HHI\u00a0'+s.hhi.toFixed(3)+')';}).join(', ')+':</strong> Above the oligopoly threshold. A small set of firms dominates revenue and profit \u2014 expect durable pricing power but watch for regulatory and disruption risk.');}
-  if(highConc.length){narItems.push('<strong>Moderately concentrated \u2014 '+highConc.slice(0,5).map(function(s){return s.name;}).join(', ')+':</strong> CR4 above 50% in most cases. Market position remains decisive but challengers retain room to grow.');}
-  narItems.push('<strong>Most fragmented \u2014 '+leastConc.name+' (HHI\u00a0'+leastConc.hhi.toFixed(3)+'):</strong> '+leastConc.n+' tracked companies with no dominant player. Stock selection within this sector is more important than sector-level allocation.');
+  var valueTrap=allStats.filter(function(s){return s.hhi>0.15&&s.margin<0.12;});
+  if(oligopolies.length){narItems.push('<strong>Highly concentrated \u2014 '+oligopolies.map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+',\u00a0CR4\u00a0'+(s.cr4*100).toFixed(0)+'%)';}).join(', ')+':</strong> HHI above 0.25 meets the DOJ/FTC threshold for a highly concentrated market, where a small set of incumbents captures the majority of industry revenue and profit. Collective pricing power is structurally entrenched, but the moat is positional rather than intrinsic \u2014 returns depend on maintaining share, not product superiority \u2014 leaving these sectors exposed to antitrust action, regulatory price controls, or a single well-capitalized disruptor.');}
+  if(highConc.length){narItems.push('<strong>Moderately concentrated \u2014 '+highConc.slice(0,5).map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+')';}).join(', ')+':</strong> HHI in the 0.15\u20130.25 range (DOJ/FTC \u201cmoderately concentrated\u201d band) indicates leading incumbents extract measurable pricing advantage over smaller competitors. Market structure is decisive but not rigid: challengers with differentiated cost structures or product offerings retain room to erode share. Alpha here accrues to incumbents deepening their moat, not to passive sector exposure.');}
+  narItems.push('<strong>Most fragmented \u2014 '+leastConc.name+'\u00a0(HHI\u00a0'+leastConc.hhi.toFixed(3)+',\u00a0'+leastConc.n+'\u00a0companies):</strong> With HHI well below the 0.10 competitive threshold, no firm exerts meaningful influence over sector-wide pricing. Returns mean-revert toward cost of capital at the pool level. Sector-level allocation carries less signal; idiosyncratic factors \u2014 unit cost structure, balance sheet strength, niche positioning \u2014 drive the cross-sectional variance in outcomes. Individual stock selection matters more than being in this sector at all.');
   var sweetSpot=allStats.filter(function(s){return s.margin>=0.20&&s.hhi<0.15;});
-  if(sweetSpot.length){narItems.push('<strong>Quality sweet spot \u2014 '+sweetSpot.map(function(s){return s.name;}).join(', ')+':</strong> High margins combined with a competitive market structure signal durable structural advantage without reliance on regulatory capture or unhealthy concentration.');}
-  narItems.push('<strong>Cross-sector spread:</strong> '+(( maxM-minM)*100).toFixed(0)+'\u00a0pp separates the highest and lowest blended sector margins. This wide range means sector allocation \u2014 anchored to pool quality \u2014 can rival individual stock selection in driving portfolio outcomes.');
+  if(sweetSpot.length){narItems.push('<strong>Quality quadrant \u2014 '+sweetSpot.map(function(s){return s.name+'\u00a0('+(s.margin*100).toFixed(1)+'%\u00a0margin,\u00a0HHI\u00a0'+s.hhi.toFixed(3)+')';}).join('; ')+':</strong> High margins in a competitive market are the strongest signal of genuine structural advantage: firms earn pricing power through product differentiation, proprietary IP, or customer switching costs \u2014 not through market dominance or regulatory protection. This is the most durable earnings profile because the advantage is intrinsic, not positional, and does not depend on maintaining a stable oligopoly structure that regulators or disruptors could unwind.');}
+  if(valueTrap.length){narItems.push('<strong>Concentration without margin \u2014 '+valueTrap.map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+',\u00a0'+(s.margin*100).toFixed(1)+'%\u00a0margin)';}).join(', ')+':</strong> Elevated concentration has not translated into commensurate margin extraction. This pattern emerges where volume competition, commodity input pricing, or mandated price ceilings constrain profitability regardless of market share. High HHI here reflects market structure, not pricing power \u2014 the leading firm\u2019s dominant position is a floor on survival, not a ceiling lift on returns.');}
+  narItems.push('<strong>Cross-sector spread \u2014 '+((maxM-minM)*100).toFixed(0)+'\u00a0percentage points:</strong> The gap between the highest and lowest blended sector margins is wide enough that sector allocation is a first-order return driver, not a secondary tilting decision. A portfolio systematically overweight in high-quality pools \u2014 particularly sectors in the Quality quadrant \u2014 and underweight in structurally challenged pools compounds this advantage across cycles. Sector selection anchored to pool quality can rival individual stock selection in generating sustained portfolio-level alpha.');
 
   return'<div class="xsect-dashboard">'
     +'<div class="xsect-title">Cross-Sector Profit Pool Comparison</div>'
     +'<div class="xsect-sub">Blended pool margins, market concentration, and competitive dynamics across '+allStats.length+' sectors</div>'
     +'<div class="xsect-kpi-row">'+kpiHtml+'</div>'
-    +'<div style="margin-bottom:20px">'
+    +'<div id="xsect-bar-wrap" style="margin-bottom:20px">'
       +'<div class="xsect-chart-title">Operating Margin by Sector <span style="font-weight:400;text-transform:none;letter-spacing:0">(pool-weighted)</span></div>'
       +marginBarsHtml
     +'</div>'
-    +'<div style="display:grid;grid-template-columns:420px 1fr;gap:22px;margin-bottom:4px;align-items:stretch">'
-      +'<div style="display:flex;flex-direction:column;padding-top:16px"><div class="xsect-chart-title">Margin vs. Concentration</div>'+svg.replace('height:auto','height:100%;flex:1;min-height:0')+'</div>'
-      +'<div class="xsect-narrative" style="margin-top:0"><div class="xsect-nar-title">Comparative Analysis</div>'
+    +'<div style="margin-bottom:4px">'
+      +'<div style="padding-top:16px"><div class="xsect-chart-title">Margin vs. Concentration</div><div id="xsect-scatter-wrap"></div></div>'
+      +'<div class="xsect-narrative"><div class="xsect-nar-title">Comparative Analysis</div>'
       +'<ul style="margin:0;padding-left:18px">'+narItems.map(function(b){return'<li style="margin-bottom:9px;font-size:0.82em;color:#2c3e50;line-height:1.55">'+b+'</li>';}).join('')+'</ul>'
       +'</div>'
     +'</div>'
     +'</div></div>';
+}
+function _buildScatterSVG(W,H){
+  var allStats=window._xsStats,maxM=window._xsMaxM;
+  if(!allStats||!allStats.length)return'';
+  var spL=62,spR=18,spT=30,spB=50;
+  var sCW=W-spL-spR,sCH=H-spT-spB;
+  var maxHHI=0.23,maxSM=Math.max(0.40,maxM*1.08);
+  var qxMid=spL+(0.15/maxHHI)*sCW,qyMid=spT+sCH-(0.20/maxSM)*sCH;
+  var s='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:'+W+'px;height:'+H+'px;overflow:visible">';
+  s+='<rect x="'+spL+'" y="'+spT+'" width="'+(qxMid-spL).toFixed(1)+'" height="'+(qyMid-spT).toFixed(1)+'" fill="#e8f5e9" opacity="0.55"/>';
+  s+='<rect x="'+qxMid.toFixed(1)+'" y="'+spT+'" width="'+(spL+sCW-qxMid).toFixed(1)+'" height="'+(qyMid-spT).toFixed(1)+'" fill="#f3e5f5" opacity="0.55"/>';
+  s+='<rect x="'+spL+'" y="'+qyMid.toFixed(1)+'" width="'+(qxMid-spL).toFixed(1)+'" height="'+(spT+sCH-qyMid).toFixed(1)+'" fill="#f5f5f5" opacity="0.55"/>';
+  s+='<rect x="'+qxMid.toFixed(1)+'" y="'+qyMid.toFixed(1)+'" width="'+(spL+sCW-qxMid).toFixed(1)+'" height="'+(spT+sCH-qyMid).toFixed(1)+'" fill="#fde8e8" opacity="0.55"/>';
+  s+='<line x1="'+spL+'" y1="'+spT+'" x2="'+spL+'" y2="'+(spT+sCH)+'" stroke="#ccc" stroke-width="1"/>';
+  s+='<line x1="'+spL+'" y1="'+(spT+sCH)+'" x2="'+(spL+sCW)+'" y2="'+(spT+sCH)+'" stroke="#ccc" stroke-width="1"/>';
+  s+='<line x1="'+qxMid.toFixed(1)+'" y1="'+spT+'" x2="'+qxMid.toFixed(1)+'" y2="'+(spT+sCH)+'" stroke="#bbb" stroke-width="1" stroke-dasharray="4,3"/>';
+  s+='<line x1="'+spL+'" y1="'+qyMid.toFixed(1)+'" x2="'+(spL+sCW)+'" y2="'+qyMid.toFixed(1)+'" stroke="#bbb" stroke-width="1" stroke-dasharray="4,3"/>';
+  var _qlbl=' style="cursor:help" onmousemove="ppQuadMove(event)" onmouseleave="ppQuadHide()"';
+  s+='<text x="'+(spL+6)+'" y="'+(spT+14)+'" font-size="11" fill="#43a047" font-weight="700" text-decoration="underline"'+_qlbl+' onmouseenter="ppQuadTip(event,\'q\')">Quality</text>';
+  s+='<text x="'+(qxMid+6)+'" y="'+(spT+14)+'" font-size="11" fill="#8e24aa" font-weight="700" text-decoration="underline"'+_qlbl+' onmouseenter="ppQuadTip(event,\'po\')">Profitable Oligopoly</text>';
+  s+='<text x="'+(spL+6)+'" y="'+(spT+sCH-6)+'" font-size="11" fill="#9e9e9e" font-weight="700" text-decoration="underline"'+_qlbl+' onmouseenter="ppQuadTip(event,\'f\')">Fragmented</text>';
+  s+='<text x="'+(qxMid+6)+'" y="'+(spT+sCH-6)+'" font-size="11" fill="#e53935" font-weight="700" text-decoration="underline"'+_qlbl+' onmouseenter="ppQuadTip(event,\'vt\')">Value Trap</text>';
+  [0,0.10,0.20,0.30,0.40,0.50,0.60].forEach(function(v){
+    if(v>maxSM+0.01)return;
+    var ty=spT+sCH-(v/maxSM)*sCH;
+    s+='<text x="'+(spL-6)+'" y="'+(ty+4).toFixed(1)+'" text-anchor="end" font-size="11" fill="#444">'+(v*100).toFixed(0)+'%</text>';
+    if(v>0)s+='<line x1="'+spL+'" y1="'+ty.toFixed(1)+'" x2="'+(spL+sCW)+'" y2="'+ty.toFixed(1)+'" stroke="#ebebeb" stroke-width="1"/>';
+  });
+  [0,0.05,0.10,0.15,0.20].forEach(function(v){
+    var tx=spL+(v/maxHHI)*sCW;
+    s+='<text x="'+tx.toFixed(1)+'" y="'+(spT+sCH+18)+'" text-anchor="middle" font-size="11" fill="#444">'+v.toFixed(2)+'</text>';
+  });
+  var yCtr=spT+sCH/2;
+  s+='<text x="14" y="'+yCtr.toFixed(1)+'" text-anchor="middle" font-size="12" fill="#333" font-weight="600" transform="rotate(-90,14,'+yCtr.toFixed(1)+')">Operating Margin \u2192</text>';
+  s+='<text x="'+(spL+sCW/2)+'" y="'+(H-8)+'" text-anchor="middle" font-size="12" fill="#333" font-weight="600">HHI (Concentration \u2192 more concentrated)</text>';
+  allStats.forEach(function(st){
+    var cx=spL+Math.min(st.hhi/maxHHI,0.999)*sCW;
+    var cy=spT+sCH-Math.min(st.margin/maxSM,0.999)*sCH;
+    var col=st.margin>=0.25?'#1a9850':st.margin>=0.15?'#4caf50':st.margin>=0.10?'#ff9800':'#e53935';
+    var sE=st.name.replace(/'/g,"\\'");
+    var clk='onclick="showPoolTab(\''+sE+'\')" style="cursor:pointer"';
+    s+='<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="9" fill="'+col+'" opacity="0.88" stroke="white" stroke-width="1.5" '+clk+' title="'+st.name+'"/>';
+    var lx=cx+13,ly=cy-3,ta='start';
+    if(cx>spL+sCW*0.65){lx=cx-13;ta='end';}
+    if(cy<spT+20){ly=cy+20;}
+    s+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="'+ta+'" font-size="11" fill="#222" font-weight="600" '+clk+'>'+st.name+'</text>';
+  });
+  s+='</svg>';
+  return s;
 }
 function renderPool(){
   var sectors={};
@@ -1495,6 +1623,20 @@ function renderPool(){
     tableRows+='<tr><td style="text-align:left;font-weight:600">'+sec+'</td><td>'+sorted.length+'</td><td>'+(wtdM*100).toFixed(1)+'%</td><td>'+(hhi!=null?hhi.toFixed(3):'&mdash;')+'</td><td>'+(cr4!=null?(cr4*100).toFixed(0)+'%':'&mdash;')+'</td><td style="text-align:left"><span class="rb" style="background:'+(RC[best.rating]||'#aaa')+'">'+best.ticker+'</span> '+((best.pp_multiple||0).toFixed(2))+'x</td><td>'+avgMult.toFixed(2)+'x</td></tr>';
   });
   document.getElementById('pool-chart-area').innerHTML=chartHtml||'<p style="color:#999;padding:20px;font-size:0.9em">No profit pool data available.</p>';
+  function _syncScatter(){
+    var bw=document.getElementById('xsect-bar-wrap');var sw=document.getElementById('xsect-scatter-wrap');
+    if(!bw||!sw||!window._xsStats)return;
+    var spL=62,spR=18,spT=30,spB=50,gap=18;
+    var bR=bw.getBoundingClientRect();
+    var rows=bw.querySelectorAll('.xsect-bar-row');
+    var barH=rows.length>0?Math.round(rows[rows.length-1].getBoundingClientRect().bottom-rows[0].getBoundingClientRect().top):Math.round(bR.height);
+    var W=Math.floor(bR.width);
+    var H=Math.max(barH+spT+spB,460);
+    sw.style.marginLeft='0';
+    sw.innerHTML=_buildScatterSVG(W,H);
+  }
+  setTimeout(_syncScatter,0);
+  window.addEventListener('resize',_syncScatter);
   document.getElementById('pool-sector-table').innerHTML=(chosen==='__all__'&&tableRows)?'<div style="margin-top:16px;background:white;border-radius:8px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,0.07)"><div style="font-weight:700;font-size:0.88em;color:#1a252f;margin-bottom:10px">Sector Summary</div><div class="table-wrap"><table class="dt"><thead><tr><th style="text-align:left">Sector</th><th>Cos</th><th>Wtd Margin</th><th>HHI</th><th>CR4</th><th style="text-align:left">Top Earner</th><th>Avg Multiple</th></tr></thead><tbody>'+tableRows+'</tbody></table></div></div>':'';
 }
 function ppTip(e,ticker){
@@ -1509,6 +1651,31 @@ function ppTip(e,ticker){
   tt.style.display='block';tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY-10)+'px';
 }
 function ppHide(){document.getElementById('pool-tt').style.display='none';}
+var _ppQD={
+  q:{title:'Quality',col:'#2e7d32',bg:'#f1f8e9',bc:'#43a047',text:'High margins in a competitive market signal durable structural advantage \u2014 brand equity, proprietary IP, or switching costs that hold pricing power without relying on market concentration. These businesses earn strong ROIC through product superiority, not dominance. The best long-term compounders live here.'},
+  po:{title:'Profitable Oligopoly',col:'#6a1b9a',bg:'#f3e5f5',bc:'#8e24aa',text:'A small number of players control share and earn elevated margins through collective pricing power. Returns are high, but the moat is market structure \u2014 not intrinsic product advantage. Regulatory scrutiny, antitrust action, or a single disruptive entrant can compress returns quickly.'},
+  f:{title:'Fragmented',col:'#616161',bg:'#f5f5f5',bc:'#9e9e9e',text:'Many competitors, thin margins, no structural pricing power. Capital is commoditized and returns mean-revert toward cost of capital. Sector-level allocation adds little alpha here \u2014 individual stock selection, cost discipline, and balance sheet strength matter most.'},
+  vt:{title:'Value Trap',col:'#c62828',bg:'#fde8e8',bc:'#e53935',text:'Concentration without margin. Leaders may dominate by volume but face structural cost constraints, commodity pricing, or intense input competition. Independents compete for scraps. Difficult to compound capital in these structures \u2014 high share does not translate to high return.'}
+};
+function ppQuadTip(e,key){
+  var def=_ppQD[key];if(!def)return;
+  var tt=document.getElementById('pp-quad-tip');
+  tt.style.background=def.bg;tt.style.borderColor=def.bc;
+  tt.innerHTML='<div style="font-weight:700;color:'+def.col+';font-size:0.84em;margin-bottom:6px">'+def.title+'</div><div style="color:#455a64;font-size:0.78em;line-height:1.58">'+def.text+'</div>';
+  var tx=e.clientX+18,ty=e.clientY-24;
+  if(tx+310>window.innerWidth)tx=e.clientX-326;
+  if(ty+120>window.innerHeight)ty=e.clientY-130;
+  tt.style.left=tx+'px';tt.style.top=ty+'px';tt.style.display='block';
+}
+function ppQuadMove(e){
+  var tt=document.getElementById('pp-quad-tip');
+  if(tt.style.display!=='block')return;
+  var tx=e.clientX+18,ty=e.clientY-24;
+  if(tx+310>window.innerWidth)tx=e.clientX-326;
+  if(ty+120>window.innerHeight)ty=e.clientY-130;
+  tt.style.left=tx+'px';tt.style.top=ty+'px';
+}
+function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none';}
 
 /* === INIT === */
 (function(){
@@ -1535,6 +1702,7 @@ function ppHide(){document.getElementById('pool-tt').style.display='none';}
   document.getElementById('f-count').textContent=DATA.length+' of '+DATA.length;
   moveFilterBar(curView);
   applyFilters();
+  setTimeout(_setTableH,0);
 })();
 </script>
 </body>
