@@ -29,10 +29,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .header h1{font-size:0.92em;margin:0;}
   .last-updated{display:none;}
   .container{padding:3px 6px;}
-  .primary-nav{padding:2px 0 2px;border-bottom:1px solid var(--border);}
-  .nav-btn{padding:3px 8px;font-size:0.73em;}
-  .secondary-nav{padding:1px 0;gap:3px;}
-  .sub-btn{padding:2px 7px;font-size:0.7em;}
   .dt th{padding:5px 5px;}
   .dt td{padding:4px 5px;font-size:0.78em;}
   .matrix-table th{padding:4px 5px;}
@@ -49,8 +45,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .det-nav-pos{font-size:0.72em;}
   .d-body{padding:10px 12px 10px;gap:10px;}
 }
-/* Phone-only: collapse filter bar behind ☰ button */
+/* Phone-only: compact tabs, filter bar, nav */
 @media(max-width:600px){
+  .primary-nav{padding:2px 0 2px;border-bottom:1px solid var(--border);}
+  .nav-btn{padding:3px 8px;font-size:0.73em;}
+  .secondary-nav{padding:1px 0;gap:3px;}
+  .sub-btn{padding:2px 7px;font-size:0.7em;}
   .filter-bar{flex-direction:row;flex-wrap:nowrap;padding:2px 0;gap:5px;}
   .filter-bar input[type="text"]{width:auto;flex:1;min-width:0;padding:3px 8px;font-size:0.8em;}
   .filter-bar .ms-wrap,.filter-bar .filter-divider,.filter-bar .fpop-wrap,.filter-bar .filter-clear,.filter-bar .filter-count{display:none;}
