@@ -283,13 +283,6 @@ td.ct{font-weight:700;}
   .container{padding:3px 6px;}
   .primary-nav{padding:2px 0 2px;border-bottom:1px solid var(--border);}
   .nav-btn{padding:3px 8px;font-size:0.73em;}
-  .filter-bar{flex-direction:row;flex-wrap:nowrap;padding:2px 0;gap:5px;}
-  .filter-bar input[type="text"]{width:auto;flex:1;min-width:0;padding:3px 8px;font-size:0.8em;}
-  .filter-bar .ms-wrap,.filter-bar .filter-divider,.filter-bar .fpop-wrap,.filter-bar .filter-clear,.filter-bar .filter-count{display:none;}
-  .mob-filter-btn{display:inline-flex;padding:3px 8px;font-size:0.78em;}
-  .filter-bar.mob-expanded{flex-wrap:wrap;}
-  .filter-bar.mob-expanded .ms-wrap,.filter-bar.mob-expanded .fpop-wrap,.filter-bar.mob-expanded .filter-clear{display:block;}
-  .filter-bar.mob-expanded .filter-count{display:inline;}
   .secondary-nav{padding:1px 0;gap:3px;}
   .sub-btn{padding:2px 7px;font-size:0.7em;}
   .dt th{padding:5px 5px;}
@@ -307,6 +300,16 @@ td.ct{font-weight:700;}
   .det-nav-right{gap:12px;}
   .det-nav-pos{font-size:0.72em;}
   .d-body{padding:10px 12px 10px;gap:10px;}
+}
+/* Phone-only: collapse filter bar behind ☰ button */
+@media(max-width:600px){
+  .filter-bar{flex-direction:row;flex-wrap:nowrap;padding:2px 0;gap:5px;}
+  .filter-bar input[type="text"]{width:auto;flex:1;min-width:0;padding:3px 8px;font-size:0.8em;}
+  .filter-bar .ms-wrap,.filter-bar .filter-divider,.filter-bar .fpop-wrap,.filter-bar .filter-clear,.filter-bar .filter-count{display:none;}
+  .mob-filter-btn{display:inline-flex;padding:3px 8px;font-size:0.78em;}
+  .filter-bar.mob-expanded{flex-wrap:wrap;}
+  .filter-bar.mob-expanded .ms-wrap,.filter-bar.mob-expanded .fpop-wrap,.filter-bar.mob-expanded .filter-clear{display:block;}
+  .filter-bar.mob-expanded .filter-count{display:inline;}
 }
 .pool-sector{margin-bottom:20px;background:white;border-radius:10px;padding:0;box-shadow:0 3px 12px rgba(0,0,0,0.08);overflow:hidden;border:1px solid #e8ecef;}
 .pool-sec-hdr{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 18px;background:linear-gradient(135deg,#1a252f 0%,#2c3e50 100%);color:white;border-bottom:3px solid var(--accent,#3498db);}
