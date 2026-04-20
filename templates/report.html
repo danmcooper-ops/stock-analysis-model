@@ -80,7 +80,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .filter-divider{width:1px;height:24px;background:#ddd;margin:0 4px;}
 .filter-clear{padding:5px 12px;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:0.85em;background:#f9f9f9;}
 .filter-clear:hover{background:#eee;}
-.filter-count{font-size:0.85em;color:var(--accent);font-weight:600;}
+.filter-count{font-size:0.85em;color:var(--accent);font-weight:600;white-space:nowrap;flex-shrink:0;}
 .ms-wrap{position:relative;display:inline-block;min-width:140px;}
 .ms-btn{padding:6px 28px 6px 12px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;position:relative;user-select:none;}
 .ms-btn::after{content:'\25BC';font-size:0.6em;position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#888;}
@@ -325,6 +325,10 @@ td.ct{font-weight:700;}
   .filter-bar.mob-expanded{flex-wrap:wrap;}
   .filter-bar.mob-expanded .ms-wrap,.filter-bar.mob-expanded .fpop-wrap,.filter-bar.mob-expanded .filter-clear{display:block;}
   .filter-bar.mob-expanded .filter-count{display:inline;}
+}
+/* iPad portrait: narrow search field so filter count stays on one line */
+@media(min-width:601px) and (max-width:900px) and (orientation:portrait){
+  .filter-bar input[type="text"]{width:110px;}
 }
 .pool-sector{margin-bottom:20px;background:white;border-radius:10px;padding:0;box-shadow:0 3px 12px rgba(0,0,0,0.08);overflow:hidden;border:1px solid #e8ecef;}
 .pool-sec-hdr{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 18px;background:linear-gradient(135deg,#1a252f 0%,#2c3e50 100%);color:white;border-bottom:3px solid var(--accent,#3498db);}
