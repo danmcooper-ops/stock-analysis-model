@@ -468,7 +468,7 @@ td.ct{font-weight:700;}
       <div id="d-gate-values" class="d-gate-values"></div>
       <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:#fff"><div class="ddesc" id="d-desc"></div></div></div>
       <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:#fff"><div id="d-fin-summary"></div></div></div>
-      <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>The Upsides and Downsides</div><div style="padding:14px 16px;background:#fff"><div id="d-sector-signals"></div></div></div>
+      <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:#fff"><div id="d-sector-signals"></div></div></div>
       <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:#fff"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
       <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:#fff"><div id="d-peers-supply"></div></div></div>
       <div id="d-section-profitpool" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Profit Pool Analysis</div><div class="dgrid-inner" id="d-profitpool-content"></div></div>
@@ -1211,8 +1211,8 @@ function openDet(tk){
     }
     if(!_hwNorm.length) _hwHtml='<p style="margin:0;color:#999">None identified</p>';
     var sh='<div class="sig-wrap"><div class="sig-grid">';
-    sh+='<div class="sig-tw"><b>\u2714 Upside</b>'+(tw.length?'<ul>'+tw.map(function(t){return'<li>'+esc(typeof t==='string'?t:(t.text||''))+'</li>';}).join('')+'</ul>':'<p style="margin:0;color:#999">None identified</p>')+'</div>';
-    sh+='<div class="sig-hw"><b>\u26A0 Downside</b>'+_hwHtml+'</div>';
+    sh+='<div class="sig-tw"><b>\u25b2 Tailwinds</b>'+(tw.length?'<ul>'+tw.map(function(t){return'<li>'+esc(typeof t==='string'?t:(t.text||''))+'</li>';}).join('')+'</ul>':'<p style="margin:0;color:#999">None identified</p>')+'</div>';
+    sh+='<div class="sig-hw"><b>\u25bc Headwinds</b>'+_hwHtml+'</div>';
     sh+='</div></div>';
     sigEl.innerHTML=sh;sigSec.style.display='';
   }else{sigEl.innerHTML='';sigSec.style.display='none';}
