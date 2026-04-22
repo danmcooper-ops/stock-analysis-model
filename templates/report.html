@@ -63,6 +63,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .last-updated{display:none;}
   .container{padding:2px 6px;}
 }
+/* Small phones: compact popup header and km-banner */
+@media(max-width:480px){
+  .dh .dtk{font-size:1.65em;}
+  .dh .drt{font-size:0.9em;padding:5px 13px;}
+  .dh .dcs{font-size:1.0em;padding:5px 11px;}
+  .dmeta{font-size:0.7em;}
+  .d-kmetrics .km-cell{padding:9px 7px;min-width:0;}
+  .d-kmetrics .km-k{font-size:0.5em;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+  .d-kmetrics .km-v{font-size:0.76em;}
+  .d-gate-values{grid-template-columns:repeat(5,1fr);gap:5px;}
+  .gv-k{font-size:0.6em;}
+  .gv-v{font-size:0.62em;}
+}
 /* Phone-only: compact tabs, filter bar, nav */
 @media(max-width:600px){
   .primary-nav{padding:2px 0 2px;border-bottom:1px solid var(--border);}
