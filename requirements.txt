@@ -4,3 +4,5 @@ openpyxl
 pytest
 jinja2
 lxml
+fastapi
+uvicorn[standard]
