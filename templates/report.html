@@ -306,9 +306,11 @@ td.ct{font-weight:700;}
 .ps-ext{color:#bbb;font-size:0.85em;font-style:italic;}
 .tk-tip{display:none;position:fixed;z-index:2000;background:#fff;border:1px solid #d0d4db;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.15);padding:14px 16px;width:320px;font-size:0.78em;pointer-events:none;}
 #col-tip{display:none;position:fixed;z-index:2001;background:#1a252f;color:#e8edf5;border:1px solid #2c3e50;border-radius:10px;box-shadow:0 6px 28px rgba(0,0,0,0.35);padding:11px 15px;max-width:360px;min-width:180px;font-size:0.77em;line-height:1.55;pointer-events:none;}
-#col-tip .ct-name{font-weight:700;font-size:1.05em;color:#fff;margin-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:5px;}
-#col-tip .ct-body{color:#c0cfe0;}
-#col-tip .ct-pass{margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.1);color:#74c476;font-weight:600;font-size:0.9em;}
+#col-tip .ct-name,#popup-tip .ct-name{font-weight:700;font-size:1.05em;color:#fff;margin-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:5px;}
+#col-tip .ct-body,#popup-tip .ct-body{color:#c0cfe0;}
+#col-tip .ct-pass,#popup-tip .ct-pass{margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.1);color:#74c476;font-weight:600;font-size:0.9em;}
+/* Popup tooltip — lives inside #det-modal to stay above backdrop-filter layer on iOS */
+#popup-tip{display:none;position:fixed;z-index:9999;background:#1a252f;color:#e8edf5;border:1px solid #2c3e50;border-radius:10px;box-shadow:0 6px 28px rgba(0,0,0,0.35);padding:11px 15px;max-width:360px;min-width:180px;font-size:0.77em;line-height:1.55;pointer-events:none;}
 .tk-tip .tip-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
 .tk-tip .tip-tk{font-size:1.3em;font-weight:700;color:#1a252f;}
 .tk-tip .tip-rt{padding:2px 8px;border-radius:4px;color:#fff;font-weight:700;font-size:0.85em;}
@@ -480,6 +482,7 @@ td.ct{font-weight:700;}
       <div class="det-nav-right"><span id="d-rev2" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag2" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span><button class="det-nav-next det-nav-btn" onclick="navDet(1)" title="Next stock (→ ↓)">&#8250;</button></div>
     </div>
   </div>
+  <div id="popup-tip"></div>
 </div>
 <div id="tk-tip" class="tk-tip"></div>
 <div id="col-tip"></div>
@@ -1018,34 +1021,37 @@ function _hideColTip(){clearTimeout(_ctTimer);_ctEl.style.display='none';}
 (function(){
   var dm=document.getElementById('det-modal');
   if(!dm)return;
-  var _pinEl=null; /* element whose tip is pinned (touch/click) */
+  /* Use #popup-tip (inside the modal) so it renders above the backdrop-filter
+     compositing layer on iOS Safari — #col-tip is outside the modal and can
+     be occluded by the backdrop-filter z-index promotion. */
+  var _pt=document.getElementById('popup-tip');
+  var _pinEl=null;
   function _posTip(rect){
-    var cw=_ctEl.offsetWidth||360,ch=_ctEl.offsetHeight||80;
+    var cw=_pt.offsetWidth||360,ch=_pt.offsetHeight||80;
     var vw=window.innerWidth,vh=window.innerHeight;
     var left=rect.left,top=rect.bottom+6;
     if(left+cw>vw-10)left=vw-cw-10;if(left<10)left=10;
     if(top+ch>vh-10)top=rect.top-ch-6;if(top<10)top=10;
-    _ctEl.style.left=left+'px';_ctEl.style.top=top+'px';
-    _ctEl.style.display='block';
+    _pt.style.left=left+'px';_pt.style.top=top+'px';
+    _pt.style.display='block';
   }
   var _SEL='.kl[data-dkv-tip],[data-score-lbl],[data-gv-tip],[data-km-tip]';
   function _findEl(t){return t.closest(_SEL)||null;}
   function _showFor(el){
     var key,txt,label,h;
-    if(el.matches('.kl[data-dkv-tip]')){key=el.getAttribute('data-dkv-tip');txt=tt(key);if(!txt)return false;label=el.textContent.trim();_ctEl.innerHTML='<div class="ct-name">'+esc(label)+'</div><div class="ct-body">'+esc(txt)+'</div>';}
-    else if(el.matches('[data-score-lbl]')){label=el.getAttribute('data-score-lbl')||'';var val=el.getAttribute('data-score-val')||'';txt=tt(el.getAttribute('data-score-key')||'')||'';h='<div class="ct-name">'+esc(label)+(val?' \u2014 '+esc(val):'')+'</div>';if(txt)h+='<div class="ct-body">'+esc(txt)+'</div>';_ctEl.innerHTML=h;}
-    else if(el.matches('[data-gv-tip]')){key=el.getAttribute('data-gv-tip');txt=TT[key]||'';label=el.getAttribute('data-gv-lbl')||'';var thr=el.getAttribute('data-gv-thr')||'';if(!txt&&!thr)return false;h='<div class="ct-name">'+esc(label)+'</div>';if(txt)h+='<div class="ct-body">'+esc(txt)+'</div>';if(thr)h+='<div class="ct-pass">\u2714 Pass: '+esc(thr)+'</div>';_ctEl.innerHTML=h;}
-    else if(el.matches('[data-km-tip]')){key=el.getAttribute('data-km-tip');txt=tt(key)||'';label=el.getAttribute('data-km-lbl')||'';if(!txt)return false;_ctEl.innerHTML='<div class="ct-name">'+esc(label)+'</div><div class="ct-body">'+esc(txt)+'</div>';}
+    if(el.matches('.kl[data-dkv-tip]')){key=el.getAttribute('data-dkv-tip');txt=tt(key);if(!txt)return false;label=el.textContent.trim();_pt.innerHTML='<div class="ct-name">'+esc(label)+'</div><div class="ct-body">'+esc(txt)+'</div>';}
+    else if(el.matches('[data-score-lbl]')){label=el.getAttribute('data-score-lbl')||'';var val=el.getAttribute('data-score-val')||'';txt=tt(el.getAttribute('data-score-key')||'')||'';h='<div class="ct-name">'+esc(label)+(val?' \u2014 '+esc(val):'')+'</div>';if(txt)h+='<div class="ct-body">'+esc(txt)+'</div>';_pt.innerHTML=h;}
+    else if(el.matches('[data-gv-tip]')){key=el.getAttribute('data-gv-tip');txt=TT[key]||'';label=el.getAttribute('data-gv-lbl')||'';var thr=el.getAttribute('data-gv-thr')||'';if(!txt&&!thr)return false;h='<div class="ct-name">'+esc(label)+'</div>';if(txt)h+='<div class="ct-body">'+esc(txt)+'</div>';if(thr)h+='<div class="ct-pass">\u2714 Pass: '+esc(thr)+'</div>';_pt.innerHTML=h;}
+    else if(el.matches('[data-km-tip]')){key=el.getAttribute('data-km-tip');txt=tt(key)||'';label=el.getAttribute('data-km-lbl')||'';if(!txt)return false;_pt.innerHTML='<div class="ct-name">'+esc(label)+'</div><div class="ct-body">'+esc(txt)+'</div>';}
     else return false;
     _posTip(el.getBoundingClientRect());
     return true;
   }
-  function _hideTipP(){_ctEl.style.display='none';_pinEl=null;}
+  function _hideTipP(){_pt.style.display='none';_pinEl=null;}
   /* Hover — desktop (skipped while a tip is pinned) */
   dm.addEventListener('mouseover',function(e){if(_pinEl)return;var el=_findEl(e.target);if(el)_showFor(el);});
-  dm.addEventListener('mouseout',function(e){if(_pinEl)return;var el=e.target.closest(_SEL);if(el)_ctEl.style.display='none';});
-  /* Tap/click — iOS requires touchend; click fires on desktop.
-     e.preventDefault() in touchend suppresses the ghost click that follows. */
+  dm.addEventListener('mouseout',function(e){if(_pinEl)return;var el=e.target.closest(_SEL);if(el)_pt.style.display='none';});
+  /* Tap/click — iOS requires touchend; e.preventDefault() suppresses ghost click */
   function _onTap(e){
     if(e.target.closest('.detail-close,.det-nav-btn,.flag-star,.rev-chk-det'))return;
     var t=e.changedTouches?e.changedTouches[0]:null;
