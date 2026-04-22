@@ -1044,15 +1044,21 @@ function _hideColTip(){clearTimeout(_ctTimer);_ctEl.style.display='none';}
   /* Hover — desktop (skipped while a tip is pinned) */
   dm.addEventListener('mouseover',function(e){if(_pinEl)return;var el=_findEl(e.target);if(el)_showFor(el);});
   dm.addEventListener('mouseout',function(e){if(_pinEl)return;var el=e.target.closest(_SEL);if(el)_ctEl.style.display='none';});
-  /* Click / tap — pin tooltip; tap same element or elsewhere to dismiss */
-  dm.addEventListener('click',function(e){
+  /* Tap/click — iOS requires touchend; click fires on desktop.
+     e.preventDefault() in touchend suppresses the ghost click that follows. */
+  function _onTap(e){
     if(e.target.closest('.detail-close,.det-nav-btn,.flag-star,.rev-chk-det'))return;
-    var el=_findEl(e.target);
+    var t=e.changedTouches?e.changedTouches[0]:null;
+    var target=t?document.elementFromPoint(t.clientX,t.clientY):e.target;
+    if(!target)return;
+    var el=_findEl(target);
     if(el){
       if(_pinEl===el){_hideTipP();}
-      else{if(_showFor(el)){_pinEl=el;}e.stopPropagation();}
+      else{if(_showFor(el)){_pinEl=el;}e.preventDefault();e.stopPropagation();}
     }else if(_pinEl){_hideTipP();}
-  });
+  }
+  dm.addEventListener('touchend',_onTap,{passive:false});
+  dm.addEventListener('click',_onTap);
 })();
 document.addEventListener('mouseover',function(e){
   var th=e.target.closest('th[data-col-tip]');
