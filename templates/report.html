@@ -55,6 +55,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .det-nav-bar .flag-star{font-size:1.3em;}
   .det-nav-bar .rev-chk-det{font-size:0.85em;}
   .d-body{padding:6px 12px 6px;gap:6px;}
+}
+/* Phone landscape only: compact page header */
+@media(orientation:landscape) and (max-height:500px){
   .header{padding:3px 10px;min-height:24px;}
   .header h1{font-size:0.88em;margin:0;}
   .last-updated{display:none;}
@@ -1225,7 +1228,30 @@ function openDet(tk){
   gh+='<div class="dsec"><h3>Analyst Consensus</h3><div class="dkvg">'+bkv([['Recommendation',(rl2[d.analyst_rec]||d.analyst_rec||'N/A')+(d.num_analysts?' ('+d.num_analysts+')':'')],['Target Mean',fd(d.target_mean)],['Target Low',fd(d.target_low)],['Target High',fd(d.target_high)]])+'</div></div>';
   if(d.position_weight!=null){gh+='<div class="dsec"><h3>Portfolio</h3><div class="dkvg">'+bkv([['Position Weight',fp(d.position_weight)]])+'</div></div>';}
   gh+='</div></div>';
-  /* --- GROUP 5: OWNERSHIP --- */
+  /* --- GROUP 5: PRICE SIGNALS --- */
+  gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#0d5c63,#1a9e8f)"><span class="dg-icon"></span>Price Signals</div><div class="dgrid-inner">';
+  /* Momentum & Volatility */
+  var momV=d.momentum_12_1;var momC=momV!=null?(momV>=0.2?'color:#1a9850;font-weight:700':momV<=-0.15?'color:#de2d26':''):'';
+  var rvV=d.realized_vol;var rvC=rvV!=null?(rvV>=0.4?'color:#de2d26;font-weight:700':rvV<=0.15?'color:#1a9850':''):'';
+  gh+='<div class="dsec"><h3>Momentum &amp; Volatility</h3><div class="dkvg">'+bkv([['12-1 Mo Momentum',fp(momV),momC],['Realized Vol (1yr)',fp(rvV),rvC]])+'</div></div>';
+  /* Rolling Beta */
+  var rbV=d.rolling_betas;
+  if(rbV){
+    var rb1=rbV['1y']!=null?rbV['1y'].toFixed(2):'N/A';
+    var rb3=rbV['3y']!=null?rbV['3y'].toFixed(2):'N/A';
+    var rb5=rbV['5y']!=null?rbV['5y'].toFixed(2):'N/A';
+    var stab=rbV['stability'];
+    var stabLbl=stab!=null?(stab<0.1?'Stable':stab<0.2?'Moderate':'Volatile'):'N/A';
+    var stabC=stab!=null?(stab<0.1?'color:#1a9850':stab>=0.2?'color:#de2d26':''):'';
+    gh+='<div class="dsec"><h3>Rolling Beta</h3><div class="dkvg">'+bkv([['1yr Beta',rb1],['3yr Beta',rb3],['5yr Beta',rb5],['Stability',stabLbl,stabC]])+'</div></div>';
+  }
+  /* Drawdown Resilience */
+  var dd20=d.drawdown_2020;var dd20C=dd20!=null?(dd20<=-0.40?'color:#de2d26;font-weight:700':dd20>=-0.20?'color:#1a9850':''):'';
+  var dd22=d.drawdown_2022;var dd22C=dd22!=null?(dd22<=-0.30?'color:#de2d26':dd22>=-0.10?'color:#1a9850':''):'';
+  var dd08=d.drawdown_2008;var dd08C=dd08!=null?(dd08<=-0.50?'color:#de2d26;font-weight:700':dd08>=-0.30?'color:#1a9850':''):'';
+  gh+='<div class="dsec"><h3>Drawdown Resilience</h3><div class="dkvg">'+bkv([['2020 COVID',fp(dd20),dd20C],['2022 Bear',fp(dd22),dd22C],['2008 GFC',fp(dd08),dd08C]])+'</div></div>';
+  gh+='</div></div>';
+  /* --- GROUP 6: OWNERSHIP --- */
   gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#7a5800,#bf8f00)"><span class="dg-icon"></span>Ownership</div><div class="dgrid-inner">';
   function _fpCap(v,cap){if(v!=null&&v>cap)return'N/A';return fp(v);}
   gh+='<div class="dsec"><h3>Shareholder Returns</h3><div class="dkvg">'+bkv([['Shrhldr Yield',_fpCap(d.shareholder_yield,0.5)],['Buyback Rate',_fpCap(d.share_buyback_rate,0.5)],['Dividend Yield',fp(d.div_yield)]])+'</div></div>';

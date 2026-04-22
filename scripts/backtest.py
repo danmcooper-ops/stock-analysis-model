@@ -58,10 +58,15 @@ def load_results(results_dir='output'):
 # Forward return computation
 # ---------------------------------------------------------------------------
 
-def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client):
+def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
+                          prices_dir=None):
     """
     Compute forward returns for each ticker + SPY from run_date to
     run_date + horizon_days.
+
+    When *prices_dir* is supplied and a per-ticker Parquet file exists there,
+    it is used directly (fast, no network).  Falls back to yf_client for any
+    ticker not found locally.
 
     Returns:
         dict: {ticker: {'ret': float, 'start': float, 'end': float}}
@@ -69,7 +74,7 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client):
     """
     import pandas as pd
 
-    run_dt = pd.Timestamp(run_date_str)
+    run_dt  = pd.Timestamp(run_date_str)
     eval_dt = run_dt + pd.Timedelta(days=horizon_days)
     returns = {}
 
@@ -77,27 +82,37 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client):
 
     for ticker in all_tickers:
         try:
-            hist = yf_client.fetch_history(ticker, period="1y")
-            if hist is None or len(hist) < 10:
-                continue
+            hist = None
 
-            # Localise lookup timestamps to match the history index timezone
-            tz = hist.index.tz
-            run_ts = pd.Timestamp(run_date_str, tz=tz)
-            eval_ts = pd.Timestamp(eval_dt, tz=tz) if tz else eval_dt
+            # --- Local parquet path (preferred) ---
+            if prices_dir:
+                parquet = os.path.join(prices_dir, f"{ticker}.parquet")
+                if os.path.exists(parquet):
+                    df = pd.read_parquet(parquet)[['Close']].sort_index()
+                    df.index = pd.to_datetime(df.index).tz_localize(None)
+                    hist = df['Close']
 
-            # Nearest trading day to run_date and eval_date
-            start_idx = hist.index.get_indexer([run_ts], method='nearest')[0]
-            end_idx = hist.index.get_indexer([eval_ts], method='nearest')[0]
+            # --- Live yfinance fallback ---
+            if hist is None:
+                hist = yf_client.fetch_history(ticker, period="1y")
+                if hist is None or len(hist) < 10:
+                    continue
+
+            # Normalise index timezone
+            if hasattr(hist.index, 'tz') and hist.index.tz is not None:
+                hist.index = hist.index.tz_localize(None)
+
+            start_idx = hist.index.get_indexer([run_dt],  method='nearest')[0]
+            end_idx   = hist.index.get_indexer([eval_dt], method='nearest')[0]
 
             start_price = float(hist.iloc[start_idx])
-            end_price = float(hist.iloc[end_idx])
+            end_price   = float(hist.iloc[end_idx])
 
             if start_price > 0:
                 returns[ticker] = {
-                    'ret': (end_price - start_price) / start_price,
+                    'ret':   (end_price - start_price) / start_price,
                     'start': start_price,
-                    'end': end_price,
+                    'end':   end_price,
                 }
         except Exception:
             continue
@@ -109,7 +124,7 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client):
 # Single-run analysis
 # ---------------------------------------------------------------------------
 
-def analyze_run(run, horizon_days, yf_client):
+def analyze_run(run, horizon_days, yf_client, prices_dir=None):
     """
     Analyze one snapshot at one horizon.
 
@@ -126,7 +141,8 @@ def analyze_run(run, horizon_days, yf_client):
         return None
 
     tickers = [s['ticker'] for s in stocks if s.get('ticker')]
-    returns = fetch_forward_returns(tickers, run_date, horizon_days, yf_client)
+    returns = fetch_forward_returns(tickers, run_date, horizon_days, yf_client,
+                                    prices_dir=prices_dir)
 
     spy = returns.get(BENCHMARK)
     spy_ret = spy['ret'] if spy else 0.0
@@ -245,7 +261,7 @@ def analyze_run(run, horizon_days, yf_client):
 # Full backtest across all snapshots and horizons
 # ---------------------------------------------------------------------------
 
-def run_backtest(results_dir, horizons, yf_client):
+def run_backtest(results_dir, horizons, yf_client, prices_dir=None):
     """Run backtest for all snapshots × horizons. Returns list of result dicts."""
     all_results = load_results(results_dir)
     if not all_results:
@@ -273,7 +289,7 @@ def run_backtest(results_dir, horizons, yf_client):
                 continue
 
             print(f"\n  Analyzing {run_date_str} + {h}d → {eval_dt.date()} ...")
-            result = analyze_run(run, h, yf_client)
+            result = analyze_run(run, h, yf_client, prices_dir=prices_dir)
             if result:
                 metrics.append(result)
 
@@ -829,6 +845,8 @@ if __name__ == '__main__':
                         help='Directory containing results_*.json files')
     parser.add_argument('--horizons', default='30,90,180',
                         help='Comma-separated horizon days (default: 30,90,180)')
+    parser.add_argument('--prices-dir', default='output/prices',
+                        help='Directory of per-ticker Parquet price files (default: output/prices)')
     args = parser.parse_args()
 
     horizons = [int(h.strip()) for h in args.horizons.split(',')]
@@ -836,7 +854,12 @@ if __name__ == '__main__':
     from data.yfinance_client import YFinanceClient
     yf_client = YFinanceClient()
 
-    all_metrics = run_backtest(args.results_dir, horizons, yf_client)
+    prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
+    if prices_dir:
+        print(f"Using local price files from: {prices_dir}")
+
+    all_metrics = run_backtest(args.results_dir, horizons, yf_client,
+                               prices_dir=prices_dir)
 
     if all_metrics:
         print_summary(all_metrics)

@@ -271,6 +271,12 @@ SCORING_GATES = [
      lambda v, r, pct: _score_linear(v, 15.0, 0.5), False, True),
     ('Moat: FCF Margin', 'fcf_margin', 'Moat',
      lambda v, r, pct: _score_linear(v, 0.05, 0.25), False, True),    # tightened: worst 0%→5%, best 20%→25%
+    # 12-minus-1 month price momentum (skips last month to avoid short-term reversal).
+    # Scored against the Growth category — not a pure fundamental signal, but confirms
+    # that business trajectory is visible in the market.  Scored as a weak signal
+    # (moderate range) so it doesn't dominate fundamentals.
+    ('Growth: Momentum', 'momentum_12_1', 'Growth',
+     lambda v, r, pct: _score_linear(v, -0.25, 0.35), False, True),   # -25%→0, +35%→100
 ]
 
 

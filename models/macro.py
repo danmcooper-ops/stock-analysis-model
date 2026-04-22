@@ -189,6 +189,107 @@ def compute_macro_adjustments(regime_result):
 
 
 # ---------------------------------------------------------------------------
+# Local Parquet-based sector relative strength
+# ---------------------------------------------------------------------------
+
+# The 11 SPDR sector ETFs + SPY used for relative-strength calculations
+_SECTOR_ETFS = ['XLK', 'XLF', 'XLE', 'XLV', 'XLI', 'XLC', 'XLY', 'XLP', 'XLRE', 'XLB', 'XLU']
+_RS_WINDOWS = {'rs_1m': 21, 'rs_3m': 63, 'rs_6m': 126}
+
+
+def compute_sector_rs_from_local(prices_dir):
+    """Compute trailing relative strength for the 11 sector ETFs vs SPY.
+
+    Loads Parquet price files from *prices_dir* (one file per ticker,
+    named ``<TICKER>.parquet``).  For each sector ETF the function
+    computes the simple price return over three trailing windows and
+    expresses it relative to the concurrent SPY return.
+
+    Args:
+        prices_dir: str or Path — directory containing ``<TICKER>.parquet``
+            files with at least a ``Close`` column.
+
+    Returns:
+        dict keyed by ETF ticker::
+
+            {
+                'XLK': {
+                    'rs_1m': 0.032,   # (ETF return - SPY return) over 21 days
+                    'rs_3m': 0.018,
+                    'rs_6m': -0.005,
+                    'trend': 'improving' | 'deteriorating' | 'stable',
+                },
+                ...
+            }
+
+        ETFs whose Parquet files are missing or unreadable are silently
+        omitted from the result (a warning is printed).
+    """
+    import os
+    import warnings
+    import pandas as pd
+
+    prices_dir = str(prices_dir)
+
+    # Load SPY first — it is the benchmark for all RS calculations
+    spy_path = os.path.join(prices_dir, 'SPY.parquet')
+    try:
+        spy_df = pd.read_parquet(spy_path, columns=['Close'])
+        spy_close = spy_df['Close'].dropna().sort_index()
+    except Exception as exc:
+        warnings.warn(f"compute_sector_rs_from_local: cannot load SPY ({exc}); aborting.")
+        return {}
+
+    result = {}
+    for ticker in _SECTOR_ETFS:
+        etf_path = os.path.join(prices_dir, f'{ticker}.parquet')
+        try:
+            etf_df = pd.read_parquet(etf_path, columns=['Close'])
+            etf_close = etf_df['Close'].dropna().sort_index()
+        except Exception as exc:
+            warnings.warn(f"compute_sector_rs_from_local: skipping {ticker} ({exc})")
+            continue
+
+        rs_values = {}
+        for key, window in _RS_WINDOWS.items():
+            try:
+                # Use the most recent price as the end point for both series
+                etf_ret = (etf_close.iloc[-1] / etf_close.iloc[-window - 1] - 1.0
+                           if len(etf_close) > window else None)
+                spy_ret = (spy_close.iloc[-1] / spy_close.iloc[-window - 1] - 1.0
+                           if len(spy_close) > window else None)
+                if etf_ret is not None and spy_ret is not None:
+                    rs_values[key] = round(float(etf_ret - spy_ret), 6)
+                else:
+                    rs_values[key] = None
+            except Exception:
+                rs_values[key] = None
+
+        rs_1m = rs_values.get('rs_1m')
+        rs_3m = rs_values.get('rs_3m')
+        rs_6m = rs_values.get('rs_6m')
+
+        if rs_1m is not None and rs_3m is not None and rs_6m is not None:
+            if rs_1m > rs_3m > rs_6m:
+                trend = 'improving'
+            elif rs_1m < rs_3m < rs_6m:
+                trend = 'deteriorating'
+            else:
+                trend = 'stable'
+        else:
+            trend = 'stable'
+
+        result[ticker] = {
+            'rs_1m': rs_1m,
+            'rs_3m': rs_3m,
+            'rs_6m': rs_6m,
+            'trend': trend,
+        }
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Sector headwind / tailwind generator
 # ---------------------------------------------------------------------------
 
@@ -201,12 +302,15 @@ _DEFENSIVE = {'Healthcare', 'Consumer Defensive', 'Utilities'}
 _CYCLICAL = {'Energy', 'Basic Materials', 'Industrials', 'Consumer Cyclical'}
 
 
-def generate_sector_signals(sector_data, macro_regime_result):
+def generate_sector_signals(sector_data, macro_regime_result, local_rs=None):
     """Generate headwinds and tailwinds per sector from ETF data + macro regime.
 
     Args:
         sector_data: dict[sector → metrics] from MacroClient.fetch_sector_data()
         macro_regime_result: dict from assess_macro_regime() (may be None)
+        local_rs: optional dict from compute_sector_rs_from_local() — when
+            provided, a formatted RS summary is prepended to each matching
+            sector's signals list as an informational entry in *tailwinds*.
 
     Returns:
         dict[sector → {'headwinds': [str], 'tailwinds': [str]}]
@@ -219,10 +323,41 @@ def generate_sector_signals(sector_data, macro_regime_result):
     vix = raw.get('vix')
     yc_slope = raw.get('yield_curve_slope')
 
+    # Build a reverse map: GICS sector name → ETF ticker so we can look up
+    # local_rs data when iterating over sector_data keys.
+    _SECTOR_TO_ETF = {
+        'Technology': 'XLK',
+        'Financial Services': 'XLF',
+        'Energy': 'XLE',
+        'Healthcare': 'XLV',
+        'Industrials': 'XLI',
+        'Communication Services': 'XLC',
+        'Consumer Cyclical': 'XLY',
+        'Consumer Defensive': 'XLP',
+        'Real Estate': 'XLRE',
+        'Basic Materials': 'XLB',
+        'Utilities': 'XLU',
+    }
+
     result = {}
     for sector, metrics in sector_data.items():
         headwinds = []
         tailwinds = []
+
+        # --- Local RS signal (prepended as first tailwind entry) ---
+        if local_rs:
+            etf_ticker = _SECTOR_TO_ETF.get(sector)
+            if etf_ticker and etf_ticker in local_rs:
+                rs = local_rs[etf_ticker]
+                rs_1m = rs.get('rs_1m')
+                rs_3m = rs.get('rs_3m')
+                rs_6m = rs.get('rs_6m')
+                trend = rs.get('trend', 'stable')
+                rs_1m_str = f'{rs_1m:+.1%}' if rs_1m is not None else 'N/A'
+                rs_3m_str = f'{rs_3m:+.1%}' if rs_3m is not None else 'N/A'
+                tailwinds.append(
+                    f'[ETF: {etf_ticker}] 1m RS: {rs_1m_str}, 3m RS: {rs_3m_str}, trend: {trend}'
+                )
 
         # --- Macro-level signals (apply to all sectors) ---
         if vix is not None:

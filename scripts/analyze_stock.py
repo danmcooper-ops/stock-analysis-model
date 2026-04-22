@@ -45,7 +45,8 @@ from scripts.report_excel import build_excel
 from scripts.report_html import build_html
 from data.macro_client import MacroClient
 from models.macro import (assess_macro_regime, compute_macro_adjustments,
-                          print_macro_summary, generate_sector_signals)
+                          print_macro_summary, generate_sector_signals,
+                          compute_sector_rs_from_local)
 from models.narrative import generate_stock_narrative, generate_financial_summary
 from data.news_client import NewsClient
 from data.tiingo_client import TiingoClient
@@ -84,6 +85,78 @@ from scripts.scoring import (_mc_confidence_label, apply_screening_matrix,
                              compute_continuous_scores,
                              apply_composite_rating_override,
                              _print_validation_stats)
+
+
+# ---------------------------------------------------------------------------
+# Local price file helpers
+# ---------------------------------------------------------------------------
+
+def _load_local_prices(ticker, prices_dir):
+    """Load Close price series from local Parquet file. Returns pd.Series or None."""
+    if not prices_dir:
+        return None
+    path = os.path.join(prices_dir, f"{ticker}.parquet")
+    if not os.path.exists(path):
+        return None
+    try:
+        df = pd.read_parquet(path)[['Close']].sort_index()
+        df.index = pd.to_datetime(df.index).tz_localize(None)
+        return df['Close']
+    except Exception:
+        return None
+
+
+def _compute_rolling_beta(stock_close, market_close, window_years):
+    """Compute beta and R² over a trailing window of *window_years* years."""
+    window_days = int(window_years * 252)
+    s = stock_close.tail(window_days)
+    m = market_close.reindex(s.index, method='nearest').reindex(s.index)
+    combined = pd.DataFrame({'s': s, 'm': m}).dropna()
+    if len(combined) < 60:
+        return None
+    stock_ret  = combined['s'].pct_change().dropna().values
+    market_ret = combined['m'].pct_change().dropna().values
+    n = min(len(stock_ret), len(market_ret))
+    return calculate_beta(stock_ret[:n], market_ret[:n])
+
+
+def _realized_vol(close_series, window_days=252):
+    """Annualized realized volatility over the trailing *window_days* trading days."""
+    ret = close_series.pct_change().dropna()
+    tail = ret.tail(window_days)
+    if len(tail) < 60:
+        return None
+    return float(tail.std() * np.sqrt(252))
+
+
+def _momentum_12_1(close_series, as_of=None):
+    """12-minus-1 month price momentum (skips most recent month to avoid reversal)."""
+    as_of = as_of or pd.Timestamp.today().normalize()
+    mo12 = as_of - pd.DateOffset(months=12)
+    mo1  = as_of - pd.DateOffset(months=1)
+    s    = close_series.loc[close_series.index <= as_of]
+    if s.empty:
+        return None
+    after_mo12 = s.loc[s.index >= mo12]
+    before_mo1 = s.loc[s.index <= mo1]
+    if after_mo12.empty or before_mo1.empty:
+        return None
+    p_start = float(after_mo12.iloc[0])
+    p_end   = float(before_mo1.iloc[-1])
+    if p_start <= 0:
+        return None
+    return (p_end - p_start) / p_start
+
+
+def _max_drawdown_period(close_series, start, end):
+    """Max drawdown (as negative fraction) within [start, end]. Returns None if no data."""
+    s = close_series.loc[(close_series.index >= pd.Timestamp(start)) &
+                         (close_series.index <= pd.Timestamp(end))]
+    if len(s) < 5:
+        return None
+    roll_max = s.cummax()
+    dd = (s - roll_max) / roll_max
+    return float(dd.min())
 
 
 # ---------------------------------------------------------------------------
@@ -879,7 +952,11 @@ def _main():
                         help='Validation Excel (poor performers, same column structure as --input)')
     parser.add_argument('--macro', action='store_true',
                         help='Enable macro-economic overlay (adjusts ERP, growth, sigma based on market regime)')
+    parser.add_argument('--prices-dir', default='output/prices',
+                        help='Directory of per-ticker Parquet price files for rolling beta, '
+                             'realized vol, momentum, and drawdown (default: output/prices)')
     args = parser.parse_args()
+    prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
 
     # Fetch live risk-free rate (10-yr Treasury yield)
     risk_free_rate = fetch_risk_free_rate()
@@ -897,6 +974,7 @@ def _main():
     sector_signals = {}
     commodity_data = {}
     sector_etf_data = {}
+    local_rs = None
 
     if args.macro:
         try:
@@ -915,7 +993,13 @@ def _main():
 
             # Sector headwind/tailwind analysis
             sector_etf_data = mc_client.fetch_sector_data()
-            sector_signals = generate_sector_signals(sector_etf_data, macro_regime_result)
+            local_rs = None
+            if prices_dir:
+                try:
+                    local_rs = compute_sector_rs_from_local(prices_dir)
+                except Exception as _rs_exc:
+                    print(f"  Sector RS from local prices failed ({_rs_exc}), skipping.")
+            sector_signals = generate_sector_signals(sector_etf_data, macro_regime_result, local_rs=local_rs)
             # Commodity & cross-sector data for stock-level narrative
             commodity_data = mc_client.fetch_commodity_data()
         except Exception as e:
@@ -1126,6 +1210,10 @@ def _main():
     # -----------------------------------------------------------------------
     # Phase 2: Full analysis on qualifying tickers (Worksheet Steps 2-5)
     # -----------------------------------------------------------------------
+
+    # Pre-load SPY local prices once for rolling-beta comparisons
+    _spy_local = _load_local_prices('SPY', prices_dir)
+
     results = []
     for ticker in qualifying:
         print(f"Analyzing {ticker}...")
@@ -1136,6 +1224,55 @@ def _main():
             roic_data = cached['roic_data']
             cost_of_equity = cached['cost_of_equity']
             beta_diag = cached.get('beta_diag')
+
+            # --- Price-history enrichments (local Parquet) ---
+            _local_close = _load_local_prices(ticker, prices_dir)
+            _ticker_realized_vol = None
+            _ticker_momentum     = None
+            _ticker_dd_2008      = None
+            _ticker_dd_2020      = None
+            _ticker_dd_2022      = None
+            _rolling_beta_diag   = {}
+
+            if _local_close is not None and len(_local_close) > 60:
+                # 1. Realized volatility (252-day) → replaces fixed MC_WACC_SIGMA
+                _ticker_realized_vol = _realized_vol(_local_close)
+
+                # 2. 12-minus-1 month momentum
+                _ticker_momentum = _momentum_12_1(_local_close)
+
+                # 3. Max drawdown in key stress periods
+                _ticker_dd_2008 = _max_drawdown_period(_local_close, '2008-01-01', '2009-03-31')
+                _ticker_dd_2020 = _max_drawdown_period(_local_close, '2020-01-01', '2020-09-30')
+                _ticker_dd_2022 = _max_drawdown_period(_local_close, '2022-01-01', '2022-12-31')
+
+                # 4. Rolling beta across 1yr / 3yr / 5yr windows
+                if _spy_local is not None:
+                    for _yrs, _label in [(1, '1y'), (3, '3y'), (5, '5y')]:
+                        _rb = _compute_rolling_beta(_local_close, _spy_local, _yrs)
+                        if _rb:
+                            _rolling_beta_diag[_label] = {
+                                'beta': round(_rb['adjusted_beta'], 3),
+                                'r2':   round(_rb['r_squared'], 3),
+                            }
+                    # Promote the best-R² window's beta into beta_diag
+                    if _rolling_beta_diag:
+                        _best = max(_rolling_beta_diag.items(),
+                                    key=lambda kv: kv[1]['r2'])
+                        if beta_diag is None:
+                            beta_diag = {}
+                        beta_diag['rolling_betas'] = _rolling_beta_diag
+                        beta_diag['best_window']   = _best[0]
+                        # Compute beta stability (std of betas across windows)
+                        _betas = [v['beta'] for v in _rolling_beta_diag.values()]
+                        beta_diag['beta_stability'] = round(float(np.std(_betas)), 3) if len(_betas) > 1 else 0.0
+
+            # Use ticker realized vol for MC WACC sigma (floor at macro-adjusted base)
+            _effective_wacc_sigma_ticker = effective_wacc_sigma
+            if _ticker_realized_vol is not None:
+                # WACC sigma ≈ 30% of realized equity vol (equity → WACC dampening)
+                _rv_wacc = _ticker_realized_vol * 0.30
+                _effective_wacc_sigma_ticker = max(effective_wacc_sigma, min(_rv_wacc, 0.04))
 
             # Gross margin (moat gate) and ROIC consistency
             gross_margin = _compute_gross_margin(yf_data)
@@ -1236,7 +1373,7 @@ def _main():
                 exit_multiple=sector_exit_multiples.get(sector, effective_exit_mult_default),
                 roic_data=roic_data,
                 terminal_growth_adj=effective_tg_adj,
-                wacc_sigma=effective_wacc_sigma,
+                wacc_sigma=_effective_wacc_sigma_ticker,
                 tg_sigma=MC_TERMINAL_GROWTH_SIGMA,
                 growth_sigma_mult=effective_growth_sigma_mult,
                 growth_weight_shift=effective_growth_weight_shift)
@@ -1618,6 +1755,13 @@ def _main():
                 'rd_intensity': rd_intensity,
                 'sga_pct_rev': sga_pct_rev,
                 'sga_yoy_change': sga_yoy_change,
+                # --- Price-history signals ---
+                'momentum_12_1':   round(_ticker_momentum, 4) if _ticker_momentum is not None else None,
+                'realized_vol':    round(_ticker_realized_vol, 4) if _ticker_realized_vol is not None else None,
+                'drawdown_2008':   round(_ticker_dd_2008, 4) if _ticker_dd_2008 is not None else None,
+                'drawdown_2020':   round(_ticker_dd_2020, 4) if _ticker_dd_2020 is not None else None,
+                'drawdown_2022':   round(_ticker_dd_2022, 4) if _ticker_dd_2022 is not None else None,
+                'rolling_betas':   _rolling_beta_diag if _rolling_beta_diag else None,
             }
             # Composite rating (Worksheet Decision Matrix)
             row['rating'] = compute_rating(row)
@@ -2188,6 +2332,8 @@ def _main():
     if macro_regime_result:
         json_meta['macro_regime'] = macro_regime_result
         json_meta['macro_adjustments'] = macro_adj
+        if local_rs:
+            json_meta['sector_local_rs'] = local_rs
     json_meta['results'] = json_rows
     with open(json_filename, 'w') as f:
         json.dump(json_meta, f, indent=2, default=str)
