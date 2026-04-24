@@ -6,6 +6,7 @@ import io
 import json
 from datetime import date
 from statistics import median as _median
+import numpy as np
 import pandas as pd
 from urllib.request import urlopen, Request
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -2302,7 +2303,7 @@ def _main():
     os.makedirs("output", exist_ok=True)
     today_str = date.today().isoformat()
     html_filename = os.path.join("output", f"stock_analysis_results_{today_str}.html")
-    build_html(results, html_filename)
+    build_html(results, html_filename, prices_dir=prices_dir)
     xlsx_filename = os.path.join("output", f"stock_analysis_results_{today_str}.xlsx")
     build_excel(results, xlsx_filename)
 
