@@ -448,6 +448,49 @@ def build_html(rows, filename, prices_dir=None):
                 print(f"[warn] sector pool narrative failed for {s}: {e}")
     sector_pool_json = json.dumps(sector_pool_data, default=_json_default)
 
+    # Historical fundamentals (EDGAR annual) per ticker
+    hist_data = 'null'
+    try:
+        _hist_out = {}
+        _hist_fields = [
+            ('revenue_history', 'rev'),
+            ('earnings_history', 'ni'),
+            ('operating_cf_history', 'ocf'),
+            ('capex_history', 'capex'),
+            ('gross_profit_history', 'gp'),
+            ('shares_history', 'shares'),
+            ('dividends_paid_history', 'div'),
+        ]
+        for r in rows:
+            tk = r.get('ticker')
+            if not tk:
+                continue
+            eh = r.get('edgar_history') or {}
+            tick_hist = {}
+            has_any = False
+            for src_key, out_key in _hist_fields:
+                series = eh.get(src_key) or r.get(src_key) or {}
+                if isinstance(series, dict) and series:
+                    try:
+                        tick_hist[out_key] = {
+                            str(int(y)): float(v)
+                            for y, v in series.items()
+                            if v is not None
+                        }
+                        if tick_hist[out_key]:
+                            has_any = True
+                        else:
+                            tick_hist.pop(out_key, None)
+                    except (ValueError, TypeError):
+                        pass
+            if has_any:
+                _hist_out[tk] = tick_hist
+        if _hist_out:
+            hist_data = json.dumps(_hist_out, default=_json_default)
+            print(f"[report_html] edgar history: {len(_hist_out)} tickers")
+    except Exception as _e:
+        print(f"[warn] edgar history load failed: {_e}")
+
     # Load price history from local Parquet files
     prices_data = 'null'
     if prices_dir and os.path.isdir(prices_dir):
@@ -523,6 +566,7 @@ def build_html(rows, filename, prices_dir=None):
         gate_meta=gate_meta,
         sector_pool_json=sector_pool_json,
         prices_data=prices_data,
+        hist_data=hist_data,
         generated_at=date.today().strftime('%B %-d, %Y'),
     )
 

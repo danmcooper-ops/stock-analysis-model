@@ -36,3 +36,5 @@ PPE_KEYS = ['Net PPE', 'Property Plant Equipment Net', 'Property Plant And Equip
 SGA_KEYS = ['Selling General And Administration', 'Selling And Marketing Expense']
 GROSS_PROFIT_KEYS = ['Gross Profit']
 LTD_KEYS = ['Long Term Debt']
+CAPEX_KEYS = ['Capital Expenditure', 'Purchase Of Ppe', 'Purchases Of Property Plant And Equipment']
+DIVIDENDS_PAID_KEYS = ['Common Stock Dividend Paid', 'Payment Of Dividends', 'Cash Dividends Paid']
