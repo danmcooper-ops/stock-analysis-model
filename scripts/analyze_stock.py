@@ -1104,6 +1104,19 @@ def _main():
     # -----------------------------------------------------------------------
     # Phase 1: Collect data for full universe (no ROIC > WACC pre-filter)
     # -----------------------------------------------------------------------
+    _skip_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'skip_tickers.txt')
+    _skip_set = set()
+    try:
+        with open(_skip_path) as _sf:
+            for _line in _sf:
+                _t = _line.split('#')[0].strip().upper()
+                if _t:
+                    _skip_set.add(_t)
+        if _skip_set:
+            print(f"Skipping {len(_skip_set)} ticker(s) from skip_tickers.txt: {', '.join(sorted(_skip_set))}")
+    except FileNotFoundError:
+        pass
+
     print(f"Processing {len(all_tickers)} tickers (full universe)...")
     qualifying = []
     screen_cache = {}
@@ -1111,6 +1124,10 @@ def _main():
                        'poor': {'total': 0, 'passed': 0}}
 
     for i, ticker in enumerate(all_tickers, 1):
+        if ticker in _skip_set:
+            print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP (skip_tickers.txt)")
+            sys.stdout.flush()
+            continue
         _grp = ticker_source.get(ticker, 'quality')
         screen_outcomes[_grp]['total'] += 1
         try:
