@@ -956,6 +956,12 @@ def _main():
     parser.add_argument('--prices-dir', default='output/prices',
                         help='Directory of per-ticker Parquet price files for rolling beta, '
                              'realized vol, momentum, and drawdown (default: output/prices)')
+    parser.add_argument('--universe', choices=('sp500', 'us'), default='sp500',
+                        help='Ticker universe: sp500 (S&P 500 + Dow, ~500 stocks, default) or '
+                             'us (all US-listed equities via SEC EDGAR, ~7000-8000 stocks).')
+    parser.add_argument('--sec-email', default=os.environ.get('SEC_EMAIL', 'stockanalysis@example.com'),
+                        help='Contact email for SEC EDGAR User-Agent (used by --universe us). '
+                             'Override via --sec-email or SEC_EMAIL env var.')
     args = parser.parse_args()
     prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
 
@@ -1040,6 +1046,16 @@ def _main():
     nyse = set(get_nyse_tickers())
     dow = set(get_dow_tickers())
     all_tickers = sorted(sp500 | nyse | dow)
+
+    # Optional broader universe from SEC EDGAR (--universe us)
+    if args.universe == 'us':
+        from data.us_listings import fetch_us_listed_tickers
+        print(f"Fetching US-listed universe from SEC EDGAR (User-Agent: {args.sec_email})...")
+        us_tickers = fetch_us_listed_tickers(email=args.sec_email)
+        before = len(all_tickers)
+        all_tickers = sorted(set(all_tickers) | set(us_tickers))
+        print(f"  US-listed: {len(us_tickers):,} tickers; universe expanded {before} -> {len(all_tickers):,}")
+
     for t in all_tickers:
         ticker_source[t] = 'quality'
 
