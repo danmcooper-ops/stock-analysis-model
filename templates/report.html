@@ -85,6 +85,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .sub-btn{padding:2px 7px;font-size:0.7em;}
   .filter-bar{flex-direction:row;flex-wrap:nowrap;padding:2px 0;gap:5px;}
   .filter-bar input[type="text"]{width:auto;flex:1;min-width:0;padding:3px 8px;font-size:0.8em;}
+  .filter-bar .search-wrap{width:auto;flex:1;min-width:0;}
   .filter-bar .ms-wrap,.filter-bar .filter-divider,.filter-bar .fpop-wrap,.filter-bar .filter-clear,.filter-bar .filter-count{display:none;}
   .mob-filter-btn{display:inline-flex;padding:3px 8px;font-size:0.78em;}
   .filter-bar.mob-expanded{flex-wrap:wrap;}
@@ -114,6 +115,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .filter-bar input,.filter-bar select{padding:6px 12px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;outline:none;}
 .filter-bar input:focus,.filter-bar select:focus{border-color:var(--accent);}
 .filter-bar input[type="text"]{width:200px;}
+.search-wrap{position:relative;display:inline-block;}
+.filter-bar .search-wrap{width:200px;}
+.filter-bar .search-wrap > input[type="text"]{width:100%;padding-right:26px;}
+.search-clear{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:15px;line-height:1;color:#7f8c9a;cursor:pointer;padding:2px 6px;border-radius:50%;display:none;}
+.search-clear:hover{color:#1a252f;background:#e8ecef;}
+.search-wrap input:not(:placeholder-shown) ~ .search-clear{display:block;}
 .f-metric-sel{padding:5px 8px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;max-width:180px;}
 .f-metric-sel:focus{border-color:var(--accent);}
 .fpop-wrap{position:relative;display:inline-block;}
@@ -442,7 +449,7 @@ td.ct{font-weight:700;}
     <button class="nav-btn" data-view="pool" onclick="showView('pool')">Profit Pool Analysis</button>
   </div>
   <div class="filter-bar" id="filter-bar">
-    <input type="text" id="f-search" placeholder="Search ticker..." oninput="applyFilters()">
+    <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker..." oninput="applyFilters()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
     <button class="mob-filter-btn" id="mob-filter-btn" onclick="toggleMobFilters()">&#9776; Filters</button>
     <div class="ms-wrap" id="ms-rating">
       <div class="ms-btn" onclick="msToggle('ms-rating')">All Ratings</div>
@@ -839,6 +846,7 @@ function toggleMobFilters(){
   var open=fb.classList.toggle('mob-expanded');
   if(btn)btn.classList.toggle('active',open);
 }
+function clearSearch(){var el=document.getElementById('f-search');el.value='';el.focus();applyFilters();}
 function clearFilters(){
   document.getElementById('f-search').value='';
   msToggleAll('ms-rating',true);
