@@ -18,9 +18,10 @@
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-text-size-adjust:100%;text-size-adjust:100%;}
-.header{background:linear-gradient(135deg,#1a252f,#2980b9);color:white;padding:14px 160px 14px 20px;text-align:center;min-height:64px;display:flex;flex-direction:column;justify-content:center;}
+.header{background:linear-gradient(135deg,#1a252f,#2980b9);color:white;padding:14px 160px 14px 20px;text-align:center;min-height:64px;display:flex;flex-direction:column;justify-content:center;position:relative;}
 .header h1{font-size:2em;margin-bottom:0;}
 .header p{font-size:0.95em;opacity:0.85;}
+.last-updated{position:absolute;top:50%;right:20px;transform:translateY(-50%);font-size:0.7em;opacity:0.65;text-align:right;display:flex;flex-direction:column;gap:2px;white-space:nowrap;}
 .mob-filter-btn{display:none;padding:5px 10px;font-size:0.82em;border:1px solid #b0b8c8;border-radius:5px;background:#fff;cursor:pointer;color:#445;white-space:nowrap;align-items:center;gap:4px;flex-shrink:0;}
 .mob-filter-btn.active{background:#e8f0ff;border-color:var(--accent);color:var(--accent);}
 @media(max-width:768px){
@@ -211,8 +212,6 @@ td.ct{font-weight:700;}
 .matrix-table td.tk{position:sticky;left:56px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
 .matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk{background:rgba(255,255,255,0.97);}
 .matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk{background:#eaf4fd!important;}
-.last-updated{position:absolute;top:50%;right:20px;transform:translateY(-50%);font-size:0.7em;opacity:0.65;text-align:right;display:flex;flex-direction:column;gap:2px;white-space:nowrap;}
-.header{position:relative;}
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
 .dt th:first-child{text-align:left;}
 .dt th .arrow{margin-left:3px;font-size:0.7em;}
