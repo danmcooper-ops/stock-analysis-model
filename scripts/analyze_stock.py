@@ -962,6 +962,15 @@ def _main():
     parser.add_argument('--sec-email', default=os.environ.get('SEC_EMAIL', 'stockanalysis@example.com'),
                         help='Contact email for SEC EDGAR User-Agent (used by --universe us). '
                              'Override via --sec-email or SEC_EMAIL env var.')
+    parser.add_argument('--min-spread', type=float, default=None, metavar='FRAC',
+                        help='Phase-1 filter: skip tickers where ROIC - WACC < FRAC. '
+                             'Use 0 to keep only value-creating businesses (ROIC > WACC). '
+                             'Tickers where spread cannot be computed are also skipped. '
+                             'Recommended with --universe us to keep Phase-2 manageable.')
+    parser.add_argument('--mcap-min', type=float, default=0, metavar='DOLLARS',
+                        help='Phase-1 filter: skip tickers with market cap below this threshold '
+                             '(e.g. 500e6 for $500M). Default 0 = no filter. '
+                             'Useful with --universe us to drop shells and micro-caps quickly.')
     args = parser.parse_args()
     prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
 
@@ -1120,6 +1129,25 @@ def _main():
 
             spread = (roic_data['avg_roic'] - wacc
                       if (roic_data and wacc is not None) else None)
+
+            # --- Phase-1 filters (applied before expensive Phase-2 work) ---
+            mcap = info.get('marketCap') or 0
+            roic_str = f"ROIC {roic_data['avg_roic']:.1%} " if roic_data else "ROIC N/A "
+            wacc_str = f"WACC {wacc:.1%} " if wacc is not None else "WACC N/A "
+            spread_str = f"spread {spread:.1%}" if spread is not None else "spread N/A"
+
+            if args.mcap_min and mcap < args.mcap_min:
+                print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP mcap ${mcap/1e6:.0f}M < ${args.mcap_min/1e6:.0f}M floor")
+                sys.stdout.flush()
+                continue
+
+            if args.min_spread is not None:
+                if spread is None or spread < args.min_spread:
+                    label = "no spread" if spread is None else f"spread {spread:.1%}"
+                    print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP {label} < min {args.min_spread:.1%}")
+                    sys.stdout.flush()
+                    continue
+
             qualifying.append(ticker)
             screen_outcomes[_grp]['passed'] += 1
             screen_cache[ticker] = {
@@ -1128,9 +1156,6 @@ def _main():
                 're_method': re_method, 'yf_data': yf_data,
                 'beta_diag': beta_diag,
             }
-            roic_str = f"ROIC {roic_data['avg_roic']:.1%} " if roic_data else "ROIC N/A "
-            wacc_str = f"WACC {wacc:.1%} " if wacc is not None else "WACC N/A "
-            spread_str = f"spread {spread:.1%}" if spread is not None else "spread N/A"
             print(f"  [{i}/{len(all_tickers)}] {ticker} - {roic_str}{wacc_str}{spread_str} [{re_method}]")
 
         except Exception as e:
