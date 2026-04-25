@@ -1117,6 +1117,34 @@ def _main():
     except FileNotFoundError:
         pass
 
+    # Tickers that appeared in the most recent prior run bypass the mcap/spread
+    # Phase-1 filters so that previously-scored stocks are always re-evaluated.
+    # This maintains backtest continuity even when a stock dips marginally below
+    # a filter threshold due to data fluctuation.
+    _carry_set = set()
+    try:
+        import glob as _glob
+        _prior_jsons = sorted(_glob.glob(os.path.join('output', 'results_*.json')))
+        if _prior_jsons:
+            _prior_path = _prior_jsons[-1]
+            with open(_prior_path) as _pf:
+                _prior = json.load(_pf)
+            _prior_rows = _prior.get('results', _prior) if isinstance(_prior, dict) else _prior
+            _carry_set = {r['ticker'] for r in _prior_rows if r.get('ticker')} - _skip_set
+            print(f"Carry-forward: {len(_carry_set)} ticker(s) from {os.path.basename(_prior_path)} "
+                  f"will bypass Phase-1 filters")
+            # Also ensure carry-forward tickers are in the universe (they may
+            # have been excluded by the --universe sp500 scope or the SEC list).
+            _existing = set(all_tickers)
+            _extra_carried = [t for t in sorted(_carry_set) if t not in _existing]
+            if _extra_carried:
+                all_tickers = all_tickers + _extra_carried
+                for _t in _extra_carried:
+                    ticker_source[_t] = 'quality'
+                print(f"  Added {len(_extra_carried)} carry-forward ticker(s) not already in universe")
+    except Exception as _ce:
+        print(f"[warn] carry-forward load failed: {_ce}")
+
     print(f"Processing {len(all_tickers)} tickers (full universe)...")
     qualifying = []
     screen_cache = {}
@@ -1153,12 +1181,13 @@ def _main():
             wacc_str = f"WACC {wacc:.1%} " if wacc is not None else "WACC N/A "
             spread_str = f"spread {spread:.1%}" if spread is not None else "spread N/A"
 
-            if args.mcap_min and mcap < args.mcap_min:
+            _carried = ticker in _carry_set
+            if args.mcap_min and mcap < args.mcap_min and not _carried:
                 print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP mcap ${mcap/1e6:.0f}M < ${args.mcap_min/1e6:.0f}M floor")
                 sys.stdout.flush()
                 continue
 
-            if args.min_spread is not None:
+            if args.min_spread is not None and not _carried:
                 if spread is None or spread < args.min_spread:
                     label = "no spread" if spread is None else f"spread {spread:.1%}"
                     print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP {label} < min {args.min_spread:.1%}")
