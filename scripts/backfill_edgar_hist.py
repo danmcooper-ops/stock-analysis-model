@@ -118,7 +118,7 @@ def main():
     try:
         from scripts.report_html import build_html
         html_path = json_path.replace('results_', 'stock_analysis_results_').replace('.json', '.html')
-        prices_dir = os.path.join(os.path.dirname(json_path), '..', 'output', 'prices')
+        prices_dir = os.path.join(os.path.dirname(os.path.abspath(json_path)), 'prices')
         if not os.path.isdir(prices_dir):
             prices_dir = None
         build_html(rows, html_path, prices_dir=prices_dir)

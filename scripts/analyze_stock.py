@@ -2465,13 +2465,36 @@ def _main():
         """Recursively convert a value to a JSON-safe structure (max depth 8)."""
         if _depth > 8:
             return None
-        if isinstance(val, (int, float, str, bool, type(None))):
+        # None and bool must come before int (bool is a subclass of int in Python)
+        if val is None or isinstance(val, bool):
             return val
+        if isinstance(val, int):
+            return val
+        if isinstance(val, float):
+            # inf/nan are not valid JSON; replace with None (→ JSON null)
+            import math
+            return None if (math.isnan(val) or math.isinf(val)) else val
+        if isinstance(val, str):
+            return val
+        # numpy scalars — np.int64/int32 are NOT subclasses of int;
+        # np.float32 is NOT a subclass of float; handle explicitly
+        try:
+            import numpy as _np
+            if isinstance(val, _np.integer):
+                return int(val)
+            if isinstance(val, _np.floating):
+                v = float(val)
+                import math
+                return None if (math.isnan(v) or math.isinf(v)) else v
+            if isinstance(val, _np.bool_):
+                return bool(val)
+        except ImportError:
+            pass
         if isinstance(val, dict):
             return {str(k): _make_json_safe(v, _depth + 1) for k, v in val.items()}
         if isinstance(val, (list, tuple)):
             return [_make_json_safe(x, _depth + 1) for x in val]
-        # pandas Timestamp, numpy scalars, etc.
+        # pandas Timestamp, Decimal, and other stringifiable types
         try:
             return str(val)
         except Exception:
