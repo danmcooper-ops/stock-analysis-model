@@ -25,10 +25,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .mob-filter-btn{display:none;padding:5px 10px;font-size:0.82em;border:1px solid #b0b8c8;border-radius:5px;background:#fff;cursor:pointer;color:#445;white-space:nowrap;align-items:center;gap:4px;flex-shrink:0;}
 .mob-filter-btn.active{background:#e8f0ff;border-color:var(--accent);color:var(--accent);}
 @media(max-width:768px){
-  .header{padding:4px 75px 4px 10px;min-height:32px;}
+  .header{padding:5px 10px;min-height:unset;flex-direction:row;justify-content:center;align-items:center;gap:6px;}
   .header>p{display:none;}
-  .header h1{font-size:0.88em;margin:0;}
-  .last-updated{right:10px;font-size:0.54em;gap:1px;}
+  .header h1{font-size:0.88em;margin:0;flex:1;text-align:center;}
+  .last-updated{position:static;transform:none;flex-direction:column;align-items:flex-end;text-align:right;font-size:0.52em;gap:1px;flex-shrink:0;order:1;}
   .container{padding:3px 6px;}
   .dt th{padding:5px 5px;}
   .dt td{padding:4px 5px;font-size:0.78em;}
