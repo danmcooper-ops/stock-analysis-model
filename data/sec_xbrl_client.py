@@ -17,6 +17,8 @@ from datetime import datetime as _dt
 from models.field_keys import (
     _get, REVENUE_KEYS, NET_INCOME_KEYS, TOTAL_ASSETS_KEYS,
     EQUITY_KEYS, DEBT_KEYS, OPERATING_INCOME_KEYS, CASH_KEYS,
+    OPERATING_CF_KEYS, GROSS_PROFIT_KEYS, INTEREST_KEYS,
+    CAPEX_KEYS, DIVIDENDS_PAID_KEYS,
 )
 
 
@@ -60,6 +62,31 @@ class SECXBRLClient:
             'CashAndCashEquivalentsAtCarryingValue',
             'CashCashEquivalentsAndShortTermInvestments',
         ],
+        'operating_cash_flow': [
+            'NetCashProvidedByUsedInOperatingActivities',
+        ],
+        'capex': [
+            'PaymentsToAcquirePropertyPlantAndEquipment',
+            'PaymentsForCapitalImprovements',
+            'CapitalExpendituresIncurringObligation',
+        ],
+        'gross_profit': [
+            'GrossProfit',
+        ],
+        'interest_expense': [
+            'InterestExpense',
+            'InterestAndDebtExpense',
+            'InterestExpenseDebt',
+        ],
+        'dividends_paid': [
+            'PaymentsOfDividendsCommonStock',
+            'PaymentsOfDividends',
+            'DividendsCommonStockCash',
+        ],
+        'shares_outstanding': [
+            'CommonStockSharesOutstanding',
+            'CommonStockSharesOutstandingBasic',
+        ],
     }
 
     # Map XBRL concept names to yfinance field_keys lists for cross-validation
@@ -69,6 +96,9 @@ class SECXBRLClient:
         'total_assets': TOTAL_ASSETS_KEYS,
         'total_equity': EQUITY_KEYS,
         'total_debt': DEBT_KEYS,
+        'operating_cash_flow': OPERATING_CF_KEYS,
+        'gross_profit': GROSS_PROFIT_KEYS,
+        'interest_expense': INTEREST_KEYS,
     }
 
     # Which yfinance statement contains each concept
@@ -78,6 +108,9 @@ class SECXBRLClient:
         'total_assets': 'balance_sheet',
         'total_equity': 'balance_sheet',
         'total_debt': 'balance_sheet',
+        'operating_cash_flow': 'cash_flow',
+        'gross_profit': 'income_statement',
+        'interest_expense': 'income_statement',
     }
 
     def __init__(self, cik_map, name_map,
@@ -143,7 +176,7 @@ class SECXBRLClient:
         self._cache[ticker] = data
         return data
 
-    def _extract_annual_values(self, facts_json, tag_list, form_filter='10-K'):
+    def _extract_annual_values(self, facts_json, tag_list, form_filter='10-K', units_key='USD'):
         """Extract annual values for a concept from XBRL facts.
 
         Tries each tag in tag_list until one has data.  Filters for the
@@ -180,9 +213,8 @@ class SECXBRLClient:
             if not concept:
                 continue
 
-            # Try USD units first
             units = concept.get('units', {})
-            entries = units.get('USD', [])
+            entries = units.get(units_key, [])
             if not entries:
                 continue
 
@@ -345,19 +377,37 @@ class SECXBRLClient:
         if not facts:
             return None
 
-        rev_tags = self._XBRL_TAG_MAP['revenue']
-        ni_tags = self._XBRL_TAG_MAP['net_income']
+        def _ex(concept, units_key='USD'):
+            return self._extract_annual_values(
+                facts, self._XBRL_TAG_MAP[concept], units_key=units_key)
 
-        revenue_history = self._extract_annual_values(facts, rev_tags)
-        earnings_history = self._extract_annual_values(facts, ni_tags)
+        revenue_history          = _ex('revenue')
+        earnings_history         = _ex('net_income')
+        operating_cf_history     = _ex('operating_cash_flow')
+        capex_history            = _ex('capex')
+        gross_profit_history     = _ex('gross_profit')
+        interest_expense_history = _ex('interest_expense')
+        dividends_paid_history   = _ex('dividends_paid')
+        shares_history           = _ex('shares_outstanding', units_key='shares')
 
         if not revenue_history and not earnings_history:
             return None
 
-        years_available = max(len(revenue_history), len(earnings_history))
+        all_series = [
+            revenue_history, earnings_history, operating_cf_history,
+            capex_history, gross_profit_history, interest_expense_history,
+            dividends_paid_history, shares_history,
+        ]
+        years_available = max((len(s) for s in all_series if s), default=0)
 
         return {
-            'revenue_history': revenue_history,
-            'earnings_history': earnings_history,
-            'years_available': years_available,
+            'revenue_history':          revenue_history,
+            'earnings_history':         earnings_history,
+            'operating_cf_history':     operating_cf_history,
+            'capex_history':            capex_history,
+            'gross_profit_history':     gross_profit_history,
+            'interest_expense_history': interest_expense_history,
+            'dividends_paid_history':   dividends_paid_history,
+            'shares_history':           shares_history,
+            'years_available':          years_available,
         }

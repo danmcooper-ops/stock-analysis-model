@@ -68,7 +68,7 @@ _RATING_VAL = {'BUY': 3, 'LEAN BUY': 2, 'HOLD': 1, 'PASS': 0}
 def _rating_num(rating):
     return _RATING_VAL.get(rating, -1)
 
-def build_html(rows, filename):
+def build_html(rows, filename, prices_dir=None):
     """Render the interactive HTML report via Jinja2 template."""
     total = len(rows)
     spread_vals = [r['spread'] for r in rows if r.get('spread') is not None]
@@ -448,6 +448,107 @@ def build_html(rows, filename):
                 print(f"[warn] sector pool narrative failed for {s}: {e}")
     sector_pool_json = json.dumps(sector_pool_data, default=_json_default)
 
+    # Historical fundamentals (EDGAR annual) per ticker
+    hist_data = 'null'
+    try:
+        _hist_out = {}
+        _hist_fields = [
+            ('revenue_history', 'rev'),
+            ('earnings_history', 'ni'),
+            ('operating_cf_history', 'ocf'),
+            ('capex_history', 'capex'),
+            ('gross_profit_history', 'gp'),
+            ('shares_history', 'shares'),
+            ('dividends_paid_history', 'div'),
+        ]
+        for r in rows:
+            tk = r.get('ticker')
+            if not tk:
+                continue
+            eh = r.get('edgar_history') or {}
+            tick_hist = {}
+            has_any = False
+            for src_key, out_key in _hist_fields:
+                series = eh.get(src_key) or r.get(src_key) or {}
+                if isinstance(series, dict) and series:
+                    try:
+                        tick_hist[out_key] = {
+                            str(int(y)): float(v)
+                            for y, v in series.items()
+                            if v is not None
+                        }
+                        if tick_hist[out_key]:
+                            has_any = True
+                        else:
+                            tick_hist.pop(out_key, None)
+                    except (ValueError, TypeError):
+                        pass
+            if has_any:
+                _hist_out[tk] = tick_hist
+        if _hist_out:
+            hist_data = json.dumps(_hist_out, default=_json_default)
+            print(f"[report_html] edgar history: {len(_hist_out)} tickers")
+    except Exception as _e:
+        print(f"[warn] edgar history load failed: {_e}")
+
+    # Load price history from local Parquet files
+    prices_data = 'null'
+    if prices_dir and os.path.isdir(prices_dir):
+        try:
+            import pandas as _pd
+            _cutoff = _pd.Timestamp.now().normalize() - _pd.DateOffset(years=20)
+            _series = {}
+            for r in rows:
+                tk = r.get('ticker')
+                if not tk:
+                    continue
+                pf = os.path.join(prices_dir, f"{tk}.parquet")
+                if not os.path.exists(pf):
+                    continue
+                try:
+                    df = _pd.read_parquet(pf)[['Close']].sort_index()
+                    df.index = _pd.to_datetime(df.index).tz_localize(None).normalize()
+                    s = df['Close'][df.index >= _cutoff].dropna()
+                    if len(s) >= 20:
+                        _series[tk] = s
+                except Exception:
+                    pass
+            # Also load any available index files
+            _index_labels = {'SPY': 'S&P 500', 'QQQ': 'NASDAQ', 'IWM': 'Russell 2000', 'DIA': 'Dow Jones'}
+            _indices_found = []
+            for _itk, _ilabel in _index_labels.items():
+                _ipf = os.path.join(prices_dir, f"{_itk}.parquet")
+                if not os.path.exists(_ipf):
+                    continue
+                try:
+                    _idf = _pd.read_parquet(_ipf)[['Close']].sort_index()
+                    _idf.index = _pd.to_datetime(_idf.index).tz_localize(None).normalize()
+                    _is = _idf['Close'][_idf.index >= _cutoff].dropna()
+                    if len(_is) >= 20:
+                        _series[_itk] = _is
+                        _indices_found.append({'ticker': _itk, 'label': _ilabel})
+                except Exception:
+                    pass
+            if _series:
+                _all_dates = sorted(set().union(*[set(s.index.tolist()) for s in _series.values()]))
+                _date_strs = [d.strftime('%Y-%m-%d') for d in _all_dates]
+                _date_idx = {d: i for i, d in enumerate(_all_dates)}
+                _prices_out = {}
+                for tk, s in _series.items():
+                    arr = [None] * len(_all_dates)
+                    for dt, v in s.items():
+                        i = _date_idx.get(dt)
+                        if i is not None:
+                            arr[i] = round(float(v), 2)
+                    _prices_out[tk] = arr
+                prices_data = json.dumps(
+                    {'dates': _date_strs, 'prices': _prices_out, 'indices': _indices_found},
+                    default=_json_default,
+                )
+                print(f"[report_html] price history: {len(_prices_out)} tickers, {len(_date_strs)} dates, indices: {[x['ticker'] for x in _indices_found]}")
+        except Exception as _e:
+            print(f"[warn] price history load failed: {_e}")
+
     # Render Jinja2 template
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
     env = jinja2.Environment(
@@ -464,6 +565,8 @@ def build_html(rows, filename):
         chart_data=chart_data,
         gate_meta=gate_meta,
         sector_pool_json=sector_pool_json,
+        prices_data=prices_data,
+        hist_data=hist_data,
         generated_at=date.today().strftime('%B %-d, %Y'),
     )
 

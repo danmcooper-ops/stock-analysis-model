@@ -66,13 +66,13 @@ SCREENING_GATES = [
      'spread',
      lambda v, r: v > 0.07 if v is not None else None),
     ('Moat: Gross Margin',
-     'gross_margin',
+     'gross_margin_avg_5y',
      lambda v, r: v > 0.35 if v is not None else None),
     ('Growth: Fund Growth',
      'fundamental_growth',
      lambda v, r: v > 0.03 if v is not None else None),
     ('Growth: Margins',
-     'margin_trend',
+     'gross_margin_trend',
      lambda v, r: v >= 0 if v is not None else None),
     ('Growth: ROE',
      'roe',
@@ -96,6 +96,12 @@ SCREENING_GATES = [
     ('Moat: FCF Margin',
      'fcf_margin',
      lambda v, r: v > 0.12 if v is not None else None),
+    ('Growth: FCF Durability',
+     'fcf_cagr_5y',
+     lambda v, r: v > 0.05 if v is not None else None),
+    ('Ownership: Share Shrink',
+     'shares_cagr_5y',
+     lambda v, r: v < 0 if v is not None else None),
 ]
 
 
@@ -250,11 +256,11 @@ SCORING_GATES = [
      lambda v, r, pct: _score_linear(v, 0.60, 0.0), False, True),
     ('Moat: Spread', 'spread', 'Moat',
      lambda v, r, pct: _score_linear(v, 0.0, 0.20), False, True),     # tightened: best 25%→20%
-    ('Moat: Gross Margin', 'gross_margin', 'Moat',
+    ('Moat: Gross Margin', 'gross_margin_avg_5y', 'Moat',
      lambda v, r, pct: pct, 'sector', True),
     ('Growth: Fund Growth', 'fundamental_growth', 'Growth',
      lambda v, r, pct: _score_linear(v, 0.0, 0.10), False, True),
-    ('Growth: Margins', 'margin_trend', 'Growth',
+    ('Growth: Margins', 'gross_margin_trend', 'Growth',
      lambda v, r, pct: _score_linear(v, -0.05, 0.05), False, True),
     ('Growth: ROE', 'roe', 'Growth',
      lambda v, r, pct: _score_linear(v, 0.0, 0.35), False, True),     # tightened: best 30%→35%
@@ -271,6 +277,10 @@ SCORING_GATES = [
      lambda v, r, pct: _score_linear(v, 15.0, 0.5), False, True),
     ('Moat: FCF Margin', 'fcf_margin', 'Moat',
      lambda v, r, pct: _score_linear(v, 0.05, 0.25), False, True),    # tightened: worst 0%→5%, best 20%→25%
+    ('Growth: FCF Durability', 'fcf_cagr_5y', 'Growth',
+     lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True),
+    ('Ownership: Share Shrink', 'shares_cagr_5y', 'Ownership',
+     lambda v, r, pct: _score_linear(v, 0.04, -0.04), False, True),
     # 12-minus-1 month price momentum (skips last month to avoid short-term reversal).
     # Scored against the Growth category — not a pure fundamental signal, but confirms
     # that business trajectory is visible in the market.  Scored as a weak signal

@@ -6,6 +6,7 @@ import io
 import json
 from datetime import date
 from statistics import median as _median
+import numpy as np
 import pandas as pd
 from urllib.request import urlopen, Request
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -1397,22 +1398,81 @@ def _main():
             # Revenue CAGR (3Y from yfinance)
             rev_cagr = calculate_revenue_cagr(yf_data)
 
-            # Extended revenue CAGRs from EDGAR (5Y + 10Y)
+            # Extended CAGRs and derived metrics from EDGAR history
             rev_cagr_5y = None
             rev_cagr_10y = None
-            if edgar_history and edgar_history.get('revenue_history'):
-                rev_hist = edgar_history['revenue_history']
-                sorted_years = sorted(rev_hist.keys())
-                newest_rev = rev_hist[sorted_years[-1]] if sorted_years else None
-                if newest_rev and newest_rev > 0:
-                    if len(sorted_years) >= 6:
-                        yr5_rev = rev_hist.get(sorted_years[-6])
-                        if yr5_rev and yr5_rev > 0:
-                            rev_cagr_5y = (newest_rev / yr5_rev) ** (1 / 5) - 1
-                    if len(sorted_years) >= 11:
-                        yr10_rev = rev_hist.get(sorted_years[-11])
-                        if yr10_rev and yr10_rev > 0:
-                            rev_cagr_10y = (newest_rev / yr10_rev) ** (1 / 10) - 1
+            fcf_cagr_5y = None
+            fcf_cagr_10y = None
+            gross_margin_avg_5y = None
+            gross_margin_trend = None   # slope of gross margin over 5Y (positive = improving)
+            dividend_cagr_5y = None
+            shares_cagr_5y = None       # negative = buybacks shrinking share count
+
+            if edgar_history:
+                # Revenue CAGRs
+                rev_hist = edgar_history.get('revenue_history', {})
+                if rev_hist:
+                    sy = sorted(rev_hist.keys())
+                    newest_rev = rev_hist[sy[-1]] if sy else None
+                    if newest_rev and newest_rev > 0:
+                        if len(sy) >= 6:
+                            yr5 = rev_hist.get(sy[-6])
+                            if yr5 and yr5 > 0:
+                                rev_cagr_5y = (newest_rev / yr5) ** (1 / 5) - 1
+                        if len(sy) >= 11:
+                            yr10 = rev_hist.get(sy[-11])
+                            if yr10 and yr10 > 0:
+                                rev_cagr_10y = (newest_rev / yr10) ** (1 / 10) - 1
+
+                # FCF history: operating cash flow minus capex
+                ocf_hist = edgar_history.get('operating_cf_history', {})
+                cap_hist = edgar_history.get('capex_history', {})
+                if ocf_hist:
+                    common_years = sorted(set(ocf_hist) & set(cap_hist)) if cap_hist else sorted(ocf_hist)
+                    fcf_hist = {yr: ocf_hist[yr] - abs(cap_hist.get(yr, 0)) for yr in common_years}
+                    # EDGAR CapEx tags are reported as positive outflows — take abs() to be safe
+                    fcf_vals = [fcf_hist[yr] for yr in sorted(fcf_hist) if fcf_hist[yr] is not None]
+                    if len(fcf_vals) >= 6 and fcf_vals[-6] > 0 and fcf_vals[-1] > 0:
+                        fcf_cagr_5y = (fcf_vals[-1] / fcf_vals[-6]) ** (1 / 5) - 1
+                    if len(fcf_vals) >= 11 and fcf_vals[-11] > 0 and fcf_vals[-1] > 0:
+                        fcf_cagr_10y = (fcf_vals[-1] / fcf_vals[-11]) ** (1 / 10) - 1
+
+                # Gross margin history (gross profit / revenue)
+                gp_hist = edgar_history.get('gross_profit_history', {})
+                if gp_hist and rev_hist:
+                    common_gy = sorted(set(gp_hist) & set(rev_hist))[-5:]  # last 5 years
+                    margins = [gp_hist[yr] / rev_hist[yr] for yr in common_gy
+                               if rev_hist.get(yr) and rev_hist[yr] > 0]
+                    if len(margins) >= 3:
+                        gross_margin_avg_5y = sum(margins) / len(margins)
+                        # Simple linear trend: slope of last 5 margin observations
+                        n = len(margins)
+                        xs = list(range(n))
+                        x_mean = sum(xs) / n
+                        y_mean = sum(margins) / n
+                        denom = sum((x - x_mean) ** 2 for x in xs)
+                        if denom:
+                            gross_margin_trend = sum(
+                                (xs[i] - x_mean) * (margins[i] - y_mean) for i in range(n)
+                            ) / denom
+
+                # Dividend growth (5Y CAGR of dividends paid)
+                div_hist = edgar_history.get('dividends_paid_history', {})
+                if div_hist:
+                    dy = sorted(div_hist.keys())
+                    if len(dy) >= 6:
+                        d0, d1 = abs(div_hist.get(dy[-6], 0) or 0), abs(div_hist.get(dy[-1], 0) or 0)
+                        if d0 > 0 and d1 > 0:
+                            dividend_cagr_5y = (d1 / d0) ** (1 / 5) - 1
+
+                # Share count trend (5Y CAGR — negative means shrinking = buybacks)
+                sh_hist = edgar_history.get('shares_history', {})
+                if sh_hist:
+                    shy = sorted(sh_hist.keys())
+                    if len(shy) >= 6:
+                        s0, s1 = sh_hist.get(shy[-6]), sh_hist.get(shy[-1])
+                        if s0 and s0 > 0 and s1 and s1 > 0:
+                            shares_cagr_5y = (s1 / s0) ** (1 / 5) - 1
 
             # Step 3C: Balance sheet health
             int_cov = calculate_interest_coverage(yf_data)
@@ -1677,6 +1737,12 @@ def _main():
                 'rev_cagr': rev_cagr,
                 'rev_cagr_5y': rev_cagr_5y,
                 'rev_cagr_10y': rev_cagr_10y,
+                'fcf_cagr_5y': fcf_cagr_5y,
+                'fcf_cagr_10y': fcf_cagr_10y,
+                'gross_margin_avg_5y': gross_margin_avg_5y,
+                'gross_margin_trend': gross_margin_trend,
+                'dividend_cagr_5y': dividend_cagr_5y,
+                'shares_cagr_5y': shares_cagr_5y,
                 # EDGAR XBRL validation
                 'edgar_quality_score': xbrl_validation.get('edgar_quality_score') if xbrl_validation else None,
                 'edgar_fields_flagged': xbrl_validation.get('fields_flagged', 0) if xbrl_validation else 0,
@@ -2302,7 +2368,7 @@ def _main():
     os.makedirs("output", exist_ok=True)
     today_str = date.today().isoformat()
     html_filename = os.path.join("output", f"stock_analysis_results_{today_str}.html")
-    build_html(results, html_filename)
+    build_html(results, html_filename, prices_dir=prices_dir)
     xlsx_filename = os.path.join("output", f"stock_analysis_results_{today_str}.xlsx")
     build_excel(results, xlsx_filename)
 
