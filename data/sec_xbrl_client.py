@@ -9,10 +9,24 @@ Uses only stdlib (urllib + json + datetime).
 """
 
 import json
+import ssl
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime as _dt
+
+def _ssl_context():
+    """Return an SSL context using certifi certs if available, else system certs."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+
+_SSL_CTX = _ssl_context()
 
 from models.field_keys import (
     _get, REVENUE_KEYS, NET_INCOME_KEYS, TOTAL_ASSETS_KEYS,
@@ -144,7 +158,7 @@ class SECXBRLClient:
         self._throttle()
         try:
             req = urllib.request.Request(url, headers={'User-Agent': self._ua})
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with urllib.request.urlopen(req, context=_SSL_CTX, timeout=timeout) as resp:
                 return json.loads(resp.read())
         except urllib.error.HTTPError as e:
             if e.code == 429:

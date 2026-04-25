@@ -8,9 +8,23 @@ contact email (SEC requirement). Uses only stdlib (urllib + json).
 """
 
 import json
+import ssl
 import time
 import urllib.request
 from datetime import datetime, timedelta
+
+def _ssl_context():
+    """Return an SSL context using certifi certs if available, else system certs."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+
+_SSL_CTX = _ssl_context()
 
 
 class SECLegalClient:
@@ -38,7 +52,7 @@ class SECLegalClient:
         self._throttle()
         try:
             req = urllib.request.Request(url, headers={'User-Agent': self._ua})
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with urllib.request.urlopen(req, context=_SSL_CTX, timeout=timeout) as resp:
                 return json.loads(resp.read())
         except Exception:
             return None

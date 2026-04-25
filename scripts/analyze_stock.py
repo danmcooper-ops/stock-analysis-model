@@ -2390,21 +2390,25 @@ def _main():
 
     # Save results as JSON for backtesting pipeline
     json_filename = os.path.join("output", f"results_{date.today().isoformat()}.json")
+    def _make_json_safe(val, _depth=0):
+        """Recursively convert a value to a JSON-safe structure (max depth 8)."""
+        if _depth > 8:
+            return None
+        if isinstance(val, (int, float, str, bool, type(None))):
+            return val
+        if isinstance(val, dict):
+            return {str(k): _make_json_safe(v, _depth + 1) for k, v in val.items()}
+        if isinstance(val, (list, tuple)):
+            return [_make_json_safe(x, _depth + 1) for x in val]
+        # pandas Timestamp, numpy scalars, etc.
+        try:
+            return str(val)
+        except Exception:
+            return None
+
     json_rows = []
     for r in results:
-        jr = {}
-        for k, v in r.items():
-            if isinstance(v, (int, float, str, bool, type(None))):
-                jr[k] = v
-            elif isinstance(v, list):
-                jr[k] = v
-            elif isinstance(v, dict):
-                jr[k] = {str(dk): dv for dk, dv in v.items()
-                         if isinstance(dv, (int, float, str, bool, type(None)))}
-            elif isinstance(v, tuple):
-                jr[k] = list(v)
-            else:
-                continue  # skip non-serializable
+        jr = {k: _make_json_safe(v) for k, v in r.items()}
         json_rows.append(jr)
     json_meta = {
         'date': date.today().isoformat(),
