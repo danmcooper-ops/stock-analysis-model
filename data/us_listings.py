@@ -11,8 +11,21 @@ Free, no-auth — only requirement is a contact email in the User-Agent.
 import csv
 import json
 import os
+import ssl
 import urllib.request
 from datetime import date, datetime
+
+def _ssl_context():
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+
+_SSL_CTX = _ssl_context()
 
 _SEC_TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json'
 _DEFAULT_CACHE = 'data/cache/us_listings.csv'
@@ -77,7 +90,7 @@ def fetch_us_listed_tickers(email='stockanalysis@example.com',
 
     ua = f'StockAnalyzer/1.0 ({email})'
     req = urllib.request.Request(_SEC_TICKERS_URL, headers={'User-Agent': ua})
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, context=_SSL_CTX, timeout=30) as resp:
         raw = json.loads(resp.read().decode('utf-8'))
 
     seen = set()

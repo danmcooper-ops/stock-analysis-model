@@ -962,6 +962,15 @@ def _main():
     parser.add_argument('--sec-email', default=os.environ.get('SEC_EMAIL', 'stockanalysis@example.com'),
                         help='Contact email for SEC EDGAR User-Agent (used by --universe us). '
                              'Override via --sec-email or SEC_EMAIL env var.')
+    parser.add_argument('--min-spread', type=float, default=None, metavar='FRAC',
+                        help='Phase-1 filter: skip tickers where ROIC - WACC < FRAC. '
+                             'Use 0 to keep only value-creating businesses (ROIC > WACC). '
+                             'Tickers where spread cannot be computed are also skipped. '
+                             'Recommended with --universe us to keep Phase-2 manageable.')
+    parser.add_argument('--mcap-min', type=float, default=0, metavar='DOLLARS',
+                        help='Phase-1 filter: skip tickers with market cap below this threshold '
+                             '(e.g. 500e6 for $500M). Default 0 = no filter. '
+                             'Useful with --universe us to drop shells and micro-caps quickly.')
     args = parser.parse_args()
     prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
 
@@ -1095,6 +1104,47 @@ def _main():
     # -----------------------------------------------------------------------
     # Phase 1: Collect data for full universe (no ROIC > WACC pre-filter)
     # -----------------------------------------------------------------------
+    _skip_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'skip_tickers.txt')
+    _skip_set = set()
+    try:
+        with open(_skip_path) as _sf:
+            for _line in _sf:
+                _t = _line.split('#')[0].strip().upper()
+                if _t:
+                    _skip_set.add(_t)
+        if _skip_set:
+            print(f"Skipping {len(_skip_set)} ticker(s) from skip_tickers.txt: {', '.join(sorted(_skip_set))}")
+    except FileNotFoundError:
+        pass
+
+    # Tickers that appeared in the most recent prior run bypass the mcap/spread
+    # Phase-1 filters so that previously-scored stocks are always re-evaluated.
+    # This maintains backtest continuity even when a stock dips marginally below
+    # a filter threshold due to data fluctuation.
+    _carry_set = set()
+    try:
+        import glob as _glob
+        _prior_jsons = sorted(_glob.glob(os.path.join('output', 'results_*.json')))
+        if _prior_jsons:
+            _prior_path = _prior_jsons[-1]
+            with open(_prior_path) as _pf:
+                _prior = json.load(_pf)
+            _prior_rows = _prior.get('results', _prior) if isinstance(_prior, dict) else _prior
+            _carry_set = {r['ticker'] for r in _prior_rows if r.get('ticker')} - _skip_set
+            print(f"Carry-forward: {len(_carry_set)} ticker(s) from {os.path.basename(_prior_path)} "
+                  f"will bypass Phase-1 filters")
+            # Also ensure carry-forward tickers are in the universe (they may
+            # have been excluded by the --universe sp500 scope or the SEC list).
+            _existing = set(all_tickers)
+            _extra_carried = [t for t in sorted(_carry_set) if t not in _existing]
+            if _extra_carried:
+                all_tickers = all_tickers + _extra_carried
+                for _t in _extra_carried:
+                    ticker_source[_t] = 'quality'
+                print(f"  Added {len(_extra_carried)} carry-forward ticker(s) not already in universe")
+    except Exception as _ce:
+        print(f"[warn] carry-forward load failed: {_ce}")
+
     print(f"Processing {len(all_tickers)} tickers (full universe)...")
     qualifying = []
     screen_cache = {}
@@ -1102,6 +1152,10 @@ def _main():
                        'poor': {'total': 0, 'passed': 0}}
 
     for i, ticker in enumerate(all_tickers, 1):
+        if ticker in _skip_set:
+            print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP (skip_tickers.txt)")
+            sys.stdout.flush()
+            continue
         _grp = ticker_source.get(ticker, 'quality')
         screen_outcomes[_grp]['total'] += 1
         try:
@@ -1120,6 +1174,26 @@ def _main():
 
             spread = (roic_data['avg_roic'] - wacc
                       if (roic_data and wacc is not None) else None)
+
+            # --- Phase-1 filters (applied before expensive Phase-2 work) ---
+            mcap = info.get('marketCap') or 0
+            roic_str = f"ROIC {roic_data['avg_roic']:.1%} " if roic_data else "ROIC N/A "
+            wacc_str = f"WACC {wacc:.1%} " if wacc is not None else "WACC N/A "
+            spread_str = f"spread {spread:.1%}" if spread is not None else "spread N/A"
+
+            _carried = ticker in _carry_set
+            if args.mcap_min and mcap < args.mcap_min and not _carried:
+                print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP mcap ${mcap/1e6:.0f}M < ${args.mcap_min/1e6:.0f}M floor")
+                sys.stdout.flush()
+                continue
+
+            if args.min_spread is not None and not _carried:
+                if spread is None or spread < args.min_spread:
+                    label = "no spread" if spread is None else f"spread {spread:.1%}"
+                    print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP {label} < min {args.min_spread:.1%}")
+                    sys.stdout.flush()
+                    continue
+
             qualifying.append(ticker)
             screen_outcomes[_grp]['passed'] += 1
             screen_cache[ticker] = {
@@ -1128,9 +1202,6 @@ def _main():
                 're_method': re_method, 'yf_data': yf_data,
                 'beta_diag': beta_diag,
             }
-            roic_str = f"ROIC {roic_data['avg_roic']:.1%} " if roic_data else "ROIC N/A "
-            wacc_str = f"WACC {wacc:.1%} " if wacc is not None else "WACC N/A "
-            spread_str = f"spread {spread:.1%}" if spread is not None else "spread N/A"
             print(f"  [{i}/{len(all_tickers)}] {ticker} - {roic_str}{wacc_str}{spread_str} [{re_method}]")
 
         except Exception as e:
@@ -2390,21 +2461,48 @@ def _main():
 
     # Save results as JSON for backtesting pipeline
     json_filename = os.path.join("output", f"results_{date.today().isoformat()}.json")
+    def _make_json_safe(val, _depth=0):
+        """Recursively convert a value to a JSON-safe structure (max depth 8)."""
+        if _depth > 8:
+            return None
+        # None and bool must come before int (bool is a subclass of int in Python)
+        if val is None or isinstance(val, bool):
+            return val
+        if isinstance(val, int):
+            return val
+        if isinstance(val, float):
+            # inf/nan are not valid JSON; replace with None (→ JSON null)
+            import math
+            return None if (math.isnan(val) or math.isinf(val)) else val
+        if isinstance(val, str):
+            return val
+        # numpy scalars — np.int64/int32 are NOT subclasses of int;
+        # np.float32 is NOT a subclass of float; handle explicitly
+        try:
+            import numpy as _np
+            if isinstance(val, _np.integer):
+                return int(val)
+            if isinstance(val, _np.floating):
+                v = float(val)
+                import math
+                return None if (math.isnan(v) or math.isinf(v)) else v
+            if isinstance(val, _np.bool_):
+                return bool(val)
+        except ImportError:
+            pass
+        if isinstance(val, dict):
+            return {str(k): _make_json_safe(v, _depth + 1) for k, v in val.items()}
+        if isinstance(val, (list, tuple)):
+            return [_make_json_safe(x, _depth + 1) for x in val]
+        # pandas Timestamp, Decimal, and other stringifiable types
+        try:
+            return str(val)
+        except Exception:
+            return None
+
     json_rows = []
     for r in results:
-        jr = {}
-        for k, v in r.items():
-            if isinstance(v, (int, float, str, bool, type(None))):
-                jr[k] = v
-            elif isinstance(v, list):
-                jr[k] = v
-            elif isinstance(v, dict):
-                jr[k] = {str(dk): dv for dk, dv in v.items()
-                         if isinstance(dv, (int, float, str, bool, type(None)))}
-            elif isinstance(v, tuple):
-                jr[k] = list(v)
-            else:
-                continue  # skip non-serializable
+        jr = {k: _make_json_safe(v) for k, v in r.items()}
         json_rows.append(jr)
     json_meta = {
         'date': date.today().isoformat(),
