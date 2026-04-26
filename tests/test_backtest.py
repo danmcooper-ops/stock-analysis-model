@@ -1,5 +1,5 @@
-# tests/test_calibrate.py
-"""Tests for walk-forward calibration: window splitting, objectives, grid search."""
+# tests/test_backtest.py
+"""Tests for the merged backtest module: window splitting, objectives, grid search."""
 
 import sys
 import os
@@ -9,7 +9,7 @@ from datetime import date
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from scripts.calibrate import (
+from scripts.backtest import (
     generate_windows,
     compute_objective, hit_rate_objective, alpha_objective,
     information_ratio_objective, composite_objective,
