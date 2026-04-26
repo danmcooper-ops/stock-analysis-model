@@ -92,31 +92,10 @@
 
 ---
 
-## 4. Weight Calibration via Grid Search
-
-**Problem:** 30/25/25/20 weights are heuristic. We have quality/poor labels to optimize against.
-
-**Approach:** Grid search over weight combinations, maximize Cohen's d between quality and poor groups.
-
-### Changes:
-
-**`scripts/calibrate.py`:**
-- Add `optimize_weights(results)` function:
-  - Generate weight grid: all combos of (0.10, 0.15, 0.20, 0.25, 0.30, 0.35) that sum to 1.0
-  - For each weight set: recompute composite scores, compute Cohen's d between quality vs poor
-  - Return best weights and Cohen's d
-- Run against latest results JSON
-
-**`scripts/config.py`:**
-- Update the 4 weight constants with calibrated values
-
----
-
 ## Execution Order
 
 1. Sector-relative scoring (scoring.py changes)
 2. Replace rubber-stamp gates (scoring.py + report files)
 3. Shareholder yield (analyze_stock.py + scoring.py + report files)
-4. Weight calibration (calibrate.py, then config.py)
-5. Run full model and rebuild reports
-6. Compare Cohen's d before vs after
+4. Run full model and rebuild reports
+5. Compare Cohen's d before vs after
