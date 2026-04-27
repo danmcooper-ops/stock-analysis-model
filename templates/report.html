@@ -2651,15 +2651,15 @@ function renderCrossSectorDashboard(){
     +'<div class="xsect-title">Cross-Sector Profit Pool Comparison</div>'
     +'<div class="xsect-sub">Blended pool margins, market concentration, and competitive dynamics across '+allStats.length+' sectors</div>'
     +'<div class="xsect-kpi-row">'+kpiHtml+'</div>'
+    +'<div class="xsect-narrative" style="margin-top:6px;margin-bottom:18px"><div class="xsect-nar-title">Cross-Sector Analysis Summary</div>'
+      +'<ul style="margin:0;padding-left:18px">'+narItems.map(function(b){return'<li style="margin-bottom:9px;font-size:0.82em;color:#2c3e50;line-height:1.55">'+b+'</li>';}).join('')+'</ul>'
+    +'</div>'
     +'<div id="xsect-bar-wrap" style="margin-bottom:20px">'
       +'<div class="xsect-chart-title">Operating Margin by Sector <span style="font-weight:400;text-transform:none;letter-spacing:0">(pool-weighted)</span></div>'
       +marginBarsHtml
     +'</div>'
     +'<div style="margin-bottom:4px">'
       +'<div style="padding-top:16px"><div class="xsect-chart-title">Margin vs. Concentration</div><div id="xsect-scatter-wrap"></div></div>'
-      +'<div class="xsect-narrative"><div class="xsect-nar-title">Comparative Analysis</div>'
-      +'<ul style="margin:0;padding-left:18px">'+narItems.map(function(b){return'<li style="margin-bottom:9px;font-size:0.82em;color:#2c3e50;line-height:1.55">'+b+'</li>';}).join('')+'</ul>'
-      +'</div>'
     +'</div>'
     +volumeHtml
     +'</div></div>';
