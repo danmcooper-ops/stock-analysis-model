@@ -284,6 +284,139 @@ class SECXBRLClient:
 
         return {fy: info[1] for fy, info in sorted(merged.items())}
 
+    def _extract_periodic_values(self, facts_json, tag_list, units_key='USD',
+                                 point_in_time=False):
+        """Extract per-period (quarterly + annual) values for a flow/stock concept.
+
+        For *flow* concepts (revenue, net income, OCF, capex, etc.), accepts
+        entries with start+end durations of ~1 quarter (80–100 days) or
+        ~1 year (340–400 days). YTD partials (6/9-month cumulative figures
+        filed in Q2/Q3 10-Qs) are dropped so plotted magnitudes are
+        comparable across points.
+
+        Then, for each annual entry at end-date X, looks for ~3 quarterly
+        entries with end-dates in (X − 380d, X). If found, derives Q4 =
+        FY − sum(Q1+Q2+Q3) and replaces the annual point with four
+        quarterly points. Years without quarterly coverage keep the
+        annual point.
+
+        For *stock* (point-in-time) concepts like shares outstanding, set
+        ``point_in_time=True``: every dated entry is accepted (deduped by
+        latest filed per end date).
+
+        Returns:
+            dict {period_end (YYYY-MM-DD str): value (float)} sorted by date.
+        """
+        if not facts_json:
+            return {}
+
+        us_gaap = facts_json.get('facts', {}).get('us-gaap', {})
+
+        # Stage 1: collect entries deduped by (end, kind) where kind is "Q",
+        # "FY", or "PT" (point-in-time). XBRL filings include prior-period
+        # comparatives — different filings restate the same period, so we
+        # keep the latest filed version per (end, kind).
+        merged = {}  # {(end_str, kind): (filed_str, val)}
+
+        for tag in tag_list:
+            concept = us_gaap.get(tag)
+            if not concept:
+                continue
+            entries = concept.get('units', {}).get(units_key, [])
+            if not entries:
+                continue
+
+            for e in entries:
+                form = e.get('form', '')
+                if form not in ('10-K', '10-Q', '20-F'):
+                    continue
+                val = e.get('val')
+                filed = e.get('filed', '')
+                start = e.get('start', '')
+                end = e.get('end', '')
+                if val is None or not end:
+                    continue
+
+                if point_in_time:
+                    kind = 'PT'
+                else:
+                    if not start:
+                        continue
+                    try:
+                        d_start = _dt.strptime(start, '%Y-%m-%d')
+                        d_end = _dt.strptime(end, '%Y-%m-%d')
+                    except (ValueError, TypeError):
+                        continue
+                    days = (d_end - d_start).days
+                    if 80 <= days <= 100:
+                        kind = 'Q'
+                    elif 340 <= days <= 400:
+                        kind = 'FY'
+                    else:
+                        # YTD partial (180/270d) or other — drop.
+                        continue
+
+                key = (end, kind)
+                prev = merged.get(key)
+                if prev is None or filed > prev[0]:
+                    merged[key] = (filed, val)
+
+        if not merged:
+            return {}
+
+        if point_in_time:
+            # Collapse to {end_date: val}.
+            return {end: info[1] for (end, _k), info in sorted(merged.items())}
+
+        # Stage 2: derive Q4 for each annual entry where 3 quarterly entries
+        # ending in the prior ~380 days are present. End-date keys are
+        # YYYY-MM-DD strings, so chronological sort = lexicographic sort.
+        quarters = sorted([end for (end, k) in merged if k == 'Q'])
+        annuals = sorted([end for (end, k) in merged if k == 'FY'])
+
+        out = {}  # {end_date_str: val}
+
+        # Add all quarterly entries as-is.
+        for q_end in quarters:
+            out[q_end] = merged[(q_end, 'Q')][1]
+
+        # For each annual: find ~3 quarterly entries within the prior year.
+        # If ≥3 found, derive a Q4 point at the annual's end-date.
+        # Otherwise keep the annual point as-is at its end-date.
+        for fy_end in annuals:
+            try:
+                fy_d = _dt.strptime(fy_end, '%Y-%m-%d')
+            except ValueError:
+                continue
+            # Take quarterlies within (fy_end − 380d, fy_end]
+            in_window = []
+            for q_end in quarters:
+                if q_end > fy_end:
+                    continue
+                try:
+                    q_d = _dt.strptime(q_end, '%Y-%m-%d')
+                except ValueError:
+                    continue
+                gap = (fy_d - q_d).days
+                if 0 < gap <= 380:
+                    in_window.append((q_end, merged[(q_end, 'Q')][1]))
+
+            if len(in_window) >= 3:
+                # Take the 3 most recent (largest gap excluded if 4 found).
+                in_window.sort(key=lambda x: x[0])
+                q3 = in_window[-3:]
+                q_sum = sum(v for _, v in q3)
+                fy_val = merged[(fy_end, 'FY')][1]
+                # Derived Q4 sits at the annual end-date.
+                out[fy_end] = fy_val - q_sum
+            else:
+                # No quarterly coverage — keep the annual at year-end. (Mixed
+                # magnitude is acceptable: pre-2009 or foreign filers will
+                # only have annual points.)
+                out[fy_end] = merged[(fy_end, 'FY')][1]
+
+        return dict(sorted(out.items()))
+
     # ------------------------------------------------------------------
     # Public API: Validation
     # ------------------------------------------------------------------
@@ -375,9 +508,14 @@ class SECXBRLClient:
     # ------------------------------------------------------------------
 
     def fetch_historical_financials(self, ticker, min_years=10):
-        """Fetch long-duration annual revenue and earnings from EDGAR XBRL.
+        """Fetch long-duration revenue and earnings history from EDGAR XBRL.
 
-        Returns up to 20+ years of history (vs yfinance's typical 4 years).
+        Returns ~15+ years of quarterly + annual history. Income/cash-flow
+        series are quarterly where 10-Qs are available (with Q4 derived from
+        annual − Q1−Q2−Q3) and fall back to annual-only for years without
+        quarterly coverage. Shares outstanding is point-in-time at every
+        period end. Each series is keyed by period-end date string
+        ("YYYY-MM-DD").
 
         Args:
             ticker: Stock ticker symbol.
@@ -391,18 +529,23 @@ class SECXBRLClient:
         if not facts:
             return None
 
-        def _ex(concept, units_key='USD'):
-            return self._extract_annual_values(
+        def _flow(concept, units_key='USD'):
+            return self._extract_periodic_values(
                 facts, self._XBRL_TAG_MAP[concept], units_key=units_key)
 
-        revenue_history          = _ex('revenue')
-        earnings_history         = _ex('net_income')
-        operating_cf_history     = _ex('operating_cash_flow')
-        capex_history            = _ex('capex')
-        gross_profit_history     = _ex('gross_profit')
-        interest_expense_history = _ex('interest_expense')
-        dividends_paid_history   = _ex('dividends_paid')
-        shares_history           = _ex('shares_outstanding', units_key='shares')
+        def _stock(concept, units_key='USD'):
+            return self._extract_periodic_values(
+                facts, self._XBRL_TAG_MAP[concept], units_key=units_key,
+                point_in_time=True)
+
+        revenue_history          = _flow('revenue')
+        earnings_history         = _flow('net_income')
+        operating_cf_history     = _flow('operating_cash_flow')
+        capex_history            = _flow('capex')
+        gross_profit_history     = _flow('gross_profit')
+        interest_expense_history = _flow('interest_expense')
+        dividends_paid_history   = _flow('dividends_paid')
+        shares_history           = _stock('shares_outstanding', units_key='shares')
 
         if not revenue_history and not earnings_history:
             return None

@@ -1,12 +1,15 @@
 """scripts/download_prices.py
 
-One-time bulk download of full price history for all S&P 500 tickers.
+Bulk download of full price history. Defaults to S&P 500; use --universe us
+to backfill the full SEC EDGAR US-listed universe (matches analyze_stock.py's
+--universe us flag).
 
 Writes one Parquet file per ticker to --output-dir (default: output/prices/).
 Skips tickers whose file already exists, so the run is safely resumable.
 
 Usage:
-    python scripts/download_prices.py
+    python scripts/download_prices.py                         # S&P 500 (default)
+    python scripts/download_prices.py --universe us           # all US-listed
     python scripts/download_prices.py --output-dir output/prices --delay 0.4
     python scripts/download_prices.py --tickers AAPL MSFT GOOG
 """
@@ -21,6 +24,7 @@ import yfinance as yf
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.analyze_stock import get_sp500_tickers
+from data.us_listings import fetch_us_listed_tickers
 
 
 def download_ticker(ticker: str, output_dir: str, delay: float) -> str:
@@ -45,19 +49,26 @@ def download_ticker(ticker: str, output_dir: str, delay: float) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Bulk download S&P 500 price history")
+    parser = argparse.ArgumentParser(description="Bulk download price history")
     parser.add_argument("--output-dir", default="output/prices",
                         help="Directory to write per-ticker Parquet files")
     parser.add_argument("--delay", type=float, default=0.35,
                         help="Seconds to wait between requests (default: 0.35)")
     parser.add_argument("--tickers", nargs="+",
-                        help="Override ticker list (default: all S&P 500)")
+                        help="Override ticker list (default: from --universe)")
+    parser.add_argument("--universe", choices=["sp500", "us"], default="sp500",
+                        help="Ticker universe when --tickers is not given. "
+                             "'sp500' = S&P 500 (default), 'us' = all US-listed "
+                             "equities from SEC EDGAR (~7-10k tickers).")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
 
     if args.tickers:
         tickers = sorted(args.tickers)
+    elif args.universe == "us":
+        print("Fetching US-listed ticker universe from SEC EDGAR...")
+        tickers = sorted(fetch_us_listed_tickers())
     else:
         print("Fetching S&P 500 ticker list...")
         tickers = sorted(get_sp500_tickers())

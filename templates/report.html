@@ -371,6 +371,8 @@ td.ct{font-weight:700;}
 .pp-desc .pp-section-label{background:#3572b8;}
 .pp-insights{background:#fff7e6;border-left:5px solid #b8860b;}
 .pp-insights .pp-section-label{background:#b8860b;}
+.pp-liquidity{background:#e0f4f5;border-left:5px solid #00838f;}
+.pp-liquidity .pp-section-label{background:#00838f;}
 .pp-headwinds{background:#fdf2f2;border-left:5px solid #c0392b;}
 .pp-headwinds .pp-section-label{background:#c0392b;}
 .pp-cr4{background:#f0edf8;border-left:5px solid #5e35b1;}
@@ -401,6 +403,14 @@ td.ct{font-weight:700;}
 .xsect-bar-fill{height:100%;border-radius:3px;}
 .xsect-bar-pct{position:absolute;right:7px;top:50%;transform:translateY(-50%);font-size:0.72em;font-weight:700;color:#444;}
 .xsect-bar-meta{width:240px;font-size:0.71em;color:#888;flex-shrink:0;}
+/* Cross-Sector Trading section — visually separated from the profit-pool
+   comparison section above with a tinted band, accent border, and larger
+   title. */
+.xsect-trading-section{margin-top:34px;padding:22px 20px 18px;background:linear-gradient(180deg,#f3f8fb 0%,#fafcfd 100%);border-top:4px solid #00838f;border-radius:6px;box-shadow:inset 0 1px 0 rgba(0,0,0,0.03);}
+.xsect-trading-section .xsect-title{font-size:1.18em;color:#0e3a40;}
+.xsect-trading-section .xsect-sub{margin-bottom:18px;}
+.xsect-trade-stack{display:flex;height:100%;width:100%;}
+.xsect-trade-stack > div{height:100%;}
 .xsect-narrative{background:#f8fafd;border-radius:8px;padding:16px 18px;margin-top:16px;}
 .xsect-nar-title{font-size:0.8em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;}
 /* Price History */
@@ -482,6 +492,11 @@ td.ct{font-weight:700;}
             <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
             <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style=\"width:16px;height:16px;vertical-align:middle;display:inline-block\"><circle cx=\"11\" cy=\"11\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><polyline points=\"6,11 9.5,15 16,7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg> All<span id="rev-count-label"></span></button>
           </div>
+          <div class="fpop-toggles">
+            <button class="fpop-toggle-btn" id="f-cap-small" onclick="toggleCapFilter('small')" title="Market cap below $2B">Small Cap</button>
+            <button class="fpop-toggle-btn" id="f-cap-mid" onclick="toggleCapFilter('mid')" title="Market cap $2B – $10B">Mid Cap</button>
+            <button class="fpop-toggle-btn" id="f-cap-large" onclick="toggleCapFilter('large')" title="Market cap above $10B">Large Cap</button>
+          </div>
           <div class="fpop-section-label" style="margin-top:10px">Column Filters</div>
           <div id="col-filters" class="col-filters-wrap"></div>
           <button class="add-filter-btn" onclick="addColFilter()">&#65291; Add Filter</button>
@@ -545,11 +560,20 @@ td.ct{font-weight:700;}
 var DATA={{ chart_data }};
 var GM={{ gate_meta }};
 var SECTOR_POOL={{ sector_pool_json }};
-var PRICES={{ prices_data }};
-var HIST={{ hist_data }};
+/* PRICES and HIST live in sidecar JSONs (prices.json, hist.json) so the HTML
+   stays under GitHub Pages' 100 MB cap. They lazy-load on first chart open. */
+var PRICES=null;
+var HIST=null;
+var _PRICES_AVAILABLE={{ prices_available }};
+var _HIST_AVAILABLE={{ hist_available }};
+var _PRICES_LOADING=false;
+var _HIST_LOADING=false;
+function _loadSidecar(name,onDone){
+  return fetch(name).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();}).then(onDone).catch(function(e){console.warn('sidecar load failed:',name,e);onDone(null);});
+}
 var RC={'BUY':'#1a9850','LEAN BUY':'#74c476','HOLD':'#fd8d3c','PASS':'#de2d26'};
 var _poolTab='__all__';
-function showPoolTab(sec){_poolTab=sec||'__all__';renderPool();}
+function showPoolTab(sec){_poolTab=sec||'__all__';renderPool();window.scrollTo({top:0,behavior:'auto'});}
 var curView='matrix',curTSub='ovr';
 var _detNav=[],_detIdx=-1;
 /* === FLAGS (localStorage) === */
@@ -564,6 +588,11 @@ function toggleFlagDet(){var tk=document.getElementById('d-tk').textContent;if(!
 function toggleFlagFilter(){_flagOnly=!_flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);applyFilters();}
 var _founderOnly=false;
 function toggleFounderFilter(){_founderOnly=!_founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);applyFilters();}
+/* Cap-tier filter — three independent toggles (small <$2B, mid $2-10B, large >=$10B).
+   When none are active, all sizes are shown. When one or more are active, only
+   matching sizes pass. */
+var _capFilter={small:false,mid:false,large:false};
+function toggleCapFilter(t){_capFilter[t]=!_capFilter[t];document.getElementById('f-cap-'+t).classList.toggle('active',_capFilter[t]);applyFilters();}
 function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.getElementById('flag-count-label');el.textContent=n>0?' ('+n+')':'';}
 function _starHtml(tk){return '<span class="flag-star'+(isFlagged(tk)?' flagged':'')+'" onclick="toggleFlag(\''+tk.replace(/'/g,"\\'")+'\',event)" title="Flag">'+(isFlagged(tk)?'\u2691':'\u2690')+'</span>';}
 _updateFlagCount();
@@ -808,11 +837,17 @@ function applyFilters(){
     if(cMin===null&&cMax===null)return;
     colFilters.push({key:key,min:cMin,max:cMax,pct:(_CF_FMT[key]||'')==='pct'});
   });
+  var _capActive=_capFilter.small||_capFilter.mid||_capFilter.large;
   FD=DATA.filter(function(d){
     if(_flagOnly&&!isFlagged(d.ticker))return false;
     if(_founderOnly&&!d.founder_led)return false;
     if(_revFilter===1&&isReviewed(d.ticker))return false;
     if(_revFilter===2&&!isReviewed(d.ticker))return false;
+    if(_capActive){
+      var _b=(d.mcap||0)/1e9;
+      var _ok=(_capFilter.small&&_b<2)||(_capFilter.mid&&_b>=2&&_b<10)||(_capFilter.large&&_b>=10);
+      if(!_ok)return false;
+    }
     if(q&&(d.ticker||'').toUpperCase().indexOf(q)<0&&(d.description||'').toUpperCase().indexOf(q)<0)return false;
     if(!allRatings&&ratings.indexOf(d.rating)<0)return false;
     if(!allSectors&&sectors.indexOf(d.sector)<0)return false;
@@ -827,8 +862,9 @@ function applyFilters(){
     return true;
   });
   document.getElementById('f-count').textContent=FD.length+' of '+DATA.length;
-  // Update filter popup badge (col filters + flagged + founder)
-  var activeCount=colFilters.length+(_flagOnly?1:0)+(_founderOnly?1:0)+(_revFilter?1:0);
+  // Update filter popup badge (col filters + flagged + founder + cap toggles)
+  var _capCount=(_capFilter.small?1:0)+(_capFilter.mid?1:0)+(_capFilter.large?1:0);
+  var activeCount=colFilters.length+(_flagOnly?1:0)+(_founderOnly?1:0)+(_revFilter?1:0)+_capCount;
   var badge=document.getElementById('fpop-badge');
   var btn=document.getElementById('fpop-btn');
   if(activeCount>0){badge.textContent=activeCount;badge.style.display='inline-flex';btn.classList.add('active');}
@@ -855,6 +891,8 @@ function clearFilters(){
   addColFilter();
   _flagOnly=false;document.getElementById('f-flagged').classList.remove('active');
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
+  _capFilter={small:false,mid:false,large:false};
+  ['small','mid','large'].forEach(function(t){var el=document.getElementById('f-cap-'+t);if(el)el.classList.remove('active');});
   _revFilter=0;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.remove('active');rEl.innerHTML=_CHK_SVG+' All';}
   _revd={};_saveRevd();_updateRevCount();
   applyFilters();
@@ -1215,7 +1253,14 @@ function _phFmtAxis(v,fmt){
 }
 function initPriceChart(){
   var phv=document.getElementById('ph-view');
-  if(!PRICES){phv.innerHTML='<p style="padding:24px;color:#888">Price history not available for this report.</p>';return;}
+  if(!PRICES){
+    if(!_PRICES_AVAILABLE){phv.innerHTML='<p style="padding:24px;color:#888">Price history not available for this report.</p>';return;}
+    phv.innerHTML='<p style="padding:24px;color:#888">Loading price history…</p>';
+    if(_PRICES_LOADING)return;
+    _PRICES_LOADING=true;
+    _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;if(curTSub==='prices')initPriceChart();});
+    return;
+  }
   _phStocks=[];
   for(var i=0;i<DATA.length;i++){if(DATA[i].rating==='BUY'&&PRICES.prices[DATA[i].ticker]){_phStocks=[DATA[i].ticker];break;}}
   if(!_phStocks.length){var _tks=Object.keys(PRICES.prices);if(_tks.length)_phStocks=[_tks[0]];}
@@ -1237,6 +1282,12 @@ function initPriceChart(){
 function _buildPHMetricBtns(){
   var el=document.getElementById('ph-metric-btns');if(!el)return;
   var hasHist=HIST&&Object.keys(HIST).length>0;
+  // Kick off HIST sidecar load in the background so historical-fundamentals
+  // metrics enable themselves once data arrives. Non-blocking.
+  if(!HIST&&_HIST_AVAILABLE&&!_HIST_LOADING){
+    _HIST_LOADING=true;
+    _loadSidecar('hist.json',function(d){_HIST_LOADING=false;HIST=d;_buildPHMetricBtns();});
+  }
   el.innerHTML=_PH_METRICS.map(function(m){
     var dis=(m.src==='hist'&&!hasHist)?' disabled':'';
     return '<button class="ph-metric-btn'+(m.k===_phMetric?' active':'')+'"'+dis+' onclick="phSetMetric(\''+m.k+'\')" title="'+m.lbl+'">'+m.lbl+'</button>';
@@ -1247,8 +1298,10 @@ function phSetMetric(k){
   var def=_phMetricDef(k);
   _phMetric=k;
   if(def.src==='hist'){
+    // Quarterly data is meaningful at 1YR (4 points) — only force up if we're
+    // on a sub-1YR range that would have <2 points.
     var idx=['1M','3M','6M','1YR','5YR','10YR','20YR','MAX'].indexOf(_phRange);
-    if(idx>=0&&idx<4)_phRange='5YR';
+    if(idx>=0&&idx<3)_phRange='1YR';
   }
   _buildPHMetricBtns();_buildPHIndexBtns();_buildPHChips();_buildPHRanges();renderPHChart();
 }
@@ -1355,29 +1408,43 @@ function _phGetPricePts(ticker){
 function _phGetHistPts(ticker,metricKey){
   if(!HIST||!HIST[ticker])return[];
   var h=HIST[ticker];
-  var nowY=new Date().getFullYear();
+  // Series are keyed by period-end date string ("YYYY-MM-DD"). Sort
+  // lexicographically (works because format is fixed-width zero-padded).
   var yrSpan={'1M':1,'3M':1,'6M':1,'1YR':1,'5YR':5,'10YR':10,'20YR':20}[_phRange];
-  var minY=yrSpan?(nowY-yrSpan):-Infinity;
-  function _yrs(obj){var ks=[];for(var y in obj)ks.push(+y);ks.sort();return ks;}
-  function _build(valFn,srcYears){
-    var out=[];srcYears.forEach(function(y){
-      if(y<minY)return;
-      var v=valFn(y);
+  var minDate=null;
+  if(yrSpan){var md=new Date();md.setFullYear(md.getFullYear()-yrSpan);minDate=md.toISOString().slice(0,10);}
+  function _keys(obj){var ks=[];for(var k in obj)ks.push(k);ks.sort();return ks;}
+  function _build(valFn,keys){
+    var out=[];keys.forEach(function(k){
+      if(minDate&&k<minDate)return;
+      var v=valFn(k);
       if(v==null||isNaN(v))return;
-      out.push({d:y+'-12-31',c:v,yr:y});
+      out.push({d:k,c:v,yr:+k.slice(0,4)});
     });return out;
   }
-  if(metricKey==='rev'&&h.rev)return _build(function(y){return h.rev[y];},_yrs(h.rev));
-  if(metricKey==='ni'&&h.ni)  return _build(function(y){return h.ni[y];}, _yrs(h.ni));
-  if(metricKey==='shares'&&h.shares)return _build(function(y){return h.shares[y];},_yrs(h.shares));
+  if(metricKey==='rev'&&h.rev)return _build(function(k){return h.rev[k];},_keys(h.rev));
+  if(metricKey==='ni'&&h.ni)  return _build(function(k){return h.ni[k];}, _keys(h.ni));
+  if(metricKey==='shares'&&h.shares)return _build(function(k){return h.shares[k];},_keys(h.shares));
   if(metricKey==='fcf'&&h.ocf){
-    return _build(function(y){var o=h.ocf[y],c=(h.capex&&h.capex[y])||0;if(o==null)return null;return o-c;},_yrs(h.ocf));
+    return _build(function(k){var o=h.ocf[k],c=(h.capex&&h.capex[k])||0;if(o==null)return null;return o-c;},_keys(h.ocf));
   }
   if(metricKey==='gm'&&h.gp&&h.rev){
-    return _build(function(y){var g=h.gp[y],r=h.rev[y];if(g==null||r==null||r<=0)return null;return g/r;},_yrs(h.rev));
+    return _build(function(k){var g=h.gp[k],r=h.rev[k];if(g==null||r==null||r<=0)return null;return g/r;},_keys(h.rev));
   }
   if(metricKey==='dps'&&h.div&&h.shares){
-    return _build(function(y){var d=h.div[y],s=h.shares[y];if(d==null||s==null||s<=0)return null;return Math.abs(d)/s;},_yrs(h.div));
+    // For per-share figures, divide quarterly dividends by the most recent
+    // shares balance at or before the dividend period end (shares are
+    // point-in-time, so they may not have an exact match for every dividend
+    // period). Fallback to direct match if available.
+    var shareKeys=_keys(h.shares);
+    function _sharesAt(k){
+      if(h.shares[k]!=null)return h.shares[k];
+      // Find latest shares balance with date <= k
+      var pick=null;
+      for(var i=0;i<shareKeys.length;i++){if(shareKeys[i]<=k)pick=h.shares[shareKeys[i]];else break;}
+      return pick;
+    }
+    return _build(function(k){var d=h.div[k],s=_sharesAt(k);if(d==null||s==null||s<=0)return null;return Math.abs(d)/s;},_keys(h.div));
   }
   return [];
 }
@@ -1444,7 +1511,7 @@ function _phRenderSVG(allRaw,refs){
   /* x-axis using first series */
   var ref0=series[0].pts;
   var xH='';var nX=Math.min(annual?Math.min(ref0.length,10):7,ref0.length);var xstep=Math.max(1,Math.floor((ref0.length-1)/Math.max(1,nX-1)));
-  for(var xi=0;xi<ref0.length;xi+=xstep){xH+='<text x="'+xOf(xi,ref0.length).toFixed(1)+'" y="'+(PT+iH+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+_phFmtDate(ref0[xi].d,ref0,annual)+'</text>';}
+  for(var xi=0;xi<ref0.length;xi+=xstep){xH+='<text x="'+xOf(xi,ref0.length).toFixed(1)+'" y="'+(PT+iH+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+_phFmtDate(ref0[xi].d,ref0,false)+'</text>';}
   /* reference lines (single stock only) */
   var refSVG='';
   if(!cmpMode&&refs){
@@ -1501,10 +1568,10 @@ function _phTipHtml(series,cmpMode,relX,def,annual){
   var dateStr;
   if(refIdx!=null){
     var rp=series[0].pts[refIdx];
-    dateStr=annual?('FY '+(rp.yr||new Date(rp.d).getFullYear())):rp.d;
+    dateStr=rp.d;
   }else{
     var a=series[0].pts[0],b=series[0].pts[series[0].pts.length-1];
-    dateStr=annual?('FY '+(a.yr||new Date(a.d).getFullYear())+' \u2013 FY '+(b.yr||new Date(b.d).getFullYear())):(a.d+' \u2013 '+b.d);
+    dateStr=a.d+' \u2013 '+b.d;
   }
   tip+='<span style="color:#aab;font-size:0.82em;margin-left:4px">'+dateStr+'</span>';
   return tip;
@@ -2139,12 +2206,205 @@ function renderPoolCR4Companies(sec){
 function renderPoolInsights(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
   if(!n||!n.insights||!n.insights.length)return '';
-  var out='';
-  out+='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f">';
+  var out='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f">';
   n.insights.forEach(function(s){out+='<li style="margin:4px 0">'+_esc(s)+'</li>';});
   out+='</ul>';
   return out;
 }
+
+
+/* Computes per-sector liquidity aggregates from DATA once and caches the
+   result. Provides $ volume, share-count flow, per-tier breakdown, top-N
+   most-traded names, and cross-sector ranks for use in the per-sector
+   insights panel. */
+function _ppLiquidityCache(){
+  if(window._ppLiqCache)return window._ppLiqCache;
+  function _capTier(b){return b<2?'small':(b<10?'mid':'large');}
+  function _med(a){if(!a.length)return 0;var s=a.slice().sort(function(x,y){return x-y;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+  var bySec={},allDV=0,allShr=0,allOIPos=0;
+  DATA.forEach(function(d){
+    var sec=d.sector||'Unknown';
+    var mc=d.mcap||0,tor=d.share_turnover_rate;
+    if(!bySec[sec])bySec[sec]={dv:0,shr:0,n:0,oi:0,rev:0,
+      byTier:{small:{dv:0,shr:0,n:0,tors:[]},mid:{dv:0,shr:0,n:0,tors:[]},large:{dv:0,shr:0,n:0,tors:[]}},
+      stocks:[]};
+    if(d.operating_income){bySec[sec].oi+=d.operating_income;if(d.operating_income>0)allOIPos+=d.operating_income;}
+    if(d.revenue)bySec[sec].rev+=d.revenue;
+    bySec[sec].stocks.push({ticker:d.ticker,name:d.company_name,dv:(mc>0&&tor!=null)?tor*mc:0,tor:tor,mcap:mc,oi:d.operating_income,rev:d.revenue,rating:d.rating,pp_multiple:d.pp_multiple,operating_margin:d.operating_margin});
+    if(mc<=0||tor==null)return;
+    var dv=tor*mc;var so=d.shares_out||0;var shr=so?so*tor:0;
+    var tier=_capTier(mc/1e9);
+    bySec[sec].dv+=dv;bySec[sec].shr+=shr;bySec[sec].n+=1;
+    bySec[sec].byTier[tier].dv+=dv;bySec[sec].byTier[tier].shr+=shr;bySec[sec].byTier[tier].n+=1;
+    bySec[sec].byTier[tier].tors.push(tor);
+    allDV+=dv;allShr+=shr;
+  });
+  Object.keys(bySec).forEach(function(s){
+    var b=bySec[s];
+    ['small','mid','large'].forEach(function(t){b.byTier[t].medTor=_med(b.byTier[t].tors);});
+    b.stocks.sort(function(x,y){return y.dv-x.dv;});
+  });
+  var rank=Object.keys(bySec).map(function(s){return{name:s,dv:bySec[s].dv};}).sort(function(a,b){return b.dv-a.dv;});
+  rank.forEach(function(r,i){bySec[r.name].dvRank=i+1;});
+  window._ppLiqCache={bySec:bySec,allDV:allDV,allShr:allShr,allOIPos:allOIPos,nSectors:rank.length};
+  return window._ppLiqCache;
+}
+
+function _ord(n){var v=n%100;if(v>=11&&v<=13)return n+'th';var s=['th','st','nd','rd'];return n+(s[n%10]||'th');}
+
+/* Generates a live, sector-specific liquidity-insights bullet list from the
+   cached aggregates. Designed to surface non-obvious patterns that the
+   pre-computed structural insights miss — flow concentration, cap-tier
+   turnover anomalies, divergence between trading volume and economic
+   weight, and which names actually drive the sector's liquidity. */
+function renderPoolLiquidityInsights(sec){
+  var cache=_ppLiquidityCache();
+  var s=cache.bySec[sec];
+  if(!s||!s.dv)return '';
+  var bullets=[];
+
+  /* 1. Liquidity rank + share of universe flow. */
+  var dvShare=cache.allDV?(s.dv/cache.allDV*100):0;
+  bullets.push('<strong>Liquidity profile — '+fds(s.dv)+'/day:</strong> '+sec+' ranks '+_ord(s.dvRank)+' of '+cache.nSectors+' sectors by trading flow, capturing '+dvShare.toFixed(1)+'% of universe $-volume across '+s.n+' tickers.');
+
+  /* 2. Cap-tier flow vs count: shows where the dollars actually concentrate. */
+  var dvT=s.dv,nT=s.n;
+  var pctL_dv=dvT?s.byTier.large.dv/dvT*100:0,pctM_dv=dvT?s.byTier.mid.dv/dvT*100:0,pctS_dv=dvT?s.byTier.small.dv/dvT*100:0;
+  var pctL_n=nT?s.byTier.large.n/nT*100:0,pctM_n=nT?s.byTier.mid.n/nT*100:0,pctS_n=nT?s.byTier.small.n/nT*100:0;
+  bullets.push('<strong>Where the flow lives:</strong> Large caps generate '+pctL_dv.toFixed(0)+'% of $ volume from '+pctL_n.toFixed(0)+'% of names; mid caps '+pctM_dv.toFixed(0)+'%/'+pctM_n.toFixed(0)+'%; small caps '+pctS_dv.toFixed(0)+'%/'+pctS_n.toFixed(0)+'%. '
+    +(pctL_dv>2.5*pctL_n?'Liquidity is heavily skewed to mega-caps relative to count — a few large names dominate.':
+      pctS_dv>0.6*pctS_n?'Smaller names contribute notably more flow than their headcount alone would imply.':
+      'Flow distribution roughly tracks the cap-count distribution — no single tier is disproportionately liquid.'));
+
+  /* 3. Top-3 names by $ volume + concentration check. */
+  if(s.stocks.length>=3){
+    var top3=s.stocks.slice(0,3);
+    var top3Sum=top3.reduce(function(a,x){return a+x.dv;},0);
+    var top3Pct=dvT?top3Sum/dvT*100:0;
+    var top5=s.stocks.slice(0,Math.min(5,s.stocks.length)),top5Sum=top5.reduce(function(a,x){return a+x.dv;},0);
+    var top5Pct=dvT?top5Sum/dvT*100:0;
+    bullets.push('<strong>Most-traded names:</strong> '+top3.map(function(x){return x.ticker+' ('+fds(x.dv)+')';}).join(', ')+' '
+      +'— the top 3 capture '+top3Pct.toFixed(0)+'% of sector flow'+(s.stocks.length>=5?', the top 5 capture '+top5Pct.toFixed(0)+'%':'')+'. '
+      +(top3Pct>=60?'Trading is highly concentrated in a handful of mega-caps; sector exposure outside these names is a different liquidity reality.':
+        top3Pct>=40?'Reasonable concentration in the leaders — they drive sector flow but plenty of secondary liquidity exists.':
+        'Flow is broadly distributed; no single mega-cap dominates the sector\'s daily volume.'));
+  }
+
+  /* 4. CORRELATION: liquidity concentration vs revenue concentration.
+     Compares CR4 by trading flow against CR4 by revenue. Divergence reveals
+     whether the market trades the *biggest* names or the *most exciting*
+     ones. */
+  if(s.stocks.length>=4&&s.rev>0){
+    var byRev=s.stocks.slice().filter(function(x){return x.rev;}).sort(function(a,b){return(b.rev||0)-(a.rev||0);});
+    if(byRev.length>=4){
+      var cr4Rev=byRev.slice(0,4).reduce(function(a,x){return a+(x.rev||0);},0)/s.rev*100;
+      var cr4Liq=s.stocks.slice(0,4).reduce(function(a,x){return a+x.dv;},0)/dvT*100;
+      var revLeaders=byRev.slice(0,4).map(function(x){return x.ticker;});
+      var liqLeaders=s.stocks.slice(0,4).map(function(x){return x.ticker;});
+      var overlap=revLeaders.filter(function(t){return liqLeaders.indexOf(t)>=0;}).length;
+      var diff=cr4Liq-cr4Rev;
+      var verdict;
+      if(overlap>=3&&Math.abs(diff)<8)verdict='liquidity concentration mirrors business concentration — the biggest revenue producers are the most-traded names';
+      else if(diff>=10)verdict='trading is more concentrated than revenue ('+diff.toFixed(0)+' pp gap) — flow chases a narrower subset than the underlying business would suggest';
+      else if(diff<=-10)verdict='trading is more diffuse than revenue ('+(-diff).toFixed(0)+' pp gap) — secondary names attract more flow than their revenue weight implies';
+      else verdict=overlap+'/4 of the revenue leaders are also liquidity leaders — partial alignment between business size and trading interest';
+      bullets.push('<strong>Liquidity vs business concentration:</strong> Top-4 by trading flow capture '+cr4Liq.toFixed(0)+'% of $-volume; top-4 by revenue capture '+cr4Rev.toFixed(0)+'% of sector revenue. '+verdict+'.');
+    }
+  }
+
+  /* 5. CORRELATION: profit extraction vs trading interest.
+     Top profit-pool-multiple = company extracting disproportionate profit
+     from its revenue share. Is that name also liquid? Mismatch flags
+     under-priced moats or hype-driven flow. */
+  var withMult=s.stocks.filter(function(x){return x.pp_multiple!=null&&x.pp_multiple>0;});
+  if(withMult.length>=3){
+    withMult.sort(function(a,b){return(b.pp_multiple||0)-(a.pp_multiple||0);});
+    var topMult=withMult[0];
+    var liqRank=0;
+    for(var ii=0;ii<s.stocks.length;ii++){if(s.stocks[ii].ticker===topMult.ticker){liqRank=ii+1;break;}}
+    if(liqRank>0){
+      var rankLabel=liqRank<=3?'a top-3 most-traded':liqRank<=5?'a top-5 most-traded':liqRank<=10?'a top-10 most-traded':'the #'+liqRank+' most-traded';
+      var verdict;
+      if(liqRank<=3)verdict='its profit moat is fully recognized in flow — concentrated investor attention matches concentrated profit extraction';
+      else if(liqRank<=10)verdict='moat is partly recognized — it draws above-average flow but isn\'t the sector\'s headline ticker';
+      else verdict='profit moat may be under-recognized — the company extracts disproportionate sector profit but is not a top liquidity name';
+      bullets.push('<strong>Profit extraction vs flow:</strong> Top profit-pool multiple is '+topMult.ticker+' ('+(topMult.pp_multiple||0).toFixed(2)+'×, capturing '+(topMult.pp_multiple>1?'more':'less')+' profit share than revenue share); it is '+rankLabel+' name in the sector — '+verdict+'.');
+    }
+  }
+
+  /* 6. CORRELATION: are high-margin names disproportionately traded?
+     Splits the sector into top-quartile by operating margin vs the rest,
+     then compares each group's share of $ flow against its share of names. */
+  var withMargin=s.stocks.filter(function(x){return x.operating_margin!=null&&x.dv>0;});
+  if(withMargin.length>=8){
+    var sortedM=withMargin.slice().sort(function(a,b){return(b.operating_margin||0)-(a.operating_margin||0);});
+    var qSize=Math.max(1,Math.floor(sortedM.length/4));
+    var topQ=sortedM.slice(0,qSize);
+    var topQDv=topQ.reduce(function(a,x){return a+x.dv;},0);
+    var totalDvM=withMargin.reduce(function(a,x){return a+x.dv;},0);
+    var dvShareQ=totalDvM?topQDv/totalDvM*100:0;
+    var nShareQ=topQ.length/withMargin.length*100;
+    var ratioQ=nShareQ?dvShareQ/nShareQ:0;
+    var verdict;
+    if(ratioQ>=1.4)verdict='the most profitable companies attract disproportionate flow ('+ratioQ.toFixed(2)+'× their share of names) — margin and trading interest are tightly coupled in this sector';
+    else if(ratioQ>=0.9)verdict='top-margin names get roughly proportional flow — no clear margin premium in trading interest';
+    else verdict='top-margin names get *less* than proportional flow ('+ratioQ.toFixed(2)+'× their headcount share) — investors are looking past margins, perhaps focused on growth or recovery plays';
+    bullets.push('<strong>Margin × flow correlation:</strong> Top-quartile by operating margin captures '+dvShareQ.toFixed(0)+'% of sector flow from '+nShareQ.toFixed(0)+'% of names — '+verdict+'.');
+  }
+
+  /* 7. CORRELATION: trading flow concentration in BUY/LEAN BUY rated names.
+     Direct measure of whether the model's high-conviction picks attract
+     proportional liquidity. */
+  var withRating=s.stocks.filter(function(x){return x.rating&&x.dv>0;});
+  if(withRating.length>=5){
+    var actionable=withRating.filter(function(x){return x.rating==='BUY'||x.rating==='LEAN BUY';});
+    if(actionable.length){
+      var aDv=actionable.reduce(function(a,x){return a+x.dv;},0);
+      var totalRD=withRating.reduce(function(a,x){return a+x.dv;},0);
+      var aDvShare=totalRD?aDv/totalRD*100:0;
+      var aNShare=actionable.length/withRating.length*100;
+      var ratioR=aNShare?aDvShare/aNShare:0;
+      var verdict;
+      if(ratioR>=1.3)verdict='actionable names attract more flow than their headcount share — the market\'s attention overlaps with the model\'s conviction';
+      else if(ratioR>=0.85)verdict='actionable names get proportional flow — neutral overlap between liquidity and model conviction';
+      else verdict='actionable names get *less* than proportional flow — the model is finding under-traded value the market hasn\'t priced in yet';
+      bullets.push('<strong>Model conviction × flow:</strong> BUY/LEAN BUY-rated names capture '+aDvShare.toFixed(0)+'% of sector flow from '+aNShare.toFixed(0)+'% of names ('+ratioR.toFixed(2)+'×) — '+verdict+'.');
+    }
+  }
+
+  /* 8. Cap-tier turnover comparison: where momentum/swing activity concentrates. */
+  var medL=s.byTier.large.medTor,medM=s.byTier.mid.medTor,medS=s.byTier.small.medTor;
+  var tiers=[{k:'small',name:'small caps',v:medS,n:s.byTier.small.n},{k:'mid',name:'mid caps',v:medM,n:s.byTier.mid.n},{k:'large',name:'large caps',v:medL,n:s.byTier.large.n}].filter(function(t){return t.n>0&&t.v>0;});
+  if(tiers.length>=2){
+    tiers.sort(function(a,b){return b.v-a.v;});
+    var fast=tiers[0],slow=tiers[tiers.length-1];
+    var ratio=slow.v?fast.v/slow.v:0;
+    var verdict=ratio>=1.5?'concentrated swing/momentum activity in '+fast.name+' — their volatility and lower float-base attract active traders':
+                ratio>=1.2?'modestly higher churn in '+fast.name+' than '+slow.name+' — typical pattern of less institutional float-locking in smaller names':
+                'turnover is fairly uniform across cap sizes — no clear momentum tilt by size';
+    bullets.push('<strong>Turnover by size:</strong> The typical '+fast.name+' turn over '+(fast.v*100).toFixed(2)+'% of float/day vs '+(slow.v*100).toFixed(2)+'% for '+slow.name+' ('+ratio.toFixed(1)+'×). '+verdict+'.');
+  }
+
+  /* 9. CORRELATION: flow share vs profit-pool share — captures whether
+     the sector is over- or under-traded relative to its economic weight. */
+  if(cache.allOIPos>0&&s.oi>0){
+    var poolShare=s.oi/cache.allOIPos*100;
+    var diff=dvShare-poolShare;
+    var absDiff=Math.abs(diff);
+    var verdict;
+    if(absDiff<2)verdict='trades roughly in line with its share of US operating income';
+    else if(diff>0)verdict='attracts disproportionate trading interest — +'+diff.toFixed(1)+' pp more flow than its share of profits would suggest, often a sign of momentum or thematic bid';
+    else verdict='trades thinly relative to its profit contribution — '+(-diff).toFixed(1)+' pp under-traded vs its economic weight, often the case for income-oriented sectors with sticky long-term holders';
+    bullets.push('<strong>Flow vs economic weight:</strong> '+sec+' is '+dvShare.toFixed(1)+'% of trading volume but '+poolShare.toFixed(1)+'% of US operating income — the sector '+verdict+'.');
+  }
+
+  if(!bullets.length)return '';
+  var html='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f">';
+  bullets.forEach(function(b){html+='<li style="margin:6px 0">'+b+'</li>';});
+  html+='</ul>';
+  return html;
+}
+
 function renderCrossSectorDashboard(){
   var secs=Object.keys(SECTOR_POOL).sort();
   if(!secs.length)return'';
@@ -2211,6 +2471,182 @@ function renderCrossSectorDashboard(){
   if(valueTrap.length){narItems.push('<strong>Concentration without margin \u2014 '+valueTrap.map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+',\u00a0'+(s.margin*100).toFixed(1)+'%\u00a0margin)';}).join(', ')+':</strong> Elevated concentration has not translated into commensurate margin extraction. This pattern emerges where volume competition, commodity input pricing, or mandated price ceilings constrain profitability regardless of market share. High HHI here reflects market structure, not pricing power \u2014 the leading firm\u2019s dominant position is a floor on survival, not a ceiling lift on returns.');}
   narItems.push('<strong>Cross-sector spread \u2014 '+((maxM-minM)*100).toFixed(0)+'\u00a0percentage points:</strong> The gap between the highest and lowest blended sector margins is wide enough that sector allocation is a first-order return driver, not a secondary tilting decision. A portfolio systematically overweight in high-quality pools \u2014 particularly sectors in the Quality quadrant \u2014 and underweight in structurally challenged pools compounds this advantage across cycles. Sector selection anchored to pool quality can rival individual stock selection in generating sustained portfolio-level alpha.');
 
+  /* === Trading Volume by Cap Tier and Sector === */
+  /* Daily $ volume = share_turnover_rate × mcap, aggregated across the full
+     universe (DATA, not FD — Profit Pool tab is universe-level). */
+  var _vCapTier=function(b){return b<2?'small':(b<10?'mid':'large');};
+  var _vCapLabel={small:'Small Cap',mid:'Mid Cap',large:'Large Cap'};
+  var _vCapRange={small:'< $2B',mid:'$2B – $10B',large:'≥ $10B'};
+  var _vCapCol={small:'#74a9cf',mid:'#2b8cbe',large:'#045a8d'};
+  var _capVol={small:{vol:0,n:0},mid:{vol:0,n:0},large:{vol:0,n:0}};
+  var _secVol={};
+  DATA.forEach(function(d){
+    var mc=d.mcap||0;var tor=d.share_turnover_rate;
+    if(mc<=0||tor==null)return;
+    var dv=tor*mc;var tier=_vCapTier(mc/1e9);
+    _capVol[tier].vol+=dv;_capVol[tier].n+=1;
+    var sec=d.sector||'Unknown';
+    if(!_secVol[sec])_secVol[sec]={vol:0,byTier:{small:0,mid:0,large:0},n:0};
+    _secVol[sec].vol+=dv;_secVol[sec].byTier[tier]+=dv;_secVol[sec].n+=1;
+  });
+  var _capTotal=_capVol.small.vol+_capVol.mid.vol+_capVol.large.vol;
+  var capCardsHtml='';
+  ['small','mid','large'].forEach(function(t){
+    var v=_capVol[t],pct=_capTotal?Math.round(v.vol/_capTotal*100):0;
+    capCardsHtml+='<div style="flex:1;min-width:130px;background:#fafbfc;border-radius:8px;padding:11px 14px;border-left:4px solid '+_vCapCol[t]+'">'
+      +'<div style="font-size:0.7em;font-weight:700;color:'+_vCapCol[t]+';text-transform:uppercase;letter-spacing:0.05em">'+_vCapLabel[t]+'</div>'
+      +'<div style="font-size:0.65em;color:#999;margin-bottom:4px">'+_vCapRange[t]+'</div>'
+      +'<div style="font-size:1.45em;font-weight:700;color:#1a252f">'+fds(v.vol)+'</div>'
+      +'<div style="font-size:0.7em;color:#888">'+pct+'% of total · '+v.n+' stock'+(v.n!==1?'s':'')+'</div>'
+      +'</div>';
+  });
+  var capProportionHtml='<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:#f0f0f0">';
+  ['small','mid','large'].forEach(function(t){
+    var w=_capTotal?(_capVol[t].vol/_capTotal*100):0;
+    if(w>0)capProportionHtml+='<div style="width:'+w+'%;background:'+_vCapCol[t]+'" title="'+_vCapLabel[t]+': '+fds(_capVol[t].vol)+'"></div>';
+  });
+  capProportionHtml+='</div>';
+  var _sArr=Object.keys(_secVol).map(function(s){return{name:s,vol:_secVol[s].vol,byTier:_secVol[s].byTier,n:_secVol[s].n};});
+  _sArr.sort(function(a,b){return b.vol-a.vol;});
+  var _maxSV=_sArr.length?_sArr[0].vol:0;
+  var sectorBarsVolHtml='';
+  _sArr.forEach(function(s){
+    var sEsc=s.name.replace(/'/g,"\\'");
+    sectorBarsVolHtml+='<div class="xsect-bar-row" onclick="showPoolTab(\''+sEsc+'\')" style="cursor:pointer" title="'+s.name+' · '+s.n+' stocks · '+fds(s.vol)+'/day · click to view sector">'
+      +'<div class="xsect-bar-label">'+s.name+'</div>'
+      +'<div class="xsect-bar-track"><div class="xsect-trade-stack">';
+    ['small','mid','large'].forEach(function(t){
+      var w=_maxSV?(s.byTier[t]/_maxSV*100):0;
+      if(w>0)sectorBarsVolHtml+='<div style="width:'+w+'%;background:'+_vCapCol[t]+'" title="'+_vCapLabel[t]+': '+fds(s.byTier[t])+'"></div>';
+    });
+    sectorBarsVolHtml+='</div><span class="xsect-bar-pct">'+fds(s.vol)+'</span></div>'
+      +'</div>';
+  });
+  var legendHtml='<div style="display:flex;gap:12px;align-items:center;margin-top:10px;justify-content:flex-end">';
+  ['small','mid','large'].forEach(function(t){
+    legendHtml+='<div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:'+_vCapCol[t]+'"></div><div style="font-size:0.65em;color:#888">'+_vCapLabel[t]+'</div></div>';
+  });
+  legendHtml+='</div>';
+  /* === Avg daily SHARES per sector (sum of share_turnover × shares_out) ===
+     Stacked by cap tier so you can see which cap segments contribute to each
+     sector's share-count flow. */
+  function _fns(v){if(v==null)return'N/A';var a=Math.abs(v);if(a>=1e9)return(a/1e9).toFixed(1)+'B';if(a>=1e6)return(a/1e6).toFixed(1)+'M';if(a>=1e3)return(a/1e3).toFixed(0)+'K';return Math.round(a)+'';}
+  var _shrSec={};
+  DATA.forEach(function(d){
+    var so=d.shares_out,tor=d.share_turnover_rate,mc=d.mcap||0;
+    if(!so||tor==null||mc<=0)return;
+    var sec=d.sector||'Unknown';
+    var shr=so*tor;var tier=_vCapTier(mc/1e9);
+    if(!_shrSec[sec])_shrSec[sec]={shr:0,byTier:{small:0,mid:0,large:0},n:0};
+    _shrSec[sec].shr+=shr;_shrSec[sec].byTier[tier]+=shr;_shrSec[sec].n+=1;
+  });
+  var _shrArr=Object.keys(_shrSec).map(function(s){return{name:s,shr:_shrSec[s].shr,byTier:_shrSec[s].byTier,n:_shrSec[s].n};});
+  _shrArr.sort(function(a,b){return b.shr-a.shr;});
+  var _maxShr=_shrArr.length?_shrArr[0].shr:0;
+  var sharesBarsHtml='';
+  _shrArr.forEach(function(s){
+    var sEsc=s.name.replace(/'/g,"\\'");
+    sharesBarsHtml+='<div class="xsect-bar-row" onclick="showPoolTab(\''+sEsc+'\')" style="cursor:pointer" title="'+s.name+' · '+s.n+' stocks · '+_fns(s.shr)+' shares/day · click to view sector">'
+      +'<div class="xsect-bar-label">'+s.name+'</div>'
+      +'<div class="xsect-bar-track"><div class="xsect-trade-stack">';
+    ['small','mid','large'].forEach(function(t){
+      var w=_maxShr?(s.byTier[t]/_maxShr*100):0;
+      if(w>0)sharesBarsHtml+='<div style="width:'+w.toFixed(1)+'%;background:'+_vCapCol[t]+'" title="'+_vCapLabel[t]+': '+_fns(s.byTier[t])+'"></div>';
+    });
+    sharesBarsHtml+='</div><span class="xsect-bar-pct">'+_fns(s.shr)+'</span></div>'
+      +'</div>';
+  });
+  var sharesLegendHtml='<div style="display:flex;gap:12px;align-items:center;margin-top:10px;justify-content:flex-end">';
+  ['small','mid','large'].forEach(function(t){
+    sharesLegendHtml+='<div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:'+_vCapCol[t]+'"></div><div style="font-size:0.65em;color:#888">'+_vCapLabel[t]+'</div></div>';
+  });
+  sharesLegendHtml+='</div>';
+
+  /* === Median turnover rate per sector, stacked by cap tier ===
+     Each sector row is a single stacked bar (matching the $ volume and shares
+     charts above). Bar segments are the median turnover within each cap tier,
+     stacked end-to-end. Bar lengths are scaled to the maximum sum-of-tier-
+     medians across all sectors. The right-side figure is the sector-wide
+     median (across all stocks regardless of cap), which is the meaningful
+     "summary" number — sum-of-medians has no statistical meaning. */
+  var _torByTier={};
+  DATA.forEach(function(d){
+    if(d.share_turnover_rate==null)return;
+    var sec=d.sector||'Unknown';
+    var tier=_vCapTier((d.mcap||0)/1e9);
+    if(!_torByTier[sec])_torByTier[sec]={small:[],mid:[],large:[]};
+    _torByTier[sec][tier].push(d.share_turnover_rate);
+  });
+  function _median(arr){if(!arr.length)return 0;var s=arr.slice().sort(function(a,b){return a-b;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+  var _torArr=Object.keys(_torByTier).map(function(s){
+    var b=_torByTier[s];
+    var all=b.small.concat(b.mid).concat(b.large);
+    var medSmall=_median(b.small),medMid=_median(b.mid),medLarge=_median(b.large);
+    return{name:s,small:medSmall,mid:medMid,large:medLarge,
+      nSmall:b.small.length,nMid:b.mid.length,nLarge:b.large.length,
+      stackSum:medSmall+medMid+medLarge,
+      overall:_median(all),n:all.length};
+  });
+  _torArr.sort(function(a,b){return b.overall-a.overall;});
+  var _maxStack=0;
+  _torArr.forEach(function(s){_maxStack=Math.max(_maxStack,s.stackSum);});
+  var torBarsHtml='';
+  _torArr.forEach(function(s){
+    var rowTip=s.name+' · '+s.n+' stocks · overall median '+(s.overall*100).toFixed(2)+'%'
+      +' (Small '+(s.nSmall?(s.small*100).toFixed(2)+'% n='+s.nSmall:'no data')+
+      ' · Mid '+(s.nMid?(s.mid*100).toFixed(2)+'% n='+s.nMid:'no data')+
+      ' · Large '+(s.nLarge?(s.large*100).toFixed(2)+'% n='+s.nLarge:'no data')+')';
+    var sEsc=s.name.replace(/'/g,"\\'");
+    torBarsHtml+='<div class="xsect-bar-row" onclick="showPoolTab(\''+sEsc+'\')" style="cursor:pointer" title="'+rowTip+' · click to view sector">'
+      +'<div class="xsect-bar-label">'+s.name+'</div>'
+      +'<div class="xsect-bar-track"><div class="xsect-trade-stack">';
+    ['small','mid','large'].forEach(function(t){
+      var nKey=t==='small'?'nSmall':(t==='mid'?'nMid':'nLarge');
+      var med=s[t]||0;var nT=s[nKey];
+      var w=(_maxStack&&nT)?(med/_maxStack*100):0;
+      if(w>0){
+        var tip=_vCapLabel[t]+': median '+(med*100).toFixed(2)+'% (n='+nT+')';
+        torBarsHtml+='<div style="width:'+w.toFixed(1)+'%;background:'+_vCapCol[t]+'" title="'+tip+'"></div>';
+      }
+    });
+    torBarsHtml+='</div><span class="xsect-bar-pct">'+(s.overall*100).toFixed(2)+'%</span></div>'
+      +'</div>';
+  });
+  var torLegendHtml='<div style="display:flex;gap:12px;align-items:center;margin-top:10px;justify-content:flex-end">';
+  ['small','mid','large'].forEach(function(t){
+    torLegendHtml+='<div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:'+_vCapCol[t]+'"></div><div style="font-size:0.65em;color:#888">'+_vCapLabel[t]+'</div></div>';
+  });
+  torLegendHtml+='</div>';
+
+  var volumeHtml=''
+    +'<div class="xsect-trading-section">'
+      +'<div class="xsect-title">Cross-Sector Trading by Volume and Value</div>'
+      +'<div class="xsect-sub">Liquidity flow across the universe — dollar volume, share-count flow, and size-normalized turnover</div>'
+    +'<div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-top:14px">'
+      +'<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Daily Trading Volume by Cap Size</div>'
+      +'<div style="font-size:0.71em;color:#94a3b8;margin-bottom:12px">Avg daily $ volume = share turnover × market cap, summed within each tier</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">'+capCardsHtml+'</div>'
+      +capProportionHtml
+    +'</div>'
+    +'<div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-top:14px">'
+      +'<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Daily Trading Volume by Sector</div>'
+      +'<div style="font-size:0.71em;color:#94a3b8;margin-bottom:12px">Stacked by cap size — hover a segment for the breakdown</div>'
+      +sectorBarsVolHtml
+      +legendHtml
+    +'</div>'
+    +'<div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-top:14px">'
+      +'<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Avg Daily Shares Traded by Sector</div>'
+      +'<div style="font-size:0.71em;color:#94a3b8;margin-bottom:12px">Sum of share-count flow per sector (turnover × shares outstanding), stacked by cap size. Sensitive to share-price denomination — see $ volume above for normalized liquidity.</div>'
+      +sharesBarsHtml
+      +sharesLegendHtml
+    +'</div>'
+    +'<div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-top:14px">'
+      +'<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Median Daily Turnover Rate by Sector</div>'
+      +'<div style="font-size:0.71em;color:#94a3b8;margin-bottom:12px">Fraction of float changing hands per day, stacked by cap tier (each segment is that tier\'s median). Number on the right is the overall sector median across all cap sizes — hover any segment or row for the full breakdown.</div>'
+      +torBarsHtml
+      +torLegendHtml
+    +'</div>'
+    +'</div>';
   return'<div class="xsect-dashboard">'
     +'<div class="xsect-title">Cross-Sector Profit Pool Comparison</div>'
     +'<div class="xsect-sub">Blended pool margins, market concentration, and competitive dynamics across '+allStats.length+' sectors</div>'
@@ -2225,6 +2661,7 @@ function renderCrossSectorDashboard(){
       +'<ul style="margin:0;padding-left:18px">'+narItems.map(function(b){return'<li style="margin-bottom:9px;font-size:0.82em;color:#2c3e50;line-height:1.55">'+b+'</li>';}).join('')+'</ul>'
       +'</div>'
     +'</div>'
+    +volumeHtml
     +'</div></div>';
 }
 function _buildScatterSVG(W,H){
@@ -2322,6 +2759,7 @@ function renderPool(){
     var primerHtml=renderPoolPrimer(sec);
     var descHtml=renderPoolDescription(sec);
     var insightsHtml=renderPoolInsights(sec);
+    var liquidityHtml=renderPoolLiquidityInsights(sec);
     var playersHtml=renderPoolKeyPlayers(sec);
     var cr4Html=renderPoolCR4Companies(sec);
     if(primerHtml){
@@ -2331,7 +2769,10 @@ function renderPool(){
       chartHtml+='<div class="pp-section pp-desc"><span class="pp-section-label">Overview</span>'+descHtml+'</div>';
     }
     if(insightsHtml){
-      chartHtml+='<div class="pp-section pp-insights"><span class="pp-section-label">Insights</span>'+insightsHtml+'</div>';
+      chartHtml+='<div class="pp-section pp-insights"><span class="pp-section-label">Structural Insights</span>'+insightsHtml+'</div>';
+    }
+    if(liquidityHtml){
+      chartHtml+='<div class="pp-section pp-liquidity"><span class="pp-section-label">Liquidity Insights</span>'+liquidityHtml+'</div>';
     }
 
     if(playersHtml){

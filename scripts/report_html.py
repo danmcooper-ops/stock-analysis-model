@@ -448,8 +448,15 @@ def build_html(rows, filename, prices_dir=None):
                 print(f"[warn] sector pool narrative failed for {s}: {e}")
     sector_pool_json = json.dumps(sector_pool_data, default=_json_default)
 
+    # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
+    # template lazy-fetches them on first chart open, so the embedded HTML
+    # stays small enough to publish via GitHub Pages (<100 MB hard cap).
+    out_dir = os.path.dirname(os.path.abspath(filename)) or '.'
+    hist_path = os.path.join(out_dir, 'hist.json')
+    prices_path = os.path.join(out_dir, 'prices.json')
+
     # Historical fundamentals (EDGAR annual) per ticker
-    hist_data = 'null'
+    hist_payload = None
     try:
         _hist_out = {}
         _hist_fields = [
@@ -471,28 +478,50 @@ def build_html(rows, filename, prices_dir=None):
             for src_key, out_key in _hist_fields:
                 series = eh.get(src_key) or r.get(src_key) or {}
                 if isinstance(series, dict) and series:
-                    try:
-                        tick_hist[out_key] = {
-                            str(int(y)): float(v)
-                            for y, v in series.items()
-                            if v is not None
-                        }
-                        if tick_hist[out_key]:
-                            has_any = True
+                    # Accept either int year keys (legacy snapshots) or
+                    # date-string keys ("YYYY-MM-DD") from the quarterly
+                    # extractor. Normalize legacy ints to year-end dates so
+                    # the chart sees a uniform date axis.
+                    out = {}
+                    for k, v in series.items():
+                        if v is None:
+                            continue
+                        try:
+                            fv = float(v)
+                        except (ValueError, TypeError):
+                            continue
+                        if isinstance(k, int):
+                            key = f"{k}-12-31"
                         else:
-                            tick_hist.pop(out_key, None)
-                    except (ValueError, TypeError):
-                        pass
+                            ks = str(k)
+                            if len(ks) == 4 and ks.isdigit():
+                                key = f"{ks}-12-31"
+                            else:
+                                key = ks
+                        out[key] = fv
+                    if out:
+                        tick_hist[out_key] = out
+                        has_any = True
             if has_any:
                 _hist_out[tk] = tick_hist
         if _hist_out:
-            hist_data = json.dumps(_hist_out, default=_json_default)
+            hist_payload = _hist_out
             print(f"[report_html] edgar history: {len(_hist_out)} tickers")
     except Exception as _e:
         print(f"[warn] edgar history load failed: {_e}")
 
+    # Write hist.json sidecar (or remove a stale one so old data doesn't linger)
+    try:
+        if hist_payload is not None:
+            with open(hist_path, 'w') as _hf:
+                json.dump(hist_payload, _hf, default=_json_default)
+        elif os.path.exists(hist_path):
+            os.remove(hist_path)
+    except Exception as _e:
+        print(f"[warn] hist.json write failed: {_e}")
+
     # Load price history from local Parquet files
-    prices_data = 'null'
+    prices_payload = None
     if prices_dir and os.path.isdir(prices_dir):
         try:
             import pandas as _pd
@@ -541,13 +570,24 @@ def build_html(rows, filename, prices_dir=None):
                         if i is not None:
                             arr[i] = round(float(v), 2)
                     _prices_out[tk] = arr
-                prices_data = json.dumps(
-                    {'dates': _date_strs, 'prices': _prices_out, 'indices': _indices_found},
-                    default=_json_default,
-                )
+                prices_payload = {
+                    'dates': _date_strs,
+                    'prices': _prices_out,
+                    'indices': _indices_found,
+                }
                 print(f"[report_html] price history: {len(_prices_out)} tickers, {len(_date_strs)} dates, indices: {[x['ticker'] for x in _indices_found]}")
         except Exception as _e:
             print(f"[warn] price history load failed: {_e}")
+
+    # Write prices.json sidecar (or remove a stale one)
+    try:
+        if prices_payload is not None:
+            with open(prices_path, 'w') as _pf2:
+                json.dump(prices_payload, _pf2, default=_json_default)
+        elif os.path.exists(prices_path):
+            os.remove(prices_path)
+    except Exception as _e:
+        print(f"[warn] prices.json write failed: {_e}")
 
     # Render Jinja2 template
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
@@ -565,8 +605,8 @@ def build_html(rows, filename, prices_dir=None):
         chart_data=chart_data,
         gate_meta=gate_meta,
         sector_pool_json=sector_pool_json,
-        prices_data=prices_data,
-        hist_data=hist_data,
+        prices_available=('true' if prices_payload is not None else 'false'),
+        hist_available=('true' if hist_payload is not None else 'false'),
         generated_at=date.today().strftime('%B %-d, %Y'),
     )
 

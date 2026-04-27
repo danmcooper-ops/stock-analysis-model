@@ -1,4 +1,5 @@
 # data/yfinance_client.py
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import date
@@ -34,13 +35,14 @@ def _run_with_timeout(func, timeout_seconds):
 
 class YFinanceClient:
     def __init__(self, request_delay=0.25, snapshot_cache=None,
-                 fetch_timeout=20):
+                 fetch_timeout=20, prices_dir="output/prices"):
         self._financials_cache = {}
         self._history_cache = {}
         self._request_delay = request_delay
         self._last_request_time = 0
         self._snapshot_cache = snapshot_cache  # Optional SnapshotCache instance
         self._fetch_timeout = fetch_timeout    # hard wall-clock limit per fetch
+        self._prices_dir = prices_dir          # Write-through dir for fetch_history
 
     def evict_financials(self, keep_tickers=None):
         """Free cached financial data.  If *keep_tickers* is given, only those
@@ -189,13 +191,43 @@ class YFinanceClient:
         stock = yf.Ticker(ticker)
 
         def _fetch():
-            hist = stock.history(period=period)
-            # Guard against empty DataFrame or renamed column ('close' vs 'Close')
+            return stock.history(period=period)
+
+        try:
+            hist = self._retry(_fetch)
+        except Exception:
+            hist = None
+
+        history = pd.Series(dtype=float)
+        if hist is not None and not hist.empty:
             for col in ('Close', 'close'):
                 if col in hist.columns:
-                    return hist[col]
-            return pd.Series(dtype=float)
+                    history = hist[col]
+                    break
+            self._maybe_persist_prices(ticker, hist)
 
-        history = self._retry(_fetch)
         self._history_cache[cache_key] = history
         return history
+
+    def _maybe_persist_prices(self, ticker, hist):
+        # Write Close series to <prices_dir>/<ticker>.parquet on first encounter,
+        # so downstream tools (validate_ratings, portfolio_report, backtest) can
+        # use it. Skip if a file already exists (don't stomp richer max-history
+        # data from download_prices.py). Failures are silent — never block analysis.
+        if not self._prices_dir or hist is None or hist.empty:
+            return
+        col = 'Close' if 'Close' in hist.columns else ('close' if 'close' in hist.columns else None)
+        if col is None:
+            return
+        path = os.path.join(self._prices_dir, f"{ticker}.parquet")
+        if os.path.exists(path):
+            return
+        try:
+            os.makedirs(self._prices_dir, exist_ok=True)
+            df = hist[[col]].copy()
+            if col == 'close':
+                df.columns = ['Close']
+            df.index = pd.to_datetime(df.index).tz_localize(None)
+            df.to_parquet(path)
+        except Exception:
+            pass

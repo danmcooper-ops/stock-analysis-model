@@ -1,0 +1,9 @@
+{
+  "_doc": "Override map for founder-led detection. Tickers listed here override the algorithmic title scan (which checks every companyOfficer's title for 'founder'). Set true for known founder-led companies the title scan misses (e.g., yfinance's title field is just 'Chief Executive Officer' even though the CEO is the founder). Set false to suppress false positives. Tickers not listed use the algorithmic result.",
+  "_definition": "founder-led = a founder of the company currently holds an executive role (CEO, Executive Chair, CTO, President, COO). Founders who are board-only or fully retired do NOT count.",
+  "DELL": true,
+  "ORCL": true,
+  "AMZN": true,
+  "BRK-A": true,
+  "BRK-B": true
+}

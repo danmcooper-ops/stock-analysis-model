@@ -92,6 +92,84 @@ from scripts.scoring import (_mc_confidence_label, apply_screening_matrix,
 # Local price file helpers
 # ---------------------------------------------------------------------------
 
+_FOUNDER_OVERRIDES_CACHE = None
+_WIKIDATA_FOUNDERS_CACHE = None
+_HONORIFICS = ('mr.', 'mrs.', 'ms.', 'miss', 'dr.', 'prof.', 'sir')
+
+
+def _load_founder_overrides():
+    """Load and cache the curated founder-led overrides from
+    data/founder_overrides.json. Returns a dict {ticker: bool}; underscored
+    keys (e.g. _doc) are filtered out. Missing or malformed file → empty dict.
+    """
+    global _FOUNDER_OVERRIDES_CACHE
+    if _FOUNDER_OVERRIDES_CACHE is not None:
+        return _FOUNDER_OVERRIDES_CACHE
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
+                        'data', 'founder_overrides.json')
+    try:
+        with open(path) as _f:
+            raw = json.load(_f)
+        out = {k: bool(v) for k, v in raw.items()
+               if not k.startswith('_') and isinstance(v, bool)}
+    except Exception:
+        out = {}
+    _FOUNDER_OVERRIDES_CACHE = out
+    return out
+
+
+def _load_wikidata_founders():
+    """Load and cache Wikidata-derived founder names from
+    data/wikidata_founders.json. Returns {ticker: [founder_name, ...]}.
+    Missing file → empty dict. Build/refresh via build_wikidata_founders.py.
+    """
+    global _WIKIDATA_FOUNDERS_CACHE
+    if _WIKIDATA_FOUNDERS_CACHE is not None:
+        return _WIKIDATA_FOUNDERS_CACHE
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
+                        'data', 'wikidata_founders.json')
+    try:
+        with open(path) as _f:
+            raw = json.load(_f)
+        out = {k: list(v) for k, v in raw.items() if not k.startswith('_')}
+    except Exception:
+        out = {}
+    _WIKIDATA_FOUNDERS_CACHE = out
+    return out
+
+
+def _normalize_name(name):
+    """Lowercase, strip honorifics, split into a set of word tokens."""
+    if not name:
+        return set()
+    parts = name.lower().split()
+    parts = [p.strip('.,') for p in parts if p.lower() not in _HONORIFICS]
+    return set(p for p in parts if p)
+
+
+def _wikidata_founder_active(ticker, officers):
+    """True if any Wikidata-listed founder of *ticker* is in the current
+    officer list. Match logic: all words in the founder's normalized name
+    must appear in some officer's normalized name. Catches "Mark Zuckerberg"
+    vs "Mr. Mark Elliot Zuckerberg"; falls through on nickname divergence
+    like "Larry Ellison" vs "Lawrence J. Ellison" (manual override handles
+    those).
+    """
+    founders = _load_wikidata_founders().get(ticker, [])
+    if not founders or not officers:
+        return False
+    officer_words = [_normalize_name(o.get('name', '')) for o in officers]
+    officer_words = [s for s in officer_words if s]
+    for fn in founders:
+        fwords = _normalize_name(fn)
+        if not fwords:
+            continue
+        for ow in officer_words:
+            if fwords.issubset(ow):
+                return True
+    return False
+
+
 def _load_local_prices(ticker, prices_dir):
     """Load Close price series from local Parquet file. Returns pd.Series or None."""
     if not prices_dir:
@@ -1652,11 +1730,27 @@ def _main():
                                   if (current_price and high_52w and low_52w
                                       and high_52w > low_52w) else None)
 
-            # Founder-led detection: check if CEO title contains 'founder'
+            # Founder-led detection (three layers):
+            #   1) Title scan over every officer — catches founder-CEO,
+            #      founder-Chair, founder-CTO, etc. when yfinance labels the
+            #      title with "Founder".
+            #   2) Wikidata cross-reference — if any Wikidata-listed founder
+            #      of this CIK appears in the current companyOfficers list,
+            #      flag founder-led. Catches cases where the title field
+            #      doesn't contain "Founder" (e.g., Michael Dell, "CEO").
+            #   3) Manual overrides — final say, beats both above.
             founder_led = False
-            if ceo_officer:
-                title = (ceo_officer.get('title') or '').lower()
-                founder_led = 'founder' in title
+            if officers:
+                for _o in officers:
+                    _title = (_o.get('title') or '').lower()
+                    if 'founder' in _title:
+                        founder_led = True
+                        break
+            if not founder_led:
+                founder_led = _wikidata_founder_active(ticker, officers)
+            _foverrides = _load_founder_overrides()
+            if ticker in _foverrides:
+                founder_led = bool(_foverrides[ticker])
 
             # Ownership data from yfinance info
             shares_out = info.get('sharesOutstanding')
