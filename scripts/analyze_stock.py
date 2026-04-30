@@ -97,6 +97,48 @@ _WIKIDATA_FOUNDERS_CACHE = None
 _HONORIFICS = ('mr.', 'mrs.', 'ms.', 'miss', 'dr.', 'prof.', 'sir')
 
 
+def _flow_to_annual(history):
+    # SEC XBRL emits either one FY entry per year or four quarterly entries
+    # (Q4 derived as FY − Q1 − Q2 − Q3). Sum the four; pass FY through; drop
+    # incomplete years so CAGR endpoints aren't comparing partial years.
+    if not history:
+        return {}
+    by_year = {}
+    for period_end, val in history.items():
+        if val is None:
+            continue
+        try:
+            yr = int(str(period_end)[:4])
+        except (TypeError, ValueError):
+            continue
+        by_year.setdefault(yr, []).append(val)
+    annual = {}
+    for yr, vals in by_year.items():
+        if len(vals) == 4:
+            annual[yr] = sum(vals)
+        elif len(vals) == 1:
+            annual[yr] = vals[0]
+    return annual
+
+
+def _stock_to_annual(history):
+    # Point-in-time concepts (e.g. shares outstanding): keep the latest
+    # observation in each calendar year.
+    if not history:
+        return {}
+    latest = {}
+    for period_end, val in history.items():
+        if val is None:
+            continue
+        try:
+            yr = int(str(period_end)[:4])
+        except (TypeError, ValueError):
+            continue
+        if yr not in latest or str(period_end) > latest[yr][0]:
+            latest[yr] = (str(period_end), val)
+    return {yr: pv[1] for yr, pv in latest.items()}
+
+
 def _load_founder_overrides():
     """Load and cache the curated founder-led overrides from
     data/founder_overrides.json. Returns a dict {ticker: bool}; underscored
@@ -1391,6 +1433,13 @@ def _main():
             cost_of_equity = cached['cost_of_equity']
             beta_diag = cached.get('beta_diag')
 
+            # Phase 2 assumes roic_data and wacc are populated. Carry-forward
+            # tickers bypass the Phase-1 spread filter, so we can land here
+            # with either missing — skip the ticker rather than crash.
+            if not roic_data or wacc is None:
+                print(f"  Skipping {ticker}: ROIC or WACC unavailable today")
+                continue
+
             # --- Price-history enrichments (local Parquet) ---
             _local_close = _load_local_prices(ticker, prices_dir)
             _ticker_realized_vol = None
@@ -1574,8 +1623,16 @@ def _main():
             shares_cagr_5y = None       # negative = buybacks shrinking share count
 
             if edgar_history:
+                # Collapse quarterly period-end keys to fiscal-year totals so
+                # the [-6]/[-11] window logic measures 5y/10y, not quarters.
+                rev_hist = _flow_to_annual(edgar_history.get('revenue_history', {}))
+                ocf_hist = _flow_to_annual(edgar_history.get('operating_cf_history', {}))
+                cap_hist = _flow_to_annual(edgar_history.get('capex_history', {}))
+                gp_hist  = _flow_to_annual(edgar_history.get('gross_profit_history', {}))
+                div_hist = _flow_to_annual(edgar_history.get('dividends_paid_history', {}))
+                sh_hist  = _stock_to_annual(edgar_history.get('shares_history', {}))
+
                 # Revenue CAGRs
-                rev_hist = edgar_history.get('revenue_history', {})
                 if rev_hist:
                     sy = sorted(rev_hist.keys())
                     newest_rev = rev_hist[sy[-1]] if sy else None
@@ -1590,8 +1647,6 @@ def _main():
                                 rev_cagr_10y = (newest_rev / yr10) ** (1 / 10) - 1
 
                 # FCF history: operating cash flow minus capex
-                ocf_hist = edgar_history.get('operating_cf_history', {})
-                cap_hist = edgar_history.get('capex_history', {})
                 if ocf_hist:
                     common_years = sorted(set(ocf_hist) & set(cap_hist)) if cap_hist else sorted(ocf_hist)
                     fcf_hist = {yr: ocf_hist[yr] - abs(cap_hist.get(yr, 0)) for yr in common_years}
@@ -1603,7 +1658,6 @@ def _main():
                         fcf_cagr_10y = (fcf_vals[-1] / fcf_vals[-11]) ** (1 / 10) - 1
 
                 # Gross margin history (gross profit / revenue)
-                gp_hist = edgar_history.get('gross_profit_history', {})
                 if gp_hist and rev_hist:
                     common_gy = sorted(set(gp_hist) & set(rev_hist))[-5:]  # last 5 years
                     margins = [gp_hist[yr] / rev_hist[yr] for yr in common_gy
@@ -1622,7 +1676,6 @@ def _main():
                             ) / denom
 
                 # Dividend growth (5Y CAGR of dividends paid)
-                div_hist = edgar_history.get('dividends_paid_history', {})
                 if div_hist:
                     dy = sorted(div_hist.keys())
                     if len(dy) >= 6:
@@ -1631,7 +1684,6 @@ def _main():
                             dividend_cagr_5y = (d1 / d0) ** (1 / 5) - 1
 
                 # Share count trend (5Y CAGR — negative means shrinking = buybacks)
-                sh_hist = edgar_history.get('shares_history', {})
                 if sh_hist:
                     shy = sorted(sh_hist.keys())
                     if len(shy) >= 6:
@@ -2226,7 +2278,7 @@ def _main():
         for r in results:
             s = r.get('sector')
             v = r.get(metric)
-            if s and v is not None:
+            if s and isinstance(v, (int, float)) and not isinstance(v, bool):
                 _peer_buckets[metric].setdefault(s, []).append(v)
         for s in _peer_buckets[metric]:
             _peer_buckets[metric][s].sort()
@@ -2276,7 +2328,7 @@ def _main():
         if not emp:
             r['rpe_cagr'] = None
             continue
-        rev_hist = (r.get('edgar_history') or {}).get('revenue_history') or {}
+        rev_hist = _flow_to_annual((r.get('edgar_history') or {}).get('revenue_history') or {})
         years = sorted(rev_hist.keys())
         if len(years) >= 3:
             earliest = rev_hist[years[0]]
