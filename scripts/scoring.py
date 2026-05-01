@@ -74,7 +74,7 @@ SCREENING_GATES = [
     ('Growth: Margins',
      'gross_margin_trend',
      lambda v, r: v >= 0 if v is not None else None),
-    ('Growth: ROE',
+    ('Quality: ROE',
      'roe',
      lambda v, r: v > 0.20 if v is not None else None),
     # Buffett additions — balance sheet conservatism + owner earnings quality
@@ -121,16 +121,22 @@ def apply_screening_matrix(results):
         r['sbc_pct_rev'] = (sbc / rev) if (sbc is not None and rev and rev > 0) else None
         r['fcf_margin'] = (fcf / rev) if (fcf is not None and rev and rev > 0) else None
 
+    # Fixed denominator: every ticker is graded against the full gate list.
+    # Gates with missing data count as fail (no credit) rather than being
+    # excluded from the count, so "X / N" is comparable across tickers.
+    total_gates = len(SCREENING_GATES)
     for r in results:
         r['rating_raw'] = r['rating']
         passed = 0
-        total = 0
         for gate_name, field, test_fn in SCREENING_GATES:
             val = r.get(field)
             result = test_fn(val, r)
             gate_key = '_gate_' + gate_name.split(': ')[1].lower().replace(' ', '_').replace('/', '_')
             gp_key = '_gp' + gate_key[5:]  # _gate_mos → _gp_mos
             if result is None:
+                # N/A — keep _gate_* / _gp_* as None so the cell still
+                # renders as "N/A" visually, but the gate counts as a fail
+                # (passed not incremented; denominator is fixed below).
                 r[gate_key] = None
                 r[gp_key] = None
             else:
@@ -143,10 +149,9 @@ def apply_screening_matrix(results):
                 r[gp_key] = bool(result)
                 if result:
                     passed += 1
-                total += 1
 
-        r['_gates_passed'] = f'{passed}/{total}' if total > 0 else 'N/A'
-        r['_gates_passed_num'] = passed if total > 0 else -1
+        r['_gates_passed'] = f'{passed}/{total_gates}'
+        r['_gates_passed_num'] = passed
 
 
 def _print_validation_stats(results, screen_outcomes):
@@ -262,7 +267,7 @@ SCORING_GATES = [
      lambda v, r, pct: _score_linear(v, 0.0, 0.10), False, True),
     ('Growth: Margins', 'gross_margin_trend', 'Growth',
      lambda v, r, pct: _score_linear(v, -0.05, 0.05), False, True),
-    ('Growth: ROE', 'roe', 'Growth',
+    ('Quality: ROE', 'roe', 'Quality',
      lambda v, r, pct: _score_linear(v, 0.0, 0.35), False, True),     # tightened: best 30%→35%
     # Buffett additions
     ('Quality: Net Debt/EBITDA', 'nd_ebitda', 'Quality',
@@ -281,12 +286,6 @@ SCORING_GATES = [
      lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True),
     ('Ownership: Share Shrink', 'shares_cagr_5y', 'Ownership',
      lambda v, r, pct: _score_linear(v, 0.04, -0.04), False, True),
-    # 12-minus-1 month price momentum (skips last month to avoid short-term reversal).
-    # Scored against the Growth category — not a pure fundamental signal, but confirms
-    # that business trajectory is visible in the market.  Scored as a weak signal
-    # (moderate range) so it doesn't dominate fundamentals.
-    ('Growth: Momentum', 'momentum_12_1', 'Growth',
-     lambda v, r, pct: _score_linear(v, -0.25, 0.35), False, True),   # -25%→0, +35%→100
 ]
 
 
@@ -353,36 +352,44 @@ def compute_continuous_scores(results, params=None):
         'Growth': p.get('score_weight_growth', SCORE_WEIGHT_GROWTH),
         'Ownership': p.get('score_weight_ownership', SCORE_WEIGHT_OWNERSHIP),
     }
+    # Fixed per-category denominators: every gate contributes to its category
+    # average, with N/A scoring as 0 (worst). This prevents sparse-data tickers
+    # from being graded only on the gates they happen to have.
+    gates_per_category = {}
+    for gate_name, field, category, *_ in SCORING_GATES:
+        gates_per_category[category] = gates_per_category.get(category, 0) + 1
+
     for r in results:
-        category_scores = {}
+        category_sums = {cat: 0.0 for cat in gates_per_category}
         for gate_name, field, category, score_fn, relative_mode, higher_better in SCORING_GATES:
             val = r.get(field)
             if val is None:
-                continue
-            pct = r.get('_pctile', {}).get(f'{gate_name}_{field}', 50) if relative_mode else None
-            score = score_fn(val, r, pct)
-            if score is not None:
-                # Store per-gate score
-                short = gate_name.split(': ')[1].lower().replace(' ', '_').replace('/', '_')
-                r[f'_score_{short}'] = round(score, 1)
-                category_scores.setdefault(category, []).append(score)
+                # N/A → 0 (counts as worst, included in denominator)
+                score = 0.0
+            else:
+                pct = r.get('_pctile', {}).get(f'{gate_name}_{field}', 50) if relative_mode else None
+                s = score_fn(val, r, pct)
+                score = s if s is not None else 0.0
+            # Store per-gate score (always — even when N/A)
+            short = gate_name.split(': ')[1].lower().replace(' ', '_').replace('/', '_')
+            r[f'_score_{short}'] = round(score, 1)
+            category_sums[category] += score
 
-        # Category averages
-        cat_avgs = {}
-        for cat, scores in category_scores.items():
-            cat_avgs[cat] = sum(scores) / len(scores) if scores else 0
+        # Category averages over fixed denominator (gates_per_category)
+        cat_avgs = {cat: category_sums[cat] / gates_per_category[cat]
+                    for cat in gates_per_category}
         r['_score_valuation'] = round(cat_avgs.get('Valuation', 0), 1)
         r['_score_quality'] = round(cat_avgs.get('Quality', 0), 1)
         r['_score_moat'] = round(cat_avgs.get('Moat', 0), 1)
         r['_score_growth'] = round(cat_avgs.get('Growth', 0), 1)
         r['_score_ownership'] = round(cat_avgs.get('Ownership', 0), 1)
 
-        # Weighted composite score
-        weighted_sum = 0
-        weight_total = 0
-        for cat, avg in cat_avgs.items():
+        # Weighted composite — every category always contributes its full weight
+        weighted_sum = 0.0
+        weight_total = 0.0
+        for cat in gates_per_category:
             w = cat_weights.get(cat, 0)
-            weighted_sum += avg * w
+            weighted_sum += cat_avgs[cat] * w
             weight_total += w
         composite = weighted_sum / weight_total if weight_total > 0 else None
 
