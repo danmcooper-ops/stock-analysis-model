@@ -904,7 +904,17 @@ function toggleFilterPopup(e){
   panel.classList.toggle('open');
   if(!wasOpen){
     var btn=document.getElementById('fpop-btn');
-    if(btn){var r=btn.getBoundingClientRect();panel.style.top=(r.bottom+6)+'px';panel.style.left=r.left+'px';}
+    if(btn){
+      var r=btn.getBoundingClientRect();
+      var vw=window.innerWidth,vh=window.innerHeight;
+      var pw=panel.offsetWidth,ph=panel.offsetHeight;
+      var left=r.left;
+      if(left+pw>vw-10)left=vw-pw-10;
+      if(left<10)left=10;
+      var top=r.bottom+6;
+      if(top+ph>vh-10)top=Math.max(10,r.top-ph-6);
+      panel.style.top=top+'px';panel.style.left=left+'px';
+    }
   }
 }
 document.addEventListener('click',function(e){
@@ -1600,7 +1610,8 @@ function phLeave(){
 }
 
 /* === TICKER HOVER TOOLTIP === */
-var _tipEl=document.getElementById('tk-tip'),_tipTimer=null,_tipHideTimer=null;
+var _tipEl=document.getElementById('tk-tip'),_tipTimer=null,_tipHideTimer=null,_tipAutoTimer=null;
+var _TIP_AUTO_MS=4000;
 function _showTip(tk,x,y){
   var d=DATA.find(function(r){return r.ticker===tk;});if(!d)return;
   var rtBg=RC[d.rating]||'#888';
@@ -1639,11 +1650,12 @@ function _showTip(tk,x,y){
   if(top+th>vh-10)top=y-th-10;
   if(left<10)left=10;if(top<10)top=10;
   _tipEl.style.left=left+'px';_tipEl.style.top=top+'px';
+  clearTimeout(_tipAutoTimer);_tipAutoTimer=setTimeout(_hideTip,_TIP_AUTO_MS);
 }
-function _hideTip(){_tipEl.style.display='none';}
+function _hideTip(){clearTimeout(_tipAutoTimer);_tipEl.style.display='none';}
 
 /* === COLUMN HEADER TOOLTIP === */
-var _ctEl=document.getElementById('col-tip'),_ctTimer=null;
+var _ctEl=document.getElementById('col-tip'),_ctTimer=null,_ctAutoTimer=null;
 function _showColTip(label,body,threshold,x,y){
   var h='<div class="ct-name">'+esc(label)+'</div>';
   if(body)h+='<div class="ct-body">'+esc(body)+'</div>';
@@ -1658,8 +1670,9 @@ function _showColTip(label,body,threshold,x,y){
   if(top+ch>vh-10)top=y-ch-8;
   if(top<10)top=10;
   _ctEl.style.left=left+'px';_ctEl.style.top=top+'px';
+  clearTimeout(_ctAutoTimer);_ctAutoTimer=setTimeout(_hideColTip,_TIP_AUTO_MS);
 }
-function _hideColTip(){clearTimeout(_ctTimer);_ctEl.style.display='none';}
+function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.style.display='none';}
 
 /* === DETAIL POPUP TOOLTIPS (hover + tap) === */
 (function(){
@@ -1669,7 +1682,7 @@ function _hideColTip(){clearTimeout(_ctTimer);_ctEl.style.display='none';}
      compositing layer on iOS Safari — #col-tip is outside the modal and can
      be occluded by the backdrop-filter z-index promotion. */
   var _pt=document.getElementById('popup-tip');
-  var _pinEl=null;
+  var _pinEl=null,_ptAutoTimer=null;
   function _posTip(rect){
     var cw=_pt.offsetWidth||360,ch=_pt.offsetHeight||80;
     var vw=window.innerWidth,vh=window.innerHeight;
@@ -1689,9 +1702,10 @@ function _hideColTip(){clearTimeout(_ctTimer);_ctEl.style.display='none';}
     else if(el.matches('[data-km-tip]')){key=el.getAttribute('data-km-tip');txt=tt(key)||'';label=el.getAttribute('data-km-lbl')||'';if(!txt)return false;_pt.innerHTML='<div class="ct-name">'+esc(label)+'</div><div class="ct-body">'+esc(txt)+'</div>';}
     else return false;
     _posTip(el.getBoundingClientRect());
+    clearTimeout(_ptAutoTimer);_ptAutoTimer=setTimeout(_hideTipP,_TIP_AUTO_MS);
     return true;
   }
-  function _hideTipP(){_pt.style.display='none';_pinEl=null;}
+  function _hideTipP(){clearTimeout(_ptAutoTimer);_pt.style.display='none';_pinEl=null;}
   /* Hover — desktop (skipped while a tip is pinned) */
   dm.addEventListener('mouseover',function(e){if(_pinEl)return;var el=_findEl(e.target);if(el)_showFor(el);});
   dm.addEventListener('mouseout',function(e){if(_pinEl)return;var el=e.target.closest(_SEL);if(el)_pt.style.display='none';});
