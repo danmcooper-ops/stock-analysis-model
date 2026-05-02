@@ -1771,7 +1771,11 @@ function _dpTipHtml(idx){
       +'<span style="color:'+spyPctCol+';font-weight:600">'+sign(spyPct)+spyPct.toFixed(2)+'%</span>'
       +'</span>';
   }
-  html+='<span style="color:#aab;font-size:0.92em">'+tkP.d+'</span>';
+  /* When not hovering, show the actual visible date span so the user can see
+     that the range changed even when the data is the same (e.g. MAX==10YR for
+     newer companies, where both windows just show the full available history). */
+  var dateLbl=idx!=null?tkP.d:(s.tk[0].d+' → '+s.tk[s.tk.length-1].d);
+  html+='<span style="color:#aab;font-size:0.92em">'+dateLbl+'</span>';
   return html;
 }
 function _dpRenderChart(){
