@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stock Analysis — Interactive Report</title>
+<script>(function(){try{var t=localStorage.getItem('stock_theme_v1');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
 <style>
 :root {
   --cat-val-dark:#2F5496;--cat-val-light:#D6E4F0;
@@ -445,10 +446,100 @@ td.ct{font-weight:700;}
 .gate-pass-rate{font-size:1.35em;font-weight:700;}
 .gate-pass-label{font-size:0.73em;color:var(--text-muted);margin-top:2px;}
 #m-gate-view .table-wrap{border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);overflow:auto;-webkit-overflow-scrolling:touch;}
+/* === THEME TOGGLE === */
+.theme-toggle{position:absolute;top:50%;left:20px;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:20px;width:48px;height:24px;cursor:pointer;padding:2px;transition:background 0.2s;display:flex;align-items:center;}
+.theme-toggle:hover{background:rgba(255,255,255,0.28);}
+.theme-toggle .tt-knob{width:18px;height:18px;border-radius:50%;background:#ffd76b;color:#5a3b00;display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1;transition:transform 0.2s,background 0.2s,color 0.2s;}
+[data-theme="dark"] .theme-toggle .tt-knob{transform:translateX(22px);background:#1f2937;color:#e6edf3;}
+@media(max-width:768px){
+  .theme-toggle{position:static;transform:none;width:38px;height:20px;flex-shrink:0;order:0;}
+  .theme-toggle .tt-knob{width:14px;height:14px;font-size:9px;}
+  [data-theme="dark"] .theme-toggle .tt-knob{transform:translateX(18px);}
+}
+/* === DARK MODE === */
+[data-theme="dark"]{
+  --cat-val-light:#1a3358;--cat-qual-light:#2a4a2c;--cat-moat-light:#5a3015;
+  --cat-grow-light:#3a2154;--cat-own-light:#5a4310;
+  --gate-pass:#1e4d2b;--gate-fail:#5a1f25;--gate-na:#3a3f47;
+  --score-good:#1e4d2b;--score-mid:#5a4a14;--score-poor:#5a1f25;
+  --bg:#0e1117;--surface:#161b22;--text:#e6edf3;--text-muted:#8b949e;
+  --border:#30363d;--header-bg:#0d1117;--accent:#58a6ff;
+}
+[data-theme="dark"] body{background:var(--bg);color:var(--text);}
+[data-theme="dark"] .nav-btn{background:#21262d;color:#c9d1d9;}
+[data-theme="dark"] .nav-btn:hover:not(.active){background:#30363d;}
+[data-theme="dark"] .sub-btn{background:#161b22;color:#c9d1d9;border-color:#30363d;}
+[data-theme="dark"] .sub-btn.active{background:#1f6feb;color:#fff;border-color:#1f6feb;}
+[data-theme="dark"] .sub-btn:hover:not(.active){background:#21262d;border-color:#58a6ff;color:#e6edf3;}
+[data-theme="dark"] .filter-bar input,[data-theme="dark"] .filter-bar select,[data-theme="dark"] .f-metric-sel,[data-theme="dark"] .f-col-sel,[data-theme="dark"] .ms-btn{background:#0d1117;color:#e6edf3;border-color:#30363d;}
+[data-theme="dark"] .ms-btn::after{color:#8b949e;}
+[data-theme="dark"] .ms-drop,[data-theme="dark"] .fpop-panel{background:#161b22;color:#e6edf3;border-color:#30363d;}
+[data-theme="dark"] .ms-drop label:hover,[data-theme="dark"] .fpop-toggle-btn:hover,[data-theme="dark"] .add-filter-btn:hover{background:#21262d;}
+[data-theme="dark"] .ms-drop .ms-all{border-color:#30363d;}
+[data-theme="dark"] .fpop-btn,[data-theme="dark"] .fpop-toggle-btn,[data-theme="dark"] .filter-clear,[data-theme="dark"] .fpop-clear-filters,[data-theme="dark"] .add-filter-btn{background:#21262d;color:#c9d1d9;border-color:#30363d;}
+[data-theme="dark"] .fpop-btn.active,[data-theme="dark"] .fpop-toggle-btn.active{background:var(--accent);color:#0d1117;border-color:var(--accent);}
+[data-theme="dark"] .fpop-header,[data-theme="dark"] .fpop-footer{border-color:#30363d;}
+[data-theme="dark"] .fpop-title{color:#e6edf3;}
+[data-theme="dark"] .col-filter-row{background:#0d1117;border-color:#30363d;}
+[data-theme="dark"] .filter-divider{background:#30363d;}
+[data-theme="dark"] .mob-filter-btn{background:#21262d;color:#c9d1d9;border-color:#30363d;}
+[data-theme="dark"] .mob-filter-btn.active{background:#1f3a5c;border-color:var(--accent);color:var(--accent);}
+[data-theme="dark"] .search-clear{color:#8b949e;}
+[data-theme="dark"] .search-clear:hover{color:#e6edf3;background:#30363d;}
+[data-theme="dark"] .matrix-table,[data-theme="dark"] .dt{background:#161b22;}
+[data-theme="dark"] .matrix-table th{border-color:#30363d;}
+[data-theme="dark"] .matrix-table td{border-color:#21262d;color:#e6edf3;}
+[data-theme="dark"] .dt td{border-color:#21262d;color:#e6edf3;}
+[data-theme="dark"] .dt tr:nth-child(even){background:#1c2128;}
+[data-theme="dark"] .dt tr:hover{background:#1f3a5c;}
+[data-theme="dark"] .matrix-table tr:nth-child(even) td{background-color:rgba(255,255,255,0.03);}
+[data-theme="dark"] .matrix-table tr:hover td{background-color:#1f3a5c !important;}
+[data-theme="dark"] .matrix-table td.tk{background:#161b22;color:#58a6ff;}
+[data-theme="dark"] .dt td.tk2{color:#58a6ff;}
+[data-theme="dark"] .dt tbody td:nth-child(1),[data-theme="dark"] .dt tbody td:nth-child(2),[data-theme="dark"] .dt td.tk2,[data-theme="dark"] .matrix-table tbody td:nth-child(1),[data-theme="dark"] .matrix-table tbody td:nth-child(2){background:#161b22;}
+[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .dt tr:nth-child(even) td.tk2{background:#1c2128;}
+[data-theme="dark"] .dt tr:hover td:nth-child(1),[data-theme="dark"] .dt tr:hover td:nth-child(2),[data-theme="dark"] .dt tr:hover td.tk2{background:#1f3a5c !important;}
+[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .matrix-table tr:nth-child(even) td.tk{background:#1c2128;}
+[data-theme="dark"] .matrix-table tr:hover td:nth-child(1),[data-theme="dark"] .matrix-table tr:hover td:nth-child(2),[data-theme="dark"] .matrix-table tr:hover td.tk{background:#1f3a5c !important;}
+[data-theme="dark"] td.gp{background-color:var(--gate-pass) !important;color:#7ee787 !important;}
+[data-theme="dark"] td.gf{background-color:var(--gate-fail) !important;color:#ff7b72 !important;}
+[data-theme="dark"] td.gn{background-color:var(--gate-na) !important;color:#c9d1d9 !important;}
+[data-theme="dark"] td.sg{background-color:var(--score-good) !important;color:#7ee787 !important;}
+[data-theme="dark"] td.sm{background-color:var(--score-mid) !important;color:#ffd33d !important;}
+[data-theme="dark"] td.sp{background-color:var(--score-poor) !important;color:#ff7b72 !important;}
+[data-theme="dark"] .matrix-wrap,[data-theme="dark"] .table-wrap{box-shadow:0 2px 8px rgba(0,0,0,0.5);}
+[data-theme="dark"] .detail-content{background:#161b22;}
+[data-theme="dark"] .ddesc{background:linear-gradient(135deg,#1a2438,#1f2a40);color:#c9d1d9;border-left-color:#3b6fd4;}
+[data-theme="dark"] .fin-list{background:#1c2128;color:#c9d1d9;}
+[data-theme="dark"] .utx,[data-theme="dark"] .sig-title{color:#c9d1d9;}
+[data-theme="dark"] .sig-hw{background:linear-gradient(135deg,#2a1518,#321a1d);color:#c9d1d9;}
+[data-theme="dark"] .sig-tw{background:linear-gradient(135deg,#152a1d,#1a3220);color:#c9d1d9;}
+[data-theme="dark"] .ps-col{background:#1c2128;border-color:#30363d;}
+[data-theme="dark"] .ps-col h3{color:#58a6ff;border-color:#30363d;}
+[data-theme="dark"] .ps-tk{color:#e6edf3;}
+[data-theme="dark"] .ps-nm,[data-theme="dark"] .ps-ext{color:#8b949e;}
+[data-theme="dark"] .pp-bar{background:#30363d;}
+[data-theme="dark"] .gv-col{border-color:#30363d;}
+[data-theme="dark"] .gv-items{background:#1c2128;}
+[data-theme="dark"] .gv-item{border-color:#30363d;}
+[data-theme="dark"] .gv-item:nth-child(even){background:#21262d;}
+[data-theme="dark"] .gv-k{color:#8b949e;}
+[data-theme="dark"] .gv-v{color:#e6edf3;}
+[data-theme="dark"] .gv-thr{color:#6e7681;}
+[data-theme="dark"] .tk-tip{background:#161b22;color:#e6edf3;border-color:#30363d;}
+[data-theme="dark"] .gate-detail-card{background:#161b22;color:#e6edf3;}
+[data-theme="dark"] .gate-detail-threshold,[data-theme="dark"] .gate-pass-label{color:#8b949e;}
+[data-theme="dark"] .stat{background:rgba(255,255,255,0.08);}
+[data-theme="dark"] .dtxn th{color:#8b949e;border-color:#30363d;}
+[data-theme="dark"] .dtxn td{border-color:#21262d;color:#c9d1d9;}
+[data-theme="dark"] .matrix-table td.tk{color:#58a6ff;}
+[data-theme="dark"] .dq-warning{background:#3a2a10;border-color:#856404;color:#ffd33d;}
+[data-theme="dark"] .pool-tt,[data-theme="dark"] .pp-quad-tip{background:#161b22;color:#e6edf3;border-color:#30363d;}
 </style>
 </head>
 <body>
 <div class="header">
+  <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><span class="tt-knob" id="tt-knob">&#9728;</span></button>
   <div class="last-updated"><span>Last updated</span><span>{{ generated_at }}</span><span>n = {{ total }}</span></div>
   <h1 style="font-size:1.35em;margin:0">Securities Analysis</h1>
 </div>
@@ -556,6 +647,16 @@ td.ct{font-weight:700;}
 <div id="tk-tip" class="tk-tip"></div>
 <div id="col-tip"></div>
 <script>
+/* === THEME === */
+var _THEME_KEY='stock_theme_v1';
+function setTheme(t){
+  var k=document.getElementById('tt-knob');
+  if(t==='dark'){document.documentElement.setAttribute('data-theme','dark');if(k)k.innerHTML='&#9790;';}
+  else{document.documentElement.removeAttribute('data-theme');if(k)k.innerHTML='&#9728;';}
+  try{localStorage.setItem(_THEME_KEY,t);}catch(e){}
+}
+function toggleTheme(){var cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';setTheme(cur==='dark'?'light':'dark');}
+(function(){var t='light';try{if(localStorage.getItem(_THEME_KEY)==='dark')t='dark';}catch(e){}var k=document.getElementById('tt-knob');if(k)k.innerHTML=(t==='dark'?'&#9790;':'&#9728;');})();
 /* === DATA === */
 var DATA={{ chart_data }};
 var GM={{ gate_meta }};
