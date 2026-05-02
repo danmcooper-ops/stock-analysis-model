@@ -1742,7 +1742,10 @@ function _dpGetSeries(ticker){
 function dpSetRange(r){
   _dpRange=r;
   document.querySelectorAll('.dp-range-btn').forEach(function(b){b.classList.toggle('active',b.dataset.range===r);});
-  _dpRenderChart();
+  try{_dpRenderChart();}catch(e){
+    console.error('dp chart render failed for range',r,e);
+    var ch=document.getElementById('dp-chart');if(ch)ch.innerHTML='<p style="color:#c0392b;padding:20px;text-align:center;font-size:0.88em">Chart render error: '+(e.message||e)+'</p>';
+  }
 }
 function _dpTipHtml(idx){
   var s=_dpState;if(!s||!s.tk.length)return'';
@@ -1789,9 +1792,11 @@ function _dpRenderChart(){
   var tkBase=tkPts[0].c;
   var spyBase=spyPts.length?spyPts[0].c:null;
   var spyPlot=spyPts.length?spyPts.map(function(p){return{d:p.d,c:p.c/spyBase*tkBase};}):[];
-  var allVals=tkPts.map(function(p){return p.c;});
-  spyPlot.forEach(function(p){allVals.push(p.c);});
-  var minP=Math.min.apply(null,allVals),maxP=Math.max.apply(null,allVals);
+  /* Compute min/max in a loop — Math.min.apply(null,arr) hits Safari's
+     argument-count limit for MAX-range arrays (~10k pts) and silently throws. */
+  var minP=Infinity,maxP=-Infinity;
+  for(var _i=0;_i<tkPts.length;_i++){var _v=tkPts[_i].c;if(_v<minP)minP=_v;if(_v>maxP)maxP=_v;}
+  for(var _j=0;_j<spyPlot.length;_j++){var _w=spyPlot[_j].c;if(_w<minP)minP=_w;if(_w>maxP)maxP=_w;}
   if(refs.dcf&&refs.dcf>0){minP=Math.min(minP,refs.dcf);maxP=Math.max(maxP,refs.dcf);}
   if(refs.hi)maxP=Math.max(maxP,refs.hi);
   if(refs.lo)minP=Math.min(minP,refs.lo);
@@ -1824,8 +1829,9 @@ function _dpRenderChart(){
   linesSVG+='<polyline points="'+tkPP+'" fill="none" stroke="'+tkCol+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" opacity="0.92"/>';
   var dotSVG='<circle id="dp-dot" cx="0" cy="0" r="4" fill="white" stroke="'+tkCol+'" stroke-width="2" opacity="0"/>';
   if(spyPlot.length)dotSVG+='<circle id="dp-dot-spy" cx="0" cy="0" r="3.5" fill="white" stroke="'+spyCol+'" stroke-width="1.7" opacity="0"/>';
-  var svg='<svg id="dp-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none"'
-    +' onmousemove="dpMove(event)" onmouseleave="dpLeave()">'
+  var svg='<svg id="dp-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
+    +' onmousemove="dpMove(event)" onmouseleave="dpLeave()"'
+    +' ontouchstart="dpTouch(event)" ontouchmove="dpTouch(event)" ontouchend="dpLeave()" ontouchcancel="dpLeave()">'
     +'<defs><linearGradient id="dp-g" x1="0" y1="0" x2="0" y2="1">'
     +'<stop offset="0%" stop-color="'+tkCol+'" stop-opacity="0.18"/><stop offset="100%" stop-color="'+tkCol+'" stop-opacity="0.01"/>'
     +'</linearGradient></defs>'
@@ -1862,6 +1868,14 @@ function dpLeave(){
   var dc=document.getElementById('dp-dot');if(dc)dc.setAttribute('opacity','0');
   var dcs=document.getElementById('dp-dot-spy');if(dcs)dcs.setAttribute('opacity','0');
   var tb=document.getElementById('dp-tip-bar');if(tb)tb.innerHTML=_dpTipHtml(null);
+}
+function dpTouch(e){
+  if(!_dpState||!e.touches||!e.touches.length)return;
+  var t=e.touches[0];
+  /* Block vertical scroll while dragging across the chart so the crosshair can
+     follow the finger. Page scroll still works when the gesture starts off-chart. */
+  if(e.cancelable)e.preventDefault();
+  dpMove({clientX:t.clientX,clientY:t.clientY});
 }
 function _renderDetPriceChart(ticker){
   var sec=document.getElementById('d-section-price');
