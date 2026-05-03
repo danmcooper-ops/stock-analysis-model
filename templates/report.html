@@ -2233,10 +2233,11 @@ function openDet(tk){
     var _gvEl=document.getElementById('d-gate-values');
     var _fmtGate=function(v,fmt){if(v==null)return'\u2014';if(fmt==='pct1')return(v*100).toFixed(1)+'%';if(fmt==='ratio')return v.toFixed(2)+'\u00d7';if(fmt==='int')return Math.round(v)+'';return v.toFixed?v.toFixed(2):String(v);};
     var _gvHtml='';
-    GM.categories.forEach(function(c){
+    var _gvTotal=GM.categories.length;
+    GM.categories.forEach(function(c,_ci){
       var gates=GM.gates.filter(function(g){return g.category===c.name;});
       if(!gates.length)return;
-      _gvHtml+='<div class="gv-col"><div class="gv-cat" style="background:'+c.dark+'">'+c.name+'</div><div class="gv-items">';
+      _gvHtml+='<div class="gv-col"><div class="gv-cat" style="background:'+c.dark+'">'+c.name+' Gate '+(_ci+1)+'/'+_gvTotal+'</div><div class="gv-items">';
       gates.forEach(function(g){
         var raw=d[g.key];
         var pass=d[g.gpKey];
