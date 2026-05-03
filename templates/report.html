@@ -272,6 +272,14 @@ td.ct{font-weight:700;}
 .gv-v{font-size:0.68em;font-weight:700;color:#1a252f;white-space:nowrap;text-align:right;}
 .gv-v.pass{color:#1a9850;}.gv-v.fail{color:#de2d26;}
 .gv-thr{font-size:0.82em;font-weight:400;color:#aaa;white-space:nowrap;}
+@media(max-width:900px), (max-height:500px){
+  .detail-content .d-gate-values{grid-template-columns:1fr!important;gap:6px;}
+  .detail-content .gv-cat{font-size:0.78em;padding:6px 12px;text-align:left;}
+  .detail-content .gv-item{padding:7px 12px;}
+  .detail-content .gv-k{font-size:0.85em;}
+  .detail-content .gv-v{font-size:0.88em;}
+  .detail-content .gv-thr{font-size:0.95em;}
+}
 .score-bar{display:flex;height:34px;border-radius:9px;overflow:hidden;font-size:0.62em;font-weight:700;color:white;box-shadow:0 3px 10px rgba(0,0,0,0.15);}
 .score-bar div{display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;padding:0 3px;}
 .ddesc{font-size:0.82em;color:#37474f;line-height:1.55;padding:13px 16px;background:linear-gradient(135deg,#eef3ff,#f5f8ff);border-radius:9px;border-left:4px solid #3b6fd4;box-shadow:inset 0 1px 3px rgba(59,111,212,0.08);}
@@ -619,6 +627,9 @@ td.ct{font-weight:700;}
 [data-theme="dark"] body,[data-theme="dark"] body *{color:#fff !important;}
 [data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:rgba(255,255,255,0.72) !important;opacity:1;}
 [data-theme="dark"] select option{background:#0d1117 !important;color:#fff !important;}
+[data-theme="dark"] .rev-chk:not(.checked),[data-theme="dark"] .rev-chk-det:not(.checked),[data-theme="dark"] #f-reviewed{color:#fff !important;--chk-border:#fff;--chk-mark:#fff;}
+[data-theme="dark"] .rev-chk:not(.checked):hover,[data-theme="dark"] .rev-chk-det:not(.checked):hover{--chk-border:#fff;--chk-mark:#fff;}
+[data-theme="dark"] #f-reviewed svg,[data-theme="dark"] #f-reviewed span{color:#fff !important;}
 [data-theme="dark"] td.gp,[data-theme="dark"] td.sg,[data-theme="dark"] .gv-v.pass,[data-theme="dark"] [style*="color:#1a9850"],[data-theme="dark"] [style*="color:#27ae60"]{color:#7ee787 !important;}
 [data-theme="dark"] td.gf,[data-theme="dark"] td.sp,[data-theme="dark"] .gv-v.fail,[data-theme="dark"] [style*="color:#de2d26"],[data-theme="dark"] [style*="color:#e74c3c"]{color:#ff7b72 !important;}
 [data-theme="dark"] td.sm,[data-theme="dark"] [style*="color:#fd8d3c"],[data-theme="dark"] [style*="color:#e67e22"]{color:#ffd33d !important;}
