@@ -272,6 +272,19 @@ td.ct{font-weight:700;}
 .gv-v{font-size:0.68em;font-weight:700;color:#1a252f;white-space:nowrap;text-align:right;}
 .gv-v.pass{color:#1a9850;}.gv-v.fail{color:#de2d26;}
 .gv-thr{font-size:0.82em;font-weight:400;color:#aaa;white-space:nowrap;}
+@media(max-width:900px) and (orientation:portrait){
+  .detail-content .d-gate-values{grid-template-columns:1fr!important;gap:6px;}
+  .detail-content .gv-cat{font-size:0.78em;padding:6px 12px;text-align:left;}
+  .detail-content .gv-item{padding:7px 12px;}
+  .detail-content .gv-k{font-size:0.85em;}
+  .detail-content .gv-v{font-size:0.88em;}
+  .detail-content .gv-thr{font-size:0.95em;}
+  .detail-content .dkvg{grid-template-columns:1fr!important;}
+  .detail-content .sig-grid{grid-template-columns:1fr!important;}
+  .detail-content .nl-grid{grid-template-columns:1fr!important;}
+  .detail-content .ps-grid{grid-template-columns:1fr!important;}
+  .detail-content .tk-tip .tip-grid{grid-template-columns:1fr!important;}
+}
 .score-bar{display:flex;height:34px;border-radius:9px;overflow:hidden;font-size:0.62em;font-weight:700;color:white;box-shadow:0 3px 10px rgba(0,0,0,0.15);}
 .score-bar div{display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden;padding:0 3px;}
 .ddesc{font-size:0.82em;color:#37474f;line-height:1.55;padding:13px 16px;background:linear-gradient(135deg,#eef3ff,#f5f8ff);border-radius:9px;border-left:4px solid #3b6fd4;box-shadow:inset 0 1px 3px rgba(59,111,212,0.08);}
@@ -470,11 +483,14 @@ td.ct{font-weight:700;}
 }
 [data-theme="dark"] body{background:var(--bg);color:var(--text);}
 [data-theme="dark"] .nav-btn{background:#21262d;color:#c9d1d9;}
+[data-theme="dark"] .nav-btn.active{background:#1f6feb;color:#fff;}
 [data-theme="dark"] .nav-btn:hover:not(.active){background:#30363d;}
 [data-theme="dark"] .sub-btn{background:#161b22;color:#c9d1d9;border-color:#30363d;}
 [data-theme="dark"] .sub-btn.active{background:#1f6feb;color:#fff;border-color:#1f6feb;}
 [data-theme="dark"] .sub-btn:hover:not(.active){background:#21262d;border-color:#58a6ff;color:#e6edf3;}
-[data-theme="dark"] .filter-bar input,[data-theme="dark"] .filter-bar select,[data-theme="dark"] .f-metric-sel,[data-theme="dark"] .f-col-sel,[data-theme="dark"] .ms-btn{background:#0d1117;color:#e6edf3;border-color:#30363d;}
+[data-theme="dark"] .filter-bar input,[data-theme="dark"] .filter-bar select,[data-theme="dark"] .f-metric-sel,[data-theme="dark"] .f-col-sel,[data-theme="dark"] .f-num,[data-theme="dark"] .ms-btn{background:#0d1117;color:#e6edf3;border-color:#30363d;}
+[data-theme="dark"] .f-num::placeholder{color:#6e7681;opacity:1;}
+[data-theme="dark"] .f-col-sel option{background:#0d1117;color:#e6edf3;}
 [data-theme="dark"] .ms-btn::after{color:#8b949e;}
 [data-theme="dark"] .ms-drop,[data-theme="dark"] .fpop-panel{background:#161b22;color:#e6edf3;border-color:#30363d;}
 [data-theme="dark"] .ms-drop label:hover,[data-theme="dark"] .fpop-toggle-btn:hover,[data-theme="dark"] .add-filter-btn:hover{background:#21262d;}
@@ -512,10 +528,12 @@ td.ct{font-weight:700;}
 [data-theme="dark"] td.sp{background-color:var(--score-poor) !important;color:#ff7b72 !important;}
 [data-theme="dark"] .matrix-wrap,[data-theme="dark"] .table-wrap{box-shadow:0 2px 8px rgba(0,0,0,0.5);}
 [data-theme="dark"] .detail-content{background:#161b22;}
-[data-theme="dark"] .ddesc{background:linear-gradient(135deg,#1a2438,#1f2a40);color:#c9d1d9;border-left-color:#3b6fd4;}
+[data-theme="dark"] .ddesc{background:linear-gradient(135deg,#1a2438,#1f2a40);color:#fff;border-left-color:#3b6fd4;}
+[data-theme="dark"] .ddesc *{color:#fff;}
 [data-theme="dark"] .fin-list{background:#1c2128;color:#c9d1d9;}
 [data-theme="dark"] .utx,[data-theme="dark"] .sig-title{color:#c9d1d9;}
-[data-theme="dark"] .sig-hw{background:linear-gradient(135deg,#2a1518,#321a1d);color:#c9d1d9;}
+[data-theme="dark"] .sig-hw{background:linear-gradient(135deg,#2a1518,#321a1d);color:#fff;}
+[data-theme="dark"] .sig-hw *{color:#fff;}
 [data-theme="dark"] .sig-tw{background:linear-gradient(135deg,#152a1d,#1a3220);color:#c9d1d9;}
 [data-theme="dark"] .ps-col{background:#1c2128;border-color:#30363d;}
 [data-theme="dark"] .ps-col h3{color:#58a6ff;border-color:#30363d;}
@@ -538,6 +556,94 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .matrix-table td.tk{color:#58a6ff;}
 [data-theme="dark"] .dq-warning{background:#3a2a10;border-color:#856404;color:#ffd33d;}
 [data-theme="dark"] .pool-tt,[data-theme="dark"] .pp-quad-tip{background:#161b22;color:#e6edf3;border-color:#30363d;}
+[data-theme="dark"] .dgrid-inner{background:#161b22;}
+[data-theme="dark"] .dgroup{border-color:rgba(255,255,255,0.08);box-shadow:0 2px 12px rgba(0,0,0,0.3);}
+[data-theme="dark"] .dgroup-asm{background:#1a2438!important;border-top-color:#30363d!important;}
+[data-theme="dark"] .dgroup-asm > span:first-child{color:#58a6ff!important;}
+[data-theme="dark"] .dgroup-asm > span:not(:first-child){color:#8b949e!important;}
+[data-theme="dark"] .dgroup-asm > span > strong{color:#e6edf3!important;}
+[data-theme="dark"] .dsec{background:#1c2128;border-color:#30363d;}
+[data-theme="dark"] .dsec h3{color:#58a6ff;border-color:#30363d;}
+[data-theme="dark"] .dkv{color:#c9d1d9;}
+[data-theme="dark"] .dkv:nth-child(odd){background:rgba(88,166,255,0.06);}
+[data-theme="dark"] .dkv .kl{color:#8b949e;}
+[data-theme="dark"] .dkv .kv{color:#e6edf3;}
+[data-theme="dark"] .tk-tip .tip-tk,[data-theme="dark"] .tk-tip .tip-v{color:#e6edf3;}
+[data-theme="dark"] .tk-tip .tip-k{color:#8b949e;}
+[data-theme="dark"] .tk-tip .tip-sec{color:#8b949e;border-color:#30363d;}
+[data-theme="dark"] .pool-sector{background:#161b22;border-color:#30363d;}
+[data-theme="dark"] .pp-section{border-color:#30363d;}
+[data-theme="dark"] .pp-primer{background:#0f1f3a;}
+[data-theme="dark"] .pp-desc{background:#0e1c30;}
+[data-theme="dark"] .pp-insights{background:#2a2010;}
+[data-theme="dark"] .pp-liquidity{background:#0d2528;}
+[data-theme="dark"] .pp-headwinds{background:#2a1414;}
+[data-theme="dark"] .pp-cr4{background:#1c1530;}
+[data-theme="dark"] .pp-players{background:#102a1b;}
+[data-theme="dark"] .pp-chart{background:#161b22;}
+[data-theme="dark"] .pool-legend{color:#8b949e;}
+[data-theme="dark"] .pool-sec-stats{color:#c9d1d9;}
+[data-theme="dark"] .xsect-dashboard{background:#161b22;border-top-color:#58a6ff;box-shadow:0 3px 14px rgba(0,0,0,0.4);}
+[data-theme="dark"] .xsect-title{color:#e6edf3;}
+[data-theme="dark"] .xsect-sub{color:#8b949e;}
+[data-theme="dark"] .xsect-kpi{background:#1c2128;}
+[data-theme="dark"] .xsect-kpi-val{color:#e6edf3;}
+[data-theme="dark"] .xsect-kpi-label{color:#8b949e;}
+[data-theme="dark"] .xsect-kpi-sub{color:#6e7681;}
+[data-theme="dark"] .xsect-chart-title{color:#e6edf3;}
+[data-theme="dark"] .xsect-bar-row:hover{background:#21262d;}
+[data-theme="dark"] .xsect-bar-label{color:#e6edf3;}
+[data-theme="dark"] .xsect-bar-track{background:#30363d;}
+[data-theme="dark"] .xsect-bar-pct{color:#c9d1d9;}
+[data-theme="dark"] .xsect-bar-meta{color:#8b949e;}
+[data-theme="dark"] .xsect-trading-section{background:linear-gradient(180deg,#0e1c30 0%,#161b22 100%);border-top-color:#00838f;}
+[data-theme="dark"] .xsect-trading-section .xsect-title{color:#7adde7;}
+[data-theme="dark"] .xsect-narrative{background:#1c2128;}
+[data-theme="dark"] .xsect-nar-title{color:#e6edf3;}
+[data-theme="dark"] .ph-metric-btn,[data-theme="dark"] .ph-range-btn,[data-theme="dark"] #ph-select,[data-theme="dark"] .ph-sinp{background:#21262d;color:#c9d1d9;border-color:#30363d;}
+[data-theme="dark"] .ph-metric-btn.active,[data-theme="dark"] .ph-range-btn.active{background:#1f6feb;color:#fff;border-color:#1f6feb;}
+[data-theme="dark"] .ph-metric-btn:hover:not(.active),[data-theme="dark"] .ph-range-btn:hover:not(.active){background:#30363d;color:#e6edf3;}
+[data-theme="dark"] .ph-sdrop{background:#161b22;border-color:#30363d;}
+[data-theme="dark"] .ph-sitem{border-color:#21262d;}
+[data-theme="dark"] .ph-sitem:hover,[data-theme="dark"] .ph-sitem.hi{background:#21262d;}
+[data-theme="dark"] .ph-stk{color:#e6edf3;}
+[data-theme="dark"] .ph-snm{color:#8b949e;}
+[data-theme="dark"] .ph-sclr{color:#6e7681;}
+[data-theme="dark"] .ph-sclr:hover{color:#c9d1d9;}
+[data-theme="dark"] .legend{color:#8b949e;}
+/* News & legal popup items (inline-style overrides) */
+[data-theme="dark"] #d-news div[style*="background:#f8f9fb"]{background:#1c2128 !important;}
+[data-theme="dark"] #d-legal div[style*="background:#fef9f9"]{background:#2a1414 !important;}
+[data-theme="dark"] #d-news div[style*="border-bottom:1px solid #eee"]{border-color:#30363d !important;color:#c9d1d9;}
+[data-theme="dark"] #d-legal div[style*="border-bottom:1px solid #f0e0e0"]{border-color:#3a2020 !important;color:#c9d1d9;}
+[data-theme="dark"] #d-news a[style*="color:#2980b9"],[data-theme="dark"] #d-legal a[style*="color:#c0392b"]{color:#58a6ff !important;}
+[data-theme="dark"] #d-news span[style*="color:#888"],[data-theme="dark"] #d-legal span[style*="color:#888"]{color:#8b949e !important;}
+[data-theme="dark"] #d-news span[style*="color:#aaa"]{color:#6e7681 !important;}
+[data-theme="dark"] #d-legal div[style*="color:#666"]{color:#c9d1d9 !important;}
+[data-theme="dark"] .sig-title span[style*="color:#888"]{color:#8b949e !important;}
+[data-theme="dark"] p[style*="color:#999"]{color:#8b949e !important;}
+[data-theme="dark"] .ps-tbl th{color:#8b949e;border-color:#30363d;}
+[data-theme="dark"] .ps-tbl td{border-color:#21262d;color:#c9d1d9;}
+[data-theme="dark"] .gv-v.pass{color:#7ee787;}
+[data-theme="dark"] .gv-v.fail{color:#ff7b72;}
+[data-theme="dark"] .score-sep,[data-theme="dark"] .col-unit,[data-theme="dark"] .col-filters-and-label,[data-theme="dark"] .fpop-section-label{color:#8b949e;}
+[data-theme="dark"] .fpop-close{color:#8b949e;}
+[data-theme="dark"] .cfr-remove{color:#6e7681;}
+[data-theme="dark"] .fpop-panel,[data-theme="dark"] .fpop-panel *,[data-theme="dark"] .ms-drop,[data-theme="dark"] .ms-drop *{color:#fff;}
+[data-theme="dark"] .fpop-panel input::placeholder{color:rgba(255,255,255,0.72);opacity:1;}
+[data-theme="dark"] .fpop-panel select option{background:#0d1117;color:#fff;}
+[data-theme="dark"] #d-section-overview .ddesc,[data-theme="dark"] #d-section-overview .ddesc *,
+[data-theme="dark"] #d-sector-signals .sig-hw,[data-theme="dark"] #d-sector-signals .sig-hw *{color:#fff !important;}
+[data-theme="dark"] body,[data-theme="dark"] body *{color:#fff !important;}
+[data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:rgba(255,255,255,0.72) !important;opacity:1;}
+[data-theme="dark"] select option{background:#0d1117 !important;color:#fff !important;}
+[data-theme="dark"] .rev-chk:not(.checked),[data-theme="dark"] .rev-chk-det:not(.checked),[data-theme="dark"] #f-reviewed{color:#fff !important;--chk-border:#fff;--chk-mark:#fff;}
+[data-theme="dark"] .rev-chk:not(.checked):hover,[data-theme="dark"] .rev-chk-det:not(.checked):hover{--chk-border:#fff;--chk-mark:#fff;}
+[data-theme="dark"] #f-reviewed svg,[data-theme="dark"] #f-reviewed span{color:#fff !important;}
+[data-theme="dark"] td.gp,[data-theme="dark"] td.sg,[data-theme="dark"] .gv-v.pass,[data-theme="dark"] [style*="color:#1a9850"],[data-theme="dark"] [style*="color:#27ae60"]{color:#7ee787 !important;}
+[data-theme="dark"] td.gf,[data-theme="dark"] td.sp,[data-theme="dark"] .gv-v.fail,[data-theme="dark"] [style*="color:#de2d26"],[data-theme="dark"] [style*="color:#e74c3c"]{color:#ff7b72 !important;}
+[data-theme="dark"] td.sm,[data-theme="dark"] [style*="color:#fd8d3c"],[data-theme="dark"] [style*="color:#e67e22"]{color:#ffd33d !important;}
+[data-theme="dark"] td.gn{color:#c9d1d9 !important;}
 </style>
 </head>
 <body>
@@ -631,12 +737,12 @@ td.ct{font-weight:700;}
       <div id="d-kmetrics" class="d-kmetrics"></div>
       <div id="d-sbar" class="score-bar"></div>
       <div id="d-gate-values" class="d-gate-values"></div>
-      <div id="d-section-price" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Price History</div><div style="padding:14px 16px;background:#fff"><div class="dp-ranges" id="dp-ranges" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px"></div><div id="dp-tip-bar" style="min-height:24px;font-size:0.86em"></div><div id="dp-chart"></div></div></div>
-      <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:#fff"><div class="ddesc" id="d-desc"></div></div></div>
-      <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:#fff"><div id="d-fin-summary"></div></div></div>
-      <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:#fff"><div id="d-sector-signals"></div></div></div>
-      <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:#fff"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
-      <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:#fff"><div id="d-peers-supply"></div></div></div>
+      <div id="d-section-price" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Price History</div><div style="padding:14px 16px;background:var(--surface)"><div class="dp-ranges" id="dp-ranges" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px"></div><div id="dp-tip-bar" style="min-height:24px;font-size:0.86em"></div><div id="dp-chart"></div></div></div>
+      <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
+      <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
+      <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
+      <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:var(--surface)"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
+      <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
       <div id="d-section-profitpool" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Profit Pool Analysis</div><div class="dgrid-inner" id="d-profitpool-content"></div></div>
       <div class="dgrid" id="d-grid"></div>
     </div>
@@ -720,12 +826,13 @@ _updateRevCount();
 
 /* === HELPERS === */
 function esc(s){var e=document.createElement('span');e.textContent=s;return e.innerHTML;}
-function fp(v,d){return v!=null?(v*100).toFixed(d!=null?d:1)+'%':'N/A';}
-function fn(v,d){return v!=null?v.toFixed(d!=null?d:2):'N/A';}
-function fn0(v){return v!=null?Math.round(v).toLocaleString():'N/A';}
-function fd(v){return v!=null?'$'+Math.round(v).toLocaleString():'N/A';}
-function fds(v){if(v==null)return'N/A';var s=v<0?'-':'',a=Math.abs(v);if(a>=1e12)return s+'$'+(a/1e12).toFixed(1)+'T';if(a>=1e9)return s+'$'+(a/1e9).toFixed(1)+'B';if(a>=1e6)return s+'$'+(a/1e6).toFixed(1)+'M';return s+'$'+Math.round(a).toLocaleString();}
-function fg(v,f){if(v==null)return'N/A';if(f==='pct1')return(v*100).toFixed(1)+'%';if(f==='ratio')return v.toFixed(2);if(f==='int')return Math.round(v)+'';return String(v);}
+function _num(v){if(v==null)return null;if(typeof v==='number')return isFinite(v)?v:null;var n=+v;return isFinite(n)?n:null;}
+function fp(v,d){var n=_num(v);return n!=null?(n*100).toFixed(d!=null?d:1)+'%':'N/A';}
+function fn(v,d){var n=_num(v);return n!=null?n.toFixed(d!=null?d:2):'N/A';}
+function fn0(v){var n=_num(v);return n!=null?Math.round(n).toLocaleString():'N/A';}
+function fd(v){var n=_num(v);return n!=null?'$'+Math.round(n).toLocaleString():'N/A';}
+function fds(v){var n=_num(v);if(n==null)return'N/A';var s=n<0?'-':'',a=Math.abs(n);if(a>=1e12)return s+'$'+(a/1e12).toFixed(1)+'T';if(a>=1e9)return s+'$'+(a/1e9).toFixed(1)+'B';if(a>=1e6)return s+'$'+(a/1e6).toFixed(1)+'M';return s+'$'+Math.round(a).toLocaleString();}
+function fg(v,f){var n=_num(v);if(n==null)return'N/A';if(f==='pct1')return(n*100).toFixed(1)+'%';if(f==='ratio')return n.toFixed(2);if(f==='int')return Math.round(n)+'';return String(n);}
 function sc(v){if(v==null)return'';return v>=60?'sg':v>=30?'sm':'sp';}
 function gc(g){return g===true?'gp':g===false?'gf':'gn';}
 function rb(r){return'<span class="rb" style="background:'+(RC[r]||'#888')+'">'+(r||'N/A')+'</span>';}
@@ -2137,10 +2244,11 @@ function openDet(tk){
     var _gvEl=document.getElementById('d-gate-values');
     var _fmtGate=function(v,fmt){if(v==null)return'\u2014';if(fmt==='pct1')return(v*100).toFixed(1)+'%';if(fmt==='ratio')return v.toFixed(2)+'\u00d7';if(fmt==='int')return Math.round(v)+'';return v.toFixed?v.toFixed(2):String(v);};
     var _gvHtml='';
-    GM.categories.forEach(function(c){
+    var _gvTotal=GM.categories.length;
+    GM.categories.forEach(function(c,_ci){
       var gates=GM.gates.filter(function(g){return g.category===c.name;});
       if(!gates.length)return;
-      _gvHtml+='<div class="gv-col"><div class="gv-cat" style="background:'+c.dark+'">'+c.name+'</div><div class="gv-items">';
+      _gvHtml+='<div class="gv-col"><div class="gv-cat" style="background:'+c.dark+'">'+c.name+' Gate '+(_ci+1)+'/'+_gvTotal+'</div><div class="gv-items">';
       gates.forEach(function(g){
         var raw=d[g.key];
         var pass=d[g.gpKey];
@@ -2293,7 +2401,7 @@ function openDet(tk){
   gh+='<div class="dsec"><h3>EPV &amp; RIM</h3><div class="dkvg">'+bkv([['EPV Fair Value',fd(d.epv_fv)],['EPV MoS',fp(d.epv_mos)],['EPV Growth-Adj',fd(d.epv_growth_fv)],['RIM Fair Value',fd(d.rim_fv)],['RIM MoS',fp(d.rim_mos)]])+'</div></div>';
   gh+='<div class="dsec"><h3>Implied / Reverse Check</h3><div class="dkvg">'+bkv([['Implied Growth (Rev DCF)',fp(d.implied_growth)],['Impl. vs Est.',fp(d.implied_vs_estimated)]])+'</div></div>';
   gh+='</div>';
-  gh+='<div style="background:#eef2fb;border-top:1px solid #d0daf0;padding:7px 16px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">'
+  gh+='<div class="dgroup-asm" style="background:#eef2fb;border-top:1px solid #d0daf0;padding:7px 16px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">'
     +'<span style="font-size:0.56em;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#1a3a6b;flex-shrink:0">Model Assumptions</span>'
     +'<span style="font-size:0.63em;color:#546e7a">FCF Growth&nbsp;<strong style="color:#1a2f5e">'+( fp(d.fcf_growth)||'N/A')+'</strong></span>'
     +'<span style="font-size:0.63em;color:#546e7a">WACC&nbsp;<strong style="color:#1a2f5e">'+(fp(d.wacc)||'N/A')+'</strong></span>'

@@ -18,15 +18,46 @@ except Exception:
 
 def _json_default(obj):
     """Convert numpy types to native Python types for JSON serialization."""
+    import math
     if isinstance(obj, (np.bool_,)):
         return bool(obj)
     if isinstance(obj, (np.integer,)):
         return int(obj)
     if isinstance(obj, (np.floating,)):
-        return float(obj) if not np.isnan(obj) else None
+        v = float(obj)
+        return None if (math.isnan(v) or math.isinf(v)) else v
     if isinstance(obj, np.ndarray):
         return obj.tolist()
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+def _sanitize(obj):
+    """Recursively replace inf/-inf/NaN (numeric or stringified) with None.
+
+    Some upstream snapshots round-trip numeric infinity through ``str()`` and
+    arrive here as the literal string ``"Infinity"``, which silently breaks
+    the browser-side popup formatters. Normalise those to ``None`` so the JS
+    sees a clean ``null``.
+    """
+    import math
+    if obj is None:
+        return None
+    if isinstance(obj, float):
+        return None if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, (np.floating,)):
+        v = float(obj)
+        return None if (math.isnan(v) or math.isinf(v)) else v
+    if isinstance(obj, str):
+        if obj in ('Infinity', '-Infinity', 'inf', '-inf', 'NaN', 'nan'):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(x) for x in obj]
+    if isinstance(obj, tuple):
+        return tuple(_sanitize(x) for x in obj)
+    return obj
 
 
 def fmt_pct(val):
@@ -70,6 +101,7 @@ def _rating_num(rating):
 
 def build_html(rows, filename, prices_dir=None):
     """Render the interactive HTML report via Jinja2 template."""
+    rows = _sanitize(rows)
     total = len(rows)
     spread_vals = [r['spread'] for r in rows if r.get('spread') is not None]
     avg_spread = sum(spread_vals) / len(spread_vals) if spread_vals else 0
