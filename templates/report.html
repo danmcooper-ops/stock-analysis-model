@@ -656,7 +656,7 @@ td.ct{font-weight:700;}
   <div class="primary-nav">
     <button class="nav-btn active" data-view="matrix" onclick="showView('matrix')">Financial Model</button>
     <button class="nav-btn" data-view="table" onclick="showView('table')">Financial Data</button>
-    <button class="nav-btn" data-view="pool" onclick="showView('pool')">Profit Pool Analysis</button>
+    <button class="nav-btn" data-view="pool" onclick="showView('pool')">Sector Analysis</button>
   </div>
   <div class="filter-bar" id="filter-bar">
     <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker..." oninput="applyFilters()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
@@ -743,7 +743,7 @@ td.ct{font-weight:700;}
       <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
       <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:var(--surface)"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
       <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
-      <div id="d-section-profitpool" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Profit Pool Analysis</div><div class="dgrid-inner" id="d-profitpool-content"></div></div>
+      <div id="d-section-profitpool" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Sector Analysis</div><div class="dgrid-inner" id="d-profitpool-content"></div></div>
       <div class="dgrid" id="d-grid"></div>
     </div>
     <div id="det-nav" class="det-nav-bar">
@@ -2448,7 +2448,7 @@ function openDet(tk){
   document.getElementById('d-grid').innerHTML=gh;
   document.getElementById('d-section-network').style.display=psH.length>0?'':'none';
 
-  /* --- Profit Pool Analysis section --- */
+  /* --- Sector Analysis section --- */
   var ppEl=document.getElementById('d-profitpool-content');
   var ppShow=d.revenue!=null&&d.revenue>0;
   if(ppShow){
