@@ -1345,8 +1345,8 @@ function renderMSubs(){
   if(!curMSub)curMSub='matrix';
   var isOvr=curMSub==='dashboard';
   var isMtx=curMSub==='matrix';
-  var h='<button class="sub-btn'+(isOvr?' active':'')+'" onclick="swMSub(\'dashboard\')"'+(isOvr?' style="background:#1a252f;border-color:#1a252f;color:#fff"':'')+'>Dashboard</button>';
-  h+='<button class="sub-btn'+(isMtx?' active':'')+'" onclick="swMSub(\'matrix\')"'+(isMtx?' style="background:#1a252f;border-color:#1a252f;color:#fff"':'')+'>Gate Matrix</button>';
+  var h='<button class="sub-btn'+(isOvr?' active':'')+'" onclick="swMSub(\'dashboard\')">Dashboard</button>';
+  h+='<button class="sub-btn'+(isMtx?' active':'')+'" onclick="swMSub(\'matrix\')">Gate Matrix</button>';
   document.getElementById('m-subs').innerHTML=h;
 }
 function swMSub(key){
