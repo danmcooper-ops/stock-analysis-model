@@ -99,7 +99,7 @@ _RATING_VAL = {'BUY': 3, 'LEAN BUY': 2, 'HOLD': 1, 'PASS': 0}
 def _rating_num(rating):
     return _RATING_VAL.get(rating, -1)
 
-def build_html(rows, filename, prices_dir=None):
+def build_html(rows, filename, prices_dir=None, run_date=None):
     """Render the interactive HTML report via Jinja2 template."""
     rows = _sanitize(rows)
     total = len(rows)
@@ -645,7 +645,7 @@ def build_html(rows, filename, prices_dir=None):
         sector_pool_json=sector_pool_json,
         prices_available=('true' if prices_payload is not None else 'false'),
         hist_available=('true' if hist_payload is not None else 'false'),
-        generated_at=date.today().strftime('%B %-d, %Y'),
+        generated_at=(run_date or date.today()).strftime('%B %-d, %Y'),
     )
 
     with open(filename, 'w') as f:

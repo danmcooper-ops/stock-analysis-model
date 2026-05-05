@@ -1093,6 +1093,7 @@ def _main():
                              'Useful with --universe us to drop shells and micro-caps quickly.')
     args = parser.parse_args()
     prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
+    run_start_date = date.today()
 
     # Fetch live risk-free rate (10-yr Treasury yield)
     risk_free_rate = fetch_risk_free_rate()
@@ -2601,7 +2602,7 @@ def _main():
     os.makedirs("output", exist_ok=True)
     today_str = date.today().isoformat()
     html_filename = os.path.join("output", f"stock_analysis_results_{today_str}.html")
-    build_html(results, html_filename, prices_dir=prices_dir)
+    build_html(results, html_filename, prices_dir=prices_dir, run_date=run_start_date)
     xlsx_filename = os.path.join("output", f"stock_analysis_results_{today_str}.xlsx")
     build_excel(results, xlsx_filename)
 
