@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Stock Analysis — Interactive Report</title>
 <script>(function(){try{var t=localStorage.getItem('stock_theme_v1');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
 <style>
@@ -35,28 +35,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .dt td{padding:4px 5px;font-size:0.78em;}
   .matrix-table th{padding:4px 5px;}
   .matrix-table td{padding:3px 5px;}
-  /* Popup: fill entire screen on mobile */
+  /* Popup: fill entire screen on mobile, including the safe-area strip
+     behind the iPhone home indicator (requires viewport-fit=cover above) */
   .detail-modal.open{padding:0;align-items:stretch;}
   .detail-content{max-width:100%;max-height:100vh;max-height:100dvh;border-radius:0;}
   .d-header-band{border-radius:0;padding:14px 16px 10px;}
-  .det-nav-bar{border-radius:0;padding:10px 14px;}
+  .det-nav-bar{border-radius:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom)) 14px;}
   .det-nav-btn{width:46px;height:46px;font-size:24px;border-radius:10px;}
   .det-nav-bar .flag-star{font-size:1.55em;}
   .det-nav-bar .rev-chk-det{font-size:0.95em;}
   .det-nav-right{gap:10px;}
   .det-nav-pos{font-size:0.78em;}
-  .d-body{padding:10px 12px 10px;gap:10px;}
+  .d-body{padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px;gap:10px;}
 }
 /* Landscape: popup fills full screen, tighter chrome */
 @media(orientation:landscape){
   .detail-modal.open{padding:0;align-items:stretch;}
   .detail-content{max-width:100%;width:100%;height:100dvh;height:100vh;max-height:100dvh;max-height:100vh;border-radius:0;}
   .d-header-band{border-radius:0;padding:6px 16px 5px;}
-  .det-nav-bar{border-radius:0;padding:8px 18px;}
+  .det-nav-bar{border-radius:0;padding:8px 18px calc(8px + env(safe-area-inset-bottom)) 18px;}
   .det-nav-btn{width:42px;height:42px;font-size:22px;}
   .det-nav-bar .flag-star{font-size:1.5em;}
   .det-nav-bar .rev-chk-det{font-size:0.95em;}
-  .d-body{padding:6px 12px 6px;gap:6px;}
+  .d-body{padding:6px 12px calc(6px + env(safe-area-inset-bottom)) 12px;gap:6px;}
 }
 /* Phone landscape only: compact page header */
 @media(orientation:landscape) and (max-height:500px){
