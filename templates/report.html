@@ -686,6 +686,16 @@ td.ct{font-weight:700;}
 [data-theme="dark"] #m-overview-view div[style*="background:#e8e8e8"]{background:#21262d !important;}
 [data-theme="dark"] #m-overview-view div[style*="border-bottom:2px solid #e8edf2"]{border-bottom-color:#30363d !important;}
 [data-theme="dark"] #m-overview-view div[style*="border-top:1px solid #f0f0f0"]{border-top-color:#30363d !important;}
+/* Gate Matrix sub-headers (gate labels and Score columns under each category).
+   JS sets inline background:#D6E4F0/etc. (cat.light pastels) with color:#333.
+   In dark mode the body * white-text rule turns labels white but leaves the
+   pastel backgrounds, so labels become illegible. Override per cat.light hex
+   to dark-tinted equivalents that pair with white text. */
+[data-theme="dark"] .matrix-table th[style*="background:#D6E4F0"]{background:#1a3358 !important;}
+[data-theme="dark"] .matrix-table th[style*="background:#E2EFDA"]{background:#2a4a2c !important;}
+[data-theme="dark"] .matrix-table th[style*="background:#FCE4CC"]{background:#5a3015 !important;}
+[data-theme="dark"] .matrix-table th[style*="background:#E4CCEF"]{background:#3a2154 !important;}
+[data-theme="dark"] .matrix-table th[style*="background:#FFF2CC"]{background:#5a4310 !important;}
 </style>
 </head>
 <body>
