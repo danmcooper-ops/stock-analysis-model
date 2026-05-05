@@ -431,6 +431,20 @@ td.ct{font-weight:700;}
 .xsect-trade-stack > div{height:100%;}
 .xsect-narrative{background:#f8fafd;border-radius:8px;padding:16px 18px;margin-top:16px;}
 .xsect-nar-title{font-size:0.8em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;}
+/* Cross-Sector narrative collapsible cards */
+.xs-narcards{display:grid;grid-template-columns:1fr;gap:8px;}
+@media(min-width:760px){.xs-narcards{grid-template-columns:1fr 1fr;}}
+.xs-narcard{background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;transition:border-color 0.15s,box-shadow 0.15s;}
+.xs-narcard:hover{border-color:#cbd5e1;box-shadow:0 2px 8px rgba(0,0,0,0.05);}
+.xs-narcard-hdr{cursor:pointer;padding:11px 13px;}
+.xs-narcard-title-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+.xs-narcard-title{font-weight:700;font-size:0.85em;color:#1a252f;flex:1;}
+.xs-narcard-toggle{font-size:1.05em;color:#7f8c9a;font-weight:700;line-height:1;flex-shrink:0;transition:transform 0.18s;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#f0f4f8;}
+.xs-narcard.open .xs-narcard-toggle{transform:rotate(45deg);}
+.xs-narcard-metric{font-size:0.72em;color:#475569;margin-bottom:5px;line-height:1.4;}
+.xs-narcard-summary{font-size:0.78em;color:#1a252f;line-height:1.45;}
+.xs-narcard-detail{display:none;padding:10px 13px 13px;font-size:0.78em;color:#2c3e50;line-height:1.6;border-top:1px solid #eef1f4;}
+.xs-narcard.open .xs-narcard-detail{display:block;}
 /* Price History */
 #ph-view{padding:6px 0;}
 .ph-metric-btn{padding:4px 11px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.78em;font-weight:700;background:white;color:#546e7a;transition:background 0.12s,color 0.12s;}
@@ -601,6 +615,10 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .xsect-trading-section .xsect-title{color:#7adde7;}
 [data-theme="dark"] .xsect-narrative{background:#1c2128;}
 [data-theme="dark"] .xsect-nar-title{color:#e6edf3;}
+[data-theme="dark"] .xs-narcard{background:#161b22;border-color:#30363d;}
+[data-theme="dark"] .xs-narcard:hover{border-color:#484f58;box-shadow:0 2px 8px rgba(0,0,0,0.3);}
+[data-theme="dark"] .xs-narcard-toggle{background:#21262d;color:#8b949e;}
+[data-theme="dark"] .xs-narcard-detail{border-top-color:#30363d;}
 [data-theme="dark"] .ph-metric-btn,[data-theme="dark"] .ph-range-btn,[data-theme="dark"] #ph-select,[data-theme="dark"] .ph-sinp{background:#21262d;color:#c9d1d9;border-color:#30363d;}
 [data-theme="dark"] .ph-metric-btn.active,[data-theme="dark"] .ph-range-btn.active{background:#1f6feb;color:#fff;border-color:#1f6feb;}
 [data-theme="dark"] .ph-metric-btn:hover:not(.active),[data-theme="dark"] .ph-range-btn:hover:not(.active){background:#30363d;color:#e6edf3;}
@@ -837,6 +855,7 @@ function _loadSidecar(name,onDone){
 var RC={'BUY':'#1a9850','LEAN BUY':'#74c476','HOLD':'#fd8d3c','PASS':'#de2d26'};
 var _poolTab='__all__';
 function showPoolTab(sec){_poolTab=sec||'__all__';renderPool();window.scrollTo({top:0,behavior:'auto'});}
+function xsToggle(hdr){var c=hdr&&hdr.parentElement;if(c)c.classList.toggle('open');}
 var curView='matrix',curTSub='ovr';
 var _detNav=[],_detIdx=-1;
 /* === FLAGS (localStorage) === */
@@ -2937,18 +2956,18 @@ function renderCrossSectorDashboard(){
   var narItems=[];
   var top3Detail=byMargin.slice(0,3).map(function(s){return s.name+'\u00a0('+(s.margin*100).toFixed(1)+'%)';}).join(', ');
   var bot2Detail=byMargin.slice(-2).reverse().map(function(s){return s.name+'\u00a0('+(s.margin*100).toFixed(1)+'%)';}).join(' and ');
-  narItems.push('<strong>Margin leaders \u2014 '+top3Detail+':</strong> These sectors sustain blended operating margins that consistently support ROIC well above cost of capital. Pricing power at this level is structurally embedded \u2014 through proprietary platforms, brand-enforced switching costs, or regulated cost pass-through \u2014 rather than cyclically contingent. Reversion is slow because the underlying economics are hard to replicate at scale.');
-  narItems.push('<strong>Margin challenged \u2014 '+bot2Detail+':</strong> Structurally thin margins reflect economics where pricing is market-determined, not firm-determined: commodity input costs, compressed processing spreads, or capital-intensive distribution compress returns toward cost of capital. Margin expansion in these pools is hard-won and frequently gives back in competitive reversion. Stock selection here requires identifying firms with structural cost advantages, not just sector-level exposure.');
+  narItems.push({title:'Margin leaders',metric:top3Detail,summary:'Pricing power is structurally embedded; reversion is slow.',detail:'These sectors sustain blended operating margins that consistently support ROIC well above cost of capital. Pricing power at this level is structurally embedded \u2014 through proprietary platforms, brand-enforced switching costs, or regulated cost pass-through \u2014 rather than cyclically contingent. Reversion is slow because the underlying economics are hard to replicate at scale.'});
+  narItems.push({title:'Margin challenged',metric:bot2Detail,summary:'Pricing is market-determined, not firm-determined; gains revert.',detail:'Structurally thin margins reflect economics where pricing is market-determined, not firm-determined: commodity input costs, compressed processing spreads, or capital-intensive distribution compress returns toward cost of capital. Margin expansion in these pools is hard-won and frequently gives back in competitive reversion. Stock selection here requires identifying firms with structural cost advantages, not just sector-level exposure.'});
   var oligopolies=allStats.filter(function(s){return s.hhi>0.25;});
   var highConc=byHHI.filter(function(s){return s.hhi>0.15&&s.hhi<=0.25;});
   var valueTrap=allStats.filter(function(s){return s.hhi>0.15&&s.margin<0.12;});
-  if(oligopolies.length){narItems.push('<strong>Highly concentrated \u2014 '+oligopolies.map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+',\u00a0CR4\u00a0'+(s.cr4*100).toFixed(0)+'%)';}).join(', ')+':</strong> HHI above 0.25 meets the DOJ/FTC threshold for a highly concentrated market, where a small set of incumbents captures the majority of industry revenue and profit. Collective pricing power is structurally entrenched, but the moat is positional rather than intrinsic \u2014 returns depend on maintaining share, not product superiority \u2014 leaving these sectors exposed to antitrust action, regulatory price controls, or a single well-capitalized disruptor.');}
-  if(highConc.length){narItems.push('<strong>Moderately concentrated \u2014 '+highConc.slice(0,5).map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+')';}).join(', ')+':</strong> HHI in the 0.15\u20130.25 range (DOJ/FTC \u201cmoderately concentrated\u201d band) indicates leading incumbents extract measurable pricing advantage over smaller competitors. Market structure is decisive but not rigid: challengers with differentiated cost structures or product offerings retain room to erode share. Alpha here accrues to incumbents deepening their moat, not to passive sector exposure.');}
-  narItems.push('<strong>Most fragmented \u2014 '+leastConc.name+'\u00a0(HHI\u00a0'+leastConc.hhi.toFixed(3)+',\u00a0'+leastConc.n+'\u00a0companies):</strong> With HHI well below the 0.10 competitive threshold, no firm exerts meaningful influence over sector-wide pricing. Returns mean-revert toward cost of capital at the pool level. Sector-level allocation carries less signal; idiosyncratic factors \u2014 unit cost structure, balance sheet strength, niche positioning \u2014 drive the cross-sectional variance in outcomes. Individual stock selection matters more than being in this sector at all.');
+  if(oligopolies.length){narItems.push({title:'Highly concentrated',metric:oligopolies.map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+',\u00a0CR4\u00a0'+(s.cr4*100).toFixed(0)+'%)';}).join(', '),summary:'Oligopoly pricing power \u2014 positional, not intrinsic.',detail:'HHI above 0.25 meets the DOJ/FTC threshold for a highly concentrated market, where a small set of incumbents captures the majority of industry revenue and profit. Collective pricing power is structurally entrenched, but the moat is positional rather than intrinsic \u2014 returns depend on maintaining share, not product superiority \u2014 leaving these sectors exposed to antitrust action, regulatory price controls, or a single well-capitalized disruptor.'});}
+  if(highConc.length){narItems.push({title:'Moderately concentrated',metric:highConc.slice(0,5).map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+')';}).join(', '),summary:'Incumbents extract advantage; challengers retain room.',detail:'HHI in the 0.15\u20130.25 range (DOJ/FTC \u201cmoderately concentrated\u201d band) indicates leading incumbents extract measurable pricing advantage over smaller competitors. Market structure is decisive but not rigid: challengers with differentiated cost structures or product offerings retain room to erode share. Alpha here accrues to incumbents deepening their moat, not to passive sector exposure.'});}
+  narItems.push({title:'Most fragmented',metric:leastConc.name+'\u00a0(HHI\u00a0'+leastConc.hhi.toFixed(3)+',\u00a0'+leastConc.n+'\u00a0companies)',summary:'Returns mean-revert; stock selection beats sector exposure.',detail:'With HHI well below the 0.10 competitive threshold, no firm exerts meaningful influence over sector-wide pricing. Returns mean-revert toward cost of capital at the pool level. Sector-level allocation carries less signal; idiosyncratic factors \u2014 unit cost structure, balance sheet strength, niche positioning \u2014 drive the cross-sectional variance in outcomes. Individual stock selection matters more than being in this sector at all.'});
   var sweetSpot=allStats.filter(function(s){return s.margin>=0.20&&s.hhi<0.15;});
-  if(sweetSpot.length){narItems.push('<strong>Quality quadrant \u2014 '+sweetSpot.map(function(s){return s.name+'\u00a0('+(s.margin*100).toFixed(1)+'%\u00a0margin,\u00a0HHI\u00a0'+s.hhi.toFixed(3)+')';}).join('; ')+':</strong> High margins in a competitive market are the strongest signal of genuine structural advantage: firms earn pricing power through product differentiation, proprietary IP, or customer switching costs \u2014 not through market dominance or regulatory protection. This is the most durable earnings profile because the advantage is intrinsic, not positional, and does not depend on maintaining a stable oligopoly structure that regulators or disruptors could unwind.');}
-  if(valueTrap.length){narItems.push('<strong>Concentration without margin \u2014 '+valueTrap.map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+',\u00a0'+(s.margin*100).toFixed(1)+'%\u00a0margin)';}).join(', ')+':</strong> Elevated concentration has not translated into commensurate margin extraction. This pattern emerges where volume competition, commodity input pricing, or mandated price ceilings constrain profitability regardless of market share. High HHI here reflects market structure, not pricing power \u2014 the leading firm\u2019s dominant position is a floor on survival, not a ceiling lift on returns.');}
-  narItems.push('<strong>Cross-sector spread \u2014 '+((maxM-minM)*100).toFixed(0)+'\u00a0percentage points:</strong> The gap between the highest and lowest blended sector margins is wide enough that sector allocation is a first-order return driver, not a secondary tilting decision. A portfolio systematically overweight in high-quality pools \u2014 particularly sectors in the Quality quadrant \u2014 and underweight in structurally challenged pools compounds this advantage across cycles. Sector selection anchored to pool quality can rival individual stock selection in generating sustained portfolio-level alpha.');
+  if(sweetSpot.length){narItems.push({title:'Quality quadrant',metric:sweetSpot.map(function(s){return s.name+'\u00a0('+(s.margin*100).toFixed(1)+'%\u00a0margin,\u00a0HHI\u00a0'+s.hhi.toFixed(3)+')';}).join('; '),summary:'High margins in a competitive market = genuine moat.',detail:'High margins in a competitive market are the strongest signal of genuine structural advantage: firms earn pricing power through product differentiation, proprietary IP, or customer switching costs \u2014 not through market dominance or regulatory protection. This is the most durable earnings profile because the advantage is intrinsic, not positional, and does not depend on maintaining a stable oligopoly structure that regulators or disruptors could unwind.'});}
+  if(valueTrap.length){narItems.push({title:'Concentration without margin',metric:valueTrap.map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+',\u00a0'+(s.margin*100).toFixed(1)+'%\u00a0margin)';}).join(', '),summary:'High share but no pricing power \u2014 value-trap risk.',detail:'Elevated concentration has not translated into commensurate margin extraction. This pattern emerges where volume competition, commodity input pricing, or mandated price ceilings constrain profitability regardless of market share. High HHI here reflects market structure, not pricing power \u2014 the leading firm\u2019s dominant position is a floor on survival, not a ceiling lift on returns.'});}
+  narItems.push({title:'Cross-sector spread',metric:((maxM-minM)*100).toFixed(0)+'\u00a0percentage points',summary:'Sector allocation is a first-order return driver.',detail:'The gap between the highest and lowest blended sector margins is wide enough that sector allocation is a first-order return driver, not a secondary tilting decision. A portfolio systematically overweight in high-quality pools \u2014 particularly sectors in the Quality quadrant \u2014 and underweight in structurally challenged pools compounds this advantage across cycles. Sector selection anchored to pool quality can rival individual stock selection in generating sustained portfolio-level alpha.'});
 
   /* === Trading Volume by Cap Tier and Sector === */
   /* Daily $ volume = share_turnover_rate × mcap, aggregated across the full
@@ -3131,7 +3150,17 @@ function renderCrossSectorDashboard(){
     +'<div class="xsect-sub">Blended pool margins, market concentration, and competitive dynamics across '+allStats.length+' sectors</div>'
     +'<div class="xsect-kpi-row">'+kpiHtml+'</div>'
     +'<div class="xsect-narrative" style="margin-top:6px;margin-bottom:18px"><div class="xsect-nar-title">Cross-Sector Analysis Summary</div>'
-      +'<ul style="margin:0;padding-left:18px">'+narItems.map(function(b){return'<li style="margin-bottom:9px;font-size:0.82em;color:#2c3e50;line-height:1.55">'+b+'</li>';}).join('')+'</ul>'
+      +'<div class="xs-narcards">'+narItems.map(function(it){return'<div class="xs-narcard">'
+          +'<div class="xs-narcard-hdr" onclick="xsToggle(this)">'
+            +'<div class="xs-narcard-title-row">'
+              +'<span class="xs-narcard-title">'+it.title+'</span>'
+              +'<span class="xs-narcard-toggle" aria-hidden="true">+</span>'
+            +'</div>'
+            +'<div class="xs-narcard-metric">'+it.metric+'</div>'
+            +'<div class="xs-narcard-summary">'+it.summary+'</div>'
+          +'</div>'
+          +'<div class="xs-narcard-detail">'+it.detail+'</div>'
+        +'</div>';}).join('')+'</div>'
     +'</div>'
     +'<div id="xsect-bar-wrap" style="margin-bottom:20px">'
       +'<div class="xsect-chart-title">Operating Margin by Sector <span style="font-weight:400;text-transform:none;letter-spacing:0">(pool-weighted)</span></div>'
