@@ -1289,7 +1289,7 @@ function onColRowChange(sel){
 }
 
 /* === MATRIX === */
-var mSC=null,mSA=true;
+var mSC='rating',mSA=true;
 function renderMatrix(){
   var th=document.getElementById('mtx-h'),tb=document.getElementById('mtx-b');
   var cg2={};GM.categories.forEach(function(c){cg2[c.name]=[];});
@@ -1350,7 +1350,7 @@ function renderMSubs(){
   document.getElementById('m-subs').innerHTML=h;
 }
 function swMSub(key){
-  curMSub=key;mSC=null;mSA=true;renderMSubs();
+  curMSub=key;mSC='rating';mSA=true;renderMSubs();
   var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view');
   if(key==='dashboard'){
     if(mw)mw.style.display='none';if(ov)ov.style.display='';
@@ -1521,7 +1521,7 @@ var TC={
 };
 TC.prices=[];
 var TL={ovr:'Overview',val:'Valuation',prof:'Profitability',hlth:'Financial Health',growth:'Growth',con:'Consensus',proj:'Projections',own:'Ownership',prices:'Price History'};
-var tSC=null,tSA=true;
+var tSC='rating',tSA=true;
 
 function ftc(v,f){
   if(v==null)return{t:'N/A',v:''};
@@ -1538,7 +1538,7 @@ function ftc(v,f){
   return{t:String(v),v:v};
 }
 function renderTSubs(){var h='';Object.keys(TL).forEach(function(k){h+='<button class="sub-btn'+(k===curTSub?' active':'')+'" onclick="swTSub(\''+k+'\')">'+TL[k]+'</button>';});document.getElementById('t-subs').innerHTML=h;}
-function swTSub(s){curTSub=s;tSC=null;tSA=true;renderTSubs();moveFilterBar('table');var tw=document.querySelector('.table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();}}
+function swTSub(s){curTSub=s;tSC='rating';tSA=true;renderTSubs();moveFilterBar('table');var tw=document.querySelector('.table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();}}
 function renderTable(){
   var cols=TC[curTSub]||TC.ovr;
   var th=document.getElementById('dt-h'),tb=document.getElementById('dt-b');
