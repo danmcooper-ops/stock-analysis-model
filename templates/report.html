@@ -2172,7 +2172,8 @@ function _showTip(tk,x,y){
   if(top+th>vh-10)top=y-th-10;
   if(left<10)left=10;if(top<10)top=10;
   _tipEl.style.left=left+'px';_tipEl.style.top=top+'px';
-  clearTimeout(_tipAutoTimer);_tipAutoTimer=setTimeout(_hideTip,_TIP_AUTO_MS);
+  /* Hover-only — mouseout hides; no auto-dismiss while cursor is parked. */
+  clearTimeout(_tipAutoTimer);
 }
 function _hideTip(){clearTimeout(_tipAutoTimer);_tipEl.style.display='none';}
 
@@ -2192,7 +2193,8 @@ function _showColTip(label,body,threshold,x,y){
   if(top+ch>vh-10)top=y-ch-8;
   if(top<10)top=10;
   _ctEl.style.left=left+'px';_ctEl.style.top=top+'px';
-  clearTimeout(_ctAutoTimer);_ctAutoTimer=setTimeout(_hideColTip,_TIP_AUTO_MS);
+  /* Hover-only — mouseout hides; no auto-dismiss while cursor is parked. */
+  clearTimeout(_ctAutoTimer);
 }
 function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.style.display='none';}
 
@@ -2224,7 +2226,9 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
     else if(el.matches('[data-km-tip]')){key=el.getAttribute('data-km-tip');txt=tt(key)||'';label=el.getAttribute('data-km-lbl')||'';if(!txt)return false;_pt.innerHTML='<div class="ct-name">'+esc(label)+'</div><div class="ct-body">'+esc(txt)+'</div>';}
     else return false;
     _posTip(el.getBoundingClientRect());
-    clearTimeout(_ptAutoTimer);_ptAutoTimer=setTimeout(_hideTipP,_TIP_AUTO_MS);
+    /* No auto-dismiss here — hover relies on mouseout; tap-pinned path
+       arms the safety timer below in _onTap so a stuck pin still expires. */
+    clearTimeout(_ptAutoTimer);
     return true;
   }
   function _hideTipP(){clearTimeout(_ptAutoTimer);_pt.style.display='none';_pinEl=null;}
@@ -2240,7 +2244,7 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
     var el=_findEl(target);
     if(el){
       if(_pinEl===el){_hideTipP();}
-      else{if(_showFor(el)){_pinEl=el;}e.preventDefault();e.stopPropagation();}
+      else{if(_showFor(el)){_pinEl=el;clearTimeout(_ptAutoTimer);_ptAutoTimer=setTimeout(_hideTipP,_TIP_AUTO_MS);}e.preventDefault();e.stopPropagation();}
     }else if(_pinEl){_hideTipP();}
   }
   dm.addEventListener('touchend',_onTap,{passive:false});
