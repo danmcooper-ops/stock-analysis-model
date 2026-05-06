@@ -41,15 +41,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
      flex order rather than position:sticky — sticky inside an
      overflow:auto + -webkit-overflow-scrolling:touch container is
      unreliable on iOS Safari during/after momentum scroll. */
+  /* height uses 100svh (small viewport) as the safe ceiling — it reserves
+     space for the iOS Safari bottom URL bar even when the bar is collapsed,
+     so the popup never extends behind it during scroll-driven transitions.
+     The --vvh JS variable is set from window.visualViewport.height as the
+     most-reliable fallback for older iOS (< 15.4) without svh support. */
   .detail-modal.open{padding:0!important;align-items:stretch!important;}
-  .detail-content{max-width:100%!important;max-height:100vh!important;max-height:100dvh!important;border-radius:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;}
+  .detail-content{max-width:100%!important;height:100vh!important;height:100dvh!important;height:100svh!important;height:var(--vvh,100svh)!important;max-height:100vh!important;max-height:100dvh!important;max-height:100svh!important;max-height:var(--vvh,100svh)!important;border-radius:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;}
   .detail-fullscreen{display:none!important;}
   .dh{padding-right:44px!important;}
   .d-header-band{border-radius:0!important;padding:calc(14px + env(safe-area-inset-top)) 16px 10px!important;flex-shrink:0!important;}
-  .d-body{padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px!important;display:block!important;flex:1 1 auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;min-height:0!important;}
+  .d-body{padding:10px 12px 10px 12px!important;display:block!important;flex:1 1 auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;min-height:0!important;}
   .d-body>*{margin-bottom:10px;}
   .d-body>*:last-child{margin-bottom:0;}
-  .det-nav-bar{border-radius:0!important;padding:5px 12px calc(5px + env(safe-area-inset-bottom)) 12px!important;position:relative!important;bottom:auto!important;flex-shrink:0!important;}
+  .det-nav-bar{border-radius:0!important;padding:8px 12px calc(8px + env(safe-area-inset-bottom)) 12px!important;position:relative!important;bottom:auto!important;flex-shrink:0!important;}
   .det-nav-btn{width:38px;height:38px;font-size:20px;border-radius:8px;}
   .det-nav-bar .flag-star{font-size:1.55em;}
   .det-nav-bar .rev-chk-det{font-size:0.95em;}
@@ -65,12 +70,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .detail-fullscreen{display:none!important;}
   .dh{padding-right:44px!important;}
   .detail-modal.open{padding:0!important;align-items:stretch!important;}
-  .detail-content{max-width:100%!important;width:100%!important;height:100dvh!important;height:100vh!important;max-height:100dvh!important;max-height:100vh!important;border-radius:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;}
+  .detail-content{max-width:100%!important;width:100%!important;height:100vh!important;height:100dvh!important;height:100svh!important;height:var(--vvh,100svh)!important;max-height:100vh!important;max-height:100dvh!important;max-height:100svh!important;max-height:var(--vvh,100svh)!important;border-radius:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;}
   .d-header-band{border-radius:0!important;padding:calc(6px + env(safe-area-inset-top)) 16px 5px!important;flex-shrink:0!important;}
-  .d-body{padding:6px 12px calc(6px + env(safe-area-inset-bottom)) 12px!important;display:block!important;flex:1 1 auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;min-height:0!important;}
+  .d-body{padding:6px 12px 6px 12px!important;display:block!important;flex:1 1 auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;min-height:0!important;}
   .d-body>*{margin-bottom:6px;}
   .d-body>*:last-child{margin-bottom:0;}
-  .det-nav-bar{border-radius:0!important;padding:4px 14px calc(4px + env(safe-area-inset-bottom)) 14px!important;position:relative!important;bottom:auto!important;flex-shrink:0!important;}
+  .det-nav-bar{border-radius:0!important;padding:6px 14px calc(6px + env(safe-area-inset-bottom)) 14px!important;position:relative!important;bottom:auto!important;flex-shrink:0!important;}
   .det-nav-btn{width:32px;height:32px;font-size:18px;border-radius:8px;}
   .det-nav-bar .flag-star{font-size:1.5em;}
   .det-nav-bar .rev-chk-det{font-size:0.95em;}
@@ -865,6 +870,18 @@ function setTheme(t){
 }
 function toggleTheme(){var cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';setTheme(cur==='dark'?'light':'dark');}
 (function(){var t='light';try{if(localStorage.getItem(_THEME_KEY)==='dark')t='dark';}catch(e){}var k=document.getElementById('tt-knob');if(k)k.innerHTML=(t==='dark'?'&#9790;':'&#9728;');})();
+/* iOS Safari URL-bar workaround: visualViewport.height is the only reliable
+   measurement of the area NOT covered by the URL bar / tab bar across iOS
+   versions, including iOS < 15.4 where svh / dvh are unsupported. We expose
+   it as a CSS variable --vvh that .detail-content uses as its height ceiling
+   so the popup never extends behind the URL bar. */
+(function(){
+  var vv=window.visualViewport;if(!vv)return;
+  function setVvh(){document.documentElement.style.setProperty('--vvh',vv.height+'px');}
+  setVvh();
+  vv.addEventListener('resize',setVvh);
+  vv.addEventListener('scroll',setVvh);
+})();
 /* === DATA === */
 var DATA={{ chart_data }};
 var GM={{ gate_meta }};
