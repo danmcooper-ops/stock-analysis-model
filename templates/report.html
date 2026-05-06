@@ -256,7 +256,7 @@ td.ct{font-weight:700;}
 .detail-modal.fullscreen .detail-content{max-width:100%;width:100%;height:100dvh;height:100vh;max-height:100dvh;max-height:100vh;border-radius:0;}
 .detail-modal.fullscreen .d-header-band{border-radius:0;}
 .detail-modal.fullscreen .det-nav-bar{border-radius:0;}
-.d-header-band{background:linear-gradient(135deg,#0d1f42 0%,#1a3a6e 55%,#1f4fa0 100%);border-radius:18px 18px 0 0;padding:calc(10px + env(safe-area-inset-top)) 22px 12px;position:relative;overflow:hidden;}
+.d-header-band{background:linear-gradient(135deg,#0d1f42 0%,#1a3a6e 55%,#1f4fa0 100%);border-radius:18px 18px 0 0;padding:calc(10px + env(safe-area-inset-top)) 22px 12px;position:-webkit-sticky;position:sticky;top:0;z-index:5;overflow:hidden;}
 .d-header-band::before{content:'';position:absolute;top:-60px;right:-60px;width:220px;height:220px;background:radial-gradient(circle,rgba(255,255,255,0.06) 0%,transparent 70%);pointer-events:none;}
 .d-body{padding:16px 22px 24px;display:flex;flex-direction:column;gap:14px;}
 .dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:84px;justify-content:space-between;}
@@ -264,11 +264,12 @@ td.ct{font-weight:700;}
 .dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
 .d-rating-row{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;}
 .d-rating-row .d-gp{font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.02em;white-space:nowrap;margin-left:2px;}
-.d-mini-nav{display:flex;align-items:center;gap:3px;}
+.d-mini-nav{display:flex;flex-direction:column;align-items:flex-end;gap:2px;}
+.d-mini-nav-arrows{display:flex;align-items:center;gap:3px;}
 .d-mini-nav-btn{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.2);border-radius:5px;width:22px;height:22px;font-size:14px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
 .d-mini-nav-btn:hover:not(:disabled){background:rgba(255,255,255,0.32);}
 .d-mini-nav-btn:disabled{opacity:0.3;cursor:default;}
-.d-mini-nav-pos{font-size:0.7em;color:rgba(255,255,255,0.7);min-width:56px;text-align:center;white-space:nowrap;letter-spacing:0.02em;}
+.d-mini-nav-pos{font-size:0.68em;color:rgba(255,255,255,0.7);text-align:center;white-space:nowrap;letter-spacing:0.02em;}
 .det-nav-pos{font-size:0.7em;}
 .dh .dtk{font-size:1.55em;font-weight:900;color:#fff;letter-spacing:-0.5px;text-shadow:0 2px 12px rgba(0,0,0,0.4);}
 .dh .drt{font-size:0.92em;font-weight:700;padding:4px 14px;border-radius:18px;color:white;box-shadow:0 2px 8px rgba(0,0,0,0.22);letter-spacing:0.03em;}
@@ -824,7 +825,7 @@ td.ct{font-weight:700;}
     <button class="detail-fullscreen" onclick="toggleDetFullscreen()" title="Toggle full screen (f)" aria-label="Toggle full screen"><svg class="ic-grow" viewBox="0 0 24 24"><path fill="currentColor" d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10L21 11z"/></svg><svg class="ic-shrink" viewBox="0 0 24 24"><path fill="currentColor" d="M22 3.41 20.59 2 15 7.59V4h-2v7h7V9h-3.59L22 3.41zM2 20.59 3.41 22 9 16.41V20h2v-7H4v2h3.59L2 20.59z"/></svg></button>
     <button class="detail-close" onclick="closeDetail()">&times;</button>
     <div class="d-header-band">
-      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><div class="dh-right"><div class="d-mini-nav"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><span class="det-nav-pos d-mini-nav-pos"></span><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div></div></div>
+      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><div class="dh-right"><div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div><span class="det-nav-pos d-mini-nav-pos"></span></div></div></div>
       <div class="d-rating-row"><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
