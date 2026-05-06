@@ -822,9 +822,9 @@ td.ct{font-weight:700;}
 </div>
 <div id="det-modal" class="detail-modal" onclick="if(event.target===this)closeDetail()">
   <div class="detail-content">
-    <button class="detail-fullscreen" onclick="toggleDetFullscreen()" title="Toggle full screen (f)" aria-label="Toggle full screen"><svg class="ic-grow" viewBox="0 0 24 24"><path fill="currentColor" d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10L21 11z"/></svg><svg class="ic-shrink" viewBox="0 0 24 24"><path fill="currentColor" d="M22 3.41 20.59 2 15 7.59V4h-2v7h7V9h-3.59L22 3.41zM2 20.59 3.41 22 9 16.41V20h2v-7H4v2h3.59L2 20.59z"/></svg></button>
-    <button class="detail-close" onclick="closeDetail()">&times;</button>
     <div class="d-header-band">
+      <button class="detail-fullscreen" onclick="toggleDetFullscreen()" title="Toggle full screen (f)" aria-label="Toggle full screen"><svg class="ic-grow" viewBox="0 0 24 24"><path fill="currentColor" d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10L21 11z"/></svg><svg class="ic-shrink" viewBox="0 0 24 24"><path fill="currentColor" d="M22 3.41 20.59 2 15 7.59V4h-2v7h7V9h-3.59L22 3.41zM2 20.59 3.41 22 9 16.41V20h2v-7H4v2h3.59L2 20.59z"/></svg></button>
+      <button class="detail-close" onclick="closeDetail()">&times;</button>
       <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><div class="dh-right"><div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div><span class="det-nav-pos d-mini-nav-pos"></span></div></div></div>
       <div class="d-rating-row"><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span></div>
       <div class="dcname" id="d-cname"></div>
