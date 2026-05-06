@@ -2250,9 +2250,12 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
     return true;
   }
   function _hideTipP(){clearTimeout(_ptAutoTimer);_pt.style.display='none';_pinEl=null;}
-  /* Hover — desktop (skipped while a tip is pinned) */
-  dm.addEventListener('mouseover',function(e){if(_pinEl)return;var el=_findEl(e.target);if(el)_showFor(el);});
-  dm.addEventListener('mouseout',function(e){if(_pinEl)return;var el=e.target.closest(_SEL);if(el)_pt.style.display='none';});
+  /* Hover — desktop only (skipped while a tip is pinned). On touch devices,
+     mouseover fires from synthetic mouse events on tap and would flash
+     unwanted tooltips, so suppress hover entirely there. */
+  var _isTouchDeviceP=window.matchMedia&&window.matchMedia('(hover: none)').matches;
+  dm.addEventListener('mouseover',function(e){if(_isTouchDeviceP||_pinEl)return;var el=_findEl(e.target);if(el)_showFor(el);});
+  dm.addEventListener('mouseout',function(e){if(_isTouchDeviceP||_pinEl)return;var el=e.target.closest(_SEL);if(el)_pt.style.display='none';});
   /* Tap/click — iOS requires touchend; e.preventDefault() suppresses ghost click */
   function _onTap(e){
     if(e.target.closest('.detail-close,.detail-fullscreen,.det-nav-btn,.flag-star,.rev-chk-det'))return;
@@ -2268,7 +2271,13 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
   dm.addEventListener('touchend',_onTap,{passive:false});
   dm.addEventListener('click',_onTap);
 })();
+/* Suppress hover-triggered tooltips on touch devices (iOS / Android).
+   Touch devices fire spurious mouseover events on tap, causing tooltips to
+   flash before the real action (sort / open popup) executes. The popup-tip
+   system inside the detail modal has its own tap-to-pin path and is unaffected. */
+var _isTouchDevice=window.matchMedia&&window.matchMedia('(hover: none)').matches;
 document.addEventListener('mouseover',function(e){
+  if(_isTouchDevice)return;
   var th=e.target.closest('th[data-col-tip]');
   if(!th)return;
   clearTimeout(_ctTimer);
@@ -2283,6 +2292,7 @@ document.addEventListener('mouseover',function(e){
   _ctTimer=setTimeout(function(){_showColTip(label,body,threshold,rect.left+rect.width/2,rect.bottom);},180);
 },false);
 document.addEventListener('mouseout',function(e){
+  if(_isTouchDevice)return;
   var th=e.target.closest('th[data-col-tip]');
   if(!th)return;
   var to=e.relatedTarget;
@@ -2291,6 +2301,7 @@ document.addEventListener('mouseout',function(e){
 },false);
 
 document.addEventListener('mouseover',function(e){
+  if(_isTouchDevice)return;
   var cell=e.target.closest('.tk,.tk2');
   if(!cell)return;
   clearTimeout(_tipHideTimer);
@@ -2300,6 +2311,7 @@ document.addEventListener('mouseover',function(e){
   _tipTimer=setTimeout(function(){_showTip(tk,rect.right,rect.top);},150);
 });
 document.addEventListener('mouseout',function(e){
+  if(_isTouchDevice)return;
   var cell=e.target.closest('.tk,.tk2');
   if(!cell)return;
   clearTimeout(_tipTimer);
@@ -3381,6 +3393,7 @@ function renderPool(){
   document.getElementById('pool-sector-table').innerHTML=(chosen==='__all__'&&tableRows)?'<div style="margin-top:16px;background:white;border-radius:8px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,0.07)"><div style="font-weight:700;font-size:0.88em;color:#1a252f;margin-bottom:10px">Sector Summary</div><div class="table-wrap"><table class="dt"><thead><tr><th style="text-align:left">Sector</th><th>Cos</th><th>Wtd Margin</th><th>HHI</th><th>CR4</th><th style="text-align:left">Top Earner</th><th>Avg Multiple</th></tr></thead><tbody>'+tableRows+'</tbody></table></div></div>':'';
 }
 function ppTip(e,ticker){
+  if(_isTouchDevice)return;
   var d=null;for(var i=0;i<DATA.length;i++){if(DATA[i].ticker===ticker){d=DATA[i];break;}}
   if(!d)return;
   var tt=document.getElementById('pool-tt');
@@ -3399,6 +3412,7 @@ var _ppQD={
   vt:{title:'Value Trap',col:'#c62828',bg:'#fde8e8',bc:'#e53935',text:'Concentration without margin. Leaders may dominate by volume but face structural cost constraints, commodity pricing, or intense input competition. Independents compete for scraps. Difficult to compound capital in these structures \u2014 high share does not translate to high return.'}
 };
 function ppQuadTip(e,key){
+  if(_isTouchDevice)return;
   var def=_ppQD[key];if(!def)return;
   var tt=document.getElementById('pp-quad-tip');
   tt.style.background=def.bg;tt.style.borderColor=def.bc;
