@@ -262,7 +262,7 @@ td.ct{font-weight:700;}
 .dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:84px;justify-content:space-between;}
 .dh-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
-.d-rating-row{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;}
+.d-rating-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:84px;margin-bottom:4px;}
 .d-rating-row .d-gp{font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.02em;white-space:nowrap;margin-left:2px;}
 .d-mini-nav{position:absolute;bottom:8px;right:14px;display:flex;flex-direction:column;align-items:center;gap:2px;}
 .d-mini-nav-arrows{display:flex;align-items:center;gap:3px;}
@@ -826,8 +826,8 @@ td.ct{font-weight:700;}
     <div class="d-header-band">
       <button class="detail-fullscreen" onclick="toggleDetFullscreen()" title="Toggle full screen (f)" aria-label="Toggle full screen"><svg class="ic-grow" viewBox="0 0 24 24"><path fill="currentColor" d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10L21 11z"/></svg><svg class="ic-shrink" viewBox="0 0 24 24"><path fill="currentColor" d="M22 3.41 20.59 2 15 7.59V4h-2v7h7V9h-3.59L22 3.41zM2 20.59 3.41 22 9 16.41V20h2v-7H4v2h3.59L2 20.59z"/></svg></button>
       <button class="detail-close" onclick="closeDetail()">&times;</button>
-      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div></div>
       <div class="d-rating-row"><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span></div>
+      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
       <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div><span class="det-nav-pos d-mini-nav-pos"></span></div>
