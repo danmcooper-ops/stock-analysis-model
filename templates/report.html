@@ -391,8 +391,8 @@ td.ct{font-weight:700;}
 .dkv .kl{color:#6a7a90;}.dkv .kv{font-weight:600;color:#1a252f;}
 .dkv .kl[data-dkv-tip]{cursor:default;}
 .score-bar div{cursor:default;}
-.gv-item[data-gv-tip]{cursor:default;}
-.km-cell[data-km-tip]{cursor:default;}
+.gv-k[data-gv-tip]{cursor:default;}
+.km-k[data-km-tip]{cursor:default;}
 .legend{font-size:0.75em;color:#888;margin:6px 0 10px;padding:6px 0;}
 .pool-sector{margin-bottom:20px;background:white;border-radius:10px;padding:0;box-shadow:0 3px 12px rgba(0,0,0,0.08);overflow:hidden;border:1px solid #e8ecef;}
 .pool-sec-hdr{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 18px;background:linear-gradient(135deg,#1a252f 0%,#2c3e50 100%);color:white;border-bottom:3px solid var(--accent,#3498db);}
@@ -2397,7 +2397,7 @@ function openDet(tk){
     ['MoS',d.mos!=null?(d.mos*100).toFixed(1)+'%':'N/A',d.mos!=null?(d.mos>0.15?'color:#1a9850':(d.mos<0?'color:#de2d26':'')):''],
     ['Mkt Cap',fds(d.mcap),''],
   ];
-  _km.innerHTML=_krows.map(function(r){var _kmTipKey=DKV_TIPS[r[0]]||'';var _kmTxt=_kmTipKey?tt(_kmTipKey):'';return'<div class="km-cell"'+(_kmTxt?' data-km-tip="'+_kmTipKey+'" data-km-lbl="'+r[0]+'"':'')+'>'+  '<span class="km-k">'+r[0]+'</span><span class="km-v"'+(r[2]?' style="'+r[2]+'"':'')+'>'+r[1]+'</span></div>';}).join('');
+  _km.innerHTML=_krows.map(function(r){var _kmTipKey=DKV_TIPS[r[0]]||'';var _kmTxt=_kmTipKey?tt(_kmTipKey):'';return'<div class="km-cell">'+  '<span class="km-k"'+(_kmTxt?' data-km-tip="'+_kmTipKey+'" data-km-lbl="'+r[0]+'"':'')+'>'+r[0]+'</span><span class="km-v"'+(r[2]?' style="'+r[2]+'"':'')+'>'+r[1]+'</span></div>';}).join('');
   /* --- Gate values section --- */
   try{
     var _gvEl=document.getElementById('d-gate-values');
@@ -2415,8 +2415,8 @@ function openDet(tk){
         var _gTipKey=g.key.replace(/^_gate_/,'');
         var _gLbl=(g.label||'').replace(/"/g,'&quot;');
         var _gThr=(g.threshold||'').replace(/"/g,'&quot;');
-        _gvHtml+='<div class="gv-item" data-gv-tip="'+_gTipKey+'" data-gv-lbl="'+_gLbl+'"'+(_gThr?' data-gv-thr="'+_gThr+'"':'')+'>'+
-          '<span class="gv-k">'+g.label+'</span>'+
+        _gvHtml+='<div class="gv-item">'+
+          '<span class="gv-k" data-gv-tip="'+_gTipKey+'" data-gv-lbl="'+_gLbl+'"'+(_gThr?' data-gv-thr="'+_gThr+'"':'')+'>'+g.label+'</span>'+
           '<span class="gv-v'+cls+'">'+_fmtGate(raw,g.fmt)+
             (g.threshold?'<span class="gv-thr">\u00a0\u00b7\u00a0'+g.threshold+'</span>':'')+'</span></div>';
       });
