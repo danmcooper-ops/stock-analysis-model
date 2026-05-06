@@ -75,6 +75,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .dh .dtk{font-size:1.65em;}
   .dh .drt{font-size:0.9em;padding:5px 13px;}
   .dh .dcs{font-size:1.0em;padding:5px 11px;}
+  .dcname{font-size:0.85em;}
   .dmeta{font-size:0.7em;}
   .d-kmetrics .km-cell{padding:9px 7px;min-width:0;}
   .d-kmetrics .km-k{font-size:0.5em;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
@@ -270,7 +271,8 @@ td.ct{font-weight:700;}
 .dh .dtk{font-size:2.1em;font-weight:900;color:#fff;letter-spacing:-0.5px;text-shadow:0 2px 12px rgba(0,0,0,0.4);}
 .dh .drt{font-size:1.1em;font-weight:700;padding:8px 22px;border-radius:24px;color:white;box-shadow:0 2px 10px rgba(0,0,0,0.25);letter-spacing:0.03em;}
 .dh .dcs{font-size:1.2em;font-weight:800;padding:8px 18px;border-radius:24px;color:white;box-shadow:0 2px 10px rgba(0,0,0,0.25);}
-.dmeta{font-size:0.76em;color:rgba(255,255,255,0.6);margin-top:5px;letter-spacing:0.01em;}
+.dcname{font-size:0.95em;color:rgba(255,255,255,0.85);font-weight:500;margin-top:4px;letter-spacing:0.01em;}
+.dmeta{font-size:0.76em;color:rgba(255,255,255,0.6);margin-top:3px;letter-spacing:0.01em;}
 .d-kmetrics{display:flex;flex-wrap:nowrap;align-items:stretch;background:linear-gradient(90deg,#0d1f42,#1f4fa0);border-radius:10px;padding:0;gap:0;overflow:hidden;box-shadow:0 3px 12px rgba(13,31,66,0.22);}
 .d-kmetrics .km-cell{display:flex;flex-direction:column;gap:2px;flex:1 1 0;min-width:58px;padding:10px 13px;border-right:1px solid rgba(255,255,255,0.1);}
 .d-kmetrics .km-cell:last-child{border-right:none;}
@@ -817,10 +819,11 @@ td.ct{font-weight:700;}
 </div>
 <div id="det-modal" class="detail-modal" onclick="if(event.target===this)closeDetail()">
   <div class="detail-content">
-    <button class="detail-fullscreen" onclick="toggleDetFullscreen()" title="Toggle full screen (f)" aria-label="Toggle full screen"><svg class="ic-grow" viewBox="0 0 16 16"><path fill="currentColor" d="M2 2h5v2H4v3H2V2zm12 0v5h-2V4H9V2h5zM2 14v-5h2v3h3v2H2zm12 0H9v-2h3V9h2v5z"/></svg><svg class="ic-shrink" viewBox="0 0 16 16"><path fill="currentColor" d="M7 2v5H2V5h3V2h2zm2 0h2v3h3v2H9V2zM2 9h5v5H5v-3H2V9zm9 0h3v2h-3v3H9V9z"/></svg></button>
+    <button class="detail-fullscreen" onclick="toggleDetFullscreen()" title="Toggle full screen (f)" aria-label="Toggle full screen"><svg class="ic-grow" viewBox="0 0 24 24"><path fill="currentColor" d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10L21 11z"/></svg><svg class="ic-shrink" viewBox="0 0 24 24"><path fill="currentColor" d="M22 3.41 20.59 2 15 7.59V4h-2v7h7V9h-3.59L22 3.41zM2 20.59 3.41 22 9 16.41V20h2v-7H4v2h3.59L2 20.59z"/></svg></button>
     <button class="detail-close" onclick="closeDetail()">&times;</button>
     <div class="d-header-band">
       <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><div class="dh-right"><div class="drt" id="d-rt"></div><div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div class="dcs" id="d-cs"></div><div id="d-gp" style="font-size:0.72em;font-weight:600;color:#7f8c9a;letter-spacing:0.02em;white-space:nowrap"></div></div></div></div>
+      <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
     </div>
     <div class="d-body">
@@ -2314,6 +2317,7 @@ function openDet(tk){
   nb.querySelector('.det-nav-next').disabled=!next;
   nb.querySelector('.det-nav-pos').textContent=_detIdx>=0?(_detIdx+1)+' / '+_detNav.length:'';
   document.getElementById('d-tk').textContent=d.ticker;
+  var _cn=document.getElementById('d-cname');if(_cn)_cn.textContent=d.company_name||'';
   _syncFlagDet();
   _syncRevDet();
   var rEl=document.getElementById('d-rt');rEl.textContent=d.rating||'N/A';rEl.style.background=RC[d.rating]||'#888';
