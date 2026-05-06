@@ -37,31 +37,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .matrix-table td{padding:3px 5px;}
   /* Popup: fill entire screen on mobile, including the safe-area strip
      behind the iPhone home indicator (requires viewport-fit=cover above) */
-  .detail-modal.open{padding:0;align-items:stretch;}
-  .detail-content{max-width:100%;max-height:100vh;max-height:100dvh;border-radius:0;}
+  .detail-modal.open{padding:0!important;align-items:stretch!important;}
+  .detail-content{max-width:100%!important;max-height:100vh!important;max-height:100dvh!important;border-radius:0!important;}
   .detail-fullscreen{display:none!important;}
   .dh{padding-right:44px!important;}
-  .d-header-band{border-radius:0;padding:14px 16px 10px;}
-  .det-nav-bar{border-radius:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom)) 14px;}
+  .d-header-band{border-radius:0!important;padding:14px 16px 10px!important;}
+  .det-nav-bar{border-radius:0!important;padding:10px 14px calc(10px + env(safe-area-inset-bottom)) 14px!important;}
   .det-nav-btn{width:46px;height:46px;font-size:24px;border-radius:10px;}
   .det-nav-bar .flag-star{font-size:1.55em;}
   .det-nav-bar .rev-chk-det{font-size:0.95em;}
   .det-nav-right{gap:10px;}
   .det-nav-pos{font-size:0.78em;}
-  .d-body{padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px;gap:10px;}
+  .d-body{padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px!important;gap:10px;}
 }
-/* Landscape: popup fills full screen, tighter chrome */
-@media(orientation:landscape){
-  .detail-modal.open{padding:0;align-items:stretch;}
-  .detail-content{max-width:100%;width:100%;height:100dvh;height:100vh;max-height:100dvh;max-height:100vh;border-radius:0;}
-  .d-header-band{border-radius:0;padding:6px 16px 5px;}
-  .det-nav-bar{border-radius:0;padding:8px 18px calc(8px + env(safe-area-inset-bottom)) 18px;}
-  .det-nav-btn{width:42px;height:42px;font-size:22px;}
-  .det-nav-bar .flag-star{font-size:1.5em;}
-  .det-nav-bar .rev-chk-det{font-size:0.95em;}
-  .d-body{padding:6px 12px calc(6px + env(safe-area-inset-bottom)) 12px;gap:6px;}
-}
-/* Phone landscape only: compact page header */
+/* Phone landscape only: popup fills full screen with compact chrome */
 @media(orientation:landscape) and (max-height:500px){
   .header{padding:3px 10px;min-height:24px;}
   .header h1{font-size:0.88em;margin:0;}
@@ -69,6 +58,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .container{padding:2px 6px;}
   .detail-fullscreen{display:none!important;}
   .dh{padding-right:44px!important;}
+  .detail-modal.open{padding:0!important;align-items:stretch!important;}
+  .detail-content{max-width:100%!important;width:100%!important;height:100dvh!important;height:100vh!important;max-height:100dvh!important;max-height:100vh!important;border-radius:0!important;}
+  .d-header-band{border-radius:0!important;padding:6px 16px 5px!important;}
+  .det-nav-bar{border-radius:0!important;padding:8px 18px calc(8px + env(safe-area-inset-bottom)) 18px!important;}
+  .det-nav-btn{width:42px;height:42px;font-size:22px;}
+  .det-nav-bar .flag-star{font-size:1.5em;}
+  .det-nav-bar .rev-chk-det{font-size:0.95em;}
+  .d-body{padding:6px 12px calc(6px + env(safe-area-inset-bottom)) 12px!important;gap:6px;}
 }
 /* Small phones: compact popup header and km-banner */
 @media(max-width:480px){
