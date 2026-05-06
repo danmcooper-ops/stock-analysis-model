@@ -50,16 +50,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .detail-content{max-width:100%!important;height:100vh!important;height:100dvh!important;height:100svh!important;height:var(--vvh,100svh)!important;max-height:100vh!important;max-height:100dvh!important;max-height:100svh!important;max-height:var(--vvh,100svh)!important;border-radius:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;}
   .detail-fullscreen{display:none!important;}
   .dh{padding-right:44px!important;}
-  .d-header-band{border-radius:0!important;padding:calc(14px + env(safe-area-inset-top)) 16px 10px!important;flex-shrink:0!important;}
-  .d-body{padding:10px 12px 10px 12px!important;display:block!important;flex:1 1 auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;min-height:0!important;}
+  .d-header-band{border-radius:0!important;padding:calc(10px + env(safe-area-inset-top)) 16px 10px!important;flex-shrink:0!important;}
+  .d-body{padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px!important;display:block!important;flex:1 1 auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;min-height:0!important;}
   .d-body>*{margin-bottom:10px;}
   .d-body>*:last-child{margin-bottom:0;}
-  .det-nav-bar{border-radius:0!important;padding:8px 12px calc(8px + env(safe-area-inset-bottom)) 12px!important;position:relative!important;bottom:auto!important;flex-shrink:0!important;}
-  .det-nav-btn{width:38px;height:38px;font-size:20px;border-radius:8px;}
-  .det-nav-bar .flag-star{font-size:1.55em;}
-  .det-nav-bar .rev-chk-det{font-size:0.95em;}
-  .det-nav-right{gap:10px;}
-  .det-nav-pos{font-size:0.78em;}
 }
 /* Phone landscape only: popup fills full screen with compact chrome */
 @media(orientation:landscape) and (max-height:500px){
@@ -72,13 +66,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .detail-modal.open{padding:0!important;align-items:stretch!important;}
   .detail-content{max-width:100%!important;width:100%!important;height:100vh!important;height:100dvh!important;height:100svh!important;height:var(--vvh,100svh)!important;max-height:100vh!important;max-height:100dvh!important;max-height:100svh!important;max-height:var(--vvh,100svh)!important;border-radius:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;}
   .d-header-band{border-radius:0!important;padding:calc(6px + env(safe-area-inset-top)) 16px 5px!important;flex-shrink:0!important;}
-  .d-body{padding:6px 12px 6px 12px!important;display:block!important;flex:1 1 auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;min-height:0!important;}
+  .d-body{padding:6px 12px calc(6px + env(safe-area-inset-bottom)) 12px!important;display:block!important;flex:1 1 auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;min-height:0!important;}
   .d-body>*{margin-bottom:6px;}
   .d-body>*:last-child{margin-bottom:0;}
-  .det-nav-bar{border-radius:0!important;padding:6px 14px calc(6px + env(safe-area-inset-bottom)) 14px!important;position:relative!important;bottom:auto!important;flex-shrink:0!important;}
-  .det-nav-btn{width:32px;height:32px;font-size:18px;border-radius:8px;}
-  .det-nav-bar .flag-star{font-size:1.5em;}
-  .det-nav-bar .rev-chk-det{font-size:0.95em;}
 }
 /* Small phones: compact popup header and km-banner */
 @media(max-width:480px){
@@ -266,23 +256,24 @@ td.ct{font-weight:700;}
 .detail-modal.fullscreen .detail-content{max-width:100%;width:100%;height:100dvh;height:100vh;max-height:100dvh;max-height:100vh;border-radius:0;}
 .detail-modal.fullscreen .d-header-band{border-radius:0;}
 .detail-modal.fullscreen .det-nav-bar{border-radius:0;}
-.d-header-band{background:linear-gradient(135deg,#0d1f42 0%,#1a3a6e 55%,#1f4fa0 100%);border-radius:18px 18px 0 0;padding:calc(22px + env(safe-area-inset-top)) 26px 18px;position:relative;overflow:hidden;}
+.d-header-band{background:linear-gradient(135deg,#0d1f42 0%,#1a3a6e 55%,#1f4fa0 100%);border-radius:18px 18px 0 0;padding:calc(10px + env(safe-area-inset-top)) 22px 12px;position:relative;overflow:hidden;}
 .d-header-band::before{content:'';position:absolute;top:-60px;right:-60px;width:220px;height:220px;background:radial-gradient(circle,rgba(255,255,255,0.06) 0%,transparent 70%);pointer-events:none;}
 .d-body{padding:16px 22px 24px;display:flex;flex-direction:column;gap:14px;}
-.det-nav-bar{display:flex;align-items:center;justify-content:space-between;padding:5px 14px;background:linear-gradient(90deg,#0d1f42,#1f4fa0);border-radius:0 0 18px 18px;position:-webkit-sticky;position:sticky;bottom:0;z-index:5;}
-.det-nav-btn{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);border-radius:7px;width:30px;height:30px;font-size:18px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
-.det-nav-btn:hover:not(:disabled){background:rgba(255,255,255,0.28);}
-.det-nav-btn:disabled{opacity:0.25;cursor:default;}
-.det-nav-right{display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0;}
-.det-nav-pos{font-size:0.72em;color:rgba(255,255,255,0.6);flex:1;text-align:center;white-space:nowrap;overflow:hidden;min-width:0;}
 .dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:84px;justify-content:space-between;}
-.dh-left{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
-.dh-right{display:flex;align-items:flex-start;gap:8px;flex-shrink:0;}
-.dh .dtk{font-size:2.1em;font-weight:900;color:#fff;letter-spacing:-0.5px;text-shadow:0 2px 12px rgba(0,0,0,0.4);}
-.dh .drt{font-size:1.1em;font-weight:700;padding:8px 22px;border-radius:24px;color:white;box-shadow:0 2px 10px rgba(0,0,0,0.25);letter-spacing:0.03em;}
-.dh .dcs{font-size:1.2em;font-weight:800;padding:8px 18px;border-radius:24px;color:white;box-shadow:0 2px 10px rgba(0,0,0,0.25);}
-.dcname{font-size:0.95em;color:rgba(255,255,255,0.85);font-weight:500;margin-top:4px;letter-spacing:0.01em;}
-.dmeta{font-size:0.76em;color:rgba(255,255,255,0.6);margin-top:3px;letter-spacing:0.01em;}
+.dh-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
+.d-rating-row{display:flex;align-items:center;gap:8px;}
+.d-mini-nav{display:flex;align-items:center;gap:3px;}
+.d-mini-nav-btn{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.2);border-radius:5px;width:22px;height:22px;font-size:14px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
+.d-mini-nav-btn:hover:not(:disabled){background:rgba(255,255,255,0.32);}
+.d-mini-nav-btn:disabled{opacity:0.3;cursor:default;}
+.d-mini-nav-pos{font-size:0.7em;color:rgba(255,255,255,0.7);min-width:56px;text-align:center;white-space:nowrap;letter-spacing:0.02em;}
+.det-nav-pos{font-size:0.7em;}
+.dh .dtk{font-size:1.55em;font-weight:900;color:#fff;letter-spacing:-0.5px;text-shadow:0 2px 12px rgba(0,0,0,0.4);}
+.dh .drt{font-size:0.92em;font-weight:700;padding:4px 14px;border-radius:18px;color:white;box-shadow:0 2px 8px rgba(0,0,0,0.22);letter-spacing:0.03em;}
+.dh .dcs{font-size:0.95em;font-weight:800;padding:4px 12px;border-radius:18px;color:white;box-shadow:0 2px 8px rgba(0,0,0,0.22);}
+.dcname{font-size:0.85em;color:rgba(255,255,255,0.85);font-weight:500;margin-top:3px;letter-spacing:0.01em;}
+.dmeta{font-size:0.72em;color:rgba(255,255,255,0.6);margin-top:2px;letter-spacing:0.01em;}
 .d-kmetrics{display:flex;flex-wrap:nowrap;align-items:stretch;background:linear-gradient(90deg,#0d1f42,#1f4fa0);border-radius:10px;padding:0;gap:0;overflow:hidden;box-shadow:0 3px 12px rgba(13,31,66,0.22);}
 .d-kmetrics .km-cell{display:flex;flex-direction:column;gap:2px;flex:1 1 0;min-width:58px;padding:10px 13px;border-right:1px solid rgba(255,255,255,0.1);}
 .d-kmetrics .km-cell:last-child{border-right:none;}
@@ -832,7 +823,7 @@ td.ct{font-weight:700;}
     <button class="detail-fullscreen" onclick="toggleDetFullscreen()" title="Toggle full screen (f)" aria-label="Toggle full screen"><svg class="ic-grow" viewBox="0 0 24 24"><path fill="currentColor" d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10L21 11z"/></svg><svg class="ic-shrink" viewBox="0 0 24 24"><path fill="currentColor" d="M22 3.41 20.59 2 15 7.59V4h-2v7h7V9h-3.59L22 3.41zM2 20.59 3.41 22 9 16.41V20h2v-7H4v2h3.59L2 20.59z"/></svg></button>
     <button class="detail-close" onclick="closeDetail()">&times;</button>
     <div class="d-header-band">
-      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><div class="dh-right"><div class="drt" id="d-rt"></div><div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div class="dcs" id="d-cs"></div><div id="d-gp" style="font-size:0.72em;font-weight:600;color:#7f8c9a;letter-spacing:0.02em;white-space:nowrap"></div></div></div></div>
+      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><div class="dh-right"><div class="d-mini-nav"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><span class="det-nav-pos d-mini-nav-pos"></span><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div><div class="d-rating-row"><div class="drt" id="d-rt"></div><div style="display:flex;flex-direction:column;align-items:center;gap:3px"><div class="dcs" id="d-cs"></div><div id="d-gp" style="font-size:0.72em;font-weight:600;color:#7f8c9a;letter-spacing:0.02em;white-space:nowrap"></div></div></div></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
     </div>
@@ -848,11 +839,6 @@ td.ct{font-weight:700;}
       <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
       <div id="d-section-profitpool" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Sector Analysis</div><div class="dgrid-inner" id="d-profitpool-content"></div></div>
       <div class="dgrid" id="d-grid"></div>
-    </div>
-    <div id="det-nav" class="det-nav-bar">
-      <button class="det-nav-prev det-nav-btn" onclick="navDet(-1)" title="Previous stock (← ↑)">&#8249;</button>
-      <span class="det-nav-pos"></span>
-      <div class="det-nav-right"><span id="d-rev2" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag2" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span><button class="det-nav-next det-nav-btn" onclick="navDet(1)" title="Next stock (→ ↓)">&#8250;</button></div>
     </div>
   </div>
   <div id="popup-tip"></div>
@@ -2346,10 +2332,10 @@ function openDet(tk){
   if(!d)return;
   _detIdx=_detNav.indexOf(tk);
   var prev=_detIdx>0,next=_detIdx>=0&&_detIdx<_detNav.length-1;
-  var nb=document.getElementById('det-nav');
-  nb.querySelector('.det-nav-prev').disabled=!prev;
-  nb.querySelector('.det-nav-next').disabled=!next;
-  nb.querySelector('.det-nav-pos').textContent=_detIdx>=0?(_detIdx+1)+' / '+_detNav.length:'';
+  var pp=document.querySelector('.det-nav-prev'),nn=document.querySelector('.det-nav-next'),npp=document.querySelector('.det-nav-pos');
+  if(pp)pp.disabled=!prev;
+  if(nn)nn.disabled=!next;
+  if(npp)npp.textContent=_detIdx>=0?(_detIdx+1)+' / '+_detNav.length:'';
   document.getElementById('d-tk').textContent=d.ticker;
   var _cn=document.getElementById('d-cname');if(_cn)_cn.textContent=d.company_name||'';
   _syncFlagDet();
