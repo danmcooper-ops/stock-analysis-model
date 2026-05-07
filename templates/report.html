@@ -711,7 +711,6 @@ td.ct{font-weight:700;}
 /* Cross-sector cap volume KPI cards (inline-styled backgrounds) */
 [data-theme="dark"] .xsect-dashboard div[style*="background:#fafbfc"]{background:#1c2128 !important;}
 [data-theme="dark"] .xsect-dashboard div[style*="background:#f0f0f0"]{background:#21262d !important;}
-[data-theme="dark"] .xsect-sector-breakdown{background:#1c2128 !important;box-shadow:0 2px 8px rgba(0,0,0,0.3) !important;}
 /* Company Highlights & CR4 Companies cards (inline-styled with background:white).
    Cards have JS hover handlers that mutate this.style — browsers normalize the
    inline string and rewrite `background:white` as `background: white`, so we
@@ -3212,27 +3211,31 @@ function renderCrossSectorDashboard(){
   /* Sector Breakdown — moved here from Financial Model > Dashboard. Shows
      BUY + LEAN BUY rate per sector for the *filtered* dataset (FD). The rest
      of this dashboard is universe-level (DATA), so this panel reflects the
-     user's current Quick/Column filters while the surrounding charts do not. */
+     user's current Quick/Column filters while the surrounding charts do not.
+     Reuses the xsect-bar-row/label/track/fill/pct/meta classes so it visually
+     matches Operating Margin by Sector and the trading-volume bar charts. */
   var _sbMap={};
   FD.forEach(function(d){if(!d.sector)return;var s=d.sector;if(!_sbMap[s])_sbMap[s]={t:0,b:0};_sbMap[s].t++;if(d.rating==='BUY'||d.rating==='LEAN BUY')_sbMap[s].b++;});
   var _sbArr=Object.keys(_sbMap).map(function(s){return{name:s,t:_sbMap[s].t,b:_sbMap[s].b,pct:Math.round(_sbMap[s].b/_sbMap[s].t*100)};});
   _sbArr.sort(function(a,b){return b.pct-a.pct||b.b-a.b;});
-  var sectorBreakdownHtml='<div class="xsect-sector-breakdown" style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-bottom:18px">'
-    +'<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:11px">Sector Breakdown <span style="font-size:0.78em;font-weight:400;color:#bbb;text-transform:none;letter-spacing:0">BUY + LEAN BUY (filtered)</span></div>';
+  var sectorBreakdownBars='';
   _sbArr.forEach(function(s){
-    var col=s.pct>=60?'#276221':s.pct>=40?'#5d8a26':s.pct>=20?'#b07d00':'#9c1d1d';
-    sectorBreakdownHtml+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
-      +'<div style="font-size:0.73em;color:#444;width:108px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+s.name+'">'+s.name+'</div>'
-      +'<div style="flex:1;height:10px;background:#f0f0f0;border-radius:5px;overflow:hidden"><div style="width:'+s.pct+'%;height:100%;background:'+col+';border-radius:5px"></div></div>'
-      +'<div style="font-size:0.73em;color:#666;width:30px;text-align:right;flex-shrink:0">'+s.pct+'%</div>'
-      +'<div style="font-size:0.67em;color:#bbb;width:32px;text-align:right;flex-shrink:0">'+s.b+'/'+s.t+'</div>'
+    var col=s.pct>=60?'#1a9850':s.pct>=40?'#74c476':s.pct>=20?'#fd8d3c':'#de2d26';
+    var sEsc=s.name.replace(/'/g,"\\'");
+    sectorBreakdownBars+='<div class="xsect-bar-row" onclick="showPoolTab(\''+sEsc+'\')" style="cursor:pointer" title="Go to '+s.name+'">'
+      +'<div class="xsect-bar-label">'+s.name+'</div>'
+      +'<div class="xsect-bar-track"><div class="xsect-bar-fill" style="width:'+s.pct+'%;background:'+col+'"></div>'
+      +'<span class="xsect-bar-pct">'+s.pct+'%</span></div>'
+      +'<div class="xsect-bar-meta">'+s.b+' of '+s.t+' rated BUY or LEAN BUY</div>'
     +'</div>';
   });
-  sectorBreakdownHtml+='</div>';
+  var sectorBreakdownHtml='<div id="xsect-breakdown-wrap" style="margin-bottom:20px">'
+    +'<div class="xsect-chart-title">Sector Breakdown <span style="font-weight:400;text-transform:none;letter-spacing:0">(BUY + LEAN BUY — filtered)</span></div>'
+    +sectorBreakdownBars
+  +'</div>';
   return'<div class="xsect-dashboard">'
     +'<div class="xsect-title">Cross-Sector Profit Pool Comparison</div>'
     +'<div class="xsect-sub">Blended pool margins, market concentration, and competitive dynamics across '+allStats.length+' sectors</div>'
-    +sectorBreakdownHtml
     +'<div class="xsect-kpi-row">'+kpiHtml+'</div>'
     +'<div class="xsect-narrative" style="margin-top:6px;margin-bottom:18px"><div class="xsect-nar-title">Cross-Sector Analysis Summary</div>'
       +'<div class="xs-narcards">'+narItems.map(function(it){return'<div class="xs-narcard">'
@@ -3247,6 +3250,7 @@ function renderCrossSectorDashboard(){
           +'<div class="xs-narcard-detail">'+it.detail+'</div>'
         +'</div>';}).join('')+'</div>'
     +'</div>'
+    +sectorBreakdownHtml
     +'<div id="xsect-bar-wrap" style="margin-bottom:20px">'
       +'<div class="xsect-chart-title">Operating Margin by Sector <span style="font-weight:400;text-transform:none;letter-spacing:0">(pool-weighted)</span></div>'
       +marginBarsHtml
