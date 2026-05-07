@@ -711,6 +711,7 @@ td.ct{font-weight:700;}
 /* Cross-sector cap volume KPI cards (inline-styled backgrounds) */
 [data-theme="dark"] .xsect-dashboard div[style*="background:#fafbfc"]{background:#1c2128 !important;}
 [data-theme="dark"] .xsect-dashboard div[style*="background:#f0f0f0"]{background:#21262d !important;}
+[data-theme="dark"] .xsect-sector-breakdown{background:#1c2128 !important;box-shadow:0 2px 8px rgba(0,0,0,0.3) !important;}
 /* Company Highlights & CR4 Companies cards (inline-styled with background:white).
    Cards have JS hover handlers that mutate this.style — browsers normalize the
    inline string and rewrite `background:white` as `background: white`, so we
@@ -1471,8 +1472,9 @@ function renderOverview(){
   });
   html+='</div></div>';
   html+='</div>';
-  /* Two-column: gate pass rates (sorted, bottlenecks flagged) + sector breakdown */
-  /* Pre-compute all gate pass rates to find bottom 3 globally */
+  /* Gate pass rates panel (sorted ascending, bottom-3 bottlenecks highlighted).
+     The Sector Breakdown that used to share this two-column row was moved to
+     the Sector Analysis tab; this panel now spans the full available width. */
   var gateRates=[];
   GM.gates.forEach(function(g){
     if(g.hideMatrix)return;
@@ -1481,9 +1483,7 @@ function renderOverview(){
   });
   gateRates.sort(function(a,b){return a.pct-b.pct;});
   var bottom3=new Set(gateRates.slice(0,3).map(function(x){return x.g.key;}));
-  html+='<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">';
-  /* Gate pass rates panel */
-  html+='<div style="flex:1;min-width:260px;background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07)">';
+  html+='<div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07)">';
   html+='<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:11px">Gate Pass Rates <span style="font-size:0.78em;font-weight:400;color:#bbb;text-transform:none;letter-spacing:0">&#9650; low \u2192 high</span></div>';
   GM.categories.forEach(function(cat,ci){
     var catRates=gateRates.filter(function(x){return x.g.category===cat.name;});
@@ -1503,24 +1503,6 @@ function renderOverview(){
       html+='</div>';
     });
   });
-  html+='</div>';
-  /* Sector breakdown */
-  var sMap={};
-  FD.forEach(function(d){if(!d.sector)return;var s=d.sector;if(!sMap[s])sMap[s]={t:0,b:0};sMap[s].t++;if(d.rating==='BUY'||d.rating==='LEAN BUY')sMap[s].b++;});
-  var sArr=Object.keys(sMap).map(function(s){return{name:s,t:sMap[s].t,b:sMap[s].b,pct:Math.round(sMap[s].b/sMap[s].t*100)};});
-  sArr.sort(function(a,b){return b.pct-a.pct||b.b-a.b;});
-  html+='<div style="flex:1;min-width:220px;background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07)">';
-  html+='<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:11px">Sector Breakdown <span style="font-size:0.78em;font-weight:400;color:#bbb;text-transform:none;letter-spacing:0">BUY + LEAN BUY</span></div>';
-  sArr.forEach(function(s){
-    var col=s.pct>=60?'#276221':s.pct>=40?'#5d8a26':s.pct>=20?'#b07d00':'#9c1d1d';
-    html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
-    html+='<div style="font-size:0.73em;color:#444;width:108px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+s.name+'">'+s.name+'</div>';
-    html+='<div style="flex:1;height:10px;background:#f0f0f0;border-radius:5px;overflow:hidden"><div style="width:'+s.pct+'%;height:100%;background:'+col+';border-radius:5px"></div></div>';
-    html+='<div style="font-size:0.73em;color:#666;width:30px;text-align:right;flex-shrink:0">'+s.pct+'%</div>';
-    html+='<div style="font-size:0.67em;color:#bbb;width:32px;text-align:right;flex-shrink:0">'+s.b+'/'+s.t+'</div>';
-    html+='</div>';
-  });
-  html+='</div>';
   html+='</div>';
   ov.innerHTML=html;
 }
@@ -3227,9 +3209,30 @@ function renderCrossSectorDashboard(){
       +torLegendHtml
     +'</div>'
     +'</div>';
+  /* Sector Breakdown — moved here from Financial Model > Dashboard. Shows
+     BUY + LEAN BUY rate per sector for the *filtered* dataset (FD). The rest
+     of this dashboard is universe-level (DATA), so this panel reflects the
+     user's current Quick/Column filters while the surrounding charts do not. */
+  var _sbMap={};
+  FD.forEach(function(d){if(!d.sector)return;var s=d.sector;if(!_sbMap[s])_sbMap[s]={t:0,b:0};_sbMap[s].t++;if(d.rating==='BUY'||d.rating==='LEAN BUY')_sbMap[s].b++;});
+  var _sbArr=Object.keys(_sbMap).map(function(s){return{name:s,t:_sbMap[s].t,b:_sbMap[s].b,pct:Math.round(_sbMap[s].b/_sbMap[s].t*100)};});
+  _sbArr.sort(function(a,b){return b.pct-a.pct||b.b-a.b;});
+  var sectorBreakdownHtml='<div class="xsect-sector-breakdown" style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-bottom:18px">'
+    +'<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:11px">Sector Breakdown <span style="font-size:0.78em;font-weight:400;color:#bbb;text-transform:none;letter-spacing:0">BUY + LEAN BUY (filtered)</span></div>';
+  _sbArr.forEach(function(s){
+    var col=s.pct>=60?'#276221':s.pct>=40?'#5d8a26':s.pct>=20?'#b07d00':'#9c1d1d';
+    sectorBreakdownHtml+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+      +'<div style="font-size:0.73em;color:#444;width:108px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+s.name+'">'+s.name+'</div>'
+      +'<div style="flex:1;height:10px;background:#f0f0f0;border-radius:5px;overflow:hidden"><div style="width:'+s.pct+'%;height:100%;background:'+col+';border-radius:5px"></div></div>'
+      +'<div style="font-size:0.73em;color:#666;width:30px;text-align:right;flex-shrink:0">'+s.pct+'%</div>'
+      +'<div style="font-size:0.67em;color:#bbb;width:32px;text-align:right;flex-shrink:0">'+s.b+'/'+s.t+'</div>'
+    +'</div>';
+  });
+  sectorBreakdownHtml+='</div>';
   return'<div class="xsect-dashboard">'
     +'<div class="xsect-title">Cross-Sector Profit Pool Comparison</div>'
     +'<div class="xsect-sub">Blended pool margins, market concentration, and competitive dynamics across '+allStats.length+' sectors</div>'
+    +sectorBreakdownHtml
     +'<div class="xsect-kpi-row">'+kpiHtml+'</div>'
     +'<div class="xsect-narrative" style="margin-top:6px;margin-bottom:18px"><div class="xsect-nar-title">Cross-Sector Analysis Summary</div>'
       +'<div class="xs-narcards">'+narItems.map(function(it){return'<div class="xs-narcard">'
