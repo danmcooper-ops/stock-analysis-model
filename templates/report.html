@@ -787,11 +787,6 @@ td.ct{font-weight:700;}
             <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
             <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style=\"width:16px;height:16px;vertical-align:middle;display:inline-block\"><circle cx=\"11\" cy=\"11\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><polyline points=\"6,11 9.5,15 16,7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg> All<span id="rev-count-label"></span></button>
           </div>
-          <div class="fpop-toggles">
-            <button class="fpop-toggle-btn" id="f-cap-small" onclick="toggleCapFilter('small')" title="Market cap below $2B">Small Cap</button>
-            <button class="fpop-toggle-btn" id="f-cap-mid" onclick="toggleCapFilter('mid')" title="Market cap $2B – $10B">Mid Cap</button>
-            <button class="fpop-toggle-btn" id="f-cap-large" onclick="toggleCapFilter('large')" title="Market cap above $10B">Large Cap</button>
-          </div>
           <div class="fpop-section-label" style="margin-top:10px">Column Filters</div>
           <div id="col-filters" class="col-filters-wrap"></div>
           <button class="add-filter-btn" onclick="addColFilter()">&#65291; Add Filter</button>
@@ -911,11 +906,6 @@ function toggleFlagDet(){var tk=document.getElementById('d-tk').textContent;if(!
 function toggleFlagFilter(){_flagOnly=!_flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);applyFilters();}
 var _founderOnly=false;
 function toggleFounderFilter(){_founderOnly=!_founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);applyFilters();}
-/* Cap-tier filter — three independent toggles (small <$2B, mid $2-10B, large >=$10B).
-   When none are active, all sizes are shown. When one or more are active, only
-   matching sizes pass. */
-var _capFilter={small:false,mid:false,large:false};
-function toggleCapFilter(t){_capFilter[t]=!_capFilter[t];document.getElementById('f-cap-'+t).classList.toggle('active',_capFilter[t]);applyFilters();}
 function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.getElementById('flag-count-label');el.textContent=n>0?' ('+n+')':'';}
 function _starHtml(tk){return '<span class="flag-star'+(isFlagged(tk)?' flagged':'')+'" onclick="toggleFlag(\''+tk.replace(/'/g,"\\'")+'\',event)" title="Flag">'+(isFlagged(tk)?'\u2691':'\u2690')+'</span>';}
 _updateFlagCount();
@@ -1196,17 +1186,11 @@ function applyFilters(){
     if(cMin===null&&cMax===null)return;
     colFilters.push({key:key,min:cMin,max:cMax,pct:(_CF_FMT[key]||'')==='pct'});
   });
-  var _capActive=_capFilter.small||_capFilter.mid||_capFilter.large;
   FD=DATA.filter(function(d){
     if(_flagOnly&&!isFlagged(d.ticker))return false;
     if(_founderOnly&&!d.founder_led)return false;
     if(_revFilter===1&&isReviewed(d.ticker))return false;
     if(_revFilter===2&&!isReviewed(d.ticker))return false;
-    if(_capActive){
-      var _b=(d.mcap||0)/1e9;
-      var _ok=(_capFilter.small&&_b<2)||(_capFilter.mid&&_b>=2&&_b<10)||(_capFilter.large&&_b>=10);
-      if(!_ok)return false;
-    }
     if(q&&(d.ticker||'').toUpperCase().indexOf(q)<0&&(d.description||'').toUpperCase().indexOf(q)<0)return false;
     if(!allRatings&&ratings.indexOf(d.rating)<0)return false;
     if(!allSectors&&sectors.indexOf(d.sector)<0)return false;
@@ -1221,9 +1205,8 @@ function applyFilters(){
     return true;
   });
   document.getElementById('f-count').textContent=FD.length+' of '+DATA.length;
-  // Update filter popup badge (col filters + flagged + founder + cap toggles)
-  var _capCount=(_capFilter.small?1:0)+(_capFilter.mid?1:0)+(_capFilter.large?1:0);
-  var activeCount=colFilters.length+(_flagOnly?1:0)+(_founderOnly?1:0)+(_revFilter?1:0)+_capCount;
+  // Update filter popup badge (col filters + flagged + founder + reviewed)
+  var activeCount=colFilters.length+(_flagOnly?1:0)+(_founderOnly?1:0)+(_revFilter?1:0);
   var badge=document.getElementById('fpop-badge');
   var btn=document.getElementById('fpop-btn');
   if(activeCount>0){badge.textContent=activeCount;badge.style.display='inline-flex';btn.classList.add('active');}
@@ -1250,8 +1233,6 @@ function clearFilters(){
   addColFilter();
   _flagOnly=false;document.getElementById('f-flagged').classList.remove('active');
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
-  _capFilter={small:false,mid:false,large:false};
-  ['small','mid','large'].forEach(function(t){var el=document.getElementById('f-cap-'+t);if(el)el.classList.remove('active');});
   _revFilter=0;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.remove('active');rEl.innerHTML=_CHK_SVG+' All';}
   _revd={};_saveRevd();_updateRevCount();
   applyFilters();
