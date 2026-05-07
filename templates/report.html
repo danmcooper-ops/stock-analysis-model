@@ -674,6 +674,11 @@ td.ct{font-weight:700;}
 [data-theme="dark"] #d-section-overview .ddesc,[data-theme="dark"] #d-section-overview .ddesc *,
 [data-theme="dark"] #d-sector-signals .sig-hw,[data-theme="dark"] #d-sector-signals .sig-hw *{color:#fff !important;}
 [data-theme="dark"] body,[data-theme="dark"] body *{color:#fff !important;}
+/* Restore visibility of inactive Price History index toggles (SPY/QQQ/DIA).
+   Inline style sets background:#fff + color:#555; the body * !important rule
+   above turns the text white, leaving white-on-white. Force a dark surface
+   and a readable border so the buttons remain legible in dark mode. */
+[data-theme="dark"] .ph-index-btn:not(.active){background:var(--surface) !important;border-color:var(--border) !important;color:var(--text-muted) !important;}
 [data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:rgba(255,255,255,0.72) !important;opacity:1;}
 [data-theme="dark"] select option{background:#0d1117 !important;color:#fff !important;}
 [data-theme="dark"] .rev-chk:not(.checked),[data-theme="dark"] .rev-chk-det:not(.checked),[data-theme="dark"] #f-reviewed{color:#fff !important;--chk-border:#fff;--chk-mark:#fff;}
@@ -1728,7 +1733,7 @@ function _buildPHIndexBtns(){
     var col=inPool?_phPalette[_phStocks.indexOf(ix.ticker)%_phPalette.length]:'#555';
     var bg=inPool?col+'1a':'#fff';
     var tip=isPrice?'':'title="Indices have no fundamentals — switch to Price"';
-    return '<button onclick="phToggleIndex(\''+ix.ticker+'\')" '+(dis?'disabled':'')+' '+tip+' style="font-size:0.75em;padding:3px 10px;border-radius:4px;border:1.5px solid '+(inPool?col:'#ccc')+';background:'+bg+';color:'+(inPool?col:'#555')+';cursor:'+(dis?'default':'pointer')+';font-weight:'+(inPool?700:400)+';white-space:nowrap;opacity:'+(dis?0.4:1)+'">'+ix.label+'</button>';
+    return '<button onclick="phToggleIndex(\''+ix.ticker+'\')" class="ph-index-btn'+(inPool?' active':'')+'" '+(dis?'disabled':'')+' '+tip+' style="font-size:0.75em;padding:3px 10px;border-radius:4px;border:1.5px solid '+(inPool?col:'#ccc')+';background:'+bg+';color:'+(inPool?col:'#555')+';cursor:'+(dis?'default':'pointer')+';font-weight:'+(inPool?700:400)+';white-space:nowrap;opacity:'+(dis?0.4:1)+'">'+ix.label+'</button>';
   }).join('');
 }
 function phAddTicker(tk){
