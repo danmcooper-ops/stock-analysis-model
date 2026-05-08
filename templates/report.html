@@ -447,8 +447,6 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-sectorprice svg text[fill="#9aaab8"]{fill:#7d8b9a;}
 [data-theme="dark"] .pp-sectorprice svg line[stroke="#e8edf2"]{stroke:#21262d;}
 [data-theme="dark"] .pp-sectorprice svg line[stroke="#cbd5e1"]{stroke:#3d4651;}
-[data-theme="dark"] .pp-sectorprice svg polyline[stroke="#37474f"]{stroke:#c9d1d9;}
-[data-theme="dark"] .pp-sectorprice span[style*="border-top:2px dashed #37474f"]{border-top-color:#c9d1d9 !important;}
 .pp-players{background:#eef8f1;border-left:5px solid #2e7d48;}
 .pp-players .pp-section-label{background:#2e7d48;}
 .pp-chart{background:white;padding:18px 20px 22px;border-left:5px solid #546e7a;}
@@ -2830,30 +2828,25 @@ function renderPoolInsights(sec){
   out+='</ul>';
   return out;
 }
-/* === Sector / Universe vs S&P 500 price comparison ==============
+/* === Aggregate Performance chart ================================
    Lives only on the Sector Analysis Overview tab. The user picks
    any subset of aggregates via toggle chips:
      - "Universe" chip: aggregate of every stock in DATA
      - one chip per sector: aggregate of that sector
-   Selected chips are plotted alongside SPY. With nothing selected
-   the chart shows just SPY (and a hint to pick an aggregate). All
+   Selected chips are plotted as indexed-to-100 lines. All
    aggregates are market-cap-weighted at today\'s snapshot.
 
    Common date axis: startIdx is the earliest date in the window
-   where SPY is present AND every selected aggregate has >=60% of
-   its weight present.
+   where every selected aggregate has >=60% of its weight present.
 
-   Note: the comparison carries survivorship and quality-filter bias
-   (constituents = today\'s surviving DATA universe). The chart is
-   honest for cross-sector relative reads but not as a tradable
-   backtest of "buy our screen". */
+   Note: comparison carries survivorship and quality-filter bias
+   (constituents = today\'s surviving DATA universe). Useful for
+   relative cross-sector reads, not a tradable backtest. */
 var _sectorPriceRange='5YR';
 var _selectedAggs={'__universe__':true};
 var _sectorPriceState=null;
-/* Distinct categorical palette; SPY uses a separate dashed dark
-   style so colors here can include blue without clashing. The
-   first slot (#7030a0) is reserved for the Universe chip — sector
-   chips use slots 1..N. */
+/* Distinct categorical palette. The first slot (#7030a0) is
+   reserved for the Universe chip — sector chips use slots 1..N. */
 var _sectorPalette=['#7030a0','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#17becf','#bcbd22','#1a9850','#0288d1','#5e35b1','#c0392b','#16a085'];
 function _allSectors(){
   var seen={};var out=[];
@@ -2868,8 +2861,6 @@ function _aggColor(key){
   var sectors=_allSectors();
   var idx=sectors.indexOf(key);
   if(idx<0)return '#7f8c9a';
-  /* Sector slots start at palette index 1 so they don\'t collide
-     with Universe\'s purple. */
   return _sectorPalette[(idx+1)%_sectorPalette.length];
 }
 function _aggLabel(key){return key==='__universe__'?'Universe':key;}
@@ -2884,7 +2875,7 @@ function renderUniversePriceChart(){
     var act=_sectorPriceRange===r[0]?' active':'';
     return '<button type="button" class="pp-range-btn'+act+'" onclick="setSectorPriceRange(\''+r[0]+'\',this)">'+r[1]+'</button>';
   }).join('');
-  /* Build chip row: Universe first, then sectors sorted alphabetically. */
+  /* Build chip row: Universe first, then sectors A-Z. */
   var keys=['__universe__'].concat(sectors);
   var chipHtml=keys.map(function(k){
     var act=_selectedAggs[k]?' active':'';
@@ -2894,11 +2885,6 @@ function renderUniversePriceChart(){
       +'<span class="chip-dot"></span>'+_esc(_aggLabel(k))
       +'</button>';
   }).join('');
-  /* Two helper buttons only — All toggles every chip on, Clear
-     toggles them all off. The "all sectors" / "universe only"
-     intermediate presets were redundant: clicking the Universe
-     chip alone is one tap, and clicking individual sectors is
-     fast with the new compact chip styling. */
   var helperBtns=''
     +'<button type="button" class="agg-helper-btn" onclick="setAggs(\'all\')">All</button>'
     +'<button type="button" class="agg-helper-btn" onclick="setAggs(\'none\')">Clear</button>';
@@ -2929,9 +2915,7 @@ function toggleAgg(key,btn){
 }
 function setAggs(preset){
   _selectedAggs={};
-  if(preset==='universe'){_selectedAggs['__universe__']=true;}
-  else if(preset==='sectors'){_allSectors().forEach(function(s){_selectedAggs[s]=true;});}
-  else if(preset==='all'){_selectedAggs['__universe__']=true;_allSectors().forEach(function(s){_selectedAggs[s]=true;});}
+  if(preset==='all'){_selectedAggs['__universe__']=true;_allSectors().forEach(function(s){_selectedAggs[s]=true;});}
   /* preset === "none" leaves _selectedAggs empty. */
   /* Resync chip active states without re-rendering the whole shell. */
   var row=document.getElementById('agg-chip-row');
@@ -2976,12 +2960,16 @@ function _priceChartDraw(){
     return;
   }
   var allD=PRICES.dates;
-  var spy=PRICES.prices&&PRICES.prices['SPY'];
-  if(!spy){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">S&amp;P 500 (SPY) data unavailable.</p>';return;}
   /* Determine which aggregates to plot from the chip toggles. */
   var keys=Object.keys(_selectedAggs).filter(function(k){return _selectedAggs[k];});
-  /* Stable ordering: Universe first, then sectors alphabetically — so
-     line legend reads predictably regardless of toggle order. */
+  /* Empty selection placeholder. */
+  if(!keys.length){
+    el.innerHTML='<p style="color:#888;padding:30px 20px;text-align:center;font-size:0.85em">Pick one or more chips above to plot aggregate performance.</p>';
+    var tipEl0=document.getElementById('sector-price-tip');
+    if(tipEl0)tipEl0.innerHTML='';
+    return;
+  }
+  /* Stable ordering: Universe first, then sectors alphabetically. */
   var sectors=_allSectors();
   keys.sort(function(a,b){
     if(a===b)return 0;
@@ -2997,31 +2985,15 @@ function _priceChartDraw(){
     var a=_buildAggregate(filter);
     if(a){a.label=_aggLabel(k);a.color=_aggColor(k);aggs.push(a);}
   });
+  if(!aggs.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data for selected aggregates.</p>';return;}
   /* Window cutoff. */
   var cutMs={'1YR':366,'3YR':1098,'5YR':1827,'10YR':3653,'20YR':7305}[_sectorPriceRange]||1827;
   var cutoff=new Date(+new Date()-cutMs*86400000);
-  /* Find SPY-only baseline (used when no aggregates are selected
-     so the chart still draws the benchmark). */
-  var spyOnlyStart=-1;
-  for(var i0=0;i0<allD.length;i0++){
-    if(new Date(allD[i0]+'T00:00:00')<cutoff)continue;
-    if(spy[i0]!=null){spyOnlyStart=i0;break;}
-  }
-  /* If nothing toggled, draw SPY alone. */
-  if(!aggs.length){
-    if(spyOnlyStart<0){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data in this range.</p>';return;}
-    var spyBase0=spy[spyOnlyStart];
-    var dates0=[],spyN0=[];
-    for(var k0=spyOnlyStart;k0<allD.length;k0++){if(spy[k0]==null)continue;dates0.push(allD[k0]);spyN0.push((spy[k0]/spyBase0)*100);}
-    if(dates0.length<2){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough data points.</p>';return;}
-    return _renderPolylineSVG(el,dates0,spyN0,[],true);
-  }
-  /* Find common startIdx: SPY present AND every aggregate has ≥60%
-     of its weight present. */
+  /* Find common startIdx: every aggregate has >=60% of its weight
+     present (no SPY constraint). */
   var startIdx=-1;
   for(var i=0;i<allD.length;i++){
     if(new Date(allD[i]+'T00:00:00')<cutoff)continue;
-    if(spy[i]==null)continue;
     var allOk=true;
     for(var ai=0;ai<aggs.length;ai++){
       var pw=0;
@@ -3046,12 +3018,10 @@ function _priceChartDraw(){
     }
     ag.vals=[];
   }
-  var spyBase=spy[startIdx];
-  var dates=[],spyN=[];
-  /* Iterate dates from startIdx forward. Drop a day only if SPY is
-     missing OR any aggregate has <60% weight present. */
+  var dates=[];
+  /* Iterate dates from startIdx forward. Drop a day if any
+     aggregate has <60% weight present. */
   for(var k=startIdx;k<allD.length;k++){
-    if(spy[k]==null)continue;
     var aggVals=[];
     var allHaveData=true;
     for(var ai3=0;ai3<aggs.length;ai3++){
@@ -3066,19 +3036,18 @@ function _priceChartDraw(){
     }
     if(!allHaveData)continue;
     dates.push(allD[k]);
-    spyN.push((spy[k]/spyBase)*100);
     for(var ai4=0;ai4<aggs.length;ai4++)aggs[ai4].vals.push(aggVals[ai4]);
   }
   if(dates.length<2){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough overlapping data points.</p>';return;}
-  _renderPolylineSVG(el,dates,spyN,aggs,false);
+  _renderPolylineSVG(el,dates,aggs);
   _sectorPriceState={range:_sectorPriceRange,n:dates.length,k:aggs.length};
 }
-/* Renders the SVG + legend + verdict tip. Factored out so the
-   "no aggregates selected" path can reuse it (with empty aggs). */
-function _renderPolylineSVG(el,dates,spyN,aggs,spyOnly){
+/* Renders the SVG + legend + verdict tip for the selected
+   aggregates (no S&P benchmark line). */
+function _renderPolylineSVG(el,dates,aggs){
   var VW=900,VH=280,PL=52,PR=14,PT=14,PB=34;
   var iW=VW-PL-PR,iH=VH-PT-PB;
-  var allVals=spyN.slice();
+  var allVals=[];
   aggs.forEach(function(a){allVals=allVals.concat(a.vals);});
   var minP=Math.min.apply(null,allVals),maxP=Math.max.apply(null,allVals);
   var pad=(maxP-minP)*0.06||1;minP-=pad;maxP+=pad;
@@ -3106,8 +3075,7 @@ function _renderPolylineSVG(el,dates,spyN,aggs,spyOnly){
   }
   /* With many lines, use thinner strokes so they don\'t overwhelm. */
   var aggStroke=aggs.length>=4?1.4:1.9;
-  var spyPts=spyN.map(function(v,i){return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);}).join(' ');
-  var lines='<polyline points="'+spyPts+'" fill="none" stroke="#37474f" stroke-width="1.5" stroke-dasharray="5,3" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';
+  var lines='';
   aggs.forEach(function(a){
     var pts=a.vals.map(function(v,i){return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);}).join(' ');
     lines+='<polyline points="'+pts+'" fill="none" stroke="'+a.color+'" stroke-width="'+aggStroke+'" stroke-linejoin="round" stroke-linecap="round"/>';
@@ -3115,36 +3083,25 @@ function _renderPolylineSVG(el,dates,spyN,aggs,spyOnly){
   var svg='<svg viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:360px">'+grid+lines+'</svg>';
   function _ret(end){var c=end-100;return (c>=0?'+':'')+c.toFixed(1)+'%';}
   function _retCol(end){return end>=100?'#2e7d48':'#c0392b';}
-  var spyEnd=spyN[spyN.length-1];
-  var legendItems=[];
-  legendItems.push('<span style="display:inline-flex;align-items:center;gap:6px;font-size:0.78em;white-space:nowrap"><span style="width:18px;height:0;border-top:2px dashed #37474f;flex-shrink:0"></span><span style="color:#1a252f">S&amp;P 500</span> <span style="font-weight:600;color:'+_retCol(spyEnd)+'">'+_ret(spyEnd)+'</span></span>');
-  /* Sort aggregate legend entries by total return desc so the eye
-     scans winners→losers. */
+  /* Legend sorted by total return desc. */
   var aggsForLegend=aggs.slice().sort(function(a,b){return b.vals[b.vals.length-1]-a.vals[a.vals.length-1];});
-  aggsForLegend.forEach(function(a){
+  var legendItems=aggsForLegend.map(function(a){
     var end=a.vals[a.vals.length-1];
-    legendItems.push('<span style="display:inline-flex;align-items:center;gap:6px;font-size:0.78em;white-space:nowrap"><span style="width:16px;height:3px;background:'+a.color+';border-radius:2px;flex-shrink:0"></span><span style="color:#1a252f">'+_esc(a.label)+'</span> <span style="font-weight:600;color:'+_retCol(end)+'">'+_ret(end)+'</span></span>');
+    return '<span style="display:inline-flex;align-items:center;gap:6px;font-size:0.78em;white-space:nowrap"><span style="width:16px;height:3px;background:'+a.color+';border-radius:2px;flex-shrink:0"></span><span style="color:#1a252f">'+_esc(a.label)+'</span> <span style="font-weight:600;color:'+_retCol(end)+'">'+_ret(end)+'</span></span>';
   });
   var legend='<div style="display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:10px;align-items:center">'+legendItems.join('')+'</div>';
   var totalConstituents=aggs.reduce(function(s,a){return s+a.series.length;},0);
-  var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '
-    +(spyOnly?'S&amp;P 500 only — pick an aggregate to compare':aggs.length+' aggregate'+(aggs.length===1?'':'s')+' · '+totalConstituents+' total constituents')
-    +'</div>';
+  var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '+aggs.length+' aggregate'+(aggs.length===1?'':'s')+' · '+totalConstituents+' total constituents</div>';
   el.innerHTML=svg+legend+meta;
-  /* Verdict tip — adapts to selection count. */
+  /* Verdict tip — adapts to selection count, no S&P reference. */
   var tipEl=document.getElementById('sector-price-tip');
   if(tipEl){
     var tip='';
-    if(spyOnly){
-      tip='Pick one or more aggregate chips above to overlay them on the S&amp;P 500.';
-    }else if(aggs.length===1){
-      var diff=(aggs[0].vals[aggs[0].vals.length-1]-100)-(spyEnd-100);
+    if(aggs.length===1){
+      var ret=aggs[0].vals[aggs[0].vals.length-1]-100;
       var subj=_esc(aggs[0].label);
-      var verdict;
-      if(diff>=5)verdict=subj+' has outpaced the index over this window.';
-      else if(diff>=-5)verdict=subj+' has tracked the index closely over this window.';
-      else verdict=subj+' has lagged the index over this window.';
-      tip=verdict+' <span style="color:#94a3b8">('+(diff>=0?'+':'')+diff.toFixed(1)+' pp vs S&amp;P)</span>';
+      if(ret>=0)tip=subj+' is up '+ret.toFixed(1)+'% over this window.';
+      else tip=subj+' is down '+Math.abs(ret).toFixed(1)+'% over this window.';
     }else if(aggs.length===2){
       var aEnd=aggs[0].vals[aggs[0].vals.length-1]-100;
       var bEnd=aggs[1].vals[aggs[1].vals.length-1]-100;
@@ -3621,12 +3578,12 @@ function renderCrossSectorDashboard(){
     +'<div class="xsect-chart-title">Sector Breakdown <span style="font-weight:400;text-transform:none;letter-spacing:0">(BUY + LEAN BUY — filtered)</span></div>'
     +sectorBreakdownBars
   +'</div>';
-  /* Sector / Universe vs S&P 500 chart with mode controls
-     (Universe / All Sectors / Compare Two). Surfaced first on
-     Overview so the market-relative read is immediately visible. */
+  /* Aggregate Performance chart — chip toggles for Universe and
+     each sector. Surfaced first on Overview so the comparison is
+     immediately visible. */
   var universePriceHtml=renderUniversePriceChart();
   var universePriceSection=universePriceHtml
-    ?('<div class="pp-section pp-sectorprice" style="margin-bottom:18px;border-radius:6px"><span class="pp-section-label">Performance vs. S&amp;P 500</span>'+universePriceHtml+'</div>')
+    ?('<div class="pp-section pp-sectorprice" style="margin-bottom:18px;border-radius:6px"><span class="pp-section-label">Aggregate Performance</span>'+universePriceHtml+'</div>')
     :'';
   return'<div class="xsect-dashboard">'
     +'<div class="xsect-title">Cross-Sector Profit Pool Comparison</div>'
