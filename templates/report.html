@@ -434,13 +434,37 @@ td.ct{font-weight:700;}
 .xsect-kpi-label{font-size:0.73em;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;}
 .xsect-kpi-sub{font-size:0.72em;color:#aab;margin-top:2px;}
 .xsect-chart-title{font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;}
-.xsect-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;border-radius:4px;transition:background 0.15s;}
+.xsect-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;border-radius:4px;transition:background 0.15s;min-width:0;}
 .xsect-bar-row:hover{background:#f0f4f8;}
-.xsect-bar-label{width:160px;font-size:0.76em;font-weight:600;color:#1a252f;text-align:right;flex-shrink:0;line-height:1.2;}
-.xsect-bar-track{flex:1;height:22px;background:#f0f4f8;border-radius:3px;position:relative;overflow:hidden;min-width:80px;}
+.xsect-bar-label{width:160px;font-size:0.76em;font-weight:600;color:#1a252f;text-align:right;flex-shrink:0;line-height:1.2;min-width:0;overflow-wrap:anywhere;}
+.xsect-bar-track{flex:1 1 0;height:22px;background:#f0f4f8;border-radius:3px;position:relative;overflow:hidden;min-width:60px;}
 .xsect-bar-fill{height:100%;border-radius:3px;}
 .xsect-bar-pct{position:absolute;right:7px;top:50%;transform:translateY(-50%);font-size:0.72em;font-weight:700;color:#444;}
-.xsect-bar-meta{width:240px;font-size:0.71em;color:#888;flex-shrink:0;}
+.xsect-bar-meta{width:240px;font-size:0.71em;color:#888;flex-shrink:0;min-width:0;overflow-wrap:anywhere;}
+/* Tablet (601-900px): tighten the fixed-width columns so the row fits a
+   narrower container without horizontal overflow. */
+@media(min-width:601px) and (max-width:900px){
+  .xsect-bar-row{gap:6px;}
+  .xsect-bar-label{width:118px;font-size:0.72em;}
+  .xsect-bar-meta{width:160px;font-size:0.68em;}
+}
+/* Phone (≤600px): stack the row vertically — sector name on top, full-width
+   bar in the middle, meta line below. The horizontal flex layout cannot fit
+   on a 375px iPhone viewport (label+meta alone are 400px+). */
+@media(max-width:600px){
+  .xsect-dashboard{padding:14px 12px 14px;}
+  .xsect-bar-row{flex-direction:column;align-items:stretch;gap:3px;margin-bottom:10px;padding:6px 8px;background:#fafbfc;border:1px solid #eef2f6;}
+  .xsect-bar-row:hover{background:#f0f4f8;}
+  .xsect-bar-label{width:auto;text-align:left;font-size:0.8em;}
+  .xsect-bar-track{flex:none;width:100%;min-width:0;height:18px;}
+  .xsect-bar-meta{width:auto;font-size:0.7em;line-height:1.4;}
+  .xsect-bar-pct{font-size:0.68em;right:6px;}
+}
+[data-theme="dark"] .xsect-bar-row{}
+@media(max-width:600px){
+  [data-theme="dark"] .xsect-bar-row{background:#161b22;border-color:#30363d;}
+  [data-theme="dark"] .xsect-bar-row:hover{background:#21262d;}
+}
 /* Cross-Sector Trading section — visually separated from the profit-pool
    comparison section above with a tinted band, accent border, and larger
    title. */
