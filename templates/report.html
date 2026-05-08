@@ -421,6 +421,26 @@ td.ct{font-weight:700;}
 .pp-range-btn:hover{background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
 .pp-range-btn.active{background:#7030a0;color:#fff;border-color:#7030a0;}
 .pp-sectorprice-tip{font-size:0.78em;min-height:18px;color:#37474f;line-height:1.4;}
+/* 3-column sector selector grid below the Charts tab chart. All
+   sectors visible at once; click anywhere on a row to toggle. */
+.agg-grid-section{margin-top:18px;padding:14px 16px;background:#f8fafc;border-radius:6px;border:1px solid #e8ecef;}
+.agg-grid-title{font-size:0.74em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;}
+.agg-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 12px;}
+@media(max-width:760px){.agg-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:440px){.agg-grid{grid-template-columns:1fr;}}
+.agg-grid-item{display:flex;align-items:center;gap:8px;padding:5px 8px;font-size:0.84em;cursor:pointer;border-radius:4px;color:#37474f;line-height:1.2;user-select:none;transition:background 0.1s;}
+.agg-grid-item:hover{background:#fff;}
+.agg-grid-item input{margin:0;cursor:pointer;flex-shrink:0;accent-color:#7030a0;}
+.agg-grid-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.agg-grid-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.agg-helper-btn{padding:4px 11px;font-size:0.72em;font-weight:600;border:1px solid #d8dee5;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
+.agg-helper-btn:hover{border-color:#7030a0;color:#1a252f;}
+[data-theme="dark"] .agg-grid-section{background:#161b22;border-color:#30363d;}
+[data-theme="dark"] .agg-grid-title{color:#e6edf3;}
+[data-theme="dark"] .agg-grid-item{color:#c9d1d9;}
+[data-theme="dark"] .agg-grid-item:hover{background:#21262d;}
+[data-theme="dark"] .agg-helper-btn{background:#161b22;border-color:#30363d;color:#8b949e;}
+[data-theme="dark"] .agg-helper-btn:hover{border-color:#58a6ff;color:#e6edf3;}
 [data-theme="dark"] .pp-sectorprice{background:#15102a;}
 [data-theme="dark"] .pp-range-btn{background:#161b22;border-color:#30363d;color:#c9d1d9;}
 [data-theme="dark"] .pp-range-btn:hover{background:#21262d;border-color:#58a6ff;color:#e6edf3;}
@@ -2811,19 +2831,22 @@ function renderPoolInsights(sec){
   return out;
 }
 /* === Aggregate Performance chart ================================
-   Lives only on the Sector Analysis Overview tab. The user picks
-   any subset of sector aggregates via a multi-select dropdown
-   (using the same ms-wrap/ms-btn/ms-drop pattern as the table
-   filter bar, for visual consistency).
+   Lives only on the Sector Analysis "Charts" tab. Sectors are
+   selected via a 3-column checkbox grid below the chart, so all
+   options are visible at once (no dropdown). Each selected sector
+   becomes one market-cap-weighted line, indexed to 100 at the
+   start of the window.
 
-   Each selected sector becomes one market-cap-weighted line,
-   indexed to 100 at the start of the window. Constituents are
-   today\'s DATA snapshot, so the comparison carries survivorship
-   and quality-filter bias — useful for relative cross-sector
-   reads, not a tradable backtest. */
+   Hover over any line to see date and per-sector values in the
+   tip bar above the chart; markers and a vertical crosshair
+   follow the cursor.
+
+   Constituents are today\'s DATA snapshot, so the comparison
+   carries survivorship and quality-filter bias. */
 var _sectorPriceRange='5YR';
 var _selectedAggs={};
 var _sectorPriceState=null;
+var _aggHoverState=null;
 /* Distinct categorical palette. Sector colors are stable —
    assigned by alphabetical index — so toggling on/off doesn\'t
    reshuffle the chart. */
@@ -2850,50 +2873,33 @@ function renderUniversePriceChart(){
     var act=_sectorPriceRange===r[0]?' active':'';
     return '<button type="button" class="pp-range-btn'+act+'" onclick="setSectorPriceRange(\''+r[0]+'\',this)">'+r[1]+'</button>';
   }).join('');
-  /* Multi-select dropdown body. Each row shows a color dot so the
-     user can map sector to chart line color before selecting. */
-  var allSelected=sectors.every(function(s){return _selectedAggs[s];});
-  var anySelected=sectors.some(function(s){return _selectedAggs[s];});
-  var dropOpts='<label class="ms-all"><input type="checkbox"'+(allSelected?' checked':'')+(anySelected&&!allSelected?' data-indet="1"':'')+' onchange="aggsToggleAll(this.checked)"> All sectors</label>';
-  dropOpts+=sectors.map(function(s){
+  var helperBtns=''
+    +'<button type="button" class="agg-helper-btn" onclick="aggsSelectAll()">All</button>'
+    +'<button type="button" class="agg-helper-btn" onclick="aggsClearAll()">Clear</button>';
+  /* Three-column sector grid. Each cell is a label wrapping a
+     checkbox + color dot + sector name; clicking anywhere in
+     the row toggles that sector. */
+  var gridItems=sectors.map(function(s){
     var col=_aggColor(s);
     var safe=_esc(s);
     var checked=_selectedAggs[s]?' checked':'';
-    return '<label><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+col+';margin-right:4px;flex-shrink:0;border:1.5px solid '+col+'"></span>'+safe+'</label>';
+    return '<label class="agg-grid-item"><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span></label>';
   }).join('');
-  var btnLabel=_selectedAggsLabel();
-  var dropdown='<div class="ms-wrap" id="ms-aggs" style="min-width:170px">'
-    +'<div class="ms-btn" onclick="msToggle(\'ms-aggs\')">'+btnLabel+'</div>'
-    +'<div class="ms-drop">'+dropOpts+'</div>'
-    +'</div>';
-  var out='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
-    +dropdown
-    +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-left:auto">'+rangeBtns+'</div>'
+  var out='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">'
+    +'<div style="display:flex;gap:4px;flex-wrap:wrap">'+rangeBtns+'</div>'
+    +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-left:auto">'+helperBtns+'</div>'
     +'</div>'
+    +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin:6px 0 4px;min-height:20px"></div>'
     +'<div id="sector-price-chart" style="min-height:260px"></div>'
-    +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin-top:6px"></div>';
+    +'<div id="sector-price-legend" style="margin-top:8px"></div>'
+    +'<div class="agg-grid-section">'
+    +'<div class="agg-grid-title">Compare sectors</div>'
+    +'<div class="agg-grid" id="agg-grid">'+gridItems+'</div>'
+    +'</div>';
   /* Defer the actual draw until after innerHTML mounts the
-     container — and patch the indeterminate state on the
-     "All sectors" checkbox (HTML can\'t express indeterminate). */
-  setTimeout(function(){
-    var indet=document.querySelector('#ms-aggs .ms-all input[data-indet]');
-    if(indet)indet.indeterminate=true;
-    _priceChartDraw();
-  },0);
+     container. */
+  setTimeout(_priceChartDraw,0);
   return out;
-}
-function _selectedAggsLabel(){
-  var sectors=_allSectors();
-  var sel=sectors.filter(function(s){return _selectedAggs[s];});
-  if(!sel.length)return 'Select sectors…';
-  if(sel.length===sectors.length)return 'All sectors';
-  if(sel.length===1)return sel[0];
-  if(sel.length<=3)return sel.join(', ');
-  return sel.length+' sectors selected';
-}
-function _refreshAggsBtnLabel(){
-  var btn=document.querySelector('#ms-aggs .ms-btn');
-  if(btn)btn.textContent=_selectedAggsLabel();
 }
 function setSectorPriceRange(r,btn){
   _sectorPriceRange=r;
@@ -2904,28 +2910,21 @@ function setSectorPriceRange(r,btn){
   _priceChartDraw();
 }
 function aggsChanged(){
-  /* Read all sector checkboxes and update _selectedAggs. */
-  var boxes=document.querySelectorAll('#ms-aggs .ms-drop input[type="checkbox"][value]');
+  var boxes=document.querySelectorAll('#agg-grid input[type="checkbox"]');
   _selectedAggs={};
   boxes.forEach(function(cb){if(cb.checked)_selectedAggs[cb.value]=true;});
-  /* Sync the "All sectors" checkbox (checked / unchecked /
-     indeterminate). */
-  var allBox=document.querySelector('#ms-aggs .ms-all input');
-  if(allBox){
-    var total=boxes.length,checked=Object.keys(_selectedAggs).length;
-    allBox.checked=checked===total&&total>0;
-    allBox.indeterminate=checked>0&&checked<total;
-  }
-  _refreshAggsBtnLabel();
   _priceChartDraw();
 }
-function aggsToggleAll(state){
-  var boxes=document.querySelectorAll('#ms-aggs .ms-drop input[type="checkbox"][value]');
+function aggsSelectAll(){
+  var boxes=document.querySelectorAll('#agg-grid input[type="checkbox"]');
   _selectedAggs={};
-  boxes.forEach(function(cb){cb.checked=state;if(state)_selectedAggs[cb.value]=true;});
-  var allBox=document.querySelector('#ms-aggs .ms-all input');
-  if(allBox)allBox.indeterminate=false;
-  _refreshAggsBtnLabel();
+  boxes.forEach(function(cb){cb.checked=true;_selectedAggs[cb.value]=true;});
+  _priceChartDraw();
+}
+function aggsClearAll(){
+  var boxes=document.querySelectorAll('#agg-grid input[type="checkbox"]');
+  boxes.forEach(function(cb){cb.checked=false;});
+  _selectedAggs={};
   _priceChartDraw();
 }
 /* Build a market-cap-weighted aggregate from DATA filtered by
@@ -2963,10 +2962,13 @@ function _priceChartDraw(){
   var allD=PRICES.dates;
   var sectors=_allSectors();
   var keys=sectors.filter(function(s){return _selectedAggs[s];});
+  var legendEl=document.getElementById('sector-price-legend');
+  var tipEl=document.getElementById('sector-price-tip');
   if(!keys.length){
-    el.innerHTML='<p style="color:#888;padding:30px 20px;text-align:center;font-size:0.85em">Pick one or more sectors above to plot performance.</p>';
-    var tipEl0=document.getElementById('sector-price-tip');
-    if(tipEl0)tipEl0.innerHTML='';
+    el.innerHTML='<p style="color:#888;padding:30px 20px;text-align:center;font-size:0.85em">Pick one or more sectors below to plot performance.</p>';
+    if(legendEl)legendEl.innerHTML='';
+    if(tipEl)tipEl.innerHTML='';
+    _aggHoverState=null;
     return;
   }
   var aggs=[];
@@ -2978,8 +2980,8 @@ function _priceChartDraw(){
   /* Window cutoff. */
   var cutMs={'1YR':366,'3YR':1098,'5YR':1827,'10YR':3653,'20YR':7305}[_sectorPriceRange]||1827;
   var cutoff=new Date(+new Date()-cutMs*86400000);
-  /* Find common startIdx: every aggregate has >=60% of its weight
-     present. */
+  /* Find common startIdx: every aggregate has >=60% of its
+     weight present. */
   var startIdx=-1;
   for(var i=0;i<allD.length;i++){
     if(new Date(allD[i]+'T00:00:00')<cutoff)continue;
@@ -2994,8 +2996,7 @@ function _priceChartDraw(){
     if(allOk){startIdx=i;break;}
   }
   if(startIdx<0){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough overlapping price history in this range. Try a longer window or fewer sectors.</p>';return;}
-  /* Per-component baselines: each constituent\'s first non-null
-     print at or after startIdx. Late-IPO members chain in cleanly. */
+  /* Per-component baselines. */
   for(var ai2=0;ai2<aggs.length;ai2++){
     var ag=aggs[ai2];
     ag.bases=new Array(ag.series.length);
@@ -3060,11 +3061,18 @@ function _renderPolylineSVG(el,dates,aggs){
   }
   var aggStroke=aggs.length>=4?1.4:1.9;
   var lines='';
-  aggs.forEach(function(a){
+  aggs.forEach(function(a,si){
     var pts=a.vals.map(function(v,i){return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);}).join(' ');
     lines+='<polyline points="'+pts+'" fill="none" stroke="'+a.color+'" stroke-width="'+aggStroke+'" stroke-linejoin="round" stroke-linecap="round"/>';
   });
-  var svg='<svg viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:360px">'+grid+lines+'</svg>';
+  /* Hover overlay: a vertical crosshair line + one circle marker
+     per series, all initially hidden (opacity=0). aggChartMove
+     positions them based on mouse X. */
+  var hoverOverlay='<line id="agg-vl" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0" pointer-events="none"/>';
+  aggs.forEach(function(a,si){
+    hoverOverlay+='<circle id="agg-dot'+si+'" cx="0" cy="0" r="4" fill="#fff" stroke="'+a.color+'" stroke-width="2" opacity="0" pointer-events="none"/>';
+  });
+  var svg='<svg id="agg-svg" viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:360px;cursor:crosshair;-webkit-user-select:none;user-select:none" onmousemove="aggChartMove(event)" onmouseleave="aggChartLeave()">'+grid+lines+hoverOverlay+'</svg>';
   function _ret(end){var c=end-100;return (c>=0?'+':'')+c.toFixed(1)+'%';}
   function _retCol(end){return end>=100?'#2e7d48':'#c0392b';}
   var aggsForLegend=aggs.slice().sort(function(a,b){return b.vals[b.vals.length-1]-a.vals[a.vals.length-1];});
@@ -3072,32 +3080,77 @@ function _renderPolylineSVG(el,dates,aggs){
     var end=a.vals[a.vals.length-1];
     return '<span style="display:inline-flex;align-items:center;gap:6px;font-size:0.78em;white-space:nowrap"><span style="width:16px;height:3px;background:'+a.color+';border-radius:2px;flex-shrink:0"></span><span style="color:#1a252f">'+_esc(a.label)+'</span> <span style="font-weight:600;color:'+_retCol(end)+'">'+_ret(end)+'</span></span>';
   });
-  var legend='<div style="display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:10px;align-items:center">'+legendItems.join('')+'</div>';
+  var legend='<div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center">'+legendItems.join('')+'</div>';
   var totalConstituents=aggs.reduce(function(s,a){return s+a.series.length;},0);
   var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '+aggs.length+' sector'+(aggs.length===1?'':'s')+' · '+totalConstituents+' total constituents</div>';
-  el.innerHTML=svg+legend+meta;
+  el.innerHTML=svg;
+  var legendEl=document.getElementById('sector-price-legend');
+  if(legendEl)legendEl.innerHTML=legend+meta;
+  /* Default tip: summary verdict line. Replaced by hover values
+     when the cursor is over the chart. */
+  _aggHoverState={dates:dates,aggs:aggs,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,minP:minP,pRange:pRange};
+  _aggHoverState.summaryHtml=_buildAggSummaryTip(aggs);
   var tipEl=document.getElementById('sector-price-tip');
-  if(tipEl){
-    var tip='';
-    if(aggs.length===1){
-      var ret=aggs[0].vals[aggs[0].vals.length-1]-100;
-      var subj=_esc(aggs[0].label);
-      if(ret>=0)tip=subj+' is up '+ret.toFixed(1)+'% over this window.';
-      else tip=subj+' is down '+Math.abs(ret).toFixed(1)+'% over this window.';
-    }else if(aggs.length===2){
-      var aEnd=aggs[0].vals[aggs[0].vals.length-1]-100;
-      var bEnd=aggs[1].vals[aggs[1].vals.length-1]-100;
-      var spread=aEnd-bEnd;
-      var leader=spread>=0?aggs[0].label:aggs[1].label;
-      tip=_esc(leader)+' leads by '+Math.abs(spread).toFixed(1)+' pp over this window.';
-    }else{
-      var sorted=aggs.slice().sort(function(a,b){return b.vals[b.vals.length-1]-a.vals[a.vals.length-1];});
-      var topL=sorted[0].label,topV=sorted[0].vals[sorted[0].vals.length-1]-100;
-      var botL=sorted[sorted.length-1].label,botV=sorted[sorted.length-1].vals[sorted[sorted.length-1].vals.length-1]-100;
-      tip=_esc(topL)+' leads ('+_ret(topV+100)+'); '+_esc(botL)+' trails ('+_ret(botV+100)+').';
-    }
-    tipEl.innerHTML=tip;
+  if(tipEl)tipEl.innerHTML=_aggHoverState.summaryHtml;
+}
+function _buildAggSummaryTip(aggs){
+  function _ret(end){var c=end-100;return (c>=0?'+':'')+c.toFixed(1)+'%';}
+  if(aggs.length===1){
+    var ret=aggs[0].vals[aggs[0].vals.length-1]-100;
+    var subj=_esc(aggs[0].label);
+    if(ret>=0)return subj+' is up '+ret.toFixed(1)+'% over this window.';
+    return subj+' is down '+Math.abs(ret).toFixed(1)+'% over this window.';
   }
+  if(aggs.length===2){
+    var aEnd=aggs[0].vals[aggs[0].vals.length-1]-100;
+    var bEnd=aggs[1].vals[aggs[1].vals.length-1]-100;
+    var spread=aEnd-bEnd;
+    var leader=spread>=0?aggs[0].label:aggs[1].label;
+    return _esc(leader)+' leads by '+Math.abs(spread).toFixed(1)+' pp over this window.';
+  }
+  var sorted=aggs.slice().sort(function(a,b){return b.vals[b.vals.length-1]-a.vals[a.vals.length-1];});
+  var topL=sorted[0].label,topV=sorted[0].vals[sorted[0].vals.length-1]-100;
+  var botL=sorted[sorted.length-1].label,botV=sorted[sorted.length-1].vals[sorted[sorted.length-1].vals.length-1]-100;
+  return _esc(topL)+' leads ('+_ret(topV+100)+'); '+_esc(botL)+' trails ('+_ret(botV+100)+').';
+}
+function aggChartMove(e){
+  var s=_aggHoverState;if(!s)return;
+  var svg=document.getElementById('agg-svg');if(!svg)return;
+  var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
+  if(sp.x<s.PL||sp.x>s.PL+s.iW||sp.y<s.PT||sp.y>s.PT+s.iH){aggChartLeave();return;}
+  var relX=Math.max(0,Math.min(sp.x-s.PL,s.iW));
+  var idx=Math.max(0,Math.min(s.dates.length-1,Math.round(relX/s.iW*(s.dates.length-1))));
+  var x=(s.PL+(idx/(s.dates.length-1||1))*s.iW).toFixed(1);
+  var vl=document.getElementById('agg-vl');
+  if(vl){vl.setAttribute('x1',x);vl.setAttribute('x2',x);vl.setAttribute('opacity','1');}
+  s.aggs.forEach(function(a,si){
+    var v=a.vals[idx];
+    var y=(s.PT+s.iH-((v-s.minP)/s.pRange)*s.iH).toFixed(1);
+    var dc=document.getElementById('agg-dot'+si);
+    if(dc){dc.setAttribute('cx',x);dc.setAttribute('cy',y);dc.setAttribute('opacity','1');}
+  });
+  /* Update tip bar with hover values, sorted desc by value. */
+  var d=s.dates[idx];
+  function _ret(end){var c=end-100;return (c>=0?'+':'')+c.toFixed(1)+'%';}
+  function _retCol(end){return end>=100?'#2e7d48':'#c0392b';}
+  var sorted=s.aggs.map(function(a){return{label:a.label,color:a.color,v:a.vals[idx]};}).sort(function(a,b){return b.v-a.v;});
+  var parts=sorted.map(function(it){
+    return '<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;white-space:nowrap"><span style="width:10px;height:3px;background:'+it.color+';border-radius:2px;flex-shrink:0"></span><span style="color:#1a252f">'+_esc(it.label)+'</span> <span style="font-weight:600;color:'+_retCol(it.v)+'">'+_ret(it.v)+'</span></span>';
+  });
+  var tipEl=document.getElementById('sector-price-tip');
+  if(tipEl)tipEl.innerHTML='<span style="color:#94a3b8;margin-right:10px;font-size:0.92em">'+d+'</span>'+parts.join('');
+}
+function aggChartLeave(){
+  var vl=document.getElementById('agg-vl');
+  if(vl)vl.setAttribute('opacity','0');
+  var s=_aggHoverState;
+  if(s)s.aggs.forEach(function(a,si){
+    var dc=document.getElementById('agg-dot'+si);
+    if(dc)dc.setAttribute('opacity','0');
+  });
+  var tipEl=document.getElementById('sector-price-tip');
+  if(tipEl&&s)tipEl.innerHTML=s.summaryHtml||'';
 }
 
 
@@ -3645,7 +3698,7 @@ function renderPool(){
   var secList=Object.keys(sectors).sort();
   var chosen=_poolTab||'__all__';
   var navHtml='<div class="secondary-nav"><button class="sub-btn'+(chosen==='__all__'?' active':'')+'" onclick="showPoolTab(\'__all__\')">Overview</button>';
-  navHtml+='<button class="sub-btn'+(chosen==='__performance__'?' active':'')+'" onclick="showPoolTab(\'__performance__\')">Performance</button>';
+  navHtml+='<button class="sub-btn'+(chosen==='__performance__'?' active':'')+'" onclick="showPoolTab(\'__performance__\')">Charts</button>';
   secList.forEach(function(s){var se=s.replace(/'/g,"\\'");navHtml+='<button class="sub-btn'+(chosen===s?' active':'')+'" onclick="showPoolTab(\''+se+'\')">'+s+'</button>';});
   navHtml+='</div>';
   document.getElementById('pool-controls').innerHTML=navHtml;
@@ -3655,7 +3708,7 @@ function renderPool(){
   else if(chosen==='__performance__'){
     var perfBody=renderUniversePriceChart();
     chartHtml='<div class="xsect-dashboard">'
-      +'<div class="xsect-title">Sector Performance</div>'
+      +'<div class="xsect-title">Sector Charts</div>'
       +'<div class="xsect-sub">Indexed price performance across sectors. Pick any subset to compare.</div>'
       +(perfBody||'<p style="color:#888;padding:20px">No sector data available.</p>')
       +'</div>';
