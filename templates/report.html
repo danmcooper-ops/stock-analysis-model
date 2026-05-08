@@ -420,24 +420,6 @@ td.ct{font-weight:700;}
 .pp-range-btn{padding:3px 11px;font-size:0.74em;font-weight:600;border:1px solid #d0d8e4;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
 .pp-range-btn:hover{background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
 .pp-range-btn.active{background:#7030a0;color:#fff;border-color:#7030a0;}
-/* Toggle chips for the Overview price chart. Active state is
-   subtle: the chip stays neutral, only the dot fills with the
-   line color. So 12 selected chips don't look like a rainbow.
-   Hollow dot = off; filled dot = on chart. */
-.agg-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;font-size:0.74em;font-weight:600;border:1.5px solid #d8dee5;border-radius:13px;background:#fff;color:#7f8c9a;cursor:pointer;line-height:1.2;user-select:none;transition:border-color 0.12s,color 0.12s,background 0.12s;--chip-col:#7030a0;}
-.agg-chip .chip-dot{width:8px;height:8px;border-radius:50%;background:transparent;border:1.5px solid #cfd8e3;flex-shrink:0;transition:background 0.12s,border-color 0.12s;}
-.agg-chip:hover{border-color:var(--chip-col);color:#1a252f;}
-.agg-chip:hover .chip-dot{border-color:var(--chip-col);}
-.agg-chip.active{border-color:var(--chip-col);color:#1a252f;background:#fafbfc;}
-.agg-chip.active .chip-dot{background:var(--chip-col);border-color:var(--chip-col);}
-.agg-helper-btn{padding:3px 9px;font-size:0.7em;font-weight:600;border:1px solid #d8dee5;border-radius:13px;background:#fff;color:#7f8c9a;cursor:pointer;line-height:1.2;}
-.agg-helper-btn:hover{border-color:#7030a0;color:#1a252f;}
-[data-theme="dark"] .agg-chip{background:#161b22;border-color:#30363d;color:#8b949e;}
-[data-theme="dark"] .agg-chip:hover{color:#e6edf3;}
-[data-theme="dark"] .agg-chip .chip-dot{border-color:#444c56;}
-[data-theme="dark"] .agg-chip.active{background:#1c2128;color:#e6edf3;}
-[data-theme="dark"] .agg-helper-btn{background:#161b22;border-color:#30363d;color:#8b949e;}
-[data-theme="dark"] .agg-helper-btn:hover{border-color:#58a6ff;color:#e6edf3;}
 .pp-sectorprice-tip{font-size:0.78em;min-height:18px;color:#37474f;line-height:1.4;}
 [data-theme="dark"] .pp-sectorprice{background:#15102a;}
 [data-theme="dark"] .pp-range-btn{background:#161b22;border-color:#30363d;color:#c9d1d9;}
@@ -2830,23 +2812,21 @@ function renderPoolInsights(sec){
 }
 /* === Aggregate Performance chart ================================
    Lives only on the Sector Analysis Overview tab. The user picks
-   any subset of aggregates via toggle chips:
-     - "Universe" chip: aggregate of every stock in DATA
-     - one chip per sector: aggregate of that sector
-   Selected chips are plotted as indexed-to-100 lines. All
-   aggregates are market-cap-weighted at today\'s snapshot.
+   any subset of sector aggregates via a multi-select dropdown
+   (using the same ms-wrap/ms-btn/ms-drop pattern as the table
+   filter bar, for visual consistency).
 
-   Common date axis: startIdx is the earliest date in the window
-   where every selected aggregate has >=60% of its weight present.
-
-   Note: comparison carries survivorship and quality-filter bias
-   (constituents = today\'s surviving DATA universe). Useful for
-   relative cross-sector reads, not a tradable backtest. */
+   Each selected sector becomes one market-cap-weighted line,
+   indexed to 100 at the start of the window. Constituents are
+   today\'s DATA snapshot, so the comparison carries survivorship
+   and quality-filter bias — useful for relative cross-sector
+   reads, not a tradable backtest. */
 var _sectorPriceRange='5YR';
-var _selectedAggs={'__universe__':true};
+var _selectedAggs={};
 var _sectorPriceState=null;
-/* Distinct categorical palette. The first slot (#7030a0) is
-   reserved for the Universe chip — sector chips use slots 1..N. */
+/* Distinct categorical palette. Sector colors are stable —
+   assigned by alphabetical index — so toggling on/off doesn\'t
+   reshuffle the chart. */
 var _sectorPalette=['#7030a0','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#17becf','#bcbd22','#1a9850','#0288d1','#5e35b1','#c0392b','#16a085'];
 function _allSectors(){
   var seen={};var out=[];
@@ -2856,48 +2836,64 @@ function _allSectors(){
   }
   out.sort();return out;
 }
-function _aggColor(key){
-  if(key==='__universe__')return _sectorPalette[0];
+function _aggColor(sec){
   var sectors=_allSectors();
-  var idx=sectors.indexOf(key);
+  var idx=sectors.indexOf(sec);
   if(idx<0)return '#7f8c9a';
-  return _sectorPalette[(idx+1)%_sectorPalette.length];
+  return _sectorPalette[idx%_sectorPalette.length];
 }
-function _aggLabel(key){return key==='__universe__'?'Universe':key;}
 function renderUniversePriceChart(){
-  /* Need at least one stock with a market cap; otherwise hide. */
-  var have=0;
-  for(var i=0;i<DATA.length;i++){if((DATA[i].mcap||0)>0)have++;}
-  if(!have)return '';
   var sectors=_allSectors();
+  if(!sectors.length)return '';
   var ranges=[['1YR','1Y'],['3YR','3Y'],['5YR','5Y'],['10YR','10Y'],['20YR','20Y']];
   var rangeBtns=ranges.map(function(r){
     var act=_sectorPriceRange===r[0]?' active':'';
     return '<button type="button" class="pp-range-btn'+act+'" onclick="setSectorPriceRange(\''+r[0]+'\',this)">'+r[1]+'</button>';
   }).join('');
-  /* Build chip row: Universe first, then sectors A-Z. */
-  var keys=['__universe__'].concat(sectors);
-  var chipHtml=keys.map(function(k){
-    var act=_selectedAggs[k]?' active':'';
-    var col=_aggColor(k);
-    var safeKey=k.replace(/'/g,"\\'");
-    return '<button type="button" class="agg-chip'+act+'" data-aggkey="'+_esc(k)+'" onclick="toggleAgg(\''+safeKey+'\',this)" style="--chip-col:'+col+'">'
-      +'<span class="chip-dot"></span>'+_esc(_aggLabel(k))
-      +'</button>';
+  /* Multi-select dropdown body. Each row shows a color dot so the
+     user can map sector to chart line color before selecting. */
+  var allSelected=sectors.every(function(s){return _selectedAggs[s];});
+  var anySelected=sectors.some(function(s){return _selectedAggs[s];});
+  var dropOpts='<label class="ms-all"><input type="checkbox"'+(allSelected?' checked':'')+(anySelected&&!allSelected?' data-indet="1"':'')+' onchange="aggsToggleAll(this.checked)"> All sectors</label>';
+  dropOpts+=sectors.map(function(s){
+    var col=_aggColor(s);
+    var safe=_esc(s);
+    var checked=_selectedAggs[s]?' checked':'';
+    return '<label><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+col+';margin-right:4px;flex-shrink:0;border:1.5px solid '+col+'"></span>'+safe+'</label>';
   }).join('');
-  var helperBtns=''
-    +'<button type="button" class="agg-helper-btn" onclick="setAggs(\'all\')">All</button>'
-    +'<button type="button" class="agg-helper-btn" onclick="setAggs(\'none\')">Clear</button>';
-  var out='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">'
-    +'<div style="display:flex;gap:4px;flex-wrap:wrap">'+rangeBtns+'</div>'
-    +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-left:auto">'+helperBtns+'</div>'
+  var btnLabel=_selectedAggsLabel();
+  var dropdown='<div class="ms-wrap" id="ms-aggs" style="min-width:170px">'
+    +'<div class="ms-btn" onclick="msToggle(\'ms-aggs\')">'+btnLabel+'</div>'
+    +'<div class="ms-drop">'+dropOpts+'</div>'
+    +'</div>';
+  var out='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+    +dropdown
+    +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-left:auto">'+rangeBtns+'</div>'
     +'</div>'
-    +'<div id="agg-chip-row" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">'+chipHtml+'</div>'
     +'<div id="sector-price-chart" style="min-height:260px"></div>'
     +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin-top:6px"></div>';
-  /* Defer the actual draw until after innerHTML mounts the container. */
-  setTimeout(_priceChartDraw,0);
+  /* Defer the actual draw until after innerHTML mounts the
+     container — and patch the indeterminate state on the
+     "All sectors" checkbox (HTML can\'t express indeterminate). */
+  setTimeout(function(){
+    var indet=document.querySelector('#ms-aggs .ms-all input[data-indet]');
+    if(indet)indet.indeterminate=true;
+    _priceChartDraw();
+  },0);
   return out;
+}
+function _selectedAggsLabel(){
+  var sectors=_allSectors();
+  var sel=sectors.filter(function(s){return _selectedAggs[s];});
+  if(!sel.length)return 'Select sectors…';
+  if(sel.length===sectors.length)return 'All sectors';
+  if(sel.length===1)return sel[0];
+  if(sel.length<=3)return sel.join(', ');
+  return sel.length+' sectors selected';
+}
+function _refreshAggsBtnLabel(){
+  var btn=document.querySelector('#ms-aggs .ms-btn');
+  if(btn)btn.textContent=_selectedAggsLabel();
 }
 function setSectorPriceRange(r,btn){
   _sectorPriceRange=r;
@@ -2907,24 +2903,29 @@ function setSectorPriceRange(r,btn){
   }
   _priceChartDraw();
 }
-function toggleAgg(key,btn){
-  if(_selectedAggs[key])delete _selectedAggs[key];
-  else _selectedAggs[key]=true;
-  if(btn)btn.classList.toggle('active');
+function aggsChanged(){
+  /* Read all sector checkboxes and update _selectedAggs. */
+  var boxes=document.querySelectorAll('#ms-aggs .ms-drop input[type="checkbox"][value]');
+  _selectedAggs={};
+  boxes.forEach(function(cb){if(cb.checked)_selectedAggs[cb.value]=true;});
+  /* Sync the "All sectors" checkbox (checked / unchecked /
+     indeterminate). */
+  var allBox=document.querySelector('#ms-aggs .ms-all input');
+  if(allBox){
+    var total=boxes.length,checked=Object.keys(_selectedAggs).length;
+    allBox.checked=checked===total&&total>0;
+    allBox.indeterminate=checked>0&&checked<total;
+  }
+  _refreshAggsBtnLabel();
   _priceChartDraw();
 }
-function setAggs(preset){
+function aggsToggleAll(state){
+  var boxes=document.querySelectorAll('#ms-aggs .ms-drop input[type="checkbox"][value]');
   _selectedAggs={};
-  if(preset==='all'){_selectedAggs['__universe__']=true;_allSectors().forEach(function(s){_selectedAggs[s]=true;});}
-  /* preset === "none" leaves _selectedAggs empty. */
-  /* Resync chip active states without re-rendering the whole shell. */
-  var row=document.getElementById('agg-chip-row');
-  if(row){
-    row.querySelectorAll('.agg-chip').forEach(function(b){
-      var k=b.getAttribute('data-aggkey');
-      b.classList.toggle('active',!!_selectedAggs[k]);
-    });
-  }
+  boxes.forEach(function(cb){cb.checked=state;if(state)_selectedAggs[cb.value]=true;});
+  var allBox=document.querySelector('#ms-aggs .ms-all input');
+  if(allBox)allBox.indeterminate=false;
+  _refreshAggsBtnLabel();
   _priceChartDraw();
 }
 /* Build a market-cap-weighted aggregate from DATA filtered by
@@ -2960,37 +2961,25 @@ function _priceChartDraw(){
     return;
   }
   var allD=PRICES.dates;
-  /* Determine which aggregates to plot from the chip toggles. */
-  var keys=Object.keys(_selectedAggs).filter(function(k){return _selectedAggs[k];});
-  /* Empty selection placeholder. */
+  var sectors=_allSectors();
+  var keys=sectors.filter(function(s){return _selectedAggs[s];});
   if(!keys.length){
-    el.innerHTML='<p style="color:#888;padding:30px 20px;text-align:center;font-size:0.85em">Pick one or more chips above to plot aggregate performance.</p>';
+    el.innerHTML='<p style="color:#888;padding:30px 20px;text-align:center;font-size:0.85em">Pick one or more sectors above to plot performance.</p>';
     var tipEl0=document.getElementById('sector-price-tip');
     if(tipEl0)tipEl0.innerHTML='';
     return;
   }
-  /* Stable ordering: Universe first, then sectors alphabetically. */
-  var sectors=_allSectors();
-  keys.sort(function(a,b){
-    if(a===b)return 0;
-    if(a==='__universe__')return -1;
-    if(b==='__universe__')return 1;
-    return sectors.indexOf(a)-sectors.indexOf(b);
-  });
   var aggs=[];
   keys.forEach(function(k){
-    var filter;
-    if(k==='__universe__')filter=function(){return true;};
-    else filter=function(d){return d.sector===k;};
-    var a=_buildAggregate(filter);
-    if(a){a.label=_aggLabel(k);a.color=_aggColor(k);aggs.push(a);}
+    var a=_buildAggregate(function(d){return d.sector===k;});
+    if(a){a.label=k;a.color=_aggColor(k);aggs.push(a);}
   });
-  if(!aggs.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data for selected aggregates.</p>';return;}
+  if(!aggs.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data for selected sectors.</p>';return;}
   /* Window cutoff. */
   var cutMs={'1YR':366,'3YR':1098,'5YR':1827,'10YR':3653,'20YR':7305}[_sectorPriceRange]||1827;
   var cutoff=new Date(+new Date()-cutMs*86400000);
   /* Find common startIdx: every aggregate has >=60% of its weight
-     present (no SPY constraint). */
+     present. */
   var startIdx=-1;
   for(var i=0;i<allD.length;i++){
     if(new Date(allD[i]+'T00:00:00')<cutoff)continue;
@@ -3004,7 +2993,7 @@ function _priceChartDraw(){
     }
     if(allOk){startIdx=i;break;}
   }
-  if(startIdx<0){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough overlapping price history in this range. Try a longer window or fewer aggregates.</p>';return;}
+  if(startIdx<0){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough overlapping price history in this range. Try a longer window or fewer sectors.</p>';return;}
   /* Per-component baselines: each constituent\'s first non-null
      print at or after startIdx. Late-IPO members chain in cleanly. */
   for(var ai2=0;ai2<aggs.length;ai2++){
@@ -3019,8 +3008,6 @@ function _priceChartDraw(){
     ag.vals=[];
   }
   var dates=[];
-  /* Iterate dates from startIdx forward. Drop a day if any
-     aggregate has <60% weight present. */
   for(var k=startIdx;k<allD.length;k++){
     var aggVals=[];
     var allHaveData=true;
@@ -3042,8 +3029,6 @@ function _priceChartDraw(){
   _renderPolylineSVG(el,dates,aggs);
   _sectorPriceState={range:_sectorPriceRange,n:dates.length,k:aggs.length};
 }
-/* Renders the SVG + legend + verdict tip for the selected
-   aggregates (no S&P benchmark line). */
 function _renderPolylineSVG(el,dates,aggs){
   var VW=900,VH=280,PL=52,PR=14,PT=14,PB=34;
   var iW=VW-PL-PR,iH=VH-PT-PB;
@@ -3073,7 +3058,6 @@ function _renderPolylineSVG(el,dates,aggs){
     var lbl=mo[dx.getMonth()]+'\''+String(dx.getFullYear()).slice(2);
     grid+='<text x="'+xOf(xi).toFixed(1)+'" y="'+(PT+iH+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+lbl+'</text>';
   }
-  /* With many lines, use thinner strokes so they don\'t overwhelm. */
   var aggStroke=aggs.length>=4?1.4:1.9;
   var lines='';
   aggs.forEach(function(a){
@@ -3083,7 +3067,6 @@ function _renderPolylineSVG(el,dates,aggs){
   var svg='<svg viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:360px">'+grid+lines+'</svg>';
   function _ret(end){var c=end-100;return (c>=0?'+':'')+c.toFixed(1)+'%';}
   function _retCol(end){return end>=100?'#2e7d48':'#c0392b';}
-  /* Legend sorted by total return desc. */
   var aggsForLegend=aggs.slice().sort(function(a,b){return b.vals[b.vals.length-1]-a.vals[a.vals.length-1];});
   var legendItems=aggsForLegend.map(function(a){
     var end=a.vals[a.vals.length-1];
@@ -3091,9 +3074,8 @@ function _renderPolylineSVG(el,dates,aggs){
   });
   var legend='<div style="display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:10px;align-items:center">'+legendItems.join('')+'</div>';
   var totalConstituents=aggs.reduce(function(s,a){return s+a.series.length;},0);
-  var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '+aggs.length+' aggregate'+(aggs.length===1?'':'s')+' · '+totalConstituents+' total constituents</div>';
+  var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '+aggs.length+' sector'+(aggs.length===1?'':'s')+' · '+totalConstituents+' total constituents</div>';
   el.innerHTML=svg+legend+meta;
-  /* Verdict tip — adapts to selection count, no S&P reference. */
   var tipEl=document.getElementById('sector-price-tip');
   if(tipEl){
     var tip='';
