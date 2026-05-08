@@ -2819,19 +2819,27 @@ function renderPoolInsights(sec){
    so the relative outperformance is read off directly. */
 var _sectorPriceRange='5YR',_sectorPriceState=null;
 function renderPoolSectorPriceChart(sec){
-  /* Need at least one stock with a market cap to build a weighted
-     aggregate; otherwise hide the section. */
+  /* "__all__" means: aggregate every stock in the universe (Overview
+     tab). Otherwise filter to the named sector. Hide the section if
+     there's no qualifying stock. */
+  var isAll=sec==='__all__';
   var have=0;
-  for(var i=0;i<DATA.length;i++){if(DATA[i].sector===sec&&(DATA[i].mcap||0)>0)have++;}
+  for(var i=0;i<DATA.length;i++){
+    if(!isAll&&DATA[i].sector!==sec)continue;
+    if((DATA[i].mcap||0)>0)have++;
+  }
   if(!have)return '';
   var ranges=[['1YR','1Y'],['3YR','3Y'],['5YR','5Y'],['10YR','10Y'],['20YR','20Y']];
   var btnHtml=ranges.map(function(r){
     var act=_sectorPriceRange===r[0]?' active':'';
     return '<button type="button" class="pp-range-btn'+act+'" onclick="setSectorPriceRange(\''+r[0]+'\',this)">'+r[1]+'</button>';
   }).join('');
+  var blurb=isAll
+    ?'Market-cap-weighted index of every stock in the universe vs. S&amp;P 500, indexed to 100 at start.'
+    :'Market-cap-weighted index of every stock in the sector vs. S&amp;P 500, indexed to 100 at start.';
   var out='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">'
     +'<div style="display:flex;gap:4px;flex-wrap:wrap">'+btnHtml+'</div>'
-    +'<span style="font-size:0.7em;color:#7f8c9a;flex:1;min-width:0">Market-cap-weighted index of every stock in the sector vs. S&amp;P 500, indexed to 100 at start.</span>'
+    +'<span style="font-size:0.7em;color:#7f8c9a;flex:1;min-width:0">'+blurb+'</span>'
     +'</div>'
     +'<div id="sector-price-chart" style="min-height:240px"></div>'
     +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin-top:6px"></div>';
@@ -2845,7 +2853,9 @@ function setSectorPriceRange(r,btn){
     btn.parentNode.querySelectorAll('.pp-range-btn').forEach(function(b){b.classList.remove('active');});
     btn.classList.add('active');
   }
-  if(_poolTab&&_poolTab!=='__all__')_sectorPriceDraw(_poolTab);
+  /* Redraw whichever pool tab is active — Overview ("__all__") or
+     a specific sector. */
+  if(_poolTab)_sectorPriceDraw(_poolTab);
 }
 function _sectorPriceDraw(sec){
   var el=document.getElementById('sector-price-chart');if(!el)return;
@@ -2863,20 +2873,22 @@ function _sectorPriceDraw(sec){
   var allD=PRICES.dates;
   var spy=PRICES.prices&&PRICES.prices['SPY'];
   if(!spy){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">S&amp;P 500 (SPY) data unavailable.</p>';return;}
-  /* Build component series for EVERY stock in the sector with both
-     a market cap and a price-history record. Skip companies with no
-     price data so a missing ticker doesn't suppress the whole chart. */
+  /* Build component series for every constituent (filtered by sector
+     unless sec === "__all__", in which case the entire universe).
+     Skip companies with no market cap or no price-history record so
+     a missing ticker doesn't suppress the whole chart. */
+  var isAll=sec==='__all__';
   var weights=[],series=[],comps=[];
   for(var di=0;di<DATA.length;di++){
     var d=DATA[di];
-    if(d.sector!==sec)continue;
+    if(!isAll&&d.sector!==sec)continue;
     var arr=PRICES.prices&&PRICES.prices[d.ticker];
     if(!arr)continue;
     var mc=d.mcap||0;
     if(mc<=0)continue;
     weights.push(mc);series.push(arr);comps.push(d);
   }
-  if(!series.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data for sector constituents.</p>';return;}
+  if(!series.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data for constituents.</p>';return;}
   var wSum=weights.reduce(function(a,b){return a+b;},0)||1;
   var nWeights=weights.map(function(w){return w/wSum;});
   /* Window cutoff. */
@@ -2960,7 +2972,7 @@ function _sectorPriceDraw(sec){
   var diffCol=diff>=0?'#2e7d48':'#c0392b';
   var svg='<svg viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:340px">'+grid+lines+'</svg>';
   var legend='<div style="display:flex;flex-wrap:wrap;gap:14px;font-size:0.78em;margin-top:10px;align-items:center">'
-    +'<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:3px;background:'+secCol+';border-radius:2px;flex-shrink:0"></span><strong style="color:#1a252f">Sector Aggregate</strong> <span style="font-weight:600;color:'+(secChg>=0?'#2e7d48':'#c0392b')+'">'+(secChg>=0?'+':'')+secChg.toFixed(1)+'%</span></span>'
+    +'<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:3px;background:'+secCol+';border-radius:2px;flex-shrink:0"></span><strong style="color:#1a252f">'+(isAll?'Universe Aggregate':'Sector Aggregate')+'</strong> <span style="font-weight:600;color:'+(secChg>=0?'#2e7d48':'#c0392b')+'">'+(secChg>=0?'+':'')+secChg.toFixed(1)+'%</span></span>'
     +'<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:3px;background:'+spyCol+';border-radius:2px;flex-shrink:0"></span><span style="color:#1a252f">S&amp;P 500</span> <span style="font-weight:600;color:'+(spyChg>=0?'#2e7d48':'#c0392b')+'">'+(spyChg>=0?'+':'')+spyChg.toFixed(1)+'%</span></span>'
     +'<span style="display:inline-flex;align-items:center;gap:6px;color:#7f8c9a">vs. S&amp;P <span style="font-weight:700;color:'+diffCol+'">'+(diff>=0?'+':'')+diff.toFixed(1)+' pp</span></span>'
     +'<span style="margin-left:auto;font-size:0.72em;color:#94a3b8">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '+series.length+' constituents</span>'
@@ -2977,10 +2989,11 @@ function _sectorPriceDraw(sec){
   /* Update the tip area with a one-line summary the eye can scan. */
   var tipEl=document.getElementById('sector-price-tip');
   if(tipEl){
+    var subj=isAll?'Universe':'Sector';
     var verdict;
-    if(diff>=5)verdict='Sector has outpaced the index over this window.';
-    else if(diff>=-5)verdict='Sector has tracked the index closely over this window.';
-    else verdict='Sector has lagged the index over this window.';
+    if(diff>=5)verdict=subj+' has outpaced the index over this window.';
+    else if(diff>=-5)verdict=subj+' has tracked the index closely over this window.';
+    else verdict=subj+' has lagged the index over this window.';
     tipEl.innerHTML=verdict;
   }
   _sectorPriceState={sec:sec,range:_sectorPriceRange,n:dates.length,k:series.length};
@@ -3446,9 +3459,19 @@ function renderCrossSectorDashboard(){
     +'<div class="xsect-chart-title">Sector Breakdown <span style="font-weight:400;text-transform:none;letter-spacing:0">(BUY + LEAN BUY — filtered)</span></div>'
     +sectorBreakdownBars
   +'</div>';
+  /* Universe vs S&P 500 — same chart machinery as the per-sector
+     view, called with the "__all__" sentinel so it aggregates the
+     entire universe. Surface it as the FIRST section so the
+     market-relative read is the first thing the user sees on
+     Overview. */
+  var universePriceHtml=renderPoolSectorPriceChart('__all__');
+  var universePriceSection=universePriceHtml
+    ?('<div class="pp-section pp-sectorprice" style="margin-bottom:18px;border-radius:6px"><span class="pp-section-label">Universe vs. S&amp;P 500</span>'+universePriceHtml+'</div>')
+    :'';
   return'<div class="xsect-dashboard">'
     +'<div class="xsect-title">Cross-Sector Profit Pool Comparison</div>'
     +'<div class="xsect-sub">Blended pool margins, market concentration, and competitive dynamics across '+allStats.length+' sectors</div>'
+    +universePriceSection
     +'<div class="xsect-kpi-row">'+kpiHtml+'</div>'
     +'<div class="xsect-narrative" style="margin-top:6px;margin-bottom:18px"><div class="xsect-nar-title">Cross-Sector Analysis Summary</div>'
       +'<div class="xs-narcards">'+narItems.map(function(it){return'<div class="xs-narcard">'
