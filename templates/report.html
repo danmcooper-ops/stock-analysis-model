@@ -420,24 +420,24 @@ td.ct{font-weight:700;}
 .pp-range-btn{padding:3px 11px;font-size:0.74em;font-weight:600;border:1px solid #d0d8e4;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
 .pp-range-btn:hover{background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
 .pp-range-btn.active{background:#7030a0;color:#fff;border-color:#7030a0;}
-/* Toggle chips for the Overview price chart. Each chip exposes
-   its line color via --chip-col so the active state, hover state,
-   and dot indicator all share the same hue — chip color maps
-   directly to the chart line color. */
-.agg-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;font-size:0.76em;font-weight:600;border:1.5px solid #cfd8e3;border-radius:14px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;user-select:none;transition:background 0.12s,border-color 0.12s,color 0.12s;--chip-col:#7030a0;}
+/* Toggle chips for the Overview price chart. Active state is
+   subtle: the chip stays neutral, only the dot fills with the
+   line color. So 12 selected chips don't look like a rainbow.
+   Hollow dot = off; filled dot = on chart. */
+.agg-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;font-size:0.74em;font-weight:600;border:1.5px solid #d8dee5;border-radius:13px;background:#fff;color:#7f8c9a;cursor:pointer;line-height:1.2;user-select:none;transition:border-color 0.12s,color 0.12s,background 0.12s;--chip-col:#7030a0;}
+.agg-chip .chip-dot{width:8px;height:8px;border-radius:50%;background:transparent;border:1.5px solid #cfd8e3;flex-shrink:0;transition:background 0.12s,border-color 0.12s;}
 .agg-chip:hover{border-color:var(--chip-col);color:#1a252f;}
-.agg-chip .chip-dot{width:9px;height:9px;border-radius:50%;background:#cfd8e3;flex-shrink:0;transition:background 0.12s;}
-.agg-chip:hover .chip-dot{background:var(--chip-col);}
-.agg-chip.active{background:var(--chip-col);border-color:var(--chip-col);color:#fff;}
-.agg-chip.active .chip-dot{background:#fff;}
-.agg-helper-btn{padding:3px 9px;font-size:0.7em;font-weight:600;border:1px solid #d0d8e4;border-radius:4px;background:#f5f7fa;color:#546e7a;cursor:pointer;line-height:1.2;}
-.agg-helper-btn:hover{background:#eef2f7;border-color:#7030a0;color:#1a252f;}
-[data-theme="dark"] .agg-chip{background:#161b22;border-color:#30363d;color:#c9d1d9;}
+.agg-chip:hover .chip-dot{border-color:var(--chip-col);}
+.agg-chip.active{border-color:var(--chip-col);color:#1a252f;background:#fafbfc;}
+.agg-chip.active .chip-dot{background:var(--chip-col);border-color:var(--chip-col);}
+.agg-helper-btn{padding:3px 9px;font-size:0.7em;font-weight:600;border:1px solid #d8dee5;border-radius:13px;background:#fff;color:#7f8c9a;cursor:pointer;line-height:1.2;}
+.agg-helper-btn:hover{border-color:#7030a0;color:#1a252f;}
+[data-theme="dark"] .agg-chip{background:#161b22;border-color:#30363d;color:#8b949e;}
 [data-theme="dark"] .agg-chip:hover{color:#e6edf3;}
-[data-theme="dark"] .agg-chip .chip-dot{background:#30363d;}
-[data-theme="dark"] .agg-chip.active{color:#fff;}
-[data-theme="dark"] .agg-helper-btn{background:#161b22;border-color:#30363d;color:#c9d1d9;}
-[data-theme="dark"] .agg-helper-btn:hover{background:#21262d;border-color:#58a6ff;color:#e6edf3;}
+[data-theme="dark"] .agg-chip .chip-dot{border-color:#444c56;}
+[data-theme="dark"] .agg-chip.active{background:#1c2128;color:#e6edf3;}
+[data-theme="dark"] .agg-helper-btn{background:#161b22;border-color:#30363d;color:#8b949e;}
+[data-theme="dark"] .agg-helper-btn:hover{border-color:#58a6ff;color:#e6edf3;}
 .pp-sectorprice-tip{font-size:0.78em;min-height:18px;color:#37474f;line-height:1.4;}
 [data-theme="dark"] .pp-sectorprice{background:#15102a;}
 [data-theme="dark"] .pp-range-btn{background:#161b22;border-color:#30363d;color:#c9d1d9;}
@@ -2894,18 +2894,19 @@ function renderUniversePriceChart(){
       +'<span class="chip-dot"></span>'+_esc(_aggLabel(k))
       +'</button>';
   }).join('');
+  /* Two helper buttons only — All toggles every chip on, Clear
+     toggles them all off. The "all sectors" / "universe only"
+     intermediate presets were redundant: clicking the Universe
+     chip alone is one tap, and clicking individual sectors is
+     fast with the new compact chip styling. */
   var helperBtns=''
     +'<button type="button" class="agg-helper-btn" onclick="setAggs(\'all\')">All</button>'
-    +'<button type="button" class="agg-helper-btn" onclick="setAggs(\'sectors\')">All sectors</button>'
-    +'<button type="button" class="agg-helper-btn" onclick="setAggs(\'universe\')">Universe only</button>'
     +'<button type="button" class="agg-helper-btn" onclick="setAggs(\'none\')">Clear</button>';
-  var blurb='Click chips to toggle aggregates. Pick any subset — one, two, several, or all. Market-cap-weighted, indexed to 100 at start. Constituents = today\'s DATA snapshot, so the comparison carries survivorship bias.';
-  var out='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
-    +'<div style="display:flex;gap:5px;flex-wrap:wrap">'+rangeBtns+'</div>'
+  var out='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">'
+    +'<div style="display:flex;gap:4px;flex-wrap:wrap">'+rangeBtns+'</div>'
     +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-left:auto">'+helperBtns+'</div>'
     +'</div>'
-    +'<div id="agg-chip-row" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">'+chipHtml+'</div>'
-    +'<div style="font-size:0.7em;color:#7f8c9a;margin-bottom:8px;line-height:1.4">'+blurb+'</div>'
+    +'<div id="agg-chip-row" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px">'+chipHtml+'</div>'
     +'<div id="sector-price-chart" style="min-height:260px"></div>'
     +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin-top:6px"></div>';
   /* Defer the actual draw until after innerHTML mounts the container. */
@@ -3625,7 +3626,7 @@ function renderCrossSectorDashboard(){
      Overview so the market-relative read is immediately visible. */
   var universePriceHtml=renderUniversePriceChart();
   var universePriceSection=universePriceHtml
-    ?('<div class="pp-section pp-sectorprice" style="margin-bottom:18px;border-radius:6px"><span class="pp-section-label">Sector vs. S&amp;P 500</span>'+universePriceHtml+'</div>')
+    ?('<div class="pp-section pp-sectorprice" style="margin-bottom:18px;border-radius:6px"><span class="pp-section-label">Performance vs. S&amp;P 500</span>'+universePriceHtml+'</div>')
     :'';
   return'<div class="xsect-dashboard">'
     +'<div class="xsect-title">Cross-Sector Profit Pool Comparison</div>'
