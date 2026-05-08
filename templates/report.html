@@ -3560,17 +3560,11 @@ function renderCrossSectorDashboard(){
     +'<div class="xsect-chart-title">Sector Breakdown <span style="font-weight:400;text-transform:none;letter-spacing:0">(BUY + LEAN BUY — filtered)</span></div>'
     +sectorBreakdownBars
   +'</div>';
-  /* Aggregate Performance chart — chip toggles for Universe and
-     each sector. Surfaced first on Overview so the comparison is
-     immediately visible. */
-  var universePriceHtml=renderUniversePriceChart();
-  var universePriceSection=universePriceHtml
-    ?('<div class="pp-section pp-sectorprice" style="margin-bottom:18px;border-radius:6px"><span class="pp-section-label">Aggregate Performance</span>'+universePriceHtml+'</div>')
-    :'';
+  /* Aggregate Performance chart lives on its own "Performance" tab
+     (right of Overview); not rendered here. */
   return'<div class="xsect-dashboard">'
     +'<div class="xsect-title">Cross-Sector Profit Pool Comparison</div>'
     +'<div class="xsect-sub">Blended pool margins, market concentration, and competitive dynamics across '+allStats.length+' sectors</div>'
-    +universePriceSection
     +'<div class="xsect-kpi-row">'+kpiHtml+'</div>'
     +'<div class="xsect-narrative" style="margin-top:6px;margin-bottom:18px"><div class="xsect-nar-title">Cross-Sector Analysis Summary</div>'
       +'<div class="xs-narcards">'+narItems.map(function(it){return'<div class="xs-narcard">'
@@ -3651,12 +3645,21 @@ function renderPool(){
   var secList=Object.keys(sectors).sort();
   var chosen=_poolTab||'__all__';
   var navHtml='<div class="secondary-nav"><button class="sub-btn'+(chosen==='__all__'?' active':'')+'" onclick="showPoolTab(\'__all__\')">Overview</button>';
+  navHtml+='<button class="sub-btn'+(chosen==='__performance__'?' active':'')+'" onclick="showPoolTab(\'__performance__\')">Performance</button>';
   secList.forEach(function(s){var se=s.replace(/'/g,"\\'");navHtml+='<button class="sub-btn'+(chosen===s?' active':'')+'" onclick="showPoolTab(\''+se+'\')">'+s+'</button>';});
   navHtml+='</div>';
   document.getElementById('pool-controls').innerHTML=navHtml;
-  var toRender=(chosen&&chosen!=='__all__'&&sectors[chosen])?[chosen]:[];
+  var toRender=(chosen&&chosen!=='__all__'&&chosen!=='__performance__'&&sectors[chosen])?[chosen]:[];
   var chartHtml='',tableRows='';
   if(chosen==='__all__'){chartHtml=renderCrossSectorDashboard();}
+  else if(chosen==='__performance__'){
+    var perfBody=renderUniversePriceChart();
+    chartHtml='<div class="xsect-dashboard">'
+      +'<div class="xsect-title">Sector Performance</div>'
+      +'<div class="xsect-sub">Indexed price performance across sectors. Pick any subset to compare.</div>'
+      +(perfBody||'<p style="color:#888;padding:20px">No sector data available.</p>')
+      +'</div>';
+  }
   toRender.forEach(function(sec){
     var cos=sectors[sec];if(!cos||!cos.length)return;
     var sorted=cos.slice().sort(function(a,b){return(b.operating_margin||0)-(a.operating_margin||0);});
