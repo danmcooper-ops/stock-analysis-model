@@ -3561,6 +3561,12 @@ function renderPool(){
     var playersHtml=renderPoolKeyPlayers(sec);
     var cr4Html=renderPoolCR4Companies(sec);
     var cr4PriceHtml=renderPoolCR4PriceChart(sec);
+    /* Render the CR4 vs S&P 500 chart first so the user sees the
+       sector's price-relative-to-market read before scrolling through
+       narrative/qualitative sections. */
+    if(cr4PriceHtml){
+      chartHtml+='<div class="pp-section pp-cr4price"><span class="pp-section-label">CR4 vs. S&amp;P 500</span>'+cr4PriceHtml+'</div>';
+    }
     if(primerHtml){
       chartHtml+='<div class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
     }
@@ -3579,9 +3585,6 @@ function renderPool(){
     }
     if(cr4Html){
       chartHtml+='<div class="pp-section pp-cr4"><span class="pp-section-label">CR4 Companies</span>'+cr4Html+'</div>';
-    }
-    if(cr4PriceHtml){
-      chartHtml+='<div class="pp-section pp-cr4price"><span class="pp-section-label">CR4 vs. S&amp;P 500</span>'+cr4PriceHtml+'</div>';
     }
     chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Chart</span><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span></div><span style="font-size:0.7em;color:#aaa">Bar width = revenue share &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>';
     chartHtml+='</div>';
