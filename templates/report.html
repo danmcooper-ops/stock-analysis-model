@@ -415,20 +415,20 @@ td.ct{font-weight:700;}
 .pp-headwinds .pp-section-label{background:#c0392b;}
 .pp-cr4{background:#f0edf8;border-left:5px solid #5e35b1;}
 .pp-cr4 .pp-section-label{background:#5e35b1;}
-.pp-cr4price{background:#fbf6ff;border-left:5px solid #7030a0;}
-.pp-cr4price .pp-section-label{background:#7030a0;}
+.pp-sectorprice{background:#fbf6ff;border-left:5px solid #7030a0;}
+.pp-sectorprice .pp-section-label{background:#7030a0;}
 .pp-range-btn{padding:3px 11px;font-size:0.74em;font-weight:600;border:1px solid #d0d8e4;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
 .pp-range-btn:hover{background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
 .pp-range-btn.active{background:#7030a0;color:#fff;border-color:#7030a0;}
-.pp-cr4price-tip{font-size:0.78em;min-height:18px;color:#37474f;line-height:1.4;}
-[data-theme="dark"] .pp-cr4price{background:#15102a;}
+.pp-sectorprice-tip{font-size:0.78em;min-height:18px;color:#37474f;line-height:1.4;}
+[data-theme="dark"] .pp-sectorprice{background:#15102a;}
 [data-theme="dark"] .pp-range-btn{background:#161b22;border-color:#30363d;color:#c9d1d9;}
 [data-theme="dark"] .pp-range-btn:hover{background:#21262d;border-color:#58a6ff;color:#e6edf3;}
 [data-theme="dark"] .pp-range-btn.active{background:#7030a0;border-color:#7030a0;color:#fff;}
-[data-theme="dark"] .pp-cr4price-tip{color:#c9d1d9;}
-[data-theme="dark"] .pp-cr4price svg text[fill="#9aaab8"]{fill:#7d8b9a;}
-[data-theme="dark"] .pp-cr4price svg line[stroke="#e8edf2"]{stroke:#21262d;}
-[data-theme="dark"] .pp-cr4price svg line[stroke="#cbd5e1"]{stroke:#3d4651;}
+[data-theme="dark"] .pp-sectorprice-tip{color:#c9d1d9;}
+[data-theme="dark"] .pp-sectorprice svg text[fill="#9aaab8"]{fill:#7d8b9a;}
+[data-theme="dark"] .pp-sectorprice svg line[stroke="#e8edf2"]{stroke:#21262d;}
+[data-theme="dark"] .pp-sectorprice svg line[stroke="#cbd5e1"]{stroke:#3d4651;}
 .pp-players{background:#eef8f1;border-left:5px solid #2e7d48;}
 .pp-players .pp-section-label{background:#2e7d48;}
 .pp-chart{background:white;padding:18px 20px 22px;border-left:5px solid #546e7a;}
@@ -2810,111 +2810,119 @@ function renderPoolInsights(sec){
   out+='</ul>';
   return out;
 }
-/* === CR4 vs S&P 500 price comparison ============================
+/* === Sector vs S&P 500 price comparison =========================
    Returns the HTML shell for the chart section (range buttons +
-   container). The actual SVG is drawn by _cr4DrawChart after PRICES
-   has loaded (lazy via _loadSidecar). Revenue-share-weighted index
-   of the top 4 sector companies, normalized to 100 at the start of
-   the selected window — same baseline as the SPY series so the
-   relative outperformance is read off directly. */
-var _cr4PriceRange='5YR',_cr4PriceState=null;
-function renderPoolCR4PriceChart(sec){
-  var n=SECTOR_POOL&&SECTOR_POOL[sec];
-  if(!n||!n.cr4_companies||!n.cr4_companies.length)return '';
+   container). The actual SVG is drawn by _sectorPriceDraw after
+   PRICES has loaded (lazy via _loadSidecar). Market-cap-weighted
+   index of EVERY stock in the sector, normalized to 100 at the
+   start of the selected window — same baseline as the SPY series
+   so the relative outperformance is read off directly. */
+var _sectorPriceRange='5YR',_sectorPriceState=null;
+function renderPoolSectorPriceChart(sec){
+  /* Need at least one stock with a market cap to build a weighted
+     aggregate; otherwise hide the section. */
+  var have=0;
+  for(var i=0;i<DATA.length;i++){if(DATA[i].sector===sec&&(DATA[i].mcap||0)>0)have++;}
+  if(!have)return '';
   var ranges=[['1YR','1Y'],['3YR','3Y'],['5YR','5Y'],['10YR','10Y'],['20YR','20Y']];
   var btnHtml=ranges.map(function(r){
-    var act=_cr4PriceRange===r[0]?' active':'';
-    return '<button type="button" class="pp-range-btn'+act+'" data-cr4r="'+r[0]+'" onclick="setCR4PriceRange(\''+r[0]+'\',this)">'+r[1]+'</button>';
+    var act=_sectorPriceRange===r[0]?' active':'';
+    return '<button type="button" class="pp-range-btn'+act+'" onclick="setSectorPriceRange(\''+r[0]+'\',this)">'+r[1]+'</button>';
   }).join('');
   var out='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">'
     +'<div style="display:flex;gap:4px;flex-wrap:wrap">'+btnHtml+'</div>'
-    +'<span style="font-size:0.7em;color:#7f8c9a;flex:1;min-width:0">Revenue-share-weighted index of the top 4 companies vs. S&amp;P 500, indexed to 100 at start.</span>'
+    +'<span style="font-size:0.7em;color:#7f8c9a;flex:1;min-width:0">Market-cap-weighted index of every stock in the sector vs. S&amp;P 500, indexed to 100 at start.</span>'
     +'</div>'
-    +'<div id="cr4-price-chart" style="min-height:240px"></div>'
-    +'<div id="cr4-price-tip" class="pp-cr4price-tip" style="margin-top:6px"></div>';
+    +'<div id="sector-price-chart" style="min-height:240px"></div>'
+    +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin-top:6px"></div>';
   /* Defer the actual draw until after innerHTML mounts the container. */
-  setTimeout(function(){_cr4DrawChart(sec);},0);
+  setTimeout(function(){_sectorPriceDraw(sec);},0);
   return out;
 }
-function setCR4PriceRange(r,btn){
-  _cr4PriceRange=r;
+function setSectorPriceRange(r,btn){
+  _sectorPriceRange=r;
   if(btn&&btn.parentNode){
     btn.parentNode.querySelectorAll('.pp-range-btn').forEach(function(b){b.classList.remove('active');});
     btn.classList.add('active');
   }
-  if(_poolTab&&_poolTab!=='__all__')_cr4DrawChart(_poolTab);
+  if(_poolTab&&_poolTab!=='__all__')_sectorPriceDraw(_poolTab);
 }
-function _cr4DrawChart(sec){
-  var el=document.getElementById('cr4-price-chart');if(!el)return;
+function _sectorPriceDraw(sec){
+  var el=document.getElementById('sector-price-chart');if(!el)return;
   if(!PRICES){
     if(!_PRICES_AVAILABLE){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Price history not available for this report.</p>';return;}
     el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Loading price history…</p>';
     if(_PRICES_LOADING){
-      var poll=setInterval(function(){if(!_PRICES_LOADING){clearInterval(poll);if(_poolTab===sec)_cr4DrawChart(sec);}},120);
+      var poll=setInterval(function(){if(!_PRICES_LOADING){clearInterval(poll);if(_poolTab===sec)_sectorPriceDraw(sec);}},120);
       return;
     }
     _PRICES_LOADING=true;
-    _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;if(_poolTab===sec)_cr4DrawChart(sec);});
+    _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;if(_poolTab===sec)_sectorPriceDraw(sec);});
     return;
   }
-  var n=SECTOR_POOL&&SECTOR_POOL[sec];
-  if(!n||!n.cr4_companies){el.innerHTML='';return;}
-  var top4=n.cr4_companies.slice(0,4);
   var allD=PRICES.dates;
   var spy=PRICES.prices&&PRICES.prices['SPY'];
   if(!spy){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">S&amp;P 500 (SPY) data unavailable.</p>';return;}
-  /* Build component series with their revenue-share weights. Skip
-     companies with no price history so a missing ticker doesn't
-     suppress the whole chart. */
+  /* Build component series for EVERY stock in the sector with both
+     a market cap and a price-history record. Skip companies with no
+     price data so a missing ticker doesn't suppress the whole chart. */
   var weights=[],series=[],comps=[];
-  top4.forEach(function(c){
-    var arr=PRICES.prices[c.ticker];
-    if(!arr)return;
-    var w=c.revenue_share||0;
-    if(w<=0)w=0.0001;
-    weights.push(w);series.push(arr);comps.push(c);
-  });
-  if(!series.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data for CR4 companies.</p>';return;}
+  for(var di=0;di<DATA.length;di++){
+    var d=DATA[di];
+    if(d.sector!==sec)continue;
+    var arr=PRICES.prices&&PRICES.prices[d.ticker];
+    if(!arr)continue;
+    var mc=d.mcap||0;
+    if(mc<=0)continue;
+    weights.push(mc);series.push(arr);comps.push(d);
+  }
+  if(!series.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data for sector constituents.</p>';return;}
   var wSum=weights.reduce(function(a,b){return a+b;},0)||1;
   var nWeights=weights.map(function(w){return w/wSum;});
   /* Window cutoff. */
-  var cutMs={'1YR':366,'3YR':1098,'5YR':1827,'10YR':3653,'20YR':7305}[_cr4PriceRange]||1827;
+  var cutMs={'1YR':366,'3YR':1098,'5YR':1827,'10YR':3653,'20YR':7305}[_sectorPriceRange]||1827;
   var cutoff=new Date(+new Date()-cutMs*86400000);
-  /* Find first date in window where SPY and ALL CR4 components have
-     a value — that becomes the index baseline (so each ticker is
-     normalized off its own first-print, not a forward-filled gap). */
+  /* Find first date in window where SPY has a value AND a majority
+     (≥60%) of constituent weight has a print — that becomes the
+     index baseline. We can't require every constituent (with 50+
+     names some always have IPO/delist gaps); we require enough
+     weight that the baseline is representative. Each constituent is
+     normalized off the FIRST date it has a print on or after the
+     baseline, so newer additions chain in cleanly. */
   var startIdx=-1;
   for(var i=0;i<allD.length;i++){
     if(new Date(allD[i]+'T00:00:00')<cutoff)continue;
     if(spy[i]==null)continue;
-    var ok=true;
-    for(var j=0;j<series.length;j++){if(series[j][i]==null){ok=false;break;}}
-    if(ok){startIdx=i;break;}
+    var presentW=0;
+    for(var j=0;j<series.length;j++){if(series[j][i]!=null)presentW+=nWeights[j];}
+    if(presentW>=0.6){startIdx=i;break;}
   }
-  if(startIdx<0){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No common price history in this range. Try a longer window.</p>';return;}
+  if(startIdx<0){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough overlapping price history in this range. Try a longer window.</p>';return;}
   var spyBase=spy[startIdx];
-  var bases=series.map(function(s){return s[startIdx];});
-  var dates=[],spyN=[],cr4N=[];
-  /* On any given day a constituent may be missing (delisted/IPO/etc.) —
-     normalize the weight by the sum of present components so the
-     aggregate stays comparable. Drop the day if <60% of weight is
-     present (avoids spikes on near-empty slices). */
+  /* Per-component baseline: first non-null print at or after startIdx. */
+  var bases=new Array(series.length);
+  for(var bi=0;bi<series.length;bi++){
+    bases[bi]=null;
+    for(var bk=startIdx;bk<allD.length;bk++){if(series[bi][bk]!=null){bases[bi]=series[bi][bk];break;}}
+  }
+  var dates=[],spyN=[],secN=[];
+  /* Per-day weight renormalization: drop days with <60% weight present. */
   for(var k=startIdx;k<allD.length;k++){
     if(spy[k]==null)continue;
-    var cr4Sum=0,wOk=0;
+    var sumI=0,wOk=0;
     for(var j2=0;j2<series.length;j2++){
       var v=series[j2][k];
-      if(v!=null&&bases[j2]>0){cr4Sum+=(v/bases[j2])*100*nWeights[j2];wOk+=nWeights[j2];}
+      if(v!=null&&bases[j2]&&bases[j2]>0){sumI+=(v/bases[j2])*100*nWeights[j2];wOk+=nWeights[j2];}
     }
     if(wOk<0.6)continue;
     dates.push(allD[k]);
     spyN.push((spy[k]/spyBase)*100);
-    cr4N.push(cr4Sum/wOk);
+    secN.push(sumI/wOk);
   }
   if(dates.length<2){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough overlapping data points.</p>';return;}
   var VW=900,VH=260,PL=52,PR=14,PT=14,PB=34;
   var iW=VW-PL-PR,iH=VH-PT-PB;
-  var allVals=spyN.concat(cr4N);
+  var allVals=spyN.concat(secN);
   var minP=Math.min.apply(null,allVals),maxP=Math.max.apply(null,allVals);
   var pad=(maxP-minP)*0.06||1;minP-=pad;maxP+=pad;
   var pRange=maxP-minP||1;
@@ -2940,38 +2948,42 @@ function _cr4DrawChart(sec){
     var lbl=mo[dx.getMonth()]+'\''+String(dx.getFullYear()).slice(2);
     grid+='<text x="'+xOf(xi).toFixed(1)+'" y="'+(PT+iH+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+lbl+'</text>';
   }
-  var spyCol='#1f77b4',cr4Col='#7030a0';
+  var spyCol='#1f77b4',secCol='#7030a0';
   var spyPts=spyN.map(function(v,i){return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);}).join(' ');
-  var cr4Pts=cr4N.map(function(v,i){return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);}).join(' ');
+  var secPts=secN.map(function(v,i){return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);}).join(' ');
   var lines=''
     +'<polyline points="'+spyPts+'" fill="none" stroke="'+spyCol+'" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>'
-    +'<polyline points="'+cr4Pts+'" fill="none" stroke="'+cr4Col+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
-  var spyEnd=spyN[spyN.length-1],cr4End=cr4N[cr4N.length-1];
-  var spyChg=spyEnd-100,cr4Chg=cr4End-100;
-  var diff=cr4Chg-spyChg;
+    +'<polyline points="'+secPts+'" fill="none" stroke="'+secCol+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  var spyEnd=spyN[spyN.length-1],secEnd=secN[secN.length-1];
+  var spyChg=spyEnd-100,secChg=secEnd-100;
+  var diff=secChg-spyChg;
   var diffCol=diff>=0?'#2e7d48':'#c0392b';
   var svg='<svg viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:340px">'+grid+lines+'</svg>';
   var legend='<div style="display:flex;flex-wrap:wrap;gap:14px;font-size:0.78em;margin-top:10px;align-items:center">'
-    +'<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:3px;background:'+cr4Col+';border-radius:2px;flex-shrink:0"></span><strong style="color:#1a252f">CR4 Aggregate</strong> <span style="font-weight:600;color:'+(cr4Chg>=0?'#2e7d48':'#c0392b')+'">'+(cr4Chg>=0?'+':'')+cr4Chg.toFixed(1)+'%</span></span>'
+    +'<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:3px;background:'+secCol+';border-radius:2px;flex-shrink:0"></span><strong style="color:#1a252f">Sector Aggregate</strong> <span style="font-weight:600;color:'+(secChg>=0?'#2e7d48':'#c0392b')+'">'+(secChg>=0?'+':'')+secChg.toFixed(1)+'%</span></span>'
     +'<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:16px;height:3px;background:'+spyCol+';border-radius:2px;flex-shrink:0"></span><span style="color:#1a252f">S&amp;P 500</span> <span style="font-weight:600;color:'+(spyChg>=0?'#2e7d48':'#c0392b')+'">'+(spyChg>=0?'+':'')+spyChg.toFixed(1)+'%</span></span>'
     +'<span style="display:inline-flex;align-items:center;gap:6px;color:#7f8c9a">vs. S&amp;P <span style="font-weight:700;color:'+diffCol+'">'+(diff>=0?'+':'')+diff.toFixed(1)+' pp</span></span>'
-    +'<span style="margin-left:auto;font-size:0.72em;color:#94a3b8">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs</span>'
+    +'<span style="margin-left:auto;font-size:0.72em;color:#94a3b8">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '+series.length+' constituents</span>'
     +'</div>';
-  var compLine=comps.map(function(c,i){
-    return '<span style="white-space:nowrap"><strong>'+_esc(c.ticker)+'</strong> <span style="color:#94a3b8">'+(nWeights[i]*100).toFixed(0)+'%</span></span>';
-  }).join('  ·  ');
-  var compHtml='<div style="font-size:0.72em;color:#7f8c9a;margin-top:6px;line-height:1.5">Weights: '+compLine+'</div>';
+  /* Listing every constituent's weight is too much; show the top 5
+     by weight — these typically capture the bulk of the index. */
+  var topByW=comps.map(function(c,i){return{c:c,w:nWeights[i]};}).sort(function(a,b){return b.w-a.w;}).slice(0,5);
+  var topW=topByW.reduce(function(s,x){return s+x.w;},0);
+  var topLine=topByW.map(function(x){
+    return '<span style="white-space:nowrap"><strong>'+_esc(x.c.ticker)+'</strong> <span style="color:#94a3b8">'+(x.w*100).toFixed(1)+'%</span></span>';
+  }).join('  ·  ');
+  var compHtml='<div style="font-size:0.72em;color:#7f8c9a;margin-top:6px;line-height:1.5">Top 5 weights ('+(topW*100).toFixed(0)+'% of index): '+topLine+'</div>';
   el.innerHTML=svg+legend+compHtml;
   /* Update the tip area with a one-line summary the eye can scan. */
-  var tipEl=document.getElementById('cr4-price-tip');
+  var tipEl=document.getElementById('sector-price-tip');
   if(tipEl){
     var verdict;
-    if(diff>=5)verdict='CR4 has outpaced the index over this window.';
-    else if(diff>=-5)verdict='CR4 has tracked the index closely over this window.';
-    else verdict='CR4 has lagged the index over this window.';
+    if(diff>=5)verdict='Sector has outpaced the index over this window.';
+    else if(diff>=-5)verdict='Sector has tracked the index closely over this window.';
+    else verdict='Sector has lagged the index over this window.';
     tipEl.innerHTML=verdict;
   }
-  _cr4PriceState={sec:sec,range:_cr4PriceRange,n:dates.length};
+  _sectorPriceState={sec:sec,range:_sectorPriceRange,n:dates.length,k:series.length};
 }
 
 
@@ -3560,12 +3572,12 @@ function renderPool(){
     var liquidityHtml=renderPoolLiquidityInsights(sec);
     var playersHtml=renderPoolKeyPlayers(sec);
     var cr4Html=renderPoolCR4Companies(sec);
-    var cr4PriceHtml=renderPoolCR4PriceChart(sec);
-    /* Render the CR4 vs S&P 500 chart first so the user sees the
+    var sectorPriceHtml=renderPoolSectorPriceChart(sec);
+    /* Render the Sector vs S&P 500 chart first so the user sees the
        sector's price-relative-to-market read before scrolling through
        narrative/qualitative sections. */
-    if(cr4PriceHtml){
-      chartHtml+='<div class="pp-section pp-cr4price"><span class="pp-section-label">CR4 vs. S&amp;P 500</span>'+cr4PriceHtml+'</div>';
+    if(sectorPriceHtml){
+      chartHtml+='<div class="pp-section pp-sectorprice"><span class="pp-section-label">Sector vs. S&amp;P 500</span>'+sectorPriceHtml+'</div>';
     }
     if(primerHtml){
       chartHtml+='<div class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
