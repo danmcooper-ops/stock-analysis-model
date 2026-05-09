@@ -638,21 +638,24 @@ def _compute_shareholder_yield(yf_data, mcap):
             buyback = abs(float(latest[k]))
             break
 
-    # Subtract any new issuance to get net buyback
+    # Subtract any new issuance to get net buyback. Allow negative values:
+    # a net-diluting company has buyback_rate < 0 and shareholder_yield is
+    # reduced (or negated) accordingly. Flooring at zero would mask dilution.
     issuance = 0
     for k in ['Issuance Of Capital Stock', 'Common Stock Issuance']:
         if k in latest.index and pd.notna(latest[k]):
             issuance = abs(float(latest[k]))
             break
-    net_buyback = max(0, buyback - issuance)
+    net_buyback = buyback - issuance
 
     total_return = div_paid + net_buyback
-    shareholder_yield = 0.0 if (total_return == 0 and div_paid == 0) else total_return / mcap
+    shareholder_yield = total_return / mcap
     buyback_rate = net_buyback / mcap
 
-    # Sanity cap — yield > 50% is almost certainly a data error (e.g. stale
-    # yfinance cash-flow snapshot with mismatched period/mcap units).
-    if shareholder_yield > 0.50:
+    # Sanity cap — |yield| > 50% is almost certainly a data error (stale
+    # yfinance cash-flow snapshot with mismatched period/mcap units, or a
+    # one-time issuance event distorting a single fiscal year).
+    if abs(shareholder_yield) > 0.50:
         shareholder_yield = None
         buyback_rate = None
 
