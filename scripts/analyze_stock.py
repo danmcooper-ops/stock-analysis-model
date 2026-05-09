@@ -95,26 +95,36 @@ _HONORIFICS = ('mr.', 'mrs.', 'ms.', 'miss', 'dr.', 'prof.', 'sir')
 
 
 def _flow_to_annual(history):
-    # SEC XBRL emits either one FY entry per year or four quarterly entries
-    # (Q4 derived as FY − Q1 − Q2 − Q3). Sum the four; pass FY through; drop
-    # incomplete years so CAGR endpoints aren't comparing partial years.
+    # The current EDGAR client returns one value per fiscal year keyed by
+    # integer year (or its string form after JSON round-trip). Legacy
+    # snapshots used date-string keys ("YYYY-MM-DD") with mixed quarterly
+    # + annual entries — for those, sum 4-quarter years and pass through
+    # annual-only years; mixed-period legacy years are dropped (the old
+    # behavior, retained for backwards compatibility with stored data).
     if not history:
         return {}
     by_year = {}
-    for period_end, val in history.items():
-        if val is None:
+    for k, v in history.items():
+        if v is None:
             continue
+        ks = str(k)
         try:
-            yr = int(str(period_end)[:4])
+            yr = int(ks[:4])
         except (TypeError, ValueError):
             continue
-        by_year.setdefault(yr, []).append(val)
+        is_annual_key = isinstance(k, int) or (len(ks) == 4 and ks.isdigit())
+        by_year.setdefault(yr, []).append((is_annual_key, v))
     annual = {}
-    for yr, vals in by_year.items():
-        if len(vals) == 4:
-            annual[yr] = sum(vals)
-        elif len(vals) == 1:
+    for yr, entries in by_year.items():
+        annual_keyed = [v for ak, v in entries if ak]
+        if annual_keyed:
+            annual[yr] = annual_keyed[-1]
+            continue
+        vals = [v for _, v in entries]
+        if len(vals) == 1:
             annual[yr] = vals[0]
+        elif len(vals) == 4:
+            annual[yr] = sum(vals)
     return annual
 
 
