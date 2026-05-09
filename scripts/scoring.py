@@ -6,6 +6,32 @@ from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_OWNERSHIP)
 
 MIN_SECTOR_SCORING = 5  # Min stocks per sector for sector-relative percentile
+RATING_RANK = {'PASS': 0, 'HOLD': 1, 'LEAN BUY': 2, 'BUY': 3}
+RATING_BY_RANK = {v: k for k, v in RATING_RANK.items()}
+
+
+def _gate_short(gate_name):
+    """Return the stable suffix used by _gate_* / _score_* fields."""
+    return gate_name.split(': ')[1].lower().replace(' ', '_').replace('/', '_')
+
+
+def _gate_key(gate_name):
+    return '_gate_' + _gate_short(gate_name)
+
+
+def _gp_key(gate_name):
+    return '_gp_' + _gate_short(gate_name)
+
+
+def _score_key(gate_name):
+    return '_score_' + _gate_short(gate_name)
+
+
+def _cap_rating(rating, cap):
+    """Return rating capped at cap, preserving None/UNRATED inputs."""
+    if rating not in RATING_RANK or cap not in RATING_RANK:
+        return rating
+    return RATING_BY_RANK[min(RATING_RANK[rating], RATING_RANK[cap])]
 
 
 def _mc_confidence_label(cv):
@@ -29,6 +55,39 @@ def _score_linear(value, worst, best):
         return 50.0
     score = (value - worst) / (best - worst) * 100
     return max(0.0, min(100.0, score))
+
+
+def _ranked_percentiles(items, higher_better=True):
+    """Assign average-rank percentiles so equal values receive equal scores.
+
+    Args:
+        items: list of (row_index, value) pairs.
+        higher_better: Whether higher raw values should get higher percentiles.
+
+    Returns:
+        dict: {row_index: percentile_0_to_100}
+    """
+    if not items:
+        return {}
+    sorted_items = sorted(items, key=lambda x: x[1])
+    n = len(sorted_items)
+    if n == 1:
+        return {sorted_items[0][0]: 50.0}
+
+    out = {}
+    i = 0
+    while i < n:
+        j = i + 1
+        while j < n and sorted_items[j][1] == sorted_items[i][1]:
+            j += 1
+        avg_rank = (i + (j - 1)) / 2.0
+        pctile = (avg_rank / (n - 1)) * 100
+        if not higher_better:
+            pctile = 100 - pctile
+        for k in range(i, j):
+            out[sorted_items[k][0]] = pctile
+        i = j
+    return out
 
 
 # Gate definitions: (display_name, field_or_callable, pass_test)
@@ -118,21 +177,17 @@ SCREENING_GATES = [
 ]
 
 
-def apply_screening_matrix(results):
-    """Evaluate each stock against pass/fail gates and override ratings.
-
-    Stores per-gate actual data values and pass/fail booleans in each row dict.
-    _gate_* fields hold the raw metric value (number), _gp_* fields hold
-    True (pass) / False (fail) / None (N/A) for colour formatting.
-    Only downgrades ratings — never upgrades.
-    """
-    # Pre-compute derived gate fields
+def prepare_scoring_fields(results):
+    """Populate derived fields shared by gates and continuous scoring."""
     for r in results:
         sbc = r.get('sbc')
         rev = r.get('revenue')
         fcf = r.get('fcf')
+        price = r.get('price')
+        fv = r.get('dcf_fv')
         r['sbc_pct_rev'] = (sbc / rev) if (sbc is not None and rev and rev > 0) else None
         r['fcf_margin'] = (fcf / rev) if (fcf is not None and rev and rev > 0) else None
+        r['_price_fv'] = (price / fv) if (price and fv and fv > 0) else None
 
         # ROIC trend slope (last-year minus first-year ROIC)
         roic_by_year = r.get('roic_by_year')
@@ -142,23 +197,32 @@ def apply_screening_matrix(results):
         else:
             r['roic_trend_slope'] = None
 
-        # EPV floor ratio (epv_fv / price) — >=1 means trading below zero-growth value
+        # EPV floor ratio (epv_fv / price) - >=1 means trading below zero-growth value
         epv = r.get('epv_fv')
-        price = r.get('price')
         r['epv_floor_ratio'] = (epv / price) if (epv is not None and price and price > 0) else None
+
+
+def apply_screening_matrix(results):
+    """Evaluate each stock against pass/fail gates.
+
+    Stores per-gate actual data values and pass/fail booleans in each row dict.
+    _gate_* fields hold the raw metric value (number), _gp_* fields hold
+    True (pass) / False (fail) / None (N/A) for colour formatting.
+    """
+    prepare_scoring_fields(results)
 
     # Fixed denominator: every ticker is graded against the full gate list.
     # Gates with missing data count as fail (no credit) rather than being
     # excluded from the count, so "X / N" is comparable across tickers.
     total_gates = len(SCREENING_GATES)
     for r in results:
-        r['rating_raw'] = r['rating']
+        r['rating_raw'] = r.get('rating')
         passed = 0
         for gate_name, field, test_fn in SCREENING_GATES:
             val = r.get(field)
             result = test_fn(val, r)
-            gate_key = '_gate_' + gate_name.split(': ')[1].lower().replace(' ', '_').replace('/', '_')
-            gp_key = '_gp' + gate_key[5:]  # _gate_mos → _gp_mos
+            gate_key = _gate_key(gate_name)
+            gp_key = _gp_key(gate_name)
             if result is None:
                 # N/A — keep _gate_* / _gp_* as None so the cell still
                 # renders as "N/A" visually, but the gate counts as a fail
@@ -358,24 +422,16 @@ def compute_continuous_scores(results, params=None):
             for sector, group in sector_groups.items():
                 # Fallback to global pool if sector too small
                 pool = group if len(group) >= MIN_SECTOR_SCORING else [(i, v) for i, v, _ in all_vals]
-                sorted_pool = sorted(pool, key=lambda x: x[1])
-                n = len(sorted_pool)
-                # Only assign percentiles to stocks in this sector group
+                pctiles = _ranked_percentiles(pool, higher_better=higher_better)
+                # Only assign percentiles to stocks in this sector group.
                 group_indices = set(i for i, _ in group)
-                for rank_idx, (orig_idx, val) in enumerate(sorted_pool):
-                    if orig_idx in group_indices:
-                        pctile = (rank_idx / (n - 1)) * 100 if n > 1 else 50
-                        if not higher_better:
-                            pctile = 100 - pctile
-                        results[orig_idx].setdefault('_pctile', {})[pctile_key] = pctile
+                for orig_idx in group_indices:
+                    results[orig_idx].setdefault('_pctile', {})[pctile_key] = pctiles[orig_idx]
 
         else:  # 'global'
-            sorted_vals = sorted(all_vals, key=lambda x: x[1])
-            n = len(sorted_vals)
-            for rank_idx, (orig_idx, val, _) in enumerate(sorted_vals):
-                pctile = (rank_idx / (n - 1)) * 100 if n > 1 else 50
-                if not higher_better:
-                    pctile = 100 - pctile
+            pctiles = _ranked_percentiles([(i, v) for i, v, _ in all_vals],
+                                           higher_better=higher_better)
+            for orig_idx, pctile in pctiles.items():
                 results[orig_idx].setdefault('_pctile', {})[pctile_key] = pctile
 
     # Step 2: Compute individual gate scores and category averages
@@ -406,8 +462,7 @@ def compute_continuous_scores(results, params=None):
                 s = score_fn(val, r, pct)
                 score = s if s is not None else 0.0
             # Store per-gate score (always — even when N/A)
-            short = gate_name.split(': ')[1].lower().replace(' ', '_').replace('/', '_')
-            r[f'_score_{short}'] = round(score, 1)
+            r[_score_key(gate_name)] = round(score, 1)
             category_sums[category] += score
 
         # Category averages over fixed denominator (gates_per_category)
@@ -440,6 +495,8 @@ def compute_continuous_scores(results, params=None):
                 composite *= 0.93
 
         r['_composite_score'] = round(composite, 1) if composite is not None else None
+        present = sum(1 for _, field, *_ in SCORING_GATES if r.get(field) is not None)
+        r['_data_coverage_score'] = round(present / len(SCORING_GATES) * 100, 1)
 
         # Clean up temp
         r.pop('_pctile', None)
@@ -481,3 +538,132 @@ def apply_composite_rating_override(results, params=None):
         rating = rating_from_composite(r.get('_composite_score'), params)
         if rating is not None:
             r['rating'] = rating
+
+
+_GATE_DISPLAY = {
+    'mos': {'label': 'MoS', 'threshold': 'MoS > 10%', 'fmt': 'pct1'},
+    'price_fv': {'label': 'Price/FV', 'threshold': 'P/FV < 1.0', 'fmt': 'ratio'},
+    'p_fcf': {'label': 'P/FCF', 'threshold': 'P/FCF <= 20x', 'fmt': 'ratio'},
+    'int_coverage': {'label': 'Int Cov', 'threshold': 'IC > 3x', 'fmt': 'ratio'},
+    'accruals': {'label': 'Accruals', 'threshold': '|Acr| < 8%', 'fmt': 'pct1'},
+    'shrhldr_yield': {'label': 'Shrhldr Yld', 'threshold': 'Yield > 2%', 'fmt': 'pct1'},
+    'insider_own': {'label': 'Insider %', 'threshold': 'Insider >= 5%', 'fmt': 'pct1'},
+    'buyback_rate': {'label': 'Buyback', 'threshold': 'Buyback > 1%', 'fmt': 'pct1'},
+    'roic_consistency': {'label': 'ROIC CV', 'threshold': 'CV < 30%', 'fmt': 'pct1'},
+    'spread_>_5%': {'label': 'Spread', 'threshold': 'Spread > 7%', 'fmt': 'pct1'},
+    'gross_margin': {'label': 'Gross Mgn', 'threshold': 'GM > 35%', 'fmt': 'pct1'},
+    'fund_growth': {'label': 'Fund Growth', 'threshold': 'FG > 3%', 'fmt': 'pct1'},
+    'margins': {'label': 'Margins', 'threshold': 'Margin >= 0', 'fmt': 'pct1'},
+    'roe': {'label': 'ROE', 'threshold': 'ROE > 20%', 'fmt': 'pct1'},
+    'net_debt_ebitda': {'label': 'ND/EBITDA', 'threshold': 'ND/EBITDA <= 1.5x', 'fmt': 'ratio'},
+    'cash_conv': {'label': 'Cash Conv', 'threshold': 'CashConv >= 0.85x', 'fmt': 'ratio'},
+    'rev_durability': {'label': '10Y Rev CAGR', 'threshold': '10Y RevCAGR > 2%', 'fmt': 'pct1'},
+    'sbc_dilution': {'label': 'SBC/Rev', 'threshold': 'SBC/Rev <= 2%', 'fmt': 'pct1'},
+    'price_book': {'label': 'P/B', 'threshold': 'P/B <= 5x', 'fmt': 'ratio'},
+    'fcf_margin': {'label': 'FCF Margin', 'threshold': 'FCF Margin > 12%', 'fmt': 'pct1'},
+    'fcf_durability': {'label': '5Y FCF CAGR', 'threshold': '5Y FCF CAGR > 5%', 'fmt': 'pct1'},
+    'share_shrink': {'label': 'Share Shrink', 'threshold': '5Y Shares CAGR < 0', 'fmt': 'pct1'},
+    'piotroski': {'label': 'Piotroski', 'threshold': 'F-Score >= 7', 'fmt': 'int'},
+    'roic_trend': {'label': 'ROIC Trend', 'threshold': 'ROIC trend > 0.5pp', 'fmt': 'pct1'},
+    'epv_floor': {'label': 'EPV Floor', 'threshold': 'EPV/Price >= 1.0', 'fmt': 'ratio'},
+    'rim_mos': {'label': 'RIM MoS', 'threshold': 'RIM MoS > 10%', 'fmt': 'pct1'},
+}
+
+_CATEGORY_DISPLAY = {
+    'Valuation': {'dark': '#2F5496', 'light': '#D6E4F0', 'weight_key': 'score_weight_valuation'},
+    'Quality': {'dark': '#548235', 'light': '#E2EFDA', 'weight_key': 'score_weight_quality'},
+    'Moat': {'dark': '#C55A11', 'light': '#FCE4CC', 'weight_key': 'score_weight_moat'},
+    'Growth': {'dark': '#7030A0', 'light': '#E4CCEF', 'weight_key': 'score_weight_growth'},
+    'Ownership': {'dark': '#BF8F00', 'light': '#FFF2CC', 'weight_key': 'score_weight_ownership'},
+}
+
+
+def gate_metadata(params=None):
+    """Return Matrix/report metadata derived from the active gate definitions."""
+    p = params or {}
+    gate_categories = {gate_name: category for gate_name, _, category, *_ in SCORING_GATES}
+    gates = []
+    for gate_name, *_ in SCREENING_GATES:
+        short = _gate_short(gate_name)
+        display = _GATE_DISPLAY.get(short, {})
+        gates.append({
+            'key': _gate_key(gate_name),
+            'label': display.get('label', gate_name.split(': ')[1]),
+            'gpKey': _gp_key(gate_name),
+            'scoreKey': _score_key(gate_name),
+            'threshold': display.get('threshold', ''),
+            'category': gate_categories.get(gate_name, gate_name.split(': ')[0]),
+            'fmt': display.get('fmt', 'ratio'),
+        })
+
+    categories = []
+    for name in ('Valuation', 'Quality', 'Moat', 'Growth', 'Ownership'):
+        display = _CATEGORY_DISPLAY[name]
+        categories.append({
+            'name': name,
+            'weight': p.get(display['weight_key'], globals()[display['weight_key'].upper()]),
+            'dark': display['dark'],
+            'light': display['light'],
+            'scoreKey': '_score_' + name.lower(),
+        })
+    return {'gates': gates, 'categories': categories}
+
+
+def _rating_cap_for_row(row, params=None):
+    """Return (cap, reasons) for critical investability failures only."""
+    reasons = []
+    cap = None
+
+    def add(new_cap, reason):
+        nonlocal cap
+        if cap is None or RATING_RANK[new_cap] < RATING_RANK[cap]:
+            cap = new_cap
+        reasons.append(reason)
+
+    price_fv = row.get('_price_fv')
+    mos = row.get('mos')
+
+    if row.get('price') is None or row.get('dcf_fv') is None:
+        add('HOLD', 'missing price or fair value')
+    elif price_fv is not None:
+        if price_fv >= 1.20:
+            add('PASS', 'price/fair value >= 1.20')
+        elif price_fv >= 1.00:
+            add('HOLD', 'price/fair value >= 1.00')
+    elif mos is not None:
+        if mos <= -0.10:
+            add('PASS', 'margin of safety <= -10%')
+        elif mos <= 0:
+            add('HOLD', 'non-positive margin of safety')
+
+    if row.get('beneish_flag') is True:
+        add('HOLD', 'Beneish manipulation flag')
+    if row.get('altman_z_zone') == 'distress':
+        add('HOLD', 'Altman Z distress zone')
+    edgar_q = row.get('edgar_quality_score')
+    if edgar_q is not None and edgar_q < 40:
+        add('HOLD', 'low EDGAR data quality')
+    if row.get('_data_coverage_score') is not None and row['_data_coverage_score'] < 25:
+        add('HOLD', 'low scoring data coverage')
+
+    return cap, reasons
+
+
+def apply_rating_caps(results, params=None):
+    """Apply critical-only rating caps and expose raw/final rating diagnostics."""
+    for r in results:
+        raw = rating_from_composite(r.get('_composite_score'), params)
+        r['_rating_from_score'] = raw
+        r['rating_raw'] = raw
+        cap, reasons = _rating_cap_for_row(r, params=params)
+        r['_rating_cap'] = cap
+        r['_rating_cap_reasons'] = reasons
+        r['rating'] = _cap_rating(raw, cap) if cap and raw else raw
+
+
+def score_and_rate(results, params=None):
+    """Run the canonical scoring workflow used by live, replay, and rescore paths."""
+    apply_screening_matrix(results)
+    compute_continuous_scores(results, params=params)
+    apply_rating_caps(results, params=params)
+    return results

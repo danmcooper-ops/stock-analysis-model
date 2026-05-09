@@ -23,6 +23,9 @@ class TestDefaultParams:
             'erp', 'terminal_growth_rate', 'wacc_floor', 'wacc_cap',
             'score_weight_valuation', 'score_weight_quality',
             'score_weight_moat', 'score_weight_growth',
+            'score_weight_ownership',
+            'rating_threshold_buy', 'rating_threshold_lean',
+            'rating_threshold_pass',
             'blend_dcf_weight', 'blend_mult_weight', 'blend_trigger',
             'growth_weight_analyst_lt', 'growth_weight_fundamental',
             'analyst_haircut', 'margin_trend_sensitivity',
@@ -99,6 +102,28 @@ class TestValidateParams:
         p['score_weight_growth'] = 0.01  # Below 0.05 floor
         errors = validate_params(p)
         assert any('below minimum' in e for e in errors)
+
+    def test_ownership_weight_below_minimum(self):
+        p = default_params()
+        p['score_weight_ownership'] = 0.01
+        p['score_weight_valuation'] += 0.14
+        errors = validate_params(p)
+        assert any('score_weight_ownership' in e for e in errors)
+
+    def test_rating_thresholds_must_be_ordered(self):
+        p = default_params()
+        p['rating_threshold_buy'] = 40
+        p['rating_threshold_lean'] = 50
+        errors = validate_params(p)
+        assert any('Rating thresholds' in e for e in errors)
+
+    def test_accepts_rating_threshold_overrides(self):
+        p = merge_params({
+            'rating_threshold_buy': 70,
+            'rating_threshold_lean': 50,
+            'rating_threshold_pass': 25,
+        })
+        assert validate_params(p) == []
 
     def test_bad_blend_weight_sum(self):
         p = default_params()

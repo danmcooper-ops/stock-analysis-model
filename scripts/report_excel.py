@@ -10,6 +10,7 @@ def build_excel(rows, filename):
     from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
     from collections import defaultdict, OrderedDict
+    from scripts.scoring import gate_metadata
 
     wb = Workbook()
 
@@ -44,6 +45,23 @@ def build_excel(rows, filename):
         else:
             r['_dcf_bear'] = fv * 0.70 if fv is not None else None
             r['_dcf_bull'] = fv * 1.35 if fv is not None else None
+
+    gate_meta_obj = gate_metadata()
+    matrix_cols = [
+        ('Ticker', 'ticker', '@'),
+        ('Raw Rating', 'rating_raw', '@'),
+        ('Final Rating', 'rating', '@'),
+        ('Composite', '_composite_score', '0"%"'),
+        ('Gates Passed', '_gates_passed', '@'),
+        ('Sector', 'sector', '@'),
+    ]
+    for cat in gate_meta_obj['categories']:
+        gates = [g for g in gate_meta_obj['gates'] if g['category'] == cat['name']]
+        for g in gates:
+            fmt = '0.0%' if g['fmt'] == 'pct1' else '0' if g['fmt'] == 'int' else '0.00'
+            matrix_cols.append((g['label'], g['key'], fmt))
+            matrix_cols.append((f"{g['label']} Score", g['scoreKey'], '0"%"'))
+        matrix_cols.append((f"{cat['name']} Total", cat['scoreKey'], '0"%"'))
 
     # --- Column definitions per sheet (tab order: Analysis, Ownership, Company) ---
     sheets_config = OrderedDict([
@@ -169,61 +187,7 @@ def build_excel(rows, filename):
             ('Peers',       '_peers',        None),
             ('Description', '_description',  None),
         ]),
-        ('Matrix', [
-            # --- Fixed columns ---
-            ('Ticker',          'ticker',           '@'),
-            ('Raw Rating',      'rating_raw',       '@'),
-            ('Final Rating',    'rating',           '@'),
-            ('Composite',       '_composite_score', '0"%"'),
-            ('Gates Passed',    '_gates_passed',    '@'),
-            ('Sector',          'sector',           '@'),
-            # --- Valuation (15%) ---
-            ('MoS',             '_gate_mos',        '0.0%'),
-            ('MoS Score',       '_score_mos',       '0"%"'),
-            ('Price/FV',        '_gate_price_fv',   '0.00'),
-            ('P/FV Score',      '_score_price_fv',  '0"%"'),
-            ('EPV P/FV',        '_gate_epv_p_fv',   '0.00'),
-            ('EPV P/FV Score',  '_score_epv_p_fv',  '0"%"'),
-            ('Val Total',       '_score_valuation', '0"%"'),
-            # --- Quality (10%) ---
-            ('Piotroski',       '_gate_piotroski',  '0'),
-            ('Piotroski Score', '_score_piotroski', '0"%"'),
-            ('Int Cov',         '_gate_int_coverage', '0.00'),
-            ('Int Cov Score',   '_score_int_coverage', '0"%"'),
-            ('Accruals',        '_gate_accruals',   '0.0%'),
-            ('Accruals Score',  '_score_accruals',  '0"%"'),
-            ('Qual Total',      '_score_quality',   '0"%"'),
-            # --- Moat (35%) ---
-            ('ROIC CV',         '_gate_roic_consistency', '0.0%'),
-            ('ROIC CV Score',   '_score_roic_consistency', '0"%"'),
-            ('Spread > 5%',     '_gate_spread_>_5%', '0.0%'),
-            ('Spread Score',    '_score_spread',    '0"%"'),
-            ('Gross Margin',    '_gate_gross_margin', '0.0%'),
-            ('Gross Mgn Score', '_score_gross_margin', '0"%"'),
-            ('Moat Total',      '_score_moat',      '0"%"'),
-            # --- Growth (30%) ---
-            ('Fund Growth',     '_gate_fund_growth', '0.0%'),
-            ('FG Score',        '_score_fund_growth', '0"%"'),
-            ('Margins',         '_gate_margins',    '0.0%'),
-            ('Margins Score',   '_score_margins',   '0"%"'),
-            ('Surprise',        '_gate_surprise',   '0.0%'),
-            ('Surprise Score',  '_score_surprise',  '0"%"'),
-            ('Profit Pool',     '_gate_profit_pool', '0.00'),
-            ('PP Score',        '_score_profit_pool', '0"%"'),
-            ('Growth Total',    '_score_growth',    '0"%"'),
-            # --- Ownership (10%) ---
-            ('Shrhldr Yld',     '_gate_shrhldr_yield',  '0.0%'),
-            ('Shrhldr Score',   '_score_shrhldr_yield', '0"%"'),
-            ('Insider %',       '_gate_insider_own',    '0.0%'),
-            ('Ins Own Score',   '_score_insider_own',   '0"%"'),
-            ('Turnover',        '_gate_turnover',       '0.0%'),
-            ('Turn Score',      '_score_turnover',      '0"%"'),
-            ('Buyback',         '_gate_buyback_rate',   '0.0%'),
-            ('Buyback Score',   '_score_buyback_rate',  '0"%"'),
-            ('Ins Buying',      '_gate_insider_buying', '0%'),
-            ('Ins Buy Score',   '_score_insider_buying', '0"%"'),
-            ('Own Total',       '_score_ownership',     '0"%"'),
-        ]),
+        ('Matrix', matrix_cols),
     ])
 
     # --- Styles: white cells, gray headers ---
@@ -412,18 +376,14 @@ def build_excel(rows, filename):
                 _key_to_col = {key: ci for ci, (_, key, _) in enumerate(cols, 1)}
 
                 # Category groups: (label, first_key, last_key, dark_hex, light_hex)
-                _cat_groups = [
-                    ('VALUATION (15%)', '_gate_mos',           '_score_valuation',
-                     '2F5496', 'D6E4F0'),
-                    ('QUALITY (10%)',   '_gate_piotroski',     '_score_quality',
-                     '548235', 'E2EFDA'),
-                    ('MOAT (35%)',      '_gate_roic_consistency', '_score_moat',
-                     'C55A11', 'FCE4CC'),
-                    ('GROWTH (30%)',    '_gate_fund_growth',   '_score_growth',
-                     '7030A0', 'E4CCEF'),
-                    ('OWNERSHIP (10%)', '_gate_shrhldr_yield', '_score_ownership',
-                     'BF8F00', 'FFF2CC'),
-                ]
+                _cat_groups = []
+                for cat in gate_meta_obj['categories']:
+                    gates = [g for g in gate_meta_obj['gates'] if g['category'] == cat['name']]
+                    if not gates:
+                        continue
+                    label = f"{cat['name'].upper()} ({cat['weight']:.0%})"
+                    _cat_groups.append((label, gates[0]['key'], cat['scoreKey'],
+                                        cat['dark'].lstrip('#'), cat['light'].lstrip('#')))
                 _cat_font = Font(bold=True, color='FFFFFF', size=11)
                 _cat_align = Alignment(horizontal='center', vertical='center')
 
@@ -469,26 +429,8 @@ def build_excel(rows, filename):
                     cell.alignment = header_align
 
                 # Row 3 — threshold descriptions
-                gate_thresholds = {
-                    '_gate_mos':            'MoS > 0%',
-                    '_gate_price_fv':       'Price/FV < 1.2',
-                    '_gate_epv_p_fv':       'EPV P/FV < 1.2',
-                    '_gate_piotroski':      'F-Score ≥ 5',
-                    '_gate_int_coverage':   'IC > 3×',
-                    '_gate_accruals':       '|Accruals| < 8%',
-                    '_gate_roic_consistency': 'CV < 30%',
-                    '_gate_spread_>_5%':    'Spread > 5%',
-                    '_gate_gross_margin':   'GM > 25%',
-                    '_gate_fund_growth':    'FG > 3%',
-                    '_gate_margins':        'Margin ≥ 0',
-                    '_gate_surprise':       'Surprise > 0',
-                    '_gate_profit_pool':    'PP ≥ 1.0×',
-                    '_gate_shrhldr_yield':  'Yield > 0%',
-                    '_gate_insider_own':    'Insider ≥ 5%',
-                    '_gate_turnover':       'Turnover < 2%',
-                    '_gate_buyback_rate':   'Buyback > 0%',
-                    '_gate_insider_buying': 'Buy Ratio > 50%',
-                }
+                gate_thresholds = {g['key']: g.get('threshold', '')
+                                   for g in gate_meta_obj['gates']}
                 desc_font = Font(italic=True, color='666666', size=10)
                 for ci, (_, key, _) in enumerate(cols, 1):
                     desc = gate_thresholds.get(key, '')
@@ -766,4 +708,3 @@ def build_excel(rows, filename):
                 cell.font = link_font
 
     wb.save(filename)
-

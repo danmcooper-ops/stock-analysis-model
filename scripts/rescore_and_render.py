@@ -1,9 +1,8 @@
 """Re-score a saved snapshot JSON and regenerate the HTML report.
 
 Use this after editing scoring.py / report_html.py to refresh today's HTML
-without re-running the 3-6h analysis.  Loads the JSON, resets ratings from
-rating_raw (so prior-run downgrades don't compound), re-applies the scoring
-pipeline, and writes a new HTML next to the JSON.
+without re-running the 3-6h analysis. Loads the JSON, re-applies the canonical
+scoring pipeline, and writes a new HTML next to the JSON.
 
 Usage:
     python scripts/rescore_and_render.py output/results_YYYY-MM-DD.json
@@ -20,9 +19,7 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from scripts.scoring import (apply_screening_matrix,
-                             compute_continuous_scores,
-                             apply_composite_rating_override)
+from scripts.scoring import score_and_rate
 from scripts.report_html import build_html
 
 
@@ -38,21 +35,7 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
         results = snap
         snap_date = date.today().isoformat()
 
-    # Reset rating from rating_raw so a prior run's overrides don't compound.
-    # apply_screening_matrix unconditionally writes rating_raw = rating, so if
-    # rating was already downgraded from a previous (incorrect) scoring pass,
-    # rating_raw would have been clobbered with the downgrade. Pull it back.
-    for r in results:
-        if r.get('rating_raw'):
-            r['rating'] = r['rating_raw']
-
-    # Replicate the scoring sequence from analyze_stock.py:2249-2257
-    apply_screening_matrix(results)
-    for r in results:
-        p, fv = r.get('price'), r.get('dcf_fv')
-        r['_price_fv'] = p / fv if p and fv else None
-    compute_continuous_scores(results)
-    apply_composite_rating_override(results)
+    score_and_rate(results)
 
     # Write new HTML alongside the JSON.
     html_path = os.path.join(os.path.dirname(json_path) or '.',
