@@ -60,21 +60,12 @@ def replay_analysis(as_of_date, cache_dir='data/cache', output_dir='output',
         return None
 
     # Re-score with the given params
-    from scripts.scoring import (compute_continuous_scores,
-                                 apply_screening_matrix,
-                                 apply_composite_rating_override)
+    from scripts.scoring import score_and_rate
     import copy
 
     results = copy.deepcopy(results_data.get('results', []))
 
-    # Re-run screening matrix (pass/fail gates)
-    apply_screening_matrix(results)
-
-    # Re-score with (potentially different) category weights
-    compute_continuous_scores(results, params=params)
-
-    # Apply composite rating override
-    apply_composite_rating_override(results, params=params)
+    score_and_rate(results, params=params)
 
     # Build output
     output = {

@@ -178,8 +178,8 @@ class TestGridGeneration:
         params = _apply_derived_params(candidate)
         assert params is not None
         # growth = 1.0 - (val + qual + moat + ownership_default)
-        # = 1.0 - (0.30 + 0.25 + 0.25 + 0.10) = 0.10
-        assert params['score_weight_growth'] == pytest.approx(0.10)
+        # = 1.0 - (0.30 + 0.25 + 0.25 + 0.15) = 0.05
+        assert params['score_weight_growth'] == pytest.approx(0.05)
 
     def test_apply_derived_params_rejects_negative_growth(self):
         candidate = {

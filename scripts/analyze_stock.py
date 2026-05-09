@@ -81,9 +81,7 @@ from scripts.config import (DEFAULT_RISK_FREE_RATE, ERP, TERMINAL_GROWTH_RATE,
                             EV_EBITDA_OUTLIER_MAX, MIN_SECTOR_STOCKS,
                             DATA_QUALITY_MIN, MIN_MORNINGSTAR_SAMPLE,
                             _get_sector_config)
-from scripts.scoring import (_mc_confidence_label, apply_screening_matrix,
-                             compute_continuous_scores,
-                             apply_composite_rating_override,
+from scripts.scoring import (_mc_confidence_label, score_and_rate,
                              _print_validation_stats)
 
 
@@ -2062,7 +2060,7 @@ def _main():
                 'drawdown_2022':   round(_ticker_dd_2022, 4) if _ticker_dd_2022 is not None else None,
                 'rolling_betas':   _rolling_beta_diag if _rolling_beta_diag else None,
             }
-            # Rating set later by apply_composite_rating_override from composite score
+            # Rating set later by score_and_rate from composite score plus critical caps
             row['rating'] = None
             results.append(row)
         except Exception as e:
@@ -2172,7 +2170,7 @@ def _main():
         else:
             r['_ddm_low_confidence'] = False
 
-    # Rating is set downstream by apply_composite_rating_override from composite score
+    # Rating is set downstream by score_and_rate from composite score plus critical caps
 
     # -----------------------------------------------------------------------
     # Profit pool analysis (sector-level revenue/profit concentration)
@@ -2243,16 +2241,7 @@ def _main():
             r['pp_sector_cr4'] = None
             r['pp_sector_count'] = len(tickers_in_sector) if tickers_in_sector else 0
 
-    # Apply screening matrix (override ratings that fail critical gates)
-    apply_screening_matrix(results)
-
-    # Pre-compute _price_fv so continuous scoring can use it
-    for r in results:
-        p, fv = r.get('price'), r.get('dcf_fv')
-        r['_price_fv'] = p / fv if p and fv else None
-
-    compute_continuous_scores(results)
-    apply_composite_rating_override(results)
+    score_and_rate(results)
 
     # Position sizing and concentration analysis
     weights = position_sizes(results)
