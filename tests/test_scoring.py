@@ -9,6 +9,7 @@ from scripts.scoring import (
     _score_linear, compute_continuous_scores, apply_composite_rating_override,
     rating_from_composite, _mc_confidence_label, SCORING_GATES,
     SCREENING_GATES, gate_metadata, score_and_rate,
+    apply_screening_matrix,
 )
 
 
@@ -317,3 +318,86 @@ class TestCanonicalScoreAndRate:
         assert '_gate_roic_trend' in keys
         assert '_gate_epv_floor' in keys
         assert '_gate_rim_mos' in keys
+
+
+# ---------------------------------------------------------------------------
+# apply_screening_matrix — binary gate edge cases
+# ---------------------------------------------------------------------------
+
+class TestScreeningGateEdgeCases:
+    """Regression tests for binary gates that previously mishandled negatives."""
+
+    def _row(self, **kwargs):
+        defaults = {'ticker': 'EDGE', 'price': 100.0}
+        defaults.update(kwargs)
+        return defaults
+
+    def test_price_fv_gate_fails_when_dcf_fv_negative(self):
+        """Negative DCF fair value must not pass the Price/FV gate.
+
+        A distressed company with negative implied equity value previously
+        passed because price / -fv < 1.0 evaluated to True.
+        """
+        rows = [self._row(price=50.0, dcf_fv=-25.0)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_price_fv'] is None
+        assert rows[0]['_gate_price_fv'] is None
+
+    def test_price_fv_gate_fails_when_dcf_fv_zero(self):
+        """Zero fair value must short-circuit to N/A, not div-by-zero."""
+        rows = [self._row(price=50.0, dcf_fv=0.0)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_price_fv'] is None
+
+    def test_price_fv_gate_passes_when_undervalued(self):
+        rows = [self._row(price=50.0, dcf_fv=100.0)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_price_fv'] is True
+        assert rows[0]['_gate_price_fv'] == pytest.approx(0.5)
+
+    def test_price_fv_gate_fails_when_overvalued(self):
+        rows = [self._row(price=150.0, dcf_fv=100.0)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_price_fv'] is False
+        assert rows[0]['_gate_price_fv'] == pytest.approx(1.5)
+
+    def test_price_book_gate_fails_when_pb_negative(self):
+        """Negative book value (e.g. heavy buybacks) must not pass the P/B gate.
+
+        Previously v <= 5.0 returned True for any negative v.
+        """
+        rows = [self._row(pb=-1.5)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_price_book'] is False
+        assert rows[0]['_gate_price_book'] == pytest.approx(-1.5)
+
+    def test_price_book_gate_passes_when_pb_in_range(self):
+        rows = [self._row(pb=2.5)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_price_book'] is True
+
+    def test_price_book_gate_fails_when_pb_above_threshold(self):
+        rows = [self._row(pb=8.0)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_price_book'] is False
+
+    def test_negative_pb_does_not_clamp_continuous_score_to_100(self):
+        """Negative P/B previously hit _score_linear(-3, 15, 0.5) → clamp 100.
+
+        Now the score function rejects v <= 0 and returns None, which the
+        aggregator treats as a worst-case 0 (consistent with other missing
+        gates), so a negative-book company can no longer outscore a healthy one.
+        """
+        rows = [self._row(pb=-3.0), self._row(pb=2.0, ticker='OK')]
+        compute_continuous_scores(rows)
+        assert rows[0]['_score_price_book'] == 0.0
+        assert rows[1]['_score_price_book'] > rows[0]['_score_price_book']
+
+    def test_spread_gate_threshold_is_seven_percent(self):
+        """Pin the actual threshold so the display label/tooltip stay aligned."""
+        below = [self._row(spread=0.06)]
+        above = [self._row(spread=0.08)]
+        apply_screening_matrix(below)
+        apply_screening_matrix(above)
+        assert below[0]['_gp_spread_>_5%'] is False
+        assert above[0]['_gp_spread_>_5%'] is True
