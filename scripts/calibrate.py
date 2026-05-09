@@ -493,17 +493,14 @@ def _load_snapshots(results_dir, dates):
 def _evaluate_params_on_snapshots(snapshots, params, horizons):
     """Re-score snapshot results with *params* and compute backtest metrics.
 
-    This performs a lightweight re-scoring (updating composite scores and
-    ratings based on new category weights) rather than a full DCF re-run.
-    The fair values from the original snapshot are preserved; only the
-    scoring/rating layer changes.
+    This performs a lightweight canonical re-score rather than a full DCF
+    re-run. The fair values from the original snapshot are preserved; only
+    derived scoring fields, composite scores, rating caps, and ratings change.
 
     Returns:
         list[dict]: Backtest-compatible metric dicts, one per snapshot×horizon.
     """
-    from scripts.scoring import (compute_continuous_scores,
-                                 apply_composite_rating_override,
-                                 apply_screening_matrix)
+    from scripts.scoring import score_and_rate
     import copy
 
     metrics = []
@@ -511,9 +508,8 @@ def _evaluate_params_on_snapshots(snapshots, params, horizons):
         results = copy.deepcopy(snap.get('results', []))
         run_date = snap.get('date', '')
 
-        # Re-score with candidate params (only changes composite weights)
-        compute_continuous_scores(results, params=params)
-        apply_composite_rating_override(results, params=params)
+        # Re-score with candidate params through the canonical live workflow.
+        score_and_rate(results, params=params)
 
         # Build a lightweight metric dict compatible with objective functions
         for h in horizons:
@@ -568,7 +564,7 @@ def optimize_weights(results_json_path, output_path=None):
     Returns:
         dict with best weights, Cohen's d, and top-10 results.
     """
-    from scripts.scoring import compute_continuous_scores, apply_composite_rating_override
+    from scripts.scoring import score_and_rate
     import copy
 
     with open(results_json_path) as f:
@@ -597,8 +593,7 @@ def optimize_weights(results_json_path, output_path=None):
 
     # Compute baseline Cohen's d
     baseline_results = copy.deepcopy(all_results)
-    compute_continuous_scores(baseline_results)
-    apply_composite_rating_override(baseline_results)
+    score_and_rate(baseline_results)
     q_baseline = [r['_composite_score'] for r in baseline_results
                   if r.get('source_group') == 'quality' and r.get('_composite_score') is not None]
     p_baseline = [r['_composite_score'] for r in baseline_results
@@ -616,8 +611,7 @@ def optimize_weights(results_json_path, output_path=None):
             'score_weight_moat': wm,
             'score_weight_growth': wg,
         }
-        compute_continuous_scores(trial, params=params)
-        apply_composite_rating_override(trial, params=params)
+        score_and_rate(trial, params=params)
 
         q_scores = [r['_composite_score'] for r in trial
                     if r.get('source_group') == 'quality' and r.get('_composite_score') is not None]

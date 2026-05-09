@@ -106,6 +106,11 @@ def default_params():
         'score_weight_moat': SCORE_WEIGHT_MOAT,
         'score_weight_growth': SCORE_WEIGHT_GROWTH,
         'score_weight_ownership': SCORE_WEIGHT_OWNERSHIP,
+
+        # Composite-score rating thresholds
+        'rating_threshold_buy': 60,
+        'rating_threshold_lean': 43,
+        'rating_threshold_pass': 29,
     }
 
 
@@ -154,10 +159,24 @@ def validate_params(params):
 
     # Each scoring weight should be >= 0.05
     for key in ('score_weight_valuation', 'score_weight_quality',
-                'score_weight_moat', 'score_weight_growth'):
+                'score_weight_moat', 'score_weight_growth',
+                'score_weight_ownership'):
         v = params.get(key, 0)
         if v < 0.05:
             errors.append(f"{key} = {v:.3f} is below minimum 0.05")
+
+    # Rating thresholds
+    rb = params.get('rating_threshold_buy', 60)
+    rl = params.get('rating_threshold_lean', 43)
+    rp = params.get('rating_threshold_pass', 29)
+    for key, v in (('rating_threshold_buy', rb),
+                   ('rating_threshold_lean', rl),
+                   ('rating_threshold_pass', rp)):
+        if not (0 <= v <= 100):
+            errors.append(f"{key} = {v:.1f} outside valid range [0, 100]")
+    if not (rb > rl > rp):
+        errors.append(
+            "Rating thresholds must satisfy buy > lean > pass")
 
     # Blend weights
     bw = params.get('blend_dcf_weight', 0) + params.get('blend_mult_weight', 0)

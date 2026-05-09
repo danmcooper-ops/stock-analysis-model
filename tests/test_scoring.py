@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from scripts.scoring import (
     _score_linear, compute_continuous_scores, apply_composite_rating_override,
     rating_from_composite, _mc_confidence_label, SCORING_GATES,
+    SCREENING_GATES, gate_metadata, score_and_rate,
 )
 
 
@@ -169,6 +170,24 @@ class TestContinuousScoring:
         for r in rows:
             assert '_pctile' not in r
 
+    def test_tied_relative_values_receive_same_score(self):
+        """Identical sector-relative raw values should not score differently."""
+        rows = [
+            self._make_row(ticker='A', sector='Tech', accruals=0.02,
+                           gross_margin_avg_5y=0.50),
+            self._make_row(ticker='B', sector='Tech', accruals=0.02,
+                           gross_margin_avg_5y=0.50),
+            self._make_row(ticker='C', sector='Tech', accruals=0.10,
+                           gross_margin_avg_5y=0.30),
+            self._make_row(ticker='D', sector='Tech', accruals=-0.02,
+                           gross_margin_avg_5y=0.70),
+            self._make_row(ticker='E', sector='Tech', accruals=0.05,
+                           gross_margin_avg_5y=0.40),
+        ]
+        compute_continuous_scores(rows)
+        assert rows[0]['_score_accruals'] == rows[1]['_score_accruals']
+        assert rows[0]['_score_gross_margin'] == rows[1]['_score_gross_margin']
+
 
 # ---------------------------------------------------------------------------
 # rating_from_composite + apply_composite_rating_override
@@ -232,3 +251,69 @@ class TestApplyCompositeRatingOverride:
         rows = [{'rating': 'PASS', '_composite_score': 70}]
         apply_composite_rating_override(rows)
         assert rows[0]['rating'] == 'BUY'
+
+
+class TestCanonicalScoreAndRate:
+    def _row(self, **kwargs):
+        row = {
+            'ticker': 'CAP',
+            'price': 120.0,
+            'dcf_fv': 100.0,
+            'mos': -0.20,
+            'pfcf': 10,
+            'int_cov': 20,
+            'accruals': 0.01,
+            'shareholder_yield': 0.05,
+            'insider_pct': 0.10,
+            'share_buyback_rate': 0.03,
+            'roic_cv': 0.10,
+            'spread': 0.20,
+            'gross_margin_avg_5y': 0.70,
+            'fundamental_growth': 0.10,
+            'gross_margin_trend': 0.02,
+            'roe': 0.30,
+            'nd_ebitda': 0.0,
+            'cash_conv': 1.2,
+            'rev_cagr_10y': 0.08,
+            'sbc': 0.0,
+            'revenue': 100.0,
+            'fcf': 25.0,
+            'pb': 2.0,
+            'fcf_cagr_5y': 0.10,
+            'shares_cagr_5y': -0.02,
+            'piotroski': 9,
+            'roic_by_year': {2020: 0.10, 2024: 0.16},
+            'epv_fv': 120.0,
+            'rim_mos': 0.20,
+            'mc_cv': 0.10,
+            'rating': None,
+        }
+        row.update(kwargs)
+        return row
+
+    def test_preserves_score_rating_and_applies_critical_cap(self):
+        rows = [self._row()]
+        score_and_rate(rows)
+        assert rows[0]['_rating_from_score'] == 'BUY'
+        assert rows[0]['rating_raw'] == 'BUY'
+        assert rows[0]['_rating_cap'] == 'PASS'
+        assert rows[0]['rating'] == 'PASS'
+        assert any('price/fair value' in r for r in rows[0]['_rating_cap_reasons'])
+
+    def test_derives_fields_for_replay_style_rows(self):
+        rows = [self._row(price=80.0, dcf_fv=100.0, epv_fv=110.0,
+                          roic_by_year={2021: 0.08, 2023: 0.12})]
+        score_and_rate(rows)
+        assert rows[0]['_price_fv'] == pytest.approx(0.8)
+        assert rows[0]['fcf_margin'] == pytest.approx(0.25)
+        assert rows[0]['sbc_pct_rev'] == pytest.approx(0.0)
+        assert rows[0]['epv_floor_ratio'] == pytest.approx(1.375)
+        assert rows[0]['roic_trend_slope'] == pytest.approx(0.04)
+
+    def test_gate_metadata_matches_screening_gate_count(self):
+        meta = gate_metadata()
+        assert len(meta['gates']) == len(SCREENING_GATES)
+        keys = {g['key'] for g in meta['gates']}
+        assert '_gate_roic_trend' in keys
+        assert '_gate_epv_floor' in keys
+        assert '_gate_rim_mos' in keys
