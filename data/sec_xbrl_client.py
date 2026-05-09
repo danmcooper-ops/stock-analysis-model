@@ -510,12 +510,11 @@ class SECXBRLClient:
     def fetch_historical_financials(self, ticker, min_years=10):
         """Fetch long-duration revenue and earnings history from EDGAR XBRL.
 
-        Returns ~15+ years of quarterly + annual history. Income/cash-flow
-        series are quarterly where 10-Qs are available (with Q4 derived from
-        annual − Q1−Q2−Q3) and fall back to annual-only for years without
-        quarterly coverage. Shares outstanding is point-in-time at every
-        period end. Each series is keyed by period-end date string
-        ("YYYY-MM-DD").
+        Flow concepts (revenue, net income, OCF, capex, etc.) are returned
+        as one value per fiscal year keyed by integer year — sourced from
+        10-K / 20-F annual filings. Shares outstanding remains point-in-time
+        keyed by period-end date ("YYYY-MM-DD"), since balance-sheet items
+        carry useful intra-year detail.
 
         Args:
             ticker: Stock ticker symbol.
@@ -530,7 +529,8 @@ class SECXBRLClient:
             return None
 
         def _flow(concept, units_key='USD'):
-            return self._extract_periodic_values(
+            # One value per fiscal year, keyed by int year.
+            return self._extract_annual_values(
                 facts, self._XBRL_TAG_MAP[concept], units_key=units_key)
 
         def _stock(concept, units_key='USD'):
