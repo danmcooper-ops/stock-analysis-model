@@ -99,7 +99,8 @@ SCREENING_GATES = [
     ('Valuation: Price/FV',
      'price',
      lambda v, r: (v / r['dcf_fv']) < 1.0
-     if v and r.get('dcf_fv') else None),
+     if v is not None and r.get('dcf_fv') is not None and r['dcf_fv'] > 0
+     else None),
     ('Valuation: P/FCF',
      'pfcf',
      lambda v, r: 0 < v <= 20 if v is not None else None),
@@ -151,7 +152,7 @@ SCREENING_GATES = [
      lambda v, r: v <= 0.02 if v is not None else None),
     ('Valuation: Price/Book',
      'pb',
-     lambda v, r: v <= 5.0 if v is not None else None),
+     lambda v, r: 0 < v <= 5.0 if v is not None else None),
     ('Moat: FCF Margin',
      'fcf_margin',
      lambda v, r: v > 0.12 if v is not None else None),
@@ -369,7 +370,8 @@ SCORING_GATES = [
     ('Ownership: SBC Dilution', 'sbc_pct_rev', 'Ownership',
      lambda v, r, pct: _score_linear(v, 0.06, 0.0), False, True),     # tightened: worst 10%→6%
     ('Valuation: Price/Book', 'pb', 'Valuation',
-     lambda v, r, pct: _score_linear(v, 15.0, 0.5), False, True),
+     lambda v, r, pct: _score_linear(v, 15.0, 0.5) if v is not None and v > 0 else None,
+     False, True),
     ('Moat: FCF Margin', 'fcf_margin', 'Moat',
      lambda v, r, pct: _score_linear(v, 0.05, 0.25), False, True),    # tightened: worst 0%→5%, best 20%→25%
     ('Growth: FCF Durability', 'fcf_cagr_5y', 'Growth',
