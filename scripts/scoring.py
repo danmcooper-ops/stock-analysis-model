@@ -102,6 +102,19 @@ SCREENING_GATES = [
     ('Ownership: Share Shrink',
      'shares_cagr_5y',
      lambda v, r: v < 0 if v is not None else None),
+    # Migrated from compute_rating
+    ('Quality: Piotroski',
+     'piotroski',
+     lambda v, r: v >= 7 if v is not None else None),
+    ('Moat: ROIC Trend',
+     'roic_trend_slope',
+     lambda v, r: v > 0.005 if v is not None else None),
+    ('Valuation: EPV Floor',
+     'epv_floor_ratio',
+     lambda v, r: v >= 1.0 if v is not None else None),
+    ('Valuation: RIM MoS',
+     'rim_mos',
+     lambda v, r: v > 0.10 if v is not None else None),
 ]
 
 
@@ -120,6 +133,19 @@ def apply_screening_matrix(results):
         fcf = r.get('fcf')
         r['sbc_pct_rev'] = (sbc / rev) if (sbc is not None and rev and rev > 0) else None
         r['fcf_margin'] = (fcf / rev) if (fcf is not None and rev and rev > 0) else None
+
+        # ROIC trend slope (last-year minus first-year ROIC)
+        roic_by_year = r.get('roic_by_year')
+        if roic_by_year and len(roic_by_year) >= 2:
+            sorted_years = sorted(roic_by_year.keys())
+            r['roic_trend_slope'] = roic_by_year[sorted_years[-1]] - roic_by_year[sorted_years[0]]
+        else:
+            r['roic_trend_slope'] = None
+
+        # EPV floor ratio (epv_fv / price) — >=1 means trading below zero-growth value
+        epv = r.get('epv_fv')
+        price = r.get('price')
+        r['epv_floor_ratio'] = (epv / price) if (epv is not None and price and price > 0) else None
 
     # Fixed denominator: every ticker is graded against the full gate list.
     # Gates with missing data count as fail (no credit) rather than being
@@ -286,6 +312,15 @@ SCORING_GATES = [
      lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True),
     ('Ownership: Share Shrink', 'shares_cagr_5y', 'Ownership',
      lambda v, r, pct: _score_linear(v, 0.04, -0.04), False, True),
+    # Migrated from compute_rating
+    ('Quality: Piotroski', 'piotroski', 'Quality',
+     lambda v, r, pct: _score_linear(v, 0, 9), False, True),
+    ('Moat: ROIC Trend', 'roic_trend_slope', 'Moat',
+     lambda v, r, pct: _score_linear(v, -0.05, 0.05), False, True),
+    ('Valuation: EPV Floor', 'epv_floor_ratio', 'Valuation',
+     lambda v, r, pct: _score_linear(v, 0.5, 1.2), False, True),
+    ('Valuation: RIM MoS', 'rim_mos', 'Valuation',
+     lambda v, r, pct: _score_linear(v, -0.20, 0.20), False, True),
 ]
 
 
@@ -410,29 +445,39 @@ def compute_continuous_scores(results, params=None):
         r.pop('_pctile', None)
 
 
+def rating_from_composite(composite, params=None):
+    """Map a 0-100 composite score to a rating bucket.
+
+      BUY       composite >= 60
+      LEAN BUY  composite >= 43
+      HOLD      composite >= 29
+      PASS      composite <  29
+
+    Thresholds calibrated against the 2026-05-08 universe (n=1735) to
+    produce ~0.6% BUY / ~25% LEAN / ~49% HOLD / ~24% PASS.
+
+    Returns None when composite is None. Thresholds tunable via params.
+    """
+    if composite is None:
+        return None
+    p = params or {}
+    if composite >= p.get('rating_threshold_buy', 60):
+        return 'BUY'
+    if composite >= p.get('rating_threshold_lean', 43):
+        return 'LEAN BUY'
+    if composite >= p.get('rating_threshold_pass', 29):
+        return 'HOLD'
+    return 'PASS'
+
+
 def apply_composite_rating_override(results, params=None):
-    """Override ratings using the weighted composite score.
+    """Set rating on each row from its composite score.
 
-    Sole arbiter of rating overrides — only downgrades, never upgrades.
-    Thresholds are calibrated so that rating, composite, and gate pass ratio
-    move together directionally:
-
-      BUY        requires composite >= 60  (strong across weighted categories)
-      LEAN BUY   requires composite >= 40  (solid but not exceptional)
-      HOLD       composite < 40            (meaningful weakness somewhere)
-
-    Args:
-        results: List of stock result dicts.
-        params: Optional ParamSet dict (reserved for future threshold tuning).
+    Sole rating producer now that compute_rating is gone. Name preserved for
+    backward compatibility with existing callers (analyze_stock, calibrate,
+    rescore_and_render, replay).
     """
     for r in results:
-        cs = r.get('_composite_score')
-        if cs is None:
-            continue
-        rating = r['rating']
-        if rating == 'BUY' and cs < 40:
-            r['rating'] = 'HOLD'
-        elif rating == 'BUY' and cs < 60:
-            r['rating'] = 'LEAN BUY'
-        elif rating == 'LEAN BUY' and cs < 40:
-            r['rating'] = 'HOLD'
+        rating = rating_from_composite(r.get('_composite_score'), params)
+        if rating is not None:
+            r['rating'] = rating

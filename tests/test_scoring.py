@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from scripts.scoring import (
     _score_linear, compute_continuous_scores, apply_composite_rating_override,
-    _mc_confidence_label, SCORING_GATES,
+    rating_from_composite, _mc_confidence_label, SCORING_GATES,
 )
 
 
@@ -171,48 +171,64 @@ class TestContinuousScoring:
 
 
 # ---------------------------------------------------------------------------
-# apply_composite_rating_override
+# rating_from_composite + apply_composite_rating_override
 # ---------------------------------------------------------------------------
 
-class TestCompositeRatingOverride:
-    def test_buy_downgraded_on_low_score(self):
-        """BUY with low composite → downgraded to HOLD."""
-        rows = [{'rating': 'BUY', '_composite_score': 20}]
-        apply_composite_rating_override(rows)
-        assert rows[0]['rating'] == 'HOLD'
+class TestRatingFromComposite:
+    def test_buy_threshold(self):
+        assert rating_from_composite(60) == 'BUY'
+        assert rating_from_composite(75) == 'BUY'
 
-    def test_buy_to_lean_buy_on_medium_score(self):
-        """BUY with medium composite → LEAN BUY."""
-        rows = [{'rating': 'BUY', '_composite_score': 45}]
-        apply_composite_rating_override(rows)
-        assert rows[0]['rating'] == 'LEAN BUY'
+    def test_lean_buy_threshold(self):
+        assert rating_from_composite(43) == 'LEAN BUY'
+        assert rating_from_composite(59.9) == 'LEAN BUY'
 
-    def test_buy_stays_buy_on_high_score(self):
-        """BUY with high composite → stays BUY."""
-        rows = [{'rating': 'BUY', '_composite_score': 70}]
+    def test_hold_threshold(self):
+        assert rating_from_composite(29) == 'HOLD'
+        assert rating_from_composite(42.9) == 'HOLD'
+
+    def test_pass_threshold(self):
+        assert rating_from_composite(0) == 'PASS'
+        assert rating_from_composite(28.9) == 'PASS'
+
+    def test_none_composite(self):
+        assert rating_from_composite(None) is None
+
+    def test_custom_thresholds_via_params(self):
+        params = {'rating_threshold_buy': 70, 'rating_threshold_lean': 50,
+                  'rating_threshold_pass': 25}
+        assert rating_from_composite(65, params) == 'LEAN BUY'
+        assert rating_from_composite(70, params) == 'BUY'
+        assert rating_from_composite(20, params) == 'PASS'
+
+
+class TestApplyCompositeRatingOverride:
+    def test_buy_from_high_score(self):
+        rows = [{'rating': None, '_composite_score': 70}]
         apply_composite_rating_override(rows)
         assert rows[0]['rating'] == 'BUY'
 
-    def test_lean_buy_downgraded_on_very_low_score(self):
-        """LEAN BUY with very low composite → HOLD."""
-        rows = [{'rating': 'LEAN BUY', '_composite_score': 15}]
-        apply_composite_rating_override(rows)
-        assert rows[0]['rating'] == 'HOLD'
-
-    def test_lean_buy_stays_on_ok_score(self):
-        """LEAN BUY with decent composite → stays LEAN BUY."""
-        rows = [{'rating': 'LEAN BUY', '_composite_score': 40}]
+    def test_lean_buy_from_medium_score(self):
+        rows = [{'rating': None, '_composite_score': 50}]
         apply_composite_rating_override(rows)
         assert rows[0]['rating'] == 'LEAN BUY'
 
-    def test_hold_unchanged(self):
-        """HOLD should not be changed regardless of score."""
-        rows = [{'rating': 'HOLD', '_composite_score': 80}]
+    def test_hold_from_low_score(self):
+        rows = [{'rating': None, '_composite_score': 35}]
         apply_composite_rating_override(rows)
         assert rows[0]['rating'] == 'HOLD'
 
-    def test_none_composite_no_change(self):
-        """None composite → no override."""
-        rows = [{'rating': 'BUY', '_composite_score': None}]
+    def test_pass_from_very_low_score(self):
+        rows = [{'rating': None, '_composite_score': 20}]
+        apply_composite_rating_override(rows)
+        assert rows[0]['rating'] == 'PASS'
+
+    def test_none_composite_leaves_rating_unchanged(self):
+        rows = [{'rating': 'HOLD', '_composite_score': None}]
+        apply_composite_rating_override(rows)
+        assert rows[0]['rating'] == 'HOLD'
+
+    def test_overwrites_existing_rating(self):
+        rows = [{'rating': 'PASS', '_composite_score': 70}]
         apply_composite_rating_override(rows)
         assert rows[0]['rating'] == 'BUY'

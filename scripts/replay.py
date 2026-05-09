@@ -63,17 +63,9 @@ def replay_analysis(as_of_date, cache_dir='data/cache', output_dir='output',
     from scripts.scoring import (compute_continuous_scores,
                                  apply_screening_matrix,
                                  apply_composite_rating_override)
-    from models.market import compute_rating
     import copy
 
     results = copy.deepcopy(results_data.get('results', []))
-
-    # Re-run the rating assignment using original fair values
-    for r in results:
-        # Recompute base rating from MoS (original dcf_fv and price unchanged)
-        mos = r.get('mos')
-        if mos is not None:
-            r['rating'] = compute_rating(mos)
 
     # Re-run screening matrix (pass/fail gates)
     apply_screening_matrix(results)
