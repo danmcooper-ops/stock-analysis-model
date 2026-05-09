@@ -1384,10 +1384,10 @@ function renderMatrix(){
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_composite_score\')" data-col-tip="_composite_score" data-col-label="Composite Score">Comp.'+(mSC==='_composite_score'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_gates_passed\')" data-col-tip="_gates_passed" data-col-label="Gates Passed">Gates'+(mSC==='_gates_passed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'sector\')" data-col-tip="sector" data-col-label="Sector">Sector'+(mSC==='sector'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  GM.categories.forEach(function(cat){var n=cg2[cat.name].length*2+1;h1+='<th class="cat-header" colspan="'+n+'" style="background:'+cat.dark+'">'+cat.name+' ('+Math.round(cat.weight*100)+'%)</th>';});
+  GM.categories.forEach(function(cat){var n=cg2[cat.name].length+1;h1+='<th class="cat-header" colspan="'+n+'" style="background:'+cat.dark+'">'+cat.name+' ('+Math.round(cat.weight*100)+'%)</th>';});
   h1+='</tr>';
   var h2='<tr>';
-  GM.categories.forEach(function(cat){cg2[cat.name].forEach(function(g){var tipKey=g.key.replace(/^_gate_/,'');h2+='<th class="col-header sortable" style="background:'+cat.light+';color:#333;cursor:pointer" onclick="mSort(\''+g.key+'\')" data-col-tip="'+tipKey+'" data-col-label="'+g.label+'" data-col-threshold="'+(g.threshold||'')+'">'+g.label+(mSC===g.key?(mSA?' \u25B2':' \u25BC'):'')+'</th>';h2+='<th class="col-header sortable" style="background:'+cat.light+';color:#333;cursor:pointer" onclick="mSort(\''+g.scoreKey+'\')" data-col-tip="'+g.scoreKey+'" data-col-label="Score \u2014 '+g.label+'">Score'+(mSC===g.scoreKey?(mSA?' \u25B2':' \u25BC'):'')+'</th>';});h2+='<th class="col-header sortable" style="background:'+cat.dark+';color:white;cursor:pointer" onclick="mSort(\''+cat.scoreKey+'\')" data-col-tip="'+cat.scoreKey+'" data-col-label="'+cat.name+' Total">Total'+(mSC===cat.scoreKey?(mSA?' \u25B2':' \u25BC'):'')+'</th>';});
+  GM.categories.forEach(function(cat){cg2[cat.name].forEach(function(g){var tipKey=g.key.replace(/^_gate_/,'');h2+='<th class="col-header sortable" style="background:'+cat.light+';color:#333;cursor:pointer" onclick="mSort(\''+g.key+'\')" data-col-tip="'+tipKey+'" data-col-label="'+g.label+'" data-col-threshold="'+(g.threshold||'')+'">'+g.label+(mSC===g.key?(mSA?' \u25B2':' \u25BC'):'')+'</th>';});h2+='<th class="col-header sortable" style="background:'+cat.dark+';color:white;cursor:pointer" onclick="mSort(\''+cat.scoreKey+'\')" data-col-tip="'+cat.scoreKey+'" data-col-label="'+cat.name+' Total">Total'+(mSC===cat.scoreKey?(mSA?' \u25B2':' \u25BC'):'')+'</th>';});
   h2+='</tr>';
   th.innerHTML=h1+h2;
   var sd=FD.slice();
@@ -1408,9 +1408,8 @@ function renderMatrix(){
     html+='<td style="font-size:0.75em">'+(d.sector||'N/A')+'</td>';
     GM.categories.forEach(function(cat){
       cg2[cat.name].forEach(function(g){
-        var gv=d[g.key],gp2=d[g.gpKey],sv=d[g.scoreKey];
+        var gv=d[g.key],gp2=d[g.gpKey];
         html+='<td class="'+gc(gp2)+'">'+fg(gv,g.fmt)+'</td>';
-        html+='<td class="'+sc(sv)+'">'+(sv!=null?Math.round(sv)+'%':'N/A')+'</td>';
       });
       var tv=d[cat.scoreKey];
       html+='<td class="ct" style="color:'+cat.dark+'">'+(tv!=null?Math.round(tv)+'%':'N/A')+'</td>';
