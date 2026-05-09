@@ -14,7 +14,7 @@ from models.quality import (calculate_piotroski_f, calculate_altman_z,
                             calculate_earnings_quality, calculate_interest_coverage,
                             calculate_net_debt_ebitda, get_net_debt,
                             calculate_revenue_cagr, calculate_beneish_m)
-from models.market import compute_rating, compute_analyst_consensus
+from models.market import compute_analyst_consensus
 
 
 # ---------------------------------------------------------------------------
@@ -114,54 +114,6 @@ class TestAltmanZ:
     def test_none_with_missing(self):
         z = calculate_altman_z({})
         assert z is None
-
-
-# ---------------------------------------------------------------------------
-# compute_rating
-# ---------------------------------------------------------------------------
-
-class TestComputeRating:
-    def test_buy_rating(self):
-        """High-quality metrics should produce BUY."""
-        row = {
-            'mos': 0.25, 'spread': 0.25, 'piotroski': 8,
-            'cash_conv': 0.95, 'analyst_rec': 'buy',
-            'rev_cagr': 0.15, 'de': 0.5, 'int_cov': 10.0,
-            'roic_by_year': {'2024': 0.20, '2023': 0.18, '2022': 0.16},
-            'wacc': 0.09,
-        }
-        rating = compute_rating(row)
-        assert rating in ('BUY', 'LEAN BUY')
-
-    def test_pass_rating(self):
-        """Poor metrics should produce PASS."""
-        row = {
-            'mos': -0.20, 'spread': 0.01, 'piotroski': 2,
-            'cash_conv': 0.3, 'analyst_rec': 'sell',
-            'rev_cagr': -0.05, 'de': 3.0, 'int_cov': 0.5,
-            'roic_by_year': {'2024': 0.05, '2023': 0.08, '2022': 0.12},
-            'wacc': 0.10,
-        }
-        rating = compute_rating(row)
-        assert rating in ('PASS', 'HOLD')
-
-    def test_hold_rating(self):
-        """Middling metrics should produce HOLD or LEAN BUY."""
-        row = {
-            'mos': 0.05, 'spread': 0.08, 'piotroski': 5,
-            'cash_conv': 0.7, 'analyst_rec': 'hold',
-            'rev_cagr': 0.04, 'de': 1.2, 'int_cov': 3.0,
-            'roic_by_year': {'2024': 0.12, '2023': 0.11},
-            'wacc': 0.09,
-        }
-        rating = compute_rating(row)
-        assert rating in ('HOLD', 'LEAN BUY')
-
-    def test_valid_ratings_only(self):
-        """Rating must be one of the 4 valid values."""
-        row = {'mos': 0.0, 'spread': 0.0}
-        rating = compute_rating(row)
-        assert rating in ('BUY', 'LEAN BUY', 'HOLD', 'PASS')
 
 
 # ---------------------------------------------------------------------------

@@ -34,8 +34,7 @@ from models.quality import (calculate_earnings_quality, calculate_piotroski_f,
                             calculate_revenue_cagr, calculate_interest_coverage,
                             calculate_net_debt_ebitda, get_net_debt,
                             calculate_altman_z, calculate_beneish_m)
-from models.market import (compute_relative_multiples, compute_analyst_consensus,
-                           compute_rating)
+from models.market import compute_relative_multiples, compute_analyst_consensus
 from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm,
                          ddm_h_model, monte_carlo_ddm)
 from models.epv import earnings_power_value, epv_with_growth_premium
@@ -2063,8 +2062,8 @@ def _main():
                 'drawdown_2022':   round(_ticker_dd_2022, 4) if _ticker_dd_2022 is not None else None,
                 'rolling_betas':   _rolling_beta_diag if _rolling_beta_diag else None,
             }
-            # Composite rating (Worksheet Decision Matrix)
-            row['rating'] = compute_rating(row)
+            # Rating set later by apply_composite_rating_override from composite score
+            row['rating'] = None
             results.append(row)
         except Exception as e:
             print(f"  Error analyzing {ticker}: {e}")
@@ -2173,9 +2172,7 @@ def _main():
         else:
             r['_ddm_low_confidence'] = False
 
-    # Recompute ratings after blending
-    for r in results:
-        r['rating'] = compute_rating(r)
+    # Rating is set downstream by apply_composite_rating_override from composite score
 
     # -----------------------------------------------------------------------
     # Profit pool analysis (sector-level revenue/profit concentration)
