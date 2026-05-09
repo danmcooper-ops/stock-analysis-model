@@ -1170,7 +1170,13 @@ p_fcf:'Price / Free Cash Flow gate. Below 25\u00d7 (>4% yield) is reasonable for
 rev_cagr_5y:'Revenue CAGR over 5 years. Use alongside the 10-year figure: high 5Y but low 10Y CAGR may simply reflect a recovery from a trough, not genuine durable growth.',
 roic_trend:'ROIC trend slope — last-year minus first-year ROIC. Improving ROIC signals a strengthening moat; declining ROIC is the first warning that competitive advantage is eroding. Munger: “The most important thing is the durability of the competitive advantage.”',
 epv_floor:'Earnings Power Value / Price — today’s earnings capitalised at WACC, assuming zero growth. Above 1.0× means the market is selling the business below its no-growth value; future growth comes free. Below 0.5× means the floor is far below price, requiring rich growth assumptions to justify.',
-rim_mos:'Residual Income Model margin of safety: (RIM Fair Value − Price) / RIM Fair Value. When RIM and DCF agree, conviction in intrinsic value increases. Above 10% adds confirmation; below −20% raises overpayment concerns.'
+rim_mos:'Residual Income Model margin of safety: (RIM Fair Value − Price) / RIM Fair Value. When RIM and DCF agree, conviction in intrinsic value increases. Above 10% adds confirmation; below −20% raises overpayment concerns.',
+fcf_durability:'5-year Free Cash Flow CAGR gate. Persistent FCF growth confirms genuine cash-generating capacity, not just accounting earnings. Gate passes when 5Y FCF CAGR > 5% — sustained owner-earnings growth is Buffett’s preferred compounding signal.',
+share_shrink:'5-year shares-outstanding CAGR gate. Passes when share count is shrinking. Buffett: “When the stock is cheap and the company has the cash, repurchases benefit shareholders.” Share shrink combined with high ROIC compounds intrinsic value per share.',
+sbc_pct_rev:'Stock-based compensation as a percent of revenue. Buffett: “If options aren’t compensation, what are they?” Below 2% is restrained; above 10% means shareholders are quietly subsidising management pay through dilution.',
+rev_cagr_10y:'Revenue CAGR over 10 years. Persistent top-line growth through multiple cycles is the cleanest evidence of durable demand. A 10Y CAGR above 5% on stable margins is a hallmark compounder.',
+_flagged:'Your personal flag for stocks worth deeper attention. Click the ⚑ cell to toggle. Buffett keeps a “too hard” pile and a “definitely interesting” pile — this is the latter. Saved in browser local storage.',
+_reviewed:'Mark a stock as reviewed once you’ve completed your own due diligence. Click the ✓ cell to toggle. Tracks which businesses you’ve actually evaluated versus those still on the to-do list. Saved in browser local storage.'
 };
 function tt(k){return TT[k]||'';}
 
