@@ -3573,19 +3573,6 @@ function renderCrossSectorDashboard(){
     {colorFn:function(v){return v>=0.15?'#1a9850':v>=0.07?'#74c476':v>=0?'#fd8d3c':'#de2d26';},
      labelFn:function(v){return(v*100).toFixed(1)+'%';}}
   );
-  /* Median Analyst Upside by sector — (target_mean - price) / price */
-  var _lensUpside=_xsLensChart(
-    'Median Analyst Upside by Sector','(median (target – price) / price across covered names)',
-    Object.keys(_bySecU).map(function(s){
-      var vals=_bySecU[s].map(function(d){
-        if(d.target_mean==null||d.price==null||d.price<=0)return null;
-        return(d.target_mean-d.price)/d.price;
-      }).filter(function(v){return v!=null&&!isNaN(v);});
-      return{sector:s,value:_xsMed(vals),n:vals.length};
-    }).filter(function(it){return it.value!=null;}),
-    {colorFn:function(v){return v>=0.20?'#1a9850':v>=0.10?'#74c476':v>=0?'#fd8d3c':'#de2d26';},
-     labelFn:function(v){return(v*100).toFixed(1)+'%';}}
-  );
   /* % of sector near 52W low (range_52w_position < 0.20) */
   var _lensNearLow=_xsLensChart(
     '% Near 52W Low by Sector','(stocks within bottom 20% of 52‑week range — bombed‑out names cluster here)',
@@ -3609,7 +3596,6 @@ function renderCrossSectorDashboard(){
     +_lensEV
     +_lensSpread
     +_lensGrowth
-    +_lensUpside
     +_lensNearLow;
   /* === Combined Cross-Sector Summary (top of page) ===
      Folds the narrative-card analysis and the per-sector summary table
