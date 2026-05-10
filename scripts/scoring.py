@@ -92,7 +92,16 @@ def _ranked_percentiles(items, higher_better=True):
 
 # Gate definitions: (display_name, field_or_callable, pass_test)
 # pass_test is a callable: (value, row) -> bool | None (None = skip gate)
+#
+# Order matters — the Gate Matrix renders columns within each category in the
+# order they appear here. Grouping is intentional:
+#   Valuation:  DCF-derived → multiples → alternative models
+#   Quality:    leverage → earnings quality → returns → composite
+#   Moat:       ROIC family (spread, consistency, trend) → margin family
+#   Growth:     top-line → bottom-line → margin trend → composite
+#   Ownership:  share-count direction (yield, buyback, shrink) → dilution → alignment
 SCREENING_GATES = [
+    # ---- Valuation ----
     ('Valuation: MoS',
      'mos',
      lambda v, r: v > 0.10 if v is not None else None),
@@ -104,9 +113,23 @@ SCREENING_GATES = [
     ('Valuation: P/FCF',
      'pfcf',
      lambda v, r: 0 < v <= 20 if v is not None else None),
+    ('Valuation: Price/Book',
+     'pb',
+     lambda v, r: 0 < v <= 5.0 if v is not None else None),
+    ('Valuation: EPV Floor',
+     'epv_floor_ratio',
+     lambda v, r: v >= 1.0 if v is not None else None),
+    ('Valuation: RIM MoS',
+     'rim_mos',
+     lambda v, r: v > 0.10 if v is not None else None),
+
+    # ---- Quality ----
     ('Quality: Int Coverage',
      'int_cov',
      lambda v, r: v > 3.0 if v is not None else None),
+    ('Quality: Net Debt/EBITDA',
+     'nd_ebitda',
+     lambda v, r: v <= 1.5 if v is not None else None),
     ('Quality: Accruals',
      'accruals',
      # Accruals = (NI - CFO) / Assets. Sloan (1996): high *positive* accruals
@@ -114,71 +137,63 @@ SCREENING_GATES = [
      # aggressive recognition. Negative accruals (CFO > NI) indicate
      # conservative accounting and strong cash generation; do not penalize.
      lambda v, r: v < 0.08 if v is not None else None),
-    ('Ownership: Shrhldr Yield',
-     'shareholder_yield',
-     lambda v, r: v > 0.02 if v is not None else None),
-    ('Ownership: Insider Own',
-     'insider_pct',
-     lambda v, r: v >= 0.05 if v is not None else None),
-    ('Ownership: Buyback Rate',
-     'share_buyback_rate',
-     lambda v, r: v > 0.01 if v is not None else None),
-    ('Moat: ROIC Consistency',
-     'roic_cv',
-     lambda v, r: v < 0.30 if v is not None else None),
-    ('Moat: Spread > 5%',
-     'spread',
-     lambda v, r: v > 0.07 if v is not None else None),
-    ('Moat: Gross Margin',
-     'gross_margin_avg_5y',
-     lambda v, r: v > 0.35 if v is not None else None),
-    ('Growth: Fund Growth',
-     'fundamental_growth',
-     lambda v, r: v > 0.03 if v is not None else None),
-    ('Growth: Margins',
-     'gross_margin_trend',
-     lambda v, r: v >= 0 if v is not None else None),
-    ('Quality: ROE',
-     'roe',
-     lambda v, r: v > 0.20 if v is not None else None),
-    # Buffett additions — balance sheet conservatism + owner earnings quality
-    ('Quality: Net Debt/EBITDA',
-     'nd_ebitda',
-     lambda v, r: v <= 1.5 if v is not None else None),
     ('Quality: Cash Conv',
      'cash_conv',
      lambda v, r: v >= 0.85 if v is not None else None),
-    ('Growth: Rev Durability',
-     'rev_cagr_10y',
-     lambda v, r: v > 0.02 if v is not None else None),
-    ('Ownership: SBC Dilution',
-     'sbc_pct_rev',
-     lambda v, r: v <= 0.02 if v is not None else None),
-    ('Valuation: Price/Book',
-     'pb',
-     lambda v, r: 0 < v <= 5.0 if v is not None else None),
-    ('Moat: FCF Margin',
-     'fcf_margin',
-     lambda v, r: v > 0.12 if v is not None else None),
-    ('Growth: FCF Durability',
-     'fcf_cagr_5y',
-     lambda v, r: v > 0.05 if v is not None else None),
-    ('Ownership: Share Shrink',
-     'shares_cagr_5y',
-     lambda v, r: v < 0 if v is not None else None),
-    # Migrated from compute_rating
+    ('Quality: ROE',
+     'roe',
+     lambda v, r: v > 0.20 if v is not None else None),
     ('Quality: Piotroski',
      'piotroski',
      lambda v, r: v >= 7 if v is not None else None),
+
+    # ---- Moat ----
+    ('Moat: Spread > 5%',
+     'spread',
+     lambda v, r: v > 0.07 if v is not None else None),
+    ('Moat: ROIC Consistency',
+     'roic_cv',
+     lambda v, r: v < 0.30 if v is not None else None),
     ('Moat: ROIC Trend',
      'roic_trend_slope',
      lambda v, r: v > 0.005 if v is not None else None),
-    ('Valuation: EPV Floor',
-     'epv_floor_ratio',
-     lambda v, r: v >= 1.0 if v is not None else None),
-    ('Valuation: RIM MoS',
-     'rim_mos',
-     lambda v, r: v > 0.10 if v is not None else None),
+    ('Moat: Gross Margin',
+     'gross_margin_avg_5y',
+     lambda v, r: v > 0.35 if v is not None else None),
+    ('Moat: FCF Margin',
+     'fcf_margin',
+     lambda v, r: v > 0.12 if v is not None else None),
+
+    # ---- Growth ----
+    ('Growth: Rev Durability',
+     'rev_cagr_10y',
+     lambda v, r: v > 0.02 if v is not None else None),
+    ('Growth: FCF Durability',
+     'fcf_cagr_5y',
+     lambda v, r: v > 0.05 if v is not None else None),
+    ('Growth: Margins',
+     'gross_margin_trend',
+     lambda v, r: v >= 0 if v is not None else None),
+    ('Growth: Fund Growth',
+     'fundamental_growth',
+     lambda v, r: v > 0.03 if v is not None else None),
+
+    # ---- Ownership ----
+    ('Ownership: Shrhldr Yield',
+     'shareholder_yield',
+     lambda v, r: v > 0.02 if v is not None else None),
+    ('Ownership: Buyback Rate',
+     'share_buyback_rate',
+     lambda v, r: v > 0.01 if v is not None else None),
+    ('Ownership: Share Shrink',
+     'shares_cagr_5y',
+     lambda v, r: v < 0 if v is not None else None),
+    ('Ownership: SBC Dilution',
+     'sbc_pct_rev',
+     lambda v, r: v <= 0.02 if v is not None else None),
+    ('Ownership: Insider Own',
+     'insider_pct',
+     lambda v, r: v >= 0.05 if v is not None else None),
 ]
 
 
