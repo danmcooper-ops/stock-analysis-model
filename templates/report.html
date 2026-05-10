@@ -240,16 +240,32 @@ td.ct{font-weight:700;}
 .dt td.tk2:hover{color:var(--accent);}
 .dt tr:nth-child(even){background:#f8f9fa;}
 .dt tr:hover{background:#eaf4fd;}
-/* Sector heatmap table — fixed layout, even-ish column widths, headers
-   act as help tooltips and lose the dt sort cursor since the heatmap
-   isn't sortable. */
+/* Sector heatmap table — fixed layout, uniform metric column widths, click
+   header to sort. Only the Sector column is sticky-left so HHI/Cos stay
+   in normal flow (the dt base class freezes 3 cols, which is wrong for
+   the heatmap). Mobile-tuned padding/font for iPhone Safari. */
 .heatmap-table{table-layout:fixed;}
-.heatmap-table th{cursor:default;font-weight:600;text-align:right;}
+.heatmap-table th{cursor:pointer;font-weight:600;text-align:right;user-select:none;-webkit-user-select:none;touch-action:manipulation;}
 .heatmap-table th:first-child{text-align:left;}
 .heatmap-table td{padding:6px 8px;}
 .heatmap-table th{padding:7px 8px;}
+.heatmap-table .heat-arrow{display:inline-block;margin-left:3px;font-size:0.72em;color:#8aa6c8;min-width:8px;}
+.heatmap-table th:hover{background:#243140;}
+/* Override .dt freezing on cols 2-3 (correct for Financial Data table,
+   wrong for the heatmap which has only Sector as the identity column). */
+.heatmap-table thead th:nth-child(2),
+.heatmap-table thead th:nth-child(3){position:static;left:auto;z-index:auto;box-shadow:none;background:#1a252f;}
+.heatmap-table tbody td:nth-child(2),
+.heatmap-table tbody td:nth-child(3){position:static;left:auto;z-index:auto;box-shadow:none;background:transparent;}
+.heatmap-table tbody tr:nth-child(even) td:nth-child(2),
+.heatmap-table tbody tr:nth-child(even) td:nth-child(3){background:transparent;}
 [data-theme="dark"] .heatmap-table tbody td:nth-child(1){background:#1c2128 !important;}
 [data-theme="dark"] .heatmap-table tbody tr:nth-child(even) td:nth-child(1){background:#21262d !important;}
+[data-theme="dark"] .heatmap-table th:hover{background:#30363d;}
+@media(max-width:760px){
+  .heatmap-table td,.heatmap-table th{padding:5px 6px;font-size:0.74em;}
+  .heatmap-table .heat-arrow{font-size:0.65em;}
+}
 .detail-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(8,12,28,0.75);backdrop-filter:blur(4px);z-index:1000;overflow-y:auto;}
 .detail-modal.open{display:flex;justify-content:center;padding:24px 20px;}
 .detail-content{background:#f0f4ff;border-radius:18px;max-width:1080px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);position:relative;padding:0;max-height:calc(100vh - 48px);overflow-y:auto;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;}
@@ -3525,7 +3541,7 @@ function renderCrossSectorDashboard(){
     var t=(val-mn)/(mx-mn);
     if(asc)t=1-t;
     var hue=Math.round(t*120);
-    return'background:hsla('+hue+',62%,50%,0.22)';
+    return'background:hsla('+hue+',72%,45%,0.40)';
   }
   function _f(v,sfx,decs){return v==null||isNaN(v)?'&mdash;':(v*(sfx==='%'?100:1)).toFixed(decs)+sfx;}
   /* Pre-collect each column's value array for heatmap scaling. */
@@ -3542,8 +3558,14 @@ function renderCrossSectorDashboard(){
       _colShrYld=_sumStats.map(function(s){return s.medShrYld;}),
       _colPctBuy=_sumStats.map(function(s){return s.pctBuy;});
   function _attr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
-  var _heatRows='';
-  _sumStats.forEach(function(s){
+  /* Sortable heatmap state. Each sector is one row; clicking a header
+     toggles ascending/descending sort. Column color scaling is unchanged
+     by sort (it uses the column-min/max across the full set). */
+  window._heatStats=_sumStats;
+  window._heatColArr={wtdM:_colWtdM,hhi:_colHHI,cr4:_colCR4,medMos:_colMos,medPB:_colPB,medEV:_colEV,medSpread:_colSpread,medGrowth:_colGrowth,medROIC:_colROIC,medNDEB:_colNDEB,medShrYld:_colShrYld,pctBuy:_colPctBuy};
+  if(!window._heatSortState)window._heatSortState={key:'sector',asc:true};
+  /* Row builder reused on initial mount and on every sort click. */
+  function _buildHeatRow(s){
     var bEsc=s.best.ticker.replace(/'/g,"\\'");
     var bestRating=s.best.rating||'';
     var bestMult=(s.best.pp_multiple||0).toFixed(2)+'x';
@@ -3553,59 +3575,98 @@ function renderCrossSectorDashboard(){
       var bg=_heatBg(val,colVals,asc);
       return'<td style="'+bg+'">'+disp+'</td>';
     }
+    var C=window._heatColArr;
     var hhiDisp=s.hhi!=null?s.hhi.toFixed(3):'&mdash;';
     var cr4Disp=s.cr4!=null?(s.cr4*100).toFixed(0)+'%':'&mdash;';
     var pctBuyDisp=s.pctBuy!=null?(s.pctBuy*100).toFixed(0)+'%':'&mdash;';
     /* Column order: Identity → Concentration → Profitability/Quality → Leverage → Valuation → Action. */
-    _heatRows+='<tr>'
-      /* Identity */
+    return'<tr>'
       +'<td style="text-align:left;font-weight:600">'+s.sector+'</td>'
       +'<td>'+s.n+'</td>'
-      /* Concentration (red→green; higher HHI/CR4 = more pricing power for incumbents) */
-      +cell(s.hhi,hhiDisp,_colHHI,false)
-      +cell(s.cr4,cr4Disp,_colCR4,false)
-      /* Profitability + Quality */
-      +cell(s.wtdM,_f(s.wtdM,'%',1),_colWtdM,false)
-      +cell(s.medROIC,_f(s.medROIC,'%',1),_colROIC,false)
-      +cell(s.medSpread,_f(s.medSpread,'%',1),_colSpread,false)
-      +cell(s.medGrowth,_f(s.medGrowth,'%',1),_colGrowth,false)
-      /* Leverage */
-      +cell(s.medNDEB,s.medNDEB!=null?s.medNDEB.toFixed(2)+'x':'&mdash;',_colNDEB,true)
-      /* Valuation */
-      +cell(s.medMos,_f(s.medMos,'%',0),_colMos,false)
-      +cell(s.medPB,s.medPB!=null?s.medPB.toFixed(2)+'x':'&mdash;',_colPB,true)
-      +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',_colEV,true)
-      /* Action */
-      +cell(s.medShrYld,_f(s.medShrYld,'%',1),_colShrYld,false)
-      +cell(s.pctBuy,pctBuyDisp,_colPctBuy,false)
+      +cell(s.hhi,hhiDisp,C.hhi,false)
+      +cell(s.cr4,cr4Disp,C.cr4,false)
+      +cell(s.wtdM,_f(s.wtdM,'%',1),C.wtdM,false)
+      +cell(s.medROIC,_f(s.medROIC,'%',1),C.medROIC,false)
+      +cell(s.medSpread,_f(s.medSpread,'%',1),C.medSpread,false)
+      +cell(s.medGrowth,_f(s.medGrowth,'%',1),C.medGrowth,false)
+      +cell(s.medNDEB,s.medNDEB!=null?s.medNDEB.toFixed(2)+'x':'&mdash;',C.medNDEB,true)
+      +cell(s.medMos,_f(s.medMos,'%',0),C.medMos,false)
+      +cell(s.medPB,s.medPB!=null?s.medPB.toFixed(2)+'x':'&mdash;',C.medPB,true)
+      +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',C.medEV,true)
+      +cell(s.medShrYld,_f(s.medShrYld,'%',1),C.medShrYld,false)
+      +cell(s.pctBuy,pctBuyDisp,C.pctBuy,false)
       +'<td style="text-align:left">'+bestPill+' '+bestMult+'</td>'
     +'</tr>';
-  });
-  var _heatTableHtml=_heatRows
+  }
+  /* Sorted view honoring window._heatSortState. The "bestMult" key sorts
+     the Top Earner column by the underlying pp_multiple. */
+  function _heatSortedStats(){
+    var st=window._heatSortState||{key:'sector',asc:true};
+    return window._heatStats.slice().sort(function(a,b){
+      var va,vb;
+      if(st.key==='bestMult'){va=a.best&&a.best.pp_multiple;vb=b.best&&b.best.pp_multiple;}
+      else{va=a[st.key];vb=b[st.key];}
+      if(va==null&&vb==null)return 0;
+      if(va==null)return 1;
+      if(vb==null)return-1;
+      if(typeof va==='string')return st.asc?va.localeCompare(vb):vb.localeCompare(va);
+      return st.asc?va-vb:vb-va;
+    });
+  }
+  /* Re-render tbody + update arrow indicators in headers. Re-assigned each
+     time renderCrossSectorDashboard fires so the closure picks up fresh stats. */
+  window._heatRender=function(){
+    var tb=document.getElementById('heat-tbody');
+    if(!tb||!window._heatStats)return;
+    tb.innerHTML=window._heatStats.length?_heatSortedStats().map(_buildHeatRow).join(''):'';
+    var st=window._heatSortState;
+    document.querySelectorAll('.heatmap-table thead th[data-sort]').forEach(function(th){
+      var arrow=th.querySelector('.heat-arrow');
+      if(!arrow)return;
+      if(th.dataset.sort===st.key)arrow.textContent=st.asc?'▲':'▼';
+      else arrow.textContent='';
+    });
+  };
+  /* Click-to-sort handler. Toggles direction if same column, else starts a
+     new sort. Text columns ascend by default; numeric descend so the
+     best/biggest sits at the top after the first click. */
+  window._heatSort=function(key){
+    var st=window._heatSortState;
+    if(st.key===key)st.asc=!st.asc;
+    else{st.key=key;st.asc=(key==='sector');}
+    window._heatRender();
+  };
+  /* Header cell helper — every column carries data-sort + onclick, plus
+     a .heat-arrow span the render fills with ▲/▼ for the active column. */
+  function _th(key,label,width,title,leftAlign){
+    return'<th data-sort="'+key+'" onclick="_heatSort(\''+key+'\')" style="width:'+width+'px'+(leftAlign?';text-align:left':'')+'" title="'+_attr(title)+'">'+label+'<span class="heat-arrow"></span></th>';
+  }
+  var _heatTableHtml=_sumStats.length
     ?'<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
-      +'<div class="xsect-chart-title" style="margin-bottom:4px">Sector Heatmap <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(green = best, red = worst within column)</span></div>'
+      +'<div class="xsect-chart-title" style="margin-bottom:4px">Sector Heatmap <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(green = best, red = worst within column · click any header to sort)</span></div>'
       /* All metric columns share one width (82px) so the eye scans across
-         a uniform grid. Sector and Top Earner stay wider because they hold
-         multi-word text and a pill + multiple respectively. */
+         a uniform grid. Sector and Top Earner stay wider for their text. */
       +'<div class="table-wrap"><table class="dt heatmap-table"><thead><tr>'
-        +'<th style="width:150px;text-align:left" title="GICS sector. Pool stats below are computed across the companies in this sector.">Sector</th>'
-        +'<th style="width:82px" title="Number of companies in the sector pool.">Cos</th>'
-        +'<th style="width:82px" title="Herfindahl–Hirschman Index of revenue concentration. Above 0.25 = oligopoly, 0.15–0.25 = moderately concentrated, below 0.15 = competitive. Higher concentration = greener (more pricing power for incumbents).">HHI</th>'
-        +'<th style="width:82px" title="Top-4 companies’ share of sector revenue. Above 80% = highly concentrated, 50–80% = moderate, below 50% = competitive. Higher = greener (more pricing power for incumbents).">CR4</th>'
-        +'<th style="width:82px" title="Pool-weighted operating margin — sum(margin × revenue share) for the sector. Higher = better.">Wtd Margin</th>'
-        +'<th style="width:82px" title="Median return on invested capital across the sector. Higher = better.">Med ROIC</th>'
-        +'<th style="width:82px" title="Median ROIC minus WACC — value created above cost of capital. Higher = better.">Med ROIC–WACC</th>'
-        +'<th style="width:82px" title="Median 3-year revenue CAGR across the sector. Higher = better.">Med Rev CAGR</th>'
-        +'<th style="width:82px" title="Median Net Debt / EBITDA across the sector. Sector leverage proxy — lower = safer balance sheets.">Med ND/EBITDA</th>'
-        +'<th style="width:82px" title="Median Margin of Safety vs. DCF fair value across the sector. Higher = sector trades at a deeper discount to intrinsic value.">Med MoS%</th>'
-        +'<th style="width:82px" title="Median price-to-book multiple. Lower = cheaper on book value.">Med P/B</th>'
-        +'<th style="width:82px" title="Median enterprise value / EBITDA multiple. Lower = cheaper relative to operating earnings.">Med EV/EBITDA</th>'
-        +'<th style="width:82px" title="Median shareholder yield = buybacks + dividends as % of market cap. Higher = more capital returned to shareholders.">Med Shr Yld</th>'
-        +'<th style="width:82px" title="% of sector rated BUY or LEAN BUY by the screener. Higher = more concentrated opportunity in the sector.">% BUY</th>'
-        +'<th style="width:115px;text-align:left" title="Highest pool-multiple (profit share / revenue share) company in the sector. Click the ticker to open its detail page.">Top Earner</th>'
-      +'</tr></thead><tbody>'+_heatRows+'</tbody></table></div>'
+        +_th('sector','Sector',150,'GICS sector. Pool stats below are computed across the companies in this sector. Click to sort A–Z.',true)
+        +_th('n','Cos',82,'Number of companies in the sector pool. Click to sort.')
+        +_th('hhi','HHI',82,'Herfindahl–Hirschman Index of revenue concentration. Above 0.25 = oligopoly, 0.15–0.25 = moderately concentrated, below 0.15 = competitive. Higher concentration = greener (more pricing power for incumbents).')
+        +_th('cr4','CR4',82,'Top-4 companies’ share of sector revenue. Above 80% = highly concentrated, 50–80% = moderate, below 50% = competitive. Higher = greener (more pricing power for incumbents).')
+        +_th('wtdM','Wtd Margin',82,'Pool-weighted operating margin — sum(margin × revenue share) for the sector. Higher = better.')
+        +_th('medROIC','Med ROIC',82,'Median return on invested capital across the sector. Higher = better.')
+        +_th('medSpread','Med ROIC–WACC',82,'Median ROIC minus WACC — value created above cost of capital. Higher = better.')
+        +_th('medGrowth','Med Rev CAGR',82,'Median 3-year revenue CAGR across the sector. Higher = better.')
+        +_th('medNDEB','Med ND/EBITDA',82,'Median Net Debt / EBITDA across the sector. Sector leverage proxy — lower = safer balance sheets.')
+        +_th('medMos','Med MoS%',82,'Median Margin of Safety vs. DCF fair value across the sector. Higher = sector trades at a deeper discount to intrinsic value.')
+        +_th('medPB','Med P/B',82,'Median price-to-book multiple. Lower = cheaper on book value.')
+        +_th('medEV','Med EV/EBITDA',82,'Median enterprise value / EBITDA multiple. Lower = cheaper relative to operating earnings.')
+        +_th('medShrYld','Med Shr Yld',82,'Median shareholder yield = buybacks + dividends as % of market cap. Higher = more capital returned to shareholders.')
+        +_th('pctBuy','% BUY',82,'% of sector rated BUY or LEAN BUY by the screener. Higher = more concentrated opportunity in the sector.')
+        +_th('bestMult','Top Earner',115,'Highest pool-multiple (profit share / revenue share) company in the sector. Sorted by the pool multiple. Click the ticker to open its detail page.',true)
+      +'</tr></thead><tbody id="heat-tbody"></tbody></table></div>'
     +'</div>'
     :'';
+  /* Mount: fill tbody after the dashboard return string is injected. */
+  setTimeout(function(){if(window._heatRender)window._heatRender();},0);
   /* Cross-sector narrative — leads the page so the human-readable summary is
      the first thing seen. Each card stays expandable for the longer detail. */
   var _narHtml='<div style="margin-bottom:18px">'
