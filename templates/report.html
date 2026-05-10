@@ -240,6 +240,16 @@ td.ct{font-weight:700;}
 .dt td.tk2:hover{color:var(--accent);}
 .dt tr:nth-child(even){background:#f8f9fa;}
 .dt tr:hover{background:#eaf4fd;}
+/* Sector heatmap table — fixed layout, even-ish column widths, headers
+   act as help tooltips and lose the dt sort cursor since the heatmap
+   isn't sortable. */
+.heatmap-table{table-layout:fixed;}
+.heatmap-table th{cursor:help;font-weight:600;text-align:right;}
+.heatmap-table th:first-child{text-align:left;}
+.heatmap-table td{padding:6px 8px;}
+.heatmap-table th{padding:7px 8px;}
+[data-theme="dark"] .heatmap-table tbody td:nth-child(1){background:#1c2128 !important;}
+[data-theme="dark"] .heatmap-table tbody tr:nth-child(even) td:nth-child(1){background:#21262d !important;}
 .detail-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(8,12,28,0.75);backdrop-filter:blur(4px);z-index:1000;overflow-y:auto;}
 .detail-modal.open{display:flex;justify-content:center;padding:24px 20px;}
 .detail-content{background:#f0f4ff;border-radius:18px;max-width:1080px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);position:relative;padding:0;max-height:calc(100vh - 48px);overflow-y:auto;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;}
@@ -3529,85 +3539,80 @@ function renderCrossSectorDashboard(){
       _colNDEB=_sumStats.map(function(s){return s.medNDEB;}),
       _colShrYld=_sumStats.map(function(s){return s.medShrYld;}),
       _colPctBuy=_sumStats.map(function(s){return s.pctBuy;});
-  /* Cell tooltip: sector · metric: value · rank within column · n companies.
-     Rank 1 = best; "best" follows asc (true = lower-is-better). */
-  function _heatTip(sector,metric,val,disp,colVals,asc,nCos){
-    var bits=[sector,metric+': '+disp];
-    if(val!=null&&!isNaN(val)){
-      var clean=colVals.filter(function(v){return v!=null&&!isNaN(v);});
-      if(clean.length>1){
-        var sorted=clean.slice().sort(function(a,b){return asc?(a-b):(b-a);});
-        var rank=sorted.indexOf(val)+1;
-        bits.push('rank '+rank+' of '+clean.length);
-      }
-    }
-    if(nCos!=null)bits.push(nCos+' companies');
-    return bits.join(' · ');
-  }
   function _attr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
+  /* HHI/CR4 are descriptive (not directionally good/bad), but leaving them
+     unshaded next to colored cells creates jarring "dead zones" in the row.
+     Tint them by qualitative tier using a soft neutral palette so the row
+     reads as a continuous band. */
+  function _hhiTierBg(v){
+    if(v==null||isNaN(v))return'';
+    if(v>0.25)return'background:hsla(280,60%,80%,0.32)';/* Oligopoly — lavender */
+    if(v>0.15)return'background:hsla(35,75%,82%,0.40)';/* Moderate — amber */
+    return'background:hsla(195,60%,86%,0.40)';/* Competitive — soft blue */
+  }
+  function _cr4TierBg(v){
+    if(v==null||isNaN(v))return'';
+    if(v>0.80)return'background:hsla(280,60%,80%,0.32)';
+    if(v>0.50)return'background:hsla(35,75%,82%,0.40)';
+    return'background:hsla(195,60%,86%,0.40)';
+  }
   var _heatRows='';
   _sumStats.forEach(function(s){
     var bEsc=s.best.ticker.replace(/'/g,"\\'");
     var bestRating=s.best.rating||'';
     var bestMult=(s.best.pp_multiple||0).toFixed(2)+'x';
-    var bestTip=_attr(s.sector+' · top pool earner: '+s.best.ticker+' ('+bestRating+', pool multiple '+bestMult+') — click to open detail');
+    var bestTip=_attr(s.best.ticker+' ('+bestRating+', pool multiple '+bestMult+') — click to open detail');
     var bestPill='<span class="rb" style="background:'+(RC[s.best.rating]||'#aaa')+';cursor:pointer" onclick="event.stopPropagation();openDet(\''+bEsc+'\')" title="'+bestTip+'">'+s.best.ticker+'</span>';
-    function cell(val,disp,colVals,asc,metric){
+    function cell(val,disp,colVals,asc){
       var bg=_heatBg(val,colVals,asc);
-      var tip=_attr(_heatTip(s.sector,metric,val,disp,colVals,asc));
-      return'<td style="'+bg+'" title="'+tip+'">'+disp+'</td>';
+      return'<td style="'+bg+'">'+disp+'</td>';
     }
-    function plainCell(disp,sector,metric,extra){
-      var tip=_attr(sector+' · '+metric+': '+disp+(extra?' · '+extra:''));
-      return'<td title="'+tip+'">'+disp+'</td>';
-    }
-    var hhiLbl=s.hhi==null?'':(s.hhi>0.25?'Oligopoly':s.hhi>0.15?'Moderately concentrated':'Competitive');
     var hhiDisp=s.hhi!=null?s.hhi.toFixed(3):'&mdash;';
     var cr4Disp=s.cr4!=null?(s.cr4*100).toFixed(0)+'%':'&mdash;';
     var pctBuyDisp=s.pctBuy!=null?(s.pctBuy*100).toFixed(0)+'%':'&mdash;';
     /* Column order: Identity → Profitability → Quality → Structure → Valuation → Action. */
     _heatRows+='<tr>'
       /* Identity */
-      +'<td style="text-align:left;font-weight:600" title="'+_attr(s.sector+' · '+s.n+' companies')+'">'+s.sector+'</td>'
-      +plainCell(s.n+'',s.sector,'Companies in pool')
+      +'<td style="text-align:left;font-weight:600">'+s.sector+'</td>'
+      +'<td>'+s.n+'</td>'
       /* Profitability + Quality */
-      +cell(s.wtdM,_f(s.wtdM,'%',1),_colWtdM,false,'Pool-weighted operating margin')
-      +cell(s.medROIC,_f(s.medROIC,'%',1),_colROIC,false,'Median return on invested capital')
-      +cell(s.medSpread,_f(s.medSpread,'%',1),_colSpread,false,'Median ROIC – WACC spread')
-      +cell(s.medGrowth,_f(s.medGrowth,'%',1),_colGrowth,false,'Median 3-year revenue CAGR')
-      /* Structure (HHI/CR4 descriptive uncolored; ND/EBITDA shows sector leverage, lower=safer) */
-      +plainCell(hhiDisp,s.sector,'HHI (Herfindahl)',hhiLbl)
-      +plainCell(cr4Disp,s.sector,'CR4 (Top-4 revenue share)')
-      +cell(s.medNDEB,s.medNDEB!=null?s.medNDEB.toFixed(2)+'x':'&mdash;',_colNDEB,true,'Median Net Debt / EBITDA (lower = less leverage)')
+      +cell(s.wtdM,_f(s.wtdM,'%',1),_colWtdM,false)
+      +cell(s.medROIC,_f(s.medROIC,'%',1),_colROIC,false)
+      +cell(s.medSpread,_f(s.medSpread,'%',1),_colSpread,false)
+      +cell(s.medGrowth,_f(s.medGrowth,'%',1),_colGrowth,false)
+      /* Structure: HHI / CR4 tinted by qualitative tier; ND/EBITDA color-graded */
+      +'<td style="'+_hhiTierBg(s.hhi)+'">'+hhiDisp+'</td>'
+      +'<td style="'+_cr4TierBg(s.cr4)+'">'+cr4Disp+'</td>'
+      +cell(s.medNDEB,s.medNDEB!=null?s.medNDEB.toFixed(2)+'x':'&mdash;',_colNDEB,true)
       /* Valuation */
-      +cell(s.medMos,_f(s.medMos,'%',0),_colMos,false,'Median Margin of Safety vs. DCF FV')
-      +cell(s.medPB,s.medPB!=null?s.medPB.toFixed(2)+'x':'&mdash;',_colPB,true,'Median P/B multiple')
-      +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',_colEV,true,'Median EV/EBITDA multiple')
-      /* Action (Shareholder Yield surfaces capital-return character per sector) */
-      +cell(s.medShrYld,_f(s.medShrYld,'%',1),_colShrYld,false,'Median shareholder yield (buybacks + dividends)')
-      +cell(s.pctBuy,pctBuyDisp,_colPctBuy,false,'% of sector rated BUY or LEAN BUY ('+s.nBuy+' of '+s.n+')')
+      +cell(s.medMos,_f(s.medMos,'%',0),_colMos,false)
+      +cell(s.medPB,s.medPB!=null?s.medPB.toFixed(2)+'x':'&mdash;',_colPB,true)
+      +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',_colEV,true)
+      /* Action */
+      +cell(s.medShrYld,_f(s.medShrYld,'%',1),_colShrYld,false)
+      +cell(s.pctBuy,pctBuyDisp,_colPctBuy,false)
       +'<td style="text-align:left">'+bestPill+' '+bestMult+'</td>'
     +'</tr>';
   });
   var _heatTableHtml=_heatRows
     ?'<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
       +'<div class="xsect-chart-title" style="margin-bottom:4px">Sector Heatmap <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(green = best, red = worst within column)</span></div>'
-      +'<div class="table-wrap"><table class="dt"><thead><tr>'
-        +'<th style="text-align:left">Sector</th>'
-        +'<th>Cos</th>'
-        +'<th title="Pool-weighted operating margin (higher = better)">Wtd Margin</th>'
-        +'<th title="Median return on invested capital (higher = better)">Med ROIC</th>'
-        +'<th title="Median ROIC – WACC spread (higher = better)">Med ROIC–WACC</th>'
-        +'<th title="Median 3-year revenue CAGR (higher = better)">Med Rev CAGR</th>'
-        +'<th title="Herfindahl-Hirschman Index (descriptive, not colored)">HHI</th>'
-        +'<th title="Top-4 share of revenue (descriptive, not colored)">CR4</th>'
-        +'<th title="Median Net Debt / EBITDA — sector leverage (lower = safer)">Med ND/EBITDA</th>'
-        +'<th title="Median Margin of Safety vs. DCF FV (higher = cheaper)">Med MoS%</th>'
-        +'<th title="Median P/B multiple (lower = cheaper)">Med P/B</th>'
-        +'<th title="Median EV/EBITDA multiple (lower = cheaper)">Med EV/EBITDA</th>'
-        +'<th title="Median shareholder yield = buybacks + dividends (higher = more capital returned)">Med Shr Yld</th>'
-        +'<th title="% of sector rated BUY or LEAN BUY (higher = more concentrated opportunity)">% BUY</th>'
-        +'<th style="text-align:left">Top Earner</th>'
+      +'<div class="table-wrap"><table class="dt heatmap-table"><thead><tr>'
+        +'<th style="width:150px;text-align:left" title="GICS sector. Pool stats below are computed across the companies in this sector.">Sector</th>'
+        +'<th style="width:52px" title="Number of companies in the sector pool.">Cos</th>'
+        +'<th style="width:80px" title="Pool-weighted operating margin — sum(margin × revenue share) for the sector. Higher = better.">Wtd Margin</th>'
+        +'<th style="width:80px" title="Median return on invested capital across the sector. Higher = better.">Med ROIC</th>'
+        +'<th style="width:88px" title="Median ROIC minus WACC — value created above cost of capital. Higher = better.">Med ROIC–WACC</th>'
+        +'<th style="width:88px" title="Median 3-year revenue CAGR across the sector. Higher = better.">Med Rev CAGR</th>'
+        +'<th style="width:64px" title="Herfindahl–Hirschman Index of revenue concentration (sum of squared market shares). Above 0.25 = oligopoly; 0.15–0.25 = moderately concentrated; below 0.15 = competitive. Descriptive — not directionally colored.">HHI</th>'
+        +'<th style="width:54px" title="Top-4 companies’ share of sector revenue. Above 80% = highly concentrated; 50–80% = moderate; below 50% = competitive. Descriptive — not directionally colored.">CR4</th>'
+        +'<th style="width:96px" title="Median Net Debt / EBITDA across the sector. Sector leverage proxy — lower = safer balance sheets.">Med ND/EBITDA</th>'
+        +'<th style="width:78px" title="Median Margin of Safety vs. DCF fair value across the sector. Higher = sector trades at a deeper discount to intrinsic value.">Med MoS%</th>'
+        +'<th style="width:70px" title="Median price-to-book multiple. Lower = cheaper on book value.">Med P/B</th>'
+        +'<th style="width:96px" title="Median enterprise value / EBITDA multiple. Lower = cheaper relative to operating earnings.">Med EV/EBITDA</th>'
+        +'<th style="width:84px" title="Median shareholder yield = buybacks + dividends as % of market cap. Higher = more capital returned to shareholders.">Med Shr Yld</th>'
+        +'<th style="width:60px" title="% of sector rated BUY or LEAN BUY by the screener. Higher = more concentrated opportunity in the sector.">% BUY</th>'
+        +'<th style="width:115px;text-align:left" title="Highest pool-multiple (profit share / revenue share) company in the sector. Click the ticker to open its detail page.">Top Earner</th>'
       +'</tr></thead><tbody>'+_heatRows+'</tbody></table></div>'
     +'</div>'
     :'';
