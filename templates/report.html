@@ -3690,10 +3690,10 @@ function renderCrossSectorDashboard(){
   return'<div class="xsect-dashboard">'
     +_heatTableHtml
     +'<div style="height:18px"></div>'
-    +_narHtml
     +'<div style="margin-bottom:14px">'
       +'<div class="xsect-chart-title">Margin vs. Concentration</div><div id="xsect-scatter-wrap"></div>'
     +'</div>'
+    +_narHtml
     +'</div></div>';
 }
 function _buildScatterSVG(W,H){
@@ -3872,8 +3872,14 @@ function ppQuadTip(e,key){
   if(_isTouchDevice)return;
   var def=_ppQD[key];if(!def)return;
   var tt=document.getElementById('pp-quad-tip');
-  tt.style.background=def.bg;tt.style.borderColor=def.bc;
-  tt.innerHTML='<div style="font-weight:700;color:'+def.col+';font-size:0.84em;margin-bottom:6px">'+def.title+'</div><div style="color:#455a64;font-size:0.78em;line-height:1.58">'+def.text+'</div>';
+  var dark=document.documentElement.getAttribute('data-theme')==='dark';
+  /* In light mode keep the pastel quadrant background; in dark mode use the
+     theme's dark surface so text doesn't disappear into a too-bright tooltip. */
+  tt.style.background=dark?'#161b22':def.bg;
+  tt.style.borderColor=def.bc;
+  var titleColor=dark?def.bc:def.col;
+  var textColor=dark?'#c9d1d9':'#455a64';
+  tt.innerHTML='<div style="font-weight:700;color:'+titleColor+';font-size:0.84em;margin-bottom:6px">'+def.title+'</div><div style="color:'+textColor+';font-size:0.78em;line-height:1.58">'+def.text+'</div>';
   var tx=e.clientX+18,ty=e.clientY-24;
   if(tx+310>window.innerWidth)tx=e.clientX-326;
   if(ty+120>window.innerHeight)ty=e.clientY-130;
