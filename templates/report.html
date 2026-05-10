@@ -3564,12 +3564,11 @@ function renderCrossSectorDashboard(){
       +'</tr></thead><tbody>'+_heatRows+'</tbody></table></div>'
     +'</div>'
     :'';
-  /* Cross-sector narrative — kept available behind a collapsed toggle so the
-     heatmap and scatter stay above the fold. */
-  var _narHtml='<details style="margin-top:16px"><summary style="cursor:pointer;font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;padding:9px 13px;background:#f8fafd;border-radius:8px;list-style:none;display:flex;align-items:center;gap:8px">'
-    +'<span style="display:inline-block;width:10px;text-align:center">▸</span>Cross-Sector Analysis Notes <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;font-size:0.85em">('+narItems.length+' cards)</span>'
-    +'</summary>'
-    +'<div class="xsect-narrative" style="margin-top:8px;margin-bottom:0">'
+  /* Cross-sector narrative — leads the page so the human-readable summary is
+     the first thing seen. Each card stays expandable for the longer detail. */
+  var _narHtml='<div style="margin-bottom:18px">'
+    +'<div class="xsect-chart-title" style="margin-bottom:8px">Cross-Sector Summary</div>'
+    +'<div class="xsect-narrative" style="margin-top:0;margin-bottom:0">'
       +'<div class="xs-narcards">'+narItems.map(function(it){return'<div class="xs-narcard">'
           +'<div class="xs-narcard-hdr" onclick="xsToggle(this)">'
             +'<div class="xs-narcard-title-row">'
@@ -3581,15 +3580,16 @@ function renderCrossSectorDashboard(){
           +'</div>'
           +'<div class="xs-narcard-detail">'+it.detail+'</div>'
         +'</div>';}).join('')+'</div>'
-    +'</div></details>';
+    +'</div>'
+  +'</div>';
   /* Aggregate Performance chart lives on its own "Performance" tab
      (right of Overview); not rendered here. */
   return'<div class="xsect-dashboard">'
+    +_narHtml
     +'<div style="margin-bottom:14px">'
       +'<div class="xsect-chart-title">Margin vs. Concentration</div><div id="xsect-scatter-wrap"></div>'
     +'</div>'
     +_heatTableHtml
-    +_narHtml
     +'</div></div>';
 }
 function _buildScatterSVG(W,H){
