@@ -1526,6 +1526,7 @@ def _main():
             company_name = info.get('shortName') or info.get('longName') or ''
             sector = info.get('sector') or ''
             industry = info.get('industry') or ''
+            country = info.get('country') or ''
             # Tiingo is primary news source; fall back to yfinance/Google RSS
             if tiingo_client.available:
                 tiingo_news = tiingo_client.fetch_ticker_news(ticker, max_age_days=30, max_items=12)
@@ -1883,6 +1884,7 @@ def _main():
                 'company_name': company_name,
                 'sector': sector,
                 'industry': industry,
+                'country': country,
                 'ceo': ceo,
                 'ceo_bio': ceo_bio,
                 'founder_led': founder_led,

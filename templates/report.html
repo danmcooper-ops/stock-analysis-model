@@ -2381,7 +2381,7 @@ function openDet(tk){
   var rEl=document.getElementById('d-rt');rEl.textContent=d.rating||'N/A';rEl.style.background=RC[d.rating]||'#888';
   var cEl=document.getElementById('d-cs');var cs=d._composite_score;cEl.textContent=cs!=null?Math.round(cs)+'%':'N/A';cEl.style.background=cc(cs);
   var gpEl=document.getElementById('d-gp');if(gpEl)gpEl.textContent=d._gates_passed!=null?d._gates_passed:'';
-  var meta=[];if(d.sector)meta.push(d.sector);if(d.industry)meta.push(d.industry);if(d.ceo)meta.push('CEO: '+d.ceo+(d.founder_led?' \u2605 Founder':''));
+  var meta=[];if(d.sector)meta.push(d.sector);if(d.industry)meta.push(d.industry);if(d.country)meta.push(d.country);if(d.ceo)meta.push('CEO: '+d.ceo+(d.founder_led?' \u2605 Founder':''));
   document.getElementById('d-meta').textContent=meta.join('  \u00B7  ');
   var sb=document.getElementById('d-sbar');
   sb.innerHTML=GM.categories.map(function(c){var v=d[c.scoreKey];var w=Math.round(c.weight*100);var _sv=v!=null?Math.round(v)+'%':'N/A';return'<div style="width:'+w+'%;background:'+c.dark+'" data-score-lbl="'+c.name+'" data-score-val="'+_sv+'" data-score-key="'+c.scoreKey+'">'+c.name.charAt(0)+' '+(v!=null?Math.round(v):'—')+' ('+w+'%)</div>';}).join('');
@@ -3626,6 +3626,9 @@ function renderCrossSectorDashboard(){
   return'<div class="xsect-dashboard">'
     +'<div class="xsect-title">Cross-Sector Profit Pool Comparison</div>'
     +'<div class="xsect-sub">Blended pool margins, market concentration, and competitive dynamics across '+allStats.length+' sectors</div>'
+    +'<div style="margin:14px 0 18px">'
+      +'<div class="xsect-chart-title">Margin vs. Concentration</div><div id="xsect-scatter-wrap"></div>'
+    +'</div>'
     +'<div class="xsect-kpi-row">'+kpiHtml+'</div>'
     +'<div class="xsect-narrative" style="margin-top:6px;margin-bottom:18px"><div class="xsect-nar-title">Cross-Sector Analysis Summary</div>'
       +'<div class="xs-narcards">'+narItems.map(function(it){return'<div class="xs-narcard">'
@@ -3644,9 +3647,6 @@ function renderCrossSectorDashboard(){
     +'<div id="xsect-bar-wrap" style="margin-bottom:20px">'
       +'<div class="xsect-chart-title">Operating Margin by Sector <span style="font-weight:400;text-transform:none;letter-spacing:0">(pool-weighted)</span></div>'
       +marginBarsHtml
-    +'</div>'
-    +'<div style="margin-bottom:4px">'
-      +'<div style="padding-top:16px"><div class="xsect-chart-title">Margin vs. Concentration</div><div id="xsect-scatter-wrap"></div></div>'
     +'</div>'
     +volumeHtml
     +'</div></div>';
