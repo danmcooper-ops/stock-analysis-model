@@ -245,13 +245,22 @@ td.ct{font-weight:700;}
    in normal flow (the dt base class freezes 3 cols, which is wrong for
    the heatmap). Mobile-tuned padding/font for iPhone Safari. */
 .heatmap-table{table-layout:fixed;}
-.heatmap-table th{cursor:pointer;font-weight:600;text-align:center;user-select:none;-webkit-user-select:none;touch-action:manipulation;white-space:normal;line-height:1.18;vertical-align:bottom;}
+.heatmap-table th{cursor:pointer;font-weight:600;text-align:center;user-select:none;-webkit-user-select:none;touch-action:manipulation;white-space:normal;line-height:1.18;vertical-align:bottom;
+  /* keep-all stops the browser from breaking at slashes — "Med ND/EBITDA"
+     used to wrap as "Med ND/" + "EBITDA"; now it breaks only on the space
+     after "Med", producing "Med" / "ND/EBITDA". */
+  word-break:keep-all;overflow-wrap:normal;
+}
 .heatmap-table th:first-child,.heatmap-table th:last-child{text-align:left;}
 .heatmap-table td{padding:6px 8px;}
-/* Generous top padding plus vertical-align:bottom forces every header
-   text — single-line or wrapped — to sit at the bottom of the row,
-   visually anchoring all column labels to the same baseline. */
-.heatmap-table th{padding:22px 8px 7px;vertical-align:bottom;}
+.heatmap-table th{padding:7px 8px 7px;height:54px;}
+/* Use flex inside each header to anchor content to the bottom of the cell.
+   Table vertical-align:bottom is unreliable when mixing single-line and
+   wrapped 2-line headers (gives a one-line-height offset for the
+   single-line ones); flex column with justify-content:flex-end is
+   bulletproof. */
+.heatmap-table .th-inner{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;}
+.heatmap-table th:first-child .th-inner,.heatmap-table th:last-child .th-inner{align-items:flex-start;}
 .heatmap-table .heat-arrow{display:inline-block;margin-left:3px;font-size:0.72em;color:#8aa6c8;min-width:8px;}
 .heatmap-table th:hover{background:#243140;}
 /* Override .dt freezing on cols 2-3 (correct for Financial Data table,
@@ -3646,10 +3655,12 @@ function renderCrossSectorDashboard(){
     else{st.key=key;st.asc=(key==='sector');}
     window._heatRender();
   };
-  /* Header cell helper — every column carries data-sort + onclick, plus
-     a .heat-arrow span the render fills with ▲/▼ for the active column. */
+  /* Header cell helper — every column carries data-sort + onclick. The
+     .th-inner flex wrapper guarantees both single-line and wrapped labels
+     sit at the bottom of the cell. .heat-arrow gets filled with ▲/▼ for
+     the active sort column by _heatRender(). */
   function _th(key,label,width,title,leftAlign){
-    return'<th data-sort="'+key+'" onclick="_heatSort(\''+key+'\')" style="width:'+width+'px'+(leftAlign?';text-align:left':'')+'" title="'+_attr(title)+'">'+label+'<span class="heat-arrow"></span></th>';
+    return'<th data-sort="'+key+'" onclick="_heatSort(\''+key+'\')" style="width:'+width+'px'+(leftAlign?';text-align:left':'')+'" title="'+_attr(title)+'"><span class="th-inner"><span>'+label+'<span class="heat-arrow"></span></span></span></th>';
   }
   var _heatTableHtml=_sumStats.length
     ?'<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
