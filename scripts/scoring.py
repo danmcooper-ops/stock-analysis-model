@@ -109,7 +109,11 @@ SCREENING_GATES = [
      lambda v, r: v > 3.0 if v is not None else None),
     ('Quality: Accruals',
      'accruals',
-     lambda v, r: abs(v) < 0.08 if v is not None else None),
+     # Accruals = (NI - CFO) / Assets. Sloan (1996): high *positive* accruals
+     # predict negative future returns — earnings exceed cash, often via
+     # aggressive recognition. Negative accruals (CFO > NI) indicate
+     # conservative accounting and strong cash generation; do not penalize.
+     lambda v, r: v < 0.08 if v is not None else None),
     ('Ownership: Shrhldr Yield',
      'shareholder_yield',
      lambda v, r: v > 0.02 if v is not None else None),
