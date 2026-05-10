@@ -3491,31 +3491,6 @@ function renderCrossSectorDashboard(){
   if(valueTrap.length){narItems.push({title:'Concentration without margin',metric:valueTrap.map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+',\u00a0'+(s.margin*100).toFixed(1)+'%\u00a0margin)';}).join(', '),summary:'High share but no pricing power \u2014 value-trap risk.',detail:'Elevated concentration has not translated into commensurate margin extraction. This pattern emerges where volume competition, commodity input pricing, or mandated price ceilings constrain profitability regardless of market share. High HHI here reflects market structure, not pricing power \u2014 the leading firm\u2019s dominant position is a floor on survival, not a ceiling lift on returns.'});}
   narItems.push({title:'Cross-sector spread',metric:((maxM-minM)*100).toFixed(0)+'\u00a0percentage points',summary:'Sector allocation is a first-order return driver.',detail:'The gap between the highest and lowest blended sector margins is wide enough that sector allocation is a first-order return driver, not a secondary tilting decision. A portfolio systematically overweight in high-quality pools \u2014 particularly sectors in the Quality quadrant \u2014 and underweight in structurally challenged pools compounds this advantage across cycles. Sector selection anchored to pool quality can rival individual stock selection in generating sustained portfolio-level alpha.'});
 
-  /* Sector Breakdown — moved here from Financial Model > Dashboard. Shows
-     BUY + LEAN BUY rate per sector for the *filtered* dataset (FD). The rest
-     of this dashboard is universe-level (DATA), so this panel reflects the
-     user's current Quick/Column filters while the surrounding charts do not.
-     Reuses the xsect-bar-row/label/track/fill/pct/meta classes so it visually
-     matches Operating Margin by Sector and the trading-volume bar charts. */
-  var _sbMap={};
-  FD.forEach(function(d){if(!d.sector)return;var s=d.sector;if(!_sbMap[s])_sbMap[s]={t:0,b:0};_sbMap[s].t++;if(d.rating==='BUY'||d.rating==='LEAN BUY')_sbMap[s].b++;});
-  var _sbArr=Object.keys(_sbMap).map(function(s){return{name:s,t:_sbMap[s].t,b:_sbMap[s].b,pct:Math.round(_sbMap[s].b/_sbMap[s].t*100)};});
-  _sbArr.sort(function(a,b){return b.pct-a.pct||b.b-a.b;});
-  var sectorBreakdownBars='';
-  _sbArr.forEach(function(s){
-    var col=s.pct>=60?'#1a9850':s.pct>=40?'#74c476':s.pct>=20?'#fd8d3c':'#de2d26';
-    var sEsc=s.name.replace(/'/g,"\\'");
-    sectorBreakdownBars+='<div class="xsect-bar-row" onclick="showPoolTab(\''+sEsc+'\')" style="cursor:pointer" title="Go to '+s.name+'">'
-      +'<div class="xsect-bar-label">'+s.name+'</div>'
-      +'<div class="xsect-bar-track"><div class="xsect-bar-fill" style="width:'+s.pct+'%;background:'+col+'"></div>'
-      +'<span class="xsect-bar-pct">'+s.pct+'%</span></div>'
-      +'<div class="xsect-bar-meta">'+s.b+' of '+s.t+' rated BUY or LEAN BUY</div>'
-    +'</div>';
-  });
-  var sectorBreakdownHtml='<div id="xsect-breakdown-wrap" style="margin-bottom:12px">'
-    +'<div class="xsect-chart-title">% Rated BUY or LEAN BUY by Sector <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(filtered)</span></div>'
-    +sectorBreakdownBars
-  +'</div>';
   /* === BAND 2 — Sector lens charts: stacked one-per-metric bar charts ===
      Universe-level (DATA / _bySecU) so lenses are stable across filters,
      except the BUY-rate panel which uses FD. Each bar's meta column shows
@@ -3574,7 +3549,6 @@ function renderCrossSectorDashboard(){
      labelFn:function(v){return(v*100).toFixed(1)+'%';}}
   );
   var lensChartsHtml=''
-    +sectorBreakdownHtml
     +'<div id="xsect-bar-wrap" style="margin-bottom:12px">'
       +'<div class="xsect-chart-title">Operating Margin by Sector <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(pool-weighted)</span></div>'
       +marginBarsHtml
