@@ -799,6 +799,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] #pool-chart-area div[style*="background:#fafbfc"]{background:#161b22 !important;}
 [data-theme="dark"] #pool-chart-area div[style*="background:#f8fafd"]{background:#1c2128 !important;}
 [data-theme="dark"] #pool-chart-area div[style*="background:#f3f8fb"]{background:#0e1c30 !important;}
+[data-theme="dark"] #pool-chart-area summary[style*="background:#f8fafd"]{background:#1c2128 !important;color:#e6edf3 !important;}
 [data-theme="dark"] #pool-chart-area [style*="color:#1a252f"]{color:#e6edf3 !important;}
 [data-theme="dark"] #pool-chart-area [style*="color:#475569"]{color:#c9d1d9 !important;}
 [data-theme="dark"] #pool-chart-area [style*="color:#0e3a40"]{color:#7adde7 !important;}
@@ -3448,31 +3449,6 @@ function renderCrossSectorDashboard(){
     +kpiChip('Most Concentrated',mostConc.name,'HHI\u00a0'+mostConc.hhi.toFixed(3),'#8e24aa')
     +kpiChip('Most Fragmented',leastConc.name,'HHI\u00a0'+leastConc.hhi.toFixed(3)+'\u00a0\u00b7\u00a0'+leastConc.n+'\u00a0cos','#0288d1');
 
-  var marginBarsHtml='';
-  byMargin.forEach(function(s){
-    var pct=maxM>0?(s.margin/maxM*100):0;
-    var col=s.margin>=0.25?'#1a9850':s.margin>=0.15?'#74c476':s.margin>=0.10?'#fd8d3c':'#de2d26';
-    var hhiCol=s.hhi>0.25?'#c0392b':s.hhi>0.15?'#e67e22':'#27ae60';
-    var hhiLbl=s.hhi>0.25?'Oligopoly':s.hhi>0.15?'Moderate':'Competitive';
-    var topTk=s.topPlayer?s.topPlayer.ticker:'';
-    var topCol=s.topPlayer?(RC[s.topPlayer.rating]||'#aaa'):'#aaa';
-    var sEsc=s.name.replace(/'/g,"\\'");
-    var topPillHtml='';
-    if(topTk){
-      var tEsc=topTk.replace(/'/g,"\\'");
-      topPillHtml=' \u00b7 <span class="rb" style="background:'+topCol+';font-size:0.68em;padding:1px 5px;cursor:pointer" onclick="event.stopPropagation();openDet(\''+tEsc+'\')" title="Open '+topTk+'">'+topTk+'</span>';
-    }
-    marginBarsHtml+='<div class="xsect-bar-row" onclick="showPoolTab(\''+sEsc+'\')" style="cursor:pointer" title="Go to '+s.name+'">'
-      +'<div class="xsect-bar-label">'+s.name+'</div>'
-      +'<div class="xsect-bar-track"><div class="xsect-bar-fill" style="width:'+pct.toFixed(1)+'%;background:'+col+'"></div>'
-      +'<span class="xsect-bar-pct">'+(s.margin*100).toFixed(1)+'%</span></div>'
-      +'<div class="xsect-bar-meta"><span style="color:'+hhiCol+';font-weight:600">'+hhiLbl+'</span>'
-      +' <span style="color:#bbb">'+s.hhi.toFixed(3)+'</span>'
-      +' \u00b7 CR4\u00a0'+(s.cr4*100).toFixed(0)+'%'
-      +topPillHtml
-      +'</div></div>';
-  });
-
   window._xsStats=allStats;window._xsMaxM=maxM;
 
   var narItems=[];
@@ -3491,82 +3467,14 @@ function renderCrossSectorDashboard(){
   if(valueTrap.length){narItems.push({title:'Concentration without margin',metric:valueTrap.map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+',\u00a0'+(s.margin*100).toFixed(1)+'%\u00a0margin)';}).join(', '),summary:'High share but no pricing power \u2014 value-trap risk.',detail:'Elevated concentration has not translated into commensurate margin extraction. This pattern emerges where volume competition, commodity input pricing, or mandated price ceilings constrain profitability regardless of market share. High HHI here reflects market structure, not pricing power \u2014 the leading firm\u2019s dominant position is a floor on survival, not a ceiling lift on returns.'});}
   narItems.push({title:'Cross-sector spread',metric:((maxM-minM)*100).toFixed(0)+'\u00a0percentage points',summary:'Sector allocation is a first-order return driver.',detail:'The gap between the highest and lowest blended sector margins is wide enough that sector allocation is a first-order return driver, not a secondary tilting decision. A portfolio systematically overweight in high-quality pools \u2014 particularly sectors in the Quality quadrant \u2014 and underweight in structurally challenged pools compounds this advantage across cycles. Sector selection anchored to pool quality can rival individual stock selection in generating sustained portfolio-level alpha.'});
 
-  /* === BAND 2 — Sector lens charts: stacked one-per-metric bar charts ===
-     Universe-level (DATA / _bySecU) so lenses are stable across filters,
-     except the BUY-rate panel which uses FD. Each bar's meta column shows
-     top-2 BUY tickers from that sector (filtered) as clickable pills. */
-  function _xsItemsMedian(key){
-    return Object.keys(_bySecU).map(function(s){
-      var vals=_xsVals(_bySecU[s],key);
-      return{sector:s,value:_xsMed(vals),n:vals.length};
-    }).filter(function(it){return it.value!=null;});
-  }
-  /* Median MoS% by sector */
-  var _lensMos=_xsLensChart(
-    'Median Margin of Safety by Sector','(DCF‑implied discount — higher = cheaper relative to fair value)',
-    _xsItemsMedian('mos'),
-    {colorFn:function(v){return v>=0.30?'#1a9850':v>=0.15?'#74c476':v>=0?'#fd8d3c':'#de2d26';},
-     labelFn:function(v){return(v*100).toFixed(0)+'%';}}
-  );
-  /* Median P/B by sector */
-  var _lensPB=_xsLensChart(
-    'Median P/B by Sector','(lower = sector trades at a cheaper price-to-book multiple)',
-    Object.keys(_bySecU).map(function(s){
-      var vals=_xsVals(_bySecU[s],'pb').filter(function(v){return v>0&&v<50;});
-      return{sector:s,value:_xsMed(vals),n:vals.length};
-    }).filter(function(it){return it.value!=null;}),
-    {asc:true,
-     colorFn:function(v){return v<=1.5?'#1a9850':v<=3?'#74c476':v<=6?'#fd8d3c':'#de2d26';},
-     labelFn:function(v){return v.toFixed(2)+'x';}}
-  );
-  /* Median EV/EBITDA by sector */
-  var _lensEV=_xsLensChart(
-    'Median EV/EBITDA by Sector','(lower = enterprise trades cheaper relative to operating earnings)',
-    Object.keys(_bySecU).map(function(s){
-      var vals=_xsVals(_bySecU[s],'ev_ebitda').filter(function(v){return v>0&&v<100;});
-      return{sector:s,value:_xsMed(vals),n:vals.length};
-    }).filter(function(it){return it.value!=null;}),
-    {asc:true,
-     colorFn:function(v){return v<=8?'#1a9850':v<=12?'#74c476':v<=18?'#fd8d3c':'#de2d26';},
-     labelFn:function(v){return v.toFixed(1)+'x';}}
-  );
-  /* Median ROIC-WACC spread by sector */
-  var _lensSpread=_xsLensChart(
-    'Median ROIC – WACC Spread by Sector','(value created above cost of capital — higher = better quality pool)',
-    _xsItemsMedian('spread'),
-    {colorFn:function(v){return v>=0.10?'#1a9850':v>=0.05?'#74c476':v>=0?'#fd8d3c':'#de2d26';},
-     labelFn:function(v){return(v*100).toFixed(1)+'%';}}
-  );
-  /* Median Rev CAGR by sector — prefer rev_cagr_5y, fall back to rev_cagr */
-  var _lensGrowth=_xsLensChart(
-    'Median Revenue Growth by Sector','(median 5‑year revenue CAGR per sector)',
-    Object.keys(_bySecU).map(function(s){
-      var vals=_xsVals(_bySecU[s],'rev_cagr_5y');
-      if(!vals.length)vals=_xsVals(_bySecU[s],'rev_cagr');
-      return{sector:s,value:_xsMed(vals),n:vals.length};
-    }).filter(function(it){return it.value!=null;}),
-    {colorFn:function(v){return v>=0.15?'#1a9850':v>=0.07?'#74c476':v>=0?'#fd8d3c':'#de2d26';},
-     labelFn:function(v){return(v*100).toFixed(1)+'%';}}
-  );
-  var lensChartsHtml=''
-    +'<div id="xsect-bar-wrap" style="margin-bottom:12px">'
-      +'<div class="xsect-chart-title">Operating Margin by Sector <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(pool-weighted)</span></div>'
-      +marginBarsHtml
-    +'</div>'
-    +_lensMos
-    +_lensPB
-    +_lensEV
-    +_lensSpread
-    +_lensGrowth;
-  /* === Combined Cross-Sector Summary (top of page) ===
-     Folds the narrative-card analysis and the per-sector summary table
-     into a single section that leads the Overview. The same `sectors`
-     map renderPool uses for its per-sector iteration is rebuilt here so
-     the table can be inlined into the dashboard return. */
+  /* === Build per-sector stat rows for the heatmap summary table ===
+     One row per sector with all numeric metrics; cell colors are computed
+     in a second pass using the column min/max so the eye can scan rows
+     (a sector across metrics) or columns (rank within a metric). */
   var _sumSectors={};
   DATA.forEach(function(d){if(!d.sector||d.pp_revenue_share==null)return;(_sumSectors[d.sector]=_sumSectors[d.sector]||[]).push(d);});
   function _sumMed(arr){if(!arr.length)return null;var s=arr.slice().sort(function(a,b){return a-b;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
-  var _sumTableRows='';
+  var _sumStats=[];
   Object.keys(_sumSectors).sort().forEach(function(sec){
     var cos=_sumSectors[sec];if(!cos||!cos.length)return;
     var sorted=cos.slice().sort(function(a,b){return(b.operating_margin||0)-(a.operating_margin||0);});
@@ -3576,61 +3484,112 @@ function renderCrossSectorDashboard(){
     var best=sorted.reduce(function(a,b){return(a.pp_multiple||0)>(b.pp_multiple||0)?a:b;});
     var avgMult=sorted.reduce(function(s,d){return s+(d.pp_multiple||0);},0)/sorted.length;
     var mosVals=cos.map(function(d){return d.mos;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var peVals=cos.map(function(d){return d.pe;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<200;});
-    var medMos=_sumMed(mosVals),medPE=_sumMed(peVals);
-    var nBuy=cos.filter(_ACTIONABLE).length;
-    var bEsc=best.ticker.replace(/'/g,"\\'");
-    var bestPill='<span class="rb" style="background:'+(RC[best.rating]||'#aaa')+';cursor:pointer" onclick="event.stopPropagation();openDet(\''+bEsc+'\')" title="Open '+best.ticker+'">'+best.ticker+'</span>';
-    _sumTableRows+='<tr>'
-      +'<td style="text-align:left;font-weight:600">'+sec+'</td>'
-      +'<td>'+sorted.length+'</td>'
-      +'<td>'+(wtdM*100).toFixed(1)+'%</td>'
-      +'<td>'+(hhi!=null?hhi.toFixed(3):'&mdash;')+'</td>'
-      +'<td>'+(cr4!=null?(cr4*100).toFixed(0)+'%':'&mdash;')+'</td>'
-      +'<td>'+(medMos!=null?(medMos*100).toFixed(0)+'%':'&mdash;')+'</td>'
-      +'<td>'+(medPE!=null?medPE.toFixed(1)+'x':'&mdash;')+'</td>'
-      +'<td>'+nBuy+'</td>'
-      +'<td style="text-align:left">'+bestPill+' '+((best.pp_multiple||0).toFixed(2))+'x</td>'
-      +'<td>'+avgMult.toFixed(2)+'x</td>'
+    var pbVals=cos.map(function(d){return d.pb;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<50;});
+    var evVals=cos.map(function(d){return d.ev_ebitda;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<100;});
+    var spreadVals=cos.map(function(d){return d.spread;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var growthVals=cos.map(function(d){return d.rev_cagr_5y;}).filter(function(v){return v!=null&&!isNaN(v);});
+    if(!growthVals.length)growthVals=cos.map(function(d){return d.rev_cagr;}).filter(function(v){return v!=null&&!isNaN(v);});
+    _sumStats.push({
+      sector:sec,n:sorted.length,wtdM:wtdM,hhi:hhi,cr4:cr4,
+      medMos:_sumMed(mosVals),medPB:_sumMed(pbVals),medEV:_sumMed(evVals),
+      medSpread:_sumMed(spreadVals),medGrowth:_sumMed(growthVals),
+      nBuy:cos.filter(_ACTIONABLE).length,best:best,avgMult:avgMult
+    });
+  });
+  /* Heatmap color scaler: maps a value to an HSL band (red→yellow→green)
+     scaled between this column's min and max. asc=true means lower-is-better
+     (e.g. P/B, EV/EBITDA — cheaper sector gets the green). */
+  function _heatBg(val,vals,asc){
+    if(val==null||isNaN(val))return'';
+    var clean=vals.filter(function(v){return v!=null&&!isNaN(v);});
+    if(clean.length<2)return'';
+    var mn=Math.min.apply(null,clean),mx=Math.max.apply(null,clean);
+    if(mx===mn)return'';
+    var t=(val-mn)/(mx-mn);
+    if(asc)t=1-t;
+    var hue=Math.round(t*120);
+    return'background:hsla('+hue+',62%,50%,0.22)';
+  }
+  function _f(v,sfx,decs){return v==null||isNaN(v)?'&mdash;':(v*(sfx==='%'?100:1)).toFixed(decs)+sfx;}
+  /* Pre-collect each column's value array for heatmap scaling. */
+  var _colWtdM=_sumStats.map(function(s){return s.wtdM;}),
+      _colMos=_sumStats.map(function(s){return s.medMos;}),
+      _colPB=_sumStats.map(function(s){return s.medPB;}),
+      _colEV=_sumStats.map(function(s){return s.medEV;}),
+      _colSpread=_sumStats.map(function(s){return s.medSpread;}),
+      _colGrowth=_sumStats.map(function(s){return s.medGrowth;}),
+      _colNBuy=_sumStats.map(function(s){return s.nBuy;}),
+      _colMult=_sumStats.map(function(s){return s.avgMult;});
+  var _heatRows='';
+  _sumStats.forEach(function(s){
+    var bEsc=s.best.ticker.replace(/'/g,"\\'");
+    var bestPill='<span class="rb" style="background:'+(RC[s.best.rating]||'#aaa')+';cursor:pointer" onclick="event.stopPropagation();openDet(\''+bEsc+'\')" title="Open '+s.best.ticker+'">'+s.best.ticker+'</span>';
+    function cell(val,disp,colVals,asc){
+      var bg=_heatBg(val,colVals,asc);
+      return'<td style="'+bg+'">'+disp+'</td>';
+    }
+    _heatRows+='<tr>'
+      +'<td style="text-align:left;font-weight:600">'+s.sector+'</td>'
+      +'<td>'+s.n+'</td>'
+      +cell(s.wtdM,_f(s.wtdM,'%',1),_colWtdM,false)
+      +'<td>'+(s.hhi!=null?s.hhi.toFixed(3):'&mdash;')+'</td>'
+      +'<td>'+(s.cr4!=null?(s.cr4*100).toFixed(0)+'%':'&mdash;')+'</td>'
+      +cell(s.medMos,_f(s.medMos,'%',0),_colMos,false)
+      +cell(s.medPB,s.medPB!=null?s.medPB.toFixed(2)+'x':'&mdash;',_colPB,true)
+      +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',_colEV,true)
+      +cell(s.medSpread,_f(s.medSpread,'%',1),_colSpread,false)
+      +cell(s.medGrowth,_f(s.medGrowth,'%',1),_colGrowth,false)
+      +cell(s.nBuy,s.nBuy+'',_colNBuy,false)
+      +'<td style="text-align:left">'+bestPill+' '+((s.best.pp_multiple||0).toFixed(2))+'x</td>'
+      +cell(s.avgMult,s.avgMult.toFixed(2)+'x',_colMult,false)
     +'</tr>';
   });
-  var _sumTableHtml=_sumTableRows
-    ?'<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-top:14px">'
-      +'<div class="xsect-chart-title" style="margin-bottom:8px">Sector Summary Table</div>'
+  var _heatTableHtml=_heatRows
+    ?'<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
+      +'<div class="xsect-chart-title" style="margin-bottom:4px">Sector Heatmap <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(green = best, red = worst within column)</span></div>'
       +'<div class="table-wrap"><table class="dt"><thead><tr>'
-        +'<th style="text-align:left">Sector</th><th>Cos</th><th>Wtd Margin</th><th>HHI</th><th>CR4</th>'
-        +'<th>Med MoS%</th><th>Med P/E</th><th># BUY</th>'
-        +'<th style="text-align:left">Top Earner</th><th>Avg Multiple</th>'
-      +'</tr></thead><tbody>'+_sumTableRows+'</tbody></table></div>'
+        +'<th style="text-align:left">Sector</th>'
+        +'<th>Cos</th>'
+        +'<th title="Pool-weighted operating margin (higher = better)">Wtd Margin</th>'
+        +'<th title="Herfindahl-Hirschman Index (descriptive)">HHI</th>'
+        +'<th title="Top-4 share of revenue (descriptive)">CR4</th>'
+        +'<th title="Median Margin of Safety vs. DCF FV (higher = cheaper)">Med MoS%</th>'
+        +'<th title="Median P/B multiple (lower = cheaper)">Med P/B</th>'
+        +'<th title="Median EV/EBITDA multiple (lower = cheaper)">Med EV/EBITDA</th>'
+        +'<th title="Median ROIC – WACC spread (higher = better)">Med ROIC–WACC</th>'
+        +'<th title="Median 5-year revenue CAGR (higher = better)">Med Rev CAGR</th>'
+        +'<th title="# of stocks rated BUY or LEAN BUY (higher = more actionable picks)"># BUY</th>'
+        +'<th style="text-align:left">Top Earner</th>'
+        +'<th title="Average pool-multiple = profit share / revenue share (higher = better)">Avg Multiple</th>'
+      +'</tr></thead><tbody>'+_heatRows+'</tbody></table></div>'
     +'</div>'
     :'';
-  var _sumNarHtml='<div class="xsect-narrative" style="margin-top:0;margin-bottom:0">'
-    +'<div class="xs-narcards">'+narItems.map(function(it){return'<div class="xs-narcard">'
-        +'<div class="xs-narcard-hdr" onclick="xsToggle(this)">'
-          +'<div class="xs-narcard-title-row">'
-            +'<span class="xs-narcard-title">'+it.title+'</span>'
-            +'<span class="xs-narcard-toggle" aria-hidden="true">+</span>'
+  /* Cross-sector narrative — kept available behind a collapsed toggle so the
+     heatmap and scatter stay above the fold. */
+  var _narHtml='<details style="margin-top:16px"><summary style="cursor:pointer;font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;padding:9px 13px;background:#f8fafd;border-radius:8px;list-style:none;display:flex;align-items:center;gap:8px">'
+    +'<span style="display:inline-block;width:10px;text-align:center">▸</span>Cross-Sector Analysis Notes <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;font-size:0.85em">('+narItems.length+' cards)</span>'
+    +'</summary>'
+    +'<div class="xsect-narrative" style="margin-top:8px;margin-bottom:0">'
+      +'<div class="xs-narcards">'+narItems.map(function(it){return'<div class="xs-narcard">'
+          +'<div class="xs-narcard-hdr" onclick="xsToggle(this)">'
+            +'<div class="xs-narcard-title-row">'
+              +'<span class="xs-narcard-title">'+it.title+'</span>'
+              +'<span class="xs-narcard-toggle" aria-hidden="true">+</span>'
+            +'</div>'
+            +'<div class="xs-narcard-metric">'+it.metric+'</div>'
+            +'<div class="xs-narcard-summary">'+it.summary+'</div>'
           +'</div>'
-          +'<div class="xs-narcard-metric">'+it.metric+'</div>'
-          +'<div class="xs-narcard-summary">'+it.summary+'</div>'
-        +'</div>'
-        +'<div class="xs-narcard-detail">'+it.detail+'</div>'
-      +'</div>';}).join('')+'</div>'
-  +'</div>';
-  var summaryHtml='<div style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid #e8edf2">'
-    +'<div class="xsect-title" style="font-size:1.15em">Cross-Sector Summary</div>'
-    +'<div class="xsect-sub">Narrative analysis and per-sector summary across '+allStats.length+' sectors</div>'
-    +_sumNarHtml
-    +_sumTableHtml
-  +'</div>';
+          +'<div class="xs-narcard-detail">'+it.detail+'</div>'
+        +'</div>';}).join('')+'</div>'
+    +'</div></details>';
   /* Aggregate Performance chart lives on its own "Performance" tab
      (right of Overview); not rendered here. */
   return'<div class="xsect-dashboard">'
-    +summaryHtml
     +'<div style="margin-bottom:14px">'
       +'<div class="xsect-chart-title">Margin vs. Concentration</div><div id="xsect-scatter-wrap"></div>'
     +'</div>'
-    +lensChartsHtml
+    +_heatTableHtml
+    +_narHtml
     +'</div></div>';
 }
 function _buildScatterSVG(W,H){
@@ -3775,14 +3734,10 @@ function renderPool(){
   });
   document.getElementById('pool-chart-area').innerHTML=chartHtml||'<p style="color:#999;padding:20px;font-size:0.9em">No profit pool data available.</p>';
   function _syncScatter(){
-    var bw=document.getElementById('xsect-bar-wrap');var sw=document.getElementById('xsect-scatter-wrap');
-    if(!bw||!sw||!window._xsStats)return;
-    var spL=62,spR=18,spT=30,spB=50,gap=18;
-    var bR=bw.getBoundingClientRect();
-    var rows=bw.querySelectorAll('.xsect-bar-row');
-    var barH=rows.length>0?Math.round(rows[rows.length-1].getBoundingClientRect().bottom-rows[0].getBoundingClientRect().top):Math.round(bR.height);
-    var W=Math.floor(bR.width);
-    var H=Math.max(barH+spT+spB,320);
+    var sw=document.getElementById('xsect-scatter-wrap');
+    if(!sw||!window._xsStats)return;
+    var W=Math.floor(sw.getBoundingClientRect().width)||800;
+    var H=380;
     sw.style.marginLeft='0';
     sw.innerHTML=_buildScatterSVG(W,H);
   }
