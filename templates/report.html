@@ -3695,10 +3695,8 @@ function renderCrossSectorDashboard(){
     var pbVals=cos.map(function(d){return d.pb;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<50;});
     var evVals=cos.map(function(d){return d.ev_ebitda;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<100;});
     var spreadVals=cos.map(function(d){return d.spread;}).filter(function(v){return v!=null&&!isNaN(v);});
-    /* Use 3-year rev_cagr; the rev_cagr_5y field is upstream-buggy
-       (84% of populated values come back negative, including absurd
-       magnitudes), so its medians pull the whole column negative. */
-    var growthVals=cos.map(function(d){return d.rev_cagr;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var growthVals=cos.map(function(d){return d.rev_cagr_5y;}).filter(function(v){return v!=null&&!isNaN(v);});
+    if(!growthVals.length)growthVals=cos.map(function(d){return d.rev_cagr;}).filter(function(v){return v!=null&&!isNaN(v);});
     var nBuy=cos.filter(_ACTIONABLE).length;
     var roicVals=cos.map(function(d){return d.roic;}).filter(function(v){return v!=null&&!isNaN(v);});
     var ndEbVals=cos.map(function(d){return d.nd_ebitda;}).filter(function(v){return v!=null&&!isNaN(v);});
@@ -3842,7 +3840,7 @@ function renderCrossSectorDashboard(){
         +_th('medFCFM','Med FCF Margin',82,'Median free cash flow margin across the sector. Graham: “Earnings are opinions; cash is a fact.” Sectors with persistently high FCF margins generate genuine owner earnings — the only kind that compound shareholder wealth.')
         +_th('medROIC','Med ROIC',82,'Median ROIC across the sector — the single most important metric in the Buffett framework. Sectors compounding capital at 15%+ harbor the businesses that turn each retained dollar into more than a dollar of intrinsic value.')
         +_th('medSpread','Med ROIC–WACC',82,'Median ROIC minus WACC — the sector’s economic profit spread. Above 5% = capital is genuinely productive; near zero = competitors cancel each other out. Buffett invests where the gap is wide and durable, not where it’s narrow and fragile.')
-        +_th('medGrowth','Med Rev CAGR',82,'Median 3-year revenue CAGR across the sector. Persistent top-line growth paired with stable margins reveals genuine demand and pricing power. Munger: “Avoid growth for growth’s sake” — growth without margin discipline is destruction at scale.')
+        +_th('medGrowth','Med Rev CAGR',82,'Median 5-year revenue CAGR across the sector. Persistent top-line growth paired with stable margins reveals genuine demand and pricing power. Munger: “Avoid growth for growth’s sake” — growth without margin discipline is destruction at scale.')
         +_th('medNDEB','Med ND/EBITDA',82,'Median Net Debt / EBITDA across the sector. Buffett: “We want businesses with no debt or very modest debt.” Sectors below 2× operate from a position of strength; above 4× = dependence on rolling credit when markets sour.')
         +_th('medAltZ','Med Altman Z',82,'Median Altman Z-score across the sector. Above 3.0 = sector-wide financial health; below 1.8 = distress signals across the cohort. Graham was obsessed with avoiding permanent capital loss — the Z-Score flags businesses approaching the line before the market does.')
         +_th('medMos','Med MoS%',82,'Median Margin of Safety vs. DCF fair value across the sector. Graham’s foundational principle: “The three most important words in investing are margin of safety.” A sector at 20%+ median MoS may be temporarily out of favor — verify the discount is real, not deserved.')
