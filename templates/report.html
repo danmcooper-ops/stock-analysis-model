@@ -3492,10 +3492,14 @@ function renderCrossSectorDashboard(){
        magnitudes), so its medians pull the whole column negative. */
     var growthVals=cos.map(function(d){return d.rev_cagr;}).filter(function(v){return v!=null&&!isNaN(v);});
     var nBuy=cos.filter(_ACTIONABLE).length;
+    var roicVals=cos.map(function(d){return d.roic;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var ndEbVals=cos.map(function(d){return d.nd_ebitda;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var shrYldVals=cos.map(function(d){return d.shareholder_yield;}).filter(function(v){return v!=null&&!isNaN(v);});
     _sumStats.push({
       sector:sec,n:sorted.length,wtdM:wtdM,hhi:hhi,cr4:cr4,
       medMos:_sumMed(mosVals),medPB:_sumMed(pbVals),medEV:_sumMed(evVals),
       medSpread:_sumMed(spreadVals),medGrowth:_sumMed(growthVals),
+      medROIC:_sumMed(roicVals),medNDEB:_sumMed(ndEbVals),medShrYld:_sumMed(shrYldVals),
       nBuy:nBuy,pctBuy:cos.length?nBuy/cos.length:null,best:best
     });
   });
@@ -3521,6 +3525,9 @@ function renderCrossSectorDashboard(){
       _colEV=_sumStats.map(function(s){return s.medEV;}),
       _colSpread=_sumStats.map(function(s){return s.medSpread;}),
       _colGrowth=_sumStats.map(function(s){return s.medGrowth;}),
+      _colROIC=_sumStats.map(function(s){return s.medROIC;}),
+      _colNDEB=_sumStats.map(function(s){return s.medNDEB;}),
+      _colShrYld=_sumStats.map(function(s){return s.medShrYld;}),
       _colPctBuy=_sumStats.map(function(s){return s.pctBuy;});
   /* Cell tooltip: sector · metric: value · rank within column · n companies.
      Rank 1 = best; "best" follows asc (true = lower-is-better). */
@@ -3565,16 +3572,19 @@ function renderCrossSectorDashboard(){
       +plainCell(s.n+'',s.sector,'Companies in pool')
       /* Profitability + Quality */
       +cell(s.wtdM,_f(s.wtdM,'%',1),_colWtdM,false,'Pool-weighted operating margin')
+      +cell(s.medROIC,_f(s.medROIC,'%',1),_colROIC,false,'Median return on invested capital')
       +cell(s.medSpread,_f(s.medSpread,'%',1),_colSpread,false,'Median ROIC – WACC spread')
       +cell(s.medGrowth,_f(s.medGrowth,'%',1),_colGrowth,false,'Median 3-year revenue CAGR')
-      /* Structure (descriptive, uncolored) */
+      /* Structure (HHI/CR4 descriptive uncolored; ND/EBITDA shows sector leverage, lower=safer) */
       +plainCell(hhiDisp,s.sector,'HHI (Herfindahl)',hhiLbl)
       +plainCell(cr4Disp,s.sector,'CR4 (Top-4 revenue share)')
+      +cell(s.medNDEB,s.medNDEB!=null?s.medNDEB.toFixed(2)+'x':'&mdash;',_colNDEB,true,'Median Net Debt / EBITDA (lower = less leverage)')
       /* Valuation */
       +cell(s.medMos,_f(s.medMos,'%',0),_colMos,false,'Median Margin of Safety vs. DCF FV')
       +cell(s.medPB,s.medPB!=null?s.medPB.toFixed(2)+'x':'&mdash;',_colPB,true,'Median P/B multiple')
       +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',_colEV,true,'Median EV/EBITDA multiple')
-      /* Action */
+      /* Action (Shareholder Yield surfaces capital-return character per sector) */
+      +cell(s.medShrYld,_f(s.medShrYld,'%',1),_colShrYld,false,'Median shareholder yield (buybacks + dividends)')
       +cell(s.pctBuy,pctBuyDisp,_colPctBuy,false,'% of sector rated BUY or LEAN BUY ('+s.nBuy+' of '+s.n+')')
       +'<td style="text-align:left">'+bestPill+' '+bestMult+'</td>'
     +'</tr>';
@@ -3586,13 +3596,16 @@ function renderCrossSectorDashboard(){
         +'<th style="text-align:left">Sector</th>'
         +'<th>Cos</th>'
         +'<th title="Pool-weighted operating margin (higher = better)">Wtd Margin</th>'
+        +'<th title="Median return on invested capital (higher = better)">Med ROIC</th>'
         +'<th title="Median ROIC – WACC spread (higher = better)">Med ROIC–WACC</th>'
         +'<th title="Median 3-year revenue CAGR (higher = better)">Med Rev CAGR</th>'
         +'<th title="Herfindahl-Hirschman Index (descriptive, not colored)">HHI</th>'
         +'<th title="Top-4 share of revenue (descriptive, not colored)">CR4</th>'
+        +'<th title="Median Net Debt / EBITDA — sector leverage (lower = safer)">Med ND/EBITDA</th>'
         +'<th title="Median Margin of Safety vs. DCF FV (higher = cheaper)">Med MoS%</th>'
         +'<th title="Median P/B multiple (lower = cheaper)">Med P/B</th>'
         +'<th title="Median EV/EBITDA multiple (lower = cheaper)">Med EV/EBITDA</th>'
+        +'<th title="Median shareholder yield = buybacks + dividends (higher = more capital returned)">Med Shr Yld</th>'
         +'<th title="% of sector rated BUY or LEAN BUY (higher = more concentrated opportunity)">% BUY</th>'
         +'<th style="text-align:left">Top Earner</th>'
       +'</tr></thead><tbody>'+_heatRows+'</tbody></table></div>'
