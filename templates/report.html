@@ -3573,18 +3573,6 @@ function renderCrossSectorDashboard(){
     {colorFn:function(v){return v>=0.15?'#1a9850':v>=0.07?'#74c476':v>=0?'#fd8d3c':'#de2d26';},
      labelFn:function(v){return(v*100).toFixed(1)+'%';}}
   );
-  /* % of sector near 52W low (range_52w_position < 0.20) */
-  var _lensNearLow=_xsLensChart(
-    '% Near 52W Low by Sector','(stocks within bottom 20% of 52‑week range — bombed‑out names cluster here)',
-    Object.keys(_bySecU).map(function(s){
-      var arr=_bySecU[s].filter(function(d){return d.range_52w_position!=null&&!isNaN(d.range_52w_position);});
-      if(!arr.length)return{sector:s,value:null,n:0};
-      var near=arr.filter(function(d){return d.range_52w_position<0.20;}).length;
-      return{sector:s,value:near/arr.length,n:arr.length};
-    }).filter(function(it){return it.value!=null;}),
-    {colorFn:function(v){return v>=0.30?'#1a9850':v>=0.15?'#74c476':v>=0.05?'#fd8d3c':'#94a3b8';},
-     labelFn:function(v){return(v*100).toFixed(0)+'%';}}
-  );
   var lensChartsHtml=''
     +sectorBreakdownHtml
     +'<div id="xsect-bar-wrap" style="margin-bottom:12px">'
@@ -3595,8 +3583,7 @@ function renderCrossSectorDashboard(){
     +_lensPE
     +_lensEV
     +_lensSpread
-    +_lensGrowth
-    +_lensNearLow;
+    +_lensGrowth;
   /* === Combined Cross-Sector Summary (top of page) ===
      Folds the narrative-card analysis and the per-sector summary table
      into a single section that leads the Overview. The same `sectors`
