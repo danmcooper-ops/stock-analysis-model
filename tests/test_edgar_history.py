@@ -43,6 +43,20 @@ class TestFlowToAnnual:
         }
         assert _flow_to_annual(history) == {2021: 110.0}
 
+    def test_legacy_quarterly_partial_year_dropped(self):
+        """Quarterly-keyed series with a partial fiscal year (in-progress
+        current year, or a backfill cutoff that only captured one quarter)
+        must drop the partial — treating one quarter as the full year was
+        the source of the rev_cagr_5y bug (e.g. CRCT showing -34%)."""
+        history = {
+            '2019-12-31': 487.0,                       # Q4-only, partial
+            '2020-03-31': 144.0, '2020-06-30': 235.0,
+            '2020-09-30': 209.0, '2020-12-31': 371.0,  # full 2020
+            '2021-03-31': 162.0,                       # Q1-only, partial
+        }
+        # Only the year with 4 quarterly entries survives.
+        assert _flow_to_annual(history) == {2020: 144.0 + 235.0 + 209.0 + 371.0}
+
     def test_empty(self):
         assert _flow_to_annual({}) == {}
         assert _flow_to_annual(None) == {}

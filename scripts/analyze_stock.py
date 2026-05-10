@@ -114,6 +114,15 @@ def _flow_to_annual(history):
             continue
         is_annual_key = isinstance(k, int) or (len(ks) == 4 and ks.isdigit())
         by_year.setdefault(yr, []).append((is_annual_key, v))
+    # If any year has 4 quarterly entries the series is quarterly-keyed;
+    # in that case a year with <4 entries is a partial fiscal year (most
+    # often the in-progress current year or a 2019 backfill cutoff) and
+    # must be dropped. Treating a single quarter as a full-year value
+    # produced absurdly negative 5Y CAGRs (e.g. CRCT -34% vs -7% on 3Y).
+    has_quarterly = any(
+        len([v for ak, v in entries if not ak]) == 4
+        for entries in by_year.values()
+    )
     annual = {}
     for yr, entries in by_year.items():
         annual_keyed = [v for ak, v in entries if ak]
@@ -121,10 +130,10 @@ def _flow_to_annual(history):
             annual[yr] = annual_keyed[-1]
             continue
         vals = [v for _, v in entries]
-        if len(vals) == 1:
-            annual[yr] = vals[0]
-        elif len(vals) == 4:
+        if len(vals) == 4:
             annual[yr] = sum(vals)
+        elif len(vals) == 1 and not has_quarterly:
+            annual[yr] = vals[0]
     return annual
 
 

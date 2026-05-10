@@ -3497,10 +3497,8 @@ function renderCrossSectorDashboard(){
     var pbVals=cos.map(function(d){return d.pb;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<50;});
     var evVals=cos.map(function(d){return d.ev_ebitda;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<100;});
     var spreadVals=cos.map(function(d){return d.spread;}).filter(function(v){return v!=null&&!isNaN(v);});
-    /* Use 3-year rev_cagr; the rev_cagr_5y field is upstream-buggy
-       (84% of populated values come back negative, including absurd
-       magnitudes), so its medians pull the whole column negative. */
-    var growthVals=cos.map(function(d){return d.rev_cagr;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var growthVals=cos.map(function(d){return d.rev_cagr_5y;}).filter(function(v){return v!=null&&!isNaN(v);});
+    if(!growthVals.length)growthVals=cos.map(function(d){return d.rev_cagr;}).filter(function(v){return v!=null&&!isNaN(v);});
     var nBuy=cos.filter(_ACTIONABLE).length;
     var roicVals=cos.map(function(d){return d.roic;}).filter(function(v){return v!=null&&!isNaN(v);});
     var ndEbVals=cos.map(function(d){return d.nd_ebitda;}).filter(function(v){return v!=null&&!isNaN(v);});
@@ -3603,7 +3601,7 @@ function renderCrossSectorDashboard(){
         +'<th style="width:80px" title="Pool-weighted operating margin — sum(margin × revenue share) for the sector. Higher = better.">Wtd Margin</th>'
         +'<th style="width:80px" title="Median return on invested capital across the sector. Higher = better.">Med ROIC</th>'
         +'<th style="width:88px" title="Median ROIC minus WACC — value created above cost of capital. Higher = better.">Med ROIC–WACC</th>'
-        +'<th style="width:88px" title="Median 3-year revenue CAGR across the sector. Higher = better.">Med Rev CAGR</th>'
+        +'<th style="width:88px" title="Median 5-year revenue CAGR across the sector. Higher = better.">Med Rev CAGR</th>'
         +'<th style="width:64px" title="Herfindahl–Hirschman Index of revenue concentration (sum of squared market shares). Above 0.25 = oligopoly; 0.15–0.25 = moderately concentrated; below 0.15 = competitive. Descriptive — not directionally colored.">HHI</th>'
         +'<th style="width:54px" title="Top-4 companies’ share of sector revenue. Above 80% = highly concentrated; 50–80% = moderate; below 50% = competitive. Descriptive — not directionally colored.">CR4</th>'
         +'<th style="width:96px" title="Median Net Debt / EBITDA across the sector. Sector leverage proxy — lower = safer balance sheets.">Med ND/EBITDA</th>'
