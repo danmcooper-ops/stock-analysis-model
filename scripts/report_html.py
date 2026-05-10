@@ -126,6 +126,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'description': (r.get('description') or '')[:200],
         'sector': r.get('sector'),
         'industry': r.get('industry'),
+        'country': r.get('country'),
         'ceo': r.get('ceo'),
         'description_full': r.get('description') or '',
         'ceo_bio': r.get('ceo_bio') or '',
