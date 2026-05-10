@@ -3530,6 +3530,8 @@ function renderCrossSectorDashboard(){
   function _f(v,sfx,decs){return v==null||isNaN(v)?'&mdash;':(v*(sfx==='%'?100:1)).toFixed(decs)+sfx;}
   /* Pre-collect each column's value array for heatmap scaling. */
   var _colWtdM=_sumStats.map(function(s){return s.wtdM;}),
+      _colHHI=_sumStats.map(function(s){return s.hhi;}),
+      _colCR4=_sumStats.map(function(s){return s.cr4;}),
       _colMos=_sumStats.map(function(s){return s.medMos;}),
       _colPB=_sumStats.map(function(s){return s.medPB;}),
       _colEV=_sumStats.map(function(s){return s.medEV;}),
@@ -3540,22 +3542,6 @@ function renderCrossSectorDashboard(){
       _colShrYld=_sumStats.map(function(s){return s.medShrYld;}),
       _colPctBuy=_sumStats.map(function(s){return s.pctBuy;});
   function _attr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
-  /* HHI/CR4 are descriptive (not directionally good/bad), but leaving them
-     unshaded next to colored cells creates jarring "dead zones" in the row.
-     Tint them by qualitative tier using a soft neutral palette so the row
-     reads as a continuous band. */
-  function _hhiTierBg(v){
-    if(v==null||isNaN(v))return'';
-    if(v>0.25)return'background:hsla(280,60%,80%,0.32)';/* Oligopoly — lavender */
-    if(v>0.15)return'background:hsla(35,75%,82%,0.40)';/* Moderate — amber */
-    return'background:hsla(195,60%,86%,0.40)';/* Competitive — soft blue */
-  }
-  function _cr4TierBg(v){
-    if(v==null||isNaN(v))return'';
-    if(v>0.80)return'background:hsla(280,60%,80%,0.32)';
-    if(v>0.50)return'background:hsla(35,75%,82%,0.40)';
-    return'background:hsla(195,60%,86%,0.40)';
-  }
   var _heatRows='';
   _sumStats.forEach(function(s){
     var bEsc=s.best.ticker.replace(/'/g,"\\'");
@@ -3570,19 +3556,20 @@ function renderCrossSectorDashboard(){
     var hhiDisp=s.hhi!=null?s.hhi.toFixed(3):'&mdash;';
     var cr4Disp=s.cr4!=null?(s.cr4*100).toFixed(0)+'%':'&mdash;';
     var pctBuyDisp=s.pctBuy!=null?(s.pctBuy*100).toFixed(0)+'%':'&mdash;';
-    /* Column order: Identity → Profitability → Quality → Structure → Valuation → Action. */
+    /* Column order: Identity → Concentration → Profitability/Quality → Leverage → Valuation → Action. */
     _heatRows+='<tr>'
       /* Identity */
       +'<td style="text-align:left;font-weight:600">'+s.sector+'</td>'
       +'<td>'+s.n+'</td>'
+      /* Concentration (red→green; higher HHI/CR4 = more pricing power for incumbents) */
+      +cell(s.hhi,hhiDisp,_colHHI,false)
+      +cell(s.cr4,cr4Disp,_colCR4,false)
       /* Profitability + Quality */
       +cell(s.wtdM,_f(s.wtdM,'%',1),_colWtdM,false)
       +cell(s.medROIC,_f(s.medROIC,'%',1),_colROIC,false)
       +cell(s.medSpread,_f(s.medSpread,'%',1),_colSpread,false)
       +cell(s.medGrowth,_f(s.medGrowth,'%',1),_colGrowth,false)
-      /* Structure: HHI / CR4 tinted by qualitative tier; ND/EBITDA color-graded */
-      +'<td style="'+_hhiTierBg(s.hhi)+'">'+hhiDisp+'</td>'
-      +'<td style="'+_cr4TierBg(s.cr4)+'">'+cr4Disp+'</td>'
+      /* Leverage */
       +cell(s.medNDEB,s.medNDEB!=null?s.medNDEB.toFixed(2)+'x':'&mdash;',_colNDEB,true)
       /* Valuation */
       +cell(s.medMos,_f(s.medMos,'%',0),_colMos,false)
@@ -3600,12 +3587,12 @@ function renderCrossSectorDashboard(){
       +'<div class="table-wrap"><table class="dt heatmap-table"><thead><tr>'
         +'<th style="width:150px;text-align:left" title="GICS sector. Pool stats below are computed across the companies in this sector.">Sector</th>'
         +'<th style="width:52px" title="Number of companies in the sector pool.">Cos</th>'
+        +'<th style="width:64px" title="Herfindahl–Hirschman Index of revenue concentration. Above 0.25 = oligopoly, 0.15–0.25 = moderately concentrated, below 0.15 = competitive. Higher concentration = greener (more pricing power for incumbents).">HHI</th>'
+        +'<th style="width:54px" title="Top-4 companies’ share of sector revenue. Above 80% = highly concentrated, 50–80% = moderate, below 50% = competitive. Higher = greener (more pricing power for incumbents).">CR4</th>'
         +'<th style="width:80px" title="Pool-weighted operating margin — sum(margin × revenue share) for the sector. Higher = better.">Wtd Margin</th>'
         +'<th style="width:80px" title="Median return on invested capital across the sector. Higher = better.">Med ROIC</th>'
         +'<th style="width:88px" title="Median ROIC minus WACC — value created above cost of capital. Higher = better.">Med ROIC–WACC</th>'
         +'<th style="width:88px" title="Median 3-year revenue CAGR across the sector. Higher = better.">Med Rev CAGR</th>'
-        +'<th style="width:64px" title="Herfindahl–Hirschman Index of revenue concentration (sum of squared market shares). Above 0.25 = oligopoly; 0.15–0.25 = moderately concentrated; below 0.15 = competitive. Descriptive — not directionally colored.">HHI</th>'
-        +'<th style="width:54px" title="Top-4 companies’ share of sector revenue. Above 80% = highly concentrated; 50–80% = moderate; below 50% = competitive. Descriptive — not directionally colored.">CR4</th>'
         +'<th style="width:96px" title="Median Net Debt / EBITDA across the sector. Sector leverage proxy — lower = safer balance sheets.">Med ND/EBITDA</th>'
         +'<th style="width:78px" title="Median Margin of Safety vs. DCF fair value across the sector. Higher = sector trades at a deeper discount to intrinsic value.">Med MoS%</th>'
         +'<th style="width:70px" title="Median price-to-book multiple. Lower = cheaper on book value.">Med P/B</th>'
