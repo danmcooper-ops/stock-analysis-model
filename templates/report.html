@@ -248,7 +248,10 @@ td.ct{font-weight:700;}
 .heatmap-table th{cursor:pointer;font-weight:600;text-align:center;user-select:none;-webkit-user-select:none;touch-action:manipulation;white-space:normal;line-height:1.18;vertical-align:bottom;}
 .heatmap-table th:first-child,.heatmap-table th:last-child{text-align:left;}
 .heatmap-table td{padding:6px 8px;}
-.heatmap-table th{padding:7px 8px;}
+/* Generous top padding plus vertical-align:bottom forces every header
+   text — single-line or wrapped — to sit at the bottom of the row,
+   visually anchoring all column labels to the same baseline. */
+.heatmap-table th{padding:22px 8px 7px;vertical-align:bottom;}
 .heatmap-table .heat-arrow{display:inline-block;margin-left:3px;font-size:0.72em;color:#8aa6c8;min-width:8px;}
 .heatmap-table th:hover{background:#243140;}
 /* Override .dt freezing on cols 2-3 (correct for Financial Data table,
