@@ -245,8 +245,8 @@ td.ct{font-weight:700;}
    in normal flow (the dt base class freezes 3 cols, which is wrong for
    the heatmap). Mobile-tuned padding/font for iPhone Safari. */
 .heatmap-table{table-layout:fixed;}
-.heatmap-table th{cursor:pointer;font-weight:600;text-align:right;user-select:none;-webkit-user-select:none;touch-action:manipulation;white-space:normal;line-height:1.18;vertical-align:bottom;}
-.heatmap-table th:first-child{text-align:left;}
+.heatmap-table th{cursor:pointer;font-weight:600;text-align:center;user-select:none;-webkit-user-select:none;touch-action:manipulation;white-space:normal;line-height:1.18;vertical-align:bottom;}
+.heatmap-table th:first-child,.heatmap-table th:last-child{text-align:left;}
 .heatmap-table td{padding:6px 8px;}
 .heatmap-table th{padding:7px 8px;}
 .heatmap-table .heat-arrow{display:inline-block;margin-left:3px;font-size:0.72em;color:#8aa6c8;min-width:8px;}
@@ -2899,13 +2899,6 @@ var _sectorPriceRange='5YR';
 var _selectedAggs={};
 var _sectorPriceState=null;
 var _aggHoverState=null;
-/* Benchmark pseudo-sector key. The S&P 500 series is read directly from
-   PRICES.prices.SPY (an index series in the prices sidecar) — not built
-   from constituents — so it sits alongside sector aggregates without
-   inheriting survivorship/quality bias from DATA. */
-var _SP_KEY='S&P 500';
-var _SP_COLOR='#1a252f';
-var _aggsDefaulted=false;
 /* Distinct categorical palette. Sector colors are stable —
    assigned by alphabetical index — so toggling on/off doesn\'t
    reshuffle the chart. */
@@ -2927,11 +2920,6 @@ function _aggColor(sec){
 function renderUniversePriceChart(){
   var sectors=_allSectors();
   if(!sectors.length)return '';
-  /* Default selection on first mount: only the S&P 500 benchmark.
-     User clicks add sectors on top. */
-  if(!_aggsDefaulted){
-    _selectedAggs={};_selectedAggs[_SP_KEY]=true;_aggsDefaulted=true;
-  }
   var ranges=[['1YR','1Y'],['3YR','3Y'],['5YR','5Y'],['10YR','10Y'],['20YR','20Y']];
   var rangeBtns=ranges.map(function(r){
     var act=_sectorPriceRange===r[0]?' active':'';
@@ -2940,10 +2928,6 @@ function renderUniversePriceChart(){
   var helperBtns=''
     +'<button type="button" class="agg-helper-btn" onclick="aggsSelectAll()">All</button>'
     +'<button type="button" class="agg-helper-btn" onclick="aggsClearAll()">Clear</button>';
-  /* S&P 500 benchmark checkbox spans the full row at the top of the grid
-     so it visually anchors as the comparison baseline. */
-  var spChecked=_selectedAggs[_SP_KEY]?' checked':'';
-  var spItem='<label class="agg-grid-item" style="grid-column:1/-1;border-bottom:1px dashed #cbd5e1;padding-bottom:6px;margin-bottom:2px"><input type="checkbox" value="'+_esc(_SP_KEY)+'"'+spChecked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+_SP_COLOR+'"></span><span class="agg-grid-name"><strong>'+_esc(_SP_KEY)+'</strong> <span style="color:#94a3b8;font-weight:400;font-size:0.85em">— benchmark</span></span></label>';
   /* Three-column sector grid. Each cell is a label wrapping a
      checkbox + color dot + sector name; clicking anywhere in
      the row toggles that sector. */
@@ -2953,7 +2937,6 @@ function renderUniversePriceChart(){
     var checked=_selectedAggs[s]?' checked':'';
     return '<label class="agg-grid-item"><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span></label>';
   }).join('');
-  gridItems=spItem+gridItems;
   var out='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">'
     +'<div style="display:flex;gap:4px;flex-wrap:wrap">'+rangeBtns+'</div>'
     +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-left:auto">'+helperBtns+'</div>'
@@ -2991,12 +2974,9 @@ function aggsSelectAll(){
   _priceChartDraw();
 }
 function aggsClearAll(){
-  /* "Clear" wipes sector picks but keeps the S&P 500 benchmark so the
-     chart always has its reference line. To remove the benchmark too,
-     uncheck the S&P 500 row explicitly. */
   var boxes=document.querySelectorAll('#agg-grid input[type="checkbox"]');
-  boxes.forEach(function(cb){cb.checked=(cb.value===_SP_KEY);});
-  _selectedAggs={};_selectedAggs[_SP_KEY]=true;
+  boxes.forEach(function(cb){cb.checked=false;});
+  _selectedAggs={};
   _priceChartDraw();
 }
 /* Build a market-cap-weighted aggregate from DATA filtered by
@@ -3034,23 +3014,16 @@ function _priceChartDraw(){
   var allD=PRICES.dates;
   var sectors=_allSectors();
   var keys=sectors.filter(function(s){return _selectedAggs[s];});
-  var spySelected=!!_selectedAggs[_SP_KEY];
-  var spySeries=spySelected&&PRICES.prices&&PRICES.prices.SPY?PRICES.prices.SPY:null;
   var legendEl=document.getElementById('sector-price-legend');
   var tipEl=document.getElementById('sector-price-tip');
-  if(!keys.length&&!spySeries){
-    el.innerHTML='<p style="color:#888;padding:30px 20px;text-align:center;font-size:0.85em">Pick the S&amp;P 500 or one or more sectors below to plot performance.</p>';
+  if(!keys.length){
+    el.innerHTML='<p style="color:#888;padding:30px 20px;text-align:center;font-size:0.85em">Pick one or more sectors below to plot performance.</p>';
     if(legendEl)legendEl.innerHTML='';
     if(tipEl)tipEl.innerHTML='';
     _aggHoverState=null;
     return;
   }
   var aggs=[];
-  /* Push the S&P 500 first so it acts as the reference line in the
-     stacking order — drawn beneath, but legend lists it at top. */
-  if(spySeries){
-    aggs.push({weights:[1],nWeights:[1],series:[spySeries],comps:[{ticker:'SPY'}],label:_SP_KEY,color:_SP_COLOR,isBenchmark:true});
-  }
   keys.forEach(function(k){
     var a=_buildAggregate(function(d){return d.sector===k;});
     if(a){a.label=k;a.color=_aggColor(k);aggs.push(a);}
@@ -3142,11 +3115,7 @@ function _renderPolylineSVG(el,dates,aggs){
   var lines='';
   aggs.forEach(function(a,si){
     var pts=a.vals.map(function(v,i){return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);}).join(' ');
-    /* Benchmark (S&P 500) renders dashed so it visually reads as a
-       reference, not a competing series. */
-    var dash=a.isBenchmark?' stroke-dasharray="6,4"':'';
-    var sw=a.isBenchmark?Math.max(aggStroke,1.7):aggStroke;
-    lines+='<polyline points="'+pts+'" fill="none" stroke="'+a.color+'" stroke-width="'+sw+'" stroke-linejoin="round" stroke-linecap="round"'+dash+'/>';
+    lines+='<polyline points="'+pts+'" fill="none" stroke="'+a.color+'" stroke-width="'+aggStroke+'" stroke-linejoin="round" stroke-linecap="round"/>';
   });
   /* Hover overlay: a vertical crosshair line + one circle marker
      per series, all initially hidden (opacity=0). aggChartMove
@@ -3164,17 +3133,8 @@ function _renderPolylineSVG(el,dates,aggs){
     return '<span style="display:inline-flex;align-items:center;gap:6px;font-size:0.78em;white-space:nowrap"><span style="width:16px;height:3px;background:'+a.color+';border-radius:2px;flex-shrink:0"></span><span style="color:#1a252f">'+_esc(a.label)+'</span> <span style="font-weight:600;color:'+_retCol(end)+'">'+_ret(end)+'</span></span>';
   });
   var legend='<div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center">'+legendItems.join('')+'</div>';
-  /* Exclude the benchmark from the "X sectors · Y constituents" count
-     since the S&P series isn't built from DATA constituents. */
-  var sectorAggs=aggs.filter(function(a){return!a.isBenchmark;});
-  var totalConstituents=sectorAggs.reduce(function(s,a){return s+a.series.length;},0);
-  var hasBench=aggs.length!==sectorAggs.length;
-  var sectorBit=sectorAggs.length?(sectorAggs.length+' sector'+(sectorAggs.length===1?'':'s')+' · '+totalConstituents+' total constituents'):'';
-  var benchBit=hasBench?'S&P 500 benchmark':'';
-  var bits=[ 'Indexed to 100 at '+dates[0], dates.length+' obs' ];
-  if(sectorBit)bits.push(sectorBit);
-  if(benchBit)bits.push(benchBit);
-  var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">'+bits.join(' · ')+'</div>';
+  var totalConstituents=aggs.reduce(function(s,a){return s+a.series.length;},0);
+  var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '+aggs.length+' sector'+(aggs.length===1?'':'s')+' · '+totalConstituents+' total constituents</div>';
   el.innerHTML=svg;
   var legendEl=document.getElementById('sector-price-legend');
   if(legendEl)legendEl.innerHTML=legend+meta;
