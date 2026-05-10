@@ -3520,28 +3520,55 @@ function renderCrossSectorDashboard(){
       _colGrowth=_sumStats.map(function(s){return s.medGrowth;}),
       _colNBuy=_sumStats.map(function(s){return s.nBuy;}),
       _colMult=_sumStats.map(function(s){return s.avgMult;});
+  /* Cell tooltip: sector · metric: value · rank within column · n companies.
+     Rank 1 = best; "best" follows asc (true = lower-is-better). */
+  function _heatTip(sector,metric,val,disp,colVals,asc,nCos){
+    var bits=[sector,metric+': '+disp];
+    if(val!=null&&!isNaN(val)){
+      var clean=colVals.filter(function(v){return v!=null&&!isNaN(v);});
+      if(clean.length>1){
+        var sorted=clean.slice().sort(function(a,b){return asc?(a-b):(b-a);});
+        var rank=sorted.indexOf(val)+1;
+        bits.push('rank '+rank+' of '+clean.length);
+      }
+    }
+    if(nCos!=null)bits.push(nCos+' companies');
+    return bits.join(' · ');
+  }
+  function _attr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
   var _heatRows='';
   _sumStats.forEach(function(s){
     var bEsc=s.best.ticker.replace(/'/g,"\\'");
-    var bestPill='<span class="rb" style="background:'+(RC[s.best.rating]||'#aaa')+';cursor:pointer" onclick="event.stopPropagation();openDet(\''+bEsc+'\')" title="Open '+s.best.ticker+'">'+s.best.ticker+'</span>';
-    function cell(val,disp,colVals,asc){
+    var bestRating=s.best.rating||'';
+    var bestMult=(s.best.pp_multiple||0).toFixed(2)+'x';
+    var bestTip=_attr(s.sector+' · top pool earner: '+s.best.ticker+' ('+bestRating+', pool multiple '+bestMult+') — click to open detail');
+    var bestPill='<span class="rb" style="background:'+(RC[s.best.rating]||'#aaa')+';cursor:pointer" onclick="event.stopPropagation();openDet(\''+bEsc+'\')" title="'+bestTip+'">'+s.best.ticker+'</span>';
+    function cell(val,disp,colVals,asc,metric){
       var bg=_heatBg(val,colVals,asc);
-      return'<td style="'+bg+'">'+disp+'</td>';
+      var tip=_attr(_heatTip(s.sector,metric,val,disp,colVals,asc));
+      return'<td style="'+bg+'" title="'+tip+'">'+disp+'</td>';
     }
+    function plainCell(disp,sector,metric,extra){
+      var tip=_attr(sector+' · '+metric+': '+disp+(extra?' · '+extra:''));
+      return'<td title="'+tip+'">'+disp+'</td>';
+    }
+    var hhiLbl=s.hhi==null?'':(s.hhi>0.25?'Oligopoly':s.hhi>0.15?'Moderately concentrated':'Competitive');
+    var hhiDisp=s.hhi!=null?s.hhi.toFixed(3):'&mdash;';
+    var cr4Disp=s.cr4!=null?(s.cr4*100).toFixed(0)+'%':'&mdash;';
     _heatRows+='<tr>'
-      +'<td style="text-align:left;font-weight:600">'+s.sector+'</td>'
-      +'<td>'+s.n+'</td>'
-      +cell(s.wtdM,_f(s.wtdM,'%',1),_colWtdM,false)
-      +'<td>'+(s.hhi!=null?s.hhi.toFixed(3):'&mdash;')+'</td>'
-      +'<td>'+(s.cr4!=null?(s.cr4*100).toFixed(0)+'%':'&mdash;')+'</td>'
-      +cell(s.medMos,_f(s.medMos,'%',0),_colMos,false)
-      +cell(s.medPB,s.medPB!=null?s.medPB.toFixed(2)+'x':'&mdash;',_colPB,true)
-      +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',_colEV,true)
-      +cell(s.medSpread,_f(s.medSpread,'%',1),_colSpread,false)
-      +cell(s.medGrowth,_f(s.medGrowth,'%',1),_colGrowth,false)
-      +cell(s.nBuy,s.nBuy+'',_colNBuy,false)
-      +'<td style="text-align:left">'+bestPill+' '+((s.best.pp_multiple||0).toFixed(2))+'x</td>'
-      +cell(s.avgMult,s.avgMult.toFixed(2)+'x',_colMult,false)
+      +'<td style="text-align:left;font-weight:600" title="'+_attr(s.sector+' · '+s.n+' companies')+'">'+s.sector+'</td>'
+      +plainCell(s.n+'',s.sector,'Companies in pool')
+      +cell(s.wtdM,_f(s.wtdM,'%',1),_colWtdM,false,'Pool-weighted operating margin')
+      +plainCell(hhiDisp,s.sector,'HHI (Herfindahl)',hhiLbl)
+      +plainCell(cr4Disp,s.sector,'CR4 (Top-4 revenue share)')
+      +cell(s.medMos,_f(s.medMos,'%',0),_colMos,false,'Median Margin of Safety vs. DCF FV')
+      +cell(s.medPB,s.medPB!=null?s.medPB.toFixed(2)+'x':'&mdash;',_colPB,true,'Median P/B multiple')
+      +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',_colEV,true,'Median EV/EBITDA multiple')
+      +cell(s.medSpread,_f(s.medSpread,'%',1),_colSpread,false,'Median ROIC – WACC spread')
+      +cell(s.medGrowth,_f(s.medGrowth,'%',1),_colGrowth,false,'Median 5-year revenue CAGR')
+      +cell(s.nBuy,s.nBuy+'',_colNBuy,false,'Stocks rated BUY or LEAN BUY')
+      +'<td style="text-align:left">'+bestPill+' '+bestMult+'</td>'
+      +cell(s.avgMult,s.avgMult.toFixed(2)+'x',_colMult,false,'Average pool multiple (profit share / revenue share)')
     +'</tr>';
   });
   var _heatTableHtml=_heatRows
@@ -3585,11 +3612,12 @@ function renderCrossSectorDashboard(){
   /* Aggregate Performance chart lives on its own "Performance" tab
      (right of Overview); not rendered here. */
   return'<div class="xsect-dashboard">'
+    +_heatTableHtml
+    +'<div style="height:18px"></div>'
     +_narHtml
     +'<div style="margin-bottom:14px">'
       +'<div class="xsect-chart-title">Margin vs. Concentration</div><div id="xsect-scatter-wrap"></div>'
     +'</div>'
-    +_heatTableHtml
     +'</div></div>';
 }
 function _buildScatterSVG(W,H){
