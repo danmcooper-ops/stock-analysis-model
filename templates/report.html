@@ -462,16 +462,16 @@ td.ct{font-weight:700;}
 .xsect-dashboard{background:white;border-radius:10px;padding:22px 24px 20px;box-shadow:0 3px 14px rgba(0,0,0,0.09);margin-bottom:22px;border-top:4px solid #1a252f;}
 .xsect-title{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:3px;}
 .xsect-sub{font-size:0.78em;color:#8a9bb0;margin-bottom:16px;}
-.xsect-kpi-row{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
-.xsect-kpi{flex:1;min-width:140px;background:#f8fafd;border-radius:7px;padding:10px 14px;}
-.xsect-kpi-val{font-weight:700;font-size:1.1em;color:#1a252f;margin-bottom:2px;}
-.xsect-kpi-label{font-size:0.73em;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;}
-.xsect-kpi-sub{font-size:0.72em;color:#aab;margin-top:2px;}
-.xsect-chart-title{font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;}
-.xsect-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;border-radius:4px;transition:background 0.15s;min-width:0;}
+.xsect-kpi-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.xsect-kpi{flex:1;min-width:140px;background:#f8fafd;border-radius:7px;padding:9px 12px;}
+.xsect-kpi-val{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:1px;}
+.xsect-kpi-label{font-size:0.72em;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;}
+.xsect-kpi-sub{font-size:0.71em;color:#aab;margin-top:1px;}
+.xsect-chart-title{font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
+.xsect-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;border-radius:4px;transition:background 0.15s;min-width:0;}
 .xsect-bar-row:hover{background:#f0f4f8;}
 .xsect-bar-label{width:160px;font-size:0.76em;font-weight:600;color:#1a252f;text-align:right;flex-shrink:0;line-height:1.2;min-width:0;overflow-wrap:anywhere;}
-.xsect-bar-track{flex:1 1 0;height:22px;background:#f0f4f8;border-radius:3px;position:relative;overflow:hidden;min-width:60px;}
+.xsect-bar-track{flex:1 1 0;height:18px;background:#f0f4f8;border-radius:3px;position:relative;overflow:hidden;min-width:60px;}
 .xsect-bar-fill{height:100%;border-radius:3px;}
 .xsect-bar-pct{position:absolute;right:7px;top:50%;transform:translateY(-50%);font-size:0.72em;font-weight:700;color:#444;}
 .xsect-bar-meta{width:240px;font-size:0.71em;color:#888;flex-shrink:0;min-width:0;overflow-wrap:anywhere;}
@@ -3411,7 +3411,7 @@ function renderCrossSectorDashboard(){
         +'<div class="xsect-bar-meta">'+(it.n!=null?'n='+it.n+' · ':'')+_xsPillsForSec(it.sector)+'</div>'
       +'</div>';
     });
-    return'<div style="margin-bottom:22px"><div class="xsect-chart-title">'+title+(sub?' <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">'+sub+'</span>':'')+'</div>'+bars+'</div>';
+    return'<div style="margin-bottom:12px"><div class="xsect-chart-title">'+title+(sub?' <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">'+sub+'</span>':'')+'</div>'+bars+'</div>';
   }
   var byMargin=allStats.slice().sort(function(a,b){return b.margin-a.margin;});
   var byHHI=allStats.slice().sort(function(a,b){return b.hhi-a.hhi;});
@@ -3671,7 +3671,7 @@ function renderCrossSectorDashboard(){
       +'<div class="xsect-bar-meta">'+s.b+' of '+s.t+' rated BUY or LEAN BUY</div>'
     +'</div>';
   });
-  var sectorBreakdownHtml='<div id="xsect-breakdown-wrap" style="margin-bottom:22px">'
+  var sectorBreakdownHtml='<div id="xsect-breakdown-wrap" style="margin-bottom:12px">'
     +'<div class="xsect-chart-title">% Rated BUY or LEAN BUY by Sector <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(filtered)</span></div>'
     +sectorBreakdownBars
   +'</div>';
@@ -3691,15 +3691,15 @@ function renderCrossSectorDashboard(){
       var mosCol=d.mos==null?'#94a3b8':(d.mos>=0.30?'#1a9850':d.mos>=0.15?'#74c476':d.mos>=0?'#fd8d3c':'#de2d26');
       var rCol=RC[d.rating]||'#888';
       _rows+='<tr style="cursor:pointer" onclick="openDet(\''+t+'\')" title="Open '+d.ticker+'">'
-        +'<td style="padding:7px 10px;font-weight:700;color:#1a252f">'+d.ticker+'</td>'
-        +'<td style="padding:7px 10px;color:#475569;font-size:0.88em">'+(d.sector||'—')+'</td>'
-        +'<td style="padding:7px 10px;text-align:right;font-weight:600">'+cs+'</td>'
-        +'<td style="padding:7px 10px;text-align:right;color:'+mosCol+';font-weight:600">'+mos+'</td>'
-        +'<td style="padding:7px 10px;text-align:right"><span class="rb" style="background:'+rCol+';font-size:0.7em">'+d.rating+'</span></td>'
+        +'<td style="padding:5px 10px;font-weight:700;color:#1a252f">'+d.ticker+'</td>'
+        +'<td style="padding:5px 10px;color:#475569;font-size:0.88em">'+(d.sector||'—')+'</td>'
+        +'<td style="padding:5px 10px;text-align:right;font-weight:600">'+cs+'</td>'
+        +'<td style="padding:5px 10px;text-align:right;color:'+mosCol+';font-weight:600">'+mos+'</td>'
+        +'<td style="padding:5px 10px;text-align:right"><span class="rb" style="background:'+rCol+';font-size:0.7em">'+d.rating+'</span></td>'
       +'</tr>';
     });
-    _spbStripHtml='<div style="background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,0.08);margin-bottom:14px">'
-      +'<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px">'
+    _spbStripHtml='<div style="background:#fff;border-radius:10px;padding:10px 14px;box-shadow:0 2px 10px rgba(0,0,0,0.08);margin-bottom:10px">'
+      +'<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">'
         +'<div class="xsect-chart-title" style="margin-bottom:0">Today’s Top Picks <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(highest composite score among BUY + LEAN BUY)</span></div>'
         +'<div style="font-size:0.7em;color:#94a3b8">Click any row to open detail</div>'
       +'</div>'
@@ -3740,7 +3740,7 @@ function renderCrossSectorDashboard(){
     var _bRoic=_bestBy(_allActionable,'roic',false);
     var _bPE=_bestBy(_allActionable.filter(function(d){return d.pe!=null&&d.pe>0;}),'pe',true);
     var _bLow=_bestBy(_allActionable,'range_52w_position',true);
-    _ldrHtml='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">'
+    _ldrHtml='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
       +_leaderChip('Largest MoS%',_bMos,_bMos&&_bMos.mos!=null?(_bMos.mos*100).toFixed(0)+'%':'—','#1a9850')
       +_leaderChip('Highest ROIC',_bRoic,_bRoic&&_bRoic.roic!=null?(_bRoic.roic*100).toFixed(0)+'%':'—','#2F5496')
       +_leaderChip('Cheapest P/E',_bPE,_bPE&&_bPE.pe!=null?_bPE.pe.toFixed(1)+'x':'—','#8e24aa')
@@ -3749,9 +3749,9 @@ function renderCrossSectorDashboard(){
   }
   var springboardHtml='';
   if(_spbStripHtml||_ldrHtml){
-    springboardHtml='<div style="background:linear-gradient(180deg,#eef5fb 0%,#f8fafd 100%);border-radius:10px;padding:16px 16px 4px;margin-bottom:22px;border:1px solid #d8e3ee">'
-      +'<div style="font-size:0.95em;font-weight:700;color:#0e3a40;margin-bottom:4px">Springboard — Actionable Picks</div>'
-      +'<div style="font-size:0.75em;color:#64748b;margin-bottom:12px">Top BUY + LEAN BUY names from your filtered universe. Click anything to open the detail page.</div>'
+    springboardHtml='<div style="background:linear-gradient(180deg,#eef5fb 0%,#f8fafd 100%);border-radius:10px;padding:12px 14px 2px;margin-bottom:14px;border:1px solid #d8e3ee">'
+      +'<div style="font-size:0.92em;font-weight:700;color:#0e3a40;margin-bottom:2px">Springboard — Actionable Picks</div>'
+      +'<div style="font-size:0.74em;color:#64748b;margin-bottom:10px">Top BUY + LEAN BUY names from your filtered universe. Click anything to open the detail page.</div>'
       +_spbStripHtml
       +_ldrHtml
     +'</div>';
@@ -3840,7 +3840,7 @@ function renderCrossSectorDashboard(){
   );
   var lensChartsHtml=''
     +sectorBreakdownHtml
-    +'<div id="xsect-bar-wrap" style="margin-bottom:22px">'
+    +'<div id="xsect-bar-wrap" style="margin-bottom:12px">'
       +'<div class="xsect-chart-title">Operating Margin by Sector <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(pool-weighted)</span></div>'
       +marginBarsHtml
     +'</div>'
@@ -4111,7 +4111,7 @@ function renderPool(){
     var rows=bw.querySelectorAll('.xsect-bar-row');
     var barH=rows.length>0?Math.round(rows[rows.length-1].getBoundingClientRect().bottom-rows[0].getBoundingClientRect().top):Math.round(bR.height);
     var W=Math.floor(bR.width);
-    var H=Math.max(barH+spT+spB,460);
+    var H=Math.max(barH+spT+spB,320);
     sw.style.marginLeft='0';
     sw.innerHTML=_buildScatterSVG(W,H);
   }
