@@ -3491,182 +3491,6 @@ function renderCrossSectorDashboard(){
   if(valueTrap.length){narItems.push({title:'Concentration without margin',metric:valueTrap.map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+',\u00a0'+(s.margin*100).toFixed(1)+'%\u00a0margin)';}).join(', '),summary:'High share but no pricing power \u2014 value-trap risk.',detail:'Elevated concentration has not translated into commensurate margin extraction. This pattern emerges where volume competition, commodity input pricing, or mandated price ceilings constrain profitability regardless of market share. High HHI here reflects market structure, not pricing power \u2014 the leading firm\u2019s dominant position is a floor on survival, not a ceiling lift on returns.'});}
   narItems.push({title:'Cross-sector spread',metric:((maxM-minM)*100).toFixed(0)+'\u00a0percentage points',summary:'Sector allocation is a first-order return driver.',detail:'The gap between the highest and lowest blended sector margins is wide enough that sector allocation is a first-order return driver, not a secondary tilting decision. A portfolio systematically overweight in high-quality pools \u2014 particularly sectors in the Quality quadrant \u2014 and underweight in structurally challenged pools compounds this advantage across cycles. Sector selection anchored to pool quality can rival individual stock selection in generating sustained portfolio-level alpha.'});
 
-  /* === Trading Volume by Cap Tier and Sector === */
-  /* Daily $ volume = share_turnover_rate × mcap, aggregated across the full
-     universe (DATA, not FD — Profit Pool tab is universe-level). */
-  var _vCapTier=function(b){return b<2?'small':(b<10?'mid':'large');};
-  var _vCapLabel={small:'Small Cap',mid:'Mid Cap',large:'Large Cap'};
-  var _vCapRange={small:'< $2B',mid:'$2B – $10B',large:'≥ $10B'};
-  var _vCapCol={small:'#74a9cf',mid:'#2b8cbe',large:'#045a8d'};
-  var _capVol={small:{vol:0,n:0},mid:{vol:0,n:0},large:{vol:0,n:0}};
-  var _secVol={};
-  DATA.forEach(function(d){
-    var mc=d.mcap||0;var tor=d.share_turnover_rate;
-    if(mc<=0||tor==null)return;
-    var dv=tor*mc;var tier=_vCapTier(mc/1e9);
-    _capVol[tier].vol+=dv;_capVol[tier].n+=1;
-    var sec=d.sector||'Unknown';
-    if(!_secVol[sec])_secVol[sec]={vol:0,byTier:{small:0,mid:0,large:0},n:0};
-    _secVol[sec].vol+=dv;_secVol[sec].byTier[tier]+=dv;_secVol[sec].n+=1;
-  });
-  var _capTotal=_capVol.small.vol+_capVol.mid.vol+_capVol.large.vol;
-  var capCardsHtml='';
-  ['small','mid','large'].forEach(function(t){
-    var v=_capVol[t],pct=_capTotal?Math.round(v.vol/_capTotal*100):0;
-    capCardsHtml+='<div style="flex:1;min-width:130px;background:#fafbfc;border-radius:8px;padding:11px 14px;border-left:4px solid '+_vCapCol[t]+'">'
-      +'<div style="font-size:0.7em;font-weight:700;color:'+_vCapCol[t]+';text-transform:uppercase;letter-spacing:0.05em">'+_vCapLabel[t]+'</div>'
-      +'<div style="font-size:0.65em;color:#999;margin-bottom:4px">'+_vCapRange[t]+'</div>'
-      +'<div style="font-size:1.45em;font-weight:700;color:#1a252f">'+fds(v.vol)+'</div>'
-      +'<div style="font-size:0.7em;color:#888">'+pct+'% of total · '+v.n+' stock'+(v.n!==1?'s':'')+'</div>'
-      +'</div>';
-  });
-  var capProportionHtml='<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:#f0f0f0">';
-  ['small','mid','large'].forEach(function(t){
-    var w=_capTotal?(_capVol[t].vol/_capTotal*100):0;
-    if(w>0)capProportionHtml+='<div style="width:'+w+'%;background:'+_vCapCol[t]+'" title="'+_vCapLabel[t]+': '+fds(_capVol[t].vol)+'"></div>';
-  });
-  capProportionHtml+='</div>';
-  var _sArr=Object.keys(_secVol).map(function(s){return{name:s,vol:_secVol[s].vol,byTier:_secVol[s].byTier,n:_secVol[s].n};});
-  _sArr.sort(function(a,b){return b.vol-a.vol;});
-  var _maxSV=_sArr.length?_sArr[0].vol:0;
-  var sectorBarsVolHtml='';
-  _sArr.forEach(function(s){
-    var sEsc=s.name.replace(/'/g,"\\'");
-    sectorBarsVolHtml+='<div class="xsect-bar-row" onclick="showPoolTab(\''+sEsc+'\')" style="cursor:pointer" title="'+s.name+' · '+s.n+' stocks · '+fds(s.vol)+'/day · click to view sector">'
-      +'<div class="xsect-bar-label">'+s.name+'</div>'
-      +'<div class="xsect-bar-track"><div class="xsect-trade-stack">';
-    ['small','mid','large'].forEach(function(t){
-      var w=_maxSV?(s.byTier[t]/_maxSV*100):0;
-      if(w>0)sectorBarsVolHtml+='<div style="width:'+w+'%;background:'+_vCapCol[t]+'" title="'+_vCapLabel[t]+': '+fds(s.byTier[t])+'"></div>';
-    });
-    sectorBarsVolHtml+='</div><span class="xsect-bar-pct">'+fds(s.vol)+'</span></div>'
-      +'</div>';
-  });
-  var legendHtml='<div style="display:flex;gap:12px;align-items:center;margin-top:10px;justify-content:flex-end">';
-  ['small','mid','large'].forEach(function(t){
-    legendHtml+='<div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:'+_vCapCol[t]+'"></div><div style="font-size:0.65em;color:#888">'+_vCapLabel[t]+'</div></div>';
-  });
-  legendHtml+='</div>';
-  /* === Avg daily SHARES per sector (sum of share_turnover × shares_out) ===
-     Stacked by cap tier so you can see which cap segments contribute to each
-     sector's share-count flow. */
-  function _fns(v){if(v==null)return'N/A';var a=Math.abs(v);if(a>=1e9)return(a/1e9).toFixed(1)+'B';if(a>=1e6)return(a/1e6).toFixed(1)+'M';if(a>=1e3)return(a/1e3).toFixed(0)+'K';return Math.round(a)+'';}
-  var _shrSec={};
-  DATA.forEach(function(d){
-    var so=d.shares_out,tor=d.share_turnover_rate,mc=d.mcap||0;
-    if(!so||tor==null||mc<=0)return;
-    var sec=d.sector||'Unknown';
-    var shr=so*tor;var tier=_vCapTier(mc/1e9);
-    if(!_shrSec[sec])_shrSec[sec]={shr:0,byTier:{small:0,mid:0,large:0},n:0};
-    _shrSec[sec].shr+=shr;_shrSec[sec].byTier[tier]+=shr;_shrSec[sec].n+=1;
-  });
-  var _shrArr=Object.keys(_shrSec).map(function(s){return{name:s,shr:_shrSec[s].shr,byTier:_shrSec[s].byTier,n:_shrSec[s].n};});
-  _shrArr.sort(function(a,b){return b.shr-a.shr;});
-  var _maxShr=_shrArr.length?_shrArr[0].shr:0;
-  var sharesBarsHtml='';
-  _shrArr.forEach(function(s){
-    var sEsc=s.name.replace(/'/g,"\\'");
-    sharesBarsHtml+='<div class="xsect-bar-row" onclick="showPoolTab(\''+sEsc+'\')" style="cursor:pointer" title="'+s.name+' · '+s.n+' stocks · '+_fns(s.shr)+' shares/day · click to view sector">'
-      +'<div class="xsect-bar-label">'+s.name+'</div>'
-      +'<div class="xsect-bar-track"><div class="xsect-trade-stack">';
-    ['small','mid','large'].forEach(function(t){
-      var w=_maxShr?(s.byTier[t]/_maxShr*100):0;
-      if(w>0)sharesBarsHtml+='<div style="width:'+w.toFixed(1)+'%;background:'+_vCapCol[t]+'" title="'+_vCapLabel[t]+': '+_fns(s.byTier[t])+'"></div>';
-    });
-    sharesBarsHtml+='</div><span class="xsect-bar-pct">'+_fns(s.shr)+'</span></div>'
-      +'</div>';
-  });
-  var sharesLegendHtml='<div style="display:flex;gap:12px;align-items:center;margin-top:10px;justify-content:flex-end">';
-  ['small','mid','large'].forEach(function(t){
-    sharesLegendHtml+='<div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:'+_vCapCol[t]+'"></div><div style="font-size:0.65em;color:#888">'+_vCapLabel[t]+'</div></div>';
-  });
-  sharesLegendHtml+='</div>';
-
-  /* === Median turnover rate per sector, stacked by cap tier ===
-     Each sector row is a single stacked bar (matching the $ volume and shares
-     charts above). Bar segments are the median turnover within each cap tier,
-     stacked end-to-end. Bar lengths are scaled to the maximum sum-of-tier-
-     medians across all sectors. The right-side figure is the sector-wide
-     median (across all stocks regardless of cap), which is the meaningful
-     "summary" number — sum-of-medians has no statistical meaning. */
-  var _torByTier={};
-  DATA.forEach(function(d){
-    if(d.share_turnover_rate==null)return;
-    var sec=d.sector||'Unknown';
-    var tier=_vCapTier((d.mcap||0)/1e9);
-    if(!_torByTier[sec])_torByTier[sec]={small:[],mid:[],large:[]};
-    _torByTier[sec][tier].push(d.share_turnover_rate);
-  });
-  function _median(arr){if(!arr.length)return 0;var s=arr.slice().sort(function(a,b){return a-b;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
-  var _torArr=Object.keys(_torByTier).map(function(s){
-    var b=_torByTier[s];
-    var all=b.small.concat(b.mid).concat(b.large);
-    var medSmall=_median(b.small),medMid=_median(b.mid),medLarge=_median(b.large);
-    return{name:s,small:medSmall,mid:medMid,large:medLarge,
-      nSmall:b.small.length,nMid:b.mid.length,nLarge:b.large.length,
-      stackSum:medSmall+medMid+medLarge,
-      overall:_median(all),n:all.length};
-  });
-  _torArr.sort(function(a,b){return b.overall-a.overall;});
-  var _maxStack=0;
-  _torArr.forEach(function(s){_maxStack=Math.max(_maxStack,s.stackSum);});
-  var torBarsHtml='';
-  _torArr.forEach(function(s){
-    var rowTip=s.name+' · '+s.n+' stocks · overall median '+(s.overall*100).toFixed(2)+'%'
-      +' (Small '+(s.nSmall?(s.small*100).toFixed(2)+'% n='+s.nSmall:'no data')+
-      ' · Mid '+(s.nMid?(s.mid*100).toFixed(2)+'% n='+s.nMid:'no data')+
-      ' · Large '+(s.nLarge?(s.large*100).toFixed(2)+'% n='+s.nLarge:'no data')+')';
-    var sEsc=s.name.replace(/'/g,"\\'");
-    torBarsHtml+='<div class="xsect-bar-row" onclick="showPoolTab(\''+sEsc+'\')" style="cursor:pointer" title="'+rowTip+' · click to view sector">'
-      +'<div class="xsect-bar-label">'+s.name+'</div>'
-      +'<div class="xsect-bar-track"><div class="xsect-trade-stack">';
-    ['small','mid','large'].forEach(function(t){
-      var nKey=t==='small'?'nSmall':(t==='mid'?'nMid':'nLarge');
-      var med=s[t]||0;var nT=s[nKey];
-      var w=(_maxStack&&nT)?(med/_maxStack*100):0;
-      if(w>0){
-        var tip=_vCapLabel[t]+': median '+(med*100).toFixed(2)+'% (n='+nT+')';
-        torBarsHtml+='<div style="width:'+w.toFixed(1)+'%;background:'+_vCapCol[t]+'" title="'+tip+'"></div>';
-      }
-    });
-    torBarsHtml+='</div><span class="xsect-bar-pct">'+(s.overall*100).toFixed(2)+'%</span></div>'
-      +'</div>';
-  });
-  var torLegendHtml='<div style="display:flex;gap:12px;align-items:center;margin-top:10px;justify-content:flex-end">';
-  ['small','mid','large'].forEach(function(t){
-    torLegendHtml+='<div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:2px;background:'+_vCapCol[t]+'"></div><div style="font-size:0.65em;color:#888">'+_vCapLabel[t]+'</div></div>';
-  });
-  torLegendHtml+='</div>';
-
-  var volumeHtml=''
-    +'<div class="xsect-trading-section">'
-      +'<div class="xsect-title">Cross-Sector Trading by Volume and Value</div>'
-      +'<div class="xsect-sub">Liquidity flow across the universe — dollar volume, share-count flow, and size-normalized turnover</div>'
-    +'<div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-top:14px">'
-      +'<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Daily Trading Volume by Cap Size</div>'
-      +'<div style="font-size:0.71em;color:#94a3b8;margin-bottom:12px">Avg daily $ volume = share turnover × market cap, summed within each tier</div>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">'+capCardsHtml+'</div>'
-      +capProportionHtml
-    +'</div>'
-    +'<div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-top:14px">'
-      +'<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Daily Trading Volume by Sector</div>'
-      +'<div style="font-size:0.71em;color:#94a3b8;margin-bottom:12px">Stacked by cap size — hover a segment for the breakdown</div>'
-      +sectorBarsVolHtml
-      +legendHtml
-    +'</div>'
-    +'<div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-top:14px">'
-      +'<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Avg Daily Shares Traded by Sector</div>'
-      +'<div style="font-size:0.71em;color:#94a3b8;margin-bottom:12px">Sum of share-count flow per sector (turnover × shares outstanding), stacked by cap size. Sensitive to share-price denomination — see $ volume above for normalized liquidity.</div>'
-      +sharesBarsHtml
-      +sharesLegendHtml
-    +'</div>'
-    +'<div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-top:14px">'
-      +'<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Median Daily Turnover Rate by Sector</div>'
-      +'<div style="font-size:0.71em;color:#94a3b8;margin-bottom:12px">Fraction of float changing hands per day, stacked by cap tier (each segment is that tier\'s median). Number on the right is the overall sector median across all cap sizes — hover any segment or row for the full breakdown.</div>'
-      +torBarsHtml
-      +torLegendHtml
-    +'</div>'
-    +'</div>';
   /* Sector Breakdown — moved here from Financial Model > Dashboard. Shows
      BUY + LEAN BUY rate per sector for the *filtered* dataset (FD). The rest
      of this dashboard is universe-level (DATA), so this panel reflects the
@@ -3852,13 +3676,6 @@ function renderCrossSectorDashboard(){
     +_sumNarHtml
     +_sumTableHtml
   +'</div>';
-  /* Liquidity / volume charts wrapped in collapsed <details> — kept available
-     but no longer above-the-fold. */
-  var liquidityWrappedHtml='<details style="margin-top:8px"><summary style="cursor:pointer;font-size:0.8em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;padding:10px 14px;background:#f3f8fb;border-radius:8px;list-style:none;display:flex;align-items:center;gap:8px;border-left:3px solid #00838f">'
-    +'<span style="display:inline-block;width:10px;text-align:center">▸</span>Show Liquidity &amp; Trading Volume <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8;font-size:0.85em">(daily $ volume, share flow, turnover)</span>'
-    +'</summary>'
-    +volumeHtml
-  +'</details>';
   /* Aggregate Performance chart lives on its own "Performance" tab
      (right of Overview); not rendered here. */
   return'<div class="xsect-dashboard">'
@@ -3867,7 +3684,6 @@ function renderCrossSectorDashboard(){
       +'<div class="xsect-chart-title">Margin vs. Concentration</div><div id="xsect-scatter-wrap"></div>'
     +'</div>'
     +lensChartsHtml
-    +liquidityWrappedHtml
     +'</div></div>';
 }
 function _buildScatterSVG(W,H){
