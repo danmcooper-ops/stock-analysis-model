@@ -3533,16 +3533,16 @@ function renderCrossSectorDashboard(){
     {colorFn:function(v){return v>=0.30?'#1a9850':v>=0.15?'#74c476':v>=0?'#fd8d3c':'#de2d26';},
      labelFn:function(v){return(v*100).toFixed(0)+'%';}}
   );
-  /* Median P/E by sector */
-  var _lensPE=_xsLensChart(
-    'Median P/E by Sector','(lower = sector trades at a cheaper multiple)',
+  /* Median P/B by sector */
+  var _lensPB=_xsLensChart(
+    'Median P/B by Sector','(lower = sector trades at a cheaper price-to-book multiple)',
     Object.keys(_bySecU).map(function(s){
-      var vals=_xsVals(_bySecU[s],'pe').filter(function(v){return v>0&&v<200;});
+      var vals=_xsVals(_bySecU[s],'pb').filter(function(v){return v>0&&v<50;});
       return{sector:s,value:_xsMed(vals),n:vals.length};
     }).filter(function(it){return it.value!=null;}),
     {asc:true,
-     colorFn:function(v){return v<=12?'#1a9850':v<=18?'#74c476':v<=28?'#fd8d3c':'#de2d26';},
-     labelFn:function(v){return v.toFixed(1)+'x';}}
+     colorFn:function(v){return v<=1.5?'#1a9850':v<=3?'#74c476':v<=6?'#fd8d3c':'#de2d26';},
+     labelFn:function(v){return v.toFixed(2)+'x';}}
   );
   /* Median EV/EBITDA by sector */
   var _lensEV=_xsLensChart(
@@ -3580,7 +3580,7 @@ function renderCrossSectorDashboard(){
       +marginBarsHtml
     +'</div>'
     +_lensMos
-    +_lensPE
+    +_lensPB
     +_lensEV
     +_lensSpread
     +_lensGrowth;
