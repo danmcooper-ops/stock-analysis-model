@@ -825,9 +825,9 @@ td.ct{font-weight:700;}
 </div>
 <div class="container">
   <div class="primary-nav">
-    <button class="nav-btn active" data-view="pool" onclick="showView('pool')">Sector Analysis</button>
-    <button class="nav-btn" data-view="matrix" onclick="showView('matrix')">Financial Model</button>
+    <button class="nav-btn active" data-view="matrix" onclick="showView('matrix')">Financial Model</button>
     <button class="nav-btn" data-view="table" onclick="showView('table')">Financial Data</button>
+    <button class="nav-btn" data-view="pool" onclick="showView('pool')">Sector Analysis</button>
   </div>
   <div class="filter-bar" id="filter-bar">
     <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker..." oninput="applyFilters()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
@@ -879,7 +879,7 @@ td.ct{font-weight:700;}
     <button class="filter-clear" onclick="clearFilters()">Clear</button>
     <span class="filter-count" id="f-count"></span>
   </div>
-  <div id="view-matrix" class="view">
+  <div id="view-matrix" class="view active">
     <div class="secondary-nav" id="m-subs"></div>
     <div id="m-overview-view" style="display:none"></div>
     <div class="matrix-wrap"><table class="matrix-table" id="mtx"><thead id="mtx-h"></thead><tbody id="mtx-b"></tbody></table></div>
@@ -889,7 +889,7 @@ td.ct{font-weight:700;}
     <div class="table-wrap"><table class="dt" id="dtbl"><thead id="dt-h"></thead><tbody id="dt-b"></tbody></table></div>
     <div id="ph-view" style="display:none"></div>
   </div>
-  <div id="view-pool" class="view active">
+  <div id="view-pool" class="view">
     <div id="pool-controls" class="pool-controls"></div>
     <div id="pool-chart-area"></div>
     <div id="pool-sector-table"></div>
@@ -968,7 +968,7 @@ var RC={'BUY':'#1a9850','LEAN BUY':'#74c476','HOLD':'#fd8d3c','PASS':'#de2d26'};
 var _poolTab='__all__';
 function showPoolTab(sec){_poolTab=sec||'__all__';renderPool();window.scrollTo({top:0,behavior:'auto'});}
 function xsToggle(hdr){var c=hdr&&hdr.parentElement;if(c)c.classList.toggle('open');}
-var curView='pool',curTSub='ovr';
+var curView='matrix',curTSub='ovr';
 var _detNav=[],_detIdx=-1;
 /* === FLAGS (localStorage) === */
 var _FLAG_KEY='stock_flags_v1';
