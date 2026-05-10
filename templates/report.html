@@ -3487,8 +3487,10 @@ function renderCrossSectorDashboard(){
     var pbVals=cos.map(function(d){return d.pb;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<50;});
     var evVals=cos.map(function(d){return d.ev_ebitda;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<100;});
     var spreadVals=cos.map(function(d){return d.spread;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var growthVals=cos.map(function(d){return d.rev_cagr_5y;}).filter(function(v){return v!=null&&!isNaN(v);});
-    if(!growthVals.length)growthVals=cos.map(function(d){return d.rev_cagr;}).filter(function(v){return v!=null&&!isNaN(v);});
+    /* Use 3-year rev_cagr; the rev_cagr_5y field is upstream-buggy
+       (84% of populated values come back negative, including absurd
+       magnitudes), so its medians pull the whole column negative. */
+    var growthVals=cos.map(function(d){return d.rev_cagr;}).filter(function(v){return v!=null&&!isNaN(v);});
     _sumStats.push({
       sector:sec,n:sorted.length,wtdM:wtdM,hhi:hhi,cr4:cr4,
       medMos:_sumMed(mosVals),medPB:_sumMed(pbVals),medEV:_sumMed(evVals),
@@ -3565,7 +3567,7 @@ function renderCrossSectorDashboard(){
       +cell(s.medPB,s.medPB!=null?s.medPB.toFixed(2)+'x':'&mdash;',_colPB,true,'Median P/B multiple')
       +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',_colEV,true,'Median EV/EBITDA multiple')
       +cell(s.medSpread,_f(s.medSpread,'%',1),_colSpread,false,'Median ROIC – WACC spread')
-      +cell(s.medGrowth,_f(s.medGrowth,'%',1),_colGrowth,false,'Median 5-year revenue CAGR')
+      +cell(s.medGrowth,_f(s.medGrowth,'%',1),_colGrowth,false,'Median 3-year revenue CAGR')
       +cell(s.nBuy,s.nBuy+'',_colNBuy,false,'Stocks rated BUY or LEAN BUY')
       +'<td style="text-align:left">'+bestPill+' '+bestMult+'</td>'
       +cell(s.avgMult,s.avgMult.toFixed(2)+'x',_colMult,false,'Average pool multiple (profit share / revenue share)')
@@ -3584,7 +3586,7 @@ function renderCrossSectorDashboard(){
         +'<th title="Median P/B multiple (lower = cheaper)">Med P/B</th>'
         +'<th title="Median EV/EBITDA multiple (lower = cheaper)">Med EV/EBITDA</th>'
         +'<th title="Median ROIC – WACC spread (higher = better)">Med ROIC–WACC</th>'
-        +'<th title="Median 5-year revenue CAGR (higher = better)">Med Rev CAGR</th>'
+        +'<th title="Median 3-year revenue CAGR (higher = better)">Med Rev CAGR</th>'
         +'<th title="# of stocks rated BUY or LEAN BUY (higher = more actionable picks)"># BUY</th>'
         +'<th style="text-align:left">Top Earner</th>'
         +'<th title="Average pool-multiple = profit share / revenue share (higher = better)">Avg Multiple</th>'
