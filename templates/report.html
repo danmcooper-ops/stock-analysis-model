@@ -246,27 +246,22 @@ td.ct{font-weight:700;}
    the heatmap). Mobile-tuned padding/font for iPhone Safari. */
 .heatmap-table{table-layout:fixed;}
 .heatmap-table th{cursor:pointer;font-weight:600;text-align:center;user-select:none;-webkit-user-select:none;touch-action:manipulation;white-space:normal;line-height:1.18;vertical-align:bottom;word-break:keep-all;overflow-wrap:normal;}
-.heatmap-table th:first-child,.heatmap-table th:last-child{text-align:left;}
-.heatmap-table td{padding:5px 6px;}
-/* Metric column headers angle -45° so a 17-column table fits within a
-   normal viewport without horizontal scrolling. Sector and Top Earner
-   stay horizontal because they hold multi-word text / a pill. */
-.heatmap-table thead th{position:relative;height:120px;padding:0 4px 6px;overflow:visible;}
-.heatmap-table thead th .th-inner{position:absolute;left:50%;bottom:5px;transform:translate(-2px,0) rotate(-45deg);transform-origin:left bottom;white-space:nowrap;line-height:1;font-size:0.92em;letter-spacing:0.01em;}
-.heatmap-table thead th:first-child,.heatmap-table thead th:last-child{padding:7px 8px 7px;}
-.heatmap-table thead th:first-child .th-inner,.heatmap-table thead th:last-child .th-inner{position:static;transform:none;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;height:100%;white-space:normal;font-size:1em;}
-@media(max-width:760px){
-  .heatmap-table thead th{height:104px;}
-  .heatmap-table thead th .th-inner{font-size:0.84em;}
-}
+.heatmap-table th:first-child{text-align:left;}
+.heatmap-table td{padding:6px 8px;}
+.heatmap-table th{padding:7px 8px 7px;height:54px;}
+/* Use flex inside each header to anchor content to the bottom of the cell.
+   Table vertical-align:bottom is unreliable when mixing single-line and
+   wrapped 2-line headers (gives a one-line-height offset for the
+   single-line ones); flex column with justify-content:flex-end is
+   bulletproof. */
+.heatmap-table .th-inner{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;}
+.heatmap-table th:first-child .th-inner{align-items:flex-start;}
 .heatmap-table .heat-arrow{display:inline-block;margin-left:3px;font-size:0.72em;color:#8aa6c8;min-width:8px;}
 .heatmap-table th:hover{background:#243140;}
 /* Override .dt freezing on cols 2-3 (correct for Financial Data table,
-   wrong for the heatmap which has only Sector as the identity column).
-   Use position:relative (not static) on thead th so the absolute-
-   positioned rotated .th-inner anchors correctly inside its own cell. */
+   wrong for the heatmap which has only Sector as the identity column). */
 .heatmap-table thead th:nth-child(2),
-.heatmap-table thead th:nth-child(3){position:relative;left:auto;z-index:auto;box-shadow:none;background:#1a252f;}
+.heatmap-table thead th:nth-child(3){position:static;left:auto;z-index:auto;box-shadow:none;background:#1a252f;}
 .heatmap-table tbody td:nth-child(2),
 .heatmap-table tbody td:nth-child(3){position:static;left:auto;z-index:auto;box-shadow:none;background:transparent;}
 .heatmap-table tbody tr:nth-child(even) td:nth-child(2),
@@ -3583,11 +3578,6 @@ function renderCrossSectorDashboard(){
   if(!window._heatSortState)window._heatSortState={key:'sector',asc:true};
   /* Row builder reused on initial mount and on every sort click. */
   function _buildHeatRow(s){
-    var bEsc=s.best.ticker.replace(/'/g,"\\'");
-    var bestRating=s.best.rating||'';
-    var bestMult=(s.best.pp_multiple||0).toFixed(2)+'x';
-    var bestTip=_attr(s.best.ticker+' ('+bestRating+', pool multiple '+bestMult+') — click to open detail');
-    var bestPill='<span class="rb" style="background:'+(RC[s.best.rating]||'#aaa')+';cursor:pointer" onclick="event.stopPropagation();openDet(\''+bEsc+'\')" title="'+bestTip+'">'+s.best.ticker+'</span>';
     function cell(val,disp,colVals,asc){
       var bg=_heatBg(val,colVals,asc);
       return'<td style="'+bg+'">'+disp+'</td>';
@@ -3614,17 +3604,13 @@ function renderCrossSectorDashboard(){
       +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',C.medEV,true)
       +cell(s.medShrYld,_f(s.medShrYld,'%',1),C.medShrYld,false)
       +cell(s.pctBuy,pctBuyDisp,C.pctBuy,false)
-      +'<td style="text-align:left">'+bestPill+' '+bestMult+'</td>'
     +'</tr>';
   }
-  /* Sorted view honoring window._heatSortState. The "bestMult" key sorts
-     the Top Earner column by the underlying pp_multiple. */
+  /* Sorted view honoring window._heatSortState. */
   function _heatSortedStats(){
     var st=window._heatSortState||{key:'sector',asc:true};
     return window._heatStats.slice().sort(function(a,b){
-      var va,vb;
-      if(st.key==='bestMult'){va=a.best&&a.best.pp_multiple;vb=b.best&&b.best.pp_multiple;}
-      else{va=a[st.key];vb=b[st.key];}
+      var va=a[st.key],vb=b[st.key];
       if(va==null&&vb==null)return 0;
       if(va==null)return 1;
       if(vb==null)return-1;
@@ -3669,22 +3655,21 @@ function renderCrossSectorDashboard(){
          a uniform grid. Sector and Top Earner stay wider for their text. */
       +'<div class="table-wrap"><table class="dt heatmap-table"><thead><tr>'
         +_th('sector','Sector',150,'GICS sector. Pool stats below are computed across the companies in this sector. Click to sort A–Z.',true)
-        +_th('n','Cos',56,'Number of companies in the sector pool. Click to sort.')
-        +_th('hhi','HHI',56,'Herfindahl–Hirschman Index of revenue concentration. Above 0.25 = oligopoly, 0.15–0.25 = moderately concentrated, below 0.15 = competitive. Higher concentration = greener (more pricing power for incumbents).')
-        +_th('cr4','CR4',56,'Top-4 companies’ share of sector revenue. Above 80% = highly concentrated, 50–80% = moderate, below 50% = competitive. Higher = greener (more pricing power for incumbents).')
-        +_th('wtdM','Wtd Margin',56,'Pool-weighted operating margin — sum(margin × revenue share) for the sector. Higher = better.')
-        +_th('medFCFM','Med FCF Margin',56,'Median free cash flow margin across the sector. Cash conversion of revenue — higher = better.')
-        +_th('medROIC','Med ROIC',56,'Median return on invested capital across the sector. Higher = better.')
-        +_th('medSpread','Med ROIC–WACC',56,'Median ROIC minus WACC — value created above cost of capital. Higher = better.')
-        +_th('medGrowth','Med Rev CAGR',56,'Median 3-year revenue CAGR across the sector. Higher = better.')
-        +_th('medNDEB','Med ND/EBITDA',56,'Median Net Debt / EBITDA across the sector. Sector leverage proxy — lower = safer balance sheets.')
-        +_th('medAltZ','Med Altman Z',56,'Median Altman Z-score across the sector. Above 3.0 = safe, 1.8–3.0 = grey zone, below 1.8 = distress signal. Higher = better.')
-        +_th('medMos','Med MoS%',56,'Median Margin of Safety vs. DCF fair value across the sector. Higher = sector trades at a deeper discount to intrinsic value.')
-        +_th('medPB','Med P/B',56,'Median price-to-book multiple. Lower = cheaper on book value.')
-        +_th('medEV','Med EV/EBITDA',56,'Median enterprise value / EBITDA multiple. Lower = cheaper relative to operating earnings.')
-        +_th('medShrYld','Med Shr Yld',56,'Median shareholder yield = buybacks + dividends as % of market cap. Higher = more capital returned to shareholders.')
-        +_th('pctBuy','% BUY',56,'% of sector rated BUY or LEAN BUY by the screener. Higher = more concentrated opportunity in the sector.')
-        +_th('bestMult','Top Earner',115,'Highest pool-multiple (profit share / revenue share) company in the sector. Sorted by the pool multiple. Click the ticker to open its detail page.',true)
+        +_th('n','Cos',82,'Number of companies in the sector pool. Click to sort.')
+        +_th('hhi','HHI',82,'Herfindahl–Hirschman Index of revenue concentration. Above 0.25 = oligopoly, 0.15–0.25 = moderately concentrated, below 0.15 = competitive. Higher concentration = greener (more pricing power for incumbents).')
+        +_th('cr4','CR4',82,'Top-4 companies’ share of sector revenue. Above 80% = highly concentrated, 50–80% = moderate, below 50% = competitive. Higher = greener (more pricing power for incumbents).')
+        +_th('wtdM','Wtd Margin',82,'Pool-weighted operating margin — sum(margin × revenue share) for the sector. Higher = better.')
+        +_th('medFCFM','Med FCF Margin',82,'Median free cash flow margin across the sector. Cash conversion of revenue — higher = better.')
+        +_th('medROIC','Med ROIC',82,'Median return on invested capital across the sector. Higher = better.')
+        +_th('medSpread','Med ROIC–WACC',82,'Median ROIC minus WACC — value created above cost of capital. Higher = better.')
+        +_th('medGrowth','Med Rev CAGR',82,'Median 3-year revenue CAGR across the sector. Higher = better.')
+        +_th('medNDEB','Med ND/EBITDA',82,'Median Net Debt / EBITDA across the sector. Sector leverage proxy — lower = safer balance sheets.')
+        +_th('medAltZ','Med Altman Z',82,'Median Altman Z-score across the sector. Above 3.0 = safe, 1.8–3.0 = grey zone, below 1.8 = distress signal. Higher = better.')
+        +_th('medMos','Med MoS%',82,'Median Margin of Safety vs. DCF fair value across the sector. Higher = sector trades at a deeper discount to intrinsic value.')
+        +_th('medPB','Med P/B',82,'Median price-to-book multiple. Lower = cheaper on book value.')
+        +_th('medEV','Med EV/EBITDA',82,'Median enterprise value / EBITDA multiple. Lower = cheaper relative to operating earnings.')
+        +_th('medShrYld','Med Shr Yld',82,'Median shareholder yield = buybacks + dividends as % of market cap. Higher = more capital returned to shareholders.')
+        +_th('pctBuy','% BUY',82,'% of sector rated BUY or LEAN BUY by the screener. Higher = more concentrated opportunity in the sector.')
       +'</tr></thead><tbody id="heat-tbody"></tbody></table></div>'
     +'</div>'
     :'';
