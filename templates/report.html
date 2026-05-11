@@ -246,7 +246,7 @@ td.ct{font-weight:700;}
    the heatmap). Mobile-tuned padding/font for iPhone Safari. */
 .heatmap-table{table-layout:fixed;}
 .heatmap-table th{cursor:pointer;font-weight:600;text-align:center;user-select:none;-webkit-user-select:none;touch-action:manipulation;white-space:normal;line-height:1.18;vertical-align:bottom;word-break:keep-all;overflow-wrap:normal;}
-.heatmap-table th:first-child,.heatmap-table th:last-child{text-align:left;}
+.heatmap-table th:first-child{text-align:left;}
 .heatmap-table td{padding:6px 8px;}
 .heatmap-table th{padding:7px 8px 7px;height:54px;}
 /* Use flex inside each header to anchor content to the bottom of the cell.
@@ -255,7 +255,7 @@ td.ct{font-weight:700;}
    single-line ones); flex column with justify-content:flex-end is
    bulletproof. */
 .heatmap-table .th-inner{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;}
-.heatmap-table th:first-child .th-inner,.heatmap-table th:last-child .th-inner{align-items:flex-start;}
+.heatmap-table th:first-child .th-inner{align-items:flex-start;}
 .heatmap-table .heat-arrow{display:inline-block;margin-left:3px;font-size:0.72em;color:#8aa6c8;min-width:8px;}
 .heatmap-table th:hover{background:#243140;}
 /* Override .dt freezing on cols 2-3 (correct for Financial Data table,
@@ -3578,11 +3578,6 @@ function renderCrossSectorDashboard(){
   if(!window._heatSortState)window._heatSortState={key:'sector',asc:true};
   /* Row builder reused on initial mount and on every sort click. */
   function _buildHeatRow(s){
-    var bEsc=s.best.ticker.replace(/'/g,"\\'");
-    var bestRating=s.best.rating||'';
-    var bestMult=(s.best.pp_multiple||0).toFixed(2)+'x';
-    var bestTip=_attr(s.best.ticker+' ('+bestRating+', pool multiple '+bestMult+') — click to open detail');
-    var bestPill='<span class="rb" style="background:'+(RC[s.best.rating]||'#aaa')+';cursor:pointer" onclick="event.stopPropagation();openDet(\''+bEsc+'\')" title="'+bestTip+'">'+s.best.ticker+'</span>';
     function cell(val,disp,colVals,asc){
       var bg=_heatBg(val,colVals,asc);
       return'<td style="'+bg+'">'+disp+'</td>';
@@ -3609,17 +3604,13 @@ function renderCrossSectorDashboard(){
       +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',C.medEV,true)
       +cell(s.medShrYld,_f(s.medShrYld,'%',1),C.medShrYld,false)
       +cell(s.pctBuy,pctBuyDisp,C.pctBuy,false)
-      +'<td style="text-align:left">'+bestPill+' '+bestMult+'</td>'
     +'</tr>';
   }
-  /* Sorted view honoring window._heatSortState. The "bestMult" key sorts
-     the Top Earner column by the underlying pp_multiple. */
+  /* Sorted view honoring window._heatSortState. */
   function _heatSortedStats(){
     var st=window._heatSortState||{key:'sector',asc:true};
     return window._heatStats.slice().sort(function(a,b){
-      var va,vb;
-      if(st.key==='bestMult'){va=a.best&&a.best.pp_multiple;vb=b.best&&b.best.pp_multiple;}
-      else{va=a[st.key];vb=b[st.key];}
+      var va=a[st.key],vb=b[st.key];
       if(va==null&&vb==null)return 0;
       if(va==null)return 1;
       if(vb==null)return-1;
@@ -3679,7 +3670,6 @@ function renderCrossSectorDashboard(){
         +_th('medEV','Med EV/EBITDA',82,'Median enterprise value / EBITDA multiple. Lower = cheaper relative to operating earnings.')
         +_th('medShrYld','Med Shr Yld',82,'Median shareholder yield = buybacks + dividends as % of market cap. Higher = more capital returned to shareholders.')
         +_th('pctBuy','% BUY',82,'% of sector rated BUY or LEAN BUY by the screener. Higher = more concentrated opportunity in the sector.')
-        +_th('bestMult','Top Earner',115,'Highest pool-multiple (profit share / revenue share) company in the sector. Sorted by the pool multiple. Click the ticker to open its detail page.',true)
       +'</tr></thead><tbody id="heat-tbody"></tbody></table></div>'
     +'</div>'
     :'';
