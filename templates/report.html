@@ -3826,15 +3826,15 @@ function renderPool(){
     if(hhi!=null)chartHtml+=' &nbsp;&middot;&nbsp; HHI: '+hhi.toFixed(3)+' ('+conc+')';
     if(cr4!=null)chartHtml+=' &nbsp;&middot;&nbsp; CR4: '+(cr4*100).toFixed(0)+'%';
     chartHtml+='</span></div>';
-    var topRated=cos.slice().filter(function(d){return d._composite_score!=null;}).sort(function(a,b){return(b._composite_score||0)-(a._composite_score||0);}).slice(0,5);
+    var topRated=cos.slice().filter(function(d){return d._composite_score!=null;}).sort(function(a,b){return(b._composite_score||0)-(a._composite_score||0);}).slice(0,10);
     if(topRated.length){
       var chips=topRated.map(function(d){
         var tk=d.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         var col=RC[d.rating]||'#888';
         var score=(d._composite_score!=null)?d._composite_score.toFixed(0):'';
-        return '<span class="pool-top-chip" onclick="openDet(\''+tk+'\')" title="'+(d.rating||'N/A')+' &middot; Composite '+score+'"><span class="pool-top-dot" style="background:'+col+'"></span><span class="pool-top-tk">'+d.ticker+'</span><span class="pool-top-score">'+score+'</span></span>';
+        return '<span class="pool-top-chip" onclick="openDet(\''+tk+'\')"><span class="pool-top-dot" style="background:'+col+'"></span><span class="pool-top-tk tk">'+d.ticker+'</span><span class="pool-top-score">'+score+'</span></span>';
       }).join('');
-      chartHtml+='<div class="pool-top-banner"><span class="pool-top-label">Top 5 by Model Score</span><span class="pool-top-chips">'+chips+'</span></div>';
+      chartHtml+='<div class="pool-top-banner"><span class="pool-top-label">Top 10 by Model Score</span><span class="pool-top-chips">'+chips+'</span></div>';
     }
     var primerHtml=renderPoolPrimer(sec);
     var descHtml=renderPoolDescription(sec);
