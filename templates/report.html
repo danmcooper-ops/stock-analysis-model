@@ -245,19 +245,16 @@ td.ct{font-weight:700;}
    in normal flow (the dt base class freezes 3 cols, which is wrong for
    the heatmap). Mobile-tuned padding/font for iPhone Safari. */
 .heatmap-table{table-layout:fixed;}
-.heatmap-table th{cursor:pointer;font-weight:600;text-align:center;user-select:none;-webkit-user-select:none;touch-action:manipulation;vertical-align:bottom;font-size:0.74em;line-height:1.18;
-  /* Allow long labels to wrap to a second line; keep-all stops slashes
-     from being split, so "Med ND/EBITDA" wraps as "Med" / "ND/EBITDA"
-     rather than "Med ND/" / "EBITDA". */
-  white-space:normal;word-break:keep-all;overflow-wrap:normal;}
+.heatmap-table th{cursor:pointer;font-weight:600;text-align:center;user-select:none;-webkit-user-select:none;touch-action:manipulation;line-height:1.15;vertical-align:bottom;
+  /* Force every header to a single line so they all sit on one bottom
+     baseline. Longer labels get a slightly smaller font to fit the
+     82px column width. */
+  white-space:nowrap;font-size:0.74em;}
 .heatmap-table th:first-child{text-align:left;}
 .heatmap-table td{padding:6px 8px;}
-.heatmap-table th{padding:7px 6px 7px;height:48px;}
-/* Flex column anchors the label block to the bottom of the header cell
-   (justify-content:flex-end) while keeping each line horizontally
-   centered (align-items:center, text-align:center inherited). */
-.heatmap-table .th-inner{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;text-align:center;}
-.heatmap-table th:first-child .th-inner{align-items:flex-start;text-align:left;}
+.heatmap-table th{padding:7px 6px 7px;height:36px;}
+.heatmap-table .th-inner{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;white-space:nowrap;}
+.heatmap-table th:first-child .th-inner{align-items:flex-start;}
 .heatmap-table .heat-arrow{display:inline-block;margin-left:3px;font-size:0.72em;color:#8aa6c8;min-width:8px;}
 .heatmap-table th:hover{background:#243140;}
 /* Override .dt freezing on cols 2-3 (correct for Financial Data table,
