@@ -408,6 +408,20 @@ td.ct{font-weight:700;}
 .pool-sec-hdr{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 18px;background:linear-gradient(135deg,#1a252f 0%,#2c3e50 100%);color:white;border-bottom:3px solid var(--accent,#3498db);}
 .pool-sec-name{font-weight:700;font-size:1.05em;color:white;letter-spacing:0.01em;}
 .pool-sec-stats{font-size:0.78em;color:#b0bec5;}
+.pool-top-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 18px;background:#f4f7fb;border-bottom:1px solid #e0e5eb;font-size:0.82em;}
+.pool-top-label{font-weight:700;font-size:0.72em;letter-spacing:0.12em;text-transform:uppercase;color:#5a6776;white-space:nowrap;}
+.pool-top-chips{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.pool-top-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:11px;background:white;border:1px solid #d8dee5;cursor:pointer;transition:box-shadow 0.12s,border-color 0.12s;}
+.pool-top-chip:hover{border-color:#1e4e8c;box-shadow:0 1px 3px rgba(30,78,140,0.18);}
+.pool-top-dot{display:inline-block;width:7px;height:7px;border-radius:50%;}
+.pool-top-tk{font-weight:700;color:#1a252f;letter-spacing:0.01em;}
+.pool-top-score{font-weight:600;color:#5a6776;font-size:0.88em;}
+[data-theme="dark"] .pool-top-banner{background:#0d1117;border-color:#30363d;}
+[data-theme="dark"] .pool-top-label{color:#8b949e;}
+[data-theme="dark"] .pool-top-chip{background:#161b22;border-color:#30363d;}
+[data-theme="dark"] .pool-top-chip:hover{border-color:#3572b8;}
+[data-theme="dark"] .pool-top-tk{color:#e6edf3;}
+[data-theme="dark"] .pool-top-score{color:#8b949e;}
 .pp-section{padding:16px 20px;border-bottom:1px solid #e0e5eb;position:relative;}
 .pp-section:last-child{border-bottom:none;}
 .pp-section-label{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:0.8em;letter-spacing:0.14em;text-transform:uppercase;padding:8px 16px 8px 14px;border-radius:4px;margin:0 0 14px;box-shadow:0 2px 5px rgba(0,0,0,0.12);color:white;position:relative;}
@@ -3738,6 +3752,16 @@ function renderPool(){
     if(hhi!=null)chartHtml+=' &nbsp;&middot;&nbsp; HHI: '+hhi.toFixed(3)+' ('+conc+')';
     if(cr4!=null)chartHtml+=' &nbsp;&middot;&nbsp; CR4: '+(cr4*100).toFixed(0)+'%';
     chartHtml+='</span></div>';
+    var topRated=cos.slice().filter(function(d){return d._composite_score!=null;}).sort(function(a,b){return(b._composite_score||0)-(a._composite_score||0);}).slice(0,5);
+    if(topRated.length){
+      var chips=topRated.map(function(d){
+        var tk=d.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var col=RC[d.rating]||'#888';
+        var score=(d._composite_score!=null)?d._composite_score.toFixed(0):'';
+        return '<span class="pool-top-chip" onclick="openDet(\''+tk+'\')" title="'+(d.rating||'N/A')+' &middot; Composite '+score+'"><span class="pool-top-dot" style="background:'+col+'"></span><span class="pool-top-tk">'+d.ticker+'</span><span class="pool-top-score">'+score+'</span></span>';
+      }).join('');
+      chartHtml+='<div class="pool-top-banner"><span class="pool-top-label">Top 5 by Model Score</span><span class="pool-top-chips">'+chips+'</span></div>';
+    }
     var primerHtml=renderPoolPrimer(sec);
     var descHtml=renderPoolDescription(sec);
     var insightsHtml=renderPoolInsights(sec);
