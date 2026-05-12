@@ -235,9 +235,6 @@ td.ct{font-weight:700;}
 .dt th.gv{background:#1a3a5c;}.dt th.gp2{background:#1a4a2c;}
 .dt th.gh{background:#3a2a10;}.dt th.gc{background:#4a1a2a;}.dt th.gj{background:#164a4a;}
 .dt th.gg{background:#3a1a5a;}.dt th.gow{background:#5a3a00;}
-.dt thead th.tilt{position:relative;height:120px;padding:0 4px 6px;overflow:visible;}
-.dt thead th.tilt .th-inner{position:absolute;left:50%;bottom:5px;transform:translate(-2px,0) rotate(-45deg);transform-origin:left bottom;white-space:nowrap;line-height:1;font-size:0.92em;letter-spacing:0.01em;}
-@media(max-width:760px){.dt thead th.tilt{height:104px;}.dt thead th.tilt .th-inner{font-size:0.84em;}}
 .dt td{padding:5px 7px;text-align:right;font-size:0.82em;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;}
 .dt td.tk2{text-align:left;font-weight:600;color:#1a252f;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.3);}
 .dt td.tk2:hover{color:var(--accent);}
@@ -1640,37 +1637,6 @@ TC.prices=[];
 var TL={ovr:'Overview',prices:'Charts',val:'Valuation',prof:'Profitability',hlth:'Financial Health',growth:'Growth',con:'Consensus',proj:'Projections',own:'Ownership'};
 var tSC='rating',tSA=true;
 
-/* Heat-direction map: 'desc'=higher-is-better (red→green), 'asc'=lower-is-better (green→red).
-   Keys absent from HD stay un-colored (text, categorical labels, reference prices). */
-var HD={
-  roic:'desc',spread:'desc',gross_margin:'desc',shareholder_yield:'desc',
-  range_52w_position:'desc',mos:'desc',implied_growth:'desc',
-  fcf_margin:'desc',roe:'desc',roa:'desc',int_cov:'desc',cash_conv:'desc',
-  rev_cagr:'desc',dupont_margin:'desc',dupont_turnover:'desc',
-  cr:'desc',altman_z:'desc',
-  fundamental_growth:'desc',margin_trend:'desc',
-  rev_cagr_10y:'desc',rev_cagr_5y:'desc',analyst_ltg:'desc',
-  reinvestment_rate:'desc',fcf_growth:'desc',
-  num_analysts:'desc',er:'desc',terminal_growth:'desc',
-  insider_pct:'desc',share_buyback_rate:'desc',inst_pct:'desc',
-  roic_cv:'asc',wacc:'asc',pct_from_52w_high:'asc',
-  pe:'asc',ev_ebitda:'asc',pfcf:'asc',pb:'asc',
-  accruals:'asc',dupont_leverage:'asc',
-  nd_ebitda:'asc',beneish_m:'asc',
-  sbc_pct_rev:'asc',short_ratio:'asc',short_pct_float:'asc'
-};
-function _dtHeatBg(val,vals,asc){
-  if(val==null||isNaN(val))return'';
-  var clean=vals.filter(function(v){return v!=null&&!isNaN(v);});
-  if(clean.length<2)return'';
-  var mn=Math.min.apply(null,clean),mx=Math.max.apply(null,clean);
-  if(mx===mn)return'';
-  var t=(val-mn)/(mx-mn);
-  if(asc)t=1-t;
-  var hue=Math.round(t*120);
-  return'background:hsla('+hue+',72%,45%,0.40)';
-}
-
 function ftc(v,f){
   if(v==null)return{t:'N/A',v:''};
   if(f==='text')return{t:String(v),v:String(v)};
@@ -1690,14 +1656,13 @@ function swTSub(s){curTSub=s;tSC='rating';tSA=true;renderTSubs();moveFilterBar('
 function renderTable(){
   var cols=TC[curTSub]||TC.ovr;
   var th=document.getElementById('dt-h'),tb=document.getElementById('dt-b');
-  var hh='<tr>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';hh+='<th style="width:28px;cursor:pointer" onclick="tSort(\'_reviewed\')" data-col-tip="_reviewed" data-col-label="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="arrow">'+(tSC==='_reviewed'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){var tiltCls=HD[c.k]?' tilt':'';var arrow='<span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span>';var inner=HD[c.k]?'<span class="th-inner">'+c.l+' '+arrow+'</span>':(c.l+' '+arrow);hh+='<th class="'+(c.g||'')+tiltCls+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+inner+'</th>';});hh+='</tr>';
+  var hh='<tr>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';hh+='<th style="width:28px;cursor:pointer" onclick="tSort(\'_reviewed\')" data-col-tip="_reviewed" data-col-label="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="arrow">'+(tSC==='_reviewed'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
   th.innerHTML=hh;
   var sd=FD.slice();
   var RO2={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
   if(tSC){sd.sort(function(a,b){var va,vb;if(tSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(tSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[tSC];vb=b[tSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(tSC==='rating'){var ra=RO2[va]||99,rb2=RO2[vb]||99;return tSA?ra-rb2:rb2-ra;}if(typeof va==='string')return tSA?va.localeCompare(vb):vb.localeCompare(va);return tSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
-  var _heatCols={};cols.forEach(function(c){if(HD[c.k])_heatCols[c.k]=sd.map(function(d){return d[c.k];});});
-  var bh='';sd.forEach(function(d){var t=d.ticker.replace(/'/g,"\\'");bh+='<tr>';bh+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';bh+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';cols.forEach(function(c){var r=ftc(d[c.k],c.f);var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';var bg=HD[c.k]?_dtHeatBg(d[c.k],_heatCols[c.k],HD[c.k]==='asc'):'';var st=bg?' style="'+bg+'"':'';bh+='<td'+cls+st+' data-value="'+r.v+'">'+r.t+'</td>';});bh+='</tr>';});
+  var bh='';sd.forEach(function(d){var t=d.ticker.replace(/'/g,"\\'");bh+='<tr>';bh+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';bh+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';cols.forEach(function(c){var r=ftc(d[c.k],c.f);var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';bh+='<td'+cls+' data-value="'+r.v+'">'+r.t+'</td>';});bh+='</tr>';});
   tb.innerHTML=bh;
 }
 function tSort(col){if(tSC===col)tSA=!tSA;else{tSC=col;tSA=true;}renderTable();}
