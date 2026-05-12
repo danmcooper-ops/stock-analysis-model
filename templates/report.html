@@ -235,12 +235,9 @@ td.ct{font-weight:700;}
 .dt th.gv{background:#1a3a5c;}.dt th.gp2{background:#1a4a2c;}
 .dt th.gh{background:#3a2a10;}.dt th.gc{background:#4a1a2a;}.dt th.gj{background:#164a4a;}
 .dt th.gg{background:#3a1a5a;}.dt th.gow{background:#5a3a00;}
-/* Heatmap-column headers in the Financial Data table: single-line nowrap,
-   compact font, bottom-aligned. Matches the sector heatmap header pattern
-   (#112) so columns hit minimum width and titles read horizontally. */
-.dt thead th.tilt{padding:7px 6px;height:36px;text-align:center;white-space:nowrap;font-size:0.74em;vertical-align:bottom;line-height:1.15;}
-.dt thead th.tilt .th-inner{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;white-space:nowrap;}
-.dt thead th.tilt .arrow{font-size:0.85em;color:#8aa6c8;margin-left:3px;}
+.dt thead th.tilt{position:relative;height:120px;padding:0 4px 6px;overflow:visible;}
+.dt thead th.tilt .th-inner{position:absolute;left:50%;bottom:5px;transform:translate(-2px,0) rotate(-45deg);transform-origin:left bottom;white-space:nowrap;line-height:1;font-size:0.92em;letter-spacing:0.01em;}
+@media(max-width:760px){.dt thead th.tilt{height:104px;}.dt thead th.tilt .th-inner{font-size:0.84em;}}
 .dt td{padding:5px 7px;text-align:right;font-size:0.82em;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;}
 .dt td.tk2{text-align:left;font-weight:600;color:#1a252f;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.3);}
 .dt td.tk2:hover{color:var(--accent);}
