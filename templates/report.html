@@ -16,6 +16,18 @@
   --score-good:#C6EFCE;--score-mid:#FFEB9C;--score-poor:#FFC7CE;
   --bg:#f0f2f5;--surface:#fff;--text:#333;--text-muted:#666;
   --border:#e0e4ea;--header-bg:#1a252f;--accent:#2980b9;
+  /* Tooltip design tokens — shared across .tk-tip, #col-tip, #popup-tip, .pool-tt, .pp-quad-tip */
+  --tip-bg:#1a252f;--tip-fg:#e8edf5;--tip-fg-muted:#c0cfe0;--tip-border:#2c3e50;
+  --tip-shadow:0 6px 28px rgba(0,0,0,0.35);
+  --tip-radius:10px;--tip-pad:11px 15px;--tip-font:0.77em;--tip-line:1.55;
+  --tipcard-bg:#fff;--tipcard-fg:#1a252f;--tipcard-muted:#888;--tipcard-border:#d0d4db;
+  --tipcard-divider:#eee;--tipcard-shadow:0 6px 28px rgba(0,0,0,0.18);
+}
+[data-theme="dark"]{
+  --tip-bg:#161b22;--tip-fg:#e6edf3;--tip-fg-muted:#8b949e;--tip-border:#30363d;
+  --tip-shadow:0 6px 28px rgba(0,0,0,0.5);
+  --tipcard-bg:#161b22;--tipcard-fg:#e6edf3;--tipcard-muted:#8b949e;--tipcard-border:#30363d;
+  --tipcard-divider:#30363d;--tipcard-shadow:0 6px 28px rgba(0,0,0,0.5);
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-text-size-adjust:100%;text-size-adjust:100%;}
@@ -396,22 +408,26 @@ td.ct{font-weight:700;}
 .ps-tk:hover{color:var(--accent);}
 .ps-nm{color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px;display:inline-block;vertical-align:middle;font-size:0.9em;}
 .ps-ext{color:#bbb;font-size:0.85em;font-style:italic;}
-.tk-tip{display:none;position:fixed;z-index:2000;background:#fff;border:1px solid #d0d4db;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.15);padding:14px 16px;width:320px;font-size:0.78em;pointer-events:none;}
-#col-tip{display:none;position:fixed;z-index:2001;background:#1a252f;color:#e8edf5;border:1px solid #2c3e50;border-radius:10px;box-shadow:0 6px 28px rgba(0,0,0,0.35);padding:11px 15px;max-width:360px;min-width:180px;font-size:0.77em;line-height:1.55;pointer-events:none;}
-#col-tip .ct-name,#popup-tip .ct-name{font-weight:700;font-size:1.05em;color:#fff;margin-bottom:5px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:5px;}
-#col-tip .ct-body,#popup-tip .ct-body{color:#c0cfe0;}
-#col-tip .ct-pass,#popup-tip .ct-pass{margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.1);color:#74c476;font-weight:600;font-size:0.9em;}
-/* Popup tooltip — lives inside #det-modal to stay above backdrop-filter layer on iOS */
-#popup-tip{display:none;position:fixed;z-index:9999;background:#1a252f;color:#e8edf5;border:1px solid #2c3e50;border-radius:10px;box-shadow:0 6px 28px rgba(0,0,0,0.35);padding:11px 15px;max-width:360px;min-width:180px;font-size:0.77em;line-height:1.55;pointer-events:none;}
+/* Ticker hover — rich data card. Shares tokens with the chip family. */
+.tk-tip{display:none;position:fixed;z-index:2000;background:var(--tipcard-bg);color:var(--tipcard-fg);border:1px solid var(--tipcard-border);border-radius:var(--tip-radius);box-shadow:var(--tipcard-shadow);padding:14px 16px;width:320px;max-width:calc(100vw - 32px);font-size:0.78em;line-height:var(--tip-line);pointer-events:none;}
+/* Column header / detail-modal label / pool ticker — shared dark chip. */
+#col-tip,#popup-tip,.pool-tt{display:none;position:fixed;background:var(--tip-bg);color:var(--tip-fg);border:1px solid var(--tip-border);border-radius:var(--tip-radius);box-shadow:var(--tip-shadow);padding:var(--tip-pad);font-size:var(--tip-font);line-height:var(--tip-line);pointer-events:none;}
+#col-tip{z-index:2001;max-width:360px;min-width:180px;}
+/* Popup tooltip — z-index 9999 so it renders above #det-modal's backdrop-filter compositing layer on iOS. */
+#popup-tip{z-index:9999;max-width:360px;min-width:180px;}
+.pool-tt{z-index:9999;max-width:260px;}
+#col-tip .ct-name,#popup-tip .ct-name{font-weight:700;font-size:1.05em;color:var(--tip-fg);margin-bottom:5px;border-bottom:1px solid var(--tip-border);padding-bottom:5px;}
+#col-tip .ct-body,#popup-tip .ct-body{color:var(--tip-fg-muted);}
+#col-tip .ct-pass,#popup-tip .ct-pass{margin-top:7px;padding-top:6px;border-top:1px solid var(--tip-border);color:#74c476;font-weight:600;font-size:0.9em;}
 .tk-tip .tip-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
-.tk-tip .tip-tk{font-size:1.3em;font-weight:700;color:#1a252f;}
+.tk-tip .tip-tk{font-size:1.3em;font-weight:700;color:var(--tipcard-fg);}
 .tk-tip .tip-rt{padding:2px 8px;border-radius:4px;color:#fff;font-weight:700;font-size:0.85em;}
 .tk-tip .tip-cs{font-weight:700;font-size:0.95em;}
-.tk-tip .tip-sec{color:#888;font-size:0.9em;margin-bottom:8px;border-bottom:1px solid #eee;padding-bottom:6px;}
+.tk-tip .tip-sec{color:var(--tipcard-muted);font-size:0.9em;margin-bottom:8px;border-bottom:1px solid var(--tipcard-divider);padding-bottom:6px;}
 .tk-tip .tip-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;}
 .tk-tip .tip-kv{display:flex;justify-content:space-between;}
-.tk-tip .tip-k{color:#888;}
-.tk-tip .tip-v{font-weight:600;color:#1a252f;}
+.tk-tip .tip-k{color:var(--tipcard-muted);}
+.tk-tip .tip-v{font-weight:600;color:var(--tipcard-fg);}
 .dgrid{display:flex;flex-direction:column;gap:12px;}
 .dgroup{border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.07);border:1px solid rgba(0,0,0,0.07);}
 .dgroup-title{font-size:0.75em;text-transform:uppercase;letter-spacing:0.09em;font-weight:700;padding:10px 16px;display:flex;align-items:center;gap:9px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.2);}
@@ -515,8 +531,9 @@ td.ct{font-weight:700;}
 .pool-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:0.78em;color:#555;align-items:center;}
 .pool-legend-item{display:flex;align-items:center;gap:4px;}
 .pool-legend-dot{width:11px;height:11px;border-radius:2px;flex-shrink:0;}
-.pool-tt{position:fixed;background:#1a252f;color:white;padding:8px 12px;border-radius:6px;font-size:0.78em;pointer-events:none;z-index:9999;display:none;line-height:1.6;max-width:240px;box-shadow:0 4px 12px rgba(0,0,0,0.3);}
-.pp-quad-tip{position:fixed;border-left:4px solid #ccc;padding:12px 16px;border-radius:6px;pointer-events:none;z-index:9999;display:none;max-width:300px;box-shadow:0 6px 20px rgba(0,0,0,0.15);}
+/* .pool-tt declared above in the shared chip rule (line ~414). */
+/* Quadrant taxonomy tip — keeps its color-coded left border (background set inline per-quadrant). */
+.pp-quad-tip{display:none;position:fixed;z-index:9999;border-left:4px solid #ccc;border-radius:var(--tip-radius);padding:12px 16px;font-size:var(--tip-font);line-height:var(--tip-line);pointer-events:none;max-width:300px;box-shadow:var(--tip-shadow);}
 .xsect-dashboard{background:white;border-radius:10px;padding:22px 24px 20px;box-shadow:0 3px 14px rgba(0,0,0,0.09);margin-bottom:22px;border-top:4px solid #1a252f;}
 .xsect-title{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:3px;}
 .xsect-sub{font-size:0.78em;color:#8a9bb0;margin-bottom:16px;}
@@ -698,7 +715,6 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .gv-k{color:#8b949e;}
 [data-theme="dark"] .gv-v{color:#e6edf3;}
 [data-theme="dark"] .gv-thr{color:#6e7681;}
-[data-theme="dark"] .tk-tip{background:#161b22;color:#e6edf3;border-color:#30363d;}
 [data-theme="dark"] .gate-detail-card{background:#161b22;color:#e6edf3;}
 [data-theme="dark"] .gate-detail-threshold,[data-theme="dark"] .gate-pass-label{color:#8b949e;}
 [data-theme="dark"] .stat{background:rgba(255,255,255,0.08);}
@@ -706,7 +722,6 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .dtxn td{border-color:#21262d;color:#c9d1d9;}
 [data-theme="dark"] .matrix-table td.tk{color:#58a6ff;}
 [data-theme="dark"] .dq-warning{background:#3a2a10;border-color:#856404;color:#ffd33d;}
-[data-theme="dark"] .pool-tt,[data-theme="dark"] .pp-quad-tip{background:#161b22;color:#e6edf3;border-color:#30363d;}
 [data-theme="dark"] .dgrid-inner{background:#161b22;}
 [data-theme="dark"] .dgroup{border-color:rgba(255,255,255,0.08);box-shadow:0 2px 12px rgba(0,0,0,0.3);}
 [data-theme="dark"] .dgroup-asm{background:#1a2438!important;border-top-color:#30363d!important;}
@@ -719,9 +734,6 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .dkv:nth-child(odd){background:rgba(88,166,255,0.06);}
 [data-theme="dark"] .dkv .kl{color:#8b949e;}
 [data-theme="dark"] .dkv .kv{color:#e6edf3;}
-[data-theme="dark"] .tk-tip .tip-tk,[data-theme="dark"] .tk-tip .tip-v{color:#e6edf3;}
-[data-theme="dark"] .tk-tip .tip-k{color:#8b949e;}
-[data-theme="dark"] .tk-tip .tip-sec{color:#8b949e;border-color:#30363d;}
 [data-theme="dark"] .pool-sector{background:#161b22;border-color:#30363d;}
 [data-theme="dark"] .pp-section{border-color:#30363d;}
 [data-theme="dark"] .pp-primer{background:#0f1f3a;}
@@ -2276,18 +2288,32 @@ var _tipEl=document.getElementById('tk-tip'),_tipTimer=null,_tipHideTimer=null,_
 var _TIP_AUTO_MS=4000;
 /* Shared tooltip placer: prefers ABOVE the source element so the data being
    highlighted stays visible. Falls back to BELOW → RIGHT → LEFT, never
-   overlapping the source rect when there's room on any side. */
-function _placeTip(rect,tipEl){
+   overlapping the source rect when there's room on any side.
+   opts.avoid: 'above' | 'below' | 'right' | 'left' — direction whose data zone
+   the tooltip MUST NOT cover. That side is skipped in the cascade AND in the
+   final clamp (so e.g. a column-header tip never falls onto the column). */
+function _placeTip(rect,tipEl,opts){
   var tw=tipEl.offsetWidth,th=tipEl.offsetHeight;
   var vw=window.innerWidth,vh=window.innerHeight;
   var M=8,P=8;
   var sA=rect.top,sB=vh-rect.bottom,sL=rect.left,sR=vw-rect.right;
-  var left,top;
-  if(sA>=th+M){top=rect.top-th-M;left=rect.left+rect.width/2-tw/2;}
-  else if(sB>=th+M){top=rect.bottom+M;left=rect.left+rect.width/2-tw/2;}
-  else if(sR>=tw+M){left=rect.right+M;top=rect.top;}
-  else if(sL>=tw+M){left=rect.left-tw-M;top=rect.top;}
-  else {top=(sA>=sB)?Math.max(P,rect.top-th-M):Math.min(vh-th-P,rect.bottom+M);left=rect.left+rect.width/2-tw/2;}
+  var av=(opts&&opts.avoid)||null;
+  var left,top,placed=false;
+  function tryAbove(){if(av==='above')return false;if(sA<th+M)return false;top=rect.top-th-M;left=rect.left+rect.width/2-tw/2;return true;}
+  function tryBelow(){if(av==='below')return false;if(sB<th+M)return false;top=rect.bottom+M;left=rect.left+rect.width/2-tw/2;return true;}
+  function tryRight(){if(av==='right')return false;if(sR<tw+M)return false;left=rect.right+M;top=rect.top;return true;}
+  function tryLeft(){if(av==='left')return false;if(sL<tw+M)return false;left=rect.left-tw-M;top=rect.top;return true;}
+  placed=tryAbove()||tryBelow()||tryRight()||tryLeft();
+  if(!placed){
+    /* No side fully fits. Clamp to whichever vertical side is roomier, but
+       never to the avoided side. */
+    var canAbove=(av!=='above'),canBelow=(av!=='below');
+    var goAbove=canAbove&&(!canBelow||sA>=sB);
+    if(goAbove){top=Math.max(P,rect.top-th-M);}
+    else if(canBelow){top=Math.min(vh-th-P,rect.bottom+M);}
+    else {top=Math.max(P,rect.top-th-M);}
+    left=rect.left+rect.width/2-tw/2;
+  }
   left=Math.max(P,Math.min(left,vw-tw-P));
   top=Math.max(P,Math.min(top,vh-th-P));
   tipEl.style.left=left+'px';tipEl.style.top=top+'px';
@@ -2343,7 +2369,8 @@ function _showColTip(label,body,threshold,rectOrX,y){
   _ctEl.innerHTML=h;
   _ctEl.style.display='block';
   var rect=(rectOrX&&typeof rectOrX==='object')?rectOrX:{left:rectOrX,top:y,right:rectOrX,bottom:y,width:0,height:0};
-  _placeTip(rect,_ctEl);
+  /* Never place below a column header — that would cover the column it describes. */
+  _placeTip(rect,_ctEl,{avoid:'below'});
   /* Hover-only — mouseout hides; no auto-dismiss while cursor is parked. */
   clearTimeout(_ctAutoTimer);
 }
@@ -2360,7 +2387,9 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
   var _pinEl=null,_ptAutoTimer=null;
   function _posTip(rect){
     _pt.style.display='block';
-    _placeTip(rect,_pt);
+    /* In .dkv / score / gate / km rows, the value being explained sits to the
+       right of the hovered label — never cover it. */
+    _placeTip(rect,_pt,{avoid:'right'});
   }
   var _SEL='.kl[data-dkv-tip],[data-score-lbl],[data-gv-tip],[data-km-tip]';
   function _findEl(t){return t.closest(_SEL)||null;}
@@ -2416,6 +2445,9 @@ document.addEventListener('mouseover',function(e){
   /* generic fallback for score columns */
   if(!body&&key.indexOf('_score_')===0){var gname=key.replace('_score_','').replace(/_/g,' ');body='Continuous score 0\u2013100 for the '+gname+' gate. Averaged within its category to produce the category total.';}
   if(!body&&key.indexOf('_gate_')===0){var gname2=key.replace('_gate_','').replace(/_/g,' ');body='Raw metric value for the '+gname2+' gate.';}
+  /* Inline body fallback \u2014 used by Sector Heatmap headers whose descriptions
+     aren't in TT and are emitted via data-col-tip-body. */
+  if(!body)body=th.getAttribute('data-col-tip-body')||'';
   var rect=th.getBoundingClientRect();
   _ctTimer=setTimeout(function(){_showColTip(label,body,threshold,rect);},180);
 },false);
@@ -3697,7 +3729,12 @@ function renderCrossSectorDashboard(){
      sit at the bottom of the cell. .heat-arrow gets filled with ▲/▼ for
      the active sort column by _heatRender(). */
   function _th(key,label,width,title,leftAlign){
-    return'<th data-sort="'+key+'" onclick="_heatSort(\''+key+'\')" style="width:'+width+'px'+(leftAlign?';text-align:left':'')+'" title="'+_attr(title)+'"><span class="th-inner"><span>'+label+'<span class="heat-arrow"></span></span></span></th>';
+    /* Route heatmap headers through the shared #col-tip handler instead of the
+       native browser title="" tooltip — keeps the dark chip styling uniform
+       with column headers in the other tabs. data-col-tip is a stable key,
+       data-col-tip-body carries the inline description (handler picks it up
+       when TT[key] is empty). */
+    return'<th data-sort="'+key+'" onclick="_heatSort(\''+key+'\')" style="width:'+width+'px'+(leftAlign?';text-align:left':'')+'" data-col-tip="heat_'+key+'" data-col-label="'+_attr(label)+'" data-col-tip-body="'+_attr(title)+'"><span class="th-inner"><span>'+label+'<span class="heat-arrow"></span></span></span></th>';
   }
   var _heatTableHtml=_sumStats.length
     ?'<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
