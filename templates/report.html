@@ -2265,7 +2265,25 @@ function _renderDetPriceChart(ticker){
 /* === TICKER HOVER TOOLTIP === */
 var _tipEl=document.getElementById('tk-tip'),_tipTimer=null,_tipHideTimer=null,_tipAutoTimer=null;
 var _TIP_AUTO_MS=4000;
-function _showTip(tk,x,y){
+/* Shared tooltip placer: prefers ABOVE the source element so the data being
+   highlighted stays visible. Falls back to BELOW → RIGHT → LEFT, never
+   overlapping the source rect when there's room on any side. */
+function _placeTip(rect,tipEl){
+  var tw=tipEl.offsetWidth,th=tipEl.offsetHeight;
+  var vw=window.innerWidth,vh=window.innerHeight;
+  var M=8,P=8;
+  var sA=rect.top,sB=vh-rect.bottom,sL=rect.left,sR=vw-rect.right;
+  var left,top;
+  if(sA>=th+M){top=rect.top-th-M;left=rect.left+rect.width/2-tw/2;}
+  else if(sB>=th+M){top=rect.bottom+M;left=rect.left+rect.width/2-tw/2;}
+  else if(sR>=tw+M){left=rect.right+M;top=rect.top;}
+  else if(sL>=tw+M){left=rect.left-tw-M;top=rect.top;}
+  else {top=(sA>=sB)?Math.max(P,rect.top-th-M):Math.min(vh-th-P,rect.bottom+M);left=rect.left+rect.width/2-tw/2;}
+  left=Math.max(P,Math.min(left,vw-tw-P));
+  top=Math.max(P,Math.min(top,vh-th-P));
+  tipEl.style.left=left+'px';tipEl.style.top=top+'px';
+}
+function _showTip(tk,rectOrX,y){
   var d=DATA.find(function(r){return r.ticker===tk;});if(!d)return;
   var rtBg=RC[d.rating]||'#888';
   var csVal=d._composite_score;var csCol=cc(csVal);
@@ -2299,13 +2317,9 @@ function _showTip(tk,x,y){
   else{h+='<div style="margin-top:6px;padding-top:6px;border-top:1px solid #eee;font-size:0.9em;color:#aaa">\u2696\uFE0F No recent legal filings</div>';}
   _tipEl.innerHTML=h;
   _tipEl.style.display='block';
-  var tw=_tipEl.offsetWidth,th=_tipEl.offsetHeight;
-  var vw=window.innerWidth,vh=window.innerHeight;
-  var left=x+16,top=y+12;
-  if(left+tw>vw-10)left=x-tw-10;
-  if(top+th>vh-10)top=y-th-10;
-  if(left<10)left=10;if(top<10)top=10;
-  _tipEl.style.left=left+'px';_tipEl.style.top=top+'px';
+  /* Accept either a DOMRect (preferred) or legacy (x,y) corner coords. */
+  var rect=(rectOrX&&typeof rectOrX==='object')?rectOrX:{left:rectOrX,top:y,right:rectOrX,bottom:y,width:0,height:0};
+  _placeTip(rect,_tipEl);
   /* Hover-only — mouseout hides; no auto-dismiss while cursor is parked. */
   clearTimeout(_tipAutoTimer);
 }
@@ -2313,20 +2327,14 @@ function _hideTip(){clearTimeout(_tipAutoTimer);_tipEl.style.display='none';}
 
 /* === COLUMN HEADER TOOLTIP === */
 var _ctEl=document.getElementById('col-tip'),_ctTimer=null,_ctAutoTimer=null;
-function _showColTip(label,body,threshold,x,y){
+function _showColTip(label,body,threshold,rectOrX,y){
   var h='<div class="ct-name">'+esc(label)+'</div>';
   if(body)h+='<div class="ct-body">'+esc(body)+'</div>';
   if(threshold)h+='<div class="ct-pass">\u2714 Pass: '+esc(threshold)+'</div>';
   _ctEl.innerHTML=h;
   _ctEl.style.display='block';
-  var cw=_ctEl.offsetWidth,ch=_ctEl.offsetHeight;
-  var vw=window.innerWidth,vh=window.innerHeight;
-  var left=x-cw/2,top=y+8;
-  if(left+cw>vw-10)left=vw-cw-10;
-  if(left<10)left=10;
-  if(top+ch>vh-10)top=y-ch-8;
-  if(top<10)top=10;
-  _ctEl.style.left=left+'px';_ctEl.style.top=top+'px';
+  var rect=(rectOrX&&typeof rectOrX==='object')?rectOrX:{left:rectOrX,top:y,right:rectOrX,bottom:y,width:0,height:0};
+  _placeTip(rect,_ctEl);
   /* Hover-only — mouseout hides; no auto-dismiss while cursor is parked. */
   clearTimeout(_ctAutoTimer);
 }
@@ -2342,13 +2350,8 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
   var _pt=document.getElementById('popup-tip');
   var _pinEl=null,_ptAutoTimer=null;
   function _posTip(rect){
-    var cw=_pt.offsetWidth||360,ch=_pt.offsetHeight||80;
-    var vw=window.innerWidth,vh=window.innerHeight;
-    var left=rect.left,top=rect.bottom+6;
-    if(left+cw>vw-10)left=vw-cw-10;if(left<10)left=10;
-    if(top+ch>vh-10)top=rect.top-ch-6;if(top<10)top=10;
-    _pt.style.left=left+'px';_pt.style.top=top+'px';
     _pt.style.display='block';
+    _placeTip(rect,_pt);
   }
   var _SEL='.kl[data-dkv-tip],[data-score-lbl],[data-gv-tip],[data-km-tip]';
   function _findEl(t){return t.closest(_SEL)||null;}
@@ -2405,7 +2408,7 @@ document.addEventListener('mouseover',function(e){
   if(!body&&key.indexOf('_score_')===0){var gname=key.replace('_score_','').replace(/_/g,' ');body='Continuous score 0\u2013100 for the '+gname+' gate. Averaged within its category to produce the category total.';}
   if(!body&&key.indexOf('_gate_')===0){var gname2=key.replace('_gate_','').replace(/_/g,' ');body='Raw metric value for the '+gname2+' gate.';}
   var rect=th.getBoundingClientRect();
-  _ctTimer=setTimeout(function(){_showColTip(label,body,threshold,rect.left+rect.width/2,rect.bottom);},180);
+  _ctTimer=setTimeout(function(){_showColTip(label,body,threshold,rect);},180);
 },false);
 document.addEventListener('mouseout',function(e){
   if(_isTouchDevice)return;
@@ -2424,7 +2427,7 @@ document.addEventListener('mouseover',function(e){
   var tk=cell.textContent.trim();
   var rect=cell.getBoundingClientRect();
   clearTimeout(_tipTimer);
-  _tipTimer=setTimeout(function(){_showTip(tk,rect.right,rect.top);},150);
+  _tipTimer=setTimeout(function(){_showTip(tk,rect);},150);
 });
 document.addEventListener('mouseout',function(e){
   if(_isTouchDevice)return;
@@ -3896,7 +3899,9 @@ function ppTip(e,ticker){
   var rs=d.pp_revenue_share!=null?(d.pp_revenue_share*100).toFixed(1)+'%':'N/A';
   var ps=d.pp_profit_share!=null?(d.pp_profit_share*100).toFixed(1)+'%':'N/A';
   tt.innerHTML='<b>'+d.ticker+'</b>'+(d.company_name?' &mdash; '+d.company_name:'')+'<br>Rating: '+(d.rating||'N/A')+'<br>Op. Margin: '+m+'<br>Rev Share: '+rs+' &nbsp;|&nbsp; Profit Share: '+ps+'<br>Pool Multiple: '+mult;
-  tt.style.display='block';tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY-10)+'px';
+  tt.style.display='block';
+  var _rect=(e.target&&e.target.getBoundingClientRect)?e.target.getBoundingClientRect():{left:e.clientX,top:e.clientY,right:e.clientX,bottom:e.clientY,width:0,height:0};
+  _placeTip(_rect,tt);
 }
 function ppHide(){document.getElementById('pool-tt').style.display='none';}
 var _ppQD={
@@ -3917,18 +3922,15 @@ function ppQuadTip(e,key){
   var titleColor=dark?def.bc:def.col;
   var textColor=dark?'#c9d1d9':'#455a64';
   tt.innerHTML='<div style="font-weight:700;color:'+titleColor+';font-size:0.84em;margin-bottom:6px">'+def.title+'</div><div style="color:'+textColor+';font-size:0.78em;line-height:1.58">'+def.text+'</div>';
-  var tx=e.clientX+18,ty=e.clientY-24;
-  if(tx+310>window.innerWidth)tx=e.clientX-326;
-  if(ty+120>window.innerHeight)ty=e.clientY-130;
-  tt.style.left=tx+'px';tt.style.top=ty+'px';tt.style.display='block';
+  tt.style.display='block';
+  var _qr=(e.target&&e.target.getBoundingClientRect)?e.target.getBoundingClientRect():{left:e.clientX,top:e.clientY,right:e.clientX,bottom:e.clientY,width:0,height:0};
+  _placeTip(_qr,tt);
 }
 function ppQuadMove(e){
   var tt=document.getElementById('pp-quad-tip');
   if(tt.style.display!=='block')return;
-  var tx=e.clientX+18,ty=e.clientY-24;
-  if(tx+310>window.innerWidth)tx=e.clientX-326;
-  if(ty+120>window.innerHeight)ty=e.clientY-130;
-  tt.style.left=tx+'px';tt.style.top=ty+'px';
+  var _qr=(e.target&&e.target.getBoundingClientRect)?e.target.getBoundingClientRect():{left:e.clientX,top:e.clientY,right:e.clientX,bottom:e.clientY,width:0,height:0};
+  _placeTip(_qr,tt);
 }
 function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none';}
 
