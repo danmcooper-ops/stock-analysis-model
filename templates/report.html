@@ -2278,6 +2278,8 @@ function _showTip(tk,x,y){
   if(sec.length)h+='<div class="tip-sec">'+esc(sec.join(' \u00b7 '))+'</div>';
   h+='<div class="tip-grid">';
   var rows=[
+    ['Composite',csText,csCol?'color:'+csCol:''],
+    ['Gates Passed',d._gates_passed||'N/A',''],
     ['Mkt Cap',fds(d.mcap),''],
     ['Price',fd(d.price),''],
     ['Fair Value',fd(d.dcf_fv),''],
