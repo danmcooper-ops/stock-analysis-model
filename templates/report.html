@@ -177,6 +177,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .fpop-toggle-btn{display:flex;align-items:center;gap:5px;padding:5px 12px;font-size:0.83em;border:1px solid #ccc;border-radius:20px;background:#f9f9f9;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
 .fpop-toggle-btn:hover{border-color:var(--accent);background:#f0f4ff;color:var(--accent);}
 .fpop-toggle-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.sf-del{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:2px;border-radius:50%;font-size:0.95em;line-height:1;color:#999;cursor:pointer;}
+.sf-del:hover{background:#feecec;color:#c33;}
+.sf-empty{font-size:0.78em;color:#999;font-style:italic;}
 .fpop-footer{padding:8px 14px 10px;border-top:1px solid #eee;display:flex;justify-content:flex-end;flex-shrink:0;}
 .fpop-clear-filters{padding:4px 12px;font-size:0.8em;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#f9f9f9;color:#555;}
 .fpop-clear-filters:hover{background:#feecec;border-color:#e88;color:#c33;}
@@ -936,6 +939,9 @@ td.ct{font-weight:700;}
             <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
             <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style=\"width:16px;height:16px;vertical-align:middle;display:inline-block\"><circle cx=\"11\" cy=\"11\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><polyline points=\"6,11 9.5,15 16,7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg> All<span id="rev-count-label"></span></button>
           </div>
+          <div class="fpop-section-label" style="margin-top:10px">Saved Filters</div>
+          <div id="saved-filters-list" class="fpop-toggles" style="margin-bottom:6px"></div>
+          <button class="fpop-toggle-btn" onclick="saveCurrentFilter()" title="Save the current filter configuration under a name">&#65291; Save current filter&#8230;</button>
           <div class="fpop-section-label" style="margin-top:10px">Backup &amp; Restore</div>
           <div class="fpop-toggles">
             <button class="fpop-toggle-btn" onclick="exportFlags()" title="Download a JSON file of your flagged + reviewed stocks. Save it to back up across browsers, devices, or browser-data clears.">&#11015; Export Flags</button>
@@ -1106,6 +1112,91 @@ function importFlags(){
   inp.click();
 }
 _updateRevCount();
+
+/* === SAVED FILTERS (localStorage) ===
+   Named presets of the current filter configuration. Captures everything
+   applyFilters() reads, restores it on demand. localStorage-only (per-device). */
+var _PRESET_KEY='stock_saved_filters_v1';
+var _presets=(function(){try{return JSON.parse(localStorage.getItem(_PRESET_KEY))||{};}catch(e){return{};}})();
+function _savePresets(){try{localStorage.setItem(_PRESET_KEY,JSON.stringify(_presets));}catch(e){}}
+function _getCurrentFilterState(){
+  var st={};
+  st.search=document.getElementById('f-search').value||'';
+  var rBoxes=document.querySelectorAll('#ms-rating .ms-drop input[type="checkbox"][value]');
+  var rSel=msGetSelected('ms-rating');
+  if(rSel.length<rBoxes.length)st.ratings=rSel;
+  var sBoxes=document.querySelectorAll('#ms-sector .ms-drop input[type="checkbox"][value]');
+  var sSel=msGetSelected('ms-sector');
+  if(sSel.length<sBoxes.length)st.sectors=sSel;
+  var cf=[];
+  document.querySelectorAll('.col-filter-row').forEach(function(row){
+    var key=row.querySelector('.cfr-col').value;if(!key)return;
+    var minR=row.querySelector('.cfr-min').value,maxR=row.querySelector('.cfr-max').value;
+    if(minR===''&&maxR==='')return;
+    cf.push({key:key,min:minR!==''?parseFloat(minR):null,max:maxR!==''?parseFloat(maxR):null});
+  });
+  st.colFilters=cf;
+  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.revFilter=_revFilter;
+  return st;
+}
+function _applyFilterState(st){
+  document.getElementById('f-search').value=st.search||'';
+  ['ms-rating','ms-sector'].forEach(function(id){
+    var sel=id==='ms-rating'?st.ratings:st.sectors;
+    var wrap=document.getElementById(id);
+    var boxes=wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]');
+    if(!sel){boxes.forEach(function(cb){cb.checked=true;});}
+    else{boxes.forEach(function(cb){cb.checked=sel.indexOf(cb.value)>=0;});}
+    var allBox=wrap.querySelector('.ms-all input');if(allBox)allBox.indeterminate=false;
+    msUpdateLabel(id);
+  });
+  document.getElementById('col-filters').innerHTML='';
+  var cf=st.colFilters||[];
+  if(cf.length===0){addColFilter();}
+  else{
+    cf.forEach(function(c){
+      addColFilter();
+      var rows=document.querySelectorAll('.col-filter-row');
+      var row=rows[rows.length-1];
+      var colSel=row.querySelector('.cfr-col');
+      colSel.value=c.key;
+      var fmt=_CF_FMT[c.key]||'';
+      row.querySelector('.cfr-unit').textContent=fmt==='pct'?'%':(fmt==='dollar'||fmt==='ds')?'$':'';
+      if(c.min!=null)row.querySelector('.cfr-min').value=c.min;
+      if(c.max!=null)row.querySelector('.cfr-max').value=c.max;
+    });
+  }
+  _flagOnly=!!st.flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);
+  _founderOnly=!!st.founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);
+  _revFilter=st.revFilter|0;
+  var rEl=document.getElementById('f-reviewed');
+  if(rEl){rEl.classList.toggle('active',_revFilter>0);rEl.innerHTML=_CHK_SVG+' '+(['All','Unreviewed','Reviewed'])[_revFilter];}
+  applyFilters();
+}
+function saveCurrentFilter(){
+  var name=(prompt('Name this filter:')||'').trim();
+  if(!name)return;
+  if(_presets[name]&&!confirm('"'+name+'" already exists. Overwrite?'))return;
+  _presets[name]=_getCurrentFilterState();
+  _savePresets();renderSavedFilters();
+}
+function applySavedFilter(name){var s=_presets[name];if(!s)return;_applyFilterState(s);}
+function deleteSavedFilter(name){
+  if(!confirm('Delete saved filter "'+name+'"?'))return;
+  delete _presets[name];_savePresets();renderSavedFilters();
+}
+function renderSavedFilters(){
+  var el=document.getElementById('saved-filters-list');if(!el)return;
+  var names=Object.keys(_presets).sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase());});
+  if(names.length===0){el.innerHTML='<span class="sf-empty">No saved filters yet.</span>';return;}
+  var html='';
+  names.forEach(function(n){
+    var je=n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    html+='<button class="fpop-toggle-btn" onclick="applySavedFilter(\''+je+'\')" title="Apply saved filter">'+esc(n)+'<span class="sf-del" onclick="event.stopPropagation();deleteSavedFilter(\''+je+'\')" title="Delete">&times;</span></button>';
+  });
+  el.innerHTML=html;
+}
+renderSavedFilters();
 
 /* === HELPERS === */
 function esc(s){var e=document.createElement('span');e.textContent=s;return e.innerHTML;}
