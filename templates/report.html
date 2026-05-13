@@ -3834,22 +3834,22 @@ function renderCrossSectorDashboard(){
       /* All metric columns share one width (82px) so the eye scans across
          a uniform grid. Sector and Top Earner stay wider for their text. */
       +'<div class="table-wrap"><table class="dt heatmap-table"><thead><tr>'
-        +_th('sector','Sector',150,'GICS sector. Pool stats below are computed across the companies in this sector. Click to sort A–Z.',true)
-        +_th('n','Cos',82,'Number of companies in the sector pool. Click to sort.')
-        +_th('hhi','HHI',82,'Herfindahl–Hirschman Index of revenue concentration. Above 0.25 = oligopoly, 0.15–0.25 = moderately concentrated, below 0.15 = competitive. Higher concentration = greener (more pricing power for incumbents).')
-        +_th('cr4','CR4',82,'Top-4 companies’ share of sector revenue. Above 80% = highly concentrated, 50–80% = moderate, below 50% = competitive. Higher = greener (more pricing power for incumbents).')
-        +_th('wtdM','Wtd Margin',82,'Pool-weighted operating margin — sum(margin × revenue share) for the sector. Higher = better.')
-        +_th('medFCFM','Med FCF Margin',82,'Median free cash flow margin across the sector. Cash conversion of revenue — higher = better.')
-        +_th('medROIC','Med ROIC',82,'Median return on invested capital across the sector. Higher = better.')
-        +_th('medSpread','Med ROIC–WACC',82,'Median ROIC minus WACC — value created above cost of capital. Higher = better.')
-        +_th('medGrowth','Med Rev CAGR',82,'Median 3-year revenue CAGR across the sector. Higher = better.')
-        +_th('medNDEB','Med ND/EBITDA',82,'Median Net Debt / EBITDA across the sector. Sector leverage proxy — lower = safer balance sheets.')
-        +_th('medAltZ','Med Altman Z',82,'Median Altman Z-score across the sector. Above 3.0 = safe, 1.8–3.0 = grey zone, below 1.8 = distress signal. Higher = better.')
-        +_th('medMos','Med MoS%',82,'Median Margin of Safety vs. DCF fair value across the sector. Higher = sector trades at a deeper discount to intrinsic value.')
-        +_th('medPB','Med P/B',82,'Median price-to-book multiple. Lower = cheaper on book value.')
-        +_th('medEV','Med EV/EBITDA',82,'Median enterprise value / EBITDA multiple. Lower = cheaper relative to operating earnings.')
-        +_th('medShrYld','Med Shr Yld',82,'Median shareholder yield = buybacks + dividends as % of market cap. Higher = more capital returned to shareholders.')
-        +_th('pctBuy','% BUY',82,'% of sector rated BUY or LEAN BUY by the screener. Higher = more concentrated opportunity in the sector.')
+        +_th('sector','Sector',150,'GICS sector groups — Buffett invests only inside his circle of competence. Pool stats below show the economic terrain of each sector; only compare a business against peers with genuinely similar economics.',true)
+        +_th('n','Cos',82,'Number of companies in the sector pool. Munger: “Structure matters more than effort” — sectors crowded with similar competitors compete margins toward zero, while lean sectors with structural barriers favor incumbents.')
+        +_th('hhi','HHI',82,'Herfindahl–Hirschman Index of revenue concentration. Above 0.25 = oligopoly where incumbents hold pricing power; below 0.15 = fragmented competition that erodes returns. Buffett: “In a commodity business, you can only be as smart as your dumbest competitor.”')
+        +_th('cr4','CR4',82,'Top-4 share of sector revenue. Above 80% signals a true oligopoly; below 50% means fragmented competition. Munger: “The single biggest predictor of high returns is the structure of the industry, not the brilliance of management.”')
+        +_th('wtdM','Wtd Margin',82,'Pool-weighted operating margin — sum(margin × revenue share). Buffett’s first moat test applied at sector scale: “The single most important decision is pricing power.” Sectors with sustained 20%+ weighted margins reveal where durable competitive advantage actually lives.')
+        +_th('medFCFM','Med FCF Margin',82,'Median free cash flow margin across the sector. Graham: “Earnings are opinions; cash is a fact.” Sectors with persistently high FCF margins generate genuine owner earnings — the only kind that compound shareholder wealth.')
+        +_th('medROIC','Med ROIC',82,'Median ROIC across the sector — the single most important metric in the Buffett framework. Sectors compounding capital at 15%+ harbor the businesses that turn each retained dollar into more than a dollar of intrinsic value.')
+        +_th('medSpread','Med ROIC–WACC',82,'Median ROIC minus WACC — the sector’s economic profit spread. Above 5% = capital is genuinely productive; near zero = competitors cancel each other out. Buffett invests where the gap is wide and durable, not where it’s narrow and fragile.')
+        +_th('medGrowth','Med Rev CAGR',82,'Median 3-year revenue CAGR across the sector. Persistent top-line growth paired with stable margins reveals genuine demand and pricing power. Munger: “Avoid growth for growth’s sake” — growth without margin discipline is destruction at scale.')
+        +_th('medNDEB','Med ND/EBITDA',82,'Median Net Debt / EBITDA across the sector. Buffett: “We want businesses with no debt or very modest debt.” Sectors below 2× operate from a position of strength; above 4× = dependence on rolling credit when markets sour.')
+        +_th('medAltZ','Med Altman Z',82,'Median Altman Z-score across the sector. Above 3.0 = sector-wide financial health; below 1.8 = distress signals across the cohort. Graham was obsessed with avoiding permanent capital loss — the Z-Score flags businesses approaching the line before the market does.')
+        +_th('medMos','Med MoS%',82,'Median Margin of Safety vs. DCF fair value across the sector. Graham’s foundational principle: “The three most important words in investing are margin of safety.” A sector at 20%+ median MoS may be temporarily out of favor — verify the discount is real, not deserved.')
+        +_th('medPB','Med P/B',82,'Median price-to-book across the sector. Graham’s original asset safety anchor. Low P/B is only attractive when ROIC justifies the discount — asset-heavy sectors trading cheap on book with structurally weak returns are rarely the bargains they appear.')
+        +_th('medEV','Med EV/EBITDA',82,'Median EV/EBITDA — a capital-structure-neutral valuation lens on the sector. Reasonable for predictable cash converters; misleading at cyclical troughs in capex-heavy industries. Buffett trusts owner earnings over EBITDA.')
+        +_th('medShrYld','Med Shr Yld',82,'Median shareholder yield (buybacks + dividends / market cap) across the sector. Buffett: “The best thing a company can do when the stock is cheap is buy it back.” Sectors with persistent 4%+ yields demonstrate disciplined capital allocation cohort-wide.')
+        +_th('pctBuy','% BUY',82,'% of sector rated BUY or LEAN BUY by the screener. High concentration signals where the model finds clusters of margin of safety. Buffett: “Most committee opinions are mediocre” — use as a focus signal, not a substitute for individual analysis.')
       +'</tr></thead><tbody id="heat-tbody"></tbody></table></div>'
     +'</div>'
     :'';
