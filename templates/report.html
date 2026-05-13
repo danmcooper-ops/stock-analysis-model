@@ -435,29 +435,36 @@ td.ct{font-weight:700;}
 .pp-section-label{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:0.8em;letter-spacing:0.14em;text-transform:uppercase;padding:8px 16px 8px 14px;border-radius:4px;margin:0 0 14px;box-shadow:0 2px 5px rgba(0,0,0,0.12);color:white;position:relative;}
 .pp-section-label::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.85);box-shadow:0 0 0 2px rgba(255,255,255,0.25);}
 .pp-section-label::after{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:4px 0 0 4px;background:rgba(0,0,0,0.22);}
-.pp-primer{background:#eaf1fa;border-left:5px solid #1e4e8c;}
-.pp-primer .pp-section-label{background:#1e4e8c;}
-.pp-desc{background:#f4f7fb;border-left:5px solid #3572b8;}
-.pp-desc .pp-section-label{background:#3572b8;}
-.pp-insights{background:#fff7e6;border-left:5px solid #b8860b;}
-.pp-insights .pp-section-label{background:#b8860b;}
-.pp-liquidity{background:#e0f4f5;border-left:5px solid #00838f;}
-.pp-liquidity .pp-section-label{background:#00838f;}
-.pp-headwinds{background:#fdf2f2;border-left:5px solid #c0392b;}
-.pp-headwinds .pp-section-label{background:#c0392b;}
+/* Uniform section-label color across every per-sector pp-section block.
+   Section type is still distinguished by left-border tint and subtle
+   background wash, but every "title banner" reads the same color. */
+.pp-primer,.pp-desc,.pp-insights,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players{background:#f7f9fb;border-left:5px solid #1a252f;}
+.pp-primer .pp-section-label,
+.pp-desc .pp-section-label,
+.pp-insights .pp-section-label,
+.pp-liquidity .pp-section-label,
+.pp-headwinds .pp-section-label,
+.pp-signals .pp-section-label,
+.pp-cr4 .pp-section-label,
+.pp-sectorprice .pp-section-label,
+.pp-players .pp-section-label,
+.pp-chart .pp-section-label{background:#1a252f;}
 /* Combined sector-level Headwinds + Tailwinds block — two columns on
    desktop, stacked on mobile. Renders below the Structural Insights
    block as the third qualitative narrative on the per-sector page. */
-.pp-signals{background:#f5fbf6;border-left:5px solid #1a7a45;}
-.pp-signals .pp-section-label{background:linear-gradient(90deg,#1a7a45 0%,#1a7a45 48%,#c0392b 52%,#c0392b 100%);}
 .pp-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
 .pp-signals-col-hdr{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
 @media(max-width:760px){.pp-signals-grid{grid-template-columns:1fr;gap:14px;}}
-[data-theme="dark"] .pp-signals{background:#0f2618;}
-.pp-cr4{background:#f0edf8;border-left:5px solid #5e35b1;}
-.pp-cr4 .pp-section-label{background:#5e35b1;}
-.pp-sectorprice{background:#fbf6ff;border-left:5px solid #7030a0;}
-.pp-sectorprice .pp-section-label{background:#7030a0;}
+[data-theme="dark"] .pp-primer,
+[data-theme="dark"] .pp-desc,
+[data-theme="dark"] .pp-insights,
+[data-theme="dark"] .pp-liquidity,
+[data-theme="dark"] .pp-headwinds,
+[data-theme="dark"] .pp-signals,
+[data-theme="dark"] .pp-cr4,
+[data-theme="dark"] .pp-sectorprice,
+[data-theme="dark"] .pp-players{background:#161b22;border-left-color:#c9d1d9;}
+[data-theme="dark"] .pp-section-label{background:#30363d !important;}
 .pp-range-btn{padding:3px 11px;font-size:0.74em;font-weight:600;border:1px solid #d0d8e4;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
 .pp-range-btn:hover{background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
 .pp-range-btn.active{background:#7030a0;color:#fff;border-color:#7030a0;}
@@ -490,10 +497,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-sectorprice svg text[fill="#9aaab8"]{fill:#7d8b9a;}
 [data-theme="dark"] .pp-sectorprice svg line[stroke="#e8edf2"]{stroke:#21262d;}
 [data-theme="dark"] .pp-sectorprice svg line[stroke="#cbd5e1"]{stroke:#3d4651;}
-.pp-players{background:#eef8f1;border-left:5px solid #2e7d48;}
-.pp-players .pp-section-label{background:#2e7d48;}
-.pp-chart{background:white;padding:18px 20px 22px;border-left:5px solid #546e7a;}
-.pp-chart .pp-section-label{background:#546e7a;}
+.pp-chart{background:#f7f9fb;padding:18px 20px 22px;border-left:5px solid #1a252f;}
 .pool-controls{padding:0;}
 .pool-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:0.78em;color:#555;align-items:center;}
 .pool-legend-item{display:flex;align-items:center;gap:4px;}
@@ -2824,10 +2828,10 @@ function renderPoolPrimer(sec){
   var parts=[];
   if(n.education)parts.push(_esc(n.education));
   if(n.education_cycle)parts.push(_esc(n.education_cycle));
-  var html='<p style="margin:0;font-size:0.82em;line-height:1.55;color:#37474f">'+parts.join(' ')+'</p>';
-  var thesisList=[],_tSeen={};DATA.forEach(function(d){if(d.sector===sec&&d.sector_headwinds){d.sector_headwinds.forEach(function(h){if(typeof h!=='string'&&h.cat==='thesis_risk'&&h.text&&!_tSeen[h.text]){_tSeen[h.text]=1;thesisList.push(h.text);}});}});
-  if(thesisList.length){html+='<div style="margin:10px 0 0;font-size:0.82em;line-height:1.55;color:#8b3a3a;border-top:1px solid rgba(0,0,0,0.08);padding-top:8px"><strong style="color:#c0392b">⚠ Key risks:</strong><ul style="margin:4px 0 0;padding-left:18px;list-style:disc">'+thesisList.map(function(t){return '<li style="margin:2px 0">'+_esc(t.replace(/^Thesis-breaker:\s*/i,''))+'</li>';}).join('')+'</ul></div>';}
-  return html;
+  /* The "Key risks" block previously listed thesis_risk headwinds, which
+     now live in the Sector Headwinds & Tailwinds section below — drop the
+     duplicate so the Primer is a clean educational paragraph. */
+  return '<p style="margin:0;font-size:0.82em;line-height:1.55;color:#37474f">'+parts.join(' ')+'</p>';
 }
 function renderPoolDescription(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
