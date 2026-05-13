@@ -462,6 +462,15 @@ td.ct{font-weight:700;}
 .pp-liquidity .pp-section-label{background:#00838f;}
 .pp-headwinds{background:#fdf2f2;border-left:5px solid #c0392b;}
 .pp-headwinds .pp-section-label{background:#c0392b;}
+/* Combined sector-level Headwinds + Tailwinds block — two columns on
+   desktop, stacked on mobile. Renders below the Structural Insights
+   block as the third qualitative narrative on the per-sector page. */
+.pp-signals{background:#f5fbf6;border-left:5px solid #1a7a45;}
+.pp-signals .pp-section-label{background:linear-gradient(90deg,#1a7a45 0%,#1a7a45 48%,#c0392b 52%,#c0392b 100%);}
+.pp-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.pp-signals-col-hdr{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
+@media(max-width:760px){.pp-signals-grid{grid-template-columns:1fr;gap:14px;}}
+[data-theme="dark"] .pp-signals{background:#0f2618;}
 .pp-cr4{background:#f0edf8;border-left:5px solid #5e35b1;}
 .pp-cr4 .pp-section-label{background:#5e35b1;}
 .pp-sectorprice{background:#fbf6ff;border-left:5px solid #7030a0;}
@@ -2911,6 +2920,26 @@ function renderPoolInsights(sec){
   out+='</ul>';
   return out;
 }
+/* Sector-level structural headwinds + tailwinds, rendered as a two-column
+   block that mirrors the per-stock Headwinds & Tailwinds card on the
+   detail modal. Source data is hardcoded prose from the narrative model
+   (SECTOR_POOL[sec].headwinds, .tailwinds) — sector-wide structural
+   forces, not company-specific signals. */
+function renderPoolSectorSignals(sec){
+  var n=SECTOR_POOL&&SECTOR_POOL[sec];
+  if(!n)return '';
+  var hw=n.headwinds||[],tw=n.tailwinds||[];
+  if(!hw.length&&!tw.length)return '';
+  function _list(items,kind){
+    if(!items.length)return '<p style="margin:0;color:#94a3b8;font-size:0.82em;font-style:italic">No '+kind+' identified for this sector.</p>';
+    var ul='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55">';
+    items.forEach(function(s){ul+='<li style="margin:5px 0">'+_esc(s)+'</li>';});
+    return ul+'</ul>';
+  }
+  var twHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#1a7a45">▲ Structural Tailwinds</div>'+_list(tw,'tailwinds')+'</div>';
+  var hwHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#c0392b">▼ Structural Headwinds</div>'+_list(hw,'headwinds')+'</div>';
+  return '<div class="pp-signals-grid">'+twHtml+hwHtml+'</div>';
+}
 /* === Aggregate Performance chart ================================
    Lives only on the Sector Analysis "Charts" tab. Sectors are
    selected via a 3-column checkbox grid below the chart, so all
@@ -3845,6 +3874,7 @@ function renderPool(){
     var primerHtml=renderPoolPrimer(sec);
     var descHtml=renderPoolDescription(sec);
     var insightsHtml=renderPoolInsights(sec);
+    var signalsHtml=renderPoolSectorSignals(sec);
     var liquidityHtml=renderPoolLiquidityInsights(sec);
     var playersHtml=renderPoolKeyPlayers(sec);
     var cr4Html=renderPoolCR4Companies(sec);
@@ -3858,6 +3888,9 @@ function renderPool(){
     }
     if(insightsHtml){
       chartHtml+='<div class="pp-section pp-insights"><span class="pp-section-label">Structural Insights</span>'+insightsHtml+'</div>';
+    }
+    if(signalsHtml){
+      chartHtml+='<div class="pp-section pp-signals"><span class="pp-section-label">Sector Headwinds &amp; Tailwinds</span>'+signalsHtml+'</div>';
     }
     if(liquidityHtml){
       chartHtml+='<div class="pp-section pp-liquidity"><span class="pp-section-label">Liquidity Insights</span>'+liquidityHtml+'</div>';
