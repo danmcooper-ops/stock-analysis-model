@@ -964,7 +964,7 @@ td.ct{font-weight:700;}
           <div class="fpop-toggles">
             <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
             <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
-            <button class="fpop-toggle-btn active" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style=\"width:16px;height:16px;vertical-align:middle;display:inline-block\"><circle cx=\"11\" cy=\"11\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><polyline points=\"6,11 9.5,15 16,7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg> Unreviewed<span id="rev-count-label"></span></button>
+            <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style=\"width:16px;height:16px;vertical-align:middle;display:inline-block\"><circle cx=\"11\" cy=\"11\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><polyline points=\"6,11 9.5,15 16,7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg> All<span id="rev-count-label"></span></button>
           </div>
         </div>
         <div class="fpop-footer">
@@ -1085,13 +1085,13 @@ _updateFlagCount();
 var _CHK_SVG='<svg viewBox="0 0 22 22" style="width:1.4em;height:1.4em;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="var(--chk-bg,none)" stroke="var(--chk-border,currentColor)" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="var(--chk-mark,currentColor)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 var _REV_KEY='stock_reviewed_v1';
 var _revd=(function(){try{return JSON.parse(localStorage.getItem(_REV_KEY))||{};}catch(e){return{};}})();
-var _revFilter=1; /* 1=unreviewed,2=reviewed (binary toggle, always active) */
+var _revFilter=0; /* 0=all (inactive/grayed),1=unreviewed,2=reviewed */
 function _saveRevd(){try{localStorage.setItem(_REV_KEY,JSON.stringify(_revd));}catch(e){}}
 function isReviewed(tk){return !!_revd[tk];}
 function toggleReviewed(tk,e){if(e)e.stopPropagation();_revd[tk]?delete _revd[tk]:_revd[tk]=1;_saveRevd();_updateRevCount();applyFilters();}
 function _syncRevDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;var c=isReviewed(tk)?'rev-chk-det checked':'rev-chk-det';['d-rev','d-rev2'].forEach(function(id){var el=document.getElementById(id);if(el){el.className=c;el.innerHTML=_CHK_SVG;el.title=isReviewed(tk)?'Reviewed — click to unmark':'Mark as reviewed';}});}
 function toggleReviewedDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;toggleReviewed(tk);_syncRevDet();}
-function cycleRevFilter(){_revFilter=_revFilter===1?2:1;var el=document.getElementById('f-reviewed');el.classList.add('active');el.innerHTML=_CHK_SVG+' '+(_revFilter===1?'Unreviewed':'Reviewed');applyFilters();}
+function cycleRevFilter(){_revFilter=(_revFilter+1)%3;var el=document.getElementById('f-reviewed');el.classList.toggle('active',_revFilter>0);el.innerHTML=_CHK_SVG+' '+(['All','Unreviewed','Reviewed'])[_revFilter];applyFilters();}
 function _updateRevCount(){var n=Object.keys(_revd).length;var el=document.getElementById('rev-count-label');if(el)el.textContent=n>0?' ('+n+')':'';}
 function clearAllReviewed(){if(!Object.keys(_revd).length)return;if(!confirm('Clear all '+Object.keys(_revd).length+' reviewed checkmarks?'))return;_revd={};_saveRevd();_updateRevCount();_syncRevDet();applyFilters();}
 function _revHtml(tk){var c=isReviewed(tk);return '<span class="rev-chk'+(c?' checked':'')+'" onclick="toggleReviewed(\''+tk.replace(/'/g,"\\'")+'\',event)" title="'+(c?'Reviewed — click to unmark':'Mark as reviewed')+'">'+_CHK_SVG+'</span>';}
@@ -1187,9 +1187,9 @@ function _applyFilterState(st){
   }
   _flagOnly=!!st.flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);
   _founderOnly=!!st.founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);
-  _revFilter=(st.revFilter|0)===2?2:1;
+  _revFilter=st.revFilter|0;
   var rEl=document.getElementById('f-reviewed');
-  if(rEl){rEl.classList.add('active');rEl.innerHTML=_CHK_SVG+' '+(_revFilter===1?'Unreviewed':'Reviewed');}
+  if(rEl){rEl.classList.toggle('active',_revFilter>0);rEl.innerHTML=_CHK_SVG+' '+(['All','Unreviewed','Reviewed'])[_revFilter];}
   applyFilters();
 }
 function saveCurrentFilter(){
@@ -1505,7 +1505,7 @@ function clearFilters(){
   addColFilter();
   _flagOnly=false;document.getElementById('f-flagged').classList.remove('active');
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
-  _revFilter=1;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.add('active');rEl.innerHTML=_CHK_SVG+' Unreviewed';}
+  _revFilter=0;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.remove('active');rEl.innerHTML=_CHK_SVG+' All';}
   _revd={};_saveRevd();_updateRevCount();
   applyFilters();
 }
