@@ -934,12 +934,6 @@ td.ct{font-weight:700;}
           <div class="fpop-section-label">Column Filters</div>
           <div id="col-filters" class="col-filters-wrap"></div>
           <button class="add-filter-btn" onclick="addColFilter()">&#65291; Add Filter</button>
-          <div class="fpop-section-label" style="margin-top:10px">Quick Filters</div>
-          <div class="fpop-toggles">
-            <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
-            <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
-            <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style=\"width:16px;height:16px;vertical-align:middle;display:inline-block\"><circle cx=\"11\" cy=\"11\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><polyline points=\"6,11 9.5,15 16,7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg> All<span id="rev-count-label"></span></button>
-          </div>
           <div class="fpop-section-label" style="margin-top:10px">Saved Filters</div>
           <div id="saved-filters-list" class="fpop-toggles" style="margin-bottom:6px"></div>
           <button class="fpop-toggle-btn" onclick="saveCurrentFilter()" title="Save the current filter configuration under a name">&#65291; Save current filter&#8230;</button>
@@ -947,6 +941,26 @@ td.ct{font-weight:700;}
           <div class="fpop-toggles">
             <button class="fpop-toggle-btn" onclick="exportFlags()" title="Download a JSON file of your flagged + reviewed stocks. Save it to back up across browsers, devices, or browser-data clears.">&#11015; Export Flags</button>
             <button class="fpop-toggle-btn" onclick="importFlags()" title="Restore flagged + reviewed stocks from a previously exported JSON file. Merges with existing — does not overwrite.">&#11014; Import Flags</button>
+          </div>
+        </div>
+        <div class="fpop-footer">
+        </div>
+      </div>
+    </div>
+    <div class="fpop-wrap" id="qfpop-wrap">
+      <button class="fpop-btn" id="qfpop-btn" onclick="toggleQuickFiltersPopup(event)">
+        <span>&#9889; Quick Filters</span><span class="fpop-badge" id="qfpop-badge" style="display:none">0</span>
+      </button>
+      <div class="fpop-panel" id="qfpop-panel">
+        <div class="fpop-header">
+          <span class="fpop-title">Quick Filters</span>
+          <button class="fpop-close" onclick="toggleQuickFiltersPopup(event)">&#215;</button>
+        </div>
+        <div class="fpop-body">
+          <div class="fpop-toggles">
+            <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
+            <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
+            <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style=\"width:16px;height:16px;vertical-align:middle;display:inline-block\"><circle cx=\"11\" cy=\"11\" r=\"9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"/><polyline points=\"6,11 9.5,15 16,7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg> All<span id="rev-count-label"></span></button>
           </div>
         </div>
         <div class="fpop-footer">
@@ -1452,12 +1466,19 @@ function applyFilters(){
     return true;
   });
   document.getElementById('f-count').textContent=FD.length+' of '+DATA.length;
-  // Update filter popup badge (col filters + flagged + founder + reviewed)
-  var activeCount=colFilters.length+(_flagOnly?1:0)+(_founderOnly?1:0)+(_revFilter?1:0);
+  // Filters popup badge: column filters only.
   var badge=document.getElementById('fpop-badge');
   var btn=document.getElementById('fpop-btn');
-  if(activeCount>0){badge.textContent=activeCount;badge.style.display='inline-flex';btn.classList.add('active');}
+  if(colFilters.length>0){badge.textContent=colFilters.length;badge.style.display='inline-flex';btn.classList.add('active');}
   else{badge.style.display='none';btn.classList.remove('active');}
+  // Quick Filters popup badge: flagged + founder + reviewed toggles.
+  var qCount=(_flagOnly?1:0)+(_founderOnly?1:0)+(_revFilter?1:0);
+  var qBadge=document.getElementById('qfpop-badge');
+  var qBtn=document.getElementById('qfpop-btn');
+  if(qBadge&&qBtn){
+    if(qCount>0){qBadge.textContent=qCount;qBadge.style.display='inline-flex';qBtn.classList.add('active');}
+    else{qBadge.style.display='none';qBtn.classList.remove('active');}
+  }
   renderCur();
 }
 function clearColFilters(){
@@ -1484,24 +1505,41 @@ function clearFilters(){
   _revd={};_saveRevd();_updateRevCount();
   applyFilters();
 }
+function _positionFpop(panel,btn){
+  var r=btn.getBoundingClientRect();
+  var vw=window.innerWidth,vh=window.innerHeight;
+  var pw=panel.offsetWidth,ph=panel.offsetHeight;
+  var left=r.left;
+  if(left+pw>vw-10)left=vw-pw-10;
+  if(left<10)left=10;
+  var top=r.bottom+6;
+  if(top+ph>vh-10)top=Math.max(10,r.top-ph-6);
+  panel.style.top=top+'px';panel.style.left=left+'px';
+}
 function toggleFilterPopup(e){
   if(e)e.stopPropagation();
   var panel=document.getElementById('fpop-panel');
   var wasOpen=panel.classList.contains('open');
+  // Close sibling popup if open
+  var qPanel=document.getElementById('qfpop-panel');
+  if(qPanel)qPanel.classList.remove('open');
   panel.classList.toggle('open');
   if(!wasOpen){
     var btn=document.getElementById('fpop-btn');
-    if(btn){
-      var r=btn.getBoundingClientRect();
-      var vw=window.innerWidth,vh=window.innerHeight;
-      var pw=panel.offsetWidth,ph=panel.offsetHeight;
-      var left=r.left;
-      if(left+pw>vw-10)left=vw-pw-10;
-      if(left<10)left=10;
-      var top=r.bottom+6;
-      if(top+ph>vh-10)top=Math.max(10,r.top-ph-6);
-      panel.style.top=top+'px';panel.style.left=left+'px';
-    }
+    if(btn)_positionFpop(panel,btn);
+  }
+}
+function toggleQuickFiltersPopup(e){
+  if(e)e.stopPropagation();
+  var panel=document.getElementById('qfpop-panel');
+  var wasOpen=panel.classList.contains('open');
+  // Close sibling popup if open
+  var fPanel=document.getElementById('fpop-panel');
+  if(fPanel)fPanel.classList.remove('open');
+  panel.classList.toggle('open');
+  if(!wasOpen){
+    var btn=document.getElementById('qfpop-btn');
+    if(btn)_positionFpop(panel,btn);
   }
 }
 document.addEventListener('click',function(e){
@@ -1509,6 +1547,11 @@ document.addEventListener('click',function(e){
   if(wrap&&!wrap.contains(e.target)){
     var panel=document.getElementById('fpop-panel');
     if(panel)panel.classList.remove('open');
+  }
+  var qwrap=document.getElementById('qfpop-wrap');
+  if(qwrap&&!qwrap.contains(e.target)){
+    var qpanel=document.getElementById('qfpop-panel');
+    if(qpanel)qpanel.classList.remove('open');
   }
 });
 var _cfRowId=0;
