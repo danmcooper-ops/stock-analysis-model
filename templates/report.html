@@ -811,6 +811,10 @@ td.ct{font-weight:700;}
    above turns the text white, leaving white-on-white. Force a dark surface
    and a readable border so the buttons remain legible in dark mode. */
 [data-theme="dark"] .ph-index-btn:not(.active){background:var(--surface) !important;border-color:var(--border) !important;color:var(--text-muted) !important;}
+/* Same body * !important rule above kills the orange on a flagged flag-star.
+   Force the flagged color through; leave unflagged white so it still reads
+   against the dark surface. */
+[data-theme="dark"] .flag-star.flagged{color:#ff8c00 !important;}
 [data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:rgba(255,255,255,0.72) !important;opacity:1;}
 [data-theme="dark"] select option{background:#0d1117 !important;color:#fff !important;}
 [data-theme="dark"] .rev-chk:not(.checked),[data-theme="dark"] .rev-chk-det:not(.checked),[data-theme="dark"] #f-reviewed{color:#fff !important;--chk-border:#fff;--chk-mark:#fff;}
