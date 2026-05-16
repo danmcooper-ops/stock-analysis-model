@@ -925,6 +925,26 @@ td.ct{font-weight:700;}
       <div class="ms-drop" id="ms-sector-opts"></div>
     </div>
     <div class="filter-divider"></div>
+    <div class="fpop-wrap" id="qfpop-wrap">
+      <button class="fpop-btn" id="qfpop-btn" onclick="toggleQuickFiltersPopup(event)">
+        <span>Quick Filters</span><span class="fpop-badge" id="qfpop-badge" style="display:none">0</span>
+      </button>
+      <div class="fpop-panel" id="qfpop-panel">
+        <div class="fpop-header">
+          <span class="fpop-title">Quick Filters</span>
+          <button class="fpop-close" onclick="toggleQuickFiltersPopup(event)">&#215;</button>
+        </div>
+        <div class="fpop-body">
+          <div class="fpop-toggles">
+            <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
+            <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
+            <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> All<span id="rev-count-label"></span></button>
+          </div>
+        </div>
+        <div class="fpop-footer">
+        </div>
+      </div>
+    </div>
     <div class="fpop-wrap" id="fpop-wrap">
       <button class="fpop-btn" id="fpop-btn" onclick="toggleFilterPopup(event)">
         <span>Filters</span><span class="fpop-badge" id="fpop-badge" style="display:none">0</span>
@@ -945,26 +965,6 @@ td.ct{font-weight:700;}
           <div class="fpop-toggles">
             <button class="fpop-toggle-btn" onclick="exportFlags()" title="Download a JSON file of your flagged + reviewed stocks. Save it to back up across browsers, devices, or browser-data clears.">&#11015; Export Flags</button>
             <button class="fpop-toggle-btn" onclick="importFlags()" title="Restore flagged + reviewed stocks from a previously exported JSON file. Merges with existing — does not overwrite.">&#11014; Import Flags</button>
-          </div>
-        </div>
-        <div class="fpop-footer">
-        </div>
-      </div>
-    </div>
-    <div class="fpop-wrap" id="qfpop-wrap">
-      <button class="fpop-btn" id="qfpop-btn" onclick="toggleQuickFiltersPopup(event)">
-        <span>Quick Filters</span><span class="fpop-badge" id="qfpop-badge" style="display:none">0</span>
-      </button>
-      <div class="fpop-panel" id="qfpop-panel">
-        <div class="fpop-header">
-          <span class="fpop-title">Quick Filters</span>
-          <button class="fpop-close" onclick="toggleQuickFiltersPopup(event)">&#215;</button>
-        </div>
-        <div class="fpop-body">
-          <div class="fpop-toggles">
-            <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
-            <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
-            <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> All<span id="rev-count-label"></span></button>
           </div>
         </div>
         <div class="fpop-footer">
