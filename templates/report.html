@@ -2438,8 +2438,8 @@ function _placeTip(rect,tipEl,opts){
   var sA=rect.top,sB=vh-rect.bottom,sL=rect.left,sR=vw-rect.right;
   var av=(opts&&opts.avoid)||null;
   var left,top,placed=false;
-  function tryAbove(){if(av==='above')return false;if(sA<th+M)return false;top=rect.top-th-M;left=rect.left+rect.width/2-tw/2;return true;}
-  function tryBelow(){if(av==='below')return false;if(sB<th+M)return false;top=rect.bottom+M;left=rect.left+rect.width/2-tw/2;return true;}
+  function tryAbove(){if(av==='above')return false;if(sA<th+M)return false;top=rect.top-th-M;left=rect.left;return true;}
+  function tryBelow(){if(av==='below')return false;if(sB<th+M)return false;top=rect.bottom+M;left=rect.left;return true;}
   function tryRight(){if(av==='right')return false;if(sR<tw+M)return false;left=rect.right+M;top=rect.top;return true;}
   function tryLeft(){if(av==='left')return false;if(sL<tw+M)return false;left=rect.left-tw-M;top=rect.top;return true;}
   placed=tryAbove()||tryBelow()||tryRight()||tryLeft();
@@ -2451,7 +2451,7 @@ function _placeTip(rect,tipEl,opts){
     if(goAbove){top=Math.max(P,rect.top-th-M);}
     else if(canBelow){top=Math.min(vh-th-P,rect.bottom+M);}
     else {top=Math.max(P,rect.top-th-M);}
-    left=rect.left+rect.width/2-tw/2;
+    left=rect.left;
   }
   left=Math.max(P,Math.min(left,vw-tw-P));
   top=Math.max(P,Math.min(top,vh-th-P));
