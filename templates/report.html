@@ -2919,7 +2919,7 @@ function openDet(tk){
   document.getElementById('d-section-profitpool').style.display=ppShow?'':'none';
 
   var _dm=document.getElementById('det-modal');
-  _dm.classList.add('fullscreen');
+  try{if(localStorage.getItem('detFullscreen')==='1')_dm.classList.add('fullscreen');else _dm.classList.remove('fullscreen');}catch(e){}
   _dm.classList.add('open');
   document.body.style.overflow='hidden';
 }
