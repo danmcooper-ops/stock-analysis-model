@@ -910,21 +910,6 @@ td.ct{font-weight:700;}
   <div class="filter-bar" id="filter-bar">
     <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker..." oninput="applyFilters()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
     <button class="mob-filter-btn" id="mob-filter-btn" onclick="toggleMobFilters()">&#9776; Filters</button>
-    <div class="ms-wrap" id="ms-rating">
-      <div class="ms-btn" onclick="msToggle('ms-rating')">All Ratings</div>
-      <div class="ms-drop">
-        <label class="ms-all"><input type="checkbox" checked onchange="msToggleAll('ms-rating',this.checked)"> All Ratings</label>
-        <label><input type="checkbox" value="BUY" checked onchange="msChanged('ms-rating')"> BUY</label>
-        <label><input type="checkbox" value="LEAN BUY" checked onchange="msChanged('ms-rating')"> LEAN BUY</label>
-        <label><input type="checkbox" value="HOLD" checked onchange="msChanged('ms-rating')"> HOLD</label>
-        <label><input type="checkbox" value="PASS" checked onchange="msChanged('ms-rating')"> PASS</label>
-      </div>
-    </div>
-    <div class="ms-wrap" id="ms-sector">
-      <div class="ms-btn" onclick="msToggle('ms-sector')">All Sectors</div>
-      <div class="ms-drop" id="ms-sector-opts"></div>
-    </div>
-    <div class="filter-divider"></div>
     <div class="fpop-wrap" id="qfpop-wrap">
       <button class="fpop-btn" id="qfpop-btn" onclick="toggleQuickFiltersPopup(event)">
         <span>Quick Filters</span><span class="fpop-badge" id="qfpop-badge" style="display:none">0</span>
@@ -970,6 +955,21 @@ td.ct{font-weight:700;}
         <div class="fpop-footer">
         </div>
       </div>
+    </div>
+    <div class="filter-divider"></div>
+    <div class="ms-wrap" id="ms-rating">
+      <div class="ms-btn" onclick="msToggle('ms-rating')">All Ratings</div>
+      <div class="ms-drop">
+        <label class="ms-all"><input type="checkbox" checked onchange="msToggleAll('ms-rating',this.checked)"> All Ratings</label>
+        <label><input type="checkbox" value="BUY" checked onchange="msChanged('ms-rating')"> BUY</label>
+        <label><input type="checkbox" value="LEAN BUY" checked onchange="msChanged('ms-rating')"> LEAN BUY</label>
+        <label><input type="checkbox" value="HOLD" checked onchange="msChanged('ms-rating')"> HOLD</label>
+        <label><input type="checkbox" value="PASS" checked onchange="msChanged('ms-rating')"> PASS</label>
+      </div>
+    </div>
+    <div class="ms-wrap" id="ms-sector">
+      <div class="ms-btn" onclick="msToggle('ms-sector')">All Sectors</div>
+      <div class="ms-drop" id="ms-sector-opts"></div>
     </div>
     <button class="filter-clear" onclick="clearFilters()">Clear</button>
     <span class="filter-count" id="f-count"></span>
