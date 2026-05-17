@@ -8,6 +8,12 @@ import yfinance as yf
 import pandas as pd
 
 
+class EmptyYahooResponseError(Exception):
+    """Yahoo returned an HTTP-200 response with empty payload — almost
+    always a soft rate-limit / throttle. Treated as a retryable failure
+    so the caller can either retry or fall back to another data source."""
+
+
 # Module-level executor shared across all timeout calls.  Using a single
 # thread avoids the memory/thread leak of creating (and never joining) a
 # fresh ThreadPoolExecutor per yfinance call.  max_workers=4 allows light
@@ -34,7 +40,7 @@ def _run_with_timeout(func, timeout_seconds):
 
 
 class YFinanceClient:
-    def __init__(self, request_delay=0.25, snapshot_cache=None,
+    def __init__(self, request_delay=1.0, snapshot_cache=None,
                  fetch_timeout=20, prices_dir="output/prices"):
         self._financials_cache = {}
         self._history_cache = {}
@@ -131,6 +137,22 @@ class YFinanceClient:
                 'cash_flow': stock.cashflow,
                 'info': stock.info,
             }
+            # Detect Yahoo soft-throttle: HTTP 200 with empty statement frames
+            # AND an info dict missing all the standard identifying fields.
+            # A real response always carries at least one of symbol/shortName/longName
+            # in info, even for OTC / foreign-listed tickers.
+            bs = data['balance_sheet']
+            inc = data['income_statement']
+            cf = data['cash_flow']
+            info = data['info'] or {}
+            bs_empty = bs is None or (hasattr(bs, 'empty') and bs.empty)
+            inc_empty = inc is None or (hasattr(inc, 'empty') and inc.empty)
+            cf_empty = cf is None or (hasattr(cf, 'empty') and cf.empty)
+            info_empty = not (info.get('symbol') or info.get('shortName')
+                              or info.get('longName'))
+            if bs_empty and inc_empty and cf_empty and info_empty:
+                raise EmptyYahooResponseError(
+                    f"yfinance returned empty payload for {ticker} (likely throttled)")
             # Growth estimates and earnings history (may fail for some tickers)
             try:
                 data['growth_estimates'] = stock.growth_estimates

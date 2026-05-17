@@ -101,6 +101,16 @@ class SECXBRLClient:
             'CommonStockSharesOutstanding',
             'CommonStockSharesOutstandingBasic',
         ],
+        # Needed by the build_yfinance_shape adapter so calculate_roic /
+        # calculate_wacc can derive a real (not default 21%) tax rate.
+        'tax_provision': [
+            'IncomeTaxExpenseBenefit',
+        ],
+        'pretax_income': [
+            'IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest',
+            'IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments',
+            'IncomeLossFromContinuingOperationsBeforeIncomeTaxesAndMinorityInterest',
+        ],
     }
 
     # Map XBRL concept names to yfinance field_keys lists for cross-validation
@@ -567,4 +577,136 @@ class SECXBRLClient:
             'dividends_paid_history':   dividends_paid_history,
             'shares_history':           shares_history,
             'years_available':          years_available,
+        }
+
+    def build_yfinance_shape(self, ticker, year_limit=None):
+        """Construct a yfinance-shaped financials dict from SEC XBRL data.
+
+        Returned shape matches what models/ratios.py expects:
+        {balance_sheet, income_statement, cash_flow, info}, with statement
+        DataFrames indexed by line-item label and columned by fiscal-year-end
+        Timestamp (latest year first).
+
+        info is sparse: only carries `symbol` and a `_source` tag. Callers
+        that want CAPM / market-cap-weighted WACC should merge yfinance's
+        info dict on top of this result.
+
+        Args:
+            ticker: Stock ticker symbol.
+            year_limit: Optional cap on the number of year columns kept
+                (latest first). Defaults to None — return all available
+                history (typically 10-16 years). For a value-investor /
+                DCF pipeline this is preferable: through-cycle ROIC and
+                tax rates smooth out one-off years and are a more defensible
+                input to long-horizon terminal-value calculations.
+
+        Returns:
+            dict or None if no XBRL data is available for ticker.
+        """
+        import pandas as pd
+
+        facts = self.fetch_company_facts(ticker)
+        if not facts:
+            return None
+
+        def _ann(concept):
+            tags = self._XBRL_TAG_MAP.get(concept, [])
+            return self._extract_annual_values(facts, tags) if tags else {}
+
+        # Income statement (flow concepts)
+        revenue       = _ann('revenue')
+        net_income    = _ann('net_income')
+        op_income     = _ann('operating_income')
+        gross_profit  = _ann('gross_profit')
+        interest_exp  = _ann('interest_expense')
+        tax_provision = _ann('tax_provision')
+        pretax_income = _ann('pretax_income')
+
+        # Cash flow (flow concepts)
+        op_cf         = _ann('operating_cash_flow')
+
+        # Balance sheet (point-in-time concepts). Their entries in XBRL only
+        # carry end dates, no durations — _extract_annual_values' duration
+        # filter conditional skips them naturally, and the fy match keeps the
+        # right period-end value per fiscal year.
+        equity        = _ann('total_equity')
+        debt          = _ann('total_debt')
+        cash          = _ann('cash')
+        assets        = _ann('total_assets')
+
+        # Need at least revenue or net income to consider the data usable.
+        if not revenue and not net_income:
+            return None
+
+        years = sorted(set(revenue) | set(net_income) | set(op_income) |
+                       set(equity) | set(debt) | set(assets) | set(pretax_income),
+                       reverse=True)
+        if not years:
+            return None
+
+        # Truncate to the most recent year_limit years (latest first).
+        # XBRL routinely returns 10–16 years; a long window pulls in pre-
+        # crisis filings that yfinance no longer reports, producing ROIC
+        # values that diverge meaningfully from the recent window.
+        if year_limit and year_limit > 0:
+            years = years[:year_limit]
+
+        # ----- Derive missing line items from related XBRL fields -----
+        # XBRL tagging varies across companies — many file pretax_income but not
+        # operating_income (NKE), or operating_income but not pretax_income (REITs
+        # like BXP). The accounting identity is pretax ≈ operating - interest_exp
+        # (treating other_income/expense as ≈ 0). Use it to fill missing entries
+        # so calculate_roic's all([op, pretax, equity]) gate can pass. Never
+        # overwrite a value that XBRL already provided.
+        for y in years:
+            op = op_income.get(y)
+            pti = pretax_income.get(y)
+            intexp = interest_exp.get(y) or 0
+            if op is None and pti is not None:
+                op_income[y] = pti + intexp
+            elif pti is None and op is not None:
+                pretax_income[y] = op - intexp
+            # Last-resort derivation: pretax = net_income + tax_provision
+            if pretax_income.get(y) is None:
+                ni = net_income.get(y)
+                tx = tax_provision.get(y)
+                if ni is not None and tx is not None:
+                    pretax_income[y] = ni + tx
+
+        cols = [pd.Timestamp(year=y, month=12, day=31) for y in years]
+
+        income_df = pd.DataFrame({
+            col: {
+                'Total Revenue':    revenue.get(y),
+                'Net Income':       net_income.get(y),
+                'Operating Income': op_income.get(y),
+                'Gross Profit':     gross_profit.get(y),
+                'Interest Expense': interest_exp.get(y),
+                'Tax Provision':    tax_provision.get(y),
+                'Pretax Income':    pretax_income.get(y),
+            } for y, col in zip(years, cols)
+        })
+
+        balance_df = pd.DataFrame({
+            col: {
+                'Stockholders Equity':       equity.get(y),
+                'Total Debt':                debt.get(y),
+                'Cash And Cash Equivalents': cash.get(y),
+                'Total Assets':              assets.get(y),
+            } for y, col in zip(years, cols)
+        })
+
+        cash_flow_df = pd.DataFrame({
+            col: {
+                'Operating Cash Flow': op_cf.get(y),
+            } for y, col in zip(years, cols)
+        })
+
+        return {
+            'balance_sheet':    balance_df,
+            'income_statement': income_df,
+            'cash_flow':        cash_flow_df,
+            'info':             {'symbol': ticker, '_source': 'sec_xbrl'},
+            'growth_estimates': None,
+            'earnings_history': None,
         }

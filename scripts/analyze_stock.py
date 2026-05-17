@@ -21,7 +21,7 @@ if os.path.exists(_env_path):
                 _k, _v = _line.split('=', 1)
                 os.environ.setdefault(_k.strip(), _v.strip())
 
-from data.yfinance_client import YFinanceClient
+from data.yfinance_client import YFinanceClient, EmptyYahooResponseError
 from data.treasury_rate import fetch_risk_free_rate
 from data.validation import validate_financials
 from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re)
@@ -1232,6 +1232,18 @@ def _main():
     else:
         print('Tiingo API not configured (set TIINGO_API_KEY) — falling back to yfinance/Google RSS.')
 
+    # SEC EDGAR clients initialized here (rather than at Phase-2 setup) so the
+    # SECXBRLClient is available as a Phase-1 fallback when yfinance returns
+    # an empty payload (Yahoo soft-throttle). The CIK-map load is idempotent.
+    sec_client = SECLegalClient(email='stockanalysis@example.com', request_delay=1.0)
+    sec_client._load_cik_map()
+    sec_xbrl_client = SECXBRLClient(
+        cik_map=sec_client._cik_map,
+        name_map=sec_client._name_map,
+        email='stockanalysis@example.com',
+        request_delay=1.0,
+    )
+
     # -----------------------------------------------------------------------
     # Phase 1: Collect data for full universe (no ROIC > WACC pre-filter)
     # -----------------------------------------------------------------------
@@ -1290,7 +1302,72 @@ def _main():
         _grp = ticker_source.get(ticker, 'quality')
         screen_outcomes[_grp]['total'] += 1
         try:
-            yf_data = yf_client.fetch_financials(ticker)
+            # ----------------------------------------------------------------
+            # Fundamentals fetch — SEC XBRL is the primary source for the
+            # financial statements (authoritative, direct from filings);
+            # yfinance is the primary source for market-data `info` (market
+            # cap, beta, current price, dividends) and analyst series.
+            # Merge them so downstream code (CAPM, market-cap-weighted WACC,
+            # mcap filter) keeps working unchanged.
+            #
+            # Source tags written to screen_cache for audit / later gating:
+            #   'sec_xbrl+yfinance'  XBRL statements + yfinance info (US filer)
+            #   'yfinance'           yfinance both (foreign / OTC, no CIK)
+            #   'sec_xbrl'           XBRL only (yfinance throttled for a US filer)
+            # ----------------------------------------------------------------
+            try:
+                yf_data = yf_client.fetch_financials(ticker)
+            except EmptyYahooResponseError:
+                yf_data = None
+
+            # Early mcap bail before paying the XBRL fetch cost. For ~6K
+            # micro-caps the mcap filter will drop the ticker anyway —
+            # no point spending 1 second on a SEC fetch we'll discard.
+            # Carry-forwards bypass the mcap filter, so they still proceed.
+            _carried = ticker in _carry_set
+            if (yf_data is not None and args.mcap_min and not _carried):
+                _early_mcap = (yf_data.get('info') or {}).get('marketCap') or 0
+                if _early_mcap < args.mcap_min:
+                    print(f"  [{i}/{len(all_tickers)}] {ticker} - "
+                          f"SKIP mcap ${_early_mcap/1e6:.0f}M < "
+                          f"${args.mcap_min/1e6:.0f}M floor")
+                    sys.stdout.flush()
+                    continue
+
+            xbrl_data = None
+            if ticker in sec_xbrl_client._cik_map:
+                try:
+                    # No year_limit: use all available XBRL history (10-16
+                    # years). Through-cycle ROIC is the right input for a
+                    # DCF / value pipeline with a long terminal-value horizon.
+                    xbrl_data = sec_xbrl_client.build_yfinance_shape(ticker)
+                except Exception:
+                    xbrl_data = None  # network hiccup — fall through
+
+            if xbrl_data is not None and yf_data is not None:
+                yf_data = {
+                    'balance_sheet':    xbrl_data['balance_sheet'],
+                    'income_statement': xbrl_data['income_statement'],
+                    'cash_flow':        xbrl_data['cash_flow'],
+                    'info':             yf_data.get('info') or {},
+                    'growth_estimates': yf_data.get('growth_estimates'),
+                    'earnings_history': yf_data.get('earnings_history'),
+                }
+                _data_source = 'sec_xbrl+yfinance'
+            elif xbrl_data is not None:
+                # yfinance throttled for a US filer — XBRL-only path.
+                # info is sparse → CAPM falls to buildup, WACC uses book equity.
+                yf_data = xbrl_data
+                _data_source = 'sec_xbrl'
+            elif yf_data is not None:
+                # No CIK (foreign / OTC) — yfinance is the only source.
+                _data_source = 'yfinance'
+            else:
+                print(f"  [{i}/{len(all_tickers)}] {ticker} - "
+                      "error: yfinance empty AND no SEC XBRL coverage")
+                sys.stdout.flush()
+                continue
+
             info = yf_data.get('info') or {}
             sector = info.get('sector', '')
 
@@ -1332,8 +1409,9 @@ def _main():
                 'cost_of_equity': cost_of_equity,
                 're_method': re_method, 'yf_data': yf_data,
                 'beta_diag': beta_diag,
+                'data_source': _data_source,
             }
-            print(f"  [{i}/{len(all_tickers)}] {ticker} - {roic_str}{wacc_str}{spread_str} [{re_method}]")
+            print(f"  [{i}/{len(all_tickers)}] {ticker} - {roic_str}{wacc_str}{spread_str} [{re_method}] <{_data_source}>")
 
         except Exception as e:
             print(f"  [{i}/{len(all_tickers)}] {ticker} - error: {e}")
@@ -1387,8 +1465,8 @@ def _main():
     )
     news_client.prefetch_all_sectors(_sectors_for_news)
 
-    # SEC EDGAR: legal proceedings search
-    sec_client = SECLegalClient(email='stockanalysis@example.com', request_delay=1.0)
+    # sec_client and sec_xbrl_client are initialized earlier (before Phase 1)
+    # so the XBRL fallback is available during the universe screen.
 
     # Finnhub: supply chain relationships
     supply_client = FinnhubSupplyClient(request_delay=1.0)
@@ -1398,16 +1476,7 @@ def _main():
         print('Finnhub supply chain API not configured (set FINNHUB_API_KEY).')
 
     # SEC EDGAR: supply chain extraction from 10-K filings (free fallback)
-    sec_client._load_cik_map()
     sec_supply_client = SECSupplyClient(
-        cik_map=sec_client._cik_map,
-        name_map=sec_client._name_map,
-        email='stockanalysis@example.com',
-        request_delay=1.0,
-    )
-
-    # SEC EDGAR: XBRL cross-validation and historical depth
-    sec_xbrl_client = SECXBRLClient(
         cik_map=sec_client._cik_map,
         name_map=sec_client._name_map,
         email='stockanalysis@example.com',
@@ -1544,8 +1613,13 @@ def _main():
                 supply_data = sec_supply_client.fetch_supply_chain(ticker)
             finnhub_peers = supply_client.fetch_peers(ticker)
 
-            # SEC EDGAR: XBRL cross-validation
-            xbrl_validation = sec_xbrl_client.validate_against_yfinance(ticker, yf_data)
+            # SEC EDGAR: XBRL cross-validation. Skip when statements already
+            # came from XBRL — validating XBRL against itself is meaningless.
+            _stmt_source = (screen_cache.get(ticker) or {}).get('data_source', 'yfinance')
+            if _stmt_source in ('sec_xbrl+yfinance', 'sec_xbrl'):
+                xbrl_validation = None
+            else:
+                xbrl_validation = sec_xbrl_client.validate_against_yfinance(ticker, yf_data)
             # SEC EDGAR: long-duration revenue/earnings history
             edgar_history = sec_xbrl_client.fetch_historical_financials(ticker, min_years=10)
             # Evict the raw XBRL JSON blob (~1-10 MB) now that both
