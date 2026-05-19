@@ -667,6 +667,11 @@ def _rating_cap_for_row(row, params=None):
     if row.get('_data_coverage_score') is not None and row['_data_coverage_score'] < 25:
         add('HOLD', 'low scoring data coverage')
 
+    eh = row.get('edgar_history') or {}
+    years = eh.get('years_available', 0) or 0
+    if years < 5:
+        add('HOLD', f'thin EDGAR history ({years}y)')
+
     return cap, reasons
 
 

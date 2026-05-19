@@ -35,6 +35,79 @@ from models.field_keys import (
     CAPEX_KEYS, DIVIDENDS_PAID_KEYS,
 )
 
+# Module-level FX cache. Keyed by ISO currency code; value is {fiscal_year: rate_to_USD}.
+# Built lazily on first request per currency so a 50-foreign-ticker batch hits
+# yfinance at most ~10 times instead of once per ticker.
+_FX_CACHE = {}
+
+
+def _get_fx_rates_to_usd(currency):
+    """Return {fiscal_year: ccy→USD rate} using yfinance year-end closes.
+
+    Falls back to {} if yfinance is unavailable or the pair has no data,
+    in which case downstream conversion silently passes through values
+    unchanged. That's acceptable for HKD (pegged ~7.78) and small CCY
+    drift but introduces error for volatile currencies — Phase 2 logs
+    `reporting_currency` so consumers can audit when this happens.
+    """
+    if currency in _FX_CACHE:
+        return _FX_CACHE[currency]
+    if currency == 'USD':
+        _FX_CACHE[currency] = {}
+        return {}
+    try:
+        import yfinance as yf
+        pair = f'{currency}USD=X'
+        df = yf.download(pair, period='max', interval='1d',
+                         progress=False, auto_adjust=False)
+        if df is None or df.empty:
+            _FX_CACHE[currency] = {}
+            return {}
+        # yfinance returns a MultiIndex-columned DataFrame even for a single
+        # ticker; pluck the Close column and squeeze to a Series.
+        if 'Close' in df.columns.get_level_values(0):
+            close = df['Close']
+        else:
+            close = df.iloc[:, [0]]
+        if hasattr(close, 'squeeze'):
+            close = close.squeeze('columns') if close.ndim == 2 else close
+        rates = {}
+        for ts, val in close.items():
+            try:
+                v = float(val)
+            except (TypeError, ValueError):
+                continue
+            # Iteration is chronological, so later in-year quotes overwrite
+            # earlier ones — year-end close wins.
+            rates[ts.year] = v
+        _FX_CACHE[currency] = rates
+        return rates
+    except Exception:
+        _FX_CACHE[currency] = {}
+        return {}
+
+
+def _apply_fx_annual(values, fx_rates):
+    """Multiply each {year: value} by the matching FX rate.
+
+    Years missing from fx_rates are passed through unchanged — pre-2003 EUR
+    or other thin-history pairs will retain native-currency magnitudes,
+    which is at least directionally correct for trend signal and never
+    worse than dropping the year.
+    """
+    if not values or not fx_rates:
+        return values
+    out = {}
+    for y, v in values.items():
+        try:
+            y_int = int(y)
+        except (TypeError, ValueError):
+            out[y] = v
+            continue
+        rate = fx_rates.get(y_int)
+        out[y] = v * rate if (rate is not None and v is not None) else v
+    return out
+
 
 class SECXBRLClient:
     """Fetch and interpret XBRL Company Facts from SEC EDGAR."""
@@ -112,6 +185,68 @@ class SECXBRLClient:
             'IncomeLossFromContinuingOperationsBeforeIncomeTaxesAndMinorityInterest',
         ],
     }
+
+    # IFRS taxonomy tag names. 20-F / 40-F filers (foreign issuers) report under
+    # facts['ifrs-full'] instead of facts['us-gaap']. Keys mirror _XBRL_TAG_MAP
+    # so the same concept lookups work across both taxonomies.
+    _XBRL_TAG_MAP_IFRS = {
+        'revenue': [
+            'Revenue',
+            'RevenueFromContractsWithCustomers',
+        ],
+        'net_income': [
+            'ProfitLoss',
+            'ProfitLossAttributableToOwnersOfParent',
+        ],
+        'total_assets': [
+            'Assets',
+        ],
+        'total_equity': [
+            'Equity',
+            'EquityAttributableToOwnersOfParent',
+        ],
+        'total_debt': [
+            'NoncurrentBorrowings',
+            'BorrowingsNoncurrent',
+            'LongtermBorrowings',
+        ],
+        'operating_income': [
+            'ProfitLossFromOperatingActivities',
+            'OperatingProfitLoss',
+        ],
+        'cash': [
+            'CashAndCashEquivalents',
+        ],
+        'operating_cash_flow': [
+            'CashFlowsFromUsedInOperatingActivities',
+        ],
+        'capex': [
+            'PurchaseOfPropertyPlantAndEquipment',
+            'PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities',
+        ],
+        'gross_profit': [
+            'GrossProfit',
+        ],
+        'interest_expense': [
+            'FinanceCosts',
+            'InterestExpense',
+        ],
+        'dividends_paid': [
+            'DividendsPaid',
+            'DividendsPaidClassifiedAsFinancingActivities',
+        ],
+        'shares_outstanding': [
+            'NumberOfSharesOutstanding',
+        ],
+        'tax_provision': [
+            'IncomeTaxExpenseContinuingOperations',
+        ],
+        'pretax_income': [
+            'ProfitLossBeforeTax',
+        ],
+    }
+
+    _TAXONOMIES = (('us-gaap', _XBRL_TAG_MAP), ('ifrs-full', _XBRL_TAG_MAP_IFRS))
 
     # Map XBRL concept names to yfinance field_keys lists for cross-validation
     _YF_KEY_MAP = {
@@ -200,7 +335,8 @@ class SECXBRLClient:
         self._cache[ticker] = data
         return data
 
-    def _extract_annual_values(self, facts_json, tag_list, form_filter='10-K', units_key='USD'):
+    def _extract_annual_values(self, facts_json, tag_list, form_filter='10-K',
+                               units_key='USD', taxonomy_key='us-gaap'):
         """Extract annual values for a concept from XBRL facts.
 
         Tries each tag in tag_list until one has data.  Filters for the
@@ -209,15 +345,16 @@ class SECXBRLClient:
         total annual figures.
 
         Selection logic per fiscal year:
-        1. Only 10-K / 20-F filings with fp='FY'
+        1. Only 10-K / 20-F / 40-F filings with fp='FY'
         2. Period must span ~1 full year (340-400 days)
         3. Period end year must match the fiscal year
         4. If multiple match, keep the latest filed date
 
         Args:
             facts_json: Raw companyfacts JSON.
-            tag_list: List of US-GAAP tag names to try.
-            form_filter: Filing form type ('10-K' or '20-F').
+            tag_list: List of XBRL tag names to try (US-GAAP or IFRS).
+            form_filter: Filing form type ('10-K', '20-F', or '40-F').
+            taxonomy_key: 'us-gaap' (default) or 'ifrs-full' for foreign issuers.
 
         Returns:
             dict {fiscal_year (int): value (float)} sorted by year,
@@ -226,7 +363,7 @@ class SECXBRLClient:
         if not facts_json:
             return {}
 
-        us_gaap = facts_json.get('facts', {}).get('us-gaap', {})
+        us_gaap = facts_json.get('facts', {}).get(taxonomy_key, {})
 
         # Merge values across all matching tags. Companies often switch
         # XBRL tags over time (e.g. SalesRevenueNet → RevenueFromContract...)
@@ -246,7 +383,7 @@ class SECXBRLClient:
             candidates = []
             for e in entries:
                 form = e.get('form', '')
-                if form not in (form_filter, '20-F'):
+                if form not in (form_filter, '20-F', '40-F'):
                     continue
                 fy = e.get('fy')
                 fp = e.get('fp', '')
@@ -295,7 +432,7 @@ class SECXBRLClient:
         return {fy: info[1] for fy, info in sorted(merged.items())}
 
     def _extract_periodic_values(self, facts_json, tag_list, units_key='USD',
-                                 point_in_time=False):
+                                 point_in_time=False, taxonomy_key='us-gaap'):
         """Extract per-period (quarterly + annual) values for a flow/stock concept.
 
         For *flow* concepts (revenue, net income, OCF, capex, etc.), accepts
@@ -320,7 +457,7 @@ class SECXBRLClient:
         if not facts_json:
             return {}
 
-        us_gaap = facts_json.get('facts', {}).get('us-gaap', {})
+        us_gaap = facts_json.get('facts', {}).get(taxonomy_key, {})
 
         # Stage 1: collect entries deduped by (end, kind) where kind is "Q",
         # "FY", or "PT" (point-in-time). XBRL filings include prior-period
@@ -338,7 +475,7 @@ class SECXBRLClient:
 
             for e in entries:
                 form = e.get('form', '')
-                if form not in ('10-K', '10-Q', '20-F'):
+                if form not in ('10-K', '10-Q', '20-F', '40-F'):
                     continue
                 val = e.get('val')
                 filed = e.get('filed', '')
@@ -426,6 +563,74 @@ class SECXBRLClient:
                 out[fy_end] = merged[(fy_end, 'FY')][1]
 
         return dict(sorted(out.items()))
+
+    # ------------------------------------------------------------------
+    # Dual-taxonomy + currency-aware concept resolution
+    # ------------------------------------------------------------------
+
+    def _detect_currency(self, facts_json, concept):
+        """Return the reporting currency for a concept across both taxonomies.
+
+        Inspects the unit keys present on each candidate tag, returning the
+        first ISO-shaped currency code (3 uppercase letters, not 'shares'
+        or 'pure'). Prefers USD if available, else falls back to whichever
+        currency the foreign filer actually uses.
+
+        Returns None if no currency-keyed entries exist for any candidate tag.
+        """
+        if not facts_json:
+            return None
+        facts = facts_json.get('facts', {})
+        for taxonomy_key, tag_map in self._TAXONOMIES:
+            ns = facts.get(taxonomy_key, {})
+            if not ns:
+                continue
+            for tag in tag_map.get(concept, []):
+                units = ns.get(tag, {}).get('units', {})
+                if 'USD' in units:
+                    return 'USD'
+                for k in units:
+                    if len(k) == 3 and k.isalpha() and k.isupper():
+                        return k
+        return None
+
+    def _extract_concept_annual(self, facts_json, concept, units_key=None):
+        """Try US-GAAP first, fall back to IFRS, auto-detect currency.
+
+        Returns (values_dict, taxonomy_key, currency) tuple. values_dict is
+        empty if no entries were found in either taxonomy.
+
+        units_key: explicit override (e.g. 'shares' for share counts). If
+        None, the method auto-picks USD or the foreign filer's currency.
+        """
+        ccy = units_key or self._detect_currency(facts_json, concept) or 'USD'
+        for taxonomy_key, tag_map in self._TAXONOMIES:
+            tags = tag_map.get(concept, [])
+            if not tags:
+                continue
+            vals = self._extract_annual_values(
+                facts_json, tags, units_key=ccy, taxonomy_key=taxonomy_key)
+            if vals:
+                return vals, taxonomy_key, ccy
+        return {}, None, ccy
+
+    def _extract_concept_periodic(self, facts_json, concept, units_key=None,
+                                  point_in_time=False):
+        """Periodic equivalent of _extract_concept_annual.
+
+        Returns (values_dict, taxonomy_key, currency) tuple.
+        """
+        ccy = units_key or self._detect_currency(facts_json, concept) or 'USD'
+        for taxonomy_key, tag_map in self._TAXONOMIES:
+            tags = tag_map.get(concept, [])
+            if not tags:
+                continue
+            vals = self._extract_periodic_values(
+                facts_json, tags, units_key=ccy,
+                point_in_time=point_in_time, taxonomy_key=taxonomy_key)
+            if vals:
+                return vals, taxonomy_key, ccy
+        return {}, None, ccy
 
     # ------------------------------------------------------------------
     # Public API: Validation
@@ -522,9 +727,14 @@ class SECXBRLClient:
 
         Flow concepts (revenue, net income, OCF, capex, etc.) are returned
         as one value per fiscal year keyed by integer year — sourced from
-        10-K / 20-F annual filings. Shares outstanding remains point-in-time
-        keyed by period-end date ("YYYY-MM-DD"), since balance-sheet items
-        carry useful intra-year detail.
+        10-K / 20-F / 40-F annual filings (US-GAAP or IFRS taxonomy).
+        Shares outstanding remains point-in-time keyed by period-end date
+        ("YYYY-MM-DD"), since balance-sheet items carry useful intra-year
+        detail.
+
+        Foreign-currency filings (EUR, JPY, DKK, etc.) are auto-detected
+        and converted to USD using year-end FX rates from yfinance, so
+        the returned values are always USD-denominated.
 
         Args:
             ticker: Stock ticker symbol.
@@ -532,51 +742,64 @@ class SECXBRLClient:
 
         Returns:
             dict with revenue_history, earnings_history, years_available,
-            or None on failure.
+            reporting_currency, fx_converted, or None on failure.
         """
         facts = self.fetch_company_facts(ticker)
         if not facts:
             return None
 
-        def _flow(concept, units_key='USD'):
-            # One value per fiscal year, keyed by int year.
-            return self._extract_annual_values(
-                facts, self._XBRL_TAG_MAP[concept], units_key=units_key)
+        def _flow(concept):
+            vals, _tax, ccy = self._extract_concept_annual(facts, concept)
+            return vals, ccy
 
-        def _stock(concept, units_key='USD'):
-            return self._extract_periodic_values(
-                facts, self._XBRL_TAG_MAP[concept], units_key=units_key,
-                point_in_time=True)
+        rev, rev_ccy             = _flow('revenue')
+        ni,  ni_ccy              = _flow('net_income')
+        ocf, ocf_ccy             = _flow('operating_cash_flow')
+        capex, capex_ccy         = _flow('capex')
+        gp, gp_ccy               = _flow('gross_profit')
+        intexp, intexp_ccy       = _flow('interest_expense')
+        div, div_ccy             = _flow('dividends_paid')
+        shares, _tax_s, _ccy_s   = self._extract_concept_periodic(
+            facts, 'shares_outstanding', units_key='shares', point_in_time=True)
 
-        revenue_history          = _flow('revenue')
-        earnings_history         = _flow('net_income')
-        operating_cf_history     = _flow('operating_cash_flow')
-        capex_history            = _flow('capex')
-        gross_profit_history     = _flow('gross_profit')
-        interest_expense_history = _flow('interest_expense')
-        dividends_paid_history   = _flow('dividends_paid')
-        shares_history           = _stock('shares_outstanding', units_key='shares')
-
-        if not revenue_history and not earnings_history:
+        if not rev and not ni:
             return None
 
-        all_series = [
-            revenue_history, earnings_history, operating_cf_history,
-            capex_history, gross_profit_history, interest_expense_history,
-            dividends_paid_history, shares_history,
-        ]
+        # The reporting currency is whichever non-USD currency appears on the
+        # primary income-statement concepts. If revenue is in JPY but a US-GAAP
+        # subsidiary tag happens to carry USD on, say, dividends, treat the
+        # filer as JPY.
+        currencies = [c for c in (rev_ccy, ni_ccy, ocf_ccy, capex_ccy,
+                                  gp_ccy, intexp_ccy, div_ccy) if c]
+        reporting_ccy = next((c for c in currencies if c != 'USD'), 'USD')
+        fx_converted = reporting_ccy != 'USD'
+
+        if fx_converted:
+            fx = _get_fx_rates_to_usd(reporting_ccy)
+            rev    = _apply_fx_annual(rev, fx)
+            ni     = _apply_fx_annual(ni, fx)
+            ocf    = _apply_fx_annual(ocf, fx)
+            capex  = _apply_fx_annual(capex, fx)
+            gp     = _apply_fx_annual(gp, fx)
+            intexp = _apply_fx_annual(intexp, fx)
+            div    = _apply_fx_annual(div, fx)
+            # shares are unit-counts, not currency — leave alone.
+
+        all_series = [rev, ni, ocf, capex, gp, intexp, div, shares]
         years_available = max((len(s) for s in all_series if s), default=0)
 
         return {
-            'revenue_history':          revenue_history,
-            'earnings_history':         earnings_history,
-            'operating_cf_history':     operating_cf_history,
-            'capex_history':            capex_history,
-            'gross_profit_history':     gross_profit_history,
-            'interest_expense_history': interest_expense_history,
-            'dividends_paid_history':   dividends_paid_history,
-            'shares_history':           shares_history,
+            'revenue_history':          rev,
+            'earnings_history':         ni,
+            'operating_cf_history':     ocf,
+            'capex_history':            capex,
+            'gross_profit_history':     gp,
+            'interest_expense_history': intexp,
+            'dividends_paid_history':   div,
+            'shares_history':           shares,
             'years_available':          years_available,
+            'reporting_currency':       reporting_ccy,
+            'fx_converted':             fx_converted,
         }
 
     def build_yfinance_shape(self, ticker, year_limit=None):

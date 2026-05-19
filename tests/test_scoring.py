@@ -9,7 +9,7 @@ from scripts.scoring import (
     _score_linear, compute_continuous_scores, apply_composite_rating_override,
     rating_from_composite, _mc_confidence_label, SCORING_GATES,
     SCREENING_GATES, gate_metadata, score_and_rate,
-    apply_screening_matrix,
+    apply_screening_matrix, _rating_cap_for_row, apply_rating_caps,
 )
 
 
@@ -401,3 +401,57 @@ class TestScreeningGateEdgeCases:
         apply_screening_matrix(above)
         assert below[0]['_gp_spread_>_5%'] is False
         assert above[0]['_gp_spread_>_5%'] is True
+
+
+class TestThinEdgarHistoryCap:
+    """The rating cap that catches foreign issuers with no EDGAR multi-year history.
+
+    Without this cap, a 20-F/40-F filer whose IFRS taxonomy isn't being parsed
+    (so `edgar_history` is None/empty) can score BUY off short-term yfinance
+    signals alone. The cap forces them to HOLD until real history is wired up.
+    """
+    _BASE = {'price': 100, 'dcf_fv': 120, '_price_fv': 0.83, 'mos': 0.17}
+
+    def test_zero_years_capped_to_hold(self):
+        row = {**self._BASE, 'edgar_history': {'years_available': 0}}
+        cap, reasons = _rating_cap_for_row(row)
+        assert cap == 'HOLD'
+        assert any('thin EDGAR history' in r for r in reasons)
+
+    def test_missing_edgar_history_capped_to_hold(self):
+        row = {**self._BASE, 'edgar_history': None}
+        cap, reasons = _rating_cap_for_row(row)
+        assert cap == 'HOLD'
+        assert any('thin EDGAR history (0y)' in r for r in reasons)
+
+    def test_four_years_still_capped(self):
+        row = {**self._BASE, 'edgar_history': {'years_available': 4}}
+        cap, reasons = _rating_cap_for_row(row)
+        assert cap == 'HOLD'
+        assert any('thin EDGAR history (4y)' in r for r in reasons)
+
+    def test_five_years_not_capped(self):
+        row = {**self._BASE, 'edgar_history': {'years_available': 5}}
+        cap, reasons = _rating_cap_for_row(row)
+        assert not any('thin EDGAR history' in r for r in reasons)
+
+    def test_apply_caps_downgrades_buy_to_hold(self):
+        rows = [{
+            **self._BASE, 'ticker': 'TSMWF',
+            '_composite_score': 60.5,
+            'edgar_history': {'years_available': 0},
+        }]
+        apply_rating_caps(rows)
+        assert rows[0]['rating_raw'] == 'BUY'
+        assert rows[0]['rating'] == 'HOLD'
+        assert 'thin EDGAR history (0y)' in rows[0]['_rating_cap_reasons']
+
+    def test_apply_caps_leaves_us_filer_buy(self):
+        rows = [{
+            **self._BASE, 'ticker': 'AAPL',
+            '_composite_score': 60.5,
+            'edgar_history': {'years_available': 15},
+        }]
+        apply_rating_caps(rows)
+        assert rows[0]['rating_raw'] == 'BUY'
+        assert rows[0]['rating'] == 'BUY'
