@@ -236,14 +236,16 @@ td.ct{font-weight:700;}
 .dt td.tk2{position:-webkit-sticky;position:sticky;left:96px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
 .dt tr:nth-child(even) td:nth-child(1),.dt tr:nth-child(even) td:nth-child(2),.dt tr:nth-child(even) td:nth-child(3),.dt tr:nth-child(even) td.tk2{background:#f8f9fa;}
 .dt tr:hover td:nth-child(1),.dt tr:hover td:nth-child(2),.dt tr:hover td:nth-child(3),.dt tr:hover td.tk2{background:#eaf4fd!important;}
-/* Freeze left 3 cols in matrix header (first row only — second row has gate sub-headers) */
+/* Freeze left 4 cols in matrix header (# · flag · reviewed · ticker — first row only since second row has gate sub-headers) */
 .matrix-table thead tr:first-child th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:15;background:#1a252f;}
-.matrix-table thead tr:first-child th:nth-child(2){position:-webkit-sticky;position:sticky;left:28px;z-index:15;background:#1a252f;}
-.matrix-table thead tr:first-child th:nth-child(3){position:-webkit-sticky;position:sticky;left:56px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
-/* Freeze left 3 cols in matrix body */
-.matrix-table tbody td:nth-child(1){position:sticky;left:0;z-index:3;background:#fff;}
-.matrix-table tbody td:nth-child(2){position:sticky;left:28px;z-index:3;background:#fff;}
-.matrix-table td.tk{position:sticky;left:56px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.matrix-table thead tr:first-child th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:15;background:#1a252f;}
+.matrix-table thead tr:first-child th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:15;background:#1a252f;}
+.matrix-table thead tr:first-child th:nth-child(4){position:-webkit-sticky;position:sticky;left:96px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+/* Freeze left 4 cols in matrix body */
+.matrix-table tbody td:nth-child(1){position:sticky;left:0;z-index:3;background:#fff;color:#7f8c9a;font-size:0.78em;font-weight:600;text-align:right;padding-right:6px;}
+.matrix-table tbody td:nth-child(2){position:sticky;left:40px;z-index:3;background:#fff;}
+.matrix-table tbody td:nth-child(3){position:sticky;left:68px;z-index:3;background:#fff;}
+.matrix-table td.tk{position:sticky;left:96px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
 .matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk{background:rgba(255,255,255,0.97);}
 .matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk{background:#eaf4fd!important;}
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
@@ -690,11 +692,11 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .matrix-table tr:hover td{background-color:#1f3a5c !important;}
 [data-theme="dark"] .matrix-table td.tk{background:#161b22;color:#58a6ff;}
 [data-theme="dark"] .dt td.tk2{color:#58a6ff;}
-[data-theme="dark"] .dt tbody td:nth-child(1),[data-theme="dark"] .dt tbody td:nth-child(2),[data-theme="dark"] .dt td.tk2,[data-theme="dark"] .matrix-table tbody td:nth-child(1),[data-theme="dark"] .matrix-table tbody td:nth-child(2){background:#161b22;}
-[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .dt tr:nth-child(even) td.tk2{background:#1c2128;}
-[data-theme="dark"] .dt tr:hover td:nth-child(1),[data-theme="dark"] .dt tr:hover td:nth-child(2),[data-theme="dark"] .dt tr:hover td.tk2{background:#1f3a5c !important;}
-[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .matrix-table tr:nth-child(even) td.tk{background:#1c2128;}
-[data-theme="dark"] .matrix-table tr:hover td:nth-child(1),[data-theme="dark"] .matrix-table tr:hover td:nth-child(2),[data-theme="dark"] .matrix-table tr:hover td.tk{background:#1f3a5c !important;}
+[data-theme="dark"] .dt tbody td:nth-child(1),[data-theme="dark"] .dt tbody td:nth-child(2),[data-theme="dark"] .dt tbody td:nth-child(3),[data-theme="dark"] .dt td.tk2,[data-theme="dark"] .matrix-table tbody td:nth-child(1),[data-theme="dark"] .matrix-table tbody td:nth-child(2),[data-theme="dark"] .matrix-table tbody td:nth-child(3){background:#161b22;}
+[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(3),[data-theme="dark"] .dt tr:nth-child(even) td.tk2{background:#1c2128;}
+[data-theme="dark"] .dt tr:hover td:nth-child(1),[data-theme="dark"] .dt tr:hover td:nth-child(2),[data-theme="dark"] .dt tr:hover td:nth-child(3),[data-theme="dark"] .dt tr:hover td.tk2{background:#1f3a5c !important;}
+[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(3),[data-theme="dark"] .matrix-table tr:nth-child(even) td.tk{background:#1c2128;}
+[data-theme="dark"] .matrix-table tr:hover td:nth-child(1),[data-theme="dark"] .matrix-table tr:hover td:nth-child(2),[data-theme="dark"] .matrix-table tr:hover td:nth-child(3),[data-theme="dark"] .matrix-table tr:hover td.tk{background:#1f3a5c !important;}
 [data-theme="dark"] td.gp{background-color:var(--gate-pass) !important;color:#7ee787 !important;}
 [data-theme="dark"] td.gf{background-color:var(--gate-fail) !important;color:#ff7b72 !important;}
 [data-theme="dark"] td.gn{background-color:var(--gate-na) !important;color:#c9d1d9 !important;}
@@ -1613,6 +1615,7 @@ function renderMatrix(){
   var cg2={};GM.categories.forEach(function(c){cg2[c.name]=[];});
   GM.gates.forEach(function(g){if(!g.hideMatrix)cg2[g.category].push(g);});
   var h1='<tr>';
+  h1+='<th class="fixed-header" rowspan="2" style="width:40px;color:#7f8c9a;font-weight:600" title="Row number in current sort order">#</th>';
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.3em" onclick="mSort(\'_flagged\')" title="Flagged">\u2691'+(mSC==='_flagged'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;color:white" onclick="mSort(\'_reviewed\')" title="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'+(mSC==='_reviewed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'ticker\')" data-col-tip="ticker" data-col-label="Ticker">Ticker'+(mSC==='ticker'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
@@ -1631,9 +1634,10 @@ function renderMatrix(){
   if(mSC){sd.sort(function(a,b){var va,vb;if(mSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(mSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[mSC];vb=b[mSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(mSC==='_gates_passed'){var na=parseInt(va),nb=parseInt(vb);if(!isNaN(na)&&!isNaN(nb))return mSA?na-nb:nb-na;}if(mSC==='rating'){var ra=RO[va]||99,rb2=RO[vb]||99;return mSA?ra-rb2:rb2-ra;}if(typeof va==='boolean'){va=va?1:0;vb=vb?1:0;return mSA?va-vb:vb-va;}if(typeof va==='string')return mSA?va.localeCompare(vb):vb.localeCompare(va);return mSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
   var html='';
-  sd.forEach(function(d){
+  sd.forEach(function(d,_i){
     var t=d.ticker.replace(/'/g,"\\'");
     html+='<tr>';
+    html+='<td>'+(_i+1)+'</td>';
     html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
     html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
     html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+'</td>';
