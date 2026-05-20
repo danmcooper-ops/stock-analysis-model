@@ -21,6 +21,27 @@ if _REPO_ROOT not in sys.path:
 
 from scripts.scoring import score_and_rate
 from scripts.report_html import build_html
+from scripts.analyze_stock import derive_edgar_metrics
+
+
+def _refresh_edgar_derived_metrics(results):
+    """Re-derive multi-year CAGRs from edgar_history on each row.
+
+    Necessary after backfill_edgar_hist populates new history into a
+    snapshot — without this, the scoring pipeline would still see the
+    stale None values that were computed during the original live run
+    when edgar_history was empty.
+    """
+    n = 0
+    for r in results:
+        eh = r.get('edgar_history')
+        if not eh:
+            continue
+        m = derive_edgar_metrics(eh)
+        for k, v in m.items():
+            r[k] = v
+        n += 1
+    print(f'Refreshed EDGAR-derived metrics for {n} rows')
 
 
 def rescore_and_render(json_path, prices_dir='output/prices'):
@@ -35,6 +56,7 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
         results = snap
         snap_date = date.today().isoformat()
 
+    _refresh_edgar_derived_metrics(results)
     score_and_rate(results)
 
     # Write new HTML alongside the JSON.
