@@ -223,6 +223,12 @@ class SECXBRLClient:
         'capex': [
             'PurchaseOfPropertyPlantAndEquipment',
             'PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities',
+            # SAP / SONY / many EU filers report CapEx as additions on PPE
+            'AdditionsOtherThanThroughBusinessCombinationsPropertyPlantAndEquipment',
+            'PaymentsForPropertyPlantAndEquipment',
+            # SAP combined PPE + intangibles tag — better than nothing
+            'PurchaseOfPropertyPlantAndEquipmentIntangibleAssetsOtherThanGoodwillInvestmentPropertyAndOtherNoncurrentAssets',
+            'AcquisitionsThroughBusinessCombinationsPropertyPlantAndEquipment',
         ],
         'gross_profit': [
             'GrossProfit',
@@ -234,9 +240,12 @@ class SECXBRLClient:
         'dividends_paid': [
             'DividendsPaid',
             'DividendsPaidClassifiedAsFinancingActivities',
+            'DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities',
         ],
         'shares_outstanding': [
             'NumberOfSharesOutstanding',
+            'NumberOfSharesIssued',
+            'WeightedAverageNumberOfOrdinarySharesOutstanding',
         ],
         'tax_provision': [
             'IncomeTaxExpenseContinuingOperations',
