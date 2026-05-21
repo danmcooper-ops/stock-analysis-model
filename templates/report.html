@@ -627,7 +627,7 @@ td.ct{font-weight:700;}
 .ph-metric-btn:hover:not(.active){background:#f0f4f8;color:#1a252f;}
 .ph-metric-btn[disabled]{opacity:0.4;cursor:not-allowed;}
 #ph-select{max-width:440px;width:100%;padding:7px 11px;border:1px solid #d0d8e4;border-radius:5px;font-size:0.88em;font-weight:600;color:#1a252f;background:white;cursor:pointer;}
-.ph-ranges{display:flex;gap:5px;margin:10px 0 6px;flex-wrap:wrap;}
+.ph-ranges{display:flex;gap:5px;margin:10px 0 6px;flex-wrap:wrap;justify-content:flex-end;align-items:center;}
 .ph-range-btn{padding:4px 13px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.78em;font-weight:700;background:white;color:#546e7a;transition:background 0.12s,color 0.12s;}
 .zoom-btn{padding:3px 8px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.85em;font-weight:700;background:white;color:#546e7a;line-height:1;min-width:26px;text-align:center;transition:background 0.12s,color 0.12s;}
 .zoom-btn:hover{background:#f0f4f8;color:#1a252f;}
@@ -1033,7 +1033,7 @@ td.ct{font-weight:700;}
     <div class="d-body">
       <div id="d-kmetrics" class="d-kmetrics"></div>
       <div id="d-gate-values" class="d-gate-values"></div>
-      <div id="d-section-price" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Price History</div><div style="padding:14px 16px;background:var(--surface)"><div class="dp-ranges" id="dp-ranges" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px"></div><div id="dp-tip-bar" style="min-height:24px;font-size:0.86em"></div><div id="dp-chart"></div></div></div>
+      <div id="d-section-price" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Price History</div><div style="padding:14px 16px;background:var(--surface)"><div class="dp-ranges" id="dp-ranges" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;justify-content:flex-end;align-items:center"></div><div id="dp-tip-bar" style="min-height:24px;font-size:0.86em"></div><div id="dp-chart"></div></div></div>
       <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
       <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
       <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
@@ -3363,8 +3363,8 @@ function renderUniversePriceChart(){
     +'<button type="button" class="zoom-btn" onclick="aggChartResetZoom()" title="Reset zoom">↺</button>'
     +'<span class="zoom-hint">scroll · drag · dbl-click resets</span>';
   var out='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">'
-    +'<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">'+rangeBtns+'<span style="display:inline-flex;gap:3px;margin-left:6px;align-items:center">'+zoomBtns+'</span></div>'
-    +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-left:auto">'+helperBtns+'</div>'
+    +'<div style="display:flex;gap:5px;flex-wrap:wrap">'+helperBtns+'</div>'
+    +'<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-left:auto">'+rangeBtns+'<span style="display:inline-flex;gap:3px;margin-left:6px;align-items:center">'+zoomBtns+'</span></div>'
     +'</div>'
     +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin:6px 0 4px;min-height:20px"></div>'
     +'<div id="sector-price-chart" style="min-height:260px"></div>'
