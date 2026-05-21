@@ -111,7 +111,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
     buy_count = sum(1 for r in rows if r.get('rating') == 'BUY')
     lean_buy_count = sum(1 for r in rows if r.get('rating') == 'LEAN BUY')
 
-    chart_data = json.dumps([{
+    chart_records = [{
         'ticker': r['ticker'],
         'roic': r.get('roic'), 'wacc': r.get('wacc'), 'spread': r.get('spread'),
         'dcf_fv': r.get('dcf_fv'), 'price': r.get('price'), 'mos': r.get('mos'),
@@ -390,7 +390,32 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'culture_award_signal': r.get('culture_award_signal', False),
         **{k: r.get(k) for g in gate_meta_obj['gates']
            for k in (g['key'], g['gpKey'], g['scoreKey'])},
-    } for r in rows], default=_json_default)
+    } for r in rows]
+
+    # Heavy text fields only consumed inside the detail panel. Strip them
+    # from the inline DATA blob into a details.json sidecar the template
+    # lazy-loads after first paint. Cuts the HTML by ~25 MB at 2k tickers.
+    _DETAIL_HEAVY_KEYS = (
+        'description_full', 'ceo_bio', 'culture_narrative',
+        'financial_summary', 'sector_headwinds', 'sector_tailwinds',
+        'news_headlines', 'news_sentiment',
+        'legal_filings', 'insider_transactions',
+    )
+    details_payload = {}
+    for _rec in chart_records:
+        _tk = _rec.get('ticker')
+        if not _tk:
+            continue
+        _heavy = {}
+        for _k in _DETAIL_HEAVY_KEYS:
+            if _k in _rec:
+                _v = _rec.pop(_k)
+                if _v not in (None, [], '', {}):
+                    _heavy[_k] = _v
+        if _heavy:
+            details_payload[_tk] = _heavy
+
+    chart_data = json.dumps(chart_records, default=_json_default)
 
     # Gate metadata for Matrix view rendering in JavaScript
     gate_meta = json.dumps(gate_meta_obj, default=_json_default)
@@ -419,6 +444,17 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
     out_dir = os.path.dirname(os.path.abspath(filename)) or '.'
     hist_path = os.path.join(out_dir, 'hist.json')
     prices_path = os.path.join(out_dir, 'prices.json')
+    details_path = os.path.join(out_dir, 'details.json')
+
+    # Write details.json sidecar (or remove a stale one)
+    try:
+        if details_payload:
+            with open(details_path, 'w') as _df:
+                json.dump(details_payload, _df, default=_json_default)
+        elif os.path.exists(details_path):
+            os.remove(details_path)
+    except Exception as _e:
+        print(f"[warn] details.json write failed: {_e}")
 
     # Historical fundamentals (EDGAR annual) per ticker
     hist_payload = None
@@ -572,6 +608,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         sector_pool_json=sector_pool_json,
         prices_available=('true' if prices_payload is not None else 'false'),
         hist_available=('true' if hist_payload is not None else 'false'),
+        details_available=('true' if details_payload else 'false'),
         generated_at=(run_date or date.today()).strftime('%B %-d, %Y'),
     )
 

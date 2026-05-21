@@ -1090,6 +1090,38 @@ var _HIST_LOADING=false;
 function _loadSidecar(name,onDone){
   return fetch(name).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();}).then(onDone).catch(function(e){console.warn('sidecar load failed:',name,e);onDone(null);});
 }
+/* DETAILS sidecar carries the heavy per-ticker text fields (news, legal,
+   insider txns, full description, sector signals, fin summary, culture).
+   Lazy-loaded after first paint and merged back into DATA so existing
+   detail-panel code reads d.news_headlines etc. without changes. */
+var DETAILS=null;
+var _DETAILS_AVAILABLE={{ details_available }};
+var _DETAILS_LOADING=false;
+var _DETAILS_LOADED=false;
+var _DETAILS_WAITERS=[];
+function _loadDetails(cb){
+  if(_DETAILS_LOADED){if(cb)cb();return;}
+  if(!_DETAILS_AVAILABLE){_DETAILS_LOADED=true;if(cb)cb();return;}
+  if(cb)_DETAILS_WAITERS.push(cb);
+  if(_DETAILS_LOADING)return;
+  _DETAILS_LOADING=true;
+  _loadSidecar('details.json',function(d){
+    _DETAILS_LOADING=false;_DETAILS_LOADED=true;DETAILS=d||{};
+    if(d){
+      for(var i=0;i<DATA.length;i++){
+        var rec=DATA[i],ext=d[rec.ticker];
+        if(ext){for(var k in ext)rec[k]=ext[k];}
+      }
+    }
+    var ws=_DETAILS_WAITERS;_DETAILS_WAITERS=[];
+    for(var j=0;j<ws.length;j++){try{ws[j]();}catch(e){console.error('details waiter:',e);}}
+  });
+}
+/* Kick off the background fetch once the initial render lands. Most users
+   open a detail panel only after a few seconds of skimming, so by then the
+   sidecar is usually already merged in. If they click sooner, openDet()
+   registers a re-render callback. */
+if(_DETAILS_AVAILABLE){setTimeout(_loadDetails,1);}
 var RC={'BUY':'#1a9850','LEAN BUY':'#74c476','HOLD':'#fd8d3c','PASS':'#de2d26'};
 var _poolTab='__all__';
 function showPoolTab(sec){_poolTab=sec||'__all__';renderPool();window.scrollTo({top:0,behavior:'auto'});}
@@ -2702,6 +2734,13 @@ document.addEventListener('mouseout',function(e){
 function openDet(tk){
   var d=DATA.find(function(x){return x.ticker===tk;});
   if(!d)return;
+  /* Heavy text fields (news, legal, insider txns, full description, sector
+     signals, fin summary, culture) live in details.json, kicked off lazy
+     on page boot. If the user opens a panel before it lands, render now
+     with what we have and re-render once the merge into DATA completes. */
+  if(_DETAILS_AVAILABLE && !_DETAILS_LOADED){
+    _loadDetails(function(){if(_dpTicker===tk)openDet(tk);});
+  }
   _detIdx=_detNav.indexOf(tk);
   var prev=_detIdx>0,next=_detIdx>=0&&_detIdx<_detNav.length-1;
   var pp=document.querySelector('.det-nav-prev'),nn=document.querySelector('.det-nav-next'),npp=document.querySelector('.det-nav-pos');
