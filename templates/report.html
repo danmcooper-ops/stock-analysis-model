@@ -2842,7 +2842,7 @@ function openDet(tk){
       /* Replace "Suffix.," (e.g. "Co., Inc." / "Paychex, Inc.,") dots with
          a placeholder so the sentence splitter doesn't skip the company name */
       var _PH='\u200B';
-      var safe=full.replace(/\b(Inc|Corp|Ltd|Co|LLC|L\.P|plc|PLC|N\.V|S\.A|AG|SE)\.,/gi,function(m){return m.replace('.',_PH);});
+      var safe=full.replace(/\b(Inc|Corp|Ltd|Co|LLC|L\.P|plc|PLC|N\.V|S\.A|AG|SE)\./gi,function(m){return m.replace(/\./g,_PH);});
       var rawSents=(safe.match(/[^.!?]+[.!?]+(\s|$)/g)||[]).map(function(s){return s.replace(new RegExp(_PH,'g'),'.').trim();});
       /* Merge name-only fragments (corporate suffixes) into the following sentence */
       var _corpSfx=/\b(Inc|Corp|Ltd|Co|LLC|L\.P|plc|PLC|N\.V|S\.A|AG|SE|Incorporated|Corporation|Company|Companies|International)\.$/i;
@@ -2860,7 +2860,31 @@ function openDet(tk){
       }
       if(!bizDesc&&full) bizDesc=full.slice(0,640).replace(/\s+\S*$/,'')+'\u2026';
       if(d.culture_narrative) bizDesc+=(bizDesc?' ':'')+d.culture_narrative;
-      if(bizDesc){bizDesc=bizDesc.charAt(0).toUpperCase()+bizDesc.slice(1);html+=P+esc(bizDesc)+'</p>';}
+      if(bizDesc){
+        /* If the narrative doesn't open with the company name (e.g. starts with
+           a stat line like "R&D investment of 31% of revenue..."), prepend the
+           full name. Comparison normalizes accents, case, and punctuation so
+           variants like "Novo-Nordisk A/S" vs "Novo Nordisk A/S" still match
+           and don't get prepended twice. */
+        var _norm=function(s){return(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');};
+        var _firstSigRaw=(d.company_name||'').replace(/^(the\s+)/i,'').split(/\s+/)[0]||'';
+        var _firstSigNorm=_norm(_firstSigRaw);
+        /* Look for the company name anywhere in the opening of the description so
+           that descriptions starting with a formal long name ("Telefonaktiebolaget
+           LM Ericsson (publ)...") don't get re-prepended with the short
+           company_name ("Ericsson"). */
+        var _bizHeadNorm=_norm(bizDesc.slice(0,100));
+        var _startsWithName=_firstSigNorm.length>1&&_bizHeadNorm.indexOf(_firstSigNorm)>=0;
+        if(!_startsWithName&&d.company_name){
+          /* Keep the original first char's case — if it was capitalized
+             (likely a proper noun in mismatched-data cases), preserve it
+             so the result doesn't read "OPAP S.A. allwyn AG..." */
+          bizDesc=d.company_name+' '+bizDesc;
+        }else{
+          bizDesc=bizDesc.charAt(0).toUpperCase()+bizDesc.slice(1);
+        }
+        html+=P+esc(bizDesc)+'</p>';
+      }
     }
     if(!html){
       var fallback=(d.company_name||d.ticker||'')+(d.sector?' \u00b7 '+d.sector:'')+(d.industry?' \u00b7 '+d.industry:'');
