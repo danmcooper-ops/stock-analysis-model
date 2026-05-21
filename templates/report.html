@@ -224,28 +224,36 @@ td.ct{font-weight:700;}
 /* Freeze top header row */
 .dt thead{position:-webkit-sticky;position:sticky;top:0;z-index:10;}
 .matrix-table thead{position:-webkit-sticky;position:sticky;top:0;z-index:10;}
+/* Lock the four leftmost column widths so sticky `left:` offsets stay accurate
+   (the reviewed column has a 16px SVG + padding that naturally pushes it past
+   its declared width, which created a 5px overlap with the ticker column and
+   a 1px gap between the flag and reviewed columns where scrolled data showed
+   through the headers). */
+.dt th:nth-child(1),.dt td:nth-child(1),.matrix-table th:nth-child(1),.matrix-table td:nth-child(1){width:40px;min-width:40px;max-width:40px;}
+.dt th:nth-child(2),.dt td:nth-child(2),.matrix-table th:nth-child(2),.matrix-table td:nth-child(2){width:28px;min-width:28px;max-width:28px;}
+.dt th:nth-child(3),.dt td:nth-child(3),.matrix-table th:nth-child(3),.matrix-table td:nth-child(3){width:32px;min-width:32px;max-width:32px;}
 /* Freeze left 4 cols in DT header (# · flag · reviewed · ticker) */
 .dt th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:12;background:#1a252f;}
 .dt th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:12;background:#1a252f;}
 .dt th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:12;background:#1a252f;}
-.dt th:nth-child(4){position:-webkit-sticky;position:sticky;left:96px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+.dt th:nth-child(4){position:-webkit-sticky;position:sticky;left:100px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
 /* Freeze left 4 cols in DT body */
 .dt tbody td:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:3;background:#fff;color:#7f8c9a;font-size:0.78em;font-weight:600;text-align:right;padding-right:6px;}
 .dt tbody td:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:3;background:#fff;}
 .dt tbody td:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:3;background:#fff;}
-.dt td.tk2{position:-webkit-sticky;position:sticky;left:96px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.dt td.tk2{position:-webkit-sticky;position:sticky;left:100px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
 .dt tr:nth-child(even) td:nth-child(1),.dt tr:nth-child(even) td:nth-child(2),.dt tr:nth-child(even) td:nth-child(3),.dt tr:nth-child(even) td.tk2{background:#f8f9fa;}
 .dt tr:hover td:nth-child(1),.dt tr:hover td:nth-child(2),.dt tr:hover td:nth-child(3),.dt tr:hover td.tk2{background:#eaf4fd!important;}
 /* Freeze left 4 cols in matrix header (# · flag · reviewed · ticker — first row only since second row has gate sub-headers) */
 .matrix-table thead tr:first-child th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:15;background:#1a252f;}
 .matrix-table thead tr:first-child th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:15;background:#1a252f;}
 .matrix-table thead tr:first-child th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:15;background:#1a252f;}
-.matrix-table thead tr:first-child th:nth-child(4){position:-webkit-sticky;position:sticky;left:96px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+.matrix-table thead tr:first-child th:nth-child(4){position:-webkit-sticky;position:sticky;left:100px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
 /* Freeze left 4 cols in matrix body */
 .matrix-table tbody td:nth-child(1){position:sticky;left:0;z-index:3;background:#fff;color:#7f8c9a;font-size:0.78em;font-weight:600;text-align:right;padding-right:6px;}
 .matrix-table tbody td:nth-child(2){position:sticky;left:40px;z-index:3;background:#fff;}
 .matrix-table tbody td:nth-child(3){position:sticky;left:68px;z-index:3;background:#fff;}
-.matrix-table td.tk{position:sticky;left:96px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.matrix-table td.tk{position:sticky;left:100px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
 .matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk{background:rgba(255,255,255,0.97);}
 .matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk{background:#eaf4fd!important;}
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
