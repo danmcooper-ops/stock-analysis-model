@@ -1880,7 +1880,7 @@ function renderTable(){
 function tSort(col){if(tSC===col)tSA=!tSA;else{tSC=col;tSA=true;}renderTable();}
 
 /* === PRICE HISTORY === */
-var _phStocks=[],_phRange='MAX',_phInited=false,_phState=null,_phMetric='price',_phZoom={start:0,end:1},_phDrag=null;
+var _phStocks=[],_phRange='MAX',_phInited=false,_phState=null,_phMetric='price',_phZoom={start:0,end:1};
 var _phPalette=['#16a34a','#2563eb','#dc2626','#d97706','#7c3aed','#0891b2','#be185d','#65a30d','#b45309','#6366f1'];
 var _PH_METRICS=[
   {k:'price',  lbl:'Price',         unit:'$',  fmt:'money',  src:'price'},
@@ -2045,7 +2045,7 @@ function _buildPHRanges(){
   var ranges=['1M','3M','6M','1YR','5YR','10YR','20YR','MAX'].map(function(r){
     return '<button class="ph-range-btn'+(r===_phRange?' active':'')+'" data-range="'+r+'" onclick="phSetRange(\''+r+'\')">'+r+'</button>';
   }).join('');
-  rc.innerHTML=ranges+'<span style="display:inline-flex;gap:3px;margin-left:auto;align-items:center"><button type="button" class="zoom-btn" onclick="phZoomIn()" title="Zoom in">+</button><button type="button" class="zoom-btn" onclick="phZoomOut()" title="Zoom out">−</button><button type="button" class="zoom-btn" onclick="phResetZoom()" title="Reset zoom">↺</button><span class="zoom-hint">scroll · drag · dbl-click resets</span></span>';
+  rc.innerHTML=ranges+'<span style="display:inline-flex;gap:3px;margin-left:auto;align-items:center"><button type="button" class="zoom-btn" onclick="phZoomIn()" title="Zoom in">+</button><button type="button" class="zoom-btn" onclick="phZoomOut()" title="Zoom out">−</button><button type="button" class="zoom-btn" onclick="phResetZoom()" title="Reset zoom">↺</button></span>';
 }
 function phSetRange(r){
   _phRange=r;_phZoom={start:0,end:1};
@@ -2207,10 +2207,8 @@ function _phRenderSVG(allRaw,refs){
   /* tip bar */
   var tb=document.getElementById('ph-tip-bar');
   if(tb)tb.innerHTML=_phTipHtml(series,cmpMode,null,def,annual);
-  var _phCur=(_phZoom.start>0||_phZoom.end<1)?'grab':'crosshair';
-  var svg='<svg id="ph-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:'+_phCur+';-webkit-user-select:none;user-select:none"'
-    +' onmousemove="phMove(event)" onmouseleave="phLeave()"'
-    +' onwheel="phWheel(event)" onmousedown="phDown(event)" ondblclick="phResetZoom()">'
+  var svg='<svg id="ph-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none"'
+    +' onmousemove="phMove(event)" onmouseleave="phLeave()">'
     +'<defs><linearGradient id="ph-g" x1="0" y1="0" x2="0" y2="1">'
     +'<stop offset="0%" stop-color="'+series[0].col+'" stop-opacity="0.15"/><stop offset="100%" stop-color="'+series[0].col+'" stop-opacity="0.01"/>'
     +'</linearGradient></defs>'
@@ -2250,7 +2248,7 @@ function _phTipHtml(series,cmpMode,relX,def,annual){
   return tip;
 }
 function phMove(e){
-  if(!_phState||_phDrag)return;var s=_phState;
+  if(!_phState)return;var s=_phState;
   var svg=document.getElementById('ph-svg');if(!svg)return;
   var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
   var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
@@ -2271,16 +2269,7 @@ function phLeave(){
   s.series.forEach(function(sr,si){var dc=document.getElementById('ph-dc'+si);if(dc)dc.setAttribute('opacity','0');});
   var tb=document.getElementById('ph-tip-bar');if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,null,s.def,s.annual);
 }
-/* Generic zoom math used by all price-history charts. */
-function _zCalcWheel(prev,cursorFrac,deltaY){
-  var factor=deltaY<0?0.82:1.22;
-  var span=Math.max(0.01,Math.min(1,(prev.end-prev.start)*factor));
-  var dataFrac=prev.start+cursorFrac*(prev.end-prev.start);
-  var ns=dataFrac-cursorFrac*span,ne=ns+span;
-  if(ns<0){ne-=ns;ns=0;}
-  if(ne>1){ns-=(ne-1);ne=1;}
-  return{start:Math.max(0,ns),end:Math.min(1,ne)};
-}
+/* Shared zoom math used by the +/− buttons on all three price-history charts. */
 function _zCalcCenter(prev,factor){
   var center=(prev.start+prev.end)/2;
   var span=Math.max(0.01,Math.min(1,(prev.end-prev.start)*factor));
@@ -2289,59 +2278,13 @@ function _zCalcCenter(prev,factor){
   if(ne>1){ns-=(ne-1);ne=1;}
   return{start:Math.max(0,ns),end:Math.min(1,ne)};
 }
-function _zCalcPan(prev,startZ,fracShift){
-  var ns=startZ.start+fracShift,ne=startZ.end+fracShift;
-  if(ns<0){ne-=ns;ns=0;}
-  if(ne>1){ns-=(ne-1);ne=1;}
-  return{start:Math.max(0,ns),end:Math.min(1,ne)};
-}
-/* === Financial Data ph-chart zoom === */
-function phWheel(e){
-  if(!_phState)return;
-  if(e.cancelable)e.preventDefault();
-  var svg=document.getElementById('ph-svg');if(!svg)return;
-  var s=_phState;
-  var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
-  var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
-  var cursorFrac=Math.max(0,Math.min(1,(sp.x-s.PL)/s.iW));
-  var nz=_zCalcWheel(_phZoom,cursorFrac,e.deltaY);
-  if(nz.start===_phZoom.start&&nz.end===_phZoom.end)return;
-  _phZoom=nz;renderPHChart();
-}
-function phDown(e){
-  if(!_phState)return;
-  if(_phZoom.start<=0&&_phZoom.end>=1)return;
-  if(e.button!=null&&e.button!==0)return;
-  e.preventDefault();
-  _phDrag={x:e.clientX,startZoom:{start:_phZoom.start,end:_phZoom.end}};
-  var svg=document.getElementById('ph-svg');if(svg)svg.style.cursor='grabbing';
-  document.addEventListener('mousemove',_phDragMove,true);
-  document.addEventListener('mouseup',_phDragUp,true);
-}
-function _phDragMove(e){
-  if(!_phDrag||!_phState)return;
-  var s=_phState;
-  var svg=document.getElementById('ph-svg');if(!svg)return;
-  var rect=svg.getBoundingClientRect();
-  var pxPerSvg=rect.width/s.VW;
-  var deltaSvgX=(e.clientX-_phDrag.x)/pxPerSvg;
-  var fracShift=-deltaSvgX/s.iW*(_phDrag.startZoom.end-_phDrag.startZoom.start);
-  var nz=_zCalcPan(_phZoom,_phDrag.startZoom,fracShift);
-  if(nz.start===_phZoom.start&&nz.end===_phZoom.end)return;
-  _phZoom=nz;renderPHChart();
-}
-function _phDragUp(){
-  document.removeEventListener('mousemove',_phDragMove,true);
-  document.removeEventListener('mouseup',_phDragUp,true);
-  _phDrag=null;
-  var svg=document.getElementById('ph-svg');if(svg){svg.style.cursor=(_phZoom.start>0||_phZoom.end<1)?'grab':'crosshair';}
-}
+/* === Financial Data ph-chart zoom buttons === */
 function phResetZoom(){if(_phZoom.start===0&&_phZoom.end===1)return;_phZoom={start:0,end:1};renderPHChart();}
 function phZoomIn(){if(!_phState)return;_phZoom=_zCalcCenter(_phZoom,0.7);renderPHChart();}
 function phZoomOut(){if(!_phState)return;_phZoom=_zCalcCenter(_phZoom,1.4);renderPHChart();}
 
 /* === DETAIL POPUP PRICE CHART === */
-var _dpRange='MAX',_dpTicker=null,_dpState=null,_dpZoom={start:0,end:1},_dpDrag=null;
+var _dpRange='MAX',_dpTicker=null,_dpState=null,_dpZoom={start:0,end:1};
 function _dpFmtDate(dateStr,pts){
   var d=new Date(dateStr+'T00:00:00');
   var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -2475,10 +2418,8 @@ function _dpRenderChart(){
   linesSVG+='<polyline points="'+tkPP+'" fill="none" stroke="'+tkCol+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" opacity="0.92"/>';
   var dotSVG='<circle id="dp-dot" cx="0" cy="0" r="4" fill="white" stroke="'+tkCol+'" stroke-width="2" opacity="0"/>';
   if(spyPlot.length)dotSVG+='<circle id="dp-dot-spy" cx="0" cy="0" r="3.5" fill="white" stroke="'+spyCol+'" stroke-width="1.7" opacity="0"/>';
-  var _zCur=(_dpZoom.start>0||_dpZoom.end<1)?'grab':'crosshair';
-  var svg='<svg id="dp-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:'+_zCur+';-webkit-user-select:none;user-select:none;touch-action:pan-y"'
+  var svg='<svg id="dp-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
     +' onmousemove="dpMove(event)" onmouseleave="dpLeave()"'
-    +' onwheel="dpWheel(event)" onmousedown="dpDown(event)" ondblclick="dpResetZoom()"'
     +' ontouchstart="dpTouch(event)" ontouchmove="dpTouch(event)" ontouchend="dpLeave()" ontouchcancel="dpLeave()">'
     +'<defs><linearGradient id="dp-g" x1="0" y1="0" x2="0" y2="1">'
     +'<stop offset="0%" stop-color="'+tkCol+'" stop-opacity="0.18"/><stop offset="100%" stop-color="'+tkCol+'" stop-opacity="0.01"/>'
@@ -2491,7 +2432,7 @@ function _dpRenderChart(){
   var tb=document.getElementById('dp-tip-bar');if(tb)tb.innerHTML=_dpTipHtml(null);
 }
 function dpMove(e){
-  if(!_dpState||_dpDrag)return;var s=_dpState;
+  if(!_dpState)return;var s=_dpState;
   var svg=document.getElementById('dp-svg');if(!svg)return;
   var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
   var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
@@ -2525,60 +2466,6 @@ function dpTouch(e){
   if(e.cancelable)e.preventDefault();
   dpMove({clientX:t.clientX,clientY:t.clientY});
 }
-function dpWheel(e){
-  if(!_dpState)return;
-  if(e.cancelable)e.preventDefault();
-  var svg=document.getElementById('dp-svg');if(!svg)return;
-  var s=_dpState;
-  var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
-  var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
-  var cursorFrac=Math.max(0,Math.min(1,(sp.x-s.PL)/s.iW));
-  var z=_dpZoom;
-  var dataFrac=z.start+cursorFrac*(z.end-z.start);
-  var factor=e.deltaY<0?0.82:1.22;
-  var span=Math.max(0.01,Math.min(1,(z.end-z.start)*factor));
-  var ns=dataFrac-cursorFrac*span,ne=ns+span;
-  if(ns<0){ne-=ns;ns=0;}
-  if(ne>1){ns-=(ne-1);ne=1;}
-  ns=Math.max(0,ns);ne=Math.min(1,ne);
-  if(ns===z.start&&ne===z.end)return;
-  _dpZoom={start:ns,end:ne};
-  _dpRenderChart();
-}
-function dpDown(e){
-  if(!_dpState)return;
-  if(_dpZoom.start<=0&&_dpZoom.end>=1)return;
-  if(e.button!=null&&e.button!==0)return;
-  e.preventDefault();
-  _dpDrag={x:e.clientX,startZoom:{start:_dpZoom.start,end:_dpZoom.end}};
-  var svg=document.getElementById('dp-svg');if(svg)svg.style.cursor='grabbing';
-  document.addEventListener('mousemove',_dpDragMove,true);
-  document.addEventListener('mouseup',_dpDragUp,true);
-}
-function _dpDragMove(e){
-  if(!_dpDrag||!_dpState)return;
-  var s=_dpState;
-  var svg=document.getElementById('dp-svg');if(!svg)return;
-  var rect=svg.getBoundingClientRect();
-  var pxPerSvg=rect.width/s.VW;
-  var deltaSvgX=(e.clientX-_dpDrag.x)/pxPerSvg;
-  var z=_dpDrag.startZoom;
-  var span=z.end-z.start;
-  var fracShift=-deltaSvgX/s.iW*span;
-  var ns=z.start+fracShift,ne=z.end+fracShift;
-  if(ns<0){ne-=ns;ns=0;}
-  if(ne>1){ns-=(ne-1);ne=1;}
-  ns=Math.max(0,ns);ne=Math.min(1,ne);
-  if(ns===_dpZoom.start&&ne===_dpZoom.end)return;
-  _dpZoom={start:ns,end:ne};
-  _dpRenderChart();
-}
-function _dpDragUp(){
-  document.removeEventListener('mousemove',_dpDragMove,true);
-  document.removeEventListener('mouseup',_dpDragUp,true);
-  _dpDrag=null;
-  var svg=document.getElementById('dp-svg');if(svg){svg.style.cursor=(_dpZoom.start>0||_dpZoom.end<1)?'grab':'crosshair';}
-}
 function dpResetZoom(){
   if(_dpZoom.start===0&&_dpZoom.end===1)return;
   _dpZoom={start:0,end:1};
@@ -2589,7 +2476,7 @@ function dpZoomOut(){if(!_dpState)return;_dpZoom=_zCalcCenter(_dpZoom,1.4);_dpRe
 function _renderDetPriceChart(ticker){
   var sec=document.getElementById('d-section-price');
   if(!sec)return;
-  _dpTicker=ticker;_dpState=null;_dpZoom={start:0,end:1};_dpDrag=null;
+  _dpTicker=ticker;_dpState=null;_dpZoom={start:0,end:1};
   if(!PRICES){
     if(!_PRICES_AVAILABLE){sec.style.display='none';return;}
     sec.style.display='';
@@ -2611,7 +2498,7 @@ function _renderDetPriceChart(ticker){
     var ranges=['1M','3M','6M','1YR','5YR','10YR','MAX'].map(function(r){
       return '<button class="ph-range-btn dp-range-btn'+(r===_dpRange?' active':'')+'" data-range="'+r+'" onclick="dpSetRange(\''+r+'\')">'+r+'</button>';
     }).join('');
-    rEl.innerHTML=ranges+'<span style="display:inline-flex;gap:3px;margin-left:auto;align-items:center"><button type="button" class="zoom-btn" onclick="dpZoomIn()" title="Zoom in">+</button><button type="button" class="zoom-btn" onclick="dpZoomOut()" title="Zoom out">−</button><button type="button" class="zoom-btn" onclick="dpResetZoom()" title="Reset zoom">↺</button><span class="zoom-hint">scroll · drag · dbl-click resets</span></span>';
+    rEl.innerHTML=ranges+'<span style="display:inline-flex;gap:3px;margin-left:auto;align-items:center"><button type="button" class="zoom-btn" onclick="dpZoomIn()" title="Zoom in">+</button><button type="button" class="zoom-btn" onclick="dpZoomOut()" title="Zoom out">−</button><button type="button" class="zoom-btn" onclick="dpResetZoom()" title="Reset zoom">↺</button></span>';
   }
   _dpRenderChart();
 }
@@ -3345,7 +3232,7 @@ var _sectorPriceRange='20YR';
 var _selectedAggs={};
 var _sectorPriceState=null;
 var _aggHoverState=null;
-var _spZoom={start:0,end:1},_spDrag=null;
+var _spZoom={start:0,end:1};
 /* Distinct categorical palette. Sector colors are stable —
    assigned by alphabetical index — so toggling on/off doesn\'t
    reshuffle the chart. */
@@ -3386,8 +3273,7 @@ function renderUniversePriceChart(){
   }).join('');
   var zoomBtns='<button type="button" class="zoom-btn" onclick="aggChartZoomIn()" title="Zoom in">+</button>'
     +'<button type="button" class="zoom-btn" onclick="aggChartZoomOut()" title="Zoom out">−</button>'
-    +'<button type="button" class="zoom-btn" onclick="aggChartResetZoom()" title="Reset zoom">↺</button>'
-    +'<span class="zoom-hint">scroll · drag · dbl-click resets</span>';
+    +'<button type="button" class="zoom-btn" onclick="aggChartResetZoom()" title="Reset zoom">↺</button>';
   var out='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">'
     +'<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">'+rangeBtns+'</div>'
     +'<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+helperBtns+'</div>'
@@ -3584,8 +3470,7 @@ function _renderPolylineSVG(el,dates,aggs){
   aggs.forEach(function(a,si){
     hoverOverlay+='<circle id="agg-dot'+si+'" cx="0" cy="0" r="4" fill="#fff" stroke="'+a.color+'" stroke-width="2" opacity="0" pointer-events="none"/>';
   });
-  var _spCur=(_spZoom.start>0||_spZoom.end<1)?'grab':'crosshair';
-  var svg='<svg id="agg-svg" viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:360px;cursor:'+_spCur+';-webkit-user-select:none;user-select:none" onmousemove="aggChartMove(event)" onmouseleave="aggChartLeave()" onwheel="aggChartWheel(event)" onmousedown="aggChartDown(event)" ondblclick="aggChartResetZoom()">'+grid+lines+hoverOverlay+'</svg>';
+  var svg='<svg id="agg-svg" viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:360px;cursor:crosshair;-webkit-user-select:none;user-select:none" onmousemove="aggChartMove(event)" onmouseleave="aggChartLeave()">'+grid+lines+hoverOverlay+'</svg>';
   function _ret(end){var c=end-100;return (c>=0?'+':'')+c.toFixed(1)+'%';}
   function _retCol(end){return end>=100?'#2e7d48':'#c0392b';}
   var aggsForLegend=aggs.slice().sort(function(a,b){return b.vals[b.vals.length-1]-a.vals[a.vals.length-1];});
@@ -3627,7 +3512,7 @@ function _buildAggSummaryTip(aggs){
   return _esc(topL)+' leads ('+_ret(topV+100)+'); '+_esc(botL)+' trails ('+_ret(botV+100)+').';
 }
 function aggChartMove(e){
-  var s=_aggHoverState;if(!s||_spDrag)return;
+  var s=_aggHoverState;if(!s)return;
   var svg=document.getElementById('agg-svg');if(!svg)return;
   var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
   var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
@@ -3665,47 +3550,7 @@ function aggChartLeave(){
   var tipEl=document.getElementById('sector-price-tip');
   if(tipEl&&s)tipEl.innerHTML=s.summaryHtml||'';
 }
-/* === Sector Analysis price chart zoom === */
-function aggChartWheel(e){
-  if(!_aggHoverState)return;
-  if(e.cancelable)e.preventDefault();
-  var svg=document.getElementById('agg-svg');if(!svg)return;
-  var s=_aggHoverState;
-  var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
-  var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
-  var cursorFrac=Math.max(0,Math.min(1,(sp.x-s.PL)/s.iW));
-  var nz=_zCalcWheel(_spZoom,cursorFrac,e.deltaY);
-  if(nz.start===_spZoom.start&&nz.end===_spZoom.end)return;
-  _spZoom=nz;_priceChartDraw();
-}
-function aggChartDown(e){
-  if(!_aggHoverState)return;
-  if(_spZoom.start<=0&&_spZoom.end>=1)return;
-  if(e.button!=null&&e.button!==0)return;
-  e.preventDefault();
-  _spDrag={x:e.clientX,startZoom:{start:_spZoom.start,end:_spZoom.end}};
-  var svg=document.getElementById('agg-svg');if(svg)svg.style.cursor='grabbing';
-  document.addEventListener('mousemove',_aggDragMove,true);
-  document.addEventListener('mouseup',_aggDragUp,true);
-}
-function _aggDragMove(e){
-  if(!_spDrag||!_aggHoverState)return;
-  var s=_aggHoverState;
-  var svg=document.getElementById('agg-svg');if(!svg)return;
-  var rect=svg.getBoundingClientRect();
-  var pxPerSvg=rect.width/s.VW;
-  var deltaSvgX=(e.clientX-_spDrag.x)/pxPerSvg;
-  var fracShift=-deltaSvgX/s.iW*(_spDrag.startZoom.end-_spDrag.startZoom.start);
-  var nz=_zCalcPan(_spZoom,_spDrag.startZoom,fracShift);
-  if(nz.start===_spZoom.start&&nz.end===_spZoom.end)return;
-  _spZoom=nz;_priceChartDraw();
-}
-function _aggDragUp(){
-  document.removeEventListener('mousemove',_aggDragMove,true);
-  document.removeEventListener('mouseup',_aggDragUp,true);
-  _spDrag=null;
-  var svg=document.getElementById('agg-svg');if(svg){svg.style.cursor=(_spZoom.start>0||_spZoom.end<1)?'grab':'crosshair';}
-}
+/* === Sector Analysis price chart zoom buttons === */
 function aggChartResetZoom(){if(_spZoom.start===0&&_spZoom.end===1)return;_spZoom={start:0,end:1};_priceChartDraw();}
 function aggChartZoomIn(){if(!_aggHoverState)return;_spZoom=_zCalcCenter(_spZoom,0.7);_priceChartDraw();}
 function aggChartZoomOut(){if(!_aggHoverState)return;_spZoom=_zCalcCenter(_spZoom,1.4);_priceChartDraw();}
