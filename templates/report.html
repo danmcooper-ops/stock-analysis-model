@@ -488,6 +488,26 @@ td.ct{font-weight:700;}
 .pool-top-score{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:17px;padding:0 6px;border-radius:9px;background:rgba(255,255,255,0.18);color:#fff;font-weight:700;font-size:0.84em;letter-spacing:0.01em;}
 [data-theme="dark"] .pool-top-banner{background:linear-gradient(90deg,#0d1117 0%,#161b22 70%,#161b22 100%);border-bottom-color:#30363d;}
 [data-theme="dark"] .pool-top-banner::before{background:linear-gradient(180deg,#1a9850 0%,#56d364 60%,#f0883e 100%);}
+/* Per-sector stat banner — mirrors the Sector Heatmap columns from the Overview
+   tab so the same metrics that let you compare sectors are available in one
+   glance on each individual sector tab. Each cell shows label + value, color-
+   tinted by cross-sector rank (green=best, red=worst) using the same scale as
+   the heatmap. Hover for a description tooltip. */
+.pool-stat-banner{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:1px;padding:0;background:#10171f;border-bottom:1px solid #1a252f;}
+.pool-stat{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:8px 10px;background:#1a252f;min-height:54px;position:relative;overflow:hidden;cursor:default;transition:background 0.12s;}
+.pool-stat:hover{background:#22303d;}
+.pool-stat-label{font-size:0.62em;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#8b9bab;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pool-stat-value{font-size:0.95em;font-weight:700;color:#fff;line-height:1.1;font-variant-numeric:tabular-nums;}
+.pool-stat-value.muted{color:#7f8c9a;font-weight:600;}
+.pool-stat-value .pool-stat-sub{font-size:0.72em;font-weight:600;color:#cbd5e1;margin-left:4px;}
+.pool-stat-value .pool-stat-tk{font-weight:700;letter-spacing:0.02em;}
+.pool-stat-tint{position:absolute;left:0;top:0;bottom:0;width:3px;}
+[data-theme="dark"] .pool-stat-banner{background:#010409;border-bottom-color:#30363d;}
+[data-theme="dark"] .pool-stat{background:#0d1117;}
+[data-theme="dark"] .pool-stat:hover{background:#161b22;}
+[data-theme="dark"] .pool-stat-label{color:#8b949e;}
+[data-theme="dark"] .pool-stat-value{color:#e6edf3;}
+[data-theme="dark"] .pool-stat-value.muted{color:#6e7681;}
 .pp-section{padding:16px 20px;border-bottom:1px solid #e0e5eb;position:relative;}
 .pp-section:last-child{border-bottom:none;}
 .pp-section-label{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:0.8em;letter-spacing:0.14em;text-transform:uppercase;padding:8px 16px 8px 14px;border-radius:4px;margin:0 0 14px;box-shadow:0 2px 5px rgba(0,0,0,0.12);color:white;position:relative;}
@@ -3974,7 +3994,19 @@ function renderCrossSectorDashboard(){
     var nBuy=cos.filter(_ACTIONABLE).length;
     var roicVals=cos.map(function(d){return d.roic;}).filter(function(v){return v!=null&&!isNaN(v);});
     var ndEbVals=cos.map(function(d){return d.nd_ebitda;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var shrYldVals=cos.map(function(d){return d.shareholder_yield;}).filter(function(v){return v!=null&&!isNaN(v);});
+    /* Effective shareholder yield: prefer the cash-flow-derived value but fall
+       back to (buyback + div_yield) when it's missing or zero. yfinance's
+       cash-flow statement is sparse for ~78% of tickers, leaving sy stored as
+       0.0 even when div_yield (from ticker.info, a separate reliable source)
+       shows a real dividend. Without the fallback every sector medians to 0. */
+    var shrYldVals=cos.map(function(d){
+      var sy=d.shareholder_yield;
+      if(sy==null||sy===0){
+        var bb=d.share_buyback_rate,dy=d.div_yield;
+        if((bb!=null&&bb!==0)||(dy!=null&&dy!==0))sy=(bb||0)+(dy||0);
+      }
+      return sy;
+    }).filter(function(v){return v!=null&&!isNaN(v);});
     var fcfMVals=cos.map(function(d){return d.fcf_margin;}).filter(function(v){return v!=null&&!isNaN(v);});
     var altZVals=cos.map(function(d){return d.altman_z;}).filter(function(v){return v!=null&&!isNaN(v);});
     _sumStats.push({
@@ -4205,7 +4237,126 @@ function _buildScatterSVG(W,H){
   s+='</svg>';
   return s;
 }
+/* === Sector Banner =====================================================
+   Per-sector stat strip shown at the top of each individual sector tab.
+   Mirrors the Sector Heatmap columns from the Overview tab so the same
+   metrics that let you compare sectors are available in one glance on the
+   tab for the sector you've drilled into. Colors are scaled cross-sector
+   (green = best, red = worst within the metric) matching the heatmap.
+
+   Logic is intentionally parallel to renderCrossSectorDashboard's _sumStats
+   block so this works even if the user lands directly on a sector tab and
+   never visits the Overview tab (heatmap closure hasn't fired). Cached on
+   window._allSecStats; invalidated on filter changes by clearing the cache. */
+function _poolSecMed(arr){if(!arr.length)return null;var s=arr.slice().sort(function(a,b){return a-b;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+function _buildAllSectorStats(){
+  if(window._allSecStats)return window._allSecStats;
+  var by={};DATA.forEach(function(d){if(!d.sector||d.pp_revenue_share==null)return;(by[d.sector]=by[d.sector]||[]).push(d);});
+  var out=[];
+  Object.keys(by).sort().forEach(function(sec){
+    var cos=by[sec];if(!cos||!cos.length)return;
+    var sorted=cos.slice().sort(function(a,b){return(b.operating_margin||0)-(a.operating_margin||0);});
+    var totalRev=sorted.reduce(function(s,d){return s+(d.pp_revenue_share||0);},0);if(!totalRev)return;
+    var hhi=sorted[0].pp_sector_hhi,cr4=sorted[0].pp_sector_cr4;
+    var wtdM=sorted.reduce(function(s,d){return s+(d.operating_margin||0)*(d.pp_revenue_share||0);},0)/totalRev;
+    var best=sorted.reduce(function(a,b){return(a.pp_multiple||0)>(b.pp_multiple||0)?a:b;});
+    var avgMult=sorted.reduce(function(s,d){return s+(d.pp_multiple||0);},0)/sorted.length;
+    var mosVals=cos.map(function(d){return d.mos;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var pbVals=cos.map(function(d){return d.pb;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<50;});
+    var evVals=cos.map(function(d){return d.ev_ebitda;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<100;});
+    var spreadVals=cos.map(function(d){return d.spread;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var growthVals=cos.map(function(d){return d.rev_cagr;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var nBuy=cos.filter(function(d){return d.rating==='BUY'||d.rating==='LEAN BUY';}).length;
+    var roicVals=cos.map(function(d){return d.roic;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var ndEbVals=cos.map(function(d){return d.nd_ebitda;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var shrYldVals=cos.map(function(d){var sy=d.shareholder_yield;if(sy==null||sy===0){var bb=d.share_buyback_rate,dy=d.div_yield;if((bb!=null&&bb!==0)||(dy!=null&&dy!==0))sy=(bb||0)+(dy||0);}return sy;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var fcfMVals=cos.map(function(d){return d.fcf_margin;}).filter(function(v){return v!=null&&!isNaN(v);});
+    var altZVals=cos.map(function(d){return d.altman_z;}).filter(function(v){return v!=null&&!isNaN(v);});
+    out.push({sector:sec,n:sorted.length,wtdM:wtdM,hhi:hhi,cr4:cr4,
+      medMos:_poolSecMed(mosVals),medPB:_poolSecMed(pbVals),medEV:_poolSecMed(evVals),
+      medSpread:_poolSecMed(spreadVals),medGrowth:_poolSecMed(growthVals),
+      medROIC:_poolSecMed(roicVals),medNDEB:_poolSecMed(ndEbVals),medShrYld:_poolSecMed(shrYldVals),
+      medFCFM:_poolSecMed(fcfMVals),medAltZ:_poolSecMed(altZVals),
+      nBuy:nBuy,pctBuy:cos.length?nBuy/cos.length:null,best:best,avgMult:avgMult});
+  });
+  window._allSecStats=out;return out;
+}
+/* HSL band scaler — same formula as _heatBg in the heatmap. asc=true means
+   lower-is-better (cheap P/B, low leverage); higher values map to red. */
+function _poolSecTint(val,vals,asc){
+  if(val==null||isNaN(val))return '';
+  var clean=vals.filter(function(v){return v!=null&&!isNaN(v);});
+  if(clean.length<2)return '';
+  var mn=Math.min.apply(null,clean),mx=Math.max.apply(null,clean);
+  if(mx===mn)return '';
+  var t=(val-mn)/(mx-mn);if(asc)t=1-t;
+  var hue=Math.round(t*120);
+  return 'background:hsla('+hue+',72%,45%,0.85)';
+}
+function _renderSectorBanner(sec){
+  var all=_buildAllSectorStats();
+  var st=null;for(var i=0;i<all.length;i++){if(all[i].sector===sec){st=all[i];break;}}
+  if(!st)return '';
+  /* Column-value arrays for the cross-sector color scale. */
+  var col={};['wtdM','hhi','cr4','medFCFM','medROIC','medSpread','medGrowth','medNDEB','medAltZ','medMos','medPB','medEV','medShrYld','pctBuy'].forEach(function(k){col[k]=all.map(function(s){return s[k];});});
+  /* Formatter helper — returns {disp, missing}. */
+  function _f(v,sfx,decs){if(v==null||isNaN(v))return {disp:'—',missing:true};return {disp:(v*(sfx==='%'?100:1)).toFixed(decs)+sfx,missing:false};}
+  function _x(v,decs,suf){if(v==null||isNaN(v))return {disp:'—',missing:true};return {disp:v.toFixed(decs)+(suf||''),missing:false};}
+  /* Each stat: [label, formatted, tooltip, key for color, asc-flag (true=lower-better)]. */
+  var rows=[
+    ['Cos',{disp:''+st.n,missing:false},'Number of companies in the sector pool. Munger: "Structure matters more than effort" — sectors crowded with similar competitors compete margins toward zero, while lean sectors with structural barriers favor incumbents.',null,false],
+    ['HHI',_x(st.hhi,3,''),'Herfindahl–Hirschman Index of revenue concentration. Above 0.25 = oligopoly where incumbents hold pricing power; below 0.15 = fragmented competition that erodes returns.','hhi',false],
+    ['CR4',_f(st.cr4,'%',0),'Top-4 share of sector revenue. Above 80% signals a true oligopoly; below 50% means fragmented competition.','cr4',false],
+    ['Wtd Margin',_f(st.wtdM,'%',1),'Pool-weighted operating margin — sum(margin × revenue share). The first moat test applied at sector scale; sustained 20%+ reveals durable competitive advantage.','wtdM',false],
+    ['Med FCF Margin',_f(st.medFCFM,'%',1),'Median free cash flow margin across the sector. Graham: "Earnings are opinions; cash is a fact."','medFCFM',false],
+    ['Med ROIC',_f(st.medROIC,'%',1),'Median ROIC across the sector — the single most important metric in the Buffett framework. Sectors compounding capital at 15%+ turn each retained dollar into more than a dollar of intrinsic value.','medROIC',false],
+    ['Med ROIC–WACC',_f(st.medSpread,'%',1),'Median ROIC minus WACC — the sector\'s economic profit spread. Above 5% = capital is genuinely productive; near zero = competitors cancel each other out.','medSpread',false],
+    ['Med Rev CAGR',_f(st.medGrowth,'%',1),'Median 3-year revenue CAGR across the sector. Persistent top-line growth paired with stable margins reveals genuine demand and pricing power.','medGrowth',false],
+    ['Med ND/EBITDA',_x(st.medNDEB,2,'x'),'Median Net Debt / EBITDA. Below 2× = position of strength; above 4× = dependence on rolling credit when markets sour.','medNDEB',true],
+    ['Med Altman Z',st.medAltZ!=null?{disp:Number(st.medAltZ).toPrecision(3),missing:false}:{disp:'—',missing:true},'Median Altman Z-score. Above 3.0 = sector-wide financial health; below 1.8 = distress signals across the cohort.','medAltZ',false],
+    ['Med MoS%',_f(st.medMos,'%',0),'Median Margin of Safety vs. DCF fair value. Graham\'s foundational principle. A sector at 20%+ median MoS may be temporarily out of favor — verify the discount is real, not deserved.','medMos',false],
+    ['Med P/B',_x(st.medPB,2,'x'),'Median price-to-book. Low P/B is only attractive when ROIC justifies the discount — cheap asset-heavy sectors with weak returns are rarely the bargains they appear.','medPB',true],
+    ['Med EV/EBITDA',_x(st.medEV,1,'x'),'Median EV/EBITDA — a capital-structure-neutral valuation lens. Reasonable for predictable cash converters; misleading at cyclical troughs in capex-heavy industries.','medEV',true],
+    ['Med Shr Yld',_f(st.medShrYld,'%',1),'Median shareholder yield (buybacks + dividends / market cap). Sectors with persistent 4%+ yields demonstrate disciplined capital allocation cohort-wide.','medShrYld',false],
+    ['% BUY',_f(st.pctBuy,'%',0),'% of sector rated BUY or LEAN BUY by the screener. High concentration signals where the model finds clusters of margin of safety.','pctBuy',false]
+  ];
+  var html='<div class="pool-stat-banner">';
+  rows.forEach(function(r){
+    var label=r[0],v=r[1],tip=r[2],ck=r[3],asc=r[4];
+    var tint=(ck&&!v.missing)?_poolSecTint(st[ck],col[ck],asc):'';
+    var tintHtml=tint?'<span class="pool-stat-tint" style="'+tint+'"></span>':'';
+    var valClass=v.missing?'pool-stat-value muted':'pool-stat-value';
+    html+='<div class="pool-stat" title="'+_attr(label+' — '+tip)+'">'+tintHtml+'<div class="pool-stat-label">'+label+'</div><div class="'+valClass+'">'+v.disp+'</div></div>';
+  });
+  /* Top Earner — pulled from sorted reduce in _buildAllSectorStats. Shows
+     ticker + pp_multiple ("how many dollars of profit per dollar of revenue
+     share" — the leader's pricing power within the pool). */
+  if(st.best){
+    var b=st.best;
+    var bTk=_attr(b.ticker||'');
+    var bMult=b.pp_multiple!=null?b.pp_multiple.toFixed(2)+'x':'—';
+    var bCol=RC[b.rating]||'#888';
+    html+='<div class="pool-stat" title="Top Earner — Highest profit pool multiple within the sector (profit share ÷ revenue share). A value above 1.0× means this company punches above its revenue weight in profitability.">'
+      +'<span class="pool-stat-tint" style="background:'+bCol+'"></span>'
+      +'<div class="pool-stat-label">Top Earner</div>'
+      +'<div class="pool-stat-value"><span class="pool-stat-tk">'+bTk+'</span><span class="pool-stat-sub">'+bMult+'</span></div>'
+      +'</div>';
+  }
+  /* Avg Multiple — sector-wide average pp_multiple, paired with Top Earner. */
+  html+='<div class="pool-stat" title="Avg Multiple — Average profit pool multiple across the sector. >1.0× means the average company in this sector captures more profit share than revenue share — a sign of structural margin advantage at the pool level.">'
+    +'<div class="pool-stat-label">Avg Multiple</div>'
+    +'<div class="pool-stat-value">'+(st.avgMult!=null?st.avgMult.toFixed(2)+'x':'—')+'</div>'
+    +'</div>';
+  html+='</div>';
+  return html;
+}
+/* _attr already declared inside renderCrossSectorDashboard's scope; redeclare
+   at top level for the banner so we don't depend on the heatmap having run. */
+function _attr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function renderPool(){
+  /* Invalidate the sector-stats cache on every render so flag/filter changes
+     downstream (which can shift _ACTIONABLE counts) are reflected on the banner. */
+  window._allSecStats=null;
   var sectors={};
   DATA.forEach(function(d){if(!d.sector||d.pp_revenue_share==null)return;if(!sectors[d.sector])sectors[d.sector]=[];sectors[d.sector].push(d);});
   var secList=Object.keys(sectors).sort();
@@ -4262,6 +4413,13 @@ function renderPool(){
     if(hhi!=null)chartHtml+=' &nbsp;&middot;&nbsp; HHI: '+hhi.toFixed(3)+' ('+conc+')';
     if(cr4!=null)chartHtml+=' &nbsp;&middot;&nbsp; CR4: '+(cr4*100).toFixed(0)+'%';
     chartHtml+='</span></div>';
+    /* Quick-reference stat banner — mirrors the Overview Sector Heatmap columns
+       (Cos, HHI, CR4, Wtd Margin, Med FCF/ROIC/Spread/Growth/ND/AltZ/MoS/PB/EV/
+       ShrYld, % BUY) plus Top Earner and Avg Multiple. Hover any cell for the
+       metric description. Left-edge tint scales each value vs. the cross-sector
+       min/max (green = best, red = worst) so you can read a sector's relative
+       standing without flipping back to the heatmap. */
+    chartHtml+=_renderSectorBanner(sec);
     var topRated=cos.slice().filter(function(d){return d._composite_score!=null;}).sort(function(a,b){return(b._composite_score||0)-(a._composite_score||0);}).slice(0,5);
     if(topRated.length){
       var chips=topRated.map(function(d){
