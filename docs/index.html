@@ -3994,7 +3994,19 @@ function renderCrossSectorDashboard(){
     var nBuy=cos.filter(_ACTIONABLE).length;
     var roicVals=cos.map(function(d){return d.roic;}).filter(function(v){return v!=null&&!isNaN(v);});
     var ndEbVals=cos.map(function(d){return d.nd_ebitda;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var shrYldVals=cos.map(function(d){return d.shareholder_yield;}).filter(function(v){return v!=null&&!isNaN(v);});
+    /* Effective shareholder yield: prefer the cash-flow-derived value but fall
+       back to (buyback + div_yield) when it's missing or zero. yfinance's
+       cash-flow statement is sparse for ~78% of tickers, leaving sy stored as
+       0.0 even when div_yield (from ticker.info, a separate reliable source)
+       shows a real dividend. Without the fallback every sector medians to 0. */
+    var shrYldVals=cos.map(function(d){
+      var sy=d.shareholder_yield;
+      if(sy==null||sy===0){
+        var bb=d.share_buyback_rate,dy=d.div_yield;
+        if((bb!=null&&bb!==0)||(dy!=null&&dy!==0))sy=(bb||0)+(dy||0);
+      }
+      return sy;
+    }).filter(function(v){return v!=null&&!isNaN(v);});
     var fcfMVals=cos.map(function(d){return d.fcf_margin;}).filter(function(v){return v!=null&&!isNaN(v);});
     var altZVals=cos.map(function(d){return d.altman_z;}).filter(function(v){return v!=null&&!isNaN(v);});
     _sumStats.push({
