@@ -2686,10 +2686,10 @@ function openDet(tk){
   })();
   var _km=document.getElementById('d-kmetrics');
   var _krows=[
+    ['Mkt Cap',fds(d.mcap),''],
     ['Price',d.price!=null?'$'+d.price.toLocaleString(undefined,{maximumFractionDigits:2}):'N/A',''],
     ['Fair Value',fd(d.dcf_fv),''],
     ['MoS',d.mos!=null?(d.mos*100).toFixed(1)+'%':'N/A',d.mos!=null?(d.mos>0.15?'color:#1a9850':(d.mos<0?'color:#de2d26':'')):''],
-    ['Mkt Cap',fds(d.mcap),''],
   ];
   _km.innerHTML=_krows.map(function(r){var _kmTipKey=DKV_TIPS[r[0]]||'';var _kmTxt=_kmTipKey?tt(_kmTipKey):'';return'<div class="km-cell">'+  '<span class="km-k"'+(_kmTxt?' data-km-tip="'+_kmTipKey+'" data-km-lbl="'+r[0]+'"':'')+'>'+r[0]+'</span><span class="km-v"'+(r[2]?' style="'+r[2]+'"':'')+'>'+r[1]+'</span></div>';}).join('');
   /* --- Gate values section --- */
