@@ -695,41 +695,57 @@ def _extract_latest_financials(yf_data):
 def _compute_shareholder_yield(yf_data, mcap):
     """Compute total shareholder yield = (dividends + buybacks) / market cap.
 
-    Uses the most recent fiscal year from cash flow statement.
+    Uses the most recent fiscal year from cash flow statement, with a
+    ticker.info fallback for dividends when the cash-flow Dividend Paid row
+    is missing (Yahoo leaves it blank for ~78% of tickers even when the
+    company genuinely pays a dividend).
+
     Returns dict with 'shareholder_yield' and 'buyback_rate' (both decimal), or None.
     """
     if not mcap or mcap <= 0:
         return None
     cf = yf_data.get('cash_flow')
-    if cf is None or (hasattr(cf, 'empty') and cf.empty):
+    info = yf_data.get('info') or {}
+    cf_present = cf is not None and not (hasattr(cf, 'empty') and cf.empty)
+
+    div_paid = 0
+    buyback = 0
+    issuance = 0
+    if cf_present:
+        latest = cf.iloc[:, 0]
+        for k in ['Common Stock Dividend Paid', 'Cash Dividends Paid']:
+            if k in latest.index and pd.notna(latest[k]):
+                div_paid = abs(float(latest[k]))
+                break
+        for k in ['Repurchase Of Capital Stock', 'Common Stock Payments']:
+            if k in latest.index and pd.notna(latest[k]):
+                buyback = abs(float(latest[k]))
+                break
+        # Subtract any new issuance to get net buyback. Allow negative values:
+        # a net-diluting company has buyback_rate < 0 and shareholder_yield is
+        # reduced (or negated) accordingly. Flooring at zero would mask dilution.
+        for k in ['Issuance Of Capital Stock', 'Common Stock Issuance']:
+            if k in latest.index and pd.notna(latest[k]):
+                issuance = abs(float(latest[k]))
+                break
+
+    # Dividend fallback: dividendRate (annual $/share) × sharesOutstanding gives
+    # total annual dividend cash, equivalent to the cash-flow Dividend Paid row.
+    # Apply whenever the cash-flow signal is missing or zero — dividendRate
+    # comes from info, a different yfinance endpoint that's far more reliable.
+    if div_paid == 0:
+        div_rate = info.get('dividendRate')
+        shares_out = info.get('sharesOutstanding')
+        if div_rate and shares_out and div_rate > 0 and shares_out > 0:
+            div_paid = float(div_rate) * float(shares_out)
+
+    # Distinguish "no data" from "no shareholder returns". If cash-flow is
+    # entirely absent AND dividendRate didn't fire, return None so the column
+    # shows as missing rather than a misleading 0.
+    if not cf_present and div_paid == 0:
         return None
 
-    latest = cf.iloc[:, 0]
-
-    # Dividends paid (negative in cash flow = cash out)
-    div_paid = 0
-    for k in ['Common Stock Dividend Paid', 'Cash Dividends Paid']:
-        if k in latest.index and pd.notna(latest[k]):
-            div_paid = abs(float(latest[k]))
-            break
-
-    # Share buybacks (negative in cash flow = cash out)
-    buyback = 0
-    for k in ['Repurchase Of Capital Stock', 'Common Stock Payments']:
-        if k in latest.index and pd.notna(latest[k]):
-            buyback = abs(float(latest[k]))
-            break
-
-    # Subtract any new issuance to get net buyback. Allow negative values:
-    # a net-diluting company has buyback_rate < 0 and shareholder_yield is
-    # reduced (or negated) accordingly. Flooring at zero would mask dilution.
-    issuance = 0
-    for k in ['Issuance Of Capital Stock', 'Common Stock Issuance']:
-        if k in latest.index and pd.notna(latest[k]):
-            issuance = abs(float(latest[k]))
-            break
     net_buyback = buyback - issuance
-
     total_return = div_paid + net_buyback
     shareholder_yield = total_return / mcap
     buyback_rate = net_buyback / mcap

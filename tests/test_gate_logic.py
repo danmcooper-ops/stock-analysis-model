@@ -125,6 +125,39 @@ class TestShareholderYield:
     def test_no_cash_flow_returns_none(self):
         assert _compute_shareholder_yield({}, self.MCAP) is None
 
+    def test_dividend_rate_fallback_when_cf_missing(self):
+        """No cash-flow at all, but info.dividendRate set → use rate × shares."""
+        info = {'dividendRate': 2.0, 'sharesOutstanding': 100_000_000}
+        out = _compute_shareholder_yield({'info': info}, self.MCAP)
+        # 2.0 × 100M = $200M dividend / $10B mcap = 2.0%
+        assert out['shareholder_yield'] == 0.02
+        assert out['buyback_rate'] == 0.0
+
+    def test_dividend_rate_fallback_when_cf_lacks_dividend_row(self):
+        """CF present (e.g. has buyback row) but no Dividend Paid line → fall back."""
+        cf = _cf_frame({'Repurchase Of Capital Stock': -100_000_000})
+        info = {'dividendRate': 2.0, 'sharesOutstanding': 100_000_000}
+        out = _compute_shareholder_yield({'cash_flow': cf, 'info': info}, self.MCAP)
+        # 1% buyback + 2% dividend (from fallback) = 3% total
+        assert out['shareholder_yield'] == 0.03
+        assert out['buyback_rate'] == 0.01
+
+    def test_cf_dividend_preferred_over_info_rate(self):
+        """When CF has Dividend Paid AND info.dividendRate is set, CF wins."""
+        cf = _cf_frame({'Cash Dividends Paid': -150_000_000})
+        info = {'dividendRate': 5.0, 'sharesOutstanding': 100_000_000}
+        out = _compute_shareholder_yield({'cash_flow': cf, 'info': info}, self.MCAP)
+        # CF says $150M = 1.5%, NOT info's $500M = 5%
+        assert out['shareholder_yield'] == 0.015
+
+    def test_genuine_no_return_company_stays_zero(self):
+        """CF present, no dividend / buyback rows, no dividendRate → 0 (not None).
+        A young growth co that legitimately returns nothing should read as 0."""
+        cf = _cf_frame({'Net Income': 100_000_000})  # any non-dividend row
+        out = _compute_shareholder_yield({'cash_flow': cf, 'info': {}}, self.MCAP)
+        assert out['shareholder_yield'] == 0.0
+        assert out['buyback_rate'] == 0.0
+
 
 # ---------------------------------------------------------------------------
 # Downstream gate behavior: the buyback gate now correctly fails diluters
