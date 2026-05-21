@@ -1022,7 +1022,7 @@ td.ct{font-weight:700;}
       <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
-      <div class="d-mini-nav"><div class="d-mini-nav-actions"><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div><span class="det-nav-pos d-mini-nav-pos"></span></div>
+      <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div><div class="d-mini-nav-actions"><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><span class="det-nav-pos d-mini-nav-pos"></span></div>
     </div>
     <div class="d-body">
       <div id="d-kmetrics" class="d-kmetrics"></div>
@@ -1627,6 +1627,8 @@ function renderMatrix(){
   var th=document.getElementById('mtx-h'),tb=document.getElementById('mtx-b');
   var cg2={};GM.categories.forEach(function(c){cg2[c.name]=[];});
   GM.gates.forEach(function(g){if(!g.hideMatrix)cg2[g.category].push(g);});
+  /* Reorder Valuation gates so MoS sits second-from-last, next to RIM MoS. */
+  if(cg2['Valuation']){var _vals=cg2['Valuation'];var _mosIdx=-1;for(var _i=0;_i<_vals.length;_i++){if(_vals[_i].key==='_gate_mos'){_mosIdx=_i;break;}}if(_mosIdx!==-1&&_mosIdx!==_vals.length-2){var _mos=_vals.splice(_mosIdx,1)[0];_vals.splice(_vals.length-1,0,_mos);}}
   var h1='<tr>';
   h1+='<th class="fixed-header" rowspan="2" style="width:40px;color:#7f8c9a;font-weight:600" title="Row number in current sort order">#</th>';
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.3em" onclick="mSort(\'_flagged\')" title="Flagged">\u2691'+(mSC==='_flagged'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
