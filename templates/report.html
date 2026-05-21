@@ -1012,7 +1012,6 @@ td.ct{font-weight:700;}
     </div>
     <div class="d-body">
       <div id="d-kmetrics" class="d-kmetrics"></div>
-      <div id="d-sbar" class="score-bar"></div>
       <div id="d-gate-values" class="d-gate-values"></div>
       <div id="d-section-price" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Price History</div><div style="padding:14px 16px;background:var(--surface)"><div class="dp-ranges" id="dp-ranges" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px"></div><div id="dp-tip-bar" style="min-height:24px;font-size:0.86em"></div><div id="dp-chart"></div></div></div>
       <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
@@ -2647,8 +2646,6 @@ function openDet(tk){
   var gpEl=document.getElementById('d-gp');if(gpEl)gpEl.textContent=d._gates_passed!=null?d._gates_passed:'';
   var meta=[];if(d.sector)meta.push(d.sector);if(d.industry)meta.push(d.industry);if(d.country)meta.push(d.country);if(d.ceo)meta.push('CEO: '+d.ceo+(d.founder_led?' \u2605 Founder':''));
   document.getElementById('d-meta').textContent=meta.join('  \u00B7  ');
-  var sb=document.getElementById('d-sbar');
-  sb.innerHTML=GM.categories.map(function(c){var v=d[c.scoreKey];var w=Math.round(c.weight*100);var _sv=v!=null?Math.round(v)+'%':'N/A';return'<div style="width:'+w+'%;background:'+c.dark+'" data-score-lbl="'+c.name+'" data-score-val="'+_sv+'" data-score-key="'+c.scoreKey+'">'+c.name.charAt(0)+' '+(v!=null?Math.round(v):'—')+' ('+w+'%)</div>';}).join('');
   (function(){
     var el=document.getElementById('d-desc');
     var P='<p style="margin:0 0 10px;line-height:1.65;color:#2c3e50">';
@@ -2700,11 +2697,12 @@ function openDet(tk){
     var _gvEl=document.getElementById('d-gate-values');
     var _fmtGate=function(v,fmt){if(v==null)return'\u2014';if(fmt==='pct1')return(v*100).toFixed(1)+'%';if(fmt==='ratio')return v.toFixed(2)+'\u00d7';if(fmt==='int')return Math.round(v)+'';return v.toFixed?v.toFixed(2):String(v);};
     var _gvHtml='';
-    var _gvTotal=GM.categories.length;
-    GM.categories.forEach(function(c,_ci){
+    GM.categories.forEach(function(c){
       var gates=GM.gates.filter(function(g){return g.category===c.name;});
       if(!gates.length)return;
-      _gvHtml+='<div class="gv-col"><div class="gv-cat" style="background:'+c.dark+'">'+c.name+' Gate '+(_ci+1)+'/'+_gvTotal+'</div><div class="gv-items">';
+      var _catScore=d[c.scoreKey];
+      var _catScoreTxt=_catScore!=null?Math.round(_catScore)+'%':'—';
+      _gvHtml+='<div class="gv-col"><div class="gv-cat" style="background:'+c.dark+'">'+c.name+' '+_catScoreTxt+'</div><div class="gv-items">';
       gates.forEach(function(g){
         var raw=d[g.key];
         var pass=d[g.gpKey];
