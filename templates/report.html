@@ -974,7 +974,7 @@ td.ct{font-weight:700;}
     </div>
     <div class="fpop-wrap" id="fpop-wrap">
       <button class="fpop-btn" id="fpop-btn" onclick="toggleFilterPopup(event)">
-        <span>Filters</span><span class="fpop-badge" id="fpop-badge" style="display:none">0</span>
+        <span>Filters</span>
       </button>
       <div class="fpop-panel" id="fpop-panel">
         <div class="fpop-header">
@@ -1501,11 +1501,9 @@ function applyFilters(){
     return true;
   });
   document.getElementById('f-count').textContent=FD.length+' of '+DATA.length;
-  // Filters popup badge: column filters only.
-  var badge=document.getElementById('fpop-badge');
+  // Filters popup: button "active" state reflects whether any column filter is on.
   var btn=document.getElementById('fpop-btn');
-  if(colFilters.length>0){badge.textContent=colFilters.length;badge.style.display='inline-flex';btn.classList.add('active');}
-  else{badge.style.display='none';btn.classList.remove('active');}
+  if(btn)btn.classList.toggle('active',colFilters.length>0);
   // Quick Filters popup: button "active" state reflects whether any toggle is on.
   // The numeric badge is owned by _updateFlagCount() and shows the flagged-stock count.
   /* 3-state Reviewed-filter: state 0 (gray Reviewed) means show all and
