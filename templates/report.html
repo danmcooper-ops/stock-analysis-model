@@ -629,6 +629,12 @@ td.ct{font-weight:700;}
 #ph-select{max-width:440px;width:100%;padding:7px 11px;border:1px solid #d0d8e4;border-radius:5px;font-size:0.88em;font-weight:600;color:#1a252f;background:white;cursor:pointer;}
 .ph-ranges{display:flex;gap:5px;margin:10px 0 6px;flex-wrap:wrap;}
 .ph-range-btn{padding:4px 13px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.78em;font-weight:700;background:white;color:#546e7a;transition:background 0.12s,color 0.12s;}
+.zoom-btn{padding:3px 8px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.85em;font-weight:700;background:white;color:#546e7a;line-height:1;min-width:26px;text-align:center;transition:background 0.12s,color 0.12s;}
+.zoom-btn:hover{background:#f0f4f8;color:#1a252f;}
+.zoom-hint{font-size:0.7em;color:#94a3b8;font-style:italic;margin-left:6px;}
+[data-theme="dark"] .zoom-btn{background:#21262d;color:#c9d1d9;border-color:#30363d;}
+[data-theme="dark"] .zoom-btn:hover{background:#30363d;color:#fff;}
+[data-theme="dark"] .zoom-hint{color:#8b949e;}
 .ph-range-btn.active{background:#1a252f;color:#fff;border-color:#1a252f;}
 .ph-range-btn:hover:not(.active){background:#f0f4f8;color:#1a252f;}
 .ph-sw{position:relative;display:inline-flex;align-items:center;}
@@ -1874,7 +1880,7 @@ function renderTable(){
 function tSort(col){if(tSC===col)tSA=!tSA;else{tSC=col;tSA=true;}renderTable();}
 
 /* === PRICE HISTORY === */
-var _phStocks=[],_phRange='MAX',_phInited=false,_phState=null,_phMetric='price';
+var _phStocks=[],_phRange='MAX',_phInited=false,_phState=null,_phMetric='price',_phZoom={start:0,end:1},_phDrag=null;
 var _phPalette=['#16a34a','#2563eb','#dc2626','#d97706','#7c3aed','#0891b2','#be185d','#65a30d','#b45309','#6366f1'];
 var _PH_METRICS=[
   {k:'price',  lbl:'Price',         unit:'$',  fmt:'money',  src:'price'},
@@ -2036,12 +2042,13 @@ function phToggleIndex(tk){
 }
 function _buildPHRanges(){
   var rc=document.getElementById('ph-ranges');if(!rc)return;
-  rc.innerHTML=['1M','3M','6M','1YR','5YR','10YR','20YR','MAX'].map(function(r){
+  var ranges=['1M','3M','6M','1YR','5YR','10YR','20YR','MAX'].map(function(r){
     return '<button class="ph-range-btn'+(r===_phRange?' active':'')+'" data-range="'+r+'" onclick="phSetRange(\''+r+'\')">'+r+'</button>';
   }).join('');
+  rc.innerHTML=ranges+'<span style="display:inline-flex;gap:3px;margin-left:6px;align-items:center"><button type="button" class="zoom-btn" onclick="phZoomIn()" title="Zoom in">+</button><button type="button" class="zoom-btn" onclick="phZoomOut()" title="Zoom out">−</button><button type="button" class="zoom-btn" onclick="phResetZoom()" title="Reset zoom">↺</button><span class="zoom-hint">scroll · drag · dbl-click resets</span></span>';
 }
 function phSetRange(r){
-  _phRange=r;
+  _phRange=r;_phZoom={start:0,end:1};
   document.querySelectorAll('.ph-range-btn').forEach(function(b){b.classList.toggle('active',b.dataset.range===r);});
   renderPHChart();
 }
@@ -2138,6 +2145,17 @@ function _phRenderSVG(allRaw,refs){
   var iW=VW-PL-PR,iH=VH-PT-PB;
   var cmpMode=series.length>1;
   series.forEach(function(s){s.pts=s.raw;});
+  /* Apply zoom window over each series. */
+  if(_phZoom&&(_phZoom.start>0||_phZoom.end<1)){
+    series.forEach(function(s){
+      if(s.pts&&s.pts.length>=2){
+        var i0=Math.max(0,Math.floor(s.pts.length*_phZoom.start));
+        var i1=Math.min(s.pts.length,Math.ceil(s.pts.length*_phZoom.end));
+        if(i1-i0<2)i0=Math.max(0,i1-2);
+        s.pts=s.pts.slice(i0,i1);
+      }
+    });
+  }
   /* y range */
   var allVals=[];series.forEach(function(s){s.pts.forEach(function(p){allVals.push(p.c);});});
   var minP=Math.min.apply(null,allVals),maxP=Math.max.apply(null,allVals);
@@ -2189,8 +2207,10 @@ function _phRenderSVG(allRaw,refs){
   /* tip bar */
   var tb=document.getElementById('ph-tip-bar');
   if(tb)tb.innerHTML=_phTipHtml(series,cmpMode,null,def,annual);
-  var svg='<svg id="ph-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none"'
-    +' onmousemove="phMove(event)" onmouseleave="phLeave()">'
+  var _phCur=(_phZoom.start>0||_phZoom.end<1)?'grab':'crosshair';
+  var svg='<svg id="ph-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:'+_phCur+';-webkit-user-select:none;user-select:none"'
+    +' onmousemove="phMove(event)" onmouseleave="phLeave()"'
+    +' onwheel="phWheel(event)" onmousedown="phDown(event)" ondblclick="phResetZoom()">'
     +'<defs><linearGradient id="ph-g" x1="0" y1="0" x2="0" y2="1">'
     +'<stop offset="0%" stop-color="'+series[0].col+'" stop-opacity="0.15"/><stop offset="100%" stop-color="'+series[0].col+'" stop-opacity="0.01"/>'
     +'</linearGradient></defs>'
@@ -2230,7 +2250,7 @@ function _phTipHtml(series,cmpMode,relX,def,annual){
   return tip;
 }
 function phMove(e){
-  if(!_phState)return;var s=_phState;
+  if(!_phState||_phDrag)return;var s=_phState;
   var svg=document.getElementById('ph-svg');if(!svg)return;
   var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
   var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
@@ -2251,6 +2271,74 @@ function phLeave(){
   s.series.forEach(function(sr,si){var dc=document.getElementById('ph-dc'+si);if(dc)dc.setAttribute('opacity','0');});
   var tb=document.getElementById('ph-tip-bar');if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,null,s.def,s.annual);
 }
+/* Generic zoom math used by all price-history charts. */
+function _zCalcWheel(prev,cursorFrac,deltaY){
+  var factor=deltaY<0?0.82:1.22;
+  var span=Math.max(0.01,Math.min(1,(prev.end-prev.start)*factor));
+  var dataFrac=prev.start+cursorFrac*(prev.end-prev.start);
+  var ns=dataFrac-cursorFrac*span,ne=ns+span;
+  if(ns<0){ne-=ns;ns=0;}
+  if(ne>1){ns-=(ne-1);ne=1;}
+  return{start:Math.max(0,ns),end:Math.min(1,ne)};
+}
+function _zCalcCenter(prev,factor){
+  var center=(prev.start+prev.end)/2;
+  var span=Math.max(0.01,Math.min(1,(prev.end-prev.start)*factor));
+  var ns=center-span/2,ne=ns+span;
+  if(ns<0){ne-=ns;ns=0;}
+  if(ne>1){ns-=(ne-1);ne=1;}
+  return{start:Math.max(0,ns),end:Math.min(1,ne)};
+}
+function _zCalcPan(prev,startZ,fracShift){
+  var ns=startZ.start+fracShift,ne=startZ.end+fracShift;
+  if(ns<0){ne-=ns;ns=0;}
+  if(ne>1){ns-=(ne-1);ne=1;}
+  return{start:Math.max(0,ns),end:Math.min(1,ne)};
+}
+/* === Financial Data ph-chart zoom === */
+function phWheel(e){
+  if(!_phState)return;
+  if(e.cancelable)e.preventDefault();
+  var svg=document.getElementById('ph-svg');if(!svg)return;
+  var s=_phState;
+  var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
+  var cursorFrac=Math.max(0,Math.min(1,(sp.x-s.PL)/s.iW));
+  var nz=_zCalcWheel(_phZoom,cursorFrac,e.deltaY);
+  if(nz.start===_phZoom.start&&nz.end===_phZoom.end)return;
+  _phZoom=nz;renderPHChart();
+}
+function phDown(e){
+  if(!_phState)return;
+  if(_phZoom.start<=0&&_phZoom.end>=1)return;
+  if(e.button!=null&&e.button!==0)return;
+  e.preventDefault();
+  _phDrag={x:e.clientX,startZoom:{start:_phZoom.start,end:_phZoom.end}};
+  var svg=document.getElementById('ph-svg');if(svg)svg.style.cursor='grabbing';
+  document.addEventListener('mousemove',_phDragMove,true);
+  document.addEventListener('mouseup',_phDragUp,true);
+}
+function _phDragMove(e){
+  if(!_phDrag||!_phState)return;
+  var s=_phState;
+  var svg=document.getElementById('ph-svg');if(!svg)return;
+  var rect=svg.getBoundingClientRect();
+  var pxPerSvg=rect.width/s.VW;
+  var deltaSvgX=(e.clientX-_phDrag.x)/pxPerSvg;
+  var fracShift=-deltaSvgX/s.iW*(_phDrag.startZoom.end-_phDrag.startZoom.start);
+  var nz=_zCalcPan(_phZoom,_phDrag.startZoom,fracShift);
+  if(nz.start===_phZoom.start&&nz.end===_phZoom.end)return;
+  _phZoom=nz;renderPHChart();
+}
+function _phDragUp(){
+  document.removeEventListener('mousemove',_phDragMove,true);
+  document.removeEventListener('mouseup',_phDragUp,true);
+  _phDrag=null;
+  var svg=document.getElementById('ph-svg');if(svg){svg.style.cursor=(_phZoom.start>0||_phZoom.end<1)?'grab':'crosshair';}
+}
+function phResetZoom(){if(_phZoom.start===0&&_phZoom.end===1)return;_phZoom={start:0,end:1};renderPHChart();}
+function phZoomIn(){if(!_phState)return;_phZoom=_zCalcCenter(_phZoom,0.7);renderPHChart();}
+function phZoomOut(){if(!_phState)return;_phZoom=_zCalcCenter(_phZoom,1.4);renderPHChart();}
 
 /* === DETAIL POPUP PRICE CHART === */
 var _dpRange='MAX',_dpTicker=null,_dpState=null,_dpZoom={start:0,end:1},_dpDrag=null;
@@ -2496,6 +2584,8 @@ function dpResetZoom(){
   _dpZoom={start:0,end:1};
   _dpRenderChart();
 }
+function dpZoomIn(){if(!_dpState)return;_dpZoom=_zCalcCenter(_dpZoom,0.7);_dpRenderChart();}
+function dpZoomOut(){if(!_dpState)return;_dpZoom=_zCalcCenter(_dpZoom,1.4);_dpRenderChart();}
 function _renderDetPriceChart(ticker){
   var sec=document.getElementById('d-section-price');
   if(!sec)return;
@@ -2518,9 +2608,10 @@ function _renderDetPriceChart(ticker){
   sec.style.display='';
   var rEl=document.getElementById('dp-ranges');
   if(rEl){
-    rEl.innerHTML=['1M','3M','6M','1YR','5YR','10YR','MAX'].map(function(r){
+    var ranges=['1M','3M','6M','1YR','5YR','10YR','MAX'].map(function(r){
       return '<button class="ph-range-btn dp-range-btn'+(r===_dpRange?' active':'')+'" data-range="'+r+'" onclick="dpSetRange(\''+r+'\')">'+r+'</button>';
     }).join('');
+    rEl.innerHTML=ranges+'<span style="display:inline-flex;gap:3px;margin-left:6px;align-items:center"><button type="button" class="zoom-btn" onclick="dpZoomIn()" title="Zoom in">+</button><button type="button" class="zoom-btn" onclick="dpZoomOut()" title="Zoom out">−</button><button type="button" class="zoom-btn" onclick="dpResetZoom()" title="Reset zoom">↺</button><span class="zoom-hint">scroll · drag · dbl-click resets</span></span>';
   }
   _dpRenderChart();
 }
@@ -3230,6 +3321,7 @@ var _sectorPriceRange='20YR';
 var _selectedAggs={};
 var _sectorPriceState=null;
 var _aggHoverState=null;
+var _spZoom={start:0,end:1},_spDrag=null;
 /* Distinct categorical palette. Sector colors are stable —
    assigned by alphabetical index — so toggling on/off doesn\'t
    reshuffle the chart. */
@@ -3268,8 +3360,12 @@ function renderUniversePriceChart(){
     var checked=_selectedAggs[s]?' checked':'';
     return '<label class="agg-grid-item"><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span></label>';
   }).join('');
+  var zoomBtns='<button type="button" class="zoom-btn" onclick="aggChartZoomIn()" title="Zoom in">+</button>'
+    +'<button type="button" class="zoom-btn" onclick="aggChartZoomOut()" title="Zoom out">−</button>'
+    +'<button type="button" class="zoom-btn" onclick="aggChartResetZoom()" title="Reset zoom">↺</button>'
+    +'<span class="zoom-hint">scroll · drag · dbl-click resets</span>';
   var out='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">'
-    +'<div style="display:flex;gap:4px;flex-wrap:wrap">'+rangeBtns+'</div>'
+    +'<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">'+rangeBtns+'<span style="display:inline-flex;gap:3px;margin-left:6px;align-items:center">'+zoomBtns+'</span></div>'
     +'<div style="display:flex;gap:5px;flex-wrap:wrap;margin-left:auto">'+helperBtns+'</div>'
     +'</div>'
     +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin:6px 0 4px;min-height:20px"></div>'
@@ -3285,7 +3381,7 @@ function renderUniversePriceChart(){
   return out;
 }
 function setSectorPriceRange(r,btn){
-  _sectorPriceRange=r;
+  _sectorPriceRange=r;_spZoom={start:0,end:1};
   if(btn&&btn.parentNode){
     btn.parentNode.querySelectorAll('.pp-range-btn').forEach(function(b){b.classList.remove('active');});
     btn.classList.add('active');
@@ -3294,7 +3390,7 @@ function setSectorPriceRange(r,btn){
 }
 function aggsChanged(){
   var boxes=document.querySelectorAll('#agg-grid input[type="checkbox"]');
-  _selectedAggs={};
+  _selectedAggs={};_spZoom={start:0,end:1};
   boxes.forEach(function(cb){if(cb.checked)_selectedAggs[cb.value]=true;});
   _priceChartDraw();
 }
@@ -3414,6 +3510,14 @@ function _priceChartDraw(){
   _sectorPriceState={range:_sectorPriceRange,n:dates.length,k:aggs.length};
 }
 function _renderPolylineSVG(el,dates,aggs){
+  /* Apply zoom window over the sector aggregates. */
+  if(_spZoom&&(_spZoom.start>0||_spZoom.end<1)&&dates.length>=2){
+    var i0=Math.max(0,Math.floor(dates.length*_spZoom.start));
+    var i1=Math.min(dates.length,Math.ceil(dates.length*_spZoom.end));
+    if(i1-i0<2)i0=Math.max(0,i1-2);
+    dates=dates.slice(i0,i1);
+    aggs=aggs.map(function(a){var b={};for(var k in a)b[k]=a[k];b.vals=a.vals.slice(i0,i1);return b;});
+  }
   var VW=900,VH=280,PL=52,PR=14,PT=14,PB=34;
   var iW=VW-PL-PR,iH=VH-PT-PB;
   var allVals=[];
@@ -3455,7 +3559,8 @@ function _renderPolylineSVG(el,dates,aggs){
   aggs.forEach(function(a,si){
     hoverOverlay+='<circle id="agg-dot'+si+'" cx="0" cy="0" r="4" fill="#fff" stroke="'+a.color+'" stroke-width="2" opacity="0" pointer-events="none"/>';
   });
-  var svg='<svg id="agg-svg" viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:360px;cursor:crosshair;-webkit-user-select:none;user-select:none" onmousemove="aggChartMove(event)" onmouseleave="aggChartLeave()">'+grid+lines+hoverOverlay+'</svg>';
+  var _spCur=(_spZoom.start>0||_spZoom.end<1)?'grab':'crosshair';
+  var svg='<svg id="agg-svg" viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:360px;cursor:'+_spCur+';-webkit-user-select:none;user-select:none" onmousemove="aggChartMove(event)" onmouseleave="aggChartLeave()" onwheel="aggChartWheel(event)" onmousedown="aggChartDown(event)" ondblclick="aggChartResetZoom()">'+grid+lines+hoverOverlay+'</svg>';
   function _ret(end){var c=end-100;return (c>=0?'+':'')+c.toFixed(1)+'%';}
   function _retCol(end){return end>=100?'#2e7d48':'#c0392b';}
   var aggsForLegend=aggs.slice().sort(function(a,b){return b.vals[b.vals.length-1]-a.vals[a.vals.length-1];});
@@ -3497,7 +3602,7 @@ function _buildAggSummaryTip(aggs){
   return _esc(topL)+' leads ('+_ret(topV+100)+'); '+_esc(botL)+' trails ('+_ret(botV+100)+').';
 }
 function aggChartMove(e){
-  var s=_aggHoverState;if(!s)return;
+  var s=_aggHoverState;if(!s||_spDrag)return;
   var svg=document.getElementById('agg-svg');if(!svg)return;
   var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
   var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
@@ -3535,6 +3640,50 @@ function aggChartLeave(){
   var tipEl=document.getElementById('sector-price-tip');
   if(tipEl&&s)tipEl.innerHTML=s.summaryHtml||'';
 }
+/* === Sector Analysis price chart zoom === */
+function aggChartWheel(e){
+  if(!_aggHoverState)return;
+  if(e.cancelable)e.preventDefault();
+  var svg=document.getElementById('agg-svg');if(!svg)return;
+  var s=_aggHoverState;
+  var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
+  var cursorFrac=Math.max(0,Math.min(1,(sp.x-s.PL)/s.iW));
+  var nz=_zCalcWheel(_spZoom,cursorFrac,e.deltaY);
+  if(nz.start===_spZoom.start&&nz.end===_spZoom.end)return;
+  _spZoom=nz;_priceChartDraw();
+}
+function aggChartDown(e){
+  if(!_aggHoverState)return;
+  if(_spZoom.start<=0&&_spZoom.end>=1)return;
+  if(e.button!=null&&e.button!==0)return;
+  e.preventDefault();
+  _spDrag={x:e.clientX,startZoom:{start:_spZoom.start,end:_spZoom.end}};
+  var svg=document.getElementById('agg-svg');if(svg)svg.style.cursor='grabbing';
+  document.addEventListener('mousemove',_aggDragMove,true);
+  document.addEventListener('mouseup',_aggDragUp,true);
+}
+function _aggDragMove(e){
+  if(!_spDrag||!_aggHoverState)return;
+  var s=_aggHoverState;
+  var svg=document.getElementById('agg-svg');if(!svg)return;
+  var rect=svg.getBoundingClientRect();
+  var pxPerSvg=rect.width/s.VW;
+  var deltaSvgX=(e.clientX-_spDrag.x)/pxPerSvg;
+  var fracShift=-deltaSvgX/s.iW*(_spDrag.startZoom.end-_spDrag.startZoom.start);
+  var nz=_zCalcPan(_spZoom,_spDrag.startZoom,fracShift);
+  if(nz.start===_spZoom.start&&nz.end===_spZoom.end)return;
+  _spZoom=nz;_priceChartDraw();
+}
+function _aggDragUp(){
+  document.removeEventListener('mousemove',_aggDragMove,true);
+  document.removeEventListener('mouseup',_aggDragUp,true);
+  _spDrag=null;
+  var svg=document.getElementById('agg-svg');if(svg){svg.style.cursor=(_spZoom.start>0||_spZoom.end<1)?'grab':'crosshair';}
+}
+function aggChartResetZoom(){if(_spZoom.start===0&&_spZoom.end===1)return;_spZoom={start:0,end:1};_priceChartDraw();}
+function aggChartZoomIn(){if(!_aggHoverState)return;_spZoom=_zCalcCenter(_spZoom,0.7);_priceChartDraw();}
+function aggChartZoomOut(){if(!_aggHoverState)return;_spZoom=_zCalcCenter(_spZoom,1.4);_priceChartDraw();}
 
 
 /* Computes per-sector liquidity aggregates from DATA once and caches the
