@@ -2702,7 +2702,7 @@ function openDet(tk){
       if(!gates.length)return;
       var _catScore=d[c.scoreKey];
       var _catScoreTxt=_catScore!=null?Math.round(_catScore)+'%':'—';
-      _gvHtml+='<div class="gv-col"><div class="gv-cat" style="background:'+c.dark+'">'+c.name+' '+_catScoreTxt+'</div><div class="gv-items">';
+      _gvHtml+='<div class="gv-col"><div class="gv-cat" style="background:'+c.dark+'">'+c.name+' - '+_catScoreTxt+'</div><div class="gv-items">';
       gates.forEach(function(g){
         var raw=d[g.key];
         var pass=d[g.gpKey];
