@@ -15,6 +15,7 @@ from models.quality import (calculate_piotroski_f, calculate_altman_z,
                             calculate_net_debt_ebitda, get_net_debt,
                             calculate_revenue_cagr, calculate_beneish_m)
 from models.market import compute_analyst_consensus
+from models.nav import tangible_book_value_per_share
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +115,52 @@ class TestAltmanZ:
     def test_none_with_missing(self):
         z = calculate_altman_z({})
         assert z is None
+
+
+# ---------------------------------------------------------------------------
+# tangible_book_value_per_share
+# ---------------------------------------------------------------------------
+
+class TestTangibleBookValuePerShare:
+    def test_happy_path_no_intangibles(self, sample_financials):
+        """With no goodwill/intangibles in the fixture, TBV == BV (equity/shares)."""
+        tbv = tangible_book_value_per_share(sample_financials)
+        assert tbv is not None
+        # 30B equity / 666.7M shares ≈ $45 — same as info.bookValue
+        assert 40 < tbv < 50
+
+    def test_strips_goodwill_and_intangibles(self, sample_info, sample_balance_sheet):
+        """Adding goodwill + intangibles drops TBV below plain book value."""
+        latest_col = sample_balance_sheet.columns[0]
+        sample_balance_sheet.loc['Goodwill', latest_col] = 5e9
+        sample_balance_sheet.loc['Other Intangible Assets', latest_col] = 3e9
+        financials = {'balance_sheet': sample_balance_sheet, 'info': sample_info}
+        tbv = tangible_book_value_per_share(financials)
+        assert tbv is not None
+        # (30B - 5B - 3B) / 666.7M ≈ $33
+        assert 30 < tbv < 36
+
+    def test_missing_goodwill_treated_as_zero(self, sample_info, sample_balance_sheet):
+        """Goodwill absent (no key in BS) is treated as 0, not None."""
+        # sample_balance_sheet has neither goodwill nor intangibles by default
+        financials = {'balance_sheet': sample_balance_sheet, 'info': sample_info}
+        tbv = tangible_book_value_per_share(financials)
+        assert tbv is not None  # didn't refuse just because goodwill was missing
+
+    def test_none_with_empty_dict(self):
+        assert tangible_book_value_per_share({}) is None
+
+    def test_none_with_zero_shares(self, sample_balance_sheet):
+        info = {'sharesOutstanding': 0}
+        financials = {'balance_sheet': sample_balance_sheet, 'info': info}
+        assert tangible_book_value_per_share(financials) is None
+
+    def test_none_with_negative_equity(self, sample_info, sample_balance_sheet):
+        """Negative tangible equity (insolvent on a tangible basis) returns None."""
+        latest_col = sample_balance_sheet.columns[0]
+        sample_balance_sheet.loc['Goodwill', latest_col] = 50e9  # exceeds equity
+        financials = {'balance_sheet': sample_balance_sheet, 'info': sample_info}
+        assert tangible_book_value_per_share(financials) is None
 
 
 # ---------------------------------------------------------------------------

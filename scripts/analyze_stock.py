@@ -39,6 +39,7 @@ from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm,
                          ddm_h_model, monte_carlo_ddm)
 from models.epv import earnings_power_value, epv_with_growth_premium
 from models.rim import residual_income_model
+from models.nav import tangible_book_value_per_share
 from models.portfolio import position_sizes, concentration_analysis
 from models.utils import rank
 from scripts.report_excel import build_excel
@@ -1884,6 +1885,16 @@ def _main():
             rim_fv = residual_income_model(
                 _book_value, ratios.get('ROE'), cost_of_equity)
 
+            # NAV (Tangible Book Value per share) — universal asset-floor
+            # sanity check that strips goodwill and intangibles out of equity.
+            tangible_book_per_share = tangible_book_value_per_share(yf_data)
+            nav_fv = tangible_book_per_share if (
+                tangible_book_per_share and tangible_book_per_share > 0) else None
+            nav_mos = ((nav_fv - current_price) / nav_fv
+                if (nav_fv and current_price and nav_fv > 0) else None)
+            p_tbv = (current_price / nav_fv
+                if (nav_fv and current_price and nav_fv > 0) else None)
+
             # Reverse DCF (solve for implied growth)
             rev_dcf = None
             if dcf_fv and current_price and current_price > 0 and fcf and shares:
@@ -2153,6 +2164,11 @@ def _main():
                 'rim_fv': rim_fv,
                 'rim_mos': ((rim_fv - current_price) / rim_fv
                     if (rim_fv and current_price and rim_fv > 0) else None),
+                # NAV (Tangible Book Value)
+                'tangible_book_per_share': tangible_book_per_share,
+                'nav_fv': nav_fv,
+                'nav_mos': nav_mos,
+                'p_tbv': p_tbv,
                 # Altman Z-Score
                 'altman_z': altman_z,
                 'altman_z_zone': altman_z_zone,

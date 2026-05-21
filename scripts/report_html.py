@@ -150,6 +150,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'fcf_growth': r.get('fcf_growth'),
         'pfcf': r.get('pfcf'),
         'pb': r.get('pb'),
+        'tangible_book_per_share': r.get('tangible_book_per_share'),
+        'nav_fv': r.get('nav_fv'),
+        'nav_mos': r.get('nav_mos'),
+        'p_tbv': r.get('p_tbv'),
         'num_analysts': r.get('num_analysts'),
         'target_mean': r.get('target_mean'),
         'target_high': r.get('target_high'),
@@ -231,7 +235,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         '_gate_cash_conv': r.get('_gate_cash_conv'),
         '_gate_rev_durability': r.get('_gate_rev_durability'),
         '_gate_sbc_dilution': r.get('_gate_sbc_dilution'),
-        '_gate_price_book': r.get('_gate_price_book'),
+        '_gate_p_tbv': r.get('_gate_p_tbv'),
         '_gate_fcf_margin': r.get('_gate_fcf_margin'),
         # Gate pass/fail booleans
         '_gp_mos': r.get('_gp_mos'),
@@ -256,7 +260,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         '_gp_cash_conv': r.get('_gp_cash_conv'),
         '_gp_rev_durability': r.get('_gp_rev_durability'),
         '_gp_sbc_dilution': r.get('_gp_sbc_dilution'),
-        '_gp_price_book': r.get('_gp_price_book'),
+        '_gp_p_tbv': r.get('_gp_p_tbv'),
         '_gp_fcf_margin': r.get('_gp_fcf_margin'),
         # Continuous scores (0-100)
         '_score_mos': r.get('_score_mos'),
@@ -281,7 +285,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         '_score_cash_conv': r.get('_score_cash_conv'),
         '_score_rev_durability': r.get('_score_rev_durability'),
         '_score_sbc_dilution': r.get('_score_sbc_dilution'),
-        '_score_price_book': r.get('_score_price_book'),
+        '_score_p_tbv': r.get('_score_p_tbv'),
         '_score_fcf_margin': r.get('_score_fcf_margin'),
         # Category totals + composite
         '_score_valuation': r.get('_score_valuation'),

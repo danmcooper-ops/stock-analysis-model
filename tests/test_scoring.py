@@ -361,37 +361,37 @@ class TestScreeningGateEdgeCases:
         assert rows[0]['_gp_price_fv'] is False
         assert rows[0]['_gate_price_fv'] == pytest.approx(1.5)
 
-    def test_price_book_gate_fails_when_pb_negative(self):
-        """Negative book value (e.g. heavy buybacks) must not pass the P/B gate.
-
-        Previously v <= 5.0 returned True for any negative v.
+    def test_p_tbv_gate_fails_when_negative(self):
+        """Negative tangible book (insolvent on a tangible basis) must not pass
+        the P/TBV gate. P/TBV would invert to a misleading "cheap" signal.
         """
-        rows = [self._row(pb=-1.5)]
+        rows = [self._row(p_tbv=-1.5)]
         apply_screening_matrix(rows)
-        assert rows[0]['_gp_price_book'] is False
-        assert rows[0]['_gate_price_book'] == pytest.approx(-1.5)
+        assert rows[0]['_gp_p_tbv'] is False
+        assert rows[0]['_gate_p_tbv'] == pytest.approx(-1.5)
 
-    def test_price_book_gate_passes_when_pb_in_range(self):
-        rows = [self._row(pb=2.5)]
+    def test_p_tbv_gate_passes_when_in_range(self):
+        rows = [self._row(p_tbv=1.5)]
         apply_screening_matrix(rows)
-        assert rows[0]['_gp_price_book'] is True
+        assert rows[0]['_gp_p_tbv'] is True
 
-    def test_price_book_gate_fails_when_pb_above_threshold(self):
-        rows = [self._row(pb=8.0)]
+    def test_p_tbv_gate_fails_when_above_threshold(self):
+        rows = [self._row(p_tbv=4.0)]
         apply_screening_matrix(rows)
-        assert rows[0]['_gp_price_book'] is False
+        assert rows[0]['_gp_p_tbv'] is False
 
-    def test_negative_pb_does_not_clamp_continuous_score_to_100(self):
-        """Negative P/B previously hit _score_linear(-3, 15, 0.5) → clamp 100.
+    def test_negative_p_tbv_does_not_clamp_continuous_score_to_100(self):
+        """Negative P/TBV previously hit _score_linear(-3, 5.0, 1.0) → clamp 100.
 
-        Now the score function rejects v <= 0 and returns None, which the
+        The score function rejects v <= 0 and returns None, which the
         aggregator treats as a worst-case 0 (consistent with other missing
-        gates), so a negative-book company can no longer outscore a healthy one.
+        gates), so a negative-tangible-book company can no longer outscore a
+        healthy one.
         """
-        rows = [self._row(pb=-3.0), self._row(pb=2.0, ticker='OK')]
+        rows = [self._row(p_tbv=-3.0), self._row(p_tbv=1.5, ticker='OK')]
         compute_continuous_scores(rows)
-        assert rows[0]['_score_price_book'] == 0.0
-        assert rows[1]['_score_price_book'] > rows[0]['_score_price_book']
+        assert rows[0]['_score_p_tbv'] == 0.0
+        assert rows[1]['_score_p_tbv'] > rows[0]['_score_p_tbv']
 
     def test_spread_gate_threshold_is_seven_percent(self):
         """Pin the actual threshold so the display label/tooltip stay aligned."""
