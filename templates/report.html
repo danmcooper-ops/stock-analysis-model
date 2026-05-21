@@ -3183,6 +3183,12 @@ function _setTableH(){
     var h=Math.max(240,window.innerHeight-rect.top-2);
     wrap.style.maxHeight=h+'px';
   });
+  /* The matrix virtualization sizes its visible window from scrollEl.clientHeight.
+     On first paint that's read before max-height has been applied (tbody is empty,
+     so the wrap only contains the just-populated thead and clientHeight is ~80px,
+     yielding ~12 rows). Re-run the window calc now that the wrap has the real
+     viewport-based max-height. Also fixes the matrix on window resize. */
+  if(typeof _renderMtxWindow==='function'&&_mtxData)_renderMtxWindow();
 }
 window.addEventListener('resize',_setTableH);
 function showView(v){
