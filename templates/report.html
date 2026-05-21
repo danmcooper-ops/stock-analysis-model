@@ -940,7 +940,7 @@ td.ct{font-weight:700;}
     <div class="filter-divider"></div>
     <div class="fpop-wrap" id="qfpop-wrap">
       <button class="fpop-btn" id="qfpop-btn" onclick="toggleQuickFiltersPopup(event)">
-        <span>Quick Filters</span><span class="fpop-badge" id="qfpop-badge" style="display:none">0</span>
+        <span>Quick Filters</span>
       </button>
       <div class="fpop-panel" id="qfpop-panel">
         <div class="fpop-header">
@@ -1089,7 +1089,7 @@ function toggleFlagDet(){var tk=document.getElementById('d-tk').textContent;if(!
 function toggleFlagFilter(){_flagOnly=!_flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);applyFilters();}
 var _founderOnly=false;
 function toggleFounderFilter(){_founderOnly=!_founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);applyFilters();}
-function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.getElementById('flag-count-label');if(el)el.textContent=n>0?' ('+n+')':'';var qBadge=document.getElementById('qfpop-badge');if(qBadge){if(n>0){qBadge.textContent=n;qBadge.style.display='inline-flex';}else{qBadge.style.display='none';}}}
+function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.getElementById('flag-count-label');if(el)el.textContent=n>0?' ('+n+')':'';}
 function _starHtml(tk){return '<span class="flag-star'+(isFlagged(tk)?' flagged':'')+'" onclick="toggleFlag(\''+tk.replace(/'/g,"\\'")+'\',event)" title="Flag">'+(isFlagged(tk)?'\u2691':'\u2690')+'</span>';}
 _updateFlagCount();
 
