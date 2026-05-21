@@ -1082,7 +1082,7 @@ function toggleFlagDet(){var tk=document.getElementById('d-tk').textContent;if(!
 function toggleFlagFilter(){_flagOnly=!_flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);applyFilters();}
 var _founderOnly=false;
 function toggleFounderFilter(){_founderOnly=!_founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);applyFilters();}
-function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.getElementById('flag-count-label');el.textContent=n>0?' ('+n+')':'';}
+function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.getElementById('flag-count-label');if(el)el.textContent=n>0?' ('+n+')':'';var qBadge=document.getElementById('qfpop-badge');if(qBadge){if(n>0){qBadge.textContent=n;qBadge.style.display='inline-flex';}else{qBadge.style.display='none';}}}
 function _starHtml(tk){return '<span class="flag-star'+(isFlagged(tk)?' flagged':'')+'" onclick="toggleFlag(\''+tk.replace(/'/g,"\\'")+'\',event)" title="Flag">'+(isFlagged(tk)?'\u2691':'\u2690')+'</span>';}
 _updateFlagCount();
 
@@ -1482,16 +1482,14 @@ function applyFilters(){
   var btn=document.getElementById('fpop-btn');
   if(colFilters.length>0){badge.textContent=colFilters.length;badge.style.display='inline-flex';btn.classList.add('active');}
   else{badge.style.display='none';btn.classList.remove('active');}
-  // Quick Filters popup badge: flagged + founder + reviewed toggles.
+  // Quick Filters popup: button "active" state reflects whether any toggle is on.
+  // The numeric badge is owned by _updateFlagCount() and shows the flagged-stock count.
   /* 3-state Reviewed-filter: state 0 (gray Reviewed) means show all and
      does not count. States 1 (Unreviewed) and 2 (Reviewed) are active filters. */
-  var qCount=(_flagOnly?1:0)+(_founderOnly?1:0)+(_revFilter?1:0);
-  var qBadge=document.getElementById('qfpop-badge');
+  var qActive=_flagOnly||_founderOnly||(_revFilter>0);
   var qBtn=document.getElementById('qfpop-btn');
-  if(qBadge&&qBtn){
-    if(qCount>0){qBadge.textContent=qCount;qBadge.style.display='inline-flex';qBtn.classList.add('active');}
-    else{qBadge.style.display='none';qBtn.classList.remove('active');}
-  }
+  if(qBtn){qBtn.classList.toggle('active',qActive);}
+  _updateFlagCount();
   renderCur();
 }
 function clearColFilters(){
