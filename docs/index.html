@@ -1754,6 +1754,12 @@ function _renderMtxWindow(){
   if(viewportH<=0)viewportH=600;
   var first=Math.max(0,Math.floor(scrollTop/rowH)-_mtxBuffer);
   var last=Math.min(n,Math.ceil((scrollTop+viewportH)/rowH)+_mtxBuffer);
+  /* Always render at least 40 rows so the first paint isn't anemic when the
+     wrap hasn't been sized yet (clientHeight on first applyFilters() is just
+     the thead, ~80px, which would otherwise yield ~12 rows and look like the
+     matrix is filtered down). The follow-up _renderMtxWindow() call from
+     _setTableH still tightens this once layout settles. */
+  if(last-first<40)last=Math.min(n,first+40);
   var topPad=first*rowH;
   var botPad=(n-last)*rowH;
   var html='';
