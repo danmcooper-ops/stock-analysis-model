@@ -202,7 +202,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .matrix-table{width:100%;border-collapse:collapse;background:white;font-size:0.78em;white-space:nowrap;}
 .matrix-table th{padding:6px 8px;text-align:center;font-size:0.82em;border:1px solid #ccc;cursor:pointer;user-select:none;}
 .matrix-table th.cat-header{color:white;font-weight:700;font-size:0.85em;}
-.matrix-table th.col-header{font-weight:600;font-size:0.75em;}
+.matrix-table th.col-header{font-weight:600;font-size:0.75em;min-width:65px;}
 .matrix-table th.fixed-header{background:#1a252f;color:white;}
 .matrix-table td{padding:5px 7px;text-align:center;border:1px solid #e8e8e8;font-size:0.82em;}
 .matrix-table td.tk{text-align:left;font-weight:700;color:#1a252f;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.3);}
@@ -229,9 +229,9 @@ td.ct{font-weight:700;}
    its declared width, which created a 5px overlap with the ticker column and
    a 1px gap between the flag and reviewed columns where scrolled data showed
    through the headers). */
-.dt th:nth-child(1),.dt td:nth-child(1),.matrix-table th:nth-child(1),.matrix-table td:nth-child(1){width:40px;min-width:40px;max-width:40px;}
-.dt th:nth-child(2),.dt td:nth-child(2),.matrix-table th:nth-child(2),.matrix-table td:nth-child(2){width:28px;min-width:28px;max-width:28px;}
-.dt th:nth-child(3),.dt td:nth-child(3),.matrix-table th:nth-child(3),.matrix-table td:nth-child(3){width:32px;min-width:32px;max-width:32px;}
+.dt th:nth-child(1),.dt td:nth-child(1),.matrix-table thead tr:first-child th:nth-child(1),.matrix-table tbody td:nth-child(1){width:40px;min-width:40px;max-width:40px;}
+.dt th:nth-child(2),.dt td:nth-child(2),.matrix-table thead tr:first-child th:nth-child(2),.matrix-table tbody td:nth-child(2){width:28px;min-width:28px;max-width:28px;}
+.dt th:nth-child(3),.dt td:nth-child(3),.matrix-table thead tr:first-child th:nth-child(3),.matrix-table tbody td:nth-child(3){width:32px;min-width:32px;max-width:32px;}
 /* Freeze left 4 cols in DT header (# · flag · reviewed · ticker) */
 .dt th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:12;background:#1a252f;}
 .dt th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:12;background:#1a252f;}
@@ -1067,6 +1067,9 @@ function toggleTheme(){var cur=document.documentElement.getAttribute('data-theme
 /* === DATA === */
 var DATA={{ chart_data }};
 var GM={{ gate_meta }};
+/* Shorten the Price/FV label everywhere it renders (matrix header, detail view) so
+   the column matches the visual width of its peers. */
+if(GM&&GM.gates){for(var _gi=0;_gi<GM.gates.length;_gi++){if(GM.gates[_gi].label==='Price/FV')GM.gates[_gi].label='P/FV';}}
 var SECTOR_POOL={{ sector_pool_json }};
 /* PRICES and HIST live in sidecar JSONs (prices.json, hist.json) so the HTML
    stays under GitHub Pages' 100 MB cap. They lazy-load on first chart open. */
