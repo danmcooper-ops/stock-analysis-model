@@ -10,6 +10,8 @@ property cap-rate uplift, financials mark-to-market investment portfolio,
 holding-company NAV from listed investee market values) are deferred and
 will layer on top of this baseline in a future revision.
 """
+import warnings as _py_warnings
+
 from models.field_keys import (
     _get,
     EQUITY_KEYS,
@@ -30,10 +32,14 @@ def tangible_book_value_per_share(financials):
     float
         TBV per share when equity and shares are both present and positive.
     None
-        When equity, shares, or the balance sheet itself are missing.
-        Goodwill / intangibles absent are treated as 0 (some firms legitimately
-        carry none); the function only refuses to compute when the required
-        inputs (equity, shares) are unavailable.
+        When equity, shares, or the balance sheet itself are missing, or
+        when tangible equity is non-positive. Goodwill / intangibles
+        absent are treated as 0 (some firms legitimately carry none).
+
+    Emits a warning when goodwill + intangibles exceed 50% of equity —
+    in that regime TBV strips most of book value and the asset-floor
+    reading is materially below BV, so callers should weight it as a
+    floor only, not a fair-value estimate.
     """
     bs = financials.get('balance_sheet')
     info = financials.get('info') or {}
@@ -69,5 +75,15 @@ def tangible_book_value_per_share(financials):
     shares = info.get('sharesOutstanding')
     if not shares or shares <= 0:
         return None
+
+    # Heads-up when intangibles dominate equity — caller may want to treat
+    # TBV strictly as a floor and lean on other valuation methods.
+    intangible_pct = (float(goodwill) + float(intangibles)) / float(equity)
+    if intangible_pct > 0.5:
+        _py_warnings.warn(
+            f'Goodwill + intangibles are {intangible_pct:.0%} of equity — '
+            'TBV strips most of book; treat as floor only, not fair value',
+            RuntimeWarning,
+        )
 
     return tangible_equity / float(shares)

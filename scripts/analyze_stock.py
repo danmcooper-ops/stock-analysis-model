@@ -318,7 +318,12 @@ def _load_local_prices(ticker, prices_dir):
 
 
 def _compute_rolling_beta(stock_close, market_close, window_years):
-    """Compute beta and R² over a trailing window of *window_years* years."""
+    """Compute beta and R² over a trailing window of *window_years* years.
+
+    Returns None on degenerate inputs (too few overlapping observations,
+    flat market, NaN-laden series) — calculate_beta now raises ValueError
+    on those instead of returning garbage, so we catch and degrade.
+    """
     window_days = int(window_years * 252)
     s = stock_close.tail(window_days)
     m = market_close.reindex(s.index, method='nearest').reindex(s.index)
@@ -328,7 +333,10 @@ def _compute_rolling_beta(stock_close, market_close, window_years):
     stock_ret  = combined['s'].pct_change().dropna().values
     market_ret = combined['m'].pct_change().dropna().values
     n = min(len(stock_ret), len(market_ret))
-    return calculate_beta(stock_ret[:n], market_ret[:n])
+    try:
+        return calculate_beta(stock_ret[:n], market_ret[:n])
+    except ValueError:
+        return None
 
 
 def _realized_vol(close_series, window_days=252):
@@ -1474,7 +1482,8 @@ def _main():
             cost_of_equity, re_method, beta_diag = select_cost_of_equity(
                 yf_data, risk_free_rate, yf_client, ticker, erp=effective_erp,
                 tiingo_client=tiingo_client)
-            wacc = calculate_wacc(yf_data, cost_of_equity)
+            wacc = calculate_wacc(yf_data, cost_of_equity,
+                                  risk_free_rate=risk_free_rate)
             if wacc is not None:
                 s_cfg = _get_sector_config(sector)
                 wacc = max(s_cfg['wacc_floor'], min(s_cfg['wacc_cap'], wacc))
