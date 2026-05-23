@@ -657,12 +657,11 @@ td.ct{font-weight:700;}
    (OVERWEIGHT / STOCK-PICK ONLY / NEUTRAL / AVOID) — the verdict is
    explicit, the prose carries the why, and the BUY-rating pills
    surface a concrete entry point. */
-/* Two-column grid on desktop, single column on narrow viewports. Each
-   verdict cell sits flush at the top of its row (align-items:start) so
-   the lone-sector OVERWEIGHT bucket doesn't stretch to match a
-   sector-heavy neighbour. */
-.xs-verdicts{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;}
-@media(max-width:880px){.xs-verdicts{grid-template-columns:1fr;}}
+/* Single-column rows — each verdict spans the full page width so the
+   expanded narrative reads on one comfortable measure. Chip stays
+   stacked above the narrative within each verdict (set on .xs-verdict-hdr
+   below) so the paragraph isn't squeezed beside the chip. */
+.xs-verdicts{display:flex;flex-direction:column;gap:12px;}
 .xs-verdict{background:#fff;border:1px solid #e2e8f0;border-left-width:5px;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;}
 .xs-verdict-hdr{display:flex;flex-direction:column;gap:7px;margin-bottom:10px;}
 .xs-verdict-chip{display:inline-block;padding:3px 10px;border-radius:11px;font-size:0.7em;font-weight:700;letter-spacing:0.06em;color:#fff;text-transform:uppercase;align-self:flex-start;}
@@ -4311,8 +4310,19 @@ function _buildScatterSVG(W,H){
   if(!allStats||!allStats.length)return'';
   var spL=62,spR=18,spT=30,spB=50;
   var sCW=W-spL-spR,sCH=H-spT-spB;
-  var maxHHI=0.23,maxSM=Math.max(0.40,maxM*1.08);
-  var qxMid=spL+(0.15/maxHHI)*sCW,qyMid=spT+sCH-(0.20/maxSM)*sCH;
+  /* Scale the X-axis (HHI) to the actual data — sectors range widely from
+     fragmented (~0.05 Financial Services) to near-monopoly (~0.94
+     Communication Services). A fixed linear ceiling of 0.23 left high-HHI
+     sectors piled against the right edge. A sqrt scale spreads the data
+     across the full axis: fragmented sectors no longer crush together on
+     the left, and concentrated sectors no longer pile on the right. The
+     quadrant divider still sits at HHI=0.15 (DOJ "concentrated" threshold)
+     and ends up around 38% across — a visually balanced split. */
+  var dataMaxHHI=allStats.reduce(function(a,s){return Math.max(a,s.hhi||0);},0);
+  var maxHHI=Math.max(0.30,Math.min(1.0,dataMaxHHI*1.08));
+  var maxSM=Math.max(0.40,maxM*1.08);
+  function _hhiX(h){return spL+Math.sqrt(Math.max(0,Math.min(h,maxHHI))/maxHHI)*sCW;}
+  var qxMid=_hhiX(0.15),qyMid=spT+sCH-(0.20/maxSM)*sCH;
   var s='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:'+W+'px;height:'+H+'px;overflow:visible">';
   s+='<rect x="'+spL+'" y="'+spT+'" width="'+(qxMid-spL).toFixed(1)+'" height="'+(qyMid-spT).toFixed(1)+'" fill="#e8f5e9" opacity="0.55"/>';
   s+='<rect x="'+qxMid.toFixed(1)+'" y="'+spT+'" width="'+(spL+sCW-qxMid).toFixed(1)+'" height="'+(qyMid-spT).toFixed(1)+'" fill="#f3e5f5" opacity="0.55"/>';
@@ -4333,15 +4343,26 @@ function _buildScatterSVG(W,H){
     s+='<text x="'+(spL-6)+'" y="'+(ty+4).toFixed(1)+'" text-anchor="end" font-size="11" fill="#444">'+(v*100).toFixed(0)+'%</text>';
     if(v>0)s+='<line x1="'+spL+'" y1="'+ty.toFixed(1)+'" x2="'+(spL+sCW)+'" y2="'+ty.toFixed(1)+'" stroke="#ebebeb" stroke-width="1"/>';
   });
-  [0,0.05,0.10,0.15,0.20].forEach(function(v){
-    var tx=spL+(v/maxHHI)*sCW;
+  /* X-axis tick labels (positioned via _hhiX so they're sqrt-scaled).
+     Tick set adapts to maxHHI: tight when most sectors are fragmented,
+     sparser when the universe spans into concentrated territory. The
+     0.15 regulatory threshold is always included so the quadrant divider
+     lines up with a labelled tick. */
+  var hhiTicks=maxHHI<=0.35
+    ?[0,0.05,0.10,0.15,0.20,0.25,0.30]
+    :maxHHI<=0.65
+      ?[0,0.05,0.15,0.30,0.45,0.60]
+      :[0,0.05,0.15,0.30,0.50,0.75,1.00];
+  hhiTicks.forEach(function(v){
+    if(v>maxHHI+1e-9)return;
+    var tx=_hhiX(v);
     s+='<text x="'+tx.toFixed(1)+'" y="'+(spT+sCH+18)+'" text-anchor="middle" font-size="11" fill="#444">'+v.toFixed(2)+'</text>';
   });
   var yCtr=spT+sCH/2;
   s+='<text x="14" y="'+yCtr.toFixed(1)+'" text-anchor="middle" font-size="12" fill="#333" font-weight="600" transform="rotate(-90,14,'+yCtr.toFixed(1)+')">Operating Margin \u2192</text>';
-  s+='<text x="'+(spL+sCW/2)+'" y="'+(H-8)+'" text-anchor="middle" font-size="12" fill="#333" font-weight="600">HHI (Concentration \u2192 more concentrated)</text>';
+  s+='<text x="'+(spL+sCW/2)+'" y="'+(H-8)+'" text-anchor="middle" font-size="12" fill="#333" font-weight="600">HHI (Concentration \u2192 more concentrated) <tspan font-size="10" font-weight="400" fill="#9aaab8">\u00b7 \u221a scale</tspan></text>';
   allStats.forEach(function(st){
-    var cx=spL+Math.min(st.hhi/maxHHI,0.999)*sCW;
+    var cx=_hhiX(st.hhi||0);
     var cy=spT+sCH-Math.min(st.margin/maxSM,0.999)*sCH;
     var col=st.margin>=0.25?'#1a9850':st.margin>=0.15?'#4caf50':st.margin>=0.10?'#ff9800':'#e53935';
     var sE=st.name.replace(/'/g,"\\'");
