@@ -15,6 +15,7 @@ try:
 except Exception:
     generate_sector_profit_pool_narrative = None
 from scripts.scoring import gate_metadata
+from scripts.safe_json import dumps_for_script
 
 
 def _json_default(obj):
@@ -419,10 +420,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         if _heavy:
             details_payload[_tk] = _heavy
 
-    chart_data = json.dumps(chart_records, default=_json_default)
+    chart_data = dumps_for_script(chart_records, default=_json_default)
 
     # Gate metadata for Matrix view rendering in JavaScript
-    gate_meta = json.dumps(gate_meta_obj, default=_json_default)
+    gate_meta = dumps_for_script(gate_meta_obj, default=_json_default)
 
     # Per-sector profit pool narratives (top-level Profit Pool tab)
     sector_pool_data = {}
@@ -440,7 +441,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
                     sector_pool_data[s] = narr
             except Exception as e:
                 print(f"[warn] sector pool narrative failed for {s}: {e}")
-    sector_pool_json = json.dumps(sector_pool_data, default=_json_default)
+    sector_pool_json = dumps_for_script(sector_pool_data, default=_json_default)
 
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
     # template lazy-fetches them on first chart open, so the embedded HTML
