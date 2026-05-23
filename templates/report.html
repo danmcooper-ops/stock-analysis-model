@@ -345,6 +345,7 @@ td.ct{font-weight:700;}
 .dh .dtk{font-size:1.55em;font-weight:900;color:#fff;letter-spacing:-0.5px;text-shadow:0 2px 12px rgba(0,0,0,0.4);}
 .drt{font-size:0.9em;font-weight:700;padding:4px 14px;border-radius:18px;color:white;box-shadow:0 1px 4px rgba(0,0,0,0.18);letter-spacing:0.03em;}
 .dcs{font-size:0.92em;font-weight:800;padding:4px 12px;border-radius:18px;color:white;box-shadow:0 1px 4px rgba(0,0,0,0.18);}
+.dpx{font-size:0.92em;font-weight:800;padding:4px 12px;border-radius:18px;color:#fff;background:var(--accent);box-shadow:0 1px 4px rgba(0,0,0,0.18);letter-spacing:0.02em;font-variant-numeric:tabular-nums;}
 .dcname{font-size:0.85em;color:rgba(255,255,255,0.85);font-weight:500;margin-top:3px;letter-spacing:0.01em;}
 .dmeta{font-size:0.72em;color:rgba(255,255,255,0.6);margin-top:2px;letter-spacing:0.01em;}
 .d-kmetrics{display:flex;flex-wrap:nowrap;align-items:stretch;background:linear-gradient(90deg,#0d1f42,#1f4fa0);border-radius:10px;padding:0;gap:0;overflow:hidden;box-shadow:0 3px 12px rgba(13,31,66,0.22);}
@@ -1088,7 +1089,7 @@ td.ct{font-weight:700;}
     <div class="d-header-band">
       <button class="detail-fullscreen" onclick="toggleDetFullscreen()" title="Toggle full screen (f)" aria-label="Toggle full screen"><svg class="ic-grow" viewBox="0 0 24 24"><path fill="currentColor" d="M21 11V3h-8l3.29 3.29-10 10L3 13v8h8l-3.29-3.29 10-10L21 11z"/></svg><svg class="ic-shrink" viewBox="0 0 24 24"><path fill="currentColor" d="M22 3.41 20.59 2 15 7.59V4h-2v7h7V9h-3.59L22 3.41zM2 20.59 3.41 22 9 16.41V20h2v-7H4v2h3.59L2 20.59z"/></svg></button>
       <button class="detail-close" onclick="closeDetail()">&times;</button>
-      <div class="d-rating-row"><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span></div>
+      <div class="d-rating-row"><div class="dpx" id="d-px"></div><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span></div>
       <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
@@ -2886,6 +2887,7 @@ function openDet(tk){
   var _cn=document.getElementById('d-cname');if(_cn)_cn.textContent=d.company_name||'';
   _syncFlagDet();
   _syncRevDet();
+  var pxEl=document.getElementById('d-px');if(pxEl)pxEl.textContent=d.price!=null?'$'+(d.price<1?d.price.toFixed(4):d.price.toFixed(2)):'N/A';
   var rEl=document.getElementById('d-rt');rEl.textContent=d.rating||'N/A';rEl.style.background=RC[d.rating]||'#888';
   var cEl=document.getElementById('d-cs');var cs=d._composite_score;cEl.textContent=cs!=null?Math.round(cs)+'%':'N/A';cEl.style.background=cc(cs);
   var gpEl=document.getElementById('d-gp');if(gpEl)gpEl.textContent=d._gates_passed!=null?d._gates_passed:'';
