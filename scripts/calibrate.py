@@ -554,8 +554,16 @@ def _cohens_d(group_a, group_b):
 def optimize_weights(results_json_path, output_path=None):
     """Grid search over category weight combinations to maximize Cohen's d.
 
-    Loads a results JSON, generates all 4-weight combos that sum to 1.0,
-    re-scores each combo, and computes Cohen's d between quality/poor groups.
+    Loads a results JSON, generates all weight combos over Valuation /
+    Quality / Moat / Growth that — together with Ownership held at its
+    config default — sum to 1.0, then re-scores each combo and computes
+    Cohen's d between the quality/poor groups.
+
+    This matches the 5-category scheme used by ``score_and_rate`` and the
+    walk-forward calibrator: every category contributes its full weight,
+    Ownership is treated as fixed (it has its own small set of gates that
+    tuning over here can't meaningfully separate), and Growth absorbs the
+    residual when V+Q+M are pinned.
 
     Args:
         results_json_path: Path to results_YYYY-MM-DD.json.
@@ -578,20 +586,27 @@ def optimize_weights(results_json_path, output_path=None):
         print(f"Insufficient labelled data: {len(quality)} quality, {len(poor)} poor")
         return None
 
-    # Generate weight grid: all combos of 4 weights from step=0.05 that sum to 1.0
+    # Hold Ownership at its config default; let Growth absorb the residual.
+    # This mirrors `_apply_derived_params` in the walk-forward path so a
+    # weight combo discovered here can be dropped straight into config.py.
+    defs = default_params()
+    w_own = defs['score_weight_ownership']
+
+    # Generate weight grid over V/Q/M; Growth = 1 - V - Q - M - Own.
     steps = [round(v, 2) for v in np.arange(0.10, 0.40, 0.05)]
     grid = []
     for wv in steps:
         for wq in steps:
             for wm in steps:
-                wg = round(1.0 - wv - wq - wm, 2)
+                wg = round(1.0 - wv - wq - wm - w_own, 2)
                 if 0.05 <= wg <= 0.40:
                     grid.append((wv, wq, wm, wg))
 
     print(f"Optimizing weights: {len(grid)} combos, "
-          f"{len(quality)} quality, {len(poor)} poor stocks")
+          f"{len(quality)} quality, {len(poor)} poor stocks "
+          f"(Ownership held at {w_own:.0%})")
 
-    # Compute baseline Cohen's d
+    # Compute baseline Cohen's d with the live config defaults
     baseline_results = copy.deepcopy(all_results)
     score_and_rate(baseline_results)
     q_baseline = [r['_composite_score'] for r in baseline_results
@@ -600,7 +615,11 @@ def optimize_weights(results_json_path, output_path=None):
                   if r.get('source_group') == 'poor' and r.get('_composite_score') is not None]
     baseline_d = _cohens_d(q_baseline, p_baseline)
     print(f"Baseline Cohen's d: {baseline_d:.3f} "
-          f"(weights: 0.30/0.25/0.25/0.20)")
+          f"(weights: V={defs['score_weight_valuation']:.0%} "
+          f"Q={defs['score_weight_quality']:.0%} "
+          f"M={defs['score_weight_moat']:.0%} "
+          f"G={defs['score_weight_growth']:.0%} "
+          f"Own={defs['score_weight_ownership']:.0%})")
 
     results_list = []
     for wv, wq, wm, wg in grid:
@@ -610,6 +629,7 @@ def optimize_weights(results_json_path, output_path=None):
             'score_weight_quality': wq,
             'score_weight_moat': wm,
             'score_weight_growth': wg,
+            'score_weight_ownership': w_own,
         }
         score_and_rate(trial, params=params)
 
@@ -622,7 +642,8 @@ def optimize_weights(results_json_path, output_path=None):
         p_mean = sum(p_scores) / len(p_scores) if p_scores else 0
 
         results_list.append({
-            'weights': {'valuation': wv, 'quality': wq, 'moat': wm, 'growth': wg},
+            'weights': {'valuation': wv, 'quality': wq, 'moat': wm,
+                        'growth': wg, 'ownership': w_own},
             'cohens_d': round(d, 4),
             'quality_mean': round(q_mean, 1),
             'poor_mean': round(p_mean, 1),
@@ -634,7 +655,8 @@ def optimize_weights(results_json_path, output_path=None):
     print(f"\n--- Best Weights ---")
     w = best['weights']
     print(f"  Valuation: {w['valuation']:.0%}  Quality: {w['quality']:.0%}  "
-          f"Moat: {w['moat']:.0%}  Growth: {w['growth']:.0%}")
+          f"Moat: {w['moat']:.0%}  Growth: {w['growth']:.0%}  "
+          f"Ownership: {w['ownership']:.0%}")
     print(f"  Cohen's d: {best['cohens_d']:.3f} (baseline: {baseline_d:.3f})")
     print(f"  Quality mean: {best['quality_mean']}  Poor mean: {best['poor_mean']}")
 
@@ -642,12 +664,19 @@ def optimize_weights(results_json_path, output_path=None):
     for i, r in enumerate(results_list[:10]):
         w = r['weights']
         print(f"  {i+1}. V={w['valuation']:.0%} Q={w['quality']:.0%} "
-              f"M={w['moat']:.0%} G={w['growth']:.0%}  "
+              f"M={w['moat']:.0%} G={w['growth']:.0%} Own={w['ownership']:.0%}  "
               f"d={r['cohens_d']:.3f}  q={r['quality_mean']} p={r['poor_mean']}")
 
     output = {
         'date': date.today().isoformat(),
         'baseline_cohens_d': round(baseline_d, 4),
+        'baseline_weights': {
+            'valuation': defs['score_weight_valuation'],
+            'quality': defs['score_weight_quality'],
+            'moat': defs['score_weight_moat'],
+            'growth': defs['score_weight_growth'],
+            'ownership': defs['score_weight_ownership'],
+        },
         'best': best,
         'top_10': results_list[:10],
         'n_quality': len(quality),

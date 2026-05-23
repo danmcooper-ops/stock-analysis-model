@@ -170,24 +170,33 @@ class TestGridGeneration:
         assert len(grid) == 6  # 2 × 3
 
     def test_apply_derived_params_computes_growth_weight(self):
+        # Ownership is held at its config default; pick V/Q/M so that
+        # growth = 1.0 - (V + Q + M + Own_default) lands at exactly 0.05
+        # without re-encoding a stale ownership-weight literal.
+        own = default_params()['score_weight_ownership']
+        wv, wq, wm = 0.30, 0.25, round(1.0 - 0.30 - 0.25 - own - 0.05, 4)
         candidate = {
-            'score_weight_valuation': 0.30,
-            'score_weight_quality': 0.25,
-            'score_weight_moat': 0.25,
+            'score_weight_valuation': wv,
+            'score_weight_quality': wq,
+            'score_weight_moat': wm,
         }
         params = _apply_derived_params(candidate)
         assert params is not None
-        # growth = 1.0 - (val + qual + moat + ownership_default)
-        # = 1.0 - (0.30 + 0.25 + 0.25 + 0.15) = 0.05
+        # growth = 1.0 - (V + Q + M + Own_default), by construction = 0.05
         assert params['score_weight_growth'] == pytest.approx(0.05)
 
     def test_apply_derived_params_rejects_negative_growth(self):
+        # Pick V+Q+M+Own_default > 1.0 so the derived growth would be < 0
+        # and `_apply_derived_params` must reject the candidate, regardless
+        # of what the live ownership default happens to be.
+        own = default_params()['score_weight_ownership']
+        wv, wq, wm = 0.45, 0.40, round(1.0 - 0.45 - 0.40 - own + 0.05, 4)
         candidate = {
-            'score_weight_valuation': 0.45,
-            'score_weight_quality': 0.40,
-            'score_weight_moat': 0.20,
+            'score_weight_valuation': wv,
+            'score_weight_quality': wq,
+            'score_weight_moat': wm,
         }
-        # Sum = 1.05, growth = -0.05 → rejected
+        # By construction sum > 1.0, growth < 0 → rejected
         params = _apply_derived_params(candidate)
         assert params is None
 
