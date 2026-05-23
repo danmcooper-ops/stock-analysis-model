@@ -513,9 +513,10 @@ td.ct{font-weight:700;}
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
 .pp-primer,.pp-desc,.pp-insights,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players,.pp-top{background:#f7f9fb;border-left:5px solid #1a252f;}
-/* Soft-blue panel for the Top 5 by Model Score block, distinct from the
-   neutral wash on the Profit Pool Chart panel just below (and avoids the
-   green/orange/red rating palette that shows up inside that chart). */
+/* Soft-blue panel for the Top 5 by Model Score block — distinct wash so
+   it reads as a separate summary block from the adjacent pp-cr4 / pp-players
+   neutral panels, and clear of the green/orange/red rating palette used by
+   the Profit Pool Analysis chart. */
 .pp-top{background:#eaf2fb;}
 .pp-primer .pp-section-label,
 .pp-desc .pp-section-label,
@@ -4443,6 +4444,7 @@ function renderPool(){
     if(liquidityHtml){
       chartHtml+='<div class="pp-section pp-liquidity"><span class="pp-section-label">Liquidity Insights</span>'+liquidityHtml+'</div>';
     }
+    chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Analysis</span><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span></div><span style="font-size:0.7em;color:#aaa">Bar width = revenue share &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>';
 
     if(playersHtml){
       chartHtml+='<div class="pp-section pp-players"><span class="pp-section-label">Company Highlights</span>'+playersHtml+'</div>';
@@ -4501,7 +4503,6 @@ function renderPool(){
       }).join('');
       chartHtml+='<div class="pp-section pp-top"><span class="pp-section-label">Top 5 by Model Score</span><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">'+topCards+'</div></div>';
     }
-    chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Chart</span><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span></div><span style="font-size:0.7em;color:#aaa">Bar width = revenue share &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>';
     chartHtml+='</div>';
     var wtdM=sorted.reduce(function(s,d){return s+(d.operating_margin||0)*(d.pp_revenue_share||0);},0)/totalRev;
     var best=sorted.reduce(function(a,b){return(a.pp_multiple||0)>(b.pp_multiple||0)?a:b;});
