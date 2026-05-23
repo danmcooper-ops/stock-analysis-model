@@ -42,6 +42,7 @@ from models.rim import residual_income_model
 from models.nav import tangible_book_value_per_share
 from models.portfolio import position_sizes, concentration_analysis
 from models.utils import rank
+from models.field_keys import OPERATING_CF_KEYS, CAPEX_KEYS
 from scripts.report_excel import build_excel
 from scripts.report_html import build_html
 from data.macro_client import MacroClient
@@ -701,6 +702,64 @@ def _extract_latest_financials(yf_data):
     }
 
 
+def _fcf_series_from_cashflow(cf):
+    """Return a period-sorted pandas Series of Free Cash Flow values from a
+    yfinance cash-flow DataFrame, deriving FCF = OCF + Capex when the
+    pre-computed 'Free Cash Flow' row is missing.
+
+    Background: yfinance's API stopped consistently surfacing the synthetic
+    'Free Cash Flow' row for many large-cap tickers after its 2023 rewrite.
+    It still returns 'Operating Cash Flow' and 'Capital Expenditure'
+    separately, leaving callers to derive FCF themselves. Without this
+    fallback the DCF stage silently skipped ~80% of the universe (every
+    mega-cap included — AAPL, MSFT, NVDA, GOOGL, ...).
+
+    Capex in yfinance is signed negative, so FCF = OCF + Capex.
+
+    Args:
+        cf: pandas DataFrame from yfinance — rows are line items, columns
+            are reporting periods.
+
+    Returns:
+        pd.Series indexed by period (sorted ascending), or None if neither
+        path can produce values.
+    """
+    if cf is None or cf.empty:
+        return None
+    # Preferred: yfinance's pre-computed synthetic row when present.
+    if 'Free Cash Flow' in cf.index:
+        fcf = cf.loc['Free Cash Flow'].dropna().sort_index()
+        if len(fcf) > 0:
+            return fcf
+    # Fallback: derive FCF = OCF + Capex (Capex stored as a negative
+    # number in yfinance, so addition gives FCF).
+    ocf_row = None
+    for key in OPERATING_CF_KEYS:
+        if key in cf.index:
+            candidate = cf.loc[key].dropna().sort_index()
+            if len(candidate) > 0:
+                ocf_row = candidate
+                break
+    if ocf_row is None:
+        return None
+    capex_row = None
+    for key in CAPEX_KEYS:
+        if key in cf.index:
+            candidate = cf.loc[key].dropna().sort_index()
+            if len(candidate) > 0:
+                capex_row = candidate
+                break
+    if capex_row is None:
+        return None
+    common = ocf_row.index.intersection(capex_row.index)
+    if len(common) == 0:
+        return None
+    fcf = (ocf_row.loc[common] + capex_row.loc[common]).sort_index().dropna()
+    if len(fcf) == 0:
+        return None
+    return fcf
+
+
 def _compute_shareholder_yield(yf_data, mcap):
     """Compute total shareholder yield = (dividends + buybacks) / market cap.
 
@@ -803,15 +862,18 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     if cf is None or cf.empty:
         return None, None, None, {}, None
-    if 'Free Cash Flow' not in cf.index:
-        return None, None, None, {}, None
+
     cfg = _get_sector_config(sector)
     term_g = cfg['terminal_growth'] + terminal_growth_adj
 
     if wacc is None or wacc <= term_g:
         return None, None, None, {}, None
 
-    fcf_series = cf.loc['Free Cash Flow'].dropna().sort_index()
+    # Use the shared FCF extractor: prefers yfinance's pre-computed
+    # 'Free Cash Flow' row, falls back to OCF + Capex when missing.
+    fcf_series = _fcf_series_from_cashflow(cf)
+    if fcf_series is None:
+        return None, None, None, {}, None
     fcf_values = fcf_series.values.tolist()
     if not fcf_values:
         return None, None, None, {}, None
@@ -1827,13 +1889,14 @@ def _main():
             # Traditional ratios
             ratios = compute_ratios(yf_data)
 
-            # Free cash flow — use annual cash flow statement (same source as DCF)
+            # Free cash flow — use annual cash flow statement (same source as DCF).
+            # Falls back to OCF + Capex when yfinance doesn't surface the
+            # synthetic 'Free Cash Flow' row (common for large-caps post-2023).
             cf = yf_data.get('cash_flow')
             fcf = None
-            if cf is not None and not cf.empty and 'Free Cash Flow' in cf.index:
-                fcf_vals = cf.loc['Free Cash Flow'].dropna().sort_index()
-                if len(fcf_vals) > 0:
-                    fcf = fcf_vals.iloc[-1]  # most recent annual
+            fcf_series = _fcf_series_from_cashflow(cf)
+            if fcf_series is not None and len(fcf_series) > 0:
+                fcf = fcf_series.iloc[-1]  # most recent annual
 
             # --- NEW MODELS ---
 
