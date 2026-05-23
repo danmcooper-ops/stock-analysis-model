@@ -1562,7 +1562,12 @@ function applyFilters(){
     if(!allSectors&&sectors.indexOf(d.sector)<0)return false;
     for(var i=0;i<colFilters.length;i++){
       var cf=colFilters[i];
-      var v=d[cf.key];
+      /* Use _num() so the filter's notion of N/A matches every other
+         display in the report — null, undefined, NaN, Infinity, and any
+         non-numeric string all canonicalize to null and drop the row.
+         Without this, only null/undefined were excluded; a stray NaN or
+         string in a metric field would silently slip past a min/max. */
+      var v=_num(d[cf.key]);
       if(v==null)return false;
       var cv=cf.pct?v*100:v;
       if(cf.min!==null&&cv<cf.min)return false;
