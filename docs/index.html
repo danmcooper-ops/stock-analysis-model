@@ -4472,6 +4472,11 @@ function renderCrossSectorDashboard(){
         if(typeof msUpdateLabel==='function')msUpdateLabel('ms-country');
         if(typeof applyFilters==='function')applyFilters();
         if(tt)tt.style.display='none';
+        /* Jump to Financial Model → Gate Matrix so the country-filtered
+           stocks land in front of the user instead of leaving them on
+           the Overview where the click happened. */
+        if(typeof showView==='function')showView('matrix');
+        if(typeof swMSub==='function')swMSub('matrix');
       });
     });
   },0);
