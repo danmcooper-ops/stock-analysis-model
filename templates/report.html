@@ -4589,12 +4589,19 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   document.getElementById('ms-sector-opts').innerHTML=shtml;
   // Build _CF_FMT lookup and _cfOptHtml for dynamic filter rows
   var _CF_FMT={};window._CF_FMT=_CF_FMT;
+  /* Dedupe across tabs: a column key may appear in several TC[*] tabs
+     (e.g. ROIC lives in both Overview and Profitability). Show each
+     metric exactly once in the filter dropdown, under the first tab
+     it shows up in. Without this the dropdown grew to 74 options for
+     62 unique keys \u2014 12 silent duplicates. */
   var cfSeen={};var optHtml='<option value="">Column\u2026</option>';
   Object.keys(TL).forEach(function(tabKey){
     var cols=TC[tabKey];var grpHtml='';
     cols.forEach(function(c){
       if(c.f==='text'||c.f==='rating'||c.f==='ar')return;
-      if(!cfSeen[c.k]){cfSeen[c.k]=true;_CF_FMT[c.k]=c.f;}
+      if(cfSeen[c.k])return;
+      cfSeen[c.k]=true;
+      _CF_FMT[c.k]=c.f;
       var unit=c.f==='pct'?' (%)':c.f==='dollar'||c.f==='ds'?' ($)':'';
       grpHtml+='<option value="'+c.k+'">'+c.l+unit+'</option>';
     });
