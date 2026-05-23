@@ -4003,7 +4003,7 @@ function renderCrossSectorDashboard(){
     var best=sorted.reduce(function(a,b){return(a.pp_multiple||0)>(b.pp_multiple||0)?a:b;});
     var avgMult=sorted.reduce(function(s,d){return s+(d.pp_multiple||0);},0)/sorted.length;
     var mosVals=cos.map(function(d){return d.mos;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var pbVals=cos.map(function(d){return d.pb;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<50;});
+    var ptbvVals=cos.map(function(d){return d.p_tbv;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<50;});
     var evVals=cos.map(function(d){return d.ev_ebitda;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<100;});
     var spreadVals=cos.map(function(d){return d.spread;}).filter(function(v){return v!=null&&!isNaN(v);});
     /* Use 3-year rev_cagr; the rev_cagr_5y field is upstream-buggy
@@ -4030,7 +4030,7 @@ function renderCrossSectorDashboard(){
     var altZVals=cos.map(function(d){return d.altman_z;}).filter(function(v){return v!=null&&!isNaN(v);});
     _sumStats.push({
       sector:sec,n:sorted.length,wtdM:wtdM,hhi:hhi,cr4:cr4,
-      medMos:_sumMed(mosVals),medPB:_sumMed(pbVals),medEV:_sumMed(evVals),
+      medMos:_sumMed(mosVals),medPTBV:_sumMed(ptbvVals),medEV:_sumMed(evVals),
       medSpread:_sumMed(spreadVals),medGrowth:_sumMed(growthVals),
       medROIC:_sumMed(roicVals),medNDEB:_sumMed(ndEbVals),medShrYld:_sumMed(shrYldVals),
       medFCFM:_sumMed(fcfMVals),medAltZ:_sumMed(altZVals),
@@ -4057,7 +4057,7 @@ function renderCrossSectorDashboard(){
       _colHHI=_sumStats.map(function(s){return s.hhi;}),
       _colCR4=_sumStats.map(function(s){return s.cr4;}),
       _colMos=_sumStats.map(function(s){return s.medMos;}),
-      _colPB=_sumStats.map(function(s){return s.medPB;}),
+      _colPTBV=_sumStats.map(function(s){return s.medPTBV;}),
       _colEV=_sumStats.map(function(s){return s.medEV;}),
       _colSpread=_sumStats.map(function(s){return s.medSpread;}),
       _colGrowth=_sumStats.map(function(s){return s.medGrowth;}),
@@ -4072,7 +4072,7 @@ function renderCrossSectorDashboard(){
   window._heatStats=_sumStats;
   var _colFCFM=_sumStats.map(function(s){return s.medFCFM;});
   var _colAltZ=_sumStats.map(function(s){return s.medAltZ;});
-  window._heatColArr={wtdM:_colWtdM,hhi:_colHHI,cr4:_colCR4,medMos:_colMos,medPB:_colPB,medEV:_colEV,medSpread:_colSpread,medGrowth:_colGrowth,medROIC:_colROIC,medNDEB:_colNDEB,medShrYld:_colShrYld,pctBuy:_colPctBuy,medFCFM:_colFCFM,medAltZ:_colAltZ};
+  window._heatColArr={wtdM:_colWtdM,hhi:_colHHI,cr4:_colCR4,medMos:_colMos,medPTBV:_colPTBV,medEV:_colEV,medSpread:_colSpread,medGrowth:_colGrowth,medROIC:_colROIC,medNDEB:_colNDEB,medShrYld:_colShrYld,pctBuy:_colPctBuy,medFCFM:_colFCFM,medAltZ:_colAltZ};
   if(!window._heatSortState)window._heatSortState={key:'sector',asc:true};
   /* Row builder reused on initial mount and on every sort click. */
   function _buildHeatRow(s){
@@ -4098,7 +4098,7 @@ function renderCrossSectorDashboard(){
       +cell(s.medNDEB,s.medNDEB!=null?s.medNDEB.toFixed(2)+'x':'&mdash;',C.medNDEB,true)
       +cell(s.medAltZ,s.medAltZ!=null?Number(s.medAltZ).toPrecision(3):'&mdash;',C.medAltZ,false)
       +cell(s.medMos,_f(s.medMos,'%',0),C.medMos,false)
-      +cell(s.medPB,s.medPB!=null?s.medPB.toFixed(2)+'x':'&mdash;',C.medPB,true)
+      +cell(s.medPTBV,s.medPTBV!=null?s.medPTBV.toFixed(2)+'x':'&mdash;',C.medPTBV,true)
       +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',C.medEV,true)
       +cell(s.medShrYld,_f(s.medShrYld,'%',1),C.medShrYld,false)
       +cell(s.pctBuy,pctBuyDisp,C.pctBuy,false)
@@ -4153,26 +4153,28 @@ function renderCrossSectorDashboard(){
   }
   var _heatTableHtml=_sumStats.length
     ?'<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
-      +'<div class="xsect-chart-title" style="margin-bottom:4px">Sector Heatmap <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(green = best, red = worst within column · click any header to sort)</span></div>'
-      /* All metric columns share one width (82px) so the eye scans across
-         a uniform grid. Sector and Top Earner stay wider for their text. */
+      +'<div class="xsect-chart-title" style="margin-bottom:4px">Sector Heatmap <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(values are sector medians · green = best, red = worst within column · click any header to sort)</span></div>'
+      /* Compact column widths so the full 16-column heatmap fits within a
+         standard laptop viewport without horizontal scrolling. Sector column
+         is wide enough for "Communication Services"; all metric columns
+         share one width so the eye scans across a uniform grid. */
       +'<div class="table-wrap"><table class="dt heatmap-table"><thead><tr>'
-        +_th('sector','Sector',150,'GICS sector groups — Buffett invests only inside his circle of competence. Pool stats below show the economic terrain of each sector; only compare a business against peers with genuinely similar economics.',true)
-        +_th('n','Cos',82,'Number of companies in the sector pool. Munger: “Structure matters more than effort” — sectors crowded with similar competitors compete margins toward zero, while lean sectors with structural barriers favor incumbents.')
-        +_th('hhi','HHI',82,'Herfindahl–Hirschman Index of revenue concentration. Above 0.25 = oligopoly where incumbents hold pricing power; below 0.15 = fragmented competition that erodes returns. Buffett: “In a commodity business, you can only be as smart as your dumbest competitor.”')
-        +_th('cr4','CR4',82,'Top-4 share of sector revenue. Above 80% signals a true oligopoly; below 50% means fragmented competition. Munger: “The single biggest predictor of high returns is the structure of the industry, not the brilliance of management.”')
-        +_th('wtdM','Wtd Margin',82,'Pool-weighted operating margin — sum(margin × revenue share). Buffett’s first moat test applied at sector scale: “The single most important decision is pricing power.” Sectors with sustained 20%+ weighted margins reveal where durable competitive advantage actually lives.')
-        +_th('medFCFM','Med FCF Margin',82,'Median free cash flow margin across the sector. Graham: “Earnings are opinions; cash is a fact.” Sectors with persistently high FCF margins generate genuine owner earnings — the only kind that compound shareholder wealth.')
-        +_th('medROIC','Med ROIC',82,'Median ROIC across the sector — the single most important metric in the Buffett framework. Sectors compounding capital at 15%+ harbor the businesses that turn each retained dollar into more than a dollar of intrinsic value.')
-        +_th('medSpread','Med ROIC–WACC',82,'Median ROIC minus WACC — the sector’s economic profit spread. Above 5% = capital is genuinely productive; near zero = competitors cancel each other out. Buffett invests where the gap is wide and durable, not where it’s narrow and fragile.')
-        +_th('medGrowth','Med Rev CAGR',82,'Median 3-year revenue CAGR across the sector. Persistent top-line growth paired with stable margins reveals genuine demand and pricing power. Munger: “Avoid growth for growth’s sake” — growth without margin discipline is destruction at scale.')
-        +_th('medNDEB','Med ND/EBITDA',82,'Median Net Debt / EBITDA across the sector. Buffett: “We want businesses with no debt or very modest debt.” Sectors below 2× operate from a position of strength; above 4× = dependence on rolling credit when markets sour.')
-        +_th('medAltZ','Med Altman Z',82,'Median Altman Z-score across the sector. Above 3.0 = sector-wide financial health; below 1.8 = distress signals across the cohort. Graham was obsessed with avoiding permanent capital loss — the Z-Score flags businesses approaching the line before the market does.')
-        +_th('medMos','Med MoS%',82,'Median Margin of Safety vs. DCF fair value across the sector. Graham’s foundational principle: “The three most important words in investing are margin of safety.” A sector at 20%+ median MoS may be temporarily out of favor — verify the discount is real, not deserved.')
-        +_th('medPB','Med P/B',82,'Median price-to-book across the sector. Graham’s original asset safety anchor. Low P/B is only attractive when ROIC justifies the discount — asset-heavy sectors trading cheap on book with structurally weak returns are rarely the bargains they appear.')
-        +_th('medEV','Med EV/EBITDA',82,'Median EV/EBITDA — a capital-structure-neutral valuation lens on the sector. Reasonable for predictable cash converters; misleading at cyclical troughs in capex-heavy industries. Buffett trusts owner earnings over EBITDA.')
-        +_th('medShrYld','Med Shr Yld',82,'Median shareholder yield (buybacks + dividends / market cap) across the sector. Buffett: “The best thing a company can do when the stock is cheap is buy it back.” Sectors with persistent 4%+ yields demonstrate disciplined capital allocation cohort-wide.')
-        +_th('pctBuy','% BUY',82,'% of sector rated BUY or LEAN BUY by the screener. High concentration signals where the model finds clusters of margin of safety. Buffett: “Most committee opinions are mediocre” — use as a focus signal, not a substitute for individual analysis.')
+        +_th('sector','Sector',130,'GICS sector groups — Buffett invests only inside his circle of competence. Pool stats below show the economic terrain of each sector; only compare a business against peers with genuinely similar economics.',true)
+        +_th('n','Cos',60,'Number of companies in the sector pool. Munger: “Structure matters more than effort” — sectors crowded with similar competitors compete margins toward zero, while lean sectors with structural barriers favor incumbents.')
+        +_th('hhi','HHI',60,'Herfindahl–Hirschman Index of revenue concentration. Above 0.25 = oligopoly where incumbents hold pricing power; below 0.15 = fragmented competition that erodes returns. Buffett: “In a commodity business, you can only be as smart as your dumbest competitor.”')
+        +_th('cr4','CR4',60,'Top-4 share of sector revenue. Above 80% signals a true oligopoly; below 50% means fragmented competition. Munger: “The single biggest predictor of high returns is the structure of the industry, not the brilliance of management.”')
+        +_th('wtdM','Op Margin',64,'Pool-weighted operating margin — sum(margin × revenue share). Buffett’s first moat test applied at sector scale: “The single most important decision is pricing power.” Sectors with sustained 20%+ weighted margins reveal where durable competitive advantage actually lives.')
+        +_th('medFCFM','FCF Margin',64,'Median free cash flow margin across the sector. Graham: “Earnings are opinions; cash is a fact.” Sectors with persistently high FCF margins generate genuine owner earnings — the only kind that compound shareholder wealth.')
+        +_th('medROIC','ROIC',60,'Median ROIC across the sector — the single most important metric in the Buffett framework. Sectors compounding capital at 15%+ harbor the businesses that turn each retained dollar into more than a dollar of intrinsic value.')
+        +_th('medSpread','ROIC–WACC',68,'Median ROIC minus WACC — the sector’s economic profit spread. Above 5% = capital is genuinely productive; near zero = competitors cancel each other out. Buffett invests where the gap is wide and durable, not where it’s narrow and fragile.')
+        +_th('medGrowth','Rev CAGR',64,'Median 3-year revenue CAGR across the sector. Persistent top-line growth paired with stable margins reveals genuine demand and pricing power. Munger: “Avoid growth for growth’s sake” — growth without margin discipline is destruction at scale.')
+        +_th('medNDEB','ND/EBITDA',68,'Median Net Debt / EBITDA across the sector. Buffett: “We want businesses with no debt or very modest debt.” Sectors below 2× operate from a position of strength; above 4× = dependence on rolling credit when markets sour.')
+        +_th('medAltZ','Altman Z',60,'Median Altman Z-score across the sector. Above 3.0 = sector-wide financial health; below 1.8 = distress signals across the cohort. Graham was obsessed with avoiding permanent capital loss — the Z-Score flags businesses approaching the line before the market does.')
+        +_th('medMos','MoS',56,'Median Margin of Safety vs. DCF fair value across the sector. Graham’s foundational principle: “The three most important words in investing are margin of safety.” A sector at 20%+ median MoS may be temporarily out of favor — verify the discount is real, not deserved.')
+        +_th('medPTBV','P/TBV',60,'Median price-to-tangible-book across the sector. Graham’s strictest asset-floor anchor — strips goodwill and intangibles so what remains is hard assets the business can actually liquidate. A sector trading cheap on P/TBV is only attractive when ROIC justifies the discount; cheap tangible book with weak returns is a value trap.')
+        +_th('medEV','EV/EBITDA',64,'Median EV/EBITDA — a capital-structure-neutral valuation lens on the sector. Reasonable for predictable cash converters; misleading at cyclical troughs in capex-heavy industries. Buffett trusts owner earnings over EBITDA.')
+        +_th('medShrYld','Shr Yld',60,'Median shareholder yield (buybacks + dividends / market cap) across the sector. Buffett: “The best thing a company can do when the stock is cheap is buy it back.” Sectors with persistent 4%+ yields demonstrate disciplined capital allocation cohort-wide.')
+        +_th('pctBuy','BUY %',60,'% of sector rated BUY or LEAN BUY by the screener. High concentration signals where the model finds clusters of margin of safety. Buffett: “Most committee opinions are mediocre” — use as a focus signal, not a substitute for individual analysis.')
       +'</tr></thead><tbody id="heat-tbody"></tbody></table></div>'
     +'</div>'
     :'';
@@ -4281,7 +4283,7 @@ function _buildAllSectorStats(){
     var best=sorted.reduce(function(a,b){return(a.pp_multiple||0)>(b.pp_multiple||0)?a:b;});
     var avgMult=sorted.reduce(function(s,d){return s+(d.pp_multiple||0);},0)/sorted.length;
     var mosVals=cos.map(function(d){return d.mos;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var pbVals=cos.map(function(d){return d.pb;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<50;});
+    var ptbvVals=cos.map(function(d){return d.p_tbv;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<50;});
     var evVals=cos.map(function(d){return d.ev_ebitda;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<100;});
     var spreadVals=cos.map(function(d){return d.spread;}).filter(function(v){return v!=null&&!isNaN(v);});
     var growthVals=cos.map(function(d){return d.rev_cagr;}).filter(function(v){return v!=null&&!isNaN(v);});
@@ -4292,7 +4294,7 @@ function _buildAllSectorStats(){
     var fcfMVals=cos.map(function(d){return d.fcf_margin;}).filter(function(v){return v!=null&&!isNaN(v);});
     var altZVals=cos.map(function(d){return d.altman_z;}).filter(function(v){return v!=null&&!isNaN(v);});
     out.push({sector:sec,n:sorted.length,wtdM:wtdM,hhi:hhi,cr4:cr4,
-      medMos:_poolSecMed(mosVals),medPB:_poolSecMed(pbVals),medEV:_poolSecMed(evVals),
+      medMos:_poolSecMed(mosVals),medPTBV:_poolSecMed(ptbvVals),medEV:_poolSecMed(evVals),
       medSpread:_poolSecMed(spreadVals),medGrowth:_poolSecMed(growthVals),
       medROIC:_poolSecMed(roicVals),medNDEB:_poolSecMed(ndEbVals),medShrYld:_poolSecMed(shrYldVals),
       medFCFM:_poolSecMed(fcfMVals),medAltZ:_poolSecMed(altZVals),
