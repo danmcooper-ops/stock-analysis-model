@@ -995,9 +995,9 @@ td.ct{font-weight:700;}
 </div>
 <div class="container">
   <div class="primary-nav">
-    <button class="nav-btn active" data-view="matrix" onclick="showView('matrix')">Financial Model</button>
+    <button class="nav-btn active" data-view="pool" onclick="showView('pool')">Sector Analysis</button>
+    <button class="nav-btn" data-view="matrix" onclick="showView('matrix')">Financial Model</button>
     <button class="nav-btn" data-view="table" onclick="showView('table')">Financial Data</button>
-    <button class="nav-btn" data-view="pool" onclick="showView('pool')">Sector Analysis</button>
   </div>
   <div class="filter-bar" id="filter-bar">
     <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker..." oninput="applyFilters()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
@@ -1070,7 +1070,14 @@ td.ct{font-weight:700;}
     <button class="filter-clear" onclick="clearFilters()">Clear</button>
     <span class="filter-count" id="f-count"></span>
   </div>
-  <div id="view-matrix" class="view active">
+  <div id="view-pool" class="view active">
+    <div id="pool-controls" class="pool-controls"></div>
+    <div id="pool-chart-area"></div>
+    <div id="pool-sector-table"></div>
+    <div class="pool-tt" id="pool-tt"></div>
+    <div class="pp-quad-tip" id="pp-quad-tip"></div>
+  </div>
+  <div id="view-matrix" class="view">
     <div class="secondary-nav" id="m-subs"></div>
     <div id="m-overview-view" style="display:none"></div>
     <div class="matrix-wrap"><table class="matrix-table" id="mtx"><thead id="mtx-h"></thead><tbody id="mtx-b"></tbody></table></div>
@@ -1079,13 +1086,6 @@ td.ct{font-weight:700;}
     <div class="secondary-nav" id="t-subs"></div>
     <div class="table-wrap"><table class="dt" id="dtbl"><thead id="dt-h"></thead><tbody id="dt-b"></tbody></table></div>
     <div id="ph-view" style="display:none"></div>
-  </div>
-  <div id="view-pool" class="view">
-    <div id="pool-controls" class="pool-controls"></div>
-    <div id="pool-chart-area"></div>
-    <div id="pool-sector-table"></div>
-    <div class="pool-tt" id="pool-tt"></div>
-    <div class="pp-quad-tip" id="pp-quad-tip"></div>
   </div>
 </div>
 <div id="det-modal" class="detail-modal" onclick="if(event.target===this)closeDetail()">
@@ -1194,7 +1194,7 @@ var RC={'BUY':'#1a9850','LEAN BUY':'#74c476','HOLD':'#fd8d3c','PASS':'#de2d26'};
 var _poolTab='__all__';
 function showPoolTab(sec){_poolTab=sec||'__all__';renderPool();window.scrollTo({top:0,behavior:'auto'});}
 function xsToggle(hdr){var c=hdr&&hdr.parentElement;if(c)c.classList.toggle('open');}
-var curView='matrix',curTSub='ovr';
+var curView='pool',curTSub='ovr';
 var _detNav=[],_detIdx=-1;
 /* === FLAGS (localStorage) === */
 var _FLAG_KEY='stock_flags_v1';
@@ -4028,32 +4028,32 @@ function renderCrossSectorDashboard(){
      Folds in every insight the 8 old narrative cards carried, but every
      sector now has an explicit action attached, with the model's BUYs
      surfaced as concrete entry points via _xsPillsForSec(). */
-  var verdicts=[
-    {key:'OVERWEIGHT',label:'Overweight',color:'#1a9850',
-     why:'High margins in a competitive market are the strongest signal of intrinsic moat. Pricing power here comes from product differentiation, proprietary IP, or customer switching costs \u2014 not from market dominance or regulatory protection. The advantage survives competitor entry and regulator scrutiny because it does not depend on holding a fixed share. Treat these sectors as a portfolio anchor.',
+  var archetypes=[
+    {key:'QUALITY',label:'Quality quadrant',color:'#1a9850',
+     why:'High margins paired with a competitive market structure \u2014 pricing power here comes from product differentiation, proprietary IP, or customer switching costs rather than positional dominance. The structural advantage is intrinsic: it does not depend on holding a fixed share against new entrants or regulators, so it tends to be durable across cycles.',
      sectors:[]},
-    {key:'STOCK_PICK',label:'Stock-pick only',color:'#2563eb',
-     why:'Concentration above the DOJ/FTC threshold creates pricing power, but the moat is positional \u2014 returns depend on holding share, not on product superiority. Antitrust action, regulatory caps, or a single well-capitalized disruptor can unwind it. The right trade is the strongest incumbent with a structural cost advantage; passive sector exposure carries the tail risk without the alpha.',
+    {key:'CONCENTRATED',label:'Concentrated incumbents',color:'#2563eb',
+     why:'Concentration above the DOJ/FTC threshold (HHI \u2265 0.25). Pricing power exists, but it is positional \u2014 derived from market structure, not product superiority. Outcomes within these sectors diverge sharply based on each incumbent\u2019s cost position; structural tail risks include antitrust action, regulatory price caps, and well-capitalized disruptors.',
      sectors:[]},
-    {key:'NEUTRAL',label:'Neutral',color:'#7f8c9a',
-     why:'Margin and concentration signals don\u2019t point one direction. Returns at the sector level mean-revert toward cost of capital \u2014 not structurally attractive enough for an overweight, not compromised enough for an underweight. Idiosyncratic factors (unit-cost structure, balance-sheet strength, niche positioning) drive cross-sectional variance from here. Stock selection does the work, not the sector allocation.',
+    {key:'MIXED',label:'Mixed signal',color:'#7f8c9a',
+     why:'Margin and concentration signals don\u2019t point one direction. Returns at the sector level mean-revert toward cost of capital \u2014 no dominant structural advantage or disadvantage shows up in the aggregate. Cross-sectional variance within these sectors is driven by idiosyncratic factors: unit-cost structure, balance-sheet strength, niche positioning.',
      sectors:[]},
-    {key:'AVOID',label:'Avoid',color:'#de2d26',
-     why:'Elevated concentration has not translated into margin extraction \u2014 usually because volume competition, commodity input pricing, or mandated price ceilings constrain profitability regardless of share. High HHI here reflects market structure, not pricing power. The leading firm\u2019s dominant position is a floor on survival, not a ceiling lift on returns. Any BUY from this bucket needs an exceptional, idiosyncratic reason.',
+    {key:'CHALLENGED',label:'Structurally challenged',color:'#de2d26',
+     why:'Elevated concentration has not translated into margin extraction \u2014 typically because volume competition, commodity input pricing, or mandated price ceilings constrain profitability regardless of share. High HHI here reflects market structure, not pricing power. The leading firm\u2019s dominant position is a floor on survival, not a ceiling lift on returns.',
      sectors:[]}
   ];
-  function _verdictFor(s){
-    if(s.hhi>0.15&&s.margin<0.12)return 'AVOID';
-    if(s.margin>=0.20&&s.hhi<0.15)return 'OVERWEIGHT';
-    if(s.hhi>=0.25)return 'STOCK_PICK';
-    return 'NEUTRAL';
+  function _archetypeFor(s){
+    if(s.hhi>0.15&&s.margin<0.12)return 'CHALLENGED';
+    if(s.margin>=0.20&&s.hhi<0.15)return 'QUALITY';
+    if(s.hhi>=0.25)return 'CONCENTRATED';
+    return 'MIXED';
   }
   allStats.forEach(function(s){
-    var key=_verdictFor(s);
-    for(var i=0;i<verdicts.length;i++){if(verdicts[i].key===key){verdicts[i].sectors.push(s);break;}}
+    var key=_archetypeFor(s);
+    for(var i=0;i<archetypes.length;i++){if(archetypes[i].key===key){archetypes[i].sectors.push(s);break;}}
   });
-  /* Sort each bucket so the most attractive (margin desc) sits first. */
-  verdicts.forEach(function(v){v.sectors.sort(function(a,b){return b.margin-a.margin;});});
+  /* Sort each bucket by margin desc so the strongest-margin sector reads first. */
+  archetypes.forEach(function(v){v.sectors.sort(function(a,b){return b.margin-a.margin;});});
   /* BUY/LEAN-BUY count per sector from the filtered universe (FD), so it
      respects active user filters \u2014 same source _topBuysBySec uses. */
   function _buyCountFor(s){
@@ -4290,8 +4290,8 @@ function renderCrossSectorDashboard(){
   var _spread=((maxM-minM)*100).toFixed(0);
   var _narHtml='<div style="margin-bottom:18px">'
     +'<div class="xsect-chart-title" style="margin-bottom:8px">Cross-Sector Summary</div>'
-    +'<div class="xs-verdicts">'+verdicts.map(_renderVerdictBlock).join('')+'</div>'
-    +'<div class="xs-verdict-footer">Margin range '+(minM*100).toFixed(0)+'–'+(maxM*100).toFixed(0)+'% ('+_spread+' pp spread). Sector allocation is a first-order return driver, not a tilting decision — overweight the Quality quadrant, underweight the Avoid bucket, and the structural tailwind compounds across cycles.</div>'
+    +'<div class="xs-verdicts">'+archetypes.map(_renderVerdictBlock).join('')+'</div>'
+    +'<div class="xs-verdict-footer">Margin range '+(minM*100).toFixed(0)+'–'+(maxM*100).toFixed(0)+'% ('+_spread+' pp spread). The gap between the highest- and lowest-margin pools is wide enough that sector-level structure is a material driver of cross-sectional returns at the index level.</div>'
   +'</div>';
   /* Aggregate Performance chart lives on its own "Performance" tab
      (right of Overview); not rendered here. */
