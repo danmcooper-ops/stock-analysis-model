@@ -435,12 +435,24 @@ td.ct{font-weight:700;}
 .ps-ext{color:#bbb;font-size:0.85em;font-style:italic;}
 /* Ticker hover — rich data card. Shares tokens with the chip family. */
 .tk-tip{display:none;position:fixed;z-index:2000;background:var(--tipcard-bg);color:var(--tipcard-fg);border:1px solid var(--tipcard-border);border-radius:var(--tip-radius);box-shadow:var(--tipcard-shadow);padding:14px 16px;width:320px;max-width:calc(100vw - 32px);font-size:0.78em;line-height:var(--tip-line);pointer-events:none;}
-/* Column header / detail-modal label / pool ticker — shared dark chip. */
-#col-tip,#popup-tip,.pool-tt{display:none;position:fixed;background:var(--tip-bg);color:var(--tip-fg);border:1px solid var(--tip-border);border-radius:var(--tip-radius);box-shadow:var(--tip-shadow);padding:var(--tip-pad);font-size:var(--tip-font);line-height:var(--tip-line);pointer-events:none;}
+/* Column header / detail-modal label / pool ticker / shared chart tip. */
+#col-tip,#popup-tip,.pool-tt,#chart-tip{display:none;position:fixed;background:var(--tip-bg);color:var(--tip-fg);border:1px solid var(--tip-border);border-radius:var(--tip-radius);box-shadow:var(--tip-shadow);padding:var(--tip-pad);font-size:var(--tip-font);line-height:var(--tip-line);pointer-events:none;}
 #col-tip{z-index:2001;max-width:360px;min-width:180px;}
 /* Popup tooltip — z-index 9999 so it renders above #det-modal's backdrop-filter compositing layer on iOS. */
 #popup-tip{z-index:9999;max-width:360px;min-width:180px;}
 .pool-tt{z-index:9999;max-width:260px;}
+/* Shared rich chart tooltip — used by the Margin-vs-Concentration scatter
+   and any future chart that wants a floating popup with structured content.
+   .ct-* classes give header + sub-line + key/value grid + footer slots. */
+#chart-tip{z-index:9999;max-width:320px;min-width:210px;}
+#chart-tip .ct-hdr{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px;}
+#chart-tip .ct-title{font-weight:700;font-size:1.02em;color:var(--tip-fg);}
+#chart-tip .ct-badge{font-size:0.72em;font-weight:700;padding:2px 7px;border-radius:9px;color:#fff;letter-spacing:0.02em;white-space:nowrap;}
+#chart-tip .ct-sub{color:var(--tip-fg-muted);font-size:0.82em;margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid var(--tip-border);}
+#chart-tip .ct-grid{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:0.84em;}
+#chart-tip .ct-k{color:var(--tip-fg-muted);white-space:nowrap;}
+#chart-tip .ct-v{color:var(--tip-fg);text-align:right;font-variant-numeric:tabular-nums;font-weight:600;}
+#chart-tip .ct-foot{margin-top:7px;padding-top:6px;border-top:1px solid var(--tip-border);color:var(--tip-fg-muted);font-size:0.78em;line-height:1.4;font-style:italic;}
 #col-tip .ct-name,#popup-tip .ct-name{font-weight:700;font-size:1.05em;color:var(--tip-fg);margin-bottom:5px;border-bottom:1px solid var(--tip-border);padding-bottom:5px;}
 #col-tip .ct-body,#popup-tip .ct-body{color:var(--tip-fg-muted);}
 #col-tip .ct-pass,#popup-tip .ct-pass{margin-top:7px;padding-top:6px;border-top:1px solid var(--tip-border);color:#74c476;font-weight:600;font-size:0.9em;}
@@ -662,10 +674,13 @@ td.ct{font-weight:700;}
    Concentration (X) scatter axes used in the chart below.
      ┌─ Quality quadrant ───┬─ Concentrated incumbents ─┐
      ├─ Mixed signal ───────┼─ Structurally challenged ─┤
-   align-items:start so a sparse cell (e.g. Quality with only one
-   sector today) doesn't stretch to match a sector-dense neighbour. */
-.xs-verdicts{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;}
-@media(max-width:880px){.xs-verdicts{grid-template-columns:1fr;}}
+   grid-auto-rows:1fr forces both rows to the same height; combined
+   with the default align-items:stretch this makes all four cells
+   the same dimension regardless of how many sectors each bucket
+   contains. On narrow viewports the grid collapses to a single
+   column and rows go back to content-sized. */
+.xs-verdicts{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:12px;}
+@media(max-width:880px){.xs-verdicts{grid-template-columns:1fr;grid-auto-rows:auto;}}
 .xs-verdicts-caption{font-size:0.75em;color:#7f8c9a;margin:-4px 0 8px;line-height:1.4;}
 [data-theme="dark"] .xs-verdicts-caption{color:#8b949e;}
 .xs-verdict{background:#fff;border:1px solid #e2e8f0;border-left-width:5px;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;}
@@ -1123,6 +1138,7 @@ td.ct{font-weight:700;}
 </div>
 <div id="tk-tip" class="tk-tip"></div>
 <div id="col-tip"></div>
+<div id="chart-tip"></div>
 <script>
 /* === THEME === */
 var _THEME_KEY='stock_theme_v1';
