@@ -1569,6 +1569,14 @@ function applyFilters(){
          string in a metric field would silently slip past a min/max. */
       var v=_num(d[cf.key]);
       if(v==null)return false;
+      /* Also drop rows where the corresponding scoring-gate value is
+         null, even when the raw metric is present. The Gate Matrix view
+         renders the gate value (e.g. `_gate_gross_margin`), not the raw
+         metric — so without this check a row with `gross_margin=66%` but
+         `_gate_gross_margin=null` would pass a "Gross Mgn >= 20%" filter
+         yet still display "N/A" in the matrix's Gross Mgn column. */
+      var gateKey='_gate_'+cf.key;
+      if(gateKey in d&&_num(d[gateKey])==null)return false;
       var cv=cf.pct?v*100:v;
       if(cf.min!==null&&cv<cf.min)return false;
       if(cf.max!==null&&cv>cf.max)return false;
