@@ -657,11 +657,17 @@ td.ct{font-weight:700;}
    (OVERWEIGHT / STOCK-PICK ONLY / NEUTRAL / AVOID) — the verdict is
    explicit, the prose carries the why, and the BUY-rating pills
    surface a concrete entry point. */
-/* Single-column rows — each verdict spans the full page width so the
-   expanded narrative reads on one comfortable measure. Chip stays
-   stacked above the narrative within each verdict (set on .xs-verdict-hdr
-   below) so the paragraph isn't squeezed beside the chip. */
-.xs-verdicts{display:flex;flex-direction:column;gap:12px;}
+/* Four-quadrant layout — array order (Quality, Concentrated, Mixed,
+   Challenged) renders as TL, TR, BL, BR mirroring the Margin (Y) ×
+   Concentration (X) scatter axes used in the chart below.
+     ┌─ Quality quadrant ───┬─ Concentrated incumbents ─┐
+     ├─ Mixed signal ───────┼─ Structurally challenged ─┤
+   align-items:start so a sparse cell (e.g. Quality with only one
+   sector today) doesn't stretch to match a sector-dense neighbour. */
+.xs-verdicts{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;}
+@media(max-width:880px){.xs-verdicts{grid-template-columns:1fr;}}
+.xs-verdicts-caption{font-size:0.75em;color:#7f8c9a;margin:-4px 0 8px;line-height:1.4;}
+[data-theme="dark"] .xs-verdicts-caption{color:#8b949e;}
 .xs-verdict{background:#fff;border:1px solid #e2e8f0;border-left-width:5px;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;}
 .xs-verdict-hdr{display:flex;flex-direction:column;gap:7px;margin-bottom:10px;}
 .xs-verdict-chip{display:inline-block;padding:3px 10px;border-radius:11px;font-size:0.7em;font-weight:700;letter-spacing:0.06em;color:#fff;text-transform:uppercase;align-self:flex-start;}
@@ -4289,7 +4295,8 @@ function renderCrossSectorDashboard(){
   }
   var _spread=((maxM-minM)*100).toFixed(0);
   var _narHtml='<div style="margin-bottom:18px">'
-    +'<div class="xsect-chart-title" style="margin-bottom:8px">Cross-Sector Summary</div>'
+    +'<div class="xsect-chart-title" style="margin-bottom:4px">Cross-Sector Summary</div>'
+    +'<div class="xs-verdicts-caption">Sectors classified four ways by their margin × concentration signature. Quadrant positions mirror the Margin (Y) × HHI (X) axes of the scatter chart below.</div>'
     +'<div class="xs-verdicts">'+archetypes.map(_renderVerdictBlock).join('')+'</div>'
     +'<div class="xs-verdict-footer">Margin range '+(minM*100).toFixed(0)+'–'+(maxM*100).toFixed(0)+'% ('+_spread+' pp spread). The gap between the highest- and lowest-margin pools is wide enough that sector-level structure is a material driver of cross-sectional returns at the index level.</div>'
   +'</div>';
