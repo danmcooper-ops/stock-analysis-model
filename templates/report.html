@@ -477,17 +477,20 @@ td.ct{font-weight:700;}
    it visually anchors the per-sector page. Chips are translucent over
    the dark bg, with a rating-color dot, white ticker, and a small score
    pill — designed to read at a glance without taking much vertical space. */
-.pool-top-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 18px 8px 22px;background:linear-gradient(90deg,#0e1c30 0%,#1a252f 70%,#1a252f 100%);border-bottom:1px solid #1a252f;font-size:0.78em;position:relative;}
-.pool-top-banner::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,#1a9850 0%,#74c476 60%,#fbbf24 100%);}
-.pool-top-label{font-weight:700;font-size:0.7em;letter-spacing:0.14em;text-transform:uppercase;color:#cbd5e1;white-space:nowrap;}
-.pool-top-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-.pool-top-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 6px 3px 8px;border-radius:14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.16);cursor:pointer;transition:background 0.12s,border-color 0.12s,transform 0.1s;}
-.pool-top-chip:hover{background:rgba(255,255,255,0.13);border-color:rgba(255,255,255,0.35);transform:translateY(-1px);}
-.pool-top-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 2px rgba(255,255,255,0.08);}
-.pool-top-tk{font-weight:700;color:#fff;letter-spacing:0.02em;}
-.pool-top-score{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:17px;padding:0 6px;border-radius:9px;background:rgba(255,255,255,0.18);color:#fff;font-weight:700;font-size:0.84em;letter-spacing:0.01em;}
-[data-theme="dark"] .pool-top-banner{background:linear-gradient(90deg,#0d1117 0%,#161b22 70%,#161b22 100%);border-bottom-color:#30363d;}
-[data-theme="dark"] .pool-top-banner::before{background:linear-gradient(180deg,#1a9850 0%,#56d364 60%,#f0883e 100%);}
+/* Top 5 by Model Score — chip row inside a .pp-section .pp-top wrapper so
+   the outer panel inherits the same background/border/label badge styling
+   as Company Highlights and CR4 Companies. Chips themselves keep their
+   own look but on a light background. */
+.pool-top-chips{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.pool-top-chip{display:inline-flex;align-items:center;gap:7px;padding:5px 9px 5px 10px;border-radius:14px;background:#fff;border:1px solid #d9e0e8;box-shadow:0 1px 4px rgba(0,0,0,0.06);cursor:pointer;transition:background 0.12s,border-color 0.12s,transform 0.1s,box-shadow 0.1s;font-size:0.82em;}
+.pool-top-chip:hover{background:#f0f4f8;border-color:#b0bec5;transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,0.1);}
+.pool-top-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 2px rgba(0,0,0,0.06);}
+.pool-top-tk{font-weight:700;color:#1a252f;letter-spacing:0.02em;}
+.pool-top-score{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:18px;padding:0 7px;border-radius:9px;background:#eef2f7;color:#37474f;font-weight:700;font-size:0.84em;letter-spacing:0.01em;}
+[data-theme="dark"] .pool-top-chip{background:#1c2128;border-color:#30363d;box-shadow:0 1px 4px rgba(0,0,0,0.3);}
+[data-theme="dark"] .pool-top-chip:hover{background:#21262d;border-color:#58a6ff;box-shadow:0 3px 8px rgba(0,0,0,0.4);}
+[data-theme="dark"] .pool-top-tk{color:#e6edf3;}
+[data-theme="dark"] .pool-top-score{background:#21262d;color:#c9d1d9;}
 /* Per-sector stat banner — six critical sector-level metrics in one row,
    meant for quick reference on each individual sector tab. Full set of
    metrics still lives on the Overview tab's Sector Heatmap. Each cell
@@ -518,7 +521,7 @@ td.ct{font-weight:700;}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
-.pp-primer,.pp-desc,.pp-insights,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players{background:#f7f9fb;border-left:5px solid #1a252f;}
+.pp-primer,.pp-desc,.pp-insights,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players,.pp-top{background:#f7f9fb;border-left:5px solid #1a252f;}
 .pp-primer .pp-section-label,
 .pp-desc .pp-section-label,
 .pp-insights .pp-section-label,
@@ -528,6 +531,7 @@ td.ct{font-weight:700;}
 .pp-cr4 .pp-section-label,
 .pp-sectorprice .pp-section-label,
 .pp-players .pp-section-label,
+.pp-top .pp-section-label,
 .pp-chart .pp-section-label{background:#1a252f;}
 /* Combined sector-level Headwinds + Tailwinds block — two columns on
    desktop, stacked on mobile. Renders below the Structural Insights
@@ -543,7 +547,8 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-signals,
 [data-theme="dark"] .pp-cr4,
 [data-theme="dark"] .pp-sectorprice,
-[data-theme="dark"] .pp-players{background:#161b22;border-left-color:#c9d1d9;}
+[data-theme="dark"] .pp-players,
+[data-theme="dark"] .pp-top{background:#161b22;border-left-color:#c9d1d9;}
 [data-theme="dark"] .pp-section-label{background:#30363d !important;}
 .pp-range-btn{padding:3px 11px;font-size:0.74em;font-weight:600;border:1px solid #d0d8e4;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
 .pp-range-btn:hover{background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
@@ -4415,16 +4420,6 @@ function renderPool(){
        min/max (green = best, red = worst) so you can read a sector's relative
        standing without flipping back to the heatmap. */
     chartHtml+=_renderSectorBanner(sec);
-    var topRated=cos.slice().filter(function(d){return d._composite_score!=null;}).sort(function(a,b){return(b._composite_score||0)-(a._composite_score||0);}).slice(0,5);
-    if(topRated.length){
-      var chips=topRated.map(function(d){
-        var tk=d.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var col=RC[d.rating]||'#888';
-        var score=(d._composite_score!=null)?d._composite_score.toFixed(0):'';
-        return '<span class="pool-top-chip" onclick="openDet(\''+tk+'\')"><span class="pool-top-dot" style="background:'+col+'"></span><span class="pool-top-tk tk">'+d.ticker+'</span><span class="pool-top-score">'+score+'</span></span>';
-      }).join('');
-      chartHtml+='<div class="pool-top-banner"><span class="pool-top-label">Top 5 by Model Score</span><span class="pool-top-chips">'+chips+'</span></div>';
-    }
     var primerHtml=renderPoolPrimer(sec);
     var descHtml=renderPoolDescription(sec);
     var insightsHtml=renderPoolInsights(sec);
@@ -4455,6 +4450,16 @@ function renderPool(){
     }
     if(cr4Html){
       chartHtml+='<div class="pp-section pp-cr4"><span class="pp-section-label">CR4 Companies</span>'+cr4Html+'</div>';
+    }
+    var topRated=cos.slice().filter(function(d){return d._composite_score!=null;}).sort(function(a,b){return(b._composite_score||0)-(a._composite_score||0);}).slice(0,5);
+    if(topRated.length){
+      var topChips=topRated.map(function(d){
+        var tk=d.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var col=RC[d.rating]||'#888';
+        var score=(d._composite_score!=null)?d._composite_score.toFixed(0):'';
+        return '<span class="pool-top-chip" onclick="openDet(\''+tk+'\')"><span class="pool-top-dot" style="background:'+col+'"></span><span class="pool-top-tk tk">'+d.ticker+'</span><span class="pool-top-score">'+score+'</span></span>';
+      }).join('');
+      chartHtml+='<div class="pp-section pp-top"><span class="pp-section-label">Top 5 by Model Score</span><div class="pool-top-chips">'+topChips+'</div></div>';
     }
     chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Chart</span><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span></div><span style="font-size:0.7em;color:#aaa">Bar width = revenue share &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>';
     chartHtml+='</div>';
