@@ -2417,36 +2417,16 @@ function _phTipHtml(series,cmpMode,relX,def,annual){
   if(annual==null)annual=(def.src==='hist');
   var tip='';
   tip+='<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;font-size:0.72em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.04em">'+def.lbl+'</span>';
-  /* When hovering we surface the current value plus two deltas: vs the
-     previous data point (period-over-period) and vs the visible range
-     start (cumulative). At rest the bar collapses to a clean value-only
-     summary so the resting state stays uncluttered. */
-  var _hov=(relX!=null);
-  var _sgn=function(v){return(v>=0?'+':'')+v.toFixed(2)+'%';};
-  var _dCol=function(v){return v>=0?'#1a9850':'#de2d26';};
   series.forEach(function(s){
     var idx=relX!=null?Math.round(relX/((s.pts.length-1)||1)*(s.pts.length-1)):s.pts.length-1;
     idx=Math.max(0,Math.min(s.pts.length-1,idx));
     var p=s.pts[idx];
     var val=_phFmtVal(p.c,def.fmt);
     var vc=s.col;
-    var extra='';
-    if(_hov){
-      var dPrev=null,dRange=null;
-      if(idx>0){
-        var pPrev=s.pts[idx-1];
-        if(pPrev&&pPrev.c!=null&&p.c!=null&&pPrev.c!==0)dPrev=((p.c-pPrev.c)/Math.abs(pPrev.c))*100;
-      }
-      var pStart=s.pts[0];
-      if(pStart&&pStart.c!=null&&p.c!=null&&pStart.c!==0)dRange=((p.c-pStart.c)/Math.abs(pStart.c))*100;
-      if(dPrev!=null)extra+='<span style="margin-left:6px;font-size:0.78em;color:'+_dCol(dPrev)+'" title="Change vs previous data point">Δ '+_sgn(dPrev)+'</span>';
-      if(dRange!=null)extra+='<span style="margin-left:5px;font-size:0.78em;color:'+_dCol(dRange)+'" title="Cumulative change from range start">range '+_sgn(dRange)+'</span>';
-    }
     tip+='<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap">'
       +'<span style="width:10px;height:3px;background:'+s.col+';border-radius:2px;display:inline-block;flex-shrink:0"></span>'
       +'<span style="font-weight:700;font-size:0.88em;color:#1a252f">'+s.tk+'</span>'
       +'<span style="font-weight:600;color:'+vc+'">'+val+'</span>'
-      +extra
       +'</span>';
   });
   var refIdx=relX!=null?Math.max(0,Math.min(series[0].pts.length-1,Math.round(relX/((series[0].pts.length-1)||1)*(series[0].pts.length-1)))):null;
@@ -2540,21 +2520,11 @@ function _dpTipHtml(idx){
   var tkP=s.tk[i],tkBase=s.tk[0].c;
   var tkPct=tkBase>0?((tkP.c-tkBase)/tkBase)*100:0;
   var tkPctCol=tkPct>=0?'#1a9850':'#de2d26';
-  /* Day-over-day delta — only meaningful when hovering an interior point. */
-  var dayExtra='';
-  if(idx!=null&&i>0){
-    var tkPrev=s.tk[i-1];
-    if(tkPrev&&tkPrev.c>0){
-      var dayPct=((tkP.c-tkPrev.c)/tkPrev.c)*100;
-      dayExtra='<span style="margin-left:5px;font-size:0.85em;color:'+(dayPct>=0?'#1a9850':'#de2d26')+'" title="Change vs previous trading day">Δ '+sign(dayPct)+dayPct.toFixed(2)+'%</span>';
-    }
-  }
   var html='<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;white-space:nowrap">'
     +'<span style="width:12px;height:3px;background:'+s.tkCol+';border-radius:2px;display:inline-block"></span>'
     +'<span style="font-weight:700;color:#1a252f">'+s.ticker+'</span>'
     +'<span style="color:#1a252f">$'+tkP.c.toFixed(2)+'</span>'
     +'<span style="color:'+tkPctCol+';font-weight:600">'+sign(tkPct)+tkPct.toFixed(2)+'%</span>'
-    +dayExtra
     +'</span>';
   if(s.spy.length){
     var si=idx!=null?Math.max(0,Math.min(s.spy.length-1,idx)):s.spy.length-1;
@@ -2566,14 +2536,6 @@ function _dpTipHtml(idx){
       +'<span style="font-weight:700;color:#1a252f">S&amp;P 500</span>'
       +'<span style="color:'+spyPctCol+';font-weight:600">'+sign(spyPct)+spyPct.toFixed(2)+'%</span>'
       +'</span>';
-    /* Alpha vs SPY — gap between the ticker's cumulative return and the
-       benchmark's. Positive = outperforming the index over the visible
-       range; negative = lagging. Only shown when hovering. */
-    if(idx!=null){
-      var alpha=tkPct-spyPct;
-      var alphaCol=alpha>=0?'#1a9850':'#de2d26';
-      html+='<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:0.85em;color:'+alphaCol+';font-weight:600;white-space:nowrap" title="Cumulative outperformance vs S&amp;P 500 since range start">α '+sign(alpha)+alpha.toFixed(2)+'%</span>';
-    }
   }
   /* When not hovering, show the actual visible date span so the user can see
      that the range changed even when the data is the same (e.g. MAX==10YR for
@@ -3816,27 +3778,9 @@ function aggChartMove(e){
   var d=s.dates[idx];
   function _ret(end){var c=end-100;return (c>=0?'+':'')+c.toFixed(1)+'%';}
   function _retCol(end){return end>=100?'#2e7d48':'#c0392b';}
-  function _dSgn(v){return(v>=0?'+':'')+v.toFixed(2)+'%';}
-  function _dCol(v){return v>=0?'#1a9850':'#de2d26';}
-  /* Cross-sector mean of the indexed series at this date — lets each
-     sector's row carry a "vs. universe mean" delta, so you can see at a
-     glance which sectors are outperforming the cross-sector average. */
-  var meanIdx=s.aggs.reduce(function(a,x){return a+(x.vals[idx]||0);},0)/(s.aggs.length||1);
-  var sorted=s.aggs.map(function(a){
-    var v=a.vals[idx];
-    /* Day-over-day delta (period-over-period). Trading days for daily
-       data; whatever the source's native cadence otherwise. */
-    var prev=idx>0?a.vals[idx-1]:null;
-    var dPrev=(prev!=null&&prev!==0)?((v-prev)/Math.abs(prev))*100:null;
-    /* vs. universe mean — outperformance gap at this date. */
-    var dMean=v-meanIdx;
-    return{label:a.label,color:a.color,v:v,dPrev:dPrev,dMean:dMean};
-  }).sort(function(a,b){return b.v-a.v;});
+  var sorted=s.aggs.map(function(a){return{label:a.label,color:a.color,v:a.vals[idx]};}).sort(function(a,b){return b.v-a.v;});
   var parts=sorted.map(function(it){
-    var extra='';
-    if(it.dPrev!=null)extra+='<span style="margin-left:5px;font-size:0.78em;color:'+_dCol(it.dPrev)+'" title="Change vs previous data point">Δ '+_dSgn(it.dPrev)+'</span>';
-    extra+='<span style="margin-left:5px;font-size:0.78em;color:'+_dCol(it.dMean)+'" title="Spread vs universe mean at this date">vs μ '+_dSgn(it.dMean)+'</span>';
-    return '<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;white-space:nowrap"><span style="width:10px;height:3px;background:'+it.color+';border-radius:2px;flex-shrink:0"></span><span style="color:#1a252f">'+_esc(it.label)+'</span> <span style="font-weight:600;color:'+_retCol(it.v)+'">'+_ret(it.v)+'</span>'+extra+'</span>';
+    return '<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px;white-space:nowrap"><span style="width:10px;height:3px;background:'+it.color+';border-radius:2px;flex-shrink:0"></span><span style="color:#1a252f">'+_esc(it.label)+'</span> <span style="font-weight:600;color:'+_retCol(it.v)+'">'+_ret(it.v)+'</span></span>';
   });
   var tipEl=document.getElementById('sector-price-tip');
   if(tipEl)tipEl.innerHTML='<span style="color:#94a3b8;margin-right:10px;font-size:0.92em">'+d+'</span>'+parts.join('');
@@ -4100,11 +4044,7 @@ function renderCrossSectorDashboard(){
       var w=(v!=null)?Math.abs(v)/maxAbs*100:0;
       var col=opts.colorFn?opts.colorFn(v):'#3498db';
       var lbl=opts.labelFn?opts.labelFn(v):(v!=null?v.toFixed(2):'—');
-      /* Same rich popup as the scatter — hovering a sector bar surfaces
-         the full cross-sector profile (HHI band, op margin band, ROIC,
-         MoS, BUY%, top earner, quadrant verdict). Native title removed
-         since the richer popup supersedes it. */
-      bars+='<div class="xsect-bar-row" onclick="showPoolTab(\''+sEsc+'\')" onmouseenter="_scatterTip(event,\''+sEsc+'\')" onmouseleave="chartTip.hide()" style="cursor:pointer">'
+      bars+='<div class="xsect-bar-row" onclick="showPoolTab(\''+sEsc+'\')" style="cursor:pointer" title="Go to '+it.sector+'">'
         +'<div class="xsect-bar-label">'+it.sector+'</div>'
         +'<div class="xsect-bar-track"><div class="xsect-bar-fill" style="width:'+w.toFixed(1)+'%;background:'+col+'"></div>'
         +'<span class="xsect-bar-pct">'+lbl+'</span></div>'
@@ -4500,52 +4440,6 @@ function _buildScatterSVG(W,H){
   s+='</svg>';
   return s;
 }
-/* Margin-vs-Concentration scatter hover handler. Builds a rich popup
-   blending the raw cross-sector stats (window._xsStats — the source for
-   the dots) with the deeper banner stats (_buildAllSectorStats — adds
-   ROIC/MoS/BUY%/etc.) so a single hover reads the full sector profile. */
-function _scatterTip(e,name){
-  var xs=(window._xsStats||[]).filter(function(s){return s.name===name;})[0];
-  var bs=(typeof _buildAllSectorStats==='function')?_buildAllSectorStats():[];
-  var st=bs.filter(function(s){return s.sector===name;})[0]||{};
-  if(!xs&&!st.sector)return;
-  var hhi=(xs&&xs.hhi!=null)?xs.hhi:(st.hhi!=null?st.hhi:null);
-  var mar=(xs&&xs.margin!=null)?xs.margin:(st.wtdM!=null?st.wtdM:null);
-  /* HHI bands per US DOJ Horizontal Merger Guidelines:
-     <0.15 unconcentrated; 0.15-0.25 moderate; >0.25 highly concentrated. */
-  var hhiBand=hhi==null?'—':(hhi<0.15?'Unconcentrated':hhi<0.25?'Moderately Concentrated':hhi<0.50?'Highly Concentrated':'Near-Monopoly');
-  var hhiBandCol=hhi==null?'#9aa9b9':(hhi<0.15?'#0288d1':hhi<0.25?'#8e24aa':hhi<0.50?'#c0392b':'#7b1fa2');
-  /* Operating margin classification — mirrors the scatter dot color. */
-  var marBand=mar==null?'—':(mar>=0.25?'Elite (≥25%)':mar>=0.15?'Strong (15-25%)':mar>=0.10?'Modest (10-15%)':'Thin (<10%)');
-  var marCol=mar==null?'#9aa9b9':(mar>=0.25?'#1a9850':mar>=0.15?'#4caf50':mar>=0.10?'#ff9800':'#e53935');
-  /* Quadrant verdict — same priority order as the Decision Board so what
-     shows here matches the narrative the user sees elsewhere. */
-  var quad,quadCol,quadText;
-  if(mar==null||hhi==null){quad='—';quadCol='#9aa9b9';quadText='Mixed signals.';}
-  else if(mar>=0.20&&hhi>=0.15){quad='Profitable Oligopoly';quadCol='#8e24aa';quadText='High margin × concentration — pricing power flows from market structure, not pure product advantage.';}
-  else if(mar>=0.20&&hhi<0.15){quad='Quality';quadCol='#43a047';quadText='High margin in a competitive market — durable structural advantage (brand, IP, switching costs).';}
-  else if(mar<0.10&&hhi>=0.15){quad='Value Trap';quadCol='#e53935';quadText='Concentration without margin. Leaders dominate by volume but face structural cost pressure.';}
-  else{quad='Fragmented';quadCol='#9e9e9e';quadText='Thin margin × fragmented competition — returns mean-revert to cost of capital; stock selection matters most.';}
-  var sign=function(v,d){return (v>=0?'+':'')+(v*100).toFixed(d||1)+'%';};
-  var fmt2=function(v){return v==null||isNaN(v)?'—':v.toFixed(2)+'×';};
-  var rows=[];
-  rows.push(['HHI',(hhi!=null?hhi.toFixed(3):'—')+' &nbsp;<span style="color:'+hhiBandCol+';font-weight:500;font-size:0.85em">'+hhiBand+'</span>','']);
-  if(st.cr4!=null)rows.push(['CR4 Share',(st.cr4*100).toFixed(0)+'%','']);
-  rows.push(['Op Margin',(mar!=null?(mar*100).toFixed(1)+'%':'—')+' &nbsp;<span style="color:'+marCol+';font-weight:500;font-size:0.85em">'+marBand+'</span>','']);
-  if(st.medROIC!=null)rows.push(['Median ROIC',sign(st.medROIC,1),st.medROIC>=0.15?'color:#1a9850':st.medROIC<0?'color:#de2d26':'']);
-  if(st.medSpread!=null)rows.push(['ROIC – WACC',sign(st.medSpread,1),st.medSpread>=0.05?'color:#1a9850':st.medSpread<0?'color:#de2d26':'']);
-  if(st.medMos!=null)rows.push(['Median MoS',sign(st.medMos,0),st.medMos>=0.20?'color:#1a9850':st.medMos<0?'color:#de2d26':'']);
-  rows.push(['Companies',(xs?xs.n:(st.n||'—'))+'','']);
-  if(st.pctBuy!=null)rows.push(['BUY-Rated',(st.pctBuy*100).toFixed(0)+'%',st.pctBuy>=0.15?'color:#1a9850':'']);
-  if(st.best&&st.best.ticker)rows.push(['Sector Leader','<span style="font-weight:700">'+(st.best.ticker)+'</span> &nbsp;'+fmt2(st.best.pp_multiple),'']);
-  chartTip.show(e,{
-    title:name,
-    badge:{text:quad,bg:quadCol},
-    subtitle:'Sector-level snapshot · click circle to drill in',
-    rows:rows,
-    footer:quadText
-  });
-}
 /* === Sector Banner =====================================================
    Per-sector stat strip shown at the top of each individual sector tab.
    Mirrors the Sector Heatmap columns from the Overview tab so the same
@@ -4824,39 +4718,17 @@ function ppTip(e,ticker){
   if(_isTouchDevice)return;
   var d=null;for(var i=0;i<DATA.length;i++){if(DATA[i].ticker===ticker){d=DATA[i];break;}}
   if(!d)return;
-  /* Rich profit-pool bar tooltip — uses the shared chartTip surface so the
-     styling matches the scatter and the future chart popups. Surfaces the
-     classic pool fields (rev share, profit share, multiple) alongside the
-     valuation lens (MoS, composite score) and quality signals (ROIC,
-     spread) that decide whether the company actually earns its share. */
-  var fp=function(v,d){return v==null||isNaN(v)?'—':(v*100).toFixed(d==null?1:d)+'%';};
-  var fn=function(v,d){return v==null||isNaN(v)?'—':v.toFixed(d==null?2:d);};
-  var fds_=function(v){if(v==null||isNaN(v))return '—';if(v>=1e12)return '$'+(v/1e12).toFixed(2)+'T';if(v>=1e9)return '$'+(v/1e9).toFixed(2)+'B';if(v>=1e6)return '$'+(v/1e6).toFixed(0)+'M';return '$'+v.toFixed(0);};
-  var rt=d.rating||'N/A';
-  var rtBg=(typeof RC==='object'&&RC[rt])?RC[rt]:'#888';
-  var multCol=d.pp_multiple==null?'':(d.pp_multiple>=1?'color:#1a9850':d.pp_multiple>=0.7?'':'color:#de2d26');
-  var rows=[
-    ['Rev Share',fp(d.pp_revenue_share),''],
-    ['Profit Share',fp(d.pp_profit_share),''],
-    ['Pool Multiple',d.pp_multiple!=null?d.pp_multiple.toFixed(2)+'×':'—',multCol],
-    ['Op Margin',fp(d.operating_margin),d.operating_margin!=null?(d.operating_margin>=0.20?'color:#1a9850':d.operating_margin<0?'color:#de2d26':''):''],
-    ['ROIC',fp(d.roic),d.roic!=null?(d.roic>=0.15?'color:#1a9850':d.roic<0?'color:#de2d26':''):''],
-    ['Spread',fp(d.spread),d.spread!=null?(d.spread>=0.05?'color:#1a9850':d.spread<0?'color:#de2d26':''):''],
-    ['MoS',fp(d.mos),d.mos!=null?(d.mos>=0.15?'color:#1a9850':d.mos<0?'color:#de2d26':''):''],
-    ['Composite',d._composite_score!=null?Math.round(d._composite_score)+'':'—',d._composite_score!=null?(d._composite_score>=70?'color:#1a9850':d._composite_score<40?'color:#de2d26':''):''],
-    ['Mkt Cap',fds_(d.mcap),''],
-    ['Price',d.price!=null?'$'+fn(d.price,2):'—',''],
-    ['Fair Value',d.dcf_fv!=null?'$'+fn(d.dcf_fv,2):'—','']
-  ];
-  chartTip.show(e,{
-    title:d.ticker,
-    badge:{text:rt,bg:rtBg},
-    subtitle:(d.company_name?d.company_name+' · ':'')+(d.sector||''),
-    rows:rows,
-    footer:'Bar width = revenue share · bar height = operating margin. Click to open detail.'
-  });
+  var tt=document.getElementById('pool-tt');
+  var m=d.operating_margin!=null?(d.operating_margin*100).toFixed(1)+'%':'N/A';
+  var mult=d.pp_multiple!=null?d.pp_multiple.toFixed(2)+'x':'N/A';
+  var rs=d.pp_revenue_share!=null?(d.pp_revenue_share*100).toFixed(1)+'%':'N/A';
+  var ps=d.pp_profit_share!=null?(d.pp_profit_share*100).toFixed(1)+'%':'N/A';
+  tt.innerHTML='<b>'+d.ticker+'</b>'+(d.company_name?' &mdash; '+d.company_name:'')+'<br>Rating: '+(d.rating||'N/A')+'<br>Op. Margin: '+m+'<br>Rev Share: '+rs+' &nbsp;|&nbsp; Profit Share: '+ps+'<br>Pool Multiple: '+mult;
+  tt.style.display='block';
+  var _rect=(e.target&&e.target.getBoundingClientRect)?e.target.getBoundingClientRect():{left:e.clientX,top:e.clientY,right:e.clientX,bottom:e.clientY,width:0,height:0};
+  _placeTip(_rect,tt);
 }
-function ppHide(){chartTip.hide();}
+function ppHide(){document.getElementById('pool-tt').style.display='none';}
 var _ppQD={
   q:{title:'Quality',col:'#2e7d32',bg:'#f1f8e9',bc:'#43a047',text:'High margins in a competitive market signal durable structural advantage \u2014 brand equity, proprietary IP, or switching costs that hold pricing power without relying on market concentration. These businesses earn strong ROIC through product superiority, not dominance. The best long-term compounders live here.'},
   po:{title:'Profitable Oligopoly',col:'#6a1b9a',bg:'#f3e5f5',bc:'#8e24aa',text:'A small number of players control share and earn elevated margins through collective pricing power. Returns are high, but the moat is market structure \u2014 not intrinsic product advantage. Regulatory scrutiny, antitrust action, or a single disruptive entrant can compress returns quickly.'},
