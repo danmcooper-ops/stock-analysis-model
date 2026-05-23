@@ -513,6 +513,10 @@ td.ct{font-weight:700;}
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
 .pp-primer,.pp-desc,.pp-insights,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players,.pp-top{background:#f7f9fb;border-left:5px solid #1a252f;}
+/* Soft-blue panel for the Top 5 by Model Score block, distinct from the
+   neutral wash on the Profit Pool Chart panel just below (and avoids the
+   green/orange/red rating palette that shows up inside that chart). */
+.pp-top{background:#eaf2fb;}
 .pp-primer .pp-section-label,
 .pp-desc .pp-section-label,
 .pp-insights .pp-section-label,
@@ -799,6 +803,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-headwinds{background:#2a1414;}
 [data-theme="dark"] .pp-cr4{background:#1c1530;}
 [data-theme="dark"] .pp-players{background:#102a1b;}
+[data-theme="dark"] .pp-top{background:#0b1d2e;}
 [data-theme="dark"] .pp-chart{background:#161b22;}
 [data-theme="dark"] .pool-legend{color:#8b949e;}
 [data-theme="dark"] .pool-sec-stats{color:#c9d1d9;}
@@ -4447,6 +4452,30 @@ function renderPool(){
     }
     var topRated=cos.slice().filter(function(d){return d._composite_score!=null;}).sort(function(a,b){return(b._composite_score||0)-(a._composite_score||0);}).slice(0,5);
     if(topRated.length){
+      /* Build a brief, metric-driven prose blurb per card — frames
+         valuation (MoS) and quality (ROIC × economic spread) in one
+         sentence so the card reads as analysis, not raw chips. */
+      var _topNote=function(d){
+        var parts=[];
+        if(d.mos!=null){
+          var m=d.mos;
+          if(m>0.30)parts.push('Deeply discounted to DCF fair value ('+(m*100).toFixed(0)+'% MoS)');
+          else if(m>0.15)parts.push('Trades '+(m*100).toFixed(0)+'% below fair value');
+          else if(m>0)parts.push('Slight discount to fair value ('+(m*100).toFixed(0)+'% MoS)');
+          else parts.push('Trades above DCF fair value');
+        }
+        if(d.roic!=null && d.spread!=null){
+          if(d.roic>0.20 && d.spread>0.10)parts.push('high-quality compounder earning '+(d.roic*100).toFixed(0)+'% ROIC on '+(d.spread*100).toFixed(0)+'pp of economic spread');
+          else if(d.spread>0)parts.push('positive '+(d.spread*100).toFixed(0)+'pp economic spread on '+(d.roic*100).toFixed(0)+'% ROIC');
+          else parts.push((d.roic*100).toFixed(0)+'% ROIC but returns trail cost of capital');
+        } else if(d.roic!=null){
+          if(d.roic>0.20)parts.push('strong '+(d.roic*100).toFixed(0)+'% returns on invested capital');
+          else parts.push((d.roic*100).toFixed(0)+'% ROIC');
+        }
+        if(!parts.length)return '';
+        var s=parts.join('; ');
+        return s.charAt(0).toUpperCase()+s.slice(1)+'.';
+      };
       var topCards=topRated.map(function(d){
         var tk=d.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         var col=RC[d.rating]||'#888';
@@ -4464,7 +4493,9 @@ function renderPool(){
         if(d.mos!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">MoS '+fp(d.mos)+'</span>');
         if(d.roic!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">ROIC '+fp(d.roic)+'</span>');
         if(d.spread!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">Spread '+fp(d.spread)+'</span>');
-        card+='<div style="font-size:0.72em;display:flex;gap:4px;flex-wrap:wrap">'+chips.join('')+'</div>';
+        card+='<div style="font-size:0.72em;margin-bottom:5px;display:flex;gap:4px;flex-wrap:wrap">'+chips.join('')+'</div>';
+        var note=_topNote(d);
+        if(note)card+='<div style="color:#455a64">'+_esc(note)+'</div>';
         card+='</div>';
         return card;
       }).join('');
