@@ -4593,13 +4593,27 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   /* Dedupe across tabs: a column key may appear in several TC[*] tabs
      (e.g. ROIC lives in both Overview and Profitability). Show each
      metric exactly once in the filter dropdown, under the first tab
-     it shows up in. Without this the dropdown grew to 74 options for
-     62 unique keys \u2014 12 silent duplicates. */
+     it shows up in.
+
+     Skip columns whose absolute-dollar or absolute-share value doesn't
+     make sense as a cross-universe min/max screen \u2014 per-share fair
+     values, raw prices, MC dollar bounds, and absolute share counts.
+     The ratio/multiple versions (MoS%, P/E, P/B, P/FCF, mcap,
+     short_ratio, short_pct_float) stay in the dropdown. The columns
+     themselves remain visible in the data tables \u2014 only the filter
+     dropdown is pruned. */
+  var _CF_SKIP={
+    dcf_fv:1,epv_fv:1,rim_fv:1,ddm_fv:1,nav_fv:1,
+    price:1,high_52w:1,low_52w:1,target_mean:1,target_low:1,target_high:1,
+    _sens_low:1,_sens_high:1,mc_p10_fv:1,mc_p90_fv:1,
+    shares_out:1,float_shares:1,shares_short:1
+  };
   var cfSeen={};var optHtml='<option value="">Column\u2026</option>';
   Object.keys(TL).forEach(function(tabKey){
     var cols=TC[tabKey];var grpHtml='';
     cols.forEach(function(c){
       if(c.f==='text'||c.f==='rating'||c.f==='ar')return;
+      if(_CF_SKIP[c.k])return;
       if(cfSeen[c.k])return;
       cfSeen[c.k]=true;
       _CF_FMT[c.k]=c.f;
