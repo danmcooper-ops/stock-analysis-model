@@ -657,11 +657,16 @@ td.ct{font-weight:700;}
    (OVERWEIGHT / STOCK-PICK ONLY / NEUTRAL / AVOID) — the verdict is
    explicit, the prose carries the why, and the BUY-rating pills
    surface a concrete entry point. */
-.xs-verdicts{display:flex;flex-direction:column;gap:10px;}
-.xs-verdict{background:#fff;border:1px solid #e2e8f0;border-left-width:5px;border-radius:8px;padding:12px 14px;}
-.xs-verdict-hdr{display:flex;align-items:center;gap:10px;margin-bottom:9px;flex-wrap:wrap;}
-.xs-verdict-chip{display:inline-block;padding:3px 9px;border-radius:11px;font-size:0.7em;font-weight:700;letter-spacing:0.06em;color:#fff;text-transform:uppercase;flex-shrink:0;}
-.xs-verdict-why{font-size:0.78em;color:#37474f;line-height:1.4;flex:1;min-width:240px;}
+/* Two-column grid on desktop, single column on narrow viewports. Each
+   verdict cell sits flush at the top of its row (align-items:start) so
+   the lone-sector OVERWEIGHT bucket doesn't stretch to match a
+   sector-heavy neighbour. */
+.xs-verdicts{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;}
+@media(max-width:880px){.xs-verdicts{grid-template-columns:1fr;}}
+.xs-verdict{background:#fff;border:1px solid #e2e8f0;border-left-width:5px;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;}
+.xs-verdict-hdr{display:flex;flex-direction:column;gap:7px;margin-bottom:10px;}
+.xs-verdict-chip{display:inline-block;padding:3px 10px;border-radius:11px;font-size:0.7em;font-weight:700;letter-spacing:0.06em;color:#fff;text-transform:uppercase;align-self:flex-start;}
+.xs-verdict-why{font-size:0.78em;color:#37474f;line-height:1.5;}
 .xs-verdict-rows{display:flex;flex-direction:column;gap:5px;}
 .xs-verdict-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:5px;background:#f8fafd;cursor:pointer;transition:background 0.12s;flex-wrap:wrap;}
 .xs-verdict-row:hover{background:#eef2f8;}
@@ -4026,16 +4031,16 @@ function renderCrossSectorDashboard(){
      surfaced as concrete entry points via _xsPillsForSec(). */
   var verdicts=[
     {key:'OVERWEIGHT',label:'Overweight',color:'#1a9850',
-     why:'High margins in a competitive market = real moat. Pricing power is intrinsic, not positional \u2014 durable through cycles.',
+     why:'High margins in a competitive market are the strongest signal of intrinsic moat. Pricing power here comes from product differentiation, proprietary IP, or customer switching costs \u2014 not from market dominance or regulatory protection. The advantage survives competitor entry and regulator scrutiny because it does not depend on holding a fixed share. Treat these sectors as a portfolio anchor.',
      sectors:[]},
     {key:'STOCK_PICK',label:'Stock-pick only',color:'#2563eb',
-     why:'Oligopoly margins are positional, not intrinsic. Pick the incumbent with a structural cost advantage \u2014 sector exposure alone is not the trade.',
+     why:'Concentration above the DOJ/FTC threshold creates pricing power, but the moat is positional \u2014 returns depend on holding share, not on product superiority. Antitrust action, regulatory caps, or a single well-capitalized disruptor can unwind it. The right trade is the strongest incumbent with a structural cost advantage; passive sector exposure carries the tail risk without the alpha.',
      sectors:[]},
     {key:'NEUTRAL',label:'Neutral',color:'#7f8c9a',
-     why:'No structural call at the sector level. Mixed margin/concentration signals; alpha comes from stock-by-stock selection.',
+     why:'Margin and concentration signals don\u2019t point one direction. Returns at the sector level mean-revert toward cost of capital \u2014 not structurally attractive enough for an overweight, not compromised enough for an underweight. Idiosyncratic factors (unit-cost structure, balance-sheet strength, niche positioning) drive cross-sectional variance from here. Stock selection does the work, not the sector allocation.',
      sectors:[]},
     {key:'AVOID',label:'Avoid',color:'#de2d26',
-     why:'High share, thin margin = volume game with no compounding. Skip sector exposure; require an exceptional reason for any BUY here.',
+     why:'Elevated concentration has not translated into margin extraction \u2014 usually because volume competition, commodity input pricing, or mandated price ceilings constrain profitability regardless of share. High HHI here reflects market structure, not pricing power. The leading firm\u2019s dominant position is a floor on survival, not a ceiling lift on returns. Any BUY from this bucket needs an exceptional, idiosyncratic reason.',
      sectors:[]}
   ];
   function _verdictFor(s){
