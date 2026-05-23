@@ -650,6 +650,32 @@ td.ct{font-weight:700;}
 .xs-narcard-summary{font-size:0.78em;color:#1a252f;line-height:1.45;}
 .xs-narcard-detail{display:none;padding:10px 13px 13px;font-size:0.78em;color:#2c3e50;line-height:1.6;border-top:1px solid #eef1f4;}
 .xs-narcard.open .xs-narcard-detail{display:block;}
+/* === Cross-Sector Decision Board ===
+   Replaces the descriptive narrative-card deck with action-tagged
+   verdict sections. Every sector falls into exactly one bucket
+   (OVERWEIGHT / STOCK-PICK ONLY / NEUTRAL / AVOID) — the verdict is
+   explicit, the prose carries the why, and the BUY-rating pills
+   surface a concrete entry point. */
+.xs-verdicts{display:flex;flex-direction:column;gap:10px;}
+.xs-verdict{background:#fff;border:1px solid #e2e8f0;border-left-width:5px;border-radius:8px;padding:12px 14px;}
+.xs-verdict-hdr{display:flex;align-items:center;gap:10px;margin-bottom:9px;flex-wrap:wrap;}
+.xs-verdict-chip{display:inline-block;padding:3px 9px;border-radius:11px;font-size:0.7em;font-weight:700;letter-spacing:0.06em;color:#fff;text-transform:uppercase;flex-shrink:0;}
+.xs-verdict-why{font-size:0.78em;color:#37474f;line-height:1.4;flex:1;min-width:240px;}
+.xs-verdict-rows{display:flex;flex-direction:column;gap:5px;}
+.xs-verdict-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:5px;background:#f8fafd;cursor:pointer;transition:background 0.12s;flex-wrap:wrap;}
+.xs-verdict-row:hover{background:#eef2f8;}
+.xs-verdict-secname{font-weight:700;font-size:0.82em;color:#1a252f;min-width:150px;flex-shrink:0;}
+.xs-verdict-stats{font-size:0.74em;color:#546e7a;flex:1;min-width:200px;font-variant-numeric:tabular-nums;}
+.xs-verdict-entry{display:flex;align-items:center;gap:4px;flex-wrap:wrap;flex-shrink:0;}
+.xs-verdict-empty{font-size:0.72em;color:#94a3b8;font-style:italic;padding:6px 8px;}
+.xs-verdict-footer{margin-top:10px;padding:8px 12px;background:#f0f4f8;border-radius:6px;font-size:0.74em;color:#475569;line-height:1.45;}
+[data-theme="dark"] .xs-verdict{background:#161b22;border-color:#30363d;}
+[data-theme="dark"] .xs-verdict-why{color:#c9d1d9;}
+[data-theme="dark"] .xs-verdict-row{background:#0d1117;}
+[data-theme="dark"] .xs-verdict-row:hover{background:#1c2128;}
+[data-theme="dark"] .xs-verdict-secname{color:#e6edf3;}
+[data-theme="dark"] .xs-verdict-stats{color:#8b949e;}
+[data-theme="dark"] .xs-verdict-footer{background:#0d1117;color:#8b949e;}
 /* Price History */
 #ph-view{padding:6px 0;}
 .ph-metric-btn{padding:4px 11px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.78em;font-weight:700;background:white;color:#546e7a;transition:background 0.12s,color 0.12s;}
@@ -3970,21 +3996,54 @@ function renderCrossSectorDashboard(){
 
   window._xsStats=allStats;window._xsMaxM=maxM;
 
-  var narItems=[];
-  var top3Detail=byMargin.slice(0,3).map(function(s){return s.name+'\u00a0('+(s.margin*100).toFixed(1)+'%)';}).join(', ');
-  var bot2Detail=byMargin.slice(-2).reverse().map(function(s){return s.name+'\u00a0('+(s.margin*100).toFixed(1)+'%)';}).join(' and ');
-  narItems.push({title:'Margin leaders',metric:top3Detail,summary:'Pricing power is structurally embedded; reversion is slow.',detail:'These sectors sustain blended operating margins that consistently support ROIC well above cost of capital. Pricing power at this level is structurally embedded \u2014 through proprietary platforms, brand-enforced switching costs, or regulated cost pass-through \u2014 rather than cyclically contingent. Reversion is slow because the underlying economics are hard to replicate at scale.'});
-  narItems.push({title:'Margin challenged',metric:bot2Detail,summary:'Pricing is market-determined, not firm-determined; gains revert.',detail:'Structurally thin margins reflect economics where pricing is market-determined, not firm-determined: commodity input costs, compressed processing spreads, or capital-intensive distribution compress returns toward cost of capital. Margin expansion in these pools is hard-won and frequently gives back in competitive reversion. Stock selection here requires identifying firms with structural cost advantages, not just sector-level exposure.'});
-  var oligopolies=allStats.filter(function(s){return s.hhi>0.25;});
-  var highConc=byHHI.filter(function(s){return s.hhi>0.15&&s.hhi<=0.25;});
-  var valueTrap=allStats.filter(function(s){return s.hhi>0.15&&s.margin<0.12;});
-  if(oligopolies.length){narItems.push({title:'Highly concentrated',metric:oligopolies.map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+',\u00a0CR4\u00a0'+(s.cr4*100).toFixed(0)+'%)';}).join(', '),summary:'Oligopoly pricing power \u2014 positional, not intrinsic.',detail:'HHI above 0.25 meets the DOJ/FTC threshold for a highly concentrated market, where a small set of incumbents captures the majority of industry revenue and profit. Collective pricing power is structurally entrenched, but the moat is positional rather than intrinsic \u2014 returns depend on maintaining share, not product superiority \u2014 leaving these sectors exposed to antitrust action, regulatory price controls, or a single well-capitalized disruptor.'});}
-  if(highConc.length){narItems.push({title:'Moderately concentrated',metric:highConc.slice(0,5).map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+')';}).join(', '),summary:'Incumbents extract advantage; challengers retain room.',detail:'HHI in the 0.15\u20130.25 range (DOJ/FTC \u201cmoderately concentrated\u201d band) indicates leading incumbents extract measurable pricing advantage over smaller competitors. Market structure is decisive but not rigid: challengers with differentiated cost structures or product offerings retain room to erode share. Alpha here accrues to incumbents deepening their moat, not to passive sector exposure.'});}
-  narItems.push({title:'Most fragmented',metric:leastConc.name+'\u00a0(HHI\u00a0'+leastConc.hhi.toFixed(3)+',\u00a0'+leastConc.n+'\u00a0companies)',summary:'Returns mean-revert; stock selection beats sector exposure.',detail:'With HHI well below the 0.10 competitive threshold, no firm exerts meaningful influence over sector-wide pricing. Returns mean-revert toward cost of capital at the pool level. Sector-level allocation carries less signal; idiosyncratic factors \u2014 unit cost structure, balance sheet strength, niche positioning \u2014 drive the cross-sectional variance in outcomes. Individual stock selection matters more than being in this sector at all.'});
-  var sweetSpot=allStats.filter(function(s){return s.margin>=0.20&&s.hhi<0.15;});
-  if(sweetSpot.length){narItems.push({title:'Quality quadrant',metric:sweetSpot.map(function(s){return s.name+'\u00a0('+(s.margin*100).toFixed(1)+'%\u00a0margin,\u00a0HHI\u00a0'+s.hhi.toFixed(3)+')';}).join('; '),summary:'High margins in a competitive market = genuine moat.',detail:'High margins in a competitive market are the strongest signal of genuine structural advantage: firms earn pricing power through product differentiation, proprietary IP, or customer switching costs \u2014 not through market dominance or regulatory protection. This is the most durable earnings profile because the advantage is intrinsic, not positional, and does not depend on maintaining a stable oligopoly structure that regulators or disruptors could unwind.'});}
-  if(valueTrap.length){narItems.push({title:'Concentration without margin',metric:valueTrap.map(function(s){return s.name+'\u00a0(HHI\u00a0'+s.hhi.toFixed(3)+',\u00a0'+(s.margin*100).toFixed(1)+'%\u00a0margin)';}).join(', '),summary:'High share but no pricing power \u2014 value-trap risk.',detail:'Elevated concentration has not translated into commensurate margin extraction. This pattern emerges where volume competition, commodity input pricing, or mandated price ceilings constrain profitability regardless of market share. High HHI here reflects market structure, not pricing power \u2014 the leading firm\u2019s dominant position is a floor on survival, not a ceiling lift on returns.'});}
-  narItems.push({title:'Cross-sector spread',metric:((maxM-minM)*100).toFixed(0)+'\u00a0percentage points',summary:'Sector allocation is a first-order return driver.',detail:'The gap between the highest and lowest blended sector margins is wide enough that sector allocation is a first-order return driver, not a secondary tilting decision. A portfolio systematically overweight in high-quality pools \u2014 particularly sectors in the Quality quadrant \u2014 and underweight in structurally challenged pools compounds this advantage across cycles. Sector selection anchored to pool quality can rival individual stock selection in generating sustained portfolio-level alpha.'});
+  /* === Decision Board: bucket each sector into exactly one verdict ===
+     Priority-ordered (first match wins) so a sector that fires both
+     AVOID and STOCK-PICK criteria (e.g. Consumer Defensive \u2014 concentrated
+     AND value-trap) lands in AVOID \u2014 risk dominates the positional upside.
+
+       1. AVOID         hhi > 0.15 AND wtdM < 0.12
+                        (concentration without pricing power)
+       2. OVERWEIGHT    wtdM >= 0.20 AND hhi < 0.15
+                        (quality quadrant \u2014 intrinsic moat)
+       3. STOCK-PICK    hhi >= 0.25 (DOJ/FTC concentrated threshold)
+       4. NEUTRAL       everything else (mixed; stock-by-stock)
+
+     Folds in every insight the 8 old narrative cards carried, but every
+     sector now has an explicit action attached, with the model's BUYs
+     surfaced as concrete entry points via _xsPillsForSec(). */
+  var verdicts=[
+    {key:'OVERWEIGHT',label:'Overweight',color:'#1a9850',
+     why:'High margins in a competitive market = real moat. Pricing power is intrinsic, not positional \u2014 durable through cycles.',
+     sectors:[]},
+    {key:'STOCK_PICK',label:'Stock-pick only',color:'#2563eb',
+     why:'Oligopoly margins are positional, not intrinsic. Pick the incumbent with a structural cost advantage \u2014 sector exposure alone is not the trade.',
+     sectors:[]},
+    {key:'NEUTRAL',label:'Neutral',color:'#7f8c9a',
+     why:'No structural call at the sector level. Mixed margin/concentration signals; alpha comes from stock-by-stock selection.',
+     sectors:[]},
+    {key:'AVOID',label:'Avoid',color:'#de2d26',
+     why:'High share, thin margin = volume game with no compounding. Skip sector exposure; require an exceptional reason for any BUY here.',
+     sectors:[]}
+  ];
+  function _verdictFor(s){
+    if(s.hhi>0.15&&s.margin<0.12)return 'AVOID';
+    if(s.margin>=0.20&&s.hhi<0.15)return 'OVERWEIGHT';
+    if(s.hhi>=0.25)return 'STOCK_PICK';
+    return 'NEUTRAL';
+  }
+  allStats.forEach(function(s){
+    var key=_verdictFor(s);
+    for(var i=0;i<verdicts.length;i++){if(verdicts[i].key===key){verdicts[i].sectors.push(s);break;}}
+  });
+  /* Sort each bucket so the most attractive (margin desc) sits first. */
+  verdicts.forEach(function(v){v.sectors.sort(function(a,b){return b.margin-a.margin;});});
+  /* BUY/LEAN-BUY count per sector from the filtered universe (FD), so it
+     respects active user filters \u2014 same source _topBuysBySec uses. */
+  function _buyCountFor(s){
+    var cos=_bySecF[s]||[];
+    if(!cos.length)return{count:0,total:0};
+    return{count:cos.filter(_ACTIONABLE).length,total:cos.length};
+  }
 
   /* === Build per-sector stat rows for the heatmap summary table ===
      One row per sector with all numeric metrics; cell colors are computed
@@ -4180,23 +4239,42 @@ function renderCrossSectorDashboard(){
     :'';
   /* Mount: fill tbody after the dashboard return string is injected. */
   setTimeout(function(){if(window._heatRender)window._heatRender();},0);
-  /* Cross-sector narrative — leads the page so the human-readable summary is
-     the first thing seen. Each card stays expandable for the longer detail. */
+  /* Cross-Sector Summary — Decision Board view. Each verdict block renders
+     its sectors as a row of: name · margin · HHI · BUY count · top BUY pills.
+     Empty buckets are skipped. Footer carries the previous "Cross-sector
+     spread" insight. */
+  function _renderVerdictBlock(v){
+    if(!v.sectors.length)return'';
+    var rows=v.sectors.map(function(s){
+      var sEsc=s.name.replace(/'/g,"\\'");
+      var bc=_buyCountFor(s.name);
+      var buyStr=bc.total?(bc.count+' BUY · '+bc.total+' cos'):'no coverage';
+      var pills=_xsPillsForSec(s.name);
+      return'<div class="xs-verdict-row" onclick="showPoolTab(\''+sEsc+'\')" title="Open '+s.name+' detail">'
+        +'<div class="xs-verdict-secname">'+s.name+'</div>'
+        +'<div class="xs-verdict-stats">'
+          +'<span>'+(s.margin*100).toFixed(1)+'% margin</span>'
+          +' <span style="color:#94a3b8">·</span> '
+          +'<span>HHI '+s.hhi.toFixed(2)+'</span>'
+          +' <span style="color:#94a3b8">·</span> '
+          +'<span>'+buyStr+'</span>'
+        +'</div>'
+        +'<div class="xs-verdict-entry">'+pills+'</div>'
+      +'</div>';
+    }).join('');
+    return'<div class="xs-verdict" style="border-left-color:'+v.color+'">'
+      +'<div class="xs-verdict-hdr">'
+        +'<span class="xs-verdict-chip" style="background:'+v.color+'">'+v.label+'</span>'
+        +'<span class="xs-verdict-why">'+v.why+'</span>'
+      +'</div>'
+      +'<div class="xs-verdict-rows">'+rows+'</div>'
+    +'</div>';
+  }
+  var _spread=((maxM-minM)*100).toFixed(0);
   var _narHtml='<div style="margin-bottom:18px">'
     +'<div class="xsect-chart-title" style="margin-bottom:8px">Cross-Sector Summary</div>'
-    +'<div class="xsect-narrative" style="margin-top:0;margin-bottom:0">'
-      +'<div class="xs-narcards">'+narItems.map(function(it){return'<div class="xs-narcard">'
-          +'<div class="xs-narcard-hdr" onclick="xsToggle(this)">'
-            +'<div class="xs-narcard-title-row">'
-              +'<span class="xs-narcard-title">'+it.title+'</span>'
-              +'<span class="xs-narcard-toggle" aria-hidden="true">+</span>'
-            +'</div>'
-            +'<div class="xs-narcard-metric">'+it.metric+'</div>'
-            +'<div class="xs-narcard-summary">'+it.summary+'</div>'
-          +'</div>'
-          +'<div class="xs-narcard-detail">'+it.detail+'</div>'
-        +'</div>';}).join('')+'</div>'
-    +'</div>'
+    +'<div class="xs-verdicts">'+verdicts.map(_renderVerdictBlock).join('')+'</div>'
+    +'<div class="xs-verdict-footer">Margin range '+(minM*100).toFixed(0)+'–'+(maxM*100).toFixed(0)+'% ('+_spread+' pp spread). Sector allocation is a first-order return driver, not a tilting decision — overweight the Quality quadrant, underweight the Avoid bucket, and the structural tailwind compounds across cycles.</div>'
   +'</div>';
   /* Aggregate Performance chart lives on its own "Performance" tab
      (right of Overview); not rendered here. */
