@@ -4361,15 +4361,13 @@ function renderCrossSectorDashboard(){
     +'<div class="xs-verdicts">'+archetypes.map(_renderVerdictBlock).join('')+'</div>'
     +'<div class="xs-verdict-footer">Margin range '+(minM*100).toFixed(0)+'–'+(maxM*100).toFixed(0)+'% ('+_spread+' pp spread). The gap between the highest- and lowest-margin pools is wide enough that sector-level structure is a material driver of cross-sectional returns at the index level.</div>'
   +'</div>';
-  /* Aggregate Performance chart lives on its own "Performance" tab
-     (right of Overview); not rendered here. */
+  /* Overview shows the Sector Heatmap only. The Cross-Sector Summary
+     quadrants (built into _narHtml above) and the Margin vs. Concentration
+     scatter were removed per request — the upstream computation for both
+     is kept in scope above so we can drop either back in by re-adding
+     it to the return string. The Aggregate Performance chart lives on
+     its own "Performance" tab (right of Overview); not rendered here. */
   return'<div class="xsect-dashboard">'
-    +'<div style="margin-bottom:14px">'
-      +'<div class="xsect-chart-title">Margin vs. Concentration</div><div id="xsect-scatter-wrap"></div>'
-    +'</div>'
-    +'<div style="height:18px"></div>'
-    +_narHtml
-    +'<div style="height:18px"></div>'
     +_heatTableHtml
     +'</div></div>';
 }
