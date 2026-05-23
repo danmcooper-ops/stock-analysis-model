@@ -4319,13 +4319,13 @@ function renderCrossSectorDashboard(){
   /* Aggregate Performance chart lives on its own "Performance" tab
      (right of Overview); not rendered here. */
   return'<div class="xsect-dashboard">'
-    +_narHtml
-    +'<div style="height:18px"></div>'
-    +_heatTableHtml
-    +'<div style="height:18px"></div>'
     +'<div style="margin-bottom:14px">'
       +'<div class="xsect-chart-title">Margin vs. Concentration</div><div id="xsect-scatter-wrap"></div>'
     +'</div>'
+    +'<div style="height:18px"></div>'
+    +_narHtml
+    +'<div style="height:18px"></div>'
+    +_heatTableHtml
     +'</div></div>';
 }
 function _buildScatterSVG(W,H){
