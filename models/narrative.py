@@ -309,7 +309,6 @@ def _stock_signals(row, sector_medians):
 
     # === GROWTH signals (deltas only — summary owns CAGR levels) ===
     fund_growth = row.get('fundamental_growth')
-    surprise_avg = row.get('surprise_avg')
     margin_trend = row.get('margin_trend')
 
     if fund_growth is not None:
@@ -318,17 +317,10 @@ def _stock_signals(row, sector_medians):
         elif fund_growth < 0.02:
             HW('Low reinvestment-driven growth suggests the compounding engine has stalled', sev='amber', cat='growth')
 
-    if surprise_avg is not None:
-        if surprise_avg > 0.05:
-            tw.append(f'Consistently beating estimates by {_pct(surprise_avg)} — management is under-promising and over-delivering')
-        elif surprise_avg > 0.02:
-            tw.append('Recent earnings have come in above analyst expectations')
-        elif surprise_avg < -0.05:
-            HW(f'Earnings missing estimates by {_pct(surprise_avg)} on average — the first crack Graham would watch for', sev='red', cat='quality')
-        elif surprise_avg < -0.03:
-            HW(f'Earnings missing estimates by {_pct(surprise_avg)} on average', sev='amber', cat='quality')
-        elif surprise_avg < 0:
-            HW('Recent earnings have fallen short of analyst expectations', sev='amber', cat='quality')
+    # Earnings-surprise signals removed — they're analyst-relative measures
+    # that we no longer surface in the UI. Margin trend (below) and
+    # fundamental growth carry the same business-quality information without
+    # leaning on sell-side expectations.
 
     # (D) Trend: margin direction — a delta, distinct from the level the summary carries
     if margin_trend is not None:
@@ -485,27 +477,10 @@ def _stock_signals(row, sector_medians):
         elif payout_ratio > 0.85:
             HW(f'Payout ratio of {_pct(payout_ratio)} leaves thin coverage if earnings wobble', sev='amber', cat='dividend')
 
-    # --- Analyst consensus ---
-    analyst_rec = row.get('analyst_rec')
-    num_analysts = row.get('num_analysts')
-    target_mean = row.get('target_mean')
-    price = row.get('price')
-
-    if target_mean and price and price > 0:
-        upside = (target_mean - price) / price
-        if upside > 0.25 and num_analysts and num_analysts >= 5:
-            tw.append(f'Analyst consensus points to {_pct(upside)} upside from current levels')
-        elif upside > 0.15 and num_analysts and num_analysts >= 3:
-            tw.append(f'Analysts see meaningful upside ({_pct(upside)}) to their mean target')
-        elif upside < -0.10:
-            HW(f'Trading above the mean analyst price target by {_pct(upside)}', sev='amber', cat='valuation', magnitude=abs(upside))
-
-    if analyst_rec:
-        rec_lower = analyst_rec.lower().replace('_', ' ')
-        if rec_lower in ('strong_buy', 'strong buy') and num_analysts and num_analysts >= 5:
-            tw.append('Strong Buy consensus from a broad analyst coverage base')
-        elif rec_lower in ('sell', 'strong_sell', 'strong sell'):
-            HW(f'Analyst consensus is {rec_lower.replace("_", " ").title()}', sev='red', cat='sentiment')
+    # Analyst-consensus signals (target-price upside, recommendation) were
+    # removed: they're sell-side sentiment, not a fundamental signal Buffett /
+    # Munger would use. MoS vs DCF / RIM / EPV / NAV in the Valuation block
+    # carries the same upside/downside framing from independent valuation.
 
     return hw, tw
 

@@ -1333,7 +1333,7 @@ var DKV_TIPS={
   'Current Price':'price','DCF Fair Value':'dcf_fv','DCF MoS':'mos','Expected Return':'er',
   'Blend Method':'er','MC Confidence':'mc_confidence','MC CV':'mc_confidence',
   'MC P10 Fair Value':'mc_p10_fv','MC P90 Fair Value':'mc_p90_fv',
-  'DDM Fair Value':'ddm_fv','H-Model FV':'ddm_fv','DDM Growth':'analyst_ltg',
+  'DDM Fair Value':'ddm_fv','H-Model FV':'ddm_fv',
   'Div CAGR':'share_buyback_rate','Sustainable Growth':'fundamental_growth',
   'EPV Fair Value':'epv_fv','EPV MoS':'epv_mos','EPV Growth-Adj':'epv_fv',
   'RIM Fair Value':'rim_fv','RIM MoS':'rim_fv',
@@ -1344,18 +1344,16 @@ var DKV_TIPS={
   'Int Coverage':'int_cov','Interest Coverage':'int_cov','Cash Conversion':'cash_conv',
   'Accruals':'accruals','Piotroski':'piotroski',
   'P/E':'pe','EV/EBITDA':'ev_ebitda','P/FCF':'pfcf','P/B':'pb',
-  'EPV P/FV':'epv_p_fv','Analyst Target':'target_mean',
+  'EPV P/FV':'epv_p_fv',
   'Net Margin':'dupont_margin','Asset Turnover':'dupont_turnover','Equity Multiplier':'dupont_leverage',
   'ROE (DuPont)':'roe',
   'Altman Z-Score':'altman_z','Z Zone':'altman_z',
   'Beneish M-Score':'beneish_m','Manipulation Flag':'beneish_m',
   'Net Debt/EBITDA':'nd_ebitda','Debt/Equity':'de','Current Ratio':'cr',
-  'Analyst LTG':'analyst_ltg','Margin Trend':'margin_trend',
-  'Earnings Surprise':'surprise_avg','Fundamental Growth':'fundamental_growth',
+  'Margin Trend':'margin_trend',
+  'Fundamental Growth':'fundamental_growth',
   'Reinvestment Rate':'reinvestment_rate','Terminal Growth':'terminal_growth',
   'FCF Growth':'fcf_growth','WACC':'wacc','ERP':'wacc',
-  'Recommendation':'analyst_rec','Target Mean':'target_mean',
-  'Target Low':'target_low','Target High':'target_high','# Analysts':'num_analysts',
   'Shrhldr Yield':'shareholder_yield','Buyback Rate':'share_buyback_rate',
   'Dividend Yield':'div_yield','Payout Ratio':'shareholder_yield',
   'Buy Ratio (1Y)':'insider_buying','Buys (90d)':'insider_buying',
@@ -1388,7 +1386,6 @@ roic_cv:'ROIC Coefficient of Variation: low CV means stable, reliable returns. M
 dcf_fv:'Present value of all future owner earnings. Buffett: \u201cThe value of any asset is simply its discounted future cash flows.\u201d Treat as a range, not a precise number \u2014 output quality depends on the assumptions feeding it.',
 price:'Mr. Market\u2019s daily offer \u2014 you\u2019re never obligated to accept. Buffett: \u201cPrice is what you pay; value is what you get.\u201d Meaningless without an independent intrinsic value estimate.',
 mos:'Graham\u2019s foundational principle: (Fair Value \u2212 Price) / Fair Value. Buffett: \u201cThe three most important words in investing are margin of safety.\u201d 20\u201330% is a reasonable minimum; 40%+ is compelling.',
-target_mean:'Average analyst price target \u2014 Wall Street consensus. Buffett and Munger distrust sell-side targets; use as a sentiment barometer, not a substitute for independent valuation.',
 pe:'Price / EPS \u2014 Graham\u2019s first-pass screen. A low P/E on a high-ROIC business with clean, cash-backed earnings is one of the most reliably attractive combinations in value investing.',
 ev_ebitda:'Capital-structure-neutral valuation ratio. Only signals value with genuine earnings quality \u2014 don\u2019t use it to justify capital-heavy businesses at cyclical troughs.',
 pfcf:'Price / Free Cash Flow \u2014 the multiple paid on actual owner earnings. Below 20\u00d7 is reasonable for a quality business; below 15\u00d7 is genuinely attractive.',
@@ -1414,18 +1411,12 @@ de:'Debt / Equity \u2014 Graham\u2019s direct leverage check. Below 1.0 means ow
 cr:'Current Assets / Current Liabilities. Graham required a minimum 2.0 for defensive stocks. Below 1.0 = short-term liabilities exceed liquid assets, creating dependency on rolling credit.',
 altman_z:'Bankruptcy-prediction model combining five ratios. Above 2.99 = safe; below 1.81 = distress. Graham was obsessed with avoiding permanent capital loss \u2014 the Z-Score identifies businesses approaching insolvency.',
 beneish_m:'Earnings manipulation risk model. Above \u22121.78 = elevated risk. Buffett: \u201cIntegrity, intelligence, energy \u2014 if they lack the first, the other two will kill you.\u201d A high score demands direct scrutiny.',
-analyst_ltg:'Analyst consensus long-term growth estimate. Munger distrusts sell-side forecasts \u2014 they\u2019re systematically optimistic. Compare against fundamental growth (ROIC \u00d7 Reinvestment Rate) as a reality check.',
 fundamental_growth:'ROIC \u00d7 Reinvestment Rate \u2014 Buffett\u2019s internally consistent growth formula. A 20% ROIC business reinvesting half its earnings compounds intrinsic value at 10% per year with no external financing.',
 reinvestment_rate:'Share of earnings reinvested back into the business. Buffett\u2019s ideal: grow substantially without retaining much. High reinvestment only creates value when ROIC is high.',
 terminal_growth:'Perpetual growth rate beyond the 10-year DCF horizon, anchored near long-run GDP (2\u20133%). Small changes have outsized fair-value impact \u2014 Buffett avoids heroic terminal assumptions.',
 margin_trend:'Year-over-year change in operating margin. Expanding margins signal a deepening moat. Contracting margins are the first warning the competitive advantage is under pressure.',
-surprise_avg:'Average quarterly earnings surprise. Consistent beats signal conservative, honest guidance \u2014 a Buffett hallmark. A team that under-promises and over-delivers is trustworthy.',
 fcf_growth:'FCF growth rate used in Stage 1 of the DCF. Buffett: FCF growth must be organic. Verify it\u2019s supported by revenue growth and stable margins, not deferred capex or working capital games.',
 shareholder_yield:'Dividends + Net Buybacks / Market Cap. Gate passes when yield > 2%, filtering token distributions. Above 5% signals genuine, consistent commitment to returning cash to owners.',
-analyst_rec:'Wall Street consensus recommendation. Buffett and Munger distrust sell-side research \u2014 use as a sentiment barometer only. The best opportunities are often where the consensus is wrong.',
-num_analysts:'Number of analysts covering the stock. Low coverage (<5) may signal an underfollowed business where price discovery is incomplete \u2014 Buffett\u2019s favourite hunting ground.',
-target_low:'Most pessimistic analyst price target. Graham: consider the bear case first. Stock near the low target may already price in the worst \u2014 compare against your own intrinsic value, not just consensus.',
-target_high:'Most optimistic analyst price target. Wide spread between high and low targets signals genuine uncertainty \u2014 demand a wider margin of safety before committing capital.',
 er:'Expected annual return from the DCF model. Buffett thinks in long-run compounding rates \u2014 above 12\u201315% on a quality business deserves serious attention. Compare against opportunity cost.',
 _sens_low:'Bear-case fair value from DCF sensitivity. Graham: always ask what the business is worth under adverse conditions. Stock trading below this value has margin of safety even in pessimistic scenarios.',
 _sens_high:'Bull-case fair value from DCF sensitivity. If price exceeds the bull case, the market prices for perfection. Munger: ask whether you believe these assumptions enough to stake permanent capital.',
@@ -1436,7 +1427,7 @@ shares_out:'Total shares outstanding. Declining share count over time is one of 
 float_shares:'Shares available for public trading. Low float amplifies volatility and creates liquidity risk \u2014 important for position sizing in concentrated portfolios.',
 insider_pct:'Percentage held by insiders. Munger: \u201cShow me the incentive and I\u2019ll show you the outcome.\u201d Above 10% means management loses personally if the stock falls \u2014 the strongest alignment signal.',
 inst_pct:'Percentage held by institutions. Heavy ownership validates quality but creates concentration risk \u2014 sophisticated sellers can act simultaneously when sentiment shifts.',
-shares_short:'Shares held short. Buffett ignores short interest; focus on fundamentals. Occasionally, prominent short sellers are the best fundamental analysts on a stock \u2014 read their thesis.',
+shares_short:'Shares held short. Buffett ignores short interest; focus on fundamentals. Persistent short interest can highlight where the bear case has institutional conviction \u2014 worth investigating, not echoing.',
 short_ratio:'Days to Cover = Shares Short / Avg Daily Volume. Relevant to traders, not long-term value investors indifferent to short-squeeze dynamics.',
 short_pct_float:'Short interest as a percentage of float. Above 10% reflects significant bearish positioning \u2014 take a prominent short thesis seriously before assuming the market is simply wrong.',
 share_turnover_rate:'Avg Daily Volume / Shares Outstanding. Low turnover signals a patient, long-term shareholder base. Munger: \u201cThe big money is not in the buying and selling, but in the waiting.\u201d',
@@ -1972,10 +1963,10 @@ function renderOverview(){
 /* === TABLE === */
 var TC={
   ovr:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'sector',l:'Sector',f:'text'},{k:'industry',l:'Industry',f:'text'},{k:'mcap',l:'Mkt Cap',f:'ds',g:'gv'},{k:'roic',l:'ROIC',f:'pct'},{k:'roic_cv',l:'ROIC CV',f:'n2'},{k:'wacc',l:'WACC',f:'pct'},{k:'spread',l:'Spread',f:'pct'},{k:'gross_margin',l:'Gross Mgn',f:'pct'},{k:'shareholder_yield',l:'Shrhldr Yld',f:'pct'},{k:'high_52w',l:'52W High',f:'dollar'},{k:'low_52w',l:'52W Low',f:'dollar'},{k:'pct_from_52w_high',l:'% from High',f:'pct'},{k:'range_52w_position',l:'Range Pos',f:'int'}],
-  val:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'dcf_fv',l:'DCF/Shr',f:'dollar',g:'gv'},{k:'price',l:'Price',f:'dollar',g:'gv'},{k:'mos',l:'MoS%',f:'pct',g:'gv'},{k:'target_mean',l:'Target $',f:'dollar',g:'gv'},{k:'pe',l:'P/E',f:'n1',g:'gv'},{k:'ev_ebitda',l:'EV/EBITDA',f:'n1',g:'gv'},{k:'pfcf',l:'P/FCF',f:'n1',g:'gv'},{k:'pb',l:'P/B',f:'n2',g:'gv'},{k:'epv_fv',l:'EPV FV',f:'dollar',g:'gv'},{k:'rim_fv',l:'RIM FV',f:'dollar',g:'gv'},{k:'ddm_fv',l:'DDM FV',f:'dollar',g:'gv'},{k:'nav_fv',l:'NAV FV',f:'dollar',g:'gv'},{k:'implied_growth',l:'Impl. Growth',f:'pct',g:'gv'}],
+  val:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'dcf_fv',l:'DCF/Shr',f:'dollar',g:'gv'},{k:'price',l:'Price',f:'dollar',g:'gv'},{k:'mos',l:'MoS%',f:'pct',g:'gv'},{k:'pe',l:'P/E',f:'n1',g:'gv'},{k:'ev_ebitda',l:'EV/EBITDA',f:'n1',g:'gv'},{k:'pfcf',l:'P/FCF',f:'n1',g:'gv'},{k:'pb',l:'P/B',f:'n2',g:'gv'},{k:'epv_fv',l:'EPV FV',f:'dollar',g:'gv'},{k:'rim_fv',l:'RIM FV',f:'dollar',g:'gv'},{k:'ddm_fv',l:'DDM FV',f:'dollar',g:'gv'},{k:'nav_fv',l:'NAV FV',f:'dollar',g:'gv'},{k:'implied_growth',l:'Impl. Growth',f:'pct',g:'gv'}],
   prof:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'roic',l:'ROIC',f:'pct',g:'gp2'},{k:'roic_cv',l:'ROIC CV',f:'n2',g:'gp2'},{k:'gross_margin',l:'Gross Mgn',f:'pct',g:'gp2'},{k:'fcf_margin',l:'FCF Margin',f:'pct',g:'gp2'},{k:'roe',l:'ROE',f:'pct',g:'gp2'},{k:'roa',l:'ROA',f:'pct',g:'gp2'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gp2'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gp2'},{k:'accruals',l:'Accruals',f:'n3',g:'gp2'},{k:'rev_cagr',l:'Rev CAGR',f:'pct',g:'gp2'},{k:'dupont_margin',l:'DuPont Mrgn',f:'pct',g:'gp2'},{k:'dupont_turnover',l:'DuPont Turn',f:'n2',g:'gp2'},{k:'dupont_leverage',l:'DuPont Lev',f:'n2',g:'gp2'}],
   hlth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gh'},{k:'nd_ebitda',l:'ND/EBITDA',f:'n2',g:'gh'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gh'},{k:'accruals',l:'Accruals',f:'n3',g:'gh'},{k:'cr',l:'Curr R',f:'n2',g:'gh'},{k:'altman_z',l:'Altman Z',f:'n2',g:'gh'},{k:'beneish_m',l:'Beneish M',f:'n2',g:'gh'}],
-  growth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'roe',l:'ROE',f:'pct',g:'gg'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gg'},{k:'margin_trend',l:'Margin Trend',f:'pct',g:'gg'},{k:'rev_cagr_10y',l:'Rev CAGR 10Y',f:'pct',g:'gg'},{k:'rev_cagr_5y',l:'Rev CAGR 5Y',f:'pct'},{k:'analyst_ltg',l:'Analyst LTG',f:'pct'},{k:'reinvestment_rate',l:'Reinvest Rate',f:'pct'},{k:'fcf_growth',l:'FCF Growth',f:'pct'}],
+  growth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'roe',l:'ROE',f:'pct',g:'gg'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gg'},{k:'margin_trend',l:'Margin Trend',f:'pct',g:'gg'},{k:'rev_cagr_10y',l:'Rev CAGR 10Y',f:'pct',g:'gg'},{k:'rev_cagr_5y',l:'Rev CAGR 5Y',f:'pct'},{k:'reinvestment_rate',l:'Reinvest Rate',f:'pct'},{k:'fcf_growth',l:'FCF Growth',f:'pct'}],
   proj:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'dcf_fv',l:'DCF Base',f:'dollar',g:'gj'},{k:'price',l:'Price',f:'dollar'},{k:'er',l:'Er',f:'pct',g:'gj'},{k:'_sens_low',l:'Sens Low',f:'dollar',g:'gj'},{k:'_sens_high',l:'Sens High',f:'dollar',g:'gj'},{k:'mc_p10_fv',l:'MC P10',f:'dollar',g:'gj'},{k:'mc_p90_fv',l:'MC P90',f:'dollar',g:'gj'},{k:'mc_confidence',l:'MC Conf',f:'text',g:'gj'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gj'},{k:'terminal_growth',l:'Term. Growth',f:'pct',g:'gj'}],
   own:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'shareholder_yield',l:'Shrhldr Yld',f:'pct',g:'gow'},{k:'insider_pct',l:'Insider %',f:'pct',g:'gow'},{k:'share_buyback_rate',l:'Buyback Rate',f:'pct',g:'gow'},{k:'sbc_pct_rev',l:'SBC/Rev',f:'pct',g:'gow'},{k:'shares_out',l:'Shares Out',f:'ds'},{k:'float_shares',l:'Float',f:'ds'},{k:'inst_pct',l:'Inst %',f:'pct'},{k:'shares_short',l:'Short Int',f:'ds'},{k:'short_ratio',l:'Short Ratio',f:'n2'},{k:'short_pct_float',l:'Short/Float',f:'pct'}]
 };
@@ -3055,7 +3046,7 @@ function openDet(tk){
   /* --- GROUP 1: PRICE CONTEXT --- */
   gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2e86c1)"><span class="dg-icon"></span>Price Context</div><div class="dgrid-inner">';
   if(d.high_52w!=null&&d.low_52w!=null){var rp=d.range_52w_position!=null?d.range_52w_position:50;var rpC=rp<25?'color:#1a9850;font-weight:700':(rp>75?'color:#de2d26':'');gh+='<div class="dsec"><h3>52-Week Range</h3><div style="margin:8px 0;background:#e9ecef;border-radius:6px;height:18px;position:relative"><div style="position:absolute;left:'+Math.min(Math.max(rp,0),100)+'%;top:-2px;width:3px;height:22px;background:#2980b9;border-radius:2px" title="Current"></div></div><div class="dkvg">'+bkv([['52W High',fd(d.high_52w)],['52W Low',fd(d.low_52w)],['% from High',fp(d.pct_from_52w_high)],['Range Position',d.range_52w_position!=null?Math.round(d.range_52w_position)+'%':'N/A',rpC]])+'</div></div>';}
-  gh+='<div class="dsec"><h3>Valuation Multiples</h3><div class="dkvg">'+bkv([['P/E',fn(d.pe,1)],['EV/EBITDA',fn(d.ev_ebitda,1)],['P/FCF',fn(d.pfcf,1)],['P/B',fn(d.pb,2)],['EPV P/FV',fn(d.epv_pfv,2)],['Analyst Target',fd(d.target_mean)]])+'</div></div>';
+  gh+='<div class="dsec"><h3>Valuation Multiples</h3><div class="dkvg">'+bkv([['P/E',fn(d.pe,1)],['EV/EBITDA',fn(d.ev_ebitda,1)],['P/FCF',fn(d.pfcf,1)],['P/B',fn(d.pb,2)],['EPV P/FV',fn(d.epv_pfv,2)]])+'</div></div>';
   gh+='</div></div>';
   /* --- GROUP 2: PRICE SIGNALS --- */
   gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#0d5c63,#1a9e8f)"><span class="dg-icon"></span>Price Signals</div><div class="dgrid-inner">';
@@ -3110,8 +3101,7 @@ function openDet(tk){
   gh+='</div></div>';
   /* --- GROUP 4: OUTLOOK --- */
   gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a1070,#7030a0)"><span class="dg-icon"></span>Outlook</div><div class="dgrid-inner">';
-  gh+='<div class="dsec"><h3>Growth Signals</h3><div class="dkvg">'+bkv([['Analyst LTG',fp(d.analyst_ltg)],['Margin Trend',fp(d.margin_trend)],['Earnings Surprise',fp(d.surprise_avg)],['Fundamental Growth',fp(d.fundamental_growth)],['Reinvestment Rate',fp(d.reinvestment_rate)],['Rev CAGR (3Y)',fp(d.rev_cagr)],['Rev CAGR (5Y)',fp(d.rev_cagr_5y)],['Rev CAGR (10Y)',fp(d.rev_cagr_10y)]])+'</div></div>';
-  gh+='<div class="dsec"><h3>Analyst Consensus</h3><div class="dkvg">'+bkv([['Recommendation',(rl2[d.analyst_rec]||d.analyst_rec||'N/A')+(d.num_analysts?' ('+d.num_analysts+')':'')],['Target Mean',fd(d.target_mean)],['Target Low',fd(d.target_low)],['Target High',fd(d.target_high)]])+'</div></div>';
+  gh+='<div class="dsec"><h3>Growth Signals</h3><div class="dkvg">'+bkv([['Margin Trend',fp(d.margin_trend)],['Fundamental Growth',fp(d.fundamental_growth)],['Reinvestment Rate',fp(d.reinvestment_rate)],['Rev CAGR (3Y)',fp(d.rev_cagr)],['Rev CAGR (5Y)',fp(d.rev_cagr_5y)],['Rev CAGR (10Y)',fp(d.rev_cagr_10y)]])+'</div></div>';
   if(d.position_weight!=null){gh+='<div class="dsec"><h3>Portfolio</h3><div class="dkvg">'+bkv([['Position Weight',fp(d.position_weight)]])+'</div></div>';}
   gh+='</div></div>';
   /* --- GROUP 6: OWNERSHIP --- */
