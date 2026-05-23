@@ -1011,6 +1011,10 @@ td.ct{font-weight:700;}
       <div class="ms-btn" onclick="msToggle('ms-sector')">All Sectors</div>
       <div class="ms-drop" id="ms-sector-opts"></div>
     </div>
+    <div class="ms-wrap" id="ms-country">
+      <div class="ms-btn" onclick="msToggle('ms-country')">All Countries</div>
+      <div class="ms-drop" id="ms-country-opts"></div>
+    </div>
     <div class="filter-divider"></div>
     <div class="fpop-wrap" id="qfpop-wrap">
       <button class="fpop-btn" id="qfpop-btn" onclick="toggleQuickFiltersPopup(event)">
@@ -1271,6 +1275,9 @@ function _getCurrentFilterState(){
   var sBoxes=document.querySelectorAll('#ms-sector .ms-drop input[type="checkbox"][value]');
   var sSel=msGetSelected('ms-sector');
   if(sSel.length<sBoxes.length)st.sectors=sSel;
+  var ctyBoxes=document.querySelectorAll('#ms-country .ms-drop input[type="checkbox"][value]');
+  var ctySel=msGetSelected('ms-country');
+  if(ctySel.length<ctyBoxes.length)st.countries=ctySel;
   var cf=[];
   document.querySelectorAll('.col-filter-row').forEach(function(row){
     var key=row.querySelector('.cfr-col').value;if(!key)return;
@@ -1284,8 +1291,8 @@ function _getCurrentFilterState(){
 }
 function _applyFilterState(st){
   document.getElementById('f-search').value=st.search||'';
-  ['ms-rating','ms-sector'].forEach(function(id){
-    var sel=id==='ms-rating'?st.ratings:st.sectors;
+  ['ms-rating','ms-sector','ms-country'].forEach(function(id){
+    var sel=id==='ms-rating'?st.ratings:(id==='ms-sector'?st.sectors:st.countries);
     var wrap=document.getElementById(id);
     var boxes=wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]');
     if(!sel){boxes.forEach(function(cb){cb.checked=true;});}
@@ -1540,7 +1547,7 @@ function msUpdateLabel(id){
   var boxes=wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]');
   var sel=[];
   boxes.forEach(function(cb){if(cb.checked)sel.push(cb.value);});
-  var allLabel=id==='ms-rating'?'All Ratings':'All Sectors';
+  var allLabel=(id==='ms-rating')?'All Ratings':(id==='ms-country')?'All Countries':'All Sectors';
   if(sel.length===0)btn.textContent='None';
   else if(sel.length===boxes.length)btn.textContent=allLabel;
   else if(sel.length<=2)btn.textContent=sel.join(', ');
@@ -1555,8 +1562,10 @@ function applyFilters(){
   var q=document.getElementById('f-search').value.toUpperCase();
   var ratings=msGetSelected('ms-rating');
   var sectors=msGetSelected('ms-sector');
+  var countries=msGetSelected('ms-country');
   var allRatings=ratings.length===document.querySelectorAll('#ms-rating .ms-drop input[type="checkbox"][value]').length;
   var allSectors=sectors.length===document.querySelectorAll('#ms-sector .ms-drop input[type="checkbox"][value]').length;
+  var allCountries=countries.length===document.querySelectorAll('#ms-country .ms-drop input[type="checkbox"][value]').length;
   // Collect all active column-value filters
   var colFilters=[];
   document.querySelectorAll('.col-filter-row').forEach(function(row){
@@ -1577,6 +1586,7 @@ function applyFilters(){
     if(q&&(d.ticker||'').toUpperCase().indexOf(q)<0&&(d.description||'').toUpperCase().indexOf(q)<0)return false;
     if(!allRatings&&ratings.indexOf(d.rating)<0)return false;
     if(!allSectors&&sectors.indexOf(d.sector)<0)return false;
+    if(!allCountries&&countries.indexOf(d.country)<0)return false;
     for(var i=0;i<colFilters.length;i++){
       var cf=colFilters[i];
       /* Use _num() so the filter's notion of N/A matches every other
@@ -1630,6 +1640,7 @@ function clearFilters(){
   document.getElementById('f-search').value='';
   msToggleAll('ms-rating',true);
   msToggleAll('ms-sector',true);
+  msToggleAll('ms-country',true);
   document.getElementById('col-filters').innerHTML='';
   addColFilter();
   _flagOnly=false;document.getElementById('f-flagged').classList.remove('active');
@@ -4662,6 +4673,13 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   var shtml='<label class="ms-all"><input type="checkbox" checked onchange="msToggleAll(\'ms-sector\',this.checked)"> All Sectors</label>';
   secs.forEach(function(s){shtml+='<label><input type="checkbox" value="'+s+'" checked onchange="msChanged(\'ms-sector\')"> '+s+'</label>';});
   document.getElementById('ms-sector-opts').innerHTML=shtml;
+  /* Country multi-select — alphabetical, with US sorted first since
+     ~70% of the universe is US-domiciled. */
+  var ctrys=[];DATA.forEach(function(d){if(d.country&&ctrys.indexOf(d.country)<0)ctrys.push(d.country);});
+  ctrys.sort(function(a,b){if(a==='United States')return-1;if(b==='United States')return 1;return a.localeCompare(b);});
+  var chtml='<label class="ms-all"><input type="checkbox" checked onchange="msToggleAll(\'ms-country\',this.checked)"> All Countries</label>';
+  ctrys.forEach(function(c){var esc=String(c).replace(/"/g,'&quot;');chtml+='<label><input type="checkbox" value="'+esc+'" checked onchange="msChanged(\'ms-country\')"> '+esc+'</label>';});
+  document.getElementById('ms-country-opts').innerHTML=chtml;
   // Build _CF_FMT lookup and _cfOptHtml for dynamic filter rows
   var _CF_FMT={};window._CF_FMT=_CF_FMT;
   /* Dedupe across tabs: a column key may appear in several TC[*] tabs
