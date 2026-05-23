@@ -669,11 +669,13 @@ td.ct{font-weight:700;}
    (OVERWEIGHT / STOCK-PICK ONLY / NEUTRAL / AVOID) — the verdict is
    explicit, the prose carries the why, and the BUY-rating pills
    surface a concrete entry point. */
-/* Four-quadrant layout — array order (Quality, Concentrated, Mixed,
-   Challenged) renders as TL, TR, BL, BR mirroring the Margin (Y) ×
-   Concentration (X) scatter axes used in the chart below.
-     ┌─ Quality quadrant ───┬─ Concentrated incumbents ─┐
-     ├─ Mixed signal ───────┼─ Structurally challenged ─┤
+/* Four-quadrant layout — array order (Quality, Profitable Oligopoly,
+   Fragmented, Value Trap) renders as TL, TR, BL, BR mirroring the
+   Margin (Y) × Concentration (X) scatter axes shown in the chart
+   above. Labels and quadrant cuts are kept identical so a sector
+   reads the same in both views.
+     ┌─ Quality ──────────┬─ Profitable Oligopoly ─┐
+     ├─ Fragmented ───────┼─ Value Trap ───────────┤
    grid-auto-rows:1fr forces both rows to the same height; combined
    with the default align-items:stretch this makes all four cells
    the same dimension regardless of how many sectors each bucket
@@ -4088,25 +4090,30 @@ function renderCrossSectorDashboard(){
      Folds in every insight the 8 old narrative cards carried, but every
      sector now has an explicit action attached, with the model's BUYs
      surfaced as concrete entry points via _xsPillsForSec(). */
+  /* Labels, colors, and quadrant cuts here are the canonical Margin (Y)
+     \u00d7 Concentration (X) taxonomy \u2014 identical to the scatter chart above
+     so a sector reads the same in both views. Thresholds match the chart:
+     HHI=0.15 splits competitive vs. concentrated, margin=0.20 splits
+     thin vs. high. */
   var archetypes=[
-    {key:'QUALITY',label:'Quality quadrant',color:'#1a9850',
+    {key:'QUALITY',label:'Quality',color:'#43a047',
      why:'High margins paired with a competitive market structure \u2014 pricing power here comes from product differentiation, proprietary IP, or customer switching costs rather than positional dominance. The structural advantage is intrinsic: it does not depend on holding a fixed share against new entrants or regulators, so it tends to be durable across cycles.',
      sectors:[]},
-    {key:'CONCENTRATED',label:'Concentrated incumbents',color:'#2563eb',
-     why:'Concentration above the DOJ/FTC threshold (HHI \u2265 0.25). Pricing power exists, but it is positional \u2014 derived from market structure, not product superiority. Outcomes within these sectors diverge sharply based on each incumbent\u2019s cost position; structural tail risks include antitrust action, regulatory price caps, and well-capitalized disruptors.',
+    {key:'OLIGOPOLY',label:'Profitable Oligopoly',color:'#8e24aa',
+     why:'High margin paired with elevated concentration (HHI \u2265 0.15). Pricing power exists, but it is positional \u2014 derived from market structure, not product superiority. Outcomes within these sectors diverge sharply based on each incumbent\u2019s cost position; structural tail risks include antitrust action, regulatory price caps, and well-capitalized disruptors.',
      sectors:[]},
-    {key:'MIXED',label:'Mixed signal',color:'#7f8c9a',
-     why:'Margin and concentration signals don\u2019t point one direction. Returns at the sector level mean-revert toward cost of capital \u2014 no dominant structural advantage or disadvantage shows up in the aggregate. Cross-sectional variance within these sectors is driven by idiosyncratic factors: unit-cost structure, balance-sheet strength, niche positioning.',
+    {key:'FRAGMENTED',label:'Fragmented',color:'#9e9e9e',
+     why:'Many competitors, thin margins, no structural pricing power. Capital is commoditized and returns mean-revert toward cost of capital. Sector-level allocation adds little alpha here \u2014 individual stock selection, cost discipline, and balance-sheet strength matter most.',
      sectors:[]},
-    {key:'CHALLENGED',label:'Structurally challenged',color:'#de2d26',
+    {key:'VALUETRAP',label:'Value Trap',color:'#e53935',
      why:'Elevated concentration has not translated into margin extraction \u2014 typically because volume competition, commodity input pricing, or mandated price ceilings constrain profitability regardless of share. High HHI here reflects market structure, not pricing power. The leading firm\u2019s dominant position is a floor on survival, not a ceiling lift on returns.',
      sectors:[]}
   ];
   function _archetypeFor(s){
-    if(s.hhi>0.15&&s.margin<0.12)return 'CHALLENGED';
     if(s.margin>=0.20&&s.hhi<0.15)return 'QUALITY';
-    if(s.hhi>=0.25)return 'CONCENTRATED';
-    return 'MIXED';
+    if(s.margin>=0.20&&s.hhi>=0.15)return 'OLIGOPOLY';
+    if(s.margin<0.20&&s.hhi<0.15)return 'FRAGMENTED';
+    return 'VALUETRAP';
   }
   allStats.forEach(function(s){
     var key=_archetypeFor(s);
