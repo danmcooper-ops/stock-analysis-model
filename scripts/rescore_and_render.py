@@ -31,6 +31,12 @@ def _refresh_edgar_derived_metrics(results):
     snapshot — without this, the scoring pipeline would still see the
     stale None values that were computed during the original live run
     when edgar_history was empty.
+
+    FX safety: this rescore path never re-fetches yfinance data, so the
+    USD-normalized financials persisted by analyze_stock.py (rows with
+    ``fx_converted=True``) are not at risk of double-conversion. CAGRs
+    derived here come from edgar_history values that are growth ratios —
+    currency-neutral by construction.
     """
     n = 0
     for r in results:

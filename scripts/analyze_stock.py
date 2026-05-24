@@ -56,6 +56,7 @@ from data.sec_legal_client import SECLegalClient
 from data.finnhub_supply_client import FinnhubSupplyClient
 from data.sec_supply_client import SECSupplyClient
 from data.sec_xbrl_client import SECXBRLClient
+from data.fx_client import get_spot_fx_rate, apply_fx_to_statement_df
 from data.sec_insider_client import SECInsiderClient
 from data.culture_client import CultureClient
 
@@ -700,6 +701,92 @@ def _extract_latest_financials(yf_data):
         'operating_income': op_inc,
         'net_income': net_inc,
     }
+
+
+# Per-share / total-dollar fields in yfinance ``info`` that need to be
+# multiplied by the FX spot rate when the quote currency isn't USD. Ratios
+# (trailingPE, priceToBook, enterpriseToEbitda, dividendYield, payoutRatio)
+# are dimensionless and intentionally excluded.
+_FX_INFO_DOLLAR_FIELDS = (
+    'marketCap', 'enterpriseValue',
+    'currentPrice', 'regularMarketPrice', 'previousClose',
+    'fiftyTwoWeekHigh', 'fiftyTwoWeekLow',
+    'dividendRate', 'bookValue',
+    'targetMeanPrice', 'targetHighPrice', 'targetLowPrice',
+    'lastDividendValue', 'lastDividendDate',  # date is fine to leave alone — _scale skips non-numerics
+)
+
+
+def _convert_financials_to_usd(yf_data):
+    """Convert ``yf_data`` financials + dollar-denominated info fields to USD.
+
+    Foreign-domiciled tickers report financials in local currency but the
+    valuation pipeline discounts at a USD-anchored WACC (US Treasury yield
+    + global ERP). Without normalization, per-share DCF / EPV / RIM / NAV
+    FVs are in the local currency while the displayed price may be in USD
+    (ADRs) or the same local currency (.SW, .L exchanges) — producing the
+    "wild divergence" the user observed.
+
+    Returns ``(yf_data, fx_meta)``. ``fx_meta`` carries:
+        currency_quote      — info['currency'] (price currency)
+        currency_financial  — info['financialCurrency'] (statement currency)
+        fx_rate_financial   — rate applied to balance_sheet / income_stmt / cash_flow (None when no conversion)
+        fx_rate_quote       — rate applied to info dollar fields (None when no conversion)
+        fx_converted        — True iff any conversion was applied
+        fx_fetch_failed     — True iff at least one rate lookup returned None for a non-USD currency
+    """
+    info = yf_data.get('info') or {}
+    ccy_fin = yf_data.get('currency_financial') or info.get('financialCurrency') or info.get('currency')
+    ccy_quote = yf_data.get('currency_quote') or info.get('currency')
+    fx_meta = {
+        'currency_quote': ccy_quote,
+        'currency_financial': ccy_fin,
+        'fx_rate_financial': None,
+        'fx_rate_quote': None,
+        'fx_converted': False,
+        'fx_fetch_failed': False,
+    }
+    needs_fin = ccy_fin and ccy_fin != 'USD'
+    needs_quote = ccy_quote and ccy_quote != 'USD'
+    if not needs_fin and not needs_quote:
+        return yf_data, fx_meta
+    # Shallow-copy the outer dict so we don't mutate the cached payload.
+    out = dict(yf_data)
+    if needs_fin:
+        rate_fin = get_spot_fx_rate(ccy_fin)
+        if rate_fin is None:
+            fx_meta['fx_fetch_failed'] = True
+        else:
+            fx_meta['fx_rate_financial'] = rate_fin
+            fx_meta['fx_converted'] = True
+            for key in ('balance_sheet', 'income_statement', 'income_stmt', 'cash_flow'):
+                df = out.get(key)
+                if df is not None:
+                    out[key] = apply_fx_to_statement_df(df, rate_fin)
+    if needs_quote:
+        # Often the quote and financial currencies are the same (e.g.,
+        # NESN.SW: CHF/CHF). get_spot_fx_rate hits the same cache entry.
+        if needs_fin and ccy_quote == ccy_fin:
+            rate_quote = fx_meta['fx_rate_financial']
+        else:
+            rate_quote = get_spot_fx_rate(ccy_quote)
+        if rate_quote is None:
+            fx_meta['fx_fetch_failed'] = True
+        else:
+            fx_meta['fx_rate_quote'] = rate_quote
+            fx_meta['fx_converted'] = True
+            new_info = dict(info)
+            for f in _FX_INFO_DOLLAR_FIELDS:
+                v = new_info.get(f)
+                if v is None:
+                    continue
+                try:
+                    fv = float(v)
+                except (TypeError, ValueError):
+                    continue
+                new_info[f] = fv * rate_quote
+            out['info'] = new_info
+    return out, fx_meta
 
 
 def _fcf_series_from_cashflow(cf):
@@ -1537,6 +1624,12 @@ def _main():
                 sys.stdout.flush()
                 continue
 
+            # FX normalization — convert local-currency financials + price/
+            # mcap to USD before any model runs. Skips USD-reporting tickers
+            # automatically; logs a warning flag on the row if the rate
+            # lookup fails so we can audit divergent valuations later.
+            yf_data, fx_meta = _convert_financials_to_usd(yf_data)
+
             info = yf_data.get('info') or {}
             sector = info.get('sector', '')
 
@@ -1580,6 +1673,7 @@ def _main():
                 're_method': re_method, 'yf_data': yf_data,
                 'beta_diag': beta_diag,
                 'data_source': _data_source,
+                'fx_meta': fx_meta,
             }
             print(f"  [{i}/{len(all_tickers)}] {ticker} - {roic_str}{wacc_str}{spread_str} [{re_method}] <{_data_source}>")
 
@@ -1682,6 +1776,7 @@ def _main():
             roic_data = cached['roic_data']
             cost_of_equity = cached['cost_of_equity']
             beta_diag = cached.get('beta_diag')
+            fx_meta = cached.get('fx_meta') or {}
 
             # Phase 2 assumes roic_data and wacc are populated. Carry-forward
             # tickers bypass the Phase-1 spread filter, so we can land here
@@ -2075,6 +2170,17 @@ def _main():
                 'sector': sector,
                 'industry': industry,
                 'country': country,
+                # FX normalization audit trail. ``fx_converted=True`` means
+                # the financials and/or info dollar fields were multiplied
+                # by the recorded rate(s) to land in USD. Tickers that
+                # already reported in USD (most US-listed and some ADRs)
+                # have fx_converted=False and the rates are None.
+                'currency_quote': fx_meta.get('currency_quote'),
+                'currency_financial': fx_meta.get('currency_financial'),
+                'fx_rate_financial': fx_meta.get('fx_rate_financial'),
+                'fx_rate_quote': fx_meta.get('fx_rate_quote'),
+                'fx_converted': fx_meta.get('fx_converted', False),
+                'fx_fetch_failed': fx_meta.get('fx_fetch_failed', False),
                 'ceo': ceo,
                 'ceo_bio': ceo_bio,
                 'founder_led': founder_led,

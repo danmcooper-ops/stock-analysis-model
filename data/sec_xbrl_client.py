@@ -35,78 +35,14 @@ from models.field_keys import (
     CAPEX_KEYS, DIVIDENDS_PAID_KEYS,
 )
 
-# Module-level FX cache. Keyed by ISO currency code; value is {fiscal_year: rate_to_USD}.
-# Built lazily on first request per currency so a 50-foreign-ticker batch hits
-# yfinance at most ~10 times instead of once per ticker.
-_FX_CACHE = {}
-
-
-def _get_fx_rates_to_usd(currency):
-    """Return {fiscal_year: ccy→USD rate} using yfinance year-end closes.
-
-    Falls back to {} if yfinance is unavailable or the pair has no data,
-    in which case downstream conversion silently passes through values
-    unchanged. That's acceptable for HKD (pegged ~7.78) and small CCY
-    drift but introduces error for volatile currencies — Phase 2 logs
-    `reporting_currency` so consumers can audit when this happens.
-    """
-    if currency in _FX_CACHE:
-        return _FX_CACHE[currency]
-    if currency == 'USD':
-        _FX_CACHE[currency] = {}
-        return {}
-    try:
-        import yfinance as yf
-        pair = f'{currency}USD=X'
-        df = yf.download(pair, period='max', interval='1d',
-                         progress=False, auto_adjust=False)
-        if df is None or df.empty:
-            _FX_CACHE[currency] = {}
-            return {}
-        # yfinance returns a MultiIndex-columned DataFrame even for a single
-        # ticker; pluck the Close column and squeeze to a Series.
-        if 'Close' in df.columns.get_level_values(0):
-            close = df['Close']
-        else:
-            close = df.iloc[:, [0]]
-        if hasattr(close, 'squeeze'):
-            close = close.squeeze('columns') if close.ndim == 2 else close
-        rates = {}
-        for ts, val in close.items():
-            try:
-                v = float(val)
-            except (TypeError, ValueError):
-                continue
-            # Iteration is chronological, so later in-year quotes overwrite
-            # earlier ones — year-end close wins.
-            rates[ts.year] = v
-        _FX_CACHE[currency] = rates
-        return rates
-    except Exception:
-        _FX_CACHE[currency] = {}
-        return {}
-
-
-def _apply_fx_annual(values, fx_rates):
-    """Multiply each {year: value} by the matching FX rate.
-
-    Years missing from fx_rates are passed through unchanged — pre-2003 EUR
-    or other thin-history pairs will retain native-currency magnitudes,
-    which is at least directionally correct for trend signal and never
-    worse than dropping the year.
-    """
-    if not values or not fx_rates:
-        return values
-    out = {}
-    for y, v in values.items():
-        try:
-            y_int = int(y)
-        except (TypeError, ValueError):
-            out[y] = v
-            continue
-        rate = fx_rates.get(y_int)
-        out[y] = v * rate if (rate is not None and v is not None) else v
-    return out
+# FX helpers moved to data/fx_client.py so the yfinance live-data pipeline
+# can share them. Re-exported here so the existing call sites below (line
+# ~787) and any external imports continue to work unchanged.
+from data.fx_client import (  # noqa: F401
+    _FX_CACHE,
+    _get_fx_rates_to_usd,
+    _apply_fx_annual,
+)
 
 
 class SECXBRLClient:
