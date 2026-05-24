@@ -376,7 +376,11 @@ td.ct{font-weight:700;}
    positioned inside .d-header-band (sticky-positioned parent), with
    bottom/right padding and gap between the two icons for breathing room. */
 .d-mini-nav-actions{position:absolute;bottom:14px;right:18px;z-index:6;display:flex;align-items:center;gap:14px;}
-.d-mini-nav-actions .flag-star{font-size:1em;line-height:1;}
+/* Flag glyph (⚐/⚑) has more internal whitespace than the reviewed SVG
+   circle, so at equal font-size it looks visually smaller. Bump it
+   enough to match (or slightly exceed) the reviewed icon's optical
+   size. */
+.d-mini-nav-actions .flag-star{font-size:1.35em;line-height:1;}
 .d-mini-nav-actions .flag-star:not(.flagged){color:rgba(255,255,255,0.4);}
 .d-mini-nav-actions .rev-chk-det{font-size:0.75em;}
 .d-mini-nav-arrows{display:flex;align-items:center;gap:3px;}
