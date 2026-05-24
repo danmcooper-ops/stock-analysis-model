@@ -228,6 +228,8 @@ td.ct{font-weight:700;}
    the full dataset. */
 .matrix-table tbody tr:not(.mtx-spacer){height:26px;}
 .matrix-table tbody tr.mtx-spacer td{position:static !important;background:transparent !important;padding:0 !important;border:0 !important;}
+.dt tbody tr:not(.dt-spacer){height:26px;}
+.dt tbody tr.dt-spacer td{position:static !important;background:transparent !important;padding:0 !important;border:0 !important;}
 .dt{width:100%;border-collapse:collapse;background:white;white-space:nowrap;font-size:0.78em;table-layout:auto;}
 /* Freeze top header row */
 .dt thead{position:-webkit-sticky;position:sticky;top:0;z-index:10;}
@@ -1781,6 +1783,10 @@ var mSC='rating',mSA=true;
    row dataset, which is what makes Safari snappy on this table. */
 var _mtxData=null,_mtxCg2=null,_mtxRowH=26,_mtxBuffer=8;
 var _mtxScrollEl=null,_mtxScrollAttached=false,_mtxLastSig=null,_mtxRafPending=false;
+/* Virtualization state for the Financial Data table — same shape as the matrix
+   state above. See _renderDtWindow / _dtBuildRow / _dtOnScroll below. */
+var _dtData=null,_dtCols=null,_dtRowH=26,_dtBuffer=8;
+var _dtScrollEl=null,_dtScrollAttached=false,_dtLastSig=null,_dtRafPending=false;
 function renderMatrix(){
   var th=document.getElementById('mtx-h'),tb=document.getElementById('mtx-b');
   var cg2={};GM.categories.forEach(function(c){cg2[c.name]=[];});
@@ -2063,18 +2069,72 @@ function ftc(v,f){
   return{t:String(v),v:v};
 }
 function renderTSubs(){var h='';Object.keys(TL).forEach(function(k){h+='<button class="sub-btn'+(k===curTSub?' active':'')+'" onclick="swTSub(\''+k+'\')">'+TL[k]+'</button>';});document.getElementById('t-subs').innerHTML=h;}
-function swTSub(s){curTSub=s;tSC='rating';tSA=true;renderTSubs();moveFilterBar('table');var tw=document.querySelector('.table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();}}
+function swTSub(s){curTSub=s;tSC='rating';tSA=true;renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}}
 function renderTable(){
   var cols=TC[curTSub]||TC.prices;
-  var th=document.getElementById('dt-h'),tb=document.getElementById('dt-b');
+  var th=document.getElementById('dt-h');
   var hh='<tr>';hh+='<th style="width:40px;color:#7f8c9a;font-weight:600" title="Row number in current sort order">#</th>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';hh+='<th style="width:28px;cursor:pointer" onclick="tSort(\'_reviewed\')" data-col-tip="_reviewed" data-col-label="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="arrow">'+(tSC==='_reviewed'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
   th.innerHTML=hh;
   var sd=FD.slice();
   var RO2={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
   if(tSC){sd.sort(function(a,b){var va,vb;if(tSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(tSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[tSC];vb=b[tSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(tSC==='rating'){var ra=RO2[va]||99,rb2=RO2[vb]||99;return tSA?ra-rb2:rb2-ra;}if(typeof va==='string')return tSA?va.localeCompare(vb):vb.localeCompare(va);return tSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
-  var bh='';sd.forEach(function(d,_i){var t=d.ticker.replace(/'/g,"\\'");bh+='<tr>';bh+='<td>'+(_i+1)+'</td>';bh+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';bh+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';cols.forEach(function(c){var r=ftc(d[c.k],c.f);var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';bh+='<td'+cls+' data-value="'+r.v+'">'+r.t+'</td>';});bh+='</tr>';});
-  tb.innerHTML=bh;
+  _dtData=sd;_dtCols=cols;
+  /* Preserve scrollTop only when neither the dataset nor the sort changed
+     (e.g. flag/reviewed toggles). On any real change, jump to the top. */
+  var newSig=curTSub+'|'+sd.length+'|'+tSC+'|'+(tSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'');
+  if(!_dtScrollEl)_dtScrollEl=document.querySelector('#view-table .table-wrap');
+  if(_dtScrollEl&&!_dtScrollAttached){
+    _dtScrollEl.addEventListener('scroll',_dtOnScroll,{passive:true});
+    _dtScrollAttached=true;
+  }
+  if(newSig!==_dtLastSig){
+    _dtLastSig=newSig;
+    if(_dtScrollEl)_dtScrollEl.scrollTop=0;
+  }
+  _renderDtWindow();
+}
+function _dtBuildRow(d,_i){
+  var t=d.ticker.replace(/'/g,"\\'");
+  var html='<tr>';
+  html+='<td>'+(_i+1)+'</td>';
+  html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
+  html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
+  _dtCols.forEach(function(c){
+    var r=ftc(d[c.k],c.f);
+    var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';
+    html+='<td'+cls+' data-value="'+r.v+'">'+r.t+'</td>';
+  });
+  html+='</tr>';
+  return html;
+}
+function _renderDtWindow(){
+  var tb=document.getElementById('dt-b');
+  if(!tb||!_dtData)return;
+  var n=_dtData.length;
+  var rowH=_dtRowH;
+  var scrollEl=_dtScrollEl;
+  var scrollTop=scrollEl?scrollEl.scrollTop:0;
+  var viewportH=scrollEl?scrollEl.clientHeight:0;
+  /* Before max-height is applied, clientHeight may be ~0. Fall back to a
+     reasonable default so the first paint isn't anemic; _setTableH will
+     re-run the window once the wrap has its real height. */
+  if(viewportH<=0)viewportH=600;
+  var first=Math.max(0,Math.floor(scrollTop/rowH)-_dtBuffer);
+  var last=Math.min(n,Math.ceil((scrollTop+viewportH)/rowH)+_dtBuffer);
+  if(last-first<40)last=Math.min(n,first+40);
+  var topPad=first*rowH;
+  var botPad=(n-last)*rowH;
+  var html='';
+  if(topPad>0)html+='<tr class="dt-spacer" style="height:'+topPad+'px"><td></td></tr>';
+  for(var i=first;i<last;i++){html+=_dtBuildRow(_dtData[i],i);}
+  if(botPad>0)html+='<tr class="dt-spacer" style="height:'+botPad+'px"><td></td></tr>';
+  tb.innerHTML=html;
+}
+function _dtOnScroll(){
+  if(_dtRafPending)return;
+  _dtRafPending=true;
+  requestAnimationFrame(function(){_dtRafPending=false;_renderDtWindow();});
 }
 function tSort(col){if(tSC===col)tSA=!tSA;else{tSC=col;tSA=true;}renderTable();}
 
@@ -3348,6 +3408,7 @@ function _setTableH(){
      yielding ~12 rows). Re-run the window calc now that the wrap has the real
      viewport-based max-height. Also fixes the matrix on window resize. */
   if(typeof _renderMtxWindow==='function'&&_mtxData)_renderMtxWindow();
+  if(typeof _renderDtWindow==='function'&&_dtData)_renderDtWindow();
 }
 window.addEventListener('resize',_setTableH);
 function showView(v){
