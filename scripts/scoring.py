@@ -618,7 +618,12 @@ def gate_metadata(params=None):
         })
 
     categories = []
-    for name in ('Valuation', 'Quality', 'Moat', 'Growth', 'Ownership'):
+    # Order matters — driver of left-to-right column order in the Financial
+    # Model matrix and the per-stock detail popup. Sorted by composite weight
+    # descending, with Moat leading: Moat 40 > Valuation 20 = Quality 20 >
+    # Growth 10 = Ownership 10. Ties preserve the historical Val→Qual and
+    # Growth→Own ordering so a sector reads consistently across releases.
+    for name in ('Moat', 'Valuation', 'Quality', 'Growth', 'Ownership'):
         display = _CATEGORY_DISPLAY[name]
         categories.append({
             'name': name,
