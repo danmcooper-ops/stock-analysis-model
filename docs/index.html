@@ -228,6 +228,8 @@ td.ct{font-weight:700;}
    the full dataset. */
 .matrix-table tbody tr:not(.mtx-spacer){height:26px;}
 .matrix-table tbody tr.mtx-spacer td{position:static !important;background:transparent !important;padding:0 !important;border:0 !important;}
+.dt tbody tr:not(.dt-spacer){height:26px;}
+.dt tbody tr.dt-spacer td{position:static !important;background:transparent !important;padding:0 !important;border:0 !important;}
 .dt{width:100%;border-collapse:collapse;background:white;white-space:nowrap;font-size:0.78em;table-layout:auto;}
 /* Freeze top header row */
 .dt thead{position:-webkit-sticky;position:sticky;top:0;z-index:10;}
@@ -316,7 +318,19 @@ td.ct{font-weight:700;}
 .heatmap-table tbody tr:nth-child(even) td:nth-child(1){background:#fafbfc;}
 [data-theme="dark"] .heatmap-table tbody td:nth-child(1){background:#1c2128 !important;}
 [data-theme="dark"] .heatmap-table tbody tr:nth-child(even) td:nth-child(1){background:#21262d !important;}
+/* Sector cells in the heatmap link to that sector's per-sector page. */
+.heatmap-table td.heat-sector{text-align:left;font-weight:600;cursor:pointer;color:#1a252f;text-decoration:underline;text-decoration-color:rgba(26,37,47,0.25);text-underline-offset:2px;transition:color 0.12s,text-decoration-color 0.12s;}
+.heatmap-table td.heat-sector:hover{color:#1f6feb;text-decoration-color:#1f6feb;}
+[data-theme="dark"] .heatmap-table td.heat-sector{color:#e6edf3;text-decoration-color:rgba(230,237,243,0.3);}
+[data-theme="dark"] .heatmap-table td.heat-sector:hover{color:#58a6ff;text-decoration-color:#58a6ff;}
 [data-theme="dark"] .heatmap-table th:hover{background:#30363d;}
+/* Row hover highlight that survives the per-cell heat colors. The .dt
+   tr:hover bg only worked on cells without their own background, so the
+   colored heatmap cells skipped the highlight. inset box-shadow as a
+   semi-transparent overlay applies a uniform brightness bump to every
+   cell in the hovered row regardless of its own background. */
+.heatmap-table tbody tr:hover td{box-shadow:inset 0 0 0 9999px rgba(30,111,235,0.10);}
+[data-theme="dark"] .heatmap-table tbody tr:hover td{box-shadow:inset 0 0 0 9999px rgba(88,166,255,0.14);}
 @media(max-width:760px){
   .heatmap-table td,.heatmap-table th{padding:5px 6px;font-size:0.74em;}
   .heatmap-table .heat-arrow{font-size:0.65em;}
@@ -645,7 +659,7 @@ td.ct{font-weight:700;}
 .xs-map-wrap svg path[data-iso].hit:hover,
 .xs-map-wrap svg path[data-iso].hit:active{stroke:#1a252f;stroke-width:1.2;}
 .xs-map-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:0.7em;color:#7f8c9a;justify-content:center;}
-.xs-map-legend-bar{display:inline-block;width:140px;height:10px;border-radius:3px;background:linear-gradient(90deg,#de2d26 0%,#fbd9d4 35%,#e6eaf0 50%,#cfe9c5 65%,#1a9850 100%);vertical-align:middle;}
+.xs-map-legend-bar{display:inline-block;width:160px;height:10px;border-radius:3px;background:linear-gradient(90deg,#de2d26 0%,#fbeae9 50%,#e6f4ea 50%,#1a9850 100%);vertical-align:middle;}
 [data-theme="dark"] .xs-map-wrap svg path[data-iso]{fill:#1c2128;stroke:#0d1117;}
 [data-theme="dark"] .xs-map-wrap svg path[data-iso].hit:hover{stroke:#e6edf3;}
 [data-theme="dark"] .xs-map-legend{color:#8b949e;}
@@ -754,12 +768,6 @@ td.ct{font-weight:700;}
 #ph-select{max-width:440px;width:100%;padding:7px 11px;border:1px solid #d0d8e4;border-radius:5px;font-size:0.88em;font-weight:600;color:#1a252f;background:white;cursor:pointer;}
 .ph-ranges{display:flex;gap:5px;margin:10px 0 6px;flex-wrap:wrap;align-items:center;}
 .ph-range-btn{padding:4px 13px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.78em;font-weight:700;background:white;color:#546e7a;transition:background 0.12s,color 0.12s;}
-.zoom-btn{padding:3px 8px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.85em;font-weight:700;background:white;color:#546e7a;line-height:1;min-width:26px;text-align:center;transition:background 0.12s,color 0.12s;}
-.zoom-btn:hover{background:#f0f4f8;color:#1a252f;}
-.zoom-hint{font-size:0.7em;color:#94a3b8;font-style:italic;margin-left:6px;}
-[data-theme="dark"] .zoom-btn{background:#21262d;color:#c9d1d9;border-color:#30363d;}
-[data-theme="dark"] .zoom-btn:hover{background:#30363d;color:#fff;}
-[data-theme="dark"] .zoom-hint{color:#8b949e;}
 .ph-range-btn.active{background:#1a252f;color:#fff;border-color:#1a252f;}
 .ph-range-btn:hover:not(.active){background:#f0f4f8;color:#1a252f;}
 .ph-sw{position:relative;display:inline-flex;align-items:center;}
@@ -1409,15 +1417,20 @@ function rb(r){return'<span class="rb" style="background:'+(RC[r]||'#888')+'">'+
 function cc(v){if(v==null)return'#888';return v>=65?'#1a9850':v>=40?'#fd8d3c':'#de2d26';}
 /* RGB-channel interpolator: blend hex `a` toward hex `b` by fraction t∈[0,1]. */
 function _lerpHex(a,b,t){t=Math.max(0,Math.min(1,t));function p(h){return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}var x=p(a),y=p(b);function m(i){return Math.round(x[i]+(y[i]-x[i])*t);}var c=[m(0),m(1),m(2)];return '#'+c.map(function(v){return ('0'+v.toString(16)).slice(-2);}).join('');}
-/* MoS → diverging color. ≥+30% deep green, ≤−30% deep red, neutral grey
-   near zero, blank "no coverage" for null. Anchored thresholds (not
-   relative) so the palette stays comparable across snapshots. */
+/* MoS → diverging color. Anchored at ±80% (broader than the original ±30%
+   because today's universe has many countries clustered near the +100%
+   theoretical ceiling — ±30% crushed 52% of countries into the same deep
+   green). A sqrt transform spreads the lower end so a +5% MoS country
+   still picks up a visible green tint, while +80%+ saturates at deep green.
+   Same on the red side; null → light grey "no coverage". */
 function _mosColor(m){
   if(m==null||isNaN(m))return'#e6eaf0';
-  if(m>=0.30)return'#1a9850';
-  if(m>0)return _lerpHex('#cfe9c5','#1a9850',m/0.30);
-  if(m>-0.30)return _lerpHex('#fbd9d4','#de2d26',-m/0.30);
-  return'#de2d26';
+  var SAT=0.80;
+  var sign=m>=0?1:-1;
+  var mag=Math.min(Math.abs(m),SAT)/SAT;
+  var t=Math.sqrt(mag);
+  if(sign>=0)return _lerpHex('#e6f4ea','#1a9850',t);
+  return _lerpHex('#fbeae9','#de2d26',t);
 }
 var DKV_TIPS={
   'Mkt Cap':'mcap','Price':'price','Fair Value':'dcf_fv','MoS':'mos',
@@ -1463,103 +1476,103 @@ function bkv(pairs){return pairs.map(function(p){
   return'<div class="dkv"><span class="kl"'+klAttr+'>'+p[0]+'</span><span class="kv"'+(p[2]?' style="'+p[2]+'"':'')+'>'+p[1]+'</span></div>';
 }).join('');}
 var TT={
-ticker:'Behind every ticker is a real business. Only invest in what you understand well enough to own for a decade.',
-rating:'Model conviction after DCF, gate screening, and composite scoring. A starting point \u2014 not a substitute for your own thesis.',
-_composite_score:'Buffett-style weighted score: Moat 40%, Valuation 20%, Quality 20%, Growth 10%, Ownership 10%. ≥60 = BUY (broad fundamental strength); 43–59 = LEAN BUY; 29–42 = HOLD; <29 = PASS (demands explanation before committing capital).',
-_gates_passed:'Binary pass/fail count across 20 minimum-quality bars. Every failure demands an explanation \u2014 the composite score, not the raw count, drives the final rating.',
-sector:'GICS sector classification. Benchmark only against businesses with genuinely similar economics \u2014 Buffett invests only inside his circle of competence.',
-industry:'GICS industry sub-group \u2014 the relevant peer group for margin and ROIC benchmarks. Gross margins and ROIC mean different things across industries; always compare within industry.',
-mcap:'Price \u00d7 Shares Outstanding \u2014 the market\u2019s current appraisal of the business. Graham\u2019s insight: compare this against intrinsic value. The gap between the two is where fortunes are made.',
-roic:'Return on Invested Capital \u2014 the single most important metric in the Buffett framework. ROIC above WACC means the business creates value with every dollar reinvested; a 5-year median above 15% is the hallmark of a compounder.',
-wacc:'The hurdle rate separating value creators from destroyers. ROIC consistently above WACC compounds shareholder wealth. Small changes move the DCF significantly \u2014 use a conservative rate that reflects genuine risk.',
-spread:'ROIC minus WACC \u2014 the economic profit spread. Above 5% signals genuine pricing power or structural efficiency; near zero means the business barely earns its keep.',
-roic_cv:'ROIC Coefficient of Variation: low CV means stable, reliable returns. Munger: \u201cInvest in businesses with consistent, predictable economics.\u201d High ROIC + low CV = a durable compounding machine.',
-dcf_fv:'Present value of all future owner earnings. Buffett: \u201cThe value of any asset is simply its discounted future cash flows.\u201d Treat as a range, not a precise number \u2014 output quality depends on the assumptions feeding it.',
-price:'Mr. Market\u2019s daily offer \u2014 you\u2019re never obligated to accept. Buffett: \u201cPrice is what you pay; value is what you get.\u201d Meaningless without an independent intrinsic value estimate.',
-mos:'Graham\u2019s foundational principle: (Fair Value \u2212 Price) / Fair Value. Buffett: \u201cThe three most important words in investing are margin of safety.\u201d 20\u201330% is a reasonable minimum; 40%+ is compelling.',
-pe:'Price / EPS \u2014 Graham\u2019s first-pass screen. A low P/E on a high-ROIC business with clean, cash-backed earnings is one of the most reliably attractive combinations in value investing.',
-ev_ebitda:'Capital-structure-neutral valuation ratio. Only signals value with genuine earnings quality \u2014 don\u2019t use it to justify capital-heavy businesses at cyclical troughs.',
-pfcf:'Price / Free Cash Flow \u2014 the multiple paid on actual owner earnings. Below 20\u00d7 is reasonable for a quality business; below 15\u00d7 is genuinely attractive.',
-pb:'Price / Book \u2014 Graham\u2019s original asset safety anchor. High P/B is justified only by sustained high ROIC; otherwise it is a value-trap risk.',
-epv_fv:'Earnings Power Value capitalises current earnings at WACC, assuming zero growth. Price < EPV means future growth is free \u2014 you\u2019re not paying for something uncertain.',
-rim_fv:'Residual Income Model \u2014 book value plus the present value of future excess earnings. When RIM and DCF converge, confidence in the estimate increases.',
-ddm_fv:'Dividend Discount Model \u2014 discounts expected future dividends. Buffett prizes growing dividends as proof of disciplined capital allocation. Blank = company did not meet eligibility criteria.',
-implied_growth:'Growth rate the market is currently pricing in, reverse-engineered from the current stock price. If implied growth far exceeds what the business has ever delivered, the market is pricing for perfection.',
-roe:'Return on Equity. Buffett looks for 15%+ ROE without excessive leverage. Verify with DuPont: ROE from margins and asset efficiency is durable; ROE from financial leverage is fragile.',
-roa:'Return on Assets \u2014 cuts through leverage-inflated ROE. High ROA means the business generates the same profit with fewer assets \u2014 structural efficiency that compounds over time.',
-cash_conv:'Operating Cash Flow / Net Income. Graham: \u201cEarnings are opinions; cash is fact.\u201d Persistently below 0.8 raises questions about accounting quality or working capital deterioration.',
-gross_margin:'Buffett and Munger\u2019s first moat test. Buffett: \u201cThe single most important decision is pricing power.\u201d Above 40% signals a premium the business can charge that competitors cannot easily replicate.',
-accruals:'Accruals Ratio: high-accrual firms systematically underperform (Sloan 1996). Negative accruals \u2014 cash exceeding income \u2014 are the strongest outcome; above 5% demands scrutiny of revenue recognition.',
-rev_cagr:'Revenue CAGR over 3 years. Persistent top-line growth paired with stable margins demonstrates pricing power and demand durability.',
-dupont_margin:'DuPont Net Profit Margin \u2014 first pillar of ROE decomposition. Buffett\u2019s best businesses retain a large share of every revenue dollar as profit, requiring pricing power, cost discipline, or both.',
-dupont_turnover:'Asset Turnover = Revenue / Total Assets. Asset-light businesses (software, brands) that generate high revenue per deployed dollar are Buffett\u2019s preferred structure.',
-dupont_leverage:'Equity Multiplier = Assets / Equity. Munger: \u201cLiquor, ladies, and leverage ruin people.\u201d Verify that margin and turnover stand independently before accepting high leverage.',
-piotroski:'Piotroski F-Score (0\u20139) \u2014 nine binary tests across profitability, leverage, and efficiency. Scores 7\u20139 = improving on all dimensions; 0\u20133 = deteriorating. Graham-style quantified financial health analysis.',
-int_cov:'EBIT / Interest Expense. Below 3\u00d7 means one bad year could create a liquidity crisis. Munger: \u201cAvoid leverage that forces selling good assets at the worst time.\u201d Above 10\u00d7 is a fortress balance sheet.',
-nd_ebitda:'Years of operating earnings needed to retire all debt. Buffett: \u201cWe want businesses with no debt or very modest debt.\u201d Below 2\u00d7 is conservative; negative ND/EBITDA = net cash \u2014 the gold standard.',
-de:'Debt / Equity \u2014 Graham\u2019s direct leverage check. Below 1.0 means owners fund more than creditors. Munger: leverage turns temporary undervaluation into permanent loss.',
-cr:'Current Assets / Current Liabilities. Graham required a minimum 2.0 for defensive stocks. Below 1.0 = short-term liabilities exceed liquid assets, creating dependency on rolling credit.',
-altman_z:'Bankruptcy-prediction model combining five ratios. Above 2.99 = safe; below 1.81 = distress. Graham was obsessed with avoiding permanent capital loss \u2014 the Z-Score identifies businesses approaching insolvency.',
-beneish_m:'Earnings manipulation risk model. Above \u22121.78 = elevated risk. Buffett: \u201cIntegrity, intelligence, energy \u2014 if they lack the first, the other two will kill you.\u201d A high score demands direct scrutiny.',
-fundamental_growth:'ROIC \u00d7 Reinvestment Rate \u2014 Buffett\u2019s internally consistent growth formula. A 20% ROIC business reinvesting half its earnings compounds intrinsic value at 10% per year with no external financing.',
-reinvestment_rate:'Share of earnings reinvested back into the business. Buffett\u2019s ideal: grow substantially without retaining much. High reinvestment only creates value when ROIC is high.',
-terminal_growth:'Perpetual growth rate beyond the 10-year DCF horizon, anchored near long-run GDP (2\u20133%). Small changes have outsized fair-value impact \u2014 Buffett avoids heroic terminal assumptions.',
-margin_trend:'Year-over-year change in operating margin. Expanding margins signal a deepening moat. Contracting margins are the first warning the competitive advantage is under pressure.',
-fcf_growth:'FCF growth rate used in Stage 1 of the DCF. Buffett: FCF growth must be organic. Verify it\u2019s supported by revenue growth and stable margins, not deferred capex or working capital games.',
-shareholder_yield:'Dividends + Net Buybacks / Market Cap. Gate passes when yield > 2%, filtering token distributions. Above 5% signals genuine, consistent commitment to returning cash to owners.',
-er:'Expected annual return from the DCF model. Buffett thinks in long-run compounding rates \u2014 above 12\u201315% on a quality business deserves serious attention. Compare against opportunity cost.',
-_sens_low:'Bear-case fair value from DCF sensitivity. Graham: always ask what the business is worth under adverse conditions. Stock trading below this value has margin of safety even in pessimistic scenarios.',
-_sens_high:'Bull-case fair value from DCF sensitivity. If price exceeds the bull case, the market prices for perfection. Munger: ask whether you believe these assumptions enough to stake permanent capital.',
-mc_p10_fv:'Monte Carlo 10th-percentile fair value \u2014 90% of simulations produced a higher value. Stock trading below P10 is undervalued across nearly every simulated scenario \u2014 Graham\u2019s strongest entry signal.',
-mc_p90_fv:'Monte Carlo 90th-percentile fair value \u2014 only 10% of simulations produced a higher value. Wide P10\u2013P90 band = irreducible uncertainty; demand proportionally more margin of safety.',
-mc_confidence:'MC confidence based on coefficient of variation. HIGH (CV < 20%) = reliable. MEDIUM (20\u201340%) = moderate uncertainty. LOW (>40%) = treat the point estimate with significant caution.',
-shares_out:'Total shares outstanding. Declining share count over time is one of Buffett\u2019s most valued management signals \u2014 repurchasing below intrinsic value is the best capital allocation when no better option exists.',
-float_shares:'Shares available for public trading. Low float amplifies volatility and creates liquidity risk \u2014 important for position sizing in concentrated portfolios.',
-insider_pct:'Percentage held by insiders. Munger: \u201cShow me the incentive and I\u2019ll show you the outcome.\u201d Above 10% means management loses personally if the stock falls \u2014 the strongest alignment signal.',
-inst_pct:'Percentage held by institutions. Heavy ownership validates quality but creates concentration risk \u2014 sophisticated sellers can act simultaneously when sentiment shifts.',
-shares_short:'Shares held short. Buffett ignores short interest; focus on fundamentals. Persistent short interest can highlight where the bear case has institutional conviction \u2014 worth investigating, not echoing.',
-short_ratio:'Days to Cover = Shares Short / Avg Daily Volume. Relevant to traders, not long-term value investors indifferent to short-squeeze dynamics.',
-short_pct_float:'Short interest as a percentage of float. Above 10% reflects significant bearish positioning \u2014 take a prominent short thesis seriously before assuming the market is simply wrong.',
-share_turnover_rate:'Avg Daily Volume / Shares Outstanding. Low turnover signals a patient, long-term shareholder base. Munger: \u201cThe big money is not in the buying and selling, but in the waiting.\u201d',
-share_buyback_rate:'Net Buybacks / Market Cap. Buffett: \u201cRepurchases benefit shareholders when made below intrinsic value.\u201d Gate passes when > 0%; above 3% signals genuine management confidence.',
-high_52w:'52-week high. Graham: anchoring to recent price levels mistakes momentum for value. Only an independent intrinsic value estimate tells you whether a stock near its high is cheap or expensive.',
-low_52w:'52-week low. May signal temporary disfavour or genuine deterioration. Graham: \u201cPrice alone is never sufficient.\u201d A low price is only interesting if intrinsic value remains intact.',
-pct_from_52w_high:'Distance below the 52-week high. A large gap (>40%) may indicate distress, sector rotation, or mispricing. Compelling only if the fundamental business remains intact.',
-range_52w_position:'Position in the 52-week price range (0 = at the low, 100 = at the high). Useful as context; never as a signal. Value investors buy businesses, not price positions.',
-price_fv:'Price / DCF Fair Value. Below 1.0 = market selling below intrinsic worth; below 0.8 = 20% margin of safety. Above 1.2 = paying a 20%+ premium \u2014 even wonderful businesses can be overpriced.',
-epv_p_fv:'Market price / Earnings Power Value. Price < EPV means future growth is free \u2014 you pay nothing for something uncertain. Gate passes when < 1.2\u00d7.',
-int_coverage:'EBIT / Interest Expense gate. Munger: \u201cAvoid leverage that forces selling good assets at the worst time.\u201d Gate passes when IC > 3\u00d7; above 10\u00d7 is a fortress balance sheet.',
-shrhldr_yield:'Dividends + Net Buybacks / Market Cap. Gate passes when > 2%, filtering token distributions. Buffett: \u201cThe best thing a company can do when the stock is cheap is buy it back.\u201d',
-fund_growth:'ROIC \u00d7 Reinvestment Rate gate. Buffett\u2019s growth formula: a 20% ROIC business reinvesting half its earnings compounds at 10%/yr from its own resources. Gate passes when > 3%.',
-margins:'Operating margin trend gate. Expanding margins signal deepening pricing power. Gate passes when margin trend \u2265 0 \u2014 contraction is the first warning a moat is under pressure.',
-surprise:'Earnings surprise consistency gate. Consistent beats signal conservative, honest guidance. Gate passes when average surprise > 0%.',
-roic_consistency:'ROIC Consistency gate \u2014 CV of annual ROIC. Munger: \u201cThe most important thing is the durability of the competitive advantage.\u201d Gate passes when CV < 30% \u2014 stable returns prove the moat is real.',
-'spread_>_5%':'ROIC\u2013WACC spread gate. Passes when spread > 7% \u2014 the business earns significantly more than its cost of capital year after year. Near zero means it barely earns its keep.',
-gross_margin_gate:'Gross Margin gate \u2014 pricing power test. Buffett: \u201cThe single most important decision is pricing power.\u201d Gate passes when gross margin > 25% or in the sector top quartile.',
-insider_own:'Insider Ownership gate. Passes when insiders hold \u2265 5% of shares. Buffett and Munger only invest with management teams who think like owners because they are owners.',
-turnover:'Share Turnover gate \u2014 tests shareholder base stability. Passes when daily turnover < 2%. Buffett prefers businesses owned by patient, analytical partners who hold indefinitely.',
-buyback_rate:'Buyback Rate gate \u2014 net repurchases / market cap. Gate passes when > 0%. Consistent buybacks reduce share count and increase per-share owner earnings.',
-insider_buying:'Form 4 insider buying gate. Management buying their own stock with their own money is one of the strongest alignment signals available. Gate passes when buy ratio > 50%.',
-edgar_quality_score:'EDGAR Data Quality Score \u2014 cross-validation between yfinance and SEC EDGAR XBRL. 100 = perfect match. Low scores demand direct 10-K verification before valuing.',
-profit_pool:'Company profit share \u00f7 revenue share within sector. Above 1\u00d7 means disproportionate profit capture \u2014 Porter\u2019s competitive advantage in numerical form. Gate passes when \u2265 1\u00d7.',
-net_debt_ebitda:'Net Debt / EBITDA gate. Buffett: \u201cWe want businesses with no debt or very modest debt.\u201d At \u2264 2\u00d7, net debt could be retired in under two years from operating earnings.',
-rev_durability:'10-year revenue CAGR gate. Persistent growth through two recessions confirms the business isn\u2019t dependent on a single product cycle or macro tailwind. Gate passes when 10Y CAGR > 2%.',
-sbc_dilution:'SBC / Revenue gate \u2014 silent dilution test. Buffett: SBC is a real cost, not a footnote. Gate passes when SBC/Rev \u2264 3%. Above 10% means shareholders are subsidising management compensation.',
-p_tbv:'Price / Tangible Book gate. Graham\u2019s asset floor with goodwill and other intangibles stripped out \u2014 the conservative cousin of P/B that ignores acquisition premium and the soft side of the balance sheet. Gate passes when P/TBV \u2264 2.5\u00d7 as the cheap-on-real-assets discipline anchor.',
-nav_fv:'Net Asset Value (Tangible Book) per share \u2014 (Equity \u2212 Goodwill \u2212 Intangibles) / Shares. A conservative asset-floor fair value. Most useful for financials, REITs, distressed names, and holding companies whose cash-flow models give garbage results. For high-quality compounders with rich intangibles, NAV will sit far below DCF \u2014 that\u2019s expected.',
-nav_mos:'NAV margin of safety: (NAV \u2212 Price) / NAV. Positive means the market is paying less than tangible book; a Graham-style cheap-on-assets signal. Negative is the norm for asset-light businesses and isn\u2019t itself a sell signal \u2014 cross-reference with DCF/RIM before acting.',
-fcf_margin:'FCF / Revenue \u2014 Buffett\u2019s \u201cowner earnings\u201d as a margin. Gate passes when FCF margin > 10%. Above 15% typically signals pricing power, minimal capex needs, or both.',
-p_fcf:'Price / Free Cash Flow gate. Below 25\u00d7 (>4% yield) is reasonable for a quality business. Scored from 50\u00d7 (perfection-priced) to 10\u00d7 (compelling yield). Negative FCF scores 0.',
-rev_cagr_5y:'Revenue CAGR over 5 years. Use alongside the 10-year figure: high 5Y but low 10Y CAGR may simply reflect a recovery from a trough, not genuine durable growth.',
-roic_trend:'ROIC trend slope — last-year minus first-year ROIC. Improving ROIC signals a strengthening moat; declining ROIC is the first warning that competitive advantage is eroding. Munger: “The most important thing is the durability of the competitive advantage.”',
-epv_floor:'Earnings Power Value / Price — today’s earnings capitalised at WACC, assuming zero growth. Above 1.0× means the market is selling the business below its no-growth value; future growth comes free. Below 0.5× means the floor is far below price, requiring rich growth assumptions to justify.',
-rim_mos:'Residual Income Model margin of safety: (RIM Fair Value − Price) / RIM Fair Value. When RIM and DCF agree, conviction in intrinsic value increases. Above 10% adds confirmation; below −20% raises overpayment concerns.',
-fcf_durability:'5-year Free Cash Flow CAGR gate. Persistent FCF growth confirms genuine cash-generating capacity, not just accounting earnings. Gate passes when 5Y FCF CAGR > 5% — sustained owner-earnings growth is Buffett’s preferred compounding signal.',
-share_shrink:'5-year shares-outstanding CAGR gate. Passes when share count is shrinking. Buffett: “When the stock is cheap and the company has the cash, repurchases benefit shareholders.” Share shrink combined with high ROIC compounds intrinsic value per share.',
-sbc_pct_rev:'Stock-based compensation as a percent of revenue. Buffett: “If options aren’t compensation, what are they?” Below 2% is restrained; above 10% means shareholders are quietly subsidising management pay through dilution.',
-rev_cagr_10y:'Revenue CAGR over 10 years. Persistent top-line growth through multiple cycles is the cleanest evidence of durable demand. A 10Y CAGR above 5% on stable margins is a hallmark compounder.',
-_flagged:'Your personal flag for stocks worth deeper attention. Click the ⚑ cell to toggle. Buffett keeps a “too hard” pile and a “definitely interesting” pile — this is the latter. Saved in browser local storage.',
-_reviewed:'Mark a stock as reviewed once you’ve completed your own due diligence. Click the ✓ cell to toggle. Tracks which businesses you’ve actually evaluated versus those still on the to-do list. Saved in browser local storage.'
+ticker:'A real business behind the symbol. Buffett: “Only invest in what you understand well enough to own for a decade.”',
+rating:'Model conviction from DCF + 20 gates + composite score. A starting point, not your thesis.',
+_composite_score:'Score = 0.40·Moat + 0.20·Val + 0.20·Quality + 0.10·Growth + 0.10·Own. ≥60 BUY; 43–59 LEAN BUY; 29–42 HOLD; <29 PASS.',
+_gates_passed:'Pass/fail count across 20 quality gates. Composite score, not raw count, drives the rating — every failure demands an explanation.',
+sector:'GICS sector. Buffett: stay inside your circle of competence — benchmark only against genuinely similar economics.',
+industry:'GICS industry sub-group — the peer group for margin and ROIC. Always compare within industry, never across.',
+mcap:'Mkt Cap = Price × Shares Out. Graham: compare against intrinsic value — the gap is where fortunes are made.',
+roic:'ROIC = NOPAT / Invested Capital. The single most important Buffett metric. 5Y median > 15% is the compounder hallmark.',
+wacc:'WACC = (E/V)·Re + (D/V)·Rd·(1−t). Hurdle rate separating value creators from destroyers. Small swings move the DCF a lot — stay conservative.',
+spread:'Spread = ROIC − WACC. Buffett’s economic profit gap. > 5% = pricing power; near zero = barely earning its keep.',
+roic_cv:'CV = σ(ROIC) / μ(ROIC). Munger: “Invest in businesses with consistent, predictable economics.” High ROIC + low CV = a compounding machine.',
+dcf_fv:'FV = Σ FCFₜ/(1+WACC)ᵗ + Terminal. Buffett: “the value of any asset is its discounted future cash flows.” Treat as a range; assumptions drive the number.',
+price:'Mr. Market’s daily offer — never obligated to accept. Buffett: “Price is what you pay; value is what you get.”',
+mos:'MoS = (FV − Price) / FV. Graham’s “three most important words in investing are margin of safety.” 20–30% minimum; 40%+ compelling.',
+pe:'P/E = Price / EPS. Graham’s first-pass screen. Low P/E + high ROIC + cash-backed earnings = one of the most reliable combos in value investing.',
+ev_ebitda:'EV/EBITDA = (Mkt Cap + Net Debt) / EBITDA. Capital-structure-neutral, but misleading at cyclical troughs in capex-heavy businesses.',
+pfcf:'P/FCF = Price / Free Cash Flow. The multiple on Buffett’s owner earnings. < 20× reasonable; < 15× attractive.',
+pb:'P/B = Price / Book Value. Graham’s original asset anchor. High P/B justified only by sustained high ROIC — otherwise a value trap.',
+epv_fv:'EPV = Adjusted Earnings / WACC (zero growth). Price < EPV → future growth is free.',
+rim_fv:'RIM FV = BV + Σ (NI − r·BV) / (1+r)ᵗ. Book value plus PV of excess earnings. Converging with DCF raises conviction.',
+ddm_fv:'DDM FV = D₁ / (r − g). Buffett prizes growing dividends as proof of disciplined capital allocation. Blank = ineligible.',
+implied_growth:'Implied g — reverse-engineered from current price. If g exceeds anything ever delivered, the market is pricing for perfection.',
+roe:'ROE = Net Income / Equity. Buffett: 15%+ without leverage. DuPont check — durable from margin × turnover, fragile from leverage.',
+roa:'ROA = Net Income / Assets. Cuts through leverage-inflated ROE. High ROA = structural efficiency that compounds.',
+cash_conv:'Cash Conv = OCF / Net Income. Graham: “Earnings are opinions; cash is fact.” Persistently < 0.8 = accounting or working-capital trouble.',
+gross_margin:'GM = (Revenue − COGS) / Revenue. Buffett/Munger’s first moat test: “The single most important decision is pricing power.” > 40% = a premium competitors can’t replicate.',
+accruals:'Accruals = (NI − OCF) / Avg Assets. Sloan 1996: high accruals systematically underperform. > 5% demands revenue-recognition scrutiny.',
+rev_cagr:'CAGR = (Revₙ/Rev₀)^(1/3) − 1, last 3Y. Growth + stable margins = pricing power and durable demand.',
+dupont_margin:'Net Margin = Net Income / Revenue. First DuPont pillar. Buffett’s best: pricing power + cost discipline → high retention per revenue dollar.',
+dupont_turnover:'Asset Turnover = Revenue / Assets. Asset-light businesses (software, brands) generate more revenue per deployed dollar — Buffett’s preferred structure.',
+dupont_leverage:'Equity Multiplier = Assets / Equity. Munger: “Liquor, ladies, and leverage ruin people.” Verify margin and turnover stand without it.',
+piotroski:'F-Score = sum of 9 binary tests across profitability, leverage, efficiency (0–9). 7–9 = improving; 0–3 = deteriorating. Graham-style quantified health check.',
+int_cov:'IC = EBIT / Interest Expense. < 3× = one bad year is a crisis. Munger: “Avoid leverage that forces selling at the worst time.” > 10× = fortress.',
+nd_ebitda:'ND/EBITDA = (Debt − Cash) / EBITDA — years of earnings needed to retire debt. Buffett: “we want no debt or very modest debt.” Negative = net cash = gold standard.',
+de:'D/E = Total Debt / Equity. Graham’s direct leverage check. < 1.0 = owners fund more than creditors. Munger: leverage turns temporary undervaluation into permanent loss.',
+cr:'Current Ratio = Current Assets / Current Liabilities. Graham required ≥ 2.0 for defensive stocks. < 1.0 = rolling-credit dependency.',
+altman_z:'Z = 1.2·WC/A + 1.4·RE/A + 3.3·EBIT/A + 0.6·MktEq/Liab + 1.0·Sales/A. > 2.99 = safe; < 1.81 = distress. Graham: avoid permanent capital loss.',
+beneish_m:'M-Score: 8-variable earnings-manipulation index. > −1.78 = elevated risk. Buffett: “Integrity, intelligence, energy — if they lack the first, the other two will kill you.”',
+fundamental_growth:'g = ROIC × Reinvestment Rate. Buffett’s internally consistent growth: 20% ROIC × 50% reinvestment = 10% compounding with no external financing.',
+reinvestment_rate:'Reinvest Rate = (CapEx + ΔWC − D&amp;A) / NOPAT. Buffett’s ideal: grow substantially without retaining much. High reinvestment creates value only when ROIC is high.',
+terminal_growth:'Perpetual g beyond year 10, anchored near long-run GDP (2–3%). Small swings → large FV impact. Buffett avoids heroic terminal assumptions.',
+margin_trend:'ΔOp Margin YoY. Expanding = deepening moat. Contracting = first warning the competitive advantage is under pressure.',
+fcf_growth:'FCF growth used in DCF Stage 1. Buffett: must be organic — verify support from revenue growth and stable margins, not deferred capex.',
+shareholder_yield:'Shr Yld = (Dividends + Net Buybacks) / Mkt Cap. Gate passes > 2%. > 5% = genuine, consistent commitment to returning cash to owners.',
+er:'Expected annual return implied by DCF. Buffett thinks in compounding rates — > 12–15% on a quality business deserves serious attention. Compare to opportunity cost.',
+_sens_low:'Bear-case FV from DCF sensitivity. Graham: always ask what it’s worth under adverse conditions. Price < this = MoS even in pessimistic scenarios.',
+_sens_high:'Bull-case FV from DCF sensitivity. Price > this = priced for perfection. Munger: would you stake permanent capital on these assumptions?',
+mc_p10_fv:'MC P10 FV: 90% of simulations exceeded this value. Price < P10 = undervalued in nearly every scenario — Graham’s strongest entry signal.',
+mc_p90_fv:'MC P90 FV: only 10% of simulations exceeded this value. Wide P10–P90 band = irreducible uncertainty — demand proportionally more MoS.',
+mc_confidence:'MC confidence = CV of simulated FV. HIGH < 20% = reliable. 20–40% = moderate. > 40% = treat point estimate with serious caution.',
+shares_out:'Total shares outstanding. Buffett: declining share count is among the most valued management signals — buying below IV is best-in-class capital allocation.',
+float_shares:'Float = Shares Out − Insider/Restricted. Low float amplifies volatility — matters for position sizing in concentrated portfolios.',
+insider_pct:'Insider % = Insider Shares / Shares Out. Munger: “Show me the incentive and I’ll show you the outcome.” > 10% = strongest alignment signal.',
+inst_pct:'Institutional % of shares. Validates quality but creates concentration risk — sophisticated sellers act in unison when sentiment shifts.',
+shares_short:'Shares sold short. Buffett ignores short interest — but prominent shorts are often the best fundamental analysts on a name. Read their thesis.',
+short_ratio:'Days to Cover = Shares Short / Avg Daily Volume. Trader noise — value investors are indifferent to short-squeeze dynamics.',
+short_pct_float:'Short Interest / Float. > 10% = significant bearish positioning. Take a prominent short thesis seriously before assuming the market is wrong.',
+share_turnover_rate:'Turnover = ADV / Shares Out. Low = patient, long-term shareholder base. Munger: “The big money is not in the buying and selling, but in the waiting.”',
+share_buyback_rate:'Buyback Rate = Net Buybacks / Mkt Cap. Buffett: “Repurchases benefit shareholders when made below intrinsic value.” > 0% passes; > 3% = real conviction.',
+high_52w:'52-week high. Graham: anchoring to recent prices mistakes momentum for value. Only independent IV tells you if the high is cheap or expensive.',
+low_52w:'52-week low. Disfavor or deterioration? Graham: “Price alone is never sufficient.” Interesting only if IV remains intact.',
+pct_from_52w_high:'% below 52W high. > 40% drop = distress, sector rotation, or mispricing. Compelling only if the business remains intact.',
+range_52w_position:'52W range position = (Price − Low) / (High − Low). Context, never signal. Value investors buy businesses, not price positions.',
+price_fv:'P/FV = Price / DCF FV. < 1.0 = below IV; < 0.8 = 20% MoS. > 1.2 = paying a premium — even wonderful businesses can be overpriced.',
+epv_p_fv:'P/EPV = Price / Earnings Power Value. < 1.0 → growth comes free. Gate passes < 1.2×.',
+int_coverage:'IC = EBIT / Interest gate. Munger: “Avoid leverage that forces selling at the worst time.” Passes > 3×; > 10× = fortress balance sheet.',
+shrhldr_yield:'Shr Yld = (Dividends + Net Buybacks) / Mkt Cap gate. Passes > 2%. Buffett: “The best thing a company can do when the stock is cheap is buy it back.”',
+fund_growth:'g = ROIC × Reinvestment Rate gate. Buffett: 20% ROIC × 50% reinvest = 10%/yr internal compounding. Passes > 3%.',
+margins:'ΔOp Margin gate. Expanding = deepening moat. Passes when trend ≥ 0 — contraction is the first warning a moat is under pressure.',
+surprise:'Avg EPS surprise gate. Consistent beats = honest, conservative guidance. Passes > 0%.',
+roic_consistency:'CV(ROIC) gate. Munger: “The most important thing is the durability of the competitive advantage.” Passes when CV < 30% — stable returns prove the moat is real.',
+'spread_>_5%':'Spread = ROIC − WACC gate. Passes > 7% — business earns significantly more than its cost of capital year after year.',
+gross_margin_gate:'GM = (Revenue − COGS) / Revenue gate. Buffett: “The single most important decision is pricing power.” Passes > 25% or sector top quartile.',
+insider_own:'Insider % gate. Passes ≥ 5%. Buffett/Munger only invest with management who think like owners because they are owners.',
+turnover:'Turnover = ADV / Shares Out gate. Passes < 2%. Buffett prefers businesses owned by patient analytical partners who hold indefinitely.',
+buyback_rate:'Buyback Rate = Net Buybacks / Mkt Cap gate. Passes > 0%. Consistent buybacks shrink share count and lift per-share owner earnings.',
+insider_buying:'Form 4 insider buy/sell ratio gate. Passes > 50%. Management buying with their own money = strongest alignment signal available.',
+edgar_quality_score:'EDGAR DQ Score (0–100): cross-validation between yfinance and SEC XBRL. 100 = perfect match. Low scores demand 10-K verification before valuing.',
+profit_pool:'PP = Profit Share / Revenue Share within sector. > 1× = disproportionate profit capture — Porter’s moat in numerical form. Passes ≥ 1×.',
+net_debt_ebitda:'ND/EBITDA = (Debt − Cash) / EBITDA gate. Buffett: “we want no debt or very modest debt.” Passes ≤ 2× — debt retirable in < 2 years from earnings.',
+rev_durability:'10Y Rev CAGR gate. Persistent growth through two recessions = not dependent on a single cycle or macro tailwind. Passes > 2%.',
+sbc_dilution:'SBC / Revenue gate — silent dilution test. Buffett: SBC is a real cost, not a footnote. Passes ≤ 3%. > 10% = shareholders subsidising management pay.',
+p_tbv:'P/TBV = Price / Tangible Book Value. Graham’s strictest asset floor — strips goodwill/intangibles to what the business could actually liquidate. Cheap only when ROIC justifies it; otherwise a value trap.',
+nav_fv:'NAV FV = book value of net tangible assets per share. Graham’s asset-based intrinsic value for capital-heavy or asset-rich businesses (REITs, financials). Best paired with DCF, not used alone.',
+nav_mos:'NAV MoS = (NAV − Price) / NAV. Graham’s asset-floor margin of safety. > 20% on a quality asset-rich business = unusual setup; verify the assets are real, not stale.',
+fcf_margin:'FCF Margin = FCF / Revenue. Buffett’s “owner earnings” as a margin. Passes > 10%. > 15% = pricing power, low capex, or both.',
+p_fcf:'P/FCF = Price / FCF gate. < 25× (> 4% yield) = reasonable on quality. Scored 50× (priced for perfection) → 10× (compelling). Negative FCF scores 0.',
+rev_cagr_5y:'5Y Revenue CAGR. Use with the 10Y figure — high 5Y / low 10Y often reflects trough recovery, not durable growth.',
+roic_trend:'ROIC Trend = ROICₙ − ROIC₀ over window. Improving = strengthening moat; declining = first warning advantage is eroding. Munger: “The most important thing is the durability of the competitive advantage.”',
+epv_floor:'EPV / Price (EPV = Adjusted Earnings / WACC, zero growth). > 1.0× = below no-growth value, growth comes free. < 0.5× = floor far below price; requires rich growth to justify.',
+rim_mos:'RIM MoS = (RIM FV − Price) / RIM FV. RIM + DCF agreement raises IV conviction. > 10% = confirmation; < −20% = overpayment concerns.',
+fcf_durability:'5Y FCF CAGR gate. Real cash-generating capacity, not accounting earnings. Passes > 5% — sustained owner-earnings growth is Buffett’s preferred compounding signal.',
+share_shrink:'5Y Shares Out CAGR gate. Passes when shrinking. Buffett: “When the stock is cheap and the company has the cash, repurchases benefit shareholders.” Shrink + high ROIC compounds IV/share.',
+sbc_pct_rev:'SBC / Revenue. Buffett: “If options aren’t compensation, what are they?” < 2% = restrained; > 10% = shareholders quietly subsidising management pay via dilution.',
+rev_cagr_10y:'10Y Revenue CAGR. Persistent growth through multiple cycles = cleanest evidence of durable demand. > 5% with stable margins = hallmark compounder.',
+_flagged:'Your personal flag for stocks worth deeper attention. Click ⚑ to toggle. Buffett’s “definitely interesting” pile, the opposite of his “too hard” pile. Saved in browser local storage.',
+_reviewed:'Mark reviewed after completing your own due diligence. Click ✓ to toggle. Tracks what you’ve evaluated vs. still on the to-do list. Saved in browser local storage.'
 };
 function tt(k){return TT[k]||'';}
 
@@ -1781,6 +1794,10 @@ var mSC='rating',mSA=true;
    row dataset, which is what makes Safari snappy on this table. */
 var _mtxData=null,_mtxCg2=null,_mtxRowH=26,_mtxBuffer=8;
 var _mtxScrollEl=null,_mtxScrollAttached=false,_mtxLastSig=null,_mtxRafPending=false;
+/* Virtualization state for the Financial Data table — same shape as the matrix
+   state above. See _renderDtWindow / _dtBuildRow / _dtOnScroll below. */
+var _dtData=null,_dtCols=null,_dtRowH=26,_dtBuffer=8;
+var _dtScrollEl=null,_dtScrollAttached=false,_dtLastSig=null,_dtRafPending=false;
 function renderMatrix(){
   var th=document.getElementById('mtx-h'),tb=document.getElementById('mtx-b');
   var cg2={};GM.categories.forEach(function(c){cg2[c.name]=[];});
@@ -2063,23 +2080,77 @@ function ftc(v,f){
   return{t:String(v),v:v};
 }
 function renderTSubs(){var h='';Object.keys(TL).forEach(function(k){h+='<button class="sub-btn'+(k===curTSub?' active':'')+'" onclick="swTSub(\''+k+'\')">'+TL[k]+'</button>';});document.getElementById('t-subs').innerHTML=h;}
-function swTSub(s){curTSub=s;tSC='rating';tSA=true;renderTSubs();moveFilterBar('table');var tw=document.querySelector('.table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();}}
+function swTSub(s){curTSub=s;tSC='rating';tSA=true;renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}}
 function renderTable(){
   var cols=TC[curTSub]||TC.prices;
-  var th=document.getElementById('dt-h'),tb=document.getElementById('dt-b');
+  var th=document.getElementById('dt-h');
   var hh='<tr>';hh+='<th style="width:40px;color:#7f8c9a;font-weight:600" title="Row number in current sort order">#</th>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';hh+='<th style="width:28px;cursor:pointer" onclick="tSort(\'_reviewed\')" data-col-tip="_reviewed" data-col-label="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="arrow">'+(tSC==='_reviewed'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
   th.innerHTML=hh;
   var sd=FD.slice();
   var RO2={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
   if(tSC){sd.sort(function(a,b){var va,vb;if(tSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(tSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[tSC];vb=b[tSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(tSC==='rating'){var ra=RO2[va]||99,rb2=RO2[vb]||99;return tSA?ra-rb2:rb2-ra;}if(typeof va==='string')return tSA?va.localeCompare(vb):vb.localeCompare(va);return tSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
-  var bh='';sd.forEach(function(d,_i){var t=d.ticker.replace(/'/g,"\\'");bh+='<tr>';bh+='<td>'+(_i+1)+'</td>';bh+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';bh+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';cols.forEach(function(c){var r=ftc(d[c.k],c.f);var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';bh+='<td'+cls+' data-value="'+r.v+'">'+r.t+'</td>';});bh+='</tr>';});
-  tb.innerHTML=bh;
+  _dtData=sd;_dtCols=cols;
+  /* Preserve scrollTop only when neither the dataset nor the sort changed
+     (e.g. flag/reviewed toggles). On any real change, jump to the top. */
+  var newSig=curTSub+'|'+sd.length+'|'+tSC+'|'+(tSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'');
+  if(!_dtScrollEl)_dtScrollEl=document.querySelector('#view-table .table-wrap');
+  if(_dtScrollEl&&!_dtScrollAttached){
+    _dtScrollEl.addEventListener('scroll',_dtOnScroll,{passive:true});
+    _dtScrollAttached=true;
+  }
+  if(newSig!==_dtLastSig){
+    _dtLastSig=newSig;
+    if(_dtScrollEl)_dtScrollEl.scrollTop=0;
+  }
+  _renderDtWindow();
+}
+function _dtBuildRow(d,_i){
+  var t=d.ticker.replace(/'/g,"\\'");
+  var html='<tr>';
+  html+='<td>'+(_i+1)+'</td>';
+  html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
+  html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
+  _dtCols.forEach(function(c){
+    var r=ftc(d[c.k],c.f);
+    var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';
+    html+='<td'+cls+' data-value="'+r.v+'">'+r.t+'</td>';
+  });
+  html+='</tr>';
+  return html;
+}
+function _renderDtWindow(){
+  var tb=document.getElementById('dt-b');
+  if(!tb||!_dtData)return;
+  var n=_dtData.length;
+  var rowH=_dtRowH;
+  var scrollEl=_dtScrollEl;
+  var scrollTop=scrollEl?scrollEl.scrollTop:0;
+  var viewportH=scrollEl?scrollEl.clientHeight:0;
+  /* Before max-height is applied, clientHeight may be ~0. Fall back to a
+     reasonable default so the first paint isn't anemic; _setTableH will
+     re-run the window once the wrap has its real height. */
+  if(viewportH<=0)viewportH=600;
+  var first=Math.max(0,Math.floor(scrollTop/rowH)-_dtBuffer);
+  var last=Math.min(n,Math.ceil((scrollTop+viewportH)/rowH)+_dtBuffer);
+  if(last-first<40)last=Math.min(n,first+40);
+  var topPad=first*rowH;
+  var botPad=(n-last)*rowH;
+  var html='';
+  if(topPad>0)html+='<tr class="dt-spacer" style="height:'+topPad+'px"><td></td></tr>';
+  for(var i=first;i<last;i++){html+=_dtBuildRow(_dtData[i],i);}
+  if(botPad>0)html+='<tr class="dt-spacer" style="height:'+botPad+'px"><td></td></tr>';
+  tb.innerHTML=html;
+}
+function _dtOnScroll(){
+  if(_dtRafPending)return;
+  _dtRafPending=true;
+  requestAnimationFrame(function(){_dtRafPending=false;_renderDtWindow();});
 }
 function tSort(col){if(tSC===col)tSA=!tSA;else{tSC=col;tSA=true;}renderTable();}
 
 /* === PRICE HISTORY === */
-var _phStocks=[],_phRange='MAX',_phInited=false,_phState=null,_phMetric='price',_phZoom={start:0,end:1};
+var _phStocks=[],_phRange='MAX',_phInited=false,_phState=null,_phMetric='price';
 var _phPalette=['#16a34a','#2563eb','#dc2626','#d97706','#7c3aed','#0891b2','#be185d','#65a30d','#b45309','#6366f1'];
 var _PH_METRICS=[
   {k:'price',  lbl:'Price',         unit:'$',  fmt:'money',  src:'price'},
@@ -2250,10 +2321,10 @@ function _buildPHRanges(){
   var ranges=['1M','3M','6M','1YR','5YR','10YR','20YR','MAX'].map(function(r){
     return '<button class="ph-range-btn'+(r===_phRange?' active':'')+'" data-range="'+r+'" onclick="phSetRange(\''+r+'\')">'+r+'</button>';
   }).join('');
-  rc.innerHTML=ranges+'<span style="display:inline-flex;gap:3px;margin-left:auto;align-items:center"><button type="button" class="zoom-btn" onclick="phZoomIn()" title="Zoom in">+</button><button type="button" class="zoom-btn" onclick="phZoomOut()" title="Zoom out">−</button><button type="button" class="zoom-btn" onclick="phResetZoom()" title="Reset zoom">↺</button></span>';
+  rc.innerHTML=ranges;
 }
 function phSetRange(r){
-  _phRange=r;_phZoom={start:0,end:1};
+  _phRange=r;
   document.querySelectorAll('.ph-range-btn').forEach(function(b){b.classList.toggle('active',b.dataset.range===r);});
   renderPHChart();
 }
@@ -2350,17 +2421,6 @@ function _phRenderSVG(allRaw,refs){
   var iW=VW-PL-PR,iH=VH-PT-PB;
   var cmpMode=series.length>1;
   series.forEach(function(s){s.pts=s.raw;});
-  /* Apply zoom window over each series. */
-  if(_phZoom&&(_phZoom.start>0||_phZoom.end<1)){
-    series.forEach(function(s){
-      if(s.pts&&s.pts.length>=2){
-        var i0=Math.max(0,Math.floor(s.pts.length*_phZoom.start));
-        var i1=Math.min(s.pts.length,Math.ceil(s.pts.length*_phZoom.end));
-        if(i1-i0<2)i0=Math.max(0,i1-2);
-        s.pts=s.pts.slice(i0,i1);
-      }
-    });
-  }
   /* y range */
   var allVals=[];series.forEach(function(s){s.pts.forEach(function(p){allVals.push(p.c);});});
   var minP=Math.min.apply(null,allVals),maxP=Math.max.apply(null,allVals);
@@ -2407,13 +2467,15 @@ function _phRenderSVG(allRaw,refs){
     var pp=s.pts.map(function(p,i){return xOf(i,s.pts.length).toFixed(1)+','+yOf(p.c).toFixed(1);}).join(' ');
     if(!cmpMode){var fp=pp+' '+xOf(s.pts.length-1,s.pts.length).toFixed(1)+','+(PT+iH)+' '+PL+','+(PT+iH);linesSVG+='<polygon points="'+fp+'" fill="url(#ph-g)"/>';}
     linesSVG+='<polyline points="'+pp+'" fill="none" stroke="'+s.col+'" stroke-width="'+(cmpMode?1.6:1.8)+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';
-    dotsSVG+='<circle id="ph-dc'+si+'" cx="0" cy="0" r="4" fill="white" stroke="'+s.col+'" stroke-width="2" opacity="0"/>';
+    dotsSVG+='<circle id="ph-dc'+si+'" cx="0" cy="0" r="4" fill="white" stroke="'+s.col+'" stroke-width="2" opacity="0" pointer-events="none"/>';
+    dotsSVG+='<text id="ph-lbl'+si+'" x="0" y="0" font-size="11" font-weight="700" fill="'+s.col+'" stroke="white" stroke-width="3" paint-order="stroke" opacity="0" pointer-events="none" style="font-family:-apple-system,BlinkMacSystemFont,sans-serif"></text>';
   });
   /* tip bar */
   var tb=document.getElementById('ph-tip-bar');
   if(tb)tb.innerHTML=_phTipHtml(series,cmpMode,null,def,annual);
-  var svg='<svg id="ph-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none"'
-    +' onmousemove="phMove(event)" onmouseleave="phLeave()">'
+  var svg='<svg id="ph-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
+    +' onmousemove="phMove(event)" onmouseleave="phLeave()"'
+    +' ontouchstart="phTouch(event)" ontouchmove="phTouch(event)" ontouchend="phLeave()" ontouchcancel="phLeave()">'
     +'<defs><linearGradient id="ph-g" x1="0" y1="0" x2="0" y2="1">'
     +'<stop offset="0%" stop-color="'+series[0].col+'" stop-opacity="0.15"/><stop offset="100%" stop-color="'+series[0].col+'" stop-opacity="0.01"/>'
     +'</linearGradient></defs>'
@@ -2462,34 +2524,43 @@ function phMove(e){
   var vl=document.getElementById('ph-vl');
   s.series.forEach(function(sr,si){
     var idx=Math.max(0,Math.min(sr.pts.length-1,Math.round(relX/s.iW*(sr.pts.length-1))));
-    var x=(s.PL+(idx/(sr.pts.length-1||1))*s.iW).toFixed(1),y=(s.PT+s.iH-((sr.pts[idx].c-s.minP)/s.pRange)*s.iH).toFixed(1);
+    var xn=s.PL+(idx/(sr.pts.length-1||1))*s.iW,yn=s.PT+s.iH-((sr.pts[idx].c-s.minP)/s.pRange)*s.iH;
+    var x=xn.toFixed(1),y=yn.toFixed(1);
     if(si===0&&vl){vl.setAttribute('x1',x);vl.setAttribute('x2',x);vl.setAttribute('opacity','1');}
     var dc=document.getElementById('ph-dc'+si);if(dc){dc.setAttribute('cx',x);dc.setAttribute('cy',y);dc.setAttribute('opacity','1');}
+    var lb=document.getElementById('ph-lbl'+si);
+    if(lb){
+      var base=sr.pts[0]&&sr.pts[0].c,cur=sr.pts[idx].c,lblTxt=sr.tk;
+      if(base!=null&&base>0){var pct=((cur-base)/base)*100,sgn=pct>=0?'+':'';lblTxt+=' '+sgn+pct.toFixed(1)+'%';}
+      var lw=lblTxt.length*6.6+4;
+      var lx=xn+8,anc='start';
+      if(lx+lw>s.VW-s.PR){lx=xn-8;anc='end';}
+      var ly=yn-8;if(ly<s.PT+10)ly=yn+18;
+      lb.setAttribute('x',lx.toFixed(1));lb.setAttribute('y',ly.toFixed(1));
+      lb.setAttribute('text-anchor',anc);
+      lb.textContent=lblTxt;
+      lb.setAttribute('opacity','1');
+    }
   });
   var tb=document.getElementById('ph-tip-bar');if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,relX/s.iW*(s.series[0].pts.length-1),s.def,s.annual);
 }
 function phLeave(){
   if(!_phState)return;var s=_phState;
   var vl=document.getElementById('ph-vl');if(vl)vl.setAttribute('opacity','0');
-  s.series.forEach(function(sr,si){var dc=document.getElementById('ph-dc'+si);if(dc)dc.setAttribute('opacity','0');});
+  s.series.forEach(function(sr,si){
+    var dc=document.getElementById('ph-dc'+si);if(dc)dc.setAttribute('opacity','0');
+    var lb=document.getElementById('ph-lbl'+si);if(lb)lb.setAttribute('opacity','0');
+  });
   var tb=document.getElementById('ph-tip-bar');if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,null,s.def,s.annual);
 }
-/* Shared zoom math used by the +/− buttons on all three price-history charts. */
-function _zCalcCenter(prev,factor){
-  var center=(prev.start+prev.end)/2;
-  var span=Math.max(0.01,Math.min(1,(prev.end-prev.start)*factor));
-  var ns=center-span/2,ne=ns+span;
-  if(ns<0){ne-=ns;ns=0;}
-  if(ne>1){ns-=(ne-1);ne=1;}
-  return{start:Math.max(0,ns),end:Math.min(1,ne)};
+function phTouch(e){
+  if(!_phState||!e.touches||!e.touches.length)return;
+  var t=e.touches[0];
+  if(e.cancelable)e.preventDefault();
+  phMove({clientX:t.clientX,clientY:t.clientY});
 }
-/* === Financial Data ph-chart zoom buttons === */
-function phResetZoom(){if(_phZoom.start===0&&_phZoom.end===1)return;_phZoom={start:0,end:1};renderPHChart();}
-function phZoomIn(){if(!_phState)return;_phZoom=_zCalcCenter(_phZoom,0.7);renderPHChart();}
-function phZoomOut(){if(!_phState)return;_phZoom=_zCalcCenter(_phZoom,1.4);renderPHChart();}
-
 /* === DETAIL POPUP PRICE CHART === */
-var _dpRange='MAX',_dpTicker=null,_dpState=null,_dpZoom={start:0,end:1};
+var _dpRange='MAX',_dpTicker=null,_dpState=null;
 function _dpFmtDate(dateStr,pts){
   var d=new Date(dateStr+'T00:00:00');
   var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -2517,7 +2588,7 @@ function _dpGetSeries(ticker){
   return{tk:tk,spy:spy};
 }
 function dpSetRange(r){
-  _dpRange=r;_dpZoom={start:0,end:1};
+  _dpRange=r;
   document.querySelectorAll('.dp-range-btn').forEach(function(b){b.classList.toggle('active',b.dataset.range===r);});
   try{_dpRenderChart();}catch(e){
     console.error('dp chart render failed for range',r,e);
@@ -2564,19 +2635,6 @@ function _dpRenderChart(){
     _dpState=null;return;
   }
   var tkPts=ser.tk,spyPts=ser.spy;
-  /* Apply zoom window over the current range's data series. */
-  if(_dpZoom&&(_dpZoom.start>0||_dpZoom.end<1)&&tkPts.length>=2){
-    var _z0=Math.max(0,Math.floor(tkPts.length*_dpZoom.start));
-    var _z1=Math.min(tkPts.length,Math.ceil(tkPts.length*_dpZoom.end));
-    if(_z1-_z0<2)_z0=Math.max(0,_z1-2);
-    tkPts=tkPts.slice(_z0,_z1);
-    if(spyPts.length){
-      var _s0=Math.max(0,Math.floor(spyPts.length*_dpZoom.start));
-      var _s1=Math.min(spyPts.length,Math.ceil(spyPts.length*_dpZoom.end));
-      if(_s1-_s0<2)_s0=Math.max(0,_s1-2);
-      spyPts=spyPts.slice(_s0,_s1);
-    }
-  }
   var d=DATA.find(function(x){return x.ticker===_dpTicker;});
   var refs=d?{dcf:d.dcf_fv,hi:d.high_52w,lo:d.low_52w}:{};
   var VW=900,VH=240,PL=64,PR=20,PT=14,PB=32;
@@ -2621,8 +2679,12 @@ function _dpRenderChart(){
     linesSVG+='<polyline points="'+spyPP+'" fill="none" stroke="'+spyCol+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.85" stroke-dasharray="4,3"/>';
   }
   linesSVG+='<polyline points="'+tkPP+'" fill="none" stroke="'+tkCol+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" opacity="0.92"/>';
-  var dotSVG='<circle id="dp-dot" cx="0" cy="0" r="4" fill="white" stroke="'+tkCol+'" stroke-width="2" opacity="0"/>';
-  if(spyPlot.length)dotSVG+='<circle id="dp-dot-spy" cx="0" cy="0" r="3.5" fill="white" stroke="'+spyCol+'" stroke-width="1.7" opacity="0"/>';
+  var dotSVG='<circle id="dp-dot" cx="0" cy="0" r="4" fill="white" stroke="'+tkCol+'" stroke-width="2" opacity="0" pointer-events="none"/>';
+  dotSVG+='<text id="dp-lbl-tk" x="0" y="0" font-size="11" font-weight="700" fill="'+tkCol+'" stroke="white" stroke-width="3" paint-order="stroke" opacity="0" pointer-events="none" style="font-family:-apple-system,BlinkMacSystemFont,sans-serif"></text>';
+  if(spyPlot.length){
+    dotSVG+='<circle id="dp-dot-spy" cx="0" cy="0" r="3.5" fill="white" stroke="'+spyCol+'" stroke-width="1.7" opacity="0" pointer-events="none"/>';
+    dotSVG+='<text id="dp-lbl-spy" x="0" y="0" font-size="11" font-weight="700" fill="'+spyCol+'" stroke="white" stroke-width="3" paint-order="stroke" opacity="0" pointer-events="none" style="font-family:-apple-system,BlinkMacSystemFont,sans-serif"></text>';
+  }
   var svg='<svg id="dp-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
     +' onmousemove="dpMove(event)" onmouseleave="dpLeave()"'
     +' ontouchstart="dpTouch(event)" ontouchmove="dpTouch(event)" ontouchend="dpLeave()" ontouchcancel="dpLeave()">'
@@ -2636,6 +2698,16 @@ function _dpRenderChart(){
   _dpState={tk:tkPts,spy:spyPts,spyPlot:spyPlot,VW:VW,PL:PL,PR:PR,PT:PT,iW:iW,iH:iH,minP:minP,pRange:pRange,tkCol:tkCol,spyCol:spyCol,ticker:_dpTicker};
   var tb=document.getElementById('dp-tip-bar');if(tb)tb.innerHTML=_dpTipHtml(null);
 }
+function _dpPlaceLabel(lb,xn,yn,txt,s){
+  var lw=txt.length*6.6+4;
+  var lx=xn+8,anc='start';
+  if(lx+lw>s.VW-s.PR){lx=xn-8;anc='end';}
+  var ly=yn-8;if(ly<s.PT+10)ly=yn+18;
+  lb.setAttribute('x',lx.toFixed(1));lb.setAttribute('y',ly.toFixed(1));
+  lb.setAttribute('text-anchor',anc);
+  lb.textContent=txt;
+  lb.setAttribute('opacity','1');
+}
 function dpMove(e){
   if(!_dpState)return;var s=_dpState;
   var svg=document.getElementById('dp-svg');if(!svg)return;
@@ -2644,15 +2716,31 @@ function dpMove(e){
   if(sp.x<s.PL||sp.x>s.PL+s.iW||sp.y<s.PT||sp.y>s.PT+s.iH){dpLeave();return;}
   var relX=Math.max(0,Math.min(sp.x-s.PL,s.iW));
   var idx=Math.max(0,Math.min(s.tk.length-1,Math.round(relX/s.iW*(s.tk.length-1))));
-  var x=(s.PL+(idx/(s.tk.length-1||1))*s.iW).toFixed(1);
-  var y=(s.PT+s.iH-((s.tk[idx].c-s.minP)/s.pRange)*s.iH).toFixed(1);
+  var xn=s.PL+(idx/(s.tk.length-1||1))*s.iW;
+  var yn=s.PT+s.iH-((s.tk[idx].c-s.minP)/s.pRange)*s.iH;
+  var x=xn.toFixed(1),y=yn.toFixed(1);
   var vl=document.getElementById('dp-vl');if(vl){vl.setAttribute('x1',x);vl.setAttribute('x2',x);vl.setAttribute('opacity','1');}
   var dc=document.getElementById('dp-dot');if(dc){dc.setAttribute('cx',x);dc.setAttribute('cy',y);dc.setAttribute('opacity','1');}
+  var lbTk=document.getElementById('dp-lbl-tk');
+  if(lbTk){
+    var tkBase=s.tk[0].c,tkCur=s.tk[idx].c;
+    var txt=s.ticker;
+    if(tkBase>0){var pct=((tkCur-tkBase)/tkBase)*100,sgn=pct>=0?'+':'';txt+=' '+sgn+pct.toFixed(1)+'%';}
+    _dpPlaceLabel(lbTk,xn,yn,txt,s);
+  }
   if(s.spyPlot.length){
     var sIdx=Math.max(0,Math.min(s.spyPlot.length-1,Math.round(relX/s.iW*(s.spyPlot.length-1))));
-    var sx=(s.PL+(sIdx/(s.spyPlot.length-1||1))*s.iW).toFixed(1);
-    var sy=(s.PT+s.iH-((s.spyPlot[sIdx].c-s.minP)/s.pRange)*s.iH).toFixed(1);
+    var sxn=s.PL+(sIdx/(s.spyPlot.length-1||1))*s.iW;
+    var syn=s.PT+s.iH-((s.spyPlot[sIdx].c-s.minP)/s.pRange)*s.iH;
+    var sx=sxn.toFixed(1),sy=syn.toFixed(1);
     var dcs=document.getElementById('dp-dot-spy');if(dcs){dcs.setAttribute('cx',sx);dcs.setAttribute('cy',sy);dcs.setAttribute('opacity','1');}
+    var lbSpy=document.getElementById('dp-lbl-spy');
+    if(lbSpy){
+      var spyBase=s.spy[0].c,spyCur=s.spy[sIdx].c;
+      var stxt='SPY';
+      if(spyBase>0){var spct=((spyCur-spyBase)/spyBase)*100,ssgn=spct>=0?'+':'';stxt+=' '+ssgn+spct.toFixed(1)+'%';}
+      _dpPlaceLabel(lbSpy,sxn,syn,stxt,s);
+    }
   }
   var tb=document.getElementById('dp-tip-bar');if(tb)tb.innerHTML=_dpTipHtml(idx);
 }
@@ -2661,6 +2749,8 @@ function dpLeave(){
   var vl=document.getElementById('dp-vl');if(vl)vl.setAttribute('opacity','0');
   var dc=document.getElementById('dp-dot');if(dc)dc.setAttribute('opacity','0');
   var dcs=document.getElementById('dp-dot-spy');if(dcs)dcs.setAttribute('opacity','0');
+  var lbTk=document.getElementById('dp-lbl-tk');if(lbTk)lbTk.setAttribute('opacity','0');
+  var lbSpy=document.getElementById('dp-lbl-spy');if(lbSpy)lbSpy.setAttribute('opacity','0');
   var tb=document.getElementById('dp-tip-bar');if(tb)tb.innerHTML=_dpTipHtml(null);
 }
 function dpTouch(e){
@@ -2671,17 +2761,10 @@ function dpTouch(e){
   if(e.cancelable)e.preventDefault();
   dpMove({clientX:t.clientX,clientY:t.clientY});
 }
-function dpResetZoom(){
-  if(_dpZoom.start===0&&_dpZoom.end===1)return;
-  _dpZoom={start:0,end:1};
-  _dpRenderChart();
-}
-function dpZoomIn(){if(!_dpState)return;_dpZoom=_zCalcCenter(_dpZoom,0.7);_dpRenderChart();}
-function dpZoomOut(){if(!_dpState)return;_dpZoom=_zCalcCenter(_dpZoom,1.4);_dpRenderChart();}
 function _renderDetPriceChart(ticker){
   var sec=document.getElementById('d-section-price');
   if(!sec)return;
-  _dpTicker=ticker;_dpState=null;_dpZoom={start:0,end:1};
+  _dpTicker=ticker;_dpState=null;
   if(!PRICES){
     if(!_PRICES_AVAILABLE){sec.style.display='none';return;}
     sec.style.display='';
@@ -2703,7 +2786,7 @@ function _renderDetPriceChart(ticker){
     var ranges=['1M','3M','6M','1YR','5YR','10YR','MAX'].map(function(r){
       return '<button class="ph-range-btn dp-range-btn'+(r===_dpRange?' active':'')+'" data-range="'+r+'" onclick="dpSetRange(\''+r+'\')">'+r+'</button>';
     }).join('');
-    rEl.innerHTML=ranges+'<span style="display:inline-flex;gap:3px;margin-left:auto;align-items:center"><button type="button" class="zoom-btn" onclick="dpZoomIn()" title="Zoom in">+</button><button type="button" class="zoom-btn" onclick="dpZoomOut()" title="Zoom out">−</button><button type="button" class="zoom-btn" onclick="dpResetZoom()" title="Reset zoom">↺</button></span>';
+    rEl.innerHTML=ranges;
   }
   _dpRenderChart();
 }
@@ -3348,6 +3431,7 @@ function _setTableH(){
      yielding ~12 rows). Re-run the window calc now that the wrap has the real
      viewport-based max-height. Also fixes the matrix on window resize. */
   if(typeof _renderMtxWindow==='function'&&_mtxData)_renderMtxWindow();
+  if(typeof _renderDtWindow==='function'&&_dtData)_renderDtWindow();
 }
 window.addEventListener('resize',_setTableH);
 function showView(v){
@@ -3489,7 +3573,6 @@ var _sectorPriceRange='20YR';
 var _selectedAggs={};
 var _sectorPriceState=null;
 var _aggHoverState=null;
-var _spZoom={start:0,end:1};
 /* Distinct categorical palette. Sector colors are stable —
    assigned by alphabetical index — so toggling on/off doesn\'t
    reshuffle the chart. */
@@ -3528,13 +3611,9 @@ function renderUniversePriceChart(){
     var checked=_selectedAggs[s]?' checked':'';
     return '<label class="agg-grid-item"><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span></label>';
   }).join('');
-  var zoomBtns='<button type="button" class="zoom-btn" onclick="aggChartZoomIn()" title="Zoom in">+</button>'
-    +'<button type="button" class="zoom-btn" onclick="aggChartZoomOut()" title="Zoom out">−</button>'
-    +'<button type="button" class="zoom-btn" onclick="aggChartResetZoom()" title="Reset zoom">↺</button>';
   var out='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">'
     +'<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">'+rangeBtns+'</div>'
-    +'<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+helperBtns+'</div>'
-    +'<div style="display:inline-flex;gap:3px;align-items:center;margin-left:auto">'+zoomBtns+'</div>'
+    +'<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-left:auto">'+helperBtns+'</div>'
     +'</div>'
     +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin:6px 0 4px;min-height:20px"></div>'
     +'<div id="sector-price-chart" style="min-height:260px"></div>'
@@ -3549,7 +3628,7 @@ function renderUniversePriceChart(){
   return out;
 }
 function setSectorPriceRange(r,btn){
-  _sectorPriceRange=r;_spZoom={start:0,end:1};
+  _sectorPriceRange=r;
   if(btn&&btn.parentNode){
     btn.parentNode.querySelectorAll('.pp-range-btn').forEach(function(b){b.classList.remove('active');});
     btn.classList.add('active');
@@ -3558,7 +3637,7 @@ function setSectorPriceRange(r,btn){
 }
 function aggsChanged(){
   var boxes=document.querySelectorAll('#agg-grid input[type="checkbox"]');
-  _selectedAggs={};_spZoom={start:0,end:1};
+  _selectedAggs={};
   boxes.forEach(function(cb){if(cb.checked)_selectedAggs[cb.value]=true;});
   _priceChartDraw();
 }
@@ -3678,14 +3757,6 @@ function _priceChartDraw(){
   _sectorPriceState={range:_sectorPriceRange,n:dates.length,k:aggs.length};
 }
 function _renderPolylineSVG(el,dates,aggs){
-  /* Apply zoom window over the sector aggregates. */
-  if(_spZoom&&(_spZoom.start>0||_spZoom.end<1)&&dates.length>=2){
-    var i0=Math.max(0,Math.floor(dates.length*_spZoom.start));
-    var i1=Math.min(dates.length,Math.ceil(dates.length*_spZoom.end));
-    if(i1-i0<2)i0=Math.max(0,i1-2);
-    dates=dates.slice(i0,i1);
-    aggs=aggs.map(function(a){var b={};for(var k in a)b[k]=a[k];b.vals=a.vals.slice(i0,i1);return b;});
-  }
   var VW=900,VH=280,PL=52,PR=14,PT=14,PB=34;
   var iW=VW-PL-PR,iH=VH-PT-PB;
   var allVals=[];
@@ -3726,8 +3797,9 @@ function _renderPolylineSVG(el,dates,aggs){
   var hoverOverlay='<line id="agg-vl" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0" pointer-events="none"/>';
   aggs.forEach(function(a,si){
     hoverOverlay+='<circle id="agg-dot'+si+'" cx="0" cy="0" r="4" fill="#fff" stroke="'+a.color+'" stroke-width="2" opacity="0" pointer-events="none"/>';
+    hoverOverlay+='<text id="agg-lbl'+si+'" x="0" y="0" font-size="11" font-weight="700" fill="'+a.color+'" stroke="white" stroke-width="3" paint-order="stroke" opacity="0" pointer-events="none" style="font-family:-apple-system,BlinkMacSystemFont,sans-serif"></text>';
   });
-  var svg='<svg id="agg-svg" viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:360px;cursor:crosshair;-webkit-user-select:none;user-select:none" onmousemove="aggChartMove(event)" onmouseleave="aggChartLeave()">'+grid+lines+hoverOverlay+'</svg>';
+  var svg='<svg id="agg-svg" viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:360px;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y" onmousemove="aggChartMove(event)" onmouseleave="aggChartLeave()" ontouchstart="aggChartTouch(event)" ontouchmove="aggChartTouch(event)" ontouchend="aggChartLeave()" ontouchcancel="aggChartLeave()">'+grid+lines+hoverOverlay+'</svg>';
   function _ret(end){var c=end-100;return (c>=0?'+':'')+c.toFixed(1)+'%';}
   function _retCol(end){return end>=100?'#2e7d48':'#c0392b';}
   var aggsForLegend=aggs.slice().sort(function(a,b){return b.vals[b.vals.length-1]-a.vals[a.vals.length-1];});
@@ -3776,14 +3848,29 @@ function aggChartMove(e){
   if(sp.x<s.PL||sp.x>s.PL+s.iW||sp.y<s.PT||sp.y>s.PT+s.iH){aggChartLeave();return;}
   var relX=Math.max(0,Math.min(sp.x-s.PL,s.iW));
   var idx=Math.max(0,Math.min(s.dates.length-1,Math.round(relX/s.iW*(s.dates.length-1))));
-  var x=(s.PL+(idx/(s.dates.length-1||1))*s.iW).toFixed(1);
+  var xn=s.PL+(idx/(s.dates.length-1||1))*s.iW;
+  var x=xn.toFixed(1);
   var vl=document.getElementById('agg-vl');
   if(vl){vl.setAttribute('x1',x);vl.setAttribute('x2',x);vl.setAttribute('opacity','1');}
   s.aggs.forEach(function(a,si){
     var v=a.vals[idx];
-    var y=(s.PT+s.iH-((v-s.minP)/s.pRange)*s.iH).toFixed(1);
+    var yn=s.PT+s.iH-((v-s.minP)/s.pRange)*s.iH;
+    var y=yn.toFixed(1);
     var dc=document.getElementById('agg-dot'+si);
     if(dc){dc.setAttribute('cx',x);dc.setAttribute('cy',y);dc.setAttribute('opacity','1');}
+    var lb=document.getElementById('agg-lbl'+si);
+    if(lb){
+      var pct=v-100,sgn=pct>=0?'+':'';
+      var lblTxt=a.label+' '+sgn+pct.toFixed(1)+'%';
+      var lw=lblTxt.length*6.6+4;
+      var lx=xn+8,anc='start';
+      if(lx+lw>s.VW-s.PR){lx=xn-8;anc='end';}
+      var ly=yn-8;if(ly<s.PT+10)ly=yn+18;
+      lb.setAttribute('x',lx.toFixed(1));lb.setAttribute('y',ly.toFixed(1));
+      lb.setAttribute('text-anchor',anc);
+      lb.textContent=lblTxt;
+      lb.setAttribute('opacity','1');
+    }
   });
   /* Update tip bar with hover values, sorted desc by value. */
   var d=s.dates[idx];
@@ -3803,15 +3890,18 @@ function aggChartLeave(){
   if(s)s.aggs.forEach(function(a,si){
     var dc=document.getElementById('agg-dot'+si);
     if(dc)dc.setAttribute('opacity','0');
+    var lb=document.getElementById('agg-lbl'+si);
+    if(lb)lb.setAttribute('opacity','0');
   });
   var tipEl=document.getElementById('sector-price-tip');
   if(tipEl&&s)tipEl.innerHTML=s.summaryHtml||'';
 }
-/* === Sector Analysis price chart zoom buttons === */
-function aggChartResetZoom(){if(_spZoom.start===0&&_spZoom.end===1)return;_spZoom={start:0,end:1};_priceChartDraw();}
-function aggChartZoomIn(){if(!_aggHoverState)return;_spZoom=_zCalcCenter(_spZoom,0.7);_priceChartDraw();}
-function aggChartZoomOut(){if(!_aggHoverState)return;_spZoom=_zCalcCenter(_spZoom,1.4);_priceChartDraw();}
-
+function aggChartTouch(e){
+  if(!_aggHoverState||!e.touches||!e.touches.length)return;
+  var t=e.touches[0];
+  if(e.cancelable)e.preventDefault();
+  aggChartMove({clientX:t.clientX,clientY:t.clientY});
+}
 
 /* Computes per-sector liquidity aggregates from DATA once and caches the
    result. Provides $ volume, share-count flow, per-tier breakdown, top-N
@@ -4238,7 +4328,7 @@ function renderCrossSectorDashboard(){
     var pctBuyDisp=s.pctBuy!=null?(s.pctBuy*100).toFixed(0)+'%':'&mdash;';
     /* Column order: Identity → Concentration → Profitability/Quality → Leverage → Valuation → Action. */
     return'<tr>'
-      +'<td style="text-align:left;font-weight:600">'+s.sector+'</td>'
+      +'<td class="heat-sector" onclick="showPoolTab(\''+s.sector.replace(/\'/g,"\\\\'")+'\')" title="Open '+_attr(s.sector)+' sector page">'+s.sector+'</td>'
       +'<td>'+s.n+'</td>'
       +cell(s.hhi,hhiDisp,C.hhi,false)
       +cell(s.cr4,cr4Disp,C.cr4,false)
@@ -4311,22 +4401,22 @@ function renderCrossSectorDashboard(){
          is wide enough for "Communication Services"; all metric columns
          share one width so the eye scans across a uniform grid. */
       +'<div class="table-wrap"><table class="dt heatmap-table"><thead><tr>'
-        +_th('sector','Sector',130,'GICS sector groups — Buffett invests only inside his circle of competence. Pool stats below show the economic terrain of each sector; only compare a business against peers with genuinely similar economics.',true)
-        +_th('n','Cos',60,'Number of companies in the sector pool. Munger: “Structure matters more than effort” — sectors crowded with similar competitors compete margins toward zero, while lean sectors with structural barriers favor incumbents.')
-        +_th('hhi','HHI',60,'Herfindahl–Hirschman Index of revenue concentration. Above 0.25 = oligopoly where incumbents hold pricing power; below 0.15 = fragmented competition that erodes returns. Buffett: “In a commodity business, you can only be as smart as your dumbest competitor.”')
-        +_th('cr4','CR4',60,'Top-4 share of sector revenue. Above 80% signals a true oligopoly; below 50% means fragmented competition. Munger: “The single biggest predictor of high returns is the structure of the industry, not the brilliance of management.”')
-        +_th('wtdM','Op Margin',64,'Pool-weighted operating margin — sum(margin × revenue share). Buffett’s first moat test applied at sector scale: “The single most important decision is pricing power.” Sectors with sustained 20%+ weighted margins reveal where durable competitive advantage actually lives.')
-        +_th('medFCFM','FCF Margin',64,'Median free cash flow margin across the sector. Graham: “Earnings are opinions; cash is a fact.” Sectors with persistently high FCF margins generate genuine owner earnings — the only kind that compound shareholder wealth.')
-        +_th('medROIC','ROIC',60,'Median ROIC across the sector — the single most important metric in the Buffett framework. Sectors compounding capital at 15%+ harbor the businesses that turn each retained dollar into more than a dollar of intrinsic value.')
-        +_th('medSpread','ROIC–WACC',68,'Median ROIC minus WACC — the sector’s economic profit spread. Above 5% = capital is genuinely productive; near zero = competitors cancel each other out. Buffett invests where the gap is wide and durable, not where it’s narrow and fragile.')
-        +_th('medGrowth','Rev CAGR',64,'Median 3-year revenue CAGR across the sector. Persistent top-line growth paired with stable margins reveals genuine demand and pricing power. Munger: “Avoid growth for growth’s sake” — growth without margin discipline is destruction at scale.')
-        +_th('medNDEB','ND/EBITDA',68,'Median Net Debt / EBITDA across the sector. Buffett: “We want businesses with no debt or very modest debt.” Sectors below 2× operate from a position of strength; above 4× = dependence on rolling credit when markets sour.')
-        +_th('medAltZ','Altman Z',60,'Median Altman Z-score across the sector. Above 3.0 = sector-wide financial health; below 1.8 = distress signals across the cohort. Graham was obsessed with avoiding permanent capital loss — the Z-Score flags businesses approaching the line before the market does.')
-        +_th('medMos','MoS',56,'Median Margin of Safety vs. DCF fair value across the sector. Graham’s foundational principle: “The three most important words in investing are margin of safety.” A sector at 20%+ median MoS may be temporarily out of favor — verify the discount is real, not deserved.')
-        +_th('medPTBV','P/TBV',60,'Median price-to-tangible-book across the sector. Graham’s strictest asset-floor anchor — strips goodwill and intangibles so what remains is hard assets the business can actually liquidate. A sector trading cheap on P/TBV is only attractive when ROIC justifies the discount; cheap tangible book with weak returns is a value trap.')
-        +_th('medEV','EV/EBITDA',64,'Median EV/EBITDA — a capital-structure-neutral valuation lens on the sector. Reasonable for predictable cash converters; misleading at cyclical troughs in capex-heavy industries. Buffett trusts owner earnings over EBITDA.')
-        +_th('medShrYld','Shr Yld',60,'Median shareholder yield (buybacks + dividends / market cap) across the sector. Buffett: “The best thing a company can do when the stock is cheap is buy it back.” Sectors with persistent 4%+ yields demonstrate disciplined capital allocation cohort-wide.')
-        +_th('pctBuy','BUY %',60,'% of sector rated BUY or LEAN BUY by the screener. High concentration signals where the model finds clusters of margin of safety. Buffett: “Most committee opinions are mediocre” — use as a focus signal, not a substitute for individual analysis.')
+        +_th('sector','Sector',130,'GICS sector. Buffett: stay inside your circle of competence — only compare businesses against genuinely similar economics.',true)
+        +_th('n','Cos',60,'Sector pool size. Munger: “Structure matters more than effort.” Crowded sectors compete margins to zero; lean ones favor incumbents.')
+        +_th('hhi','HHI',60,'HHI = Σ(market share)². > 0.25 = oligopoly with pricing power; < 0.15 = fragmented. Buffett: “In a commodity business, you can only be as smart as your dumbest competitor.”')
+        +_th('cr4','CR4',60,'CR4 = Top-4 Revenue / Total Sector Revenue. > 80% = true oligopoly; < 50% = fragmented. Munger: “The single biggest predictor of high returns is industry structure, not management.”')
+        +_th('wtdM','Op Margin',64,'Op Margin = Σ(Op Margin × Revenue Share). Buffett: “The single most important decision is pricing power.” Sustained 20%+ = where moats live.')
+        +_th('medFCFM','FCF Margin',64,'Median FCF / Revenue. Graham: “Earnings are opinions; cash is a fact.” High FCF margin → genuine owner earnings.')
+        +_th('medROIC','ROIC',60,'Median NOPAT / Invested Capital. The single most important metric in the Buffett framework. > 15% across a sector = compounder territory.')
+        +_th('medSpread','ROIC–WACC',68,'Median (ROIC − WACC) — the sector’s economic profit. > 5% = capital genuinely productive. Buffett invests where the gap is wide and durable.')
+        +_th('medGrowth','Rev CAGR',64,'Median 3Y Revenue CAGR. Growth + stable margins = pricing power. Munger: “Avoid growth for growth’s sake” — growth without margins is destruction at scale.')
+        +_th('medNDEB','ND/EBITDA',68,'Median (Debt − Cash) / EBITDA. Buffett: “we want no debt or very modest debt.” < 2× = strength; > 4× = rolling-credit dependence when markets sour.')
+        +_th('medAltZ','Altman Z',60,'Median Altman Z. > 3.0 = sector-wide health; < 1.8 = distress across the cohort. Graham: avoid permanent capital loss — Z flags the line before the market does.')
+        +_th('medMos','MoS',56,'Median (FV − Price) / FV vs. DCF. Graham’s “three most important words in investing are margin of safety.” 20%+ across a sector — verify the discount is real, not deserved.')
+        +_th('medPTBV','P/TBV',60,'Median Price / Tangible Book Value. Graham’s strictest asset floor — strips goodwill/intangibles to what the business could actually liquidate. Cheap P/TBV only attractive when ROIC justifies it; otherwise a value trap.')
+        +_th('medEV','EV/EBITDA',64,'Median (Mkt Cap + Net Debt) / EBITDA. Capital-structure-neutral; misleading at cyclical troughs. Buffett trusts owner earnings over EBITDA.')
+        +_th('medShrYld','Shr Yld',60,'Median (Dividends + Net Buybacks) / Mkt Cap. Buffett: “The best thing a company can do when the stock is cheap is buy it back.” 4%+ cohort-wide = disciplined capital allocation.')
+        +_th('pctBuy','BUY %',60,'Share of sector rated BUY or LEAN BUY. High concentration = clusters of margin of safety. Buffett: “Most committee opinions are mediocre” — focus signal, not a substitute for analysis.')
       +'</tr></thead><tbody id="heat-tbody"></tbody></table></div>'
     +'</div>'
     :'';
@@ -4391,7 +4481,7 @@ function renderCrossSectorDashboard(){
   var _mapHtml='<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:0">'
     +'<div class="xsect-chart-title">World MoS Map <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(median margin of safety per country · click a country to filter)</span></div>'
     +'<div class="xs-map-wrap" id="xs-map-wrap">'+WORLD_SVG+'</div>'
-    +'<div class="xs-map-legend"><span>−30% MoS</span><span class="xs-map-legend-bar"></span><span>+30% MoS</span><span style="margin-left:18px">·</span><span><span style="display:inline-block;width:12px;height:10px;background:#e6eaf0;border-radius:2px;vertical-align:middle"></span> no stocks</span></div>'
+    +'<div class="xs-map-legend"><span>≤−80% MoS</span><span class="xs-map-legend-bar"></span><span>≥+80% MoS</span><span style="margin-left:18px">·</span><span><span style="display:inline-block;width:12px;height:10px;background:#e6eaf0;border-radius:2px;vertical-align:middle"></span> no stocks</span></div>'
     +'</div>';
   /* Post-mount: tint each country path by median MoS, attach hover
      tooltip + click-to-filter handler. Mount after innerHTML applies
