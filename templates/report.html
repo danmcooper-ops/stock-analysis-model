@@ -172,7 +172,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .cfr-remove:hover{color:#de2d26;}
 .add-filter-btn{align-self:flex-start;padding:5px 12px;font-size:0.8em;border:1px dashed #b0b8c8;border-radius:5px;background:transparent;cursor:pointer;color:#667;white-space:nowrap;}
 .add-filter-btn:hover{background:#f0f4ff;border-color:var(--accent);color:var(--accent);}
-.fpop-section-label{font-size:0.7em;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#999;margin-bottom:5px;}
+.fpop-section-label{font-size:0.68em;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#7f8c9a;margin:0 0 5px;}
+.fpop-divider{height:1px;background:#eef1f5;margin:11px -14px 9px;}
+[data-theme="dark"] .fpop-divider{background:#21262d;}
 .fpop-toggles{display:flex;gap:6px;flex-wrap:wrap;}
 .fpop-toggle-btn{display:flex;align-items:center;gap:5px;padding:5px 12px;font-size:0.83em;border:1px solid #ccc;border-radius:20px;background:#f9f9f9;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
 .fpop-toggle-btn:hover{border-color:var(--accent);background:#f0f4ff;color:var(--accent);}
@@ -1083,26 +1085,11 @@ td.ct{font-weight:700;}
       <div class="ms-drop" id="ms-country-opts"></div>
     </div>
     <div class="filter-divider"></div>
-    <div class="fpop-wrap" id="qfpop-wrap">
-      <button class="fpop-btn" id="qfpop-btn" onclick="toggleQuickFiltersPopup(event)">
-        <span>Quick Filters</span>
-      </button>
-      <div class="fpop-panel" id="qfpop-panel">
-        <div class="fpop-header">
-          <span class="fpop-title">Quick Filters</span>
-          <button class="fpop-close" onclick="toggleQuickFiltersPopup(event)">&#215;</button>
-        </div>
-        <div class="fpop-body">
-          <div class="fpop-toggles">
-            <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Reviewed<span id="rev-count-label"></span></button>
-            <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
-            <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
-          </div>
-        </div>
-        <div class="fpop-footer">
-        </div>
-      </div>
-    </div>
+    <!-- Unified Filters popup — formerly two separate buttons (Quick Filters
+         + Filters). One button now opens a single panel with four labelled
+         sections (quick toggles, column filters, saved filters, backup &
+         restore). The Quick Toggles row at the top keeps the most-used
+         actions one click away; everything else lives below it. -->
     <div class="fpop-wrap" id="fpop-wrap">
       <button class="fpop-btn" id="fpop-btn" onclick="toggleFilterPopup(event)">
         <span>Filters</span>
@@ -1113,13 +1100,22 @@ td.ct{font-weight:700;}
           <button class="fpop-close" onclick="toggleFilterPopup(event)">&#215;</button>
         </div>
         <div class="fpop-body">
+          <div class="fpop-section-label">Quick Toggles</div>
+          <div class="fpop-toggles" style="margin-bottom:4px">
+            <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Reviewed<span id="rev-count-label"></span></button>
+            <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
+            <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
+          </div>
+          <div class="fpop-divider"></div>
           <div class="fpop-section-label">Column Filters</div>
           <div id="col-filters" class="col-filters-wrap"></div>
           <button class="add-filter-btn" onclick="addColFilter()">&#65291; Add Filter</button>
-          <div class="fpop-section-label" style="margin-top:10px">Saved Filters</div>
+          <div class="fpop-divider"></div>
+          <div class="fpop-section-label">Saved Filters</div>
           <div id="saved-filters-list" class="fpop-toggles" style="margin-bottom:6px"></div>
           <button class="fpop-toggle-btn" onclick="saveCurrentFilter()" title="Save the current filter configuration under a name">&#65291; Save current filter&#8230;</button>
-          <div class="fpop-section-label" style="margin-top:10px">Backup &amp; Restore</div>
+          <div class="fpop-divider"></div>
+          <div class="fpop-section-label">Backup &amp; Restore</div>
           <div class="fpop-toggles">
             <button class="fpop-toggle-btn" onclick="exportFlags()" title="Download a JSON file of your flagged + reviewed stocks. Save it to back up across browsers, devices, or browser-data clears.">&#11015; Export Flags</button>
             <button class="fpop-toggle-btn" onclick="importFlags()" title="Restore flagged + reviewed stocks from a previously exported JSON file. Merges with existing — does not overwrite.">&#11014; Import Flags</button>
@@ -1714,16 +1710,13 @@ function applyFilters(){
     return true;
   });
   document.getElementById('f-count').textContent=FD.length+' of '+DATA.length;
-  // Filters popup: button "active" state reflects whether any column filter is on.
-  var btn=document.getElementById('fpop-btn');
-  if(btn)btn.classList.toggle('active',colFilters.length>0);
-  // Quick Filters popup: button "active" state reflects whether any toggle is on.
-  // The numeric badge is owned by _updateFlagCount() and shows the flagged-stock count.
-  /* 3-state Reviewed-filter: state 0 (gray Reviewed) means show all and
-     does not count. States 1 (Unreviewed) and 2 (Reviewed) are active filters. */
+  /* Unified Filters button: active when ANY filter is engaged — column
+     filters OR any quick toggle (Reviewed cycle, Flagged, Founder-Led).
+     3-state Reviewed filter: state 0 (gray Reviewed) shows all and doesn't
+     count; states 1 (Unreviewed) and 2 (Reviewed) are active filters. */
   var qActive=_flagOnly||_founderOnly||(_revFilter>0);
-  var qBtn=document.getElementById('qfpop-btn');
-  if(qBtn){qBtn.classList.toggle('active',qActive);}
+  var btn=document.getElementById('fpop-btn');
+  if(btn)btn.classList.toggle('active',colFilters.length>0||qActive);
   _updateFlagCount();
   renderCur();
 }
@@ -1767,25 +1760,9 @@ function toggleFilterPopup(e){
   if(e)e.stopPropagation();
   var panel=document.getElementById('fpop-panel');
   var wasOpen=panel.classList.contains('open');
-  // Close sibling popup if open
-  var qPanel=document.getElementById('qfpop-panel');
-  if(qPanel)qPanel.classList.remove('open');
   panel.classList.toggle('open');
   if(!wasOpen){
     var btn=document.getElementById('fpop-btn');
-    if(btn)_positionFpop(panel,btn);
-  }
-}
-function toggleQuickFiltersPopup(e){
-  if(e)e.stopPropagation();
-  var panel=document.getElementById('qfpop-panel');
-  var wasOpen=panel.classList.contains('open');
-  // Close sibling popup if open
-  var fPanel=document.getElementById('fpop-panel');
-  if(fPanel)fPanel.classList.remove('open');
-  panel.classList.toggle('open');
-  if(!wasOpen){
-    var btn=document.getElementById('qfpop-btn');
     if(btn)_positionFpop(panel,btn);
   }
 }
@@ -1794,11 +1771,6 @@ document.addEventListener('click',function(e){
   if(wrap&&!wrap.contains(e.target)){
     var panel=document.getElementById('fpop-panel');
     if(panel)panel.classList.remove('open');
-  }
-  var qwrap=document.getElementById('qfpop-wrap');
-  if(qwrap&&!qwrap.contains(e.target)){
-    var qpanel=document.getElementById('qfpop-panel');
-    if(qpanel)qpanel.classList.remove('open');
   }
 });
 var _cfRowId=0;
