@@ -659,7 +659,7 @@ td.ct{font-weight:700;}
 .xs-map-wrap svg path[data-iso].hit:hover,
 .xs-map-wrap svg path[data-iso].hit:active{stroke:#1a252f;stroke-width:1.2;}
 .xs-map-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:0.7em;color:#7f8c9a;justify-content:center;}
-.xs-map-legend-bar{display:inline-block;width:140px;height:10px;border-radius:3px;background:linear-gradient(90deg,#de2d26 0%,#fbd9d4 35%,#e6eaf0 50%,#cfe9c5 65%,#1a9850 100%);vertical-align:middle;}
+.xs-map-legend-bar{display:inline-block;width:160px;height:10px;border-radius:3px;background:linear-gradient(90deg,#de2d26 0%,#fbeae9 50%,#e6f4ea 50%,#1a9850 100%);vertical-align:middle;}
 [data-theme="dark"] .xs-map-wrap svg path[data-iso]{fill:#1c2128;stroke:#0d1117;}
 [data-theme="dark"] .xs-map-wrap svg path[data-iso].hit:hover{stroke:#e6edf3;}
 [data-theme="dark"] .xs-map-legend{color:#8b949e;}
@@ -1417,15 +1417,20 @@ function rb(r){return'<span class="rb" style="background:'+(RC[r]||'#888')+'">'+
 function cc(v){if(v==null)return'#888';return v>=65?'#1a9850':v>=40?'#fd8d3c':'#de2d26';}
 /* RGB-channel interpolator: blend hex `a` toward hex `b` by fraction t∈[0,1]. */
 function _lerpHex(a,b,t){t=Math.max(0,Math.min(1,t));function p(h){return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}var x=p(a),y=p(b);function m(i){return Math.round(x[i]+(y[i]-x[i])*t);}var c=[m(0),m(1),m(2)];return '#'+c.map(function(v){return ('0'+v.toString(16)).slice(-2);}).join('');}
-/* MoS → diverging color. ≥+30% deep green, ≤−30% deep red, neutral grey
-   near zero, blank "no coverage" for null. Anchored thresholds (not
-   relative) so the palette stays comparable across snapshots. */
+/* MoS → diverging color. Anchored at ±80% (broader than the original ±30%
+   because today's universe has many countries clustered near the +100%
+   theoretical ceiling — ±30% crushed 52% of countries into the same deep
+   green). A sqrt transform spreads the lower end so a +5% MoS country
+   still picks up a visible green tint, while +80%+ saturates at deep green.
+   Same on the red side; null → light grey "no coverage". */
 function _mosColor(m){
   if(m==null||isNaN(m))return'#e6eaf0';
-  if(m>=0.30)return'#1a9850';
-  if(m>0)return _lerpHex('#cfe9c5','#1a9850',m/0.30);
-  if(m>-0.30)return _lerpHex('#fbd9d4','#de2d26',-m/0.30);
-  return'#de2d26';
+  var SAT=0.80;
+  var sign=m>=0?1:-1;
+  var mag=Math.min(Math.abs(m),SAT)/SAT;
+  var t=Math.sqrt(mag);
+  if(sign>=0)return _lerpHex('#e6f4ea','#1a9850',t);
+  return _lerpHex('#fbeae9','#de2d26',t);
 }
 var DKV_TIPS={
   'Mkt Cap':'mcap','Price':'price','Fair Value':'dcf_fv','MoS':'mos',
@@ -4476,7 +4481,7 @@ function renderCrossSectorDashboard(){
   var _mapHtml='<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:0">'
     +'<div class="xsect-chart-title">World MoS Map <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(median margin of safety per country · click a country to filter)</span></div>'
     +'<div class="xs-map-wrap" id="xs-map-wrap">'+WORLD_SVG+'</div>'
-    +'<div class="xs-map-legend"><span>−30% MoS</span><span class="xs-map-legend-bar"></span><span>+30% MoS</span><span style="margin-left:18px">·</span><span><span style="display:inline-block;width:12px;height:10px;background:#e6eaf0;border-radius:2px;vertical-align:middle"></span> no stocks</span></div>'
+    +'<div class="xs-map-legend"><span>≤−80% MoS</span><span class="xs-map-legend-bar"></span><span>≥+80% MoS</span><span style="margin-left:18px">·</span><span><span style="display:inline-block;width:12px;height:10px;background:#e6eaf0;border-radius:2px;vertical-align:middle"></span> no stocks</span></div>'
     +'</div>';
   /* Post-mount: tint each country path by median MoS, attach hover
      tooltip + click-to-filter handler. Mount after innerHTML applies
