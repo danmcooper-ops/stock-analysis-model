@@ -162,6 +162,17 @@ class YFinanceClient:
                 data['earnings_history'] = stock.earnings_history
             except Exception:
                 data['earnings_history'] = None
+            # Capture quote and reporting currencies so the analysis pipeline
+            # can normalize foreign-domiciled financials to USD before any
+            # valuation model runs. ``currency`` is the quote / price
+            # currency; ``financialCurrency`` is the statement reporting
+            # currency. They can differ — e.g., NVO (ADR) quotes in USD but
+            # reports in DKK. Falls back to ``currency`` when
+            # ``financialCurrency`` is absent (common for ADRs that report
+            # in USD anyway).
+            data['currency_quote'] = info.get('currency')
+            data['currency_financial'] = (info.get('financialCurrency')
+                                          or info.get('currency'))
             return data
 
         financials = self._retry(_fetch)
