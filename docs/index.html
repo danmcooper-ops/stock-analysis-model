@@ -298,12 +298,32 @@ td.ct{font-weight:700;}
 .heatmap-table tbody td:nth-child(3){position:static;left:auto;z-index:auto;box-shadow:none;background:transparent;}
 .heatmap-table tbody tr:nth-child(even) td:nth-child(2),
 .heatmap-table tbody tr:nth-child(even) td:nth-child(3){background:transparent;}
+/* Sector (col-1) — override .dt's 40px clamp. Make it ~130px wide
+   sticky+opaque so on narrow viewports (iPhone portrait/landscape)
+   horizontal scrolling keeps the sector label visible AND truncates
+   long names with ellipsis instead of bleeding into the Cos column. */
+.heatmap-table thead th:nth-child(1),
+.heatmap-table tbody td:nth-child(1){
+  width:130px !important;min-width:130px !important;max-width:130px !important;
+  text-align:left;padding-left:10px;padding-right:6px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  position:sticky;left:0;z-index:3;box-shadow:2px 0 5px rgba(0,0,0,0.04);
+}
+.heatmap-table thead th:nth-child(1){background:#1a252f;}
+.heatmap-table tbody td:nth-child(1){background:#fff;}
+.heatmap-table tbody tr:nth-child(even) td:nth-child(1){background:#fafbfc;}
 [data-theme="dark"] .heatmap-table tbody td:nth-child(1){background:#1c2128 !important;}
 [data-theme="dark"] .heatmap-table tbody tr:nth-child(even) td:nth-child(1){background:#21262d !important;}
 [data-theme="dark"] .heatmap-table th:hover{background:#30363d;}
 @media(max-width:760px){
   .heatmap-table td,.heatmap-table th{padding:5px 6px;font-size:0.74em;}
   .heatmap-table .heat-arrow{font-size:0.65em;}
+  /* On phone widths the sector label can be a hair tighter to leave more
+     room for the numeric columns the user is comparing. */
+  .heatmap-table thead th:nth-child(1),
+  .heatmap-table tbody td:nth-child(1){
+    width:110px !important;min-width:110px !important;max-width:110px !important;
+  }
 }
 .detail-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(8,12,28,0.75);backdrop-filter:blur(4px);z-index:1000;overflow-y:auto;}
 .detail-modal.open{display:flex;justify-content:center;padding:24px 20px;}
@@ -615,8 +635,9 @@ td.ct{font-weight:700;}
 .xs-map-wrap{position:relative;width:100%;max-width:1000px;margin:0 auto;}
 .xs-map-wrap svg{display:block;width:100%;height:auto;}
 .xs-map-wrap svg path[data-iso]{fill:#e6eaf0;stroke:#fff;stroke-width:0.4;transition:fill 0.12s,stroke-width 0.1s;}
-.xs-map-wrap svg path[data-iso].hit{cursor:pointer;}
-.xs-map-wrap svg path[data-iso].hit:hover{stroke:#1a252f;stroke-width:1.2;}
+.xs-map-wrap svg path[data-iso].hit{cursor:pointer;touch-action:manipulation;}
+.xs-map-wrap svg path[data-iso].hit:hover,
+.xs-map-wrap svg path[data-iso].hit:active{stroke:#1a252f;stroke-width:1.2;}
 .xs-map-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:0.7em;color:#7f8c9a;justify-content:center;}
 .xs-map-legend-bar{display:inline-block;width:140px;height:10px;border-radius:3px;background:linear-gradient(90deg,#de2d26 0%,#fbd9d4 35%,#e6eaf0 50%,#cfe9c5 65%,#1a9850 100%);vertical-align:middle;}
 [data-theme="dark"] .xs-map-wrap svg path[data-iso]{fill:#1c2128;stroke:#0d1117;}
@@ -1027,7 +1048,7 @@ td.ct{font-weight:700;}
 <body>
 <div class="header">
   <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><span class="tt-knob" id="tt-knob">&#9728;</span></button>
-  <div class="last-updated"><span>Last updated</span><span>May 23, 2026</span><span>n = 2033</span></div>
+  <div class="last-updated"><span>Last updated</span><span>May 24, 2026</span><span>n = 2033</span></div>
   <h1 style="font-size:1.35em;margin:0">Securities Analysis</h1>
 </div>
 <div class="container">
@@ -4451,8 +4472,13 @@ function renderCrossSectorDashboard(){
       if(!agg){p.style.fill='';return;}
       p.style.fill=_mosColor(agg.medMos);
       p.classList.add('hit');
-      p.addEventListener('mouseenter',function(e){
-        if(!tt)return;
+      /* pointerenter/leave instead of mouseenter/leave so iOS doesn't
+         synthesise a hover before its synthetic click. Touch pointers
+         skip the tooltip entirely — a tap will navigate immediately
+         and the brief tooltip flash is just visual noise. Mouse pointers
+         still get the hover preview. */
+      p.addEventListener('pointerenter',function(e){
+        if(!tt||e.pointerType==='touch')return;
         var mosTxt=agg.medMos!=null?fmtPct(agg.medMos):'N/A';
         var col=_mosColor(agg.medMos);
         tt.innerHTML='<div style="font-weight:700;color:#1a252f;margin-bottom:4px">'+agg.name+'</div>'
@@ -4462,7 +4488,7 @@ function renderCrossSectorDashboard(){
         tt.style.display='block';
         _placeTip(p.getBoundingClientRect(),tt);
       });
-      p.addEventListener('mouseleave',function(){if(tt)tt.style.display='none';});
+      p.addEventListener('pointerleave',function(){if(tt)tt.style.display='none';});
       p.addEventListener('click',function(){
         /* Narrow the country multi-select to this country and re-apply. */
         var boxes=document.querySelectorAll('#ms-country .ms-drop input[type="checkbox"][value]');
