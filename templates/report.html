@@ -318,6 +318,11 @@ td.ct{font-weight:700;}
 .heatmap-table tbody tr:nth-child(even) td:nth-child(1){background:#fafbfc;}
 [data-theme="dark"] .heatmap-table tbody td:nth-child(1){background:#1c2128 !important;}
 [data-theme="dark"] .heatmap-table tbody tr:nth-child(even) td:nth-child(1){background:#21262d !important;}
+/* Sector cells in the heatmap link to that sector's per-sector page. */
+.heatmap-table td.heat-sector{text-align:left;font-weight:600;cursor:pointer;color:#1a252f;text-decoration:underline;text-decoration-color:rgba(26,37,47,0.25);text-underline-offset:2px;transition:color 0.12s,text-decoration-color 0.12s;}
+.heatmap-table td.heat-sector:hover{color:#1f6feb;text-decoration-color:#1f6feb;}
+[data-theme="dark"] .heatmap-table td.heat-sector{color:#e6edf3;text-decoration-color:rgba(230,237,243,0.3);}
+[data-theme="dark"] .heatmap-table td.heat-sector:hover{color:#58a6ff;text-decoration-color:#58a6ff;}
 [data-theme="dark"] .heatmap-table th:hover{background:#30363d;}
 @media(max-width:760px){
   .heatmap-table td,.heatmap-table th{padding:5px 6px;font-size:0.74em;}
@@ -4311,7 +4316,7 @@ function renderCrossSectorDashboard(){
     var pctBuyDisp=s.pctBuy!=null?(s.pctBuy*100).toFixed(0)+'%':'&mdash;';
     /* Column order: Identity → Concentration → Profitability/Quality → Leverage → Valuation → Action. */
     return'<tr>'
-      +'<td style="text-align:left;font-weight:600">'+s.sector+'</td>'
+      +'<td class="heat-sector" onclick="showPoolTab(\''+s.sector.replace(/\'/g,"\\\\'")+'\')" title="Open '+_attr(s.sector)+' sector page">'+s.sector+'</td>'
       +'<td>'+s.n+'</td>'
       +cell(s.hhi,hhiDisp,C.hhi,false)
       +cell(s.cr4,cr4Disp,C.cr4,false)
