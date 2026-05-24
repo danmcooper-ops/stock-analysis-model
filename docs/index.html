@@ -324,6 +324,13 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .heatmap-table td.heat-sector{color:#e6edf3;text-decoration-color:rgba(230,237,243,0.3);}
 [data-theme="dark"] .heatmap-table td.heat-sector:hover{color:#58a6ff;text-decoration-color:#58a6ff;}
 [data-theme="dark"] .heatmap-table th:hover{background:#30363d;}
+/* Row hover highlight that survives the per-cell heat colors. The .dt
+   tr:hover bg only worked on cells without their own background, so the
+   colored heatmap cells skipped the highlight. inset box-shadow as a
+   semi-transparent overlay applies a uniform brightness bump to every
+   cell in the hovered row regardless of its own background. */
+.heatmap-table tbody tr:hover td{box-shadow:inset 0 0 0 9999px rgba(30,111,235,0.10);}
+[data-theme="dark"] .heatmap-table tbody tr:hover td{box-shadow:inset 0 0 0 9999px rgba(88,166,255,0.14);}
 @media(max-width:760px){
   .heatmap-table td,.heatmap-table th{padding:5px 6px;font-size:0.74em;}
   .heatmap-table .heat-arrow{font-size:0.65em;}
