@@ -578,7 +578,31 @@ td.ct{font-weight:700;}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
-.pp-primer,.pp-desc,.pp-insights,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players,.pp-top{background:#f7f9fb;border-left:5px solid #1a252f;}
+.pp-primer,.pp-desc,.pp-insights,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players,.pp-top,.pp-kpis{background:#f7f9fb;border-left:5px solid #1a252f;}
+/* Sector KPI banner — two-row grid placed above "How This Sector Makes
+   Money". Row 1 = sector-relevant medians computed live from the
+   sector's stocks (tracked). Row 2 = critical sector KPIs not yet in
+   the data model, shown as dashed muted cells so the data gap is
+   visible. Each cell carries a title= tooltip with the metric's role. */
+.pp-kpis{padding:12px 16px 14px;}
+.kpi-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px;}
+.kpi-row-label{grid-column:1/-1;font-size:0.65em;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#7c8a9a;display:flex;align-items:center;gap:6px;margin:6px 0 -2px;}
+[data-theme="dark"] .kpi-row-label{color:#8b949e;}
+.kpi-pip{display:inline-block;width:8px;height:8px;border-radius:50%;background:#27ae60;}
+.kpi-row-label.kpi-row-label-gap .kpi-pip{background:none;border:1.5px dashed #d4a64c;}
+.kpi-cell{padding:9px 11px;background:#fff;border:1px solid #e0e4ec;border-radius:6px;display:flex;flex-direction:column;gap:3px;min-width:0;cursor:default;}
+[data-theme="dark"] .kpi-cell{background:#0d1117;border-color:#30363d;}
+.kpi-cell-label{font-size:0.68em;color:#7c8a9a;font-weight:600;letter-spacing:0.02em;line-height:1.2;}
+[data-theme="dark"] .kpi-cell-label{color:#8b949e;}
+.kpi-cell-value{font-size:1.05em;font-weight:700;color:#1a252f;font-variant-numeric:tabular-nums;line-height:1.15;}
+[data-theme="dark"] .kpi-cell-value{color:#e6edf3;}
+.kpi-cell-value.muted{color:#aaa;font-weight:600;}
+[data-theme="dark"] .kpi-cell-value.muted{color:#6e7681;}
+.kpi-cell-gap{background:#fbf8f0;border:1px dashed #d4c4a0;}
+[data-theme="dark"] .kpi-cell-gap{background:#1a1812;border-color:#4a3f25;}
+.kpi-cell-gap .kpi-cell-label{color:#a08440;}
+[data-theme="dark"] .kpi-cell-gap .kpi-cell-label{color:#a89460;}
+@media(max-width:700px){.kpi-row{grid-template-columns:repeat(2,minmax(0,1fr));}}
 /* Soft-blue panel for the Top 5 by Model Score block — distinct wash so
    it reads as a separate summary block from the adjacent pp-cr4 / pp-players
    neutral panels, and clear of the green/orange/red rating palette used by
@@ -4765,6 +4789,207 @@ function _poolSecTint(val,vals,asc){
   var hue=Math.round(t*120);
   return 'background:hsla('+hue+',72%,45%,0.85)';
 }
+/* Per-sector KPI banner config. tracked = [label, dataKey, fmt, tip]
+   where fmt is 'pct' (× 100, append %), 'n1'/'n2' (raw + ×), or 'plain'
+   (raw). gap = [label, tip] for KPIs critical to the sector but not yet
+   computed; render as dashed muted cells so the data gap is visible. */
+var SECTOR_KPI_BANNER={
+  'Technology':{
+    tracked:[
+      ['Gross Margin','gross_margin','pct','Median gross margin across the sector. Sustained 60%+ = software / IP economics.'],
+      ['Op Margin','operating_margin','pct','Median operating margin. Where moats live.'],
+      ['ROIC','roic','pct','Median return on invested capital — the Buffett quality metric.'],
+      ['5Y Rev CAGR','rev_cagr_5y','pct','Median 5-year revenue compound annual growth rate.']
+    ],
+    gap:[
+      ['R&D / Revenue','Median R&D intensity. Separates innovation engines from commoditizing followers.'],
+      ['Net Cash / Mcap','Excess balance-sheet cash as % of market cap. High ratio = capital not deployed at scale.'],
+      ['Deferred Rev Growth','Subscription / contract-liability growth — leading indicator for SaaS billings.'],
+      ['FCF Margin ex-SBC','Free cash flow margin after backing out stock-based comp. The honest profitability number.']
+    ]
+  },
+  'Healthcare':{
+    tracked:[
+      ['Gross Margin','gross_margin','pct','Median gross margin. Pharma 60–80%, devices 50–70%, services lower.'],
+      ['Op Margin','operating_margin','pct','Median sector operating margin.'],
+      ['ROIC','roic','pct','Median return on invested capital.'],
+      ['Cash Conversion','cash_conv','plain','CFO / Net Income. >0.9 = earnings backed by real cash.']
+    ],
+    gap:[
+      ['R&D / Revenue','Median R&D intensity. Large-cap pharma 18–22%; biotech can exceed 100%.'],
+      ['Patent Cliff %','% of revenue from products losing exclusivity in the next 5 years.'],
+      ['FDA Pipeline Count','Median active IND / clinical-stage asset count per company.'],
+      ['Generic Exposure','% of revenue exposed to generic / biosimilar competition.']
+    ]
+  },
+  'Consumer Defensive':{
+    tracked:[
+      ['Op Margin','operating_margin','pct','Median sector operating margin.'],
+      ['ROIC','roic','pct','Median return on invested capital.'],
+      ['Shareholder Yield','shareholder_yield','pct','Median dividends + net buybacks / market cap.'],
+      ['Int Coverage','int_cov','n1','Median EBIT / interest expense. >5× = comfortable debt service.']
+    ],
+    gap:[
+      ['Volume Growth','Real volume growth ex-pricing. Separates pricing power from genuine demand.'],
+      ['Pricing Power Δ','Contribution of price / mix to revenue growth. Sustained 3%+ = brand strength.'],
+      ['Same-Store Sales','Retail-only: organic comparable-store revenue growth.'],
+      ['Brand Spend / Rev','Marketing as % of revenue. Falling with rising share = moat tightening.']
+    ]
+  },
+  'Consumer Cyclical':{
+    tracked:[
+      ['ROIC','roic','pct','Median return on invested capital.'],
+      ['Op Margin','operating_margin','pct','Median operating margin — falls hard in downturns.'],
+      ['ROE','roe','pct','Median return on equity.'],
+      ['Altman Z','altman_z','plain','Median financial-strength score. Cyclicals need a buffer; >3 = safe zone.']
+    ],
+    gap:[
+      ['Inventory Days','Inventory / COGS × 365. Rising days into a downturn = future markdown risk.'],
+      ['Same-Store Sales','Comparable-store revenue growth — organic demand signal.'],
+      ['Price / Mix Δ','Contribution of price vs. unit-mix to revenue growth.'],
+      ['eCommerce Mix','% of revenue online. Margin and growth profile differs from brick-and-mortar.']
+    ]
+  },
+  'Industrials':{
+    tracked:[
+      ['ROIC','roic','pct','Median return on invested capital.'],
+      ['Spread','spread','pct','Median ROIC − WACC. Genuine economic profit margin.'],
+      ['Op Margin','operating_margin','pct','Median sector operating margin.'],
+      ['Int Coverage','int_cov','n1','Median EBIT / interest. Industrials carry cyclical debt; >5× = comfortable.']
+    ],
+    gap:[
+      ['Book-to-Bill','Order intake / billings. >1.0 = backlog building, < 1.0 = order softening.'],
+      ['Backlog / Revenue','Forward visibility expressed as years of revenue locked in.'],
+      ['Capex / Sales','Maintenance and growth capex intensity.'],
+      ['Aftermarket %','Services and parts as % of revenue — higher = more resilient cash flows.']
+    ]
+  },
+  'Basic Materials':{
+    tracked:[
+      ['ROIC','roic','pct','Median return on invested capital — volatile through commodity cycles.'],
+      ['ND / EBITDA','nd_ebitda','n2','Median net debt / EBITDA. <2× preferred for cyclical commodity.'],
+      ['Op Margin','operating_margin','pct','Median operating margin.'],
+      ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / market cap.']
+    ],
+    gap:[
+      ['All-In Sustaining Cost','Mining: full cash cost per unit vs spot price.'],
+      ['Reserve Life','Years of reserves at current production rate.'],
+      ['% Hedged','% of next-12mo production hedged. Trades commodity exposure for visibility.'],
+      ['Capex / D&A','Reinvestment discipline. >1.5× sustained = future writedowns likely.']
+    ]
+  },
+  'Communication Services':{
+    tracked:[
+      ['ROIC','roic','pct','Median return on invested capital.'],
+      ['ROE','roe','pct','Median return on equity.'],
+      ['Op Margin','operating_margin','pct','Median operating margin.'],
+      ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / mcap. Lower for ad-funded internet.']
+    ],
+    gap:[
+      ['ARPU Growth','Telecom & streaming: average revenue per user growth.'],
+      ['Net Subscriber Adds','Net new subscribers vs prior period.'],
+      ['Churn Rate','Subscriber attrition. <2%/month = sticky.'],
+      ['DAU / MAU','Social platforms: engagement intensity. >60% = highly engaged user base.']
+    ]
+  },
+  'Energy':{
+    tracked:[
+      ['ROIC','roic','pct','Median return on invested capital — heavily cycle-dependent.'],
+      ['ND / EBITDA','nd_ebitda','n2','Median net debt / EBITDA. <3× = survives commodity troughs.'],
+      ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / mcap. Energy now favors return over reinvestment.'],
+      ['ROE','roe','pct','Median return on equity.']
+    ],
+    gap:[
+      ['Reserve Replacement','Reserves added vs produced. <100% = liquidation in slow motion.'],
+      ['Break-even Oil $','Oil price at which projects clear hurdle rate.'],
+      ['F&D Cost / boe','Finding and development cost per barrel. Lower = capital discipline.'],
+      ['% Hedged','% of next-12mo production hedged.']
+    ]
+  },
+  'Utilities':{
+    tracked:[
+      ['ROIC','roic','pct','Median return on invested capital — regulated returns mean modest ROIC.'],
+      ['ND / EBITDA','nd_ebitda','n2','Median net debt / EBITDA. Higher acceptable due to stable cash flows.'],
+      ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / mcap.'],
+      ['ROE','roe','pct','Median return on equity — should hover near authorized ROE.']
+    ],
+    gap:[
+      ['Authorized ROE','Regulatory ROE granted in last rate case. Sets the floor on returns.'],
+      ['Rate Base CAGR','Compounded growth in regulated rate base. Where utility earnings come from.'],
+      ['Capex / Rate Base','Reinvestment intensity. Drives rate-base growth and future earnings.'],
+      ['Regulatory Lag','Months between cost incurrence and rate recovery. Determines ROE realization.']
+    ]
+  },
+  'Real Estate':{
+    tracked:[
+      ['ROE','roe','pct','Median return on equity.'],
+      ['ND / EBITDA','nd_ebitda','n2','Median net debt / EBITDA. REITs are naturally leveraged.'],
+      ['Shareholder Yield','shareholder_yield','pct','Median dividends as % of market cap. REITs distribute by law.'],
+      ['NAV MoS','nav_mos','pct','Median margin of safety vs NAV. Negative = trading above NAV.']
+    ],
+    gap:[
+      ['FFO Growth','Funds From Operations YoY — the REIT-specific earnings metric.'],
+      ['Same-Store NOI','Comparable-property NOI growth. Organic rent + occupancy gains.'],
+      ['Occupancy %','Average property occupancy. >95% strong; trend matters.'],
+      ['Debt Maturity Wall','Weighted-avg debt maturity. <3yr = refinance risk in rising-rate environments.']
+    ]
+  },
+  'Financial Services':{
+    tracked:[
+      ['ROE','roe','pct','Median return on equity. 12–15% sweet spot for banks.'],
+      ['ROA','roa','pct','Median return on assets. >1% = quality bank profitability (Buffett floor).'],
+      ['Shareholder Yield','shareholder_yield','pct','Median dividends + net buybacks / market cap.'],
+      ['P / TBV','p_tbv','n2','Median price / tangible book value. Primary bank / insurer valuation multiple.']
+    ],
+    gap:[
+      ['NIM','Net Interest Margin. Banks: spread between asset yields and funding costs.'],
+      ['Efficiency Ratio','Banks: non-interest expense / revenue. <55% = best-in-class operations.'],
+      ['CET1 Ratio','Common Equity Tier 1 capital ratio. >10% = well-capitalized large bank.'],
+      ['NPL / Combined Ratio','Banks: non-performing loans %. Insurers: combined ratio — <100% = underwriting profit.']
+    ]
+  }
+};
+function _kpiMedian(cos,key){
+  var v=[];for(var i=0;i<cos.length;i++){var x=cos[i][key];if(x!=null&&!isNaN(x))v.push(x);}
+  if(!v.length)return null;v.sort(function(a,b){return a-b;});return v[Math.floor(v.length/2)];
+}
+function _kpiFmt(v,fmt){
+  if(v==null)return '—';
+  if(fmt==='pct')return (v*100).toFixed(1)+'%';
+  if(fmt==='n1')return v.toFixed(1)+'×';
+  if(fmt==='n2')return v.toFixed(2)+'×';
+  if(fmt==='plain')return v.toFixed(2);
+  return v.toFixed(2);
+}
+function _renderSectorKpiBanner(sec,cos){
+  var cfg=SECTOR_KPI_BANNER[sec];
+  if(!cfg||!cos||!cos.length)return '';
+  var html='<div class="pp-section pp-kpis"><span class="pp-section-label">Sector KPIs</span>';
+  /* Row 1 — tracked: medians from the sector's stocks. */
+  html+='<div class="kpi-row-label"><span class="kpi-pip"></span>Tracked · sector medians</div>';
+  html+='<div class="kpi-row">';
+  cfg.tracked.forEach(function(k){
+    var label=k[0],key=k[1],fmt=k[2],tip=k[3];
+    var v=_kpiMedian(cos,key);
+    var disp=_kpiFmt(v,fmt);
+    var cls=v==null?'kpi-cell-value muted':'kpi-cell-value';
+    html+='<div class="kpi-cell" title="'+_attr(label+' — '+tip)+'">'
+      +'<div class="kpi-cell-label">'+_attr(label)+'</div>'
+      +'<div class="'+cls+'">'+disp+'</div></div>';
+  });
+  html+='</div>';
+  /* Row 2 — gap: critical KPIs not yet computed. */
+  html+='<div class="kpi-row-label kpi-row-label-gap"><span class="kpi-pip"></span>Critical · not yet tracked</div>';
+  html+='<div class="kpi-row">';
+  cfg.gap.forEach(function(k){
+    var label=k[0],tip=k[1];
+    html+='<div class="kpi-cell kpi-cell-gap" title="'+_attr(label+' — '+tip)+'">'
+      +'<div class="kpi-cell-label">'+_attr(label)+'</div>'
+      +'<div class="kpi-cell-value muted">—</div></div>';
+  });
+  html+='</div></div>';
+  return html;
+}
 function _renderSectorBanner(sec){
   var all=_buildAllSectorStats();
   var st=null;for(var i=0;i<all.length;i++){if(all[i].sector===sec){st=all[i];break;}}
@@ -4881,6 +5106,11 @@ function renderPool(){
        min/max (green = best, red = worst) so you can read a sector's relative
        standing without flipping back to the heatmap. */
     chartHtml+=_renderSectorBanner(sec);
+    /* Sector KPI banner — appears above "How This Sector Makes Money".
+       Row 1 surfaces sector-relevant medians; Row 2 surfaces critical
+       sector KPIs not yet computed (dashed cells) so the data gap is
+       visible. Config in SECTOR_KPI_BANNER. */
+    chartHtml+=_renderSectorKpiBanner(sec,cos);
     var primerHtml=renderPoolPrimer(sec);
     var descHtml=renderPoolDescription(sec);
     var insightsHtml=renderPoolInsights(sec);
