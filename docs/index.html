@@ -1134,7 +1134,6 @@ td.ct{font-weight:700;}
           <div class="fpop-divider"></div>
           <div class="fpop-section-label">Saved Filters</div>
           <div id="saved-filters-list" class="fpop-toggles" style="margin-bottom:6px"></div>
-          <button class="fpop-toggle-btn" onclick="saveCurrentFilter()" title="Save the current filter configuration under a name">&#65291; Save current filter&#8230;</button>
         </div>
         <div class="fpop-footer">
         </div>
@@ -1511,17 +1510,14 @@ function _builtinTip(state){
   });
   return parts.join(' · ');
 }
-/* Apply a preset from the dropdown selection, surface the spec inline,
-   then reset the picker to the placeholder so a) the same preset can be
-   re-applied after editing filters, b) the dropdown reads as an action
-   rather than a sticky "current preset" label (which would be wrong as
-   soon as the user tweaks filter rows). */
+/* Apply a preset from the dropdown selection, then reset the picker to
+   the placeholder so a) the same preset can be re-applied after editing
+   filters, b) the dropdown reads as an action rather than a sticky
+   "current preset" label (which would be wrong as soon as the user
+   tweaks filter rows). */
 function _applyPresetFromSelect(sel){
-  var name=sel.value;
-  var spec=document.getElementById('sf-preset-spec');
-  if(!name){if(spec)spec.textContent='';return;}
+  var name=sel.value;if(!name)return;
   applySavedFilter(name);
-  if(spec)spec.textContent='Applied: '+name+' · '+_builtinTip(_presets[name]);
   setTimeout(function(){sel.value='';},0);
 }
 function renderSavedFilters(){
@@ -1543,7 +1539,6 @@ function renderSavedFilters(){
     if(inner)html+='<optgroup label="'+esc(cat[0])+'">'+inner+'</optgroup>';
   });
   html+='</select>';
-  html+='<div class="sf-preset-spec" id="sf-preset-spec"></div>';
   // User-saved filters stay as chips (typically few, and the chip UI
   // surfaces the per-item delete affordance cleanly).
   if(custom.length){
