@@ -1334,69 +1334,87 @@ var _PRESET_KEY='stock_saved_filters_v1';
    high-quality names within that sector using KPIs already in the dataset.
    Min/max values are in user-facing units: pct fields take whole numbers
    (e.g. 15 = 15%); n2/n3 multiples take the raw number (e.g. nd_ebitda 2.5
-   = 2.5×). Financials uses a deliberately narrow set because ROIC, FCF
-   Margin, Gross Margin, ND/EBITDA, and Int Cov are not meaningful for
-   banks — see plans/how-would-i-look-eager-neumann.md for the why. */
+   = 2.5×). KEY GOTCHA: the column-filter logic in applyFilters() drops
+   rows where _gate_<key> is null even if the raw value is present. So
+   KPIs whose gate is sparse for a given sector (e.g. _gate_mos and
+   _gate_fcf_margin are populated for only 2-6% of Financials/REITs)
+   would zero-out the preset. Each preset below uses KPIs whose gate is
+   either non-existent (most no-gate KPIs are safe) or well-populated in
+   the target sector. See plans/how-would-i-look-eager-neumann.md for the
+   methodology behind why Financials use ROE/ROA/P-TBV not MoS/ROIC. */
 var _BUILTIN_PRESETS={
-  /* Tech quality: SBC ≤8% is the major cash-vs-GAAP discriminator. FCF
-     margin + SBC cap together implicitly cover gross margin, so dropped
-     gross_margin to stay at 5 filters. */
+  /* Tech: ROIC and gross margin are the quality floors; SBC ≤8% caps the
+     largest GAAP-vs-cash distortion; P/TBV ceiling avoids the priced-for-
+     perfection cohort. Dropped MoS (gate sparse) and fcf_margin (gate
+     sparse) — would have zeroed the bucket. */
   'Tech — Quality':{sectors:['Technology'],colFilters:[
-    {key:'mos',min:10,max:null},{key:'roic',min:18,max:null},
-    {key:'fcf_margin',min:18,max:null},{key:'sbc_pct_rev',min:null,max:8},
-    {key:'rev_cagr',min:8,max:null}]},
+    {key:'roic',min:18,max:null},{key:'gross_margin',min:50,max:null},
+    {key:'sbc_pct_rev',min:null,max:8},{key:'rev_cagr',min:8,max:null},
+    {key:'p_tbv',min:null,max:15}]},
+  /* Healthcare: high-margin businesses with disciplined balance sheets and
+     real cash conversion (separates moat names from R&D-stage cash burners). */
   'Healthcare — Quality':{sectors:['Healthcare'],colFilters:[
-    {key:'mos',min:15,max:null},{key:'roic',min:12,max:null},
-    {key:'gross_margin',min:50,max:null},{key:'fcf_margin',min:12,max:null},
-    {key:'altman_z',min:3,max:null}]},
+    {key:'roic',min:12,max:null},{key:'gross_margin',min:50,max:null},
+    {key:'roe',min:12,max:null},{key:'altman_z',min:3,max:null},
+    {key:'cash_conv',min:0.7,max:null}]},
+  /* Consumer Defensive: Buffett wheelhouse — moderate gross margin floor
+     because staples + tobacco range widely; emphasizes cash return and
+     debt service discipline. */
   'Consumer Defensive — Quality':{sectors:['Consumer Defensive'],colFilters:[
-    {key:'mos',min:10,max:null},{key:'roic',min:15,max:null},
-    {key:'fcf_margin',min:10,max:null},{key:'shareholder_yield',min:3,max:null},
+    {key:'roic',min:12,max:null},{key:'gross_margin',min:30,max:null},
+    {key:'roe',min:12,max:null},{key:'shareholder_yield',min:2,max:null},
     {key:'int_cov',min:5,max:null}]},
+  /* Consumer Cyclical: ROIC + spread for through-cycle quality, P/TBV ≤10
+     to avoid peak-cycle multiple compression risk. */
   'Consumer Cyclical — Quality':{sectors:['Consumer Cyclical'],colFilters:[
-    {key:'mos',min:20,max:null},{key:'roic',min:12,max:null},
-    {key:'spread',min:3,max:null},{key:'fcf_margin',min:8,max:null},
-    {key:'altman_z',min:3,max:null}]},
+    {key:'roic',min:12,max:null},{key:'spread',min:3,max:null},
+    {key:'roe',min:12,max:null},{key:'altman_z',min:3,max:null},
+    {key:'p_tbv',min:null,max:10}]},
+  /* Industrials: capital-allocation discipline + cycle-resilient balance
+     sheet (Int Cov ≥5, Altman Z ≥3). */
   'Industrials — Quality':{sectors:['Industrials'],colFilters:[
-    {key:'mos',min:15,max:null},{key:'roic',min:12,max:null},
-    {key:'spread',min:3,max:null},{key:'int_cov',min:5,max:null},
-    {key:'altman_z',min:3,max:null}]},
+    {key:'roic',min:12,max:null},{key:'spread',min:3,max:null},
+    {key:'int_cov',min:5,max:null},{key:'altman_z',min:3,max:null},
+    {key:'roe',min:12,max:null}]},
+  /* Materials: cyclical commodity — emphasize balance sheet (ND/EBITDA
+     ≤3, Altman Z ≥3) and shareholder return through the cycle. */
   'Materials — Cyclical Quality':{sectors:['Basic Materials'],colFilters:[
-    {key:'mos',min:25,max:null},{key:'roic',min:10,max:null},
-    {key:'nd_ebitda',min:null,max:2.5},{key:'altman_z',min:3,max:null},
-    {key:'shareholder_yield',min:4,max:null}]},
-  /* Communication: includes Meta/Google/Netflix where SBC ≥10% of revenue
-     is common; cap is the key earnings-quality discriminator. Dropped
-     shareholder_yield since growthy comm names retain rather than
-     distribute (would have excluded the best compounders). */
+    {key:'roic',min:8,max:null},{key:'nd_ebitda',min:null,max:3.0},
+    {key:'altman_z',min:3,max:null},{key:'shareholder_yield',min:2,max:null},
+    {key:'roe',min:8,max:null}]},
+  /* Communication: only 3 filters because most quality KPIs (gross/fcf
+     margin, SBC, altman_z) have sparse gates in this sector. ROIC + ROE
+     for profitability, P/TBV ≤6 for valuation discipline. */
   'Communication — Quality':{sectors:['Communication Services'],colFilters:[
-    {key:'mos',min:15,max:null},{key:'roic',min:12,max:null},
-    {key:'fcf_margin',min:15,max:null},{key:'sbc_pct_rev',min:null,max:8},
-    {key:'altman_z',min:2.5,max:null}]},
+    {key:'roic',min:12,max:null},{key:'roe',min:12,max:null},
+    {key:'p_tbv',min:null,max:6}]},
+  /* Energy: cyclical commodity. ND/EBITDA cap is the survival filter;
+     shareholder yield rewards capital discipline over reinvestment binges. */
   'Energy — Cyclical Quality':{sectors:['Energy'],colFilters:[
-    {key:'mos',min:25,max:null},{key:'roic',min:10,max:null},
-    {key:'nd_ebitda',min:null,max:2.0},{key:'fcf_margin',min:10,max:null},
-    {key:'shareholder_yield',min:5,max:null}]},
-  'Utilities — Regulated Yield':{sectors:['Utilities'],colFilters:[
-    {key:'mos',min:10,max:null},{key:'roic',min:6,max:null},
-    {key:'shareholder_yield',min:4,max:null},{key:'nd_ebitda',min:null,max:5.0},
+    {key:'roic',min:8,max:null},{key:'nd_ebitda',min:null,max:3.0},
+    {key:'shareholder_yield',min:3,max:null},{key:'roe',min:8,max:null},
     {key:'altman_z',min:2,max:null}]},
-  /* Real Estate: nav_mos is the right valuation primary for REITs (asset-
-     based) — standard mos+fcf_margin used GAAP FCF, which is noisy because
-     REITs report on FFO/AFFO. Int Cov added because REITs carry heavy
-     debt by design and coverage discipline is the difference between a
-     compounder and a 2008-style blowup. */
+  /* Utilities: regulated returns mean low ROIC floor (≥5%); yield-oriented;
+     ND/EBITDA ≤7 reflects natural leverage in the model. Dropped Altman Z
+     because the gate is sparse for utilities (only ~30% populated). */
+  'Utilities — Regulated Yield':{sectors:['Utilities'],colFilters:[
+    {key:'roic',min:5,max:null},{key:'shareholder_yield',min:3,max:null},
+    {key:'nd_ebitda',min:null,max:7.0},{key:'roe',min:8,max:null}]},
+  /* Real Estate: nav_mos is the asset-based valuation primary. Threshold
+     is ≥-5 (allow up to 5% premium to NAV) because most REITs currently
+     trade above NAV — a stricter floor would zero the bucket. ND/EBITDA
+     ≤10 reflects REIT leverage norms. Dropped Altman Z (gate populated
+     for only 3/74 REITs) and int_cov (REIT EBIT reported differently). */
   'Real Estate — REIT Yield':{sectors:['Real Estate'],colFilters:[
-    {key:'nav_mos',min:10,max:null},{key:'shareholder_yield',min:5,max:null},
-    {key:'nd_ebitda',min:null,max:6.0},{key:'int_cov',min:2,max:null},
-    {key:'altman_z',min:1.5,max:null}]},
-  /* Financials: roa ≥1% is the cleanest bank-profitability floor — Buffett's
-     framing. Pairs with ROE (which can be juiced by leverage) to catch
-     names that earn well on assets, not just on capital structure. */
+    {key:'nav_mos',min:-5,max:null},{key:'shareholder_yield',min:4,max:null},
+    {key:'nd_ebitda',min:null,max:10.0},{key:'roe',min:5,max:null}]},
+  /* Financials: ROE + ROA together separate genuine bank quality (earning
+     on assets) from leverage-juiced ROE. P/TBV ≤2.5 keeps valuation
+     disciplined. Dropped MoS entirely — _gate_mos populated for only 2%
+     of Financials, so including it would zero the bucket. */
   'Financials — Bank/Insurer Quality':{sectors:['Financial Services'],colFilters:[
-    {key:'mos',min:15,max:null},{key:'roe',min:12,max:null},
-    {key:'roa',min:1,max:null},{key:'shareholder_yield',min:3,max:null},
-    {key:'p_tbv',min:null,max:2.0}]}
+    {key:'roe',min:12,max:null},{key:'roa',min:1,max:null},
+    {key:'shareholder_yield',min:2,max:null},{key:'p_tbv',min:null,max:2.5}]}
 };
 /* Economic-flavor categories for the dropdown. Order matters — drives
    the optgroup order shown to the user. Healthcare goes with Growth
