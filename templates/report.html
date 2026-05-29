@@ -292,14 +292,19 @@ td.ct{font-weight:700;}
 .heatmap-table th:first-child .th-inner{align-items:flex-start;}
 .heatmap-table .heat-arrow{display:inline-block;margin-left:3px;font-size:0.72em;color:#8aa6c8;min-width:8px;}
 .heatmap-table th:hover{background:#243140;}
-/* Override .dt freezing on cols 2-3 (correct for Financial Data table,
-   wrong for the heatmap which has only Sector as the identity column). */
+/* Override .dt freezing on cols 2-4 (correct for Financial Data table,
+   wrong for the heatmap which has only Sector as the identity column).
+   .dt th:nth-child(4) sticky-freezes the 4th header at left:100px; without
+   this reset the CR4 header stays pinned while its data cells scroll. */
 .heatmap-table thead th:nth-child(2),
-.heatmap-table thead th:nth-child(3){position:static;left:auto;z-index:auto;box-shadow:none;background:#1a252f;}
+.heatmap-table thead th:nth-child(3),
+.heatmap-table thead th:nth-child(4){position:static;left:auto;z-index:auto;box-shadow:none;background:#1a252f;}
 .heatmap-table tbody td:nth-child(2),
-.heatmap-table tbody td:nth-child(3){position:static;left:auto;z-index:auto;box-shadow:none;background:transparent;}
+.heatmap-table tbody td:nth-child(3),
+.heatmap-table tbody td:nth-child(4){position:static;left:auto;z-index:auto;box-shadow:none;background:transparent;}
 .heatmap-table tbody tr:nth-child(even) td:nth-child(2),
-.heatmap-table tbody tr:nth-child(even) td:nth-child(3){background:transparent;}
+.heatmap-table tbody tr:nth-child(even) td:nth-child(3),
+.heatmap-table tbody tr:nth-child(even) td:nth-child(4){background:transparent;}
 /* Sector (col-1) — override .dt's 40px clamp. Make it ~130px wide
    sticky+opaque so on narrow viewports (iPhone portrait/landscape)
    horizontal scrolling keeps the sector label visible AND truncates
