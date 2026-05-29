@@ -1337,9 +1337,12 @@ var _PRESET_KEY='stock_saved_filters_v1';
    Margin, Gross Margin, ND/EBITDA, and Int Cov are not meaningful for
    banks — see plans/how-would-i-look-eager-neumann.md for the why. */
 var _BUILTIN_PRESETS={
+  /* Tech quality: SBC ≤8% is the major cash-vs-GAAP discriminator. FCF
+     margin + SBC cap together implicitly cover gross margin, so dropped
+     gross_margin to stay at 5 filters. */
   'Tech — Quality':{sectors:['Technology'],colFilters:[
     {key:'mos',min:10,max:null},{key:'roic',min:18,max:null},
-    {key:'gross_margin',min:50,max:null},{key:'fcf_margin',min:18,max:null},
+    {key:'fcf_margin',min:18,max:null},{key:'sbc_pct_rev',min:null,max:8},
     {key:'rev_cagr',min:8,max:null}]},
   'Healthcare — Quality':{sectors:['Healthcare'],colFilters:[
     {key:'mos',min:15,max:null},{key:'roic',min:12,max:null},
@@ -1361,10 +1364,14 @@ var _BUILTIN_PRESETS={
     {key:'mos',min:25,max:null},{key:'roic',min:10,max:null},
     {key:'nd_ebitda',min:null,max:2.5},{key:'altman_z',min:3,max:null},
     {key:'shareholder_yield',min:4,max:null}]},
+  /* Communication: includes Meta/Google/Netflix where SBC ≥10% of revenue
+     is common; cap is the key earnings-quality discriminator. Dropped
+     shareholder_yield since growthy comm names retain rather than
+     distribute (would have excluded the best compounders). */
   'Communication — Quality':{sectors:['Communication Services'],colFilters:[
     {key:'mos',min:15,max:null},{key:'roic',min:12,max:null},
-    {key:'fcf_margin',min:15,max:null},{key:'altman_z',min:2.5,max:null},
-    {key:'shareholder_yield',min:2,max:null}]},
+    {key:'fcf_margin',min:15,max:null},{key:'sbc_pct_rev',min:null,max:8},
+    {key:'altman_z',min:2.5,max:null}]},
   'Energy — Cyclical Quality':{sectors:['Energy'],colFilters:[
     {key:'mos',min:25,max:null},{key:'roic',min:10,max:null},
     {key:'nd_ebitda',min:null,max:2.0},{key:'fcf_margin',min:10,max:null},
@@ -1373,13 +1380,22 @@ var _BUILTIN_PRESETS={
     {key:'mos',min:10,max:null},{key:'roic',min:6,max:null},
     {key:'shareholder_yield',min:4,max:null},{key:'nd_ebitda',min:null,max:5.0},
     {key:'altman_z',min:2,max:null}]},
+  /* Real Estate: nav_mos is the right valuation primary for REITs (asset-
+     based) — standard mos+fcf_margin used GAAP FCF, which is noisy because
+     REITs report on FFO/AFFO. Int Cov added because REITs carry heavy
+     debt by design and coverage discipline is the difference between a
+     compounder and a 2008-style blowup. */
   'Real Estate — REIT Yield':{sectors:['Real Estate'],colFilters:[
-    {key:'mos',min:10,max:null},{key:'shareholder_yield',min:5,max:null},
-    {key:'nd_ebitda',min:null,max:6.0},{key:'altman_z',min:1.5,max:null},
-    {key:'fcf_margin',min:15,max:null}]},
+    {key:'nav_mos',min:10,max:null},{key:'shareholder_yield',min:5,max:null},
+    {key:'nd_ebitda',min:null,max:6.0},{key:'int_cov',min:2,max:null},
+    {key:'altman_z',min:1.5,max:null}]},
+  /* Financials: roa ≥1% is the cleanest bank-profitability floor — Buffett's
+     framing. Pairs with ROE (which can be juiced by leverage) to catch
+     names that earn well on assets, not just on capital structure. */
   'Financials — Bank/Insurer Quality':{sectors:['Financial Services'],colFilters:[
     {key:'mos',min:15,max:null},{key:'roe',min:12,max:null},
-    {key:'shareholder_yield',min:3,max:null},{key:'p_tbv',min:null,max:2.0}]}
+    {key:'roa',min:1,max:null},{key:'shareholder_yield',min:3,max:null},
+    {key:'p_tbv',min:null,max:2.0}]}
 };
 var _presets=(function(){try{return JSON.parse(localStorage.getItem(_PRESET_KEY))||{};}catch(e){return{};}})();
 /* Overlay built-ins on top of user-saved presets every load. We DON'T
