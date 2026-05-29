@@ -180,6 +180,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sf-del{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:2px;border-radius:50%;font-size:0.95em;line-height:1;color:#999;cursor:pointer;}
 .sf-del:hover{background:#feecec;color:#c33;}
 .sf-empty{font-size:0.78em;color:#999;font-style:italic;}
+/* Built-in sector presets — subtle tint + leading star so they read as a
+   distinct group from user-saved filters. Not deletable; rendered first. */
+.fpop-toggle-btn.sf-builtin{background:#eef4ff;border-color:#c8d6f0;color:#2a4a7a;}
+.fpop-toggle-btn.sf-builtin:hover{background:#dbe7ff;border-color:var(--accent);color:var(--accent);}
+[data-theme="dark"] .fpop-toggle-btn.sf-builtin{background:#15233a;border-color:#1f3a5c;color:#9ec5f0;}
+[data-theme="dark"] .fpop-toggle-btn.sf-builtin:hover{background:#1f3a5c;color:#58a6ff;}
+.sf-group-label{display:block;width:100%;font-size:0.7em;font-weight:700;color:#aaa;letter-spacing:.5px;margin:4px 0 2px;text-transform:uppercase;}
 .fpop-footer{padding:8px 14px 10px;border-top:1px solid #eee;display:flex;justify-content:flex-end;flex-shrink:0;}
 .fpop-clear-filters{padding:4px 12px;font-size:0.8em;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#f9f9f9;color:#555;}
 .fpop-clear-filters:hover{background:#feecec;border-color:#e88;color:#c33;}
@@ -1322,8 +1329,72 @@ _updateRevCount();
    Named presets of the current filter configuration. Captures everything
    applyFilters() reads, restores it on demand. localStorage-only (per-device). */
 var _PRESET_KEY='stock_saved_filters_v1';
+/* Built-in sector presets — one per GICS sector, tuned to surface
+   high-quality names within that sector using KPIs already in the dataset.
+   Min/max values are in user-facing units: pct fields take whole numbers
+   (e.g. 15 = 15%); n2/n3 multiples take the raw number (e.g. nd_ebitda 2.5
+   = 2.5×). Financials uses a deliberately narrow set because ROIC, FCF
+   Margin, Gross Margin, ND/EBITDA, and Int Cov are not meaningful for
+   banks — see plans/how-would-i-look-eager-neumann.md for the why. */
+var _BUILTIN_PRESETS={
+  'Tech — Quality':{sectors:['Technology'],colFilters:[
+    {key:'mos',min:10,max:null},{key:'roic',min:18,max:null},
+    {key:'gross_margin',min:50,max:null},{key:'fcf_margin',min:18,max:null},
+    {key:'rev_cagr',min:8,max:null}]},
+  'Healthcare — Quality':{sectors:['Healthcare'],colFilters:[
+    {key:'mos',min:15,max:null},{key:'roic',min:12,max:null},
+    {key:'gross_margin',min:50,max:null},{key:'fcf_margin',min:12,max:null},
+    {key:'altman_z',min:3,max:null}]},
+  'Consumer Defensive — Quality':{sectors:['Consumer Defensive'],colFilters:[
+    {key:'mos',min:10,max:null},{key:'roic',min:15,max:null},
+    {key:'fcf_margin',min:10,max:null},{key:'shareholder_yield',min:3,max:null},
+    {key:'int_cov',min:5,max:null}]},
+  'Consumer Cyclical — Quality':{sectors:['Consumer Cyclical'],colFilters:[
+    {key:'mos',min:20,max:null},{key:'roic',min:12,max:null},
+    {key:'spread',min:3,max:null},{key:'fcf_margin',min:8,max:null},
+    {key:'altman_z',min:3,max:null}]},
+  'Industrials — Quality':{sectors:['Industrials'],colFilters:[
+    {key:'mos',min:15,max:null},{key:'roic',min:12,max:null},
+    {key:'spread',min:3,max:null},{key:'int_cov',min:5,max:null},
+    {key:'altman_z',min:3,max:null}]},
+  'Materials — Cyclical Quality':{sectors:['Basic Materials'],colFilters:[
+    {key:'mos',min:25,max:null},{key:'roic',min:10,max:null},
+    {key:'nd_ebitda',min:null,max:2.5},{key:'altman_z',min:3,max:null},
+    {key:'shareholder_yield',min:4,max:null}]},
+  'Communication — Quality':{sectors:['Communication Services'],colFilters:[
+    {key:'mos',min:15,max:null},{key:'roic',min:12,max:null},
+    {key:'fcf_margin',min:15,max:null},{key:'altman_z',min:2.5,max:null},
+    {key:'shareholder_yield',min:2,max:null}]},
+  'Energy — Cyclical Quality':{sectors:['Energy'],colFilters:[
+    {key:'mos',min:25,max:null},{key:'roic',min:10,max:null},
+    {key:'nd_ebitda',min:null,max:2.0},{key:'fcf_margin',min:10,max:null},
+    {key:'shareholder_yield',min:5,max:null}]},
+  'Utilities — Regulated Yield':{sectors:['Utilities'],colFilters:[
+    {key:'mos',min:10,max:null},{key:'roic',min:6,max:null},
+    {key:'shareholder_yield',min:4,max:null},{key:'nd_ebitda',min:null,max:5.0},
+    {key:'altman_z',min:2,max:null}]},
+  'Real Estate — REIT Yield':{sectors:['Real Estate'],colFilters:[
+    {key:'mos',min:10,max:null},{key:'shareholder_yield',min:5,max:null},
+    {key:'nd_ebitda',min:null,max:6.0},{key:'altman_z',min:1.5,max:null},
+    {key:'fcf_margin',min:15,max:null}]},
+  'Financials — Bank/Insurer Quality':{sectors:['Financial Services'],colFilters:[
+    {key:'mos',min:15,max:null},{key:'roe',min:12,max:null},
+    {key:'shareholder_yield',min:3,max:null},{key:'p_tbv',min:null,max:2.0}]}
+};
 var _presets=(function(){try{return JSON.parse(localStorage.getItem(_PRESET_KEY))||{};}catch(e){return{};}})();
-function _savePresets(){try{localStorage.setItem(_PRESET_KEY,JSON.stringify(_presets));}catch(e){}}
+/* Overlay built-ins on top of user-saved presets every load. We DON'T
+   persist them (see _savePresets) so updates to the template propagate
+   automatically and localStorage stays lean. A user-saved preset with
+   the same name as a built-in cannot exist because saveCurrentFilter
+   blocks the overlap. */
+Object.keys(_BUILTIN_PRESETS).forEach(function(n){
+  var s=JSON.parse(JSON.stringify(_BUILTIN_PRESETS[n]));s._builtin=true;_presets[n]=s;
+});
+function _savePresets(){
+  var toSave={};
+  Object.keys(_presets).forEach(function(n){if(!_presets[n]._builtin)toSave[n]=_presets[n];});
+  try{localStorage.setItem(_PRESET_KEY,JSON.stringify(toSave));}catch(e){}
+}
 function _getCurrentFilterState(){
   var st={};
   st.search=document.getElementById('f-search').value||'';
@@ -1384,24 +1455,58 @@ function _applyFilterState(st){
 function saveCurrentFilter(){
   var name=(prompt('Name this filter:')||'').trim();
   if(!name)return;
+  if(_presets[name]&&_presets[name]._builtin){alert('"'+name+'" is a built-in sector preset and cannot be overwritten. Pick a different name.');return;}
   if(_presets[name]&&!confirm('"'+name+'" already exists. Overwrite?'))return;
   _presets[name]=_getCurrentFilterState();
   _savePresets();renderSavedFilters();
 }
 function applySavedFilter(name){var s=_presets[name];if(!s)return;_applyFilterState(s);}
 function deleteSavedFilter(name){
+  if(_presets[name]&&_presets[name]._builtin)return;
   if(!confirm('Delete saved filter "'+name+'"?'))return;
   delete _presets[name];_savePresets();renderSavedFilters();
 }
+/* Tooltip summary for a built-in preset: lists the active filters as a
+   one-line spec so a hover hint reveals "what gets applied" without
+   forcing the user to open the popup and inspect the populated rows. */
+function _builtinTip(state){
+  var parts=[];
+  if(state.sectors&&state.sectors.length)parts.push('Sector: '+state.sectors.join(', '));
+  (state.colFilters||[]).forEach(function(c){
+    var fmt=(window._CF_FMT&&window._CF_FMT[c.key])||'';
+    var u=fmt==='pct'?'%':(fmt==='dollar'||fmt==='ds')?'$':'';
+    var rng;
+    if(c.min!=null&&c.max!=null)rng=c.min+u+'–'+c.max+u;
+    else if(c.min!=null)rng='≥ '+c.min+u;
+    else if(c.max!=null)rng='≤ '+c.max+u;
+    else return;
+    parts.push(c.key+' '+rng);
+  });
+  return parts.join(' · ');
+}
 function renderSavedFilters(){
   var el=document.getElementById('saved-filters-list');if(!el)return;
-  var names=Object.keys(_presets).sort(function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase());});
-  if(names.length===0){el.innerHTML='<span class="sf-empty">No saved filters yet.</span>';return;}
+  var names=Object.keys(_presets);
+  var byName=function(a,b){return a.toLowerCase().localeCompare(b.toLowerCase());};
+  var builtins=names.filter(function(n){return _presets[n]._builtin;}).sort(byName);
+  var custom=names.filter(function(n){return !_presets[n]._builtin;}).sort(byName);
+  if(builtins.length===0&&custom.length===0){el.innerHTML='<span class="sf-empty">No saved filters yet.</span>';return;}
   var html='';
-  names.forEach(function(n){
-    var je=n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    html+='<button class="fpop-toggle-btn" onclick="applySavedFilter(\''+je+'\')" title="Apply saved filter">'+esc(n)+'<span class="sf-del" onclick="event.stopPropagation();deleteSavedFilter(\''+je+'\')" title="Delete">&times;</span></button>';
-  });
+  if(builtins.length){
+    html+='<span class="sf-group-label">Sector presets</span>';
+    builtins.forEach(function(n){
+      var je=n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var tip=_builtinTip(_presets[n]).replace(/"/g,'&quot;');
+      html+='<button class="fpop-toggle-btn sf-builtin" onclick="applySavedFilter(\''+je+'\')" title="'+tip+'">'+esc(n)+'</button>';
+    });
+  }
+  if(custom.length){
+    if(builtins.length)html+='<span class="sf-group-label">Your filters</span>';
+    custom.forEach(function(n){
+      var je=n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      html+='<button class="fpop-toggle-btn" onclick="applySavedFilter(\''+je+'\')" title="Apply saved filter">'+esc(n)+'<span class="sf-del" onclick="event.stopPropagation();deleteSavedFilter(\''+je+'\')" title="Delete">&times;</span></button>';
+    });
+  }
   el.innerHTML=html;
 }
 renderSavedFilters();
