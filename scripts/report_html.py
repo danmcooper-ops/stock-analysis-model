@@ -178,6 +178,12 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'efficiency_ratio': r.get('efficiency_ratio'),
         'cet1_ratio': r.get('cet1_ratio'),
         'npl_ratio': r.get('npl_ratio'),
+        # REIT proxies (Real Estate). See data/reit_metrics.py +
+        # scripts/enrich_reit.py. ffo_growth_5y is the 5-yr CAGR of
+        # operating cash flow; affo_margin is (CFO - capex) / revenue
+        # latest year — both approximate the NAREIT FFO/AFFO concepts.
+        'ffo_growth_5y': r.get('ffo_growth_5y'),
+        'affo_margin': r.get('affo_margin'),
         # Ownership
         'shares_out': r.get('shares_out'),
         'float_shares': r.get('float_shares'),

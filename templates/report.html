@@ -4949,18 +4949,24 @@ var SECTOR_KPI_BANNER={
       ['Regulatory Lag','Months between cost incurrence and rate recovery. Determines ROE realization.']
     ]
   },
+  /* Real Estate: FFO Growth and AFFO Margin are now computed as proxies
+     from operating-cash-flow history (see data/reit_metrics.py +
+     scripts/enrich_reit.py). The proxies cover ~85% of the REIT
+     universe. ROE and ND/EBITDA dropped from tracked — they're still
+     in the data and accessible via filters, but FFO/AFFO are more
+     REIT-distinctive and Buffett-aligned. */
   'Real Estate':{
     tracked:[
-      ['ROE','roe','pct','Median return on equity.'],
-      ['ND / EBITDA','nd_ebitda','n2','Median net debt / EBITDA. REITs are naturally leveraged.'],
+      ['FFO Growth','ffo_growth_5y','pct','5-yr CAGR of operating cash flow — proxy for FFO growth (NAREIT\'s FFO definition isn\'t in standardized XBRL). Mid-single-digit = stable; >10% = compounding REIT.'],
+      ['AFFO Margin','affo_margin','pct','(Operating CF − Capex) / Revenue, latest year — proxy for AFFO margin. Storage / data-center REITs typically 50%+; healthcare / hotels 15–25%.'],
       ['Shareholder Yield','shareholder_yield','pct','Median dividends as % of market cap. REITs distribute by law.'],
       ['NAV MoS','nav_mos','pct','Median margin of safety vs NAV. Negative = trading above NAV.']
     ],
     gap:[
-      ['FFO Growth','Funds From Operations YoY — the REIT-specific earnings metric.'],
-      ['Same-Store NOI','Comparable-property NOI growth. Organic rent + occupancy gains.'],
-      ['Occupancy %','Average property occupancy. >95% strong; trend matters.'],
-      ['Debt Maturity Wall','Weighted-avg debt maturity. <3yr = refinance risk in rising-rate environments.']
+      ['Occupancy %','Property-level occupancy across the sector. Lives in quarterly supplementals, not in XBRL.'],
+      ['Same-Store NOI Growth','Comparable-property NOI growth — organic rent + occupancy gains. Requires per-REIT supplemental parsing.'],
+      ['Debt Maturity Wall','Weighted-avg debt maturity in years. Schedule data lives in 10-K MD&A, not XBRL.'],
+      ['Lease Term Remaining','Weighted-avg lease term — quality of long-duration income.']
     ]
   },
   /* Financials: tracked row now powered by FDIC call-report data
