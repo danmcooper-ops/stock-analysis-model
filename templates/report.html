@@ -1185,7 +1185,7 @@ td.ct{font-weight:700;}
           <div id="col-filters" class="col-filters-wrap"></div>
           <button class="add-filter-btn" onclick="addColFilter()">&#65291; Add Filter</button>
           <div class="fpop-divider"></div>
-          <div class="fpop-section-label">Saved Filters</div>
+          <div class="fpop-section-label">Preset Filters</div>
           <div id="saved-filters-list" class="fpop-toggles" style="margin-bottom:6px"></div>
         </div>
         <div class="fpop-footer">
@@ -1581,15 +1581,13 @@ function _builtinTip(state){
   });
   return parts.join(' · ');
 }
-/* Apply a preset from the dropdown selection, then reset the picker to
-   the placeholder so a) the same preset can be re-applied after editing
-   filters, b) the dropdown reads as an action rather than a sticky
-   "current preset" label (which would be wrong as soon as the user
-   tweaks filter rows). */
+/* Apply a preset from the dropdown selection. The selection persists
+   in the dropdown so the user can see which preset is currently
+   loaded; to re-apply after editing filter rows, pick the placeholder
+   first then pick the preset again. */
 function _applyPresetFromSelect(sel){
   var name=sel.value;if(!name)return;
   applySavedFilter(name);
-  setTimeout(function(){sel.value='';},0);
 }
 function renderSavedFilters(){
   var el=document.getElementById('saved-filters-list');if(!el)return;
@@ -4823,74 +4821,97 @@ function _poolSecTint(val,vals,asc){
    (raw). gap = [label, tip] for KPIs critical to the sector but not yet
    computed; render as dashed muted cells so the data gap is visible. */
 var SECTOR_KPI_BANNER={
+  /* Technology: all four gap KPIs now derived from SEC XBRL filings
+     (see scripts/enrich_xbrl.py). Coverage ~70-80% of US filers. The
+     generic profitability metrics (op margin, ROIC) are still in the
+     data and accessible via column filters but no longer dominate the
+     sector view — these four are what actually distinguish tech
+     compounders from commoditizing software vendors. */
   'Technology':{
     tracked:[
-      ['Gross Margin','gross_margin','pct','Median gross margin across the sector. Sustained 60%+ = software / IP economics.'],
-      ['Op Margin','operating_margin','pct','Median operating margin. Where moats live.'],
-      ['ROIC','roic','pct','Median return on invested capital — the Buffett quality metric.'],
-      ['5Y Rev CAGR','rev_cagr_5y','pct','Median 5-year revenue compound annual growth rate.']
+      ['R&D / Revenue','rd_intensity_xbrl','pct','Median R&D intensity from XBRL. >15% = innovation engine; <8% = commoditizing or mature.'],
+      ['FCF Margin ex-SBC','fcf_margin_ex_sbc','pct','(Operating CF − Capex − SBC) / Revenue. Strips out the SBC mirage; the honest cash-quality number for tech.'],
+      ['Net Cash / Mcap','net_cash_to_mcap','pct','(Cash + ST Investments − Debt) / Market Cap. Positive = capital under-deployed; negative = leveraged.'],
+      ['Deferred Rev Growth','deferred_rev_growth','pct','YoY change in contract-with-customer liability. The leading indicator for SaaS billings.']
     ],
     gap:[
-      ['R&D / Revenue','Median R&D intensity. Separates innovation engines from commoditizing followers.'],
-      ['Net Cash / Mcap','Excess balance-sheet cash as % of market cap. High ratio = capital not deployed at scale.'],
-      ['Deferred Rev Growth','Subscription / contract-liability growth — leading indicator for SaaS billings.'],
-      ['FCF Margin ex-SBC','Free cash flow margin after backing out stock-based comp. The honest profitability number.']
+      ['ARR Growth','Annual Recurring Revenue YoY — leading metric for SaaS. Reported in earnings calls, not XBRL.'],
+      ['Net Revenue Retention','NRR: (revenue from existing customers + expansion − churn) / starting revenue. >110% = expansion playbook working.'],
+      ['Cohort Retention','% of cohort customers retained at 12/24 months. Quality-of-revenue signal.'],
+      ['Rule of 40','Growth + FCF margin. >40 = compounder; <30 = struggling.']
     ]
   },
+  /* Healthcare: R&D / Revenue now from SEC XBRL (was 5% pop from
+     yfinance, now ~70-80% from XBRL across pharma + devices + services).
+     Dropped Op Margin from tracked to keep at 4 cells. */
   'Healthcare':{
     tracked:[
+      ['R&D / Revenue','rd_intensity_xbrl','pct','Median R&D intensity from XBRL. Large-cap pharma 18–22%; biotech can exceed 100%.'],
       ['Gross Margin','gross_margin','pct','Median gross margin. Pharma 60–80%, devices 50–70%, services lower.'],
-      ['Op Margin','operating_margin','pct','Median sector operating margin.'],
       ['ROIC','roic','pct','Median return on invested capital.'],
       ['Cash Conversion','cash_conv','plain','CFO / Net Income. >0.9 = earnings backed by real cash.']
     ],
     gap:[
-      ['R&D / Revenue','Median R&D intensity. Large-cap pharma 18–22%; biotech can exceed 100%.'],
-      ['Patent Cliff %','% of revenue from products losing exclusivity in the next 5 years.'],
-      ['FDA Pipeline Count','Median active IND / clinical-stage asset count per company.'],
-      ['Generic Exposure','% of revenue exposed to generic / biosimilar competition.']
+      ['Patent Cliff %','% of revenue from products losing exclusivity in the next 5 years. Specialty databases (Cortellis / IQVIA).'],
+      ['FDA Pipeline Count','Median active IND / clinical-stage asset count per company. Needs FDA database integration.'],
+      ['Generic Exposure','% of revenue exposed to generic / biosimilar competition. Per-company press releases.'],
+      ['Clinical Trial Success','Phase II→III and III→approval success rate. Needs FDA submissions data.']
     ]
   },
+  /* Consumer Defensive Phase 5: Inventory Days from XBRL; Brand Spend
+     from AdvertisingExpense. Op Margin and Int Cov dropped from
+     tracked. Brand Spend coverage is moderate — many staples bury ad
+     spend inside SG&A so it doesn't get separately tagged. */
   'Consumer Defensive':{
     tracked:[
-      ['Op Margin','operating_margin','pct','Median sector operating margin.'],
       ['ROIC','roic','pct','Median return on invested capital.'],
       ['Shareholder Yield','shareholder_yield','pct','Median dividends + net buybacks / market cap.'],
-      ['Int Coverage','int_cov','n1','Median EBIT / interest expense. >5× = comfortable debt service.']
+      ['Inventory Days','inventory_days','plain','Inventory / (COGS / 365). Defensive staples should run lean; >120 days = sluggish.'],
+      ['Brand Spend / Rev','brand_spend_pct_rev','pct','XBRL AdvertisingExpense / Revenue. Direction matters: falling with rising market share = moat tightening.']
     ],
     gap:[
       ['Volume Growth','Real volume growth ex-pricing. Separates pricing power from genuine demand.'],
       ['Pricing Power Δ','Contribution of price / mix to revenue growth. Sustained 3%+ = brand strength.'],
       ['Same-Store Sales','Retail-only: organic comparable-store revenue growth.'],
-      ['Brand Spend / Rev','Marketing as % of revenue. Falling with rising share = moat tightening.']
+      ['Customer Reorder Rate','% of revenue from repeat customers. Quality-of-revenue signal.']
     ]
   },
+  /* Consumer Cyclical Phase 5: Inventory Days + Working Capital Days
+     now from XBRL (InventoryNet + COGS + receivables/payables). These
+     two are the canonical cyclical-stress diagnostics. Op Margin and
+     ROE dropped from tracked (still in data; less cyclical-distinctive
+     than working-capital metrics). */
   'Consumer Cyclical':{
     tracked:[
       ['ROIC','roic','pct','Median return on invested capital.'],
-      ['Op Margin','operating_margin','pct','Median operating margin — falls hard in downturns.'],
-      ['ROE','roe','pct','Median return on equity.'],
-      ['Altman Z','altman_z','plain','Median financial-strength score. Cyclicals need a buffer; >3 = safe zone.']
+      ['Altman Z','altman_z','plain','Median financial-strength score. Cyclicals need a buffer; >3 = safe zone.'],
+      ['Inventory Days','inventory_days','plain','Inventory / (COGS / 365). Rising days = future markdown risk. <60 = lean; >120 = stockholders.'],
+      ['Working Capital Days','working_capital_days','plain','Cash Conversion Cycle = Inv Days + AR Days − AP Days. Negative = working capital funds the business (Costco / Amazon model).']
     ],
     gap:[
-      ['Inventory Days','Inventory / COGS × 365. Rising days into a downturn = future markdown risk.'],
-      ['Same-Store Sales','Comparable-store revenue growth — organic demand signal.'],
+      ['Same-Store Sales','Comparable-store revenue growth. Per-company earnings releases; not standardized.'],
       ['Price / Mix Δ','Contribution of price vs. unit-mix to revenue growth.'],
-      ['eCommerce Mix','% of revenue online. Margin and growth profile differs from brick-and-mortar.']
+      ['eCommerce Mix','% of revenue online — different margin and growth profile.'],
+      ['Brand Spend Trend','Marketing as % of revenue trend. Direction matters more than level.']
     ]
   },
+  /* Industrials Phase 4: Capex/Sales now from edgar_history (capex
+     history / revenue history, latest year). Backlog/Revenue from
+     XBRL RemainingPerformanceObligation (the ASC-606 successor to
+     legacy Backlog disclosures). Op Margin and Int Cov dropped from
+     tracked (still in data, accessible via column filters). */
   'Industrials':{
     tracked:[
       ['ROIC','roic','pct','Median return on invested capital.'],
       ['Spread','spread','pct','Median ROIC − WACC. Genuine economic profit margin.'],
-      ['Op Margin','operating_margin','pct','Median sector operating margin.'],
-      ['Int Coverage','int_cov','n1','Median EBIT / interest. Industrials carry cyclical debt; >5× = comfortable.']
+      ['Capex / Sales','capex_intensity','pct','Median capex / revenue. Low (<5%) = capital-light scale; high (>15%) = heavy reinvestment cycle.'],
+      ['Backlog / Revenue','backlog_to_revenue','plain','Median Remaining Performance Obligation / revenue (XBRL). >1.0× = strong forward visibility.']
     ],
     gap:[
-      ['Book-to-Bill','Order intake / billings. >1.0 = backlog building, < 1.0 = order softening.'],
-      ['Backlog / Revenue','Forward visibility expressed as years of revenue locked in.'],
-      ['Capex / Sales','Maintenance and growth capex intensity.'],
-      ['Aftermarket %','Services and parts as % of revenue — higher = more resilient cash flows.']
+      ['Book-to-Bill','Order intake / billings. >1.0 = backlog building. Quarterly metric not in standardized XBRL.'],
+      ['Aftermarket %','Services and parts as % of revenue. Lives in segment-disclosure narrative.'],
+      ['Order Cancellation Rate','Cancellations / starting backlog. Cyclical-stress signal in late expansion.'],
+      ['Working Capital Days','Receivables + Inventory − Payables, in days. Cycle-stress tell.']
     ]
   },
   'Basic Materials':{

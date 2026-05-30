@@ -184,6 +184,27 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         # latest year — both approximate the NAREIT FFO/AFFO concepts.
         'ffo_growth_5y': r.get('ffo_growth_5y'),
         'affo_margin': r.get('affo_margin'),
+        # Phase 3 — SEC XBRL line items for Tech / Healthcare / Comm.
+        # See scripts/enrich_xbrl.py. The *_xbrl variants are the
+        # authoritative XBRL-derived versions of fields that yfinance
+        # leaves sparse.
+        'rd_intensity_xbrl': r.get('rd_intensity_xbrl'),
+        'sbc_pct_rev_xbrl': r.get('sbc_pct_rev_xbrl'),
+        'fcf_margin_ex_sbc': r.get('fcf_margin_ex_sbc'),
+        'net_cash_to_mcap': r.get('net_cash_to_mcap'),
+        'deferred_rev_growth': r.get('deferred_rev_growth'),
+        # Phase 4 — Industrials KPIs. capex_intensity is universal
+        # (derived from edgar_history); backlog_to_revenue uses XBRL
+        # RemainingPerformanceObligation.
+        'capex_intensity': r.get('capex_intensity'),
+        'backlog_to_revenue': r.get('backlog_to_revenue'),
+        # Phase 5 — Consumer Cyclical / Defensive working capital +
+        # ad spend. Inventory Days and Working Capital Days from XBRL
+        # InventoryNet + COGS + receivables/payables. brand_spend_pct_rev
+        # from AdvertisingExpense.
+        'inventory_days': r.get('inventory_days'),
+        'working_capital_days': r.get('working_capital_days'),
+        'brand_spend_pct_rev': r.get('brand_spend_pct_rev'),
         # Ownership
         'shares_out': r.get('shares_out'),
         'float_shares': r.get('float_shares'),
