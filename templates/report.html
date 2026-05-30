@@ -4963,18 +4963,23 @@ var SECTOR_KPI_BANNER={
       ['Debt Maturity Wall','Weighted-avg debt maturity. <3yr = refinance risk in rising-rate environments.']
     ]
   },
+  /* Financials: tracked row now powered by FDIC call-report data
+     (data/fdic_client.py + scripts/enrich_fdic.py). Median computed
+     over the subset of Financial Services stocks mapped to a verified
+     FDIC certificate — currently ~25 US-chartered banks; expanding
+     coverage requires more entries in data/ticker_fdic_map.py. */
   'Financial Services':{
     tracked:[
-      ['ROE','roe','pct','Median return on equity. 12–15% sweet spot for banks.'],
-      ['ROA','roa','pct','Median return on assets. >1% = quality bank profitability (Buffett floor).'],
-      ['Shareholder Yield','shareholder_yield','pct','Median dividends + net buybacks / market cap.'],
-      ['P / TBV','p_tbv','n2','Median price / tangible book value. Primary bank / insurer valuation multiple.']
+      ['NIM','nim','pct','Net Interest Margin (FDIC). Spread between asset yields and funding costs — Buffett\'s #1 bank quality test. 2.5–4% typical.'],
+      ['Efficiency','efficiency_ratio','pct','Efficiency ratio (FDIC) = non-interest expense / revenue. <55% = best-in-class operations.'],
+      ['CET1','cet1_ratio','pct','Common Equity Tier 1 capital ratio (FDIC). >10% = well-capitalized; regulatory floor 4.5% + buffers.'],
+      ['NPL','npl_ratio','pct','Non-performing loan ratio (FDIC) = non-current loans / total loans. <1% = healthy credit quality.']
     ],
     gap:[
-      ['NIM','Net Interest Margin. Banks: spread between asset yields and funding costs.'],
-      ['Efficiency Ratio','Banks: non-interest expense / revenue. <55% = best-in-class operations.'],
-      ['CET1 Ratio','Common Equity Tier 1 capital ratio. >10% = well-capitalized large bank.'],
-      ['NPL / Combined Ratio','Banks: non-performing loans %. Insurers: combined ratio — <100% = underwriting profit.']
+      ['Combined Ratio','Insurance only: loss ratio + expense ratio. <100% = underwriting profit. Requires NAIC statutory filings.'],
+      ['Deposit Beta','Banks: % of Fed rate hikes passed to depositors through a hike cycle. <0.4 = sticky deposit franchise.'],
+      ['Float Cost','Insurance: combined ratio − 100%. Negative cost = Berkshire-style structural edge.'],
+      ['AUM Net Flow Rate','Asset managers: annual flows / starting AUM. Positive net flows are gold; most actives run -2 to -5%.']
     ]
   }
 };

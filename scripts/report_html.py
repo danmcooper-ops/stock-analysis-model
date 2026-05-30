@@ -170,6 +170,14 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'cr': r.get('cr'),
         'roe': r.get('roe'),
         'roa': r.get('roa'),
+        # FDIC call-report enrichment (Financial Services). See
+        # data/fdic_client.py + scripts/enrich_fdic.py for the source.
+        'fdic_cert': r.get('fdic_cert'),
+        'fdic_repdte': r.get('fdic_repdte'),
+        'nim': r.get('nim'),
+        'efficiency_ratio': r.get('efficiency_ratio'),
+        'cet1_ratio': r.get('cet1_ratio'),
+        'npl_ratio': r.get('npl_ratio'),
         # Ownership
         'shares_out': r.get('shares_out'),
         'float_shares': r.get('float_shares'),
