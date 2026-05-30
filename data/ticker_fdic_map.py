@@ -53,11 +53,11 @@ TICKER_TO_CERT = {
     "VLY": 9396,     # Valley National Bank
     "UMBF": 8273,    # UMB Bank, NA
     "ASB": 5296,     # Associated Bank, NA
+    "CFR": 5510,     # Frost Bank (verified via FDIC search 2026-05-29)
     "HOMB": 11241,   # Centennial Bank
-    "FFIN": 4976,    # First Financial Bank
-    "COLB": 23262,   # Columbia State Bank
+    "FFIN": 3066,    # First Financial Bank, TX (corrected 2026-05-29)
+    "COLB": 17266,   # Columbia Bank (post-Umpqua merger; corrected 2026-05-29)
     "FLG": 32541,    # Flagstar Bank (was NYCB)
-    # Pending verification — disabled until correct CERT confirmed:
-    # "CFR": ?,      # Frost Bank — CERT 952 returned 1991-dated record
-    # "BPOP": ?,     # Banco Popular Puerto Rico — CERT 17298 had no data
+    "BPOP": 34968,   # Banco Popular de Puerto Rico (corrected 2026-05-29)
+    "COF": 4297,     # Capital One, NA (corrected 2026-05-29; was 33954)
 }

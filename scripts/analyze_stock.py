@@ -1658,7 +1658,16 @@ def _main():
                 sys.stdout.flush()
                 continue
 
-            if args.min_spread is not None and not _carried:
+            # Bypass the ROIC>WACC spread filter for Financial Services.
+            # The standard ROIC formula (NOPAT / (Equity + Debt − Cash))
+            # is economically meaningless for banks/insurers — they are
+            # capital intermediaries, not capital deployers. Without the
+            # bypass, names like BAC / C / KEY / RF / GS / MS get
+            # silently filtered out by an unreliable computation. Bank
+            # quality is evaluated downstream via NIM / Efficiency / CET1
+            # / NPL from FDIC call reports (see scripts/enrich_fdic.py).
+            _is_financial = (info.get('sector') == 'Financial Services')
+            if args.min_spread is not None and not _carried and not _is_financial:
                 if spread is None or spread < args.min_spread:
                     label = "no spread" if spread is None else f"spread {spread:.1%}"
                     print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP {label} < min {args.min_spread:.1%}")
