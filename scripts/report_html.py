@@ -205,6 +205,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'inventory_days': r.get('inventory_days'),
         'working_capital_days': r.get('working_capital_days'),
         'brand_spend_pct_rev': r.get('brand_spend_pct_rev'),
+        # Phase 6 — Energy / Utilities / Materials capital reinvestment.
+        'capex_to_dd_ratio': r.get('capex_to_dd_ratio'),
         # Ownership
         'shares_out': r.get('shares_out'),
         'float_shares': r.get('float_shares'),

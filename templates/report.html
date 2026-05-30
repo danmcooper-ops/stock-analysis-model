@@ -1396,78 +1396,91 @@ var _PRESET_KEY='stock_saved_filters_v1';
    the target sector. See plans/how-would-i-look-eager-neumann.md for the
    methodology behind why Financials use ROE/ROA/P-TBV not MoS/ROIC. */
 var _BUILTIN_PRESETS={
-  /* Tech: ROIC and gross margin are the quality floors; SBC ≤8% caps the
-     largest GAAP-vs-cash distortion; P/TBV ceiling avoids the priced-for-
-     perfection cohort. Dropped MoS (gate sparse) and fcf_margin (gate
-     sparse) — would have zeroed the bucket. */
+  /* Phase 7: presets switched to the more-discriminating Phase 3-6 XBRL
+     fields where available. The originals leaned on generic per-sector
+     metrics; these use sector-specific Buffett-aligned KPIs derived from
+     SEC XBRL / FDIC / edgar_history. */
+  /* Tech: switched sbc_pct_rev → sbc_pct_rev_xbrl (~70% pop vs 10%);
+     added fcf_margin_ex_sbc and rd_intensity_xbrl from XBRL. Dropped
+     P/TBV (less critical for software economics). */
   'Tech — Quality':{sectors:['Technology'],colFilters:[
     {key:'roic',min:18,max:null},{key:'gross_margin',min:50,max:null},
-    {key:'sbc_pct_rev',min:null,max:8},{key:'rev_cagr',min:8,max:null},
-    {key:'p_tbv',min:null,max:15}]},
-  /* Healthcare: high-margin businesses with disciplined balance sheets and
-     real cash conversion (separates moat names from R&D-stage cash burners). */
+    {key:'rd_intensity_xbrl',min:5,max:null},
+    {key:'fcf_margin_ex_sbc',min:10,max:null},
+    {key:'sbc_pct_rev_xbrl',min:null,max:10}]},
+  /* Healthcare: added R&D intensity from XBRL — separates innovation
+     engines (large pharma 18-22%) from commoditizing followers. */
   'Healthcare — Quality':{sectors:['Healthcare'],colFilters:[
     {key:'roic',min:12,max:null},{key:'gross_margin',min:50,max:null},
-    {key:'roe',min:12,max:null},{key:'altman_z',min:3,max:null},
+    {key:'rd_intensity_xbrl',min:5,max:null},{key:'altman_z',min:3,max:null},
     {key:'cash_conv',min:0.7,max:null}]},
-  /* Consumer Defensive: Buffett wheelhouse — moderate gross margin floor
-     because staples + tobacco range widely; emphasizes cash return and
-     debt service discipline. */
+  /* Consumer Defensive: added Inventory Days cap (defensive staples
+     should run lean, ≤90 days). */
   'Consumer Defensive — Quality':{sectors:['Consumer Defensive'],colFilters:[
     {key:'roic',min:12,max:null},{key:'gross_margin',min:30,max:null},
-    {key:'roe',min:12,max:null},{key:'shareholder_yield',min:2,max:null},
+    {key:'shareholder_yield',min:2,max:null},
+    {key:'inventory_days',min:null,max:90},
     {key:'int_cov',min:5,max:null}]},
-  /* Consumer Cyclical: ROIC + spread for through-cycle quality, P/TBV ≤10
-     to avoid peak-cycle multiple compression risk. */
+  /* Consumer Cyclical: added Inventory Days cap as late-cycle stress
+     filter (>120 days into a downturn = future markdowns). */
   'Consumer Cyclical — Quality':{sectors:['Consumer Cyclical'],colFilters:[
     {key:'roic',min:12,max:null},{key:'spread',min:3,max:null},
-    {key:'roe',min:12,max:null},{key:'altman_z',min:3,max:null},
+    {key:'altman_z',min:3,max:null},
+    {key:'inventory_days',min:null,max:120},
     {key:'p_tbv',min:null,max:10}]},
-  /* Industrials: capital-allocation discipline + cycle-resilient balance
-     sheet (Int Cov ≥5, Altman Z ≥3). */
+  /* Industrials: added Backlog/Revenue floor (forward visibility) and
+     Capex/Sales discipline cap. */
   'Industrials — Quality':{sectors:['Industrials'],colFilters:[
     {key:'roic',min:12,max:null},{key:'spread',min:3,max:null},
-    {key:'int_cov',min:5,max:null},{key:'altman_z',min:3,max:null},
-    {key:'roe',min:12,max:null}]},
-  /* Materials: cyclical commodity — emphasize balance sheet (ND/EBITDA
-     ≤3, Altman Z ≥3) and shareholder return through the cycle. */
+    {key:'backlog_to_revenue',min:0.2,max:null},
+    {key:'capex_intensity',min:null,max:8},
+    {key:'altman_z',min:3,max:null}]},
+  /* Materials: added Capex/D&A in the 0.8-2.0 band (sustaining +
+     modest growth, but not over-investment that signals writedown risk). */
   'Materials — Cyclical Quality':{sectors:['Basic Materials'],colFilters:[
     {key:'roic',min:8,max:null},{key:'nd_ebitda',min:null,max:3.0},
-    {key:'altman_z',min:3,max:null},{key:'shareholder_yield',min:2,max:null},
-    {key:'roe',min:8,max:null}]},
-  /* Communication: only 3 filters because most quality KPIs (gross/fcf
-     margin, SBC, altman_z) have sparse gates in this sector. ROIC + ROE
-     for profitability, P/TBV ≤6 for valuation discipline. */
+    {key:'capex_to_dd_ratio',min:0.8,max:2.0},
+    {key:'altman_z',min:3,max:null},
+    {key:'shareholder_yield',min:2,max:null}]},
+  /* Communication: added SBC cap and FCF Margin ex-SBC — both XBRL —
+     for Meta/Google/Netflix-style ad-funded internet quality. */
   'Communication — Quality':{sectors:['Communication Services'],colFilters:[
-    {key:'roic',min:12,max:null},{key:'roe',min:12,max:null},
+    {key:'roic',min:12,max:null},
+    {key:'fcf_margin_ex_sbc',min:10,max:null},
+    {key:'sbc_pct_rev_xbrl',min:null,max:12},
     {key:'p_tbv',min:null,max:6}]},
-  /* Energy: cyclical commodity. ND/EBITDA cap is the survival filter;
-     shareholder yield rewards capital discipline over reinvestment binges. */
+  /* Energy: added Capex/D&A discipline band. Energy filers' D&A
+     includes depletion of reserves, so 0.8-1.8 = sustaining production
+     without over-drilling. */
   'Energy — Cyclical Quality':{sectors:['Energy'],colFilters:[
     {key:'roic',min:8,max:null},{key:'nd_ebitda',min:null,max:3.0},
-    {key:'shareholder_yield',min:3,max:null},{key:'roe',min:8,max:null},
+    {key:'capex_to_dd_ratio',min:0.8,max:1.8},
+    {key:'shareholder_yield',min:3,max:null},
     {key:'altman_z',min:2,max:null}]},
-  /* Utilities: regulated returns mean low ROIC floor (≥5%); yield-oriented;
-     ND/EBITDA ≤7 reflects natural leverage in the model. Dropped Altman Z
-     because the gate is sparse for utilities (only ~30% populated). */
+  /* Utilities: added Capex/D&A floor (rate-base growth proxy). >1.0×
+     sustained = utility actually expanding the rate base. */
   'Utilities — Regulated Yield':{sectors:['Utilities'],colFilters:[
     {key:'roic',min:5,max:null},{key:'shareholder_yield',min:3,max:null},
-    {key:'nd_ebitda',min:null,max:7.0},{key:'roe',min:8,max:null}]},
-  /* Real Estate: nav_mos is the asset-based valuation primary. Threshold
-     is ≥-5 (allow up to 5% premium to NAV) because most REITs currently
-     trade above NAV — a stricter floor would zero the bucket. ND/EBITDA
-     ≤10 reflects REIT leverage norms. Dropped Altman Z (gate populated
-     for only 3/74 REITs) and int_cov (REIT EBIT reported differently). */
+    {key:'capex_to_dd_ratio',min:1.0,max:null},
+    {key:'nd_ebitda',min:null,max:7.0}]},
+  /* Real Estate: switched ROE → FFO Growth + AFFO Margin (proxies
+     from operating CF / capex). These are the canonical REIT quality
+     metrics from Phase 2. */
   'Real Estate — REIT Yield':{sectors:['Real Estate'],colFilters:[
     {key:'nav_mos',min:-5,max:null},{key:'shareholder_yield',min:4,max:null},
-    {key:'nd_ebitda',min:null,max:10.0},{key:'roe',min:5,max:null}]},
-  /* Financials: ROE + ROA together separate genuine bank quality (earning
-     on assets) from leverage-juiced ROE. P/TBV ≤2.5 keeps valuation
-     disciplined. Dropped MoS entirely — _gate_mos populated for only 2%
-     of Financials, so including it would zero the bucket. */
+    {key:'ffo_growth_5y',min:3,max:null},
+    {key:'affo_margin',min:30,max:null},
+    {key:'nd_ebitda',min:null,max:10.0}]},
+  /* Financials: switched generic ROE/ROA to FDIC bank-quality fields.
+     CET1 ≥10% = well-capitalized; NIM ≥2.5% = real interest spread;
+     Efficiency ≤60% = competent ops; NPL ≤1.5% = healthy credit
+     quality. P/TBV cap unchanged. */
   'Financials — Bank/Insurer Quality':{sectors:['Financial Services'],colFilters:[
-    {key:'roe',min:12,max:null},{key:'roa',min:1,max:null},
-    {key:'shareholder_yield',min:2,max:null},{key:'p_tbv',min:null,max:2.5}]}
+    {key:'cet1_ratio',min:10,max:null},
+    {key:'nim',min:2.5,max:null},
+    {key:'efficiency_ratio',min:null,max:60},
+    {key:'npl_ratio',min:null,max:1.5},
+    {key:'p_tbv',min:null,max:2.5}]}
 };
 /* Economic-flavor categories for the dropdown. Order matters — drives
    the optgroup order shown to the user. Healthcare goes with Growth
@@ -1934,6 +1947,12 @@ function clearFilters(){
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
   _revFilter=0;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.remove('active');rEl.innerHTML=_CHK_SVG+' Reviewed';}
   _revd={};_saveRevd();_updateRevCount();
+  /* Reset the sector preset dropdown to its placeholder so it doesn't
+     read as "current preset" after a Clear. Persistent selection is
+     useful while filters match the preset; once Clear wipes them the
+     selection is misleading. */
+  var presetSel=document.querySelector('.sf-preset-sel');
+  if(presetSel)presetSel.value='';
   applyFilters();
 }
 function _positionFpop(panel,btn){
@@ -2274,9 +2293,9 @@ var TC={
      ROIC / ROIC CV / Gross Margin / Shareholder Yield already lived on
      their natural home tabs, so no relocation needed. */
   val:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'dcf_fv',l:'DCF/Shr',f:'dollar',g:'gv'},{k:'wacc',l:'WACC',f:'pct',g:'gv'},{k:'implied_growth',l:'Impl. Growth',f:'pct',g:'gv'},{k:'mos',l:'MoS%',f:'pct',g:'gv'},{k:'price',l:'Price',f:'dollar',g:'gv'},{k:'high_52w',l:'52W High',f:'dollar',g:'gv'},{k:'low_52w',l:'52W Low',f:'dollar',g:'gv'},{k:'pct_from_52w_high',l:'% from High',f:'pct',g:'gv'},{k:'range_52w_position',l:'Range Pos',f:'int',g:'gv'},{k:'pe',l:'P/E',f:'n1',g:'gv'},{k:'ev_ebitda',l:'EV/EBITDA',f:'n1',g:'gv'},{k:'pfcf',l:'P/FCF',f:'n1',g:'gv'},{k:'pb',l:'P/B',f:'n2',g:'gv'},{k:'p_tbv',l:'P/TBV',f:'n2',g:'gv'},{k:'epv_fv',l:'EPV FV',f:'dollar',g:'gv'},{k:'rim_fv',l:'RIM FV',f:'dollar',g:'gv'},{k:'ddm_fv',l:'DDM FV',f:'dollar',g:'gv'},{k:'nav_fv',l:'NAV FV',f:'dollar',g:'gv'},{k:'nav_mos',l:'NAV MoS%',f:'pct',g:'gv'}],
-  prof:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'roic',l:'ROIC',f:'pct',g:'gp2'},{k:'roic_cv',l:'ROIC CV',f:'n2',g:'gp2'},{k:'spread',l:'Spread',f:'pct',g:'gp2'},{k:'roe',l:'ROE',f:'pct',g:'gp2'},{k:'dupont_margin',l:'DuPont Mrgn',f:'pct',g:'gp2'},{k:'dupont_turnover',l:'DuPont Turn',f:'n2',g:'gp2'},{k:'dupont_leverage',l:'DuPont Lev',f:'n2',g:'gp2'},{k:'roa',l:'ROA',f:'pct',g:'gp2'},{k:'gross_margin',l:'Gross Mgn',f:'pct',g:'gp2'},{k:'fcf_margin',l:'FCF Margin',f:'pct',g:'gp2'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gp2'},{k:'accruals',l:'Accruals',f:'n3',g:'gp2'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gp2'}],
-  hlth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gh'},{k:'nd_ebitda',l:'ND/EBITDA',f:'n2',g:'gh'},{k:'cr',l:'Curr R',f:'n2',g:'gh'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gh'},{k:'accruals',l:'Accruals',f:'n3',g:'gh'},{k:'altman_z',l:'Altman Z',f:'n2',g:'gh'},{k:'beneish_m',l:'Beneish M',f:'n2',g:'gh'}],
-  growth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'roe',l:'ROE',f:'pct',g:'gg'},{k:'reinvestment_rate',l:'Reinvest Rate',f:'pct',g:'gg'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gg'},{k:'margin_trend',l:'Margin Trend',f:'pct',g:'gg'},{k:'rev_cagr',l:'Rev CAGR 3Y',f:'pct',g:'gg'},{k:'rev_cagr_5y',l:'Rev CAGR 5Y',f:'pct',g:'gg'},{k:'rev_cagr_10y',l:'Rev CAGR 10Y',f:'pct',g:'gg'},{k:'fcf_growth',l:'FCF Growth',f:'pct'}],
+  prof:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'roic',l:'ROIC',f:'pct',g:'gp2'},{k:'roic_cv',l:'ROIC CV',f:'n2',g:'gp2'},{k:'spread',l:'Spread',f:'pct',g:'gp2'},{k:'roe',l:'ROE',f:'pct',g:'gp2'},{k:'dupont_margin',l:'DuPont Mrgn',f:'pct',g:'gp2'},{k:'dupont_turnover',l:'DuPont Turn',f:'n2',g:'gp2'},{k:'dupont_leverage',l:'DuPont Lev',f:'n2',g:'gp2'},{k:'roa',l:'ROA',f:'pct',g:'gp2'},{k:'gross_margin',l:'Gross Mgn',f:'pct',g:'gp2'},{k:'fcf_margin',l:'FCF Margin',f:'pct',g:'gp2'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gp2'},{k:'accruals',l:'Accruals',f:'n3',g:'gp2'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gp2'},{k:'nim',l:'NIM',f:'pct',g:'gp2'},{k:'efficiency_ratio',l:'Eff Ratio',f:'pct',g:'gp2'},{k:'rd_intensity_xbrl',l:'R&D/Rev',f:'pct',g:'gp2'},{k:'sbc_pct_rev_xbrl',l:'SBC/Rev',f:'pct',g:'gp2'},{k:'fcf_margin_ex_sbc',l:'FCF ex-SBC',f:'pct',g:'gp2'},{k:'affo_margin',l:'AFFO Margin',f:'pct',g:'gp2'},{k:'brand_spend_pct_rev',l:'Brand/Rev',f:'pct',g:'gp2'}],
+  hlth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gh'},{k:'nd_ebitda',l:'ND/EBITDA',f:'n2',g:'gh'},{k:'cr',l:'Curr R',f:'n2',g:'gh'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gh'},{k:'accruals',l:'Accruals',f:'n3',g:'gh'},{k:'altman_z',l:'Altman Z',f:'n2',g:'gh'},{k:'beneish_m',l:'Beneish M',f:'n2',g:'gh'},{k:'cet1_ratio',l:'CET1',f:'pct',g:'gh'},{k:'npl_ratio',l:'NPL Ratio',f:'pct',g:'gh'},{k:'net_cash_to_mcap',l:'Net Cash/Mcap',f:'pct',g:'gh'},{k:'inventory_days',l:'Inv Days',f:'n1',g:'gh'},{k:'working_capital_days',l:'Work Cap Days',f:'n1',g:'gh'}],
+  growth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'roe',l:'ROE',f:'pct',g:'gg'},{k:'reinvestment_rate',l:'Reinvest Rate',f:'pct',g:'gg'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gg'},{k:'margin_trend',l:'Margin Trend',f:'pct',g:'gg'},{k:'rev_cagr',l:'Rev CAGR 3Y',f:'pct',g:'gg'},{k:'rev_cagr_5y',l:'Rev CAGR 5Y',f:'pct',g:'gg'},{k:'rev_cagr_10y',l:'Rev CAGR 10Y',f:'pct',g:'gg'},{k:'fcf_growth',l:'FCF Growth',f:'pct'},{k:'ffo_growth_5y',l:'FFO Growth',f:'pct',g:'gg'},{k:'deferred_rev_growth',l:'Def Rev Growth',f:'pct',g:'gg'},{k:'capex_intensity',l:'Capex/Sales',f:'pct',g:'gg'},{k:'backlog_to_revenue',l:'Backlog/Rev',f:'n2',g:'gg'},{k:'capex_to_dd_ratio',l:'Capex/D&A',f:'n2',g:'gg'}],
   proj:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'dcf_fv',l:'DCF Base',f:'dollar',g:'gj'},{k:'price',l:'Price',f:'dollar'},{k:'er',l:'Er',f:'pct',g:'gj'},{k:'_sens_low',l:'Sens Low',f:'dollar',g:'gj'},{k:'_sens_high',l:'Sens High',f:'dollar',g:'gj'},{k:'mc_p10_fv',l:'MC P10',f:'dollar',g:'gj'},{k:'mc_p90_fv',l:'MC P90',f:'dollar',g:'gj'},{k:'mc_confidence',l:'MC Conf',f:'text',g:'gj'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gj'},{k:'terminal_growth',l:'Term. Growth',f:'pct',g:'gj'}],
   own:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'shareholder_yield',l:'Shrhldr Yld',f:'pct',g:'gow'},{k:'share_buyback_rate',l:'Buyback Rate',f:'pct',g:'gow'},{k:'sbc_pct_rev',l:'SBC/Rev',f:'pct',g:'gow'},{k:'insider_pct',l:'Insider %',f:'pct',g:'gow'},{k:'inst_pct',l:'Inst %',f:'pct'},{k:'shares_out',l:'Shares Out',f:'ds'},{k:'float_shares',l:'Float',f:'ds'},{k:'shares_short',l:'Short Int',f:'ds'},{k:'short_ratio',l:'Short Ratio',f:'n2'},{k:'short_pct_float',l:'Short/Float',f:'pct'}]
 };
@@ -4914,18 +4933,21 @@ var SECTOR_KPI_BANNER={
       ['Working Capital Days','Receivables + Inventory − Payables, in days. Cycle-stress tell.']
     ]
   },
+  /* Basic Materials Phase 6: Capex/D&A now from XBRL (Capex from
+     edgar_history, DD&A from companyfacts). Op Margin dropped from
+     tracked. */
   'Basic Materials':{
     tracked:[
       ['ROIC','roic','pct','Median return on invested capital — volatile through commodity cycles.'],
       ['ND / EBITDA','nd_ebitda','n2','Median net debt / EBITDA. <2× preferred for cyclical commodity.'],
-      ['Op Margin','operating_margin','pct','Median operating margin.'],
+      ['Capex / D&A','capex_to_dd_ratio','plain','Capital reinvestment discipline. >1.5× sustained = building ahead of depreciation (future writedown risk); <1× = aging asset base.'],
       ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / market cap.']
     ],
     gap:[
-      ['All-In Sustaining Cost','Mining: full cash cost per unit vs spot price.'],
-      ['Reserve Life','Years of reserves at current production rate.'],
-      ['% Hedged','% of next-12mo production hedged. Trades commodity exposure for visibility.'],
-      ['Capex / D&A','Reinvestment discipline. >1.5× sustained = future writedowns likely.']
+      ['All-In Sustaining Cost','Mining: full cash cost per unit vs spot price. Per-company quarterly disclosure, not standardized XBRL.'],
+      ['Reserve Life','Years of reserves at current production rate. Specialty databases.'],
+      ['% Hedged','% of next-12mo production hedged. 10-Q footnotes, not XBRL.'],
+      ['Realized Price vs Spot','Hedging effectiveness — realized price / spot benchmark.']
     ]
   },
   'Communication Services':{
@@ -4942,32 +4964,40 @@ var SECTOR_KPI_BANNER={
       ['DAU / MAU','Social platforms: engagement intensity. >60% = highly engaged user base.']
     ]
   },
+  /* Energy Phase 6: Capex/D&A from XBRL. For oil & gas filers,
+     DepreciationDepletionAndAmortization captures depletion of
+     reserves alongside ordinary depreciation — the right basis for
+     comparison. ROE dropped from tracked (still in data). */
   'Energy':{
     tracked:[
       ['ROIC','roic','pct','Median return on invested capital — heavily cycle-dependent.'],
       ['ND / EBITDA','nd_ebitda','n2','Median net debt / EBITDA. <3× = survives commodity troughs.'],
-      ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / mcap. Energy now favors return over reinvestment.'],
-      ['ROE','roe','pct','Median return on equity.']
+      ['Capex / D&A','capex_to_dd_ratio','plain','Reinvestment discipline. D&A includes depletion of reserves for E&P filers; >1.5× = growing reserves base, <1× = harvesting.'],
+      ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / mcap. Energy now favors return over reinvestment.']
     ],
     gap:[
-      ['Reserve Replacement','Reserves added vs produced. <100% = liquidation in slow motion.'],
-      ['Break-even Oil $','Oil price at which projects clear hurdle rate.'],
-      ['F&D Cost / boe','Finding and development cost per barrel. Lower = capital discipline.'],
+      ['Reserve Replacement','Reserves added vs produced. <100% = liquidation in slow motion. SDOAG disclosure not in standardized XBRL.'],
+      ['Break-even Oil $','Oil price at which projects clear hurdle rate. Per-company analyst day disclosure.'],
+      ['F&D Cost / boe','Finding and development cost per barrel. SDOAG tables not in standardized XBRL.'],
       ['% Hedged','% of next-12mo production hedged.']
     ]
   },
+  /* Utilities Phase 6: Capex/D&A from XBRL is a proxy for Capex/Rate
+     Base (D&A grows with the rate base over time for regulated
+     utilities). ROE dropped from tracked; ROE is still useful but
+     duplicates info that's downstream of rate-base economics. */
   'Utilities':{
     tracked:[
       ['ROIC','roic','pct','Median return on invested capital — regulated returns mean modest ROIC.'],
       ['ND / EBITDA','nd_ebitda','n2','Median net debt / EBITDA. Higher acceptable due to stable cash flows.'],
-      ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / mcap.'],
-      ['ROE','roe','pct','Median return on equity — should hover near authorized ROE.']
+      ['Capex / D&A','capex_to_dd_ratio','plain','Capital reinvestment intensity — proxy for Capex / Rate Base (D&A grows with rate base over time). >1.5× = active rate-base growth; ~1× = steady-state.'],
+      ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / mcap.']
     ],
     gap:[
-      ['Authorized ROE','Regulatory ROE granted in last rate case. Sets the floor on returns.'],
-      ['Rate Base CAGR','Compounded growth in regulated rate base. Where utility earnings come from.'],
-      ['Capex / Rate Base','Reinvestment intensity. Drives rate-base growth and future earnings.'],
-      ['Regulatory Lag','Months between cost incurrence and rate recovery. Determines ROE realization.']
+      ['Authorized ROE','Regulatory ROE granted in last rate case. State PUC filings.'],
+      ['Rate Base CAGR','Compounded growth in regulated rate base. From rate-case disclosures.'],
+      ['Regulatory Lag','Months between cost incurrence and rate recovery. State-specific.'],
+      ['Storm / Outage Risk','Reliability metrics (SAIDI / SAIFI) — operational risk for IOUs.']
     ]
   },
   /* Real Estate: FFO Growth and AFFO Margin are now computed as proxies

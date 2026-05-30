@@ -44,6 +44,11 @@ _TARGET_SECTORS = {
     "Technology", "Healthcare", "Communication Services",
     "Industrials",
     "Consumer Cyclical", "Consumer Defensive",
+    # Phase 6 — heavy-asset sectors. The canonical KPIs (Reserves,
+    # Authorized ROE, AISC) need specialty data sources, but Capex/D&A
+    # is the universal capital-reinvestment discipline ratio that
+    # applies across all three.
+    "Energy", "Utilities", "Basic Materials",
 }
 
 # XBRL US-GAAP tags. First match wins per concept. Multiple aliases so
@@ -115,6 +120,17 @@ _TAGS = {
         "AdvertisingExpense",
         "MarketingExpense",
     ],
+    # Phase 6 (Energy / Utilities / Materials) — D&A. For oil & gas
+    # filers, the DepreciationDepletionAndAmortization tag captures
+    # the depletion of reserves alongside ordinary depreciation, which
+    # is the right cash-vs-accounting basis for Capex/D&A in those
+    # sectors.
+    "dd_amortization": [
+        "DepreciationDepletionAndAmortization",
+        "DepreciationAmortizationAndAccretionNet",
+        "DepreciationAndAmortization",
+        "Depreciation",
+    ],
 }
 
 _NEW_FIELDS = (
@@ -130,6 +146,8 @@ _NEW_FIELDS = (
     "inventory_days",
     "working_capital_days",
     "brand_spend_pct_rev",
+    # Phase 6
+    "capex_to_dd_ratio",
 )
 
 
@@ -302,6 +320,19 @@ def _compute_one(rec, facts, xbrl_client):
     adv_year, adv_val = _latest(adv)
     if adv_year and adv_val and _rev(adv_year) and _rev(adv_year) > 0:
         rec["brand_spend_pct_rev"] = adv_val / _rev(adv_year)
+
+    # --- Phase 6 ---
+    # 11. Capex / D&A — capital reinvestment discipline. >1.5× sustained
+    #     = building ahead of depreciation (future writedown risk in
+    #     commodity sectors, but rate-base growth in utilities); <1× =
+    #     liquidating the asset base. For oil & gas filers, D&A here
+    #     correctly includes depletion of reserves.
+    dd = _extract(xbrl_client, facts, "dd_amortization")
+    dd_year, dd_val = _latest(dd)
+    if dd_year and dd_val and dd_val > 0:
+        cap = _capex(dd_year)
+        if cap is not None:
+            rec["capex_to_dd_ratio"] = abs(cap) / dd_val
 
 
 def enrich(records, verbose=True):
