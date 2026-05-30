@@ -585,6 +585,15 @@ td.ct{font-weight:700;}
    the data model, shown as dashed muted cells so the data gap is
    visible. Each cell carries a title= tooltip with the metric's role. */
 .pp-kpis{padding:12px 16px 14px;}
+.kpi-header-strip{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;font-size:0.78em;color:#7c8a9a;margin:6px 0 4px;line-height:1.4;}
+[data-theme="dark"] .kpi-header-strip{color:#8b949e;}
+.kpi-header-strip strong{color:#1a252f;font-weight:700;}
+[data-theme="dark"] .kpi-header-strip strong{color:#e6edf3;}
+.kpi-header-strip .sep{color:#c8d0db;}
+[data-theme="dark"] .kpi-header-strip .sep{color:#30363d;}
+.kpi-header-strip a.kpi-leader-tk{color:#1a252f;font-weight:700;text-decoration:none;border-bottom:1px dotted #c8d0db;cursor:pointer;}
+.kpi-header-strip a.kpi-leader-tk:hover{color:var(--accent);border-bottom-color:var(--accent);}
+[data-theme="dark"] .kpi-header-strip a.kpi-leader-tk{color:#e6edf3;border-bottom-color:#30363d;}
 .kpi-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px;}
 .kpi-row-label{grid-column:1/-1;font-size:0.65em;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#7c8a9a;display:flex;align-items:center;gap:6px;margin:6px 0 -2px;}
 [data-theme="dark"] .kpi-row-label{color:#8b949e;}
@@ -4965,6 +4974,27 @@ function _renderSectorKpiBanner(sec,cos){
   var cfg=SECTOR_KPI_BANNER[sec];
   if(!cfg||!cos||!cos.length)return '';
   var html='<div class="pp-section pp-kpis"><span class="pp-section-label">Sector KPIs</span>';
+  /* Universal context strip — Companies / Median MoS / BUY-Rated /
+     Sector Leader. Replaces the metric cells (Op Margin, ROIC) of the
+     old _renderSectorBanner since those now live in sector-tracked. */
+  var all=_buildAllSectorStats();
+  var st=null;for(var i=0;i<all.length;i++){if(all[i].sector===sec){st=all[i];break;}}
+  if(st){
+    var bits=[];
+    bits.push('<span><strong>'+st.n+'</strong> Companies</span>');
+    if(st.medMos!=null&&!isNaN(st.medMos)){
+      bits.push('<span>Median MoS: <strong>'+(st.medMos*100).toFixed(0)+'%</strong></span>');
+    }
+    if(st.pctBuy!=null&&!isNaN(st.pctBuy)){
+      bits.push('<span>BUY-Rated: <strong>'+(st.pctBuy*100).toFixed(0)+'%</strong></span>');
+    }
+    if(st.best&&st.best.ticker){
+      var bTk=_attr(st.best.ticker);
+      var bMult=st.best.pp_multiple!=null?st.best.pp_multiple.toFixed(2)+'×':'';
+      bits.push('<span>Leader: <a class="kpi-leader-tk" onclick="openDet(\''+bTk+'\')">'+bTk+'</a>'+(bMult?' <span style="font-size:0.92em">('+bMult+')</span>':'')+'</span>');
+    }
+    html+='<div class="kpi-header-strip">'+bits.join('<span class="sep">·</span>')+'</div>';
+  }
   /* Row 1 — tracked: medians from the sector's stocks. */
   html+='<div class="kpi-row-label"><span class="kpi-pip"></span>Tracked · sector medians</div>';
   html+='<div class="kpi-row">';
@@ -5105,11 +5135,12 @@ function renderPool(){
        metric description. Left-edge tint scales each value vs. the cross-sector
        min/max (green = best, red = worst) so you can read a sector's relative
        standing without flipping back to the heatmap. */
-    chartHtml+=_renderSectorBanner(sec);
-    /* Sector KPI banner — appears above "How This Sector Makes Money".
-       Row 1 surfaces sector-relevant medians; Row 2 surfaces critical
-       sector KPIs not yet computed (dashed cells) so the data gap is
-       visible. Config in SECTOR_KPI_BANNER. */
+    /* Merged Sector KPI banner — replaces the standalone _renderSectorBanner
+       (whose Op Margin / ROIC cells duplicated the per-sector tracked row).
+       Universal context (Companies / Median MoS / BUY-Rated / Sector Leader)
+       lives as a one-line strip inside this banner; sector-specific tracked
+       and gap KPI rows follow. _renderSectorBanner remains defined but
+       unused. */
     chartHtml+=_renderSectorKpiBanner(sec,cos);
     var primerHtml=renderPoolPrimer(sec);
     var descHtml=renderPoolDescription(sec);
