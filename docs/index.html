@@ -584,34 +584,52 @@ td.ct{font-weight:700;}
    sector's stocks (tracked). Row 2 = critical sector KPIs not yet in
    the data model, shown as dashed muted cells so the data gap is
    visible. Each cell carries a title= tooltip with the metric's role. */
-.pp-kpis{padding:12px 16px 14px;}
-.kpi-header-strip{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;font-size:0.78em;color:#7c8a9a;margin:6px 0 4px;line-height:1.4;}
-[data-theme="dark"] .kpi-header-strip{color:#8b949e;}
+.pp-kpis{padding:14px 16px 16px;}
+/* Header strip — bumped from 0.78 → 0.85em so the universal context
+   (companies / MoS / BUY% / leader) is comfortably scannable. */
+.kpi-header-strip{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:0.85em;color:#5a6776;margin:4px 0 10px;line-height:1.5;}
+[data-theme="dark"] .kpi-header-strip{color:#9da7b3;}
 .kpi-header-strip strong{color:#1a252f;font-weight:700;}
 [data-theme="dark"] .kpi-header-strip strong{color:#e6edf3;}
-.kpi-header-strip .sep{color:#c8d0db;}
-[data-theme="dark"] .kpi-header-strip .sep{color:#30363d;}
-.kpi-header-strip a.kpi-leader-tk{color:#1a252f;font-weight:700;text-decoration:none;border-bottom:1px dotted #c8d0db;cursor:pointer;}
+.kpi-header-strip .sep{color:#b8c2cf;font-weight:300;}
+[data-theme="dark"] .kpi-header-strip .sep{color:#3d434b;}
+.kpi-header-strip a.kpi-leader-tk{color:#1a252f;font-weight:700;text-decoration:none;border-bottom:1px dotted #b8c2cf;cursor:pointer;padding-bottom:1px;}
 .kpi-header-strip a.kpi-leader-tk:hover{color:var(--accent);border-bottom-color:var(--accent);}
-[data-theme="dark"] .kpi-header-strip a.kpi-leader-tk{color:#e6edf3;border-bottom-color:#30363d;}
-.kpi-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px;}
-.kpi-row-label{grid-column:1/-1;font-size:0.65em;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#7c8a9a;display:flex;align-items:center;gap:6px;margin:6px 0 -2px;}
-[data-theme="dark"] .kpi-row-label{color:#8b949e;}
-.kpi-pip{display:inline-block;width:8px;height:8px;border-radius:50%;background:#27ae60;}
-.kpi-row-label.kpi-row-label-gap .kpi-pip{background:none;border:1.5px dashed #d4a64c;}
-.kpi-cell{padding:9px 11px;background:#fff;border:1px solid #e0e4ec;border-radius:6px;display:flex;flex-direction:column;gap:3px;min-width:0;cursor:default;}
-[data-theme="dark"] .kpi-cell{background:#0d1117;border-color:#30363d;}
-.kpi-cell-label{font-size:0.68em;color:#7c8a9a;font-weight:600;letter-spacing:0.02em;line-height:1.2;}
-[data-theme="dark"] .kpi-cell-label{color:#8b949e;}
-.kpi-cell-value{font-size:1.05em;font-weight:700;color:#1a252f;font-variant-numeric:tabular-nums;line-height:1.15;}
+[data-theme="dark"] .kpi-header-strip a.kpi-leader-tk{color:#e6edf3;border-bottom-color:#3d434b;}
+/* KPI grid rows — 4 cells on desktop, 2 on mobile. */
+.kpi-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;}
+.kpi-row.kpi-row-tracked{margin-bottom:12px;}
+/* "Critical not yet tracked" sub-header — only on the gap row, because
+   dashed cells alone don't communicate the meaning. Solid cells in
+   row 1 don't need a label — the styling is self-explanatory. */
+.kpi-row-label{font-size:0.7em;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#a08440;display:flex;align-items:center;gap:8px;margin:0 0 6px;}
+[data-theme="dark"] .kpi-row-label{color:#bfa66a;}
+.kpi-row-label::before{content:'';display:inline-block;width:18px;height:0;border-top:1.5px dashed currentColor;flex-shrink:0;}
+/* Cell — bumped padding, value font, gap between label and value for
+   easier scanning at arm's length on phone. */
+.kpi-cell{padding:11px 13px;background:#fff;border:1px solid #d9dee6;border-radius:6px;display:flex;flex-direction:column;gap:4px;min-width:0;cursor:default;transition:border-color 0.12s,box-shadow 0.12s;}
+.kpi-cell:hover{border-color:#c0cbda;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
+[data-theme="dark"] .kpi-cell{background:#0d1117;border-color:#2a3038;}
+[data-theme="dark"] .kpi-cell:hover{border-color:#3d434b;}
+.kpi-cell-label{font-size:0.72em;color:#7c8a9a;font-weight:600;letter-spacing:0.03em;line-height:1.25;overflow:hidden;text-overflow:ellipsis;}
+[data-theme="dark"] .kpi-cell-label{color:#9da7b3;}
+.kpi-cell-value{font-size:1.22em;font-weight:700;color:#1a252f;font-variant-numeric:tabular-nums;line-height:1.15;}
 [data-theme="dark"] .kpi-cell-value{color:#e6edf3;}
-.kpi-cell-value.muted{color:#aaa;font-weight:600;}
+.kpi-cell-value.muted{color:#b8c2cf;font-weight:600;}
 [data-theme="dark"] .kpi-cell-value.muted{color:#6e7681;}
-.kpi-cell-gap{background:#fbf8f0;border:1px dashed #d4c4a0;}
-[data-theme="dark"] .kpi-cell-gap{background:#1a1812;border-color:#4a3f25;}
-.kpi-cell-gap .kpi-cell-label{color:#a08440;}
-[data-theme="dark"] .kpi-cell-gap .kpi-cell-label{color:#a89460;}
-@media(max-width:700px){.kpi-row{grid-template-columns:repeat(2,minmax(0,1fr));}}
+/* Gap variant — warm tinted bg + dashed border so the not-yet-tracked
+   cells read as "future work" without screaming. */
+.kpi-cell-gap{background:#fbf6e8;border:1px dashed #d4c190;}
+.kpi-cell-gap:hover{border-color:#b8a26a;box-shadow:0 1px 3px rgba(192,156,72,0.10);}
+[data-theme="dark"] .kpi-cell-gap{background:#1f1a10;border-color:#4d4128;}
+[data-theme="dark"] .kpi-cell-gap:hover{border-color:#6b5a35;}
+.kpi-cell-gap .kpi-cell-label{color:#8a6f30;}
+[data-theme="dark"] .kpi-cell-gap .kpi-cell-label{color:#bfa66a;}
+@media(max-width:700px){
+  .kpi-row{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .kpi-cell-value{font-size:1.15em;}
+  .kpi-header-strip{font-size:0.8em;}
+}
 /* Soft-blue panel for the Top 5 by Model Score block — distinct wash so
    it reads as a separate summary block from the adjacent pp-cr4 / pp-players
    neutral panels, and clear of the green/orange/red rating palette used by
@@ -627,6 +645,7 @@ td.ct{font-weight:700;}
 .pp-sectorprice .pp-section-label,
 .pp-players .pp-section-label,
 .pp-top .pp-section-label,
+.pp-kpis .pp-section-label,
 .pp-chart .pp-section-label{background:#1a252f;}
 /* Combined sector-level Headwinds + Tailwinds block — two columns on
    desktop, stacked on mobile. Renders below the Structural Insights
@@ -643,7 +662,8 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-cr4,
 [data-theme="dark"] .pp-sectorprice,
 [data-theme="dark"] .pp-players,
-[data-theme="dark"] .pp-top{background:#161b22;border-left-color:#c9d1d9;}
+[data-theme="dark"] .pp-top,
+[data-theme="dark"] .pp-kpis{background:#161b22;border-left-color:#c9d1d9;}
 [data-theme="dark"] .pp-section-label{background:#30363d !important;}
 .pp-range-btn{padding:3px 11px;font-size:0.74em;font-weight:600;border:1px solid #d0d8e4;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
 .pp-range-btn:hover{background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
@@ -4995,9 +5015,9 @@ function _renderSectorKpiBanner(sec,cos){
     }
     html+='<div class="kpi-header-strip">'+bits.join('<span class="sep">·</span>')+'</div>';
   }
-  /* Row 1 — tracked: medians from the sector's stocks. */
-  html+='<div class="kpi-row-label"><span class="kpi-pip"></span>Tracked · sector medians</div>';
-  html+='<div class="kpi-row">';
+  /* Row 1 — tracked: medians from the sector's stocks. No label —
+     solid cells with strong values are self-explanatory. */
+  html+='<div class="kpi-row kpi-row-tracked">';
   cfg.tracked.forEach(function(k){
     var label=k[0],key=k[1],fmt=k[2],tip=k[3];
     var v=_kpiMedian(cos,key);
@@ -5008,8 +5028,9 @@ function _renderSectorKpiBanner(sec,cos){
       +'<div class="'+cls+'">'+disp+'</div></div>';
   });
   html+='</div>';
-  /* Row 2 — gap: critical KPIs not yet computed. */
-  html+='<div class="kpi-row-label kpi-row-label-gap"><span class="kpi-pip"></span>Critical · not yet tracked</div>';
+  /* Row 2 — gap: critical KPIs not yet computed. Label needed because
+     dashed cells alone don't communicate "not yet tracked" meaning. */
+  html+='<div class="kpi-row-label">Critical KPIs · not yet tracked</div>';
   html+='<div class="kpi-row">';
   cfg.gap.forEach(function(k){
     var label=k[0],tip=k[1];
