@@ -2911,14 +2911,14 @@ def _main():
         _print_validation_stats(results, screen_outcomes)
 
     os.makedirs("output", exist_ok=True)
-    today_str = date.today().isoformat()
+    today_str = run_start_date.isoformat()  # pin to run-start so a midnight-spanning run stays single-dated
     html_filename = os.path.join("output", f"stock_analysis_results_{today_str}.html")
     build_html(results, html_filename, prices_dir=prices_dir, run_date=run_start_date)
     xlsx_filename = os.path.join("output", f"stock_analysis_results_{today_str}.xlsx")
     build_excel(results, xlsx_filename)
 
     # Save results as JSON for backtesting pipeline
-    json_filename = os.path.join("output", f"results_{date.today().isoformat()}.json")
+    json_filename = os.path.join("output", f"results_{run_start_date.isoformat()}.json")
     def _make_json_safe(val, _depth=0):
         """Recursively convert a value to a JSON-safe structure (max depth 8)."""
         if _depth > 8:
@@ -2963,7 +2963,7 @@ def _main():
         jr = {k: _make_json_safe(v) for k, v in r.items()}
         json_rows.append(jr)
     json_meta = {
-        'date': date.today().isoformat(),
+        'date': run_start_date.isoformat(),
         'risk_free_rate': risk_free_rate,
         'count': len(results),
     }
