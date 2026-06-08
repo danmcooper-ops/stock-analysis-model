@@ -227,9 +227,12 @@ class TestGridGeneration:
         }
         params = _apply_derived_params(candidate)
         assert params is not None
-        # growth = 1.0 - (val + qual + moat + ownership_default)
-        # = 1.0 - (0.30 + 0.25 + 0.25 + 0.10) = 0.10
-        assert params['score_weight_growth'] == pytest.approx(0.10)
+        # growth is the residual after the three given weights plus the
+        # (untouched) ownership default. Derive the expectation from the
+        # actual default so this test can't drift from config.py again.
+        own = default_params()['score_weight_ownership']
+        expected_growth = round(1.0 - (0.30 + 0.25 + 0.25 + own), 4)
+        assert params['score_weight_growth'] == pytest.approx(expected_growth)
 
     def test_apply_derived_params_rejects_negative_growth(self):
         candidate = {
@@ -237,7 +240,8 @@ class TestGridGeneration:
             'score_weight_quality': 0.40,
             'score_weight_moat': 0.20,
         }
-        # Sum = 1.05, growth = -0.05 → rejected
+        # val+qual+moat = 1.05 alone (plus the ownership default) overshoots
+        # 1.0, so the residual growth weight is negative → rejected.
         params = _apply_derived_params(candidate)
         assert params is None
 
