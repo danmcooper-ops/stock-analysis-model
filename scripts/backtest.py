@@ -128,12 +128,16 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
             start_price = float(hist.iloc[start_idx])
             end_price   = float(hist.iloc[end_idx])
 
-            if start_price > 0:
-                returns[ticker] = {
-                    'ret':   (end_price - start_price) / start_price,
-                    'start': start_price,
-                    'end':   end_price,
-                }
+            # Reject non-finite prices (NaN/inf bars exist in some parquets);
+            # an unguarded NaN return poisons the rank-IC objective.
+            if start_price > 0 and math.isfinite(start_price) and math.isfinite(end_price):
+                ret = (end_price - start_price) / start_price
+                if math.isfinite(ret):
+                    returns[ticker] = {
+                        'ret':   ret,
+                        'start': start_price,
+                        'end':   end_price,
+                    }
         except Exception:
             continue
 
@@ -1062,7 +1066,8 @@ def rank_ic_objective(metrics):
         for detail in m.get('details', []):
             s = detail.get('_composite_score')
             er = detail.get('excess_return')
-            if s is not None and er is not None:
+            if (s is not None and er is not None
+                    and math.isfinite(s) and math.isfinite(er)):
                 scores.append(s)
                 excess.append(er)
     n = len(scores)
