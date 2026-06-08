@@ -113,6 +113,18 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
             start_idx = hist.index.get_indexer([run_dt],  method='nearest')[0]
             end_idx   = hist.index.get_indexer([eval_dt], method='nearest')[0]
 
+            # Coverage guard: get_indexer(method='nearest') silently snaps an
+            # out-of-range date back to the closest available bar. If the price
+            # series doesn't actually reach the eval date (stale parquet) or
+            # doesn't start by the run date, the "forward return" would be a
+            # fabricated truncation (often ~0%). Reject when the resolved bar is
+            # more than 5 calendar days off the requested date (5d absorbs
+            # weekends/holidays).
+            start_date = hist.index[start_idx]
+            end_date = hist.index[end_idx]
+            if abs((start_date - run_dt).days) > 5 or abs((end_date - eval_dt).days) > 5:
+                continue
+
             start_price = float(hist.iloc[start_idx])
             end_price   = float(hist.iloc[end_idx])
 
@@ -129,12 +141,139 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
 
 
 # ---------------------------------------------------------------------------
+# Forward-return annotation (shared by measure + calibrate)
+# ---------------------------------------------------------------------------
+
+def is_matured(run_date_str, horizon_days, today=None):
+    """True if a snapshot's forward-return window has fully elapsed.
+
+    A (snapshot, horizon) pair is matured when ``run_date + horizon <= today``.
+    Immature pairs MUST NOT be fetched: fetch_forward_returns uses a
+    nearest-date lookup that would silently return the last available price
+    (a truncated, wrong "forward return") for a future eval date.
+    """
+    today = today or date.today()
+    run_dt = date.fromisoformat(str(run_date_str)[:10])
+    return run_dt + timedelta(days=horizon_days) <= today
+
+
+def _returns_sidecar_path(cache_dir, run_date_str, horizon_days):
+    return os.path.join(cache_dir, f"{run_date_str}_h{horizon_days}.json")
+
+
+def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
+                              cache_dir='output/returns', today=None):
+    """Annotate one snapshot's rows in place with forward returns per horizon.
+
+    For each MATURED horizon ``h`` (run_date + h <= today), every row that has
+    price data gets::
+
+        row['_fwd'][h] = {'excess_return', 'ret', 'end_price', 'spy_return'}
+
+    Immature horizons are skipped entirely (no key written) so callers can
+    distinguish "not matured yet" from "no price data".  Forward returns depend
+    only on (date, horizon, ticker) — never on scoring params — so this is
+    computed once per snapshot, outside any parameter sweep.
+
+    Cache-aware: reads/writes a per-(date, horizon) sidecar JSON at
+    ``cache_dir/{date}_h{horizon}.json``.  Matured historical returns are
+    immutable, so a present sidecar is reused without refetching.  Only matured
+    pairs are ever written, and any sidecar is re-validated against is_matured
+    on read (a stale immature file is ignored).
+
+    Returns:
+        dict {horizon: n_rows_annotated}, with ``None`` for immature horizons.
+    """
+    today = today or date.today()
+    run_date = snapshot.get('date')
+    rows = snapshot.get('results', [])
+    out = {}
+    if not run_date or not rows:
+        return {h: None for h in horizons}
+
+    for h in horizons:
+        if not is_matured(run_date, h, today):
+            out[h] = None
+            continue
+
+        ticker_returns = None  # {ticker: {excess_return, ret, end_price, spy_return}}
+
+        # 1. Reuse sidecar cache when present and genuinely matured.
+        if cache_dir:
+            path = _returns_sidecar_path(cache_dir, run_date, h)
+            if os.path.exists(path):
+                try:
+                    with open(path) as f:
+                        cached = json.load(f)
+                    if is_matured(cached.get('run_date', run_date),
+                                  cached.get('horizon_days', h), today):
+                        ticker_returns = cached.get('tickers', {})
+                except Exception:
+                    ticker_returns = None
+
+        # 2. Otherwise compute fresh via the shared fetch helper and cache it.
+        if ticker_returns is None:
+            tickers = [r['ticker'] for r in rows if r.get('ticker')]
+            raw = fetch_forward_returns(tickers, run_date, h, yf_client,
+                                        prices_dir=prices_dir)
+            spy = raw.get(BENCHMARK)
+            spy_ret = spy['ret'] if spy else 0.0
+            ticker_returns = {}
+            for t, v in raw.items():
+                if t == BENCHMARK:
+                    continue
+                ticker_returns[t] = {
+                    'excess_return': v['ret'] - spy_ret,
+                    'ret': v['ret'],
+                    'start_price': v['start'],
+                    'end_price': v['end'],
+                    'spy_return': spy_ret,
+                }
+            # Only persist a non-empty result. An empty set means the price
+            # data didn't reach the eval date (stale parquet) — caching it would
+            # poison future runs after prices are refreshed, since sidecars are
+            # re-validated only against is_matured, not against data coverage.
+            if cache_dir and ticker_returns:
+                try:
+                    os.makedirs(cache_dir, exist_ok=True)
+                    with open(_returns_sidecar_path(cache_dir, run_date, h), 'w') as f:
+                        json.dump({
+                            'run_date': run_date,
+                            'horizon_days': h,
+                            'computed_at': today.isoformat(),
+                            'spy_return': spy_ret,
+                            'tickers': ticker_returns,
+                        }, f)
+                except Exception:
+                    pass
+
+        # 3. Annotate rows in place (horizon-keyed).
+        n = 0
+        for r in rows:
+            t = r.get('ticker')
+            fr = ticker_returns.get(t) if t else None
+            if fr is None:
+                continue
+            r.setdefault('_fwd', {})[h] = fr
+            n += 1
+        out[h] = n
+
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Single-run analysis
 # ---------------------------------------------------------------------------
 
-def analyze_run(run, horizon_days, yf_client, prices_dir=None):
+def analyze_run(run, horizon_days, yf_client, prices_dir=None,
+                cache_dir='output/returns', today=None):
     """
     Analyze one snapshot at one horizon.
+
+    Forward returns come from the shared ``annotate_snapshot_returns`` helper
+    (same code path + sidecar cache as calibrate), which also enforces the
+    maturity guard — an immature (snapshot, horizon) yields no annotated rows
+    rather than silently-truncated returns.
 
     Returns dict with:
         run_date, horizon, spy_return,
@@ -148,12 +287,17 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None):
     if not run_date or not stocks:
         return None
 
-    tickers = [s['ticker'] for s in stocks if s.get('ticker')]
-    returns = fetch_forward_returns(tickers, run_date, horizon_days, yf_client,
-                                    prices_dir=prices_dir)
+    annotate_snapshot_returns(run, [horizon_days], yf_client,
+                              prices_dir=prices_dir, cache_dir=cache_dir,
+                              today=today)
 
-    spy = returns.get(BENCHMARK)
-    spy_ret = spy['ret'] if spy else 0.0
+    # SPY return is identical across rows for a given (date, horizon).
+    spy_ret = 0.0
+    for s in stocks:
+        fwd = (s.get('_fwd') or {}).get(horizon_days)
+        if fwd:
+            spy_ret = fwd.get('spy_return', 0.0)
+            break
 
     # Build detail rows
     details = []
@@ -164,17 +308,17 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None):
     fv_actuals = []
 
     for s in stocks:
-        ticker = s.get('ticker')
-        if not ticker or ticker not in returns:
+        fwd = (s.get('_fwd') or {}).get(horizon_days)
+        if not fwd:
             continue
 
-        r = returns[ticker]
+        ticker = s.get('ticker')
         rating = s.get('rating', 'UNKNOWN')
         gates = s.get('_gates_passed_num', 0)
         fv = s.get('dcf_fv')
-        price = s.get('price')
-
-        excess = r['ret'] - spy_ret
+        ret = fwd['ret']
+        end_price = fwd['end_price']
+        excess = fwd['excess_return']
 
         detail = {
             'ticker': ticker,
@@ -182,23 +326,23 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None):
             'gates_passed': s.get('_gates_passed', 'N/A'),
             'gates_num': gates,
             'dcf_fv': fv,
-            'start_price': r['start'],
-            'end_price': r['end'],
-            'return': r['ret'],
+            'start_price': fwd.get('start_price'),
+            'end_price': end_price,
+            'return': ret,
             'spy_return': spy_ret,
             'excess_return': excess,
         }
         details.append(detail)
 
-        bucket_returns[rating].append(r['ret'])
+        bucket_returns[rating].append(ret)
 
         if isinstance(gates, (int, float)) and gates >= 0:
             gates_vals.append(gates)
-            return_vals.append(r['ret'])
+            return_vals.append(ret)
 
-        if fv and fv > 0 and r['end'] > 0:
+        if fv and fv > 0 and end_price > 0:
             fv_preds.append(fv)
-            fv_actuals.append(r['end'])
+            fv_actuals.append(end_price)
 
     if not details:
         return None
@@ -894,27 +1038,62 @@ def compute_objective(backtest_metrics, objective='hit_rate'):
         insufficient data.
     """
     fn = {
+        'rank_ic': rank_ic_objective,
         'hit_rate': hit_rate_objective,
         'alpha': alpha_objective,
         'information_ratio': information_ratio_objective,
         'composite': composite_objective,
-    }.get(objective, hit_rate_objective)
+    }.get(objective, rank_ic_objective)
     return fn(backtest_metrics)
+
+
+def rank_ic_objective(metrics):
+    """Spearman rank IC between ``_composite_score`` and forward excess return.
+
+    Computed across the FULL population (every row that has both a composite
+    score and a forward excess return), not just BUY-rated names.  With only
+    ~2 BUY per snapshot the BUY-only objectives are near-degenerate; rank IC
+    uses ~2,000 rows/snapshot, so it actually discriminates between candidate
+    parameter sets.  Higher = the model's score ranks future winners above
+    losers.  Reuses the same Spearman formula as ``analyze_run``'s gates_corr.
+    """
+    scores, excess = [], []
+    for m in metrics:
+        for detail in m.get('details', []):
+            s = detail.get('_composite_score')
+            er = detail.get('excess_return')
+            if s is not None and er is not None:
+                scores.append(s)
+                excess.append(er)
+    n = len(scores)
+    if n < 10:
+        return 0.0
+    rank_s = rank(scores)
+    rank_e = rank(excess)
+    d_sq = sum((a - b) ** 2 for a, b in zip(rank_s, rank_e))
+    return 1 - (6 * d_sq) / (n * (n ** 2 - 1))
 
 
 def hit_rate_objective(metrics):
     """Fraction of BUY-rated stocks that outperformed SPY.
 
-    Aggregates across all snapshots in *metrics*.
+    Aggregates across all snapshots in *metrics*.  Rows with no
+    ``excess_return`` (i.e. snapshots not yet annotated with forward
+    returns) are skipped — they contribute neither to numerator nor
+    denominator.
     """
     beats = 0
     total = 0
     for m in metrics:
         for detail in m.get('details', []):
-            if detail.get('rating') == 'BUY':
-                total += 1
-                if detail.get('excess_return', 0) > 0:
-                    beats += 1
+            if detail.get('rating') != 'BUY':
+                continue
+            er = detail.get('excess_return')
+            if er is None:
+                continue
+            total += 1
+            if er > 0:
+                beats += 1
     return beats / total if total > 0 else 0.0
 
 
@@ -998,23 +1177,38 @@ SEARCH_SPACE = {
 }
 
 
-def _generate_grid(search_space):
-    """Generate all combinations from the search space.
+def _grid_axes(search_space):
+    """Build per-parameter value lists for the search space.
 
-    Each entry is ``(min, max, step)``.  Values are generated with
-    ``numpy.arange`` and rounded to avoid floating-point drift.
-
-    Returns:
-        list[dict]: Every parameter combination as a dict.
+    Returns (keys, ranges, total) where total = product of len(ranges[i]).
+    Caller can iterate combinations on demand without materializing the
+    full Cartesian product, which can easily exceed available RAM
+    (the default SEARCH_SPACE has ~370M combos).
     """
     keys = sorted(search_space.keys())
     ranges = []
+    total = 1
     for k in keys:
         lo, hi, step = search_space[k]
         vals = np.arange(lo, hi + step * 0.5, step)
         vals = [round(float(v), 6) for v in vals]
         ranges.append(vals)
+        total *= len(vals)
+    return keys, ranges, total
 
+
+def _generate_grid(search_space):
+    """Generate all combinations from the search space.
+
+    WARNING: materializes the full Cartesian product.  For the default
+    SEARCH_SPACE this is ~370M dicts (~370 GB peak memory).  Only safe
+    for trimmed search spaces (used in tests).  Production sweeps go
+    through grid_search() which samples indices via ``_grid_axes``.
+
+    Returns:
+        list[dict]: Every parameter combination as a dict.
+    """
+    keys, ranges, _ = _grid_axes(search_space)
     grid = []
     for combo in itertools.product(*ranges):
         d = dict(zip(keys, combo))
@@ -1065,10 +1259,12 @@ def _apply_derived_params(candidate):
 
 
 def _sample_grid(full_grid, n, seed=42):
-    """Stratified random sampling from a large grid.
+    """Stratified random sampling from a materialized grid.
 
     Uses numpy to select *n* samples that are approximately
-    evenly distributed across the grid.
+    evenly distributed across the grid.  Only used when the caller has
+    already chosen to materialize the full grid; grid_search() prefers
+    ``_sample_grid_from_space`` to avoid the materialization.
     """
     rng = np.random.default_rng(seed)
     if n >= len(full_grid):
@@ -1077,10 +1273,37 @@ def _sample_grid(full_grid, n, seed=42):
     return [full_grid[i] for i in sorted(indices)]
 
 
+def _sample_grid_from_space(search_space, n, seed=42):
+    """Sample *n* parameter combos directly from the search space without
+    materializing the full Cartesian product.
+
+    For a default SEARCH_SPACE with ~370M combos, this uses ~n * 1KB of
+    memory instead of ~370 GB.  Picks *n* random integer indices from
+    [0, total) without replacement, then decodes each to a combo dict.
+    """
+    keys, ranges, total = _grid_axes(search_space)
+    rng = np.random.default_rng(seed)
+    if n >= total:
+        # Tiny grid — just enumerate everything
+        return [dict(zip(keys, combo)) for combo in itertools.product(*ranges)]
+    indices = sorted(rng.choice(total, size=n, replace=False).tolist())
+    sizes = [len(r) for r in ranges]
+    combos = []
+    for idx in indices:
+        combo = []
+        for r, s in zip(ranges, sizes):
+            combo.append(r[idx % s])
+            idx //= s
+        combos.append(dict(zip(keys, combo)))
+    return combos
+
+
 def grid_search(evaluate_fn, search_space=None, max_evaluations=500):
     """Search over parameter space to maximise the objective.
 
-    If the full grid exceeds *max_evaluations*, samples a subset.
+    If the full grid exceeds *max_evaluations*, samples a subset
+    *without materializing the full Cartesian product* — the default
+    SEARCH_SPACE has ~370M combos, which would exhaust system memory.
 
     Args:
         evaluate_fn: Callable(params_dict) -> float (objective value).
@@ -1095,9 +1318,7 @@ def grid_search(evaluate_fn, search_space=None, max_evaluations=500):
     if search_space is None:
         search_space = SEARCH_SPACE
 
-    raw_grid = _generate_grid(search_space)
-    if len(raw_grid) > max_evaluations:
-        raw_grid = _sample_grid(raw_grid, max_evaluations)
+    raw_grid = _sample_grid_from_space(search_space, max_evaluations)
 
     results = []
     for candidate in raw_grid:
@@ -1167,61 +1388,150 @@ def compute_stability(window_results):
 
 def walk_forward_calibrate(results_dir='output', horizons=None,
                            train_size=3, test_size=1, step=1,
-                           objective='hit_rate', max_evaluations=200,
-                           lambda_reg=0.05):
+                           objective='rank_ic', max_evaluations=200,
+                           lambda_reg=0.05, yf_client=None,
+                           prices_dir='output/prices', cache_dir='output/returns',
+                           today=None):
     """Run the full walk-forward calibration.
 
-    For each rolling window:
-      1. Load train-window results JSONs
-      2. For each candidate ParamSet: re-score -> measure backtest objective
-      3. Select best ParamSet from train
-      4. Apply best ParamSet to test window -> record OOS performance
-      5. Roll forward
+    Pipeline:
+      1. Census snapshot maturity per horizon; refuse loudly if a horizon has
+         zero matured snapshots (forward returns can't exist yet).
+      2. Load every snapshot once and annotate forward returns once (cache-aware,
+         shared by reference across windows) — returns are param-independent.
+      3. For each rolling window whose TEST date is matured:
+         a. sweep candidate ParamSets on the train window
+         b. select the best, measure it out-of-sample on the test window
 
     Args:
         results_dir: Directory containing results_YYYY-MM-DD.json files.
-        horizons: List of forward-return horizons in days.  Defaults to [90].
-        train_size: Snapshots per training window.
-        test_size: Snapshots per test window.
-        step: Roll-forward step in snapshots.
-        objective: Objective function name.
+        horizons: Forward-return horizons in days.  Defaults to [30] (the only
+            matured horizon for current data; 90/180 mature later in 2026).
+        train_size/test_size/step: Walk-forward window geometry.
+        objective: Objective function name (default 'rank_ic').
         max_evaluations: Max parameter combinations per window.
         lambda_reg: Regularisation strength (0 = disabled).
+        yf_client: Optional YFinanceClient (constructed lazily on cache miss).
+        prices_dir: Local parquet price dir for forward-return fetches.
+        cache_dir: Sidecar dir for cached forward returns.
+        today: Override "today" (for testing maturity logic).
 
     Returns:
-        dict with 'windows', 'overall', 'recommended_params'.
+        dict with 'windows', 'overall', 'recommended_params', 'matured_counts'.
     """
     if horizons is None:
-        horizons = [90]
+        horizons = [30]
+    today = today or date.today()
 
-    # Discover available snapshot dates
     snapshot_dates = _discover_snapshot_dates(results_dir)
-    windows = generate_windows(snapshot_dates, train_size, test_size, step)
 
+    # 1. Per-horizon maturity census (loud guard — never silently score 0.0).
+    matured_counts = {
+        h: sum(1 for d in snapshot_dates if is_matured(d.isoformat(), h, today))
+        for h in horizons
+    }
+    usable_horizons = [h for h in horizons if matured_counts[h] > 0]
+    if not usable_horizons:
+        earliest = snapshot_dates[0].isoformat() if snapshot_dates else 'none'
+        msg = (f"No matured snapshots for horizon(s) {horizons} as of {today}. "
+               f"A (snapshot, horizon) pair matures when snapshot_date + horizon "
+               f"<= today; earliest snapshot is {earliest}. "
+               f"Nothing to calibrate — refusing to emit a 0.0 result.")
+        print(f"[calibrate] {msg}")
+        return {
+            'date': today.isoformat(),
+            'objective': objective,
+            'horizon_days': horizons,
+            'matured_counts': matured_counts,
+            'n_windows': 0,
+            'windows': [],
+            'overall': {'error': msg},
+            'recommended_params': default_params(),
+        }
+    if set(usable_horizons) != set(horizons):
+        dropped = [h for h in horizons if h not in usable_horizons]
+        print(f"[calibrate] dropping immature horizon(s) {dropped} "
+              f"(0 matured snapshots); using {usable_horizons}")
+    horizons = usable_horizons
+
+    windows = generate_windows(snapshot_dates, train_size, test_size, step)
     if not windows:
         return {
+            'date': today.isoformat(),
+            'objective': objective,
+            'horizon_days': horizons,
+            'matured_counts': matured_counts,
+            'n_windows': 0,
             'windows': [],
             'overall': {'error': 'Insufficient snapshots for walk-forward'},
             'recommended_params': default_params(),
         }
 
-    window_results = []
-    for win in windows:
-        # Load train and test results
-        train_results = _load_snapshots(results_dir, win['train_dates'])
-        test_results = _load_snapshots(results_dir, win['test_dates'])
+    # 2. Load every snapshot once, share by reference, annotate returns once.
+    if yf_client is None:
+        from data.yfinance_client import YFinanceClient
+        yf_client = YFinanceClient()
+    pdir = prices_dir if (prices_dir and os.path.isdir(prices_dir)) else None
 
-        # For each candidate, re-score with the candidate's weights and
-        # measure backtest metrics on the train window
-        def evaluate(params):
-            metrics = _evaluate_params_on_snapshots(train_results, params, horizons)
+    snaps_by_date = {}
+    for d in snapshot_dates:
+        loaded = _load_snapshots(results_dir, [d])
+        if loaded:
+            snaps_by_date[d] = loaded[0]
+    annotated_rows = 0
+    for snap in snaps_by_date.values():
+        res = annotate_snapshot_returns(snap, horizons, yf_client,
+                                        prices_dir=pdir, cache_dir=cache_dir,
+                                        today=today)
+        annotated_rows += sum(n for n in res.values() if n)
+
+    # Coverage guard: dates can be matured while the PRICE data doesn't reach
+    # the eval date (e.g. stale parquet). Without usable forward returns every
+    # objective is 0.0 and "calibration" is meaningless — refuse loudly rather
+    # than emit a noise result.
+    if annotated_rows == 0:
+        msg = (f"0 usable forward-return rows for horizon(s) {horizons}. "
+               f"{matured_counts} snapshots matured by date, but no price series "
+               f"reaches the eval date — local prices are likely stale "
+               f"(refresh output/prices). Refusing to emit a 0.0 result.")
+        print(f"[calibrate] {msg}")
+        return {
+            'date': today.isoformat(),
+            'objective': objective,
+            'horizon_days': horizons,
+            'matured_counts': matured_counts,
+            'annotated_rows': 0,
+            'n_windows': 0,
+            'windows': [],
+            'overall': {'error': msg},
+            'recommended_params': default_params(),
+        }
+
+    # 3. Walk forward over windows with a matured test date.
+    window_results = []
+    skipped_immature = 0
+    for win in windows:
+        test_matured = any(
+            is_matured(td.isoformat(), h, today)
+            for td in win['test_dates'] for h in horizons
+        )
+        if not test_matured:
+            skipped_immature += 1
+            continue
+
+        train_results = [snaps_by_date[d] for d in win['train_dates']
+                         if d in snaps_by_date]
+        test_results = [snaps_by_date[d] for d in win['test_dates']
+                        if d in snaps_by_date]
+
+        def evaluate(params, _train=train_results):
+            metrics = _evaluate_params_on_snapshots(_train, params, horizons)
             raw = compute_objective(metrics, objective)
             if lambda_reg > 0:
                 return regularized_objective(raw, params, lambda_reg)
             return raw
 
         search_results = grid_search(evaluate, max_evaluations=max_evaluations)
-
         if not search_results:
             continue
 
@@ -1229,7 +1539,6 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
         best_params = best['params']
         train_obj = best['objective']
 
-        # Out-of-sample: apply best params to test window
         test_metrics = _evaluate_params_on_snapshots(test_results, best_params,
                                                      horizons)
         test_obj = compute_objective(test_metrics, objective)
@@ -1264,10 +1573,13 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
     }
 
     return {
-        'date': date.today().isoformat(),
+        'date': today.isoformat(),
         'objective': objective,
         'horizon_days': horizons,
+        'matured_counts': matured_counts,
+        'annotated_rows': annotated_rows,
         'n_windows': len(window_results),
+        'n_windows_skipped_immature': skipped_immature,
         'n_evaluations_per_window': max_evaluations,
         'windows': window_results,
         'overall': overall,
@@ -1317,27 +1629,43 @@ def _evaluate_params_on_snapshots(snapshots, params, horizons):
     The fair values from the original snapshot are preserved; only the
     scoring/rating layer changes.
 
+    Mutates each snapshot's ``results`` rows in place (no deepcopy).  The
+    original rating is cached on each row as ``_rating_orig`` and restored
+    before every rescore so that ``apply_composite_rating_override`` (which
+    only downgrades) starts from a clean baseline on each candidate.  This
+    is the hot path of walk_forward_calibrate: a deepcopy here costs ~50ms
+    per snapshot and ~3GB peak RSS across a typical sweep.
+
     Returns:
         list[dict]: Backtest-compatible metric dicts, one per snapshot×horizon.
     """
     from scripts.scoring import (compute_continuous_scores,
-                                 apply_composite_rating_override,
-                                 apply_screening_matrix)
-    import copy
+                                 apply_composite_rating_override)
 
     metrics = []
     for snap in snapshots:
-        results = copy.deepcopy(snap.get('results', []))
+        results = snap.get('results', [])
         run_date = snap.get('date', '')
+
+        # Cache original rating once per row, then reset before rescoring so
+        # downgrades from a prior candidate don't bleed into this one.
+        for r in results:
+            if '_rating_orig' not in r:
+                r['_rating_orig'] = r.get('rating')
+            r['rating'] = r['_rating_orig']
 
         # Re-score with candidate params (only changes composite weights)
         compute_continuous_scores(results, params=params)
         apply_composite_rating_override(results, params=params)
 
-        # Build a lightweight metric dict compatible with objective functions
+        # Build a lightweight metric dict compatible with objective functions.
+        # Forward returns are horizon-keyed under r['_fwd'][h], pre-computed
+        # once by annotate_snapshot_returns (None when the horizon is immature
+        # or the ticker had no price data).
         for h in horizons:
             details = []
             for r in results:
+                fwd = (r.get('_fwd') or {}).get(h)
                 details.append({
                     'ticker': r.get('ticker'),
                     'rating': r.get('rating'),
@@ -1345,10 +1673,8 @@ def _evaluate_params_on_snapshots(snapshots, params, horizons):
                     'price': r.get('price'),
                     'mos': r.get('mos'),
                     '_composite_score': r.get('_composite_score'),
-                    # Forward returns are from the original snapshot's backtest
-                    # data if available; otherwise we can't compute hit rate.
-                    'excess_return': r.get('_excess_return'),
-                    'end_price': r.get('_end_price'),
+                    'excess_return': fwd['excess_return'] if fwd else None,
+                    'end_price': fwd['end_price'] if fwd else None,
                 })
             metrics.append({
                 'run_date': run_date,
@@ -1530,7 +1856,15 @@ def _cli_calibrate(args):
         objective=args.objective,
         max_evaluations=args.max_evals,
         lambda_reg=args.lambda_reg,
+        prices_dir=args.prices_dir,
     )
+
+    overall = result.get('overall', {})
+    # Refuse to write a meaningless 0.0 result when no horizon is matured.
+    if result.get('n_windows', 0) == 0:
+        print(f"\nNo calibration performed: {overall.get('error', 'no usable windows')}")
+        print(f"Matured snapshots by horizon: {result.get('matured_counts')}")
+        return
 
     out_path = args.output or os.path.join(
         args.results_dir,
@@ -1539,11 +1873,50 @@ def _cli_calibrate(args):
         json.dump(result, f, indent=2, default=str)
     print(f'Calibration results written to {out_path}')
 
-    overall = result.get('overall', {})
-    print(f"\nWindows: {result['n_windows']}")
+    print(f"\nObjective:            {result.get('objective')}")
+    print(f"Horizon(s):           {result.get('horizon_days')}")
+    print(f"Matured by horizon:   {result.get('matured_counts')}")
+    print(f"Windows:              {result['n_windows']}"
+          f" (skipped immature: {result.get('n_windows_skipped_immature', 0)})")
     print(f"Mean train objective: {overall.get('mean_train_objective')}")
     print(f"Mean test objective:  {overall.get('mean_test_objective')}")
     print(f"Overfit gap:          {overall.get('overfit_gap')}")
+
+
+def _cli_annotate(args):
+    """Warm the forward-return sidecar cache for all snapshots x horizons."""
+    from data.yfinance_client import YFinanceClient
+    horizons = [int(h) for h in args.horizons.split(',')]
+    yf_client = YFinanceClient()
+    pdir = args.prices_dir if os.path.isdir(args.prices_dir) else None
+    if pdir:
+        print(f"Using local price files from: {pdir}")
+
+    dates = _discover_snapshot_dates(args.results_dir)
+    today = date.today()
+    matured_counts = {
+        h: sum(1 for d in dates if is_matured(d.isoformat(), h, today))
+        for h in horizons
+    }
+    print(f"Snapshots: {len(dates)}   Matured by horizon: {matured_counts}")
+    for h in horizons:
+        if matured_counts[h] == 0:
+            print(f"[annotate] horizon {h}d: 0 matured snapshots — skipping "
+                  f"(nothing to compute yet).")
+
+    total = 0
+    for d in dates:
+        loaded = _load_snapshots(args.results_dir, [d])
+        if not loaded:
+            continue
+        res = annotate_snapshot_returns(loaded[0], horizons, yf_client,
+                                        prices_dir=pdir,
+                                        cache_dir=args.cache_dir, today=today)
+        done = {h: n for h, n in res.items() if n is not None}
+        if done:
+            total += len(done)
+            print(f"  {d.isoformat()}: annotated {done}")
+    print(f"\nCache warmed under {args.cache_dir} ({total} matured (date,horizon) pairs).")
 
 
 def _cli_optimize_weights(args):
@@ -1561,7 +1934,7 @@ if __name__ == '__main__':
         description='Backtest + calibrate the stock model. Subcommands share '
                     'the same results_*.json snapshots and objective functions.')
     sub = parser.add_subparsers(dest='command', required=True,
-                                metavar='{measure,calibrate,optimize-weights}')
+                                metavar='{measure,calibrate,annotate,optimize-weights}')
 
     # ---- measure ----
     p_measure = sub.add_parser(
@@ -1587,18 +1960,41 @@ if __name__ == '__main__':
                     'and records out-of-sample performance.')
     p_cal.add_argument('--results-dir', default='output',
                        help='Directory with results_*.json files')
-    p_cal.add_argument('--horizons', default='90',
-                       help='Comma-separated forward return horizons in days')
+    p_cal.add_argument('--horizons', default='30',
+                       help='Comma-separated forward return horizons in days '
+                            '(default: 30 — the only matured horizon for current data)')
     p_cal.add_argument('--train-size', type=int, default=3)
     p_cal.add_argument('--test-size', type=int, default=1)
-    p_cal.add_argument('--objective', default='hit_rate',
-                       choices=['hit_rate', 'alpha', 'information_ratio',
-                                'composite'])
+    p_cal.add_argument('--objective', default='rank_ic',
+                       choices=['rank_ic', 'hit_rate', 'alpha',
+                                'information_ratio', 'composite'],
+                       help='Objective to maximise (default: rank_ic — '
+                            'full-population Spearman IC, robust to thin BUY counts)')
     p_cal.add_argument('--max-evals', type=int, default=200)
     p_cal.add_argument('--lambda-reg', type=float, default=0.05)
+    p_cal.add_argument('--prices-dir', default='output/prices',
+                       help='Directory of per-ticker Parquet price files '
+                            '(default: output/prices)')
     p_cal.add_argument('--output', default=None,
                        help='Output JSON path (default: output/calibration_DATE.json)')
     p_cal.set_defaults(func=_cli_calibrate)
+
+    # ---- annotate ----
+    p_ann = sub.add_parser(
+        'annotate',
+        help='Warm the forward-return sidecar cache (no calibration).',
+        description='Computes forward returns for every matured (snapshot, '
+                    'horizon) pair and caches them under output/returns/, so '
+                    'calibrate/measure runs reuse them without refetching.')
+    p_ann.add_argument('--results-dir', default='output',
+                       help='Directory with results_*.json files')
+    p_ann.add_argument('--horizons', default='30',
+                       help='Comma-separated horizon days (default: 30)')
+    p_ann.add_argument('--prices-dir', default='output/prices',
+                       help='Directory of per-ticker Parquet price files')
+    p_ann.add_argument('--cache-dir', default='output/returns',
+                       help='Sidecar cache directory (default: output/returns)')
+    p_ann.set_defaults(func=_cli_annotate)
 
     # ---- optimize-weights ----
     p_opt = sub.add_parser(

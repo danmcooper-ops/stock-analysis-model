@@ -1,20 +1,26 @@
 """scripts/download_prices.py
 
-One-time bulk download of full price history for all S&P 500 tickers.
+Bulk download of full price history for all S&P 500 tickers.
 
 Writes one Parquet file per ticker to --output-dir (default: output/prices/).
-Skips tickers whose file already exists, so the run is safely resumable.
+By default skips tickers whose file already exists, so the run is safely
+resumable.  Use --refresh to re-download files whose latest bar is stale
+(older than --max-age-days) — needed so forward-return backtests/calibration
+have prices that actually reach the evaluation dates.
 
 Usage:
     python scripts/download_prices.py
     python scripts/download_prices.py --output-dir output/prices --delay 0.4
     python scripts/download_prices.py --tickers AAPL MSFT GOOG
+    python scripts/download_prices.py --refresh                 # update stale files
+    python scripts/download_prices.py --refresh --max-age-days 3
 """
 
 import argparse
 import os
 import sys
 import time
+from datetime import date, timedelta
 
 import pandas as pd
 import yfinance as yf
@@ -23,14 +29,42 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.analyze_stock import get_sp500_tickers
 
 
-def download_ticker(ticker: str, output_dir: str, delay: float) -> str:
+def _parquet_max_date(path):
+    """Return the latest bar date in an existing parquet, or None on error."""
+    try:
+        df = pd.read_parquet(path, columns=[])  # index only — cheap
+        idx = pd.to_datetime(df.index)
+        return idx.max().date() if len(idx) else None
+    except Exception:
+        try:
+            df = pd.read_parquet(path)
+            idx = pd.to_datetime(df.index)
+            return idx.max().date() if len(idx) else None
+        except Exception:
+            return None
+
+
+def download_ticker(ticker: str, output_dir: str, delay: float,
+                    refresh: bool = False, max_age_days: int = 1) -> str:
     """Download max history for one ticker and save as Parquet.
 
-    Returns 'skipped', 'ok', or an error message string.
+    By default an existing file is left untouched (resumable bulk download).
+    With *refresh*, an existing file is re-downloaded only when its latest bar
+    is more than *max_age_days* old — so stale prices (which silently truncate
+    forward-return calculations) get refreshed without re-fetching files that
+    are already current.
+
+    Returns 'skipped', 'fresh', 'ok', or an error message string.
     """
     dest = os.path.join(output_dir, f"{ticker}.parquet")
     if os.path.exists(dest):
-        return "skipped"
+        if not refresh:
+            return "skipped"
+        last = _parquet_max_date(dest)
+        if last is not None:
+            cutoff = date.today() - timedelta(days=max_age_days)
+            if last >= cutoff:
+                return "fresh"  # already current — no re-download needed
 
     time.sleep(delay)
     try:
@@ -52,6 +86,14 @@ def main():
                         help="Seconds to wait between requests (default: 0.35)")
     parser.add_argument("--tickers", nargs="+",
                         help="Override ticker list (default: all S&P 500)")
+    parser.add_argument("--refresh", action="store_true",
+                        help="Re-download existing files whose latest bar is "
+                             "older than --max-age-days (default: off — skip "
+                             "existing files)")
+    parser.add_argument("--max-age-days", type=int, default=1,
+                        help="With --refresh, a file is re-downloaded only if "
+                             "its latest bar is more than this many days old "
+                             "(default: 1)")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -63,17 +105,23 @@ def main():
         tickers = sorted(get_sp500_tickers())
 
     total = len(tickers)
-    print(f"{total} tickers to process — output: {args.output_dir}\n")
+    mode = (f"refresh (max-age {args.max_age_days}d)" if args.refresh
+            else "resume (skip existing)")
+    print(f"{total} tickers to process — output: {args.output_dir} — mode: {mode}\n")
 
-    ok = skipped = empty = errors = 0
+    ok = skipped = fresh = empty = errors = 0
     failed = []
 
     for i, ticker in enumerate(tickers, 1):
-        result = download_ticker(ticker, args.output_dir, args.delay)
+        result = download_ticker(ticker, args.output_dir, args.delay,
+                                 refresh=args.refresh,
+                                 max_age_days=args.max_age_days)
         if result == "ok":
             ok += 1
         elif result == "skipped":
             skipped += 1
+        elif result == "fresh":
+            fresh += 1
         elif result == "empty":
             empty += 1
             failed.append((ticker, "empty response"))
@@ -84,7 +132,8 @@ def main():
         print(f"  [{i:>3}/{total}] {ticker:<6} {result}")
 
     print(f"\n{'='*50}")
-    print(f"Done.  ok={ok}  skipped={skipped}  empty={empty}  errors={errors}")
+    print(f"Done.  ok={ok}  fresh={fresh}  skipped={skipped}  "
+          f"empty={empty}  errors={errors}")
 
     if failed:
         print("\nFailed tickers:")

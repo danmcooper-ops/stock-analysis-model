@@ -12,7 +12,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from scripts.backtest import (
     generate_windows,
     compute_objective, hit_rate_objective, alpha_objective,
-    information_ratio_objective, composite_objective,
+    information_ratio_objective, composite_objective, rank_ic_objective,
+    is_matured,
     _generate_grid, _apply_derived_params, _sample_grid,
     grid_search, regularized_objective, compute_stability,
     _discover_snapshot_dates,
@@ -146,6 +147,55 @@ class TestCompositeObjective:
         m = _make_metrics([0.05, -0.03])
         assert compute_objective(m, 'hit_rate') == pytest.approx(0.5)
         assert compute_objective(m, 'alpha') == pytest.approx(0.01)
+
+
+class TestRankICObjective:
+
+    def _metrics(self, pairs):
+        return [{'details': [
+            {'_composite_score': s, 'excess_return': er} for s, er in pairs
+        ]}]
+
+    def test_perfect_positive_correlation(self):
+        m = self._metrics([(i, i * 0.01) for i in range(20)])
+        assert rank_ic_objective(m) == pytest.approx(1.0)
+
+    def test_perfect_negative_correlation(self):
+        m = self._metrics([(i, -i * 0.01) for i in range(20)])
+        assert rank_ic_objective(m) == pytest.approx(-1.0)
+
+    def test_insufficient_data_returns_zero(self):
+        m = self._metrics([(1, 0.01), (2, 0.02)])  # n < 10
+        assert rank_ic_objective(m) == 0.0
+
+    def test_skips_rows_missing_returns(self):
+        # Rows without excess_return must not poison the correlation.
+        pairs = [(i, i * 0.01) for i in range(15)]
+        m = self._metrics(pairs)
+        m[0]['details'].append({'_composite_score': 99, 'excess_return': None})
+        assert rank_ic_objective(m) == pytest.approx(1.0)
+
+    def test_dispatch_default_is_rank_ic(self):
+        m = self._metrics([(i, i * 0.01) for i in range(20)])
+        # unknown name falls back to rank_ic
+        assert compute_objective(m, 'rank_ic') == pytest.approx(1.0)
+        assert compute_objective(m, 'nonexistent') == pytest.approx(1.0)
+
+
+class TestIsMatured:
+
+    def test_matured_when_window_elapsed(self):
+        assert is_matured('2026-04-20', 30, today=date(2026, 6, 8)) is True
+
+    def test_immature_when_window_in_future(self):
+        assert is_matured('2026-06-07', 30, today=date(2026, 6, 8)) is False
+
+    def test_exact_boundary_is_matured(self):
+        # run_date + horizon == today → matured (window fully elapsed)
+        assert is_matured('2026-05-09', 30, today=date(2026, 6, 8)) is True
+
+    def test_one_day_short_is_immature(self):
+        assert is_matured('2026-05-10', 30, today=date(2026, 6, 8)) is False
 
 
 # ======================================================================
