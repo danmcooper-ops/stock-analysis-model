@@ -1,8 +1,12 @@
 # models/ddm.py
+import warnings as _py_warnings
+
 import numpy as np
 
+from models.valuation_types import _validate_numeric
 
-def ddm_eligibility(div_history, payout, eps, dps, min_years=3):
+
+def ddm_eligibility(div_history, payout, eps, dps, min_years=3, strict_payout=False):
     """Check whether a stock qualifies for DDM valuation.
 
     Parameters
@@ -17,6 +21,11 @@ def ddm_eligibility(div_history, payout, eps, dps, min_years=3):
         Current annual dividend per share.
     min_years : int
         Minimum consecutive years of positive dividends required.
+    strict_payout : bool
+        When True, payout > 100% disqualifies the stock outright instead
+        of just flagging it. Default False preserves the old behavior;
+        set True when downstream confidence handling can't compensate
+        for a dividend that isn't earnings-funded.
 
     Returns
     -------
@@ -55,9 +64,14 @@ def ddm_eligibility(div_history, payout, eps, dps, min_years=3):
         result['reason'] = f'Only {consecutive} consecutive years (need {min_years})'
         return result
 
-    # Payout flag: warn if > 100% but still allow DDM
+    # Payout flag: warn if > 100% (and disqualify when strict_payout is set)
     if payout is not None and payout > 1.0:
         result['payout_flag'] = True
+        if strict_payout:
+            result['reason'] = (
+                f'Payout {payout:.0%} > 100% — dividend not earnings-funded'
+            )
+            return result
 
     result['eligible'] = True
     result['reason'] = 'Eligible'
@@ -69,22 +83,6 @@ def estimate_ddm_growth(div_history, payout, roe, analyst_ltg):
 
     Weights: 30% dividend CAGR, 40% sustainable growth (ROE × retention),
     30% analyst long-term growth.
-
-    Parameters
-    ----------
-    div_history : array-like
-        Annual DPS values, oldest first (at least 2 values).
-    payout : float or None
-        Current payout ratio.
-    roe : float or None
-        Return on equity.
-    analyst_ltg : float or None
-        Analyst consensus long-term growth rate.
-
-    Returns
-    -------
-    dict with keys: growth (float or None), div_cagr (float or None),
-    sustainable_growth (float or None), signals_used (int).
     """
     result = {
         'growth': None,
@@ -102,7 +100,6 @@ def estimate_ddm_growth(div_history, payout, roe, analyst_ltg):
         if len(hist) >= 2:
             years = len(hist) - 1
             cagr = (hist[-1] / hist[0]) ** (1 / years) - 1
-            # Cap at reasonable range
             cagr = max(min(cagr, 0.25), -0.10)
             result['div_cagr'] = cagr
             weighted_sum += 0.30 * cagr
@@ -135,30 +132,17 @@ def two_stage_ddm(dps, high_g, term_g, re, years=5):
 
     Stage 1: project DPS at constant `high_g` for `years` years.
     Stage 2: terminal value via Gordon Growth Model at `term_g`.
-
-    Parameters
-    ----------
-    dps : float
-        Current annual dividend per share.
-    high_g : float
-        High-growth rate for stage 1.
-    term_g : float
-        Terminal (perpetual) growth rate.
-    re : float
-        Required return (cost of equity).
-    years : int
-        Number of high-growth years.
-
-    Returns
-    -------
-    float or None
-        Intrinsic value per share.
+    Returns None on invalid inputs.
     """
-    if dps is None or dps <= 0:
+    try:
+        dps = _validate_numeric('dps', dps, positive=True)
+        re = _validate_numeric('re', re, positive=True, low=0.01, high=0.40)
+        term_g = _validate_numeric('term_g', term_g, low=-0.10, high=0.10)
+        high_g = _validate_numeric('high_g', high_g, low=-0.50, high=1.0)
+    except ValueError as e:
+        _py_warnings.warn(f"two_stage_ddm input invalid: {e}", RuntimeWarning)
         return None
-    if re is None or re <= term_g:
-        return None
-    if re <= 0:
+    if re <= term_g:
         return None
 
     # Minimum spread guard
@@ -188,30 +172,16 @@ def ddm_h_model(dps, short_g, long_g, re, half_life=5):
 
     V = D0 × (1 + long_g) / (re - long_g) + D0 × H × (short_g - long_g) / (re - long_g)
     where H = half_life (half the period over which growth linearly declines).
-
-    Parameters
-    ----------
-    dps : float
-        Current annual dividend per share.
-    short_g : float
-        Initial (short-term) high growth rate.
-    long_g : float
-        Long-term stable growth rate.
-    re : float
-        Required return (cost of equity).
-    half_life : int or float
-        Years for growth to decline halfway (H in the formula).
-
-    Returns
-    -------
-    float or None
-        Intrinsic value per share.
     """
-    if dps is None or dps <= 0:
+    try:
+        dps = _validate_numeric('dps', dps, positive=True)
+        re = _validate_numeric('re', re, positive=True, low=0.01, high=0.40)
+        long_g = _validate_numeric('long_g', long_g, low=-0.10, high=0.10)
+        short_g = _validate_numeric('short_g', short_g, low=-0.50, high=1.0)
+    except ValueError as e:
+        _py_warnings.warn(f"ddm_h_model input invalid: {e}", RuntimeWarning)
         return None
-    if re is None or re <= long_g:
-        return None
-    if re <= 0:
+    if re <= long_g:
         return None
 
     spread = re - long_g
@@ -220,7 +190,6 @@ def ddm_h_model(dps, short_g, long_g, re, half_life=5):
 
     # Stable component
     stable_value = dps * (1 + long_g) / spread
-
     # Growth premium
     growth_premium = dps * half_life * (short_g - long_g) / spread
 
@@ -233,36 +202,15 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
                     years=5):
     """Vectorized Monte Carlo simulation for DDM fair value.
 
-    Samples growth, cost-of-equity, and terminal growth from normal
-    distributions. For each sample, computes two-stage DDM value.
-
-    Parameters
-    ----------
-    dps : float
-        Current annual dividend per share.
-    g : float
-        Base high-growth rate.
-    re : float
-        Base required return (cost of equity).
-    tg : float
-        Base terminal growth rate.
-    n : int
-        Number of iterations.
-    g_sigma : float or None
-        Std dev for growth sampling. Defaults to 30% of |g| or 0.02.
-    re_sigma : float
-        Std dev for cost-of-equity sampling.
-    tg_sigma : float
-        Std dev for terminal growth sampling.
-    years : int
-        High-growth years.
-
-    Returns
-    -------
-    dict or None
-        Keys: median_fv, mean_fv, p10_fv, p90_fv, std_fv, cv, n_valid, n_iterations.
+    Returns dict with median_fv, mean_fv, p10_fv, p90_fv, std_fv, cv,
+    n_valid, n_iterations, invalid_rate, clip_rate. The last two surface
+    how aggressively the constraint walls clipped samples and how many
+    iterations produced non-positive value (and were filtered).
     """
-    if dps is None or dps <= 0:
+    try:
+        dps = _validate_numeric('dps', dps, positive=True)
+    except ValueError as e:
+        _py_warnings.warn(f"monte_carlo_ddm input invalid: {e}", RuntimeWarning)
         return None
 
     rng = np.random.default_rng(42)  # fixed seed for reproducibility
@@ -274,8 +222,10 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
     re_samples = rng.normal(re, max(re_sigma, 0.001), n)
     tg_samples = rng.normal(tg, max(tg_sigma, 0.001), n)
 
-    # Enforce constraints: re > 3%, re - tg > 1%
+    # Track clip counts before applying constraint walls
+    n_re_clipped = int(np.sum(re_samples < 0.03))
     re_samples = np.maximum(re_samples, 0.03)
+    n_tg_clipped = int(np.sum(tg_samples > re_samples - 0.01))
     tg_samples = np.minimum(tg_samples, re_samples - 0.01)
 
     # --- Vectorized dividend projection: shape (n, years) ---
@@ -300,6 +250,8 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
 
     valid = fv > 0
     n_valid = int(np.sum(valid))
+    invalid_rate = 1.0 - n_valid / n
+    clip_rate = (n_re_clipped + n_tg_clipped) / (2 * n)
     if n_valid < n * 0.10:
         return None
 
@@ -314,4 +266,6 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
         'cv': float(np.std(fv_valid) / mean_fv) if mean_fv > 0 else None,
         'n_valid': n_valid,
         'n_iterations': n,
+        'invalid_rate': invalid_rate,
+        'clip_rate': clip_rate,
     }

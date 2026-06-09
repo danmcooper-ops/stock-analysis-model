@@ -7,7 +7,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from scripts.scoring import (
     _score_linear, compute_continuous_scores, apply_composite_rating_override,
-    _mc_confidence_label, SCORING_GATES,
+    rating_from_composite, _mc_confidence_label, SCORING_GATES,
+    SCREENING_GATES, gate_metadata, score_and_rate,
+    apply_screening_matrix, _rating_cap_for_row, apply_rating_caps,
 )
 
 
@@ -169,50 +171,287 @@ class TestContinuousScoring:
         for r in rows:
             assert '_pctile' not in r
 
+    def test_tied_relative_values_receive_same_score(self):
+        """Identical sector-relative raw values should not score differently."""
+        rows = [
+            self._make_row(ticker='A', sector='Tech', accruals=0.02,
+                           gross_margin_avg_5y=0.50),
+            self._make_row(ticker='B', sector='Tech', accruals=0.02,
+                           gross_margin_avg_5y=0.50),
+            self._make_row(ticker='C', sector='Tech', accruals=0.10,
+                           gross_margin_avg_5y=0.30),
+            self._make_row(ticker='D', sector='Tech', accruals=-0.02,
+                           gross_margin_avg_5y=0.70),
+            self._make_row(ticker='E', sector='Tech', accruals=0.05,
+                           gross_margin_avg_5y=0.40),
+        ]
+        compute_continuous_scores(rows)
+        assert rows[0]['_score_accruals'] == rows[1]['_score_accruals']
+        assert rows[0]['_score_gross_margin'] == rows[1]['_score_gross_margin']
+
 
 # ---------------------------------------------------------------------------
-# apply_composite_rating_override
+# rating_from_composite + apply_composite_rating_override
 # ---------------------------------------------------------------------------
 
-class TestCompositeRatingOverride:
-    def test_buy_downgraded_on_low_score(self):
-        """BUY with low composite → downgraded to HOLD."""
-        rows = [{'rating': 'BUY', '_composite_score': 20}]
-        apply_composite_rating_override(rows)
-        assert rows[0]['rating'] == 'HOLD'
+class TestRatingFromComposite:
+    def test_buy_threshold(self):
+        assert rating_from_composite(60) == 'BUY'
+        assert rating_from_composite(75) == 'BUY'
 
-    def test_buy_to_lean_buy_on_medium_score(self):
-        """BUY with medium composite → LEAN BUY."""
-        rows = [{'rating': 'BUY', '_composite_score': 45}]
-        apply_composite_rating_override(rows)
-        assert rows[0]['rating'] == 'LEAN BUY'
+    def test_lean_buy_threshold(self):
+        assert rating_from_composite(43) == 'LEAN BUY'
+        assert rating_from_composite(59.9) == 'LEAN BUY'
 
-    def test_buy_stays_buy_on_high_score(self):
-        """BUY with high composite → stays BUY."""
-        rows = [{'rating': 'BUY', '_composite_score': 70}]
+    def test_hold_threshold(self):
+        assert rating_from_composite(29) == 'HOLD'
+        assert rating_from_composite(42.9) == 'HOLD'
+
+    def test_pass_threshold(self):
+        assert rating_from_composite(0) == 'PASS'
+        assert rating_from_composite(28.9) == 'PASS'
+
+    def test_none_composite(self):
+        assert rating_from_composite(None) is None
+
+    def test_custom_thresholds_via_params(self):
+        params = {'rating_threshold_buy': 70, 'rating_threshold_lean': 50,
+                  'rating_threshold_pass': 25}
+        assert rating_from_composite(65, params) == 'LEAN BUY'
+        assert rating_from_composite(70, params) == 'BUY'
+        assert rating_from_composite(20, params) == 'PASS'
+
+
+class TestApplyCompositeRatingOverride:
+    def test_buy_from_high_score(self):
+        rows = [{'rating': None, '_composite_score': 70}]
         apply_composite_rating_override(rows)
         assert rows[0]['rating'] == 'BUY'
 
-    def test_lean_buy_downgraded_on_very_low_score(self):
-        """LEAN BUY with very low composite → HOLD."""
-        rows = [{'rating': 'LEAN BUY', '_composite_score': 15}]
-        apply_composite_rating_override(rows)
-        assert rows[0]['rating'] == 'HOLD'
-
-    def test_lean_buy_stays_on_ok_score(self):
-        """LEAN BUY with decent composite → stays LEAN BUY."""
-        rows = [{'rating': 'LEAN BUY', '_composite_score': 40}]
+    def test_lean_buy_from_medium_score(self):
+        rows = [{'rating': None, '_composite_score': 50}]
         apply_composite_rating_override(rows)
         assert rows[0]['rating'] == 'LEAN BUY'
 
-    def test_hold_unchanged(self):
-        """HOLD should not be changed regardless of score."""
-        rows = [{'rating': 'HOLD', '_composite_score': 80}]
+    def test_hold_from_low_score(self):
+        rows = [{'rating': None, '_composite_score': 35}]
         apply_composite_rating_override(rows)
         assert rows[0]['rating'] == 'HOLD'
 
-    def test_none_composite_no_change(self):
-        """None composite → no override."""
-        rows = [{'rating': 'BUY', '_composite_score': None}]
+    def test_pass_from_very_low_score(self):
+        rows = [{'rating': None, '_composite_score': 20}]
         apply_composite_rating_override(rows)
+        assert rows[0]['rating'] == 'PASS'
+
+    def test_none_composite_leaves_rating_unchanged(self):
+        rows = [{'rating': 'HOLD', '_composite_score': None}]
+        apply_composite_rating_override(rows)
+        assert rows[0]['rating'] == 'HOLD'
+
+    def test_overwrites_existing_rating(self):
+        rows = [{'rating': 'PASS', '_composite_score': 70}]
+        apply_composite_rating_override(rows)
+        assert rows[0]['rating'] == 'BUY'
+
+
+class TestCanonicalScoreAndRate:
+    def _row(self, **kwargs):
+        row = {
+            'ticker': 'CAP',
+            'price': 120.0,
+            'dcf_fv': 100.0,
+            'mos': -0.20,
+            'pfcf': 10,
+            'int_cov': 20,
+            'accruals': 0.01,
+            'shareholder_yield': 0.05,
+            'insider_pct': 0.10,
+            'share_buyback_rate': 0.03,
+            'roic_cv': 0.10,
+            'spread': 0.20,
+            'gross_margin_avg_5y': 0.70,
+            'fundamental_growth': 0.10,
+            'gross_margin_trend': 0.02,
+            'roe': 0.30,
+            'nd_ebitda': 0.0,
+            'cash_conv': 1.2,
+            'rev_cagr_10y': 0.08,
+            'sbc': 0.0,
+            'revenue': 100.0,
+            'fcf': 25.0,
+            'pb': 2.0,
+            'fcf_cagr_5y': 0.10,
+            'shares_cagr_5y': -0.02,
+            'piotroski': 9,
+            'roic_by_year': {2020: 0.10, 2024: 0.16},
+            'epv_fv': 120.0,
+            'rim_mos': 0.20,
+            'mc_cv': 0.10,
+            'rating': None,
+        }
+        row.update(kwargs)
+        return row
+
+    def test_preserves_score_rating_and_applies_critical_cap(self):
+        rows = [self._row()]
+        score_and_rate(rows)
+        assert rows[0]['_rating_from_score'] == 'BUY'
+        assert rows[0]['rating_raw'] == 'BUY'
+        assert rows[0]['_rating_cap'] == 'PASS'
+        assert rows[0]['rating'] == 'PASS'
+        assert any('price/fair value' in r for r in rows[0]['_rating_cap_reasons'])
+
+    def test_derives_fields_for_replay_style_rows(self):
+        rows = [self._row(price=80.0, dcf_fv=100.0, epv_fv=110.0,
+                          roic_by_year={2021: 0.08, 2023: 0.12})]
+        score_and_rate(rows)
+        assert rows[0]['_price_fv'] == pytest.approx(0.8)
+        assert rows[0]['fcf_margin'] == pytest.approx(0.25)
+        assert rows[0]['sbc_pct_rev'] == pytest.approx(0.0)
+        assert rows[0]['epv_floor_ratio'] == pytest.approx(1.375)
+        assert rows[0]['roic_trend_slope'] == pytest.approx(0.04)
+
+    def test_gate_metadata_matches_screening_gate_count(self):
+        meta = gate_metadata()
+        assert len(meta['gates']) == len(SCREENING_GATES)
+        keys = {g['key'] for g in meta['gates']}
+        assert '_gate_roic_trend' in keys
+        assert '_gate_epv_floor' in keys
+        assert '_gate_rim_mos' in keys
+
+
+# ---------------------------------------------------------------------------
+# apply_screening_matrix — binary gate edge cases
+# ---------------------------------------------------------------------------
+
+class TestScreeningGateEdgeCases:
+    """Regression tests for binary gates that previously mishandled negatives."""
+
+    def _row(self, **kwargs):
+        defaults = {'ticker': 'EDGE', 'price': 100.0}
+        defaults.update(kwargs)
+        return defaults
+
+    def test_price_fv_gate_fails_when_dcf_fv_negative(self):
+        """Negative DCF fair value must not pass the Price/FV gate.
+
+        A distressed company with negative implied equity value previously
+        passed because price / -fv < 1.0 evaluated to True.
+        """
+        rows = [self._row(price=50.0, dcf_fv=-25.0)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_price_fv'] is None
+        assert rows[0]['_gate_price_fv'] is None
+
+    def test_price_fv_gate_fails_when_dcf_fv_zero(self):
+        """Zero fair value must short-circuit to N/A, not div-by-zero."""
+        rows = [self._row(price=50.0, dcf_fv=0.0)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_price_fv'] is None
+
+    def test_price_fv_gate_passes_when_undervalued(self):
+        rows = [self._row(price=50.0, dcf_fv=100.0)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_price_fv'] is True
+        assert rows[0]['_gate_price_fv'] == pytest.approx(0.5)
+
+    def test_price_fv_gate_fails_when_overvalued(self):
+        rows = [self._row(price=150.0, dcf_fv=100.0)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_price_fv'] is False
+        assert rows[0]['_gate_price_fv'] == pytest.approx(1.5)
+
+    def test_p_tbv_gate_fails_when_negative(self):
+        """Negative tangible book (insolvent on a tangible basis) must not pass
+        the P/TBV gate. P/TBV would invert to a misleading "cheap" signal.
+        """
+        rows = [self._row(p_tbv=-1.5)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_p_tbv'] is False
+        assert rows[0]['_gate_p_tbv'] == pytest.approx(-1.5)
+
+    def test_p_tbv_gate_passes_when_in_range(self):
+        rows = [self._row(p_tbv=1.5)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_p_tbv'] is True
+
+    def test_p_tbv_gate_fails_when_above_threshold(self):
+        rows = [self._row(p_tbv=4.0)]
+        apply_screening_matrix(rows)
+        assert rows[0]['_gp_p_tbv'] is False
+
+    def test_negative_p_tbv_does_not_clamp_continuous_score_to_100(self):
+        """Negative P/TBV previously hit _score_linear(-3, 5.0, 1.0) → clamp 100.
+
+        The score function rejects v <= 0 and returns None, which the
+        aggregator treats as a worst-case 0 (consistent with other missing
+        gates), so a negative-tangible-book company can no longer outscore a
+        healthy one.
+        """
+        rows = [self._row(p_tbv=-3.0), self._row(p_tbv=1.5, ticker='OK')]
+        compute_continuous_scores(rows)
+        assert rows[0]['_score_p_tbv'] == 0.0
+        assert rows[1]['_score_p_tbv'] > rows[0]['_score_p_tbv']
+
+    def test_spread_gate_threshold_is_seven_percent(self):
+        """Pin the actual threshold so the display label/tooltip stay aligned."""
+        below = [self._row(spread=0.06)]
+        above = [self._row(spread=0.08)]
+        apply_screening_matrix(below)
+        apply_screening_matrix(above)
+        assert below[0]['_gp_spread_>_5%'] is False
+        assert above[0]['_gp_spread_>_5%'] is True
+
+
+class TestThinEdgarHistoryCap:
+    """The rating cap that catches foreign issuers with no EDGAR multi-year history.
+
+    Without this cap, a 20-F/40-F filer whose IFRS taxonomy isn't being parsed
+    (so `edgar_history` is None/empty) can score BUY off short-term yfinance
+    signals alone. The cap forces them to HOLD until real history is wired up.
+    """
+    _BASE = {'price': 100, 'dcf_fv': 120, '_price_fv': 0.83, 'mos': 0.17}
+
+    def test_zero_years_capped_to_hold(self):
+        row = {**self._BASE, 'edgar_history': {'years_available': 0}}
+        cap, reasons = _rating_cap_for_row(row)
+        assert cap == 'HOLD'
+        assert any('thin EDGAR history' in r for r in reasons)
+
+    def test_missing_edgar_history_capped_to_hold(self):
+        row = {**self._BASE, 'edgar_history': None}
+        cap, reasons = _rating_cap_for_row(row)
+        assert cap == 'HOLD'
+        assert any('thin EDGAR history (0y)' in r for r in reasons)
+
+    def test_four_years_still_capped(self):
+        row = {**self._BASE, 'edgar_history': {'years_available': 4}}
+        cap, reasons = _rating_cap_for_row(row)
+        assert cap == 'HOLD'
+        assert any('thin EDGAR history (4y)' in r for r in reasons)
+
+    def test_five_years_not_capped(self):
+        row = {**self._BASE, 'edgar_history': {'years_available': 5}}
+        cap, reasons = _rating_cap_for_row(row)
+        assert not any('thin EDGAR history' in r for r in reasons)
+
+    def test_apply_caps_downgrades_buy_to_hold(self):
+        rows = [{
+            **self._BASE, 'ticker': 'TSMWF',
+            '_composite_score': 60.5,
+            'edgar_history': {'years_available': 0},
+        }]
+        apply_rating_caps(rows)
+        assert rows[0]['rating_raw'] == 'BUY'
+        assert rows[0]['rating'] == 'HOLD'
+        assert 'thin EDGAR history (0y)' in rows[0]['_rating_cap_reasons']
+
+    def test_apply_caps_leaves_us_filer_buy(self):
+        rows = [{
+            **self._BASE, 'ticker': 'AAPL',
+            '_composite_score': 60.5,
+            'edgar_history': {'years_available': 15},
+        }]
+        apply_rating_caps(rows)
+        assert rows[0]['rating_raw'] == 'BUY'
         assert rows[0]['rating'] == 'BUY'

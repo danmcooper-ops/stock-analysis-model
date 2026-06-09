@@ -101,6 +101,11 @@ class TestEPVGrowthPremium:
         assert epv_with_growth_premium(100.0, 0.15, 0) is None
 
     def test_growth_premium_capped(self):
-        """Very high ROE -> multiplier capped at 3x."""
+        """Very high ROE -> multiplier capped at 2x.
+
+        Tightened from 3× to 2× — a sustained 3× ROE-to-Re ratio is rare
+        moat territory that EPV's zero-growth premise can't model honestly,
+        so the cap holds the model to its "floor" purpose.
+        """
         result = epv_with_growth_premium(100.0, roe=0.50, cost_of_equity=0.10)
-        assert result == pytest.approx(300.0)  # capped at 3x
+        assert result == pytest.approx(200.0)  # capped at 2x

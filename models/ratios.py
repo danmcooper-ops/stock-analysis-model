@@ -8,11 +8,20 @@ from models.field_keys import (
     OPERATING_CF_KEYS,
 )
 
+
 def compute_ratios(financials):
-    ratios = {}
+    """Quick ratios: ROE, Debt-to-Equity, Current Ratio, ROA.
+
+    Uses `is not None` for net_income (not truthiness) so negative or zero
+    earnings produce a real ROE — a negative ROE is signal, not absence.
+    Equity / current_liabilities still need the zero guard for division.
+    Returns a dict with the ratios plus a 'warnings' list.
+    """
+    ratios = {'warnings': []}
     bs = financials.get('balance_sheet')
     inc = financials.get('income_statement')
     if bs is None or inc is None or bs.empty or inc.empty:
+        ratios['warnings'].append('balance_sheet or income_statement missing/empty')
         return ratios
 
     latest_bs = bs.iloc[:, 0]
@@ -25,21 +34,40 @@ def compute_ratios(financials):
     current_liabilities = _get(latest_bs, CURRENT_LIABILITIES_KEYS, allow_zero=False)
     net_income = _get(latest_inc, NET_INCOME_KEYS)
 
-    if total_equity and net_income:
+    if total_equity and net_income is not None:
         ratios['ROE'] = net_income / total_equity
-    if total_equity and total_liabilities:
+        if ratios['ROE'] < 0:
+            ratios['warnings'].append(f"Negative ROE ({ratios['ROE']:.1%})")
+        if total_equity < 0:
+            ratios['warnings'].append(
+                'Negative equity — ROE sign is meaningless (both sides flip)'
+            )
+    if total_equity and total_liabilities is not None:
         ratios['Debt-to-Equity'] = total_liabilities / total_equity
-    if current_assets and current_liabilities:
+    if current_assets is not None and current_liabilities:
         ratios['Current Ratio'] = current_assets / current_liabilities
-    if total_assets and net_income:
+    if total_assets and net_income is not None:
         ratios['ROA'] = net_income / total_assets
     return ratios
 
 
-def calculate_wacc(financials, cost_of_equity):
+def calculate_wacc(financials, cost_of_equity, *,
+                   risk_free_rate=None, credit_spread=0.025):
     """
     WACC = (E/V)*Re + (D/V)*Rd*(1-T).
     Uses market cap for equity weight (not book), per worksheet Step 4C.
+
+    Hardened: when debt exists but interest_expense is missing or zero,
+    fall back to cost_of_debt = risk_free_rate + credit_spread instead of
+    silently treating debt as free. Pass risk_free_rate from the macro
+    context; the default credit_spread is a conservative 2.5%.
+
+    If both interest_expense AND risk_free_rate are missing, falls back
+    to cost_of_equity × 0.6 as a last-resort placeholder. WACC may
+    misstate cost of capital meaningfully in that case — check upstream
+    data quality.
+
+    Returns the WACC as a float, or None when equity cannot be sourced.
     """
     bs = financials.get('balance_sheet')
     inc = financials.get('income_statement')
@@ -55,7 +83,7 @@ def calculate_wacc(financials, cost_of_equity):
     total_equity_book = _get(latest_bs, EQUITY_KEYS, allow_zero=False)
     total_equity = market_cap if (market_cap and market_cap > 0) else total_equity_book
 
-    total_debt = _get(latest_bs, DEBT_KEYS)
+    total_debt = _get(latest_bs, DEBT_KEYS) or 0
     interest_expense = _get(latest_inc, INTEREST_KEYS)
     tax_provision = _get(latest_inc, ['Tax Provision'])
     pretax_income = _get(latest_inc, ['Pretax Income'], allow_zero=False)
@@ -63,17 +91,38 @@ def calculate_wacc(financials, cost_of_equity):
     if not total_equity or total_equity <= 0:
         return None
 
-    debt = total_debt if total_debt else 0
-    total_capital = total_equity + debt
+    total_capital = total_equity + total_debt
     weight_equity = total_equity / total_capital
-    weight_debt = debt / total_capital
+    weight_debt = total_debt / total_capital
 
-    cost_of_debt = (interest_expense / debt) if (interest_expense and debt > 0) else 0
-    tax_rate = (tax_provision / pretax_income) if (tax_provision and pretax_income and pretax_income != 0) else 0.21
+    # Cost of debt — credit-spread fallback when interest expense missing.
+    # The old behavior of cost_of_debt = 0 silently understated WACC for any
+    # levered firm with a sparse cash-flow statement.
+    if total_debt > 0:
+        if interest_expense and interest_expense > 0:
+            cost_of_debt = interest_expense / total_debt
+        elif risk_free_rate is not None and risk_free_rate > 0:
+            cost_of_debt = risk_free_rate + credit_spread
+        else:
+            cost_of_debt = cost_of_equity * 0.6
+    else:
+        cost_of_debt = 0
+
+    tax_rate = (
+        tax_provision / pretax_income
+        if (tax_provision and pretax_income and pretax_income != 0)
+        else 0.21
+    )
+    tax_rate = max(0.0, min(tax_rate, 0.50))
     return weight_equity * cost_of_equity + weight_debt * cost_of_debt * (1 - tax_rate)
 
 
 def calculate_roic(financials):
+    """Per-year and average ROIC = NOPAT / (Equity + Debt − Cash).
+
+    Returns dict with 'roic_by_year', 'avg_roic', and 'warnings' (years
+    skipped because invested_capital was non-positive, for instance).
+    """
     bs = financials.get('balance_sheet')
     inc = financials.get('income_statement')
     if bs is None or inc is None or bs.empty or inc.empty:
@@ -84,6 +133,7 @@ def calculate_roic(financials):
         return None
 
     roic_by_year = {}
+    warnings = []
     for year in common_years:
         bs_year = bs[year]
         inc_year = inc[year]
@@ -95,13 +145,16 @@ def calculate_roic(financials):
         total_debt = _get(bs_year, DEBT_KEYS)
         cash = _get(bs_year, CASH_KEYS)
 
-        if not all([operating_income, pretax_income, total_equity]):
+        if operating_income is None or pretax_income is None or total_equity is None:
             continue
 
         tax_rate = (tax_provision / pretax_income) if tax_provision and pretax_income else 0.21
         nopat = operating_income * (1 - tax_rate)
         invested_capital = total_equity + (total_debt or 0) - (cash or 0)
         if invested_capital <= 0:
+            warnings.append(
+                f"{year}: invested_capital <= 0 (cash > equity + debt), skipped"
+            )
             continue
 
         roic_by_year[str(year.year) if hasattr(year, 'year') else str(year)] = nopat / invested_capital
@@ -110,25 +163,11 @@ def calculate_roic(financials):
         return None
 
     avg_roic = sum(roic_by_year.values()) / len(roic_by_year)
-    return {'roic_by_year': roic_by_year, 'avg_roic': avg_roic}
+    return {'roic_by_year': roic_by_year, 'avg_roic': avg_roic, 'warnings': warnings}
 
 
 def dupont_decomposition(net_income, revenue, total_assets, equity):
-    """3-factor DuPont decomposition: ROE = Margin x Turnover x Leverage.
-
-    Parameters
-    ----------
-    net_income : float or None
-    revenue : float or None
-    total_assets : float or None
-    equity : float or None
-
-    Returns
-    -------
-    dict or None
-        {'margin': float, 'turnover': float, 'leverage': float, 'roe': float}
-        or None if inputs invalid.
-    """
+    """3-factor DuPont decomposition: ROE = Margin x Turnover x Leverage."""
     if (net_income is None or revenue is None or
             total_assets is None or equity is None):
         return None
@@ -162,7 +201,7 @@ def compute_dupont(financials):
 
 
 # ---------------------------------------------------------------------------
-# New: Piotroski F-Score (Worksheet Step 1 quality filter)
+# Piotroski F-Score (Worksheet Step 1 quality filter)
 # ---------------------------------------------------------------------------
 
 
@@ -191,7 +230,7 @@ def calculate_fundamental_growth(financials, roic_override=None):
     tax_provision = _get(latest_inc, ['Tax Provision'])
     pretax_income = _get(latest_inc, ['Pretax Income'], allow_zero=False)
     tax_rate = (tax_provision / pretax_income) if (tax_provision and pretax_income) else 0.21
-    tax_rate = max(0, min(tax_rate, 0.50))  # clamp to sensible range
+    tax_rate = max(0, min(tax_rate, 0.50))
     nopat = operating_income * (1 - tax_rate)
     if nopat <= 0:
         return {}
@@ -234,5 +273,3 @@ def calculate_fundamental_growth(financials, roic_override=None):
         'reinvestment_rate': reinvestment_rate,
         'roic_used': roic_val,
     }
-
-

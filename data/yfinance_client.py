@@ -1,10 +1,17 @@
 # data/yfinance_client.py
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import date
 
 import yfinance as yf
 import pandas as pd
+
+
+class EmptyYahooResponseError(Exception):
+    """Yahoo returned an HTTP-200 response with empty payload — almost
+    always a soft rate-limit / throttle. Treated as a retryable failure
+    so the caller can either retry or fall back to another data source."""
 
 
 # Module-level executor shared across all timeout calls.  Using a single
@@ -33,14 +40,15 @@ def _run_with_timeout(func, timeout_seconds):
 
 
 class YFinanceClient:
-    def __init__(self, request_delay=0.25, snapshot_cache=None,
-                 fetch_timeout=20):
+    def __init__(self, request_delay=1.0, snapshot_cache=None,
+                 fetch_timeout=20, prices_dir="output/prices"):
         self._financials_cache = {}
         self._history_cache = {}
         self._request_delay = request_delay
         self._last_request_time = 0
         self._snapshot_cache = snapshot_cache  # Optional SnapshotCache instance
         self._fetch_timeout = fetch_timeout    # hard wall-clock limit per fetch
+        self._prices_dir = prices_dir          # Write-through dir for fetch_history
 
     def evict_financials(self, keep_tickers=None):
         """Free cached financial data.  If *keep_tickers* is given, only those
@@ -129,6 +137,22 @@ class YFinanceClient:
                 'cash_flow': stock.cashflow,
                 'info': stock.info,
             }
+            # Detect Yahoo soft-throttle: HTTP 200 with empty statement frames
+            # AND an info dict missing all the standard identifying fields.
+            # A real response always carries at least one of symbol/shortName/longName
+            # in info, even for OTC / foreign-listed tickers.
+            bs = data['balance_sheet']
+            inc = data['income_statement']
+            cf = data['cash_flow']
+            info = data['info'] or {}
+            bs_empty = bs is None or (hasattr(bs, 'empty') and bs.empty)
+            inc_empty = inc is None or (hasattr(inc, 'empty') and inc.empty)
+            cf_empty = cf is None or (hasattr(cf, 'empty') and cf.empty)
+            info_empty = not (info.get('symbol') or info.get('shortName')
+                              or info.get('longName'))
+            if bs_empty and inc_empty and cf_empty and info_empty:
+                raise EmptyYahooResponseError(
+                    f"yfinance returned empty payload for {ticker} (likely throttled)")
             # Growth estimates and earnings history (may fail for some tickers)
             try:
                 data['growth_estimates'] = stock.growth_estimates
@@ -138,6 +162,17 @@ class YFinanceClient:
                 data['earnings_history'] = stock.earnings_history
             except Exception:
                 data['earnings_history'] = None
+            # Capture quote and reporting currencies so the analysis pipeline
+            # can normalize foreign-domiciled financials to USD before any
+            # valuation model runs. ``currency`` is the quote / price
+            # currency; ``financialCurrency`` is the statement reporting
+            # currency. They can differ — e.g., NVO (ADR) quotes in USD but
+            # reports in DKK. Falls back to ``currency`` when
+            # ``financialCurrency`` is absent (common for ADRs that report
+            # in USD anyway).
+            data['currency_quote'] = info.get('currency')
+            data['currency_financial'] = (info.get('financialCurrency')
+                                          or info.get('currency'))
             return data
 
         financials = self._retry(_fetch)
@@ -189,13 +224,43 @@ class YFinanceClient:
         stock = yf.Ticker(ticker)
 
         def _fetch():
-            hist = stock.history(period=period)
-            # Guard against empty DataFrame or renamed column ('close' vs 'Close')
+            return stock.history(period=period)
+
+        try:
+            hist = self._retry(_fetch)
+        except Exception:
+            hist = None
+
+        history = pd.Series(dtype=float)
+        if hist is not None and not hist.empty:
             for col in ('Close', 'close'):
                 if col in hist.columns:
-                    return hist[col]
-            return pd.Series(dtype=float)
+                    history = hist[col]
+                    break
+            self._maybe_persist_prices(ticker, hist)
 
-        history = self._retry(_fetch)
         self._history_cache[cache_key] = history
         return history
+
+    def _maybe_persist_prices(self, ticker, hist):
+        # Write Close series to <prices_dir>/<ticker>.parquet on first encounter,
+        # so downstream tools (validate_ratings, portfolio_report, backtest) can
+        # use it. Skip if a file already exists (don't stomp richer max-history
+        # data from download_prices.py). Failures are silent — never block analysis.
+        if not self._prices_dir or hist is None or hist.empty:
+            return
+        col = 'Close' if 'Close' in hist.columns else ('close' if 'close' in hist.columns else None)
+        if col is None:
+            return
+        path = os.path.join(self._prices_dir, f"{ticker}.parquet")
+        if os.path.exists(path):
+            return
+        try:
+            os.makedirs(self._prices_dir, exist_ok=True)
+            df = hist[[col]].copy()
+            if col == 'close':
+                df.columns = ['Close']
+            df.index = pd.to_datetime(df.index).tz_localize(None)
+            df.to_parquet(path)
+        except Exception:
+            pass

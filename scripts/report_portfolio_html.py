@@ -1,11 +1,13 @@
 # scripts/report_portfolio_html.py
 """Portfolio HTML report builder — renders the portfolio Jinja2 report."""
 import os
-import json
+from html import escape
 from datetime import date
 
 import jinja2
 import numpy as np
+
+from scripts.safe_json import dumps_for_script
 
 
 def _json_default(obj):
@@ -47,6 +49,11 @@ def fmt_dollar_short(val):
     return f"${val:,.2f}"
 
 
+def _html_text(value):
+    """Escape text rendered into templates with autoescape disabled."""
+    return escape(str(value), quote=True)
+
+
 def build_portfolio_html(portfolio_state, filename):
     """Render the interactive portfolio HTML report via Jinja2 template.
 
@@ -62,12 +69,12 @@ def build_portfolio_html(portfolio_state, filename):
     concentration = portfolio_state.get('concentration', {})
 
     # Build chart-ready holdings list (remove non-serializable types)
-    holdings_json = json.dumps(holdings, default=_json_default)
-    alerts_json = json.dumps(alerts, default=_json_default)
+    holdings_json = dumps_for_script(holdings, default=_json_default)
+    alerts_json = dumps_for_script(alerts, default=_json_default)
 
     # Sector weights for donut chart
     sector_weights = concentration.get('sector_weights', {})
-    sector_chart_data = json.dumps([
+    sector_chart_data = dumps_for_script([
         {'sector': s, 'weight': w}
         for s, w in sorted(sector_weights.items(), key=lambda x: -x[1])
     ], default=_json_default)
@@ -96,10 +103,10 @@ def build_portfolio_html(portfolio_state, filename):
 
     template = env.get_template('portfolio_report.html')
     html = template.render(
-        portfolio_name=portfolio_state.get('portfolio_name', 'My Portfolio'),
+        portfolio_name=_html_text(portfolio_state.get('portfolio_name', 'My Portfolio')),
         generated_at=date.today().strftime('%Y-%m-%d'),
-        benchmark=bench,
-        macro_regime=portfolio_state.get('macro_regime', 'N/A'),
+        benchmark=_html_text(bench),
+        macro_regime=_html_text(portfolio_state.get('macro_regime', 'N/A')),
 
         # Summary metrics
         total_mv=total_mv,

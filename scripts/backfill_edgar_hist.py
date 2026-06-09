@@ -1,7 +1,7 @@
 """Backfill edgar_history series into an existing results JSON file.
 
 Usage:
-    python scripts/backfill_edgar_hist.py [results_YYYY-MM-DD.json]
+    python scripts/backfill_edgar_hist.py [results_YYYY-MM-DD.json] [--force] [--limit N] [--tickers TK1 TK2 ...]
 
 If no file is given, uses the most recent results_*.json in output/.
 
@@ -10,8 +10,14 @@ capex_history, gross_profit_history, shares_history, dividends_paid_history
 from SEC EDGAR XBRL for any ticker whose stored edgar_history is missing
 those series (i.e., only has 'years_available').
 
+  --force     re-fetch even tickers that already have edgar_history (use after
+              extractor changes — e.g. switching annual → quarterly granularity).
+  --limit N   stop after backfilling N tickers (for testing).
+  --tickers   only backfill the listed tickers (overrides the auto-detected set).
+
 Saves the patched JSON in-place (overwrites) then rebuilds the HTML.
 """
+import argparse
 import json
 import os
 import ssl
@@ -42,9 +48,18 @@ def _fetch_cik_map():
     return cik_map, name_map
 
 
-def _pick_json():
-    if len(sys.argv) > 1:
-        return sys.argv[1]
+def _parse_args():
+    p = argparse.ArgumentParser(description='Backfill edgar_history into a results JSON')
+    p.add_argument('json_path', nargs='?', help='results_YYYY-MM-DD.json (default: most recent)')
+    p.add_argument('--force', action='store_true', help='Re-fetch even tickers that already have edgar_history')
+    p.add_argument('--limit', type=int, default=None, help='Stop after N tickers')
+    p.add_argument('--tickers', nargs='+', help='Only backfill these tickers')
+    return p.parse_args()
+
+
+def _pick_json(arg=None):
+    if arg:
+        return arg
     pattern = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'output', 'results_*.json')
@@ -60,7 +75,8 @@ def _pick_json():
 # ---------------------------------------------------------------------------
 
 def main():
-    json_path = _pick_json()
+    args = _parse_args()
+    json_path = _pick_json(args.json_path)
     print(f'[backfill] patching {json_path}')
 
     with open(json_path) as f:
@@ -71,17 +87,25 @@ def main():
         print('[backfill] unexpected JSON structure'); sys.exit(1)
 
     # Identify tickers that need backfilling
-    need = []
-    for r in rows:
-        tk = r.get('ticker')
-        if not tk:
-            continue
-        eh = r.get('edgar_history') or {}
-        # Missing if no revenue_history series (even if years_available is set)
-        if not eh.get('revenue_history') and not eh.get('earnings_history'):
-            need.append(tk)
+    if args.tickers:
+        need = list(args.tickers)
+    else:
+        need = []
+        for r in rows:
+            tk = r.get('ticker')
+            if not tk:
+                continue
+            eh = r.get('edgar_history') or {}
+            if args.force:
+                need.append(tk)
+            elif not eh.get('revenue_history') and not eh.get('earnings_history'):
+                need.append(tk)
 
-    print(f'[backfill] {len(need)}/{len(rows)} tickers need edgar_history backfill')
+    if args.limit is not None:
+        need = need[:args.limit]
+
+    label = 'force-refresh' if args.force else 'need backfill'
+    print(f'[backfill] {len(need)}/{len(rows)} tickers to {label}')
     if not need:
         print('[backfill] nothing to do'); return
 

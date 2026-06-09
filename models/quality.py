@@ -66,7 +66,14 @@ def calculate_altman_z(financials):
     retained_earnings = _get(latest_bs, ['Retained Earnings']) or 0
     ebit = _get(latest_inc, ['Operating Income']) or 0
     revenue = _get(latest_inc, REVENUE_KEYS) or 0
-    total_liabilities = _get(latest_bs, ['Total Liabilities Net Minority Interest', 'Total Liab']) or 1
+    total_liabilities = _get(latest_bs, ['Total Liabilities Net Minority Interest', 'Total Liab'])
+    if not total_liabilities or total_liabilities <= 0:
+        # Without total liabilities we can't compute the 0.6 * MV_Equity/TL term,
+        # which dominates Z. Returning None drops the ticker from sector-level
+        # medians instead of silently substituting TL=1, which used to produce
+        # Z = 0.6 * market_cap for mega-caps whose yfinance balance sheet lacks
+        # either field name (~77% of tickers in the current run).
+        return None
 
     market_cap = info.get('marketCap')
     equity_book = _get(latest_bs, EQUITY_KEYS) or 0

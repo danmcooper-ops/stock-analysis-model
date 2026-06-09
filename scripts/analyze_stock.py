@@ -21,7 +21,7 @@ if os.path.exists(_env_path):
                 _k, _v = _line.split('=', 1)
                 os.environ.setdefault(_k.strip(), _v.strip())
 
-from data.yfinance_client import YFinanceClient
+from data.yfinance_client import YFinanceClient, EmptyYahooResponseError
 from data.treasury_rate import fetch_risk_free_rate
 from data.validation import validate_financials
 from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re)
@@ -34,14 +34,15 @@ from models.quality import (calculate_earnings_quality, calculate_piotroski_f,
                             calculate_revenue_cagr, calculate_interest_coverage,
                             calculate_net_debt_ebitda, get_net_debt,
                             calculate_altman_z, calculate_beneish_m)
-from models.market import (compute_relative_multiples, compute_analyst_consensus,
-                           compute_rating)
+from models.market import compute_relative_multiples, compute_analyst_consensus
 from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm,
                          ddm_h_model, monte_carlo_ddm)
 from models.epv import earnings_power_value, epv_with_growth_premium
 from models.rim import residual_income_model
+from models.nav import tangible_book_value_per_share
 from models.portfolio import position_sizes, concentration_analysis
 from models.utils import rank
+from models.field_keys import OPERATING_CF_KEYS, CAPEX_KEYS
 from scripts.report_excel import build_excel
 from scripts.report_html import build_html
 from data.macro_client import MacroClient
@@ -55,6 +56,7 @@ from data.sec_legal_client import SECLegalClient
 from data.finnhub_supply_client import FinnhubSupplyClient
 from data.sec_supply_client import SECSupplyClient
 from data.sec_xbrl_client import SECXBRLClient
+from data.fx_client import get_spot_fx_rate, apply_fx_to_statement_df
 from data.sec_insider_client import SECInsiderClient
 from data.culture_client import CultureClient
 
@@ -82,15 +84,225 @@ from scripts.config import (DEFAULT_RISK_FREE_RATE, ERP, TERMINAL_GROWTH_RATE,
                             EV_EBITDA_OUTLIER_MAX, MIN_SECTOR_STOCKS,
                             DATA_QUALITY_MIN, MIN_MORNINGSTAR_SAMPLE,
                             _get_sector_config)
-from scripts.scoring import (_mc_confidence_label, apply_screening_matrix,
-                             compute_continuous_scores,
-                             apply_composite_rating_override,
+from scripts.scoring import (_mc_confidence_label, score_and_rate,
                              _print_validation_stats)
 
 
 # ---------------------------------------------------------------------------
 # Local price file helpers
 # ---------------------------------------------------------------------------
+
+_FOUNDER_OVERRIDES_CACHE = None
+_WIKIDATA_FOUNDERS_CACHE = None
+_HONORIFICS = ('mr.', 'mrs.', 'ms.', 'miss', 'dr.', 'prof.', 'sir')
+
+
+def _flow_to_annual(history):
+    # The current EDGAR client returns one value per fiscal year keyed by
+    # integer year (or its string form after JSON round-trip). Legacy
+    # snapshots used date-string keys ("YYYY-MM-DD") with mixed quarterly
+    # + annual entries — for those, sum 4-quarter years and pass through
+    # annual-only years; mixed-period legacy years are dropped (the old
+    # behavior, retained for backwards compatibility with stored data).
+    if not history:
+        return {}
+    by_year = {}
+    for k, v in history.items():
+        if v is None:
+            continue
+        ks = str(k)
+        try:
+            yr = int(ks[:4])
+        except (TypeError, ValueError):
+            continue
+        is_annual_key = isinstance(k, int) or (len(ks) == 4 and ks.isdigit())
+        by_year.setdefault(yr, []).append((is_annual_key, v))
+    annual = {}
+    for yr, entries in by_year.items():
+        annual_keyed = [v for ak, v in entries if ak]
+        if annual_keyed:
+            annual[yr] = annual_keyed[-1]
+            continue
+        vals = [v for _, v in entries]
+        if len(vals) == 1:
+            annual[yr] = vals[0]
+        elif len(vals) == 4:
+            annual[yr] = sum(vals)
+    return annual
+
+
+def _stock_to_annual(history):
+    # Point-in-time concepts (e.g. shares outstanding): keep the latest
+    # observation in each calendar year.
+    if not history:
+        return {}
+    latest = {}
+    for period_end, val in history.items():
+        if val is None:
+            continue
+        try:
+            yr = int(str(period_end)[:4])
+        except (TypeError, ValueError):
+            continue
+        if yr not in latest or str(period_end) > latest[yr][0]:
+            latest[yr] = (str(period_end), val)
+    return {yr: pv[1] for yr, pv in latest.items()}
+
+
+def derive_edgar_metrics(edgar_history):
+    """Derive multi-year CAGRs and margin-trend signals from EDGAR history.
+
+    Returns a dict with eight fields (None when insufficient data):
+      rev_cagr_5y, rev_cagr_10y, fcf_cagr_5y, fcf_cagr_10y,
+      gross_margin_avg_5y, gross_margin_trend, dividend_cagr_5y,
+      shares_cagr_5y.
+
+    Shared between the live analyze_stock pipeline and rescore_and_render
+    so a snapshot whose edgar_history was populated after the fact (e.g.
+    via backfill_edgar_hist) can refresh its derived growth signals
+    without re-running the full 3–6 hr analysis.
+    """
+    out = dict(rev_cagr_5y=None, rev_cagr_10y=None,
+               fcf_cagr_5y=None, fcf_cagr_10y=None,
+               gross_margin_avg_5y=None, gross_margin_trend=None,
+               dividend_cagr_5y=None, shares_cagr_5y=None)
+    if not edgar_history:
+        return out
+
+    rev_hist = _flow_to_annual(edgar_history.get('revenue_history', {}))
+    ocf_hist = _flow_to_annual(edgar_history.get('operating_cf_history', {}))
+    cap_hist = _flow_to_annual(edgar_history.get('capex_history', {}))
+    gp_hist  = _flow_to_annual(edgar_history.get('gross_profit_history', {}))
+    div_hist = _flow_to_annual(edgar_history.get('dividends_paid_history', {}))
+    sh_hist  = _stock_to_annual(edgar_history.get('shares_history', {}))
+
+    if rev_hist:
+        sy = sorted(rev_hist.keys())
+        newest_rev = rev_hist[sy[-1]] if sy else None
+        if newest_rev and newest_rev > 0:
+            if len(sy) >= 6:
+                yr5 = rev_hist.get(sy[-6])
+                if yr5 and yr5 > 0:
+                    out['rev_cagr_5y'] = (newest_rev / yr5) ** (1 / 5) - 1
+            if len(sy) >= 11:
+                yr10 = rev_hist.get(sy[-11])
+                if yr10 and yr10 > 0:
+                    out['rev_cagr_10y'] = (newest_rev / yr10) ** (1 / 10) - 1
+
+    if ocf_hist:
+        common_years = sorted(set(ocf_hist) & set(cap_hist)) if cap_hist else sorted(ocf_hist)
+        fcf_hist = {yr: ocf_hist[yr] - abs(cap_hist.get(yr, 0)) for yr in common_years}
+        fcf_vals = [fcf_hist[yr] for yr in sorted(fcf_hist) if fcf_hist[yr] is not None]
+        if len(fcf_vals) >= 6 and fcf_vals[-6] > 0 and fcf_vals[-1] > 0:
+            out['fcf_cagr_5y'] = (fcf_vals[-1] / fcf_vals[-6]) ** (1 / 5) - 1
+        if len(fcf_vals) >= 11 and fcf_vals[-11] > 0 and fcf_vals[-1] > 0:
+            out['fcf_cagr_10y'] = (fcf_vals[-1] / fcf_vals[-11]) ** (1 / 10) - 1
+
+    if gp_hist and rev_hist:
+        common_gy = sorted(set(gp_hist) & set(rev_hist))[-5:]
+        margins = [gp_hist[yr] / rev_hist[yr] for yr in common_gy
+                   if rev_hist.get(yr) and rev_hist[yr] > 0]
+        if len(margins) >= 3:
+            out['gross_margin_avg_5y'] = sum(margins) / len(margins)
+            n = len(margins)
+            xs = list(range(n))
+            x_mean = sum(xs) / n
+            y_mean = sum(margins) / n
+            denom = sum((x - x_mean) ** 2 for x in xs)
+            if denom:
+                out['gross_margin_trend'] = sum(
+                    (xs[i] - x_mean) * (margins[i] - y_mean) for i in range(n)
+                ) / denom
+
+    if div_hist:
+        dy = sorted(div_hist.keys())
+        if len(dy) >= 6:
+            d0, d1 = abs(div_hist.get(dy[-6], 0) or 0), abs(div_hist.get(dy[-1], 0) or 0)
+            if d0 > 0 and d1 > 0:
+                out['dividend_cagr_5y'] = (d1 / d0) ** (1 / 5) - 1
+
+    if sh_hist:
+        shy = sorted(sh_hist.keys())
+        if len(shy) >= 6:
+            s0, s1 = sh_hist.get(shy[-6]), sh_hist.get(shy[-1])
+            if s0 and s0 > 0 and s1 and s1 > 0:
+                out['shares_cagr_5y'] = (s1 / s0) ** (1 / 5) - 1
+
+    return out
+
+
+def _load_founder_overrides():
+    """Load and cache the curated founder-led overrides from
+    data/founder_overrides.json. Returns a dict {ticker: bool}; underscored
+    keys (e.g. _doc) are filtered out. Missing or malformed file → empty dict.
+    """
+    global _FOUNDER_OVERRIDES_CACHE
+    if _FOUNDER_OVERRIDES_CACHE is not None:
+        return _FOUNDER_OVERRIDES_CACHE
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
+                        'data', 'founder_overrides.json')
+    try:
+        with open(path) as _f:
+            raw = json.load(_f)
+        out = {k: bool(v) for k, v in raw.items()
+               if not k.startswith('_') and isinstance(v, bool)}
+    except Exception:
+        out = {}
+    _FOUNDER_OVERRIDES_CACHE = out
+    return out
+
+
+def _load_wikidata_founders():
+    """Load and cache Wikidata-derived founder names from
+    data/wikidata_founders.json. Returns {ticker: [founder_name, ...]}.
+    Missing file → empty dict. Build/refresh via build_wikidata_founders.py.
+    """
+    global _WIKIDATA_FOUNDERS_CACHE
+    if _WIKIDATA_FOUNDERS_CACHE is not None:
+        return _WIKIDATA_FOUNDERS_CACHE
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
+                        'data', 'wikidata_founders.json')
+    try:
+        with open(path) as _f:
+            raw = json.load(_f)
+        out = {k: list(v) for k, v in raw.items() if not k.startswith('_')}
+    except Exception:
+        out = {}
+    _WIKIDATA_FOUNDERS_CACHE = out
+    return out
+
+
+def _normalize_name(name):
+    """Lowercase, strip honorifics, split into a set of word tokens."""
+    if not name:
+        return set()
+    parts = name.lower().split()
+    parts = [p.strip('.,') for p in parts if p.lower() not in _HONORIFICS]
+    return set(p for p in parts if p)
+
+
+def _wikidata_founder_active(ticker, officers):
+    """True if any Wikidata-listed founder of *ticker* is in the current
+    officer list. Match logic: all words in the founder's normalized name
+    must appear in some officer's normalized name. Catches "Mark Zuckerberg"
+    vs "Mr. Mark Elliot Zuckerberg"; falls through on nickname divergence
+    like "Larry Ellison" vs "Lawrence J. Ellison" (manual override handles
+    those).
+    """
+    founders = _load_wikidata_founders().get(ticker, [])
+    if not founders or not officers:
+        return False
+    officer_words = [_normalize_name(o.get('name', '')) for o in officers]
+    officer_words = [s for s in officer_words if s]
+    for fn in founders:
+        fwords = _normalize_name(fn)
+        if not fwords:
+            continue
+        for ow in officer_words:
+            if fwords.issubset(ow):
+                return True
+    return False
+
 
 def _load_local_prices(ticker, prices_dir):
     """Load Close price series from local Parquet file. Returns pd.Series or None."""
@@ -108,7 +320,12 @@ def _load_local_prices(ticker, prices_dir):
 
 
 def _compute_rolling_beta(stock_close, market_close, window_years):
-    """Compute beta and R² over a trailing window of *window_years* years."""
+    """Compute beta and R² over a trailing window of *window_years* years.
+
+    Returns None on degenerate inputs (too few overlapping observations,
+    flat market, NaN-laden series) — calculate_beta now raises ValueError
+    on those instead of returning garbage, so we catch and degrade.
+    """
     window_days = int(window_years * 252)
     s = stock_close.tail(window_days)
     m = market_close.reindex(s.index, method='nearest').reindex(s.index)
@@ -118,7 +335,10 @@ def _compute_rolling_beta(stock_close, market_close, window_years):
     stock_ret  = combined['s'].pct_change().dropna().values
     market_ret = combined['m'].pct_change().dropna().values
     n = min(len(stock_ret), len(market_ret))
-    return calculate_beta(stock_ret[:n], market_ret[:n])
+    try:
+        return calculate_beta(stock_ret[:n], market_ret[:n])
+    except ValueError:
+        return None
 
 
 def _realized_vol(close_series, window_days=252):
@@ -483,49 +703,212 @@ def _extract_latest_financials(yf_data):
     }
 
 
+# Per-share / total-dollar fields in yfinance ``info`` that need to be
+# multiplied by the FX spot rate when the quote currency isn't USD. Ratios
+# (trailingPE, priceToBook, enterpriseToEbitda, dividendYield, payoutRatio)
+# are dimensionless and intentionally excluded.
+_FX_INFO_DOLLAR_FIELDS = (
+    'marketCap', 'enterpriseValue',
+    'currentPrice', 'regularMarketPrice', 'previousClose',
+    'fiftyTwoWeekHigh', 'fiftyTwoWeekLow',
+    'dividendRate', 'bookValue',
+    'targetMeanPrice', 'targetHighPrice', 'targetLowPrice',
+    'lastDividendValue', 'lastDividendDate',  # date is fine to leave alone — _scale skips non-numerics
+)
+
+
+def _convert_financials_to_usd(yf_data):
+    """Convert ``yf_data`` financials + dollar-denominated info fields to USD.
+
+    Foreign-domiciled tickers report financials in local currency but the
+    valuation pipeline discounts at a USD-anchored WACC (US Treasury yield
+    + global ERP). Without normalization, per-share DCF / EPV / RIM / NAV
+    FVs are in the local currency while the displayed price may be in USD
+    (ADRs) or the same local currency (.SW, .L exchanges) — producing the
+    "wild divergence" the user observed.
+
+    Returns ``(yf_data, fx_meta)``. ``fx_meta`` carries:
+        currency_quote      — info['currency'] (price currency)
+        currency_financial  — info['financialCurrency'] (statement currency)
+        fx_rate_financial   — rate applied to balance_sheet / income_stmt / cash_flow (None when no conversion)
+        fx_rate_quote       — rate applied to info dollar fields (None when no conversion)
+        fx_converted        — True iff any conversion was applied
+        fx_fetch_failed     — True iff at least one rate lookup returned None for a non-USD currency
+    """
+    info = yf_data.get('info') or {}
+    ccy_fin = yf_data.get('currency_financial') or info.get('financialCurrency') or info.get('currency')
+    ccy_quote = yf_data.get('currency_quote') or info.get('currency')
+    fx_meta = {
+        'currency_quote': ccy_quote,
+        'currency_financial': ccy_fin,
+        'fx_rate_financial': None,
+        'fx_rate_quote': None,
+        'fx_converted': False,
+        'fx_fetch_failed': False,
+    }
+    needs_fin = ccy_fin and ccy_fin != 'USD'
+    needs_quote = ccy_quote and ccy_quote != 'USD'
+    if not needs_fin and not needs_quote:
+        return yf_data, fx_meta
+    # Shallow-copy the outer dict so we don't mutate the cached payload.
+    out = dict(yf_data)
+    if needs_fin:
+        rate_fin = get_spot_fx_rate(ccy_fin)
+        if rate_fin is None:
+            fx_meta['fx_fetch_failed'] = True
+        else:
+            fx_meta['fx_rate_financial'] = rate_fin
+            fx_meta['fx_converted'] = True
+            for key in ('balance_sheet', 'income_statement', 'income_stmt', 'cash_flow'):
+                df = out.get(key)
+                if df is not None:
+                    out[key] = apply_fx_to_statement_df(df, rate_fin)
+    if needs_quote:
+        # Often the quote and financial currencies are the same (e.g.,
+        # NESN.SW: CHF/CHF). get_spot_fx_rate hits the same cache entry.
+        if needs_fin and ccy_quote == ccy_fin:
+            rate_quote = fx_meta['fx_rate_financial']
+        else:
+            rate_quote = get_spot_fx_rate(ccy_quote)
+        if rate_quote is None:
+            fx_meta['fx_fetch_failed'] = True
+        else:
+            fx_meta['fx_rate_quote'] = rate_quote
+            fx_meta['fx_converted'] = True
+            new_info = dict(info)
+            for f in _FX_INFO_DOLLAR_FIELDS:
+                v = new_info.get(f)
+                if v is None:
+                    continue
+                try:
+                    fv = float(v)
+                except (TypeError, ValueError):
+                    continue
+                new_info[f] = fv * rate_quote
+            out['info'] = new_info
+    return out, fx_meta
+
+
+def _fcf_series_from_cashflow(cf):
+    """Return a period-sorted pandas Series of Free Cash Flow values from a
+    yfinance cash-flow DataFrame, deriving FCF = OCF + Capex when the
+    pre-computed 'Free Cash Flow' row is missing.
+
+    Background: yfinance's API stopped consistently surfacing the synthetic
+    'Free Cash Flow' row for many large-cap tickers after its 2023 rewrite.
+    It still returns 'Operating Cash Flow' and 'Capital Expenditure'
+    separately, leaving callers to derive FCF themselves. Without this
+    fallback the DCF stage silently skipped ~80% of the universe (every
+    mega-cap included — AAPL, MSFT, NVDA, GOOGL, ...).
+
+    Capex in yfinance is signed negative, so FCF = OCF + Capex.
+
+    Args:
+        cf: pandas DataFrame from yfinance — rows are line items, columns
+            are reporting periods.
+
+    Returns:
+        pd.Series indexed by period (sorted ascending), or None if neither
+        path can produce values.
+    """
+    if cf is None or cf.empty:
+        return None
+    # Preferred: yfinance's pre-computed synthetic row when present.
+    if 'Free Cash Flow' in cf.index:
+        fcf = cf.loc['Free Cash Flow'].dropna().sort_index()
+        if len(fcf) > 0:
+            return fcf
+    # Fallback: derive FCF = OCF + Capex (Capex stored as a negative
+    # number in yfinance, so addition gives FCF).
+    ocf_row = None
+    for key in OPERATING_CF_KEYS:
+        if key in cf.index:
+            candidate = cf.loc[key].dropna().sort_index()
+            if len(candidate) > 0:
+                ocf_row = candidate
+                break
+    if ocf_row is None:
+        return None
+    capex_row = None
+    for key in CAPEX_KEYS:
+        if key in cf.index:
+            candidate = cf.loc[key].dropna().sort_index()
+            if len(candidate) > 0:
+                capex_row = candidate
+                break
+    if capex_row is None:
+        return None
+    common = ocf_row.index.intersection(capex_row.index)
+    if len(common) == 0:
+        return None
+    fcf = (ocf_row.loc[common] + capex_row.loc[common]).sort_index().dropna()
+    if len(fcf) == 0:
+        return None
+    return fcf
+
+
 def _compute_shareholder_yield(yf_data, mcap):
     """Compute total shareholder yield = (dividends + buybacks) / market cap.
 
-    Uses the most recent fiscal year from cash flow statement.
+    Uses the most recent fiscal year from cash flow statement, with a
+    ticker.info fallback for dividends when the cash-flow Dividend Paid row
+    is missing (Yahoo leaves it blank for ~78% of tickers even when the
+    company genuinely pays a dividend).
+
     Returns dict with 'shareholder_yield' and 'buyback_rate' (both decimal), or None.
     """
     if not mcap or mcap <= 0:
         return None
     cf = yf_data.get('cash_flow')
-    if cf is None or (hasattr(cf, 'empty') and cf.empty):
+    info = yf_data.get('info') or {}
+    cf_present = cf is not None and not (hasattr(cf, 'empty') and cf.empty)
+
+    div_paid = 0
+    buyback = 0
+    issuance = 0
+    if cf_present:
+        latest = cf.iloc[:, 0]
+        for k in ['Common Stock Dividend Paid', 'Cash Dividends Paid']:
+            if k in latest.index and pd.notna(latest[k]):
+                div_paid = abs(float(latest[k]))
+                break
+        for k in ['Repurchase Of Capital Stock', 'Common Stock Payments']:
+            if k in latest.index and pd.notna(latest[k]):
+                buyback = abs(float(latest[k]))
+                break
+        # Subtract any new issuance to get net buyback. Allow negative values:
+        # a net-diluting company has buyback_rate < 0 and shareholder_yield is
+        # reduced (or negated) accordingly. Flooring at zero would mask dilution.
+        for k in ['Issuance Of Capital Stock', 'Common Stock Issuance']:
+            if k in latest.index and pd.notna(latest[k]):
+                issuance = abs(float(latest[k]))
+                break
+
+    # Dividend fallback: dividendRate (annual $/share) × sharesOutstanding gives
+    # total annual dividend cash, equivalent to the cash-flow Dividend Paid row.
+    # Apply whenever the cash-flow signal is missing or zero — dividendRate
+    # comes from info, a different yfinance endpoint that's far more reliable.
+    if div_paid == 0:
+        div_rate = info.get('dividendRate')
+        shares_out = info.get('sharesOutstanding')
+        if div_rate and shares_out and div_rate > 0 and shares_out > 0:
+            div_paid = float(div_rate) * float(shares_out)
+
+    # Distinguish "no data" from "no shareholder returns". If cash-flow is
+    # entirely absent AND dividendRate didn't fire, return None so the column
+    # shows as missing rather than a misleading 0.
+    if not cf_present and div_paid == 0:
         return None
 
-    latest = cf.iloc[:, 0]
-
-    # Dividends paid (negative in cash flow = cash out)
-    div_paid = 0
-    for k in ['Common Stock Dividend Paid', 'Cash Dividends Paid']:
-        if k in latest.index and pd.notna(latest[k]):
-            div_paid = abs(float(latest[k]))
-            break
-
-    # Share buybacks (negative in cash flow = cash out)
-    buyback = 0
-    for k in ['Repurchase Of Capital Stock', 'Common Stock Payments']:
-        if k in latest.index and pd.notna(latest[k]):
-            buyback = abs(float(latest[k]))
-            break
-
-    # Subtract any new issuance to get net buyback
-    issuance = 0
-    for k in ['Issuance Of Capital Stock', 'Common Stock Issuance']:
-        if k in latest.index and pd.notna(latest[k]):
-            issuance = abs(float(latest[k]))
-            break
-    net_buyback = max(0, buyback - issuance)
-
+    net_buyback = buyback - issuance
     total_return = div_paid + net_buyback
-    shareholder_yield = 0.0 if (total_return == 0 and div_paid == 0) else total_return / mcap
+    shareholder_yield = total_return / mcap
     buyback_rate = net_buyback / mcap
 
-    # Sanity cap — yield > 50% is almost certainly a data error (e.g. stale
-    # yfinance cash-flow snapshot with mismatched period/mcap units).
-    if shareholder_yield > 0.50:
+    # Sanity cap — |yield| > 50% is almost certainly a data error (stale
+    # yfinance cash-flow snapshot with mismatched period/mcap units, or a
+    # one-time issuance event distorting a single fiscal year).
+    if abs(shareholder_yield) > 0.50:
         shareholder_yield = None
         buyback_rate = None
 
@@ -566,15 +949,18 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     if cf is None or cf.empty:
         return None, None, None, {}, None
-    if 'Free Cash Flow' not in cf.index:
-        return None, None, None, {}, None
+
     cfg = _get_sector_config(sector)
     term_g = cfg['terminal_growth'] + terminal_growth_adj
 
     if wacc is None or wacc <= term_g:
         return None, None, None, {}, None
 
-    fcf_series = cf.loc['Free Cash Flow'].dropna().sort_index()
+    # Use the shared FCF extractor: prefers yfinance's pre-computed
+    # 'Free Cash Flow' row, falls back to OCF + Capex when missing.
+    fcf_series = _fcf_series_from_cashflow(cf)
+    if fcf_series is None:
+        return None, None, None, {}, None
     fcf_values = fcf_series.values.tolist()
     if not fcf_values:
         return None, None, None, {}, None
@@ -973,6 +1359,7 @@ def _main():
                              'Useful with --universe us to drop shells and micro-caps quickly.')
     args = parser.parse_args()
     prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
+    run_start_date = date.today()
 
     # Fetch live risk-free rate (10-yr Treasury yield)
     risk_free_rate = fetch_risk_free_rate()
@@ -1101,6 +1488,18 @@ def _main():
     else:
         print('Tiingo API not configured (set TIINGO_API_KEY) — falling back to yfinance/Google RSS.')
 
+    # SEC EDGAR clients initialized here (rather than at Phase-2 setup) so the
+    # SECXBRLClient is available as a Phase-1 fallback when yfinance returns
+    # an empty payload (Yahoo soft-throttle). The CIK-map load is idempotent.
+    sec_client = SECLegalClient(email='stockanalysis@example.com', request_delay=1.0)
+    sec_client._load_cik_map()
+    sec_xbrl_client = SECXBRLClient(
+        cik_map=sec_client._cik_map,
+        name_map=sec_client._name_map,
+        email='stockanalysis@example.com',
+        request_delay=1.0,
+    )
+
     # -----------------------------------------------------------------------
     # Phase 1: Collect data for full universe (no ROIC > WACC pre-filter)
     # -----------------------------------------------------------------------
@@ -1159,7 +1558,78 @@ def _main():
         _grp = ticker_source.get(ticker, 'quality')
         screen_outcomes[_grp]['total'] += 1
         try:
-            yf_data = yf_client.fetch_financials(ticker)
+            # ----------------------------------------------------------------
+            # Fundamentals fetch — SEC XBRL is the primary source for the
+            # financial statements (authoritative, direct from filings);
+            # yfinance is the primary source for market-data `info` (market
+            # cap, beta, current price, dividends) and analyst series.
+            # Merge them so downstream code (CAPM, market-cap-weighted WACC,
+            # mcap filter) keeps working unchanged.
+            #
+            # Source tags written to screen_cache for audit / later gating:
+            #   'sec_xbrl+yfinance'  XBRL statements + yfinance info (US filer)
+            #   'yfinance'           yfinance both (foreign / OTC, no CIK)
+            #   'sec_xbrl'           XBRL only (yfinance throttled for a US filer)
+            # ----------------------------------------------------------------
+            try:
+                yf_data = yf_client.fetch_financials(ticker)
+            except EmptyYahooResponseError:
+                yf_data = None
+
+            # Early mcap bail before paying the XBRL fetch cost. For ~6K
+            # micro-caps the mcap filter will drop the ticker anyway —
+            # no point spending 1 second on a SEC fetch we'll discard.
+            # Carry-forwards bypass the mcap filter, so they still proceed.
+            _carried = ticker in _carry_set
+            if (yf_data is not None and args.mcap_min and not _carried):
+                _early_mcap = (yf_data.get('info') or {}).get('marketCap') or 0
+                if _early_mcap < args.mcap_min:
+                    print(f"  [{i}/{len(all_tickers)}] {ticker} - "
+                          f"SKIP mcap ${_early_mcap/1e6:.0f}M < "
+                          f"${args.mcap_min/1e6:.0f}M floor")
+                    sys.stdout.flush()
+                    continue
+
+            xbrl_data = None
+            if ticker in sec_xbrl_client._cik_map:
+                try:
+                    # No year_limit: use all available XBRL history (10-16
+                    # years). Through-cycle ROIC is the right input for a
+                    # DCF / value pipeline with a long terminal-value horizon.
+                    xbrl_data = sec_xbrl_client.build_yfinance_shape(ticker)
+                except Exception:
+                    xbrl_data = None  # network hiccup — fall through
+
+            if xbrl_data is not None and yf_data is not None:
+                yf_data = {
+                    'balance_sheet':    xbrl_data['balance_sheet'],
+                    'income_statement': xbrl_data['income_statement'],
+                    'cash_flow':        xbrl_data['cash_flow'],
+                    'info':             yf_data.get('info') or {},
+                    'growth_estimates': yf_data.get('growth_estimates'),
+                    'earnings_history': yf_data.get('earnings_history'),
+                }
+                _data_source = 'sec_xbrl+yfinance'
+            elif xbrl_data is not None:
+                # yfinance throttled for a US filer — XBRL-only path.
+                # info is sparse → CAPM falls to buildup, WACC uses book equity.
+                yf_data = xbrl_data
+                _data_source = 'sec_xbrl'
+            elif yf_data is not None:
+                # No CIK (foreign / OTC) — yfinance is the only source.
+                _data_source = 'yfinance'
+            else:
+                print(f"  [{i}/{len(all_tickers)}] {ticker} - "
+                      "error: yfinance empty AND no SEC XBRL coverage")
+                sys.stdout.flush()
+                continue
+
+            # FX normalization — convert local-currency financials + price/
+            # mcap to USD before any model runs. Skips USD-reporting tickers
+            # automatically; logs a warning flag on the row if the rate
+            # lookup fails so we can audit divergent valuations later.
+            yf_data, fx_meta = _convert_financials_to_usd(yf_data)
+
             info = yf_data.get('info') or {}
             sector = info.get('sector', '')
 
@@ -1167,7 +1637,8 @@ def _main():
             cost_of_equity, re_method, beta_diag = select_cost_of_equity(
                 yf_data, risk_free_rate, yf_client, ticker, erp=effective_erp,
                 tiingo_client=tiingo_client)
-            wacc = calculate_wacc(yf_data, cost_of_equity)
+            wacc = calculate_wacc(yf_data, cost_of_equity,
+                                  risk_free_rate=risk_free_rate)
             if wacc is not None:
                 s_cfg = _get_sector_config(sector)
                 wacc = max(s_cfg['wacc_floor'], min(s_cfg['wacc_cap'], wacc))
@@ -1187,7 +1658,16 @@ def _main():
                 sys.stdout.flush()
                 continue
 
-            if args.min_spread is not None and not _carried:
+            # Bypass the ROIC>WACC spread filter for Financial Services.
+            # The standard ROIC formula (NOPAT / (Equity + Debt − Cash))
+            # is economically meaningless for banks/insurers — they are
+            # capital intermediaries, not capital deployers. Without the
+            # bypass, names like BAC / C / KEY / RF / GS / MS get
+            # silently filtered out by an unreliable computation. Bank
+            # quality is evaluated downstream via NIM / Efficiency / CET1
+            # / NPL from FDIC call reports (see scripts/enrich_fdic.py).
+            _is_financial = (info.get('sector') == 'Financial Services')
+            if args.min_spread is not None and not _carried and not _is_financial:
                 if spread is None or spread < args.min_spread:
                     label = "no spread" if spread is None else f"spread {spread:.1%}"
                     print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP {label} < min {args.min_spread:.1%}")
@@ -1201,8 +1681,10 @@ def _main():
                 'cost_of_equity': cost_of_equity,
                 're_method': re_method, 'yf_data': yf_data,
                 'beta_diag': beta_diag,
+                'data_source': _data_source,
+                'fx_meta': fx_meta,
             }
-            print(f"  [{i}/{len(all_tickers)}] {ticker} - {roic_str}{wacc_str}{spread_str} [{re_method}]")
+            print(f"  [{i}/{len(all_tickers)}] {ticker} - {roic_str}{wacc_str}{spread_str} [{re_method}] <{_data_source}>")
 
         except Exception as e:
             print(f"  [{i}/{len(all_tickers)}] {ticker} - error: {e}")
@@ -1256,8 +1738,8 @@ def _main():
     )
     news_client.prefetch_all_sectors(_sectors_for_news)
 
-    # SEC EDGAR: legal proceedings search
-    sec_client = SECLegalClient(email='stockanalysis@example.com', request_delay=1.0)
+    # sec_client and sec_xbrl_client are initialized earlier (before Phase 1)
+    # so the XBRL fallback is available during the universe screen.
 
     # Finnhub: supply chain relationships
     supply_client = FinnhubSupplyClient(request_delay=1.0)
@@ -1267,16 +1749,7 @@ def _main():
         print('Finnhub supply chain API not configured (set FINNHUB_API_KEY).')
 
     # SEC EDGAR: supply chain extraction from 10-K filings (free fallback)
-    sec_client._load_cik_map()
     sec_supply_client = SECSupplyClient(
-        cik_map=sec_client._cik_map,
-        name_map=sec_client._name_map,
-        email='stockanalysis@example.com',
-        request_delay=1.0,
-    )
-
-    # SEC EDGAR: XBRL cross-validation and historical depth
-    sec_xbrl_client = SECXBRLClient(
         cik_map=sec_client._cik_map,
         name_map=sec_client._name_map,
         email='stockanalysis@example.com',
@@ -1312,6 +1785,14 @@ def _main():
             roic_data = cached['roic_data']
             cost_of_equity = cached['cost_of_equity']
             beta_diag = cached.get('beta_diag')
+            fx_meta = cached.get('fx_meta') or {}
+
+            # Phase 2 assumes roic_data and wacc are populated. Carry-forward
+            # tickers bypass the Phase-1 spread filter, so we can land here
+            # with either missing — skip the ticker rather than crash.
+            if not roic_data or wacc is None:
+                print(f"  Skipping {ticker}: ROIC or WACC unavailable today")
+                continue
 
             # --- Price-history enrichments (local Parquet) ---
             _local_close = _load_local_prices(ticker, prices_dir)
@@ -1388,6 +1869,7 @@ def _main():
             company_name = info.get('shortName') or info.get('longName') or ''
             sector = info.get('sector') or ''
             industry = info.get('industry') or ''
+            country = info.get('country') or ''
             # Tiingo is primary news source; fall back to yfinance/Google RSS
             if tiingo_client.available:
                 tiingo_news = tiingo_client.fetch_ticker_news(ticker, max_age_days=30, max_items=12)
@@ -1405,8 +1887,13 @@ def _main():
                 supply_data = sec_supply_client.fetch_supply_chain(ticker)
             finnhub_peers = supply_client.fetch_peers(ticker)
 
-            # SEC EDGAR: XBRL cross-validation
-            xbrl_validation = sec_xbrl_client.validate_against_yfinance(ticker, yf_data)
+            # SEC EDGAR: XBRL cross-validation. Skip when statements already
+            # came from XBRL — validating XBRL against itself is meaningless.
+            _stmt_source = (screen_cache.get(ticker) or {}).get('data_source', 'yfinance')
+            if _stmt_source in ('sec_xbrl+yfinance', 'sec_xbrl'):
+                xbrl_validation = None
+            else:
+                xbrl_validation = sec_xbrl_client.validate_against_yfinance(ticker, yf_data)
             # SEC EDGAR: long-duration revenue/earnings history
             edgar_history = sec_xbrl_client.fetch_historical_financials(ticker, min_years=10)
             # Evict the raw XBRL JSON blob (~1-10 MB) now that both
@@ -1485,81 +1972,19 @@ def _main():
             # Revenue CAGR (3Y from yfinance)
             rev_cagr = calculate_revenue_cagr(yf_data)
 
-            # Extended CAGRs and derived metrics from EDGAR history
-            rev_cagr_5y = None
-            rev_cagr_10y = None
-            fcf_cagr_5y = None
-            fcf_cagr_10y = None
-            gross_margin_avg_5y = None
-            gross_margin_trend = None   # slope of gross margin over 5Y (positive = improving)
-            dividend_cagr_5y = None
-            shares_cagr_5y = None       # negative = buybacks shrinking share count
-
-            if edgar_history:
-                # Revenue CAGRs
-                rev_hist = edgar_history.get('revenue_history', {})
-                if rev_hist:
-                    sy = sorted(rev_hist.keys())
-                    newest_rev = rev_hist[sy[-1]] if sy else None
-                    if newest_rev and newest_rev > 0:
-                        if len(sy) >= 6:
-                            yr5 = rev_hist.get(sy[-6])
-                            if yr5 and yr5 > 0:
-                                rev_cagr_5y = (newest_rev / yr5) ** (1 / 5) - 1
-                        if len(sy) >= 11:
-                            yr10 = rev_hist.get(sy[-11])
-                            if yr10 and yr10 > 0:
-                                rev_cagr_10y = (newest_rev / yr10) ** (1 / 10) - 1
-
-                # FCF history: operating cash flow minus capex
-                ocf_hist = edgar_history.get('operating_cf_history', {})
-                cap_hist = edgar_history.get('capex_history', {})
-                if ocf_hist:
-                    common_years = sorted(set(ocf_hist) & set(cap_hist)) if cap_hist else sorted(ocf_hist)
-                    fcf_hist = {yr: ocf_hist[yr] - abs(cap_hist.get(yr, 0)) for yr in common_years}
-                    # EDGAR CapEx tags are reported as positive outflows — take abs() to be safe
-                    fcf_vals = [fcf_hist[yr] for yr in sorted(fcf_hist) if fcf_hist[yr] is not None]
-                    if len(fcf_vals) >= 6 and fcf_vals[-6] > 0 and fcf_vals[-1] > 0:
-                        fcf_cagr_5y = (fcf_vals[-1] / fcf_vals[-6]) ** (1 / 5) - 1
-                    if len(fcf_vals) >= 11 and fcf_vals[-11] > 0 and fcf_vals[-1] > 0:
-                        fcf_cagr_10y = (fcf_vals[-1] / fcf_vals[-11]) ** (1 / 10) - 1
-
-                # Gross margin history (gross profit / revenue)
-                gp_hist = edgar_history.get('gross_profit_history', {})
-                if gp_hist and rev_hist:
-                    common_gy = sorted(set(gp_hist) & set(rev_hist))[-5:]  # last 5 years
-                    margins = [gp_hist[yr] / rev_hist[yr] for yr in common_gy
-                               if rev_hist.get(yr) and rev_hist[yr] > 0]
-                    if len(margins) >= 3:
-                        gross_margin_avg_5y = sum(margins) / len(margins)
-                        # Simple linear trend: slope of last 5 margin observations
-                        n = len(margins)
-                        xs = list(range(n))
-                        x_mean = sum(xs) / n
-                        y_mean = sum(margins) / n
-                        denom = sum((x - x_mean) ** 2 for x in xs)
-                        if denom:
-                            gross_margin_trend = sum(
-                                (xs[i] - x_mean) * (margins[i] - y_mean) for i in range(n)
-                            ) / denom
-
-                # Dividend growth (5Y CAGR of dividends paid)
-                div_hist = edgar_history.get('dividends_paid_history', {})
-                if div_hist:
-                    dy = sorted(div_hist.keys())
-                    if len(dy) >= 6:
-                        d0, d1 = abs(div_hist.get(dy[-6], 0) or 0), abs(div_hist.get(dy[-1], 0) or 0)
-                        if d0 > 0 and d1 > 0:
-                            dividend_cagr_5y = (d1 / d0) ** (1 / 5) - 1
-
-                # Share count trend (5Y CAGR — negative means shrinking = buybacks)
-                sh_hist = edgar_history.get('shares_history', {})
-                if sh_hist:
-                    shy = sorted(sh_hist.keys())
-                    if len(shy) >= 6:
-                        s0, s1 = sh_hist.get(shy[-6]), sh_hist.get(shy[-1])
-                        if s0 and s0 > 0 and s1 and s1 > 0:
-                            shares_cagr_5y = (s1 / s0) ** (1 / 5) - 1
+            # Extended CAGRs and derived metrics from EDGAR history.
+            # Same logic also runs from rescore_and_render so a snapshot
+            # whose edgar_history was backfilled after the live run gets
+            # refreshed signals without re-running analyze_stock end-to-end.
+            _edgar_metrics = derive_edgar_metrics(edgar_history)
+            rev_cagr_5y         = _edgar_metrics['rev_cagr_5y']
+            rev_cagr_10y        = _edgar_metrics['rev_cagr_10y']
+            fcf_cagr_5y         = _edgar_metrics['fcf_cagr_5y']
+            fcf_cagr_10y        = _edgar_metrics['fcf_cagr_10y']
+            gross_margin_avg_5y = _edgar_metrics['gross_margin_avg_5y']
+            gross_margin_trend  = _edgar_metrics['gross_margin_trend']
+            dividend_cagr_5y    = _edgar_metrics['dividend_cagr_5y']
+            shares_cagr_5y      = _edgar_metrics['shares_cagr_5y']
 
             # Step 3C: Balance sheet health
             int_cov = calculate_interest_coverage(yf_data)
@@ -1568,13 +1993,14 @@ def _main():
             # Traditional ratios
             ratios = compute_ratios(yf_data)
 
-            # Free cash flow — use annual cash flow statement (same source as DCF)
+            # Free cash flow — use annual cash flow statement (same source as DCF).
+            # Falls back to OCF + Capex when yfinance doesn't surface the
+            # synthetic 'Free Cash Flow' row (common for large-caps post-2023).
             cf = yf_data.get('cash_flow')
             fcf = None
-            if cf is not None and not cf.empty and 'Free Cash Flow' in cf.index:
-                fcf_vals = cf.loc['Free Cash Flow'].dropna().sort_index()
-                if len(fcf_vals) > 0:
-                    fcf = fcf_vals.iloc[-1]  # most recent annual
+            fcf_series = _fcf_series_from_cashflow(cf)
+            if fcf_series is not None and len(fcf_series) > 0:
+                fcf = fcf_series.iloc[-1]  # most recent annual
 
             # --- NEW MODELS ---
 
@@ -1635,6 +2061,16 @@ def _main():
             rim_fv = residual_income_model(
                 _book_value, ratios.get('ROE'), cost_of_equity)
 
+            # NAV (Tangible Book Value per share) — universal asset-floor
+            # sanity check that strips goodwill and intangibles out of equity.
+            tangible_book_per_share = tangible_book_value_per_share(yf_data)
+            nav_fv = tangible_book_per_share if (
+                tangible_book_per_share and tangible_book_per_share > 0) else None
+            nav_mos = ((nav_fv - current_price) / nav_fv
+                if (nav_fv and current_price and nav_fv > 0) else None)
+            p_tbv = (current_price / nav_fv
+                if (nav_fv and current_price and nav_fv > 0) else None)
+
             # Reverse DCF (solve for implied growth)
             rev_dcf = None
             if dcf_fv and current_price and current_price > 0 and fcf and shares:
@@ -1652,11 +2088,27 @@ def _main():
                                   if (current_price and high_52w and low_52w
                                       and high_52w > low_52w) else None)
 
-            # Founder-led detection: check if CEO title contains 'founder'
+            # Founder-led detection (three layers):
+            #   1) Title scan over every officer — catches founder-CEO,
+            #      founder-Chair, founder-CTO, etc. when yfinance labels the
+            #      title with "Founder".
+            #   2) Wikidata cross-reference — if any Wikidata-listed founder
+            #      of this CIK appears in the current companyOfficers list,
+            #      flag founder-led. Catches cases where the title field
+            #      doesn't contain "Founder" (e.g., Michael Dell, "CEO").
+            #   3) Manual overrides — final say, beats both above.
             founder_led = False
-            if ceo_officer:
-                title = (ceo_officer.get('title') or '').lower()
-                founder_led = 'founder' in title
+            if officers:
+                for _o in officers:
+                    _title = (_o.get('title') or '').lower()
+                    if 'founder' in _title:
+                        founder_led = True
+                        break
+            if not founder_led:
+                founder_led = _wikidata_founder_active(ticker, officers)
+            _foverrides = _load_founder_overrides()
+            if ticker in _foverrides:
+                founder_led = bool(_foverrides[ticker])
 
             # Ownership data from yfinance info
             shares_out = info.get('sharesOutstanding')
@@ -1726,6 +2178,18 @@ def _main():
                 'company_name': company_name,
                 'sector': sector,
                 'industry': industry,
+                'country': country,
+                # FX normalization audit trail. ``fx_converted=True`` means
+                # the financials and/or info dollar fields were multiplied
+                # by the recorded rate(s) to land in USD. Tickers that
+                # already reported in USD (most US-listed and some ADRs)
+                # have fx_converted=False and the rates are None.
+                'currency_quote': fx_meta.get('currency_quote'),
+                'currency_financial': fx_meta.get('currency_financial'),
+                'fx_rate_financial': fx_meta.get('fx_rate_financial'),
+                'fx_rate_quote': fx_meta.get('fx_rate_quote'),
+                'fx_converted': fx_meta.get('fx_converted', False),
+                'fx_fetch_failed': fx_meta.get('fx_fetch_failed', False),
                 'ceo': ceo,
                 'ceo_bio': ceo_bio,
                 'founder_led': founder_led,
@@ -1887,6 +2351,11 @@ def _main():
                 'rim_fv': rim_fv,
                 'rim_mos': ((rim_fv - current_price) / rim_fv
                     if (rim_fv and current_price and rim_fv > 0) else None),
+                # NAV (Tangible Book Value)
+                'tangible_book_per_share': tangible_book_per_share,
+                'nav_fv': nav_fv,
+                'nav_mos': nav_mos,
+                'p_tbv': p_tbv,
                 # Altman Z-Score
                 'altman_z': altman_z,
                 'altman_z_zone': altman_z_zone,
@@ -1916,8 +2385,8 @@ def _main():
                 'drawdown_2022':   round(_ticker_dd_2022, 4) if _ticker_dd_2022 is not None else None,
                 'rolling_betas':   _rolling_beta_diag if _rolling_beta_diag else None,
             }
-            # Composite rating (Worksheet Decision Matrix)
-            row['rating'] = compute_rating(row)
+            # Rating set later by score_and_rate from composite score plus critical caps
+            row['rating'] = None
             results.append(row)
         except Exception as e:
             print(f"  Error analyzing {ticker}: {e}")
@@ -2026,9 +2495,7 @@ def _main():
         else:
             r['_ddm_low_confidence'] = False
 
-    # Recompute ratings after blending
-    for r in results:
-        r['rating'] = compute_rating(r)
+    # Rating is set downstream by score_and_rate from composite score plus critical caps
 
     # -----------------------------------------------------------------------
     # Profit pool analysis (sector-level revenue/profit concentration)
@@ -2099,16 +2566,7 @@ def _main():
             r['pp_sector_cr4'] = None
             r['pp_sector_count'] = len(tickers_in_sector) if tickers_in_sector else 0
 
-    # Apply screening matrix (override ratings that fail critical gates)
-    apply_screening_matrix(results)
-
-    # Pre-compute _price_fv so continuous scoring can use it
-    for r in results:
-        p, fv = r.get('price'), r.get('dcf_fv')
-        r['_price_fv'] = p / fv if p and fv else None
-
-    compute_continuous_scores(results)
-    apply_composite_rating_override(results)
+    score_and_rate(results)
 
     # Position sizing and concentration analysis
     weights = position_sizes(results)
@@ -2132,7 +2590,7 @@ def _main():
         for r in results:
             s = r.get('sector')
             v = r.get(metric)
-            if s and v is not None:
+            if s and isinstance(v, (int, float)) and not isinstance(v, bool):
                 _peer_buckets[metric].setdefault(s, []).append(v)
         for s in _peer_buckets[metric]:
             _peer_buckets[metric][s].sort()
@@ -2182,7 +2640,7 @@ def _main():
         if not emp:
             r['rpe_cagr'] = None
             continue
-        rev_hist = (r.get('edgar_history') or {}).get('revenue_history') or {}
+        rev_hist = _flow_to_annual((r.get('edgar_history') or {}).get('revenue_history') or {})
         years = sorted(rev_hist.keys())
         if len(years) >= 3:
             earliest = rev_hist[years[0]]
@@ -2453,14 +2911,14 @@ def _main():
         _print_validation_stats(results, screen_outcomes)
 
     os.makedirs("output", exist_ok=True)
-    today_str = date.today().isoformat()
+    today_str = run_start_date.isoformat()  # pin to run-start so a midnight-spanning run stays single-dated
     html_filename = os.path.join("output", f"stock_analysis_results_{today_str}.html")
-    build_html(results, html_filename, prices_dir=prices_dir)
+    build_html(results, html_filename, prices_dir=prices_dir, run_date=run_start_date)
     xlsx_filename = os.path.join("output", f"stock_analysis_results_{today_str}.xlsx")
     build_excel(results, xlsx_filename)
 
     # Save results as JSON for backtesting pipeline
-    json_filename = os.path.join("output", f"results_{date.today().isoformat()}.json")
+    json_filename = os.path.join("output", f"results_{run_start_date.isoformat()}.json")
     def _make_json_safe(val, _depth=0):
         """Recursively convert a value to a JSON-safe structure (max depth 8)."""
         if _depth > 8:
@@ -2505,7 +2963,7 @@ def _main():
         jr = {k: _make_json_safe(v) for k, v in r.items()}
         json_rows.append(jr)
     json_meta = {
-        'date': date.today().isoformat(),
+        'date': run_start_date.isoformat(),
         'risk_free_rate': risk_free_rate,
         'count': len(results),
     }

@@ -14,19 +14,52 @@ try:
     from models.narrative import generate_sector_profit_pool_narrative
 except Exception:
     generate_sector_profit_pool_narrative = None
+from scripts.scoring import gate_metadata
+from scripts.safe_json import dumps_for_script
 
 
 def _json_default(obj):
     """Convert numpy types to native Python types for JSON serialization."""
+    import math
     if isinstance(obj, (np.bool_,)):
         return bool(obj)
     if isinstance(obj, (np.integer,)):
         return int(obj)
     if isinstance(obj, (np.floating,)):
-        return float(obj) if not np.isnan(obj) else None
+        v = float(obj)
+        return None if (math.isnan(v) or math.isinf(v)) else v
     if isinstance(obj, np.ndarray):
         return obj.tolist()
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+def _sanitize(obj):
+    """Recursively replace inf/-inf/NaN (numeric or stringified) with None.
+
+    Some upstream snapshots round-trip numeric infinity through ``str()`` and
+    arrive here as the literal string ``"Infinity"``, which silently breaks
+    the browser-side popup formatters. Normalise those to ``None`` so the JS
+    sees a clean ``null``.
+    """
+    import math
+    if obj is None:
+        return None
+    if isinstance(obj, float):
+        return None if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, (np.floating,)):
+        v = float(obj)
+        return None if (math.isnan(v) or math.isinf(v)) else v
+    if isinstance(obj, str):
+        if obj in ('Infinity', '-Infinity', 'inf', '-inf', 'NaN', 'nan'):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(x) for x in obj]
+    if isinstance(obj, tuple):
+        return tuple(_sanitize(x) for x in obj)
+    return obj
 
 
 def fmt_pct(val):
@@ -68,8 +101,10 @@ _RATING_VAL = {'BUY': 3, 'LEAN BUY': 2, 'HOLD': 1, 'PASS': 0}
 def _rating_num(rating):
     return _RATING_VAL.get(rating, -1)
 
-def build_html(rows, filename, prices_dir=None):
+def build_html(rows, filename, prices_dir=None, run_date=None):
     """Render the interactive HTML report via Jinja2 template."""
+    rows = _sanitize(rows)
+    gate_meta_obj = gate_metadata()
     total = len(rows)
     spread_vals = [r['spread'] for r in rows if r.get('spread') is not None]
     avg_spread = sum(spread_vals) / len(spread_vals) if spread_vals else 0
@@ -77,18 +112,22 @@ def build_html(rows, filename, prices_dir=None):
     buy_count = sum(1 for r in rows if r.get('rating') == 'BUY')
     lean_buy_count = sum(1 for r in rows if r.get('rating') == 'LEAN BUY')
 
-    chart_data = json.dumps([{
+    chart_records = [{
         'ticker': r['ticker'],
         'roic': r.get('roic'), 'wacc': r.get('wacc'), 'spread': r.get('spread'),
         'dcf_fv': r.get('dcf_fv'), 'price': r.get('price'), 'mos': r.get('mos'),
         'piotroski': r.get('piotroski'),
         'pe': r.get('pe'), 'ev_ebitda': r.get('ev_ebitda'),
         'rating': r.get('rating'), 'rating_raw': r.get('rating_raw'),
+        '_rating_from_score': r.get('_rating_from_score'),
+        '_rating_cap': r.get('_rating_cap'),
+        '_rating_cap_reasons': r.get('_rating_cap_reasons', []),
         'analyst_rec': r.get('analyst_rec'),
         'company_name': r.get('company_name', ''),
         'description': (r.get('description') or '')[:200],
         'sector': r.get('sector'),
         'industry': r.get('industry'),
+        'country': r.get('country'),
         'ceo': r.get('ceo'),
         'description_full': r.get('description') or '',
         'ceo_bio': r.get('ceo_bio') or '',
@@ -112,6 +151,10 @@ def build_html(rows, filename, prices_dir=None):
         'fcf_growth': r.get('fcf_growth'),
         'pfcf': r.get('pfcf'),
         'pb': r.get('pb'),
+        'tangible_book_per_share': r.get('tangible_book_per_share'),
+        'nav_fv': r.get('nav_fv'),
+        'nav_mos': r.get('nav_mos'),
+        'p_tbv': r.get('p_tbv'),
         'num_analysts': r.get('num_analysts'),
         'target_mean': r.get('target_mean'),
         'target_high': r.get('target_high'),
@@ -127,6 +170,43 @@ def build_html(rows, filename, prices_dir=None):
         'cr': r.get('cr'),
         'roe': r.get('roe'),
         'roa': r.get('roa'),
+        # FDIC call-report enrichment (Financial Services). See
+        # data/fdic_client.py + scripts/enrich_fdic.py for the source.
+        'fdic_cert': r.get('fdic_cert'),
+        'fdic_repdte': r.get('fdic_repdte'),
+        'nim': r.get('nim'),
+        'efficiency_ratio': r.get('efficiency_ratio'),
+        'cet1_ratio': r.get('cet1_ratio'),
+        'npl_ratio': r.get('npl_ratio'),
+        # REIT proxies (Real Estate). See data/reit_metrics.py +
+        # scripts/enrich_reit.py. ffo_growth_5y is the 5-yr CAGR of
+        # operating cash flow; affo_margin is (CFO - capex) / revenue
+        # latest year — both approximate the NAREIT FFO/AFFO concepts.
+        'ffo_growth_5y': r.get('ffo_growth_5y'),
+        'affo_margin': r.get('affo_margin'),
+        # Phase 3 — SEC XBRL line items for Tech / Healthcare / Comm.
+        # See scripts/enrich_xbrl.py. The *_xbrl variants are the
+        # authoritative XBRL-derived versions of fields that yfinance
+        # leaves sparse.
+        'rd_intensity_xbrl': r.get('rd_intensity_xbrl'),
+        'sbc_pct_rev_xbrl': r.get('sbc_pct_rev_xbrl'),
+        'fcf_margin_ex_sbc': r.get('fcf_margin_ex_sbc'),
+        'net_cash_to_mcap': r.get('net_cash_to_mcap'),
+        'deferred_rev_growth': r.get('deferred_rev_growth'),
+        # Phase 4 — Industrials KPIs. capex_intensity is universal
+        # (derived from edgar_history); backlog_to_revenue uses XBRL
+        # RemainingPerformanceObligation.
+        'capex_intensity': r.get('capex_intensity'),
+        'backlog_to_revenue': r.get('backlog_to_revenue'),
+        # Phase 5 — Consumer Cyclical / Defensive working capital +
+        # ad spend. Inventory Days and Working Capital Days from XBRL
+        # InventoryNet + COGS + receivables/payables. brand_spend_pct_rev
+        # from AdvertisingExpense.
+        'inventory_days': r.get('inventory_days'),
+        'working_capital_days': r.get('working_capital_days'),
+        'brand_spend_pct_rev': r.get('brand_spend_pct_rev'),
+        # Phase 6 — Energy / Utilities / Materials capital reinvestment.
+        'capex_to_dd_ratio': r.get('capex_to_dd_ratio'),
         # Ownership
         'shares_out': r.get('shares_out'),
         'float_shares': r.get('float_shares'),
@@ -193,7 +273,7 @@ def build_html(rows, filename, prices_dir=None):
         '_gate_cash_conv': r.get('_gate_cash_conv'),
         '_gate_rev_durability': r.get('_gate_rev_durability'),
         '_gate_sbc_dilution': r.get('_gate_sbc_dilution'),
-        '_gate_price_book': r.get('_gate_price_book'),
+        '_gate_p_tbv': r.get('_gate_p_tbv'),
         '_gate_fcf_margin': r.get('_gate_fcf_margin'),
         # Gate pass/fail booleans
         '_gp_mos': r.get('_gp_mos'),
@@ -218,7 +298,7 @@ def build_html(rows, filename, prices_dir=None):
         '_gp_cash_conv': r.get('_gp_cash_conv'),
         '_gp_rev_durability': r.get('_gp_rev_durability'),
         '_gp_sbc_dilution': r.get('_gp_sbc_dilution'),
-        '_gp_price_book': r.get('_gp_price_book'),
+        '_gp_p_tbv': r.get('_gp_p_tbv'),
         '_gp_fcf_margin': r.get('_gp_fcf_margin'),
         # Continuous scores (0-100)
         '_score_mos': r.get('_score_mos'),
@@ -243,7 +323,7 @@ def build_html(rows, filename, prices_dir=None):
         '_score_cash_conv': r.get('_score_cash_conv'),
         '_score_rev_durability': r.get('_score_rev_durability'),
         '_score_sbc_dilution': r.get('_score_sbc_dilution'),
-        '_score_price_book': r.get('_score_price_book'),
+        '_score_p_tbv': r.get('_score_p_tbv'),
         '_score_fcf_margin': r.get('_score_fcf_margin'),
         # Category totals + composite
         '_score_valuation': r.get('_score_valuation'),
@@ -350,85 +430,37 @@ def build_html(rows, filename, prices_dir=None):
         'employment_legal_flag': r.get('employment_legal_flag', False),
         'layoff_news_signal': r.get('layoff_news_signal', False),
         'culture_award_signal': r.get('culture_award_signal', False),
-    } for r in rows], default=_json_default)
+        **{k: r.get(k) for g in gate_meta_obj['gates']
+           for k in (g['key'], g['gpKey'], g['scoreKey'])},
+    } for r in rows]
+
+    # Heavy text fields only consumed inside the detail panel. Strip them
+    # from the inline DATA blob into a details.json sidecar the template
+    # lazy-loads after first paint. Cuts the HTML by ~25 MB at 2k tickers.
+    _DETAIL_HEAVY_KEYS = (
+        'description_full', 'ceo_bio', 'culture_narrative',
+        'financial_summary', 'sector_headwinds', 'sector_tailwinds',
+        'news_headlines', 'news_sentiment',
+        'legal_filings', 'insider_transactions',
+    )
+    details_payload = {}
+    for _rec in chart_records:
+        _tk = _rec.get('ticker')
+        if not _tk:
+            continue
+        _heavy = {}
+        for _k in _DETAIL_HEAVY_KEYS:
+            if _k in _rec:
+                _v = _rec.pop(_k)
+                if _v not in (None, [], '', {}):
+                    _heavy[_k] = _v
+        if _heavy:
+            details_payload[_tk] = _heavy
+
+    chart_data = dumps_for_script(chart_records, default=_json_default)
 
     # Gate metadata for Matrix view rendering in JavaScript
-    gate_meta = json.dumps({
-        'gates': [
-            {'key': '_gate_mos', 'label': 'MoS', 'gpKey': '_gp_mos',
-             'scoreKey': '_score_mos', 'threshold': 'MoS > 10%',
-             'category': 'Valuation', 'fmt': 'pct1'},
-            {'key': '_gate_price_fv', 'label': 'Price/FV', 'gpKey': '_gp_price_fv',
-             'scoreKey': '_score_price_fv', 'threshold': 'P/FV < 1.0',
-             'category': 'Valuation', 'fmt': 'ratio'},
-            {'key': '_gate_p_fcf', 'label': 'P/FCF', 'gpKey': '_gp_p_fcf',
-             'scoreKey': '_score_p_fcf', 'threshold': 'P/FCF \u2264 20\u00d7',
-             'category': 'Valuation', 'fmt': 'ratio'},
-            {'key': '_gate_int_coverage', 'label': 'Int Cov', 'gpKey': '_gp_int_coverage',
-             'scoreKey': '_score_int_coverage', 'threshold': 'IC > 3\u00d7',
-             'category': 'Quality', 'fmt': 'ratio'},
-            {'key': '_gate_accruals', 'label': 'Accruals', 'gpKey': '_gp_accruals',
-             'scoreKey': '_score_accruals', 'threshold': '|Acr| < 8%',
-             'category': 'Quality', 'fmt': 'pct1'},
-            {'key': '_gate_shrhldr_yield', 'label': 'Shrhldr Yld', 'gpKey': '_gp_shrhldr_yield',
-             'scoreKey': '_score_shrhldr_yield', 'threshold': 'Yield > 2%',
-             'category': 'Ownership', 'fmt': 'pct1'},
-            {'key': '_gate_insider_own', 'label': 'Insider %', 'gpKey': '_gp_insider_own',
-             'scoreKey': '_score_insider_own', 'threshold': 'Insider >= 5%',
-             'category': 'Ownership', 'fmt': 'pct1'},
-            {'key': '_gate_roe', 'label': 'ROE', 'gpKey': '_gp_roe',
-             'scoreKey': '_score_roe', 'threshold': 'ROE > 20%',
-             'category': 'Growth', 'fmt': 'pct1'},
-            {'key': '_gate_buyback_rate', 'label': 'Buyback', 'gpKey': '_gp_buyback_rate',
-             'scoreKey': '_score_buyback_rate', 'threshold': 'Buyback > 1%',
-             'category': 'Ownership', 'fmt': 'pct1'},
-            {'key': '_gate_roic_consistency', 'label': 'ROIC CV', 'gpKey': '_gp_roic_consistency',
-             'scoreKey': '_score_roic_consistency', 'threshold': 'CV < 30%',
-             'category': 'Moat', 'fmt': 'pct1'},
-            {'key': '_gate_spread_>_5%', 'label': 'Spread', 'gpKey': '_gp_spread_>_5%',
-             'scoreKey': '_score_spread', 'threshold': 'Spread > 7%',
-             'category': 'Moat', 'fmt': 'pct1'},
-            {'key': '_gate_gross_margin', 'label': 'Gross Mgn', 'gpKey': '_gp_gross_margin',
-             'scoreKey': '_score_gross_margin', 'threshold': 'GM > 35%',
-             'category': 'Moat', 'fmt': 'pct1'},
-            {'key': '_gate_fund_growth', 'label': 'Fund Growth', 'gpKey': '_gp_fund_growth',
-             'scoreKey': '_score_fund_growth', 'threshold': 'FG > 3%',
-             'category': 'Growth', 'fmt': 'pct1'},
-            {'key': '_gate_margins', 'label': 'Margins', 'gpKey': '_gp_margins',
-             'scoreKey': '_score_margins', 'threshold': 'Margin >= 0',
-             'category': 'Growth', 'fmt': 'pct1'},
-            {'key': '_gate_net_debt_ebitda', 'label': 'ND/EBITDA', 'gpKey': '_gp_net_debt_ebitda',
-             'scoreKey': '_score_net_debt_ebitda', 'threshold': 'ND/EBITDA \u2264 1.5\u00d7',
-             'category': 'Quality', 'fmt': 'ratio'},
-            {'key': '_gate_cash_conv', 'label': 'Cash Conv', 'gpKey': '_gp_cash_conv',
-             'scoreKey': '_score_cash_conv', 'threshold': 'CashConv \u2265 0.85\u00d7',
-             'category': 'Quality', 'fmt': 'ratio'},
-            {'key': '_gate_rev_durability', 'label': '10Y Rev CAGR', 'gpKey': '_gp_rev_durability',
-             'scoreKey': '_score_rev_durability', 'threshold': '10Y RevCAGR > 2%',
-             'category': 'Growth', 'fmt': 'pct1'},
-            {'key': '_gate_sbc_dilution', 'label': 'SBC/Rev', 'gpKey': '_gp_sbc_dilution',
-             'scoreKey': '_score_sbc_dilution', 'threshold': 'SBC/Rev \u2264 2%',
-             'category': 'Ownership', 'fmt': 'pct1'},
-            {'key': '_gate_price_book', 'label': 'P/B', 'gpKey': '_gp_price_book',
-             'scoreKey': '_score_price_book', 'threshold': 'P/B \u2264 5\u00d7',
-             'category': 'Valuation', 'fmt': 'ratio'},
-            {'key': '_gate_fcf_margin', 'label': 'FCF Margin', 'gpKey': '_gp_fcf_margin',
-             'scoreKey': '_score_fcf_margin', 'threshold': 'FCF Margin > 12%',
-             'category': 'Moat', 'fmt': 'pct1'},
-        ],
-        'categories': [
-            {'name': 'Valuation', 'weight': 0.20, 'dark': '#2F5496', 'light': '#D6E4F0',
-             'scoreKey': '_score_valuation'},
-            {'name': 'Quality', 'weight': 0.20, 'dark': '#548235', 'light': '#E2EFDA',
-             'scoreKey': '_score_quality'},
-            {'name': 'Moat', 'weight': 0.40, 'dark': '#C55A11', 'light': '#FCE4CC',
-             'scoreKey': '_score_moat'},
-            {'name': 'Growth', 'weight': 0.05, 'dark': '#7030A0', 'light': '#E4CCEF',
-             'scoreKey': '_score_growth'},
-            {'name': 'Ownership', 'weight': 0.15, 'dark': '#BF8F00', 'light': '#FFF2CC',
-             'scoreKey': '_score_ownership'},
-        ],
-    }, default=_json_default)
+    gate_meta = dumps_for_script(gate_meta_obj, default=_json_default)
 
     # Per-sector profit pool narratives (top-level Profit Pool tab)
     sector_pool_data = {}
@@ -446,10 +478,28 @@ def build_html(rows, filename, prices_dir=None):
                     sector_pool_data[s] = narr
             except Exception as e:
                 print(f"[warn] sector pool narrative failed for {s}: {e}")
-    sector_pool_json = json.dumps(sector_pool_data, default=_json_default)
+    sector_pool_json = dumps_for_script(sector_pool_data, default=_json_default)
+
+    # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
+    # template lazy-fetches them on first chart open, so the embedded HTML
+    # stays small enough to publish via GitHub Pages (<100 MB hard cap).
+    out_dir = os.path.dirname(os.path.abspath(filename)) or '.'
+    hist_path = os.path.join(out_dir, 'hist.json')
+    prices_path = os.path.join(out_dir, 'prices.json')
+    details_path = os.path.join(out_dir, 'details.json')
+
+    # Write details.json sidecar (or remove a stale one)
+    try:
+        if details_payload:
+            with open(details_path, 'w') as _df:
+                json.dump(details_payload, _df, default=_json_default)
+        elif os.path.exists(details_path):
+            os.remove(details_path)
+    except Exception as _e:
+        print(f"[warn] details.json write failed: {_e}")
 
     # Historical fundamentals (EDGAR annual) per ticker
-    hist_data = 'null'
+    hist_payload = None
     try:
         _hist_out = {}
         _hist_fields = [
@@ -471,28 +521,50 @@ def build_html(rows, filename, prices_dir=None):
             for src_key, out_key in _hist_fields:
                 series = eh.get(src_key) or r.get(src_key) or {}
                 if isinstance(series, dict) and series:
-                    try:
-                        tick_hist[out_key] = {
-                            str(int(y)): float(v)
-                            for y, v in series.items()
-                            if v is not None
-                        }
-                        if tick_hist[out_key]:
-                            has_any = True
+                    # Accept either int year keys (legacy snapshots) or
+                    # date-string keys ("YYYY-MM-DD") from the quarterly
+                    # extractor. Normalize legacy ints to year-end dates so
+                    # the chart sees a uniform date axis.
+                    out = {}
+                    for k, v in series.items():
+                        if v is None:
+                            continue
+                        try:
+                            fv = float(v)
+                        except (ValueError, TypeError):
+                            continue
+                        if isinstance(k, int):
+                            key = f"{k}-12-31"
                         else:
-                            tick_hist.pop(out_key, None)
-                    except (ValueError, TypeError):
-                        pass
+                            ks = str(k)
+                            if len(ks) == 4 and ks.isdigit():
+                                key = f"{ks}-12-31"
+                            else:
+                                key = ks
+                        out[key] = fv
+                    if out:
+                        tick_hist[out_key] = out
+                        has_any = True
             if has_any:
                 _hist_out[tk] = tick_hist
         if _hist_out:
-            hist_data = json.dumps(_hist_out, default=_json_default)
+            hist_payload = _hist_out
             print(f"[report_html] edgar history: {len(_hist_out)} tickers")
     except Exception as _e:
         print(f"[warn] edgar history load failed: {_e}")
 
+    # Write hist.json sidecar (or remove a stale one so old data doesn't linger)
+    try:
+        if hist_payload is not None:
+            with open(hist_path, 'w') as _hf:
+                json.dump(hist_payload, _hf, default=_json_default)
+        elif os.path.exists(hist_path):
+            os.remove(hist_path)
+    except Exception as _e:
+        print(f"[warn] hist.json write failed: {_e}")
+
     # Load price history from local Parquet files
-    prices_data = 'null'
+    prices_payload = None
     if prices_dir and os.path.isdir(prices_dir):
         try:
             import pandas as _pd
@@ -541,13 +613,24 @@ def build_html(rows, filename, prices_dir=None):
                         if i is not None:
                             arr[i] = round(float(v), 2)
                     _prices_out[tk] = arr
-                prices_data = json.dumps(
-                    {'dates': _date_strs, 'prices': _prices_out, 'indices': _indices_found},
-                    default=_json_default,
-                )
+                prices_payload = {
+                    'dates': _date_strs,
+                    'prices': _prices_out,
+                    'indices': _indices_found,
+                }
                 print(f"[report_html] price history: {len(_prices_out)} tickers, {len(_date_strs)} dates, indices: {[x['ticker'] for x in _indices_found]}")
         except Exception as _e:
             print(f"[warn] price history load failed: {_e}")
+
+    # Write prices.json sidecar (or remove a stale one)
+    try:
+        if prices_payload is not None:
+            with open(prices_path, 'w') as _pf2:
+                json.dump(prices_payload, _pf2, default=_json_default)
+        elif os.path.exists(prices_path):
+            os.remove(prices_path)
+    except Exception as _e:
+        print(f"[warn] prices.json write failed: {_e}")
 
     # Render Jinja2 template
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
@@ -565,11 +648,11 @@ def build_html(rows, filename, prices_dir=None):
         chart_data=chart_data,
         gate_meta=gate_meta,
         sector_pool_json=sector_pool_json,
-        prices_data=prices_data,
-        hist_data=hist_data,
-        generated_at=date.today().strftime('%B %-d, %Y'),
+        prices_available=('true' if prices_payload is not None else 'false'),
+        hist_available=('true' if hist_payload is not None else 'false'),
+        details_available=('true' if details_payload else 'false'),
+        generated_at=(run_date or date.today()).strftime('%B %-d, %Y'),
     )
 
     with open(filename, 'w') as f:
         f.write(html)
-

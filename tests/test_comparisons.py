@@ -14,7 +14,8 @@ from models.quality import (calculate_piotroski_f, calculate_altman_z,
                             calculate_earnings_quality, calculate_interest_coverage,
                             calculate_net_debt_ebitda, get_net_debt,
                             calculate_revenue_cagr, calculate_beneish_m)
-from models.market import compute_rating, compute_analyst_consensus
+from models.market import compute_analyst_consensus
+from models.nav import tangible_book_value_per_share
 
 
 # ---------------------------------------------------------------------------
@@ -117,51 +118,49 @@ class TestAltmanZ:
 
 
 # ---------------------------------------------------------------------------
-# compute_rating
+# tangible_book_value_per_share
 # ---------------------------------------------------------------------------
 
-class TestComputeRating:
-    def test_buy_rating(self):
-        """High-quality metrics should produce BUY."""
-        row = {
-            'mos': 0.25, 'spread': 0.25, 'piotroski': 8,
-            'cash_conv': 0.95, 'analyst_rec': 'buy',
-            'rev_cagr': 0.15, 'de': 0.5, 'int_cov': 10.0,
-            'roic_by_year': {'2024': 0.20, '2023': 0.18, '2022': 0.16},
-            'wacc': 0.09,
-        }
-        rating = compute_rating(row)
-        assert rating in ('BUY', 'LEAN BUY')
+class TestTangibleBookValuePerShare:
+    def test_happy_path_no_intangibles(self, sample_financials):
+        """With no goodwill/intangibles in the fixture, TBV == BV (equity/shares)."""
+        tbv = tangible_book_value_per_share(sample_financials)
+        assert tbv is not None
+        # 30B equity / 666.7M shares ≈ $45 — same as info.bookValue
+        assert 40 < tbv < 50
 
-    def test_pass_rating(self):
-        """Poor metrics should produce PASS."""
-        row = {
-            'mos': -0.20, 'spread': 0.01, 'piotroski': 2,
-            'cash_conv': 0.3, 'analyst_rec': 'sell',
-            'rev_cagr': -0.05, 'de': 3.0, 'int_cov': 0.5,
-            'roic_by_year': {'2024': 0.05, '2023': 0.08, '2022': 0.12},
-            'wacc': 0.10,
-        }
-        rating = compute_rating(row)
-        assert rating in ('PASS', 'HOLD')
+    def test_strips_goodwill_and_intangibles(self, sample_info, sample_balance_sheet):
+        """Adding goodwill + intangibles drops TBV below plain book value."""
+        latest_col = sample_balance_sheet.columns[0]
+        sample_balance_sheet.loc['Goodwill', latest_col] = 5e9
+        sample_balance_sheet.loc['Other Intangible Assets', latest_col] = 3e9
+        financials = {'balance_sheet': sample_balance_sheet, 'info': sample_info}
+        tbv = tangible_book_value_per_share(financials)
+        assert tbv is not None
+        # (30B - 5B - 3B) / 666.7M ≈ $33
+        assert 30 < tbv < 36
 
-    def test_hold_rating(self):
-        """Middling metrics should produce HOLD or LEAN BUY."""
-        row = {
-            'mos': 0.05, 'spread': 0.08, 'piotroski': 5,
-            'cash_conv': 0.7, 'analyst_rec': 'hold',
-            'rev_cagr': 0.04, 'de': 1.2, 'int_cov': 3.0,
-            'roic_by_year': {'2024': 0.12, '2023': 0.11},
-            'wacc': 0.09,
-        }
-        rating = compute_rating(row)
-        assert rating in ('HOLD', 'LEAN BUY')
+    def test_missing_goodwill_treated_as_zero(self, sample_info, sample_balance_sheet):
+        """Goodwill absent (no key in BS) is treated as 0, not None."""
+        # sample_balance_sheet has neither goodwill nor intangibles by default
+        financials = {'balance_sheet': sample_balance_sheet, 'info': sample_info}
+        tbv = tangible_book_value_per_share(financials)
+        assert tbv is not None  # didn't refuse just because goodwill was missing
 
-    def test_valid_ratings_only(self):
-        """Rating must be one of the 4 valid values."""
-        row = {'mos': 0.0, 'spread': 0.0}
-        rating = compute_rating(row)
-        assert rating in ('BUY', 'LEAN BUY', 'HOLD', 'PASS')
+    def test_none_with_empty_dict(self):
+        assert tangible_book_value_per_share({}) is None
+
+    def test_none_with_zero_shares(self, sample_balance_sheet):
+        info = {'sharesOutstanding': 0}
+        financials = {'balance_sheet': sample_balance_sheet, 'info': info}
+        assert tangible_book_value_per_share(financials) is None
+
+    def test_none_with_negative_equity(self, sample_info, sample_balance_sheet):
+        """Negative tangible equity (insolvent on a tangible basis) returns None."""
+        latest_col = sample_balance_sheet.columns[0]
+        sample_balance_sheet.loc['Goodwill', latest_col] = 50e9  # exceeds equity
+        financials = {'balance_sheet': sample_balance_sheet, 'info': sample_info}
+        assert tangible_book_value_per_share(financials) is None
 
 
 # ---------------------------------------------------------------------------

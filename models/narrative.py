@@ -309,7 +309,6 @@ def _stock_signals(row, sector_medians):
 
     # === GROWTH signals (deltas only — summary owns CAGR levels) ===
     fund_growth = row.get('fundamental_growth')
-    surprise_avg = row.get('surprise_avg')
     margin_trend = row.get('margin_trend')
 
     if fund_growth is not None:
@@ -318,17 +317,10 @@ def _stock_signals(row, sector_medians):
         elif fund_growth < 0.02:
             HW('Low reinvestment-driven growth suggests the compounding engine has stalled', sev='amber', cat='growth')
 
-    if surprise_avg is not None:
-        if surprise_avg > 0.05:
-            tw.append(f'Consistently beating estimates by {_pct(surprise_avg)} — management is under-promising and over-delivering')
-        elif surprise_avg > 0.02:
-            tw.append('Recent earnings have come in above analyst expectations')
-        elif surprise_avg < -0.05:
-            HW(f'Earnings missing estimates by {_pct(surprise_avg)} on average — the first crack Graham would watch for', sev='red', cat='quality')
-        elif surprise_avg < -0.03:
-            HW(f'Earnings missing estimates by {_pct(surprise_avg)} on average', sev='amber', cat='quality')
-        elif surprise_avg < 0:
-            HW('Recent earnings have fallen short of analyst expectations', sev='amber', cat='quality')
+    # Earnings-surprise signals removed — they're analyst-relative measures
+    # that we no longer surface in the UI. Margin trend (below) and
+    # fundamental growth carry the same business-quality information without
+    # leaning on sell-side expectations.
 
     # (D) Trend: margin direction — a delta, distinct from the level the summary carries
     if margin_trend is not None:
@@ -485,27 +477,10 @@ def _stock_signals(row, sector_medians):
         elif payout_ratio > 0.85:
             HW(f'Payout ratio of {_pct(payout_ratio)} leaves thin coverage if earnings wobble', sev='amber', cat='dividend')
 
-    # --- Analyst consensus ---
-    analyst_rec = row.get('analyst_rec')
-    num_analysts = row.get('num_analysts')
-    target_mean = row.get('target_mean')
-    price = row.get('price')
-
-    if target_mean and price and price > 0:
-        upside = (target_mean - price) / price
-        if upside > 0.25 and num_analysts and num_analysts >= 5:
-            tw.append(f'Analyst consensus points to {_pct(upside)} upside from current levels')
-        elif upside > 0.15 and num_analysts and num_analysts >= 3:
-            tw.append(f'Analysts see meaningful upside ({_pct(upside)}) to their mean target')
-        elif upside < -0.10:
-            HW(f'Trading above the mean analyst price target by {_pct(upside)}', sev='amber', cat='valuation', magnitude=abs(upside))
-
-    if analyst_rec:
-        rec_lower = analyst_rec.lower().replace('_', ' ')
-        if rec_lower in ('strong_buy', 'strong buy') and num_analysts and num_analysts >= 5:
-            tw.append('Strong Buy consensus from a broad analyst coverage base')
-        elif rec_lower in ('sell', 'strong_sell', 'strong sell'):
-            HW(f'Analyst consensus is {rec_lower.replace("_", " ").title()}', sev='red', cat='sentiment')
+    # Analyst-consensus signals (target-price upside, recommendation) were
+    # removed: they're sell-side sentiment, not a fundamental signal Buffett /
+    # Munger would use. MoS vs DCF / RIM / EPV / NAV in the Valuation block
+    # carries the same upside/downside framing from independent valuation.
 
     return hw, tw
 
@@ -974,6 +949,134 @@ _SECTOR_THESIS_RISKS = {
         'has permanently impaired demand for urban office space across most markets.',
         'Climate and insurance cost escalation — rising premiums and coverage withdrawals '
         'in flood/fire zones are repricing assets that the market once treated as perpetuities.',
+    ],
+}
+
+
+# Sector-level structural tailwinds — the upside thesis themes that frame each
+# sector's profit pool. Paired with _SECTOR_THESIS_RISKS so the per-sector page
+# shows both sides of the structural picture. Three bullets per sector to match.
+_SECTOR_THESIS_TAILWINDS = {
+    'Technology': [
+        'AI capex super-cycle — hyperscaler infrastructure buildout is recapitalising '
+        'the entire semiconductor, networking, and data-centre stack, with multi-year '
+        'order visibility for the picks-and-shovels names.',
+        'Software dollar share keeps rising — every dollar of corporate IT spending '
+        'reallocates further toward software, and SaaS unit economics make incremental '
+        'revenue almost pure operating leverage.',
+        'Durable enterprise digitisation — cloud, security, and developer-tooling '
+        'spending have proven non-discretionary across business cycles, anchoring '
+        'recurring revenue even when other tech budgets get cut.',
+    ],
+    'Communication Services': [
+        'Retail-media and connected-TV ad surge — the shift of ad dollars from linear '
+        'to digital and from search to retail media is creating a structurally '
+        'higher-margin advertising mix.',
+        'Premium content scarcity value — owners of must-have sports rights, '
+        'franchise libraries, and live-event IP command pricing power as distribution '
+        'fragments and aggregators compete for differentiation.',
+        '5G and fixed-wireless monetisation — telecoms are finally translating their '
+        'spectrum and tower investments into accretive enterprise and fixed-wireless '
+        'broadband revenue, lifting the legacy access business.',
+    ],
+    'Consumer Cyclical': [
+        'Rate-cut sensitivity on big-ticket categories — autos, housing-adjacent, '
+        'and durable-goods demand are highly geared to financing costs, so a '
+        'cutting cycle releases pent-up replacement demand quickly.',
+        'Brand consolidation and DTC scale — winners with omni-channel scale '
+        'and proprietary loyalty data are taking share permanently from sub-scale '
+        'category players who can no longer fund customer acquisition.',
+        'Travel and experiences super-cycle — services-vs-goods rebalancing, '
+        'combined with under-built capacity in lodging and cruise, keeps pricing '
+        'power durable even after the post-pandemic surge.',
+    ],
+    'Consumer Defensive': [
+        'Pricing power durability — strong brands in essentials have proven they '
+        'can pass through cumulative inflation without volume loss, defending '
+        'margin through a multi-year cost surge.',
+        'Defensive flows in late-cycle markets — when growth scares hit, capital '
+        'rotates toward predictable cash flows and dividends, providing valuation '
+        'support exactly when the rest of the market sells off.',
+        'Emerging-market demographic and category penetration — long-runway volume '
+        'growth in personal care, packaged food, and beverages as middle-class '
+        'households add the staples that developed markets already consume.',
+    ],
+    'Energy': [
+        'Capital discipline supporting per-barrel returns — the post-2015 industry '
+        'shift from volume growth to free-cash-flow return has structurally lifted '
+        'shareholder yield even at mid-cycle prices.',
+        'Structural underinvestment in conventional supply — a decade of capex '
+        'underspending on long-cycle projects means even modest demand growth '
+        'tightens balances and supports the long-dated price deck.',
+        'Geopolitical risk premium — supply concentration in unstable regions and '
+        'the strategic-asset designation of energy security in the West provide a '
+        'persistent put under prices.',
+    ],
+    'Financial Services': [
+        'Yield-curve normalisation — a steeper curve restores net interest margin '
+        'on the asset-sensitive bank book and lifts pre-provision profit without '
+        'requiring loan-growth heroics.',
+        'M&A, IPO, and capital-markets recovery — investment-banking and advisory '
+        'revenue is operating-leveraged off depressed levels, and pent-up deal '
+        'pipelines convert quickly when financing conditions ease.',
+        'Demographic tailwind for wealth and asset management — the great wealth '
+        'transfer plus rising 401(k)/pension balances keep AUM-fee compounding '
+        'positive almost independent of market direction.',
+    ],
+    'Healthcare': [
+        'Aging-demographics demand growth — every developed-market and large EM '
+        'cohort is shifting older, locking in mid-single-digit volume growth '
+        'across pharma, devices, and care delivery for the next two decades.',
+        'GLP-1 demand expansion beyond obesity — emerging indications across '
+        'cardiovascular, addiction, and Alzheimer\'s are dramatically widening '
+        'the addressable market and pulling forward the peak-sales curve.',
+        'AI-accelerated drug discovery and trial design — compressing pre-clinical '
+        'timelines and improving Phase II/III hit rates can structurally lift '
+        'pharma R&D returns from the dismal historical baseline.',
+    ],
+    'Industrials': [
+        'Reshoring and friend-shoring capex — manufacturing realignment away from '
+        'China is driving a sustained multi-year capex cycle in machinery, '
+        'automation, electrification, and industrial real estate.',
+        'Defence spending uplift — NATO members hitting 2%+ of GDP and Asia-Pacific '
+        'allies expanding their budgets translate into multi-decade order-book '
+        'visibility for primes and key sub-suppliers.',
+        'Infrastructure and grid modernisation — federal infrastructure spending '
+        'and AI data-centre power demand are driving above-trend orders for '
+        'engineering, electrical, and HVAC industrial names.',
+    ],
+    'Basic Materials': [
+        'Electrification metals demand — copper, lithium, nickel, and rare earths '
+        'face structural deficits as EV adoption, grid build-out, and AI data '
+        'centres pull demand growth well above mine-supply response time.',
+        'Supply-side discipline from a decade of underinvestment — major producers '
+        'cut capex through the 2014-2020 down-cycle, leaving a thin pipeline of '
+        'new projects that supports prices on the next demand uptick.',
+        'Dollar weakness as a tailwind to dollar-denominated commodities — when '
+        'real rates ease and DXY softens, commodity prices and producer margins '
+        'mechanically lift even without a demand-side catalyst.',
+    ],
+    'Utilities': [
+        'AI data-centre electricity demand — load-growth forecasts have stepped up '
+        'sharply for the first time in a generation, allowing rate-base expansion '
+        'and earnings growth above the long-run 4-6% trend.',
+        'Grid modernisation and electrification capex — federal incentives plus '
+        'state-level decarbonisation mandates create a regulatory-blessed capex '
+        'cycle, and rate base grows mechanically with approved spend.',
+        'Defensive yield bid in down markets — high-yield, low-beta utilities '
+        'attract capital exactly when growth sectors derate, providing valuation '
+        'support and total-return cushion through downturns.',
+    ],
+    'Real Estate': [
+        'Data-centre and AI-infrastructure REIT demand — hyperscaler power and '
+        'space requirements are driving record pre-leasing rates and rent growth '
+        'in a category that didn\'t meaningfully exist a decade ago.',
+        'Industrial / logistics tailwind from reshoring and e-commerce — '
+        'fulfilment and last-mile warehouse demand keeps occupancy near full '
+        'across most major markets, supporting durable mid-single-digit rent growth.',
+        'Rate-cut re-rating of cap rates — every 100bps of policy easing flows '
+        'roughly into a 50-100bps cap-rate compression, providing meaningful '
+        'NAV uplift across most asset classes outside legacy office.',
     ],
 }
 
@@ -1737,6 +1840,11 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
         'key_players': key_players,
         'cr4_companies': cr4_companies,
         'insights': insights,
+        # Structural sector signals — paired prose bullets that explain what
+        # could break or amplify the profit pool, sourced from the existing
+        # thesis-risk dictionary and the new tailwinds dictionary above.
+        'headwinds': list(_SECTOR_THESIS_RISKS.get(sector, [])),
+        'tailwinds': list(_SECTOR_THESIS_TAILWINDS.get(sector, [])),
         'stats': {
             'total_revenue': total_rev,
             'total_op_income': total_oi,
