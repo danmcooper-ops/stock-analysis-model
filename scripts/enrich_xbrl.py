@@ -32,6 +32,8 @@ _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO not in sys.path:
     sys.path.insert(0, _REPO)
 
+from data.provenance import (append_events, attach_enrichment,
+                             enrichment_block, make_event, strip_enrichment)
 from data.sec_legal_client import SECLegalClient
 from data.sec_xbrl_client import SECXBRLClient
 
@@ -49,7 +51,18 @@ _TARGET_SECTORS = {
     # is the universal capital-reinvestment discipline ratio that
     # applies across all three.
     "Energy", "Utilities", "Basic Materials",
+    # Phase 7 — Real Estate (debt-maturity wall from XBRL) and Financial
+    # Services (insurer combined ratio). Banks in Financial Services get
+    # nothing from XBRL here — they're enriched via FDIC — so the enrich
+    # loop skips non-insurer financials to avoid wasted companyfacts
+    # fetches (see the industry guard in enrich()).
+    "Real Estate", "Financial Services",
 }
+
+# Financial Services records are only worth a companyfacts fetch when
+# they're insurers (combined ratio). Banks / asset managers / exchanges
+# carry no insurer XBRL concepts, so we skip them.
+_INSURER_HINTS = ("insurance", "insurer")
 
 # XBRL US-GAAP tags. First match wins per concept. Multiple aliases so
 # we tolerate filer-specific taxonomy choices across the 8000+ filers.
@@ -131,6 +144,27 @@ _TAGS = {
         "DepreciationAndAmortization",
         "Depreciation",
     ],
+    # Phase 7 (Real Estate) — long-term debt maturity schedule. Each
+    # bucket is the principal due in that future window as of the
+    # balance-sheet date. Weighted by bucket midpoint these give a
+    # weighted-average years-to-maturity (the "debt maturity wall").
+    "debt_mat_y1": [
+        "LongTermDebtMaturitiesRepaymentsOfPrincipalInNextTwelveMonths",
+        "LongTermDebtMaturitiesRepaymentsOfPrincipalRemainderOfFiscalYear",
+    ],
+    "debt_mat_y2": ["LongTermDebtMaturitiesRepaymentsOfPrincipalInYearTwo"],
+    "debt_mat_y3": ["LongTermDebtMaturitiesRepaymentsOfPrincipalInYearThree"],
+    "debt_mat_y4": ["LongTermDebtMaturitiesRepaymentsOfPrincipalInYearFour"],
+    "debt_mat_y5": ["LongTermDebtMaturitiesRepaymentsOfPrincipalInYearFive"],
+    "debt_mat_after5": ["LongTermDebtMaturitiesRepaymentsOfPrincipalAfterYearFive"],
+    # Phase 7 (Financial Services — insurers only). Combined ratio is
+    # cleanly 1 − UnderwritingIncomeLoss / PremiumsEarnedNet; we keep
+    # the losses + DAC-amortization fallback for filers that don't tag
+    # a single underwriting-income line.
+    "premiums_earned": ["PremiumsEarnedNet", "PremiumsEarnedNetPropertyAndCasualty"],
+    "underwriting_income": ["UnderwritingIncomeLoss"],
+    "claims_incurred": ["PolicyholderBenefitsAndClaimsIncurredNet", "IncurredClaimsPropertyCasualtyAndLiability"],
+    "dac_amortization": ["DeferredPolicyAcquisitionCostAmortizationExpense"],
 }
 
 _NEW_FIELDS = (
@@ -148,6 +182,14 @@ _NEW_FIELDS = (
     "brand_spend_pct_rev",
     # Phase 6
     "capex_to_dd_ratio",
+    # Phase 7 — cross-sector quick wins (local, no extra fetch)
+    "rule_of_40",
+    "book_to_bill_proxy",
+    "brand_spend_trend",
+    # Phase 7 — new XBRL concepts
+    "debt_maturity_wall_yrs",
+    "combined_ratio",
+    "float_cost",
 )
 
 
@@ -328,19 +370,101 @@ def _compute_one(rec, facts, xbrl_client):
     #     liquidating the asset base. For oil & gas filers, D&A here
     #     correctly includes depletion of reserves.
     dd = _extract(xbrl_client, facts, "dd_amortization")
-    dd_year, dd_val = _latest(dd)
-    if dd_year and dd_val and dd_val > 0:
-        cap = _capex(dd_year)
-        if cap is not None:
+    # Anchor on the latest year where BOTH D&A (companyfacts) and capex
+    # (edgar_history) exist. companyfacts often carries a newer fiscal
+    # year than edgar_history's capex series; keying solely on the latest
+    # D&A year would then null the ratio even when an aligned prior year
+    # is available.
+    for y in sorted(dd.keys(), reverse=True):
+        dd_val = dd.get(y)
+        cap = _capex(y)
+        if dd_val and dd_val > 0 and cap is not None:
             rec["capex_to_dd_ratio"] = abs(cap) / dd_val
+            break
+
+    # --- Phase 7 ---
+    # 12. Rule of 40 (Technology): 5yr revenue CAGR + FCF-ex-SBC margin,
+    #     in points. >40 = healthy compounder. Both inputs already on the
+    #     record (rev_cagr_5y from analyze_stock; fcf_margin_ex_sbc above).
+    rev_g = rec.get("rev_cagr_5y")
+    fcf_m = rec.get("fcf_margin_ex_sbc")
+    if rev_g is not None and fcf_m is not None:
+        rec["rule_of_40"] = 100.0 * (rev_g + fcf_m)
+
+    # 13. Book-to-Bill proxy (Industrials): (ΔBacklog + Revenue) / Revenue
+    #     from the RPO series. >1.0 = orders replacing and exceeding
+    #     billings. Reuses the `bk` backlog series fetched in Phase 4.
+    if bk:
+        bk_years = sorted(bk.keys())
+        if len(bk_years) >= 2:
+            b_latest, b_prior = bk_years[-1], bk_years[-2]
+            rev_l = _rev(b_latest)
+            if (rev_l and rev_l > 0 and bk.get(b_latest) is not None
+                    and bk.get(b_prior) is not None):
+                rec["book_to_bill_proxy"] = (bk[b_latest] - bk[b_prior] + rev_l) / rev_l
+
+    # 14. Brand Spend Trend (Consumer Cyclical/Defensive): annualized
+    #     change in advertising/revenue. Positive = ramping brand
+    #     investment. Reuses the `adv` series fetched in Phase 5.
+    if adv:
+        ratios = []
+        for y in sorted(adv.keys()):
+            r_v = _rev(y)
+            if adv.get(y) is not None and r_v and r_v > 0:
+                ratios.append((int(y), adv[y] / r_v))
+        if len(ratios) >= 2:
+            span = ratios[-1][0] - ratios[0][0]
+            if span > 0:
+                rec["brand_spend_trend"] = (ratios[-1][1] - ratios[0][1]) / span
+
+    # 15. Debt Maturity Wall (Real Estate): weighted-average years to
+    #     maturity across the disclosed repayment buckets, weighted by
+    #     principal due in each. Bucket midpoints in years; the long tail
+    #     (>5yr) is assumed to average ~8 years.
+    _MAT_MID = (
+        ("debt_mat_y1", 0.5), ("debt_mat_y2", 1.5), ("debt_mat_y3", 2.5),
+        ("debt_mat_y4", 3.5), ("debt_mat_y5", 4.5), ("debt_mat_after5", 8.0),
+    )
+    wsum = 0.0
+    psum = 0.0
+    for concept, mid in _MAT_MID:
+        _, val = _latest(_extract(xbrl_client, facts, concept))
+        if val and val > 0:
+            wsum += mid * val
+            psum += val
+    if psum > 0:
+        rec["debt_maturity_wall_yrs"] = wsum / psum
+
+    # 16. Combined Ratio + Float Cost (Financial Services — insurers).
+    #     Combined ratio = 1 − UnderwritingIncomeLoss / PremiumsEarnedNet.
+    #     Fallback: (claims incurred + DAC amortization) / premiums when a
+    #     single underwriting-income line isn't tagged. Float Cost =
+    #     Combined − 1 (negative = profitable float, Berkshire-style edge).
+    prem_year, prem_val = _latest(_extract(xbrl_client, facts, "premiums_earned"))
+    if prem_year and prem_val and prem_val > 0:
+        uw = _extract(xbrl_client, facts, "underwriting_income").get(prem_year)
+        cr = None
+        if uw is not None:
+            cr = 1.0 - (uw / prem_val)
+        else:
+            claims = _extract(xbrl_client, facts, "claims_incurred").get(prem_year)
+            dac = _extract(xbrl_client, facts, "dac_amortization").get(prem_year)
+            if claims is not None and dac is not None:
+                cr = (claims + dac) / prem_val
+        if cr is not None:
+            rec["combined_ratio"] = cr
+            rec["float_cost"] = cr - 1.0
 
 
-def enrich(records, verbose=True):
+def enrich(records, verbose=True, events=None):
+    if events is None:
+        events = []
     # Idempotency: strip any prior Phase-3 enrichment.
     target_recs = [r for r in records if r.get("sector") in _TARGET_SECTORS]
     for r in target_recs:
         for k in _NEW_FIELDS:
             r.pop(k, None)
+        strip_enrichment(r, "xbrl")
 
     # Initialize SEC clients. SECLegalClient owns the CIK map; SECXBRLClient
     # uses it. Both are throttled internally to stay under SEC's 10 req/sec
@@ -359,7 +483,15 @@ def enrich(records, verbose=True):
     n_failed = 0
     for i, r in enumerate(target_recs):
         tk = r.get("ticker")
+        # Financial Services: only insurers carry useful XBRL concepts
+        # (combined ratio). Skip banks / asset managers / exchanges so we
+        # don't burn a companyfacts fetch that yields nothing.
+        if r.get("sector") == "Financial Services":
+            industry = (r.get("industry") or "").lower()
+            if not any(h in industry for h in _INSURER_HINTS):
+                continue
         if tk not in sec._cik_map:
+            attach_enrichment(r, "xbrl", enrichment_block(applied=False, reason="no_cik"))
             continue
         n_mapped += 1
         try:
@@ -368,10 +500,17 @@ def enrich(records, verbose=True):
             n_failed += 1
             if verbose:
                 print(f"  [{tk}] facts fetch failed: {e}")
+            attach_enrichment(r, "xbrl", enrichment_block(applied=False, reason="fetch_failed"))
+            events.append(make_event("enrichment_skipped", tk, "sec_xbrl",
+                                     {"reason": "fetch_failed"}))
             continue
         if not facts:
             n_failed += 1
+            attach_enrichment(r, "xbrl", enrichment_block(applied=False, reason="fetch_failed"))
+            events.append(make_event("enrichment_skipped", tk, "sec_xbrl",
+                                     {"reason": "empty_facts"}))
             continue
+        attach_enrichment(r, "xbrl", enrichment_block(applied=True))
         _compute_one(r, facts, xbrl)
         for k in _NEW_FIELDS:
             if r.get(k) is not None:
@@ -400,10 +539,14 @@ def main():
     if recs is None:
         print("Could not locate records list in JSON")
         sys.exit(1)
-    enrich(recs)
+    events = []
+    enrich(recs, events=events)
     with open(out_path, "w") as f:
         json.dump(d, f)
     print(f"\n  Wrote {out_path}")
+    run_date = (d.get("date") if isinstance(d, dict) else None) or \
+        os.path.basename(in_path).replace("results_", "").replace(".json", "")
+    append_events(os.path.dirname(out_path) or ".", run_date, "enrich_xbrl", events)
 
 
 if __name__ == "__main__":

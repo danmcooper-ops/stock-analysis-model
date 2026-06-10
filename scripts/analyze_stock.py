@@ -58,6 +58,7 @@ from data.sec_supply_client import SECSupplyClient
 from data.sec_xbrl_client import SECXBRLClient
 from data.fx_client import get_spot_fx_rate, apply_fx_to_statement_df
 from data.sec_insider_client import SECInsiderClient
+from data.provenance import ProvenanceRecorder
 from data.culture_client import CultureClient
 
 from scripts.config import (DEFAULT_RISK_FREE_RATE, ERP, TERMINAL_GROWTH_RATE,
@@ -1360,6 +1361,7 @@ def _main():
     args = parser.parse_args()
     prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
     run_start_date = date.today()
+    _prov = ProvenanceRecorder(run_start_date)
 
     # Fetch live risk-free rate (10-yr Treasury yield)
     risk_free_rate = fetch_risk_free_rate()
@@ -1591,7 +1593,9 @@ def _main():
                     continue
 
             xbrl_data = None
-            if ticker in sec_xbrl_client._cik_map:
+            sec_prov = None
+            _xbrl_attempted = ticker in sec_xbrl_client._cik_map
+            if _xbrl_attempted:
                 try:
                     # No year_limit: use all available XBRL history (10-16
                     # years). Through-cycle ROIC is the right input for a
@@ -1599,6 +1603,10 @@ def _main():
                     xbrl_data = sec_xbrl_client.build_yfinance_shape(ticker)
                 except Exception:
                     xbrl_data = None  # network hiccup — fall through
+                if xbrl_data is not None:
+                    # Filing metadata must be read here: Phase 2 evicts the
+                    # companyfacts blob from the client's memory cache.
+                    sec_prov = sec_xbrl_client.get_filing_provenance(ticker)
 
             if xbrl_data is not None and yf_data is not None:
                 yf_data = {
@@ -1615,20 +1623,37 @@ def _main():
                 # info is sparse → CAPM falls to buildup, WACC uses book equity.
                 yf_data = xbrl_data
                 _data_source = 'sec_xbrl'
+                _prov.record_event('source_fallback', ticker, 'yfinance',
+                                   {'from': 'yfinance', 'to': 'sec_xbrl',
+                                    'reason': 'yfinance empty for US filer'})
             elif yf_data is not None:
                 # No CIK (foreign / OTC) — yfinance is the only source.
                 _data_source = 'yfinance'
+                if _xbrl_attempted:
+                    _prov.record_event('source_fallback', ticker, 'sec_xbrl',
+                                       {'from': 'sec_xbrl', 'to': 'yfinance',
+                                        'reason': 'sec_xbrl fetch failed for US filer'})
             else:
                 print(f"  [{i}/{len(all_tickers)}] {ticker} - "
                       "error: yfinance empty AND no SEC XBRL coverage")
                 sys.stdout.flush()
                 continue
 
+            _prov.record_source(ticker, 'statements', _data_source, sec=sec_prov)
+            _prov.record_source(
+                ticker, 'market_data',
+                'sec_xbrl' if _data_source == 'sec_xbrl' else 'yfinance')
+
             # FX normalization — convert local-currency financials + price/
             # mcap to USD before any model runs. Skips USD-reporting tickers
             # automatically; logs a warning flag on the row if the rate
             # lookup fails so we can audit divergent valuations later.
             yf_data, fx_meta = _convert_financials_to_usd(yf_data)
+            _prov.record_source(ticker, 'fx', 'fx_client',
+                                converted=fx_meta.get('fx_converted', False))
+            if fx_meta.get('fx_fetch_failed'):
+                _prov.record_event('fx_fetch_failed', ticker, 'fx_client',
+                                   {'currency_financial': fx_meta.get('currency_financial')})
 
             info = yf_data.get('info') or {}
             sector = info.get('sector', '')
@@ -1637,6 +1662,11 @@ def _main():
             cost_of_equity, re_method, beta_diag = select_cost_of_equity(
                 yf_data, risk_free_rate, yf_client, ticker, erp=effective_erp,
                 tiingo_client=tiingo_client)
+            _prov.record_source(ticker, 'beta', re_method)
+            if re_method in ('ggm', 'buildup'):
+                _prov.record_event('source_fallback', ticker, 'beta',
+                                   {'method': re_method,
+                                    'reason': 'CAPM beta unavailable or unreliable'})
             wacc = calculate_wacc(yf_data, cost_of_equity,
                                   risk_free_rate=risk_free_rate)
             if wacc is not None:
@@ -1894,6 +1924,11 @@ def _main():
                 xbrl_validation = None
             else:
                 xbrl_validation = sec_xbrl_client.validate_against_yfinance(ticker, yf_data)
+                if xbrl_validation and xbrl_validation.get('fields_flagged', 0) > 0:
+                    _prov.record_event(
+                        'cross_source_conflict', ticker, 'sec_xbrl',
+                        {'fields_flagged': xbrl_validation.get('fields_flagged'),
+                         'edgar_quality_score': xbrl_validation.get('edgar_quality_score')})
             # SEC EDGAR: long-duration revenue/earnings history
             edgar_history = sec_xbrl_client.fetch_historical_financials(ticker, min_years=10)
             # Evict the raw XBRL JSON blob (~1-10 MB) now that both
@@ -2173,6 +2208,9 @@ def _main():
             row = {
                 'ticker': ticker,
                 'source_group': ticker_source.get(ticker, 'quality'),
+                # Statement-source tag (sec_xbrl+yfinance | sec_xbrl | yfinance);
+                # previously only printed to the console from screen_cache.
+                'data_source': _stmt_source,
                 # Company info (Step 3)
                 'description': description,
                 'company_name': company_name,
@@ -2387,6 +2425,7 @@ def _main():
             }
             # Rating set later by score_and_rate from composite score plus critical caps
             row['rating'] = None
+            row['_provenance'] = _prov.ticker_block(ticker)
             results.append(row)
         except Exception as e:
             print(f"  Error analyzing {ticker}: {e}")
@@ -2912,8 +2951,10 @@ def _main():
 
     os.makedirs("output", exist_ok=True)
     today_str = run_start_date.isoformat()  # pin to run-start so a midnight-spanning run stays single-dated
+    _run_prov = _prov.run_block(results)
     html_filename = os.path.join("output", f"stock_analysis_results_{today_str}.html")
-    build_html(results, html_filename, prices_dir=prices_dir, run_date=run_start_date)
+    build_html(results, html_filename, prices_dir=prices_dir, run_date=run_start_date,
+               run_provenance=_run_prov)
     xlsx_filename = os.path.join("output", f"stock_analysis_results_{today_str}.xlsx")
     build_excel(results, xlsx_filename)
 
@@ -2966,6 +3007,7 @@ def _main():
         'date': run_start_date.isoformat(),
         'risk_free_rate': risk_free_rate,
         'count': len(results),
+        'provenance': _run_prov,
     }
     if macro_regime_result:
         json_meta['macro_regime'] = macro_regime_result
@@ -2975,6 +3017,7 @@ def _main():
     json_meta['results'] = json_rows
     with open(json_filename, 'w') as f:
         json.dump(json_meta, f, indent=2, default=str)
+    _prov.write_events('output')
 
     print(f"\nAnalysis complete. {len(results)} stocks.")
     print(f"  HTML: {html_filename}")

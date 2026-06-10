@@ -68,7 +68,9 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
     # Write new HTML alongside the JSON.
     html_path = os.path.join(os.path.dirname(json_path) or '.',
                              f'stock_analysis_results_{snap_date}.html')
-    build_html(results, html_path, prices_dir=prices_dir)
+    run_provenance = snap.get('provenance') if isinstance(snap, dict) else None
+    build_html(results, html_path, prices_dir=prices_dir,
+               run_provenance=run_provenance)
     print(f'Wrote {html_path}')
 
     # Persist the rescored JSON back so the snapshot is consistent with the HTML

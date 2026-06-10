@@ -16,6 +16,7 @@ except Exception:
     generate_sector_profit_pool_narrative = None
 from scripts.scoring import gate_metadata
 from scripts.safe_json import dumps_for_script
+from data.provenance import STALE_CACHE_DAYS
 
 
 def _json_default(obj):
@@ -101,7 +102,43 @@ _RATING_VAL = {'BUY': 3, 'LEAN BUY': 2, 'HOLD': 1, 'PASS': 0}
 def _rating_num(rating):
     return _RATING_VAL.get(rating, -1)
 
-def build_html(rows, filename, prices_dir=None, run_date=None):
+def _freshness_line(rows, run_provenance):
+    """One-line data-freshness summary for the report footer.
+
+    Prefers run-level provenance; falls back to per-row tallies so
+    results files that predate provenance still get a partial line.
+    Returns '' when nothing is known.
+    """
+    parts = []
+    prov = run_provenance or {}
+    stmt_counts = dict(prov.get('statement_sources') or {})
+    if not stmt_counts:
+        for r in rows:
+            ds = r.get('data_source')
+            if ds:
+                stmt_counts[ds] = stmt_counts.get(ds, 0) + 1
+    if stmt_counts:
+        n_xbrl = sum(v for k, v in stmt_counts.items() if 'sec_xbrl' in k)
+        n_yf_only = stmt_counts.get('yfinance', 0)
+        parts.append(f"statements: {n_xbrl} SEC XBRL / {n_yf_only} yfinance-only")
+    repdtes = [str(r['fdic_repdte']) for r in rows if r.get('fdic_repdte')]
+    if repdtes:
+        rd = max(repdtes)
+        if len(rd) == 8:
+            parts.append(f"FDIC repdte {rd[:4]}-{rd[4:6]}-{rd[6:8]}")
+    n_stale = 0
+    for r in rows:
+        enr = (r.get('_provenance') or {}).get('enrichments') or {}
+        for blk in enr.values():
+            age = blk.get('cache_age_days') if isinstance(blk, dict) else None
+            if age is not None and age > STALE_CACHE_DAYS:
+                n_stale += 1
+    if n_stale:
+        parts.append(f"{n_stale} stale-cache warning{'s' if n_stale != 1 else ''}")
+    return ' · '.join(parts)
+
+
+def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None):
     """Render the interactive HTML report via Jinja2 template."""
     rows = _sanitize(rows)
     gate_meta_obj = gate_metadata()
@@ -207,6 +244,20 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'brand_spend_pct_rev': r.get('brand_spend_pct_rev'),
         # Phase 6 — Energy / Utilities / Materials capital reinvestment.
         'capex_to_dd_ratio': r.get('capex_to_dd_ratio'),
+        # Phase 7 — cross-sector quick wins + new XBRL/free-source KPIs.
+        # rule_of_40 / book_to_bill_proxy / brand_spend_trend are pure-local
+        # (enrich_xbrl); debt_maturity_wall_yrs from XBRL maturity buckets;
+        # combined_ratio / float_cost from insurer XBRL; deposit_beta from
+        # multi-period FDIC (enrich_fdic); fda_pipeline_count from
+        # ClinicalTrials.gov (enrich_pipeline).
+        'rule_of_40': r.get('rule_of_40'),
+        'book_to_bill_proxy': r.get('book_to_bill_proxy'),
+        'brand_spend_trend': r.get('brand_spend_trend'),
+        'debt_maturity_wall_yrs': r.get('debt_maturity_wall_yrs'),
+        'combined_ratio': r.get('combined_ratio'),
+        'float_cost': r.get('float_cost'),
+        'deposit_beta': r.get('deposit_beta'),
+        'fda_pipeline_count': r.get('fda_pipeline_count'),
         # Ownership
         'shares_out': r.get('shares_out'),
         'float_shares': r.get('float_shares'),
@@ -652,6 +703,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         hist_available=('true' if hist_payload is not None else 'false'),
         details_available=('true' if details_payload else 'false'),
         generated_at=(run_date or date.today()).strftime('%B %-d, %Y'),
+        freshness_line=_freshness_line(rows, run_provenance),
     )
 
     with open(filename, 'w') as f:

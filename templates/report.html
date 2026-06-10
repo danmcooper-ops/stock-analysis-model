@@ -1128,7 +1128,7 @@ td.ct{font-weight:700;}
 <body>
 <div class="header">
   <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><span class="tt-knob" id="tt-knob">&#9728;</span></button>
-  <div class="last-updated"><span>Last updated</span><span>{{ generated_at }}</span><span>n = {{ total }}</span></div>
+  <div class="last-updated"><span>Last updated</span><span>{{ generated_at }}</span><span>n = {{ total }}</span>{% if freshness_line %}<span>{{ freshness_line }}</span>{% endif %}</div>
   <h1 style="font-size:1.35em;margin:0">Securities Analysis</h1>
 </div>
 <div class="container">
@@ -4851,13 +4851,13 @@ var SECTOR_KPI_BANNER={
       ['R&D / Revenue','rd_intensity_xbrl','pct','Median R&D intensity from XBRL. >15% = innovation engine; <8% = commoditizing or mature.'],
       ['FCF Margin ex-SBC','fcf_margin_ex_sbc','pct','(Operating CF − Capex − SBC) / Revenue. Strips out the SBC mirage; the honest cash-quality number for tech.'],
       ['Net Cash / Mcap','net_cash_to_mcap','pct','(Cash + ST Investments − Debt) / Market Cap. Positive = capital under-deployed; negative = leveraged.'],
-      ['Deferred Rev Growth','deferred_rev_growth','pct','YoY change in contract-with-customer liability. The leading indicator for SaaS billings.']
+      ['Deferred Rev Growth','deferred_rev_growth','pct','YoY change in contract-with-customer liability. The leading indicator for SaaS billings.'],
+      ['Rule of 40','rule_of_40','plain','5yr revenue CAGR + FCF-ex-SBC margin, in points. >40 = healthy compounder; <30 = struggling.']
     ],
     gap:[
       ['ARR Growth','Annual Recurring Revenue YoY — leading metric for SaaS. Reported in earnings calls, not XBRL.'],
       ['Net Revenue Retention','NRR: (revenue from existing customers + expansion − churn) / starting revenue. >110% = expansion playbook working.'],
-      ['Cohort Retention','% of cohort customers retained at 12/24 months. Quality-of-revenue signal.'],
-      ['Rule of 40','Growth + FCF margin. >40 = compounder; <30 = struggling.']
+      ['Cohort Retention','% of cohort customers retained at 12/24 months. Quality-of-revenue signal.']
     ]
   },
   /* Healthcare: R&D / Revenue now from SEC XBRL (was 5% pop from
@@ -4868,11 +4868,11 @@ var SECTOR_KPI_BANNER={
       ['R&D / Revenue','rd_intensity_xbrl','pct','Median R&D intensity from XBRL. Large-cap pharma 18–22%; biotech can exceed 100%.'],
       ['Gross Margin','gross_margin','pct','Median gross margin. Pharma 60–80%, devices 50–70%, services lower.'],
       ['ROIC','roic','pct','Median return on invested capital.'],
-      ['Cash Conversion','cash_conv','plain','CFO / Net Income. >0.9 = earnings backed by real cash.']
+      ['Cash Conversion','cash_conv','plain','CFO / Net Income. >0.9 = earnings backed by real cash.'],
+      ['FDA Pipeline Count','fda_pipeline_count','int','Median count of active sponsored interventional trials (ClinicalTrials.gov) — pipeline-depth proxy for drug & biotech names.']
     ],
     gap:[
       ['Patent Cliff %','% of revenue from products losing exclusivity in the next 5 years. Specialty databases (Cortellis / IQVIA).'],
-      ['FDA Pipeline Count','Median active IND / clinical-stage asset count per company. Needs FDA database integration.'],
       ['Generic Exposure','% of revenue exposed to generic / biosimilar competition. Per-company press releases.'],
       ['Clinical Trial Success','Phase II→III and III→approval success rate. Needs FDA submissions data.']
     ]
@@ -4905,13 +4905,13 @@ var SECTOR_KPI_BANNER={
       ['ROIC','roic','pct','Median return on invested capital.'],
       ['Altman Z','altman_z','plain','Median financial-strength score. Cyclicals need a buffer; >3 = safe zone.'],
       ['Inventory Days','inventory_days','plain','Inventory / (COGS / 365). Rising days = future markdown risk. <60 = lean; >120 = stockholders.'],
-      ['Working Capital Days','working_capital_days','plain','Cash Conversion Cycle = Inv Days + AR Days − AP Days. Negative = working capital funds the business (Costco / Amazon model).']
+      ['Working Capital Days','working_capital_days','plain','Cash Conversion Cycle = Inv Days + AR Days − AP Days. Negative = working capital funds the business (Costco / Amazon model).'],
+      ['Brand Spend Trend','brand_spend_trend','pct','Annualized change in advertising / revenue. Positive = ramping brand investment; direction matters more than level.']
     ],
     gap:[
       ['Same-Store Sales','Comparable-store revenue growth. Per-company earnings releases; not standardized.'],
       ['Price / Mix Δ','Contribution of price vs. unit-mix to revenue growth.'],
-      ['eCommerce Mix','% of revenue online — different margin and growth profile.'],
-      ['Brand Spend Trend','Marketing as % of revenue trend. Direction matters more than level.']
+      ['eCommerce Mix','% of revenue online — different margin and growth profile.']
     ]
   },
   /* Industrials Phase 4: Capex/Sales now from edgar_history (capex
@@ -4924,13 +4924,13 @@ var SECTOR_KPI_BANNER={
       ['ROIC','roic','pct','Median return on invested capital.'],
       ['Spread','spread','pct','Median ROIC − WACC. Genuine economic profit margin.'],
       ['Capex / Sales','capex_intensity','pct','Median capex / revenue. Low (<5%) = capital-light scale; high (>15%) = heavy reinvestment cycle.'],
-      ['Backlog / Revenue','backlog_to_revenue','plain','Median Remaining Performance Obligation / revenue (XBRL). >1.0× = strong forward visibility.']
+      ['Backlog / Revenue','backlog_to_revenue','plain','Median Remaining Performance Obligation / revenue (XBRL). >1.0× = strong forward visibility.'],
+      ['Book-to-Bill','book_to_bill_proxy','n2','(ΔBacklog + Revenue) / Revenue from RPO. >1.0× = orders replacing and exceeding billings.'],
+      ['Working Capital Days','working_capital_days','plain','Cash Conversion Cycle = Inv Days + AR Days − AP Days (XBRL). Rising = late-cycle stress.']
     ],
     gap:[
-      ['Book-to-Bill','Order intake / billings. >1.0 = backlog building. Quarterly metric not in standardized XBRL.'],
       ['Aftermarket %','Services and parts as % of revenue. Lives in segment-disclosure narrative.'],
-      ['Order Cancellation Rate','Cancellations / starting backlog. Cyclical-stress signal in late expansion.'],
-      ['Working Capital Days','Receivables + Inventory − Payables, in days. Cycle-stress tell.']
+      ['Order Cancellation Rate','Cancellations / starting backlog. Cyclical-stress signal in late expansion.']
     ]
   },
   /* Basic Materials Phase 6: Capex/D&A now from XBRL (Capex from
@@ -5011,12 +5011,12 @@ var SECTOR_KPI_BANNER={
       ['FFO Growth','ffo_growth_5y','pct','5-yr CAGR of operating cash flow — proxy for FFO growth (NAREIT\'s FFO definition isn\'t in standardized XBRL). Mid-single-digit = stable; >10% = compounding REIT.'],
       ['AFFO Margin','affo_margin','pct','(Operating CF − Capex) / Revenue, latest year — proxy for AFFO margin. Storage / data-center REITs typically 50%+; healthcare / hotels 15–25%.'],
       ['Shareholder Yield','shareholder_yield','pct','Median dividends as % of market cap. REITs distribute by law.'],
-      ['NAV MoS','nav_mos','pct','Median margin of safety vs NAV. Negative = trading above NAV.']
+      ['NAV MoS','nav_mos','pct','Median margin of safety vs NAV. Negative = trading above NAV.'],
+      ['Debt Maturity Wall','debt_maturity_wall_yrs','yr','Principal-weighted average years to maturity across disclosed XBRL repayment buckets. Longer = less near-term refinancing risk.']
     ],
     gap:[
       ['Occupancy %','Property-level occupancy across the sector. Lives in quarterly supplementals, not in XBRL.'],
       ['Same-Store NOI Growth','Comparable-property NOI growth — organic rent + occupancy gains. Requires per-REIT supplemental parsing.'],
-      ['Debt Maturity Wall','Weighted-avg debt maturity in years. Schedule data lives in 10-K MD&A, not XBRL.'],
       ['Lease Term Remaining','Weighted-avg lease term — quality of long-duration income.']
     ]
   },
@@ -5030,12 +5030,12 @@ var SECTOR_KPI_BANNER={
       ['NIM','nim','pct','Net Interest Margin (FDIC). Spread between asset yields and funding costs — Buffett\'s #1 bank quality test. 2.5–4% typical.'],
       ['Efficiency','efficiency_ratio','pct','Efficiency ratio (FDIC) = non-interest expense / revenue. <55% = best-in-class operations.'],
       ['CET1','cet1_ratio','pct','Common Equity Tier 1 capital ratio (FDIC). >10% = well-capitalized; regulatory floor 4.5% + buffers.'],
-      ['NPL','npl_ratio','pct','Non-performing loan ratio (FDIC) = non-current loans / total loans. <1% = healthy credit quality.']
+      ['NPL','npl_ratio','pct','Non-performing loan ratio (FDIC) = non-current loans / total loans. <1% = healthy credit quality.'],
+      ['Deposit Beta','deposit_beta','pct','Banks: share of the 2021→23 Fed hikes passed to depositors (FDIC). <40% = sticky, low-cost deposit franchise.']
     ],
     gap:[
-      ['Combined Ratio','Insurance only: loss ratio + expense ratio. <100% = underwriting profit. Requires NAIC statutory filings.'],
-      ['Deposit Beta','Banks: % of Fed rate hikes passed to depositors through a hike cycle. <0.4 = sticky deposit franchise.'],
-      ['Float Cost','Insurance: combined ratio − 100%. Negative cost = Berkshire-style structural edge.'],
+      ['Combined Ratio','Insurers: loss ratio + expense ratio. <100% = underwriting profit. XBRL underwriting-income tags are segment-scoped — needs dimension-aware extraction before it can headline.'],
+      ['Float Cost','Insurers: combined ratio − 100%. Negative cost = Berkshire-style structural edge. Depends on a clean combined ratio (see above).'],
       ['AUM Net Flow Rate','Asset managers: annual flows / starting AUM. Positive net flows are gold; most actives run -2 to -5%.']
     ]
   }
@@ -5049,6 +5049,8 @@ function _kpiFmt(v,fmt){
   if(fmt==='pct')return (v*100).toFixed(1)+'%';
   if(fmt==='n1')return v.toFixed(1)+'×';
   if(fmt==='n2')return v.toFixed(2)+'×';
+  if(fmt==='int')return Math.round(v).toString();
+  if(fmt==='yr')return v.toFixed(1)+'y';
   if(fmt==='plain')return v.toFixed(2);
   return v.toFixed(2);
 }

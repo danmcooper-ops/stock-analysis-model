@@ -23,7 +23,7 @@ import urllib.request
 
 _BASE = "https://api.fdic.gov/banks"
 _CACHE = os.path.join(os.path.dirname(__file__), "cache", "fdic")
-_FIN_FIELDS = "CERT,REPDTE,ASSET,DEP,NETINC,ROA,ROE,NIMY,EEFFR,RBCT1CER,NCLNLS,LNLSGR"
+_FIN_FIELDS = "CERT,REPDTE,ASSET,DEP,NETINC,ROA,ROE,NIMY,EEFFR,RBCT1CER,NCLNLS,LNLSGR,EDEP"
 _DEFAULT_TTL_DAYS = 30
 
 
@@ -33,9 +33,14 @@ def _cache_path(key):
     return os.path.join(_CACHE, safe[-200:] + ".json")
 
 
-def _get(url, ttl_days=_DEFAULT_TTL_DAYS):
+def _get(url, ttl_days=_DEFAULT_TTL_DAYS, meta=None):
+    """Cached GET. When `meta` is a dict, it is populated with
+    cache_hit / cache_age_days so callers can record provenance."""
     cp = _cache_path(url)
     if os.path.exists(cp) and time.time() - os.path.getmtime(cp) < ttl_days * 86400:
+        if meta is not None:
+            meta.update(cache_hit=True,
+                        cache_age_days=(time.time() - os.path.getmtime(cp)) / 86400.0)
         with open(cp) as f:
             return json.load(f)
     req = urllib.request.Request(url, headers={"User-Agent": "stock-analysis/1.0"})
@@ -43,6 +48,8 @@ def _get(url, ttl_days=_DEFAULT_TTL_DAYS):
         data = json.loads(r.read().decode())
     with open(cp, "w") as f:
         json.dump(data, f)
+    if meta is not None:
+        meta.update(cache_hit=False, cache_age_days=0.0)
     return data
 
 
@@ -60,10 +67,11 @@ def institutions(name=None, cert=None, fields="CERT,NAME,STNAME,ASSET,ACTIVE", l
     return [d["data"] for d in resp.get("data", [])]
 
 
-def financials(cert, repdte=None, fields=_FIN_FIELDS):
+def financials(cert, repdte=None, fields=_FIN_FIELDS, meta=None):
     """Return the latest call-report financials for a CERT.
 
     Returns a dict with the requested fields, or None if no record exists.
+    Pass a dict as `meta` to receive cache_hit / cache_age_days.
     """
     flt = "CERT:" + str(cert)
     if repdte:
@@ -76,6 +84,6 @@ def financials(cert, repdte=None, fields=_FIN_FIELDS):
         "sort_order": "DESC",
     }
     url = _BASE + "/financials?" + urllib.parse.urlencode(params)
-    resp = _get(url)
+    resp = _get(url, meta=meta)
     items = resp.get("data", [])
     return items[0]["data"] if items else None

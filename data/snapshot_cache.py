@@ -16,6 +16,13 @@ from datetime import date, datetime
 import numpy as np
 import pandas as pd
 
+from data.provenance import library_versions as _lib_versions
+from data.provenance import now_iso as _now_iso
+
+
+def _yf_version():
+    return _lib_versions().get('yfinance')
+
 
 class SnapshotCache:
     """Read/write financial snapshots to disk, keyed by (ticker, date)."""
@@ -45,7 +52,8 @@ class SnapshotCache:
         os.makedirs(ticker_dir, exist_ok=True)
         file_path = os.path.join(ticker_dir, f'financials_{as_of.isoformat()}.json')
         payload = self._serialize_financials(financials)
-        payload['_meta'] = {'ticker': ticker.upper(), 'date': as_of.isoformat()}
+        payload['_meta'] = {'ticker': ticker.upper(), 'date': as_of.isoformat(),
+                            'fetched_at': _now_iso(), 'yfinance_version': _yf_version()}
         with open(file_path, 'w') as f:
             json.dump(payload, f, default=_json_default)
         return file_path

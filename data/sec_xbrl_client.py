@@ -90,6 +90,10 @@ class SECXBRLClient:
         ],
         'capex': [
             'PaymentsToAcquirePropertyPlantAndEquipment',
+            # Many large domestic filers (LRCX, AOS, ...) report capex
+            # under the "ProductiveAssets" line rather than PP&E.
+            'PaymentsToAcquireProductiveAssets',
+            'PaymentsToAcquireOtherProductiveAssets',
             'PaymentsForCapitalImprovements',
             'CapitalExpendituresIncurringObligation',
         ],
@@ -279,6 +283,44 @@ class SECXBRLClient:
         data = self._request_json(url)
         self._cache[ticker] = data
         return data
+
+    def get_filing_provenance(self, ticker):
+        """Latest annual-filing metadata from the cached companyfacts blob.
+
+        Reads only the in-memory cache populated by fetch_company_facts —
+        never triggers a network request, so it returns None if called
+        before the facts were fetched (or after they were evicted).
+
+        Scans the revenue/net_income concepts (present for virtually every
+        filer) for annual-report entries and returns the most recently
+        filed one as {'cik', 'accn', 'form', 'filed', 'fy'}, or None.
+        """
+        facts = self._cache.get(ticker)
+        if not facts:
+            return None
+        best = None
+        try:
+            for taxonomy_key, tag_map in self._TAXONOMIES:
+                taxo = facts.get('facts', {}).get(taxonomy_key, {})
+                for concept in ('revenue', 'net_income'):
+                    for tag in tag_map.get(concept, ()):
+                        units = (taxo.get(tag) or {}).get('units', {})
+                        for entries in units.values():
+                            for e in entries:
+                                if e.get('form') not in ('10-K', '20-F', '40-F'):
+                                    continue
+                                filed = e.get('filed') or ''
+                                if best is None or filed > best['filed']:
+                                    best = {'accn': e.get('accn'),
+                                            'form': e.get('form'),
+                                            'filed': filed,
+                                            'fy': e.get('fy')}
+        except Exception:
+            return None
+        if best is None:
+            return None
+        best['cik'] = self._cik_map.get(ticker)
+        return best
 
     def _extract_annual_values(self, facts_json, tag_list, form_filter='10-K',
                                units_key='USD', taxonomy_key='us-gaap'):

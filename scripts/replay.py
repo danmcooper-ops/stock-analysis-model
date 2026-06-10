@@ -76,6 +76,11 @@ def replay_analysis(as_of_date, cache_dir='data/cache', output_dir='output',
         'params_override': param_overrides,
         'results': results,
     }
+    # Preserve run-level provenance from the source results file. Without
+    # this, a no-params replay (which overwrites results_{date}.json
+    # un-suffixed) would silently strip the committed file's provenance.
+    if results_data.get('provenance'):
+        output['provenance'] = dict(results_data['provenance'], replayed=True)
 
     if write_output:
         suffix = '_replay' if param_overrides else ''
