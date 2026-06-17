@@ -69,8 +69,16 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
     html_path = os.path.join(os.path.dirname(json_path) or '.',
                              f'stock_analysis_results_{snap_date}.html')
     run_provenance = snap.get('provenance') if isinstance(snap, dict) else None
+    # Pin the banner's "Last updated" to the snapshot's own date, not today's.
+    # Without this, re-rendering a snapshot on a later day (e.g. a delayed
+    # enrichment pass) stamps the banner with date.today() instead of the run
+    # date, contradicting the filename and the snapshot's `date` field.
+    try:
+        run_date = date.fromisoformat(snap_date)
+    except (TypeError, ValueError):
+        run_date = None
     build_html(results, html_path, prices_dir=prices_dir,
-               run_provenance=run_provenance)
+               run_date=run_date, run_provenance=run_provenance)
     print(f'Wrote {html_path}')
 
     # Persist the rescored JSON back so the snapshot is consistent with the HTML
