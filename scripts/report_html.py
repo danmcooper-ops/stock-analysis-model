@@ -101,39 +101,6 @@ _RATING_VAL = {'BUY': 3, 'LEAN BUY': 2, 'HOLD': 1, 'PASS': 0}
 def _rating_num(rating):
     return _RATING_VAL.get(rating, -1)
 
-def _freshness_line(rows, run_provenance):
-    """One-line data-freshness summary for the report footer.
-
-    Prefers run-level provenance; falls back to per-row tallies so
-    results files that predate provenance still get a partial line.
-    Returns '' when nothing is known.
-    """
-    parts = []
-    prov = run_provenance or {}
-    stmt_counts = dict(prov.get('statement_sources') or {})
-    if not stmt_counts:
-        for r in rows:
-            ds = r.get('data_source')
-            if ds:
-                stmt_counts[ds] = stmt_counts.get(ds, 0) + 1
-    if stmt_counts:
-        n_xbrl = sum(v for k, v in stmt_counts.items() if 'sec_xbrl' in k)
-        n_yf_only = stmt_counts.get('yfinance', 0)
-        parts.append(f"statements: {n_xbrl} SEC XBRL / {n_yf_only} yfinance-only")
-    repdtes = [str(r['fdic_repdte']) for r in rows if r.get('fdic_repdte')]
-    if repdtes:
-        rd = max(repdtes)
-        if len(rd) == 8:
-            parts.append(f"FDIC repdte {rd[:4]}-{rd[4:6]}-{rd[6:8]}")
-    # Per-record cache-age staleness is intentionally NOT surfaced in the
-    # banner. The FDIC / ClinicalTrials enrichment caches have a 30-day TTL,
-    # so an 8–30-day-old cache is healthy; counting those against the 7-day
-    # STALE_CACHE_DAYS heuristic produced alarming "N stale-cache warnings"
-    # text on every normal run. That early-heads-up signal still lives in the
-    # run event log, where enrich_*.py emit `stale_cache` events.
-    return ' · '.join(parts)
-
-
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None):
     """Render the interactive HTML report via Jinja2 template."""
     rows = _sanitize(rows)
@@ -699,7 +666,6 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         hist_available=('true' if hist_payload is not None else 'false'),
         details_available=('true' if details_payload else 'false'),
         generated_at=(run_date or date.today()).strftime('%B %-d, %Y'),
-        freshness_line=_freshness_line(rows, run_provenance),
     )
 
     with open(filename, 'w') as f:
