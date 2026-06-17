@@ -16,7 +16,6 @@ except Exception:
     generate_sector_profit_pool_narrative = None
 from scripts.scoring import gate_metadata
 from scripts.safe_json import dumps_for_script
-from data.provenance import STALE_CACHE_DAYS
 
 
 def _json_default(obj):
@@ -126,15 +125,12 @@ def _freshness_line(rows, run_provenance):
         rd = max(repdtes)
         if len(rd) == 8:
             parts.append(f"FDIC repdte {rd[:4]}-{rd[4:6]}-{rd[6:8]}")
-    n_stale = 0
-    for r in rows:
-        enr = (r.get('_provenance') or {}).get('enrichments') or {}
-        for blk in enr.values():
-            age = blk.get('cache_age_days') if isinstance(blk, dict) else None
-            if age is not None and age > STALE_CACHE_DAYS:
-                n_stale += 1
-    if n_stale:
-        parts.append(f"{n_stale} stale-cache warning{'s' if n_stale != 1 else ''}")
+    # Per-record cache-age staleness is intentionally NOT surfaced in the
+    # banner. The FDIC / ClinicalTrials enrichment caches have a 30-day TTL,
+    # so an 8–30-day-old cache is healthy; counting those against the 7-day
+    # STALE_CACHE_DAYS heuristic produced alarming "N stale-cache warnings"
+    # text on every normal run. That early-heads-up signal still lives in the
+    # run event log, where enrich_*.py emit `stale_cache` events.
     return ' · '.join(parts)
 
 
