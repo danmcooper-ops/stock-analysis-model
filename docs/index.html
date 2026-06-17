@@ -2428,14 +2428,23 @@ function initPriceChart(){
     _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;if(curTSub==='prices')initPriceChart();});
     return;
   }
-  /* Seed the chart with every BUY-rated stock that has price data. Sorted
-     by composite score (desc) so the strongest BUYs render first and pick
-     up the brightest palette colors. Fall back to a single ticker if the
-     universe has no BUYs. */
+  /* Seed the chart with the names actually on the table for purchase: BUY
+     then LEAN BUY, ranked by composite score (desc), capped at five. If
+     fewer than five actionable names have price data, top up from the
+     next-highest composite so the chart is never sparse. This tracks the
+     buy list rather than raw composite — a high-composite stock capped to
+     HOLD shouldn't seed ahead of an actual LEAN BUY. (Previously seeded
+     only BUY-rated stocks, which showed just 2 lines on a 2-BUY day.) Fall
+     back to a single ticker if nothing has price data. */
   _phStocks=[];
-  var _buys=DATA.filter(function(d){return d.rating==='BUY'&&PRICES.prices[d.ticker];})
+  var _scored=DATA.filter(function(d){return d._composite_score!=null&&PRICES.prices[d.ticker];})
     .sort(function(a,b){return (b._composite_score||0)-(a._composite_score||0);});
-  _phStocks=_buys.map(function(d){return d.ticker;});
+  var _seed=_scored.filter(function(d){return d.rating==='BUY'||d.rating==='LEAN BUY';}).slice(0,5);
+  if(_seed.length<5){
+    var _have={};_seed.forEach(function(d){_have[d.ticker]=1;});
+    for(var i=0;i<_scored.length&&_seed.length<5;i++){if(!_have[_scored[i].ticker])_seed.push(_scored[i]);}
+  }
+  _phStocks=_seed.map(function(d){return d.ticker;});
   if(!_phStocks.length){var _tks=Object.keys(PRICES.prices);if(_tks.length)_phStocks=[_tks[0]];}
   if(!_phStocks.length){phv.innerHTML='<p style="padding:24px;color:#888">No price data available.</p>';return;}
   phv.innerHTML='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">'
