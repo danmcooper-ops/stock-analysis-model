@@ -2531,9 +2531,16 @@ function _buildPHChips(){
     var ix=indices.find(function(x){return x.ticker===tk;});
     var label=ix?ix.label:tk;
     var tk2=tk.replace(/'/g,"\\'");
+    /* Indices (S&P 500, NASDAQ, Dow) have no company detail panel; only make
+       real company chips clickable so the cursor/tooltip don't over-promise.
+       Clicking the dot+label opens the detail popup; the × stays separate. */
+    var isCompany=!ix&&DATA.some(function(x){return x.ticker===tk;});
+    var inner='<span style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></span>'+label;
+    var labelHtml=isCompany
+      ? '<span onclick="openDet(\''+tk2+'\')" title="Open '+tk+' details" style="display:inline-flex;align-items:center;gap:5px;cursor:pointer">'+inner+'</span>'
+      : '<span style="display:inline-flex;align-items:center;gap:5px">'+inner+'</span>';
     return '<span style="display:inline-flex;align-items:center;gap:5px;background:'+col+'1a;border:1.5px solid '+col+';border-radius:20px;padding:3px 6px 3px 10px;font-size:0.8em;font-weight:700;color:'+col+';white-space:nowrap">'
-      +'<span style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></span>'
-      +label
+      +labelHtml
       +(_phStocks.length>1?'<button onmousedown="phRemoveTicker(\''+tk2+'\')" style="background:none;border:none;color:'+col+';cursor:pointer;font-size:1.1em;padding:1px 2px;line-height:1;margin-left:2px;opacity:0.7">&times;</button>':'')
       +'</span>';
   }).join('');
