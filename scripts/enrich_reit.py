@@ -23,6 +23,8 @@ _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO not in sys.path:
     sys.path.insert(0, _REPO)
 
+from data.provenance import (append_events, attach_enrichment,
+                             enrichment_block, make_event, strip_enrichment)
 from data.reit_metrics import cfo_cagr, affo_margin
 
 _REIT_FIELDS = ("ffo_growth_5y", "affo_margin")
@@ -38,13 +40,17 @@ def _records(d):
     return None
 
 
-def enrich(records, verbose=True):
+def enrich(records, verbose=True, events=None):
+    if events is None:
+        events = []
     reit_total = sum(1 for r in records if r.get("sector") == "Real Estate")
-    # Idempotency: strip any prior enrichment.
+    # Idempotency: strip any prior enrichment (both the data fields and the
+    # provenance block) so removed mappings don't linger across re-runs.
     for r in records:
         if r.get("sector") == "Real Estate":
             for k in _REIT_FIELDS:
                 r.pop(k, None)
+            strip_enrichment(r, "reit")
     n_ffo = 0
     n_affo = 0
     for r in records:
@@ -53,12 +59,25 @@ def enrich(records, verbose=True):
         eh = r.get("edgar_history")
         g = cfo_cagr(eh)
         m = affo_margin(eh)
+        derived = []
         if g is not None:
             r["ffo_growth_5y"] = g
             n_ffo += 1
+            derived.append("ffo_growth_5y")
         if m is not None:
             r["affo_margin"] = m
             n_affo += 1
+            derived.append("affo_margin")
+        # Provenance: pure-local proxies derived from edgar_history (no
+        # network/cache), so the block just records what was derived. A
+        # Real Estate record with no usable history yields neither proxy.
+        if derived:
+            attach_enrichment(r, "reit", enrichment_block(applied=True, proxies=derived))
+        else:
+            attach_enrichment(r, "reit",
+                              enrichment_block(applied=False, reason="insufficient_history"))
+            events.append(make_event("enrichment_skipped", r.get("ticker"), "reit",
+                                     {"reason": "insufficient_history"}))
     if verbose:
         print(f"  Real Estate total:                 {reit_total}")
         print(f"  Enriched with FFO Growth proxy:    {n_ffo}")
@@ -78,7 +97,8 @@ def main():
     if recs is None:
         print("Could not locate records list in JSON")
         sys.exit(1)
-    enrich(recs)
+    events = []
+    enrich(recs, events=events)
     # Print sample enriched names so the user can sanity-check
     sample = sorted(
         (r for r in recs if r.get("sector") == "Real Estate" and r.get("ffo_growth_5y") is not None),
@@ -95,6 +115,9 @@ def main():
     with open(out_path, "w") as f:
         json.dump(d, f)
     print(f"\n  Wrote {out_path}")
+    run_date = (d.get("date") if isinstance(d, dict) else None) or \
+        os.path.basename(in_path).replace("results_", "").replace(".json", "")
+    append_events(os.path.dirname(out_path) or ".", run_date, "enrich_reit", events)
 
 
 if __name__ == "__main__":
