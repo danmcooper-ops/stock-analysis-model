@@ -5219,19 +5219,10 @@ function renderPool(){
     if(hhi!=null)chartHtml+=' &nbsp;&middot;&nbsp; HHI: '+hhi.toFixed(3)+' ('+conc+')';
     if(cr4!=null)chartHtml+=' &nbsp;&middot;&nbsp; CR4: '+(cr4*100).toFixed(0)+'%';
     chartHtml+='</span></div>';
-    /* Quick-reference stat banner — mirrors the Overview Sector Heatmap columns
-       (Cos, HHI, CR4, Wtd Margin, Med FCF/ROIC/Spread/Growth/ND/AltZ/MoS/PB/EV/
-       ShrYld, % BUY) plus Top Earner and Avg Multiple. Hover any cell for the
-       metric description. Left-edge tint scales each value vs. the cross-sector
-       min/max (green = best, red = worst) so you can read a sector's relative
-       standing without flipping back to the heatmap. */
-    /* Merged Sector KPI banner — replaces the standalone _renderSectorBanner
-       (whose Op Margin / ROIC cells duplicated the per-sector tracked row).
-       Universal context (Companies / Median MoS / BUY-Rated / Sector Leader)
-       lives as a one-line strip inside this banner; sector-specific tracked
-       and gap KPI rows follow. _renderSectorBanner remains defined but
-       unused. */
-    chartHtml+=_renderSectorKpiBanner(sec,cos);
+    /* Sector KPI banner removed — the Companies / Median MoS / BUY-Rated /
+       Leader context strip and the tracked KPI cells didn't add signal over
+       the sector header and the Overview heatmap. _renderSectorKpiBanner and
+       _renderSectorBanner remain defined but unused. */
     var primerHtml=renderPoolPrimer(sec);
     var descHtml=renderPoolDescription(sec);
     var insightsHtml=renderPoolInsights(sec);
