@@ -598,13 +598,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .kpi-header-strip a.kpi-leader-tk{color:#e6edf3;border-bottom-color:#3d434b;}
 /* KPI grid rows — 4 cells on desktop, 2 on mobile. */
 .kpi-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;}
-.kpi-row.kpi-row-tracked{margin-bottom:12px;}
-/* "Critical not yet tracked" sub-header — only on the gap row, because
-   dashed cells alone don't communicate the meaning. Solid cells in
-   row 1 don't need a label — the styling is self-explanatory. */
-.kpi-row-label{font-size:0.7em;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#a08440;display:flex;align-items:center;gap:8px;margin:0 0 6px;}
-[data-theme="dark"] .kpi-row-label{color:#bfa66a;}
-.kpi-row-label::before{content:'';display:inline-block;width:18px;height:0;border-top:1.5px dashed currentColor;flex-shrink:0;}
+.kpi-row.kpi-row-tracked{margin-bottom:0;}
 /* Cell — bumped padding, value font, gap between label and value for
    easier scanning at arm's length on phone. */
 .kpi-cell{padding:11px 13px;background:#fff;border:1px solid #d9dee6;border-radius:6px;display:flex;flex-direction:column;gap:4px;min-width:0;cursor:default;transition:border-color 0.12s,box-shadow 0.12s;}
@@ -617,14 +611,6 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .kpi-cell-value{color:#e6edf3;}
 .kpi-cell-value.muted{color:#b8c2cf;font-weight:600;}
 [data-theme="dark"] .kpi-cell-value.muted{color:#6e7681;}
-/* Gap variant — warm tinted bg + dashed border so the not-yet-tracked
-   cells read as "future work" without screaming. */
-.kpi-cell-gap{background:#fbf6e8;border:1px dashed #d4c190;}
-.kpi-cell-gap:hover{border-color:#b8a26a;box-shadow:0 1px 3px rgba(192,156,72,0.10);}
-[data-theme="dark"] .kpi-cell-gap{background:#1f1a10;border-color:#4d4128;}
-[data-theme="dark"] .kpi-cell-gap:hover{border-color:#6b5a35;}
-.kpi-cell-gap .kpi-cell-label{color:#8a6f30;}
-[data-theme="dark"] .kpi-cell-gap .kpi-cell-label{color:#bfa66a;}
 @media(max-width:700px){
   .kpi-row{grid-template-columns:repeat(2,minmax(0,1fr));}
   .kpi-cell-value{font-size:1.15em;}
@@ -5121,17 +5107,7 @@ function _renderSectorKpiBanner(sec,cos){
       +'<div class="'+cls+'">'+disp+'</div></div>';
   });
   html+='</div>';
-  /* Row 2 — gap: critical KPIs not yet computed. Label needed because
-     dashed cells alone don't communicate "not yet tracked" meaning. */
-  html+='<div class="kpi-row-label">Critical KPIs · not yet tracked</div>';
-  html+='<div class="kpi-row">';
-  cfg.gap.forEach(function(k){
-    var label=k[0],tip=k[1];
-    html+='<div class="kpi-cell kpi-cell-gap" title="'+_attr(label+' — '+tip)+'">'
-      +'<div class="kpi-cell-label">'+_attr(label)+'</div>'
-      +'<div class="kpi-cell-value muted">—</div></div>';
-  });
-  html+='</div></div>';
+  html+='</div>';
   return html;
 }
 function _renderSectorBanner(sec){
