@@ -1334,6 +1334,18 @@ var _detNav=[],_detIdx=-1;
 /* === FLAGS (localStorage) === */
 var _FLAG_KEY='stock_flags_v1';
 var _flags=(function(){try{return JSON.parse(localStorage.getItem(_FLAG_KEY))||{};}catch(e){return{};}})();
+/* One-time seed: pre-flag the top-20 stocks by 20-year price appreciation from
+   the 2026-06-18 run (NVDA-led semis/industrials compounders). Merged ONCE per
+   browser — additive only, never removes a flag — and guarded by _FLAG_SEED_KEY
+   so it won't re-add a stock the user later unflags. Bump the key to reseed. */
+var _FLAG_SEED=['NVDA','AGX','NVMI','NFLX','FIX','AAPL','XPO','MPWR','TPL','TDG','AMZN','BKNG','MA','KLAC','ASML','TSM','LRCX','STX','UVE','AXON'];
+var _FLAG_SEED_KEY='stock_flags_seed_20y_top20_v1';
+(function(){
+  var seeded=false;try{seeded=!!localStorage.getItem(_FLAG_SEED_KEY);}catch(e){}
+  if(seeded)return;
+  _FLAG_SEED.forEach(function(tk){if(!_flags[tk])_flags[tk]=1;});
+  try{localStorage.setItem(_FLAG_KEY,JSON.stringify(_flags));localStorage.setItem(_FLAG_SEED_KEY,'1');}catch(e){}
+})();
 var _flagOnly=false;
 function _saveFlags(){try{localStorage.setItem(_FLAG_KEY,JSON.stringify(_flags));}catch(e){}}
 function isFlagged(tk){return !!_flags[tk];}
