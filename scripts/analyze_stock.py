@@ -4,6 +4,7 @@ import sys
 import os
 import io
 import json
+import re
 from datetime import date
 from statistics import median as _median
 import numpy as np
@@ -96,6 +97,40 @@ from scripts.scoring import (_mc_confidence_label, score_and_rate,
 _FOUNDER_OVERRIDES_CACHE = None
 _WIKIDATA_FOUNDERS_CACHE = None
 _HONORIFICS = ('mr.', 'mrs.', 'ms.', 'miss', 'dr.', 'prof.', 'sir')
+
+# Founder-led detection requires the founder to hold a CURRENT executive role
+# (see data/founder_overrides.json for the definition). These token sets gate
+# both detection layers so retired / board-only founders don't trip the flag.
+#   - _FOUNDER_NONEXEC_MARKERS: if present, the role is honorary/board-only and
+#     never counts (Chairman Emeritus, Founder & Director, retired, advisor).
+#   - _EXEC_TITLE_TOKENS: at least one must be present for the role to count.
+# Order matters: a title is executive only if it has an exec token AND no
+# non-exec marker (so "Non-Executive Chairman" and "Chairman Emeritus" fail).
+_FOUNDER_NONEXEC_MARKERS = ('emeritus', 'retired', 'former', 'non-executive',
+                            'non executive', 'advisor', 'advisory')
+# Descriptive exec phrases matched as substrings; "chief " covers every C-suite
+# (Chief Executive/Operating/Technology/... Officer).
+_EXEC_TITLE_PHRASES = ('chief ', 'president', 'executive chair', 'managing partner')
+# Acronyms matched on word boundaries — a naive substring would mis-fire (e.g.
+# "cto" lives inside "dire-cto-r", which would wrongly flag "Founder & Director").
+_EXEC_TITLE_ABBR_RE = re.compile(r'\b(?:ceo|coo|cto|cfo)\b')
+
+
+def _is_executive_title(title):
+    """True if an officer title denotes a CURRENT executive role.
+
+    Counts CEO / President / C-suite / COO / CTO / Executive Chair. Excludes
+    honorary or board-only roles (Chairman Emeritus, Founder & Director, retired,
+    advisor, non-executive) and a bare "Chairman" with no executive qualifier.
+    """
+    t = (title or '').lower()
+    if not t:
+        return False
+    if any(x in t for x in _FOUNDER_NONEXEC_MARKERS):
+        return False
+    if any(x in t for x in _EXEC_TITLE_PHRASES):
+        return True
+    return bool(_EXEC_TITLE_ABBR_RE.search(t))
 
 
 def _flow_to_annual(history):
@@ -282,27 +317,30 @@ def _normalize_name(name):
     return set(p for p in parts if p)
 
 
-def _wikidata_founder_active(ticker, officers):
-    """True if any Wikidata-listed founder of *ticker* is in the current
-    officer list. Match logic: all words in the founder's normalized name
-    must appear in some officer's normalized name. Catches "Mark Zuckerberg"
-    vs "Mr. Mark Elliot Zuckerberg"; falls through on nickname divergence
-    like "Larry Ellison" vs "Lawrence J. Ellison" (manual override handles
-    those).
+def _wikidata_founder_match(ticker, officers):
+    """Return the officer dict for a Wikidata-listed founder of *ticker* who
+    currently holds an EXECUTIVE role, else None.
+
+    Match logic: all words in the founder's normalized name must appear in some
+    officer's normalized name, AND that officer's title must be executive (see
+    _is_executive_title). Catches "Mark Zuckerberg" vs "Mr. Mark Elliot
+    Zuckerberg"; falls through on nickname divergence like "Larry Ellison" vs
+    "Lawrence J. Ellison" (manual override handles those). The executive gate
+    stops board-only founders (e.g. a Chairman Emeritus listed as an officer)
+    from tripping the flag.
     """
     founders = _load_wikidata_founders().get(ticker, [])
     if not founders or not officers:
-        return False
-    officer_words = [_normalize_name(o.get('name', '')) for o in officers]
-    officer_words = [s for s in officer_words if s]
+        return None
     for fn in founders:
         fwords = _normalize_name(fn)
         if not fwords:
             continue
-        for ow in officer_words:
-            if fwords.issubset(ow):
-                return True
-    return False
+        for o in officers:
+            ow = _normalize_name(o.get('name', ''))
+            if ow and fwords.issubset(ow) and _is_executive_title(o.get('title')):
+                return o
+    return None
 
 
 def _load_local_prices(ticker, prices_dir):
@@ -2123,27 +2161,36 @@ def _main():
                                   if (current_price and high_52w and low_52w
                                       and high_52w > low_52w) else None)
 
-            # Founder-led detection (three layers):
-            #   1) Title scan over every officer — catches founder-CEO,
-            #      founder-Chair, founder-CTO, etc. when yfinance labels the
-            #      title with "Founder".
-            #   2) Wikidata cross-reference — if any Wikidata-listed founder
-            #      of this CIK appears in the current companyOfficers list,
-            #      flag founder-led. Catches cases where the title field
-            #      doesn't contain "Founder" (e.g., Michael Dell, "CEO").
+            # Founder-led detection (three layers, all gated on the founder
+            # holding a CURRENT executive role — see data/founder_overrides.json
+            # for the definition; board-only / retired founders do NOT count):
+            #   1) Title scan — an officer whose title contains "founder" AND
+            #      denotes an executive role (CEO/President/C-suite/COO/CTO/
+            #      Exec Chair). Skips "Founder & Director", "Chairman Emeritus".
+            #   2) Wikidata cross-reference — a Wikidata-listed founder of this
+            #      CIK who is a current executive officer. Catches founders whose
+            #      title omits "Founder" (e.g., Michael Dell, "CEO").
             #   3) Manual overrides — final say, beats both above.
+            # founder_role records what triggered the flag, for auditability.
             founder_led = False
+            founder_role = None
             if officers:
                 for _o in officers:
-                    _title = (_o.get('title') or '').lower()
-                    if 'founder' in _title:
+                    _title = _o.get('title') or ''
+                    if 'founder' in _title.lower() and _is_executive_title(_title):
                         founder_led = True
+                        founder_role = '%s — %s' % (_o.get('name') or '?', _title)
                         break
             if not founder_led:
-                founder_led = _wikidata_founder_active(ticker, officers)
+                _m = _wikidata_founder_match(ticker, officers)
+                if _m:
+                    founder_led = True
+                    founder_role = '%s — %s (Wikidata founder)' % (
+                        _m.get('name') or '?', _m.get('title') or '?')
             _foverrides = _load_founder_overrides()
             if ticker in _foverrides:
                 founder_led = bool(_foverrides[ticker])
+                founder_role = 'manual override' if founder_led else None
 
             # Ownership data from yfinance info
             shares_out = info.get('sharesOutstanding')
@@ -2231,6 +2278,7 @@ def _main():
                 'ceo': ceo,
                 'ceo_bio': ceo_bio,
                 'founder_led': founder_led,
+                'founder_role': founder_role,
                 # Culture raw inputs (narrative built in post-processing)
                 'employees': _culture_raw.get('employees'),
                 'ceo_total_pay': _culture_raw.get('ceo_total_pay'),
