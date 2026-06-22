@@ -328,6 +328,7 @@ class SECInsiderClient:
         empty = {
             'available': False,
             'transactions': [],
+            'reporting_officers': [],
             'buy_count_90d': 0, 'sell_count_90d': 0, 'buy_ratio_90d': None,
             'buy_count_365d': 0, 'sell_count_365d': 0, 'buy_ratio_365d': None,
             'net_shares_365d': 0, 'net_value_365d': 0.0,
@@ -400,9 +401,29 @@ class SECInsiderClient:
         display_txns = [t for t in all_transactions if t['date'] >= cutoff_365d]
         display_txns = display_txns[:20]
 
+        # Role-tagged officer roster from the FULL Form 4 set (not the capped
+        # display list). yfinance's companyOfficers is the comp-table subset and
+        # omits roles like Executive Chairman; Form 4 officerTitle recovers them.
+        # Used by founder-led detection. Deduped by (name, title).
+        reporting_officers = []
+        _seen_ro = set()
+        for t in all_transactions:
+            if not t.get('is_officer'):
+                continue
+            nm = (t.get('insider_name') or '').strip()
+            ti = (t.get('title') or '').strip()
+            if not nm:
+                continue
+            key = (nm.lower(), ti.lower())
+            if key in _seen_ro:
+                continue
+            _seen_ro.add(key)
+            reporting_officers.append({'name': nm, 'title': ti})
+
         result = {
             'available': True,
             'transactions': display_txns,
+            'reporting_officers': reporting_officers,
             'buy_count_90d': buy_90,
             'sell_count_90d': sell_90,
             'buy_ratio_90d': round(buy_ratio_90d, 3) if buy_ratio_90d is not None else None,

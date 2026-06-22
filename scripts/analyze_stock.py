@@ -343,6 +343,18 @@ def _wikidata_founder_match(ticker, officers):
     return None
 
 
+def _sec_reporting_officers(insider_data):
+    """Officer roster derived from SEC Form 4 filings (see SECInsiderClient).
+
+    Returns a list of {name, title} for reporting persons flagged isOfficer.
+    Supplements yfinance's comp-table companyOfficers list, which omits roles
+    like Executive Chairman — the source gap behind founder-led false negatives.
+    """
+    if not insider_data:
+        return []
+    return insider_data.get('reporting_officers') or []
+
+
 def _load_local_prices(ticker, prices_dir):
     """Load Close price series from local Parquet file. Returns pd.Series or None."""
     if not prices_dir:
@@ -2163,30 +2175,39 @@ def _main():
 
             # Founder-led detection (three layers, all gated on the founder
             # holding a CURRENT executive role — see data/founder_overrides.json
-            # for the definition; board-only / retired founders do NOT count):
-            #   1) Title scan — an officer whose title contains "founder" AND
-            #      denotes an executive role (CEO/President/C-suite/COO/CTO/
+            # for the definition; board-only / retired founders do NOT count).
+            # The officer pool merges two sources: yfinance companyOfficers (the
+            # comp-table subset) PLUS SEC Form 4 reporting persons flagged as
+            # officers. The SEC roster recovers founder-execs the comp table
+            # omits — e.g. an Executive Chairman like Reed Hastings (NFLX).
+            #   1) Title scan — a pooled officer whose title contains "founder"
+            #      AND denotes an executive role (CEO/President/C-suite/COO/CTO/
             #      Exec Chair). Skips "Founder & Director", "Chairman Emeritus".
             #   2) Wikidata cross-reference — a Wikidata-listed founder of this
-            #      CIK who is a current executive officer. Catches founders whose
-            #      title omits "Founder" (e.g., Michael Dell, "CEO").
+            #      CIK who is a current executive officer in the pool.
             #   3) Manual overrides — final say, beats both above.
-            # founder_role records what triggered the flag, for auditability.
+            # founder_role records what triggered the flag (incl. source).
+            officer_pool = [{'name': _o.get('name'), 'title': _o.get('title'),
+                             'src': 'yfinance'} for _o in (officers or [])]
+            for _so in _sec_reporting_officers(insider_data):
+                officer_pool.append({'name': _so.get('name'),
+                                     'title': _so.get('title'), 'src': 'SEC Form 4'})
             founder_led = False
             founder_role = None
-            if officers:
-                for _o in officers:
-                    _title = _o.get('title') or ''
-                    if 'founder' in _title.lower() and _is_executive_title(_title):
-                        founder_led = True
-                        founder_role = '%s — %s' % (_o.get('name') or '?', _title)
-                        break
+            for _o in officer_pool:
+                _title = _o.get('title') or ''
+                if 'founder' in _title.lower() and _is_executive_title(_title):
+                    founder_led = True
+                    founder_role = '%s — %s [%s]' % (
+                        _o.get('name') or '?', _title, _o.get('src'))
+                    break
             if not founder_led:
-                _m = _wikidata_founder_match(ticker, officers)
+                _m = _wikidata_founder_match(ticker, officer_pool)
                 if _m:
                     founder_led = True
-                    founder_role = '%s — %s (Wikidata founder)' % (
-                        _m.get('name') or '?', _m.get('title') or '?')
+                    founder_role = '%s — %s [%s] (Wikidata founder)' % (
+                        _m.get('name') or '?', _m.get('title') or '?',
+                        _m.get('src') or '?')
             _foverrides = _load_founder_overrides()
             if ticker in _foverrides:
                 founder_led = bool(_foverrides[ticker])
