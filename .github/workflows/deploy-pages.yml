@@ -1,0 +1,39 @@
+name: Deploy report to GitHub Pages
+
+# The legacy Jekyll-based Pages builder started failing instantly once this
+# repository crossed its 1 GB source-size limit (daily report + sidecar
+# publishes add ~90 MB of history per day). This workflow replaces it: a
+# shallow checkout of HEAD, then publish the docs/ folder as-is.
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (shallow)
+        uses: actions/checkout@v4
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload docs/ artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
