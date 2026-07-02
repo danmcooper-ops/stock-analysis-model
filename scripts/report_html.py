@@ -388,6 +388,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         'ddm_sustainable_growth': r.get('ddm_sustainable_growth'),
         'ddm_payout_flag': r.get('ddm_payout_flag', False),
         'ddm_consecutive_years': r.get('ddm_consecutive_years'),
+        'ddm_reason': r.get('ddm_reason'),
+        'dividend_cagr_5y': r.get('dividend_cagr_5y'),
         'ddm_mc_median': r.get('ddm_mc_median'),
         'ddm_mc_p10': r.get('ddm_mc_p10'),
         'ddm_mc_p90': r.get('ddm_mc_p90'),
