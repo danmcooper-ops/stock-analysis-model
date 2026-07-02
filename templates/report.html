@@ -276,9 +276,19 @@ td.ct{font-weight:700;}
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
 .dt th:first-child{text-align:left;}
 .dt th .arrow{margin-left:3px;font-size:0.7em;}
-.dt th.gv{background:#1a3a5c;}.dt th.gp2{background:#1a4a2c;}
-.dt th.gh{background:#3a2a10;}.dt th.gc{background:#4a1a2a;}.dt th.gj{background:#164a4a;}
-.dt th.gg{background:#3a1a5a;}.dt th.gow{background:#5a3a00;}
+/* Per-tab header colors. Each Financial Data sub-tab paints its ENTIRE header
+   row (including #, flag, reviewed, Ticker and Rating) a single cheerful hue,
+   so headers read uniform within a tab but distinct across tabs. The table
+   carries a hdr-<tab> class set in renderTable(); these rules override the
+   default .dt th and any per-column group class uniformly. Deep, saturated
+   tones chosen for AA contrast with the white header text. */
+#dtbl.hdr-val   th{background:#1d4ed8;border-right-color:rgba(255,255,255,0.16);}
+#dtbl.hdr-prof  th{background:#15803d;border-right-color:rgba(255,255,255,0.16);}
+#dtbl.hdr-hlth  th{background:#0e7490;border-right-color:rgba(255,255,255,0.16);}
+#dtbl.hdr-growth th{background:#6d28d9;border-right-color:rgba(255,255,255,0.16);}
+#dtbl.hdr-proj  th{background:#c2410c;border-right-color:rgba(255,255,255,0.16);}
+#dtbl.hdr-own   th{background:#be185d;border-right-color:rgba(255,255,255,0.16);}
+#dtbl.hdr-div   th{background:#a16207;border-right-color:rgba(255,255,255,0.16);}
 .dt td{padding:5px 7px;text-align:right;font-size:0.82em;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;}
 .dt td.tk2{text-align:left;font-weight:600;color:#1a252f;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.3);}
 .dt td.tk2:hover{color:var(--accent);}
@@ -2369,6 +2379,8 @@ function renderTSubs(){var h='';Object.keys(TL).forEach(function(k){h+='<button 
 function swTSub(s){curTSub=s;tSC='rating';tSA=true;renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}}
 function renderTable(){
   var cols=TC[curTSub]||TC.prices;
+  var _dtbl=document.getElementById('dtbl');
+  if(_dtbl)_dtbl.className='dt hdr-'+curTSub; /* paints the whole header row one per-tab hue */
   var th=document.getElementById('dt-h');
   var hh='<tr>';hh+='<th style="width:40px;color:#7f8c9a;font-weight:600" title="Row number in current sort order">#</th>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';hh+='<th style="width:28px;cursor:pointer" onclick="tSort(\'_reviewed\')" data-col-tip="_reviewed" data-col-label="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="arrow">'+(tSC==='_reviewed'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
   th.innerHTML=hh;
