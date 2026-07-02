@@ -25,3 +25,7 @@ gen_business_plan.py
 
 # API keys — never commit
 .env
+.gstack/
+
+# Standalone sibling project (own repo, decoupled from stock-analysis)
+Real-Estate-Model/

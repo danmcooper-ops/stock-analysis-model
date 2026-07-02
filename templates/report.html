@@ -1073,6 +1073,8 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .xs-pp-chip:hover{background:#21262d;}
 [data-theme="dark"] .xs-pp-chip .xs-pp-nm{color:#e6edf3;}
 [data-theme="dark"] .xs-pp-chip .xs-pp-num,[data-theme="dark"] .xs-pp-chip .xs-pp-meta{color:#8b949e;}
+.pp-grid-m{margin-left:auto;font-size:0.82em;font-weight:600;color:#64748b;font-variant-numeric:tabular-nums;}
+[data-theme="dark"] .pp-grid-m{color:#8b949e;}
 /* Cross-sector cap volume KPI cards (inline-styled backgrounds) */
 [data-theme="dark"] .xsect-dashboard div[style*="background:#fafbfc"]{background:#1c2128 !important;}
 [data-theme="dark"] .xsect-dashboard div[style*="background:#f0f0f0"]{background:#21262d !important;}
@@ -4748,23 +4750,29 @@ function renderCrossSectorDashboard(){
       });
     });
   },0);
-  /* Overview: World MoS Map → Sector Heatmap → Cross-Sector Profit Pool. */
-  var _poolMapHtml=renderCrossSectorProfitPool();
+  /* Overview: World MoS Map → Sector Heatmap. (The Cross-Sector Profit Pool
+     lives on the Charts sub-tab, below the Sector Price Comparison.) */
   return'<div class="xsect-dashboard">'
     +_mapHtml
     +'<div style="height:18px"></div>'
     +_heatTableHtml
-    +(_poolMapHtml?'<div style="height:18px"></div>'+_poolMapHtml:'')
     +'</div></div>';
 }
 /* === Cross-Sector Profit Pool map (Bain/Marakon style) ===
-   X-axis = cumulative share of total operating revenue; Y-axis = sector
-   operating margin. Each sector is a rectangle whose width is its revenue
-   share and height is its operating margin, so the AREA of each bar ≈ its
-   absolute operating profit. Sectors are ordered by margin descending, so the
-   pool "steps down" from the most profitable. Aggregates from the full DATA
-   universe (consistent with the World MoS Map and Sector Heatmap above). Bars
-   hover for detail and click through to that sector's drill-down. */
+   X-axis = cumulative share of operating revenue; Y-axis = sector operating
+   margin. Each sector is a rectangle whose width is its revenue share and
+   height is its operating margin, so the AREA of each bar ≈ its absolute
+   operating profit. Sectors are ordered by margin descending, so the pool
+   "steps down" from the most profitable. Aggregates from the full DATA universe
+   (consistent with the World MoS Map and Sector Heatmap above).
+
+   Interactive: a checkbox grid below the chart shows/hides each sector. When a
+   sector is toggled, the revenue and profit shares recompute among the shown
+   sectors (so the pool always represents the selected set), and the SVG +
+   numbered legend redraw. Bars hover for detail and click through to that
+   sector's drill-down. Follows the same static-control + redraw-target pattern
+   as the Sector Price Comparison chart on the Charts sub-tab. */
+function _ppColM(m){return m>=0.25?'#1a9850':m>=0.15?'#4caf50':m>=0.10?'#ff9800':m>=0?'#fdae61':'#e53935';}
 function renderCrossSectorProfitPool(){
   var agg={};
   DATA.forEach(function(d){
@@ -4776,16 +4784,61 @@ function renderCrossSectorProfitPool(){
   });
   var secs=Object.keys(agg).map(function(k){return agg[k];});
   if(secs.length<2)return'';
-  var totalRev=secs.reduce(function(s,a){return s+a.rev;},0);
-  var totalOI=secs.reduce(function(s,a){return s+a.oi;},0);
-  if(totalRev<=0)return'';
-  secs.forEach(function(a){a.margin=a.oi/a.rev;a.revShare=a.rev/totalRev;a.profitShare=totalOI!==0?a.oi/totalOI:null;});
+  secs.forEach(function(a){a.margin=a.oi/a.rev;});
+  /* Persist the full per-sector aggregates (margin is intrinsic; shares are
+     recomputed per selection in _ppDraw). Default: all sectors selected. */
   secs.sort(function(a,b){return b.margin-a.margin;});
-  window._xsPoolAgg={};secs.forEach(function(a){window._xsPoolAgg[a.name]=a;});
-  function _colM(m){return m>=0.25?'#1a9850':m>=0.15?'#4caf50':m>=0.10?'#ff9800':m>=0?'#fdae61':'#e53935';}
+  window._xsPoolAll=secs;
+  window._ppSel={};secs.forEach(function(a){window._ppSel[a.name]=true;});
+  /* Static checkbox grid (control) — dot colored by margin band to match the
+     bars; margin shown inline. Redraw target (#xsect-pp-wrap) + numbered legend
+     (#xsect-pp-legend) are filled by _ppDraw() after mount. */
+  var gridItems=secs.map(function(a){
+    var safe=_esc(a.name);
+    return '<label class="agg-grid-item"><input type="checkbox" value="'+_attr(a.name)+'" checked onchange="_ppChanged()"><span class="agg-grid-dot" style="background:'+_ppColM(a.margin)+'"></span><span class="agg-grid-name">'+safe+'</span><span class="pp-grid-m">'+(a.margin*100).toFixed(0)+'%</span></label>';
+  }).join('');
+  var helperBtns='<button type="button" class="agg-helper-btn" onclick="_ppSelectAll()">All</button>'
+    +'<button type="button" class="agg-helper-btn" onclick="_ppClearAll()">Clear</button>';
+  setTimeout(_ppDraw,0);
+  return '<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
+    +'<div id="xsect-pp-wrap" style="min-height:200px"></div>'
+    +'<div class="xs-pp-legend" id="xsect-pp-legend"></div>'
+    +'<div class="agg-grid-section">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+    +'<div class="agg-grid-title" style="margin:0">Show / hide sectors</div>'
+    +'<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+helperBtns+'</div>'
+    +'</div>'
+    +'<div class="agg-grid" id="pp-grid">'+gridItems+'</div>'
+    +'</div>'
+  +'</div>';
+}
+/* Redraw the SVG + numbered legend from the current selection (window._ppSel).
+   Revenue/profit shares are recomputed over only the shown sectors, so the
+   diagram always fills the axis and represents the selected pool. */
+function _ppDraw(){
+  var wrap=document.getElementById('xsect-pp-wrap');if(!wrap)return;
+  var leg=document.getElementById('xsect-pp-legend');
+  var all=window._xsPoolAll||[];
+  var sel=all.filter(function(a){return window._ppSel&&window._ppSel[a.name];});
+  if(!sel.length){
+    wrap.innerHTML='<p style="color:#888;padding:40px 20px;text-align:center;font-size:0.85em">Select one or more sectors below to plot the profit pool.</p>';
+    if(leg)leg.innerHTML='';
+    window._xsPoolAgg={};
+    return;
+  }
+  var totalRev=sel.reduce(function(s,a){return s+a.rev;},0);
+  var totalOI=sel.reduce(function(s,a){return s+a.oi;},0);
+  sel=sel.slice().sort(function(a,b){return b.margin-a.margin;});
+  /* Rebuild the tooltip lookup with selection-relative shares. */
+  window._xsPoolAgg={};
+  sel.forEach(function(a){
+    a.revShare=totalRev>0?a.rev/totalRev:0;
+    a.profitShare=totalOI!==0?a.oi/totalOI:null;
+    window._xsPoolAgg[a.name]=a;
+  });
   var W=860,H=330,pL=54,pR=16,pT=18,pB=40,cW=W-pL-pR,cH=H-pT-pB;
-  var maxM=Math.max.apply(null,secs.map(function(a){return a.margin;}));
-  var minM=Math.min.apply(null,secs.map(function(a){return a.margin;}));
+  var maxM=Math.max.apply(null,sel.map(function(a){return a.margin;}));
+  var minM=Math.min.apply(null,sel.map(function(a){return a.margin;}));
   maxM=Math.max(maxM,0.05);minM=Math.min(minM,0);
   var yRange=maxM-minM;if(yRange<0.02)yRange=0.02;
   var zeroY=pT+cH*(maxM/yRange);
@@ -4808,11 +4861,11 @@ function renderCrossSectorProfitPool(){
   var yCtr=pT+cH/2;
   axes+='<text x="13" y="'+yCtr.toFixed(1)+'" text-anchor="middle" font-size="11" fill="#444" font-weight="600" transform="rotate(-90,13,'+yCtr.toFixed(1)+')">Operating Margin →</text>';
   var bars='',cumX=0;
-  secs.forEach(function(a,i){
+  sel.forEach(function(a,i){
     var barW=Math.max(2,a.revShare*cW);
     var barH=Math.max(1,Math.abs(a.margin)/yRange*cH);
     var barY=a.margin>=0?zeroY-barH:zeroY;
-    var bx=pL+cumX;var col=_colM(a.margin);
+    var bx=pL+cumX;var col=_ppColM(a.margin);
     var nm=a.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     bars+='<rect x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="'+col+'" opacity="0.86" stroke="rgba(255,255,255,0.7)" stroke-width="0.6" onmouseenter="ppPoolTip(event,\''+nm+'\')" onmouseleave="ppHide()" onclick="showPoolTab(\''+nm+'\')" style="cursor:pointer"/>';
     if(barW>=8){
@@ -4821,21 +4874,34 @@ function renderCrossSectorProfitPool(){
     }
     cumX+=barW;
   });
-  var chips='';
-  secs.forEach(function(a,i){
-    var nm=a.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    var ps=a.profitShare!=null?(a.profitShare*100).toFixed(1)+'%':'—';
-    chips+='<div class="xs-pp-chip" style="border-left-color:'+_colM(a.margin)+'" onclick="showPoolTab(\''+nm+'\')" title="Open '+_attr(a.name)+'">'
-      +'<span class="xs-pp-num">'+(i+1)+'</span>'
-      +'<span class="xs-pp-nm">'+_esc(a.name)+'</span>'
-      +'<span class="xs-pp-meta">'+(a.margin*100).toFixed(1)+'% margin · '+(a.revShare*100).toFixed(1)+'% rev → '+ps+' profit</span>'
-    +'</div>';
-  });
-  return'<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
-    +'<div class="xsect-chart-title" style="margin-bottom:4px">Cross-Sector Profit Pool <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(bar width = share of total operating revenue · bar height = operating margin · area ≈ operating profit · ordered by margin · click a sector to drill in)</span></div>'
-    +'<div id="xsect-pp-wrap"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:'+W+'px;margin:2px auto 0">'+ticks+axes+bars+'</svg></div>'
-    +'<div class="xs-pp-legend">'+chips+'</div>'
-  +'</div>';
+  wrap.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:'+W+'px;margin:2px auto 0">'+ticks+axes+bars+'</svg>';
+  if(leg){
+    var chips='';
+    sel.forEach(function(a,i){
+      var nm=a.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      var ps=a.profitShare!=null?(a.profitShare*100).toFixed(1)+'%':'—';
+      chips+='<div class="xs-pp-chip" style="border-left-color:'+_ppColM(a.margin)+'" onclick="showPoolTab(\''+nm+'\')" title="Open '+_attr(a.name)+'">'
+        +'<span class="xs-pp-num">'+(i+1)+'</span>'
+        +'<span class="xs-pp-nm">'+_esc(a.name)+'</span>'
+        +'<span class="xs-pp-meta">'+(a.margin*100).toFixed(1)+'% margin · '+(a.revShare*100).toFixed(1)+'% rev → '+ps+' profit</span>'
+      +'</div>';
+    });
+    leg.innerHTML=chips;
+  }
+}
+function _ppChanged(){
+  var boxes=document.querySelectorAll('#pp-grid input[type="checkbox"]');
+  window._ppSel={};
+  boxes.forEach(function(cb){if(cb.checked)window._ppSel[cb.value]=true;});
+  _ppDraw();
+}
+function _ppSelectAll(){
+  document.querySelectorAll('#pp-grid input[type="checkbox"]').forEach(function(cb){cb.checked=true;});
+  _ppChanged();
+}
+function _ppClearAll(){
+  document.querySelectorAll('#pp-grid input[type="checkbox"]').forEach(function(cb){cb.checked=false;});
+  _ppChanged();
 }
 function ppPoolTip(e,name){
   if(_isTouchDevice)return;
@@ -4845,8 +4911,8 @@ function ppPoolTip(e,name){
   tt.innerHTML='<b>'+_esc(a.name)+'</b><br>'
     +a.n+' companies<br>'
     +'Operating Margin: '+(a.margin*100).toFixed(1)+'%<br>'
-    +'Revenue: '+fds(a.rev)+' ('+(a.revShare*100).toFixed(1)+'% of total)<br>'
-    +'Operating Profit: '+fds(a.oi)+' ('+ps+' of pool)';
+    +'Revenue: '+fds(a.rev)+' ('+(a.revShare*100).toFixed(1)+'% of shown)<br>'
+    +'Operating Profit: '+fds(a.oi)+' ('+ps+' of shown pool)';
   tt.style.display='block';
   var _rect=(e.target&&e.target.getBoundingClientRect)?e.target.getBoundingClientRect():{left:e.clientX,top:e.clientY,right:e.clientX,bottom:e.clientY,width:0,height:0};
   _placeTip(_rect,tt);
@@ -5313,10 +5379,15 @@ function renderPool(){
   }
   else if(chosen==='__performance__'){
     var perfBody=renderUniversePriceChart();
+    var poolBody=renderCrossSectorProfitPool();
     chartHtml='<div class="xsect-dashboard">'
       +'<div class="xsect-title">Sector Price Comparison</div>'
       +'<div class="xsect-sub">Indexed price performance across sectors. Pick any subset to compare.</div>'
       +(perfBody||'<p style="color:#888;padding:20px">No sector data available.</p>')
+      +(poolBody?'<div style="height:22px"></div>'
+        +'<div class="xsect-title">Cross-Sector Profit Pool</div>'
+        +'<div class="xsect-sub">Bar width = revenue share · height = operating margin · area ≈ operating profit · ordered by margin · shares recompute among shown sectors. Show or hide any subset to compare; click a bar to drill in.</div>'
+        +poolBody:'')
       +'</div>';
   }
   toRender.forEach(function(sec){
