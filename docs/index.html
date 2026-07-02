@@ -1063,16 +1063,6 @@ td.ct{font-weight:700;}
 [data-theme="dark"] #xsect-pp-wrap svg line[stroke="#ccc"]{stroke:#30363d;}
 [data-theme="dark"] #xsect-pp-wrap svg line[stroke="#aaa"]{stroke:#6e7681;}
 [data-theme="dark"] #xsect-pp-wrap svg line[stroke="#f5f5f5"]{stroke:#21262d;}
-.xs-pp-legend{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px;}
-.xs-pp-chip{display:flex;align-items:center;gap:7px;font-size:0.74em;background:#f7f9fb;border:1px solid #e3e8ee;border-left-width:4px;border-radius:6px;padding:5px 9px;cursor:pointer;transition:background .12s,box-shadow .12s;}
-.xs-pp-chip:hover{background:#eef3f8;box-shadow:0 1px 4px rgba(0,0,0,0.08);}
-.xs-pp-chip .xs-pp-num{font-weight:700;color:#64748b;min-width:13px;text-align:center;}
-.xs-pp-chip .xs-pp-nm{font-weight:600;color:#1a252f;}
-.xs-pp-chip .xs-pp-meta{color:#64748b;}
-[data-theme="dark"] .xs-pp-chip{background:#1c2128;border-color:#30363d;}
-[data-theme="dark"] .xs-pp-chip:hover{background:#21262d;}
-[data-theme="dark"] .xs-pp-chip .xs-pp-nm{color:#e6edf3;}
-[data-theme="dark"] .xs-pp-chip .xs-pp-num,[data-theme="dark"] .xs-pp-chip .xs-pp-meta{color:#8b949e;}
 .pp-grid-m{margin-left:auto;font-size:0.82em;font-weight:600;color:#64748b;font-variant-numeric:tabular-nums;}
 [data-theme="dark"] .pp-grid-m{color:#8b949e;}
 /* Cross-sector cap volume KPI cards (inline-styled backgrounds) */
@@ -4791,8 +4781,8 @@ function renderCrossSectorProfitPool(){
   window._xsPoolAll=secs;
   window._ppSel={};secs.forEach(function(a){window._ppSel[a.name]=true;});
   /* Static checkbox grid (control) — dot colored by margin band to match the
-     bars; margin shown inline. Redraw target (#xsect-pp-wrap) + numbered legend
-     (#xsect-pp-legend) are filled by _ppDraw() after mount. */
+     bars; margin shown inline. Redraw target (#xsect-pp-wrap) is filled by
+     _ppDraw() after mount. */
   var gridItems=secs.map(function(a){
     var safe=_esc(a.name);
     return '<label class="agg-grid-item"><input type="checkbox" value="'+_attr(a.name)+'" checked onchange="_ppChanged()"><span class="agg-grid-dot" style="background:'+_ppColM(a.margin)+'"></span><span class="agg-grid-name">'+safe+'</span><span class="pp-grid-m">'+(a.margin*100).toFixed(0)+'%</span></label>';
@@ -4802,7 +4792,6 @@ function renderCrossSectorProfitPool(){
   setTimeout(_ppDraw,0);
   return '<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
     +'<div id="xsect-pp-wrap" style="min-height:200px"></div>'
-    +'<div class="xs-pp-legend" id="xsect-pp-legend"></div>'
     +'<div class="agg-grid-section">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
     +'<div class="agg-grid-title" style="margin:0">Show / hide sectors</div>'
@@ -4817,12 +4806,10 @@ function renderCrossSectorProfitPool(){
    diagram always fills the axis and represents the selected pool. */
 function _ppDraw(){
   var wrap=document.getElementById('xsect-pp-wrap');if(!wrap)return;
-  var leg=document.getElementById('xsect-pp-legend');
   var all=window._xsPoolAll||[];
   var sel=all.filter(function(a){return window._ppSel&&window._ppSel[a.name];});
   if(!sel.length){
     wrap.innerHTML='<p style="color:#888;padding:40px 20px;text-align:center;font-size:0.85em">Select one or more sectors below to plot the profit pool.</p>';
-    if(leg)leg.innerHTML='';
     window._xsPoolAgg={};
     return;
   }
@@ -4875,19 +4862,6 @@ function _ppDraw(){
     cumX+=barW;
   });
   wrap.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:'+W+'px;margin:2px auto 0">'+ticks+axes+bars+'</svg>';
-  if(leg){
-    var chips='';
-    sel.forEach(function(a,i){
-      var nm=a.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      var ps=a.profitShare!=null?(a.profitShare*100).toFixed(1)+'%':'—';
-      chips+='<div class="xs-pp-chip" style="border-left-color:'+_ppColM(a.margin)+'" onclick="showPoolTab(\''+nm+'\')" title="Open '+_attr(a.name)+'">'
-        +'<span class="xs-pp-num">'+(i+1)+'</span>'
-        +'<span class="xs-pp-nm">'+_esc(a.name)+'</span>'
-        +'<span class="xs-pp-meta">'+(a.margin*100).toFixed(1)+'% margin · '+(a.revShare*100).toFixed(1)+'% rev → '+ps+' profit</span>'
-      +'</div>';
-    });
-    leg.innerHTML=chips;
-  }
 }
 function _ppChanged(){
   var boxes=document.querySelectorAll('#pp-grid input[type="checkbox"]');
