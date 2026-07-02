@@ -5628,5 +5628,578 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   setTimeout(_setTableH,0);
 })();
 </script>
+<!-- === AI ANALYST WIDGET ===
+     Floating chat agent (bottom-right on all devices). Calls the Claude API
+     directly from the browser with a user-supplied key held in localStorage —
+     the published HTML never contains a key. Tools query the in-page DATA
+     array and the prices.json sidecar, so the model works from this report's
+     actual numbers instead of its own priors. -->
+<style>
+#ai-fab{position:fixed;right:calc(18px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:none;background:#1a9850;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.28);cursor:pointer;z-index:1500;display:flex;align-items:center;justify-content:center;transition:transform .15s ease,background .15s ease;-webkit-tap-highlight-color:transparent;}
+#ai-fab:hover{transform:scale(1.07);background:#157a40;}
+#ai-fab svg{width:26px;height:26px;}
+[data-theme="dark"] #ai-fab{background:#238636;}
+[data-theme="dark"] #ai-fab:hover{background:#2ea043;}
+#ai-panel{position:fixed;right:calc(18px + env(safe-area-inset-right));bottom:calc(86px + env(safe-area-inset-bottom));width:min(430px,calc(100vw - 36px));height:min(650px,calc(100vh - 130px));background:#fff;border:1px solid #e2e5e9;border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.24);z-index:1501;display:none;flex-direction:column;overflow:hidden;font-size:13.5px;line-height:1.5;}
+#ai-panel.open{display:flex;}
+[data-theme="dark"] #ai-panel{background:#161b22;border-color:#30363d;color:#e6edf3;}
+.ai-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #e9ecef;background:#f8f9fa;flex:0 0 auto;}
+[data-theme="dark"] .ai-head{background:#1c2128;border-color:#30363d;}
+.ai-head-title{font-weight:700;font-size:13px;flex:1;min-width:0;}
+.ai-head-title small{display:block;font-weight:400;color:#6b7480;font-size:10.5px;}
+[data-theme="dark"] .ai-head-title small{color:#8b949e;}
+.ai-hbtn{border:none;background:none;cursor:pointer;font-size:15px;color:#6b7480;padding:4px 6px;border-radius:6px;line-height:1;}
+.ai-hbtn:hover{background:#e9ecef;color:#111;}
+[data-theme="dark"] .ai-hbtn{color:#8b949e;}
+[data-theme="dark"] .ai-hbtn:hover{background:#21262d;color:#e6edf3;}
+#ai-msgs{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;display:flex;flex-direction:column;gap:9px;}
+.ai-bub{max-width:88%;padding:8px 11px;border-radius:12px;word-wrap:break-word;overflow-wrap:break-word;}
+.ai-bub.user{align-self:flex-end;background:#1a9850;color:#fff;border-bottom-right-radius:4px;white-space:pre-wrap;}
+[data-theme="dark"] .ai-bub.user{background:#238636;}
+.ai-bub.asst{align-self:flex-start;background:#f1f3f5;color:#1c2128;border-bottom-left-radius:4px;}
+[data-theme="dark"] .ai-bub.asst{background:#21262d;color:#e6edf3;}
+.ai-bub.asst p{margin:0 0 7px;}
+.ai-bub.asst p:last-child{margin-bottom:0;}
+.ai-bub.asst h4{margin:8px 0 4px;font-size:13px;}
+.ai-bub.asst ul,.ai-bub.asst ol{margin:2px 0 7px;padding-left:20px;}
+.ai-bub.asst li{margin:2px 0;}
+.ai-bub.asst code{background:rgba(0,0,0,.07);padding:1px 4px;border-radius:4px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+[data-theme="dark"] .ai-bub.asst code{background:rgba(255,255,255,.1);}
+.ai-bub.asst pre{background:rgba(0,0,0,.06);padding:8px;border-radius:8px;overflow-x:auto;font-size:11.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin:4px 0 8px;}
+[data-theme="dark"] .ai-bub.asst pre{background:rgba(255,255,255,.07);}
+.ai-bub.asst table{border-collapse:collapse;margin:4px 0 8px;font-size:12px;max-width:100%;display:block;overflow-x:auto;}
+.ai-bub.asst th,.ai-bub.asst td{border:1px solid #d5d9de;padding:3px 7px;text-align:left;white-space:nowrap;}
+[data-theme="dark"] .ai-bub.asst th,[data-theme="dark"] .ai-bub.asst td{border-color:#30363d;}
+.ai-bub.asst th{background:rgba(0,0,0,.05);font-weight:600;}
+[data-theme="dark"] .ai-bub.asst th{background:rgba(255,255,255,.06);}
+.ai-tool{align-self:flex-start;font-size:11px;color:#6b7480;background:#f8f9fa;border:1px dashed #d5d9de;border-radius:8px;padding:3px 9px;max-width:88%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+[data-theme="dark"] .ai-tool{color:#8b949e;background:#1c2128;border-color:#30363d;}
+.ai-err{align-self:stretch;font-size:12px;color:#b42318;background:#fef3f2;border:1px solid #fecdca;border-radius:8px;padding:7px 10px;}
+[data-theme="dark"] .ai-err{color:#ff7b72;background:#2d1214;border-color:#6e2c31;}
+.ai-note{align-self:center;font-size:11px;color:#8a929c;text-align:center;padding:2px 8px;}
+.ai-inrow{display:flex;align-items:flex-end;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid #e9ecef;flex:0 0 auto;}
+[data-theme="dark"] .ai-inrow{border-color:#30363d;}
+#ai-input{flex:1;resize:none;border:1px solid #d5d9de;border-radius:10px;padding:8px 10px;font:inherit;font-size:13.5px;max-height:110px;background:#fff;color:inherit;outline:none;}
+#ai-input:focus{border-color:#1a9850;}
+[data-theme="dark"] #ai-input{background:#0d1117;border-color:#30363d;color:#e6edf3;}
+#ai-sendbtn{flex:0 0 auto;width:38px;height:38px;border-radius:10px;border:none;background:#1a9850;color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+#ai-sendbtn.stop{background:#b42318;}
+[data-theme="dark"] #ai-sendbtn{background:#238636;}
+[data-theme="dark"] #ai-sendbtn.stop{background:#da3633;}
+#ai-settings{padding:16px;display:none;flex-direction:column;gap:10px;overflow-y:auto;}
+#ai-panel.settings #ai-settings{display:flex;}
+#ai-panel.settings #ai-msgs,#ai-panel.settings .ai-inrow{display:none;}
+#ai-settings label{font-weight:600;font-size:12.5px;}
+#ai-keyinput{border:1px solid #d5d9de;border-radius:8px;padding:8px 10px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#fff;color:inherit;}
+[data-theme="dark"] #ai-keyinput{background:#0d1117;border-color:#30363d;color:#e6edf3;}
+.ai-setrow{display:flex;gap:8px;flex-wrap:wrap;}
+.ai-setbtn{border:none;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;background:#1a9850;color:#fff;}
+.ai-setbtn.sec{background:#e9ecef;color:#374151;}
+[data-theme="dark"] .ai-setbtn.sec{background:#21262d;color:#c9d1d9;}
+.ai-setnote{font-size:11.5px;color:#6b7480;line-height:1.55;}
+[data-theme="dark"] .ai-setnote{color:#8b949e;}
+@media(max-width:768px){
+  #ai-panel{left:0;right:0;bottom:0;top:auto;width:100%;height:var(--vvh,100vh);max-height:100vh;border-radius:0;border:none;}
+  body:has(#ai-panel.open) #ai-fab{display:none;}
+  .ai-bub{max-width:92%;}
+}
+</style>
+<div id="ai-panel" role="dialog" aria-label="AI Analyst">
+  <div class="ai-head">
+    <div class="ai-head-title">AI Analyst<small>Claude Opus 4.8 &middot; queries this report's data</small></div>
+    <button class="ai-hbtn" id="ai-clearbtn" title="Clear conversation">&#8635;</button>
+    <button class="ai-hbtn" id="ai-gearbtn" title="API key settings">&#9881;</button>
+    <button class="ai-hbtn" id="ai-closebtn" title="Close">&#10005;</button>
+  </div>
+  <div id="ai-settings">
+    <label for="ai-keyinput">Anthropic API key</label>
+    <input id="ai-keyinput" type="password" placeholder="sk-ant-..." autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="ai-setrow">
+      <button class="ai-setbtn" id="ai-savekey">Save key</button>
+      <button class="ai-setbtn sec" id="ai-clearkey">Remove key</button>
+      <button class="ai-setbtn sec" id="ai-backbtn">Back</button>
+    </div>
+    <div class="ai-setnote">Your key is stored only in this browser (localStorage) and sent only to <code>api.anthropic.com</code>. It is never part of the published page. Create a key at console.anthropic.com. Each device (Mac, iPhone, iPad) needs the key entered once.</div>
+  </div>
+  <div id="ai-msgs"></div>
+  <div class="ai-inrow">
+    <textarea id="ai-input" rows="1" placeholder="Ask about the data&hellip;"></textarea>
+    <button id="ai-sendbtn" title="Send">&#10148;</button>
+  </div>
+</div>
+<button id="ai-fab" title="AI Analyst" aria-label="Open AI Analyst">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 14l.9 2.1 2.1.9-2.1.9L19 20l-.9-2.1-2.1-.9 2.1-.9z"/><path d="M5 15l.7 1.6 1.6.7-1.6.7L5 19.6l-.7-1.6-1.6-.7 1.6-.7z"/></svg>
+</button>
+<script>
+(function(){
+'use strict';
+var AI_KEY_LS='stock_ai_key_v1';
+var AI_MODEL='claude-opus-4-8';
+var AI_GEN='{{ generated_at }}';
+var AI_MSGS=[];
+var AI_BUSY=false;
+var AI_CTRL=null;
+var AI_FIELDS=null;
+
+/* ---------- tool implementations (run in-page over DATA / PRICES) ---------- */
+function aiTrim(v){
+  if(typeof v==='string'&&v.length>600)return v.slice(0,600)+'…';
+  if(Array.isArray(v)&&v.length>40)return v.slice(0,40);
+  return v;
+}
+function aiFieldCatalog(){
+  if(AI_FIELDS)return AI_FIELDS;
+  var meta={},n=DATA.length;
+  DATA.forEach(function(d){
+    for(var k in d){
+      var v=d[k];if(v==null)continue;
+      var m=meta[k]||(meta[k]={count:0,type:null,example:null});
+      m.count++;
+      if(m.type==null){
+        var t=Array.isArray(v)?'array':typeof v;
+        m.type=t;
+        m.example=(t==='number'||t==='boolean')?v:(t==='string'?String(v).slice(0,40):t);
+      }
+    }
+  });
+  AI_FIELDS=Object.keys(meta).sort().map(function(k){
+    var m=meta[k];
+    return {name:k,type:m.type,coverage_pct:Math.round(m.count/n*100),example:m.example};
+  });
+  return AI_FIELDS;
+}
+function aiMatch(d,f){
+  var v=d[f.field],t=f.value,op=f.op||'eq';
+  function eq(a,b){return (typeof a==='string'&&typeof b==='string')?a.toLowerCase()===b.toLowerCase():a===b;}
+  switch(op){
+    case 'eq':return eq(v,t);
+    case 'ne':return !eq(v,t);
+    case 'gt':return typeof v==='number'&&v>t;
+    case 'gte':return typeof v==='number'&&v>=t;
+    case 'lt':return typeof v==='number'&&v<t;
+    case 'lte':return typeof v==='number'&&v<=t;
+    case 'contains':return v!=null&&String(v).toLowerCase().indexOf(String(t).toLowerCase())>=0;
+    case 'in':return Array.isArray(t)&&t.some(function(x){return eq(v,x);});
+    case 'notnull':return v!=null;
+    case 'isnull':return v==null;
+    default:return false;
+  }
+}
+function aiScreen(inp){
+  var filters=inp.filters||[];
+  var rows=DATA.filter(function(d){return filters.every(function(f){return aiMatch(d,f);});});
+  var total=rows.length;
+  if(inp.sort_by){
+    var sb=inp.sort_by,asc=inp.sort_dir==='asc';
+    rows=rows.slice().sort(function(a,b){
+      var va=a[sb],vb=b[sb];
+      if(va==null&&vb==null)return 0;
+      if(va==null)return 1;
+      if(vb==null)return -1;
+      if(va<vb)return asc?-1:1;
+      if(va>vb)return asc?1:-1;
+      return 0;
+    });
+  }
+  var limit=Math.min(inp.limit||25,200);
+  var flds=(inp.fields&&inp.fields.length)?inp.fields.slice(0,25):['ticker','company_name','sector','rating','_composite_score','price','mos','pe','roic'];
+  if(flds.indexOf('ticker')<0)flds.unshift('ticker');
+  var out=rows.slice(0,limit).map(function(d){
+    var o={};flds.forEach(function(k){o[k]=aiTrim(d[k]);});return o;
+  });
+  return {total_matches:total,returned:out.length,rows:out};
+}
+function aiAggregate(inp){
+  var filters=inp.filters||[];
+  var rows=DATA.filter(function(d){return filters.every(function(f){return aiMatch(d,f);});});
+  var gb=inp.group_by||'sector';
+  var metrics=(inp.metrics||['_composite_score']).slice(0,6);
+  var groups={};
+  rows.forEach(function(d){
+    var g=d[gb]==null?'(none)':String(d[gb]);
+    var G=groups[g]||(groups[g]={n:0,vals:{}});
+    G.n++;
+    metrics.forEach(function(m){
+      var v=d[m];
+      if(typeof v==='number'&&isFinite(v))(G.vals[m]||(G.vals[m]=[])).push(v);
+    });
+  });
+  function stats(a){
+    if(!a||!a.length)return null;
+    a=a.slice().sort(function(x,y){return x-y;});
+    var s=0;for(var i=0;i<a.length;i++)s+=a[i];
+    return {n:a.length,mean:+(s/a.length).toFixed(4),median:+a[Math.floor(a.length/2)].toFixed(4),min:+a[0].toFixed(4),max:+a[a.length-1].toFixed(4)};
+  }
+  var out=Object.keys(groups).map(function(g){
+    var o={group:g,count:groups[g].n};
+    metrics.forEach(function(m){o[m]=stats(groups[g].vals[m]);});
+    return o;
+  }).sort(function(a,b){return b.count-a.count;}).slice(0,40);
+  return {group_by:gb,total_rows:rows.length,groups:out};
+}
+function aiGetStock(t){
+  t=String(t||'').toUpperCase().trim();
+  var d=null;
+  for(var i=0;i<DATA.length;i++){if(DATA[i].ticker&&String(DATA[i].ticker).toUpperCase()===t){d=DATA[i];break;}}
+  if(!d)return {error:'ticker not found in this report: '+t};
+  var o={};for(var k in d)o[k]=aiTrim(d[k]);
+  return o;
+}
+function aiLoadPrices(){
+  return new Promise(function(res){
+    if(PRICES)return res(PRICES);
+    if(typeof _PRICES_AVAILABLE!=='undefined'&&!_PRICES_AVAILABLE)return res(null);
+    _loadSidecar('prices.json',function(d){if(d)PRICES=d;res(PRICES);});
+  });
+}
+function aiPriceHistory(inp){
+  return aiLoadPrices().then(function(P){
+    if(!P)return {error:'price history sidecar unavailable'};
+    var dates=P.dates||[];
+    var out={};
+    (inp.tickers||[]).slice(0,8).forEach(function(t){
+      t=String(t).toUpperCase().trim();
+      var s=P.prices&&P.prices[t];
+      if(!s){out[t]={error:'no price series'};return;}
+      var last=-1;
+      for(var i=s.length-1;i>=0;i--){if(s[i]!=null){last=i;break;}}
+      if(last<0){out[t]={error:'empty series'};return;}
+      function ret(off){
+        var i2=last-off;if(i2<0)return null;
+        var p=null;
+        for(var j=i2;j>=0&&j>i2-10;j--){if(s[j]!=null){p=s[j];break;}}
+        return p==null?null:+(s[last]/p-1).toFixed(4);
+      }
+      function ddRange(pre){
+        var peak=null,dd=0;
+        for(var i3=0;i3<s.length;i3++){
+          if(s[i3]==null)continue;
+          if(pre&&String(dates[i3]).indexOf(pre)!==0)continue;
+          if(peak==null||s[i3]>peak)peak=s[i3];
+          else if(peak>0){var x=s[i3]/peak-1;if(x<dd)dd=x;}
+        }
+        return peak==null?null:+dd.toFixed(4);
+      }
+      var first=-1;
+      for(var i4=0;i4<s.length;i4++){if(s[i4]!=null){first=i4;break;}}
+      var step=Math.max(1,Math.floor((last-first)/72));
+      var series=[];
+      for(var i5=first;i5<=last;i5+=step){if(s[i5]!=null)series.push([dates[i5],+s[i5].toFixed(2)]);}
+      if(series.length&&series[series.length-1][0]!==dates[last])series.push([dates[last],+s[last].toFixed(2)]);
+      out[t]={
+        latest_date:dates[last],latest_price:+s[last].toFixed(2),
+        returns:{'1m':ret(21),'3m':ret(63),'6m':ret(126),'1y':ret(252),'3y':ret(756),'5y':ret(1260)},
+        max_drawdown_all:ddRange(null),drawdown_2020:ddRange('2020'),drawdown_2022:ddRange('2022'),
+        sampled_series:series
+      };
+    });
+    return out;
+  });
+}
+function aiRunTool(name,input){
+  return Promise.resolve().then(function(){
+    switch(name){
+      case 'list_fields':return aiFieldCatalog();
+      case 'get_stock':return aiGetStock(input.ticker);
+      case 'screen_stocks':return aiScreen(input||{});
+      case 'aggregate_stocks':return aiAggregate(input||{});
+      case 'get_price_history':return aiPriceHistory(input||{});
+      default:return {error:'unknown tool: '+name};
+    }
+  }).catch(function(e){return {error:String(e&&e.message||e)};});
+}
+window._aiRunTool=aiRunTool; /* debug/test hook */
+var AI_TOOLS=[
+  {name:'list_fields',description:'List every queryable field on the stock records with type, coverage percentage, and an example value. Call this first when unsure of exact field names before screening or aggregating.',input_schema:{type:'object',properties:{},required:[]}},
+  {name:'get_stock',description:'Fetch the complete analysis record for one ticker: price, rating, composite score, DCF/EPV/RIM/NAV fair values, margin of safety, quality ratios, and all sector-specific enrichment fields.',input_schema:{type:'object',properties:{ticker:{type:'string',description:'Ticker symbol, e.g. AAPL'}},required:['ticker']}},
+  {name:'screen_stocks',description:'Filter, sort, and rank the full stock universe in this report. Ratio fields are decimals (0.15 = 15%). Rating values: BUY, LEAN BUY, HOLD, PASS. Returns total match count plus the top rows. Call this whenever the user asks for lists, rankings, or "which stocks..." questions.',input_schema:{type:'object',properties:{filters:{type:'array',description:'ALL conditions must hold (AND)',items:{type:'object',properties:{field:{type:'string'},op:{type:'string',enum:['eq','ne','gt','gte','lt','lte','contains','in','notnull','isnull']},value:{description:'Comparison value; array for op=in; omit for notnull/isnull'}},required:['field','op']}},sort_by:{type:'string'},sort_dir:{type:'string',enum:['asc','desc'],description:'default desc'},limit:{type:'integer',description:'rows to return, default 25, max 200'},fields:{type:'array',items:{type:'string'},description:'fields to include per row (ticker always included)'}},required:[]}},
+  {name:'aggregate_stocks',description:'Group stocks by a field (e.g. sector, industry, rating, country) and compute count plus mean/median/min/max of numeric metrics per group. Optional filters applied first. Call this for sector-level or distribution questions.',input_schema:{type:'object',properties:{group_by:{type:'string',description:'default sector'},metrics:{type:'array',items:{type:'string'},description:'numeric fields, max 6, default [_composite_score]'},filters:{type:'array',items:{type:'object',properties:{field:{type:'string'},op:{type:'string'},value:{}},required:['field','op']}}},required:[]}},
+  {name:'get_price_history',description:'Daily-close derived stats for up to 8 tickers: trailing returns (1m to 5y), max drawdown, 2020 and 2022 drawdowns, and a ~72-point sampled price series. Index tickers SPY, QQQ, DIA are available for benchmarking. Call this for questions about past performance, volatility, or price trends.',input_schema:{type:'object',properties:{tickers:{type:'array',items:{type:'string'}}},required:['tickers']}}
+];
+function aiSystemPrompt(){
+  var counts={},sectors={};
+  DATA.forEach(function(d){
+    counts[d.rating]=(counts[d.rating]||0)+1;
+    if(d.sector)sectors[d.sector]=1;
+  });
+  var rc=Object.keys(counts).map(function(k){return k+': '+counts[k];}).join(', ');
+  return 'You are an equity-analysis assistant embedded in a daily stock analysis report ('+AI_GEN+'). '
+    +'The report comes from a value-oriented screening model covering '+DATA.length+' US-listed stocks (market cap >= $300M, positive ROIC-WACC spread at screening). '
+    +'Each stock carries a composite score (field _composite_score, 0-100, higher = better value/quality blend) and a rating. Current distribution: '+rc+'. '
+    +'Sectors: '+Object.keys(sectors).sort().join(', ')+'. '
+    +'Valuations come from DCF, EPV, RIM and NAV models (fields dcf_fv, epv_fv, rim_fv, nav_fv; mos = margin of safety vs price). '
+    +'Sector enrichments include FDIC bank metrics (nim, efficiency_ratio, cet1_ratio, npl_ratio, deposit_beta), REIT proxies (ffo_growth_5y, affo_margin), XBRL KPIs (rule_of_40, capex_intensity, inventory_days, combined_ratio, debt_maturity_wall_yrs and more) and FDA pipeline counts (fda_pipeline_count).\n\n'
+    +'Rules:\n'
+    +'- Always fetch data with tools before making claims about specific stocks in this report; never quote numbers from memory. Use list_fields when unsure of a field name.\n'
+    +'- Ratio fields are decimals: 0.15 means 15%.\n'
+    +'- Be concise and analytical. Use markdown tables for comparisons. Cite tickers.\n'
+    +'- This is research assistance on model output, not individualized financial advice; flag material risks when a stock looks attractive.';
+}
+
+/* ---------- Claude API streaming call (browser-direct, user-supplied key) ----------
+   Raw fetch instead of the Anthropic SDK: this is a single-file, no-build page
+   that must also work offline/local-file, so a CDN-loaded SDK is a liability. */
+function aiStream(msgs,cb){
+  var key=null;
+  try{key=localStorage.getItem(AI_KEY_LS);}catch(e){}
+  if(!key)return Promise.reject({code:'nokey'});
+  AI_CTRL=new AbortController();
+  var body={
+    model:AI_MODEL,
+    max_tokens:12000,
+    thinking:{type:'adaptive'},
+    system:[{type:'text',text:aiSystemPrompt(),cache_control:{type:'ephemeral'}}],
+    tools:AI_TOOLS,
+    messages:msgs,
+    stream:true
+  };
+  return fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    signal:AI_CTRL.signal,
+    headers:{
+      'content-type':'application/json',
+      'x-api-key':key,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body:JSON.stringify(body)
+  }).then(function(res){
+    if(!res.ok){
+      return res.json().catch(function(){return {};}).then(function(j){
+        throw {code:res.status,message:(j&&j.error&&j.error.message)||('HTTP '+res.status)};
+      });
+    }
+    var reader=res.body.getReader(),dec=new TextDecoder(),buf='';
+    var blocks=[],stopReason=null;
+    function handle(ev){
+      var t=ev.type;
+      if(t==='content_block_start'){
+        var nb=ev.content_block;
+        blocks[ev.index]={type:nb.type};
+        if(nb.type==='text'){blocks[ev.index].text='';}
+        else if(nb.type==='thinking'){blocks[ev.index].thinking='';blocks[ev.index].signature='';if(cb.onThinking)cb.onThinking();}
+        else if(nb.type==='tool_use'){blocks[ev.index].id=nb.id;blocks[ev.index].name=nb.name;blocks[ev.index]._json='';}
+      }else if(t==='content_block_delta'){
+        var d=ev.delta,b=blocks[ev.index];
+        if(!b)return;
+        if(d.type==='text_delta'){b.text+=d.text;if(cb.onText)cb.onText(b.text);}
+        else if(d.type==='thinking_delta'){b.thinking+=d.thinking;}
+        else if(d.type==='signature_delta'){b.signature+=d.signature;}
+        else if(d.type==='input_json_delta'){b._json+=d.partial_json;}
+      }else if(t==='content_block_stop'){
+        var b2=blocks[ev.index];
+        if(b2&&b2.type==='tool_use'){
+          try{b2.input=b2._json?JSON.parse(b2._json):{};}catch(e){b2.input={};}
+          delete b2._json;
+          if(cb.onToolUse)cb.onToolUse(b2);
+        }
+      }else if(t==='message_delta'){
+        if(ev.delta&&ev.delta.stop_reason)stopReason=ev.delta.stop_reason;
+      }else if(t==='error'){
+        throw {code:'stream',message:(ev.error&&ev.error.message)||'stream error'};
+      }
+    }
+    function pump(){
+      return reader.read().then(function(r){
+        if(r.done)return;
+        buf+=dec.decode(r.value,{stream:true});
+        var lines=buf.split('\n');
+        buf=lines.pop();
+        lines.forEach(function(ln){
+          ln=ln.trim();
+          if(ln.indexOf('data:')!==0)return;
+          var payload=ln.slice(5).trim();
+          if(!payload)return;
+          var ev=null;
+          try{ev=JSON.parse(payload);}catch(e){return;}
+          handle(ev);
+        });
+        return pump();
+      });
+    }
+    return pump().then(function(){
+      var content=blocks.filter(function(b){return !!b;}).map(function(b){
+        if(b.type==='text')return {type:'text',text:b.text};
+        if(b.type==='thinking')return {type:'thinking',thinking:b.thinking,signature:b.signature};
+        if(b.type==='tool_use')return {type:'tool_use',id:b.id,name:b.name,input:b.input||{}};
+        return b;
+      });
+      return {content:content,stop_reason:stopReason};
+    });
+  });
+}
+
+/* ---------- minimal markdown rendering (escape first, then transform) ---------- */
+function aiMd(t){
+  var s=_esc(t);
+  s=s.replace(/```(\w*)\n?([\s\S]*?)```/g,function(m,l,c){return 'PRE'+btoa(unescape(encodeURIComponent(c)))+'PRE';});
+  s=s.replace(/`([^`\n]+)`/g,'<code>$1</code>');
+  s=s.replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>');
+  var lines=s.split('\n'),out=[],list=null;
+  function closeList(){if(list){out.push(list==='ul'?'</ul>':'</ol>');list=null;}}
+  for(var i=0;i<lines.length;i++){
+    var ln=lines[i];
+    if(/^\s*[-*]\s+/.test(ln)){
+      if(list!=='ul'){closeList();out.push('<ul>');list='ul';}
+      out.push('<li>'+ln.replace(/^\s*[-*]\s+/,'')+'</li>');
+    }else if(/^\s*\d+[.)]\s+/.test(ln)){
+      if(list!=='ol'){closeList();out.push('<ol>');list='ol';}
+      out.push('<li>'+ln.replace(/^\s*\d+[.)]\s+/,'')+'</li>');
+    }else if(/^\|.*\|\s*$/.test(ln)){
+      closeList();
+      var rows=[ln];
+      while(i+1<lines.length&&/^\|.*\|\s*$/.test(lines[i+1])){rows.push(lines[++i]);}
+      var html='<table>';
+      rows.forEach(function(r,ri){
+        if(/^\|[\s:|-]+\|\s*$/.test(r))return;
+        var cells=r.replace(/^\|/,'').replace(/\|\s*$/,'').split('|');
+        html+='<tr>'+cells.map(function(c){return (ri===0?'<th>':'<td>')+c.trim()+(ri===0?'</th>':'</td>');}).join('')+'</tr>';
+      });
+      out.push(html+'</table>');
+    }else if(/^#{1,4}\s+/.test(ln)){
+      closeList();out.push('<h4>'+ln.replace(/^#{1,4}\s+/,'')+'</h4>');
+    }else if(ln.trim()===''){
+      closeList();out.push('');
+    }else{
+      closeList();out.push('<p>'+ln+'</p>');
+    }
+  }
+  closeList();
+  var joined=out.join('');
+  joined=joined.replace(/PRE([A-Za-z0-9+/=]*)PRE/g,function(m,b){
+    var c='';try{c=decodeURIComponent(escape(atob(b)));}catch(e){}
+    return '<pre>'+c+'</pre>';
+  });
+  return joined;
+}
+
+/* ---------- UI wiring ---------- */
+var elPanel=document.getElementById('ai-panel');
+var elMsgs=document.getElementById('ai-msgs');
+var elInput=document.getElementById('ai-input');
+var elSend=document.getElementById('ai-sendbtn');
+function aiScrolldown(){elMsgs.scrollTop=elMsgs.scrollHeight;}
+function aiAdd(cls,html){
+  var d=document.createElement('div');
+  d.className=cls;
+  d.innerHTML=html;
+  elMsgs.appendChild(d);
+  aiScrolldown();
+  return d;
+}
+function aiHasKey(){try{return !!localStorage.getItem(AI_KEY_LS);}catch(e){return false;}}
+function aiOpen(){
+  elPanel.classList.add('open');
+  if(!aiHasKey())elPanel.classList.add('settings');
+  else if(window.innerWidth>768)setTimeout(function(){elInput.focus();},60);
+  if(!elMsgs.childElementCount)aiAdd('ai-note','Ask anything about the '+DATA.length+' stocks in this report &mdash; screens, comparisons, sector stats, price history.');
+}
+function aiClose(){elPanel.classList.remove('open');elPanel.classList.remove('settings');}
+document.getElementById('ai-fab').addEventListener('click',function(){
+  if(elPanel.classList.contains('open'))aiClose();else aiOpen();
+});
+document.getElementById('ai-closebtn').addEventListener('click',aiClose);
+document.getElementById('ai-gearbtn').addEventListener('click',function(){
+  var inp=document.getElementById('ai-keyinput');
+  inp.value='';
+  inp.placeholder=aiHasKey()?'(key saved — enter a new one to replace)':'sk-ant-...';
+  elPanel.classList.add('settings');
+});
+document.getElementById('ai-backbtn').addEventListener('click',function(){elPanel.classList.remove('settings');});
+document.getElementById('ai-savekey').addEventListener('click',function(){
+  var v=document.getElementById('ai-keyinput').value.trim();
+  if(v){try{localStorage.setItem(AI_KEY_LS,v);}catch(e){}}
+  elPanel.classList.remove('settings');
+  if(window.innerWidth>768)elInput.focus();
+});
+document.getElementById('ai-clearkey').addEventListener('click',function(){
+  try{localStorage.removeItem(AI_KEY_LS);}catch(e){}
+  var inp=document.getElementById('ai-keyinput');
+  inp.value='';inp.placeholder='sk-ant-...';
+});
+document.getElementById('ai-clearbtn').addEventListener('click',function(){
+  if(AI_BUSY)return;
+  AI_MSGS=[];
+  elMsgs.innerHTML='';
+  aiAdd('ai-note','Conversation cleared.');
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&elPanel.classList.contains('open'))aiClose();
+});
+elInput.addEventListener('input',function(){
+  elInput.style.height='auto';
+  elInput.style.height=Math.min(elInput.scrollHeight,110)+'px';
+});
+elInput.addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();aiSubmit();}
+});
+elSend.addEventListener('click',function(){
+  if(AI_BUSY){if(AI_CTRL)AI_CTRL.abort();return;}
+  aiSubmit();
+});
+function aiSetBusy(b){
+  AI_BUSY=b;
+  elSend.classList.toggle('stop',b);
+  elSend.innerHTML=b?'&#9632;':'&#10148;';
+  elSend.title=b?'Stop':'Send';
+}
+function aiToolLabel(b){
+  var inp='';
+  try{inp=JSON.stringify(b.input);}catch(e){}
+  if(inp.length>90)inp=inp.slice(0,90)+'…';
+  return '&#9881; '+_esc(b.name)+' '+_esc(inp);
+}
+function aiSubmit(){
+  var text=elInput.value.trim();
+  if(!text||AI_BUSY)return;
+  if(!aiHasKey()){elPanel.classList.add('settings');return;}
+  elInput.value='';elInput.style.height='auto';
+  aiAdd('ai-bub user',_esc(text));
+  AI_MSGS.push({role:'user',content:text});
+  aiSetBusy(true);
+  aiTurn(0).catch(function(err){
+    if(err&&err.name==='AbortError'){aiAdd('ai-note','Stopped.');}
+    else if(err&&err.code==='nokey'){elPanel.classList.add('settings');}
+    else if(err&&err.code===401){aiAdd('ai-err','Authentication failed &mdash; check your API key in settings (&#9881;).');}
+    else if(err&&err.code===429){aiAdd('ai-err','Rate limited by the API. Wait a moment and try again.');}
+    else{aiAdd('ai-err','Error: '+_esc((err&&err.message)||String(err)));}
+  }).then(function(){aiSetBusy(false);});
+}
+function aiTurn(depth){
+  if(depth>=12){aiAdd('ai-err','Stopped after 12 tool rounds.');return Promise.resolve();}
+  var bub=null,thinkNote=null;
+  function clearThink(){if(thinkNote){thinkNote.remove();thinkNote=null;}}
+  return aiStream(AI_MSGS,{
+    onThinking:function(){if(!thinkNote&&!bub)thinkNote=aiAdd('ai-note','Thinking&hellip;');},
+    onText:function(full){
+      clearThink();
+      if(!bub)bub=aiAdd('ai-bub asst','');
+      bub.innerHTML=aiMd(full);
+      aiScrolldown();
+    },
+    onToolUse:function(b){clearThink();aiAdd('ai-tool',aiToolLabel(b));}
+  }).then(function(resp){
+    clearThink();
+    AI_MSGS.push({role:'assistant',content:resp.content});
+    if(resp.stop_reason==='tool_use'){
+      var uses=resp.content.filter(function(b){return b.type==='tool_use';});
+      return Promise.all(uses.map(function(u){
+        return aiRunTool(u.name,u.input).then(function(result){
+          var str='';
+          try{str=JSON.stringify(result);}catch(e){str='{"error":"unserializable result"}';}
+          if(str.length>60000)str=str.slice(0,60000)+'… [truncated — narrow the query]';
+          return {type:'tool_result',tool_use_id:u.id,content:str};
+        });
+      })).then(function(results){
+        AI_MSGS.push({role:'user',content:results});
+        return aiTurn(depth+1);
+      });
+    }
+    if(resp.stop_reason==='max_tokens')aiAdd('ai-note','Response hit the length limit &mdash; ask it to continue.');
+    if(resp.stop_reason==='refusal')aiAdd('ai-note','The model declined this request.');
+  });
+}
+})();
+</script>
 </body>
 </html>
