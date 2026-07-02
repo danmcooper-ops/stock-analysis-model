@@ -5635,12 +5635,12 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
      array and the prices.json sidecar, so the model works from this report's
      actual numbers instead of its own priors. -->
 <style>
-#ai-fab{position:fixed;right:calc(18px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:none;background:#1a9850;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.28);cursor:pointer;z-index:1500;display:flex;align-items:center;justify-content:center;transition:transform .15s ease,background .15s ease;-webkit-tap-highlight-color:transparent;}
+#ai-fab{position:fixed;right:calc(30px + env(safe-area-inset-right));bottom:calc(18px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:none;background:#1a9850;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.28);cursor:pointer;z-index:1500;display:flex;align-items:center;justify-content:center;transition:transform .15s ease,background .15s ease;-webkit-tap-highlight-color:transparent;}
 #ai-fab:hover{transform:scale(1.07);background:#157a40;}
 #ai-fab svg{width:26px;height:26px;}
 [data-theme="dark"] #ai-fab{background:#238636;}
 [data-theme="dark"] #ai-fab:hover{background:#2ea043;}
-#ai-panel{position:fixed;right:calc(18px + env(safe-area-inset-right));bottom:calc(86px + env(safe-area-inset-bottom));width:min(430px,calc(100vw - 36px));height:min(650px,calc(100vh - 130px));background:#fff;border:1px solid #e2e5e9;border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.24);z-index:1501;display:none;flex-direction:column;overflow:hidden;font-size:13.5px;line-height:1.5;}
+#ai-panel{position:fixed;right:calc(30px + env(safe-area-inset-right));bottom:calc(86px + env(safe-area-inset-bottom));width:min(430px,calc(100vw - 36px));height:min(650px,calc(100vh - 130px));background:#fff;border:1px solid #e2e5e9;border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.24);z-index:1501;display:none;flex-direction:column;overflow:hidden;font-size:13.5px;line-height:1.5;}
 #ai-panel.open{display:flex;}
 [data-theme="dark"] #ai-panel{background:#161b22;border-color:#30363d;color:#e6edf3;}
 .ai-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #e9ecef;background:#f8f9fa;flex:0 0 auto;}
