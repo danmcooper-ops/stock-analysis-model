@@ -1183,6 +1183,7 @@ td.ct{font-weight:700;}
             <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Reviewed<span id="rev-count-label"></span></button>
             <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
             <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
+            <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3).">&#9670; Blue Chip</button>
           </div>
           <div class="fpop-divider"></div>
           <div class="fpop-section-label">Column Filters</div>
@@ -1373,6 +1374,27 @@ function toggleFlagDet(){var tk=document.getElementById('d-tk').textContent;if(!
 function toggleFlagFilter(){_flagOnly=!_flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);applyFilters();}
 var _founderOnly=false;
 function toggleFounderFilter(){_founderOnly=!_founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);applyFilters();}
+/* "Blue chip" = a large, established, high-quality market leader. There is no
+   precomputed field for this, so it's derived live from each row (works on any
+   report). All conditions must hold; rows missing an input fall out, matching
+   the null-drops-the-row convention used by the column filters:
+     • Size ............ market cap >= $50B (mega/large-cap leader)
+     • Profitable ...... operating income > 0
+     • Quality returns . ROE >= 10%
+     • Sound balance sheet — any ONE of (tolerant of banks/utilities that
+       lack a given metric): Net Debt/EBITDA <= 4, interest coverage >= 6x,
+       or Altman Z in the safe zone (>= 3). */
+var _blueChipOnly=false;
+function _isBlueChip(d){
+  if(!d)return false;
+  var mc=_num(d.mcap);         if(mc==null||mc<50e9)return false;
+  var oi=_num(d.operating_income); if(oi==null||oi<=0)return false;
+  var roe=_num(d.roe);         if(roe==null||roe<0.10)return false;
+  var nde=_num(d.nd_ebitda),ic=_num(d.int_cov),az=_num(d.altman_z);
+  var sound=(nde!=null&&nde<=4)||(ic!=null&&ic>=6)||(az!=null&&az>=3);
+  return sound;
+}
+function toggleBlueChipFilter(){_blueChipOnly=!_blueChipOnly;document.getElementById('f-bluechip').classList.toggle('active',_blueChipOnly);applyFilters();}
 function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.getElementById('flag-count-label');if(el)el.textContent=n>0?' ('+n+')':'';}
 function _starHtml(tk){return '<span class="flag-star'+(isFlagged(tk)?' flagged':'')+'" onclick="toggleFlag(\''+tk.replace(/'/g,"\\'")+'\',event)" title="Flag">'+(isFlagged(tk)?'\u2691':'\u2690')+'</span>';}
 _updateFlagCount();
@@ -1541,7 +1563,7 @@ function _getCurrentFilterState(){
     cf.push({key:key,min:minR!==''?parseFloat(minR):null,max:maxR!==''?parseFloat(maxR):null});
   });
   st.colFilters=cf;
-  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.revFilter=_revFilter;
+  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.revFilter=_revFilter;
   return st;
 }
 function _applyFilterState(st){
@@ -1573,6 +1595,7 @@ function _applyFilterState(st){
   }
   _flagOnly=!!st.flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);
   _founderOnly=!!st.founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);
+  _blueChipOnly=!!st.blueChipOnly;document.getElementById('f-bluechip').classList.toggle('active',_blueChipOnly);
   _revFilter=st.revFilter|0;
   var rEl=document.getElementById('f-reviewed');
   if(rEl){rEl.classList.toggle('active',_revFilter>0);rEl.innerHTML=_CHK_SVG+' '+(['Reviewed','Unreviewed','Reviewed'])[_revFilter];}
@@ -1935,6 +1958,7 @@ function applyFilters(){
   FD=DATA.filter(function(d){
     if(_flagOnly&&!isFlagged(d.ticker))return false;
     if(_founderOnly&&!d.founder_led)return false;
+    if(_blueChipOnly&&!_isBlueChip(d))return false;
     if(_revFilter===1&&isReviewed(d.ticker))return false;
     if(_revFilter===2&&!isReviewed(d.ticker))return false;
     if(q&&(d.ticker||'').toUpperCase().indexOf(q)<0&&(d.description||'').toUpperCase().indexOf(q)<0)return false;
@@ -1969,7 +1993,7 @@ function applyFilters(){
      filters OR any quick toggle (Reviewed cycle, Flagged, Founder-Led).
      3-state Reviewed filter: state 0 (gray Reviewed) shows all and doesn't
      count; states 1 (Unreviewed) and 2 (Reviewed) are active filters. */
-  var qActive=_flagOnly||_founderOnly||(_revFilter>0);
+  var qActive=_flagOnly||_founderOnly||_blueChipOnly||(_revFilter>0);
   var btn=document.getElementById('fpop-btn');
   if(btn)btn.classList.toggle('active',colFilters.length>0||qActive);
   _updateFlagCount();
@@ -1996,6 +2020,7 @@ function clearFilters(){
   addColFilter();
   _flagOnly=false;document.getElementById('f-flagged').classList.remove('active');
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
+  _blueChipOnly=false;document.getElementById('f-bluechip').classList.remove('active');
   _revFilter=0;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.remove('active');rEl.innerHTML=_CHK_SVG+' Reviewed';}
   _revd={};_saveRevd();_updateRevCount();
   /* Reset the sector preset dropdown to its placeholder so it doesn't
@@ -3855,6 +3880,9 @@ function _aggColor(sec){
 function renderUniversePriceChart(){
   var sectors=_allSectors();
   if(!sectors.length)return '';
+  /* Default: all sectors selected on open (mirrors the Cross-Sector Profit
+     Pool chart below, which seeds every sector checked). */
+  _selectedAggs={};sectors.forEach(function(s){_selectedAggs[s]=true;});
   var ranges=[['1YR','1Y'],['3YR','3Y'],['5YR','5Y'],['10YR','10Y'],['20YR','20Y']];
   var rangeBtns=ranges.map(function(r){
     var act=_sectorPriceRange===r[0]?' active':'';
