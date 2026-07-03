@@ -1073,7 +1073,9 @@ td.ct{font-weight:700;}
 [data-theme="dark"] #xsect-pp-wrap svg line[stroke="#ccc"]{stroke:#30363d;}
 [data-theme="dark"] #xsect-pp-wrap svg line[stroke="#aaa"]{stroke:#6e7681;}
 [data-theme="dark"] #xsect-pp-wrap svg line[stroke="#f5f5f5"]{stroke:#21262d;}
-.pp-grid-m{margin-left:auto;font-size:0.82em;font-weight:600;color:#64748b;font-variant-numeric:tabular-nums;}
+.pp-grid-cum{margin-left:auto;font-size:0.78em;font-weight:600;color:#94a3b8;font-variant-numeric:tabular-nums;flex-shrink:0;}
+.pp-grid-m{margin-left:8px;font-size:0.82em;font-weight:600;color:#64748b;font-variant-numeric:tabular-nums;flex-shrink:0;}
+[data-theme="dark"] .pp-grid-cum{color:#6e7681;}
 [data-theme="dark"] .pp-grid-m{color:#8b949e;}
 /* Cross-sector cap volume KPI cards (inline-styled backgrounds) */
 [data-theme="dark"] .xsect-dashboard div[style*="background:#fafbfc"]{background:#1c2128 !important;}
@@ -4842,7 +4844,7 @@ function renderCrossSectorProfitPool(){
      _ppDraw() after mount. */
   var gridItems=secs.map(function(a){
     var safe=_esc(a.name);
-    return '<label class="agg-grid-item"><input type="checkbox" value="'+_attr(a.name)+'" checked onchange="_ppChanged()"><span class="agg-grid-dot" style="background:'+_ppColM(a.margin)+'"></span><span class="agg-grid-name">'+safe+'</span><span class="pp-grid-m">'+(a.margin*100).toFixed(0)+'%</span></label>';
+    return '<label class="agg-grid-item"><input type="checkbox" value="'+_attr(a.name)+'" checked onchange="_ppChanged()"><span class="agg-grid-dot" style="background:'+_ppColM(a.margin)+'"></span><span class="agg-grid-name">'+safe+'</span><span class="pp-grid-cum" title="Cumulative share of operating revenue (running total, highest-margin sector first)">—</span><span class="pp-grid-m" title="Operating margin">'+(a.margin*100).toFixed(0)+'%</span></label>';
   }).join('');
   var helperBtns='<button type="button" class="agg-helper-btn" onclick="_ppSelectAll()">All</button>'
     +'<button type="button" class="agg-helper-btn" onclick="_ppClearAll()">Clear</button>';
@@ -4868,18 +4870,25 @@ function _ppDraw(){
   if(!sel.length){
     wrap.innerHTML='<p style="color:#888;padding:40px 20px;text-align:center;font-size:0.85em">Select one or more sectors below to plot the profit pool.</p>';
     window._xsPoolAgg={};
+    _ppSetGridCum(null);
     return;
   }
   var totalRev=sel.reduce(function(s,a){return s+a.rev;},0);
   var totalOI=sel.reduce(function(s,a){return s+a.oi;},0);
   sel=sel.slice().sort(function(a,b){return b.margin-a.margin;});
-  /* Rebuild the tooltip lookup with selection-relative shares. */
+  /* Rebuild the tooltip lookup with selection-relative shares, and the
+     per-row cumulative revenue share shown in the selector grid — a running
+     total in the same highest-margin-first order as the chart's x-axis, so
+     the last shown sector reads ~100%. */
   window._xsPoolAgg={};
+  var _cumByName={},_cumAcc=0;
   sel.forEach(function(a){
     a.revShare=totalRev>0?a.rev/totalRev:0;
     a.profitShare=totalOI!==0?a.oi/totalOI:null;
     window._xsPoolAgg[a.name]=a;
+    _cumAcc+=a.revShare;_cumByName[a.name]=_cumAcc;
   });
+  _ppSetGridCum(_cumByName);
   var W=860,H=330,pL=54,pR=16,pT=18,pB=40,cW=W-pL-pR,cH=H-pT-pB;
   var maxM=Math.max.apply(null,sel.map(function(a){return a.margin;}));
   var minM=Math.min.apply(null,sel.map(function(a){return a.margin;}));
@@ -4919,6 +4928,18 @@ function _ppDraw(){
     cumX+=barW;
   });
   wrap.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:'+W+'px;margin:2px auto 0">'+ticks+axes+bars+'</svg>';
+}
+/* Write the cumulative revenue share into each selector-grid row's
+   .pp-grid-cum span. Pass a name→cumulative-fraction map for the shown
+   sectors; unshown (or null map) rows fall back to an em dash. */
+function _ppSetGridCum(cumByName){
+  var grid=document.getElementById('pp-grid');if(!grid)return;
+  grid.querySelectorAll('.agg-grid-item').forEach(function(lbl){
+    var cb=lbl.querySelector('input[type="checkbox"]');
+    var span=lbl.querySelector('.pp-grid-cum');
+    if(!cb||!span)return;
+    span.textContent=(cumByName&&cb.value in cumByName)?(cumByName[cb.value]*100).toFixed(0)+'%':'—';
+  });
 }
 function _ppChanged(){
   var boxes=document.querySelectorAll('#pp-grid input[type="checkbox"]');
