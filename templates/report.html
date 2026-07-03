@@ -4088,19 +4088,14 @@ function _renderPolylineSVG(el,dates,aggs){
     hoverOverlay+='<circle id="agg-dot'+si+'" cx="0" cy="0" r="4" fill="#fff" stroke="'+a.color+'" stroke-width="2" opacity="0" pointer-events="none"/>';
   });
   var svg='<svg id="agg-svg" viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:360px;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y" onmousemove="aggChartMove(event)" onmouseleave="aggChartLeave()" ontouchstart="aggChartTouch(event)" ontouchmove="aggChartTouch(event)" ontouchend="aggChartLeave()" ontouchcancel="aggChartLeave()">'+grid+lines+hoverOverlay+'</svg>';
-  function _ret(end){var c=end-100;return (c>=0?'+':'')+c.toFixed(1)+'%';}
-  function _retCol(end){return end>=100?'#2e7d48':'#c0392b';}
-  var aggsForLegend=aggs.slice().sort(function(a,b){return b.vals[b.vals.length-1]-a.vals[a.vals.length-1];});
-  var legendItems=aggsForLegend.map(function(a){
-    var end=a.vals[a.vals.length-1];
-    return '<span style="display:inline-flex;align-items:center;gap:6px;font-size:0.78em;white-space:nowrap"><span style="width:16px;height:3px;background:'+a.color+';border-radius:2px;flex-shrink:0"></span><span style="color:#1a252f">'+_esc(a.label)+'</span> <span style="font-weight:600;color:'+_retCol(end)+'">'+_ret(end)+'</span></span>';
-  });
-  var legend='<div style="display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center">'+legendItems.join('')+'</div>';
+  /* The per-sector color/return legend was removed by request; the sector
+     selector grid below already shows each sector's color + name, and hover
+     surfaces the values. Only the summary caption is kept. */
   var totalConstituents=aggs.reduce(function(s,a){return s+a.series.length;},0);
   var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '+aggs.length+' sector'+(aggs.length===1?'':'s')+' · '+totalConstituents+' total constituents</div>';
   el.innerHTML=svg;
   var legendEl=document.getElementById('sector-price-legend');
-  if(legendEl)legendEl.innerHTML=legend+meta;
+  if(legendEl)legendEl.innerHTML=meta;
   /* Default tip: summary verdict line. Replaced by hover values
      when the cursor is over the chart. */
   _aggHoverState={dates:dates,aggs:aggs,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,minP:minP,pRange:pRange};
