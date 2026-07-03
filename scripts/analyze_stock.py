@@ -201,7 +201,8 @@ def derive_edgar_metrics(edgar_history):
     out = dict(rev_cagr_5y=None, rev_cagr_10y=None,
                fcf_cagr_5y=None, fcf_cagr_10y=None,
                gross_margin_avg_5y=None, gross_margin_trend=None,
-               dividend_cagr_5y=None, shares_cagr_5y=None)
+               dividend_cagr_5y=None, shares_cagr_5y=None,
+               fcf_edgar=None)
     if not edgar_history:
         return out
 
@@ -229,6 +230,15 @@ def derive_edgar_metrics(edgar_history):
         common_years = sorted(set(ocf_hist) & set(cap_hist)) if cap_hist else sorted(ocf_hist)
         fcf_hist = {yr: ocf_hist[yr] - abs(cap_hist.get(yr, 0)) for yr in common_years}
         fcf_vals = [fcf_hist[yr] for yr in sorted(fcf_hist) if fcf_hist[yr] is not None]
+        # Point-in-time FCF (latest fiscal year with BOTH operating cash flow
+        # and capex) — used as a fallback for the `fcf` field when yfinance
+        # has no cash-flow statement, which is common across the expanded
+        # EDGAR universe. edgar_history is already USD-normalized to the same
+        # basis as the row's revenue/mcap, so the downstream fcf_margin and
+        # pfcf ratios stay FX-consistent. Requiring capex (via common_years)
+        # avoids overstating FCF as bare OCF.
+        if cap_hist and common_years:
+            out['fcf_edgar'] = fcf_hist[common_years[-1]]
         if len(fcf_vals) >= 6 and fcf_vals[-6] > 0 and fcf_vals[-1] > 0:
             out['fcf_cagr_5y'] = (fcf_vals[-1] / fcf_vals[-6]) ** (1 / 5) - 1
         if len(fcf_vals) >= 11 and fcf_vals[-11] > 0 and fcf_vals[-1] > 0:
@@ -2401,6 +2411,9 @@ def _main():
                 'gross_margin_trend': gross_margin_trend,
                 'dividend_cagr_5y': dividend_cagr_5y,
                 'shares_cagr_5y': shares_cagr_5y,
+                # EDGAR-derived point-in-time FCF (OCF − capex); scoring uses
+                # it as a fallback for `fcf` when yfinance has no cash flow.
+                'fcf_edgar': _edgar_metrics.get('fcf_edgar'),
                 # EDGAR XBRL validation
                 'edgar_quality_score': xbrl_validation.get('edgar_quality_score') if xbrl_validation else None,
                 'edgar_fields_flagged': xbrl_validation.get('fields_flagged', 0) if xbrl_validation else 0,

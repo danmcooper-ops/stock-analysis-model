@@ -10,7 +10,56 @@ from scripts.scoring import (
     rating_from_composite, _mc_confidence_label, SCORING_GATES,
     SCREENING_GATES, gate_metadata, score_and_rate,
     apply_screening_matrix, _rating_cap_for_row, apply_rating_caps,
+    prepare_scoring_fields,
 )
+
+
+# ---------------------------------------------------------------------------
+# prepare_scoring_fields — EDGAR FCF fallback (fix (a))
+# ---------------------------------------------------------------------------
+
+class TestEdgarFcfFallback:
+    def test_fallback_populates_fcf_margin_and_pfcf_when_yfinance_missing(self):
+        """No yfinance fcf but EDGAR-derived fcf_edgar present → fcf, fcf_margin,
+        and pfcf are all populated from the EDGAR value."""
+        r = {'sector': 'Technology', 'fcf': None, 'fcf_edgar': 300.0,
+             'revenue': 1000.0, 'mcap': 6000.0, 'pfcf': None}
+        prepare_scoring_fields([r])
+        assert r['fcf'] == 300.0
+        assert r['_fcf_source'] == 'edgar'
+        assert r['fcf_margin'] == pytest.approx(0.30)
+        assert r['pfcf'] == pytest.approx(20.0)  # 6000 / 300
+
+    def test_existing_yfinance_fcf_not_overridden(self):
+        """A yfinance fcf already present is kept; the EDGAR value is ignored."""
+        r = {'sector': 'Technology', 'fcf': 250.0, 'fcf_edgar': 999.0,
+             'revenue': 1000.0, 'mcap': 5000.0, 'pfcf': 20.0}
+        prepare_scoring_fields([r])
+        assert r['fcf'] == 250.0
+        assert '_fcf_source' not in r
+        assert r['fcf_margin'] == pytest.approx(0.25)
+        assert r['pfcf'] == 20.0  # untouched
+
+    def test_financial_services_excluded_from_fallback(self):
+        """Banks/insurers/brokers: OCF-based FCF is not a valid proxy, so the
+        fallback is skipped and FCF Margin stays N/A."""
+        r = {'sector': 'Financial Services', 'fcf': None, 'fcf_edgar': 800.0,
+             'revenue': 500.0, 'mcap': 4000.0, 'pfcf': None}
+        prepare_scoring_fields([r])
+        assert r['fcf'] is None
+        assert r.get('_fcf_source') is None
+        assert r['fcf_margin'] is None
+        assert r['pfcf'] is None
+
+    def test_negative_fcf_gives_negative_margin_but_no_pfcf(self):
+        """Negative EDGAR FCF → a meaningful negative margin, but pfcf stays
+        None (P/FCF is meaningless for negative FCF)."""
+        r = {'sector': 'Industrials', 'fcf': None, 'fcf_edgar': -120.0,
+             'revenue': 1000.0, 'mcap': 5000.0, 'pfcf': None}
+        prepare_scoring_fields([r])
+        assert r['fcf'] == -120.0
+        assert r['fcf_margin'] == pytest.approx(-0.12)
+        assert r['pfcf'] is None
 
 
 # ---------------------------------------------------------------------------

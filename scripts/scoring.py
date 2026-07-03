@@ -203,11 +203,32 @@ def prepare_scoring_fields(results):
         sbc = r.get('sbc')
         rev = r.get('revenue')
         fcf = r.get('fcf')
+        # Fallback: when yfinance surfaced no cash-flow statement (common
+        # across the expanded EDGAR universe), use the FCF derived from EDGAR
+        # history (OCF − capex, latest fiscal year). edgar_history is already
+        # USD-normalized to the same basis as revenue/mcap, so the fcf_margin
+        # and pfcf ratios below stay FX-consistent. See derive_edgar_metrics.
+        # Financial Services (banks/insurers/brokers) are excluded: their
+        # operating cash flow reflects deposit/loan/trading/float movements,
+        # so OCF − capex is not a valid FCF proxy — the same reason FCF Margin
+        # and Gross Margin are legitimately N/A for financials (they're scored
+        # on FDIC KPIs / combined ratios instead).
+        if fcf is None and r.get('sector') != 'Financial Services':
+            fcf_edgar = r.get('fcf_edgar')
+            if fcf_edgar is not None:
+                fcf = fcf_edgar
+                r['fcf'] = fcf_edgar
+                r['_fcf_source'] = 'edgar'
         price = r.get('price')
         fv = r.get('dcf_fv')
         r['sbc_pct_rev'] = (sbc / rev) if (sbc is not None and rev and rev > 0) else None
         r['fcf_margin'] = (fcf / rev) if (fcf is not None and rev and rev > 0) else None
         r['_price_fv'] = (price / fv) if (price and fv and fv > 0) else None
+        # Recompute P/FCF from the (possibly EDGAR-derived) FCF when it wasn't
+        # set upstream. Only meaningful for positive FCF (mirrors market.py).
+        if r.get('pfcf') is None:
+            mcap = r.get('mcap')
+            r['pfcf'] = (mcap / fcf) if (mcap and fcf and fcf > 0) else None
 
         # ROIC trend slope (last-year minus first-year ROIC)
         roic_by_year = r.get('roic_by_year')
