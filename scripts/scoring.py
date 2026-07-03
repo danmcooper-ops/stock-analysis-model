@@ -119,9 +119,12 @@ SCREENING_GATES = [
     ('Valuation: EPV Floor',
      'epv_floor_ratio',
      lambda v, r: v >= 1.0 if v is not None else None),
-    ('Valuation: RIM MoS',
-     'rim_mos',
-     lambda v, r: v > 0.10 if v is not None else None),
+    # FCF yield vs the risk-free rate: an absolute, model-independent value
+    # floor (replaced RIM MoS, a third price-vs-intrinsic-value gate that
+    # triangulated the same signal as MoS + EPV Floor).
+    ('Valuation: FCF Yield',
+     'fcf_yield',
+     lambda v, r: v > (r.get('_risk_free_rate') or 0.045) if v is not None else None),
 
     # ---- Quality ----
     ('Quality: Int Coverage',
@@ -140,9 +143,12 @@ SCREENING_GATES = [
     ('Quality: Cash Conv',
      'cash_conv',
      lambda v, r: v >= 0.85 if v is not None else None),
-    ('Quality: ROE',
-     'roe',
-     lambda v, r: v > 0.20 if v is not None else None),
+    # Revenue-growth volatility (lower = steadier). Replaced the ROE gate,
+    # which double-counted returns-on-capital with the Moat/ROIC block and is
+    # distortable by leverage and buybacks.
+    ('Quality: Rev Volatility',
+     'rev_growth_vol',
+     lambda v, r: v < 0.12 if v is not None else None),
     ('Quality: Piotroski',
      'piotroski',
      lambda v, r: v >= 7 if v is not None else None),
@@ -154,9 +160,12 @@ SCREENING_GATES = [
     ('Moat: ROIC Consistency',
      'roic_cv',
      lambda v, r: v < 0.30 if v is not None else None),
-    ('Moat: ROIC Trend',
-     'roic_trend_slope',
-     lambda v, r: v > 0.005 if v is not None else None),
+    # Operating margin vs the sector median: a structural competitive-position
+    # signal orthogonal to ROIC. Replaced ROIC Trend, the third (and noisiest)
+    # of three ROIC-derived Moat gates.
+    ('Moat: Margin Advantage',
+     'margin_advantage',
+     lambda v, r: v > 0.05 if v is not None else None),
     ('Moat: Gross Margin',
      'gross_margin_avg_5y',
      lambda v, r: v > 0.35 if v is not None else None),
@@ -278,9 +287,23 @@ def prepare_scoring_fields(results):
             r['fv_dispersion'] = None
         # Recompute P/FCF from the (possibly EDGAR-derived) FCF when it wasn't
         # set upstream. Only meaningful for positive FCF (mirrors market.py).
+        mcap = r.get('mcap')
         if r.get('pfcf') is None:
-            mcap = r.get('mcap')
             r['pfcf'] = (mcap / fcf) if (mcap and fcf and fcf > 0) else None
+        # FCF yield (Valuation: FCF Yield gate) — the earnings-power yield at
+        # today's price, gated against the run's risk-free rate. Uses the same
+        # (possibly EDGAR-derived) fcf; None for financials where fcf is N/A.
+        r['fcf_yield'] = (fcf / mcap) if (fcf is not None and mcap and mcap > 0) else None
+        # Margin advantage vs sector (Moat: Margin Advantage gate) — operating
+        # margin minus the sector median: a company-specific competitive-
+        # position signal orthogonal to ROIC. Prefer the precomputed profit-
+        # pool value; fall back to operating_margin − the sector median.
+        ma = r.get('pp_margin_advantage')
+        if ma is None:
+            om, sm = r.get('operating_margin'), r.get('_sector_median_opm')
+            if isinstance(om, (int, float)) and isinstance(sm, (int, float)):
+                ma = om - sm
+        r['margin_advantage'] = ma
 
         # ROIC trend slope (last-year minus first-year ROIC)
         roic_by_year = r.get('roic_by_year')
@@ -448,8 +471,8 @@ SCORING_GATES = [
      lambda v, r, pct: _score_linear(v, 0.0, 0.10), False, True),
     ('Growth: Margins', 'gross_margin_trend', 'Growth',
      lambda v, r, pct: _score_linear(v, -0.05, 0.05), False, True),
-    ('Quality: ROE', 'roe', 'Quality',
-     lambda v, r, pct: _score_linear(v, 0.0, 0.35), False, True),     # tightened: best 30%→35%
+    ('Quality: Rev Volatility', 'rev_growth_vol', 'Quality',
+     lambda v, r, pct: _score_linear(v, 0.40, 0.05), False, True),    # lower is better: steady top line scores high
     # Buffett additions
     ('Quality: Net Debt/EBITDA', 'nd_ebitda', 'Quality',
      lambda v, r, pct: _score_linear(v, 4.0, -0.5), False, True),     # tightened: worst 5→4, best 0→-0.5 (net cash rewarded)
@@ -471,12 +494,13 @@ SCORING_GATES = [
     # Migrated from compute_rating
     ('Quality: Piotroski', 'piotroski', 'Quality',
      lambda v, r, pct: _score_linear(v, 0, 9), False, True),
-    ('Moat: ROIC Trend', 'roic_trend_slope', 'Moat',
-     lambda v, r, pct: _score_linear(v, -0.05, 0.05), False, True),
+    ('Moat: Margin Advantage', 'margin_advantage', 'Moat',
+     lambda v, r, pct: _score_linear(v, -0.10, 0.20), False, True),   # opm vs sector: sector-median→33, +20pp→100
     ('Valuation: EPV Floor', 'epv_floor_ratio', 'Valuation',
      lambda v, r, pct: _score_linear(v, 0.5, 1.2), False, True),
-    ('Valuation: RIM MoS', 'rim_mos', 'Valuation',
-     lambda v, r, pct: _score_linear(v, -0.20, 0.20), False, True),
+    ('Valuation: FCF Yield', 'fcf_yield', 'Valuation',
+     lambda v, r, pct: (_score_linear(v - (r.get('_risk_free_rate') or 0.045), -0.03, 0.08)
+                        if v is not None else None), False, True),
 ]
 
 
@@ -646,7 +670,7 @@ _GATE_DISPLAY = {
     'gross_margin': {'label': 'Gross Mgn', 'threshold': 'GM > 35%', 'fmt': 'pct1'},
     'fund_growth': {'label': 'Fund Growth', 'threshold': 'FG > 3%', 'fmt': 'pct1'},
     'margins': {'label': 'Margins', 'threshold': 'Margin >= 0', 'fmt': 'pct1'},
-    'roe': {'label': 'ROE', 'threshold': 'ROE > 20%', 'fmt': 'pct1'},
+    'rev_volatility': {'label': 'Rev Vol', 'threshold': 'Rev growth σ < 12%', 'fmt': 'pct1'},
     'net_debt_ebitda': {'label': 'ND/EBITDA', 'threshold': 'ND/EBITDA <= 1.5x', 'fmt': 'ratio'},
     'cash_conv': {'label': 'Cash Conv', 'threshold': 'CashConv >= 0.85x', 'fmt': 'ratio'},
     'rev_durability': {'label': '10Y Rev CAGR', 'threshold': '10Y RevCAGR > 2%', 'fmt': 'pct1'},
@@ -656,9 +680,9 @@ _GATE_DISPLAY = {
     'fcf_durability': {'label': '5Y FCF CAGR', 'threshold': '5Y FCF CAGR > 5%', 'fmt': 'pct1'},
     'share_shrink': {'label': 'Share Shrink', 'threshold': '5Y Shares CAGR < 0', 'fmt': 'pct1'},
     'piotroski': {'label': 'Piotroski', 'threshold': 'F-Score >= 7', 'fmt': 'int'},
-    'roic_trend': {'label': 'ROIC Trend', 'threshold': 'ROIC trend > 0.5pp', 'fmt': 'pct1'},
+    'margin_advantage': {'label': 'Margin Adv', 'threshold': 'OpM vs sector > 5pp', 'fmt': 'pct1'},
     'epv_floor': {'label': 'EPV Floor', 'threshold': 'EPV/Price >= 1.0', 'fmt': 'ratio'},
-    'rim_mos': {'label': 'RIM MoS', 'threshold': 'RIM MoS > 10%', 'fmt': 'pct1'},
+    'fcf_yield': {'label': 'FCF Yield', 'threshold': 'FCF Yield > risk-free', 'fmt': 'pct1'},
 }
 
 _CATEGORY_DISPLAY = {

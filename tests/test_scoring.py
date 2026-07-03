@@ -369,12 +369,16 @@ class TestCanonicalScoreAndRate:
             'fundamental_growth': 0.10,
             'gross_margin_trend': 0.02,
             'roe': 0.30,
+            'operating_margin': 0.30,
+            '_sector_median_opm': 0.15,   # margin_advantage = +15pp
+            'rev_growth_vol': 0.06,       # steady top line
             'nd_ebitda': 0.0,
             'cash_conv': 1.2,
             'rev_cagr_10y': 0.08,
             'sbc': 0.0,
             'revenue': 100.0,
             'fcf': 25.0,
+            'mcap': 300.0,                # fcf_yield = 8.3% > risk-free
             'pb': 2.0,
             'fcf_cagr_5y': 0.10,
             'shares_cagr_5y': -0.02,
@@ -411,9 +415,14 @@ class TestCanonicalScoreAndRate:
         meta = gate_metadata()
         assert len(meta['gates']) == len(SCREENING_GATES)
         keys = {g['key'] for g in meta['gates']}
-        assert '_gate_roic_trend' in keys
+        assert '_gate_margin_advantage' in keys
         assert '_gate_epv_floor' in keys
-        assert '_gate_rim_mos' in keys
+        assert '_gate_fcf_yield' in keys
+        assert '_gate_rev_volatility' in keys
+        # Retired gates must be gone
+        assert '_gate_roic_trend' not in keys
+        assert '_gate_rim_mos' not in keys
+        assert '_gate_roe' not in keys
 
 
 # ---------------------------------------------------------------------------
@@ -471,6 +480,45 @@ class TestScreeningGateEdgeCases:
         # only dcf & epv_growth count: spread = 5 / median(102.5) ≈ 0.049
         assert rows[0]['_gate_fv_dispersion'] == pytest.approx(5 / 102.5)
         assert rows[0]['_gp_fv_dispersion'] is True
+
+    # --- Overhaul gates: Margin Advantage / Rev Volatility / FCF Yield ---
+
+    def test_margin_advantage_from_sector_median(self):
+        """margin_advantage = operating margin − sector median; passes above
+        +5pp."""
+        rows = [self._row(operating_margin=0.28, _sector_median_opm=0.15)]
+        apply_screening_matrix(rows)
+        assert rows[0]['margin_advantage'] == pytest.approx(0.13)
+        assert rows[0]['_gp_margin_advantage'] is True
+
+    def test_margin_advantage_below_sector_fails(self):
+        rows = [self._row(operating_margin=0.10, _sector_median_opm=0.15)]
+        apply_screening_matrix(rows)
+        assert rows[0]['margin_advantage'] == pytest.approx(-0.05)
+        assert rows[0]['_gp_margin_advantage'] is False
+
+    def test_rev_volatility_gate(self):
+        """Low revenue-growth volatility passes; high fails."""
+        steady = self._row(rev_growth_vol=0.06)
+        lumpy = self._row(rev_growth_vol=0.30)
+        apply_screening_matrix([steady, lumpy])
+        assert steady['_gp_rev_volatility'] is True
+        assert lumpy['_gp_rev_volatility'] is False
+
+    def test_fcf_yield_gated_against_risk_free(self):
+        """FCF yield passes only when it beats the row's risk-free rate."""
+        beats = self._row(fcf=8.0, mcap=100.0, _risk_free_rate=0.045)   # 8% > 4.5%
+        trails = self._row(fcf=3.0, mcap=100.0, _risk_free_rate=0.045)  # 3% < 4.5%
+        apply_screening_matrix([beats, trails])
+        assert beats['fcf_yield'] == pytest.approx(0.08)
+        assert beats['_gp_fcf_yield'] is True
+        assert trails['_gp_fcf_yield'] is False
+
+    def test_fcf_yield_na_without_fcf(self):
+        rows = [self._row(fcf=None, mcap=100.0)]
+        apply_screening_matrix(rows)
+        assert rows[0]['fcf_yield'] is None
+        assert rows[0]['_gp_fcf_yield'] is None
 
     def test_p_tbv_gate_fails_when_negative(self):
         """Negative tangible book (insolvent on a tangible basis) must not pass

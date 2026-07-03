@@ -202,7 +202,7 @@ def derive_edgar_metrics(edgar_history):
                fcf_cagr_5y=None, fcf_cagr_10y=None,
                gross_margin_avg_5y=None, gross_margin_trend=None,
                dividend_cagr_5y=None, shares_cagr_5y=None,
-               fcf_edgar=None)
+               fcf_edgar=None, rev_growth_vol=None)
     if not edgar_history:
         return out
 
@@ -215,6 +215,18 @@ def derive_edgar_metrics(edgar_history):
 
     if rev_hist:
         sy = sorted(rev_hist.keys())
+        # Revenue-growth volatility: the population std of YoY revenue growth
+        # rates. A "business predictability" signal (lower = steadier top line)
+        # that is growth-neutral by construction — it measures the variability
+        # of growth, not its level, so a fast, steady compounder scores well
+        # while a lumpy/cyclical one does not. Used by the Quality: Rev
+        # Volatility gate that replaced the leverage-distortable ROE gate.
+        _rv = [rev_hist[y] for y in sy if rev_hist.get(y) and rev_hist[y] > 0]
+        if len(_rv) >= 4:
+            _gr = [(_rv[i] - _rv[i - 1]) / _rv[i - 1] for i in range(1, len(_rv))]
+            if len(_gr) >= 3:
+                _gm = sum(_gr) / len(_gr)
+                out['rev_growth_vol'] = (sum((x - _gm) ** 2 for x in _gr) / len(_gr)) ** 0.5
         newest_rev = rev_hist[sy[-1]] if sy else None
         if newest_rev and newest_rev > 0:
             if len(sy) >= 6:
@@ -2414,6 +2426,10 @@ def _main():
                 # EDGAR-derived point-in-time FCF (OCF − capex); scoring uses
                 # it as a fallback for `fcf` when yfinance has no cash flow.
                 'fcf_edgar': _edgar_metrics.get('fcf_edgar'),
+                # Revenue-growth volatility (Quality: Rev Volatility gate) and
+                # the run's risk-free rate (Valuation: FCF Yield gate hurdle).
+                'rev_growth_vol': _edgar_metrics.get('rev_growth_vol'),
+                '_risk_free_rate': risk_free_rate,
                 # EDGAR XBRL validation
                 'edgar_quality_score': xbrl_validation.get('edgar_quality_score') if xbrl_validation else None,
                 'edgar_fields_flagged': xbrl_validation.get('fields_flagged', 0) if xbrl_validation else 0,

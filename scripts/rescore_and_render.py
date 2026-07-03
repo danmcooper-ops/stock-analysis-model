@@ -63,6 +63,13 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
         snap_date = date.today().isoformat()
 
     _refresh_edgar_derived_metrics(results)
+    # Propagate the snapshot's risk-free rate onto each row so the
+    # Valuation: FCF Yield gate has its hurdle available on re-render (the
+    # live pipeline stamps this per row; here it comes from the snapshot).
+    _rf = snap.get('risk_free_rate') if isinstance(snap, dict) else None
+    if _rf is not None:
+        for _r in results:
+            _r['_risk_free_rate'] = _rf
     score_and_rate(results)
 
     # Write new HTML alongside the JSON.

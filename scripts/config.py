@@ -59,10 +59,13 @@ DDM_BLEND_WEIGHT = 0.30               # DDM weight in blended fair value
 DCF_BLEND_WEIGHT_WITH_DDM = 0.70      # DCF weight when DDM is available
 DDM_DIVERGENCE_THRESHOLD = 0.50       # Flag low confidence if DDM/DCF diverge >50%
 
-# Continuous scoring weights by category (moat-first, growth and ownership equally weighted)
-SCORE_WEIGHT_VALUATION = 0.20
+# Continuous scoring weights by category. Rebalanced from a moat-first 40/20
+# tilt toward a value orientation: Moat 40->30 (it was ~24% of the composite
+# resting on ROIC counted three ways) and Valuation 20->30 so the "cheapness"
+# side carries real weight rather than being outvoted 2:1 by quality/moat.
+SCORE_WEIGHT_VALUATION = 0.30
 SCORE_WEIGHT_QUALITY = 0.20
-SCORE_WEIGHT_MOAT = 0.40
+SCORE_WEIGHT_MOAT = 0.30
 SCORE_WEIGHT_GROWTH = 0.10
 SCORE_WEIGHT_OWNERSHIP = 0.10
 
