@@ -266,7 +266,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         '_sector_median_opm': r.get('_sector_median_opm'),
         # Gate values (actual metric)
         '_gate_mos': r.get('_gate_mos'),
-        '_gate_price_fv': r.get('_gate_price_fv'),
+        '_gate_fv_dispersion': r.get('_gate_fv_dispersion'),
         '_gate_p_fcf': r.get('_gate_p_fcf'),
         '_gate_piotroski': r.get('_gate_piotroski'),
         '_gate_int_coverage': r.get('_gate_int_coverage'),
@@ -291,7 +291,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         '_gate_fcf_margin': r.get('_gate_fcf_margin'),
         # Gate pass/fail booleans
         '_gp_mos': r.get('_gp_mos'),
-        '_gp_price_fv': r.get('_gp_price_fv'),
+        '_gp_fv_dispersion': r.get('_gp_fv_dispersion'),
         '_gp_p_fcf': r.get('_gp_p_fcf'),
         '_gp_piotroski': r.get('_gp_piotroski'),
         '_gp_int_coverage': r.get('_gp_int_coverage'),
@@ -316,7 +316,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         '_gp_fcf_margin': r.get('_gp_fcf_margin'),
         # Continuous scores (0-100)
         '_score_mos': r.get('_score_mos'),
-        '_score_price_fv': r.get('_score_price_fv'),
+        '_score_fv_dispersion': r.get('_score_fv_dispersion'),
         '_score_p_fcf': r.get('_score_p_fcf'),
         '_score_piotroski': r.get('_score_piotroski'),
         '_score_int_coverage': r.get('_score_int_coverage'),

@@ -395,7 +395,7 @@ class TestCanonicalScoreAndRate:
         assert rows[0]['rating_raw'] == 'BUY'
         assert rows[0]['_rating_cap'] == 'PASS'
         assert rows[0]['rating'] == 'PASS'
-        assert any('price/fair value' in r for r in rows[0]['_rating_cap_reasons'])
+        assert any('margin of safety' in r for r in rows[0]['_rating_cap_reasons'])
 
     def test_derives_fields_for_replay_style_rows(self):
         rows = [self._row(price=80.0, dcf_fv=100.0, epv_fv=110.0,
@@ -428,34 +428,49 @@ class TestScreeningGateEdgeCases:
         defaults.update(kwargs)
         return defaults
 
-    def test_price_fv_gate_fails_when_dcf_fv_negative(self):
-        """Negative DCF fair value must not pass the Price/FV gate.
-
-        A distressed company with negative implied equity value previously
-        passed because price / -fv < 1.0 evaluated to True.
-        """
+    def test_negative_dcf_fv_yields_no_bogus_mos(self):
+        """A negative DCF fair value must not create a false bargain signal:
+        with no alt models it leaves MoS / _price_fv as None, not a positive
+        value from dividing by a negative FV."""
         rows = [self._row(price=50.0, dcf_fv=-25.0)]
         apply_screening_matrix(rows)
-        assert rows[0]['_gp_price_fv'] is None
-        assert rows[0]['_gate_price_fv'] is None
+        assert rows[0]['mos'] is None
+        assert rows[0]['_price_fv'] is None
+        assert rows[0].get('_fv_source') is None
 
-    def test_price_fv_gate_fails_when_dcf_fv_zero(self):
-        """Zero fair value must short-circuit to N/A, not div-by-zero."""
-        rows = [self._row(price=50.0, dcf_fv=0.0)]
+    def test_fv_dispersion_gate_passes_on_tight_agreement(self):
+        """Models within 50% of the median → the FV Dispersion gate passes."""
+        rows = [self._row(dcf_fv=100.0, epv_growth_fv=110.0,
+                          rim_fv=120.0, ddm_fv=130.0)]
         apply_screening_matrix(rows)
-        assert rows[0]['_gp_price_fv'] is None
+        # spread = (130 - 100) / median(115) = 0.26
+        assert rows[0]['_gate_fv_dispersion'] == pytest.approx(30 / 115.0)
+        assert rows[0]['_gp_fv_dispersion'] is True
 
-    def test_price_fv_gate_passes_when_undervalued(self):
-        rows = [self._row(price=50.0, dcf_fv=100.0)]
+    def test_fv_dispersion_gate_fails_on_wide_spread(self):
+        """Models spanning >50% of the median → the gate fails (value-trap
+        risk: the fair value is not corroborated)."""
+        rows = [self._row(dcf_fv=50.0, epv_growth_fv=100.0, rim_fv=200.0)]
         apply_screening_matrix(rows)
-        assert rows[0]['_gp_price_fv'] is True
-        assert rows[0]['_gate_price_fv'] == pytest.approx(0.5)
+        # spread = (200 - 50) / median(100) = 1.5
+        assert rows[0]['_gate_fv_dispersion'] == pytest.approx(1.5)
+        assert rows[0]['_gp_fv_dispersion'] is False
 
-    def test_price_fv_gate_fails_when_overvalued(self):
-        rows = [self._row(price=150.0, dcf_fv=100.0)]
+    def test_fv_dispersion_na_with_single_model(self):
+        """A lone model can't form a spread → N/A."""
+        rows = [self._row(rim_fv=100.0)]
         apply_screening_matrix(rows)
-        assert rows[0]['_gp_price_fv'] is False
-        assert rows[0]['_gate_price_fv'] == pytest.approx(1.5)
+        assert rows[0]['fv_dispersion'] is None
+        assert rows[0]['_gp_fv_dispersion'] is None
+
+    def test_fv_dispersion_excludes_nav(self):
+        """nav_fv is not part of the consensus, so a low NAV must not widen the
+        measured dispersion."""
+        rows = [self._row(dcf_fv=100.0, epv_growth_fv=105.0, nav_fv=20.0)]
+        apply_screening_matrix(rows)
+        # only dcf & epv_growth count: spread = 5 / median(102.5) ≈ 0.049
+        assert rows[0]['_gate_fv_dispersion'] == pytest.approx(5 / 102.5)
+        assert rows[0]['_gp_fv_dispersion'] is True
 
     def test_p_tbv_gate_fails_when_negative(self):
         """Negative tangible book (insolvent on a tangible basis) must not pass

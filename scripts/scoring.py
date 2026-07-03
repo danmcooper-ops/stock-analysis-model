@@ -107,9 +107,9 @@ SCREENING_GATES = [
     ('Valuation: MoS',
      'mos',
      lambda v, r: v > 0.10 if v is not None else None),
-    ('Valuation: Price/FV',
-     '_price_fv',
-     lambda v, r: v < 1.0 if v is not None else None),
+    ('Valuation: FV Dispersion',
+     'fv_dispersion',
+     lambda v, r: v <= 0.50 if v is not None else None),
     ('Valuation: P/FCF',
      'pfcf',
      lambda v, r: 0 < v <= 20 if v is not None else None),
@@ -253,8 +253,29 @@ def prepare_scoring_fields(results):
         r['_fv_source'] = fv_src
         r['sbc_pct_rev'] = (sbc / rev) if (sbc is not None and rev and rev > 0) else None
         r['fcf_margin'] = (fcf / rev) if (fcf is not None and rev and rev > 0) else None
+        # _price_fv is retained (= 1 − MoS) for the Excel export and raw
+        # consumers, but it is no longer a scored gate or matrix column — MoS
+        # carries the same signal (see fv_dispersion below, which replaced the
+        # Price/FV gate in the Valuation category).
         r['_price_fv'] = (price / fv_eff) if (price and fv_eff and fv_eff > 0) else None
         r['mos'] = ((fv_eff - price) / fv_eff) if (price and fv_eff and fv_eff > 0) else None
+        # Cross-model fair-value agreement: how tightly the comparable intrinsic
+        # models corroborate one another, as the high/low spread relative to the
+        # median. Low dispersion → the fair value (and the MoS derived from it)
+        # is trustworthy; wide dispersion → the estimate is noisy and a large
+        # MoS may be a value trap rather than a bargain. This is the orthogonal
+        # valuation signal that replaced Price/FV, which was collinear with MoS.
+        # NAV is excluded (asset floor, not a going-concern value) and bare EPV
+        # is omitted in favor of the growth-inclusive epv_growth_fv. >=2 models.
+        fv_models = [r.get(k) for k in ('dcf_fv', 'epv_growth_fv', 'rim_fv', 'ddm_fv')]
+        fv_models = [v for v in fv_models
+                     if isinstance(v, (int, float)) and 0 < v < float('inf')]
+        if len(fv_models) >= 2:
+            _fvm = statistics.median(fv_models)
+            r['fv_dispersion'] = ((max(fv_models) - min(fv_models)) / _fvm
+                                  if _fvm > 0 else None)
+        else:
+            r['fv_dispersion'] = None
         # Recompute P/FCF from the (possibly EDGAR-derived) FCF when it wasn't
         # set upstream. Only meaningful for positive FCF (mirrors market.py).
         if r.get('pfcf') is None:
@@ -401,8 +422,8 @@ def _print_validation_stats(results, screen_outcomes):
 SCORING_GATES = [
     ('Valuation: MoS', 'mos', 'Valuation',
      lambda v, r, pct: _score_linear(v, -0.10, 0.40), False, True),   # tightened: worst raised -20%→-10%
-    ('Valuation: Price/FV', '_price_fv', 'Valuation',
-     lambda v, r, pct: _score_linear(v, 1.2, 0.7), False, True),      # tightened: worst 1.5→1.2
+    ('Valuation: FV Dispersion', 'fv_dispersion', 'Valuation',
+     lambda v, r, pct: _score_linear(v, 1.5, 0.0), False, True),      # lower is better: tight model agreement scores high
     ('Valuation: P/FCF', 'pfcf', 'Valuation',
      lambda v, r, pct: _score_linear(v, 40.0, 8.0) if v is not None and v > 0 else 0.0,
      False, True),   # tightened: worst 50→40, best 10→8
@@ -613,7 +634,7 @@ def apply_composite_rating_override(results, params=None):
 
 _GATE_DISPLAY = {
     'mos': {'label': 'MoS', 'threshold': 'MoS > 10%', 'fmt': 'pct1'},
-    'price_fv': {'label': 'Price/FV', 'threshold': 'P/FV < 1.0', 'fmt': 'ratio'},
+    'fv_dispersion': {'label': 'FV Dispersion', 'threshold': 'Model spread <= 50%', 'fmt': 'pct1'},
     'p_fcf': {'label': 'P/FCF', 'threshold': 'P/FCF <= 20x', 'fmt': 'ratio'},
     'int_coverage': {'label': 'Int Cov', 'threshold': 'IC > 3x', 'fmt': 'ratio'},
     'accruals': {'label': 'Accruals', 'threshold': '|Acr| < 8%', 'fmt': 'pct1'},
@@ -696,19 +717,16 @@ def _rating_cap_for_row(row, params=None):
             cap = new_cap
         reasons.append(reason)
 
-    price_fv = row.get('_price_fv')
     mos = row.get('mos')
 
     if row.get('price') is None or row.get('dcf_fv') is None:
         add('HOLD', 'missing price or fair value')
-    elif price_fv is not None:
-        if price_fv >= 1.20:
-            add('PASS', 'price/fair value >= 1.20')
-        elif price_fv >= 1.00:
-            add('HOLD', 'price/fair value >= 1.00')
     elif mos is not None:
-        if mos <= -0.10:
-            add('PASS', 'margin of safety <= -10%')
+        # MoS carries the price-vs-fair-value signal that Price/FV used to
+        # (MoS = 1 − P/FV); thresholds mirror the retired P/FV caps
+        # (P/FV >= 1.20 ⇔ MoS <= −20%, P/FV >= 1.00 ⇔ MoS <= 0).
+        if mos <= -0.20:
+            add('PASS', 'margin of safety <= -20%')
         elif mos <= 0:
             add('HOLD', 'non-positive margin of safety')
 
