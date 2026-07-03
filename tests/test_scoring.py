@@ -63,6 +63,53 @@ class TestEdgarFcfFallback:
 
 
 # ---------------------------------------------------------------------------
+# prepare_scoring_fields — effective fair value / blended P-FV & MoS (fix (b))
+# ---------------------------------------------------------------------------
+
+class TestEffectiveFairValue:
+    def test_dcf_used_when_present(self):
+        """DCF fair value present → it is the effective FV; Price/FV and MoS
+        derive from it and the alt models are ignored."""
+        r = {'price': 90.0, 'dcf_fv': 100.0,
+             'epv_growth_fv': 50.0, 'rim_fv': 50.0, 'ddm_fv': 50.0}
+        prepare_scoring_fields([r])
+        assert r['_fv_source'] == 'dcf'
+        assert r['_fv_effective'] == 100.0
+        assert r['_price_fv'] == pytest.approx(0.90)
+        assert r['mos'] == pytest.approx(0.10)
+
+    def test_blend_median_when_dcf_absent(self):
+        """No DCF but >=2 growth-inclusive models → median consensus FV drives
+        Price/FV and MoS."""
+        r = {'price': 120.0, 'dcf_fv': None,
+             'epv_growth_fv': 100.0, 'rim_fv': 150.0, 'ddm_fv': 200.0}
+        prepare_scoring_fields([r])
+        assert r['_fv_source'] == 'blend'
+        assert r['_fv_effective'] == pytest.approx(150.0)  # median of 100/150/200
+        assert r['_price_fv'] == pytest.approx(0.80)
+        assert r['mos'] == pytest.approx(0.20)
+
+    def test_nav_and_bare_epv_are_excluded(self):
+        """nav_fv (asset floor) and bare epv_fv (growth-agnostic) are NOT part
+        of the consensus — a row carrying only those has no effective FV."""
+        r = {'price': 50.0, 'dcf_fv': None,
+             'nav_fv': 40.0, 'epv_fv': 45.0}
+        prepare_scoring_fields([r])
+        assert r['_fv_source'] is None
+        assert r['_fv_effective'] is None
+        assert r['_price_fv'] is None
+        assert r['mos'] is None
+
+    def test_single_model_is_insufficient(self):
+        """A lone model is not a consensus → no effective FV (requires >=2)."""
+        r = {'price': 50.0, 'dcf_fv': None, 'rim_fv': 60.0}
+        prepare_scoring_fields([r])
+        assert r['_fv_source'] is None
+        assert r['_price_fv'] is None
+        assert r['mos'] is None
+
+
+# ---------------------------------------------------------------------------
 # _score_linear
 # ---------------------------------------------------------------------------
 

@@ -1,6 +1,8 @@
 # scripts/scoring.py
 """Scoring, screening, and validation functions for the stock analysis pipeline."""
 
+import statistics
+
 from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH,
                              SCORE_WEIGHT_OWNERSHIP)
@@ -106,10 +108,8 @@ SCREENING_GATES = [
      'mos',
      lambda v, r: v > 0.10 if v is not None else None),
     ('Valuation: Price/FV',
-     'price',
-     lambda v, r: (v / r['dcf_fv']) < 1.0
-     if v is not None and r.get('dcf_fv') is not None and r['dcf_fv'] > 0
-     else None),
+     '_price_fv',
+     lambda v, r: v < 1.0 if v is not None else None),
     ('Valuation: P/FCF',
      'pfcf',
      lambda v, r: 0 < v <= 20 if v is not None else None),
@@ -220,10 +220,41 @@ def prepare_scoring_fields(results):
                 r['fcf'] = fcf_edgar
                 r['_fcf_source'] = 'edgar'
         price = r.get('price')
-        fv = r.get('dcf_fv')
+        # Effective fair value: prefer the DCF; when it's absent (no yfinance
+        # cash flow — ~75% of the expanded universe) fall back to a robust
+        # consensus (median) of the intrinsic-value models that did resolve.
+        # This lets Price/FV and MoS — and the valuation gates and rating caps
+        # that key off them — populate for companies the DCF alone couldn't
+        # value. Require >=2 models so the consensus never rests on a single
+        # estimate. All model FVs are per-share in the quote currency, so
+        # price / fv is unit-consistent.
+        #
+        # Model choice matters for parity with the DCF cohort (median P/FV
+        # ~0.90): the fallback must be GROWTH-inclusive so DCF-less names
+        # aren't rated more harshly just because of which model resolved.
+        #   • epv_growth_fv (EPV with growth) — median P/FV ~1.00, the closest
+        #     DCF proxy; used instead of bare epv_fv (growth-agnostic, ~1.35).
+        #   • rim_fv, ddm_fv — legitimate conservative cross-checks.
+        #   • nav_fv is EXCLUDED: it's an asset floor (median P/FV ~2.45), not
+        #     a fair value for operating companies; REITs/financials are valued
+        #     on their own NAV/FFO tracks elsewhere.
+        dcf_fv = r.get('dcf_fv')
+        if dcf_fv is not None and dcf_fv > 0:
+            fv_eff, fv_src = dcf_fv, 'dcf'
+        else:
+            alt = [r.get(k) for k in ('epv_growth_fv', 'rim_fv', 'ddm_fv')]
+            alt = [v for v in alt
+                   if isinstance(v, (int, float)) and 0 < v < float('inf')]
+            if len(alt) >= 2:
+                fv_eff, fv_src = statistics.median(alt), 'blend'
+            else:
+                fv_eff, fv_src = None, None
+        r['_fv_effective'] = fv_eff
+        r['_fv_source'] = fv_src
         r['sbc_pct_rev'] = (sbc / rev) if (sbc is not None and rev and rev > 0) else None
         r['fcf_margin'] = (fcf / rev) if (fcf is not None and rev and rev > 0) else None
-        r['_price_fv'] = (price / fv) if (price and fv and fv > 0) else None
+        r['_price_fv'] = (price / fv_eff) if (price and fv_eff and fv_eff > 0) else None
+        r['mos'] = ((fv_eff - price) / fv_eff) if (price and fv_eff and fv_eff > 0) else None
         # Recompute P/FCF from the (possibly EDGAR-derived) FCF when it wasn't
         # set upstream. Only meaningful for positive FCF (mirrors market.py).
         if r.get('pfcf') is None:
@@ -271,12 +302,10 @@ def apply_screening_matrix(results):
                 r[gate_key] = None
                 r[gp_key] = None
             else:
-                # Store actual metric value instead of PASS/FAIL
-                if field == 'price':
-                    # Price/FV gate: display the ratio, not the raw price
-                    r[gate_key] = val / r['dcf_fv']
-                else:
-                    r[gate_key] = val
+                # Store actual metric value instead of PASS/FAIL. Price/FV
+                # already keys off _price_fv (the effective ratio), so no
+                # special-casing is needed here.
+                r[gate_key] = val
                 r[gp_key] = bool(result)
                 if result:
                     passed += 1
