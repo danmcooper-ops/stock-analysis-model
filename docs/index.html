@@ -677,6 +677,7 @@ td.ct{font-weight:700;}
 .agg-grid-item input{margin:0;cursor:pointer;flex-shrink:0;accent-color:#7030a0;}
 .agg-grid-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
 .agg-grid-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.agg-grid-ret{margin-left:auto;font-size:0.78em;font-weight:600;font-variant-numeric:tabular-nums;flex-shrink:0;}
 .agg-helper-btn{padding:4px 11px;font-size:0.72em;font-weight:600;border:1px solid #d8dee5;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
 .agg-helper-btn:hover{border-color:#7030a0;color:#1a252f;}
 [data-theme="dark"] .agg-grid-section{background:#161b22;border-color:#30363d;}
@@ -3900,7 +3901,7 @@ function renderUniversePriceChart(){
     var col=_aggColor(s);
     var safe=_esc(s);
     var checked=_selectedAggs[s]?' checked':'';
-    return '<label class="agg-grid-item"><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span></label>';
+    return '<label class="agg-grid-item"><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span><span class="agg-grid-ret" title="Total price appreciation over the selected timeframe">—</span></label>';
   }).join('');
   var out='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">'
     +'<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">'+rangeBtns+'</div>'
@@ -3944,6 +3945,26 @@ function aggsClearAll(){
   _selectedAggs={};
   _priceChartDraw();
 }
+/* Write each sector's total price appreciation into its Compare-sectors
+   grid row (.agg-grid-ret), colored green/red by sign. Pass a
+   name→appreciation-percent map for the plotted sectors; unselected or
+   no-data rows (or a null map) fall back to an em dash. */
+function _aggSetGridRet(retByName){
+  var grid=document.getElementById('agg-grid');if(!grid)return;
+  grid.querySelectorAll('.agg-grid-item').forEach(function(lbl){
+    var cb=lbl.querySelector('input[type="checkbox"]');
+    var span=lbl.querySelector('.agg-grid-ret');
+    if(!cb||!span)return;
+    if(retByName&&cb.value in retByName){
+      var r=retByName[cb.value];
+      span.textContent=(r>=0?'+':'')+r.toFixed(1)+'%';
+      span.style.color=r>=0?'#2e7d48':'#c0392b';
+    }else{
+      span.textContent='—';
+      span.style.color='';
+    }
+  });
+}
 /* Build a market-cap-weighted aggregate from DATA filtered by
    filterFn. Returns null if no qualifying constituents have a
    price-history record. */
@@ -3986,6 +4007,7 @@ function _priceChartDraw(){
     if(legendEl)legendEl.innerHTML='';
     if(tipEl)tipEl.innerHTML='';
     _aggHoverState=null;
+    _aggSetGridRet(null);
     return;
   }
   var aggs=[];
@@ -3993,7 +4015,7 @@ function _priceChartDraw(){
     var a=_buildAggregate(function(d){return d.sector===k;});
     if(a){a.label=k;a.color=_aggColor(k);aggs.push(a);}
   });
-  if(!aggs.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data for selected sectors.</p>';return;}
+  if(!aggs.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data for selected sectors.</p>';_aggSetGridRet(null);return;}
   /* Window cutoff. */
   var cutMs={'1YR':366,'3YR':1098,'5YR':1827,'10YR':3653,'20YR':7305}[_sectorPriceRange]||1827;
   var cutoff=new Date(+new Date()-cutMs*86400000);
@@ -4012,7 +4034,7 @@ function _priceChartDraw(){
     }
     if(allOk){startIdx=i;break;}
   }
-  if(startIdx<0){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough overlapping price history in this range. Try a longer window or fewer sectors.</p>';return;}
+  if(startIdx<0){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough overlapping price history in this range. Try a longer window or fewer sectors.</p>';_aggSetGridRet(null);return;}
   /* Per-component baselines. */
   for(var ai2=0;ai2<aggs.length;ai2++){
     var ag=aggs[ai2];
@@ -4043,8 +4065,15 @@ function _priceChartDraw(){
     dates.push(allD[k]);
     for(var ai4=0;ai4<aggs.length;ai4++)aggs[ai4].vals.push(aggVals[ai4]);
   }
-  if(dates.length<2){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough overlapping data points.</p>';return;}
+  if(dates.length<2){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough overlapping data points.</p>';_aggSetGridRet(null);return;}
   _renderPolylineSVG(el,dates,aggs);
+  /* Fill the selector grid with each sector's total appreciation over the
+     selected window (final indexed value − 100). Recomputed here so it
+     tracks the 1Y/3Y/5Y/10Y/20Y range buttons. Unselected / no-data rows
+     fall back to an em dash. */
+  var _retByName={};
+  aggs.forEach(function(a){_retByName[a.label]=a.vals[a.vals.length-1]-100;});
+  _aggSetGridRet(_retByName);
   _sectorPriceState={range:_sectorPriceRange,n:dates.length,k:aggs.length};
 }
 function _renderPolylineSVG(el,dates,aggs){
