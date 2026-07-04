@@ -95,16 +95,23 @@ def estimate_ddm_growth(div_history, payout, roe, analyst_ltg):
     total_weight = 0.0
 
     # Signal 1: Dividend CAGR (30%)
+    # Measure the span between the first and last POSITIVE years by their
+    # original positions, so suspension years (reindexed to 0 upstream) count
+    # toward the time base instead of being filtered out and compressing it.
     if div_history is not None and len(div_history) >= 2:
-        hist = [d for d in div_history if d is not None and d > 0]
-        if len(hist) >= 2:
-            years = len(hist) - 1
-            cagr = (hist[-1] / hist[0]) ** (1 / years) - 1
-            cagr = max(min(cagr, 0.25), -0.10)
-            result['div_cagr'] = cagr
-            weighted_sum += 0.30 * cagr
-            total_weight += 0.30
-            result['signals_used'] += 1
+        positives = [(i, d) for i, d in enumerate(div_history)
+                     if d is not None and d > 0]
+        if len(positives) >= 2:
+            first_i, first_d = positives[0]
+            last_i, last_d = positives[-1]
+            years = last_i - first_i
+            if years >= 1:
+                cagr = (last_d / first_d) ** (1 / years) - 1
+                cagr = max(min(cagr, 0.25), -0.10)
+                result['div_cagr'] = cagr
+                weighted_sum += 0.30 * cagr
+                total_weight += 0.30
+                result['signals_used'] += 1
 
     # Signal 2: Sustainable growth = ROE × (1 - payout) (40%)
     if roe is not None and payout is not None and roe > 0 and 0 < payout < 1.0:
@@ -184,14 +191,19 @@ def ddm_h_model(dps, short_g, long_g, re, half_life=5):
     if re <= long_g:
         return None
 
-    spread = re - long_g
-    if spread < 0.02:
-        spread = 0.02
+    # Clamp the spread and substitute the effective long-growth EVERYWHERE
+    # (numerator included), mirroring two_stage_ddm — clamping only the
+    # denominator would value the stable leg on a growth rate the spread no
+    # longer reflects.
+    effective_long_g = long_g
+    if re - long_g < 0.02:
+        effective_long_g = re - 0.02
+    spread = re - effective_long_g
 
     # Stable component
-    stable_value = dps * (1 + long_g) / spread
+    stable_value = dps * (1 + effective_long_g) / spread
     # Growth premium
-    growth_premium = dps * half_life * (short_g - long_g) / spread
+    growth_premium = dps * half_life * (short_g - effective_long_g) / spread
 
     value = stable_value + growth_premium
     return value if value > 0 else None

@@ -143,10 +143,19 @@ class TestSelectEpvEbit:
         assert source == 'point'
         assert ebit == 200.0
 
-    def test_none_when_no_point_ebit(self):
+    def test_normalized_used_even_when_point_ebit_missing(self):
+        """Missing point EBIT must NOT drop EPV when the through-cycle path is
+        available — the consensus fallback needs exactly these sparse names."""
         ebit, source = self._select(point_ebit=None, yf_revenue=1000.0,
                                     op_margin_avg_10y=0.15,
                                     op_margin_hist_years=10)
+        assert source == 'normalized'
+        assert ebit == pytest.approx(150.0)
+
+    def test_none_when_no_point_ebit_and_no_history(self):
+        ebit, source = self._select(point_ebit=None, yf_revenue=1000.0,
+                                    op_margin_avg_10y=None,
+                                    op_margin_hist_years=0)
         assert ebit is None
         assert source is None
 

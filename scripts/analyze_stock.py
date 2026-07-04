@@ -318,11 +318,16 @@ def _select_epv_ebit(point_ebit, yf_revenue, op_margin_avg_10y,
 
     Returns (ebit_used, source) with source 'normalized' | 'point' | None.
     """
+    can_normalize = (op_margin_avg_10y is not None
+                     and (op_margin_hist_years or 0) >= 5
+                     and yf_revenue is not None and yf_revenue > 0)
+    if can_normalize:
+        # Prefer the through-cycle figure even when point EBIT is missing —
+        # dropping EPV entirely would starve the consensus fallback of exactly
+        # the sparse-data names it exists to value.
+        return op_margin_avg_10y * yf_revenue, 'normalized'
     if point_ebit is None:
         return None, None
-    if (op_margin_avg_10y is not None and (op_margin_hist_years or 0) >= 5
-            and yf_revenue is not None and yf_revenue > 0):
-        return op_margin_avg_10y * yf_revenue, 'normalized'
     return point_ebit, 'point'
 
 
@@ -1329,11 +1334,18 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 # Dividend Discount Model helper
 # ---------------------------------------------------------------------------
 
-def _annualise_dividends(div_series):
+def _annualise_dividends(div_series, as_of_year=None):
     """Convert a per-payment dividend Series to annual DPS (oldest first).
 
-    Groups by calendar year, sums payments per year, and returns a list
-    of annual totals for years that have at least one payment.
+    Groups by calendar year and sums. Two corrections vs a naive groupby:
+
+    - The current (partial) calendar year is dropped: a mid-year run would
+      otherwise read a quarterly payer's year-to-date sum as a full-year
+      DPS, collapsing the dividend CAGR toward the −10% floor for most of
+      the dividend universe.
+    - Interior skipped years are filled with 0.0 rather than vanishing, so a
+      suspension is visible to the consecutive-year eligibility screen and
+      doesn't silently compress the CAGR time span.
     """
     if div_series is None or len(div_series) == 0:
         return []
@@ -1341,8 +1353,21 @@ def _annualise_dividends(div_series):
     # DataFrame from stock.dividends instead of the expected Series).
     if isinstance(div_series, pd.DataFrame):
         div_series = div_series.iloc[:, 0] if not div_series.empty else pd.Series(dtype=float)
-    annual = div_series.groupby(div_series.index.year).sum()
-    return annual.sort_index().tolist()
+    if len(div_series) == 0:
+        return []
+    annual = div_series.groupby(div_series.index.year).sum().sort_index()
+    if as_of_year is None:
+        as_of_year = date.today().year
+    # Drop the current partial year (keep it only if it's the sole year, so a
+    # freshly-initiated payer still surfaces something).
+    if as_of_year in annual.index and len(annual) > 1:
+        annual = annual.drop(index=as_of_year)
+    if annual.empty:
+        return []
+    # Reindex to a contiguous year range, filling suspension gaps with 0.
+    full_range = range(int(annual.index.min()), int(annual.index.max()) + 1)
+    annual = annual.reindex(full_range, fill_value=0.0)
+    return annual.tolist()
 
 
 def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None):
@@ -1415,8 +1440,11 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None):
     ddm_fv = two_stage_ddm(dps, g, tg, re, years=DDM_HIGH_GROWTH_YEARS)
     result['ddm_fv'] = ddm_fv
 
-    # 4. H-Model cross-check
-    h_fv = ddm_h_model(dps, g, tg, re, half_life=DDM_HIGH_GROWTH_YEARS)
+    # 4. H-Model cross-check. H is HALF the linear-decline period, so to model
+    # growth fading over the same horizon the two-stage holds it (5y),
+    # half_life = 5/2. Passing the full 5 modeled a 10-year fade and inflated
+    # the H-model leg (and hence the averaged ddm_fv) whenever g > tg.
+    h_fv = ddm_h_model(dps, g, tg, re, half_life=DDM_HIGH_GROWTH_YEARS / 2.0)
     result['ddm_h_fv'] = h_fv
 
     # Average the two methods when both available
@@ -2212,8 +2240,16 @@ def _main():
                     _eq_val = bs.iloc[:, 0].get('Stockholders Equity')
                     if pd.notna(_eq_val) and _eq_val:
                         _book_value = float(_eq_val) / shares
+            # Retention = 1 − payout, from the same info payload DDM uses.
+            # Passing it makes clean-surplus book growth match reality (and
+            # silences the g/ROE inference warning). None → the model infers
+            # a Gordon-consistent retention as before.
+            _rim_payout = info.get('payoutRatio')
+            _rim_retention = (max(0.0, min(1.0, 1.0 - _rim_payout))
+                              if isinstance(_rim_payout, (int, float)) else None)
             rim_fv = residual_income_model(
-                _book_value, ratios.get('ROE'), cost_of_equity)
+                _book_value, ratios.get('ROE'), cost_of_equity,
+                retention_ratio=_rim_retention)
 
             # NAV (Tangible Book Value per share) — universal asset-floor
             # sanity check that strips goodwill and intangibles out of equity.
@@ -2530,7 +2566,8 @@ def _main():
                 # Reverse DCF
                 'implied_growth': rev_dcf['implied_growth'] if rev_dcf and rev_dcf.get('converged') else None,
                 'implied_vs_estimated': ((rev_dcf['implied_growth'] - fcf_growth)
-                    if rev_dcf and rev_dcf.get('converged') and fcf_growth else None),
+                    if rev_dcf and rev_dcf.get('converged')
+                    and fcf_growth is not None else None),
                 # EPV (Earnings Power Value)
                 'epv_fv': epv_fv,
                 'epv_pfv': (current_price / epv_fv
@@ -2627,10 +2664,13 @@ def _main():
         price = r.get('price')
         shares = r.get('shares_out')
 
-        if ev_raw and ev_eb and ev_eb > 0 and med and shares and shares > 0 and dcf_fv:
+        if (ev_raw and ev_eb and ev_eb > 0 and med and shares and shares > 0
+                and dcf_fv and price):
             ebitda = ev_raw / ev_eb
             multiples_ev = med * ebitda
-            net_debt = ev_raw - (price * shares if price else 0)
+            # Net debt = EV − equity market cap; price is guaranteed here, so
+            # no falsy-price fallback that would set net_debt = full EV.
+            net_debt = ev_raw - (price * shares)
             multiples_fv = (multiples_ev - net_debt) / shares
             if multiples_fv > 0:
                 r['_multiples_fv'] = multiples_fv

@@ -355,4 +355,5 @@ def reverse_dcf(price, fcf, wacc, shares_outstanding, net_debt=0,
         else:
             hi = mid
 
-    return {'implied_growth': (lo + hi) / 2.0, 'converged': True}
+    # Exhausted max_iter without meeting tolerance — report non-convergence.
+    return {'implied_growth': (lo + hi) / 2.0, 'converged': False}
