@@ -1751,9 +1751,9 @@ function bkv(pairs){return pairs.map(function(p){
 }).join('');}
 var TT={
 ticker:'A real business behind the symbol. Buffett: “Only invest in what you understand well enough to own for a decade.”',
-rating:'Model conviction from DCF + 20 gates + composite score. A starting point, not your thesis.',
-_composite_score:'Score = 0.40·Moat + 0.20·Val + 0.20·Quality + 0.10·Growth + 0.10·Own. ≥60 BUY; 43–59 LEAN BUY; 29–42 HOLD; <29 PASS.',
-_gates_passed:'Pass/fail count across 20 quality gates. Composite score, not raw count, drives the rating — every failure demands an explanation.',
+rating:'Model conviction from DCF + 26 gates + composite score. A starting point, not your thesis.',
+_composite_score:'Score = 0.30·Val + 0.30·Moat + 0.20·Quality + 0.10·Growth + 0.10·Own. ≥57 BUY; 39–56 LEAN BUY; 25–38 HOLD; <25 PASS. Thresholds provisional pending the next live run.',
+_gates_passed:'Pass/fail count across the quality gates that apply to this business — gates that can’t describe it (e.g. free-cash-flow tests for a bank) are excluded from the denominator, not failed. Composite score, not raw count, drives the rating — every failure demands an explanation.',
 sector:'GICS sector. Buffett: stay inside your circle of competence — benchmark only against genuinely similar economics.',
 industry:'GICS industry sub-group — the peer group for margin and ROIC. Always compare within industry, never across.',
 mcap:'Mkt Cap = Price × Shares Out. Graham: compare against intrinsic value — the gap is where fortunes are made.',
@@ -1762,6 +1762,7 @@ wacc:'WACC = (E/V)·Re + (D/V)·Rd·(1−t). Hurdle rate separating value creato
 spread:'Spread = ROIC − WACC. Buffett’s economic profit gap. > 5% = pricing power; near zero = barely earning its keep.',
 roic_cv:'CV = σ(ROIC) / μ(ROIC). Munger: “Invest in businesses with consistent, predictable economics.” High ROIC + low CV = a compounding machine.',
 margin_advantage:'Margin Advantage = operating margin − sector median. A company-specific competitive-position signal, orthogonal to ROIC: a durable premium over peers signals pricing power or a cost edge. Gate passes above +5pp.',
+incr_roic:'Incremental ROIC = ΔNOPAT / ΔInvested Capital — the return on each new dollar the business plows back, not the blended average of dollars invested long ago. Buffett’s real test of a franchise: “the test of a great business is how much capital it can deploy at high returns.” A fat average ROIC beside a thin incremental one is a great past with a fading moat — reinvestment that no longer clears the hurdle. Gate passes above 10%. Shown as N/A when the capital base shrank (a cash-returning compounder), which makes the ratio undefined rather than poor.',
 rev_volatility:'Rev Volatility = σ of year-over-year revenue growth. A business-predictability signal (lower = steadier), growth-neutral by construction — it measures the variability of growth, not its level. Replaced ROE, which is distortable by leverage/buybacks. Gate passes below 12%.',
 fcf_yield:'FCF Yield = Free Cash Flow / Market Cap, gated against the risk-free rate. An absolute, model-independent value floor — does the cash yield beat a Treasury? — that does not depend on the fair-value models agreeing.',
 dcf_fv:'FV = Σ FCFₜ/(1+WACC)ᵗ + Terminal. Buffett: “the value of any asset is its discounted future cash flows.” Treat as a range; assumptions drive the number.',
@@ -1770,6 +1771,7 @@ mos:'MoS = (FV − Price) / FV. Graham’s “three most important words in inve
 pe:'P/E = Price / EPS. Graham’s first-pass screen. Low P/E + high ROIC + cash-backed earnings = one of the most reliable combos in value investing.',
 ev_ebitda:'EV/EBITDA = (Mkt Cap + Net Debt) / EBITDA. Capital-structure-neutral, but misleading at cyclical troughs in capex-heavy businesses.',
 pfcf:'P/FCF = Price / Free Cash Flow. The multiple on Buffett’s owner earnings. < 20× reasonable; < 15× attractive.',
+ebit_ev:'EBIT/EV = Operating Income / Enterprise Value — Greenblatt’s earnings yield, the return the whole business throws off to everyone who funds it. Capital-structure-neutral: because EV counts net debt, a levered balance sheet can’t flatter it the way an equity-only yield can. The value counterpart to FCF Yield; it replaced P/FCF, which was merely that yield inverted. Gate passes above 8% (≈ ≤ 12.5× EV/EBITDA). Not scored for financials, where enterprise value is meaningless.',
 pb:'P/B = Price / Book Value. Graham’s original asset anchor. High P/B justified only by sustained high ROIC — otherwise a value trap.',
 epv_fv:'EPV = Adjusted Earnings / WACC (zero growth). Price < EPV → future growth is free.',
 rim_fv:'RIM FV = BV + Σ (NI − r·BV) / (1+r)ᵗ. Book value plus PV of excess earnings. Converging with DCF raises conviction.',
@@ -1810,6 +1812,7 @@ fundamental_growth:'g = ROIC × Reinvestment Rate. Buffett’s internally consis
 reinvestment_rate:'Reinvest Rate = (CapEx + ΔWC − D&amp;A) / NOPAT. Buffett’s ideal: grow substantially without retaining much. High reinvestment creates value only when ROIC is high.',
 terminal_growth:'Perpetual g beyond year 10, anchored near long-run GDP (2–3%). Small swings → large FV impact. Buffett avoids heroic terminal assumptions.',
 margin_trend:'ΔOp Margin YoY. Expanding = deepening moat. Contracting = first warning the competitive advantage is under pressure.',
+margin_vs_hist:'Margin vs Hist = current operating margin − the company’s own ~10-year average. An over-earning guard: at a cyclical peak every fair-value model feeds on the same inflated earnings, so the fair value looks high and the margin of safety looks generous exactly when they shouldn’t — a value trap dressed as a bargain. Graham insisted on normalizing earnings across a full cycle for this reason. One-sided: margins at or below the historical average score full marks; the gate fails only when today’s margin runs 5pp+ above its own history. N/A without at least five years of margin record.',
 fcf_growth:'FCF growth used in DCF Stage 1. Buffett: must be organic — verify support from revenue growth and stable margins, not deferred capex.',
 shareholder_yield:'Shr Yld = (Dividends + Net Buybacks) / Mkt Cap. Gate passes > 2%. > 5% = genuine, consistent commitment to returning cash to owners.',
 er:'Expected annual return implied by DCF. Buffett thinks in compounding rates — > 12–15% on a quality business deserves serious attention. Compare to opportunity cost.',
@@ -1844,7 +1847,7 @@ gross_margin_gate:'GM = (Revenue − COGS) / Revenue gate. Buffett: “The singl
 insider_own:'Insider % gate. Passes ≥ 5%. Buffett/Munger only invest with management who think like owners because they are owners.',
 turnover:'Turnover = ADV / Shares Out gate. Passes < 2%. Buffett prefers businesses owned by patient analytical partners who hold indefinitely.',
 buyback_rate:'Buyback Rate = Net Buybacks / Mkt Cap gate. Passes > 0%. Consistent buybacks shrink share count and lift per-share owner earnings.',
-insider_buying:'Form 4 insider buy/sell ratio gate. Passes > 50%. Management buying with their own money = strongest alignment signal available.',
+insider_buying:'Insider Buying = open-market buy ÷ (buy + sell) transactions from SEC Form 4 filings, over the trailing year. Peter Lynch’s rule: “insiders sell for many reasons, but they buy for only one” — they think the stock is cheap. Management wagering its own after-tax cash is the single strongest alignment signal available; grants and option exercises are excluded because they cost the insider nothing. Gate passes at or above 50% (buys outnumber sells). N/A below four open-market transactions — too little activity to read as a signal rather than noise.',
 edgar_quality_score:'EDGAR DQ Score (0–100): cross-validation between yfinance and SEC XBRL. 100 = perfect match. Low scores demand 10-K verification before valuing.',
 profit_pool:'PP = Profit Share / Revenue Share within sector. > 1× = disproportionate profit capture — Porter’s moat in numerical form. Passes ≥ 1×.',
 net_debt_ebitda:'ND/EBITDA = (Debt − Cash) / EBITDA gate. Buffett: “we want no debt or very modest debt.” Passes ≤ 2× — debt retirable in < 2 years from earnings.',
@@ -2252,7 +2255,7 @@ function renderOverview(){
   /* find weakest category */
   var _weakCat=null,_weakAvg=101;
   GM.categories.forEach(function(cat){var sc=FD.map(function(d){return d[cat.scoreKey];}).filter(function(v){return v!=null;});var avg=sc.length?Math.round(sc.reduce(function(a,b){return a+b;},0)/sc.length):0;if(avg<_weakAvg){_weakAvg=avg;_weakCat=cat;}});
-  var _subtitle=FD.length+' stocks scored across 20 gates &mdash; '
+  var _subtitle=FD.length+' stocks scored across 26 gates &mdash; '
     +_actionable+' actionable ('+_actionPct+'% BUY or LEAN BUY)'
     +(_worstGate?' &middot; biggest bottleneck: <strong>'+_worstGate.label+'</strong> ('+_worstPct+'% pass rate)':'')
     +(_weakCat?' &middot; weakest category: <strong>'+_weakCat.name+'</strong> ('+_weakAvg+'% avg)':'');
