@@ -1135,37 +1135,29 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     else:
         base_fcf = fcf_values[-1]
 
+    # Latest cash-flow column (newest), used for the owner-earnings capex
+    # add-back and the SBC deduction below.
+    try:
+        latest_cf = cf[sorted(cf.columns)[-1]]
+    except Exception:
+        latest_cf = cf.iloc[:, -1] if cf.columns.is_monotonic_increasing else cf.iloc[:, 0]
+
+    def _cf_line(labels):
+        for lbl in labels:
+            if lbl in latest_cf.index and pd.notna(latest_cf[lbl]):
+                return latest_cf[lbl]
+        return None
+
     # --- Fix F: Growth capex add-back for capex-heavy companies ---
     # If Capex > 2× D&A, significant growth capex is depressing accounting FCF.
     # Add back 50% of excess capex (above maintenance proxy = D&A).
     # This is more conservative than full owner earnings (OCF - D&A) which
     # over-inflates companies like GOOG where capex is partially maintenance.
     if cfg['check_owner_earnings']:
-        try:
-            sorted_cols = sorted(cf.columns)
-            latest_cf = cf[sorted_cols[-1]]
-        except Exception:
-            latest_cf = cf.iloc[:, -1] if cf.columns.is_monotonic_increasing else cf.iloc[:, 0]
-
-        ocf_labels = ['Operating Cash Flow', 'Total Cash From Operating Activities']
-        da_labels = ['Depreciation And Amortization', 'Depreciation Amortization Depletion']
-        capex_labels = ['Capital Expenditure', 'Capital Expenditures']
-
-        ocf = None
-        for lbl in ocf_labels:
-            if lbl in latest_cf.index and pd.notna(latest_cf[lbl]):
-                ocf = latest_cf[lbl]
-                break
-        da = None
-        for lbl in da_labels:
-            if lbl in latest_cf.index and pd.notna(latest_cf[lbl]):
-                da = latest_cf[lbl]
-                break
-        capex = None
-        for lbl in capex_labels:
-            if lbl in latest_cf.index and pd.notna(latest_cf[lbl]):
-                capex = abs(latest_cf[lbl])
-                break
+        ocf = _cf_line(['Operating Cash Flow', 'Total Cash From Operating Activities'])
+        da = _cf_line(['Depreciation And Amortization', 'Depreciation Amortization Depletion'])
+        _cap = _cf_line(['Capital Expenditure', 'Capital Expenditures'])
+        capex = abs(_cap) if _cap is not None else None
 
         if ocf and da and capex and da > 0 and capex / da > CAPEX_DA_THRESHOLD:
             # Excess capex above maintenance (D&A) is growth capex.
@@ -1176,19 +1168,34 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
             if adjusted > 0:
                 base_fcf = adjusted
 
+    # --- Owner earnings: deduct stock-based compensation (all sectors) ---
+    # OCF adds SBC back as a non-cash charge, but it is a real cost to
+    # shareholders (dilution). Buffett's owner earnings subtracts it. Pairs
+    # with the SBC-dilution GATE (which scores the behavior) — this corrects
+    # the VALUATION. Applied before the mean-reversion ceiling.
+    _sbc = _cf_line(['Stock Based Compensation', 'StockBasedCompensation',
+                     'Share Based Compensation'])
+    if _sbc is not None:
+        _sbc = abs(float(_sbc))
+        if _sbc > 0 and base_fcf - _sbc > 0:
+            base_fcf = base_fcf - _sbc
+
     if base_fcf <= 0:
         return None, None, None, {}, None
 
-    # --- Mean-reversion: cap FCF at sector-normal yield ceiling ---
-    # If FCF/Mcap >> sector normal, FCF is likely at peak cycle.
-    # Cap at 1.25× sector normal yield to prevent extrapolating peak earnings.
+    # --- Mean-reversion: cap FCF at the firm's OWN trailing normal ---
+    # Peak-cycle FCF shouldn't be extrapolated. Cap at YIELD_CEILING_MULT ×
+    # the trailing average of positive FCF — a fundamental anchor. The old
+    # ceiling capped at mcap × a yield, which is price-circular: a stock made
+    # cheap by a price drop had its FCF haircut exactly when the model should
+    # flag it as undervalued, bounding MoS regardless of fundamentals.
     mcap = info.get('marketCap')
-    if mcap and mcap > 0 and base_fcf > 0:
-        actual_yield = base_fcf / mcap
-        norm_yield = cfg.get('norm_fcf_yield', 0.035)
-        yield_ceiling = norm_yield * YIELD_CEILING_MULT
-        if actual_yield > yield_ceiling:
-            base_fcf = mcap * yield_ceiling
+    _pos_fcf = [v for v in fcf_values if v > 0]
+    if _pos_fcf and base_fcf > 0:
+        trailing_avg_fcf = sum(_pos_fcf) / len(_pos_fcf)
+        fcf_ceiling = YIELD_CEILING_MULT * trailing_avg_fcf
+        if fcf_ceiling > 0 and base_fcf > fcf_ceiling:
+            base_fcf = fcf_ceiling
 
     # --- FCF growth estimation ---
     fcf_cagr = None
@@ -1214,13 +1221,15 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     earnings_g = _get_earnings_growth(yf_data)        # 1yr earnings growth
 
     # --- Sector-specific growth cap with hyper-growth override ---
+    # Raise the cap only when the firm's OWN trailing revenue growth
+    # corroborates the analyst optimism — not based on how expensive the stock
+    # is (the old actual_yield < HYPER_GROWTH_YIELD trigger let only
+    # richly-priced names through, embedding market price in the estimate).
     best_analyst = analyst_lt or analyst_st
     growth_cap = cfg['growth_cap']
     if (best_analyst is not None and best_analyst > growth_cap
-            and mcap and mcap > 0 and base_fcf > 0):
-        actual_yield = base_fcf / mcap
-        if actual_yield < HYPER_GROWTH_YIELD:
-            growth_cap = max(growth_cap, min(HYPER_GROWTH_CAP, best_analyst * ANALYST_HAIRCUT))
+            and rev_cagr is not None and rev_cagr > growth_cap):
+        growth_cap = max(growth_cap, min(HYPER_GROWTH_CAP, best_analyst * ANALYST_HAIRCUT))
 
     # --- 6-signal weighted average (auto-normalise when signals missing) ---
     growth_signals = []
@@ -1231,17 +1240,25 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     if rev_cagr is not None:
         growth_signals.append(rev_cagr)
         growth_weights.append(GROWTH_WEIGHT_REV)
+    # Optimism haircut on analyst-sourced signals — the config comment
+    # promised this ("Apply 20% haircut to analyst growth estimate") but only
+    # the hyper-growth CAP applied it; the signals themselves (60% of nominal
+    # blend weight) entered raw. Trim positive estimates toward realism;
+    # negative forecasts pass through (no rosy bias to remove).
+    def _haircut(x):
+        return x * ANALYST_HAIRCUT if (x is not None and x > 0) else x
+
     if analyst_st is not None:
-        growth_signals.append(analyst_st)
+        growth_signals.append(_haircut(analyst_st))
         growth_weights.append(GROWTH_WEIGHT_ANALYST_ST)
     # Apply macro growth weight shift: move weight from analyst LT to fundamental
     _w_analyst_lt = max(0.05, GROWTH_WEIGHT_ANALYST_LT + growth_weight_shift)
     _w_fundamental = max(0.05, GROWTH_WEIGHT_FUNDAMENTAL - growth_weight_shift)
     if analyst_lt is not None:
-        growth_signals.append(analyst_lt)
+        growth_signals.append(_haircut(analyst_lt))
         growth_weights.append(_w_analyst_lt)
     if earnings_g is not None:
-        growth_signals.append(earnings_g)
+        growth_signals.append(_haircut(earnings_g))
         growth_weights.append(GROWTH_WEIGHT_EARNINGS_G)
 
     # Signal 6: Fundamental growth (Reinvestment Rate × ROIC)
@@ -1267,7 +1284,11 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     surprise_adj, surprise_avg = _compute_surprise_adjustment(yf_data)
     weighted_avg += surprise_adj
 
-    fcf_growth = min(growth_cap, max(term_g, weighted_avg))
+    # Floor at −15% (noise control), NOT at terminal growth: flooring at
+    # term_g made decline literally unrepresentable, inflating the FV of
+    # deteriorating businesses and rendering two_stage_ev's negative-growth
+    # warning unreachable. A genuinely shrinking firm is now modeled shrinking.
+    fcf_growth = min(growth_cap, max(-0.15, weighted_avg))
 
     # --- Two-stage DCF via shared model function (GGM terminal value) ---
     ev_ggm = two_stage_ev(base_fcf, fcf_growth, wacc, term_g,
@@ -1376,6 +1397,11 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
         'exit_mult_fv': exit_mult_fv,
         'tv_method_spread': tv_method_spread,
         'mc_result': mc_result,
+        # Exposed so reverse_dcf can solve on the SAME adjusted FCF base and
+        # terminal growth as the forward DCF — otherwise implied_vs_estimated
+        # conflates a basis mismatch with a genuine expectation gap.
+        'base_fcf': base_fcf,
+        'term_g': term_g,
     }
     return fv, sens_range, fcf_growth, growth_diag, mc_result
 
@@ -2336,7 +2362,14 @@ def _main():
             rev_dcf = None
             if dcf_fv and current_price and current_price > 0 and fcf and shares:
                 net_debt_val = get_net_debt(yf_data) or 0
-                rev_dcf = reverse_dcf(current_price, fcf, wacc, shares, net_debt_val)
+                # Solve on the same adjusted FCF base + terminal growth the
+                # forward DCF used, so implied_vs_estimated measures the
+                # expectation gap, not a basis/terminal-rate mismatch.
+                _rev_fcf = growth_diag.get('base_fcf') or fcf
+                _rev_tg = growth_diag.get('term_g')
+                rev_dcf = reverse_dcf(
+                    current_price, _rev_fcf, wacc, shares, net_debt_val,
+                    terminal_g=_rev_tg if _rev_tg is not None else 0.03)
 
             # 52-Week Range
             high_52w = info.get('fiftyTwoWeekHigh')

@@ -340,3 +340,35 @@ class TestRescaleFvBand:
         row = {'mc_p90_fv': 100.0}
         _rescale_fv_band(row, 0.9)  # no sens range, no p10 — must not raise
         assert row['mc_p90_fv'] == 90.0
+
+
+class TestMonteCarloDownsideTail:
+    """P10 must reflect wipeout risk (percentiles over all draws, insolvent
+    outcomes clamped to 0), not condition on survival."""
+
+    def test_p10_captures_insolvency_for_levered_name(self):
+        from models.dcf import monte_carlo_dcf
+        # ~13% of draws insolvent (equity <= 0): p10 sits at 0 (wipeout risk)
+        # while the median stays positive — a survivors-only p10 would have
+        # hidden the bear tail entirely.
+        res = monte_carlo_dcf(
+            base_fcf=100.0, growth_rate=0.03, discount_rate=0.10,
+            terminal_growth=0.025, shares_outstanding=1000.0,
+            net_debt=1200.0, n_iterations=800)
+        assert res is not None
+        assert res['invalid_rate'] > 0.0     # some draws did wipe out
+        assert res['p10_fv'] == 0.0          # bottom decile includes wipeouts
+        assert res['median_fv'] > 0.0        # but the centre is still positive
+
+    def test_terminal_spread_floor_matches_point_estimate(self):
+        """Low-WACC name: MC terminal values use the 2.5% spread floor, so the
+        MC median is not inflated far above a comparable point calc."""
+        from models.dcf import monte_carlo_dcf, two_stage_ev, fair_value_per_share
+        res = monte_carlo_dcf(
+            base_fcf=100.0, growth_rate=0.04, discount_rate=0.055,
+            terminal_growth=0.03, shares_outstanding=1000.0,
+            net_debt=0.0, n_iterations=500)
+        ev = two_stage_ev(100.0, 0.04, 0.055, 0.03)
+        point = fair_value_per_share(ev, 0.0, 1000.0)
+        # within a sane band, not 2x+ above
+        assert res['median_fv'] < point * 1.8
