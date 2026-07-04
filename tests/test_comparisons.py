@@ -240,9 +240,17 @@ class TestGetNetDebt:
             # Our fixture: Debt=10B, Cash=5B → ND=5B
             assert nd == pytest.approx(5e9)
 
-    def test_zero_with_empty(self):
-        """Empty dict returns 0 (default when no debt or cash found)."""
-        assert get_net_debt({}) == 0
+    def test_none_when_balance_sheet_absent(self):
+        """No balance sheet → None (leverage unknown), NOT 0 — a 0 would value
+        a levered firm as debt-free in the EV→equity bridges."""
+        assert get_net_debt({}) is None
+
+    def test_zero_when_bs_present_but_no_debt_or_cash(self):
+        """A present balance sheet with no debt/cash lines is a genuine read
+        of an unlevered / sparsely-tagged filing → 0."""
+        import pandas as pd
+        bs = pd.DataFrame({pd.Timestamp('2024-12-31'): {'Total Assets': 100.0}})
+        assert get_net_debt({'balance_sheet': bs}) == 0
 
 
 # ---------------------------------------------------------------------------

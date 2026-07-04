@@ -548,6 +548,16 @@ def get_dow_tickers():
 # ---------------------------------------------------------------------------
 
 
+def _to_tznaive(series):
+    """Strip tz so a tz-aware (yfinance) and tz-naive (Tiingo) price series can
+    be joined — a mixed pair otherwise raises or yields zero index overlap."""
+    idx = getattr(series, 'index', None)
+    if idx is not None and getattr(idx, 'tz', None) is not None:
+        series = series.copy()
+        series.index = idx.tz_localize(None)
+    return series
+
+
 def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=None,
                           erp=None, tiingo_client=None):
     """Select cost of equity using a four-level hierarchy.
@@ -587,15 +597,19 @@ def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=Non
             if (stock_prices is not None and market_prices is not None
                     and len(stock_prices) > 60):
                 combined = pd.DataFrame({
-                    'stock': stock_prices,
-                    'market': market_prices,
+                    'stock': _to_tznaive(stock_prices),
+                    'market': _to_tznaive(market_prices),
                 }).dropna()
-                if len(combined) > 60:
-                    stock_ret = combined['stock'].pct_change().dropna().values
-                    market_ret = combined['market'].pct_change().dropna().values
-                    min_len = min(len(stock_ret), len(market_ret))
-                    stock_ret = stock_ret[:min_len]
-                    market_ret = market_ret[:min_len]
+                # WEEKLY returns (5y ≈ 260 obs): the frequency at which the
+                # 0.60/0.40 R² thresholds are calibrated. Daily single-stock
+                # R² vs SPY rarely clears them, so the quality gate almost
+                # never fired and most names silently used Yahoo's beta.
+                weekly = combined.resample('W-FRI').last().dropna()
+                if len(weekly) > 60:
+                    stock_ret = weekly['stock'].pct_change().dropna().values
+                    market_ret = weekly['market'].pct_change().dropna().values
+                    n = min(len(stock_ret), len(market_ret))
+                    stock_ret, market_ret = stock_ret[:n], market_ret[:n]
 
                     beta_result = calculate_beta(stock_ret, market_ret)
                     r2_class, r2_method = r2_diagnostic(beta_result['r_squared'])
@@ -605,13 +619,27 @@ def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=Non
                         'r2_method': r2_method,
                     }
 
-                    # Use computed beta if R² is at least directional (≥ 0.40)
-                    if r2_class in ('reliable', 'directional'):
-                        adj_beta = beta_result['adjusted_beta']
-                        if BETA_MIN < adj_beta < BETA_MAX:
-                            re = risk_free_rate + adj_beta * erp
-                            if RE_MIN < re < RE_MAX:
-                                return re, f'capm ({r2_class})', beta_diag
+                    # Blend by R² quality (the tiers r2_diagnostic defines but
+                    # the old code never implemented):
+                    #   reliable    → pure CAPM on the computed beta
+                    #   directional → 50/50 CAPM + build-up (dilute a noisy beta)
+                    #   unreliable  → fundamental build-up only (NOT Yahoo's
+                    #                 unvetted beta, which the gate is meant to
+                    #                 avoid)
+                    adj_beta = beta_result['adjusted_beta']
+                    if BETA_MIN < adj_beta < BETA_MAX:
+                        capm_re = risk_free_rate + adj_beta * erp
+                        build_re = buildup_re(risk_free_rate, erp,
+                                              size_premium=0, industry_premium=0)
+                        if r2_class == 'reliable':
+                            re, label = capm_re, 'capm (reliable)'
+                        elif r2_class == 'directional':
+                            re, label = (0.5 * capm_re + 0.5 * build_re,
+                                         'capm+buildup (directional)')
+                        else:
+                            re, label = build_re, 'buildup (unreliable beta)'
+                        if RE_MIN < re < RE_MAX:
+                            return re, label, beta_diag
         except Exception:
             pass  # Fall through to yfinance beta
 
@@ -1247,7 +1275,10 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     if ev_ggm is None or ev_ggm <= 0:
         return None, None, None, {}, None
 
-    net_debt = get_net_debt(yf_data)
+    # None = balance sheet absent (leverage unknown). The DCF's EV→equity
+    # bridge treats it as 0 (the historical behavior for this cohort, which
+    # usually also lacks the FCF to compute a DCF at all).
+    net_debt = get_net_debt(yf_data) or 0
     shares = info.get('sharesOutstanding')
     fv_ggm = fair_value_per_share(ev_ggm, net_debt, shares)
 
@@ -1389,7 +1420,8 @@ def _annualise_dividends(div_series, as_of_year=None):
     return annual.tolist()
 
 
-def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None):
+def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
+                      terminal_growth_adj=0.0):
     """Run Dividend Discount Model valuation for a single stock.
 
     Args:
@@ -1397,6 +1429,9 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None):
         div_series: Pandas Series of historical dividends (from fetch_dividends).
         cost_of_equity: Required return (from CAPM / select_cost_of_equity).
         analyst_ltg: Analyst long-term growth estimate (optional).
+        terminal_growth_adj: Macro-overlay additive adjustment to the terminal
+            growth rate, so a regime shift moves the DDM cohort in step with
+            the DCF cohort (which already receives it).
 
     Returns:
         Dict with DDM results or dict with eligible=False for non-payers.
@@ -1453,7 +1488,7 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None):
     result['ddm_sustainable_growth'] = growth_est['sustainable_growth']
 
     re = cost_of_equity
-    tg = TERMINAL_GROWTH_RATE
+    tg = TERMINAL_GROWTH_RATE + terminal_growth_adj
 
     # 3. Two-stage DDM
     ddm_fv = two_stage_ddm(dps, g, tg, re, years=DDM_HIGH_GROWTH_YEARS)
@@ -2056,6 +2091,16 @@ def _main():
             sector = info.get('sector') or ''
             industry = info.get('industry') or ''
             country = info.get('country') or ''
+            # Discount-rate discipline: floor/cap the cost of equity with the
+            # same sector bounds that bound WACC, so the equity-flow models
+            # (DDM, RIM, EPV growth premium) can't discount at a raw GGM/
+            # build-up Re below the blended-capital floor while the DCF is
+            # floored. Diagnostic 'er' keeps the raw estimate.
+            re_for_models = cost_of_equity
+            if cost_of_equity is not None:
+                _re_cfg = _get_sector_config(sector)
+                re_for_models = max(_re_cfg['wacc_floor'],
+                                    min(_re_cfg['wacc_cap'], cost_of_equity))
             # Tiingo is primary news source; fall back to yfinance/Google RSS
             if tiingo_client.available:
                 tiingo_news = tiingo_client.fetch_ticker_news(ticker, max_age_days=30, max_items=12)
@@ -2151,8 +2196,9 @@ def _main():
             except Exception:
                 div_series = pd.Series(dtype=float)
             ddm_result = run_ddm_valuation(
-                yf_data, div_series, cost_of_equity,
-                analyst_ltg=growth_diag.get('analyst_ltg'))
+                yf_data, div_series, re_for_models,
+                analyst_ltg=growth_diag.get('analyst_ltg'),
+                terminal_growth_adj=effective_tg_adj)
 
             # Step 3A/3B: Earnings quality
             eq = calculate_earnings_quality(yf_data)
@@ -2243,14 +2289,19 @@ def _main():
             # as total_debt (with excess_cash=0) nets cash against debt in
             # one term. NOPAT/WACC is enterprise value; without this bridge
             # levered firms get an EPV floor overstated by debt-per-share.
+            # None = leverage unknown (no balance sheet) → disqualify EPV
+            # rather than fabricate an unlevered per-share floor, since EPV
+            # is the widest-resolving leg of the consensus fallback.
             _epv_net_debt = get_net_debt(yf_data)
-
-            epv_fv = earnings_power_value(
-                _epv_ebit_used,
-                _epv_eff_tax, wacc, shares,
-                excess_cash=0, total_debt=_epv_net_debt)
+            if _epv_net_debt is None:
+                epv_fv = None
+            else:
+                epv_fv = earnings_power_value(
+                    _epv_ebit_used,
+                    _epv_eff_tax, wacc, shares,
+                    excess_cash=0, total_debt=_epv_net_debt)
             epv_growth_fv = epv_with_growth_premium(
-                epv_fv, ratios.get('ROE'), cost_of_equity)
+                epv_fv, ratios.get('ROE'), re_for_models)
 
             # RIM (Residual Income Model)
             _book_value = info.get('bookValue')
@@ -2267,7 +2318,8 @@ def _main():
             _rim_retention = (max(0.0, min(1.0, 1.0 - _rim_payout))
                               if isinstance(_rim_payout, (int, float)) else None)
             rim_fv = residual_income_model(
-                _book_value, ratios.get('ROE'), cost_of_equity,
+                _book_value, ratios.get('ROE'), re_for_models,
+                g=TERMINAL_GROWTH_RATE + effective_tg_adj,
                 retention_ratio=_rim_retention)
 
             # NAV (Tangible Book Value per share) — universal asset-floor
@@ -2283,7 +2335,7 @@ def _main():
             # Reverse DCF (solve for implied growth)
             rev_dcf = None
             if dcf_fv and current_price and current_price > 0 and fcf and shares:
-                net_debt_val = get_net_debt(yf_data)
+                net_debt_val = get_net_debt(yf_data) or 0
                 rev_dcf = reverse_dcf(current_price, fcf, wacc, shares, net_debt_val)
 
             # 52-Week Range
