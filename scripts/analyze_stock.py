@@ -202,7 +202,8 @@ def derive_edgar_metrics(edgar_history):
                fcf_cagr_5y=None, fcf_cagr_10y=None,
                gross_margin_avg_5y=None, gross_margin_trend=None,
                dividend_cagr_5y=None, shares_cagr_5y=None,
-               fcf_edgar=None, rev_growth_vol=None)
+               fcf_edgar=None, rev_growth_vol=None,
+               op_margin_avg_10y=None, op_margin_hist_years=0)
     if not edgar_history:
         return out
 
@@ -212,6 +213,7 @@ def derive_edgar_metrics(edgar_history):
     gp_hist  = _flow_to_annual(edgar_history.get('gross_profit_history', {}))
     div_hist = _flow_to_annual(edgar_history.get('dividends_paid_history', {}))
     sh_hist  = _stock_to_annual(edgar_history.get('shares_history', {}))
+    op_hist  = _flow_to_annual(edgar_history.get('operating_income_history', {}))
 
     if rev_hist:
         sy = sorted(rev_hist.keys())
@@ -272,6 +274,19 @@ def derive_edgar_metrics(edgar_history):
                     (xs[i] - x_mean) * (margins[i] - y_mean) for i in range(n)
                 ) / denom
 
+    if op_hist and rev_hist:
+        # Normalized (through-cycle) operating margin: mean of op-income /
+        # revenue over the last ≤10 common years. Feeds the Quality: Margin
+        # vs Hist over-earning guard and the normalized-EBIT EPV input. The
+        # margin is unitless, so EDGAR's USD normalization is irrelevant here.
+        common_oy = sorted(set(op_hist) & set(rev_hist))[-10:]
+        op_margins = [op_hist[yr] / rev_hist[yr] for yr in common_oy
+                      if rev_hist.get(yr) and rev_hist[yr] > 0
+                      and op_hist.get(yr) is not None]
+        if len(op_margins) >= 2:
+            out['op_margin_avg_10y'] = sum(op_margins) / len(op_margins)
+            out['op_margin_hist_years'] = len(op_margins)
+
     if div_hist:
         dy = sorted(div_hist.keys())
         if len(dy) >= 6:
@@ -287,6 +302,28 @@ def derive_edgar_metrics(edgar_history):
                 out['shares_cagr_5y'] = (s1 / s0) ** (1 / 5) - 1
 
     return out
+
+
+def _select_epv_ebit(point_ebit, yf_revenue, op_margin_avg_10y,
+                     op_margin_hist_years):
+    """Choose the EBIT that EPV capitalizes: normalized when history allows.
+
+    At cyclical margin peaks every FV model eats the same inflated point-in-
+    time earnings, so FV Dispersion stays tight exactly when it shouldn't.
+    With >=5y of EDGAR margin history, capitalize the ~10y-average operating
+    margin applied to CURRENT revenue instead. The margin is unitless; it must
+    multiply the yfinance income-statement revenue (quote currency), never
+    EDGAR's USD-normalized revenue, so the result stays unit-consistent with
+    the point-EBIT path.
+
+    Returns (ebit_used, source) with source 'normalized' | 'point' | None.
+    """
+    if point_ebit is None:
+        return None, None
+    if (op_margin_avg_10y is not None and (op_margin_hist_years or 0) >= 5
+            and yf_revenue is not None and yf_revenue > 0):
+        return op_margin_avg_10y * yf_revenue, 'normalized'
+    return point_ebit, 'point'
 
 
 def _load_founder_overrides():
@@ -2132,9 +2169,13 @@ def _main():
             inc_stmt = yf_data.get('income_statement')
             _epv_ebit = None
             _epv_eff_tax = 0.21
+            _epv_yf_revenue = None
             if inc_stmt is not None and not inc_stmt.empty:
                 _latest_inc = inc_stmt.iloc[:, 0]
                 _epv_ebit = _latest_inc.get('Operating Income')
+                _rev_val = _latest_inc.get('Total Revenue')
+                if pd.notna(_rev_val) and _rev_val is not None:
+                    _epv_yf_revenue = float(_rev_val)
                 if pd.notna(_epv_ebit) and _epv_ebit is not None:
                     _tax_prov = _latest_inc.get('Tax Provision')
                     _pretax = _latest_inc.get('Pretax Income')
@@ -2144,17 +2185,23 @@ def _main():
                 else:
                     _epv_ebit = None
 
-            _epv_excess_cash = 0
+            _epv_ebit_used, _epv_ebit_source = _select_epv_ebit(
+                float(_epv_ebit) if _epv_ebit is not None else None,
+                _epv_yf_revenue,
+                _edgar_metrics.get('op_margin_avg_10y'),
+                _edgar_metrics.get('op_margin_hist_years', 0))
+
             bs = yf_data.get('balance_sheet')
-            if bs is not None and not bs.empty:
-                _cash_val = bs.iloc[:, 0].get('Cash And Cash Equivalents')
-                if pd.notna(_cash_val) and _cash_val is not None:
-                    _epv_excess_cash = float(_cash_val)
+            # Equity bridge: get_net_debt = total debt - cash, so passing it
+            # as total_debt (with excess_cash=0) nets cash against debt in
+            # one term. NOPAT/WACC is enterprise value; without this bridge
+            # levered firms get an EPV floor overstated by debt-per-share.
+            _epv_net_debt = get_net_debt(yf_data)
 
             epv_fv = earnings_power_value(
-                float(_epv_ebit) if _epv_ebit is not None else None,
+                _epv_ebit_used,
                 _epv_eff_tax, wacc, shares,
-                _epv_excess_cash)
+                excess_cash=0, total_debt=_epv_net_debt)
             epv_growth_fv = epv_with_growth_premium(
                 epv_fv, ratios.get('ROE'), cost_of_equity)
 
@@ -2351,6 +2398,10 @@ def _main():
                 'insider_net_value': insider_data.get('net_value_365d') if insider_data and insider_data.get('available') else None,
                 'insider_transactions': (insider_data.get('transactions', [])[:10] if insider_data and insider_data.get('available') else []),
                 'roic_by_year': roic_data.get('roic_by_year'),
+                # Per-year NOPAT / invested capital (Moat: Incr ROIC gate —
+                # scoring derives incremental ROIC = ΔNOPAT/ΔIC from these)
+                '_nopat_by_year': roic_data.get('nopat_by_year'),
+                '_ic_by_year': roic_data.get('invested_capital_by_year'),
                 'roic_cv': roic_cv,
                 'gross_margin': gross_margin,
                 'shareholder_yield': shareholder_yield,
@@ -2429,6 +2480,10 @@ def _main():
                 # Revenue-growth volatility (Quality: Rev Volatility gate) and
                 # the run's risk-free rate (Valuation: FCF Yield gate hurdle).
                 'rev_growth_vol': _edgar_metrics.get('rev_growth_vol'),
+                # Through-cycle operating margin (Quality: Margin vs Hist gate
+                # + normalized-EBIT EPV input)
+                'op_margin_avg_10y': _edgar_metrics.get('op_margin_avg_10y'),
+                'op_margin_hist_years': _edgar_metrics.get('op_margin_hist_years', 0),
                 '_risk_free_rate': risk_free_rate,
                 # EDGAR XBRL validation
                 'edgar_quality_score': xbrl_validation.get('edgar_quality_score') if xbrl_validation else None,
@@ -2483,6 +2538,8 @@ def _main():
                 'epv_mos': ((epv_fv - current_price) / epv_fv
                     if (epv_fv and current_price and epv_fv > 0) else None),
                 'epv_growth_fv': epv_growth_fv,
+                # 'normalized' (10y-avg margin × current revenue) or 'point'
+                'epv_ebit_source': _epv_ebit_source,
                 # RIM (Residual Income Model)
                 'rim_fv': rim_fv,
                 'rim_mos': ((rim_fv - current_price) / rim_fv
@@ -2492,6 +2549,10 @@ def _main():
                 'nav_fv': nav_fv,
                 'nav_mos': nav_mos,
                 'p_tbv': p_tbv,
+                # Raw sign-preserving TBV/share: lets scoring distinguish
+                # "negative tangible book" (P/TBV structurally inapplicable)
+                # from "balance sheet missing" (N/A scores worst)
+                'tangible_book_ps': tangible_book_per_share,
                 # Altman Z-Score
                 'altman_z': altman_z,
                 'altman_z_zone': altman_z_zone,

@@ -120,8 +120,11 @@ def calculate_wacc(financials, cost_of_equity, *,
 def calculate_roic(financials):
     """Per-year and average ROIC = NOPAT / (Equity + Debt − Cash).
 
-    Returns dict with 'roic_by_year', 'avg_roic', and 'warnings' (years
-    skipped because invested_capital was non-positive, for instance).
+    Returns dict with 'roic_by_year', 'avg_roic', 'warnings' (years skipped
+    because invested_capital was non-positive, for instance), plus the
+    per-year intermediates 'nopat_by_year' and 'invested_capital_by_year'
+    (same year keys and skip conditions as roic_by_year) so consumers can
+    compute incremental ROIC (ΔNOPAT/ΔIC) without re-deriving them.
     """
     bs = financials.get('balance_sheet')
     inc = financials.get('income_statement')
@@ -133,6 +136,8 @@ def calculate_roic(financials):
         return None
 
     roic_by_year = {}
+    nopat_by_year = {}
+    invested_capital_by_year = {}
     warnings = []
     for year in common_years:
         bs_year = bs[year]
@@ -149,6 +154,7 @@ def calculate_roic(financials):
             continue
 
         tax_rate = (tax_provision / pretax_income) if tax_provision and pretax_income else 0.21
+        tax_rate = max(0.0, min(tax_rate, 0.50))
         nopat = operating_income * (1 - tax_rate)
         invested_capital = total_equity + (total_debt or 0) - (cash or 0)
         if invested_capital <= 0:
@@ -157,13 +163,19 @@ def calculate_roic(financials):
             )
             continue
 
-        roic_by_year[str(year.year) if hasattr(year, 'year') else str(year)] = nopat / invested_capital
+        year_key = str(year.year) if hasattr(year, 'year') else str(year)
+        roic_by_year[year_key] = nopat / invested_capital
+        nopat_by_year[year_key] = nopat
+        invested_capital_by_year[year_key] = invested_capital
 
     if not roic_by_year:
         return None
 
     avg_roic = sum(roic_by_year.values()) / len(roic_by_year)
-    return {'roic_by_year': roic_by_year, 'avg_roic': avg_roic, 'warnings': warnings}
+    return {'roic_by_year': roic_by_year, 'avg_roic': avg_roic,
+            'warnings': warnings,
+            'nopat_by_year': nopat_by_year,
+            'invested_capital_by_year': invested_capital_by_year}
 
 
 def dupont_decomposition(net_income, revenue, total_assets, equity):

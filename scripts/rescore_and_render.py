@@ -101,7 +101,12 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
     # Quick sanity summary
     n = len(results)
     cs = [r['_composite_score'] for r in results if r.get('_composite_score') is not None]
-    denoms = set(r['_gates_passed'].split('/')[1] for r in results if r.get('_gates_passed'))
+    # Denominators are per-ticker now (applicability mask excludes gates
+    # that can't describe a business), so report the observed range.
+    denoms = sorted({int(r['_gates_passed'].split('/')[1])
+                     for r in results if r.get('_gates_passed')})
+    denoms = (f"{denoms[0]}-{denoms[-1]} (applicable gates)"
+              if denoms else 'n/a')
     rating_dist = {}
     for r in results:
         rating_dist[r.get('rating', '?')] = rating_dist.get(r.get('rating', '?'), 0) + 1

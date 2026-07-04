@@ -17,9 +17,9 @@ from scripts.analyze_stock import _compute_shareholder_yield
 
 def _gate(name):
     """Return the test_fn for a screening gate by display name."""
-    for gname, _field, fn in SCREENING_GATES:
-        if gname == name:
-            return fn
+    for gate in SCREENING_GATES:
+        if gate.name == name:
+            return gate.test_fn
     raise KeyError(name)
 
 
@@ -164,19 +164,34 @@ class TestShareholderYield:
 # (negative rate fails the > 0.01 threshold).
 # ---------------------------------------------------------------------------
 
-class TestBuybackGateOnDiluter:
-    def setup_method(self):
-        self.fn = _gate('Ownership: Buyback Rate')
+class TestNewGateThresholds:
+    """Threshold logic for the gates added in the 2026-07 rebalance."""
 
-    def test_buyer_passes(self):
-        assert self.fn(0.02, {}) is True
+    def test_ebit_ev(self):
+        fn = _gate('Valuation: EBIT/EV')
+        assert fn(0.10, {}) is True      # cheap: 10x EV/EBIT
+        assert fn(0.08, {}) is False     # boundary is strict >
+        assert fn(0.05, {}) is False     # 20x EV/EBIT
+        assert fn(None, {}) is None
 
-    def test_diluter_fails(self):
-        assert self.fn(-0.03, {}) is False
+    def test_incremental_roic(self):
+        fn = _gate('Moat: Incr ROIC')
+        assert fn(0.20, {}) is True
+        assert fn(0.10, {}) is False     # boundary is strict >
+        assert fn(-0.02, {}) is False
+        assert fn(None, {}) is None
 
-    def test_zero_fails(self):
-        """Zero is below the > 0.01 threshold."""
-        assert self.fn(0.0, {}) is False
+    def test_margin_vs_hist(self):
+        fn = _gate('Quality: Margin vs Hist')
+        assert fn(0.00, {}) is True      # at own historical average
+        assert fn(-0.03, {}) is True     # below history — no over-earning
+        assert fn(0.05, {}) is False     # 5pp+ above history fails
+        assert fn(0.10, {}) is False
+        assert fn(None, {}) is None
 
-    def test_none_returns_none(self):
-        assert self.fn(None, {}) is None
+    def test_insider_buying(self):
+        fn = _gate('Ownership: Insider Buying')
+        assert fn(0.75, {}) is True
+        assert fn(0.50, {}) is True      # boundary is >=
+        assert fn(0.25, {}) is False
+        assert fn(None, {}) is None

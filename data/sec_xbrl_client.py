@@ -746,6 +746,7 @@ class SECXBRLClient:
         gp, gp_ccy               = _flow('gross_profit')
         intexp, intexp_ccy       = _flow('interest_expense')
         div, div_ccy             = _flow('dividends_paid')
+        opinc, opinc_ccy         = _flow('operating_income')
         shares, _tax_s, _ccy_s   = self._extract_concept_periodic(
             facts, 'shares_outstanding', units_key='shares', point_in_time=True)
 
@@ -757,7 +758,7 @@ class SECXBRLClient:
         # subsidiary tag happens to carry USD on, say, dividends, treat the
         # filer as JPY.
         currencies = [c for c in (rev_ccy, ni_ccy, ocf_ccy, capex_ccy,
-                                  gp_ccy, intexp_ccy, div_ccy) if c]
+                                  gp_ccy, intexp_ccy, div_ccy, opinc_ccy) if c]
         reporting_ccy = next((c for c in currencies if c != 'USD'), 'USD')
         fx_converted = reporting_ccy != 'USD'
 
@@ -770,9 +771,10 @@ class SECXBRLClient:
             gp     = _apply_fx_annual(gp, fx)
             intexp = _apply_fx_annual(intexp, fx)
             div    = _apply_fx_annual(div, fx)
+            opinc  = _apply_fx_annual(opinc, fx)
             # shares are unit-counts, not currency — leave alone.
 
-        all_series = [rev, ni, ocf, capex, gp, intexp, div, shares]
+        all_series = [rev, ni, ocf, capex, gp, intexp, div, shares, opinc]
         years_available = max((len(s) for s in all_series if s), default=0)
 
         return {
@@ -783,6 +785,7 @@ class SECXBRLClient:
             'gross_profit_history':     gp,
             'interest_expense_history': intexp,
             'dividends_paid_history':   div,
+            'operating_income_history': opinc,
             'shares_history':           shares,
             'years_available':          years_available,
             'reporting_currency':       reporting_ccy,

@@ -71,6 +71,18 @@ class TestCalculateROIC:
         result = calculate_roic({})
         assert result is None
 
+    def test_per_year_intermediates_align_with_roic(self, sample_financials):
+        """nopat_by_year / invested_capital_by_year share roic_by_year's keys
+        and reproduce the ratio (feeds the Moat: Incr ROIC gate)."""
+        result = calculate_roic(sample_financials)
+        assert set(result['nopat_by_year']) == set(result['roic_by_year'])
+        assert set(result['invested_capital_by_year']) == set(result['roic_by_year'])
+        for y, roic in result['roic_by_year'].items():
+            nopat = result['nopat_by_year'][y]
+            ic = result['invested_capital_by_year'][y]
+            assert ic > 0
+            assert nopat / ic == pytest.approx(roic)
+
 
 # ---------------------------------------------------------------------------
 # calculate_piotroski_f

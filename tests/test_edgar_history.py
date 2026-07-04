@@ -2,6 +2,8 @@
 import sys
 import os
 
+import pytest
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from scripts.analyze_stock import _flow_to_annual, _stock_to_annual
@@ -65,3 +67,47 @@ class TestStockToAnnual:
     def test_empty(self):
         assert _stock_to_annual({}) == {}
         assert _stock_to_annual(None) == {}
+
+
+# ---------------------------------------------------------------------------
+# derive_edgar_metrics — through-cycle operating margin (2026-07 rebalance)
+# ---------------------------------------------------------------------------
+
+class TestOpMarginHistory:
+    def _hist(self, years):
+        """edgar_history with flat revenue 1000 and op income by year."""
+        return {
+            'revenue_history': {y: 1000.0 for y in years},
+            'operating_income_history': {y: 150.0 + (y % 2) * 50.0
+                                         for y in years},
+        }
+
+    def test_ten_year_average(self):
+        from scripts.analyze_stock import derive_edgar_metrics
+        years = list(range(2015, 2025))  # 10 years
+        m = derive_edgar_metrics(self._hist(years))
+        assert m['op_margin_hist_years'] == 10
+        # margins alternate 0.15 / 0.20 → mean 0.175
+        assert m['op_margin_avg_10y'] == pytest.approx(0.175)
+
+    def test_window_capped_at_ten_years(self):
+        from scripts.analyze_stock import derive_edgar_metrics
+        years = list(range(2009, 2025))  # 16 years
+        m = derive_edgar_metrics(self._hist(years))
+        assert m['op_margin_hist_years'] == 10
+
+    def test_missing_series_yields_zero_years(self):
+        from scripts.analyze_stock import derive_edgar_metrics
+        m = derive_edgar_metrics({'revenue_history': {2024: 1000.0}})
+        assert m['op_margin_avg_10y'] is None
+        assert m['op_margin_hist_years'] == 0
+
+    def test_zero_revenue_years_excluded(self):
+        from scripts.analyze_stock import derive_edgar_metrics
+        hist = {
+            'revenue_history': {2022: 0.0, 2023: 1000.0, 2024: 1000.0},
+            'operating_income_history': {2022: 100.0, 2023: 200.0, 2024: 200.0},
+        }
+        m = derive_edgar_metrics(hist)
+        assert m['op_margin_hist_years'] == 2
+        assert m['op_margin_avg_10y'] == pytest.approx(0.20)

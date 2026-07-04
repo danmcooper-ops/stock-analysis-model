@@ -100,6 +100,10 @@ def main():
                 need.append(tk)
             elif not eh.get('revenue_history') and not eh.get('earnings_history'):
                 need.append(tk)
+            elif not eh.get('operating_income_history'):
+                # Series added 2026-07 (Margin-vs-Hist gate + normalized-EBIT
+                # EPV): older backfills predate it, so refetch to pick it up.
+                need.append(tk)
 
     if args.limit is not None:
         need = need[:args.limit]

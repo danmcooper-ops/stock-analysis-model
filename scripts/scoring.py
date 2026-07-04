@@ -2,10 +2,70 @@
 """Scoring, screening, and validation functions for the stock analysis pipeline."""
 
 import statistics
+from collections import namedtuple
 
 from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH,
                              SCORE_WEIGHT_OWNERSHIP)
+
+# Gate specs. `weight` scales a gate's contribution within its category
+# (default 1.0). `applicable` is an optional row-predicate: when it returns
+# False the gate is STRUCTURALLY INAPPLICABLE for that ticker (a bank has no
+# meaningful FCF yield; negative tangible book makes P/TBV undefined) and is
+# excluded from numerator AND denominator — unlike missing data, which still
+# scores 0 (worst). `applicable=None` means always applicable.
+ScoringGate = namedtuple(
+    'ScoringGate',
+    ['name', 'field', 'category', 'score_fn', 'relative_mode', 'higher_better',
+     'weight', 'applicable'],
+    defaults=(1.0, None))
+ScreeningGate = namedtuple(
+    'ScreeningGate', ['name', 'field', 'test_fn', 'applicable'],
+    defaults=(None,))
+
+
+def _gate_applicable(gate, row):
+    """True unless the gate declares an applicability predicate that fails."""
+    return gate.applicable is None or gate.applicable(row)
+
+
+# ---------------------------------------------------------------------------
+# Applicability predicates (shared by SCREENING_GATES and SCORING_GATES)
+# ---------------------------------------------------------------------------
+
+def _appl_non_financial(r):
+    """FCF- and EV-based gates are structurally meaningless for banks,
+    insurers, and brokers: operating cash flow reflects deposit/loan/float
+    movements and enterprise value is distorted by deposit funding."""
+    return r.get('sector') != 'Financial Services'
+
+
+def _appl_positive_tbv(r):
+    """P/TBV is undefined for negative tangible book (buyback-rich
+    compounders). Only exempt when the raw TBV is PRESENT and <= 0 —
+    a missing balance sheet stays applicable so it scores worst."""
+    tbv = r.get('tangible_book_ps')
+    return not (isinstance(tbv, (int, float)) and tbv <= 0)
+
+
+def _appl_insider_activity(r):
+    """Insider buy-ratio only means something with a minimum of open-market
+    activity; quiet insiders (or a failed Form 4 fetch — both counts None)
+    are no-signal, not bearish."""
+    total = (r.get('insider_buy_count_365d') or 0) + \
+            (r.get('insider_sell_count_365d') or 0)
+    return total >= 4
+
+
+def _appl_margin_history(r):
+    """Margin-vs-history needs a real through-cycle baseline."""
+    return (r.get('op_margin_hist_years') or 0) >= 5
+
+
+def _appl_incr_roic(r):
+    """Incremental ROIC is undefined (not bad) when the capital base shrank —
+    a capital-light compounder returning cash must not score 0."""
+    return not r.get('_incr_roic_undefined')
 
 MIN_SECTOR_SCORING = 5  # Min stocks per sector for sector-relative percentile
 RATING_RANK = {'PASS': 0, 'HOLD': 1, 'LEAN BUY': 2, 'BUY': 3}
@@ -110,12 +170,17 @@ SCREENING_GATES = [
     ('Valuation: FV Dispersion',
      'fv_dispersion',
      lambda v, r: v <= 0.50 if v is not None else None),
-    ('Valuation: P/FCF',
-     'pfcf',
-     lambda v, r: 0 < v <= 20 if v is not None else None),
+    # EBIT/EV earnings yield: capital-structure-neutral market multiple
+    # (replaced P/FCF, which was the exact reciprocal of FCF Yield — the
+    # same signal counted twice). Absolute threshold ≈ ≤12.5x EV/EBIT.
+    ('Valuation: EBIT/EV',
+     'ebit_ev',
+     lambda v, r: v > 0.08 if v is not None else None,
+     _appl_non_financial),
     ('Valuation: P/TBV',
      'p_tbv',
-     lambda v, r: 0 < v <= 2.5 if v is not None else None),
+     lambda v, r: 0 < v <= 2.5 if v is not None else None,
+     _appl_positive_tbv),
     ('Valuation: EPV Floor',
      'epv_floor_ratio',
      lambda v, r: v >= 1.0 if v is not None else None),
@@ -124,7 +189,8 @@ SCREENING_GATES = [
     # triangulated the same signal as MoS + EPV Floor).
     ('Valuation: FCF Yield',
      'fcf_yield',
-     lambda v, r: v > (r.get('_risk_free_rate') or 0.045) if v is not None else None),
+     lambda v, r: v > (r.get('_risk_free_rate') or 0.045) if v is not None else None,
+     _appl_non_financial),
 
     # ---- Quality ----
     ('Quality: Int Coverage',
@@ -140,38 +206,53 @@ SCREENING_GATES = [
      # aggressive recognition. Negative accruals (CFO > NI) indicate
      # conservative accounting and strong cash generation; do not penalize.
      lambda v, r: v < 0.08 if v is not None else None),
-    ('Quality: Cash Conv',
-     'cash_conv',
-     lambda v, r: v >= 0.85 if v is not None else None),
+    # (Cash Conv removed: CFO-vs-NI is the accruals signal inverted, and
+    # Piotroski's internals check it again — three gates, one signal.)
     # Revenue-growth volatility (lower = steadier). Replaced the ROE gate,
     # which double-counted returns-on-capital with the Moat/ROIC block and is
     # distortable by leverage and buybacks.
     ('Quality: Rev Volatility',
      'rev_growth_vol',
      lambda v, r: v < 0.12 if v is not None else None),
+    # Over-earning guard: current operating margin vs the company's own
+    # ~10y average. All four FV models eat the same point-in-time earnings,
+    # so at a cyclical margin peak FV Dispersion is tight and MoS inflated
+    # exactly when they shouldn't be — this is the orthogonal check.
+    ('Quality: Margin vs Hist',
+     'margin_vs_hist',
+     lambda v, r: v < 0.05 if v is not None else None,
+     _appl_margin_history),
     ('Quality: Piotroski',
      'piotroski',
      lambda v, r: v >= 7 if v is not None else None),
 
     # ---- Moat ----
-    ('Moat: Spread > 5%',
+    # Name must match the SCORING_GATES entry exactly — the Matrix scoreKey
+    # is derived from this name and a mismatch blanks the score column.
+    ('Moat: Spread',
      'spread',
      lambda v, r: v > 0.07 if v is not None else None),
     ('Moat: ROIC Consistency',
      'roic_cv',
      lambda v, r: v < 0.30 if v is not None else None),
+    # Incremental ROIC (ΔNOPAT/ΔIC over the statement window): the moat-
+    # TRAJECTORY test — is each new dollar of capital still earning above
+    # the cost of capital? The better replacement for the retired ROIC
+    # Trend gate.
+    ('Moat: Incr ROIC',
+     'incremental_roic',
+     lambda v, r: v > 0.10 if v is not None else None,
+     _appl_incr_roic),
     # Operating margin vs the sector median: a structural competitive-position
-    # signal orthogonal to ROIC. Replaced ROIC Trend, the third (and noisiest)
-    # of three ROIC-derived Moat gates.
+    # signal orthogonal to ROIC. Also carries the margin-vs-sector signal of
+    # the retired Gross Margin percentile gate (same axis, operating level).
     ('Moat: Margin Advantage',
      'margin_advantage',
      lambda v, r: v > 0.05 if v is not None else None),
-    ('Moat: Gross Margin',
-     'gross_margin_avg_5y',
-     lambda v, r: v > 0.35 if v is not None else None),
     ('Moat: FCF Margin',
      'fcf_margin',
-     lambda v, r: v > 0.12 if v is not None else None),
+     lambda v, r: v > 0.12 if v is not None else None,
+     _appl_non_financial),
 
     # ---- Growth ----
     ('Growth: Rev Durability',
@@ -179,7 +260,8 @@ SCREENING_GATES = [
      lambda v, r: v > 0.02 if v is not None else None),
     ('Growth: FCF Durability',
      'fcf_cagr_5y',
-     lambda v, r: v > 0.05 if v is not None else None),
+     lambda v, r: v > 0.05 if v is not None else None,
+     _appl_non_financial),
     ('Growth: Margins',
      'gross_margin_trend',
      lambda v, r: v >= 0 if v is not None else None),
@@ -191,9 +273,8 @@ SCREENING_GATES = [
     ('Ownership: Shrhldr Yield',
      'shareholder_yield',
      lambda v, r: v > 0.02 if v is not None else None),
-    ('Ownership: Buyback Rate',
-     'share_buyback_rate',
-     lambda v, r: v > 0.01 if v is not None else None),
+    # (Buyback Rate removed: already inside Shareholder Yield, and Share
+    # Shrink is its 5y integral — three gates on share-count direction.)
     ('Ownership: Share Shrink',
      'shares_cagr_5y',
      lambda v, r: v < 0 if v is not None else None),
@@ -203,7 +284,17 @@ SCREENING_GATES = [
     ('Ownership: Insider Own',
      'insider_pct',
      lambda v, r: v >= 0.05 if v is not None else None),
+    # Open-market insider net buying (Form 4 P vs S transactions): the
+    # classic conviction signal — collected by the SEC insider client but
+    # never scored until now.
+    ('Ownership: Insider Buying',
+     'insider_buy_ratio',
+     lambda v, r: v >= 0.5 if v is not None else None,
+     _appl_insider_activity),
 ]
+
+# Normalize to gate specs (adds weight/applicable defaults).
+SCREENING_GATES = [ScreeningGate(*g) for g in SCREENING_GATES]
 
 
 def prepare_scoring_fields(results):
@@ -305,6 +396,43 @@ def prepare_scoring_fields(results):
                 ma = om - sm
         r['margin_advantage'] = ma
 
+        # EBIT/EV earnings yield (Valuation: EBIT/EV gate) — capital-
+        # structure-neutral counterpart to the equity-based FCF yield.
+        op_inc = r.get('operating_income')
+        ev = r.get('enterprise_value')
+        r['ebit_ev'] = (op_inc / ev) if (
+            isinstance(op_inc, (int, float)) and
+            isinstance(ev, (int, float)) and ev > 0) else None
+
+        # Incremental ROIC (Moat: Incr ROIC gate) — ΔNOPAT/ΔIC between the
+        # first and last common statement years. When the capital base
+        # SHRANK (ΔIC ≤ materiality floor) the ratio is undefined, not bad:
+        # flag it so the gate goes inapplicable instead of scoring 0.
+        r['incremental_roic'] = None
+        r['_incr_roic_undefined'] = False
+        nopat_by = r.get('_nopat_by_year') or {}
+        ic_by = r.get('_ic_by_year') or {}
+        common = sorted(set(nopat_by) & set(ic_by))
+        if len(common) >= 2:
+            first_y, last_y = common[0], common[-1]
+            d_nopat = nopat_by[last_y] - nopat_by[first_y]
+            d_ic = ic_by[last_y] - ic_by[first_y]
+            ic_floor = 0.02 * abs(ic_by[last_y])
+            if d_ic > max(0.0, ic_floor):
+                # Clamp for sane display; the score range is far narrower.
+                r['incremental_roic'] = max(-1.0, min(1.0, d_nopat / d_ic))
+            else:
+                r['_incr_roic_undefined'] = True
+
+        # Margin vs own history (Quality: Margin vs Hist gate) — current
+        # operating margin minus the company's ~10y average; the over-
+        # earning guard for cyclical peaks.
+        om_now = r.get('operating_margin')
+        om_avg = r.get('op_margin_avg_10y')
+        r['margin_vs_hist'] = (om_now - om_avg) if (
+            isinstance(om_now, (int, float)) and
+            isinstance(om_avg, (int, float))) else None
+
         # ROIC trend slope (last-year minus first-year ROIC)
         roic_by_year = r.get('roic_by_year')
         if roic_by_year and len(roic_by_year) >= 2:
@@ -327,35 +455,44 @@ def apply_screening_matrix(results):
     """
     prepare_scoring_fields(results)
 
-    # Fixed denominator: every ticker is graded against the full gate list.
-    # Gates with missing data count as fail (no credit) rather than being
-    # excluded from the count, so "X / N" is comparable across tickers.
-    total_gates = len(SCREENING_GATES)
+    # Per-row denominator over APPLICABLE gates only. Two kinds of N/A:
+    #   • Structurally inapplicable (gate.applicable(row) is False — e.g.
+    #     FCF gates for banks, P/TBV on negative tangible book): excluded
+    #     from numerator AND denominator, so a bank isn't mechanically
+    #     failed on gates that cannot describe it.
+    #   • Missing data (test_fn returns None): still counts as a fail
+    #     against the denominator — sparse data stays penalized.
     for r in results:
         r['rating_raw'] = r.get('rating')
         passed = 0
-        for gate_name, field, test_fn in SCREENING_GATES:
-            val = r.get(field)
-            result = test_fn(val, r)
-            gate_key = _gate_key(gate_name)
-            gp_key = _gp_key(gate_name)
+        applicable_total = 0
+        inapplicable = 0
+        for gate in SCREENING_GATES:
+            gate_key = _gate_key(gate.name)
+            gp_key = _gp_key(gate.name)
+            if not _gate_applicable(gate, r):
+                # Structurally inapplicable — renders N/A, counts nowhere.
+                r[gate_key] = None
+                r[gp_key] = None
+                inapplicable += 1
+                continue
+            applicable_total += 1
+            val = r.get(gate.field)
+            result = gate.test_fn(val, r)
             if result is None:
-                # N/A — keep _gate_* / _gp_* as None so the cell still
-                # renders as "N/A" visually, but the gate counts as a fail
-                # (passed not incremented; denominator is fixed below).
+                # Missing data — renders N/A but counts as a fail
+                # (passed not incremented; still in the denominator).
                 r[gate_key] = None
                 r[gp_key] = None
             else:
-                # Store actual metric value instead of PASS/FAIL. Price/FV
-                # already keys off _price_fv (the effective ratio), so no
-                # special-casing is needed here.
                 r[gate_key] = val
                 r[gp_key] = bool(result)
                 if result:
                     passed += 1
 
-        r['_gates_passed'] = f'{passed}/{total_gates}'
+        r['_gates_passed'] = f'{passed}/{applicable_total}'
         r['_gates_passed_num'] = passed
+        r['_gates_inapplicable'] = inapplicable
 
 
 def _print_validation_stats(results, screen_outcomes):
@@ -438,18 +575,25 @@ def _print_validation_stats(results, screen_outcomes):
     print("=" * 70)
 
 
-# (name, field, category, score_fn, relative_mode, higher_better)
+# (name, field, category, score_fn, relative_mode, higher_better[, weight[, applicable]])
 # relative_mode: False=absolute, 'global'=global percentile, 'sector'=sector percentile
 # higher_better: True=higher value→higher percentile, False=lower→higher
 # score_fn: (value, row, percentile_or_None) -> 0-100
+# weight: within-category weight (default 1.0)
+# applicable: optional row-predicate; False = structurally inapplicable
 SCORING_GATES = [
+    # MoS is the headline price-vs-value signal; double weight within
+    # Valuation so it isn't diluted to 1/6 of a 0.30-weight category.
     ('Valuation: MoS', 'mos', 'Valuation',
-     lambda v, r, pct: _score_linear(v, -0.10, 0.40), False, True),   # tightened: worst raised -20%→-10%
+     lambda v, r, pct: _score_linear(v, -0.10, 0.40), False, True, 2.0),  # tightened: worst raised -20%→-10%
     ('Valuation: FV Dispersion', 'fv_dispersion', 'Valuation',
      lambda v, r, pct: _score_linear(v, 1.5, 0.0), False, True),      # lower is better: tight model agreement scores high
-    ('Valuation: P/FCF', 'pfcf', 'Valuation',
-     lambda v, r, pct: _score_linear(v, 40.0, 8.0) if v is not None and v > 0 else 0.0,
-     False, True),   # tightened: worst 50→40, best 10→8
+    # EBIT/EV earnings yield (replaced P/FCF — exact reciprocal of FCF
+    # Yield). Absolute range, not rf-relative: FCF Yield already carries
+    # the rate-regime beta for the category. 6% ≈ market-average EV/EBIT.
+    ('Valuation: EBIT/EV', 'ebit_ev', 'Valuation',
+     lambda v, r, pct: _score_linear(v, 0.0, 0.12), False, True, 1.0,
+     _appl_non_financial),
     ('Quality: Int Coverage', 'int_cov', 'Quality',
      lambda v, r, pct: _score_linear(min(v, 40) if v is not None else None, 1.0, 20.0),
      False, True),
@@ -459,36 +603,48 @@ SCORING_GATES = [
      lambda v, r, pct: _score_linear(v, -0.01, 0.08), False, True),
     ('Ownership: Insider Own', 'insider_pct', 'Ownership',
      lambda v, r, pct: _score_linear(v, 0.0, 0.15), False, True),
-    ('Ownership: Buyback Rate', 'share_buyback_rate', 'Ownership',
-     lambda v, r, pct: _score_linear(v, 0.0, 0.05), False, True),     # tightened: worst -1%→0%
+    # Open-market insider net buying; neutral 0.5 buy-ratio scores 50.
+    # Inapplicable (not zero) below 4 open-market transactions/365d.
+    ('Ownership: Insider Buying', 'insider_buy_ratio', 'Ownership',
+     lambda v, r, pct: _score_linear(v, 0.0, 1.0), False, True, 1.0,
+     _appl_insider_activity),
     ('Moat: ROIC Consistency', 'roic_cv', 'Moat',
      lambda v, r, pct: _score_linear(v, 0.60, 0.0), False, True),
     ('Moat: Spread', 'spread', 'Moat',
      lambda v, r, pct: _score_linear(v, 0.0, 0.20), False, True),     # tightened: best 25%→20%
-    ('Moat: Gross Margin', 'gross_margin_avg_5y', 'Moat',
-     lambda v, r, pct: pct, 'sector', True),
+    # Incremental ROIC: moat trajectory — return on each NEW dollar of
+    # invested capital over the statement window.
+    ('Moat: Incr ROIC', 'incremental_roic', 'Moat',
+     lambda v, r, pct: _score_linear(v, -0.05, 0.25), False, True, 1.0,
+     _appl_incr_roic),
     ('Growth: Fund Growth', 'fundamental_growth', 'Growth',
      lambda v, r, pct: _score_linear(v, 0.0, 0.10), False, True),
     ('Growth: Margins', 'gross_margin_trend', 'Growth',
      lambda v, r, pct: _score_linear(v, -0.05, 0.05), False, True),
     ('Quality: Rev Volatility', 'rev_growth_vol', 'Quality',
      lambda v, r, pct: _score_linear(v, 0.40, 0.05), False, True),    # lower is better: steady top line scores high
+    # Over-earning guard (one-sided): current op margin 8pp+ above the
+    # company's own ~10y average scores 0; at/below history clamps to 100.
+    # Margin DETERIORATION is already penalized by Growth: Margins.
+    ('Quality: Margin vs Hist', 'margin_vs_hist', 'Quality',
+     lambda v, r, pct: _score_linear(v, 0.08, 0.0), False, True, 1.0,
+     _appl_margin_history),
     # Buffett additions
     ('Quality: Net Debt/EBITDA', 'nd_ebitda', 'Quality',
      lambda v, r, pct: _score_linear(v, 4.0, -0.5), False, True),     # tightened: worst 5→4, best 0→-0.5 (net cash rewarded)
-    ('Quality: Cash Conv', 'cash_conv', 'Quality',
-     lambda v, r, pct: _score_linear(v, 0.0, 1.5), False, True),
     ('Growth: Rev Durability', 'rev_cagr_10y', 'Growth',
      lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True),
     ('Ownership: SBC Dilution', 'sbc_pct_rev', 'Ownership',
      lambda v, r, pct: _score_linear(v, 0.06, 0.0), False, True),     # tightened: worst 10%→6%
     ('Valuation: P/TBV', 'p_tbv', 'Valuation',
      lambda v, r, pct: _score_linear(v, 5.0, 1.0) if v is not None and v > 0 else None,
-     False, True),
+     False, True, 1.0, _appl_positive_tbv),
     ('Moat: FCF Margin', 'fcf_margin', 'Moat',
-     lambda v, r, pct: _score_linear(v, 0.05, 0.25), False, True),    # tightened: worst 0%→5%, best 20%→25%
+     lambda v, r, pct: _score_linear(v, 0.05, 0.25), False, True, 1.0,
+     _appl_non_financial),                                            # tightened: worst 0%→5%, best 20%→25%
     ('Growth: FCF Durability', 'fcf_cagr_5y', 'Growth',
-     lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True),
+     lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True, 1.0,
+     _appl_non_financial),
     ('Ownership: Share Shrink', 'shares_cagr_5y', 'Ownership',
      lambda v, r, pct: _score_linear(v, 0.04, -0.04), False, True),
     # Migrated from compute_rating
@@ -500,8 +656,12 @@ SCORING_GATES = [
      lambda v, r, pct: _score_linear(v, 0.5, 1.2), False, True),
     ('Valuation: FCF Yield', 'fcf_yield', 'Valuation',
      lambda v, r, pct: (_score_linear(v - (r.get('_risk_free_rate') or 0.045), -0.03, 0.08)
-                        if v is not None else None), False, True),
+                        if v is not None else None), False, True, 1.0,
+     _appl_non_financial),
 ]
+
+# Normalize to gate specs (adds weight/applicable defaults).
+SCORING_GATES = [ScoringGate(*g) for g in SCORING_GATES]
 
 
 def compute_continuous_scores(results, params=None):
@@ -517,13 +677,17 @@ def compute_continuous_scores(results, params=None):
                 are read from params instead of module-level constants.
     """
     # Step 1: Pre-compute percentile ranks for relative metrics
-    for gate_name, field, category, score_fn, relative_mode, higher_better in SCORING_GATES:
-        if not relative_mode:
+    for gate in SCORING_GATES:
+        if not gate.relative_mode:
             continue
+        gate_name, field, higher_better = gate.name, gate.field, gate.higher_better
+        relative_mode = gate.relative_mode
 
-        # Collect all values with sector info
+        # Collect all values with sector info; rows where the gate is
+        # structurally inapplicable stay out of the ranking pools.
         all_vals = [(i, r.get(field), r.get('sector') or '_unknown')
-                    for i, r in enumerate(results) if r.get(field) is not None]
+                    for i, r in enumerate(results)
+                    if r.get(field) is not None and _gate_applicable(gate, r)]
         if len(all_vals) < 2:
             continue
 
@@ -559,41 +723,61 @@ def compute_continuous_scores(results, params=None):
         'Growth': p.get('score_weight_growth', SCORE_WEIGHT_GROWTH),
         'Ownership': p.get('score_weight_ownership', SCORE_WEIGHT_OWNERSHIP),
     }
-    # Fixed per-category denominators: every gate contributes to its category
-    # average, with N/A scoring as 0 (worst). This prevents sparse-data tickers
-    # from being graded only on the gates they happen to have.
-    gates_per_category = {}
-    for gate_name, field, category, *_ in SCORING_GATES:
-        gates_per_category[category] = gates_per_category.get(category, 0) + 1
+    all_categories = []
+    for gate in SCORING_GATES:
+        if gate.category not in all_categories:
+            all_categories.append(gate.category)
 
     for r in results:
-        category_sums = {cat: 0.0 for cat in gates_per_category}
-        for gate_name, field, category, score_fn, relative_mode, higher_better in SCORING_GATES:
-            val = r.get(field)
+        # Per-row weighted category averages over APPLICABLE gates:
+        #   • Structurally inapplicable gates (gate.applicable(row) False)
+        #     are excluded from numerator AND denominator — the category
+        #     renormalizes over the gates that can describe this business.
+        #   • Missing data still scores 0 (worst) against its full weight,
+        #     so sparse-data tickers stay penalized.
+        cat_score_sums = {cat: 0.0 for cat in all_categories}
+        cat_weight_sums = {cat: 0.0 for cat in all_categories}
+        applicable_gates = 0
+        covered_gates = 0
+        for gate in SCORING_GATES:
+            if not _gate_applicable(gate, r):
+                # Inapplicable → score stays None so matrix cells render
+                # N/A rather than a misleading 0.0.
+                r[_score_key(gate.name)] = None
+                continue
+            applicable_gates += 1
+            val = r.get(gate.field)
             if val is None:
                 # N/A → 0 (counts as worst, included in denominator)
                 score = 0.0
             else:
-                pct = r.get('_pctile', {}).get(f'{gate_name}_{field}', 50) if relative_mode else None
-                s = score_fn(val, r, pct)
+                covered_gates += 1
+                pct = (r.get('_pctile', {}).get(f'{gate.name}_{gate.field}', 50)
+                       if gate.relative_mode else None)
+                s = gate.score_fn(val, r, pct)
                 score = s if s is not None else 0.0
-            # Store per-gate score (always — even when N/A)
-            r[_score_key(gate_name)] = round(score, 1)
-            category_sums[category] += score
+            r[_score_key(gate.name)] = round(score, 1)
+            cat_score_sums[gate.category] += score * gate.weight
+            cat_weight_sums[gate.category] += gate.weight
 
-        # Category averages over fixed denominator (gates_per_category)
-        cat_avgs = {cat: category_sums[cat] / gates_per_category[cat]
-                    for cat in gates_per_category}
-        r['_score_valuation'] = round(cat_avgs.get('Valuation', 0), 1)
-        r['_score_quality'] = round(cat_avgs.get('Quality', 0), 1)
-        r['_score_moat'] = round(cat_avgs.get('Moat', 0), 1)
-        r['_score_growth'] = round(cat_avgs.get('Growth', 0), 1)
-        r['_score_ownership'] = round(cat_avgs.get('Ownership', 0), 1)
+        # Category averages over the applicable weight mass. A category with
+        # zero applicable weight scores None and drops out of the composite
+        # (unreachable with current masks — defensive only).
+        cat_avgs = {
+            cat: (cat_score_sums[cat] / cat_weight_sums[cat]
+                  if cat_weight_sums[cat] > 0 else None)
+            for cat in all_categories
+        }
+        for cat in all_categories:
+            key = '_score_' + cat.lower()
+            r[key] = round(cat_avgs[cat], 1) if cat_avgs[cat] is not None else None
 
-        # Weighted composite — every category always contributes its full weight
+        # Weighted composite over categories that scored
         weighted_sum = 0.0
         weight_total = 0.0
-        for cat in gates_per_category:
+        for cat in all_categories:
+            if cat_avgs[cat] is None:
+                continue
             w = cat_weights.get(cat, 0)
             weighted_sum += cat_avgs[cat] * w
             weight_total += w
@@ -611,8 +795,11 @@ def compute_continuous_scores(results, params=None):
                 composite *= 0.93
 
         r['_composite_score'] = round(composite, 1) if composite is not None else None
-        present = sum(1 for _, field, *_ in SCORING_GATES if r.get(field) is not None)
-        r['_data_coverage_score'] = round(present / len(SCORING_GATES) * 100, 1)
+        # Coverage over applicable gates only: a bank shouldn't read as
+        # low-coverage because gates that can't describe it are absent.
+        r['_data_coverage_score'] = (
+            round(covered_gates / applicable_gates * 100, 1)
+            if applicable_gates > 0 else None)
 
         # Clean up temp
         r.pop('_pctile', None)
@@ -621,24 +808,29 @@ def compute_continuous_scores(results, params=None):
 def rating_from_composite(composite, params=None):
     """Map a 0-100 composite score to a rating bucket.
 
-      BUY       composite >= 60
-      LEAN BUY  composite >= 43
-      HOLD      composite >= 29
-      PASS      composite <  29
+      BUY       composite >= 57
+      LEAN BUY  composite >= 39
+      HOLD      composite >= 25
+      PASS      composite <  25
 
-    Thresholds calibrated against the 2026-05-08 universe (n=1735) to
-    produce ~0.6% BUY / ~25% LEAN / ~49% HOLD / ~24% PASS.
+    Thresholds quantile-matched against the rescored 2026-07-02 universe
+    (n=2211) after the 2026-07 gate rebalance, reproducing the target
+    ~0.6% BUY / ~25% LEAN / ~49% HOLD / ~24% PASS distribution.
+    PROVISIONAL: old snapshots carry no per-year NOPAT/invested-capital,
+    so Incr ROIC scores 0 on rescores; the first live run will lift
+    composites slightly — revisit then (the weekly calibrate job also
+    searches these thresholds against forward returns).
 
     Returns None when composite is None. Thresholds tunable via params.
     """
     if composite is None:
         return None
     p = params or {}
-    if composite >= p.get('rating_threshold_buy', 60):
+    if composite >= p.get('rating_threshold_buy', 57):
         return 'BUY'
-    if composite >= p.get('rating_threshold_lean', 43):
+    if composite >= p.get('rating_threshold_lean', 39):
         return 'LEAN BUY'
-    if composite >= p.get('rating_threshold_pass', 29):
+    if composite >= p.get('rating_threshold_pass', 25):
         return 'HOLD'
     return 'PASS'
 
@@ -659,20 +851,20 @@ def apply_composite_rating_override(results, params=None):
 _GATE_DISPLAY = {
     'mos': {'label': 'MoS', 'threshold': 'MoS > 10%', 'fmt': 'pct1'},
     'fv_dispersion': {'label': 'FV Dispersion', 'threshold': 'Model spread <= 50%', 'fmt': 'pct1'},
-    'p_fcf': {'label': 'P/FCF', 'threshold': 'P/FCF <= 20x', 'fmt': 'ratio'},
+    'ebit_ev': {'label': 'EBIT/EV', 'threshold': 'EBIT/EV > 8%', 'fmt': 'pct1'},
     'int_coverage': {'label': 'Int Cov', 'threshold': 'IC > 3x', 'fmt': 'ratio'},
     'accruals': {'label': 'Accruals', 'threshold': '|Acr| < 8%', 'fmt': 'pct1'},
     'shrhldr_yield': {'label': 'Shrhldr Yld', 'threshold': 'Yield > 2%', 'fmt': 'pct1'},
     'insider_own': {'label': 'Insider %', 'threshold': 'Insider >= 5%', 'fmt': 'pct1'},
-    'buyback_rate': {'label': 'Buyback', 'threshold': 'Buyback > 1%', 'fmt': 'pct1'},
+    'insider_buying': {'label': 'Insider Buys', 'threshold': 'Buy ratio >= 50%', 'fmt': 'pct1'},
     'roic_consistency': {'label': 'ROIC CV', 'threshold': 'CV < 30%', 'fmt': 'pct1'},
-    'spread_>_5%': {'label': 'Spread', 'threshold': 'Spread > 7%', 'fmt': 'pct1'},
-    'gross_margin': {'label': 'Gross Mgn', 'threshold': 'GM > 35%', 'fmt': 'pct1'},
+    'spread': {'label': 'Spread', 'threshold': 'Spread > 7%', 'fmt': 'pct1'},
+    'incr_roic': {'label': 'Incr ROIC', 'threshold': 'ΔNOPAT/ΔIC > 10%', 'fmt': 'pct1'},
     'fund_growth': {'label': 'Fund Growth', 'threshold': 'FG > 3%', 'fmt': 'pct1'},
     'margins': {'label': 'Margins', 'threshold': 'Margin >= 0', 'fmt': 'pct1'},
     'rev_volatility': {'label': 'Rev Vol', 'threshold': 'Rev growth σ < 12%', 'fmt': 'pct1'},
+    'margin_vs_hist': {'label': 'Mgn vs Hist', 'threshold': 'OpM < hist avg + 5pp', 'fmt': 'pct1'},
     'net_debt_ebitda': {'label': 'ND/EBITDA', 'threshold': 'ND/EBITDA <= 1.5x', 'fmt': 'ratio'},
-    'cash_conv': {'label': 'Cash Conv', 'threshold': 'CashConv >= 0.85x', 'fmt': 'ratio'},
     'rev_durability': {'label': '10Y Rev CAGR', 'threshold': '10Y RevCAGR > 2%', 'fmt': 'pct1'},
     'sbc_dilution': {'label': 'SBC/Rev', 'threshold': 'SBC/Rev <= 2%', 'fmt': 'pct1'},
     'p_tbv': {'label': 'P/TBV', 'threshold': 'P/TBV <= 2.5x', 'fmt': 'ratio'},
@@ -697,9 +889,11 @@ _CATEGORY_DISPLAY = {
 def gate_metadata(params=None):
     """Return Matrix/report metadata derived from the active gate definitions."""
     p = params or {}
-    gate_categories = {gate_name: category for gate_name, _, category, *_ in SCORING_GATES}
+    gate_categories = {g.name: g.category for g in SCORING_GATES}
+    gate_weights = {g.name: g.weight for g in SCORING_GATES}
     gates = []
-    for gate_name, *_ in SCREENING_GATES:
+    for gate in SCREENING_GATES:
+        gate_name = gate.name
         short = _gate_short(gate_name)
         display = _GATE_DISPLAY.get(short, {})
         gates.append({
@@ -710,14 +904,14 @@ def gate_metadata(params=None):
             'threshold': display.get('threshold', ''),
             'category': gate_categories.get(gate_name, gate_name.split(': ')[0]),
             'fmt': display.get('fmt', 'ratio'),
+            'weight': gate_weights.get(gate_name, 1.0),
         })
 
     categories = []
     # Order matters — driver of left-to-right column order in the Financial
-    # Model matrix and the per-stock detail popup. Sorted by composite weight
-    # descending, with Moat leading: Moat 40 > Valuation 20 = Quality 20 >
-    # Growth 10 = Ownership 10. Ties preserve the historical Val→Qual and
-    # Growth→Own ordering so a sector reads consistently across releases.
+    # Model matrix and the per-stock detail popup. Moat leads for historical
+    # continuity (ties broken by the historical Val→Qual and Growth→Own
+    # ordering so a sector reads consistently across releases).
     for name in ('Moat', 'Valuation', 'Quality', 'Growth', 'Ownership'):
         display = _CATEGORY_DISPLAY[name]
         categories.append({
@@ -743,7 +937,11 @@ def _rating_cap_for_row(row, params=None):
 
     mos = row.get('mos')
 
-    if row.get('price') is None or row.get('dcf_fv') is None:
+    # Key on the EFFECTIVE fair value (DCF, or the multi-model consensus
+    # fallback when the DCF didn't resolve) — keying on dcf_fv alone
+    # unconditionally capped every DCF-less name at HOLD, defeating the
+    # consensus fallback's documented purpose.
+    if row.get('price') is None or row.get('_fv_effective') is None:
         add('HOLD', 'missing price or fair value')
     elif mos is not None:
         # MoS carries the price-vs-fair-value signal that Price/FV used to
@@ -784,8 +982,30 @@ def apply_rating_caps(results, params=None):
         r['rating'] = _cap_rating(raw, cap) if cap and raw else raw
 
 
+def _purge_stale_gate_fields(results):
+    """Drop _gate_*/_gp_*/_score_* keys for gates that no longer exist.
+
+    Snapshot rows round-trip through re-scoring: without this, fields from
+    retired gates persist forever and leak into the report payloads.
+    """
+    valid = set()
+    for g in SCREENING_GATES:
+        valid.add(_gate_key(g.name))
+        valid.add(_gp_key(g.name))
+    for g in SCORING_GATES:
+        valid.add(_score_key(g.name))
+        valid.add('_score_' + g.category.lower())  # category averages
+    for r in results:
+        stale = [k for k in r
+                 if (k.startswith('_gate_') or k.startswith('_gp_') or
+                     k.startswith('_score_')) and k not in valid]
+        for k in stale:
+            del r[k]
+
+
 def score_and_rate(results, params=None):
     """Run the canonical scoring workflow used by live, replay, and rescore paths."""
+    _purge_stale_gate_fields(results)
     apply_screening_matrix(results)
     compute_continuous_scores(results, params=params)
     apply_rating_caps(results, params=params)

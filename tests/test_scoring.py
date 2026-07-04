@@ -283,7 +283,6 @@ class TestContinuousScoring:
         ]
         compute_continuous_scores(rows)
         assert rows[0]['_score_accruals'] == rows[1]['_score_accruals']
-        assert rows[0]['_score_gross_margin'] == rows[1]['_score_gross_margin']
 
 
 # ---------------------------------------------------------------------------
@@ -292,20 +291,20 @@ class TestContinuousScoring:
 
 class TestRatingFromComposite:
     def test_buy_threshold(self):
-        assert rating_from_composite(60) == 'BUY'
+        assert rating_from_composite(57) == 'BUY'
         assert rating_from_composite(75) == 'BUY'
 
     def test_lean_buy_threshold(self):
-        assert rating_from_composite(43) == 'LEAN BUY'
-        assert rating_from_composite(59.9) == 'LEAN BUY'
+        assert rating_from_composite(39) == 'LEAN BUY'
+        assert rating_from_composite(56.9) == 'LEAN BUY'
 
     def test_hold_threshold(self):
-        assert rating_from_composite(29) == 'HOLD'
-        assert rating_from_composite(42.9) == 'HOLD'
+        assert rating_from_composite(25) == 'HOLD'
+        assert rating_from_composite(38.9) == 'HOLD'
 
     def test_pass_threshold(self):
         assert rating_from_composite(0) == 'PASS'
-        assert rating_from_composite(28.9) == 'PASS'
+        assert rating_from_composite(24.9) == 'PASS'
 
     def test_none_composite(self):
         assert rating_from_composite(None) is None
@@ -419,10 +418,32 @@ class TestCanonicalScoreAndRate:
         assert '_gate_epv_floor' in keys
         assert '_gate_fcf_yield' in keys
         assert '_gate_rev_volatility' in keys
+        # 2026-07 rebalance additions
+        assert '_gate_ebit_ev' in keys
+        assert '_gate_incr_roic' in keys
+        assert '_gate_margin_vs_hist' in keys
+        assert '_gate_insider_buying' in keys
         # Retired gates must be gone
         assert '_gate_roic_trend' not in keys
         assert '_gate_rim_mos' not in keys
         assert '_gate_roe' not in keys
+        assert '_gate_p_fcf' not in keys         # reciprocal of FCF Yield
+        assert '_gate_buyback_rate' not in keys  # inside Shrhldr Yield
+        assert '_gate_cash_conv' not in keys     # accruals inverted
+        assert '_gate_gross_margin' not in keys  # merged into Margin Adv
+
+    def test_gate_metadata_score_keys_are_written(self):
+        """Every screening gate name must have a scoring twin — a name
+        mismatch silently blanks that gate's Matrix score column."""
+        scoring_names = {g.name for g in SCORING_GATES}
+        for gate in SCREENING_GATES:
+            assert gate.name in scoring_names, gate.name
+
+    def test_gate_metadata_carries_weights(self):
+        meta = gate_metadata()
+        by_key = {g['key']: g for g in meta['gates']}
+        assert by_key['_gate_mos']['weight'] == 2.0
+        assert by_key['_gate_fv_dispersion']['weight'] == 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -558,8 +579,8 @@ class TestScreeningGateEdgeCases:
         above = [self._row(spread=0.08)]
         apply_screening_matrix(below)
         apply_screening_matrix(above)
-        assert below[0]['_gp_spread_>_5%'] is False
-        assert above[0]['_gp_spread_>_5%'] is True
+        assert below[0]['_gp_spread'] is False
+        assert above[0]['_gp_spread'] is True
 
 
 class TestThinEdgarHistoryCap:
@@ -569,7 +590,11 @@ class TestThinEdgarHistoryCap:
     (so `edgar_history` is None/empty) can score BUY off short-term yfinance
     signals alone. The cap forces them to HOLD until real history is wired up.
     """
-    _BASE = {'price': 100, 'dcf_fv': 120, '_price_fv': 0.83, 'mos': 0.17}
+    # _fv_effective is normally derived by prepare_scoring_fields; these rows
+    # call _rating_cap_for_row/apply_rating_caps directly, so supply it (the
+    # missing-FV cap keys on the effective FV, not on dcf_fv).
+    _BASE = {'price': 100, 'dcf_fv': 120, '_fv_effective': 120,
+             '_price_fv': 0.83, 'mos': 0.17}
 
     def test_zero_years_capped_to_hold(self):
         row = {**self._BASE, 'edgar_history': {'years_available': 0}}
@@ -614,3 +639,225 @@ class TestThinEdgarHistoryCap:
         apply_rating_caps(rows)
         assert rows[0]['rating_raw'] == 'BUY'
         assert rows[0]['rating'] == 'BUY'
+
+
+# ---------------------------------------------------------------------------
+# 2026-07 rebalance: new derived fields (prepare_scoring_fields)
+# ---------------------------------------------------------------------------
+
+class TestEbitEv:
+    def test_derivation(self):
+        r = {'operating_income': 12e9, 'enterprise_value': 100e9}
+        prepare_scoring_fields([r])
+        assert r['ebit_ev'] == pytest.approx(0.12)
+
+    def test_none_on_missing_or_bad_ev(self):
+        for row in ({'operating_income': 12e9},
+                    {'operating_income': 12e9, 'enterprise_value': 0},
+                    {'operating_income': 12e9, 'enterprise_value': -5e9},
+                    {'enterprise_value': 100e9}):
+            prepare_scoring_fields([row])
+            assert row['ebit_ev'] is None
+
+
+class TestIncrementalRoic:
+    def test_normal_case(self):
+        r = {'_nopat_by_year': {'2021': 100.0, '2024': 160.0},
+             '_ic_by_year':    {'2021': 1000.0, '2024': 1400.0}}
+        prepare_scoring_fields([r])
+        # ΔNOPAT 60 / ΔIC 400 = 15%
+        assert r['incremental_roic'] == pytest.approx(0.15)
+        assert r['_incr_roic_undefined'] is False
+
+    def test_shrinking_capital_is_undefined_not_zero(self):
+        """Capital-light compounder returning cash: ΔIC <= 0 must flag the
+        gate inapplicable, never score it 0."""
+        r = {'_nopat_by_year': {'2021': 100.0, '2024': 160.0},
+             '_ic_by_year':    {'2021': 1400.0, '2024': 1000.0}}
+        prepare_scoring_fields([r])
+        assert r['incremental_roic'] is None
+        assert r['_incr_roic_undefined'] is True
+
+    def test_tiny_denominator_is_undefined(self):
+        r = {'_nopat_by_year': {'2021': 100.0, '2024': 160.0},
+             '_ic_by_year':    {'2021': 1000.0, '2024': 1000.5}}
+        prepare_scoring_fields([r])
+        assert r['incremental_roic'] is None
+        assert r['_incr_roic_undefined'] is True
+
+    def test_single_year_or_missing_stays_applicable_na(self):
+        """Missing data (no intermediates) is sparse data → gate stays
+        applicable and scores 0 via the missing-data path."""
+        for row in ({}, {'_nopat_by_year': {'2024': 160.0},
+                         '_ic_by_year': {'2024': 1000.0}}):
+            prepare_scoring_fields([row])
+            assert row['incremental_roic'] is None
+            assert row['_incr_roic_undefined'] is False
+
+    def test_clamped_to_sane_range(self):
+        r = {'_nopat_by_year': {'2021': 0.0, '2024': 1000.0},
+             '_ic_by_year':    {'2021': 900.0, '2024': 1000.0}}
+        prepare_scoring_fields([r])
+        assert r['incremental_roic'] == 1.0  # 1000/100 clamped
+
+
+class TestMarginVsHist:
+    def test_over_earning_positive(self):
+        r = {'operating_margin': 0.25, 'op_margin_avg_10y': 0.15}
+        prepare_scoring_fields([r])
+        assert r['margin_vs_hist'] == pytest.approx(0.10)
+
+    def test_below_history_negative(self):
+        r = {'operating_margin': 0.10, 'op_margin_avg_10y': 0.15}
+        prepare_scoring_fields([r])
+        assert r['margin_vs_hist'] == pytest.approx(-0.05)
+
+    def test_none_when_either_missing(self):
+        for row in ({'operating_margin': 0.2}, {'op_margin_avg_10y': 0.15}, {}):
+            prepare_scoring_fields([row])
+            assert row['margin_vs_hist'] is None
+
+
+# ---------------------------------------------------------------------------
+# 2026-07 rebalance: applicability mask + per-gate weights
+# ---------------------------------------------------------------------------
+
+def _full_row(**overrides):
+    """Row with every scoring field populated at mid-range values."""
+    row = {
+        'ticker': 'FULL', 'sector': 'Technology', 'price': 100.0,
+        'dcf_fv': 130.0, 'mos': 0.23, 'fv_dispersion': 0.30,
+        'operating_income': 10e9, 'enterprise_value': 100e9,
+        'p_tbv': 2.0, 'tangible_book_ps': 50.0,
+        'epv_fv': 110.0, 'fcf': 5e9, 'mcap': 90e9, 'revenue': 40e9,
+        'int_cov': 10.0, 'accruals': 0.02, 'rev_growth_vol': 0.08,
+        'nd_ebitda': 0.5, 'piotroski': 7,
+        'operating_margin': 0.25, 'op_margin_avg_10y': 0.24,
+        'op_margin_hist_years': 10,
+        'roic_cv': 0.15, 'spread': 0.10, 'margin_advantage': 0.06,
+        '_nopat_by_year': {'2021': 100.0, '2024': 150.0},
+        '_ic_by_year': {'2021': 800.0, '2024': 1000.0},
+        'fundamental_growth': 0.05, 'gross_margin_trend': 0.01,
+        'rev_cagr_10y': 0.06, 'fcf_cagr_5y': 0.08,
+        'shareholder_yield': 0.04, 'insider_pct': 0.08,
+        'sbc_pct_rev': 0.01, 'shares_cagr_5y': -0.01,
+        'insider_buy_ratio': 0.7, 'insider_buy_count_365d': 5,
+        'insider_sell_count_365d': 3,
+        'mc_cv': 0.10, '_risk_free_rate': 0.045,
+    }
+    row.update(overrides)
+    return row
+
+
+class TestApplicabilityMask:
+    def test_financial_row_excludes_fcf_gates_from_denominator(self):
+        """A bank's FCF-flavored and EV gates go inapplicable: excluded from
+        _gates_passed denominator and stored as None, not failed."""
+        bank = _full_row(ticker='BANK', sector='Financial Services')
+        generic = _full_row(ticker='TECH')
+        apply_screening_matrix([bank, generic])
+        # ebit_ev, fcf_yield, fcf_margin, fcf_cagr_5y masked for financials
+        assert bank['_gates_inapplicable'] == 4
+        assert generic['_gates_inapplicable'] == 0
+        bank_denom = int(bank['_gates_passed'].split('/')[1])
+        gen_denom = int(generic['_gates_passed'].split('/')[1])
+        assert gen_denom - bank_denom == 4
+        assert bank['_gp_ebit_ev'] is None
+        assert bank['_gp_fcf_yield'] is None
+
+    def test_inapplicable_scores_are_none_and_category_renormalizes(self):
+        """Scores render N/A (None) for inapplicable gates, and the category
+        average is taken over applicable weight only."""
+        bank = _full_row(ticker='BANK', sector='Financial Services')
+        generic = _full_row(ticker='TECH')
+        compute_continuous_scores([bank, generic])
+        assert bank['_score_ebit_ev'] is None
+        assert bank['_score_fcf_yield'] is None
+        # Valuation average must not be dragged to 0 by the masked gates:
+        # both rows share identical applicable-gate inputs, so the bank's
+        # category scores stay in a sane band rather than collapsing.
+        assert bank['_score_valuation'] is not None
+        assert bank['_score_valuation'] > 0
+        assert bank['_score_moat'] is not None
+
+    def test_negative_tbv_masks_ptbv(self):
+        row = _full_row(ticker='NEGTBV', tangible_book_ps=-5.0, p_tbv=None)
+        compute_continuous_scores([row])
+        assert row['_score_p_tbv'] is None
+        # Missing balance sheet (no tangible_book_ps at all) stays applicable
+        missing = _full_row(ticker='NOBOOK', p_tbv=None)
+        missing.pop('tangible_book_ps')
+        compute_continuous_scores([missing])
+        assert missing['_score_p_tbv'] == 0.0
+
+    def test_quiet_insiders_masked_not_zeroed(self):
+        quiet = _full_row(ticker='QUIET', insider_buy_count_365d=1,
+                          insider_sell_count_365d=1, insider_buy_ratio=None)
+        no_data = _full_row(ticker='NODATA', insider_buy_count_365d=None,
+                            insider_sell_count_365d=None,
+                            insider_buy_ratio=None)
+        active = _full_row(ticker='ACTIVE')
+        compute_continuous_scores([quiet, no_data, active])
+        assert quiet['_score_insider_buying'] is None
+        assert no_data['_score_insider_buying'] is None
+        assert active['_score_insider_buying'] == pytest.approx(70.0)
+
+    def test_thin_margin_history_masks_guard_gate(self):
+        thin = _full_row(ticker='THIN', op_margin_hist_years=3)
+        compute_continuous_scores([thin])
+        assert thin['_score_margin_vs_hist'] is None
+
+    def test_data_coverage_over_applicable_gates(self):
+        """A fully-covered bank must not read as low-coverage because of
+        gates that cannot describe it."""
+        bank = _full_row(ticker='BANK', sector='Financial Services')
+        apply_screening_matrix([bank])
+        compute_continuous_scores([bank])
+        assert bank['_data_coverage_score'] is not None
+        assert bank['_data_coverage_score'] > 80
+
+
+class TestGateWeights:
+    def test_valuation_average_is_weighted(self):
+        """The Valuation category average must equal the per-gate weighted
+        mean with MoS counted at weight 2.0."""
+        from scripts.scoring import _score_key
+        row = _full_row()
+        compute_continuous_scores([row])
+        num = den = 0.0
+        for g in SCORING_GATES:
+            if g.category != 'Valuation':
+                continue
+            s = row[_score_key(g.name)]
+            assert s is not None  # _full_row keeps every valuation gate live
+            num += s * g.weight
+            den += g.weight
+        assert den == pytest.approx(7.0)  # 6 gates, MoS double-weighted
+        assert row['_score_valuation'] == pytest.approx(num / den, abs=0.1)
+
+    def test_mos_weight_is_two(self):
+        mos_gate = next(g for g in SCORING_GATES
+                        if g.name == 'Valuation: MoS')
+        assert mos_gate.weight == 2.0
+        others = [g.weight for g in SCORING_GATES
+                  if g.name != 'Valuation: MoS']
+        assert all(w == 1.0 for w in others)
+
+
+class TestRatingCapUsesFvEffective:
+    def test_consensus_fallback_row_not_capped_for_missing_fv(self):
+        """A DCF-less row whose MoS came from the multi-model consensus
+        must NOT be capped at HOLD for 'missing fair value'."""
+        row = {'ticker': 'NODCF', 'price': 100.0, 'dcf_fv': None,
+               '_fv_effective': 125.0, 'mos': 0.20,
+               'edgar_history': {'years_available': 10}}
+        cap, reasons = _rating_cap_for_row(row)
+        assert not any('missing price or fair value' in r for r in reasons)
+
+    def test_no_fv_at_all_still_capped(self):
+        row = {'ticker': 'NOFV', 'price': 100.0, 'dcf_fv': None,
+               '_fv_effective': None, 'mos': None,
+               'edgar_history': {'years_available': 10}}
+        cap, reasons = _rating_cap_for_row(row)
+        assert cap == 'HOLD'
+        assert any('missing price or fair value' in r for r in reasons)
