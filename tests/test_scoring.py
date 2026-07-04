@@ -871,3 +871,20 @@ class TestRatingCapUsesFvEffective:
         cap, reasons = _rating_cap_for_row(row)
         assert cap == 'HOLD'
         assert any('missing price or fair value' in r for r in reasons)
+
+
+class TestFxFetchFailedCap:
+    def test_fx_failure_caps_to_hold(self):
+        row = {'ticker': 'ADR', 'price': 100.0, '_fv_effective': 130.0,
+               'mos': 0.23, 'fx_fetch_failed': True,
+               'edgar_history': {'years_available': 10}}
+        cap, reasons = _rating_cap_for_row(row)
+        assert cap == 'HOLD'
+        assert any('FX conversion failed' in r for r in reasons)
+
+    def test_no_cap_when_fx_ok(self):
+        row = {'ticker': 'OK', 'price': 100.0, '_fv_effective': 130.0,
+               'mos': 0.23, 'fx_fetch_failed': False,
+               'edgar_history': {'years_available': 10}}
+        cap, reasons = _rating_cap_for_row(row)
+        assert not any('FX conversion failed' in r for r in reasons)

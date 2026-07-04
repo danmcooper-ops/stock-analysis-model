@@ -967,6 +967,10 @@ def _rating_cap_for_row(row, params=None):
         add('HOLD', 'Beneish manipulation flag')
     if row.get('altman_z_zone') == 'distress':
         add('HOLD', 'Altman Z distress zone')
+    if row.get('fx_fetch_failed') is True:
+        # A failed FX lookup means the statements feeding every FV model are in
+        # mixed currencies — the fair value (and MoS) can't be trusted for a BUY.
+        add('HOLD', 'FX conversion failed (mixed-currency inputs)')
     edgar_q = row.get('edgar_quality_score')
     if edgar_q is not None and edgar_q < 40:
         add('HOLD', 'low EDGAR data quality')

@@ -168,7 +168,7 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
                     base_ebitda=None, exit_multiple=None,
                     n_iterations=1000, growth_sigma=None,
                     wacc_sigma=0.01, tg_sigma=0.005,
-                    exit_mult_sigma=None,
+                    exit_mult_sigma=None, exit_mult_floor=3.0,
                     total_years=10, stage1_years=5):
     """Vectorized Monte Carlo simulation over DCF parameters.
 
@@ -247,7 +247,7 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
                 exit_multiple is not None)
     if has_exit:
         em_samples = rng.normal(exit_multiple, max(exit_mult_sigma or 1.0, 0.5), n)
-        em_samples = np.maximum(em_samples, 3.0)  # floor at 3x
+        em_samples = np.maximum(em_samples, exit_mult_floor)  # align with pipeline floor
 
         # Project EBITDA with same growth pattern
         prev_ebitda = np.full(n, base_ebitda)

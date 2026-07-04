@@ -462,7 +462,10 @@ def _compute_rolling_beta(stock_close, market_close, window_years):
     """
     window_days = int(window_years * 252)
     s = stock_close.tail(window_days)
-    m = market_close.reindex(s.index, method='nearest').reindex(s.index)
+    # Align on the ACTUAL shared trading dates. reindex(method='nearest')
+    # paired stock dates with stale/duplicated market closes (a real stock
+    # return vs a ~0 market return), attenuating beta and R².
+    m = market_close.reindex(s.index)
     combined = pd.DataFrame({'s': s, 'm': m}).dropna()
     if len(combined) < 60:
         return None
@@ -879,8 +882,14 @@ _FX_INFO_DOLLAR_FIELDS = (
 )
 
 
-def _convert_financials_to_usd(yf_data):
+def _convert_financials_to_usd(yf_data, statements_are_usd=False):
     """Convert ``yf_data`` financials + dollar-denominated info fields to USD.
+
+    ``statements_are_usd``: set when the statements came from SEC XBRL, which
+    is extracted in USD units. In that case the balance-sheet / income /
+    cash-flow frames are already USD even if yfinance's ``financialCurrency``
+    reports a local currency (a US-listed foreign private issuer), so they must
+    NOT be converted again — only the quote-currency info fields are.
 
     Foreign-domiciled tickers report financials in local currency but the
     valuation pipeline discounts at a USD-anchored WACC (US Treasury yield
@@ -908,7 +917,7 @@ def _convert_financials_to_usd(yf_data):
         'fx_converted': False,
         'fx_fetch_failed': False,
     }
-    needs_fin = ccy_fin and ccy_fin != 'USD'
+    needs_fin = ccy_fin and ccy_fin != 'USD' and not statements_are_usd
     needs_quote = ccy_quote and ccy_quote != 'USD'
     if not needs_fin and not needs_quote:
         return yf_data, fx_meta
@@ -1381,6 +1390,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
             n_iterations=MC_ITERATIONS,
             growth_sigma=g_sigma, wacc_sigma=wacc_sigma,
             tg_sigma=tg_sigma, exit_mult_sigma=em_sigma,
+            exit_mult_floor=EXIT_MULT_MIN,
             total_years=DCF_YEARS, stage1_years=DCF_STAGE1)
 
     # Use MC percentiles for bear/bull instead of sensitivity grid
@@ -1865,7 +1875,11 @@ def _main():
             # mcap to USD before any model runs. Skips USD-reporting tickers
             # automatically; logs a warning flag on the row if the rate
             # lookup fails so we can audit divergent valuations later.
-            yf_data, fx_meta = _convert_financials_to_usd(yf_data)
+            # Statements from SEC XBRL are already USD — don't convert them
+            # again even if yfinance reports a foreign financialCurrency.
+            _stmts_usd = _data_source in ('sec_xbrl', 'sec_xbrl+yfinance')
+            yf_data, fx_meta = _convert_financials_to_usd(
+                yf_data, statements_are_usd=_stmts_usd)
             _prov.record_source(ticker, 'fx', 'fx_client',
                                 converted=fx_meta.get('fx_converted', False))
             if fx_meta.get('fx_fetch_failed'):

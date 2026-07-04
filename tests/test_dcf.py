@@ -372,3 +372,20 @@ class TestMonteCarloDownsideTail:
         point = fair_value_per_share(ev, 0.0, 1000.0)
         # within a sane band, not 2x+ above
         assert res['median_fv'] < point * 1.8
+
+
+class TestExitMultFloorParam:
+    def test_floor_is_configurable(self):
+        """The MC exit-multiple floor is a parameter so the pipeline can align
+        it with EXIT_MULT_MIN (5.0) instead of the model default (3.0)."""
+        import inspect
+        from models.dcf import monte_carlo_dcf
+        sig = inspect.signature(monte_carlo_dcf)
+        assert sig.parameters['exit_mult_floor'].default == 3.0
+        # runs with an overridden floor without error
+        res = monte_carlo_dcf(
+            base_fcf=100.0, growth_rate=0.03, discount_rate=0.10,
+            terminal_growth=0.025, shares_outstanding=1000.0, net_debt=0.0,
+            base_ebitda=500.0, exit_multiple=8.0, exit_mult_floor=5.0,
+            n_iterations=300)
+        assert res is not None
