@@ -469,21 +469,21 @@ class TestScreeningGateEdgeCases:
         assert rows[0].get('_fv_source') is None
 
     def test_fv_dispersion_gate_passes_on_tight_agreement(self):
-        """Models within 50% of the median → the FV Dispersion gate passes."""
+        """Tight model agreement → the FV Dispersion gate passes (MAD/median)."""
         rows = [self._row(dcf_fv=100.0, epv_growth_fv=110.0,
                           rim_fv=120.0, ddm_fv=130.0)]
         apply_screening_matrix(rows)
-        # spread = (130 - 100) / median(115) = 0.26
-        assert rows[0]['_gate_fv_dispersion'] == pytest.approx(30 / 115.0)
+        # median=115; MAD=median(15,5,5,15)=10; 10/115 ≈ 0.087 ≤ 0.15
+        assert rows[0]['_gate_fv_dispersion'] == pytest.approx(10 / 115.0)
         assert rows[0]['_gp_fv_dispersion'] is True
 
     def test_fv_dispersion_gate_fails_on_wide_spread(self):
-        """Models spanning >50% of the median → the gate fails (value-trap
-        risk: the fair value is not corroborated)."""
+        """Wide disagreement → the gate fails (value-trap risk: the fair value
+        is not corroborated)."""
         rows = [self._row(dcf_fv=50.0, epv_growth_fv=100.0, rim_fv=200.0)]
         apply_screening_matrix(rows)
-        # spread = (200 - 50) / median(100) = 1.5
-        assert rows[0]['_gate_fv_dispersion'] == pytest.approx(1.5)
+        # median=100; MAD=median(50,0,100)=50; 50/100 = 0.5 > 0.15
+        assert rows[0]['_gate_fv_dispersion'] == pytest.approx(0.5)
         assert rows[0]['_gp_fv_dispersion'] is False
 
     def test_fv_dispersion_na_with_single_model(self):
@@ -498,9 +498,19 @@ class TestScreeningGateEdgeCases:
         measured dispersion."""
         rows = [self._row(dcf_fv=100.0, epv_growth_fv=105.0, nav_fv=20.0)]
         apply_screening_matrix(rows)
-        # only dcf & epv_growth count: spread = 5 / median(102.5) ≈ 0.049
-        assert rows[0]['_gate_fv_dispersion'] == pytest.approx(5 / 102.5)
+        # only dcf & epv_growth count: median=102.5, MAD=2.5, 2.5/102.5 ≈ 0.024
+        assert rows[0]['_gate_fv_dispersion'] == pytest.approx(2.5 / 102.5)
         assert rows[0]['_gp_fv_dispersion'] is True
+
+    def test_fv_dispersion_uses_preblend_dcf(self):
+        """Dispersion must key off the pre-blend DCF so the DDM leg (blended
+        into dcf_fv upstream) isn't double-counted."""
+        # blended dcf_fv pulled toward ddm; preblend is the true DCF
+        rows = [self._row(dcf_fv=90.0, _dcf_fv_preblend=100.0,
+                          epv_growth_fv=105.0)]
+        apply_screening_matrix(rows)
+        # uses 100 & 105, not 90: median=102.5, MAD=2.5
+        assert rows[0]['_gate_fv_dispersion'] == pytest.approx(2.5 / 102.5)
 
     # --- Overhaul gates: Margin Advantage / Rev Volatility / FCF Yield ---
 

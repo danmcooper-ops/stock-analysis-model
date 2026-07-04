@@ -331,6 +331,25 @@ def _select_epv_ebit(point_ebit, yf_revenue, op_margin_avg_10y,
     return point_ebit, 'point'
 
 
+def _rescale_fv_band(row, ratio):
+    """Scale every FV-denominated uncertainty field by `ratio` after a blend.
+
+    When a blend rewrites dcf_fv, the sensitivity range AND the Monte Carlo
+    percentiles must move with it — otherwise the reported bear/bull band and
+    P10/P90 bracket a fair value that no longer exists (a blended FV could sit
+    outside its own band). mc_cv is a ratio and is left untouched.
+    """
+    if ratio is None or ratio == 1.0:
+        return
+    sens = row.get('dcf_sens_range')
+    if sens and len(sens) == 2 and all(isinstance(x, (int, float)) for x in sens):
+        row['dcf_sens_range'] = (sens[0] * ratio, sens[1] * ratio)
+    for key in ('mc_p10_fv', 'mc_p90_fv'):
+        v = row.get(key)
+        if isinstance(v, (int, float)):
+            row[key] = v * ratio
+
+
 def _load_founder_overrides():
     """Load and cache the curated founder-led overrides from
     data/founder_overrides.json. Returns a dict {ticker: bool}; underscored
@@ -2373,9 +2392,15 @@ def _main():
             ms_diff = None
             ms_fv = None
             ms_pfv = ms_pfv_data.get(ticker)
-            if ms_pfv and current_price and dcf_fv:
+            # ms_fv = price / (Morningstar P/FV) needs no model of ours — do
+            # NOT gate it on dcf_fv, so the consensus cohort (DCF-less names)
+            # can also be benchmarked against Morningstar. ms_diff, which
+            # compares OUR fair value, stays gated on dcf_fv.
+            if ms_pfv and current_price:
                 ms_fv = current_price / ms_pfv
-                if ms_fv > 0:
+                if ms_fv <= 0:
+                    ms_fv = None
+                elif dcf_fv:
                     ms_diff = (dcf_fv / ms_fv) - 1
 
             row = {
@@ -2655,6 +2680,12 @@ def _main():
         r['_sector_median_ee'] = med
         r['_ee_vs_sector'] = (ee / med - 1) if ee and med and med > 0 else None
 
+        # Stash the pristine DCF before ANY blend overwrites r['dcf_fv'].
+        # fv_dispersion keys off this so the DDM leg (blended into dcf_fv
+        # below) isn't double-counted, which would mute the disagreement gate
+        # for exactly the dividend payers where DCF and DDM diverge.
+        r['_dcf_fv_preblend'] = r.get('dcf_fv')
+
         # 2. DCF cross-check: compute multiples-implied fair value from sector median
         # If DCF FV > 1.5× multiples FV, blend toward multiples (40% weight)
         # This reins in over-estimates where DCF extrapolates peak FCF
@@ -2684,10 +2715,9 @@ def _main():
                     # Recompute dependent fields
                     if blended > 0:
                         r['mos'] = (blended - price) / blended
-                    # Scale sensitivity range proportionally to keep Bear/Bull consistent
-                    sens = r.get('dcf_sens_range')
-                    if sens and len(sens) == 2:
-                        r['dcf_sens_range'] = (sens[0] * blend_ratio, sens[1] * blend_ratio)
+                    # Scale the whole uncertainty band (sens range + MC
+                    # percentiles) so bear/bull and P10/P90 stay consistent.
+                    _rescale_fv_band(r, blend_ratio)
                     r['_blended'] = True
                 else:
                     r['_blended'] = False
@@ -2700,38 +2730,40 @@ def _main():
 
         # Recompute Morningstar fields after potential blending
         ms_pfv_val = ms_pfv_data.get(r['ticker'])
-        if ms_pfv_val and price and r.get('dcf_fv'):
+        if ms_pfv_val and price:
             ms_fv = price / ms_pfv_val
             if ms_fv > 0:
                 r['ms_fv'] = ms_fv
                 r['ms_pfv'] = ms_pfv_val
-                r['ms_diff'] = (r['dcf_fv'] / ms_fv) - 1
+                if r.get('dcf_fv'):
+                    r['ms_diff'] = (r['dcf_fv'] / ms_fv) - 1
 
-    # DDM blending: for eligible stocks, blend 70% DCF + 30% DDM
+    # DDM blending: for eligible stocks, blend 70% DCF + 30% DDM — but only
+    # when the DDM is trustworthy. An unfunded dividend (payout > 100%) or a
+    # DDM that disagrees with the DCF by more than the divergence threshold is
+    # NOT blended in; the flags stop being cosmetic. When blended, the whole
+    # uncertainty band is rescaled like the multiples blend does.
     for r in results:
         r['_blended_method'] = 'DCF'
+        r['_ddm_low_confidence'] = False
         if r.get('ddm_eligible') and r.get('ddm_fv') and r.get('dcf_fv'):
             ddm_fv = r['ddm_fv']
             dcf_fv = r['dcf_fv']
             if ddm_fv > 0 and dcf_fv > 0:
-                blended = DCF_BLEND_WEIGHT_WITH_DDM * dcf_fv + DDM_BLEND_WEIGHT * ddm_fv
-                r['dcf_fv'] = blended
-                r['_blended_method'] = 'DCF+DDM'
-                # Recompute MoS
-                price = r.get('price')
-                if price and blended > 0:
-                    r['mos'] = (blended - price) / blended
-                # Flag divergence
                 avg_fv = (dcf_fv + ddm_fv) / 2.0
                 divergence = abs(dcf_fv - ddm_fv) / avg_fv if avg_fv > 0 else 0
-                if divergence > DDM_DIVERGENCE_THRESHOLD:
-                    r['_ddm_low_confidence'] = True
-                else:
-                    r['_ddm_low_confidence'] = False
-            else:
-                r['_ddm_low_confidence'] = False
-        else:
-            r['_ddm_low_confidence'] = False
+                low_confidence = (divergence > DDM_DIVERGENCE_THRESHOLD
+                                  or bool(r.get('ddm_payout_flag')))
+                r['_ddm_low_confidence'] = low_confidence
+                if not low_confidence:
+                    blended = DCF_BLEND_WEIGHT_WITH_DDM * dcf_fv + DDM_BLEND_WEIGHT * ddm_fv
+                    blend_ratio = blended / dcf_fv if dcf_fv > 0 else 1.0
+                    r['dcf_fv'] = blended
+                    r['_blended_method'] = 'DCF+DDM'
+                    price = r.get('price')
+                    if price and blended > 0:
+                        r['mos'] = (blended - price) / blended
+                    _rescale_fv_band(r, blend_ratio)
 
     # Rating is set downstream by score_and_rate from composite score plus critical caps
 

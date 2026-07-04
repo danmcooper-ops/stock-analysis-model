@@ -169,7 +169,9 @@ SCREENING_GATES = [
      lambda v, r: v > 0.10 if v is not None else None),
     ('Valuation: FV Dispersion',
      'fv_dispersion',
-     lambda v, r: v <= 0.50 if v is not None else None),
+     # MAD/median statistic (see prepare_scoring_fields); 0.15 preserves the
+     # ~29% pass rate the old (max−min)/median @0.50 produced. Provisional.
+     lambda v, r: v <= 0.15 if v is not None else None),
     # EBIT/EV earnings yield: capital-structure-neutral market multiple
     # (replaced P/FCF, which was the exact reciprocal of FCF Yield — the
     # same signal counted twice). Absolute threshold ≈ ≤12.5x EV/EBIT.
@@ -360,20 +362,29 @@ def prepare_scoring_fields(results):
         r['_price_fv'] = (price / fv_eff) if (price and fv_eff and fv_eff > 0) else None
         r['mos'] = ((fv_eff - price) / fv_eff) if (price and fv_eff and fv_eff > 0) else None
         # Cross-model fair-value agreement: how tightly the comparable intrinsic
-        # models corroborate one another, as the high/low spread relative to the
-        # median. Low dispersion → the fair value (and the MoS derived from it)
-        # is trustworthy; wide dispersion → the estimate is noisy and a large
-        # MoS may be a value trap rather than a bargain. This is the orthogonal
-        # valuation signal that replaced Price/FV, which was collinear with MoS.
-        # NAV is excluded (asset floor, not a going-concern value) and bare EPV
-        # is omitted in favor of the growth-inclusive epv_growth_fv. >=2 models.
-        fv_models = [r.get(k) for k in ('dcf_fv', 'epv_growth_fv', 'rim_fv', 'ddm_fv')]
+        # models corroborate one another. Low dispersion → the fair value (and
+        # the MoS derived from it) is trustworthy; wide dispersion → the
+        # estimate is noisy and a large MoS may be a value trap. Two fixes vs
+        # the naive version:
+        #   • Uses the PRE-BLEND DCF (_dcf_fv_preblend) so the DDM leg — which
+        #     is blended into dcf_fv upstream — isn't counted twice, which used
+        #     to mute the gate for exactly the payers where DCF and DDM diverge.
+        #   • Statistic is median-absolute-deviation about the median ÷ median,
+        #     a robust spread comparable across 2/3/4 resolving models, rather
+        #     than (max−min)/median which grows mechanically with model count.
+        # NAV is excluded (asset floor) and bare EPV omitted in favor of the
+        # growth-inclusive epv_growth_fv. >=2 models.
+        _dcf_disp = r.get('_dcf_fv_preblend', r.get('dcf_fv'))
+        fv_models = [_dcf_disp, r.get('epv_growth_fv'), r.get('rim_fv'), r.get('ddm_fv')]
         fv_models = [v for v in fv_models
                      if isinstance(v, (int, float)) and 0 < v < float('inf')]
         if len(fv_models) >= 2:
             _fvm = statistics.median(fv_models)
-            r['fv_dispersion'] = ((max(fv_models) - min(fv_models)) / _fvm
-                                  if _fvm > 0 else None)
+            if _fvm > 0:
+                _mad = statistics.median([abs(v - _fvm) for v in fv_models])
+                r['fv_dispersion'] = _mad / _fvm
+            else:
+                r['fv_dispersion'] = None
         else:
             r['fv_dispersion'] = None
         # Recompute P/FCF from the (possibly EDGAR-derived) FCF when it wasn't
@@ -587,7 +598,7 @@ SCORING_GATES = [
     ('Valuation: MoS', 'mos', 'Valuation',
      lambda v, r, pct: _score_linear(v, -0.10, 0.40), False, True, 2.0),  # tightened: worst raised -20%→-10%
     ('Valuation: FV Dispersion', 'fv_dispersion', 'Valuation',
-     lambda v, r, pct: _score_linear(v, 1.5, 0.0), False, True),      # lower is better: tight model agreement scores high
+     lambda v, r, pct: _score_linear(v, 0.70, 0.0), False, True),     # lower is better; range rescaled for the MAD/median statistic
     # EBIT/EV earnings yield (replaced P/FCF — exact reciprocal of FCF
     # Yield). Absolute range, not rf-relative: FCF Yield already carries
     # the rate-regime beta for the category. 6% ≈ market-average EV/EBIT.
@@ -850,7 +861,7 @@ def apply_composite_rating_override(results, params=None):
 
 _GATE_DISPLAY = {
     'mos': {'label': 'MoS', 'threshold': 'MoS > 10%', 'fmt': 'pct1'},
-    'fv_dispersion': {'label': 'FV Dispersion', 'threshold': 'Model spread <= 50%', 'fmt': 'pct1'},
+    'fv_dispersion': {'label': 'FV Dispersion', 'threshold': 'Model MAD <= 15%', 'fmt': 'pct1'},
     'ebit_ev': {'label': 'EBIT/EV', 'threshold': 'EBIT/EV > 8%', 'fmt': 'pct1'},
     'int_coverage': {'label': 'Int Cov', 'threshold': 'IC > 3x', 'fmt': 'ratio'},
     'accruals': {'label': 'Accruals', 'threshold': '|Acr| < 8%', 'fmt': 'pct1'},

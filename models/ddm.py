@@ -122,9 +122,11 @@ def estimate_ddm_growth(div_history, payout, roe, analyst_ltg):
         total_weight += 0.40
         result['signals_used'] += 1
 
-    # Signal 3: Analyst LTG (30%)
-    if analyst_ltg is not None and analyst_ltg > 0:
-        ltg = max(min(analyst_ltg, 0.25), 0.0)
+    # Signal 3: Analyst LTG (30%). Allow a NEGATIVE forecast through (clamped
+    # at −10%) rather than discarding it — silently dropping a bearish analyst
+    # estimate biased the blend upward for deteriorating payers.
+    if analyst_ltg is not None:
+        ltg = max(min(analyst_ltg, 0.25), -0.10)
         weighted_sum += 0.30 * ltg
         total_weight += 0.30
         result['signals_used'] += 1

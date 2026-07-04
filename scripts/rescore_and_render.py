@@ -117,6 +117,38 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
         print(f'  Composite score: min={min(cs):.1f}, '
               f'median={sorted(cs)[len(cs)//2]:.1f}, max={max(cs):.1f}')
     print(f'  Rating distribution: {rating_dist}')
+    _print_cohort_parity(results)
+
+
+def _median(xs):
+    xs = sorted(xs)
+    return xs[len(xs) // 2] if xs else None
+
+
+def _print_cohort_parity(results):
+    """Compare the DCF cohort vs the consensus-fallback cohort so the parity
+    the consensus aims for is measurable (it isn't, if the two diverge)."""
+    def pfv(sub):
+        vals = [r['price'] / r['_fv_effective'] for r in sub
+                if isinstance(r.get('_fv_effective'), (int, float)) and r['_fv_effective'] > 0
+                and isinstance(r.get('price'), (int, float)) and r['price'] > 0]
+        return _median(vals), len(vals)
+    def ms_err(sub):
+        # median |our FV / Morningstar FV − 1|, now that ms_fv is un-gated
+        errs = [abs(r['_fv_effective'] / r['ms_fv'] - 1) for r in sub
+                if isinstance(r.get('_fv_effective'), (int, float)) and r['_fv_effective'] > 0
+                and isinstance(r.get('ms_fv'), (int, float)) and r['ms_fv'] > 0]
+        return _median(errs), len(errs)
+
+    dcf = [r for r in results if r.get('_fv_source') == 'dcf']
+    blend = [r for r in results if r.get('_fv_source') == 'blend']
+    for label, sub in (('DCF cohort', dcf), ('consensus cohort', blend)):
+        m, k = pfv(sub)
+        me, mk = ms_err(sub)
+        m_s = f'{m:.2f}' if m is not None else '—'
+        me_s = f'{me:.1%} (n={mk})' if me is not None else '—'
+        print(f'  {label:16} n={len(sub):5d}  median P/FV_eff={m_s:>5}  '
+              f'MS median |err|={me_s}')
 
 
 if __name__ == '__main__':

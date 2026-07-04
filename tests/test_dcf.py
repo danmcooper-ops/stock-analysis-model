@@ -313,3 +313,30 @@ class TestReverseDCF:
         r_high = reverse_dcf(200.0, 1e9, 0.09, 1e9, net_debt=5e9)
         assert r_low is not None and r_high is not None
         assert r_high['implied_growth'] > r_low['implied_growth']
+
+
+class TestRescaleFvBand:
+    """The shared blend-rescale helper moves every FV-denominated band field."""
+
+    def test_scales_sens_range_and_mc_percentiles(self):
+        from scripts.analyze_stock import _rescale_fv_band
+        row = {'dcf_sens_range': (80.0, 120.0), 'mc_p10_fv': 70.0,
+               'mc_p90_fv': 130.0, 'mc_cv': 0.25}
+        _rescale_fv_band(row, 0.5)
+        assert row['dcf_sens_range'] == (40.0, 60.0)
+        assert row['mc_p10_fv'] == 35.0
+        assert row['mc_p90_fv'] == 65.0
+        assert row['mc_cv'] == 0.25  # scale-invariant, untouched
+
+    def test_noop_on_unit_ratio(self):
+        from scripts.analyze_stock import _rescale_fv_band
+        row = {'dcf_sens_range': (80.0, 120.0), 'mc_p10_fv': 70.0}
+        _rescale_fv_band(row, 1.0)
+        assert row['dcf_sens_range'] == (80.0, 120.0)
+        assert row['mc_p10_fv'] == 70.0
+
+    def test_tolerates_missing_fields(self):
+        from scripts.analyze_stock import _rescale_fv_band
+        row = {'mc_p90_fv': 100.0}
+        _rescale_fv_band(row, 0.9)  # no sens range, no p10 — must not raise
+        assert row['mc_p90_fv'] == 90.0
