@@ -453,6 +453,79 @@ def _load_local_prices(ticker, prices_dir):
         return None
 
 
+def compute_multiple_vs_history(close, edgar_history, mcap, operating_income,
+                                max_years=10, min_years=5):
+    """Current equity multiple (mcap/EBIT) vs the firm's OWN ~10y median.
+
+    The time-series cheapness axis the cross-sectional and model-based
+    valuation gates don't cover: is this cheap relative to ITSELF? Replaced
+    the EPV Floor gate, which correlated 0.68 with MoS (a third price-vs-
+    intrinsic ratio on the same price denominator).
+
+    Historical multiple(y) = year-end price × point-in-time shares (EDGAR)
+    ÷ operating income (EDGAR, USD). True EV/EBIT needs historical debt,
+    which the history doesn't carry; the equity-on-EBIT multiple is time-
+    series consistent within a firm, and the ratio-to-own-median is what's
+    scored. Only positive-EBIT years count.
+
+    Returns (mult_vs_hist, years_used):
+        mult_vs_hist = current_multiple / median(historical multiples) − 1
+        (negative = trading below own history = cheap), or (None, 0).
+    """
+    if (close is None or len(close) == 0 or not edgar_history
+            or not mcap or mcap <= 0
+            or operating_income is None or operating_income <= 0):
+        return None, 0
+    oi_hist = edgar_history.get('operating_income_history') or {}
+    sh_hist = edgar_history.get('shares_history') or {}
+    if not oi_hist or not sh_hist:
+        return None, 0
+
+    # Point-in-time shares: parse once, sorted by date.
+    share_points = []
+    for d, v in sh_hist.items():
+        if not v:
+            continue
+        try:
+            share_points.append((pd.Timestamp(d), float(v)))
+        except (ValueError, TypeError):
+            continue
+    if not share_points:
+        return None, 0
+    share_points.sort()
+    share_idx = pd.DatetimeIndex([p[0] for p in share_points])
+
+    current_year = date.today().year
+    years = sorted(int(y) for y in oi_hist.keys()
+                   if int(str(y)) < current_year)[-max_years:]
+    idx = close.index
+    mults = []
+    for y in years:
+        oiy = oi_hist.get(y, oi_hist.get(str(y)))
+        if not oiy or oiy <= 0:
+            continue
+        target = pd.Timestamp(f'{y}-12-31')
+        # Year-end close within 30 days
+        pos = idx.get_indexer([target], method='nearest')[0]
+        if pos < 0 or abs((idx[pos] - target).days) > 30:
+            continue
+        py = float(close.iloc[pos])
+        # Nearest point-in-time share count within ~400 days
+        spos = share_idx.get_indexer([target], method='nearest')[0]
+        if spos < 0 or abs((share_idx[spos] - target).days) > 400:
+            continue
+        sy = share_points[spos][1]
+        if py > 0 and sy > 0:
+            mults.append(py * sy / oiy)
+
+    if len(mults) < min_years:
+        return None, len(mults)
+    med = _median(mults)
+    if not med or med <= 0:
+        return None, len(mults)
+    return (mcap / operating_income) / med - 1.0, len(mults)
+
+
 def _compute_rolling_beta(stock_close, market_close, window_years):
     """Compute beta and R² over a trailing window of *window_years* years.
 
@@ -2215,6 +2288,12 @@ def _main():
             current_price = multiples.get('price')
             shares = multiples.get('shares')
 
+            # Time-series cheapness: current mcap/EBIT vs own ~10y median
+            # (Valuation: Mult vs Hist gate — replaced EPV Floor, r=0.68 vs MoS)
+            mult_vs_hist, mult_hist_years = compute_multiple_vs_history(
+                _local_close, edgar_history,
+                multiples.get('market_cap'), latest_fins.get('operating_income'))
+
             # Analyst consensus (Worksheet Step 8)
             analyst = compute_analyst_consensus(yf_data)
 
@@ -2572,6 +2651,9 @@ def _main():
                 'wacc': wacc,
                 'spread': roic_data['avg_roic'] - wacc,
                 'mcap': multiples.get('market_cap'),
+                # Time-series cheapness (Valuation: Mult vs Hist gate)
+                'mult_vs_hist': mult_vs_hist,
+                'mult_hist_years': mult_hist_years,
                 # Latest financials (for profit pool analysis)
                 'revenue': latest_fins.get('revenue'),
                 'operating_income': latest_fins.get('operating_income'),

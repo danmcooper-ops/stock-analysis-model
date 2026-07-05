@@ -21,7 +21,8 @@ if _REPO_ROOT not in sys.path:
 
 from scripts.scoring import score_and_rate
 from scripts.report_html import build_html
-from scripts.analyze_stock import derive_edgar_metrics
+from scripts.analyze_stock import (derive_edgar_metrics, _load_local_prices,
+                                   compute_multiple_vs_history)
 
 
 def _refresh_edgar_derived_metrics(results):
@@ -50,6 +51,26 @@ def _refresh_edgar_derived_metrics(results):
     print(f'Refreshed EDGAR-derived metrics for {n} rows')
 
 
+def _refresh_multiple_vs_history(results, prices_dir):
+    """Compute the time-series cheapness metric (Valuation: Mult vs Hist)
+    from local parquet prices + edgar_history for snapshots that predate the
+    field (or after a backfill). Skips rows whose parquet is missing —
+    the gate goes inapplicable via mult_hist_years=0."""
+    n = 0
+    for r in results:
+        if not r.get('edgar_history'):
+            continue
+        close = _load_local_prices(r.get('ticker'), prices_dir)
+        mvh, yrs = compute_multiple_vs_history(
+            close, r.get('edgar_history'),
+            r.get('mcap'), r.get('operating_income'))
+        r['mult_vs_hist'] = mvh
+        r['mult_hist_years'] = yrs
+        if mvh is not None:
+            n += 1
+    print(f'Refreshed Mult-vs-Hist for {n} rows')
+
+
 def rescore_and_render(json_path, prices_dir='output/prices'):
     with open(json_path) as f:
         snap = json.load(f)
@@ -63,6 +84,7 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
         snap_date = date.today().isoformat()
 
     _refresh_edgar_derived_metrics(results)
+    _refresh_multiple_vs_history(results, prices_dir)
     # Propagate the snapshot's risk-free rate onto each row so the
     # Valuation: FCF Yield gate has its hurdle available on re-render (the
     # live pipeline stamps this per row; here it comes from the snapshot).

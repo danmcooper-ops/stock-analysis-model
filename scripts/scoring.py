@@ -67,6 +67,12 @@ def _appl_incr_roic(r):
     a capital-light compounder returning cash must not score 0."""
     return not r.get('_incr_roic_undefined')
 
+
+def _appl_mult_history(r):
+    """Multiple-vs-own-history needs a real baseline: >=5 positive-EBIT years
+    with matchable year-end prices and share counts."""
+    return (r.get('mult_hist_years') or 0) >= 5
+
 MIN_SECTOR_SCORING = 5  # Min stocks per sector for sector-relative percentile
 RATING_RANK = {'PASS': 0, 'HOLD': 1, 'LEAN BUY': 2, 'BUY': 3}
 RATING_BY_RANK = {v: k for k, v in RATING_RANK.items()}
@@ -183,12 +189,17 @@ SCREENING_GATES = [
      'p_tbv',
      lambda v, r: 0 < v <= 2.5 if v is not None else None,
      _appl_positive_tbv),
-    ('Valuation: EPV Floor',
-     'epv_floor_ratio',
-     lambda v, r: v >= 1.0 if v is not None else None),
+    # Time-series cheapness: current mcap/EBIT vs the firm's own ~10y median
+    # (negative = below own history). Replaced EPV Floor, a third price-vs-
+    # intrinsic ratio that correlated 0.68 with MoS; this is the one valuation
+    # axis the cross-sectional and model-based gates don't cover.
+    ('Valuation: Mult vs Hist',
+     'mult_vs_hist',
+     lambda v, r: v < -0.10 if v is not None else None,
+     _appl_mult_history),
     # FCF yield vs the risk-free rate: an absolute, model-independent value
     # floor (replaced RIM MoS, a third price-vs-intrinsic-value gate that
-    # triangulated the same signal as MoS + EPV Floor).
+    # triangulated the same signal as MoS).
     ('Valuation: FCF Yield',
      'fcf_yield',
      lambda v, r: v > (r.get('_risk_free_rate') or 0.045) if v is not None else None,
@@ -452,7 +463,9 @@ def prepare_scoring_fields(results):
         else:
             r['roic_trend_slope'] = None
 
-        # EPV floor ratio (epv_fv / price) - >=1 means trading below zero-growth value
+        # EPV floor ratio (epv_fv / price) — retained as a data field for the
+        # detail views; no longer a scored gate (replaced by Mult vs Hist,
+        # the time-series cheapness axis — EPV Floor was collinear with MoS).
         epv = r.get('epv_fv')
         r['epv_floor_ratio'] = (epv / price) if (epv is not None and price and price > 0) else None
 
@@ -663,8 +676,11 @@ SCORING_GATES = [
      lambda v, r, pct: _score_linear(v, 0, 9), False, True),
     ('Moat: Margin Advantage', 'margin_advantage', 'Moat',
      lambda v, r, pct: _score_linear(v, -0.10, 0.20), False, True),   # opm vs sector: sector-median→33, +20pp→100
-    ('Valuation: EPV Floor', 'epv_floor_ratio', 'Valuation',
-     lambda v, r, pct: _score_linear(v, 0.5, 1.2), False, True),
+    # Range from the 2026-07-02 snapshot distribution: p25 ≈ −0.28 → 85,
+    # median ≈ +0.13 → 58, p75 ≈ +0.70 → 20; long expensive tail clamps to 0.
+    ('Valuation: Mult vs Hist', 'mult_vs_hist', 'Valuation',
+     lambda v, r, pct: _score_linear(v, 1.0, -0.50), False, True, 1.0,
+     _appl_mult_history),
     ('Valuation: FCF Yield', 'fcf_yield', 'Valuation',
      lambda v, r, pct: (_score_linear(v - (r.get('_risk_free_rate') or 0.045), -0.03, 0.08)
                         if v is not None else None), False, True, 1.0,
@@ -884,7 +900,7 @@ _GATE_DISPLAY = {
     'share_shrink': {'label': 'Share Shrink', 'threshold': '5Y Shares CAGR < 0', 'fmt': 'pct1'},
     'piotroski': {'label': 'Piotroski', 'threshold': 'F-Score >= 7', 'fmt': 'int'},
     'margin_advantage': {'label': 'Margin Adv', 'threshold': 'OpM vs sector > 5pp', 'fmt': 'pct1'},
-    'epv_floor': {'label': 'EPV Floor', 'threshold': 'EPV/Price >= 1.0', 'fmt': 'ratio'},
+    'mult_vs_hist': {'label': 'Mult vs Hist', 'threshold': '>=10% below own 10y median', 'fmt': 'pct1'},
     'fcf_yield': {'label': 'FCF Yield', 'threshold': 'FCF Yield > risk-free', 'fmt': 'pct1'},
 }
 

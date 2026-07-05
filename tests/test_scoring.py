@@ -415,7 +415,7 @@ class TestCanonicalScoreAndRate:
         assert len(meta['gates']) == len(SCREENING_GATES)
         keys = {g['key'] for g in meta['gates']}
         assert '_gate_margin_advantage' in keys
-        assert '_gate_epv_floor' in keys
+        assert '_gate_mult_vs_hist' in keys   # time-series cheapness (replaced EPV Floor)
         assert '_gate_fcf_yield' in keys
         assert '_gate_rev_volatility' in keys
         # 2026-07 rebalance additions
@@ -431,6 +431,7 @@ class TestCanonicalScoreAndRate:
         assert '_gate_buyback_rate' not in keys  # inside Shrhldr Yield
         assert '_gate_cash_conv' not in keys     # accruals inverted
         assert '_gate_gross_margin' not in keys  # merged into Margin Adv
+        assert '_gate_epv_floor' not in keys     # collinear with MoS (r=0.68)
 
     def test_gate_metadata_score_keys_are_written(self):
         """Every screening gate name must have a scoring twin — a name
@@ -740,6 +741,7 @@ def _full_row(**overrides):
         'operating_income': 10e9, 'enterprise_value': 100e9,
         'p_tbv': 2.0, 'tangible_book_ps': 50.0,
         'epv_fv': 110.0, 'fcf': 5e9, 'mcap': 90e9, 'revenue': 40e9,
+        'mult_vs_hist': -0.15, 'mult_hist_years': 10,
         'int_cov': 10.0, 'accruals': 0.02, 'rev_growth_vol': 0.08,
         'nd_ebitda': 0.5, 'piotroski': 7,
         'operating_margin': 0.25, 'op_margin_avg_10y': 0.24,
@@ -888,3 +890,66 @@ class TestFxFetchFailedCap:
                'edgar_history': {'years_available': 10}}
         cap, reasons = _rating_cap_for_row(row)
         assert not any('FX conversion failed' in r for r in reasons)
+
+
+class TestMultipleVsHistory:
+    """compute_multiple_vs_history — time-series cheapness (replaced EPV Floor)."""
+
+    def _inputs(self, n_years=8, price=10.0, oi=100.0, shares=1000.0):
+        import pandas as pd
+        idx = pd.date_range('2016-01-01', '2025-12-31', freq='B')
+        close = pd.Series(price, index=idx)  # flat price
+        eh = {
+            'operating_income_history': {y: oi for y in range(2016, 2016 + n_years)},
+            'shares_history': {f'{y}-12-31': shares for y in range(2016, 2016 + n_years)},
+        }
+        return close, eh
+
+    def test_flat_history_at_own_median(self):
+        """Same multiple today as always → metric ≈ 0 (at own median)."""
+        from scripts.analyze_stock import compute_multiple_vs_history
+        close, eh = self._inputs()
+        # historical multiple = 10*1000/100 = 100; current mcap/oi = 100
+        v, yrs = compute_multiple_vs_history(close, eh, mcap=10000.0,
+                                             operating_income=100.0)
+        assert yrs == 8
+        assert v == pytest.approx(0.0, abs=1e-9)
+
+    def test_cheap_vs_own_history(self):
+        """Current multiple half the historical → −50%."""
+        from scripts.analyze_stock import compute_multiple_vs_history
+        close, eh = self._inputs()
+        v, _ = compute_multiple_vs_history(close, eh, mcap=5000.0,
+                                           operating_income=100.0)
+        assert v == pytest.approx(-0.50)
+
+    def test_insufficient_history_returns_none(self):
+        from scripts.analyze_stock import compute_multiple_vs_history
+        close, eh = self._inputs(n_years=3)
+        v, yrs = compute_multiple_vs_history(close, eh, mcap=10000.0,
+                                             operating_income=100.0)
+        assert v is None and yrs < 5
+
+    def test_negative_ebit_years_excluded(self):
+        from scripts.analyze_stock import compute_multiple_vs_history
+        close, eh = self._inputs(n_years=8)
+        eh['operating_income_history'][2018] = -50.0  # loss year drops out
+        v, yrs = compute_multiple_vs_history(close, eh, mcap=10000.0,
+                                             operating_income=100.0)
+        assert yrs == 7
+        assert v == pytest.approx(0.0, abs=1e-9)
+
+    def test_none_without_prices_or_current_inputs(self):
+        from scripts.analyze_stock import compute_multiple_vs_history
+        close, eh = self._inputs()
+        assert compute_multiple_vs_history(None, eh, 1e4, 100.0) == (None, 0)
+        assert compute_multiple_vs_history(close, eh, None, 100.0) == (None, 0)
+        assert compute_multiple_vs_history(close, eh, 1e4, -5.0) == (None, 0)
+
+    def test_mask_requires_five_years(self):
+        row = _full_row(mult_vs_hist=None, mult_hist_years=3)
+        compute_continuous_scores([row])
+        assert row['_score_mult_vs_hist'] is None  # inapplicable, not zeroed
+        ok = _full_row()  # 10 years in the fixture
+        compute_continuous_scores([ok])
+        assert ok['_score_mult_vs_hist'] is not None
