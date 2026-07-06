@@ -63,7 +63,18 @@ def _pick_json(arg=None):
     pattern = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'output', 'results_*.json')
-    files = sorted(glob.glob(pattern))
+    # Canonical results_YYYY-MM-DD.json only — results_X_replay.json sorts
+    # AFTER the canonical file, and backfill patches its pick IN PLACE, so a
+    # naive files[-1] would enrich the wrong artifact.
+    from datetime import date as _date
+    files = []
+    for f in sorted(glob.glob(pattern)):
+        stem = os.path.basename(f)[len('results_'):-len('.json')]
+        try:
+            _date.fromisoformat(stem)
+        except ValueError:
+            continue
+        files.append(f)
     if not files:
         print('[backfill] no results_*.json found in output/')
         sys.exit(1)

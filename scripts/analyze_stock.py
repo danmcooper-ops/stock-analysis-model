@@ -1665,7 +1665,10 @@ def _main():
 
     # Fetch live risk-free rate (10-yr Treasury yield)
     risk_free_rate = fetch_risk_free_rate()
-    print(f"Risk-free rate: {risk_free_rate:.2%} (10-yr Treasury)")
+    from data import treasury_rate as _treasury
+    risk_free_rate_source = _treasury.last_rate_source or 'live'
+    print(f"Risk-free rate: {risk_free_rate:.2%} (10-yr Treasury, "
+          f"source={risk_free_rate_source})")
 
     # --- Macro-economic overlay (opt-in via --macro) ---
     macro_regime_result = None
@@ -3418,6 +3421,7 @@ def _main():
     json_meta = {
         'date': run_start_date.isoformat(),
         'risk_free_rate': risk_free_rate,
+        'risk_free_rate_source': risk_free_rate_source,
         'count': len(results),
         'provenance': _run_prov,
     }

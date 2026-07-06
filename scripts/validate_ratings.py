@@ -21,6 +21,7 @@ import json
 import os
 import sys
 from collections import defaultdict
+from datetime import date
 
 import numpy as np
 import pandas as pd
@@ -40,7 +41,17 @@ def load_snapshot(path=None, results_dir='output'):
     if path:
         with open(path) as f:
             return json.load(f)
-    files = sorted(glob.glob(os.path.join(results_dir, 'results_*.json')))
+    # Canonical results_YYYY-MM-DD.json only: results_X_replay.json sorts
+    # lexicographically AFTER the canonical file ('_' > '.'), so a naive
+    # files[-1] would silently validate a re-scored replay copy.
+    files = []
+    for f in sorted(glob.glob(os.path.join(results_dir, 'results_*.json'))):
+        stem = os.path.basename(f)[len('results_'):-len('.json')]
+        try:
+            date.fromisoformat(stem)
+        except ValueError:
+            continue
+        files.append(f)
     if not files:
         raise FileNotFoundError(f"No results_*.json files in {results_dir}")
     with open(files[-1]) as f:

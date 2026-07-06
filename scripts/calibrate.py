@@ -86,15 +86,20 @@ def compute_objective(backtest_metrics, objective='hit_rate'):
 def hit_rate_objective(metrics):
     """Fraction of BUY-rated stocks that outperformed SPY.
 
-    Aggregates across all snapshots in *metrics*.
+    Aggregates across all snapshots in *metrics*.  BUYs with no measurable
+    forward return are excluded from numerator AND denominator rather than
+    counted as misses (or crashing on ``None > 0``).
     """
     beats = 0
     total = 0
     for m in metrics:
         for detail in m.get('details', []):
             if detail.get('rating') == 'BUY':
+                er = detail.get('excess_return')
+                if er is None:
+                    continue
                 total += 1
-                if detail.get('excess_return', 0) > 0:
+                if er > 0:
                     beats += 1
     return beats / total if total > 0 else 0.0
 
@@ -154,28 +159,24 @@ def composite_objective(metrics):
 # Parameter search space
 # ======================================================================
 
+# Only parameters that the snapshot re-score path (scoring.score_and_rate)
+# actually consumes belong here.  DCF-stage knobs (erp, blend_trigger,
+# blend_dcf_weight, growth_weight_*, analyst_haircut,
+# margin_trend_sensitivity) have NO effect when re-scoring frozen snapshots
+# — fair values are not recomputed — so searching them just burns the
+# evaluation budget and exports arbitrary "calibrated" values.  Re-add them
+# only if calibration switches to a full pipeline replay.
 SEARCH_SPACE = {
-    # Tier 1: Scoring weights (3 free, 4th derived as 1 - sum)
+    # Scoring weights (3 free, growth derived as 1 - sum - ownership)
     'score_weight_valuation': (0.15, 0.45, 0.05),
     'score_weight_quality':   (0.10, 0.40, 0.05),
     'score_weight_moat':      (0.10, 0.40, 0.05),
-    # score_weight_growth = 1.0 - sum(above three)
+    # score_weight_growth = 1.0 - sum(above three) - ownership default
 
-    # Tier 1: ERP
-    'erp': (0.04, 0.07, 0.005),
-
-    # Tier 1: Blending
-    'blend_trigger':    (1.2, 2.0, 0.1),
-    'blend_dcf_weight': (0.40, 0.80, 0.05),
-    # blend_mult_weight = 1.0 - blend_dcf_weight
-
-    # Tier 2: Growth signal weights (key two)
-    'growth_weight_analyst_lt':  (0.15, 0.45, 0.05),
-    'growth_weight_fundamental': (0.10, 0.35, 0.05),
-
-    # Tier 2: Analyst and margin adjustments
-    'analyst_haircut':          (0.60, 1.00, 0.05),
-    'margin_trend_sensitivity': (0.0, 1.0, 0.25),
+    # Composite-score rating thresholds (validate_params enforces
+    # buy > lean > pass; pass threshold stays at its default)
+    'rating_threshold_buy':  (52, 67, 5),
+    'rating_threshold_lean': (34, 44, 5),
 }
 
 
@@ -349,7 +350,8 @@ def compute_stability(window_results):
 def walk_forward_calibrate(results_dir='output', horizons=None,
                            train_size=3, test_size=1, step=1,
                            objective='hit_rate', max_evaluations=200,
-                           lambda_reg=0.05):
+                           lambda_reg=0.05, yf_client=None,
+                           prices_dir=None):
     """Run the full walk-forward calibration.
 
     For each rolling window:
@@ -368,6 +370,9 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
         objective: Objective function name.
         max_evaluations: Max parameter combinations per window.
         lambda_reg: Regularisation strength (0 = disabled).
+        yf_client: YFinanceClient for forward-return fetching.  Created on
+            demand when None.
+        prices_dir: Local parquet price dir passed to fetch_forward_returns.
 
     Returns:
         dict with 'windows', 'overall', 'recommended_params'.
@@ -386,16 +391,55 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
             'recommended_params': default_params(),
         }
 
+    # Load each snapshot once (windows overlap heavily; re-reading per
+    # window would re-parse the same multi-MB JSONs repeatedly)
+    snapshots_by_date = {}
+    for d in snapshot_dates:
+        loaded = _load_snapshots(results_dir, [d])
+        if loaded:
+            snapshots_by_date[d] = loaded[0]
+
+    # Forward returns are params-independent: compute them ONCE per
+    # snapshot×horizon, not per grid candidate.  Without this join the
+    # objectives have no outcomes to score against — the details previously
+    # read `_excess_return` keys that nothing ever wrote.
+    from scripts.backtest import fetch_forward_returns
+    if yf_client is None:
+        from data.yfinance_client import YFinanceClient
+        yf_client = YFinanceClient()
+
+    forward_returns = {}
+    for d, snap in snapshots_by_date.items():
+        run_date = snap.get('date', d.isoformat())
+        tickers = [r.get('ticker') for r in snap.get('results', [])
+                   if r.get('ticker')]
+        for h in horizons:
+            forward_returns[(run_date, h)] = fetch_forward_returns(
+                tickers, run_date, h, yf_client, prices_dir=prices_dir)
+
+    measurable = sum(1 for v in forward_returns.values() if v)
+    if measurable == 0:
+        return {
+            'windows': [],
+            'overall': {'error': 'No forward returns available for any '
+                                 'snapshot/horizon — horizons may not have '
+                                 'elapsed yet'},
+            'recommended_params': default_params(),
+        }
+
     window_results = []
     for win in windows:
-        # Load train and test results
-        train_results = _load_snapshots(results_dir, win['train_dates'])
-        test_results = _load_snapshots(results_dir, win['test_dates'])
+        train_results = [snapshots_by_date[d] for d in win['train_dates']
+                         if d in snapshots_by_date]
+        test_results = [snapshots_by_date[d] for d in win['test_dates']
+                        if d in snapshots_by_date]
 
         # For each candidate, re-score with the candidate's weights and
         # measure backtest metrics on the train window
         def evaluate(params):
-            metrics = _evaluate_params_on_snapshots(train_results, params, horizons)
+            metrics = _evaluate_params_on_snapshots(
+                train_results, params, horizons,
+                forward_returns=forward_returns)
             raw = compute_objective(metrics, objective)
             if lambda_reg > 0:
                 return regularized_objective(raw, params, lambda_reg)
@@ -411,8 +455,9 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
         train_obj = best['objective']
 
         # Out-of-sample: apply best params to test window
-        test_metrics = _evaluate_params_on_snapshots(test_results, best_params,
-                                                     horizons)
+        test_metrics = _evaluate_params_on_snapshots(
+            test_results, best_params, horizons,
+            forward_returns=forward_returns)
         test_obj = compute_objective(test_metrics, objective)
 
         window_results.append({
@@ -428,10 +473,13 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
     train_objs = [w['train_objective'] for w in window_results]
     test_objs = [w['test_objective'] for w in window_results]
 
-    # Recommended params: from the window with best test objective
+    # Recommended params: from the most recent window (standard walk-forward
+    # deployment).  Never select by test objective — that turns the
+    # out-of-sample windows into a selection set and biases the reported
+    # OOS performance upward; mean_test_objective stays honest only if the
+    # test windows weren't used for selection.
     if window_results:
-        best_window = max(window_results, key=lambda w: w['test_objective'])
-        recommended = best_window['best_params']
+        recommended = window_results[-1]['best_params']
     else:
         recommended = default_params()
 
@@ -490,17 +538,28 @@ def _load_snapshots(results_dir, dates):
     return snapshots
 
 
-def _evaluate_params_on_snapshots(snapshots, params, horizons):
+def _evaluate_params_on_snapshots(snapshots, params, horizons,
+                                  forward_returns=None):
     """Re-score snapshot results with *params* and compute backtest metrics.
 
     This performs a lightweight canonical re-score rather than a full DCF
     re-run. The fair values from the original snapshot are preserved; only
     derived scoring fields, composite scores, rating caps, and ratings change.
 
+    Args:
+        snapshots: Loaded results JSON dicts.
+        params: Candidate ParamSet for re-scoring.
+        horizons: Forward-return horizons in days.
+        forward_returns: ``{(run_date_str, horizon): {ticker: {'ret', ...}}}``
+            from ``backtest.fetch_forward_returns`` (params-independent, so
+            computed once by the caller, not per candidate).  Without it every
+            detail's excess_return is None and the objectives are meaningless.
+
     Returns:
         list[dict]: Backtest-compatible metric dicts, one per snapshot×horizon.
     """
     from scripts.scoring import score_and_rate
+    from scripts.backtest import BENCHMARK
     import copy
 
     metrics = []
@@ -513,19 +572,22 @@ def _evaluate_params_on_snapshots(snapshots, params, horizons):
 
         # Build a lightweight metric dict compatible with objective functions
         for h in horizons:
+            fwd = (forward_returns or {}).get((run_date, h), {})
+            spy = fwd.get(BENCHMARK)
             details = []
             for r in results:
+                ticker = r.get('ticker')
+                tr = fwd.get(ticker)
+                excess = (tr['ret'] - spy['ret']) if (tr and spy) else None
                 details.append({
-                    'ticker': r.get('ticker'),
+                    'ticker': ticker,
                     'rating': r.get('rating'),
                     'dcf_fv': r.get('dcf_fv'),
                     'price': r.get('price'),
                     'mos': r.get('mos'),
                     '_composite_score': r.get('_composite_score'),
-                    # Forward returns are from the original snapshot's backtest
-                    # data if available; otherwise we can't compute hit rate.
-                    'excess_return': r.get('_excess_return'),
-                    'end_price': r.get('_end_price'),
+                    'excess_return': excess,
+                    'end_price': tr['end'] if tr else None,
                 })
             metrics.append({
                 'run_date': run_date,
@@ -711,6 +773,8 @@ def main():
                         choices=['hit_rate', 'alpha', 'information_ratio',
                                  'composite'])
     parser.add_argument('--max-evals', type=int, default=200)
+    parser.add_argument('--prices-dir', default='output/prices',
+                        help='Local parquet price dir for forward returns')
     parser.add_argument('--lambda-reg', type=float, default=0.05)
     parser.add_argument('--output', default=None,
                         help='Output JSON path (default: output/calibration_DATE.json)')
@@ -728,6 +792,8 @@ def main():
 
     horizons = [int(h) for h in args.horizons.split(',')]
 
+    prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
+
     result = walk_forward_calibrate(
         results_dir=args.results_dir,
         horizons=horizons,
@@ -736,6 +802,7 @@ def main():
         objective=args.objective,
         max_evaluations=args.max_evals,
         lambda_reg=args.lambda_reg,
+        prices_dir=prices_dir,
     )
 
     out_path = args.output or os.path.join(

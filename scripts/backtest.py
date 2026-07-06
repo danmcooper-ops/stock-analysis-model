@@ -43,11 +43,21 @@ BENCHMARK = 'SPY'
 # ---------------------------------------------------------------------------
 
 def load_results(results_dir='output'):
-    """Load all results JSON files, sorted by date."""
+    """Load all LIVE results JSON files, sorted by date.
+
+    Only canonical results_YYYY-MM-DD.json snapshots are loaded; suffixed
+    variants (results_*_replay.json) are re-scored copies of earlier data
+    and would contaminate forward-return evaluation with lookahead.
+    """
     pattern = os.path.join(results_dir, 'results_*.json')
     files = sorted(glob.glob(pattern))
     all_results = []
     for f in files:
+        stem = os.path.basename(f)[len('results_'):-len('.json')]
+        try:
+            datetime.strptime(stem, '%Y-%m-%d')
+        except ValueError:
+            continue
         with open(f) as fh:
             data = json.load(fh)
             all_results.append(data)
@@ -57,6 +67,34 @@ def load_results(results_dir='output'):
 # ---------------------------------------------------------------------------
 # Forward return computation
 # ---------------------------------------------------------------------------
+
+# Maximum calendar-day distance allowed when snapping a target date to the
+# nearest available price bar.  Beyond this, the data doesn't actually cover
+# the requested window (stale parquet, not-yet-elapsed horizon) and the
+# observation must be dropped rather than silently measured over the wrong
+# span (or recorded as a fake 0.0 when both ends snap to the same last bar).
+MAX_SNAP_GAP_DAYS = 7
+
+
+def _nearest_bar(index, target, max_gap_days=MAX_SNAP_GAP_DAYS):
+    """Index position of the bar nearest *target*, or None if too far away."""
+    pos = index.get_indexer([target], method='nearest')[0]
+    if pos < 0:
+        return None
+    if abs((index[pos] - target).days) > max_gap_days:
+        return None
+    return pos
+
+
+def _fallback_period(run_dt):
+    """Smallest yfinance period string that reaches back to run_dt."""
+    import pandas as pd
+    days_back = (pd.Timestamp.now() - run_dt).days
+    for days, period in ((300, '1y'), (650, '2y'), (1750, '5y')):
+        if days_back <= days:
+            return period
+    return 'max'
+
 
 def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
                           prices_dir=None):
@@ -68,15 +106,22 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
     it is used directly (fast, no network).  Falls back to yf_client for any
     ticker not found locally.
 
+    Tickers whose price data doesn't cover the window (within
+    MAX_SNAP_GAP_DAYS of both endpoints) are omitted from the result.
+
     Returns:
         dict: {ticker: {'ret': float, 'start': float, 'end': float}}
-        None for tickers where data is unavailable.
     """
     import pandas as pd
 
     run_dt  = pd.Timestamp(run_date_str)
     eval_dt = run_dt + pd.Timedelta(days=horizon_days)
     returns = {}
+
+    # Horizon not yet elapsed: no price source can cover the window, so skip
+    # the whole snapshot instead of probing every ticker.
+    if (eval_dt - pd.Timestamp.now()).days > MAX_SNAP_GAP_DAYS:
+        return returns
 
     all_tickers = list(set(tickers + [BENCHMARK]))
 
@@ -91,10 +136,16 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
                     df = pd.read_parquet(parquet)[['Close']].sort_index()
                     df.index = pd.to_datetime(df.index).tz_localize(None)
                     hist = df['Close']
+                    # Stale parquet that can't reach eval_dt: retry via
+                    # network before giving up on the ticker.
+                    if (len(hist) == 0 or
+                            (eval_dt - hist.index[-1]).days > MAX_SNAP_GAP_DAYS):
+                        hist = None
 
-            # --- Live yfinance fallback ---
+            # --- Live yfinance fallback (period sized to reach run_dt) ---
             if hist is None:
-                hist = yf_client.fetch_history(ticker, period="1y")
+                hist = yf_client.fetch_history(
+                    ticker, period=_fallback_period(run_dt))
                 if hist is None or len(hist) < 10:
                     continue
 
@@ -102,8 +153,10 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
             if hasattr(hist.index, 'tz') and hist.index.tz is not None:
                 hist.index = hist.index.tz_localize(None)
 
-            start_idx = hist.index.get_indexer([run_dt],  method='nearest')[0]
-            end_idx   = hist.index.get_indexer([eval_dt], method='nearest')[0]
+            start_idx = _nearest_bar(hist.index, run_dt)
+            end_idx   = _nearest_bar(hist.index, eval_dt)
+            if start_idx is None or end_idx is None or end_idx <= start_idx:
+                continue
 
             start_price = float(hist.iloc[start_idx])
             end_price   = float(hist.iloc[end_idx])
@@ -145,7 +198,22 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None):
                                     prices_dir=prices_dir)
 
     spy = returns.get(BENCHMARK)
-    spy_ret = spy['ret'] if spy else 0.0
+    if spy is None:
+        # Without the benchmark, "alpha" would silently equal raw return and
+        # hit-rate would mean "beat 0%" — skip the snapshot instead.
+        if returns:
+            print(f"  WARNING: no {BENCHMARK} return for {run_date} "
+                  f"@{horizon_days}d — snapshot skipped")
+        return None
+    spy_ret = spy['ret']
+
+    # Survivorship visibility: tickers with no measurable forward return
+    # (delisted, halted, stale data) are dropped from bucket stats — report
+    # how many so a thinned sample can't masquerade as full coverage.
+    n_dropped = sum(1 for t in tickers if t not in returns)
+    if n_dropped:
+        print(f"  note: {run_date} @{horizon_days}d — {n_dropped}/{len(tickers)} "
+              f"tickers had no measurable forward return (dropped)")
 
     # Build detail rows
     details = []

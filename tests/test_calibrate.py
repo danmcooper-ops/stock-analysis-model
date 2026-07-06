@@ -325,3 +325,46 @@ class TestSnapshotDiscovery:
     def test_nonexistent_directory(self):
         dates = _discover_snapshot_dates('/nonexistent/path')
         assert dates == []
+
+
+class TestForwardReturnJoin:
+    """The calibration objectives must consume REAL joined forward returns
+    (the old code read _excess_return keys that nothing ever wrote)."""
+
+    def test_hit_rate_excludes_none_returns(self):
+        m = [{'details': [
+            {'rating': 'BUY', 'excess_return': None},
+            {'rating': 'BUY', 'excess_return': 0.05},
+        ]}]
+        assert hit_rate_objective(m) == pytest.approx(1.0)
+
+    def test_hit_rate_all_none_is_zero_not_crash(self):
+        m = [{'details': [{'rating': 'BUY', 'excess_return': None}]}]
+        assert hit_rate_objective(m) == 0.0
+
+    def test_evaluate_joins_forward_returns(self):
+        from scripts.calibrate import _evaluate_params_on_snapshots
+        snap = {'date': '2026-03-01', 'results': [
+            {'ticker': 'AAA', 'price': 100.0, 'dcf_fv': 150.0},
+            {'ticker': 'BBB', 'price': 50.0, 'dcf_fv': 40.0},
+        ]}
+        fwd = {('2026-03-01', 90): {
+            'AAA': {'ret': 0.20, 'start': 100.0, 'end': 120.0},
+            'SPY': {'ret': 0.05, 'start': 400.0, 'end': 420.0},
+        }}
+        metrics = _evaluate_params_on_snapshots(
+            [snap], default_params(), [90], forward_returns=fwd)
+        by_t = {d['ticker']: d for d in metrics[0]['details']}
+        assert by_t['AAA']['excess_return'] == pytest.approx(0.15)
+        assert by_t['AAA']['end_price'] == pytest.approx(120.0)
+        assert by_t['BBB']['excess_return'] is None
+
+    def test_search_space_only_rescorable_params(self):
+        from scripts.calibrate import SEARCH_SPACE
+        dcf_stage = {'erp', 'blend_trigger', 'blend_dcf_weight',
+                     'growth_weight_analyst_lt', 'growth_weight_fundamental',
+                     'analyst_haircut', 'margin_trend_sensitivity'}
+        assert not dcf_stage & set(SEARCH_SPACE)
+        # thresholds ARE searched, as scoring.py's comment promises
+        assert 'rating_threshold_buy' in SEARCH_SPACE
+        assert 'rating_threshold_lean' in SEARCH_SPACE
