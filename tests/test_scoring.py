@@ -364,6 +364,11 @@ class TestCanonicalScoreAndRate:
             'share_buyback_rate': 0.03,
             'roic_cv': 0.10,
             'spread': 0.20,
+            # Incr ROIC computes at 25% (ΔNOPAT 50 / ΔIC 200) — without
+            # these the gate scores 0 on missing data, which FCF Margin's
+            # near-perfect score used to mask before the Pool Share swap.
+            '_nopat_by_year': {'2021': 100.0, '2024': 150.0},
+            '_ic_by_year': {'2021': 800.0, '2024': 1000.0},
             'gross_margin_avg_5y': 0.70,
             'fundamental_growth': 0.10,
             'gross_margin_trend': 0.02,
@@ -422,6 +427,7 @@ class TestCanonicalScoreAndRate:
         assert '_gate_incr_roic' in keys
         assert '_gate_margin_vs_hist' in keys
         assert '_gate_insider_buying' in keys
+        assert '_gate_pool_share' in keys
         # Retired gates must be gone
         assert '_gate_roic_trend' not in keys
         assert '_gate_rim_mos' not in keys
@@ -431,6 +437,8 @@ class TestCanonicalScoreAndRate:
         assert '_gate_cash_conv' not in keys     # accruals inverted
         assert '_gate_gross_margin' not in keys  # merged into Margin Adv
         assert '_gate_epv_floor' not in keys     # collinear with MoS (r=0.68)
+        assert '_gate_fcf_margin' not in keys    # margin level = Margin Adv's
+        # axis; FCF votes via FCF Yield / FCF Durability / Accruals
 
     def test_gate_metadata_score_keys_are_written(self):
         """Every screening gate name must have a scoring twin — a name
@@ -728,6 +736,141 @@ class TestMarginVsHist:
             assert row['margin_vs_hist'] is None
 
 
+def _pp_row(ticker, oi_by_year, sector='Widgets'):
+    """Row with only what the pool-share trajectory pass consumes."""
+    return {'ticker': ticker, 'sector': sector,
+            'edgar_history': {'operating_income_history': oi_by_year}}
+
+
+class TestPoolShareTrajectory:
+    def _base_universe(self):
+        """Three Widgets tickers with a full 2019/2024 panel. Pools:
+        2019 = 20+50+30 = 100, 2024 = 45+70+35 = 150.
+        A's share: 0.20 → 0.30."""
+        return [
+            _pp_row('A', {2019: 20.0, 2024: 45.0}),
+            _pp_row('B', {2019: 50.0, 2024: 70.0}),
+            _pp_row('C', {2019: 30.0, 2024: 35.0}),
+        ]
+
+    def test_full_5y_window_hand_checked(self):
+        rows = self._base_universe()
+        prepare_scoring_fields(rows)
+        a = rows[0]
+        assert a['pool_share_cagr'] == pytest.approx((0.30 / 0.20) ** (1 / 5) - 1)
+        assert a['_pool_share_undefined'] is False
+
+    def test_string_keys_match_int_keys(self):
+        """Snapshot JSON round-trip turns year keys into strings — values
+        must be identical to the int-keyed live run."""
+        int_rows = self._base_universe()
+        str_rows = [
+            _pp_row('A', {'2019': 20.0, '2024': 45.0}),
+            _pp_row('B', {'2019': 50.0, '2024': 70.0}),
+            _pp_row('C', {'2019': 30.0, '2024': 35.0}),
+        ]
+        prepare_scoring_fields(int_rows)
+        prepare_scoring_fields(str_rows)
+        assert str_rows[0]['pool_share_cagr'] == pytest.approx(
+            int_rows[0]['pool_share_cagr'])
+
+    def test_span_fallback_with_3y_floor(self):
+        """No latest−5 year → fall back to oldest, annualized over the
+        actual span; below 3 years the gate is undefined."""
+        rows = [
+            _pp_row('A', {2021: 20.0, 2024: 45.0}),   # span 3: computes
+            _pp_row('B', {2021: 50.0, 2024: 70.0}),
+            _pp_row('C', {2021: 30.0, 2024: 35.0}),
+        ]
+        prepare_scoring_fields(rows)
+        a = rows[0]
+        assert a['pool_share_cagr'] == pytest.approx((0.30 / 0.20) ** (1 / 3) - 1)
+        assert a['_pool_share_undefined'] is False
+
+        short = _pp_row('D', {2022: 10.0, 2024: 12.0})  # span 2: undefined
+        rows2 = self._base_universe() + [short]
+        prepare_scoring_fields(rows2)
+        assert short['pool_share_cagr'] is None
+        assert short['_pool_share_undefined'] is True
+
+    def test_consistent_panel_excludes_partial_peers(self):
+        """A peer reporting only in the end year must not enter either
+        endpoint pool — subject's CAGR is unchanged by its arrival."""
+        baseline = self._base_universe()
+        prepare_scoring_fields(baseline)
+        expected = baseline[0]['pool_share_cagr']
+
+        newcomer = _pp_row('NEW', {2024: 999.0})   # IPO: end year only
+        rows = self._base_universe() + [newcomer]
+        prepare_scoring_fields(rows)
+        assert rows[0]['pool_share_cagr'] == pytest.approx(expected)
+        assert newcomer['pool_share_cagr'] is None
+        assert newcomer['_pool_share_undefined'] is True
+
+    def test_panel_below_min_sector_stocks_is_undefined(self):
+        rows = [
+            _pp_row('A', {2019: 20.0, 2024: 45.0}),
+            _pp_row('B', {2019: 50.0, 2024: 70.0}),
+        ]
+        prepare_scoring_fields(rows)
+        for r in rows:
+            assert r['pool_share_cagr'] is None
+            assert r['_pool_share_undefined'] is True
+
+    def test_negative_endpoints_clamp_in_pool_and_undefine_subject(self):
+        """Peer's negative year contributes 0 to the pool; a subject with a
+        loss-making endpoint has share 0 → undefined, never −100%."""
+        rows = [
+            _pp_row('A', {2019: 20.0, 2024: 45.0}),
+            _pp_row('B', {2019: 50.0, 2024: 70.0}),
+            _pp_row('C', {2019: -10.0, 2024: 35.0}),  # clamped to 0 in 2019 pool
+        ]
+        prepare_scoring_fields(rows)
+        a, c = rows[0], rows[2]
+        # Pools: 2019 = 20+50+0 = 70, 2024 = 45+70+35 = 150
+        assert a['pool_share_cagr'] == pytest.approx(
+            ((45 / 150) / (20 / 70)) ** (1 / 5) - 1)
+        assert c['pool_share_cagr'] is None
+        assert c['_pool_share_undefined'] is True
+
+    def test_structural_na_degradation(self):
+        """No edgar_history / empty history / missing sector → None + flag;
+        the screening gate renders N/A and leaves the denominator."""
+        rows = [
+            {'ticker': 'X'},                                        # no history
+            {'ticker': 'Y', 'sector': 'Widgets',
+             'edgar_history': {'operating_income_history': {}}},    # empty
+            _pp_row('Z', {2019: 20.0, 2024: 45.0}, sector=None),    # no sector
+        ]
+        prepare_scoring_fields(rows)
+        for r in rows:
+            assert r['pool_share_cagr'] is None
+            assert r['_pool_share_undefined'] is True
+
+        solo = {'ticker': 'X'}
+        apply_screening_matrix([solo])
+        assert solo['_gp_pool_share'] is None
+        assert solo['_gates_inapplicable'] >= 1
+
+    def test_near_zero_start_share_is_clamped(self):
+        rows = [
+            _pp_row('A', {2019: 0.001, 2024: 50.0}),
+            _pp_row('B', {2019: 100.0, 2024: 100.0}),
+            _pp_row('C', {2019: 100.0, 2024: 100.0}),
+        ]
+        prepare_scoring_fields(rows)
+        assert rows[0]['pool_share_cagr'] == 1.0
+
+    def test_stale_snapshot_values_are_overwritten(self):
+        """Rescoring a row whose prior run computed a value must recompute
+        from scratch — a row that can no longer compute goes back to N/A."""
+        r = {'ticker': 'X', 'pool_share_cagr': 0.42,
+             '_pool_share_undefined': False}
+        prepare_scoring_fields([r])
+        assert r['pool_share_cagr'] is None
+        assert r['_pool_share_undefined'] is True
+
+
 # ---------------------------------------------------------------------------
 # 2026-07 rebalance: applicability mask + per-gate weights
 # ---------------------------------------------------------------------------
@@ -767,12 +910,13 @@ class TestApplicabilityMask:
         bank = _full_row(ticker='BANK', sector='Financial Services')
         generic = _full_row(ticker='TECH')
         apply_screening_matrix([bank, generic])
-        # ebit_ev, fcf_yield, fcf_margin, fcf_cagr_5y masked for financials
+        # ebit_ev, fcf_yield, fcf_cagr_5y masked for financials; pool_share
+        # is inapplicable for BOTH rows (no edgar_history in the fixture)
         assert bank['_gates_inapplicable'] == 4
-        assert generic['_gates_inapplicable'] == 0
+        assert generic['_gates_inapplicable'] == 1
         bank_denom = int(bank['_gates_passed'].split('/')[1])
         gen_denom = int(generic['_gates_passed'].split('/')[1])
-        assert gen_denom - bank_denom == 4
+        assert gen_denom - bank_denom == 3
         assert bank['_gp_ebit_ev'] is None
         assert bank['_gp_fcf_yield'] is None
 

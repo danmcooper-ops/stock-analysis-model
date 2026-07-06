@@ -83,6 +83,38 @@ def trailing_return(ticker, as_of, horizon_td, prices_dir):
     return (end_price - start_price) / start_price, start_price, end_price
 
 
+def print_gate_correlations(stocks, top_n=12):
+    """Spearman correlation between per-gate _score_* columns across the
+    universe — verifies a new gate adds an orthogonal axis, not a rename
+    of an existing signal."""
+    from scripts.scoring import SCORING_GATES, _score_key, _gate_short
+    cols = {_gate_short(g.name): [s.get(_score_key(g.name)) for s in stocks]
+            for g in SCORING_GATES}
+    gdf = pd.DataFrame(cols).astype(float)
+    corr = gdf.corr(method='spearman', min_periods=50)
+    pairs = [(abs(corr.iat[i, j]), corr.iat[i, j],
+              corr.index[i], corr.columns[j])
+             for i in range(len(corr)) for j in range(i + 1, len(corr))
+             if pd.notna(corr.iat[i, j])]
+    pairs.sort(reverse=True)
+    print(f"\nTop {top_n} most-correlated gate-score pairs (Spearman):")
+    for _, rho, a, b in pairs[:top_n]:
+        print(f"  {a:<18} × {b:<18} rho={rho:+.2f}")
+    # Orthogonality check for the 2026-07 Pool Share swap: the pairs most
+    # likely to collapse into one axis (level vs trajectory of the same
+    # sector-relative signal, and the two ΔNOPAT-flavored trajectories).
+    print("\nPool Share orthogonality check:")
+    for other in ('margin_advantage', 'incr_roic', 'margins'):
+        rho = None
+        if 'pool_share' in corr.index and other in corr.columns:
+            rho = corr.at['pool_share', other]
+        if rho is None or pd.isna(rho):
+            print(f"  pool_share × {other:<18} rho=n/a")
+        else:
+            flag = '' if abs(rho) < 0.40 else '  << HIGH — investigate'
+            print(f"  pool_share × {other:<18} rho={rho:+.2f}{flag}")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -188,6 +220,8 @@ def main():
     for _, r in bot.iterrows():
         print(f"  {r['ticker']:<6}  {r['ret']:>+7.1%}  score={r['score']:.2f}" if r['score'] else
               f"  {r['ticker']:<6}  {r['ret']:>+7.1%}")
+
+    print_gate_correlations(stocks)
 
 
 if __name__ == '__main__':

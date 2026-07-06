@@ -195,3 +195,10 @@ class TestNewGateThresholds:
         assert fn(0.50, {}) is True      # boundary is >=
         assert fn(0.25, {}) is False
         assert fn(None, {}) is None
+
+    def test_pool_share(self):
+        fn = _gate('Moat: Pool Share')
+        assert fn(0.05, {}) is True      # gaining share of the sector pool
+        assert fn(0.0, {}) is False      # boundary is strict >
+        assert fn(-0.03, {}) is False    # losing share
+        assert fn(None, {}) is None

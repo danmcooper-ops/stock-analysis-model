@@ -34,7 +34,8 @@ def test_every_gate_header_has_a_tooltip():
 
 def test_new_2026_07_gates_have_tooltips():
     tt = _tt_keys()
-    for key in ('ebit_ev', 'incr_roic', 'margin_vs_hist', 'insider_buying'):
+    for key in ('ebit_ev', 'incr_roic', 'margin_vs_hist', 'insider_buying',
+                'pool_share'):
         assert key in tt, f'missing tooltip for {key}'
         # non-trivial narrative text, not a stub
         body = open(_TEMPLATE, encoding='utf-8').read()

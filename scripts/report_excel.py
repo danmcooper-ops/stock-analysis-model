@@ -260,7 +260,7 @@ def build_excel(rows, filename):
             '_gate_roic_consistency': 13, '_score_roic_consistency': 14,
             '_gate_spread': 12, '_score_spread': 12,
             '_gate_margin_advantage': 13, '_score_margin_advantage': 14,
-            '_gate_fcf_margin': 11, '_score_fcf_margin': 13,
+            '_gate_pool_share': 12, '_score_pool_share': 13,
             '_gate_incr_roic': 11, '_score_incr_roic': 12,
             '_score_moat': 10,
             '_gate_fund_growth': 12, '_score_fund_growth': 10,

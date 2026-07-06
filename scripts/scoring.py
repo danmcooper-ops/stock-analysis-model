@@ -6,7 +6,7 @@ from collections import namedtuple
 
 from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH,
-                             SCORE_WEIGHT_OWNERSHIP)
+                             SCORE_WEIGHT_OWNERSHIP, MIN_SECTOR_STOCKS)
 
 # Gate specs. `weight` scales a gate's contribution within its category
 # (default 1.0). `applicable` is an optional row-predicate: when it returns
@@ -72,6 +72,16 @@ def _appl_mult_history(r):
     """Multiple-vs-own-history needs a real baseline: >=5 positive-EBIT years
     with matchable year-end prices and share counts."""
     return (r.get('mult_hist_years') or 0) >= 5
+
+
+def _appl_pool_share(r):
+    """Pool-share trajectory is undefined (not bad) when structurally
+    uncomputable: <3y of operating-income history, fewer than
+    MIN_SECTOR_STOCKS consistent-panel peers, missing sector, or a
+    non-positive endpoint share. NOTE: deviates from the house
+    "sparse data scores 0" rule — missing history is N/A here because
+    old snapshots lack operating_income_history entirely (added 2026-07)."""
+    return not r.get('_pool_share_undefined')
 
 MIN_SECTOR_SCORING = 5  # Min stocks per sector for sector-relative percentile
 RATING_RANK = {'PASS': 0, 'HOLD': 1, 'LEAN BUY': 2, 'BUY': 3}
@@ -262,10 +272,17 @@ SCREENING_GATES = [
     ('Moat: Margin Advantage',
      'margin_advantage',
      lambda v, r: v > 0.05 if v is not None else None),
-    ('Moat: FCF Margin',
-     'fcf_margin',
-     lambda v, r: v > 0.12 if v is not None else None,
-     _appl_non_financial),
+    # Pool-share trajectory: 5-yr CAGR of the company's share of its
+    # sector's operating-profit pool (consistent panel) — is it WINNING
+    # share of sector profit over time? Share-of-pool complement to
+    # Margin Advantage's level-vs-sector signal.
+    # (FCF Margin retired: one signal counted twice — margin LEVEL is
+    # Margin Advantage's axis, and FCF already votes through FCF Yield,
+    # FCF Durability, and Accruals.)
+    ('Moat: Pool Share',
+     'pool_share_cagr',
+     lambda v, r: v > 0 if v is not None else None,
+     _appl_pool_share),
 
     # ---- Growth ----
     ('Growth: Rev Durability',
@@ -310,8 +327,84 @@ SCREENING_GATES = [
 SCREENING_GATES = [ScreeningGate(*g) for g in SCREENING_GATES]
 
 
+def _compute_pool_share_trajectory(results):
+    """Cross-sectional pre-pass: 5-yr CAGR of each ticker's share of its
+    sector's operating-profit pool (Moat: Pool Share gate).
+
+    CONSISTENT PANEL: the two endpoint-year pools are summed over only the
+    tickers with operating income in BOTH endpoint years, so a company's
+    share change is measured against the same peer set in both years —
+    composition drift (IPOs entering, thin histories dropping out) doesn't
+    masquerade as share gain or loss. The pool is this run's analyzed
+    universe, not the true market: the panel fixes within-window drift,
+    not cross-run universe drift.
+
+    Window: prefer exactly (latest−5, latest); else fall back to the oldest
+    available year (actual span, annualized), minimum 3 years — modeled on
+    cfo_cagr in scripts/enrich_reit.py with a 3y floor. Negative operating
+    income clamps to 0 in numerator and pool, matching the single-year
+    pp_profit_share pass in analyze_stock.py.
+    """
+    sector_rows = {}                      # sector -> [(row, {int_year: oi})]
+    for r in results:
+        # Defaults-first so stale values from a prior rescore are always
+        # overwritten (these persist in snapshot JSONs like
+        # _incr_roic_undefined — not scrubbed by _purge_stale_gate_fields).
+        r['pool_share_cagr'] = None
+        r['_pool_share_undefined'] = True
+        oi = ((r.get('edgar_history') or {})
+              .get('operating_income_history')) or {}
+        h = {}
+        for k, v in oi.items():           # int keys live, str after JSON round-trip
+            if v is None:
+                continue
+            try:
+                h[int(str(k)[:4])] = v
+            except (TypeError, ValueError):
+                continue
+        s = r.get('sector')
+        if s and h:
+            sector_rows.setdefault(s, []).append((r, h))
+
+    for s, rows in sector_rows.items():
+        pools = {}                        # (y0, y1) -> (pool0, pool1, n_panel)
+        for r, h in rows:
+            ys = sorted(h)
+            if len(ys) < 2:
+                continue
+            y1 = ys[-1]
+            y0 = y1 - 5 if (y1 - 5) in h else ys[0]
+            span = y1 - y0
+            if span < 3:
+                continue
+            key = (y0, y1)
+            if key not in pools:          # one sector pass per endpoint pair
+                p0 = p1 = 0.0
+                n = 0
+                for _, h2 in rows:
+                    if y0 in h2 and y1 in h2:
+                        p0 += max(h2[y0], 0.0)
+                        p1 += max(h2[y1], 0.0)
+                        n += 1
+                pools[key] = (p0, p1, n)
+            p0, p1, n = pools[key]
+            if n < MIN_SECTOR_STOCKS or p0 <= 0 or p1 <= 0:
+                continue
+            sh0 = max(h[y0], 0.0) / p0
+            sh1 = max(h[y1], 0.0) / p1
+            if sh0 <= 0 or sh1 <= 0:
+                continue                  # CAGR undefined crossing zero
+            # Clamp for sane display (cf. incremental_roic): a near-zero
+            # starting share can produce absurd CAGRs; the score range is
+            # far narrower.
+            r['pool_share_cagr'] = max(-1.0, min(1.0,
+                                       (sh1 / sh0) ** (1.0 / span) - 1))
+            r['_pool_share_undefined'] = False
+
+
 def prepare_scoring_fields(results):
     """Populate derived fields shared by gates and continuous scoring."""
+    _compute_pool_share_trajectory(results)
     for r in results:
         sbc = r.get('sbc')
         rev = r.get('revenue')
@@ -323,9 +416,9 @@ def prepare_scoring_fields(results):
         # and pfcf ratios below stay FX-consistent. See derive_edgar_metrics.
         # Financial Services (banks/insurers/brokers) are excluded: their
         # operating cash flow reflects deposit/loan/trading/float movements,
-        # so OCF − capex is not a valid FCF proxy — the same reason FCF Margin
-        # and Gross Margin are legitimately N/A for financials (they're scored
-        # on FDIC KPIs / combined ratios instead).
+        # so OCF − capex is not a valid FCF proxy — the same reason the FCF
+        # Yield/Durability gates are legitimately N/A for financials (they're
+        # scored on FDIC KPIs / combined ratios instead).
         if fcf is None and r.get('sector') != 'Financial Services':
             fcf_edgar = r.get('fcf_edgar')
             if fcf_edgar is not None:
@@ -657,9 +750,9 @@ SCORING_GATES = [
     ('Valuation: P/TBV', 'p_tbv', 'Valuation',
      lambda v, r, pct: _score_linear(v, 5.0, 1.0) if v is not None and v > 0 else None,
      False, True, 1.0, _appl_positive_tbv),
-    ('Moat: FCF Margin', 'fcf_margin', 'Moat',
-     lambda v, r, pct: _score_linear(v, 0.05, 0.25), False, True, 1.0,
-     _appl_non_financial),                                            # tightened: worst 0%→5%, best 20%→25%
+    ('Moat: Pool Share', 'pool_share_cagr', 'Moat',
+     lambda v, r, pct: _score_linear(v, -0.10, 0.15), False, True, 1.0,
+     _appl_pool_share),
     ('Growth: FCF Durability', 'fcf_cagr_5y', 'Growth',
      lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True, 1.0,
      _appl_non_financial),
@@ -837,6 +930,10 @@ def rating_from_composite(composite, params=None):
     Thresholds quantile-matched against the rescored 2026-07-02 universe
     (n=2211) after the 2026-07 gate rebalance, reproducing the target
     ~0.6% BUY / ~25% LEAN / ~49% HOLD / ~24% PASS distribution.
+    Re-confirmed after the 2026-07 Pool Share swap (FCF Margin retired):
+    rescoring the 2026-07-03 universe (n=2210) moved the distribution
+    only 17/328/600/1265 → 13/340/597/1260 (BUY −0.18pp, LEAN +0.5pp) —
+    inside tolerance, thresholds unchanged.
     PROVISIONAL: old snapshots carry no per-year NOPAT/invested-capital,
     so Incr ROIC scores 0 on rescores; the first live run will lift
     composites slightly — revisit then (the weekly calibrate job also
@@ -889,7 +986,7 @@ _GATE_DISPLAY = {
     'rev_durability': {'label': '10Y Rev CAGR', 'threshold': '10Y RevCAGR > 2%', 'fmt': 'pct1'},
     'sbc_dilution': {'label': 'SBC/Rev', 'threshold': 'SBC/Rev <= 2%', 'fmt': 'pct1'},
     'p_tbv': {'label': 'P/TBV', 'threshold': 'P/TBV <= 2.5x', 'fmt': 'ratio'},
-    'fcf_margin': {'label': 'FCF Margin', 'threshold': 'FCF Margin > 12%', 'fmt': 'pct1'},
+    'pool_share': {'label': 'Pool Share Δ', 'threshold': '5y profit-pool share CAGR > 0', 'fmt': 'pct1'},
     'fcf_durability': {'label': '5Y FCF CAGR', 'threshold': '5Y FCF CAGR > 5%', 'fmt': 'pct1'},
     'share_shrink': {'label': 'Share Shrink', 'threshold': '5Y Shares CAGR < 0', 'fmt': 'pct1'},
     'piotroski': {'label': 'Piotroski', 'threshold': 'F-Score >= 7', 'fmt': 'int'},
