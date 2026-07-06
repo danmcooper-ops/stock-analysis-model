@@ -7,7 +7,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from scripts.scoring import SCREENING_GATES
+from scripts.scoring import GATES
 from scripts.analyze_stock import _compute_shareholder_yield
 
 
@@ -16,8 +16,8 @@ from scripts.analyze_stock import _compute_shareholder_yield
 # ---------------------------------------------------------------------------
 
 def _gate(name):
-    """Return the test_fn for a screening gate by display name."""
-    for gate in SCREENING_GATES:
+    """Return the test_fn for a gate by display name."""
+    for gate in GATES:
         if gate.name == name:
             return gate.test_fn
     raise KeyError(name)

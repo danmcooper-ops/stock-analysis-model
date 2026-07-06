@@ -7,8 +7,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from scripts.scoring import (
     _score_linear, compute_continuous_scores, apply_composite_rating_override,
-    rating_from_composite, _mc_confidence_label, SCORING_GATES,
-    SCREENING_GATES, gate_metadata, score_and_rate,
+    rating_from_composite, _mc_confidence_label, GATES,
+    gate_metadata, score_and_rate,
     apply_screening_matrix, _rating_cap_for_row, apply_rating_caps,
     prepare_scoring_fields,
 )
@@ -425,7 +425,6 @@ class TestCanonicalScoreAndRate:
     def test_preserves_score_rating_and_applies_critical_cap(self):
         rows = [self._row()]
         score_and_rate(rows)
-        assert rows[0]['_rating_from_score'] == 'BUY'
         assert rows[0]['rating_raw'] == 'BUY'
         assert rows[0]['_rating_cap'] == 'PASS'
         assert rows[0]['rating'] == 'PASS'
@@ -440,9 +439,9 @@ class TestCanonicalScoreAndRate:
         assert rows[0]['sbc_pct_rev'] == pytest.approx(0.0)
         assert rows[0]['roic_trend_slope'] == pytest.approx(0.04)
 
-    def test_gate_metadata_matches_screening_gate_count(self):
+    def test_gate_metadata_matches_gate_count(self):
         meta = gate_metadata()
-        assert len(meta['gates']) == len(SCREENING_GATES)
+        assert len(meta['gates']) == len(GATES)
         keys = {g['key'] for g in meta['gates']}
         assert '_gate_margin_advantage' in keys
         assert '_gate_mult_vs_hist' in keys   # time-series cheapness (replaced EPV Floor)
@@ -466,12 +465,12 @@ class TestCanonicalScoreAndRate:
         assert '_gate_fcf_margin' not in keys    # margin level = Margin Adv's
         # axis; FCF votes via FCF Yield / FCF Durability / Accruals
 
-    def test_gate_metadata_score_keys_are_written(self):
-        """Every screening gate name must have a scoring twin — a name
-        mismatch silently blanks that gate's Matrix score column."""
-        scoring_names = {g.name for g in SCORING_GATES}
-        for gate in SCREENING_GATES:
-            assert gate.name in scoring_names, gate.name
+    def test_every_gate_has_test_and_score_fns(self):
+        """The unified spec must carry BOTH halves for every gate — a gate
+        with a missing fn would blank its Matrix cell or score column."""
+        for gate in GATES:
+            assert callable(gate.test_fn), gate.name
+            assert callable(gate.score_fn), gate.name
 
     def test_gate_metadata_carries_weights(self):
         meta = gate_metadata()
@@ -1013,7 +1012,7 @@ class TestGateWeights:
         row = _full_row()
         compute_continuous_scores([row])
         num = den = 0.0
-        for g in SCORING_GATES:
+        for g in GATES:
             if g.category != 'Valuation':
                 continue
             s = row[_score_key(g.name)]
@@ -1024,10 +1023,10 @@ class TestGateWeights:
         assert row['_score_valuation'] == pytest.approx(num / den, abs=0.1)
 
     def test_mos_weight_is_two(self):
-        mos_gate = next(g for g in SCORING_GATES
+        mos_gate = next(g for g in GATES
                         if g.name == 'Valuation: MoS')
         assert mos_gate.weight == 2.0
-        others = [g.weight for g in SCORING_GATES
+        others = [g.weight for g in GATES
                   if g.name != 'Valuation: MoS']
         assert all(w == 1.0 for w in others)
 

@@ -87,9 +87,9 @@ def print_gate_correlations(stocks, top_n=12):
     """Spearman correlation between per-gate _score_* columns across the
     universe — verifies a new gate adds an orthogonal axis, not a rename
     of an existing signal."""
-    from scripts.scoring import SCORING_GATES, _score_key, _gate_short
+    from scripts.scoring import GATES, _score_key, _gate_short
     cols = {_gate_short(g.name): [s.get(_score_key(g.name)) for s in stocks]
-            for g in SCORING_GATES}
+            for g in GATES}
     gdf = pd.DataFrame(cols).astype(float)
     corr = gdf.corr(method='spearman', min_periods=50)
     pairs = [(abs(corr.iat[i, j]), corr.iat[i, j],

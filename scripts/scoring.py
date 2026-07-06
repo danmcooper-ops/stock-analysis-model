@@ -8,20 +8,30 @@ from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH,
                              SCORE_WEIGHT_OWNERSHIP, MIN_SECTOR_STOCKS)
 
-# Gate specs. `weight` scales a gate's contribution within its category
-# (default 1.0). `applicable` is an optional row-predicate: when it returns
-# False the gate is STRUCTURALLY INAPPLICABLE for that ticker (a bank has no
-# meaningful FCF yield; negative tangible book makes P/TBV undefined) and is
-# excluded from numerator AND denominator — unlike missing data, which still
-# scores 0 (worst). `applicable=None` means always applicable.
-ScoringGate = namedtuple(
-    'ScoringGate',
-    ['name', 'field', 'category', 'score_fn', 'relative_mode', 'higher_better',
-     'weight', 'applicable'],
-    defaults=(1.0, None))
-ScreeningGate = namedtuple(
-    'ScreeningGate', ['name', 'field', 'test_fn', 'applicable'],
-    defaults=(None,))
+# Unified gate spec — ONE entry per metric drives both the pass/fail Gate
+# Matrix cell and the continuous 0-100 score, so a gate's threshold and its
+# scoring range live side by side and cannot drift apart.
+#   test_fn:  (value, row) -> bool | None (None = missing data, renders N/A)
+#   score_fn: (value, row, percentile_or_None) -> 0-100
+#   relative_mode: False=absolute, 'global'/'sector'=percentile-ranked score
+#   higher_better: direction for percentile ranking (relative gates only)
+#   weight: scales the gate's contribution within its category (default 1.0)
+#   applicable: optional row-predicate; when it returns False the gate is
+#     STRUCTURALLY INAPPLICABLE for that ticker (a bank has no meaningful FCF
+#     yield; negative tangible book makes P/TBV undefined) and is excluded
+#     from numerator AND denominator — unlike missing data, which still
+#     scores 0 (worst). `applicable=None` means always applicable.
+# The category is the gate name's prefix ("Valuation: MoS" → "Valuation").
+class Gate(namedtuple('Gate',
+                      ['name', 'field', 'test_fn', 'score_fn',
+                       'relative_mode', 'higher_better', 'weight',
+                       'applicable'],
+                      defaults=(False, True, 1.0, None))):
+    __slots__ = ()
+
+    @property
+    def category(self):
+        return self.name.split(': ')[0]
 
 
 def _gate_applicable(gate, row):
@@ -30,7 +40,7 @@ def _gate_applicable(gate, row):
 
 
 # ---------------------------------------------------------------------------
-# Applicability predicates (shared by SCREENING_GATES and SCORING_GATES)
+# Applicability predicates (shared across GATES)
 # ---------------------------------------------------------------------------
 
 def _appl_non_financial(r):
@@ -168,8 +178,10 @@ def _ranked_percentiles(items, higher_better=True):
     return out
 
 
-# Gate definitions: (display_name, field_or_callable, pass_test)
-# pass_test is a callable: (value, row) -> bool | None (None = skip gate)
+# Unified gate definitions — ONE list drives both the pass/fail Gate Matrix
+# (test_fn → _gate_*/_gp_* fields, the "gates passed" diagnostic) and the
+# continuous composite scoring (score_fn → _score_* fields, category
+# averages, composite, rating). Tune a gate in one place.
 #
 # Order matters — the Gate Matrix renders columns within each category in the
 # order they appear here. Grouping is intentional:
@@ -177,43 +189,55 @@ def _ranked_percentiles(items, higher_better=True):
 #   Quality:    leverage → earnings quality → returns → composite
 #   Moat:       ROIC family (spread, consistency, trend) → margin family
 #   Growth:     top-line → bottom-line → margin trend → composite
-#   Ownership:  share-count direction (yield, buyback, shrink) → dilution → alignment
-SCREENING_GATES = [
+#   Ownership:  share-count direction (yield, shrink) → dilution → alignment
+GATES = [
     # ---- Valuation ----
-    ('Valuation: MoS',
-     'mos',
-     lambda v, r: v > 0.10 if v is not None else None),
-    ('Valuation: FV Dispersion',
-     'fv_dispersion',
-     # MAD/median statistic (see prepare_scoring_fields); 0.15 preserves the
-     # ~29% pass rate the old (max−min)/median @0.50 produced. Provisional.
-     lambda v, r: v <= 0.15 if v is not None else None),
+    # MoS is the headline price-vs-value signal; double weight within
+    # Valuation so it isn't diluted to 1/6 of a 0.30-weight category.
+    Gate('Valuation: MoS', 'mos',
+         lambda v, r: v > 0.10 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, -0.10, 0.40),  # tightened: worst raised -20%→-10%
+         weight=2.0),
+    # MAD/median statistic (see prepare_scoring_fields); pass at 0.15
+    # preserves the ~29% pass rate the old (max−min)/median @0.50 produced.
+    # Provisional. Lower is better; score range rescaled for the MAD/median
+    # statistic.
+    Gate('Valuation: FV Dispersion', 'fv_dispersion',
+         lambda v, r: v <= 0.15 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 0.70, 0.0)),
     # EBIT/EV earnings yield: capital-structure-neutral market multiple
     # (replaced P/FCF, which was the exact reciprocal of FCF Yield — the
-    # same signal counted twice). Absolute threshold ≈ ≤12.5x EV/EBIT.
-    ('Valuation: EBIT/EV',
-     'ebit_ev',
-     lambda v, r: v > 0.08 if v is not None else None,
-     _appl_non_financial),
-    ('Valuation: P/TBV',
-     'p_tbv',
-     lambda v, r: 0 < v <= 2.5 if v is not None else None,
-     _appl_positive_tbv),
+    # same signal counted twice). Absolute pass threshold ≈ ≤12.5x EV/EBIT;
+    # score range absolute, not rf-relative: FCF Yield already carries the
+    # rate-regime beta for the category. 6% ≈ market-average EV/EBIT.
+    Gate('Valuation: EBIT/EV', 'ebit_ev',
+         lambda v, r: v > 0.08 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 0.0, 0.12),
+         applicable=_appl_non_financial),
+    Gate('Valuation: P/TBV', 'p_tbv',
+         lambda v, r: 0 < v <= 2.5 if v is not None else None,
+         lambda v, r, pct: (_score_linear(v, 5.0, 1.0)
+                            if v is not None and v > 0 else None),
+         applicable=_appl_positive_tbv),
     # Time-series cheapness: current mcap/EBIT vs the firm's own ~10y median
     # (negative = below own history). Replaced EPV Floor, a third price-vs-
     # intrinsic ratio that correlated 0.68 with MoS; this is the one valuation
     # axis the cross-sectional and model-based gates don't cover.
-    ('Valuation: Mult vs Hist',
-     'mult_vs_hist',
-     lambda v, r: v < -0.10 if v is not None else None,
-     _appl_mult_history),
+    # Score range from the 2026-07-02 snapshot distribution: p25 ≈ −0.28 → 85,
+    # median ≈ +0.13 → 58, p75 ≈ +0.70 → 20; long expensive tail clamps to 0.
+    Gate('Valuation: Mult vs Hist', 'mult_vs_hist',
+         lambda v, r: v < -0.10 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 1.0, -0.50),
+         applicable=_appl_mult_history),
     # FCF yield vs the risk-free rate: an absolute, model-independent value
     # floor (replaced RIM MoS, a third price-vs-intrinsic-value gate that
     # triangulated the same signal as MoS).
-    ('Valuation: FCF Yield',
-     'fcf_yield',
-     lambda v, r: v > (r.get('_risk_free_rate') or 0.045) if v is not None else None,
-     _appl_non_financial),
+    Gate('Valuation: FCF Yield', 'fcf_yield',
+         lambda v, r: v > (r.get('_risk_free_rate') or 0.045) if v is not None else None,
+         lambda v, r, pct: (_score_linear(v - (r.get('_risk_free_rate') or 0.045),
+                                          -0.03, 0.08)
+                            if v is not None else None),
+         applicable=_appl_non_financial),
 
     # ---- Quality ----
     # Int Coverage and Net Debt/EBITDA are masked for Financial Services:
@@ -222,64 +246,69 @@ SCREENING_GATES = [
     # wrong there — nd_ebitda resolved for ~87% of FS rows and scored
     # garbage. FS leverage belongs to the FDIC KPIs (CET1/NPL), which are
     # collected but not yet scored.
-    ('Quality: Int Coverage',
-     'int_cov',
-     lambda v, r: v > 3.0 if v is not None else None,
-     _appl_non_financial),
-    ('Quality: Net Debt/EBITDA',
-     'nd_ebitda',
-     lambda v, r: v <= 1.5 if v is not None else None,
-     _appl_non_financial),
-    ('Quality: Accruals',
-     'accruals',
-     # Accruals = (NI - CFO) / Assets. Sloan (1996): high *positive* accruals
-     # predict negative future returns — earnings exceed cash, often via
-     # aggressive recognition. Negative accruals (CFO > NI) indicate
-     # conservative accounting and strong cash generation; do not penalize.
-     lambda v, r: v < 0.08 if v is not None else None),
+    Gate('Quality: Int Coverage', 'int_cov',
+         lambda v, r: v > 3.0 if v is not None else None,
+         lambda v, r, pct: _score_linear(
+             min(v, 40) if v is not None else None, 1.0, 20.0),
+         applicable=_appl_non_financial),
+    Gate('Quality: Net Debt/EBITDA', 'nd_ebitda',
+         lambda v, r: v <= 1.5 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 4.0, -0.5),  # tightened: worst 5→4, best 0→-0.5 (net cash rewarded)
+         applicable=_appl_non_financial),
+    # Accruals = (NI - CFO) / Assets. Sloan (1996): high *positive* accruals
+    # predict negative future returns — earnings exceed cash, often via
+    # aggressive recognition. Negative accruals (CFO > NI) indicate
+    # conservative accounting and strong cash generation; do not penalize.
+    # Scored as a sector percentile (lower accruals → higher score).
+    Gate('Quality: Accruals', 'accruals',
+         lambda v, r: v < 0.08 if v is not None else None,
+         lambda v, r, pct: pct,
+         relative_mode='sector', higher_better=False),
     # (Cash Conv removed: CFO-vs-NI is the accruals signal inverted, and
     # Piotroski's internals check it again — three gates, one signal.)
-    # Revenue-growth volatility (lower = steadier). Replaced the ROE gate,
-    # which double-counted returns-on-capital with the Moat/ROIC block and is
-    # distortable by leverage and buybacks.
-    ('Quality: Rev Volatility',
-     'rev_growth_vol',
-     lambda v, r: v < 0.12 if v is not None else None),
+    # Revenue-growth volatility (lower = steadier: a steady top line scores
+    # high). Replaced the ROE gate, which double-counted returns-on-capital
+    # with the Moat/ROIC block and is distortable by leverage and buybacks.
+    Gate('Quality: Rev Volatility', 'rev_growth_vol',
+         lambda v, r: v < 0.12 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 0.40, 0.05)),
     # Over-earning guard: current operating margin vs the company's own
     # ~10y average. All four FV models eat the same point-in-time earnings,
     # so at a cyclical margin peak FV Dispersion is tight and MoS inflated
     # exactly when they shouldn't be — this is the orthogonal check.
-    ('Quality: Margin vs Hist',
-     'margin_vs_hist',
-     lambda v, r: v < 0.05 if v is not None else None,
-     _appl_margin_history),
-    ('Quality: Piotroski',
-     'piotroski',
-     lambda v, r: v >= 7 if v is not None else None),
+    # Score is one-sided: 8pp+ above own history scores 0; at/below history
+    # clamps to 100. Margin DETERIORATION is already penalized by
+    # Growth: Margins.
+    Gate('Quality: Margin vs Hist', 'margin_vs_hist',
+         lambda v, r: v < 0.05 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 0.08, 0.0),
+         applicable=_appl_margin_history),
+    Gate('Quality: Piotroski', 'piotroski',
+         lambda v, r: v >= 7 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 0, 9)),
 
     # ---- Moat ----
-    # Name must match the SCORING_GATES entry exactly — the Matrix scoreKey
-    # is derived from this name and a mismatch blanks the score column.
-    ('Moat: Spread',
-     'spread',
-     lambda v, r: v > 0.07 if v is not None else None),
-    ('Moat: ROIC Consistency',
-     'roic_cv',
-     lambda v, r: v < 0.30 if v is not None else None),
+    Gate('Moat: Spread', 'spread',
+         lambda v, r: v > 0.07 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 0.0, 0.20)),  # tightened: best 25%→20%
+    Gate('Moat: ROIC Consistency', 'roic_cv',
+         lambda v, r: v < 0.30 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 0.60, 0.0)),
     # Incremental ROIC (ΔNOPAT/ΔIC over the statement window): the moat-
     # TRAJECTORY test — is each new dollar of capital still earning above
     # the cost of capital? The better replacement for the retired ROIC
     # Trend gate.
-    ('Moat: Incr ROIC',
-     'incremental_roic',
-     lambda v, r: v > 0.10 if v is not None else None,
-     _appl_incr_roic),
+    Gate('Moat: Incr ROIC', 'incremental_roic',
+         lambda v, r: v > 0.10 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, -0.05, 0.25),
+         applicable=_appl_incr_roic),
     # Operating margin vs the sector median: a structural competitive-position
     # signal orthogonal to ROIC. Also carries the margin-vs-sector signal of
     # the retired Gross Margin percentile gate (same axis, operating level).
-    ('Moat: Margin Advantage',
-     'margin_advantage',
-     lambda v, r: v > 0.05 if v is not None else None),
+    # Score: sector-median → 33, +20pp → 100.
+    Gate('Moat: Margin Advantage', 'margin_advantage',
+         lambda v, r: v > 0.05 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, -0.10, 0.20)),
     # Pool-share trajectory: 5-yr CAGR of the company's share of its
     # sector's operating-profit pool (consistent panel) — is it WINNING
     # share of sector profit over time? Share-of-pool complement to
@@ -287,52 +316,49 @@ SCREENING_GATES = [
     # (FCF Margin retired: one signal counted twice — margin LEVEL is
     # Margin Advantage's axis, and FCF already votes through FCF Yield,
     # FCF Durability, and Accruals.)
-    ('Moat: Pool Share',
-     'pool_share_cagr',
-     lambda v, r: v > 0 if v is not None else None,
-     _appl_pool_share),
+    Gate('Moat: Pool Share', 'pool_share_cagr',
+         lambda v, r: v > 0 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, -0.10, 0.15),
+         applicable=_appl_pool_share),
 
     # ---- Growth ----
-    ('Growth: Rev Durability',
-     'rev_cagr_10y',
-     lambda v, r: v > 0.02 if v is not None else None),
-    ('Growth: FCF Durability',
-     'fcf_cagr_5y',
-     lambda v, r: v > 0.05 if v is not None else None,
-     _appl_non_financial),
-    ('Growth: Margins',
-     'gross_margin_trend',
-     lambda v, r: v >= 0 if v is not None else None),
-    ('Growth: Fund Growth',
-     'fundamental_growth',
-     lambda v, r: v > 0.03 if v is not None else None),
+    Gate('Growth: Rev Durability', 'rev_cagr_10y',
+         lambda v, r: v > 0.02 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, -0.05, 0.15)),
+    Gate('Growth: FCF Durability', 'fcf_cagr_5y',
+         lambda v, r: v > 0.05 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, -0.05, 0.15),
+         applicable=_appl_non_financial),
+    Gate('Growth: Margins', 'gross_margin_trend',
+         lambda v, r: v >= 0 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, -0.05, 0.05)),
+    Gate('Growth: Fund Growth', 'fundamental_growth',
+         lambda v, r: v > 0.03 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 0.0, 0.10)),
 
     # ---- Ownership ----
-    ('Ownership: Shrhldr Yield',
-     'shareholder_yield',
-     lambda v, r: v > 0.02 if v is not None else None),
+    Gate('Ownership: Shrhldr Yield', 'shareholder_yield',
+         lambda v, r: v > 0.02 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, -0.01, 0.08)),
     # (Buyback Rate removed: already inside Shareholder Yield, and Share
     # Shrink is its 5y integral — three gates on share-count direction.)
-    ('Ownership: Share Shrink',
-     'shares_cagr_5y',
-     lambda v, r: v < 0 if v is not None else None),
-    ('Ownership: SBC Dilution',
-     'sbc_pct_rev',
-     lambda v, r: v <= 0.02 if v is not None else None),
-    ('Ownership: Insider Own',
-     'insider_pct',
-     lambda v, r: v >= 0.05 if v is not None else None),
+    Gate('Ownership: Share Shrink', 'shares_cagr_5y',
+         lambda v, r: v < 0 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 0.04, -0.04)),
+    Gate('Ownership: SBC Dilution', 'sbc_pct_rev',
+         lambda v, r: v <= 0.02 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 0.06, 0.0)),  # tightened: worst 10%→6%
+    Gate('Ownership: Insider Own', 'insider_pct',
+         lambda v, r: v >= 0.05 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 0.0, 0.15)),
     # Open-market insider net buying (Form 4 P vs S transactions): the
-    # classic conviction signal — collected by the SEC insider client but
-    # never scored until now.
-    ('Ownership: Insider Buying',
-     'insider_buy_ratio',
-     lambda v, r: v >= 0.5 if v is not None else None,
-     _appl_insider_activity),
+    # classic conviction signal. Neutral 0.5 buy-ratio scores 50.
+    # Inapplicable (not zero) below 4 open-market transactions/365d.
+    Gate('Ownership: Insider Buying', 'insider_buy_ratio',
+         lambda v, r: v >= 0.5 if v is not None else None,
+         lambda v, r, pct: _score_linear(v, 0.0, 1.0),
+         applicable=_appl_insider_activity),
 ]
-
-# Normalize to gate specs (adds weight/applicable defaults).
-SCREENING_GATES = [ScreeningGate(*g) for g in SCREENING_GATES]
 
 
 def _compute_pool_share_trajectory(results):
@@ -592,11 +618,10 @@ def apply_screening_matrix(results):
     #   • Missing data (test_fn returns None): still counts as a fail
     #     against the denominator — sparse data stays penalized.
     for r in results:
-        r['rating_raw'] = r.get('rating')
         passed = 0
         applicable_total = 0
         inapplicable = 0
-        for gate in SCREENING_GATES:
+        for gate in GATES:
             gate_key = _gate_key(gate.name)
             gp_key = _gp_key(gate.name)
             if not _gate_applicable(gate, r):
@@ -621,6 +646,12 @@ def apply_screening_matrix(results):
 
         r['_gates_passed'] = f'{passed}/{applicable_total}'
         r['_gates_passed_num'] = passed
+        # Share of APPLICABLE gates passed — comparable across tickers,
+        # unlike the raw ratio whose denominator shifts with applicability
+        # masks. Diagnostic only; the composite drives the rating.
+        r['_gates_passed_pct'] = (
+            round(passed / applicable_total * 100)
+            if applicable_total > 0 else None)
         r['_gates_inapplicable'] = inapplicable
 
 
@@ -704,99 +735,6 @@ def _print_validation_stats(results, screen_outcomes):
     print("=" * 70)
 
 
-# (name, field, category, score_fn, relative_mode, higher_better[, weight[, applicable]])
-# relative_mode: False=absolute, 'global'=global percentile, 'sector'=sector percentile
-# higher_better: True=higher value→higher percentile, False=lower→higher
-# score_fn: (value, row, percentile_or_None) -> 0-100
-# weight: within-category weight (default 1.0)
-# applicable: optional row-predicate; False = structurally inapplicable
-SCORING_GATES = [
-    # MoS is the headline price-vs-value signal; double weight within
-    # Valuation so it isn't diluted to 1/6 of a 0.30-weight category.
-    ('Valuation: MoS', 'mos', 'Valuation',
-     lambda v, r, pct: _score_linear(v, -0.10, 0.40), False, True, 2.0),  # tightened: worst raised -20%→-10%
-    ('Valuation: FV Dispersion', 'fv_dispersion', 'Valuation',
-     lambda v, r, pct: _score_linear(v, 0.70, 0.0), False, True),     # lower is better; range rescaled for the MAD/median statistic
-    # EBIT/EV earnings yield (replaced P/FCF — exact reciprocal of FCF
-    # Yield). Absolute range, not rf-relative: FCF Yield already carries
-    # the rate-regime beta for the category. 6% ≈ market-average EV/EBIT.
-    ('Valuation: EBIT/EV', 'ebit_ev', 'Valuation',
-     lambda v, r, pct: _score_linear(v, 0.0, 0.12), False, True, 1.0,
-     _appl_non_financial),
-    ('Quality: Int Coverage', 'int_cov', 'Quality',
-     lambda v, r, pct: _score_linear(min(v, 40) if v is not None else None, 1.0, 20.0),
-     False, True, 1.0, _appl_non_financial),
-    ('Quality: Accruals', 'accruals', 'Quality',
-     lambda v, r, pct: pct, 'sector', False),
-    ('Ownership: Shrhldr Yield', 'shareholder_yield', 'Ownership',
-     lambda v, r, pct: _score_linear(v, -0.01, 0.08), False, True),
-    ('Ownership: Insider Own', 'insider_pct', 'Ownership',
-     lambda v, r, pct: _score_linear(v, 0.0, 0.15), False, True),
-    # Open-market insider net buying; neutral 0.5 buy-ratio scores 50.
-    # Inapplicable (not zero) below 4 open-market transactions/365d.
-    ('Ownership: Insider Buying', 'insider_buy_ratio', 'Ownership',
-     lambda v, r, pct: _score_linear(v, 0.0, 1.0), False, True, 1.0,
-     _appl_insider_activity),
-    ('Moat: ROIC Consistency', 'roic_cv', 'Moat',
-     lambda v, r, pct: _score_linear(v, 0.60, 0.0), False, True),
-    ('Moat: Spread', 'spread', 'Moat',
-     lambda v, r, pct: _score_linear(v, 0.0, 0.20), False, True),     # tightened: best 25%→20%
-    # Incremental ROIC: moat trajectory — return on each NEW dollar of
-    # invested capital over the statement window.
-    ('Moat: Incr ROIC', 'incremental_roic', 'Moat',
-     lambda v, r, pct: _score_linear(v, -0.05, 0.25), False, True, 1.0,
-     _appl_incr_roic),
-    ('Growth: Fund Growth', 'fundamental_growth', 'Growth',
-     lambda v, r, pct: _score_linear(v, 0.0, 0.10), False, True),
-    ('Growth: Margins', 'gross_margin_trend', 'Growth',
-     lambda v, r, pct: _score_linear(v, -0.05, 0.05), False, True),
-    ('Quality: Rev Volatility', 'rev_growth_vol', 'Quality',
-     lambda v, r, pct: _score_linear(v, 0.40, 0.05), False, True),    # lower is better: steady top line scores high
-    # Over-earning guard (one-sided): current op margin 8pp+ above the
-    # company's own ~10y average scores 0; at/below history clamps to 100.
-    # Margin DETERIORATION is already penalized by Growth: Margins.
-    ('Quality: Margin vs Hist', 'margin_vs_hist', 'Quality',
-     lambda v, r, pct: _score_linear(v, 0.08, 0.0), False, True, 1.0,
-     _appl_margin_history),
-    # Buffett additions
-    ('Quality: Net Debt/EBITDA', 'nd_ebitda', 'Quality',
-     lambda v, r, pct: _score_linear(v, 4.0, -0.5), False, True, 1.0,  # tightened: worst 5→4, best 0→-0.5 (net cash rewarded)
-     _appl_non_financial),
-    ('Growth: Rev Durability', 'rev_cagr_10y', 'Growth',
-     lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True),
-    ('Ownership: SBC Dilution', 'sbc_pct_rev', 'Ownership',
-     lambda v, r, pct: _score_linear(v, 0.06, 0.0), False, True),     # tightened: worst 10%→6%
-    ('Valuation: P/TBV', 'p_tbv', 'Valuation',
-     lambda v, r, pct: _score_linear(v, 5.0, 1.0) if v is not None and v > 0 else None,
-     False, True, 1.0, _appl_positive_tbv),
-    ('Moat: Pool Share', 'pool_share_cagr', 'Moat',
-     lambda v, r, pct: _score_linear(v, -0.10, 0.15), False, True, 1.0,
-     _appl_pool_share),
-    ('Growth: FCF Durability', 'fcf_cagr_5y', 'Growth',
-     lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True, 1.0,
-     _appl_non_financial),
-    ('Ownership: Share Shrink', 'shares_cagr_5y', 'Ownership',
-     lambda v, r, pct: _score_linear(v, 0.04, -0.04), False, True),
-    # Migrated from compute_rating
-    ('Quality: Piotroski', 'piotroski', 'Quality',
-     lambda v, r, pct: _score_linear(v, 0, 9), False, True),
-    ('Moat: Margin Advantage', 'margin_advantage', 'Moat',
-     lambda v, r, pct: _score_linear(v, -0.10, 0.20), False, True),   # opm vs sector: sector-median→33, +20pp→100
-    # Range from the 2026-07-02 snapshot distribution: p25 ≈ −0.28 → 85,
-    # median ≈ +0.13 → 58, p75 ≈ +0.70 → 20; long expensive tail clamps to 0.
-    ('Valuation: Mult vs Hist', 'mult_vs_hist', 'Valuation',
-     lambda v, r, pct: _score_linear(v, 1.0, -0.50), False, True, 1.0,
-     _appl_mult_history),
-    ('Valuation: FCF Yield', 'fcf_yield', 'Valuation',
-     lambda v, r, pct: (_score_linear(v - (r.get('_risk_free_rate') or 0.045), -0.03, 0.08)
-                        if v is not None else None), False, True, 1.0,
-     _appl_non_financial),
-]
-
-# Normalize to gate specs (adds weight/applicable defaults).
-SCORING_GATES = [ScoringGate(*g) for g in SCORING_GATES]
-
-
 def compute_continuous_scores(results, params=None):
     """Score each stock on all gates using continuous 0-100 scoring.
 
@@ -810,7 +748,7 @@ def compute_continuous_scores(results, params=None):
                 are read from params instead of module-level constants.
     """
     # Step 1: Pre-compute percentile ranks for relative metrics
-    for gate in SCORING_GATES:
+    for gate in GATES:
         if not gate.relative_mode:
             continue
         gate_name, field, higher_better = gate.name, gate.field, gate.higher_better
@@ -857,7 +795,7 @@ def compute_continuous_scores(results, params=None):
         'Ownership': p.get('score_weight_ownership', SCORE_WEIGHT_OWNERSHIP),
     }
     all_categories = []
-    for gate in SCORING_GATES:
+    for gate in GATES:
         if gate.category not in all_categories:
             all_categories.append(gate.category)
 
@@ -872,7 +810,7 @@ def compute_continuous_scores(results, params=None):
         cat_weight_sums = {cat: 0.0 for cat in all_categories}
         applicable_gates = 0
         covered_gates = 0
-        for gate in SCORING_GATES:
+        for gate in GATES:
             if not _gate_applicable(gate, r):
                 # Inapplicable → score stays None so matrix cells render
                 # N/A rather than a misleading 0.0.
@@ -1030,22 +968,19 @@ _CATEGORY_DISPLAY = {
 def gate_metadata(params=None):
     """Return Matrix/report metadata derived from the active gate definitions."""
     p = params or {}
-    gate_categories = {g.name: g.category for g in SCORING_GATES}
-    gate_weights = {g.name: g.weight for g in SCORING_GATES}
     gates = []
-    for gate in SCREENING_GATES:
-        gate_name = gate.name
-        short = _gate_short(gate_name)
+    for gate in GATES:
+        short = _gate_short(gate.name)
         display = _GATE_DISPLAY.get(short, {})
         gates.append({
-            'key': _gate_key(gate_name),
-            'label': display.get('label', gate_name.split(': ')[1]),
-            'gpKey': _gp_key(gate_name),
-            'scoreKey': _score_key(gate_name),
+            'key': _gate_key(gate.name),
+            'label': display.get('label', gate.name.split(': ')[1]),
+            'gpKey': _gp_key(gate.name),
+            'scoreKey': _score_key(gate.name),
             'threshold': display.get('threshold', ''),
-            'category': gate_categories.get(gate_name, gate_name.split(': ')[0]),
+            'category': gate.category,
             'fmt': display.get('fmt', 'ratio'),
-            'weight': gate_weights.get(gate_name, 1.0),
+            'weight': gate.weight,
         })
 
     categories = []
@@ -1116,15 +1051,21 @@ def _rating_cap_for_row(row, params=None):
 
 
 def apply_rating_caps(results, params=None):
-    """Apply critical-only rating caps and expose raw/final rating diagnostics."""
+    """Apply critical-only rating caps and expose raw/final rating diagnostics.
+
+    rating_raw is the uncapped composite-derived rating; rating is the final
+    (possibly capped) one. rating != rating_raw ⇔ a cap fired — the reports
+    key their ⚠ badge off that comparison plus _rating_cap_reasons.
+    """
     for r in results:
         raw = rating_from_composite(r.get('_composite_score'), params)
-        r['_rating_from_score'] = raw
         r['rating_raw'] = raw
         cap, reasons = _rating_cap_for_row(r, params=params)
         r['_rating_cap'] = cap
         r['_rating_cap_reasons'] = reasons
         r['rating'] = _cap_rating(raw, cap) if cap and raw else raw
+        # Retired duplicate of rating_raw; scrub from round-tripped snapshots.
+        r.pop('_rating_from_score', None)
 
 
 def _purge_stale_gate_fields(results):
@@ -1134,10 +1075,9 @@ def _purge_stale_gate_fields(results):
     retired gates persist forever and leak into the report payloads.
     """
     valid = set()
-    for g in SCREENING_GATES:
+    for g in GATES:
         valid.add(_gate_key(g.name))
         valid.add(_gp_key(g.name))
-    for g in SCORING_GATES:
         valid.add(_score_key(g.name))
         valid.add('_score_' + g.category.lower())  # category averages
     for r in results:

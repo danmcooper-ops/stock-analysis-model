@@ -380,6 +380,7 @@ td.ct{font-weight:700;}
 .dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
 .d-rating-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:84px;margin-bottom:4px;}
 .d-rating-row .d-gp{font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.02em;white-space:nowrap;margin-left:2px;}
+.rb-cap{margin-left:3px;cursor:help;font-size:0.85em;}
 /* Stock-count nav indicator (e.g. "1 / 2033") sits at the bottom-left of
    the header band, directly under the ticker / sector / country / CEO
    meta line. Inline-flow, not absolute — keeps it from colliding with
@@ -1687,7 +1688,12 @@ function fds(v){var n=_num(v);if(n==null)return'N/A';var s=n<0?'-':'',a=Math.abs
 function fg(v,f){var n=_num(v);if(n==null)return'N/A';if(f==='pct1')return(n*100).toFixed(1)+'%';if(f==='ratio')return n.toFixed(2);if(f==='int')return Math.round(n)+'';return String(n);}
 function sc(v){if(v==null)return'';return v>=60?'sg':v>=30?'sm':'sp';}
 function gc(g){return g===true?'gp':g===false?'gf':'gn';}
-function rb(r){return'<span class="rb" style="background:'+(RC[r]||'#888')+'">'+(r||'N/A')+'</span>';}
+function rb(r,d){var h='<span class="rb" style="background:'+(RC[r]||'#888')+'">'+(r||'N/A')+'</span>';if(d&&isCapped(d))h+='<span class="rb-cap" title="'+capTipAttr(d)+'">⚠</span>';return h;}
+/* Rating-cap helpers: a cap fired iff the final rating differs from the
+   uncapped composite-derived one (rating_raw). */
+function isCapped(d){return!!(d&&d.rating_raw&&d.rating&&d.rating!==d.rating_raw);}
+function capTip(d){var rs=d._rating_cap_reasons||[];return'Capped from '+d.rating_raw+(rs.length?': '+rs.join('; '):'');}
+function capTipAttr(d){return esc(capTip(d)).replace(/"/g,'&quot;');}
 function cc(v){if(v==null)return'#888';return v>=65?'#1a9850':v>=40?'#fd8d3c':'#de2d26';}
 /* RGB-channel interpolator: blend hex `a` toward hex `b` by fraction t∈[0,1]. */
 function _lerpHex(a,b,t){t=Math.max(0,Math.min(1,t));function p(h){return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}var x=p(a),y=p(b);function m(i){return Math.round(x[i]+(y[i]-x[i])*t);}var c=[m(0),m(1),m(2)];return '#'+c.map(function(v){return ('0'+v.toString(16)).slice(-2);}).join('');}
@@ -1753,7 +1759,7 @@ var TT={
 ticker:'The symbol stands for a business, not a lottery ticket. Buffett’s rule: invest only in what you understand well enough to own for a decade.',
 rating:'The model’s verdict, blending the DCF fair value, 26 quality gates and the composite score. Treat it as a starting point for your own work, not a substitute for it.',
 _composite_score:'Score = 0.30·Valuation + 0.30·Moat + 0.20·Quality + 0.10·Growth + 0.10·Ownership — five pillars, each scored 0–100 and weighted by how much it matters to long-run returns. Ratings: ≥57 BUY; 39–56 LEAN BUY; 25–38 HOLD; below 25 PASS. Thresholds are provisional pending the next live run.',
-_gates_passed:'Gates passed, out of those that apply. Gates that cannot describe the business — free-cash-flow tests for a bank, say — are excluded from the denominator, not failed. The composite score, not this count, drives the rating; but every failure deserves an explanation.',
+_gates_passed:'Share of applicable gates passed. Gates that cannot describe the business — free-cash-flow tests for a bank, say — are excluded from the denominator, not failed. Diagnostic only: the composite score, not this count, drives the rating; but every failure deserves an explanation.',
 sector:'GICS sector. Buffett’s circle of competence begins here: benchmark a business only against peers with genuinely similar economics.',
 industry:'GICS industry sub-group — the peer set for margin and ROIC comparisons. Compare within the industry, never across it.',
 mcap:'Market Cap = Price × Shares Outstanding — what the whole company sells for today. Graham’s game is the gap between this figure and intrinsic value; that gap is where fortunes are made.',
@@ -2135,7 +2141,7 @@ function renderMatrix(){
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'ticker\')" data-col-tip="ticker" data-col-label="Ticker">Ticker'+(mSC==='ticker'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" data-col-tip="rating" data-col-label="Rating">Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_composite_score\')" data-col-tip="_composite_score" data-col-label="Composite Score">Comp.'+(mSC==='_composite_score'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_gates_passed\')" data-col-tip="_gates_passed" data-col-label="Gates Passed">Gates'+(mSC==='_gates_passed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_gates_passed_pct\')" data-col-tip="_gates_passed" data-col-label="Gates % (diagnostic)">Gates %'+(mSC==='_gates_passed_pct'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'sector\')" data-col-tip="sector" data-col-label="Sector">Sector'+(mSC==='sector'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   GM.categories.forEach(function(cat){var n=cg2[cat.name].length+1;h1+='<th class="cat-header" colspan="'+n+'" style="background:'+cat.dark+'">'+cat.name+' ('+Math.round(cat.weight*100)+'%)</th>';});
   h1+='</tr>';
@@ -2145,7 +2151,7 @@ function renderMatrix(){
   th.innerHTML=h1+h2;
   var sd=FD.slice();
   var RO={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
-  if(mSC){sd.sort(function(a,b){var va,vb;if(mSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(mSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[mSC];vb=b[mSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(mSC==='_gates_passed'){var na=parseInt(va),nb=parseInt(vb);if(!isNaN(na)&&!isNaN(nb))return mSA?na-nb:nb-na;}if(mSC==='rating'){var ra=RO[va]||99,rb2=RO[vb]||99;return mSA?ra-rb2:rb2-ra;}if(typeof va==='boolean'){va=va?1:0;vb=vb?1:0;return mSA?va-vb:vb-va;}if(typeof va==='string')return mSA?va.localeCompare(vb):vb.localeCompare(va);return mSA?va-vb:vb-va;});}
+  if(mSC){sd.sort(function(a,b){var va,vb;if(mSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(mSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[mSC];vb=b[mSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(mSC==='rating'){var ra=RO[va]||99,rb2=RO[vb]||99;return mSA?ra-rb2:rb2-ra;}if(typeof va==='boolean'){va=va?1:0;vb=vb?1:0;return mSA?va-vb:vb-va;}if(typeof va==='string')return mSA?va.localeCompare(vb):vb.localeCompare(va);return mSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
   _mtxData=sd;_mtxCg2=cg2;
   /* Detect whether the dataset or sort actually changed — if only a flag/reviewed
@@ -2170,10 +2176,10 @@ function _mtxBuildRow(d,_i){
   html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
   html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
   html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+'</td>';
-  html+='<td>'+rb(d.rating)+'</td>';
+  html+='<td>'+rb(d.rating,d)+'</td>';
   var cs=d._composite_score;
   html+='<td style="font-weight:700;color:'+cc(cs)+'">'+(cs!=null?Math.round(cs)+'%':'N/A')+'</td>';
-  html+='<td>'+(d._gates_passed||'N/A')+'</td>';
+  html+='<td title="'+(d._gates_passed||'')+' applicable gates passed — diagnostic; the composite drives the rating">'+(d._gates_passed_pct!=null?d._gates_passed_pct+'%':'N/A')+'</td>';
   html+='<td style="font-size:0.75em">'+(d.sector||'N/A')+'</td>';
   GM.categories.forEach(function(cat){
     _mtxCg2[cat.name].forEach(function(g){
@@ -3169,7 +3175,7 @@ function _showTip(tk,rectOrX,y){
   var csVal=d._composite_score;var csCol=cc(csVal);
   var csText=csVal!=null?Math.round(csVal)+'%':'N/A';
   var h='<div class="tip-hdr"><span class="tip-tk">'+esc(d.ticker)+'</span>'
-    +'<span class="tip-rt" style="background:'+rtBg+'">'+(d.rating||'N/A')+'</span>'
+    +'<span class="tip-rt" style="background:'+rtBg+'"'+(isCapped(d)?' title="'+capTipAttr(d)+'"':'')+'>'+(d.rating||'N/A')+(isCapped(d)?' ⚠':'')+'</span>'
     +'<span class="tip-cs" style="color:'+csCol+'">'+csText+'</span></div>';
   if(d.company_name)h+='<div style="color:#555;font-size:0.88em;margin:-4px 0 5px 0;font-weight:500">'+esc(d.company_name)+'</div>';
   var sec=[];if(d.sector)sec.push(d.sector);if(d.industry)sec.push(d.industry);
@@ -3177,7 +3183,7 @@ function _showTip(tk,rectOrX,y){
   h+='<div class="tip-grid">';
   var rows=[
     ['Composite',csText,csCol?'color:'+csCol:''],
-    ['Gates Passed',d._gates_passed||'N/A',''],
+    ['Gates %',d._gates_passed_pct!=null?d._gates_passed_pct+'%':'N/A',''],
     ['Country',d.country||'N/A',''],
     ['Mkt Cap',fds(d.mcap),''],
     ['Price',fd(d.price),''],
@@ -3345,9 +3351,9 @@ function openDet(tk){
   _syncFlagDet();
   _syncRevDet();
   var pxEl=document.getElementById('d-px');if(pxEl)pxEl.textContent=d.price!=null?'$'+(d.price<1?d.price.toFixed(4):d.price.toFixed(2)):'N/A';
-  var rEl=document.getElementById('d-rt');rEl.textContent=d.rating||'N/A';rEl.style.background=RC[d.rating]||'#888';
+  var rEl=document.getElementById('d-rt');rEl.textContent=(d.rating||'N/A')+(isCapped(d)?' ⚠':'');rEl.title=isCapped(d)?capTip(d):'';rEl.style.background=RC[d.rating]||'#888';
   var cEl=document.getElementById('d-cs');var cs=d._composite_score;cEl.textContent=cs!=null?Math.round(cs)+'%':'N/A';cEl.style.background=cc(cs);
-  var gpEl=document.getElementById('d-gp');if(gpEl)gpEl.textContent=d._gates_passed!=null?d._gates_passed:'';
+  var gpEl=document.getElementById('d-gp');if(gpEl){gpEl.textContent=d._gates_passed_pct!=null?'Gates '+d._gates_passed_pct+'%':'';gpEl.title=(d._gates_passed||'')+' applicable gates passed — diagnostic; the composite drives the rating';}
   var meta=[];if(d.sector)meta.push(d.sector);if(d.industry)meta.push(d.industry);if(d.country)meta.push(d.country);if(d.ceo)meta.push('CEO: '+d.ceo+(d.founder_led?' \u2605 Founder':''));
   document.getElementById('d-meta').textContent=meta.join('  \u00B7  ');
   (function(){
@@ -3502,7 +3508,7 @@ function openDet(tk){
         hasRows=true;
         h+='<tr><td><span class="ps-tk" onclick="openDet(\''+tk+'\')">'+tk+'</span></td>';
         h+='<td><span class="ps-nm">'+esc(pd.company_name||nm)+'</span></td>';
-        h+='<td>'+rb(pd.rating)+'</td>';
+        h+='<td>'+rb(pd.rating,pd)+'</td>';
         h+='<td style="color:'+cc(pd._composite_score)+';font-weight:700">'+(pd._composite_score!=null?Math.round(pd._composite_score)+'%':'—')+'</td>';
         h+='<td>'+fn(pd.pe,1)+'</td>';
         h+='<td>'+fp(pd.roic)+'</td>';
@@ -5481,9 +5487,30 @@ function renderPool(){
   }
   toRender.forEach(function(sec){
     var cos=sectors[sec];if(!cos||!cos.length)return;
-    var sorted=cos.slice().sort(function(a,b){return(b.operating_margin||0)-(a.operating_margin||0);});
-    var totalRev=sorted.reduce(function(s,d){return s+(d.pp_revenue_share||0);},0);if(!totalRev)return;
-    var margins=sorted.map(function(d){return d.operating_margin||0;});
+    /* Top-N + Others with \u221a-scaled widths: sectors carry 55-335 companies,
+       so share-proportional widths leave the tail as sub-pixel slivers no
+       axis rescaling can rescue (742px / 335 bars \u2248 2px even at EQUAL
+       widths). Show the PP_TOP_N largest by revenue share individually,
+       pool the remainder into one gray "Others" bar, and \u221a-scale every
+       width (renormalized to fill the axis) so mid-size names stay legible
+       next to the giants. Tooltips keep the true linear shares \u2014 \u221a applies
+       to geometry only. Bars stay ordered by operating margin (the classic
+       profit-pool curve). */
+    var PP_TOP_N=25;
+    var byRev=cos.slice().sort(function(a,b){return(b.pp_revenue_share||0)-(a.pp_revenue_share||0);});
+    var totalRev=byRev.reduce(function(s,d){return s+(d.pp_revenue_share||0);},0);if(!totalRev)return;
+    var shownCos=byRev.slice(0,PP_TOP_N),tailCos=byRev.slice(PP_TOP_N);
+    var items=shownCos.map(function(d){return {d:d,share:(d.pp_revenue_share||0)/totalRev,margin:d.operating_margin||0};});
+    if(tailCos.length){
+      var tRev=tailCos.reduce(function(s,d){return s+(d.pp_revenue_share||0);},0);
+      var tMargin=tRev>0?tailCos.reduce(function(s,d){return s+(d.operating_margin||0)*(d.pp_revenue_share||0);},0)/tRev:0;
+      window._ppOthers=window._ppOthers||{};
+      window._ppOthers[sec]={n:tailCos.length,share:tRev/totalRev,margin:tMargin,
+        profit:tailCos.reduce(function(s,d){return s+(d.pp_profit_share||0);},0)};
+      items.push({others:true,share:tRev/totalRev,margin:tMargin});
+    }
+    items.sort(function(a,b){return b.margin-a.margin;});
+    var margins=items.map(function(it){return it.margin;});
     var maxM=Math.max.apply(null,margins.concat([0.05]));
     var minM=Math.min.apply(null,margins.concat([-0.02,0]));
     var yRange=maxM-minM;if(yRange<0.02)yRange=0.02;
@@ -5493,20 +5520,29 @@ function renderPool(){
     for(var ti=0;ti<=4;ti++){var tv=minM+(yRange/4)*ti;var ty=pT+cH*(maxM-tv)/yRange;ticks+='<line x1="'+pL+'" y1="'+ty.toFixed(1)+'" x2="'+(pL-4)+'" y2="'+ty.toFixed(1)+'" stroke="#ccc" stroke-width="1"/>';ticks+='<text x="'+(pL-6)+'" y="'+(ty+3.5).toFixed(1)+'" text-anchor="end" font-size="9" fill="#999">'+(tv*100).toFixed(0)+'%</text>';if(ti>0&&ti<4)ticks+='<line x1="'+pL+'" y1="'+ty.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+ty.toFixed(1)+'" stroke="#f5f5f5" stroke-width="1"/>';}
     axes+='<line x1="'+pL+'" y1="'+pT+'" x2="'+pL+'" y2="'+(pT+cH)+'" stroke="#ccc" stroke-width="1"/>';
     axes+='<line x1="'+pL+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+zeroY.toFixed(1)+'" stroke="#aaa" stroke-width="1.5" stroke-dasharray="4,3"/>';
-    axes+='<text x="'+(pL+cW/2)+'" y="'+(H-6)+'" text-anchor="middle" font-size="9" fill="#bbb">Cumulative Revenue Share \u2192</text>';
+    axes+='<text x="'+(pL+cW/2)+'" y="'+(H-6)+'" text-anchor="middle" font-size="9" fill="#bbb">Revenue Share \u2192 (widths \u221a-scaled'+(tailCos.length?' \u00b7 top '+PP_TOP_N+' + Others':'')+')</text>';
+    var sqSum=items.reduce(function(s,it){return s+Math.sqrt(it.share>0?it.share:0);},0);
     var cumX=0;
-    sorted.forEach(function(d){
-      var share=(d.pp_revenue_share||0)/totalRev;var barW=Math.max(1.5,share*cW);
-      var margin=d.operating_margin||0;var barH=Math.max(1,Math.abs(margin)/yRange*cH);
-      var barY=margin>=0?zeroY-barH:zeroY;var bx=pL+cumX;var col=RC[d.rating]||'#aaa';
-      var tk=d.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      bars+='<rect x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="'+col+'" opacity="0.82" stroke="rgba(255,255,255,0.6)" stroke-width="0.5" onmouseenter="ppTip(event,\''+tk+'\')" onmouseleave="ppHide()" onclick="openDet(\''+tk+'\')" style="cursor:pointer"/>';
-      if(barW>18){var lx=bx+barW/2;var ly=margin>=0?barY-3:barY+barH+9;labels+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="8" fill="#444" pointer-events="none">'+d.ticker+'</text>';}
+    items.forEach(function(it){
+      var barW=sqSum>0?Math.sqrt(it.share>0?it.share:0)/sqSum*cW:0;
+      var margin=it.margin;var barH=Math.max(1,Math.abs(margin)/yRange*cH);
+      var barY=margin>=0?zeroY-barH:zeroY;var bx=pL+cumX;
+      var lx=bx+barW/2,ly=margin>=0?barY-3:barY+barH+9;
+      if(it.others){
+        var seO=sec.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        bars+='<rect x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="#90a4ae" opacity="0.82" stroke="rgba(255,255,255,0.6)" stroke-width="0.5" onmouseenter="ppOthersTip(event,\''+seO+'\')" onmouseleave="ppHide()"/>';
+        if(barW>16)labels+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="8" fill="#444" pointer-events="none">Others</text>';
+      }else{
+        var d=it.d;var col=RC[d.rating]||'#aaa';
+        var tk=d.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        bars+='<rect x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="'+col+'" opacity="0.82" stroke="rgba(255,255,255,0.6)" stroke-width="0.5" onmouseenter="ppTip(event,\''+tk+'\')" onmouseleave="ppHide()" onclick="openDet(\''+tk+'\')" style="cursor:pointer"/>';
+        if(barW>16)labels+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="8" fill="#444" pointer-events="none">'+d.ticker+'</text>';
+      }
       cumX+=barW;
     });
-    var hhi=sorted[0].pp_sector_hhi,cr4=sorted[0].pp_sector_cr4;
+    var hhi=byRev[0].pp_sector_hhi,cr4=byRev[0].pp_sector_cr4;
     var conc=hhi!=null?(hhi>0.25?'Concentrated':hhi>0.15?'Moderate':'Competitive'):'';
-    chartHtml+='<div class="pool-sector" id="pool-sec-'+sec.replace(/\s+/g,'-')+'"><div class="pool-sec-hdr"><span class="pool-sec-name">'+sec+'</span><span class="pool-sec-stats">'+sorted.length+' companies';
+    chartHtml+='<div class="pool-sector" id="pool-sec-'+sec.replace(/\s+/g,'-')+'"><div class="pool-sec-hdr"><span class="pool-sec-name">'+sec+'</span><span class="pool-sec-stats">'+byRev.length+' companies';
     if(hhi!=null)chartHtml+=' &nbsp;&middot;&nbsp; HHI: '+hhi.toFixed(3)+' ('+conc+')';
     if(cr4!=null)chartHtml+=' &nbsp;&middot;&nbsp; CR4: '+(cr4*100).toFixed(0)+'%';
     chartHtml+='</span></div>';
@@ -5538,7 +5574,7 @@ function renderPool(){
     if(liquidityHtml){
       chartHtml+='<div class="pp-section pp-liquidity"><span class="pp-section-label">Liquidity Insights</span>'+liquidityHtml+'</div>';
     }
-    chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Analysis</span><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span></div><span style="font-size:0.7em;color:#aaa">Bar width = revenue share &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>';
+    chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Analysis</span><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#90a4ae"></span>Others (pooled tail)</span></div><span style="font-size:0.7em;color:#aaa">Bar width &prop; &radic;revenue share (top 25 by revenue shown; remainder pooled as Others) &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>';
 
     if(playersHtml){
       chartHtml+='<div class="pp-section pp-players"><span class="pp-section-label">Company Highlights</span>'+playersHtml+'</div>';
@@ -5598,10 +5634,11 @@ function renderPool(){
       chartHtml+='<div class="pp-section pp-top"><span class="pp-section-label">Top 5 by Model Score</span><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">'+topCards+'</div></div>';
     }
     chartHtml+='</div>';
-    var wtdM=sorted.reduce(function(s,d){return s+(d.operating_margin||0)*(d.pp_revenue_share||0);},0)/totalRev;
-    var best=sorted.reduce(function(a,b){return(a.pp_multiple||0)>(b.pp_multiple||0)?a:b;});
-    var avgMult=sorted.reduce(function(s,d){return s+(d.pp_multiple||0);},0)/sorted.length;
-    tableRows+='<tr><td style="text-align:left;font-weight:600">'+sec+'</td><td>'+sorted.length+'</td><td>'+(wtdM*100).toFixed(1)+'%</td><td>'+(hhi!=null?hhi.toFixed(3):'&mdash;')+'</td><td>'+(cr4!=null?(cr4*100).toFixed(0)+'%':'&mdash;')+'</td><td style="text-align:left"><span class="rb" style="background:'+(RC[best.rating]||'#aaa')+'">'+best.ticker+'</span> '+((best.pp_multiple||0).toFixed(2))+'x</td><td>'+avgMult.toFixed(2)+'x</td></tr>';
+    /* Per-sector summary tableRows removed: rows were only built when a
+       single sector tab was chosen, but the table only rendered on the
+       __all__ tab — mutually exclusive, so it never displayed (and its 7
+       cells no longer matched the 10-column header). The live sector
+       summary is rendered by renderCrossSectorDashboard on the Overview. */
   });
   document.getElementById('pool-chart-area').innerHTML=chartHtml||'<p style="color:#999;padding:20px;font-size:0.9em">No profit pool data available.</p>';
   function _syncScatter(){
@@ -5631,6 +5668,19 @@ function ppTip(e,ticker){
   _placeTip(_rect,tt);
 }
 function ppHide(){document.getElementById('pool-tt').style.display='none';}
+/* Tooltip for the pooled "Others" tail bar on per-sector profit pool charts.
+   Reads the aggregate stashed by renderPool in window._ppOthers[sector]. */
+function ppOthersTip(e,sec){
+  if(_isTouchDevice)return;
+  var o=window._ppOthers&&window._ppOthers[sec];if(!o)return;
+  var tt=document.getElementById('pool-tt');
+  tt.innerHTML='<b>Others</b> &mdash; '+o.n+' smaller companies (by revenue)'
+    +'<br>Rev Share: '+(o.share*100).toFixed(1)+'% &nbsp;|&nbsp; Profit Share: '+(o.profit*100).toFixed(1)+'%'
+    +'<br>Rev-Wtd Op. Margin: '+(o.margin*100).toFixed(1)+'%';
+  tt.style.display='block';
+  var _rect=(e.target&&e.target.getBoundingClientRect)?e.target.getBoundingClientRect():{left:e.clientX,top:e.clientY,right:e.clientX,bottom:e.clientY,width:0,height:0};
+  _placeTip(_rect,tt);
+}
 var _ppQD={
   q:{title:'Quality',col:'#2e7d32',bg:'#f1f8e9',bc:'#43a047',text:'High margins in a competitive market signal durable structural advantage \u2014 brand equity, proprietary IP, or switching costs that hold pricing power without relying on market concentration. These businesses earn strong ROIC through product superiority, not dominance. The best long-term compounders live here.'},
   po:{title:'Profitable Oligopoly',col:'#6a1b9a',bg:'#f3e5f5',bc:'#8e24aa',text:'A small number of players control share and earn elevated margins through collective pricing power. Returns are high, but the moat is market structure \u2014 not intrinsic product advantage. Regulatory scrutiny, antitrust action, or a single disruptive entrant can compress returns quickly.'},

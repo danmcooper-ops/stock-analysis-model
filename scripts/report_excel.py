@@ -45,14 +45,22 @@ def build_excel(rows, filename):
         else:
             r['_dcf_bear'] = fv * 0.70 if fv is not None else None
             r['_dcf_bull'] = fv * 1.35 if fv is not None else None
+        # Human-readable cap note: only populated when a cap actually
+        # lowered the rating (rating != rating_raw).
+        if r.get('rating_raw') and r.get('rating') != r.get('rating_raw'):
+            r['_cap_note'] = ('capped from ' + r['rating_raw'] + ': '
+                              + '; '.join(r.get('_rating_cap_reasons') or []))
+        else:
+            r['_cap_note'] = None
 
     gate_meta_obj = gate_metadata()
     matrix_cols = [
         ('Ticker', 'ticker', '@'),
         ('Raw Rating', 'rating_raw', '@'),
         ('Final Rating', 'rating', '@'),
+        ('Cap Reason', '_cap_note', '@'),
         ('Composite', '_composite_score', '0"%"'),
-        ('Gates Passed', '_gates_passed', '@'),
+        ('Gates %', '_gates_passed_pct', '0"%"'),
         ('Sector', 'sector', '@'),
     ]
     for cat in gate_meta_obj['categories']:
@@ -68,8 +76,9 @@ def build_excel(rows, filename):
         ('Analysis', [
             ('Ticker',           'ticker',            '@'),
             ('Rating',           'rating',            '@'),
+            ('Capped',           '_cap_note',         '@'),
             ('Analyst Rec',      'analyst_rec',       '@'),
-            ('Gates Passed',     '_gates_passed',     '@'),
+            ('Gates %',          '_gates_passed_pct', '0"%"'),
             ('Sector',           'sector',            '@'),
             ('Mkt Cap ($B)',     '_mcap_b',           '#,##0.0'),
             ('Last Price',       'price',             '"$"#,##0.00'),
@@ -155,7 +164,6 @@ def build_excel(rows, filename):
         ('Ownership', [
             ('Ticker',            'ticker',                  '@'),
             ('Rating',            'rating',                  '@'),
-            ('Gates Passed',      '_gates_passed',           '@'),
             ('Sector',            'sector',                  '@'),
             ('Mkt Cap ($B)',      '_mcap_b',                 '#,##0.0'),
             ('Shares Out (M)',    '_shares_out_m',           '#,##0.0'),
@@ -179,7 +187,6 @@ def build_excel(rows, filename):
         ]),
         ('Company', [
             ('Ticker',       'ticker',        None),
-            ('Gates Passed', '_gates_passed', None),
             ('CEO',          'ceo_bio',       None),
             ('Founder-Led', '_founder_led',  None),
             ('Sector',      'sector',        None),
@@ -208,7 +215,8 @@ def build_excel(rows, filename):
     # Column widths per sheet (from reference file)
     col_widths = {
         'Analysis': {
-            'ticker': 8, 'rating': 9, 'analyst_rec': 13, '_gates_passed': 14,
+            'ticker': 8, 'rating': 9, '_cap_note': 24, 'analyst_rec': 13,
+            '_gates_passed_pct': 10,
             'sector': 22, '_mcap_b': 15, 'price': 12, 'dcf_fv': 19,
             '_price_fv': 15, 'ms_fv': 15, 'ms_pfv': 13, 'ms_diff': 22,
             'nd_ebitda': 17, 'ev_ebitda': 11, '_sector_median_ee': 22,
@@ -225,7 +233,7 @@ def build_excel(rows, filename):
             'target_mean': 16, 'target_high': 15, 'num_analysts': 12,
         },
         'Ownership': {
-            'ticker': 8, 'rating': 9, '_gates_passed': 14, 'sector': 22,
+            'ticker': 8, 'rating': 9, 'sector': 22,
             '_mcap_b': 15, '_shares_out_m': 16, '_float_m': 13,
             'insider_pct': 14, 'inst_pct': 17, '_short_m': 18,
             'short_ratio': 13, 'short_pct_float': 15,
@@ -236,13 +244,13 @@ def build_excel(rows, filename):
             'insider_sell_count_365d': 14, '_insider_net_value_m': 16,
         },
         'Company': {
-            'ticker': 8, '_gates_passed': 14, 'ceo_bio': 40,
+            'ticker': 8, 'ceo_bio': 40,
             '_founder_led': 13, 'sector': 22, 'industry': 22,
             '_peers': 40, '_description': 134,
         },
         'Matrix': {
-            'ticker': 8, 'rating_raw': 12, 'rating': 14,
-            '_composite_score': 12, '_gates_passed': 11, 'sector': 22,
+            'ticker': 8, 'rating_raw': 12, 'rating': 14, '_cap_note': 18,
+            '_composite_score': 12, '_gates_passed_pct': 10, 'sector': 22,
             '_gate_mos': 8, '_score_mos': 10,
             '_gate_fv_dispersion': 12, '_score_fv_dispersion': 12,
             '_gate_ebit_ev': 10, '_score_ebit_ev': 10,
@@ -278,9 +286,9 @@ def build_excel(rows, filename):
     }
 
     # Frozen columns per sheet (these get row-header gray styling)
-    frozen_cols = {'Analysis': 4, 'Ownership': 4, 'Company': 2, 'Matrix': 6}
+    frozen_cols = {'Analysis': 4, 'Ownership': 3, 'Company': 1, 'Matrix': 7}
 
-    freeze_config = {'Analysis': 'E2', 'Ownership': 'E2', 'Company': 'C2', 'Matrix': 'G4'}
+    freeze_config = {'Analysis': 'E2', 'Ownership': 'D2', 'Company': 'B2', 'Matrix': 'H4'}
 
     # Conditionally add Source column when validation data is present
     _has_validation = any(r.get('source_group') == 'poor' for r in rows)
@@ -291,9 +299,9 @@ def build_excel(rows, filename):
             _cols.insert(1, _src_col)  # insert after Ticker
             col_widths[_sname]['source_group'] = 10
         frozen_cols['Analysis'] = 5
-        frozen_cols['Matrix'] = 7
+        frozen_cols['Matrix'] = 8
         freeze_config['Analysis'] = 'F2'
-        freeze_config['Matrix'] = 'H4'
+        freeze_config['Matrix'] = 'I4'
 
     SECTOR_ORDER = [
         'Technology', 'Communication Services', 'Consumer Cyclical',
@@ -679,7 +687,7 @@ def build_excel(rows, filename):
 
     pp_ws.freeze_panes = 'E2'
 
-    # --- Add hyperlinks from Gates Passed cells → Matrix tab ---
+    # --- Add hyperlinks from Gates % cells → Matrix tab ---
     link_font = Font(color='4472C4', underline='single')  # blue underline
     matrix_ws = wb['Matrix']
     # Build ticker → Matrix row mapping (Matrix data starts at row 4)
@@ -694,7 +702,7 @@ def build_excel(rows, filename):
         cols_list = sheets_config[sname]
         gp_col = None
         for ci, (label, key, _) in enumerate(cols_list, 1):
-            if key == '_gates_passed':
+            if key == '_gates_passed_pct':
                 gp_col = ci
                 break
         if gp_col is None:

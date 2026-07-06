@@ -119,7 +119,6 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         'piotroski': r.get('piotroski'),
         'pe': r.get('pe'), 'ev_ebitda': r.get('ev_ebitda'),
         'rating': r.get('rating'), 'rating_raw': r.get('rating_raw'),
-        '_rating_from_score': r.get('_rating_from_score'),
         '_rating_cap': r.get('_rating_cap'),
         '_rating_cap_reasons': r.get('_rating_cap_reasons', []),
         'analyst_rec': r.get('analyst_rec'),
@@ -278,6 +277,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         '_composite_score': r.get('_composite_score'),
         '_composite_score_raw': r.get('_composite_score_raw'),
         '_gates_passed': r.get('_gates_passed'),
+        '_gates_passed_pct': r.get('_gates_passed_pct'),
         # MC confidence
         'mc_confidence': r.get('mc_confidence'),
         'mc_cv': r.get('mc_cv'),
