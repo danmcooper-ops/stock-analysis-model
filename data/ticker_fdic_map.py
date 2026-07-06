@@ -17,7 +17,6 @@ TICKER_TO_CERT = {
     "USB": 6548,     # U.S. Bank, NA
     "PNC": 6384,     # PNC Bank, NA
     "TFC": 9846,     # Truist Bank
-    "COF": 33954,    # Capital One, NA
     "BK": 639,       # Bank of New York Mellon
     "STT": 14,       # State Street Bank & Trust
     "TD": 18409,     # TD Bank, NA
@@ -47,7 +46,6 @@ TICKER_TO_CERT = {
     "WTFC": 33935,   # Wintrust Bank
     "ZION": 2270,    # Zions Bancorporation NA
     "ONB": 3722,     # Old National Bank
-    "BPOP": 17298,   # Banco Popular de Puerto Rico
     "FHN": 4977,     # First Horizon Bank
     "PNFP": 35583,   # Pinnacle Bank
     "VLY": 9396,     # Valley National Bank
@@ -58,6 +56,6 @@ TICKER_TO_CERT = {
     "FFIN": 3066,    # First Financial Bank, TX (corrected 2026-05-29)
     "COLB": 17266,   # Columbia Bank (post-Umpqua merger; corrected 2026-05-29)
     "FLG": 32541,    # Flagstar Bank (was NYCB)
-    "BPOP": 34968,   # Banco Popular de Puerto Rico (corrected 2026-05-29)
+    "BPOP": 34968,   # Banco Popular de Puerto Rico (corrected 2026-05-29; was 17298)
     "COF": 4297,     # Capital One, NA (corrected 2026-05-29; was 33954)
 }

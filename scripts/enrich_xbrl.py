@@ -84,14 +84,27 @@ _TAGS = {
         "AvailableForSaleSecuritiesCurrent",
         "MarketableSecuritiesCurrent",
     ],
-    "long_term_debt": [
-        "LongTermDebt",
-        "LongTermDebtAndCapitalLeaseObligations",
+    # Debt concepts are extracted SEPARATELY (not alias-merged): US-GAAP
+    # LongTermDebt includes current maturities while LongTermDebtNoncurrent
+    # does not, so merging them lets a current-inclusive total win the merge
+    # and then get the current portion subtracted a second time.
+    "ltd_noncurrent": [
         "LongTermDebtNoncurrent",
+        "LongTermDebtAndCapitalLeaseObligations",
     ],
-    "current_debt": [
+    "ltd_total": [
+        "LongTermDebt",
+    ],
+    "debt_current_total": [
+        "DebtCurrent",          # short-term borrowings + current LTD
+    ],
+    "ltd_current": [
         "LongTermDebtCurrent",
-        "DebtCurrent",
+    ],
+    "st_borrowings": [
+        "ShortTermBorrowings",
+        "CommercialPaper",
+        "BankOverdrafts",
     ],
     "def_rev_current": [
         "ContractWithCustomerLiabilityCurrent",
@@ -227,8 +240,11 @@ def _compute_one(rec, facts, xbrl_client):
     sbc = _extract(xbrl_client, facts, "sbc")
     cash = _extract(xbrl_client, facts, "cash")
     sti = _extract(xbrl_client, facts, "st_investments")
-    ltd = _extract(xbrl_client, facts, "long_term_debt")
-    cur_debt = _extract(xbrl_client, facts, "current_debt")
+    ltd_nc = _extract(xbrl_client, facts, "ltd_noncurrent")
+    ltd_total = _extract(xbrl_client, facts, "ltd_total")
+    debt_cur_total = _extract(xbrl_client, facts, "debt_current_total")
+    ltd_cur = _extract(xbrl_client, facts, "ltd_current")
+    stb = _extract(xbrl_client, facts, "st_borrowings")
     dr_cur = _extract(xbrl_client, facts, "def_rev_current")
     dr_nc = _extract(xbrl_client, facts, "def_rev_noncurrent")
 
@@ -279,10 +295,28 @@ def _compute_one(rec, facts, xbrl_client):
     cash_year, cash_val = _latest(cash)
     if mcap and mcap > 0 and cash_year:
         sti_val = sti.get(cash_year) or 0
-        ltd_val = ltd.get(cash_year) or 0
-        cur_debt_val = cur_debt.get(cash_year) or 0
-        net_cash = (cash_val or 0) + sti_val - ltd_val - cur_debt_val
-        rec["net_cash_to_mcap"] = net_cash / mcap
+        # Resolve total debt for the cash-anchor year WITHOUT fabricating
+        # zero: a missing debt value made heavily-levered foreign filers
+        # (JKS, SID) display 3-4x their market cap in "net cash". Priority:
+        #   1. noncurrent LTD + current-debt total (clean split, no overlap)
+        #   2. noncurrent LTD + current LTD + short-term borrowings
+        #   3. total LTD (already includes current maturities) + ST borrowings
+        #   4. no debt concept EVER tagged -> genuinely unlevered -> 0
+        #   5. otherwise debt is UNKNOWN -> skip the metric entirely
+        debt_val = None
+        if ltd_nc.get(cash_year) is not None:
+            if debt_cur_total.get(cash_year) is not None:
+                debt_val = ltd_nc[cash_year] + debt_cur_total[cash_year]
+            else:
+                debt_val = (ltd_nc[cash_year] + (ltd_cur.get(cash_year) or 0)
+                            + (stb.get(cash_year) or 0))
+        elif ltd_total.get(cash_year) is not None:
+            debt_val = ltd_total[cash_year] + (stb.get(cash_year) or 0)
+        elif not any((ltd_nc, ltd_total, debt_cur_total, ltd_cur, stb)):
+            debt_val = 0.0
+        if debt_val is not None:
+            net_cash = (cash_val or 0) + sti_val - debt_val
+            rec["net_cash_to_mcap"] = net_cash / mcap
 
     # 5. Deferred Revenue Growth — sum current + noncurrent contract
     #    liabilities, compute YoY change. Falls through cleanly if the
@@ -437,21 +471,17 @@ def _compute_one(rec, facts, xbrl_client):
 
     # 16. Combined Ratio + Float Cost (Financial Services — insurers).
     #     Combined ratio = 1 − UnderwritingIncomeLoss / PremiumsEarnedNet.
-    #     Fallback: (claims incurred + DAC amortization) / premiums when a
-    #     single underwriting-income line isn't tagged. Float Cost =
-    #     Combined − 1 (negative = profitable float, Berkshire-style edge).
+    #     NO partial fallback: (claims + DAC amortization) / premiums omits
+    #     commissions and other underwriting expenses — typically 20-30
+    #     points of combined ratio — so a fallback-scored insurer at ~0.70
+    #     would sit beside a properly-scored peer at ~0.98 in the same
+    #     column as if comparable. Better honestly absent than fabricated
+    #     low. Float Cost = Combined − 1 (negative = profitable float).
     prem_year, prem_val = _latest(_extract(xbrl_client, facts, "premiums_earned"))
     if prem_year and prem_val and prem_val > 0:
         uw = _extract(xbrl_client, facts, "underwriting_income").get(prem_year)
-        cr = None
         if uw is not None:
             cr = 1.0 - (uw / prem_val)
-        else:
-            claims = _extract(xbrl_client, facts, "claims_incurred").get(prem_year)
-            dac = _extract(xbrl_client, facts, "dac_amortization").get(prem_year)
-            if claims is not None and dac is not None:
-                cr = (claims + dac) / prem_val
-        if cr is not None:
             rec["combined_ratio"] = cr
             rec["float_cost"] = cr - 1.0
 

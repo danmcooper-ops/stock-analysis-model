@@ -951,7 +951,12 @@ _FX_INFO_DOLLAR_FIELDS = (
     'fiftyTwoWeekHigh', 'fiftyTwoWeekLow',
     'dividendRate', 'bookValue',
     'targetMeanPrice', 'targetHighPrice', 'targetLowPrice',
-    'lastDividendValue', 'lastDividendDate',  # date is fine to leave alone — _scale skips non-numerics
+    'lastDividendValue',
+    # trailingEps IS a per-share currency amount (read by models/market.py);
+    # lastDividendDate is a Unix epoch timestamp and must NOT be scaled —
+    # the loop floats anything float()-able, so listing it here multiplied
+    # a date by the FX rate.
+    'trailingEps',
 )
 
 

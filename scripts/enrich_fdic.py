@@ -133,9 +133,12 @@ def enrich(records, verbose=True, events=None):
             continue
         # Staleness guard — REPDTE format is YYYYMMDD. Reject any record
         # older than ~2 years; FDIC files quarterly so the latest should
-        # always be within the last few months.
+        # always be within the last few months. Cutoff is COMPUTED, not a
+        # hardcoded date that silently stops guarding as time passes.
+        from datetime import date as _date, timedelta as _td
+        _stale_cutoff = int((_date.today() - _td(days=730)).strftime("%Y%m%d"))
         repdte = fin.get("REPDTE")
-        if repdte is None or int(repdte) < 20240101:
+        if repdte is None or int(repdte) < _stale_cutoff:
             n_failed += 1
             if verbose:
                 print(f"  [{tk:6} CERT={cert}] stale record (repdte={repdte}) — skipping")
@@ -161,7 +164,11 @@ def enrich(records, verbose=True, events=None):
         r["cet1_ratio"] = _decimal_pct(fin.get("RBCT1CER"))
         nclnls = fin.get("NCLNLS")
         lnlsgr = fin.get("LNLSGR")
-        r["npl_ratio"] = (nclnls / lnlsgr) if (nclnls and lnlsgr and lnlsgr > 0) else None
+        # `is not None`, not truthiness: NCLNLS == 0 is a pristine credit
+        # book (best-in-class 0.00%), not missing data.
+        r["npl_ratio"] = ((nclnls / lnlsgr)
+                          if (nclnls is not None and lnlsgr and lnlsgr > 0)
+                          else None)
         r["deposit_beta"] = _deposit_beta(cert)
         n_enriched += 1
         # Small pause to be a polite API citizen on cold-cache runs
