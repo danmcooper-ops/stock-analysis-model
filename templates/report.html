@@ -2140,8 +2140,6 @@ function renderMatrix(){
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;color:white" onclick="mSort(\'_reviewed\')" title="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'+(mSC==='_reviewed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'ticker\')" data-col-tip="ticker" data-col-label="Ticker">Ticker'+(mSC==='ticker'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" data-col-tip="rating" data-col-label="Rating">Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_composite_score\')" data-col-tip="_composite_score" data-col-label="Composite Score">Comp.'+(mSC==='_composite_score'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_gates_passed\')" data-col-tip="_gates_passed" data-col-label="Gates Passed">Gates'+(mSC==='_gates_passed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'sector\')" data-col-tip="sector" data-col-label="Sector">Sector'+(mSC==='sector'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   GM.categories.forEach(function(cat){var n=cg2[cat.name].length+1;h1+='<th class="cat-header" colspan="'+n+'" style="background:'+cat.dark+'">'+cat.name+' ('+Math.round(cat.weight*100)+'%)</th>';});
   h1+='</tr>';
@@ -2177,9 +2175,6 @@ function _mtxBuildRow(d,_i){
   html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
   html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+'</td>';
   html+='<td>'+rb(d.rating,d)+'</td>';
-  var cs=d._composite_score;
-  html+='<td style="font-weight:700;color:'+cc(cs)+'">'+(cs!=null?Math.round(cs)+'%':'N/A')+'</td>';
-  html+='<td title="applicable gates passed — diagnostic; the composite drives the rating">'+(d._gates_passed||'N/A')+'</td>';
   html+='<td style="font-size:0.75em">'+(d.sector||'N/A')+'</td>';
   GM.categories.forEach(function(cat){
     _mtxCg2[cat.name].forEach(function(g){
