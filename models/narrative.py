@@ -1521,13 +1521,21 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
         return None
 
     total_rev = sum(r.get('revenue') or 0 for r in cos)
-    total_oi = sum(r.get('operating_income') or 0 for r in cos)
+    # Two operating-income totals with distinct jobs: the NET sum keeps the
+    # blended margin honest (losses drag it down), while the POSITIVE-ONLY
+    # pool matches the denominator behind pp_profit_share — the base every
+    # "captures X% of the pool" claim below is measured against. Quoting
+    # the net total next to clamped-base percentages let the headline
+    # dollars and the percentages disagree in loss-heavy sectors.
+    total_oi_net = sum(r.get('operating_income') or 0 for r in cos)
+    total_oi = sum(max(r.get('operating_income') or 0, 0.0) for r in cos)
+    n_loss = sum(1 for r in cos if (r.get('operating_income') or 0) < 0)
     n = len(cos)
     if total_rev <= 0:
         return None
 
-    # Sector-wide weighted margin (profit-pool-weighted)
-    wtd_margin = (total_oi / total_rev) if total_rev else 0.0
+    # Sector-wide blended margin (net: losses included)
+    wtd_margin = total_oi_net / total_rev
 
     # Concentration metrics come pre-computed on rows; any row should have them.
     hhi = next((r.get('pp_sector_hhi') for r in cos
@@ -1541,15 +1549,26 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
         key=lambda r: r.get('pp_profit_share') or 0,
         reverse=True,
     )
+    # Margin-sane subset for the margin/efficiency RANKINGS and the prose
+    # built on them. Near-zero-revenue microcaps post operating margins like
+    # +12,069% or -22,602% (one-off gains, denominator artifacts) that would
+    # otherwise win the Margin Leader/Laggard slots, blow up the dispersion
+    # insight ("spread exceeds 29,890 points"), and crown 900x efficiency
+    # leaders. |OM| > 100% is an accounting artifact, not operating
+    # economics — those rows stay in the pool totals above but are excluded
+    # from margin-ranked storylines.
+    margin_sane = [r for r in cos
+                   if r.get('operating_margin') is not None
+                   and abs(r['operating_margin']) <= 1.0]
     # Sort by operating margin desc
     by_margin = sorted(
-        cos,
+        margin_sane,
         key=lambda r: r.get('operating_margin') or -999,
         reverse=True,
     )
     # Sort by PP multiple desc (profit share / revenue share)
     by_multiple = sorted(
-        [r for r in cos if r.get('pp_multiple') is not None],
+        [r for r in margin_sane if r.get('pp_multiple') is not None],
         key=lambda r: r.get('pp_multiple') or 0,
         reverse=True,
     )
@@ -1562,9 +1581,11 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
     overview_parts = []
     overview_parts.append(
         f'The {sector} profit pool in this universe totals roughly '
-        f'{_fmt_dollars_compact(total_oi)} of operating income on '
-        f'{_fmt_dollars_compact(total_rev)} of revenue across {n} companies, '
-        f'a blended operating margin of {wtd_margin*100:.1f}%.'
+        f'{_fmt_dollars_compact(total_oi)} of positive operating profit on '
+        f'{_fmt_dollars_compact(total_rev)} of revenue across {n} companies'
+        + (f' ({n_loss} operating at a loss)' if n_loss else '')
+        + f', a blended operating margin of {wtd_margin*100:.1f}%'
+        + (' net of losses.' if n_loss else '.')
     )
     if top1 is not None and top1.get('pp_profit_share') is not None:
         overview_parts.append(
@@ -1847,7 +1868,8 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
         'tailwinds': list(_SECTOR_THESIS_TAILWINDS.get(sector, [])),
         'stats': {
             'total_revenue': total_rev,
-            'total_op_income': total_oi,
+            'total_op_income': total_oi,           # positive-only pool (pp_profit_share base)
+            'total_op_income_net': total_oi_net,   # net of losses (blended-margin base)
             'weighted_margin': wtd_margin,
             'company_count': n,
             'hhi': hhi,

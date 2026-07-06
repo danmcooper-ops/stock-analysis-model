@@ -3006,9 +3006,12 @@ def _main():
 
         # Profit pool multiple = profit_share / revenue_share
         # > 1 means disproportionate profit capture; < 1 means under-earning
+        # ps == 0.0 (zero/negative operating income) is a real value — 0.00x,
+        # maximal under-earning — not missing data, so test `is not None`
+        # rather than truthiness (which rendered 125+ loss-makers as N/A).
         rs = r.get('pp_revenue_share')
         ps = r.get('pp_profit_share')
-        r['pp_multiple'] = (ps / rs) if (ps and rs and rs > 0) else None
+        r['pp_multiple'] = (ps / rs) if (ps is not None and rs and rs > 0) else None
 
         # Margin advantage vs sector median operating margin
         opm = r.get('operating_margin')
