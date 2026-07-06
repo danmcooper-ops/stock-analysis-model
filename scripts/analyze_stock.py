@@ -453,47 +453,41 @@ def _load_local_prices(ticker, prices_dir):
         return None
 
 
-def compute_multiple_vs_history(close, edgar_history, mcap, operating_income,
-                                max_years=10, min_years=5):
-    """Current equity multiple (mcap/EBIT) vs the firm's OWN ~10y median.
+def compute_multiple_vs_history(close, edgar_history, operating_income,
+                                max_years=10, min_years=5,
+                                max_price_staleness_days=30):
+    """Current price/EBIT multiple vs the firm's OWN ~10y median.
 
     The time-series cheapness axis the cross-sectional and model-based
     valuation gates don't cover: is this cheap relative to ITSELF? Replaced
     the EPV Floor gate, which correlated 0.68 with MoS (a third price-vs-
     intrinsic ratio on the same price denominator).
 
-    Historical multiple(y) = year-end price × point-in-time shares (EDGAR)
-    ÷ operating income (EDGAR, USD). True EV/EBIT needs historical debt,
-    which the history doesn't carry; the equity-on-EBIT multiple is time-
-    series consistent within a firm, and the ratio-to-own-median is what's
-    scored. Only positive-EBIT years count.
+    Ratio-of-ratios construction: multiple(y) = adjusted close at year-end y
+    ÷ operating income y (EDGAR, USD), scored as current multiple ÷ own
+    median − 1. Because the SAME adjusted price series supplies every
+    numerator, its constant per-share basis (split factor, ADR ratio)
+    cancels between current and median — no share-count history needed.
+    (The earlier price×shares construction mixed split-adjusted prices with
+    as-reported share counts, inflating historical multiples of any splitter
+    — GOOGL read as 3.1× its own median.) Only positive-EBIT years count.
+
+    Residual biases, both modest: the auto-adjusted series folds dividends
+    into old prices (deflating them), so dividend payers read slightly
+    expensive vs history — conservative; and net issuance/buybacks shift
+    the per-share claim on EBIT over time. Current EBIT comes from the
+    run's USD-normalized yfinance statement, history from EDGAR USD.
 
     Returns (mult_vs_hist, years_used):
         mult_vs_hist = current_multiple / median(historical multiples) − 1
-        (negative = trading below own history = cheap), or (None, 0).
+        (negative = trading below own history = cheap), or (None, n).
     """
     if (close is None or len(close) == 0 or not edgar_history
-            or not mcap or mcap <= 0
             or operating_income is None or operating_income <= 0):
         return None, 0
     oi_hist = edgar_history.get('operating_income_history') or {}
-    sh_hist = edgar_history.get('shares_history') or {}
-    if not oi_hist or not sh_hist:
+    if not oi_hist:
         return None, 0
-
-    # Point-in-time shares: parse once, sorted by date.
-    share_points = []
-    for d, v in sh_hist.items():
-        if not v:
-            continue
-        try:
-            share_points.append((pd.Timestamp(d), float(v)))
-        except (ValueError, TypeError):
-            continue
-    if not share_points:
-        return None, 0
-    share_points.sort()
-    share_idx = pd.DatetimeIndex([p[0] for p in share_points])
 
     current_year = date.today().year
     years = sorted(int(y) for y in oi_hist.keys()
@@ -510,20 +504,23 @@ def compute_multiple_vs_history(close, edgar_history, mcap, operating_income,
         if pos < 0 or abs((idx[pos] - target).days) > 30:
             continue
         py = float(close.iloc[pos])
-        # Nearest point-in-time share count within ~400 days
-        spos = share_idx.get_indexer([target], method='nearest')[0]
-        if spos < 0 or abs((share_idx[spos] - target).days) > 400:
-            continue
-        sy = share_points[spos][1]
-        if py > 0 and sy > 0:
-            mults.append(py * sy / oiy)
+        if py > 0:
+            mults.append(py / oiy)
 
     if len(mults) < min_years:
         return None, len(mults)
     med = _median(mults)
     if not med or med <= 0:
         return None, len(mults)
-    return (mcap / operating_income) / med - 1.0, len(mults)
+    # "Current" price from the same adjusted series (basis consistency);
+    # a stale tail (delisted / failed refresh) must not masquerade as today.
+    last_bar = idx[-1]
+    if (pd.Timestamp(date.today()) - last_bar).days > max_price_staleness_days:
+        return None, len(mults)
+    p_now = float(close.iloc[-1])
+    if p_now <= 0:
+        return None, len(mults)
+    return (p_now / operating_income) / med - 1.0, len(mults)
 
 
 def _compute_rolling_beta(stock_close, market_close, window_years):
@@ -1235,6 +1232,22 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
                 return latest_cf[lbl]
         return None
 
+    # --- Mean-reversion: cap FCF at the firm's OWN trailing normal ---
+    # Peak-cycle FCF shouldn't be extrapolated. Cap at YIELD_CEILING_MULT ×
+    # the trailing average of positive FCF — a fundamental anchor. (The old
+    # ceiling capped at mcap × a yield, which was price-circular.) Applied
+    # HERE, before the owner-earnings adjustments, so the cap and the base
+    # are on the same as-reported basis — capping after the growth-capex
+    # add-back / SBC deduction silently compared adjusted FCF against a
+    # raw-FCF average, undoing the add-back for exactly the capex-heavy
+    # firms it exists for.
+    _pos_fcf = [v for v in fcf_values if v > 0]
+    if _pos_fcf and base_fcf > 0:
+        trailing_avg_fcf = sum(_pos_fcf) / len(_pos_fcf)
+        fcf_ceiling = YIELD_CEILING_MULT * trailing_avg_fcf
+        if fcf_ceiling > 0 and base_fcf > fcf_ceiling:
+            base_fcf = fcf_ceiling
+
     # --- Fix F: Growth capex add-back for capex-heavy companies ---
     # If Capex > 2× D&A, significant growth capex is depressing accounting FCF.
     # Add back 50% of excess capex (above maintenance proxy = D&A).
@@ -1259,30 +1272,23 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     # OCF adds SBC back as a non-cash charge, but it is a real cost to
     # shareholders (dilution). Buffett's owner earnings subtracts it. Pairs
     # with the SBC-dilution GATE (which scores the behavior) — this corrects
-    # the VALUATION. Applied before the mean-reversion ceiling.
+    # the VALUATION. Monotone: heavier SBC always means a bigger haircut,
+    # floored at 25% of pre-SBC FCF so an extreme SBC year haircuts rather
+    # than aborts the valuation. (The previous all-or-nothing guard skipped
+    # the deduction entirely whenever SBC ≥ FCF — the worst offenders were
+    # the only firms that paid NO penalty, and a $1 change in SBC could
+    # swing fair value ~75%.)
     _sbc = _cf_line(['Stock Based Compensation', 'StockBasedCompensation',
                      'Share Based Compensation'])
-    if _sbc is not None:
+    if _sbc is not None and base_fcf > 0:
         _sbc = abs(float(_sbc))
-        if _sbc > 0 and base_fcf - _sbc > 0:
-            base_fcf = base_fcf - _sbc
+        if _sbc > 0:
+            base_fcf = max(base_fcf - _sbc, base_fcf * 0.25)
 
     if base_fcf <= 0:
         return None, None, None, {}, None
 
-    # --- Mean-reversion: cap FCF at the firm's OWN trailing normal ---
-    # Peak-cycle FCF shouldn't be extrapolated. Cap at YIELD_CEILING_MULT ×
-    # the trailing average of positive FCF — a fundamental anchor. The old
-    # ceiling capped at mcap × a yield, which is price-circular: a stock made
-    # cheap by a price drop had its FCF haircut exactly when the model should
-    # flag it as undervalued, bounding MoS regardless of fundamentals.
     mcap = info.get('marketCap')
-    _pos_fcf = [v for v in fcf_values if v > 0]
-    if _pos_fcf and base_fcf > 0:
-        trailing_avg_fcf = sum(_pos_fcf) / len(_pos_fcf)
-        fcf_ceiling = YIELD_CEILING_MULT * trailing_avg_fcf
-        if fcf_ceiling > 0 and base_fcf > fcf_ceiling:
-            base_fcf = fcf_ceiling
 
     # --- FCF growth estimation ---
     fcf_cagr = None
@@ -2296,11 +2302,10 @@ def _main():
             current_price = multiples.get('price')
             shares = multiples.get('shares')
 
-            # Time-series cheapness: current mcap/EBIT vs own ~10y median
+            # Time-series cheapness: current price/EBIT vs own ~10y median
             # (Valuation: Mult vs Hist gate — replaced EPV Floor, r=0.68 vs MoS)
             mult_vs_hist, mult_hist_years = compute_multiple_vs_history(
-                _local_close, edgar_history,
-                multiples.get('market_cap'), latest_fins.get('operating_income'))
+                _local_close, edgar_history, latest_fins.get('operating_income'))
 
             # Analyst consensus (Worksheet Step 8)
             analyst = compute_analyst_consensus(yf_data)

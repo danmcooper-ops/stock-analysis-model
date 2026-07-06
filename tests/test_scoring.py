@@ -407,7 +407,6 @@ class TestCanonicalScoreAndRate:
         assert rows[0]['_price_fv'] == pytest.approx(0.8)
         assert rows[0]['fcf_margin'] == pytest.approx(0.25)
         assert rows[0]['sbc_pct_rev'] == pytest.approx(0.0)
-        assert rows[0]['epv_floor_ratio'] == pytest.approx(1.375)
         assert rows[0]['roic_trend_slope'] == pytest.approx(0.04)
 
     def test_gate_metadata_matches_screening_gate_count(self):
@@ -895,13 +894,14 @@ class TestFxFetchFailedCap:
 class TestMultipleVsHistory:
     """compute_multiple_vs_history — time-series cheapness (replaced EPV Floor)."""
 
-    def _inputs(self, n_years=8, price=10.0, oi=100.0, shares=1000.0):
+    def _inputs(self, n_years=8, price=10.0, oi=100.0, end=None):
         import pandas as pd
-        idx = pd.date_range('2016-01-01', '2025-12-31', freq='B')
-        close = pd.Series(price, index=idx)  # flat price
+        from datetime import date as _d
+        end = end or _d.today().isoformat()
+        idx = pd.date_range('2016-01-01', end, freq='B')
+        close = pd.Series(price, index=idx)  # flat adjusted price
         eh = {
             'operating_income_history': {y: oi for y in range(2016, 2016 + n_years)},
-            'shares_history': {f'{y}-12-31': shares for y in range(2016, 2016 + n_years)},
         }
         return close, eh
 
@@ -909,42 +909,60 @@ class TestMultipleVsHistory:
         """Same multiple today as always → metric ≈ 0 (at own median)."""
         from scripts.analyze_stock import compute_multiple_vs_history
         close, eh = self._inputs()
-        # historical multiple = 10*1000/100 = 100; current mcap/oi = 100
-        v, yrs = compute_multiple_vs_history(close, eh, mcap=10000.0,
-                                             operating_income=100.0)
+        # historical multiple = 10/100; current = 10/100
+        v, yrs = compute_multiple_vs_history(close, eh, operating_income=100.0)
         assert yrs == 8
         assert v == pytest.approx(0.0, abs=1e-9)
 
     def test_cheap_vs_own_history(self):
-        """Current multiple half the historical → −50%."""
+        """Current EBIT double the historical at the same price → −50%."""
         from scripts.analyze_stock import compute_multiple_vs_history
         close, eh = self._inputs()
-        v, _ = compute_multiple_vs_history(close, eh, mcap=5000.0,
-                                           operating_income=100.0)
+        v, _ = compute_multiple_vs_history(close, eh, operating_income=200.0)
         assert v == pytest.approx(-0.50)
+
+    def test_split_invariance(self):
+        """A 20:1 split (halved-and-halved-again adjusted history) must NOT
+        read as expensive: the same adjusted series feeds history and today,
+        so the share basis cancels. Regression for the GOOGL/NVDA zeroing —
+        the old price×as-reported-shares construction read splitters at
+        3-4× their own median."""
+        import pandas as pd
+        from scripts.analyze_stock import compute_multiple_vs_history
+        close, eh = self._inputs()
+        # Split-adjusted series: same economic value, 20× smaller prices.
+        v, _ = compute_multiple_vs_history(close / 20.0, eh,
+                                           operating_income=100.0)
+        assert v == pytest.approx(0.0, abs=1e-9)
 
     def test_insufficient_history_returns_none(self):
         from scripts.analyze_stock import compute_multiple_vs_history
         close, eh = self._inputs(n_years=3)
-        v, yrs = compute_multiple_vs_history(close, eh, mcap=10000.0,
-                                             operating_income=100.0)
+        v, yrs = compute_multiple_vs_history(close, eh, operating_income=100.0)
         assert v is None and yrs < 5
 
     def test_negative_ebit_years_excluded(self):
         from scripts.analyze_stock import compute_multiple_vs_history
         close, eh = self._inputs(n_years=8)
         eh['operating_income_history'][2018] = -50.0  # loss year drops out
-        v, yrs = compute_multiple_vs_history(close, eh, mcap=10000.0,
-                                             operating_income=100.0)
+        v, yrs = compute_multiple_vs_history(close, eh, operating_income=100.0)
         assert yrs == 7
         assert v == pytest.approx(0.0, abs=1e-9)
 
     def test_none_without_prices_or_current_inputs(self):
         from scripts.analyze_stock import compute_multiple_vs_history
         close, eh = self._inputs()
-        assert compute_multiple_vs_history(None, eh, 1e4, 100.0) == (None, 0)
-        assert compute_multiple_vs_history(close, eh, None, 100.0) == (None, 0)
-        assert compute_multiple_vs_history(close, eh, 1e4, -5.0) == (None, 0)
+        assert compute_multiple_vs_history(None, eh, 100.0) == (None, 0)
+        assert compute_multiple_vs_history(close, eh, None) == (None, 0)
+        assert compute_multiple_vs_history(close, eh, -5.0) == (None, 0)
+
+    def test_stale_price_tail_returns_none(self):
+        """A parquet whose last bar is months old (delisting, failed refresh)
+        must not masquerade as today's price."""
+        from scripts.analyze_stock import compute_multiple_vs_history
+        close, eh = self._inputs(end='2025-12-31')
+        v, yrs = compute_multiple_vs_history(close, eh, operating_income=100.0)
+        assert v is None and yrs >= 5
 
     def test_mask_requires_five_years(self):
         row = _full_row(mult_vs_hist=None, mult_hist_years=3)

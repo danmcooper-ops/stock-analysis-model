@@ -463,12 +463,6 @@ def prepare_scoring_fields(results):
         else:
             r['roic_trend_slope'] = None
 
-        # EPV floor ratio (epv_fv / price) — retained as a data field for the
-        # detail views; no longer a scored gate (replaced by Mult vs Hist,
-        # the time-series cheapness axis — EPV Floor was collinear with MoS).
-        epv = r.get('epv_fv')
-        r['epv_floor_ratio'] = (epv / price) if (epv is not None and price and price > 0) else None
-
 
 def apply_screening_matrix(results):
     """Evaluate each stock against pass/fail gates.

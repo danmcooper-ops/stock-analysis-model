@@ -54,21 +54,26 @@ def _refresh_edgar_derived_metrics(results):
 def _refresh_multiple_vs_history(results, prices_dir):
     """Compute the time-series cheapness metric (Valuation: Mult vs Hist)
     from local parquet prices + edgar_history for snapshots that predate the
-    field (or after a backfill). Skips rows whose parquet is missing —
-    the gate goes inapplicable via mult_hist_years=0."""
-    n = 0
+    field (or after a backfill). Rows whose parquet can't be loaded are
+    left UNTOUCHED — a live-run value must survive a rescore on a machine
+    without the prices dir, so we only overwrite when we could actually
+    recompute the inputs."""
+    n = skipped = 0
     for r in results:
         if not r.get('edgar_history'):
             continue
         close = _load_local_prices(r.get('ticker'), prices_dir)
+        if close is None or len(close) == 0:
+            skipped += 1
+            continue
         mvh, yrs = compute_multiple_vs_history(
-            close, r.get('edgar_history'),
-            r.get('mcap'), r.get('operating_income'))
+            close, r.get('edgar_history'), r.get('operating_income'))
         r['mult_vs_hist'] = mvh
         r['mult_hist_years'] = yrs
         if mvh is not None:
             n += 1
-    print(f'Refreshed Mult-vs-Hist for {n} rows')
+    print(f'Refreshed Mult-vs-Hist for {n} rows'
+          + (f' ({skipped} without local prices left as-is)' if skipped else ''))
 
 
 def rescore_and_render(json_path, prices_dir='output/prices'):

@@ -29,3 +29,13 @@ gen_business_plan.py
 
 # Standalone sibling project (own repo, decoupled from stock-analysis)
 Real-Estate-Model/
+
+# Stray root artifacts — local documents / snapshot copies, not source.
+# (Twice swept into commits by `git add -A`; keep them ignored.)
+Stock_Analysis_Model_Guide.pdf
+Stock_Analysis_Model_Overview.md
+Stock_Analysis_Model_Overview.pdf
+Stock_Analysis_Model_Overview_Condensed.md
+Stock_Analysis_Model_Overview_Condensed.pdf
+/results_*.json
+test_tickers.xlsx

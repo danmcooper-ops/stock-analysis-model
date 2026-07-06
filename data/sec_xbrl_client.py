@@ -752,6 +752,13 @@ class SECXBRLClient:
         opinc, opinc_ccy         = _flow('operating_income')
         shares, _tax_s, _ccy_s   = self._extract_concept_periodic(
             facts, 'shares_outstanding', units_key='shares', point_in_time=True)
+        if not shares:
+            # Cover-page share count (dei taxonomy). Many filers (KO, JNJ,
+            # most ADRs) never tag the us-gaap balance-sheet concepts but
+            # always file this one — it's mandatory on 10-K/10-Q/20-F covers.
+            shares = self._extract_periodic_values(
+                facts, ['EntityCommonStockSharesOutstanding'],
+                units_key='shares', point_in_time=True, taxonomy_key='dei')
 
         if not rev and not ni:
             return None
