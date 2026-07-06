@@ -265,14 +265,20 @@ td.ct{font-weight:700;}
 .matrix-table thead tr:first-child th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:15;background:#1a252f;}
 .matrix-table thead tr:first-child th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:15;background:#1a252f;}
 .matrix-table thead tr:first-child th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:15;background:#1a252f;}
-.matrix-table thead tr:first-child th:nth-child(4){position:-webkit-sticky;position:sticky;left:100px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+.matrix-table thead tr:first-child th:nth-child(4){position:-webkit-sticky;position:sticky;left:100px;z-index:15;background:#1a252f;}
 /* Freeze left 4 cols in matrix body */
 .matrix-table tbody td:nth-child(1){position:sticky;left:0;z-index:3;background:#fff;color:#7f8c9a;font-size:0.78em;font-weight:600;text-align:right;padding-right:6px;}
 .matrix-table tbody td:nth-child(2){position:sticky;left:40px;z-index:3;background:#fff;}
 .matrix-table tbody td:nth-child(3){position:sticky;left:68px;z-index:3;background:#fff;}
-.matrix-table td.tk{position:sticky;left:100px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-.matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk{background:rgba(255,255,255,0.97);}
-.matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk{background:#eaf4fd!important;}
+.matrix-table td.tk{position:sticky;left:100px;z-index:3;background:#fff;}
+/* Lock ticker width so the Rating column's sticky `left` stays exact, then
+   freeze Rating (5th col) too — everything from Sector rightward scrolls past
+   it. The frozen-zone shadow moves from Ticker to Rating (the new right edge). */
+.matrix-table thead tr:first-child th:nth-child(4),.matrix-table tbody td.tk{width:60px;min-width:60px;max-width:60px;}
+.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+.matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(5){background:rgba(255,255,255,0.97);}
+.matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(5){background:#eaf4fd!important;}
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
 .dt th:first-child{text-align:left;}
 .dt th .arrow{margin-left:3px;font-size:0.7em;}
