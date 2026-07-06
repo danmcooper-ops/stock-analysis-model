@@ -31,6 +31,10 @@ class _HTMLStripper(HTMLParser):
         return ' '.join(self._parts)
 
 
+# Sentinel distinguishing 'request failed' from 'no filing found'
+_REQUEST_FAILED = object()
+
+
 class SECSupplyClient:
     """Extract supplier/customer relationships from SEC 10-K filings."""
 
@@ -208,6 +212,8 @@ class SECSupplyClient:
         """
         url = self._SUBMISSIONS_URL.format(cik=cik)
         data = self._request_json(url)
+        if data is None:
+            return _REQUEST_FAILED, None
         if not data:
             return None, None
 
@@ -330,6 +336,8 @@ class SECSupplyClient:
 
         # Step 1: Find latest 10-K
         accession, primary_doc = self._find_latest_10k(cik)
+        if accession is _REQUEST_FAILED:
+            return empty  # transient failure — don't cache as "unavailable"
         if not accession or not primary_doc:
             self._cache[ticker] = empty
             return empty

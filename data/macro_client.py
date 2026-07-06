@@ -186,7 +186,9 @@ class MacroClient:
                 # 3-month return (~63 trading days)
                 ret_3m = float(close.iloc[-1] / close.iloc[-min(63, n)]) - 1
                 # 6-month return (~126 trading days)
-                ret_6m = float(close.iloc[-1] / close.iloc[-min(126, n)]) - 1 if n >= 63 else ret_3m
+                # only when ~126 bars actually exist; otherwise a shorter
+                # span would be mislabeled as a 6-month return
+                ret_6m = float(close.iloc[-1] / close.iloc[-126]) - 1 if n >= 126 else None
                 # Relative strength vs SPY (3m)
                 rel_3m = ret_3m - spy_3m_ret
                 # Price vs 200-day SMA
@@ -199,7 +201,7 @@ class MacroClient:
                 result[sector] = {
                     'etf': etf,
                     'return_3m': round(ret_3m, 4),
-                    'return_6m': round(ret_6m, 4),
+                    'return_6m': round(ret_6m, 4) if ret_6m is not None else None,
                     'rel_strength_3m': round(rel_3m, 4),
                     'sma200_ratio': round(sma_ratio, 4) if sma_ratio else None,
                     'volatility_30d': round(vol_30d, 4) if vol_30d else None,
@@ -237,10 +239,10 @@ class MacroClient:
                     close = hist['Close']
                     n = len(close)
                     ret_3m = float(close.iloc[-1] / close.iloc[-min(63, n)]) - 1
-                    ret_6m = float(close.iloc[-1] / close.iloc[-min(126, n)]) - 1 if n >= 63 else ret_3m
+                    ret_6m = float(close.iloc[-1] / close.iloc[-126]) - 1 if n >= 126 else None
                     result[key] = {
                         'return_3m': round(ret_3m, 4),
-                        'return_6m': round(ret_6m, 4),
+                        'return_6m': round(ret_6m, 4) if ret_6m is not None else None,
                     }
             except Exception:
                 continue

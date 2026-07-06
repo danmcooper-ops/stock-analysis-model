@@ -21,10 +21,10 @@ def _ssl_context():
         import certifi
         return ssl.create_default_context(cafile=certifi.where())
     except Exception:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        return ctx
+        # Fall back to the system trust store — NEVER disable verification:
+        # unverified TLS would let a MITM feed fabricated financial data
+        # into the pipeline silently.
+        return ssl.create_default_context()
 
 _SSL_CTX = _ssl_context()
 
@@ -281,7 +281,10 @@ class SECXBRLClient:
 
         url = self._COMPANY_FACTS_URL.format(cik=cik)
         data = self._request_json(url)
-        self._cache[ticker] = data
+        # Don't cache request failures: a transient timeout would otherwise
+        # read as "this ticker has no XBRL data" for the rest of the run.
+        if data is not None:
+            self._cache[ticker] = data
         return data
 
     def get_filing_provenance(self, ticker):

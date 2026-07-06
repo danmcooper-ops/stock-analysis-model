@@ -108,6 +108,8 @@ class SECInsiderClient:
         """
         url = self._SUBMISSIONS_URL.format(cik=cik)
         data = self._request_json(url)
+        if data is None:
+            return None  # request failed — caller must not cache
         if not data:
             return []
 
@@ -342,6 +344,10 @@ class SECInsiderClient:
 
         # Step 1: Find recent Form 4 filings
         filings = self._find_form4_filings(cik, days_back=days_back)
+        if filings is None:
+            # Submissions request failed — return empty but DON'T cache, so a
+            # transient blip doesn't read as "no insider activity" all run.
+            return empty
         if not filings:
             self._cache[ticker] = empty
             return empty

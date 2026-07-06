@@ -41,7 +41,7 @@ def _run_with_timeout(func, timeout_seconds):
 
 class YFinanceClient:
     def __init__(self, request_delay=1.0, snapshot_cache=None,
-                 fetch_timeout=20, prices_dir="output/prices"):
+                 fetch_timeout=20, prices_dir="output/prices", run_date=None):
         self._financials_cache = {}
         self._history_cache = {}
         self._request_delay = request_delay
@@ -49,6 +49,10 @@ class YFinanceClient:
         self._snapshot_cache = snapshot_cache  # Optional SnapshotCache instance
         self._fetch_timeout = fetch_timeout    # hard wall-clock limit per fetch
         self._prices_dir = prices_dir          # Write-through dir for fetch_history
+        # Run-START date for snapshot stamping: a 3-6h run crosses midnight,
+        # and per-ticker date.today() would date post-midnight tickers run+1,
+        # making a same-day replay silently miss them (load requires <= as_of).
+        self.run_date = run_date
 
     def evict_financials(self, keep_tickers=None):
         """Free cached financial data.  If *keep_tickers* is given, only those
@@ -181,7 +185,8 @@ class YFinanceClient:
         # Auto-save to disk cache if configured
         if self._snapshot_cache is not None:
             try:
-                self._snapshot_cache.save(ticker, financials, as_of=date.today())
+                self._snapshot_cache.save(ticker, financials,
+                                          as_of=self.run_date or date.today())
             except Exception:
                 pass  # Cache write failures are non-fatal
 
@@ -201,6 +206,7 @@ class YFinanceClient:
         def _fetch():
             return stock.dividends
 
+        fetch_failed = False
         try:
             dividends = self._retry(_fetch)
             if dividends is None:
@@ -214,7 +220,12 @@ class YFinanceClient:
                     dividends = dividends.iloc[:, 0]
         except Exception:
             dividends = pd.Series(dtype=float)
-        self._history_cache[cache_key] = dividends
+            fetch_failed = True
+        # Only cache real responses: caching after an exception turns a
+        # transient Yahoo failure into "this ticker pays no dividends" for
+        # the rest of the run (DDM silently disqualified).
+        if not fetch_failed:
+            self._history_cache[cache_key] = dividends
         return dividends
 
     def fetch_history(self, ticker, period="5y"):
@@ -226,10 +237,12 @@ class YFinanceClient:
         def _fetch():
             return stock.history(period=period)
 
+        fetch_failed = False
         try:
             hist = self._retry(_fetch)
         except Exception:
             hist = None
+            fetch_failed = True
 
         history = pd.Series(dtype=float)
         if hist is not None and not hist.empty:
@@ -239,7 +252,11 @@ class YFinanceClient:
                     break
             self._maybe_persist_prices(ticker, hist)
 
-        self._history_cache[cache_key] = history
+        # Only cache real responses: caching the empty Series after an
+        # exception turns a transient Yahoo failure into "this ticker has no
+        # price history" for the rest of the run (beta silently uncomputable).
+        if not fetch_failed:
+            self._history_cache[cache_key] = history
         return history
 
     def _maybe_persist_prices(self, ticker, hist):

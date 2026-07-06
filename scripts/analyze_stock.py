@@ -1784,7 +1784,7 @@ def _main():
         print(f"Loaded {len(val_tickers)} validation tickers + {val_n_pfv} P/FV from {args.validation} "
               f"(combined universe: {len(all_tickers)} tickers, {len(ms_pfv_data)} total P/FV)")
 
-    yf_client = YFinanceClient()
+    yf_client = YFinanceClient(run_date=run_start_date)
 
     # Tiingo client initialized here so it's available for Phase 1 beta calculation
     tiingo_client = TiingoClient(request_delay=0.5)

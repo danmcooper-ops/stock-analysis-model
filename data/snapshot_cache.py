@@ -54,8 +54,12 @@ class SnapshotCache:
         payload = self._serialize_financials(financials)
         payload['_meta'] = {'ticker': ticker.upper(), 'date': as_of.isoformat(),
                             'fetched_at': _now_iso(), 'yfinance_version': _yf_version()}
-        with open(file_path, 'w') as f:
+        # Write-then-rename so a crash/watchdog kill mid-write can't leave a
+        # truncated JSON that breaks every future replay load for this ticker.
+        tmp_path = f'{file_path}.tmp.{os.getpid()}'
+        with open(tmp_path, 'w') as f:
             json.dump(payload, f, default=_json_default)
+        os.replace(tmp_path, file_path)
         return file_path
 
     def load(self, ticker, as_of):
@@ -81,8 +85,14 @@ class SnapshotCache:
         file_path = os.path.join(
             self._cache_dir, ticker.upper(),
             f'financials_{best.isoformat()}.json')
-        with open(file_path, 'r') as f:
-            raw = json.load(f)
+        try:
+            with open(file_path, 'r') as f:
+                raw = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            # A corrupt/truncated snapshot must not crash every replay —
+            # treat it as missing (and say so).
+            print(f'WARNING: unreadable snapshot {file_path}: {e}')
+            return None
         return self._deserialize_financials(raw)
 
     def available_dates(self, ticker):
