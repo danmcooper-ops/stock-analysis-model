@@ -277,7 +277,6 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         '_composite_score': r.get('_composite_score'),
         '_composite_score_raw': r.get('_composite_score_raw'),
         '_gates_passed': r.get('_gates_passed'),
-        '_gates_passed_pct': r.get('_gates_passed_pct'),
         # MC confidence
         'mc_confidence': r.get('mc_confidence'),
         'mc_cv': r.get('mc_cv'),

@@ -60,7 +60,7 @@ def build_excel(rows, filename):
         ('Final Rating', 'rating', '@'),
         ('Cap Reason', '_cap_note', '@'),
         ('Composite', '_composite_score', '0"%"'),
-        ('Gates %', '_gates_passed_pct', '0"%"'),
+        ('Gates Passed', '_gates_passed', '@'),
         ('Sector', 'sector', '@'),
     ]
     for cat in gate_meta_obj['categories']:
@@ -78,7 +78,7 @@ def build_excel(rows, filename):
             ('Rating',           'rating',            '@'),
             ('Capped',           '_cap_note',         '@'),
             ('Analyst Rec',      'analyst_rec',       '@'),
-            ('Gates %',          '_gates_passed_pct', '0"%"'),
+            ('Gates Passed',     '_gates_passed',     '@'),
             ('Sector',           'sector',            '@'),
             ('Mkt Cap ($B)',     '_mcap_b',           '#,##0.0'),
             ('Last Price',       'price',             '"$"#,##0.00'),
@@ -216,7 +216,7 @@ def build_excel(rows, filename):
     col_widths = {
         'Analysis': {
             'ticker': 8, 'rating': 9, '_cap_note': 24, 'analyst_rec': 13,
-            '_gates_passed_pct': 10,
+            '_gates_passed': 14,
             'sector': 22, '_mcap_b': 15, 'price': 12, 'dcf_fv': 19,
             '_price_fv': 15, 'ms_fv': 15, 'ms_pfv': 13, 'ms_diff': 22,
             'nd_ebitda': 17, 'ev_ebitda': 11, '_sector_median_ee': 22,
@@ -250,7 +250,7 @@ def build_excel(rows, filename):
         },
         'Matrix': {
             'ticker': 8, 'rating_raw': 12, 'rating': 14, '_cap_note': 18,
-            '_composite_score': 12, '_gates_passed_pct': 10, 'sector': 22,
+            '_composite_score': 12, '_gates_passed': 11, 'sector': 22,
             '_gate_mos': 8, '_score_mos': 10,
             '_gate_fv_dispersion': 12, '_score_fv_dispersion': 12,
             '_gate_ebit_ev': 10, '_score_ebit_ev': 10,
@@ -687,7 +687,7 @@ def build_excel(rows, filename):
 
     pp_ws.freeze_panes = 'E2'
 
-    # --- Add hyperlinks from Gates % cells → Matrix tab ---
+    # --- Add hyperlinks from Gates Passed cells → Matrix tab ---
     link_font = Font(color='4472C4', underline='single')  # blue underline
     matrix_ws = wb['Matrix']
     # Build ticker → Matrix row mapping (Matrix data starts at row 4)
@@ -702,7 +702,7 @@ def build_excel(rows, filename):
         cols_list = sheets_config[sname]
         gp_col = None
         for ci, (label, key, _) in enumerate(cols_list, 1):
-            if key == '_gates_passed_pct':
+            if key == '_gates_passed':
                 gp_col = ci
                 break
         if gp_col is None:

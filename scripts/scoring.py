@@ -646,12 +646,6 @@ def apply_screening_matrix(results):
 
         r['_gates_passed'] = f'{passed}/{applicable_total}'
         r['_gates_passed_num'] = passed
-        # Share of APPLICABLE gates passed — comparable across tickers,
-        # unlike the raw ratio whose denominator shifts with applicability
-        # masks. Diagnostic only; the composite drives the rating.
-        r['_gates_passed_pct'] = (
-            round(passed / applicable_total * 100)
-            if applicable_total > 0 else None)
         r['_gates_inapplicable'] = inapplicable
 
 
