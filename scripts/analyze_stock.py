@@ -2436,12 +2436,33 @@ def _main():
                 epv_fv, ratios.get('ROE'), re_for_models)
 
             # RIM (Residual Income Model)
-            _book_value = info.get('bookValue')
-            if _book_value is None and shares and shares > 0:
-                if bs is not None and not bs.empty:
-                    _eq_val = bs.iloc[:, 0].get('Stockholders Equity')
-                    if pd.notna(_eq_val) and _eq_val:
-                        _book_value = float(_eq_val) / shares
+            # info['bookValue'] is untrustworthy when the statement currency
+            # differs from the quote currency (US-listed ADRs): yfinance
+            # reports it in the LOCAL reporting currency, often per ordinary
+            # share rather than per ADS (EC: 1963 COP/ord-share against a USD
+            # ADS price), which sent RIM FVs to local-currency scale (~300x
+            # price) and poisoned the DCF-less FV blend + FV-Dispersion gate.
+            # The FX-converted balance sheet divided by the same share count
+            # the price uses is unit-consistent, so prefer it in that case —
+            # and whenever the two estimates disagree by >5x (dual-class
+            # basis mismatches like BRK-B, where info bookValue is per
+            # A-share-equivalent while the price is a B share).
+            _ccy_fin = fx_meta.get('currency_financial')
+            _ccy_quote = fx_meta.get('currency_quote')
+            _bv_ccy_mismatch = bool(_ccy_fin and _ccy_quote
+                                    and _ccy_fin != _ccy_quote)
+            _book_value = None if _bv_ccy_mismatch else info.get('bookValue')
+            _book_stmt = None
+            if shares and shares > 0 and bs is not None and not bs.empty:
+                _eq_val = bs.iloc[:, 0].get('Stockholders Equity')
+                if pd.notna(_eq_val) and _eq_val:
+                    _book_stmt = float(_eq_val) / shares
+            if _book_value is not None and _book_stmt and _book_stmt > 0:
+                _bv_ratio = _book_value / _book_stmt
+                if _bv_ratio > 5 or _bv_ratio < 0.2:
+                    _book_value = _book_stmt
+            if _book_value is None:
+                _book_value = _book_stmt
             # Retention = 1 − payout, from the same info payload DDM uses.
             # Passing it makes clean-surplus book growth match reality (and
             # silences the g/ROE inference warning). None → the model infers
