@@ -216,12 +216,20 @@ SCREENING_GATES = [
      _appl_non_financial),
 
     # ---- Quality ----
+    # Int Coverage and Net Debt/EBITDA are masked for Financial Services:
+    # interest is a bank's cost of goods (not a fixed charge to cover) and
+    # deposits/funding aren't corporate debt, so both metrics were actively
+    # wrong there — nd_ebitda resolved for ~87% of FS rows and scored
+    # garbage. FS leverage belongs to the FDIC KPIs (CET1/NPL), which are
+    # collected but not yet scored.
     ('Quality: Int Coverage',
      'int_cov',
-     lambda v, r: v > 3.0 if v is not None else None),
+     lambda v, r: v > 3.0 if v is not None else None,
+     _appl_non_financial),
     ('Quality: Net Debt/EBITDA',
      'nd_ebitda',
-     lambda v, r: v <= 1.5 if v is not None else None),
+     lambda v, r: v <= 1.5 if v is not None else None,
+     _appl_non_financial),
     ('Quality: Accruals',
      'accruals',
      # Accruals = (NI - CFO) / Assets. Sloan (1996): high *positive* accruals
@@ -457,7 +465,17 @@ def prepare_scoring_fields(results):
                 fv_eff, fv_src = None, None
         r['_fv_effective'] = fv_eff
         r['_fv_source'] = fv_src
-        r['sbc_pct_rev'] = (sbc / rev) if (sbc is not None and rev and rev > 0) else None
+        # SBC/Revenue: prefer the XBRL-derived value (enrich_xbrl; ~1,100
+        # rows) over the yfinance cash-flow one (~240 rows) — under the
+        # missing-data-scores-0 rule the sparse yfinance field left most of
+        # the universe scoring 0 on data the pipeline already had. On live
+        # runs the XBRL field lands after Phase 2, so the swap takes effect
+        # at the rescore_and_render step (1f), same as other enrichments.
+        sbc_xbrl = r.get('sbc_pct_rev_xbrl')
+        if sbc_xbrl is not None:
+            r['sbc_pct_rev'] = sbc_xbrl
+        else:
+            r['sbc_pct_rev'] = (sbc / rev) if (sbc is not None and rev and rev > 0) else None
         r['fcf_margin'] = (fcf / rev) if (fcf is not None and rev and rev > 0) else None
         # _price_fv is retained (= 1 − MoS) for the Excel export and raw
         # consumers, but it is no longer a scored gate or matrix column — MoS
@@ -707,7 +725,7 @@ SCORING_GATES = [
      _appl_non_financial),
     ('Quality: Int Coverage', 'int_cov', 'Quality',
      lambda v, r, pct: _score_linear(min(v, 40) if v is not None else None, 1.0, 20.0),
-     False, True),
+     False, True, 1.0, _appl_non_financial),
     ('Quality: Accruals', 'accruals', 'Quality',
      lambda v, r, pct: pct, 'sector', False),
     ('Ownership: Shrhldr Yield', 'shareholder_yield', 'Ownership',
@@ -742,7 +760,8 @@ SCORING_GATES = [
      _appl_margin_history),
     # Buffett additions
     ('Quality: Net Debt/EBITDA', 'nd_ebitda', 'Quality',
-     lambda v, r, pct: _score_linear(v, 4.0, -0.5), False, True),     # tightened: worst 5→4, best 0→-0.5 (net cash rewarded)
+     lambda v, r, pct: _score_linear(v, 4.0, -0.5), False, True, 1.0,  # tightened: worst 5→4, best 0→-0.5 (net cash rewarded)
+     _appl_non_financial),
     ('Growth: Rev Durability', 'rev_cagr_10y', 'Growth',
      lambda v, r, pct: _score_linear(v, -0.05, 0.15), False, True),
     ('Ownership: SBC Dilution', 'sbc_pct_rev', 'Ownership',
@@ -934,6 +953,10 @@ def rating_from_composite(composite, params=None):
     rescoring the 2026-07-03 universe (n=2210) moved the distribution
     only 17/328/600/1265 → 13/340/597/1260 (BUY −0.18pp, LEAN +0.5pp) —
     inside tolerance, thresholds unchanged.
+    Re-confirmed again after the data-integrity pass (SBC/Rev now prefers
+    the XBRL field, coverage 243→1375 rows; Int Coverage + Net Debt/EBITDA
+    masked for Financial Services): 13/340/597/1260 → 20/361/589/1240
+    (BUY +0.32pp, LEAN +1.0pp) — inside tolerance, thresholds unchanged.
     PROVISIONAL: old snapshots carry no per-year NOPAT/invested-capital,
     so Incr ROIC scores 0 on rescores; the first live run will lift
     composites slightly — revisit then (the weekly calibrate job also

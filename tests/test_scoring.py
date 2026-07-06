@@ -62,6 +62,32 @@ class TestEdgarFcfFallback:
         assert r['pfcf'] is None
 
 
+class TestSbcXbrlPreference:
+    def test_xbrl_value_preferred_over_yfinance(self):
+        r = {'sector': 'Technology', 'sbc': 10.0, 'revenue': 1000.0,
+             'sbc_pct_rev_xbrl': 0.045}
+        prepare_scoring_fields([r])
+        assert r['sbc_pct_rev'] == pytest.approx(0.045)  # not 10/1000
+
+    def test_yfinance_fallback_when_xbrl_missing(self):
+        r = {'sector': 'Technology', 'sbc': 10.0, 'revenue': 1000.0}
+        prepare_scoring_fields([r])
+        assert r['sbc_pct_rev'] == pytest.approx(0.01)
+
+    def test_none_when_both_missing(self):
+        r = {'sector': 'Technology', 'revenue': 1000.0}
+        prepare_scoring_fields([r])
+        assert r['sbc_pct_rev'] is None
+
+    def test_xbrl_zero_is_a_value_not_missing(self):
+        """A company reporting zero SBC via XBRL must keep the 0.0 (best
+        score), not fall through to the yfinance path."""
+        r = {'sector': 'Technology', 'sbc': 10.0, 'revenue': 1000.0,
+             'sbc_pct_rev_xbrl': 0.0}
+        prepare_scoring_fields([r])
+        assert r['sbc_pct_rev'] == 0.0
+
+
 # ---------------------------------------------------------------------------
 # prepare_scoring_fields — effective fair value / blended P-FV & MoS (fix (b))
 # ---------------------------------------------------------------------------
@@ -910,15 +936,18 @@ class TestApplicabilityMask:
         bank = _full_row(ticker='BANK', sector='Financial Services')
         generic = _full_row(ticker='TECH')
         apply_screening_matrix([bank, generic])
-        # ebit_ev, fcf_yield, fcf_cagr_5y masked for financials; pool_share
-        # is inapplicable for BOTH rows (no edgar_history in the fixture)
-        assert bank['_gates_inapplicable'] == 4
+        # ebit_ev, fcf_yield, fcf_cagr_5y, int_coverage, net_debt_ebitda
+        # masked for financials; pool_share is inapplicable for BOTH rows
+        # (no edgar_history in the fixture)
+        assert bank['_gates_inapplicable'] == 6
         assert generic['_gates_inapplicable'] == 1
         bank_denom = int(bank['_gates_passed'].split('/')[1])
         gen_denom = int(generic['_gates_passed'].split('/')[1])
-        assert gen_denom - bank_denom == 3
+        assert gen_denom - bank_denom == 5
         assert bank['_gp_ebit_ev'] is None
         assert bank['_gp_fcf_yield'] is None
+        assert bank['_gp_int_coverage'] is None
+        assert bank['_gp_net_debt_ebitda'] is None
 
     def test_inapplicable_scores_are_none_and_category_renormalizes(self):
         """Scores render N/A (None) for inapplicable gates, and the category
@@ -928,11 +957,15 @@ class TestApplicabilityMask:
         compute_continuous_scores([bank, generic])
         assert bank['_score_ebit_ev'] is None
         assert bank['_score_fcf_yield'] is None
-        # Valuation average must not be dragged to 0 by the masked gates:
+        assert bank['_score_int_coverage'] is None
+        assert bank['_score_net_debt_ebitda'] is None
+        # Category averages must not be dragged to 0 by the masked gates:
         # both rows share identical applicable-gate inputs, so the bank's
         # category scores stay in a sane band rather than collapsing.
         assert bank['_score_valuation'] is not None
         assert bank['_score_valuation'] > 0
+        assert bank['_score_quality'] is not None
+        assert bank['_score_quality'] > 0
         assert bank['_score_moat'] is not None
 
     def test_negative_tbv_masks_ptbv(self):
