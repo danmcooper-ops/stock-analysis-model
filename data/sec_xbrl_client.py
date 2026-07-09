@@ -97,6 +97,24 @@ class SECXBRLClient:
             'PaymentsForCapitalImprovements',
             'CapitalExpendituresIncurringObligation',
         ],
+        # D&A from the cash-flow statement. Needed by
+        # calculate_fundamental_growth (Reinvestment Rate × ROIC) and the
+        # owner-earnings growth-capex add-back — both dead on the XBRL path
+        # until these rows existed in build_yfinance_shape's frames.
+        'd_and_a': [
+            'DepreciationDepletionAndAmortization',
+            'DepreciationAndAmortization',
+            'DepreciationAmortizationAndAccretionNet',
+            'Depreciation',
+        ],
+        # Working-capital endpoints for the ΔWC term of the reinvestment
+        # rate (and the current ratio, which was N/A for XBRL records).
+        'current_assets': [
+            'AssetsCurrent',
+        ],
+        'current_liabilities': [
+            'LiabilitiesCurrent',
+        ],
         'gross_profit': [
             'GrossProfit',
         ],
@@ -169,6 +187,19 @@ class SECXBRLClient:
             # SAP combined PPE + intangibles tag — better than nothing
             'PurchaseOfPropertyPlantAndEquipmentIntangibleAssetsOtherThanGoodwillInvestmentPropertyAndOtherNoncurrentAssets',
             'AcquisitionsThroughBusinessCombinationsPropertyPlantAndEquipment',
+        ],
+        'd_and_a': [
+            'DepreciationAndAmortisationExpense',
+            # Cash-flow-statement adjustment line — the more commonly tagged
+            # IFRS location for D&A.
+            'AdjustmentsForDepreciationAndAmortisationExpense',
+            'DepreciationExpense',
+        ],
+        'current_assets': [
+            'CurrentAssets',
+        ],
+        'current_liabilities': [
+            'CurrentLiabilities',
         ],
         'gross_profit': [
             'GrossProfit',
@@ -847,6 +878,8 @@ class SECXBRLClient:
 
         # Cash flow (flow concepts)
         op_cf         = _ann('operating_cash_flow')
+        capex         = _ann('capex')
+        d_and_a       = _ann('d_and_a')
 
         # Balance sheet (point-in-time concepts). Their entries in XBRL only
         # carry end dates, no durations — _extract_annual_values' duration
@@ -856,6 +889,8 @@ class SECXBRLClient:
         debt          = _ann('total_debt')
         cash          = _ann('cash')
         assets        = _ann('total_assets')
+        curr_assets   = _ann('current_assets')
+        curr_liabs    = _ann('current_liabilities')
 
         # Need at least revenue or net income to consider the data usable.
         if not revenue and not net_income:
@@ -916,12 +951,24 @@ class SECXBRLClient:
                 'Total Debt':                debt.get(y),
                 'Cash And Cash Equivalents': cash.get(y),
                 'Total Assets':              assets.get(y),
+                'Current Assets':            curr_assets.get(y),
+                'Current Liabilities':       curr_liabs.get(y),
             } for y, col in zip(years, cols)
         })
 
+        # Capex follows the yfinance sign convention: stored NEGATIVE.
+        # XBRL Payments* tags are debit-positive, so negate. Consumers that
+        # derive FCF as OCF + Capex (_fcf_series_from_cashflow) and those
+        # that abs() it (calculate_fundamental_growth, the owner-earnings
+        # add-back) both read correctly under this convention.
+        def _neg(v):
+            return -abs(v) if v is not None else None
+
         cash_flow_df = pd.DataFrame({
             col: {
-                'Operating Cash Flow': op_cf.get(y),
+                'Operating Cash Flow':          op_cf.get(y),
+                'Capital Expenditure':          _neg(capex.get(y)),
+                'Depreciation And Amortization': d_and_a.get(y),
             } for y, col in zip(years, cols)
         })
 

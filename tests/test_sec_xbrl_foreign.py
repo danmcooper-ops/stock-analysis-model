@@ -235,3 +235,80 @@ class TestFXConversion:
         assert h['reporting_currency'] == 'CAD'
         assert h['fx_converted'] is True
         assert h['revenue_history'][2024] == pytest.approx(60e9 * 0.73)
+
+
+class TestBuildYfinanceShapeCapexDA:
+    """build_yfinance_shape must emit Capex / D&A / current-asset rows.
+
+    Before 2026-07, the XBRL cash-flow frame carried only Operating Cash
+    Flow — so calculate_fundamental_growth returned {} and the FCF
+    extractor returned None for every XBRL-sourced record (100% of
+    'sec_xbrl+yfinance' rows had fundamental_growth=None and no DCF).
+    """
+
+    @staticmethod
+    def _flow_entries(years_values, form='10-K'):
+        return [{
+            'form': form, 'fy': fy, 'fp': 'FY', 'val': val,
+            'filed': f'{fy + 1}-01-15',
+            'start': f'{fy}-01-01', 'end': f'{fy}-12-31',
+        } for fy, val in years_values.items()]
+
+    def _facts(self):
+        f = self._flow_entries
+        gaap = {
+            'Revenues':                                   {'units': {'USD': f({2023: 100e9, 2024: 110e9})}},
+            'NetIncomeLoss':                              {'units': {'USD': f({2023: 10e9, 2024: 12e9})}},
+            'OperatingIncomeLoss':                        {'units': {'USD': f({2023: 15e9, 2024: 18e9})}},
+            'NetCashProvidedByUsedInOperatingActivities': {'units': {'USD': f({2023: 14e9, 2024: 16e9})}},
+            'PaymentsToAcquirePropertyPlantAndEquipment': {'units': {'USD': f({2023: 3e9, 2024: 4e9})}},
+            'DepreciationDepletionAndAmortization':       {'units': {'USD': f({2023: 2e9, 2024: 2.5e9})}},
+            'AssetsCurrent':                              {'units': {'USD': f({2023: 40e9, 2024: 45e9})}},
+            'LiabilitiesCurrent':                         {'units': {'USD': f({2023: 30e9, 2024: 32e9})}},
+            'StockholdersEquity':                         {'units': {'USD': f({2023: 60e9, 2024: 70e9})}},
+            'Assets':                                     {'units': {'USD': f({2023: 150e9, 2024: 160e9})}},
+        }
+        return {'facts': {'us-gaap': gaap}}
+
+    def test_cash_flow_frame_has_capex_and_da(self, monkeypatch):
+        c = _make_client()
+        monkeypatch.setattr(c, 'fetch_company_facts', lambda tk: self._facts())
+        shape = c.build_yfinance_shape('TEST')
+        cf = shape['cash_flow']
+        latest = cf.iloc[:, 0]   # 2024 column first
+        # yfinance sign convention: capex stored negative
+        assert latest['Capital Expenditure'] == -4e9
+        assert latest['Depreciation And Amortization'] == 2.5e9
+        assert latest['Operating Cash Flow'] == 16e9
+
+    def test_balance_frame_has_current_rows(self, monkeypatch):
+        c = _make_client()
+        monkeypatch.setattr(c, 'fetch_company_facts', lambda tk: self._facts())
+        shape = c.build_yfinance_shape('TEST')
+        latest_bs = shape['balance_sheet'].iloc[:, 0]
+        assert latest_bs['Current Assets'] == 45e9
+        assert latest_bs['Current Liabilities'] == 32e9
+
+    def test_fundamental_growth_computes_from_shape(self, monkeypatch):
+        from models.ratios import calculate_fundamental_growth
+        c = _make_client()
+        monkeypatch.setattr(c, 'fetch_company_facts', lambda tk: self._facts())
+        shape = c.build_yfinance_shape('TEST')
+        fg = calculate_fundamental_growth(shape, roic_override=0.15)
+        assert fg, 'fundamental growth must compute once Capex/D&A rows exist'
+        # RR = (capex - da + dWC) / NOPAT = (4e9 - 2.5e9 + (13e9 - 10e9)) / (18e9*(1-0.21))
+        assert 0 < fg['fundamental_growth'] <= 0.30
+        assert fg['roic_used'] == 0.15
+
+    def test_missing_capex_da_leaves_rows_none(self, monkeypatch):
+        """Filers without capex/D&A tags degrade to None rows, not crashes."""
+        facts = self._facts()
+        del facts['facts']['us-gaap']['PaymentsToAcquirePropertyPlantAndEquipment']
+        del facts['facts']['us-gaap']['DepreciationDepletionAndAmortization']
+        c = _make_client()
+        monkeypatch.setattr(c, 'fetch_company_facts', lambda tk: facts)
+        shape = c.build_yfinance_shape('TEST')
+        latest = shape['cash_flow'].iloc[:, 0]
+        import pandas as pd
+        assert pd.isna(latest['Capital Expenditure'])
+        assert pd.isna(latest['Depreciation And Amortization'])
