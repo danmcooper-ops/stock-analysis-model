@@ -37,6 +37,22 @@ from models.utils import rank
 RATING_ORDER = ['STRONG_BUY', 'BUY', 'LEAN BUY', 'HOLD', 'PASS']
 BENCHMARK = 'SPY'
 
+# Continuous signals evaluated for return predictivity via quartile spread
+# (see signal_quartile_accuracy). Each maps a field carried on every stock
+# row → a human label. The whole point of the exercise: decide whether a
+# signal earns a place in the composite score BEFORE trusting it with real
+# position sizing. A signal only belongs in the score if its top quartile
+# reliably out-earns its bottom quartile on forward EXCESS return.
+SIGNAL_SPECS = [
+    ('pp_multiple',     'PP Multiple (profit capture)'),
+    ('pool_share_cagr', 'Pool-Share CAGR (5y trajectory)'),
+]
+
+# A snapshot needs at least this many stocks carrying the signal to form
+# stable cross-sectional quartiles; thinner snapshots are skipped for that
+# signal rather than split into noisy 3-name buckets.
+MIN_SIGNAL_PER_SNAPSHOT = 20
+
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -310,6 +326,11 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None):
                 'dcf_fv': s.get('dcf_fv'),
                 'target_mean': s.get('target_mean'),
                 'rating': s.get('rating'),
+                # Profit-pool signals under evaluation (see signal_quartile_
+                # accuracy). pp_multiple = disproportionate profit capture;
+                # pool_share_cagr = 5y trajectory of sector-profit-pool share.
+                'pp_multiple': s.get('pp_multiple'),
+                'pool_share_cagr': s.get('pool_share_cagr'),
             }
 
     return {
@@ -707,6 +728,72 @@ def build_backtest_excel(all_metrics, filename):
     for r in range(1, ri + 1):
         ws6.row_dimensions[r].height = 13
 
+    # ---- Signal Quartiles tab ----
+    ws7 = wb.create_sheet('Signal Quartiles')
+    ws7.cell(row=1, column=1,
+             value='Forward Alpha by Signal Quartile '
+                   '(Q1 = lowest signal, Q4 = highest)')
+    ws7.cell(row=1, column=1).font = Font(bold=True, size=13)
+    ws7.cell(row=2, column=1,
+             value='A signal earns a place in the composite score only if '
+                   'Q4 reliably out-earns Q1 on forward excess return. '
+                   'Obs are NOT independent (overlapping daily snapshots) — '
+                   'weigh the per-snapshot ρ sign-consistency, not the raw n.')
+    ws7.cell(row=2, column=1).font = Font(italic=True, size=10, color='555555')
+
+    sig_headers = ['Signal', 'Quartile', 'Mean Alpha', 'Median Alpha',
+                   'Hit Rate', 'Count', 'Q4−Q1 Spread', 'Mean Snap ρ',
+                   'ρ>0 Frac', 'Snapshots']
+    for ci, h in enumerate(sig_headers, 1):
+        cell = ws7.cell(row=4, column=ci, value=h)
+        cell.font = hdr_font
+        cell.fill = gray
+        cell.alignment = hdr_align
+
+    ri = 5
+    for key, label in SIGNAL_SPECS:
+        sq = signal_quartile_accuracy(all_metrics, key)
+        if sq is None:
+            ws7.cell(row=ri, column=1, value=label)
+            ws7.cell(row=ri, column=2, value='not enough data yet')
+            style_row(ws7, ri, len(sig_headers), frozen=1)
+            ri += 1
+            continue
+        first = True
+        for q in (1, 2, 3, 4):
+            qd = sq['quartiles'].get(q)
+            if not qd:
+                continue
+            ws7.cell(row=ri, column=1, value=label if first else '')
+            ws7.cell(row=ri, column=2, value='Q%d' % q)
+            ws7.cell(row=ri, column=3, value=qd['mean_alpha'])
+            ws7.cell(row=ri, column=4, value=qd['median_alpha'])
+            ws7.cell(row=ri, column=5, value=qd['hit_rate'])
+            ws7.cell(row=ri, column=6, value=qd['count'])
+            if first:
+                ws7.cell(row=ri, column=7, value=sq['spread'])
+                ws7.cell(row=ri, column=8, value=sq['mean_rho'])
+                ws7.cell(row=ri, column=9, value=sq['rho_pos_frac'])
+                ws7.cell(row=ri, column=10, value=sq['n_snapshots'])
+            style_row(ws7, ri, len(sig_headers), frozen=1)
+            for ci in (3, 4, 5, 7, 9):
+                c = ws7.cell(row=ri, column=ci)
+                if c.value is not None:
+                    c.number_format = '0.0%'
+            ws7.cell(row=ri, column=8).number_format = '0.000'
+            # Color the spread green/red on the signal's first row.
+            if first and sq['spread'] is not None:
+                sc = ws7.cell(row=ri, column=7)
+                sc.fill = green_fill if sq['spread'] > 0 else red_fill
+            first = False
+            ri += 1
+
+    auto_width(ws7, sig_headers)
+    ws7.column_dimensions['A'].width = 32
+    ws7.freeze_panes = 'C5'
+    for r in range(1, ri + 1):
+        ws7.row_dimensions[r].height = 13
+
     wb.save(filename)
     return filename
 
@@ -790,6 +877,115 @@ def mos_bucket_accuracy(all_metrics):
                 'count': len(rets),
             }
     return result
+
+
+def signal_quartile_accuracy(all_metrics, signal_key,
+                             min_per_snapshot=MIN_SIGNAL_PER_SNAPSHOT):
+    """Forward EXCESS return by quartile of a continuous signal.
+
+    Method (deliberately conservative about the daily-snapshot data shape):
+
+      1. Rank stocks into quartiles CROSS-SECTIONALLY within each snapshot
+         (Q1 = lowest signal value, Q4 = highest), so a single day's market
+         backdrop can't tilt the split and every snapshot contributes a
+         balanced four-way partition. Excess return (vs SPY) is the outcome,
+         so the market move is already stripped out.
+      2. Pool each quartile's excess returns across all evaluable snapshots.
+      3. Report the Q4−Q1 spread — the money question. A signal worth adding
+         to the composite score shows a positive, monotone-ish spread.
+
+    Independence caveat: consecutive daily snapshots hold nearly the same
+    universe over overlapping windows, so the pooled observations are highly
+    autocorrelated — n_obs OVERSTATES the true sample size. To counter that,
+    we also compute a Fama–MacBeth-style average of PER-SNAPSHOT Spearman
+    rank correlations (signal vs excess return) plus the fraction of
+    snapshots where that correlation is positive: a sign-consistency check
+    that treats each snapshot as one observation, not each stock.
+
+    Returns None if no snapshot carries >= min_per_snapshot signal values,
+    else a dict:
+        quartiles:    {1..4: {mean_alpha, median_alpha, hit_rate, count}}
+        spread:       Q4 mean_alpha − Q1 mean_alpha (or None)
+        mean_rho:     mean per-snapshot Spearman rho (or None)
+        rho_pos_frac: fraction of snapshots with rho > 0 (or None)
+        n_snapshots:  distinct snapshots contributing
+        n_obs:        total (non-independent) stock-observations
+    """
+    quartile_alphas = {1: [], 2: [], 3: [], 4: []}
+    per_snap_rho = []
+    n_snapshots = 0
+    n_obs = 0
+
+    for m in all_metrics:
+        stocks = m.get('_source_stocks', {})
+        obs = []  # (signal_value, excess_return)
+        for d in m['details']:
+            info = stocks.get(d['ticker'], {})
+            sig = info.get(signal_key)
+            ex = d['excess_return']
+            # Guard against non-finite inputs: a NaN Close in a parquet file
+            # propagates ticker → ret → excess_return, and a single NaN poisons
+            # np.mean for the whole quartile. Require both signal and outcome
+            # finite. (This NaN leak also affects the sector/MoS stats above;
+            # tracked separately.)
+            if (isinstance(sig, bool) or not isinstance(sig, (int, float))
+                    or not np.isfinite(sig)
+                    or not isinstance(ex, (int, float)) or not np.isfinite(ex)):
+                continue
+            obs.append((float(sig), float(ex)))
+
+        if len(obs) < min_per_snapshot:
+            continue
+
+        n_snapshots += 1
+        n_obs += len(obs)
+        sigs = [o[0] for o in obs]
+        exs = [o[1] for o in obs]
+        n = len(obs)
+
+        # Cross-sectional quartile via 0-based ordinal rank. argsort-of-
+        # argsort breaks ties arbitrarily; acceptable for near-continuous
+        # ratios where exact ties are rare.
+        ordinal = np.argsort(np.argsort(sigs))
+        for i, ex in enumerate(exs):
+            q = min(int(ordinal[i] / n * 4), 3)
+            quartile_alphas[q + 1].append(ex)
+
+        # Per-snapshot Spearman (reuse the file's tie-averaged rank()).
+        rank_s = rank(sigs)
+        rank_e = rank(exs)
+        d_sq = sum((rs - re) ** 2 for rs, re in zip(rank_s, rank_e))
+        per_snap_rho.append(1 - (6 * d_sq) / (n * (n ** 2 - 1)) if n > 1 else 0.0)
+
+    if n_snapshots == 0:
+        return None
+
+    quartiles = {}
+    for q in (1, 2, 3, 4):
+        arr = np.array(quartile_alphas[q])
+        if len(arr) == 0:
+            continue
+        quartiles[q] = {
+            'mean_alpha': float(np.mean(arr)),
+            'median_alpha': float(np.median(arr)),
+            'hit_rate': float(np.sum(arr > 0) / len(arr)),
+            'count': len(arr),
+        }
+
+    q4 = quartiles.get(4, {}).get('mean_alpha')
+    q1 = quartiles.get(1, {}).get('mean_alpha')
+    spread = (q4 - q1) if (q4 is not None and q1 is not None) else None
+
+    return {
+        'quartiles': quartiles,
+        'spread': spread,
+        'mean_rho': float(np.mean(per_snap_rho)) if per_snap_rho else None,
+        'rho_pos_frac': (float(np.mean([1.0 if r > 0 else 0.0
+                                        for r in per_snap_rho]))
+                         if per_snap_rho else None),
+        'n_snapshots': n_snapshots,
+        'n_obs': n_obs,
+    }
 
 
 def strong_buy_hit_rate(all_metrics):
@@ -901,6 +1097,35 @@ def print_summary(all_metrics):
         print(f"    Mean bias:   {consensus['mean_bias']:+.1%}")
         print(f"    Median bias: {consensus['median_bias']:+.1%}")
 
+    # --- Signal quartile spreads (does the signal predict excess return?) ---
+    print(f"\n  {'-'*60}")
+    print("  SIGNAL QUARTILE SPREADS  (forward alpha by signal quartile)")
+    print(f"  {'-'*60}")
+    for key, label in SIGNAL_SPECS:
+        sq = signal_quartile_accuracy(all_metrics, key)
+        if sq is None:
+            print(f"\n  {label}: not enough data yet "
+                  f"(no snapshot has ≥{MIN_SIGNAL_PER_SNAPSHOT} signal "
+                  f"values with a measured forward return)")
+            continue
+        print(f"\n  {label}  "
+              f"({sq['n_snapshots']} snapshots, {sq['n_obs']} obs — "
+              f"NOT independent)")
+        print(f"    {'Quartile':<10s} {'Mean α':>9s} {'Median α':>10s}"
+              f" {'Hit%':>6s} {'#':>6s}")
+        for q in (1, 2, 3, 4):
+            qd = sq['quartiles'].get(q)
+            if not qd:
+                continue
+            tag = 'Q%d%s' % (q, ' (lo)' if q == 1 else ' (hi)' if q == 4 else '')
+            print(f"    {tag:<10s} {qd['mean_alpha']:>+8.1%}"
+                  f" {qd['median_alpha']:>+9.1%} {qd['hit_rate']:>5.0%}"
+                  f" {qd['count']:>6d}")
+        if sq['spread'] is not None:
+            print(f"    Q4−Q1 spread: {sq['spread']:>+7.1%}"
+                  f"   mean per-snapshot ρ: {sq['mean_rho']:+.3f}"
+                  f"   ρ>0 in {sq['rho_pos_frac']:.0%} of snapshots")
+
 
 # ---------------------------------------------------------------------------
 # Main
@@ -915,7 +1140,18 @@ if __name__ == '__main__':
                         help='Comma-separated horizon days (default: 30,90,180)')
     parser.add_argument('--prices-dir', default='output/prices',
                         help='Directory of per-ticker Parquet price files (default: output/prices)')
+    parser.add_argument('--signals', default=None,
+                        help='Comma-separated signal field names to evaluate '
+                             'by quartile (default: pp_multiple,pool_share_cagr). '
+                             'Any field present on the stock rows works.')
     args = parser.parse_args()
+
+    # Override the evaluated-signal set if requested. Labels default to the
+    # raw field name for ad-hoc signals not in SIGNAL_SPECS.
+    if args.signals:
+        _known = dict(SIGNAL_SPECS)
+        SIGNAL_SPECS[:] = [(k.strip(), _known.get(k.strip(), k.strip()))
+                           for k in args.signals.split(',') if k.strip()]
 
     horizons = [int(h.strip()) for h in args.horizons.split(',')]
 
