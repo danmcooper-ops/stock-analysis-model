@@ -135,7 +135,7 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
                 if os.path.exists(parquet):
                     df = pd.read_parquet(parquet)[['Close']].sort_index()
                     df.index = pd.to_datetime(df.index).tz_localize(None)
-                    hist = df['Close']
+                    hist = df['Close'].dropna()
                     # Stale parquet that can't reach eval_dt: retry via
                     # network before giving up on the ticker.
                     if (len(hist) == 0 or
@@ -153,6 +153,11 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
             if hasattr(hist.index, 'tz') and hist.index.tz is not None:
                 hist.index = hist.index.tz_localize(None)
 
+            # A NaN Close at either endpoint would make ret non-finite and
+            # poison every np.mean/hit-rate it reaches downstream — snap to
+            # the nearest *valid* bar instead.
+            hist = hist.dropna()
+
             start_idx = _nearest_bar(hist.index, run_dt)
             end_idx   = _nearest_bar(hist.index, eval_dt)
             if start_idx is None or end_idx is None or end_idx <= start_idx:
@@ -161,7 +166,8 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
             start_price = float(hist.iloc[start_idx])
             end_price   = float(hist.iloc[end_idx])
 
-            if start_price > 0:
+            if (start_price > 0 and np.isfinite(start_price)
+                    and np.isfinite(end_price)):
                 returns[ticker] = {
                     'ret':   (end_price - start_price) / start_price,
                     'start': start_price,
@@ -688,7 +694,7 @@ def build_backtest_excel(all_metrics, filename):
         ws6.cell(row=ri, column=2).fill = gray
         ri += 1
         metrics_data = [
-            ('Mean Bias (Model/Target − 1)', consensus['mean_bias']),
+            ('Mean Bias (Model/Target − 1, winsorized 1/99)', consensus['mean_bias']),
             ('Median Bias', consensus['median_bias']),
             ('# Stocks Compared', consensus['n_stocks']),
         ]
@@ -825,8 +831,13 @@ def consensus_comparison(all_metrics):
     if not biases:
         return None
     arr = np.array(biases)
+    # A few broken DCFs (local-currency financials priced against a USD ADR,
+    # e.g. EC at ~$36k FV vs $14 price) sit at +1000%+ and dominate a raw
+    # mean — winsorize at the 1st/99th percentile so the mean reflects the
+    # typical stock; the median stays exact.
+    lo, hi = np.percentile(arr, [1, 99])
     return {
-        'mean_bias': float(np.mean(arr)),
+        'mean_bias': float(np.mean(np.clip(arr, lo, hi))),
         'median_bias': float(np.median(arr)),
         'n_stocks': len(arr),
     }
@@ -898,7 +909,7 @@ def print_summary(all_metrics):
     consensus = consensus_comparison(all_metrics)
     if consensus:
         print(f"\n  Model vs Analyst Targets ({consensus['n_stocks']} stocks):")
-        print(f"    Mean bias:   {consensus['mean_bias']:+.1%}")
+        print(f"    Mean bias:   {consensus['mean_bias']:+.1%} (winsorized 1/99)")
         print(f"    Median bias: {consensus['median_bias']:+.1%}")
 
 
