@@ -1331,6 +1331,13 @@ function toggleTheme(){var cur=document.documentElement.getAttribute('data-theme
 /* === DATA === */
 var DATA={{ chart_data }};
 var GM={{ gate_meta }};
+/* FD (the filtered dataset every table/matrix render reads) must exist from
+   the first script tick. It was previously created only by applyFilters(),
+   so the hash-restore path — which calls showView() BEFORE applyFilters —
+   hit `FD.slice()` in renderTable as a ReferenceError; _restoreFromHash
+   swallowed it and skipped the initial applyFilters entirely, leaving the
+   whole report blank until the user happened to click Clear. */
+var FD=DATA.slice();
 /* Prior run date backing the "Δ vs prior" rating-change column (empty if this
    is the first snapshot in the output dir). Set in report_html.build_html. */
 var PREV_DATE='{{ prev_run_date }}';
@@ -1817,7 +1824,22 @@ function _restoreFromHash(){
       return{key:c[0],min:c[1]!=null?c[1]:null,max:c[2]!=null?c[2]:null};
     });
     _applyFilterState(st);
-  }catch(e){}
+    /* A restored state that hides every row reads as "the data didn't load" —
+       the classic trap is r:[] (every rating box unchecked) immortalized in
+       the auto-synced hash, which then survives every reload. Fall back to
+       the default state — via _applyFilterState({}), NOT clearFilters(),
+       which also wipes the reviewed-marks store — and drop the stale hash so
+       the next reload starts clean. Deliberate zero-row states created live
+       in-session are untouched; this guards only the load path. */
+    if(DATA.length&&FD&&FD.length===0){
+      _applyFilterState({});
+      try{history.replaceState(null,'',location.pathname+location.search);}catch(e2){}
+    }
+  }catch(e){
+    /* A failed restore must never leave the report blank: fall back to the
+       default filter pass so the page always renders SOMETHING. */
+    try{_applyFilterState({});}catch(e3){}
+  }
   _restoringHash=false;
   return true;
 }
@@ -2392,6 +2414,12 @@ function _renderMtxWindow(){
      matrix is filtered down). The follow-up _renderMtxWindow() call from
      _setTableH still tightens this once layout settles. */
   if(last-first<40)last=Math.min(n,first+40);
+  /* Zero rows = active filters excluded everything. A silently blank table
+     reads as "the data didn't load"; say so and offer the one-click fix. */
+  if(n===0){
+    tb.innerHTML='<tr><td colspan="99" style="text-align:center;padding:30px 14px;color:#8a97a5;font-size:1.05em">No stocks match the active filters — <a href="javascript:clearFilters()" style="color:#1f6feb;font-weight:700">clear filters</a> to show all '+DATA.length+'.</td></tr>';
+    return;
+  }
   var topPad=first*rowH;
   var botPad=(n-last)*rowH;
   var html='';
@@ -2665,6 +2693,12 @@ function _renderDtWindow(){
   var first=Math.max(0,Math.floor(scrollTop/rowH)-_dtBuffer);
   var last=Math.min(n,Math.ceil((scrollTop+viewportH)/rowH)+_dtBuffer);
   if(last-first<40)last=Math.min(n,first+40);
+  /* Zero rows = active filters excluded everything. A silently blank table
+     reads as "the data didn't load"; say so and offer the one-click fix. */
+  if(n===0){
+    tb.innerHTML='<tr><td colspan="99" style="text-align:center;padding:30px 14px;color:#8a97a5;font-size:1.05em">No stocks match the active filters — <a href="javascript:clearFilters()" style="color:#1f6feb;font-weight:700">clear filters</a> to show all '+DATA.length+'.</td></tr>';
+    return;
+  }
   var topPad=first*rowH;
   var botPad=(n-last)*rowH;
   var html='';
