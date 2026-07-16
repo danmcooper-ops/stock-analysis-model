@@ -169,7 +169,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         print(f"[report_html] rate-change baseline: {prev_run_date} "
               f"({len(_prev_ratings)} tickers)")
     else:
-        print("[report_html] rate-change baseline: none found (column shows NEW)")
+        print("[report_html] rate-change baseline: none found (Yesterday's Rating shows N/A)")
     gate_meta_obj = gate_metadata()
     total = len(rows)
     spread_vals = [r['spread'] for r in rows if r.get('spread') is not None]
