@@ -308,14 +308,19 @@ td.ct{font-weight:700;}
 .matrix-table tbody td:nth-child(2){position:sticky;left:40px;z-index:3;background:#fff;}
 .matrix-table tbody td:nth-child(3){position:sticky;left:68px;z-index:3;background:#fff;}
 .matrix-table td.tk{position:sticky;left:100px;z-index:3;background:#fff;}
-/* Lock ticker width so the Rating column's sticky `left` stays exact, then
-   freeze Rating (5th col) too — everything from Sector rightward scrolls past
-   it. The frozen-zone shadow moves from Ticker to Rating (the new right edge). */
+/* Lock ticker width so the rating columns' sticky `left` stays exact, then
+   freeze BOTH Today's Rating (5th col) and Yesterday's Rating (6th col) —
+   fixed-width so col 6's offset is deterministic (ticker 60px → Today at 160px;
+   Today 72px → Yesterday at 232px). Everything from Sector rightward scrolls
+   past them; the frozen-zone shadow sits on Yesterday, the new right edge. */
 .matrix-table thead tr:first-child th:nth-child(4),.matrix-table tbody td.tk{width:60px;min-width:60px;max-width:60px;}
-.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
-.matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-.matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(5){background:rgba(255,255,255,0.97);}
-.matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(5){background:#eaf4fd!important;}
+.matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6),.matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){width:72px;min-width:72px;max-width:72px;white-space:normal;}
+.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:15;background:#1a252f;}
+.matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:3;background:#fff;}
+.matrix-table thead tr:first-child th:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+.matrix-table tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(5),.matrix-table tr:nth-child(even) td:nth-child(6){background:rgba(255,255,255,0.97);}
+.matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(5),.matrix-table tr:hover td:nth-child(6){background:#eaf4fd!important;}
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
 .dt th:first-child{text-align:left;}
 .dt th .arrow{margin-left:3px;font-size:0.7em;}
@@ -953,11 +958,11 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .matrix-table tr:hover td{background-color:#1f3a5c !important;}
 [data-theme="dark"] .matrix-table td.tk{background:#161b22;color:#58a6ff;}
 [data-theme="dark"] .dt td.tk2{color:#58a6ff;}
-[data-theme="dark"] .dt tbody td:nth-child(1),[data-theme="dark"] .dt tbody td:nth-child(2),[data-theme="dark"] .dt tbody td:nth-child(3),[data-theme="dark"] .dt td.tk2,[data-theme="dark"] .matrix-table tbody td:nth-child(1),[data-theme="dark"] .matrix-table tbody td:nth-child(2),[data-theme="dark"] .matrix-table tbody td:nth-child(3),[data-theme="dark"] .matrix-table tbody td:nth-child(5){background:#161b22;}
+[data-theme="dark"] .dt tbody td:nth-child(1),[data-theme="dark"] .dt tbody td:nth-child(2),[data-theme="dark"] .dt tbody td:nth-child(3),[data-theme="dark"] .dt td.tk2,[data-theme="dark"] .matrix-table tbody td:nth-child(1),[data-theme="dark"] .matrix-table tbody td:nth-child(2),[data-theme="dark"] .matrix-table tbody td:nth-child(3),[data-theme="dark"] .matrix-table tbody td:nth-child(5),[data-theme="dark"] .matrix-table tbody td:nth-child(6){background:#161b22;}
 [data-theme="dark"] .dt tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(3),[data-theme="dark"] .dt tr:nth-child(even) td.tk2{background:#1c2128;}
 [data-theme="dark"] .dt tr:hover td:nth-child(1),[data-theme="dark"] .dt tr:hover td:nth-child(2),[data-theme="dark"] .dt tr:hover td:nth-child(3),[data-theme="dark"] .dt tr:hover td.tk2{background:#1f3a5c !important;}
-[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(3),[data-theme="dark"] .matrix-table tr:nth-child(even) td.tk,[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(5){background:#1c2128;}
-[data-theme="dark"] .matrix-table tr:hover td:nth-child(1),[data-theme="dark"] .matrix-table tr:hover td:nth-child(2),[data-theme="dark"] .matrix-table tr:hover td:nth-child(3),[data-theme="dark"] .matrix-table tr:hover td.tk,[data-theme="dark"] .matrix-table tr:hover td:nth-child(5){background:#1f3a5c !important;}
+[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(3),[data-theme="dark"] .matrix-table tr:nth-child(even) td.tk,[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(5),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(6){background:#1c2128;}
+[data-theme="dark"] .matrix-table tr:hover td:nth-child(1),[data-theme="dark"] .matrix-table tr:hover td:nth-child(2),[data-theme="dark"] .matrix-table tr:hover td:nth-child(3),[data-theme="dark"] .matrix-table tr:hover td.tk,[data-theme="dark"] .matrix-table tr:hover td:nth-child(5),[data-theme="dark"] .matrix-table tr:hover td:nth-child(6){background:#1f3a5c !important;}
 [data-theme="dark"] td.gp{background-color:var(--gate-pass) !important;color:#7ee787 !important;}
 [data-theme="dark"] td.gf{background-color:var(--gate-fail) !important;color:#ff7b72 !important;}
 [data-theme="dark"] td.gn{background-color:var(--gate-na) !important;color:#c9d1d9 !important;}
@@ -2378,7 +2383,8 @@ function renderMatrix(){
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.3em" onclick="mSort(\'_flagged\')" title="Flagged">\u2691'+(mSC==='_flagged'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;color:white" onclick="mSort(\'_reviewed\')" title="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'+(mSC==='_reviewed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'ticker\')" data-col-tip="ticker" data-col-label="Ticker">Ticker'+(mSC==='ticker'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
-  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" data-col-tip="rating" data-col-label="Rating">Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" data-col-tip="rating" data-col-label="Today\u2019s Rating">Today\u2019s Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating_prev\')" data-col-tip="rating_prev" data-col-label="Yesterday\u2019s Rating">Yesterday\u2019s Rating'+(mSC==='rating_prev'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'sector\')" data-col-tip="sector" data-col-label="Sector">Sector'+(mSC==='sector'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   GM.categories.forEach(function(cat){var n=cg2[cat.name].length+1;h1+='<th class="cat-header" colspan="'+n+'" style="background:'+cat.dark+'">'+cat.name+' ('+Math.round(cat.weight*100)+'%)</th>';});
   h1+='</tr>';
@@ -2388,7 +2394,7 @@ function renderMatrix(){
   th.innerHTML=h1+h2;
   var sd=FD.slice();
   var RO={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
-  if(mSC){sd.sort(function(a,b){var va,vb;if(mSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(mSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[mSC];vb=b[mSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(mSC==='_gates_passed'){var na=parseInt(va),nb=parseInt(vb);if(!isNaN(na)&&!isNaN(nb))return mSA?na-nb:nb-na;}if(mSC==='rating'){var ra=RO[va]||99,rb2=RO[vb]||99;return mSA?ra-rb2:rb2-ra;}if(typeof va==='boolean'){va=va?1:0;vb=vb?1:0;return mSA?va-vb:vb-va;}if(typeof va==='string')return mSA?va.localeCompare(vb):vb.localeCompare(va);return mSA?va-vb:vb-va;});}
+  if(mSC){sd.sort(function(a,b){var va,vb;if(mSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(mSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[mSC];vb=b[mSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(mSC==='_gates_passed'){var na=parseInt(va),nb=parseInt(vb);if(!isNaN(na)&&!isNaN(nb))return mSA?na-nb:nb-na;}if(mSC==='rating'||mSC==='rating_prev'){var ra=RO[va]||99,rb2=RO[vb]||99;return mSA?ra-rb2:rb2-ra;}if(typeof va==='boolean'){va=va?1:0;vb=vb?1:0;return mSA?va-vb:vb-va;}if(typeof va==='string')return mSA?va.localeCompare(vb):vb.localeCompare(va);return mSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
   _mtxData=sd;_mtxCg2=cg2;
   /* Detect whether the dataset or sort actually changed — if only a flag/reviewed
@@ -2414,6 +2420,7 @@ function _mtxBuildRow(d,_i){
   html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
   html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+'</td>';
   html+='<td>'+rb(d.rating,d)+'</td>';
+  html+='<td>'+rb(d.rating_prev)+'</td>';
   html+='<td style="font-size:0.75em">'+(d.sector||'N/A')+'</td>';
   GM.categories.forEach(function(cat){
     _mtxCg2[cat.name].forEach(function(g){
@@ -2459,7 +2466,7 @@ function _mtxOnScroll(){
   _mtxRafPending=true;
   requestAnimationFrame(function(){_mtxRafPending=false;_renderMtxWindow();});
 }
-function mSort(col){if(mSC===col)mSA=!mSA;else{mSC=col;mSA=col==='ticker'||col==='sector'||col==='rating';}renderMatrix();}
+function mSort(col){if(mSC===col)mSA=!mSA;else{mSC=col;mSA=col==='ticker'||col==='sector'||col==='rating'||col==='rating_prev';}renderMatrix();}
 
 /* === MATRIX SUB-TABS === */
 var curMSub=null;
