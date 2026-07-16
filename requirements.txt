@@ -4,3 +4,4 @@ openpyxl
 pytest
 jinja2
 lxml
+pyarrow
