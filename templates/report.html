@@ -1189,7 +1189,7 @@ td.ct{font-weight:700;}
     <button class="nav-btn" data-view="table" onclick="showView('table')">Financial Data</button>
   </div>
   <div class="filter-bar" id="filter-bar">
-    <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker..." oninput="applyFilters()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
+    <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker, name, industry..." oninput="applyFilters()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
     <button class="mob-filter-btn" id="mob-filter-btn" onclick="toggleMobFilters()">&#9776; Filters</button>
     <div class="ms-wrap" id="ms-rating">
       <div class="ms-btn" onclick="msToggle('ms-rating')">All Ratings</div>
@@ -1244,6 +1244,8 @@ td.ct{font-weight:700;}
         </div>
       </div>
     </div>
+    <button class="filter-clear" onclick="copyLink(this)" title="Copy a shareable link that restores the current filters and view">Link</button>
+    <button class="filter-clear" onclick="exportCsv()" title="Download the currently filtered rows as CSV (columns follow the active tab)">CSV</button>
     <button class="filter-clear" onclick="clearFilters()">Clear</button>
     <span class="filter-count" id="f-count"></span>
   </div>
@@ -1608,6 +1610,11 @@ function _getCurrentFilterState(){
   var cf=[];
   document.querySelectorAll('.col-filter-row').forEach(function(row){
     var key=row.querySelector('.cfr-col').value;if(!key)return;
+    if((window._CF_FMT&&_CF_FMT[key])==='text'){
+      var t=(row.querySelector('.cfr-text').value||'').trim();
+      if(t)cf.push({key:key,txt:t});
+      return;
+    }
     var minR=row.querySelector('.cfr-min').value,maxR=row.querySelector('.cfr-max').value;
     if(minR===''&&maxR==='')return;
     cf.push({key:key,min:minR!==''?parseFloat(minR):null,max:maxR!==''?parseFloat(maxR):null});
@@ -1637,8 +1644,8 @@ function _applyFilterState(st){
       var row=rows[rows.length-1];
       var colSel=row.querySelector('.cfr-col');
       colSel.value=c.key;
-      var fmt=_CF_FMT[c.key]||'';
-      row.querySelector('.cfr-unit').textContent=fmt==='pct'?'%':(fmt==='dollar'||fmt==='ds')?'$':'';
+      _cfSyncRowMode(row,c.key);
+      if(c.txt!=null)row.querySelector('.cfr-text').value=c.txt;
       if(c.min!=null)row.querySelector('.cfr-min').value=c.min;
       if(c.max!=null)row.querySelector('.cfr-max').value=c.max;
     });
@@ -1672,6 +1679,7 @@ function _builtinTip(state){
   var parts=[];
   if(state.sectors&&state.sectors.length)parts.push('Sector: '+state.sectors.join(', '));
   (state.colFilters||[]).forEach(function(c){
+    if(c.txt!=null){parts.push(c.key+' contains "'+c.txt+'"');return;}
     var fmt=(window._CF_FMT&&window._CF_FMT[c.key])||'';
     var u=fmt==='pct'?'%':(fmt==='dollar'||fmt==='ds')?'$':'';
     var rng;
@@ -1722,6 +1730,82 @@ function renderSavedFilters(){
   el.innerHTML=html;
 }
 renderSavedFilters();
+
+/* === URL-SHAREABLE FILTER STATE ===
+   The active filters + view live in the hash fragment (#s=<json>), so a
+   filtered view can be copied/bookmarked and restored in any browser.
+   Hash only — works on GitHub Pages and file://, never triggers a
+   refetch, and leaves the localStorage persistence (presets, flags,
+   reviewed, theme) untouched. Note: the Reviewed/Flagged toggles filter
+   against per-device localStorage sets, so a recipient may see different
+   rows for those two toggles. Compact keys keep typical URLs short:
+   q=search r/s/c=rating/sector/country cf=[key,min,max] fl/fo/bc/rv=
+   toggles v/ms/ts=view + sub-tabs. */
+var _restoringHash=false,_hashTimer=null;
+function _stateToParam(){
+  var st=_getCurrentFilterState(),p={};
+  if(st.search)p.q=st.search;
+  if(st.ratings)p.r=st.ratings;
+  if(st.sectors)p.s=st.sectors;
+  if(st.countries)p.c=st.countries;
+  if(st.colFilters&&st.colFilters.length)p.cf=st.colFilters.map(function(c){return c.txt!=null?[c.key,null,null,c.txt]:[c.key,c.min,c.max];});
+  if(st.flagOnly)p.fl=1;
+  if(st.founderOnly)p.fo=1;
+  if(st.blueChipOnly)p.bc=1;
+  if(st.revFilter)p.rv=st.revFilter;
+  if(curView!=='pool')p.v=curView;
+  if(curView==='matrix'&&curMSub&&curMSub!=='matrix')p.ms=curMSub;
+  if(curView==='table'&&curTSub!=='prices')p.ts=curTSub;
+  return p;
+}
+function _syncHashNow(){
+  if(_restoringHash)return;
+  var p=_stateToParam();
+  try{
+    if(Object.keys(p).length===0)history.replaceState(null,'',location.pathname+location.search);
+    else history.replaceState(null,'','#s='+encodeURIComponent(JSON.stringify(p)));
+  }catch(e){}
+}
+function _syncHash(){
+  if(_restoringHash)return;
+  clearTimeout(_hashTimer);
+  _hashTimer=setTimeout(_syncHashNow,250);
+}
+/* Returns true when a hash state was found and applied (the caller then
+   skips its own applyFilters). Malformed hashes are silently ignored. */
+function _restoreFromHash(){
+  var h=location.hash||'';
+  if(h.indexOf('#s=')!==0)return false;
+  var p;
+  try{p=JSON.parse(decodeURIComponent(h.slice(3)));}catch(e){return false;}
+  if(!p||typeof p!=='object')return false;
+  _restoringHash=true;
+  try{
+    /* View first, so _applyFilterState's renderCur lands on the right tab. */
+    if(p.ms)curMSub=p.ms;
+    if(p.ts)curTSub=p.ts;
+    if(p.v&&document.getElementById('view-'+p.v))showView(p.v);
+    var st={search:p.q||'',ratings:p.r,sectors:p.s,countries:p.c,
+            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,revFilter:p.rv|0};
+    st.colFilters=(p.cf||[]).filter(function(c){
+      return c&&c[0]&&window._CF_FMT&&(c[0]in window._CF_FMT);
+    }).map(function(c){
+      if(c[3]!=null)return{key:c[0],txt:String(c[3])};
+      return{key:c[0],min:c[1]!=null?c[1]:null,max:c[2]!=null?c[2]:null};
+    });
+    _applyFilterState(st);
+  }catch(e){}
+  _restoringHash=false;
+  return true;
+}
+function copyLink(btn){
+  _syncHashNow();
+  var url=location.href;
+  function done(){if(!btn)return;var old=btn.textContent;btn.textContent='Copied!';setTimeout(function(){btn.textContent=old;},1200);}
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(done,function(){prompt('Copy link:',url);});
+  }else{prompt('Copy link:',url);}
+}
 
 /* === HELPERS === */
 function esc(s){var e=document.createElement('span');e.textContent=s;return e.innerHTML;}
@@ -2011,6 +2095,11 @@ function applyFilters(){
   document.querySelectorAll('.col-filter-row').forEach(function(row){
     var key=row.querySelector('.cfr-col').value;
     if(!key)return;
+    if((_CF_FMT[key]||'')==='text'){
+      var t=(row.querySelector('.cfr-text').value||'').trim();
+      if(t)colFilters.push({key:key,txt:t.toUpperCase()});
+      return;
+    }
     var minR=row.querySelector('.cfr-min').value;
     var maxR=row.querySelector('.cfr-max').value;
     var cMin=minR!==''?parseFloat(minR):null;
@@ -2024,12 +2113,25 @@ function applyFilters(){
     if(_blueChipOnly&&!_isBlueChip(d))return false;
     if(_revFilter===1&&isReviewed(d.ticker))return false;
     if(_revFilter===2&&!isReviewed(d.ticker))return false;
-    if(q&&(d.ticker||'').toUpperCase().indexOf(q)<0&&(d.description||'').toUpperCase().indexOf(q)<0)return false;
+    /* Free-text search matches ticker, company name, sector, industry and
+       description via a per-row haystack memoized on first use — one
+       indexOf per row per keystroke instead of five toUpperCase calls. */
+    if(q){
+      if(d._search==null)d._search=[d.ticker,d.company_name,d.sector,d.industry,d.description].map(function(x){return x||'';}).join('\n').toUpperCase();
+      if(d._search.indexOf(q)<0)return false;
+    }
     if(!allRatings&&ratings.indexOf(d.rating)<0)return false;
     if(!allSectors&&sectors.indexOf(d.sector)<0)return false;
     if(!allCountries&&countries.indexOf(d.country)<0)return false;
     for(var i=0;i<colFilters.length;i++){
       var cf=colFilters[i];
+      /* Text filters: case-insensitive substring on the raw field; rows
+         missing the field never match. Numeric coercion and the gate-null
+         check below don't apply. */
+      if(cf.txt!=null){
+        if(String(d[cf.key]==null?'':d[cf.key]).toUpperCase().indexOf(cf.txt)<0)return false;
+        continue;
+      }
       /* Use _num() so the filter's notion of N/A matches every other
          display in the report — null, undefined, NaN, Infinity, and any
          non-numeric string all canonicalize to null and drop the row.
@@ -2061,6 +2163,7 @@ function applyFilters(){
   if(btn)btn.classList.toggle('active',colFilters.length>0||qActive);
   _updateFlagCount();
   renderCur();
+  _syncHash();
 }
 function clearColFilters(){
   document.getElementById('col-filters').innerHTML='';
@@ -2093,6 +2196,82 @@ function clearFilters(){
   var presetSel=document.querySelector('.sf-preset-sel');
   if(presetSel)presetSel.value='';
   applyFilters();
+}
+/* === CSV EXPORT ===
+   Exports the CURRENTLY FILTERED rows straight from the data arrays —
+   never the DOM, which only holds the ~40 virtualized rows on screen.
+   Column set follows the active view/sub-tab so the download matches
+   what the user is looking at. */
+function _csvCell(v){
+  if(v==null)return'';
+  var s=String(v);
+  /* Formula-injection guard: only string cells can smuggle a formula;
+     numbers (incl. negatives) pass through untouched. */
+  if(typeof v==='string'&&/^[=+\-@]/.test(s))s="'"+s;
+  if(/[",\n\r]/.test(s))s='"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+/* Raw-ish export value for a TC column: pct fields ×100 (header carries
+   a " %" suffix) so cells match the on-screen numbers while staying
+   numeric-typed in Excel; null stays an empty cell, not "N/A". */
+function _csvVal(v,f){
+  if(v==null)return null;
+  if(f==='pct')return _num(v)!=null?+( _num(v)*100).toFixed(4):null;
+  if(f==='bool')return v?'Yes':'No';
+  if(f==='text'||f==='rating'||f==='ar')return String(v);
+  var n=_num(v);return n!=null?n:String(v);
+}
+function exportCsv(){
+  var rows,heads,vals,tag;
+  if(curView==='table'&&curTSub!=='prices'&&_dtData){
+    /* Financial Data: current sort order + current tab's columns, with
+       company/sector context inserted after Ticker. */
+    var cols=(TC[curTSub]||[]).slice();
+    cols.splice(1,0,{k:'company_name',l:'Company',f:'text'},{k:'sector',l:'Sector',f:'text'});
+    rows=_dtData;tag=curTSub;
+    heads=cols.map(function(c){return c.l+(c.f==='pct'?' %':'');});
+    vals=function(d){return cols.map(function(c){return _csvVal(d[c.k],c.f);});};
+  }else if(curView==='matrix'&&curMSub==='matrix'&&_mtxData&&_mtxCg2){
+    /* Gate Matrix: fixed columns then each category's gates + total,
+       mirroring renderMatrix()'s layout. */
+    rows=_mtxData;tag='matrix';
+    heads=['Ticker','Rating','Sector'];
+    var mcols=[];
+    GM.categories.forEach(function(cat){
+      _mtxCg2[cat.name].forEach(function(g){
+        heads.push(g.label+(g.fmt==='pct1'?' %':''));
+        mcols.push({key:g.key,fmt:g.fmt});
+      });
+      heads.push(cat.name+' Total %');
+      mcols.push({key:cat.scoreKey,fmt:'score'});
+    });
+    vals=function(d){
+      var out=[d.ticker,d.rating||null,d.sector||null];
+      mcols.forEach(function(c){
+        var v=d[c.key];
+        if(v==null){out.push(null);return;}
+        if(c.fmt==='pct1'){var n=_num(v);out.push(n!=null?+(n*100).toFixed(4):String(v));}
+        else{var n2=_num(v);out.push(n2!=null?n2:String(v));}
+      });
+      return out;
+    };
+  }else{
+    /* Pool view / Charts / Dashboard: filtered rows with a core column set. */
+    var core=[{k:'ticker',l:'Ticker',f:'text'},{k:'company_name',l:'Company',f:'text'},{k:'sector',l:'Sector',f:'text'},{k:'industry',l:'Industry',f:'text'},{k:'country',l:'Country',f:'text'},{k:'rating',l:'Rating',f:'text'},{k:'_composite_score',l:'Composite',f:'n1'},{k:'price',l:'Price',f:'dollar'},{k:'mos',l:'MoS',f:'pct'},{k:'roic',l:'ROIC',f:'pct'},{k:'pe',l:'P/E',f:'n1'},{k:'mcap',l:'Mkt Cap',f:'ds'}];
+    rows=FD;tag=curView;
+    heads=core.map(function(c){return c.l+(c.f==='pct'?' %':'');});
+    vals=function(d){return core.map(function(c){return _csvVal(d[c.k],c.f);});};
+  }
+  var lines=[heads.map(_csvCell).join(',')];
+  rows.forEach(function(d){lines.push(vals(d).map(_csvCell).join(','));});
+  /* BOM so Excel detects UTF-8. */
+  var blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  var dateSlug='{{ generated_at }}'.replace(/[^\w]+/g,'-').replace(/^-|-$/g,'')||'report';
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='report_'+dateSlug+'_'+tag+'.csv';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
 }
 function _positionFpop(panel,btn){
   var r=btn.getBoundingClientRect();
@@ -2136,8 +2315,9 @@ function addColFilter(){
   row.className='col-filter-row';row.id='cfr-'+id;
   row.innerHTML='<select class="f-col-sel cfr-col" onchange="onColRowChange(this)">'+_cfOptHtml+'</select>'
     +'<input type="number" class="f-num cfr-min" placeholder="Min" oninput="applyFilters()">'
-    +'<span class="score-sep">\u2013</span>'
+    +'<span class="score-sep cfr-sep">\u2013</span>'
     +'<input type="number" class="f-num cfr-max" placeholder="Max" oninput="applyFilters()">'
+    +'<input type="text" class="f-num cfr-text" placeholder="Contains\u2026" style="display:none" oninput="applyFilters()">'
     +'<span class="col-unit cfr-unit"></span>'
     +'<button class="cfr-remove" onclick="removeColFilter(this)" title="Remove">\u00d7</button>';
   wrap.appendChild(row);
@@ -2154,12 +2334,24 @@ function removeColFilter(btn){
   if(!document.querySelector('.col-filter-row'))addColFilter();
   applyFilters();
 }
+/* Switch a filter row between numeric (min–max) and text (contains)
+   input modes based on the selected column's format. Shared by the
+   dropdown onchange and by _applyFilterState when rebuilding rows. */
+function _cfSyncRowMode(row,key){
+  var fmt=_CF_FMT[key]||'';
+  var isText=fmt==='text';
+  row.querySelector('.cfr-min').style.display=isText?'none':'';
+  row.querySelector('.cfr-max').style.display=isText?'none':'';
+  row.querySelector('.cfr-sep').style.display=isText?'none':'';
+  row.querySelector('.cfr-text').style.display=isText?'':'none';
+  row.querySelector('.cfr-unit').textContent=fmt==='pct'?'%':(fmt==='dollar'||fmt==='ds')?'$':'';
+}
 function onColRowChange(sel){
   var row=sel.closest('.col-filter-row');
   row.querySelector('.cfr-min').value='';
   row.querySelector('.cfr-max').value='';
-  var fmt=_CF_FMT[sel.value]||'';
-  row.querySelector('.cfr-unit').textContent=fmt==='pct'?'%':(fmt==='dollar'||fmt==='ds')?'$':'';
+  row.querySelector('.cfr-text').value='';
+  _cfSyncRowMode(row,sel.value);
   applyFilters();
 }
 
@@ -2289,6 +2481,7 @@ function swMSub(key){
     if(mw)mw.style.display='';if(ov)ov.style.display='none';
     renderMatrix();
   }
+  _syncHash();
   setTimeout(_setTableH,0);
 }
 function renderOverview(){
@@ -3797,6 +3990,7 @@ function showView(v){
   document.getElementById('view-'+v).classList.add('active');
   moveFilterBar(v);
   renderCur();
+  _syncHash();
   setTimeout(_setTableH,0);
 }
 function renderCur(){
@@ -5814,11 +6008,19 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
     });
     if(grpHtml)optHtml+='<optgroup label="'+TL[tabKey]+'">'+grpHtml+'</optgroup>';
   });
+  /* Text (contains) filters — categorical row fields that aren't
+     numeric TC columns. Matched case-insensitively as substrings. */
+  var _CF_TEXT=[['industry','Industry'],['ceo','CEO'],['mc_confidence','MC Conf']];
+  var txtHtml='';
+  _CF_TEXT.forEach(function(p){_CF_FMT[p[0]]='text';txtHtml+='<option value="'+p[0]+'">'+p[1]+' (text)</option>';});
+  optHtml+='<optgroup label="Text">'+txtHtml+'</optgroup>';
   _cfOptHtml=optHtml;
   addColFilter(); // seed one empty row
   document.getElementById('f-count').textContent=DATA.length+' of '+DATA.length;
   moveFilterBar(curView);
-  applyFilters();
+  /* A #s= hash (shared link) restores its filters + view and runs
+     applyFilters itself; otherwise do the normal initial pass. */
+  if(!_restoreFromHash())applyFilters();
   setTimeout(_setTableH,0);
 })();
 </script>
