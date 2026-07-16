@@ -275,6 +275,29 @@ td.ct{font-weight:700;}
 .dt td.tk2{position:-webkit-sticky;position:sticky;left:100px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
 .dt tr:nth-child(even) td:nth-child(1),.dt tr:nth-child(even) td:nth-child(2),.dt tr:nth-child(even) td:nth-child(3),.dt tr:nth-child(even) td.tk2{background:#f8f9fa;}
 .dt tr:hover td:nth-child(1),.dt tr:hover td:nth-child(2),.dt tr:hover td:nth-child(3),.dt tr:hover td.tk2{background:#eaf4fd!important;}
+/* Extend the frozen zone through Rating (col 5) and Δ-change (col 6) so BOTH
+   rating columns stay pinned when the metric grid scrolls horizontally — on
+   every Financial Data sub-tab, since all of them lead with ticker/rating/Δ.
+   Offsets follow the locked #dtbl widths (ticker 68px → rating at 168px;
+   rating 72px → Δ at 240px). Scoped to #dtbl so the matrix / heatmap tables
+   (also .dt, with their own frozen-column setup) are untouched. The header
+   hue comes from the higher-specificity #dtbl.hdr-* th rules below; these only
+   add position+offset and an opaque body background so scrolled cells don't
+   bleed through. */
+#dtbl th:nth-child(5){position:-webkit-sticky;position:sticky;left:168px;z-index:12;background:#1a252f;}
+#dtbl th:nth-child(6){position:-webkit-sticky;position:sticky;left:240px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+#dtbl tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:168px;z-index:3;background:#fff;}
+#dtbl tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:240px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+#dtbl tr:nth-child(even) td:nth-child(5),#dtbl tr:nth-child(even) td:nth-child(6){background:#f8f9fa;}
+#dtbl tr:hover td:nth-child(5),#dtbl tr:hover td:nth-child(6){background:#eaf4fd!important;}
+/* Frozen-zone shadow now belongs on the Δ column (the new right edge), not Ticker. */
+#dtbl th:nth-child(4){box-shadow:none;}
+#dtbl td.tk2{box-shadow:none;}
+/* Dark-mode opaque backgrounds for the two newly-frozen columns (mirrors the
+   col 1-3 / tk2 dark rules). */
+[data-theme="dark"] #dtbl tbody td:nth-child(5),[data-theme="dark"] #dtbl tbody td:nth-child(6){background:#161b22;}
+[data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(5),[data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(6){background:#1c2128;}
+[data-theme="dark"] #dtbl tr:hover td:nth-child(5),[data-theme="dark"] #dtbl tr:hover td:nth-child(6){background:#1f3a5c !important;}
 /* Freeze left 4 cols in matrix header (# · flag · reviewed · ticker — first row only since second row has gate sub-headers) */
 .matrix-table thead tr:first-child th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:15;background:#1a252f;}
 .matrix-table thead tr:first-child th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:15;background:#1a252f;}
@@ -1298,6 +1321,9 @@ function toggleTheme(){var cur=document.documentElement.getAttribute('data-theme
 /* === DATA === */
 var DATA={{ chart_data }};
 var GM={{ gate_meta }};
+/* Prior run date backing the "Δ vs prior" rating-change column (empty if this
+   is the first snapshot in the output dir). Set in report_html.build_html. */
+var PREV_DATE='{{ prev_run_date }}';
 /* Shorten the Price/FV label everywhere it renders (matrix header, detail view) so
    the column matches the visual width of its peers. */
 if(GM&&GM.gates){for(var _gi=0;_gi<GM.gates.length;_gi++){if(GM.gates[_gi].label==='Price/FV')GM.gates[_gi].label='P/FV';}}
@@ -1778,6 +1804,7 @@ function bkv(pairs){return pairs.map(function(p){
 var TT={
 ticker:'The symbol stands for a business, not a lottery ticket. Buffett’s rule: invest only in what you understand well enough to own for a decade.',
 rating:'The model’s verdict, blending the DCF fair value, 26 quality gates and the composite score. Treat it as a starting point for your own work, not a substitute for it.',
+rating_chg:'How this rating moved since the prior run’s snapshot. ▲ is an upgrade, ▼ a downgrade, — unchanged; the arrow labels the prior rating (hover for the full “from → to”). NEW means the ticker was not in the prior run. Sort it to surface the day’s upgrades and downgrades.',
 _composite_score:'Score = 0.30·Valuation + 0.30·Moat + 0.20·Quality + 0.10·Growth + 0.10·Ownership — five pillars, each scored 0–100 and weighted by how much it matters to long-run returns. Ratings: ≥57 BUY; 39–56 LEAN BUY; 25–38 HOLD; below 25 PASS. Thresholds are provisional pending the next live run.',
 _gates_passed:'Gates passed, out of those that apply. Gates that cannot describe the business — free-cash-flow tests for a bank, say — are excluded from the denominator, not failed. Diagnostic only: the composite score, not this count, drives the rating; but every failure deserves an explanation.',
 sector:'GICS sector. Buffett’s circle of competence begins here: benchmark a business only against peers with genuinely similar economics.',
@@ -2416,7 +2443,20 @@ TC.prices=[];
 var TL={prices:'Charts',val:'Valuation',prof:'Profitability',hlth:'Financial Health',growth:'Growth',proj:'Projections',own:'Ownership',div:'Dividends'};
 var tSC='rating',tSA=true;
 
-function ftc(v,f){
+function ftc(v,f,d){
+  /* rate-change cell is driven by the whole row (prior + current rating),
+     so it runs before the generic v==null guard — a null delta is meaningful
+     (unchanged/new), not "N/A". */
+  if(f==='ratingchg'){
+    var pv=d?d.rating_prev:null,cv=d?d.rating:null;
+    if(pv==null)return{t:'<span style="color:#2c7fb8;font-weight:600;font-size:0.85em" title="New since '+(PREV_DATE||'prior run')+'">NEW</span>',v:''};
+    var chg=d?d.rating_chg:null;
+    var AB={'BUY':'BUY','LEAN BUY':'LB','HOLD':'HOLD','PASS':'PASS'};
+    var tip=pv+' → '+(cv||'?')+(chg!=null?' ('+(chg>0?'+':'')+chg+')':'');
+    if(chg==null||chg===0)return{t:'<span style="color:#b0b0b0" title="'+tip+'">—</span>',v:0};
+    var up=chg>0,col=up?'#1a9850':'#de2d26',arw=up?'▲':'▼';
+    return{t:'<span style="color:'+col+';font-weight:600;white-space:nowrap" title="'+tip+'">'+arw+' '+(AB[pv]||pv)+'</span>',v:chg};
+  }
   if(v==null)return{t:'N/A',v:''};
   if(f==='text')return{t:String(v),v:String(v)};
   if(f==='rating')return{t:rb(v),v:v};
@@ -2432,9 +2472,18 @@ function ftc(v,f){
   return{t:String(v),v:v};
 }
 function renderTSubs(){var h='';Object.keys(TL).forEach(function(k){h+='<button class="sub-btn'+(k===curTSub?' active':'')+'" onclick="swTSub(\''+k+'\')">'+TL[k]+'</button>';});document.getElementById('t-subs').innerHTML=h;}
-function swTSub(s){curTSub=s;tSC='rating';tSA=true;renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}}
+function swTSub(s){curTSub=s;tSC='rating';tSA=true;renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
 function renderTable(){
-  var cols=TC[curTSub]||TC.prices;
+  /* Copy the tab's column list (never mutate the shared TC array) and inject
+     the rate-change column immediately right of Rating, on every tab. */
+  var cols=(TC[curTSub]||TC.prices).slice();
+  for(var _ci=0;_ci<cols.length;_ci++){
+    if(cols[_ci].k==='rating'){
+      var _pd=PREV_DATE?PREV_DATE.slice(5):'prior';
+      cols.splice(_ci+1,0,{k:'rating_chg',l:'Δ '+_pd,f:'ratingchg'});
+      break;
+    }
+  }
   var _dtbl=document.getElementById('dtbl');
   if(_dtbl)_dtbl.className='dt hdr-'+curTSub; /* paints the whole header row one per-tab hue */
   var th=document.getElementById('dt-h');
@@ -2466,7 +2515,7 @@ function _dtBuildRow(d,_i){
   html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
   html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
   _dtCols.forEach(function(c){
-    var r=ftc(d[c.k],c.f);
+    var r=ftc(d[c.k],c.f,d);
     var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';
     html+='<td'+cls+' data-value="'+r.v+'">'+r.t+'</td>';
   });

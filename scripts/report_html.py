@@ -101,9 +101,75 @@ _RATING_VAL = {'BUY': 3, 'LEAN BUY': 2, 'HOLD': 1, 'PASS': 0}
 def _rating_num(rating):
     return _RATING_VAL.get(rating, -1)
 
+
+def _rating_delta(prev, cur):
+    """Signed step change between two ratings (+ = upgrade, - = downgrade).
+
+    Returns None when either side is missing or unrecognized (e.g. a ticker
+    that is new since the prior run, or a snapshot without ratings), so the
+    column can render 'NEW'/'—' and sort those rows apart from real moves.
+    """
+    if prev in _RATING_VAL and cur in _RATING_VAL:
+        return _RATING_VAL[cur] - _RATING_VAL[prev]
+    return None
+
+
+def _load_prev_ratings(out_dir, run_date):
+    """Load the prior run's ticker->rating map for the rate-change column.
+
+    Scans ``out_dir`` for ``results_YYYY-MM-DD.json`` snapshots and picks the
+    most recent one dated strictly before ``run_date`` (ISO date strings sort
+    lexicographically, so a plain string compare is correct). Returns
+    ``(prev_date_str, {ticker: rating})``, or ``(None, {})`` when there is no
+    earlier snapshot or anything fails — the column then degrades to 'NEW'
+    for every row rather than raising.
+    """
+    import glob
+    import re
+    try:
+        cur = run_date.isoformat() if run_date is not None else None
+    except Exception:
+        cur = None
+    best_date, best_path = None, None
+    for p in glob.glob(os.path.join(out_dir, 'results_*.json')):
+        m = re.search(r'results_(\d{4}-\d{2}-\d{2})\.json$', os.path.basename(p))
+        if not m:
+            continue
+        d = m.group(1)
+        if cur is not None and d >= cur:
+            continue
+        if best_date is None or d > best_date:
+            best_date, best_path = d, p
+    if best_path is None:
+        return None, {}
+    try:
+        with open(best_path) as f:
+            snap = json.load(f)
+    except Exception as e:
+        print(f"[report_html] prior-rating load failed ({best_path}): {e}")
+        return None, {}
+    recs = snap.get('results') if (isinstance(snap, dict) and 'results' in snap) else snap
+    out = {}
+    if isinstance(recs, list):
+        for rec in recs:
+            if isinstance(rec, dict):
+                tk, rt = rec.get('ticker'), rec.get('rating')
+                if tk and rt:
+                    out[tk] = rt
+    return best_date, out
+
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None):
     """Render the interactive HTML report via Jinja2 template."""
     rows = _sanitize(rows)
+    # Prior-run ratings for the "Δ vs prior" column. Sourced from the most
+    # recent earlier results_*.json sitting next to this HTML output.
+    _out_dir_early = os.path.dirname(os.path.abspath(filename)) or '.'
+    prev_run_date, _prev_ratings = _load_prev_ratings(_out_dir_early, run_date)
+    if _prev_ratings:
+        print(f"[report_html] rate-change baseline: {prev_run_date} "
+              f"({len(_prev_ratings)} tickers)")
+    else:
+        print("[report_html] rate-change baseline: none found (column shows NEW)")
     gate_meta_obj = gate_metadata()
     total = len(rows)
     spread_vals = [r['spread'] for r in rows if r.get('spread') is not None]
@@ -119,6 +185,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         'piotroski': r.get('piotroski'),
         'pe': r.get('pe'), 'ev_ebitda': r.get('ev_ebitda'),
         'rating': r.get('rating'), 'rating_raw': r.get('rating_raw'),
+        # Rate change vs the prior run: prior rating string + signed step
+        # delta (+ upgrade / - downgrade / 0 unchanged / None if new-or-missing).
+        'rating_prev': _prev_ratings.get(r.get('ticker')),
+        'rating_chg': _rating_delta(_prev_ratings.get(r.get('ticker')), r.get('rating')),
         '_rating_cap': r.get('_rating_cap'),
         '_rating_cap_reasons': r.get('_rating_cap_reasons', []),
         'analyst_rec': r.get('analyst_rec'),
@@ -597,6 +667,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         hist_available=('true' if hist_payload is not None else 'false'),
         details_available=('true' if details_payload else 'false'),
         generated_at=(run_date or date.today()).strftime('%B %-d, %Y'),
+        prev_run_date=(prev_run_date or ''),
     )
 
     with open(filename, 'w') as f:
