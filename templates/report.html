@@ -1239,6 +1239,8 @@ td.ct{font-weight:700;}
             <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
             <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
             <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3).">&#9670; Blue Chip</button>
+            <button class="fpop-toggle-btn" id="f-upgrades" onclick="setRcFilter(1)" title="Only stocks whose rating improved vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9650; Upgrades</button>
+            <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose rating declined vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9660; Downgrades</button>
           </div>
           <div class="fpop-divider"></div>
           <div class="fpop-section-label">Column Filters</div>
@@ -1252,8 +1254,6 @@ td.ct{font-weight:700;}
         </div>
       </div>
     </div>
-    <button class="filter-clear" onclick="copyLink(this)" title="Copy a shareable link that restores the current filters and view">Link</button>
-    <button class="filter-clear" onclick="exportCsv()" title="Download the currently filtered rows as CSV (columns follow the active tab)">CSV</button>
     <button class="filter-clear" onclick="clearFilters()">Clear</button>
     <span class="filter-count" id="f-count"></span>
   </div>
@@ -1434,6 +1434,17 @@ function toggleFlagDet(){var tk=document.getElementById('d-tk').textContent;if(!
 function toggleFlagFilter(){_flagOnly=!_flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);applyFilters();}
 var _founderOnly=false;
 function toggleFounderFilter(){_founderOnly=!_founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);applyFilters();}
+/* Rating-change quick filter vs the prior run (rating_chg: + upgrade,
+   - downgrade, null new/missing). 0=all, 1=upgrades only, 2=downgrades
+   only. The two buttons are mutually exclusive; clicking the active one
+   turns the filter off. */
+var _rcFilter=0;
+function setRcFilter(v){
+  _rcFilter=(_rcFilter===v)?0:v;
+  document.getElementById('f-upgrades').classList.toggle('active',_rcFilter===1);
+  document.getElementById('f-downgrades').classList.toggle('active',_rcFilter===2);
+  applyFilters();
+}
 /* "Blue chip" = a large, established, high-quality market leader. There is no
    precomputed field for this, so it's derived live from each row (works on any
    report). All conditions must hold; rows missing an input fall out, matching
@@ -1628,7 +1639,7 @@ function _getCurrentFilterState(){
     cf.push({key:key,min:minR!==''?parseFloat(minR):null,max:maxR!==''?parseFloat(maxR):null});
   });
   st.colFilters=cf;
-  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.revFilter=_revFilter;
+  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.revFilter=_revFilter;st.rcFilter=_rcFilter;
   return st;
 }
 function _applyFilterState(st){
@@ -1664,6 +1675,9 @@ function _applyFilterState(st){
   _revFilter=st.revFilter|0;
   var rEl=document.getElementById('f-reviewed');
   if(rEl){rEl.classList.toggle('active',_revFilter>0);rEl.innerHTML=_CHK_SVG+' '+(['Reviewed','Unreviewed','Reviewed'])[_revFilter];}
+  _rcFilter=st.rcFilter|0;
+  document.getElementById('f-upgrades').classList.toggle('active',_rcFilter===1);
+  document.getElementById('f-downgrades').classList.toggle('active',_rcFilter===2);
   applyFilters();
 }
 function saveCurrentFilter(){
@@ -1761,6 +1775,7 @@ function _stateToParam(){
   if(st.founderOnly)p.fo=1;
   if(st.blueChipOnly)p.bc=1;
   if(st.revFilter)p.rv=st.revFilter;
+  if(st.rcFilter)p.rc=st.rcFilter;
   if(curView!=='pool')p.v=curView;
   if(curView==='matrix'&&curMSub&&curMSub!=='matrix')p.ms=curMSub;
   if(curView==='table'&&curTSub!=='prices')p.ts=curTSub;
@@ -1794,7 +1809,7 @@ function _restoreFromHash(){
     if(p.ts)curTSub=p.ts;
     if(p.v&&document.getElementById('view-'+p.v))showView(p.v);
     var st={search:p.q||'',ratings:p.r,sectors:p.s,countries:p.c,
-            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,revFilter:p.rv|0};
+            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,revFilter:p.rv|0,rcFilter:p.rc|0};
     st.colFilters=(p.cf||[]).filter(function(c){
       return c&&c[0]&&window._CF_FMT&&(c[0]in window._CF_FMT);
     }).map(function(c){
@@ -1805,14 +1820,6 @@ function _restoreFromHash(){
   }catch(e){}
   _restoringHash=false;
   return true;
-}
-function copyLink(btn){
-  _syncHashNow();
-  var url=location.href;
-  function done(){if(!btn)return;var old=btn.textContent;btn.textContent='Copied!';setTimeout(function(){btn.textContent=old;},1200);}
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(url).then(done,function(){prompt('Copy link:',url);});
-  }else{prompt('Copy link:',url);}
 }
 
 /* === HELPERS === */
@@ -2121,6 +2128,10 @@ function applyFilters(){
     if(_blueChipOnly&&!_isBlueChip(d))return false;
     if(_revFilter===1&&isReviewed(d.ticker))return false;
     if(_revFilter===2&&!isReviewed(d.ticker))return false;
+    /* Rating-change filter: null rating_chg (new ticker or no prior
+       snapshot) matches neither direction. */
+    if(_rcFilter===1&&!(d.rating_chg>0))return false;
+    if(_rcFilter===2&&!(d.rating_chg<0))return false;
     /* Free-text search matches ticker, company name, sector, industry and
        description via a per-row haystack memoized on first use — one
        indexOf per row per keystroke instead of five toUpperCase calls. */
@@ -2166,7 +2177,7 @@ function applyFilters(){
      filters OR any quick toggle (Reviewed cycle, Flagged, Founder-Led).
      3-state Reviewed filter: state 0 (gray Reviewed) shows all and doesn't
      count; states 1 (Unreviewed) and 2 (Reviewed) are active filters. */
-  var qActive=_flagOnly||_founderOnly||_blueChipOnly||(_revFilter>0);
+  var qActive=_flagOnly||_founderOnly||_blueChipOnly||(_revFilter>0)||(_rcFilter>0);
   var btn=document.getElementById('fpop-btn');
   if(btn)btn.classList.toggle('active',colFilters.length>0||qActive);
   _updateFlagCount();
@@ -2196,6 +2207,7 @@ function clearFilters(){
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
   _blueChipOnly=false;document.getElementById('f-bluechip').classList.remove('active');
   _revFilter=0;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.remove('active');rEl.innerHTML=_CHK_SVG+' Reviewed';}
+  _rcFilter=0;document.getElementById('f-upgrades').classList.remove('active');document.getElementById('f-downgrades').classList.remove('active');
   _revd={};_saveRevd();_updateRevCount();
   /* Reset the sector preset dropdown to its placeholder so it doesn't
      read as "current preset" after a Clear. Persistent selection is
@@ -2204,82 +2216,6 @@ function clearFilters(){
   var presetSel=document.querySelector('.sf-preset-sel');
   if(presetSel)presetSel.value='';
   applyFilters();
-}
-/* === CSV EXPORT ===
-   Exports the CURRENTLY FILTERED rows straight from the data arrays —
-   never the DOM, which only holds the ~40 virtualized rows on screen.
-   Column set follows the active view/sub-tab so the download matches
-   what the user is looking at. */
-function _csvCell(v){
-  if(v==null)return'';
-  var s=String(v);
-  /* Formula-injection guard: only string cells can smuggle a formula;
-     numbers (incl. negatives) pass through untouched. */
-  if(typeof v==='string'&&/^[=+\-@]/.test(s))s="'"+s;
-  if(/[",\n\r]/.test(s))s='"'+s.replace(/"/g,'""')+'"';
-  return s;
-}
-/* Raw-ish export value for a TC column: pct fields ×100 (header carries
-   a " %" suffix) so cells match the on-screen numbers while staying
-   numeric-typed in Excel; null stays an empty cell, not "N/A". */
-function _csvVal(v,f){
-  if(v==null)return null;
-  if(f==='pct')return _num(v)!=null?+( _num(v)*100).toFixed(4):null;
-  if(f==='bool')return v?'Yes':'No';
-  if(f==='text'||f==='rating'||f==='ar')return String(v);
-  var n=_num(v);return n!=null?n:String(v);
-}
-function exportCsv(){
-  var rows,heads,vals,tag;
-  if(curView==='table'&&curTSub!=='prices'&&_dtData){
-    /* Financial Data: current sort order + current tab's columns, with
-       company/sector context inserted after Ticker. */
-    var cols=(TC[curTSub]||[]).slice();
-    cols.splice(1,0,{k:'company_name',l:'Company',f:'text'},{k:'sector',l:'Sector',f:'text'});
-    rows=_dtData;tag=curTSub;
-    heads=cols.map(function(c){return c.l+(c.f==='pct'?' %':'');});
-    vals=function(d){return cols.map(function(c){return _csvVal(d[c.k],c.f);});};
-  }else if(curView==='matrix'&&curMSub==='matrix'&&_mtxData&&_mtxCg2){
-    /* Gate Matrix: fixed columns then each category's gates + total,
-       mirroring renderMatrix()'s layout. */
-    rows=_mtxData;tag='matrix';
-    heads=['Ticker','Rating','Sector'];
-    var mcols=[];
-    GM.categories.forEach(function(cat){
-      _mtxCg2[cat.name].forEach(function(g){
-        heads.push(g.label+(g.fmt==='pct1'?' %':''));
-        mcols.push({key:g.key,fmt:g.fmt});
-      });
-      heads.push(cat.name+' Total %');
-      mcols.push({key:cat.scoreKey,fmt:'score'});
-    });
-    vals=function(d){
-      var out=[d.ticker,d.rating||null,d.sector||null];
-      mcols.forEach(function(c){
-        var v=d[c.key];
-        if(v==null){out.push(null);return;}
-        if(c.fmt==='pct1'){var n=_num(v);out.push(n!=null?+(n*100).toFixed(4):String(v));}
-        else{var n2=_num(v);out.push(n2!=null?n2:String(v));}
-      });
-      return out;
-    };
-  }else{
-    /* Pool view / Charts / Dashboard: filtered rows with a core column set. */
-    var core=[{k:'ticker',l:'Ticker',f:'text'},{k:'company_name',l:'Company',f:'text'},{k:'sector',l:'Sector',f:'text'},{k:'industry',l:'Industry',f:'text'},{k:'country',l:'Country',f:'text'},{k:'rating',l:'Rating',f:'text'},{k:'_composite_score',l:'Composite',f:'n1'},{k:'price',l:'Price',f:'dollar'},{k:'mos',l:'MoS',f:'pct'},{k:'roic',l:'ROIC',f:'pct'},{k:'pe',l:'P/E',f:'n1'},{k:'mcap',l:'Mkt Cap',f:'ds'}];
-    rows=FD;tag=curView;
-    heads=core.map(function(c){return c.l+(c.f==='pct'?' %':'');});
-    vals=function(d){return core.map(function(c){return _csvVal(d[c.k],c.f);});};
-  }
-  var lines=[heads.map(_csvCell).join(',')];
-  rows.forEach(function(d){lines.push(vals(d).map(_csvCell).join(','));});
-  /* BOM so Excel detects UTF-8. */
-  var blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
-  var dateSlug='{{ generated_at }}'.replace(/[^\w]+/g,'-').replace(/^-|-$/g,'')||'report';
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='report_'+dateSlug+'_'+tag+'.csv';
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
 }
 function _positionFpop(panel,btn){
   var r=btn.getBoundingClientRect();
