@@ -1888,7 +1888,7 @@ function bkv(pairs){return pairs.map(function(p){
 var TT={
 ticker:'The symbol stands for a business, not a lottery ticket. Buffett’s rule: invest only in what you understand well enough to own for a decade.',
 rating:'The model’s verdict, blending the DCF fair value, 26 quality gates and the composite score. Treat it as a starting point for your own work, not a substitute for it.',
-rating_chg:'How this rating moved since the prior run’s snapshot. ▲ is an upgrade, ▼ a downgrade, — unchanged; the arrow labels the prior rating (hover for the full “from → to”). NEW means the ticker was not in the prior run. Sort it to surface the day’s upgrades and downgrades.',
+rating_prev:'The stock’s rating in the prior run’s snapshot, shown with the same colour pill as Today’s Rating so upgrades and downgrades read at a glance side by side. N/A means the ticker was not in the prior run.',
 _composite_score:'Score = 0.30·Valuation + 0.30·Moat + 0.20·Quality + 0.10·Growth + 0.10·Ownership — five pillars, each scored 0–100 and weighted by how much it matters to long-run returns. Ratings: ≥57 BUY; 39–56 LEAN BUY; 25–38 HOLD; below 25 PASS. Thresholds are provisional pending the next live run.',
 _gates_passed:'Gates passed, out of those that apply. Gates that cannot describe the business — free-cash-flow tests for a bank, say — are excluded from the denominator, not failed. Diagnostic only: the composite score, not this count, drives the rating; but every failure deserves an explanation.',
 sector:'GICS sector. Buffett’s circle of competence begins here: benchmark a business only against peers with genuinely similar economics.',
@@ -2636,20 +2636,7 @@ TC.prices=[];
 var TL={prices:'Charts',val:'Valuation',prof:'Profitability',hlth:'Financial Health',growth:'Growth',proj:'Projections',own:'Ownership',div:'Dividends'};
 var tSC='rating',tSA=true;
 
-function ftc(v,f,d){
-  /* rate-change cell is driven by the whole row (prior + current rating),
-     so it runs before the generic v==null guard — a null delta is meaningful
-     (unchanged/new), not "N/A". */
-  if(f==='ratingchg'){
-    var pv=d?d.rating_prev:null,cv=d?d.rating:null;
-    if(pv==null)return{t:'<span style="color:#2c7fb8;font-weight:600;font-size:0.85em" title="New since '+(PREV_DATE||'prior run')+'">NEW</span>',v:''};
-    var chg=d?d.rating_chg:null;
-    var AB={'BUY':'BUY','LEAN BUY':'LB','HOLD':'HOLD','PASS':'PASS'};
-    var tip=pv+' → '+(cv||'?')+(chg!=null?' ('+(chg>0?'+':'')+chg+')':'');
-    if(chg==null||chg===0)return{t:'<span style="color:#b0b0b0" title="'+tip+'">—</span>',v:0};
-    var up=chg>0,col=up?'#1a9850':'#de2d26',arw=up?'▲':'▼';
-    return{t:'<span style="color:'+col+';font-weight:600;white-space:nowrap" title="'+tip+'">'+arw+' '+(AB[pv]||pv)+'</span>',v:chg};
-  }
+function ftc(v,f){
   if(v==null)return{t:'N/A',v:''};
   if(f==='text')return{t:String(v),v:String(v)};
   if(f==='rating')return{t:rb(v),v:v};
@@ -2667,13 +2654,15 @@ function ftc(v,f,d){
 function renderTSubs(){var h='';Object.keys(TL).forEach(function(k){h+='<button class="sub-btn'+(k===curTSub?' active':'')+'" onclick="swTSub(\''+k+'\')">'+TL[k]+'</button>';});document.getElementById('t-subs').innerHTML=h;}
 function swTSub(s){curTSub=s;tSC='rating';tSA=true;renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
 function renderTable(){
-  /* Copy the tab's column list (never mutate the shared TC array) and inject
-     the rate-change column immediately right of Rating, on every tab. */
+  /* Copy the tab's column list (never mutate the shared TC array), relabel
+     Rating as "Today's Rating", and inject a "Yesterday's Rating" column right
+     after it — rendered with the same rating-pill CSS (f:'rating'), on every
+     tab. */
   var cols=(TC[curTSub]||TC.prices).slice();
   for(var _ci=0;_ci<cols.length;_ci++){
     if(cols[_ci].k==='rating'){
-      var _pd=PREV_DATE?PREV_DATE.slice(5):'prior';
-      cols.splice(_ci+1,0,{k:'rating_chg',l:'Δ '+_pd,f:'ratingchg'});
+      cols[_ci]=Object.assign({},cols[_ci],{l:'Today’s Rating'});
+      cols.splice(_ci+1,0,{k:'rating_prev',l:'Yesterday’s Rating',f:'rating'});
       break;
     }
   }
@@ -2684,7 +2673,7 @@ function renderTable(){
   th.innerHTML=hh;
   var sd=FD.slice();
   var RO2={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
-  if(tSC){sd.sort(function(a,b){var va,vb;if(tSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(tSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[tSC];vb=b[tSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(tSC==='rating'){var ra=RO2[va]||99,rb2=RO2[vb]||99;return tSA?ra-rb2:rb2-ra;}if(typeof va==='string')return tSA?va.localeCompare(vb):vb.localeCompare(va);return tSA?va-vb:vb-va;});}
+  if(tSC){sd.sort(function(a,b){var va,vb;if(tSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(tSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[tSC];vb=b[tSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(tSC==='rating'||tSC==='rating_prev'){var ra=RO2[va]||99,rb2=RO2[vb]||99;return tSA?ra-rb2:rb2-ra;}if(typeof va==='string')return tSA?va.localeCompare(vb):vb.localeCompare(va);return tSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
   _dtData=sd;_dtCols=cols;
   /* Preserve scrollTop only when neither the dataset nor the sort changed
@@ -2708,7 +2697,7 @@ function _dtBuildRow(d,_i){
   html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
   html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
   _dtCols.forEach(function(c){
-    var r=ftc(d[c.k],c.f,d);
+    var r=ftc(d[c.k],c.f);
     var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';
     html+='<td'+cls+' data-value="'+r.v+'">'+r.t+'</td>';
   });
