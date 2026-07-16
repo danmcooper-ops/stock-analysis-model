@@ -314,7 +314,10 @@ td.ct{font-weight:700;}
    Today 72px → Yesterday at 232px). Everything from Sector rightward scrolls
    past them; the frozen-zone shadow sits on Yesterday, the new right edge. */
 .matrix-table thead tr:first-child th:nth-child(4),.matrix-table tbody td.tk{width:60px;min-width:60px;max-width:60px;}
-.matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6),.matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){width:72px;min-width:72px;max-width:72px;white-space:normal;}
+.matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6),.matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){width:72px;min-width:72px;max-width:72px;}
+/* Headers may wrap ("Today's Rating" on two lines); body cells keep the table's
+   nowrap so the rating pills render single-line, identical to Financial Data. */
+.matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6){white-space:normal;}
 .matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:15;background:#1a252f;}
 .matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:3;background:#fff;}
 .matrix-table thead tr:first-child th:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
