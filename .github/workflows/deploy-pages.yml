@@ -30,6 +30,11 @@ jobs:
         uses: actions/checkout@v4
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        # enablement: true re-enables Pages automatically if it ever gets
+        # disabled/unpublished (e.g. after a repo size-limit trip), so a
+        # green deploy can't silently serve nothing.
+        with:
+          enablement: true
       - name: Upload docs/ artifact
         uses: actions/upload-pages-artifact@v3
         with:
