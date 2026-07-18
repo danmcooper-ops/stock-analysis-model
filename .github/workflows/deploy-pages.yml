@@ -1,13 +1,15 @@
 name: Deploy report to GitHub Pages
 
-# The legacy Jekyll-based Pages builder started failing instantly once this
-# repository crossed its 1 GB source-size limit (daily report + sidecar
-# publishes add ~90 MB of history per day). This workflow replaces it: a
-# shallow checkout of HEAD, then publish the docs/ folder as-is.
+# Publishes from the single-commit `pages-live` branch: the daily publish
+# routine copies the report artifacts into that branch's docs/, amends its
+# one commit, and force-pushes — so git history never accumulates the large
+# HTML/JSON artifacts (which previously grew the repo ~90 MB per day and
+# tripped repo size limits). This file must exist on `pages-live` for the
+# push trigger to fire there; the copy on main is kept in sync for
+# workflow_dispatch and documentation.
 on:
   push:
-    branches: [main]
-    paths: ['docs/**']
+    branches: [pages-live]
   workflow_dispatch:
 
 permissions:
@@ -28,6 +30,10 @@ jobs:
     steps:
       - name: Checkout (shallow)
         uses: actions/checkout@v4
+        with:
+          # Always deploy the pages-live content, even when dispatched
+          # manually from main (where docs/ is no longer tracked).
+          ref: pages-live
       - name: Configure Pages
         uses: actions/configure-pages@v5
         # enablement: true re-enables Pages automatically if it ever gets

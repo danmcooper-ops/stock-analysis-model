@@ -7,6 +7,11 @@ __pycache__/
 # Output files
 output/
 
+# Published report artifacts — served from the single-commit `pages-live`
+# branch (see .github/workflows/deploy-pages.yml); no longer tracked on main
+# so daily publishes stop growing history (~90 MB/day previously).
+docs/
+
 # Claude Code
 .claude/
 
