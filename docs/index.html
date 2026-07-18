@@ -97,24 +97,42 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .gv-v{font-size:0.88em;}
   .gv-thr{font-size:0.95em;}
 }
+/* Small phones (SE-class, <=360px): shrink only the PLACEHOLDER so the
+   full list of searchable fields still fits; typed text keeps the
+   normal input font size. Wider phones fit it at full size. */
+@media(max-width:360px){
+  #f-search::placeholder{font-size:10.5px;}
+}
 /* Phone-only: compact tabs, filter bar, nav */
 @media(max-width:600px){
   .primary-nav{padding:2px 0 2px;border-bottom:1px solid var(--border);}
   .nav-btn{padding:3px 8px;font-size:0.73em;}
   .secondary-nav{padding:1px 0;gap:3px;}
   .sub-btn{padding:2px 7px;font-size:0.7em;}
-  .filter-bar{flex-direction:row;flex-wrap:nowrap;padding:2px 0;gap:5px;}
+  /* Search gets its own full-width row on phones so the placeholder
+     listing every searchable field stays untruncated; the Filters
+     button wraps onto the row below. The #id selector is needed to
+     outrank the base .filter-bar{flex-wrap:nowrap} rule, which comes
+     later in this stylesheet and would otherwise win the cascade. */
+  .filter-bar{flex-direction:row;flex-wrap:wrap;padding:2px 0;gap:5px;}
+  #filter-bar{flex-wrap:wrap;padding:2px 0;gap:5px;}
   .filter-bar input[type="text"]{width:auto;flex:1;min-width:0;padding:3px 8px;font-size:0.8em;}
-  .filter-bar .search-wrap{width:auto;flex:1;min-width:0;}
+  .filter-bar .search-wrap{flex:0 0 100%;width:100%;min-width:0;}
   .filter-bar .ms-wrap,.filter-bar .filter-divider,.filter-bar .fpop-wrap,.filter-bar .filter-clear,.filter-bar .filter-count{display:none;}
   .mob-filter-btn{display:inline-flex;padding:3px 8px;font-size:0.78em;}
   .filter-bar.mob-expanded{flex-wrap:wrap;}
   .filter-bar.mob-expanded .ms-wrap,.filter-bar.mob-expanded .fpop-wrap,.filter-bar.mob-expanded .filter-clear{display:block;}
   .filter-bar.mob-expanded .filter-count{display:inline;}
 }
-/* iPad portrait: narrow search field so filter count stays on one line */
+/* iPad portrait: search gets its own full-width row (like phones) so the
+   placeholder listing every searchable field stays untruncated; the
+   dropdowns/buttons/count wrap onto one row below, which fits without
+   horizontal scrolling at >=601px. (Replaces the old 110px search hack
+   that kept the count on one line by truncating the placeholder.)
+   #filter-bar outranks the later base .filter-bar{flex-wrap:nowrap}. */
 @media(min-width:601px) and (max-width:900px) and (orientation:portrait){
-  .filter-bar input[type="text"]{width:110px;}
+  #filter-bar{flex-wrap:wrap;}
+  .filter-bar .search-wrap{flex:0 0 100%;}
 }
 .stats{display:flex;gap:20px;justify-content:center;margin-top:14px;flex-wrap:wrap;}
 .stat{background:rgba(255,255,255,0.15);padding:8px 18px;border-radius:8px;}
@@ -137,8 +155,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .filter-bar input[type="text"]{width:200px;}
 .search-wrap{position:relative;display:inline-block;}
 /* Wide enough that the placeholder listing every searchable field
-   (ticker, name, sector, industry, description) shows untruncated. */
-.filter-bar .search-wrap{width:350px;}
+   (ticker, name, sector, industry, description) shows untruncated.
+   flex-shrink:0 keeps it that wide on mid-width viewports (iPad
+   landscape) where the bar overflows — the bar scrolls horizontally
+   rather than squeezing the search box. */
+.filter-bar .search-wrap{width:350px;flex-shrink:0;}
 .filter-bar .search-wrap > input[type="text"]{width:100%;padding-right:26px;}
 .search-clear{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:15px;line-height:1;color:#7f8c9a;cursor:pointer;padding:2px 6px;border-radius:50%;display:none;}
 .search-clear:hover{color:#1a252f;background:#e8ecef;}
