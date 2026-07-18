@@ -196,6 +196,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .filter-clear{padding:5px 12px;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:0.85em;background:#f9f9f9;}
 .filter-clear:hover{background:#eee;}
 .filter-count{font-size:0.85em;color:var(--accent);font-weight:600;white-space:nowrap;flex-shrink:0;}
+.f-suggest{font-size:0.82em;color:#8a94a0;white-space:nowrap;}
+.f-suggest:empty{display:none;}
+.f-suggest a{color:var(--accent);text-decoration:none;font-weight:600;}
+.f-suggest a:hover{text-decoration:underline;}
 .ms-wrap{position:relative;display:inline-block;min-width:140px;}
 .ms-btn{padding:6px 28px 6px 12px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;position:relative;user-select:none;}
 .ms-btn::after{content:'\25BC';font-size:0.6em;position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#888;}
@@ -1197,7 +1201,7 @@ td.ct{font-weight:700;}
     <button class="nav-btn" data-view="table" onclick="showView('table')">Financial Data</button>
   </div>
   <div class="filter-bar" id="filter-bar">
-    <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker, name, industry..." oninput="applyFilters()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
+    <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker, name, industry..." oninput="onSearchInput()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
     <button class="mob-filter-btn" id="mob-filter-btn" onclick="toggleMobFilters()">&#9776; Filters</button>
     <div class="ms-wrap" id="ms-rating">
       <div class="ms-btn" onclick="msToggle('ms-rating')">All Ratings</div>
@@ -1256,6 +1260,7 @@ td.ct{font-weight:700;}
     </div>
     <button class="filter-clear" onclick="clearFilters()">Clear</button>
     <span class="filter-count" id="f-count"></span>
+    <span class="f-suggest" id="f-suggest"></span>
   </div>
   <div id="view-pool" class="view active">
     <div id="pool-controls" class="pool-controls"></div>
@@ -2119,8 +2124,30 @@ document.addEventListener('click',function(e){
 });
 
 /* === FILTERS === */
+/* Per-row search memo, built once on first use. Uppercased ticker and
+   company name are kept separately for relevance scoring; the combined
+   haystack (plus sector/industry/description) drives matching. The \n
+   joins prevent a token from substring-bridging across two fields.
+   Ratings deliberately stay OUT of the haystack — "HOLD" would match a
+   third of the dataset; the rating multi-select is the right tool. */
+function _buildSearchMemo(d){
+  d._sTk=(d.ticker||'').toUpperCase();
+  d._sNm=(d.company_name||'').toUpperCase();
+  d._search=d._sTk+'\n'+d._sNm+'\n'+[d.sector,d.industry,d.description].map(function(x){return x||'';}).join('\n').toUpperCase();
+}
+var _SEARCH_ACTIVE=false,_SEARCH_Q='';
 function applyFilters(){
+  /* Direct calls (clear button, presets, hash restore, toggles) preempt
+     any pending debounced run so a stale filter pass can't fire later. */
+  clearTimeout(_searchTimer);
   var q=document.getElementById('f-search').value.toUpperCase();
+  /* Tokenized search: every whitespace-separated token must match the
+     haystack (in any field), so "software canada" finds Canadian software
+     names. toks.length is the "search active" predicate — a whitespace-
+     only query is inactive rather than filtering everything out (the old
+     single-substring path treated q=" " as a real query). */
+  var toks=q.split(/\s+/).filter(function(t){return t;});
+  _SEARCH_ACTIVE=toks.length>0;_SEARCH_Q=toks.join(' ');
   var ratings=msGetSelected('ms-rating');
   var sectors=msGetSelected('ms-sector');
   var countries=msGetSelected('ms-country');
@@ -2144,7 +2171,13 @@ function applyFilters(){
     if(cMin===null&&cMax===null)return;
     colFilters.push({key:key,min:cMin,max:cMax,pct:(_CF_FMT[key]||'')==='pct'});
   });
-  FD=DATA.filter(function(d){
+  /* All non-search filters live in passOther so we can count how many
+     rows survive them; when the search alone zeroes the result set, the
+     "did you mean" suggestions know it's safe (and useful) to appear.
+     Moving the search test after the other checks is behavior-neutral —
+     the predicates are independent booleans. */
+  var _passedOther=0;
+  function passOther(d){
     if(_flagOnly&&!isFlagged(d.ticker))return false;
     if(_founderOnly&&!d.founder_led)return false;
     if(_blueChipOnly&&!_isBlueChip(d))return false;
@@ -2154,13 +2187,6 @@ function applyFilters(){
        snapshot) matches neither direction. */
     if(_rcFilter===1&&!(d.rating_chg>0))return false;
     if(_rcFilter===2&&!(d.rating_chg<0))return false;
-    /* Free-text search matches ticker, company name, sector, industry and
-       description via a per-row haystack memoized on first use — one
-       indexOf per row per keystroke instead of five toUpperCase calls. */
-    if(q){
-      if(d._search==null)d._search=[d.ticker,d.company_name,d.sector,d.industry,d.description].map(function(x){return x||'';}).join('\n').toUpperCase();
-      if(d._search.indexOf(q)<0)return false;
-    }
     if(!allRatings&&ratings.indexOf(d.rating)<0)return false;
     if(!allSectors&&sectors.indexOf(d.sector)<0)return false;
     if(!allCountries&&countries.indexOf(d.country)<0)return false;
@@ -2193,8 +2219,25 @@ function applyFilters(){
       if(cf.max!==null&&cv>cf.max)return false;
     }
     return true;
+  }
+  FD=DATA.filter(function(d){
+    if(!passOther(d))return false;
+    _passedOther++;
+    if(toks.length){
+      if(d._search==null)_buildSearchMemo(d);
+      for(var ti=0;ti<toks.length;ti++){
+        if(d._search.indexOf(toks[ti])<0)return false;
+      }
+      /* Transient relevance score for result ordering — only read while
+         a query is active in this same pass, never persisted. */
+      d._rel=_relScore(d,toks);
+    }
+    return true;
   });
-  document.getElementById('f-count').textContent=FD.length+' of '+DATA.length;
+  _updateCountLabel();
+  /* Suggestions only when the search alone zeroed the result set; the
+     candidate scan needs passOther, so it runs here where it's in scope. */
+  _renderSuggestions(toks.length&&FD.length===0&&_passedOther>0?_buildSuggestions(toks,passOther):null);
   /* Unified Filters button: active when ANY filter is engaged — column
      filters OR any quick toggle (Reviewed cycle, Flagged, Founder-Led).
      3-state Reviewed filter: state 0 (gray Reviewed) shows all and doesn't
@@ -2218,6 +2261,133 @@ function toggleMobFilters(){
   if(btn)btn.classList.toggle('active',open);
 }
 function clearSearch(){var el=document.getElementById('f-search');el.value='';el.focus();applyFilters();}
+/* === SEARCH: debounce, relevance, suggestions === */
+/* Keystrokes debounce ~150ms so the 2,300-row refilter + rerender runs
+   once per pause, not per keypress. Direct applyFilters callers stay
+   immediate (applyFilters clears the pending timer itself). IME
+   composition (CJK input) defers filtering until the composed text
+   lands. */
+var _searchTimer=null,_imeComposing=false;
+function onSearchInput(){
+  if(_imeComposing)return;
+  clearTimeout(_searchTimer);
+  _searchTimer=setTimeout(applyFilters,150);
+}
+/* Relevance score per row, summed over query tokens: ticker matches
+   outrank company-name matches outrank field-only (sector/industry/
+   description) matches. */
+function _relScore(d,toks){
+  var s=0,i,t;
+  for(i=0;i<toks.length;i++){
+    t=toks[i];
+    if(d._sTk===t)s+=1000;
+    else if(d._sTk.indexOf(t)===0)s+=500;
+    else if(d._sTk.indexOf(t)>=0)s+=200;
+    else if(d._sNm.indexOf(t)===0)s+=100;
+    else if(d._sNm.indexOf(' '+t)>=0)s+=60;
+    else if(d._sNm.indexOf(t)>=0)s+=40;
+  }
+  return s;
+}
+/* Comparator while relevance ordering is active: score desc, then the
+   familiar rating order, then ticker — deterministic. */
+var _REL_RO={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
+function _relCmp(a,b){
+  var ra=a._rel||0,rb2=b._rel||0;
+  if(ra!==rb2)return rb2-ra;
+  var oa=_REL_RO[a.rating]||99,ob=_REL_RO[b.rating]||99;
+  if(oa!==ob)return oa-ob;
+  return (a.ticker||'').localeCompare(b.ticker||'');
+}
+/* "N of M · best match" — the suffix reflects whether relevance ordering
+   is currently in effect, so it must refresh on sort clicks too (mSort/
+   tSort re-render without re-filtering). */
+function _updateCountLabel(){
+  var el=document.getElementById('f-count');
+  if(el)el.textContent=FD.length+' of '+DATA.length+(FD.length&&_relActive()?' · best match':'');
+}
+/* Is relevance ordering in effect for the CURRENT view? Active query +
+   the user hasn't clicked a column header on that view this session. */
+function _relActive(){
+  if(!_SEARCH_ACTIVE)return false;
+  if(curView==='matrix')return curMSub!=='dashboard'&&!_mUserSorted;
+  if(curView==='table')return curTSub!=='prices'&&!_tUserSorted;
+  return false;
+}
+/* --- Zero-hit "did you mean" suggestions --- */
+/* Levenshtein distance capped at 2: returns 0/1/2, or 3 meaning ">2".
+   Two-row DP with early bail; tickers are short so this is trivial. */
+function _editLe2(a,b){
+  var la=a.length,lb=b.length,i,j;
+  if(Math.abs(la-lb)>2)return 3;
+  var prev=[],cur=[];
+  for(j=0;j<=lb;j++)prev[j]=j;
+  for(i=1;i<=la;i++){
+    cur[0]=i;var rowMin=i;
+    for(j=1;j<=lb;j++){
+      var c=a.charAt(i-1)===b.charAt(j-1)?0:1;
+      cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+c);
+      if(cur[j]<rowMin)rowMin=cur[j];
+    }
+    if(rowMin>2)return 3;
+    var tmp=prev;prev=cur;cur=tmp;
+  }
+  return prev[lb]<=2?prev[lb]:3;
+}
+/* Dice coefficient over character bigrams — catches company-name
+   near-misses ("APPLE" vs "APLE") that edit distance on tickers won't. */
+function _bigramSim(a,b){
+  if(a.length<2||b.length<2)return 0;
+  var set={},i,n=0,hits=0;
+  for(i=0;i<a.length-1;i++){var g=a.substr(i,2);set[g]=(set[g]||0)+1;n++;}
+  for(i=0;i<b.length-1;i++){var g2=b.substr(i,2);if(set[g2]>0){set[g2]--;hits++;}}
+  return 2*hits/(n+(b.length-1));
+}
+/* Build up to 3 candidates from rows that pass every OTHER filter, so a
+   clicked suggestion always yields results. Prefix matches rank first,
+   then ticker edit distance 1-2, then name bigram similarity. */
+function _buildSuggestions(toks,passOther){
+  var qn=toks.join(''),q1=toks[0]||'',cands=[],i,d;
+  for(i=0;i<DATA.length;i++){
+    d=DATA[i];
+    if(!passOther(d))continue;
+    if(d._search==null)_buildSearchMemo(d);
+    var score=null;
+    if(d._sTk.indexOf(qn)===0||d._sNm.indexOf(q1)===0)score=0;
+    else{
+      var ed=_editLe2(d._sTk,qn);
+      if(ed<=2)score=ed;
+      else if(qn.length>=4){
+        var bs=_bigramSim(d._sNm,qn);
+        if(bs>=0.4)score=3-bs;
+      }
+    }
+    if(score!=null)cands.push({d:d,s:score});
+  }
+  cands.sort(function(x,y){
+    if(x.s!==y.s)return x.s-y.s;
+    var oa=_REL_RO[x.d.rating]||99,ob=_REL_RO[y.d.rating]||99;
+    if(oa!==ob)return oa-ob;
+    return (x.d.ticker||'').localeCompare(y.d.ticker||'');
+  });
+  return cands.slice(0,3).map(function(c){return c.d;});
+}
+/* cands: array of candidate rows, or null/empty to hide. The caller
+   (applyFilters) gates on "search alone caused the empty result" — if
+   other filters zeroed it, the tables' own empty-state is the honest
+   message and no suggestions render. */
+function _renderSuggestions(cands){
+  var el=document.getElementById('f-suggest');if(!el)return;
+  if(!cands||!cands.length){el.innerHTML='';return;}
+  el.innerHTML='Did you mean: '+cands.map(function(d){
+    var je=d.ticker.replace(/'/g,"\\'");
+    return '<a href="javascript:void(0)" onclick="_applySuggestion(\''+je+'\')">'+esc(d.ticker)+' ('+esc(d.company_name||'')+')</a>';
+  }).join(', ')+'?';
+}
+function _applySuggestion(tk){
+  document.getElementById('f-search').value=tk;
+  applyFilters();
+}
 function clearFilters(){
   document.getElementById('f-search').value='';
   msToggleAll('ms-rating',true);
@@ -2323,6 +2493,10 @@ function onColRowChange(sel){
 
 /* === MATRIX === */
 var mSC='rating',mSA=true;
+/* True once the user clicks a column header on this view; while false
+   and a search query is active, results order by relevance instead of
+   the default sort. Reset when the sub-tab switch resets the sort. */
+var _mUserSorted=false;
 /* Virtualization state. Only ~visible-viewport rows are mounted in the tbody;
    above and below sit fixed-height spacer rows that carry the rest of the
    scroll-track weight. This keeps the DOM to ~40 rows even for the full 2000+
@@ -2355,13 +2529,15 @@ function renderMatrix(){
   th.innerHTML=h1+h2;
   var sd=FD.slice();
   var RO={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
-  if(mSC){sd.sort(function(a,b){var va,vb;if(mSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(mSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[mSC];vb=b[mSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(mSC==='_gates_passed'){var na=parseInt(va),nb=parseInt(vb);if(!isNaN(na)&&!isNaN(nb))return mSA?na-nb:nb-na;}if(mSC==='rating'||mSC==='rating_prev'){var ra=RO[va]||99,rb2=RO[vb]||99;return mSA?ra-rb2:rb2-ra;}if(typeof va==='boolean'){va=va?1:0;vb=vb?1:0;return mSA?va-vb:vb-va;}if(typeof va==='string')return mSA?va.localeCompare(vb):vb.localeCompare(va);return mSA?va-vb:vb-va;});}
+  var _relOn=_SEARCH_ACTIVE&&!_mUserSorted;
+  if(_relOn){sd.sort(_relCmp);}
+  else if(mSC){sd.sort(function(a,b){var va,vb;if(mSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(mSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[mSC];vb=b[mSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(mSC==='_gates_passed'){var na=parseInt(va),nb=parseInt(vb);if(!isNaN(na)&&!isNaN(nb))return mSA?na-nb:nb-na;}if(mSC==='rating'||mSC==='rating_prev'){var ra=RO[va]||99,rb2=RO[vb]||99;return mSA?ra-rb2:rb2-ra;}if(typeof va==='boolean'){va=va?1:0;vb=vb?1:0;return mSA?va-vb:vb-va;}if(typeof va==='string')return mSA?va.localeCompare(vb):vb.localeCompare(va);return mSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
   _mtxData=sd;_mtxCg2=cg2;
   /* Detect whether the dataset or sort actually changed — if only a flag/reviewed
      toggle triggered the re-render, preserve scrollTop so the user doesn't lose
      their place. Otherwise reset to the top. */
-  var newSig=sd.length+'|'+mSC+'|'+(mSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'');
+  var newSig=sd.length+'|'+mSC+'|'+(mSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'')+(_relOn?'|R'+_SEARCH_Q:'');
   if(!_mtxScrollEl)_mtxScrollEl=document.querySelector('.matrix-wrap');
   if(_mtxScrollEl&&!_mtxScrollAttached){
     _mtxScrollEl.addEventListener('scroll',_mtxOnScroll,{passive:true});
@@ -2372,6 +2548,7 @@ function renderMatrix(){
     if(_mtxScrollEl)_mtxScrollEl.scrollTop=0;
   }
   _renderMtxWindow();
+  _updateCountLabel();
 }
 function _mtxBuildRow(d,_i){
   var t=d.ticker.replace(/'/g,"\\'");
@@ -2433,7 +2610,7 @@ function _mtxOnScroll(){
   _mtxRafPending=true;
   requestAnimationFrame(function(){_mtxRafPending=false;_renderMtxWindow();});
 }
-function mSort(col){if(mSC===col)mSA=!mSA;else{mSC=col;mSA=col==='ticker'||col==='sector'||col==='rating'||col==='rating_prev';}renderMatrix();}
+function mSort(col){_mUserSorted=true;if(mSC===col)mSA=!mSA;else{mSC=col;mSA=col==='ticker'||col==='sector'||col==='rating'||col==='rating_prev';}renderMatrix();}
 
 /* === MATRIX SUB-TABS === */
 var curMSub=null;
@@ -2446,7 +2623,7 @@ function renderMSubs(){
   document.getElementById('m-subs').innerHTML=h;
 }
 function swMSub(key){
-  curMSub=key;mSC='rating';mSA=true;renderMSubs();
+  curMSub=key;mSC='rating';mSA=true;_mUserSorted=false;renderMSubs();
   var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view');
   if(key==='dashboard'){
     if(mw)mw.style.display='none';if(ov)ov.style.display='';
@@ -2593,22 +2770,48 @@ var TC={
      Valuation; Spread (ROIC – WACC) moved to Profitability next to ROIC.
      ROIC / ROIC CV / Gross Margin / Shareholder Yield already lived on
      their natural home tabs, so no relocation needed. */
-  val:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'dcf_fv',l:'DCF/Shr',f:'dollar',g:'gv'},{k:'wacc',l:'WACC',f:'pct',g:'gv'},{k:'implied_growth',l:'Impl. Growth',f:'pct',g:'gv'},{k:'mos',l:'MoS%',f:'pct',g:'gv'},{k:'price',l:'Price',f:'dollar',g:'gv'},{k:'pct_from_52w_high',l:'% from High',f:'pct',g:'gv'},{k:'range_52w_position',l:'Range Pos',f:'int',g:'gv'},{k:'pe',l:'P/E',f:'n1',g:'gv'},{k:'ev_ebitda',l:'EV/EBITDA',f:'n1',g:'gv'},{k:'pfcf',l:'P/FCF',f:'n1',g:'gv'},{k:'pb',l:'P/B',f:'n2',g:'gv'},{k:'p_tbv',l:'P/TBV',f:'n2',g:'gv'},{k:'epv_fv',l:'EPV FV',f:'dollar',g:'gv'},{k:'rim_fv',l:'RIM FV',f:'dollar',g:'gv'},{k:'nav_fv',l:'NAV FV',f:'dollar',g:'gv'},{k:'nav_mos',l:'NAV MoS%',f:'pct',g:'gv'}],
-  prof:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'roic',l:'ROIC',f:'pct',g:'gp2'},{k:'roic_cv',l:'ROIC CV',f:'n2',g:'gp2'},{k:'spread',l:'Spread',f:'pct',g:'gp2'},{k:'roe',l:'ROE',f:'pct',g:'gp2'},{k:'dupont_margin',l:'DuPont Mrgn',f:'pct',g:'gp2'},{k:'dupont_turnover',l:'DuPont Turn',f:'n2',g:'gp2'},{k:'dupont_leverage',l:'DuPont Lev',f:'n2',g:'gp2'},{k:'gross_margin',l:'Gross Mgn',f:'pct',g:'gp2'},{k:'fcf_margin',l:'FCF Margin',f:'pct',g:'gp2'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gp2'},{k:'accruals',l:'Accruals',f:'n3',g:'gp2'},{k:'nim',l:'NIM',f:'pct',g:'gp2'},{k:'efficiency_ratio',l:'Eff Ratio',f:'pct',g:'gp2'},{k:'rd_intensity_xbrl',l:'R&D/Rev',f:'pct',g:'gp2'},{k:'sbc_pct_rev_xbrl',l:'SBC/Rev',f:'pct',g:'gp2'},{k:'fcf_margin_ex_sbc',l:'FCF ex-SBC',f:'pct',g:'gp2'},{k:'affo_margin',l:'AFFO Margin',f:'pct',g:'gp2'},{k:'brand_spend_pct_rev',l:'Brand/Rev',f:'pct',g:'gp2'}],
-  hlth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gh'},{k:'nd_ebitda',l:'ND/EBITDA',f:'n2',g:'gh'},{k:'cr',l:'Curr R',f:'n2',g:'gh'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gh'},{k:'accruals',l:'Accruals',f:'n3',g:'gh'},{k:'altman_z',l:'Altman Z',f:'n2',g:'gh'},{k:'beneish_m',l:'Beneish M',f:'n2',g:'gh'},{k:'cet1_ratio',l:'CET1',f:'pct',g:'gh'},{k:'npl_ratio',l:'NPL Ratio',f:'pct',g:'gh'},{k:'net_cash_to_mcap',l:'Net Cash/Mcap',f:'pct',g:'gh'},{k:'inventory_days',l:'Inv Days',f:'n1',g:'gh'},{k:'working_capital_days',l:'Work Cap Days',f:'n1',g:'gh'}],
-  growth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'reinvestment_rate',l:'Reinvest Rate',f:'pct',g:'gg'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gg'},{k:'margin_trend',l:'Margin Trend',f:'pct',g:'gg'},{k:'rev_cagr',l:'Rev CAGR 3Y',f:'pct',g:'gg'},{k:'rev_cagr_5y',l:'Rev CAGR 5Y',f:'pct',g:'gg'},{k:'rev_cagr_10y',l:'Rev CAGR 10Y',f:'pct',g:'gg'},{k:'fcf_growth',l:'FCF Growth',f:'pct'},{k:'ffo_growth_5y',l:'FFO Growth',f:'pct',g:'gg'},{k:'deferred_rev_growth',l:'Def Rev Growth',f:'pct',g:'gg'},{k:'capex_intensity',l:'Capex/Sales',f:'pct',g:'gg'},{k:'backlog_to_revenue',l:'Backlog/Rev',f:'n2',g:'gg'},{k:'capex_to_dd_ratio',l:'Capex/D&A',f:'n2',g:'gg'}],
-  proj:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'dcf_fv',l:'DCF Base',f:'dollar',g:'gj'},{k:'price',l:'Price',f:'dollar'},{k:'er',l:'Er',f:'pct',g:'gj'},{k:'_sens_low',l:'Sens Low',f:'dollar',g:'gj'},{k:'_sens_high',l:'Sens High',f:'dollar',g:'gj'},{k:'mc_p10_fv',l:'MC P10',f:'dollar',g:'gj'},{k:'mc_p90_fv',l:'MC P90',f:'dollar',g:'gj'},{k:'mc_confidence',l:'MC Conf',f:'text',g:'gj'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gj'},{k:'terminal_growth',l:'Term. Growth',f:'pct',g:'gj'}],
-  own:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'share_buyback_rate',l:'Buyback Rate',f:'pct',g:'gow'},{k:'insider_pct',l:'Insider %',f:'pct',g:'gow'},{k:'inst_pct',l:'Inst %',f:'pct'},{k:'shares_out',l:'Shares Out',f:'ds'},{k:'float_shares',l:'Float',f:'ds'},{k:'short_ratio',l:'Short Ratio',f:'n2'},{k:'short_pct_float',l:'Short/Float',f:'pct'}],
+  /* Valuation — price as the anchor, then the DCF fair value and the margin of
+     safety it implies, the DCF drivers (WACC, implied growth), 52-week price
+     context, trading multiples, and finally the alternative intrinsic models. */
+  val:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'price',l:'Price',f:'dollar',g:'gv'},{k:'dcf_fv',l:'DCF/Shr',f:'dollar',g:'gv'},{k:'mos',l:'MoS%',f:'pct',g:'gv'},{k:'wacc',l:'WACC',f:'pct',g:'gv'},{k:'implied_growth',l:'Impl. Growth',f:'pct',g:'gv'},{k:'pct_from_52w_high',l:'% from High',f:'pct',g:'gv'},{k:'range_52w_position',l:'Range Pos',f:'int',g:'gv'},{k:'pe',l:'P/E',f:'n1',g:'gv'},{k:'ev_ebitda',l:'EV/EBITDA',f:'n1',g:'gv'},{k:'pfcf',l:'P/FCF',f:'n1',g:'gv'},{k:'pb',l:'P/B',f:'n2',g:'gv'},{k:'p_tbv',l:'P/TBV',f:'n2',g:'gv'},{k:'epv_fv',l:'EPV FV',f:'dollar',g:'gv'},{k:'rim_fv',l:'RIM FV',f:'dollar',g:'gv'},{k:'nav_fv',l:'NAV FV',f:'dollar',g:'gv'},{k:'nav_mos',l:'NAV MoS%',f:'pct',g:'gv'}],
+  /* Profitability — returns on capital first (ROIC/ROE) with the DuPont
+     decomposition of ROE, then margins, earnings quality, cost/reinvestment
+     intensity, and finally the sector-specific metrics (bank NIM/efficiency,
+     REIT AFFO) pushed right where they are blank for most names. */
+  prof:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'roic',l:'ROIC',f:'pct',g:'gp2'},{k:'roic_cv',l:'ROIC CV',f:'n2',g:'gp2'},{k:'spread',l:'Spread',f:'pct',g:'gp2'},{k:'roe',l:'ROE',f:'pct',g:'gp2'},{k:'dupont_margin',l:'DuPont Mrgn',f:'pct',g:'gp2'},{k:'dupont_turnover',l:'DuPont Turn',f:'n2',g:'gp2'},{k:'dupont_leverage',l:'DuPont Lev',f:'n2',g:'gp2'},{k:'gross_margin',l:'Gross Mgn',f:'pct',g:'gp2'},{k:'fcf_margin',l:'FCF Margin',f:'pct',g:'gp2'},{k:'fcf_margin_ex_sbc',l:'FCF ex-SBC',f:'pct',g:'gp2'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gp2'},{k:'accruals',l:'Accruals',f:'n3',g:'gp2'},{k:'rd_intensity_xbrl',l:'R&D/Rev',f:'pct',g:'gp2'},{k:'sbc_pct_rev_xbrl',l:'SBC/Rev',f:'pct',g:'gp2'},{k:'brand_spend_pct_rev',l:'Brand/Rev',f:'pct',g:'gp2'},{k:'nim',l:'NIM',f:'pct',g:'gp2'},{k:'efficiency_ratio',l:'Eff Ratio',f:'pct',g:'gp2'},{k:'affo_margin',l:'AFFO Margin',f:'pct',g:'gp2'}],
+  /* Financial Health — leverage & solvency first (coverage, net debt, net
+     cash), then liquidity and its working-capital drivers, earnings quality,
+     the composite distress/manipulation scores (Altman Z, Beneish M), and the
+     bank-specific ratios (CET1, NPL) at the end. */
+  hlth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gh'},{k:'nd_ebitda',l:'ND/EBITDA',f:'n2',g:'gh'},{k:'net_cash_to_mcap',l:'Net Cash/Mcap',f:'pct',g:'gh'},{k:'cr',l:'Curr R',f:'n2',g:'gh'},{k:'inventory_days',l:'Inv Days',f:'n1',g:'gh'},{k:'working_capital_days',l:'Work Cap Days',f:'n1',g:'gh'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gh'},{k:'accruals',l:'Accruals',f:'n3',g:'gh'},{k:'altman_z',l:'Altman Z',f:'n2',g:'gh'},{k:'beneish_m',l:'Beneish M',f:'n2',g:'gh'},{k:'cet1_ratio',l:'CET1',f:'pct',g:'gh'},{k:'npl_ratio',l:'NPL Ratio',f:'pct',g:'gh'}],
+  /* Growth — the growth engine first (reinvestment rate, fundamental growth,
+     margin trend), then the historical revenue CAGR ladder (3/5/10Y) and FCF
+     growth, capex/reinvestment intensity, and the sector-specific growth
+     signals (REIT FFO, SaaS deferred revenue, backlog) at the end. */
+  growth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'reinvestment_rate',l:'Reinvest Rate',f:'pct',g:'gg'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gg'},{k:'margin_trend',l:'Margin Trend',f:'pct',g:'gg'},{k:'rev_cagr',l:'Rev CAGR 3Y',f:'pct',g:'gg'},{k:'rev_cagr_5y',l:'Rev CAGR 5Y',f:'pct',g:'gg'},{k:'rev_cagr_10y',l:'Rev CAGR 10Y',f:'pct',g:'gg'},{k:'fcf_growth',l:'FCF Growth',f:'pct'},{k:'capex_intensity',l:'Capex/Sales',f:'pct',g:'gg'},{k:'capex_to_dd_ratio',l:'Capex/D&A',f:'n2',g:'gg'},{k:'ffo_growth_5y',l:'FFO Growth',f:'pct',g:'gg'},{k:'deferred_rev_growth',l:'Def Rev Growth',f:'pct',g:'gg'},{k:'backlog_to_revenue',l:'Backlog/Rev',f:'n2',g:'gg'}],
+  /* Projections — price and the base-case DCF with its expected return, then
+     the sensitivity band and Monte Carlo band (fair-value dollars grouped for
+     comparison), with the growth assumptions that drive them at the end. */
+  proj:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'price',l:'Price',f:'dollar'},{k:'dcf_fv',l:'DCF Base',f:'dollar',g:'gj'},{k:'er',l:'Er',f:'pct',g:'gj'},{k:'_sens_low',l:'Sens Low',f:'dollar',g:'gj'},{k:'_sens_high',l:'Sens High',f:'dollar',g:'gj'},{k:'mc_p10_fv',l:'MC P10',f:'dollar',g:'gj'},{k:'mc_p90_fv',l:'MC P90',f:'dollar',g:'gj'},{k:'mc_confidence',l:'MC Conf',f:'text',g:'gj'},{k:'fundamental_growth',l:'Fund. Growth',f:'pct',g:'gj'},{k:'terminal_growth',l:'Term. Growth',f:'pct',g:'gj'}],
+  /* Ownership — share structure first (shares outstanding, float), then the
+     buyback rate that shrinks it, ownership composition (insider, institutional),
+     and short interest last. */
+  own:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'shares_out',l:'Shares Out',f:'ds'},{k:'float_shares',l:'Float',f:'ds'},{k:'share_buyback_rate',l:'Buyback Rate',f:'pct',g:'gow'},{k:'insider_pct',l:'Insider %',f:'pct',g:'gow'},{k:'inst_pct',l:'Inst %',f:'pct'},{k:'short_ratio',l:'Short Ratio',f:'n2'},{k:'short_pct_float',l:'Short/Float',f:'pct'}],
   /* Dividends tab — everything the dataset knows about dividend payments in
-     one place: current yield + payout, growth history and consecutive-year
-     streak, total shareholder yield (moved from Ownership since dividends
-     are its core input), and the full DDM valuation family (moved base FV
-     from Valuation; H-model + Monte Carlo band were previously unexposed). */
-  div:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'div_yield',l:'Div Yield',f:'pct'},{k:'payout_ratio',l:'Payout Ratio',f:'pct'},{k:'dividend_cagr_5y',l:'Div CAGR 5Y',f:'pct'},{k:'ddm_div_cagr',l:'Div CAGR (Hist)',f:'pct'},{k:'ddm_consecutive_years',l:'Consec Yrs Paid',f:'int'},{k:'shareholder_yield',l:'Shrhldr Yld',f:'pct',g:'gow'},{k:'ddm_sustainable_growth',l:'Sust. Growth',f:'pct'},{k:'ddm_growth',l:'DDM Growth',f:'pct'},{k:'price',l:'Price',f:'dollar'},{k:'ddm_fv',l:'DDM FV',f:'dollar',g:'gv'},{k:'ddm_h_fv',l:'DDM H-Model',f:'dollar'},{k:'ddm_mc_p10',l:'DDM MC P10',f:'dollar'},{k:'ddm_mc_median',l:'DDM MC Median',f:'dollar'},{k:'ddm_mc_p90',l:'DDM MC P90',f:'dollar'},{k:'ddm_mc_cv',l:'DDM MC CV',f:'n2'},{k:'ddm_eligible',l:'DDM Eligible',f:'bool'},{k:'ddm_reason',l:'DDM Note',f:'text'}]
+     one place, ordered as an analyst reads it: identity, then income today
+     (yield / payout / total shareholder yield), then the track record
+     (streak + historical growth), then the forward growth inputs that feed
+     the DDM, then valuation (price vs DDM fair values), the Monte Carlo
+     uncertainty band, and finally the eligibility flag + note. Shareholder
+     yield moved from Ownership; DDM base FV moved from Valuation; the H-model
+     and Monte Carlo band were previously unexposed. */
+  div:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'div_yield',l:'Div Yield',f:'pct'},{k:'payout_ratio',l:'Payout Ratio',f:'pct'},{k:'shareholder_yield',l:'Shrhldr Yld',f:'pct',g:'gow'},{k:'ddm_consecutive_years',l:'Consec Yrs Paid',f:'int'},{k:'dividend_cagr_5y',l:'Div CAGR 5Y',f:'pct'},{k:'ddm_div_cagr',l:'Div CAGR (Hist)',f:'pct'},{k:'ddm_sustainable_growth',l:'Sust. Growth',f:'pct'},{k:'ddm_growth',l:'DDM Growth',f:'pct'},{k:'price',l:'Price',f:'dollar'},{k:'ddm_fv',l:'DDM FV',f:'dollar',g:'gv'},{k:'ddm_h_fv',l:'DDM H-Model',f:'dollar'},{k:'ddm_mc_p10',l:'DDM MC P10',f:'dollar'},{k:'ddm_mc_median',l:'DDM MC Median',f:'dollar'},{k:'ddm_mc_p90',l:'DDM MC P90',f:'dollar'},{k:'ddm_mc_cv',l:'DDM MC CV',f:'n2'},{k:'ddm_eligible',l:'DDM Eligible',f:'bool'},{k:'ddm_reason',l:'DDM Note',f:'text'}]
 };
 TC.prices=[];
 var TL={prices:'Charts',val:'Valuation',prof:'Profitability',hlth:'Financial Health',growth:'Growth',proj:'Projections',own:'Ownership',div:'Dividends'};
 var tSC='rating',tSA=true;
+/* Same as _mUserSorted, for the Financial Data table. */
+var _tUserSorted=false;
 
 function ftc(v,f){
   if(v==null)return{t:'N/A',v:''};
@@ -2626,7 +2829,7 @@ function ftc(v,f){
   return{t:String(v),v:v};
 }
 function renderTSubs(){var h='';Object.keys(TL).forEach(function(k){h+='<button class="sub-btn'+(k===curTSub?' active':'')+'" onclick="swTSub(\''+k+'\')">'+TL[k]+'</button>';});document.getElementById('t-subs').innerHTML=h;}
-function swTSub(s){curTSub=s;tSC='rating';tSA=true;renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
+function swTSub(s){curTSub=s;tSC='rating';tSA=true;_tUserSorted=false;renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
 function renderTable(){
   /* Copy the tab's column list (never mutate the shared TC array), relabel
      Rating as "Today's Rating", and inject a "Yesterday's Rating" column right
@@ -2647,12 +2850,14 @@ function renderTable(){
   th.innerHTML=hh;
   var sd=FD.slice();
   var RO2={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
-  if(tSC){sd.sort(function(a,b){var va,vb;if(tSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(tSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[tSC];vb=b[tSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(tSC==='rating'||tSC==='rating_prev'){var ra=RO2[va]||99,rb2=RO2[vb]||99;return tSA?ra-rb2:rb2-ra;}if(typeof va==='string')return tSA?va.localeCompare(vb):vb.localeCompare(va);return tSA?va-vb:vb-va;});}
+  var _relOn=_SEARCH_ACTIVE&&!_tUserSorted;
+  if(_relOn){sd.sort(_relCmp);}
+  else if(tSC){sd.sort(function(a,b){var va,vb;if(tSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(tSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[tSC];vb=b[tSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(tSC==='rating'||tSC==='rating_prev'){var ra=RO2[va]||99,rb2=RO2[vb]||99;return tSA?ra-rb2:rb2-ra;}if(typeof va==='string')return tSA?va.localeCompare(vb):vb.localeCompare(va);return tSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
   _dtData=sd;_dtCols=cols;
   /* Preserve scrollTop only when neither the dataset nor the sort changed
      (e.g. flag/reviewed toggles). On any real change, jump to the top. */
-  var newSig=curTSub+'|'+sd.length+'|'+tSC+'|'+(tSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'');
+  var newSig=curTSub+'|'+sd.length+'|'+tSC+'|'+(tSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'')+(_relOn?'|R'+_SEARCH_Q:'');
   if(!_dtScrollEl)_dtScrollEl=document.querySelector('#view-table .table-wrap');
   if(_dtScrollEl&&!_dtScrollAttached){
     _dtScrollEl.addEventListener('scroll',_dtOnScroll,{passive:true});
@@ -2663,6 +2868,7 @@ function renderTable(){
     if(_dtScrollEl)_dtScrollEl.scrollTop=0;
   }
   _renderDtWindow();
+  _updateCountLabel();
 }
 function _dtBuildRow(d,_i){
   var t=d.ticker.replace(/'/g,"\\'");
@@ -2712,7 +2918,7 @@ function _dtOnScroll(){
   _dtRafPending=true;
   requestAnimationFrame(function(){_dtRafPending=false;_renderDtWindow();});
 }
-function tSort(col){if(tSC===col)tSA=!tSA;else{tSC=col;tSA=true;}renderTable();}
+function tSort(col){_tUserSorted=true;if(tSC===col)tSA=!tSA;else{tSC=col;tSA=true;}renderTable();}
 
 /* === PRICE HISTORY === */
 var _phStocks=[],_phRange='MAX',_phInited=false,_phState=null,_phMetric='price';
@@ -5997,6 +6203,11 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   _cfOptHtml=optHtml;
   addColFilter(); // seed one empty row
   document.getElementById('f-count').textContent=DATA.length+' of '+DATA.length;
+  /* IME (CJK) input: don't filter on half-composed text; one debounced
+     pass fires when the composition commits. */
+  var _fs=document.getElementById('f-search');
+  _fs.addEventListener('compositionstart',function(){_imeComposing=true;});
+  _fs.addEventListener('compositionend',function(){_imeComposing=false;onSearchInput();});
   moveFilterBar(curView);
   /* A #s= hash (shared link) restores its filters + view and runs
      applyFilters itself; otherwise do the normal initial pass. */
