@@ -667,7 +667,7 @@ td.ct{font-weight:700;}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
-.pp-chars,.pp-primer,.pp-desc,.pp-insights,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players,.pp-top,.pp-kpis{background:#f7f9fb;border-left:5px solid #1a252f;}
+.pp-primer,.pp-desc,.pp-insights,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players,.pp-top,.pp-kpis{background:#f7f9fb;border-left:5px solid #1a252f;}
 /* Sector KPI banner — two-row grid placed above "How This Sector Makes
    Money". Row 1 = sector-relevant medians computed live from the
    sector's stocks (tracked). Row 2 = critical sector KPIs not yet in
@@ -710,7 +710,6 @@ td.ct{font-weight:700;}
    neutral panels, and clear of the green/orange/red rating palette used by
    the Profit Pool Analysis chart. */
 .pp-top{background:#eaf2fb;}
-.pp-chars .pp-section-label,
 .pp-primer .pp-section-label,
 .pp-desc .pp-section-label,
 .pp-insights .pp-section-label,
@@ -729,7 +728,6 @@ td.ct{font-weight:700;}
 .pp-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
 .pp-signals-col-hdr{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
 @media(max-width:760px){.pp-signals-grid{grid-template-columns:1fr;gap:14px;}}
-[data-theme="dark"] .pp-chars,
 [data-theme="dark"] .pp-primer,
 [data-theme="dark"] .pp-desc,
 [data-theme="dark"] .pp-insights,
@@ -4217,53 +4215,6 @@ function _roleColor(role){
   return {leader:'#1a9850',runnerup:'#2e7d32',margin_leader:'#0277bd',
           efficiency:'#6a1b9a',laggard:'#c62828'}[role]||'#555';
 }
-/* Key Sector Characteristics — entry digest rendered as the first section
-   of each sector tab, above "How This Sector Makes Money": five plain
-   bullets summarizing market structure, pool size, profitability,
-   growth & valuation, and the model's stance. Medians come from
-   _buildAllSectorStats() (live DATA); dollar totals from SECTOR_POOL
-   stats. Markup mirrors renderPoolInsights so theming stays uniform. */
-function renderPoolCharacteristics(sec){
-  var all=_buildAllSectorStats();
-  var st=null;for(var i=0;i<all.length;i++){if(all[i].sector===sec){st=all[i];break;}}
-  if(!st)return '';
-  var ps=(SECTOR_POOL&&SECTOR_POOL[sec]&&SECTOR_POOL[sec].stats)||{};
-  function _pc(v,d){return(v==null||isNaN(v))?null:(v*100).toFixed(d==null?1:d)+'%';}
-  var pts=[];
-  /* 1 — Market structure (HHI / CR4) */
-  if(st.hhi!=null){
-    var lbl=st.hhi>0.25?'Concentrated':st.hhi>0.15?'Moderately concentrated':'Competitive';
-    pts.push('<strong>'+lbl+' market structure</strong> — HHI of '+st.hhi.toFixed(3)
-      +(st.cr4!=null?' with the top 4 companies holding '+(st.cr4*100).toFixed(0)+'% of sector revenue':'')+'.');
-  }
-  /* 2 — Pool size + most efficient profit capturer */
-  if(ps.total_op_income!=null&&ps.total_revenue!=null){
-    var s2='<strong>'+fds(ps.total_op_income)+' profit pool</strong> — operating profit earned on '
-      +fds(ps.total_revenue)+' of revenue across '+st.n+' companies';
-    if(st.best&&st.best.ticker&&st.best.pp_multiple!=null)
-      s2+='; '+_esc(st.best.ticker)+' converts revenue to profit most efficiently ('+st.best.pp_multiple.toFixed(2)+'× its revenue share)';
-    pts.push(s2+'.');
-  }
-  /* 3 — Profitability */
-  if(st.wtdM!=null)
-    pts.push('<strong>'+_pc(st.wtdM,1)+' blended operating margin</strong>'
-      +(st.medROIC!=null?' with a median ROIC of '+_pc(st.medROIC,1):'')+'.');
-  /* 4 — Growth & valuation */
-  if(st.medGrowth!=null||st.medMos!=null){
-    var b4=[];
-    if(st.medGrowth!=null)b4.push('the median company compounds revenue at '+_pc(st.medGrowth,1)+' a year');
-    if(st.medMos!=null)b4.push('trades at a '+_pc(st.medMos,0)+' median margin of safety to DCF fair value'
-      +(st.medEV!=null?' (EV/EBITDA '+st.medEV.toFixed(1)+'×)':''));
-    pts.push('<strong>Growth &amp; valuation</strong> — '+b4.join(' and ')+'.');
-  }
-  /* 5 — Model stance */
-  if(st.nBuy!=null&&st.pctBuy!=null)
-    pts.push('<strong>Model stance</strong> — '+st.nBuy+' of '+st.n+' names ('+_pc(st.pctBuy,0)+') currently rate BUY or LEAN BUY.');
-  if(!pts.length)return '';
-  var out='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f">';
-  pts.slice(0,5).forEach(function(s){out+='<li style="margin:4px 0">'+s+'</li>';});
-  return out+'</ul>';
-}
 function renderPoolPrimer(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
   if(!n||(!n.education&&!n.education_cycle))return '';
@@ -6055,7 +6006,6 @@ function renderPool(){
        Leader context strip and the tracked KPI cells didn't add signal over
        the sector header and the Overview heatmap. _renderSectorKpiBanner and
        _renderSectorBanner remain defined but unused. */
-    var charsHtml=renderPoolCharacteristics(sec);
     var primerHtml=renderPoolPrimer(sec);
     var descHtml=renderPoolDescription(sec);
     var insightsHtml=renderPoolInsights(sec);
@@ -6065,9 +6015,6 @@ function renderPool(){
     var cr4Html=renderPoolCR4Companies(sec);
     /* Per-sector price chart removed — see Overview tab's
        Sector vs. S&P 500 chart for the cross-sector comparison. */
-    if(charsHtml){
-      chartHtml+='<div class="pp-section pp-chars"><span class="pp-section-label">Key Sector Characteristics</span>'+charsHtml+'</div>';
-    }
     if(primerHtml){
       chartHtml+='<div class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
     }
