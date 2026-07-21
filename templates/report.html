@@ -668,28 +668,6 @@ td.ct{font-weight:700;}
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
 .pp-chars,.pp-primer,.pp-desc,.pp-insights,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players,.pp-top,.pp-kpis{background:#f7f9fb;border-left:5px solid #1a252f;}
-/* Key Sector Characteristics — entry digest at the top of each sector tab.
-   One synthesized lead sentence + a grid of characteristic cards, each
-   with a state-colored left tint, headline value, and interpretive
-   caption. Values are computed live from DATA + SECTOR_POOL stats. */
-.pp-char-lead{margin:0 0 12px;font-size:0.85em;line-height:1.55;color:#37474f;}
-[data-theme="dark"] .pp-char-lead{color:#c9d1d9;}
-.pp-char-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
-@media(max-width:900px){.pp-char-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
-@media(max-width:480px){.pp-char-grid{grid-template-columns:1fr;}}
-.pp-char-card{position:relative;background:#fff;border:1px solid #d9dee6;border-radius:6px;padding:10px 12px 10px 16px;display:flex;flex-direction:column;gap:3px;min-width:0;overflow:hidden;cursor:default;transition:border-color 0.12s,box-shadow 0.12s;}
-.pp-char-card:hover{border-color:#c0cbda;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
-.pp-char-tint{position:absolute;left:0;top:0;bottom:0;width:4px;}
-.pp-char-label{font-size:0.7em;color:#7c8a9a;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;line-height:1.25;}
-.pp-char-value{font-size:1.08em;font-weight:700;color:#1a252f;line-height:1.2;font-variant-numeric:tabular-nums;}
-.pp-char-value.muted{color:#b8c2cf;}
-.pp-char-caption{font-size:0.74em;color:#8a97a5;line-height:1.35;}
-[data-theme="dark"] .pp-char-card{background:#0d1117;border-color:#2a3038;}
-[data-theme="dark"] .pp-char-card:hover{border-color:#3d434b;}
-[data-theme="dark"] .pp-char-label{color:#9da7b3;}
-[data-theme="dark"] .pp-char-value{color:#e6edf3;}
-[data-theme="dark"] .pp-char-value.muted{color:#6e7681;}
-[data-theme="dark"] .pp-char-caption{color:#6e7681;}
 /* Sector KPI banner — two-row grid placed above "How This Sector Makes
    Money". Row 1 = sector-relevant medians computed live from the
    sector's stocks (tracked). Row 2 = critical sector KPIs not yet in
@@ -4240,66 +4218,51 @@ function _roleColor(role){
           efficiency:'#6a1b9a',laggard:'#c62828'}[role]||'#555';
 }
 /* Key Sector Characteristics — entry digest rendered as the first section
-   of each sector tab, above "How This Sector Makes Money". Synthesizes the
-   sector's structure, size, profitability, growth, valuation, and model
-   stance into one lead sentence plus six tinted cards so a reader gets the
-   sector's shape before the educational prose. Medians come from
-   _buildAllSectorStats() (live DATA); dollar totals from SECTOR_POOL stats. */
+   of each sector tab, above "How This Sector Makes Money": five plain
+   bullets summarizing market structure, pool size, profitability,
+   growth & valuation, and the model's stance. Medians come from
+   _buildAllSectorStats() (live DATA); dollar totals from SECTOR_POOL
+   stats. Markup mirrors renderPoolInsights so theming stays uniform. */
 function renderPoolCharacteristics(sec){
   var all=_buildAllSectorStats();
   var st=null;for(var i=0;i<all.length;i++){if(all[i].sector===sec){st=all[i];break;}}
   if(!st)return '';
   var ps=(SECTOR_POOL&&SECTOR_POOL[sec]&&SECTOR_POOL[sec].stats)||{};
-  var G='#1a9850',O='#e67e22',R='#c0392b',N='#5b6abf';
   function _pc(v,d){return(v==null||isNaN(v))?null:(v*100).toFixed(d==null?1:d)+'%';}
-  function _card(label,value,caption,tint,tip){
-    var vCls=value==null?'pp-char-value muted':'pp-char-value';
-    return '<div class="pp-char-card" title="'+_attr(tip||'')+'">'
-      +'<span class="pp-char-tint" style="background:'+(tint||N)+'"></span>'
-      +'<div class="pp-char-label">'+label+'</div>'
-      +'<div class="'+vCls+'">'+(value==null?'—':value)+'</div>'
-      +'<div class="pp-char-caption">'+caption+'</div></div>';
-  }
-  var cards='';
+  var pts=[];
   /* 1 — Market structure (HHI / CR4) */
-  var hhi=st.hhi,cr4=st.cr4;
-  var structLbl=hhi!=null?(hhi>0.25?'Concentrated':hhi>0.15?'Moderately concentrated':'Competitive'):null;
-  var structTint=hhi!=null?(hhi>0.25?R:hhi>0.15?O:G):N;
-  var structBits=[];
-  if(hhi!=null)structBits.push('HHI '+hhi.toFixed(3));
-  if(cr4!=null)structBits.push('top 4 hold '+(cr4*100).toFixed(0)+'% of revenue');
-  cards+=_card('Market Structure',structLbl,structBits.join(' · ')||'concentration data unavailable',structTint,
-    'Herfindahl-Hirschman Index of revenue shares. >0.25 = concentrated (few players set price), 0.15–0.25 = moderately concentrated, <0.15 = competitive / fragmented. CR4 = combined revenue share of the four largest companies.');
-  /* 2 — Pool size (dollar totals from the Python narrative stats) */
-  var poolVal=ps.total_op_income!=null?fds(ps.total_op_income):null;
-  var poolCap=(ps.total_revenue!=null?'operating profit on '+fds(ps.total_revenue)+' revenue · ':'')+st.n+' companies';
-  cards+=_card('Profit Pool',poolVal,poolCap,N,
-    'Sum of positive operating income across the sector universe — the pool every profit-share percentage is measured against.');
+  if(st.hhi!=null){
+    var lbl=st.hhi>0.25?'Concentrated':st.hhi>0.15?'Moderately concentrated':'Competitive';
+    pts.push('<strong>'+lbl+' market structure</strong> — HHI of '+st.hhi.toFixed(3)
+      +(st.cr4!=null?' with the top 4 companies holding '+(st.cr4*100).toFixed(0)+'% of sector revenue':'')+'.');
+  }
+  /* 2 — Pool size + most efficient profit capturer */
+  if(ps.total_op_income!=null&&ps.total_revenue!=null){
+    var s2='<strong>'+fds(ps.total_op_income)+' profit pool</strong> — operating profit earned on '
+      +fds(ps.total_revenue)+' of revenue across '+st.n+' companies';
+    if(st.best&&st.best.ticker&&st.best.pp_multiple!=null)
+      s2+='; '+_esc(st.best.ticker)+' converts revenue to profit most efficiently ('+st.best.pp_multiple.toFixed(2)+'× its revenue share)';
+    pts.push(s2+'.');
+  }
   /* 3 — Profitability */
-  var profTint=st.wtdM==null?N:st.wtdM>=0.15?G:st.wtdM>=0.05?O:R;
-  cards+=_card('Profitability',_pc(st.wtdM,1),'blended op margin'+(st.medROIC!=null?' · median ROIC '+_pc(st.medROIC,1):''),profTint,
-    'Revenue-weighted operating margin across the sector (losses included). Sustained 20%+ signals sector-wide pricing power; below 8% the pool is thin and cycle-sensitive.');
-  /* 4 — Growth */
-  var grTint=st.medGrowth==null?N:st.medGrowth>=0.08?G:st.medGrowth>=0?O:R;
-  cards+=_card('Growth',_pc(st.medGrowth,1),'median 5-yr revenue CAGR',grTint,
-    'Median 5-year revenue CAGR across the sector’s companies — how fast the typical name is compounding its top line.');
-  /* 5 — Valuation */
-  var valTint=st.medMos==null?N:st.medMos>0.10?G:st.medMos>-0.05?O:R;
-  cards+=_card('Valuation',_pc(st.medMos,0)!=null?_pc(st.medMos,0)+' MoS':null,'median margin of safety vs DCF fair value'+(st.medEV!=null?' · EV/EBITDA '+st.medEV.toFixed(1)+'×':''),valTint,
-    'Median discount (+) or premium (−) to DCF fair value across the sector. A positive median suggests the sector is broadly out of favor — verify the discount is real, not deserved.');
-  /* 6 — Model stance */
-  var msTint=st.pctBuy==null?N:st.pctBuy>=0.20?G:st.pctBuy>0?O:R;
-  cards+=_card('Model Stance',st.nBuy!=null?st.nBuy+' BUY-rated':null,(st.pctBuy!=null?_pc(st.pctBuy,0)+' of ':'')+st.n+' companies rated BUY or LEAN BUY',msTint,
-    'How many names the screener currently rates BUY or LEAN BUY — where the model finds clusters of margin of safety inside this sector.');
-  /* Lead sentence — one-line synthesis above the cards */
-  var lead='';
-  lead+='<strong>'+_esc(sec)+'</strong> screens as a '+(structLbl?structLbl.toLowerCase():'')+' sector of '+st.n+' companies';
-  if(ps.total_op_income!=null&&ps.total_revenue!=null)lead+=' generating '+fds(ps.total_op_income)+' of operating profit on '+fds(ps.total_revenue)+' of revenue';
-  if(st.wtdM!=null)lead+=' ('+(st.wtdM*100).toFixed(1)+'% blended margin)';
-  lead+='.';
-  if(st.best&&st.best.ticker)lead+=' '+_esc(st.best.ticker)+' captures profit most efficiently'+(st.best.pp_multiple!=null?' at '+st.best.pp_multiple.toFixed(2)+'× its revenue share':'')+'.';
-  if(st.nBuy!=null&&st.pctBuy!=null)lead+=' The model rates '+st.nBuy+' of '+st.n+' names ('+(st.pctBuy*100).toFixed(0)+'%) BUY or LEAN BUY'+(st.medMos!=null?' on a median margin of safety of '+(st.medMos*100).toFixed(0)+'%':'')+'.';
-  return '<p class="pp-char-lead">'+lead+'</p><div class="pp-char-grid">'+cards+'</div>';
+  if(st.wtdM!=null)
+    pts.push('<strong>'+_pc(st.wtdM,1)+' blended operating margin</strong>'
+      +(st.medROIC!=null?' with a median ROIC of '+_pc(st.medROIC,1):'')+'.');
+  /* 4 — Growth & valuation */
+  if(st.medGrowth!=null||st.medMos!=null){
+    var b4=[];
+    if(st.medGrowth!=null)b4.push('the median company compounds revenue at '+_pc(st.medGrowth,1)+' a year');
+    if(st.medMos!=null)b4.push('trades at a '+_pc(st.medMos,0)+' median margin of safety to DCF fair value'
+      +(st.medEV!=null?' (EV/EBITDA '+st.medEV.toFixed(1)+'×)':''));
+    pts.push('<strong>Growth &amp; valuation</strong> — '+b4.join(' and ')+'.');
+  }
+  /* 5 — Model stance */
+  if(st.nBuy!=null&&st.pctBuy!=null)
+    pts.push('<strong>Model stance</strong> — '+st.nBuy+' of '+st.n+' names ('+_pc(st.pctBuy,0)+') currently rate BUY or LEAN BUY.');
+  if(!pts.length)return '';
+  var out='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f">';
+  pts.slice(0,5).forEach(function(s){out+='<li style="margin:4px 0">'+s+'</li>';});
+  return out+'</ul>';
 }
 function renderPoolPrimer(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
