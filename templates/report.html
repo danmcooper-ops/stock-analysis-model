@@ -255,7 +255,7 @@ td.ct{font-weight:700;}
 .rb{display:inline-block;padding:2px 8px;border-radius:4px;color:white;font-weight:700;font-size:0.82em;}
 /* === FROZEN HEADERS — wrappers scroll X+Y; thead and first 3 cols stay fixed === */
 .table-wrap{overflow-x:auto;overflow-y:auto;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);-webkit-overflow-scrolling:touch;}
-.matrix-wrap{overflow-x:auto;overflow-y:auto;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);-webkit-overflow-scrolling:touch;max-height:calc(100vh - 200px);}
+.matrix-wrap{overflow-x:auto;overflow-y:auto;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);-webkit-overflow-scrolling:touch;}
 /* Virtualized matrix rows have a fixed height so the windowing math is reliable.
    Spacer rows (above + below the visible window) carry the cumulative pixel
    weight of the rows we chose not to render so the scrollbar still represents
@@ -2598,13 +2598,15 @@ function renderMatrix(){
      their place. Otherwise reset to the top. */
   var newSig=sd.length+'|'+mSC+'|'+(mSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'')+(_relOn?'|R'+_SEARCH_Q:'');
   if(!_mtxScrollEl)_mtxScrollEl=document.querySelector('.matrix-wrap');
-  if(_mtxScrollEl&&!_mtxScrollAttached){
-    _mtxScrollEl.addEventListener('scroll',_mtxOnScroll,{passive:true});
+  /* Virtualization now windows off the PAGE scroll (the wrap no longer scrolls
+     vertically), so listen on window, not the wrap. */
+  if(!_mtxScrollAttached){
+    window.addEventListener('scroll',_mtxOnScroll,{passive:true});
     _mtxScrollAttached=true;
   }
   if(newSig!==_mtxLastSig){
     _mtxLastSig=newSig;
-    if(_mtxScrollEl)_mtxScrollEl.scrollTop=0;
+    _scrollWrapToTop(_mtxScrollEl);
   }
   _renderMtxWindow();
   _updateCountLabel();
@@ -2636,12 +2638,12 @@ function _renderMtxWindow(){
   var n=_mtxData.length;
   var rowH=_mtxRowH;
   var scrollEl=_mtxScrollEl;
-  var scrollTop=scrollEl?scrollEl.scrollTop:0;
-  var viewportH=scrollEl?scrollEl.clientHeight:0;
-  /* Before the user navigates to Gate Matrix, clientHeight may be 0. Fall back
-     to a reasonable default so the first paint shows something rather than
-     nothing. */
-  if(viewportH<=0)viewportH=600;
+  /* Window off the PAGE scroll: scrollTop = how many px of the wrap sit above the
+     viewport top (-rect.top), viewportH = the window height. The row buffer
+     (_mtxBuffer) absorbs the sticky-thead offset so no exact thead math needed. */
+  var rt=scrollEl?scrollEl.getBoundingClientRect().top:0;
+  var scrollTop=Math.max(0,-rt);
+  var viewportH=window.innerHeight||600;
   var first=Math.max(0,Math.floor(scrollTop/rowH)-_mtxBuffer);
   var last=Math.min(n,Math.ceil((scrollTop+viewportH)/rowH)+_mtxBuffer);
   /* Always render at least 40 rows so the first paint isn't anemic when the
@@ -2918,13 +2920,14 @@ function renderTable(){
      (e.g. flag/reviewed toggles). On any real change, jump to the top. */
   var newSig=curTSub+'|'+sd.length+'|'+tSC+'|'+(tSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'')+(_relOn?'|R'+_SEARCH_Q:'');
   if(!_dtScrollEl)_dtScrollEl=document.querySelector('#view-table .table-wrap');
-  if(_dtScrollEl&&!_dtScrollAttached){
-    _dtScrollEl.addEventListener('scroll',_dtOnScroll,{passive:true});
+  /* Window off the PAGE scroll (see matrix note): listen on window, not the wrap. */
+  if(!_dtScrollAttached){
+    window.addEventListener('scroll',_dtOnScroll,{passive:true});
     _dtScrollAttached=true;
   }
   if(newSig!==_dtLastSig){
     _dtLastSig=newSig;
-    if(_dtScrollEl)_dtScrollEl.scrollTop=0;
+    _scrollWrapToTop(_dtScrollEl);
   }
   _renderDtWindow();
   _updateCountLabel();
@@ -2949,12 +2952,10 @@ function _renderDtWindow(){
   var n=_dtData.length;
   var rowH=_dtRowH;
   var scrollEl=_dtScrollEl;
-  var scrollTop=scrollEl?scrollEl.scrollTop:0;
-  var viewportH=scrollEl?scrollEl.clientHeight:0;
-  /* Before max-height is applied, clientHeight may be ~0. Fall back to a
-     reasonable default so the first paint isn't anemic; _setTableH will
-     re-run the window once the wrap has its real height. */
-  if(viewportH<=0)viewportH=600;
+  /* Window off the PAGE scroll (see matrix note in _renderMtxWindow). */
+  var rt=scrollEl?scrollEl.getBoundingClientRect().top:0;
+  var scrollTop=Math.max(0,-rt);
+  var viewportH=window.innerHeight||600;
   var first=Math.max(0,Math.floor(scrollTop/rowH)-_dtBuffer);
   var last=Math.min(n,Math.ceil((scrollTop+viewportH)/rowH)+_dtBuffer);
   if(last-first<40)last=Math.min(n,first+40);
@@ -4207,22 +4208,28 @@ function moveFilterBar(v){
     if(ms&&ms.nextSibling!==fb)ms.parentNode.insertBefore(fb,ms.nextSibling);
   }
 }
-/* Set table container max-height so thead sticky works relative to the scroll box */
+/* When a re-sort/filter changes the row order, bring the page back to the top of
+   the table (only if the user has already scrolled into/past it) so they don't
+   land stranded in the middle of a freshly-reordered list — the page-scroll
+   analogue of the old wrap.scrollTop=0 reset. */
+function _scrollWrapToTop(wrap){
+  if(!wrap)return;
+  var top=wrap.getBoundingClientRect().top+window.scrollY;
+  if(window.scrollY>top)window.scrollTo(0,Math.max(0,top));
+}
+/* Natural page scroll (mirrors the Sector Analysis pages): the table wraps grow
+   to full content height and the DOCUMENT scrolls, rather than each table
+   scrolling inside a viewport-fitted box. Clear any legacy inline max-height and
+   let the virtualization window off the page scroll instead of the wrap. */
 function _setTableH(){
   var map={matrix:'.matrix-wrap',table:'.table-wrap'};
   ['matrix','table'].forEach(function(v){
     var vw=document.getElementById('view-'+v);if(!vw)return;
     var wrap=vw.querySelector(map[v]);if(!wrap)return;
-    var rect=wrap.getBoundingClientRect();
-    if(rect.width===0&&rect.height===0)return;
-    var h=Math.max(240,window.innerHeight-rect.top-2);
-    wrap.style.maxHeight=h+'px';
+    wrap.style.maxHeight='none';
   });
-  /* The matrix virtualization sizes its visible window from scrollEl.clientHeight.
-     On first paint that's read before max-height has been applied (tbody is empty,
-     so the wrap only contains the just-populated thead and clientHeight is ~80px,
-     yielding ~12 rows). Re-run the window calc now that the wrap has the real
-     viewport-based max-height. Also fixes the matrix on window resize. */
+  /* Re-run the windowing after layout settles / on resize so the visible row
+     window matches the new viewport height. */
   if(typeof _renderMtxWindow==='function'&&_mtxData)_renderMtxWindow();
   if(typeof _renderDtWindow==='function'&&_dtData)_renderDtWindow();
 }
