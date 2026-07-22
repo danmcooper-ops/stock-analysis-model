@@ -1209,6 +1209,42 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .matrix-table th[style*="background:#FCE4CC"]{background:#5a3015 !important;}
 [data-theme="dark"] .matrix-table th[style*="background:#E4CCEF"]{background:#3a2154 !important;}
 [data-theme="dark"] .matrix-table th[style*="background:#FFF2CC"]{background:#5a4310 !important;}
+/* ============================================================
+   PORTRAIT REAL-ESTATE MAXIMIZATION.
+   The phone @media blocks near the top of this sheet set compact
+   .container / .primary-nav / .nav-btn / .secondary-nav / .sub-btn
+   padding, but the base desktop rules for those selectors appear
+   LATER in source order (~lines 141-151) and, at equal specificity,
+   win the cascade — so the intended mobile compaction never applied
+   (the same reason the filter bar needed its #filter-bar id hack).
+   Re-asserting the compaction here — last in the sheet, so it wins by
+   source order — reclaims the wasted vertical + horizontal chrome in
+   portrait without reordering the stylesheet. Scoped to portrait
+   phones and portrait tablets (<=900px); landscape has its own tuned
+   block above and is left untouched. */
+@media(max-width:900px) and (orientation:portrait){
+  .container{padding:3px 6px;}
+  .primary-nav{padding:2px 0;}
+  .nav-btn{padding:5px 14px;font-size:0.82em;}
+  .secondary-nav{padding:3px 0;gap:4px;}
+  .sub-btn{padding:4px 11px;font-size:0.76em;}
+  .filter-bar{padding:3px 0;}
+}
+/* Phone LANDSCAPE (vertical space is scarce here): same cascade fix as
+   above. The dedicated landscape block near the top of the sheet compacts
+   the header + popup but never the nav bars, and its .container rule is
+   likewise clobbered by the later base rule. Re-assert compact nav +
+   container here so the two nav bars stop eating ~98px of a ~375px-tall
+   viewport. Values lean harder on vertical padding than the portrait
+   block since height — not width — is the constraint in landscape. */
+@media(orientation:landscape) and (max-height:500px){
+  .container{padding:2px 6px;}
+  .primary-nav{padding:1px 0;}
+  .nav-btn{padding:3px 14px;font-size:0.8em;}
+  .secondary-nav{padding:2px 0;gap:4px;}
+  .sub-btn{padding:3px 11px;font-size:0.74em;}
+  .filter-bar{padding:2px 0;}
+}
 </style>
 </head>
 <body>
