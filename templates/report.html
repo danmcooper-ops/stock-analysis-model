@@ -2008,7 +2008,7 @@ function bkv(pairs){return pairs.map(function(p){
 var TT={
 ticker:'The symbol stands for a business, not a lottery ticket. Buffett’s rule: invest only in what you understand well enough to own for a decade.',
 rating:'The model’s verdict, blending the DCF fair value, 26 quality gates and the composite score. Treat it as a starting point for your own work, not a substitute for it.',
-rating_prev:'The stock’s rating in the prior run’s snapshot, shown with the same colour pill as Today’s Rating so upgrades and downgrades read at a glance side by side. N/A means the ticker was not in the prior run.',
+rating_prev:'The stock’s last known rating — from the most recent prior run that rated it, shown with the same colour pill as Today’s Rating so upgrades and downgrades read at a glance side by side. Falls back through the last couple of weeks of snapshots, so a ticker that transiently dropped out of yesterday’s run still shows its real prior rating. N/A means the ticker wasn’t in any recent run.',
 _composite_score:'Score = 0.30·Valuation + 0.30·Moat + 0.20·Quality + 0.10·Growth + 0.10·Ownership — five pillars, each scored 0–100 and weighted by how much it matters to long-run returns. Ratings: ≥57 BUY; 39–56 LEAN BUY; 25–38 HOLD; below 25 PASS. Thresholds are provisional pending the next live run.',
 _gates_passed:'Gates passed, out of those that apply. Gates that cannot describe the business — free-cash-flow tests for a bank, say — are excluded from the denominator, not failed. Diagnostic only: the composite score, not this count, drives the rating; but every failure deserves an explanation.',
 sector:'GICS sector. Buffett’s circle of competence begins here: benchmark a business only against peers with genuinely similar economics.',

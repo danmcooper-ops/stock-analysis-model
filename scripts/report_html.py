@@ -114,15 +114,27 @@ def _rating_delta(prev, cur):
     return None
 
 
-def _load_prev_ratings(out_dir, run_date):
-    """Load the prior run's ticker->rating map for the rate-change column.
+def _load_prev_ratings(out_dir, run_date, max_lookback=7):
+    """Load each ticker's last-known rating for the rate-change column.
 
-    Scans ``out_dir`` for ``results_YYYY-MM-DD.json`` snapshots and picks the
-    most recent one dated strictly before ``run_date`` (ISO date strings sort
-    lexicographically, so a plain string compare is correct). Returns
-    ``(prev_date_str, {ticker: rating})``, or ``(None, {})`` when there is no
-    earlier snapshot or anything fails — the column then degrades to 'NEW'
-    for every row rather than raising.
+    Scans ``out_dir`` for ``results_YYYY-MM-DD.json`` snapshots dated strictly
+    before ``run_date`` (ISO date strings sort lexicographically, so a plain
+    string compare is correct) and walks them newest-first. For every ticker it
+    records the rating from the *most recent* snapshot that contains it — i.e.
+    "last known rating", not "rating in exactly the prior file". This makes the
+    "Yesterday's Rating" column resilient to a single degraded run: a ticker
+    that transiently dropped out of the immediately-prior snapshot (e.g. a
+    yfinance/SEC fetch timeout) still shows its last real rating instead of N/A.
+
+    The look-back is bounded to the ``max_lookback`` most recent prior snapshots
+    (~1-2 weeks) so a genuinely delisted or long-absent ticker isn't resurrected
+    from stale history.
+
+    Returns ``(prev_date_str, {ticker: rating})`` where ``prev_date_str`` is the
+    date of the most recent prior snapshot (the primary baseline, still the
+    reference for the large majority of tickers), or ``(None, {})`` when there is
+    no earlier snapshot at all — the column then degrades to 'NEW'/N/A for every
+    row rather than raising.
     """
     import glob
     import re
@@ -130,7 +142,8 @@ def _load_prev_ratings(out_dir, run_date):
         cur = run_date.isoformat() if run_date is not None else None
     except Exception:
         cur = None
-    best_date, best_path = None, None
+    # Collect all prior snapshots, newest date first.
+    dated = []
     for p in glob.glob(os.path.join(out_dir, 'results_*.json')):
         m = re.search(r'results_(\d{4}-\d{2}-\d{2})\.json$', os.path.basename(p))
         if not m:
@@ -138,25 +151,37 @@ def _load_prev_ratings(out_dir, run_date):
         d = m.group(1)
         if cur is not None and d >= cur:
             continue
-        if best_date is None or d > best_date:
-            best_date, best_path = d, p
-    if best_path is None:
+        dated.append((d, p))
+    if not dated:
         return None, {}
-    try:
-        with open(best_path) as f:
-            snap = json.load(f)
-    except Exception as e:
-        print(f"[report_html] prior-rating load failed ({best_path}): {e}")
-        return None, {}
-    recs = snap.get('results') if (isinstance(snap, dict) and 'results' in snap) else snap
+    dated.sort(key=lambda t: t[0], reverse=True)
+    primary_date = dated[0][0]
     out = {}
-    if isinstance(recs, list):
+    filled_via_fallback = 0
+    for d, p in dated[:max_lookback]:
+        try:
+            with open(p) as f:
+                snap = json.load(f)
+        except Exception as e:
+            print(f"[report_html] prior-rating load failed ({p}): {e}")
+            continue
+        recs = snap.get('results') if (isinstance(snap, dict) and 'results' in snap) else snap
+        if not isinstance(recs, list):
+            continue
         for rec in recs:
-            if isinstance(rec, dict):
-                tk, rt = rec.get('ticker'), rec.get('rating')
-                if tk and rt:
-                    out[tk] = rt
-    return best_date, out
+            if not isinstance(rec, dict):
+                continue
+            tk, rt = rec.get('ticker'), rec.get('rating')
+            # Newest-first walk: only fill a ticker the first time we see it, so
+            # the most recent snapshot that rated it wins.
+            if tk and rt and tk not in out:
+                out[tk] = rt
+                if d != primary_date:
+                    filled_via_fallback += 1
+    if filled_via_fallback:
+        print(f"[report_html] rate-change: {filled_via_fallback} ticker(s) "
+              f"baselined via fallback look-back (missing from {primary_date})")
+    return primary_date, out
 
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None):
     """Render the interactive HTML report via Jinja2 template."""
