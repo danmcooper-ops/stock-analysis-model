@@ -1246,23 +1246,21 @@ td.ct{font-weight:700;}
   .filter-bar{padding:2px 0;}
 }
 /* ============================================================
-   LANDSCAPE NATURAL PAGE SCROLL (iPhone + iPad).
-   In coarse-pointer landscape the two big table wraps stop being scroll
-   containers: overflow goes visible, the height cap is dropped (JS skips
-   the inline max-height too — see _setTableH), and the DOCUMENT scrolls
-   in both axes. Because the nearest scrollport is now the viewport, the
-   existing sticky thead pins to the top of the SCREEN and the frozen
-   left columns pin to its left edge — while the chrome above the table
-   (header, nav bars, filter bar) and iOS Safari's own toolbar scroll
-   away natively. Scrolling back to the top of the table brings the
-   chrome back. This replaces the earlier body.chrome-away class toggle,
-   whose mid-scroll max-height/reflow animation caused visible jank.
-   Desktop and portrait keep the viewport-fitted inner-scroll wraps. */
-@media (orientation:landscape) and (pointer:coarse){
-  .matrix-wrap,#view-table .table-wrap{
-    overflow:visible;
-    max-height:none;
-  }
+   NATURAL PAGE SCROLL — universal since 2026-07-24 (originally
+   coarse-pointer landscape only; the media gate was removed when the
+   mode was extended to portrait and desktop).
+   The two big table wraps are not scroll containers: overflow is
+   visible, the height cap is gone (JS keeps the inline max-height
+   cleared — see _setTableH), and the DOCUMENT scrolls in both axes.
+   Because the nearest scrollport is the viewport, the sticky thead pins
+   to the top of the SCREEN and the frozen left columns pin to its left
+   edge — while the chrome above the table (header, nav bars, filter
+   bar) and iOS Safari's own toolbar scroll away natively, returning
+   when the user scrolls back to the top. Other .table-wrap instances
+   (sector heatmap, pool summary) keep their inner overflow scroll. */
+.matrix-wrap,#view-table .table-wrap{
+  overflow:visible;
+  max-height:none;
 }
 </style>
 </head>
@@ -4263,12 +4261,12 @@ function moveFilterBar(v){
     if(ms&&ms.nextSibling!==fb)ms.parentNode.insertBefore(fb,ms.nextSibling);
   }
 }
-/* Set table container max-height so thead sticky works relative to the scroll
-   box — except in page-scroll mode (coarse-pointer landscape), where the wrap
-   must grow to full content height so the document scrolls and the sticky
-   thead/frozen columns pin to the viewport instead. When rotation flips the
-   mode, carry the visible wrap's scroll offset across the flip (wrap.scrollTop
-   <-> page offset into the wrap) so the user keeps their place in the table. */
+/* Page-scroll mode (now universal): keep the wraps' inline max-height cleared
+   so they grow to full content height, the document scrolls, and the sticky
+   thead/frozen columns pin to the viewport. The inner-scroll branch below is
+   retained in case a per-device gate returns (_pageScroll); if the mode ever
+   flips at runtime, the visible wrap's scroll offset is carried across the
+   flip (wrap.scrollTop <-> page offset) so the user keeps their place. */
 var _lastPS;
 function _setTableH(){
   var ps=_pageScroll();
@@ -4318,14 +4316,16 @@ function _setTableH(){
   if(typeof _renderDtWindow==='function'&&_dtData)_renderDtWindow();
 }
 window.addEventListener('resize',_setTableH);
-/* Coarse-pointer landscape uses natural PAGE scroll for the table views —
-   see the landscape CSS block. _pageScroll() gates the mode everywhere:
-   _setTableH skips the height cap, the row virtualization windows off the
-   window scroll instead of the wrap scroll, and re-sort/filter resets
-   scroll the page instead of the wrap. Rotation flips the mode via the
-   existing resize -> _setTableH path. */
-var _chromeMQ=window.matchMedia('(orientation:landscape) and (pointer:coarse)');
-function _pageScroll(){return !!(_chromeMQ&&_chromeMQ.matches);}
+/* Natural PAGE scroll for the table views — see the page-scroll CSS block.
+   _pageScroll() gates the mode everywhere: _setTableH skips the height cap,
+   the row virtualization windows off the window scroll instead of the wrap
+   scroll, and re-sort/filter resets scroll the page instead of the wrap.
+   Since 2026-07-24 the mode is UNIVERSAL (all devices and orientations —
+   originally coarse-pointer landscape only). The dual-mode machinery
+   (inner-scroll branches, rotation offset carry via wrap._innerST) is kept
+   intact so a per-device gate can be reinstated by editing this function
+   and re-gating the CSS block. */
+function _pageScroll(){return true;}
 /* Reset scroll to the top of a table after a re-sort/filter: wrap.scrollTop
    in inner-scroll mode; in page-scroll mode, scroll the document back to the
    top of the wrap (only if the user is already past it) so they don't land
