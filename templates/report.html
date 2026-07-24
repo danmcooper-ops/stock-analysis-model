@@ -6331,10 +6331,14 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   document.getElementById('ms-country-opts').innerHTML=chtml;
   // Build _CF_FMT lookup and _cfOptHtml for dynamic filter rows
   var _CF_FMT={};window._CF_FMT=_CF_FMT;
-  /* Dedupe across tabs: a column key may appear in several TC[*] tabs
-     (e.g. ROIC lives in both Overview and Profitability). Show each
-     metric exactly once in the filter dropdown, under the first tab
-     it shows up in.
+  /* Each optgroup mirrors its sub-tab's filterable columns exactly, in
+     the tab's display order — a column that lives on two tabs (e.g.
+     CashConv on Profitability AND Financial Health) is listed under
+     both, so whichever tab you're looking at, its columns sit under
+     that tab's heading. Duplicate option values are harmless: both
+     carry the same key, and a restored filter simply highlights the
+     first instance. Text-format columns join their tab as "contains"
+     filters; identity columns (ticker, ratings) stay out.
 
      Skip columns whose absolute-dollar or absolute-share value doesn't
      make sense as a cross-universe min/max screen \u2014 per-share fair
@@ -6351,23 +6355,25 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
     ddm_h_fv:1,ddm_mc_p10:1,ddm_mc_median:1,ddm_mc_p90:1,
     ddm_payout_flag:1,ddm_eligible:1
   };
-  var cfSeen={};var optHtml='<option value="">Column\u2026</option>';
+  var _CF_ID={ticker:1,rating:1,rating_prev:1};
+  var optHtml='<option value="">Column\u2026</option>';
   Object.keys(TL).forEach(function(tabKey){
-    var cols=TC[tabKey];var grpHtml='';
+    var cols=TC[tabKey]||[];var grpHtml='';
     cols.forEach(function(c){
-      if(c.f==='text'||c.f==='rating'||c.f==='ar')return;
+      if(_CF_ID[c.k]||c.f==='rating'||c.f==='ar')return;
       if(_CF_SKIP[c.k])return;
-      if(cfSeen[c.k])return;
-      cfSeen[c.k]=true;
-      _CF_FMT[c.k]=c.f;
-      var unit=c.f==='pct'?' (%)':c.f==='dollar'||c.f==='ds'?' ($)':'';
+      var isTxt=c.f==='text';
+      _CF_FMT[c.k]=isTxt?'text':c.f;
+      var unit=isTxt?' (text)':c.f==='pct'?' (%)':c.f==='dollar'||c.f==='ds'?' ($)':'';
       grpHtml+='<option value="'+c.k+'">'+c.l+unit+'</option>';
     });
     if(grpHtml)optHtml+='<optgroup label="'+TL[tabKey]+'">'+grpHtml+'</optgroup>';
   });
-  /* Text (contains) filters — categorical row fields that aren't
-     numeric TC columns. Matched case-insensitively as substrings. */
-  var _CF_TEXT=[['industry','Industry'],['ceo','CEO'],['mc_confidence','MC Conf']];
+  /* Text (contains) filters on row fields that aren't table columns.
+     Matched case-insensitively as substrings. (mc_confidence moved to
+     its home tab group above; the key is unchanged, so saved presets
+     and shared URLs referencing it keep working.) */
+  var _CF_TEXT=[['industry','Industry'],['ceo','CEO']];
   var txtHtml='';
   _CF_TEXT.forEach(function(p){_CF_FMT[p[0]]='text';txtHtml+='<option value="'+p[0]+'">'+p[1]+' (text)</option>';});
   optHtml+='<optgroup label="Text">'+txtHtml+'</optgroup>';
