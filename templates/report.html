@@ -1245,6 +1245,25 @@ td.ct{font-weight:700;}
   .sub-btn{padding:3px 11px;font-size:0.74em;}
   .filter-bar{padding:2px 0;}
 }
+/* ============================================================
+   LANDSCAPE NATURAL PAGE SCROLL (iPhone + iPad).
+   In coarse-pointer landscape the two big table wraps stop being scroll
+   containers: overflow goes visible, the height cap is dropped (JS skips
+   the inline max-height too — see _setTableH), and the DOCUMENT scrolls
+   in both axes. Because the nearest scrollport is now the viewport, the
+   existing sticky thead pins to the top of the SCREEN and the frozen
+   left columns pin to its left edge — while the chrome above the table
+   (header, nav bars, filter bar) and iOS Safari's own toolbar scroll
+   away natively. Scrolling back to the top of the table brings the
+   chrome back. This replaces the earlier body.chrome-away class toggle,
+   whose mid-scroll max-height/reflow animation caused visible jank.
+   Desktop and portrait keep the viewport-fitted inner-scroll wraps. */
+@media (orientation:landscape) and (pointer:coarse){
+  .matrix-wrap,#view-table .table-wrap{
+    overflow:visible;
+    max-height:none;
+  }
+}
 </style>
 </head>
 <body>
@@ -2599,12 +2618,16 @@ function renderMatrix(){
   var newSig=sd.length+'|'+mSC+'|'+(mSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'')+(_relOn?'|R'+_SEARCH_Q:'');
   if(!_mtxScrollEl)_mtxScrollEl=document.querySelector('.matrix-wrap');
   if(_mtxScrollEl&&!_mtxScrollAttached){
+    /* Both scroll sources feed the same rAF-coalesced handler: the wrap
+       scrolls in inner-scroll mode, the window in page-scroll mode
+       (coarse-pointer landscape). The inactive source simply never fires. */
     _mtxScrollEl.addEventListener('scroll',_mtxOnScroll,{passive:true});
+    window.addEventListener('scroll',_mtxOnScroll,{passive:true});
     _mtxScrollAttached=true;
   }
   if(newSig!==_mtxLastSig){
     _mtxLastSig=newSig;
-    if(_mtxScrollEl)_mtxScrollEl.scrollTop=0;
+    _resetTableScroll(_mtxScrollEl);
   }
   _renderMtxWindow();
   _updateCountLabel();
@@ -2636,12 +2659,22 @@ function _renderMtxWindow(){
   var n=_mtxData.length;
   var rowH=_mtxRowH;
   var scrollEl=_mtxScrollEl;
-  var scrollTop=scrollEl?scrollEl.scrollTop:0;
-  var viewportH=scrollEl?scrollEl.clientHeight:0;
-  /* Before the user navigates to Gate Matrix, clientHeight may be 0. Fall back
-     to a reasonable default so the first paint shows something rather than
-     nothing. */
-  if(viewportH<=0)viewportH=600;
+  var scrollTop,viewportH;
+  if(_pageScroll()){
+    /* Page-scroll mode: scrollTop = px of the wrap above the viewport top
+       (-rect.top), viewportH = window height. The row buffer (_mtxBuffer)
+       absorbs the sticky-thead offset so no exact thead math is needed. */
+    var rt=scrollEl?scrollEl.getBoundingClientRect().top:0;
+    scrollTop=Math.max(0,-rt);
+    viewportH=window.innerHeight||600;
+  }else{
+    scrollTop=scrollEl?scrollEl.scrollTop:0;
+    viewportH=scrollEl?scrollEl.clientHeight:0;
+    /* Before the user navigates to Gate Matrix, clientHeight may be 0. Fall back
+       to a reasonable default so the first paint shows something rather than
+       nothing. */
+    if(viewportH<=0)viewportH=600;
+  }
   var first=Math.max(0,Math.floor(scrollTop/rowH)-_mtxBuffer);
   var last=Math.min(n,Math.ceil((scrollTop+viewportH)/rowH)+_mtxBuffer);
   /* Always render at least 40 rows so the first paint isn't anemic when the
@@ -2919,12 +2952,15 @@ function renderTable(){
   var newSig=curTSub+'|'+sd.length+'|'+tSC+'|'+(tSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'')+(_relOn?'|R'+_SEARCH_Q:'');
   if(!_dtScrollEl)_dtScrollEl=document.querySelector('#view-table .table-wrap');
   if(_dtScrollEl&&!_dtScrollAttached){
+    /* Both scroll sources — wrap (inner-scroll mode) and window (page-scroll
+       mode) — feed the same rAF-coalesced handler; see the matrix note. */
     _dtScrollEl.addEventListener('scroll',_dtOnScroll,{passive:true});
+    window.addEventListener('scroll',_dtOnScroll,{passive:true});
     _dtScrollAttached=true;
   }
   if(newSig!==_dtLastSig){
     _dtLastSig=newSig;
-    if(_dtScrollEl)_dtScrollEl.scrollTop=0;
+    _resetTableScroll(_dtScrollEl);
   }
   _renderDtWindow();
   _updateCountLabel();
@@ -2949,12 +2985,20 @@ function _renderDtWindow(){
   var n=_dtData.length;
   var rowH=_dtRowH;
   var scrollEl=_dtScrollEl;
-  var scrollTop=scrollEl?scrollEl.scrollTop:0;
-  var viewportH=scrollEl?scrollEl.clientHeight:0;
-  /* Before max-height is applied, clientHeight may be ~0. Fall back to a
-     reasonable default so the first paint isn't anemic; _setTableH will
-     re-run the window once the wrap has its real height. */
-  if(viewportH<=0)viewportH=600;
+  var scrollTop,viewportH;
+  if(_pageScroll()){
+    /* Page-scroll mode — see the matrix note in _renderMtxWindow. */
+    var rt=scrollEl?scrollEl.getBoundingClientRect().top:0;
+    scrollTop=Math.max(0,-rt);
+    viewportH=window.innerHeight||600;
+  }else{
+    scrollTop=scrollEl?scrollEl.scrollTop:0;
+    viewportH=scrollEl?scrollEl.clientHeight:0;
+    /* Before max-height is applied, clientHeight may be ~0. Fall back to a
+       reasonable default so the first paint isn't anemic; _setTableH will
+       re-run the window once the wrap has its real height. */
+    if(viewportH<=0)viewportH=600;
+  }
   var first=Math.max(0,Math.floor(scrollTop/rowH)-_dtBuffer);
   var last=Math.min(n,Math.ceil((scrollTop+viewportH)/rowH)+_dtBuffer);
   if(last-first<40)last=Math.min(n,first+40);
@@ -4207,12 +4251,16 @@ function moveFilterBar(v){
     if(ms&&ms.nextSibling!==fb)ms.parentNode.insertBefore(fb,ms.nextSibling);
   }
 }
-/* Set table container max-height so thead sticky works relative to the scroll box */
+/* Set table container max-height so thead sticky works relative to the scroll
+   box — except in page-scroll mode (coarse-pointer landscape), where the wrap
+   must grow to full content height so the document scrolls and the sticky
+   thead/frozen columns pin to the viewport instead. */
 function _setTableH(){
   var map={matrix:'.matrix-wrap',table:'.table-wrap'};
   ['matrix','table'].forEach(function(v){
     var vw=document.getElementById('view-'+v);if(!vw)return;
     var wrap=vw.querySelector(map[v]);if(!wrap)return;
+    if(_pageScroll()){wrap.style.maxHeight='';return;}
     var rect=wrap.getBoundingClientRect();
     if(rect.width===0&&rect.height===0)return;
     var h=Math.max(240,window.innerHeight-rect.top-2);
@@ -4227,6 +4275,27 @@ function _setTableH(){
   if(typeof _renderDtWindow==='function'&&_dtData)_renderDtWindow();
 }
 window.addEventListener('resize',_setTableH);
+/* Coarse-pointer landscape uses natural PAGE scroll for the table views —
+   see the landscape CSS block. _pageScroll() gates the mode everywhere:
+   _setTableH skips the height cap, the row virtualization windows off the
+   window scroll instead of the wrap scroll, and re-sort/filter resets
+   scroll the page instead of the wrap. Rotation flips the mode via the
+   existing resize -> _setTableH path. */
+var _chromeMQ=window.matchMedia('(orientation:landscape) and (pointer:coarse)');
+function _pageScroll(){return !!(_chromeMQ&&_chromeMQ.matches);}
+/* Reset scroll to the top of a table after a re-sort/filter: wrap.scrollTop
+   in inner-scroll mode; in page-scroll mode, scroll the document back to the
+   top of the wrap (only if the user is already past it) so they don't land
+   stranded mid-way through a freshly reordered list. */
+function _resetTableScroll(wrap){
+  if(!wrap)return;
+  if(_pageScroll()){
+    var top=wrap.getBoundingClientRect().top+window.scrollY;
+    if(window.scrollY>top)window.scrollTo(0,Math.max(0,top));
+  }else{
+    wrap.scrollTop=0;
+  }
+}
 function showView(v){
   curView=v;
   document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active')});
