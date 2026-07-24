@@ -2674,6 +2674,10 @@ function _renderMtxWindow(){
        to a reasonable default so the first paint shows something rather than
        nothing. */
     if(viewportH<=0)viewportH=600;
+    /* Remember the inner offset: rotating to landscape flips the wrap to
+       overflow:visible via CSS BEFORE the resize event runs, wiping
+       scrollTop — _setTableH restores the position from this instead. */
+    if(scrollEl)scrollEl._innerST=scrollTop;
   }
   var first=Math.max(0,Math.floor(scrollTop/rowH)-_mtxBuffer);
   var last=Math.min(n,Math.ceil((scrollTop+viewportH)/rowH)+_mtxBuffer);
@@ -2698,6 +2702,10 @@ function _renderMtxWindow(){
   tb.innerHTML=html;
 }
 function _mtxOnScroll(){
+  /* The window listener stays attached across views (page-scroll mode), so
+     skip when the Gate Matrix isn't the visible view — otherwise scrolling
+     the pool/dashboard pages would rebuild the hidden tbody every frame. */
+  if(curView!=='matrix'||curMSub==='dashboard')return;
   if(_mtxRafPending)return;
   _mtxRafPending=true;
   requestAnimationFrame(function(){_mtxRafPending=false;_renderMtxWindow();});
@@ -2998,6 +3006,8 @@ function _renderDtWindow(){
        reasonable default so the first paint isn't anemic; _setTableH will
        re-run the window once the wrap has its real height. */
     if(viewportH<=0)viewportH=600;
+    /* Remember the inner offset for rotation restore — see the matrix note. */
+    if(scrollEl)scrollEl._innerST=scrollTop;
   }
   var first=Math.max(0,Math.floor(scrollTop/rowH)-_dtBuffer);
   var last=Math.min(n,Math.ceil((scrollTop+viewportH)/rowH)+_dtBuffer);
@@ -3017,6 +3027,8 @@ function _renderDtWindow(){
   tb.innerHTML=html;
 }
 function _dtOnScroll(){
+  /* See _mtxOnScroll — skip when the data table isn't the visible view. */
+  if(curView!=='table'||curTSub==='prices')return;
   if(_dtRafPending)return;
   _dtRafPending=true;
   requestAnimationFrame(function(){_dtRafPending=false;_renderDtWindow();});
@@ -4254,17 +4266,48 @@ function moveFilterBar(v){
 /* Set table container max-height so thead sticky works relative to the scroll
    box — except in page-scroll mode (coarse-pointer landscape), where the wrap
    must grow to full content height so the document scrolls and the sticky
-   thead/frozen columns pin to the viewport instead. */
+   thead/frozen columns pin to the viewport instead. When rotation flips the
+   mode, carry the visible wrap's scroll offset across the flip (wrap.scrollTop
+   <-> page offset into the wrap) so the user keeps their place in the table. */
+var _lastPS;
 function _setTableH(){
+  var ps=_pageScroll();
+  var flipped=_lastPS!==undefined&&ps!==_lastPS;
+  _lastPS=ps;
   var map={matrix:'.matrix-wrap',table:'.table-wrap'};
   ['matrix','table'].forEach(function(v){
     var vw=document.getElementById('view-'+v);if(!vw)return;
     var wrap=vw.querySelector(map[v]);if(!wrap)return;
-    if(_pageScroll()){wrap.style.maxHeight='';return;}
+    var vis=wrap.offsetParent!==null;
+    if(ps){
+      /* Rotating to landscape applies the overflow:visible CSS before this
+         resize handler runs, which zeroes wrap.scrollTop — fall back to the
+         offset the virtualization recorded on the last inner-scroll render.
+         Consume it (one flip only) so a stale offset can't jump the page
+         after the user has since scrolled elsewhere. */
+      var st=flipped&&vis?(wrap.scrollTop||wrap._innerST||0):0;
+      wrap._innerST=0;
+      wrap.style.maxHeight='';
+      if(st>0){
+        var docTop=wrap.getBoundingClientRect().top+window.scrollY;
+        window.scrollTo(0,docTop+st);
+      }
+      return;
+    }
+    /* inner-scroll mode: if we just left page-scroll mode, note how far the
+       page was scrolled into this wrap, and restore the page to the top
+       BEFORE measuring the cap (the cap math assumes the chrome is on-screen
+       above the wrap). */
+    var po=0;
+    if(flipped&&vis){
+      po=Math.max(0,-wrap.getBoundingClientRect().top);
+      if(po>0)window.scrollTo(0,0);
+    }
     var rect=wrap.getBoundingClientRect();
     if(rect.width===0&&rect.height===0)return;
     var h=Math.max(240,window.innerHeight-rect.top-2);
     wrap.style.maxHeight=h+'px';
+    if(po>0)wrap.scrollTop=po;
   });
   /* The matrix virtualization sizes its visible window from scrollEl.clientHeight.
      On first paint that's read before max-height has been applied (tbody is empty,
