@@ -1262,6 +1262,19 @@ td.ct{font-weight:700;}
   overflow:visible;
   max-height:none;
 }
+/* PAGE-WIDE CHROME: in the two virtualized table views the page pans
+   horizontally, and the chrome bars used to end after one viewport width,
+   exposing raw page background beyond them. _syncWideTable (JS) marks
+   body.wide-table in those views and sets an explicit min-width on
+   body/.container equal to the rendered table's width (CSS min-width:
+   max-content can't be used — #dtbl is table-layout:fixed with width:100%,
+   which is cyclic under intrinsic sizing and explodes). With the parents
+   that wide, each chrome bar pins to the viewport — sticky left, one
+   viewport wide — so the header row spans the whole table in every tab
+   and sub-tab while panning, and the controls stay reachable.
+   max-width:100% keeps the bars inside .container in views that don't
+   pan (there the sticky never engages and layout is unchanged). */
+.header,.primary-nav,.secondary-nav,.filter-bar{position:sticky;left:0;width:100vw;max-width:100%;}
 </style>
 </head>
 <body>
@@ -2628,6 +2641,7 @@ function renderMatrix(){
     _resetTableScroll(_mtxScrollEl);
   }
   _renderMtxWindow();
+  _syncWideTable();
   _updateCountLabel();
 }
 function _mtxBuildRow(d,_i){
@@ -2721,7 +2735,7 @@ function renderMSubs(){
   document.getElementById('m-subs').innerHTML=h;
 }
 function swMSub(key){
-  curMSub=key;mSC='rating';mSA=true;_mUserSorted=false;renderMSubs();
+  curMSub=key;mSC='rating';mSA=true;_mUserSorted=false;_syncWideTable();renderMSubs();
   var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view');
   if(key==='dashboard'){
     if(mw)mw.style.display='none';if(ov)ov.style.display='';
@@ -2927,7 +2941,7 @@ function ftc(v,f){
   return{t:String(v),v:v};
 }
 function renderTSubs(){var h='';Object.keys(TL).forEach(function(k){h+='<button class="sub-btn'+(k===curTSub?' active':'')+'" onclick="swTSub(\''+k+'\')">'+TL[k]+'</button>';});document.getElementById('t-subs').innerHTML=h;}
-function swTSub(s){curTSub=s;tSC='rating';tSA=true;_tUserSorted=false;renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
+function swTSub(s){curTSub=s;tSC='rating';tSA=true;_tUserSorted=false;_syncWideTable();renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
 function renderTable(){
   /* Copy the tab's column list (never mutate the shared TC array), relabel
      Rating as "Today's Rating", and inject a "Yesterday's Rating" column right
@@ -2969,6 +2983,7 @@ function renderTable(){
     _resetTableScroll(_dtScrollEl);
   }
   _renderDtWindow();
+  _syncWideTable();
   _updateCountLabel();
 }
 function _dtBuildRow(d,_i){
@@ -4314,6 +4329,9 @@ function _setTableH(){
      viewport-based max-height. Also fixes the matrix on window resize. */
   if(typeof _renderMtxWindow==='function'&&_mtxData)_renderMtxWindow();
   if(typeof _renderDtWindow==='function'&&_dtData)_renderDtWindow();
+  /* Re-measure the page-wide chrome width after windowing/resize — the
+     table's 100%-based width changes with the viewport. */
+  if(typeof _syncWideTable==='function')_syncWideTable();
 }
 window.addEventListener('resize',_setTableH);
 /* Natural PAGE scroll for the table views — see the page-scroll CSS block.
@@ -4326,6 +4344,38 @@ window.addEventListener('resize',_setTableH);
    intact so a per-device gate can be reinstated by editing this function
    and re-gating the CSS block. */
 function _pageScroll(){return true;}
+/* body.wide-table lets body/.container grow to the table's width so the
+   sticky-left chrome bars can span it while the page pans horizontally —
+   see the PAGE-WIDE CHROME CSS block. Only the two virtualized table views
+   pan the page; everywhere else the class stays off and layout is
+   untouched. Called from showView/swMSub/swTSub after their state updates. */
+function _syncWideTable(){
+  var wide=(curView==='matrix'&&curMSub!=='dashboard')||(curView==='table'&&curTSub!=='prices');
+  document.body.classList.toggle('wide-table',wide);
+  var cont=document.querySelector('.container');
+  /* Measure with the widening CLEARED: the table's width:100% resolves
+     against the widened container, so measuring while wide would read back
+     the previous width and the page could never shrink (e.g. switching to
+     a sub-tab with fewer columns). The moment the widening is cleared the
+     document narrows and the browser clamps scrollX to 0, so note the
+     scroll position first and restore it after — otherwise any re-sync
+     (say the resize fired by iOS's collapsing toolbar) would yank a
+     horizontally-panned user back to the left edge. */
+  var sx=window.scrollX,sy=window.scrollY;
+  document.body.style.minWidth='';
+  if(cont)cont.style.minWidth='';
+  var w='';
+  if(wide){
+    var tbl=document.getElementById(curView==='matrix'?'mtx':'dtbl');
+    if(tbl&&cont&&tbl.offsetWidth>document.documentElement.clientWidth){
+      var cs=getComputedStyle(cont);
+      w=(tbl.offsetWidth+parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight))+'px';
+    }
+  }
+  document.body.style.minWidth=w;
+  if(cont)cont.style.minWidth=w;
+  if(window.scrollX!==sx||window.scrollY!==sy)window.scrollTo(sx,sy);
+}
 /* Reset scroll to the top of a table after a re-sort/filter: wrap.scrollTop
    in inner-scroll mode; in page-scroll mode, scroll the document back to the
    top of the wrap (only if the user is already past it) so they don't land
@@ -4346,6 +4396,7 @@ function showView(v){
   document.querySelectorAll('.view').forEach(function(el){el.classList.remove('active')});
   document.getElementById('view-'+v).classList.add('active');
   moveFilterBar(v);
+  _syncWideTable();
   renderCur();
   _syncHash();
   setTimeout(_setTableH,0);
