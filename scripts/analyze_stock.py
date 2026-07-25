@@ -35,7 +35,7 @@ from models.quality import (calculate_earnings_quality, calculate_piotroski_f,
                             calculate_revenue_cagr, calculate_interest_coverage,
                             calculate_net_debt_ebitda, get_net_debt,
                             calculate_altman_z, calculate_beneish_m)
-from models.market import compute_relative_multiples, compute_analyst_consensus
+from models.market import compute_relative_multiples, compute_analyst_consensus, extract_next_earnings
 from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm,
                          ddm_h_model, monte_carlo_ddm)
 from models.epv import earnings_power_value, epv_with_growth_premium
@@ -2495,6 +2495,8 @@ def _main():
 
             # Analyst consensus (Worksheet Step 8)
             analyst = compute_analyst_consensus(yf_data)
+            # Next scheduled earnings date (from the same cached info fetch)
+            next_earn = extract_next_earnings(yf_data)
 
             # Step 5A: Forward DCF (sector-aware: Fixes C/D/E/F)
             dcf_fv, dcf_sens_range, fcf_growth, growth_diag, mc_result = run_forward_dcf(
@@ -2902,6 +2904,8 @@ def _main():
                 'target_mean': analyst.get('target_mean'),
                 'target_high': analyst.get('target_high'),
                 'target_low': analyst.get('target_low'),
+                'earnings_next_date': next_earn.get('earnings_next_date'),
+                'earnings_date_est': next_earn.get('earnings_date_est'),
                 # Quality (Step 3B)
                 'piotroski': piotroski,
                 'cash_conv': eq.get('cash_conversion'),

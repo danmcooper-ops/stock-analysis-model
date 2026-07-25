@@ -183,6 +183,88 @@ def _load_prev_ratings(out_dir, run_date, max_lookback=7):
               f"baselined via fallback look-back (missing from {primary_date})")
     return primary_date, out
 
+def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
+    """Per-ticker rating change-points across prior snapshots, for the popup's
+    "BUY since ..." context line.
+
+    Returns ``{ticker: [[date, rating], ...]}`` — change-points only (the first
+    observation plus every transition), ascending by date, filtered to dates
+    strictly before ``run_date`` so re-rendering an old snapshot never sees
+    "future" history.
+
+    Parsing every historical results_*.json (~66MB each) on every render would
+    be minutes of work, so an incremental cache (``out_dir/rating_history.json``)
+    stores the accumulated change-points plus the last snapshot date scanned;
+    each render only parses snapshots newer than that. Only strictly-newer dates
+    are appended, so a late-backfilled older snapshot can't corrupt ordering
+    (delete the cache to force a full rebuild that includes it). A missing or
+    corrupt cache also triggers a full rebuild.
+    """
+    import glob
+    import re
+    try:
+        cur = run_date.isoformat() if run_date is not None else None
+    except Exception:
+        cur = None
+    dated = []
+    for p in glob.glob(os.path.join(out_dir, 'results_*.json')):
+        m = re.search(r'results_(\d{4}-\d{2}-\d{2})\.json$', os.path.basename(p))
+        if m:
+            dated.append((m.group(1), p))
+    dated.sort()
+    if not dated:
+        return {}
+    cache_path = os.path.join(out_dir, cache_name)
+    hist, last_scanned = {}, None
+    try:
+        with open(cache_path) as f:
+            c = json.load(f)
+        if isinstance(c, dict) and isinstance(c.get('hist'), dict):
+            hist = c['hist']
+            last_scanned = c.get('last_scanned')
+    except Exception:
+        hist, last_scanned = {}, None
+    # Never scan the render date's own snapshot: during a rescore it is
+    # rewritten *after* this runs, so caching it here would freeze pre-rescore
+    # ratings. The next render picks it up once it is final.
+    todo = [(d, p) for d, p in dated
+            if (last_scanned is None or d > last_scanned)
+            and (cur is None or d < cur)]
+    for d, p in todo:
+        try:
+            with open(p) as f:
+                snap = json.load(f)
+        except Exception as e:
+            print(f"[report_html] rating-history load failed ({p}): {e}")
+            continue
+        recs = snap.get('results') if (isinstance(snap, dict) and 'results' in snap) else snap
+        if not isinstance(recs, list):
+            continue
+        for rec in recs:
+            if not isinstance(rec, dict):
+                continue
+            tk, rt = rec.get('ticker'), rec.get('rating')
+            if not tk or not rt:
+                continue
+            seq = hist.setdefault(tk, [])
+            if not seq or seq[-1][1] != rt:
+                seq.append([d, rt])
+        last_scanned = d
+    if todo:
+        try:
+            with open(cache_path, 'w') as f:
+                json.dump({'last_scanned': last_scanned, 'hist': hist}, f)
+            print(f"[report_html] rating-history cache: +{len(todo)} snapshot(s), "
+                  f"{len(hist)} tickers, through {last_scanned}")
+        except Exception as e:
+            print(f"[warn] rating-history cache write failed: {e}")
+    if cur is None:
+        return hist
+    # Exclude entries on/after the render date (rescoring an older snapshot).
+    return {tk: [cp for cp in seq if cp[0] < cur]
+            for tk, seq in hist.items()}
+
+
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None):
     """Render the interactive HTML report via Jinja2 template."""
     rows = _sanitize(rows)
@@ -195,6 +277,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
               f"({len(_prev_ratings)} tickers)")
     else:
         print("[report_html] rate-change baseline: none found (Yesterday's Rating shows N/A)")
+    # Long-horizon rating change-points for the popup's "BUY since ..." line.
+    _rating_hist = _load_rating_history(_out_dir_early, run_date)
     gate_meta_obj = gate_metadata()
     total = len(rows)
     spread_vals = [r['spread'] for r in rows if r.get('spread') is not None]
@@ -207,6 +291,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         'ticker': r['ticker'],
         'roic': r.get('roic'), 'wacc': r.get('wacc'), 'spread': r.get('spread'),
         'dcf_fv': r.get('dcf_fv'), 'price': r.get('price'), 'mos': r.get('mos'),
+        # The FV the MoS was actually computed against (may be a blend of
+        # models) — the popup banner shows this so FV and MoS never disagree.
+        '_fv_effective': r.get('_fv_effective'),
+        '_fv_source': r.get('_fv_source'),
         'piotroski': r.get('piotroski'),
         'pe': r.get('pe'), 'ev_ebitda': r.get('ev_ebitda'),
         'rating': r.get('rating'), 'rating_raw': r.get('rating_raw'),
@@ -214,6 +302,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         # delta (+ upgrade / - downgrade / 0 unchanged / None if new-or-missing).
         'rating_prev': _prev_ratings.get(r.get('ticker')),
         'rating_chg': _rating_delta(_prev_ratings.get(r.get('ticker')), r.get('rating')),
+        # Rating change-points (last 12) for "BUY since ..." in the popup.
+        'rating_hist': (_rating_hist.get(r.get('ticker')) or [])[-12:],
         '_rating_cap': r.get('_rating_cap'),
         '_rating_cap_reasons': r.get('_rating_cap_reasons', []),
         'analyst_rec': r.get('analyst_rec'),
@@ -253,6 +343,11 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         'target_mean': r.get('target_mean'),
         'target_high': r.get('target_high'),
         'target_low': r.get('target_low'),
+        'analyst_ltg': r.get('analyst_ltg'),
+        # Forward-looking (live-run only; absent on older snapshots and the
+        # popup hides the affected rows/chips)
+        'earnings_next_date': r.get('earnings_next_date'),
+        'earnings_date_est': r.get('earnings_date_est'),
         'cash_conv': r.get('cash_conv'),
         'accruals': r.get('accruals'),
         'rev_cagr': r.get('rev_cagr'),
@@ -710,6 +805,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         hist_available=('true' if hist_payload is not None else 'false'),
         details_available=('true' if details_payload else 'false'),
         generated_at=(run_date or date.today()).strftime('%B %-d, %Y'),
+        run_date_iso=(run_date or date.today()).isoformat(),
         prev_run_date=(prev_run_date or ''),
     )
 

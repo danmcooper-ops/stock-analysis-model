@@ -90,6 +90,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .d-kmetrics .km-cell{padding:9px 7px;min-width:0;}
   .d-kmetrics .km-k{font-size:0.5em;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
   .d-kmetrics .km-v{font-size:0.76em;}
+  .d-kmetrics .km-sub{font-size:0.44em;white-space:normal;}
+  .d-kmetrics .km-v .km-conf{display:block;width:max-content;margin:3px 0 0;font-size:0.52em;padding:1px 5px 2px;}
+  .d-kmetrics .km-conf .km-conf-word{display:none;}
   .d-gate-values{grid-template-columns:1fr;gap:6px;}
   .gv-cat{font-size:0.78em;padding:6px 12px;text-align:left;}
   .gv-item{padding:7px 12px;}
@@ -459,6 +462,11 @@ td.ct{font-weight:700;}
 .dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
 .d-rating-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:84px;margin-bottom:4px;}
 .d-rating-row .d-gp{font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.02em;white-space:nowrap;margin-left:2px;}
+.d-rsince{display:inline-flex;align-items:center;gap:7px;font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.02em;white-space:nowrap;cursor:default;}
+.d-rsince .rs-up{color:#7ee2a8;}
+.d-rsince .rs-dn{color:#ff9e9e;}
+.d-rhist-bar{display:inline-flex;width:84px;height:8px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,0.15);}
+.d-rhist-bar span{display:block;height:100%;}
 .rb-cap{margin-left:3px;cursor:help;font-size:0.85em;}
 /* Stock-count nav indicator (e.g. "1 / 2033") sits at the bottom-left of
    the header band, directly under the ticker / sector / country / CEO
@@ -496,6 +504,12 @@ td.ct{font-weight:700;}
 .d-kmetrics .km-cell:last-child{border-right:none;}
 .d-kmetrics .km-k{font-size:0.57em;color:rgba(255,255,255,0.55);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;}
 .d-kmetrics .km-v{font-size:0.82em;font-weight:700;color:#fff;white-space:nowrap;}
+.d-kmetrics .km-sub{font-size:0.58em;font-weight:500;color:rgba(255,255,255,0.62);white-space:nowrap;}
+.km-conf{display:inline-block;margin-left:5px;padding:1px 6px 2px;border-radius:8px;font-size:0.6em;font-weight:800;letter-spacing:0.04em;vertical-align:middle;color:#fff;cursor:default;}
+.km-conf-high{background:#1a9850;}
+.km-conf-med{background:#e67e22;}
+.km-conf-low{background:#de2d26;}
+.km-tag{display:inline-block;margin-left:4px;padding:1px 5px 2px;border-radius:7px;font-size:0.58em;font-weight:700;letter-spacing:0.03em;vertical-align:middle;background:rgba(255,255,255,0.18);color:rgba(255,255,255,0.85);}
 .d-gate-values{margin:6px 0 14px;display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
 .gv-col{display:flex;flex-direction:column;border-radius:7px;overflow:hidden;border:1px solid #e0e4ec;}
 .gv-cat{font-size:0.68em;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#fff;padding:5px 10px;white-space:nowrap;text-align:center;}
@@ -615,6 +629,16 @@ td.ct{font-weight:700;}
 .dgrid-inner{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 16px;background:#fff;}
 @media(max-width:700px){.dgrid-inner{grid-template-columns:1fr;}}
 .dsec{background:#f5f8ff;border-radius:9px;padding:12px 14px;border:1px solid #dde5f5;}
+/* Track Record annual-fundamentals table */
+.dtr-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.dtr-tbl{border-collapse:collapse;width:100%;font-size:0.78em;}
+.dtr-tbl th{text-align:right;padding:5px 8px;color:var(--text-muted);font-weight:600;border-bottom:1px solid #dde5f5;white-space:nowrap;}
+.dtr-tbl td{text-align:right;padding:4px 8px;white-space:nowrap;border-bottom:1px solid #eef1f6;color:#2c3e50;}
+.dtr-tbl th:first-child,.dtr-tbl td:first-child{text-align:left;font-weight:600;}
+.dtr-tbl tr:last-child td{border-bottom:none;}
+.dtr-cagr{font-weight:700;}
+[data-theme="dark"] .dtr-tbl th{border-bottom-color:#30363d;}
+[data-theme="dark"] .dtr-tbl td{border-bottom-color:#21262d;color:#e6edf3;}
 .dsec h3{font-size:0.73em;text-transform:uppercase;letter-spacing:0.06em;color:#1a3a6b;font-weight:700;margin-bottom:9px;padding-bottom:5px;border-bottom:2px solid #c8d6f0;}
 .dkvg{display:grid;grid-template-columns:1fr 1fr;gap:1px 10px;}
 .dkv{display:flex;justify-content:space-between;padding:4px 6px;font-size:0.82em;line-height:1.55;border-radius:4px;color:#37474f;}
@@ -1374,7 +1398,7 @@ td.ct{font-weight:700;}
   <div class="detail-content">
     <div class="d-header-band">
       <button class="detail-close" onclick="closeDetail()">&times;</button>
-      <div class="d-rating-row"><div class="dpx" id="d-px"></div><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span></div>
+      <div class="d-rating-row"><div class="dpx" id="d-px"></div><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
       <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
@@ -1386,13 +1410,15 @@ td.ct{font-weight:700;}
       <div id="d-kmetrics" class="d-kmetrics"></div>
       <div id="d-gate-values" class="d-gate-values"></div>
       <div id="d-section-price" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Price History</div><div style="padding:14px 16px;background:var(--surface)"><div class="dp-ranges" id="dp-ranges" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;align-items:center"></div><div id="dp-tip-bar" style="min-height:24px;font-size:0.86em"></div><div id="dp-chart"></div></div></div>
+      <div class="dgrid" id="d-intrinsic"></div>
       <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
       <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
+      <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span>The Track Record</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
       <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
-      <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:var(--surface)"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
-      <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
-      <div id="d-section-profitpool" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Sector Analysis</div><div class="dgrid-inner" id="d-profitpool-content"></div></div>
       <div class="dgrid" id="d-grid"></div>
+      <div id="d-section-profitpool" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Sector Analysis</div><div class="dgrid-inner" id="d-profitpool-content"></div></div>
+      <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
+      <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:var(--surface)"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
     </div>
   </div>
   <div id="popup-tip"></div>
@@ -1436,6 +1462,7 @@ var FD=DATA.slice();
 /* Prior run date backing the "Δ vs prior" rating-change column (empty if this
    is the first snapshot in the output dir). Set in report_html.build_html. */
 var PREV_DATE='{{ prev_run_date }}';
+var RUN_DATE='{{ run_date_iso }}';
 /* Shorten the Price/FV label everywhere it renders (matrix header, detail view) so
    the column matches the visual width of its peers. */
 if(GM&&GM.gates){for(var _gi=0;_gi<GM.gates.length;_gi++){if(GM.gates[_gi].label==='Price/FV')GM.gates[_gi].label='P/FV';}}
@@ -3911,6 +3938,77 @@ document.addEventListener('mouseout',function(e){
   _tipHideTimer=setTimeout(_hideTip,100);
 });
 
+/* === TRACK RECORD (popup) — annual fundamentals table from the hist.json
+   sidecar (SEC EDGAR XBRL series already shipped for the Financial Data tab).
+   Answers "is the business actually compounding?" without leaving the popup. === */
+function _trFmtSh(v){if(v==null)return'—';var a=Math.abs(v);if(a>=1e9)return(v/1e9).toFixed(2)+'B';if(a>=1e6)return(v/1e6).toFixed(0)+'M';return Math.round(v).toLocaleString();}
+function _renderTrackRecord(d){
+  var sec=document.getElementById('d-section-track'),el=document.getElementById('d-track');
+  if(!sec||!el)return;
+  var tk=d.ticker;
+  var _again=function(){if(_dpTicker===tk){var dd=DATA.find(function(x){return x.ticker===tk;});if(dd)_renderTrackRecord(dd);}};
+  if(!HIST&&_HIST_AVAILABLE){
+    sec.style.display='none';
+    if(!_HIST_LOADING){_HIST_LOADING=true;_loadSidecar('hist.json',function(h){_HIST_LOADING=false;HIST=h;_again();});}
+    else{var _poll=setInterval(function(){if(!_HIST_LOADING){clearInterval(_poll);_again();}},150);}
+    return;
+  }
+  var h=(HIST||{})[tk];
+  if(!h){sec.style.display='none';el.innerHTML='';return;}
+  var rev=h.rev||{},ni=h.ni||{},ocf=h.ocf||{},capex=h.capex||{},sh=h.shares||{},dv=h.div||{};
+  /* FY columns = union of the annual series; dedupe to one per calendar year
+     (keep the later fiscal-year end) and cap at the last 10. */
+  var _ks={};[rev,ni,ocf].forEach(function(s){Object.keys(s).forEach(function(k){_ks[k]=1;});});
+  var _byYear={};Object.keys(_ks).sort().forEach(function(k){_byYear[k.slice(0,4)]=k;});
+  var cols=Object.keys(_byYear).sort().map(function(y){return _byYear[y];}).slice(-10);
+  if(cols.length<2){sec.style.display='none';el.innerHTML='';return;}
+  /* Nearest-date lookup for the quarterly shares series. */
+  var _near=function(series,dateStr,tolDays){var best=null,bd=1e9,t=Date.parse(dateStr);Object.keys(series).forEach(function(k){var dd=Math.abs(Date.parse(k)-t)/864e5;if(dd<bd){bd=dd;best=series[k];}});return bd<=tolDays?best:null;};
+  var rows=[
+    {l:'Revenue',get:function(k){return rev[k]!=null?rev[k]:null;},fmt:fds},
+    {l:'Net Income',get:function(k){return ni[k]!=null?ni[k]:null;},fmt:fds},
+    {l:'Net Margin',get:function(k){return rev[k]&&ni[k]!=null?ni[k]/rev[k]:null;},fmt:function(v){return fp(v);},margin:true},
+    {l:'Op Cash Flow',get:function(k){return ocf[k]!=null?ocf[k]:null;},fmt:fds},
+    {l:'Free Cash Flow',get:function(k){var o=ocf[k],c=capex[k];return o!=null&&c!=null?o-Math.abs(c):null;},fmt:fds},
+    {l:'Shares Out',get:function(k){return _near(sh,k,220);},fmt:_trFmtSh,inv:true,total:true},
+    {l:'Dividends Paid',get:function(k){return dv[k]!=null?Math.abs(dv[k]):null;},fmt:fds},
+  ];
+  var html='<div class="dtr-wrap"><table class="dtr-tbl"><tr><th></th>';
+  cols.forEach(function(k){html+='<th>FY'+k.slice(0,4)+'</th>';});
+  html+='<th>Trend</th></tr>';
+  var shown=0;
+  rows.forEach(function(rw){
+    var vals=cols.map(function(k){return rw.get(k);});
+    var nn=vals.filter(function(v){return v!=null;});
+    if(nn.length<2)return;
+    shown++;
+    html+='<tr><td>'+rw.l+'</td>';
+    var prev=null;
+    vals.forEach(function(v){
+      var sty='';
+      if(v!=null&&prev!=null){
+        var down=v<prev;
+        if(rw.inv)down=!down;
+        if(down)sty=' style="color:#c0392b"';
+      }
+      if(rw.margin&&v!=null)sty=v<0?' style="color:#c0392b"':(v>0.15?' style="color:#1a9850"':'');
+      html+='<td'+sty+'>'+(v!=null?rw.fmt(v):'—')+'</td>';
+      if(v!=null)prev=v;
+    });
+    /* Trend column: CAGR for flow rows, total change for shares, pp for margin. */
+    var f=nn[0],l=nn[nn.length-1],trend='—',tSty='';
+    var span=cols.length-1;
+    if(rw.margin){var pp=(l-f)*100;trend=(pp>0?'+':'')+pp.toFixed(1)+' pp';tSty=pp>0?'color:#1a9850':(pp<0?'color:#c0392b':'');}
+    else if(rw.total){var ch=f!==0?(l/f-1):null;if(ch!=null){trend=(ch>0?'+':'')+(ch*100).toFixed(1)+'%';tSty=(rw.inv?ch<0:ch>0)?'color:#1a9850':'color:#c0392b';}}
+    else if(f>0&&l>0&&span>0){var cg=Math.pow(l/f,1/span)-1;trend=(cg>0?'+':'')+(cg*100).toFixed(1)+'%/yr';tSty=cg>0?'color:#1a9850':'color:#c0392b';}
+    html+='<td class="dtr-cagr" style="'+tSty+'">'+trend+'</td></tr>';
+  });
+  html+='</table></div>';
+  html+='<div style="font-size:0.68em;color:var(--text-muted);margin-top:6px">Annual figures from SEC EDGAR XBRL filings · Free Cash Flow = operating cash flow − capex · shares interpolated to fiscal year-end</div>';
+  if(!shown){sec.style.display='none';el.innerHTML='';return;}
+  el.innerHTML=html;
+  sec.style.display='';
+}
 /* === DETAIL === */
 function openDet(tk){
   var d=DATA.find(function(x){return x.ticker===tk;});
@@ -3936,6 +4034,53 @@ function openDet(tk){
   var rEl=document.getElementById('d-rt');rEl.textContent=(d.rating||'N/A')+(isCapped(d)?' ⚠':'');rEl.title=isCapped(d)?capTip(d):'';rEl.style.background=RC[d.rating]||'#888';
   var cEl=document.getElementById('d-cs');var cs=d._composite_score;cEl.textContent=cs!=null?Math.round(cs)+'%':'N/A';cEl.style.background=cc(cs);
   var gpEl=document.getElementById('d-gp');if(gpEl){gpEl.textContent=d._gates_passed!=null?'Gates '+d._gates_passed:'';gpEl.title='applicable gates passed — diagnostic; the composite drives the rating';}
+  /* --- "BUY since ..." — rating stability context from snapshot history.
+       rating_hist = ascending [[date, rating]] change-points up to (not
+       including) this report's run date; a fresh upgrade reads very
+       differently from a rating that has held for months. --- */
+  (function(){
+    var rsEl=document.getElementById('d-rsince');if(!rsEl)return;
+    rsEl.innerHTML='';rsEl.title='';
+    var rh=d.rating_hist||[],cur=d.rating;
+    if(!rh.length||!cur){return;}
+    var RVAL={'BUY':3,'LEAN BUY':2,'HOLD':1,'PASS':0};
+    var _fmtD=function(iso){var p=(iso||'').split('-');if(p.length<3)return iso||'';return['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+p[1]-1]+' '+(+p[2])+(p[0]!==RUN_DATE.slice(0,4)?' ’'+p[0].slice(2):'');};
+    var last=rh[rh.length-1],txt='',prevR=null;
+    if(last[1]!==cur){
+      /* Transition happened on this run. */
+      prevR=last[1];
+      var dir=(RVAL[cur]!=null&&RVAL[prevR]!=null)?RVAL[cur]-RVAL[prevR]:0;
+      txt='<span class="'+(dir>0?'rs-up':dir<0?'rs-dn':'')+'">'+(dir>0?'▲ Upgraded':dir<0?'▼ Downgraded':'Changed')+' today</span> · was '+esc(prevR);
+    }else{
+      var sinceIso=last[0];
+      prevR=rh.length>1?rh[rh.length-2][1]:null;
+      var days=null;
+      var t0=Date.parse(sinceIso),t1=Date.parse(RUN_DATE);
+      if(isFinite(t0)&&isFinite(t1))days=Math.round((t1-t0)/864e5);
+      if(rh.length===1){
+        /* Single change-point = rating unchanged for as far back as we track. */
+        txt=esc(cur)+' ≥ '+(days!=null?days+'d':'')+' (full history)';
+      }else{
+        txt=esc(cur)+' since '+_fmtD(sinceIso)+(days!=null?' · '+days+'d':'')+(prevR?' · was '+esc(prevR):'');
+      }
+    }
+    /* Timeline bar: colored segments proportional to how long each rating
+       held, across the tracked span ending at the run date. */
+    var bar='';
+    var spanStart=Date.parse(rh[0][0]),spanEnd=Date.parse(RUN_DATE);
+    if(isFinite(spanStart)&&isFinite(spanEnd)&&spanEnd>spanStart){
+      bar='<span class="d-rhist-bar">';
+      for(var i=0;i<rh.length;i++){
+        var s=Date.parse(rh[i][0]);
+        var e=i+1<rh.length?Date.parse(rh[i+1][0]):spanEnd;
+        var w=Math.max(2,Math.round((e-s)/(spanEnd-spanStart)*84));
+        bar+='<span style="width:'+w+'px;background:'+(RC[rh[i][1]]||'#888')+'"></span>';
+      }
+      bar+='</span>';
+    }
+    rsEl.innerHTML=bar+'<span>'+txt+'</span>';
+    rsEl.title='Rating history: '+rh.map(function(cp){return cp[0]+' '+cp[1];}).join(' → ')+' → '+RUN_DATE+' '+cur;
+  })();
   var meta=[];if(d.sector)meta.push(d.sector);if(d.industry)meta.push(d.industry);if(d.country)meta.push(d.country);if(d.ceo)meta.push('CEO: '+d.ceo+(d.founder_led?' \u2605 Founder':''));
   document.getElementById('d-meta').textContent=meta.join('  \u00B7  ');
   (function(){
@@ -4001,13 +4146,45 @@ function openDet(tk){
     el.innerHTML=html;
   })();
   var _km=document.getElementById('d-kmetrics');
+  /* Banner fair value = the FV the MoS is actually computed against
+     (_fv_effective; may be a multi-model blend), falling back to dcf_fv for
+     older snapshots. Keeping FV and MoS on the same basis avoids the
+     "FV N/A but MoS 25%" contradiction. */
+  var _fvEff=d._fv_effective!=null?d._fv_effective:d.dcf_fv;
+  var _fvVal=fd(_fvEff);
+  if(_fvEff!=null&&d._fv_source==='blend')_fvVal+=' <span class="km-tag">blend</span>';
+  /* 80% Monte Carlo band under the FV — the honest width of the estimate. */
+  var _fvSub=(d.mc_p10_fv!=null&&d.mc_p90_fv!=null)?'80% band '+fd(d.mc_p10_fv)+'–'+fd(d.mc_p90_fv):'';
+  /* Confidence badge next to MoS, from the MC dispersion grade. */
+  var _mosVal=d.mos!=null?(d.mos*100).toFixed(1)+'%':'N/A';
+  var _confLvl=(d.mc_confidence||'').split(' ')[0];
+  if(_confLvl){
+    var _confCls=_confLvl==='HIGH'?'km-conf-high':_confLvl==='MEDIUM'?'km-conf-med':'km-conf-low';
+    var _confLbl=_confLvl==='MEDIUM'?'MED':_confLvl;
+    _mosVal+=' <span class="km-conf '+_confCls+'" data-km-tip="mc_confidence" data-km-lbl="MC Confidence — '+esc(d.mc_confidence)+'">'+_confLbl+'<span class="km-conf-word"> CONF</span></span>';
+  }
   var _krows=[
-    ['Mkt Cap',fds(d.mcap),''],
-    ['Price',d.price!=null?'$'+d.price.toLocaleString(undefined,{maximumFractionDigits:2}):'N/A',''],
-    ['Fair Value',fd(d.dcf_fv),''],
-    ['MoS',d.mos!=null?(d.mos*100).toFixed(1)+'%':'N/A',d.mos!=null?(d.mos>0.15?'color:#1a9850':(d.mos<0?'color:#de2d26':'')):''],
+    ['Mkt Cap',fds(d.mcap),'',''],
+    ['Price',d.price!=null?'$'+d.price.toLocaleString(undefined,{maximumFractionDigits:2}):'N/A','',''],
+    ['Fair Value',_fvVal,'',_fvSub],
+    ['MoS',_mosVal,d.mos!=null?(d.mos>0.15?'color:#1a9850':(d.mos<0?'color:#de2d26':'')):'',''],
   ];
-  _km.innerHTML=_krows.map(function(r){var _kmTipKey=DKV_TIPS[r[0]]||'';var _kmTxt=_kmTipKey?tt(_kmTipKey):'';return'<div class="km-cell">'+  '<span class="km-k"'+(_kmTxt?' data-km-tip="'+_kmTipKey+'" data-km-lbl="'+r[0]+'"':'')+'>'+r[0]+'</span><span class="km-v"'+(r[2]?' style="'+r[2]+'"':'')+'>'+r[1]+'</span></div>';}).join('');
+  /* Next scheduled earnings (live-run field; absent on older snapshots).
+     Countdown is measured against the report's run date, not the viewer's
+     clock, so re-rendered old snapshots stay honest. */
+  if(d.earnings_next_date){
+    var _edDays=null,_t0=Date.parse(RUN_DATE),_t1=Date.parse(d.earnings_next_date);
+    if(isFinite(_t0)&&isFinite(_t1))_edDays=Math.round((_t1-_t0)/864e5);
+    if(_edDays==null||_edDays>=-7){
+      var _mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      var _ep=d.earnings_next_date.split('-');
+      var _edVal=(d.earnings_date_est?'~':'')+_mn[+_ep[1]-1]+' '+(+_ep[2]);
+      var _edSub=_edDays==null?'':(_edDays>0?'in '+_edDays+'d':_edDays===0?'today':(-_edDays)+'d ago');
+      var _edSty=(_edDays!=null&&_edDays>=0&&_edDays<=14)?'color:#ffd47f':'';
+      _krows.push(['Next Earnings',_edVal,_edSty,_edSub]);
+    }
+  }
+  _km.innerHTML=_krows.map(function(r){var _kmTipKey=DKV_TIPS[r[0]]||'';var _kmTxt=_kmTipKey?tt(_kmTipKey):'';return'<div class="km-cell">'+  '<span class="km-k"'+(_kmTxt?' data-km-tip="'+_kmTipKey+'" data-km-lbl="'+r[0]+'"':'')+'>'+r[0]+'</span><span class="km-v"'+(r[2]?' style="'+r[2]+'"':'')+'>'+r[1]+'</span>'+(r[3]?'<span class="km-sub">'+r[3]+'</span>':'')+'</div>';}).join('');
   /* --- Gate values section --- */
   try{
     var _gvEl=document.getElementById('d-gate-values');
@@ -4037,6 +4214,7 @@ function openDet(tk){
   }catch(e){console.error('gate values error:',e);}
   try{_renderDetPriceChart(d.ticker);}catch(e){console.error('detail price chart error:',e);}
   var fsEl=document.getElementById('d-fin-summary'),fsSec=document.getElementById('d-section-finsummary');var _fs=d.financial_summary;var _fsItems=Array.isArray(_fs)?_fs:(_fs?[_fs]:[]);if(_fsItems.length){var _fsHtml='<ul class="fin-list">'+_fsItems.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul>';fsEl.innerHTML=_fsHtml;fsSec.style.display='';}else{fsEl.innerHTML='';fsSec.style.display='none';}
+  try{_renderTrackRecord(d);}catch(e){console.error('track record error:',e);}
   var hw=d.sector_headwinds||[],tw=d.sector_tailwinds||[],sigEl=document.getElementById('d-sector-signals'),sigSec=document.getElementById('d-section-signals');
   if(hw.length||tw.length){
     /* Headwinds may arrive as structured {text, sev, cat} dicts or legacy plain strings.
@@ -4143,13 +4321,17 @@ function openDet(tk){
   var momV=d.momentum_12_1;var momC=momV!=null?(momV>=0.2?'color:#1a9850;font-weight:700':momV<=-0.15?'color:#de2d26':''):'';
   var rvV=d.realized_vol;var rvC=rvV!=null?(rvV>=0.4?'color:#de2d26;font-weight:700':rvV<=0.15?'color:#1a9850':''):'';
   gh+='<div class="dsec"><h3>Momentum &amp; Volatility</h3><div class="dkvg">'+bkv([['12-1 Mo Momentum',fp(momV),momC],['Realized Vol (1yr)',fp(rvV),rvC]])+'</div></div>';
-  /* Rolling Beta */
+  /* Rolling Beta — window values are plain numbers in older snapshots and
+     {beta, r2} objects in newer ones; accept both. */
   var rbV=d.rolling_betas;
   if(rbV){
-    var rb1=rbV['1y']!=null?rbV['1y'].toFixed(2):'N/A';
-    var rb3=rbV['3y']!=null?rbV['3y'].toFixed(2):'N/A';
-    var rb5=rbV['5y']!=null?rbV['5y'].toFixed(2):'N/A';
-    var stab=rbV['stability'];
+    var _rbNum=function(v){if(v==null)return null;if(typeof v==='number')return v;if(typeof v==='object'&&typeof v.beta==='number')return v.beta;return null;};
+    var _rb1n=_rbNum(rbV['1y']),_rb3n=_rbNum(rbV['3y']),_rb5n=_rbNum(rbV['5y']);
+    var rb1=_rb1n!=null?_rb1n.toFixed(2):'N/A';
+    var rb3=_rb3n!=null?_rb3n.toFixed(2):'N/A';
+    var rb5=_rb5n!=null?_rb5n.toFixed(2):'N/A';
+    var stab=_rbNum(rbV['stability']);
+    if(stab==null&&_rb1n!=null&&_rb5n!=null)stab=Math.abs(_rb1n-_rb5n);
     var stabLbl=stab!=null?(stab<0.1?'Stable':stab<0.2?'Moderate':'Volatile'):'N/A';
     var stabC=stab!=null?(stab<0.1?'color:#1a9850':stab>=0.2?'color:#de2d26':''):'';
     gh+='<div class="dsec"><h3>Rolling Beta</h3><div class="dkvg">'+bkv([['1yr Beta',rb1],['3yr Beta',rb3],['5yr Beta',rb5],['Stability',stabLbl,stabC]])+'</div></div>';
@@ -4160,19 +4342,22 @@ function openDet(tk){
   var dd08=d.drawdown_2008;var dd08C=dd08!=null?(dd08<=-0.50?'color:#de2d26;font-weight:700':dd08>=-0.30?'color:#1a9850':''):'';
   gh+='<div class="dsec"><h3>Drawdown Resilience</h3><div class="dkvg">'+bkv([['2020 COVID',fp(dd20),dd20C],['2022 Bear',fp(dd22),dd22C],['2008 GFC',fp(dd08),dd08C]])+'</div></div>';
   gh+='</div></div>';
-  /* --- GROUP 3: INTRINSIC VALUE --- */
-  gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a2f5e,#2f5496)"><span class="dg-icon"></span>Intrinsic Value</div><div class="dgrid-inner">';
+  /* --- INTRINSIC VALUE — rendered into its own #d-intrinsic container so it
+       sits right below Price History, ahead of the narrative sections. The
+       fair-value case is the core of the buy decision; it must not sit below
+       news/peers reference material. --- */
+  var ivH='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a2f5e,#2f5496)"><span class="dg-icon"></span>Intrinsic Value</div><div class="dgrid-inner">';
   /* Row 1: DCF model (left) | DCF Monte Carlo (right) */
-  gh+='<div class="dsec"><h3>DCF Model</h3><div class="dkvg">'+bkv([['Current Price',fd(d.price)],['DCF Fair Value',fd(d.dcf_fv)],['DCF MoS',fp(d.mos),ms],['Expected Return',fp(d.er)],['Blend Method',d._blended_method||'DCF']])+'</div></div>';
-  gh+='<div class="dsec"><h3>DCF Monte Carlo</h3><div class="dkvg">'+bkv([['MC Confidence',d.mc_confidence!=null?d.mc_confidence:'N/A'],['MC CV',fp(d.mc_cv)],['MC P10 Fair Value',fd(d.mc_p10_fv)],['MC P90 Fair Value',fd(d.mc_p90_fv)]])+'</div></div>';
+  ivH+='<div class="dsec"><h3>DCF Model</h3><div class="dkvg">'+bkv([['Current Price',fd(d.price)],['DCF Fair Value',fd(d.dcf_fv)],['DCF MoS',fp(d.mos),ms],['Expected Return',fp(d.er)],['Blend Method',d._blended_method||'DCF']])+'</div></div>';
+  ivH+='<div class="dsec"><h3>DCF Monte Carlo</h3><div class="dkvg">'+bkv([['MC Confidence',d.mc_confidence!=null?d.mc_confidence:'N/A'],['MC CV',fp(d.mc_cv)],['MC P10 Fair Value',fd(d.mc_p10_fv)],['MC P90 Fair Value',fd(d.mc_p90_fv)]])+'</div></div>';
   /* Row 2 (conditional): DDM (left) | DDM Monte Carlo (right) */
-  if(d.ddm_eligible){var ddmFlag=d.ddm_payout_flag?'color:#de2d26;font-weight:700':'';var ddmLcFlag=d._ddm_low_confidence?'color:#e67e22;font-weight:700':'';gh+='<div class="dsec"><h3>Dividend Discount Model</h3><div class="dkvg">'+bkv([['DDM Fair Value',fd(d.ddm_fv)],['H-Model FV',fd(d.ddm_h_fv)],['DDM Growth',fp(d.ddm_growth)],['Div CAGR',fp(d.ddm_div_cagr)],['Sustainable Growth',fp(d.ddm_sustainable_growth)],['Consec. Years',d.ddm_consecutive_years!=null?d.ddm_consecutive_years+'':'N/A'],['Payout Flag',d.ddm_payout_flag?'Yes':'No',ddmFlag],['Low Confidence',d._ddm_low_confidence?'Yes':'No',ddmLcFlag]])+'</div></div>';gh+='<div class="dsec"><h3>DDM Monte Carlo</h3><div class="dkvg">'+bkv([['MC Median',fd(d.ddm_mc_median)],['MC P10',fd(d.ddm_mc_p10)],['MC P90',fd(d.ddm_mc_p90)],['MC CV',fp(d.ddm_mc_cv)]])+'</div></div>';}
+  if(d.ddm_eligible){var ddmFlag=d.ddm_payout_flag?'color:#de2d26;font-weight:700':'';var ddmLcFlag=d._ddm_low_confidence?'color:#e67e22;font-weight:700':'';ivH+='<div class="dsec"><h3>Dividend Discount Model</h3><div class="dkvg">'+bkv([['DDM Fair Value',fd(d.ddm_fv)],['H-Model FV',fd(d.ddm_h_fv)],['DDM Growth',fp(d.ddm_growth)],['Div CAGR',fp(d.ddm_div_cagr)],['Sustainable Growth',fp(d.ddm_sustainable_growth)],['Consec. Years',d.ddm_consecutive_years!=null?d.ddm_consecutive_years+'':'N/A'],['Payout Flag',d.ddm_payout_flag?'Yes':'No',ddmFlag],['Low Confidence',d._ddm_low_confidence?'Yes':'No',ddmLcFlag]])+'</div></div>';ivH+='<div class="dsec"><h3>DDM Monte Carlo</h3><div class="dkvg">'+bkv([['MC Median',fd(d.ddm_mc_median)],['MC P10',fd(d.ddm_mc_p10)],['MC P90',fd(d.ddm_mc_p90)],['MC CV',fp(d.ddm_mc_cv)]])+'</div></div>';}
   /* Row 3: EPV & RIM (left) | Implied / Reverse Check (right) */
   var navMosStyle=d.nav_mos!=null?(d.nav_mos>0.15?'color:#1a9850':(d.nav_mos<0?'color:#de2d26':'')):'';
-  gh+='<div class="dsec"><h3>EPV, RIM &amp; NAV</h3><div class="dkvg">'+bkv([['EPV Fair Value',fd(d.epv_fv)],['EPV MoS',fp(d.epv_mos)],['EPV Growth-Adj',fd(d.epv_growth_fv)],['RIM Fair Value',fd(d.rim_fv)],['RIM MoS',fp(d.rim_mos)],['NAV (Tangible Book)',fd(d.nav_fv)],['NAV MoS',fp(d.nav_mos),navMosStyle]])+'</div></div>';
-  gh+='<div class="dsec"><h3>Implied / Reverse Check</h3><div class="dkvg">'+bkv([['Implied Growth (Rev DCF)',fp(d.implied_growth)],['Impl. vs Est.',fp(d.implied_vs_estimated)]])+'</div></div>';
-  gh+='</div>';
-  gh+='<div class="dgroup-asm" style="background:#eef2fb;border-top:1px solid #d0daf0;padding:7px 16px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">'
+  ivH+='<div class="dsec"><h3>EPV, RIM &amp; NAV</h3><div class="dkvg">'+bkv([['EPV Fair Value',fd(d.epv_fv)],['EPV MoS',fp(d.epv_mos)],['EPV Growth-Adj',fd(d.epv_growth_fv)],['RIM Fair Value',fd(d.rim_fv)],['RIM MoS',fp(d.rim_mos)],['NAV (Tangible Book)',fd(d.nav_fv)],['NAV MoS',fp(d.nav_mos),navMosStyle]])+'</div></div>';
+  ivH+='<div class="dsec"><h3>Implied / Reverse Check</h3><div class="dkvg">'+bkv([['Implied Growth (Rev DCF)',fp(d.implied_growth)],['Impl. vs Est.',fp(d.implied_vs_estimated)]])+'</div></div>';
+  ivH+='</div>';
+  ivH+='<div class="dgroup-asm" style="background:#eef2fb;border-top:1px solid #d0daf0;padding:7px 16px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">'
     +'<span style="font-size:0.56em;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#1a3a6b;flex-shrink:0">Model Assumptions</span>'
     +'<span style="font-size:0.63em;color:#546e7a">FCF Growth&nbsp;<strong style="color:#1a2f5e">'+( fp(d.fcf_growth)||'N/A')+'</strong></span>'
     +'<span style="font-size:0.63em;color:#546e7a">WACC&nbsp;<strong style="color:#1a2f5e">'+(fp(d.wacc)||'N/A')+'</strong></span>'
@@ -4181,6 +4366,7 @@ function openDet(tk){
     +'<span style="font-size:0.63em;color:#546e7a">Sensitivity&nbsp;<strong style="color:#1a2f5e">'+sr+'</strong></span>'
   +'</div>'
   +'</div>';
+  document.getElementById('d-intrinsic').innerHTML=ivH;
   /* --- GROUP 3: BUSINESS QUALITY --- */
   gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1e4d20,#548235)"><span class="dg-icon"></span>Business Quality</div><div class="dgrid-inner">';
   gh+='<div class="dsec"><h3>Quality &amp; Profitability</h3><div class="dkvg">'+bkv([['ROIC (5Y)',fp(d.roic)],['ROE',fp(d.roe)],['ROA',fp(d.roa)],['Int Coverage',fn(d.int_cov,1)],['Cash Conversion',fn(d.cash_conv,2)],['Accruals',fn(d.accruals,3)],['Piotroski',d.piotroski!=null?d.piotroski+'/9':'N/A',ps]])+'</div></div>';
@@ -4191,6 +4377,19 @@ function openDet(tk){
   /* --- GROUP 4: OUTLOOK --- */
   gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a1070,#7030a0)"><span class="dg-icon"></span>Outlook</div><div class="dgrid-inner">';
   gh+='<div class="dsec"><h3>Growth Signals</h3><div class="dkvg">'+bkv([['Margin Trend',fp(d.margin_trend)],['Fundamental Growth',fp(d.fundamental_growth)],['Reinvestment Rate',fp(d.reinvestment_rate)],['Rev CAGR (3Y)',fp(d.rev_cagr)],['Rev CAGR (5Y)',fp(d.rev_cagr_5y)],['Rev CAGR (10Y)',fp(d.rev_cagr_10y)]])+'</div></div>';
+  /* Street View — analyst consensus as a cross-check on the model's FV. */
+  if(d.target_mean!=null||d.analyst_rec||d.num_analysts!=null){
+    var _svUp=(d.target_mean!=null&&d.price)?d.target_mean/d.price-1:null;
+    var _svUpC=_svUp!=null?(_svUp>0.15?'color:#1a9850;font-weight:700':(_svUp<0?'color:#de2d26':'')):'';
+    var _svDelta=(d.target_mean!=null&&_fvEff!=null&&_fvEff>0)?(d.target_mean/_fvEff-1):null;
+    var _svDeltaTxt=_svDelta!=null?((_svDelta>0?'+':'')+(_svDelta*100).toFixed(1)+'%'):'N/A';
+    /* Large street-vs-model disagreement is a flag either way — someone is wrong. */
+    var _svDeltaC=_svDelta!=null&&Math.abs(_svDelta)>0.3?'color:#e67e22;font-weight:700':'';
+    var _svRec=d.analyst_rec?d.analyst_rec.replace(/_/g,' '):'N/A';
+    var _svEarn='N/A';
+    if(d.earnings_next_date){_svEarn=d.earnings_next_date+(d.earnings_date_est?' (est.)':'');}
+    gh+='<div class="dsec"><h3>Street View</h3><div class="dkvg">'+bkv([['Consensus',_svRec],['Analysts',d.num_analysts!=null?''+d.num_analysts:'N/A'],['Target Mean',fd(d.target_mean)],['Target Range',(d.target_low!=null&&d.target_high!=null)?fd(d.target_low)+' – '+fd(d.target_high):'N/A'],['Upside to Target',fp(_svUp),_svUpC],['Street vs Model FV',_svDeltaTxt,_svDeltaC],['LT Growth Est',fp(d.analyst_ltg)],['Next Earnings',_svEarn]])+'</div></div>';
+  }
   if(d.position_weight!=null){gh+='<div class="dsec"><h3>Portfolio</h3><div class="dkvg">'+bkv([['Position Weight',fp(d.position_weight)]])+'</div></div>';}
   gh+='</div></div>';
   /* --- GROUP 6: OWNERSHIP --- */
