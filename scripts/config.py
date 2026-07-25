@@ -78,6 +78,13 @@ MIN_SECTOR_STOCKS = 3          # Min stocks per sector for median calculation
 DATA_QUALITY_MIN = 40          # Skip tickers with quality score below this
 MIN_MORNINGSTAR_SAMPLE = 5     # Min stocks for Morningstar comparison stats
 
+# Minimum median daily dollar volume (3-month) for a name to stay BUY-rated.
+# Below this a position can't be built or exited at a sane price, so the rating
+# is capped at HOLD — the business may still be excellent, it just isn't
+# actionable. Applied in scoring._rating_cap_for_row, and only when the metric
+# is actually present, so missing volume data never demotes a stock.
+MIN_ADV_FOR_BUY = 1_000_000
+
 # ---------------------------------------------------------------------------
 # Sector-specific DCF parameters (Fixes C/D/E/F)
 # ---------------------------------------------------------------------------

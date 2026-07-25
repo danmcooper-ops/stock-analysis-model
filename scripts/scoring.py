@@ -6,7 +6,8 @@ from collections import namedtuple
 
 from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH,
-                             SCORE_WEIGHT_OWNERSHIP, MIN_SECTOR_STOCKS)
+                             SCORE_WEIGHT_OWNERSHIP, MIN_SECTOR_STOCKS,
+                             MIN_ADV_FOR_BUY)
 
 # Unified gate spec — ONE entry per metric drives both the pass/fail Gate
 # Matrix cell and the continuous 0-100 score, so a gate's threshold and its
@@ -1040,6 +1041,14 @@ def _rating_cap_for_row(row, params=None):
     years = eh.get('years_available', 0) or 0
     if years < 5:
         add('HOLD', f'thin EDGAR history ({years}y)')
+
+    # Tradeability. A BUY that can't be filled or exited at a sane price isn't
+    # a recommendation. Deliberately fails OPEN: only caps when the metric is
+    # present, so the ~2% of price files without a Volume column (and any name
+    # whose prices are too stale to measure) are never demoted on absent data.
+    adv = row.get('avg_dollar_volume_3m')
+    if adv is not None and adv < MIN_ADV_FOR_BUY:
+        add('HOLD', f'insufficient liquidity (${adv / 1e6:.2f}M avg daily volume)')
 
     return cap, reasons
 
