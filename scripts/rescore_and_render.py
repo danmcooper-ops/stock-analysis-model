@@ -13,6 +13,8 @@ import os
 import sys
 from datetime import date
 
+import pandas as pd
+
 # Ensure repo root is on sys.path so `scripts.*` imports resolve when invoked
 # directly (i.e. `python scripts/rescore_and_render.py ...`).
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -22,7 +24,8 @@ if _REPO_ROOT not in sys.path:
 from scripts.scoring import score_and_rate
 from scripts.report_html import build_html
 from scripts.analyze_stock import (derive_edgar_metrics, _load_local_prices,
-                                   compute_multiple_vs_history)
+                                   compute_multiple_vs_history,
+                                   compute_price_metrics, _round_price_metrics)
 
 
 def _refresh_edgar_derived_metrics(results):
@@ -76,6 +79,34 @@ def _refresh_multiple_vs_history(results, prices_dir):
           + (f' ({skipped} without local prices left as-is)' if skipped else ''))
 
 
+def _refresh_price_metrics(results, prices_dir, as_of=None):
+    """Compute the market/risk metrics (momentum, liquidity) from local parquet.
+
+    Same contract as _refresh_multiple_vs_history: rows whose parquet can't be
+    read are left UNTOUCHED so a live-run value survives a rescore on a machine
+    without the prices dir.
+
+    *as_of* is the snapshot date, not today — otherwise re-rendering an older
+    snapshot would measure every trailing window to the wrong endpoint and
+    declare the whole universe stale.
+    """
+    n = skipped = stale = 0
+    for r in results:
+        metrics = compute_price_metrics(r.get('ticker'), prices_dir, as_of=as_of)
+        if metrics['price_data_stale'] is None:
+            # No usable local price history — leave whatever the row already had.
+            skipped += 1
+            continue
+        if metrics['price_data_stale']:
+            stale += 1
+        r.update(_round_price_metrics(metrics))
+        if metrics['momentum_12_1'] is not None:
+            n += 1
+    print(f'Refreshed price metrics for {n} rows'
+          + (f' ({stale} stale-priced)' if stale else '')
+          + (f' ({skipped} without local prices left as-is)' if skipped else ''))
+
+
 def rescore_and_render(json_path, prices_dir='output/prices'):
     with open(json_path) as f:
         snap = json.load(f)
@@ -90,6 +121,11 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
 
     _refresh_edgar_derived_metrics(results)
     _refresh_multiple_vs_history(results, prices_dir)
+    try:
+        _price_as_of = pd.Timestamp(snap_date).normalize()
+    except (TypeError, ValueError):
+        _price_as_of = None
+    _refresh_price_metrics(results, prices_dir, as_of=_price_as_of)
     # Propagate the snapshot's risk-free rate onto each row so the
     # Valuation: FCF Yield gate has its hurdle available on re-render (the
     # live pipeline stamps this per row; here it comes from the snapshot).

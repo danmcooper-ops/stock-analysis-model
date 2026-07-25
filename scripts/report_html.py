@@ -447,6 +447,24 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         'pct_from_52w_high': r.get('pct_from_52w_high'),
         'pct_from_52w_low': r.get('pct_from_52w_low'),
         'range_52w_position': r.get('range_52w_position'),
+        # Market & Risk tab + the detail panel's Price Signals group. These were
+        # computed and persisted to the results JSON since the rolling-beta work
+        # but never projected into the payload, so every consumer of them
+        # rendered N/A. Momentum is display-only by design (see TC.mkt in the
+        # template); only avg_dollar_volume_3m feeds scoring, as a HOLD cap.
+        'momentum_12_1': r.get('momentum_12_1'),
+        'momentum_6_1': r.get('momentum_6_1'),
+        'momentum_3m': r.get('momentum_3m'),
+        'vol_adj_momentum': r.get('vol_adj_momentum'),
+        'realized_vol': r.get('realized_vol'),
+        'avg_dollar_volume_3m': r.get('avg_dollar_volume_3m'),
+        'amihud_illiquidity': r.get('amihud_illiquidity'),
+        'volume_trend': r.get('volume_trend'),
+        'price_data_stale': r.get('price_data_stale'),
+        'drawdown_2008': r.get('drawdown_2008'),
+        'drawdown_2020': r.get('drawdown_2020'),
+        'drawdown_2022': r.get('drawdown_2022'),
+        'rolling_betas': r.get('rolling_betas'),
         # Portfolio
         'position_weight': r.get('position_weight'),
         # Culture narrative (descriptive, woven into company description)

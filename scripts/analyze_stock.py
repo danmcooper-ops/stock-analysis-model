@@ -453,6 +453,29 @@ def _load_local_prices(ticker, prices_dir):
         return None
 
 
+def _load_local_ohlcv(ticker, prices_dir):
+    """Load Close + Volume from local Parquet. Returns DataFrame or None.
+
+    Most files carry full OHLCV (written by download_prices.py), but ~2% hold
+    only a Close column — YFinanceClient._maybe_persist_prices write-throughs
+    persist just the close. A columns=[...] projection RAISES on those, so read
+    the file and then check what arrived.
+    """
+    if not prices_dir:
+        return None
+    path = os.path.join(prices_dir, f"{ticker}.parquet")
+    if not os.path.exists(path):
+        return None
+    try:
+        df = pd.read_parquet(path).sort_index()
+        if 'Close' not in df.columns or 'Volume' not in df.columns:
+            return None
+        df.index = pd.to_datetime(df.index).tz_localize(None)
+        return df[['Close', 'Volume']]
+    except Exception:
+        return None
+
+
 def compute_multiple_vs_history(close, edgar_history, operating_income,
                                 max_years=10, min_years=5,
                                 max_price_staleness_days=30):
@@ -557,23 +580,178 @@ def _realized_vol(close_series, window_days=252):
     return float(tail.std() * np.sqrt(252))
 
 
-def _momentum_12_1(close_series, as_of=None):
-    """12-minus-1 month price momentum (skips most recent month to avoid reversal)."""
+def _momentum_window(close_series, months_back, months_skip=0, as_of=None):
+    """Price return from *months_back* ago up to *months_skip* months ago.
+
+    months_skip=1 drops the most recent month — the standard guard against
+    short-horizon mean reversion contaminating a momentum signal.
+    """
     as_of = as_of or pd.Timestamp.today().normalize()
-    mo12 = as_of - pd.DateOffset(months=12)
-    mo1  = as_of - pd.DateOffset(months=1)
-    s    = close_series.loc[close_series.index <= as_of]
+    start_cut = as_of - pd.DateOffset(months=months_back)
+    end_cut   = as_of - pd.DateOffset(months=months_skip) if months_skip else as_of
+    s = close_series.loc[close_series.index <= as_of]
     if s.empty:
         return None
-    after_mo12 = s.loc[s.index >= mo12]
-    before_mo1 = s.loc[s.index <= mo1]
-    if after_mo12.empty or before_mo1.empty:
+    after_start = s.loc[s.index >= start_cut]
+    before_end  = s.loc[s.index <= end_cut]
+    if after_start.empty or before_end.empty:
         return None
-    p_start = float(after_mo12.iloc[0])
-    p_end   = float(before_mo1.iloc[-1])
+    p_start = float(after_start.iloc[0])
+    p_end   = float(before_end.iloc[-1])
     if p_start <= 0:
         return None
     return (p_end - p_start) / p_start
+
+
+def _momentum_12_1(close_series, as_of=None):
+    """12-minus-1 month price momentum (skips most recent month to avoid reversal)."""
+    return _momentum_window(close_series, months_back=12, months_skip=1, as_of=as_of)
+
+
+def _avg_dollar_volume(ohlcv, days=63):
+    """Median daily dollar volume (Close x Volume) over the trailing *days* bars.
+
+    Median rather than mean: one earnings-day or index-rebalance spike otherwise
+    inflates apparent tradeability by an order of magnitude, which is exactly
+    the wrong error to make for a liquidity floor.
+    """
+    tail = ohlcv.tail(days).dropna(subset=['Close', 'Volume'])
+    if len(tail) < 20:
+        return None
+    dv = (tail['Close'] * tail['Volume']).replace(0, np.nan).dropna()
+    if dv.empty:
+        return None
+    return float(dv.median())
+
+
+# Amihud is mean(|return| / dollar volume) — a per-dollar figure around 1e-13
+# for a mega-cap. Expressed in BASIS POINTS OF PRICE MOVE PER $1M TRADED it
+# lands in a readable 0.01-1000 range: ~0.01 for AAPL, ~800 for a microcap.
+_AMIHUD_BPS_PER_1M = 1e10
+
+
+def _amihud_illiquidity(ohlcv, days=252):
+    """Amihud price impact, in basis points of price move per $1M traded.
+
+    Higher = each dollar traded moves the price more. Near zero for mega-caps
+    by construction; the metric earns its keep at the illiquid end.
+    """
+    tail = ohlcv.tail(days + 1).dropna(subset=['Close', 'Volume'])
+    if len(tail) < 60:
+        return None
+    ret = tail['Close'].pct_change().abs()
+    dv  = (tail['Close'] * tail['Volume']).replace(0, np.nan)
+    impact = (ret / dv).replace([np.inf, -np.inf], np.nan).dropna()
+    if impact.empty:
+        return None
+    return float(impact.mean() * _AMIHUD_BPS_PER_1M)
+
+
+def _volume_trend(ohlcv, short_days=21, long_days=252):
+    """Recent volume against the stock's own baseline: mean(21d) / mean(252d).
+
+    Above 1.0 means trading interest is running hotter than normal for this
+    name — read alongside momentum, not on its own.
+    """
+    tail = ohlcv.tail(long_days).dropna(subset=['Volume'])
+    if len(tail) < 60:
+        return None
+    long_avg = float(tail['Volume'].mean())
+    if long_avg <= 0:
+        return None
+    short_avg = float(tail['Volume'].tail(short_days).mean())
+    return short_avg / long_avg
+
+
+# Trailing-window price metrics measured "to today" are only honest if the
+# series actually reaches today. ~14 calendar days ~ 10 trading days.
+_PRICE_STALENESS_LIMIT_DAYS = 14
+
+
+def _prices_are_stale(index, as_of=None):
+    """True when the last bar is too old for trailing price metrics to be honest."""
+    if index is None or len(index) == 0:
+        return True
+    as_of = as_of or pd.Timestamp.today().normalize()
+    return (as_of - index.max()).days > _PRICE_STALENESS_LIMIT_DAYS
+
+
+PRICE_METRIC_FIELDS = (
+    'momentum_12_1', 'momentum_6_1', 'momentum_3m', 'vol_adj_momentum',
+    'avg_dollar_volume_3m', 'amihud_illiquidity', 'volume_trend',
+    'price_data_stale',
+)
+
+
+# Per-field rounding for the JSON snapshot. Dollar volume is a large absolute
+# number (whole dollars is plenty); Amihud impact is tiny and needs the digits.
+_PRICE_METRIC_ROUNDING = {
+    'momentum_12_1': 4, 'momentum_6_1': 4, 'momentum_3m': 4,
+    'vol_adj_momentum': 3, 'avg_dollar_volume_3m': 0,
+    'amihud_illiquidity': 3, 'volume_trend': 3,
+}
+
+
+def _round_price_metrics(metrics):
+    """Round price metrics for JSON output, leaving None and bools untouched."""
+    out = {}
+    for k, v in metrics.items():
+        digits = _PRICE_METRIC_ROUNDING.get(k)
+        if v is None or digits is None:
+            out[k] = v
+        else:
+            out[k] = round(v, digits) if digits else round(v)
+    return out
+
+
+def price_metrics_from_series(ohlcv, close, as_of=None):
+    """Momentum + volume/liquidity metrics from already-loaded price data.
+
+    Returns a dict of field -> value (None where unavailable). Pure — no I/O —
+    so the live run can reuse the Parquet read it already does.
+
+    Every trailing-to-today metric is suppressed when the series is stale: a
+    3-month-old file yields a "12-month momentum" that is really 9 months of
+    momentum and 3 months of nothing, which is worse than no number at all.
+    Drawdowns, realized vol and beta are deliberately NOT computed here — they
+    are fixed historical windows or feed the DCF, and stay on their own path.
+    """
+    out = {k: None for k in PRICE_METRIC_FIELDS}
+
+    if close is None or len(close) < 60:
+        return out
+
+    stale = _prices_are_stale(close.index, as_of=as_of)
+    out['price_data_stale'] = bool(stale)
+    if stale:
+        return out
+
+    out['momentum_12_1'] = _momentum_12_1(close, as_of=as_of)
+    out['momentum_6_1']  = _momentum_window(close, months_back=6, months_skip=1, as_of=as_of)
+    out['momentum_3m']   = _momentum_window(close, months_back=3, as_of=as_of)
+
+    rv = _realized_vol(close)
+    if rv is not None and rv > 1e-6 and out['momentum_12_1'] is not None:
+        out['vol_adj_momentum'] = out['momentum_12_1'] / rv
+
+    # Volume metrics need the Volume column, absent from the ~2% Close-only files.
+    if ohlcv is not None:
+        out['avg_dollar_volume_3m'] = _avg_dollar_volume(ohlcv)
+        out['amihud_illiquidity']   = _amihud_illiquidity(ohlcv)
+        out['volume_trend']         = _volume_trend(ohlcv)
+
+    return out
+
+
+def compute_price_metrics(ticker, prices_dir, as_of=None):
+    """Load one ticker's local Parquet and derive its price metrics.
+
+    Thin loader around price_metrics_from_series, used by the rescore path so
+    it and the live run can never drift apart.
+    """
+    ohlcv = _load_local_ohlcv(ticker, prices_dir)
+    close = ohlcv['Close'] if ohlcv is not None else _load_local_prices(ticker, prices_dir)
+    return price_metrics_from_series(ohlcv, close, as_of=as_of)
 
 
 def _max_drawdown_period(close_series, start, end):
@@ -2143,9 +2321,14 @@ def _main():
                 continue
 
             # --- Price-history enrichments (local Parquet) ---
-            _local_close = _load_local_prices(ticker, prices_dir)
+            # One read serves both the legacy signals and the market/risk
+            # metrics; fall back to the Close-only loader for the ~2% of files
+            # that lack a Volume column.
+            _local_ohlcv = _load_local_ohlcv(ticker, prices_dir)
+            _local_close = (_local_ohlcv['Close'] if _local_ohlcv is not None
+                            else _load_local_prices(ticker, prices_dir))
+            _price_metrics = price_metrics_from_series(_local_ohlcv, _local_close)
             _ticker_realized_vol = None
-            _ticker_momentum     = None
             _ticker_dd_2008      = None
             _ticker_dd_2020      = None
             _ticker_dd_2022      = None
@@ -2153,10 +2336,13 @@ def _main():
 
             if _local_close is not None and len(_local_close) > 60:
                 # 1. Realized volatility (252-day) → replaces fixed MC_WACC_SIGMA
+                #    Not staleness-gated: it feeds the MC WACC sigma, and a
+                #    slightly stale vol estimate is better than reverting to
+                #    the fixed default.
                 _ticker_realized_vol = _realized_vol(_local_close)
 
-                # 2. 12-minus-1 month momentum
-                _ticker_momentum = _momentum_12_1(_local_close)
+                # 2. 12-minus-1 month momentum now comes from _price_metrics,
+                #    which suppresses it when the price file is stale.
 
                 # 3. Max drawdown in key stress periods
                 _ticker_dd_2008 = _max_drawdown_period(_local_close, '2008-01-01', '2009-03-31')
@@ -2831,12 +3017,13 @@ def _main():
                 'sga_pct_rev': sga_pct_rev,
                 'sga_yoy_change': sga_yoy_change,
                 # --- Price-history signals ---
-                'momentum_12_1':   round(_ticker_momentum, 4) if _ticker_momentum is not None else None,
                 'realized_vol':    round(_ticker_realized_vol, 4) if _ticker_realized_vol is not None else None,
                 'drawdown_2008':   round(_ticker_dd_2008, 4) if _ticker_dd_2008 is not None else None,
                 'drawdown_2020':   round(_ticker_dd_2020, 4) if _ticker_dd_2020 is not None else None,
                 'drawdown_2022':   round(_ticker_dd_2022, 4) if _ticker_dd_2022 is not None else None,
                 'rolling_betas':   _rolling_beta_diag if _rolling_beta_diag else None,
+                # --- Market & risk metrics (momentum / liquidity) ---
+                **_round_price_metrics(_price_metrics),
             }
             # Rating set later by score_and_rate from composite score plus critical caps
             row['rating'] = None

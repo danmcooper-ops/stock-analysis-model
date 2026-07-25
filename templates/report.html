@@ -367,6 +367,7 @@ td.ct{font-weight:700;}
 #dtbl.hdr-proj  th{background:#c2410c;border-right-color:rgba(255,255,255,0.16);}
 #dtbl.hdr-own   th{background:#be185d;border-right-color:rgba(255,255,255,0.16);}
 #dtbl.hdr-div   th{background:#a16207;border-right-color:rgba(255,255,255,0.16);}
+#dtbl.hdr-mkt   th{background:#0f766e;border-right-color:rgba(255,255,255,0.16);}
 .dt td{padding:5px 7px;text-align:right;font-size:0.82em;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;}
 .dt td.tk2{text-align:left;font-weight:600;color:#1a252f;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.3);}
 .dt td.tk2:hover{color:var(--accent);}
@@ -2155,6 +2156,18 @@ deferred_rev_growth:'YoY change in contract-with-customer liability (SEC XBRL). 
 capex_intensity:'Capex / Revenue (SEC XBRL). How much reinvestment each sales dollar demands. Buffett prizes asset-light businesses that grow without heavy capex; persistently high intensity caps free cash flow and the ROIC a business can sustain.',
 backlog_to_revenue:'Backlog/Rev = Remaining Performance Obligations / Revenue (SEC XBRL). Years of contracted revenue already in hand — forward demand visibility. > 1× = more than a year of work booked, a cushion against the cycle and a sign of durable customer commitment.',
 capex_to_dd_ratio:'Capex / D&A. Capital-reinvestment discipline: > 1× = investing faster than assets wear out (growth or replacement); < 1× sustained = under-investing and harvesting the asset base. For E&P filers, D&A includes depletion of reserves.',
+momentum_12_1:'Price return from 12 months ago to 1 month ago. The last month is deliberately skipped — short-horizon moves tend to mean-revert and would otherwise drown the signal. Shown for context only: this is a value model and momentum is NOT scored, so a laggard here is often the point rather than a problem.',
+momentum_6_1:'Price return from 6 months ago to 1 month ago. A shorter-horizon read on the same idea as Mom 12-1M — when the two disagree, the trend turned somewhere in between.',
+momentum_3m:'Simple trailing 3-month price return, most recent month included. The most reactive of the three momentum columns and the noisiest; useful mainly for spotting a name that just broke down or just re-rated.',
+vol_adj_momentum:'12-1 month momentum divided by realized volatility — momentum per unit of risk taken to get it. A quiet 20% grind scores higher than a violent 20% round trip.',
+realized_vol:'Annualized standard deviation of daily returns over the past year. Also feeds the Monte Carlo WACC sigma, so a volatile stock gets a wider fair-value band and a stiffer confidence penalty on its composite score.',
+avg_dollar_volume_3m:'Median daily dollar volume (price × shares) over the last three months — the median, not the mean, so one earnings-day spike does not flatter the number. This is the tradeability check: below $1M a BUY is capped to HOLD, because a rating you cannot fill is not a recommendation.',
+volume_trend:'Average volume over the last month divided by the average over the last year. Above 1.0 means trading interest is running hotter than this stock’s own norm — read it next to momentum, never alone.',
+amihud_illiquidity:'Amihud price impact, in basis points of price move per $1M traded. Near zero for mega-caps by construction; it earns its keep at the illiquid end, where it tells you what building a position would cost you in slippage.',
+drawdown_2020:'Worst peak-to-trough fall during the COVID crash (Jan–Sep 2020). A stress test you did not have to design — how far did this business fall when the world stopped?',
+drawdown_2022:'Worst peak-to-trough fall during the 2022 bear market. The rate-shock test: long-duration, no-earnings stories fell hardest here.',
+drawdown_2008:'Worst peak-to-trough fall during the GFC (Jan 2008–Mar 2009). Blank for anything that listed later — absence here means no history, not resilience.',
+beta_adjusted:'Blume-adjusted beta ((2/3)×raw + 1/3), pulled toward 1.0 because raw betas mean-revert. Feeds the cost of equity in the DCF, so it moves fair value directly. Check the R² before trusting it — a low-R² beta is noise wearing a number.',
 _flagged:'Your personal flag for stocks that deserve a closer look — Buffett’s “definitely interesting” pile, the opposite of his “too hard” pile. Click ⚑ to toggle; saved in browser local storage.',
 _reviewed:'Mark a stock reviewed once your own due diligence is complete. Click ✓ to toggle — it tracks what you have evaluated against what remains on the list. Saved in browser local storage.'
 };
@@ -2920,7 +2933,16 @@ var TC={
   div:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'div_yield',l:'Div Yield',f:'pct'},{k:'payout_ratio',l:'Payout Ratio',f:'pct'},{k:'shareholder_yield',l:'Shrhldr Yld',f:'pct',g:'gow'},{k:'ddm_consecutive_years',l:'Consec Yrs Paid',f:'int'},{k:'dividend_cagr_5y',l:'Div CAGR 5Y',f:'pct'},{k:'ddm_div_cagr',l:'Div CAGR (Hist)',f:'pct'},{k:'ddm_sustainable_growth',l:'Sust. Growth',f:'pct'},{k:'ddm_growth',l:'DDM Growth',f:'pct'},{k:'price',l:'Price',f:'dollar'},{k:'ddm_fv',l:'DDM FV',f:'dollar',g:'gv'},{k:'ddm_h_fv',l:'DDM H-Model',f:'dollar'},{k:'ddm_mc_p10',l:'DDM MC P10',f:'dollar'},{k:'ddm_mc_median',l:'DDM MC Median',f:'dollar'},{k:'ddm_mc_p90',l:'DDM MC P90',f:'dollar'},{k:'ddm_mc_cv',l:'DDM MC CV',f:'n2'},{k:'ddm_eligible',l:'DDM Eligible',f:'bool'},{k:'ddm_reason',l:'DDM Note',f:'text'}]
 };
 TC.prices=[];
-var TL={prices:'Charts',val:'Valuation',prof:'Profitability',hlth:'Financial Health',growth:'Growth',proj:'Projections',own:'Ownership',div:'Dividends'};
+/* Market & Risk tab — the only market-data (as opposed to financial-statement)
+   view in the report. Ordered as a trader reads it: momentum across horizons,
+   then risk-adjusted momentum and volatility, then the liquidity block that
+   answers "can I actually build a position in this", then how the name behaved
+   in the last three drawdowns, then beta. Momentum is DELIBERATELY not scored —
+   this is a value model and a momentum gate would invert the composite-vs-
+   trailing-return check the daily routine relies on. Only avg_dollar_volume_3m
+   touches ratings, and only as a HOLD cap (see _rating_cap_for_row). */
+TC.mkt=[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'momentum_12_1',l:'Mom 12-1M',f:'pct'},{k:'momentum_6_1',l:'Mom 6-1M',f:'pct'},{k:'momentum_3m',l:'Mom 3M',f:'pct'},{k:'vol_adj_momentum',l:'Vol-Adj Mom',f:'n2'},{k:'realized_vol',l:'Realized Vol',f:'pct'},{k:'avg_dollar_volume_3m',l:'Avg $ Vol (3M)',f:'ds'},{k:'volume_trend',l:'Vol Trend',f:'n2'},{k:'amihud_illiquidity',l:'Price Impact',f:'n2'},{k:'share_turnover_rate',l:'Turnover',f:'pct'},{k:'range_52w_position',l:'52W Range Pos',f:'int'},{k:'pct_from_52w_high',l:'% from High',f:'pct'},{k:'drawdown_2020',l:'2020 COVID DD',f:'pct'},{k:'drawdown_2022',l:'2022 Bear DD',f:'pct'},{k:'drawdown_2008',l:'2008 GFC DD',f:'pct'},{k:'beta_adjusted',l:'Beta (adj)',f:'n2'}];
+var TL={prices:'Charts',val:'Valuation',prof:'Profitability',hlth:'Financial Health',growth:'Growth',proj:'Projections',own:'Ownership',div:'Dividends',mkt:'Market & Risk'};
 var tSC='rating',tSA=true;
 /* Same as _mUserSorted, for the Financial Data table. */
 var _tUserSorted=false;
