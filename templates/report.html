@@ -151,7 +151,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sub-btn{padding:8px 16px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.8em;font-weight:600;background:white;color:#546e7a;transition:all 0.15s;white-space:nowrap;line-height:1;flex-shrink:0;}
 .sub-btn.active{background:#1a252f;color:white;border-color:#1a252f;}
 .sub-btn:hover:not(.active){background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
-.filter-bar{display:flex;gap:10px;padding:9px 0;flex-wrap:nowrap;align-items:center;overflow-x:auto;scrollbar-width:none;}
+/* The bar WRAPS when crowded (no hidden horizontal scroll) and keeps
+   overflow visible: its dropdowns/panel are position:absolute children
+   anchored inside it, and an overflow-clipping bar would cut them off.
+   Anchoring popovers to the (sticky) bar instead of the viewport is what
+   keeps them on-screen on iOS — position:fixed elements drift with
+   HORIZONTAL document panning there, so after panning the wide table a
+   fixed popover opened off-screen and looked like it never opened. */
+.filter-bar{display:flex;gap:10px;padding:9px 0;flex-wrap:wrap;align-items:center;overflow:visible;}
 .filter-bar::-webkit-scrollbar{display:none;}
 .filter-bar input,.filter-bar select{padding:6px 12px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;outline:none;}
 .filter-bar input:focus,.filter-bar select:focus{border-color:var(--accent);}
@@ -176,7 +183,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .fpop-btn.active:hover{background:#1a6fae;}
 .fpop-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:9px;background:#fff;color:var(--accent);font-size:0.75em;font-weight:700;padding:0 4px;line-height:1;}
 .fpop-btn.active .fpop-badge{background:rgba(255,255,255,0.25);color:#fff;}
-.fpop-panel{display:none;position:fixed;top:0;left:0;z-index:1200;background:#fff;border:1px solid #ccd;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,0.14);min-width:340px;max-width:480px;max-height:min(72vh,520px);flex-direction:column;}
+.fpop-panel{display:none;position:absolute;top:0;left:0;z-index:1200;background:#fff;border:1px solid #ccd;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,0.14);min-width:340px;max-width:480px;max-height:min(72vh,520px);flex-direction:column;}
 .fpop-panel.open{display:flex;}
 .fpop-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid #eee;flex-shrink:0;}
 .fpop-title{font-size:0.85em;font-weight:700;color:#1a252f;}
@@ -230,7 +237,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .ms-btn{padding:6px 28px 6px 12px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;position:relative;user-select:none;}
 .ms-btn::after{content:'\25BC';font-size:0.6em;position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#888;}
 .ms-btn:hover{border-color:var(--accent);}
-.ms-drop{display:none;position:fixed;top:0;left:0;min-width:140px;max-height:260px;overflow-y:auto;background:#fff;border:1px solid #ccc;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;}
+.ms-drop{display:none;position:absolute;top:0;left:0;min-width:140px;max-height:260px;overflow-y:auto;background:#fff;border:1px solid #ccc;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;}
 .ms-wrap.open .ms-drop{display:block;}
 .ms-drop label{display:flex;align-items:center;padding:6px 12px;font-size:0.85em;cursor:pointer;gap:6px;white-space:nowrap;}
 .ms-drop label:hover{background:#f0f4ff;}
@@ -2208,7 +2215,10 @@ function msToggle(id){
   if(!wasOpen){
     wrap.classList.add('open');
     var btn=wrap.querySelector('.ms-btn'),drop=wrap.querySelector('.ms-drop');
-    if(btn&&drop){var r=btn.getBoundingClientRect();drop.style.top=(r.bottom+2)+'px';drop.style.left=r.left+'px';drop.style.minWidth=r.width+'px';drop.style.maxHeight=Math.min(400,window.innerHeight-r.bottom-14)+'px';}
+    /* Wrap-relative coords: the drop is position:absolute inside the
+       (position:relative) wrap, so it rides the sticky bar and stays
+       on-screen on iOS where fixed elements drift on horizontal pan. */
+    if(btn&&drop){var r=btn.getBoundingClientRect(),wr=wrap.getBoundingClientRect();drop.style.top=(r.bottom-wr.top+2)+'px';drop.style.left=(r.left-wr.left)+'px';drop.style.minWidth=r.width+'px';drop.style.maxHeight=Math.min(400,window.innerHeight-r.bottom-14)+'px';}
   }
 }
 function msGetSelected(id){
@@ -2539,15 +2549,27 @@ function clearFilters(){
   applyFilters();
 }
 function _positionFpop(panel,btn){
+  /* The panel is position:absolute inside #fpop-wrap (position:relative),
+     so it rides the sticky filter bar — on iOS, position:fixed elements
+     drift off-screen with horizontal document panning, which made the
+     panel invisible after the first pan. Desired coords are computed in
+     viewport space (getBoundingClientRect) then converted to wrap space.
+     Clamp against the VISUAL viewport: on the horizontally panning table
+     views window.innerWidth reports the wide layout viewport, which let
+     the panel open past the visible right edge on phones. */
   var r=btn.getBoundingClientRect();
-  var vw=window.innerWidth,vh=window.innerHeight;
+  var wr=document.getElementById('fpop-wrap').getBoundingClientRect();
+  var vv=window.visualViewport;
+  var vw=vv?vv.width:window.innerWidth,vh=vv?vv.height:window.innerHeight;
+  panel.style.width='';
   var pw=panel.offsetWidth,ph=panel.offsetHeight;
+  if(pw>vw-20){panel.style.width=(vw-20)+'px';pw=vw-20;}
   var left=r.left;
   if(left+pw>vw-10)left=vw-pw-10;
   if(left<10)left=10;
   var top=r.bottom+6;
   if(top+ph>vh-10)top=Math.max(10,r.top-ph-6);
-  panel.style.top=top+'px';panel.style.left=left+'px';
+  panel.style.top=(top-wr.top)+'px';panel.style.left=(left-wr.left)+'px';
 }
 function toggleFilterPopup(e){
   if(e)e.stopPropagation();
