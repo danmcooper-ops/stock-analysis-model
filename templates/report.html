@@ -158,7 +158,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    keeps them on-screen on iOS — position:fixed elements drift with
    HORIZONTAL document panning there, so after panning the wide table a
    fixed popover opened off-screen and looked like it never opened. */
-.filter-bar{display:flex;gap:10px;padding:9px 0;flex-wrap:wrap;align-items:center;overflow:visible;}
+.filter-bar{display:flex;gap:10px;padding:9px 0;flex-wrap:wrap;align-items:center;overflow:visible;z-index:100;}
+/* z-index:100 — the sticky bar forms a stacking context, so its absolute
+   popovers (z 1000/1200) only compete INSIDE it; without a z-index on the
+   bar itself the table's sticky thead/frozen columns (z 3-15, later in
+   the DOM) paint over the open dropdowns/panel. 100 clears the table
+   chrome while staying under the detail modal and AI widget (1400+). */
 .filter-bar::-webkit-scrollbar{display:none;}
 .filter-bar input,.filter-bar select{padding:6px 12px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;outline:none;}
 .filter-bar input:focus,.filter-bar select:focus{border-color:var(--accent);}
