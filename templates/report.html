@@ -837,6 +837,9 @@ td.ct{font-weight:700;}
 .xs-map-wrap svg path[data-iso].hit{cursor:pointer;touch-action:manipulation;}
 .xs-map-wrap svg path[data-iso].hit:hover,
 .xs-map-wrap svg path[data-iso].hit:active{stroke:#1a252f;stroke-width:1.2;}
+/* Country the filter bar is currently restricted to. Outline rather than a
+   fill change, so the MoS tint it carries stays readable underneath. */
+.xs-map-wrap svg path[data-iso].sel{stroke:#1a252f;stroke-width:1.6;paint-order:stroke;}
 .xs-map-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:0.7em;color:#7f8c9a;justify-content:center;}
 .xs-map-legend-bar{display:inline-block;width:160px;height:10px;border-radius:3px;background:linear-gradient(90deg,#de2d26 0%,#fbeae9 50%,#e6f4ea 50%,#1a9850 100%);vertical-align:middle;}
 /* Empty (no-stocks) countries must stay lighter than the card they sit on.
@@ -846,6 +849,7 @@ td.ct{font-weight:700;}
    reading as "no data" against the tinted countries. */
 [data-theme="dark"] .xs-map-wrap svg path[data-iso]{fill:#2d333b;stroke:#0d1117;}
 [data-theme="dark"] .xs-map-wrap svg path[data-iso].hit:hover{stroke:#e6edf3;}
+[data-theme="dark"] .xs-map-wrap svg path[data-iso].sel{stroke:#e6edf3;}
 /* !important is required to beat the blanket `[data-theme="dark"] body *
    {color:#fff !important}` rule, which otherwise forces the legend to plain
    white and drops the muted-caption treatment this rule intends. */
@@ -5314,14 +5318,40 @@ function renderPoolLiquidityInsights(sec){
    and renderCrossSectorDashboard (Sector Analysis) share one definition. */
 function _xsMed(arr){if(!arr||!arr.length)return null;var s=arr.slice().sort(function(a,b){return a-b;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
 
-/* === World MoS Map === Median MoS per country across the full universe
-   (DATA, not FD) so the geographic view is stable across the user's other
-   filters. Per-country aggregates feed both the choropleth fill and the
-   hover tooltip. Returns the card HTML and schedules its own post-mount
-   wiring, so a caller only has to drop the return value into the DOM. */
+/* === World MoS Map === Median MoS per country.
+   Tint is computed from FD, the filtered set, so the map is a *view of the
+   current selection* like every other panel on this Dashboard — filter to
+   Technology and the choropleth repaints to tech-only medians. renderOverview
+   re-runs on each applyFilters pass, so this recomputes for free.
+   DATA is still walked, but only for the universe denominator in the tooltip
+   ("12 of 81 in universe"), which is what makes a shrinking country legible
+   as "filtered down" rather than "no data".
+   Returns the card HTML and schedules its own post-mount wiring, so a caller
+   only has to drop the return value into the DOM. */
+/* ISO3 codes that actually have a path in the 110m basemap. 7 of the ~48
+   countries in the data are too small to survive that simplification (Hong
+   Kong, Singapore, Bermuda, Cayman, Guernsey, Jersey, Monaco) — they stay
+   filterable from the country multi-select but cannot be drawn, so the
+   caption must not count them as "in view". Parsed once from WORLD_SVG. */
+var _MAP_ISOS=null;
+function _mapIsos(){
+  if(!_MAP_ISOS){
+    _MAP_ISOS={};
+    var re=/data-iso="([A-Z]{3})"/g,m;
+    while((m=re.exec(WORLD_SVG)))_MAP_ISOS[m[1]]=1;
+  }
+  return _MAP_ISOS;
+}
 function renderWorldMosMap(){
-  var _mapAgg={};
+  var _drawable=_mapIsos();
+  var _mapAgg={},_uniN={};
   DATA.forEach(function(d){
+    if(!d.country)return;
+    var iso=COUNTRY_ISO3[d.country];
+    if(!iso)return;
+    _uniN[iso]=(_uniN[iso]||0)+1;
+  });
+  FD.forEach(function(d){
     if(!d.country)return;
     var iso=COUNTRY_ISO3[d.country];
     if(!iso)return;
@@ -5334,10 +5364,28 @@ function renderWorldMosMap(){
     var a=_mapAgg[iso];
     a.medMos=_xsMed(a.mosVals);
   });
+  /* Which countries the country multi-select currently restricts to. All-boxes-
+     checked is "no restriction", not a 48-country selection, so it must not
+     light up every path as selected. Read live from the DOM rather than a
+     cached list — the filter bar is the single source of truth. */
+  var _selCountries={},_selCount=0,_ctryTotal=0;
+  document.querySelectorAll('#ms-country .ms-drop input[type="checkbox"][value]').forEach(function(cb){
+    _ctryTotal++;
+    if(cb.checked){_selCountries[cb.value]=1;_selCount++;}
+  });
+  var _restricted=_ctryTotal>0&&_selCount>0&&_selCount<_ctryTotal;
+  /* Count only what the basemap can actually draw, so the caption matches the
+     picture. The undrawable countries still contribute their stocks to FD and
+     the tables — they just have no path to tint. */
+  var _shown=Object.keys(_mapAgg).filter(function(i){return _drawable[i];}).length;
+  var _universe=Object.keys(_uniN).filter(function(i){return _drawable[i];}).length;
+  var _sub=_restricted
+    ? _shown+' of '+_universe+' countries · filtered — click a highlighted country to clear'
+    : _shown+' of '+_universe+' countries in view · click a country to filter';
   var _mapHtml='<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:14px">'
-    +'<div class="xsect-chart-title">World MoS Map <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(median margin of safety per country · click a country to filter)</span></div>'
+    +'<div class="xsect-chart-title">World MoS Map <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(median margin of safety · '+_sub+')</span></div>'
     +'<div class="xs-map-wrap" id="xs-map-wrap">'+WORLD_SVG+'</div>'
-    +'<div class="xs-map-legend"><span>≤−80% MoS</span><span class="xs-map-legend-bar"></span><span>≥+80% MoS</span><span style="margin-left:18px">·</span><span><span style="display:inline-block;width:12px;height:10px;background:#e6eaf0;border-radius:2px;vertical-align:middle"></span> no stocks</span></div>'
+    +'<div class="xs-map-legend"><span>≤−80% MoS</span><span class="xs-map-legend-bar"></span><span>≥+80% MoS</span><span style="margin-left:18px">·</span><span><span style="display:inline-block;width:12px;height:10px;background:#e6eaf0;border-radius:2px;vertical-align:middle"></span> no stocks in view</span></div>'
     +'</div>';
   /* Post-mount: tint each country path by median MoS, attach hover
      tooltip + click-to-filter handler. Mount after innerHTML applies
@@ -5350,9 +5398,12 @@ function renderWorldMosMap(){
     Array.prototype.forEach.call(svg.querySelectorAll('path[data-iso]'),function(p){
       var iso=p.getAttribute('data-iso');
       var agg=_mapAgg[iso];
-      if(!agg){p.style.fill='';return;}
+      /* Filtered out entirely: fall back to the "no stocks in view" grey and
+         stay inert, so the map can't offer a click that yields zero rows. */
+      if(!agg){p.style.fill='';p.classList.remove('hit','sel');return;}
       p.style.fill=_mosColor(agg.medMos);
       p.classList.add('hit');
+      if(_restricted&&_selCountries[agg.name])p.classList.add('sel');
       /* pointerenter/leave instead of mouseenter/leave so iOS doesn't
          synthesise a hover before its synthetic click. Touch pointers
          skip the tooltip entirely — a tap will navigate immediately
@@ -5362,28 +5413,33 @@ function renderWorldMosMap(){
         if(!tt||e.pointerType==='touch')return;
         var mosTxt=agg.medMos!=null?fmtPct(agg.medMos):'N/A';
         var col=_mosColor(agg.medMos);
+        var uni=_uniN[iso]||agg.n;
         tt.innerHTML='<div style="font-weight:700;color:#1a252f;margin-bottom:4px">'+agg.name+'</div>'
           +'<div style="font-size:0.85em;line-height:1.5"><div><span style="color:#7f8c9a">Median MoS&nbsp;</span><span style="font-weight:700;color:'+col+'">'+mosTxt+'</span></div>'
-          +'<div><span style="color:#7f8c9a">Stocks&nbsp;</span>'+agg.mosVals.length+' / '+agg.n+' priced</div>'
-          +'<div><span style="color:#7f8c9a">BUY rated&nbsp;</span>'+agg.buys+'</div></div>';
+          +'<div><span style="color:#7f8c9a">Stocks&nbsp;</span>'+agg.n+(agg.n<uni?' of '+uni+' in universe':'')+'</div>'
+          +'<div><span style="color:#7f8c9a">Priced&nbsp;</span>'+agg.mosVals.length+'</div>'
+          +'<div><span style="color:#7f8c9a">BUY rated&nbsp;</span>'+agg.buys+'</div>'
+          +(_selCountries[agg.name]&&_restricted?'<div style="color:#94a3b8;margin-top:3px">click to clear filter</div>':'')
+        +'</div>';
         tt.style.display='block';
         _placeTip(p.getBoundingClientRect(),tt);
       });
       p.addEventListener('pointerleave',function(){if(tt)tt.style.display='none';});
       p.addEventListener('click',function(){
-        /* Narrow the country multi-select to this country and re-apply. */
         var boxes=document.querySelectorAll('#ms-country .ms-drop input[type="checkbox"][value]');
-        boxes.forEach(function(cb){cb.checked=(cb.value===agg.name);});
+        /* Toggle: clicking the country that is already the sole selection
+           clears back to all. Without this the map is a one-way trip — once
+           you drill into a country the only way out is the filter bar. */
+        var isSoleSelection=_restricted&&_selCount===1&&_selCountries[agg.name];
+        boxes.forEach(function(cb){cb.checked=isSoleSelection?true:(cb.value===agg.name);});
         var allBox=document.getElementById('ms-country').querySelector('.ms-all input');
-        if(allBox)allBox.indeterminate=false;
+        if(allBox){allBox.checked=isSoleSelection;allBox.indeterminate=!isSoleSelection;}
         if(typeof msUpdateLabel==='function')msUpdateLabel('ms-country');
-        if(typeof applyFilters==='function')applyFilters();
         if(tt)tt.style.display='none';
-        /* Sibling sub-tab: the country filter is applied, so drop the user
-           straight into the Gate Matrix rather than leaving them looking at
-           the map they just clicked. */
-        if(typeof showView==='function')showView('matrix');
-        if(typeof swMSub==='function')swMSub('matrix');
+        /* applyFilters re-runs renderOverview, which re-renders this map with
+           the new selection — so stay put and let it repaint under the cursor
+           rather than jumping the user to another sub-tab. */
+        if(typeof applyFilters==='function')applyFilters();
       });
     });
   },0);
