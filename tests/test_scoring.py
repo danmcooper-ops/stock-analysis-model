@@ -62,6 +62,40 @@ class TestEdgarFcfFallback:
         assert r['pfcf'] is None
 
 
+class TestEdgarIntCovFallback:
+    def test_fallback_populates_int_cov_when_yfinance_missing(self):
+        """No yfinance income statement (int_cov None) but EDGAR-derived
+        int_cov_edgar present → int_cov is populated and tagged."""
+        r = {'sector': 'Technology', 'int_cov': None, 'int_cov_edgar': 29.06}
+        prepare_scoring_fields([r])
+        assert r['int_cov'] == pytest.approx(29.06)
+        assert r['_int_cov_source'] == 'edgar'
+
+    def test_existing_yfinance_int_cov_not_overridden(self):
+        """yfinance stays the primary source when it resolved."""
+        r = {'sector': 'Industrials', 'int_cov': 6.05, 'int_cov_edgar': 8.22}
+        prepare_scoring_fields([r])
+        assert r['int_cov'] == pytest.approx(6.05)
+        assert '_int_cov_source' not in r
+
+    def test_financial_services_excluded_from_fallback(self):
+        """Interest is a bank's cost of goods, not a fixed charge to cover —
+        the gate masks the sector, so the fallback must not populate it."""
+        r = {'sector': 'Financial Services', 'int_cov': None,
+             'int_cov_edgar': 1.4}
+        prepare_scoring_fields([r])
+        assert r['int_cov'] is None
+        assert r.get('_int_cov_source') is None
+
+    def test_negative_coverage_propagates(self):
+        """Negative EBIT → negative coverage: a real 'cannot cover interest'
+        read the gate should fail, not suppress into N/A."""
+        r = {'sector': 'Healthcare', 'int_cov': None, 'int_cov_edgar': -2.5}
+        prepare_scoring_fields([r])
+        assert r['int_cov'] == pytest.approx(-2.5)
+        assert r['_int_cov_source'] == 'edgar'
+
+
 class TestSbcXbrlPreference:
     def test_xbrl_value_preferred_over_yfinance(self):
         r = {'sector': 'Technology', 'sbc': 10.0, 'revenue': 1000.0,
@@ -935,18 +969,25 @@ class TestApplicabilityMask:
         bank = _full_row(ticker='BANK', sector='Financial Services')
         generic = _full_row(ticker='TECH')
         apply_screening_matrix([bank, generic])
-        # ebit_ev, fcf_yield, fcf_cagr_5y, int_coverage, net_debt_ebitda
-        # masked for financials; pool_share is inapplicable for BOTH rows
-        # (no edgar_history in the fixture)
-        assert bank['_gates_inapplicable'] == 6
+        # ebit_ev, fcf_yield, fcf_cagr_5y, int_coverage, net_debt_ebitda and
+        # margins masked for financials; pool_share is inapplicable for BOTH
+        # rows (no edgar_history in the fixture)
+        assert bank['_gates_inapplicable'] == 7
         assert generic['_gates_inapplicable'] == 1
         bank_denom = int(bank['_gates_passed'].split('/')[1])
         gen_denom = int(generic['_gates_passed'].split('/')[1])
-        assert gen_denom - bank_denom == 5
+        assert gen_denom - bank_denom == 6
         assert bank['_gp_ebit_ev'] is None
         assert bank['_gp_fcf_yield'] is None
         assert bank['_gp_int_coverage'] is None
         assert bank['_gp_net_debt_ebitda'] is None
+        # Gross margin does not exist for banks/insurers — the gate must be
+        # masked, not silently failed against the denominator. The fixture
+        # supplies a passing gross_margin_trend, so a mask (rather than a
+        # missing-data N/A) is the only thing that can null this out.
+        assert generic['_gp_margins'] is True
+        assert bank['_gp_margins'] is None
+        assert bank['_gate_margins'] is None
 
     def test_inapplicable_scores_are_none_and_category_renormalizes(self):
         """Scores render N/A (None) for inapplicable gates, and the category

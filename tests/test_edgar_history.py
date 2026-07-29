@@ -111,3 +111,53 @@ class TestOpMarginHistory:
         m = derive_edgar_metrics(hist)
         assert m['op_margin_hist_years'] == 2
         assert m['op_margin_avg_10y'] == pytest.approx(0.20)
+
+
+class TestIntCovEdgar:
+    """EBIT / interest expense derived from EDGAR — the fallback for rows
+    where yfinance surfaces no income statement."""
+
+    def test_uses_latest_common_year(self):
+        from scripts.analyze_stock import derive_edgar_metrics
+        hist = {
+            'operating_income_history': {2023: 8000.0, 2024: 8699.0, 2025: 8127.0},
+            'interest_expense_history': {2023: 900.0, 2024: 1058.0, 2025: 1344.0},
+        }
+        m = derive_edgar_metrics(hist)
+        # latest common year 2025: 8127 / 1344
+        assert m['int_cov_edgar'] == pytest.approx(6.046875)
+
+    def test_intersects_years_across_the_two_series(self):
+        """The newest op-income year with no matching interest year is skipped
+        rather than pairing mismatched periods."""
+        from scripts.analyze_stock import derive_edgar_metrics
+        hist = {
+            'operating_income_history': {2023: 1000.0, 2024: 2000.0},
+            'interest_expense_history': {2023: 100.0},
+        }
+        m = derive_edgar_metrics(hist)
+        assert m['int_cov_edgar'] == pytest.approx(10.0)
+
+    def test_negative_ebit_propagates(self):
+        from scripts.analyze_stock import derive_edgar_metrics
+        hist = {
+            'operating_income_history': {2024: -500.0},
+            'interest_expense_history': {2024: 200.0},
+        }
+        m = derive_edgar_metrics(hist)
+        assert m['int_cov_edgar'] == pytest.approx(-2.5)
+
+    def test_zero_or_missing_interest_yields_none(self):
+        from scripts.analyze_stock import derive_edgar_metrics
+        assert derive_edgar_metrics({
+            'operating_income_history': {2024: 500.0},
+            'interest_expense_history': {2024: 0.0},
+        })['int_cov_edgar'] is None
+        assert derive_edgar_metrics({
+            'operating_income_history': {2024: 500.0},
+        })['int_cov_edgar'] is None
+
+    def test_absent_history_yields_none(self):
+        from scripts.analyze_stock import derive_edgar_metrics
+        assert derive_edgar_metrics({})['int_cov_edgar'] is None
+        assert derive_edgar_metrics(None)['int_cov_edgar'] is None

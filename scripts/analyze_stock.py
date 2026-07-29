@@ -203,7 +203,8 @@ def derive_edgar_metrics(edgar_history):
                gross_margin_avg_5y=None, gross_margin_trend=None,
                dividend_cagr_5y=None, shares_cagr_5y=None,
                fcf_edgar=None, rev_growth_vol=None,
-               op_margin_avg_10y=None, op_margin_hist_years=0)
+               op_margin_avg_10y=None, op_margin_hist_years=0,
+               int_cov_edgar=None)
     if not edgar_history:
         return out
 
@@ -214,6 +215,7 @@ def derive_edgar_metrics(edgar_history):
     div_hist = _flow_to_annual(edgar_history.get('dividends_paid_history', {}))
     sh_hist  = _stock_to_annual(edgar_history.get('shares_history', {}))
     op_hist  = _flow_to_annual(edgar_history.get('operating_income_history', {}))
+    ie_hist  = _flow_to_annual(edgar_history.get('interest_expense_history', {}))
 
     if rev_hist:
         sy = sorted(rev_hist.keys())
@@ -286,6 +288,24 @@ def derive_edgar_metrics(edgar_history):
         if len(op_margins) >= 2:
             out['op_margin_avg_10y'] = sum(op_margins) / len(op_margins)
             out['op_margin_hist_years'] = len(op_margins)
+
+    if op_hist and ie_hist:
+        # EBIT / interest expense straight from the filing — the fallback for
+        # the ~37% of non-financial rows where yfinance surfaces no income
+        # statement (AAPL and MSFT among them), leaving Quality: Int Coverage
+        # N/A. Missing-data N/A still counts against the applicable-gate
+        # denominator, so those rows were being scored as a failed leverage
+        # test on absent data rather than bad fundamentals.
+        # Same latest-fiscal-year basis and the same truthiness guards as
+        # calculate_interest_coverage, so the two sources agree where both
+        # resolve (HON: 6.05 either way). Negative EBIT propagates a negative
+        # ratio — a real "cannot cover interest" read the gate should fail,
+        # not suppress. Consumed via the fallback in prepare_scoring_fields.
+        common_iy = sorted(set(op_hist) & set(ie_hist))
+        if common_iy:
+            _oi, _ie = op_hist.get(common_iy[-1]), ie_hist.get(common_iy[-1])
+            if _oi and _ie and _ie > 0:
+                out['int_cov_edgar'] = _oi / _ie
 
     if div_hist:
         dy = sorted(div_hist.keys())
@@ -2922,6 +2942,9 @@ def _main():
                 # EDGAR-derived point-in-time FCF (OCF − capex); scoring uses
                 # it as a fallback for `fcf` when yfinance has no cash flow.
                 'fcf_edgar': _edgar_metrics.get('fcf_edgar'),
+                # EDGAR-derived EBIT/interest; scoring uses it as a fallback
+                # for `int_cov` when yfinance has no income statement.
+                'int_cov_edgar': _edgar_metrics.get('int_cov_edgar'),
                 # Revenue-growth volatility (Quality: Rev Volatility gate) and
                 # the run's risk-free rate (Valuation: FCF Yield gate hurdle).
                 'rev_growth_vol': _edgar_metrics.get('rev_growth_vol'),

@@ -330,9 +330,19 @@ GATES = [
          lambda v, r: v > 0.05 if v is not None else None,
          lambda v, r, pct: _score_linear(v, -0.05, 0.15),
          applicable=_appl_non_financial),
+    # Masked for Financial Services on the same grounds as Int Coverage and
+    # FCF Durability: banks and insurers report no cost of revenue, so gross
+    # margin — and therefore its trend — does not exist for them. 94% of FS
+    # rows resolved to None here, and because a missing-data N/A stays in the
+    # applicable-gate denominator, every one was carrying a guaranteed failed
+    # gate on a metric its filings structurally cannot produce (TRV read
+    # 8/19 with this gate unpassable). The 6% that did resolve were fintech
+    # and exchange names tagging a GrossProfit line — too thin a base to
+    # score the sector on, and inconsistent with masking the other two.
     Gate('Growth: Margins', 'gross_margin_trend',
          lambda v, r: v >= 0 if v is not None else None,
-         lambda v, r, pct: _score_linear(v, -0.05, 0.05)),
+         lambda v, r, pct: _score_linear(v, -0.05, 0.05),
+         applicable=_appl_non_financial),
     Gate('Growth: Fund Growth', 'fundamental_growth',
          lambda v, r: v > 0.03 if v is not None else None,
          lambda v, r, pct: _score_linear(v, 0.0, 0.10)),
@@ -460,6 +470,20 @@ def prepare_scoring_fields(results):
                 fcf = fcf_edgar
                 r['fcf'] = fcf_edgar
                 r['_fcf_source'] = 'edgar'
+        # Same fallback shape for Interest Coverage: yfinance surfaced no
+        # income statement for ~37% of non-financial rows (AAPL and MSFT
+        # included), so Quality: Int Coverage read N/A — and a missing-data
+        # N/A stays in the applicable-gate denominator, scoring those rows as
+        # a FAILED leverage test on absent data. EBIT/interest from EDGAR is
+        # the same ratio off the filing itself; where both sources resolve
+        # they agree (HON: 6.05 either way). Financial Services stays excluded
+        # — interest is a bank's cost of goods, not a fixed charge to cover,
+        # which is why the gate masks the sector outright.
+        if r.get('int_cov') is None and r.get('sector') != 'Financial Services':
+            int_cov_edgar = r.get('int_cov_edgar')
+            if int_cov_edgar is not None:
+                r['int_cov'] = int_cov_edgar
+                r['_int_cov_source'] = 'edgar'
         price = r.get('price')
         # Effective fair value: prefer the DCF; when it's absent (no yfinance
         # cash flow — ~75% of the expanded universe) fall back to a robust
