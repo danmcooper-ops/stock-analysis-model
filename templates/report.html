@@ -839,9 +839,20 @@ td.ct{font-weight:700;}
 .xs-map-wrap svg path[data-iso].hit:active{stroke:#1a252f;stroke-width:1.2;}
 .xs-map-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:0.7em;color:#7f8c9a;justify-content:center;}
 .xs-map-legend-bar{display:inline-block;width:160px;height:10px;border-radius:3px;background:linear-gradient(90deg,#de2d26 0%,#fbeae9 50%,#e6f4ea 50%,#1a9850 100%);vertical-align:middle;}
-[data-theme="dark"] .xs-map-wrap svg path[data-iso]{fill:#1c2128;stroke:#0d1117;}
+/* Empty (no-stocks) countries must stay lighter than the card they sit on.
+   The map's card is inline background:#fff, which the #m-overview-view dark
+   override repaints to #1c2128 — so a #1c2128 fill here would erase the
+   landmass into the card. #2d333b keeps the silhouette readable while still
+   reading as "no data" against the tinted countries. */
+[data-theme="dark"] .xs-map-wrap svg path[data-iso]{fill:#2d333b;stroke:#0d1117;}
 [data-theme="dark"] .xs-map-wrap svg path[data-iso].hit:hover{stroke:#e6edf3;}
-[data-theme="dark"] .xs-map-legend{color:#8b949e;}
+/* !important is required to beat the blanket `[data-theme="dark"] body *
+   {color:#fff !important}` rule, which otherwise forces the legend to plain
+   white and drops the muted-caption treatment this rule intends. */
+[data-theme="dark"] .xs-map-legend,
+[data-theme="dark"] .xs-map-legend span{color:#8b949e !important;}
+/* Keep the "no stocks" legend swatch in step with the empty-country fill. */
+[data-theme="dark"] .xs-map-legend span[style*="background:#e6eaf0"]{background:#2d333b !important;}
 .xsect-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;border-radius:4px;transition:background 0.15s;min-width:0;}
 .xsect-bar-row:hover{background:#f0f4f8;}
 .xsect-bar-label{width:160px;font-size:0.76em;font-weight:600;color:#1a252f;text-align:right;flex-shrink:0;line-height:1.2;min-width:0;overflow-wrap:anywhere;}
@@ -1392,7 +1403,6 @@ td.ct{font-weight:700;}
     <div id="pool-controls" class="pool-controls"></div>
     <div id="pool-chart-area"></div>
     <div id="pool-sector-table"></div>
-    <div class="pool-tt" id="pool-tt"></div>
     <div class="pp-quad-tip" id="pp-quad-tip"></div>
   </div>
   <div id="view-matrix" class="view">
@@ -1406,6 +1416,12 @@ td.ct{font-weight:700;}
     <div id="ph-view" style="display:none"></div>
   </div>
 </div>
+<!-- Shared hover tooltip. Lives outside the .view containers because the World
+     MoS Map (Financial Model -> Dashboard) and the Sector Heatmap / Profit Pool
+     (Sector Analysis) both use it, and `.view{display:none}` would hide it on
+     whichever tab isn't active. position:fixed + pointer-events:none, so it has
+     no layout effect wherever it sits. -->
+<div class="pool-tt" id="pool-tt"></div>
 <div id="det-modal" class="detail-modal" onclick="if(event.target===this)closeDetail()">
   <div class="detail-content">
     <div class="d-header-band">
@@ -2831,7 +2847,11 @@ function renderOverview(){
     +_actionable+' actionable ('+_actionPct+'% BUY or LEAN BUY)'
     +(_worstGate?' &middot; biggest bottleneck: <strong>'+_worstGate.label+'</strong> ('+_worstPct+'% pass rate)':'')
     +(_weakCat?' &middot; weakest category: <strong>'+_weakCat.name+'</strong> ('+_weakAvg+'% avg)':'');
-  var html='<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid #e8edf2">'
+  /* World MoS Map sits above the Gates Summary — the geographic read on the
+     universe frames the gate breakdown that follows. Aggregated from DATA, so
+     it stays stable while the rest of this view follows FD. */
+  var html=renderWorldMosMap();
+  html+='<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid #e8edf2">'
     +'<div style="font-size:1.15em;font-weight:700;color:#1a252f;letter-spacing:0.01em;margin-bottom:5px">Gates Summary</div>'
     +'<div style="font-size:0.78em;color:#64748b;line-height:1.5">'+_subtitle+'</div>'
     +'</div>';
@@ -2987,8 +3007,8 @@ var TC={
   div:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'div_yield',l:'Div Yield',f:'pct'},{k:'payout_ratio',l:'Payout Ratio',f:'pct'},{k:'shareholder_yield',l:'Shrhldr Yld',f:'pct',g:'gow'},{k:'ddm_consecutive_years',l:'Consec Yrs Paid',f:'int'},{k:'dividend_cagr_5y',l:'Div CAGR 5Y',f:'pct'},{k:'ddm_div_cagr',l:'Div CAGR (Hist)',f:'pct'},{k:'ddm_sustainable_growth',l:'Sust. Growth',f:'pct'},{k:'ddm_growth',l:'DDM Growth',f:'pct'},{k:'price',l:'Price',f:'dollar'},{k:'ddm_fv',l:'DDM FV',f:'dollar',g:'gv'},{k:'ddm_h_fv',l:'DDM H-Model',f:'dollar'},{k:'ddm_mc_p10',l:'DDM MC P10',f:'dollar'},{k:'ddm_mc_median',l:'DDM MC Median',f:'dollar'},{k:'ddm_mc_p90',l:'DDM MC P90',f:'dollar'},{k:'ddm_mc_cv',l:'DDM MC CV',f:'n2'},{k:'ddm_eligible',l:'DDM Eligible',f:'bool'},{k:'ddm_reason',l:'DDM Note',f:'text'}]
 };
 TC.prices=[];
-/* Market & Risk tab — the only market-data (as opposed to financial-statement)
-   view in the report. Ordered as a trader reads it: momentum across horizons,
+/* Market tab — the only market-data (as opposed to financial-statement)
+   table view in the report. Ordered as a trader reads it: momentum across horizons,
    then risk-adjusted momentum and volatility, then the liquidity block that
    answers "can I actually build a position in this", then how the name behaved
    in the last three drawdowns, then beta. Momentum is DELIBERATELY not scored —
@@ -2996,7 +3016,12 @@ TC.prices=[];
    trailing-return check the daily routine relies on. Only avg_dollar_volume_3m
    touches ratings, and only as a HOLD cap (see _rating_cap_for_row). */
 TC.mkt=[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'momentum_12_1',l:'Mom 12-1M',f:'pct'},{k:'momentum_6_1',l:'Mom 6-1M',f:'pct'},{k:'momentum_3m',l:'Mom 3M',f:'pct'},{k:'vol_adj_momentum',l:'Vol-Adj Mom',f:'n2'},{k:'realized_vol',l:'Realized Vol',f:'pct'},{k:'avg_dollar_volume_3m',l:'Avg $ Vol (3M)',f:'ds'},{k:'volume_trend',l:'Vol Trend',f:'n2'},{k:'amihud_illiquidity',l:'Price Impact',f:'n2'},{k:'share_turnover_rate',l:'Turnover',f:'pct'},{k:'range_52w_position',l:'52W Range Pos',f:'int'},{k:'pct_from_52w_high',l:'% from High',f:'pct'},{k:'drawdown_2020',l:'2020 COVID DD',f:'pct'},{k:'drawdown_2022',l:'2022 Bear DD',f:'pct'},{k:'drawdown_2008',l:'2008 GFC DD',f:'pct'},{k:'beta_adjusted',l:'Beta (adj)',f:'n2'}];
-var TL={prices:'Charts',val:'Valuation',prof:'Profitability',hlth:'Financial Health',growth:'Growth',proj:'Projections',own:'Ownership',div:'Dividends',mkt:'Market & Risk'};
+/* Key order here IS the display order — renderTSubs and the column-filter
+   optgroup builder both iterate Object.keys(TL) and label from TL[key], so a
+   tab is moved or renamed in this one place. `mkt` sits between Charts and
+   Valuation: both are market-price views, so they read together before the
+   financial-statement tabs begin. */
+var TL={prices:'Charts',mkt:'Market',val:'Valuation',prof:'Profitability',hlth:'Financial Health',growth:'Growth',proj:'Projections',own:'Ownership',div:'Dividends'};
 var tSC='rating',tSA=true;
 /* Same as _mUserSorted, for the Financial Data table. */
 var _tUserSorted=false;
@@ -5308,6 +5333,86 @@ function renderPoolLiquidityInsights(sec){
   return html;
 }
 
+/* Hoisted to module scope so renderWorldMosMap (Financial Model -> Dashboard)
+   and renderCrossSectorDashboard (Sector Analysis) share one definition. */
+function _xsMed(arr){if(!arr||!arr.length)return null;var s=arr.slice().sort(function(a,b){return a-b;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+
+/* === World MoS Map === Median MoS per country across the full universe
+   (DATA, not FD) so the geographic view is stable across the user's other
+   filters. Per-country aggregates feed both the choropleth fill and the
+   hover tooltip. Returns the card HTML and schedules its own post-mount
+   wiring, so a caller only has to drop the return value into the DOM. */
+function renderWorldMosMap(){
+  var _mapAgg={};
+  DATA.forEach(function(d){
+    if(!d.country)return;
+    var iso=COUNTRY_ISO3[d.country];
+    if(!iso)return;
+    var a=_mapAgg[iso]=_mapAgg[iso]||{name:d.country,n:0,mosVals:[],buys:0};
+    a.n++;
+    if(d.mos!=null)a.mosVals.push(d.mos);
+    if(d.rating==='BUY'||d.rating==='LEAN BUY')a.buys++;
+  });
+  Object.keys(_mapAgg).forEach(function(iso){
+    var a=_mapAgg[iso];
+    a.medMos=_xsMed(a.mosVals);
+  });
+  var _mapHtml='<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:14px">'
+    +'<div class="xsect-chart-title">World MoS Map <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(median margin of safety per country · click a country to filter)</span></div>'
+    +'<div class="xs-map-wrap" id="xs-map-wrap">'+WORLD_SVG+'</div>'
+    +'<div class="xs-map-legend"><span>≤−80% MoS</span><span class="xs-map-legend-bar"></span><span>≥+80% MoS</span><span style="margin-left:18px">·</span><span><span style="display:inline-block;width:12px;height:10px;background:#e6eaf0;border-radius:2px;vertical-align:middle"></span> no stocks</span></div>'
+    +'</div>';
+  /* Post-mount: tint each country path by median MoS, attach hover
+     tooltip + click-to-filter handler. Mount after innerHTML applies
+     (same pattern as _heatRender). */
+  setTimeout(function(){
+    var wrap=document.getElementById('xs-map-wrap');if(!wrap)return;
+    var svg=wrap.querySelector('svg');if(!svg)return;
+    var tt=document.getElementById('pool-tt');
+    function fmtPct(v){return (v>=0?'+':'')+(v*100).toFixed(1)+'%';}
+    Array.prototype.forEach.call(svg.querySelectorAll('path[data-iso]'),function(p){
+      var iso=p.getAttribute('data-iso');
+      var agg=_mapAgg[iso];
+      if(!agg){p.style.fill='';return;}
+      p.style.fill=_mosColor(agg.medMos);
+      p.classList.add('hit');
+      /* pointerenter/leave instead of mouseenter/leave so iOS doesn't
+         synthesise a hover before its synthetic click. Touch pointers
+         skip the tooltip entirely — a tap will navigate immediately
+         and the brief tooltip flash is just visual noise. Mouse pointers
+         still get the hover preview. */
+      p.addEventListener('pointerenter',function(e){
+        if(!tt||e.pointerType==='touch')return;
+        var mosTxt=agg.medMos!=null?fmtPct(agg.medMos):'N/A';
+        var col=_mosColor(agg.medMos);
+        tt.innerHTML='<div style="font-weight:700;color:#1a252f;margin-bottom:4px">'+agg.name+'</div>'
+          +'<div style="font-size:0.85em;line-height:1.5"><div><span style="color:#7f8c9a">Median MoS&nbsp;</span><span style="font-weight:700;color:'+col+'">'+mosTxt+'</span></div>'
+          +'<div><span style="color:#7f8c9a">Stocks&nbsp;</span>'+agg.mosVals.length+' / '+agg.n+' priced</div>'
+          +'<div><span style="color:#7f8c9a">BUY rated&nbsp;</span>'+agg.buys+'</div></div>';
+        tt.style.display='block';
+        _placeTip(p.getBoundingClientRect(),tt);
+      });
+      p.addEventListener('pointerleave',function(){if(tt)tt.style.display='none';});
+      p.addEventListener('click',function(){
+        /* Narrow the country multi-select to this country and re-apply. */
+        var boxes=document.querySelectorAll('#ms-country .ms-drop input[type="checkbox"][value]');
+        boxes.forEach(function(cb){cb.checked=(cb.value===agg.name);});
+        var allBox=document.getElementById('ms-country').querySelector('.ms-all input');
+        if(allBox)allBox.indeterminate=false;
+        if(typeof msUpdateLabel==='function')msUpdateLabel('ms-country');
+        if(typeof applyFilters==='function')applyFilters();
+        if(tt)tt.style.display='none';
+        /* Sibling sub-tab: the country filter is applied, so drop the user
+           straight into the Gate Matrix rather than leaving them looking at
+           the map they just clicked. */
+        if(typeof showView==='function')showView('matrix');
+        if(typeof swMSub==='function')swMSub('matrix');
+      });
+    });
+  },0);
+  return _mapHtml;
+}
+
 function renderCrossSectorDashboard(){
   var secs=Object.keys(SECTOR_POOL).sort();
   if(!secs.length)return'';
@@ -5322,7 +5427,6 @@ function renderCrossSectorDashboard(){
      bySecU = universe (DATA), bySecF = filtered (FD).
      topBuysBySec uses FD so the per-bar pills follow the user's filters. */
   var _ACTIONABLE=function(d){return d.rating==='BUY'||d.rating==='LEAN BUY';};
-  function _xsMed(arr){if(!arr||!arr.length)return null;var s=arr.slice().sort(function(a,b){return a-b;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
   function _xsVals(arr,k){if(!arr)return[];return arr.map(function(d){return d[k];}).filter(function(v){return v!=null&&!isNaN(v);});}
   var _bySecU={},_bySecF={};
   DATA.forEach(function(d){if(!d.sector)return;(_bySecU[d.sector]=_bySecU[d.sector]||[]).push(d);});
@@ -5673,82 +5777,10 @@ function renderCrossSectorDashboard(){
     +'<div class="xs-verdicts">'+archetypes.map(_renderVerdictBlock).join('')+'</div>'
     +'<div class="xs-verdict-footer">Margin range '+(minM*100).toFixed(0)+'–'+(maxM*100).toFixed(0)+'% ('+_spread+' pp spread). The gap between the highest- and lowest-margin pools is wide enough that sector-level structure is a material driver of cross-sectional returns at the index level.</div>'
   +'</div>';
-  /* === World MoS Map === Median MoS per country across the full universe
-     (not FD) so the geographic view is stable across the user's other
-     filters. Per-country aggregates feed both the choropleth fill and
-     the hover tooltip. */
-  var _mapAgg={};
-  DATA.forEach(function(d){
-    if(!d.country)return;
-    var iso=COUNTRY_ISO3[d.country];
-    if(!iso)return;
-    var a=_mapAgg[iso]=_mapAgg[iso]||{name:d.country,n:0,mosVals:[],buys:0};
-    a.n++;
-    if(d.mos!=null)a.mosVals.push(d.mos);
-    if(d.rating==='BUY'||d.rating==='LEAN BUY')a.buys++;
-  });
-  Object.keys(_mapAgg).forEach(function(iso){
-    var a=_mapAgg[iso];
-    a.medMos=_xsMed(a.mosVals);
-  });
-  var _mapHtml='<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:0">'
-    +'<div class="xsect-chart-title">World MoS Map <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(median margin of safety per country · click a country to filter)</span></div>'
-    +'<div class="xs-map-wrap" id="xs-map-wrap">'+WORLD_SVG+'</div>'
-    +'<div class="xs-map-legend"><span>≤−80% MoS</span><span class="xs-map-legend-bar"></span><span>≥+80% MoS</span><span style="margin-left:18px">·</span><span><span style="display:inline-block;width:12px;height:10px;background:#e6eaf0;border-radius:2px;vertical-align:middle"></span> no stocks</span></div>'
-    +'</div>';
-  /* Post-mount: tint each country path by median MoS, attach hover
-     tooltip + click-to-filter handler. Mount after innerHTML applies
-     (same pattern as _heatRender). */
-  setTimeout(function(){
-    var wrap=document.getElementById('xs-map-wrap');if(!wrap)return;
-    var svg=wrap.querySelector('svg');if(!svg)return;
-    var tt=document.getElementById('pool-tt');
-    function fmtPct(v){return (v>=0?'+':'')+(v*100).toFixed(1)+'%';}
-    Array.prototype.forEach.call(svg.querySelectorAll('path[data-iso]'),function(p){
-      var iso=p.getAttribute('data-iso');
-      var agg=_mapAgg[iso];
-      if(!agg){p.style.fill='';return;}
-      p.style.fill=_mosColor(agg.medMos);
-      p.classList.add('hit');
-      /* pointerenter/leave instead of mouseenter/leave so iOS doesn't
-         synthesise a hover before its synthetic click. Touch pointers
-         skip the tooltip entirely — a tap will navigate immediately
-         and the brief tooltip flash is just visual noise. Mouse pointers
-         still get the hover preview. */
-      p.addEventListener('pointerenter',function(e){
-        if(!tt||e.pointerType==='touch')return;
-        var mosTxt=agg.medMos!=null?fmtPct(agg.medMos):'N/A';
-        var col=_mosColor(agg.medMos);
-        tt.innerHTML='<div style="font-weight:700;color:#1a252f;margin-bottom:4px">'+agg.name+'</div>'
-          +'<div style="font-size:0.85em;line-height:1.5"><div><span style="color:#7f8c9a">Median MoS&nbsp;</span><span style="font-weight:700;color:'+col+'">'+mosTxt+'</span></div>'
-          +'<div><span style="color:#7f8c9a">Stocks&nbsp;</span>'+agg.mosVals.length+' / '+agg.n+' priced</div>'
-          +'<div><span style="color:#7f8c9a">BUY rated&nbsp;</span>'+agg.buys+'</div></div>';
-        tt.style.display='block';
-        _placeTip(p.getBoundingClientRect(),tt);
-      });
-      p.addEventListener('pointerleave',function(){if(tt)tt.style.display='none';});
-      p.addEventListener('click',function(){
-        /* Narrow the country multi-select to this country and re-apply. */
-        var boxes=document.querySelectorAll('#ms-country .ms-drop input[type="checkbox"][value]');
-        boxes.forEach(function(cb){cb.checked=(cb.value===agg.name);});
-        var allBox=document.getElementById('ms-country').querySelector('.ms-all input');
-        if(allBox)allBox.indeterminate=false;
-        if(typeof msUpdateLabel==='function')msUpdateLabel('ms-country');
-        if(typeof applyFilters==='function')applyFilters();
-        if(tt)tt.style.display='none';
-        /* Jump to Financial Model → Gate Matrix so the country-filtered
-           stocks land in front of the user instead of leaving them on
-           the Overview where the click happened. */
-        if(typeof showView==='function')showView('matrix');
-        if(typeof swMSub==='function')swMSub('matrix');
-      });
-    });
-  },0);
-  /* Overview: World MoS Map → Sector Heatmap. (The Cross-Sector Profit Pool
-     lives on the Charts sub-tab, below the Sector Price Comparison.) */
+  /* Sector Heatmap. (The World MoS Map moved to Financial Model → Dashboard,
+     above the Gates Summary; the Cross-Sector Profit Pool lives on the Charts
+     sub-tab, below the Sector Price Comparison.) */
   return'<div class="xsect-dashboard">'
-    +_mapHtml
-    +'<div style="height:18px"></div>'
     +_heatTableHtml
     +'</div></div>';
 }
