@@ -265,9 +265,30 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
             for tk, seq in hist.items()}
 
 
+def _load_russell2000():
+    """Ticker set for the Russell 2000 quick filter.
+
+    Read from data/russell2000_tickers.txt (dash-style tickers, one per
+    line; refresh via scripts/update_russell2000.py). Loaded at render
+    time so a rescore_and_render picks up a refreshed list without a
+    live run. Missing file degrades to an empty set — the filter then
+    simply matches nothing.
+    """
+    path = os.path.join(_HERE, '..', 'data', 'russell2000_tickers.txt')
+    try:
+        with open(path) as f:
+            return {ln.strip().upper() for ln in f
+                    if ln.strip() and not ln.startswith('#')}
+    except OSError:
+        print("[report_html] russell2000_tickers.txt not found — "
+              "Russell 2000 quick filter will match nothing")
+        return set()
+
+
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None):
     """Render the interactive HTML report via Jinja2 template."""
     rows = _sanitize(rows)
+    _r2000 = _load_russell2000()
     # Prior-run ratings for the "Δ vs prior" column. Sourced from the most
     # recent earlier results_*.json sitting next to this HTML output.
     _out_dir_early = os.path.dirname(os.path.abspath(filename)) or '.'
@@ -316,6 +337,9 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         'description_full': r.get('description') or '',
         'ceo_bio': r.get('ceo_bio') or '',
         'founder_led': r.get('founder_led', False),
+        # Russell 2000 membership (see _load_russell2000). Tickers in the
+        # constituent file are dash-style, matching the model's own tickers.
+        'r2000': (r.get('ticker') or '').upper() in _r2000,
         'fcf': r.get('fcf'),
         'fcf_margin': r.get('fcf_margin'),
         'sbc_pct_rev': r.get('sbc_pct_rev'),

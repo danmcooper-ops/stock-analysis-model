@@ -1361,6 +1361,7 @@ td.ct{font-weight:700;}
             <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
             <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
             <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3).">&#9670; Blue Chip</button>
+            <button class="fpop-toggle-btn" id="f-r2000" onclick="toggleR2000Filter()" title="Only stocks that are current Russell 2000 constituents (small-cap index membership, sourced from Vanguard VTWO holdings at report build time).">&#9671; Russell 2000</button>
             <button class="fpop-toggle-btn" id="f-upgrades" onclick="setRcFilter(1)" title="Only stocks whose rating improved vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9650; Upgrades</button>
             <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose rating declined vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9660; Downgrades</button>
           </div>
@@ -1604,6 +1605,10 @@ function _isBlueChip(d){
   return sound;
 }
 function toggleBlueChipFilter(){_blueChipOnly=!_blueChipOnly;document.getElementById('f-bluechip').classList.toggle('active',_blueChipOnly);applyFilters();}
+/* Russell 2000 membership — d.r2000 is precomputed at render time from
+   data/russell2000_tickers.txt (see report_html.py). */
+var _r2000Only=false;
+function toggleR2000Filter(){_r2000Only=!_r2000Only;document.getElementById('f-r2000').classList.toggle('active',_r2000Only);applyFilters();}
 function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.getElementById('flag-count-label');if(el)el.textContent=n>0?' ('+n+')':'';}
 function _starHtml(tk){return '<span class="flag-star'+(isFlagged(tk)?' flagged':'')+'" onclick="toggleFlag(\''+tk.replace(/'/g,"\\'")+'\',event)" title="Flag">'+(isFlagged(tk)?'\u2691':'\u2690')+'</span>';}
 _updateFlagCount();
@@ -1777,7 +1782,7 @@ function _getCurrentFilterState(){
     cf.push({key:key,min:minR!==''?parseFloat(minR):null,max:maxR!==''?parseFloat(maxR):null});
   });
   st.colFilters=cf;
-  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.revFilter=_revFilter;st.rcFilter=_rcFilter;
+  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.r2000Only=_r2000Only;st.revFilter=_revFilter;st.rcFilter=_rcFilter;
   return st;
 }
 function _applyFilterState(st){
@@ -1810,6 +1815,7 @@ function _applyFilterState(st){
   _flagOnly=!!st.flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);
   _founderOnly=!!st.founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);
   _blueChipOnly=!!st.blueChipOnly;document.getElementById('f-bluechip').classList.toggle('active',_blueChipOnly);
+  _r2000Only=!!st.r2000Only;document.getElementById('f-r2000').classList.toggle('active',_r2000Only);
   _revFilter=st.revFilter|0;
   var rEl=document.getElementById('f-reviewed');
   if(rEl){rEl.classList.toggle('active',_revFilter>0);rEl.innerHTML=_CHK_SVG+' '+(['Reviewed','Unreviewed','Reviewed'])[_revFilter];}
@@ -1899,7 +1905,7 @@ renderSavedFilters();
    reviewed, theme) untouched. Note: the Reviewed/Flagged toggles filter
    against per-device localStorage sets, so a recipient may see different
    rows for those two toggles. Compact keys keep typical URLs short:
-   q=search r/s/c=rating/sector/country cf=[key,min,max] fl/fo/bc/rv=
+   q=search r/s/c=rating/sector/country cf=[key,min,max] fl/fo/bc/r2/rv=
    toggles v/ms/ts=view + sub-tabs. */
 var _restoringHash=false,_hashTimer=null;
 function _stateToParam(){
@@ -1912,6 +1918,7 @@ function _stateToParam(){
   if(st.flagOnly)p.fl=1;
   if(st.founderOnly)p.fo=1;
   if(st.blueChipOnly)p.bc=1;
+  if(st.r2000Only)p.r2=1;
   if(st.revFilter)p.rv=st.revFilter;
   if(st.rcFilter)p.rc=st.rcFilter;
   if(curView!=='pool')p.v=curView;
@@ -1947,7 +1954,7 @@ function _restoreFromHash(){
     if(p.ts)curTSub=p.ts;
     if(p.v&&document.getElementById('view-'+p.v))showView(p.v);
     var st={search:p.q||'',ratings:p.r,sectors:p.s,countries:p.c,
-            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,revFilter:p.rv|0,rcFilter:p.rc|0};
+            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,r2000Only:!!p.r2,revFilter:p.rv|0,rcFilter:p.rc|0};
     st.colFilters=(p.cf||[]).filter(function(c){
       return c&&c[0]&&window._CF_FMT&&(c[0]in window._CF_FMT);
     }).map(function(c){
@@ -2322,6 +2329,7 @@ function applyFilters(){
     if(_flagOnly&&!isFlagged(d.ticker))return false;
     if(_founderOnly&&!d.founder_led)return false;
     if(_blueChipOnly&&!_isBlueChip(d))return false;
+    if(_r2000Only&&!d.r2000)return false;
     if(_revFilter===1&&isReviewed(d.ticker))return false;
     if(_revFilter===2&&!isReviewed(d.ticker))return false;
     /* Rating-change filter: null rating_chg (new ticker or no prior
@@ -2383,7 +2391,7 @@ function applyFilters(){
      filters OR any quick toggle (Reviewed cycle, Flagged, Founder-Led).
      3-state Reviewed filter: state 0 (gray Reviewed) shows all and doesn't
      count; states 1 (Unreviewed) and 2 (Reviewed) are active filters. */
-  var qActive=_flagOnly||_founderOnly||_blueChipOnly||(_revFilter>0)||(_rcFilter>0);
+  var qActive=_flagOnly||_founderOnly||_blueChipOnly||_r2000Only||(_revFilter>0)||(_rcFilter>0);
   var btn=document.getElementById('fpop-btn');
   if(btn)btn.classList.toggle('active',colFilters.length>0||qActive);
   _updateFlagCount();
@@ -2539,6 +2547,7 @@ function clearFilters(){
   _flagOnly=false;document.getElementById('f-flagged').classList.remove('active');
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
   _blueChipOnly=false;document.getElementById('f-bluechip').classList.remove('active');
+  _r2000Only=false;document.getElementById('f-r2000').classList.remove('active');
   _revFilter=0;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.remove('active');rEl.innerHTML=_CHK_SVG+' Reviewed';}
   _rcFilter=0;document.getElementById('f-upgrades').classList.remove('active');document.getElementById('f-downgrades').classList.remove('active');
   _revd={};_saveRevd();_updateRevCount();
