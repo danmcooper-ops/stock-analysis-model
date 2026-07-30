@@ -65,6 +65,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .d-body{padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px!important;display:block!important;flex:1 1 auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;min-height:0!important;}
   .d-body>*{margin-bottom:10px;}
   .d-body>*:last-child{margin-bottom:0;}
+  /* Panes wrap the old .d-body children, so the section spacing has to
+     target the active pane's children; overview drops its desktop flex. */
+  #d-pane-overview.active{display:block!important;}
+  .d-pane.active>*{margin-bottom:10px;}
+  .d-pane.active>*:last-child{margin-bottom:0;}
 }
 /* Phone landscape only: popup fills full screen with compact chrome */
 @media(orientation:landscape) and (max-height:500px){
@@ -79,6 +84,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .d-body{padding:6px 12px calc(6px + env(safe-area-inset-bottom)) 12px!important;display:block!important;flex:1 1 auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;min-height:0!important;}
   .d-body>*{margin-bottom:6px;}
   .d-body>*:last-child{margin-bottom:0;}
+  #d-pane-overview.active{display:block!important;}
+  .d-pane.active>*{margin-bottom:6px;}
+  .d-pane.active>*:last-child{margin-bottom:0;}
 }
 /* Small phones: compact popup header and km-banner */
 @media(max-width:480px){
@@ -151,6 +159,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sub-btn{padding:8px 16px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.8em;font-weight:600;background:white;color:#546e7a;transition:all 0.15s;white-space:nowrap;line-height:1;flex-shrink:0;}
 .sub-btn.active{background:#1a252f;color:white;border-color:#1a252f;}
 .sub-btn:hover:not(.active){background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
+/* Detail-popup tab bar — sits on the dark header gradient in BOTH themes, so
+   the button colors are fixed here rather than theme-dependent. The
+   .d-header-band prefix outranks the [data-theme="dark"] .sub-btn overrides
+   later in this sheet (0,3,0 vs 0,2,0). */
+.d-tabs{margin-top:9px;padding:0;position:relative;z-index:1;}
+/* Undo the sticky/full-width treatment .secondary-nav gets in the main layout
+   (line ~1353: position:sticky + width:100vw) — inside the popup header the
+   bar is a normal block, and the right margin keeps the scrolling tabs clear
+   of the absolutely-positioned reviewed/flag icons at the band's bottom-right. */
+.d-header-band .d-tabs{position:relative;width:auto;margin-right:52px;}
+.d-header-band .d-tabs .sub-btn{background:rgba(255,255,255,0.08);color:#c5d2e0;border-color:rgba(255,255,255,0.18);}
+.d-header-band .d-tabs .sub-btn:hover:not(.active){background:rgba(255,255,255,0.16);color:#fff;border-color:rgba(255,255,255,0.3);}
+.d-header-band .d-tabs .sub-btn.active{background:#fff;color:#0d1f42;border-color:#fff;}
 /* The bar WRAPS when crowded (no hidden horizontal scroll) and keeps
    overflow visible: its dropdowns/panel are position:absolute children
    anchored inside it, and an overflow-clipping bar would cut them off.
@@ -485,6 +506,12 @@ td.ct{font-weight:700;}
 .d-header-band{background:linear-gradient(135deg,#0d1f42 0%,#1a3a6e 55%,#1f4fa0 100%);border-radius:18px 18px 0 0;padding:calc(10px + env(safe-area-inset-top)) 22px 12px;position:-webkit-sticky;position:sticky;top:0;z-index:5;overflow:hidden;}
 .d-header-band::before{content:'';position:absolute;top:-60px;right:-60px;width:220px;height:220px;background:radial-gradient(circle,rgba(255,255,255,0.06) 0%,transparent 70%);pointer-events:none;}
 .d-body{padding:16px 22px 24px;display:flex;flex-direction:column;gap:14px;}
+/* Popup tab panes. Only one is visible at a time; the Overview pane recreates
+   .d-body's original column-flex layout so the wrapped sections keep their
+   14px gaps on desktop (mobile blocks override to display:block + margins). */
+.d-pane{display:none;}
+.d-pane.active{display:block;}
+#d-pane-overview.active{display:flex;flex-direction:column;gap:14px;}
 .dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:84px;justify-content:space-between;}
 .dh-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
@@ -1004,6 +1031,12 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .sub-btn{background:#161b22;color:#c9d1d9;border-color:#30363d;}
 [data-theme="dark"] .sub-btn.active{background:#1f6feb;color:#fff;border-color:#1f6feb;}
 [data-theme="dark"] .sub-btn:hover:not(.active){background:#21262d;border-color:#58a6ff;color:#e6edf3;}
+/* Popup tab bar in dark mode: the "body *" catch-all forces all text white,
+   so the light-mode white-pill active state (navy text) is unreadable here.
+   Use the standard dark active-accent blue instead — text stays white. */
+[data-theme="dark"] .d-header-band .d-tabs .sub-btn{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.18);}
+[data-theme="dark"] .d-header-band .d-tabs .sub-btn.active{background:#1f6feb;border-color:#1f6feb;}
+[data-theme="dark"] .d-header-band .d-tabs .sub-btn:hover:not(.active){background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);}
 [data-theme="dark"] .filter-bar input,[data-theme="dark"] .filter-bar select,[data-theme="dark"] .f-metric-sel,[data-theme="dark"] .f-col-sel,[data-theme="dark"] .f-num,[data-theme="dark"] .ms-btn{background:#0d1117;color:#e6edf3;border-color:#30363d;}
 [data-theme="dark"] .f-num::placeholder{color:#6e7681;opacity:1;}
 [data-theme="dark"] .f-col-sel option{background:#0d1117;color:#e6edf3;}
@@ -1434,8 +1467,10 @@ td.ct{font-weight:700;}
       <div class="d-pos-bottom"><span class="det-nav-pos"></span></div>
       <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div></div>
       <div class="d-mini-nav-actions"><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
+      <div class="secondary-nav d-tabs" id="d-tabs"></div>
     </div>
     <div class="d-body">
+      <div id="d-pane-overview" class="d-pane active">
       <div id="d-kmetrics" class="d-kmetrics"></div>
       <div id="d-gate-values" class="d-gate-values"></div>
       <div id="d-section-price" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Price History</div><div style="padding:14px 16px;background:var(--surface)"><div class="dp-ranges" id="dp-ranges" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;align-items:center"></div><div id="dp-tip-bar" style="min-height:24px;font-size:0.86em"></div><div id="dp-chart"></div></div></div>
@@ -1448,6 +1483,18 @@ td.ct{font-weight:700;}
       <div id="d-section-profitpool" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Sector Analysis</div><div class="dgrid-inner" id="d-profitpool-content"></div></div>
       <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
       <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:var(--surface)"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
+      </div><!-- /d-pane-overview -->
+      <div id="d-pane-charts" class="d-pane">
+        <div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Charts</div>
+          <div style="padding:14px 16px;background:var(--surface)">
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 6px"><div style="font-size:0.72em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em">Metric</div><div id="dtc-metric-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div></div>
+            <div class="ph-ranges" id="dtc-ranges"></div>
+            <div id="dtc-tip-bar" style="min-height:28px;font-size:0.86em"></div>
+            <div id="dtc-chart"></div>
+          </div>
+        </div>
+      </div>
+      <div id="d-pane-data" class="d-pane"></div>
     </div>
   </div>
   <div id="popup-tip"></div>
@@ -1929,7 +1976,10 @@ renderSavedFilters();
    against per-device localStorage sets, so a recipient may see different
    rows for those two toggles. Compact keys keep typical URLs short:
    q=search r/s/c=rating/sector/country cf=[key,min,max] fl/fo/bc/r2/rv=
-   toggles v/ms/ts=view + sub-tabs. */
+   toggles v/ms/ts=view + sub-tabs. The detail popup's active tab (_detTab)
+   is deliberately NOT encoded: the popup's ticker isn't hash state either,
+   so a persisted tab key could never restore anything on its own —
+   deep-linkable popups (ticker + tab) would be a separate feature. */
 var _restoringHash=false,_hashTimer=null;
 function _stateToParam(){
   var st=_getCurrentFilterState(),p={};
@@ -3286,7 +3336,13 @@ function _dtOnScroll(){
 function tSort(col){_tUserSorted=true;if(tSC===col)tSA=!tSA;else{tSC=col;tSA=true;}renderTable();}
 
 /* === PRICE HISTORY === */
-var _phStocks=[],_phRange='MAX',_phInited=false,_phState=null,_phMetric='price';
+/* _phStates: hover-state per chart instance, keyed by ctx.key. Key '' is the
+   top-level Financial Data → Charts view; '-dtc' is the detail-popup Charts
+   tab. Both render through _phRenderSVG with a ctx describing their target
+   elements, so generated SVG ids are suffixed with the key to keep the two
+   instances from colliding (incl. the ph-g gradient, which resolves
+   document-wide). */
+var _phStocks=[],_phRange='MAX',_phInited=false,_phStates={},_phMetric='price';
 var _phPalette=['#16a34a','#2563eb','#dc2626','#d97706','#7c3aed','#0891b2','#be185d','#65a30d','#b45309','#6366f1'];
 var _PH_METRICS=[
   {k:'price',  lbl:'Price',         unit:'$',  fmt:'money',  src:'price'},
@@ -3480,11 +3536,12 @@ function phSetRange(r){
   document.querySelectorAll('.ph-range-btn').forEach(function(b){b.classList.toggle('active',b.dataset.range===r);});
   renderPHChart();
 }
-function _phGetPricePts(ticker){
+function _phGetPricePts(ticker,range){
+  range=range||_phRange;
   if(!PRICES||!PRICES.prices[ticker])return[];
   var allD=PRICES.dates,allP=PRICES.prices[ticker];
   var now=new Date();
-  var cutMs={'1M':31,'3M':92,'6M':184,'1YR':366,'5YR':1827,'10YR':3653,'20YR':7305}[_phRange];
+  var cutMs={'1M':31,'3M':92,'6M':184,'1YR':366,'5YR':1827,'10YR':3653,'20YR':7305}[range];
   var cutoff=cutMs?new Date(+now-cutMs*86400000):null;
   var pts=[];
   for(var i=0;i<allD.length;i++){
@@ -3493,12 +3550,13 @@ function _phGetPricePts(ticker){
   }
   return pts;
 }
-function _phGetHistPts(ticker,metricKey){
+function _phGetHistPts(ticker,metricKey,range){
+  range=range||_phRange;
   if(!HIST||!HIST[ticker])return[];
   var h=HIST[ticker];
   // Series are keyed by period-end date string ("YYYY-MM-DD"). Sort
   // lexicographically (works because format is fixed-width zero-padded).
-  var yrSpan={'1M':1,'3M':1,'6M':1,'1YR':1,'5YR':5,'10YR':10,'20YR':20}[_phRange];
+  var yrSpan={'1M':1,'3M':1,'6M':1,'1YR':1,'5YR':5,'10YR':10,'20YR':20}[range];
   var minDate=null;
   if(yrSpan){var md=new Date();md.setFullYear(md.getFullYear()-yrSpan);minDate=md.toISOString().slice(0,10);}
   function _keys(obj){var ks=[];for(var k in obj)ks.push(k);ks.sort();return ks;}
@@ -3557,16 +3615,21 @@ function _phFmtDate(dateStr,pts,annual){
   if(spanDays>400)return mo[d.getMonth()]+'\''+String(d.getFullYear()).slice(2);
   return mo[d.getMonth()]+' '+d.getDate();
 }
-function _phRenderSVG(allRaw,refs){
-  var el=document.getElementById('ph-chart');if(!el)return;
-  var def=_phMetricDef(_phMetric);
+function _phRenderSVG(allRaw,refs,ctx){
+  /* ctx: {key, chartId, tipId, stocks, metric} — defaults reproduce the
+     top-level Charts view exactly (key '' keeps every generated id
+     byte-identical to the pre-ctx code). */
+  ctx=ctx||{key:'',chartId:'ph-chart',tipId:'ph-tip-bar',stocks:_phStocks,metric:_phMetric};
+  var K=ctx.key;
+  var el=document.getElementById(ctx.chartId);if(!el)return;
+  var def=_phMetricDef(ctx.metric);
   var annual=(def.src==='hist');
   /* build valid series objects */
-  var series=allRaw.map(function(pts,i){return{tk:_phStocks[i],col:_phPalette[i%_phPalette.length],raw:pts};}).filter(function(s){return s.raw&&s.raw.length>=2;});
+  var series=allRaw.map(function(pts,i){return{tk:ctx.stocks[i],col:_phPalette[i%_phPalette.length],raw:pts};}).filter(function(s){return s.raw&&s.raw.length>=2;});
   if(!series.length){
     var msg=annual?'No historical data for this selection.':'No data for this range.';
-    el.innerHTML='<p style="color:#888;padding:20px;text-align:center">'+msg+'</p>';_phState=null;
-    var _tb=document.getElementById('ph-tip-bar');if(_tb)_tb.innerHTML='';
+    el.innerHTML='<p style="color:#888;padding:20px;text-align:center">'+msg+'</p>';_phStates[K]=null;
+    var _tb=document.getElementById(ctx.tipId);if(_tb)_tb.innerHTML='';
     return;
   }
   var VW=900,VH=280,PL=72,PR=20,PT=20,PB=42;
@@ -3617,24 +3680,24 @@ function _phRenderSVG(allRaw,refs){
   var linesSVG='',dotsSVG='';
   series.forEach(function(s,si){
     var pp=s.pts.map(function(p,i){return xOf(i,s.pts.length).toFixed(1)+','+yOf(p.c).toFixed(1);}).join(' ');
-    if(!cmpMode){var fp=pp+' '+xOf(s.pts.length-1,s.pts.length).toFixed(1)+','+(PT+iH)+' '+PL+','+(PT+iH);linesSVG+='<polygon points="'+fp+'" fill="url(#ph-g)"/>';}
+    if(!cmpMode){var fp=pp+' '+xOf(s.pts.length-1,s.pts.length).toFixed(1)+','+(PT+iH)+' '+PL+','+(PT+iH);linesSVG+='<polygon points="'+fp+'" fill="url(#ph-g'+K+')"/>';}
     linesSVG+='<polyline points="'+pp+'" fill="none" stroke="'+s.col+'" stroke-width="'+(cmpMode?1.6:1.8)+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';
-    dotsSVG+='<circle id="ph-dc'+si+'" cx="0" cy="0" r="4" fill="white" stroke="'+s.col+'" stroke-width="2" opacity="0" pointer-events="none"/>';
+    dotsSVG+='<circle id="ph-dc'+K+si+'" cx="0" cy="0" r="4" fill="white" stroke="'+s.col+'" stroke-width="2" opacity="0" pointer-events="none"/>';
   });
   /* tip bar */
-  var tb=document.getElementById('ph-tip-bar');
+  var tb=document.getElementById(ctx.tipId);
   if(tb)tb.innerHTML=_phTipHtml(series,cmpMode,null,def,annual);
-  var svg='<svg id="ph-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
-    +' onmousemove="phMove(event)" onmouseleave="phLeave()"'
-    +' ontouchstart="phTouch(event)" ontouchmove="phTouch(event)" ontouchend="phLeave()" ontouchcancel="phLeave()">'
-    +'<defs><linearGradient id="ph-g" x1="0" y1="0" x2="0" y2="1">'
+  var svg='<svg id="ph-svg'+K+'" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
+    +' onmousemove="phMove(event,\''+K+'\')" onmouseleave="phLeave(\''+K+'\')"'
+    +' ontouchstart="phTouch(event,\''+K+'\')" ontouchmove="phTouch(event,\''+K+'\')" ontouchend="phLeave(\''+K+'\')" ontouchcancel="phLeave(\''+K+'\')">'
+    +'<defs><linearGradient id="ph-g'+K+'" x1="0" y1="0" x2="0" y2="1">'
     +'<stop offset="0%" stop-color="'+series[0].col+'" stop-opacity="0.15"/><stop offset="100%" stop-color="'+series[0].col+'" stop-opacity="0.01"/>'
     +'</linearGradient></defs>'
     +yH+xH+zeroSVG+refSVG+linesSVG+dotsSVG
-    +'<line id="ph-vl" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0"/>'
+    +'<line id="ph-vl'+K+'" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0"/>'
     +'</svg>';
   el.innerHTML=svg;
-  _phState={series:series,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,minP:minP,pRange:pRange,cmpMode:cmpMode,def:def,annual:annual};
+  _phStates[K]={series:series,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,minP:minP,pRange:pRange,cmpMode:cmpMode,def:def,annual:annual,ctx:ctx};
 }
 function _phTipHtml(series,cmpMode,relX,def,annual){
   def=def||_phMetricDef(_phMetric);
@@ -3665,33 +3728,36 @@ function _phTipHtml(series,cmpMode,relX,def,annual){
   tip+='<span style="color:#aab;font-size:0.82em;margin-left:4px">'+dateStr+'</span>';
   return tip;
 }
-function phMove(e){
-  if(!_phState)return;var s=_phState;
-  var svg=document.getElementById('ph-svg');if(!svg)return;
+function phMove(e,key){
+  key=key||'';
+  var s=_phStates[key];if(!s)return;
+  var svg=document.getElementById('ph-svg'+key);if(!svg)return;
   var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
   var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
-  if(sp.x<s.PL||sp.x>s.PL+s.iW||sp.y<s.PT||sp.y>s.PT+s.iH){phLeave();return;}
+  if(sp.x<s.PL||sp.x>s.PL+s.iW||sp.y<s.PT||sp.y>s.PT+s.iH){phLeave(key);return;}
   var relX=Math.max(0,Math.min(sp.x-s.PL,s.iW));
-  var vl=document.getElementById('ph-vl');
+  var vl=document.getElementById('ph-vl'+key);
   s.series.forEach(function(sr,si){
     var idx=Math.max(0,Math.min(sr.pts.length-1,Math.round(relX/s.iW*(sr.pts.length-1))));
     var x=(s.PL+(idx/(sr.pts.length-1||1))*s.iW).toFixed(1),y=(s.PT+s.iH-((sr.pts[idx].c-s.minP)/s.pRange)*s.iH).toFixed(1);
     if(si===0&&vl){vl.setAttribute('x1',x);vl.setAttribute('x2',x);vl.setAttribute('opacity','1');}
-    var dc=document.getElementById('ph-dc'+si);if(dc){dc.setAttribute('cx',x);dc.setAttribute('cy',y);dc.setAttribute('opacity','1');}
+    var dc=document.getElementById('ph-dc'+key+si);if(dc){dc.setAttribute('cx',x);dc.setAttribute('cy',y);dc.setAttribute('opacity','1');}
   });
-  var tb=document.getElementById('ph-tip-bar');if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,relX/s.iW*(s.series[0].pts.length-1),s.def,s.annual);
+  var tb=document.getElementById(s.ctx.tipId);if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,relX/s.iW*(s.series[0].pts.length-1),s.def,s.annual);
 }
-function phLeave(){
-  if(!_phState)return;var s=_phState;
-  var vl=document.getElementById('ph-vl');if(vl)vl.setAttribute('opacity','0');
-  s.series.forEach(function(sr,si){var dc=document.getElementById('ph-dc'+si);if(dc)dc.setAttribute('opacity','0');});
-  var tb=document.getElementById('ph-tip-bar');if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,null,s.def,s.annual);
+function phLeave(key){
+  key=key||'';
+  var s=_phStates[key];if(!s)return;
+  var vl=document.getElementById('ph-vl'+key);if(vl)vl.setAttribute('opacity','0');
+  s.series.forEach(function(sr,si){var dc=document.getElementById('ph-dc'+key+si);if(dc)dc.setAttribute('opacity','0');});
+  var tb=document.getElementById(s.ctx.tipId);if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,null,s.def,s.annual);
 }
-function phTouch(e){
-  if(!_phState||!e.touches||!e.touches.length)return;
+function phTouch(e,key){
+  key=key||'';
+  if(!_phStates[key]||!e.touches||!e.touches.length)return;
   var t=e.touches[0];
   if(e.cancelable)e.preventDefault();
-  phMove({clientX:t.clientX,clientY:t.clientY});
+  phMove({clientX:t.clientX,clientY:t.clientY},key);
 }
 /* === DETAIL POPUP PRICE CHART === */
 var _dpRange='MAX',_dpTicker=null,_dpState=null;
@@ -3891,6 +3957,81 @@ function _renderDetPriceChart(ticker){
     rEl.innerHTML=ranges;
   }
   _dpRenderChart();
+}
+
+/* === DETAIL POPUP CHARTS TAB === */
+/* Single-company chart with the same metric set as the top-level Charts view
+   (_PH_METRICS: price + annual fundamentals), rendered through the shared
+   _phRenderSVG with ctx key '-dtc' so its SVG ids can't collide with the
+   top-level instance. Metric/range persist across companies and reopen,
+   like _dpRange does for the Overview price chart. */
+var _dtcMetric='price',_dtcRange='MAX';
+function _dtcCtx(){return{key:'-dtc',chartId:'dtc-chart',tipId:'dtc-tip-bar',stocks:[_dpTicker],metric:_dtcMetric};}
+function dtcSetMetric(k){
+  if(_dtcMetric===k)return;
+  _dtcMetric=k;
+  var def=_phMetricDef(k);
+  /* Annual data is meaningful from 1YR up — same bump as phSetMetric. */
+  if(def.src==='hist'&&['1M','3M','6M'].indexOf(_dtcRange)>=0)_dtcRange='1YR';
+  _dtcRender();
+}
+function dtcSetRange(r){_dtcRange=r;_dtcRender();}
+function _dtcButtons(){
+  var mb=document.getElementById('dtc-metric-btns');
+  if(mb){
+    var hasHist=HIST&&Object.keys(HIST).length>0;
+    if(!HIST&&_HIST_AVAILABLE&&!_HIST_LOADING){
+      _HIST_LOADING=true;
+      _loadSidecar('hist.json',function(d){_HIST_LOADING=false;HIST=d;if(_detTab==='charts')_dtcRender();});
+    }
+    mb.innerHTML=_PH_METRICS.map(function(m){
+      var dis=(m.src==='hist'&&!hasHist)?' disabled':'';
+      return '<button class="ph-metric-btn'+(m.k===_dtcMetric?' active':'')+'"'+dis+' onclick="dtcSetMetric(\''+m.k+'\')" title="'+m.lbl+'">'+m.lbl+'</button>';
+    }).join('');
+  }
+  var rc=document.getElementById('dtc-ranges');
+  if(rc)rc.innerHTML=['1M','3M','6M','1YR','5YR','10YR','20YR','MAX'].map(function(r){
+    return '<button class="ph-range-btn'+(r===_dtcRange?' active':'')+'" onclick="dtcSetRange(\''+r+'\')">'+r+'</button>';
+  }).join('');
+}
+function _dtcRender(){
+  var tk=_dpTicker;if(!tk)return;
+  _dtcButtons();
+  var def=_phMetricDef(_dtcMetric);
+  var el=document.getElementById('dtc-chart');if(!el)return;
+  var tb=document.getElementById('dtc-tip-bar');
+  /* Re-render only if the popup still shows this ticker on the Charts tab
+     when a lazy sidecar lands — same stale-guard idea as _renderDetPriceChart. */
+  var live=function(){return _dpTicker===tk&&_detTab==='charts';};
+  if(def.src==='price'){
+    if(!PRICES){
+      if(!_PRICES_AVAILABLE){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Price history not available for this report.</p>';if(tb)tb.innerHTML='';return;}
+      el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Loading price history…</p>';if(tb)tb.innerHTML='';
+      if(_PRICES_LOADING){
+        var poll=setInterval(function(){if(!_PRICES_LOADING){clearInterval(poll);if(live())_dtcRender();}},120);
+        return;
+      }
+      _PRICES_LOADING=true;
+      _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;if(live())_dtcRender();});
+      return;
+    }
+  }else{
+    if(!HIST){
+      if(!_HIST_AVAILABLE){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Historical fundamentals not available for this report.</p>';if(tb)tb.innerHTML='';return;}
+      el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Loading historical fundamentals…</p>';if(tb)tb.innerHTML='';
+      /* _dtcButtons above already kicked off the hist.json load; if another
+         view started it first, poll for completion (its callback won't
+         re-render this pane). */
+      if(_HIST_LOADING){
+        var hpoll=setInterval(function(){if(!_HIST_LOADING){clearInterval(hpoll);if(live())_dtcRender();}},120);
+      }
+      return;
+    }
+  }
+  var pts=def.src==='price'?_phGetPricePts(tk,_dtcRange):_phGetHistPts(tk,_dtcMetric,_dtcRange);
+  var d=DATA.find(function(x){return x.ticker===tk;});
+  var refs=(def.src==='price'&&d)?{dcf:d.dcf_fv,hi:d.high_52w,lo:d.low_52w}:null;
+  _phRenderSVG([pts],refs,_dtcCtx());
 }
 
 /* === TICKER HOVER TOOLTIP === */
@@ -4198,9 +4339,61 @@ function _renderTrackRecord(d){
   sec.style.display='';
 }
 /* === DETAIL === */
+/* Popup tab bar: Overview (all the classic sections) + Charts (single-company
+   _dtc chart) + one tab per Financial Data table view, rendered per-company.
+   The data tabs come straight from TL/TC, so a table tab added or renamed
+   there shows up here automatically ('prices' is excluded — the popup has its
+   own single-company Charts tab instead of the multi-ticker compare view). */
+var _detTab='overview';
+function _detTabs(){
+  var t=[{k:'overview',l:'Overview'},{k:'charts',l:'Charts'}];
+  Object.keys(TL).forEach(function(k){if(k!=='prices')t.push({k:k,l:TL[k]});});
+  return t;
+}
+function _renderDetTabBar(){
+  var el=document.getElementById('d-tabs');if(!el)return;
+  el.innerHTML=_detTabs().map(function(t){
+    return '<button class="sub-btn'+(t.k===_detTab?' active':'')+'" onclick="swDetTab(\''+t.k+'\')">'+t.l+'</button>';
+  }).join('');
+}
+function swDetTab(k){
+  _detTab=k;
+  _renderDetTabBar();
+  document.querySelectorAll('#det-modal .d-pane').forEach(function(p){p.classList.remove('active');});
+  var id=k==='overview'?'d-pane-overview':k==='charts'?'d-pane-charts':'d-pane-data';
+  var pane=document.getElementById(id);if(pane)pane.classList.add('active');
+  if(k==='charts')_dtcRender();
+  else if(k!=='overview')_renderDetDataTab(k);
+  var sc=_detScroller();if(sc)sc.scrollTop=0;
+}
+/* Identity columns that make no sense as per-company key/value rows — the
+   ticker and rating already live in the popup header (mirrors _CF_ID). */
+var _DT_SKIP={ticker:1,rating:1,rating_prev:1};
+function _renderDetDataTab(key){
+  var el=document.getElementById('d-pane-data');if(!el)return;
+  var d=DATA.find(function(x){return x.ticker===_dpTicker;});
+  var cols=(TC[key]||[]).filter(function(c){return !_DT_SKIP[c.k]&&c.f!=='rating'&&c.f!=='ar';});
+  if(!d||!cols.length){el.innerHTML='';return;}
+  var h='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>'+esc(TL[key]||key)
+    +'</div><div style="padding:14px 16px;background:var(--surface)"><div class="dkvg">';
+  cols.forEach(function(c){
+    var f=ftc(d[c.k],c.f);
+    var tipAttr=tt(c.k)?' data-dkv-tip="'+c.k+'"':'';
+    var na=d[c.k]==null?' style="color:#9aa5b1;font-weight:400"':'';
+    h+='<div class="dkv"><span class="kl"'+tipAttr+'>'+esc(c.l)+'</span><span class="kv"'+na+'>'+esc(f.t)+'</span></div>';
+  });
+  h+='</div></div></div>';
+  el.innerHTML=h;
+}
 function openDet(tk){
   var d=DATA.find(function(x){return x.ticker===tk;});
   if(!d)return;
+  /* Fresh open starts on Overview; if the popup is already open (prev/next
+     navigation, or the re-entrant re-render when details.json lands) the
+     active tab is preserved. swDetTab at the end of this function re-renders
+     the active Charts/data pane for the (possibly new) ticker. */
+  var _wasOpen=document.getElementById('det-modal').classList.contains('open');
+  if(!_wasOpen)_detTab='overview';
   /* Heavy text fields (news, legal, insider txns, full description, sector
      signals, fin summary, culture) live in details.json, kicked off lazy
      on page boot. If the user opens a panel before it lands, render now
@@ -4631,6 +4824,7 @@ function openDet(tk){
   document.getElementById('d-section-profitpool').style.display=ppShow?'':'none';
 
   var _dm=document.getElementById('det-modal');
+  swDetTab(_detTab);
   _dm.classList.add('open');
   document.body.style.overflow='hidden';
 }
