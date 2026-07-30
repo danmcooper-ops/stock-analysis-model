@@ -512,6 +512,10 @@ td.ct{font-weight:700;}
 .d-pane{display:none;}
 .d-pane.active{display:block;}
 #d-pane-overview.active{display:flex;flex-direction:column;gap:14px;}
+/* Charts/data panes hold multiple stacked blocks (price chart + metric chart
+   + track record; data dgroup + intrinsic dgroup) — space them like the
+   overview flex gap. Scoped: overview's flex gap must not double up. */
+#d-pane-charts.active>*+*,#d-pane-data.active>*+*{margin-top:14px;}
 .dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:84px;justify-content:space-between;}
 .dh-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
@@ -1473,19 +1477,16 @@ td.ct{font-weight:700;}
       <div id="d-pane-overview" class="d-pane active">
       <div id="d-kmetrics" class="d-kmetrics"></div>
       <div id="d-gate-values" class="d-gate-values"></div>
-      <div id="d-section-price" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Price History</div><div style="padding:14px 16px;background:var(--surface)"><div class="dp-ranges" id="dp-ranges" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;align-items:center"></div><div id="dp-tip-bar" style="min-height:24px;font-size:0.86em"></div><div id="dp-chart"></div></div></div>
-      <div class="dgrid" id="d-intrinsic"></div>
       <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
       <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
-      <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span>The Track Record</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
       <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
-      <div class="dgrid" id="d-grid"></div>
       <div id="d-section-profitpool" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Sector Analysis</div><div class="dgrid-inner" id="d-profitpool-content"></div></div>
       <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
       <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:var(--surface)"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
       </div><!-- /d-pane-overview -->
       <div id="d-pane-charts" class="d-pane">
-        <div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Charts</div>
+        <div id="d-section-price" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Price History</div><div style="padding:14px 16px;background:var(--surface)"><div class="dp-ranges" id="dp-ranges" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;align-items:center"></div><div id="dp-tip-bar" style="min-height:24px;font-size:0.86em"></div><div id="dp-chart"></div></div></div>
+        <div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Fundamental Charts</div>
           <div style="padding:14px 16px;background:var(--surface)">
             <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 6px"><div style="font-size:0.72em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em">Metric</div><div id="dtc-metric-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div></div>
             <div class="ph-ranges" id="dtc-ranges"></div>
@@ -1493,6 +1494,7 @@ td.ct{font-weight:700;}
             <div id="dtc-chart"></div>
           </div>
         </div>
+        <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span>The Track Record</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
       </div>
       <div id="d-pane-data" class="d-pane"></div>
     </div>
@@ -4355,15 +4357,15 @@ var DT_TABS=[
  {k:'mkt',l:'Market',groups:[
   {t:'Momentum',cols:[{k:'momentum_12_1'},{k:'momentum_6_1'},{k:'momentum_3m'},{k:'vol_adj_momentum'}]},
   {t:'Liquidity',cols:[{k:'avg_dollar_volume_3m'},{k:'volume_trend'},{k:'amihud_illiquidity'},{k:'share_turnover_rate'}]},
-  {t:'52-Week Range',cols:[{k:'range_52w_position'},{k:'pct_from_52w_high'},{k:'pct_from_52w_low',l:'% from Low',f:'pct'}]},
+  {t:'52-Week Range',cols:[{k:'high_52w',l:'52W High',f:'dollar'},{k:'low_52w',l:'52W Low',f:'dollar'},{k:'range_52w_position'},{k:'pct_from_52w_high'},{k:'pct_from_52w_low',l:'% from Low',f:'pct'}]},
   {t:'Risk & Beta',cols:[{k:'realized_vol'},{k:'beta_adjusted'},{k:'beta_raw',l:'Beta (raw)',f:'n2'},{k:'beta_r2',l:'Beta R²',f:'n2'},{k:'beta_n_obs',l:'Beta Obs (mo)',f:'int'},{k:'drawdown_2020'},{k:'drawdown_2022'},{k:'drawdown_2008'}]}
- ]},
+ ],extra:_detRollingBetaHtml},
  {k:'val',l:'Valuation',groups:[
-  {t:'Price & Multiples',cols:[{k:'price'},{k:'pe'},{k:'ev_ebitda'},{k:'pfcf'},{k:'pb'},{k:'p_tbv'},{k:'tangible_book_per_share',l:'Tangible Book/Shr',f:'dollar'}]},
-  {t:'DCF',cols:[{k:'dcf_fv'},{k:'mos'},{k:'er',l:'Expected Return',f:'pct'},{k:'wacc'},{k:'implied_growth'},{k:'terminal_growth'},{k:'_sens_low'},{k:'_sens_high'}]},
-  {t:'Monte Carlo',cols:[{k:'mc_p10_fv'},{k:'mc_p90_fv'},{k:'mc_confidence'}]},
-  {t:'Alternative Models',cols:[{k:'epv_fv'},{k:'rim_fv'},{k:'nav_fv'},{k:'nav_mos'},{k:'ddm_fv',sec:1},{k:'ddm_h_fv',sec:1}]}
- ]},
+  /* The full Intrinsic Value block (DCF, Monte Carlo, DDM, EPV/RIM/NAV,
+     assumptions strip) renders via the `after` hook — this group carries
+     only what that block doesn't: the trading multiples. */
+  {t:'Price & Multiples',cols:[{k:'price'},{k:'pe'},{k:'ev_ebitda'},{k:'pfcf'},{k:'pb'},{k:'p_tbv'},{k:'epv_pfv',l:'EPV P/FV',f:'n2'},{k:'tangible_book_per_share',l:'Tangible Book/Shr',f:'dollar'}]}
+ ],after:_detIntrinsicHtml},
  {k:'prof',l:'Profitability',groups:[
   {t:'Returns on Capital',cols:[{k:'roic'},{k:'roic_cv'},{k:'spread'},{k:'roe'},{k:'roa',l:'ROA',f:'pct'}]},
   {t:'DuPont',cols:[{k:'dupont_margin'},{k:'dupont_turnover'},{k:'dupont_leverage'}]},
@@ -4377,26 +4379,24 @@ var DT_TABS=[
   {t:'Liquidity & Working Capital',cols:[{k:'cr'},{k:'inventory_days'},{k:'working_capital_days'}]},
   {t:'Distress & Manipulation',cols:[{k:'altman_z'},{k:'beneish_m'},{k:'goodwill_pct',l:'Goodwill %',f:'pct',sec:1}]},
   {t:'Bank Health',cols:[{k:'cet1_ratio',sec:1},{k:'npl_ratio',sec:1}]}
- ]},
+ ],extra:_detEdgarWarnHtml},
  {k:'growth',l:'Growth',groups:[
   {t:'Growth Engine',cols:[{k:'reinvestment_rate'},{k:'fundamental_growth'},{k:'margin_trend'},{k:'rule_of_40',l:'Rule of 40',f:'n1',sec:1}]},
   {t:'Track Record',cols:[{k:'rev_cagr'},{k:'rev_cagr_5y'},{k:'rev_cagr_10y'},{k:'fcf_growth'},{k:'surprise_avg',l:'Earnings Surprise Avg',f:'pct'}]},
-  {t:'Street Estimates',cols:[{k:'analyst_ltg',l:'Analyst LT Growth',f:'pct'}]},
   {t:'Reinvestment',cols:[{k:'capex_intensity'},{k:'capex_to_dd_ratio'}]},
   {t:'Sector Growth',cols:[{k:'ffo_growth_5y',sec:1},{k:'deferred_rev_growth',sec:1},{k:'backlog_to_revenue',sec:1},{k:'book_to_bill_proxy',l:'Book-to-Bill',f:'n2',sec:1},{k:'brand_spend_trend',l:'Brand Spend Trend',f:'pct',sec:1},{k:'fda_pipeline_count',l:'FDA Pipeline',f:'int',sec:1}]}
- ]},
+ ],extra:_detStreetHtml},
  {k:'own',l:'Ownership & Returns',groups:[
   {t:'Share Structure',cols:[{k:'shares_out'},{k:'float_shares'},{k:'insider_pct'},{k:'inst_pct'}]},
   {t:'Short Interest',cols:[{k:'shares_short',l:'Shares Short',f:'ds'},{k:'short_ratio'},{k:'short_pct_float'}]},
-  {t:'Insider Activity (12M)',cols:[{k:'insider_buy_count_365d',l:'Insider Buys',f:'int',sec:1},{k:'insider_sell_count_365d',l:'Insider Sells',f:'int',sec:1},{k:'insider_net_shares',l:'Net Shares',f:'ds',sec:1},{k:'insider_buy_ratio',l:'Buy Ratio',f:'pct',sec:1}]},
-  {t:'Capital Returns',cols:[{k:'share_buyback_rate'},{k:'shareholder_yield'},{k:'div_yield'},{k:'payout_ratio'}]},
+  {t:'Capital Returns',cols:[{k:'share_buyback_rate'},{k:'shareholder_yield'},{k:'div_yield'},{k:'payout_ratio'},{k:'position_weight',l:'Portfolio Weight',f:'pct',sec:1}]},
   {t:'Dividend Record',cols:[{k:'ddm_consecutive_years',sec:1},{k:'dividend_cagr_5y',sec:1},{k:'ddm_div_cagr',sec:1},{k:'ddm_sustainable_growth',sec:1},{k:'ddm_growth',sec:1},{k:'ddm_eligible',sec:1},{k:'ddm_reason',sec:1}]}
- ]},
+ ],extra:_detInsiderHtml},
  {k:'people',l:'People',groups:[
   {t:'Workforce',cols:[{k:'employees',l:'Employees',f:'cnt'},{k:'revenue_per_emp',l:'Revenue/Employee',f:'ds'},{k:'fcf_per_emp',l:'FCF/Employee',f:'ds'},{k:'rpe_cagr',l:'Rev/Emp CAGR',f:'pct'},{k:'sbc_per_emp',l:'SBC/Employee',f:'ds',sec:1}]},
   {t:'Leadership & Pay',cols:[{k:'ceo_total_pay',l:'CEO Total Pay',f:'ds'},{k:'ceo_pay_ratio',l:'CEO Pay Ratio',f:'n1'},{k:'compensation_risk',l:'Comp Risk Score',f:'int'},{k:'sbc',l:'SBC (Total)',f:'ds',sec:1}]},
   {t:'Culture Signals',cols:[{k:'glassdoor_rating',l:'Glassdoor Rating',f:'n2',sec:1},{k:'glassdoor_ceo_pct',l:'CEO Approval',f:'pct',sec:1},{k:'glassdoor_rec_pct',l:'Would Recommend',f:'pct',sec:1},{k:'employment_legal_flag',l:'Employment Legal Flag',f:'bool'},{k:'layoff_news_signal',l:'Layoff Signal',f:'bool'},{k:'culture_award_signal',l:'Culture Award',f:'bool'}]}
- ]}
+ ],extra:_detCeoBioHtml}
 ];
 function _detTabs(){
   var t=[{k:'overview',l:'Overview'},{k:'charts',l:'Charts'}];
@@ -4419,6 +4419,93 @@ function swDetTab(k){
   else if(k!=='overview')_renderDetDataTab(k);
   var sc=_detScroller();if(sc)sc.scrollTop=0;
 }
+/* --- Blocks relocated off the Overview tab (declutter). Each returns an HTML
+   string consumed by a DT_TABS `extra` hook (inserted inside the tab's
+   dgrid-inner as extra dsec cells) or `after` hook (appended after the tab's
+   dgroup as its own block). Function declarations hoist, so DT_TABS can
+   reference them although it appears earlier in the file. --- */
+function _detIntrinsicHtml(d){
+  var ms=d.mos!=null?(d.mos>0.15?'color:#1a9850;font-weight:700':(d.mos<0?'color:#de2d26':'')):'';
+  var sr=d.dcf_sens_range?fd(d.dcf_sens_range[0])+' – '+fd(d.dcf_sens_range[1]):'N/A';
+  var ivH='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a2f5e,#2f5496)"><span class="dg-icon"></span>Intrinsic Value</div><div class="dgrid-inner">';
+  ivH+='<div class="dsec"><h3>DCF Model</h3><div class="dkvg">'+bkv([['Current Price',fd(d.price)],['DCF Fair Value',fd(d.dcf_fv)],['DCF MoS',fp(d.mos),ms],['Expected Return',fp(d.er)],['Blend Method',d._blended_method||'DCF']])+'</div></div>';
+  ivH+='<div class="dsec"><h3>DCF Monte Carlo</h3><div class="dkvg">'+bkv([['MC Confidence',d.mc_confidence!=null?d.mc_confidence:'N/A'],['MC CV',fp(d.mc_cv)],['MC P10 Fair Value',fd(d.mc_p10_fv)],['MC P90 Fair Value',fd(d.mc_p90_fv)]])+'</div></div>';
+  if(d.ddm_eligible){var ddmFlag=d.ddm_payout_flag?'color:#de2d26;font-weight:700':'';var ddmLcFlag=d._ddm_low_confidence?'color:#e67e22;font-weight:700':'';ivH+='<div class="dsec"><h3>Dividend Discount Model</h3><div class="dkvg">'+bkv([['DDM Fair Value',fd(d.ddm_fv)],['H-Model FV',fd(d.ddm_h_fv)],['DDM Growth',fp(d.ddm_growth)],['Div CAGR',fp(d.ddm_div_cagr)],['Sustainable Growth',fp(d.ddm_sustainable_growth)],['Consec. Years',d.ddm_consecutive_years!=null?d.ddm_consecutive_years+'':'N/A'],['Payout Flag',d.ddm_payout_flag?'Yes':'No',ddmFlag],['Low Confidence',d._ddm_low_confidence?'Yes':'No',ddmLcFlag]])+'</div></div>';ivH+='<div class="dsec"><h3>DDM Monte Carlo</h3><div class="dkvg">'+bkv([['MC Median',fd(d.ddm_mc_median)],['MC P10',fd(d.ddm_mc_p10)],['MC P90',fd(d.ddm_mc_p90)],['MC CV',fp(d.ddm_mc_cv)]])+'</div></div>';}
+  var navMosStyle=d.nav_mos!=null?(d.nav_mos>0.15?'color:#1a9850':(d.nav_mos<0?'color:#de2d26':'')):'';
+  ivH+='<div class="dsec"><h3>EPV, RIM &amp; NAV</h3><div class="dkvg">'+bkv([['EPV Fair Value',fd(d.epv_fv)],['EPV MoS',fp(d.epv_mos)],['EPV Growth-Adj',fd(d.epv_growth_fv)],['RIM Fair Value',fd(d.rim_fv)],['RIM MoS',fp(d.rim_mos)],['NAV (Tangible Book)',fd(d.nav_fv)],['NAV MoS',fp(d.nav_mos),navMosStyle]])+'</div></div>';
+  ivH+='<div class="dsec"><h3>Implied / Reverse Check</h3><div class="dkvg">'+bkv([['Implied Growth (Rev DCF)',fp(d.implied_growth)],['Impl. vs Est.',fp(d.implied_vs_estimated)]])+'</div></div>';
+  ivH+='</div>';
+  ivH+='<div class="dgroup-asm" style="background:#eef2fb;border-top:1px solid #d0daf0;padding:7px 16px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">'
+    +'<span style="font-size:0.56em;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#1a3a6b;flex-shrink:0">Model Assumptions</span>'
+    +'<span style="font-size:0.63em;color:#546e7a">FCF Growth&nbsp;<strong style="color:#1a2f5e">'+(fp(d.fcf_growth)||'N/A')+'</strong></span>'
+    +'<span style="font-size:0.63em;color:#546e7a">WACC&nbsp;<strong style="color:#1a2f5e">'+(fp(d.wacc)||'N/A')+'</strong></span>'
+    +'<span style="font-size:0.63em;color:#546e7a">ERP&nbsp;<strong style="color:#1a2f5e">'+(fp(d.macro_erp)||'N/A')+'</strong></span>'
+    +'<span style="font-size:0.63em;color:#546e7a">Terminal Growth&nbsp;<strong style="color:#1a2f5e">'+(fp(d.terminal_growth)||'N/A')+'</strong></span>'
+    +'<span style="font-size:0.63em;color:#546e7a">Sensitivity&nbsp;<strong style="color:#1a2f5e">'+sr+'</strong></span>'
+    +'<span style="font-size:0.63em;color:#546e7a">Macro&nbsp;<strong style="color:#1a2f5e">'+(d.macro_regime?esc(String(d.macro_regime).replace(/_/g,' '))+(d.macro_composite!=null?' ('+d.macro_composite.toFixed(2)+')':''):'N/A')+'</strong></span>'
+  +'</div>'
+  +'</div>';
+  return ivH;
+}
+function _detRollingBetaHtml(d){
+  var rbV=d.rolling_betas;
+  if(!rbV)return '';
+  var _rbNum=function(v){if(v==null)return null;if(typeof v==='number')return v;if(typeof v==='object'&&typeof v.beta==='number')return v.beta;return null;};
+  var _rb1n=_rbNum(rbV['1y']),_rb3n=_rbNum(rbV['3y']),_rb5n=_rbNum(rbV['5y']);
+  var rb1=_rb1n!=null?_rb1n.toFixed(2):'N/A';
+  var rb3=_rb3n!=null?_rb3n.toFixed(2):'N/A';
+  var rb5=_rb5n!=null?_rb5n.toFixed(2):'N/A';
+  var stab=_rbNum(rbV['stability']);
+  if(stab==null&&_rb1n!=null&&_rb5n!=null)stab=Math.abs(_rb1n-_rb5n);
+  var stabLbl=stab!=null?(stab<0.1?'Stable':stab<0.2?'Moderate':'Volatile'):'N/A';
+  var stabC=stab!=null?(stab<0.1?'color:#1a9850':stab>=0.2?'color:#de2d26':''):'';
+  return '<div class="dsec"><h3>Rolling Beta</h3><div class="dkvg">'+bkv([['1yr Beta',rb1],['3yr Beta',rb3],['5yr Beta',rb5],['Stability',stabLbl,stabC]])+'</div></div>';
+}
+function _detStreetHtml(d){
+  if(d.target_mean==null&&!d.analyst_rec&&d.num_analysts==null)return '';
+  var _fvEff=d._fv_effective!=null?d._fv_effective:d.dcf_fv;
+  var _svUp=(d.target_mean!=null&&d.price)?d.target_mean/d.price-1:null;
+  var _svUpC=_svUp!=null?(_svUp>0.15?'color:#1a9850;font-weight:700':(_svUp<0?'color:#de2d26':'')):'';
+  var _svDelta=(d.target_mean!=null&&_fvEff!=null&&_fvEff>0)?(d.target_mean/_fvEff-1):null;
+  var _svDeltaTxt=_svDelta!=null?((_svDelta>0?'+':'')+(_svDelta*100).toFixed(1)+'%'):'N/A';
+  /* Large street-vs-model disagreement is a flag either way — someone is wrong. */
+  var _svDeltaC=_svDelta!=null&&Math.abs(_svDelta)>0.3?'color:#e67e22;font-weight:700':'';
+  var _svRec=d.analyst_rec?d.analyst_rec.replace(/_/g,' '):'N/A';
+  var _svEarn='N/A';
+  if(d.earnings_next_date){_svEarn=d.earnings_next_date+(d.earnings_date_est?' (est.)':'');}
+  return '<div class="dsec"><h3>Street View</h3><div class="dkvg">'+bkv([['Consensus',_svRec],['Analysts',d.num_analysts!=null?''+d.num_analysts:'N/A'],['Target Mean',fd(d.target_mean)],['Target Range',(d.target_low!=null&&d.target_high!=null)?fd(d.target_low)+' – '+fd(d.target_high):'N/A'],['Upside to Target',fp(_svUp),_svUpC],['Street vs Model FV',_svDeltaTxt,_svDeltaC],['LT Growth Est',fp(d.analyst_ltg)],['Next Earnings',_svEarn]])+'</div></div>';
+}
+function _detInsiderHtml(d){
+  if(d.insider_buy_ratio==null&&!(d.insider_transactions&&d.insider_transactions.length>0))return '';
+  var h='<div class="dsec"><h3>Insider Activity</h3><div class="dkvg">'+bkv([['Buy Ratio (1Y)',fp(d.insider_buy_ratio)],['Buys (90d)',d.insider_buy_count_90d!=null?d.insider_buy_count_90d:'N/A'],['Sells (90d)',d.insider_sell_count_90d!=null?d.insider_sell_count_90d:'N/A'],['Buys (1Y)',d.insider_buy_count_365d!=null?d.insider_buy_count_365d:'N/A'],['Sells (1Y)',d.insider_sell_count_365d!=null?d.insider_sell_count_365d:'N/A'],['Net Shares (1Y)',d.insider_net_shares!=null?fn0(d.insider_net_shares):'N/A'],['Net Value (1Y)',d.insider_net_value!=null?fds(d.insider_net_value):'N/A']])+'</div>';
+  if(d.insider_transactions&&d.insider_transactions.length>0){
+    h+='<table class="dtxn"><tr><th>Date</th><th>Name</th><th>Type</th><th>Shares</th><th>Price</th></tr>';
+    d.insider_transactions.slice(0,8).forEach(function(t){
+      var tc=t.transaction_type==='buy'?'#1a9850':t.transaction_type==='sell'?'#de2d26':'#666';
+      h+='<tr><td>'+t.date+'</td><td>'+esc((t.insider_name||'').substring(0,20))+'</td><td style="color:'+tc+';font-weight:600">'+t.transaction_type.toUpperCase()+'</td><td>'+fn0(t.shares)+'</td><td>'+(t.price_per_share?fd(t.price_per_share):'—')+'</td></tr>';
+    });
+    h+='</table>';
+  }
+  h+='</div>';
+  return h;
+}
+function _detEdgarWarnHtml(d){
+  if(!(d.edgar_fields_flagged>0))return '';
+  var _fl=(d.edgar_discrepancies||[]).filter(function(x){return x.flagged==='True'||x.flagged===true;});
+  var _fNames={'revenue':'Revenue','net_income':'Net Income','total_assets':'Total Assets','total_equity':'Equity','total_debt':'Debt'};
+  var h='<div class="dq-warning" style="grid-column:1/-1">⚠ Data quality: '+d.edgar_fields_flagged+' field(s) differ &gt;5% between yfinance and SEC EDGAR XBRL filings';
+  if(_fl.length>0){
+    h+='<div style="margin-top:4px;font-size:0.92em">';
+    _fl.forEach(function(x){var nm=_fNames[x.field]||x.field;var pct=(x.pct_diff*100).toFixed(1);var yv=fds(x.yfinance);var ev=fds(x.edgar);h+='<div style="padding:2px 0;border-bottom:1px solid rgba(0,0,0,0.06)"><b>'+esc(nm)+'</b>: yfinance '+yv+' vs EDGAR '+ev+' <span style="color:#c0392b;font-weight:600">('+pct+'% diff)</span></div>';});
+    h+='</div>';
+  }
+  h+='</div>';
+  return h;
+}
+function _detCeoBioHtml(d){
+  if(!d.ceo_bio)return '';
+  return '<div class="dsec" style="grid-column:1/-1"><h3>CEO Bio'+(d.ceo?' — '+esc(d.ceo):'')+'</h3><div class="utx"><p>'+esc(d.ceo_bio)+'</p></div></div>';
+}
 function _renderDetDataTab(key){
   var el=document.getElementById('d-pane-data');if(!el)return;
   var d=DATA.find(function(x){return x.ticker===_dpTicker;});
@@ -4440,11 +4527,9 @@ function _renderDetDataTab(key){
     });
     if(rows)h+='<div class="dsec"><h3>'+esc(g.t)+'</h3><div class="dkvg">'+rows+'</div></div>';
   });
-  /* People tab: CEO bio narrative (details.json; re-renders when it lands). */
-  if(key==='people'&&d.ceo_bio){
-    h+='<div class="dsec" style="grid-column:1/-1"><h3>CEO Bio'+(d.ceo?' — '+esc(d.ceo):'')+'</h3><div class="utx"><p>'+esc(d.ceo_bio)+'</p></div></div>';
-  }
+  if(tab.extra)h+=tab.extra(d)||'';   /* bespoke dsec cells inside the grid */
   h+='</div></div>';
+  if(tab.after)h+=tab.after(d)||'';   /* bespoke standalone block after the dgroup */
   el.innerHTML=h;
 }
 function openDet(tk){
@@ -4747,119 +4832,6 @@ function openDet(tk){
     psH+='</div></div>';
   }
   psEl.innerHTML=psH;
-  var ms=d.mos!=null?(d.mos>0.15?'color:#1a9850;font-weight:700':(d.mos<0?'color:#de2d26':'')):'';
-  var sr=d.dcf_sens_range?fd(d.dcf_sens_range[0])+' \u2013 '+fd(d.dcf_sens_range[1]):'N/A';
-  var ps=d.piotroski!=null?(d.piotroski>=7?'color:#1a9850;font-weight:700':(d.piotroski<=3?'color:#de2d26;font-weight:700':'')):'';
-  var zs='',zc='';if(d.altman_z_zone==='safe'){zs='color:#1a9850;font-weight:700';zc='Safe';}else if(d.altman_z_zone==='grey'){zs='color:#fd8d3c;font-weight:700';zc='Grey';}else if(d.altman_z_zone==='distress'){zs='color:#de2d26;font-weight:700';zc='Distress';}else{zc='N/A';}
-  var bs2=d.beneish_flag===true?'color:#de2d26;font-weight:700':'';
-  var rl2={strong_buy:'Strong Buy',buy:'Buy',hold:'Hold',sell:'Sell',strong_sell:'Strong Sell'};
-  var gh='';
-  /* --- GROUP 1: PRICE CONTEXT --- */
-  gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2e86c1)"><span class="dg-icon"></span>Price Context</div><div class="dgrid-inner">';
-  if(d.high_52w!=null&&d.low_52w!=null){var rp=d.range_52w_position!=null?d.range_52w_position:50;var rpC=rp<25?'color:#1a9850;font-weight:700':(rp>75?'color:#de2d26':'');gh+='<div class="dsec"><h3>52-Week Range</h3><div style="margin:8px 0;background:#e9ecef;border-radius:6px;height:18px;position:relative"><div style="position:absolute;left:'+Math.min(Math.max(rp,0),100)+'%;top:-2px;width:3px;height:22px;background:#2980b9;border-radius:2px" title="Current"></div></div><div class="dkvg">'+bkv([['52W High',fd(d.high_52w)],['52W Low',fd(d.low_52w)],['% from High',fp(d.pct_from_52w_high)],['Range Position',d.range_52w_position!=null?Math.round(d.range_52w_position)+'%':'N/A',rpC]])+'</div></div>';}
-  gh+='<div class="dsec"><h3>Valuation Multiples</h3><div class="dkvg">'+bkv([['P/E',fn(d.pe,1)],['EV/EBITDA',fn(d.ev_ebitda,1)],['P/FCF',fn(d.pfcf,1)],['P/B',fn(d.pb,2)],['EPV P/FV',fn(d.epv_pfv,2)]])+'</div></div>';
-  gh+='</div></div>';
-  /* --- GROUP 2: PRICE SIGNALS --- */
-  gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#0d5c63,#1a9e8f)"><span class="dg-icon"></span>Price Signals</div><div class="dgrid-inner">';
-  /* Momentum & Volatility */
-  var momV=d.momentum_12_1;var momC=momV!=null?(momV>=0.2?'color:#1a9850;font-weight:700':momV<=-0.15?'color:#de2d26':''):'';
-  var rvV=d.realized_vol;var rvC=rvV!=null?(rvV>=0.4?'color:#de2d26;font-weight:700':rvV<=0.15?'color:#1a9850':''):'';
-  gh+='<div class="dsec"><h3>Momentum &amp; Volatility</h3><div class="dkvg">'+bkv([['12-1 Mo Momentum',fp(momV),momC],['Realized Vol (1yr)',fp(rvV),rvC]])+'</div></div>';
-  /* Rolling Beta — window values are plain numbers in older snapshots and
-     {beta, r2} objects in newer ones; accept both. */
-  var rbV=d.rolling_betas;
-  if(rbV){
-    var _rbNum=function(v){if(v==null)return null;if(typeof v==='number')return v;if(typeof v==='object'&&typeof v.beta==='number')return v.beta;return null;};
-    var _rb1n=_rbNum(rbV['1y']),_rb3n=_rbNum(rbV['3y']),_rb5n=_rbNum(rbV['5y']);
-    var rb1=_rb1n!=null?_rb1n.toFixed(2):'N/A';
-    var rb3=_rb3n!=null?_rb3n.toFixed(2):'N/A';
-    var rb5=_rb5n!=null?_rb5n.toFixed(2):'N/A';
-    var stab=_rbNum(rbV['stability']);
-    if(stab==null&&_rb1n!=null&&_rb5n!=null)stab=Math.abs(_rb1n-_rb5n);
-    var stabLbl=stab!=null?(stab<0.1?'Stable':stab<0.2?'Moderate':'Volatile'):'N/A';
-    var stabC=stab!=null?(stab<0.1?'color:#1a9850':stab>=0.2?'color:#de2d26':''):'';
-    gh+='<div class="dsec"><h3>Rolling Beta</h3><div class="dkvg">'+bkv([['1yr Beta',rb1],['3yr Beta',rb3],['5yr Beta',rb5],['Stability',stabLbl,stabC]])+'</div></div>';
-  }
-  /* Drawdown Resilience */
-  var dd20=d.drawdown_2020;var dd20C=dd20!=null?(dd20<=-0.40?'color:#de2d26;font-weight:700':dd20>=-0.20?'color:#1a9850':''):'';
-  var dd22=d.drawdown_2022;var dd22C=dd22!=null?(dd22<=-0.30?'color:#de2d26':dd22>=-0.10?'color:#1a9850':''):'';
-  var dd08=d.drawdown_2008;var dd08C=dd08!=null?(dd08<=-0.50?'color:#de2d26;font-weight:700':dd08>=-0.30?'color:#1a9850':''):'';
-  gh+='<div class="dsec"><h3>Drawdown Resilience</h3><div class="dkvg">'+bkv([['2020 COVID',fp(dd20),dd20C],['2022 Bear',fp(dd22),dd22C],['2008 GFC',fp(dd08),dd08C]])+'</div></div>';
-  gh+='</div></div>';
-  /* --- INTRINSIC VALUE — rendered into its own #d-intrinsic container so it
-       sits right below Price History, ahead of the narrative sections. The
-       fair-value case is the core of the buy decision; it must not sit below
-       news/peers reference material. --- */
-  var ivH='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a2f5e,#2f5496)"><span class="dg-icon"></span>Intrinsic Value</div><div class="dgrid-inner">';
-  /* Row 1: DCF model (left) | DCF Monte Carlo (right) */
-  ivH+='<div class="dsec"><h3>DCF Model</h3><div class="dkvg">'+bkv([['Current Price',fd(d.price)],['DCF Fair Value',fd(d.dcf_fv)],['DCF MoS',fp(d.mos),ms],['Expected Return',fp(d.er)],['Blend Method',d._blended_method||'DCF']])+'</div></div>';
-  ivH+='<div class="dsec"><h3>DCF Monte Carlo</h3><div class="dkvg">'+bkv([['MC Confidence',d.mc_confidence!=null?d.mc_confidence:'N/A'],['MC CV',fp(d.mc_cv)],['MC P10 Fair Value',fd(d.mc_p10_fv)],['MC P90 Fair Value',fd(d.mc_p90_fv)]])+'</div></div>';
-  /* Row 2 (conditional): DDM (left) | DDM Monte Carlo (right) */
-  if(d.ddm_eligible){var ddmFlag=d.ddm_payout_flag?'color:#de2d26;font-weight:700':'';var ddmLcFlag=d._ddm_low_confidence?'color:#e67e22;font-weight:700':'';ivH+='<div class="dsec"><h3>Dividend Discount Model</h3><div class="dkvg">'+bkv([['DDM Fair Value',fd(d.ddm_fv)],['H-Model FV',fd(d.ddm_h_fv)],['DDM Growth',fp(d.ddm_growth)],['Div CAGR',fp(d.ddm_div_cagr)],['Sustainable Growth',fp(d.ddm_sustainable_growth)],['Consec. Years',d.ddm_consecutive_years!=null?d.ddm_consecutive_years+'':'N/A'],['Payout Flag',d.ddm_payout_flag?'Yes':'No',ddmFlag],['Low Confidence',d._ddm_low_confidence?'Yes':'No',ddmLcFlag]])+'</div></div>';ivH+='<div class="dsec"><h3>DDM Monte Carlo</h3><div class="dkvg">'+bkv([['MC Median',fd(d.ddm_mc_median)],['MC P10',fd(d.ddm_mc_p10)],['MC P90',fd(d.ddm_mc_p90)],['MC CV',fp(d.ddm_mc_cv)]])+'</div></div>';}
-  /* Row 3: EPV & RIM (left) | Implied / Reverse Check (right) */
-  var navMosStyle=d.nav_mos!=null?(d.nav_mos>0.15?'color:#1a9850':(d.nav_mos<0?'color:#de2d26':'')):'';
-  ivH+='<div class="dsec"><h3>EPV, RIM &amp; NAV</h3><div class="dkvg">'+bkv([['EPV Fair Value',fd(d.epv_fv)],['EPV MoS',fp(d.epv_mos)],['EPV Growth-Adj',fd(d.epv_growth_fv)],['RIM Fair Value',fd(d.rim_fv)],['RIM MoS',fp(d.rim_mos)],['NAV (Tangible Book)',fd(d.nav_fv)],['NAV MoS',fp(d.nav_mos),navMosStyle]])+'</div></div>';
-  ivH+='<div class="dsec"><h3>Implied / Reverse Check</h3><div class="dkvg">'+bkv([['Implied Growth (Rev DCF)',fp(d.implied_growth)],['Impl. vs Est.',fp(d.implied_vs_estimated)]])+'</div></div>';
-  ivH+='</div>';
-  ivH+='<div class="dgroup-asm" style="background:#eef2fb;border-top:1px solid #d0daf0;padding:7px 16px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">'
-    +'<span style="font-size:0.56em;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#1a3a6b;flex-shrink:0">Model Assumptions</span>'
-    +'<span style="font-size:0.63em;color:#546e7a">FCF Growth&nbsp;<strong style="color:#1a2f5e">'+( fp(d.fcf_growth)||'N/A')+'</strong></span>'
-    +'<span style="font-size:0.63em;color:#546e7a">WACC&nbsp;<strong style="color:#1a2f5e">'+(fp(d.wacc)||'N/A')+'</strong></span>'
-    +'<span style="font-size:0.63em;color:#546e7a">ERP&nbsp;<strong style="color:#1a2f5e">'+(fp(d.macro_erp)||'N/A')+'</strong></span>'
-    +'<span style="font-size:0.63em;color:#546e7a">Terminal Growth&nbsp;<strong style="color:#1a2f5e">'+(fp(d.terminal_growth)||'N/A')+'</strong></span>'
-    +'<span style="font-size:0.63em;color:#546e7a">Sensitivity&nbsp;<strong style="color:#1a2f5e">'+sr+'</strong></span>'
-    +'<span style="font-size:0.63em;color:#546e7a">Macro&nbsp;<strong style="color:#1a2f5e">'+(d.macro_regime?esc(String(d.macro_regime).replace(/_/g,' '))+(d.macro_composite!=null?' ('+d.macro_composite.toFixed(2)+')':''):'N/A')+'</strong></span>'
-  +'</div>'
-  +'</div>';
-  document.getElementById('d-intrinsic').innerHTML=ivH;
-  /* --- GROUP 3: BUSINESS QUALITY --- */
-  gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1e4d20,#548235)"><span class="dg-icon"></span>Business Quality</div><div class="dgrid-inner">';
-  gh+='<div class="dsec"><h3>Quality &amp; Profitability</h3><div class="dkvg">'+bkv([['ROIC (5Y)',fp(d.roic)],['ROE',fp(d.roe)],['ROA',fp(d.roa)],['Int Coverage',fn(d.int_cov,1)],['Cash Conversion',fn(d.cash_conv,2)],['Accruals',fn(d.accruals,3)],['Piotroski',d.piotroski!=null?d.piotroski+'/9':'N/A',ps]])+'</div></div>';
-  if(d.dupont_margin!=null){gh+='<div class="dsec"><h3>DuPont Decomposition</h3><div class="dkvg">'+bkv([['Net Margin',fp(d.dupont_margin)],['Asset Turnover',fn(d.dupont_turnover,2)],['Equity Multiplier',fn(d.dupont_leverage,2)],['ROE (DuPont)',fp(d.dupont_margin!=null&&d.dupont_turnover!=null&&d.dupont_leverage!=null?d.dupont_margin*d.dupont_turnover*d.dupont_leverage:null)]])+'</div></div>';}
-  gh+='<div class="dsec"><h3>Risk Indicators</h3><div class="dkvg">'+bkv([['Altman Z-Score',d.altman_z!=null?d.altman_z.toFixed(2):'N/A'],['Z Zone',zc,zs],['Beneish M-Score',d.beneish_m!=null?d.beneish_m.toFixed(2):'N/A'],['Manipulation Flag',d.beneish_flag===true?'Yes':d.beneish_flag===false?'No':'N/A',bs2]])+'</div></div>';
-  gh+='<div class="dsec"><h3>Financial Health</h3><div class="dkvg">'+bkv([['Interest Coverage',fn(d.int_cov,1)],['Net Debt/EBITDA',fn(d.nd_ebitda,2)],['Debt/Equity',fn(d.de,2)],['Current Ratio',fn(d.cr,2)]])+'</div></div>';
-  gh+='</div></div>';
-  /* --- GROUP 4: OUTLOOK --- */
-  gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a1070,#7030a0)"><span class="dg-icon"></span>Outlook</div><div class="dgrid-inner">';
-  gh+='<div class="dsec"><h3>Growth Signals</h3><div class="dkvg">'+bkv([['Margin Trend',fp(d.margin_trend)],['Fundamental Growth',fp(d.fundamental_growth)],['Reinvestment Rate',fp(d.reinvestment_rate)],['Rev CAGR (3Y)',fp(d.rev_cagr)],['Rev CAGR (5Y)',fp(d.rev_cagr_5y)],['Rev CAGR (10Y)',fp(d.rev_cagr_10y)]])+'</div></div>';
-  /* Street View — analyst consensus as a cross-check on the model's FV. */
-  if(d.target_mean!=null||d.analyst_rec||d.num_analysts!=null){
-    var _svUp=(d.target_mean!=null&&d.price)?d.target_mean/d.price-1:null;
-    var _svUpC=_svUp!=null?(_svUp>0.15?'color:#1a9850;font-weight:700':(_svUp<0?'color:#de2d26':'')):'';
-    var _svDelta=(d.target_mean!=null&&_fvEff!=null&&_fvEff>0)?(d.target_mean/_fvEff-1):null;
-    var _svDeltaTxt=_svDelta!=null?((_svDelta>0?'+':'')+(_svDelta*100).toFixed(1)+'%'):'N/A';
-    /* Large street-vs-model disagreement is a flag either way — someone is wrong. */
-    var _svDeltaC=_svDelta!=null&&Math.abs(_svDelta)>0.3?'color:#e67e22;font-weight:700':'';
-    var _svRec=d.analyst_rec?d.analyst_rec.replace(/_/g,' '):'N/A';
-    var _svEarn='N/A';
-    if(d.earnings_next_date){_svEarn=d.earnings_next_date+(d.earnings_date_est?' (est.)':'');}
-    gh+='<div class="dsec"><h3>Street View</h3><div class="dkvg">'+bkv([['Consensus',_svRec],['Analysts',d.num_analysts!=null?''+d.num_analysts:'N/A'],['Target Mean',fd(d.target_mean)],['Target Range',(d.target_low!=null&&d.target_high!=null)?fd(d.target_low)+' – '+fd(d.target_high):'N/A'],['Upside to Target',fp(_svUp),_svUpC],['Street vs Model FV',_svDeltaTxt,_svDeltaC],['LT Growth Est',fp(d.analyst_ltg)],['Next Earnings',_svEarn]])+'</div></div>';
-  }
-  if(d.position_weight!=null){gh+='<div class="dsec"><h3>Portfolio</h3><div class="dkvg">'+bkv([['Position Weight',fp(d.position_weight)]])+'</div></div>';}
-  gh+='</div></div>';
-  /* --- GROUP 6: OWNERSHIP --- */
-  gh+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#7a5800,#bf8f00)"><span class="dg-icon"></span>Ownership</div><div class="dgrid-inner">';
-  function _fpCap(v,cap){if(v!=null&&v>cap)return'N/A';return fp(v);}
-  gh+='<div class="dsec"><h3>Shareholder Returns</h3><div class="dkvg">'+bkv([['Shrhldr Yield',_fpCap(d.shareholder_yield,0.5)],['Buyback Rate',_fpCap(d.share_buyback_rate,0.5)],['Dividend Yield',fp(d.div_yield)]])+'</div></div>';
-  /* Insider Activity (Form 4) */
-  if(d.insider_buy_ratio!=null||(d.insider_transactions&&d.insider_transactions.length>0)){
-    gh+='<div class="dsec"><h3>Insider Activity</h3><div class="dkvg">'+bkv([['Buy Ratio (1Y)',fp(d.insider_buy_ratio)],['Buys (90d)',d.insider_buy_count_90d!=null?d.insider_buy_count_90d:'N/A'],['Sells (90d)',d.insider_sell_count_90d!=null?d.insider_sell_count_90d:'N/A'],['Net Value (1Y)',d.insider_net_value!=null?fds(d.insider_net_value):'N/A']])+'</div>';
-    if(d.insider_transactions&&d.insider_transactions.length>0){
-      gh+='<table class="dtxn"><tr><th>Date</th><th>Name</th><th>Type</th><th>Shares</th><th>Price</th></tr>';
-      d.insider_transactions.slice(0,8).forEach(function(t){
-        var tc=t.transaction_type==='buy'?'#1a9850':t.transaction_type==='sell'?'#de2d26':'#666';
-        gh+='<tr><td>'+t.date+'</td><td>'+esc((t.insider_name||'').substring(0,20))+'</td><td style="color:'+tc+';font-weight:600">'+t.transaction_type.toUpperCase()+'</td><td>'+fn0(t.shares)+'</td><td>'+(t.price_per_share?fd(t.price_per_share):'—')+'</td></tr>';
-      });
-      gh+='</table>';
-    }
-    gh+='</div>';
-  }
-  gh+='<div class="dsec"><h3>Ownership Structure</h3><div class="dkvg">'+bkv([['Insider %',fp(d.insider_pct)],['Institutional %',fp(d.inst_pct)],['Share Turnover',fp(d.share_turnover_rate)],['Short Interest',fp(d.short_pct_float)]])+'</div></div>';
-  gh+='</div>';/* close dgrid-inner */
-  /* EDGAR validation warning — full-width below grid, lists specific fields */
-  if(d.edgar_fields_flagged>0){var _fl=(d.edgar_discrepancies||[]).filter(function(x){return x.flagged==='True'||x.flagged===true;});var _fNames={'revenue':'Revenue','net_income':'Net Income','total_assets':'Total Assets','total_equity':'Equity','total_debt':'Debt'};gh+='<div class="dq-warning">\u26A0 Data quality: '+d.edgar_fields_flagged+' field(s) differ &gt;5% between yfinance and SEC EDGAR XBRL filings';if(_fl.length>0){gh+='<div style="margin-top:4px;font-size:0.92em">';_fl.forEach(function(x){var nm=_fNames[x.field]||x.field;var pct=(x.pct_diff*100).toFixed(1);var yv=fds(x.yfinance);var ev=fds(x.edgar);gh+='<div style="padding:2px 0;border-bottom:1px solid rgba(0,0,0,0.06)"><b>'+esc(nm)+'</b>: yfinance '+yv+' vs EDGAR '+ev+' <span style="color:#c0392b;font-weight:600">('+pct+'% diff)</span></div>';});gh+='</div>';}gh+='</div>';}
-  gh+='</div>';/* close dgroup */
-  document.getElementById('d-grid').innerHTML=gh;
   document.getElementById('d-section-network').style.display=psH.length>0?'':'none';
 
   /* --- Sector Analysis section --- */
