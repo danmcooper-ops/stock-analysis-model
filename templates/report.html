@@ -1543,8 +1543,8 @@ var COUNTRY_ISO3 = {
 };
 var ISO_TO_COUNTRY = {};
 Object.keys(COUNTRY_ISO3).forEach(function(k){ISO_TO_COUNTRY[COUNTRY_ISO3[k]]=k;});
-var _poolTab='__all__';
-function showPoolTab(sec){_poolTab=sec||'__all__';renderPool();window.scrollTo({top:0,behavior:'auto'});}
+var _poolTab='__performance__';
+function showPoolTab(sec){_poolTab=sec||'__performance__';renderPool();window.scrollTo({top:0,behavior:'auto'});}
 function xsToggle(hdr){var c=hdr&&hdr.parentElement;if(c)c.classList.toggle('open');}
 var curView='pool',curTSub='prices';
 var _detNav=[],_detIdx=-1;
@@ -3002,7 +3002,7 @@ TC.mkt=[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'
    tab is moved or renamed in this one place. `mkt` sits between Charts and
    Valuation: both are market-price views, so they read together before the
    financial-statement tabs begin. */
-var TL={prices:'Charts',mkt:'Market',val:'Valuation',prof:'Profitability',hlth:'Financial Health',growth:'Growth',proj:'Projections',own:'Ownership',div:'Dividends'};
+var TL={prices:'Charts',mkt:'Market',val:'Valuation',prof:'Profitability',hlth:'Health',growth:'Growth',proj:'Projections',own:'Ownership',div:'Dividends'};
 var tSC='rating',tSA=true;
 /* Same as _mUserSorted, for the Financial Data table. */
 var _tUserSorted=false;
@@ -5719,11 +5719,11 @@ function renderCrossSectorDashboard(){
   /* Mount: fill tbody after the dashboard return string is injected. */
   setTimeout(function(){if(window._heatRender)window._heatRender();},0);
   /* Sector Heatmap. (The World MoS Map moved to Financial Model → Dashboard,
-     above the Gates Summary; the Cross-Sector Profit Pool lives on the Charts
-     sub-tab, below the Sector Price Comparison.) */
-  return'<div class="xsect-dashboard">'
+     above the Gates Summary; this heatmap renders at the top of the Charts
+     sub-tab, above the Sector Price Comparison and Cross-Sector Profit Pool.) */
+  return'<div class="xsect-dashboard" style="margin-bottom:16px">'
     +_heatTableHtml
-    +'</div></div>';
+    +'</div>';
 }
 /* === Cross-Sector Profit Pool map (Bain/Marakon style) ===
    X-axis = cumulative share of operating revenue; Y-axis = sector operating
@@ -6334,24 +6334,22 @@ function renderPool(){
   var sectors={};
   DATA.forEach(function(d){if(!d.sector||d.pp_revenue_share==null)return;if(!sectors[d.sector])sectors[d.sector]=[];sectors[d.sector].push(d);});
   var secList=Object.keys(sectors).sort();
-  var chosen=_poolTab||'__all__';
-  var navHtml='<div class="secondary-nav"><button class="sub-btn'+(chosen==='__all__'?' active':'')+'" onclick="showPoolTab(\'__all__\')">Overview</button>';
-  navHtml+='<button class="sub-btn'+(chosen==='__performance__'?' active':'')+'" onclick="showPoolTab(\'__performance__\')">Charts</button>';
+  var chosen=_poolTab||'__performance__';
+  /* The Overview sub-tab was removed when its last remaining content (the
+     Sector Heatmap) moved to the Charts sub-tab, which is now the default. */
+  var navHtml='<div class="secondary-nav"><button class="sub-btn'+(chosen==='__performance__'?' active':'')+'" onclick="showPoolTab(\'__performance__\')">Charts</button>';
   secList.forEach(function(s){var se=s.replace(/'/g,"\\'");navHtml+='<button class="sub-btn'+(chosen===s?' active':'')+'" onclick="showPoolTab(\''+se+'\')">'+s+'</button>';});
   navHtml+='</div>';
   document.getElementById('pool-controls').innerHTML=navHtml;
-  var toRender=(chosen&&chosen!=='__all__'&&chosen!=='__performance__'&&sectors[chosen])?[chosen]:[];
+  var toRender=(chosen&&chosen!=='__performance__'&&sectors[chosen])?[chosen]:[];
   var chartHtml='',tableRows='';
-  if(chosen==='__all__'){
-    /* Sector summary table is now rendered inside renderCrossSectorDashboard
-       as part of the combined Cross-Sector Summary section at the top of the
-       Overview. The separate pool-sector-table slot stays empty here. */
-    chartHtml=renderCrossSectorDashboard();
-  }
-  else if(chosen==='__performance__'){
+  if(chosen==='__performance__'){
+    /* Sector Heatmap leads the Charts sub-tab (moved here from the retired
+       Overview sub-tab), followed by the price and profit-pool charts. */
     var perfBody=renderUniversePriceChart();
     var poolBody=renderCrossSectorProfitPool();
-    chartHtml='<div class="xsect-dashboard">'
+    chartHtml=renderCrossSectorDashboard()
+      +'<div class="xsect-dashboard">'
       +'<div class="xsect-title">Sector Price Comparison</div>'
       +'<div class="xsect-sub">Indexed price performance across sectors. Pick any subset to compare.</div>'
       +(perfBody||'<p style="color:#888;padding:20px">No sector data available.</p>')
@@ -6527,7 +6525,9 @@ function renderPool(){
   }
   setTimeout(_syncScatter,0);
   window.addEventListener('resize',_syncScatter);
-  document.getElementById('pool-sector-table').innerHTML=(chosen==='__all__'&&tableRows)?'<div style="margin-top:16px;background:white;border-radius:8px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,0.07)"><div style="font-weight:700;font-size:0.88em;color:#1a252f;margin-bottom:10px">Sector Summary</div><div class="table-wrap"><table class="dt"><thead><tr><th style="text-align:left">Sector</th><th>Cos</th><th>Wtd Margin</th><th>HHI</th><th>CR4</th><th>Med MoS%</th><th>Med P/E</th><th># BUY</th><th style="text-align:left">Top Earner</th><th>Avg Multiple</th></tr></thead><tbody>'+tableRows+'</tbody></table></div></div>':'';
+  /* pool-sector-table slot stays empty: the Sector Summary table it once held
+     only ever rendered on the retired __all__ (Overview) sub-tab. */
+  document.getElementById('pool-sector-table').innerHTML='';
 }
 function ppTip(e,ticker){
   if(_isTouchDevice)return;
