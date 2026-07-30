@@ -1481,7 +1481,6 @@ td.ct{font-weight:700;}
       <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
       <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
       <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
-      <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:var(--surface)"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
       </div><!-- /d-pane-overview -->
       <div id="d-pane-charts" class="d-pane">
         <div id="d-section-price" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Price History</div><div style="padding:14px 16px;background:var(--surface)"><div class="dp-ranges" id="dp-ranges" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;align-items:center"></div><div id="dp-tip-bar" style="min-height:24px;font-size:0.86em"></div><div id="dp-chart"></div></div></div>
@@ -1497,6 +1496,10 @@ td.ct{font-weight:700;}
       <div id="d-pane-peers" class="d-pane">
         <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
         <div id="d-peers-empty" style="display:none;color:#888;padding:24px;text-align:center;font-size:0.88em">No peers or supply-chain data for this company.</div>
+      </div>
+      <div id="d-pane-news" class="d-pane">
+        <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:var(--surface)"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
+        <div id="d-news-empty" style="display:none;color:#888;padding:24px;text-align:center;font-size:0.88em">No news or filings for this company.</div>
       </div>
       <div id="d-pane-data" class="d-pane"></div>
     </div>
@@ -4388,7 +4391,7 @@ var DT_TABS=[
   {t:'Reinvestment',cols:[{k:'capex_intensity'},{k:'capex_to_dd_ratio'}]},
   {t:'Sector Growth',cols:[{k:'ffo_growth_5y',sec:1},{k:'deferred_rev_growth',sec:1},{k:'backlog_to_revenue',sec:1},{k:'book_to_bill_proxy',l:'Book-to-Bill',f:'n2',sec:1},{k:'brand_spend_trend',l:'Brand Spend Trend',f:'pct',sec:1},{k:'fda_pipeline_count',l:'FDA Pipeline',f:'int',sec:1}]}
  ],extra:_detStreetHtml},
- {k:'own',l:'Ownership & Returns',groups:[
+ {k:'own',l:'Ownership',groups:[
   {t:'Share Structure',cols:[{k:'shares_out'},{k:'float_shares'},{k:'insider_pct'},{k:'inst_pct'}]},
   {t:'Short Interest',cols:[{k:'shares_short',l:'Shares Short',f:'ds'},{k:'short_ratio'},{k:'short_pct_float'}]},
   {t:'Capital Returns',cols:[{k:'share_buyback_rate'},{k:'shareholder_yield'},{k:'div_yield'},{k:'payout_ratio'},{k:'position_weight',l:'Portfolio Weight',f:'pct',sec:1}]},
@@ -4402,9 +4405,10 @@ var DT_TABS=[
 ];
 function _detTabs(){
   var t=[{k:'overview',l:'Overview'},{k:'charts',l:'Charts'}];
-  /* Peers is not a DT_TABS data tab — its pane (#d-pane-peers) is filled by
-     openDet like Overview's sections. Slotted right after Growth. */
-  DT_TABS.forEach(function(x){t.push({k:x.k,l:x.l});if(x.k==='growth')t.push({k:'peers',l:'Peers'});});
+  /* Peers and News are not DT_TABS data tabs — their panes (#d-pane-peers /
+     #d-pane-news) are filled by openDet like Overview's sections. Slotted
+     right after Growth, in that order. */
+  DT_TABS.forEach(function(x){t.push({k:x.k,l:x.l});if(x.k==='growth'){t.push({k:'peers',l:'Peers'});t.push({k:'news',l:'News'});}});
   return t;
 }
 function _renderDetTabBar(){
@@ -4417,13 +4421,14 @@ function swDetTab(k){
   _detTab=k;
   _renderDetTabBar();
   document.querySelectorAll('#det-modal .d-pane').forEach(function(p){p.classList.remove('active');});
-  var id=k==='overview'?'d-pane-overview':k==='charts'?'d-pane-charts':k==='peers'?'d-pane-peers':'d-pane-data';
+  var id=k==='overview'?'d-pane-overview':k==='charts'?'d-pane-charts':k==='peers'?'d-pane-peers':k==='news'?'d-pane-news':'d-pane-data';
   var pane=document.getElementById(id);if(pane)pane.classList.add('active');
   if(k==='charts')_dtcRender();
-  else if(k==='peers'){
-    /* Content is rendered by openDet into #d-section-network; just toggle the
+  else if(k==='peers'||k==='news'){
+    /* Content is rendered by openDet into the section div; just toggle the
        empty-state note when that section has nothing to show. */
-    var ne=document.getElementById('d-peers-empty'),ns=document.getElementById('d-section-network');
+    var ne=document.getElementById(k==='peers'?'d-peers-empty':'d-news-empty');
+    var ns=document.getElementById(k==='peers'?'d-section-network':'d-section-news');
     if(ne&&ns)ne.style.display=(ns.style.display==='none')?'':'none';
   }
   else if(k!=='overview')_renderDetDataTab(k);
