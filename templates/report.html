@@ -3223,6 +3223,7 @@ function ftc(v,f){
   if(f==='n2')return{t:v.toFixed(2),v:v};
   if(f==='n3')return{t:v.toFixed(3),v:v};
   if(f==='int')return{t:Math.round(v)+'',v:v};
+  if(f==='cnt')return{t:Math.round(v).toLocaleString(),v:v};
   if(f==='bool')return{t:v?'Yes':'No',v:v?1:0};
   if(f==='ar'){var m={strong_buy:'Strong Buy',buy:'Buy',hold:'Hold',sell:'Sell',strong_sell:'Strong Sell'};return{t:m[v]||String(v),v:v};}
   return{t:String(v),v:v};
@@ -4186,7 +4187,7 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
     var key,txt,label,h;
     if(el.matches('.kl[data-dkv-tip]')){key=el.getAttribute('data-dkv-tip');txt=tt(key);if(!txt)return false;label=el.textContent.trim();_pt.innerHTML='<div class="ct-name">'+esc(label)+'</div><div class="ct-body">'+esc(txt)+'</div>';}
     else if(el.matches('[data-score-lbl]')){label=el.getAttribute('data-score-lbl')||'';var val=el.getAttribute('data-score-val')||'';txt=tt(el.getAttribute('data-score-key')||'')||'';h='<div class="ct-name">'+esc(label)+(val?' \u2014 '+esc(val):'')+'</div>';if(txt)h+='<div class="ct-body">'+esc(txt)+'</div>';_pt.innerHTML=h;}
-    else if(el.matches('[data-gv-tip]')){key=el.getAttribute('data-gv-tip');txt=TT[key]||'';label=el.getAttribute('data-gv-lbl')||'';var thr=el.getAttribute('data-gv-thr')||'';if(!txt&&!thr)return false;h='<div class="ct-name">'+esc(label)+'</div>';if(txt)h+='<div class="ct-body">'+esc(txt)+'</div>';if(thr)h+='<div class="ct-pass">\u2714 Pass: '+esc(thr)+'</div>';_pt.innerHTML=h;}
+    else if(el.matches('[data-gv-tip]')){key=el.getAttribute('data-gv-tip');txt=TT[key]||'';label=el.getAttribute('data-gv-lbl')||'';var thr=el.getAttribute('data-gv-thr')||'';var gsc=el.getAttribute('data-gv-score');if(!txt&&!thr&&gsc==null)return false;h='<div class="ct-name">'+esc(label)+'</div>';if(txt)h+='<div class="ct-body">'+esc(txt)+'</div>';if(thr)h+='<div class="ct-pass">\u2714 Pass: '+esc(thr)+'</div>';if(gsc!=null&&gsc!=='')h+='<div class="ct-pass" style="color:#8ab4f8">Score contribution: '+esc(gsc)+'/100</div>';_pt.innerHTML=h;}
     else if(el.matches('[data-km-tip]')){key=el.getAttribute('data-km-tip');txt=tt(key)||'';label=el.getAttribute('data-km-lbl')||'';if(!txt)return false;_pt.innerHTML='<div class="ct-name">'+esc(label)+'</div><div class="ct-body">'+esc(txt)+'</div>';}
     else return false;
     _posTip(el.getBoundingClientRect());
@@ -4340,14 +4341,66 @@ function _renderTrackRecord(d){
 }
 /* === DETAIL === */
 /* Popup tab bar: Overview (all the classic sections) + Charts (single-company
-   _dtc chart) + one tab per Financial Data table view, rendered per-company.
-   The data tabs come straight from TL/TC, so a table tab added or renamed
-   there shows up here automatically ('prices' is excluded — the popup has its
-   own single-company Charts tab instead of the multi-ticker compare view). */
+   _dtc chart) + the DT_TABS data tabs below. Unlike the Financial Data tables
+   (TL/TC, organized for cross-company comparison and unchanged), the popup
+   organizes the same record for reading ONE company: fewer, balanced tabs
+   with titled sub-groups, sector-specific rows hidden when absent (sec:1),
+   and the People tab surfacing the culture/compensation block that has no
+   table view at all. Labels/formats resolve from TC via _DT_LOOKUP when a
+   column also lives in a table; popup-only columns carry their own {l,f}. */
 var _detTab='overview';
+var _DT_LOOKUP={};
+Object.keys(TC).forEach(function(t){(TC[t]||[]).forEach(function(c){if(!_DT_LOOKUP[c.k])_DT_LOOKUP[c.k]={l:c.l,f:c.f};});});
+var DT_TABS=[
+ {k:'mkt',l:'Market',groups:[
+  {t:'Momentum',cols:[{k:'momentum_12_1'},{k:'momentum_6_1'},{k:'momentum_3m'},{k:'vol_adj_momentum'}]},
+  {t:'Liquidity',cols:[{k:'avg_dollar_volume_3m'},{k:'volume_trend'},{k:'amihud_illiquidity'},{k:'share_turnover_rate'}]},
+  {t:'52-Week Range',cols:[{k:'range_52w_position'},{k:'pct_from_52w_high'},{k:'pct_from_52w_low',l:'% from Low',f:'pct'}]},
+  {t:'Risk & Beta',cols:[{k:'realized_vol'},{k:'beta_adjusted'},{k:'beta_raw',l:'Beta (raw)',f:'n2'},{k:'beta_r2',l:'Beta R²',f:'n2'},{k:'beta_n_obs',l:'Beta Obs (mo)',f:'int'},{k:'drawdown_2020'},{k:'drawdown_2022'},{k:'drawdown_2008'}]}
+ ]},
+ {k:'val',l:'Valuation',groups:[
+  {t:'Price & Multiples',cols:[{k:'price'},{k:'pe'},{k:'ev_ebitda'},{k:'pfcf'},{k:'pb'},{k:'p_tbv'},{k:'tangible_book_per_share',l:'Tangible Book/Shr',f:'dollar'}]},
+  {t:'DCF',cols:[{k:'dcf_fv'},{k:'mos'},{k:'er',l:'Expected Return',f:'pct'},{k:'wacc'},{k:'implied_growth'},{k:'terminal_growth'},{k:'_sens_low'},{k:'_sens_high'}]},
+  {t:'Monte Carlo',cols:[{k:'mc_p10_fv'},{k:'mc_p90_fv'},{k:'mc_confidence'}]},
+  {t:'Alternative Models',cols:[{k:'epv_fv'},{k:'rim_fv'},{k:'nav_fv'},{k:'nav_mos'},{k:'ddm_fv',sec:1},{k:'ddm_h_fv',sec:1}]}
+ ]},
+ {k:'prof',l:'Profitability',groups:[
+  {t:'Returns on Capital',cols:[{k:'roic'},{k:'roic_cv'},{k:'spread'},{k:'roe'},{k:'roa',l:'ROA',f:'pct'}]},
+  {t:'DuPont',cols:[{k:'dupont_margin'},{k:'dupont_turnover'},{k:'dupont_leverage'}]},
+  {t:'Margins',cols:[{k:'gross_margin'},{k:'fcf_margin'},{k:'fcf_margin_ex_sbc'}]},
+  {t:'Earnings Quality',cols:[{k:'cash_conv'},{k:'accruals'},{k:'piotroski',l:'Piotroski F-Score',f:'int'}]},
+  {t:'Cost Structure',cols:[{k:'rd_intensity_xbrl'},{k:'sbc_pct_rev_xbrl'},{k:'sga_pct_rev',l:'SG&A/Rev',f:'pct',sec:1},{k:'sga_yoy_change',l:'SG&A YoY',f:'pct',sec:1},{k:'brand_spend_pct_rev',sec:1}]},
+  {t:'Sector Metrics',cols:[{k:'nim',sec:1},{k:'efficiency_ratio',sec:1},{k:'deposit_beta',l:'Deposit Beta',f:'n2',sec:1},{k:'combined_ratio',l:'Combined Ratio',f:'pct',sec:1},{k:'float_cost',l:'Float Cost',f:'pct',sec:1},{k:'affo_margin',sec:1}]}
+ ]},
+ {k:'hlth',l:'Health',groups:[
+  {t:'Solvency & Leverage',cols:[{k:'int_cov'},{k:'nd_ebitda'},{k:'de',l:'Debt/Equity',f:'n2'},{k:'net_cash_to_mcap'},{k:'debt_maturity_wall_yrs',l:'Debt Wall (yrs)',f:'n1',sec:1}]},
+  {t:'Liquidity & Working Capital',cols:[{k:'cr'},{k:'inventory_days'},{k:'working_capital_days'}]},
+  {t:'Distress & Manipulation',cols:[{k:'altman_z'},{k:'beneish_m'},{k:'goodwill_pct',l:'Goodwill %',f:'pct',sec:1}]},
+  {t:'Bank Health',cols:[{k:'cet1_ratio',sec:1},{k:'npl_ratio',sec:1}]}
+ ]},
+ {k:'growth',l:'Growth',groups:[
+  {t:'Growth Engine',cols:[{k:'reinvestment_rate'},{k:'fundamental_growth'},{k:'margin_trend'},{k:'rule_of_40',l:'Rule of 40',f:'n1',sec:1}]},
+  {t:'Track Record',cols:[{k:'rev_cagr'},{k:'rev_cagr_5y'},{k:'rev_cagr_10y'},{k:'fcf_growth'},{k:'surprise_avg',l:'Earnings Surprise Avg',f:'pct'}]},
+  {t:'Street Estimates',cols:[{k:'analyst_ltg',l:'Analyst LT Growth',f:'pct'}]},
+  {t:'Reinvestment',cols:[{k:'capex_intensity'},{k:'capex_to_dd_ratio'}]},
+  {t:'Sector Growth',cols:[{k:'ffo_growth_5y',sec:1},{k:'deferred_rev_growth',sec:1},{k:'backlog_to_revenue',sec:1},{k:'book_to_bill_proxy',l:'Book-to-Bill',f:'n2',sec:1},{k:'brand_spend_trend',l:'Brand Spend Trend',f:'pct',sec:1},{k:'fda_pipeline_count',l:'FDA Pipeline',f:'int',sec:1}]}
+ ]},
+ {k:'own',l:'Ownership & Returns',groups:[
+  {t:'Share Structure',cols:[{k:'shares_out'},{k:'float_shares'},{k:'insider_pct'},{k:'inst_pct'}]},
+  {t:'Short Interest',cols:[{k:'shares_short',l:'Shares Short',f:'ds'},{k:'short_ratio'},{k:'short_pct_float'}]},
+  {t:'Insider Activity (12M)',cols:[{k:'insider_buy_count_365d',l:'Insider Buys',f:'int',sec:1},{k:'insider_sell_count_365d',l:'Insider Sells',f:'int',sec:1},{k:'insider_net_shares',l:'Net Shares',f:'ds',sec:1},{k:'insider_buy_ratio',l:'Buy Ratio',f:'pct',sec:1}]},
+  {t:'Capital Returns',cols:[{k:'share_buyback_rate'},{k:'shareholder_yield'},{k:'div_yield'},{k:'payout_ratio'}]},
+  {t:'Dividend Record',cols:[{k:'ddm_consecutive_years',sec:1},{k:'dividend_cagr_5y',sec:1},{k:'ddm_div_cagr',sec:1},{k:'ddm_sustainable_growth',sec:1},{k:'ddm_growth',sec:1},{k:'ddm_eligible',sec:1},{k:'ddm_reason',sec:1}]}
+ ]},
+ {k:'people',l:'People',groups:[
+  {t:'Workforce',cols:[{k:'employees',l:'Employees',f:'cnt'},{k:'revenue_per_emp',l:'Revenue/Employee',f:'ds'},{k:'fcf_per_emp',l:'FCF/Employee',f:'ds'},{k:'rpe_cagr',l:'Rev/Emp CAGR',f:'pct'},{k:'sbc_per_emp',l:'SBC/Employee',f:'ds',sec:1}]},
+  {t:'Leadership & Pay',cols:[{k:'ceo_total_pay',l:'CEO Total Pay',f:'ds'},{k:'ceo_pay_ratio',l:'CEO Pay Ratio',f:'n1'},{k:'compensation_risk',l:'Comp Risk Score',f:'int'},{k:'sbc',l:'SBC (Total)',f:'ds',sec:1}]},
+  {t:'Culture Signals',cols:[{k:'glassdoor_rating',l:'Glassdoor Rating',f:'n2',sec:1},{k:'glassdoor_ceo_pct',l:'CEO Approval',f:'pct',sec:1},{k:'glassdoor_rec_pct',l:'Would Recommend',f:'pct',sec:1},{k:'employment_legal_flag',l:'Employment Legal Flag',f:'bool'},{k:'layoff_news_signal',l:'Layoff Signal',f:'bool'},{k:'culture_award_signal',l:'Culture Award',f:'bool'}]}
+ ]}
+];
 function _detTabs(){
   var t=[{k:'overview',l:'Overview'},{k:'charts',l:'Charts'}];
-  Object.keys(TL).forEach(function(k){if(k!=='prices')t.push({k:k,l:TL[k]});});
+  DT_TABS.forEach(function(x){t.push({k:x.k,l:x.l});});
   return t;
 }
 function _renderDetTabBar(){
@@ -4366,23 +4419,32 @@ function swDetTab(k){
   else if(k!=='overview')_renderDetDataTab(k);
   var sc=_detScroller();if(sc)sc.scrollTop=0;
 }
-/* Identity columns that make no sense as per-company key/value rows — the
-   ticker and rating already live in the popup header (mirrors _CF_ID). */
-var _DT_SKIP={ticker:1,rating:1,rating_prev:1};
 function _renderDetDataTab(key){
   var el=document.getElementById('d-pane-data');if(!el)return;
   var d=DATA.find(function(x){return x.ticker===_dpTicker;});
-  var cols=(TC[key]||[]).filter(function(c){return !_DT_SKIP[c.k]&&c.f!=='rating'&&c.f!=='ar';});
-  if(!d||!cols.length){el.innerHTML='';return;}
-  var h='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>'+esc(TL[key]||key)
-    +'</div><div style="padding:14px 16px;background:var(--surface)"><div class="dkvg">';
-  cols.forEach(function(c){
-    var f=ftc(d[c.k],c.f);
-    var tipAttr=tt(c.k)?' data-dkv-tip="'+c.k+'"':'';
-    var na=d[c.k]==null?' style="color:#9aa5b1;font-weight:400"':'';
-    h+='<div class="dkv"><span class="kl"'+tipAttr+'>'+esc(c.l)+'</span><span class="kv"'+na+'>'+esc(f.t)+'</span></div>';
+  var tab=null;for(var i=0;i<DT_TABS.length;i++)if(DT_TABS[i].k===key)tab=DT_TABS[i];
+  if(!d||!tab){el.innerHTML='';return;}
+  var h='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>'+esc(tab.l)
+    +'</div><div class="dgrid-inner">';
+  tab.groups.forEach(function(g){
+    var rows='';
+    g.cols.forEach(function(c){
+      var def=_DT_LOOKUP[c.k]||{};
+      var l=c.l||def.l||c.k,f=c.f||def.f||'text';
+      var v=d[c.k];
+      if(c.sec&&v==null)return;      /* sector/policy-specific: hide when absent */
+      var ft=ftc(v,f);
+      var tipAttr=tt(c.k)?' data-dkv-tip="'+c.k+'"':'';
+      var na=v==null?' style="color:#9aa5b1;font-weight:400"':'';
+      rows+='<div class="dkv"><span class="kl"'+tipAttr+'>'+esc(l)+'</span><span class="kv"'+na+'>'+esc(ft.t)+'</span></div>';
+    });
+    if(rows)h+='<div class="dsec"><h3>'+esc(g.t)+'</h3><div class="dkvg">'+rows+'</div></div>';
   });
-  h+='</div></div></div>';
+  /* People tab: CEO bio narrative (details.json; re-renders when it lands). */
+  if(key==='people'&&d.ceo_bio){
+    h+='<div class="dsec" style="grid-column:1/-1"><h3>CEO Bio'+(d.ceo?' — '+esc(d.ceo):'')+'</h3><div class="utx"><p>'+esc(d.ceo_bio)+'</p></div></div>';
+  }
+  h+='</div></div>';
   el.innerHTML=h;
 }
 function openDet(tk){
@@ -4584,8 +4646,9 @@ function openDet(tk){
         var _gTipKey=g.key.replace(/^_gate_/,'');
         var _gLbl=(g.label||'').replace(/"/g,'&quot;');
         var _gThr=(g.threshold||'').replace(/"/g,'&quot;');
+        var _gSc=d[g.scoreKey];
         _gvHtml+='<div class="gv-item">'+
-          '<span class="gv-k" data-gv-tip="'+_gTipKey+'" data-gv-lbl="'+_gLbl+'"'+(_gThr?' data-gv-thr="'+_gThr+'"':'')+'>'+g.label+'</span>'+
+          '<span class="gv-k" data-gv-tip="'+_gTipKey+'" data-gv-lbl="'+_gLbl+'"'+(_gThr?' data-gv-thr="'+_gThr+'"':'')+(_gSc!=null?' data-gv-score="'+Math.round(_gSc)+'"':'')+'>'+g.label+'</span>'+
           '<span class="gv-v'+cls+'">'+_fmtGate(raw,g.fmt)+
             (g.threshold?'<span class="gv-thr">\u00a0\u00b7\u00a0'+g.threshold+'</span>':'')+'</span></div>';
       });
@@ -4745,6 +4808,7 @@ function openDet(tk){
     +'<span style="font-size:0.63em;color:#546e7a">ERP&nbsp;<strong style="color:#1a2f5e">'+(fp(d.macro_erp)||'N/A')+'</strong></span>'
     +'<span style="font-size:0.63em;color:#546e7a">Terminal Growth&nbsp;<strong style="color:#1a2f5e">'+(fp(d.terminal_growth)||'N/A')+'</strong></span>'
     +'<span style="font-size:0.63em;color:#546e7a">Sensitivity&nbsp;<strong style="color:#1a2f5e">'+sr+'</strong></span>'
+    +'<span style="font-size:0.63em;color:#546e7a">Macro&nbsp;<strong style="color:#1a2f5e">'+(d.macro_regime?esc(String(d.macro_regime).replace(/_/g,' '))+(d.macro_composite!=null?' ('+d.macro_composite.toFixed(2)+')':''):'N/A')+'</strong></span>'
   +'</div>'
   +'</div>';
   document.getElementById('d-intrinsic').innerHTML=ivH;
