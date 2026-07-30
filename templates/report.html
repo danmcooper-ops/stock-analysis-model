@@ -1480,7 +1480,6 @@ td.ct{font-weight:700;}
       <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
       <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
       <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
-      <div id="d-section-profitpool" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Sector Analysis</div><div class="dgrid-inner" id="d-profitpool-content"></div></div>
       <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
       <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:var(--surface)"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
       </div><!-- /d-pane-overview -->
@@ -4359,7 +4358,7 @@ var DT_TABS=[
   {t:'Liquidity',cols:[{k:'avg_dollar_volume_3m'},{k:'volume_trend'},{k:'amihud_illiquidity'},{k:'share_turnover_rate'}]},
   {t:'52-Week Range',cols:[{k:'high_52w',l:'52W High',f:'dollar'},{k:'low_52w',l:'52W Low',f:'dollar'},{k:'range_52w_position'},{k:'pct_from_52w_high'},{k:'pct_from_52w_low',l:'% from Low',f:'pct'}]},
   {t:'Risk & Beta',cols:[{k:'realized_vol'},{k:'beta_adjusted'},{k:'beta_raw',l:'Beta (raw)',f:'n2'},{k:'beta_r2',l:'Beta R²',f:'n2'},{k:'beta_n_obs',l:'Beta Obs (mo)',f:'int'},{k:'drawdown_2020'},{k:'drawdown_2022'},{k:'drawdown_2008'}]}
- ],extra:_detRollingBetaHtml},
+ ],extra:_detRollingBetaHtml,after:_detSectorAnalysisHtml},
  {k:'val',l:'Valuation',groups:[
   /* The full Intrinsic Value block (DCF, Monte Carlo, DDM, EPV/RIM/NAV,
      assumptions strip) renders via the `after` hook — this group carries
@@ -4505,6 +4504,28 @@ function _detEdgarWarnHtml(d){
 function _detCeoBioHtml(d){
   if(!d.ceo_bio)return '';
   return '<div class="dsec" style="grid-column:1/-1"><h3>CEO Bio'+(d.ceo?' — '+esc(d.ceo):'')+'</h3><div class="utx"><p>'+esc(d.ceo_bio)+'</p></div></div>';
+}
+function _detSectorAnalysisHtml(d){
+  if(!(d.revenue!=null&&d.revenue>0))return '';
+  var ppH='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Sector Analysis</div><div class="dgrid-inner">';
+  /* Left column: company metrics */
+  var _opmC=d.operating_margin!=null?(d.pp_margin_advantage!=null&&d.pp_margin_advantage>0?'color:#27ae60':d.pp_margin_advantage!=null&&d.pp_margin_advantage<0?'color:#c0392b':''):'';
+  var _ppm=d.pp_multiple;
+  var _ppmC=_ppm!=null?(_ppm>=1.5?'color:#27ae60;font-weight:700':_ppm>=1.0?'font-weight:700':_ppm>=0.5?'color:#e67e22;font-weight:700':'color:#c0392b;font-weight:700'):'';
+  var _rs=d.pp_revenue_share;
+  var _ps=d.pp_profit_share;
+  ppH+='<div class="dsec"><h3>Company Position</h3><div class="dkvg">'+bkv([['Revenue',fds(d.revenue)],['Operating Income',fds(d.operating_income)],['Operating Margin',fp(d.operating_margin),_opmC],['Profit Pool Multiple',_ppm!=null?_ppm.toFixed(2)+'×':'N/A',_ppmC],['Revenue Share',_rs!=null?(_rs*100).toFixed(1)+'%':'N/A'],['Profit Share',_ps!=null?(_ps*100).toFixed(1)+'%':'N/A']])+'</div>';
+  if(_rs!=null||_ps!=null){ppH+='<div style="margin-top:6px">';if(_rs!=null){ppH+='<div style="font-size:0.75em;color:#888;margin-bottom:2px">Rev Share</div><div class="pp-bar"><div class="pp-bar-fill" style="width:'+Math.min(_rs*100/30*100,100)+'%;background:#5b6abf"></div></div>';}if(_ps!=null){ppH+='<div style="font-size:0.75em;color:#888;margin:4px 0 2px">Profit Share</div><div class="pp-bar"><div class="pp-bar-fill" style="width:'+Math.min(_ps*100/30*100,100)+'%;background:#7030a0"></div></div>';}ppH+='</div>';}
+  ppH+='</div>';
+  /* Right column: sector context */
+  var _hhi=d.pp_sector_hhi;
+  var _hhiLbl=_hhi!=null?(_hhi>0.25?' Concentrated':_hhi>0.15?' Moderate':' Competitive'):'';
+  var _hhiC=_hhi!=null?(_hhi>0.25?'color:#c0392b;font-weight:600':_hhi>0.15?'color:#e67e22;font-weight:600':'color:#27ae60;font-weight:600'):'';
+  var _ma=d.pp_margin_advantage;
+  var _maC=_ma!=null?(_ma>0.05?'color:#27ae60;font-weight:600':_ma<-0.05?'color:#c0392b;font-weight:600':'font-weight:600'):'';
+  ppH+='<div class="dsec"><h3>Sector Context</h3><div class="dkvg">'+bkv([['Sector',esc(d.sector||'')],['Companies in Universe',d.pp_sector_count!=null?''+d.pp_sector_count:'N/A'],['Sector HHI',_hhi!=null?_hhi.toFixed(4)+_hhiLbl:'N/A',_hhiC],['CR4 (Top-4 Share)',d.pp_sector_cr4!=null?(d.pp_sector_cr4*100).toFixed(1)+'%':'N/A'],['Sector Median Op Margin',fp(d._sector_median_opm)],['Margin Advantage',_ma!=null?((_ma>0?'+':'')+(_ma*100).toFixed(1)+' pp'):'N/A',_maC]])+'</div></div>';
+  ppH+='</div></div>';
+  return ppH;
 }
 function _renderDetDataTab(key){
   var el=document.getElementById('d-pane-data');if(!el)return;
@@ -4833,31 +4854,6 @@ function openDet(tk){
   }
   psEl.innerHTML=psH;
   document.getElementById('d-section-network').style.display=psH.length>0?'':'none';
-
-  /* --- Sector Analysis section --- */
-  var ppEl=document.getElementById('d-profitpool-content');
-  var ppShow=d.revenue!=null&&d.revenue>0;
-  if(ppShow){
-    var ppH='';
-    /* Left column: company metrics */
-    var _opmC=d.operating_margin!=null?(d.pp_margin_advantage!=null&&d.pp_margin_advantage>0?'color:#27ae60':d.pp_margin_advantage!=null&&d.pp_margin_advantage<0?'color:#c0392b':''):'';
-    var _ppm=d.pp_multiple;
-    var _ppmC=_ppm!=null?(_ppm>=1.5?'color:#27ae60;font-weight:700':_ppm>=1.0?'font-weight:700':_ppm>=0.5?'color:#e67e22;font-weight:700':'color:#c0392b;font-weight:700'):'';
-    var _rs=d.pp_revenue_share;
-    var _ps=d.pp_profit_share;
-    ppH+='<div class="dsec"><h3>Company Position</h3><div class="dkvg">'+bkv([['Revenue',fds(d.revenue)],['Operating Income',fds(d.operating_income)],['Operating Margin',fp(d.operating_margin),_opmC],['Profit Pool Multiple',_ppm!=null?_ppm.toFixed(2)+'\u00d7':'N/A',_ppmC],['Revenue Share',_rs!=null?(_rs*100).toFixed(1)+'%':'N/A'],['Profit Share',_ps!=null?(_ps*100).toFixed(1)+'%':'N/A']])+'</div>';
-    if(_rs!=null||_ps!=null){ppH+='<div style="margin-top:6px">';if(_rs!=null){ppH+='<div style="font-size:0.75em;color:#888;margin-bottom:2px">Rev Share</div><div class="pp-bar"><div class="pp-bar-fill" style="width:'+Math.min(_rs*100/30*100,100)+'%;background:#5b6abf"></div></div>';}if(_ps!=null){ppH+='<div style="font-size:0.75em;color:#888;margin:4px 0 2px">Profit Share</div><div class="pp-bar"><div class="pp-bar-fill" style="width:'+Math.min(_ps*100/30*100,100)+'%;background:#7030a0"></div></div>';}ppH+='</div>';}
-    ppH+='</div>';
-    /* Right column: sector context */
-    var _hhi=d.pp_sector_hhi;
-    var _hhiLbl=_hhi!=null?(_hhi>0.25?' Concentrated':_hhi>0.15?' Moderate':' Competitive'):'';
-    var _hhiC=_hhi!=null?(_hhi>0.25?'color:#c0392b;font-weight:600':_hhi>0.15?'color:#e67e22;font-weight:600':'color:#27ae60;font-weight:600'):'';
-    var _ma=d.pp_margin_advantage;
-    var _maC=_ma!=null?(_ma>0.05?'color:#27ae60;font-weight:600':_ma<-0.05?'color:#c0392b;font-weight:600':'font-weight:600'):'';
-    ppH+='<div class="dsec"><h3>Sector Context</h3><div class="dkvg">'+bkv([['Sector',esc(d.sector||'')],['Companies in Universe',d.pp_sector_count!=null?''+d.pp_sector_count:'N/A'],['Sector HHI',_hhi!=null?_hhi.toFixed(4)+_hhiLbl:'N/A',_hhiC],['CR4 (Top-4 Share)',d.pp_sector_cr4!=null?(d.pp_sector_cr4*100).toFixed(1)+'%':'N/A'],['Sector Median Op Margin',fp(d._sector_median_opm)],['Margin Advantage',_ma!=null?((_ma>0?'+':'')+(_ma*100).toFixed(1)+' pp'):'N/A',_maC]])+'</div></div>';
-    ppEl.innerHTML=ppH;
-  }
-  document.getElementById('d-section-profitpool').style.display=ppShow?'':'none';
 
   var _dm=document.getElementById('det-modal');
   swDetTab(_detTab);
