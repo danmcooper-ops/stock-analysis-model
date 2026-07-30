@@ -1477,10 +1477,10 @@ td.ct{font-weight:700;}
       <div id="d-pane-overview" class="d-pane active">
       <div id="d-kmetrics" class="d-kmetrics"></div>
       <div id="d-gate-values" class="d-gate-values"></div>
+      <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span>The Track Record</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
       <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
       <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
       <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
-      <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
       <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:var(--surface)"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
       </div><!-- /d-pane-overview -->
       <div id="d-pane-charts" class="d-pane">
@@ -1493,7 +1493,10 @@ td.ct{font-weight:700;}
             <div id="dtc-chart"></div>
           </div>
         </div>
-        <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span>The Track Record</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
+      </div>
+      <div id="d-pane-peers" class="d-pane">
+        <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
+        <div id="d-peers-empty" style="display:none;color:#888;padding:24px;text-align:center;font-size:0.88em">No peers or supply-chain data for this company.</div>
       </div>
       <div id="d-pane-data" class="d-pane"></div>
     </div>
@@ -4399,7 +4402,9 @@ var DT_TABS=[
 ];
 function _detTabs(){
   var t=[{k:'overview',l:'Overview'},{k:'charts',l:'Charts'}];
-  DT_TABS.forEach(function(x){t.push({k:x.k,l:x.l});});
+  /* Peers is not a DT_TABS data tab — its pane (#d-pane-peers) is filled by
+     openDet like Overview's sections. Slotted right after Growth. */
+  DT_TABS.forEach(function(x){t.push({k:x.k,l:x.l});if(x.k==='growth')t.push({k:'peers',l:'Peers'});});
   return t;
 }
 function _renderDetTabBar(){
@@ -4412,9 +4417,15 @@ function swDetTab(k){
   _detTab=k;
   _renderDetTabBar();
   document.querySelectorAll('#det-modal .d-pane').forEach(function(p){p.classList.remove('active');});
-  var id=k==='overview'?'d-pane-overview':k==='charts'?'d-pane-charts':'d-pane-data';
+  var id=k==='overview'?'d-pane-overview':k==='charts'?'d-pane-charts':k==='peers'?'d-pane-peers':'d-pane-data';
   var pane=document.getElementById(id);if(pane)pane.classList.add('active');
   if(k==='charts')_dtcRender();
+  else if(k==='peers'){
+    /* Content is rendered by openDet into #d-section-network; just toggle the
+       empty-state note when that section has nothing to show. */
+    var ne=document.getElementById('d-peers-empty'),ns=document.getElementById('d-section-network');
+    if(ne&&ns)ne.style.display=(ns.style.display==='none')?'':'none';
+  }
   else if(k!=='overview')_renderDetDataTab(k);
   var sc=_detScroller();if(sc)sc.scrollTop=0;
 }
