@@ -200,6 +200,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .col-filters-and-label{font-size:0.7em;font-weight:700;color:#aaa;letter-spacing:.5px;text-align:center;margin:-2px 0;}
 .f-col-sel{flex:1 1 0;min-width:0;max-width:100%;padding:4px 5px;font-size:0.82em;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;}
 .f-col-sel:focus{border-color:var(--accent);}
+/* Searchable column picker — desktop replacement for the ~85-option native
+   Column… select. The native select stays in the DOM (hidden) as the value
+   store, so saved filters / URL hashes / presets are untouched; touch
+   devices skip the custom UI and keep the native control. */
+.cfsel-btn{text-align:left;}
+.cfsel-btn.placeholder{color:#8a94a4;}
+#cfsel-panel{display:none;position:fixed;z-index:1400;background:var(--surface);border:1px solid #ccd;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.2);flex-direction:column;overflow:hidden;}
+.cfsel-search{margin:8px 8px 6px;padding:6px 8px;font-size:0.82em;border:1px solid #ccc;border-radius:5px;flex:0 0 auto;background:var(--surface);color:var(--text);}
+.cfsel-search:focus{outline:none;border-color:var(--accent);}
+.cfsel-list{overflow-y:auto;max-height:260px;padding-bottom:6px;}
+.cfsel-grp{font-size:0.64em;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#7f8c9a;padding:8px 12px 3px;position:sticky;top:0;background:var(--surface);}
+.cfsel-item{padding:5px 12px;font-size:0.8em;color:var(--text);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cfsel-item:hover,.cfsel-item.sel{background:#e8f0fb;}
+.cfsel-item.cur{color:var(--accent);font-weight:700;}
+.cfsel-item b{color:var(--accent);}
+.cfsel-empty{padding:12px;font-size:0.8em;color:#8a94a4;}
 .f-num{width:58px!important;min-width:0;padding:4px 6px!important;text-align:center;font-size:0.84em;flex-shrink:0;}
 .f-num::-webkit-inner-spin-button,.f-num::-webkit-outer-spin-button{opacity:0.5;}
 .score-sep{font-size:0.85em;color:#888;}
@@ -993,6 +1009,9 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .f-col-sel option{background:#0d1117;color:#e6edf3;}
 [data-theme="dark"] .ms-btn::after{color:#8b949e;}
 [data-theme="dark"] .ms-drop,[data-theme="dark"] .fpop-panel{background:#161b22;color:#e6edf3;border-color:#30363d;}
+[data-theme="dark"] #cfsel-panel{border-color:#30363d;}
+[data-theme="dark"] .cfsel-search{background:#0d1117;border-color:#30363d;}
+[data-theme="dark"] .cfsel-item:hover,[data-theme="dark"] .cfsel-item.sel{background:#1f2733;}
 [data-theme="dark"] .ms-drop label:hover,[data-theme="dark"] .fpop-toggle-btn:hover,[data-theme="dark"] .add-filter-btn:hover{background:#21262d;}
 [data-theme="dark"] .ms-drop .ms-all{border-color:#30363d;}
 [data-theme="dark"] .fpop-btn,[data-theme="dark"] .fpop-toggle-btn,[data-theme="dark"] .filter-clear,[data-theme="dark"] .fpop-clear-filters,[data-theme="dark"] .add-filter-btn{background:#21262d;color:#c9d1d9;border-color:#30363d;}
@@ -1435,6 +1454,10 @@ td.ct{font-weight:700;}
 </div>
 <div id="tk-tip" class="tk-tip"></div>
 <div id="col-tip"></div>
+<!-- Searchable column-picker panel (shared by all filter rows). Lives on
+     <body> with position:fixed so the fpop-body scroll container can't
+     clip it; the fpop outside-click handler explicitly exempts it. -->
+<div id="cfsel-panel"><input type="text" class="cfsel-search" placeholder="Search columns&hellip;" oninput="_cfselRender(this.value)" onkeydown="cfselKey(event)"><div class="cfsel-list"></div></div>
 <div id="chart-tip"></div>
 <script>
 /* === THEME === */
@@ -2594,6 +2617,11 @@ function toggleFilterPopup(e){
 }
 document.addEventListener('click',function(e){
   var wrap=document.getElementById('fpop-wrap');
+  /* The column picker lives on <body>, outside #fpop-wrap — clicks in it
+     must not read as "outside the Filters popup" or picking a column
+     would slam the whole popup shut. */
+  var cp=document.getElementById('cfsel-panel');
+  if(cp&&cp.contains(e.target))return;
   if(wrap&&!wrap.contains(e.target)){
     var panel=document.getElementById('fpop-panel');
     if(panel)panel.classList.remove('open');
@@ -2619,6 +2647,19 @@ function addColFilter(){
     +'<span class="col-unit cfr-unit"></span>'
     +'<button class="cfr-remove" onclick="removeColFilter(this)" title="Remove">\u00d7</button>';
   wrap.appendChild(row);
+  /* Desktop: swap the ~85-option native select for the searchable picker.
+     The select stays (hidden) as the value store every other code path
+     reads/writes; touch devices keep the native control (OS wheel). */
+  if(!_isTouchDevice){
+    var sel=row.querySelector('.cfr-col');
+    sel.style.display='none';
+    var btn=document.createElement('button');
+    btn.type='button';
+    btn.className='f-col-sel cfsel-btn placeholder';
+    btn.textContent='Column\u2026';
+    btn.onclick=function(e){cfselToggle(btn,e);};
+    row.insertBefore(btn,sel);
+  }
 }
 function removeColFilter(btn){
   var row=btn.closest('.col-filter-row');
@@ -2643,6 +2684,7 @@ function _cfSyncRowMode(row,key){
   row.querySelector('.cfr-sep').style.display=isText?'none':'';
   row.querySelector('.cfr-text').style.display=isText?'':'none';
   row.querySelector('.cfr-unit').textContent=fmt==='pct'?'%':(fmt==='dollar'||fmt==='ds')?'$':'';
+  _cfselSyncLabel(row);
 }
 function onColRowChange(sel){
   var row=sel.closest('.col-filter-row');
@@ -2652,6 +2694,110 @@ function onColRowChange(sel){
   _cfSyncRowMode(row,sel.value);
   applyFilters();
 }
+
+/* === Searchable column picker (desktop) ===
+   One shared #cfsel-panel on <body>, opened per filter row. _CF_OPTS
+   (built in INIT alongside the native option HTML) is the deduped,
+   grouped column list; the row's hidden .cfr-col select remains the
+   single source of truth for the chosen key. */
+var _cfselRow=null;
+function _cfselSyncLabel(row){
+  var btn=row.querySelector('.cfsel-btn');
+  if(!btn)return;
+  var sel=row.querySelector('.cfr-col');
+  var opt=sel.options[sel.selectedIndex];
+  btn.textContent=(sel.value&&opt)?opt.textContent:'Column…';
+  btn.classList.toggle('placeholder',!sel.value);
+}
+function cfselToggle(btn,e){
+  if(e){e.stopPropagation();e.preventDefault();}
+  var row=btn.closest('.col-filter-row');
+  var panel=document.getElementById('cfsel-panel');
+  if(panel.style.display==='flex'&&_cfselRow===row){cfselClose();return;}
+  _cfselRow=row;
+  var q=panel.querySelector('.cfsel-search');
+  q.value='';
+  _cfselRender('');
+  panel.style.display='flex';
+  var r=btn.getBoundingClientRect();
+  var pw=Math.min(320,window.innerWidth-16);
+  panel.style.width=pw+'px';
+  panel.style.left=Math.max(8,Math.min(r.left,window.innerWidth-pw-8))+'px';
+  /* Below the button if it fits, else above. */
+  var ph=panel.offsetHeight;
+  if(window.innerHeight-r.bottom<ph+10&&r.top>ph+10)panel.style.top=(r.top-ph-4)+'px';
+  else panel.style.top=(r.bottom+4)+'px';
+  q.focus();
+  var cur=panel.querySelector('.cfsel-item.cur');
+  if(cur)cur.scrollIntoView({block:'center'});
+}
+function cfselClose(){
+  document.getElementById('cfsel-panel').style.display='none';
+  _cfselRow=null;
+}
+function _cfselRender(q){
+  var list=document.querySelector('#cfsel-panel .cfsel-list');
+  var curKey=_cfselRow?_cfselRow.querySelector('.cfr-col').value:'';
+  q=(q||'').trim().toLowerCase();
+  var html='',shown=0,lastG=null;
+  (window._CF_OPTS||[]).forEach(function(o){
+    var lab=o.l.toLowerCase();
+    if(q&&lab.indexOf(q)<0&&o.g.toLowerCase().indexOf(q)<0)return;
+    if(o.g!==lastG){html+='<div class="cfsel-grp">'+_esc(o.g)+'</div>';lastG=o.g;}
+    var lbl=_esc(o.l);
+    /* Bold the matched substring so the eye lands on why a row matched. */
+    if(q){
+      var i=lab.indexOf(q);
+      if(i>=0)lbl=_esc(o.l.slice(0,i))+'<b>'+_esc(o.l.slice(i,i+q.length))+'</b>'+_esc(o.l.slice(i+q.length));
+    }
+    html+='<div class="cfsel-item'+(o.k===curKey?' cur':'')+(q&&shown===0?' sel':'')+'" data-k="'+o.k+'" onclick="cfselPick(this)">'+lbl+'</div>';
+    shown++;
+  });
+  if(!shown)html='<div class="cfsel-empty">No columns match “'+_esc(q)+'”</div>';
+  list.innerHTML=html;
+  list.scrollTop=0;
+}
+function cfselPick(el){
+  if(!_cfselRow)return;
+  var row=_cfselRow;
+  var sel=row.querySelector('.cfr-col');
+  sel.value=el.getAttribute('data-k');
+  cfselClose();
+  onColRowChange(sel);
+  /* Drop focus straight into the value input so pick→type flows. */
+  var t=row.querySelector('.cfr-text');
+  ((t.style.display==='none')?row.querySelector('.cfr-min'):t).focus();
+}
+function cfselKey(ev){
+  if(ev.key==='Escape'){cfselClose();return;}
+  var panel=document.getElementById('cfsel-panel');
+  var items=panel.querySelectorAll('.cfsel-item');
+  if(!items.length)return;
+  if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){
+    ev.preventDefault();
+    var idx=-1;
+    for(var i=0;i<items.length;i++){if(items[i].classList.contains('sel')){idx=i;break;}}
+    if(idx>=0)items[idx].classList.remove('sel');
+    idx=ev.key==='ArrowDown'?Math.min(items.length-1,idx+1):Math.max(0,idx<0?0:idx-1);
+    items[idx].classList.add('sel');
+    items[idx].scrollIntoView({block:'nearest'});
+  }else if(ev.key==='Enter'){
+    ev.preventDefault();
+    var pick=panel.querySelector('.cfsel-item.sel')||items[0];
+    cfselPick(pick);
+  }
+}
+/* Close the picker on outside click, resize, or any scroll outside it. */
+document.addEventListener('click',function(e){
+  var p=document.getElementById('cfsel-panel');
+  if(p&&p.style.display==='flex'&&!p.contains(e.target)
+     &&!(e.target.closest&&e.target.closest('.cfsel-btn')))cfselClose();
+});
+window.addEventListener('resize',function(){if(_cfselRow)cfselClose();});
+window.addEventListener('scroll',function(e){
+  var p=document.getElementById('cfsel-panel');
+  if(_cfselRow&&p&&!(e.target&&p.contains&&e.target.nodeType===1&&p.contains(e.target)))cfselClose();
+},true);
 
 /* === MATRIX === */
 var mSC='rating',mSA=true;
@@ -6638,6 +6784,10 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   };
   var _CF_ID={ticker:1,rating:1,rating_prev:1};
   var optHtml='<option value="">Column\u2026</option>';
+  /* Deduped, grouped column list for the searchable picker. The native
+     select keeps its per-tab duplicates (each optgroup mirrors its tab);
+     the picker lists each column once, under the first tab it appears on. */
+  var _cfSeen={};window._CF_OPTS=[];
   Object.keys(TL).forEach(function(tabKey){
     var cols=TC[tabKey]||[];var grpHtml='';
     cols.forEach(function(c){
@@ -6647,6 +6797,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
       _CF_FMT[c.k]=isTxt?'text':c.f;
       var unit=isTxt?' (text)':c.f==='pct'?' (%)':c.f==='dollar'||c.f==='ds'?' ($)':'';
       grpHtml+='<option value="'+c.k+'">'+c.l+unit+'</option>';
+      if(!_cfSeen[c.k]){_cfSeen[c.k]=1;_CF_OPTS.push({g:TL[tabKey],k:c.k,l:c.l+unit});}
     });
     if(grpHtml)optHtml+='<optgroup label="'+TL[tabKey]+'">'+grpHtml+'</optgroup>';
   });
@@ -6656,7 +6807,8 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
      and shared URLs referencing it keep working.) */
   var _CF_TEXT=[['industry','Industry'],['ceo','CEO']];
   var txtHtml='';
-  _CF_TEXT.forEach(function(p){_CF_FMT[p[0]]='text';txtHtml+='<option value="'+p[0]+'">'+p[1]+' (text)</option>';});
+  _CF_TEXT.forEach(function(p){_CF_FMT[p[0]]='text';txtHtml+='<option value="'+p[0]+'">'+p[1]+' (text)</option>';
+    if(!_cfSeen[p[0]]){_cfSeen[p[0]]=1;_CF_OPTS.push({g:'Text',k:p[0],l:p[1]+' (text)'});}});
   optHtml+='<optgroup label="Text">'+txtHtml+'</optgroup>';
   _cfOptHtml=optHtml;
   addColFilter(); // seed one empty row
