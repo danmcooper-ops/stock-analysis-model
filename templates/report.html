@@ -252,6 +252,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .fpop-toggle-btn{display:flex;align-items:center;gap:5px;padding:5px 12px;font-size:0.83em;border:1px solid #ccc;border-radius:20px;background:#f9f9f9;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
 .fpop-toggle-btn:hover{border-color:var(--accent);background:#f0f4ff;color:var(--accent);}
 .fpop-toggle-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+/* Quick Filters dropdown — the same toggle buttons render as full-width
+   menu rows instead of pills. */
+.qf-panel{min-width:215px;max-width:300px;}
+.qf-menu{display:flex;flex-direction:column;gap:2px;}
+.qf-menu .fpop-toggle-btn{border:none;background:none;border-radius:6px;padding:7px 10px;width:100%;text-align:left;}
+.qf-menu .fpop-toggle-btn:hover{background:#eef2f7;}
+.qf-menu .fpop-toggle-btn.active{background:var(--accent);color:#fff;}
+[data-theme="dark"] .qf-menu .fpop-toggle-btn{background:none;}
+[data-theme="dark"] .qf-menu .fpop-toggle-btn:hover{background:#21262d;}
+[data-theme="dark"] .qf-menu .fpop-toggle-btn.active{background:var(--accent);color:#0d1117;}
 .sf-del{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:2px;border-radius:50%;font-size:0.95em;line-height:1;color:#999;cursor:pointer;}
 .sf-del:hover{background:#feecec;color:#c33;}
 .sf-empty{font-size:0.78em;color:#999;font-style:italic;}
@@ -1398,11 +1408,36 @@ td.ct{font-weight:700;}
       <div class="ms-drop" id="ms-country-opts"></div>
     </div>
     <div class="filter-divider"></div>
-    <!-- Unified Filters popup — formerly two separate buttons (Quick Filters
-         + Filters). One button now opens a single panel with four labelled
-         sections (quick toggles, column filters, saved filters, backup &
-         restore). The Quick Toggles row at the top keeps the most-used
-         actions one click away; everything else lives below it. -->
+    <!-- Quick Filters dropdown — the one-click state/membership toggles
+         (Reviewed, Flagged, Founder-Led, Blue Chip, Russell 2000,
+         Upgrades, Downgrades), split out of the unified Filters popup
+         into their own button + vertical menu. The badge on the button
+         counts active toggles. -->
+    <div class="fpop-wrap" id="qf-wrap">
+      <button class="fpop-btn" id="qf-btn" onclick="toggleQuickPopup(event)">
+        <span>Quick Filters</span><span class="fpop-badge" id="qf-badge" style="display:none"></span>
+      </button>
+      <div class="fpop-panel qf-panel" id="qf-panel">
+        <div class="fpop-header">
+          <span class="fpop-title">Quick Filters</span>
+          <button class="fpop-close" onclick="toggleQuickPopup(event)">&#215;</button>
+        </div>
+        <div class="fpop-body">
+          <div class="qf-menu">
+            <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Reviewed<span id="rev-count-label"></span></button>
+            <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
+            <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
+            <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3).">&#9670; Blue Chip</button>
+            <button class="fpop-toggle-btn" id="f-r2000" onclick="toggleR2000Filter()" title="Only stocks that are current Russell 2000 constituents (small-cap index membership, sourced from Vanguard VTWO holdings at report build time).">&#9671; Russell 2000</button>
+            <button class="fpop-toggle-btn" id="f-upgrades" onclick="setRcFilter(1)" title="Only stocks whose rating improved vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9650; Upgrades</button>
+            <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose rating declined vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9660; Downgrades</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Filters popup — column filters + saved presets. The quick
+         toggles that used to sit at the top now live in the Quick
+         Filters dropdown to the left. -->
     <div class="fpop-wrap" id="fpop-wrap">
       <button class="fpop-btn" id="fpop-btn" onclick="toggleFilterPopup(event)">
         <span>Filters</span>
@@ -1413,17 +1448,6 @@ td.ct{font-weight:700;}
           <button class="fpop-close" onclick="toggleFilterPopup(event)">&#215;</button>
         </div>
         <div class="fpop-body">
-          <div class="fpop-section-label">Quick Toggles</div>
-          <div class="fpop-toggles" style="margin-bottom:4px">
-            <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Reviewed<span id="rev-count-label"></span></button>
-            <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
-            <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
-            <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3).">&#9670; Blue Chip</button>
-            <button class="fpop-toggle-btn" id="f-r2000" onclick="toggleR2000Filter()" title="Only stocks that are current Russell 2000 constituents (small-cap index membership, sourced from Vanguard VTWO holdings at report build time).">&#9671; Russell 2000</button>
-            <button class="fpop-toggle-btn" id="f-upgrades" onclick="setRcFilter(1)" title="Only stocks whose rating improved vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9650; Upgrades</button>
-            <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose rating declined vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9660; Downgrades</button>
-          </div>
-          <div class="fpop-divider"></div>
           <div class="fpop-section-label">Column Filters</div>
           <div id="col-filters" class="col-filters-wrap"></div>
           <button class="add-filter-btn" onclick="addColFilter()">&#65291; Add Filter</button>
@@ -2469,13 +2493,19 @@ function applyFilters(){
   /* Suggestions only when the search alone zeroed the result set; the
      candidate scan needs passOther, so it runs here where it's in scope. */
   _renderSuggestions(toks.length&&FD.length===0&&_passedOther>0?_buildSuggestions(toks,passOther):null);
-  /* Unified Filters button: active when ANY filter is engaged — column
-     filters OR any quick toggle (Reviewed cycle, Flagged, Founder-Led).
-     3-state Reviewed filter: state 0 (gray Reviewed) shows all and doesn't
-     count; states 1 (Unreviewed) and 2 (Reviewed) are active filters. */
-  var qActive=_flagOnly||_founderOnly||_blueChipOnly||_r2000Only||(_revFilter>0)||(_rcFilter>0);
+  /* Button active states: the Quick Filters button lights up (with a
+     badge counting active toggles) when any quick toggle is engaged;
+     the Filters button lights up for column filters. 3-state Reviewed
+     filter: state 0 (gray Reviewed) shows all and doesn't count;
+     states 1 (Unreviewed) and 2 (Reviewed) are active filters. */
+  var qn=(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)
+        +(_revFilter>0?1:0)+(_rcFilter>0?1:0);
+  var qbtn=document.getElementById('qf-btn');
+  if(qbtn)qbtn.classList.toggle('active',qn>0);
+  var qbadge=document.getElementById('qf-badge');
+  if(qbadge){qbadge.style.display=qn>0?'':'none';qbadge.textContent=qn>0?qn:'';}
   var btn=document.getElementById('fpop-btn');
-  if(btn)btn.classList.toggle('active',colFilters.length>0||qActive);
+  if(btn)btn.classList.toggle('active',colFilters.length>0);
   _updateFlagCount();
   renderCur();
   _syncHash();
@@ -2651,7 +2681,9 @@ function _positionFpop(panel,btn){
      views window.innerWidth reports the wide layout viewport, which let
      the panel open past the visible right edge on phones. */
   var r=btn.getBoundingClientRect();
-  var wr=document.getElementById('fpop-wrap').getBoundingClientRect();
+  /* The panel's parent IS its .fpop-wrap (works for both the Filters
+     popup and the Quick Filters dropdown). */
+  var wr=panel.parentElement.getBoundingClientRect();
   var vv=window.visualViewport;
   var vw=vv?vv.width:window.innerWidth,vh=vv?vv.height:window.innerHeight;
   panel.style.width='';
@@ -2668,23 +2700,38 @@ function toggleFilterPopup(e){
   if(e)e.stopPropagation();
   var panel=document.getElementById('fpop-panel');
   var wasOpen=panel.classList.contains('open');
+  var qp=document.getElementById('qf-panel');
+  if(qp)qp.classList.remove('open');
   panel.classList.toggle('open');
   if(!wasOpen){
     var btn=document.getElementById('fpop-btn');
     if(btn)_positionFpop(panel,btn);
   }
 }
+function toggleQuickPopup(e){
+  if(e)e.stopPropagation();
+  var panel=document.getElementById('qf-panel');
+  var wasOpen=panel.classList.contains('open');
+  document.getElementById('fpop-panel').classList.remove('open');
+  panel.classList.toggle('open');
+  if(!wasOpen){
+    var btn=document.getElementById('qf-btn');
+    if(btn)_positionFpop(panel,btn);
+  }
+}
 document.addEventListener('click',function(e){
-  var wrap=document.getElementById('fpop-wrap');
   /* The column picker lives on <body>, outside #fpop-wrap — clicks in it
      must not read as "outside the Filters popup" or picking a column
      would slam the whole popup shut. */
   var cp=document.getElementById('cfsel-panel');
   if(cp&&cp.contains(e.target))return;
-  if(wrap&&!wrap.contains(e.target)){
-    var panel=document.getElementById('fpop-panel');
-    if(panel)panel.classList.remove('open');
-  }
+  [['fpop-wrap','fpop-panel'],['qf-wrap','qf-panel']].forEach(function(p){
+    var wrap=document.getElementById(p[0]);
+    if(wrap&&!wrap.contains(e.target)){
+      var panel=document.getElementById(p[1]);
+      if(panel)panel.classList.remove('open');
+    }
+  });
 });
 var _cfRowId=0;
 var _cfOptHtml='';
