@@ -380,6 +380,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         'int_cov': r.get('int_cov'),
         'nd_ebitda': r.get('nd_ebitda'),
         'de': r.get('de'),
+        'total_debt': r.get('total_debt'),
+        'net_debt': r.get('net_debt'),
+        'cash': r.get('cash'),
+        'total_liabilities': r.get('total_liabilities'),
         'cr': r.get('cr'),
         'roe': r.get('roe'),
         'roa': r.get('roa'),
@@ -687,6 +691,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
             ('gross_profit_history', 'gp'),
             ('shares_history', 'shares'),
             ('dividends_paid_history', 'div'),
+            ('total_debt_history', 'debt'),
+            ('cash_history', 'cash'),
         ]
         for r in rows:
             tk = r.get('ticker')

@@ -73,10 +73,34 @@ class SECXBRLClient:
             'StockholdersEquity',
             'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest',
         ],
-        'total_debt': [
-            'LongTermDebt',
-            'LongTermDebtAndCapitalLeaseObligations',
+        # Debt components are extracted SEPARATELY (not alias-merged) and
+        # combined by _resolve_total_debt_annual: US-GAAP LongTermDebt
+        # includes current maturities while LongTermDebtNoncurrent does not,
+        # so merging them lets a current-inclusive total win the merge and
+        # then get the current portion added a second time.
+        'ltd_noncurrent': [
             'LongTermDebtNoncurrent',
+            'LongTermDebtAndCapitalLeaseObligations',
+        ],
+        'ltd_total': [
+            'LongTermDebt',
+        ],
+        'debt_current_total': [
+            'DebtCurrent',          # short-term borrowings + current LTD
+        ],
+        'ltd_current': [
+            'LongTermDebtCurrent',
+        ],
+        'st_borrowings': [
+            'ShortTermBorrowings',
+            'CommercialPaper',
+            'BankOverdrafts',
+        ],
+        'total_liabilities': [
+            'Liabilities',
+        ],
+        'retained_earnings': [
+            'RetainedEarningsAccumulatedDeficit',
         ],
         'operating_income': [
             'OperatingIncomeLoss',
@@ -163,10 +187,30 @@ class SECXBRLClient:
             'Equity',
             'EquityAttributableToOwnersOfParent',
         ],
-        'total_debt': [
+        # Debt components mirror the US-GAAP split (see _XBRL_TAG_MAP).
+        # IFRS filers tag borrowings by current/noncurrent classification;
+        # 'Borrowings' (undifferentiated total) is the ltd_total-tier
+        # fallback for filers that only tag the combined figure.
+        'ltd_noncurrent': [
             'NoncurrentBorrowings',
             'BorrowingsNoncurrent',
             'LongtermBorrowings',
+        ],
+        'ltd_total': [
+            'Borrowings',
+        ],
+        'debt_current_total': [
+            'CurrentBorrowings',
+            'BorrowingsCurrent',
+            'ShorttermBorrowings',
+        ],
+        'ltd_current': [],
+        'st_borrowings': [],
+        'total_liabilities': [
+            'Liabilities',
+        ],
+        'retained_earnings': [
+            'RetainedEarnings',
         ],
         'operating_income': [
             'ProfitLossFromOperatingActivities',
@@ -653,6 +697,80 @@ class SECXBRLClient:
                 return vals, taxonomy_key, ccy
         return {}, None, ccy
 
+    _DEBT_COMPONENT_CONCEPTS = (
+        'ltd_noncurrent', 'ltd_total', 'debt_current_total',
+        'ltd_current', 'st_borrowings',
+    )
+
+    def _resolve_total_debt_annual(self, facts_json, units_key='USD',
+                                   taxonomy_key='us-gaap'):
+        """Per-year total debt from separately-extracted components.
+
+        Priority per fiscal year (never fabricate zero for a levered filer):
+          1. noncurrent LTD + current-debt total (clean split, no overlap)
+          2. noncurrent LTD + current LTD + short-term borrowings
+          3. total LTD (already includes current maturities) + ST borrowings
+        Years where none of the tiers resolve are OMITTED — debt UNKNOWN
+        for that year is not debt = 0.
+
+        Returns:
+            (values {fy: float}, tagged bool). tagged=False means NO debt
+            component concept carries any entries at all — the filer is
+            genuinely unlevered (or entirely untagged) and callers may
+            treat debt as 0; tagged=True with a missing year means unknown.
+        """
+        tag_map = dict(self._TAXONOMIES).get(taxonomy_key, {})
+
+        def _c(concept):
+            tags = tag_map.get(concept, [])
+            if not tags:
+                return {}
+            return self._extract_annual_values(
+                facts_json, tags, units_key=units_key,
+                taxonomy_key=taxonomy_key) or {}
+
+        ltd_nc = _c('ltd_noncurrent')
+        ltd_total = _c('ltd_total')
+        debt_cur = _c('debt_current_total')
+        ltd_cur = _c('ltd_current')
+        stb = _c('st_borrowings')
+
+        tagged = any((ltd_nc, ltd_total, debt_cur, ltd_cur, stb))
+        out = {}
+        for y in sorted(set(ltd_nc) | set(ltd_total) | set(debt_cur)
+                        | set(ltd_cur) | set(stb)):
+            if ltd_nc.get(y) is not None:
+                if debt_cur.get(y) is not None:
+                    out[y] = ltd_nc[y] + debt_cur[y]
+                else:
+                    out[y] = (ltd_nc[y] + (ltd_cur.get(y) or 0)
+                              + (stb.get(y) or 0))
+            elif ltd_total.get(y) is not None:
+                out[y] = ltd_total[y] + (stb.get(y) or 0)
+        return out, tagged
+
+    def _resolve_total_debt_concept(self, facts_json):
+        """Dual-taxonomy, currency-aware total-debt resolution.
+
+        The _extract_concept_annual equivalent for the composed total-debt
+        figure: tries US-GAAP first, falls back to IFRS, auto-detecting the
+        reporting currency from whichever debt component is tagged.
+
+        Returns (values {fy: float}, taxonomy_key, currency, tagged).
+        """
+        ccy = None
+        for concept in self._DEBT_COMPONENT_CONCEPTS:
+            ccy = ccy or self._detect_currency(facts_json, concept)
+        ccy = ccy or 'USD'
+        any_tagged = False
+        for taxonomy_key, _tag_map in self._TAXONOMIES:
+            vals, tagged = self._resolve_total_debt_annual(
+                facts_json, units_key=ccy, taxonomy_key=taxonomy_key)
+            any_tagged = any_tagged or tagged
+            if vals:
+                return vals, taxonomy_key, ccy, True
+        return {}, None, ccy, any_tagged
+
     # ------------------------------------------------------------------
     # Public API: Validation
     # ------------------------------------------------------------------
@@ -680,9 +798,15 @@ class SECXBRLClient:
         fields_flagged = 0
 
         for concept, yf_keys in self._YF_KEY_MAP.items():
-            # Get EDGAR value (most recent annual)
-            xbrl_tags = self._XBRL_TAG_MAP.get(concept, [])
-            annual_vals = self._extract_annual_values(facts, xbrl_tags)
+            # Get EDGAR value (most recent annual). Total debt is a composed
+            # figure (LTD + current debt), not a single tag — resolve it the
+            # same way build_yfinance_shape does so the comparison against
+            # yfinance's current-inclusive 'Total Debt' row is apples-to-apples.
+            if concept == 'total_debt':
+                annual_vals, _tagged = self._resolve_total_debt_annual(facts)
+            else:
+                xbrl_tags = self._XBRL_TAG_MAP.get(concept, [])
+                annual_vals = self._extract_annual_values(facts, xbrl_tags)
             if not annual_vals:
                 continue
 
@@ -781,6 +905,12 @@ class SECXBRLClient:
         intexp, intexp_ccy       = _flow('interest_expense')
         div, div_ccy             = _flow('dividends_paid')
         opinc, opinc_ccy         = _flow('operating_income')
+        # Balance-sheet series (annual FY-keyed like the flows — one
+        # fiscal-year-end instant per year). Total debt is composed from
+        # the component concepts via the shared resolver.
+        cash_h, cash_ccy         = _flow('cash')
+        debt_h, _dtx, debt_ccy, debt_tagged = \
+            self._resolve_total_debt_concept(facts)
         shares, _tax_s, _ccy_s   = self._extract_concept_periodic(
             facts, 'shares_outstanding', units_key='shares', point_in_time=True)
         if not shares:
@@ -813,9 +943,23 @@ class SECXBRLClient:
             intexp = _apply_fx_annual(intexp, fx)
             div    = _apply_fx_annual(div, fx)
             opinc  = _apply_fx_annual(opinc, fx)
+            # Balance-sheet instants use the same year-end-close rate as the
+            # flows — exact for calendar-year fiscal ends, and the same
+            # months-off approximation already accepted for flow series on
+            # mid-year fiscal ends.
+            cash_h = _apply_fx_annual(cash_h, fx)
+            debt_h = _apply_fx_annual(debt_h, fx)
             # shares are unit-counts, not currency — leave alone.
 
-        all_series = [rev, ni, ocf, capex, gp, intexp, div, shares, opinc]
+        # Untagged debt across every component concept = genuinely unlevered
+        # filer: explicit zeros over the revenue span (else net debt would
+        # read unknown instead of -cash). A tagged filer with missing years
+        # keeps those years absent (unknown ≠ 0).
+        if not debt_tagged and not debt_h:
+            debt_h = {y: 0.0 for y in (rev or ni)}
+
+        all_series = [rev, ni, ocf, capex, gp, intexp, div, shares, opinc,
+                      debt_h, cash_h]
         years_available = max((len(s) for s in all_series if s), default=0)
 
         return {
@@ -827,6 +971,8 @@ class SECXBRLClient:
             'interest_expense_history': intexp,
             'dividends_paid_history':   div,
             'operating_income_history': opinc,
+            'total_debt_history':       debt_h,
+            'cash_history':             cash_h,
             'shares_history':           shares,
             'years_available':          years_available,
             'reporting_currency':       reporting_ccy,
@@ -886,11 +1032,16 @@ class SECXBRLClient:
         # filter conditional skips them naturally, and the fy match keeps the
         # right period-end value per fiscal year.
         equity        = _ann('total_equity')
-        debt          = _ann('total_debt')
         cash          = _ann('cash')
         assets        = _ann('total_assets')
         curr_assets   = _ann('current_assets')
         curr_liabs    = _ann('current_liabilities')
+        liabilities   = _ann('total_liabilities')
+        ret_earnings  = _ann('retained_earnings')
+        # Total debt is composed from separately-tagged components (LTD +
+        # current debt) — a single-tag read understates leverage by the
+        # short-term portion for most filers.
+        debt, debt_tagged = self._resolve_total_debt_annual(facts)
 
         # Need at least revenue or net income to consider the data usable.
         if not revenue and not net_income:
@@ -931,6 +1082,21 @@ class SECXBRLClient:
                 if ni is not None and tx is not None:
                     pretax_income[y] = ni + tx
 
+        # Untagged debt across every component concept = genuinely unlevered
+        # filer -> an explicit 0 per year, so net debt reads -cash instead of
+        # unknown. A TAGGED filer with a missing year stays None (unknown).
+        if not debt_tagged:
+            debt = {y: 0.0 for y in years}
+
+        # Total liabilities: fall back to the Assets − Equity identity for
+        # years where the filer doesn't tag the 'Liabilities' total. Unblocks
+        # Debt/Equity and Altman Z on the XBRL path.
+        for y in years:
+            if liabilities.get(y) is None:
+                a, e = assets.get(y), equity.get(y)
+                if a is not None and e is not None:
+                    liabilities[y] = a - e
+
         cols = [pd.Timestamp(year=y, month=12, day=31) for y in years]
 
         income_df = pd.DataFrame({
@@ -953,6 +1119,8 @@ class SECXBRLClient:
                 'Total Assets':              assets.get(y),
                 'Current Assets':            curr_assets.get(y),
                 'Current Liabilities':       curr_liabs.get(y),
+                'Total Liabilities Net Minority Interest': liabilities.get(y),
+                'Retained Earnings':         ret_earnings.get(y),
             } for y, col in zip(years, cols)
         })
 

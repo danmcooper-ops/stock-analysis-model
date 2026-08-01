@@ -85,6 +85,23 @@ def _pick_json(arg=None):
 # main
 # ---------------------------------------------------------------------------
 
+def _needs_refetch(eh):
+    """True when a record's edgar_history predates a later-added series.
+
+    total_debt_history uses a key-PRESENCE check, not truthiness: a debt-free
+    filer legitimately returns {} and must not be refetched on every pass.
+    """
+    if not eh.get('revenue_history') and not eh.get('earnings_history'):
+        return True
+    if not eh.get('operating_income_history'):
+        # Series added 2026-07 (Margin-vs-Hist gate + normalized-EBIT EPV).
+        return True
+    if 'total_debt_history' not in eh:
+        # Debt/cash series added 2026-07 (Track Record debt rows).
+        return True
+    return False
+
+
 def main():
     args = _parse_args()
     json_path = _pick_json(args.json_path)
@@ -107,13 +124,7 @@ def main():
             if not tk:
                 continue
             eh = r.get('edgar_history') or {}
-            if args.force:
-                need.append(tk)
-            elif not eh.get('revenue_history') and not eh.get('earnings_history'):
-                need.append(tk)
-            elif not eh.get('operating_income_history'):
-                # Series added 2026-07 (Margin-vs-Hist gate + normalized-EBIT
-                # EPV): older backfills predate it, so refetch to pick it up.
+            if args.force or _needs_refetch(eh):
                 need.append(tk)
 
     if args.limit is not None:

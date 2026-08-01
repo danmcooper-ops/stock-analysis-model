@@ -9,14 +9,21 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import pytest
 
 from scripts.enrich_xbrl import _compute_one
+from data.sec_xbrl_client import SECXBRLClient
 
 
-class FakeXbrl:
-    """Maps the FIRST tag of each concept list to a canned annual series."""
+class FakeXbrl(SECXBRLClient):
+    """Maps the FIRST tag of each concept list to a canned annual series.
+
+    Subclasses the real client so _compute_one's call into the shared
+    _resolve_total_debt_annual exercises the real priority ladder against
+    the canned tag data.
+    """
     def __init__(self, by_tag):
+        super().__init__(cik_map={}, name_map={}, request_delay=0)
         self.by_tag = by_tag
 
-    def _extract_annual_values(self, facts, tags):
+    def _extract_annual_values(self, facts, tags, **kwargs):
         for t in tags:
             if t in self.by_tag:
                 return dict(self.by_tag[t])

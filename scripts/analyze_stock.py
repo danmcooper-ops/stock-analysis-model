@@ -43,7 +43,8 @@ from models.rim import residual_income_model
 from models.nav import tangible_book_value_per_share
 from models.portfolio import position_sizes, concentration_analysis
 from models.utils import rank
-from models.field_keys import OPERATING_CF_KEYS, CAPEX_KEYS
+from models.field_keys import (OPERATING_CF_KEYS, CAPEX_KEYS, _get,
+                               DEBT_KEYS, CASH_KEYS)
 from scripts.report_excel import build_excel
 from scripts.report_html import build_html
 from data.macro_client import MacroClient
@@ -2646,6 +2647,31 @@ def _main():
             int_cov = calculate_interest_coverage(yf_data)
             nd_ebitda = calculate_net_debt_ebitda(yf_data)
 
+            # Debt levels (USD — statement frames are FX-normalized upstream).
+            # Statements first; yfinance .info as fallback only (its totalDebt/
+            # totalCash are MRQ figures — fine as point-in-time levels, never
+            # injected into annual frames). None stays None: unknown ≠ 0.
+            total_debt_val = cash_val = total_liabilities_val = None
+            debt_source = None
+            _bs = yf_data.get('balance_sheet')
+            if _bs is not None and not _bs.empty:
+                _latest_bs = _bs.iloc[:, 0]
+                total_debt_val = _get(_latest_bs, DEBT_KEYS)
+                cash_val = _get(_latest_bs, CASH_KEYS)
+                total_liabilities_val = _get(
+                    _latest_bs,
+                    ['Total Liabilities Net Minority Interest', 'Total Liab'])
+            _yf_info = yf_data.get('info') or {}
+            if total_debt_val is None and _yf_info.get('totalDebt') is not None:
+                total_debt_val = _yf_info.get('totalDebt')
+                debt_source = 'yf_info'
+            if cash_val is None and _yf_info.get('totalCash') is not None:
+                cash_val = _yf_info.get('totalCash')
+                debt_source = debt_source or 'yf_info'
+            net_debt_val = (total_debt_val - cash_val
+                            if total_debt_val is not None and cash_val is not None
+                            else None)
+
             # Traditional ratios
             ratios = compute_ratios(yf_data)
 
@@ -3040,6 +3066,11 @@ def _main():
                 # Balance sheet (Step 3C)
                 'int_cov': int_cov,
                 'nd_ebitda': nd_ebitda,
+                'total_debt': total_debt_val,
+                'net_debt': net_debt_val,
+                'cash': cash_val,
+                'total_liabilities': total_liabilities_val,
+                'debt_source': debt_source,
                 # Traditional ratios
                 'roe': ratios.get('ROE'),
                 'de': ratios.get('Debt-to-Equity'),

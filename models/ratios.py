@@ -29,7 +29,7 @@ def compute_ratios(financials):
 
     total_equity = _get(latest_bs, EQUITY_KEYS, allow_zero=False)
     total_assets = _get(latest_bs, TOTAL_ASSETS_KEYS, allow_zero=False)
-    total_liabilities = _get(latest_bs, ['Total Liabilities Net Minority Interest', 'Total Liab'])
+    total_debt = _get(latest_bs, DEBT_KEYS)
     current_assets = _get(latest_bs, CURRENT_ASSETS_KEYS)
     current_liabilities = _get(latest_bs, CURRENT_LIABILITIES_KEYS, allow_zero=False)
     net_income = _get(latest_inc, NET_INCOME_KEYS)
@@ -42,8 +42,10 @@ def compute_ratios(financials):
             ratios['warnings'].append(
                 'Negative equity — ROE sign is meaningless (both sides flip)'
             )
-    if total_equity and total_liabilities is not None:
-        ratios['Debt-to-Equity'] = total_liabilities / total_equity
+    # True Total Debt / Equity (interest-bearing debt, not total liabilities —
+    # the total-leverage view lives in dupont_leverage).
+    if total_equity and total_debt is not None:
+        ratios['Debt-to-Equity'] = total_debt / total_equity
     if current_assets is not None and current_liabilities:
         ratios['Current Ratio'] = current_assets / current_liabilities
     if total_assets and net_income is not None:

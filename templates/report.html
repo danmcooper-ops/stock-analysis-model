@@ -2224,6 +2224,9 @@ piotroski:'F-Score: nine binary tests of profitability, leverage and efficiency,
 int_cov:'Interest Coverage = EBIT / Interest Expense. Below 3×, one bad year becomes a crisis; above 10× is a fortress. Munger: avoid leverage that forces selling at the worst time.',
 nd_ebitda:'Net Debt/EBITDA = (Debt − Cash) / EBITDA — the years of earnings needed to retire the debt. Buffett wants no debt or very modest debt; a negative figure means net cash, the gold standard.',
 de:'D/E = Total Debt / Equity — Graham’s direct leverage test. Below 1.0, owners fund more of the business than creditors do. Munger: leverage turns temporary undervaluation into permanent loss.',
+total_debt:'All interest-bearing borrowings — long-term debt plus the short-term and current portions — from the latest annual balance sheet (SEC XBRL where available). The absolute claim creditors hold ahead of shareholders; judge it against cash flow, not in isolation.',
+net_debt:'Net Debt = Total Debt − Cash & Equivalents — what would remain owed if the cash pile paid down borrowings today. Negative means net cash: Buffett’s fortress posture, freedom to act when others must sell.',
+cash:'Cash and equivalents on the latest annual balance sheet — the buffer that buys time in a downturn and optionality in a panic. Buffett keeps billions idle on purpose; cash is a call option on future bargains.',
 cr:'Current Ratio = Current Assets / Current Liabilities. Graham required at least 2.0 for defensive stocks; below 1.0, the business depends on rolling its credit.',
 altman_z:'Z = 1.2·WC/A + 1.4·RE/A + 3.3·EBIT/A + 0.6·MktEq/Liab + 1.0·Sales/A — five balance-sheet ratios weighted into one distress score. Above 2.99 is safe; below 1.81, distress. The point is Graham’s: avoid permanent loss of capital.',
 beneish_m:'M-Score — an eight-variable index of earnings manipulation. Above −1.78, the risk is elevated. Buffett on management: “integrity, intelligence, energy — if they lack the first, the other two will kill you.”',
@@ -3408,7 +3411,9 @@ var _PH_METRICS=[
   {k:'fcf',    lbl:'Free Cash Flow',unit:'$B', fmt:'bil',    src:'hist',derived:true},
   {k:'gm',     lbl:'Gross Margin',  unit:'%',  fmt:'pct',    src:'hist',derived:true},
   {k:'shares', lbl:'Shares Out.',   unit:'M',  fmt:'mil',    src:'hist'},
-  {k:'dps',    lbl:'Dividends/Share',unit:'$', fmt:'money2', src:'hist',derived:true}
+  {k:'dps',    lbl:'Dividends/Share',unit:'$', fmt:'money2', src:'hist',derived:true},
+  {k:'debt',   lbl:'Total Debt',    unit:'$B', fmt:'bil',    src:'hist'},
+  {k:'ndebt',  lbl:'Net Debt',      unit:'$B', fmt:'bil',    src:'hist',derived:true}
 ];
 function _phMetricDef(k){for(var i=0;i<_PH_METRICS.length;i++)if(_PH_METRICS[i].k===k)return _PH_METRICS[i];return _PH_METRICS[0];}
 function _phFmtVal(v,fmt){
@@ -3633,6 +3638,10 @@ function _phGetHistPts(ticker,metricKey,range){
   }
   if(metricKey==='gm'&&h.gp&&h.rev){
     return _build(function(k){var g=h.gp[k],r=h.rev[k];if(g==null||r==null||r<=0)return null;return g/r;},_keys(h.rev));
+  }
+  if(metricKey==='debt'&&h.debt)return _build(function(k){return h.debt[k];},_keys(h.debt));
+  if(metricKey==='ndebt'&&h.debt&&h.cash){
+    return _build(function(k){var b=h.debt[k],c=h.cash[k];if(b==null||c==null)return null;return b-c;},_keys(h.debt));
   }
   if(metricKey==='dps'&&h.div&&h.shares){
     // For per-share figures, divide quarterly dividends by the most recent
@@ -4341,7 +4350,11 @@ function _renderTrackRecord(d){
   }
   var h=(HIST||{})[tk];
   if(!h){sec.style.display='none';el.innerHTML='';return;}
-  var rev=h.rev||{},ni=h.ni||{},ocf=h.ocf||{},capex=h.capex||{},sh=h.shares||{},dv=h.div||{};
+  var rev=h.rev||{},ni=h.ni||{},ocf=h.ocf||{},capex=h.capex||{},sh=h.shares||{},dv=h.div||{},db=h.debt||{},csh=h.cash||{};
+  /* Banks: borrowings are raw material, not distress — keep the debt rows
+     factual but drop the red/green judgment (mirrors the int_cov/nd_ebitda
+     gate masks for Financial Services). */
+  var _finSec=(d.sector==='Financial Services');
   /* FY columns = union of the annual series; dedupe to one per calendar year
      (keep the later fiscal-year end) and cap at the last 10. */
   var _ks={};[rev,ni,ocf].forEach(function(s){Object.keys(s).forEach(function(k){_ks[k]=1;});});
@@ -4356,6 +4369,8 @@ function _renderTrackRecord(d){
     {l:'Net Margin',get:function(k){return rev[k]&&ni[k]!=null?ni[k]/rev[k]:null;},fmt:function(v){return fp(v);},margin:true},
     {l:'Op Cash Flow',get:function(k){return ocf[k]!=null?ocf[k]:null;},fmt:fds},
     {l:'Free Cash Flow',get:function(k){var o=ocf[k],c=capex[k];return o!=null&&c!=null?o-Math.abs(c):null;},fmt:fds},
+    {l:'Total Debt',get:function(k){return db[k]!=null?db[k]:null;},fmt:fds,inv:true,total:true,neut:_finSec},
+    {l:'Net Debt',get:function(k){return db[k]!=null&&csh[k]!=null?db[k]-csh[k]:null;},fmt:fds,inv:true,delta:true,neut:_finSec},
     {l:'Shares Out',get:function(k){return _near(sh,k,220);},fmt:_trFmtSh,inv:true,total:true},
     {l:'Dividends Paid',get:function(k){return dv[k]!=null?Math.abs(dv[k]):null;},fmt:fds},
   ];
@@ -4372,7 +4387,7 @@ function _renderTrackRecord(d){
     var prev=null;
     vals.forEach(function(v){
       var sty='';
-      if(v!=null&&prev!=null){
+      if(v!=null&&prev!=null&&!rw.neut){
         var down=v<prev;
         if(rw.inv)down=!down;
         if(down)sty=' style="color:#c0392b"';
@@ -4381,16 +4396,20 @@ function _renderTrackRecord(d){
       html+='<td'+sty+'>'+(v!=null?rw.fmt(v):'—')+'</td>';
       if(v!=null)prev=v;
     });
-    /* Trend column: CAGR for flow rows, total change for shares, pp for margin. */
+    /* Trend column: CAGR for flow rows, total change for shares/debt, signed
+       dollar delta for net debt (it crosses zero, so ratio math is nonsense),
+       pp for margin. neut rows (banks) render the trend uncolored. */
     var f=nn[0],l=nn[nn.length-1],trend='—',tSty='';
     var span=cols.length-1;
     if(rw.margin){var pp=(l-f)*100;trend=(pp>0?'+':'')+pp.toFixed(1)+' pp';tSty=pp>0?'color:#1a9850':(pp<0?'color:#c0392b':'');}
+    else if(rw.delta){var dl=l-f;trend=(dl>0?'+':'')+fds(dl);tSty=(rw.inv?dl<0:dl>0)?'color:#1a9850':'color:#c0392b';}
     else if(rw.total){var ch=f!==0?(l/f-1):null;if(ch!=null){trend=(ch>0?'+':'')+(ch*100).toFixed(1)+'%';tSty=(rw.inv?ch<0:ch>0)?'color:#1a9850':'color:#c0392b';}}
     else if(f>0&&l>0&&span>0){var cg=Math.pow(l/f,1/span)-1;trend=(cg>0?'+':'')+(cg*100).toFixed(1)+'%/yr';tSty=cg>0?'color:#1a9850':'color:#c0392b';}
+    if(rw.neut)tSty='';
     html+='<td class="dtr-cagr" style="'+tSty+'">'+trend+'</td></tr>';
   });
   html+='</table></div>';
-  html+='<div style="font-size:0.68em;color:var(--text-muted);margin-top:6px">Annual figures from SEC EDGAR XBRL filings · Free Cash Flow = operating cash flow − capex · shares interpolated to fiscal year-end</div>';
+  html+='<div style="font-size:0.68em;color:var(--text-muted);margin-top:6px">Annual figures from SEC EDGAR XBRL filings · Free Cash Flow = operating cash flow − capex · Net Debt = total debt − cash &amp; equivalents · shares interpolated to fiscal year-end'+(_finSec?' · debt rows uncolored: borrowings are operating inputs for financials, not distress':'')+'</div>';
   if(!shown){sec.style.display='none';el.innerHTML='';return;}
   el.innerHTML=html;
   sec.style.display='';
@@ -4429,7 +4448,7 @@ var DT_TABS=[
   {t:'Sector Metrics',cols:[{k:'nim',sec:1},{k:'efficiency_ratio',sec:1},{k:'deposit_beta',l:'Deposit Beta',f:'n2',sec:1},{k:'combined_ratio',l:'Combined Ratio',f:'pct',sec:1},{k:'float_cost',l:'Float Cost',f:'pct',sec:1},{k:'affo_margin',sec:1}]}
  ]},
  {k:'hlth',l:'Health',groups:[
-  {t:'Solvency & Leverage',cols:[{k:'int_cov'},{k:'nd_ebitda'},{k:'de',l:'Debt/Equity',f:'n2'},{k:'net_cash_to_mcap'},{k:'debt_maturity_wall_yrs',l:'Debt Wall (yrs)',f:'n1',sec:1}]},
+  {t:'Solvency & Leverage',cols:[{k:'total_debt',l:'Total Debt',f:'ds'},{k:'net_debt',l:'Net Debt',f:'ds'},{k:'cash',l:'Cash & Equivalents',f:'ds'},{k:'int_cov'},{k:'nd_ebitda'},{k:'de',l:'Debt/Equity',f:'n2'},{k:'net_cash_to_mcap'},{k:'debt_maturity_wall_yrs',l:'Debt Wall (yrs)',f:'n1',sec:1}]},
   {t:'Liquidity & Working Capital',cols:[{k:'cr'},{k:'inventory_days'},{k:'working_capital_days'}]},
   {t:'Distress & Manipulation',cols:[{k:'altman_z'},{k:'beneish_m'},{k:'goodwill_pct',l:'Goodwill %',f:'pct',sec:1}]},
   {t:'Bank Health',cols:[{k:'cet1_ratio',sec:1},{k:'npl_ratio',sec:1}]}
