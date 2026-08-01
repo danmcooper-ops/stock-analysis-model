@@ -116,8 +116,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 }
 /* Phone-only: compact tabs, filter bar, nav */
 @media(max-width:600px){
-  .primary-nav{padding:2px 0 2px;border-bottom:1px solid var(--border);}
-  .nav-btn{padding:3px 8px;font-size:0.73em;}
   .secondary-nav{padding:1px 0;gap:3px;}
   .sub-btn{padding:2px 7px;font-size:0.7em;}
   /* Search gets its own full-width row on phones so the placeholder
@@ -129,6 +127,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   #filter-bar{flex-wrap:wrap;padding:2px 0;gap:5px;}
   .filter-bar input[type="text"]{width:auto;flex:1;min-width:0;padding:3px 8px;font-size:0.8em;}
   .filter-bar .search-wrap{flex:0 0 100%;width:100%;min-width:0;}
+  /* The nav icon and the Filters button share the first row; the
+     full-width search wraps below them. Without the ordering the
+     100%-wide search would push the nav icon onto a row of its own,
+     spending one of the two rows the dropdown just reclaimed. */
+  .filter-bar .navmenu-wrap{order:-2;}
+  .filter-bar .mob-filter-btn{order:-1;}
+  .navmenu-btn{padding:3px 7px;}
+  .navmenu-crumb{display:none;}
   .filter-bar .ms-wrap,.filter-bar .filter-divider,.filter-bar .fpop-wrap,.filter-bar .filter-clear,.filter-bar .filter-count{display:none;}
   .mob-filter-btn{display:inline-flex;padding:3px 8px;font-size:0.78em;}
   .filter-bar.mob-expanded{flex-wrap:wrap;}
@@ -150,10 +156,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .stat .val{font-size:1.3em;font-weight:bold;}
 .stat .label{font-size:0.78em;opacity:0.8;}
 .container{max-width:1800px;margin:0 auto;padding:16px 20px;}
-.primary-nav{display:flex;gap:4px;padding:9px 0 7px;border-bottom:2px solid var(--border);align-items:center;}
-.nav-btn{padding:7px 20px;border:none;border-radius:6px 6px 0 0;cursor:pointer;font-size:0.9em;font-weight:600;background:#dde;color:#555;transition:all 0.15s;}
-.nav-btn.active{background:var(--accent);color:white;}
-.nav-btn:hover:not(.active){background:#c8d0e0;}
 .secondary-nav{display:flex;gap:6px;padding:9px 0;flex-wrap:nowrap;overflow-x:auto;align-items:center;scrollbar-width:none;}
 .secondary-nav::-webkit-scrollbar{display:none;}
 .sub-btn{padding:8px 16px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.8em;font-weight:600;background:white;color:#546e7a;transition:all 0.15s;white-space:nowrap;line-height:1;flex-shrink:0;}
@@ -262,6 +264,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 [data-theme="dark"] .qf-menu .fpop-toggle-btn{background:none;}
 [data-theme="dark"] .qf-menu .fpop-toggle-btn:hover{background:#21262d;}
 [data-theme="dark"] .qf-menu .fpop-toggle-btn.active{background:var(--accent);color:#0d1117;}
+/* === NAV MENU ===
+   The three primary views and all of their sub-tabs used to occupy two
+   full-width rows above the data (.primary-nav + a .secondary-nav). Both
+   rows are gone: a single icon at the left of the filter bar opens this
+   dropdown, which lists every view with its sub-tabs grouped in columns,
+   returning those two rows of vertical space to the tables.
+   .navmenu-wrap deliberately does NOT reuse .fpop-wrap — the phone
+   stylesheet hides .filter-bar .fpop-wrap until Filters is expanded, and
+   the nav icon has to stay reachable at all times. */
+.navmenu-wrap{position:relative;display:inline-block;flex-shrink:0;}
+.navmenu-btn{padding:5px 9px;gap:6px;}
+.navmenu-btn svg{width:15px;height:15px;display:block;flex-shrink:0;}
+.navmenu-crumb{font-weight:600;color:#1a252f;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.navmenu-crumb-sub{color:#7f8c9a;font-weight:500;}
+.navmenu-crumb-sub::before{content:"\203A";margin:0 5px;}
+[data-theme="dark"] .navmenu-crumb{color:#e6edf3;}
+[data-theme="dark"] .navmenu-crumb-sub{color:#8b949e;}
+.navmenu-btn.active .navmenu-crumb,.navmenu-btn.active .navmenu-crumb-sub{color:#fff;}
+.nav-panel{min-width:220px;max-width:min(760px,calc(100vw - 20px));}
+.navmenu-cols{display:flex;gap:20px;align-items:flex-start;}
+/* Content-sized columns (not flex:1 1 0) so the longest sector name sets the
+   column width instead of being ellipsised into three equal shares. */
+.navmenu-col{display:flex;flex-direction:column;gap:1px;flex:0 0 auto;min-width:120px;max-width:220px;}
+.navmenu-grp{display:block;width:100%;text-align:left;border:none;background:none;cursor:pointer;padding:4px 8px;margin-bottom:3px;border-radius:5px;font-size:0.68em;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#7f8c9a;white-space:nowrap;}
+.navmenu-grp:hover{background:#eef2f7;color:var(--accent);}
+.navmenu-grp.cur{color:var(--accent);}
+.navmenu-item{display:block;width:100%;text-align:left;border:none;background:none;cursor:pointer;padding:5px 10px;border-radius:6px;font-size:0.82em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.navmenu-item:hover{background:#eef2f7;}
+.navmenu-item.active{background:var(--accent);color:#fff;font-weight:600;}
+[data-theme="dark"] .navmenu-grp:hover,[data-theme="dark"] .navmenu-item:hover{background:#21262d;}
+[data-theme="dark"] .navmenu-item.active{background:var(--accent);color:#fff;}
+/* Narrow screens: the three view columns stack into one scrolling list. */
+@media(max-width:700px){
+  .navmenu-cols{flex-direction:column;gap:10px;}
+  .nav-panel{min-width:200px;}
+}
+/* Nav-only mode: Sector Analysis and Financial Data > Charts have nothing
+   to filter, so the whole filter bar used to be display:none there. It now
+   stays put as the nav icon's home and hides only the filter controls. */
+.filter-bar.nav-only > *:not(.navmenu-wrap){display:none!important;}
 .sf-del{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:2px;border-radius:50%;font-size:0.95em;line-height:1;color:#999;cursor:pointer;}
 .sf-del:hover{background:#feecec;color:#c33;}
 .sf-empty{font-size:0.78em;color:#999;font-style:italic;}
@@ -880,7 +922,6 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-sectorprice svg line[stroke="#e8edf2"]{stroke:#21262d;}
 [data-theme="dark"] .pp-sectorprice svg line[stroke="#cbd5e1"]{stroke:#3d4651;}
 .pp-chart{background:#f7f9fb;padding:18px 20px 22px;border-left:5px solid #1a252f;}
-.pool-controls{padding:0;}
 .pool-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:0.78em;color:#555;align-items:center;}
 .pool-legend-item{display:flex;align-items:center;gap:4px;}
 .pool-legend-dot{width:11px;height:11px;border-radius:2px;flex-shrink:0;}
@@ -1051,9 +1092,6 @@ td.ct{font-weight:700;}
   --border:#30363d;--header-bg:#0d1117;--accent:#58a6ff;
 }
 [data-theme="dark"] body{background:var(--bg);color:var(--text);}
-[data-theme="dark"] .nav-btn{background:#21262d;color:#c9d1d9;}
-[data-theme="dark"] .nav-btn.active{background:#1f6feb;color:#fff;}
-[data-theme="dark"] .nav-btn:hover:not(.active){background:#30363d;}
 [data-theme="dark"] .sub-btn{background:#161b22;color:#c9d1d9;border-color:#30363d;}
 [data-theme="dark"] .sub-btn.active{background:#1f6feb;color:#fff;border-color:#1f6feb;}
 [data-theme="dark"] .sub-btn:hover:not(.active){background:#21262d;border-color:#58a6ff;color:#e6edf3;}
@@ -1324,7 +1362,7 @@ td.ct{font-weight:700;}
 /* ============================================================
    PORTRAIT REAL-ESTATE MAXIMIZATION.
    The phone @media blocks near the top of this sheet set compact
-   .container / .primary-nav / .nav-btn / .secondary-nav / .sub-btn
+   .container / .secondary-nav / .sub-btn / .filter-bar
    padding, but the base desktop rules for those selectors appear
    LATER in source order (~lines 141-151) and, at equal specificity,
    win the cascade — so the intended mobile compaction never applied
@@ -1336,23 +1374,20 @@ td.ct{font-weight:700;}
    block above and is left untouched. */
 @media(max-width:900px) and (orientation:portrait){
   .container{padding:3px 6px;}
-  .primary-nav{padding:2px 0;}
-  .nav-btn{padding:5px 14px;font-size:0.82em;}
   .secondary-nav{padding:3px 0;gap:4px;}
   .sub-btn{padding:4px 11px;font-size:0.76em;}
   .filter-bar{padding:3px 0;}
 }
 /* Phone LANDSCAPE (vertical space is scarce here): same cascade fix as
    above. The dedicated landscape block near the top of the sheet compacts
-   the header + popup but never the nav bars, and its .container rule is
-   likewise clobbered by the later base rule. Re-assert compact nav +
-   container here so the two nav bars stop eating ~98px of a ~375px-tall
-   viewport. Values lean harder on vertical padding than the portrait
-   block since height — not width — is the constraint in landscape. */
+   the header + popup but never the remaining chrome, and its .container
+   rule is likewise clobbered by the later base rule. Re-assert compact
+   container + bars here. Values lean harder on vertical padding than the
+   portrait block since height — not width — is the constraint in
+   landscape. (The two nav bars that used to eat ~98px of a ~375px-tall
+   viewport are gone entirely — the nav dropdown replaced them.) */
 @media(orientation:landscape) and (max-height:500px){
   .container{padding:2px 6px;}
-  .primary-nav{padding:1px 0;}
-  .nav-btn{padding:3px 14px;font-size:0.8em;}
   .secondary-nav{padding:2px 0;gap:4px;}
   .sub-btn{padding:3px 11px;font-size:0.74em;}
   .filter-bar{padding:2px 0;}
@@ -1386,7 +1421,7 @@ td.ct{font-weight:700;}
    and sub-tab while panning, and the controls stay reachable.
    max-width:100% keeps the bars inside .container in views that don't
    pan (there the sticky never engages and layout is unchanged). */
-.header,.primary-nav,.secondary-nav,.filter-bar{position:sticky;left:0;width:100vw;max-width:100%;}
+.header,.secondary-nav,.filter-bar{position:sticky;left:0;width:100vw;max-width:100%;}
 </style>
 </head>
 <body>
@@ -1396,12 +1431,24 @@ td.ct{font-weight:700;}
   <h1 style="font-size:1.35em;margin:0">Securities Analysis</h1>
 </div>
 <div class="container">
-  <div class="primary-nav">
-    <button class="nav-btn active" data-view="pool" onclick="showView('pool')">Sector Analysis</button>
-    <button class="nav-btn" data-view="matrix" onclick="showView('matrix')">Financial Model</button>
-    <button class="nav-btn" data-view="table" onclick="showView('table')">Financial Data</button>
-  </div>
   <div class="filter-bar" id="filter-bar">
+    <!-- Nav menu — one icon in place of the old two-row tab stack. The
+         dropdown (built by renderNavMenu) lists all three views with their
+         sub-tabs; the crumb beside the icon names where you currently are,
+         since there are no longer any highlighted tabs to read that off. -->
+    <div class="navmenu-wrap" id="nav-wrap">
+      <button class="fpop-btn navmenu-btn" id="nav-btn" onclick="toggleNavMenu(event)" aria-haspopup="true" aria-expanded="false" aria-label="Views and tabs menu">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h14"/><path d="M3 10h14"/><path d="M3 15h14"/></g></svg>
+        <span class="navmenu-crumb" id="nav-crumb"></span>
+      </button>
+      <div class="fpop-panel nav-panel" id="nav-panel">
+        <div class="fpop-header">
+          <span class="fpop-title">Views</span>
+          <button class="fpop-close" onclick="toggleNavMenu(event)">&#215;</button>
+        </div>
+        <div class="fpop-body"><div class="navmenu-cols" id="nav-cols"></div></div>
+      </div>
+    </div>
     <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker, name, sector, industry, description" oninput="onSearchInput()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
     <button class="mob-filter-btn" id="mob-filter-btn" onclick="toggleMobFilters()">&#9776; Filters</button>
     <div class="ms-wrap" id="ms-rating">
@@ -1479,18 +1526,15 @@ td.ct{font-weight:700;}
     <span class="f-suggest" id="f-suggest"></span>
   </div>
   <div id="view-pool" class="view active">
-    <div id="pool-controls" class="pool-controls"></div>
     <div id="pool-chart-area"></div>
     <div id="pool-sector-table"></div>
     <div class="pp-quad-tip" id="pp-quad-tip"></div>
   </div>
   <div id="view-matrix" class="view">
-    <div class="secondary-nav" id="m-subs"></div>
     <div id="m-overview-view" style="display:none"></div>
     <div class="matrix-wrap"><table class="matrix-table" id="mtx"><thead id="mtx-h"></thead><tbody id="mtx-b"></tbody></table></div>
   </div>
   <div id="view-table" class="view">
-    <div class="secondary-nav" id="t-subs"></div>
     <div class="table-wrap"><table class="dt" id="dtbl"><thead id="dt-h"></thead><tbody id="dt-b"></tbody></table></div>
     <div id="ph-view" style="display:none"></div>
   </div>
@@ -2720,6 +2764,7 @@ function toggleFilterPopup(e){
   var wasOpen=panel.classList.contains('open');
   var qp=document.getElementById('qf-panel');
   if(qp)qp.classList.remove('open');
+  closeNavMenu();
   panel.classList.toggle('open');
   if(!wasOpen){
     var btn=document.getElementById('fpop-btn');
@@ -2731,6 +2776,7 @@ function toggleQuickPopup(e){
   var panel=document.getElementById('qf-panel');
   var wasOpen=panel.classList.contains('open');
   document.getElementById('fpop-panel').classList.remove('open');
+  closeNavMenu();
   panel.classList.toggle('open');
   if(!wasOpen){
     var btn=document.getElementById('qf-btn');
@@ -2750,6 +2796,10 @@ document.addEventListener('click',function(e){
       if(panel)panel.classList.remove('open');
     }
   });
+  /* The nav menu closes through closeNavMenu rather than the loop above:
+     it also has to reset the button's pressed state and aria-expanded. */
+  var nw=document.getElementById('nav-wrap');
+  if(nw&&!nw.contains(e.target))closeNavMenu();
 });
 var _cfRowId=0;
 var _cfOptHtml='';
@@ -3069,13 +3119,11 @@ function mSort(col){_mUserSorted=true;if(mSC===col)mSA=!mSA;else{mSC=col;mSA=col
 
 /* === MATRIX SUB-TABS === */
 var curMSub=null;
+/* The Dashboard / Gate Matrix buttons moved into the nav dropdown; all that
+   is left here is defaulting the sub-tab and refreshing the menu's marks. */
 function renderMSubs(){
   if(!curMSub)curMSub='matrix';
-  var isOvr=curMSub==='dashboard';
-  var isMtx=curMSub==='matrix';
-  var h='<button class="sub-btn'+(isOvr?' active':'')+'" onclick="swMSub(\'dashboard\')">Dashboard</button>';
-  h+='<button class="sub-btn'+(isMtx?' active':'')+'" onclick="swMSub(\'matrix\')">Gate Matrix</button>';
-  document.getElementById('m-subs').innerHTML=h;
+  renderNavMenu();
 }
 function swMSub(key){
   curMSub=key;mSC='rating';mSA=true;_mUserSorted=false;_syncWideTable();renderMSubs();
@@ -3302,7 +3350,9 @@ function ftc(v,f){
   if(f==='ar'){var m={strong_buy:'Strong Buy',buy:'Buy',hold:'Hold',sell:'Sell',strong_sell:'Strong Sell'};return{t:m[v]||String(v),v:v};}
   return{t:String(v),v:v};
 }
-function renderTSubs(){var h='';Object.keys(TL).forEach(function(k){h+='<button class="sub-btn'+(k===curTSub?' active':'')+'" onclick="swTSub(\''+k+'\')">'+TL[k]+'</button>';});document.getElementById('t-subs').innerHTML=h;}
+/* The Financial Data sub-tab buttons moved into the nav dropdown (TL still
+   drives their labels there, and the column-filter optgroups below). */
+function renderTSubs(){renderNavMenu();}
 function swTSub(s){curTSub=s;tSC='rating';tSA=true;_tUserSorted=false;_syncWideTable();renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
 function renderTable(){
   /* Copy the tab's column list (never mutate the shared TC array), relabel
@@ -4995,6 +5045,10 @@ function _startGlide(el,dir){
 }
 function _stopGlide(){_sdir=0;}
 document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){
+    var np=document.getElementById('nav-panel');
+    if(np&&np.classList.contains('open')){e.preventDefault();closeNavMenu();return;}
+  }
   if(document.getElementById('det-modal').classList.contains('open')){
     if(e.key==='Escape')closeDetail();
     else if(e.key==='ArrowLeft'){e.preventDefault();navDet(-1);}
@@ -5007,21 +5061,18 @@ document.addEventListener('keydown',function(e){
 document.addEventListener('keyup',function(e){if(e.key==='ArrowUp'||e.key==='ArrowDown')_stopGlide();});
 
 /* === VIEW CONTROLLER === */
+/* The bar no longer moves between views — it used to be re-parented under
+   whichever .secondary-nav row was showing, and those rows are gone, so it
+   just sits at the top of .container for every view. What is left is the
+   per-view visibility: the Sector Analysis view and the Financial Data >
+   Charts sub-tab have no table to filter, and used to hide the bar wholesale.
+   It now hosts the nav icon, so those views get .nav-only — the icon stays,
+   every filter control goes. (Name kept: it is called from several places.) */
 function moveFilterBar(v){
   var fb=document.querySelector('.filter-bar');
   if(!fb)return;
-  if(v==='pool'||(v==='table'&&curTSub==='prices')){
-    fb.style.display='none';
-    return;
-  }
   fb.style.display='';
-  if(v==='table'){
-    var ts=document.getElementById('t-subs');
-    if(ts&&ts.nextSibling!==fb)ts.parentNode.insertBefore(fb,ts.nextSibling);
-  }else{
-    var ms=document.getElementById('m-subs');
-    if(ms&&ms.nextSibling!==fb)ms.parentNode.insertBefore(fb,ms.nextSibling);
-  }
+  fb.classList.toggle('nav-only',v==='pool'||(v==='table'&&curTSub==='prices'));
 }
 /* Page-scroll mode (now universal): keep the wraps' inline max-height cleared
    so they grow to full content height, the document scrolls, and the sticky
@@ -5138,8 +5189,6 @@ function _resetTableScroll(wrap){
 }
 function showView(v){
   curView=v;
-  document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active')});
-  document.querySelectorAll('.nav-btn').forEach(function(b){if(b.dataset.view===v)b.classList.add('active');});
   document.querySelectorAll('.view').forEach(function(el){el.classList.remove('active')});
   document.getElementById('view-'+v).classList.add('active');
   moveFilterBar(v);
@@ -5147,6 +5196,114 @@ function showView(v){
   renderCur();
   _syncHash();
   setTimeout(_setTableH,0);
+}
+/* === NAV MENU ===
+   One icon, one dropdown, every view and sub-tab. Replaces the .primary-nav
+   row plus the per-view .secondary-nav row that used to sit above the data;
+   dropping both gave the tables back two rows of height. The menu is built
+   fresh on every render so the active marks and the sector list (which comes
+   from the loaded DATA, not a static list) are always current. */
+function _navSectors(){
+  var seen={},out=[];
+  DATA.forEach(function(d){
+    if(!d.sector||d.pp_revenue_share==null)return;
+    if(!seen[d.sector]){seen[d.sector]=1;out.push(d.sector);}
+  });
+  return out.sort();
+}
+/* One entry per view: its label, the sub-tab key currently selected in it,
+   and its sub-tabs. `cur` is read even when the view isn't the active one,
+   so re-entering a view via the menu lands back on its last sub-tab. */
+function _navGroups(){
+  var pool=[{k:'__performance__',l:'Charts'}];
+  _navSectors().forEach(function(s){pool.push({k:s,l:s});});
+  return [
+    {v:'pool',l:'Sector Analysis',cur:_poolTab||'__performance__',items:pool},
+    {v:'matrix',l:'Financial Model',cur:curMSub||'matrix',
+     items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Gate Matrix'}]},
+    {v:'table',l:'Financial Data',cur:curTSub,
+     items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})}
+  ];
+}
+function renderNavMenu(){
+  var cols=document.getElementById('nav-cols');
+  if(!cols)return;
+  var h='';
+  _navGroups().forEach(function(g){
+    h+='<div class="navmenu-col">'
+      +'<button class="navmenu-grp'+(curView===g.v?' cur':'')+'" data-v="'+g.v+'">'+esc(g.l)+'</button>';
+    g.items.forEach(function(it){
+      /* Sector names carry apostrophes ("Consumer Staples" is tame, but the
+         list is data-driven), so the key rides a data attribute and a single
+         delegated listener dispatches — no inline-onclick quote escaping. */
+      h+='<button class="navmenu-item'+(curView===g.v&&g.cur===it.k?' active':'')+'"'
+        +' data-v="'+g.v+'" data-k="'+_attr(it.k)+'">'+esc(it.l)+'</button>';
+    });
+    h+='</div>';
+  });
+  cols.innerHTML=h;
+  _syncNavCrumb();
+}
+/* Names the current view + sub-tab next to the icon. With the tab rows gone
+   there is nothing else on screen that says where you are. */
+function _syncNavCrumb(){
+  var el=document.getElementById('nav-crumb');
+  if(!el)return;
+  var g=null,sub='';
+  _navGroups().forEach(function(x){if(x.v===curView)g=x;});
+  if(!g)return;
+  g.items.forEach(function(it){if(it.k===g.cur)sub=it.l;});
+  el.innerHTML=esc(g.l)+(sub?'<span class="navmenu-crumb-sub">'+esc(sub)+'</span>':'');
+  var btn=document.getElementById('nav-btn');
+  if(btn)btn.title=g.l+(sub?' › '+sub:'');
+}
+/* k omitted (the group header was clicked) = go to the view, keeping
+   whichever sub-tab it was last on. */
+function navGo(v,k){
+  closeNavMenu();
+  if(v==='pool'){
+    if(k!=null)_poolTab=k;
+    if(curView!=='pool')showView('pool');
+    else showPoolTab(_poolTab);
+  }else if(v==='matrix'){
+    if(k!=null)curMSub=k;
+    if(curView!=='matrix')showView('matrix');
+    else swMSub(curMSub||'matrix');
+  }else{
+    if(k!=null)curTSub=k;
+    if(curView!=='table')showView('table');
+    else swTSub(curTSub);
+  }
+}
+document.addEventListener('click',function(e){
+  var b=e.target.closest?e.target.closest('#nav-cols [data-v]'):null;
+  if(!b)return;
+  navGo(b.getAttribute('data-v'),b.hasAttribute('data-k')?b.getAttribute('data-k'):null);
+});
+function toggleNavMenu(e){
+  if(e)e.stopPropagation();
+  var panel=document.getElementById('nav-panel');
+  if(!panel)return;
+  var wasOpen=panel.classList.contains('open');
+  /* Only one dropdown in the filter bar at a time. */
+  var fp=document.getElementById('fpop-panel'),qp=document.getElementById('qf-panel');
+  if(fp)fp.classList.remove('open');
+  if(qp)qp.classList.remove('open');
+  if(wasOpen){closeNavMenu();return;}
+  renderNavMenu();
+  panel.classList.add('open');
+  var btn=document.getElementById('nav-btn');
+  if(btn){
+    btn.classList.add('active');
+    btn.setAttribute('aria-expanded','true');
+    _positionFpop(panel,btn);
+  }
+}
+function closeNavMenu(){
+  var panel=document.getElementById('nav-panel');
+  if(panel)panel.classList.remove('open');
+  var btn=document.getElementById('nav-btn');
+  if(btn){btn.classList.remove('active');btn.setAttribute('aria-expanded','false');}
 }
 function renderCur(){
   if(curView==='matrix'){renderMSubs();var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view');if(curMSub==='dashboard'){if(mw)mw.style.display='none';if(ov)ov.style.display='';renderOverview();}else{if(mw)mw.style.display='';if(ov)ov.style.display='none';renderMatrix();}}
@@ -6826,14 +6983,12 @@ function renderPool(){
   window._allSecStats=null;
   var sectors={};
   DATA.forEach(function(d){if(!d.sector||d.pp_revenue_share==null)return;if(!sectors[d.sector])sectors[d.sector]=[];sectors[d.sector].push(d);});
-  var secList=Object.keys(sectors).sort();
   var chosen=_poolTab||'__performance__';
-  /* The Overview sub-tab was removed when its last remaining content (the
-     Sector Heatmap) moved to the Charts sub-tab, which is now the default. */
-  var navHtml='<div class="secondary-nav"><button class="sub-btn'+(chosen==='__performance__'?' active':'')+'" onclick="showPoolTab(\'__performance__\')">Charts</button>';
-  secList.forEach(function(s){var se=s.replace(/'/g,"\\'");navHtml+='<button class="sub-btn'+(chosen===s?' active':'')+'" onclick="showPoolTab(\''+se+'\')">'+s+'</button>';});
-  navHtml+='</div>';
-  document.getElementById('pool-controls').innerHTML=navHtml;
+  /* The Charts + per-sector sub-tab row moved into the nav dropdown, which
+     reads the same sector list via _navSectors(). (The Overview sub-tab was
+     retired earlier when its last content — the Sector Heatmap — moved to
+     the Charts sub-tab, which is now the default.) */
+  renderNavMenu();
   var toRender=(chosen&&chosen!=='__performance__'&&sectors[chosen])?[chosen]:[];
   var chartHtml='',tableRows='';
   if(chosen==='__performance__'){
@@ -7160,6 +7315,10 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   /* A #s= hash (shared link) restores its filters + view and runs
      applyFilters itself; otherwise do the normal initial pass. */
   if(!_restoreFromHash())applyFilters();
+  /* Every render path above ends in renderCur, which repaints the menu — but
+     seed it once unconditionally so the icon is never a dead button if an
+     odd dataset short-circuits one of those paths. */
+  renderNavMenu();
   setTimeout(_setTableH,0);
 })();
 </script>
