@@ -609,6 +609,16 @@ td.ct{font-weight:700;}
 .ddesc{font-size:0.82em;color:#37474f;line-height:1.55;padding:13px 16px;background:linear-gradient(135deg,#eef3ff,#f5f8ff);border-radius:9px;border-left:4px solid #3b6fd4;box-shadow:inset 0 1px 3px rgba(59,111,212,0.08);}
 .fin-list{margin:0;padding:10px 14px 10px 30px;background:#f4f6fb;border-left:3px solid #3498db;border-radius:0 5px 5px 0;font-size:0.82em;line-height:1.55;color:#37474f;list-style:disc;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
 .fin-list li{margin:4px 0;}
+/* "Why the rating changed" block — appended below the financial summary in
+   The Finances section whenever rating_chg is a real move vs the prior run. */
+.rcw{margin:10px 0 0;padding:10px 14px;border-radius:0 5px 5px 0;font-size:0.82em;line-height:1.55;color:#37474f;}
+.rcw-up{background:#eef8f0;border-left:3px solid #1a9850;}
+.rcw-dn{background:#fdf0ef;border-left:3px solid #de2d26;}
+.rcw-hdr{font-weight:700;margin-bottom:5px;}
+.rcw-up .rcw-hdr{color:#1a7a45;}
+.rcw-dn .rcw-hdr{color:#c0392b;}
+.rcw ul{margin:0;padding-left:20px;list-style:disc;}
+.rcw li{margin:3px 0;}
 .utx{font-size:0.82em;line-height:1.55;color:#37474f;}
 .utx p{margin:0 0 8px;}.utx p:last-child{margin-bottom:0;}
 .utx ul{margin:0;padding-left:18px;list-style:disc;}
@@ -1101,6 +1111,11 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .ddesc{background:linear-gradient(135deg,#1a2438,#1f2a40);color:#fff;border-left-color:#3b6fd4;}
 [data-theme="dark"] .ddesc *{color:#fff;}
 [data-theme="dark"] .fin-list{background:#1c2128;color:#c9d1d9;}
+[data-theme="dark"] .rcw{color:#c9d1d9;}
+[data-theme="dark"] .rcw-up{background:#12261a;}
+[data-theme="dark"] .rcw-dn{background:#2a1715;}
+[data-theme="dark"] .rcw-up .rcw-hdr{color:#5cbf7d;}
+[data-theme="dark"] .rcw-dn .rcw-hdr{color:#e57368;}
 [data-theme="dark"] .utx,[data-theme="dark"] .sig-title{color:#c9d1d9;}
 [data-theme="dark"] .sig-hw{background:linear-gradient(135deg,#2a1518,#321a1d);color:#fff;}
 [data-theme="dark"] .sig-hw *{color:#fff;}
@@ -4847,7 +4862,20 @@ function openDet(tk){
     _gvEl.innerHTML=_gvHtml;
   }catch(e){console.error('gate values error:',e);}
   try{_renderDetPriceChart(d.ticker);}catch(e){console.error('detail price chart error:',e);}
-  var fsEl=document.getElementById('d-fin-summary'),fsSec=document.getElementById('d-section-finsummary');var _fs=d.financial_summary;var _fsItems=Array.isArray(_fs)?_fs:(_fs?[_fs]:[]);if(_fsItems.length){var _fsHtml='<ul class="fin-list">'+_fsItems.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul>';fsEl.innerHTML=_fsHtml;fsSec.style.display='';}else{fsEl.innerHTML='';fsSec.style.display='none';}
+  var fsEl=document.getElementById('d-fin-summary'),fsSec=document.getElementById('d-section-finsummary');var _fs=d.financial_summary;var _fsItems=Array.isArray(_fs)?_fs:(_fs?[_fs]:[]);
+  var _fsHtml=_fsItems.length?'<ul class="fin-list">'+_fsItems.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul>':'';
+  /* --- "Why the rating changed" — rendered after the financial summary
+       whenever this run's rating differs from the prior run's (rating_chg
+       nonzero). Bullets are computed server-side from the prior snapshot's
+       score drivers (caps, composite vs thresholds, category/gate moves);
+       see _explain_rating_change in scripts/report_html.py. --- */
+  var _rcw=d.rating_chg_why,_rcwItems=Array.isArray(_rcw)?_rcw:(_rcw?[_rcw]:[]);
+  if(d.rating_chg&&_rcwItems.length){
+    var _rcUp=d.rating_chg>0;
+    var _rcHdr=(_rcUp?'▲ Rating upgraded':'▼ Rating downgraded')+': '+esc(d.rating_prev||'?')+' → '+esc(d.rating||'?')+(PREV_DATE?' <span style="font-weight:400;opacity:0.75">(vs '+esc(PREV_DATE)+' run)</span>':'');
+    _fsHtml+='<div class="rcw '+(_rcUp?'rcw-up':'rcw-dn')+'"><div class="rcw-hdr">'+_rcHdr+'</div><ul>'+_rcwItems.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul></div>';
+  }
+  if(_fsHtml){fsEl.innerHTML=_fsHtml;fsSec.style.display='';}else{fsEl.innerHTML='';fsSec.style.display='none';}
   try{_renderTrackRecord(d);}catch(e){console.error('track record error:',e);}
   var hw=d.sector_headwinds||[],tw=d.sector_tailwinds||[],sigEl=document.getElementById('d-sector-signals'),sigSec=document.getElementById('d-section-signals');
   if(hw.length||tw.length){

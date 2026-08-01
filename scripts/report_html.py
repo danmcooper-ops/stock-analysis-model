@@ -114,8 +114,17 @@ def _rating_delta(prev, cur):
     return None
 
 
-def _load_prev_ratings(out_dir, run_date, max_lookback=7):
-    """Load each ticker's last-known rating for the rate-change column.
+_PREV_DRIVER_KEYS = (
+    'rating', 'rating_raw', '_rating_cap', '_rating_cap_reasons',
+    '_composite_score', '_data_coverage_score', 'mos',
+    '_score_valuation', '_score_quality', '_score_moat',
+    '_score_growth', '_score_ownership',
+)
+
+
+def _load_prev_ratings(out_dir, run_date, max_lookback=7, extra_keys=()):
+    """Load each ticker's last-known rating (plus its score drivers) for the
+    rate-change column and the popup's "why the rating changed" explanation.
 
     Scans ``out_dir`` for ``results_YYYY-MM-DD.json`` snapshots dated strictly
     before ``run_date`` (ISO date strings sort lexicographically, so a plain
@@ -130,11 +139,13 @@ def _load_prev_ratings(out_dir, run_date, max_lookback=7):
     (~1-2 weeks) so a genuinely delisted or long-absent ticker isn't resurrected
     from stale history.
 
-    Returns ``(prev_date_str, {ticker: rating})`` where ``prev_date_str`` is the
-    date of the most recent prior snapshot (the primary baseline, still the
-    reference for the large majority of tickers), or ``(None, {})`` when there is
-    no earlier snapshot at all — the column then degrades to 'NEW'/N/A for every
-    row rather than raising.
+    Returns ``(prev_date_str, {ticker: drivers})`` where ``drivers`` is a dict
+    of ``_PREV_DRIVER_KEYS`` plus any ``extra_keys`` (per-gate raw values and
+    scores) taken from the same snapshot record that supplied the rating, and
+    ``prev_date_str`` is the date of the most recent prior snapshot (the
+    primary baseline, still the reference for the large majority of tickers).
+    Returns ``(None, {})`` when there is no earlier snapshot at all — the
+    column then degrades to 'NEW'/N/A for every row rather than raising.
     """
     import glob
     import re
@@ -175,13 +186,148 @@ def _load_prev_ratings(out_dir, run_date, max_lookback=7):
             # Newest-first walk: only fill a ticker the first time we see it, so
             # the most recent snapshot that rated it wins.
             if tk and rt and tk not in out:
-                out[tk] = rt
+                drv = {k: rec.get(k) for k in _PREV_DRIVER_KEYS}
+                for k in extra_keys:
+                    drv[k] = rec.get(k)
+                out[tk] = drv
                 if d != primary_date:
                     filled_via_fallback += 1
     if filled_via_fallback:
         print(f"[report_html] rate-change: {filled_via_fallback} ticker(s) "
               f"baselined via fallback look-back (missing from {primary_date})")
     return primary_date, out
+
+# Composite-score floors for each rating band (see rating_from_composite in
+# scripts/scoring.py — 57/39/25 are the calibrated defaults). Keyed by the
+# _RATING_VAL rank of the band the threshold admits into.
+_RATING_THRESHOLD_BY_RANK = {3: 57, 2: 39, 1: 25}
+_RATING_BY_RANK = {v: k for k, v in _RATING_VAL.items()}
+
+
+def _fmt_gate_value(v, fmt):
+    """Format a raw gate value with the gate's display format (mirrors the
+    template's _fmtGate so the explanation reads like the gate table)."""
+    if v is None:
+        return 'N/A'
+    try:
+        if fmt == 'pct1':
+            return f"{v * 100:.1f}%"
+        if fmt == 'ratio':
+            return f"{v:.2f}×"
+        if fmt == 'int':
+            return f"{round(v)}"
+        return f"{v:.2f}"
+    except (TypeError, ValueError):
+        return str(v)
+
+
+def _explain_rating_change(prev, cur, gate_meta):
+    """Build the popup's "why the rating changed" bullet list.
+
+    ``prev`` is the driver dict captured by _load_prev_ratings for the same
+    ticker (None for new tickers); ``cur`` is the full current record. Returns
+    a list of plain-English sentences, or None when the rating didn't change.
+
+    The explanation mirrors how the rating is actually produced (see
+    scripts/scoring.py): a rating cap firing/releasing, the composite score
+    crossing a band threshold, then the category and gate-level score moves
+    that drove the composite.
+    """
+    if not prev:
+        return None
+    p_rt, c_rt = prev.get('rating'), cur.get('rating')
+    delta = _rating_delta(p_rt, c_rt)
+    if not delta:
+        return None
+    up = delta > 0
+    why = []
+
+    # --- Rating caps: a cap firing (downgrade) or releasing (upgrade) can
+    #     change the rating with no composite move at all, so it leads. ---
+    p_raw, c_raw = prev.get('rating_raw'), cur.get('rating_raw')
+    p_reasons = [str(x) for x in (prev.get('_rating_cap_reasons') or [])]
+    c_reasons = [str(x) for x in (cur.get('_rating_cap_reasons') or [])]
+    p_capped = p_raw is not None and p_rt is not None and p_rt != p_raw
+    c_capped = c_raw is not None and c_rt is not None and c_rt != c_raw
+    if not up and c_capped:
+        new_r = [x for x in c_reasons if x not in p_reasons]
+        if new_r:
+            why.append('A rating cap fired this run: '
+                       + '; '.join(new_r)
+                       + f'. On the composite alone it would rate {c_raw}.')
+        elif not p_capped:
+            why.append('The rating is being held down by a cap: '
+                       + ('; '.join(c_reasons) or 'see rating cap')
+                       + f'. On the composite alone it would rate {c_raw}.')
+    if up and p_capped and not c_capped:
+        gone = [x for x in p_reasons if x not in c_reasons]
+        why.append("The prior run's rating cap no longer applies"
+                   + (f" ({'; '.join(gone)})" if gone else '')
+                   + '.')
+
+    # --- Composite score move, with the band threshold(s) it crossed. ---
+    p_cs, c_cs = prev.get('_composite_score'), cur.get('_composite_score')
+    if p_cs is not None and c_cs is not None:
+        s = f'Composite score moved {p_cs:.0f} → {c_cs:.0f}'
+        if (p_raw in _RATING_VAL and c_raw in _RATING_VAL and p_raw != c_raw):
+            lo = min(_RATING_VAL[p_raw], _RATING_VAL[c_raw])
+            hi = max(_RATING_VAL[p_raw], _RATING_VAL[c_raw])
+            crossed = [f'{_RATING_BY_RANK[rk]} ({_RATING_THRESHOLD_BY_RANK[rk]})'
+                       for rk in range(hi, lo, -1)]
+            s += (', crossing ' + ('above' if up else 'below') + ' the '
+                  + ' and '.join(crossed)
+                  + (' thresholds' if len(crossed) > 1 else ' threshold'))
+        elif p_raw == c_raw and p_raw is not None:
+            s += ' (the composite-only rating band did not change)'
+        why.append(s + '.')
+    elif p_cs is None and c_cs is not None:
+        why.append('The prior run had no composite score (insufficient scoring '
+                   'data); this run scored it '
+                   f'{c_cs:.0f}, rating {c_rt}.')
+    elif p_cs is not None and c_cs is None:
+        why.append('This run produced no composite score (insufficient scoring '
+                   'data), so the rating fell back to the cap/default path.')
+
+    # --- Category-level attribution: which score groups moved the composite. ---
+    cat_moves = []
+    for c in gate_meta.get('categories', []):
+        pv, cv = prev.get(c['scoreKey']), cur.get(c['scoreKey'])
+        if pv is None or cv is None:
+            continue
+        d = cv - pv
+        if abs(d) < 3:
+            continue
+        cat_moves.append((abs(d) * (c.get('weight') or 0), c['name'], pv, cv, d))
+    cat_moves.sort(key=lambda t: -t[0])
+    if cat_moves:
+        why.append('Biggest category moves: ' + ', '.join(
+            f'{name} {pv:.0f} → {cv:.0f} ({d:+.0f})'
+            for _, name, pv, cv, d in cat_moves[:3]) + '.')
+
+    # --- Gate-level attribution: the individual metrics behind those moves. ---
+    gate_moves = []
+    for g in gate_meta.get('gates', []):
+        ps, cs = prev.get(g['scoreKey']), cur.get(g['scoreKey'])
+        if ps is None or cs is None:
+            continue
+        d = cs - ps
+        if abs(d) < 15:
+            continue
+        gate_moves.append((abs(d) * (g.get('weight') or 0), g, ps, cs,
+                           prev.get(g['key']), cur.get(g['key'])))
+    gate_moves.sort(key=lambda t: -t[0])
+    if gate_moves:
+        why.append('Largest metric swings: ' + '; '.join(
+            f"{g['label']} {_fmt_gate_value(pv, g['fmt'])} → "
+            f"{_fmt_gate_value(cv, g['fmt'])} (score {ps:.0f} → {cs:.0f})"
+            for _, g, ps, cs, pv, cv in gate_moves[:3]) + '.')
+
+    if not why:
+        why.append('Underlying inputs shifted between runs, but no single '
+                   'score driver moved enough to attribute the change '
+                   '(likely small moves straddling a rating threshold).')
+    return why
+
 
 def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     """Per-ticker rating change-points across prior snapshots, for the popup's
@@ -292,7 +438,13 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     # Prior-run ratings for the "Δ vs prior" column. Sourced from the most
     # recent earlier results_*.json sitting next to this HTML output.
     _out_dir_early = os.path.dirname(os.path.abspath(filename)) or '.'
-    prev_run_date, _prev_ratings = _load_prev_ratings(_out_dir_early, run_date)
+    gate_meta_obj = gate_metadata()
+    # Per-gate raw values + scores from the prior snapshot feed the popup's
+    # "why the rating changed" explanation.
+    _prev_gate_keys = [k for g in gate_meta_obj['gates']
+                       for k in (g['key'], g['scoreKey'])]
+    prev_run_date, _prev_ratings = _load_prev_ratings(
+        _out_dir_early, run_date, extra_keys=_prev_gate_keys)
     if _prev_ratings:
         print(f"[report_html] rate-change baseline: {prev_run_date} "
               f"({len(_prev_ratings)} tickers)")
@@ -300,7 +452,6 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         print("[report_html] rate-change baseline: none found (Yesterday's Rating shows N/A)")
     # Long-horizon rating change-points for the popup's "BUY since ..." line.
     _rating_hist = _load_rating_history(_out_dir_early, run_date)
-    gate_meta_obj = gate_metadata()
     total = len(rows)
     spread_vals = [r['spread'] for r in rows if r.get('spread') is not None]
     avg_spread = sum(spread_vals) / len(spread_vals) if spread_vals else 0
@@ -320,9 +471,14 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         'pe': r.get('pe'), 'ev_ebitda': r.get('ev_ebitda'),
         'rating': r.get('rating'), 'rating_raw': r.get('rating_raw'),
         # Rate change vs the prior run: prior rating string + signed step
-        # delta (+ upgrade / - downgrade / 0 unchanged / None if new-or-missing).
-        'rating_prev': _prev_ratings.get(r.get('ticker')),
-        'rating_chg': _rating_delta(_prev_ratings.get(r.get('ticker')), r.get('rating')),
+        # delta (+ upgrade / - downgrade / 0 unchanged / None if new-or-missing),
+        # plus the "why it changed" bullets for the popup (None unless changed).
+        'rating_prev': (_prev_ratings.get(r.get('ticker')) or {}).get('rating'),
+        'rating_chg': _rating_delta(
+            (_prev_ratings.get(r.get('ticker')) or {}).get('rating'),
+            r.get('rating')),
+        'rating_chg_why': _explain_rating_change(
+            _prev_ratings.get(r.get('ticker')), r, gate_meta_obj),
         # Rating change-points (last 12) for "BUY since ..." in the popup.
         'rating_hist': (_rating_hist.get(r.get('ticker')) or [])[-12:],
         '_rating_cap': r.get('_rating_cap'),
