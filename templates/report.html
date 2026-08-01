@@ -112,38 +112,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 @media(max-width:360px){
   #f-search::placeholder{font-size:10.5px;}
 }
-/* Phone-only: compact tabs, filter bar, nav */
+/* Phone-only: compact tabs, filter bar, nav. The bar is a single short
+   row now — nav icon + Filters icon — since the search moved inside the
+   Filters panel; the old full-width-search-row wrapping is gone. */
 @media(max-width:600px){
   .secondary-nav{padding:1px 0;gap:3px;}
   .sub-btn{padding:2px 7px;font-size:0.7em;}
-  /* Search gets its own full-width row on phones so the placeholder
-     listing every searchable field stays untruncated; the nav and
-     Filters buttons share the row above it. The #id selector is needed
-     to outrank the base .filter-bar{flex-wrap:nowrap} rule, which comes
-     later in this stylesheet and would otherwise win the cascade. */
-  .filter-bar{flex-direction:row;flex-wrap:wrap;padding:2px 0;gap:5px;}
-  #filter-bar{flex-wrap:wrap;padding:2px 0;gap:5px;}
-  .filter-bar input[type="text"]{width:auto;flex:1;min-width:0;padding:3px 8px;font-size:0.8em;}
-  .filter-bar .search-wrap{flex:0 0 100%;width:100%;min-width:0;}
-  /* The nav icon and the Filters button share the first row; the
-     full-width search wraps below them. Without the ordering the
-     100%-wide search would push the nav icon onto a row of its own,
-     spending one of the two rows the dropdown just reclaimed. */
-  .filter-bar .navmenu-wrap{order:-2;}
-  .filter-bar #filt-wrap{order:-1;}
+  .filter-bar{padding:2px 0;gap:5px;}
+  .filter-bar input[type="text"]{padding:3px 8px;font-size:0.8em;}
   .navmenu-btn{padding:3px 7px;}
   .navmenu-crumb,.filt-btn-label{display:none;}
   .filter-bar .filter-count{display:none;}
-}
-/* iPad portrait: search gets its own full-width row (like phones) so the
-   placeholder listing every searchable field stays untruncated; the
-   dropdowns/buttons/count wrap onto one row below, which fits without
-   horizontal scrolling at >=601px. (Replaces the old 110px search hack
-   that kept the count on one line by truncating the placeholder.)
-   #filter-bar outranks the later base .filter-bar{flex-wrap:nowrap}. */
-@media(min-width:601px) and (max-width:900px) and (orientation:portrait){
-  #filter-bar{flex-wrap:wrap;}
-  .filter-bar .search-wrap{flex:0 0 100%;}
 }
 .stats{display:flex;gap:20px;justify-content:center;margin-top:14px;flex-wrap:wrap;}
 .stat{background:rgba(255,255,255,0.15);padding:8px 18px;border-radius:8px;}
@@ -185,14 +164,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .filter-bar input,.filter-bar select{padding:6px 12px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;outline:none;}
 .filter-bar input:focus,.filter-bar select:focus{border-color:var(--accent);}
 .filter-bar input[type="text"]{width:200px;}
-.search-wrap{position:relative;display:inline-block;}
-/* Wide enough that the placeholder listing every searchable field
-   (ticker, name, sector, industry, description) shows untruncated.
-   flex-shrink:0 keeps it that wide on mid-width viewports (iPad
-   landscape) where the bar overflows — the bar scrolls horizontally
-   rather than squeezing the search box. */
-.filter-bar .search-wrap{width:350px;flex-shrink:0;}
-.filter-bar .search-wrap > input[type="text"]{width:100%;padding-right:26px;}
+/* Search lives at the top of the Filters panel (block, full panel width —
+   comfortably wider than the placeholder listing every searchable field). */
+.search-wrap{position:relative;display:block;flex-shrink:0;}
+.search-wrap > input[type="text"]{width:100%;padding-right:26px;box-sizing:border-box;}
 .search-clear{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:15px;line-height:1;color:#7f8c9a;cursor:pointer;padding:2px 6px;border-radius:50%;display:none;}
 .search-clear:hover{color:#1a252f;background:#e8ecef;}
 .search-wrap input:not(:placeholder-shown) ~ .search-clear{display:block;}
@@ -338,7 +313,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .filter-clear{padding:5px 12px;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:0.85em;background:#f9f9f9;}
 .filter-clear:hover{background:#eee;}
 .filter-count{font-size:0.85em;color:var(--accent);font-weight:600;white-space:nowrap;flex-shrink:0;}
-.f-suggest{font-size:0.82em;color:#8a94a0;white-space:nowrap;}
+/* Lives under the search input in the Filters panel; wraps freely there. */
+.f-suggest{font-size:0.82em;color:#8a94a0;}
 .f-suggest:empty{display:none;}
 .f-suggest a{color:var(--accent);text-decoration:none;font-weight:600;}
 .f-suggest a:hover{text-decoration:underline;}
@@ -1458,7 +1434,6 @@ td.ct{font-weight:700;}
         <div class="fpop-body"><div class="navmenu-cols" id="nav-cols"></div></div>
       </div>
     </div>
-    <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker, name, sector, industry, description" oninput="onSearchInput()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
     <!-- Filters menu — same treatment as the nav tabs: the row of filter
          controls (Ratings / Sectors / Countries multi-selects, Quick
          Filters, Filters, Clear) collapsed into one button whose dropdown
@@ -1480,6 +1455,11 @@ td.ct{font-weight:700;}
           <span class="filt-header-actions"><button class="filter-clear" onclick="clearFilters()">Clear</button><button class="fpop-close" onclick="toggleFiltMenu(event)">&#215;</button></span>
         </div>
         <div class="fpop-body">
+          <!-- Search leads the panel; the button opens with it focused on
+               non-touch devices, so filter-icon-then-type still flows. The
+               "did you mean" suggestions render right below it. -->
+          <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker, name, sector, industry, description" oninput="onSearchInput()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
+          <span class="f-suggest" id="f-suggest"></span>
           <div class="filt-cols">
             <div class="filt-col">
               <div class="fpop-section-label">Ratings</div>
@@ -1525,7 +1505,6 @@ td.ct{font-weight:700;}
       </div>
     </div>
     <span class="filter-count" id="f-count"></span>
-    <span class="f-suggest" id="f-suggest"></span>
   </div>
   <div id="view-pool" class="view active">
     <div id="pool-chart-area"></div>
@@ -2547,12 +2526,15 @@ function applyFilters(){
      candidate scan needs passOther, so it runs here where it's in scope. */
   _renderSuggestions(toks.length&&FD.length===0&&_passedOther>0?_buildSuggestions(toks,passOther):null);
   /* The one Filters button lights up with a badge counting active filter
-     dimensions: each engaged quick toggle, each column filter, and each
-     multi-select with anything deselected. 3-state Reviewed filter:
-     state 0 (gray Reviewed) shows all and doesn't count; states 1
-     (Unreviewed) and 2 (Reviewed) are active filters. (Search is not
-     counted — it stays visible in the bar.) */
-  var fn=(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)
+     dimensions: an active search, each engaged quick toggle, each column
+     filter, and each multi-select with anything deselected. The search
+     counts because it lives INSIDE the panel — without a badge slot, a
+     filtering search would be invisible while the panel is closed.
+     3-state Reviewed filter: state 0 (gray Reviewed) shows all and
+     doesn't count; states 1 (Unreviewed) and 2 (Reviewed) are active
+     filters. */
+  var fn=(toks.length?1:0)
+        +(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)
         +(_revFilter>0?1:0)+(_rcFilter>0?1:0)
         +colFilters.length
         +(allRatings?0:1)+(allSectors?0:1)+(allCountries?0:1);
@@ -2763,6 +2745,12 @@ function toggleFiltMenu(e){
     btn.classList.add('active');
     btn.setAttribute('aria-expanded','true');
     _positionFpop(panel,btn);
+  }
+  /* Land ready to type — but not on touch devices, where autofocus would
+     pop the keyboard over the panel on every open. */
+  if(!('ontouchstart' in window)){
+    var fs=document.getElementById('f-search');
+    if(fs)fs.focus({preventScroll:true});
   }
 }
 function closeFiltMenu(){
