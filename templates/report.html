@@ -47,20 +47,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .matrix-table td{padding:3px 5px;}
   /* Popup: fill entire screen on mobile, including the safe-area strip
      behind the iPhone home indicator (requires viewport-fit=cover above).
-     Use flex column layout so .det-nav-bar is anchored at the bottom by
-     flex order rather than position:sticky — sticky inside an
-     overflow:auto + -webkit-overflow-scrolling:touch container is
-     unreliable on iOS Safari during/after momentum scroll. */
-  /* height uses 100svh (small viewport) as the safe ceiling — it reserves
-     space for the iOS Safari bottom URL bar even when the bar is collapsed,
-     so the popup never extends behind it during scroll-driven transitions.
-     The --vvh JS variable is set from window.visualViewport.height as the
-     most-reliable fallback for older iOS (< 15.4) without svh support. */
-  .detail-modal.open{padding:0!important;align-items:stretch!important;}
-  .detail-content{max-width:100%!important;height:100vh!important;height:100dvh!important;height:100svh!important;height:var(--vvh,100svh)!important;max-height:100vh!important;max-height:100dvh!important;max-height:100svh!important;max-height:var(--vvh,100svh)!important;border-radius:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;}
+     The fixed-height flex-column shell (header band pinned as a non-scrolling
+     flex item, .d-body the only scroller) is no longer set here — it is the
+     BASE .detail-content rule now, shared by every viewport, so a popup opens
+     with the same geometry on iPhone, iPad and the Mac. All that is left here
+     are the genuinely phone-only differences: edge-to-edge instead of inset,
+     square corners, and tighter padding that respects the safe areas. */
+  .detail-modal.open{padding:0!important;}
+  .detail-content{max-width:100%!important;border-radius:0!important;}
   .dh{padding-right:44px!important;}
-  .d-header-band{border-radius:0!important;padding:calc(10px + env(safe-area-inset-top)) 16px 10px!important;flex-shrink:0!important;}
-  .d-body{padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px!important;display:block!important;flex:1 1 auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;min-height:0!important;}
+  .d-header-band{border-radius:0!important;padding:calc(10px + env(safe-area-inset-top)) 16px 10px!important;}
+  .d-body{padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px!important;display:block!important;}
   .d-body>*{margin-bottom:10px;}
   .d-body>*:last-child{margin-bottom:0;}
   /* Panes wrap the old .d-body children, so the section spacing has to
@@ -76,10 +73,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .last-updated{display:none!important;}
   .container{padding:2px 6px;}
   .dh{padding-right:44px!important;}
-  .detail-modal.open{padding:0!important;align-items:stretch!important;}
-  .detail-content{max-width:100%!important;width:100%!important;height:100vh!important;height:100dvh!important;height:100svh!important;height:var(--vvh,100svh)!important;max-height:100vh!important;max-height:100dvh!important;max-height:100svh!important;max-height:var(--vvh,100svh)!important;border-radius:0!important;display:flex!important;flex-direction:column!important;overflow:hidden!important;}
-  .d-header-band{border-radius:0!important;padding:calc(6px + env(safe-area-inset-top)) 16px 5px!important;flex-shrink:0!important;}
-  .d-body{padding:6px 12px calc(6px + env(safe-area-inset-bottom)) 12px!important;display:block!important;flex:1 1 auto!important;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;min-height:0!important;}
+  .detail-modal.open{padding:0!important;}
+  .detail-content{max-width:100%!important;width:100%!important;border-radius:0!important;}
+  .d-header-band{border-radius:0!important;padding:calc(6px + env(safe-area-inset-top)) 16px 5px!important;}
+  .d-body{padding:6px 12px calc(6px + env(safe-area-inset-bottom)) 12px!important;display:block!important;}
   .d-body>*{margin-bottom:6px;}
   .d-body>*:last-child{margin-bottom:0;}
   #d-pane-overview.active{display:block!important;}
@@ -540,9 +537,26 @@ td.ct{font-weight:700;}
     width:110px !important;min-width:110px !important;max-width:110px !important;
   }
 }
-.detail-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(8,12,28,0.75);backdrop-filter:blur(4px);z-index:1000;overflow-y:auto;}
-.detail-modal.open{display:flex;justify-content:center;padding:24px 20px;}
-.detail-content{background:#f0f4ff;border-radius:18px;max-width:1080px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);position:relative;padding:0;max-height:calc(100vh - 48px);overflow-y:auto;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;}
+/* DETAIL POPUP — one box model for every viewport (iPhone, iPad, Mac).
+   Height comes off the SMALL viewport (100svh), which is constant whether or
+   not iOS Safari's toolbars are showing. 100vh there is the LARGE viewport, so
+   the popup ran behind the bottom toolbar on iPad; and the visual viewport
+   swells and shrinks as the toolbar collapses, so sizing off it made a popup
+   opened at the top of the page taller or shorter than one opened mid-scroll.
+   --vvh (set from visualViewport.height) survives only as the pre-svh
+   fallback for iOS < 15.4, gated behind @supports so it can no longer beat
+   svh on browsers that have it. */
+.detail-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100svh;background:rgba(8,12,28,0.75);backdrop-filter:blur(4px);z-index:1000;overflow:hidden;}
+@supports not (height:100svh){.detail-modal{height:var(--vvh,100vh);}}
+.detail-modal.open{display:flex;justify-content:center;align-items:stretch;padding:24px 20px;}
+/* height:100% (of the stretched flex line) rather than max-height means the
+   shell is the same size for every ticker and every tab — content length no
+   longer decides the popup's dimensions. The band is a non-scrolling flex
+   item and .d-body is the only scroller: as a position:sticky child of a
+   scrolling .detail-content the band spanned just the unscrolled width, so
+   wide content that panned the popup sideways left the banner short of the
+   right edge. As a flex item it is always exactly the popup's width. */
+.detail-content{background:#f0f4ff;border-radius:18px;max-width:1080px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);position:relative;padding:0;height:100%;max-height:100%;display:flex;flex-direction:column;overflow:hidden;}
 .d-header-band{flex-shrink:0;}
 .detail-close{position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;border:none;background:rgba(255,255,255,0.18);width:30px;height:30px;border-radius:50%;font-size:1.1em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;}
 .detail-close:hover{background:rgba(255,255,255,0.35);}
@@ -551,7 +565,11 @@ td.ct{font-weight:700;}
    was redundant on phones and an extra control to ignore on desktop. */
 .d-header-band{background:linear-gradient(135deg,#0d1f42 0%,#1a3a6e 55%,#1f4fa0 100%);border-radius:18px 18px 0 0;padding:calc(10px + env(safe-area-inset-top)) 22px 12px;position:-webkit-sticky;position:sticky;top:0;z-index:5;overflow:hidden;}
 .d-header-band::before{content:'';position:absolute;top:-60px;right:-60px;width:220px;height:220px;background:radial-gradient(circle,rgba(255,255,255,0.06) 0%,transparent 70%);pointer-events:none;}
-.d-body{padding:16px 22px 24px;display:flex;flex-direction:column;gap:14px;}
+/* No scroll-behavior:smooth here (the old .detail-content scroller had it):
+   navDet animates this scroller frame-by-frame through _easeScroll, and a
+   CSS smooth animation on every one of those per-frame assignments fights it.
+   The tab-switch reset to the top wants to be instant either way. */
+.d-body{padding:16px 22px 24px;display:flex;flex-direction:column;gap:14px;flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 /* Popup tab panes. Only one is visible at a time; the Overview pane recreates
    .d-body's original column-flex layout so the wrapped sections keep their
    14px gaps on desktop (mobile blocks override to display:block + margins). */
@@ -1418,8 +1436,28 @@ td.ct{font-weight:700;}
    viewport wide — so the header row spans the whole table in every tab
    and sub-tab while panning, and the controls stay reachable.
    max-width:100% keeps the bars inside .container in views that don't
-   pan (there the sticky never engages and layout is unchanged). */
-.header,.secondary-nav,.filter-bar{position:sticky;left:0;width:100vw;max-width:100%;}
+   pan (there the sticky never engages and layout is unchanged).
+
+   Width is --vvw, not 100vw. 100vw is the LAYOUT viewport, which on iOS is
+   fixed at device-width no matter how far the user pinch-zooms out to take in
+   the wide table — the banner then covered only a device-width slice of a
+   much wider visible page. --vvw is visualViewport.width + offsetLeft, i.e.
+   what is actually on screen measured from the layout viewport's left edge,
+   so the bars span the whole visible strip at any zoom or pan. It also fixes
+   the Mac: with classic (non-overlay) scrollbars 100vw includes the vertical
+   scrollbar, so the bars ran ~15px past the right edge of the content;
+   visualViewport.width excludes it. 100vw is the fallback if the API is
+   missing. */
+.header,.secondary-nav,.filter-bar{position:sticky;left:0;width:var(--vvw,100vw);max-width:100%;}
+/* The sticky bars are clamped to their containing block, and .container's
+   side padding holds that block short of the document's right edge — so at
+   full right pan the bars were shoved back by the padding and left an
+   uncovered gutter down the right of the screen. Drop the side padding in the
+   panning views (the table already spans the full width there); the container
+   then reaches the document edge and the bars stay flush to the viewport at
+   every scroll position. _syncWideTable reads the computed padding, so its
+   min-width math follows automatically. */
+body.wide-table .container{padding-left:0;padding-right:0;}
 </style>
 </head>
 <body>
@@ -1611,17 +1649,30 @@ function setTheme(t){
 }
 function toggleTheme(){var cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';setTheme(cur==='dark'?'light':'dark');}
 (function(){var t='light';try{if(localStorage.getItem(_THEME_KEY)==='dark')t='dark';}catch(e){}var k=document.getElementById('tt-knob');if(k)k.innerHTML=(t==='dark'?'&#9790;':'&#9728;');})();
-/* iOS Safari URL-bar workaround: visualViewport.height is the only reliable
-   measurement of the area NOT covered by the URL bar / tab bar across iOS
-   versions, including iOS < 15.4 where svh / dvh are unsupported. We expose
-   it as a CSS variable --vvh that .detail-content uses as its height ceiling
-   so the popup never extends behind the URL bar. */
+/* Visual-viewport bridge — the CSS viewport units alone can't describe what is
+   actually on screen on iOS.
+     --vvh  height NOT covered by the URL bar / tab bar. Only used as the
+            pre-svh fallback now (see the @supports beside .detail-modal):
+            iOS < 15.4 has neither svh nor dvh.
+     --vvw  visible width measured from the LAYOUT viewport's left edge, i.e.
+            visualViewport.width plus how far the visual viewport has been
+            panned right. 100vw stays pinned to device-width when the user
+            pinch-zooms out over the wide table, which left the sticky top
+            banner covering only part of the visible page; this tracks the
+            real one. On desktop it also excludes the classic scrollbar that
+            100vw wrongly includes.
+   Both refresh on resize and on visual-viewport scroll (pinch-pan fires
+   scroll, not resize). */
 (function(){
   var vv=window.visualViewport;if(!vv)return;
-  function setVvh(){document.documentElement.style.setProperty('--vvh',vv.height+'px');}
-  setVvh();
-  vv.addEventListener('resize',setVvh);
-  vv.addEventListener('scroll',setVvh);
+  var de=document.documentElement;
+  function setVv(){
+    de.style.setProperty('--vvh',vv.height+'px');
+    de.style.setProperty('--vvw',Math.ceil(vv.width+vv.offsetLeft)+'px');
+  }
+  setVv();
+  vv.addEventListener('resize',setVv);
+  vv.addEventListener('scroll',setVv);
 })();
 /* === DATA === */
 var DATA={{ chart_data }};
