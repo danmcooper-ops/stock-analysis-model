@@ -268,7 +268,10 @@ def _explain_rating_change(prev, cur, gate_meta):
     # --- Composite score move, with the band threshold(s) it crossed. ---
     p_cs, c_cs = prev.get('_composite_score'), cur.get('_composite_score')
     if p_cs is not None and c_cs is not None:
-        s = f'Composite score moved {p_cs:.0f} → {c_cs:.0f}'
+        # One decimal when integer rounding would collapse a real move into
+        # "57 → 57, crossing the BUY (57) threshold".
+        dp = 1 if round(p_cs) == round(c_cs) else 0
+        s = f'Composite score moved {p_cs:.{dp}f} → {c_cs:.{dp}f}'
         if (p_raw in _RATING_VAL and c_raw in _RATING_VAL and p_raw != c_raw):
             lo = min(_RATING_VAL[p_raw], _RATING_VAL[c_raw])
             hi = max(_RATING_VAL[p_raw], _RATING_VAL[c_raw])
