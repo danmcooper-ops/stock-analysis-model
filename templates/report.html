@@ -35,8 +35,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .header h1{font-size:2em;margin-bottom:0;}
 .header p{font-size:0.95em;opacity:0.85;}
 .last-updated{position:absolute;top:50%;right:20px;transform:translateY(-50%);font-size:0.7em;opacity:0.65;text-align:right;display:flex;flex-direction:column;gap:2px;white-space:nowrap;}
-.mob-filter-btn{display:none;padding:5px 10px;font-size:0.82em;border:1px solid #b0b8c8;border-radius:5px;background:#fff;cursor:pointer;color:#445;white-space:nowrap;align-items:center;gap:4px;flex-shrink:0;}
-.mob-filter-btn.active{background:#e8f0ff;border-color:var(--accent);color:var(--accent);}
 @media(max-width:768px){
   .header{padding:5px 10px;min-height:unset;flex-direction:row;justify-content:center;align-items:center;gap:6px;}
   .header>p{display:none;}
@@ -119,9 +117,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .secondary-nav{padding:1px 0;gap:3px;}
   .sub-btn{padding:2px 7px;font-size:0.7em;}
   /* Search gets its own full-width row on phones so the placeholder
-     listing every searchable field stays untruncated; the Filters
-     button wraps onto the row below. The #id selector is needed to
-     outrank the base .filter-bar{flex-wrap:nowrap} rule, which comes
+     listing every searchable field stays untruncated; the nav and
+     Filters buttons share the row above it. The #id selector is needed
+     to outrank the base .filter-bar{flex-wrap:nowrap} rule, which comes
      later in this stylesheet and would otherwise win the cascade. */
   .filter-bar{flex-direction:row;flex-wrap:wrap;padding:2px 0;gap:5px;}
   #filter-bar{flex-wrap:wrap;padding:2px 0;gap:5px;}
@@ -132,14 +130,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
      100%-wide search would push the nav icon onto a row of its own,
      spending one of the two rows the dropdown just reclaimed. */
   .filter-bar .navmenu-wrap{order:-2;}
-  .filter-bar .mob-filter-btn{order:-1;}
+  .filter-bar #filt-wrap{order:-1;}
   .navmenu-btn{padding:3px 7px;}
-  .navmenu-crumb{display:none;}
-  .filter-bar .ms-wrap,.filter-bar .filter-divider,.filter-bar .fpop-wrap,.filter-bar .filter-clear,.filter-bar .filter-count{display:none;}
-  .mob-filter-btn{display:inline-flex;padding:3px 8px;font-size:0.78em;}
-  .filter-bar.mob-expanded{flex-wrap:wrap;}
-  .filter-bar.mob-expanded .ms-wrap,.filter-bar.mob-expanded .fpop-wrap,.filter-bar.mob-expanded .filter-clear{display:block;}
-  .filter-bar.mob-expanded .filter-count{display:inline;}
+  .navmenu-crumb,.filt-btn-label{display:none;}
+  .filter-bar .filter-count{display:none;}
 }
 /* iPad portrait: search gets its own full-width row (like phones) so the
    placeholder listing every searchable field stays untruncated; the
@@ -254,9 +248,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .fpop-toggle-btn{display:flex;align-items:center;gap:5px;padding:5px 12px;font-size:0.83em;border:1px solid #ccc;border-radius:20px;background:#f9f9f9;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
 .fpop-toggle-btn:hover{border-color:var(--accent);background:#f0f4ff;color:var(--accent);}
 .fpop-toggle-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
-/* Quick Filters dropdown — the same toggle buttons render as full-width
+/* Quick Filters column — the same toggle buttons render as full-width
    menu rows instead of pills. */
-.qf-panel{min-width:215px;max-width:300px;}
 .qf-menu{display:flex;flex-direction:column;gap:2px;}
 .qf-menu .fpop-toggle-btn{border:none;background:none;border-radius:6px;padding:7px 10px;width:100%;text-align:left;}
 .qf-menu .fpop-toggle-btn:hover{background:#eef2f7;}
@@ -270,9 +263,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    rows are gone: a single icon at the left of the filter bar opens this
    dropdown, which lists every view with its sub-tabs grouped in columns,
    returning those two rows of vertical space to the tables.
-   .navmenu-wrap deliberately does NOT reuse .fpop-wrap — the phone
-   stylesheet hides .filter-bar .fpop-wrap until Filters is expanded, and
-   the nav icon has to stay reachable at all times. */
+   .navmenu-wrap deliberately does NOT reuse .fpop-wrap — the nav icon is
+   a navigation control, not a filter control, so filter-bar state classes
+   (.nav-only) key off the wrap class to hide everything BUT it. */
 .navmenu-wrap{position:relative;display:inline-block;flex-shrink:0;}
 .navmenu-btn{padding:5px 9px;gap:6px;}
 .navmenu-btn svg{width:15px;height:15px;display:block;flex-shrink:0;}
@@ -304,6 +297,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    to filter, so the whole filter bar used to be display:none there. It now
    stays put as the nav icon's home and hides only the filter controls. */
 .filter-bar.nav-only > *:not(.navmenu-wrap){display:none!important;}
+/* === FILTERS MENU ===
+   The filter controls got the nav-tabs treatment: the row of multi-select
+   buttons and popup triggers collapsed into one funnel button whose panel
+   arranges everything — Ratings / Sectors / Countries checkbox lists and
+   the Quick Filter toggles in columns, with Column Filters and Presets
+   below. The .ms-wrap/.ms-drop DOM is unchanged (applyFilters, presets and
+   hash restore all query it); the id-selector overrides below just undo
+   the popup styling so the lists render inline inside the panel. */
+.filt-btn-label{font-weight:600;}
+.filt-panel{max-width:min(880px,calc(100vw - 20px));}
+.filt-header-actions{display:flex;gap:8px;align-items:center;}
+.filt-header-actions .filter-clear{padding:3px 10px;font-size:0.8em;}
+.filt-cols{display:flex;gap:18px;align-items:flex-start;}
+.filt-col{flex:0 0 auto;min-width:130px;max-width:230px;display:flex;flex-direction:column;min-height:0;}
+#filt-panel .ms-wrap{position:static;display:block;min-width:0;}
+#filt-panel .ms-drop{display:block;position:static;min-width:0;max-height:314px;border:none;border-radius:0;box-shadow:none;background:none;}
+#filt-panel .ms-drop label{padding:4px 8px;border-radius:5px;}
+/* Narrow screens: the filter columns stack into one scrolling list, same
+   as the nav menu's. */
+@media(max-width:700px){
+  .filt-cols{flex-direction:column;gap:12px;}
+  .filt-col{max-width:none;}
+  #filt-panel .ms-drop{max-height:170px;}
+}
 .sf-del{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:2px;border-radius:50%;font-size:0.95em;line-height:1;color:#999;cursor:pointer;}
 .sf-del:hover{background:#feecec;color:#c33;}
 .sf-empty{font-size:0.78em;color:#999;font-style:italic;}
@@ -316,10 +333,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sf-preset-spec{font-size:0.74em;color:#7c8a9a;margin:4px 0 6px;line-height:1.3;min-height:1.1em;}
 [data-theme="dark"] .sf-preset-spec{color:#8b949e;}
 .sf-group-label{display:block;width:100%;font-size:0.7em;font-weight:700;color:#aaa;letter-spacing:.5px;margin:6px 0 2px;text-transform:uppercase;}
-.fpop-footer{padding:8px 14px 10px;border-top:1px solid #eee;display:flex;justify-content:flex-end;flex-shrink:0;}
 .fpop-clear-filters{padding:4px 12px;font-size:0.8em;border:1px solid #ccc;border-radius:4px;cursor:pointer;background:#f9f9f9;color:#555;}
 .fpop-clear-filters:hover{background:#feecec;border-color:#e88;color:#c33;}
-.filter-divider{width:1px;height:24px;background:#ddd;margin:0 4px;}
 .filter-clear{padding:5px 12px;border:1px solid #ccc;border-radius:4px;cursor:pointer;font-size:0.85em;background:#f9f9f9;}
 .filter-clear:hover{background:#eee;}
 .filter-count{font-size:0.85em;color:var(--accent);font-weight:600;white-space:nowrap;flex-shrink:0;}
@@ -327,12 +342,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .f-suggest:empty{display:none;}
 .f-suggest a{color:var(--accent);text-decoration:none;font-weight:600;}
 .f-suggest a:hover{text-decoration:underline;}
-.ms-wrap{position:relative;display:inline-block;min-width:140px;}
-.ms-btn{padding:6px 28px 6px 12px;font-size:0.85em;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;position:relative;user-select:none;}
-.ms-btn::after{content:'\25BC';font-size:0.6em;position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#888;}
-.ms-btn:hover{border-color:var(--accent);}
-.ms-drop{display:none;position:absolute;top:0;left:0;min-width:140px;max-height:260px;overflow-y:auto;background:#fff;border:1px solid #ccc;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:1000;}
-.ms-wrap.open .ms-drop{display:block;}
+/* The multi-select checkbox lists now render inline inside the Filters
+   panel (see FILTERS MENU above); the popup chrome — .ms-btn trigger,
+   display:none/.open toggling, absolute positioning — is gone. */
+.ms-drop{max-height:260px;overflow-y:auto;}
 .ms-drop label{display:flex;align-items:center;padding:6px 12px;font-size:0.85em;cursor:pointer;gap:6px;white-space:nowrap;}
 .ms-drop label:hover{background:#f0f4ff;}
 .ms-drop label input{margin:0;accent-color:var(--accent);}
@@ -1101,10 +1114,9 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .d-header-band .d-tabs .sub-btn{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.18);}
 [data-theme="dark"] .d-header-band .d-tabs .sub-btn.active{background:#1f6feb;border-color:#1f6feb;}
 [data-theme="dark"] .d-header-band .d-tabs .sub-btn:hover:not(.active){background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);}
-[data-theme="dark"] .filter-bar input,[data-theme="dark"] .filter-bar select,[data-theme="dark"] .f-metric-sel,[data-theme="dark"] .f-col-sel,[data-theme="dark"] .f-num,[data-theme="dark"] .ms-btn{background:#0d1117;color:#e6edf3;border-color:#30363d;}
+[data-theme="dark"] .filter-bar input,[data-theme="dark"] .filter-bar select,[data-theme="dark"] .f-metric-sel,[data-theme="dark"] .f-col-sel,[data-theme="dark"] .f-num{background:#0d1117;color:#e6edf3;border-color:#30363d;}
 [data-theme="dark"] .f-num::placeholder{color:#6e7681;opacity:1;}
 [data-theme="dark"] .f-col-sel option{background:#0d1117;color:#e6edf3;}
-[data-theme="dark"] .ms-btn::after{color:#8b949e;}
 [data-theme="dark"] .ms-drop,[data-theme="dark"] .fpop-panel{background:#161b22;color:#e6edf3;border-color:#30363d;}
 [data-theme="dark"] #cfsel-panel{border-color:#30363d;}
 [data-theme="dark"] .cfsel-search{background:#0d1117;border-color:#30363d;}
@@ -1115,12 +1127,9 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .fpop-btn.active,[data-theme="dark"] .fpop-toggle-btn.active{background:var(--accent);color:#0d1117;border-color:var(--accent);}
 [data-theme="dark"] .fpop-badge{color:#0d1117 !important;}
 [data-theme="dark"] .fpop-btn.active .fpop-badge{background:rgba(0,0,0,0.18);color:#0d1117 !important;}
-[data-theme="dark"] .fpop-header,[data-theme="dark"] .fpop-footer{border-color:#30363d;}
+[data-theme="dark"] .fpop-header{border-color:#30363d;}
 [data-theme="dark"] .fpop-title{color:#e6edf3;}
 [data-theme="dark"] .col-filter-row{background:#0d1117;border-color:#30363d;}
-[data-theme="dark"] .filter-divider{background:#30363d;}
-[data-theme="dark"] .mob-filter-btn{background:#21262d;color:#c9d1d9;border-color:#30363d;}
-[data-theme="dark"] .mob-filter-btn.active{background:#1f3a5c;border-color:var(--accent);color:var(--accent);}
 [data-theme="dark"] .search-clear{color:#8b949e;}
 [data-theme="dark"] .search-clear:hover{color:#e6edf3;background:#30363d;}
 [data-theme="dark"] .matrix-table,[data-theme="dark"] .dt{background:#161b22;}
@@ -1450,66 +1459,62 @@ td.ct{font-weight:700;}
       </div>
     </div>
     <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker, name, sector, industry, description" oninput="onSearchInput()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
-    <button class="mob-filter-btn" id="mob-filter-btn" onclick="toggleMobFilters()">&#9776; Filters</button>
-    <div class="ms-wrap" id="ms-rating">
-      <div class="ms-btn" onclick="msToggle('ms-rating')">All Ratings</div>
-      <div class="ms-drop">
-        <label class="ms-all"><input type="checkbox" checked onchange="msToggleAll('ms-rating',this.checked)"> All Ratings</label>
-        <label><input type="checkbox" value="BUY" checked onchange="msChanged('ms-rating')"> BUY</label>
-        <label><input type="checkbox" value="LEAN BUY" checked onchange="msChanged('ms-rating')"> LEAN BUY</label>
-        <label><input type="checkbox" value="HOLD" checked onchange="msChanged('ms-rating')"> HOLD</label>
-        <label><input type="checkbox" value="PASS" checked onchange="msChanged('ms-rating')"> PASS</label>
-      </div>
-    </div>
-    <div class="ms-wrap" id="ms-sector">
-      <div class="ms-btn" onclick="msToggle('ms-sector')">All Sectors</div>
-      <div class="ms-drop" id="ms-sector-opts"></div>
-    </div>
-    <div class="ms-wrap" id="ms-country">
-      <div class="ms-btn" onclick="msToggle('ms-country')">All Countries</div>
-      <div class="ms-drop" id="ms-country-opts"></div>
-    </div>
-    <div class="filter-divider"></div>
-    <!-- Quick Filters dropdown — the one-click state/membership toggles
-         (Reviewed, Flagged, Founder-Led, Blue Chip, Russell 2000,
-         Upgrades, Downgrades), split out of the unified Filters popup
-         into their own button + vertical menu. The badge on the button
-         counts active toggles. -->
-    <div class="fpop-wrap" id="qf-wrap">
-      <button class="fpop-btn" id="qf-btn" onclick="toggleQuickPopup(event)">
-        <span>Quick Filters</span><span class="fpop-badge" id="qf-badge" style="display:none"></span>
+    <!-- Filters menu — same treatment as the nav tabs: the row of filter
+         controls (Ratings / Sectors / Countries multi-selects, Quick
+         Filters, Filters, Clear) collapsed into one button whose dropdown
+         arranges everything in grouped columns. The multi-select wraps
+         keep their ids and .ms-drop structure — the state store that
+         applyFilters / presets / URL-hash restore all read — but the
+         checkbox lists now render inline inside the panel instead of
+         behind per-group buttons. The badge counts active filter
+         dimensions. This one control also serves phones, replacing the
+         old mob-filter-btn bar-expansion. -->
+    <div class="fpop-wrap" id="filt-wrap">
+      <button class="fpop-btn navmenu-btn" id="filt-btn" onclick="toggleFiltMenu(event)" aria-haspopup="true" aria-expanded="false" aria-label="Filters menu">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M2.5 4h15L12 10.5V16l-4-1.8v-3.7L2.5 4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        <span class="filt-btn-label">Filters</span><span class="fpop-badge" id="filt-badge" style="display:none"></span>
       </button>
-      <div class="fpop-panel qf-panel" id="qf-panel">
-        <div class="fpop-header">
-          <span class="fpop-title">Quick Filters</span>
-          <button class="fpop-close" onclick="toggleQuickPopup(event)">&#215;</button>
-        </div>
-        <div class="fpop-body">
-          <div class="qf-menu">
-            <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Reviewed<span id="rev-count-label"></span></button>
-            <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
-            <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
-            <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3).">&#9670; Blue Chip</button>
-            <button class="fpop-toggle-btn" id="f-r2000" onclick="toggleR2000Filter()" title="Only stocks that are current Russell 2000 constituents (small-cap index membership, sourced from Vanguard VTWO holdings at report build time).">&#9671; Russell 2000</button>
-            <button class="fpop-toggle-btn" id="f-upgrades" onclick="setRcFilter(1)" title="Only stocks whose rating improved vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9650; Upgrades</button>
-            <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose rating declined vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9660; Downgrades</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- Filters popup — column filters + saved presets. The quick
-         toggles that used to sit at the top now live in the Quick
-         Filters dropdown to the left. -->
-    <div class="fpop-wrap" id="fpop-wrap">
-      <button class="fpop-btn" id="fpop-btn" onclick="toggleFilterPopup(event)">
-        <span>Filters</span>
-      </button>
-      <div class="fpop-panel" id="fpop-panel">
+      <div class="fpop-panel filt-panel" id="filt-panel">
         <div class="fpop-header">
           <span class="fpop-title">Filters</span>
-          <button class="fpop-close" onclick="toggleFilterPopup(event)">&#215;</button>
+          <span class="filt-header-actions"><button class="filter-clear" onclick="clearFilters()">Clear</button><button class="fpop-close" onclick="toggleFiltMenu(event)">&#215;</button></span>
         </div>
         <div class="fpop-body">
+          <div class="filt-cols">
+            <div class="filt-col">
+              <div class="fpop-section-label">Ratings</div>
+              <div class="ms-wrap" id="ms-rating">
+                <div class="ms-drop">
+                  <label class="ms-all"><input type="checkbox" checked onchange="msToggleAll('ms-rating',this.checked)"> All Ratings</label>
+                  <label><input type="checkbox" value="BUY" checked onchange="msChanged('ms-rating')"> BUY</label>
+                  <label><input type="checkbox" value="LEAN BUY" checked onchange="msChanged('ms-rating')"> LEAN BUY</label>
+                  <label><input type="checkbox" value="HOLD" checked onchange="msChanged('ms-rating')"> HOLD</label>
+                  <label><input type="checkbox" value="PASS" checked onchange="msChanged('ms-rating')"> PASS</label>
+                </div>
+              </div>
+            </div>
+            <div class="filt-col">
+              <div class="fpop-section-label">Sectors</div>
+              <div class="ms-wrap" id="ms-sector"><div class="ms-drop" id="ms-sector-opts"></div></div>
+            </div>
+            <div class="filt-col">
+              <div class="fpop-section-label">Countries</div>
+              <div class="ms-wrap" id="ms-country"><div class="ms-drop" id="ms-country-opts"></div></div>
+            </div>
+            <div class="filt-col">
+              <div class="fpop-section-label">Quick Filters</div>
+              <div class="qf-menu">
+                <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Reviewed<span id="rev-count-label"></span></button>
+                <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
+                <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
+                <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3).">&#9670; Blue Chip</button>
+                <button class="fpop-toggle-btn" id="f-r2000" onclick="toggleR2000Filter()" title="Only stocks that are current Russell 2000 constituents (small-cap index membership, sourced from Vanguard VTWO holdings at report build time).">&#9671; Russell 2000</button>
+                <button class="fpop-toggle-btn" id="f-upgrades" onclick="setRcFilter(1)" title="Only stocks whose rating improved vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9650; Upgrades</button>
+                <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose rating declined vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9660; Downgrades</button>
+              </div>
+            </div>
+          </div>
+          <div class="fpop-divider"></div>
           <div class="fpop-section-label">Column Filters</div>
           <div id="col-filters" class="col-filters-wrap"></div>
           <button class="add-filter-btn" onclick="addColFilter()">&#65291; Add Filter</button>
@@ -1517,11 +1522,8 @@ td.ct{font-weight:700;}
           <div class="fpop-section-label">Preset Filters</div>
           <div id="saved-filters-list" class="fpop-toggles" style="margin-bottom:6px"></div>
         </div>
-        <div class="fpop-footer">
-        </div>
       </div>
     </div>
-    <button class="filter-clear" onclick="clearFilters()">Clear</button>
     <span class="filter-count" id="f-count"></span>
     <span class="f-suggest" id="f-suggest"></span>
   </div>
@@ -1955,7 +1957,15 @@ function _applyFilterState(st){
     var boxes=wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]');
     if(!sel){boxes.forEach(function(cb){cb.checked=true;});}
     else{boxes.forEach(function(cb){cb.checked=sel.indexOf(cb.value)>=0;});}
-    var allBox=wrap.querySelector('.ms-all input');if(allBox)allBox.indeterminate=false;
+    /* Sync the All checkbox to the restored subset — the lists are always
+       visible in the Filters panel now, so a stale checked-All next to a
+       partial selection would read as a contradiction. */
+    var allBox=wrap.querySelector('.ms-all input');
+    if(allBox){
+      var ck=0;boxes.forEach(function(cb){if(cb.checked)ck++;});
+      allBox.checked=ck===boxes.length;
+      allBox.indeterminate=ck>0&&ck<boxes.length;
+    }
     msUpdateLabel(id);
   });
   document.getElementById('col-filters').innerHTML='';
@@ -2384,20 +2394,10 @@ _reviewed:'Mark a stock reviewed once your own due diligence is complete. Click 
 };
 function tt(k){return TT[k]||'';}
 
-/* === MULTI-SELECT HELPERS === */
-function msToggle(id){
-  var wrap=document.getElementById(id);
-  var wasOpen=wrap.classList.contains('open');
-  document.querySelectorAll('.ms-wrap.open').forEach(function(w){w.classList.remove('open');});
-  if(!wasOpen){
-    wrap.classList.add('open');
-    var btn=wrap.querySelector('.ms-btn'),drop=wrap.querySelector('.ms-drop');
-    /* Wrap-relative coords: the drop is position:absolute inside the
-       (position:relative) wrap, so it rides the sticky bar and stays
-       on-screen on iOS where fixed elements drift on horizontal pan. */
-    if(btn&&drop){var r=btn.getBoundingClientRect(),wr=wrap.getBoundingClientRect();drop.style.top=(r.bottom-wr.top+2)+'px';drop.style.left=(r.left-wr.left)+'px';drop.style.minWidth=r.width+'px';drop.style.maxHeight=Math.min(400,window.innerHeight-r.bottom-14)+'px';}
-  }
-}
+/* === MULTI-SELECT HELPERS ===
+   The .ms-drop checkbox lists render inline inside the Filters panel now,
+   so there is no per-group open/close (msToggle) — the DOM ids and
+   checkbox structure are unchanged and everything below still reads them. */
 function msGetSelected(id){
   var boxes=document.querySelectorAll('#'+id+' .ms-drop input[type="checkbox"][value]');
   var sel=[];
@@ -2424,20 +2424,11 @@ function msToggleAll(id,state){
   applyFilters();
 }
 function msUpdateLabel(id){
-  var wrap=document.getElementById(id);
-  var btn=wrap.querySelector('.ms-btn');
-  var boxes=wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]');
-  var sel=[];
-  boxes.forEach(function(cb){if(cb.checked)sel.push(cb.value);});
-  var allLabel=(id==='ms-rating')?'All Ratings':(id==='ms-country')?'All Countries':'All Sectors';
-  if(sel.length===0)btn.textContent='None';
-  else if(sel.length===boxes.length)btn.textContent=allLabel;
-  else if(sel.length<=2)btn.textContent=sel.join(', ');
-  else btn.textContent=sel.length+' selected';
+  /* The per-group trigger buttons whose text this summarized are gone
+     (the lists are inline in the Filters panel); kept as a no-op because
+     callers throughout — msChanged, presets, the world-map country
+     filter — still invoke it. The panel badge now carries the summary. */
 }
-document.addEventListener('click',function(e){
-  if(!e.target.closest('.ms-wrap'))document.querySelectorAll('.ms-wrap.open').forEach(function(w){w.classList.remove('open');});
-});
 
 /* === FILTERS === */
 /* Per-row search memo, built once on first use. Uppercased ticker and
@@ -2555,19 +2546,22 @@ function applyFilters(){
   /* Suggestions only when the search alone zeroed the result set; the
      candidate scan needs passOther, so it runs here where it's in scope. */
   _renderSuggestions(toks.length&&FD.length===0&&_passedOther>0?_buildSuggestions(toks,passOther):null);
-  /* Button active states: the Quick Filters button lights up (with a
-     badge counting active toggles) when any quick toggle is engaged;
-     the Filters button lights up for column filters. 3-state Reviewed
-     filter: state 0 (gray Reviewed) shows all and doesn't count;
-     states 1 (Unreviewed) and 2 (Reviewed) are active filters. */
-  var qn=(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)
-        +(_revFilter>0?1:0)+(_rcFilter>0?1:0);
-  var qbtn=document.getElementById('qf-btn');
-  if(qbtn)qbtn.classList.toggle('active',qn>0);
-  var qbadge=document.getElementById('qf-badge');
-  if(qbadge){qbadge.style.display=qn>0?'':'none';qbadge.textContent=qn>0?qn:'';}
-  var btn=document.getElementById('fpop-btn');
-  if(btn)btn.classList.toggle('active',colFilters.length>0);
+  /* The one Filters button lights up with a badge counting active filter
+     dimensions: each engaged quick toggle, each column filter, and each
+     multi-select with anything deselected. 3-state Reviewed filter:
+     state 0 (gray Reviewed) shows all and doesn't count; states 1
+     (Unreviewed) and 2 (Reviewed) are active filters. (Search is not
+     counted — it stays visible in the bar.) */
+  var fn=(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)
+        +(_revFilter>0?1:0)+(_rcFilter>0?1:0)
+        +colFilters.length
+        +(allRatings?0:1)+(allSectors?0:1)+(allCountries?0:1);
+  var fbtn=document.getElementById('filt-btn');
+  var fopen=document.getElementById('filt-panel');
+  fopen=fopen&&fopen.classList.contains('open');
+  if(fbtn)fbtn.classList.toggle('active',fn>0||fopen);
+  var fbadge=document.getElementById('filt-badge');
+  if(fbadge){fbadge.style.display=fn>0?'':'none';fbadge.textContent=fn>0?fn:'';}
   _updateFlagCount();
   renderCur();
   _syncHash();
@@ -2576,12 +2570,6 @@ function clearColFilters(){
   document.getElementById('col-filters').innerHTML='';
   addColFilter();
   applyFilters();
-}
-function toggleMobFilters(){
-  var fb=document.getElementById('filter-bar');
-  var btn=document.getElementById('mob-filter-btn');
-  var open=fb.classList.toggle('mob-expanded');
-  if(btn)btn.classList.toggle('active',open);
 }
 function clearSearch(){var el=document.getElementById('f-search');el.value='';el.focus();applyFilters();}
 /* === SEARCH: debounce, relevance, suggestions === */
@@ -2743,8 +2731,8 @@ function _positionFpop(panel,btn){
      views window.innerWidth reports the wide layout viewport, which let
      the panel open past the visible right edge on phones. */
   var r=btn.getBoundingClientRect();
-  /* The panel's parent IS its .fpop-wrap (works for both the Filters
-     popup and the Quick Filters dropdown). */
+  /* The panel's parent IS its wrap (works for both the Filters panel and
+     the nav menu — each panel sits inside its position:relative wrap). */
   var wr=panel.parentElement.getBoundingClientRect();
   var vv=window.visualViewport;
   var vw=vv?vv.width:window.innerWidth,vh=vv?vv.height:window.innerHeight;
@@ -2758,46 +2746,49 @@ function _positionFpop(panel,btn){
   if(top+ph>vh-10)top=Math.max(10,r.top-ph-6);
   panel.style.top=(top-wr.top)+'px';panel.style.left=(left-wr.left)+'px';
 }
-function toggleFilterPopup(e){
+/* The unified Filters dropdown — same open/close pattern as the nav menu.
+   The button's active state is shared with the badge logic in applyFilters
+   (lit while any filter is engaged), so closing only unlights it when
+   nothing is filtering. */
+function toggleFiltMenu(e){
   if(e)e.stopPropagation();
-  var panel=document.getElementById('fpop-panel');
+  var panel=document.getElementById('filt-panel');
+  if(!panel)return;
   var wasOpen=panel.classList.contains('open');
-  var qp=document.getElementById('qf-panel');
-  if(qp)qp.classList.remove('open');
   closeNavMenu();
-  panel.classList.toggle('open');
-  if(!wasOpen){
-    var btn=document.getElementById('fpop-btn');
-    if(btn)_positionFpop(panel,btn);
+  if(wasOpen){closeFiltMenu();return;}
+  panel.classList.add('open');
+  var btn=document.getElementById('filt-btn');
+  if(btn){
+    btn.classList.add('active');
+    btn.setAttribute('aria-expanded','true');
+    _positionFpop(panel,btn);
   }
 }
-function toggleQuickPopup(e){
-  if(e)e.stopPropagation();
-  var panel=document.getElementById('qf-panel');
-  var wasOpen=panel.classList.contains('open');
-  document.getElementById('fpop-panel').classList.remove('open');
-  closeNavMenu();
-  panel.classList.toggle('open');
-  if(!wasOpen){
-    var btn=document.getElementById('qf-btn');
-    if(btn)_positionFpop(panel,btn);
+function closeFiltMenu(){
+  var panel=document.getElementById('filt-panel');
+  if(panel&&panel.classList.contains('open')){
+    panel.classList.remove('open');
+    cfselClose();
+  }
+  var btn=document.getElementById('filt-btn');
+  if(btn){
+    var badge=document.getElementById('filt-badge');
+    btn.classList.toggle('active',!!(badge&&badge.style.display!=='none'));
+    btn.setAttribute('aria-expanded','false');
   }
 }
 document.addEventListener('click',function(e){
-  /* The column picker lives on <body>, outside #fpop-wrap — clicks in it
-     must not read as "outside the Filters popup" or picking a column
-     would slam the whole popup shut. */
+  /* The column picker lives on <body>, outside #filt-wrap — clicks in it
+     must not read as "outside the Filters panel" or picking a column
+     would slam the whole panel shut. */
   var cp=document.getElementById('cfsel-panel');
   if(cp&&cp.contains(e.target))return;
-  [['fpop-wrap','fpop-panel'],['qf-wrap','qf-panel']].forEach(function(p){
-    var wrap=document.getElementById(p[0]);
-    if(wrap&&!wrap.contains(e.target)){
-      var panel=document.getElementById(p[1]);
-      if(panel)panel.classList.remove('open');
-    }
-  });
-  /* The nav menu closes through closeNavMenu rather than the loop above:
-     it also has to reset the button's pressed state and aria-expanded. */
+  /* Both menus close through their close functions (not a bare
+     classList.remove) so the buttons' pressed state and aria-expanded
+     reset with them. */
+  var fw=document.getElementById('filt-wrap');
+  if(fw&&!fw.contains(e.target))closeFiltMenu();
   var nw=document.getElementById('nav-wrap');
   if(nw&&!nw.contains(e.target))closeNavMenu();
 });
@@ -5048,6 +5039,15 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){
     var np=document.getElementById('nav-panel');
     if(np&&np.classList.contains('open')){e.preventDefault();closeNavMenu();return;}
+    var fp=document.getElementById('filt-panel');
+    if(fp&&fp.classList.contains('open')){
+      /* The column picker stacks above the panel; the first Escape closes
+         just the picker (matching its own keydown handler), the next one
+         closes the panel. */
+      var cp=document.getElementById('cfsel-panel');
+      if(cp&&cp.style.display==='flex'){e.preventDefault();cfselClose();return;}
+      e.preventDefault();closeFiltMenu();return;
+    }
   }
   if(document.getElementById('det-modal').classList.contains('open')){
     if(e.key==='Escape')closeDetail();
@@ -5286,9 +5286,7 @@ function toggleNavMenu(e){
   if(!panel)return;
   var wasOpen=panel.classList.contains('open');
   /* Only one dropdown in the filter bar at a time. */
-  var fp=document.getElementById('fpop-panel'),qp=document.getElementById('qf-panel');
-  if(fp)fp.classList.remove('open');
-  if(qp)qp.classList.remove('open');
+  closeFiltMenu();
   if(wasOpen){closeNavMenu();return;}
   renderNavMenu();
   panel.classList.add('open');
