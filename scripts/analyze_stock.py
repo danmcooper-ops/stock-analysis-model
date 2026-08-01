@@ -1840,6 +1840,81 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
 # Main
 # ---------------------------------------------------------------------------
 
+MCAP_MISSING_ALERT_THRESHOLD = 0.02
+
+
+def apply_mcap_integrity_guard(results, prior_rows=None,
+                               threshold=MCAP_MISSING_ALERT_THRESHOLD):
+    """Recover missing market caps, then shout if too many are still gone.
+
+    ``mcap`` / ``shares_out`` sit upstream of nearly every valuation output, so
+    losing them nulls p_tbv, fcf_yield, shareholder_yield, mos, fv_dispersion,
+    pfcf, net_cash_to_mcap, tangible_book_per_share, all five fair-value models
+    and the Monte Carlo confidence fields. Because a missing-data N/A still
+    counts against the applicable-gate denominator (see the two-kinds-of-N/A
+    note in scripts/scoring.py), an affected row is scored as *failing* five
+    valuation gates on absent data rather than skipping them. On 2026-07-29
+    that hit 265 of 2,244 records (11.8% against a ~0.1% baseline) and left
+    large caps like MA and LLY rated PASS/HOLD on data that was never fetched.
+
+    The upstream cause is fixed in ``data.yfinance_client`` (yfinance 1.3.0's
+    ``.info`` intermittently drops both fields; ``fast_info`` still has them).
+    This is the second line of defence: fall back to the prior snapshot's share
+    count re-priced at today's price, flag every row it touches via
+    ``_mcap_source`` so the fallback can never masquerade as fresh data, and
+    print a prominent warning when the residual miss rate clears *threshold*.
+
+    Must run BEFORE ``score_and_rate`` or the recovered values never reach the
+    gates. Mutates *results* in place; returns a summary dict for callers/tests.
+    """
+    missing = [r for r in results if not r.get('mcap')]
+    if missing and prior_rows:
+        prior_by_ticker = {r['ticker']: r for r in prior_rows if r.get('ticker')}
+        for r in missing:
+            prior = prior_by_ticker.get(r.get('ticker'))
+            if not prior:
+                continue
+            # Share counts move slowly, so yesterday's count at today's price
+            # is a far better estimate than nothing. Only fall back to the
+            # prior mcap wholesale when today's price is unavailable too.
+            shares = r.get('shares_out') or prior.get('shares_out')
+            price = r.get('price')
+            if shares and price:
+                r['shares_out'] = shares
+                r['mcap'] = float(price) * float(shares)
+                r['_mcap_source'] = 'prior_snapshot_shares'
+            elif prior.get('mcap'):
+                r['mcap'] = prior['mcap']
+                r['shares_out'] = r.get('shares_out') or prior.get('shares_out')
+                r['_mcap_source'] = 'prior_snapshot_mcap'
+
+    still_missing = [r for r in results if not r.get('mcap')]
+    recovered = sum(1 for r in results if r.get('_mcap_source'))
+    miss_pct = (len(still_missing) / len(results)) if results else 0.0
+
+    if recovered:
+        print(f"\n[mcap] recovered {recovered} record(s) from the prior "
+              f"snapshot (flagged via _mcap_source)")
+    if miss_pct > threshold:
+        print("\n" + "!" * 70)
+        print(f"!! DATA QUALITY WARNING: {len(still_missing)} of {len(results)} "
+              f"records ({miss_pct:.1%}) have no market cap.")
+        print("!! Baseline is ~0.1%. Every valuation gate for these rows "
+              "(P/TBV, FCF Yield,")
+        print("!! Shrhldr Yld, MoS, FV Dispersion) scores as FAILED on absent "
+              "data, so")
+        print("!! their ratings are NOT trustworthy. Check the info backfill "
+              "in")
+        print("!! data/yfinance_client.py before acting on this run.")
+        print("!" * 70)
+    elif still_missing:
+        print(f"\n[mcap] {len(still_missing)} record(s) without market cap "
+              f"({miss_pct:.1%}, within the ~0.1% baseline)")
+
+    return {'recovered': recovered, 'still_missing': len(still_missing),
+            'miss_pct': miss_pct, 'alert': miss_pct > threshold}
+
+
 def _main():
     """Entry point: screen tickers, run DCF analysis, generate reports."""
     import argparse
@@ -2035,6 +2110,9 @@ def _main():
     # This maintains backtest continuity even when a stock dips marginally below
     # a filter threshold due to data fluctuation.
     _carry_set = set()
+    # Prior rows are retained (not just their tickers) so the market-cap
+    # integrity guard further down can fall back to yesterday's share count.
+    _carry_prior_rows = []
     try:
         import glob as _glob
         _prior_jsons = sorted(_glob.glob(os.path.join('output', 'results_*.json')))
@@ -2043,6 +2121,7 @@ def _main():
             with open(_prior_path) as _pf:
                 _prior = json.load(_pf)
             _prior_rows = _prior.get('results', _prior) if isinstance(_prior, dict) else _prior
+            _carry_prior_rows = _prior_rows
             _carry_set = {r['ticker'] for r in _prior_rows if r.get('ticker')} - _skip_set
             print(f"Carry-forward: {len(_carry_set)} ticker(s) from {os.path.basename(_prior_path)} "
                   f"will bypass Phase-1 filters")
@@ -3246,6 +3325,8 @@ def _main():
             r['pp_sector_hhi'] = None
             r['pp_sector_cr4'] = None
             r['pp_sector_count'] = len(tickers_in_sector) if tickers_in_sector else 0
+
+    apply_mcap_integrity_guard(results, _carry_prior_rows)
 
     score_and_rate(results)
 

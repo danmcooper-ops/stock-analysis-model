@@ -14,6 +14,87 @@ class EmptyYahooResponseError(Exception):
     so the caller can either retry or fall back to another data source."""
 
 
+def _backfill_shares_and_mcap(stock, info):
+    """Backfill ``marketCap`` / ``sharesOutstanding`` from ``fast_info``.
+
+    yfinance 1.3.0's ``.info`` intermittently omits both fields for a subset
+    of tickers — roughly 10% of a full-universe run, sticky per ticker rather
+    than transient, so retrying does NOT recover them (MA, LLY, GWW and ZTS
+    each returned None across four consecutive attempts while ABT succeeded).
+    The rest of the same ``info`` dict is fully populated (floatShares,
+    currentPrice, trailingPE, all three statement frames), which is why the
+    all-empty ``EmptyYahooResponseError`` throttle detector never fires here.
+
+    The data is not actually missing upstream: ``fast_info`` reads the chart /
+    quote endpoint rather than quoteSummary's defaultKeyStatistics module and
+    returns both values correctly for the affected tickers. ``get_shares_full``
+    is the second fallback for share count alone.
+
+    This matters far out of proportion to two fields — everything that divides
+    by share count or market cap depends on them, so losing them nulls p_tbv,
+    fcf_yield, shareholder_yield, mos, fv_dispersion, pfcf, net_cash_to_mcap,
+    tangible_book_per_share, every fair-value model and the Monte Carlo
+    confidence fields. The 2026-07-29 run lost them for 265 of 2,244 records
+    (11.8% against a 0.1% baseline) and scored those rows as *failing* five
+    valuation gates on absent data.
+
+    Mutates *info* in place and returns a list of the fields it recovered so
+    the caller can record provenance. Only touches the network when a field is
+    actually missing, so the common path costs nothing.
+    """
+    recovered = []
+    if info.get('marketCap') and info.get('sharesOutstanding'):
+        return recovered
+
+    fast = None
+    try:
+        fast = stock.fast_info
+    except Exception:
+        fast = None
+
+    def _fast(attr):
+        if fast is None:
+            return None
+        try:
+            val = getattr(fast, attr, None)
+            return float(val) if val else None
+        except Exception:
+            return None
+
+    if not info.get('sharesOutstanding'):
+        shares = _fast('shares')
+        if not shares:
+            # Last resort: the shares-outstanding time series. Its final row is
+            # the same figure fast_info reports, but it survives cases where
+            # fast_info itself comes back bare.
+            try:
+                series = stock.get_shares_full(start='2020-01-01')
+                if series is not None and len(series):
+                    shares = float(series.iloc[-1])
+            except Exception:
+                shares = None
+        if shares and shares > 0:
+            info['sharesOutstanding'] = shares
+            recovered.append('sharesOutstanding')
+
+    if not info.get('marketCap'):
+        mcap = _fast('market_cap')
+        if not mcap:
+            # Derive it rather than lose it: fast_info's own market_cap is
+            # price x shares, so computing it here is the same number by a
+            # different route when only the packaged value is absent.
+            price = (info.get('currentPrice') or info.get('regularMarketPrice')
+                     or _fast('last_price'))
+            shares = info.get('sharesOutstanding')
+            if price and shares:
+                mcap = float(price) * float(shares)
+        if mcap and mcap > 0:
+            info['marketCap'] = mcap
+            recovered.append('marketCap')
+
+    return recovered
+
+
 # Module-level executor shared across all timeout calls.  Using a single
 # thread avoids the memory/thread leak of creating (and never joining) a
 # fresh ThreadPoolExecutor per yfinance call.  max_workers=4 allows light
@@ -157,6 +238,13 @@ class YFinanceClient:
             if bs_empty and inc_empty and cf_empty and info_empty:
                 raise EmptyYahooResponseError(
                     f"yfinance returned empty payload for {ticker} (likely throttled)")
+            # Recover marketCap / sharesOutstanding when .info drops them. Not
+            # a throttle signal — this response is otherwise complete — so it
+            # is repaired in place rather than raised as retryable.
+            _recovered = _backfill_shares_and_mcap(stock, info)
+            if _recovered:
+                data['info'] = info
+                data['_info_backfilled'] = _recovered
             # Growth estimates and earnings history (may fail for some tickers)
             try:
                 data['growth_estimates'] = stock.growth_estimates
