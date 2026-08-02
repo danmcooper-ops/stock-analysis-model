@@ -224,14 +224,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .fpop-toggle-btn:hover{border-color:var(--accent);background:#f0f4ff;color:var(--accent);}
 .fpop-toggle-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
 /* Quick Filters column — the same toggle buttons render as full-width
-   menu rows instead of pills. */
+   menu rows instead of pills, each led by a display-only checkbox
+   (synced from the state vars by _syncQfChecks) so the column reads
+   like the Ratings/Sectors/Countries lists beside it. The active state
+   is a light tint + accent text — the checkbox carries the on/off
+   signal, and a solid accent fill would swallow it. */
 .qf-menu{display:flex;flex-direction:column;gap:2px;}
 .qf-menu .fpop-toggle-btn{border:none;background:none;border-radius:6px;padding:7px 10px;width:100%;text-align:left;}
 .qf-menu .fpop-toggle-btn:hover{background:#eef2f7;}
-.qf-menu .fpop-toggle-btn.active{background:var(--accent);color:#fff;}
+.qf-menu .fpop-toggle-btn.active{background:#eef2f7;color:var(--accent);font-weight:600;}
+.qf-chk{pointer-events:none;margin:0;accent-color:var(--accent);flex-shrink:0;}
 [data-theme="dark"] .qf-menu .fpop-toggle-btn{background:none;}
 [data-theme="dark"] .qf-menu .fpop-toggle-btn:hover{background:#21262d;}
-[data-theme="dark"] .qf-menu .fpop-toggle-btn.active{background:var(--accent);color:#0d1117;}
+[data-theme="dark"] .qf-menu .fpop-toggle-btn.active{background:#21262d;color:var(--accent);}
 /* === NAV MENU ===
    The three primary views and all of their sub-tabs used to occupy two
    full-width rows above the data (.primary-nav + a .secondary-nav). Both
@@ -1483,14 +1488,22 @@ td.ct{font-weight:700;}
             </div>
             <div class="filt-col">
               <div class="fpop-section-label">Quick Filters</div>
+              <!-- Each row leads with a checkbox mirroring the Ratings /
+                   Sectors / Countries lists. The boxes are display-only
+                   (pointer-events:none, synced by _syncQfChecks from the
+                   real state vars) — the whole row stays the click target
+                   and the existing toggle handlers stay the state owners.
+                   All unchecked by default. The Reviewed button's mode word
+                   lives in #f-reviewed-label so cycling the 3-state filter
+                   swaps the text without rebuilding the button's DOM. -->
               <div class="qf-menu">
-                <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Reviewed<span id="rev-count-label"></span></button>
-                <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
-                <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()">&#9733; Founder-Led</button>
-                <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3).">&#9670; Blue Chip</button>
-                <button class="fpop-toggle-btn" id="f-r2000" onclick="toggleR2000Filter()" title="Only stocks that are current Russell 2000 constituents (small-cap index membership, sourced from Vanguard VTWO holdings at report build time).">&#9671; Russell 2000</button>
-                <button class="fpop-toggle-btn" id="f-upgrades" onclick="setRcFilter(1)" title="Only stocks whose rating improved vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9650; Upgrades</button>
-                <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose rating declined vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count.">&#9660; Downgrades</button>
+                <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> <span id="f-reviewed-label">Reviewed</span><span id="rev-count-label"></span></button>
+                <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">&#9873; Flagged<span class="flag-count" id="flag-count-label"></span></button>
+                <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">&#9733; Founder-Led</button>
+                <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3)."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">&#9670; Blue Chip</button>
+                <button class="fpop-toggle-btn" id="f-r2000" onclick="toggleR2000Filter()" title="Only stocks that are current Russell 2000 constituents (small-cap index membership, sourced from Vanguard VTWO holdings at report build time)."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">&#9671; Russell 2000</button>
+                <button class="fpop-toggle-btn" id="f-upgrades" onclick="setRcFilter(1)" title="Only stocks whose rating improved vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">&#9650; Upgrades</button>
+                <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose rating declined vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">&#9660; Downgrades</button>
               </div>
             </div>
           </div>
@@ -1753,6 +1766,20 @@ function toggleBlueChipFilter(){_blueChipOnly=!_blueChipOnly;document.getElement
 var _r2000Only=false;
 function toggleR2000Filter(){_r2000Only=!_r2000Only;document.getElementById('f-r2000').classList.toggle('active',_r2000Only);applyFilters();}
 function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.getElementById('flag-count-label');if(el)el.textContent=n>0?' ('+n+')':'';}
+/* One sync point for the display-only checkboxes leading the quick-filter
+   rows: read the real state vars and mirror them. Runs from applyFilters,
+   which every toggle / clear / preset / hash-restore path funnels through,
+   so the boxes can never drift from the state. All off by default. */
+function _syncQfChecks(){
+  var m={'f-reviewed':_revFilter>0,'f-flagged':_flagOnly,'f-founder':_founderOnly,
+         'f-bluechip':_blueChipOnly,'f-r2000':_r2000Only,
+         'f-upgrades':_rcFilter===1,'f-downgrades':_rcFilter===2};
+  Object.keys(m).forEach(function(id){
+    var el=document.getElementById(id);
+    var cb=el&&el.querySelector('.qf-chk');
+    if(cb)cb.checked=m[id];
+  });
+}
 function _starHtml(tk){return '<span class="flag-star'+(isFlagged(tk)?' flagged':'')+'" onclick="toggleFlag(\''+tk.replace(/'/g,"\\'")+'\',event)" title="Flag">'+(isFlagged(tk)?'\u2691':'\u2690')+'</span>';}
 _updateFlagCount();
 
@@ -1768,7 +1795,11 @@ function isReviewed(tk){return !!_revd[tk];}
 function toggleReviewed(tk,e){if(e)e.stopPropagation();_revd[tk]?delete _revd[tk]:_revd[tk]=1;_saveRevd();_updateRevCount();applyFilters();}
 function _syncRevDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;var c=isReviewed(tk)?'rev-chk-det checked':'rev-chk-det';['d-rev','d-rev2'].forEach(function(id){var el=document.getElementById(id);if(el){el.className=c;el.innerHTML=_CHK_SVG;el.title=isReviewed(tk)?'Reviewed — click to unmark':'Mark as reviewed';}});}
 function toggleReviewedDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;toggleReviewed(tk);_syncRevDet();}
-function cycleRevFilter(){_revFilter=(_revFilter+1)%3;var el=document.getElementById('f-reviewed');el.classList.toggle('active',_revFilter>0);el.innerHTML=_CHK_SVG+' '+(['Reviewed','Unreviewed','Reviewed'])[_revFilter];applyFilters();}
+/* The mode word swaps in place (the button DOM is static now — it holds
+   the qf-chk checkbox and the reviewed count span, which an innerHTML
+   rewrite would destroy). */
+function _setRevLabel(){var s=document.getElementById('f-reviewed-label');if(s)s.textContent=(['Reviewed','Unreviewed','Reviewed'])[_revFilter];}
+function cycleRevFilter(){_revFilter=(_revFilter+1)%3;var el=document.getElementById('f-reviewed');el.classList.toggle('active',_revFilter>0);_setRevLabel();applyFilters();}
 function _updateRevCount(){var n=Object.keys(_revd).length;var el=document.getElementById('rev-count-label');if(el)el.textContent=n>0?' ('+n+')':'';}
 function clearAllReviewed(){if(!Object.keys(_revd).length)return;if(!confirm('Clear all '+Object.keys(_revd).length+' reviewed checkmarks?'))return;_revd={};_saveRevd();_updateRevCount();_syncRevDet();applyFilters();}
 function _revHtml(tk){var c=isReviewed(tk);return '<span class="rev-chk'+(c?' checked':'')+'" onclick="toggleReviewed(\''+tk.replace(/'/g,"\\'")+'\',event)" title="'+(c?'Reviewed — click to unmark':'Mark as reviewed')+'">'+_CHK_SVG+'</span>';}
@@ -1969,7 +2000,7 @@ function _applyFilterState(st){
   _r2000Only=!!st.r2000Only;document.getElementById('f-r2000').classList.toggle('active',_r2000Only);
   _revFilter=st.revFilter|0;
   var rEl=document.getElementById('f-reviewed');
-  if(rEl){rEl.classList.toggle('active',_revFilter>0);rEl.innerHTML=_CHK_SVG+' '+(['Reviewed','Unreviewed','Reviewed'])[_revFilter];}
+  if(rEl){rEl.classList.toggle('active',_revFilter>0);_setRevLabel();}
   _rcFilter=st.rcFilter|0;
   document.getElementById('f-upgrades').classList.toggle('active',_rcFilter===1);
   document.getElementById('f-downgrades').classList.toggle('active',_rcFilter===2);
@@ -2544,6 +2575,7 @@ function applyFilters(){
   if(fbtn)fbtn.classList.toggle('active',fn>0||fopen);
   var fbadge=document.getElementById('filt-badge');
   if(fbadge){fbadge.style.display=fn>0?'':'none';fbadge.textContent=fn>0?fn:'';}
+  _syncQfChecks();
   _updateFlagCount();
   renderCur();
   _syncHash();
@@ -2692,7 +2724,7 @@ function clearFilters(){
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
   _blueChipOnly=false;document.getElementById('f-bluechip').classList.remove('active');
   _r2000Only=false;document.getElementById('f-r2000').classList.remove('active');
-  _revFilter=0;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.remove('active');rEl.innerHTML=_CHK_SVG+' Reviewed';}
+  _revFilter=0;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.remove('active');_setRevLabel();}
   _rcFilter=0;document.getElementById('f-upgrades').classList.remove('active');document.getElementById('f-downgrades').classList.remove('active');
   _revd={};_saveRevd();_updateRevCount();
   /* Reset the sector preset dropdown to its placeholder so it doesn't
