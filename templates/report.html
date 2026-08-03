@@ -36,35 +36,68 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    absolutely positioned into the left/right gutters — which is why the old
    padding had to reserve 160px on the right. All three are ordinary flex
    items now, so the padding is symmetric again. */
-.header{background:linear-gradient(135deg,#1a252f,#2980b9);color:white;padding:12px 20px;min-height:64px;display:flex;flex-direction:row;align-items:center;gap:14px;flex-wrap:wrap;position:relative;}
+/* z-index: position:sticky (set further down) makes the header its own
+   stacking context, so the dropdown panels' z-index:1200 is trapped inside it
+   and only this value competes with the rest of the page. 120 clears the
+   table's sticky thead/frozen columns (z 3-15) and the old .filter-bar level
+   (100), while staying under .detail-modal (1000) so the popup still covers
+   the banner — the same effective order the panels had in the filter bar. */
+.header{background:linear-gradient(135deg,#1a252f,#2980b9);color:white;padding:12px 20px;min-height:64px;display:flex;flex-direction:row;align-items:center;gap:14px;flex-wrap:wrap;position:relative;z-index:120;}
 .header h1{font-size:1.35em;margin:0;flex-shrink:0;}
 .header p{font-size:0.95em;opacity:0.85;}
 .hdr-spacer{flex:1 1 auto;}
 .last-updated{font-size:0.7em;opacity:0.65;text-align:left;display:flex;flex-direction:column;gap:2px;white-space:nowrap;flex-shrink:0;}
-/* Primary-view tabs — the same three views the nav dropdown lists at its top
-   level. The dropdown stays for sub-tabs (Charts + per-sector, Gate Matrix,
-   the nine Financial Data tabs): too many, and too data-driven, to sit up
-   here. Colours mirror .d-header-band .d-tabs .sub-btn, the other button set
-   that has to read against this gradient in both themes. */
-.hdr-tabs{display:flex;gap:6px;flex-shrink:0;}
-.hdr-tab{background:rgba(255,255,255,0.08);color:#c5d2e0;border:1px solid rgba(255,255,255,0.18);border-radius:6px;padding:6px 11px;font-size:0.78em;font-weight:600;line-height:1;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all 0.15s;}
-.hdr-tab:hover:not(.active){background:rgba(255,255,255,0.16);color:#fff;border-color:rgba(255,255,255,0.3);}
-.hdr-tab.active{background:#fff;color:#0d1f42;border-color:#fff;}
-/* Phones swap in the short labels (see the max-width:768px block) — the full
-   three at full length overflow a 390px header. title="" carries the full
-   name either way. */
-.ht-short{display:none;}
+/* The nav and Filters dropdowns live in the header now, right-justified. The
+   whole .filter-bar moved up rather than just the two wraps: every
+   `.filter-bar input/select/.filter-count` descendant rule still applies that
+   way, and those inputs (search, column filters) live inside the Filters
+   panel. Here the bar is an inline cluster, not its own full-width row — it
+   is also dropped from the sticky/--vvw rule further down, which would
+   otherwise force width:100vw on a flex item. */
+.header .filter-bar{padding:0;gap:8px;flex-wrap:nowrap;flex-shrink:0;}
+/* On-gradient treatment for the two dropdown buttons. The base .fpop-btn is a
+   light chip built for the page background and washes out on this banner. */
+.header .fpop-btn{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.18);color:#e8eef5;}
+.header .fpop-btn:hover{background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);}
+.header .fpop-btn.active{background:#fff;border-color:#fff;color:#0d1f42;}
+.header .navmenu-crumb{color:#e8eef5;}
+.header .navmenu-crumb-sub{color:#a9bcd0;}
+.header .fpop-btn.active .navmenu-crumb{color:#0d1f42;}
+.header .fpop-btn.active .navmenu-crumb-sub{color:#5b7089;}
+.header .filter-count{color:#cfe0f0;}
+/* Centred count + universe size. #f-count used to sit inside .filter-bar and
+   was hidden on the no-table views by `.filter-bar.nav-only > *`; now that it
+   lives outside that bar, moveFilterBar() mirrors .nav-only onto .header so
+   the count still disappears on Sector Analysis and Charts. */
+.hdr-center{display:flex;align-items:center;gap:10px;flex-shrink:0;white-space:nowrap;}
+.hdr-n{font-size:0.7em;opacity:0.65;white-space:nowrap;}
+.header.nav-only #f-count{display:none!important;}
+/* Panels hang from the right edge. Anchored left:0 they would run off the
+   viewport now that their buttons sit at the far right of the header.
+   width:max-content is required with right-anchoring: shrink-to-fit measures
+   the space between the containing block's left edge and the right offset,
+   and the containing block here is the ~200px button wrap — so the panel
+   collapsed to 410px and clipped its last column. max-content lets it take
+   its natural width, still clamped by each panel's own max-width. */
+.header .fpop-panel{left:auto;right:0;width:max-content;}
+/* The panels are children of .header now, so they inherit its `color:white`
+   and every label without an explicit colour went white-on-white inside the
+   white panel (the Ratings/Sectors/Countries checkbox lists). Re-assert the
+   page text colour at the panel boundary. */
+.header .fpop-panel{color:var(--text);}
 @media(max-width:768px){
-  /* Title and the three tabs both have to fit one phone-width row, so the
-     generated-at/n meta drops out here — as it already does in landscape. */
+  /* Title plus both dropdowns have to fit one phone-width row, so the
+     generated-at/n meta drops out here — as it already does in landscape.
+     The dropdowns collapse to bare icons via .navmenu-crumb/.filt-btn-label,
+     which the phone block below already hides. */
   .header{padding:5px 10px;min-height:unset;flex-direction:row;align-items:center;gap:6px;flex-wrap:nowrap;}
   .header>p{display:none;}
   .header h1{font-size:0.88em;margin:0;text-align:left;}
   .last-updated{display:none;}
-  .hdr-tabs{gap:4px;}
-  .hdr-tab{padding:4px 7px;font-size:0.6em;}
-  .ht-full{display:none;}
-  .ht-short{display:inline;}
+  /* Count + n went with the meta on phones — the row only has space for the
+     title and the two dropdown icons. */
+  .hdr-center{display:none;}
+  .header .filter-bar{gap:5px;}
   .container{padding:3px 6px;}
   .dt th{padding:5px 5px;}
   .dt td{padding:4px 5px;font-size:0.78em;}
@@ -1148,10 +1181,10 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .d-header-band .d-tabs .sub-btn{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.18);}
 [data-theme="dark"] .d-header-band .d-tabs .sub-btn.active{background:#1f6feb;border-color:#1f6feb;}
 [data-theme="dark"] .d-header-band .d-tabs .sub-btn:hover:not(.active){background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);}
-/* Header view tabs — same problem, same fix as the popup tab bar above. The
-   light-mode active pill is a white fill with navy text, but "body *" forces
-   the label white in dark mode, which would leave it white-on-white. */
-[data-theme="dark"] .hdr-tab.active{background:#1f6feb;border-color:#1f6feb;}
+/* Header dropdown buttons — same problem, same fix as the popup tab bar above.
+   The light-mode open state is a white fill with navy text, but "body *"
+   forces the label white in dark mode, which would leave it white-on-white. */
+[data-theme="dark"] .header .fpop-btn.active{background:#1f6feb;border-color:#1f6feb;}
 [data-theme="dark"] .filter-bar input,[data-theme="dark"] .filter-bar select,[data-theme="dark"] .f-metric-sel,[data-theme="dark"] .f-col-sel,[data-theme="dark"] .f-num{background:#0d1117;color:#e6edf3;border-color:#30363d;}
 [data-theme="dark"] .f-num::placeholder{color:#6e7681;opacity:1;}
 [data-theme="dark"] .f-col-sel option{background:#0d1117;color:#e6edf3;}
@@ -1479,7 +1512,10 @@ td.ct{font-weight:700;}
    scrollbar, so the bars ran ~15px past the right edge of the content;
    visualViewport.width excludes it. 100vw is the fallback if the API is
    missing. */
-.header,.secondary-nav,.filter-bar{position:sticky;left:0;width:var(--vvw,100vw);max-width:100%;}
+/* .filter-bar is no longer in this list: it lives inside .header now, where a
+   width:var(--vvw) flex item would blow the row apart. The header carries the
+   full-width sticky treatment for it. */
+.header,.secondary-nav{position:sticky;left:0;width:var(--vvw,100vw);max-width:100%;}
 /* The sticky bars are clamped to their containing block, and .container's
    side padding holds that block short of the document's right edge — so at
    full right pan the bars were shoved back by the padding and left an
@@ -1494,20 +1530,13 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 <body>
 <div class="header">
   <h1>Securities Analysis</h1>
-  <div class="last-updated"><span>{{ generated_at }}</span><span>n = {{ total }}</span></div>
+  <div class="last-updated"><span>{{ generated_at }}</span></div>
   <span class="hdr-spacer"></span>
-  <!-- Primary views. data-v matches the keys _navGroups()/navGo() already use,
-       so these reuse the dropdown's dispatch — clicking one enters that view on
-       whichever sub-tab it was last on, exactly as the dropdown's group header
-       does. Active state is kept in sync by _syncNavCrumb(). -->
-  <div class="hdr-tabs" id="hdr-tabs" role="tablist" aria-label="Primary views">
-    <button class="hdr-tab" data-v="pool" role="tab" title="Sector Analysis"><span class="ht-full">Sector Analysis</span><span class="ht-short">Sector</span></button>
-    <button class="hdr-tab" data-v="matrix" role="tab" title="Financial Model"><span class="ht-full">Financial Model</span><span class="ht-short">Model</span></button>
-    <button class="hdr-tab" data-v="table" role="tab" title="Financial Data"><span class="ht-full">Financial Data</span><span class="ht-short">Data</span></button>
-  </div>
-  <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><span class="tt-knob" id="tt-knob">&#9728;</span></button>
-</div>
-<div class="container">
+  <!-- Centred cluster: the result count and the universe size. Two flex
+       spacers (one either side) centre it against the header as a whole
+       rather than against the gap between the title and the controls. -->
+  <div class="hdr-center"><span class="filter-count" id="f-count"></span><span class="hdr-n">n = {{ total }}</span></div>
+  <span class="hdr-spacer"></span>
   <div class="filter-bar" id="filter-bar">
     <!-- Nav menu — one icon in place of the old two-row tab stack. The
          dropdown (built by renderNavMenu) lists all three views with their
@@ -1604,8 +1633,10 @@ body.wide-table .container{padding-left:0;padding-right:0;}
         </div>
       </div>
     </div>
-    <span class="filter-count" id="f-count"></span>
   </div>
+  <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><span class="tt-knob" id="tt-knob">&#9728;</span></button>
+</div>
+<div class="container">
   <div id="view-pool" class="view active">
     <div id="pool-chart-area"></div>
     <div id="pool-sector-table"></div>
@@ -1643,8 +1674,8 @@ body.wide-table .container{padding-left:0;padding-right:0;}
       <div id="d-pane-overview" class="d-pane active">
       <div id="d-kmetrics" class="d-kmetrics"></div>
       <div id="d-gate-values" class="d-gate-values"></div>
-      <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span>The Track Record</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
       <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
+      <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span>The Track Record</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
       <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
       <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
       </div><!-- /d-pane-overview -->
@@ -5204,7 +5235,13 @@ function moveFilterBar(v){
   var fb=document.querySelector('.filter-bar');
   if(!fb)return;
   fb.style.display='';
-  fb.classList.toggle('nav-only',v==='pool'||(v==='table'&&curTSub==='prices'));
+  var navOnly=(v==='pool'||(v==='table'&&curTSub==='prices'));
+  fb.classList.toggle('nav-only',navOnly);
+  /* The centred #f-count now sits outside .filter-bar, so it is out of reach
+     of the bar's `.nav-only > *` rule. Mirror the flag onto .header to keep
+     hiding it on the views that have no table to count. */
+  var hd=document.querySelector('.header');
+  if(hd)hd.classList.toggle('nav-only',navOnly);
 }
 /* Page-scroll mode (now universal): keep the wraps' inline max-height cleared
    so they grow to full content height, the document scrolls, and the sticky
@@ -5379,14 +5416,6 @@ function renderNavMenu(){
 /* Names the current view + sub-tab next to the icon. With the tab rows gone
    there is nothing else on screen that says where you are. */
 function _syncNavCrumb(){
-  /* Light up the header tab for the current view. Done ahead of the crumb's
-     early returns so the tabs stay correct even when the crumb is absent. */
-  var tabs=document.querySelectorAll('#hdr-tabs .hdr-tab');
-  for(var i=0;i<tabs.length;i++){
-    var on=tabs[i].getAttribute('data-v')===curView;
-    tabs[i].classList.toggle('active',on);
-    tabs[i].setAttribute('aria-selected',on?'true':'false');
-  }
   var el=document.getElementById('nav-crumb');
   if(!el)return;
   var g=null,sub='';
@@ -5415,11 +5444,8 @@ function navGo(v,k){
     else swTSub(curTSub);
   }
 }
-/* Both the dropdown's items and the header's primary-view tabs dispatch here.
-   The header tabs carry no data-k, so they land on navGo's "keep the view's
-   last sub-tab" path — the same behaviour as clicking a dropdown group header. */
 document.addEventListener('click',function(e){
-  var b=e.target.closest?e.target.closest('#nav-cols [data-v],#hdr-tabs [data-v]'):null;
+  var b=e.target.closest?e.target.closest('#nav-cols [data-v]'):null;
   if(!b)return;
   navGo(b.getAttribute('data-v'),b.hasAttribute('data-k')?b.getAttribute('data-k'):null);
 });
