@@ -19,7 +19,11 @@ import urllib.request
 
 _BASE = "https://clinicaltrials.gov/api/v2/studies"
 _CACHE = os.path.join(os.path.dirname(__file__), "cache", "clinicaltrials")
-_DEFAULT_TTL_DAYS = 30
+# Trial counts move continuously, so refresh weekly. Matching the 7-day
+# provenance stale threshold means a stale_cache event now signals a real
+# refresh failure rather than firing on most days by construction (the
+# old 30-day TTL kept every daily run on week-old data).
+_DEFAULT_TTL_DAYS = 7
 
 # Studies that represent live pipeline activity (excludes completed,
 # terminated, withdrawn, etc.).

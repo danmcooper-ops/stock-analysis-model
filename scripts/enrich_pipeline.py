@@ -14,7 +14,7 @@ mapped, else the cleaned company name.
 Usage:
     python scripts/enrich_pipeline.py output/results_YYYY-MM-DD.json [out]
 
-Re-runs are idempotent; ClinicalTrials.gov responses are cached for 30
+Re-runs are idempotent; ClinicalTrials.gov responses are cached for 7
 days under data/cache/clinicaltrials/.
 """
 import json

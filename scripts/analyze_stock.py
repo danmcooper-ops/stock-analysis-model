@@ -2222,9 +2222,16 @@ def _main():
                 # No CIK (foreign / OTC) — yfinance is the only source.
                 _data_source = 'yfinance'
                 if _xbrl_attempted:
+                    # Distinguish a failed SEC fetch from a successful fetch
+                    # whose facts couldn't build usable statements (SPACs,
+                    # thin filers): fetch_company_facts caches the blob iff
+                    # the request succeeded.
+                    _fb_reason = ('insufficient XBRL data'
+                                  if sec_xbrl_client._cache.get(ticker) is not None
+                                  else 'sec_xbrl fetch failed')
                     _prov.record_event('source_fallback', ticker, 'sec_xbrl',
                                        {'from': 'sec_xbrl', 'to': 'yfinance',
-                                        'reason': 'sec_xbrl fetch failed for US filer'})
+                                        'reason': _fb_reason})
             else:
                 print(f"  [{i}/{len(all_tickers)}] {ticker} - "
                       "error: yfinance empty AND no SEC XBRL coverage")

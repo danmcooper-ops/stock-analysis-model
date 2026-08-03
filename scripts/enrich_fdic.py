@@ -23,13 +23,14 @@ import json
 import os
 import sys
 import time
+from datetime import date, datetime
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO not in sys.path:
     sys.path.insert(0, _REPO)
 
 from data import fdic_client
-from data.provenance import (STALE_CACHE_DAYS, append_events, attach_enrichment,
+from data.provenance import (append_events, attach_enrichment,
                              enrichment_block, make_event, strip_enrichment)
 from data.ticker_fdic_map import TICKER_TO_CERT
 
@@ -59,6 +60,22 @@ _FDIC_FIELDS = ("fdic_cert", "fdic_repdte", "nim", "efficiency_ratio", "cet1_rat
 _DB_TROUGH_REPDTE = "20211231"
 _DB_PEAK_REPDTE = "20231231"
 _DB_FED_FUNDS_DELTA = 0.0525
+
+# FDIC data is quarterly, so cache age is the wrong staleness signal (a
+# 26-day-old cache of the latest quarter is fine — flagging it made the
+# alert fire on most days by construction). What matters is whether the
+# report date itself has fallen behind: call reports publish ~2 months
+# after quarter end, so with one full quarter of slack the freshest
+# available repdte should never be older than ~180 days.
+_STALE_REPDTE_DAYS = 180
+
+
+def _repdte_age_days(repdte):
+    """Days since an FDIC YYYYMMDD report date, or None if unparseable."""
+    try:
+        return (date.today() - datetime.strptime(str(repdte), "%Y%m%d").date()).days
+    except (ValueError, TypeError):
+        return None
 
 
 def _deposit_cost(cert, repdte):
@@ -153,10 +170,11 @@ def enrich(records, verbose=True, events=None):
         attach_enrichment(r, "fdic", enrichment_block(
             applied=True, cache_hit=m.get("cache_hit"),
             cache_age_days=m.get("cache_age_days"), repdte=repdte))
-        if (m.get("cache_age_days") or 0) > STALE_CACHE_DAYS:
+        repdte_age = _repdte_age_days(repdte)
+        if repdte_age is not None and repdte_age > _STALE_REPDTE_DAYS:
             events.append(make_event("stale_cache", tk, "fdic",
-                                     {"cache_age_days": round(m["cache_age_days"], 2),
-                                      "threshold_days": STALE_CACHE_DAYS}))
+                                     {"repdte": repdte, "repdte_age_days": repdte_age,
+                                      "threshold_days": _STALE_REPDTE_DAYS}))
         r["fdic_cert"] = cert
         r["fdic_repdte"] = repdte
         r["nim"] = _decimal_pct(fin.get("NIMY"))
