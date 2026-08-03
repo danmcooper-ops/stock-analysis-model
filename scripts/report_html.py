@@ -852,6 +852,9 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
             ('dividends_paid_history', 'div'),
             ('total_debt_history', 'debt'),
             ('cash_history', 'cash'),
+            # Track Record rows: Op Margin + Interest Coverage by year
+            ('operating_income_history', 'op'),
+            ('interest_expense_history', 'intexp'),
         ]
         for r in rows:
             tk = r.get('ticker')

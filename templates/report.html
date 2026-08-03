@@ -4486,6 +4486,8 @@ function _renderTrackRecord(d){
   var h=(HIST||{})[tk];
   if(!h){sec.style.display='none';el.innerHTML='';return;}
   var rev=h.rev||{},ni=h.ni||{},ocf=h.ocf||{},capex=h.capex||{},sh=h.shares||{},dv=h.div||{},db=h.debt||{},csh=h.cash||{};
+  var gp=h.gp||{},op=h.op||{},intexp=h.intexp||{};
+  var roicY=d.roic_by_year||{};
   /* Banks: borrowings are raw material, not distress — keep the debt rows
      factual but drop the red/green judgment (mirrors the int_cov/nd_ebitda
      gate masks for Financial Services). */
@@ -4498,12 +4500,21 @@ function _renderTrackRecord(d){
   if(cols.length<2){sec.style.display='none';el.innerHTML='';return;}
   /* Nearest-date lookup for the quarterly shares series. */
   var _near=function(series,dateStr,tolDays){var best=null,bd=1e9,t=Date.parse(dateStr);Object.keys(series).forEach(function(k){var dd=Math.abs(Date.parse(k)-t)/864e5;if(dd<bd){bd=dd;best=series[k];}});return bd<=tolDays?best:null;};
+  /* Year-tolerant lookup: the op/intexp series come from annual XBRL keyed by
+     year (normalized to YYYY-12-31), so an exact fiscal-date match fails for
+     non-December fiscal years — fall back to any key in the same year. */
+  var _byYr=function(series,k){if(series[k]!=null)return series[k];var y=k.slice(0,4);for(var kk in series){if(kk.slice(0,4)===y)return series[kk];}return null;};
   var rows=[
     {l:'Revenue',get:function(k){return rev[k]!=null?rev[k]:null;},fmt:fds},
+    {l:'Gross Margin',get:function(k){var g=_byYr(gp,k);return g!=null&&rev[k]?g/rev[k]:null;},fmt:function(v){return fp(v);},margin:true},
+    {l:'Op Margin',get:function(k){var o=_byYr(op,k);return o!=null&&rev[k]?o/rev[k]:null;},fmt:function(v){return fp(v);},margin:true},
     {l:'Net Income',get:function(k){return ni[k]!=null?ni[k]:null;},fmt:fds},
     {l:'Net Margin',get:function(k){return rev[k]&&ni[k]!=null?ni[k]/rev[k]:null;},fmt:function(v){return fp(v);},margin:true},
+    {l:'EPS',get:function(k){var n=ni[k],s=_near(sh,k,220);return n!=null&&s>0?n/s:null;},fmt:function(v){return '$'+v.toFixed(2);}},
     {l:'Op Cash Flow',get:function(k){return ocf[k]!=null?ocf[k]:null;},fmt:fds},
     {l:'Free Cash Flow',get:function(k){var o=ocf[k],c=capex[k];return o!=null&&c!=null?o-Math.abs(c):null;},fmt:fds},
+    {l:'ROIC',get:function(k){var v=roicY[k.slice(0,4)];return v!=null?v:null;},fmt:function(v){return fp(v);},margin:true},
+    {l:'Int Coverage',get:function(k){var o=_byYr(op,k),ie=_byYr(intexp,k);return o!=null&&ie?o/ie:null;},fmt:function(v){return v>=100?'>100×':v.toFixed(1)+'×';},total:true,neut:_finSec},
     {l:'Total Debt',get:function(k){return db[k]!=null?db[k]:null;},fmt:fds,inv:true,total:true,neut:_finSec},
     {l:'Net Debt',get:function(k){return db[k]!=null&&csh[k]!=null?db[k]-csh[k]:null;},fmt:fds,inv:true,delta:true,neut:_finSec},
     {l:'Shares Out',get:function(k){return _near(sh,k,220);},fmt:_trFmtSh,inv:true,total:true},
@@ -4544,7 +4555,7 @@ function _renderTrackRecord(d){
     html+='<td class="dtr-cagr" style="'+tSty+'">'+trend+'</td></tr>';
   });
   html+='</table></div>';
-  html+='<div style="font-size:0.68em;color:var(--text-muted);margin-top:6px">Annual figures from SEC EDGAR XBRL filings · Free Cash Flow = operating cash flow − capex · Net Debt = total debt − cash &amp; equivalents · shares interpolated to fiscal year-end'+(_finSec?' · debt rows uncolored: borrowings are operating inputs for financials, not distress':'')+'</div>';
+  html+='<div style="font-size:0.68em;color:var(--text-muted);margin-top:6px">Annual figures from SEC EDGAR XBRL filings · Free Cash Flow = operating cash flow − capex · Net Debt = total debt − cash &amp; equivalents · Int Coverage = operating income ÷ interest expense · shares interpolated to fiscal year-end'+(_finSec?' · debt rows uncolored: borrowings are operating inputs for financials, not distress':'')+'</div>';
   if(!shown){sec.style.display='none';el.innerHTML='';return;}
   el.innerHTML=html;
   sec.style.display='';
