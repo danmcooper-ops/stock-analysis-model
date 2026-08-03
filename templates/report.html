@@ -31,15 +31,40 @@
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);-webkit-text-size-adjust:100%;text-size-adjust:100%;}
-.header{background:linear-gradient(135deg,#1a252f,#2980b9);color:white;padding:14px 160px 14px 20px;text-align:center;min-height:64px;display:flex;flex-direction:column;justify-content:center;position:relative;}
-.header h1{font-size:2em;margin-bottom:0;}
+/* One flex row: title + meta left, view tabs + theme toggle pushed right by
+   .hdr-spacer. The title used to be centred with the toggle and the meta
+   absolutely positioned into the left/right gutters — which is why the old
+   padding had to reserve 160px on the right. All three are ordinary flex
+   items now, so the padding is symmetric again. */
+.header{background:linear-gradient(135deg,#1a252f,#2980b9);color:white;padding:12px 20px;min-height:64px;display:flex;flex-direction:row;align-items:center;gap:14px;flex-wrap:wrap;position:relative;}
+.header h1{font-size:1.35em;margin:0;flex-shrink:0;}
 .header p{font-size:0.95em;opacity:0.85;}
-.last-updated{position:absolute;top:50%;right:20px;transform:translateY(-50%);font-size:0.7em;opacity:0.65;text-align:right;display:flex;flex-direction:column;gap:2px;white-space:nowrap;}
+.hdr-spacer{flex:1 1 auto;}
+.last-updated{font-size:0.7em;opacity:0.65;text-align:left;display:flex;flex-direction:column;gap:2px;white-space:nowrap;flex-shrink:0;}
+/* Primary-view tabs — the same three views the nav dropdown lists at its top
+   level. The dropdown stays for sub-tabs (Charts + per-sector, Gate Matrix,
+   the nine Financial Data tabs): too many, and too data-driven, to sit up
+   here. Colours mirror .d-header-band .d-tabs .sub-btn, the other button set
+   that has to read against this gradient in both themes. */
+.hdr-tabs{display:flex;gap:6px;flex-shrink:0;}
+.hdr-tab{background:rgba(255,255,255,0.08);color:#c5d2e0;border:1px solid rgba(255,255,255,0.18);border-radius:6px;padding:6px 11px;font-size:0.78em;font-weight:600;line-height:1;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all 0.15s;}
+.hdr-tab:hover:not(.active){background:rgba(255,255,255,0.16);color:#fff;border-color:rgba(255,255,255,0.3);}
+.hdr-tab.active{background:#fff;color:#0d1f42;border-color:#fff;}
+/* Phones swap in the short labels (see the max-width:768px block) — the full
+   three at full length overflow a 390px header. title="" carries the full
+   name either way. */
+.ht-short{display:none;}
 @media(max-width:768px){
-  .header{padding:5px 10px;min-height:unset;flex-direction:row;justify-content:center;align-items:center;gap:6px;}
+  /* Title and the three tabs both have to fit one phone-width row, so the
+     generated-at/n meta drops out here — as it already does in landscape. */
+  .header{padding:5px 10px;min-height:unset;flex-direction:row;align-items:center;gap:6px;flex-wrap:nowrap;}
   .header>p{display:none;}
-  .header h1{font-size:0.88em;margin:0;flex:1;text-align:center;}
-  .last-updated{position:static;transform:none;flex-direction:column;align-items:flex-end;text-align:right;font-size:0.52em;gap:1px;flex-shrink:0;order:1;}
+  .header h1{font-size:0.88em;margin:0;text-align:left;}
+  .last-updated{display:none;}
+  .hdr-tabs{gap:4px;}
+  .hdr-tab{padding:4px 7px;font-size:0.6em;}
+  .ht-full{display:none;}
+  .ht-short{display:inline;}
   .container{padding:3px 6px;}
   .dt th{padding:5px 5px;}
   .dt td{padding:4px 5px;font-size:0.78em;}
@@ -1093,7 +1118,9 @@ td.ct{font-weight:700;}
 .gate-pass-label{font-size:0.73em;color:var(--text-muted);margin-top:2px;}
 #m-gate-view .table-wrap{border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);overflow:auto;-webkit-overflow-scrolling:touch;}
 /* === THEME TOGGLE === */
-.theme-toggle{position:absolute;top:50%;left:20px;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:20px;width:48px;height:24px;cursor:pointer;padding:2px;transition:background 0.2s;display:flex;align-items:center;}
+/* Sits at the far right of the header flex row, after the view tabs — it was
+   absolutely positioned into the left gutter when the title was centred. */
+.theme-toggle{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:20px;width:48px;height:24px;cursor:pointer;padding:2px;transition:background 0.2s;display:flex;align-items:center;flex-shrink:0;}
 .theme-toggle:hover{background:rgba(255,255,255,0.28);}
 .theme-toggle .tt-knob{width:18px;height:18px;border-radius:50%;background:#ffd76b;color:#5a3b00;display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1;transition:transform 0.2s,background 0.2s,color 0.2s;}
 [data-theme="dark"] .theme-toggle .tt-knob{transform:translateX(22px);background:#1f2937;color:#e6edf3;}
@@ -1121,6 +1148,10 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .d-header-band .d-tabs .sub-btn{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.18);}
 [data-theme="dark"] .d-header-band .d-tabs .sub-btn.active{background:#1f6feb;border-color:#1f6feb;}
 [data-theme="dark"] .d-header-band .d-tabs .sub-btn:hover:not(.active){background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);}
+/* Header view tabs — same problem, same fix as the popup tab bar above. The
+   light-mode active pill is a white fill with navy text, but "body *" forces
+   the label white in dark mode, which would leave it white-on-white. */
+[data-theme="dark"] .hdr-tab.active{background:#1f6feb;border-color:#1f6feb;}
 [data-theme="dark"] .filter-bar input,[data-theme="dark"] .filter-bar select,[data-theme="dark"] .f-metric-sel,[data-theme="dark"] .f-col-sel,[data-theme="dark"] .f-num{background:#0d1117;color:#e6edf3;border-color:#30363d;}
 [data-theme="dark"] .f-num::placeholder{color:#6e7681;opacity:1;}
 [data-theme="dark"] .f-col-sel option{background:#0d1117;color:#e6edf3;}
@@ -1462,9 +1493,19 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 </head>
 <body>
 <div class="header">
-  <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><span class="tt-knob" id="tt-knob">&#9728;</span></button>
+  <h1>Securities Analysis</h1>
   <div class="last-updated"><span>{{ generated_at }}</span><span>n = {{ total }}</span></div>
-  <h1 style="font-size:1.35em;margin:0">Securities Analysis</h1>
+  <span class="hdr-spacer"></span>
+  <!-- Primary views. data-v matches the keys _navGroups()/navGo() already use,
+       so these reuse the dropdown's dispatch — clicking one enters that view on
+       whichever sub-tab it was last on, exactly as the dropdown's group header
+       does. Active state is kept in sync by _syncNavCrumb(). -->
+  <div class="hdr-tabs" id="hdr-tabs" role="tablist" aria-label="Primary views">
+    <button class="hdr-tab" data-v="pool" role="tab" title="Sector Analysis"><span class="ht-full">Sector Analysis</span><span class="ht-short">Sector</span></button>
+    <button class="hdr-tab" data-v="matrix" role="tab" title="Financial Model"><span class="ht-full">Financial Model</span><span class="ht-short">Model</span></button>
+    <button class="hdr-tab" data-v="table" role="tab" title="Financial Data"><span class="ht-full">Financial Data</span><span class="ht-short">Data</span></button>
+  </div>
+  <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><span class="tt-knob" id="tt-knob">&#9728;</span></button>
 </div>
 <div class="container">
   <div class="filter-bar" id="filter-bar">
@@ -5338,6 +5379,14 @@ function renderNavMenu(){
 /* Names the current view + sub-tab next to the icon. With the tab rows gone
    there is nothing else on screen that says where you are. */
 function _syncNavCrumb(){
+  /* Light up the header tab for the current view. Done ahead of the crumb's
+     early returns so the tabs stay correct even when the crumb is absent. */
+  var tabs=document.querySelectorAll('#hdr-tabs .hdr-tab');
+  for(var i=0;i<tabs.length;i++){
+    var on=tabs[i].getAttribute('data-v')===curView;
+    tabs[i].classList.toggle('active',on);
+    tabs[i].setAttribute('aria-selected',on?'true':'false');
+  }
   var el=document.getElementById('nav-crumb');
   if(!el)return;
   var g=null,sub='';
@@ -5366,8 +5415,11 @@ function navGo(v,k){
     else swTSub(curTSub);
   }
 }
+/* Both the dropdown's items and the header's primary-view tabs dispatch here.
+   The header tabs carry no data-k, so they land on navGo's "keep the view's
+   last sub-tab" path — the same behaviour as clicking a dropdown group header. */
 document.addEventListener('click',function(e){
-  var b=e.target.closest?e.target.closest('#nav-cols [data-v]'):null;
+  var b=e.target.closest?e.target.closest('#nav-cols [data-v],#hdr-tabs [data-v]'):null;
   if(!b)return;
   navGo(b.getAttribute('data-v'),b.hasAttribute('data-k')?b.getAttribute('data-k'):null);
 });
