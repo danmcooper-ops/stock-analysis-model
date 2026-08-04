@@ -455,7 +455,6 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         print("[report_html] rate-change baseline: none found (Yesterday's Rating shows N/A)")
     # Long-horizon rating change-points for the popup's "BUY since ..." line.
     _rating_hist = _load_rating_history(_out_dir_early, run_date)
-    total = len(rows)
     spread_vals = [r['spread'] for r in rows if r.get('spread') is not None]
     avg_spread = sum(spread_vals) / len(spread_vals) if spread_vals else 0
     qualifying_with_mos = sum(1 for r in rows if r.get('mos') is not None and r['mos'] > 0)
@@ -985,7 +984,6 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     )
     template = env.get_template('report.html')
     html = template.render(
-        total=total,
         avg_spread_fmt=f"{avg_spread:.1%}",
         qualifying_with_mos=qualifying_with_mos,
         buy_count=buy_count,

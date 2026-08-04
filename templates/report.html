@@ -65,12 +65,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .header .fpop-btn.active .navmenu-crumb{color:#0d1f42;}
 .header .fpop-btn.active .navmenu-crumb-sub{color:#5b7089;}
 .header .filter-count{color:#cfe0f0;}
-/* Centred count + universe size. #f-count used to sit inside .filter-bar and
-   was hidden on the no-table views by `.filter-bar.nav-only > *`; now that it
-   lives outside that bar, moveFilterBar() mirrors .nav-only onto .header so
-   the count still disappears on Sector Analysis and Charts. */
-.hdr-center{display:flex;align-items:center;gap:10px;flex-shrink:0;white-space:nowrap;}
-.hdr-n{font-size:0.7em;opacity:0.65;white-space:nowrap;}
+/* Centred count. #f-count used to sit inside .filter-bar and was hidden on
+   the no-table views by `.filter-bar.nav-only > *`; now that it lives outside
+   that bar, moveFilterBar() mirrors .nav-only onto .header so the count still
+   disappears on Sector Analysis and Charts. */
+.hdr-center{display:flex;align-items:center;flex-shrink:0;white-space:nowrap;}
 .header.nav-only #f-count{display:none!important;}
 /* Panels hang from the right edge. Anchored left:0 they would run off the
    viewport now that their buttons sit at the far right of the header.
@@ -87,14 +86,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .header .fpop-panel{color:var(--text);}
 @media(max-width:768px){
   /* Title plus both dropdowns have to fit one phone-width row, so the
-     generated-at/n meta drops out here — as it already does in landscape.
-     The dropdowns collapse to bare icons via .navmenu-crumb/.filt-btn-label,
-     which the phone block below already hides. */
+     generated-at meta drops out here — as it already does in landscape.
+     The dropdowns are icon-only at every width (see .navmenu-crumb /
+     .filt-btn-label above), so they already fit. */
   .header{padding:5px 10px;min-height:unset;flex-direction:row;align-items:center;gap:6px;flex-wrap:nowrap;}
   .header>p{display:none;}
   .header h1{font-size:0.88em;margin:0;text-align:left;}
   .last-updated{display:none;}
-  /* Count + n went with the meta on phones — the row only has space for the
+  /* The count went with the meta on phones — the row only has space for the
      title and the two dropdown icons. */
   .hdr-center{display:none;}
   .header .filter-bar{gap:5px;}
@@ -176,7 +175,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .filter-bar{padding:2px 0;gap:5px;}
   .filter-bar input[type="text"]{padding:3px 8px;font-size:0.8em;}
   .navmenu-btn{padding:3px 7px;}
-  .navmenu-crumb,.filt-btn-label{display:none;}
   .filter-bar .filter-count{display:none;}
 }
 .stats{display:flex;gap:20px;justify-content:center;margin-top:14px;flex-wrap:wrap;}
@@ -304,6 +302,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .navmenu-wrap{position:relative;display:inline-block;flex-shrink:0;}
 .navmenu-btn{padding:5px 9px;gap:6px;}
 .navmenu-btn svg{width:15px;height:15px;display:block;flex-shrink:0;}
+/* Both header dropdowns are icon-only at every width — the nav crumb read as
+   a "Section › Tab" path that restated what the open panel already marks
+   (.cur / .active), and "Filters" restated its own funnel glyph. The current
+   view is still on the nav button's title tooltip via _syncNavCrumb(). */
+.navmenu-crumb,.filt-btn-label{display:none;}
 .navmenu-crumb{font-weight:600;color:#1a252f;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .navmenu-crumb-sub{color:#7f8c9a;font-weight:500;}
 .navmenu-crumb-sub::before{content:"\203A";margin:0 5px;}
@@ -1532,16 +1535,18 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   <h1>Securities Analysis</h1>
   <div class="last-updated"><span>{{ generated_at }}</span></div>
   <span class="hdr-spacer"></span>
-  <!-- Centred cluster: the result count and the universe size. Two flex
-       spacers (one either side) centre it against the header as a whole
-       rather than against the gap between the title and the controls. -->
-  <div class="hdr-center"><span class="filter-count" id="f-count"></span><span class="hdr-n">n = {{ total }}</span></div>
+  <!-- Centred result count ("N of M"). Two flex spacers (one either side)
+       centre it against the header as a whole rather than against the gap
+       between the title and the controls. The universe size used to repeat
+       here as "n = M"; the count's own "of M" already carries it. -->
+  <div class="hdr-center"><span class="filter-count" id="f-count"></span></div>
   <span class="hdr-spacer"></span>
   <div class="filter-bar" id="filter-bar">
     <!-- Nav menu — one icon in place of the old two-row tab stack. The
          dropdown (built by renderNavMenu) lists all three views with their
-         sub-tabs; the crumb beside the icon names where you currently are,
-         since there are no longer any highlighted tabs to read that off. -->
+         sub-tabs and marks the current one (.cur / .active). The crumb span
+         is still populated by _syncNavCrumb — it is CSS-hidden, and the same
+         text rides the button's title attribute as a hover tooltip. -->
     <div class="navmenu-wrap" id="nav-wrap">
       <button class="fpop-btn navmenu-btn" id="nav-btn" onclick="toggleNavMenu(event)" aria-haspopup="true" aria-expanded="false" aria-label="Views and tabs menu">
         <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h14"/><path d="M3 10h14"/><path d="M3 15h14"/></g></svg>
