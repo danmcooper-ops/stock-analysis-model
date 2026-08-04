@@ -43,8 +43,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    (100), while staying under .detail-modal (1000) so the popup still covers
    the banner — the same effective order the panels had in the filter bar. */
 .header{background:linear-gradient(135deg,#1a252f,#2980b9);color:white;padding:12px 20px;min-height:64px;display:flex;flex-direction:row;align-items:center;gap:14px;flex-wrap:wrap;position:relative;z-index:120;}
-.header h1{font-size:1.35em;margin:0;flex-shrink:0;}
+.header h1{font-size:1.35em;margin:0;flex-shrink:0;line-height:1.15;}
 .header p{font-size:0.95em;opacity:0.85;}
+/* Title + current-view subtitle as one column. Both line-heights are pinned
+   so the stack measures ~39px and still clears the header's 40px content box
+   (64px min-height − 24px padding) — the banner keeps its height and the
+   title just sits higher. .hdr-view inherits the h1's font family. */
+.hdr-title{display:flex;flex-direction:column;justify-content:center;flex-shrink:0;}
+.hdr-view{font-size:0.8em;font-weight:600;line-height:1.1;opacity:0.82;white-space:nowrap;}
 .hdr-spacer{flex:1 1 auto;}
 .last-updated{font-size:0.7em;opacity:0.65;text-align:left;display:flex;flex-direction:column;gap:2px;white-space:nowrap;flex-shrink:0;}
 /* The nav and Filters dropdowns live in the header now, right-justified. The
@@ -92,6 +98,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .header{padding:5px 10px;min-height:unset;flex-direction:row;align-items:center;gap:6px;flex-wrap:nowrap;}
   .header>p{display:none;}
   .header h1{font-size:0.88em;margin:0;text-align:left;}
+  /* Scaled with the title so the stack stays legible on a phone row. This is
+     the only on-screen view name here — the crumb and count are both gone. */
+  .hdr-view{font-size:0.62em;}
   .last-updated{display:none;}
   /* The count went with the meta on phones — the row only has space for the
      title and the two dropdown icons. */
@@ -127,6 +136,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 @media(orientation:landscape) and (max-height:500px){
   .header{padding:3px 10px;min-height:24px;}
   .header h1{font-size:0.88em;margin:0;}
+  /* 24px of banner has no room for a second line — the nav button's title
+     tooltip still names the view in landscape. */
+  .hdr-view{display:none!important;}
   .last-updated{display:none!important;}
   .container{padding:2px 6px;}
   .dh{padding-right:44px!important;}
@@ -1532,7 +1544,15 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 </head>
 <body>
 <div class="header">
-  <h1>Securities Analysis</h1>
+  <!-- Title stacks over the current view name ("Sector Analysis" /
+       "Financial Model" / "Financial Data"), filled by _syncNavCrumb from
+       the same nav group it uses for the button tooltip. The column is
+       sized to fit inside the header's existing 64px min-height, so the
+       title simply rides higher rather than making the banner taller. -->
+  <div class="hdr-title">
+    <h1>Securities Analysis</h1>
+    <span class="hdr-view" id="hdr-view"></span>
+  </div>
   <div class="last-updated"><span>{{ generated_at }}</span></div>
   <span class="hdr-spacer"></span>
   <!-- Centred result count ("N of M"). Two flex spacers (one either side)
@@ -5418,16 +5438,18 @@ function renderNavMenu(){
   cols.innerHTML=h;
   _syncNavCrumb();
 }
-/* Names the current view + sub-tab next to the icon. With the tab rows gone
-   there is nothing else on screen that says where you are. */
+/* Names the current view + sub-tab. Three consumers: the icon-side crumb
+   (CSS-hidden, kept for the tooltip), the banner subtitle under the title —
+   which is the on-screen "where am I" — and the nav button's title. */
 function _syncNavCrumb(){
-  var el=document.getElementById('nav-crumb');
-  if(!el)return;
   var g=null,sub='';
   _navGroups().forEach(function(x){if(x.v===curView)g=x;});
   if(!g)return;
   g.items.forEach(function(it){if(it.k===g.cur)sub=it.l;});
-  el.innerHTML=esc(g.l)+(sub?'<span class="navmenu-crumb-sub">'+esc(sub)+'</span>':'');
+  var el=document.getElementById('nav-crumb');
+  if(el)el.innerHTML=esc(g.l)+(sub?'<span class="navmenu-crumb-sub">'+esc(sub)+'</span>':'');
+  var hv=document.getElementById('hdr-view');
+  if(hv)hv.textContent=g.l;
   var btn=document.getElementById('nav-btn');
   if(btn)btn.title=g.l+(sub?' › '+sub:'');
 }
