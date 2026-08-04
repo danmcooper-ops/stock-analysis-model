@@ -245,17 +245,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 [data-theme="dark"] .dtb-item:hover{background:#21262d;color:#f0f6fc;}
 [data-theme="dark"] .dtb-item.active{background:#21262d;color:var(--accent);}
 [data-theme="dark"] .dtb-sep{border-top-color:#30363d;}
-/* Statement tables: subtotal rows and the derived-metric block read
-   differently from the filed line items above them. */
-.stmt-tbl td.stmt-lbl{padding-left:18px;font-weight:500;}
-.stmt-tbl tr.stmt-sub td{font-weight:700;border-top:1px solid #d7deea;}
-.stmt-tbl tr.stmt-sub td.stmt-lbl{padding-left:8px;}
+/* Statement tables follow the typography of a filed statement: captions
+   flush left, line items indented beneath them, subtotals ruled, and the
+   statement total double-ruled. Negatives carry parentheses (see fdsg) and
+   deliberately no colour, so the table reads like the filing rather than
+   like a diff. */
+.stmt-tbl td.stmt-lbl{font-weight:400;}
+.stmt-tbl tr.stmt-i1 td.stmt-lbl{padding-left:20px;}
+.stmt-tbl tr.stmt-i2 td.stmt-lbl{padding-left:34px;}
+.stmt-tbl tr.stmt-sub td{font-weight:700;border-top:1px solid #c8d2e2;}
+.stmt-tbl tr.stmt-tot td{font-weight:800;border-top:2px double #9fb0c9;
+  border-bottom:2px double #9fb0c9;}
+/* Section captions ("ASSETS", "Cash flows from operating activities") */
 .stmt-tbl tr.stmt-hdr td{font-weight:700;font-size:0.92em;text-transform:uppercase;
-  letter-spacing:0.06em;color:var(--text-muted);padding-top:10px;border-bottom:none;}
+  letter-spacing:0.06em;color:var(--text-muted);padding-top:12px;border-bottom:none;}
+/* Sub-captions ("Current assets:") stay sentence-case and indent one level */
+.stmt-tbl tr.stmt-hdr2 td{text-transform:none;letter-spacing:0;font-size:0.95em;
+  color:#3d4a5c;padding-left:8px;padding-top:8px;}
+.stmt-tbl .stmt-mark{opacity:0.55;font-size:0.9em;}
+.stmt-tbl tr.stmt-drv-head td{padding-top:16px;font-size:0.82em;
+  text-transform:none;letter-spacing:0.02em;font-style:italic;font-weight:600;
+  border-top:2px solid #d7deea;}
 .stmt-tbl tr.stmt-drv td{color:#5b6b7f;font-style:italic;}
-.stmt-tbl tr.stmt-drv-first td{border-top:2px solid #d7deea;}
 [data-theme="dark"] .stmt-tbl tr.stmt-sub td{border-top-color:#30363d;}
-[data-theme="dark"] .stmt-tbl tr.stmt-drv-first td{border-top-color:#30363d;}
+[data-theme="dark"] .stmt-tbl tr.stmt-tot td{border-color:#4a5568;}
+[data-theme="dark"] .stmt-tbl tr.stmt-hdr2 td{color:#adbac7;}
+[data-theme="dark"] .stmt-tbl tr.stmt-drv-head td{border-top-color:#30363d;}
 [data-theme="dark"] .stmt-tbl tr.stmt-drv td{color:#8b98a5;}
 /* The bar WRAPS when crowded (no hidden horizontal scroll) and keeps
    overflow visible: its dropdowns/panel are position:absolute children
@@ -5095,65 +5110,222 @@ function _stmtShell(meta,inner){
 /* Row spec: {l, get(k), fmt} plus optional hdr (section rule), sub (subtotal
    rule + bold), drv (derived → italic, sits in the trailing block), need
    (series that must exist for the row to appear at all). */
+/* GAAP money format: magnitude-abbreviated with PARENTHESES for negatives,
+   which is how filed statements present them (a leading minus is a
+   spreadsheet convention, not a statement one). Sign is carried by the
+   parens alone — no colour — so the tables read like the filing. */
+function fdsg(v){
+  if(v==null)return '—';
+  var neg=v<0,a=Math.abs(v),s;
+  if(a>=1e12)s='$'+(a/1e12).toFixed(2)+'T';
+  else if(a>=1e9)s='$'+(a/1e9).toFixed(2)+'B';
+  else if(a>=1e6)s='$'+(a/1e6).toFixed(1)+'M';
+  else s='$'+Math.round(a).toLocaleString();
+  return neg?'('+s+')':s;
+}
+function _fmtEps(v){return v==null?'—':(v<0?'($'+Math.abs(v).toFixed(2)+')':'$'+v.toFixed(2));}
+function _fmtShr(v){if(v==null)return '—';var a=Math.abs(v);
+  if(a>=1e9)return (v/1e9).toFixed(2)+'B';
+  if(a>=1e6)return (v/1e6).toFixed(1)+'M';
+  return Math.round(v).toLocaleString();}
+/* Row spec keys:
+     hdr   section caption ("ASSETS", "Current assets:")
+     sub   subtotal — bold with a rule above
+     tot   statement total — bold with a double rule above
+     ind   indent depth (1 = line item, 2 = nested under a sub-caption)
+     drv   non-GAAP, rendered in the supplementary block below the statement
+     plug  a balancing figure computed as tagged-subtotal less tagged parts
+   A row is dropped when every column is null, so filers that never tagged a
+   concept simply don't show that caption. */
 function _stmtSpec(key,h,d){
-  var rev=h.rev||{},ni=h.ni||{},ocf=h.ocf||{},capex=h.capex||{},sh=h.shares||{};
-  var dv=h.div||{},db=h.debt||{},csh=h.cash||{},gp=h.gp||{},op=h.op||{},ie=h.intexp||{};
-  var px=h.pretax||{},tx=h.tax||{},dna=h.dna||{},as=h.assets||{},ca=h.ca||{};
-  var cl=h.cl||{},lb=h.liabs||{},eq=h.equity||{},re=h.retearn||{};
+  var S=function(k){return h[k]||{};};
+  var rev=S('rev'),ni=S('ni'),ocf=S('ocf'),capex=S('capex'),sh=S('shares');
+  var dv=S('div'),db=S('debt'),csh=S('cash'),gp=S('gp'),op=S('op'),ie=S('intexp');
+  var px=S('pretax'),tx=S('tax'),dna=S('dna'),as=S('assets'),ca=S('ca');
+  var cl=S('cl'),lb=S('liabs'),eq=S('equity'),re=S('retearn');
+  var cogs=S('cogs'),rd=S('rd'),sga=S('sga'),selmkt=S('selmkt'),opex=S('opex');
+  var othnonop=S('othnonop'),epsb=S('epsb'),epsd=S('epsd'),wavgb=S('wavgb'),wavgd=S('wavgd');
+  var stinv=S('stinv'),recv=S('recv'),invty=S('invty'),ppe=S('ppe'),gw=S('gw');
+  var intang=S('intang'),ap=S('ap'),lae=S('lae'),csapic=S('csapic'),aoci=S('aoci');
+  var treas=S('treas'),minint=S('minint'),debtcur=S('debtcur'),debtnc=S('debtnc');
+  var icf=S('icf'),fincf=S('fincf'),sbccf=S('sbccf'),deftax=S('deftax');
+  var buyback=S('buyback'),dissued=S('dissued'),drepaid=S('drepaid'),acq=S('acq');
+  var chgcash=S('chgcash'),fxeff=S('fxeff');
   var g=function(s){return function(k){return s[k]!=null?s[k]:null;};};
-  var near=function(k){var best=null,bd=1e9,t=Date.parse(k);Object.keys(sh).forEach(function(kk){var dd=Math.abs(Date.parse(kk)-t)/864e5;if(dd<bd){bd=dd;best=sh[kk];}});return bd<=220?best:null;};
+  var gneg=function(s){return function(k){return s[k]!=null?-Math.abs(s[k]):null;};};
+  var gabs=function(s){return function(k){return s[k]!=null?Math.abs(s[k]):null;};};
   var pct=function(v){return v!=null?fp(v):null;};
   var rat=function(v){return v!=null?v.toFixed(2)+'×':null;};
+
   if(key==='inc'){
-    return {series:['rev','gp','op','intexp','pretax','tax','ni'],rows:[
-      {l:'Revenue',sub:1,get:g(rev),fmt:fds},
-      {l:'Cost of Revenue',drvIn:1,get:function(k){return rev[k]!=null&&gp[k]!=null?rev[k]-gp[k]:null;},fmt:fds},
-      {l:'Gross Profit',sub:1,get:g(gp),fmt:fds},
-      {l:'Operating Expenses',drvIn:1,get:function(k){return gp[k]!=null&&op[k]!=null?gp[k]-op[k]:null;},fmt:fds},
-      {l:'Operating Income',sub:1,get:g(op),fmt:fds},
-      {l:'Interest Expense',get:function(k){return ie[k]!=null?-Math.abs(ie[k]):null;},fmt:fds},
-      {l:'Pre-tax Income',sub:1,get:g(px),fmt:fds},
-      {l:'Income Tax Provision',get:function(k){return tx[k]!=null?-Math.abs(tx[k]):null;},fmt:fds},
-      {l:'Net Income',sub:1,get:g(ni),fmt:fds},
-      {l:'Gross Margin',drv:1,get:function(k){return gp[k]!=null&&rev[k]?gp[k]/rev[k]:null;},fmt:pct},
-      {l:'Operating Margin',drv:1,get:function(k){return op[k]!=null&&rev[k]?op[k]/rev[k]:null;},fmt:pct},
-      {l:'Net Margin',drv:1,get:function(k){return ni[k]!=null&&rev[k]?ni[k]/rev[k]:null;},fmt:pct},
-      {l:'Effective Tax Rate',drv:1,get:function(k){return tx[k]!=null&&px[k]&&px[k]>0?Math.abs(tx[k])/px[k]:null;},fmt:pct},
-      {l:'EPS (Net Income ÷ Shares)',drv:1,get:function(k){var s=near(k);return ni[k]!=null&&s>0?ni[k]/s:null;},fmt:function(v){return '$'+v.toFixed(2);}}
-    ],note:'Cost of Revenue = revenue − gross profit · Operating Expenses = gross profit − operating income · interest and tax shown as outflows · EPS divides net income by the period-end share count, so it is neither basic nor fully diluted as reported, and — because EDGAR share counts are as-filed rather than restated — it is NOT adjusted for stock splits: a split shows up as a step change in EPS, not a change in earnings.'};
+    /* Mirrors the face of a 10-K income statement: expense captions carry
+       POSITIVE magnitudes beneath the subtotal they reduce (Apple's own
+       presentation), while the signed non-operating line keeps its sign. */
+    var cogsGet=function(k){
+      if(cogs[k]!=null)return Math.abs(cogs[k]);
+      return rev[k]!=null&&gp[k]!=null?rev[k]-gp[k]:null;   /* derived fallback */
+    };
+    var opexGet=function(k){
+      if(opex[k]!=null)return Math.abs(opex[k]);
+      return gp[k]!=null&&op[k]!=null?gp[k]-op[k]:null;
+    };
+    return {series:['rev','gp','op','intexp','pretax','tax','ni','cogs','opex','epsb','epsd'],rows:[
+      {l:'Revenue',sub:1,get:g(rev),fmt:fdsg},
+      {l:'Cost of revenue',ind:1,get:cogsGet,fmt:fdsg,softDrv:function(k){return cogs[k]==null;}},
+      {l:'Gross profit',sub:1,get:g(gp),fmt:fdsg},
+      {hdr:'Operating expenses:'},
+      {l:'Research and development',ind:2,get:gabs(rd),fmt:fdsg},
+      {l:'Selling, general and administrative',ind:2,get:gabs(sga),fmt:fdsg},
+      /* SellingAndMarketingExpense is deliberately NOT a peer row here: for
+         filers that tag both, it is a COMPONENT of SG&A (Apple FY2025 tags
+         $19.5B of S&M inside a $27.6B SG&A, and R&D + SG&A already foots to
+         total opex), so listing it alongside would read as double counting.
+         Whatever it and the other unlisted captions contain is carried by
+         the residual below. */
+      {l:'Other operating expenses, net',ind:2,get:function(k){
+        var t=opexGet(k);if(t==null)return null;
+        var parts=0,any=false;
+        [rd,sga].forEach(function(s){if(s[k]!=null){parts+=Math.abs(s[k]);any=true;}});
+        return any?t-parts:null;
+      },fmt:fdsg,plug:1},
+      {l:'Total operating expenses',sub:1,ind:1,get:opexGet,fmt:fdsg,softDrv:function(k){return opex[k]==null;}},
+      {l:'Operating income',sub:1,get:g(op),fmt:fdsg},
+      {l:'Interest expense',ind:1,get:gneg(ie),fmt:fdsg},
+      {l:'Other income (expense), net',ind:1,get:g(othnonop),fmt:fdsg},
+      {l:'Income before income taxes',sub:1,get:g(px),fmt:fdsg},
+      {l:'Provision for income taxes',ind:1,get:gabs(tx),fmt:fdsg},
+      {l:'Net income',tot:1,get:g(ni),fmt:fdsg},
+      {hdr:'Earnings per share:'},
+      {l:'Basic',ind:2,get:g(epsb),fmt:_fmtEps},
+      {l:'Diluted',ind:2,get:g(epsd),fmt:_fmtEps},
+      {hdr:'Weighted-average shares outstanding:'},
+      {l:'Basic',ind:2,get:g(wavgb),fmt:_fmtShr},
+      {l:'Diluted',ind:2,get:g(wavgd),fmt:_fmtShr},
+      {l:'Gross margin',drv:1,get:function(k){return gp[k]!=null&&rev[k]?gp[k]/rev[k]:null;},fmt:pct},
+      {l:'Operating margin',drv:1,get:function(k){return op[k]!=null&&rev[k]?op[k]/rev[k]:null;},fmt:pct},
+      {l:'Net margin',drv:1,get:function(k){return ni[k]!=null&&rev[k]?ni[k]/rev[k]:null;},fmt:pct},
+      {l:'Effective tax rate',drv:1,get:function(k){return tx[k]!=null&&px[k]&&px[k]>0?Math.abs(tx[k])/px[k]:null;},fmt:pct}
+    ],note:'Presented in Reg S-X Rule 5-03 order. Expense captions carry positive magnitudes beneath the subtotal they reduce, matching the face of the filing. Earnings per share are the filer’s own basic and diluted figures, so they are restated for stock splits. Rows marked † are derived because the filer did not tag that caption: cost of revenue falls back to revenue less gross profit, and total operating expenses to gross profit less operating income.'};
   }
+
   if(key==='cf'){
-    var fcf=function(k){var o=ocf[k],c=capex[k];return o!=null&&c!=null?o-Math.abs(c):null;};
-    return {series:['ni','dna','ocf','capex','div'],rows:[
-      {l:'Net Income',get:g(ni),fmt:fds},
-      {l:'Depreciation & Amortization',get:g(dna),fmt:fds},
-      {l:'Operating Cash Flow',sub:1,get:g(ocf),fmt:fds},
-      {l:'Capital Expenditures',get:function(k){return capex[k]!=null?-Math.abs(capex[k]):null;},fmt:fds},
-      {l:'Free Cash Flow',sub:1,drvIn:1,get:fcf,fmt:fds},
-      {l:'Dividends Paid',get:function(k){return dv[k]!=null?-Math.abs(dv[k]):null;},fmt:fds},
-      {l:'FCF After Dividends',drv:1,get:function(k){var f=fcf(k);return f!=null&&dv[k]!=null?f-Math.abs(dv[k]):null;},fmt:fds},
-      {l:'FCF Margin',drv:1,get:function(k){var f=fcf(k);return f!=null&&rev[k]?f/rev[k]:null;},fmt:pct},
-      {l:'Capex % of Revenue',drv:1,get:function(k){return capex[k]!=null&&rev[k]?Math.abs(capex[k])/rev[k]:null;},fmt:pct},
-      {l:'Cash Conversion (OCF ÷ Net Income)',drv:1,get:function(k){return ocf[k]!=null&&ni[k]&&ni[k]>0?ocf[k]/ni[k]:null;},fmt:rat}
-    ],note:'Free Cash Flow = operating cash flow − capital expenditures · capex and dividends shown as outflows · this is the investing/financing detail EDGAR tags, not the filer’s full statement — line items below the tagged concepts (acquisitions, buybacks, debt issuance) are not extracted.'};
+    /* ASC 230 three-section presentation. Each section closes on its TAGGED
+       subtotal, and the "Other ... activities, net" line is the residual
+       between that subtotal and the individually-tagged lines above it —
+       EDGAR exposes the captions filers tag, not every line on the page, so
+       without the residual the sections would not foot. */
+    var opOther=function(k){
+      if(ocf[k]==null)return null;
+      var parts=0,any=false;
+      [ni,dna,sbccf,deftax].forEach(function(s){if(s[k]!=null){parts+=s[k];any=true;}});
+      return any?ocf[k]-parts:null;
+    };
+    var invOther=function(k){
+      if(icf[k]==null)return null;
+      var parts=0,any=false;
+      if(capex[k]!=null){parts+=-Math.abs(capex[k]);any=true;}
+      if(acq[k]!=null){parts+=-Math.abs(acq[k]);any=true;}
+      return any?icf[k]-parts:null;
+    };
+    var finOther=function(k){
+      if(fincf[k]==null)return null;
+      var parts=0,any=false;
+      if(dv[k]!=null){parts+=-Math.abs(dv[k]);any=true;}
+      if(buyback[k]!=null){parts+=-Math.abs(buyback[k]);any=true;}
+      if(dissued[k]!=null){parts+=Math.abs(dissued[k]);any=true;}
+      if(drepaid[k]!=null){parts+=-Math.abs(drepaid[k]);any=true;}
+      return any?fincf[k]-parts:null;
+    };
+    var fcfGet=function(k){var o=ocf[k],c=capex[k];return o!=null&&c!=null?o-Math.abs(c):null;};
+    return {series:['ni','dna','ocf','capex','div','icf','fincf','chgcash'],rows:[
+      {hdr:'Cash flows from operating activities'},
+      {l:'Net income',ind:1,get:g(ni),fmt:fdsg},
+      {hdr:'Adjustments to reconcile net income:',sub2:1},
+      {l:'Depreciation and amortization',ind:2,get:gabs(dna),fmt:fdsg},
+      {l:'Share-based compensation',ind:2,get:gabs(sbccf),fmt:fdsg},
+      {l:'Deferred income taxes',ind:2,get:g(deftax),fmt:fdsg},
+      {l:'Other operating activities, net',ind:2,get:opOther,fmt:fdsg,plug:1},
+      {l:'Net cash provided by operating activities',sub:1,get:g(ocf),fmt:fdsg},
+      {hdr:'Cash flows from investing activities'},
+      {l:'Purchases of property, plant and equipment',ind:1,get:gneg(capex),fmt:fdsg},
+      {l:'Acquisitions, net of cash acquired',ind:1,get:gneg(acq),fmt:fdsg},
+      {l:'Other investing activities, net',ind:1,get:invOther,fmt:fdsg,plug:1},
+      {l:'Net cash used in investing activities',sub:1,get:g(icf),fmt:fdsg},
+      {hdr:'Cash flows from financing activities'},
+      {l:'Dividends paid',ind:1,get:gneg(dv),fmt:fdsg},
+      {l:'Repurchases of common stock',ind:1,get:gneg(buyback),fmt:fdsg},
+      {l:'Proceeds from issuance of debt',ind:1,get:gabs(dissued),fmt:fdsg},
+      {l:'Repayments of debt',ind:1,get:gneg(drepaid),fmt:fdsg},
+      {l:'Other financing activities, net',ind:1,get:finOther,fmt:fdsg,plug:1},
+      {l:'Net cash used in financing activities',sub:1,get:g(fincf),fmt:fdsg},
+      /* Tagged where the filer provides it; otherwise the residual that
+         makes the three sections reconcile to the tagged net change. Banks
+         in particular leave this caption untagged, which left an ~$18B hole
+         between JPM's sections and its net change. */
+      {l:'Effect of exchange rate changes on cash and other',ind:1,get:function(k){
+        if(fxeff[k]!=null)return fxeff[k];
+        if(chgcash[k]==null)return null;
+        var parts=0,any=false;
+        [ocf,icf,fincf].forEach(function(s){if(s[k]!=null){parts+=s[k];any=true;}});
+        return any?chgcash[k]-parts:null;
+      },fmt:fdsg,plug:1,softDrv:function(k){return fxeff[k]==null;}},
+      {l:'Net increase (decrease) in cash',tot:1,get:g(chgcash),fmt:fdsg},
+      {l:'Free cash flow',drv:1,get:fcfGet,fmt:fdsg},
+      {l:'FCF margin',drv:1,get:function(k){var f=fcfGet(k);return f!=null&&rev[k]?f/rev[k]:null;},fmt:pct},
+      {l:'Capex as % of revenue',drv:1,get:function(k){return capex[k]!=null&&rev[k]?Math.abs(capex[k])/rev[k]:null;},fmt:pct},
+      {l:'Cash conversion (OCF ÷ net income)',drv:1,get:function(k){return ocf[k]!=null&&ni[k]&&ni[k]>0?ocf[k]/ni[k]:null;},fmt:rat}
+    ],note:'Presented in ASC 230 order, with outflows in parentheses. Each section closes on the subtotal the filer tagged; the “Other … activities, net” rows (marked ‡) are the residual between that subtotal and the individually-tagged lines above, because EDGAR exposes only the captions a filer chooses to tag rather than every line on the printed page. Free cash flow and the ratios below the statement are non-GAAP.'};
   }
-  return {series:['cash','ca','assets','cl','debt','liabs','equity','retearn'],rows:[
-    {hdr:'Assets'},
-    {l:'Cash & Equivalents',get:g(csh),fmt:fds},
-    {l:'Total Current Assets',sub:1,get:g(ca),fmt:fds},
-    {l:'Total Assets',sub:1,get:g(as),fmt:fds},
-    {hdr:'Liabilities & Equity'},
-    {l:'Total Current Liabilities',sub:1,get:g(cl),fmt:fds},
-    {l:'Total Debt',get:g(db),fmt:fds},
-    {l:'Total Liabilities',sub:1,get:g(lb),fmt:fds},
-    {l:'Total Equity',sub:1,get:g(eq),fmt:fds},
-    {l:'Retained Earnings',get:g(re),fmt:fds},
-    {l:'Net Debt',drv:1,get:function(k){return db[k]!=null&&csh[k]!=null?db[k]-csh[k]:null;},fmt:fds},
-    {l:'Working Capital',drv:1,get:function(k){return ca[k]!=null&&cl[k]!=null?ca[k]-cl[k]:null;},fmt:fds},
-    {l:'Current Ratio',drv:1,get:function(k){return ca[k]!=null&&cl[k]?ca[k]/cl[k]:null;},fmt:rat},
-    {l:'Debt / Equity',drv:1,get:function(k){return db[k]!=null&&eq[k]&&eq[k]>0?db[k]/eq[k]:null;},fmt:rat},
-    {l:'Shares Outstanding',drv:1,get:near,fmt:_trFmtSh}
-  ],note:'Balance-sheet instants at each fiscal year-end · Total Debt is composed from the separately-tagged long-term and current borrowing concepts · shares outstanding is the filing nearest each year-end (within 220 days), as filed and therefore NOT adjusted for stock splits — a split reads as a step change in the share count. Filers that present an unclassified balance sheet — banks, most insurers — tag no current assets or liabilities, so those rows and the ratios built on them are absent by design.'};
+
+  /* Balance sheet — ASC 210 / Reg S-X Rule 5-02 classified presentation. */
+  var stEq=function(k){
+    if(eq[k]!=null)return eq[k];
+    return as[k]!=null&&lb[k]!=null?as[k]-lb[k]:null;
+  };
+  var laeGet=function(k){
+    if(lae[k]!=null)return lae[k];
+    var l=lb[k],e=stEq(k);
+    return l!=null&&e!=null?l+e:null;
+  };
+  return {series:['cash','ca','assets','cl','debt','liabs','equity','retearn','lae','ppe','gw'],rows:[
+    {hdr:'ASSETS'},
+    /* `needs` gates the classified sub-captions on the subtotal that defines
+       them. Banks and most insurers file an UNCLASSIFIED balance sheet — no
+       AssetsCurrent/LiabilitiesCurrent — and without this gate the caption
+       still printed, leaving PP&E and goodwill sitting under "Current
+       assets:" as though they were current. */
+    {hdr:'Current assets:',sub2:1,needs:'ca'},
+    {l:'Cash and cash equivalents',ind:2,get:g(csh),fmt:fdsg},
+    {l:'Short-term investments',ind:2,get:g(stinv),fmt:fdsg},
+    {l:'Accounts receivable, net',ind:2,get:g(recv),fmt:fdsg},
+    {l:'Inventories',ind:2,get:g(invty),fmt:fdsg},
+    {l:'Total current assets',sub:1,ind:1,get:g(ca),fmt:fdsg},
+    {l:'Property, plant and equipment, net',ind:1,get:g(ppe),fmt:fdsg},
+    {l:'Goodwill',ind:1,get:g(gw),fmt:fdsg},
+    {l:'Intangible assets, net',ind:1,get:g(intang),fmt:fdsg},
+    {l:'Total assets',tot:1,get:g(as),fmt:fdsg},
+    {hdr:'LIABILITIES AND SHAREHOLDERS’ EQUITY'},
+    {hdr:'Current liabilities:',sub2:1,needs:'cl'},
+    {l:'Accounts payable',ind:2,get:g(ap),fmt:fdsg},
+    {l:'Short-term debt and current maturities',ind:2,get:g(debtcur),fmt:fdsg},
+    {l:'Total current liabilities',sub:1,ind:1,get:g(cl),fmt:fdsg},
+    {l:'Long-term debt',ind:1,get:g(debtnc),fmt:fdsg},
+    {l:'Total liabilities',sub:1,get:g(lb),fmt:fdsg},
+    {hdr:'Shareholders’ equity:',sub2:1},
+    {l:'Common stock and additional paid-in capital',ind:2,get:g(csapic),fmt:fdsg},
+    {l:'Retained earnings (accumulated deficit)',ind:2,get:g(re),fmt:fdsg},
+    {l:'Accumulated other comprehensive income (loss)',ind:2,get:g(aoci),fmt:fdsg},
+    {l:'Treasury stock',ind:2,get:gneg(treas),fmt:fdsg},
+    {l:'Noncontrolling interests',ind:2,get:g(minint),fmt:fdsg},
+    {l:'Total shareholders’ equity',sub:1,ind:1,get:stEq,fmt:fdsg,softDrv:function(k){return eq[k]==null;}},
+    {l:'Total liabilities and shareholders’ equity',tot:1,get:laeGet,fmt:fdsg,softDrv:function(k){return lae[k]==null;}},
+    {l:'Total debt',drv:1,get:g(db),fmt:fdsg},
+    {l:'Net debt',drv:1,get:function(k){return db[k]!=null&&csh[k]!=null?db[k]-csh[k]:null;},fmt:fdsg},
+    {l:'Working capital',drv:1,get:function(k){return ca[k]!=null&&cl[k]!=null?ca[k]-cl[k]:null;},fmt:fdsg},
+    {l:'Current ratio',drv:1,get:function(k){return ca[k]!=null&&cl[k]?ca[k]/cl[k]:null;},fmt:rat},
+    {l:'Debt / equity',drv:1,get:function(k){var e=stEq(k);return db[k]!=null&&e&&e>0?db[k]/e:null;},fmt:rat},
+    {l:'Shares outstanding (period end)',drv:1,get:function(k){var best=null,bd=1e9,t=Date.parse(k);Object.keys(sh).forEach(function(kk){var dd=Math.abs(Date.parse(kk)-t)/864e5;if(dd<bd){bd=dd;best=sh[kk];}});return bd<=220?best:null;},fmt:_fmtShr}
+  ],note:'Presented in ASC 210 / Reg S-X Rule 5-02 classified order. Total assets and total liabilities and shareholders’ equity are both taken from the filing and should agree. Rows marked † are derived where the filer did not tag the caption. Filers presenting an UNCLASSIFIED balance sheet — banks and most insurers — tag no current assets or liabilities, so those captions and the ratios built on them are absent by design. Period-end share count is as filed and therefore not restated for stock splits; use the per-share figures on the income statement, which are.'};
 }
 function _renderDetStmtTab(key){
   var el=document.getElementById('d-pane-stmt');if(!el)return;
@@ -5176,39 +5348,93 @@ function _renderDetStmtTab(key){
   if(!h){el.innerHTML=empty('No SEC EDGAR filing history for this company.');return;}
   var spec=_stmtSpec(key,h,d);
   /* FY columns = union of this statement's series, one per calendar year
-     (keep the later fiscal-year end), most recent 10, newest on the right. */
+     (keep the later fiscal-year end), most recent 10. Ordered NEWEST FIRST,
+     which is how filed statements read (Apple's 10-K runs 2025, 2024, 2023
+     left to right) — and it puts the year the reader wants beside the
+     captions instead of ten columns off the right edge. Note this is the
+     opposite of the Track Record table, which is a trend series and reads
+     naturally oldest-first. */
   var ks={};
   spec.series.forEach(function(s){var ss=h[s];if(ss)Object.keys(ss).forEach(function(k){ks[k]=1;});});
   var byYear={};Object.keys(ks).sort().forEach(function(k){byYear[k.slice(0,4)]=k;});
-  var cols=Object.keys(byYear).sort().map(function(y){return byYear[y];}).slice(-10);
+  var cols=Object.keys(byYear).sort().map(function(y){return byYear[y];}).slice(-10).reverse();
   if(!cols.length){el.innerHTML=empty('No '+meta.l.toLowerCase()+' data filed for this company.');return;}
-  var body='',shown=0,drvOpened=false;
-  var pending=null;   /* section header held back until a row under it prints */
+
+  /* Pass 1: resolve every non-header row, dropping those the filer never
+     tagged. Headers are held back and only emitted once a row beneath them
+     survives, so an empty caption never prints. */
+  /* pendingHdr is a QUEUE, not a slot: the balance sheet stacks a section
+     caption directly on a sub-caption ("ASSETS" then "Current assets:") and
+     a single slot silently dropped the outer one. */
+  var body='',shown=0,drvRows=[],pendingHdr=[],usedDagger=false,usedPlug=false;
+  /* Set while a `needs` sub-caption was suppressed, so the rows that would
+     have sat under it lose the extra indent level and don't read as orphans
+     hanging off nothing. Cleared by the next caption. */
+  var demote=false;
+  var hasSeries=function(nm){
+    var s=h[nm];if(!s)return false;
+    return cols.some(function(k){return s[k]!=null;});
+  };
   spec.rows.forEach(function(rw){
-    if(rw.hdr){pending=rw.hdr;return;}
+    if(rw.hdr){
+      if(rw.needs&&!hasSeries(rw.needs)){demote=true;return;}
+      demote=false;pendingHdr.push(rw);return;
+    }
     var vals=cols.map(rw.get);
-    if(!vals.some(function(v){return v!=null;}))return;   /* never tagged → drop */
+    if(!vals.some(function(v){return v!=null;}))return;
+    /* A residual of zero means the tagged lines already account for the whole
+       subtotal — printing a row of $0 would imply a real (nil) caption. Drop
+       it. The $1M floor is the display precision of fdsg. */
+    if(rw.plug&&!vals.some(function(v){return v!=null&&Math.abs(v)>=1e6;}))return;
+    if(rw.drv){drvRows.push({rw:rw,vals:vals});return;}
     shown++;
-    if(pending){body+='<tr class="stmt-hdr"><td colspan="'+(cols.length+1)+'">'+esc(pending)+'</td></tr>';pending=null;}
+    pendingHdr.forEach(function(ph){
+      body+='<tr class="stmt-hdr'+(ph.sub2?' stmt-hdr2':'')+'"><td colspan="'+(cols.length+1)+'">'
+        +esc(ph.hdr)+'</td></tr>';
+    });
+    pendingHdr=[];
     var cls=[];
     if(rw.sub)cls.push('stmt-sub');
-    if(rw.drv){cls.push('stmt-drv');if(!drvOpened){cls.push('stmt-drv-first');drvOpened=true;}}
-    body+='<tr'+(cls.length?' class="'+cls.join(' ')+'"':'')+'>'
-      +'<td class="stmt-lbl">'+esc(rw.l)+(rw.drvIn?' <span style="opacity:0.6">*</span>':'')+'</td>';
-    vals.forEach(function(v){
-      var t=v==null?'—':rw.fmt(v);
-      body+='<td'+(v!=null&&v<0?' style="color:#c0392b"':'')+'>'+(t==null?'—':t)+'</td>';
-    });
+    if(rw.tot)cls.push('stmt-tot');
+    var ind=rw.ind;
+    if(demote&&ind>1)ind-=1;
+    if(ind)cls.push('stmt-i'+ind);
+    /* A derived-fallback row is only flagged on the years it actually had
+       to fall back — a filer that tags the caption in recent years but not
+       older ones shouldn't carry a blanket footnote mark. */
+    var mark='';
+    if(rw.softDrv){
+      /* Row that CAN be tagged but falls back — mark only when it actually
+         fell back on a shown year, so a filer that tags the caption (KO's
+         $321M FX line) doesn't carry a footnote meant for the fallback. */
+      if(cols.some(function(k,ix){return vals[ix]!=null&&rw.softDrv(k);})){
+        if(rw.plug){mark=' <span class="stmt-mark">‡</span>';usedPlug=true;}
+        else{mark=' <span class="stmt-mark">†</span>';usedDagger=true;}
+      }
+    }else if(rw.plug){mark=' <span class="stmt-mark">‡</span>';usedPlug=true;}
+    body+='<tr'+(cls.length?' class="'+cls.join(' ')+'"':'')+'><td class="stmt-lbl">'+esc(rw.l)+mark+'</td>';
+    vals.forEach(function(v){body+='<td>'+(v==null?'—':rw.fmt(v))+'</td>';});
     body+='</tr>';
   });
   if(!shown){el.innerHTML=empty('No '+meta.l.toLowerCase()+' line items tagged in this company’s filings.');return;}
+  /* Supplementary (non-GAAP) block, visually separated from the statement. */
+  if(drvRows.length){
+    body+='<tr class="stmt-hdr stmt-drv-head"><td colspan="'+(cols.length+1)+'">Supplementary — not part of the filed statement</td></tr>';
+    drvRows.forEach(function(x){
+      body+='<tr class="stmt-drv"><td class="stmt-lbl">'+esc(x.rw.l)+'</td>';
+      x.vals.forEach(function(v){body+='<td>'+(v==null?'—':(x.rw.fmt(v)==null?'—':x.rw.fmt(v)))+'</td>';});
+      body+='</tr>';
+    });
+  }
   var head='<div class="dtr-wrap"><table class="dtr-tbl stmt-tbl"><tr><th></th>';
   cols.forEach(function(k){head+='<th>FY'+k.slice(0,4)+'</th>';});
   head+='</tr>';
+  var legend='';
+  if(usedDagger)legend+=' † derived — the filer did not tag this caption.';
+  if(usedPlug)legend+=' ‡ residual between the tagged section subtotal and the tagged lines above it.';
   var note='<div style="font-size:0.68em;color:var(--text-muted);margin-top:8px">'
     +'Annual figures as filed with SEC EDGAR (XBRL), converted to USD for foreign filers. '
-    +'Italic rows and those marked * are computed from the lines above, not filed. '
-    +esc(spec.note)+'</div>';
+    +esc(spec.note)+esc(legend)+'</div>';
   el.innerHTML=_stmtShell(meta,head+body+'</table></div>'+note);
 }
 function openDet(tk){

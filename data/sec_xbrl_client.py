@@ -166,6 +166,100 @@ class SECXBRLClient:
             'IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments',
             'IncomeLossFromContinuingOperationsBeforeIncomeTaxesAndMinorityInterest',
         ],
+        # --- GAAP statement presentation (popup statement tabs only) -------
+        # Everything below exists so the Income Statement, Balance Sheet and
+        # Cash Flow tabs can follow Reg S-X / ASC 220-210-230 ordering rather
+        # than listing whatever happened to be extracted. Coverage measured
+        # over a 12-filer sample (AAPL/MSFT/JPM/KO/XOM/UNH/PG/NVDA/T/WMT/
+        # BRK-B/O); the fraction noted is how many tagged the concept at all.
+        # None of these feed scoring — rows simply drop when a filer is
+        # silent, which is why partial coverage is acceptable here.
+        'cost_of_revenue': [                       # 8/12
+            'CostOfRevenue',
+            'CostOfGoodsAndServicesSold',
+            'CostOfGoodsSold',
+            'CostOfServices',
+        ],
+        'rd_expense': ['ResearchAndDevelopmentExpense'],          # 4/12 (tech/pharma)
+        'sga_expense': [                           # 9/12
+            'SellingGeneralAndAdministrativeExpense',
+            'GeneralAndAdministrativeExpense',
+        ],
+        'selling_marketing': ['SellingAndMarketingExpense'],      # 2/12
+        'total_opex': ['OperatingExpenses', 'CostsAndExpenses'],  # 7/12
+        'other_nonop': [                           # 9/12
+            'NonoperatingIncomeExpense',
+            'OtherNonoperatingIncomeExpense',
+        ],
+        # As-FILED per-share figures. These are restated by the filer for
+        # stock splits, unlike the raw share counts — which is exactly why
+        # the statement tab shows these rather than dividing net income by
+        # period-end shares (that version stepped 4x at Apple's 2020 split).
+        'eps_basic': ['EarningsPerShareBasic'],                   # 10/12
+        'eps_diluted': ['EarningsPerShareDiluted'],               # 10/12
+        'wavg_basic': ['WeightedAverageNumberOfSharesOutstandingBasic'],    # 11/12
+        'wavg_diluted': ['WeightedAverageNumberOfDilutedSharesOutstanding'],# 10/12
+        'st_investments': [                        # 6/12
+            'ShortTermInvestments',
+            'AvailableForSaleSecuritiesDebtSecuritiesCurrent',
+            'MarketableSecuritiesCurrent',
+        ],
+        'receivables': [                           # 8/12
+            'AccountsReceivableNetCurrent',
+            'ReceivablesNetCurrent',
+        ],
+        'inventory': ['InventoryNet'],                            # 9/12
+        'ppe_net': ['PropertyPlantAndEquipmentNet'],              # 9/12
+        'goodwill': ['Goodwill'],                                 # 11/12
+        'intangibles': [                           # 8/12
+            'IntangibleAssetsNetExcludingGoodwill',
+            'FiniteLivedIntangibleAssetsNet',
+        ],
+        'accounts_payable': [                      # 8/12
+            'AccountsPayableCurrent',
+            'AccountsPayableAndAccruedLiabilitiesCurrent',
+        ],
+        # The balance-sheet identity check: assets must equal this.
+        'liab_and_equity': ['LiabilitiesAndStockholdersEquity'],  # 11/12
+        'cs_apic': [                               # 11/12
+            'CommonStocksIncludingAdditionalPaidInCapital',
+            'AdditionalPaidInCapital',
+            'AdditionalPaidInCapitalCommonStock',
+        ],
+        'aoci': ['AccumulatedOtherComprehensiveIncomeLossNetOfTax'],  # 11/12
+        'treasury_stock': ['TreasuryStockValue', 'TreasuryStockCommonValue'],  # 6/12
+        'minority_interest': ['MinorityInterest'],                # 7/12
+        # ASC 230 requires the three-section presentation; operating already
+        # exists above as 'operating_cash_flow'.
+        'investing_cf': ['NetCashProvidedByUsedInInvestingActivities'],   # 11/12
+        'financing_cf': ['NetCashProvidedByUsedInFinancingActivities'],   # 11/12
+        'sbc_cf': ['ShareBasedCompensation'],                     # 8/12
+        'deferred_tax': ['DeferredIncomeTaxExpenseBenefit'],      # 11/12
+        'buybacks': ['PaymentsForRepurchaseOfCommonStock'],       # 10/12
+        'debt_issued': [                           # 8/12
+            'ProceedsFromIssuanceOfLongTermDebt',
+            'ProceedsFromIssuanceOfDebt',
+        ],
+        'debt_repaid': [                           # 8/12
+            'RepaymentsOfLongTermDebt',
+            'RepaymentsOfDebt',
+        ],
+        'acquisitions': ['PaymentsToAcquireBusinessesNetOfCashAcquired'],  # 10/12
+        'net_change_cash': [                       # 11/12
+            'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect',
+            'CashAndCashEquivalentsPeriodIncreaseDecrease',
+        ],
+        # ASC 230-10-45-24: filers with foreign operations report the effect
+        # of exchange-rate changes on cash as its own reconciling line. Without
+        # it the three sections don't foot to the net change for any
+        # multinational (KO's FY2025 gap was $321M).
+        'fx_effect_cash': [
+            'EffectOfExchangeRateOnCashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents',
+            'EffectOfExchangeRateOnCashAndCashEquivalents',
+        ],
+        # IncreaseDecreaseInOperatingCapital was probed and tagged by only
+        # 1/12 filers, so working-capital movement is shown as a derived
+        # plug (OCF less the tagged add-backs) rather than a tagged row.
     }
 
     # IFRS taxonomy tag names. 20-F / 40-F filers (foreign issuers) report under
@@ -267,6 +361,51 @@ class SECXBRLClient:
         ],
         'pretax_income': [
             'ProfitLossBeforeTax',
+        ],
+        # --- GAAP statement presentation, IFRS equivalents ----------------
+        # Mirrors the block added to _XBRL_TAG_MAP so 20-F/40-F filers get
+        # the same statement rows. IFRS presentation differs in places (no
+        # AOCI as such — 'OtherReserves' is the closest analogue; equity is
+        # 'IssuedCapital' + 'SharePremium'), so these are approximations
+        # chosen to populate the same line, not exact GAAP counterparts.
+        'cost_of_revenue': ['CostOfSales'],
+        'rd_expense': ['ResearchAndDevelopmentExpense'],
+        'sga_expense': [
+            'SellingGeneralAndAdministrativeExpense',
+            'AdministrativeExpense',
+        ],
+        'selling_marketing': ['DistributionCosts', 'SellingExpense'],
+        'total_opex': ['OperatingExpense'],
+        'other_nonop': ['OtherOperatingIncomeExpense'],
+        'eps_basic': ['BasicEarningsLossPerShare'],
+        'eps_diluted': ['DilutedEarningsLossPerShare'],
+        'wavg_basic': ['WeightedAverageNumberOfOrdinarySharesOutstanding'],
+        'wavg_diluted': ['WeightedAverageNumberOfDilutedOrdinarySharesOutstanding'],
+        'st_investments': ['OtherCurrentFinancialAssets'],
+        'receivables': ['TradeAndOtherCurrentReceivables'],
+        'inventory': ['Inventories'],
+        'ppe_net': ['PropertyPlantAndEquipment'],
+        'goodwill': ['Goodwill'],
+        'intangibles': ['IntangibleAssetsOtherThanGoodwill'],
+        'accounts_payable': ['TradeAndOtherCurrentPayables'],
+        'liab_and_equity': ['EquityAndLiabilities'],
+        'cs_apic': ['IssuedCapital', 'SharePremium'],
+        'aoci': ['OtherReserves'],
+        'treasury_stock': ['TreasuryShares'],
+        'minority_interest': ['NoncontrollingInterests'],
+        'investing_cf': ['CashFlowsFromUsedInInvestingActivities'],
+        'financing_cf': ['CashFlowsFromUsedInFinancingActivities'],
+        'sbc_cf': ['ShareBasedPaymentExpense'],
+        'deferred_tax': ['DeferredTaxExpenseIncome'],
+        'buybacks': ['PaymentsToAcquireOrRedeemEntitysShares'],
+        'debt_issued': ['ProceedsFromBorrowings'],
+        'debt_repaid': ['RepaymentsOfBorrowings'],
+        'acquisitions': [
+            'CashFlowsUsedInObtainingControlOfSubsidiariesOrOtherBusinessesClassifiedAsInvestingActivities',
+        ],
+        'net_change_cash': ['IncreaseDecreaseInCashAndCashEquivalents'],
+        'fx_effect_cash': [
+            'EffectOfExchangeRateChangesOnCashAndCashEquivalents',
         ],
     }
 
@@ -921,6 +1060,62 @@ class SECXBRLClient:
         liabs_h, liabs_ccy       = _flow('total_liabilities')
         equity_h, equity_ccy     = _flow('total_equity')
         retearn_h, retearn_ccy   = _flow('retained_earnings')
+        # GAAP presentation lines. Grouped by statement; every one of these
+        # is optional — the statement tabs drop a row whose series is empty.
+        cogs_h, _c1     = _flow('cost_of_revenue')
+        rd_h, _c2       = _flow('rd_expense')
+        sga_h, _c3      = _flow('sga_expense')
+        selmkt_h, _c4   = _flow('selling_marketing')
+        opex_h, _c5     = _flow('total_opex')
+        othnonop_h, _c6 = _flow('other_nonop')
+        stinv_h, _c7    = _flow('st_investments')
+        recv_h, _c8     = _flow('receivables')
+        invty_h, _c9    = _flow('inventory')
+        ppe_h, _c10     = _flow('ppe_net')
+        gw_h, _c11      = _flow('goodwill')
+        intang_h, _c12  = _flow('intangibles')
+        ap_h, _c13      = _flow('accounts_payable')
+        lae_h, _c14     = _flow('liab_and_equity')
+        csapic_h, _c15  = _flow('cs_apic')
+        aoci_h, _c16    = _flow('aoci')
+        treas_h, _c17   = _flow('treasury_stock')
+        minint_h, _c18  = _flow('minority_interest')
+        icf_h, _c19     = _flow('investing_cf')
+        fcf_h, _c20     = _flow('financing_cf')
+        sbc_h, _c21     = _flow('sbc_cf')
+        deftax_h, _c22  = _flow('deferred_tax')
+        buyback_h, _c23 = _flow('buybacks')
+        dissued_h, _c24 = _flow('debt_issued')
+        drepaid_h, _c25 = _flow('debt_repaid')
+        acq_h, _c26     = _flow('acquisitions')
+        chgcash_h, _c27 = _flow('net_change_cash')
+        fxeff_h, _c28   = _flow('fx_effect_cash')
+        # A classified balance sheet splits borrowings across the current and
+        # non-current captions, but the shared resolver only returns the
+        # composed total. Rebuild the two halves from the same component
+        # concepts it uses, applying its precedence: DebtCurrent already
+        # bundles short-term borrowings with current maturities, so the
+        # ltd_current + st_borrowings sum is only a fallback. Likewise
+        # LongTermDebt INCLUDES current maturities while LongTermDebtNoncurrent
+        # does not — subtract the current portion when only the former exists.
+        dct_h, _d1 = _flow('debt_current_total')
+        ltdc_h, _d2 = _flow('ltd_current')
+        stb_h, _d3 = _flow('st_borrowings')
+        ltdnc_h, _d4 = _flow('ltd_noncurrent')
+        ltdt_h, _d5 = _flow('ltd_total')
+        _yrs = set(dct_h) | set(ltdc_h) | set(stb_h) | set(ltdnc_h) | set(ltdt_h)
+        debt_cur_h, debt_nc_h = {}, {}
+        for _y in _yrs:
+            if _y in dct_h:
+                debt_cur_h[_y] = dct_h[_y]
+            elif _y in ltdc_h or _y in stb_h:
+                debt_cur_h[_y] = ltdc_h.get(_y, 0.0) + stb_h.get(_y, 0.0)
+            if _y in ltdnc_h:
+                debt_nc_h[_y] = ltdnc_h[_y]
+            elif _y in ltdt_h:
+                # LongTermDebt is current-inclusive; net out current maturities
+                # when they're separately tagged, else take it as reported.
+                debt_nc_h[_y] = ltdt_h[_y] - ltdc_h.get(_y, 0.0)
         debt_h, _dtx, debt_ccy, debt_tagged = \
             self._resolve_total_debt_concept(facts)
         shares, _tax_s, _ccy_s   = self._extract_concept_periodic(
@@ -949,6 +1144,20 @@ class SECXBRLClient:
         reporting_ccy = next((c for c in currencies if c != 'USD'), 'USD')
         fx_converted = reporting_ccy != 'USD'
 
+        # Per-share amounts live under a compound unit ("USD/shares"), and
+        # weighted share counts under "shares" — neither is discoverable by
+        # the currency auto-detect, so both need an explicit units_key. They
+        # sit here rather than with the other _flow calls because the unit
+        # string depends on the reporting currency resolved just above.
+        eps_b, _e1, _e2 = self._extract_concept_annual(
+            facts, 'eps_basic', units_key=reporting_ccy + '/shares')
+        eps_d, _e3, _e4 = self._extract_concept_annual(
+            facts, 'eps_diluted', units_key=reporting_ccy + '/shares')
+        wavg_b, _e5, _e6 = self._extract_concept_annual(
+            facts, 'wavg_basic', units_key='shares')
+        wavg_d, _e7, _e8 = self._extract_concept_annual(
+            facts, 'wavg_diluted', units_key='shares')
+
         if fx_converted:
             fx = _get_fx_rates_to_usd(reporting_ccy)
             rev    = _apply_fx_annual(rev, fx)
@@ -974,6 +1183,41 @@ class SECXBRLClient:
             liabs_h   = _apply_fx_annual(liabs_h, fx)
             equity_h  = _apply_fx_annual(equity_h, fx)
             retearn_h = _apply_fx_annual(retearn_h, fx)
+            # GAAP statement lines. Per-share amounts convert at the same
+            # rate (a currency-per-share unit scales exactly like currency);
+            # weighted share COUNTS do not, same as `shares` below.
+            cogs_h    = _apply_fx_annual(cogs_h, fx)
+            rd_h      = _apply_fx_annual(rd_h, fx)
+            sga_h     = _apply_fx_annual(sga_h, fx)
+            selmkt_h  = _apply_fx_annual(selmkt_h, fx)
+            opex_h    = _apply_fx_annual(opex_h, fx)
+            othnonop_h = _apply_fx_annual(othnonop_h, fx)
+            stinv_h   = _apply_fx_annual(stinv_h, fx)
+            recv_h    = _apply_fx_annual(recv_h, fx)
+            invty_h   = _apply_fx_annual(invty_h, fx)
+            ppe_h     = _apply_fx_annual(ppe_h, fx)
+            gw_h      = _apply_fx_annual(gw_h, fx)
+            intang_h  = _apply_fx_annual(intang_h, fx)
+            ap_h      = _apply_fx_annual(ap_h, fx)
+            lae_h     = _apply_fx_annual(lae_h, fx)
+            csapic_h  = _apply_fx_annual(csapic_h, fx)
+            aoci_h    = _apply_fx_annual(aoci_h, fx)
+            treas_h   = _apply_fx_annual(treas_h, fx)
+            minint_h  = _apply_fx_annual(minint_h, fx)
+            icf_h     = _apply_fx_annual(icf_h, fx)
+            fcf_h     = _apply_fx_annual(fcf_h, fx)
+            sbc_h     = _apply_fx_annual(sbc_h, fx)
+            deftax_h  = _apply_fx_annual(deftax_h, fx)
+            buyback_h = _apply_fx_annual(buyback_h, fx)
+            dissued_h = _apply_fx_annual(dissued_h, fx)
+            drepaid_h = _apply_fx_annual(drepaid_h, fx)
+            acq_h     = _apply_fx_annual(acq_h, fx)
+            chgcash_h = _apply_fx_annual(chgcash_h, fx)
+            fxeff_h   = _apply_fx_annual(fxeff_h, fx)
+            debt_cur_h = _apply_fx_annual(debt_cur_h, fx)
+            debt_nc_h  = _apply_fx_annual(debt_nc_h, fx)
+            eps_b     = _apply_fx_annual(eps_b, fx)
+            eps_d     = _apply_fx_annual(eps_d, fx)
             # shares are unit-counts, not currency — leave alone.
 
         # Untagged debt across every component concept = genuinely unlevered
@@ -1013,6 +1257,41 @@ class SECXBRLClient:
             'total_liabilities_history': liabs_h,
             'total_equity_history':     equity_h,
             'retained_earnings_history': retearn_h,
+            # GAAP presentation lines (popup statement tabs only).
+            'cost_of_revenue_history':  cogs_h,
+            'rd_expense_history':       rd_h,
+            'sga_expense_history':      sga_h,
+            'selling_marketing_history': selmkt_h,
+            'total_opex_history':       opex_h,
+            'other_nonop_history':      othnonop_h,
+            'eps_basic_history':        eps_b,
+            'eps_diluted_history':      eps_d,
+            'wavg_basic_history':       wavg_b,
+            'wavg_diluted_history':     wavg_d,
+            'st_investments_history':   stinv_h,
+            'receivables_history':      recv_h,
+            'inventory_history':        invty_h,
+            'ppe_net_history':          ppe_h,
+            'goodwill_history':         gw_h,
+            'intangibles_history':      intang_h,
+            'accounts_payable_history': ap_h,
+            'liab_and_equity_history':  lae_h,
+            'cs_apic_history':          csapic_h,
+            'aoci_history':             aoci_h,
+            'treasury_stock_history':   treas_h,
+            'minority_interest_history': minint_h,
+            'debt_current_history':     debt_cur_h,
+            'debt_noncurrent_history':  debt_nc_h,
+            'investing_cf_history':     icf_h,
+            'financing_cf_history':     fcf_h,
+            'sbc_cf_history':           sbc_h,
+            'deferred_tax_history':     deftax_h,
+            'buybacks_history':         buyback_h,
+            'debt_issued_history':      dissued_h,
+            'debt_repaid_history':      drepaid_h,
+            'acquisitions_history':     acq_h,
+            'net_change_cash_history':  chgcash_h,
+            'fx_effect_cash_history':   fxeff_h,
             'years_available':          years_available,
             'reporting_currency':       reporting_ccy,
             'fx_converted':             fx_converted,
