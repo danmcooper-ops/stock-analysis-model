@@ -3716,7 +3716,16 @@ function initPriceChart(){
   if(!PRICES){
     if(!_PRICES_AVAILABLE){phv.innerHTML='<p style="padding:24px;color:#888">Price history not available for this report.</p>';return;}
     phv.innerHTML='<p style="padding:24px;color:#888">Loading price history…</p>';
-    if(_PRICES_LOADING)return;
+    /* A load already in flight belongs to whichever consumer started it —
+       the sector price chart or a detail popup — and its callback rebuilds
+       only its own view, never this one. Bare `return` here left Charts on
+       "Loading…" permanently for anyone who opened it during the ~73MB
+       fetch the landing view kicks off. Poll for the handoff, exactly as
+       the other three prices.json consumers do. */
+    if(_PRICES_LOADING){
+      var poll=setInterval(function(){if(!_PRICES_LOADING){clearInterval(poll);if(curTSub==='prices')initPriceChart();}},120);
+      return;
+    }
     _PRICES_LOADING=true;
     _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;if(curTSub==='prices')initPriceChart();});
     return;
