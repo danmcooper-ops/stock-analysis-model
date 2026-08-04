@@ -74,7 +74,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* Centred count. #f-count used to sit inside .filter-bar and was hidden on
    the no-table views by `.filter-bar.nav-only > *`; now that it lives outside
    that bar, moveFilterBar() mirrors .nav-only onto .header so the count still
-   disappears on Sector Analysis and Charts. */
+   disappears on Sector Analysis. */
 .hdr-center{display:flex;align-items:center;flex-shrink:0;white-space:nowrap;}
 .header.nav-only #f-count{display:none!important;}
 /* Panels hang from the right edge. Anchored left:0 they would run off the
@@ -343,9 +343,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .navmenu-cols{flex-direction:column;gap:10px;}
   .nav-panel{min-width:200px;}
 }
-/* Nav-only mode: Sector Analysis and Financial Data > Charts have nothing
-   to filter, so the whole filter bar used to be display:none there. It now
-   stays put as the nav icon's home and hides only the filter controls. */
+/* Nav-only mode: Sector Analysis has nothing to filter, so the whole filter
+   bar used to be display:none there. It now stays put as the nav icon's home
+   and hides only the filter controls. Financial Data > Charts was nav-only as
+   well until its five lines started seeding from the filter set. */
 .filter-bar.nav-only > *:not(.navmenu-wrap){display:none!important;}
 /* === FILTERS MENU ===
    The filter controls got the nav-tabs treatment: the row of multi-select
@@ -2733,6 +2734,10 @@ function applyFilters(){
   if(fbadge){fbadge.style.display=fn>0?'':'none';fbadge.textContent=fn>0?fn:'';}
   _syncQfChecks();
   _updateFlagCount();
+  /* FD moved, so the Charts view's auto-seeded five are stale. renderCur()
+     resyncs it if it's the visible view; otherwise the flag holds until the
+     user opens it. */
+  _phSeedStale=true;
   renderCur();
   _syncHash();
 }
@@ -3520,7 +3525,7 @@ function ftc(v,f){
 /* The Financial Data sub-tab buttons moved into the nav dropdown (TL still
    drives their labels there, and the column-filter optgroups below). */
 function renderTSubs(){renderNavMenu();}
-function swTSub(s){curTSub=s;tSC='rating';tSA=true;_tUserSorted=false;_syncWideTable();renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
+function swTSub(s){curTSub=s;tSC='rating';tSA=true;_tUserSorted=false;_syncWideTable();renderTSubs();moveFilterBar('table');var tw=document.querySelector('#view-table .table-wrap'),phv=document.getElementById('ph-view');if(s==='prices'){if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else if(_phSeedStale){_phResync();}else{_buildPHSearch();_buildPHIndexBtns();renderPHChart();}}else{if(tw)tw.style.display='';if(phv)phv.style.display='none';renderTable();setTimeout(_setTableH,0);}_syncHash();}
 function renderTable(){
   /* Copy the tab's column list (never mutate the shared TC array), relabel
      Rating as "Today's Rating", and inject a "Yesterday's Rating" column right
@@ -3635,6 +3640,12 @@ function tSort(col){_tUserSorted=true;if(tSC===col)tSA=!tSA;else{tSC=col;tSA=tru
    instances from colliding (incl. the ph-g gradient, which resolves
    document-wide). */
 var _phStocks=[],_phRange='MAX',_phInited=false,_phStates={},_phMetric='price';
+/* The chart pool is two layers. The auto layer is the five best names in the
+   CURRENT filter set (FD), so filtering to e.g. Energy re-seeds the chart with
+   the five best energy names. The pinned layer is whatever the user added by
+   hand — search box or index buttons — and survives every re-seed. _phSeedStale
+   defers the re-seed when filters move while the Charts view is hidden. */
+var _phPinned=[],_phSeedStale=false;
 var _phPalette=['#16a34a','#2563eb','#dc2626','#d97706','#7c3aed','#0891b2','#be185d','#65a30d','#b45309','#6366f1'];
 var _PH_METRICS=[
   {k:'price',  lbl:'Price',         unit:'$',  fmt:'money',  src:'price'},
@@ -3666,6 +3677,40 @@ function _phFmtAxis(v,fmt){
   if(fmt==='pct')return (v*100).toFixed(0)+'%';
   return v.toFixed(0);
 }
+/* The five names actually on the FILTERED table for purchase: BUY then LEAN
+   BUY, ranked by composite score (desc), capped at five. If fewer than five
+   actionable names have price data, top up from the next-highest composite so
+   the chart is never sparse. This tracks the buy list rather than raw composite
+   — a high-composite stock capped to HOLD shouldn't seed ahead of an actual
+   LEAN BUY. Reads FD, not DATA, so the chart follows the filter set. */
+function _phTopFive(){
+  if(!PRICES)return[];
+  var scored=FD.filter(function(d){return d._composite_score!=null&&PRICES.prices[d.ticker];})
+    .sort(function(a,b){return (b._composite_score||0)-(a._composite_score||0);});
+  var seed=scored.filter(function(d){return d.rating==='BUY'||d.rating==='LEAN BUY';}).slice(0,5);
+  if(seed.length<5){
+    var have={};seed.forEach(function(d){have[d.ticker]=1;});
+    for(var i=0;i<scored.length&&seed.length<5;i++){if(!have[scored[i].ticker])seed.push(scored[i]);}
+  }
+  return seed.map(function(d){return d.ticker;});
+}
+/* Rebuild _phStocks = auto five (from the current filter set) + pinned. Pinned
+   tickers are never evicted by the 10-line cap; the auto layer gives up slots
+   instead. An empty pool is legal — renderPHChart draws the empty state, and
+   loosening the filters fills the chart back in. */
+function _phBuildPool(){
+  var pinned=_phPinned.filter(function(t){return PRICES&&PRICES.prices[t];});
+  var auto=_phTopFive().filter(function(t){return pinned.indexOf(t)<0;});
+  _phStocks=auto.slice(0,Math.max(0,10-pinned.length)).concat(pinned);
+  _phSeedStale=false;
+}
+/* Called when the Charts view becomes visible, or while it is visible and the
+   filters change. No-op until the chart has been built once. */
+function _phResync(){
+  if(!_phInited||!_phSeedStale||!PRICES)return;
+  _phBuildPool();
+  _buildPHChips();_buildPHIndexBtns();renderPHChart();
+}
 function initPriceChart(){
   var phv=document.getElementById('ph-view');
   if(!PRICES){
@@ -3676,25 +3721,7 @@ function initPriceChart(){
     _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;if(curTSub==='prices')initPriceChart();});
     return;
   }
-  /* Seed the chart with the names actually on the table for purchase: BUY
-     then LEAN BUY, ranked by composite score (desc), capped at five. If
-     fewer than five actionable names have price data, top up from the
-     next-highest composite so the chart is never sparse. This tracks the
-     buy list rather than raw composite — a high-composite stock capped to
-     HOLD shouldn't seed ahead of an actual LEAN BUY. (Previously seeded
-     only BUY-rated stocks, which showed just 2 lines on a 2-BUY day.) Fall
-     back to a single ticker if nothing has price data. */
-  _phStocks=[];
-  var _scored=DATA.filter(function(d){return d._composite_score!=null&&PRICES.prices[d.ticker];})
-    .sort(function(a,b){return (b._composite_score||0)-(a._composite_score||0);});
-  var _seed=_scored.filter(function(d){return d.rating==='BUY'||d.rating==='LEAN BUY';}).slice(0,5);
-  if(_seed.length<5){
-    var _have={};_seed.forEach(function(d){_have[d.ticker]=1;});
-    for(var i=0;i<_scored.length&&_seed.length<5;i++){if(!_have[_scored[i].ticker])_seed.push(_scored[i]);}
-  }
-  _phStocks=_seed.map(function(d){return d.ticker;});
-  if(!_phStocks.length){var _tks=Object.keys(PRICES.prices);if(_tks.length)_phStocks=[_tks[0]];}
-  if(!_phStocks.length){phv.innerHTML='<p style="padding:24px;color:#888">No price data available.</p>';return;}
+  _phBuildPool();
   phv.innerHTML='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">'
     +'<div class="ph-sw"><input class="ph-sinp" id="ph-s1" type="text" placeholder="Add stock\u2026" autocomplete="off" style="width:190px"><div class="ph-sdrop" id="ph-s1-drop"></div></div>'
     +'<div id="ph-index-btns" style="display:flex;gap:5px;flex-wrap:wrap"></div>'
@@ -3807,12 +3834,15 @@ function _buildPHIndexBtns(){
 function phAddTicker(tk){
   if(_phStocks.indexOf(tk)>=0||_phStocks.length>=10)return;
   _phStocks.push(tk);
+  /* Hand-picked, so it outlives the next filter-driven re-seed. */
+  if(_phPinned.indexOf(tk)<0)_phPinned.push(tk);
   var s=document.getElementById('ph-s1');if(s){s.value='';var d=document.getElementById('ph-s1-drop');if(d)d.classList.remove('open');}
   _buildPHChips();_buildPHIndexBtns();renderPHChart();
 }
 function phRemoveTicker(tk){
   var i=_phStocks.indexOf(tk);if(i<0)return;
   _phStocks.splice(i,1);
+  var p=_phPinned.indexOf(tk);if(p>=0)_phPinned.splice(p,1);
   _buildPHChips();_buildPHIndexBtns();renderPHChart();
 }
 function phToggleIndex(tk){
@@ -3898,7 +3928,15 @@ function _phGetPts(ticker){
   return _phGetHistPts(ticker,_phMetric);
 }
 function renderPHChart(){
-  if(!_phStocks.length)return;
+  /* Empty pool = the filters left nothing with price history. Say so rather
+     than leaving the previous filter's lines on screen. */
+  if(!_phStocks.length){
+    var _e=document.getElementById('ph-chart');
+    if(_e)_e.innerHTML='<p style="color:#888;padding:20px;text-align:center">No filtered stocks have price history.</p>';
+    _phStates['']=null;
+    var _tb0=document.getElementById('ph-tip-bar');if(_tb0)_tb0.innerHTML='';
+    return;
+  }
   var allRaw=_phStocks.map(function(tk){return _phGetPts(tk);});
   var sd=null;for(var i=0;i<DATA.length;i++){if(DATA[i].ticker===_phStocks[0]){sd=DATA[i];break;}}
   var refs=(sd&&_phMetric==='price')?{dcf:sd.dcf_fv,hi:sd.high_52w,lo:sd.low_52w}:{};
@@ -5260,7 +5298,12 @@ function moveFilterBar(v){
   var fb=document.querySelector('.filter-bar');
   if(!fb)return;
   fb.style.display='';
-  var navOnly=(v==='pool'||(v==='table'&&curTSub==='prices'));
+  /* Sector Analysis is the only nav-only view left. Charts used to be one
+     too, back when its five lines were seeded from the whole universe; now
+     that they seed from FD, the filters drive it and have to be reachable
+     from it. The count comes back with them — on Charts it reads as "the
+     pool the five were picked from". */
+  var navOnly=(v==='pool');
   fb.classList.toggle('nav-only',navOnly);
   /* The centred #f-count now sits outside .filter-bar, so it is out of reach
      of the bar's `.nav-only > *` rule. Mirror the flag onto .header to keep
@@ -5501,7 +5544,7 @@ function closeNavMenu(){
 }
 function renderCur(){
   if(curView==='matrix'){renderMSubs();var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view');if(curMSub==='dashboard'){if(mw)mw.style.display='none';if(ov)ov.style.display='';renderOverview();}else{if(mw)mw.style.display='';if(ov)ov.style.display='none';renderMatrix();}}
-  else if(curView==='table'){renderTSubs();if(curTSub==='prices'){var tw=document.querySelector('.table-wrap'),phv=document.getElementById('ph-view');if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}}else{renderTable();}}
+  else if(curView==='table'){renderTSubs();if(curTSub==='prices'){var tw=document.querySelector('.table-wrap'),phv=document.getElementById('ph-view');if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_phResync();}}else{renderTable();}}
   else if(curView==='pool')renderPool();
 }
 
