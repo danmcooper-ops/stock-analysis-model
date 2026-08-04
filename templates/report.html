@@ -67,10 +67,35 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    otherwise force width:100vw on a flex item. */
 .header .filter-bar{padding:0;gap:8px;flex-wrap:nowrap;flex-shrink:0;}
 /* On-gradient treatment for the two dropdown buttons. The base .fpop-btn is a
-   light chip built for the page background and washes out on this banner. */
-.header .fpop-btn{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.18);color:#e8eef5;}
-.header .fpop-btn:hover{background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);}
-.header .fpop-btn.active{background:#fff;border-color:#fff;color:#0d1f42;}
+   light chip built for the page background and washes out on this banner.
+
+   Every selector here carries #filter-bar. Without the id these rules sit at
+   (0,2,0)/(0,3,0) and LOSE to two later blocks at equal specificity, which is
+   how the Filters icon kept vanishing:
+     - `.fpop-btn.active:hover` (page chip, ~line 305) beat `.header
+       .fpop-btn.active`, so the open button under the cursor took the chip's
+       #1a6fae fill while keeping this block's #0d1f42 navy icon — navy on
+       mid-blue, ~2.6:1, the icon read as an empty box.
+     - `[data-theme="dark"] .fpop-btn` (page chip, ~line 1273) beat `.header
+       .fpop-btn`, so in dark mode the idle button wore the dark page chip but
+       hover still came from HERE (translucent white) — a white icon on a pale
+       pill over the banner.
+   At (1,2,1)/(1,3,1) this block owns the whole idle/hover/active matrix and
+   the page-chip rules can no longer reach into the banner. The dark overrides
+   further down mirror it one step higher.
+
+   The .active:hover pairs are new: both themes previously fell through to the
+   page chip's hover fill. */
+.header #filter-bar .fpop-btn{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.18);color:#e8eef5;}
+.header #filter-bar .fpop-btn:hover{background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);}
+.header #filter-bar .fpop-btn.active{background:#fff;border-color:#fff;color:#0d1f42;}
+/* Open + hovered stays a light pill — a tint, not the page chip's blue fill,
+   so the navy icon keeps its contrast. */
+.header #filter-bar .fpop-btn.active:hover{background:#eaf1fa;border-color:#fff;color:#0d1f42;}
+/* The badge inverts with the pill: white-on-accent while the button is a
+   translucent chip, accent-on-white would vanish once the pill goes white, so
+   flip it to an accent fill with white digits. */
+.header #filter-bar .fpop-btn.active .fpop-badge{background:var(--accent);color:#fff;}
 .header .navmenu-crumb{color:#e8eef5;}
 .header .navmenu-crumb-sub{color:#a9bcd0;}
 .header .fpop-btn.active .navmenu-crumb{color:#0d1f42;}
@@ -1259,8 +1284,27 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .d-header-band .d-tabs .sub-btn:hover:not(.active){background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);}
 /* Header dropdown buttons — same problem, same fix as the popup tab bar above.
    The light-mode open state is a white fill with navy text, but "body *"
-   forces the label white in dark mode, which would leave it white-on-white. */
-[data-theme="dark"] .header .fpop-btn.active{background:#1f6feb;border-color:#1f6feb;}
+   forces the label white in dark mode, which would leave it white-on-white.
+
+   Idle and hover join the set. The generic `[data-theme="dark"] .fpop-btn`
+   chip below claimed idle (the dark #21262d pill) while hover still came from
+   the header's on-gradient block at higher specificity — so the pill inverted
+   to translucent-white-on-banner under an icon that `body *` had already
+   forced white. That pale-on-pale hover is the dark-mode disappearance.
+   Both states are pinned to the dark pill here: the icon is white in dark
+   mode no matter what, so it wants a dark fill under it in every state, and
+   hover just lifts the pill one step (the #21262d → accent-border treatment
+   `[data-theme="dark"] .sub-btn:hover` uses). Deliberately NOT the popup tab
+   bar's translucent treatment above — that pairing only works where the icon
+   can go navy, which `body *` forbids here. No `color` on any of these for
+   the same reason: the !important rule pins it white regardless. */
+[data-theme="dark"] .header #filter-bar .fpop-btn{background:#21262d;border-color:#30363d;}
+[data-theme="dark"] .header #filter-bar .fpop-btn:hover{background:#30363d;border-color:#58a6ff;}
+[data-theme="dark"] .header #filter-bar .fpop-btn.active{background:#1f6feb;border-color:#1f6feb;}
+[data-theme="dark"] .header #filter-bar .fpop-btn.active:hover{background:#388bfd;border-color:#388bfd;}
+/* Badge digits are pinned to #0d1117 by the rule below, so the badge needs a
+   light fill against the blue open-state pill. */
+[data-theme="dark"] .header #filter-bar .fpop-btn.active .fpop-badge{background:#fff;}
 [data-theme="dark"] .filter-bar input,[data-theme="dark"] .filter-bar select,[data-theme="dark"] .f-metric-sel,[data-theme="dark"] .f-col-sel,[data-theme="dark"] .f-num{background:#0d1117;color:#e6edf3;border-color:#30363d;}
 [data-theme="dark"] .f-num::placeholder{color:#6e7681;opacity:1;}
 [data-theme="dark"] .f-col-sel option{background:#0d1117;color:#e6edf3;}
