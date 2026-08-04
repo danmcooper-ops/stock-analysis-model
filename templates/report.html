@@ -50,6 +50,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    (64px min-height − 24px padding) — the banner keeps its height and the
    title just sits higher. .hdr-view inherits the h1's font family. */
 .hdr-title{display:flex;flex-direction:column;justify-content:center;flex-shrink:0;}
+/* The date shares the title's line rather than sitting beside the whole
+   two-line stack, where centring parked it between the lines. Baseline
+   alignment puts its small type on the h1's baseline; the 14px gap is the
+   spacing it had when it was a direct .header child. */
+.hdr-title-row{display:flex;align-items:baseline;gap:14px;}
 .hdr-view{font-size:0.8em;font-weight:600;line-height:1.1;opacity:0.82;white-space:nowrap;}
 .hdr-spacer{flex:1 1 auto;}
 .last-updated{font-size:0.7em;opacity:0.65;text-align:left;display:flex;flex-direction:column;gap:2px;white-space:nowrap;flex-shrink:0;}
@@ -1551,10 +1556,12 @@ body.wide-table .container{padding-left:0;padding-right:0;}
        sized to fit inside the header's existing 64px min-height, so the
        title simply rides higher rather than making the banner taller. -->
   <div class="hdr-title">
-    <h1>Securities Analysis</h1>
+    <div class="hdr-title-row">
+      <h1>Securities Analysis</h1>
+      <div class="last-updated"><span>{{ generated_at }}</span></div>
+    </div>
     <span class="hdr-view" id="hdr-view"></span>
   </div>
-  <div class="last-updated"><span>{{ generated_at }}</span></div>
   <span class="hdr-spacer"></span>
   <!-- Centred result count ("N of M"). Two flex spacers (one either side)
        centre it against the header as a whole rather than against the gap
