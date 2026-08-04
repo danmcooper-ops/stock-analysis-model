@@ -217,6 +217,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .d-header-band .d-tabs .sub-btn{background:rgba(255,255,255,0.08);color:#c5d2e0;border-color:rgba(255,255,255,0.18);}
 .d-header-band .d-tabs .sub-btn:hover:not(.active){background:rgba(255,255,255,0.16);color:#fff;border-color:rgba(255,255,255,0.3);}
 .d-header-band .d-tabs .sub-btn.active{background:#fff;color:#0d1f42;border-color:#fff;}
+/* Four controls now (Overview, Charts, Data ▾, Statements ▾) instead of
+   eleven tabs, and the two dropdown labels grow to the selected item's name
+   ("Profitability", "Cash Flow Statement"). Wrap rather than side-scroll:
+   at phone width the labels are wide enough that the old overflow-x:auto
+   left later controls off-screen with no scroll affordance. */
+.d-header-band .d-tabs{flex-wrap:wrap;overflow:visible;row-gap:6px;}
+.dtb-btn{display:inline-flex;align-items:center;gap:6px;}
+.dtb-caret{font-size:0.8em;line-height:1;opacity:0.75;}
+/* The menus are children of #det-modal, NOT of the tab bar: both
+   .detail-content and .d-header-band are overflow:hidden (the band clips its
+   ::before glow), so a panel anchored inside the bar is cut off at the band
+   edge. Positioned in viewport coords by _positionDetMenu. */
+.dtb-menu{display:none;position:absolute;z-index:1450;background:var(--surface,#fff);
+  border:1px solid #d0d8e4;border-radius:8px;padding:4px;
+  box-shadow:0 12px 32px rgba(8,12,28,0.28);min-width:190px;max-height:70vh;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.dtb-menu.open{display:flex;flex-direction:column;gap:2px;}
+.dtb-item{border:none;background:none;border-radius:6px;padding:7px 10px;width:100%;
+  text-align:left;cursor:pointer;font-size:0.8em;font-weight:600;color:#546e7a;
+  white-space:nowrap;font-family:inherit;}
+.dtb-item:hover{background:#eef2f7;color:#1a252f;}
+.dtb-item.active{background:#eef2f7;color:var(--accent);}
+.dtb-sep{margin:4px 2px;border-top:1px solid #e3e9f2;}
+[data-theme="dark"] .dtb-menu{background:#161b22;border-color:#30363d;}
+[data-theme="dark"] .dtb-item{color:#c9d1d9;}
+[data-theme="dark"] .dtb-item:hover{background:#21262d;color:#f0f6fc;}
+[data-theme="dark"] .dtb-item.active{background:#21262d;color:var(--accent);}
+[data-theme="dark"] .dtb-sep{border-top-color:#30363d;}
+/* Statement tables: subtotal rows and the derived-metric block read
+   differently from the filed line items above them. */
+.stmt-tbl td.stmt-lbl{padding-left:18px;font-weight:500;}
+.stmt-tbl tr.stmt-sub td{font-weight:700;border-top:1px solid #d7deea;}
+.stmt-tbl tr.stmt-sub td.stmt-lbl{padding-left:8px;}
+.stmt-tbl tr.stmt-hdr td{font-weight:700;font-size:0.92em;text-transform:uppercase;
+  letter-spacing:0.06em;color:var(--text-muted);padding-top:10px;border-bottom:none;}
+.stmt-tbl tr.stmt-drv td{color:#5b6b7f;font-style:italic;}
+.stmt-tbl tr.stmt-drv-first td{border-top:2px solid #d7deea;}
+[data-theme="dark"] .stmt-tbl tr.stmt-sub td{border-top-color:#30363d;}
+[data-theme="dark"] .stmt-tbl tr.stmt-drv-first td{border-top-color:#30363d;}
+[data-theme="dark"] .stmt-tbl tr.stmt-drv td{color:#8b98a5;}
 /* The bar WRAPS when crowded (no hidden horizontal scroll) and keeps
    overflow visible: its dropdowns/panel are position:absolute children
    anchored inside it, and an overflow-clipping bar would cut them off.
@@ -658,7 +698,7 @@ td.ct{font-weight:700;}
 /* Charts/data panes hold multiple stacked blocks (price chart + metric chart
    + track record; data dgroup + intrinsic dgroup) — space them like the
    overview flex gap. Scoped: overview's flex gap must not double up. */
-#d-pane-charts.active>*+*,#d-pane-data.active>*+*{margin-top:14px;}
+#d-pane-charts.active>*+*,#d-pane-data.active>*+*,#d-pane-stmt.active>*+*{margin-top:14px;}
 .dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:84px;justify-content:space-between;}
 .dh-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
@@ -1732,8 +1772,13 @@ body.wide-table .container{padding-left:0;padding-right:0;}
         <div id="d-news-empty" style="display:none;color:#888;padding:24px;text-align:center;font-size:0.88em">No news or filings for this company.</div>
       </div>
       <div id="d-pane-data" class="d-pane"></div>
+      <div id="d-pane-stmt" class="d-pane"></div>
     </div>
   </div>
+  <!-- Tab-bar dropdown menus. Siblings of .detail-content (which clips) so
+       they can overhang the header band — same trick #popup-tip uses. -->
+  <div id="d-menu-data" class="dtb-menu" role="menu"></div>
+  <div id="d-menu-stmt" class="dtb-menu" role="menu"></div>
   <div id="popup-tip"></div>
 </div>
 <div id="tk-tip" class="tk-tip"></div>
@@ -4768,25 +4813,117 @@ var DT_TABS=[
   {t:'Culture Signals',cols:[{k:'glassdoor_rating',l:'Glassdoor Rating',f:'n2',sec:1},{k:'glassdoor_ceo_pct',l:'CEO Approval',f:'pct',sec:1},{k:'glassdoor_rec_pct',l:'Would Recommend',f:'pct',sec:1},{k:'employment_legal_flag',l:'Employment Legal Flag',f:'bool'},{k:'layoff_news_signal',l:'Layoff Signal',f:'bool'},{k:'culture_award_signal',l:'Culture Award',f:'bool'}]}
  ],extra:_detCeoBioHtml}
 ];
-function _detTabs(){
-  var t=[{k:'overview',l:'Overview'},{k:'charts',l:'Charts'}];
+/* The three filed-statement tabs. Order is as requested (balance sheet
+   first), not the conventional income-first presentation order. */
+var DT_STMTS=[
+  {k:'bal',l:'Balance Sheet'},
+  {k:'inc',l:'Income Statement'},
+  {k:'cf', l:'Cash Flow Statement'}
+];
+function _detDataItems(){
+  var t=[];
   /* Peers and News are not DT_TABS data tabs — their panes (#d-pane-peers /
      #d-pane-news) are filled by openDet like Overview's sections. Slotted
      right after Growth, in that order. */
   DT_TABS.forEach(function(x){t.push({k:x.k,l:x.l});if(x.k==='growth'){t.push({k:'peers',l:'Peers'});t.push({k:'news',l:'News'});}});
   return t;
 }
+/* Tab bar = two flat buttons + two dropdown groups. Overview and Charts stay
+   one click away; everything else is grouped, because eleven peer tabs on a
+   dark band read as a wall and side-scrolled on phones. Each dropdown button
+   is titled by its CURRENT selection ("Profitability" rather than "Data") so
+   the bar still answers "where am I" without a separate crumb. */
+function _detGroupOf(k){
+  if(k==='overview'||k==='charts')return null;
+  for(var i=0;i<DT_STMTS.length;i++)if(DT_STMTS[i].k===k)return 'stmt';
+  return 'data';
+}
+function _detMenuItems(g){return g==='stmt'?DT_STMTS:_detDataItems();}
+function _detGroupBtnHtml(g,def){
+  var items=_detMenuItems(g),cur=null;
+  items.forEach(function(it){if(it.k===_detTab)cur=it;});
+  return '<button class="sub-btn dtb-btn'+(cur?' active':'')+'" id="d-tbtn-'+g+'"'
+    +' aria-haspopup="menu" aria-expanded="false"'
+    +' title="'+_attr(def+(cur?' › '+cur.l:''))+'"'
+    +' onclick="toggleDetMenu(\''+g+'\',event)">'
+    +'<span>'+esc(cur?cur.l:def)+'</span><span class="dtb-caret">&#9662;</span></button>';
+}
 function _renderDetTabBar(){
   var el=document.getElementById('d-tabs');if(!el)return;
-  el.innerHTML=_detTabs().map(function(t){
-    return '<button class="sub-btn'+(t.k===_detTab?' active':'')+'" onclick="swDetTab(\''+t.k+'\')">'+t.l+'</button>';
+  var h='';
+  [{k:'overview',l:'Overview'},{k:'charts',l:'Charts'}].forEach(function(t){
+    h+='<button class="sub-btn'+(t.k===_detTab?' active':'')+'" onclick="swDetTab(\''+t.k+'\')">'+t.l+'</button>';
+  });
+  h+=_detGroupBtnHtml('data','Data');
+  h+=_detGroupBtnHtml('stmt','Statements');
+  el.innerHTML=h;
+  /* Keep an open menu's marks in sync when the bar re-renders (ticker
+     navigation re-renders it while a menu can still be open). */
+  ['data','stmt'].forEach(function(g){
+    var m=document.getElementById('d-menu-'+g);
+    if(m&&m.classList.contains('open')){_renderDetMenu(g);_positionDetMenu(g);}
+  });
+}
+function _renderDetMenu(g){
+  var el=document.getElementById('d-menu-'+g);if(!el)return;
+  el.innerHTML=_detMenuItems(g).map(function(it){
+    /* Peers/News are a different kind of thing from the metric tabs — a rule
+       above Peers marks the seam without a second nesting level. */
+    var sep=(g==='data'&&it.k==='peers')?'<div class="dtb-sep"></div>':'';
+    return sep+'<button class="dtb-item'+(it.k===_detTab?' active':'')+'" role="menuitem"'
+      +' data-dtab="'+_attr(it.k)+'">'+esc(it.l)+'</button>';
   }).join('');
 }
+/* Viewport-coordinate placement. The menus hang off #det-modal, which is a
+   position:fixed box pinned at 0,0 at viewport size, so client rects need no
+   offset conversion. Flip above the button when the bar sits low. */
+function _positionDetMenu(g){
+  var panel=document.getElementById('d-menu-'+g),btn=document.getElementById('d-tbtn-'+g);
+  if(!panel||!btn)return;
+  var r=btn.getBoundingClientRect();
+  var vv=window.visualViewport;
+  var vw=vv?vv.width:window.innerWidth,vh=vv?vv.height:window.innerHeight;
+  panel.style.width='';
+  var pw=panel.offsetWidth,ph=panel.offsetHeight;
+  if(pw>vw-20){panel.style.width=(vw-20)+'px';pw=vw-20;}
+  var left=r.left;
+  if(left+pw>vw-10)left=vw-pw-10;
+  if(left<10)left=10;
+  var top=r.bottom+6;
+  if(top+ph>vh-10)top=Math.max(10,r.top-ph-6);
+  panel.style.top=top+'px';panel.style.left=left+'px';
+}
+function closeDetMenus(){
+  ['data','stmt'].forEach(function(g){
+    var m=document.getElementById('d-menu-'+g);if(m)m.classList.remove('open');
+    var b=document.getElementById('d-tbtn-'+g);if(b)b.setAttribute('aria-expanded','false');
+  });
+}
+function toggleDetMenu(g,e){
+  if(e)e.stopPropagation();
+  var panel=document.getElementById('d-menu-'+g);if(!panel)return;
+  var wasOpen=panel.classList.contains('open');
+  closeDetMenus();
+  if(wasOpen)return;
+  _renderDetMenu(g);
+  panel.classList.add('open');
+  var b=document.getElementById('d-tbtn-'+g);if(b)b.setAttribute('aria-expanded','true');
+  _positionDetMenu(g);
+}
+document.addEventListener('click',function(e){
+  var it=e.target.closest?e.target.closest('.dtb-menu [data-dtab]'):null;
+  if(it){swDetTab(it.getAttribute('data-dtab'));return;}
+  /* Any click that isn't on a group button or inside a menu closes them. */
+  if(e.target.closest&&e.target.closest('.dtb-btn'))return;
+  closeDetMenus();
+});
+window.addEventListener('resize',function(){closeDetMenus();});
 function swDetTab(k){
+  closeDetMenus();
   _detTab=k;
   _renderDetTabBar();
   document.querySelectorAll('#det-modal .d-pane').forEach(function(p){p.classList.remove('active');});
-  var id=k==='overview'?'d-pane-overview':k==='charts'?'d-pane-charts':k==='peers'?'d-pane-peers':k==='news'?'d-pane-news':'d-pane-data';
+  var id=k==='overview'?'d-pane-overview':k==='charts'?'d-pane-charts':k==='peers'?'d-pane-peers':k==='news'?'d-pane-news':_detGroupOf(k)==='stmt'?'d-pane-stmt':'d-pane-data';
   var pane=document.getElementById(id);if(pane)pane.classList.add('active');
   if(k==='charts')_dtcRender();
   else if(k==='peers'||k==='news'){
@@ -4796,6 +4933,7 @@ function swDetTab(k){
     var ns=document.getElementById(k==='peers'?'d-section-network':'d-section-news');
     if(ne&&ns)ne.style.display=(ns.style.display==='none')?'':'none';
   }
+  else if(_detGroupOf(k)==='stmt')_renderDetStmtTab(k);
   else if(k!=='overview')_renderDetDataTab(k);
   var sc=_detScroller();if(sc)sc.scrollTop=0;
 }
@@ -4933,6 +5071,145 @@ function _renderDetDataTab(key){
   h+='</div></div>';
   if(tab.after)h+=tab.after(d)||'';   /* bespoke standalone block after the dgroup */
   el.innerHTML=h;
+}
+/* === STATEMENT TABS — Balance Sheet / Income Statement / Cash Flow ===
+   Filed annual figures straight from the hist.json EDGAR XBRL sidecar: the
+   same series the Track Record table reads, plus the balance-sheet, tax,
+   pre-tax and D&A lines added to the extractor in 2026-08.
+
+   Two rules keep these honest as STATEMENTS rather than another metric grid:
+   1. A row whose series this filer never tagged is dropped, not dashed out.
+      Banks file no classified balance sheet (no current assets/liabilities);
+      plenty of filers never tag TotalLiabilities. A column of em-dashes
+      reads as "zero" at a glance.
+   2. Anything computed here is in the trailing derived block, italicised,
+      and spelled out in the footnote. Filed lines are never mixed with
+      arithmetic, and nothing is back-solved out of model outputs — an
+      "assets" figure inferred from ROA is not a balance sheet. */
+var _HIST_TRIED=false;
+function _stmtShell(meta,inner){
+  return '<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)">'
+    +'<span class="dg-icon"></span>'+esc(meta.l)+'</div>'
+    +'<div style="padding:14px 16px;background:var(--surface)">'+inner+'</div></div>';
+}
+/* Row spec: {l, get(k), fmt} plus optional hdr (section rule), sub (subtotal
+   rule + bold), drv (derived → italic, sits in the trailing block), need
+   (series that must exist for the row to appear at all). */
+function _stmtSpec(key,h,d){
+  var rev=h.rev||{},ni=h.ni||{},ocf=h.ocf||{},capex=h.capex||{},sh=h.shares||{};
+  var dv=h.div||{},db=h.debt||{},csh=h.cash||{},gp=h.gp||{},op=h.op||{},ie=h.intexp||{};
+  var px=h.pretax||{},tx=h.tax||{},dna=h.dna||{},as=h.assets||{},ca=h.ca||{};
+  var cl=h.cl||{},lb=h.liabs||{},eq=h.equity||{},re=h.retearn||{};
+  var g=function(s){return function(k){return s[k]!=null?s[k]:null;};};
+  var near=function(k){var best=null,bd=1e9,t=Date.parse(k);Object.keys(sh).forEach(function(kk){var dd=Math.abs(Date.parse(kk)-t)/864e5;if(dd<bd){bd=dd;best=sh[kk];}});return bd<=220?best:null;};
+  var pct=function(v){return v!=null?fp(v):null;};
+  var rat=function(v){return v!=null?v.toFixed(2)+'×':null;};
+  if(key==='inc'){
+    return {series:['rev','gp','op','intexp','pretax','tax','ni'],rows:[
+      {l:'Revenue',sub:1,get:g(rev),fmt:fds},
+      {l:'Cost of Revenue',drvIn:1,get:function(k){return rev[k]!=null&&gp[k]!=null?rev[k]-gp[k]:null;},fmt:fds},
+      {l:'Gross Profit',sub:1,get:g(gp),fmt:fds},
+      {l:'Operating Expenses',drvIn:1,get:function(k){return gp[k]!=null&&op[k]!=null?gp[k]-op[k]:null;},fmt:fds},
+      {l:'Operating Income',sub:1,get:g(op),fmt:fds},
+      {l:'Interest Expense',get:function(k){return ie[k]!=null?-Math.abs(ie[k]):null;},fmt:fds},
+      {l:'Pre-tax Income',sub:1,get:g(px),fmt:fds},
+      {l:'Income Tax Provision',get:function(k){return tx[k]!=null?-Math.abs(tx[k]):null;},fmt:fds},
+      {l:'Net Income',sub:1,get:g(ni),fmt:fds},
+      {l:'Gross Margin',drv:1,get:function(k){return gp[k]!=null&&rev[k]?gp[k]/rev[k]:null;},fmt:pct},
+      {l:'Operating Margin',drv:1,get:function(k){return op[k]!=null&&rev[k]?op[k]/rev[k]:null;},fmt:pct},
+      {l:'Net Margin',drv:1,get:function(k){return ni[k]!=null&&rev[k]?ni[k]/rev[k]:null;},fmt:pct},
+      {l:'Effective Tax Rate',drv:1,get:function(k){return tx[k]!=null&&px[k]&&px[k]>0?Math.abs(tx[k])/px[k]:null;},fmt:pct},
+      {l:'EPS (Net Income ÷ Shares)',drv:1,get:function(k){var s=near(k);return ni[k]!=null&&s>0?ni[k]/s:null;},fmt:function(v){return '$'+v.toFixed(2);}}
+    ],note:'Cost of Revenue = revenue − gross profit · Operating Expenses = gross profit − operating income · interest and tax shown as outflows · EPS divides net income by the period-end share count, so it is neither basic nor fully diluted as reported, and — because EDGAR share counts are as-filed rather than restated — it is NOT adjusted for stock splits: a split shows up as a step change in EPS, not a change in earnings.'};
+  }
+  if(key==='cf'){
+    var fcf=function(k){var o=ocf[k],c=capex[k];return o!=null&&c!=null?o-Math.abs(c):null;};
+    return {series:['ni','dna','ocf','capex','div'],rows:[
+      {l:'Net Income',get:g(ni),fmt:fds},
+      {l:'Depreciation & Amortization',get:g(dna),fmt:fds},
+      {l:'Operating Cash Flow',sub:1,get:g(ocf),fmt:fds},
+      {l:'Capital Expenditures',get:function(k){return capex[k]!=null?-Math.abs(capex[k]):null;},fmt:fds},
+      {l:'Free Cash Flow',sub:1,drvIn:1,get:fcf,fmt:fds},
+      {l:'Dividends Paid',get:function(k){return dv[k]!=null?-Math.abs(dv[k]):null;},fmt:fds},
+      {l:'FCF After Dividends',drv:1,get:function(k){var f=fcf(k);return f!=null&&dv[k]!=null?f-Math.abs(dv[k]):null;},fmt:fds},
+      {l:'FCF Margin',drv:1,get:function(k){var f=fcf(k);return f!=null&&rev[k]?f/rev[k]:null;},fmt:pct},
+      {l:'Capex % of Revenue',drv:1,get:function(k){return capex[k]!=null&&rev[k]?Math.abs(capex[k])/rev[k]:null;},fmt:pct},
+      {l:'Cash Conversion (OCF ÷ Net Income)',drv:1,get:function(k){return ocf[k]!=null&&ni[k]&&ni[k]>0?ocf[k]/ni[k]:null;},fmt:rat}
+    ],note:'Free Cash Flow = operating cash flow − capital expenditures · capex and dividends shown as outflows · this is the investing/financing detail EDGAR tags, not the filer’s full statement — line items below the tagged concepts (acquisitions, buybacks, debt issuance) are not extracted.'};
+  }
+  return {series:['cash','ca','assets','cl','debt','liabs','equity','retearn'],rows:[
+    {hdr:'Assets'},
+    {l:'Cash & Equivalents',get:g(csh),fmt:fds},
+    {l:'Total Current Assets',sub:1,get:g(ca),fmt:fds},
+    {l:'Total Assets',sub:1,get:g(as),fmt:fds},
+    {hdr:'Liabilities & Equity'},
+    {l:'Total Current Liabilities',sub:1,get:g(cl),fmt:fds},
+    {l:'Total Debt',get:g(db),fmt:fds},
+    {l:'Total Liabilities',sub:1,get:g(lb),fmt:fds},
+    {l:'Total Equity',sub:1,get:g(eq),fmt:fds},
+    {l:'Retained Earnings',get:g(re),fmt:fds},
+    {l:'Net Debt',drv:1,get:function(k){return db[k]!=null&&csh[k]!=null?db[k]-csh[k]:null;},fmt:fds},
+    {l:'Working Capital',drv:1,get:function(k){return ca[k]!=null&&cl[k]!=null?ca[k]-cl[k]:null;},fmt:fds},
+    {l:'Current Ratio',drv:1,get:function(k){return ca[k]!=null&&cl[k]?ca[k]/cl[k]:null;},fmt:rat},
+    {l:'Debt / Equity',drv:1,get:function(k){return db[k]!=null&&eq[k]&&eq[k]>0?db[k]/eq[k]:null;},fmt:rat},
+    {l:'Shares Outstanding',drv:1,get:near,fmt:_trFmtSh}
+  ],note:'Balance-sheet instants at each fiscal year-end · Total Debt is composed from the separately-tagged long-term and current borrowing concepts · shares outstanding is the filing nearest each year-end (within 220 days), as filed and therefore NOT adjusted for stock splits — a split reads as a step change in the share count. Filers that present an unclassified balance sheet — banks, most insurers — tag no current assets or liabilities, so those rows and the ratios built on them are absent by design.'};
+}
+function _renderDetStmtTab(key){
+  var el=document.getElementById('d-pane-stmt');if(!el)return;
+  var d=DATA.find(function(x){return x.ticker===_dpTicker;});
+  var meta=null;for(var i=0;i<DT_STMTS.length;i++)if(DT_STMTS[i].k===key)meta=DT_STMTS[i];
+  if(!d||!meta){el.innerHTML='';return;}
+  var empty=function(msg){return _stmtShell(meta,'<div style="color:#888;padding:24px;text-align:center;font-size:0.88em">'+msg+'</div>');};
+  /* hist.json is lazy-loaded — mirror _renderTrackRecord's load-then-rerender,
+     but latch _HIST_TRIED so a failed fetch (onDone(null)) settles on the
+     empty state instead of re-firing on every re-render. */
+  if(!HIST&&_HIST_AVAILABLE&&!_HIST_TRIED){
+    el.innerHTML=empty('Loading filed financials&hellip;');
+    var tk=_dpTicker;
+    var again=function(){_HIST_TRIED=true;if(_dpTicker===tk&&_detTab===key)_renderDetStmtTab(key);};
+    if(!_HIST_LOADING){_HIST_LOADING=true;_loadSidecar('hist.json',function(hh){_HIST_LOADING=false;HIST=hh;again();});}
+    else{var poll=setInterval(function(){if(!_HIST_LOADING){clearInterval(poll);again();}},150);}
+    return;
+  }
+  var h=(HIST||{})[_dpTicker];
+  if(!h){el.innerHTML=empty('No SEC EDGAR filing history for this company.');return;}
+  var spec=_stmtSpec(key,h,d);
+  /* FY columns = union of this statement's series, one per calendar year
+     (keep the later fiscal-year end), most recent 10, newest on the right. */
+  var ks={};
+  spec.series.forEach(function(s){var ss=h[s];if(ss)Object.keys(ss).forEach(function(k){ks[k]=1;});});
+  var byYear={};Object.keys(ks).sort().forEach(function(k){byYear[k.slice(0,4)]=k;});
+  var cols=Object.keys(byYear).sort().map(function(y){return byYear[y];}).slice(-10);
+  if(!cols.length){el.innerHTML=empty('No '+meta.l.toLowerCase()+' data filed for this company.');return;}
+  var body='',shown=0,drvOpened=false;
+  var pending=null;   /* section header held back until a row under it prints */
+  spec.rows.forEach(function(rw){
+    if(rw.hdr){pending=rw.hdr;return;}
+    var vals=cols.map(rw.get);
+    if(!vals.some(function(v){return v!=null;}))return;   /* never tagged → drop */
+    shown++;
+    if(pending){body+='<tr class="stmt-hdr"><td colspan="'+(cols.length+1)+'">'+esc(pending)+'</td></tr>';pending=null;}
+    var cls=[];
+    if(rw.sub)cls.push('stmt-sub');
+    if(rw.drv){cls.push('stmt-drv');if(!drvOpened){cls.push('stmt-drv-first');drvOpened=true;}}
+    body+='<tr'+(cls.length?' class="'+cls.join(' ')+'"':'')+'>'
+      +'<td class="stmt-lbl">'+esc(rw.l)+(rw.drvIn?' <span style="opacity:0.6">*</span>':'')+'</td>';
+    vals.forEach(function(v){
+      var t=v==null?'—':rw.fmt(v);
+      body+='<td'+(v!=null&&v<0?' style="color:#c0392b"':'')+'>'+(t==null?'—':t)+'</td>';
+    });
+    body+='</tr>';
+  });
+  if(!shown){el.innerHTML=empty('No '+meta.l.toLowerCase()+' line items tagged in this company’s filings.');return;}
+  var head='<div class="dtr-wrap"><table class="dtr-tbl stmt-tbl"><tr><th></th>';
+  cols.forEach(function(k){head+='<th>FY'+k.slice(0,4)+'</th>';});
+  head+='</tr>';
+  var note='<div style="font-size:0.68em;color:var(--text-muted);margin-top:8px">'
+    +'Annual figures as filed with SEC EDGAR (XBRL), converted to USD for foreign filers. '
+    +'Italic rows and those marked * are computed from the lines above, not filed. '
+    +esc(spec.note)+'</div>';
+  el.innerHTML=_stmtShell(meta,head+body+'</table></div>'+note);
 }
 function openDet(tk){
   var d=DATA.find(function(x){return x.ticker===tk;});
@@ -5255,7 +5532,7 @@ function openDet(tk){
   _dm.classList.add('open');
   document.body.style.overflow='hidden';
 }
-function closeDetail(){document.getElementById('det-modal').classList.remove('open');document.body.style.overflow='';}
+function closeDetail(){closeDetMenus();document.getElementById('det-modal').classList.remove('open');document.body.style.overflow='';}
 function _easeScroll(el,to,ms){var start=el.scrollTop,diff=to-start,t0=performance.now();(function step(now){var p=Math.min((now-t0)/ms,1),ease=p<0.5?4*p*p*p:(1-Math.pow(-2*p+2,3)/2);el.scrollTop=start+diff*ease;if(p<1)requestAnimationFrame(step);})(t0);}
 /* Pick the actual scroll container — on mobile it is .d-body (flex column
    layout puts overflow on the body so the nav bar can stay anchored at the
@@ -5292,6 +5569,11 @@ document.addEventListener('keydown',function(e){
     }
   }
   if(document.getElementById('det-modal').classList.contains('open')){
+    /* An open tab-bar dropdown eats the first Escape — closing the whole
+       popup because a menu was open loses the user's place. */
+    if(e.key==='Escape'&&document.querySelector('#det-modal .dtb-menu.open')){
+      e.preventDefault();closeDetMenus();return;
+    }
     if(e.key==='Escape')closeDetail();
     else if(e.key==='ArrowLeft'){e.preventDefault();navDet(-1);}
     else if(e.key==='ArrowRight'){e.preventDefault();navDet(1);}

@@ -854,6 +854,18 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
             # Track Record rows: Op Margin + Interest Coverage by year
             ('operating_income_history', 'op'),
             ('interest_expense_history', 'intexp'),
+            # Popup statement tabs (Balance Sheet / Income Statement / Cash
+            # Flow). Absent until a run refreshes edgar_history with the
+            # 2026-08 extractor; the tabs hide rows whose series is missing.
+            ('pretax_income_history', 'pretax'),
+            ('tax_provision_history', 'tax'),
+            ('d_and_a_history', 'dna'),
+            ('total_assets_history', 'assets'),
+            ('current_assets_history', 'ca'),
+            ('current_liabilities_history', 'cl'),
+            ('total_liabilities_history', 'liabs'),
+            ('total_equity_history', 'equity'),
+            ('retained_earnings_history', 'retearn'),
         ]
         for r in rows:
             tk = r.get('ticker')

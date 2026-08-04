@@ -905,10 +905,22 @@ class SECXBRLClient:
         intexp, intexp_ccy       = _flow('interest_expense')
         div, div_ccy             = _flow('dividends_paid')
         opinc, opinc_ccy         = _flow('operating_income')
+        # Remaining income-statement + cash-flow lines. Only the popup's
+        # statement tabs consume these; every ratio/model above still reads
+        # the series it already read, so adding them changes no scoring.
+        pretax, pretax_ccy       = _flow('pretax_income')
+        taxprov, taxprov_ccy     = _flow('tax_provision')
+        dna, dna_ccy             = _flow('d_and_a')
         # Balance-sheet series (annual FY-keyed like the flows — one
         # fiscal-year-end instant per year). Total debt is composed from
         # the component concepts via the shared resolver.
         cash_h, cash_ccy         = _flow('cash')
+        assets_h, assets_ccy     = _flow('total_assets')
+        ca_h, ca_ccy             = _flow('current_assets')
+        cl_h, cl_ccy             = _flow('current_liabilities')
+        liabs_h, liabs_ccy       = _flow('total_liabilities')
+        equity_h, equity_ccy     = _flow('total_equity')
+        retearn_h, retearn_ccy   = _flow('retained_earnings')
         debt_h, _dtx, debt_ccy, debt_tagged = \
             self._resolve_total_debt_concept(facts)
         shares, _tax_s, _ccy_s   = self._extract_concept_periodic(
@@ -928,6 +940,10 @@ class SECXBRLClient:
         # primary income-statement concepts. If revenue is in JPY but a US-GAAP
         # subsidiary tag happens to carry USD on, say, dividends, treat the
         # filer as JPY.
+        # Deliberately NOT widened to the statement-tab series added below:
+        # this list decides whether every OTHER series gets FX-converted, so
+        # a new concept flipping the detection would move published scores.
+        # The new series ride the detected rate; they don't vote on it.
         currencies = [c for c in (rev_ccy, ni_ccy, ocf_ccy, capex_ccy,
                                   gp_ccy, intexp_ccy, div_ccy, opinc_ccy) if c]
         reporting_ccy = next((c for c in currencies if c != 'USD'), 'USD')
@@ -943,12 +959,21 @@ class SECXBRLClient:
             intexp = _apply_fx_annual(intexp, fx)
             div    = _apply_fx_annual(div, fx)
             opinc  = _apply_fx_annual(opinc, fx)
+            pretax  = _apply_fx_annual(pretax, fx)
+            taxprov = _apply_fx_annual(taxprov, fx)
+            dna     = _apply_fx_annual(dna, fx)
             # Balance-sheet instants use the same year-end-close rate as the
             # flows — exact for calendar-year fiscal ends, and the same
             # months-off approximation already accepted for flow series on
             # mid-year fiscal ends.
             cash_h = _apply_fx_annual(cash_h, fx)
             debt_h = _apply_fx_annual(debt_h, fx)
+            assets_h  = _apply_fx_annual(assets_h, fx)
+            ca_h      = _apply_fx_annual(ca_h, fx)
+            cl_h      = _apply_fx_annual(cl_h, fx)
+            liabs_h   = _apply_fx_annual(liabs_h, fx)
+            equity_h  = _apply_fx_annual(equity_h, fx)
+            retearn_h = _apply_fx_annual(retearn_h, fx)
             # shares are unit-counts, not currency — leave alone.
 
         # Untagged debt across every component concept = genuinely unlevered
@@ -958,6 +983,9 @@ class SECXBRLClient:
         if not debt_tagged and not debt_h:
             debt_h = {y: 0.0 for y in (rev or ni)}
 
+        # Unchanged on purpose: years_available gates backfill refetch and
+        # model eligibility upstream, so the statement-tab series must not
+        # be able to inflate it.
         all_series = [rev, ni, ocf, capex, gp, intexp, div, shares, opinc,
                       debt_h, cash_h]
         years_available = max((len(s) for s in all_series if s), default=0)
@@ -974,6 +1002,17 @@ class SECXBRLClient:
             'total_debt_history':       debt_h,
             'cash_history':             cash_h,
             'shares_history':           shares,
+            # Statement-tab series (popup Balance Sheet / Income Statement /
+            # Cash Flow). Consumed only by the report's hist.json sidecar.
+            'pretax_income_history':    pretax,
+            'tax_provision_history':    taxprov,
+            'd_and_a_history':          dna,
+            'total_assets_history':     assets_h,
+            'current_assets_history':   ca_h,
+            'current_liabilities_history': cl_h,
+            'total_liabilities_history': liabs_h,
+            'total_equity_history':     equity_h,
+            'retained_earnings_history': retearn_h,
             'years_available':          years_available,
             'reporting_currency':       reporting_ccy,
             'fx_converted':             fx_converted,
