@@ -1669,24 +1669,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   <div class="hdr-center"><span class="filter-count" id="f-count"></span></div>
   <span class="hdr-spacer"></span>
   <div class="filter-bar" id="filter-bar">
-    <!-- Nav menu — one icon in place of the old two-row tab stack. The
-         dropdown (built by renderNavMenu) lists all three views with their
-         sub-tabs and marks the current one (.cur / .active). The crumb span
-         is still populated by _syncNavCrumb — it is CSS-hidden, and the same
-         text rides the button's title attribute as a hover tooltip. -->
-    <div class="navmenu-wrap" id="nav-wrap">
-      <button class="fpop-btn navmenu-btn" id="nav-btn" onclick="toggleNavMenu(event)" aria-haspopup="true" aria-expanded="false" aria-label="Views and tabs menu">
-        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h14"/><path d="M3 10h14"/><path d="M3 15h14"/></g></svg>
-        <span class="navmenu-crumb" id="nav-crumb"></span>
-      </button>
-      <div class="fpop-panel nav-panel" id="nav-panel">
-        <div class="fpop-header">
-          <span class="fpop-title">Views</span>
-          <button class="fpop-close" onclick="toggleNavMenu(event)">&#215;</button>
-        </div>
-        <div class="fpop-body"><div class="navmenu-cols" id="nav-cols"></div></div>
-      </div>
-    </div>
     <!-- Filters menu — same treatment as the nav tabs: the row of filter
          controls (Ratings / Sectors / Countries multi-selects, Quick
          Filters, Filters, Clear) collapsed into one button whose dropdown
@@ -1763,6 +1745,28 @@ body.wide-table .container{padding-left:0;padding-right:0;}
           <div class="fpop-section-label">Preset Filters</div>
           <div id="saved-filters-list" class="fpop-toggles" style="margin-bottom:6px"></div>
         </div>
+      </div>
+    </div>
+    <!-- Nav menu — one icon in place of the old two-row tab stack. The
+         dropdown (built by renderNavMenu) lists all three views with their
+         sub-tabs and marks the current one (.cur / .active). The crumb span
+         is still populated by _syncNavCrumb — it is CSS-hidden, and the same
+         text rides the button's title attribute as a hover tooltip.
+         Sits after the Filters button; DOM order rather than a CSS `order`
+         swap, so keyboard focus follows what the eye sees. The nav-only
+         views hide the rest of this bar via `> *:not(.navmenu-wrap)`, which
+         keys off the class, not position. -->
+    <div class="navmenu-wrap" id="nav-wrap">
+      <button class="fpop-btn navmenu-btn" id="nav-btn" onclick="toggleNavMenu(event)" aria-haspopup="true" aria-expanded="false" aria-label="Views and tabs menu">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h14"/><path d="M3 10h14"/><path d="M3 15h14"/></g></svg>
+        <span class="navmenu-crumb" id="nav-crumb"></span>
+      </button>
+      <div class="fpop-panel nav-panel" id="nav-panel">
+        <div class="fpop-header">
+          <span class="fpop-title">Views</span>
+          <button class="fpop-close" onclick="toggleNavMenu(event)">&#215;</button>
+        </div>
+        <div class="fpop-body"><div class="navmenu-cols" id="nav-cols"></div></div>
       </div>
     </div>
   </div>
