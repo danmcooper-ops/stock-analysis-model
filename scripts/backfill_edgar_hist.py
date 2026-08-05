@@ -161,7 +161,11 @@ def main():
 
     # Save patched JSON
     with open(json_path, 'w') as f:
-        json.dump(doc, f, indent=2, default=str)
+        # Compact, matching how analyze_stock.py writes the snapshot. indent=2
+        # inflated it ~30% on every backfill: the 2026-08-03 file went 67 MB →
+        # 107 MB, past GitHub's 100 MB hard cap, which would have made the
+        # snapshot branch unpushable. Same content compact is 82 MB.
+        json.dump(doc, f, default=str)
     print(f'[backfill] saved {json_path}')
 
     # Rebuild HTML
