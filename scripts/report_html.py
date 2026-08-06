@@ -2,6 +2,8 @@
 """HTML report builder — renders the interactive Jinja2 report."""
 import os
 import json
+import re
+import shutil
 import jinja2
 from datetime import date
 import numpy as np
@@ -826,12 +828,19 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     hist_path = os.path.join(out_dir, 'hist.json')
     prices_path = os.path.join(out_dir, 'prices.json')
     details_path = os.path.join(out_dir, 'details.json')
+    vol_dir = os.path.join(out_dir, 'vol')
+
+    # Every sidecar is written compact. json.dump's default separators put a
+    # space after each comma, which on prices.json alone (11.6M array elements)
+    # wasted 11.6 MB of the 100 MB Pages budget.
+    _COMPACT = (',', ':')
 
     # Write details.json sidecar (or remove a stale one)
     try:
         if details_payload:
             with open(details_path, 'w') as _df:
-                json.dump(details_payload, _df, default=_json_default)
+                json.dump(details_payload, _df, default=_json_default,
+                          separators=_COMPACT)
         elif os.path.exists(details_path):
             os.remove(details_path)
     except Exception as _e:
@@ -951,7 +960,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     try:
         if hist_payload is not None:
             with open(hist_path, 'w') as _hf:
-                json.dump(hist_payload, _hf, default=_json_default)
+                json.dump(hist_payload, _hf, default=_json_default,
+                          separators=_COMPACT)
         elif os.path.exists(hist_path):
             os.remove(hist_path)
     except Exception as _e:
@@ -959,11 +969,13 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
 
     # Load price history from local Parquet files
     prices_payload = None
+    vol_payload = None
     if prices_dir and os.path.isdir(prices_dir):
         try:
             import pandas as _pd
             _cutoff = _pd.Timestamp.now().normalize() - _pd.DateOffset(years=20)
             _series = {}
+            _vol_series = {}
             for r in rows:
                 tk = r.get('ticker')
                 if not tk:
@@ -972,11 +984,20 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                 if not os.path.exists(pf):
                     continue
                 try:
-                    df = _pd.read_parquet(pf)[['Close']].sort_index()
+                    df = _pd.read_parquet(pf).sort_index()
                     df.index = _pd.to_datetime(df.index).tz_localize(None).normalize()
-                    s = df['Close'][df.index >= _cutoff].dropna()
+                    _keep = df.index >= _cutoff
+                    s = df['Close'][_keep].dropna()
                     if len(s) >= 20:
                         _series[tk] = s
+                        # Volume rides along for the popup chart's sub-panel.
+                        # Never name it in a columns= projection: ~0.6% of the
+                        # files were written Close-only by the yfinance_client
+                        # fallback and the projection would raise on those.
+                        if 'Volume' in df.columns:
+                            _v = df['Volume'][_keep].dropna()
+                            if len(_v) >= 20:
+                                _vol_series[tk] = _v
                 except Exception:
                     pass
             # Also load any available index files
@@ -1007,12 +1028,48 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                         if i is not None:
                             arr[i] = round(float(v), 2)
                     _prices_out[tk] = arr
+                # Daily volume ships as one small file per ticker rather than a
+                # second dense matrix: the popup opens one company at a time, so
+                # it fetches ~30 KB instead of the ~53 MB the matrix would cost —
+                # and prices.json stays clear of the 100 MB Pages cap.
+                _vol_out = {}
+                for tk, v in _vol_series.items():
+                    if tk not in _prices_out:
+                        continue
+                    # Ticker names become filenames below; keep the plainly
+                    # safe ones rather than trusting the universe file.
+                    if not re.fullmatch(r'[A-Za-z0-9._-]{1,15}', tk):
+                        continue
+                    arr = [None] * len(_all_dates)
+                    for dt, x in v.items():
+                        i = _date_idx.get(dt)
+                        if i is not None:
+                            arr[i] = int(x)
+                    # Run-trim the leading/trailing null padding — a quarter of
+                    # the dense layout's cells are nulls a short-history ticker
+                    # should not have to pay for.
+                    lo, hi = 0, len(arr) - 1
+                    while lo <= hi and arr[lo] is None:
+                        lo += 1
+                    while hi >= lo and arr[hi] is None:
+                        hi -= 1
+                    if hi < lo:
+                        continue
+                    _vol_out[tk] = {'i0': lo, 'v': arr[lo:hi + 1]}
                 prices_payload = {
                     'dates': _date_strs,
                     'prices': _prices_out,
                     'indices': _indices_found,
+                    # Tickers with a vol/<TICKER>.json shard. The client checks
+                    # this instead of eating a 404 on every popup open.
+                    'vol': sorted(_vol_out.keys()),
+                    # Shard indices are positions into `dates`; the client bails
+                    # rather than misalign if it ever sees mismatched artifacts.
+                    'n': len(_date_strs),
                 }
+                vol_payload = _vol_out
                 print(f"[report_html] price history: {len(_prices_out)} tickers, {len(_date_strs)} dates, indices: {[x['ticker'] for x in _indices_found]}")
+                print(f"[report_html] volume shards: {len(_vol_out)} tickers")
         except Exception as _e:
             print(f"[warn] price history load failed: {_e}")
 
@@ -1020,11 +1077,26 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     try:
         if prices_payload is not None:
             with open(prices_path, 'w') as _pf2:
-                json.dump(prices_payload, _pf2, default=_json_default)
+                json.dump(prices_payload, _pf2, default=_json_default,
+                          separators=_COMPACT)
         elif os.path.exists(prices_path):
             os.remove(prices_path)
     except Exception as _e:
         print(f"[warn] prices.json write failed: {_e}")
+
+    # Write the vol/ shard directory. Rebuilt wholesale each run so a ticker
+    # that drops out of the universe can't leave a shard behind whose indices
+    # no longer line up with the current dates array.
+    try:
+        if os.path.isdir(vol_dir):
+            shutil.rmtree(vol_dir)
+        if vol_payload:
+            os.makedirs(vol_dir, exist_ok=True)
+            for _tk, _sh in vol_payload.items():
+                with open(os.path.join(vol_dir, f'{_tk}.json'), 'w') as _vf:
+                    json.dump(_sh, _vf, separators=_COMPACT)
+    except Exception as _e:
+        print(f"[warn] vol/ shard write failed: {_e}")
 
     # Render Jinja2 template
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')

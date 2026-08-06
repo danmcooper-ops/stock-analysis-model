@@ -1107,6 +1107,18 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-sectorprice svg text[fill="#9aaab8"]{fill:#7d8b9a;}
 [data-theme="dark"] .pp-sectorprice svg line[stroke="#e8edf2"]{stroke:#21262d;}
 [data-theme="dark"] .pp-sectorprice svg line[stroke="#cbd5e1"]{stroke:#3d4651;}
+/* Popup Price History chart. Its SVG bakes in literal colours the same way the
+   sector chart does, so it needs the same attribute-selector treatment — this
+   also fixes the gridlines and axis text, which were reading as near-white on
+   the dark surface before the volume strip was added. */
+[data-theme="dark"] #dp-chart svg text[fill="#9aaab8"]{fill:#7d8b9a;}
+[data-theme="dark"] #dp-chart svg line[stroke="#e8edf2"]{stroke:#21262d;}
+[data-theme="dark"] #dp-chart svg rect[fill="white"]{fill:#0d1117;}
+[data-theme="dark"] #dp-chart svg circle[fill="white"]{fill:#0d1117;}
+[data-theme="dark"] #dp-chart svg .dp-vol-area{fill:#8fa5bb;opacity:0.38;}
+/* Ticker/price/volume labels are inline-styled #1a252f; match on that so the
+   green/red percentage spans keep their own colour. */
+[data-theme="dark"] #dp-tip-bar span[style*="#1a252f"]{color:#c9d1d9;}
 .pp-chart{background:#f7f9fb;padding:18px 20px 22px;border-left:5px solid #1a252f;}
 .pool-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:0.78em;color:#555;align-items:center;}
 .pool-legend-item{display:flex;align-items:center;gap:4px;}
@@ -1920,6 +1932,31 @@ var _PRICES_AVAILABLE={{ prices_available }};
 var _HIST_AVAILABLE={{ hist_available }};
 var _PRICES_LOADING=false;
 var _HIST_LOADING=false;
+/* Daily volume is sharded one file per ticker (vol/<TICKER>.json) rather than
+   sharing the PRICES matrix — the popup only ever needs the one company it has
+   open, so it fetches ~30 KB instead of the ~53 MB a second dense matrix would
+   cost. Shard shape is {i0, v}: v[k] pairs with PRICES.dates[i0+k], run-trimmed
+   of the leading/trailing null padding. _VOL[tk]===false means "asked, nothing
+   there" so a miss is never re-fetched. */
+var _VOL={},_VOL_LOADING={};
+function _loadVolShard(ticker,onDone){
+  if(_VOL[ticker]!==undefined){onDone(_VOL[ticker]);return;}
+  if(!PRICES||!PRICES.vol||PRICES.vol.indexOf(ticker)<0){_VOL[ticker]=false;onDone(false);return;}
+  if(_VOL_LOADING[ticker]){
+    var poll=setInterval(function(){if(!_VOL_LOADING[ticker]){clearInterval(poll);onDone(_VOL[ticker]);}},120);
+    return;
+  }
+  _VOL_LOADING[ticker]=true;
+  _loadSidecar('vol/'+encodeURIComponent(ticker)+'.json',function(d){
+    _VOL_LOADING[ticker]=false;
+    /* Guard the index base: a shard whose run overflows the dates array means
+       prices.json and vol/ came from different runs — drop it rather than draw
+       volume against the wrong days. */
+    var ok=d&&typeof d.i0==='number'&&d.v&&d.v.length&&(d.i0+d.v.length)<=(PRICES.n||PRICES.dates.length);
+    _VOL[ticker]=ok?d:false;
+    onDone(_VOL[ticker]);
+  });
+}
 function _loadSidecar(name,onDone){
   return fetch(name).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();}).then(onDone).catch(function(e){console.warn('sidecar load failed:',name,e);onDone(null);});
 }
@@ -4237,11 +4274,14 @@ function _dpFmtDate(dateStr,pts){
   return mo[d.getMonth()]+' '+d.getDate();
 }
 function _dpGetSeries(ticker){
-  /* Returns {tk:[{d,c}], spy:[{d,c}]} with date-aligned points filtered to range.
-     SPY series is empty when ticker===SPY or SPY data is unavailable. */
+  /* Returns {tk:[{d,c,v}], spy:[{d,c}]} with date-aligned points filtered to
+     range. SPY series is empty when ticker===SPY or SPY data is unavailable.
+     Point .v is daily share volume, or null when this ticker has no shard (the
+     ~0.6% of Close-only parquet files) or the shard hasn't landed yet. */
   if(!PRICES||!PRICES.prices[ticker])return null;
   var allD=PRICES.dates,allP=PRICES.prices[ticker];
   var spyP=(ticker!=='SPY'&&PRICES.prices&&PRICES.prices['SPY'])||null;
+  var sh=_VOL[ticker]||null,volArr=sh?sh.v:null,volI0=sh?sh.i0:0;
   var cutMs={'1M':31,'3M':92,'6M':184,'1YR':366,'5YR':1827,'10YR':3653}[_dpRange];
   var cutoff=cutMs?new Date(+new Date()-cutMs*86400000):null;
   var tk=[],spy=[];
@@ -4249,10 +4289,18 @@ function _dpGetSeries(ticker){
     if(allP[i]==null)continue;
     if(spyP&&spyP[i]==null)continue;
     if(cutoff&&new Date(allD[i]+'T00:00:00')<cutoff)continue;
-    tk.push({d:allD[i],c:allP[i]});
+    var vk=volArr?i-volI0:-1;
+    tk.push({d:allD[i],c:allP[i],v:(vk>=0&&vk<volArr.length)?volArr[vk]:null});
     if(spyP)spy.push({d:allD[i],c:spyP[i]});
   }
   return{tk:tk,spy:spy};
+}
+function _dpFmtVol(v){
+  if(v==null||isNaN(v))return '—';
+  if(v>=1e9)return (v/1e9).toFixed(2)+'B';
+  if(v>=1e6)return (v/1e6).toFixed(1)+'M';
+  if(v>=1e3)return (v/1e3).toFixed(1)+'K';
+  return String(Math.round(v));
 }
 function dpSetRange(r){
   _dpRange=r;
@@ -4286,6 +4334,13 @@ function _dpTipHtml(idx){
       +'<span style="color:'+spyPctCol+';font-weight:600">'+sign(spyPct)+spyPct.toFixed(2)+'%</span>'
       +'</span>';
   }
+  if(s.volMax&&tkP.v!=null){
+    html+='<span class="dp-tip-vol" style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;white-space:nowrap">'
+      +'<span style="width:8px;height:9px;background:'+s.volCol+';opacity:0.55;display:inline-block"></span>'
+      +'<span style="font-weight:700;color:#1a252f">Vol</span>'
+      +'<span style="color:#1a252f">'+_dpFmtVol(tkP.v)+'</span>'
+      +'</span>';
+  }
   /* When not hovering, show the actual visible date span so the user can see
      that the range changed even when the data is the same (e.g. MAX==10YR for
      newer companies, where both windows just show the full available history). */
@@ -4304,8 +4359,19 @@ function _dpRenderChart(){
   var tkPts=ser.tk,spyPts=ser.spy;
   var d=DATA.find(function(x){return x.ticker===_dpTicker;});
   var refs=d?{dcf:d.dcf_fv,hi:d.high_52w,lo:d.low_52w}:{};
-  var VW=900,VH=240,PL=64,PR=20,PT=14,PB=32;
-  var iW=VW-PL-PR,iH=VH-PT-PB;
+  /* Volume gets its own strip under the price panel when the shard is loaded.
+     Without it every constant below falls back to the price-only geometry, so
+     a Close-only ticker or a failed shard fetch renders exactly as before. */
+  var volMax=0;
+  for(var _k=0;_k<tkPts.length;_k++){var _vv=tkPts[_k].v;if(_vv!=null&&_vv>volMax)volMax=_vv;}
+  var hasVol=volMax>0;
+  var VW=900,PL=64,PR=20,PT=14,PB=32;
+  var VOL_GAP=12,VOL_H=hasVol?40:0;
+  /* Price panel gives up 18px so the strip costs the card 52px, not 70. */
+  var iW=VW-PL-PR,iH=(hasVol?176:194);
+  var volTop=PT+iH+VOL_GAP,volBase=volTop+VOL_H;
+  var xBase=hasVol?volBase:PT+iH;
+  var VH=xBase+PB;
   /* Rebase SPY so its first point equals ticker's first $ price — this lets
      both lines share one $ axis while still showing relative performance. */
   var tkBase=tkPts[0].c;
@@ -4328,7 +4394,7 @@ function _dpRenderChart(){
     if(gi>0)yH+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" stroke="#e8edf2" stroke-width="1"/>';
     yH+='<text x="'+(PL-7)+'" y="'+(parseFloat(gy)+4)+'" text-anchor="end" font-size="11" fill="#9aaab8">$'+gv.toFixed(2)+'</text>';}
   var xH='';var nX=Math.min(7,tkPts.length);var xstep=Math.max(1,Math.floor((tkPts.length-1)/Math.max(1,nX-1)));
-  for(var xi=0;xi<tkPts.length;xi+=xstep){xH+='<text x="'+xOf(xi,tkPts.length).toFixed(1)+'" y="'+(PT+iH+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+_dpFmtDate(tkPts[xi].d,tkPts)+'</text>';}
+  for(var xi=0;xi<tkPts.length;xi+=xstep){xH+='<text x="'+xOf(xi,tkPts.length).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+_dpFmtDate(tkPts[xi].d,tkPts)+'</text>';}
   var refSVG='';
   if(refs.dcf&&refs.dcf>minP&&refs.dcf<maxP){
     var yd=yOf(refs.dcf).toFixed(1);
@@ -4348,17 +4414,47 @@ function _dpRenderChart(){
   linesSVG+='<polyline points="'+tkPP+'" fill="none" stroke="'+tkCol+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" opacity="0.92"/>';
   var dotSVG='<circle id="dp-dot" cx="0" cy="0" r="4" fill="white" stroke="'+tkCol+'" stroke-width="2" opacity="0" pointer-events="none"/>';
   if(spyPlot.length)dotSVG+='<circle id="dp-dot-spy" cx="0" cy="0" r="3.5" fill="white" stroke="'+spyCol+'" stroke-width="1.7" opacity="0" pointer-events="none"/>';
+  /* Volume strip. Anchored at zero, scaled to the window max. Below ~300 bars
+     each day is its own <rect> tinted by direction; above that the bars are
+     thinner than a pixel anyway and 5000 rects is DOM weight the MAX range
+     can't carry, so it collapses to one filled step-polygon. Either way the
+     bar index stays 1:1 with tkPts so the crosshair math is shared. */
+  var volSVG='',volCol='#7c93ab';
+  if(hasVol){
+    var vOf=function(v){return volBase-(v/volMax)*VOL_H;};
+    volSVG+='<line x1="'+PL+'" y1="'+volBase+'" x2="'+(VW-PR)+'" y2="'+volBase+'" stroke="#e8edf2" stroke-width="1"/>';
+    volSVG+='<text x="'+(PL-7)+'" y="'+(volTop+8)+'" text-anchor="end" font-size="10" fill="#9aaab8">'+_dpFmtVol(volMax)+'</text>';
+    if(tkPts.length<=300){
+      /* Capped so a 1M window doesn't turn into fat slabs that overhang the
+         plot area at the first and last bar (both sit on the panel edge). */
+      var bw=Math.min(14,Math.max(0.8,(iW/tkPts.length)-1));
+      for(var vi=0;vi<tkPts.length;vi++){
+        var vval=tkPts[vi].v;if(vval==null)continue;
+        var vy=vOf(vval),vh=Math.max(0.6,volBase-vy);
+        var up=vi===0||tkPts[vi].c>=tkPts[vi-1].c;
+        volSVG+='<rect x="'+(xOf(vi,tkPts.length)-bw/2).toFixed(1)+'" y="'+vy.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+vh.toFixed(1)+'" fill="'+(up?'#16a34a':'#dc2626')+'" opacity="0.55"/>';
+      }
+    }else{
+      var vpp='';
+      for(var vj=0;vj<tkPts.length;vj++){
+        var vv2=tkPts[vj].v;
+        vpp+=xOf(vj,tkPts.length).toFixed(1)+','+vOf(vv2==null?0:vv2).toFixed(1)+' ';
+      }
+      volSVG+='<polygon class="dp-vol-area" points="'+PL+','+volBase+' '+vpp+(VW-PR)+','+volBase+'" fill="'+volCol+'" opacity="0.45"/>';
+    }
+  }
   var svg='<svg id="dp-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
     +' onmousemove="dpMove(event)" onmouseleave="dpLeave()"'
     +' ontouchstart="dpTouch(event)" ontouchmove="dpTouch(event)" ontouchend="dpLeave()" ontouchcancel="dpLeave()">'
     +'<defs><linearGradient id="dp-g" x1="0" y1="0" x2="0" y2="1">'
     +'<stop offset="0%" stop-color="'+tkCol+'" stop-opacity="0.18"/><stop offset="100%" stop-color="'+tkCol+'" stop-opacity="0.01"/>'
     +'</linearGradient></defs>'
-    +yH+xH+refSVG+linesSVG+dotSVG
-    +'<line id="dp-vl" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0"/>'
+    +yH+xH+refSVG+volSVG+linesSVG+dotSVG
+    +'<line id="dp-vl" x1="0" y1="'+PT+'" x2="0" y2="'+xBase+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0"/>'
     +'</svg>';
   el.innerHTML=svg;
-  _dpState={tk:tkPts,spy:spyPts,spyPlot:spyPlot,VW:VW,PL:PL,PR:PR,PT:PT,iW:iW,iH:iH,minP:minP,pRange:pRange,tkCol:tkCol,spyCol:spyCol,ticker:_dpTicker};
+  _dpState={tk:tkPts,spy:spyPts,spyPlot:spyPlot,VW:VW,PL:PL,PR:PR,PT:PT,iW:iW,iH:iH,minP:minP,pRange:pRange,tkCol:tkCol,spyCol:spyCol,ticker:_dpTicker,
+            volMax:volMax,volTop:volTop,volBase:volBase,volCol:volCol,xBase:xBase};
   var tb=document.getElementById('dp-tip-bar');if(tb)tb.innerHTML=_dpTipHtml(null);
 }
 function dpMove(e){
@@ -4366,7 +4462,9 @@ function dpMove(e){
   var svg=document.getElementById('dp-svg');if(!svg)return;
   var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
   var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
-  if(sp.x<s.PL||sp.x>s.PL+s.iW||sp.y<s.PT||sp.y>s.PT+s.iH){dpLeave();return;}
+  /* Bottom bound is the volume baseline, not the price panel's — hovering the
+     bars has to keep tracking, and the two panels share one index. */
+  if(sp.x<s.PL||sp.x>s.PL+s.iW||sp.y<s.PT||sp.y>s.xBase){dpLeave();return;}
   var relX=Math.max(0,Math.min(sp.x-s.PL,s.iW));
   var idx=Math.max(0,Math.min(s.tk.length-1,Math.round(relX/s.iW*(s.tk.length-1))));
   var x=(s.PL+(idx/(s.tk.length-1||1))*s.iW).toFixed(1);
@@ -4424,6 +4522,12 @@ function _renderDetPriceChart(ticker){
     rEl.innerHTML=ranges;
   }
   _dpRenderChart();
+  /* Volume arrives after the price line — the shard is a second request, and
+     the price chart should never wait on it. When it lands, redraw (guarded on
+     the popup still showing this ticker) so the strip appears underneath. */
+  if(_VOL[ticker]===undefined){
+    _loadVolShard(ticker,function(sh){if(sh&&_dpTicker===ticker)_dpRenderChart();});
+  }
 }
 
 /* === DETAIL POPUP CHARTS TAB === */
