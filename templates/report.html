@@ -5240,8 +5240,29 @@ function _stmtSpec(key,h,d){
       {l:'Operating income',sub:1,get:g(op),fmt:fdsg},
       {l:'Interest expense',ind:1,get:gneg(ie),fmt:fdsg},
       {l:'Other income (expense), net',ind:1,get:g(othnonop),fmt:fdsg},
+      /* Residual between operating income and pretax: interest income,
+         equity-method earnings and any non-operating caption the filer
+         didn't tag. Without it two-thirds of filers' faces silently fail
+         to bridge operating income to pretax income. */
+      {l:'Other non-operating items, net',ind:1,get:function(k){
+        if(px[k]==null||op[k]==null)return null;
+        var s=op[k];
+        if(ie[k]!=null)s+=-Math.abs(ie[k]);
+        if(othnonop[k]!=null)s+=othnonop[k];
+        return px[k]-s;
+      },fmt:fdsg,plug:1},
       {l:'Income before income taxes',sub:1,get:g(px),fmt:fdsg},
-      {l:'Provision for income taxes',ind:1,get:gabs(tx),fmt:fdsg},
+      /* SIGNED, not abs: a tax benefit rendered as a positive provision made
+         the face stop footing (183 tickers' latest year). Parentheses now
+         mean benefit, matching the filed caption. */
+      {l:'Provision for (benefit from) income taxes',ind:1,get:g(tx),fmt:fdsg},
+      /* pretax − provision lands on consolidated income, but the tagged net
+         income is the parent's. The gap — NCI's share, discontinued ops —
+         must appear as a row or the face doesn't foot (RNR: $936M vanished). */
+      {l:'Net income attributable to noncontrolling interests and other, net',ind:1,get:function(k){
+        if(ni[k]==null||px[k]==null||tx[k]==null)return null;
+        return ni[k]-(px[k]-tx[k]);
+      },fmt:fdsg,plug:1},
       {l:'Net income',tot:1,get:g(ni),fmt:fdsg},
       {hdr:'Earnings per share:'},
       {l:'Basic',ind:2,get:g(epsb),fmt:_fmtEps},
@@ -5252,8 +5273,8 @@ function _stmtSpec(key,h,d){
       {l:'Gross margin',drv:1,get:function(k){return gp[k]!=null&&rev[k]?gp[k]/rev[k]:null;},fmt:pct},
       {l:'Operating margin',drv:1,get:function(k){return op[k]!=null&&rev[k]?op[k]/rev[k]:null;},fmt:pct},
       {l:'Net margin',drv:1,get:function(k){return ni[k]!=null&&rev[k]?ni[k]/rev[k]:null;},fmt:pct},
-      {l:'Effective tax rate',drv:1,get:function(k){return tx[k]!=null&&px[k]&&px[k]>0?Math.abs(tx[k])/px[k]:null;},fmt:pct}
-    ],note:'Presented in Reg S-X Rule 5-03 order. Expense captions carry positive magnitudes beneath the subtotal they reduce, matching the face of the filing. Earnings per share are the filer’s own basic and diluted figures, so they are restated for stock splits. Rows marked † are derived because the filer did not tag that caption: cost of revenue falls back to revenue less gross profit, and total operating expenses to gross profit less operating income.'};
+      {l:'Effective tax rate',drv:1,get:function(k){return tx[k]!=null&&px[k]&&px[k]>0?tx[k]/px[k]:null;},fmt:pct}
+    ],note:'Presented in Reg S-X Rule 5-03 order. Expense captions carry positive magnitudes beneath the subtotal they reduce, matching the face of the filing; a tax provision in parentheses is a benefit. Earnings per share are the filer’s own basic and diluted figures, so they are restated for stock splits. Rows marked † are derived because the filer did not tag that caption: cost of revenue falls back to revenue less gross profit, and total operating expenses to gross profit less operating income.'};
   }
 
   if(key==='cf'){
@@ -5293,19 +5314,22 @@ function _stmtSpec(key,h,d){
       {l:'Share-based compensation',ind:2,get:gabs(sbccf),fmt:fdsg},
       {l:'Deferred income taxes',ind:2,get:g(deftax),fmt:fdsg},
       {l:'Other operating activities, net',ind:2,get:opOther,fmt:fdsg,plug:1},
-      {l:'Net cash provided by operating activities',sub:1,get:g(ocf),fmt:fdsg},
+      /* Neutral "provided by (used in)" captions: one label spans ten fiscal
+         years whose signs can differ, and a hardcoded direction misstated
+         JPM's negative operating and positive financing years. */
+      {l:'Net cash provided by (used in) operating activities',sub:1,get:g(ocf),fmt:fdsg},
       {hdr:'Cash flows from investing activities'},
       {l:'Purchases of property, plant and equipment',ind:1,get:gneg(capex),fmt:fdsg},
       {l:'Acquisitions, net of cash acquired',ind:1,get:gneg(acq),fmt:fdsg},
       {l:'Other investing activities, net',ind:1,get:invOther,fmt:fdsg,plug:1},
-      {l:'Net cash used in investing activities',sub:1,get:g(icf),fmt:fdsg},
+      {l:'Net cash provided by (used in) investing activities',sub:1,get:g(icf),fmt:fdsg},
       {hdr:'Cash flows from financing activities'},
       {l:'Dividends paid',ind:1,get:gneg(dv),fmt:fdsg},
       {l:'Repurchases of common stock',ind:1,get:gneg(buyback),fmt:fdsg},
       {l:'Proceeds from issuance of debt',ind:1,get:gabs(dissued),fmt:fdsg},
       {l:'Repayments of debt',ind:1,get:gneg(drepaid),fmt:fdsg},
       {l:'Other financing activities, net',ind:1,get:finOther,fmt:fdsg,plug:1},
-      {l:'Net cash used in financing activities',sub:1,get:g(fincf),fmt:fdsg},
+      {l:'Net cash provided by (used in) financing activities',sub:1,get:g(fincf),fmt:fdsg},
       /* Tagged where the filer provides it; otherwise the residual that
          makes the three sections reconcile to the tagged net change. Banks
          in particular leave this caption untagged, which left an ~$18B hole
@@ -5317,6 +5341,17 @@ function _stmtSpec(key,h,d){
         [ocf,icf,fincf].forEach(function(s){if(s[k]!=null){parts+=s[k];any=true;}});
         return any?chgcash[k]-parts:null;
       },fmt:fdsg,plug:1,softDrv:function(k){return fxeff[k]==null;}},
+      /* When FX IS tagged the row above shows the filed figure, so anything
+         else between the sections and the net change (discontinued-ops cash,
+         restricted-cash movements) needs its own residual or the statement
+         stops footing — 55 tickers' latest year. Null when FX is untagged:
+         the FX row's own fallback is already the full residual then. */
+      {l:'Other reconciling items, net',ind:1,get:function(k){
+        if(fxeff[k]==null||chgcash[k]==null)return null;
+        var parts=fxeff[k],any=false;
+        [ocf,icf,fincf].forEach(function(s){if(s[k]!=null){parts+=s[k];any=true;}});
+        return any?chgcash[k]-parts:null;
+      },fmt:fdsg,plug:1},
       {l:'Net increase (decrease) in cash',tot:1,get:g(chgcash),fmt:fdsg},
       {l:'Free cash flow',drv:1,get:fcfGet,fmt:fdsg},
       {l:'FCF margin',drv:1,get:function(k){var f=fcfGet(k);return f!=null&&rev[k]?f/rev[k]:null;},fmt:pct},
@@ -5330,10 +5365,42 @@ function _stmtSpec(key,h,d){
     if(eq[k]!=null)return eq[k];
     return as[k]!=null&&lb[k]!=null?as[k]-lb[k]:null;
   };
+  /* Whether the tagged equity already contains NCI is filer-dependent: the
+     extractor prefers parent-only StockholdersEquity but falls back to the
+     ...IncludingPortionAttributableToNoncontrollingInterest variant, and the
+     sidecar doesn't say which won. Disambiguate per year through the
+     accounting identity — whichever reading makes L + E meet the filed total
+     is the right one. A derived equity (assets − liabilities) is total by
+     construction. */
+  var nciIn=function(k){
+    var mi=minint[k];
+    if(mi==null||mi===0)return true;            /* moot — no adjustment either way */
+    if(eq[k]==null)return true;                  /* derived → NCI-inclusive */
+    /* Anchor on the filed L+E total, else on total assets — the identity
+       holds against either. Without the assets fallback, IFRS filers that
+       tag NCI-inclusive Equity but no EquityAndLiabilities (GSK) had NCI
+       added a second time. */
+    var L=lb[k],T=lae[k]!=null?lae[k]:as[k];
+    if(L!=null&&T!=null)
+      return Math.abs(L+eq[k]-T)<=Math.abs(L+eq[k]+mi-T);
+    return false;                                /* tag priority: parent-only first */
+  };
+  var parentEq=function(k){
+    var e=stEq(k);if(e==null)return null;
+    var mi=minint[k];
+    return (mi!=null&&nciIn(k))?e-mi:e;
+  };
+  var totalEq=function(k){
+    var e=stEq(k);if(e==null)return null;
+    var mi=minint[k];
+    if(mi==null)return null;   /* row drops entirely for filers without NCI */
+    return nciIn(k)?e:e+mi;
+  };
   var laeGet=function(k){
     if(lae[k]!=null)return lae[k];
-    var l=lb[k],e=stEq(k);
-    return l!=null&&e!=null?l+e:null;
+    var l=lb[k];if(l==null)return null;
+    var e=totalEq(k);if(e==null)e=stEq(k);
+    return e!=null?l+e:null;
   };
   return {series:['cash','ca','assets','cl','debt','liabs','equity','retearn','lae','ppe','gw'],rows:[
     {hdr:'ASSETS'},
@@ -5347,25 +5414,79 @@ function _stmtSpec(key,h,d){
     {l:'Short-term investments',ind:2,get:g(stinv),fmt:fdsg},
     {l:'Accounts receivable, net',ind:2,get:g(recv),fmt:fdsg},
     {l:'Inventories',ind:2,get:g(invty),fmt:fdsg},
+    /* Residuals mirror the cash-flow sections: EDGAR exposes only the
+       captions a filer tags, and without them 95% of classified sheets
+       carried a silent gap between the listed lines and the subtotal
+       (PAYC: $1.7B of assets with no row). */
+    {l:'Other current assets',ind:2,get:function(k){
+      if(ca[k]==null)return null;
+      var parts=0,any=false;
+      [csh,stinv,recv,invty].forEach(function(s){if(s[k]!=null){parts+=s[k];any=true;}});
+      return any?ca[k]-parts:null;
+    },fmt:fdsg,plug:1},
     {l:'Total current assets',sub:1,ind:1,get:g(ca),fmt:fdsg},
     {l:'Property, plant and equipment, net',ind:1,get:g(ppe),fmt:fdsg},
     {l:'Goodwill',ind:1,get:g(gw),fmt:fdsg},
     {l:'Intangible assets, net',ind:1,get:g(intang),fmt:fdsg},
+    /* Classified filers: total assets less current assets and the listed
+       non-current captions. Unclassified (banks, insurers): less every
+       listed asset line, since nothing nests inside a current subtotal. */
+    {l:'Other assets',ind:1,get:function(k){
+      if(as[k]==null)return null;
+      var parts=0,any=false;
+      if(ca[k]!=null){
+        parts+=ca[k];any=true;
+        [ppe,gw,intang].forEach(function(s){if(s[k]!=null){parts+=s[k];any=true;}});
+      }else{
+        [csh,stinv,recv,invty,ppe,gw,intang].forEach(function(s){if(s[k]!=null){parts+=s[k];any=true;}});
+      }
+      return any?as[k]-parts:null;
+    },fmt:fdsg,plug:1},
     {l:'Total assets',tot:1,get:g(as),fmt:fdsg},
     {hdr:'LIABILITIES AND SHAREHOLDERS’ EQUITY'},
     {hdr:'Current liabilities:',sub2:1,needs:'cl'},
     {l:'Accounts payable',ind:2,get:g(ap),fmt:fdsg},
     {l:'Short-term debt and current maturities',ind:2,get:g(debtcur),fmt:fdsg},
+    {l:'Other current liabilities',ind:2,get:function(k){
+      if(cl[k]==null)return null;
+      var parts=0,any=false;
+      [ap,debtcur].forEach(function(s){if(s[k]!=null){parts+=s[k];any=true;}});
+      return any?cl[k]-parts:null;
+    },fmt:fdsg,plug:1},
     {l:'Total current liabilities',sub:1,ind:1,get:g(cl),fmt:fdsg},
     {l:'Long-term debt',ind:1,get:g(debtnc),fmt:fdsg},
+    {l:'Other liabilities',ind:1,get:function(k){
+      if(lb[k]==null)return null;
+      var parts=0,any=false;
+      if(cl[k]!=null){
+        parts+=cl[k];any=true;
+        if(debtnc[k]!=null)parts+=debtnc[k];
+      }else{
+        [ap,debtcur,debtnc].forEach(function(s){if(s[k]!=null){parts+=s[k];any=true;}});
+      }
+      return any?lb[k]-parts:null;
+    },fmt:fdsg,plug:1},
     {l:'Total liabilities',sub:1,get:g(lb),fmt:fdsg},
     {hdr:'Shareholders’ equity:',sub2:1},
     {l:'Common stock and additional paid-in capital',ind:2,get:g(csapic),fmt:fdsg},
     {l:'Retained earnings (accumulated deficit)',ind:2,get:g(re),fmt:fdsg},
     {l:'Accumulated other comprehensive income (loss)',ind:2,get:g(aoci),fmt:fdsg},
     {l:'Treasury stock',ind:2,get:gneg(treas),fmt:fdsg},
-    {l:'Noncontrolling interests',ind:2,get:g(minint),fmt:fdsg},
-    {l:'Total shareholders’ equity',sub:1,ind:1,get:stEq,fmt:fdsg,softDrv:function(k){return eq[k]==null;}},
+    /* Preferred stock, ESOP and any equity caption the filer didn't tag. */
+    {l:'Other equity',ind:2,get:function(k){
+      var pe=parentEq(k);if(pe==null)return null;
+      var parts=0,any=false;
+      [csapic,re,aoci].forEach(function(s){if(s[k]!=null){parts+=s[k];any=true;}});
+      if(treas[k]!=null){parts+=-Math.abs(treas[k]);any=true;}
+      return any?pe-parts:null;
+    },fmt:fdsg,plug:1},
+    /* ASC 810-10-45-16: parent equity subtotal, then NCI, then total equity.
+       NCI above a parent-only subtotal read as an arithmetic error on 206
+       tickers. The total-equity row resolves to null — and so drops — for
+       filers with no NCI, collapsing back to the familiar two-line close. */
+    {l:'Total shareholders’ equity',sub:1,ind:1,get:parentEq,fmt:fdsg,softDrv:function(k){return eq[k]==null;}},
+    {l:'Noncontrolling interests',ind:1,get:g(minint),fmt:fdsg},
+    {l:'Total equity',sub:1,get:totalEq,fmt:fdsg},
     {l:'Total liabilities and shareholders’ equity',tot:1,get:laeGet,fmt:fdsg,softDrv:function(k){return lae[k]==null;}},
     {l:'Total debt',drv:1,get:g(db),fmt:fdsg},
     {l:'Net debt',drv:1,get:function(k){return db[k]!=null&&csh[k]!=null?db[k]-csh[k]:null;},fmt:fdsg},
@@ -5373,7 +5494,7 @@ function _stmtSpec(key,h,d){
     {l:'Current ratio',drv:1,get:function(k){return ca[k]!=null&&cl[k]?ca[k]/cl[k]:null;},fmt:rat},
     {l:'Debt / equity',drv:1,get:function(k){var e=stEq(k);return db[k]!=null&&e&&e>0?db[k]/e:null;},fmt:rat},
     {l:'Shares outstanding (period end)',drv:1,get:function(k){var best=null,bd=1e9,t=Date.parse(k);Object.keys(sh).forEach(function(kk){var dd=Math.abs(Date.parse(kk)-t)/864e5;if(dd<bd){bd=dd;best=sh[kk];}});return bd<=220?best:null;},fmt:_fmtShr}
-  ],note:'Presented in ASC 210 / Reg S-X Rule 5-02 classified order. Total assets and total liabilities and shareholders’ equity are both taken from the filing and should agree. Rows marked † are derived where the filer did not tag the caption. Filers presenting an UNCLASSIFIED balance sheet — banks and most insurers — tag no current assets or liabilities, so those captions and the ratios built on them are absent by design. Period-end share count is as filed and therefore not restated for stock splits; use the per-share figures on the income statement, which are.'};
+  ],note:'Presented in ASC 210 / Reg S-X Rule 5-02 classified order. Total assets and total liabilities and shareholders’ equity are both taken from the filing and should agree. Noncontrolling interests, where the filer reports them, sit beneath total shareholders’ equity with a total-equity line following, per ASC 810. Rows marked † are derived where the filer did not tag the caption. Filers presenting an UNCLASSIFIED balance sheet — banks and most insurers — tag no current assets or liabilities, so those captions and the ratios built on them are absent by design. Period-end share count is as filed and therefore not restated for stock splits; use the per-share figures on the income statement, which are.'};
 }
 function _renderDetStmtTab(key){
   var el=document.getElementById('d-pane-stmt');if(!el)return;
