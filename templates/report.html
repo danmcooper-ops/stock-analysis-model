@@ -310,16 +310,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 [data-theme="dark"] .stmt-tbl tr.stmt-tot td{border-color:#4a5568;}
 [data-theme="dark"] .stmt-tbl tr.stmt-hdr2 td{color:#adbac7;}
 [data-theme="dark"] .stmt-tbl tr.stmt-drv-head td{border-top-color:#30363d;}
-/* PDF-export button, right-justified on the statement title band. It lives
-   only on the three statement tabs and its label carries the scope ("3
-   statements") so it can't read as a whole-report export. */
-.stmt-pdf-btn{margin-left:auto;flex-shrink:0;display:inline-flex;align-items:center;gap:5px;
-  padding:3px 9px;font:inherit;font-size:0.9em;letter-spacing:0.04em;color:#fff;
+/* PDF-export button, right-justified on the statement title band. Icon-only;
+   it lives solely on the three statement tabs, and the tooltip/aria-label
+   carry the scope (all three statements, nothing else). */
+.stmt-pdf-btn{margin-left:auto;flex-shrink:0;display:inline-flex;align-items:center;
+  padding:4px 7px;color:#fff;
   background:rgba(255,255,255,0.13);border:1px solid rgba(255,255,255,0.45);
   border-radius:4px;cursor:pointer;text-shadow:none;}
 .stmt-pdf-btn:hover{background:rgba(255,255,255,0.28);}
-.stmt-pdf-btn svg{width:11px;height:11px;display:block;}
-@media (max-width:480px){.stmt-pdf-btn .stmt-pdf-full{display:none;}}
+.stmt-pdf-btn svg{width:13px;height:13px;display:block;}
 [data-theme="dark"] .stmt-tbl tr.stmt-drv td{color:#8b98a5;}
 /* The bar WRAPS when crowded (no hidden horizontal scroll) and keeps
    overflow visible: its dropdowns/panel are position:absolute children
@@ -5350,7 +5349,7 @@ function _stmtShell(meta,inner,withPdf){
       +' aria-label="Export the Balance Sheet, Income Statement and Cash Flow Statement to PDF"'
       +' title="Export this company’s Balance Sheet, Income Statement and Cash Flow Statement to PDF — opens the print dialog; choose “Save as PDF”. Only these three statements are exported.">'
       +'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>'
-      +'PDF<span class="stmt-pdf-full">&nbsp;· 3 statements</span></button>':'')
+      +'</button>':'')
     +'</div>'
     +'<div style="padding:14px 16px;background:var(--surface)">'+inner+'</div></div>';
 }
