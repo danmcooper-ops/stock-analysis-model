@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- minimum-scale: the table views pan as PAGE content (see _pageScroll), so
+     the document is as wide as the matrix (~2700px on a phone) and Safari's
+     default pinch-out floor is "whole document fits" — scale ~0.15, where the
+     table is an unreadable sliver. 0.5 keeps the ID columns plus a full
+     category band on screen at the floor, still legible as a heat map. iOS
+     honors minimum-scale; its accessibility override only refuses to cap
+     zooming IN, so no maximum-scale / user-scalable=no here. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, viewport-fit=cover">
 <title>Stock Analysis — Interactive Report</title>
 <script>(function(){try{var t=localStorage.getItem('stock_theme_v1');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
 <style>

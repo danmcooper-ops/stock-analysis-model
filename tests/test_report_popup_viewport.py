@@ -76,6 +76,23 @@ def test_vvh_is_measured_from_the_layout_viewport_top():
         '--vvh must add offsetTop, else pinch-zoom reads a fraction of the screen'
 
 
+def test_pinch_zoom_out_has_a_floor():
+    """The table views pan as page content, so the document is as wide as the
+    matrix (~2700px on a phone) and without a minimum-scale Safari lets a
+    pinch zoom out until the whole document fits — scale ~0.15, an unreadable
+    sliver. The floor must ride in the viewport meta; no CSS or JS can cap
+    pinch zoom."""
+    meta = re.search(r'<meta name="viewport" content="([^"]*)"', _css())
+    assert meta, 'viewport meta missing'
+    content = meta.group(1)
+    m = re.search(r'minimum-scale=([0-9.]+)', content)
+    assert m, 'viewport meta lost its minimum-scale: ' + content
+    assert 0.3 <= float(m.group(1)) <= 1.0, content
+    # iOS refuses to cap zooming IN (accessibility) — do not ship the flags
+    # it would ignore anyway, they only mislead readers of the template.
+    assert 'user-scalable=no' not in content and 'maximum-scale' not in content, content
+
+
 def test_popup_remeasures_the_viewport_before_it_opens():
     body = re.search(r'function openDet\(tk\)\{.*?\n\}', _css(), re.S)
     assert body, 'openDet not found'
