@@ -303,6 +303,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 [data-theme="dark"] .stmt-tbl tr.stmt-tot td{border-color:#4a5568;}
 [data-theme="dark"] .stmt-tbl tr.stmt-hdr2 td{color:#adbac7;}
 [data-theme="dark"] .stmt-tbl tr.stmt-drv-head td{border-top-color:#30363d;}
+/* PDF-export button, right-justified on the statement title band. It lives
+   only on the three statement tabs and its label carries the scope ("3
+   statements") so it can't read as a whole-report export. */
+.stmt-pdf-btn{margin-left:auto;flex-shrink:0;display:inline-flex;align-items:center;gap:5px;
+  padding:3px 9px;font:inherit;font-size:0.9em;letter-spacing:0.04em;color:#fff;
+  background:rgba(255,255,255,0.13);border:1px solid rgba(255,255,255,0.45);
+  border-radius:4px;cursor:pointer;text-shadow:none;}
+.stmt-pdf-btn:hover{background:rgba(255,255,255,0.28);}
+.stmt-pdf-btn svg{width:11px;height:11px;display:block;}
+@media (max-width:480px){.stmt-pdf-btn .stmt-pdf-full{display:none;}}
 [data-theme="dark"] .stmt-tbl tr.stmt-drv td{color:#8b98a5;}
 /* The bar WRAPS when crowded (no hidden horizontal scroll) and keeps
    overflow visible: its dropdowns/panel are position:absolute children
@@ -5323,9 +5333,18 @@ function _renderDetDataTab(key){
       arithmetic, and nothing is back-solved out of model outputs — an
       "assets" figure inferred from ROA is not a balance sheet. */
 var _HIST_TRIED=false;
-function _stmtShell(meta,inner){
+function _stmtShell(meta,inner,withPdf){
+  /* The export button rides the title band (right-justified via the band's
+     flex), only when the tab actually rendered a statement — an empty or
+     still-loading pane offers nothing to export. */
   return '<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)">'
-    +'<span class="dg-icon"></span>'+esc(meta.l)+'</div>'
+    +'<span class="dg-icon"></span>'+esc(meta.l)
+    +(withPdf?'<button class="stmt-pdf-btn" onclick="exportStmtPdf()"'
+      +' aria-label="Export the Balance Sheet, Income Statement and Cash Flow Statement to PDF"'
+      +' title="Export this company’s Balance Sheet, Income Statement and Cash Flow Statement to PDF — opens the print dialog; choose “Save as PDF”. Only these three statements are exported.">'
+      +'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>'
+      +'PDF<span class="stmt-pdf-full">&nbsp;· 3 statements</span></button>':'')
+    +'</div>'
     +'<div style="padding:14px 16px;background:var(--surface)">'+inner+'</div></div>';
 }
 /* Row spec: {l, get(k), fmt} plus optional hdr (section rule), sub (subtotal
@@ -5390,6 +5409,25 @@ function _stmtSpec(key,h,d){
       if(opex[k]!=null)return Math.abs(opex[k]);
       return gp[k]!=null&&op[k]!=null?gp[k]-op[k]:null;
     };
+    /* Whether tagged InterestExpense already sits inside the tagged
+       non-operating caption is filer-dependent: Apple's "Other
+       income/(expense), net" contains it (their filed face has no separate
+       interest line), while industrials tag the two apart. Decide by which
+       reading makes op → pretax foot more often across the filing history,
+       and suppress the standalone row when it's contained — otherwise
+       interest prints once as a deduction and once inside the residual,
+       reading as a double count. */
+    var _ieIn=null;
+    var ieInOth=function(){
+      if(_ieIn!=null)return _ieIn;
+      var a=0,b=0;
+      Object.keys(px).forEach(function(k){
+        if(px[k]==null||op[k]==null||othnonop[k]==null||ie[k]==null)return;
+        if(Math.abs(px[k]-op[k]-othnonop[k])<=Math.abs(px[k]-op[k]+Math.abs(ie[k])-othnonop[k]))a++;else b++;
+      });
+      _ieIn=a>b;
+      return _ieIn;
+    };
     return {series:['rev','gp','op','intexp','pretax','tax','ni','cogs','opex','epsb','epsd'],rows:[
       {l:'Revenue',sub:1,get:g(rev),fmt:fdsg},
       {l:'Cost of revenue',ind:1,get:cogsGet,fmt:fdsg,softDrv:function(k){return cogs[k]==null;}},
@@ -5411,7 +5449,10 @@ function _stmtSpec(key,h,d){
       },fmt:fdsg,plug:1},
       {l:'Total operating expenses',sub:1,ind:1,get:opexGet,fmt:fdsg,softDrv:function(k){return opex[k]==null;}},
       {l:'Operating income',sub:1,get:g(op),fmt:fdsg},
-      {l:'Interest expense',ind:1,get:gneg(ie),fmt:fdsg},
+      {l:'Interest expense',ind:1,get:function(k){
+        if(ieInOth())return null;   /* already inside the non-op caption */
+        return ie[k]!=null?-Math.abs(ie[k]):null;
+      },fmt:fdsg},
       {l:'Other income (expense), net',ind:1,get:g(othnonop),fmt:fdsg},
       /* Residual between operating income and pretax: interest income,
          equity-method earnings and any non-operating caption the filer
@@ -5420,7 +5461,7 @@ function _stmtSpec(key,h,d){
       {l:'Other non-operating items, net',ind:1,get:function(k){
         if(px[k]==null||op[k]==null)return null;
         var s=op[k];
-        if(ie[k]!=null)s+=-Math.abs(ie[k]);
+        if(!ieInOth()&&ie[k]!=null)s+=-Math.abs(ie[k]);
         if(othnonop[k]!=null)s+=othnonop[k];
         return px[k]-s;
       },fmt:fdsg,plug:1},
@@ -5688,6 +5729,20 @@ function _renderDetStmtTab(key){
   }
   var h=(HIST||{})[_dpTicker];
   if(!h){el.innerHTML=empty('No SEC EDGAR filing history for this company.');return;}
+  var t=_stmtBuildTable(key,h,d);
+  if(!t){el.innerHTML='';return;}
+  if(t.empty){el.innerHTML=empty(t.empty);return;}
+  var note='<div style="font-size:0.68em;color:var(--text-muted);margin-top:8px">'+esc(t.note)+'</div>';
+  el.innerHTML=_stmtShell(meta,'<div class="dtr-wrap"><table class="dtr-tbl stmt-tbl">'+t.headRow+t.body+'</table></div>'+note,true);
+}
+/* Builds one statement's table pieces — shared by the tab renderer above and
+   the PDF exporter below, so the paper copy can never drift from the tab.
+   Returns {label, empty} when the filer gave us nothing to show, else
+   {label, headRow, body, note}: tr/td markup carrying the stmt-* classes,
+   with each consumer supplying its own CSS for them. */
+function _stmtBuildTable(key,h,d){
+  var meta=null;for(var i=0;i<DT_STMTS.length;i++)if(DT_STMTS[i].k===key)meta=DT_STMTS[i];
+  if(!meta)return null;
   var spec=_stmtSpec(key,h,d);
   /* FY columns = union of this statement's series, one per calendar year
      (keep the later fiscal-year end), most recent 10. Ordered NEWEST FIRST,
@@ -5700,7 +5755,7 @@ function _renderDetStmtTab(key){
   spec.series.forEach(function(s){var ss=h[s];if(ss)Object.keys(ss).forEach(function(k){ks[k]=1;});});
   var byYear={};Object.keys(ks).sort().forEach(function(k){byYear[k.slice(0,4)]=k;});
   var cols=Object.keys(byYear).sort().map(function(y){return byYear[y];}).slice(-10).reverse();
-  if(!cols.length){el.innerHTML=empty('No '+meta.l.toLowerCase()+' data filed for this company.');return;}
+  if(!cols.length)return {label:meta.l,empty:'No '+meta.l.toLowerCase()+' data filed for this company.'};
 
   /* Pass 1: resolve every non-header row, dropping those the filer never
      tagged. Headers are held back and only emitted once a row beneath them
@@ -5758,7 +5813,7 @@ function _renderDetStmtTab(key){
     vals.forEach(function(v){body+='<td>'+(v==null?'—':rw.fmt(v))+'</td>';});
     body+='</tr>';
   });
-  if(!shown){el.innerHTML=empty('No '+meta.l.toLowerCase()+' line items tagged in this company’s filings.');return;}
+  if(!shown)return {label:meta.l,empty:'No '+meta.l.toLowerCase()+' line items tagged in this company’s filings.'};
   /* Supplementary (non-GAAP) block, visually separated from the statement. */
   if(drvRows.length){
     body+='<tr class="stmt-hdr stmt-drv-head"><td colspan="'+(cols.length+1)+'">Supplementary — not part of the filed statement</td></tr>';
@@ -5768,16 +5823,90 @@ function _renderDetStmtTab(key){
       body+='</tr>';
     });
   }
-  var head='<div class="dtr-wrap"><table class="dtr-tbl stmt-tbl"><tr><th></th>';
-  cols.forEach(function(k){head+='<th>FY'+k.slice(0,4)+'</th>';});
-  head+='</tr>';
+  var headRow='<tr><th></th>';
+  cols.forEach(function(k){headRow+='<th>FY'+k.slice(0,4)+'</th>';});
+  headRow+='</tr>';
   var legend='';
   if(usedDagger)legend+=' † derived — the filer did not tag this caption.';
   if(usedPlug)legend+=' ‡ residual between the tagged section subtotal and the tagged lines above it.';
-  var note='<div style="font-size:0.68em;color:var(--text-muted);margin-top:8px">'
-    +'Annual figures as filed with SEC EDGAR (XBRL), converted to USD for foreign filers. '
-    +esc(spec.note)+esc(legend)+'</div>';
-  el.innerHTML=_stmtShell(meta,head+body+'</table></div>'+note);
+  return {label:meta.l,headRow:headRow,body:body,
+    note:'Annual figures as filed with SEC EDGAR (XBRL), converted to USD for foreign filers. '+spec.note+legend};
+}
+/* === PDF EXPORT — the three statement tabs only =========================
+   Dialog-based: builds a standalone print document holding the Balance
+   Sheet, Income Statement and Cash Flow Statement for the open ticker in a
+   HIDDEN IFRAME and calls the frame's print() — every platform's print
+   dialog offers "Save as PDF" (on iOS, share from the print preview). The
+   iframe matters: window.open needs a popup allowance that blockers —
+   including the app's own browser pane — deny, while a same-page frame
+   prints with no permission at all, and the dialog shows only the frame's
+   document. No libraries: the document is assembled from _stmtBuildTable,
+   so it is exactly the statement the tabs show, restyled for paper — black
+   on white, landscape for the ten fiscal columns, repeating year header on
+   page breaks. */
+function exportStmtPdf(){
+  var d=DATA.find(function(x){return x.ticker===_dpTicker;});
+  if(!d)return;
+  /* The button only renders on a populated tab, but guard the sidecar
+     anyway — export can race a ticker switch while hist.json reloads. */
+  if(!HIST&&_HIST_AVAILABLE){
+    if(!_HIST_LOADING){_HIST_LOADING=true;_loadSidecar('hist.json',function(hh){_HIST_LOADING=false;_HIST_TRIED=true;HIST=hh;exportStmtPdf();});}
+    else{var poll=setInterval(function(){if(!_HIST_LOADING){clearInterval(poll);exportStmtPdf();}},150);}
+    return;
+  }
+  var h=(HIST||{})[_dpTicker];
+  if(!h){alert('No SEC EDGAR filing history for this company.');return;}
+  var css=[
+    '@page{size:letter landscape;margin:11mm 10mm}',
+    'body{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color:#000;background:#fff;margin:0;font-size:9.5pt}',
+    'header h1{font-size:14pt;margin:0 0 1px}',
+    'header .sub{font-size:8.5pt;color:#444;margin-bottom:10px}',
+    'section h2{font-size:11pt;margin:14px 0 5px;text-transform:uppercase;letter-spacing:0.05em}',
+    'section.pb{page-break-before:always}',
+    'table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}',
+    'thead{display:table-header-group}',
+    'th{font-size:8pt;text-align:right;padding:3px 5px;border-bottom:1.2pt solid #000}',
+    'th:first-child{text-align:left}',
+    'td{font-size:8pt;text-align:right;padding:2px 5px;white-space:nowrap}',
+    'td.stmt-lbl{text-align:left;white-space:normal;min-width:150pt}',
+    'tr.stmt-hdr td{text-align:left;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding-top:7px}',
+    'tr.stmt-hdr2 td{text-transform:none;letter-spacing:0;font-weight:600;padding-top:4px}',
+    'tr.stmt-i1 td.stmt-lbl{padding-left:12pt}',
+    'tr.stmt-i2 td.stmt-lbl{padding-left:24pt}',
+    'tr.stmt-sub td{font-weight:700;border-top:0.7pt solid #000}',
+    'tr.stmt-tot td{font-weight:700;border-top:0.7pt solid #000;border-bottom:2.2pt double #000}',
+    'tr.stmt-drv-head td{text-align:left;font-style:italic;font-weight:600;border-top:0.7pt solid #888;padding-top:6px;text-transform:none;letter-spacing:0}',
+    'tr.stmt-drv td{font-style:italic;color:#222}',
+    '.stmt-mark{font-size:6.5pt;vertical-align:super}',
+    'p.note{font-size:7pt;color:#333;line-height:1.5;margin:6px 0 0}'
+  ].join('');
+  var secs='';
+  DT_STMTS.forEach(function(m,ix){
+    var t=_stmtBuildTable(m.k,h,d);
+    secs+='<section'+(ix?' class="pb"':'')+'><h2>'+esc(m.l)+'</h2>';
+    if(!t||t.empty)secs+='<p class="note">'+esc(t&&t.empty?t.empty:'Not available.')+'</p>';
+    else secs+='<table><thead>'+t.headRow+'</thead><tbody>'+t.body+'</tbody></table><p class="note">'+esc(t.note)+'</p>';
+    secs+='</section>';
+  });
+  /* The frame document's title becomes the print dialog's default PDF
+     filename (Chrome; Safari falls back to the page title — the in-document
+     header identifies the export either way). */
+  var ttl=d.ticker+' financial statements '+RUN_DATE;
+  var docHtml='<!doctype html><html><head><meta charset="utf-8"><title>'+esc(ttl)+'</title><style>'+css+'</style></head><body>'
+    +'<header><h1>'+esc(d.company_name||d.ticker)+' ('+esc(d.ticker)+')</h1>'
+    +'<div class="sub">Balance Sheet · Income Statement · Cash Flow Statement — annual, as filed with SEC EDGAR (XBRL) · report of '+esc(RUN_DATE)+'</div></header>'
+    +secs+'</body></html>';
+  var fr=document.getElementById('stmt-print-frame');
+  if(!fr){
+    fr=document.createElement('iframe');
+    fr.id='stmt-print-frame';
+    fr.setAttribute('aria-hidden','true');
+    fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+    document.body.appendChild(fr);
+  }
+  var fd=fr.contentDocument||fr.contentWindow.document;
+  fd.open();fd.write(docHtml);fd.close();
+  setTimeout(function(){try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){}},250);
 }
 function openDet(tk){
   var d=DATA.find(function(x){return x.ticker===tk;});
