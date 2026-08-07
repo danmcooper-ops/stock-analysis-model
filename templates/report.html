@@ -150,7 +150,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
      are the genuinely phone-only differences: edge-to-edge instead of inset,
      square corners, and tighter padding that respects the safe areas. */
   .detail-modal.open{padding:0!important;}
-  .detail-content{max-width:100%!important;border-radius:0!important;}
+  /* Full-bleed, so the shell's height loses the base rule's -48px padding
+     allowance. Same dvh reasoning as the base rule; the @supports fallback
+     is restated because this block outranks the base one on !important. */
+  .detail-content{max-width:100%!important;border-radius:0!important;height:100dvh!important;}
+  @supports not (height:100dvh){.detail-content{height:var(--vvh,100vh)!important;}}
   .dh{padding-right:44px!important;}
   .d-header-band{border-radius:0!important;padding:calc(10px + env(safe-area-inset-top)) 16px 10px!important;}
   .d-body{padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px!important;display:block!important;}
@@ -173,7 +177,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .container{padding:2px 6px;}
   .dh{padding-right:44px!important;}
   .detail-modal.open{padding:0!important;}
-  .detail-content{max-width:100%!important;width:100%!important;border-radius:0!important;}
+  /* Full-bleed height override, same as the portrait phone block above. */
+  .detail-content{max-width:100%!important;width:100%!important;border-radius:0!important;height:100dvh!important;}
+  @supports not (height:100dvh){.detail-content{height:var(--vvh,100vh)!important;}}
   .d-header-band{border-radius:0!important;padding:calc(6px + env(safe-area-inset-top)) 16px 5px!important;}
   .d-body{padding:6px 12px calc(6px + env(safe-area-inset-bottom)) 12px!important;display:block!important;}
   .d-body>*{margin-bottom:6px;}
@@ -704,25 +710,48 @@ td.ct{font-weight:700;}
   }
 }
 /* DETAIL POPUP — one box model for every viewport (iPhone, iPad, Mac).
-   Height comes off the SMALL viewport (100svh), which is constant whether or
-   not iOS Safari's toolbars are showing. 100vh there is the LARGE viewport, so
-   the popup ran behind the bottom toolbar on iPad; and the visual viewport
-   swells and shrinks as the toolbar collapses, so sizing off it made a popup
-   opened at the top of the page taller or shorter than one opened mid-scroll.
-   --vvh (set from visualViewport.height) survives only as the pre-svh
-   fallback for iOS < 15.4, gated behind @supports so it can no longer beat
-   svh on browsers that have it. */
-.detail-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100svh;background:rgba(8,12,28,0.75);backdrop-filter:blur(4px);z-index:1000;overflow:hidden;}
-@supports not (height:100svh){.detail-modal{height:var(--vvh,100vh);}}
-.detail-modal.open{display:flex;justify-content:center;align-items:stretch;padding:24px 20px;}
-/* height:100% (of the stretched flex line) rather than max-height means the
-   shell is the same size for every ticker and every tab — content length no
-   longer decides the popup's dimensions. The band is a non-scrolling flex
-   item and .d-body is the only scroller: as a position:sticky child of a
-   scrolling .detail-content the band spanned just the unscrolled width, so
-   wide content that panned the popup sideways left the banner short of the
-   right edge. As a flex item it is always exactly the popup's width. */
-.detail-content{background:#f0f4ff;border-radius:18px;max-width:1080px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);position:relative;padding:0;height:100%;max-height:100%;display:flex;flex-direction:column;overflow:hidden;}
+
+   The overlay is deliberately NOT sized. `inset:0` is a box constraint
+   rather than a measurement: its bottom edge tracks the layout viewport,
+   which iOS keeps at least as large as the visible area in every toolbar
+   state and re-resolves reliably on rotation. The previous `height:100svh`
+   was a measurement, and iOS Safari serves stale viewport-unit values to
+   fixed elements after an orientation change — rotate with the popup open
+   and the overlay kept the other orientation's height, ending mid-screen
+   with the bare table showing below it. An unmeasured overlay cannot end
+   mid-screen no matter what the units are doing.
+
+   The overlay also scrolls (`overflow-y:auto`, was `overflow:hidden`) as
+   the safety valve for the shell's own height unit: resolved stale-tall,
+   the overflow is scrollable instead of amputated. When the unit is right —
+   the normal case — nothing overflows and the overlay never moves.
+   Background scroll bleed-through is prevented by pinning the body while
+   the popup is open (see _lockBody beside openDet), not by clipping this
+   box: overflow:hidden on the body is ignored by iOS, which let the table
+   scroll and the toolbars thrash underneath the old clipped overlay. */
+.detail-modal{display:none;position:fixed;inset:0;background:rgba(8,12,28,0.75);backdrop-filter:blur(4px);z-index:1000;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+.detail-modal.open{display:flex;justify-content:center;align-items:flex-start;padding:24px 20px;}
+/* A definite height rather than max-height means the shell is the same size
+   for every ticker and every tab — content length no longer decides the
+   popup's dimensions. The band is a non-scrolling flex item and .d-body is
+   the only scroller: as a position:sticky child of a scrolling
+   .detail-content the band spanned just the unscrolled width, so wide
+   content that panned the popup sideways left the banner short of the
+   right edge. As a flex item it is always exactly the popup's width.
+
+   The height is 100dvh minus the overlay's vertical padding. dvh is the
+   dynamic viewport — the height actually visible right now — and with the
+   body pinned while the popup is open the toolbars never move, so it holds
+   still for the popup's whole lifetime. svh was wrong twice over: stale
+   after rotation (see the overlay comment), and short of the visible area
+   whenever the toolbars are collapsed. 100% of the overlay is wrong the
+   other way — the layout viewport overhangs the visible area by the
+   toolbar height, which is what used to put the shell's bottom behind the
+   iPad toolbar. --vvh (set from visualViewport.height) survives only as
+   the pre-dvh fallback for iOS < 15.4, gated behind @supports so it can
+   never beat dvh on browsers that have it. */
+.detail-content{background:#f0f4ff;border-radius:18px;max-width:1080px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);position:relative;padding:0;height:calc(100dvh - 48px);display:flex;flex-direction:column;overflow:hidden;}
+@supports not (height:100dvh){.detail-content{height:calc(var(--vvh,100vh) - 48px);}}
 .d-header-band{flex-shrink:0;}
 .detail-close{position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;border:none;background:rgba(255,255,255,0.18);width:30px;height:30px;border-radius:50%;font-size:1.1em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;}
 .detail-close:hover{background:rgba(255,255,255,0.35);}
@@ -6036,9 +6065,39 @@ function openDet(tk){
   var _dm=document.getElementById('det-modal');
   swDetTab(_detTab);
   _dm.classList.add('open');
-  document.body.style.overflow='hidden';
+  /* The overlay is a scroll container (the stale-height safety valve, see
+     the .detail-modal CSS) and keeps its offset across opens. */
+  _dm.scrollTop=0;
+  _lockBody();
 }
-function closeDetail(){closeDetMenus();document.getElementById('det-modal').classList.remove('open');document.body.style.overflow='';}
+function closeDetail(){closeDetMenus();document.getElementById('det-modal').classList.remove('open');_unlockBody();}
+/* Pin the page while the popup is open. body{overflow:hidden} — the old
+   lock — is ignored by iOS Safari: the table kept scrolling under the
+   popup, and that scroll collapsed/expanded the browser toolbars, thrashing
+   the viewport the popup was sized against. position:fixed is the lock iOS
+   respects. The scroll offset moves onto top so the page doesn't jump, and
+   is restored on close. Desktop classic scrollbars get a padding
+   compensation so the page doesn't widen while pinned (iOS overlay
+   scrollbars measure 0 and skip it). */
+var _lockY=0,_lockOn=false;
+function _lockBody(){
+  if(_lockOn)return;
+  _lockY=window.pageYOffset||document.documentElement.scrollTop||0;
+  var sw=window.innerWidth-document.documentElement.clientWidth;
+  var b=document.body.style;
+  b.position='fixed';b.top=(-_lockY)+'px';b.left='0';b.right='0';
+  b.width='100%';b.overflow='hidden';
+  if(sw>0)b.paddingRight=sw+'px';
+  _lockOn=true;
+}
+function _unlockBody(){
+  if(!_lockOn)return;
+  var b=document.body.style;
+  b.position='';b.top='';b.left='';b.right='';b.width='';b.overflow='';
+  b.paddingRight='';
+  _lockOn=false;
+  window.scrollTo(0,_lockY);
+}
 function _easeScroll(el,to,ms){var start=el.scrollTop,diff=to-start,t0=performance.now();(function step(now){var p=Math.min((now-t0)/ms,1),ease=p<0.5?4*p*p*p:(1-Math.pow(-2*p+2,3)/2);el.scrollTop=start+diff*ease;if(p<1)requestAnimationFrame(step);})(t0);}
 /* Pick the actual scroll container — on mobile it is .d-body (flex column
    layout puts overflow on the body so the nav bar can stay anchored at the
