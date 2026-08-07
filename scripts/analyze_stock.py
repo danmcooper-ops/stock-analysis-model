@@ -3713,13 +3713,9 @@ def _main():
     os.makedirs("output", exist_ok=True)
     today_str = run_start_date.isoformat()  # pin to run-start so a midnight-spanning run stays single-dated
     _run_prov = _prov.run_block(results)
-    html_filename = os.path.join("output", f"stock_analysis_results_{today_str}.html")
-    build_html(results, html_filename, prices_dir=prices_dir, run_date=run_start_date,
-               run_provenance=_run_prov)
-    xlsx_filename = os.path.join("output", f"stock_analysis_results_{today_str}.xlsx")
-    build_excel(results, xlsx_filename)
 
-    # Save results as JSON for backtesting pipeline
+    # Save results as JSON for backtesting pipeline. Written BEFORE the
+    # HTML/Excel renders so the Phase-2 snapshot survives a render crash.
     json_filename = os.path.join("output", f"results_{run_start_date.isoformat()}.json")
     def _make_json_safe(val, _depth=0):
         """Recursively convert a value to a JSON-safe structure (max depth 8)."""
@@ -3780,6 +3776,12 @@ def _main():
     with open(json_filename, 'w') as f:
         json.dump(json_meta, f, indent=2, default=str)
     _prov.write_events('output')
+
+    html_filename = os.path.join("output", f"stock_analysis_results_{today_str}.html")
+    build_html(results, html_filename, prices_dir=prices_dir, run_date=run_start_date,
+               run_provenance=_run_prov)
+    xlsx_filename = os.path.join("output", f"stock_analysis_results_{today_str}.xlsx")
+    build_excel(results, xlsx_filename)
 
     print(f"\nAnalysis complete. {len(results)} stocks.")
     print(f"  HTML: {html_filename}")
