@@ -442,7 +442,12 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     _r2000 = _load_russell2000()
     # Prior-run ratings for the "Δ vs prior" column. Sourced from the most
     # recent earlier results_*.json sitting next to this HTML output.
-    _out_dir_early = os.path.dirname(os.path.abspath(filename)) or '.'
+    try:
+        _out_dir_early = os.path.dirname(os.path.abspath(filename)) or '.'
+    except OSError:
+        # abspath needs getcwd(), which can raise EPERM if the working
+        # directory became unreadable mid-run (e.g. a macOS TCC revocation).
+        _out_dir_early = os.path.dirname(filename) or '.'
     gate_meta_obj = gate_metadata()
     # Per-gate raw values + scores from the prior snapshot feed the popup's
     # "why the rating changed" explanation.
@@ -824,7 +829,11 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
     # template lazy-fetches them on first chart open, so the embedded HTML
     # stays small enough to publish via GitHub Pages (<100 MB hard cap).
-    out_dir = os.path.dirname(os.path.abspath(filename)) or '.'
+    try:
+        out_dir = os.path.dirname(os.path.abspath(filename)) or '.'
+    except OSError:
+        # Same getcwd()/EPERM guard as _out_dir_early above.
+        out_dir = os.path.dirname(filename) or '.'
     hist_path = os.path.join(out_dir, 'hist.json')
     prices_path = os.path.join(out_dir, 'prices.json')
     details_path = os.path.join(out_dir, 'details.json')
