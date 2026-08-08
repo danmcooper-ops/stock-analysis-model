@@ -772,12 +772,14 @@ td.ct{font-weight:700;}
 .detail-content{background:#f0f4ff;border-radius:18px;max-width:1080px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);position:relative;padding:0;height:calc(max(100dvh,var(--vvh,0px)) - 48px);display:flex;flex-direction:column;overflow:hidden;}
 @supports not (height:100dvh){.detail-content{height:calc(var(--vvh,100vh) - 48px);}}
 .d-header-band{flex-shrink:0;}
-.detail-close{position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;border:none;background:rgba(255,255,255,0.18);width:30px;height:30px;border-radius:50%;font-size:1.1em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;}
+.detail-close{position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;border:none;background:rgba(255,255,255,0.18);width:26px;height:26px;border-radius:50%;font-size:1em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;}
 .detail-close:hover{background:rgba(255,255,255,0.35);}
 /* Hamburger section-menu button — same chip treatment as .detail-close,
-   sitting immediately to its left. .d-rating-row's 84px right padding
-   reserves exactly this footprint (14+30 close, 10 gap, 30 burger). */
-.detail-menu-btn{position:absolute;top:calc(12px + env(safe-area-inset-top));right:54px;border:none;background:rgba(255,255,255,0.18);width:30px;height:30px;border-radius:50%;font-size:1em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;padding:0;}
+   sitting immediately to its left (14+26 close, 8 gap, 26 burger = 74px,
+   inside .d-rating-row's 84px right padding). Both buttons run at 26px so
+   the full right-edge column (buttons, arrows, counter, reviewed/flag)
+   fits the compact desktop band. */
+.detail-menu-btn{position:absolute;top:calc(12px + env(safe-area-inset-top));right:48px;border:none;background:rgba(255,255,255,0.18);width:26px;height:26px;border-radius:50%;font-size:0.9em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;padding:0;}
 .detail-menu-btn:hover,.detail-menu-btn[aria-expanded="true"]{background:rgba(255,255,255,0.35);}
 /* Fullscreen toggle removed — mobile media queries above already promote
    the modal to full-viewport at narrow widths, so the explicit toggle
@@ -810,33 +812,26 @@ td.ct{font-weight:700;}
 .d-rhist-bar{display:inline-flex;width:84px;height:8px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,0.15);}
 .d-rhist-bar span{display:block;height:100%;}
 .rb-cap{margin-left:3px;cursor:help;font-size:0.85em;}
-.d-mini-nav{position:absolute;top:54px;right:14px;display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
-/* Reviewed + Flag icons live at the bottom-right of the header band.
-   Absolutely positioned inside .d-header-band (sticky-positioned parent),
-   with bottom/right padding and gap between the two icons for breathing
-   room. */
-.d-mini-nav-actions{position:absolute;bottom:14px;right:18px;z-index:6;display:flex;align-items:center;gap:14px;}
-/* Desktop's compact band puts its bottom edge level with the stock-count
-   indicator under the nav arrows, so inset the icons past the counter's
-   widest case ("2322 / 2322"). Phone bands are tall enough that the
-   bottom-right corner stays clear, and the meta text needs the edge. */
-@media(min-width:601px){.d-mini-nav-actions{right:96px;}}
+.d-mini-nav{position:absolute;top:calc(44px + env(safe-area-inset-top));right:14px;display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
+/* Reviewed + Flag icons are the last row of the .d-mini-nav column —
+   right-justified under the stock counter, in normal flex flow. */
+.d-mini-nav-actions{display:flex;align-items:center;gap:10px;padding-top:1px;}
 /* Flag glyph (⚐/⚑) has more internal whitespace than the reviewed SVG
    circle, so at equal font-size it looks visually smaller. Bump it
    enough to match (or slightly exceed) the reviewed icon's optical
    size. */
-.d-mini-nav-actions .flag-star{font-size:1.35em;line-height:1;}
+.d-mini-nav-actions .flag-star{font-size:1.1em;line-height:1;}
 .d-mini-nav-actions .flag-star:not(.flagged){color:rgba(255,255,255,0.4);}
-.d-mini-nav-actions .rev-chk-det{font-size:0.75em;}
+.d-mini-nav-actions .rev-chk-det{font-size:0.68em;}
 .d-mini-nav-arrows{display:flex;align-items:center;gap:3px;}
-.d-mini-nav-btn{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.2);border-radius:5px;width:30px;height:22px;font-size:14px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
+.d-mini-nav-btn{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.2);border-radius:5px;width:28px;height:20px;font-size:13px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
 .d-mini-nav-btn:hover:not(:disabled){background:rgba(255,255,255,0.32);}
 .d-mini-nav-btn:disabled{opacity:0.3;cursor:default;}
 /* Stock-count nav indicator (e.g. "1 / 2033") — right-aligned directly
    under the prev/next arrows via .d-mini-nav's column flex. */
 .d-mini-nav-pos{font-size:0.68em;color:rgba(255,255,255,0.7);text-align:right;white-space:nowrap;letter-spacing:0.02em;font-variant-numeric:tabular-nums;}
 .dmeta{padding-right:70px;}
-.det-nav-pos{font-size:0.7em;}
+.det-nav-pos{font-size:0.64em;}
 .dh .dtk{font-size:1.55em;font-weight:900;color:#fff;letter-spacing:-0.5px;text-shadow:0 2px 12px rgba(0,0,0,0.4);}
 .drt{font-size:0.9em;font-weight:700;padding:4px 14px;border-radius:18px;color:white;box-shadow:0 1px 4px rgba(0,0,0,0.18);letter-spacing:0.03em;}
 .dcs{font-size:0.92em;font-weight:800;padding:4px 12px;border-radius:18px;color:white;box-shadow:0 1px 4px rgba(0,0,0,0.18);}
@@ -1873,8 +1868,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
       <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
-      <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div><span class="det-nav-pos d-mini-nav-pos"></span></div>
-      <div class="d-mini-nav-actions"><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
+      <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div><span class="det-nav-pos d-mini-nav-pos"></span><div class="d-mini-nav-actions"><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div></div>
     </div>
     <div class="d-body">
       <div id="d-pane-overview" class="d-pane active">
