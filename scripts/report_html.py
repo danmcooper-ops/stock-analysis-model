@@ -985,6 +985,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
             _cutoff = _pd.Timestamp.now().normalize() - _pd.DateOffset(years=20)
             _series = {}
             _vol_series = {}
+            _buyfrac_series = {}
             for r in rows:
                 tk = r.get('ticker')
                 if not tk:
@@ -1007,6 +1008,21 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                             _v = df['Volume'][_keep].dropna()
                             if len(_v) >= 20:
                                 _vol_series[tk] = _v
+                                # Estimated buying share of the day's volume,
+                                # from where the close sits in the day's range:
+                                # the money-flow multiplier behind Chaikin
+                                # Accumulation/Distribution. Daily bars can't
+                                # tell us who initiated a trade — that needs
+                                # tick data — so this is explicitly an estimate
+                                # and the report labels it as one. A zero-range
+                                # day (limit move, halt) splits evenly.
+                                if 'High' in df.columns and 'Low' in df.columns:
+                                    _hi = df['High'][_keep]
+                                    _lo = df['Low'][_keep]
+                                    _rng = _hi - _lo
+                                    _f = ((df['Close'][_keep] - _lo) / _rng)
+                                    _f = _f.where(_rng > 0, 0.5).clip(0.0, 1.0)
+                                    _buyfrac_series[tk] = _f
                 except Exception:
                     pass
             # Also load any available index files
@@ -1064,7 +1080,19 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                         hi -= 1
                     if hi < lo:
                         continue
-                    _vol_out[tk] = {'i0': lo, 'v': arr[lo:hi + 1]}
+                    shard = {'i0': lo, 'v': arr[lo:hi + 1]}
+                    # Buying share as an int 0-100, on the SAME run as v so the
+                    # client can index both with one offset. 1% of a day's
+                    # volume is finer than a 40px-tall stacked bar can show.
+                    fs = _buyfrac_series.get(tk)
+                    if fs is not None:
+                        farr = [None] * len(_all_dates)
+                        for dt, x in fs.dropna().items():
+                            i = _date_idx.get(dt)
+                            if i is not None and arr[i] is not None:
+                                farr[i] = int(round(float(x) * 100))
+                        shard['f'] = farr[lo:hi + 1]
+                    _vol_out[tk] = shard
                 prices_payload = {
                     'dates': _date_strs,
                     'prices': _prices_out,
@@ -1104,6 +1132,18 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
             for _tk, _sh in vol_payload.items():
                 with open(os.path.join(vol_dir, f'{_tk}.json'), 'w') as _vf:
                     json.dump(_sh, _vf, separators=_COMPACT)
+            # Belt and braces on top of the rmtree: sweep anything the manifest
+            # doesn't claim. A 2026-08-08 run found 2,139 macOS conflict copies
+            # ("AAPL 3.json") that outlived the rmtree — harmless to the client,
+            # which only ever fetches manifest entries, but ~55 MB of junk that
+            # a wholesale copy would publish.
+            _stale = 0
+            for _fn in os.listdir(vol_dir):
+                if _fn.endswith('.json') and _fn[:-5] not in vol_payload:
+                    os.remove(os.path.join(vol_dir, _fn))
+                    _stale += 1
+            if _stale:
+                print(f"[report_html] vol/: swept {_stale} unclaimed shard file(s)")
     except Exception as _e:
         print(f"[warn] vol/ shard write failed: {_e}")
 
