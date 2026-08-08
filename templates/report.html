@@ -772,14 +772,14 @@ td.ct{font-weight:700;}
 .detail-content{background:#f0f4ff;border-radius:18px;max-width:1080px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);position:relative;padding:0;height:calc(max(100dvh,var(--vvh,0px)) - 48px);display:flex;flex-direction:column;overflow:hidden;}
 @supports not (height:100dvh){.detail-content{height:calc(var(--vvh,100vh) - 48px);}}
 .d-header-band{flex-shrink:0;}
-.detail-close{position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;border:none;background:rgba(255,255,255,0.18);width:26px;height:26px;border-radius:50%;font-size:1em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;}
+.detail-close{position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;border:none;background:rgba(255,255,255,0.18);width:24px;height:24px;border-radius:50%;font-size:0.95em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;}
 .detail-close:hover{background:rgba(255,255,255,0.35);}
 /* Hamburger section-menu button — same chip treatment as .detail-close,
-   sitting immediately to its left (14+26 close, 8 gap, 26 burger = 74px,
-   inside .d-rating-row's 84px right padding). Both buttons run at 26px so
+   sitting immediately to its left (14+24 close, 8 gap, 24 burger = 70px,
+   inside .d-rating-row's 84px right padding). Both buttons run at 24px so
    the full right-edge column (buttons, arrows, counter, reviewed/flag)
-   fits the compact desktop band. */
-.detail-menu-btn{position:absolute;top:calc(12px + env(safe-area-inset-top));right:48px;border:none;background:rgba(255,255,255,0.18);width:26px;height:26px;border-radius:50%;font-size:0.9em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;padding:0;}
+   fits the compact desktop band with all five rows optically level. */
+.detail-menu-btn{position:absolute;top:calc(12px + env(safe-area-inset-top));right:46px;border:none;background:rgba(255,255,255,0.18);width:24px;height:24px;border-radius:50%;font-size:0.85em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;padding:0;}
 .detail-menu-btn:hover,.detail-menu-btn[aria-expanded="true"]{background:rgba(255,255,255,0.35);}
 /* Fullscreen toggle removed — mobile media queries above already promote
    the modal to full-viewport at narrow widths, so the explicit toggle
@@ -820,11 +820,11 @@ td.ct{font-weight:700;}
    circle, so at equal font-size it looks visually smaller. Bump it
    enough to match (or slightly exceed) the reviewed icon's optical
    size. */
-.d-mini-nav-actions .flag-star{font-size:1.1em;line-height:1;}
+.d-mini-nav-actions .flag-star{font-size:1.35em;line-height:1;}
 .d-mini-nav-actions .flag-star:not(.flagged){color:rgba(255,255,255,0.4);}
-.d-mini-nav-actions .rev-chk-det{font-size:0.68em;}
+.d-mini-nav-actions .rev-chk-det{font-size:0.85em;}
 .d-mini-nav-arrows{display:flex;align-items:center;gap:3px;}
-.d-mini-nav-btn{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.2);border-radius:5px;width:28px;height:20px;font-size:13px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
+.d-mini-nav-btn{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.2);border-radius:5px;width:26px;height:19px;font-size:12px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
 .d-mini-nav-btn:hover:not(:disabled){background:rgba(255,255,255,0.32);}
 .d-mini-nav-btn:disabled{opacity:0.3;cursor:default;}
 /* Stock-count nav indicator (e.g. "1 / 2033") — right-aligned directly
