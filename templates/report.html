@@ -812,10 +812,11 @@ td.ct{font-weight:700;}
 .d-rhist-bar{display:inline-flex;width:84px;height:8px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,0.15);}
 .d-rhist-bar span{display:block;height:100%;}
 .rb-cap{margin-left:3px;cursor:help;font-size:0.85em;}
-.d-mini-nav{position:absolute;top:calc(44px + env(safe-area-inset-top));right:14px;display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
-/* Reviewed + Flag icons are the last row of the .d-mini-nav column —
-   right-justified under the stock counter, in normal flex flow. */
-.d-mini-nav-actions{display:flex;align-items:center;gap:10px;padding-top:1px;}
+/* The band's right edge is three separately-anchored zones, all sharing
+   right:14px — close/hamburger chips at the top, prev/next arrows
+   vertically centered, reviewed/flag icons at the bottom. */
+.d-mini-nav{position:absolute;top:50%;transform:translateY(-50%);right:14px;display:flex;flex-direction:column;align-items:flex-end;}
+.d-mini-nav-actions{position:absolute;bottom:12px;right:14px;z-index:6;display:flex;align-items:center;gap:10px;}
 /* Flag glyph (⚐/⚑) has more internal whitespace than the reviewed SVG
    circle, so at equal font-size it looks visually smaller. Bump it
    enough to match (or slightly exceed) the reviewed icon's optical
@@ -1867,7 +1868,8 @@ body.wide-table .container{padding-left:0;padding-right:0;}
       <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span class="det-nav-pos"></span></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
-      <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div><div class="d-mini-nav-actions"><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div></div>
+      <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div></div>
+      <div class="d-mini-nav-actions"><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
     </div>
     <div class="d-body">
       <div id="d-pane-overview" class="d-pane active">
