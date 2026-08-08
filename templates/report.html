@@ -243,27 +243,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sub-btn{padding:8px 16px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.8em;font-weight:600;background:white;color:#546e7a;transition:all 0.15s;white-space:nowrap;line-height:1;flex-shrink:0;}
 .sub-btn.active{background:#1a252f;color:white;border-color:#1a252f;}
 .sub-btn:hover:not(.active){background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
-/* Detail-popup tab bar — sits on the dark header gradient in BOTH themes, so
-   the button colors are fixed here rather than theme-dependent. The
-   .d-header-band prefix outranks the [data-theme="dark"] .sub-btn overrides
-   later in this sheet (0,3,0 vs 0,2,0). */
-.d-tabs{margin-top:9px;padding:0;position:relative;z-index:1;}
-/* Undo the sticky/full-width treatment .secondary-nav gets in the main layout
-   (line ~1353: position:sticky + width:100vw) — inside the popup header the
-   bar is a normal block, and the right margin keeps the scrolling tabs clear
-   of the absolutely-positioned reviewed/flag icons at the band's bottom-right. */
-.d-header-band .d-tabs{position:relative;width:auto;margin-right:52px;}
-.d-header-band .d-tabs .sub-btn{background:rgba(255,255,255,0.08);color:#c5d2e0;border-color:rgba(255,255,255,0.18);}
-.d-header-band .d-tabs .sub-btn:hover:not(.active){background:rgba(255,255,255,0.16);color:#fff;border-color:rgba(255,255,255,0.3);}
-.d-header-band .d-tabs .sub-btn.active{background:#fff;color:#0d1f42;border-color:#fff;}
-/* Four controls now (Overview, Charts, Data ▾, Statements ▾) instead of
-   eleven tabs, and the two dropdown labels grow to the selected item's name
-   ("Profitability", "Cash Flow Statement"). Wrap rather than side-scroll:
-   at phone width the labels are wide enough that the old overflow-x:auto
-   left later controls off-screen with no scroll affordance. */
-.d-header-band .d-tabs{flex-wrap:wrap;overflow:visible;row-gap:6px;}
-.dtb-btn{display:inline-flex;align-items:center;gap:6px;}
-.dtb-caret{font-size:0.8em;line-height:1;opacity:0.75;}
+/* Detail-popup section nav — a single hamburger button (.detail-menu-btn,
+   styled next to .detail-close near line ~790) in the band's top-right opens
+   ONE menu holding every section: Overview, Charts, the data tabs, Peers,
+   News, and the filed statements. The old bottom tab row is gone. */
 /* The menus are children of #det-modal, NOT of the tab bar: both
    .detail-content and .d-header-band are overflow:hidden (the band clips its
    ::before glow), so a panel anchored inside the bar is cut off at the band
@@ -279,11 +262,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .dtb-item:hover{background:#eef2f7;color:#1a252f;}
 .dtb-item.active{background:#eef2f7;color:var(--accent);}
 .dtb-sep{margin:4px 2px;border-top:1px solid #e3e9f2;}
+.dtb-head{font-size:0.62em;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#8a97a5;padding:8px 10px 3px;margin-top:4px;border-top:1px solid #e3e9f2;}
 [data-theme="dark"] .dtb-menu{background:#161b22;border-color:#30363d;}
 [data-theme="dark"] .dtb-item{color:#c9d1d9;}
 [data-theme="dark"] .dtb-item:hover{background:#21262d;color:#f0f6fc;}
 [data-theme="dark"] .dtb-item.active{background:#21262d;color:var(--accent);}
 [data-theme="dark"] .dtb-sep{border-top-color:#30363d;}
+[data-theme="dark"] .dtb-head{color:#8b949e;border-top-color:#30363d;}
 /* Statement tables follow the typography of a filed statement: captions
    flush left, line items indented beneath them, subtotals ruled, and the
    statement total double-ruled. Negatives carry parentheses (see fdsg) and
@@ -789,6 +774,11 @@ td.ct{font-weight:700;}
 .d-header-band{flex-shrink:0;}
 .detail-close{position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;border:none;background:rgba(255,255,255,0.18);width:30px;height:30px;border-radius:50%;font-size:1.1em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;}
 .detail-close:hover{background:rgba(255,255,255,0.35);}
+/* Hamburger section-menu button — same chip treatment as .detail-close,
+   sitting immediately to its left. .d-rating-row's 84px right padding
+   reserves exactly this footprint (14+30 close, 10 gap, 30 burger). */
+.detail-menu-btn{position:absolute;top:calc(12px + env(safe-area-inset-top));right:54px;border:none;background:rgba(255,255,255,0.18);width:30px;height:30px;border-radius:50%;font-size:1em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;padding:0;}
+.detail-menu-btn:hover,.detail-menu-btn[aria-expanded="true"]{background:rgba(255,255,255,0.35);}
 /* Fullscreen toggle removed — mobile media queries above already promote
    the modal to full-viewport at narrow widths, so the explicit toggle
    was redundant on phones and an extra control to ignore on desktop. */
@@ -1361,9 +1351,6 @@ td.ct{font-weight:700;}
 /* Popup tab bar in dark mode: the "body *" catch-all forces all text white,
    so the light-mode white-pill active state (navy text) is unreadable here.
    Use the standard dark active-accent blue instead — text stays white. */
-[data-theme="dark"] .d-header-band .d-tabs .sub-btn{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.18);}
-[data-theme="dark"] .d-header-band .d-tabs .sub-btn.active{background:#1f6feb;border-color:#1f6feb;}
-[data-theme="dark"] .d-header-band .d-tabs .sub-btn:hover:not(.active){background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);}
 /* Header dropdown buttons — same problem, same fix as the popup tab bar above.
    The light-mode open state is a white fill with navy text, but "body *"
    forces the label white in dark mode, which would leave it white-on-white.
@@ -1879,6 +1866,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   <div class="detail-content">
     <div class="d-header-band">
       <button class="detail-close" onclick="closeDetail()">&times;</button>
+      <button class="detail-menu-btn" id="d-tbtn-all" aria-haspopup="menu" aria-expanded="false" title="Sections" onclick="toggleDetMenu(event)">&#9776;</button>
       <div class="d-rating-row"><div class="dpx" id="d-px"></div><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
       <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div></div></div>
       <div class="dcname" id="d-cname"></div>
@@ -1886,7 +1874,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
       <div class="d-pos-bottom"><span class="det-nav-pos"></span></div>
       <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div></div>
       <div class="d-mini-nav-actions"><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
-      <div class="secondary-nav d-tabs" id="d-tabs"></div>
     </div>
     <div class="d-body">
       <div id="d-pane-overview" class="d-pane active">
@@ -1920,10 +1907,9 @@ body.wide-table .container{padding-left:0;padding-right:0;}
       <div id="d-pane-stmt" class="d-pane"></div>
     </div>
   </div>
-  <!-- Tab-bar dropdown menus. Siblings of .detail-content (which clips) so
-       they can overhang the header band — same trick #popup-tip uses. -->
-  <div id="d-menu-data" class="dtb-menu" role="menu"></div>
-  <div id="d-menu-stmt" class="dtb-menu" role="menu"></div>
+  <!-- Hamburger section menu. Sibling of .detail-content (which clips) so
+       it can overhang the header band — same trick #popup-tip uses. -->
+  <div id="d-menu-all" class="dtb-menu" role="menu"></div>
   <div id="popup-tip"></div>
 </div>
 <div id="tk-tip" class="tk-tip"></div>
@@ -5080,57 +5066,50 @@ function _detDataItems(){
   DT_TABS.forEach(function(x){t.push({k:x.k,l:x.l});if(x.k==='growth'){t.push({k:'peers',l:'Peers'});t.push({k:'news',l:'News'});}});
   return t;
 }
-/* Tab bar = two flat buttons + two dropdown groups. Overview and Charts stay
-   one click away; everything else is grouped, because eleven peer tabs on a
-   dark band read as a wall and side-scrolled on phones. Each dropdown button
-   is titled by its CURRENT selection ("Profitability" rather than "Data") so
-   the bar still answers "where am I" without a separate crumb. */
+/* All sections live in ONE hamburger menu, opened by .detail-menu-btn in the
+   band's top-right (next to the close ×). The button's title carries the
+   CURRENT selection ("Sections › Profitability") since there is no tab bar
+   left to answer "where am I". */
 function _detGroupOf(k){
   if(k==='overview'||k==='charts')return null;
   for(var i=0;i<DT_STMTS.length;i++)if(DT_STMTS[i].k===k)return 'stmt';
   return 'data';
 }
-function _detMenuItems(g){return g==='stmt'?DT_STMTS:_detDataItems();}
-function _detGroupBtnHtml(g,def){
-  var items=_detMenuItems(g),cur=null;
-  items.forEach(function(it){if(it.k===_detTab)cur=it;});
-  return '<button class="sub-btn dtb-btn'+(cur?' active':'')+'" id="d-tbtn-'+g+'"'
-    +' aria-haspopup="menu" aria-expanded="false"'
-    +' title="'+_attr(def+(cur?' › '+cur.l:''))+'"'
-    +' onclick="toggleDetMenu(\''+g+'\',event)">'
-    +'<span>'+esc(cur?cur.l:def)+'</span><span class="dtb-caret">&#9662;</span></button>';
+function _detMenuItems(){
+  return [{k:'overview',l:'Overview'},{k:'charts',l:'Charts'}]
+    .concat(_detDataItems()).concat(DT_STMTS);
 }
 function _renderDetTabBar(){
-  var el=document.getElementById('d-tabs');if(!el)return;
-  var h='';
-  [{k:'overview',l:'Overview'},{k:'charts',l:'Charts'}].forEach(function(t){
-    h+='<button class="sub-btn'+(t.k===_detTab?' active':'')+'" onclick="swDetTab(\''+t.k+'\')">'+t.l+'</button>';
-  });
-  h+=_detGroupBtnHtml('data','Data');
-  h+=_detGroupBtnHtml('stmt','Statements');
-  el.innerHTML=h;
-  /* Keep an open menu's marks in sync when the bar re-renders (ticker
-     navigation re-renders it while a menu can still be open). */
-  ['data','stmt'].forEach(function(g){
-    var m=document.getElementById('d-menu-'+g);
-    if(m&&m.classList.contains('open')){_renderDetMenu(g);_positionDetMenu(g);}
-  });
+  /* No bar anymore — sync the hamburger's title and any open menu (ticker
+     navigation re-renders while the menu can still be open). */
+  var b=document.getElementById('d-tbtn-all');
+  if(b){
+    var cur=null;_detMenuItems().forEach(function(it){if(it.k===_detTab)cur=it;});
+    b.title='Sections'+(cur?' › '+cur.l:'');
+  }
+  var m=document.getElementById('d-menu-all');
+  if(m&&m.classList.contains('open')){_renderDetMenu();_positionDetMenu();}
 }
-function _renderDetMenu(g){
-  var el=document.getElementById('d-menu-'+g);if(!el)return;
-  el.innerHTML=_detMenuItems(g).map(function(it){
-    /* Peers/News are a different kind of thing from the metric tabs — a rule
-       above Peers marks the seam without a second nesting level. */
-    var sep=(g==='data'&&it.k==='peers')?'<div class="dtb-sep"></div>':'';
-    return sep+'<button class="dtb-item'+(it.k===_detTab?' active':'')+'" role="menuitem"'
+function _renderDetMenu(){
+  var el=document.getElementById('d-menu-all');if(!el)return;
+  el.innerHTML=_detMenuItems().map(function(it){
+    /* Seams: group heads before the metric tabs and the filed statements; a
+       plain rule above Peers, which with News is a different kind of thing
+       from the metric tabs. */
+    var pre='';
+    if(it.k==='mkt')pre='<div class="dtb-head">Data</div>';
+    else if(it.k==='peers')pre='<div class="dtb-sep"></div>';
+    else if(it.k===DT_STMTS[0].k)pre='<div class="dtb-head">Statements</div>';
+    return pre+'<button class="dtb-item'+(it.k===_detTab?' active':'')+'" role="menuitem"'
       +' data-dtab="'+_attr(it.k)+'">'+esc(it.l)+'</button>';
   }).join('');
 }
-/* Viewport-coordinate placement. The menus hang off #det-modal, which is a
+/* Viewport-coordinate placement. The menu hangs off #det-modal, which is a
    position:fixed box pinned at 0,0 at viewport size, so client rects need no
-   offset conversion. Flip above the button when the bar sits low. */
-function _positionDetMenu(g){
-  var panel=document.getElementById('d-menu-'+g),btn=document.getElementById('d-tbtn-'+g);
+   offset conversion. Right-aligned to the button (it sits at the band's
+   right edge); flip above when the button sits low. */
+function _positionDetMenu(){
+  var panel=document.getElementById('d-menu-all'),btn=document.getElementById('d-tbtn-all');
   if(!panel||!btn)return;
   var r=btn.getBoundingClientRect();
   var vv=window.visualViewport;
@@ -5138,7 +5117,7 @@ function _positionDetMenu(g){
   panel.style.width='';
   var pw=panel.offsetWidth,ph=panel.offsetHeight;
   if(pw>vw-20){panel.style.width=(vw-20)+'px';pw=vw-20;}
-  var left=r.left;
+  var left=r.right-pw;
   if(left+pw>vw-10)left=vw-pw-10;
   if(left<10)left=10;
   var top=r.bottom+6;
@@ -5146,27 +5125,25 @@ function _positionDetMenu(g){
   panel.style.top=top+'px';panel.style.left=left+'px';
 }
 function closeDetMenus(){
-  ['data','stmt'].forEach(function(g){
-    var m=document.getElementById('d-menu-'+g);if(m)m.classList.remove('open');
-    var b=document.getElementById('d-tbtn-'+g);if(b)b.setAttribute('aria-expanded','false');
-  });
+  var m=document.getElementById('d-menu-all');if(m)m.classList.remove('open');
+  var b=document.getElementById('d-tbtn-all');if(b)b.setAttribute('aria-expanded','false');
 }
-function toggleDetMenu(g,e){
+function toggleDetMenu(e){
   if(e)e.stopPropagation();
-  var panel=document.getElementById('d-menu-'+g);if(!panel)return;
+  var panel=document.getElementById('d-menu-all');if(!panel)return;
   var wasOpen=panel.classList.contains('open');
   closeDetMenus();
   if(wasOpen)return;
-  _renderDetMenu(g);
+  _renderDetMenu();
   panel.classList.add('open');
-  var b=document.getElementById('d-tbtn-'+g);if(b)b.setAttribute('aria-expanded','true');
-  _positionDetMenu(g);
+  var b=document.getElementById('d-tbtn-all');if(b)b.setAttribute('aria-expanded','true');
+  _positionDetMenu();
 }
 document.addEventListener('click',function(e){
   var it=e.target.closest?e.target.closest('.dtb-menu [data-dtab]'):null;
   if(it){swDetTab(it.getAttribute('data-dtab'));return;}
-  /* Any click that isn't on a group button or inside a menu closes them. */
-  if(e.target.closest&&e.target.closest('.dtb-btn'))return;
+  /* Any click that isn't on the hamburger or inside the menu closes it. */
+  if(e.target.closest&&e.target.closest('.detail-menu-btn'))return;
   closeDetMenus();
 });
 window.addEventListener('resize',function(){closeDetMenus();});
