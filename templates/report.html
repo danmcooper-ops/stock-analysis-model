@@ -8639,6 +8639,15 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
     });
     if(grpHtml)optHtml+='<optgroup label="'+TL[tabKey]+'">'+grpHtml+'</optgroup>';
   });
+  /* Numeric (min/max) filters on row fields that aren't table columns:
+     the raw-debt block from the detail popup's Solvency & Leverage
+     group. Dollar filters take raw dollars, same as the other ds
+     columns (Shares Out, Avg $ Vol). */
+  var _CF_NUM=[['total_debt','Total Debt','ds'],['net_debt','Net Debt','ds'],['de','Debt/Equity','n2'],['debt_maturity_wall_yrs','Debt Wall (yrs)','n1']];
+  var numHtml='';
+  _CF_NUM.forEach(function(p){_CF_FMT[p[0]]=p[2];var unit=p[2]==='ds'?' ($)':'';numHtml+='<option value="'+p[0]+'">'+p[1]+unit+'</option>';
+    if(!_cfSeen[p[0]]){_cfSeen[p[0]]=1;_CF_OPTS.push({g:'Debt',k:p[0],l:p[1]+unit});}});
+  optHtml+='<optgroup label="Debt">'+numHtml+'</optgroup>';
   /* Text (contains) filters on row fields that aren't table columns.
      Matched case-insensitively as substrings. (mc_confidence moved to
      its home tab group above; the key is unchanged, so saved presets
