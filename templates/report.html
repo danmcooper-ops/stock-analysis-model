@@ -8608,25 +8608,17 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
      both, so whichever tab you're looking at, its columns sit under
      that tab's heading. Duplicate option values are harmless: both
      carry the same key, and a restored filter simply highlights the
-     first instance. Text-format columns join their tab as "contains"
-     filters; identity columns (ticker, ratings) stay out.
+     first instance.
 
-     Skip columns whose absolute-dollar or absolute-share value doesn't
-     make sense as a cross-universe min/max screen \u2014 per-share fair
-     values, raw prices, MC dollar bounds, and absolute share counts.
-     The ratio/multiple versions (MoS%, P/E, P/B, P/FCF, mcap,
-     short_ratio, short_pct_float) stay in the dropdown. The columns
-     themselves remain visible in the data tables \u2014 only the filter
-     dropdown is pruned. */
-  var _CF_SKIP={
-    dcf_fv:1,epv_fv:1,rim_fv:1,ddm_fv:1,nav_fv:1,
-    price:1,high_52w:1,low_52w:1,target_mean:1,target_low:1,target_high:1,
-    _sens_low:1,_sens_high:1,mc_p10_fv:1,mc_p90_fv:1,
-    shares_out:1,float_shares:1,shares_short:1,
-    ddm_h_fv:1,ddm_mc_p10:1,ddm_mc_median:1,ddm_mc_p90:1,
-    ddm_payout_flag:1,ddm_eligible:1
-  };
-  var _CF_ID={ticker:1,rating:1,rating_prev:1};
+     EVERY table header is filterable \u2014 including the absolute-dollar
+     fair values, prices, MC bands and share counts that used to be
+     pruned. Numeric formats get min/max rows; text-, rating- and
+     analyst-rating-format columns join as case-insensitive "contains"
+     filters (a rating filter of "buy" matches BUY and LEAN BUY); bool
+     columns filter as 0/1 min/max (min 1 = Yes only, max 0 = No only).
+     The Yesterday's Rating column that renderTable injects after Rating
+     on every tab is injected here the same way, so the dropdown mirrors
+     the visible header row. */
   var optHtml='<option value="">Column\u2026</option>';
   /* Deduped, grouped column list for the searchable picker. The native
      select keeps its per-tab duplicates (each optgroup mirrors its tab);
@@ -8634,14 +8626,16 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   var _cfSeen={};window._CF_OPTS=[];
   Object.keys(TL).forEach(function(tabKey){
     var cols=TC[tabKey]||[];var grpHtml='';
+    function addOpt(key,label,fmt){
+      var isTxt=fmt==='text'||fmt==='rating'||fmt==='ar';
+      _CF_FMT[key]=isTxt?'text':fmt;
+      var unit=isTxt?' (text)':fmt==='pct'?' (%)':fmt==='dollar'||fmt==='ds'?' ($)':fmt==='bool'?' (0/1)':'';
+      grpHtml+='<option value="'+key+'">'+label+unit+'</option>';
+      if(!_cfSeen[key]){_cfSeen[key]=1;_CF_OPTS.push({g:TL[tabKey],k:key,l:label+unit});}
+    }
     cols.forEach(function(c){
-      if(_CF_ID[c.k]||c.f==='rating'||c.f==='ar')return;
-      if(_CF_SKIP[c.k])return;
-      var isTxt=c.f==='text';
-      _CF_FMT[c.k]=isTxt?'text':c.f;
-      var unit=isTxt?' (text)':c.f==='pct'?' (%)':c.f==='dollar'||c.f==='ds'?' ($)':'';
-      grpHtml+='<option value="'+c.k+'">'+c.l+unit+'</option>';
-      if(!_cfSeen[c.k]){_cfSeen[c.k]=1;_CF_OPTS.push({g:TL[tabKey],k:c.k,l:c.l+unit});}
+      addOpt(c.k,c.l,c.f);
+      if(c.k==='rating')addOpt('rating_prev','Yesterday’s Rating','rating');
     });
     if(grpHtml)optHtml+='<optgroup label="'+TL[tabKey]+'">'+grpHtml+'</optgroup>';
   });
