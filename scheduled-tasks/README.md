@@ -8,27 +8,33 @@ daily pipeline.
 | `daily-stock-analysis/SKILL.md` | End-of-day run: analysis → enrichment (FDIC, REIT, XBRL, FDA) → re-render → snapshot commit → portfolio/gate/validation reports → publish |
 | `publish-stock-report/SKILL.md` | Copies the five report artifacts into the `pages-live` worktree, amends its single commit, force-pushes to GitHub Pages |
 
-## These are copies, not the live files
+## These ARE the live files (symlinked since 2026-08-10)
 
-Claude Code executes the copies under `~/.claude/scheduled-tasks/<name>/SKILL.md`.
-**Editing the files here changes nothing at runtime.** They are tracked so the
-routines have history, reviewable diffs, and a recovery point — the live ones sit
-outside any repo and are otherwise one `rm` from being unrecoverable.
+`~/.claude/scheduled-tasks/daily-stock-analysis` and
+`~/.claude/scheduled-tasks/publish-stock-report` are symlinks into this
+directory, so Claude Code executes these tracked files directly. Editing here
+changes the routines at runtime; committing gives the change history.
 
-After changing a routine, mirror it in both places:
+Consequences of the symlink arrangement:
+
+- **Moving or renaming this repo breaks both routines** — the symlinks point at
+  the absolute path `/Users/danmcooper/Desktop/Workspace Folder/scheduled-tasks/`.
+  If the repo moves (as the bond-analysis repo did), recreate them:
+
+  ```bash
+  ln -sfn "<new-repo-path>/scheduled-tasks/daily-stock-analysis" \
+     ~/.claude/scheduled-tasks/daily-stock-analysis
+  ln -sfn "<new-repo-path>/scheduled-tasks/publish-stock-report" \
+     ~/.claude/scheduled-tasks/publish-stock-report
+  ```
+
+- **A checkout changes the live routines.** The scheduler reads whatever the
+  working tree holds — switching branches or checking out an old commit swaps
+  the task definitions with it.
+
+To verify the links are intact:
 
 ```bash
-cp scheduled-tasks/publish-stock-report/SKILL.md \
-   ~/.claude/scheduled-tasks/publish-stock-report/SKILL.md
+readlink ~/.claude/scheduled-tasks/daily-stock-analysis
+readlink ~/.claude/scheduled-tasks/publish-stock-report
 ```
-
-To check they have not drifted:
-
-```bash
-diff -r scheduled-tasks/daily-stock-analysis ~/.claude/scheduled-tasks/daily-stock-analysis
-diff -r scheduled-tasks/publish-stock-report ~/.claude/scheduled-tasks/publish-stock-report
-```
-
-Symlinking `~/.claude/scheduled-tasks/<name>` at these files would remove the
-drift risk, at the cost of breaking the routines if this repo is ever moved or
-renamed.
