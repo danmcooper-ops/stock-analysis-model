@@ -1973,6 +1973,80 @@ var GM={{ gate_meta }};
    swallowed it and skipped the initial applyFilters entirely, leaving the
    whole report blank until the user happened to click Clear. */
 var FD=DATA.slice();
+/* === DASHBOARD CLICK-TO-FILTER ===
+   One drill-down filter driven by the Financial Model dashboard's summary
+   boxes: gate rows (pass → fail → clear), category cards (top half → bottom
+   half → clear, split at the full-universe median), and histogram bars
+   (score bracket, toggle). Rating boxes route through the existing
+   ms-rating multiselect instead so the Filters panel stays the single
+   source of truth for ratings. Participates in passOther, the filter
+   badge, and the shareable hash (compact key: df). */
+var _dashFilter=null;
+function _dashGateMeta(key){for(var i=0;i<GM.gates.length;i++)if(GM.gates[i].key===key)return GM.gates[i];return null;}
+function _dashPass(d){
+  if(!_dashFilter)return true;
+  var f=_dashFilter;
+  if(f.type==='gate'){
+    var g=_dashGateMeta(f.key);if(!g)return true;
+    var v=d[g.gpKey];
+    if(v==null)return false; /* N/A rows match neither direction */
+    return f.mode===2?!v:!!v;
+  }
+  if(f.type==='cat'){
+    var s=_num(d[f.scoreKey]);
+    if(s==null)return false;
+    return f.mode===2?s<f.med:s>=f.med;
+  }
+  if(f.type==='score'){
+    var c=_num(d._composite_score);
+    if(c==null)return false;
+    return Math.min(9,Math.floor(c/10))===f.idx; /* mirrors the histogram's bucketing */
+  }
+  return true;
+}
+function _dashLabel(){
+  var f=_dashFilter;if(!f)return'';
+  if(f.type==='gate'){var g=_dashGateMeta(f.key);return(g?g.label:f.key)+(f.mode===2?' — failing':' — passing');}
+  if(f.type==='cat')return f.name+(f.mode===2?' — bottom half':' — top half');
+  if(f.type==='score')return'Score '+(f.idx*10)+'–'+((f.idx+1)*10);
+  return'';
+}
+function clearDashFilter(){if(!_dashFilter)return;_dashFilter=null;applyFilters();}
+function cycleDashGate(key){
+  var f=_dashFilter;
+  if(f&&f.type==='gate'&&f.key===key){if(f.mode===1)f.mode=2;else _dashFilter=null;}
+  else _dashFilter={type:'gate',key:key,mode:1};
+  applyFilters();
+}
+function cycleDashCat(name,scoreKey){
+  var f=_dashFilter;
+  if(f&&f.type==='cat'&&f.name===name){if(f.mode===1)f.mode=2;else _dashFilter=null;}
+  else{
+    /* Median over the FULL universe (DATA, not FD) so the split point is
+       stable while the filter itself reshapes FD. */
+    var vals=DATA.map(function(d){return _num(d[scoreKey]);}).filter(function(v){return v!=null;}).sort(function(a,b){return a-b;});
+    if(!vals.length)return;
+    _dashFilter={type:'cat',name:name,scoreKey:scoreKey,mode:1,med:vals[Math.floor(vals.length/2)]};
+  }
+  applyFilters();
+}
+function toggleDashScore(idx){
+  var f=_dashFilter;
+  if(f&&f.type==='score'&&f.idx===idx)_dashFilter=null;
+  else _dashFilter={type:'score',idx:idx};
+  applyFilters();
+}
+function dashRating(r){
+  var wrap=document.getElementById('ms-rating');if(!wrap)return;
+  var boxes=wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]');
+  var sel=msGetSelected('ms-rating');
+  var only=sel.length===1&&sel[0]===r;
+  boxes.forEach(function(cb){cb.checked=only?true:cb.value===r;});
+  var allBox=wrap.querySelector('.ms-all input');
+  if(allBox){var ck=0;boxes.forEach(function(cb){if(cb.checked)ck++;});allBox.checked=ck===boxes.length;allBox.indeterminate=ck>0&&ck<boxes.length;}
+  msUpdateLabel('ms-rating');
+  applyFilters();
+}
 /* Prior run date backing the "Δ vs prior" rating-change column (empty if this
    is the first snapshot in the output dir). Set in report_html.build_html. */
 var PREV_DATE='{{ prev_run_date }}';
@@ -2214,9 +2288,13 @@ function _getCurrentFilterState(){
   });
   st.colFilters=cf;
   st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.r2000Only=_r2000Only;st.revFilter=_revFilter;st.rcFilter=_rcFilter;
+  if(_dashFilter)st.dashFilter=_dashFilter;
   return st;
 }
 function _applyFilterState(st){
+  /* Restore (or clear) the dashboard drill-down alongside everything else —
+     the zero-row fallback calls _applyFilterState({}) expecting a FULL reset. */
+  _dashFilter=st.dashFilter||null;
   document.getElementById('f-search').value=st.search||'';
   ['ms-rating','ms-sector','ms-country'].forEach(function(id){
     var sel=id==='ms-rating'?st.ratings:(id==='ms-sector'?st.sectors:st.countries);
@@ -2291,6 +2369,7 @@ function _stateToParam(){
   if(st.r2000Only)p.r2=1;
   if(st.revFilter)p.rv=st.revFilter;
   if(st.rcFilter)p.rc=st.rcFilter;
+  if(st.dashFilter)p.df=st.dashFilter;
   if(curView!=='pool')p.v=curView;
   if(curView==='matrix'&&curMSub&&curMSub!=='matrix')p.ms=curMSub;
   if(curView==='table'&&curTSub!=='prices')p.ts=curTSub;
@@ -2324,7 +2403,8 @@ function _restoreFromHash(){
     if(p.ts)curTSub=p.ts;
     if(p.v&&document.getElementById('view-'+p.v))showView(p.v);
     var st={search:p.q||'',ratings:p.r,sectors:p.s,countries:p.c,
-            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,r2000Only:!!p.r2,revFilter:p.rv|0,rcFilter:p.rc|0};
+            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,r2000Only:!!p.r2,revFilter:p.rv|0,rcFilter:p.rc|0,
+            dashFilter:(p.df&&typeof p.df==='object'&&typeof p.df.type==='string')?p.df:null};
     st.colFilters=(p.cf||[]).filter(function(c){
       return c&&c[0]&&window._CF_FMT&&(c[0]in window._CF_FMT);
     }).map(function(c){
@@ -2690,6 +2770,7 @@ function applyFilters(){
        snapshot) matches neither direction. */
     if(_rcFilter===1&&!(d.rating_chg>0))return false;
     if(_rcFilter===2&&!(d.rating_chg<0))return false;
+    if(!_dashPass(d))return false;
     if(!allRatings&&ratings.indexOf(d.rating)<0)return false;
     if(!allSectors&&sectors.indexOf(d.sector)<0)return false;
     if(!allCountries&&countries.indexOf(d.country)<0)return false;
@@ -2752,6 +2833,7 @@ function applyFilters(){
   var fn=(toks.length?1:0)
         +(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)
         +(_revFilter>0?1:0)+(_rcFilter>0?1:0)
+        +(_dashFilter?1:0)
         +colFilters.length
         +(allRatings?0:1)+(allSectors?0:1)+(allCountries?0:1);
   var fbtn=document.getElementById('filt-btn');
@@ -3355,16 +3437,28 @@ function renderOverview(){
   var html=renderWorldMosMap();
   html+='<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid #e8edf2">'
     +'<div style="font-size:1.15em;font-weight:700;color:#1a252f;letter-spacing:0.01em;margin-bottom:5px">Gates Summary</div>'
-    +'<div style="font-size:0.78em;color:#64748b;line-height:1.5">'+_subtitle+'</div>'
-    +'</div>';
+    +'<div style="font-size:0.78em;color:#64748b;line-height:1.5">'+_subtitle
+    +' &middot; <span style="color:#94a3b8">click any box to filter the whole report</span></div>';
+  if(_dashFilter){
+    html+='<div style="margin-top:8px"><span onclick="clearDashFilter()" title="Clear this filter" '
+      +'style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;background:#3b6fd4;color:#fff;'
+      +'font-size:0.74em;font-weight:600;padding:4px 11px;border-radius:12px">Filtering: '
+      +esc(_dashLabel())+' <span style="font-weight:700;font-size:1.15em;line-height:1">&times;</span></span></div>';
+  }
+  html+='</div>';
   /* Category score cards */
   html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">';
   GM.categories.forEach(function(cat){
     var scores=FD.map(function(d){return d[cat.scoreKey];}).filter(function(v){return v!=null;});
     var avg=scores.length?Math.round(scores.reduce(function(a,b){return a+b;},0)/scores.length):0;
     var gates=GM.gates.filter(function(g){return g.category===cat.name&&!g.hideMatrix;});
-    html+='<div style="flex:1;min-width:130px;background:#fff;border-radius:10px;border-top:4px solid '+cat.dark+';padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,0.07)">';
-    html+='<div style="font-size:0.72em;font-weight:700;color:'+cat.dark+';text-transform:uppercase;letter-spacing:0.06em">'+cat.name+'</div>';
+    var catAct=_dashFilter&&_dashFilter.type==='cat'&&_dashFilter.name===cat.name?_dashFilter.mode:0;
+    html+='<div onclick="cycleDashCat(\''+cat.name+'\',\''+cat.scoreKey+'\')" '
+      +'title="Click: top half by '+cat.name+' score · again: bottom half · again: clear" '
+      +'style="flex:1;min-width:130px;background:#fff;border-radius:10px;border-top:4px solid '+cat.dark+';padding:14px 16px;cursor:pointer;'
+      +(catAct?'box-shadow:0 0 0 2px '+cat.dark+',0 2px 8px rgba(0,0,0,0.07)':'box-shadow:0 2px 8px rgba(0,0,0,0.07)')+'">';
+    html+='<div style="font-size:0.72em;font-weight:700;color:'+cat.dark+';text-transform:uppercase;letter-spacing:0.06em">'+cat.name
+      +(catAct?' <span style="float:right;font-weight:700">'+(catAct===2?'▼ bottom half':'▲ top half')+'</span>':'')+'</div>';
     html+='<div style="font-size:1.9em;font-weight:700;color:#1a252f;margin:6px 0 2px">'+avg+'%</div>';
     html+='<div style="font-size:0.7em;color:#999;margin-bottom:9px">avg score &middot; '+Math.round(cat.weight*100)+'% wt &middot; '+gates.length+' gates</div>';
     html+='<div style="height:7px;background:#e8e8e8;border-radius:4px;overflow:hidden"><div style="width:'+avg+'%;height:100%;background:'+cat.dark+';border-radius:4px"></div></div>';
@@ -3376,11 +3470,15 @@ function renderOverview(){
   FD.forEach(function(d){if(rcounts[d.rating]!=null)rcounts[d.rating]++;});
   var rcols={'BUY':'#276221','LEAN BUY':'#5d8a26','HOLD':'#b07d00','PASS':'#9c1d1d'};
   html+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">';
+  var _rSel=msGetSelected('ms-rating');
   ['BUY','LEAN BUY','HOLD','PASS'].forEach(function(r){
     var n=rcounts[r],pct=FD.length?Math.round(n/FD.length*100):0;
-    html+='<div style="flex:1;min-width:90px;background:#fff;border-radius:8px;padding:11px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.07);border-left:4px solid '+rcols[r]+'">';
+    var rAct=_rSel.length===1&&_rSel[0]===r;
+    html+='<div onclick="dashRating(\''+r+'\')" title="Click: show only '+r+' · again: show all ratings" '
+      +'style="flex:1;min-width:90px;background:#fff;border-radius:8px;padding:11px 14px;cursor:pointer;border-left:4px solid '+rcols[r]+';'
+      +(rAct?'box-shadow:0 0 0 2px '+rcols[r]+',0 1px 4px rgba(0,0,0,0.07)':'box-shadow:0 1px 4px rgba(0,0,0,0.07)')+'">';
     html+='<div style="font-size:1.45em;font-weight:700;color:'+rcols[r]+'">'+n+'</div>';
-    html+='<div style="font-size:0.78em;font-weight:600;color:'+rcols[r]+'">'+r+'</div>';
+    html+='<div style="font-size:0.78em;font-weight:600;color:'+rcols[r]+'">'+r+(rAct?' <span style="font-weight:700">&#10003;</span>':'')+'</div>';
     html+='<div style="font-size:0.7em;color:#aaa">'+pct+'% of '+FD.length+'</div>';
     html+='</div>';
   });
@@ -3405,7 +3503,9 @@ function renderOverview(){
       (b['LEAN BUY']?' | LEAN BUY: '+b['LEAN BUY']:'')+
       (b.HOLD?' | HOLD: '+b.HOLD:'')+
       (b.PASS?' | PASS: '+b.PASS:'');
-    html+='<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px" title="'+tip+'">';
+    var sAct=_dashFilter&&_dashFilter.type==='score'&&_dashFilter.idx===i;
+    html+='<div onclick="toggleDashScore('+i+')" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer'
+      +(sAct?';background:rgba(59,111,212,0.14);border-radius:4px 4px 0 0':'')+'" title="'+tip+' — click to filter to this bracket">';
     html+='<div style="font-size:0.68em;font-weight:600;color:#555;min-height:14px;line-height:14px">'+(n?n:'')+'</div>';
     /* stacked bar: column-reverse so first child sits at bottom */
     html+='<div style="width:100%;height:'+totalH+'px;display:flex;flex-direction:column-reverse;min-height:'+(n?2:0)+'px;border-radius:3px 3px 0 0;overflow:hidden">';
@@ -3450,9 +3550,14 @@ function renderOverview(){
     catRates.forEach(function(x){
       var g=x.g,pct=x.pct,isBot=bottom3.has(g.key);
       var accent=isBot?'#c62828':cat.dark;
-      html+='<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">';
+      var gAct=_dashFilter&&_dashFilter.type==='gate'&&_dashFilter.key===g.key?_dashFilter.mode:0;
+      html+='<div onclick="cycleDashGate(\''+g.key+'\')" '
+        +'title="'+g.threshold+' — click: passing stocks · again: failing · again: clear" '
+        +'style="display:flex;align-items:center;gap:7px;margin-bottom:5px;cursor:pointer;border-radius:5px'
+        +(gAct?';background:rgba(59,111,212,0.12);padding:2px 4px;margin-left:-4px;margin-right:-4px':'')+'">';
       html+='<div style="width:3px;height:14px;border-radius:2px;background:'+accent+';flex-shrink:0"></div>';
-      html+='<div style="font-size:0.76em;font-weight:600;color:'+(isBot?'#c62828':'#333')+';width:78px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+g.threshold+'">'+g.label+'</div>';
+      html+='<div style="font-size:0.76em;font-weight:600;color:'+(isBot?'#c62828':'#333')+';width:78px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+g.label+'</div>';
+      if(gAct)html+='<div style="font-size:0.68em;font-weight:700;color:'+(gAct===2?'#c62828':'#1a9850')+';flex-shrink:0">'+(gAct===2?'&#10007; failing':'&#10003; passing')+'</div>';
       html+='<div style="flex:1;height:9px;background:#f0f0f0;border-radius:5px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+accent+';border-radius:5px"></div></div>';
       html+='<div style="font-size:0.73em;color:'+(isBot?'#c62828':'#666')+';width:30px;text-align:right;flex-shrink:0;font-weight:'+(isBot?700:400)+'">'+pct+'%</div>';
       if(isBot)html+='<div style="font-size:0.68em;color:#c62828;flex-shrink:0" title="Bottleneck">&#9650;</div>';
@@ -8127,6 +8232,10 @@ function renderPool(){
   /* Invalidate the sector-stats cache on every render so flag/filter changes
      downstream (which can shift _ACTIONABLE counts) are reflected on the banner. */
   window._allSecStats=null;
+  /* Hide any hover tooltip before the re-render: clicking a chart bar
+     (showPoolTab) destroys the hovered element, so its onmouseleave never
+     fires and the tooltip would stay stuck over the new view. */
+  ppHide();
   var sectors={};
   DATA.forEach(function(d){if(!d.sector||d.pp_revenue_share==null)return;if(!sectors[d.sector])sectors[d.sector]=[];sectors[d.sector].push(d);});
   var chosen=_poolTab||'__performance__';
