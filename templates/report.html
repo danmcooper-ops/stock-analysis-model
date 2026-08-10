@@ -4776,6 +4776,9 @@ document.addEventListener('mouseout',function(e){
 
 document.addEventListener('mouseover',function(e){
   if(_isTouchDevice)return;
+  /* No row tips while the detail popup is open — the table is covered, so a
+     tip could only ever render on top of the popup. */
+  if(document.getElementById('det-modal').classList.contains('open'))return;
   var cell=e.target.closest('.tk,.tk2');
   if(!cell)return;
   clearTimeout(_tipHideTimer);
@@ -5784,6 +5787,11 @@ function exportStmtPdf(){
 function openDet(tk){
   var d=DATA.find(function(x){return x.ticker===tk;});
   if(!d)return;
+  /* Kill the row-hover ticker tooltip. The cell that spawned it is (or is
+     about to be) covered by the modal, so its mouseout may never fire — and
+     the 150ms show-timer can even fire AFTER the modal opens, popping the
+     tip on top of the popup (.tk-tip z-index 2000 sits above the modal). */
+  clearTimeout(_tipTimer);_hideTip();
   /* Fresh open starts on Overview; if the popup is already open (prev/next
      navigation, or the re-entrant re-render when details.json lands) the
      active tab is preserved. swDetTab at the end of this function re-renders
