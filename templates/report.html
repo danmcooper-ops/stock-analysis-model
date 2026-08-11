@@ -1975,12 +1975,13 @@ var GM={{ gate_meta }};
 var FD=DATA.slice();
 /* === DASHBOARD CLICK-TO-FILTER ===
    One drill-down filter driven by the Financial Model dashboard's summary
-   boxes: gate rows (pass → fail → clear), category cards (top half → bottom
-   half → clear, split at the full-universe median), and histogram bars
-   (score bracket, toggle). Rating boxes route through the existing
-   ms-rating multiselect instead so the Filters panel stays the single
-   source of truth for ratings. Participates in passOther, the filter
-   badge, and the shareable hash (compact key: df). */
+   boxes: gate rows (pass → fail → clear, in place), histogram bars (score
+   bracket, toggle, in place), and category cards (jump to the Gate Matrix
+   with the stocks scoring strictly above the average shown on the card).
+   Rating boxes route through the existing ms-rating multiselect instead so
+   the Filters panel stays the single source of truth for ratings.
+   Participates in passOther, the filter badge, and the shareable hash
+   (compact key: df). */
 var _dashFilter=null;
 function _dashGateMeta(key){for(var i=0;i<GM.gates.length;i++)if(GM.gates[i].key===key)return GM.gates[i];return null;}
 function _dashPass(d){
@@ -1995,7 +1996,7 @@ function _dashPass(d){
   if(f.type==='cat'){
     var s=_num(d[f.scoreKey]);
     if(s==null)return false;
-    return f.mode===2?s<f.med:s>=f.med;
+    return s>f.avg; /* strictly above the average shown on the card */
   }
   if(f.type==='score'){
     var c=_num(d._composite_score);
@@ -2007,7 +2008,7 @@ function _dashPass(d){
 function _dashLabel(){
   var f=_dashFilter;if(!f)return'';
   if(f.type==='gate'){var g=_dashGateMeta(f.key);return(g?g.label:f.key)+(f.mode===2?' — failing':' — passing');}
-  if(f.type==='cat')return f.name+(f.mode===2?' — bottom half':' — top half');
+  if(f.type==='cat')return f.name+' — above avg ('+f.avg+'%)';
   if(f.type==='score')return'Score '+(f.idx*10)+'–'+((f.idx+1)*10);
   return'';
 }
@@ -2028,11 +2029,14 @@ function cycleDashGate(key){
   applyFilters();
 }
 function dashCatJump(name,scoreKey){
-  /* Median over the FULL universe (DATA, not FD) so the split point is
-     stable while the filter itself reshapes FD. */
-  var vals=DATA.map(function(d){return _num(d[scoreKey]);}).filter(function(v){return v!=null;}).sort(function(a,b){return a-b;});
-  if(!vals.length)return;
-  _dashFilter={type:'cat',name:name,scoreKey:scoreKey,mode:1,med:vals[Math.floor(vals.length/2)]};
+  /* Threshold = the average shown on the card itself — computed from FD
+     exactly the way renderOverview computes the card's number, and stored
+     (rounded, as displayed) so the drill-down matches what was clicked
+     even as FD reshapes afterward. */
+  var scores=FD.map(function(d){return _num(d[scoreKey]);}).filter(function(v){return v!=null;});
+  if(!scores.length)return;
+  var avg=Math.round(scores.reduce(function(a,b){return a+b;},0)/scores.length);
+  _dashFilter={type:'cat',name:name,scoreKey:scoreKey,avg:avg};
   _dashJump();
 }
 function toggleDashScore(idx){
@@ -3478,13 +3482,13 @@ function renderOverview(){
     var scores=FD.map(function(d){return d[cat.scoreKey];}).filter(function(v){return v!=null;});
     var avg=scores.length?Math.round(scores.reduce(function(a,b){return a+b;},0)/scores.length):0;
     var gates=GM.gates.filter(function(g){return g.category===cat.name&&!g.hideMatrix;});
-    var catAct=_dashFilter&&_dashFilter.type==='cat'&&_dashFilter.name===cat.name?_dashFilter.mode:0;
+    var catAct=!!(_dashFilter&&_dashFilter.type==='cat'&&_dashFilter.name===cat.name);
     html+='<div onclick="dashCatJump(\''+cat.name+'\',\''+cat.scoreKey+'\')" '
-      +'title="Open the Gate Matrix with the top half of the universe by '+cat.name+' score" '
+      +'title="Open the Gate Matrix with the stocks scoring above this average" '
       +'style="flex:1;min-width:130px;background:#fff;border-radius:10px;border-top:4px solid '+cat.dark+';padding:14px 16px;cursor:pointer;'
       +(catAct?'box-shadow:0 0 0 2px '+cat.dark+',0 2px 8px rgba(0,0,0,0.07)':'box-shadow:0 2px 8px rgba(0,0,0,0.07)')+'">';
     html+='<div style="font-size:0.72em;font-weight:700;color:'+cat.dark+';text-transform:uppercase;letter-spacing:0.06em">'+cat.name
-      +(catAct?' <span style="float:right;font-weight:700">'+(catAct===2?'▼ bottom half':'▲ top half')+'</span>':'')+'</div>';
+      +(catAct?' <span style="float:right;font-weight:700">▲ above avg</span>':'')+'</div>';
     html+='<div style="font-size:1.9em;font-weight:700;color:#1a252f;margin:6px 0 2px">'+avg+'%</div>';
     html+='<div style="font-size:0.7em;color:#999;margin-bottom:9px">avg score &middot; '+Math.round(cat.weight*100)+'% wt &middot; '+gates.length+' gates</div>';
     html+='<div style="height:7px;background:#e8e8e8;border-radius:4px;overflow:hidden"><div style="width:'+avg+'%;height:100%;background:'+cat.dark+';border-radius:4px"></div></div>';
