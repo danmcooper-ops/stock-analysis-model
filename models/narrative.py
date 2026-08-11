@@ -1512,11 +1512,14 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
         or None if the sector has no usable profit pool data.
     """
     # Filter to rows that have revenue & operating income so we can reason
-    # about the pool numerically.
+    # about the pool numerically. Keep this predicate in sync with the client
+    # (renderPool / renderCrossSectorProfitPool in templates/report.html) so
+    # the sector header, chart, and prose all quote the same company count.
     cos = [r for r in (rows_in_sector or [])
            if r.get('pp_revenue_share') is not None
            and r.get('operating_income') is not None
-           and r.get('revenue') is not None]
+           and isinstance(r.get('revenue'), (int, float))
+           and r.get('revenue') > 0]
     if not cos:
         return None
 
