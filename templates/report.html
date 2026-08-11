@@ -2106,8 +2106,53 @@ function _loadVolShard(ticker,onDone){
     onDone(_VOL[ticker]);
   });
 }
+/* prices.json is ~60 MB raw (~16 MB gzipped over the wire) — a 30s+ download
+   on a typical connection. The bare fetch gave consumers no feedback for the
+   whole stretch, so "Loading price history…" was indistinguishable from a
+   hang. Sidecars listed in _SIDECAR_MB stream instead: every element carrying
+   class "px-loading" gets live progress against the build-stamped uncompressed
+   total (Content-Length is the gzipped size, so it can't provide the honest
+   denominator). */
+/* |default(0) so a render by an older report_html.py (in-flight run code
+   skew: pipeline imports scripts at start but reads this template at render)
+   degrades to progress-without-total instead of a page-killing syntax error. */
+var _SIDECAR_MB={'prices.json':{{ prices_size_mb|default(0) }}};
+/* Set when a prices.json load has failed. Consumers must check this before
+   re-fetching: without it, a failed load (e.g. mobile Safari OOM on the parse,
+   or a dropped connection) re-entered the render fn, saw PRICES still null,
+   and silently kicked off another 60 MB fetch — forever. */
+var _PRICES_FAILED=false;
+function _pxLoadingHTML(){
+  return '<p class="px-loading" style="color:#888;padding:20px;text-align:center;font-size:0.88em">Loading price history…</p>';
+}
+function _pxFailedHTML(retryJs){
+  return '<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Price history failed to load. '
+    +'<a href="#" style="color:#2874c6" onclick="_PRICES_FAILED=false;'+retryJs+';return false">Retry</a></p>';
+}
+function _pxProgress(name,gotBytes){
+  var tot=_SIDECAR_MB[name]||0;
+  var txt='Loading price history… '+(gotBytes/1048576).toFixed(0)+(tot?' / '+tot:'')+' MB';
+  var els=document.querySelectorAll('.px-loading');
+  for(var i=0;i<els.length;i++)els[i].textContent=txt;
+}
 function _loadSidecar(name,onDone){
-  return fetch(name).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();}).then(onDone).catch(function(e){console.warn('sidecar load failed:',name,e);onDone(null);});
+  var track=(name in _SIDECAR_MB);
+  return fetch(name).then(function(r){
+    if(!r.ok)throw new Error(r.status);
+    if(!track||!r.body||typeof TextDecoder==='undefined')return r.json();
+    var reader=r.body.getReader(),dec=new TextDecoder(),parts=[],got=0,last=0;
+    function pump(){
+      return reader.read().then(function(res){
+        if(res.done){parts.push(dec.decode());return JSON.parse(parts.join(''));}
+        got+=res.value.length;
+        parts.push(dec.decode(res.value,{stream:true}));
+        var now=Date.now();
+        if(now-last>250){last=now;_pxProgress(name,got);}
+        return pump();
+      });
+    }
+    return pump();
+  }).then(onDone).catch(function(e){console.warn('sidecar load failed:',name,e);onDone(null);});
 }
 /* DETAILS sidecar carries the heavy per-ticker text fields (news, legal,
    insider txns, full description, sector signals, fin summary, culture).
@@ -3872,7 +3917,8 @@ function initPriceChart(){
   var phv=document.getElementById('ph-view');
   if(!PRICES){
     if(!_PRICES_AVAILABLE){phv.innerHTML='<p style="padding:24px;color:#888">Price history not available for this report.</p>';return;}
-    phv.innerHTML='<p style="padding:24px;color:#888">Loading price history…</p>';
+    if(_PRICES_FAILED){phv.innerHTML=_pxFailedHTML('initPriceChart()');return;}
+    phv.innerHTML=_pxLoadingHTML();
     /* A load already in flight belongs to whichever consumer started it —
        the sector price chart or a detail popup — and its callback rebuilds
        only its own view, never this one. Bare `return` here left Charts on
@@ -3884,7 +3930,7 @@ function initPriceChart(){
       return;
     }
     _PRICES_LOADING=true;
-    _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;if(curTSub==='prices')initPriceChart();});
+    _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;_PRICES_FAILED=!d;if(curTSub==='prices')initPriceChart();});
     return;
   }
   _phBuildPool();
@@ -4587,15 +4633,17 @@ function _renderDetPriceChart(ticker){
   if(!PRICES){
     if(!_PRICES_AVAILABLE){sec.style.display='none';return;}
     sec.style.display='';
-    var ch=document.getElementById('dp-chart');if(ch)ch.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Loading price history…</p>';
+    var ch=document.getElementById('dp-chart');
+    if(ch)ch.innerHTML=_PRICES_FAILED?_pxFailedHTML('_renderDetPriceChart(_dpTicker)'):_pxLoadingHTML();
     var rb=document.getElementById('dp-ranges');if(rb)rb.innerHTML='';
     var tb0=document.getElementById('dp-tip-bar');if(tb0)tb0.innerHTML='';
+    if(_PRICES_FAILED)return;
     if(_PRICES_LOADING){
       var poll=setInterval(function(){if(!_PRICES_LOADING){clearInterval(poll);if(_dpTicker===ticker)_renderDetPriceChart(ticker);}},120);
       return;
     }
     _PRICES_LOADING=true;
-    _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;if(_dpTicker===ticker)_renderDetPriceChart(ticker);});
+    _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;_PRICES_FAILED=!d;if(_dpTicker===ticker)_renderDetPriceChart(ticker);});
     return;
   }
   if(!PRICES.prices||!PRICES.prices[ticker]){sec.style.display='none';return;}
@@ -4663,13 +4711,14 @@ function _dtcRender(){
   if(def.src==='price'){
     if(!PRICES){
       if(!_PRICES_AVAILABLE){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Price history not available for this report.</p>';if(tb)tb.innerHTML='';return;}
-      el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Loading price history…</p>';if(tb)tb.innerHTML='';
+      el.innerHTML=_PRICES_FAILED?_pxFailedHTML('_dtcRender()'):_pxLoadingHTML();if(tb)tb.innerHTML='';
+      if(_PRICES_FAILED)return;
       if(_PRICES_LOADING){
         var poll=setInterval(function(){if(!_PRICES_LOADING){clearInterval(poll);if(live())_dtcRender();}},120);
         return;
       }
       _PRICES_LOADING=true;
-      _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;if(live())_dtcRender();});
+      _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;_PRICES_FAILED=!d;if(live())_dtcRender();});
       return;
     }
   }else{
@@ -6841,13 +6890,14 @@ function _priceChartDraw(){
   var el=document.getElementById('sector-price-chart');if(!el)return;
   if(!PRICES){
     if(!_PRICES_AVAILABLE){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Price history not available for this report.</p>';return;}
-    el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Loading price history…</p>';
+    el.innerHTML=_PRICES_FAILED?_pxFailedHTML('_priceChartDraw()'):_pxLoadingHTML();
+    if(_PRICES_FAILED)return;
     if(_PRICES_LOADING){
       var poll=setInterval(function(){if(!_PRICES_LOADING){clearInterval(poll);_priceChartDraw();}},120);
       return;
     }
     _PRICES_LOADING=true;
-    _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;_priceChartDraw();});
+    _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;_PRICES_FAILED=!d;_priceChartDraw();});
     return;
   }
   var allD=PRICES.dates;

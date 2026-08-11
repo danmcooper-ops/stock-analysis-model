@@ -1111,11 +1111,17 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
             print(f"[warn] price history load failed: {_e}")
 
     # Write prices.json sidecar (or remove a stale one)
+    prices_size_mb = 0
     try:
         if prices_payload is not None:
             with open(prices_path, 'w') as _pf2:
                 json.dump(prices_payload, _pf2, default=_json_default,
                           separators=_COMPACT)
+            # Uncompressed size, stamped into the client so its download
+            # progress ("Loading price history… 12 / 62 MB") can be honest —
+            # the transfer is gzipped, so Content-Length alone can't say how
+            # much of the decompressed body has arrived.
+            prices_size_mb = round(os.path.getsize(prices_path) / 1048576)
         elif os.path.exists(prices_path):
             os.remove(prices_path)
     except Exception as _e:
@@ -1163,6 +1169,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         gate_meta=gate_meta,
         sector_pool_json=sector_pool_json,
         prices_available=('true' if prices_payload is not None else 'false'),
+        prices_size_mb=prices_size_mb,
         hist_available=('true' if hist_payload is not None else 'false'),
         details_available=('true' if details_payload else 'false'),
         generated_at=(run_date or date.today()).strftime('%B %-d, %Y'),
