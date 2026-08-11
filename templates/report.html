@@ -788,7 +788,7 @@ td.ct{font-weight:700;}
 /* Charts/data panes hold multiple stacked blocks (price chart + metric chart
    + track record; data dgroup + intrinsic dgroup) — space them like the
    overview flex gap. Scoped: overview's flex gap must not double up. */
-#d-pane-charts.active>*+*,#d-pane-data.active>*+*,#d-pane-stmt.active>*+*{margin-top:14px;}
+#d-pane-data.active>*+*,#d-pane-stmt.active>*+*{margin-top:14px;}
 .dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:84px;justify-content:space-between;}
 .dh-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
@@ -1149,12 +1149,8 @@ td.ct{font-weight:700;}
    sector chart does, so it needs the same attribute-selector treatment — this
    also fixes the gridlines and axis text, which were reading as near-white on
    the dark surface before the volume strip was added. */
-[data-theme="dark"] #dp-chart svg text[fill="#9aaab8"]{fill:#7d8b9a;}
-[data-theme="dark"] #dp-chart svg line[stroke="#e8edf2"]{stroke:#21262d;}
-[data-theme="dark"] #dp-chart svg rect[fill="white"]{fill:#0d1117;}
-[data-theme="dark"] #dp-chart svg circle[fill="white"]{fill:#0d1117;}
-/* The volume strip is shared with #ph-chart / #dtc-chart, so its baseline,
-   max label and area fills need the same treatment in all three. The unsplit
+/* The volume strip is shared by #ph-chart and #dtc-chart, so its baseline,
+   max label and area fills need the same treatment in both. The unsplit
    silhouette gets a neutral fill; the stacked buy/sell areas keep their hues
    but lift slightly to stay separable on the dark surface. */
 [data-theme="dark"] #ph-chart svg text[fill="#9aaab8"],
@@ -1166,7 +1162,6 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .dp-vol-buy{fill:#3fb950;opacity:0.5;}
 /* Ticker/price/volume labels are inline-styled #1a252f; match on that so the
    green/red percentage spans keep their own colour. */
-[data-theme="dark"] #dp-tip-bar span[style*="#1a252f"],
 [data-theme="dark"] #ph-tip-bar span[style*="#1a252f"],
 [data-theme="dark"] #dtc-tip-bar span[style*="#1a252f"]{color:#c9d1d9;}
 .pp-chart{background:#f7f9fb;padding:18px 20px 22px;border-left:5px solid #1a252f;}
@@ -1872,14 +1867,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
       <div id="d-pane-overview" class="d-pane active">
       <div id="d-kmetrics" class="d-kmetrics"></div>
       <div id="d-gate-values" class="d-gate-values"></div>
-      <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
-      <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span>The Track Record</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
-      <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
-      <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
-      </div><!-- /d-pane-overview -->
-      <div id="d-pane-charts" class="d-pane">
-        <div id="d-section-price" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Price History</div><div style="padding:14px 16px;background:var(--surface)"><div class="dp-ranges" id="dp-ranges" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;align-items:center"></div><div id="dp-tip-bar" style="min-height:24px;font-size:0.86em"></div><div id="dp-chart"></div></div></div>
-        <div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Fundamental Charts</div>
+        <div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Charts</div>
           <div style="padding:14px 16px;background:var(--surface)">
             <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 6px"><div style="font-size:0.72em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em">Metric</div><div id="dtc-metric-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div></div>
             <div class="ph-ranges" id="dtc-ranges"></div>
@@ -1887,7 +1875,11 @@ body.wide-table .container{padding-left:0;padding-right:0;}
             <div id="dtc-chart"></div>
           </div>
         </div>
-      </div>
+      <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
+      <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span>The Track Record</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
+      <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
+      <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
+      </div><!-- /d-pane-overview -->
       <div id="d-pane-peers" class="d-pane">
         <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
         <div id="d-peers-empty" style="display:none;color:#888;padding:24px;text-align:center;font-size:0.88em">No peers or supply-chain data for this company.</div>
@@ -4422,38 +4414,12 @@ function phTouch(e,key){
   if(e.cancelable)e.preventDefault();
   phMove({clientX:t.clientX,clientY:t.clientY},key);
 }
-/* === DETAIL POPUP PRICE CHART === */
-var _dpRange='MAX',_dpTicker=null,_dpState=null;
-function _dpFmtDate(dateStr,pts){
-  var d=new Date(dateStr+'T00:00:00');
-  var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  if(!pts||pts.length<2)return mo[d.getMonth()]+' '+d.getDate();
-  var spanDays=(new Date(pts[pts.length-1].d)-new Date(pts[0].d))/86400000;
-  if(spanDays>400)return mo[d.getMonth()]+'\''+String(d.getFullYear()).slice(2);
-  return mo[d.getMonth()]+' '+d.getDate();
-}
-function _dpGetSeries(ticker){
-  /* Returns {tk:[{d,c,v}], spy:[{d,c}]} with date-aligned points filtered to
-     range. SPY series is empty when ticker===SPY or SPY data is unavailable.
-     Point .v is daily share volume, or null when this ticker has no shard (the
-     ~0.6% of Close-only parquet files) or the shard hasn't landed yet. */
-  if(!PRICES||!PRICES.prices[ticker])return null;
-  var allD=PRICES.dates,allP=PRICES.prices[ticker];
-  var spyP=(ticker!=='SPY'&&PRICES.prices&&PRICES.prices['SPY'])||null;
-  var sh=_VOL[ticker]||null,volArr=sh?sh.v:null,volI0=sh?sh.i0:0,fArr=(sh&&sh.f)||null;
-  var cutMs={'1M':31,'3M':92,'6M':184,'1YR':366,'5YR':1827,'10YR':3653}[_dpRange];
-  var cutoff=cutMs?new Date(+new Date()-cutMs*86400000):null;
-  var tk=[],spy=[];
-  for(var i=0;i<allD.length;i++){
-    if(allP[i]==null)continue;
-    if(spyP&&spyP[i]==null)continue;
-    if(cutoff&&new Date(allD[i]+'T00:00:00')<cutoff)continue;
-    var vk=volArr?i-volI0:-1,inRun=(vk>=0&&vk<volArr.length);
-    tk.push({d:allD[i],c:allP[i],v:inRun?volArr[vk]:null,f:(inRun&&fArr)?fArr[vk]:null});
-    if(spyP)spy.push({d:allD[i],c:spyP[i]});
-  }
-  return{tk:tk,spy:spy};
-}
+/* _dpTicker = the company the detail popup currently shows. Every lazy
+   re-render guard in the popup keys off it (Track Record, statements, data
+   tabs, details.json merge, the Charts block). It used to be declared with
+   the Price History chart's own state (_dpRange/_dpState) and assigned as a
+   side effect of that renderer; both are gone, so openDet sets it directly. */
+var _dpTicker=null;
 function _dpFmtVol(v){
   if(v==null||isNaN(v))return '—';
   if(v>=1e9)return (v/1e9).toFixed(2)+'B';
@@ -4461,18 +4427,10 @@ function _dpFmtVol(v){
   if(v>=1e3)return (v/1e3).toFixed(1)+'K';
   return String(Math.round(v));
 }
-function dpSetRange(r){
-  _dpRange=r;
-  document.querySelectorAll('.dp-range-btn').forEach(function(b){b.classList.toggle('active',b.dataset.range===r);});
-  try{_dpRenderChart();}catch(e){
-    console.error('dp chart render failed for range',r,e);
-    var ch=document.getElementById('dp-chart');if(ch)ch.innerHTML='<p style="color:#c0392b;padding:20px;text-align:center;font-size:0.88em">Chart render error: '+(e.message||e)+'</p>';
-  }
-}
 /* === SHARED VOLUME STRIP =====================================================
-   Both price renderers (_dpRenderChart for the popup's Price History card and
-   _phRenderSVG for the Charts view / Fundamental Charts) draw the same strip,
-   so the marks live here rather than being copy-pasted a third time.
+   _phRenderSVG draws this strip for both instances it serves — the top-level
+   Charts view and the popup's Charts block — so the marks live here rather
+   than being copy-pasted per call site.
 
    Each bar is split into estimated buying and selling. The split comes from
    where the close sat in the day's range — point .f is the buying share as
@@ -4555,206 +4513,12 @@ function _volTipHtml(p){
   }
   return h+'</span>';
 }
-function _dpTipHtml(idx){
-  var s=_dpState;if(!s||!s.tk.length)return'';
-  var sign=function(p){return p>=0?'+':'';};
-  var i=idx!=null?Math.max(0,Math.min(s.tk.length-1,idx)):s.tk.length-1;
-  var tkP=s.tk[i],tkBase=s.tk[0].c;
-  var tkPct=tkBase>0?((tkP.c-tkBase)/tkBase)*100:0;
-  var tkPctCol=tkPct>=0?'#1a9850':'#de2d26';
-  var html='<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;white-space:nowrap">'
-    +'<span style="width:12px;height:3px;background:'+s.tkCol+';border-radius:2px;display:inline-block"></span>'
-    +'<span style="font-weight:700;color:#1a252f">'+s.ticker+'</span>'
-    +'<span style="color:#1a252f">$'+tkP.c.toFixed(2)+'</span>'
-    +'<span style="color:'+tkPctCol+';font-weight:600">'+sign(tkPct)+tkPct.toFixed(2)+'%</span>'
-    +'</span>';
-  if(s.spy.length){
-    var si=idx!=null?Math.max(0,Math.min(s.spy.length-1,idx)):s.spy.length-1;
-    var spyP=s.spy[si],spyBase=s.spy[0].c;
-    var spyPct=spyBase>0?((spyP.c-spyBase)/spyBase)*100:0;
-    var spyPctCol=spyPct>=0?'#1a9850':'#de2d26';
-    html+='<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;white-space:nowrap">'
-      +'<span style="width:12px;height:0;border-top:2px dashed '+s.spyCol+';display:inline-block"></span>'
-      +'<span style="font-weight:700;color:#1a252f">S&amp;P 500</span>'
-      +'<span style="color:'+spyPctCol+';font-weight:600">'+sign(spyPct)+spyPct.toFixed(2)+'%</span>'
-      +'</span>';
-  }
-  if(s.volMax)html+=_volTipHtml(tkP);
-  /* When not hovering, show the actual visible date span so the user can see
-     that the range changed even when the data is the same (e.g. MAX==10YR for
-     newer companies, where both windows just show the full available history). */
-  var dateLbl=idx!=null?tkP.d:(s.tk[0].d+' → '+s.tk[s.tk.length-1].d);
-  html+='<span style="color:#aab;font-size:0.92em">'+dateLbl+'</span>';
-  return html;
-}
-function _dpRenderChart(){
-  var el=document.getElementById('dp-chart');if(!el||!_dpTicker)return;
-  var ser=_dpGetSeries(_dpTicker);
-  if(!ser||ser.tk.length<2){
-    el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">No price data for this range.</p>';
-    var _tb=document.getElementById('dp-tip-bar');if(_tb)_tb.innerHTML='';
-    _dpState=null;return;
-  }
-  var tkPts=ser.tk,spyPts=ser.spy;
-  var d=DATA.find(function(x){return x.ticker===_dpTicker;});
-  var refs=d?{dcf:d.dcf_fv,hi:d.high_52w,lo:d.low_52w}:{};
-  /* Volume gets its own strip under the price panel when the shard is loaded.
-     Without it every constant below falls back to the price-only geometry, so
-     a Close-only ticker or a failed shard fetch renders exactly as before. */
-  var volMax=_volMaxOf(tkPts);
-  var hasVol=volMax>0;
-  var VW=900,PL=64,PR=20,PT=14,PB=32;
-  var VOL_GAP=12,VOL_H=hasVol?40:0;
-  /* Price panel gives up 18px so the strip costs the card 52px, not 70. */
-  var iW=VW-PL-PR,iH=(hasVol?176:194);
-  var volTop=PT+iH+VOL_GAP,volBase=volTop+VOL_H;
-  var xBase=hasVol?volBase:PT+iH;
-  var VH=xBase+PB;
-  /* Rebase SPY so its first point equals ticker's first $ price — this lets
-     both lines share one $ axis while still showing relative performance. */
-  var tkBase=tkPts[0].c;
-  var spyBase=spyPts.length?spyPts[0].c:null;
-  var spyPlot=spyPts.length?spyPts.map(function(p){return{d:p.d,c:p.c/spyBase*tkBase};}):[];
-  /* Compute min/max in a loop — Math.min.apply(null,arr) hits Safari's
-     argument-count limit for MAX-range arrays (~10k pts) and silently throws. */
-  var minP=Infinity,maxP=-Infinity;
-  for(var _i=0;_i<tkPts.length;_i++){var _v=tkPts[_i].c;if(_v<minP)minP=_v;if(_v>maxP)maxP=_v;}
-  for(var _j=0;_j<spyPlot.length;_j++){var _w=spyPlot[_j].c;if(_w<minP)minP=_w;if(_w>maxP)maxP=_w;}
-  if(refs.dcf&&refs.dcf>0){minP=Math.min(minP,refs.dcf);maxP=Math.max(maxP,refs.dcf);}
-  if(refs.hi)maxP=Math.max(maxP,refs.hi);
-  if(refs.lo)minP=Math.min(minP,refs.lo);
-  var pad=(maxP-minP||1)*0.06;minP-=pad;maxP+=pad;var pRange=maxP-minP;
-  var tkCol='#16a34a',spyCol='#64748b';
-  var xOf=function(i,len){return PL+(len<=1?iW/2:(i/(len-1))*iW);};
-  var yOf=function(v){return PT+iH-((v-minP)/pRange)*iH;};
-  var yH='';
-  for(var gi=0;gi<=4;gi++){var gv=minP+(gi/4)*pRange;var gy=yOf(gv).toFixed(1);
-    if(gi>0)yH+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" stroke="#e8edf2" stroke-width="1"/>';
-    yH+='<text x="'+(PL-7)+'" y="'+(parseFloat(gy)+4)+'" text-anchor="end" font-size="11" fill="#9aaab8">$'+gv.toFixed(2)+'</text>';}
-  var xH='';var nX=Math.min(7,tkPts.length);var xstep=Math.max(1,Math.floor((tkPts.length-1)/Math.max(1,nX-1)));
-  for(var xi=0;xi<tkPts.length;xi+=xstep){xH+='<text x="'+xOf(xi,tkPts.length).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+_dpFmtDate(tkPts[xi].d,tkPts)+'</text>';}
-  var refSVG='';
-  if(refs.dcf&&refs.dcf>minP&&refs.dcf<maxP){
-    var yd=yOf(refs.dcf).toFixed(1);
-    refSVG+='<line x1="'+PL+'" y1="'+yd+'" x2="'+(VW-PR)+'" y2="'+yd+'" stroke="#1e40af" stroke-width="1.5" stroke-dasharray="7,4" opacity="0.85"/>';
-    refSVG+='<rect x="'+PL+'" y="'+(parseFloat(yd)-14)+'" width="80" height="14" fill="white" opacity="0.75" rx="2"/>';
-    refSVG+='<text x="'+(PL+4)+'" y="'+(parseFloat(yd)-3)+'" font-size="10" fill="#1e40af" font-weight="700">DCF FV $'+refs.dcf.toFixed(2)+'</text>';
-  }
-  if(refs.hi&&refs.hi>minP&&refs.hi<maxP){var yhi=yOf(refs.hi).toFixed(1);refSVG+='<line x1="'+PL+'" y1="'+yhi+'" x2="'+(VW-PR)+'" y2="'+yhi+'" stroke="#b45309" stroke-width="1" stroke-dasharray="4,3" opacity="0.65"/><text x="'+(VW-PR-4)+'" y="'+(parseFloat(yhi)-4)+'" text-anchor="end" font-size="10" fill="#b45309">52W H</text>';}
-  if(refs.lo&&refs.lo>minP&&refs.lo<maxP){var ylo=yOf(refs.lo).toFixed(1);refSVG+='<line x1="'+PL+'" y1="'+ylo+'" x2="'+(VW-PR)+'" y2="'+ylo+'" stroke="#0369a1" stroke-width="1" stroke-dasharray="4,3" opacity="0.65"/><text x="'+(VW-PR-4)+'" y="'+(parseFloat(ylo)+12)+'" text-anchor="end" font-size="10" fill="#0369a1">52W L</text>';}
-  var tkPP=tkPts.map(function(p,i){return xOf(i,tkPts.length).toFixed(1)+','+yOf(p.c).toFixed(1);}).join(' ');
-  var fp=tkPP+' '+xOf(tkPts.length-1,tkPts.length).toFixed(1)+','+(PT+iH)+' '+PL+','+(PT+iH);
-  var linesSVG='<polygon points="'+fp+'" fill="url(#dp-g)"/>';
-  if(spyPlot.length){
-    var spyPP=spyPlot.map(function(p,i){return xOf(i,spyPlot.length).toFixed(1)+','+yOf(p.c).toFixed(1);}).join(' ');
-    linesSVG+='<polyline points="'+spyPP+'" fill="none" stroke="'+spyCol+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity="0.85" stroke-dasharray="4,3"/>';
-  }
-  linesSVG+='<polyline points="'+tkPP+'" fill="none" stroke="'+tkCol+'" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" opacity="0.92"/>';
-  var dotSVG='<circle id="dp-dot" cx="0" cy="0" r="4" fill="white" stroke="'+tkCol+'" stroke-width="2" opacity="0" pointer-events="none"/>';
-  if(spyPlot.length)dotSVG+='<circle id="dp-dot-spy" cx="0" cy="0" r="3.5" fill="white" stroke="'+spyCol+'" stroke-width="1.7" opacity="0" pointer-events="none"/>';
-  var volSVG=hasVol?_volStripSVG(tkPts,{PL:PL,PR:PR,VW:VW,iW:iW,volTop:volTop,
-    volBase:volBase,VOL_H:VOL_H,volMax:volMax,xOf:xOf}):'';
-  var svg='<svg id="dp-svg" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
-    +' onmousemove="dpMove(event)" onmouseleave="dpLeave()"'
-    +' ontouchstart="dpTouch(event)" ontouchmove="dpTouch(event)" ontouchend="dpLeave()" ontouchcancel="dpLeave()">'
-    +'<defs><linearGradient id="dp-g" x1="0" y1="0" x2="0" y2="1">'
-    +'<stop offset="0%" stop-color="'+tkCol+'" stop-opacity="0.18"/><stop offset="100%" stop-color="'+tkCol+'" stop-opacity="0.01"/>'
-    +'</linearGradient></defs>'
-    +yH+xH+refSVG+volSVG+linesSVG+dotSVG
-    +'<line id="dp-vl" x1="0" y1="'+PT+'" x2="0" y2="'+xBase+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0"/>'
-    +'</svg>';
-  el.innerHTML=svg;
-  _dpState={tk:tkPts,spy:spyPts,spyPlot:spyPlot,VW:VW,PL:PL,PR:PR,PT:PT,iW:iW,iH:iH,minP:minP,pRange:pRange,tkCol:tkCol,spyCol:spyCol,ticker:_dpTicker,
-            volMax:volMax,volTop:volTop,volBase:volBase,xBase:xBase};
-  var tb=document.getElementById('dp-tip-bar');if(tb)tb.innerHTML=_dpTipHtml(null);
-}
-function dpMove(e){
-  if(!_dpState)return;var s=_dpState;
-  var svg=document.getElementById('dp-svg');if(!svg)return;
-  var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
-  var sp=pt.matrixTransform(svg.getScreenCTM().inverse());
-  /* Bottom bound is the volume baseline, not the price panel's — hovering the
-     bars has to keep tracking, and the two panels share one index. */
-  if(sp.x<s.PL||sp.x>s.PL+s.iW||sp.y<s.PT||sp.y>s.xBase){dpLeave();return;}
-  var relX=Math.max(0,Math.min(sp.x-s.PL,s.iW));
-  var idx=Math.max(0,Math.min(s.tk.length-1,Math.round(relX/s.iW*(s.tk.length-1))));
-  var x=(s.PL+(idx/(s.tk.length-1||1))*s.iW).toFixed(1);
-  var y=(s.PT+s.iH-((s.tk[idx].c-s.minP)/s.pRange)*s.iH).toFixed(1);
-  var vl=document.getElementById('dp-vl');if(vl){vl.setAttribute('x1',x);vl.setAttribute('x2',x);vl.setAttribute('opacity','1');}
-  var dc=document.getElementById('dp-dot');if(dc){dc.setAttribute('cx',x);dc.setAttribute('cy',y);dc.setAttribute('opacity','1');}
-  if(s.spyPlot.length){
-    var sIdx=Math.max(0,Math.min(s.spyPlot.length-1,Math.round(relX/s.iW*(s.spyPlot.length-1))));
-    var sx=(s.PL+(sIdx/(s.spyPlot.length-1||1))*s.iW).toFixed(1);
-    var sy=(s.PT+s.iH-((s.spyPlot[sIdx].c-s.minP)/s.pRange)*s.iH).toFixed(1);
-    var dcs=document.getElementById('dp-dot-spy');if(dcs){dcs.setAttribute('cx',sx);dcs.setAttribute('cy',sy);dcs.setAttribute('opacity','1');}
-  }
-  var tb=document.getElementById('dp-tip-bar');if(tb)tb.innerHTML=_dpTipHtml(idx);
-}
-function dpLeave(){
-  if(!_dpState)return;
-  var vl=document.getElementById('dp-vl');if(vl)vl.setAttribute('opacity','0');
-  var dc=document.getElementById('dp-dot');if(dc)dc.setAttribute('opacity','0');
-  var dcs=document.getElementById('dp-dot-spy');if(dcs)dcs.setAttribute('opacity','0');
-  var tb=document.getElementById('dp-tip-bar');if(tb)tb.innerHTML=_dpTipHtml(null);
-}
-function dpTouch(e){
-  if(!_dpState||!e.touches||!e.touches.length)return;
-  var t=e.touches[0];
-  /* Block vertical scroll while dragging across the chart so the crosshair can
-     follow the finger. Page scroll still works when the gesture starts off-chart. */
-  if(e.cancelable)e.preventDefault();
-  dpMove({clientX:t.clientX,clientY:t.clientY});
-}
-function _renderDetPriceChart(ticker){
-  var sec=document.getElementById('d-section-price');
-  if(!sec)return;
-  _dpTicker=ticker;_dpState=null;
-  if(!PRICES){
-    if(!_PRICES_AVAILABLE){sec.style.display='none';return;}
-    sec.style.display='';
-    var ch=document.getElementById('dp-chart');
-    if(ch)ch.innerHTML=_PRICES_FAILED?_pxFailedHTML('_renderDetPriceChart(_dpTicker)'):_pxLoadingHTML();
-    var rb=document.getElementById('dp-ranges');if(rb)rb.innerHTML='';
-    var tb0=document.getElementById('dp-tip-bar');if(tb0)tb0.innerHTML='';
-    if(_PRICES_FAILED)return;
-    if(_PRICES_LOADING){
-      var poll=setInterval(function(){if(!_PRICES_LOADING){clearInterval(poll);if(_dpTicker===ticker)_renderDetPriceChart(ticker);}},120);
-      return;
-    }
-    _PRICES_LOADING=true;
-    _loadSidecar('prices_meta.json',function(d){_PRICES_LOADING=false;PRICES=_pxMetaInit(d);_PRICES_FAILED=!PRICES;if(_dpTicker===ticker)_renderDetPriceChart(ticker);});
-    return;
-  }
-  if(!_pxHas(ticker)){sec.style.display='none';return;}
-  if(!PRICES.prices[ticker]){
-    sec.style.display='';
-    var ch3=document.getElementById('dp-chart');if(ch3)ch3.innerHTML=_pxLoadingHTML();
-    _ensurePx([ticker],function(){if(_dpTicker===ticker)_renderDetPriceChart(ticker);});
-    return;
-  }
-  sec.style.display='';
-  var rEl=document.getElementById('dp-ranges');
-  if(rEl){
-    var ranges=['1M','3M','6M','1YR','5YR','10YR','MAX'].map(function(r){
-      return '<button class="ph-range-btn dp-range-btn'+(r===_dpRange?' active':'')+'" data-range="'+r+'" onclick="dpSetRange(\''+r+'\')">'+r+'</button>';
-    }).join('');
-    rEl.innerHTML=ranges;
-  }
-  _dpRenderChart();
-  /* Volume arrives after the price line — the shard is a second request, and
-     the price chart should never wait on it. When it lands, redraw (guarded on
-     the popup still showing this ticker) so the strip appears underneath. */
-  if(_VOL[ticker]===undefined){
-    _loadVolShard(ticker,function(sh){if(sh&&_dpTicker===ticker)_dpRenderChart();});
-  }
-}
-
-/* === DETAIL POPUP CHARTS TAB === */
-/* Single-company chart with the same metric set as the top-level Charts view
-   (_PH_METRICS: price + annual fundamentals), rendered through the shared
-   _phRenderSVG with ctx key '-dtc' so its SVG ids can't collide with the
-   top-level instance. Metric/range persist across companies and reopen,
-   like _dpRange does for the Overview price chart. */
+/* === DETAIL POPUP CHARTS BLOCK === */
+/* Single-company chart at the top of the popup's Overview tab, with the same
+   metric set as the top-level Charts view (_PH_METRICS: price + annual
+   fundamentals), rendered through the shared _phRenderSVG with ctx key '-dtc'
+   so its SVG ids can't collide with the top-level instance. Metric and range
+   persist across companies and reopen. */
 var _dtcMetric='price',_dtcRange='MAX';
 function _dtcCtx(){return{key:'-dtc',chartId:'dtc-chart',tipId:'dtc-tip-bar',stocks:[_dpTicker],metric:_dtcMetric};}
 function dtcSetMetric(k){
@@ -4772,7 +4536,7 @@ function _dtcButtons(){
     var hasHist=HIST&&Object.keys(HIST).length>0;
     if(!HIST&&_HIST_AVAILABLE&&!_HIST_LOADING){
       _HIST_LOADING=true;
-      _loadSidecar('hist.json',function(d){_HIST_LOADING=false;HIST=d;if(_detTab==='charts')_dtcRender();});
+      _loadSidecar('hist.json',function(d){_HIST_LOADING=false;HIST=d;if(_detTab==='overview')_dtcRender();});
     }
     mb.innerHTML=_PH_METRICS.map(function(m){
       var dis=(m.src==='hist'&&!hasHist)?' disabled':'';
@@ -4790,9 +4554,10 @@ function _dtcRender(){
   var def=_phMetricDef(_dtcMetric);
   var el=document.getElementById('dtc-chart');if(!el)return;
   var tb=document.getElementById('dtc-tip-bar');
-  /* Re-render only if the popup still shows this ticker on the Charts tab
-     when a lazy sidecar lands — same stale-guard idea as _renderDetPriceChart. */
-  var live=function(){return _dpTicker===tk&&_detTab==='charts';};
+  /* Re-render only if the popup still shows this ticker on the Overview tab
+     when a lazy sidecar lands, so a late arrival can't overwrite a newer
+     company's chart or paint into a hidden pane. */
+  var live=function(){return _dpTicker===tk&&_detTab==='overview';};
   if(def.src==='price'){
     if(!PRICES){
       if(!_PRICES_AVAILABLE){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Price history not available for this report.</p>';if(tb)tb.innerHTML='';return;}
@@ -5239,12 +5004,15 @@ function _detDataItems(){
    CURRENT selection ("Sections › Profitability") since there is no tab bar
    left to answer "where am I". */
 function _detGroupOf(k){
-  if(k==='overview'||k==='charts')return null;
+  if(k==='overview')return null;
   for(var i=0;i<DT_STMTS.length;i++)if(DT_STMTS[i].k===k)return 'stmt';
   return 'data';
 }
 function _detMenuItems(){
-  return [{k:'overview',l:'Overview'},{k:'charts',l:'Charts'}]
+  /* The Charts tab is retired — its Fundamental Charts block now sits at the
+     top of Overview (and the duplicate Price History chart it sat above is
+     gone; the price series is the block's default metric). */
+  return [{k:'overview',l:'Overview'}]
     .concat(_detDataItems()).concat(DT_STMTS);
 }
 function _renderDetTabBar(){
@@ -5320,9 +5088,11 @@ function swDetTab(k){
   _detTab=k;
   _renderDetTabBar();
   document.querySelectorAll('#det-modal .d-pane').forEach(function(p){p.classList.remove('active');});
-  var id=k==='overview'?'d-pane-overview':k==='charts'?'d-pane-charts':k==='peers'?'d-pane-peers':k==='news'?'d-pane-news':_detGroupOf(k)==='stmt'?'d-pane-stmt':'d-pane-data';
+  var id=k==='overview'?'d-pane-overview':k==='peers'?'d-pane-peers':k==='news'?'d-pane-news':_detGroupOf(k)==='stmt'?'d-pane-stmt':'d-pane-data';
   var pane=document.getElementById(id);if(pane)pane.classList.add('active');
-  if(k==='charts')_dtcRender();
+  /* Overview now carries the Charts block; re-render it on return to the tab
+     so a metric/range picked earlier still draws after switching away. */
+  if(k==='overview')_dtcRender();
   else if(k==='peers'||k==='news'){
     /* Content is rendered by openDet into the section div; just toggle the
        empty-state note when that section has nothing to show. */
@@ -6273,7 +6043,13 @@ function openDet(tk){
     });
     _gvEl.innerHTML=_gvHtml;
   }catch(e){console.error('gate values error:',e);}
-  try{_renderDetPriceChart(d.ticker);}catch(e){console.error('detail price chart error:',e);}
+  /* _dpTicker is the popup's "currently open company" for every lazy
+     re-render guard (Track Record, statements, data tabs, details.json
+     merge) — it used to be set as a side effect of the Price History
+     chart's renderer, which no longer exists. Set it here, before the
+     Charts block renders, so those guards keep working. */
+  _dpTicker=d.ticker;
+  try{_dtcRender();}catch(e){console.error('detail chart error:',e);}
   var fsEl=document.getElementById('d-fin-summary'),fsSec=document.getElementById('d-section-finsummary');var _fs=d.financial_summary;var _fsItems=Array.isArray(_fs)?_fs:(_fs?[_fs]:[]);
   var _fsHtml=_fsItems.length?'<ul class="fin-list">'+_fsItems.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul>':'';
   /* --- "Why the rating changed" — rendered after the financial summary
