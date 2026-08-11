@@ -2012,23 +2012,28 @@ function _dashLabel(){
   return'';
 }
 function clearDashFilter(){if(!_dashFilter)return;_dashFilter=null;applyFilters();}
+/* Land on Financial Model -> Gate Matrix with whatever filter state the
+   caller just set, then re-run the filter pass so the matrix renders the
+   drilled-down set. The category cards, rating boxes, and world-map
+   countries all funnel through here. */
+function _dashJump(){
+  if(curView!=='matrix')showView('matrix');
+  if(curMSub!=='matrix')swMSub('matrix');
+  applyFilters();
+}
 function cycleDashGate(key){
   var f=_dashFilter;
   if(f&&f.type==='gate'&&f.key===key){if(f.mode===1)f.mode=2;else _dashFilter=null;}
   else _dashFilter={type:'gate',key:key,mode:1};
   applyFilters();
 }
-function cycleDashCat(name,scoreKey){
-  var f=_dashFilter;
-  if(f&&f.type==='cat'&&f.name===name){if(f.mode===1)f.mode=2;else _dashFilter=null;}
-  else{
-    /* Median over the FULL universe (DATA, not FD) so the split point is
-       stable while the filter itself reshapes FD. */
-    var vals=DATA.map(function(d){return _num(d[scoreKey]);}).filter(function(v){return v!=null;}).sort(function(a,b){return a-b;});
-    if(!vals.length)return;
-    _dashFilter={type:'cat',name:name,scoreKey:scoreKey,mode:1,med:vals[Math.floor(vals.length/2)]};
-  }
-  applyFilters();
+function dashCatJump(name,scoreKey){
+  /* Median over the FULL universe (DATA, not FD) so the split point is
+     stable while the filter itself reshapes FD. */
+  var vals=DATA.map(function(d){return _num(d[scoreKey]);}).filter(function(v){return v!=null;}).sort(function(a,b){return a-b;});
+  if(!vals.length)return;
+  _dashFilter={type:'cat',name:name,scoreKey:scoreKey,mode:1,med:vals[Math.floor(vals.length/2)]};
+  _dashJump();
 }
 function toggleDashScore(idx){
   var f=_dashFilter;
@@ -2036,14 +2041,19 @@ function toggleDashScore(idx){
   else _dashFilter={type:'score',idx:idx};
   applyFilters();
 }
-function dashRating(r){
+function dashRatingJump(r){
   var wrap=document.getElementById('ms-rating');if(!wrap)return;
-  var boxes=wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]');
-  var sel=msGetSelected('ms-rating');
-  var only=sel.length===1&&sel[0]===r;
-  boxes.forEach(function(cb){cb.checked=only?true:cb.value===r;});
+  wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]').forEach(function(cb){cb.checked=cb.value===r;});
   var allBox=wrap.querySelector('.ms-all input');
-  if(allBox){var ck=0;boxes.forEach(function(cb){if(cb.checked)ck++;});allBox.checked=ck===boxes.length;allBox.indeterminate=ck>0&&ck<boxes.length;}
+  if(allBox){allBox.checked=false;allBox.indeterminate=true;}
+  msUpdateLabel('ms-rating');
+  _dashJump();
+}
+function dashRatingClear(){
+  var wrap=document.getElementById('ms-rating');if(!wrap)return;
+  wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]').forEach(function(cb){cb.checked=true;});
+  var allBox=wrap.querySelector('.ms-all input');
+  if(allBox){allBox.checked=true;allBox.indeterminate=false;}
   msUpdateLabel('ms-rating');
   applyFilters();
 }
@@ -2900,7 +2910,23 @@ function _relCmp(a,b){
    tSort re-render without re-filtering). */
 function _updateCountLabel(){
   var el=document.getElementById('f-count');
-  if(el)el.textContent=FD.length+' of '+DATA.length+(FD.length&&_relActive()?' · best match':'');
+  if(!el)return;
+  var h=esc(FD.length+' of '+DATA.length+(FD.length&&_relActive()?' · best match':''));
+  /* Dashboard drill-down chip rides next to the count so it is visible (and
+     clearable) from EVERY view — the boxes that set it live only on the
+     dashboard, but the jump lands on the Gate Matrix. A sole-rating
+     selection gets the same treatment: the rating boxes route through
+     ms-rating, so surface that here too rather than leaving the drill-down
+     invisible outside the Filters panel. */
+  var chip=null,fn='';
+  if(_dashFilter){chip=_dashLabel();fn='clearDashFilter()';}
+  else{
+    var rTot=document.querySelectorAll('#ms-rating .ms-drop input[type="checkbox"][value]').length;
+    var rs=msGetSelected('ms-rating');
+    if(rTot&&rs.length===1){chip=rs[0]+' only';fn='dashRatingClear()';}
+  }
+  if(chip)h+=' <span onclick="'+fn+'" title="Clear this filter" style="cursor:pointer;background:#3b6fd4;color:#fff;font-weight:600;padding:2px 9px;border-radius:10px;margin-left:6px;white-space:nowrap">'+esc(chip)+' &times;</span>';
+  el.innerHTML=h;
 }
 /* Is relevance ordering in effect for the CURRENT view? Active query +
    the user hasn't clicked a column header on that view this session. */
@@ -3438,7 +3464,7 @@ function renderOverview(){
   html+='<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid #e8edf2">'
     +'<div style="font-size:1.15em;font-weight:700;color:#1a252f;letter-spacing:0.01em;margin-bottom:5px">Gates Summary</div>'
     +'<div style="font-size:0.78em;color:#64748b;line-height:1.5">'+_subtitle
-    +' &middot; <span style="color:#94a3b8">click any box to filter the whole report</span></div>';
+    +' &middot; <span style="color:#94a3b8">click a category card, rating box, or map country to open those stocks in the Gate Matrix &middot; gate rows &amp; histogram bars filter in place</span></div>';
   if(_dashFilter){
     html+='<div style="margin-top:8px"><span onclick="clearDashFilter()" title="Clear this filter" '
       +'style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;background:#3b6fd4;color:#fff;'
@@ -3453,8 +3479,8 @@ function renderOverview(){
     var avg=scores.length?Math.round(scores.reduce(function(a,b){return a+b;},0)/scores.length):0;
     var gates=GM.gates.filter(function(g){return g.category===cat.name&&!g.hideMatrix;});
     var catAct=_dashFilter&&_dashFilter.type==='cat'&&_dashFilter.name===cat.name?_dashFilter.mode:0;
-    html+='<div onclick="cycleDashCat(\''+cat.name+'\',\''+cat.scoreKey+'\')" '
-      +'title="Click: top half by '+cat.name+' score · again: bottom half · again: clear" '
+    html+='<div onclick="dashCatJump(\''+cat.name+'\',\''+cat.scoreKey+'\')" '
+      +'title="Open the Gate Matrix with the top half of the universe by '+cat.name+' score" '
       +'style="flex:1;min-width:130px;background:#fff;border-radius:10px;border-top:4px solid '+cat.dark+';padding:14px 16px;cursor:pointer;'
       +(catAct?'box-shadow:0 0 0 2px '+cat.dark+',0 2px 8px rgba(0,0,0,0.07)':'box-shadow:0 2px 8px rgba(0,0,0,0.07)')+'">';
     html+='<div style="font-size:0.72em;font-weight:700;color:'+cat.dark+';text-transform:uppercase;letter-spacing:0.06em">'+cat.name
@@ -3474,7 +3500,7 @@ function renderOverview(){
   ['BUY','LEAN BUY','HOLD','PASS'].forEach(function(r){
     var n=rcounts[r],pct=FD.length?Math.round(n/FD.length*100):0;
     var rAct=_rSel.length===1&&_rSel[0]===r;
-    html+='<div onclick="dashRating(\''+r+'\')" title="Click: show only '+r+' · again: show all ratings" '
+    html+='<div onclick="dashRatingJump(\''+r+'\')" title="Open the Gate Matrix with only '+r+'-rated stocks" '
       +'style="flex:1;min-width:90px;background:#fff;border-radius:8px;padding:11px 14px;cursor:pointer;border-left:4px solid '+rcols[r]+';'
       +(rAct?'box-shadow:0 0 0 2px '+rcols[r]+',0 1px 4px rgba(0,0,0,0.07)':'box-shadow:0 1px 4px rgba(0,0,0,0.07)')+'">';
     html+='<div style="font-size:1.45em;font-weight:700;color:'+rcols[r]+'">'+n+'</div>';
@@ -7282,7 +7308,7 @@ function renderWorldMosMap(){
   var _universe=Object.keys(_uniN).filter(function(i){return _drawable[i];}).length;
   var _sub=_restricted
     ? _shown+' of '+_universe+' countries · filtered — click a highlighted country to clear'
-    : _shown+' of '+_universe+' countries in view · click a country to filter';
+    : _shown+' of '+_universe+' countries in view · click a country to open it in the Gate Matrix';
   var _mapHtml='<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:14px">'
     +'<div class="xsect-chart-title">World MoS Map <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(median margin of safety · '+_sub+')</span></div>'
     +'<div class="xs-map-wrap" id="xs-map-wrap">'+WORLD_SVG+'</div>'
@@ -7337,10 +7363,12 @@ function renderWorldMosMap(){
         if(allBox){allBox.checked=isSoleSelection;allBox.indeterminate=!isSoleSelection;}
         if(typeof msUpdateLabel==='function')msUpdateLabel('ms-country');
         if(tt)tt.style.display='none';
-        /* applyFilters re-runs renderOverview, which re-renders this map with
-           the new selection — so stay put and let it repaint under the cursor
-           rather than jumping the user to another sub-tab. */
-        if(typeof applyFilters==='function')applyFilters();
+        /* Selecting a country jumps to the Gate Matrix filtered to it — the
+           map is a launch pad, not just a paint layer. Clearing (clicking the
+           already-sole-selected country) stays put: the user is undoing a
+           drill-down, so let the map repaint under the cursor instead. */
+        if(isSoleSelection){if(typeof applyFilters==='function')applyFilters();}
+        else _dashJump();
       });
     });
   },0);
@@ -8237,7 +8265,18 @@ function renderPool(){
      fires and the tooltip would stay stuck over the new view. */
   ppHide();
   var sectors={};
-  DATA.forEach(function(d){if(!d.sector||d.pp_revenue_share==null)return;if(!sectors[d.sector])sectors[d.sector]=[];sectors[d.sector].push(d);});
+  DATA.forEach(function(d){
+    if(!d.sector||d.pp_revenue_share==null)return;
+    /* Require usable revenue + operating income, matching the cross-sector
+       aggregation (renderCrossSectorProfitPool) and the server-side narrative
+       (models/narrative.py). Without this the sector header counted rows the
+       pool math excludes (e.g. "287 companies" vs the prose's 285) and no-OI
+       rows drew as fabricated 0%-margin bars. */
+    var _rev=_num(d.revenue),_oi=_num(d.operating_income);
+    if(_rev==null||_oi==null||_rev<=0)return;
+    if(!sectors[d.sector])sectors[d.sector]=[];
+    sectors[d.sector].push(d);
+  });
   var chosen=_poolTab||'__performance__';
   /* The Charts + per-sector sub-tab row moved into the nav dropdown, which
      reads the same sector list via _navSectors(). (The Overview sub-tab was
