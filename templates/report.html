@@ -727,7 +727,10 @@ td.ct{font-weight:700;}
    overlay stays exactly the viewport; only its content is allowed to be
    taller. */
 .detail-modal{display:none;position:fixed;inset:0;background:rgba(8,12,28,0.75);backdrop-filter:blur(4px);z-index:1000;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
-.detail-modal.open{display:flex;justify-content:center;align-items:flex-start;padding:24px 20px;}
+/* Full-screen on every viewport: no gutter, so .detail-content fills the
+   shell edge to edge (phones and short-landscape already did this via the
+   !important blocks up top, which now just restate the base). */
+.detail-modal.open{display:flex;justify-content:center;align-items:flex-start;padding:0;}
 /* A definite height rather than max-height means the shell is the same size
    for every ticker and every tab — content length no longer decides the
    popup's dimensions. The band is a non-scrolling flex item and .d-body is
@@ -736,7 +739,7 @@ td.ct{font-weight:700;}
    content that panned the popup sideways left the banner short of the
    right edge. As a flex item it is always exactly the popup's width.
 
-   The height is the visible viewport minus the overlay's vertical padding,
+   The height is the full visible viewport (the overlay has no padding),
    taken as the LARGER of the two independent readings of "visible": the
    dynamic viewport unit, and --vvh measured live off visualViewport. dvh
    alone was one measurement with no floor, and a measurement that resolves
@@ -757,8 +760,8 @@ td.ct{font-weight:700;}
    open the toolbars never move, so neither reading drifts during the
    popup's lifetime. The @supports arm is the pre-dvh fallback for iOS <
    15.4, where --vvh is the only reading there is. */
-.detail-content{background:#f0f4ff;border-radius:18px;max-width:1080px;width:100%;box-shadow:0 32px 100px rgba(0,0,0,0.45),0 4px 16px rgba(0,0,0,0.2);position:relative;padding:0;height:calc(max(100dvh,var(--vvh,0px)) - 48px);display:flex;flex-direction:column;overflow:hidden;}
-@supports not (height:100dvh){.detail-content{height:calc(var(--vvh,100vh) - 48px);}}
+.detail-content{background:#f0f4ff;border-radius:0;max-width:none;width:100%;position:relative;padding:0;height:max(100dvh,var(--vvh,0px));display:flex;flex-direction:column;overflow:hidden;}
+@supports not (height:100dvh){.detail-content{height:var(--vvh,100vh);}}
 .d-header-band{flex-shrink:0;}
 .detail-close{position:absolute;top:calc(12px + env(safe-area-inset-top));right:14px;border:none;background:rgba(255,255,255,0.18);width:24px;height:24px;border-radius:50%;font-size:0.95em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;}
 .detail-close:hover{background:rgba(255,255,255,0.35);}
@@ -772,7 +775,7 @@ td.ct{font-weight:700;}
 /* Fullscreen toggle removed — mobile media queries above already promote
    the modal to full-viewport at narrow widths, so the explicit toggle
    was redundant on phones and an extra control to ignore on desktop. */
-.d-header-band{background:linear-gradient(135deg,#0d1f42 0%,#1a3a6e 55%,#1f4fa0 100%);border-radius:18px 18px 0 0;padding:calc(10px + env(safe-area-inset-top)) 22px 12px;position:-webkit-sticky;position:sticky;top:0;z-index:5;overflow:hidden;}
+.d-header-band{background:linear-gradient(135deg,#0d1f42 0%,#1a3a6e 55%,#1f4fa0 100%);border-radius:0;padding:calc(10px + env(safe-area-inset-top)) 22px 12px;position:-webkit-sticky;position:sticky;top:0;z-index:5;overflow:hidden;}
 .d-header-band::before{content:'';position:absolute;top:-60px;right:-60px;width:220px;height:220px;background:radial-gradient(circle,rgba(255,255,255,0.06) 0%,transparent 70%);pointer-events:none;}
 /* No scroll-behavior:smooth here (the old .detail-content scroller had it):
    navDet animates this scroller frame-by-frame through _easeScroll, and a
