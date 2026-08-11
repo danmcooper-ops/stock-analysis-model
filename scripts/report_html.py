@@ -835,9 +835,11 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         # Same getcwd()/EPERM guard as _out_dir_early above.
         out_dir = os.path.dirname(filename) or '.'
     hist_path = os.path.join(out_dir, 'hist.json')
-    prices_path = os.path.join(out_dir, 'prices.json')
+    prices_path = os.path.join(out_dir, 'prices.json')  # legacy monolith; now only removed
+    prices_meta_path = os.path.join(out_dir, 'prices_meta.json')
     details_path = os.path.join(out_dir, 'details.json')
     vol_dir = os.path.join(out_dir, 'vol')
+    px_dir = os.path.join(out_dir, 'px')
 
     # Every sidecar is written compact. json.dump's default separators put a
     # space after each comma, which on prices.json alone (11.6M array elements)
@@ -978,6 +980,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
 
     # Load price history from local Parquet files
     prices_payload = None
+    px_payload = None
     vol_payload = None
     if prices_dir and os.path.isdir(prices_dir):
         try:
@@ -1093,39 +1096,136 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                                 farr[i] = int(round(float(x) * 100))
                         shard['f'] = farr[lo:hi + 1]
                     _vol_out[tk] = shard
+                # Close prices ship one small shard per ticker (px/<TICKER>.json,
+                # ~30 KB), exactly like vol/ — the dense prices.json matrix had
+                # grown to ~62 MB, a 30s+ blocking download for every chart and
+                # on course for the GitHub Pages 100 MB cap. Shard shape mirrors
+                # vol: {i0, p} run-trimmed of null padding, indexed into dates.
+                _px_out = {}
+                for tk, arr in _prices_out.items():
+                    if not re.fullmatch(r'[A-Za-z0-9._-]{1,15}', tk):
+                        continue
+                    lo, hi = 0, len(arr) - 1
+                    while lo <= hi and arr[lo] is None:
+                        lo += 1
+                    while hi >= lo and arr[hi] is None:
+                        hi -= 1
+                    if hi < lo:
+                        continue
+                    _px_out[tk] = {'i0': lo, 'p': arr[lo:hi + 1]}
+                # The landing sector-performance chart used to mcap-weight every
+                # constituent's series client-side, which is what forced the full
+                # matrix download. Precompute the composite here instead: per
+                # sector, a weighted index level (each component rebased to its
+                # own first quote, mcap-weighted over whatever weight has data
+                # that day) plus a per-day data-coverage fraction so the client
+                # can keep its "≥60% of weight present" guard. The client
+                # re-indexes the level to the selected range start — composite
+                # re-indexing rather than per-component re-basing, the same way
+                # any published index handles constituents entering the window.
+                _sector_px = {}
+                try:
+                    import numpy as _np
+                    _sec_members = {}
+                    for r in rows:
+                        _tk, _sec, _mc = r.get('ticker'), r.get('sector'), r.get('mcap')
+                        if (_tk in _px_out and _sec
+                                and isinstance(_mc, (int, float)) and _mc > 0):
+                            _sec_members.setdefault(_sec, []).append((_tk, float(_mc)))
+                    for _sec, _members in _sec_members.items():
+                        if len(_members) < 3:
+                            continue
+                        M = _np.array([[_np.nan if v is None else v
+                                        for v in _prices_out[_t]] for _t, _ in _members],
+                                      dtype=float)
+                        w = _np.array([_m for _, _m in _members], dtype=float)
+                        w = w / w.sum()
+                        valid = ~_np.isnan(M)
+                        first = valid.argmax(axis=1)
+                        bases = M[_np.arange(len(_members)), first]
+                        with _np.errstate(invalid='ignore', divide='ignore'):
+                            R = M / bases[:, None] * 100.0
+                        wm = _np.where(valid, w[:, None], 0.0)
+                        cov = wm.sum(axis=0)
+                        with _np.errstate(invalid='ignore'):
+                            lv = _np.nansum(_np.where(valid, R, 0.0) * wm, axis=0) \
+                                / _np.where(cov > 0, cov, _np.nan)
+                        _sector_px[_sec] = {
+                            'lv': [round(float(x), 2) if _np.isfinite(x) else None for x in lv],
+                            'cov': [round(float(x), 3) for x in cov],
+                            'nc': len(_members),
+                        }
+                except Exception as _e:
+                    print(f"[warn] sector price composite failed: {_e}")
                 prices_payload = {
                     'dates': _date_strs,
-                    'prices': _prices_out,
-                    'indices': _indices_found,
-                    # Tickers with a vol/<TICKER>.json shard. The client checks
-                    # this instead of eating a 404 on every popup open.
-                    'vol': sorted(_vol_out.keys()),
                     # Shard indices are positions into `dates`; the client bails
                     # rather than misalign if it ever sees mismatched artifacts.
                     'n': len(_date_strs),
+                    'indices': _indices_found,
+                    # Index series embedded whole: the popup's SPY overlay and
+                    # the Charts-tab index chips shouldn't cost a fetch each.
+                    'index_px': {x['ticker']: _px_out[x['ticker']]
+                                 for x in _indices_found if x['ticker'] in _px_out},
+                    # Tickers with a px/<TICKER>.json shard — membership checks
+                    # (search, seeding, popup section visibility) read this
+                    # instead of eating a 404 per miss.
+                    'manifest': sorted(_px_out.keys()),
+                    # Tickers with a vol/<TICKER>.json shard. The client checks
+                    # this instead of eating a 404 on every popup open.
+                    'vol': sorted(_vol_out.keys()),
+                    'sectors': _sector_px,
                 }
+                px_payload = _px_out
                 vol_payload = _vol_out
-                print(f"[report_html] price history: {len(_prices_out)} tickers, {len(_date_strs)} dates, indices: {[x['ticker'] for x in _indices_found]}")
+                print(f"[report_html] price history: {len(_px_out)} px shards, {len(_date_strs)} dates, "
+                      f"indices: {[x['ticker'] for x in _indices_found]}, "
+                      f"sector composites: {len(_sector_px)}")
                 print(f"[report_html] volume shards: {len(_vol_out)} tickers")
         except Exception as _e:
             print(f"[warn] price history load failed: {_e}")
 
-    # Write prices.json sidecar (or remove a stale one)
+    # Write prices_meta.json (dates + manifests + index series + sector
+    # composites) or remove a stale one. The legacy dense prices.json is
+    # always removed — per-ticker px/ shards replaced it.
     prices_size_mb = 0
     try:
         if prices_payload is not None:
-            with open(prices_path, 'w') as _pf2:
+            with open(prices_meta_path, 'w') as _pf2:
                 json.dump(prices_payload, _pf2, default=_json_default,
                           separators=_COMPACT)
-            # Uncompressed size, stamped into the client so its download
-            # progress ("Loading price history… 12 / 62 MB") can be honest —
-            # the transfer is gzipped, so Content-Length alone can't say how
-            # much of the decompressed body has arrived.
-            prices_size_mb = round(os.path.getsize(prices_path) / 1048576)
-        elif os.path.exists(prices_path):
+            # Uncompressed size, stamped into the client so download progress
+            # can be honest — the transfer is gzipped, so Content-Length alone
+            # can't say how much of the decompressed body has arrived.
+            prices_size_mb = round(os.path.getsize(prices_meta_path) / 1048576)
+        elif os.path.exists(prices_meta_path):
+            os.remove(prices_meta_path)
+        if os.path.exists(prices_path):
             os.remove(prices_path)
     except Exception as _e:
-        print(f"[warn] prices.json write failed: {_e}")
+        print(f"[warn] prices_meta.json write failed: {_e}")
+
+    # Write the px/ close-price shard directory — same lifecycle as vol/
+    # below: rebuilt wholesale, then swept of anything the manifest doesn't
+    # claim (iCloud conflict copies regenerate continuously in this folder).
+    try:
+        if px_payload is not None:
+            import shutil as _sh
+            if os.path.isdir(px_dir):
+                _sh.rmtree(px_dir, ignore_errors=True)
+            os.makedirs(px_dir, exist_ok=True)
+            for _tk, _shd in px_payload.items():
+                with open(os.path.join(px_dir, f'{_tk}.json'), 'w') as _xf:
+                    json.dump(_shd, _xf, separators=_COMPACT)
+            _stale_px = 0
+            for _fn in os.listdir(px_dir):
+                if _fn.endswith('.json') and _fn[:-5] not in px_payload:
+                    os.remove(os.path.join(px_dir, _fn))
+                    _stale_px += 1
+            if _stale_px:
+                print(f"[report_html] px/: swept {_stale_px} unclaimed shard file(s)")
+    except Exception as _e:
+        print(f"[warn] px/ shard write failed: {_e}")
 
     # Write the vol/ shard directory. Rebuilt wholesale each run so a ticker
     # that drops out of the universe can't leave a shard behind whose indices

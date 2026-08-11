@@ -2069,8 +2069,9 @@ var RUN_DATE='{{ run_date_iso }}';
    the column matches the visual width of its peers. */
 if(GM&&GM.gates){for(var _gi=0;_gi<GM.gates.length;_gi++){if(GM.gates[_gi].label==='Price/FV')GM.gates[_gi].label='P/FV';}}
 var SECTOR_POOL={{ sector_pool_json }};
-/* PRICES and HIST live in sidecar JSONs (prices.json, hist.json) so the HTML
-   stays under GitHub Pages' 100 MB cap. They lazy-load on first chart open. */
+/* PRICES context lives in prices_meta.json (dates axis, manifests, index
+   series, sector composites) with per-ticker closes sharded under px/;
+   HIST lives in hist.json. All lazy-load on first chart open. */
 var PRICES=null;
 var HIST=null;
 var _PRICES_AVAILABLE={{ prices_available }};
@@ -2106,17 +2107,16 @@ function _loadVolShard(ticker,onDone){
     onDone(_VOL[ticker]);
   });
 }
-/* prices.json is ~60 MB raw (~16 MB gzipped over the wire) — a 30s+ download
-   on a typical connection. The bare fetch gave consumers no feedback for the
-   whole stretch, so "Loading price history…" was indistinguishable from a
-   hang. Sidecars listed in _SIDECAR_MB stream instead: every element carrying
-   class "px-loading" gets live progress against the build-stamped uncompressed
-   total (Content-Length is the gzipped size, so it can't provide the honest
-   denominator). */
+/* Sidecars listed in _SIDECAR_MB stream with progress: every element carrying
+   class "px-loading" gets live "N / M MB" against the build-stamped
+   uncompressed total (Content-Length is the gzipped size, so it can't provide
+   the honest denominator). Kept from the monolithic-prices.json era — today's
+   prices_meta.json is small, but the machinery costs nothing and covers any
+   future heavyweight sidecar. */
 /* |default(0) so a render by an older report_html.py (in-flight run code
    skew: pipeline imports scripts at start but reads this template at render)
    degrades to progress-without-total instead of a page-killing syntax error. */
-var _SIDECAR_MB={'prices.json':{{ prices_size_mb|default(0) }}};
+var _SIDECAR_MB={'prices_meta.json':{{ prices_size_mb|default(0) }}};
 /* Set when a prices.json load has failed. Consumers must check this before
    re-fetching: without it, a failed load (e.g. mobile Safari OOM on the parse,
    or a dropped connection) re-entered the render fn, saw PRICES still null,
@@ -2152,7 +2152,74 @@ function _loadSidecar(name,onDone){
       });
     }
     return pump();
-  }).then(onDone).catch(function(e){console.warn('sidecar load failed:',name,e);onDone(null);});
+  }).then(
+    function(d){return {ok:true,d:d};},
+    function(e){console.warn('sidecar load failed:',name,e);return {ok:false,d:null};}
+  ).then(function(r){
+    /* onDone runs outside the catch on purpose: a throw inside a consumer's
+       callback must surface as its own error, not get swallowed and re-invoke
+       the callback with null (which read as "the download failed" and put a
+       healthy sidecar into the failed state). */
+    onDone(r.d);
+  });
+}
+/* Close prices are sharded one file per ticker (px/<TICKER>.json, ~30 KB),
+   mirroring vol/ — the dense prices.json matrix had grown to ~62 MB, which
+   blocked every chart on a 30s+ download. prices_meta.json carries the shared
+   context: the dates axis, shard manifests, the four index series whole, and
+   precomputed mcap-weighted sector composites for the landing chart (the one
+   consumer that genuinely needed every ticker at once). PRICES keeps its old
+   shape ({dates, n, vol, indices, prices:{tk: full-length row}}) — shards are
+   expanded to full-length null-padded rows on arrival, so all downstream
+   slicing/tooltip code reads exactly what the monolith used to give it. */
+function _pxExpand(sh,n){
+  var arr=new Array(n);
+  for(var i=0;i<n;i++)arr[i]=null;
+  if(sh&&typeof sh.i0==='number'&&sh.p)
+    for(var j=0;j<sh.p.length&&sh.i0+j<n;j++)arr[sh.i0+j]=sh.p[j];
+  return arr;
+}
+function _pxMetaInit(d){
+  if(!d||!d.dates)return null;
+  var man={};(d.manifest||[]).forEach(function(t){man[t]=1;});
+  var P={dates:d.dates,n:d.n||d.dates.length,vol:d.vol||[],indices:d.indices||[],
+         sectors:d.sectors||{},manifest:man,prices:{}};
+  var ipx=d.index_px||{};
+  for(var k in ipx)P.prices[k]=_pxExpand(ipx[k],P.n);
+  return P;
+}
+/* Membership = "a chart can be drawn for this ticker" — loaded row or a shard
+   on the manifest. Replaces the old PRICES.prices[tk] existence checks. */
+function _pxHas(tk){return !!(PRICES&&(PRICES.prices[tk]||PRICES.manifest[tk]));}
+var _PX_LOADING={};
+/* Fetch any missing shards for `tks` (parallel), expand into PRICES.prices,
+   then call onDone. A shard that fails or misaligns with the dates axis is
+   dropped from the manifest so membership checks stop offering it — a reload
+   is the retry path for what is a ~30 KB fetch. */
+function _ensurePx(tks,onDone){
+  if(!PRICES){if(onDone)onDone();return;}
+  var need=[];
+  (tks||[]).forEach(function(t){
+    if(!t||PRICES.prices[t]!==undefined||!PRICES.manifest[t])return;
+    if(need.indexOf(t)<0)need.push(t);
+  });
+  if(!need.length){if(onDone)onDone();return;}
+  var left=need.length;
+  var done=function(){if(--left===0&&onDone)onDone();};
+  need.forEach(function(t){
+    if(_PX_LOADING[t]){
+      var poll=setInterval(function(){if(!_PX_LOADING[t]){clearInterval(poll);done();}},120);
+      return;
+    }
+    _PX_LOADING[t]=true;
+    _loadSidecar('px/'+encodeURIComponent(t)+'.json',function(sh){
+      _PX_LOADING[t]=false;
+      var ok=sh&&typeof sh.i0==='number'&&sh.p&&sh.p.length&&(sh.i0+sh.p.length)<=PRICES.n;
+      if(ok)PRICES.prices[t]=_pxExpand(sh,PRICES.n);
+      else delete PRICES.manifest[t];
+      done();
+    });
+  });
 }
 /* DETAILS sidecar carries the heavy per-ticker text fields (news, legal,
    insider txns, full description, sector signals, fin summary, culture).
@@ -3887,7 +3954,7 @@ function _phFmtAxis(v,fmt){
    LEAN BUY. Reads FD, not DATA, so the chart follows the filter set. */
 function _phTopFive(){
   if(!PRICES)return[];
-  var scored=FD.filter(function(d){return d._composite_score!=null&&PRICES.prices[d.ticker];})
+  var scored=FD.filter(function(d){return d._composite_score!=null&&_pxHas(d.ticker);})
     .sort(function(a,b){return (b._composite_score||0)-(a._composite_score||0);});
   var seed=scored.filter(function(d){return d.rating==='BUY'||d.rating==='LEAN BUY';}).slice(0,5);
   if(seed.length<5){
@@ -3901,7 +3968,7 @@ function _phTopFive(){
    instead. An empty pool is legal — renderPHChart draws the empty state, and
    loosening the filters fills the chart back in. */
 function _phBuildPool(){
-  var pinned=_phPinned.filter(function(t){return PRICES&&PRICES.prices[t];});
+  var pinned=_phPinned.filter(function(t){return _pxHas(t);});
   var auto=_phTopFive().filter(function(t){return pinned.indexOf(t)<0;});
   _phStocks=auto.slice(0,Math.max(0,10-pinned.length)).concat(pinned);
   _phSeedStale=false;
@@ -3930,7 +3997,7 @@ function initPriceChart(){
       return;
     }
     _PRICES_LOADING=true;
-    _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;_PRICES_FAILED=!d;if(curTSub==='prices')initPriceChart();});
+    _loadSidecar('prices_meta.json',function(d){_PRICES_LOADING=false;PRICES=_pxMetaInit(d);_PRICES_FAILED=!PRICES;if(curTSub==='prices')initPriceChart();});
     return;
   }
   _phBuildPool();
@@ -3987,7 +4054,7 @@ function _phSDrop(q){
   var ql=q.trim().toLowerCase();
   var rcols={'BUY':'#276221','LEAN BUY':'#5d8a26','HOLD':'#b07d00','PASS':'#9c1d1d'};
   var res=DATA.filter(function(d){
-    if(!PRICES||!PRICES.prices[d.ticker])return false;
+    if(!_pxHas(d.ticker))return false;
     if(_phStocks.indexOf(d.ticker)>=0)return false;
     if(!ql)return true;
     var tk=d.ticker.toLowerCase(),nm=(d.company_name||'').toLowerCase();
@@ -4153,6 +4220,18 @@ function renderPHChart(){
     if(_e)_e.innerHTML='<p style="color:#888;padding:20px;text-align:center">No filtered stocks have price history.</p>';
     _phStates['']=null;
     var _tb0=document.getElementById('ph-tip-bar');if(_tb0)_tb0.innerHTML='';
+    return;
+  }
+  /* Pool tickers whose shards haven't landed yet: fetch them (parallel,
+     ~30 KB each), draw once they're all in. A pool snapshot guards the
+     re-render — if the user changed the pool meanwhile, the pending call
+     just no-ops and the newer interaction's own render wins. */
+  var _pend=_phStocks.filter(function(t){return _pxHas(t)&&PRICES&&PRICES.prices[t]===undefined;});
+  if(_pend.length){
+    var _e2=document.getElementById('ph-chart');
+    if(_e2)_e2.innerHTML=_pxLoadingHTML();
+    var _snap=_phStocks.join(',');
+    _ensurePx(_pend,function(){if(_phStocks.join(',')===_snap)renderPHChart();});
     return;
   }
   var allRaw=_phStocks.map(function(tk){return _phGetPts(tk);});
@@ -4643,10 +4722,16 @@ function _renderDetPriceChart(ticker){
       return;
     }
     _PRICES_LOADING=true;
-    _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;_PRICES_FAILED=!d;if(_dpTicker===ticker)_renderDetPriceChart(ticker);});
+    _loadSidecar('prices_meta.json',function(d){_PRICES_LOADING=false;PRICES=_pxMetaInit(d);_PRICES_FAILED=!PRICES;if(_dpTicker===ticker)_renderDetPriceChart(ticker);});
     return;
   }
-  if(!PRICES.prices||!PRICES.prices[ticker]){sec.style.display='none';return;}
+  if(!_pxHas(ticker)){sec.style.display='none';return;}
+  if(!PRICES.prices[ticker]){
+    sec.style.display='';
+    var ch3=document.getElementById('dp-chart');if(ch3)ch3.innerHTML=_pxLoadingHTML();
+    _ensurePx([ticker],function(){if(_dpTicker===ticker)_renderDetPriceChart(ticker);});
+    return;
+  }
   sec.style.display='';
   var rEl=document.getElementById('dp-ranges');
   if(rEl){
@@ -4718,7 +4803,13 @@ function _dtcRender(){
         return;
       }
       _PRICES_LOADING=true;
-      _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;_PRICES_FAILED=!d;if(live())_dtcRender();});
+      _loadSidecar('prices_meta.json',function(d){_PRICES_LOADING=false;PRICES=_pxMetaInit(d);_PRICES_FAILED=!PRICES;if(live())_dtcRender();});
+      return;
+    }
+    if(!PRICES.prices[tk]){
+      if(!_pxHas(tk)){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">No price history for this company.</p>';if(tb)tb.innerHTML='';return;}
+      el.innerHTML=_pxLoadingHTML();if(tb)tb.innerHTML='';
+      _ensurePx([tk],function(){if(live())_dtcRender();});
       return;
     }
   }else{
@@ -6867,25 +6958,9 @@ function _aggSetGridRet(retByName){
     }
   });
 }
-/* Build a market-cap-weighted aggregate from DATA filtered by
-   filterFn. Returns null if no qualifying constituents have a
-   price-history record. */
-function _buildAggregate(filterFn){
-  var weights=[],series=[],comps=[];
-  for(var di=0;di<DATA.length;di++){
-    var d=DATA[di];
-    if(!filterFn(d))continue;
-    var arr=PRICES&&PRICES.prices&&PRICES.prices[d.ticker];
-    if(!arr)continue;
-    var mc=d.mcap||0;
-    if(mc<=0)continue;
-    weights.push(mc);series.push(arr);comps.push(d);
-  }
-  if(!series.length)return null;
-  var wSum=weights.reduce(function(a,b){return a+b;},0)||1;
-  var nWeights=weights.map(function(w){return w/wSum;});
-  return {weights:weights,nWeights:nWeights,series:series,comps:comps};
-}
+/* _buildAggregate (client-side mcap-weighted sector aggregation) is gone:
+   the composite is precomputed server-side into prices_meta.json sectors —
+   it was the only consumer that needed every ticker's series at once. */
 function _priceChartDraw(){
   var el=document.getElementById('sector-price-chart');if(!el)return;
   if(!PRICES){
@@ -6897,7 +6972,7 @@ function _priceChartDraw(){
       return;
     }
     _PRICES_LOADING=true;
-    _loadSidecar('prices.json',function(d){_PRICES_LOADING=false;PRICES=d;_PRICES_FAILED=!d;_priceChartDraw();});
+    _loadSidecar('prices_meta.json',function(d){_PRICES_LOADING=false;PRICES=_pxMetaInit(d);_PRICES_FAILED=!PRICES;_priceChartDraw();});
     return;
   }
   var allD=PRICES.dates;
@@ -6913,60 +6988,45 @@ function _priceChartDraw(){
     _aggSetGridRet(null);
     return;
   }
+  /* Sector composites are precomputed server-side (prices_meta.json →
+     sectors[name] = {lv, cov}): mcap-weighted index level plus per-day
+     data-coverage fraction. This used to be computed here from every
+     constituent's series, which is the sole reason the full ~62 MB price
+     matrix had to ship; the client now just re-indexes the level to the
+     selected range start (composite re-indexing rather than per-component
+     re-basing — the same convention as any published index). */
   var aggs=[];
   keys.forEach(function(k){
-    var a=_buildAggregate(function(d){return d.sector===k;});
-    if(a){a.label=k;a.color=_aggColor(k);aggs.push(a);}
+    var sp=PRICES.sectors&&PRICES.sectors[k];
+    if(sp&&sp.lv&&sp.lv.length)aggs.push({label:k,color:_aggColor(k),lv:sp.lv,cov:sp.cov||[],nc:sp.nc||0,vals:[]});
   });
   if(!aggs.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data for selected sectors.</p>';_aggSetGridRet(null);return;}
   /* Window cutoff. */
   var cutMs={'1YR':366,'3YR':1098,'5YR':1827,'10YR':3653,'20YR':7305}[_sectorPriceRange]||1827;
   var cutoff=new Date(+new Date()-cutMs*86400000);
-  /* Find common startIdx: every aggregate has >=60% of its
-     weight present. */
+  /* Common startIdx: every composite has a level and >=60% of its sector's
+     weight reporting that day — the same guard the client-side aggregation
+     used to apply per component. */
+  var _aggOk=function(a,i){return a.lv[i]!=null&&(a.cov[i]==null||a.cov[i]>=0.6);};
   var startIdx=-1;
   for(var i=0;i<allD.length;i++){
     if(new Date(allD[i]+'T00:00:00')<cutoff)continue;
     var allOk=true;
-    for(var ai=0;ai<aggs.length;ai++){
-      var pw=0;
-      for(var j=0;j<aggs[ai].series.length;j++){
-        if(aggs[ai].series[j][i]!=null)pw+=aggs[ai].nWeights[j];
-      }
-      if(pw<0.6){allOk=false;break;}
-    }
+    for(var ai=0;ai<aggs.length;ai++){if(!_aggOk(aggs[ai],i)){allOk=false;break;}}
     if(allOk){startIdx=i;break;}
   }
   if(startIdx<0){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough overlapping price history in this range. Try a longer window or fewer sectors.</p>';_aggSetGridRet(null);return;}
-  /* Per-component baselines. */
-  for(var ai2=0;ai2<aggs.length;ai2++){
-    var ag=aggs[ai2];
-    ag.bases=new Array(ag.series.length);
-    for(var bi=0;bi<ag.series.length;bi++){
-      ag.bases[bi]=null;
-      for(var bk=startIdx;bk<allD.length;bk++){
-        if(ag.series[bi][bk]!=null){ag.bases[bi]=ag.series[bi][bk];break;}
-      }
-    }
-    ag.vals=[];
-  }
+  aggs.forEach(function(a){a.base=a.lv[startIdx];});
   var dates=[];
   for(var k=startIdx;k<allD.length;k++){
-    var aggVals=[];
     var allHaveData=true;
     for(var ai3=0;ai3<aggs.length;ai3++){
-      var ag2=aggs[ai3];
-      var sumI=0,wOk=0;
-      for(var j2=0;j2<ag2.series.length;j2++){
-        var v=ag2.series[j2][k];
-        if(v!=null&&ag2.bases[j2]&&ag2.bases[j2]>0){sumI+=(v/ag2.bases[j2])*100*ag2.nWeights[j2];wOk+=ag2.nWeights[j2];}
-      }
-      if(wOk<0.6){allHaveData=false;break;}
-      aggVals.push(sumI/wOk);
+      var a3=aggs[ai3];
+      if(!_aggOk(a3,k)||!(a3.base>0)){allHaveData=false;break;}
     }
     if(!allHaveData)continue;
     dates.push(allD[k]);
-    for(var ai4=0;ai4<aggs.length;ai4++)aggs[ai4].vals.push(aggVals[ai4]);
+    for(var ai4=0;ai4<aggs.length;ai4++){var a4=aggs[ai4];a4.vals.push(a4.lv[k]/a4.base*100);}
   }
   if(dates.length<2){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">Not enough overlapping data points.</p>';_aggSetGridRet(null);return;}
   _renderPolylineSVG(el,dates,aggs);
@@ -7025,7 +7085,7 @@ function _renderPolylineSVG(el,dates,aggs){
   /* The per-sector color/return legend was removed by request; the sector
      selector grid below already shows each sector's color + name, and hover
      surfaces the values. Only the summary caption is kept. */
-  var totalConstituents=aggs.reduce(function(s,a){return s+a.series.length;},0);
+  var totalConstituents=aggs.reduce(function(s,a){return s+(a.nc||0);},0);
   var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '+aggs.length+' sector'+(aggs.length===1?'':'s')+' · '+totalConstituents+' total constituents</div>';
   el.innerHTML=svg;
   var legendEl=document.getElementById('sector-price-legend');
@@ -8894,11 +8954,18 @@ function aiLoadPrices(){
   return new Promise(function(res){
     if(PRICES)return res(PRICES);
     if(typeof _PRICES_AVAILABLE!=='undefined'&&!_PRICES_AVAILABLE)return res(null);
-    _loadSidecar('prices.json',function(d){if(d)PRICES=d;res(PRICES);});
+    _loadSidecar('prices_meta.json',function(d){if(d&&!PRICES)PRICES=_pxMetaInit(d);res(PRICES);});
   });
 }
 function aiPriceHistory(inp){
   return aiLoadPrices().then(function(P){
+    if(!P)return P;
+    /* Per-ticker shards: pull the requested rows in before computing. */
+    return new Promise(function(res){
+      var tks=(inp.tickers||[]).slice(0,8).map(function(t){return String(t).toUpperCase().trim();});
+      _ensurePx(tks,function(){res(P);});
+    });
+  }).then(function(P){
     if(!P)return {error:'price history sidecar unavailable'};
     var dates=P.dates||[];
     var out={};
