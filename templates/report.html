@@ -1293,6 +1293,24 @@ td.ct{font-weight:700;}
 .ph-metric-btn:hover:not(.active){background:#f0f4f8;color:#1a252f;}
 .ph-metric-btn[disabled]{opacity:0.4;cursor:not-allowed;}
 #ph-select{max-width:440px;width:100%;padding:7px 11px;border:1px solid #d0d8e4;border-radius:5px;font-size:0.88em;font-weight:600;color:#1a252f;background:white;cursor:pointer;}
+/* === CHART OPTIONS MENU ======================================================
+   One hamburger per chart, upper-left, replacing the always-visible rows of
+   metric / range / benchmark / ticker buttons. The button rows themselves are
+   untouched — they just live inside the dropdown panel now, so every existing
+   builder keeps writing to the same IDs. The summary span echoes the current
+   selection so the state stays readable with the panel closed. */
+.cm-wrap{position:relative;display:flex;align-items:center;gap:9px;margin-bottom:6px;}
+.cm-btn{border:1px solid #cfd8e3;background:#fff;border-radius:8px;min-width:32px;height:27px;font-size:1.02em;cursor:pointer;line-height:1;color:#3d4f61;display:flex;align-items:center;justify-content:center;padding:0 7px;}
+.cm-btn:hover{background:#eef2f7;}
+.cm-sum{font-size:0.78em;color:#7f8c9a;font-weight:600;}
+.cm-panel{display:none;position:absolute;top:31px;left:0;z-index:60;background:var(--surface,#fff);border:1px solid #d5dde6;border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,0.16);padding:12px 14px;min-width:min(88vw,340px);max-width:min(92vw,680px);}
+.cm-panel.open{display:block;}
+.cm-panel .cm-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;margin:0 0 10px;}
+.cm-panel .cm-row:last-child{margin-bottom:0;}
+.cm-panel .cm-lbl{font-size:0.7em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em;padding-top:5px;min-width:58px;}
+[data-theme="dark"] .cm-btn{background:#161b22;border-color:#30363d;}
+[data-theme="dark"] .cm-btn:hover{background:#21262d;}
+[data-theme="dark"] .cm-panel{border-color:#30363d;box-shadow:0 12px 34px rgba(0,0,0,0.55);}
 .ph-ranges{display:flex;gap:5px;margin:10px 0 6px;flex-wrap:wrap;align-items:center;}
 .ph-range-btn{padding:4px 13px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.78em;font-weight:700;background:white;color:#546e7a;transition:background 0.12s,color 0.12s;}
 .ph-range-btn.active{background:#1a252f;color:#fff;border-color:#1a252f;}
@@ -1873,9 +1891,15 @@ body.wide-table .container{padding-left:0;padding-right:0;}
       <div id="d-gate-values" class="d-gate-values"></div>
         <div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Charts</div>
           <div style="padding:14px 16px;background:var(--surface)">
-            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 6px"><div style="font-size:0.72em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em">Metric</div><div id="dtc-metric-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div></div>
-            <div class="ph-ranges" id="dtc-ranges"></div>
-            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:6px 0 0"><div style="font-size:0.72em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em">Compare</div><div id="dtc-bench-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div></div>
+            <div class="cm-wrap">
+              <button type="button" class="cm-btn" onclick="cmToggle('dtc',event)" title="Chart options — metric, range, benchmarks">&#9776;</button>
+              <span class="cm-sum" id="dtc-cm-sum"></span>
+              <div class="cm-panel" id="dtc-cm-panel">
+                <div class="cm-row"><div class="cm-lbl">Metric</div><div id="dtc-metric-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div></div>
+                <div class="cm-row"><div class="cm-lbl">Range</div><div class="ph-ranges" id="dtc-ranges" style="margin:0"></div></div>
+                <div class="cm-row"><div class="cm-lbl">Compare</div><div id="dtc-bench-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div></div>
+              </div>
+            </div>
             <div id="dtc-tip-bar" style="min-height:28px;font-size:0.86em"></div>
             <div id="dtc-chart"></div>
           </div>
@@ -3997,16 +4021,21 @@ function initPriceChart(){
     return;
   }
   _phBuildPool();
-  phv.innerHTML='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">'
-    +'<div class="ph-sw"><input class="ph-sinp" id="ph-s1" type="text" placeholder="Add stock\u2026" autocomplete="off" style="width:190px"><div class="ph-sdrop" id="ph-s1-drop"></div></div>'
-    +'<div id="ph-index-btns" style="display:flex;gap:5px;flex-wrap:wrap"></div>'
+  /* Controls live in the hamburger; the ticker chips stay outside it because
+     they are the chart's legend (colour \u2194 line) as much as a control. */
+  phv.innerHTML='<div class="cm-wrap">'
+    +'<button type="button" class="cm-btn" onclick="cmToggle(\'ph\',event)" title="Chart options \u2014 stocks, metric, range">&#9776;</button>'
+    +'<span class="cm-sum" id="ph-cm-sum"></span>'
+    +'<div class="cm-panel" id="ph-cm-panel">'
+    +  '<div class="cm-row"><div class="cm-lbl">Stocks</div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    +    '<div class="ph-sw"><input class="ph-sinp" id="ph-s1" type="text" placeholder="Add stock\u2026" autocomplete="off" style="width:190px"><div class="ph-sdrop" id="ph-s1-drop"></div></div>'
+    +    '<div id="ph-index-btns" style="display:flex;gap:5px;flex-wrap:wrap"></div>'
+    +  '</div></div>'
+    +  '<div class="cm-row"><div class="cm-lbl">Metric</div><div id="ph-metric-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div></div>'
+    +  '<div class="cm-row"><div class="cm-lbl">Range</div><div class="ph-ranges" id="ph-ranges" style="margin:0"></div></div>'
+    +'</div>'
     +'</div>'
     +'<div id="ph-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>'
-    +'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:4px 0 6px">'
-    +  '<div style="font-size:0.72em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em">Metric</div>'
-    +  '<div id="ph-metric-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div>'
-    +'</div>'
-    +'<div class="ph-ranges" id="ph-ranges"></div>'
     +'<div id="ph-tip-bar" style="min-height:28px"></div>'
     +'<div id="ph-chart"></div>';
   _buildPHSearch();_buildPHIndexBtns();_buildPHChips();_buildPHMetricBtns();_buildPHRanges();renderPHChart();
@@ -4209,6 +4238,8 @@ function _phGetPts(ticker){
   return _phGetHistPts(ticker,_phMetric);
 }
 function renderPHChart(){
+  _cmSum('ph',_phMetricDef(_phMetric).lbl+' · '+_phRange
+    +' · '+_phStocks.length+' line'+(_phStocks.length===1?'':'s'));
   /* Empty pool = the filters left nothing with price history. Say so rather
      than leaving the previous filter's lines on screen. */
   if(!_phStocks.length){
@@ -4556,6 +4587,25 @@ function _volTipHtml(p){
   }
   return h+'</span>';
 }
+/* === CHART OPTIONS MENU (shared) === */
+/* cmToggle opens/closes a chart's options panel; a single document listener
+   closes any open panel on an outside click. Clicks INSIDE a panel keep it
+   open — picking a metric, range and benchmark is a multi-step interaction,
+   and the rows inside rebuild their own innerHTML without touching the
+   panel wrapper. */
+function cmToggle(k,e){
+  if(e){e.stopPropagation();e.preventDefault();}
+  var p=document.getElementById(k+'-cm-panel');if(!p)return;
+  var willOpen=!p.classList.contains('open');
+  document.querySelectorAll('.cm-panel.open').forEach(function(o){o.classList.remove('open');});
+  if(willOpen)p.classList.add('open');
+}
+document.addEventListener('click',function(e){
+  if(e.target&&e.target.closest&&e.target.closest('.cm-wrap'))return;
+  document.querySelectorAll('.cm-panel.open').forEach(function(o){o.classList.remove('open');});
+});
+function _cmSum(k,txt){var s=document.getElementById(k+'-cm-sum');if(s)s.textContent=txt;}
+
 /* === DETAIL POPUP CHARTS BLOCK === */
 /* Single-company chart at the top of the popup's Overview tab, with the same
    metric set as the top-level Charts view (_PH_METRICS: price + annual
@@ -4631,6 +4681,9 @@ function _dtcButtons(){
       }).join('');
     }
   }
+  var bn=_dtcBenchOn();
+  _cmSum('dtc',_phMetricDef(_dtcMetric).lbl+' · '+_dtcRange
+    +(bn.length?' · vs '+bn.map(_dtcIndexLabel).join(', '):''));
 }
 function _dtcRender(){
   var tk=_dpTicker;if(!tk)return;
@@ -6745,6 +6798,8 @@ function _sectorBenchBtns(){
     return '<button type="button" class="pp-range-btn'+(on?' active':'')+'" onclick="toggleSectorBench(\''+ix.ticker+'\')"'
       +' style="border-color:'+col+';color:'+col+(on?';background:'+col+'1a':'')+'">'+_esc(ix.label)+'</button>';
   }).join('');
+  _cmSum('sector',_sectorPriceRange.replace('YR','Y')
+    +(_sectorBench.length?' · vs '+_sectorBench.map(_dtcIndexLabel).join(', '):''));
 }
 var _selectedAggs={};
 var _sectorPriceState=null;
@@ -6790,23 +6845,28 @@ function renderUniversePriceChart(){
     var checked=_selectedAggs[s]?' checked':'';
     return '<label class="agg-grid-item"><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span><span class="agg-grid-ret" title="Total price appreciation over the selected timeframe">—</span></label>';
   }).join('');
-  /* Benchmark chips sit with the range buttons: they change what the chart is
-     measured against, which is the same kind of control as the window. The
+  /* Range + benchmark controls live in the hamburger. The benchmark chip
      container ships empty and _sectorBenchBtns() fills it from PRICES.indices
      once the sidecar lands — this markup is built before that load finishes,
-     so building the chips here would emit nothing. */
-  var out='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">'
-    +'<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">'+rangeBtns+'</div>'
-    +'<div id="sector-bench-wrap" style="display:none;gap:4px;flex-wrap:wrap;align-items:center;padding-left:10px;border-left:1px solid #dde3ea">'
-      +'<span style="font-size:0.68em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.04em">vs</span>'
-      +'<span id="sector-bench-btns" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"></span></div>'
-    +'<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-left:auto">'+helperBtns+'</div>'
+     so building the chips here would emit nothing. The All/Clear helpers move
+     down beside the sector grid they act on. */
+  var out='<div class="cm-wrap">'
+    +'<button type="button" class="cm-btn" onclick="cmToggle(\'sector\',event)" title="Chart options — range, benchmarks">&#9776;</button>'
+    +'<span class="cm-sum" id="sector-cm-sum"></span>'
+    +'<div class="cm-panel" id="sector-cm-panel">'
+    +  '<div class="cm-row"><div class="cm-lbl">Range</div><div style="display:flex;gap:4px;flex-wrap:wrap">'+rangeBtns+'</div></div>'
+    +  '<div class="cm-row" id="sector-bench-wrap" style="display:none"><div class="cm-lbl">vs</div>'
+    +    '<span id="sector-bench-btns" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"></span></div>'
+    +'</div>'
     +'</div>'
     +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin:6px 0 4px;min-height:20px"></div>'
     +'<div id="sector-price-chart" style="min-height:260px"></div>'
     +'<div id="sector-price-legend" style="margin-top:8px"></div>'
     +'<div class="agg-grid-section">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'
     +'<div class="agg-grid-title">Compare sectors</div>'
+    +'<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+helperBtns+'</div>'
+    +'</div>'
     +'<div class="agg-grid" id="agg-grid">'+gridItems+'</div>'
     +'</div>';
   /* Defer the actual draw until after innerHTML mounts the
