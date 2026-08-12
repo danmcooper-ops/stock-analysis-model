@@ -1875,6 +1875,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
           <div style="padding:14px 16px;background:var(--surface)">
             <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 6px"><div style="font-size:0.72em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em">Metric</div><div id="dtc-metric-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div></div>
             <div class="ph-ranges" id="dtc-ranges"></div>
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:6px 0 0"><div style="font-size:0.72em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em">Compare</div><div id="dtc-bench-btns" style="display:flex;gap:4px;flex-wrap:wrap"></div></div>
             <div id="dtc-tip-bar" style="min-height:28px;font-size:0.86em"></div>
             <div id="dtc-chart"></div>
           </div>
@@ -4284,6 +4285,31 @@ function _phRenderSVG(allRaw,refs,ctx){
   var xBase=hasVol?volBase:PT+iH;
   var VH=xBase+PB;
   series.forEach(function(s){s.pts=s.raw;});
+  /* Comparison mode rebases every line to 100 at the window start and plots
+     % change from there. On a shared dollar axis a $12 stock next to the S&P
+     at ~$600 is a flat line at the bottom — the comparison the chart exists
+     to make is the one it couldn't show. Rebasing is price-only: annual
+     fundamentals keep their real units, where absolute scale is the point
+     (and where benchmarks are not offered). c0 keeps the true value for the
+     tooltip. */
+  var rebase=cmpMode&&!annual;
+  if(rebase){
+    series.forEach(function(s){
+      var base=null;
+      for(var bi=0;bi<s.pts.length;bi++){if(s.pts[bi].c!=null&&s.pts[bi].c>0){base=s.pts[bi].c;break;}}
+      if(base==null){s.pts=[];return;}
+      s.pts=s.pts.map(function(p){
+        var o={};for(var k in p)o[k]=p[k];
+        o.c0=p.c;o.c=p.c/base*100;return o;
+      });
+    });
+    series=series.filter(function(s){return s.pts.length>=2;});
+    if(!series.length){
+      el.innerHTML='<p style="color:#888;padding:20px;text-align:center">No overlapping data for this range.</p>';_phStates[K]=null;
+      var _tb2=document.getElementById(ctx.tipId);if(_tb2)_tb2.innerHTML='';
+      return;
+    }
+  }
   /* y range */
   var allVals=[];series.forEach(function(s){s.pts.forEach(function(p){allVals.push(p.c);});});
   var minP=Math.min.apply(null,allVals),maxP=Math.max.apply(null,allVals);
@@ -4298,6 +4324,10 @@ function _phRenderSVG(allRaw,refs,ctx){
   if(annual&&maxP<0)maxP=0;
   var pRaw=maxP-minP||1,pad=pRaw*0.06;
   if(!anchorZero)minP-=pad;
+  /* Index 0 is a total loss (-100%); padding below it labels the axis with
+     percentages no price can reach (a MAX-range mega-winner was padding the
+     floor to -1093%). Clamp instead of letting the pad run past the floor. */
+  if(rebase&&minP<0)minP=0;
   maxP+=pad;var pRange=maxP-minP;
   var xOf=function(i,len){return PL+(len<=1?iW/2:(i/(len-1))*iW);};
   var yOf=function(v){return PT+iH-((v-minP)/pRange)*iH;};
@@ -4305,7 +4335,7 @@ function _phRenderSVG(allRaw,refs,ctx){
   var yH='';
   for(var gi=0;gi<=5;gi++){var gv=minP+(gi/5)*pRange;var gy=yOf(gv).toFixed(1);
     if(gi>0)yH+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" stroke="#e8edf2" stroke-width="1"/>';
-    var gl=_phFmtAxis(gv,def.fmt);
+    var gl=rebase?((gv-100>=0?'+':'')+(gv-100).toFixed(0)+'%'):_phFmtAxis(gv,def.fmt);
     yH+='<text x="'+(PL-7)+'" y="'+(parseFloat(gy)+4)+'" text-anchor="end" font-size="11" fill="#9aaab8">'+gl+'</text>';}
   /* x-axis using first series */
   var ref0=series[0].pts;
@@ -4325,7 +4355,13 @@ function _phRenderSVG(allRaw,refs,ctx){
     if(refs.hi&&refs.hi>minP&&refs.hi<maxP){var yhi=yOf(refs.hi).toFixed(1);refSVG+='<line x1="'+PL+'" y1="'+yhi+'" x2="'+(VW-PR)+'" y2="'+yhi+'" stroke="#b45309" stroke-width="1" stroke-dasharray="4,3" opacity="0.65"/><text x="'+(VW-PR-4)+'" y="'+(parseFloat(yhi)-4)+'" text-anchor="end" font-size="10" fill="#b45309">52W H</text>';}
     if(refs.lo&&refs.lo>minP&&refs.lo<maxP){var ylo=yOf(refs.lo).toFixed(1);refSVG+='<line x1="'+PL+'" y1="'+ylo+'" x2="'+(VW-PR)+'" y2="'+ylo+'" stroke="#0369a1" stroke-width="1" stroke-dasharray="4,3" opacity="0.65"/><text x="'+(VW-PR-4)+'" y="'+(parseFloat(ylo)+12)+'" text-anchor="end" font-size="10" fill="#0369a1">52W L</text>';}
   }
+  /* The 0% line (index 100) is the "flat since the window opened" datum every
+     rebased line starts on, so it earns a solid rule rather than a gridline. */
   var zeroSVG='';
+  if(rebase&&minP<100&&maxP>100){
+    var y100=yOf(100).toFixed(1);
+    zeroSVG+='<line x1="'+PL+'" y1="'+y100+'" x2="'+(VW-PR)+'" y2="'+y100+'" stroke="#94a3b8" stroke-width="1.25" stroke-dasharray="5,3" opacity="0.8"/>';
+  }
   /* polylines + dot markers */
   var linesSVG='',dotsSVG='';
   series.forEach(function(s,si){
@@ -4359,12 +4395,16 @@ function _phTipHtml(series,cmpMode,relX,def,annual){
     var idx=relX!=null?Math.round(relX/((s.pts.length-1)||1)*(s.pts.length-1)):s.pts.length-1;
     idx=Math.max(0,Math.min(s.pts.length-1,idx));
     var p=s.pts[idx];
-    var val=_phFmtVal(p.c,def.fmt);
-    var vc=s.col;
+    /* Rebased lines read as % change from the window start (c0 carries the
+       real price, shown muted alongside so the axis stays interpretable). */
+    var reb=p.c0!=null;
+    var val=reb?((p.c-100>=0?'+':'')+(p.c-100).toFixed(1)+'%'):_phFmtVal(p.c,def.fmt);
+    var vc=reb?(p.c>=100?'#2e7d48':'#c0392b'):s.col;
     tip+='<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap">'
       +'<span style="width:10px;height:3px;background:'+s.col+';border-radius:2px;display:inline-block;flex-shrink:0"></span>'
       +'<span style="font-weight:700;font-size:0.88em;color:#1a252f">'+s.tk+'</span>'
       +'<span style="font-weight:600;color:'+vc+'">'+val+'</span>'
+      +(reb?'<span style="color:#9aaab8;font-size:0.82em">'+_phFmtVal(p.c0,def.fmt)+'</span>':'')
       +'</span>';
   });
   var refIdx=relX!=null?Math.max(0,Math.min(series[0].pts.length-1,Math.round(relX/((series[0].pts.length-1)||1)*(series[0].pts.length-1)))):null;
@@ -4523,7 +4563,27 @@ function _volTipHtml(p){
    so its SVG ids can't collide with the top-level instance. Metric and range
    persist across companies and reopen. */
 var _dtcMetric='price',_dtcRange='MAX';
-function _dtcCtx(){return{key:'-dtc',chartId:'dtc-chart',tipId:'dtc-tip-bar',stocks:[_dpTicker],metric:_dtcMetric};}
+/* Benchmark overlay: index tickers plotted alongside the company, rebased to
+   100 with it (see the rebase block in _phRenderSVG). Price metric only —
+   an index has no revenue or share count to compare against — and the
+   selection persists across companies so a benchmark stays on while you
+   page through the list. */
+var _dtcBench=[];
+function _dtcBenchOn(){return _dtcMetric==='price'?_dtcBench.slice():[];}
+function _dtcIndexLabel(tk){
+  var ix=((PRICES&&PRICES.indices)||[]).filter(function(x){return x.ticker===tk;})[0];
+  return ix?ix.label:tk;
+}
+function dtcToggleBench(tk){
+  var i=_dtcBench.indexOf(tk);
+  if(i>=0)_dtcBench.splice(i,1);else _dtcBench.push(tk);
+  _dtcRender();
+}
+function _dtcCtx(){
+  return{key:'-dtc',chartId:'dtc-chart',tipId:'dtc-tip-bar',
+         stocks:[_dpTicker].concat(_dtcBenchOn().map(_dtcIndexLabel)),
+         metric:_dtcMetric};
+}
 function dtcSetMetric(k){
   if(_dtcMetric===k)return;
   _dtcMetric=k;
@@ -4550,6 +4610,27 @@ function _dtcButtons(){
   if(rc)rc.innerHTML=['1M','3M','6M','1YR','5YR','10YR','20YR','MAX'].map(function(r){
     return '<button class="ph-range-btn'+(r===_dtcRange?' active':'')+'" onclick="dtcSetRange(\''+r+'\')">'+r+'</button>';
   }).join('');
+  var bb=document.getElementById('dtc-bench-btns');
+  if(bb){
+    var ixs=(PRICES&&PRICES.indices)||[];
+    if(!ixs.length){bb.parentNode.style.display='none';}
+    else{
+      bb.parentNode.style.display='';
+      var isPrice=_dtcMetric==='price';
+      bb.innerHTML=ixs.map(function(ix,i){
+        var on=isPrice&&_dtcBench.indexOf(ix.ticker)>=0;
+        /* Benchmark colours continue the series palette after the company,
+           which always holds slot 0 — so a chip's colour is the colour of
+           the line it draws. */
+        var col=on?_phPalette[(_dtcBenchOn().indexOf(ix.ticker)+1)%_phPalette.length]:'#555';
+        return '<button class="ph-index-btn'+(on?' active':'')+'"'+(isPrice?'':' disabled title="Indices have no fundamentals — switch to Price"')
+          +' onclick="dtcToggleBench(\''+ix.ticker+'\')"'
+          +' style="font-size:0.72em;padding:2px 8px;border-radius:11px;cursor:'+(isPrice?'pointer':'default')
+          +';border:1.5px solid '+col+';background:'+(on?col+'1a':'#fff')+';color:'+col+';font-weight:700'+(isPrice?'':';opacity:0.45')+'">'
+          +esc(ix.label)+'</button>';
+      }).join('');
+    }
+  }
 }
 function _dtcRender(){
   var tk=_dpTicker;if(!tk)return;
@@ -4596,7 +4677,16 @@ function _dtcRender(){
   var pts=def.src==='price'?_phGetPricePts(tk,_dtcRange):_phGetHistPts(tk,_dtcMetric,_dtcRange);
   var d=DATA.find(function(x){return x.ticker===tk;});
   var refs=(def.src==='price'&&d)?{dcf:d.dcf_fv,hi:d.high_52w,lo:d.low_52w}:null;
-  _phRenderSVG([pts],refs,_dtcCtx());
+  /* Benchmarks ride the same range/slicing as the company. Their rows are
+     embedded in prices_meta.json (index_px), so no shard fetch is needed;
+     an index whose series is missing is dropped rather than drawn empty.
+     _phRenderSVG rebases everything to 100 as soon as there are 2+ series,
+     which is what makes a $12 stock comparable to a $600 index. */
+  var benchPts=_dtcBenchOn().map(function(b){return _phGetPricePts(b,_dtcRange);});
+  var keep=[],ctx=_dtcCtx();
+  benchPts.forEach(function(p,i){if(p&&p.length>=2)keep.push({p:p,l:ctx.stocks[i+1]});});
+  ctx.stocks=[tk].concat(keep.map(function(x){return x.l;}));
+  _phRenderSVG([pts].concat(keep.map(function(x){return x.p;})),refs,ctx);
   if(def.src==='price'&&_VOL[tk]===undefined){
     _loadVolShard(tk,function(sh){if(sh&&live()&&_dtcMetric==='price')_dtcRender();});
   }
@@ -6631,6 +6721,31 @@ function renderPoolSectorSignals(sec){
    Constituents are today\'s DATA snapshot, so the comparison
    carries survivorship and quality-filter bias. */
 var _sectorPriceRange='20YR';
+/* Benchmark overlay for the sector comparison chart. Distinct from the sector
+   palette (_aggColor) on purpose — these are the yardstick, not a sector. */
+var _sectorBench=[];
+var _BENCH_COL={'SPY':'#111827','IWM':'#7c3aed','DIA':'#b45309','QQQ':'#0891b2'};
+function toggleSectorBench(tk){
+  var i=_sectorBench.indexOf(tk);
+  if(i>=0)_sectorBench.splice(i,1);else _sectorBench.push(tk);
+  _sectorBenchBtns();
+  _priceChartDraw();
+}
+/* Fill the benchmark chip row. Called from _priceChartDraw (i.e. after the
+   prices sidecar has landed), since PRICES.indices is unknown at mount. */
+function _sectorBenchBtns(){
+  var el=document.getElementById('sector-bench-btns');if(!el)return;
+  var wrap=document.getElementById('sector-bench-wrap');
+  var ixs=(PRICES&&PRICES.indices)||[];
+  if(!ixs.length){if(wrap)wrap.style.display='none';return;}
+  if(wrap)wrap.style.display='flex';
+  el.innerHTML=ixs.map(function(ix){
+    var col=_BENCH_COL[ix.ticker]||'#111827';
+    var on=_sectorBench.indexOf(ix.ticker)>=0;
+    return '<button type="button" class="pp-range-btn'+(on?' active':'')+'" onclick="toggleSectorBench(\''+ix.ticker+'\')"'
+      +' style="border-color:'+col+';color:'+col+(on?';background:'+col+'1a':'')+'">'+_esc(ix.label)+'</button>';
+  }).join('');
+}
 var _selectedAggs={};
 var _sectorPriceState=null;
 var _aggHoverState=null;
@@ -6675,8 +6790,16 @@ function renderUniversePriceChart(){
     var checked=_selectedAggs[s]?' checked':'';
     return '<label class="agg-grid-item"><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span><span class="agg-grid-ret" title="Total price appreciation over the selected timeframe">—</span></label>';
   }).join('');
+  /* Benchmark chips sit with the range buttons: they change what the chart is
+     measured against, which is the same kind of control as the window. The
+     container ships empty and _sectorBenchBtns() fills it from PRICES.indices
+     once the sidecar lands — this markup is built before that load finishes,
+     so building the chips here would emit nothing. */
   var out='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">'
     +'<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">'+rangeBtns+'</div>'
+    +'<div id="sector-bench-wrap" style="display:none;gap:4px;flex-wrap:wrap;align-items:center;padding-left:10px;border-left:1px solid #dde3ea">'
+      +'<span style="font-size:0.68em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.04em">vs</span>'
+      +'<span id="sector-bench-btns" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"></span></div>'
     +'<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-left:auto">'+helperBtns+'</div>'
     +'</div>'
     +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin:6px 0 4px;min-height:20px"></div>'
@@ -6755,11 +6878,14 @@ function _priceChartDraw(){
     return;
   }
   var allD=PRICES.dates;
+  _sectorBenchBtns();
   var sectors=_allSectors();
   var keys=sectors.filter(function(s){return _selectedAggs[s];});
   var legendEl=document.getElementById('sector-price-legend');
   var tipEl=document.getElementById('sector-price-tip');
-  if(!keys.length){
+  /* Benchmarks alone are a legitimate view (compare the indices to each
+     other), so only the truly empty selection gets the placeholder. */
+  if(!keys.length&&!_sectorBench.length){
     el.innerHTML='<p style="color:#888;padding:30px 20px;text-align:center;font-size:0.85em">Pick one or more sectors below to plot performance.</p>';
     if(legendEl)legendEl.innerHTML='';
     if(tipEl)tipEl.innerHTML='';
@@ -6778,6 +6904,14 @@ function _priceChartDraw(){
   keys.forEach(function(k){
     var sp=PRICES.sectors&&PRICES.sectors[k];
     if(sp&&sp.lv&&sp.lv.length)aggs.push({label:k,color:_aggColor(k),lv:sp.lv,cov:sp.cov||[],nc:sp.nc||0,vals:[]});
+  });
+  /* Benchmarks join as ordinary series: the block below re-indexes every
+     entry to 100 at the common start, so an index's raw price level works as
+     its `lv` unchanged. cov is left empty (an index always reports), and nc
+     is 0 so benchmarks don't inflate the constituent count in the caption. */
+  _sectorBench.forEach(function(b){
+    var row=PRICES.prices&&PRICES.prices[b];
+    if(row&&row.length)aggs.push({label:_dtcIndexLabel(b),color:_BENCH_COL[b]||'#111827',lv:row,cov:[],nc:0,bench:true,vals:[]});
   });
   if(!aggs.length){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.85em">No price data for selected sectors.</p>';_aggSetGridRet(null);return;}
   /* Window cutoff. */
@@ -6851,7 +6985,10 @@ function _renderPolylineSVG(el,dates,aggs){
   var lines='';
   aggs.forEach(function(a,si){
     var pts=a.vals.map(function(v,i){return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);}).join(' ');
-    lines+='<polyline points="'+pts+'" fill="none" stroke="'+a.color+'" stroke-width="'+aggStroke+'" stroke-linejoin="round" stroke-linecap="round"/>';
+    /* Benchmarks draw dashed so they read as the yardstick rather than as
+       another sector, even for a viewer who can't separate the colours. */
+    lines+='<polyline points="'+pts+'" fill="none" stroke="'+a.color+'" stroke-width="'+(a.bench?aggStroke+0.2:aggStroke)+'"'
+      +(a.bench?' stroke-dasharray="6,4"':'')+' stroke-linejoin="round" stroke-linecap="round"/>';
   });
   /* Hover overlay: a vertical crosshair line + one circle marker
      per series, all initially hidden (opacity=0). aggChartMove
@@ -6865,7 +7002,14 @@ function _renderPolylineSVG(el,dates,aggs){
      selector grid below already shows each sector's color + name, and hover
      surfaces the values. Only the summary caption is kept. */
   var totalConstituents=aggs.reduce(function(s,a){return s+(a.nc||0);},0);
-  var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '+aggs.length+' sector'+(aggs.length===1?'':'s')+' · '+totalConstituents+' total constituents</div>';
+  /* Benchmarks are counted separately: they are lines on the chart but not
+     sectors, and they contribute no constituents. */
+  var nSec=aggs.filter(function(a){return !a.bench;}).length;
+  var nBench=aggs.length-nSec;
+  var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '
+    +nSec+' sector'+(nSec===1?'':'s')
+    +(nBench?' · '+nBench+' benchmark'+(nBench===1?'':'s')+' (dashed)':'')
+    +' · '+totalConstituents+' total constituents</div>';
   el.innerHTML=svg;
   var legendEl=document.getElementById('sector-price-legend');
   if(legendEl)legendEl.innerHTML=meta;
