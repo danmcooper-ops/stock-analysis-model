@@ -457,13 +457,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    hash restore both query it); the id-selector overrides below just undo
    the popup styling so the lists render inline inside the panel. */
 .filt-btn-label{font-weight:600;}
-.filt-panel{max-width:min(880px,calc(100vw - 20px));}
+/* The panel opens at its full height: the shared .fpop-panel cap of
+   min(72vh,520px) was ~30-60px shorter than this panel's content on a normal
+   desktop window, so Column Filters and + Add Filter sat below the fold and
+   the menu looked like it ended at the Quick Filters column. This panel gets
+   the viewport instead of a fixed 520px; _positionFpop() then trims the
+   inline max-height to whatever space the funnel button actually leaves. */
+.filt-panel{max-width:min(880px,calc(100vw - 20px));max-height:calc(100vh - 68px);}
 .filt-header-actions{display:flex;gap:8px;align-items:center;}
 .filt-header-actions .filter-clear{padding:3px 10px;font-size:0.85em;}
 .filt-cols{display:flex;gap:18px;align-items:flex-start;}
 .filt-col{flex:0 0 auto;min-width:130px;max-width:230px;display:flex;flex-direction:column;min-height:0;}
 #filt-panel .ms-wrap{position:static;display:block;min-width:0;}
-#filt-panel .ms-drop{display:block;position:static;min-width:0;max-height:314px;border:none;border-radius:0;box-shadow:none;background:none;}
+/* Viewport-relative cap so the checkbox lists — Countries runs to dozens of
+   rows and always pins to the cap — give way first on a short window. They
+   already scroll internally, so shrinking them costs nothing, while letting
+   them hold 314px would push the Column Filters section back below the fold
+   on anything under ~600px tall. */
+#filt-panel .ms-drop{display:block;position:static;min-width:0;max-height:min(314px,32vh);border:none;border-radius:0;box-shadow:none;background:none;}
 #filt-panel .ms-drop label{padding:4px 8px;border-radius:5px;}
 /* Narrow screens: the filter columns stack into one scrolling list, same
    as the nav menu's. */
@@ -3178,6 +3189,16 @@ function _positionFpop(panel,btn){
   var vv=window.visualViewport;
   var vw=vv?vv.width:window.innerWidth,vh=vv?vv.height:window.innerHeight;
   panel.style.width='';
+  /* Height budget, set before measuring: the panel opens below the button
+     when it fits and flips above it when it doesn't, so the space it can
+     actually use is the larger of those two gaps. Capping max-height to that
+     lets the panel scroll internally instead of overflowing the viewport —
+     the Filters panel is tall enough (search + four checkbox columns +
+     Column Filters) to reach the edge on a short window. Cleared first so a
+     resize between opens re-measures instead of inheriting the old budget. */
+  panel.style.maxHeight='';
+  var avail=Math.max(vh-(r.bottom+6)-10,r.top-6-10);
+  if(avail>160)panel.style.maxHeight=avail+'px';
   var pw=panel.offsetWidth,ph=panel.offsetHeight;
   if(pw>vw-20){panel.style.width=(vw-20)+'px';pw=vw-20;}
   var left=r.left;
