@@ -986,6 +986,24 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         try:
             import pandas as _pd
             _cutoff = _pd.Timestamp.now().normalize() - _pd.DateOffset(years=20)
+
+            def _clean_close(s):
+                # The yfinance cache carries garbage closes on ~57 OTC lines:
+                # negative back-adjusted prices, 1e28-scale blowups, and
+                # sub-penny quotes that round to 0.00 in the 2-decimal shard
+                # format. Any of these poisons every chart downstream (a zero
+                # or negative rebase base turns a whole sector composite line
+                # into inf/None), so they are dropped here at ingestion, not
+                # patched around per-chart. Bounds: positive after rounding,
+                # and within 1000x of the series median — no real close sits
+                # 1000x from its own 20-year median (NVDA's full run is ~40x),
+                # but the adjustment glitches sit at 1e6x and beyond.
+                s = s[s > 0.005]
+                if len(s):
+                    _med = float(s.median())
+                    if _med > 0:
+                        s = s[s <= _med * 1000]
+                return s
             _series = {}
             _vol_series = {}
             _buyfrac_series = {}
@@ -1000,7 +1018,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                     df = _pd.read_parquet(pf).sort_index()
                     df.index = _pd.to_datetime(df.index).tz_localize(None).normalize()
                     _keep = df.index >= _cutoff
-                    s = df['Close'][_keep].dropna()
+                    s = _clean_close(df['Close'][_keep].dropna())
                     if len(s) >= 20:
                         _series[tk] = s
                         # Volume rides along for the popup chart's sub-panel.
@@ -1038,7 +1056,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                 try:
                     _idf = _pd.read_parquet(_ipf)[['Close']].sort_index()
                     _idf.index = _pd.to_datetime(_idf.index).tz_localize(None).normalize()
-                    _is = _idf['Close'][_idf.index >= _cutoff].dropna()
+                    _is = _clean_close(_idf['Close'][_idf.index >= _cutoff].dropna())
                     if len(_is) >= 20:
                         _series[_itk] = _is
                         _indices_found.append({'ticker': _itk, 'label': _ilabel})
@@ -1129,8 +1147,15 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                     _sec_members = {}
                     for r in rows:
                         _tk, _sec, _mc = r.get('ticker'), r.get('sector'), r.get('mcap')
+                        # Upper mcap sanity bound: yfinance hands FNMFO (a
+                        # Fannie Mae preferred line) a $180T market cap, which
+                        # made it 93% of the Financial Services composite —
+                        # every junk print on that one OTC line moved the
+                        # sector index by +/-80%. No real company is within
+                        # 4x of $20T; anything past it is a data error, not a
+                        # constituent.
                         if (_tk in _px_out and _sec
-                                and isinstance(_mc, (int, float)) and _mc > 0):
+                                and isinstance(_mc, (int, float)) and 0 < _mc < 2e13):
                             _sec_members.setdefault(_sec, []).append((_tk, float(_mc)))
                     for _sec, _members in _sec_members.items():
                         if len(_members) < 3:
@@ -1140,16 +1165,40 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                                       dtype=float)
                         w = _np.array([_m for _, _m in _members], dtype=float)
                         w = w / w.sum()
-                        valid = ~_np.isnan(M)
-                        first = valid.argmax(axis=1)
-                        bases = M[_np.arange(len(_members)), first]
+                        valid = ~_np.isnan(M) & (M > 0)
+                        # Chain-linked index of weighted daily returns, not a
+                        # weighted average of rebase-to-first-quote levels: a
+                        # component only moves the index on days where it has
+                        # quotes on BOTH t-1 and t, so a sparse OTC line that
+                        # trades twice a year contributes two clamped daily
+                        # moves instead of an R=price/tiny-base level that
+                        # steps the whole sector by hundreds of points. This
+                        # is what turned the 20Y sector chart into a
+                        # Dec'11-Mar'13 sliver: penny-base components made lv
+                        # inf/None on most days, and the client's
+                        # all-sectors-valid gate kept only the 313 days where
+                        # every sector dodged its own junk.
+                        vboth = valid[:, :-1] & valid[:, 1:]
                         with _np.errstate(invalid='ignore', divide='ignore'):
-                            R = M / bases[:, None] * 100.0
-                        wm = _np.where(valid, w[:, None], 0.0)
-                        cov = wm.sum(axis=0)
+                            r = _np.where(vboth, M[:, 1:] / M[:, :-1] - 1.0, 0.0)
+                        # Junk-print guard: no index constituent legitimately
+                        # quadruples or loses 75% between closes; adjustment
+                        # glitches routinely do.
+                        r = _np.clip(r, -0.75, 3.0)
+                        wm = _np.where(vboth, w[:, None], 0.0)
+                        cov_t = wm.sum(axis=0)
                         with _np.errstate(invalid='ignore'):
-                            lv = _np.nansum(_np.where(valid, R, 0.0) * wm, axis=0) \
-                                / _np.where(cov > 0, cov, _np.nan)
+                            cr = _np.where(cov_t > 0,
+                                           (r * wm).sum(axis=0) / _np.where(cov_t > 0, cov_t, 1.0),
+                                           0.0)
+                        lv = 100.0 * _np.cumprod(1.0 + cr)
+                        lv = _np.concatenate(([100.0], lv))
+                        # cov[0] is quote coverage (no return exists on day
+                        # one); after that it is the weight fraction with a
+                        # valid return, which is what the client's >=60% gate
+                        # actually wants to know.
+                        cov0 = float(_np.where(valid[:, 0], w, 0.0).sum()) if M.shape[1] else 0.0
+                        cov = _np.concatenate(([cov0], cov_t))
                         _sector_px[_sec] = {
                             'lv': [round(float(x), 2) if _np.isfinite(x) else None for x in lv],
                             'cov': [round(float(x), 3) for x in cov],
