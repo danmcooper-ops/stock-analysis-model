@@ -22,7 +22,8 @@ if os.path.exists(_env_path):
                 _k, _v = _line.split('=', 1)
                 os.environ.setdefault(_k.strip(), _v.strip())
 
-from data.yfinance_client import YFinanceClient, EmptyYahooResponseError
+from data.yfinance_client import (YFinanceClient, EmptyYahooResponseError,
+                                  MCAP_MAX_PLAUSIBLE)
 from data.treasury_rate import fetch_risk_free_rate
 from data.validation import validate_financials
 from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re)
@@ -1868,6 +1869,28 @@ def apply_mcap_integrity_guard(results, prior_rows=None,
     Must run BEFORE ``score_and_rate`` or the recovered values never reach the
     gates. Mutates *results* in place; returns a summary dict for callers/tests.
     """
+    # --- Implausibly HIGH caps: corruption, not data ---------------------
+    # Yahoo hands preferred / OTC lines the parent's common share count
+    # (every Fannie/Freddie preferred series carries 5.7B / 3.2B shares), so
+    # FNMFO — a $50,000-par preferred quoted ~$31,500 — reported a $180T cap
+    # on 2026-08-12 and rated PASS. The primary fix nulls this at fetch time
+    # (data.yfinance_client._sanitize_implausible_mcap); this is the second
+    # line for rows built from snapshots cached before that fix. Nulling
+    # (rather than clamping) routes the row into the missing-mcap machinery
+    # below — and the share count is nulled with it when shares x price
+    # reproduces the same absurd figure, since price is directly observed.
+    implausible = [r for r in results
+                   if (r.get('mcap') or 0) > MCAP_MAX_PLAUSIBLE]
+    for r in implausible:
+        bad = r['mcap']
+        r['mcap'] = None
+        shares, price = r.get('shares_out'), r.get('price')
+        if shares and price and float(shares) * float(price) > MCAP_MAX_PLAUSIBLE:
+            r['shares_out'] = None
+        r['_mcap_invalid'] = bad
+        print(f"[mcap] {r.get('ticker')}: implausible market cap "
+              f"${bad:.3g} (> ${MCAP_MAX_PLAUSIBLE:.0g}) nulled")
+
     missing = [r for r in results if not r.get('mcap')]
     if missing and prior_rows:
         prior_by_ticker = {r['ticker']: r for r in prior_rows if r.get('ticker')}
@@ -1878,13 +1901,17 @@ def apply_mcap_integrity_guard(results, prior_rows=None,
             # Share counts move slowly, so yesterday's count at today's price
             # is a far better estimate than nothing. Only fall back to the
             # prior mcap wholesale when today's price is unavailable too.
+            # A candidate above MCAP_MAX_PLAUSIBLE means the prior snapshot
+            # carries the same corruption — refuse it and leave the row
+            # missing rather than resurrect the garbage just nulled above.
             shares = r.get('shares_out') or prior.get('shares_out')
             price = r.get('price')
-            if shares and price:
+            if (shares and price
+                    and float(price) * float(shares) <= MCAP_MAX_PLAUSIBLE):
                 r['shares_out'] = shares
                 r['mcap'] = float(price) * float(shares)
                 r['_mcap_source'] = 'prior_snapshot_shares'
-            elif prior.get('mcap'):
+            elif prior.get('mcap') and prior['mcap'] <= MCAP_MAX_PLAUSIBLE:
                 r['mcap'] = prior['mcap']
                 r['shares_out'] = r.get('shares_out') or prior.get('shares_out')
                 r['_mcap_source'] = 'prior_snapshot_mcap'
@@ -1913,7 +1940,8 @@ def apply_mcap_integrity_guard(results, prior_rows=None,
               f"({miss_pct:.1%}, within the ~0.1% baseline)")
 
     return {'recovered': recovered, 'still_missing': len(still_missing),
-            'miss_pct': miss_pct, 'alert': miss_pct > threshold}
+            'miss_pct': miss_pct, 'alert': miss_pct > threshold,
+            'implausible_nulled': len(implausible)}
 
 
 def _main():

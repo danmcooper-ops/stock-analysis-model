@@ -14,6 +14,52 @@ class EmptyYahooResponseError(Exception):
     so the caller can either retry or fall back to another data source."""
 
 
+# Market caps above this are corruption, not data: the largest real market
+# cap is ~$5.4T (NVDA, 2026-08), so $20T leaves ~4x headroom while still
+# catching Yahoo's preferred-line blowups two orders of magnitude out.
+MCAP_MAX_PLAUSIBLE = 2e13
+
+
+def _sanitize_implausible_mcap(info):
+    """Repair or null a corrupt market cap before it flows downstream.
+
+    Yahoo hands preferred / OTC lines the PARENT company's common share
+    count: every Fannie/Freddie preferred series reports 5.7B (FNM*) or
+    3.2B (FMC*/FRE*) shares. Multiplied by the line's own quote that
+    manufactures phantom mega-caps — FNMFO, a $50,000-par preferred quoted
+    ~$31,500, reported a $180 TRILLION cap on 2026-08-12 and sailed through
+    the mcap-min universe filter, scoring, comparison ratios and the report.
+
+    A cap above ``MCAP_MAX_PLAUSIBLE`` is first re-derived from
+    price x sharesOutstanding (repairs a corrupt packaged value whose
+    components are sane). When the derived figure is equally absurd the
+    share count itself is the poison — price is directly observed — so both
+    fields are nulled and the missing-mcap machinery (fast_info backfill
+    ran before this, prior-snapshot recovery + miss-rate alert run after)
+    handles the row honestly instead of trusting garbage.
+
+    Mutates *info* in place; returns a list describing what changed
+    (empty when the cap is plausible).
+    """
+    changed = []
+    mcap = info.get('marketCap')
+    if not mcap or mcap <= MCAP_MAX_PLAUSIBLE:
+        return changed
+    price = info.get('currentPrice') or info.get('regularMarketPrice')
+    shares = info.get('sharesOutstanding')
+    derived = float(price) * float(shares) if price and shares else None
+    if derived and 0 < derived <= MCAP_MAX_PLAUSIBLE:
+        info['marketCap'] = derived
+        changed.append('marketCap_rederived')
+    else:
+        info['marketCap'] = None
+        changed.append('marketCap_nulled')
+        if derived and derived > MCAP_MAX_PLAUSIBLE:
+            info['sharesOutstanding'] = None
+            changed.append('sharesOutstanding_nulled')
+    return changed
+
+
 def _backfill_shares_and_mcap(stock, info):
     """Backfill ``marketCap`` / ``sharesOutstanding`` from ``fast_info``.
 
@@ -245,6 +291,14 @@ class YFinanceClient:
             if _recovered:
                 data['info'] = info
                 data['_info_backfilled'] = _recovered
+            # The inverse failure: marketCap present but absurd (preferred /
+            # OTC lines carrying the parent's common share count). Runs after
+            # the backfill so a backfilled cap is validated too. Sanitizing
+            # here also keeps the corruption out of the snapshot cache.
+            _sanitized = _sanitize_implausible_mcap(info)
+            if _sanitized:
+                data['info'] = info
+                data['_info_sanitized'] = _sanitized
             # Growth estimates and earnings history (may fail for some tickers)
             try:
                 data['growth_estimates'] = stock.growth_estimates
