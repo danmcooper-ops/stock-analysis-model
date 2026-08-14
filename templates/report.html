@@ -1156,9 +1156,13 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-range-btn:hover{background:#21262d;border-color:#58a6ff;color:#e6edf3;}
 [data-theme="dark"] .pp-range-btn.active{background:#7030a0;border-color:#7030a0;color:#fff;}
 [data-theme="dark"] .pp-sectorprice-tip{color:#c9d1d9;}
-[data-theme="dark"] .pp-sectorprice svg text[fill="#9aaab8"]{fill:#7d8b9a;}
-[data-theme="dark"] .pp-sectorprice svg line[stroke="#e8edf2"]{stroke:#21262d;}
-[data-theme="dark"] .pp-sectorprice svg line[stroke="#cbd5e1"]{stroke:#3d4651;}
+/* #sector-price-chart, not .pp-sectorprice: no element carries that class
+   (only the -tip variant exists), so these overrides never matched and the
+   sector chart drew near-white gridlines on the dark surface. */
+[data-theme="dark"] #sector-price-chart svg text[fill="#9aaab8"]{fill:#7d8b9a;}
+[data-theme="dark"] #sector-price-chart svg line[stroke="#e8edf2"]{stroke:#21262d;}
+[data-theme="dark"] #sector-price-chart svg line[stroke="#cbd5e1"]{stroke:#3d4651;}
+[data-theme="dark"] #sector-price-chart svg text[fill="#94a3b8"]{fill:#7d8b9a;}
 /* Popup Price History chart. Its SVG bakes in literal colours the same way the
    sector chart does, so it needs the same attribute-selector treatment — this
    also fixes the gridlines and axis text, which were reading as near-white on
@@ -1566,8 +1570,8 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .rev-chk:not(.checked),[data-theme="dark"] .rev-chk-det:not(.checked),[data-theme="dark"] #f-reviewed{color:#fff !important;--chk-border:#fff;--chk-mark:#fff;}
 [data-theme="dark"] .rev-chk:not(.checked):hover,[data-theme="dark"] .rev-chk-det:not(.checked):hover{--chk-border:#fff;--chk-mark:#fff;}
 [data-theme="dark"] #f-reviewed svg,[data-theme="dark"] #f-reviewed span{color:#fff !important;}
-[data-theme="dark"] td.gp,[data-theme="dark"] td.sg,[data-theme="dark"] .gv-v.pass,[data-theme="dark"] [style*="color:#1a9850"],[data-theme="dark"] [style*="color:#27ae60"]{color:#7ee787 !important;}
-[data-theme="dark"] td.gf,[data-theme="dark"] td.sp,[data-theme="dark"] .gv-v.fail,[data-theme="dark"] [style*="color:#de2d26"],[data-theme="dark"] [style*="color:#e74c3c"]{color:#ff7b72 !important;}
+[data-theme="dark"] td.gp,[data-theme="dark"] td.sg,[data-theme="dark"] .gv-v.pass,[data-theme="dark"] [style*="color:#1a9850"],[data-theme="dark"] [style*="color:#27ae60"],[data-theme="dark"] [style*="color:#2e7d48"]{color:#7ee787 !important;}
+[data-theme="dark"] td.gf,[data-theme="dark"] td.sp,[data-theme="dark"] .gv-v.fail,[data-theme="dark"] [style*="color:#de2d26"],[data-theme="dark"] [style*="color:#e74c3c"],[data-theme="dark"] [style*="color:#c0392b"]{color:#ff7b72 !important;}
 [data-theme="dark"] td.sm,[data-theme="dark"] [style*="color:#fd8d3c"],[data-theme="dark"] [style*="color:#e67e22"]{color:#ffd33d !important;}
 [data-theme="dark"] td.gn{color:#c9d1d9 !important;}
 /* Sector Analysis SVG charts — dark mode (CSS overrides hardcoded SVG fill/stroke attributes) */
@@ -3980,7 +3984,9 @@ function _phFmtVal(v,fmt){
 }
 function _phFmtAxis(v,fmt){
   if(v==null||isNaN(v))return '';
-  if(fmt==='money')return '$'+v.toFixed(0);
+  /* Sub-$10 stocks need cents on the axis: six gridlines on a $1.24 stock
+     all rounded to "$1". */
+  if(fmt==='money')return '$'+(Math.abs(v)<10?v.toFixed(2):v.toFixed(0));
   if(fmt==='money2')return '$'+v.toFixed(2);
   if(fmt==='bil'){var b=v/1e9;return '$'+(Math.abs(b)>=10?b.toFixed(0):b.toFixed(1))+'B';}
   if(fmt==='mil')return (v/1e6).toFixed(0)+'M';
@@ -4089,10 +4095,13 @@ function phSetMetric(k){
 }
 function _buildPHSearch(){
   var s=document.getElementById('ph-s1');if(!s)return;
-  s.addEventListener('input',function(){_phSDrop(this.value);});
-  s.addEventListener('focus',function(){_phSDrop(this.value);});
-  s.addEventListener('blur',function(){setTimeout(function(){var d=document.getElementById('ph-s1-drop');if(d)d.classList.remove('open');},160);});
-  s.addEventListener('keydown',function(e){if(e.key==='Escape'){var d=document.getElementById('ph-s1-drop');if(d)d.classList.remove('open');}});
+  /* Property handlers, not addEventListener: swTSub re-runs this on every
+     visit to the sub-tab against the same input element, and stacked
+     listeners ran the dropdown N times per keystroke. */
+  s.oninput=function(){_phSDrop(this.value);};
+  s.onfocus=function(){_phSDrop(this.value);};
+  s.onblur=function(){setTimeout(function(){var d=document.getElementById('ph-s1-drop');if(d)d.classList.remove('open');},160);};
+  s.onkeydown=function(e){if(e.key==='Escape'){var d=document.getElementById('ph-s1-drop');if(d)d.classList.remove('open');}};
 }
 function _phSDrop(q){
   var drop=document.getElementById('ph-s1-drop');if(!drop)return;
@@ -4189,15 +4198,23 @@ function _phGetPricePts(ticker,range){
   range=range||_phRange;
   if(!PRICES||!PRICES.prices[ticker])return[];
   var allD=PRICES.dates,allP=PRICES.prices[ticker];
-  var now=new Date();
+  /* Ranges anchor to the data's last date, not the wall clock: the cache ends
+     wherever the last refresh ended, so a wall-clock "1M" shrinks day by day
+     and an archived report eventually shows nothing on every short range.
+     Parsing at T00:00:00 also floors the boundary, so 1M is a full month
+     rather than "31 days ago at the current time of day". */
+  var edge=allD.length?new Date(allD[allD.length-1]+'T00:00:00'):new Date();
   var cutMs={'1M':31,'3M':92,'6M':184,'1YR':366,'5YR':1827,'10YR':3653,'20YR':7305}[range];
-  var cutoff=cutMs?new Date(+now-cutMs*86400000):null;
+  var cutoff=cutMs?new Date(+edge-cutMs*86400000):null;
   /* Volume rides along so the strip can be drawn in single-stock mode; it is
      null until this ticker's shard lands (or forever, for a Close-only file). */
   var sh=_VOL[ticker]||null,volArr=sh?sh.v:null,volI0=sh?sh.i0:0,fArr=(sh&&sh.f)||null;
   var pts=[];
   for(var i=0;i<allD.length;i++){
-    if(allP[i]===null||allP[i]===undefined)continue;
+    /* <=0 too: pre-cleanup artifacts carry zeroed sub-penny closes and
+       negative back-adjusted prices; either one wrecks the y-range and a
+       zero base turns the rebased line into a -100% cliff. */
+    if(allP[i]===null||allP[i]===undefined||allP[i]<=0||allP[i]>=1e9)continue;
     if(!cutoff||new Date(allD[i]+'T00:00:00')>=cutoff){
       var vk=volArr?i-volI0:-1,inRun=(vk>=0&&vk<volArr.length);
       pts.push({d:allD[i],c:allP[i],v:inRun?volArr[vk]:null,f:(inRun&&fArr)?fArr[vk]:null});
@@ -4325,6 +4342,15 @@ function _phRenderSVG(allRaw,refs,ctx){
     return;
   }
   var cmpMode=series.length>1;
+  /* refs were resolved by the caller for stocks[0]; if that line dropped out
+     (no data in range) the survivor would get annotated with another
+     company's DCF/52W levels — and have its y-scale stretched to fit them.
+     Re-resolve for the line actually drawn (a benchmark won't be found in
+     DATA, which correctly leaves the chart unannotated). */
+  if(!cmpMode&&refs&&series[0].tk!==ctx.stocks[0]){
+    refs=null;
+    for(var _ri=0;_ri<DATA.length;_ri++){if(DATA[_ri].ticker===series[0].tk){var _rsd=DATA[_ri];refs={dcf:_rsd.dcf_fv,hi:_rsd.high_52w,lo:_rsd.low_52w};break;}}
+  }
   /* Volume strip: single stock, price metric only. Stacking five companies'
      bars in one 44px strip would be unreadable, and an annual fundamental
      series has no daily volume to pair with. */
@@ -4346,9 +4372,16 @@ function _phRenderSVG(allRaw,refs,ctx){
      tooltip. */
   var rebase=cmpMode&&!annual;
   if(rebase){
+    /* Base every line at the pool's common start — the latest first-date
+       across the drawn lines — so 100 means the same date on all of them.
+       Basing each on its own first point compared a 2023 IPO's whole life
+       against two decades of the S&P on one % axis. Lines with history
+       before the anchor keep those points (plotted against the same base). */
+    var anchor=null;
+    series.forEach(function(s){if(s.pts.length&&(anchor==null||s.pts[0].d>anchor))anchor=s.pts[0].d;});
     series.forEach(function(s){
       var base=null;
-      for(var bi=0;bi<s.pts.length;bi++){if(s.pts[bi].c!=null&&s.pts[bi].c>0){base=s.pts[bi].c;break;}}
+      for(var bi=0;bi<s.pts.length;bi++){var bp=s.pts[bi];if(bp.d>=anchor&&bp.c!=null&&bp.c>0){base=bp.c;break;}}
       if(base==null){s.pts=[];return;}
       s.pts=s.pts.map(function(p){
         var o={};for(var k in p)o[k]=p[k];
@@ -4362,9 +4395,30 @@ function _phRenderSVG(allRaw,refs,ctx){
       return;
     }
   }
-  /* y range */
-  var allVals=[];series.forEach(function(s){s.pts.forEach(function(p){allVals.push(p.c);});});
-  var minP=Math.min.apply(null,allVals),maxP=Math.max.apply(null,allVals);
+  /* Shared date axis. x used to be each series' own array index scaled to
+     the full width, which stretched every line to the right edge no matter
+     where its data stopped — a ticker whose cache ends weeks early looked
+     exactly as current as the index beside it, and the axis labels (taken
+     from one series) mislabeled all the others. Every point now sits at its
+     date's position on the union of plotted dates. */
+  var uDates=(function(){var seen={},out=[];series.forEach(function(s){s.pts.forEach(function(p){if(!seen[p.d]){seen[p.d]=1;out.push(p.d);}});});out.sort();return out;})();
+  var uPos={};uDates.forEach(function(d,i){uPos[d]=i;});
+  var uLen=uDates.length;
+  series.forEach(function(s){
+    s.ux=s.pts.map(function(p){return uPos[p.d];});
+    /* union index -> nearest own point, so hover/tip can read "this line's
+       value at the cursor's date" without a per-move search. */
+    s.u2p=new Array(uLen);
+    var j=0;
+    for(var u=0;u<uLen;u++){
+      while(j<s.ux.length-1&&s.ux[j+1]<=u)j++;
+      s.u2p[u]=(j<s.ux.length-1&&(s.ux[j+1]-u)<(u-s.ux[j]))?j+1:j;
+    }
+  });
+  /* y range — reduce loop, not Math.min.apply: apply() spreads every point
+     onto the call stack and long ranges overflow JavaScriptCore's ~65k cap. */
+  var minP=Infinity,maxP=-Infinity;
+  series.forEach(function(s){s.pts.forEach(function(p){if(p.c<minP)minP=p.c;if(p.c>maxP)maxP=p.c;});});
   if(!cmpMode&&refs){
     if(refs.dcf&&refs.dcf>0){minP=Math.min(minP,refs.dcf);maxP=Math.max(maxP,refs.dcf);}
     if(refs.hi)maxP=Math.max(maxP,refs.hi);
@@ -4381,7 +4435,10 @@ function _phRenderSVG(allRaw,refs,ctx){
      floor to -1093%). Clamp instead of letting the pad run past the floor. */
   if(rebase&&minP<0)minP=0;
   maxP+=pad;var pRange=maxP-minP;
-  var xOf=function(i,len){return PL+(len<=1?iW/2:(i/(len-1))*iW);};
+  /* xOf takes a UNION index; the len argument is legacy (_volStripSVG still
+     passes its own indices — in the only mode that draws the strip,
+     single-stock, the union IS that series, so the indices coincide). */
+  var xOf=function(i,len){return PL+(uLen<=1?iW/2:(i/(uLen-1))*iW);};
   var yOf=function(v){return PT+iH-((v-minP)/pRange)*iH;};
   /* y-axis */
   var yH='';
@@ -4389,10 +4446,15 @@ function _phRenderSVG(allRaw,refs,ctx){
     if(gi>0)yH+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" stroke="#e8edf2" stroke-width="1"/>';
     var gl=rebase?((gv-100>=0?'+':'')+(gv-100).toFixed(0)+'%'):_phFmtAxis(gv,def.fmt);
     yH+='<text x="'+(PL-7)+'" y="'+(parseFloat(gy)+4)+'" text-anchor="end" font-size="11" fill="#9aaab8">'+gl+'</text>';}
-  /* x-axis using first series */
+  /* x-axis from the union axis, so the labels describe every line, not just
+     the first one. uSpan hands _phFmtDate the window endpoints for its
+     year-vs-day format choice. A closing label marks the true last date when
+     the stride would stop short of it (and has room not to collide). */
   var ref0=series[0].pts;
-  var xH='';var nX=Math.min(annual?Math.min(ref0.length,10):7,ref0.length);var xstep=Math.max(1,Math.floor((ref0.length-1)/Math.max(1,nX-1)));
-  for(var xi=0;xi<ref0.length;xi+=xstep){xH+='<text x="'+xOf(xi,ref0.length).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+_phFmtDate(ref0[xi].d,ref0,false)+'</text>';}
+  var uSpan=[{d:uDates[0]},{d:uDates[uLen-1]}];
+  var xH='';var nX=Math.min(annual?Math.min(uLen,10):7,uLen);var xstep=Math.max(1,Math.floor((uLen-1)/Math.max(1,nX-1)));
+  for(var xi=0;xi<uLen;xi+=xstep){xH+='<text x="'+xOf(xi).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+_phFmtDate(uDates[xi],uSpan,false)+'</text>';}
+  if(uLen>1&&(uLen-1)%xstep>=xstep/2){xH+='<text x="'+xOf(uLen-1).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+_phFmtDate(uDates[uLen-1],uSpan,false)+'</text>';}
   var volSVG=hasVol?_volStripSVG(ref0,{PL:PL,PR:PR,VW:VW,iW:iW,volTop:volTop,
     volBase:volBase,VOL_H:VOL_H,volMax:volMax,xOf:xOf}):'';
   /* reference lines (single stock only) */
@@ -4417,14 +4479,14 @@ function _phRenderSVG(allRaw,refs,ctx){
   /* polylines + dot markers */
   var linesSVG='',dotsSVG='';
   series.forEach(function(s,si){
-    var pp=s.pts.map(function(p,i){return xOf(i,s.pts.length).toFixed(1)+','+yOf(p.c).toFixed(1);}).join(' ');
-    if(!cmpMode){var fp=pp+' '+xOf(s.pts.length-1,s.pts.length).toFixed(1)+','+(PT+iH)+' '+PL+','+(PT+iH);linesSVG+='<polygon points="'+fp+'" fill="url(#ph-g'+K+')"/>';}
+    var pp=s.pts.map(function(p,i){return xOf(s.ux[i]).toFixed(1)+','+yOf(p.c).toFixed(1);}).join(' ');
+    if(!cmpMode){var fp=pp+' '+xOf(s.ux[s.pts.length-1]).toFixed(1)+','+(PT+iH)+' '+xOf(s.ux[0]).toFixed(1)+','+(PT+iH);linesSVG+='<polygon points="'+fp+'" fill="url(#ph-g'+K+')"/>';}
     linesSVG+='<polyline points="'+pp+'" fill="none" stroke="'+s.col+'" stroke-width="'+(cmpMode?1.6:1.8)+'" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>';
     dotsSVG+='<circle id="ph-dc'+K+si+'" cx="0" cy="0" r="4" fill="white" stroke="'+s.col+'" stroke-width="2" opacity="0" pointer-events="none"/>';
   });
   /* tip bar */
   var tb=document.getElementById(ctx.tipId);
-  if(tb)tb.innerHTML=_phTipHtml(series,cmpMode,null,def,annual);
+  if(tb)tb.innerHTML=_phTipHtml(series,cmpMode,null,def,annual,uDates);
   var svg='<svg id="ph-svg'+K+'" viewBox="0 0 '+VW+' '+VH+'" style="width:100%;display:block;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
     +' onmousemove="phMove(event,\''+K+'\')" onmouseleave="phLeave(\''+K+'\')"'
     +' ontouchstart="phTouch(event,\''+K+'\')" ontouchmove="phTouch(event,\''+K+'\')" ontouchend="phLeave(\''+K+'\')" ontouchcancel="phLeave(\''+K+'\')">'
@@ -4436,15 +4498,22 @@ function _phRenderSVG(allRaw,refs,ctx){
     +'</svg>';
   el.innerHTML=svg;
   _phStates[K]={series:series,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,minP:minP,pRange:pRange,cmpMode:cmpMode,def:def,annual:annual,ctx:ctx,
-                volMax:volMax,xBase:xBase};
+                volMax:volMax,xBase:xBase,uLen:uLen,uDates:uDates};
 }
-function _phTipHtml(series,cmpMode,relX,def,annual){
+function _phTipHtml(series,cmpMode,relX,def,annual,uDates){
   def=def||_phMetricDef(_phMetric);
   if(annual==null)annual=(def.src==='hist');
   var tip='';
   tip+='<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;font-size:0.72em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.04em">'+def.lbl+'</span>';
   series.forEach(function(s){
-    var idx=relX!=null?Math.round(relX/((s.pts.length-1)||1)*(s.pts.length-1)):s.pts.length-1;
+    /* relX is a UNION-axis index (see _phRenderSVG); u2p maps it to this
+       line's nearest own point. The old form indexed every line with the
+       first line's index, freezing shorter lines' readouts mid-chart. */
+    var idx=s.pts.length-1;
+    if(relX!=null){
+      var uc=Math.max(0,Math.min((s.u2p?s.u2p.length:s.pts.length)-1,Math.round(relX)));
+      idx=s.u2p?s.u2p[uc]:uc;
+    }
     idx=Math.max(0,Math.min(s.pts.length-1,idx));
     var p=s.pts[idx];
     /* Rebased lines read as % change from the window start (c0 carries the
@@ -4459,11 +4528,17 @@ function _phTipHtml(series,cmpMode,relX,def,annual){
       +(reb?'<span style="color:#9aaab8;font-size:0.82em">'+_phFmtVal(p.c0,def.fmt)+'</span>':'')
       +'</span>';
   });
-  var refIdx=relX!=null?Math.max(0,Math.min(series[0].pts.length-1,Math.round(relX/((series[0].pts.length-1)||1)*(series[0].pts.length-1)))):null;
-  var dateStr;
-  if(refIdx!=null){
-    var rp=series[0].pts[refIdx];
-    dateStr=rp.d;
+  /* The stamped date is the cursor's UNION date \u2014 the axis position being
+     hovered \u2014 not one series' nearest point, which could silently be weeks
+     away for a line with a stale tail. */
+  var refIdx=null,dateStr;
+  if(relX!=null){
+    var s0=series[0];
+    var uc0=Math.max(0,Math.min((s0.u2p?s0.u2p.length:s0.pts.length)-1,Math.round(relX)));
+    refIdx=s0.u2p?s0.u2p[uc0]:Math.max(0,Math.min(s0.pts.length-1,uc0));
+    dateStr=(uDates&&uDates[uc0])||s0.pts[refIdx].d;
+  }else if(uDates&&uDates.length){
+    dateStr=uDates[0]+' \u2013 '+uDates[uDates.length-1];
   }else{
     var a=series[0].pts[0],b=series[0].pts[series[0].pts.length-1];
     dateStr=a.d+' \u2013 '+b.d;
@@ -4487,20 +4562,26 @@ function phMove(e,key){
   if(sp.x<s.PL||sp.x>s.PL+s.iW||sp.y<s.PT||sp.y>(s.xBase||s.PT+s.iH)){phLeave(key);return;}
   var relX=Math.max(0,Math.min(sp.x-s.PL,s.iW));
   var vl=document.getElementById('ph-vl'+key);
+  /* Cursor -> union-axis index; each line then reads its own nearest point,
+     with its dot pinned at that point's real date — a line whose data stops
+     early keeps its dot at its last date instead of gliding along the full
+     width. The crosshair tracks the cursor's date. */
+  var uc=Math.max(0,Math.min((s.uLen||1)-1,Math.round(relX/s.iW*((s.uLen||1)-1))));
+  if(vl){var xu=(s.PL+(uc/((s.uLen-1)||1))*s.iW).toFixed(1);vl.setAttribute('x1',xu);vl.setAttribute('x2',xu);vl.setAttribute('opacity','1');}
   s.series.forEach(function(sr,si){
-    var idx=Math.max(0,Math.min(sr.pts.length-1,Math.round(relX/s.iW*(sr.pts.length-1))));
-    var x=(s.PL+(idx/(sr.pts.length-1||1))*s.iW).toFixed(1),y=(s.PT+s.iH-((sr.pts[idx].c-s.minP)/s.pRange)*s.iH).toFixed(1);
-    if(si===0&&vl){vl.setAttribute('x1',x);vl.setAttribute('x2',x);vl.setAttribute('opacity','1');}
+    var idx=sr.u2p?sr.u2p[uc]:Math.max(0,Math.min(sr.pts.length-1,uc));
+    var ux=sr.ux?sr.ux[idx]:idx;
+    var x=(s.PL+(ux/((s.uLen-1)||1))*s.iW).toFixed(1),y=(s.PT+s.iH-((sr.pts[idx].c-s.minP)/s.pRange)*s.iH).toFixed(1);
     var dc=document.getElementById('ph-dc'+key+si);if(dc){dc.setAttribute('cx',x);dc.setAttribute('cy',y);dc.setAttribute('opacity','1');}
   });
-  var tb=document.getElementById(s.ctx.tipId);if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,relX/s.iW*(s.series[0].pts.length-1),s.def,s.annual);
+  var tb=document.getElementById(s.ctx.tipId);if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,uc,s.def,s.annual,s.uDates);
 }
 function phLeave(key){
   key=key||'';
   var s=_phStates[key];if(!s)return;
   var vl=document.getElementById('ph-vl'+key);if(vl)vl.setAttribute('opacity','0');
   s.series.forEach(function(sr,si){var dc=document.getElementById('ph-dc'+key+si);if(dc)dc.setAttribute('opacity','0');});
-  var tb=document.getElementById(s.ctx.tipId);if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,null,s.def,s.annual);
+  var tb=document.getElementById(s.ctx.tipId);if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,null,s.def,s.annual,s.uDates);
 }
 function phTouch(e,key){
   key=key||'';
@@ -4577,13 +4658,17 @@ function _volStripSVG(pts,o){
        is DOM weight the long ranges can't carry, so the strip becomes stacked
        areas: total drawn once in the sell colour, buying painted over it, and
        the exposed remainder reads as selling. */
-    var totalPP='',buyPP='',anySplit=false;
+    var totalPP='',buyPP='',anySplit=false,lastV=0,lastB=0;
     for(i=0;i<pts.length;i++){
       var q=pts[i],xv=o.xOf(i,pts.length).toFixed(1);
-      totalPP+=xv+','+vOf(q.v==null?0:q.v).toFixed(1)+' ';
+      /* Null volume carries the previous height forward instead of spiking
+         to the baseline — the bar path skips nulls, and a v-shaped notch
+         reading "zero shares traded" on a data gap contradicts it. */
+      if(q.v!=null)lastV=q.v;
+      totalPP+=xv+','+vOf(lastV).toFixed(1)+' ';
       var sp=_volBuySell(q);
-      if(sp)anySplit=true;
-      buyPP+=xv+','+vOf(sp?sp.buy:0).toFixed(1)+' ';
+      if(sp){anySplit=true;lastB=sp.buy;}
+      buyPP+=xv+','+vOf(lastB).toFixed(1)+' ';
     }
     var base=o.PL+','+o.volBase+' ',tail=(o.VW-o.PR)+','+o.volBase;
     svg+='<polygon class="dp-vol-area'+(anySplit?' dp-vol-sell':'')+'" points="'+base+totalPP+tail+'" fill="'+(anySplit?_VOL_SELL_COL:_VOL_FLAT_COL)+'" opacity="'+(anySplit?0.42:0.45)+'"/>';
@@ -4623,6 +4708,12 @@ function cmToggle(k,e){
 }
 document.addEventListener('click',function(e){
   if(e.target&&e.target.closest&&e.target.closest('.cm-wrap'))return;
+  /* A control that rebuilds its own row's innerHTML (the benchmark chips)
+     detaches the clicked node mid-bubble; closest() on the orphan finds no
+     .cm-wrap and the panel slammed shut on every chip toggle. An orphaned
+     target means the click landed on live UI that re-rendered — never on
+     the page background this closer exists for. */
+  if(e.target&&e.target.isConnected===false)return;
   document.querySelectorAll('.cm-panel.open').forEach(function(o){o.classList.remove('open');});
 });
 function _cmSum(k,txt){var s=document.getElementById(k+'-cm-sum');if(s)s.textContent=txt;}
@@ -6066,13 +6157,27 @@ function openDet(tk){
     var bar='';
     var spanStart=Date.parse(rh[0][0]),spanEnd=Date.parse(RUN_DATE);
     if(isFinite(spanStart)&&isFinite(spanEnd)&&spanEnd>spanStart){
-      bar='<span class="d-rhist-bar">';
+      var segs=[];
       for(var i=0;i<rh.length;i++){
         var s=Date.parse(rh[i][0]);
         var e=i+1<rh.length?Date.parse(rh[i+1][0]):spanEnd;
-        var w=Math.max(2,Math.round((e-s)/(spanEnd-spanStart)*84));
-        bar+='<span style="width:'+w+'px;background:'+(RC[rh[i][1]]||'#888')+'"></span>';
+        segs.push({r:rh[i][1],ms:Math.max(0,e-s)});
       }
+      /* A same-day change means rh's last segment is the SUPERSEDED rating
+         running right up to today; a sliver of the current color closes the
+         bar so it agrees with the rating badge beside it. */
+      if(last[1]!==cur)segs.push({r:cur,ms:0});
+      /* 2px visibility floor per segment, remaining pixels split by
+         duration. Flooring after proportioning overflowed the 84px flexbox,
+         which then shrank every segment — long holds lost width and the
+         floor wasn't honored anyway. */
+      var rest=Math.max(0,84-2*segs.length),totMs=0;
+      segs.forEach(function(g){totMs+=g.ms;});
+      bar='<span class="d-rhist-bar">';
+      segs.forEach(function(g){
+        var w=2+(totMs>0?g.ms/totMs*rest:rest/segs.length);
+        bar+='<span style="width:'+w.toFixed(1)+'px;background:'+(RC[g.r]||'#888')+'"></span>';
+      });
       bar+='</span>';
     }
     rsEl.innerHTML=bar+'<span>'+txt+'</span>';
@@ -6811,6 +6916,11 @@ function _sectorBenchBtns(){
   var el=document.getElementById('sector-bench-btns');if(!el)return;
   var wrap=document.getElementById('sector-bench-wrap');
   var ixs=(PRICES&&PRICES.indices)||[];
+  /* Summary first: on a report shipped without index data the early return
+     below used to skip it, leaving the collapsed hamburger permanently
+     blank — no way to see which range was active. */
+  _cmSum('sector',_sectorPriceRange.replace('YR','Y')
+    +(_sectorBench.length?' · vs '+_sectorBench.map(_dtcIndexLabel).join(', '):''));
   if(!ixs.length){if(wrap)wrap.style.display='none';return;}
   if(wrap)wrap.style.display='flex';
   el.innerHTML=ixs.map(function(ix){
@@ -6819,8 +6929,6 @@ function _sectorBenchBtns(){
     return '<button type="button" class="pp-range-btn'+(on?' active':'')+'" onclick="toggleSectorBench(\''+ix.ticker+'\')"'
       +' style="border-color:'+col+';color:'+col+(on?';background:'+col+'1a':'')+'">'+_esc(ix.label)+'</button>';
   }).join('');
-  _cmSum('sector',_sectorPriceRange.replace('YR','Y')
-    +(_sectorBench.length?' · vs '+_sectorBench.map(_dtcIndexLabel).join(', '):''));
 }
 var _selectedAggs={};
 var _sectorPriceState=null;
@@ -6934,7 +7042,10 @@ function _aggSetGridRet(retByName){
     if(retByName&&cb.value in retByName){
       var r=retByName[cb.value];
       span.textContent=(r>=0?'+':'')+r.toFixed(1)+'%';
-      span.style.color=r>=0?'#2e7d48':'#c0392b';
+      /* setAttribute, not style.color=: the dark-mode override matches on
+         the literal hex in the style attribute, and property assignment
+         serializes to rgb(...), which un-matches it (white-on-dark). */
+      span.setAttribute('style','color:'+(r>=0?'#2e7d48':'#c0392b'));
     }else{
       span.textContent='—';
       span.style.color='';
@@ -7036,9 +7147,11 @@ function _priceChartDraw(){
 function _renderPolylineSVG(el,dates,aggs){
   var VW=900,VH=280,PL=52,PR=14,PT=14,PB=34;
   var iW=VW-PL-PR,iH=VH-PT-PB;
-  var allVals=[];
-  aggs.forEach(function(a){allVals=allVals.concat(a.vals);});
-  var minP=Math.min.apply(null,allVals),maxP=Math.max.apply(null,allVals);
+  /* Reduce loop, not Math.min.apply: 15 series over a full 20Y window
+     spreads ~75k arguments onto the call stack, past JavaScriptCore's ~65k
+     ceiling — Safari threw RangeError and left the loading spinner up. */
+  var minP=Infinity,maxP=-Infinity;
+  aggs.forEach(function(a){for(var vi=0;vi<a.vals.length;vi++){var v=a.vals[vi];if(v<minP)minP=v;if(v>maxP)maxP=v;}});
   var pad=(maxP-minP)*0.06||1;minP-=pad;maxP+=pad;
   var pRange=maxP-minP||1;
   function xOf(idx){return PL+(dates.length<=1?iW/2:(idx/(dates.length-1))*iW);}
@@ -7061,6 +7174,13 @@ function _renderPolylineSVG(el,dates,aggs){
     var dx=new Date(dates[xi]+'T00:00:00');
     var lbl=mo[dx.getMonth()]+'\''+String(dx.getFullYear()).slice(2);
     grid+='<text x="'+xOf(xi).toFixed(1)+'" y="'+(PT+iH+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+lbl+'</text>';
+  }
+  /* Close the axis at the true last date when the stride stops short of it
+     (and there's at least half a stride of room, so labels don't collide) —
+     otherwise the chart reads as ending earlier than the lines do. */
+  if(dates.length>1&&(dates.length-1)%xstep>=xstep/2){
+    var dxL=new Date(dates[dates.length-1]+'T00:00:00');
+    grid+='<text x="'+xOf(dates.length-1).toFixed(1)+'" y="'+(PT+iH+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+mo[dxL.getMonth()]+'\''+String(dxL.getFullYear()).slice(2)+'</text>';
   }
   var aggStroke=aggs.length>=4?1.4:1.9;
   var lines='';
@@ -7103,20 +7223,25 @@ function _renderPolylineSVG(el,dates,aggs){
 }
 function _buildAggSummaryTip(aggs){
   function _ret(end){var c=end-100;return (c>=0?'+':'')+c.toFixed(1)+'%';}
-  if(aggs.length===1){
-    var ret=aggs[0].vals[aggs[0].vals.length-1]-100;
-    var subj=_esc(aggs[0].label);
+  /* The verdict ranks SECTORS. Benchmarks ride on the chart as the
+     yardstick and must not be crowned "leading sector" — fall back to the
+     full list only when the view is benchmarks-only. */
+  var ranked=aggs.filter(function(a){return !a.bench;});
+  if(!ranked.length)ranked=aggs;
+  if(ranked.length===1){
+    var ret=ranked[0].vals[ranked[0].vals.length-1]-100;
+    var subj=_esc(ranked[0].label);
     if(ret>=0)return subj+' is up '+ret.toFixed(1)+'% over this window.';
     return subj+' is down '+Math.abs(ret).toFixed(1)+'% over this window.';
   }
-  if(aggs.length===2){
-    var aEnd=aggs[0].vals[aggs[0].vals.length-1]-100;
-    var bEnd=aggs[1].vals[aggs[1].vals.length-1]-100;
+  if(ranked.length===2){
+    var aEnd=ranked[0].vals[ranked[0].vals.length-1]-100;
+    var bEnd=ranked[1].vals[ranked[1].vals.length-1]-100;
     var spread=aEnd-bEnd;
-    var leader=spread>=0?aggs[0].label:aggs[1].label;
+    var leader=spread>=0?ranked[0].label:ranked[1].label;
     return _esc(leader)+' leads by '+Math.abs(spread).toFixed(1)+' pp over this window.';
   }
-  var sorted=aggs.slice().sort(function(a,b){return b.vals[b.vals.length-1]-a.vals[a.vals.length-1];});
+  var sorted=ranked.slice().sort(function(a,b){return b.vals[b.vals.length-1]-a.vals[a.vals.length-1];});
   var topL=sorted[0].label,topV=sorted[0].vals[sorted[0].vals.length-1]-100;
   var botL=sorted[sorted.length-1].label,botV=sorted[sorted.length-1].vals[sorted[sorted.length-1].vals.length-1]-100;
   return _esc(topL)+' leads ('+_ret(topV+100)+'); '+_esc(botL)+' trails ('+_ret(botV+100)+').';
@@ -7524,33 +7649,9 @@ function renderCrossSectorDashboard(){
     if(!arr.length)return'<span style="color:#bbb;font-size:0.7em;font-style:italic">no BUY</span>';
     return arr.map(_xsPill).join('');
   }
-  function _xsLensChart(title,sub,items,opts){
-    if(!items||!items.length)return'';
-    opts=opts||{};
-    var sorted=items.slice().sort(function(a,b){
-      if(a.value==null&&b.value==null)return 0;
-      if(a.value==null)return 1;
-      if(b.value==null)return-1;
-      return opts.asc?(a.value-b.value):(b.value-a.value);
-    });
-    var maxAbs=0;sorted.forEach(function(it){if(it.value!=null)maxAbs=Math.max(maxAbs,Math.abs(it.value));});
-    if(maxAbs===0)maxAbs=1;
-    var bars='';
-    sorted.forEach(function(it){
-      var v=it.value;
-      var sEsc=it.sector.replace(/'/g,"\\'");
-      var w=(v!=null)?Math.abs(v)/maxAbs*100:0;
-      var col=opts.colorFn?opts.colorFn(v):'#3498db';
-      var lbl=opts.labelFn?opts.labelFn(v):(v!=null?v.toFixed(2):'—');
-      bars+='<div class="xsect-bar-row" onclick="showPoolTab(\''+sEsc+'\')" style="cursor:pointer" title="Go to '+it.sector+'">'
-        +'<div class="xsect-bar-label">'+it.sector+'</div>'
-        +'<div class="xsect-bar-track"><div class="xsect-bar-fill" style="width:'+w.toFixed(1)+'%;background:'+col+'"></div>'
-        +'<span class="xsect-bar-pct">'+lbl+'</span></div>'
-        +'<div class="xsect-bar-meta">'+(it.n!=null?'n='+it.n+' · ':'')+_xsPillsForSec(it.sector)+'</div>'
-      +'</div>';
-    });
-    return'<div style="margin-bottom:12px"><div class="xsect-chart-title">'+title+(sub?' <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">'+sub+'</span>':'')+'</div>'+bars+'</div>';
-  }
+  /* _xsLensChart (per-lens sector bar list) was defined here but never
+     called — removed rather than shipped dead, unescaped and with
+     |value|-scaled widths that drew big losses identical to big gains. */
   var byMargin=allStats.slice().sort(function(a,b){return b.margin-a.margin;});
   var byHHI=allStats.slice().sort(function(a,b){return b.hhi-a.hhi;});
   var maxM=byMargin[0].margin,minM=byMargin[byMargin.length-1].margin;
@@ -7993,7 +8094,9 @@ function _buildScatterSVG(W,H){
   s+='<text x="'+(spL+sCW/2)+'" y="'+(H-8)+'" text-anchor="middle" font-size="12" fill="#333" font-weight="600">HHI (Concentration \u2192 more concentrated) <tspan font-size="10" font-weight="400" fill="#9aaab8">\u00b7 \u221a scale</tspan></text>';
   allStats.forEach(function(st){
     var cx=_hhiX(st.hhi||0);
-    var cy=spT+sCH-Math.min(st.margin/maxSM,0.999)*sCH;
+    /* Clamped at both ends like _hhiX: a negative blended margin otherwise
+       plots below the axis and (overflow:visible) collides with the title. */
+    var cy=spT+sCH-Math.max(0,Math.min(st.margin/maxSM,0.999))*sCH;
     var col=st.margin>=0.25?'#1a9850':st.margin>=0.15?'#4caf50':st.margin>=0.10?'#ff9800':'#e53935';
     var sE=st.name.replace(/'/g,"\\'");
     var clk='onclick="showPoolTab(\''+sE+'\')" style="cursor:pointer"';
