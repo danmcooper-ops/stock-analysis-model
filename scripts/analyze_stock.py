@@ -1844,6 +1844,22 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
 
 MCAP_MISSING_ALERT_THRESHOLD = 0.02
 
+# Cross-contaminated share-count clusters (see apply_mcap_integrity_guard).
+# Cluster floor is 3: ADR + foreign-ordinary pairs legitimately share a count
+# in pairs (SONY/SNEJF, NVO/NONOF, ~45 such pairs on 2026-08-12), and exact
+# coincidences happen in pairs too (VET/ENTG, both 152,800,000).
+SHARES_CLUSTER_MIN = 3
+# Genuine multi-listings of one security quote within a few percent of each
+# other (Clinuvel's three lines: 6.68-6.95, spread 1.04); preferred families
+# sharing a poisoned count are distinct securities with distinct quotes
+# (Ameren Illinois series: 66.25-84.00, spread 1.27; Freddie series: 2.1x).
+SHARES_CLUSTER_PRICE_SPREAD = 1.15
+# Yahoo hands some series a slightly different vintage of the parent count —
+# FREJO carried 3,221,309,952 vs the 3,221,329,920 Freddie cluster (6e-6 off).
+# Keep this tight: at 1e-3 the tolerance falsely absorbed ETD (Ethan Allen,
+# 25,446,339 shares — an unrelated company 2.4e-4 from the Ameren cluster).
+SHARES_CLUSTER_NEAR_TOL = 1e-4
+
 
 def apply_mcap_integrity_guard(results, prior_rows=None,
                                threshold=MCAP_MISSING_ALERT_THRESHOLD):
@@ -1891,7 +1907,56 @@ def apply_mcap_integrity_guard(results, prior_rows=None,
         print(f"[mcap] {r.get('ticker')}: implausible market cap "
               f"${bad:.3g} (> ${MCAP_MAX_PLAUSIBLE:.0g}) nulled")
 
-    missing = [r for r in results if not r.get('mcap')]
+    # --- Cross-contaminated share counts ---------------------------------
+    # Yahoo assigns the PARENT's common share count to preferred / secondary
+    # OTC lines: 35 Fannie/Freddie preferred series carried 5.74B / 3.22B
+    # shares on 2026-08-12 (plus 7 Ameren Illinois series), manufacturing
+    # $24B-$90B phantom caps that all sat BELOW MCAP_MAX_PLAUSIBLE — only
+    # FNMFO's $180T tripped the block above. Signature: SHARES_CLUSTER_MIN+
+    # tickers reporting an IDENTICAL share count while their prices diverge
+    # beyond SHARES_CLUSTER_PRICE_SPREAD — distinct securities that cannot
+    # all own the same count. Genuine multi-listings also share a count but
+    # quote within a few percent of each other, so they stay untouched.
+    # Rows within SHARES_CLUSTER_NEAR_TOL of a poisoned count are absorbed
+    # (Yahoo hands some series a slightly different vintage of the parent
+    # count). The primary fix rejects these counts at fetch time
+    # (data.yfinance_client._null_uncorroborated_shares); this is the second
+    # line for rows built from snapshots cached before that fix.
+    by_count = {}
+    for r in results:
+        so = r.get('shares_out')
+        if so:
+            by_count.setdefault(float(so), []).append(r)
+    poisoned_counts = []
+    for so, rows in by_count.items():
+        if len(rows) < SHARES_CLUSTER_MIN:
+            continue
+        prices = [float(r['price']) for r in rows if r.get('price')]
+        if (len(prices) >= 2
+                and max(prices) > SHARES_CLUSTER_PRICE_SPREAD * min(prices)):
+            poisoned_counts.append(so)
+    contaminated = []
+    for r in results:
+        so = r.get('shares_out')
+        if so and any(abs(float(so) - v) <= SHARES_CLUSTER_NEAR_TOL * v
+                      for v in poisoned_counts):
+            contaminated.append(r)
+    for r in contaminated:
+        r['_shares_contaminated'] = r['shares_out']
+        r['shares_out'] = None
+        r['mcap'] = None
+    if contaminated:
+        print(f"[mcap] {len(contaminated)} record(s) carry a cross-"
+              f"contaminated share count ({len(poisoned_counts)} cluster(s)) "
+              f"— shares/mcap nulled: "
+              + ', '.join(sorted(r.get('ticker') or '?' for r in contaminated)))
+
+    # Contaminated rows are excluded from recovery on purpose: the prior
+    # snapshot carries the same poisoned count, and (unlike FNMFO) the
+    # resulting price x shares sits below MCAP_MAX_PLAUSIBLE, so recovery
+    # would resurrect the phantom cap the block above just nulled.
+    missing = [r for r in results
+               if not r.get('mcap') and not r.get('_shares_contaminated')]
     if missing and prior_rows:
         prior_by_ticker = {r['ticker']: r for r in prior_rows if r.get('ticker')}
         for r in missing:
@@ -1916,7 +1981,10 @@ def apply_mcap_integrity_guard(results, prior_rows=None,
                 r['shares_out'] = r.get('shares_out') or prior.get('shares_out')
                 r['_mcap_source'] = 'prior_snapshot_mcap'
 
-    still_missing = [r for r in results if not r.get('mcap')]
+    # Contaminated rows are deliberate nulls, already reported above — keep
+    # them out of the miss-rate alert, which measures fetch-machinery health.
+    still_missing = [r for r in results
+                     if not r.get('mcap') and not r.get('_shares_contaminated')]
     recovered = sum(1 for r in results if r.get('_mcap_source'))
     miss_pct = (len(still_missing) / len(results)) if results else 0.0
 
@@ -1941,7 +2009,8 @@ def apply_mcap_integrity_guard(results, prior_rows=None,
 
     return {'recovered': recovered, 'still_missing': len(still_missing),
             'miss_pct': miss_pct, 'alert': miss_pct > threshold,
-            'implausible_nulled': len(implausible)}
+            'implausible_nulled': len(implausible),
+            'contaminated_nulled': len(contaminated)}
 
 
 def _main():

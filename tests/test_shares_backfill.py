@@ -7,7 +7,8 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from data.yfinance_client import _backfill_shares_and_mcap
+from data.yfinance_client import (_backfill_shares_and_mcap,
+                                  _null_uncorroborated_shares)
 
 
 class _FastInfo:
@@ -116,3 +117,69 @@ class TestBackfillSharesAndMcap:
         recovered = _backfill_shares_and_mcap(stock, info)
         assert recovered == ['sharesOutstanding']
         assert info['marketCap'] is None
+
+
+class TestNullUncorroboratedShares:
+    """Yahoo hands preferred / secondary OTC lines the parent's common share
+    count with no marketCap from ANY source (verified live for FNMAG, FMCKP,
+    AGNCM, VLYPO, AILLO on 2026-08-14) — the count must be rejected before
+    the backfill derives a phantom cap from it."""
+
+    def test_contaminated_preferred_line_is_nulled(self):
+        """The FNMAG shape: packaged shares, no cap anywhere, fast_info and
+        the shares series both blank."""
+        info = {'marketCap': None, 'sharesOutstanding': 5_738_840_064,
+                'regularMarketPrice': 15.65}
+        stock = _Stock(_FastInfo(market_cap=None, shares=None))
+        assert (_null_uncorroborated_shares(stock, info)
+                == ['sharesOutstanding_uncorroborated'])
+        assert info['sharesOutstanding'] is None
+        # End-to-end: the backfill must now find nothing to derive from.
+        assert _backfill_shares_and_mcap(stock, info) == []
+        assert info['marketCap'] is None
+
+    def test_packaged_mcap_disengages_the_check(self):
+        info = {'marketCap': 7_191_723_520, 'sharesOutstanding': 1_158_087_567}
+        stock = _Stock(fast_info_raises=True, shares_full_raises=True)
+        assert _null_uncorroborated_shares(stock, info) == []
+        assert info['sharesOutstanding'] == 1_158_087_567
+
+    def test_both_fields_missing_leaves_nothing_to_distrust(self):
+        """The MA/LLY sticky-drop case is the backfill's job, not this one's."""
+        info = {'marketCap': None, 'sharesOutstanding': None}
+        stock = _Stock(fast_info_raises=True, shares_full_raises=True)
+        assert _null_uncorroborated_shares(stock, info) == []
+
+    def test_agreeing_fast_info_count_corroborates(self):
+        info = {'marketCap': None, 'sharesOutstanding': 1_000_000,
+                'currentPrice': 10.0}
+        stock = _Stock(_FastInfo(market_cap=None, shares=1_010_000))
+        assert _null_uncorroborated_shares(stock, info) == []
+        assert info['sharesOutstanding'] == 1_000_000
+
+    def test_fast_info_mcap_implied_count_corroborates(self):
+        info = {'marketCap': None, 'sharesOutstanding': 1_000_000,
+                'currentPrice': 10.0}
+        stock = _Stock(_FastInfo(market_cap=10_500_000, shares=None))
+        assert _null_uncorroborated_shares(stock, info) == []
+
+    def test_shares_series_corroborates(self):
+        info = {'marketCap': None, 'sharesOutstanding': 1_000_000,
+                'currentPrice': 10.0}
+        series = pd.Series([980_000, 990_000])
+        stock = _Stock(_FastInfo(market_cap=None, shares=None),
+                       shares_full=series)
+        assert _null_uncorroborated_shares(stock, info) == []
+
+    def test_wildly_disagreeing_source_nulls_the_packaged_count(self):
+        """When fast_info knows a different security-level count, the
+        packaged one is the poison — null it and let the backfill refill
+        from the trusted source."""
+        info = {'marketCap': None, 'sharesOutstanding': 3_221_329_920,
+                'currentPrice': 12.08}
+        stock = _Stock(_FastInfo(market_cap=None, shares=45_000_000))
+        assert (_null_uncorroborated_shares(stock, info)
+                == ['sharesOutstanding_uncorroborated'])
+        recovered = _backfill_shares_and_mcap(stock, info)
+        assert info['sharesOutstanding'] == 45_000_000
+        assert set(recovered) == {'marketCap', 'sharesOutstanding'}

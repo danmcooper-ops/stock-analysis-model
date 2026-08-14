@@ -60,6 +60,79 @@ def _sanitize_implausible_mcap(info):
     return changed
 
 
+# A packaged share count with no packaged market cap is only trusted when an
+# independent Yahoo source agrees with it. The tolerance is loose because the
+# sources report different as-of dates; contamination is 100-5000x off.
+SHARES_CORROBORATION_TOL = 0.25
+
+
+def _null_uncorroborated_shares(stock, info):
+    """Null a share count that no independent source corroborates.
+
+    Yahoo assigns the PARENT company's common share count to preferred and
+    secondary OTC lines: on 2026-08-12 every Fannie Mae preferred series
+    (FNM*) carried 5,738,840,064 shares and every Freddie Mac series
+    (FMC*/FRE*) 3,221,329,920 — dozens of distinct securities reporting one
+    count (same pattern for the Ameren Illinois, AGNC and Valley National
+    preferreds). Multiplied by each line's own quote that manufactured
+    $24B-$90B phantom caps for ~40 tickers, all BELOW ``MCAP_MAX_PLAUSIBLE``,
+    so ``_sanitize_implausible_mcap`` only ever caught FNMFO ($180T).
+
+    The class has a structural signature (verified live 2026-08-14): ``.info``
+    packages ``sharesOutstanding`` but NO ``marketCap``, and neither
+    ``fast_info`` nor ``get_shares_full`` knows the security at all — Yahoo
+    itself refuses to compute a cap for these lines. The phantom caps came
+    from OUR own price x shares derivation in ``_backfill_shares_and_mcap``.
+
+    Rule: when the packaged cap is absent, the packaged share count only
+    survives if ``fast_info`` (its share count, or the count implied by its
+    market cap at the current price) or the ``get_shares_full`` series agrees
+    with it within ``SHARES_CORROBORATION_TOL``. Uncorroborated counts are
+    nulled — this must run BEFORE the backfill so no cap is ever derived from
+    them; the row then goes through the missing-mcap machinery honestly.
+
+    True commons are unaffected: they either package ``marketCap`` (this
+    check never engages) or hit the known both-fields-dropped failure
+    (``sharesOutstanding`` absent too, so there is nothing to distrust and
+    the ``fast_info`` backfill recovers them).
+
+    Mutates *info* in place; returns provenance markers ([] when clean).
+    """
+    shares = info.get('sharesOutstanding')
+    if not shares or info.get('marketCap'):
+        return []
+    shares = float(shares)
+
+    def _agrees(candidate):
+        return (candidate and candidate > 0
+                and abs(candidate - shares) <= SHARES_CORROBORATION_TOL * shares)
+
+    price = info.get('currentPrice') or info.get('regularMarketPrice')
+    fast_shares = fast_mcap = 0.0
+    try:
+        fast = stock.fast_info
+        fast_shares = float(getattr(fast, 'shares', None) or 0)
+        fast_mcap = float(getattr(fast, 'market_cap', None) or 0)
+        if not price:
+            price = float(getattr(fast, 'last_price', None) or 0)
+    except Exception:
+        pass
+    if _agrees(fast_shares):
+        return []
+    if fast_mcap and price and _agrees(fast_mcap / float(price)):
+        return []
+    try:
+        series = stock.get_shares_full(start='2020-01-01')
+        series_last = (float(series.iloc[-1])
+                       if series is not None and len(series) else 0.0)
+    except Exception:
+        series_last = 0.0
+    if _agrees(series_last):
+        return []
+    info['sharesOutstanding'] = None
+    return ['sharesOutstanding_uncorroborated']
+
+
 def _backfill_shares_and_mcap(stock, info):
     """Backfill ``marketCap`` / ``sharesOutstanding`` from ``fast_info``.
 
@@ -284,6 +357,12 @@ class YFinanceClient:
             if bs_empty and inc_empty and cf_empty and info_empty:
                 raise EmptyYahooResponseError(
                     f"yfinance returned empty payload for {ticker} (likely throttled)")
+            # Cross-contamination guard: preferred / secondary OTC lines carry
+            # the parent's common share count with no marketCap from any Yahoo
+            # source. Must run BEFORE the backfill, which would otherwise
+            # manufacture a phantom cap from the poisoned count (the FNM*/FMC*
+            # $24B-$90B caps of 2026-08-12 came from exactly that derivation).
+            _shares_nulled = _null_uncorroborated_shares(stock, info)
             # Recover marketCap / sharesOutstanding when .info drops them. Not
             # a throttle signal — this response is otherwise complete — so it
             # is repaired in place rather than raised as retryable.
@@ -295,7 +374,7 @@ class YFinanceClient:
             # OTC lines carrying the parent's common share count). Runs after
             # the backfill so a backfilled cap is validated too. Sanitizing
             # here also keeps the corruption out of the snapshot cache.
-            _sanitized = _sanitize_implausible_mcap(info)
+            _sanitized = _shares_nulled + _sanitize_implausible_mcap(info)
             if _sanitized:
                 data['info'] = info
                 data['_info_sanitized'] = _sanitized
