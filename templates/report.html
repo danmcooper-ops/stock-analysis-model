@@ -1320,6 +1320,12 @@ td.ct{font-weight:700;}
 .cm-sum{font-size:0.78em;color:#7f8c9a;font-weight:600;}
 .cm-panel{display:none;position:absolute;top:31px;left:0;z-index:60;background:var(--surface,#fff);border:1px solid #d5dde6;border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,0.16);padding:12px 14px;min-width:min(88vw,340px);max-width:min(92vw,680px);}
 .cm-panel.open{display:block;}
+/* Escape hatch for cm panels inside the detail popup: .dgroup's
+   overflow:hidden clips the absolute panel, so cmToggle re-anchors it to
+   the viewport (top/left/max-height set inline) and it scrolls internally.
+   z-index above the sticky header band (z 5) and in #det-modal's own
+   stacking context, so no contest with the page chrome behind the modal. */
+.cm-panel.cm-fixed{position:fixed;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;z-index:1300;}
 .cm-panel .cm-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;margin:0 0 10px;}
 .cm-panel .cm-row:last-child{margin-bottom:0;}
 .cm-panel .cm-lbl{font-size:0.7em;font-weight:700;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em;padding-top:5px;min-width:58px;}
@@ -4699,12 +4705,54 @@ function _volTipHtml(p){
    open — picking a metric, range and benchmark is a multi-step interaction,
    and the rows inside rebuild their own innerHTML without touching the
    panel wrapper. */
+/* A cm panel inside the detail popup sits inside a .dgroup, whose
+   overflow:hidden (there for the rounded corners) CLIPS the absolutely
+   positioned panel — on a portrait phone the metric buttons wrap into
+   enough rows that Range and Compare fall past the group's clip edge,
+   where no amount of scrolling can reach them (the clip moves with the
+   content). Same escape the section hamburger (#d-menu-all) uses:
+   viewport-fixed coordinates, sized to the space around the ☰ button,
+   scrolling internally when the content is taller than the room. Fixed
+   positioning is safe HERE because the modal never pans horizontally
+   (the iOS drift that rules it out for the main document's menus);
+   main-view cm panels (ph / sector) keep the plain absolute path. */
+function _cmDetPosition(p,btn){
+  var r=btn.getBoundingClientRect();
+  var vv=window.visualViewport;
+  var vw=vv?vv.width:window.innerWidth,vh=vv?vv.height:window.innerHeight;
+  p.classList.add('cm-fixed');
+  p.style.width='';p.style.maxHeight='';
+  var below=vh-(r.bottom+6)-10,above=r.top-6-10;
+  var up=below<180&&above>below;
+  p.style.maxHeight=Math.max(up?above:below,120)+'px';
+  var pw=p.offsetWidth;
+  if(pw>vw-20){p.style.width=(vw-20)+'px';pw=vw-20;}
+  var left=r.left;
+  if(left+pw>vw-10)left=vw-pw-10;
+  if(left<10)left=10;
+  var top=up?Math.max(10,r.top-6-p.offsetHeight):r.bottom+6;
+  p.style.top=top+'px';p.style.left=left+'px';
+}
+function _cmClose(p){
+  p.classList.remove('open');
+  if(p.classList.contains('cm-fixed')){
+    p.classList.remove('cm-fixed');
+    p.style.top='';p.style.left='';p.style.width='';p.style.maxHeight='';
+  }
+}
 function cmToggle(k,e){
   if(e){e.stopPropagation();e.preventDefault();}
   var p=document.getElementById(k+'-cm-panel');if(!p)return;
   var willOpen=!p.classList.contains('open');
-  document.querySelectorAll('.cm-panel.open').forEach(function(o){o.classList.remove('open');});
-  if(willOpen)p.classList.add('open');
+  document.querySelectorAll('.cm-panel.open').forEach(_cmClose);
+  if(willOpen){
+    p.classList.add('open');
+    if(p.closest&&p.closest('#det-modal')){
+      var btn=e&&e.target&&e.target.closest?e.target.closest('.cm-btn'):null;
+      if(!btn){var w=p.closest('.cm-wrap');btn=w?w.querySelector('.cm-btn'):null;}
+      if(btn)_cmDetPosition(p,btn);
+    }
+  }
 }
 document.addEventListener('click',function(e){
   if(e.target&&e.target.closest&&e.target.closest('.cm-wrap'))return;
@@ -4714,8 +4762,19 @@ document.addEventListener('click',function(e){
      target means the click landed on live UI that re-rendered — never on
      the page background this closer exists for. */
   if(e.target&&e.target.isConnected===false)return;
-  document.querySelectorAll('.cm-panel.open').forEach(function(o){o.classList.remove('open');});
+  document.querySelectorAll('.cm-panel.open').forEach(_cmClose);
 });
+/* Scrolling the popup body under a viewport-fixed panel would strand it
+   mid-air (its ☰ button scrolls away underneath) — close it instead, the
+   way dropdowns behave on scroll elsewhere. The panel's own internal
+   scroll doesn't bubble a scroll event from .d-body, so scrolling WITHIN
+   the menu is unaffected. */
+(function(){
+  var b=document.querySelector('#det-modal .d-body');
+  if(b)b.addEventListener('scroll',function(){
+    document.querySelectorAll('.cm-panel.open.cm-fixed').forEach(_cmClose);
+  },{passive:true});
+})();
 function _cmSum(k,txt){var s=document.getElementById(k+'-cm-sum');if(s)s.textContent=txt;}
 
 /* === DETAIL POPUP CHARTS BLOCK === */
@@ -6499,7 +6558,7 @@ function navDet(dir){var idx=_detIdx+dir;if(idx<0||idx>=_detNav.length)return;op
     multi=false;canL=false;canR=false;
     var t=e.touches[0];sx=t.clientX;sy=t.clientY;st=performance.now();
     var vw=window.visualViewport?window.visualViewport.width:window.innerWidth;
-    skip=sx<28||sx>vw-28||!!(e.target.closest&&e.target.closest('svg'));
+    skip=sx<28||sx>vw-28||!!(e.target.closest&&(e.target.closest('svg')||e.target.closest('.cm-panel')));
     if(skip)return;
     for(var n=e.target;n&&n!==body;n=n.parentElement){
       if(n.nodeType!==1)continue;
