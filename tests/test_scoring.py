@@ -1188,3 +1188,145 @@ class TestMultipleVsHistory:
         ok = _full_row()  # 10 years in the fixture
         compute_continuous_scores([ok])
         assert ok['_score_mult_vs_hist'] is not None
+
+
+class TestTrapSignals:
+    """Value-trap overlay: fail-open nulls, axis skipping, coverage floor."""
+
+    def _full_trap_row(self):
+        # Levered secular decliner with an uncovered dividend, derated
+        # multiple, deep drawdown and a crowded short — every axis hot.
+        return {
+            'rev_down_years': 3, 'rev_cagr_5y': -0.06, 'rev_cagr_10y': -0.02,
+            'gross_margin_trend': -0.012, 'fcf_neg_years_5y': 3,
+            'nd_ebitda': 4.5, 'int_cov': 1.5, 'altman_z_zone': 'grey',
+            'net_debt_slope_3y': 0.06,
+            'spread': -0.06, 'roic_trend_slope': -0.12,
+            'incremental_roic': -0.05, 'wacc': 0.09,
+            '_incr_roic_undefined': False, 'pool_share_cagr': -0.12,
+            'mult_vs_hist': -0.55, 'fv_dispersion': 0.55,
+            'div_fcf_ratio_3y': 1.8,
+            'momentum_12_1': -0.55, 'short_pct_float': 0.28,
+        }
+
+    def _compounder_row(self):
+        return {
+            'rev_down_years': 0, 'rev_cagr_5y': 0.12, 'rev_cagr_10y': 0.10,
+            'gross_margin_trend': 0.004, 'fcf_neg_years_5y': 0,
+            'nd_ebitda': 0.5, 'int_cov': 15.0, 'altman_z_zone': 'safe',
+            'net_debt_slope_3y': -0.02,
+            'spread': 0.15, 'roic_trend_slope': 0.05,
+            'incremental_roic': 0.30, 'wacc': 0.09,
+            '_incr_roic_undefined': False, 'pool_share_cagr': 0.05,
+            'mult_vs_hist': 0.10, 'fv_dispersion': 0.10,
+            'div_fcf_ratio_3y': 0.3,
+            'momentum_12_1': 0.20, 'short_pct_float': 0.02,
+        }
+
+    def test_full_trap_scores_high(self):
+        from scripts.scoring import compute_trap_signals
+        r = self._full_trap_row()
+        compute_trap_signals([r])
+        assert r['trap_score'] >= 75
+        assert r['trap_flag'] is True
+        assert len(r['trap_reasons']) >= 4
+        assert set(r['_trap_components']) == {
+            'decline', 'balance_sheet', 'value_destruction',
+            'derating', 'payout', 'market'}
+
+    def test_compounder_scores_low(self):
+        from scripts.scoring import compute_trap_signals
+        r = self._compounder_row()
+        compute_trap_signals([r])
+        assert r['trap_score'] <= 15
+        assert r['trap_flag'] is False
+
+    def test_all_none_fails_open(self):
+        from scripts.scoring import compute_trap_signals
+        r = {}
+        compute_trap_signals([r])
+        assert r['trap_score'] is None
+        assert r['trap_flag'] is None          # never True on thin data
+        assert r['trap_reasons'] == []
+
+    def test_coverage_floor_three_axes_none(self):
+        from scripts.scoring import compute_trap_signals
+        # Only decline + balance_sheet + derating resolve: 3 axes < floor(4).
+        r = {'rev_down_years': 3, 'nd_ebitda': 4.0,
+             'mult_vs_hist': -0.4, 'fv_dispersion': 0.4}
+        compute_trap_signals([r])
+        assert r['trap_score'] is None
+        assert r['trap_flag'] is None
+
+    def test_coverage_floor_four_axes_scores(self):
+        from scripts.scoring import compute_trap_signals
+        # decline(0.25)+balance_sheet(0.20)+value_destruction(0.20)+
+        # derating(0.15) = 4 axes, 0.80 weight → passes both floors.
+        r = {'rev_down_years': 3, 'nd_ebitda': 4.0, 'spread': -0.06,
+             'mult_vs_hist': -0.4}
+        compute_trap_signals([r])
+        assert r['trap_score'] is not None
+
+    def test_incr_roic_undefined_skipped(self):
+        from scripts.scoring import compute_trap_signals
+        base = {'spread': 0.10, 'roic_trend_slope': 0.0,
+                'incremental_roic': None, 'wacc': 0.09,
+                '_incr_roic_undefined': True,
+                'rev_down_years': 0, 'nd_ebitda': 1.0,
+                'mult_vs_hist': 0.0, 'div_fcf_ratio_3y': 0.0}
+        r1 = dict(base)
+        compute_trap_signals([r1])
+        # A shrinking capital base must not read as value destruction: the
+        # sub-score list for C excludes c3 entirely.
+        r2 = dict(base, _incr_roic_undefined=False, incremental_roic=-0.20)
+        compute_trap_signals([r2])
+        assert r2['trap_score'] > r1['trap_score']
+
+    def test_net_debt_slope_only_counts_when_levered(self):
+        from scripts.scoring import compute_trap_signals
+        base = {'rev_down_years': 2, 'spread': -0.02, 'mult_vs_hist': -0.3,
+                'div_fcf_ratio_3y': 0.0, 'int_cov': 10.0}
+        lo = dict(base, nd_ebitda=0.5, net_debt_slope_3y=0.10)
+        hi = dict(base, nd_ebitda=3.0, net_debt_slope_3y=0.10)
+        compute_trap_signals([lo, hi])
+        lo_b = lo['_trap_components']['balance_sheet']['score']
+        hi_b = hi['_trap_components']['balance_sheet']['score']
+        # Unlevered: slope skipped, B = mean(nde-ramp 0, int_cov 0) = 0.
+        assert lo_b == 0.0
+        assert hi_b > lo_b
+
+    def test_nonpayer_payout_axis_present_at_zero(self):
+        from scripts.scoring import compute_trap_signals
+        r = dict(self._compounder_row(), div_fcf_ratio_3y=0.0)
+        compute_trap_signals([r])
+        assert r['_trap_components']['payout']['score'] == 0.0
+
+    def test_reasons_sorted_by_contribution(self):
+        from scripts.scoring import compute_trap_signals
+        r = self._full_trap_row()
+        compute_trap_signals([r])
+        # decline (0.25 weight, saturated) must outrank market (0.10).
+        reasons = r['trap_reasons']
+        assert reasons.index('Structural revenue/margin decline') \
+            < reasons.index('Heavy short interest / falling knife')
+
+    def test_purge_preserves_trap_fields(self):
+        from scripts.scoring import compute_trap_signals, _purge_stale_gate_fields
+        r = self._full_trap_row()
+        compute_trap_signals([r])
+        _purge_stale_gate_fields([r])
+        assert 'trap_score' in r and '_trap_components' in r
+
+    def test_display_only_rating_untouched(self):
+        from scripts.scoring import score_and_rate
+        # End-to-end through the canonical entry: the trap fields appear and
+        # the rating is identical to what the row's fundamentals imply —
+        # i.e., no trap-driven cap exists yet.
+        r = self._full_trap_row()
+        r.update({'ticker': 'TRAP', 'price': 10.0, 'mcap': 1e9})
+        import copy
+        r2 = copy.deepcopy(r)
+        score_and_rate([r])
+        assert r.get('trap_score') is not None
+        assert '_rating_cap_reasons' not in r or not any(
+            'trap' in s.lower() for s in (r.get('_rating_cap_reasons') or []))

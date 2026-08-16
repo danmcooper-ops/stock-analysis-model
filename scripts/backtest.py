@@ -46,6 +46,7 @@ BENCHMARK = 'SPY'
 SIGNAL_SPECS = [
     ('pp_multiple',     'PP Multiple (profit capture)'),
     ('pool_share_cagr', 'Pool-Share CAGR (5y trajectory)'),
+    ('trap_score',      'Value-Trap Score (higher = worse expected)'),
 ]
 
 # A snapshot needs at least this many stocks carrying the signal to form
@@ -331,6 +332,15 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None):
                 # pool_share_cagr = 5y trajectory of sector-profit-pool share.
                 'pp_multiple': s.get('pp_multiple'),
                 'pool_share_cagr': s.get('pool_share_cagr'),
+                # Value-trap overlay under evaluation, plus the cohort /
+                # incrementality inputs filter_metrics_to_cohort reads:
+                # mos defines the cheap cohort, beneish/altman identify rows
+                # the existing rating caps already veto.
+                'trap_score': s.get('trap_score'),
+                'trap_score_ex_momentum': s.get('trap_score_ex_momentum'),
+                'mos': s.get('mos'),
+                'beneish_flag': s.get('beneish_flag'),
+                'altman_z_zone': s.get('altman_z_zone'),
             }
 
     return {
@@ -988,6 +998,54 @@ def signal_quartile_accuracy(all_metrics, signal_key,
     }
 
 
+def filter_metrics_to_cohort(all_metrics, cohort_key='mos',
+                             top_quartile=True, exclude_capped=False):
+    """Restrict each snapshot's details to a cross-sectional cohort.
+
+    The value-trap question is conditional: an unconditional trap read mixes
+    expensive decliners (which the model already avoids) into the sample.
+    This filter keeps, per snapshot, only the top quartile by `cohort_key`
+    (default `mos` — the statistically-cheap cohort), so a downstream
+    signal_quartile_accuracy call measures the signal WITHIN the names the
+    model would actually consider buying.
+
+    exclude_capped additionally drops rows already vetoed by the existing
+    distress caps (beneish_flag / altman distress) — the incrementality
+    check: a trap signal that only re-flags those adds nothing over
+    _rating_cap_for_row.
+
+    Returns a new all_metrics list with the same dict shape (details filtered,
+    _source_stocks passed through untouched); snapshots whose cohort would be
+    empty are dropped.
+    """
+    out = []
+    for m in all_metrics:
+        stocks = m.get('_source_stocks', {})
+        rows = []
+        for d in m['details']:
+            info = stocks.get(d['ticker'], {})
+            cv = info.get(cohort_key)
+            if isinstance(cv, bool) or not isinstance(cv, (int, float)) \
+                    or not np.isfinite(cv):
+                continue
+            if exclude_capped and (
+                    info.get('beneish_flag') is True
+                    or info.get('altman_z_zone') == 'distress'):
+                continue
+            rows.append((float(cv), d))
+        if len(rows) < 4:
+            continue
+        rows.sort(key=lambda x: x[0])
+        cut = int(len(rows) * 0.75)
+        kept = [d for _, d in (rows[cut:] if top_quartile else rows[:cut])]
+        if not kept:
+            continue
+        fm = dict(m)
+        fm['details'] = kept
+        out.append(fm)
+    return out
+
+
 def strong_buy_hit_rate(all_metrics):
     """What percentage of BUY-rated stocks actually outperformed SPY?
 
@@ -1098,14 +1156,23 @@ def print_summary(all_metrics):
         print(f"    Median bias: {consensus['median_bias']:+.1%}")
 
     # --- Signal quartile spreads (does the signal predict excess return?) ---
+    print_signal_tables(all_metrics,
+                        'SIGNAL QUARTILE SPREADS  (forward alpha by signal quartile)')
+
+
+def print_signal_tables(all_metrics, title,
+                        min_per_snapshot=MIN_SIGNAL_PER_SNAPSHOT):
+    """Quartile table per SIGNAL_SPECS entry — shared by the unconditional
+    print_summary block and the conditional cohort runs from the CLI."""
     print(f"\n  {'-'*60}")
-    print("  SIGNAL QUARTILE SPREADS  (forward alpha by signal quartile)")
+    print(f"  {title}")
     print(f"  {'-'*60}")
     for key, label in SIGNAL_SPECS:
-        sq = signal_quartile_accuracy(all_metrics, key)
+        sq = signal_quartile_accuracy(all_metrics, key,
+                                      min_per_snapshot=min_per_snapshot)
         if sq is None:
             print(f"\n  {label}: not enough data yet "
-                  f"(no snapshot has ≥{MIN_SIGNAL_PER_SNAPSHOT} signal "
+                  f"(no snapshot has ≥{min_per_snapshot} signal "
                   f"values with a measured forward return)")
             continue
         print(f"\n  {label}  "
@@ -1144,6 +1211,16 @@ if __name__ == '__main__':
                         help='Comma-separated signal field names to evaluate '
                              'by quartile (default: pp_multiple,pool_share_cagr). '
                              'Any field present on the stock rows works.')
+    parser.add_argument('--cohort', default=None, metavar='FIELD',
+                        help='Also evaluate each signal WITHIN the per-snapshot '
+                             'top quartile of this field (e.g. --cohort mos = '
+                             'the statistically-cheap cohort — the conditional '
+                             'read a value-trap signal actually needs).')
+    parser.add_argument('--exclude-capped', action='store_true',
+                        help='With --cohort: drop rows already vetoed by the '
+                             'beneish/altman-distress rating caps, so the '
+                             'cohort table measures what the signal adds '
+                             'BEYOND the existing vetoes.')
     args = parser.parse_args()
 
     # Override the evaluated-signal set if requested. Labels default to the
@@ -1167,6 +1244,26 @@ if __name__ == '__main__':
 
     if all_metrics:
         print_summary(all_metrics)
+
+        if args.cohort:
+            coh = filter_metrics_to_cohort(all_metrics, cohort_key=args.cohort)
+            print_signal_tables(
+                coh,
+                f'COHORT SPREADS — within top-quartile {args.cohort}',
+                min_per_snapshot=10)
+            if args.exclude_capped:
+                # Incrementality: same cohort minus rows the beneish/altman
+                # caps already veto. Printed as a SECOND table so the delta
+                # vs the plain cohort is visible in one run — the forward
+                # returns are already computed, filtering is free.
+                coh2 = filter_metrics_to_cohort(all_metrics,
+                                                cohort_key=args.cohort,
+                                                exclude_capped=True)
+                print_signal_tables(
+                    coh2,
+                    f'COHORT SPREADS — top-quartile {args.cohort}, '
+                    'EXCL. beneish/altman-capped',
+                    min_per_snapshot=10)
 
         os.makedirs('output', exist_ok=True)
         xlsx = os.path.join('output', f'backtest_{date.today().isoformat()}.xlsx')

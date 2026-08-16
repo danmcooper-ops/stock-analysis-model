@@ -1081,6 +1081,24 @@ _SECTOR_THESIS_TAILWINDS = {
 }
 
 
+def _value_trap_signal(row):
+    """One amber headwind when the trap overlay reads elevated (score >= 50).
+
+    Amber-only until the trap_flag threshold is calibrated against forward
+    returns (scoring.TRAP_FLAG_THRESHOLD is provisional); the text carries
+    the top two axis reasons so the bullet says WHY, not just that a score
+    crossed a line. Display-layer only — the rating is untouched.
+    """
+    score = row.get('trap_score')
+    if not isinstance(score, (int, float)) or score < 50:
+        return []
+    reasons = [r for r in (row.get('trap_reasons') or [])][:2]
+    detail = (': ' + '; '.join(reasons).lower()) if reasons else ''
+    return [{'text': f'Value-trap profile (score {score:.0f}/100){detail} — '
+                     'cheapness may reflect deterioration, not mispricing',
+             'sev': 'amber', 'cat': 'value_trap'}]
+
+
 def _thesis_breaker_signal(row):
     """Always-on forward-looking fat-tail risks, up to 3 per company, by sector.
 
@@ -1435,7 +1453,9 @@ def generate_stock_narrative(row, sector_data=None, macro_regime_result=None,
     hw_macro = [_to_hw_dict(h, default_cat='macro') for h in hw_macro]
 
     # Combine: stock signals first (most relevant), then peers, risk, news, sector, macro
-    all_hw = hw_stock + hw_peer + hw_risk + hw_news + hw_sector + hw_macro
+    # Value-trap overlay rides with the stock-specific layer: it is a
+    # per-company diagnostic, not a sector/macro observation.
+    all_hw = hw_stock + _value_trap_signal(row) + hw_peer + hw_risk + hw_news + hw_sector + hw_macro
     all_tw = tw_stock + tw_peer + tw_risk + tw_news + tw_sector + tw_macro
 
     # (A) Dedupe valuation cluster

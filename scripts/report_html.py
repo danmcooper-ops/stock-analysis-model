@@ -725,6 +725,12 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         # Beneish
         'beneish_m': r.get('beneish_m'),
         'beneish_flag': r.get('beneish_flag'),
+        # Value-trap overlay (display-only; experimental until the forward-
+        # return calibration lands — see scoring.compute_trap_signals)
+        'trap_score': r.get('trap_score'),
+        'trap_flag': r.get('trap_flag'),
+        'trap_reasons': r.get('trap_reasons'),
+        '_trap_components': r.get('_trap_components'),
         # DuPont
         'dupont_margin': r.get('dupont_margin'),
         'dupont_turnover': r.get('dupont_turnover'),
@@ -788,6 +794,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         'financial_summary', 'sector_headwinds', 'sector_tailwinds',
         'news_headlines', 'news_sentiment',
         'legal_filings', 'insider_transactions',
+        '_trap_components',  # per-axis trap sub-scores; popup-only detail
     )
     details_payload = {}
     for _rec in chart_records:

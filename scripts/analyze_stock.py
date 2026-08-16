@@ -188,12 +188,14 @@ def _stock_to_annual(history):
 
 
 def derive_edgar_metrics(edgar_history):
-    """Derive multi-year CAGRs and margin-trend signals from EDGAR history.
+    """Derive multi-year CAGRs, margin-trend and decline signals from EDGAR history.
 
-    Returns a dict with eight fields (None when insufficient data):
-      rev_cagr_5y, rev_cagr_10y, fcf_cagr_5y, fcf_cagr_10y,
-      gross_margin_avg_5y, gross_margin_trend, dividend_cagr_5y,
-      shares_cagr_5y.
+    Returns a fixed-key dict (every key present; None when insufficient
+    data): the growth/margin fields (rev_cagr_5y/10y, fcf_cagr_5y/10y,
+    gross_margin_avg_5y, gross_margin_trend, dividend_cagr_5y,
+    shares_cagr_5y, rev_growth_vol, op_margin_avg_10y+years, fcf_edgar,
+    int_cov_edgar) plus the value-trap decline detectors (rev_down_years,
+    net_debt_slope_3y, div_fcf_ratio_3y, fcf_neg_years_5y).
 
     Shared between the live analyze_stock pipeline and rescore_and_render
     so a snapshot whose edgar_history was populated after the fact (e.g.
@@ -206,7 +208,12 @@ def derive_edgar_metrics(edgar_history):
                dividend_cagr_5y=None, shares_cagr_5y=None,
                fcf_edgar=None, rev_growth_vol=None,
                op_margin_avg_10y=None, op_margin_hist_years=0,
-               int_cov_edgar=None)
+               int_cov_edgar=None,
+               # Value-trap decline detectors (consumed by
+               # scoring.compute_trap_signals; None = insufficient history,
+               # which the trap overlay treats as skip, never as bad):
+               rev_down_years=None, net_debt_slope_3y=None,
+               div_fcf_ratio_3y=None, fcf_neg_years_5y=None)
     if not edgar_history:
         return out
 
@@ -243,6 +250,23 @@ def derive_edgar_metrics(edgar_history):
                 yr10 = rev_hist.get(sy[-11])
                 if yr10 and yr10 > 0:
                     out['rev_cagr_10y'] = (newest_rev / yr10) ** (1 / 10) - 1
+        # Consecutive YoY revenue declines ending at the latest fiscal year —
+        # the "still shrinking NOW" complement to the CAGRs (a −2% 5y CAGR
+        # can hide a business that already re-based and is growing again;
+        # three straight down-years cannot). Adjacent fiscal years only, so
+        # a gap in the filing history breaks the streak rather than bridging
+        # two non-consecutive declines.
+        if len(sy) >= 3:
+            streak = 0
+            for i in range(len(sy) - 1, 0, -1):
+                prev_rev = rev_hist.get(sy[i - 1])
+                cur_rev = rev_hist.get(sy[i])
+                if (sy[i] - sy[i - 1] == 1 and prev_rev and prev_rev > 0
+                        and cur_rev is not None and cur_rev < prev_rev):
+                    streak += 1
+                else:
+                    break
+            out['rev_down_years'] = streak
 
     if ocf_hist:
         common_years = sorted(set(ocf_hist) & set(cap_hist)) if cap_hist else sorted(ocf_hist)
@@ -261,6 +285,29 @@ def derive_edgar_metrics(edgar_history):
             out['fcf_cagr_5y'] = (fcf_vals[-1] / fcf_vals[-6]) ** (1 / 5) - 1
         if len(fcf_vals) >= 11 and fcf_vals[-11] > 0 and fcf_vals[-1] > 0:
             out['fcf_cagr_10y'] = (fcf_vals[-1] / fcf_vals[-11]) ** (1 / 10) - 1
+        # Negative-FCF years among the last ≤5 — chronic cash burn reads
+        # differently from one bad year, and the CAGR fields are None for any
+        # series that starts or ends negative, which is exactly the cohort a
+        # trap detector cares about.
+        if len(fcf_vals) >= 3:
+            out['fcf_neg_years_5y'] = sum(1 for v in fcf_vals[-5:] if v < 0)
+        # Dividends paid vs FCF over the trailing 3 common years — the
+        # "unsustainable yield" trap bait. dividends_paid is a cash OUTFLOW
+        # (typically negative in filings), hence the abs(). A payer whose 3y
+        # FCF sum is non-positive gets the 9.99 cap (JSON-safe stand-in for
+        # infinity); a genuine non-payer is 0.0 — zero payout-bait risk — so
+        # the axis stays PRESENT for non-payers rather than skipping.
+        if div_hist:
+            common_dy = sorted(set(div_hist) & set(fcf_hist))[-3:]
+            if len(common_dy) >= 2:
+                div_sum = sum(abs(div_hist[y] or 0) for y in common_dy)
+                fcf_sum = sum(fcf_hist[y] for y in common_dy)
+                if div_sum <= 0:
+                    out['div_fcf_ratio_3y'] = 0.0
+                elif fcf_sum <= 0:
+                    out['div_fcf_ratio_3y'] = 9.99
+                else:
+                    out['div_fcf_ratio_3y'] = min(div_sum / fcf_sum, 9.99)
 
     if gp_hist and rev_hist:
         common_gy = sorted(set(gp_hist) & set(rev_hist))[-5:]
@@ -322,6 +369,26 @@ def derive_edgar_metrics(edgar_history):
             s0, s1 = sh_hist.get(shy[-6]), sh_hist.get(shy[-1])
             if s0 and s0 > 0 and s1 and s1 > 0:
                 out['shares_cagr_5y'] = (s1 / s0) ** (1 / 5) - 1
+
+    # Net-debt trajectory over the last 4 common years, expressed as the
+    # per-year build as a fraction of latest revenue — a slope, not a CAGR,
+    # because net debt legitimately crosses zero and a ratio of signed values
+    # is meaningless. +0.05 means the company adds net debt worth 5% of
+    # revenue every year. Point-in-time concepts, so _stock_to_annual.
+    # Consumed by the trap overlay only when leverage is already elevated
+    # (rising debt is trap fuel, not a startup drawing a revolver once).
+    td_hist = _stock_to_annual(edgar_history.get('total_debt_history', {}))
+    ch_hist = _stock_to_annual(edgar_history.get('cash_history', {}))
+    if td_hist and ch_hist and rev_hist:
+        common_ny = sorted(set(td_hist) & set(ch_hist))[-4:]
+        rev_sy = sorted(rev_hist.keys())
+        rev_last = rev_hist.get(rev_sy[-1]) if rev_sy else None
+        if len(common_ny) >= 4 and rev_last and rev_last > 0:
+            nd_first = td_hist[common_ny[0]] - ch_hist[common_ny[0]]
+            nd_last = td_hist[common_ny[-1]] - ch_hist[common_ny[-1]]
+            span = common_ny[-1] - common_ny[0]
+            if span > 0:
+                out['net_debt_slope_3y'] = (nd_last - nd_first) / (span * rev_last)
 
     return out
 

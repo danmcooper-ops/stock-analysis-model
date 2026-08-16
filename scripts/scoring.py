@@ -447,6 +447,182 @@ def _compute_pool_share_trajectory(results):
             r['_pool_share_undefined'] = False
 
 
+# --- Value-trap overlay -----------------------------------------------------
+# A parallel risk diagnostic, deliberately NOT a 27th gate: its inputs reuse
+# fields the composite already scores (a gate would double-count them and
+# force a re-quantile of the 57/39/25 thresholds), trap-ness only matters
+# within the cheap cohort, and — decisively — it follows the rating-cap
+# fail-open convention (missing data skips, never scores as bad), which is
+# the opposite of the gates' missing-scores-0 convention. Display-only until
+# the forward-return validation in scripts/backtest.py clears it for a cap.
+#
+# Momentum note: momentum stays UNSCORED as attractiveness everywhere in this
+# model (a momentum gate would invert the deliberately-negative composite-vs-
+# trailing-return check). The F axis below uses deep 12-1 drawdown only as a
+# minority-weight corroborator of an already-fundamental trap profile — and
+# the validation runbook includes a with/without-F ablation so its marginal
+# contribution is measured, not assumed.
+
+# Calibrated 2026-08-16 against 30d forward excess returns on the 74-snapshot
+# corpus (2026-04-20→08-15), within the cheap cohort (top-quartile MoS):
+# T=65 → flagged−unflagged = −3.3pp, Cohen's d −0.25, direction 93% of 42
+# snapshots; survives exclusion of beneish/altman-capped rows (−3.5pp,
+# d −0.32, 100% of 23) and the ex-momentum ablation. Prevalence ~2% of the
+# cheap cohort — the signal is a TAIL FLAG, not a ranking: quartile mean
+# spreads are ~0 (Q4 mixes mostly-benign scores; medians/hit-rates do fall
+# monotonically). 90d re-check pending corpus maturation before any cap.
+TRAP_FLAG_THRESHOLD = 65
+_TRAP_MIN_AXES = 4        # coverage floor: >=4 of 6 axes resolved...
+_TRAP_MIN_WEIGHT = 0.60   # ...covering >=60% of total axis weight
+
+
+def _t01(x, x0, x1):
+    """Piecewise-linear ramp: 0 at x0, 1 at x1, clamped (x1 > x0)."""
+    if x is None:
+        return None
+    return max(0.0, min(1.0, (x - x0) / (x1 - x0)))
+
+
+def _trap_axes(r):
+    """Per-axis sub-scores for one row. None sub-inputs are skipped; an axis
+    with zero resolvable sub-inputs is omitted entirely (fail-open)."""
+    num = lambda v: v if isinstance(v, (int, float)) else None
+
+    axes = {}
+
+    # A — Structural decline: the business is shrinking, not just cheap.
+    a = []
+    rdy = num(r.get('rev_down_years'))
+    if rdy is not None:
+        a.append(_t01(rdy, 1.0, 3.0))
+    rc5 = num(r.get('rev_cagr_5y'))
+    if rc5 is not None:
+        a.append(_t01(-rc5, 0.0, 0.05))
+    rc10 = num(r.get('rev_cagr_10y'))
+    if rc10 is not None:
+        a.append(1.0 if rc10 < 0 else 0.0)   # decade-scale decline is binary
+    gmt = num(r.get('gross_margin_trend'))
+    if gmt is not None:
+        a.append(_t01(-gmt, 0.0, 0.01))      # 1pp/yr erosion saturates
+    fneg = num(r.get('fcf_neg_years_5y'))
+    if fneg is not None:
+        a.append(_t01(fneg, 1.0, 3.0))
+    if a:
+        axes['decline'] = (sum(a) / len(a), 0.25)
+
+    # B — Balance-sheet pressure: leverage that forecloses the turnaround.
+    b = []
+    nde = num(r.get('nd_ebitda'))
+    if nde is not None:
+        b.append(_t01(nde, 2.0, 5.0))
+    ic = num(r.get('int_cov'))
+    if ic is not None:
+        b.append(1.0 - _t01(ic, 2.0, 6.0))
+    zone = r.get('altman_z_zone')
+    if zone in ('distress', 'grey', 'safe'):
+        b.append({'distress': 1.0, 'grey': 0.5, 'safe': 0.0}[zone])
+    nds = num(r.get('net_debt_slope_3y'))
+    if nds is not None and nde is not None and nde >= 2.0:
+        # Rising debt is trap fuel only when leverage is already elevated —
+        # a net-cash company drawing a revolver once is not a trap signal.
+        b.append(_t01(nds, 0.0, 0.05))
+    if b:
+        axes['balance_sheet'] = (sum(b) / len(b), 0.20)
+
+    # C — Value destruction: capital compounding below its cost.
+    c = []
+    spread = num(r.get('spread'))
+    if spread is None:
+        roic, wacc = num(r.get('roic')), num(r.get('wacc'))
+        if roic is not None and wacc is not None:
+            spread = roic - wacc
+    if spread is not None:
+        c.append(1.0 - _t01(spread, -0.05, 0.02))
+    rts = num(r.get('roic_trend_slope'))
+    if rts is not None:
+        c.append(_t01(-rts, 0.0, 0.10))
+    if not r.get('_incr_roic_undefined'):
+        iroic, wacc = num(r.get('incremental_roic')), num(r.get('wacc'))
+        if iroic is not None and wacc is not None:
+            c.append(1.0 - _t01(iroic - wacc, -0.05, 0.05))
+    psc = num(r.get('pool_share_cagr'))
+    if psc is not None:
+        c.append(_t01(-psc, 0.0, 0.10))
+    if c:
+        axes['value_destruction'] = (sum(c) / len(c), 0.20)
+
+    # D — Structural derating: the market has durably marked the multiple
+    # down, and the FV models can't agree the MoS is real (the scoring
+    # docstring's own "a large MoS may be a value trap" case).
+    d = []
+    mvh = num(r.get('mult_vs_hist'))
+    if mvh is not None:
+        d.append(_t01(-mvh, 0.20, 0.50))
+    fvd = num(r.get('fv_dispersion'))
+    if fvd is not None:
+        d.append(_t01(fvd, 0.15, 0.50))
+    if d:
+        axes['derating'] = (sum(d) / len(d), 0.15)
+
+    # E — Payout risk: the yield that lures value buyers is uncovered.
+    dfr = num(r.get('div_fcf_ratio_3y'))
+    if dfr is not None:
+        axes['payout'] = (_t01(dfr, 0.8, 1.5), 0.10)
+
+    # F — Market corroboration (minority weight; see module note).
+    f = []
+    m12 = num(r.get('momentum_12_1'))
+    if m12 is not None:
+        f.append(_t01(-m12, 0.20, 0.50))
+    spf = num(r.get('short_pct_float'))
+    if spf is not None:
+        f.append(_t01(spf, 0.10, 0.25))
+    if f:
+        axes['market'] = (sum(f) / len(f), 0.10)
+
+    return axes
+
+
+_TRAP_REASON = {
+    'decline':           'Structural revenue/margin decline',
+    'balance_sheet':     'Leveraged balance sheet under pressure',
+    'value_destruction': 'ROIC below cost of capital',
+    'derating':          'Durably derated by the market',
+    'payout':            'Dividend not covered by free cash flow',
+    'market':            'Heavy short interest / falling knife',
+}
+
+
+def compute_trap_signals(results):
+    """Attach trap_score / trap_flag / trap_reasons / _trap_components.
+
+    trap_score: 0-100, higher = more value-trap-like. None (and trap_flag
+    None, never True) unless >=_TRAP_MIN_AXES axes resolve covering
+    >=_TRAP_MIN_WEIGHT of axis weight — thin data is unknown, not safe and
+    not dangerous. Field names carry no _gate_/_gp_/_score_ prefix, so
+    _purge_stale_gate_fields leaves them alone on snapshot round-trips.
+    """
+    for r in results:
+        axes = _trap_axes(r)
+        wsum = sum(w for _, w in axes.values())
+        if len(axes) < _TRAP_MIN_AXES or wsum < _TRAP_MIN_WEIGHT:
+            r['trap_score'] = None
+            r['trap_flag'] = None
+            r['trap_reasons'] = []
+            r['_trap_components'] = {k: {'score': round(s, 3), 'weight': w}
+                                     for k, (s, w) in axes.items()}
+            continue
+        score = 100.0 * sum(s * w for s, w in axes.values()) / wsum
+        r['trap_score'] = round(score, 1)
+        r['trap_flag'] = score >= TRAP_FLAG_THRESHOLD
+        r['trap_reasons'] = [
+            _TRAP_REASON[k] for k, (s, w) in
+            sorted(axes.items(), key=lambda kv: -kv[1][0] * kv[1][1])
+            if s >= 0.5]
+        r['_trap_components'] = {k: {'score': round(s, 3), 'weight': w}
+                                 for k, (s, w) in axes.items()}
+
+
 def prepare_scoring_fields(results):
     """Populate derived fields shared by gates and continuous scoring."""
     _compute_pool_share_trajectory(results)
@@ -624,6 +800,13 @@ def prepare_scoring_fields(results):
             r['roic_trend_slope'] = roic_by_year[sorted_years[-1]] - roic_by_year[sorted_years[0]]
         else:
             r['roic_trend_slope'] = None
+
+    # Trap overlay LAST: it consumes fields derived in the loop above
+    # (fv_dispersion, incremental_roic, margin_vs_hist, roic_trend_slope,
+    # the int_cov EDGAR swap), so it cannot ride the pool-share pre-pass at
+    # the top of this function. Running inside prepare_scoring_fields keeps
+    # live, rescore, replay and calibrate identical via score_and_rate.
+    compute_trap_signals(results)
 
 
 def apply_screening_matrix(results):

@@ -2768,6 +2768,7 @@ cash:'Cash and equivalents on the latest annual balance sheet — the buffer tha
 cr:'Current Ratio = Current Assets / Current Liabilities. Graham required at least 2.0 for defensive stocks; below 1.0, the business depends on rolling its credit.',
 altman_z:'Z = 1.2·WC/A + 1.4·RE/A + 3.3·EBIT/A + 0.6·MktEq/Liab + 1.0·Sales/A — five balance-sheet ratios weighted into one distress score. Above 2.99 is safe; below 1.81, distress. The point is Graham’s: avoid permanent loss of capital.',
 beneish_m:'M-Score — an eight-variable index of earnings manipulation. Above −1.78, the risk is elevated. Buffett on management: “integrity, intelligence, energy — if they lack the first, the other two will kill you.”',
+trap_score:'Value-trap score (0–100, experimental): how much this stock looks cheap-for-a-reason. Six axes — structural decline, balance-sheet pressure, value destruction (ROIC below WACC), durable derating, uncovered payout, and market corroboration (deep drawdown / crowded short). Display-only; does not affect the rating. Thin data reads as N/A, never as safe or dangerous. A high margin of safety WITH a high trap score is the classic trap signature.',
 fundamental_growth:'g = ROIC × Reinvestment Rate — the growth a business funds from its own returns. A 20% ROIC with half of profits reinvested compounds at 10% a year with no outside financing: internally consistent, as Buffett insists growth claims should be.',
 reinvestment_rate:'Reinvestment Rate = (CapEx + ΔWC − D&A) / NOPAT — the share of after-tax operating profit ploughed back into the business. Buffett’s ideal grows substantially while retaining little; reinvestment creates value only when ROIC is high.',
 terminal_growth:'The perpetual growth rate beyond year 10, anchored near long-run GDP of 2–3%. Small changes here swing the fair value a great deal — Buffett avoids heroic terminal assumptions, and so does this model.',
@@ -3814,7 +3815,7 @@ var TC={
      cash), then liquidity and its working-capital drivers, earnings quality,
      the composite distress/manipulation scores (Altman Z, Beneish M), and the
      bank-specific ratios (CET1, NPL) at the end. */
-  hlth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gh'},{k:'nd_ebitda',l:'ND/EBITDA',f:'n2',g:'gh'},{k:'net_cash_to_mcap',l:'Net Cash/Mcap',f:'pct',g:'gh'},{k:'cr',l:'Curr R',f:'n2',g:'gh'},{k:'inventory_days',l:'Inv Days',f:'n1',g:'gh'},{k:'working_capital_days',l:'Work Cap Days',f:'n1',g:'gh'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gh'},{k:'accruals',l:'Accruals',f:'n3',g:'gh'},{k:'altman_z',l:'Altman Z',f:'n2',g:'gh'},{k:'beneish_m',l:'Beneish M',f:'n2',g:'gh'},{k:'cet1_ratio',l:'CET1',f:'pct',g:'gh'},{k:'npl_ratio',l:'NPL Ratio',f:'pct',g:'gh'}],
+  hlth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gh'},{k:'nd_ebitda',l:'ND/EBITDA',f:'n2',g:'gh'},{k:'net_cash_to_mcap',l:'Net Cash/Mcap',f:'pct',g:'gh'},{k:'cr',l:'Curr R',f:'n2',g:'gh'},{k:'inventory_days',l:'Inv Days',f:'n1',g:'gh'},{k:'working_capital_days',l:'Work Cap Days',f:'n1',g:'gh'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gh'},{k:'accruals',l:'Accruals',f:'n3',g:'gh'},{k:'altman_z',l:'Altman Z',f:'n2',g:'gh'},{k:'beneish_m',l:'Beneish M',f:'n2',g:'gh'},{k:'trap_score',l:'Trap',f:'trap'},{k:'cet1_ratio',l:'CET1',f:'pct',g:'gh'},{k:'npl_ratio',l:'NPL Ratio',f:'pct',g:'gh'}],
   /* Growth — the growth engine first (reinvestment rate, fundamental growth,
      margin trend), then the historical revenue CAGR ladder (3/5/10Y) and FCF
      growth, capex/reinvestment intensity, and the sector-specific growth
@@ -3872,6 +3873,14 @@ function ftc(v,f){
   if(f==='cnt')return{t:Math.round(v).toLocaleString(),v:v};
   if(f==='bool')return{t:v?'Yes':'No',v:v?1:0};
   if(f==='ar'){var m={strong_buy:'Strong Buy',buy:'Buy',hold:'Hold',sell:'Sell',strong_sell:'Strong Sell'};return{t:m[v]||String(v),v:v};}
+  /* Value-trap score: integer with amber/red visual bands. The bands are
+     display heuristics only — the calibrated trap_flag threshold comes from
+     the forward-return sweep, not from these colors. */
+  if(f==='trap'){
+    var ti=Math.round(v);
+    var col=ti>=70?'#c0392b':ti>=50?'#e67e22':null;
+    return{t:col?'<span style="color:'+col+';font-weight:700">'+ti+'</span>':ti+'',v:v};
+  }
   return{t:String(v),v:v};
 }
 /* The Financial Data sub-tab buttons moved into the nav dropdown (TL still
@@ -5314,7 +5323,7 @@ var DT_TABS=[
   {t:'Liquidity & Working Capital',cols:[{k:'cr'},{k:'inventory_days'},{k:'working_capital_days'}]},
   {t:'Distress & Manipulation',cols:[{k:'altman_z'},{k:'beneish_m'},{k:'goodwill_pct',l:'Goodwill %',f:'pct',sec:1}]},
   {t:'Bank Health',cols:[{k:'cet1_ratio',sec:1},{k:'npl_ratio',sec:1}]}
- ],extra:_detEdgarWarnHtml},
+ ],extra:function(d){return _detTrapHtml(d)+_detEdgarWarnHtml(d);}},
  {k:'growth',l:'Growth',groups:[
   {t:'Growth Engine',cols:[{k:'reinvestment_rate'},{k:'fundamental_growth'},{k:'margin_trend'},{k:'rule_of_40',l:'Rule of 40',f:'n1',sec:1}]},
   {t:'Track Record',cols:[{k:'rev_cagr'},{k:'rev_cagr_5y'},{k:'rev_cagr_10y'},{k:'fcf_growth'},{k:'surprise_avg',l:'Earnings Surprise Avg',f:'pct'}]},
@@ -5519,6 +5528,34 @@ function _detInsiderHtml(d){
       h+='<tr><td>'+t.date+'</td><td>'+esc((t.insider_name||'').substring(0,20))+'</td><td style="color:'+tc+';font-weight:600">'+t.transaction_type.toUpperCase()+'</td><td>'+fn0(t.shares)+'</td><td>'+(t.price_per_share?fd(t.price_per_share):'—')+'</td></tr>';
     });
     h+='</table>';
+  }
+  h+='</div>';
+  return h;
+}
+/* Value-trap overlay block on the Health tab (display-only, experimental).
+   Score + reasons are inline record fields; the per-axis bars come from
+   _trap_components, which rides details.json and appears once that sidecar
+   lands (same lazy behavior as the CEO bio). */
+function _detTrapHtml(d){
+  if(d.trap_score==null)return '';
+  var ti=Math.round(d.trap_score);
+  var col=ti>=70?'#c0392b':ti>=50?'#e67e22':'#27ae60';
+  var h='<div class="dsec" style="grid-column:1/-1"><h3'+(tt('trap_score')?' data-dkv-tip="trap_score"':'')+'>Value-Trap Profile <span style="font-weight:400;color:#9aa5b1;font-size:0.85em">(experimental — does not affect rating)</span></h3>';
+  h+='<div style="display:flex;align-items:baseline;gap:10px;margin:2px 0 6px"><span style="font-size:1.5em;font-weight:700;color:'+col+'">'+ti+'</span><span style="color:#7f8c9a;font-size:0.82em">/ 100 — higher = more trap-like</span></div>';
+  if(d.trap_reasons&&d.trap_reasons.length){
+    h+='<ul style="margin:0 0 4px;padding-left:18px;font-size:0.86em">';
+    d.trap_reasons.forEach(function(x){h+='<li>'+esc(x)+'</li>';});
+    h+='</ul>';
+  }
+  if(d._trap_components){
+    var LBL={decline:'Structural decline',balance_sheet:'Balance sheet',value_destruction:'Value destruction',derating:'Derating',payout:'Payout risk',market:'Market'};
+    h+='<div style="margin-top:4px">';
+    Object.keys(LBL).forEach(function(k){
+      var c=d._trap_components[k];if(!c)return;
+      var pctW=Math.round(c.score*100);
+      h+='<div style="display:flex;align-items:center;gap:8px;font-size:0.78em;padding:1px 0"><span style="flex:0 0 130px;color:#7f8c9a">'+LBL[k]+'</span><div class="pp-bar" style="flex:1"><div class="pp-bar-fill" style="width:'+pctW+'%;background:'+(c.score>=0.7?'#c0392b':c.score>=0.4?'#e67e22':'#8aa5c0')+'"></div></div><span style="flex:0 0 34px;text-align:right">'+pctW+'</span></div>';
+    });
+    h+='</div>';
   }
   h+='</div>';
   return h;
