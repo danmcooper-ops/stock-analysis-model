@@ -63,6 +63,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    spacing it had when it was a direct .header child. */
 .hdr-title-row{display:flex;align-items:baseline;gap:14px;}
 .hdr-view{font-size:0.8em;font-weight:600;line-height:1.1;opacity:0.82;white-space:nowrap;}
+/* Second header line: view name + (phones only) the run date. The date span
+   is display:none at desktop widths — .last-updated in the title row already
+   carries it there — and switches on in the ≤768px block, where
+   .last-updated is what gets dropped. The · separator lives on the span's
+   ::before so an empty view name (never happens, but) wouldn't strand it. */
+.hdr-view-row{display:flex;align-items:baseline;gap:0;min-width:0;}
+.hdr-date{display:none;font-size:0.62em;opacity:0.65;white-space:nowrap;}
+.hdr-date::before{content:"\00B7";margin:0 5px;}
 .hdr-spacer{flex:1 1 auto;}
 .last-updated{font-size:0.7em;opacity:0.65;text-align:left;display:flex;flex-direction:column;gap:2px;white-space:nowrap;flex-shrink:0;}
 /* The nav and Filters dropdowns live in the header now, right-justified. The
@@ -139,6 +147,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
      the only on-screen view name here — the crumb and count are both gone. */
   .hdr-view{font-size:0.62em;}
   .last-updated{display:none;}
+  /* The run date replaces the dropped .last-updated on this line — same
+     size as the view name it sits beside. */
+  .hdr-date{display:inline;font-size:0.62em;}
   /* The count went with the meta on phones — the row only has space for the
      title and the two dropdown icons. */
   .hdr-center{display:none;}
@@ -182,6 +193,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
      tooltip still names the view in landscape. */
   .hdr-view{display:none!important;}
   .last-updated{display:none!important;}
+  .hdr-date{display:none!important;}
   .container{padding:2px 6px;}
   .dh{padding-right:44px!important;}
   .detail-modal.open{padding:0!important;}
@@ -1762,7 +1774,12 @@ body.wide-table .container{padding-left:0;padding-right:0;}
       <h1>Securities Analysis</h1>
       <div class="last-updated"><span>{{ generated_at }}</span></div>
     </div>
-    <span class="hdr-view" id="hdr-view"></span>
+    <!-- Phones hide .last-updated to fit the one-row header, which left no
+         run date anywhere on iOS. It rides here next to the view name
+         ("Financial Model · August 13, 2026") — a sibling span, NOT inside
+         #hdr-view, whose textContent _syncNavCrumb overwrites. Hidden on
+         desktop, where .last-updated already shows the same date. -->
+    <div class="hdr-view-row"><span class="hdr-view" id="hdr-view"></span><span class="hdr-date">{{ generated_at }}</span></div>
   </div>
   <span class="hdr-spacer"></span>
   <!-- Centred result count ("N of M"). Two flex spacers (one either side)
