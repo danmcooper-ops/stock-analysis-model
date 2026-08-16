@@ -469,6 +469,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    hash restore both query it); the id-selector overrides below just undo
    the popup styling so the lists render inline inside the panel. */
 .filt-btn-label{font-weight:600;}
+/* Title + count on the panel header's left; the count re-uses .filter-count
+   but needs its colour re-asserted — the panel sits inside .header, whose
+   .header .filter-count rule paints the banner's pale #cfe0f0, invisible on
+   the white panel. Same specificity, later in the sheet, so this wins. */
+.fpop-title-wrap{display:flex;align-items:baseline;gap:8px;min-width:0;}
+.fpop-header .filter-count{color:var(--accent);font-size:0.78em;}
 /* The panel opens at its full height: the shared .fpop-panel cap of
    min(72vh,520px) was ~30-60px shorter than this panel's content on a normal
    desktop window, so Column Filters and + Add Filter sat below the fold and
@@ -1806,7 +1812,11 @@ body.wide-table .container{padding-left:0;padding-right:0;}
       </button>
       <div class="fpop-panel filt-panel" id="filt-panel">
         <div class="fpop-header">
-          <span class="fpop-title">Filters</span>
+          <!-- Count rides beside the title: phones hide the header's centred
+               #f-count, so this is the only place the result count is
+               visible on iOS. Fed by _updateCountLabel alongside #f-count
+               (plain "N of M" — the drill-down chip stays header-only). -->
+          <span class="fpop-title-wrap"><span class="fpop-title">Filters</span><span class="filter-count" id="filt-count"></span></span>
           <span class="filt-header-actions"><button class="filter-clear" onclick="clearFilters()">Clear</button><button class="fpop-close" onclick="toggleFiltMenu(event)">&#215;</button></span>
         </div>
         <div class="fpop-body">
@@ -3101,6 +3111,11 @@ function _updateCountLabel(){
   }
   if(chip)h+=' <span onclick="'+fn+'" title="Clear this filter" style="cursor:pointer;background:#3b6fd4;color:#fff;font-weight:600;padding:2px 9px;border-radius:10px;margin-left:6px;white-space:nowrap">'+esc(chip)+' &times;</span>';
   el.innerHTML=h;
+  /* Twin count beside the Filters panel's title — the only visible count on
+     phones. Plain text: no chip, no "best match" (that suffix describes
+     ordering, not the count). */
+  var fc=document.getElementById('filt-count');
+  if(fc)fc.textContent=FD.length+' of '+DATA.length;
 }
 /* Is relevance ordering in effect for the CURRENT view? Active query +
    the user hasn't clicked a column header on that view this session. */
@@ -8954,6 +8969,8 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   _cfOptHtml=optHtml;
   addColFilter(); // seed one empty row
   document.getElementById('f-count').textContent=DATA.length+' of '+DATA.length;
+  var _fc0=document.getElementById('filt-count');
+  if(_fc0)_fc0.textContent=DATA.length+' of '+DATA.length;
   /* IME (CJK) input: don't filter on half-composed text; one debounced
      pass fires when the composition commits. */
   var _fs=document.getElementById('f-search');
