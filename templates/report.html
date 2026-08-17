@@ -10,6 +10,13 @@
      honors minimum-scale; its accessibility override only refuses to cap
      zooming IN, so no maximum-scale / user-scalable=no here. -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, viewport-fit=cover">
+<!-- Standalone mode for Home-Screen bookmarks (Share → Add to Home Screen):
+     opens with no Safari URL bar at all. In-browser, the URL bar cannot be
+     programmatically minimized — the layout already uses 100dvh so the space
+     is reclaimed whenever Safari collapses it on its own. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Stock Analysis — Interactive Report</title>
 <script>(function(){try{var t=localStorage.getItem('stock_theme_v1');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
 <style>
@@ -662,6 +669,29 @@ td.ct{font-weight:700;}
   .matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){position:static;box-shadow:none;}
   .matrix-table thead tr:first-child th:nth-child(4){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
   .matrix-table td.tk{left:0;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+  /* Collapsing popup banner: scrolling INTO the data (finger up) shrinks
+     the header band to two lines — price · rating · composite, then the
+     ticker — and nothing else; any scroll back toward the top restores the
+     full band (that's also how the hidden ×/☰/arrows are reached, one
+     flick away, the same recover-by-reversing gesture Safari's own toolbar
+     uses). The band is a non-scrolling flex sibling above .d-body, so
+     every reclaimed pixel goes to the data. Class toggled by the .d-body
+     scroll listener; rules live here so desktop (mouse) never collapses.
+     Paddings carry !important to beat the width-media band rules that
+     also use it. */
+  #det-modal.hdr-min .detail-close,
+  #det-modal.hdr-min .detail-menu-btn,
+  #det-modal.hdr-min .d-gp,
+  #det-modal.hdr-min .d-rsince,
+  #det-modal.hdr-min .dcname,
+  #det-modal.hdr-min .dmeta,
+  #det-modal.hdr-min .d-mini-nav,
+  #det-modal.hdr-min .d-mini-nav-actions,
+  #det-modal.hdr-min .det-nav-pos{display:none!important;}
+  #det-modal.hdr-min .d-header-band{padding:calc(3px + env(safe-area-inset-top)) 16px 4px!important;}
+  #det-modal.hdr-min .d-rating-row{margin-bottom:1px;padding-right:0;}
+  #det-modal.hdr-min .dh{padding-right:0!important;margin:0;}
+  #det-modal.hdr-min .dh .dtk{font-size:1.05em;}
 }
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
 .dt th:first-child{text-align:left;}
@@ -4838,8 +4868,22 @@ document.addEventListener('click',function(e){
    the menu is unaffected. */
 (function(){
   var b=document.querySelector('#det-modal .d-body');
-  if(b)b.addEventListener('scroll',function(){
+  if(!b)return;
+  /* Banner collapse state (touch only — the hdr-min rules live inside the
+     (hover:none)+(pointer:coarse) block, so the class is inert on desktop).
+     Direction-based with hysteresis: scrolling into the data collapses,
+     6px of reverse scroll or nearing the top expands. The +2/-6 asymmetry
+     keeps iOS momentum-scroll jitter and rubber-band bounces from
+     flickering the band; <=40 also catches the programmatic scroll-to-top
+     on tab switches and stock navigation. */
+  var dm=document.getElementById('det-modal'),_lastSt=0;
+  b.addEventListener('scroll',function(){
     document.querySelectorAll('.cm-panel.open.cm-fixed').forEach(_cmClose);
+    var st=b.scrollTop;
+    if(st<=40)dm.classList.remove('hdr-min');
+    else if(st>_lastSt+2)dm.classList.add('hdr-min');
+    else if(st<_lastSt-6)dm.classList.remove('hdr-min');
+    _lastSt=st;
   },{passive:true});
 })();
 function _cmSum(k,txt){var s=document.getElementById(k+'-cm-sum');if(s)s.textContent=txt;}
@@ -6593,7 +6637,7 @@ function openDet(tk){
   _dm.scrollTop=0;
   _lockBody();
 }
-function closeDetail(){closeDetMenus();document.getElementById('det-modal').classList.remove('open');_unlockBody();}
+function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_dm.classList.remove('hdr-min');_unlockBody();}
 /* Pin the page while the popup is open. body{overflow:hidden} — the old
    lock — is ignored by iOS Safari: the table kept scrolling under the
    popup, and that scroll collapsed/expanded the browser toolbars, thrashing
