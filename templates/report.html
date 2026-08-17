@@ -671,16 +671,13 @@ td.ct{font-weight:700;}
   .matrix-table td.tk{left:0;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
   /* Collapsing popup banner: scrolling INTO the data (finger up) shrinks
      the header band to two lines — price · rating · composite, then the
-     ticker — and nothing else; any scroll back toward the top restores the
-     full band (that's also how the hidden ×/☰/arrows are reached, one
-     flick away, the same recover-by-reversing gesture Safari's own toolbar
-     uses). The band is a non-scrolling flex sibling above .d-body, so
-     every reclaimed pixel goes to the data. Class toggled by the .d-body
-     scroll listener; rules live here so desktop (mouse) never collapses.
-     Paddings carry !important to beat the width-media band rules that
-     also use it. */
-  #det-modal.hdr-min .detail-close,
-  #det-modal.hdr-min .detail-menu-btn,
+     ticker — plus the ☰/× pair, which stay pinned top-right so Sections
+     and Close never need a scroll-up to reach. Any scroll back toward the
+     top restores the full band (arrows/flag/name return there). The band
+     is a non-scrolling flex sibling above .d-body, so every reclaimed
+     pixel goes to the data. Class toggled by the .d-body scroll listener;
+     rules live here so desktop (mouse) never collapses. Paddings carry
+     !important to beat the width-media band rules that also use it. */
   #det-modal.hdr-min .d-gp,
   #det-modal.hdr-min .d-rsince,
   #det-modal.hdr-min .dcname,
@@ -690,10 +687,16 @@ td.ct{font-weight:700;}
   #det-modal.hdr-min .det-nav-pos{display:none!important;}
   /* Collapsed: flex column + order:-1 lifts the rating row (now the band's
      bottom line in DOM order) back above the ticker, preserving the
-     two-line spec. Absolute/hidden children are unaffected by the flex. */
-  #det-modal.hdr-min .d-header-band{padding:calc(3px + env(safe-area-inset-top)) 16px 4px!important;display:flex;flex-direction:column;}
-  #det-modal.hdr-min .d-rating-row{order:-1;margin:0 0 1px;padding-right:0;}
-  #det-modal.hdr-min .dh{padding-right:0!important;margin:0;}
+     two-line spec. Absolute/hidden children are unaffected by the flex.
+     Breathing room: 8px top/bottom padding and a 5px row gap — tight
+     enough to reclaim the band, loose enough not to feel crushed. The
+     rating row keeps 76px right padding so its line clears the ☰/× pair
+     (right:46px + 24px + margin), which sit at top:12px+safe and overlap
+     the FIRST line's right end; the ticker line below them runs full
+     width. */
+  #det-modal.hdr-min .d-header-band{padding:calc(8px + env(safe-area-inset-top)) 16px 8px!important;display:flex;flex-direction:column;gap:5px;}
+  #det-modal.hdr-min .d-rating-row{order:-1;margin:0;padding-right:76px;}
+  #det-modal.hdr-min .dh{margin:0;}
   #det-modal.hdr-min .dh .dtk{font-size:1.05em;}
 }
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
