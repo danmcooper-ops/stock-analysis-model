@@ -22,6 +22,15 @@ All Python script invocations **must be sent as a single-line semicolon-separate
 
 ## Steps
 
+### 0. Refresh the price cache
+The `output/prices` parquets never refresh themselves; the analysis, the report's px/vol chart shards, and the validation steps all read them, so they must be brought current at the start of each run. Run as a **single Bash call** (all on one line, semicolons not newlines):
+```
+PYTHON="/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "/Users/danmcooper/Desktop/Workspace Folder"; "$PYTHON" scripts/download_prices.py --output-dir output/prices --max-age-days 2 --tickers $(ls output/prices/*.parquet | sed 's|.*/||;s|\.parquet||') SPY QQQ IWM DIA
+```
+Refreshes every already-cached ticker whose last bar is older than 2 days, plus the four benchmark indices explicitly (SPY/QQQ/IWM/DIA feed the report's index-comparison lines; the weekly backtest job only refreshes SPY). Idempotent — current files are skipped, so the day after a full refresh this is nearly a no-op. **Typical runtime: 15–40 min on a normal weekday; up to ~60 min after weekends/gaps.** Do not run it concurrently with Step 1 — Step 1 reads these files.
+
+A non-zero exit code (or partial ticker failures — Yahoo outages, delisted names) should be reported but does **not** block the remaining steps: the analysis still works on slightly-stale bars, which was the status quo before this step existed. Individual delisted-ticker errors in the output are routine noise, not failures.
+
 ### 1. Run the analysis
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
