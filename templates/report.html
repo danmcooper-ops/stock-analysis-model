@@ -670,14 +670,15 @@ td.ct{font-weight:700;}
   .matrix-table thead tr:first-child th:nth-child(4){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
   .matrix-table td.tk{left:0;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
   /* Collapsing popup banner: scrolling INTO the data (finger up) shrinks
-     the header band to two lines — price · rating · composite, then the
-     ticker — plus the ☰/× pair, which stay pinned top-right so Sections
-     and Close never need a scroll-up to reach. Any scroll back toward the
-     top restores the full band (arrows/flag/name return there). The band
-     is a non-scrolling flex sibling above .d-body, so every reclaimed
-     pixel goes to the data. Class toggled by the .d-body scroll listener;
-     rules live here so desktop (mouse) never collapses. Paddings carry
-     !important to beat the width-media band rules that also use it. */
+     the header band to two lines — the TICKER on top, then price · rating
+     · composite — plus the ☰/× pair, which stay pinned top-right so
+     Sections and Close never need a scroll-up to reach. Any scroll back
+     toward the top restores the full band (arrows/flag/name return
+     there). The band is a non-scrolling flex sibling above .d-body, so
+     every reclaimed pixel goes to the data. Class toggled by the .d-body
+     scroll listener; rules live here so desktop (mouse) never collapses.
+     Paddings carry !important to beat the width-media band rules that
+     also use it. */
   #det-modal.hdr-min .d-gp,
   #det-modal.hdr-min .d-rsince,
   #det-modal.hdr-min .dcname,
@@ -685,18 +686,17 @@ td.ct{font-weight:700;}
   #det-modal.hdr-min .d-mini-nav,
   #det-modal.hdr-min .d-mini-nav-actions,
   #det-modal.hdr-min .det-nav-pos{display:none!important;}
-  /* Collapsed: flex column + order:-1 lifts the rating row (now the band's
-     bottom line in DOM order) back above the ticker, preserving the
-     two-line spec. Absolute/hidden children are unaffected by the flex.
-     Breathing room: 8px top/bottom padding and a 5px row gap — tight
-     enough to reclaim the band, loose enough not to feel crushed. The
-     rating row keeps 76px right padding so its line clears the ☰/× pair
-     (right:46px + 24px + margin), which sit at top:12px+safe and overlap
-     the FIRST line's right end; the ticker line below them runs full
-     width. */
+  /* Collapsed: natural DOM order already reads ticker → rating row once
+     the name/meta lines hide, so no reordering — flex column is kept for
+     the row gap. Breathing room: 8px top/bottom padding and a 5px row
+     gap — tight enough to reclaim the band, loose enough not to feel
+     crushed. The TICKER line is the one sharing height with the ☰/×
+     pair (top:12px+safe), so .dh carries the 76px right clearance
+     (right:46px + 24px + margin); the rating row below the buttons runs
+     full width. */
   #det-modal.hdr-min .d-header-band{padding:calc(8px + env(safe-area-inset-top)) 16px 8px!important;display:flex;flex-direction:column;gap:5px;}
-  #det-modal.hdr-min .d-rating-row{order:-1;margin:0;padding-right:76px;}
-  #det-modal.hdr-min .dh{margin:0;}
+  #det-modal.hdr-min .d-rating-row{margin:0;padding-right:0;}
+  #det-modal.hdr-min .dh{margin:0;padding-right:76px!important;}
   #det-modal.hdr-min .dh .dtk{font-size:1.05em;}
 }
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
@@ -1993,10 +1993,9 @@ body.wide-table .container{padding-left:0;padding-right:0;}
       <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span class="det-nav-pos"></span></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
-      <!-- Rating row is the band's BOTTOM line (below the CEO meta line);
-           in the collapsed hdr-min state a flex order:-1 lifts it back
-           above the ticker so the two-line spec (price·rating·composite /
-           ticker) holds. -->
+      <!-- Rating row is the band's BOTTOM line (below the CEO meta line),
+           in the expanded AND collapsed states — collapsed shows ticker
+           on top, then price·rating·composite. -->
       <div class="d-rating-row"><div class="dpx" id="d-px"></div><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
       <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div></div>
       <div class="d-mini-nav-actions"><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
