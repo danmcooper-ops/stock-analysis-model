@@ -688,8 +688,11 @@ td.ct{font-weight:700;}
   #det-modal.hdr-min .d-mini-nav,
   #det-modal.hdr-min .d-mini-nav-actions,
   #det-modal.hdr-min .det-nav-pos{display:none!important;}
-  #det-modal.hdr-min .d-header-band{padding:calc(3px + env(safe-area-inset-top)) 16px 4px!important;}
-  #det-modal.hdr-min .d-rating-row{margin-bottom:1px;padding-right:0;}
+  /* Collapsed: flex column + order:-1 lifts the rating row (now the band's
+     bottom line in DOM order) back above the ticker, preserving the
+     two-line spec. Absolute/hidden children are unaffected by the flex. */
+  #det-modal.hdr-min .d-header-band{padding:calc(3px + env(safe-area-inset-top)) 16px 4px!important;display:flex;flex-direction:column;}
+  #det-modal.hdr-min .d-rating-row{order:-1;margin:0 0 1px;padding-right:0;}
   #det-modal.hdr-min .dh{padding-right:0!important;margin:0;}
   #det-modal.hdr-min .dh .dtk{font-size:1.05em;}
 }
@@ -880,7 +883,10 @@ td.ct{font-weight:700;}
 .dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:84px;justify-content:space-between;}
 .dh-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
-.d-rating-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:84px;margin-bottom:4px;}
+/* Bottom line of the band since 2026-08: margin-top separates it from the
+   meta line above; right padding still clears the absolute flag/reviewed
+   actions pinned at the band's bottom-right. */
+.d-rating-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:84px;margin-top:5px;}
 .d-rating-row .d-gp{font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.02em;white-space:nowrap;margin-left:2px;}
 .d-rsince{display:inline-flex;align-items:center;gap:7px;font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.02em;white-space:nowrap;cursor:default;}
 .d-rsince .rs-up{color:#7ee2a8;}
@@ -1981,10 +1987,14 @@ body.wide-table .container{padding-left:0;padding-right:0;}
     <div class="d-header-band">
       <button class="detail-close" onclick="closeDetail()">&times;</button>
       <button class="detail-menu-btn" id="d-tbtn-all" aria-haspopup="menu" aria-expanded="false" title="Sections" onclick="toggleDetMenu(event)">&#9776;</button>
-      <div class="d-rating-row"><div class="dpx" id="d-px"></div><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
       <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span class="det-nav-pos"></span></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
+      <!-- Rating row is the band's BOTTOM line (below the CEO meta line);
+           in the collapsed hdr-min state a flex order:-1 lifts it back
+           above the ticker so the two-line spec (price·rating·composite /
+           ticker) holds. -->
+      <div class="d-rating-row"><div class="dpx" id="d-px"></div><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
       <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div></div>
       <div class="d-mini-nav-actions"><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
     </div>
