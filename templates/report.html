@@ -637,6 +637,28 @@ td.ct{font-weight:700;}
 .matrix-table tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
 .matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(5),.matrix-table tr:nth-child(even) td:nth-child(6){background:rgba(255,255,255,0.97);}
 .matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(5),.matrix-table tr:hover td:nth-child(6){background:#eaf4fd!important;}
+/* Phones (portrait): the full frozen zone — # · flag · reviewed · ticker ·
+   Today's Rating · Yesterday's Rating — is 304-312px of a ~390px viewport,
+   leaving a sliver for the data. Only the TICKER stays sticky: it pins at
+   left:0 once the leading utility columns scroll under it, and both rating
+   columns scroll with the data. The frozen-edge shadow moves back to the
+   ticker. Scoped to #dtbl / .matrix-table — the heatmap (also .dt) keeps
+   its own Sector-only freeze, and 600px excludes iPhone landscape (≥667px)
+   where the wide zone still fits. */
+@media(max-width:600px){
+  #dtbl th:nth-child(1),#dtbl th:nth-child(2),#dtbl th:nth-child(3),
+  #dtbl tbody td:nth-child(1),#dtbl tbody td:nth-child(2),#dtbl tbody td:nth-child(3),
+  #dtbl th:nth-child(5),#dtbl th:nth-child(6),
+  #dtbl tbody td:nth-child(5),#dtbl tbody td:nth-child(6){position:static;box-shadow:none;}
+  #dtbl th:nth-child(4){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+  #dtbl td.tk2{left:0;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+  .matrix-table thead tr:first-child th:nth-child(1),.matrix-table thead tr:first-child th:nth-child(2),.matrix-table thead tr:first-child th:nth-child(3),
+  .matrix-table tbody td:nth-child(1),.matrix-table tbody td:nth-child(2),.matrix-table tbody td:nth-child(3),
+  .matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6),
+  .matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){position:static;box-shadow:none;}
+  .matrix-table thead tr:first-child th:nth-child(4){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+  .matrix-table td.tk{left:0;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+}
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
 .dt th:first-child{text-align:left;}
 .dt th .arrow{margin-left:3px;font-size:0.7em;}
