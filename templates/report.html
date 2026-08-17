@@ -679,25 +679,43 @@ td.ct{font-weight:700;}
      scroll listener; rules live here so desktop (mouse) never collapses.
      Paddings carry !important to beat the width-media band rules that
      also use it. */
-  #det-modal.hdr-min .d-gp,
-  #det-modal.hdr-min .d-rsince,
-  #det-modal.hdr-min .dcname,
-  #det-modal.hdr-min .dmeta,
-  #det-modal.hdr-min .d-mini-nav,
-  #det-modal.hdr-min .d-mini-nav-actions,
-  #det-modal.hdr-min .det-nav-pos{display:none!important;}
+  /* Transition scaffolding, EXPANDED state: the band is a flex column on
+     touch even when expanded, so padding and row gap interpolate instead
+     of jumping between block and flex layouts. The lines that leave the
+     collapsed banner animate to nothing rather than display:none-ing —
+     max-height→0 for the block lines (name, meta), max-width→0 for the
+     inline tails on surviving lines (gates x/N, rating-since, nav
+     position) — so the rating row visibly pushes the banner closed
+     instead of snapping. The max caps are animation ceilings only,
+     comfortably above real content (meta can wrap to 3-4 lines on an SE).
+     Absolutes (arrows, flag/reviewed) fade — they never affect flow. */
+  .d-header-band{display:flex;flex-direction:column;gap:0;transition:padding .28s ease,gap .28s ease;}
+  .dcname,.dmeta{overflow:hidden;max-height:88px;transition:max-height .28s ease,opacity .18s ease,margin .28s ease;}
+  .d-rating-row{transition:margin .28s ease,padding .28s ease;}
+  .dh{transition:padding .28s ease;}
+  .dh .dtk{transition:font-size .28s ease;}
+  .d-gp,.d-rsince,.det-nav-pos{overflow:hidden;max-width:340px;transition:max-width .28s ease,opacity .18s ease;}
+  .d-mini-nav,.d-mini-nav-actions{transition:opacity .18s ease;}
   /* Collapsed: natural DOM order already reads ticker → rating row once
-     the name/meta lines hide, so no reordering — flex column is kept for
-     the row gap. Breathing room: 8px top/bottom padding and a 5px row
-     gap — tight enough to reclaim the band, loose enough not to feel
-     crushed. The TICKER line is the one sharing height with the ☰/×
-     pair (top:12px+safe), so .dh carries the 76px right clearance
+     the name/meta lines collapse. Breathing room: 8px top/bottom padding
+     and a 5px row gap. The TICKER line shares height with the ☰/× pair
+     (top:12px+safe), so .dh carries the 76px right clearance
      (right:46px + 24px + margin); the rating row below the buttons runs
-     full width. */
-  #det-modal.hdr-min .d-header-band{padding:calc(8px + env(safe-area-inset-top)) 16px 8px!important;display:flex;flex-direction:column;gap:5px;}
+     full width. Zero-width flex-item ghosts (gates/rsince at max-width:0)
+     leave only trailing gap px at the line's END — invisible. */
+  #det-modal.hdr-min .dcname,#det-modal.hdr-min .dmeta{max-height:0;opacity:0;margin:0;}
+  #det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .det-nav-pos{max-width:0;opacity:0;margin:0;}
+  #det-modal.hdr-min .d-mini-nav,#det-modal.hdr-min .d-mini-nav-actions{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .18s ease,visibility 0s linear .18s;}
+  #det-modal.hdr-min .d-header-band{padding:calc(8px + env(safe-area-inset-top)) 16px 8px!important;gap:5px;}
   #det-modal.hdr-min .d-rating-row{margin:0;padding-right:0;}
   #det-modal.hdr-min .dh{margin:0;padding-right:76px!important;}
   #det-modal.hdr-min .dh .dtk{font-size:1.05em;}
+}
+/* Users who ask iOS for reduced motion get the old instant collapse. */
+@media (hover:none) and (pointer:coarse) and (prefers-reduced-motion:reduce){
+  .d-header-band,.dcname,.dmeta,.d-rating-row,.dh,.dh .dtk,
+  .d-gp,.d-rsince,.det-nav-pos,.d-mini-nav,.d-mini-nav-actions,
+  #det-modal.hdr-min .d-mini-nav,#det-modal.hdr-min .d-mini-nav-actions{transition:none;}
 }
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
 .dt th:first-child{text-align:left;}
