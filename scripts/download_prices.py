@@ -5,24 +5,27 @@ to backfill the full SEC EDGAR US-listed universe (matches analyze_stock.py's
 --universe us flag).
 
 Writes one Parquet file per ticker to --output-dir (default: output/prices/).
-Skips tickers whose file already exists, so the run is safely resumable.
-
-Pass --max-age-days N to also REFRESH files whose most recent bar is older
-than N days. Without it the skip is unconditional and nothing on disk is ever
-updated — which is how the universe drifted three months stale in 2026-07.
+By default skips tickers whose file already exists, so the run is safely
+resumable.  Use --refresh (or simply --max-age-days N) to re-download files
+whose latest bar is stale — needed so forward-return backtests/calibration
+have prices that actually reach the evaluation dates. Without a refresh the
+skip is unconditional and nothing on disk is ever updated — which is how the
+universe drifted three months stale in 2026-07.
 
 Usage:
     python scripts/download_prices.py                         # S&P 500 (default)
     python scripts/download_prices.py --universe us           # all US-listed
     python scripts/download_prices.py --output-dir output/prices --delay 0.4
     python scripts/download_prices.py --tickers AAPL MSFT GOOG
-    python scripts/download_prices.py --max-age-days 7        # refresh stale files
+    python scripts/download_prices.py --refresh                 # update stale files
+    python scripts/download_prices.py --refresh --max-age-days 3
 """
 
 import argparse
 import os
 import sys
 import time
+from datetime import date, timedelta
 
 import pandas as pd
 import yfinance as yf
@@ -32,38 +35,42 @@ from scripts.analyze_stock import get_sp500_tickers
 from data.us_listings import fetch_us_listed_tickers
 
 
-def _last_bar_date(path: str):
-    """Date of the most recent row in an existing Parquet file, or None."""
+def _parquet_max_date(path):
+    """Return the latest bar date in an existing parquet, or None on error."""
     try:
-        df = pd.read_parquet(path, columns=["Close"])
-        if df.empty:
-            return None
-        return pd.to_datetime(df.index).tz_localize(None).max()
+        df = pd.read_parquet(path, columns=[])  # index only — cheap
+        idx = pd.to_datetime(df.index)
+        return idx.max().date() if len(idx) else None
     except Exception:
-        return None
+        try:
+            df = pd.read_parquet(path)
+            idx = pd.to_datetime(df.index)
+            return idx.max().date() if len(idx) else None
+        except Exception:
+            return None
 
 
 def download_ticker(ticker: str, output_dir: str, delay: float,
-                    max_age_days: int = None) -> str:
+                    refresh: bool = False, max_age_days: int = 1) -> str:
     """Download max history for one ticker and save as Parquet.
 
-    Returns 'skipped', 'ok', 'refreshed', or an error message string.
+    By default an existing file is left untouched (resumable bulk download).
+    With *refresh*, an existing file is re-downloaded only when its latest bar
+    is more than *max_age_days* old — so stale prices (which silently truncate
+    forward-return calculations) get refreshed without re-fetching files that
+    are already current.
 
-    With *max_age_days* set, an existing file is re-downloaded when its last
-    BAR is older than that many days. Keying on the last bar rather than the
-    file mtime is deliberate: mtime says when we last wrote the file, not how
-    current the data inside it is.
+    Returns 'skipped', 'fresh', 'ok', or an error message string.
     """
     dest = os.path.join(output_dir, f"{ticker}.parquet")
-    existed = os.path.exists(dest)
-    if existed:
-        if max_age_days is None:
+    if os.path.exists(dest):
+        if not refresh:
             return "skipped"
-        last_bar = _last_bar_date(dest)
-        if last_bar is not None:
-            age = (pd.Timestamp.today().normalize() - last_bar).days
-            if age <= max_age_days:
-                return "skipped"
+        last = _parquet_max_date(dest)
+        if last is not None:
+            cutoff = date.today() - timedelta(days=max_age_days)
+            if last >= cutoff:
+                return "fresh"  # already current — no re-download needed
 
     time.sleep(delay)
     try:
@@ -71,12 +78,8 @@ def download_ticker(ticker: str, output_dir: str, delay: float,
         if df.empty:
             return "empty"
         df.index = pd.to_datetime(df.index).tz_localize(None)
-        # Write-then-rename so a concurrent reader never sees a torn file —
-        # analyze_stock.py reads this directory while downloads may be running.
-        tmp = dest + ".tmp"
-        df.to_parquet(tmp)
-        os.replace(tmp, dest)
-        return "refreshed" if existed else "ok"
+        df.to_parquet(dest)
+        return "ok"
     except Exception as e:
         return f"error: {e}"
 
@@ -93,11 +96,21 @@ def main():
                         help="Ticker universe when --tickers is not given. "
                              "'sp500' = S&P 500 (default), 'us' = all US-listed "
                              "equities from SEC EDGAR (~7-10k tickers).")
+    parser.add_argument("--refresh", action="store_true",
+                        help="Re-download existing files whose latest bar is "
+                             "older than --max-age-days (default: off — skip "
+                             "existing files)")
     parser.add_argument("--max-age-days", type=int, default=None,
-                        help="Re-download an existing file when its last bar is "
-                             "older than N days. Omit to keep the default "
-                             "skip-if-exists behaviour (never refreshes).")
+                        help="A file is re-downloaded only if its latest bar is "
+                             "more than this many days old (default: 1). Giving "
+                             "this flag implies --refresh, so the daily "
+                             "pipeline's bare --max-age-days 7 refreshes.")
     args = parser.parse_args()
+
+    # --max-age-days alone means "refresh anything older than N" (the daily
+    # pipeline's invocation style); --refresh alone uses the 1-day default.
+    refresh = args.refresh or (args.max_age_days is not None)
+    max_age_days = args.max_age_days if args.max_age_days is not None else 1
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -111,20 +124,23 @@ def main():
         tickers = sorted(get_sp500_tickers())
 
     total = len(tickers)
-    print(f"{total} tickers to process — output: {args.output_dir}\n")
+    mode = (f"refresh (max-age {max_age_days}d)" if refresh
+            else "resume (skip existing)")
+    print(f"{total} tickers to process — output: {args.output_dir} — mode: {mode}\n")
 
-    ok = skipped = empty = errors = refreshed = 0
+    ok = skipped = fresh = empty = errors = 0
     failed = []
 
     for i, ticker in enumerate(tickers, 1):
         result = download_ticker(ticker, args.output_dir, args.delay,
-                                 max_age_days=args.max_age_days)
+                                 refresh=refresh,
+                                 max_age_days=max_age_days)
         if result == "ok":
             ok += 1
-        elif result == "refreshed":
-            refreshed += 1
         elif result == "skipped":
             skipped += 1
+        elif result == "fresh":
+            fresh += 1
         elif result == "empty":
             empty += 1
             failed.append((ticker, "empty response"))
@@ -135,7 +151,7 @@ def main():
         print(f"  [{i:>3}/{total}] {ticker:<6} {result}")
 
     print(f"\n{'='*50}")
-    print(f"Done.  ok={ok}  refreshed={refreshed}  skipped={skipped}  "
+    print(f"Done.  ok={ok}  fresh={fresh}  skipped={skipped}  "
           f"empty={empty}  errors={errors}")
 
     if failed:
