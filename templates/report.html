@@ -5398,16 +5398,16 @@ var _detTab='overview';
 var _DT_LOOKUP={};
 Object.keys(TC).forEach(function(t){(TC[t]||[]).forEach(function(c){if(!_DT_LOOKUP[c.k])_DT_LOOKUP[c.k]={l:c.l,f:c.f};});});
 var DT_TABS=[
+ /* Sector Analysis renders entirely through its `after` hook — the block
+    builds its own titled dgroup, so the tab declares no groups and
+    _renderDetDataTab skips the standard shell. */
+ {k:'sect',l:'Sector',groups:[],after:_detSectorAnalysisHtml},
  {k:'mkt',l:'Market',groups:[
   {t:'Momentum',cols:[{k:'momentum_12_1'},{k:'momentum_6_1'},{k:'momentum_3m'},{k:'vol_adj_momentum'}]},
   {t:'Liquidity',cols:[{k:'avg_dollar_volume_3m'},{k:'volume_trend'},{k:'amihud_illiquidity'},{k:'share_turnover_rate'}]},
   {t:'52-Week Range',cols:[{k:'high_52w',l:'52W High',f:'dollar'},{k:'low_52w',l:'52W Low',f:'dollar'},{k:'range_52w_position'},{k:'pct_from_52w_high'},{k:'pct_from_52w_low',l:'% from Low',f:'pct'}]},
   {t:'Risk & Beta',cols:[{k:'realized_vol'},{k:'beta_adjusted'},{k:'beta_raw',l:'Beta (raw)',f:'n2'},{k:'beta_r2',l:'Beta R²',f:'n2'},{k:'beta_n_obs',l:'Beta Obs (mo)',f:'int'},{k:'drawdown_2020'},{k:'drawdown_2022'},{k:'drawdown_2008'}]}
  ],extra:_detRollingBetaHtml},
- /* Sector Analysis renders entirely through its `after` hook — the block
-    builds its own titled dgroup, so the tab declares no groups and
-    _renderDetDataTab skips the standard shell. */
- {k:'sect',l:'Sector',groups:[],after:_detSectorAnalysisHtml},
  {k:'val',l:'Valuation',groups:[
   /* The full Intrinsic Value block (DCF, Monte Carlo, DDM, EPV/RIM/NAV,
      assumptions strip) renders via the `after` hook — this group carries
@@ -5495,7 +5495,7 @@ function _renderDetMenu(){
        plain rule above Peers, which with News is a different kind of thing
        from the metric tabs. */
     var pre='';
-    if(it.k==='mkt')pre='<div class="dtb-head">Data</div>';
+    if(it.k==='sect')pre='<div class="dtb-head">Data</div>';
     else if(it.k==='peers')pre='<div class="dtb-sep"></div>';
     else if(it.k===DT_STMTS[0].k)pre='<div class="dtb-head">Statements</div>';
     return pre+'<button class="dtb-item'+(it.k===_detTab?' active':'')+'" role="menuitem"'
