@@ -168,7 +168,7 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
                     base_ebitda=None, exit_multiple=None,
                     n_iterations=1000, growth_sigma=None,
                     wacc_sigma=0.01, tg_sigma=0.005,
-                    exit_mult_sigma=None,
+                    exit_mult_sigma=None, exit_mult_floor=3.0,
                     total_years=10, stage1_years=5):
     """Vectorized Monte Carlo simulation over DCF parameters.
 
@@ -206,8 +206,12 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
     # of how violently the model is being forced to behave.
     n_w_clipped = int(np.sum(w_samples < 0.03))
     w_samples = np.maximum(w_samples, 0.03)
-    n_tg_clipped = int(np.sum(tg_samples > w_samples - 0.01))
-    tg_samples = np.minimum(tg_samples, w_samples - 0.01)
+    # Clip the terminal spread at 2.5% to MATCH the point estimate's min_spread
+    # (two_stage_ev). A looser 1% floor let clipped draws compute terminal
+    # values on a spread ~2.5x tighter, biasing the MC median/p90 above the
+    # point FV in exactly the clip-heavy cases the clip_rate flags.
+    n_tg_clipped = int(np.sum(tg_samples > w_samples - 0.025))
+    tg_samples = np.minimum(tg_samples, w_samples - 0.025)
 
     # --- Vectorized FCF projection: shape (n, total_years) ---
     projected = np.empty((n, total_years))
@@ -243,7 +247,7 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
                 exit_multiple is not None)
     if has_exit:
         em_samples = rng.normal(exit_multiple, max(exit_mult_sigma or 1.0, 0.5), n)
-        em_samples = np.maximum(em_samples, 3.0)  # floor at 3x
+        em_samples = np.maximum(em_samples, exit_mult_floor)  # align with pipeline floor
 
         # Project EBITDA with same growth pattern
         prev_ebitda = np.full(n, base_ebitda)
@@ -277,15 +281,19 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
     if n_valid < n * 0.10:
         return None
 
-    fv_valid = fv_combined[valid]
-    mean_fv = float(np.mean(fv_valid))
+    # Percentiles over ALL draws — insolvent outcomes are clamped to 0 above,
+    # so p10 reflects genuine wipeout risk instead of conditioning on survival
+    # (the old survivors-only p10 dropped exactly the bear scenarios a p10 is
+    # meant to capture). Central tendency is over all draws for consistency.
+    mean_fv = float(np.mean(fv_combined))
+    std_fv = float(np.std(fv_combined))
     return {
-        'median_fv': float(np.median(fv_valid)),
+        'median_fv': float(np.median(fv_combined)),
         'mean_fv': mean_fv,
-        'p10_fv': float(np.percentile(fv_valid, 10)),
-        'p90_fv': float(np.percentile(fv_valid, 90)),
-        'std_fv': float(np.std(fv_valid)),
-        'cv': float(np.std(fv_valid) / mean_fv) if mean_fv > 0 else None,
+        'p10_fv': float(np.percentile(fv_combined, 10)),
+        'p90_fv': float(np.percentile(fv_combined, 90)),
+        'std_fv': std_fv,
+        'cv': float(std_fv / mean_fv) if mean_fv > 0 else None,
         'n_valid': n_valid,
         'n_iterations': n,
         # New diagnostics — surface the upward bias from clipping/filtering.
@@ -355,4 +363,5 @@ def reverse_dcf(price, fcf, wacc, shares_outstanding, net_debt=0,
         else:
             hi = mid
 
-    return {'implied_growth': (lo + hi) / 2.0, 'converged': True}
+    # Exhausted max_iter without meeting tolerance — report non-convergence.
+    return {'implied_growth': (lo + hi) / 2.0, 'converged': False}

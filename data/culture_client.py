@@ -192,5 +192,6 @@ class CultureClient:
             return result
 
         except Exception:
-            _glassdoor_cache[ticker] = empty
+            # Network/parse failure — don't cache; a later ticker pass may
+            # succeed. Only definitive no-match results are cached above.
             return empty

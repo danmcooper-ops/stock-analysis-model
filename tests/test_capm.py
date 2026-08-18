@@ -164,3 +164,37 @@ class TestBuildupRe:
     def test_custom_premiums(self):
         re = buildup_re(0.04, erp=0.06, size_premium=0.03, industry_premium=0.02)
         assert re == pytest.approx(0.15)
+
+
+class TestR2MethodSelection:
+    """The R² tiers the pipeline now implements via select_cost_of_equity's
+    build_re blend (unit-tested at the r2_diagnostic level)."""
+
+    def test_r2_diagnostic_tiers(self):
+        from models.capm import r2_diagnostic
+        assert r2_diagnostic(0.70)[0] == 'reliable'
+        assert r2_diagnostic(0.60)[0] == 'reliable'
+        assert r2_diagnostic(0.50)[0] == 'directional'
+        assert r2_diagnostic(0.40)[0] == 'directional'
+        assert r2_diagnostic(0.39)[0] == 'unreliable'
+        assert r2_diagnostic(0.0)[0] == 'unreliable'
+
+
+class TestTzNormalizeJoin:
+    def test_mixed_tz_series_join_after_normalize(self):
+        import pandas as pd
+        from scripts.analyze_stock import _to_tznaive
+        aware = pd.Series([1.0, 2.0],
+                          index=pd.to_datetime(['2024-01-01', '2024-01-02'], utc=True))
+        naive = pd.Series([3.0, 4.0],
+                          index=pd.to_datetime(['2024-01-01', '2024-01-02']))
+        # Before normalizing, the join would misalign / raise; after, it aligns.
+        combined = pd.DataFrame({'a': _to_tznaive(aware),
+                                 'b': _to_tznaive(naive)}).dropna()
+        assert len(combined) == 2
+
+    def test_beta_rejects_flat_stock_series(self):
+        import numpy as np, pytest
+        from models.capm import calculate_beta
+        with pytest.raises(ValueError):
+            calculate_beta(np.zeros(50), np.random.RandomState(0).normal(0, 0.01, 50))

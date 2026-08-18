@@ -45,12 +45,20 @@ def build_excel(rows, filename):
         else:
             r['_dcf_bear'] = fv * 0.70 if fv is not None else None
             r['_dcf_bull'] = fv * 1.35 if fv is not None else None
+        # Human-readable cap note: only populated when a cap actually
+        # lowered the rating (rating != rating_raw).
+        if r.get('rating_raw') and r.get('rating') != r.get('rating_raw'):
+            r['_cap_note'] = ('capped from ' + r['rating_raw'] + ': '
+                              + '; '.join(r.get('_rating_cap_reasons') or []))
+        else:
+            r['_cap_note'] = None
 
     gate_meta_obj = gate_metadata()
     matrix_cols = [
         ('Ticker', 'ticker', '@'),
         ('Raw Rating', 'rating_raw', '@'),
         ('Final Rating', 'rating', '@'),
+        ('Cap Reason', '_cap_note', '@'),
         ('Composite', '_composite_score', '0"%"'),
         ('Gates Passed', '_gates_passed', '@'),
         ('Sector', 'sector', '@'),
@@ -68,6 +76,7 @@ def build_excel(rows, filename):
         ('Analysis', [
             ('Ticker',           'ticker',            '@'),
             ('Rating',           'rating',            '@'),
+            ('Capped',           '_cap_note',         '@'),
             ('Analyst Rec',      'analyst_rec',       '@'),
             ('Gates Passed',     '_gates_passed',     '@'),
             ('Sector',           'sector',            '@'),
@@ -155,7 +164,6 @@ def build_excel(rows, filename):
         ('Ownership', [
             ('Ticker',            'ticker',                  '@'),
             ('Rating',            'rating',                  '@'),
-            ('Gates Passed',      '_gates_passed',           '@'),
             ('Sector',            'sector',                  '@'),
             ('Mkt Cap ($B)',      '_mcap_b',                 '#,##0.0'),
             ('Shares Out (M)',    '_shares_out_m',           '#,##0.0'),
@@ -179,7 +187,6 @@ def build_excel(rows, filename):
         ]),
         ('Company', [
             ('Ticker',       'ticker',        None),
-            ('Gates Passed', '_gates_passed', None),
             ('CEO',          'ceo_bio',       None),
             ('Founder-Led', '_founder_led',  None),
             ('Sector',      'sector',        None),
@@ -208,7 +215,8 @@ def build_excel(rows, filename):
     # Column widths per sheet (from reference file)
     col_widths = {
         'Analysis': {
-            'ticker': 8, 'rating': 9, 'analyst_rec': 13, '_gates_passed': 14,
+            'ticker': 8, 'rating': 9, '_cap_note': 24, 'analyst_rec': 13,
+            '_gates_passed': 14,
             'sector': 22, '_mcap_b': 15, 'price': 12, 'dcf_fv': 19,
             '_price_fv': 15, 'ms_fv': 15, 'ms_pfv': 13, 'ms_diff': 22,
             'nd_ebitda': 17, 'ev_ebitda': 11, '_sector_median_ee': 22,
@@ -225,7 +233,7 @@ def build_excel(rows, filename):
             'target_mean': 16, 'target_high': 15, 'num_analysts': 12,
         },
         'Ownership': {
-            'ticker': 8, 'rating': 9, '_gates_passed': 14, 'sector': 22,
+            'ticker': 8, 'rating': 9, 'sector': 22,
             '_mcap_b': 15, '_shares_out_m': 16, '_float_m': 13,
             'insider_pct': 14, 'inst_pct': 17, '_short_m': 18,
             'short_ratio': 13, 'short_pct_float': 15,
@@ -236,43 +244,51 @@ def build_excel(rows, filename):
             'insider_sell_count_365d': 14, '_insider_net_value_m': 16,
         },
         'Company': {
-            'ticker': 8, '_gates_passed': 14, 'ceo_bio': 40,
+            'ticker': 8, 'ceo_bio': 40,
             '_founder_led': 13, 'sector': 22, 'industry': 22,
             '_peers': 40, '_description': 134,
         },
         'Matrix': {
-            'ticker': 8, 'rating_raw': 12, 'rating': 14,
+            'ticker': 8, 'rating_raw': 12, 'rating': 14, '_cap_note': 18,
             '_composite_score': 12, '_gates_passed': 11, 'sector': 22,
             '_gate_mos': 8, '_score_mos': 10,
-            '_gate_price_fv': 10, '_score_price_fv': 10,
-            '_gate_epv_p_fv': 10, '_score_epv_p_fv': 12,
+            '_gate_fv_dispersion': 12, '_score_fv_dispersion': 12,
+            '_gate_ebit_ev': 10, '_score_ebit_ev': 10,
+            '_gate_p_tbv': 10, '_score_p_tbv': 10,
+            '_gate_mult_vs_hist': 12, '_score_mult_vs_hist': 12,
+            '_gate_fcf_yield': 10, '_score_fcf_yield': 12,
             '_score_valuation': 10,
             '_gate_piotroski': 11, '_score_piotroski': 14,
             '_gate_int_coverage': 11, '_score_int_coverage': 14,
             '_gate_accruals': 10, '_score_accruals': 13,
+            '_gate_rev_volatility': 12, '_score_rev_volatility': 13,
+            '_gate_net_debt_ebitda': 12, '_score_net_debt_ebitda': 14,
+            '_gate_margin_vs_hist': 12, '_score_margin_vs_hist': 13,
             '_score_quality': 10,
             '_gate_roic_consistency': 13, '_score_roic_consistency': 14,
-            '_gate_spread_>_5%': 12, '_score_spread': 12,
-            '_gate_gross_margin': 13, '_score_gross_margin': 14,
+            '_gate_spread': 12, '_score_spread': 12,
+            '_gate_margin_advantage': 13, '_score_margin_advantage': 14,
+            '_gate_pool_share': 12, '_score_pool_share': 13,
+            '_gate_incr_roic': 11, '_score_incr_roic': 12,
             '_score_moat': 10,
             '_gate_fund_growth': 12, '_score_fund_growth': 10,
             '_gate_margins': 10, '_score_margins': 13,
-            '_gate_surprise': 10, '_score_surprise': 13,
-            '_gate_profit_pool': 12, '_score_profit_pool': 10,
+            '_gate_rev_durability': 12, '_score_rev_durability': 13,
+            '_gate_fcf_durability': 12, '_score_fcf_durability': 13,
             '_score_growth': 12,
             '_gate_shrhldr_yield': 12, '_score_shrhldr_yield': 14,
             '_gate_insider_own': 11, '_score_insider_own': 13,
-            '_gate_turnover': 11, '_score_turnover': 12,
-            '_gate_buyback_rate': 11, '_score_buyback_rate': 14,
+            '_gate_sbc_dilution': 11, '_score_sbc_dilution': 13,
+            '_gate_share_shrink': 11, '_score_share_shrink': 13,
             '_gate_insider_buying': 12, '_score_insider_buying': 13,
             '_score_ownership': 11,
         },
     }
 
     # Frozen columns per sheet (these get row-header gray styling)
-    frozen_cols = {'Analysis': 4, 'Ownership': 4, 'Company': 2, 'Matrix': 6}
+    frozen_cols = {'Analysis': 4, 'Ownership': 3, 'Company': 1, 'Matrix': 7}
 
-    freeze_config = {'Analysis': 'E2', 'Ownership': 'E2', 'Company': 'C2', 'Matrix': 'G4'}
+    freeze_config = {'Analysis': 'E2', 'Ownership': 'D2', 'Company': 'B2', 'Matrix': 'H4'}
 
     # Conditionally add Source column when validation data is present
     _has_validation = any(r.get('source_group') == 'poor' for r in rows)
@@ -283,9 +299,9 @@ def build_excel(rows, filename):
             _cols.insert(1, _src_col)  # insert after Ticker
             col_widths[_sname]['source_group'] = 10
         frozen_cols['Analysis'] = 5
-        frozen_cols['Matrix'] = 7
+        frozen_cols['Matrix'] = 8
         freeze_config['Analysis'] = 'F2'
-        freeze_config['Matrix'] = 'H4'
+        freeze_config['Matrix'] = 'I4'
 
     SECTOR_ORDER = [
         'Technology', 'Communication Services', 'Consumer Cyclical',

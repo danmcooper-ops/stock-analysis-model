@@ -2,6 +2,8 @@
 """HTML report builder — renders the interactive Jinja2 report."""
 import os
 import json
+import re
+import shutil
 import jinja2
 from datetime import date
 import numpy as np
@@ -101,11 +103,365 @@ _RATING_VAL = {'BUY': 3, 'LEAN BUY': 2, 'HOLD': 1, 'PASS': 0}
 def _rating_num(rating):
     return _RATING_VAL.get(rating, -1)
 
-def build_html(rows, filename, prices_dir=None, run_date=None):
+
+def _rating_delta(prev, cur):
+    """Signed step change between two ratings (+ = upgrade, - = downgrade).
+
+    Returns None when either side is missing or unrecognized (e.g. a ticker
+    that is new since the prior run, or a snapshot without ratings), so the
+    column can render 'NEW'/'—' and sort those rows apart from real moves.
+    """
+    if prev in _RATING_VAL and cur in _RATING_VAL:
+        return _RATING_VAL[cur] - _RATING_VAL[prev]
+    return None
+
+
+_PREV_DRIVER_KEYS = (
+    'rating', 'rating_raw', '_rating_cap', '_rating_cap_reasons',
+    '_composite_score', '_data_coverage_score', 'mos',
+    '_score_valuation', '_score_quality', '_score_moat',
+    '_score_growth', '_score_ownership',
+)
+
+
+def _load_prev_ratings(out_dir, run_date, max_lookback=7, extra_keys=()):
+    """Load each ticker's last-known rating (plus its score drivers) for the
+    rate-change column and the popup's "why the rating changed" explanation.
+
+    Scans ``out_dir`` for ``results_YYYY-MM-DD.json`` snapshots dated strictly
+    before ``run_date`` (ISO date strings sort lexicographically, so a plain
+    string compare is correct) and walks them newest-first. For every ticker it
+    records the rating from the *most recent* snapshot that contains it — i.e.
+    "last known rating", not "rating in exactly the prior file". This makes the
+    "Yesterday's Rating" column resilient to a single degraded run: a ticker
+    that transiently dropped out of the immediately-prior snapshot (e.g. a
+    yfinance/SEC fetch timeout) still shows its last real rating instead of N/A.
+
+    The look-back is bounded to the ``max_lookback`` most recent prior snapshots
+    (~1-2 weeks) so a genuinely delisted or long-absent ticker isn't resurrected
+    from stale history.
+
+    Returns ``(prev_date_str, {ticker: drivers})`` where ``drivers`` is a dict
+    of ``_PREV_DRIVER_KEYS`` plus any ``extra_keys`` (per-gate raw values and
+    scores) taken from the same snapshot record that supplied the rating, and
+    ``prev_date_str`` is the date of the most recent prior snapshot (the
+    primary baseline, still the reference for the large majority of tickers).
+    Returns ``(None, {})`` when there is no earlier snapshot at all — the
+    column then degrades to 'NEW'/N/A for every row rather than raising.
+    """
+    import glob
+    import re
+    try:
+        cur = run_date.isoformat() if run_date is not None else None
+    except Exception:
+        cur = None
+    # Collect all prior snapshots, newest date first.
+    dated = []
+    for p in glob.glob(os.path.join(out_dir, 'results_*.json')):
+        m = re.search(r'results_(\d{4}-\d{2}-\d{2})\.json$', os.path.basename(p))
+        if not m:
+            continue
+        d = m.group(1)
+        if cur is not None and d >= cur:
+            continue
+        dated.append((d, p))
+    if not dated:
+        return None, {}
+    dated.sort(key=lambda t: t[0], reverse=True)
+    primary_date = dated[0][0]
+    out = {}
+    filled_via_fallback = 0
+    for d, p in dated[:max_lookback]:
+        try:
+            with open(p) as f:
+                snap = json.load(f)
+        except Exception as e:
+            print(f"[report_html] prior-rating load failed ({p}): {e}")
+            continue
+        recs = snap.get('results') if (isinstance(snap, dict) and 'results' in snap) else snap
+        if not isinstance(recs, list):
+            continue
+        for rec in recs:
+            if not isinstance(rec, dict):
+                continue
+            tk, rt = rec.get('ticker'), rec.get('rating')
+            # Newest-first walk: only fill a ticker the first time we see it, so
+            # the most recent snapshot that rated it wins.
+            if tk and rt and tk not in out:
+                drv = {k: rec.get(k) for k in _PREV_DRIVER_KEYS}
+                for k in extra_keys:
+                    drv[k] = rec.get(k)
+                out[tk] = drv
+                if d != primary_date:
+                    filled_via_fallback += 1
+    if filled_via_fallback:
+        print(f"[report_html] rate-change: {filled_via_fallback} ticker(s) "
+              f"baselined via fallback look-back (missing from {primary_date})")
+    return primary_date, out
+
+# Composite-score floors for each rating band (see rating_from_composite in
+# scripts/scoring.py — 57/39/25 are the calibrated defaults). Keyed by the
+# _RATING_VAL rank of the band the threshold admits into.
+_RATING_THRESHOLD_BY_RANK = {3: 57, 2: 39, 1: 25}
+_RATING_BY_RANK = {v: k for k, v in _RATING_VAL.items()}
+
+
+def _fmt_gate_value(v, fmt):
+    """Format a raw gate value with the gate's display format (mirrors the
+    template's _fmtGate so the explanation reads like the gate table)."""
+    if v is None:
+        return 'N/A'
+    try:
+        if fmt == 'pct1':
+            return f"{v * 100:.1f}%"
+        if fmt == 'ratio':
+            return f"{v:.2f}×"
+        if fmt == 'int':
+            return f"{round(v)}"
+        return f"{v:.2f}"
+    except (TypeError, ValueError):
+        return str(v)
+
+
+def _explain_rating_change(prev, cur, gate_meta):
+    """Build the popup's "why the rating changed" bullet list.
+
+    ``prev`` is the driver dict captured by _load_prev_ratings for the same
+    ticker (None for new tickers); ``cur`` is the full current record. Returns
+    a list of plain-English sentences, or None when the rating didn't change.
+
+    The explanation mirrors how the rating is actually produced (see
+    scripts/scoring.py): a rating cap firing/releasing, the composite score
+    crossing a band threshold, then the category and gate-level score moves
+    that drove the composite.
+    """
+    if not prev:
+        return None
+    p_rt, c_rt = prev.get('rating'), cur.get('rating')
+    delta = _rating_delta(p_rt, c_rt)
+    if not delta:
+        return None
+    up = delta > 0
+    why = []
+
+    # --- Rating caps: a cap firing (downgrade) or releasing (upgrade) can
+    #     change the rating with no composite move at all, so it leads. ---
+    p_raw, c_raw = prev.get('rating_raw'), cur.get('rating_raw')
+    p_reasons = [str(x) for x in (prev.get('_rating_cap_reasons') or [])]
+    c_reasons = [str(x) for x in (cur.get('_rating_cap_reasons') or [])]
+    p_capped = p_raw is not None and p_rt is not None and p_rt != p_raw
+    c_capped = c_raw is not None and c_rt is not None and c_rt != c_raw
+    if not up and c_capped:
+        new_r = [x for x in c_reasons if x not in p_reasons]
+        if new_r:
+            why.append('A rating cap fired this run: '
+                       + '; '.join(new_r)
+                       + f'. On the composite alone it would rate {c_raw}.')
+        elif not p_capped:
+            why.append('The rating is being held down by a cap: '
+                       + ('; '.join(c_reasons) or 'see rating cap')
+                       + f'. On the composite alone it would rate {c_raw}.')
+    if up and p_capped and not c_capped:
+        gone = [x for x in p_reasons if x not in c_reasons]
+        why.append("The prior run's rating cap no longer applies"
+                   + (f" ({'; '.join(gone)})" if gone else '')
+                   + '.')
+
+    # --- Composite score move, with the band threshold(s) it crossed. ---
+    p_cs, c_cs = prev.get('_composite_score'), cur.get('_composite_score')
+    if p_cs is not None and c_cs is not None:
+        # One decimal when integer rounding would collapse a real move into
+        # "57 → 57, crossing the BUY (57) threshold".
+        dp = 1 if round(p_cs) == round(c_cs) else 0
+        s = f'Composite score moved {p_cs:.{dp}f} → {c_cs:.{dp}f}'
+        if (p_raw in _RATING_VAL and c_raw in _RATING_VAL and p_raw != c_raw):
+            lo = min(_RATING_VAL[p_raw], _RATING_VAL[c_raw])
+            hi = max(_RATING_VAL[p_raw], _RATING_VAL[c_raw])
+            crossed = [f'{_RATING_BY_RANK[rk]} ({_RATING_THRESHOLD_BY_RANK[rk]})'
+                       for rk in range(hi, lo, -1)]
+            s += (', crossing ' + ('above' if up else 'below') + ' the '
+                  + ' and '.join(crossed)
+                  + (' thresholds' if len(crossed) > 1 else ' threshold'))
+        elif p_raw == c_raw and p_raw is not None:
+            s += ' (the composite-only rating band did not change)'
+        why.append(s + '.')
+    elif p_cs is None and c_cs is not None:
+        why.append('The prior run had no composite score (insufficient scoring '
+                   'data); this run scored it '
+                   f'{c_cs:.0f}, rating {c_rt}.')
+    elif p_cs is not None and c_cs is None:
+        why.append('This run produced no composite score (insufficient scoring '
+                   'data), so the rating fell back to the cap/default path.')
+
+    # --- Category-level attribution: which score groups moved the composite. ---
+    cat_moves = []
+    for c in gate_meta.get('categories', []):
+        pv, cv = prev.get(c['scoreKey']), cur.get(c['scoreKey'])
+        if pv is None or cv is None:
+            continue
+        d = cv - pv
+        if abs(d) < 3:
+            continue
+        cat_moves.append((abs(d) * (c.get('weight') or 0), c['name'], pv, cv, d))
+    cat_moves.sort(key=lambda t: -t[0])
+    if cat_moves:
+        why.append('Biggest category moves: ' + ', '.join(
+            f'{name} {pv:.0f} → {cv:.0f} ({d:+.0f})'
+            for _, name, pv, cv, d in cat_moves[:3]) + '.')
+
+    # --- Gate-level attribution: the individual metrics behind those moves. ---
+    gate_moves = []
+    for g in gate_meta.get('gates', []):
+        ps, cs = prev.get(g['scoreKey']), cur.get(g['scoreKey'])
+        if ps is None or cs is None:
+            continue
+        d = cs - ps
+        if abs(d) < 15:
+            continue
+        gate_moves.append((abs(d) * (g.get('weight') or 0), g, ps, cs,
+                           prev.get(g['key']), cur.get(g['key'])))
+    gate_moves.sort(key=lambda t: -t[0])
+    if gate_moves:
+        why.append('Largest metric swings: ' + '; '.join(
+            f"{g['label']} {_fmt_gate_value(pv, g['fmt'])} → "
+            f"{_fmt_gate_value(cv, g['fmt'])} (score {ps:.0f} → {cs:.0f})"
+            for _, g, ps, cs, pv, cv in gate_moves[:3]) + '.')
+
+    if not why:
+        why.append('Underlying inputs shifted between runs, but no single '
+                   'score driver moved enough to attribute the change '
+                   '(likely small moves straddling a rating threshold).')
+    return why
+
+
+def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
+    """Per-ticker rating change-points across prior snapshots, for the popup's
+    "BUY since ..." context line.
+
+    Returns ``{ticker: [[date, rating], ...]}`` — change-points only (the first
+    observation plus every transition), ascending by date, filtered to dates
+    strictly before ``run_date`` so re-rendering an old snapshot never sees
+    "future" history.
+
+    Parsing every historical results_*.json (~66MB each) on every render would
+    be minutes of work, so an incremental cache (``out_dir/rating_history.json``)
+    stores the accumulated change-points plus the last snapshot date scanned;
+    each render only parses snapshots newer than that. Only strictly-newer dates
+    are appended, so a late-backfilled older snapshot can't corrupt ordering
+    (delete the cache to force a full rebuild that includes it). A missing or
+    corrupt cache also triggers a full rebuild.
+    """
+    import glob
+    import re
+    try:
+        cur = run_date.isoformat() if run_date is not None else None
+    except Exception:
+        cur = None
+    dated = []
+    for p in glob.glob(os.path.join(out_dir, 'results_*.json')):
+        m = re.search(r'results_(\d{4}-\d{2}-\d{2})\.json$', os.path.basename(p))
+        if m:
+            dated.append((m.group(1), p))
+    dated.sort()
+    if not dated:
+        return {}
+    cache_path = os.path.join(out_dir, cache_name)
+    hist, last_scanned = {}, None
+    try:
+        with open(cache_path) as f:
+            c = json.load(f)
+        if isinstance(c, dict) and isinstance(c.get('hist'), dict):
+            hist = c['hist']
+            last_scanned = c.get('last_scanned')
+    except Exception:
+        hist, last_scanned = {}, None
+    # Never scan the render date's own snapshot: during a rescore it is
+    # rewritten *after* this runs, so caching it here would freeze pre-rescore
+    # ratings. The next render picks it up once it is final.
+    todo = [(d, p) for d, p in dated
+            if (last_scanned is None or d > last_scanned)
+            and (cur is None or d < cur)]
+    for d, p in todo:
+        try:
+            with open(p) as f:
+                snap = json.load(f)
+        except Exception as e:
+            print(f"[report_html] rating-history load failed ({p}): {e}")
+            continue
+        recs = snap.get('results') if (isinstance(snap, dict) and 'results' in snap) else snap
+        if not isinstance(recs, list):
+            continue
+        for rec in recs:
+            if not isinstance(rec, dict):
+                continue
+            tk, rt = rec.get('ticker'), rec.get('rating')
+            if not tk or not rt:
+                continue
+            seq = hist.setdefault(tk, [])
+            if not seq or seq[-1][1] != rt:
+                seq.append([d, rt])
+        last_scanned = d
+    if todo:
+        try:
+            with open(cache_path, 'w') as f:
+                json.dump({'last_scanned': last_scanned, 'hist': hist}, f)
+            print(f"[report_html] rating-history cache: +{len(todo)} snapshot(s), "
+                  f"{len(hist)} tickers, through {last_scanned}")
+        except Exception as e:
+            print(f"[warn] rating-history cache write failed: {e}")
+    if cur is None:
+        return hist
+    # Exclude entries on/after the render date (rescoring an older snapshot).
+    return {tk: [cp for cp in seq if cp[0] < cur]
+            for tk, seq in hist.items()}
+
+
+def _load_russell2000():
+    """Ticker set for the Russell 2000 quick filter.
+
+    Read from data/russell2000_tickers.txt (dash-style tickers, one per
+    line; refresh via scripts/update_russell2000.py). Loaded at render
+    time so a rescore_and_render picks up a refreshed list without a
+    live run. Missing file degrades to an empty set — the filter then
+    simply matches nothing.
+    """
+    path = os.path.join(_HERE, '..', 'data', 'russell2000_tickers.txt')
+    try:
+        with open(path) as f:
+            return {ln.strip().upper() for ln in f
+                    if ln.strip() and not ln.startswith('#')}
+    except OSError:
+        print("[report_html] russell2000_tickers.txt not found — "
+              "Russell 2000 quick filter will match nothing")
+        return set()
+
+
+def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None):
     """Render the interactive HTML report via Jinja2 template."""
     rows = _sanitize(rows)
+    _r2000 = _load_russell2000()
+    # Prior-run ratings for the "Δ vs prior" column. Sourced from the most
+    # recent earlier results_*.json sitting next to this HTML output.
+    try:
+        _out_dir_early = os.path.dirname(os.path.abspath(filename)) or '.'
+    except OSError:
+        # abspath needs getcwd(), which can raise EPERM if the working
+        # directory became unreadable mid-run (e.g. a macOS TCC revocation).
+        _out_dir_early = os.path.dirname(filename) or '.'
     gate_meta_obj = gate_metadata()
-    total = len(rows)
+    # Per-gate raw values + scores from the prior snapshot feed the popup's
+    # "why the rating changed" explanation.
+    _prev_gate_keys = [k for g in gate_meta_obj['gates']
+                       for k in (g['key'], g['scoreKey'])]
+    prev_run_date, _prev_ratings = _load_prev_ratings(
+        _out_dir_early, run_date, extra_keys=_prev_gate_keys)
+    if _prev_ratings:
+        print(f"[report_html] rate-change baseline: {prev_run_date} "
+              f"({len(_prev_ratings)} tickers)")
+    else:
+        print("[report_html] rate-change baseline: none found (Yesterday's Rating shows N/A)")
+    # Long-horizon rating change-points for the popup's "BUY since ..." line.
+    _rating_hist = _load_rating_history(_out_dir_early, run_date)
     spread_vals = [r['spread'] for r in rows if r.get('spread') is not None]
     avg_spread = sum(spread_vals) / len(spread_vals) if spread_vals else 0
     qualifying_with_mos = sum(1 for r in rows if r.get('mos') is not None and r['mos'] > 0)
@@ -116,10 +472,24 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'ticker': r['ticker'],
         'roic': r.get('roic'), 'wacc': r.get('wacc'), 'spread': r.get('spread'),
         'dcf_fv': r.get('dcf_fv'), 'price': r.get('price'), 'mos': r.get('mos'),
+        # The FV the MoS was actually computed against (may be a blend of
+        # models) — the popup banner shows this so FV and MoS never disagree.
+        '_fv_effective': r.get('_fv_effective'),
+        '_fv_source': r.get('_fv_source'),
         'piotroski': r.get('piotroski'),
         'pe': r.get('pe'), 'ev_ebitda': r.get('ev_ebitda'),
         'rating': r.get('rating'), 'rating_raw': r.get('rating_raw'),
-        '_rating_from_score': r.get('_rating_from_score'),
+        # Rate change vs the prior run: prior rating string + signed step
+        # delta (+ upgrade / - downgrade / 0 unchanged / None if new-or-missing),
+        # plus the "why it changed" bullets for the popup (None unless changed).
+        'rating_prev': (_prev_ratings.get(r.get('ticker')) or {}).get('rating'),
+        'rating_chg': _rating_delta(
+            (_prev_ratings.get(r.get('ticker')) or {}).get('rating'),
+            r.get('rating')),
+        'rating_chg_why': _explain_rating_change(
+            _prev_ratings.get(r.get('ticker')), r, gate_meta_obj),
+        # Rating change-points (last 12) for "BUY since ..." in the popup.
+        'rating_hist': (_rating_hist.get(r.get('ticker')) or [])[-12:],
         '_rating_cap': r.get('_rating_cap'),
         '_rating_cap_reasons': r.get('_rating_cap_reasons', []),
         'analyst_rec': r.get('analyst_rec'),
@@ -132,6 +502,9 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'description_full': r.get('description') or '',
         'ceo_bio': r.get('ceo_bio') or '',
         'founder_led': r.get('founder_led', False),
+        # Russell 2000 membership (see _load_russell2000). Tickers in the
+        # constituent file are dash-style, matching the model's own tickers.
+        'r2000': (r.get('ticker') or '').upper() in _r2000,
         'fcf': r.get('fcf'),
         'fcf_margin': r.get('fcf_margin'),
         'sbc_pct_rev': r.get('sbc_pct_rev'),
@@ -159,6 +532,11 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'target_mean': r.get('target_mean'),
         'target_high': r.get('target_high'),
         'target_low': r.get('target_low'),
+        'analyst_ltg': r.get('analyst_ltg'),
+        # Forward-looking (live-run only; absent on older snapshots and the
+        # popup hides the affected rows/chips)
+        'earnings_next_date': r.get('earnings_next_date'),
+        'earnings_date_est': r.get('earnings_date_est'),
         'cash_conv': r.get('cash_conv'),
         'accruals': r.get('accruals'),
         'rev_cagr': r.get('rev_cagr'),
@@ -167,6 +545,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'int_cov': r.get('int_cov'),
         'nd_ebitda': r.get('nd_ebitda'),
         'de': r.get('de'),
+        'total_debt': r.get('total_debt'),
+        'net_debt': r.get('net_debt'),
+        'cash': r.get('cash'),
+        'total_liabilities': r.get('total_liabilities'),
         'cr': r.get('cr'),
         'roe': r.get('roe'),
         'roa': r.get('roa'),
@@ -207,6 +589,20 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'brand_spend_pct_rev': r.get('brand_spend_pct_rev'),
         # Phase 6 — Energy / Utilities / Materials capital reinvestment.
         'capex_to_dd_ratio': r.get('capex_to_dd_ratio'),
+        # Phase 7 — cross-sector quick wins + new XBRL/free-source KPIs.
+        # rule_of_40 / book_to_bill_proxy / brand_spend_trend are pure-local
+        # (enrich_xbrl); debt_maturity_wall_yrs from XBRL maturity buckets;
+        # combined_ratio / float_cost from insurer XBRL; deposit_beta from
+        # multi-period FDIC (enrich_fdic); fda_pipeline_count from
+        # ClinicalTrials.gov (enrich_pipeline).
+        'rule_of_40': r.get('rule_of_40'),
+        'book_to_bill_proxy': r.get('book_to_bill_proxy'),
+        'brand_spend_trend': r.get('brand_spend_trend'),
+        'debt_maturity_wall_yrs': r.get('debt_maturity_wall_yrs'),
+        'combined_ratio': r.get('combined_ratio'),
+        'float_cost': r.get('float_cost'),
+        'deposit_beta': r.get('deposit_beta'),
+        'fda_pipeline_count': r.get('fda_pipeline_count'),
         # Ownership
         'shares_out': r.get('shares_out'),
         'float_shares': r.get('float_shares'),
@@ -250,81 +646,11 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'pp_sector_cr4': r.get('pp_sector_cr4'),
         'pp_sector_count': r.get('pp_sector_count'),
         '_sector_median_opm': r.get('_sector_median_opm'),
-        # Gate values (actual metric)
-        '_gate_mos': r.get('_gate_mos'),
-        '_gate_price_fv': r.get('_gate_price_fv'),
-        '_gate_p_fcf': r.get('_gate_p_fcf'),
-        '_gate_piotroski': r.get('_gate_piotroski'),
-        '_gate_int_coverage': r.get('_gate_int_coverage'),
-        '_gate_accruals': r.get('_gate_accruals'),
-        '_gate_shrhldr_yield': r.get('_gate_shrhldr_yield'),
-        '_gate_roic_consistency': r.get('_gate_roic_consistency'),
-        '_gate_spread_>_5%': r.get('_gate_spread_>_5%'),
-        '_gate_gross_margin': r.get('_gate_gross_margin'),
-        '_gate_fund_growth': r.get('_gate_fund_growth'),
-        '_gate_margins': r.get('_gate_margins'),
-        '_gate_surprise': r.get('_gate_surprise'),
-        '_gate_insider_own': r.get('_gate_insider_own'),
-        '_gate_turnover': r.get('_gate_turnover'),
-        '_gate_buyback_rate': r.get('_gate_buyback_rate'),
-        '_gate_insider_buying': r.get('_gate_insider_buying'),
-        '_gate_roe': r.get('_gate_roe'),
-        '_gate_net_debt_ebitda': r.get('_gate_net_debt_ebitda'),
-        '_gate_cash_conv': r.get('_gate_cash_conv'),
-        '_gate_rev_durability': r.get('_gate_rev_durability'),
-        '_gate_sbc_dilution': r.get('_gate_sbc_dilution'),
-        '_gate_p_tbv': r.get('_gate_p_tbv'),
-        '_gate_fcf_margin': r.get('_gate_fcf_margin'),
-        # Gate pass/fail booleans
-        '_gp_mos': r.get('_gp_mos'),
-        '_gp_price_fv': r.get('_gp_price_fv'),
-        '_gp_p_fcf': r.get('_gp_p_fcf'),
-        '_gp_piotroski': r.get('_gp_piotroski'),
-        '_gp_int_coverage': r.get('_gp_int_coverage'),
-        '_gp_accruals': r.get('_gp_accruals'),
-        '_gp_shrhldr_yield': r.get('_gp_shrhldr_yield'),
-        '_gp_roic_consistency': r.get('_gp_roic_consistency'),
-        '_gp_spread_>_5%': r.get('_gp_spread_>_5%'),
-        '_gp_gross_margin': r.get('_gp_gross_margin'),
-        '_gp_fund_growth': r.get('_gp_fund_growth'),
-        '_gp_margins': r.get('_gp_margins'),
-        '_gp_surprise': r.get('_gp_surprise'),
-        '_gp_insider_own': r.get('_gp_insider_own'),
-        '_gp_turnover': r.get('_gp_turnover'),
-        '_gp_buyback_rate': r.get('_gp_buyback_rate'),
-        '_gp_insider_buying': r.get('_gp_insider_buying'),
-        '_gp_roe': r.get('_gp_roe'),
-        '_gp_net_debt_ebitda': r.get('_gp_net_debt_ebitda'),
-        '_gp_cash_conv': r.get('_gp_cash_conv'),
-        '_gp_rev_durability': r.get('_gp_rev_durability'),
-        '_gp_sbc_dilution': r.get('_gp_sbc_dilution'),
-        '_gp_p_tbv': r.get('_gp_p_tbv'),
-        '_gp_fcf_margin': r.get('_gp_fcf_margin'),
-        # Continuous scores (0-100)
-        '_score_mos': r.get('_score_mos'),
-        '_score_price_fv': r.get('_score_price_fv'),
-        '_score_p_fcf': r.get('_score_p_fcf'),
-        '_score_piotroski': r.get('_score_piotroski'),
-        '_score_int_coverage': r.get('_score_int_coverage'),
-        '_score_accruals': r.get('_score_accruals'),
-        '_score_shrhldr_yield': r.get('_score_shrhldr_yield'),
-        '_score_roic_consistency': r.get('_score_roic_consistency'),
-        '_score_spread': r.get('_score_spread'),
-        '_score_gross_margin': r.get('_score_gross_margin'),
-        '_score_fund_growth': r.get('_score_fund_growth'),
-        '_score_margins': r.get('_score_margins'),
-        '_score_surprise': r.get('_score_surprise'),
-        '_score_insider_own': r.get('_score_insider_own'),
-        '_score_turnover': r.get('_score_turnover'),
-        '_score_buyback_rate': r.get('_score_buyback_rate'),
-        '_score_insider_buying': r.get('_score_insider_buying'),
-        '_score_roe': r.get('_score_roe'),
-        '_score_net_debt_ebitda': r.get('_score_net_debt_ebitda'),
-        '_score_cash_conv': r.get('_score_cash_conv'),
-        '_score_rev_durability': r.get('_score_rev_durability'),
-        '_score_sbc_dilution': r.get('_score_sbc_dilution'),
-        '_score_p_tbv': r.get('_score_p_tbv'),
-        '_score_fcf_margin': r.get('_score_fcf_margin'),
+        # Per-gate _gate_*/_gp_*/_score_* keys are emitted dynamically from
+        # the active gate definitions further down (see the gate_meta_obj
+        # spread) so the payload can't drift out of sync with scoring.py —
+        # a hand-maintained list carried dead keys for retired gates and
+        # missed newly-added ones.
         # Category totals + composite
         '_score_valuation': r.get('_score_valuation'),
         '_score_quality': r.get('_score_quality'),
@@ -374,6 +700,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'ddm_sustainable_growth': r.get('ddm_sustainable_growth'),
         'ddm_payout_flag': r.get('ddm_payout_flag', False),
         'ddm_consecutive_years': r.get('ddm_consecutive_years'),
+        'ddm_reason': r.get('ddm_reason'),
+        'dividend_cagr_5y': r.get('dividend_cagr_5y'),
         'ddm_mc_median': r.get('ddm_mc_median'),
         'ddm_mc_p10': r.get('ddm_mc_p10'),
         'ddm_mc_p90': r.get('ddm_mc_p90'),
@@ -397,6 +725,12 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         # Beneish
         'beneish_m': r.get('beneish_m'),
         'beneish_flag': r.get('beneish_flag'),
+        # Value-trap overlay (display-only; experimental until the forward-
+        # return calibration lands — see scoring.compute_trap_signals)
+        'trap_score': r.get('trap_score'),
+        'trap_flag': r.get('trap_flag'),
+        'trap_reasons': r.get('trap_reasons'),
+        '_trap_components': r.get('_trap_components'),
         # DuPont
         'dupont_margin': r.get('dupont_margin'),
         'dupont_turnover': r.get('dupont_turnover'),
@@ -407,6 +741,24 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'pct_from_52w_high': r.get('pct_from_52w_high'),
         'pct_from_52w_low': r.get('pct_from_52w_low'),
         'range_52w_position': r.get('range_52w_position'),
+        # Market & Risk tab + the detail panel's Price Signals group. These were
+        # computed and persisted to the results JSON since the rolling-beta work
+        # but never projected into the payload, so every consumer of them
+        # rendered N/A. Momentum is display-only by design (see TC.mkt in the
+        # template); only avg_dollar_volume_3m feeds scoring, as a HOLD cap.
+        'momentum_12_1': r.get('momentum_12_1'),
+        'momentum_6_1': r.get('momentum_6_1'),
+        'momentum_3m': r.get('momentum_3m'),
+        'vol_adj_momentum': r.get('vol_adj_momentum'),
+        'realized_vol': r.get('realized_vol'),
+        'avg_dollar_volume_3m': r.get('avg_dollar_volume_3m'),
+        'amihud_illiquidity': r.get('amihud_illiquidity'),
+        'volume_trend': r.get('volume_trend'),
+        'price_data_stale': r.get('price_data_stale'),
+        'drawdown_2008': r.get('drawdown_2008'),
+        'drawdown_2020': r.get('drawdown_2020'),
+        'drawdown_2022': r.get('drawdown_2022'),
+        'rolling_betas': r.get('rolling_betas'),
         # Portfolio
         'position_weight': r.get('position_weight'),
         # Culture narrative (descriptive, woven into company description)
@@ -442,6 +794,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         'financial_summary', 'sector_headwinds', 'sector_tailwinds',
         'news_headlines', 'news_sentiment',
         'legal_filings', 'insider_transactions',
+        '_trap_components',  # per-axis trap sub-scores; popup-only detail
     )
     details_payload = {}
     for _rec in chart_records:
@@ -483,16 +836,29 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
     # template lazy-fetches them on first chart open, so the embedded HTML
     # stays small enough to publish via GitHub Pages (<100 MB hard cap).
-    out_dir = os.path.dirname(os.path.abspath(filename)) or '.'
+    try:
+        out_dir = os.path.dirname(os.path.abspath(filename)) or '.'
+    except OSError:
+        # Same getcwd()/EPERM guard as _out_dir_early above.
+        out_dir = os.path.dirname(filename) or '.'
     hist_path = os.path.join(out_dir, 'hist.json')
-    prices_path = os.path.join(out_dir, 'prices.json')
+    prices_path = os.path.join(out_dir, 'prices.json')  # legacy monolith; now only removed
+    prices_meta_path = os.path.join(out_dir, 'prices_meta.json')
     details_path = os.path.join(out_dir, 'details.json')
+    vol_dir = os.path.join(out_dir, 'vol')
+    px_dir = os.path.join(out_dir, 'px')
+
+    # Every sidecar is written compact. json.dump's default separators put a
+    # space after each comma, which on prices.json alone (11.6M array elements)
+    # wasted 11.6 MB of the 100 MB Pages budget.
+    _COMPACT = (',', ':')
 
     # Write details.json sidecar (or remove a stale one)
     try:
         if details_payload:
             with open(details_path, 'w') as _df:
-                json.dump(details_payload, _df, default=_json_default)
+                json.dump(details_payload, _df, default=_json_default,
+                          separators=_COMPACT)
         elif os.path.exists(details_path):
             os.remove(details_path)
     except Exception as _e:
@@ -510,6 +876,61 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
             ('gross_profit_history', 'gp'),
             ('shares_history', 'shares'),
             ('dividends_paid_history', 'div'),
+            ('total_debt_history', 'debt'),
+            ('cash_history', 'cash'),
+            # Track Record rows: Op Margin + Interest Coverage by year
+            ('operating_income_history', 'op'),
+            ('interest_expense_history', 'intexp'),
+            # Popup statement tabs (Balance Sheet / Income Statement / Cash
+            # Flow). Absent until a run refreshes edgar_history with the
+            # 2026-08 extractor; the tabs hide rows whose series is missing.
+            ('pretax_income_history', 'pretax'),
+            ('tax_provision_history', 'tax'),
+            ('d_and_a_history', 'dna'),
+            ('total_assets_history', 'assets'),
+            ('current_assets_history', 'ca'),
+            ('current_liabilities_history', 'cl'),
+            ('total_liabilities_history', 'liabs'),
+            ('total_equity_history', 'equity'),
+            ('retained_earnings_history', 'retearn'),
+            # GAAP presentation lines, so the three statement tabs can follow
+            # Reg S-X / ASC 220-210-230 ordering instead of listing whatever
+            # happened to be extracted. Short keys keep the sidecar small —
+            # it already ships ~2,000 tickers.
+            ('cost_of_revenue_history', 'cogs'),
+            ('rd_expense_history', 'rd'),
+            ('sga_expense_history', 'sga'),
+            ('selling_marketing_history', 'selmkt'),
+            ('total_opex_history', 'opex'),
+            ('other_nonop_history', 'othnonop'),
+            ('eps_basic_history', 'epsb'),
+            ('eps_diluted_history', 'epsd'),
+            ('wavg_basic_history', 'wavgb'),
+            ('wavg_diluted_history', 'wavgd'),
+            ('st_investments_history', 'stinv'),
+            ('receivables_history', 'recv'),
+            ('inventory_history', 'invty'),
+            ('ppe_net_history', 'ppe'),
+            ('goodwill_history', 'gw'),
+            ('intangibles_history', 'intang'),
+            ('accounts_payable_history', 'ap'),
+            ('liab_and_equity_history', 'lae'),
+            ('cs_apic_history', 'csapic'),
+            ('aoci_history', 'aoci'),
+            ('treasury_stock_history', 'treas'),
+            ('minority_interest_history', 'minint'),
+            ('debt_current_history', 'debtcur'),
+            ('debt_noncurrent_history', 'debtnc'),
+            ('investing_cf_history', 'icf'),
+            ('financing_cf_history', 'fincf'),
+            ('sbc_cf_history', 'sbccf'),
+            ('deferred_tax_history', 'deftax'),
+            ('buybacks_history', 'buyback'),
+            ('debt_issued_history', 'dissued'),
+            ('debt_repaid_history', 'drepaid'),
+            ('acquisitions_history', 'acq'),
+            ('net_change_cash_history', 'chgcash'),
+            ('fx_effect_cash_history', 'fxeff'),
         ]
         for r in rows:
             tk = r.get('ticker')
@@ -557,7 +978,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
     try:
         if hist_payload is not None:
             with open(hist_path, 'w') as _hf:
-                json.dump(hist_payload, _hf, default=_json_default)
+                json.dump(hist_payload, _hf, default=_json_default,
+                          separators=_COMPACT)
         elif os.path.exists(hist_path):
             os.remove(hist_path)
     except Exception as _e:
@@ -565,11 +987,33 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
 
     # Load price history from local Parquet files
     prices_payload = None
+    px_payload = None
+    vol_payload = None
     if prices_dir and os.path.isdir(prices_dir):
         try:
             import pandas as _pd
             _cutoff = _pd.Timestamp.now().normalize() - _pd.DateOffset(years=20)
+
+            def _clean_close(s):
+                # The yfinance cache carries garbage closes on ~57 OTC lines:
+                # negative back-adjusted prices, 1e28-scale blowups, and
+                # sub-penny quotes that round to 0.00 in the 2-decimal shard
+                # format. Any of these poisons every chart downstream (a zero
+                # or negative rebase base turns a whole sector composite line
+                # into inf/None), so they are dropped here at ingestion, not
+                # patched around per-chart. Bounds: positive after rounding,
+                # and within 1000x of the series median — no real close sits
+                # 1000x from its own 20-year median (NVDA's full run is ~40x),
+                # but the adjustment glitches sit at 1e6x and beyond.
+                s = s[s > 0.005]
+                if len(s):
+                    _med = float(s.median())
+                    if _med > 0:
+                        s = s[s <= _med * 1000]
+                return s
             _series = {}
+            _vol_series = {}
+            _buyfrac_series = {}
             for r in rows:
                 tk = r.get('ticker')
                 if not tk:
@@ -578,11 +1022,35 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
                 if not os.path.exists(pf):
                     continue
                 try:
-                    df = _pd.read_parquet(pf)[['Close']].sort_index()
+                    df = _pd.read_parquet(pf).sort_index()
                     df.index = _pd.to_datetime(df.index).tz_localize(None).normalize()
-                    s = df['Close'][df.index >= _cutoff].dropna()
+                    _keep = df.index >= _cutoff
+                    s = _clean_close(df['Close'][_keep].dropna())
                     if len(s) >= 20:
                         _series[tk] = s
+                        # Volume rides along for the popup chart's sub-panel.
+                        # Never name it in a columns= projection: ~0.6% of the
+                        # files were written Close-only by the yfinance_client
+                        # fallback and the projection would raise on those.
+                        if 'Volume' in df.columns:
+                            _v = df['Volume'][_keep].dropna()
+                            if len(_v) >= 20:
+                                _vol_series[tk] = _v
+                                # Estimated buying share of the day's volume,
+                                # from where the close sits in the day's range:
+                                # the money-flow multiplier behind Chaikin
+                                # Accumulation/Distribution. Daily bars can't
+                                # tell us who initiated a trade — that needs
+                                # tick data — so this is explicitly an estimate
+                                # and the report labels it as one. A zero-range
+                                # day (limit move, halt) splits evenly.
+                                if 'High' in df.columns and 'Low' in df.columns:
+                                    _hi = df['High'][_keep]
+                                    _lo = df['Low'][_keep]
+                                    _rng = _hi - _lo
+                                    _f = ((df['Close'][_keep] - _lo) / _rng)
+                                    _f = _f.where(_rng > 0, 0.5).clip(0.0, 1.0)
+                                    _buyfrac_series[tk] = _f
                 except Exception:
                     pass
             # Also load any available index files
@@ -595,7 +1063,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
                 try:
                     _idf = _pd.read_parquet(_ipf)[['Close']].sort_index()
                     _idf.index = _pd.to_datetime(_idf.index).tz_localize(None).normalize()
-                    _is = _idf['Close'][_idf.index >= _cutoff].dropna()
+                    _is = _clean_close(_idf['Close'][_idf.index >= _cutoff].dropna())
                     if len(_is) >= 20:
                         _series[_itk] = _is
                         _indices_found.append({'ticker': _itk, 'label': _ilabel})
@@ -613,24 +1081,233 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
                         if i is not None:
                             arr[i] = round(float(v), 2)
                     _prices_out[tk] = arr
+                # Daily volume ships as one small file per ticker rather than a
+                # second dense matrix: the popup opens one company at a time, so
+                # it fetches ~30 KB instead of the ~53 MB the matrix would cost —
+                # and prices.json stays clear of the 100 MB Pages cap.
+                _vol_out = {}
+                for tk, v in _vol_series.items():
+                    if tk not in _prices_out:
+                        continue
+                    # Ticker names become filenames below; keep the plainly
+                    # safe ones rather than trusting the universe file.
+                    if not re.fullmatch(r'[A-Za-z0-9._-]{1,15}', tk):
+                        continue
+                    arr = [None] * len(_all_dates)
+                    for dt, x in v.items():
+                        i = _date_idx.get(dt)
+                        if i is not None:
+                            arr[i] = int(x)
+                    # Run-trim the leading/trailing null padding — a quarter of
+                    # the dense layout's cells are nulls a short-history ticker
+                    # should not have to pay for.
+                    lo, hi = 0, len(arr) - 1
+                    while lo <= hi and arr[lo] is None:
+                        lo += 1
+                    while hi >= lo and arr[hi] is None:
+                        hi -= 1
+                    if hi < lo:
+                        continue
+                    shard = {'i0': lo, 'v': arr[lo:hi + 1]}
+                    # Buying share as an int 0-100, on the SAME run as v so the
+                    # client can index both with one offset. 1% of a day's
+                    # volume is finer than a 40px-tall stacked bar can show.
+                    fs = _buyfrac_series.get(tk)
+                    if fs is not None:
+                        farr = [None] * len(_all_dates)
+                        for dt, x in fs.dropna().items():
+                            i = _date_idx.get(dt)
+                            if i is not None and arr[i] is not None:
+                                farr[i] = int(round(float(x) * 100))
+                        shard['f'] = farr[lo:hi + 1]
+                    _vol_out[tk] = shard
+                # Close prices ship one small shard per ticker (px/<TICKER>.json,
+                # ~30 KB), exactly like vol/ — the dense prices.json matrix had
+                # grown to ~62 MB, a 30s+ blocking download for every chart and
+                # on course for the GitHub Pages 100 MB cap. Shard shape mirrors
+                # vol: {i0, p} run-trimmed of null padding, indexed into dates.
+                _px_out = {}
+                for tk, arr in _prices_out.items():
+                    if not re.fullmatch(r'[A-Za-z0-9._-]{1,15}', tk):
+                        continue
+                    lo, hi = 0, len(arr) - 1
+                    while lo <= hi and arr[lo] is None:
+                        lo += 1
+                    while hi >= lo and arr[hi] is None:
+                        hi -= 1
+                    if hi < lo:
+                        continue
+                    _px_out[tk] = {'i0': lo, 'p': arr[lo:hi + 1]}
+                # The landing sector-performance chart used to mcap-weight every
+                # constituent's series client-side, which is what forced the full
+                # matrix download. Precompute the composite here instead: per
+                # sector, a weighted index level (each component rebased to its
+                # own first quote, mcap-weighted over whatever weight has data
+                # that day) plus a per-day data-coverage fraction so the client
+                # can keep its "≥60% of weight present" guard. The client
+                # re-indexes the level to the selected range start — composite
+                # re-indexing rather than per-component re-basing, the same way
+                # any published index handles constituents entering the window.
+                _sector_px = {}
+                try:
+                    import numpy as _np
+                    _sec_members = {}
+                    for r in rows:
+                        _tk, _sec, _mc = r.get('ticker'), r.get('sector'), r.get('mcap')
+                        # Upper mcap sanity bound: yfinance hands FNMFO (a
+                        # Fannie Mae preferred line) a $180T market cap, which
+                        # made it 93% of the Financial Services composite —
+                        # every junk print on that one OTC line moved the
+                        # sector index by +/-80%. No real company is within
+                        # 4x of $20T; anything past it is a data error, not a
+                        # constituent.
+                        if (_tk in _px_out and _sec
+                                and isinstance(_mc, (int, float)) and 0 < _mc < 2e13):
+                            _sec_members.setdefault(_sec, []).append((_tk, float(_mc)))
+                    for _sec, _members in _sec_members.items():
+                        if len(_members) < 3:
+                            continue
+                        M = _np.array([[_np.nan if v is None else v
+                                        for v in _prices_out[_t]] for _t, _ in _members],
+                                      dtype=float)
+                        w = _np.array([_m for _, _m in _members], dtype=float)
+                        w = w / w.sum()
+                        valid = ~_np.isnan(M) & (M > 0)
+                        # Chain-linked index of weighted daily returns, not a
+                        # weighted average of rebase-to-first-quote levels: a
+                        # component only moves the index on days where it has
+                        # quotes on BOTH t-1 and t, so a sparse OTC line that
+                        # trades twice a year contributes two clamped daily
+                        # moves instead of an R=price/tiny-base level that
+                        # steps the whole sector by hundreds of points. This
+                        # is what turned the 20Y sector chart into a
+                        # Dec'11-Mar'13 sliver: penny-base components made lv
+                        # inf/None on most days, and the client's
+                        # all-sectors-valid gate kept only the 313 days where
+                        # every sector dodged its own junk.
+                        vboth = valid[:, :-1] & valid[:, 1:]
+                        with _np.errstate(invalid='ignore', divide='ignore'):
+                            r = _np.where(vboth, M[:, 1:] / M[:, :-1] - 1.0, 0.0)
+                        # Junk-print guard: no index constituent legitimately
+                        # quadruples or loses 75% between closes; adjustment
+                        # glitches routinely do.
+                        r = _np.clip(r, -0.75, 3.0)
+                        wm = _np.where(vboth, w[:, None], 0.0)
+                        cov_t = wm.sum(axis=0)
+                        with _np.errstate(invalid='ignore'):
+                            cr = _np.where(cov_t > 0,
+                                           (r * wm).sum(axis=0) / _np.where(cov_t > 0, cov_t, 1.0),
+                                           0.0)
+                        lv = 100.0 * _np.cumprod(1.0 + cr)
+                        lv = _np.concatenate(([100.0], lv))
+                        # cov[0] is quote coverage (no return exists on day
+                        # one); after that it is the weight fraction with a
+                        # valid return, which is what the client's >=60% gate
+                        # actually wants to know.
+                        cov0 = float(_np.where(valid[:, 0], w, 0.0).sum()) if M.shape[1] else 0.0
+                        cov = _np.concatenate(([cov0], cov_t))
+                        _sector_px[_sec] = {
+                            'lv': [round(float(x), 2) if _np.isfinite(x) else None for x in lv],
+                            'cov': [round(float(x), 3) for x in cov],
+                            'nc': len(_members),
+                        }
+                except Exception as _e:
+                    print(f"[warn] sector price composite failed: {_e}")
                 prices_payload = {
                     'dates': _date_strs,
-                    'prices': _prices_out,
+                    # Shard indices are positions into `dates`; the client bails
+                    # rather than misalign if it ever sees mismatched artifacts.
+                    'n': len(_date_strs),
                     'indices': _indices_found,
+                    # Index series embedded whole: the popup's SPY overlay and
+                    # the Charts-tab index chips shouldn't cost a fetch each.
+                    'index_px': {x['ticker']: _px_out[x['ticker']]
+                                 for x in _indices_found if x['ticker'] in _px_out},
+                    # Tickers with a px/<TICKER>.json shard — membership checks
+                    # (search, seeding, popup section visibility) read this
+                    # instead of eating a 404 per miss.
+                    'manifest': sorted(_px_out.keys()),
+                    # Tickers with a vol/<TICKER>.json shard. The client checks
+                    # this instead of eating a 404 on every popup open.
+                    'vol': sorted(_vol_out.keys()),
+                    'sectors': _sector_px,
                 }
-                print(f"[report_html] price history: {len(_prices_out)} tickers, {len(_date_strs)} dates, indices: {[x['ticker'] for x in _indices_found]}")
+                px_payload = _px_out
+                vol_payload = _vol_out
+                print(f"[report_html] price history: {len(_px_out)} px shards, {len(_date_strs)} dates, "
+                      f"indices: {[x['ticker'] for x in _indices_found]}, "
+                      f"sector composites: {len(_sector_px)}")
+                print(f"[report_html] volume shards: {len(_vol_out)} tickers")
         except Exception as _e:
             print(f"[warn] price history load failed: {_e}")
 
-    # Write prices.json sidecar (or remove a stale one)
+    # Write prices_meta.json (dates + manifests + index series + sector
+    # composites) or remove a stale one. The legacy dense prices.json is
+    # always removed — per-ticker px/ shards replaced it.
+    prices_size_mb = 0
     try:
         if prices_payload is not None:
-            with open(prices_path, 'w') as _pf2:
-                json.dump(prices_payload, _pf2, default=_json_default)
-        elif os.path.exists(prices_path):
+            with open(prices_meta_path, 'w') as _pf2:
+                json.dump(prices_payload, _pf2, default=_json_default,
+                          separators=_COMPACT)
+            # Uncompressed size, stamped into the client so download progress
+            # can be honest — the transfer is gzipped, so Content-Length alone
+            # can't say how much of the decompressed body has arrived.
+            prices_size_mb = round(os.path.getsize(prices_meta_path) / 1048576)
+        elif os.path.exists(prices_meta_path):
+            os.remove(prices_meta_path)
+        if os.path.exists(prices_path):
             os.remove(prices_path)
     except Exception as _e:
-        print(f"[warn] prices.json write failed: {_e}")
+        print(f"[warn] prices_meta.json write failed: {_e}")
+
+    # Write the px/ close-price shard directory — same lifecycle as vol/
+    # below: rebuilt wholesale, then swept of anything the manifest doesn't
+    # claim (iCloud conflict copies regenerate continuously in this folder).
+    try:
+        if px_payload is not None:
+            import shutil as _sh
+            if os.path.isdir(px_dir):
+                _sh.rmtree(px_dir, ignore_errors=True)
+            os.makedirs(px_dir, exist_ok=True)
+            for _tk, _shd in px_payload.items():
+                with open(os.path.join(px_dir, f'{_tk}.json'), 'w') as _xf:
+                    json.dump(_shd, _xf, separators=_COMPACT)
+            _stale_px = 0
+            for _fn in os.listdir(px_dir):
+                if _fn.endswith('.json') and _fn[:-5] not in px_payload:
+                    os.remove(os.path.join(px_dir, _fn))
+                    _stale_px += 1
+            if _stale_px:
+                print(f"[report_html] px/: swept {_stale_px} unclaimed shard file(s)")
+    except Exception as _e:
+        print(f"[warn] px/ shard write failed: {_e}")
+
+    # Write the vol/ shard directory. Rebuilt wholesale each run so a ticker
+    # that drops out of the universe can't leave a shard behind whose indices
+    # no longer line up with the current dates array.
+    try:
+        if os.path.isdir(vol_dir):
+            shutil.rmtree(vol_dir)
+        if vol_payload:
+            os.makedirs(vol_dir, exist_ok=True)
+            for _tk, _sh in vol_payload.items():
+                with open(os.path.join(vol_dir, f'{_tk}.json'), 'w') as _vf:
+                    json.dump(_sh, _vf, separators=_COMPACT)
+            # Belt and braces on top of the rmtree: sweep anything the manifest
+            # doesn't claim. A 2026-08-08 run found 2,139 macOS conflict copies
+            # ("AAPL 3.json") that outlived the rmtree — harmless to the client,
+            # which only ever fetches manifest entries, but ~55 MB of junk that
+            # a wholesale copy would publish.
+            _stale = 0
+            for _fn in os.listdir(vol_dir):
+                if _fn.endswith('.json') and _fn[:-5] not in vol_payload:
+                    os.remove(os.path.join(vol_dir, _fn))
+                    _stale += 1
+            if _stale:
+                print(f"[report_html] vol/: swept {_stale} unclaimed shard file(s)")
+    except Exception as _e:
+        print(f"[warn] vol/ shard write failed: {_e}")
 
     # Render Jinja2 template
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
@@ -640,7 +1317,6 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
     )
     template = env.get_template('report.html')
     html = template.render(
-        total=total,
         avg_spread_fmt=f"{avg_spread:.1%}",
         qualifying_with_mos=qualifying_with_mos,
         buy_count=buy_count,
@@ -649,9 +1325,12 @@ def build_html(rows, filename, prices_dir=None, run_date=None):
         gate_meta=gate_meta,
         sector_pool_json=sector_pool_json,
         prices_available=('true' if prices_payload is not None else 'false'),
+        prices_size_mb=prices_size_mb,
         hist_available=('true' if hist_payload is not None else 'false'),
         details_available=('true' if details_payload else 'false'),
         generated_at=(run_date or date.today()).strftime('%B %-d, %Y'),
+        run_date_iso=(run_date or date.today()).isoformat(),
+        prev_run_date=(prev_run_date or ''),
     )
 
     with open(filename, 'w') as f:

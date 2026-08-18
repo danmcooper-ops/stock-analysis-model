@@ -393,6 +393,8 @@ def calculate_net_debt_ebitda(financials):
 
     latest_inc = inc.iloc[:, 0]
     net_debt = get_net_debt(financials)
+    if net_debt is None:
+        return None  # leverage unknown → can't form a debt ratio
 
     ebit = _get(latest_inc, ['Operating Income']) or 0
     da = 0
@@ -406,10 +408,16 @@ def calculate_net_debt_ebitda(financials):
 
 
 def get_net_debt(financials):
-    """Total Debt - Cash."""
+    """Total Debt − Cash, or None when the balance sheet is missing entirely.
+
+    None (not 0) on an absent balance sheet: leverage is UNKNOWN, and a 0
+    silently values a levered firm as debt-free in the EV→equity bridges.
+    A present balance sheet with no debt/cash lines still returns 0 (a
+    genuine read of an unlevered or sparsely-tagged filing).
+    """
     bs = financials.get('balance_sheet')
     if bs is None or bs.empty:
-        return 0
+        return None
     latest_bs = bs.iloc[:, 0]
     total_debt = _get(latest_bs, DEBT_KEYS) or 0
     cash = _get(latest_bs, CASH_KEYS) or 0

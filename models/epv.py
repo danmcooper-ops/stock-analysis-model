@@ -11,8 +11,13 @@ from models.valuation_types import _validate_numeric
 
 
 def earnings_power_value(ebit, tax_rate, cost_of_capital, shares_outstanding,
-                         excess_cash=0):
-    """Zero-growth valuation: NOPAT / cost_of_capital + excess cash, per share.
+                         excess_cash=0, total_debt=0):
+    """Zero-growth valuation: (NOPAT / cost_of_capital + cash - debt) per share.
+
+    NOPAT capitalized at the cost of capital is an *enterprise* value; the
+    equity bridge (add cash, subtract debt) converts it to equity value
+    before dividing by shares — without it, levered firms get an EPV
+    "floor" overstated by debt-per-share.
 
     Returns None on invalid inputs; computes value otherwise.
     """
@@ -28,7 +33,7 @@ def earnings_power_value(ebit, tax_rate, cost_of_capital, shares_outstanding,
 
     tax_rate = max(0, min(tax_rate if tax_rate is not None else 0.21, 0.50))
     nopat = ebit * (1 - tax_rate)
-    epv = nopat / cost_of_capital + (excess_cash or 0)
+    epv = nopat / cost_of_capital + (excess_cash or 0) - (total_debt or 0)
     return epv / shares_outstanding if epv > 0 else None
 
 

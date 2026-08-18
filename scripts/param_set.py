@@ -108,9 +108,9 @@ def default_params():
         'score_weight_ownership': SCORE_WEIGHT_OWNERSHIP,
 
         # Composite-score rating thresholds
-        'rating_threshold_buy': 60,
-        'rating_threshold_lean': 43,
-        'rating_threshold_pass': 29,
+        'rating_threshold_buy': 57,
+        'rating_threshold_lean': 39,
+        'rating_threshold_pass': 25,
     }
 
 
@@ -166,9 +166,9 @@ def validate_params(params):
             errors.append(f"{key} = {v:.3f} is below minimum 0.05")
 
     # Rating thresholds
-    rb = params.get('rating_threshold_buy', 60)
-    rl = params.get('rating_threshold_lean', 43)
-    rp = params.get('rating_threshold_pass', 29)
+    rb = params.get('rating_threshold_buy', 57)
+    rl = params.get('rating_threshold_lean', 39)
+    rp = params.get('rating_threshold_pass', 25)
     for key, v in (('rating_threshold_buy', rb),
                    ('rating_threshold_lean', rl),
                    ('rating_threshold_pass', rp)):

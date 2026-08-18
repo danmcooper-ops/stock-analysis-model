@@ -313,3 +313,79 @@ class TestReverseDCF:
         r_high = reverse_dcf(200.0, 1e9, 0.09, 1e9, net_debt=5e9)
         assert r_low is not None and r_high is not None
         assert r_high['implied_growth'] > r_low['implied_growth']
+
+
+class TestRescaleFvBand:
+    """The shared blend-rescale helper moves every FV-denominated band field."""
+
+    def test_scales_sens_range_and_mc_percentiles(self):
+        from scripts.analyze_stock import _rescale_fv_band
+        row = {'dcf_sens_range': (80.0, 120.0), 'mc_p10_fv': 70.0,
+               'mc_p90_fv': 130.0, 'mc_cv': 0.25}
+        _rescale_fv_band(row, 0.5)
+        assert row['dcf_sens_range'] == (40.0, 60.0)
+        assert row['mc_p10_fv'] == 35.0
+        assert row['mc_p90_fv'] == 65.0
+        assert row['mc_cv'] == 0.25  # scale-invariant, untouched
+
+    def test_noop_on_unit_ratio(self):
+        from scripts.analyze_stock import _rescale_fv_band
+        row = {'dcf_sens_range': (80.0, 120.0), 'mc_p10_fv': 70.0}
+        _rescale_fv_band(row, 1.0)
+        assert row['dcf_sens_range'] == (80.0, 120.0)
+        assert row['mc_p10_fv'] == 70.0
+
+    def test_tolerates_missing_fields(self):
+        from scripts.analyze_stock import _rescale_fv_band
+        row = {'mc_p90_fv': 100.0}
+        _rescale_fv_band(row, 0.9)  # no sens range, no p10 — must not raise
+        assert row['mc_p90_fv'] == 90.0
+
+
+class TestMonteCarloDownsideTail:
+    """P10 must reflect wipeout risk (percentiles over all draws, insolvent
+    outcomes clamped to 0), not condition on survival."""
+
+    def test_p10_captures_insolvency_for_levered_name(self):
+        from models.dcf import monte_carlo_dcf
+        # ~13% of draws insolvent (equity <= 0): p10 sits at 0 (wipeout risk)
+        # while the median stays positive — a survivors-only p10 would have
+        # hidden the bear tail entirely.
+        res = monte_carlo_dcf(
+            base_fcf=100.0, growth_rate=0.03, discount_rate=0.10,
+            terminal_growth=0.025, shares_outstanding=1000.0,
+            net_debt=1200.0, n_iterations=800)
+        assert res is not None
+        assert res['invalid_rate'] > 0.0     # some draws did wipe out
+        assert res['p10_fv'] == 0.0          # bottom decile includes wipeouts
+        assert res['median_fv'] > 0.0        # but the centre is still positive
+
+    def test_terminal_spread_floor_matches_point_estimate(self):
+        """Low-WACC name: MC terminal values use the 2.5% spread floor, so the
+        MC median is not inflated far above a comparable point calc."""
+        from models.dcf import monte_carlo_dcf, two_stage_ev, fair_value_per_share
+        res = monte_carlo_dcf(
+            base_fcf=100.0, growth_rate=0.04, discount_rate=0.055,
+            terminal_growth=0.03, shares_outstanding=1000.0,
+            net_debt=0.0, n_iterations=500)
+        ev = two_stage_ev(100.0, 0.04, 0.055, 0.03)
+        point = fair_value_per_share(ev, 0.0, 1000.0)
+        # within a sane band, not 2x+ above
+        assert res['median_fv'] < point * 1.8
+
+
+class TestExitMultFloorParam:
+    def test_floor_is_configurable(self):
+        """The MC exit-multiple floor is a parameter so the pipeline can align
+        it with EXIT_MULT_MIN (5.0) instead of the model default (3.0)."""
+        import inspect
+        from models.dcf import monte_carlo_dcf
+        sig = inspect.signature(monte_carlo_dcf)
+        assert sig.parameters['exit_mult_floor'].default == 3.0
+        # runs with an overridden floor without error
+        res = monte_carlo_dcf(
+            base_fcf=100.0, growth_rate=0.03, discount_rate=0.10,
+            terminal_growth=0.025, shares_outstanding=1000.0, net_debt=0.0,
+            base_ebitda=500.0, exit_multiple=8.0, exit_mult_floor=5.0,
+            n_iterations=300)
+        assert res is not None

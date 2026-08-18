@@ -41,6 +41,24 @@ from scripts.param_set import default_params, merge_params, validate_params
 RATING_ORDER = ['STRONG_BUY', 'BUY', 'LEAN BUY', 'HOLD', 'PASS']
 BENCHMARK = 'SPY'
 
+# Continuous signals evaluated for return predictivity via quartile spread
+# (see signal_quartile_accuracy). Each maps a field carried on every stock
+# row → a human label. The whole point of the exercise: decide whether a
+# signal earns a place in the composite score BEFORE trusting it with real
+# position sizing. A signal only belongs in the score if its top quartile
+# reliably out-earns its bottom quartile on forward EXCESS return.
+SIGNAL_SPECS = [
+    ('pp_multiple',     'PP Multiple (profit capture)'),
+    ('pool_share_cagr', 'Pool-Share CAGR (5y trajectory)'),
+    ('trap_score',      'Value-Trap Score (higher = worse expected)'),
+]
+
+# A snapshot needs at least this many stocks carrying the signal to form
+# stable cross-sectional quartiles; thinner snapshots are skipped for that
+# signal rather than split into noisy 3-name buckets.
+MIN_SIGNAL_PER_SNAPSHOT = 20
+
+
 
 # ===========================================================================
 # BACKTEST: Forward return measurement
@@ -65,6 +83,34 @@ def load_results(results_dir='output'):
 # ---------------------------------------------------------------------------
 # Forward return computation
 # ---------------------------------------------------------------------------
+
+# Maximum calendar-day distance allowed when snapping a target date to the
+# nearest available price bar.  Beyond this, the data doesn't actually cover
+# the requested window (stale parquet, not-yet-elapsed horizon) and the
+# observation must be dropped rather than silently measured over the wrong
+# span (or recorded as a fake 0.0 when both ends snap to the same last bar).
+MAX_SNAP_GAP_DAYS = 7
+
+
+def _nearest_bar(index, target, max_gap_days=MAX_SNAP_GAP_DAYS):
+    """Index position of the bar nearest *target*, or None if too far away."""
+    pos = index.get_indexer([target], method='nearest')[0]
+    if pos < 0:
+        return None
+    if abs((index[pos] - target).days) > max_gap_days:
+        return None
+    return pos
+
+
+def _fallback_period(run_dt):
+    """Smallest yfinance period string that reaches back to run_dt."""
+    import pandas as pd
+    days_back = (pd.Timestamp.now() - run_dt).days
+    for days, period in ((300, '1y'), (650, '2y'), (1750, '5y')):
+        if days_back <= days:
+            return period
+    return 'max'
+
 
 def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
                           prices_dir=None):
@@ -102,7 +148,8 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
 
             # --- Live yfinance fallback ---
             if hist is None:
-                hist = yf_client.fetch_history(ticker, period="1y")
+                hist = yf_client.fetch_history(
+                    ticker, period=_fallback_period(run_dt))
                 if hist is None or len(hist) < 10:
                     continue
 
@@ -110,19 +157,12 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
             if hasattr(hist.index, 'tz') and hist.index.tz is not None:
                 hist.index = hist.index.tz_localize(None)
 
-            start_idx = hist.index.get_indexer([run_dt],  method='nearest')[0]
-            end_idx   = hist.index.get_indexer([eval_dt], method='nearest')[0]
-
-            # Coverage guard: get_indexer(method='nearest') silently snaps an
-            # out-of-range date back to the closest available bar. If the price
-            # series doesn't actually reach the eval date (stale parquet) or
-            # doesn't start by the run date, the "forward return" would be a
-            # fabricated truncation (often ~0%). Reject when the resolved bar is
-            # more than 5 calendar days off the requested date (5d absorbs
-            # weekends/holidays).
-            start_date = hist.index[start_idx]
-            end_date = hist.index[end_idx]
-            if abs((start_date - run_dt).days) > 5 or abs((end_date - eval_dt).days) > 5:
+            # Coverage guard: drop the observation when no bar lies within
+            # MAX_SNAP_GAP_DAYS of either end (stale parquet / immature
+            # horizon would otherwise be silently measured over the wrong span).
+            start_idx = _nearest_bar(hist.index, run_dt)
+            end_idx   = _nearest_bar(hist.index, eval_dt)
+            if start_idx is None or end_idx is None:
                 continue
 
             start_price = float(hist.iloc[start_idx])
@@ -398,6 +438,20 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
                 'dcf_fv': s.get('dcf_fv'),
                 'target_mean': s.get('target_mean'),
                 'rating': s.get('rating'),
+                # Profit-pool signals under evaluation (see signal_quartile_
+                # accuracy). pp_multiple = disproportionate profit capture;
+                # pool_share_cagr = 5y trajectory of sector-profit-pool share.
+                'pp_multiple': s.get('pp_multiple'),
+                'pool_share_cagr': s.get('pool_share_cagr'),
+                # Value-trap overlay under evaluation, plus the cohort /
+                # incrementality inputs filter_metrics_to_cohort reads:
+                # mos defines the cheap cohort, beneish/altman identify rows
+                # the existing rating caps already veto.
+                'trap_score': s.get('trap_score'),
+                'trap_score_ex_momentum': s.get('trap_score_ex_momentum'),
+                'mos': s.get('mos'),
+                'beneish_flag': s.get('beneish_flag'),
+                'altman_z_zone': s.get('altman_z_zone'),
             }
 
     return {
@@ -795,6 +849,73 @@ def build_backtest_excel(all_metrics, filename):
     for r in range(1, ri + 1):
         ws6.row_dimensions[r].height = 13
 
+    # ---- Signal Quartiles tab ----
+    ws7 = wb.create_sheet('Signal Quartiles')
+    ws7.cell(row=1, column=1,
+             value='Forward Alpha by Signal Quartile '
+                   '(Q1 = lowest signal, Q4 = highest)')
+    ws7.cell(row=1, column=1).font = Font(bold=True, size=13)
+    ws7.cell(row=2, column=1,
+             value='A signal earns a place in the composite score only if '
+                   'Q4 reliably out-earns Q1 on forward excess return. '
+                   'Obs are NOT independent (overlapping daily snapshots) — '
+                   'weigh the per-snapshot ρ sign-consistency, not the raw n.')
+    ws7.cell(row=2, column=1).font = Font(italic=True, size=10, color='555555')
+
+    sig_headers = ['Signal', 'Quartile', 'Mean Alpha', 'Median Alpha',
+                   'Hit Rate', 'Count', 'Q4−Q1 Spread', 'Mean Snap ρ',
+                   'ρ>0 Frac', 'Snapshots']
+    for ci, h in enumerate(sig_headers, 1):
+        cell = ws7.cell(row=4, column=ci, value=h)
+        cell.font = hdr_font
+        cell.fill = gray
+        cell.alignment = hdr_align
+
+    ri = 5
+    for key, label in SIGNAL_SPECS:
+        sq = signal_quartile_accuracy(all_metrics, key)
+        if sq is None:
+            ws7.cell(row=ri, column=1, value=label)
+            ws7.cell(row=ri, column=2, value='not enough data yet')
+            style_row(ws7, ri, len(sig_headers), frozen=1)
+            ri += 1
+            continue
+        first = True
+        for q in (1, 2, 3, 4):
+            qd = sq['quartiles'].get(q)
+            if not qd:
+                continue
+            ws7.cell(row=ri, column=1, value=label if first else '')
+            ws7.cell(row=ri, column=2, value='Q%d' % q)
+            ws7.cell(row=ri, column=3, value=qd['mean_alpha'])
+            ws7.cell(row=ri, column=4, value=qd['median_alpha'])
+            ws7.cell(row=ri, column=5, value=qd['hit_rate'])
+            ws7.cell(row=ri, column=6, value=qd['count'])
+            if first:
+                ws7.cell(row=ri, column=7, value=sq['spread'])
+                ws7.cell(row=ri, column=8, value=sq['mean_rho'])
+                ws7.cell(row=ri, column=9, value=sq['rho_pos_frac'])
+                ws7.cell(row=ri, column=10, value=sq['n_snapshots'])
+            style_row(ws7, ri, len(sig_headers), frozen=1)
+            for ci in (3, 4, 5, 7, 9):
+                c = ws7.cell(row=ri, column=ci)
+                if c.value is not None:
+                    c.number_format = '0.0%'
+            ws7.cell(row=ri, column=8).number_format = '0.000'
+            # Color the spread green/red on the signal's first row.
+            if first and sq['spread'] is not None:
+                sc = ws7.cell(row=ri, column=7)
+                sc.fill = green_fill if sq['spread'] > 0 else red_fill
+            first = False
+            ri += 1
+
+    auto_width(ws7, sig_headers)
+    ws7.column_dimensions['A'].width = 32
+    ws7.freeze_panes = 'C5'
+    for r in range(1, ri + 1):
+        ws7.row_dimensions[r].height = 13
+
+
     wb.save(filename)
     return filename
 
@@ -924,6 +1045,203 @@ def consensus_comparison(all_metrics):
 # Console summary
 # ---------------------------------------------------------------------------
 
+def signal_quartile_accuracy(all_metrics, signal_key,
+                             min_per_snapshot=MIN_SIGNAL_PER_SNAPSHOT):
+    """Forward EXCESS return by quartile of a continuous signal.
+
+    Method (deliberately conservative about the daily-snapshot data shape):
+
+      1. Rank stocks into quartiles CROSS-SECTIONALLY within each snapshot
+         (Q1 = lowest signal value, Q4 = highest), so a single day's market
+         backdrop can't tilt the split and every snapshot contributes a
+         balanced four-way partition. Excess return (vs SPY) is the outcome,
+         so the market move is already stripped out.
+      2. Pool each quartile's excess returns across all evaluable snapshots.
+      3. Report the Q4−Q1 spread — the money question. A signal worth adding
+         to the composite score shows a positive, monotone-ish spread.
+
+    Independence caveat: consecutive daily snapshots hold nearly the same
+    universe over overlapping windows, so the pooled observations are highly
+    autocorrelated — n_obs OVERSTATES the true sample size. To counter that,
+    we also compute a Fama–MacBeth-style average of PER-SNAPSHOT Spearman
+    rank correlations (signal vs excess return) plus the fraction of
+    snapshots where that correlation is positive: a sign-consistency check
+    that treats each snapshot as one observation, not each stock.
+
+    Returns None if no snapshot carries >= min_per_snapshot signal values,
+    else a dict:
+        quartiles:    {1..4: {mean_alpha, median_alpha, hit_rate, count}}
+        spread:       Q4 mean_alpha − Q1 mean_alpha (or None)
+        mean_rho:     mean per-snapshot Spearman rho (or None)
+        rho_pos_frac: fraction of snapshots with rho > 0 (or None)
+        n_snapshots:  distinct snapshots contributing
+        n_obs:        total (non-independent) stock-observations
+    """
+    quartile_alphas = {1: [], 2: [], 3: [], 4: []}
+    per_snap_rho = []
+    n_snapshots = 0
+    n_obs = 0
+
+    for m in all_metrics:
+        stocks = m.get('_source_stocks', {})
+        obs = []  # (signal_value, excess_return)
+        for d in m['details']:
+            info = stocks.get(d['ticker'], {})
+            sig = info.get(signal_key)
+            ex = d['excess_return']
+            # Guard against non-finite inputs: a NaN Close in a parquet file
+            # propagates ticker → ret → excess_return, and a single NaN poisons
+            # np.mean for the whole quartile. Require both signal and outcome
+            # finite. (This NaN leak also affects the sector/MoS stats above;
+            # tracked separately.)
+            if (isinstance(sig, bool) or not isinstance(sig, (int, float))
+                    or not np.isfinite(sig)
+                    or not isinstance(ex, (int, float)) or not np.isfinite(ex)):
+                continue
+            obs.append((float(sig), float(ex)))
+
+        if len(obs) < min_per_snapshot:
+            continue
+
+        n_snapshots += 1
+        n_obs += len(obs)
+        sigs = [o[0] for o in obs]
+        exs = [o[1] for o in obs]
+        n = len(obs)
+
+        # Cross-sectional quartile via 0-based ordinal rank. argsort-of-
+        # argsort breaks ties arbitrarily; acceptable for near-continuous
+        # ratios where exact ties are rare.
+        ordinal = np.argsort(np.argsort(sigs))
+        for i, ex in enumerate(exs):
+            q = min(int(ordinal[i] / n * 4), 3)
+            quartile_alphas[q + 1].append(ex)
+
+        # Per-snapshot Spearman (reuse the file's tie-averaged rank()).
+        rank_s = rank(sigs)
+        rank_e = rank(exs)
+        d_sq = sum((rs - re) ** 2 for rs, re in zip(rank_s, rank_e))
+        per_snap_rho.append(1 - (6 * d_sq) / (n * (n ** 2 - 1)) if n > 1 else 0.0)
+
+    if n_snapshots == 0:
+        return None
+
+    quartiles = {}
+    for q in (1, 2, 3, 4):
+        arr = np.array(quartile_alphas[q])
+        if len(arr) == 0:
+            continue
+        quartiles[q] = {
+            'mean_alpha': float(np.mean(arr)),
+            'median_alpha': float(np.median(arr)),
+            'hit_rate': float(np.sum(arr > 0) / len(arr)),
+            'count': len(arr),
+        }
+
+    q4 = quartiles.get(4, {}).get('mean_alpha')
+    q1 = quartiles.get(1, {}).get('mean_alpha')
+    spread = (q4 - q1) if (q4 is not None and q1 is not None) else None
+
+    return {
+        'quartiles': quartiles,
+        'spread': spread,
+        'mean_rho': float(np.mean(per_snap_rho)) if per_snap_rho else None,
+        'rho_pos_frac': (float(np.mean([1.0 if r > 0 else 0.0
+                                        for r in per_snap_rho]))
+                         if per_snap_rho else None),
+        'n_snapshots': n_snapshots,
+        'n_obs': n_obs,
+    }
+
+
+def filter_metrics_to_cohort(all_metrics, cohort_key='mos',
+                             top_quartile=True, exclude_capped=False):
+    """Restrict each snapshot's details to a cross-sectional cohort.
+
+    The value-trap question is conditional: an unconditional trap read mixes
+    expensive decliners (which the model already avoids) into the sample.
+    This filter keeps, per snapshot, only the top quartile by `cohort_key`
+    (default `mos` — the statistically-cheap cohort), so a downstream
+    signal_quartile_accuracy call measures the signal WITHIN the names the
+    model would actually consider buying.
+
+    exclude_capped additionally drops rows already vetoed by the existing
+    distress caps (beneish_flag / altman distress) — the incrementality
+    check: a trap signal that only re-flags those adds nothing over
+    _rating_cap_for_row.
+
+    Returns a new all_metrics list with the same dict shape (details filtered,
+    _source_stocks passed through untouched); snapshots whose cohort would be
+    empty are dropped.
+    """
+    out = []
+    for m in all_metrics:
+        stocks = m.get('_source_stocks', {})
+        rows = []
+        for d in m['details']:
+            info = stocks.get(d['ticker'], {})
+            cv = info.get(cohort_key)
+            if isinstance(cv, bool) or not isinstance(cv, (int, float)) \
+                    or not np.isfinite(cv):
+                continue
+            if exclude_capped and (
+                    info.get('beneish_flag') is True
+                    or info.get('altman_z_zone') == 'distress'):
+                continue
+            rows.append((float(cv), d))
+        if len(rows) < 4:
+            continue
+        rows.sort(key=lambda x: x[0])
+        cut = int(len(rows) * 0.75)
+        kept = [d for _, d in (rows[cut:] if top_quartile else rows[:cut])]
+        if not kept:
+            continue
+        fm = dict(m)
+        fm['details'] = kept
+        out.append(fm)
+    return out
+
+
+def strong_buy_hit_rate(all_metrics):
+    """What percentage of BUY-rated stocks actually outperformed SPY?
+
+    Returns float (0-1) or None if no BUY stocks.
+    """
+    buy_alphas = []
+    for m in all_metrics:
+        for d in m['details']:
+            if d['rating'] == 'BUY':
+                buy_alphas.append(d['excess_return'])
+    if not buy_alphas:
+        return None
+    return sum(1 for a in buy_alphas if a > 0) / len(buy_alphas)
+
+
+def consensus_comparison(all_metrics):
+    """Compare model fair values vs analyst target prices.
+
+    Returns dict with: mean_bias, median_bias, n_stocks.
+    """
+    biases = []
+    for m in all_metrics:
+        stocks = m.get('_source_stocks', {})
+        for d in m['details']:
+            ticker = d['ticker']
+            stock_info = stocks.get(ticker, {})
+            model_fv = stock_info.get('dcf_fv') or d.get('dcf_fv')
+            target_mean = stock_info.get('target_mean')
+            if model_fv and model_fv > 0 and target_mean and target_mean > 0:
+                biases.append(model_fv / target_mean - 1)
+    if not biases:
+        return None
+    arr = np.array(biases)
+    return {
+        'mean_bias': float(np.mean(arr)),
+        'median_bias': float(np.median(arr)),
+        'n_stocks': len(arr),
+    }
+
+
 def print_summary(all_metrics):
     """Print a concise console summary of backtest results."""
     if not all_metrics:
@@ -988,6 +1306,45 @@ def print_summary(all_metrics):
         print(f"\n  Model vs Analyst Targets ({consensus['n_stocks']} stocks):")
         print(f"    Mean bias:   {consensus['mean_bias']:+.1%}")
         print(f"    Median bias: {consensus['median_bias']:+.1%}")
+
+
+    # --- Signal quartile spreads (does the signal predict excess return?) ---
+    print_signal_tables(all_metrics,
+                        'SIGNAL QUARTILE SPREADS  (forward alpha by signal quartile)')
+
+
+def print_signal_tables(all_metrics, title,
+                        min_per_snapshot=MIN_SIGNAL_PER_SNAPSHOT):
+    """Quartile table per SIGNAL_SPECS entry — shared by the unconditional
+    print_summary block and the conditional cohort runs from the CLI."""
+    print(f"\n  {'-'*60}")
+    print(f"  {title}")
+    print(f"  {'-'*60}")
+    for key, label in SIGNAL_SPECS:
+        sq = signal_quartile_accuracy(all_metrics, key,
+                                      min_per_snapshot=min_per_snapshot)
+        if sq is None:
+            print(f"\n  {label}: not enough data yet "
+                  f"(no snapshot has ≥{min_per_snapshot} signal "
+                  f"values with a measured forward return)")
+            continue
+        print(f"\n  {label}  "
+              f"({sq['n_snapshots']} snapshots, {sq['n_obs']} obs — "
+              f"NOT independent)")
+        print(f"    {'Quartile':<10s} {'Mean α':>9s} {'Median α':>10s}"
+              f" {'Hit%':>6s} {'#':>6s}")
+        for q in (1, 2, 3, 4):
+            qd = sq['quartiles'].get(q)
+            if not qd:
+                continue
+            tag = 'Q%d%s' % (q, ' (lo)' if q == 1 else ' (hi)' if q == 4 else '')
+            print(f"    {tag:<10s} {qd['mean_alpha']:>+8.1%}"
+                  f" {qd['median_alpha']:>+9.1%} {qd['hit_rate']:>5.0%}"
+                  f" {qd['count']:>6d}")
+        if sq['spread'] is not None:
+            print(f"    Q4−Q1 spread: {sq['spread']:>+7.1%}"
+                  f"   mean per-snapshot ρ: {sq['mean_rho']:+.3f}"
+                  f"   ρ>0 in {sq['rho_pos_frac']:.0%} of snapshots")
 
 
 # ===========================================================================
@@ -1190,6 +1547,17 @@ SEARCH_SPACE = {
 # full valuation re-run per candidate (hours each), not the lightweight
 # re-scoring above — kept here for reference so nobody re-adds them to
 # SEARCH_SPACE and silently sweeps dead dimensions again.
+# Rating thresholds ARE live under re-scoring (rating_from_composite reads
+# them), but they only move rating-bucket objectives (hit_rate/alpha/...) —
+# rank_ic correlates the raw composite score and cannot see them. They also
+# multiply the grid ~12x, so they are opt-in via calibrate --include-thresholds
+# rather than part of the weekly exhaustive sweep. (Ported from main's
+# independently-developed calibrate.py.)
+THRESHOLD_SPACE = {
+    'rating_threshold_buy':  (52, 67, 5),
+    'rating_threshold_lean': (34, 44, 5),
+}
+
 LIVE_RUN_ONLY_SPACE = {
     'erp': (0.04, 0.07, 0.005),
     'blend_trigger':    (1.2, 2.0, 0.1),
@@ -1426,7 +1794,8 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
                            objective='rank_ic', max_evaluations=400,
                            lambda_reg=0.05, yf_client=None,
                            prices_dir='output/prices', cache_dir='output/returns',
-                           today=None):
+                           today=None,
+                           search_space=None):
     """Run the full walk-forward calibration.
 
     Pipeline:
@@ -1597,7 +1966,8 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
                 return regularized_objective(raw, params, lambda_reg)
             return raw
 
-        search_results = grid_search(evaluate, max_evaluations=max_evaluations)
+        search_results = grid_search(evaluate, search_space=search_space,
+                                     max_evaluations=max_evaluations)
         if not search_results:
             continue
 
@@ -1911,6 +2281,13 @@ def optimize_weights(results_json_path, output_path=None):
 
 def _cli_measure(args):
     """Run backtest analysis on accumulated snapshots."""
+    # Override the evaluated-signal set if requested. Labels default to the
+    # raw field name for ad-hoc signals not in SIGNAL_SPECS.
+    if getattr(args, 'signals', None):
+        _known = dict(SIGNAL_SPECS)
+        SIGNAL_SPECS[:] = [(k.strip(), _known.get(k.strip(), k.strip()))
+                           for k in args.signals.split(',') if k.strip()]
+
     horizons = [int(h.strip()) for h in args.horizons.split(',')]
 
     from data.yfinance_client import YFinanceClient
@@ -1926,6 +2303,22 @@ def _cli_measure(args):
     if all_metrics:
         print_summary(all_metrics)
 
+        if getattr(args, 'cohort', None):
+            coh = filter_metrics_to_cohort(all_metrics, cohort_key=args.cohort)
+            print_signal_tables(
+                coh,
+                f'COHORT SPREADS — within top-quartile {args.cohort}',
+                min_per_snapshot=10)
+            if args.exclude_capped:
+                coh2 = filter_metrics_to_cohort(all_metrics,
+                                                cohort_key=args.cohort,
+                                                exclude_capped=True)
+                print_signal_tables(
+                    coh2,
+                    f'COHORT SPREADS — top-quartile {args.cohort}, '
+                    'EXCL. beneish/altman-capped',
+                    min_per_snapshot=10)
+
         os.makedirs('output', exist_ok=True)
         xlsx = os.path.join('output', f'backtest_{date.today().isoformat()}.xlsx')
         build_backtest_excel(all_metrics, xlsx)
@@ -1939,6 +2332,15 @@ def _cli_calibrate(args):
     """Run walk-forward parameter calibration."""
     horizons = [int(h) for h in args.horizons.split(',')]
 
+    space = None
+    if getattr(args, 'include_thresholds', False):
+        space = dict(SEARCH_SPACE)
+        space.update(THRESHOLD_SPACE)
+        if args.objective == 'rank_ic':
+            print("[calibrate] NOTE: rating thresholds cannot affect rank_ic "
+                  "(it reads the raw composite score); use a rating-bucket "
+                  "objective (hit_rate/alpha/composite) to calibrate them.")
+
     result = walk_forward_calibrate(
         results_dir=args.results_dir,
         horizons=horizons,
@@ -1948,6 +2350,7 @@ def _cli_calibrate(args):
         max_evaluations=args.max_evals,
         lambda_reg=args.lambda_reg,
         prices_dir=args.prices_dir,
+        search_space=space,
     )
 
     overall = result.get('overall', {})
@@ -2034,6 +2437,18 @@ def _cli_optimize_weights(args):
 if __name__ == '__main__':
     import argparse
 
+    # Legacy-CLI shim: before the subcommand split, this script was invoked as
+    # `python scripts/backtest.py --results-dir ...`. Keep those invocations
+    # working by defaulting to the `measure` subcommand.
+    _subcommands = {'measure', 'calibrate', 'annotate', 'optimize-weights', '-h', '--help'}
+    if len(sys.argv) == 1 or sys.argv[1] not in _subcommands:
+        if len(sys.argv) > 1 and not sys.argv[1].startswith('-'):
+            pass  # unknown positional — let argparse report it
+        else:
+            print("[backtest] no subcommand given — defaulting to 'measure' "
+                  "(legacy CLI compatibility)")
+            sys.argv.insert(1, 'measure')
+
     parser = argparse.ArgumentParser(
         description='Backtest + calibrate the stock model. Subcommands share '
                     'the same results_*.json snapshots and objective functions.')
@@ -2053,6 +2468,16 @@ if __name__ == '__main__':
     p_measure.add_argument('--prices-dir', default='output/prices',
                            help='Directory of per-ticker Parquet price files '
                                 '(default: output/prices)')
+    p_measure.add_argument('--signals', default=None,
+                           help='Comma-separated signal field names to evaluate '
+                                'by quartile (default: SIGNAL_SPECS). Any field '
+                                'present on the stock rows works.')
+    p_measure.add_argument('--cohort', default=None, metavar='FIELD',
+                           help='Also evaluate each signal WITHIN the per-snapshot '
+                                'top quartile of this field (e.g. --cohort mos).')
+    p_measure.add_argument('--exclude-capped', action='store_true',
+                           help='With --cohort: drop rows already vetoed by the '
+                                'beneish/altman-distress rating caps.')
     p_measure.set_defaults(func=_cli_measure)
 
     # ---- calibrate ----
@@ -2082,6 +2507,10 @@ if __name__ == '__main__':
     p_cal.add_argument('--prices-dir', default='output/prices',
                        help='Directory of per-ticker Parquet price files '
                             '(default: output/prices)')
+    p_cal.add_argument('--include-thresholds', action='store_true',
+                       help='Also sweep rating_threshold_buy/lean (grid ~12x '
+                            'larger, sampled above --max-evals). Only rating-'
+                            'bucket objectives can see thresholds.')
     p_cal.add_argument('--output', default=None,
                        help='Output JSON path (default: output/calibration_DATE.json)')
     p_cal.set_defaults(func=_cli_calibrate)

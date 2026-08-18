@@ -54,3 +54,29 @@ def compute_analyst_consensus(financials):
     }
 
 
+def extract_next_earnings(financials):
+    """Next scheduled earnings date from the already-fetched yfinance info.
+
+    Yahoo exposes the upcoming earnings window as epoch seconds in
+    ``earningsTimestampStart``/``earningsTimestamp`` plus an
+    ``isEarningsDateEstimate`` flag — no extra HTTP call needed. Returns
+    ``{'earnings_next_date': 'YYYY-MM-DD' | None, 'earnings_date_est': bool | None}``.
+    The timestamp can point at the *last* report when Yahoo hasn't scheduled the
+    next one yet; consumers should compare against the run date before calling
+    it "upcoming".
+    """
+    info = financials.get('info') or {}
+    out = {'earnings_next_date': None, 'earnings_date_est': None}
+    ts = info.get('earningsTimestampStart') or info.get('earningsTimestamp')
+    try:
+        if ts:
+            from datetime import datetime, timezone
+            out['earnings_next_date'] = datetime.fromtimestamp(
+                int(ts), tz=timezone.utc).date().isoformat()
+            est = info.get('isEarningsDateEstimate')
+            out['earnings_date_est'] = bool(est) if est is not None else None
+    except (ValueError, TypeError, OSError, OverflowError):
+        pass
+    return out
+
+

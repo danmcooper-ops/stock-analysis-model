@@ -21,10 +21,10 @@ def _ssl_context():
         import certifi
         return ssl.create_default_context(cafile=certifi.where())
     except Exception:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        return ctx
+        # Fall back to the system trust store — NEVER disable verification:
+        # unverified TLS would let a MITM feed fabricated financial data
+        # into the pipeline silently.
+        return ssl.create_default_context()
 
 _SSL_CTX = _ssl_context()
 
@@ -73,10 +73,34 @@ class SECXBRLClient:
             'StockholdersEquity',
             'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest',
         ],
-        'total_debt': [
-            'LongTermDebt',
-            'LongTermDebtAndCapitalLeaseObligations',
+        # Debt components are extracted SEPARATELY (not alias-merged) and
+        # combined by _resolve_total_debt_annual: US-GAAP LongTermDebt
+        # includes current maturities while LongTermDebtNoncurrent does not,
+        # so merging them lets a current-inclusive total win the merge and
+        # then get the current portion added a second time.
+        'ltd_noncurrent': [
             'LongTermDebtNoncurrent',
+            'LongTermDebtAndCapitalLeaseObligations',
+        ],
+        'ltd_total': [
+            'LongTermDebt',
+        ],
+        'debt_current_total': [
+            'DebtCurrent',          # short-term borrowings + current LTD
+        ],
+        'ltd_current': [
+            'LongTermDebtCurrent',
+        ],
+        'st_borrowings': [
+            'ShortTermBorrowings',
+            'CommercialPaper',
+            'BankOverdrafts',
+        ],
+        'total_liabilities': [
+            'Liabilities',
+        ],
+        'retained_earnings': [
+            'RetainedEarningsAccumulatedDeficit',
         ],
         'operating_income': [
             'OperatingIncomeLoss',
@@ -90,8 +114,30 @@ class SECXBRLClient:
         ],
         'capex': [
             'PaymentsToAcquirePropertyPlantAndEquipment',
+            # Many large domestic filers (LRCX, AOS, ...) report capex
+            # under the "ProductiveAssets" line rather than PP&E.
+            'PaymentsToAcquireProductiveAssets',
+            'PaymentsToAcquireOtherProductiveAssets',
             'PaymentsForCapitalImprovements',
             'CapitalExpendituresIncurringObligation',
+        ],
+        # D&A from the cash-flow statement. Needed by
+        # calculate_fundamental_growth (Reinvestment Rate × ROIC) and the
+        # owner-earnings growth-capex add-back — both dead on the XBRL path
+        # until these rows existed in build_yfinance_shape's frames.
+        'd_and_a': [
+            'DepreciationDepletionAndAmortization',
+            'DepreciationAndAmortization',
+            'DepreciationAmortizationAndAccretionNet',
+            'Depreciation',
+        ],
+        # Working-capital endpoints for the ΔWC term of the reinvestment
+        # rate (and the current ratio, which was N/A for XBRL records).
+        'current_assets': [
+            'AssetsCurrent',
+        ],
+        'current_liabilities': [
+            'LiabilitiesCurrent',
         ],
         'gross_profit': [
             'GrossProfit',
@@ -120,6 +166,100 @@ class SECXBRLClient:
             'IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments',
             'IncomeLossFromContinuingOperationsBeforeIncomeTaxesAndMinorityInterest',
         ],
+        # --- GAAP statement presentation (popup statement tabs only) -------
+        # Everything below exists so the Income Statement, Balance Sheet and
+        # Cash Flow tabs can follow Reg S-X / ASC 220-210-230 ordering rather
+        # than listing whatever happened to be extracted. Coverage measured
+        # over a 12-filer sample (AAPL/MSFT/JPM/KO/XOM/UNH/PG/NVDA/T/WMT/
+        # BRK-B/O); the fraction noted is how many tagged the concept at all.
+        # None of these feed scoring — rows simply drop when a filer is
+        # silent, which is why partial coverage is acceptable here.
+        'cost_of_revenue': [                       # 8/12
+            'CostOfRevenue',
+            'CostOfGoodsAndServicesSold',
+            'CostOfGoodsSold',
+            'CostOfServices',
+        ],
+        'rd_expense': ['ResearchAndDevelopmentExpense'],          # 4/12 (tech/pharma)
+        'sga_expense': [                           # 9/12
+            'SellingGeneralAndAdministrativeExpense',
+            'GeneralAndAdministrativeExpense',
+        ],
+        'selling_marketing': ['SellingAndMarketingExpense'],      # 2/12
+        'total_opex': ['OperatingExpenses', 'CostsAndExpenses'],  # 7/12
+        'other_nonop': [                           # 9/12
+            'NonoperatingIncomeExpense',
+            'OtherNonoperatingIncomeExpense',
+        ],
+        # As-FILED per-share figures. These are restated by the filer for
+        # stock splits, unlike the raw share counts — which is exactly why
+        # the statement tab shows these rather than dividing net income by
+        # period-end shares (that version stepped 4x at Apple's 2020 split).
+        'eps_basic': ['EarningsPerShareBasic'],                   # 10/12
+        'eps_diluted': ['EarningsPerShareDiluted'],               # 10/12
+        'wavg_basic': ['WeightedAverageNumberOfSharesOutstandingBasic'],    # 11/12
+        'wavg_diluted': ['WeightedAverageNumberOfDilutedSharesOutstanding'],# 10/12
+        'st_investments': [                        # 6/12
+            'ShortTermInvestments',
+            'AvailableForSaleSecuritiesDebtSecuritiesCurrent',
+            'MarketableSecuritiesCurrent',
+        ],
+        'receivables': [                           # 8/12
+            'AccountsReceivableNetCurrent',
+            'ReceivablesNetCurrent',
+        ],
+        'inventory': ['InventoryNet'],                            # 9/12
+        'ppe_net': ['PropertyPlantAndEquipmentNet'],              # 9/12
+        'goodwill': ['Goodwill'],                                 # 11/12
+        'intangibles': [                           # 8/12
+            'IntangibleAssetsNetExcludingGoodwill',
+            'FiniteLivedIntangibleAssetsNet',
+        ],
+        'accounts_payable': [                      # 8/12
+            'AccountsPayableCurrent',
+            'AccountsPayableAndAccruedLiabilitiesCurrent',
+        ],
+        # The balance-sheet identity check: assets must equal this.
+        'liab_and_equity': ['LiabilitiesAndStockholdersEquity'],  # 11/12
+        'cs_apic': [                               # 11/12
+            'CommonStocksIncludingAdditionalPaidInCapital',
+            'AdditionalPaidInCapital',
+            'AdditionalPaidInCapitalCommonStock',
+        ],
+        'aoci': ['AccumulatedOtherComprehensiveIncomeLossNetOfTax'],  # 11/12
+        'treasury_stock': ['TreasuryStockValue', 'TreasuryStockCommonValue'],  # 6/12
+        'minority_interest': ['MinorityInterest'],                # 7/12
+        # ASC 230 requires the three-section presentation; operating already
+        # exists above as 'operating_cash_flow'.
+        'investing_cf': ['NetCashProvidedByUsedInInvestingActivities'],   # 11/12
+        'financing_cf': ['NetCashProvidedByUsedInFinancingActivities'],   # 11/12
+        'sbc_cf': ['ShareBasedCompensation'],                     # 8/12
+        'deferred_tax': ['DeferredIncomeTaxExpenseBenefit'],      # 11/12
+        'buybacks': ['PaymentsForRepurchaseOfCommonStock'],       # 10/12
+        'debt_issued': [                           # 8/12
+            'ProceedsFromIssuanceOfLongTermDebt',
+            'ProceedsFromIssuanceOfDebt',
+        ],
+        'debt_repaid': [                           # 8/12
+            'RepaymentsOfLongTermDebt',
+            'RepaymentsOfDebt',
+        ],
+        'acquisitions': ['PaymentsToAcquireBusinessesNetOfCashAcquired'],  # 10/12
+        'net_change_cash': [                       # 11/12
+            'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect',
+            'CashAndCashEquivalentsPeriodIncreaseDecrease',
+        ],
+        # ASC 230-10-45-24: filers with foreign operations report the effect
+        # of exchange-rate changes on cash as its own reconciling line. Without
+        # it the three sections don't foot to the net change for any
+        # multinational (KO's FY2025 gap was $321M).
+        'fx_effect_cash': [
+            'EffectOfExchangeRateOnCashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents',
+            'EffectOfExchangeRateOnCashAndCashEquivalents',
+        ],
+        # IncreaseDecreaseInOperatingCapital was probed and tagged by only
+        # 1/12 filers, so working-capital movement is shown as a derived
+        # plug (OCF less the tagged add-backs) rather than a tagged row.
     }
 
     # IFRS taxonomy tag names. 20-F / 40-F filers (foreign issuers) report under
@@ -141,10 +281,30 @@ class SECXBRLClient:
             'Equity',
             'EquityAttributableToOwnersOfParent',
         ],
-        'total_debt': [
+        # Debt components mirror the US-GAAP split (see _XBRL_TAG_MAP).
+        # IFRS filers tag borrowings by current/noncurrent classification;
+        # 'Borrowings' (undifferentiated total) is the ltd_total-tier
+        # fallback for filers that only tag the combined figure.
+        'ltd_noncurrent': [
             'NoncurrentBorrowings',
             'BorrowingsNoncurrent',
             'LongtermBorrowings',
+        ],
+        'ltd_total': [
+            'Borrowings',
+        ],
+        'debt_current_total': [
+            'CurrentBorrowings',
+            'BorrowingsCurrent',
+            'ShorttermBorrowings',
+        ],
+        'ltd_current': [],
+        'st_borrowings': [],
+        'total_liabilities': [
+            'Liabilities',
+        ],
+        'retained_earnings': [
+            'RetainedEarnings',
         ],
         'operating_income': [
             'ProfitLossFromOperatingActivities',
@@ -165,6 +325,19 @@ class SECXBRLClient:
             # SAP combined PPE + intangibles tag — better than nothing
             'PurchaseOfPropertyPlantAndEquipmentIntangibleAssetsOtherThanGoodwillInvestmentPropertyAndOtherNoncurrentAssets',
             'AcquisitionsThroughBusinessCombinationsPropertyPlantAndEquipment',
+        ],
+        'd_and_a': [
+            'DepreciationAndAmortisationExpense',
+            # Cash-flow-statement adjustment line — the more commonly tagged
+            # IFRS location for D&A.
+            'AdjustmentsForDepreciationAndAmortisationExpense',
+            'DepreciationExpense',
+        ],
+        'current_assets': [
+            'CurrentAssets',
+        ],
+        'current_liabilities': [
+            'CurrentLiabilities',
         ],
         'gross_profit': [
             'GrossProfit',
@@ -188,6 +361,51 @@ class SECXBRLClient:
         ],
         'pretax_income': [
             'ProfitLossBeforeTax',
+        ],
+        # --- GAAP statement presentation, IFRS equivalents ----------------
+        # Mirrors the block added to _XBRL_TAG_MAP so 20-F/40-F filers get
+        # the same statement rows. IFRS presentation differs in places (no
+        # AOCI as such — 'OtherReserves' is the closest analogue; equity is
+        # 'IssuedCapital' + 'SharePremium'), so these are approximations
+        # chosen to populate the same line, not exact GAAP counterparts.
+        'cost_of_revenue': ['CostOfSales'],
+        'rd_expense': ['ResearchAndDevelopmentExpense'],
+        'sga_expense': [
+            'SellingGeneralAndAdministrativeExpense',
+            'AdministrativeExpense',
+        ],
+        'selling_marketing': ['DistributionCosts', 'SellingExpense'],
+        'total_opex': ['OperatingExpense'],
+        'other_nonop': ['OtherOperatingIncomeExpense'],
+        'eps_basic': ['BasicEarningsLossPerShare'],
+        'eps_diluted': ['DilutedEarningsLossPerShare'],
+        'wavg_basic': ['WeightedAverageNumberOfOrdinarySharesOutstanding'],
+        'wavg_diluted': ['WeightedAverageNumberOfDilutedOrdinarySharesOutstanding'],
+        'st_investments': ['OtherCurrentFinancialAssets'],
+        'receivables': ['TradeAndOtherCurrentReceivables'],
+        'inventory': ['Inventories'],
+        'ppe_net': ['PropertyPlantAndEquipment'],
+        'goodwill': ['Goodwill'],
+        'intangibles': ['IntangibleAssetsOtherThanGoodwill'],
+        'accounts_payable': ['TradeAndOtherCurrentPayables'],
+        'liab_and_equity': ['EquityAndLiabilities'],
+        'cs_apic': ['IssuedCapital', 'SharePremium'],
+        'aoci': ['OtherReserves'],
+        'treasury_stock': ['TreasuryShares'],
+        'minority_interest': ['NoncontrollingInterests'],
+        'investing_cf': ['CashFlowsFromUsedInInvestingActivities'],
+        'financing_cf': ['CashFlowsFromUsedInFinancingActivities'],
+        'sbc_cf': ['ShareBasedPaymentExpense'],
+        'deferred_tax': ['DeferredTaxExpenseIncome'],
+        'buybacks': ['PaymentsToAcquireOrRedeemEntitysShares'],
+        'debt_issued': ['ProceedsFromBorrowings'],
+        'debt_repaid': ['RepaymentsOfBorrowings'],
+        'acquisitions': [
+            'CashFlowsUsedInObtainingControlOfSubsidiariesOrOtherBusinessesClassifiedAsInvestingActivities',
+        ],
+        'net_change_cash': ['IncreaseDecreaseInCashAndCashEquivalents'],
+        'fx_effect_cash': [
+            'EffectOfExchangeRateChangesOnCashAndCashEquivalents',
         ],
     }
 
@@ -277,8 +495,49 @@ class SECXBRLClient:
 
         url = self._COMPANY_FACTS_URL.format(cik=cik)
         data = self._request_json(url)
-        self._cache[ticker] = data
+        # Don't cache request failures: a transient timeout would otherwise
+        # read as "this ticker has no XBRL data" for the rest of the run.
+        if data is not None:
+            self._cache[ticker] = data
         return data
+
+    def get_filing_provenance(self, ticker):
+        """Latest annual-filing metadata from the cached companyfacts blob.
+
+        Reads only the in-memory cache populated by fetch_company_facts —
+        never triggers a network request, so it returns None if called
+        before the facts were fetched (or after they were evicted).
+
+        Scans the revenue/net_income concepts (present for virtually every
+        filer) for annual-report entries and returns the most recently
+        filed one as {'cik', 'accn', 'form', 'filed', 'fy'}, or None.
+        """
+        facts = self._cache.get(ticker)
+        if not facts:
+            return None
+        best = None
+        try:
+            for taxonomy_key, tag_map in self._TAXONOMIES:
+                taxo = facts.get('facts', {}).get(taxonomy_key, {})
+                for concept in ('revenue', 'net_income'):
+                    for tag in tag_map.get(concept, ()):
+                        units = (taxo.get(tag) or {}).get('units', {})
+                        for entries in units.values():
+                            for e in entries:
+                                if e.get('form') not in ('10-K', '20-F', '40-F'):
+                                    continue
+                                filed = e.get('filed') or ''
+                                if best is None or filed > best['filed']:
+                                    best = {'accn': e.get('accn'),
+                                            'form': e.get('form'),
+                                            'filed': filed,
+                                            'fy': e.get('fy')}
+        except Exception:
+            return None
+        if best is None:
+            return None
+        best['cik'] = self._cik_map.get(ticker)
+        return best
 
     def _extract_annual_values(self, facts_json, tag_list, form_filter='10-K',
                                units_key='USD', taxonomy_key='us-gaap'):
@@ -577,6 +836,80 @@ class SECXBRLClient:
                 return vals, taxonomy_key, ccy
         return {}, None, ccy
 
+    _DEBT_COMPONENT_CONCEPTS = (
+        'ltd_noncurrent', 'ltd_total', 'debt_current_total',
+        'ltd_current', 'st_borrowings',
+    )
+
+    def _resolve_total_debt_annual(self, facts_json, units_key='USD',
+                                   taxonomy_key='us-gaap'):
+        """Per-year total debt from separately-extracted components.
+
+        Priority per fiscal year (never fabricate zero for a levered filer):
+          1. noncurrent LTD + current-debt total (clean split, no overlap)
+          2. noncurrent LTD + current LTD + short-term borrowings
+          3. total LTD (already includes current maturities) + ST borrowings
+        Years where none of the tiers resolve are OMITTED — debt UNKNOWN
+        for that year is not debt = 0.
+
+        Returns:
+            (values {fy: float}, tagged bool). tagged=False means NO debt
+            component concept carries any entries at all — the filer is
+            genuinely unlevered (or entirely untagged) and callers may
+            treat debt as 0; tagged=True with a missing year means unknown.
+        """
+        tag_map = dict(self._TAXONOMIES).get(taxonomy_key, {})
+
+        def _c(concept):
+            tags = tag_map.get(concept, [])
+            if not tags:
+                return {}
+            return self._extract_annual_values(
+                facts_json, tags, units_key=units_key,
+                taxonomy_key=taxonomy_key) or {}
+
+        ltd_nc = _c('ltd_noncurrent')
+        ltd_total = _c('ltd_total')
+        debt_cur = _c('debt_current_total')
+        ltd_cur = _c('ltd_current')
+        stb = _c('st_borrowings')
+
+        tagged = any((ltd_nc, ltd_total, debt_cur, ltd_cur, stb))
+        out = {}
+        for y in sorted(set(ltd_nc) | set(ltd_total) | set(debt_cur)
+                        | set(ltd_cur) | set(stb)):
+            if ltd_nc.get(y) is not None:
+                if debt_cur.get(y) is not None:
+                    out[y] = ltd_nc[y] + debt_cur[y]
+                else:
+                    out[y] = (ltd_nc[y] + (ltd_cur.get(y) or 0)
+                              + (stb.get(y) or 0))
+            elif ltd_total.get(y) is not None:
+                out[y] = ltd_total[y] + (stb.get(y) or 0)
+        return out, tagged
+
+    def _resolve_total_debt_concept(self, facts_json):
+        """Dual-taxonomy, currency-aware total-debt resolution.
+
+        The _extract_concept_annual equivalent for the composed total-debt
+        figure: tries US-GAAP first, falls back to IFRS, auto-detecting the
+        reporting currency from whichever debt component is tagged.
+
+        Returns (values {fy: float}, taxonomy_key, currency, tagged).
+        """
+        ccy = None
+        for concept in self._DEBT_COMPONENT_CONCEPTS:
+            ccy = ccy or self._detect_currency(facts_json, concept)
+        ccy = ccy or 'USD'
+        any_tagged = False
+        for taxonomy_key, _tag_map in self._TAXONOMIES:
+            vals, tagged = self._resolve_total_debt_annual(
+                facts_json, units_key=ccy, taxonomy_key=taxonomy_key)
+            any_tagged = any_tagged or tagged
+            if vals:
+                return vals, taxonomy_key, ccy, True
+        return {}, None, ccy, any_tagged
+
     # ------------------------------------------------------------------
     # Public API: Validation
     # ------------------------------------------------------------------
@@ -604,9 +937,15 @@ class SECXBRLClient:
         fields_flagged = 0
 
         for concept, yf_keys in self._YF_KEY_MAP.items():
-            # Get EDGAR value (most recent annual)
-            xbrl_tags = self._XBRL_TAG_MAP.get(concept, [])
-            annual_vals = self._extract_annual_values(facts, xbrl_tags)
+            # Get EDGAR value (most recent annual). Total debt is a composed
+            # figure (LTD + current debt), not a single tag — resolve it the
+            # same way build_yfinance_shape does so the comparison against
+            # yfinance's current-inclusive 'Total Debt' row is apples-to-apples.
+            if concept == 'total_debt':
+                annual_vals, _tagged = self._resolve_total_debt_annual(facts)
+            else:
+                xbrl_tags = self._XBRL_TAG_MAP.get(concept, [])
+                annual_vals = self._extract_annual_values(facts, xbrl_tags)
             if not annual_vals:
                 continue
 
@@ -704,8 +1043,90 @@ class SECXBRLClient:
         gp, gp_ccy               = _flow('gross_profit')
         intexp, intexp_ccy       = _flow('interest_expense')
         div, div_ccy             = _flow('dividends_paid')
+        opinc, opinc_ccy         = _flow('operating_income')
+        # Remaining income-statement + cash-flow lines. Only the popup's
+        # statement tabs consume these; every ratio/model above still reads
+        # the series it already read, so adding them changes no scoring.
+        pretax, pretax_ccy       = _flow('pretax_income')
+        taxprov, taxprov_ccy     = _flow('tax_provision')
+        dna, dna_ccy             = _flow('d_and_a')
+        # Balance-sheet series (annual FY-keyed like the flows — one
+        # fiscal-year-end instant per year). Total debt is composed from
+        # the component concepts via the shared resolver.
+        cash_h, cash_ccy         = _flow('cash')
+        assets_h, assets_ccy     = _flow('total_assets')
+        ca_h, ca_ccy             = _flow('current_assets')
+        cl_h, cl_ccy             = _flow('current_liabilities')
+        liabs_h, liabs_ccy       = _flow('total_liabilities')
+        equity_h, equity_ccy     = _flow('total_equity')
+        retearn_h, retearn_ccy   = _flow('retained_earnings')
+        # GAAP presentation lines. Grouped by statement; every one of these
+        # is optional — the statement tabs drop a row whose series is empty.
+        cogs_h, _c1     = _flow('cost_of_revenue')
+        rd_h, _c2       = _flow('rd_expense')
+        sga_h, _c3      = _flow('sga_expense')
+        selmkt_h, _c4   = _flow('selling_marketing')
+        opex_h, _c5     = _flow('total_opex')
+        othnonop_h, _c6 = _flow('other_nonop')
+        stinv_h, _c7    = _flow('st_investments')
+        recv_h, _c8     = _flow('receivables')
+        invty_h, _c9    = _flow('inventory')
+        ppe_h, _c10     = _flow('ppe_net')
+        gw_h, _c11      = _flow('goodwill')
+        intang_h, _c12  = _flow('intangibles')
+        ap_h, _c13      = _flow('accounts_payable')
+        lae_h, _c14     = _flow('liab_and_equity')
+        csapic_h, _c15  = _flow('cs_apic')
+        aoci_h, _c16    = _flow('aoci')
+        treas_h, _c17   = _flow('treasury_stock')
+        minint_h, _c18  = _flow('minority_interest')
+        icf_h, _c19     = _flow('investing_cf')
+        fcf_h, _c20     = _flow('financing_cf')
+        sbc_h, _c21     = _flow('sbc_cf')
+        deftax_h, _c22  = _flow('deferred_tax')
+        buyback_h, _c23 = _flow('buybacks')
+        dissued_h, _c24 = _flow('debt_issued')
+        drepaid_h, _c25 = _flow('debt_repaid')
+        acq_h, _c26     = _flow('acquisitions')
+        chgcash_h, _c27 = _flow('net_change_cash')
+        fxeff_h, _c28   = _flow('fx_effect_cash')
+        # A classified balance sheet splits borrowings across the current and
+        # non-current captions, but the shared resolver only returns the
+        # composed total. Rebuild the two halves from the same component
+        # concepts it uses, applying its precedence: DebtCurrent already
+        # bundles short-term borrowings with current maturities, so the
+        # ltd_current + st_borrowings sum is only a fallback. Likewise
+        # LongTermDebt INCLUDES current maturities while LongTermDebtNoncurrent
+        # does not — subtract the current portion when only the former exists.
+        dct_h, _d1 = _flow('debt_current_total')
+        ltdc_h, _d2 = _flow('ltd_current')
+        stb_h, _d3 = _flow('st_borrowings')
+        ltdnc_h, _d4 = _flow('ltd_noncurrent')
+        ltdt_h, _d5 = _flow('ltd_total')
+        _yrs = set(dct_h) | set(ltdc_h) | set(stb_h) | set(ltdnc_h) | set(ltdt_h)
+        debt_cur_h, debt_nc_h = {}, {}
+        for _y in _yrs:
+            if _y in dct_h:
+                debt_cur_h[_y] = dct_h[_y]
+            elif _y in ltdc_h or _y in stb_h:
+                debt_cur_h[_y] = ltdc_h.get(_y, 0.0) + stb_h.get(_y, 0.0)
+            if _y in ltdnc_h:
+                debt_nc_h[_y] = ltdnc_h[_y]
+            elif _y in ltdt_h:
+                # LongTermDebt is current-inclusive; net out current maturities
+                # when they're separately tagged, else take it as reported.
+                debt_nc_h[_y] = ltdt_h[_y] - ltdc_h.get(_y, 0.0)
+        debt_h, _dtx, debt_ccy, debt_tagged = \
+            self._resolve_total_debt_concept(facts)
         shares, _tax_s, _ccy_s   = self._extract_concept_periodic(
             facts, 'shares_outstanding', units_key='shares', point_in_time=True)
+        if not shares:
+            # Cover-page share count (dei taxonomy). Many filers (KO, JNJ,
+            # most ADRs) never tag the us-gaap balance-sheet concepts but
+            # always file this one — it's mandatory on 10-K/10-Q/20-F covers.
+            shares = self._extract_periodic_values(
+                facts, ['EntityCommonStockSharesOutstanding'],
+                units_key='shares', point_in_time=True, taxonomy_key='dei')
 
         if not rev and not ni:
             return None
@@ -714,10 +1135,28 @@ class SECXBRLClient:
         # primary income-statement concepts. If revenue is in JPY but a US-GAAP
         # subsidiary tag happens to carry USD on, say, dividends, treat the
         # filer as JPY.
+        # Deliberately NOT widened to the statement-tab series added below:
+        # this list decides whether every OTHER series gets FX-converted, so
+        # a new concept flipping the detection would move published scores.
+        # The new series ride the detected rate; they don't vote on it.
         currencies = [c for c in (rev_ccy, ni_ccy, ocf_ccy, capex_ccy,
-                                  gp_ccy, intexp_ccy, div_ccy) if c]
+                                  gp_ccy, intexp_ccy, div_ccy, opinc_ccy) if c]
         reporting_ccy = next((c for c in currencies if c != 'USD'), 'USD')
         fx_converted = reporting_ccy != 'USD'
+
+        # Per-share amounts live under a compound unit ("USD/shares"), and
+        # weighted share counts under "shares" — neither is discoverable by
+        # the currency auto-detect, so both need an explicit units_key. They
+        # sit here rather than with the other _flow calls because the unit
+        # string depends on the reporting currency resolved just above.
+        eps_b, _e1, _e2 = self._extract_concept_annual(
+            facts, 'eps_basic', units_key=reporting_ccy + '/shares')
+        eps_d, _e3, _e4 = self._extract_concept_annual(
+            facts, 'eps_diluted', units_key=reporting_ccy + '/shares')
+        wavg_b, _e5, _e6 = self._extract_concept_annual(
+            facts, 'wavg_basic', units_key='shares')
+        wavg_d, _e7, _e8 = self._extract_concept_annual(
+            facts, 'wavg_diluted', units_key='shares')
 
         if fx_converted:
             fx = _get_fx_rates_to_usd(reporting_ccy)
@@ -728,9 +1167,71 @@ class SECXBRLClient:
             gp     = _apply_fx_annual(gp, fx)
             intexp = _apply_fx_annual(intexp, fx)
             div    = _apply_fx_annual(div, fx)
+            opinc  = _apply_fx_annual(opinc, fx)
+            pretax  = _apply_fx_annual(pretax, fx)
+            taxprov = _apply_fx_annual(taxprov, fx)
+            dna     = _apply_fx_annual(dna, fx)
+            # Balance-sheet instants use the same year-end-close rate as the
+            # flows — exact for calendar-year fiscal ends, and the same
+            # months-off approximation already accepted for flow series on
+            # mid-year fiscal ends.
+            cash_h = _apply_fx_annual(cash_h, fx)
+            debt_h = _apply_fx_annual(debt_h, fx)
+            assets_h  = _apply_fx_annual(assets_h, fx)
+            ca_h      = _apply_fx_annual(ca_h, fx)
+            cl_h      = _apply_fx_annual(cl_h, fx)
+            liabs_h   = _apply_fx_annual(liabs_h, fx)
+            equity_h  = _apply_fx_annual(equity_h, fx)
+            retearn_h = _apply_fx_annual(retearn_h, fx)
+            # GAAP statement lines. Per-share amounts convert at the same
+            # rate (a currency-per-share unit scales exactly like currency);
+            # weighted share COUNTS do not, same as `shares` below.
+            cogs_h    = _apply_fx_annual(cogs_h, fx)
+            rd_h      = _apply_fx_annual(rd_h, fx)
+            sga_h     = _apply_fx_annual(sga_h, fx)
+            selmkt_h  = _apply_fx_annual(selmkt_h, fx)
+            opex_h    = _apply_fx_annual(opex_h, fx)
+            othnonop_h = _apply_fx_annual(othnonop_h, fx)
+            stinv_h   = _apply_fx_annual(stinv_h, fx)
+            recv_h    = _apply_fx_annual(recv_h, fx)
+            invty_h   = _apply_fx_annual(invty_h, fx)
+            ppe_h     = _apply_fx_annual(ppe_h, fx)
+            gw_h      = _apply_fx_annual(gw_h, fx)
+            intang_h  = _apply_fx_annual(intang_h, fx)
+            ap_h      = _apply_fx_annual(ap_h, fx)
+            lae_h     = _apply_fx_annual(lae_h, fx)
+            csapic_h  = _apply_fx_annual(csapic_h, fx)
+            aoci_h    = _apply_fx_annual(aoci_h, fx)
+            treas_h   = _apply_fx_annual(treas_h, fx)
+            minint_h  = _apply_fx_annual(minint_h, fx)
+            icf_h     = _apply_fx_annual(icf_h, fx)
+            fcf_h     = _apply_fx_annual(fcf_h, fx)
+            sbc_h     = _apply_fx_annual(sbc_h, fx)
+            deftax_h  = _apply_fx_annual(deftax_h, fx)
+            buyback_h = _apply_fx_annual(buyback_h, fx)
+            dissued_h = _apply_fx_annual(dissued_h, fx)
+            drepaid_h = _apply_fx_annual(drepaid_h, fx)
+            acq_h     = _apply_fx_annual(acq_h, fx)
+            chgcash_h = _apply_fx_annual(chgcash_h, fx)
+            fxeff_h   = _apply_fx_annual(fxeff_h, fx)
+            debt_cur_h = _apply_fx_annual(debt_cur_h, fx)
+            debt_nc_h  = _apply_fx_annual(debt_nc_h, fx)
+            eps_b     = _apply_fx_annual(eps_b, fx)
+            eps_d     = _apply_fx_annual(eps_d, fx)
             # shares are unit-counts, not currency — leave alone.
 
-        all_series = [rev, ni, ocf, capex, gp, intexp, div, shares]
+        # Untagged debt across every component concept = genuinely unlevered
+        # filer: explicit zeros over the revenue span (else net debt would
+        # read unknown instead of -cash). A tagged filer with missing years
+        # keeps those years absent (unknown ≠ 0).
+        if not debt_tagged and not debt_h:
+            debt_h = {y: 0.0 for y in (rev or ni)}
+
+        # Unchanged on purpose: years_available gates backfill refetch and
+        # model eligibility upstream, so the statement-tab series must not
+        # be able to inflate it.
+        all_series = [rev, ni, ocf, capex, gp, intexp, div, shares, opinc,
+                      debt_h, cash_h]
         years_available = max((len(s) for s in all_series if s), default=0)
 
         return {
@@ -741,7 +1242,56 @@ class SECXBRLClient:
             'gross_profit_history':     gp,
             'interest_expense_history': intexp,
             'dividends_paid_history':   div,
+            'operating_income_history': opinc,
+            'total_debt_history':       debt_h,
+            'cash_history':             cash_h,
             'shares_history':           shares,
+            # Statement-tab series (popup Balance Sheet / Income Statement /
+            # Cash Flow). Consumed only by the report's hist.json sidecar.
+            'pretax_income_history':    pretax,
+            'tax_provision_history':    taxprov,
+            'd_and_a_history':          dna,
+            'total_assets_history':     assets_h,
+            'current_assets_history':   ca_h,
+            'current_liabilities_history': cl_h,
+            'total_liabilities_history': liabs_h,
+            'total_equity_history':     equity_h,
+            'retained_earnings_history': retearn_h,
+            # GAAP presentation lines (popup statement tabs only).
+            'cost_of_revenue_history':  cogs_h,
+            'rd_expense_history':       rd_h,
+            'sga_expense_history':      sga_h,
+            'selling_marketing_history': selmkt_h,
+            'total_opex_history':       opex_h,
+            'other_nonop_history':      othnonop_h,
+            'eps_basic_history':        eps_b,
+            'eps_diluted_history':      eps_d,
+            'wavg_basic_history':       wavg_b,
+            'wavg_diluted_history':     wavg_d,
+            'st_investments_history':   stinv_h,
+            'receivables_history':      recv_h,
+            'inventory_history':        invty_h,
+            'ppe_net_history':          ppe_h,
+            'goodwill_history':         gw_h,
+            'intangibles_history':      intang_h,
+            'accounts_payable_history': ap_h,
+            'liab_and_equity_history':  lae_h,
+            'cs_apic_history':          csapic_h,
+            'aoci_history':             aoci_h,
+            'treasury_stock_history':   treas_h,
+            'minority_interest_history': minint_h,
+            'debt_current_history':     debt_cur_h,
+            'debt_noncurrent_history':  debt_nc_h,
+            'investing_cf_history':     icf_h,
+            'financing_cf_history':     fcf_h,
+            'sbc_cf_history':           sbc_h,
+            'deferred_tax_history':     deftax_h,
+            'buybacks_history':         buyback_h,
+            'debt_issued_history':      dissued_h,
+            'debt_repaid_history':      drepaid_h,
+            'acquisitions_history':     acq_h,
+            'net_change_cash_history':  chgcash_h,
+            'fx_effect_cash_history':   fxeff_h,
             'years_available':          years_available,
             'reporting_currency':       reporting_ccy,
             'fx_converted':             fx_converted,
@@ -792,15 +1342,24 @@ class SECXBRLClient:
 
         # Cash flow (flow concepts)
         op_cf         = _ann('operating_cash_flow')
+        capex         = _ann('capex')
+        d_and_a       = _ann('d_and_a')
 
         # Balance sheet (point-in-time concepts). Their entries in XBRL only
         # carry end dates, no durations — _extract_annual_values' duration
         # filter conditional skips them naturally, and the fy match keeps the
         # right period-end value per fiscal year.
         equity        = _ann('total_equity')
-        debt          = _ann('total_debt')
         cash          = _ann('cash')
         assets        = _ann('total_assets')
+        curr_assets   = _ann('current_assets')
+        curr_liabs    = _ann('current_liabilities')
+        liabilities   = _ann('total_liabilities')
+        ret_earnings  = _ann('retained_earnings')
+        # Total debt is composed from separately-tagged components (LTD +
+        # current debt) — a single-tag read understates leverage by the
+        # short-term portion for most filers.
+        debt, debt_tagged = self._resolve_total_debt_annual(facts)
 
         # Need at least revenue or net income to consider the data usable.
         if not revenue and not net_income:
@@ -841,6 +1400,21 @@ class SECXBRLClient:
                 if ni is not None and tx is not None:
                     pretax_income[y] = ni + tx
 
+        # Untagged debt across every component concept = genuinely unlevered
+        # filer -> an explicit 0 per year, so net debt reads -cash instead of
+        # unknown. A TAGGED filer with a missing year stays None (unknown).
+        if not debt_tagged:
+            debt = {y: 0.0 for y in years}
+
+        # Total liabilities: fall back to the Assets − Equity identity for
+        # years where the filer doesn't tag the 'Liabilities' total. Unblocks
+        # Debt/Equity and Altman Z on the XBRL path.
+        for y in years:
+            if liabilities.get(y) is None:
+                a, e = assets.get(y), equity.get(y)
+                if a is not None and e is not None:
+                    liabilities[y] = a - e
+
         cols = [pd.Timestamp(year=y, month=12, day=31) for y in years]
 
         income_df = pd.DataFrame({
@@ -861,12 +1435,26 @@ class SECXBRLClient:
                 'Total Debt':                debt.get(y),
                 'Cash And Cash Equivalents': cash.get(y),
                 'Total Assets':              assets.get(y),
+                'Current Assets':            curr_assets.get(y),
+                'Current Liabilities':       curr_liabs.get(y),
+                'Total Liabilities Net Minority Interest': liabilities.get(y),
+                'Retained Earnings':         ret_earnings.get(y),
             } for y, col in zip(years, cols)
         })
 
+        # Capex follows the yfinance sign convention: stored NEGATIVE.
+        # XBRL Payments* tags are debit-positive, so negate. Consumers that
+        # derive FCF as OCF + Capex (_fcf_series_from_cashflow) and those
+        # that abs() it (calculate_fundamental_growth, the owner-earnings
+        # add-back) both read correctly under this convention.
+        def _neg(v):
+            return -abs(v) if v is not None else None
+
         cash_flow_df = pd.DataFrame({
             col: {
-                'Operating Cash Flow': op_cf.get(y),
+                'Operating Cash Flow':          op_cf.get(y),
+                'Capital Expenditure':          _neg(capex.get(y)),
+                'Depreciation And Amortization': d_and_a.get(y),
             } for y, col in zip(years, cols)
         })
 

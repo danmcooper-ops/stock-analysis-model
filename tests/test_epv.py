@@ -109,3 +109,81 @@ class TestEPVGrowthPremium:
         """
         result = epv_with_growth_premium(100.0, roe=0.50, cost_of_equity=0.10)
         assert result == pytest.approx(200.0)  # capped at 2x
+
+
+# ---------------------------------------------------------------------------
+# EPV input selection — normalized (through-cycle) vs point-in-time EBIT
+# ---------------------------------------------------------------------------
+
+class TestSelectEpvEbit:
+    def _select(self, *args, **kwargs):
+        from scripts.analyze_stock import _select_epv_ebit
+        return _select_epv_ebit(*args, **kwargs)
+
+    def test_normalized_with_enough_history(self):
+        ebit, source = self._select(point_ebit=200.0, yf_revenue=1000.0,
+                                    op_margin_avg_10y=0.15,
+                                    op_margin_hist_years=8)
+        assert source == 'normalized'
+        assert ebit == pytest.approx(150.0)  # 15% avg margin × current rev
+
+    def test_point_when_history_thin(self):
+        ebit, source = self._select(point_ebit=200.0, yf_revenue=1000.0,
+                                    op_margin_avg_10y=0.15,
+                                    op_margin_hist_years=4)
+        assert source == 'point'
+        assert ebit == 200.0
+
+    def test_point_when_no_revenue(self):
+        """No yfinance revenue → can't normalize in the quote currency;
+        EDGAR USD revenue must never be substituted."""
+        ebit, source = self._select(point_ebit=200.0, yf_revenue=None,
+                                    op_margin_avg_10y=0.15,
+                                    op_margin_hist_years=10)
+        assert source == 'point'
+        assert ebit == 200.0
+
+    def test_normalized_used_even_when_point_ebit_missing(self):
+        """Missing point EBIT must NOT drop EPV when the through-cycle path is
+        available — the consensus fallback needs exactly these sparse names."""
+        ebit, source = self._select(point_ebit=None, yf_revenue=1000.0,
+                                    op_margin_avg_10y=0.15,
+                                    op_margin_hist_years=10)
+        assert source == 'normalized'
+        assert ebit == pytest.approx(150.0)
+
+    def test_none_when_no_point_ebit_and_no_history(self):
+        ebit, source = self._select(point_ebit=None, yf_revenue=1000.0,
+                                    op_margin_avg_10y=None,
+                                    op_margin_hist_years=0)
+        assert ebit is None
+        assert source is None
+
+    def test_negative_normalized_ebit_flows_through(self):
+        """A negative through-cycle margin produces negative normalized EBIT;
+        earnings_power_value then correctly returns None downstream."""
+        ebit, source = self._select(point_ebit=50.0, yf_revenue=1000.0,
+                                    op_margin_avg_10y=-0.05,
+                                    op_margin_hist_years=10)
+        assert source == 'normalized'
+        assert ebit == pytest.approx(-50.0)
+        assert earnings_power_value(ebit, 0.21, 0.10, 1e6) is None
+
+
+class TestEquityBridge:
+    """NOPAT/WACC is enterprise value; the cash/debt bridge converts to equity."""
+
+    def test_debt_decreases_value(self):
+        fv_no_debt = earnings_power_value(10e9, 0.20, 0.10, 1e9, total_debt=0)
+        fv_with_debt = earnings_power_value(10e9, 0.20, 0.10, 1e9,
+                                            total_debt=20e9)
+        assert fv_with_debt == pytest.approx(fv_no_debt - 20.0)
+
+    def test_known_value(self):
+        # NOPAT = 10*0.8 = 8; EV = 8/0.10 = 80; equity = 80 + 5 - 30 = 55
+        fv = earnings_power_value(10, 0.20, 0.10, 1,
+                                  excess_cash=5, total_debt=30)
+        assert fv == pytest.approx(55.0)
+
+    def test_none_when_debt_exceeds_enterprise_value(self):
+        assert earnings_power_value(10, 0.20, 0.10, 1, total_debt=100) is None

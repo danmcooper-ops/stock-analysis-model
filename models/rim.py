@@ -79,10 +79,16 @@ def residual_income_model(book_value_per_share, roe, cost_of_equity,
         # Book value grows by retained earnings.
         bv = bv * (1 + roe * retention_ratio)
 
-    # Terminal value: RI continues growing at g
+    # Terminal value: residual income continues growing at g in perpetuity.
+    # bv is already BV_N after the loop, so ri_terminal = BV_N·(ROE−Re) is
+    # RI_{N+1}; the Gordon value at year N is RI_{N+1}/(Re−g) with NO extra
+    # (1+g) — the old factor double-grew the stream and overstated every TV
+    # by ~(1+g). Negative terminal RI (ROE < Re) is kept, not zeroed: a firm
+    # earning below its cost of equity in perpetuity destroys value, and
+    # truncating only the downside overstated chronic under-earners.
     ri_terminal = bv * (roe - cost_of_equity)
-    if ri_terminal > 0 and (cost_of_equity - g) > 0.005:
-        tv = ri_terminal * (1 + g) / (cost_of_equity - g)
+    if (cost_of_equity - g) > 0.005:
+        tv = ri_terminal / (cost_of_equity - g)
         pv_tv = tv / (1 + cost_of_equity) ** years
     else:
         pv_tv = 0.0

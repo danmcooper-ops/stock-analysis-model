@@ -77,7 +77,9 @@ def _get_fx_rates_to_usd(currency):
         _FX_CACHE[currency] = rates
         return rates
     except Exception:
-        _FX_CACHE[currency] = {}
+        # Don't cache the failure: a transient yfinance error at run start
+        # would otherwise leave every ticker in this currency unconverted
+        # for the whole 3-6h run. Next ticker retries the fetch.
         return {}
 
 

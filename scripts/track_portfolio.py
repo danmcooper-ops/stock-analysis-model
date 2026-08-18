@@ -36,9 +36,20 @@ from scripts.report_portfolio_html import build_portfolio_html
 # ---------------------------------------------------------------------------
 
 def _find_latest_results(output_dir='output', exclude=None):
-    """Find the most recent results_*.json in output_dir."""
+    """Find the most recent canonical results_YYYY-MM-DD.json in output_dir.
+
+    Suffixed variants (results_*_replay.json) sort lexicographically AFTER
+    the canonical file and are re-scored copies, not live snapshots — skip.
+    """
     pattern = os.path.join(output_dir, 'results_*.json')
-    files = sorted(glob.glob(pattern))
+    files = []
+    for f in sorted(glob.glob(pattern)):
+        stem = os.path.basename(f)[len('results_'):-len('.json')]
+        try:
+            date.fromisoformat(stem)
+        except ValueError:
+            continue
+        files.append(f)
     if exclude:
         files = [f for f in files if f != exclude]
     return files[-1] if files else None

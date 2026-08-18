@@ -93,7 +93,9 @@ class NewsClient:
                     'origin': 'yfinance',
                 })
         except Exception:
-            headlines = []
+            # Fetch failed — return empty but DON'T cache, so a transient
+            # failure doesn't read as "no news" for the rest of the run.
+            return []
 
         headlines.sort(key=lambda h: h.get('timestamp', 0), reverse=True)
         self._ticker_cache[ticker] = headlines[:10]

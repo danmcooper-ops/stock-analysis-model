@@ -254,3 +254,48 @@ class TestMonteCarloDDM:
         narrow_spread = r_narrow['p90_fv'] - r_narrow['p10_fv']
         wide_spread = r_wide['p90_fv'] - r_wide['p10_fv']
         assert wide_spread > narrow_spread
+
+
+class TestAnnualiseDividends:
+    """Partial-year drop + gap-year reindexing (Phase 1.1)."""
+
+    def _series(self, pairs):
+        import pandas as pd
+        idx = pd.to_datetime([p[0] for p in pairs])
+        return pd.Series([p[1] for p in pairs], index=idx)
+
+    def test_partial_current_year_dropped(self):
+        from scripts.analyze_stock import _annualise_dividends
+        s = self._series([('2023-03', .25), ('2023-06', .25), ('2023-09', .25),
+                          ('2023-12', .25), ('2024-03', .25), ('2024-06', .25),
+                          ('2024-09', .25), ('2024-12', .25),
+                          ('2025-03', .30), ('2025-06', .30)])  # 2025 partial
+        # as_of 2025 → drop 2025, keep full 2023,2024
+        assert _annualise_dividends(s, as_of_year=2025) == [1.0, 1.0]
+
+    def test_suspension_year_filled_with_zero(self):
+        from scripts.analyze_stock import _annualise_dividends
+        s = self._series([('2021-06', 1.0), ('2022-06', 1.1),
+                          ('2024-06', 1.3), ('2025-06', 1.4)])  # 2023 missing
+        assert _annualise_dividends(s, as_of_year=2026) == [1.0, 1.1, 0.0, 1.3, 1.4]
+
+    def test_single_partial_year_kept(self):
+        """A freshly-initiated payer with only the current year still surfaces."""
+        from scripts.analyze_stock import _annualise_dividends
+        s = self._series([('2026-03', .20), ('2026-06', .20)])
+        assert _annualise_dividends(s, as_of_year=2026) == [0.40]
+
+    def test_empty(self):
+        from scripts.analyze_stock import _annualise_dividends
+        import pandas as pd
+        assert _annualise_dividends(pd.Series(dtype=float)) == []
+
+
+class TestDivCagrOverGaps:
+    def test_span_uses_positions_not_filtered_length(self):
+        from models.ddm import estimate_ddm_growth
+        # [1.0, 1.1, 0, 1.3, 1.4]: first/last positive span = 4 years
+        g = estimate_ddm_growth([1.0, 1.1, 0.0, 1.3, 1.4],
+                                payout=0.5, roe=None, analyst_ltg=None)
+        import pytest
+        assert g['div_cagr'] == pytest.approx((1.4 / 1.0) ** (1 / 4) - 1, abs=1e-4)

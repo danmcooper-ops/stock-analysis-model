@@ -13,6 +13,8 @@ import os
 import sys
 from datetime import date
 
+import pandas as pd
+
 # Ensure repo root is on sys.path so `scripts.*` imports resolve when invoked
 # directly (i.e. `python scripts/rescore_and_render.py ...`).
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -21,7 +23,9 @@ if _REPO_ROOT not in sys.path:
 
 from scripts.scoring import score_and_rate
 from scripts.report_html import build_html
-from scripts.analyze_stock import derive_edgar_metrics
+from scripts.analyze_stock import (derive_edgar_metrics, _load_local_prices,
+                                   compute_multiple_vs_history,
+                                   compute_price_metrics, _round_price_metrics)
 
 
 def _refresh_edgar_derived_metrics(results):
@@ -50,6 +54,59 @@ def _refresh_edgar_derived_metrics(results):
     print(f'Refreshed EDGAR-derived metrics for {n} rows')
 
 
+def _refresh_multiple_vs_history(results, prices_dir):
+    """Compute the time-series cheapness metric (Valuation: Mult vs Hist)
+    from local parquet prices + edgar_history for snapshots that predate the
+    field (or after a backfill). Rows whose parquet can't be loaded are
+    left UNTOUCHED — a live-run value must survive a rescore on a machine
+    without the prices dir, so we only overwrite when we could actually
+    recompute the inputs."""
+    n = skipped = 0
+    for r in results:
+        if not r.get('edgar_history'):
+            continue
+        close = _load_local_prices(r.get('ticker'), prices_dir)
+        if close is None or len(close) == 0:
+            skipped += 1
+            continue
+        mvh, yrs = compute_multiple_vs_history(
+            close, r.get('edgar_history'), r.get('operating_income'))
+        r['mult_vs_hist'] = mvh
+        r['mult_hist_years'] = yrs
+        if mvh is not None:
+            n += 1
+    print(f'Refreshed Mult-vs-Hist for {n} rows'
+          + (f' ({skipped} without local prices left as-is)' if skipped else ''))
+
+
+def _refresh_price_metrics(results, prices_dir, as_of=None):
+    """Compute the market/risk metrics (momentum, liquidity) from local parquet.
+
+    Same contract as _refresh_multiple_vs_history: rows whose parquet can't be
+    read are left UNTOUCHED so a live-run value survives a rescore on a machine
+    without the prices dir.
+
+    *as_of* is the snapshot date, not today — otherwise re-rendering an older
+    snapshot would measure every trailing window to the wrong endpoint and
+    declare the whole universe stale.
+    """
+    n = skipped = stale = 0
+    for r in results:
+        metrics = compute_price_metrics(r.get('ticker'), prices_dir, as_of=as_of)
+        if metrics['price_data_stale'] is None:
+            # No usable local price history — leave whatever the row already had.
+            skipped += 1
+            continue
+        if metrics['price_data_stale']:
+            stale += 1
+        r.update(_round_price_metrics(metrics))
+        if metrics['momentum_12_1'] is not None:
+            n += 1
+    print(f'Refreshed price metrics for {n} rows'
+          + (f' ({stale} stale-priced)' if stale else '')
+          + (f' ({skipped} without local prices left as-is)' if skipped else ''))
+
+
 def rescore_and_render(json_path, prices_dir='output/prices'):
     with open(json_path) as f:
         snap = json.load(f)
@@ -63,12 +120,35 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
         snap_date = date.today().isoformat()
 
     _refresh_edgar_derived_metrics(results)
+    _refresh_multiple_vs_history(results, prices_dir)
+    try:
+        _price_as_of = pd.Timestamp(snap_date).normalize()
+    except (TypeError, ValueError):
+        _price_as_of = None
+    _refresh_price_metrics(results, prices_dir, as_of=_price_as_of)
+    # Propagate the snapshot's risk-free rate onto each row so the
+    # Valuation: FCF Yield gate has its hurdle available on re-render (the
+    # live pipeline stamps this per row; here it comes from the snapshot).
+    _rf = snap.get('risk_free_rate') if isinstance(snap, dict) else None
+    if _rf is not None:
+        for _r in results:
+            _r['_risk_free_rate'] = _rf
     score_and_rate(results)
 
     # Write new HTML alongside the JSON.
     html_path = os.path.join(os.path.dirname(json_path) or '.',
                              f'stock_analysis_results_{snap_date}.html')
-    build_html(results, html_path, prices_dir=prices_dir)
+    run_provenance = snap.get('provenance') if isinstance(snap, dict) else None
+    # Pin the banner's "Last updated" to the snapshot's own date, not today's.
+    # Without this, re-rendering a snapshot on a later day (e.g. a delayed
+    # enrichment pass) stamps the banner with date.today() instead of the run
+    # date, contradicting the filename and the snapshot's `date` field.
+    try:
+        run_date = date.fromisoformat(snap_date)
+    except (TypeError, ValueError):
+        run_date = None
+    build_html(results, html_path, prices_dir=prices_dir,
+               run_date=run_date, run_provenance=run_provenance)
     print(f'Wrote {html_path}')
 
     # Persist the rescored JSON back so the snapshot is consistent with the HTML
@@ -84,7 +164,12 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
     # Quick sanity summary
     n = len(results)
     cs = [r['_composite_score'] for r in results if r.get('_composite_score') is not None]
-    denoms = set(r['_gates_passed'].split('/')[1] for r in results if r.get('_gates_passed'))
+    # Denominators are per-ticker now (applicability mask excludes gates
+    # that can't describe a business), so report the observed range.
+    denoms = sorted({int(r['_gates_passed'].split('/')[1])
+                     for r in results if r.get('_gates_passed')})
+    denoms = (f"{denoms[0]}-{denoms[-1]} (applicable gates)"
+              if denoms else 'n/a')
     rating_dist = {}
     for r in results:
         rating_dist[r.get('rating', '?')] = rating_dist.get(r.get('rating', '?'), 0) + 1
@@ -95,6 +180,38 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
         print(f'  Composite score: min={min(cs):.1f}, '
               f'median={sorted(cs)[len(cs)//2]:.1f}, max={max(cs):.1f}')
     print(f'  Rating distribution: {rating_dist}')
+    _print_cohort_parity(results)
+
+
+def _median(xs):
+    xs = sorted(xs)
+    return xs[len(xs) // 2] if xs else None
+
+
+def _print_cohort_parity(results):
+    """Compare the DCF cohort vs the consensus-fallback cohort so the parity
+    the consensus aims for is measurable (it isn't, if the two diverge)."""
+    def pfv(sub):
+        vals = [r['price'] / r['_fv_effective'] for r in sub
+                if isinstance(r.get('_fv_effective'), (int, float)) and r['_fv_effective'] > 0
+                and isinstance(r.get('price'), (int, float)) and r['price'] > 0]
+        return _median(vals), len(vals)
+    def ms_err(sub):
+        # median |our FV / Morningstar FV − 1|, now that ms_fv is un-gated
+        errs = [abs(r['_fv_effective'] / r['ms_fv'] - 1) for r in sub
+                if isinstance(r.get('_fv_effective'), (int, float)) and r['_fv_effective'] > 0
+                and isinstance(r.get('ms_fv'), (int, float)) and r['ms_fv'] > 0]
+        return _median(errs), len(errs)
+
+    dcf = [r for r in results if r.get('_fv_source') == 'dcf']
+    blend = [r for r in results if r.get('_fv_source') == 'blend']
+    for label, sub in (('DCF cohort', dcf), ('consensus cohort', blend)):
+        m, k = pfv(sub)
+        me, mk = ms_err(sub)
+        m_s = f'{m:.2f}' if m is not None else '—'
+        me_s = f'{me:.1%} (n={mk})' if me is not None else '—'
+        print(f'  {label:16} n={len(sub):5d}  median P/FV_eff={m_s:>5}  '
+              f'MS median |err|={me_s}')
 
 
 if __name__ == '__main__':

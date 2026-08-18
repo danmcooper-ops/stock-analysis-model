@@ -196,6 +196,12 @@ def compute_macro_adjustments(regime_result):
 _SECTOR_ETFS = ['XLK', 'XLF', 'XLE', 'XLV', 'XLI', 'XLC', 'XLY', 'XLP', 'XLRE', 'XLB', 'XLU']
 _RS_WINDOWS = {'rs_1m': 21, 'rs_3m': 63, 'rs_6m': 126}
 
+# How far an ETF's last bar may lag SPY's before its RS is untrustworthy.
+# The Parquet writers are skip-if-exists, so files refreshed on different days
+# drift apart indefinitely — in 2026-07 the sector ETFs sat three months behind
+# SPY and every RS value was silently comparing April against July.
+_MAX_ETF_STALENESS_DAYS = 7
+
 
 def compute_sector_rs_from_local(prices_dir):
     """Compute trailing relative strength for the 11 sector ETFs vs SPY.
@@ -250,18 +256,38 @@ def compute_sector_rs_from_local(prices_dir):
             warnings.warn(f"compute_sector_rs_from_local: skipping {ticker} ({exc})")
             continue
 
+        # Refuse a stale ETF outright rather than emit a number that reads as a
+        # sector call but is really a date mismatch.
+        staleness = (spy_close.index.max() - etf_close.index.max()).days
+        if staleness > _MAX_ETF_STALENESS_DAYS:
+            warnings.warn(
+                f"compute_sector_rs_from_local: skipping {ticker} — last bar "
+                f"{etf_close.index.max().date()} is {staleness}d behind SPY "
+                f"({spy_close.index.max().date()}). Refresh {prices_dir} "
+                f"(download_prices.py --max-age-days 7)."
+            )
+            continue
+
+        # Measure both legs over the SAME trading dates. Indexing each series
+        # independently with iloc[-window-1] silently compared different date
+        # ranges whenever the two files had different end dates or differing
+        # holiday coverage.
+        common = etf_close.index.intersection(spy_close.index)
+        if len(common) <= max(_RS_WINDOWS.values()):
+            warnings.warn(
+                f"compute_sector_rs_from_local: skipping {ticker} — only "
+                f"{len(common)} trading days shared with SPY."
+            )
+            continue
+        etf_aligned = etf_close.reindex(common)
+        spy_aligned = spy_close.reindex(common)
+
         rs_values = {}
         for key, window in _RS_WINDOWS.items():
             try:
-                # Use the most recent price as the end point for both series
-                etf_ret = (etf_close.iloc[-1] / etf_close.iloc[-window - 1] - 1.0
-                           if len(etf_close) > window else None)
-                spy_ret = (spy_close.iloc[-1] / spy_close.iloc[-window - 1] - 1.0
-                           if len(spy_close) > window else None)
-                if etf_ret is not None and spy_ret is not None:
-                    rs_values[key] = round(float(etf_ret - spy_ret), 6)
-                else:
-                    rs_values[key] = None
+                etf_ret = etf_aligned.iloc[-1] / etf_aligned.iloc[-window - 1] - 1.0
+                spy_ret = spy_aligned.iloc[-1] / spy_aligned.iloc[-window - 1] - 1.0
+                rs_values[key] = round(float(etf_ret - spy_ret), 6)
             except Exception:
                 rs_values[key] = None
 

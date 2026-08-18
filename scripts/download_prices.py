@@ -6,9 +6,11 @@ to backfill the full SEC EDGAR US-listed universe (matches analyze_stock.py's
 
 Writes one Parquet file per ticker to --output-dir (default: output/prices/).
 By default skips tickers whose file already exists, so the run is safely
-resumable.  Use --refresh to re-download files whose latest bar is stale
-(older than --max-age-days) — needed so forward-return backtests/calibration
-have prices that actually reach the evaluation dates.
+resumable.  Use --refresh (or simply --max-age-days N) to re-download files
+whose latest bar is stale — needed so forward-return backtests/calibration
+have prices that actually reach the evaluation dates. Without a refresh the
+skip is unconditional and nothing on disk is ever updated — which is how the
+universe drifted three months stale in 2026-07.
 
 Usage:
     python scripts/download_prices.py                         # S&P 500 (default)
@@ -98,11 +100,17 @@ def main():
                         help="Re-download existing files whose latest bar is "
                              "older than --max-age-days (default: off — skip "
                              "existing files)")
-    parser.add_argument("--max-age-days", type=int, default=1,
-                        help="With --refresh, a file is re-downloaded only if "
-                             "its latest bar is more than this many days old "
-                             "(default: 1)")
+    parser.add_argument("--max-age-days", type=int, default=None,
+                        help="A file is re-downloaded only if its latest bar is "
+                             "more than this many days old (default: 1). Giving "
+                             "this flag implies --refresh, so the daily "
+                             "pipeline's bare --max-age-days 7 refreshes.")
     args = parser.parse_args()
+
+    # --max-age-days alone means "refresh anything older than N" (the daily
+    # pipeline's invocation style); --refresh alone uses the 1-day default.
+    refresh = args.refresh or (args.max_age_days is not None)
+    max_age_days = args.max_age_days if args.max_age_days is not None else 1
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -116,7 +124,7 @@ def main():
         tickers = sorted(get_sp500_tickers())
 
     total = len(tickers)
-    mode = (f"refresh (max-age {args.max_age_days}d)" if args.refresh
+    mode = (f"refresh (max-age {max_age_days}d)" if refresh
             else "resume (skip existing)")
     print(f"{total} tickers to process — output: {args.output_dir} — mode: {mode}\n")
 
@@ -125,8 +133,8 @@ def main():
 
     for i, ticker in enumerate(tickers, 1):
         result = download_ticker(ticker, args.output_dir, args.delay,
-                                 refresh=args.refresh,
-                                 max_age_days=args.max_age_days)
+                                 refresh=refresh,
+                                 max_age_days=max_age_days)
         if result == "ok":
             ok += 1
         elif result == "skipped":

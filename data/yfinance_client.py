@@ -14,6 +14,133 @@ class EmptyYahooResponseError(Exception):
     so the caller can either retry or fall back to another data source."""
 
 
+# Market caps above this are corruption, not data: the largest real market
+# cap is ~$5.4T (NVDA, 2026-08), so $20T leaves ~4x headroom while still
+# catching Yahoo's preferred-line blowups two orders of magnitude out.
+MCAP_MAX_PLAUSIBLE = 2e13
+
+
+def _sanitize_implausible_mcap(info):
+    """Repair or null a corrupt market cap before it flows downstream.
+
+    Yahoo hands preferred / OTC lines the PARENT company's common share
+    count: every Fannie/Freddie preferred series reports 5.7B (FNM*) or
+    3.2B (FMC*/FRE*) shares. Multiplied by the line's own quote that
+    manufactures phantom mega-caps — FNMFO, a $50,000-par preferred quoted
+    ~$31,500, reported a $180 TRILLION cap on 2026-08-12 and sailed through
+    the mcap-min universe filter, scoring, comparison ratios and the report.
+
+    A cap above ``MCAP_MAX_PLAUSIBLE`` is first re-derived from
+    price x sharesOutstanding (repairs a corrupt packaged value whose
+    components are sane). When the derived figure is equally absurd the
+    share count itself is the poison — price is directly observed — so both
+    fields are nulled and the missing-mcap machinery (fast_info backfill
+    ran before this, prior-snapshot recovery + miss-rate alert run after)
+    handles the row honestly instead of trusting garbage.
+
+    Mutates *info* in place; returns a list describing what changed
+    (empty when the cap is plausible).
+    """
+    changed = []
+    mcap = info.get('marketCap')
+    if not mcap or mcap <= MCAP_MAX_PLAUSIBLE:
+        return changed
+    price = info.get('currentPrice') or info.get('regularMarketPrice')
+    shares = info.get('sharesOutstanding')
+    derived = float(price) * float(shares) if price and shares else None
+    if derived and 0 < derived <= MCAP_MAX_PLAUSIBLE:
+        info['marketCap'] = derived
+        changed.append('marketCap_rederived')
+    else:
+        info['marketCap'] = None
+        changed.append('marketCap_nulled')
+        if derived and derived > MCAP_MAX_PLAUSIBLE:
+            info['sharesOutstanding'] = None
+            changed.append('sharesOutstanding_nulled')
+    return changed
+
+
+def _backfill_shares_and_mcap(stock, info):
+    """Backfill ``marketCap`` / ``sharesOutstanding`` from ``fast_info``.
+
+    yfinance 1.3.0's ``.info`` intermittently omits both fields for a subset
+    of tickers — roughly 10% of a full-universe run, sticky per ticker rather
+    than transient, so retrying does NOT recover them (MA, LLY, GWW and ZTS
+    each returned None across four consecutive attempts while ABT succeeded).
+    The rest of the same ``info`` dict is fully populated (floatShares,
+    currentPrice, trailingPE, all three statement frames), which is why the
+    all-empty ``EmptyYahooResponseError`` throttle detector never fires here.
+
+    The data is not actually missing upstream: ``fast_info`` reads the chart /
+    quote endpoint rather than quoteSummary's defaultKeyStatistics module and
+    returns both values correctly for the affected tickers. ``get_shares_full``
+    is the second fallback for share count alone.
+
+    This matters far out of proportion to two fields — everything that divides
+    by share count or market cap depends on them, so losing them nulls p_tbv,
+    fcf_yield, shareholder_yield, mos, fv_dispersion, pfcf, net_cash_to_mcap,
+    tangible_book_per_share, every fair-value model and the Monte Carlo
+    confidence fields. The 2026-07-29 run lost them for 265 of 2,244 records
+    (11.8% against a 0.1% baseline) and scored those rows as *failing* five
+    valuation gates on absent data.
+
+    Mutates *info* in place and returns a list of the fields it recovered so
+    the caller can record provenance. Only touches the network when a field is
+    actually missing, so the common path costs nothing.
+    """
+    recovered = []
+    if info.get('marketCap') and info.get('sharesOutstanding'):
+        return recovered
+
+    fast = None
+    try:
+        fast = stock.fast_info
+    except Exception:
+        fast = None
+
+    def _fast(attr):
+        if fast is None:
+            return None
+        try:
+            val = getattr(fast, attr, None)
+            return float(val) if val else None
+        except Exception:
+            return None
+
+    if not info.get('sharesOutstanding'):
+        shares = _fast('shares')
+        if not shares:
+            # Last resort: the shares-outstanding time series. Its final row is
+            # the same figure fast_info reports, but it survives cases where
+            # fast_info itself comes back bare.
+            try:
+                series = stock.get_shares_full(start='2020-01-01')
+                if series is not None and len(series):
+                    shares = float(series.iloc[-1])
+            except Exception:
+                shares = None
+        if shares and shares > 0:
+            info['sharesOutstanding'] = shares
+            recovered.append('sharesOutstanding')
+
+    if not info.get('marketCap'):
+        mcap = _fast('market_cap')
+        if not mcap:
+            # Derive it rather than lose it: fast_info's own market_cap is
+            # price x shares, so computing it here is the same number by a
+            # different route when only the packaged value is absent.
+            price = (info.get('currentPrice') or info.get('regularMarketPrice')
+                     or _fast('last_price'))
+            shares = info.get('sharesOutstanding')
+            if price and shares:
+                mcap = float(price) * float(shares)
+        if mcap and mcap > 0:
+            info['marketCap'] = mcap
+            recovered.append('marketCap')
+
+    return recovered
+
+
 # Module-level executor shared across all timeout calls.  Using a single
 # thread avoids the memory/thread leak of creating (and never joining) a
 # fresh ThreadPoolExecutor per yfinance call.  max_workers=4 allows light
@@ -41,7 +168,7 @@ def _run_with_timeout(func, timeout_seconds):
 
 class YFinanceClient:
     def __init__(self, request_delay=1.0, snapshot_cache=None,
-                 fetch_timeout=20, prices_dir="output/prices"):
+                 fetch_timeout=20, prices_dir="output/prices", run_date=None):
         self._financials_cache = {}
         self._history_cache = {}
         self._request_delay = request_delay
@@ -49,6 +176,10 @@ class YFinanceClient:
         self._snapshot_cache = snapshot_cache  # Optional SnapshotCache instance
         self._fetch_timeout = fetch_timeout    # hard wall-clock limit per fetch
         self._prices_dir = prices_dir          # Write-through dir for fetch_history
+        # Run-START date for snapshot stamping: a 3-6h run crosses midnight,
+        # and per-ticker date.today() would date post-midnight tickers run+1,
+        # making a same-day replay silently miss them (load requires <= as_of).
+        self.run_date = run_date
 
     def evict_financials(self, keep_tickers=None):
         """Free cached financial data.  If *keep_tickers* is given, only those
@@ -153,6 +284,21 @@ class YFinanceClient:
             if bs_empty and inc_empty and cf_empty and info_empty:
                 raise EmptyYahooResponseError(
                     f"yfinance returned empty payload for {ticker} (likely throttled)")
+            # Recover marketCap / sharesOutstanding when .info drops them. Not
+            # a throttle signal — this response is otherwise complete — so it
+            # is repaired in place rather than raised as retryable.
+            _recovered = _backfill_shares_and_mcap(stock, info)
+            if _recovered:
+                data['info'] = info
+                data['_info_backfilled'] = _recovered
+            # The inverse failure: marketCap present but absurd (preferred /
+            # OTC lines carrying the parent's common share count). Runs after
+            # the backfill so a backfilled cap is validated too. Sanitizing
+            # here also keeps the corruption out of the snapshot cache.
+            _sanitized = _sanitize_implausible_mcap(info)
+            if _sanitized:
+                data['info'] = info
+                data['_info_sanitized'] = _sanitized
             # Growth estimates and earnings history (may fail for some tickers)
             try:
                 data['growth_estimates'] = stock.growth_estimates
@@ -181,7 +327,8 @@ class YFinanceClient:
         # Auto-save to disk cache if configured
         if self._snapshot_cache is not None:
             try:
-                self._snapshot_cache.save(ticker, financials, as_of=date.today())
+                self._snapshot_cache.save(ticker, financials,
+                                          as_of=self.run_date or date.today())
             except Exception:
                 pass  # Cache write failures are non-fatal
 
@@ -201,6 +348,7 @@ class YFinanceClient:
         def _fetch():
             return stock.dividends
 
+        fetch_failed = False
         try:
             dividends = self._retry(_fetch)
             if dividends is None:
@@ -214,7 +362,12 @@ class YFinanceClient:
                     dividends = dividends.iloc[:, 0]
         except Exception:
             dividends = pd.Series(dtype=float)
-        self._history_cache[cache_key] = dividends
+            fetch_failed = True
+        # Only cache real responses: caching after an exception turns a
+        # transient Yahoo failure into "this ticker pays no dividends" for
+        # the rest of the run (DDM silently disqualified).
+        if not fetch_failed:
+            self._history_cache[cache_key] = dividends
         return dividends
 
     def fetch_history(self, ticker, period="5y"):
@@ -226,10 +379,12 @@ class YFinanceClient:
         def _fetch():
             return stock.history(period=period)
 
+        fetch_failed = False
         try:
             hist = self._retry(_fetch)
         except Exception:
             hist = None
+            fetch_failed = True
 
         history = pd.Series(dtype=float)
         if hist is not None and not hist.empty:
@@ -239,7 +394,11 @@ class YFinanceClient:
                     break
             self._maybe_persist_prices(ticker, hist)
 
-        self._history_cache[cache_key] = history
+        # Only cache real responses: caching the empty Series after an
+        # exception turns a transient Yahoo failure into "this ticker has no
+        # price history" for the rest of the run (beta silently uncomputable).
+        if not fetch_failed:
+            self._history_cache[cache_key] = history
         return history
 
     def _maybe_persist_prices(self, ticker, hist):

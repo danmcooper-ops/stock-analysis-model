@@ -76,12 +76,19 @@ def replay_analysis(as_of_date, cache_dir='data/cache', output_dir='output',
         'params_override': param_overrides,
         'results': results,
     }
+    # Preserve run-level provenance from the source results file so the
+    # _replay artifact records where its data actually came from.
+    if results_data.get('provenance'):
+        output['provenance'] = dict(results_data['provenance'], replayed=True)
 
     if write_output:
-        suffix = '_replay' if param_overrides else ''
+        # ALWAYS suffix replay output: writing to the canonical
+        # results_{date}.json name would overwrite/fabricate a live snapshot
+        # (the data here was observed on the closest *earlier* date, so
+        # backtests reading it as a day-D observation gain lookahead).
         out_path = os.path.join(
             output_dir,
-            f'results_{as_of_date.isoformat()}{suffix}.json')
+            f'results_{as_of_date.isoformat()}_replay.json')
         with open(out_path, 'w') as f:
             json.dump(output, f, default=str)
         print(f"Replay results written to {out_path} ({len(results)} stocks)")

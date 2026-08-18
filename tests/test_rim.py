@@ -55,3 +55,27 @@ class TestResidualIncomeModel:
         """ROE > Re -> value should be above book value."""
         fv = residual_income_model(45.0, roe=0.18, cost_of_equity=0.10)
         assert fv > 45.0
+
+
+class TestRimTerminalValue:
+    """Pin the Gordon terminal timing: TV_N = RI_{N+1}/(Re−g), no extra (1+g)."""
+
+    def test_known_value_one_year(self):
+        # BV0=100, ROE=15%, Re=10%, g=3%, retention=0.2 (so book grows 3%),
+        # 1 explicit year.
+        # Year 1: RI_1 = 100·(0.15−0.10) = 5; PV = 5/1.10 = 4.5454...
+        # BV_1 = 100·(1 + 0.15·0.2) = 103
+        # RI_terminal (=RI_2) = 103·0.05 = 5.15
+        # TV_1 = 5.15/(0.10−0.03) = 73.5714...; PV = /1.10 = 66.8831...
+        # intrinsic = 100 + 4.5454 + 66.8831 = 171.4286
+        import pytest
+        fv = residual_income_model(100.0, 0.15, 0.10, g=0.03, years=1,
+                                   retention_ratio=0.2)
+        assert fv == pytest.approx(171.4286, abs=1e-3)
+
+    def test_below_cost_of_equity_can_destroy_value(self):
+        """ROE < Re: negative terminal RI is kept (not zeroed), so a chronic
+        under-earner is valued below book."""
+        fv = residual_income_model(100.0, 0.06, 0.10, g=0.03, years=10,
+                                   retention_ratio=0.5)
+        assert fv is None or fv < 100.0

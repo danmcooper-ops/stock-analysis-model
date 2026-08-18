@@ -63,7 +63,18 @@ def _pick_json(arg=None):
     pattern = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'output', 'results_*.json')
-    files = sorted(glob.glob(pattern))
+    # Canonical results_YYYY-MM-DD.json only — results_X_replay.json sorts
+    # AFTER the canonical file, and backfill patches its pick IN PLACE, so a
+    # naive files[-1] would enrich the wrong artifact.
+    from datetime import date as _date
+    files = []
+    for f in sorted(glob.glob(pattern)):
+        stem = os.path.basename(f)[len('results_'):-len('.json')]
+        try:
+            _date.fromisoformat(stem)
+        except ValueError:
+            continue
+        files.append(f)
     if not files:
         print('[backfill] no results_*.json found in output/')
         sys.exit(1)
@@ -73,6 +84,23 @@ def _pick_json(arg=None):
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
+
+def _needs_refetch(eh):
+    """True when a record's edgar_history predates a later-added series.
+
+    total_debt_history uses a key-PRESENCE check, not truthiness: a debt-free
+    filer legitimately returns {} and must not be refetched on every pass.
+    """
+    if not eh.get('revenue_history') and not eh.get('earnings_history'):
+        return True
+    if not eh.get('operating_income_history'):
+        # Series added 2026-07 (Margin-vs-Hist gate + normalized-EBIT EPV).
+        return True
+    if 'total_debt_history' not in eh:
+        # Debt/cash series added 2026-07 (Track Record debt rows).
+        return True
+    return False
+
 
 def main():
     args = _parse_args()
@@ -96,9 +124,7 @@ def main():
             if not tk:
                 continue
             eh = r.get('edgar_history') or {}
-            if args.force:
-                need.append(tk)
-            elif not eh.get('revenue_history') and not eh.get('earnings_history'):
+            if args.force or _needs_refetch(eh):
                 need.append(tk)
 
     if args.limit is not None:
@@ -135,7 +161,11 @@ def main():
 
     # Save patched JSON
     with open(json_path, 'w') as f:
-        json.dump(doc, f, indent=2, default=str)
+        # Compact, matching how analyze_stock.py writes the snapshot. indent=2
+        # inflated it ~30% on every backfill: the 2026-08-03 file went 67 MB →
+        # 107 MB, past GitHub's 100 MB hard cap, which would have made the
+        # snapshot branch unpushable. Same content compact is 82 MB.
+        json.dump(doc, f, default=str)
     print(f'[backfill] saved {json_path}')
 
     # Rebuild HTML

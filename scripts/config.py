@@ -31,7 +31,7 @@ RE_MIN, RE_MAX = 0.04, 0.30           # Valid cost-of-equity range
 # DCF parameters
 CAPEX_DA_THRESHOLD = 2.0       # Owner earnings: capex > 2× D&A triggers growth-capex adj
 EXCESS_CAPEX_ADDBACK = 0.50    # Add back 50% of excess capex as growth investment
-YIELD_CEILING_MULT = 1.25      # Mean-reversion: cap FCF at 1.25× sector normal yield
+YIELD_CEILING_MULT = 1.25      # Mean-reversion: cap base FCF at 1.25× own trailing avg positive FCF (pre-adjustment basis)
 HYPER_GROWTH_YIELD = 0.025     # FCF yield below 2.5% signals hyper-growth pricing
 HYPER_GROWTH_CAP = 0.25        # Absolute ceiling on hyper-growth override
 ANALYST_HAIRCUT = 0.80         # Apply 20% haircut to analyst growth estimate
@@ -59,10 +59,13 @@ DDM_BLEND_WEIGHT = 0.30               # DDM weight in blended fair value
 DCF_BLEND_WEIGHT_WITH_DDM = 0.70      # DCF weight when DDM is available
 DDM_DIVERGENCE_THRESHOLD = 0.50       # Flag low confidence if DDM/DCF diverge >50%
 
-# Continuous scoring weights by category (moat-first, growth and ownership equally weighted)
-SCORE_WEIGHT_VALUATION = 0.20
+# Continuous scoring weights by category. Rebalanced from a moat-first 40/20
+# tilt toward a value orientation: Moat 40->30 (it was ~24% of the composite
+# resting on ROIC counted three ways) and Valuation 20->30 so the "cheapness"
+# side carries real weight rather than being outvoted 2:1 by quality/moat.
+SCORE_WEIGHT_VALUATION = 0.30
 SCORE_WEIGHT_QUALITY = 0.20
-SCORE_WEIGHT_MOAT = 0.40
+SCORE_WEIGHT_MOAT = 0.30
 SCORE_WEIGHT_GROWTH = 0.10
 SCORE_WEIGHT_OWNERSHIP = 0.10
 
@@ -74,6 +77,13 @@ EV_EBITDA_OUTLIER_MAX = 200    # Filter EV/EBITDA outliers above 200×
 MIN_SECTOR_STOCKS = 3          # Min stocks per sector for median calculation
 DATA_QUALITY_MIN = 40          # Skip tickers with quality score below this
 MIN_MORNINGSTAR_SAMPLE = 5     # Min stocks for Morningstar comparison stats
+
+# Minimum median daily dollar volume (3-month) for a name to stay BUY-rated.
+# Below this a position can't be built or exited at a sane price, so the rating
+# is capped at HOLD — the business may still be excellent, it just isn't
+# actionable. Applied in scoring._rating_cap_for_row, and only when the metric
+# is actually present, so missing volume data never demotes a stock.
+MIN_ADV_FOR_BUY = 1_000_000
 
 # ---------------------------------------------------------------------------
 # Sector-specific DCF parameters (Fixes C/D/E/F)

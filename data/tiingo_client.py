@@ -118,6 +118,8 @@ class TiingoClient:
             'limit': max_items * 2,
         })
 
+        if data is None:
+            return []  # request failed — don't cache as "no news"
         if not data or not isinstance(data, list):
             self._news_cache[ticker] = []
             return []
@@ -223,6 +225,8 @@ class TiingoClient:
             params={'startDate': start, 'resampleFreq': 'daily'},
         )
 
+        if data is None:
+            return None  # request failed — don't cache
         if not data or not isinstance(data, list):
             self._price_cache[cache_key] = None
             return None

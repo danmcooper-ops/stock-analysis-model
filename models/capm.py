@@ -28,6 +28,10 @@ def calculate_beta(stock_returns, market_returns, adjust=True, min_obs=24):
     market_var = float(np.var(m, ddof=1))
     if market_var <= 0:
         raise ValueError("market_returns variance is zero — beta is undefined")
+    if float(np.var(s, ddof=1)) <= 0:
+        # A flat stock series makes correlation/R² NaN; fail loudly rather
+        # than leak NaN into beta_r2 and the JSON payload.
+        raise ValueError("stock_returns variance is zero — beta is undefined")
 
     cov_matrix = np.cov(s, m, ddof=1)
     raw_beta = cov_matrix[0, 1] / cov_matrix[1, 1]
