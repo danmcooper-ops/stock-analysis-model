@@ -13,7 +13,7 @@ from scripts.backtest import (
     generate_windows,
     compute_objective, hit_rate_objective, alpha_objective,
     information_ratio_objective, composite_objective, rank_ic_objective,
-    is_matured,
+    is_matured, _spaced_dates, _calibrated_weights,
     _generate_grid, _apply_derived_params, _sample_grid,
     grid_search, regularized_objective, compute_stability,
     _discover_snapshot_dates,
@@ -180,6 +180,43 @@ class TestRankICObjective:
         # unknown name falls back to rank_ic
         assert compute_objective(m, 'rank_ic') == pytest.approx(1.0)
         assert compute_objective(m, 'nonexistent') == pytest.approx(1.0)
+
+
+class TestSpacedDates:
+
+    def test_thins_daily_dates_to_spacing(self):
+        dates = [date(2026, 1, 1) + __import__('datetime').timedelta(days=i)
+                 for i in range(100)]
+        picked = _spaced_dates(dates, 30)
+        assert picked[0] == date(2026, 1, 1)
+        gaps = [(b - a).days for a, b in zip(picked, picked[1:])]
+        assert all(g >= 30 for g in gaps)
+        assert len(picked) == 4  # days 0, 30, 60, 90
+
+    def test_already_spaced_dates_unchanged(self):
+        dates = [date(2026, 1, 1), date(2026, 4, 1), date(2026, 7, 1)]
+        assert _spaced_dates(dates, 30) == dates
+
+    def test_empty(self):
+        assert _spaced_dates([], 30) == []
+
+
+class TestCalibratedWeights:
+
+    def test_reduces_full_paramset_to_weight_block(self):
+        full = default_params()
+        w = _calibrated_weights(full)
+        assert set(w) == {'score_weight_valuation', 'score_weight_quality',
+                          'score_weight_moat', 'score_weight_growth',
+                          'score_weight_ownership'}
+        # no fair-value params leak into "calibrated" output
+        assert 'erp' not in w and 'analyst_haircut' not in w
+
+    def test_search_space_has_no_dead_dimensions(self):
+        # Frozen-FV re-scoring only responds to score weights; anything else
+        # in SEARCH_SPACE would be swept as a silent no-op.
+        from scripts.backtest import SEARCH_SPACE
+        assert all(k.startswith('score_weight_') for k in SEARCH_SPACE)
 
 
 class TestIsMatured:

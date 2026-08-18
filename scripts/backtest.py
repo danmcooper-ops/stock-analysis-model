@@ -998,6 +998,20 @@ def print_summary(all_metrics):
 # Window splitting
 # ---------------------------------------------------------------------------
 
+def _spaced_dates(dates, spacing_days):
+    """Greedily thin a sorted date list so consecutive picks are >= spacing apart.
+
+    Used to de-overlap walk-forward windows: two snapshots less than one
+    horizon apart have forward-return windows covering almost the same market
+    period, so they are not independent observations.
+    """
+    picked = []
+    for d in sorted(dates):
+        if not picked or (d - picked[-1]).days >= spacing_days:
+            picked.append(d)
+    return picked
+
+
 def generate_windows(snapshot_dates, train_size=3, test_size=1, step=1):
     """Generate rolling train / test windows from sorted snapshot dates.
 
@@ -1157,26 +1171,31 @@ def composite_objective(metrics):
 # Parameter search space
 # ---------------------------------------------------------------------------
 
+# Calibration re-scores snapshots with FROZEN fair values (no DCF re-run), so
+# the objective can only respond to parameters consumed by the scoring layer:
+# the score_weight_* category weights (growth derived as the residual,
+# ownership held at its default). Sweeping anything else is a no-op — two
+# candidates differing only in e.g. erp produce bit-identical objectives.
+# The trimmed space is small enough to enumerate EXHAUSTIVELY (7x7x7 = 343
+# raw combos, fewer after the growth>=0.05 constraint), so results carry no
+# sampling-seed noise.
 SEARCH_SPACE = {
-    # Tier 1: Scoring weights (3 free, 4th derived as 1 - sum)
+    # Scoring weights (3 free; growth = 1 - sum - ownership_default)
     'score_weight_valuation': (0.15, 0.45, 0.05),
     'score_weight_quality':   (0.10, 0.40, 0.05),
     'score_weight_moat':      (0.10, 0.40, 0.05),
-    # score_weight_growth = 1.0 - sum(above three)
+}
 
-    # Tier 1: ERP
+# Parameters that shape FAIR VALUES, not scores. Calibrating these requires a
+# full valuation re-run per candidate (hours each), not the lightweight
+# re-scoring above — kept here for reference so nobody re-adds them to
+# SEARCH_SPACE and silently sweeps dead dimensions again.
+LIVE_RUN_ONLY_SPACE = {
     'erp': (0.04, 0.07, 0.005),
-
-    # Tier 1: Blending
     'blend_trigger':    (1.2, 2.0, 0.1),
     'blend_dcf_weight': (0.40, 0.80, 0.05),
-    # blend_mult_weight = 1.0 - blend_dcf_weight
-
-    # Tier 2: Growth signal weights (key two)
     'growth_weight_analyst_lt':  (0.15, 0.45, 0.05),
     'growth_weight_fundamental': (0.10, 0.35, 0.05),
-
-    # Tier 2: Analyst and margin adjustments
     'analyst_haircut':          (0.60, 1.00, 0.05),
     'margin_trend_sensitivity': (0.0, 1.0, 0.25),
 }
@@ -1363,6 +1382,17 @@ def regularized_objective(base_obj, params, lambda_reg=0.05):
     return base_obj - lambda_reg * deviation
 
 
+def _calibrated_weights(params):
+    """Reduce a full ParamSet to the block calibration actually swept.
+
+    Only the five score_weight_* values respond to the frozen-fair-value
+    re-scoring; reporting the rest as 'recommended' would present untouched
+    defaults (or sampler noise, pre-trim) as calibrated output.
+    """
+    keys = list(SEARCH_SPACE) + ['score_weight_growth', 'score_weight_ownership']
+    return {k: params[k] for k in sorted(keys) if k in params}
+
+
 def compute_stability(window_results):
     """Measure how much each parameter varies across windows.
 
@@ -1393,7 +1423,7 @@ def compute_stability(window_results):
 
 def walk_forward_calibrate(results_dir='output', horizons=None,
                            train_size=3, test_size=1, step=1,
-                           objective='rank_ic', max_evaluations=200,
+                           objective='rank_ic', max_evaluations=400,
                            lambda_reg=0.05, yf_client=None,
                            prices_dir='output/prices', cache_dir='output/returns',
                            today=None):
@@ -1451,7 +1481,7 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
             'n_windows': 0,
             'windows': [],
             'overall': {'error': msg},
-            'recommended_params': default_params(),
+            'recommended_params': _calibrated_weights(default_params()),
         }
     if set(usable_horizons) != set(horizons):
         dropped = [h for h in horizons if h not in usable_horizons]
@@ -1459,7 +1489,38 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
               f"(0 matured snapshots); using {usable_horizons}")
     horizons = usable_horizons
 
-    windows = generate_windows(snapshot_dates, train_size, test_size, step)
+    # Window spacing: daily snapshots produce return windows that overlap by
+    # (horizon - 1) days, so adjacent walk-forward "test" sets are ~99% the
+    # same market period as their train sets — not independent evidence. Prefer
+    # snapshot dates spaced >= the horizon apart (true de-overlap). Until
+    # enough spaced matured snapshots exist, fall back to the overlapped set
+    # with a LOUD warning and report the effective independent sample size
+    # (span / horizon) so nobody mistakes 12 overlapping windows for 12
+    # observations.
+    spacing = max(horizons)
+    spaced_dates = _spaced_dates(snapshot_dates, spacing)
+    spaced_matured = [d for d in spaced_dates
+                      if any(is_matured(d.isoformat(), h, today) for h in horizons)]
+    overlapped_fallback = len(spaced_matured) < (train_size + test_size)
+    if overlapped_fallback:
+        dates_for_windows = snapshot_dates
+        matured_all = [d for d in snapshot_dates
+                       if any(is_matured(d.isoformat(), h, today) for h in horizons)]
+        span_days = (max(matured_all) - min(matured_all)).days if matured_all else 0
+        effective_n = max(1, span_days // spacing + 1)
+        print(f"[calibrate] WARNING: only {len(spaced_matured)} matured snapshots "
+              f"spaced >= {spacing}d apart (need {train_size + test_size}). Falling "
+              f"back to OVERLAPPED daily windows — test sets share most of their "
+              f"return period with training data. Effective independent sample "
+              f"size ~{effective_n}, regardless of window count.")
+    else:
+        dates_for_windows = spaced_dates
+        effective_n = len(spaced_matured)
+        print(f"[calibrate] using {len(spaced_dates)} snapshot dates spaced "
+              f">= {spacing}d apart ({len(spaced_matured)} matured) — "
+              f"de-overlapped walk-forward.")
+
+    windows = generate_windows(dates_for_windows, train_size, test_size, step)
     if not windows:
         return {
             'date': today.isoformat(),
@@ -1469,7 +1530,7 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
             'n_windows': 0,
             'windows': [],
             'overall': {'error': 'Insufficient snapshots for walk-forward'},
-            'recommended_params': default_params(),
+            'recommended_params': _calibrated_weights(default_params()),
         }
 
     # 2. Load every snapshot once, share by reference, annotate returns once.
@@ -1509,7 +1570,7 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
             'n_windows': 0,
             'windows': [],
             'overall': {'error': msg},
-            'recommended_params': default_params(),
+            'recommended_params': _calibrated_weights(default_params()),
         }
 
     # 3. Walk forward over windows with a matured test date.
@@ -1551,7 +1612,9 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
         window_results.append({
             'train_dates': [d.isoformat() for d in win['train_dates']],
             'test_dates': [d.isoformat() for d in win['test_dates']],
-            'best_params': best_params,
+            # Serialize only the swept weight block — the full ParamSet would
+            # imply the other ~30 params were calibrated when they were not.
+            'best_params': _calibrated_weights(best_params),
             'train_objective': round(train_obj, 4),
             'test_objective': round(test_obj, 4),
         })
@@ -1561,12 +1624,29 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
     train_objs = [w['train_objective'] for w in window_results]
     test_objs = [w['test_objective'] for w in window_results]
 
-    # Recommended params: from the window with best test objective
+    # Recommended params: majority vote across windows (the set selected most
+    # often), tie-broken by mean test objective. Never max-test — picking the
+    # single window whose params scored best out-of-sample is selection ON the
+    # test data and rewards noise.
     if window_results:
-        best_window = max(window_results, key=lambda w: w['test_objective'])
-        recommended = best_window['best_params']
+        from collections import Counter, defaultdict as _dd
+        key_of = lambda p: tuple(sorted(p.items()))
+        votes = Counter(key_of(w['best_params']) for w in window_results)
+        test_by_key = _dd(list)
+        for w in window_results:
+            test_by_key[key_of(w['best_params'])].append(w['test_objective'])
+        best_key = max(votes, key=lambda k: (votes[k],
+                                             float(np.mean(test_by_key[k]))))
+        recommended = dict(best_key)
+        recommendation_basis = {
+            'rule': 'majority vote across windows, tie-break mean test objective',
+            'windows_won': votes[best_key],
+            'windows_total': len(window_results),
+            'mean_test_objective_of_winner': round(float(np.mean(test_by_key[best_key])), 4),
+        }
     else:
-        recommended = default_params()
+        recommended = _calibrated_weights(default_params())
+        recommendation_basis = {'rule': 'defaults (no windows)'}
 
     overall = {
         'mean_train_objective': round(float(np.mean(train_objs)), 4) if train_objs else None,
@@ -1583,12 +1663,18 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
         'horizon_days': horizons,
         'matured_counts': matured_counts,
         'annotated_rows': annotated_rows,
+        'window_spacing_days': spacing,
+        'overlapped_fallback': overlapped_fallback,
+        'effective_independent_obs': effective_n,
         'n_windows': len(window_results),
         'n_windows_skipped_immature': skipped_immature,
         'n_evaluations_per_window': max_evaluations,
+        'calibrated_keys': sorted(SEARCH_SPACE) + ['score_weight_growth',
+                                                   'score_weight_ownership'],
         'windows': window_results,
         'overall': overall,
         'recommended_params': recommended,
+        'recommendation_basis': recommendation_basis,
     }
 
 
@@ -1871,9 +1957,12 @@ def _cli_calibrate(args):
         print(f"Matured snapshots by horizon: {result.get('matured_counts')}")
         return
 
+    # Default filename embeds the horizon so per-horizon runs don't clobber
+    # each other (the weekly job calibrates 30d and 90d separately).
+    hz_tag = '-'.join(str(h) for h in result.get('horizon_days', horizons))
     out_path = args.output or os.path.join(
         args.results_dir,
-        f'calibration_{date.today().isoformat()}.json')
+        f'calibration_h{hz_tag}_{date.today().isoformat()}.json')
     with open(out_path, 'w') as f:
         json.dump(result, f, indent=2, default=str)
     print(f'Calibration results written to {out_path}')
@@ -1881,11 +1970,21 @@ def _cli_calibrate(args):
     print(f"\nObjective:            {result.get('objective')}")
     print(f"Horizon(s):           {result.get('horizon_days')}")
     print(f"Matured by horizon:   {result.get('matured_counts')}")
+    print(f"Window mode:          "
+          + ("OVERLAPPED fallback — effective independent obs "
+             f"~{result.get('effective_independent_obs')}"
+             if result.get('overlapped_fallback')
+             else f"de-overlapped (spacing {result.get('window_spacing_days')}d)"))
     print(f"Windows:              {result['n_windows']}"
           f" (skipped immature: {result.get('n_windows_skipped_immature', 0)})")
     print(f"Mean train objective: {overall.get('mean_train_objective')}")
     print(f"Mean test objective:  {overall.get('mean_test_objective')}")
     print(f"Overfit gap:          {overall.get('overfit_gap')}")
+    rb = result.get('recommendation_basis', {})
+    print(f"Recommended weights:  {result.get('recommended_params')}")
+    print(f"  basis: {rb.get('rule')} "
+          f"(won {rb.get('windows_won')}/{rb.get('windows_total')} windows, "
+          f"mean test {rb.get('mean_test_objective_of_winner')})")
 
 
 def _cli_annotate(args):
@@ -1975,7 +2074,10 @@ if __name__ == '__main__':
                                 'information_ratio', 'composite'],
                        help='Objective to maximise (default: rank_ic — '
                             'full-population Spearman IC, robust to thin BUY counts)')
-    p_cal.add_argument('--max-evals', type=int, default=200)
+    p_cal.add_argument('--max-evals', type=int, default=400,
+                       help='Cap on parameter combos per window. The trimmed '
+                            'score-weight grid has ~343 raw combos, so the '
+                            'default enumerates it exhaustively (no sampling).')
     p_cal.add_argument('--lambda-reg', type=float, default=0.05)
     p_cal.add_argument('--prices-dir', default='output/prices',
                        help='Directory of per-ticker Parquet price files '
