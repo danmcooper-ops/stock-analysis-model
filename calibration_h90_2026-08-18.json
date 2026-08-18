@@ -1,0 +1,393 @@
+{
+  "date": "2026-08-18",
+  "objective": "rank_ic",
+  "horizon_days": [
+    90
+  ],
+  "matured_counts": {
+    "90": 21
+  },
+  "annotated_rows": 15699,
+  "window_spacing_days": 90,
+  "overlapped_fallback": true,
+  "effective_independent_obs": 1,
+  "n_windows": 18,
+  "n_windows_skipped_immature": 55,
+  "n_evaluations_per_window": 400,
+  "calibrated_keys": [
+    "score_weight_moat",
+    "score_weight_quality",
+    "score_weight_valuation",
+    "score_weight_growth",
+    "score_weight_ownership"
+  ],
+  "windows": [
+    {
+      "train_dates": [
+        "2026-04-20",
+        "2026-04-21",
+        "2026-04-22"
+      ],
+      "test_dates": [
+        "2026-04-23"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.2,
+        "score_weight_valuation": 0.2
+      },
+      "train_objective": -0.0491,
+      "test_objective": -0.0743
+    },
+    {
+      "train_dates": [
+        "2026-04-21",
+        "2026-04-22",
+        "2026-04-23"
+      ],
+      "test_dates": [
+        "2026-04-24"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.2,
+        "score_weight_valuation": 0.2
+      },
+      "train_objective": -0.0655,
+      "test_objective": -0.0822
+    },
+    {
+      "train_dates": [
+        "2026-04-22",
+        "2026-04-23",
+        "2026-04-24"
+      ],
+      "test_dates": [
+        "2026-04-26"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.2,
+        "score_weight_valuation": 0.2
+      },
+      "train_objective": -0.0852,
+      "test_objective": 0.0131
+    },
+    {
+      "train_dates": [
+        "2026-04-23",
+        "2026-04-24",
+        "2026-04-26"
+      ],
+      "test_dates": [
+        "2026-04-29"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.2,
+        "score_weight_valuation": 0.2
+      },
+      "train_objective": -0.0174,
+      "test_objective": 0.0281
+    },
+    {
+      "train_dates": [
+        "2026-04-24",
+        "2026-04-26",
+        "2026-04-29"
+      ],
+      "test_dates": [
+        "2026-05-02"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.2,
+        "score_weight_valuation": 0.2
+      },
+      "train_objective": 0.0077,
+      "test_objective": 0.0071
+    },
+    {
+      "train_dates": [
+        "2026-04-26",
+        "2026-04-29",
+        "2026-05-02"
+      ],
+      "test_dates": [
+        "2026-05-03"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.2,
+        "score_weight_valuation": 0.2
+      },
+      "train_objective": 0.0169,
+      "test_objective": -0.0096
+    },
+    {
+      "train_dates": [
+        "2026-04-29",
+        "2026-05-02",
+        "2026-05-03"
+      ],
+      "test_dates": [
+        "2026-05-05"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.2,
+        "score_weight_valuation": 0.2
+      },
+      "train_objective": 0.0236,
+      "test_objective": -0.0411
+    },
+    {
+      "train_dates": [
+        "2026-05-02",
+        "2026-05-03",
+        "2026-05-05"
+      ],
+      "test_dates": [
+        "2026-05-06"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.15,
+        "score_weight_valuation": 0.25
+      },
+      "train_objective": -0.008,
+      "test_objective": -0.0165
+    },
+    {
+      "train_dates": [
+        "2026-05-03",
+        "2026-05-05",
+        "2026-05-06"
+      ],
+      "test_dates": [
+        "2026-05-07"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.35,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.15,
+        "score_weight_valuation": 0.3
+      },
+      "train_objective": -0.0201,
+      "test_objective": 0.0205
+    },
+    {
+      "train_dates": [
+        "2026-05-05",
+        "2026-05-06",
+        "2026-05-07"
+      ],
+      "test_dates": [
+        "2026-05-08"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.35,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.15,
+        "score_weight_valuation": 0.3
+      },
+      "train_objective": -0.015,
+      "test_objective": 0.0751
+    },
+    {
+      "train_dates": [
+        "2026-05-06",
+        "2026-05-07",
+        "2026-05-08"
+      ],
+      "test_dates": [
+        "2026-05-09"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.1,
+        "score_weight_valuation": 0.3
+      },
+      "train_objective": 0.018,
+      "test_objective": 0.1779
+    },
+    {
+      "train_dates": [
+        "2026-05-07",
+        "2026-05-08",
+        "2026-05-09"
+      ],
+      "test_dates": [
+        "2026-05-12"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.1,
+        "score_weight_valuation": 0.3
+      },
+      "train_objective": 0.0761,
+      "test_objective": 0.2264
+    },
+    {
+      "train_dates": [
+        "2026-05-08",
+        "2026-05-09",
+        "2026-05-12"
+      ],
+      "test_dates": [
+        "2026-05-13"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.1,
+        "score_weight_valuation": 0.3
+      },
+      "train_objective": 0.1384,
+      "test_objective": 0.14
+    },
+    {
+      "train_dates": [
+        "2026-05-09",
+        "2026-05-12",
+        "2026-05-13"
+      ],
+      "test_dates": [
+        "2026-05-14"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.2,
+        "score_weight_valuation": 0.2
+      },
+      "train_objective": 0.1391,
+      "test_objective": 0.1483
+    },
+    {
+      "train_dates": [
+        "2026-05-12",
+        "2026-05-13",
+        "2026-05-14"
+      ],
+      "test_dates": [
+        "2026-05-15"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.2,
+        "score_weight_valuation": 0.2
+      },
+      "train_objective": 0.1452,
+      "test_objective": 0.1405
+    },
+    {
+      "train_dates": [
+        "2026-05-13",
+        "2026-05-14",
+        "2026-05-15"
+      ],
+      "test_dates": [
+        "2026-05-16"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.2,
+        "score_weight_valuation": 0.2
+      },
+      "train_objective": 0.1435,
+      "test_objective": 0.1374
+    },
+    {
+      "train_dates": [
+        "2026-05-14",
+        "2026-05-15",
+        "2026-05-16"
+      ],
+      "test_dates": [
+        "2026-05-19"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.2,
+        "score_weight_valuation": 0.2
+      },
+      "train_objective": 0.1431,
+      "test_objective": 0.0115
+    },
+    {
+      "train_dates": [
+        "2026-05-15",
+        "2026-05-16",
+        "2026-05-19"
+      ],
+      "test_dates": [
+        "2026-05-20"
+      ],
+      "best_params": {
+        "score_weight_growth": 0.1,
+        "score_weight_moat": 0.4,
+        "score_weight_ownership": 0.1,
+        "score_weight_quality": 0.2,
+        "score_weight_valuation": 0.2
+      },
+      "train_objective": 0.0693,
+      "test_objective": 0.0027
+    }
+  ],
+  "overall": {
+    "mean_train_objective": 0.0367,
+    "mean_test_objective": 0.0503,
+    "overfit_gap": -0.0136,
+    "param_stability": {
+      "score_weight_growth": 0.0,
+      "score_weight_moat": 0.016169,
+      "score_weight_ownership": 0.0,
+      "score_weight_quality": 0.039295,
+      "score_weight_valuation": 0.045822
+    }
+  },
+  "recommended_params": {
+    "score_weight_growth": 0.1,
+    "score_weight_moat": 0.4,
+    "score_weight_ownership": 0.1,
+    "score_weight_quality": 0.2,
+    "score_weight_valuation": 0.2
+  },
+  "recommendation_basis": {
+    "rule": "majority vote across windows, tie-break mean test objective",
+    "windows_won": 12,
+    "windows_total": 18,
+    "mean_test_objective_of_winner": 0.0235
+  }
+}
