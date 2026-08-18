@@ -5403,7 +5403,11 @@ var DT_TABS=[
   {t:'Liquidity',cols:[{k:'avg_dollar_volume_3m'},{k:'volume_trend'},{k:'amihud_illiquidity'},{k:'share_turnover_rate'}]},
   {t:'52-Week Range',cols:[{k:'high_52w',l:'52W High',f:'dollar'},{k:'low_52w',l:'52W Low',f:'dollar'},{k:'range_52w_position'},{k:'pct_from_52w_high'},{k:'pct_from_52w_low',l:'% from Low',f:'pct'}]},
   {t:'Risk & Beta',cols:[{k:'realized_vol'},{k:'beta_adjusted'},{k:'beta_raw',l:'Beta (raw)',f:'n2'},{k:'beta_r2',l:'Beta R²',f:'n2'},{k:'beta_n_obs',l:'Beta Obs (mo)',f:'int'},{k:'drawdown_2020'},{k:'drawdown_2022'},{k:'drawdown_2008'}]}
- ],extra:_detRollingBetaHtml,after:_detSectorAnalysisHtml},
+ ],extra:_detRollingBetaHtml},
+ /* Sector Analysis renders entirely through its `after` hook — the block
+    builds its own titled dgroup, so the tab declares no groups and
+    _renderDetDataTab skips the standard shell. */
+ {k:'sect',l:'Sector Analysis',groups:[],after:_detSectorAnalysisHtml},
  {k:'val',l:'Valuation',groups:[
   /* The full Intrinsic Value block (DCF, Monte Carlo, DDM, EPV/RIM/NAV,
      assumptions strip) renders via the `after` hook — this group carries
@@ -5704,7 +5708,9 @@ function _renderDetDataTab(key){
   var d=DATA.find(function(x){return x.ticker===_dpTicker;});
   var tab=null;for(var i=0;i<DT_TABS.length;i++)if(DT_TABS[i].k===key)tab=DT_TABS[i];
   if(!d||!tab){el.innerHTML='';return;}
-  var h='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>'+esc(tab.l)
+  var h='';
+  if(tab.groups.length||tab.extra){
+  h+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>'+esc(tab.l)
     +'</div><div class="dgrid-inner">';
   tab.groups.forEach(function(g){
     var rows='';
@@ -5722,7 +5728,11 @@ function _renderDetDataTab(key){
   });
   if(tab.extra)h+=tab.extra(d)||'';   /* bespoke dsec cells inside the grid */
   h+='</div></div>';
+  }
   if(tab.after)h+=tab.after(d)||'';   /* bespoke standalone block after the dgroup */
+  /* A hook-only tab (Sector Analysis) can come back empty — e.g. no revenue
+     data — and a silently blank pane reads as broken. */
+  if(!h)h='<div style="color:#888;padding:24px;text-align:center;font-size:0.88em">No '+esc(tab.l)+' data for this company.</div>';
   el.innerHTML=h;
 }
 /* === STATEMENT TABS — Balance Sheet / Income Statement / Cash Flow ===
