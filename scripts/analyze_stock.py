@@ -2234,6 +2234,17 @@ def _main():
         print(f"[warn] carry-forward load failed: {_ce}")
 
     print(f"Processing {len(all_tickers)} tickers (full universe)...")
+    _universe_n = len(all_tickers)
+    # Fetch-failure retry: when BOTH sources return nothing, the cause is
+    # usually a transient outage window, not the ticker (2026-08-18 dropped
+    # DE/DECK/DELL/DEO/DG in one contiguous alphabetical block this way).
+    # Such tickers are re-queued once at the end of the pass — by the time
+    # the queue drains, hours have passed and the outage has cleared.
+    # Neither client caches these failures (EmptyYahooResponseError is
+    # raised before the yfinance cache write; the SEC client deliberately
+    # skips caching request failures), so the retry re-fetches for real.
+    _fetch_retry_queued = set()
+    _fetch_retry_failed = set()
     qualifying = []
     screen_cache = {}
     screen_outcomes = {'quality': {'total': 0, 'passed': 0},
@@ -2328,8 +2339,21 @@ def _main():
                                        {'from': 'sec_xbrl', 'to': 'yfinance',
                                         'reason': _fb_reason})
             else:
-                print(f"  [{i}/{len(all_tickers)}] {ticker} - "
-                      "error: yfinance empty AND no SEC XBRL coverage")
+                if ticker not in _fetch_retry_queued:
+                    # First failure: re-queue at the end of the pass and undo
+                    # this attempt's screen_outcomes count (the retry attempt
+                    # re-increments it, so each ticker is counted once).
+                    _fetch_retry_queued.add(ticker)
+                    all_tickers.append(ticker)
+                    screen_outcomes[_grp]['total'] -= 1
+                    print(f"  [{i}/{len(all_tickers)}] {ticker} - "
+                          "error: yfinance empty AND no SEC XBRL coverage "
+                          "— re-queued for retry")
+                else:
+                    _fetch_retry_failed.add(ticker)
+                    print(f"  [{i}/{len(all_tickers)}] {ticker} - "
+                          "error: yfinance empty AND no SEC XBRL coverage "
+                          "(retry also failed)")
                 sys.stdout.flush()
                 continue
 
@@ -2425,7 +2449,13 @@ def _main():
     yf_client.clear_history_cache()
     gc.collect()
 
-    print(f"\n{len(qualifying)} tickers collected out of {len(all_tickers)} total.")
+    print(f"\n{len(qualifying)} tickers collected out of {_universe_n} total.")
+    if _fetch_retry_queued:
+        _recovered = len(_fetch_retry_queued) - len(_fetch_retry_failed)
+        print(f"  Fetch-failure retry: {len(_fetch_retry_queued)} re-queued, "
+              f"{_recovered} recovered, {len(_fetch_retry_failed)} failed twice")
+        if _fetch_retry_failed:
+            print(f"  Failed twice: {', '.join(sorted(_fetch_retry_failed))}")
     if args.validation:
         for grp in ('quality', 'poor'):
             o = screen_outcomes[grp]
