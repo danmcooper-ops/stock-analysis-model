@@ -44,3 +44,9 @@ Stock_Analysis_Model_Overview_Condensed.md
 Stock_Analysis_Model_Overview_Condensed.pdf
 /results_*.json
 test_tickers.xlsx
+
+# Editable-install metadata
+*.egg-info/
+
+# Coverage data
+.coverage

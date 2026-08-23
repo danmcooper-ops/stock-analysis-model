@@ -305,8 +305,6 @@ def _stock_signals(row, sector_medians):
         d.update(extras)
         hw.append(d)
 
-    sector = row.get('sector', '')
-
     # === GROWTH signals (deltas only — summary owns CAGR levels) ===
     fund_growth = row.get('fundamental_growth')
     margin_trend = row.get('margin_trend')
@@ -1355,7 +1353,6 @@ def _dedupe_valuation_cluster(hw_dicts):
             ('s' if extra_count != 1 else '') + ').'
         ).rstrip('.')
     # Preserve order of the non-valuation entries; drop the others
-    dropped_ids = {id(h) for h in val_sorted[1:]}
     out = []
     inserted = False
     for h in hw_dicts:
@@ -1463,14 +1460,12 @@ def generate_stock_narrative(row, sector_data=None, macro_regime_result=None,
     # (B) Collapse insider selling duplicates
     all_hw = _dedupe_insider_cluster(all_hw)
 
-    # (F) Sector thesis-breaker — always last in the list so it reads as
-    # the forward-looking fat-tail risk after the concrete issues.
-    thesis = _thesis_breaker_signal(row)
-
     # (C) Severity sort: red flags first, then amber, then normal.
     # Stable within each tier so category ordering (stock → peer → …) is preserved.
     all_hw.sort(key=lambda h: _SEV_RANK.get(h.get('sev'), 2))
 
+    # (F) Sector thesis-breaker — always last in the list so it reads as
+    # the forward-looking fat-tail risk after the concrete issues.
     # Cap, then append thesis-breakers so they always appear even if we'd otherwise truncate
     capped_hw = all_hw[:max_per_side]
     thesis_signals = _thesis_breaker_signal(row)
@@ -1754,9 +1749,9 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
             )
         elif skew < -0.05:
             insights.append(
-                f"The top 3 under-earn relative to their revenue share — "
-                f"scale has not translated into proportional profits, "
-                f"which usually means commoditized output or weak pricing discipline."
+                "The top 3 under-earn relative to their revenue share — "
+                "scale has not translated into proportional profits, "
+                "which usually means commoditized output or weak pricing discipline."
             )
 
     # 2) Margin dispersion
@@ -1814,9 +1809,9 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
         )
     elif wtd_margin <= 0:
         insights.append(
-            f"The sector's blended margin is negative — this is a pool that "
-            f"is collectively destroying capital, and the rational move is "
-            f"to own only the producer that can outlast the others."
+            "The sector's blended margin is negative — this is a pool that "
+            "is collectively destroying capital, and the rational move is "
+            "to own only the producer that can outlast the others."
         )
 
     # 5) Efficiency spread (pp_multiple)

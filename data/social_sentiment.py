@@ -10,9 +10,11 @@ Social media sentiment from two free, no-auth-required sources:
 
 Combines into a composite social sentiment dict.
 """
+import logging
 import time
 import requests
-from functools import lru_cache
+
+logger = logging.getLogger(__name__)
 
 # VADER — lazy-loaded (shared with data/sentiment.py if both imported)
 _sid = None
@@ -61,7 +63,8 @@ def fetch_stocktwits(ticker: str, timeout: int = 8) -> dict:
             return _empty_st()
         data = resp.json()
         messages = (data.get('messages') or [])
-    except Exception:
+    except Exception as e:
+        logger.warning(f"stocktwits: fetch failed for {ticker}: {e}")
         return _empty_st()
 
     bull, bear, neutral = 0, 0, 0
@@ -142,7 +145,8 @@ def fetch_reddit(ticker: str, max_posts: int = 15, timeout: int = 8) -> dict:
                 title = (child.get('data') or {}).get('title') or ''
                 if title and ticker.upper() in title.upper():
                     titles.append(title)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"reddit: search failed for {ticker} in r/{sub}: {e}")
             continue
 
     if not titles or sid is None:

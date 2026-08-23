@@ -22,6 +22,7 @@ Usage:
 """
 
 import argparse
+import logging
 import os
 import sys
 import time
@@ -33,6 +34,19 @@ import yfinance as yf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.analyze_stock import get_sp500_tickers
 from data.us_listings import fetch_us_listed_tickers
+from data.yf_session import make_yf_session
+
+logger = logging.getLogger(__name__)
+
+_YF_SESSION = None
+
+
+def _yf_session():
+    """Shared curl_cffi session so every Yahoo call has a hard 15s timeout."""
+    global _YF_SESSION
+    if _YF_SESSION is None:
+        _YF_SESSION = make_yf_session()
+    return _YF_SESSION
 
 
 def _parquet_max_date(path):
@@ -41,12 +55,14 @@ def _parquet_max_date(path):
         df = pd.read_parquet(path, columns=[])  # index only — cheap
         idx = pd.to_datetime(df.index)
         return idx.max().date() if len(idx) else None
-    except Exception:
+    except Exception as e:
+        logger.debug(f"prices: index-only parquet read failed for {path}: {e}")
         try:
             df = pd.read_parquet(path)
             idx = pd.to_datetime(df.index)
             return idx.max().date() if len(idx) else None
-        except Exception:
+        except Exception as e:
+            logger.debug(f"prices: parquet read failed for {path}: {e}")
             return None
 
 
@@ -74,7 +90,7 @@ def download_ticker(ticker: str, output_dir: str, delay: float,
 
     time.sleep(delay)
     try:
-        df = yf.Ticker(ticker).history(period="max", auto_adjust=True)
+        df = yf.Ticker(ticker, session=_yf_session()).history(period="max", auto_adjust=True)
         if df.empty:
             return "empty"
         df.index = pd.to_datetime(df.index).tz_localize(None)

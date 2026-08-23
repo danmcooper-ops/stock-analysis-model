@@ -41,12 +41,12 @@ def _get(url, ttl_days=_DEFAULT_TTL_DAYS, meta=None):
         if meta is not None:
             meta.update(cache_hit=True,
                         cache_age_days=(time.time() - os.path.getmtime(cp)) / 86400.0)
-        with open(cp) as f:
+        with open(cp, encoding="utf-8") as f:
             return json.load(f)
     req = urllib.request.Request(url, headers={"User-Agent": "stock-analysis/1.0"})
     with urllib.request.urlopen(req, timeout=30) as r:
         data = json.loads(r.read().decode())
-    with open(cp, "w") as f:
+    with open(cp, "w", encoding="utf-8") as f:
         json.dump(data, f)
     if meta is not None:
         meta.update(cache_hit=False, cache_age_days=0.0)

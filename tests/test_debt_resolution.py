@@ -6,12 +6,9 @@ Synthetic companyfacts stubs throughout — no live SEC calls. Covers the
 tags only and understated leverage by the short-term portion for every
 XBRL-sourced ticker.
 """
-import sys
-import os
 
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from data import sec_xbrl_client as xbrl_mod
 from data.sec_xbrl_client import SECXBRLClient

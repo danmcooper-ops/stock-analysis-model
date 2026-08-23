@@ -19,7 +19,6 @@ Re-run periodically (monthly is plenty) to pick up new entries.
 import json
 import os
 import ssl
-import sys
 import urllib.parse
 import urllib.request
 
@@ -31,7 +30,9 @@ except Exception:
 
 WIKIDATA_SPARQL = 'https://query.wikidata.org/sparql'
 SEC_TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json'
-EMAIL = 'nurses.public1y@icloud.com'
+# SEC and Wikidata both want a contact address in the User-Agent.
+# Override via SEC_EMAIL — never commit a real address here.
+EMAIL = os.environ.get('SEC_EMAIL', 'stockanalysis@example.com')
 
 # Companies tagged with a CIK + a human founder. CIK is far better-tagged on
 # Wikidata than the ticker symbol (P249), and uniquely identifies SEC-filed
@@ -115,7 +116,7 @@ def main():
 
     out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
                             'data', 'wikidata_founders.json')
-    with open(out_path, 'w') as f:
+    with open(out_path, 'w', encoding='utf-8') as f:
         json.dump(out, f, indent=2, sort_keys=True, ensure_ascii=False)
     print(f'[wikidata] wrote {out_path}')
 

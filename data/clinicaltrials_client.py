@@ -11,11 +11,14 @@ API base: https://clinicaltrials.gov/api/v2/
 Docs:     https://clinicaltrials.gov/data-api/api
 """
 import json
+import logging
 import os
 import re
 import time
 import urllib.parse
 import urllib.request
+
+logger = logging.getLogger(__name__)
 
 _BASE = "https://clinicaltrials.gov/api/v2/studies"
 _CACHE = os.path.join(os.path.dirname(__file__), "cache", "clinicaltrials")
@@ -58,12 +61,12 @@ def _get(url, ttl_days=_DEFAULT_TTL_DAYS, meta=None):
         if meta is not None:
             meta.update(cache_hit=True,
                         cache_age_days=(time.time() - os.path.getmtime(cp)) / 86400.0)
-        with open(cp) as f:
+        with open(cp, encoding="utf-8") as f:
             return json.load(f)
     req = urllib.request.Request(url, headers={"User-Agent": "stock-analysis/1.0"})
     with urllib.request.urlopen(req, timeout=30) as r:
         data = json.loads(r.read().decode())
-    with open(cp, "w") as f:
+    with open(cp, "w", encoding="utf-8") as f:
         json.dump(data, f)
     if meta is not None:
         meta.update(cache_hit=False, cache_age_days=0.0)
@@ -99,7 +102,8 @@ def active_pipeline_count(sponsor, meta=None):
     url = _BASE + "?" + urllib.parse.urlencode(params)
     try:
         resp = _get(url, meta=meta)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"clinicaltrials: pipeline count fetch failed for {sponsor}: {e}")
         return None
     tc = resp.get("totalCount") if isinstance(resp, dict) else None
     return tc if isinstance(tc, int) else None

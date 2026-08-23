@@ -1,11 +1,8 @@
 # tests/test_gate_logic.py
 """Tests for screening-gate behavior — correctness of pass/fail logic
 and the upstream fields they consume."""
-import sys
-import os
 import pandas as pd
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from scripts.scoring import GATES
 from scripts.analyze_stock import _compute_shareholder_yield

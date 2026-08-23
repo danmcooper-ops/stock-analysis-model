@@ -1,10 +1,7 @@
 """Tests for models/macro.py — regime scoring and parameter adjustments."""
 
-import sys
-import os
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from models.macro import (
     _score_vix, _score_yield_curve, _score_credit_spread,

@@ -1,6 +1,5 @@
 # models/market.py
 """Market-facing data: valuation multiples, analyst consensus."""
-import pandas as pd
 from models.field_keys import _get
 
 def compute_relative_multiples(financials):

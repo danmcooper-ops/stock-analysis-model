@@ -1,11 +1,8 @@
 # tests/test_comparisons.py
-import sys
-import os
 import pytest
 import pandas as pd
 import numpy as np
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.ratios import (calculate_wacc, calculate_roic, compute_ratios,
                            calculate_fundamental_growth, dupont_decomposition,

@@ -1,10 +1,25 @@
 # data/portfolio_client.py
 """Portfolio client — loads holdings and fetches live price data."""
 import json
+import logging
 import os
-from datetime import date, datetime
+from datetime import date
 
 import pandas as pd
+
+from data.yf_session import make_yf_session
+
+logger = logging.getLogger(__name__)
+
+_YF_SESSION = None
+
+
+def _yf_session():
+    """Shared curl_cffi session so every Yahoo call has a hard 15s timeout."""
+    global _YF_SESSION
+    if _YF_SESSION is None:
+        _YF_SESSION = make_yf_session()
+    return _YF_SESSION
 
 
 class PortfolioClient:
@@ -46,7 +61,7 @@ class PortfolioClient:
                 f"Holdings file not found: {self._holdings_path}. "
                 "Create portfolio/holdings.json to use the portfolio tracker."
             )
-        with open(self._holdings_path) as f:
+        with open(self._holdings_path, encoding='utf-8') as f:
             data = json.load(f)
 
         # Validate required fields
@@ -71,7 +86,7 @@ class PortfolioClient:
         os.makedirs(output_dir, exist_ok=True)
         today_str = date.today().isoformat()
         filename = os.path.join(output_dir, f'portfolio_{today_str}.json')
-        with open(filename, 'w') as f:
+        with open(filename, 'w', encoding='utf-8') as f:
             json.dump(portfolio_state, f, indent=2, default=str)
         return filename
 
@@ -104,14 +119,14 @@ class PortfolioClient:
                     history = self._yf.fetch_history(ticker, period='5d')
                 else:
                     import yfinance as yf
-                    history = yf.Ticker(ticker).history(period='5d')['Close']
+                    history = yf.Ticker(ticker, session=_yf_session()).history(period='5d')['Close']
 
                 if history is not None and len(history) > 0:
                     price = float(history.iloc[-1])
                 else:
                     price = None
             except Exception as e:
-                print(f"  [portfolio] price fetch failed for {ticker}: {e}")
+                logger.warning(f"price fetch failed for {ticker}: {e}")
                 price = None
             self._price_cache[ticker] = price
             prices[ticker] = price
@@ -136,9 +151,9 @@ class PortfolioClient:
             if self._yf is not None:
                 return self._yf.fetch_history(benchmark, period=period)
             import yfinance as yf
-            return yf.Ticker(benchmark).history(period=period)['Close']
+            return yf.Ticker(benchmark, session=_yf_session()).history(period=period)['Close']
         except Exception as e:
-            print(f"  [portfolio] benchmark fetch failed for {benchmark}: {e}")
+            logger.warning(f"benchmark fetch failed for {benchmark}: {e}")
             return pd.Series(dtype=float)
 
     def fetch_ticker_history(self, ticker, since_date, period='2y'):
@@ -161,7 +176,7 @@ class PortfolioClient:
             if self._yf is not None:
                 return self._yf.fetch_history(ticker, period=period)
             import yfinance as yf
-            return yf.Ticker(ticker).history(period=period)['Close']
+            return yf.Ticker(ticker, session=_yf_session()).history(period=period)['Close']
         except Exception as e:
-            print(f"  [portfolio] history fetch failed for {ticker}: {e}")
+            logger.warning(f"history fetch failed for {ticker}: {e}")
             return pd.Series(dtype=float)

@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stock-analysis-model"
+version = "0.1.0"
+description = "Stock analysis framework: CAPM, DCF, DDM, EPV, RIM and quality models over SEC XBRL, yfinance, FMP, Tiingo and other data sources"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Pinned to the versions the test suite is verified against.
+    # yfinance and pandas are pinned tightest: client code documents
+    # version-specific yfinance behavior, and pandas majors break APIs.
+    "yfinance~=1.6",
+    "pandas~=3.0",
+    "numpy~=2.4",
+    "requests~=2.33",
+    "scipy~=1.17",
+    "curl_cffi~=0.16",
+    "certifi>=2025.1.1",
+    "nltk~=3.10",
+    "jinja2~=3.1",
+    "lxml~=6.1",
+    "pyarrow~=25.0",
+    "openpyxl~=3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=9.1",
+    "pytest-cov~=7.0",
+    "hypothesis~=6.165",
+    "pre-commit~=4.0",
+    "ruff~=0.16",
+]
+
+# Flat-layout packages. `pip install -e ".[dev]"` makes data/models/scripts
+# importable from anywhere (tests rely on it via conftest as a fallback).
+# Entry-point scripts keep a one-line sys.path prelude so a bare
+# `python scripts/analyze_stock.py` still works on an uninstalled checkout.
+[tool.setuptools]
+packages = ["data", "models", "scripts"]
+
+[tool.coverage.run]
+source = ["data", "models", "scripts"]
+
+[tool.coverage.report]
+skip_covered = false
+show_missing = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = [
+    "network: tests that hit live external APIs (deselected in CI)",
+    "slow: long-running tests (deselected in CI)",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = ["templates"]
+
+[tool.ruff.lint]
+# E4/E7/E9 + F are ruff's defaults; B (bugbear) catches likely bugs;
+# PLW1514 enforces explicit encoding= on open() (preview-gated in ruff).
+preview = true
+explicit-preview-rules = true
+select = ["E4", "E7", "E9", "F", "B", "PLW1514"]
+# E701/E702: single-line `if cond: return x` is the established idiom here.
+ignore = ["E701", "E702"]
+
+[tool.ruff.lint.per-file-ignores]
+# E402: imports after sys.path setup — required until the sys.path
+# convention is replaced with a real package (planned, Phase 4).
+"scripts/*" = ["E402"]
+"tests/*" = ["E402"]
+# E402: field_keys/fx_client imports deliberately sit below the SSL-context
+# setup they depend on being initialized first (see comments in file).
+"data/sec_xbrl_client.py" = ["E402"]

@@ -26,7 +26,10 @@ Public API:
   "Diluted"). Returns a new DataFrame; never mutates input.
 """
 
+import logging
 from datetime import datetime as _dt
+
+logger = logging.getLogger(__name__)
 
 
 # Module-level FX cache. Keyed by ISO currency code; value is {fiscal_year: rate_to_USD}.
@@ -76,7 +79,8 @@ def _get_fx_rates_to_usd(currency):
             rates[ts.year] = v
         _FX_CACHE[currency] = rates
         return rates
-    except Exception:
+    except Exception as e:
+        logger.warning(f"FX: rate fetch failed for {currency}: {e}")
         # Don't cache the failure: a transient yfinance error at run start
         # would otherwise leave every ticker in this currency unconverted
         # for the whole 3-6h run. Next ticker retries the fetch.
@@ -155,11 +159,13 @@ def apply_fx_to_statement_df(df, rate):
         return df
     try:
         import pandas as pd  # local import — keeps the module light if pandas isn't needed
-    except Exception:
+    except Exception as e:
+        logger.debug(f"FX: pandas import failed, statement left unconverted: {e}")
         return df
     try:
         out = df.copy()
-    except Exception:
+    except Exception as e:
+        logger.debug(f"FX: statement copy failed, left unconverted: {e}")
         return df
     for idx in out.index:
         if _is_share_count_label(idx):
@@ -168,8 +174,9 @@ def apply_fx_to_statement_df(df, rate):
             out.loc[idx] = out.loc[idx].apply(
                 lambda v: v * rate if (v is not None and pd.notna(v)) else v
             )
-        except Exception:
+        except Exception as e:
             # If a row resists multiplication (non-numeric / mixed types),
             # leave it as-is rather than corrupting the whole frame.
+            logger.debug(f"FX: row conversion failed for {idx}: {e}")
             continue
     return out

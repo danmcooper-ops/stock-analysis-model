@@ -11,8 +11,8 @@ This routine assumes `output/stock_analysis_results_YYYY-MM-DD.html` already exi
 Use the **run-START date** of the analysis, not `$(date)` — if the 3–6 h analysis crossed midnight, `$(date)` is wrong. Determine RUNDATE from the newest `output/stock_analysis_results_*.html` and substitute it literally in the commands below.
 
 ## Paths
-- **Main repo:** `/Users/danmcooper/Desktop/Workspace Folder`
-- **Pages worktree:** `/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live` (branch `pages-live`)
+- **Main repo:** `~/Desktop/Workspace Folder`
+- **Pages worktree:** `~/Desktop/Workspace Folder/.claude/worktrees/pages-live` (branch `pages-live`)
 - **GitHub Pages URL:** https://danmcooper-ops.github.io/stock-analysis-model/
 
 If the worktree is missing, recreate it: `git worktree add .claude/worktrees/pages-live pages-live`
@@ -24,26 +24,26 @@ Each command is a **separate** Bash call (single line each). This is required fo
 
 ### 1. Verify the run's HTML exists
 ```
-ls -la "/Users/danmcooper/Desktop/Workspace Folder/output/stock_analysis_results_RUNDATE.html"
+ls -la "~/Desktop/Workspace Folder/output/stock_analysis_results_RUNDATE.html"
 ```
 If the file is missing, stop and report — there's nothing to publish. Do not proceed.
 
 ### 2. Copy the six artifacts into the Pages worktree
 The HTML lazy-loads `prices_meta.json`, `hist.json`, `details.json`, and the per-ticker shards in `vol/` and `px/` from its own directory at runtime, so **all six artifacts must be published together**. (The dense `prices.json` is retired — per-ticker `px/` shards + the small `prices_meta.json` replaced it on 2026-08-11; if a `docs/prices.json` is still present, delete it as part of the publish.) Run each as a **separate** Bash call:
 ```
-cp "output/stock_analysis_results_RUNDATE.html" "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/index.html"
+cp "output/stock_analysis_results_RUNDATE.html" "~/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/index.html"
 ```
 ```
-cp "/Users/danmcooper/Desktop/Workspace Folder/output/prices_meta.json" "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/prices_meta.json"
+cp "~/Desktop/Workspace Folder/output/prices_meta.json" "~/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/prices_meta.json"
 ```
 ```
-cp "/Users/danmcooper/Desktop/Workspace Folder/output/hist.json" "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/hist.json"
+cp "~/Desktop/Workspace Folder/output/hist.json" "~/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/hist.json"
 ```
 ```
-cp "/Users/danmcooper/Desktop/Workspace Folder/output/details.json" "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/details.json"
+cp "~/Desktop/Workspace Folder/output/details.json" "~/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/details.json"
 ```
 ```
-PYTHON="/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "/Users/danmcooper/Desktop/Workspace Folder"; "$PYTHON" scripts/publish_vol_shards.py
+PYTHON="~/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "~/Desktop/Workspace Folder"; "$PYTHON" scripts/publish_vol_shards.py
 ```
 (The HTML cp source is relative — run from the main repo root. The sidecar paths are absolute so they work from any cwd. `publish_vol_shards.py` syncs **both** shard directories — `vol/` from the `vol` manifest and `px/` from the `manifest` key of `prices_meta.json`.)
 
@@ -59,13 +59,13 @@ If any sidecar is missing, the `cp` will fail; if a manifested shard is missing,
 
 ### 3. Amend the single commit and force-push
 ```
-git -C "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live" add -A
+git -C "~/Desktop/Workspace Folder/.claude/worktrees/pages-live" add -A
 ```
 ```
-git -C "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live" commit --amend -m "Pages: RUNDATE"
+git -C "~/Desktop/Workspace Folder/.claude/worktrees/pages-live" commit --amend -m "Pages: RUNDATE"
 ```
 ```
-git -C "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live" push --force origin pages-live
+git -C "~/Desktop/Workspace Folder/.claude/worktrees/pages-live" push --force origin pages-live
 ```
 `git add -A` is safe against iCloud junk because the `pages-live` worktree carries a `.gitignore` with `docs/vol/* *.json` — no real ticker symbol contains a space, so this ignores every conflict copy while leaving genuine shards tracked. This is deliberate belt-and-braces: the shards regenerate continuously, including in the window between the manifest copy and the `add`. If that `.gitignore` ever goes missing, recreate it before staging, and sanity-check with `git status --porcelain | wc -l` — a publish should stage roughly the shard delta plus four files, never ~2,000 extra.
 

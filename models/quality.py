@@ -1,12 +1,10 @@
 # models/quality.py
 """Quality scoring and risk detection: Altman Z, Beneish M, Piotroski F,
 earnings quality, interest coverage, net debt metrics, revenue CAGR."""
-import pandas as pd
 from models.field_keys import (
     _get, EQUITY_KEYS, DEBT_KEYS, CASH_KEYS, CURRENT_ASSETS_KEYS,
     CURRENT_LIABILITIES_KEYS, NET_INCOME_KEYS, TOTAL_ASSETS_KEYS,
-    EBITDA_KEYS, OPERATING_CF_KEYS, REVENUE_KEYS, OPERATING_INCOME_KEYS,
-    INTEREST_KEYS, DA_KEYS, AR_KEYS, PPE_KEYS, SGA_KEYS,
+    OPERATING_CF_KEYS, REVENUE_KEYS, INTEREST_KEYS, DA_KEYS, AR_KEYS, PPE_KEYS, SGA_KEYS,
     GROSS_PROFIT_KEYS, LTD_KEYS,
 )
 

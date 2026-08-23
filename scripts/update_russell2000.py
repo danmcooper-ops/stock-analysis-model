@@ -55,7 +55,7 @@ def main():
         raise SystemExit(
             f"Only {len(tickers)} tickers returned — refusing to overwrite "
             f"{os.path.basename(_OUT)} with a suspiciously short list.")
-    with open(_OUT, "w") as f:
+    with open(_OUT, "w", encoding="utf-8") as f:
         f.write("# Russell 2000 constituents — sourced from Vanguard VTWO holdings\n")
         f.write("# (investor.vanguard.com portfolio-holding API). Refresh with:\n")
         f.write("#   python scripts/update_russell2000.py\n")
