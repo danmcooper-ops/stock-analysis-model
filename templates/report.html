@@ -8226,7 +8226,7 @@ function renderCrossSectorProfitPool(){
      _ppDraw() after mount. */
   var gridItems=secs.map(function(a){
     var safe=_esc(a.name);
-    return '<label class="agg-grid-item"><input type="checkbox" value="'+_attr(a.name)+'" checked onchange="_ppChanged()"><span class="agg-grid-dot" style="background:'+_ppColM(a.margin)+'"></span><span class="agg-grid-name">'+safe+'</span><span class="pp-grid-rev" title="Share of operating revenue (this sector\'s width on the profit-pool x-axis)">—</span><span class="pp-grid-m" title="Operating margin">'+(a.margin*100).toFixed(0)+'%</span></label>';
+    return '<label class="agg-grid-item"><span class="agg-grid-rank" title="Position in the profit-pool chart (bars ordered by operating margin, left to right)"></span><input type="checkbox" value="'+_attr(a.name)+'" checked onchange="_ppChanged()"><span class="agg-grid-dot" style="background:'+_ppColM(a.margin)+'"></span><span class="agg-grid-name">'+safe+'</span><span class="pp-grid-rev" title="Share of operating revenue (this sector\'s width on the profit-pool x-axis)">—</span><span class="pp-grid-m" title="Operating margin">'+(a.margin*100).toFixed(0)+'%</span></label>';
   }).join('');
   var helperBtns='<button type="button" class="agg-helper-btn" onclick="_ppSelectAll()">All</button>'
     +'<button type="button" class="agg-helper-btn" onclick="_ppClearAll()">Clear</button>';
@@ -8263,14 +8263,15 @@ function _ppDraw(){
      sector's own share (the width of its bar on the profit-pool x-axis),
      recomputed over only the shown sectors so the shares sum to ~100%. */
   window._xsPoolAgg={};
-  var _revByName={};
-  sel.forEach(function(a){
+  var _revByName={},_posByName={};
+  sel.forEach(function(a,i){
     a.revShare=totalRev>0?a.rev/totalRev:0;
     a.profitShare=totalOI!==0?a.oi/totalOI:null;
     window._xsPoolAgg[a.name]=a;
     _revByName[a.name]=a.revShare;
+    _posByName[a.name]=i+1;
   });
-  _ppSetGridRev(_revByName);
+  _ppSetGridRev(_revByName,_posByName);
   var W=860,H=330,pL=54,pR=16,pT=18,pB=40,cW=W-pL-pR,cH=H-pT-pB;
   var maxM=Math.max.apply(null,sel.map(function(a){return a.margin;}));
   var minM=Math.min.apply(null,sel.map(function(a){return a.margin;}));
@@ -8312,16 +8313,22 @@ function _ppDraw(){
   wrap.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:'+W+'px;margin:2px auto 0">'+ticks+axes+bars+'</svg>';
 }
 /* Write each sector's share of operating revenue into its selector-grid
-   row's .pp-grid-rev span. Pass a name→share-fraction map for the shown
-   sectors; unshown (or null map) rows fall back to an em dash. One decimal
-   so small sectors (e.g. Real Estate ~0.7%) don't round to a misleading 1%. */
-function _ppSetGridRev(revByName){
+   row's .pp-grid-rev span, and its chart position (1-based index of its bar,
+   left to right — the same number drawn above the bar) into the row's
+   .agg-grid-rank prefix. Pass name→share-fraction and name→position maps for
+   the shown sectors; unshown (or null map) rows fall back to an em dash and
+   a blank rank. Positions renumber over only the shown sectors, tracking the
+   chart. One decimal on shares so small sectors (e.g. Real Estate ~0.7%)
+   don't round to a misleading 1%. */
+function _ppSetGridRev(revByName,posByName){
   var grid=document.getElementById('pp-grid');if(!grid)return;
   grid.querySelectorAll('.agg-grid-item').forEach(function(lbl){
     var cb=lbl.querySelector('input[type="checkbox"]');
     var span=lbl.querySelector('.pp-grid-rev');
     if(!cb||!span)return;
     span.textContent=(revByName&&cb.value in revByName)?(revByName[cb.value]*100).toFixed(1)+'%':'—';
+    var rk=lbl.querySelector('.agg-grid-rank');
+    if(rk)rk.textContent=(posByName&&cb.value in posByName)?posByName[cb.value]+'.':'';
   });
 }
 function _ppChanged(){
