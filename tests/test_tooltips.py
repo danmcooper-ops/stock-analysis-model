@@ -9,9 +9,7 @@ without a matching TT entry ships a blank tooltip — this has regressed before
 """
 import os
 import re
-import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from scripts.scoring import gate_metadata
 

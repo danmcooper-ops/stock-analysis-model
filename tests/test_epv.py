@@ -1,9 +1,6 @@
 # tests/test_epv.py
-import sys
-import os
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.epv import earnings_power_value, epv_with_growth_premium
 

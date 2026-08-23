@@ -1,10 +1,7 @@
 # tests/test_dcf.py
-import sys
-import os
 import pytest
 import numpy as np
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.dcf import (
     two_stage_ev, fair_value_per_share, dcf_sensitivity,

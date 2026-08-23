@@ -7,20 +7,24 @@ market is pricing in *earnings decline*, which is a strong buy signal.
 """
 import warnings as _py_warnings
 
-from models.valuation_types import _validate_numeric
+from models.valuation_types import Valuation, _validate_numeric
 
 
-def earnings_power_value(ebit, tax_rate, cost_of_capital, shares_outstanding,
-                         excess_cash=0, total_debt=0):
-    """Zero-growth valuation: (NOPAT / cost_of_capital + cash - debt) per share.
+def earnings_power_value_valuation(ebit, tax_rate, cost_of_capital,
+                                   shares_outstanding, excess_cash=0,
+                                   total_debt=0):
+    """Zero-growth valuation as a Valuation envelope:
+    (NOPAT / cost_of_capital + cash - debt) per share.
 
     NOPAT capitalized at the cost of capital is an *enterprise* value; the
     equity bridge (add cash, subtract debt) converts it to equity value
     before dividing by shares — without it, levered firms get an EPV
     "floor" overstated by debt-per-share.
 
-    Returns None on invalid inputs; computes value otherwise.
+    value is None on invalid inputs or a debt-swamped equity bridge, with
+    the reason in `warnings`.
     """
+    method = 'epv_zero_growth'
     try:
         ebit = _validate_numeric('ebit', ebit, positive=True)
         cost_of_capital = _validate_numeric('cost_of_capital', cost_of_capital,
@@ -28,13 +32,30 @@ def earnings_power_value(ebit, tax_rate, cost_of_capital, shares_outstanding,
         shares_outstanding = _validate_numeric('shares_outstanding',
                                                shares_outstanding, positive=True)
     except ValueError as e:
-        _py_warnings.warn(f"earnings_power_value input invalid: {e}", RuntimeWarning)
-        return None
+        _py_warnings.warn(f"earnings_power_value input invalid: {e}", RuntimeWarning, stacklevel=3)
+        return Valuation.invalid(method, f'input invalid: {e}')
 
     tax_rate = max(0, min(tax_rate if tax_rate is not None else 0.21, 0.50))
+    inputs = {'ebit': ebit, 'tax_rate': tax_rate,
+              'cost_of_capital': cost_of_capital,
+              'shares_outstanding': shares_outstanding,
+              'excess_cash': excess_cash or 0, 'total_debt': total_debt or 0}
     nopat = ebit * (1 - tax_rate)
     epv = nopat / cost_of_capital + (excess_cash or 0) - (total_debt or 0)
-    return epv / shares_outstanding if epv > 0 else None
+    if epv <= 0:
+        return Valuation.invalid(
+            method, 'equity bridge non-positive — debt exceeds capitalized NOPAT + cash',
+            inputs)
+    return Valuation(value=epv / shares_outstanding, method=method,
+                     confidence=1.0, warnings=(), inputs_used=inputs)
+
+
+def earnings_power_value(ebit, tax_rate, cost_of_capital, shares_outstanding,
+                         excess_cash=0, total_debt=0):
+    """Legacy float|None wrapper around earnings_power_value_valuation()."""
+    return earnings_power_value_valuation(
+        ebit, tax_rate, cost_of_capital, shares_outstanding,
+        excess_cash=excess_cash, total_debt=total_debt).value
 
 
 def epv_with_growth_premium(epv_base, roe, cost_of_equity):
@@ -70,6 +91,7 @@ def epv_with_growth_premium(epv_base, roe, cost_of_equity):
             'inflation rather than genuine compounding quality. Cross-check ROIC '
             'before treating the growth-adjusted EPV as a fair-value upgrade.',
             RuntimeWarning,
+            stacklevel=2,
         )
 
     multiplier = min(roe / cost_of_equity, 2.0)  # tightened from 3.0

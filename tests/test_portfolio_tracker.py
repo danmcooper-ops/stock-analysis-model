@@ -1,9 +1,6 @@
 # tests/test_portfolio_tracker.py
-import sys
-import os
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.portfolio_tracker import (
     enrich_holdings,
@@ -15,8 +12,7 @@ from models.portfolio_tracker import (
     _compute_return_since,
 )
 import pandas as pd
-import numpy as np
-from datetime import date, timedelta
+from datetime import date
 
 
 # ---------------------------------------------------------------------------

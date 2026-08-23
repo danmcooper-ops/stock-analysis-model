@@ -13,6 +13,7 @@ Falls back gracefully when unavailable. Uses only stdlib + pandas.
 """
 
 import json
+import logging
 import os
 import time
 import urllib.error
@@ -21,6 +22,10 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
+
+from data.throttle import Throttle
+
+logger = logging.getLogger(__name__)
 
 # VADER — lazy-loaded so import cost is zero when sentiment unused
 _vader_sid = None
@@ -40,7 +45,8 @@ def _vader_score(text):
                 nltk.download('vader_lexicon', quiet=True)
                 _vader_sid = SentimentIntensityAnalyzer()
         return _vader_sid.polarity_scores(text)['compound']
-    except Exception:
+    except Exception as e:
+        logger.debug(f'tiingo: VADER scoring failed: {e}')
         return None
 
 
@@ -49,20 +55,13 @@ class TiingoClient:
 
     def __init__(self, api_key=None, request_delay=0.5):
         self._api_key = api_key or os.environ.get('TIINGO_API_KEY', '')
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self._news_cache = {}    # ticker -> list[dict]
         self._price_cache = {}   # ticker -> pd.Series
 
     @property
     def available(self):
         return bool(self._api_key)
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     def _get(self, path, params=None, timeout=10):
         """GET request to Tiingo REST API. Returns parsed JSON or None."""
@@ -81,10 +80,13 @@ class TiingoClient:
                 return json.loads(resp.read())
         except urllib.error.HTTPError as e:
             if e.code == 401:
-                print(f'Tiingo: invalid API key (401) — disabling.')
+                logger.warning('Tiingo: invalid API key (401) — disabling.')
                 self._api_key = ''
+            else:
+                logger.debug(f'tiingo: HTTP {e.code} for {path}')
             return None
-        except Exception:
+        except Exception as e:
+            logger.warning(f'tiingo: request failed for {path}: {e}')
             return None
 
     # ------------------------------------------------------------------
@@ -135,8 +137,8 @@ class TiingoClient:
                     dt = datetime.fromisoformat(pub.replace('Z', '+00:00'))
                     ts = dt.timestamp()
                     date_str = dt.strftime('%Y-%m-%d')
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f'tiingo: date parse failed for {ticker}: {e}')
             if ts < cutoff:
                 continue
             title = item.get('title', '')
@@ -242,6 +244,7 @@ class TiingoClient:
                 return None
             self._price_cache[cache_key] = series
             return series
-        except Exception:
+        except Exception as e:
+            logger.warning(f'tiingo: price history parse failed for {ticker}: {e}')
             self._price_cache[cache_key] = None
             return None

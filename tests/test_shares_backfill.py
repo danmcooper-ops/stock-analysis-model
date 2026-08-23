@@ -1,11 +1,8 @@
 # tests/test_shares_backfill.py
-import sys
-import os
 
 import pandas as pd
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from data.yfinance_client import _backfill_shares_and_mcap
 

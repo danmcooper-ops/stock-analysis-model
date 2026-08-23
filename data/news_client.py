@@ -8,28 +8,37 @@ All functions are resilient: failures return empty lists, never raise.
 No new pip dependencies — uses only stdlib + yfinance (already in pipeline).
 """
 
+import logging
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
+from data.throttle import Throttle
+from data.yf_session import make_yf_session
+
+logger = logging.getLogger(__name__)
+
+_YF_SESSION = None
+
+
+def _yf_session():
+    """Shared curl_cffi session so every Yahoo call has a hard 15s timeout."""
+    global _YF_SESSION
+    if _YF_SESSION is None:
+        _YF_SESSION = make_yf_session()
+    return _YF_SESSION
+
 
 class NewsClient:
     """Fetch news headlines from yfinance and Google News RSS."""
 
     def __init__(self, request_delay=1.0, max_age_days=30):
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self._ticker_cache = {}   # ticker -> list[dict]
         self._sector_cache = {}   # sector -> list[dict]
         self._max_age_days = max_age_days
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     # ------------------------------------------------------------------
     # yfinance news (per-ticker)
@@ -51,7 +60,7 @@ class NewsClient:
         try:
             if yf_ticker_obj is None:
                 import yfinance as yf
-                yf_ticker_obj = yf.Ticker(ticker)
+                yf_ticker_obj = yf.Ticker(ticker, session=_yf_session())
 
             raw_news = yf_ticker_obj.news or []
             headlines = []
@@ -69,8 +78,8 @@ class NewsClient:
                         dt = datetime.fromisoformat(pub.replace('Z', '+00:00'))
                         ts = dt.timestamp()
                         date_str = dt.strftime('%Y-%m-%d')
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f'news: pubDate parse failed for {ticker}: {e}')
                 elif isinstance(pub, (int, float)) and pub > 0:
                     ts = float(pub)
                     date_str = datetime.fromtimestamp(
@@ -92,9 +101,10 @@ class NewsClient:
                     'timestamp': ts,
                     'origin': 'yfinance',
                 })
-        except Exception:
+        except Exception as e:
             # Fetch failed — return empty but DON'T cache, so a transient
             # failure doesn't read as "no news" for the rest of the run.
+            logger.warning(f'news: yfinance news fetch failed for {ticker}: {e}')
             return []
 
         headlines.sort(key=lambda h: h.get('timestamp', 0), reverse=True)
@@ -156,8 +166,8 @@ class NewsClient:
                         dt = parsedate_to_datetime(pub_date)
                         ts = dt.timestamp()
                         date_str = dt.strftime('%Y-%m-%d')
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f'news: RSS pubDate parse failed for {query!r}: {e}')
 
                 if ts < cutoff or not title:
                     continue
@@ -177,7 +187,8 @@ class NewsClient:
             headlines.sort(key=lambda h: h.get('timestamp', 0), reverse=True)
             return headlines
 
-        except Exception:
+        except Exception as e:
+            logger.warning(f'news: Google News RSS fetch failed for {query!r}: {e}')
             return []
 
     # ------------------------------------------------------------------
@@ -191,7 +202,7 @@ class NewsClient:
             sectors: iterable of sector names.
         """
         unique = set(s for s in sectors if s)
-        print(f'Fetching sector news for {len(unique)} sectors...')
+        logger.info(f'Fetching sector news for {len(unique)} sectors...')
         for sector in sorted(unique):
             self.fetch_sector_news(sector)
 

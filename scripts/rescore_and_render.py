@@ -107,8 +107,52 @@ def _refresh_price_metrics(results, prices_dir, as_of=None):
           + (f' ({skipped} without local prices left as-is)' if skipped else ''))
 
 
+def _macro_payload_for_render(html_path, run_date, snap):
+    """Macro Outlook payload for the re-render path.
+
+    Step 1f of the daily routine re-renders the HTML after the enrichment
+    passes. Rendering with no payload would drop the Macro Outlook tab AND
+    delete the macro.json the main run wrote, so the re-render has to supply
+    one of its own. Two sources, in order:
+
+      1. A fresh FRED build, as_of the snapshot's own date so the macro
+         numbers match the run the HTML is pinned to.
+      2. Failing that, the sidecar already sitting next to the HTML — a FRED
+         outage during a re-render must not remove a tab that worked minutes
+         ago.
+
+    Returns None only when neither is available, which correctly renders the
+    report without the tab.
+    """
+    regime = snap.get('macro_regime') if isinstance(snap, dict) else None
+    adj = snap.get('macro_adjustments') if isinstance(snap, dict) else None
+    try:
+        from data.fred_client import FREDClient
+        from scripts.macro_dashboard import build_macro_payload
+        payload = build_macro_payload(FREDClient(), regime, adj, as_of=run_date)
+        if payload:
+            print(f"Macro dashboard: {len(payload['sidecar']['series'])} FRED series")
+            return payload
+    except Exception as e:
+        print(f'  Macro dashboard rebuild failed ({e}).')
+
+    macro_path = os.path.join(os.path.dirname(html_path) or '.', 'macro.json')
+    try:
+        from scripts.macro_dashboard import summary_from_sidecar
+        with open(macro_path, encoding='utf-8') as fh:
+            sidecar = json.load(fh)
+        summary = summary_from_sidecar(sidecar)
+        if summary:
+            print('Macro dashboard: reused existing macro.json')
+            return {'summary': summary, 'sidecar': sidecar}
+    except (OSError, ValueError, ImportError):
+        pass
+    print('Macro dashboard: unavailable, rendering without the tab.')
+    return None
+
+
 def rescore_and_render(json_path, prices_dir='output/prices'):
-    with open(json_path) as f:
+    with open(json_path, encoding='utf-8') as f:
         snap = json.load(f)
 
     # Snapshot may be a bare list or wrapped in a dict with 'results' key
@@ -148,7 +192,8 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
     except (TypeError, ValueError):
         run_date = None
     build_html(results, html_path, prices_dir=prices_dir,
-               run_date=run_date, run_provenance=run_provenance)
+               run_date=run_date, run_provenance=run_provenance,
+               macro_payload=_macro_payload_for_render(html_path, run_date, snap))
     print(f'Wrote {html_path}')
 
     # Persist the rescored JSON back so the snapshot is consistent with the HTML
@@ -157,7 +202,7 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
         out = snap
     else:
         out = results
-    with open(json_path, 'w') as f:
+    with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(out, f, default=str)
     print(f'Updated {json_path}')
 
@@ -173,7 +218,7 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
     rating_dist = {}
     for r in results:
         rating_dist[r.get('rating', '?')] = rating_dist.get(r.get('rating', '?'), 0) + 1
-    print(f'\nSummary:')
+    print('\nSummary:')
     print(f'  Tickers: {n}')
     print(f'  Gate denominators: {denoms}')
     if cs:

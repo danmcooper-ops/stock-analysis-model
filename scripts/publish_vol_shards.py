@@ -24,7 +24,9 @@ import os
 import shutil
 import sys
 
-REPO = "/Users/danmcooper/Desktop/Workspace Folder"
+# Repo root: this file's parent directory. Override via STOCK_MODEL_REPO
+# when running against a different checkout (e.g. a worktree).
+REPO = os.environ.get('STOCK_MODEL_REPO') or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 META = os.path.join(REPO, "output", "prices_meta.json")
 DOCS = os.path.join(REPO, ".claude", "worktrees", "pages-live", "docs")
 FAMILIES = [
@@ -85,7 +87,7 @@ def sync_family(label, want, src_dir, dst_dir):
 
 
 def main():
-    with open(META) as fh:
+    with open(META, encoding="utf-8") as fh:
         meta = json.load(fh)
 
     ok = True

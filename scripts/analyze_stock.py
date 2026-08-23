@@ -4,31 +4,36 @@ import sys
 import os
 import io
 import json
+import logging
 import re
+import warnings
 from datetime import date
 from statistics import median as _median
 import numpy as np
 import pandas as pd
 from urllib.request import urlopen, Request
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Load .env from project root (simple key=value parser, no dependency needed)
 _env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 if os.path.exists(_env_path):
-    with open(_env_path) as _f:
-        for _line in _f:
-            _line = _line.strip()
-            if _line and not _line.startswith('#') and '=' in _line:
-                _k, _v = _line.split('=', 1)
-                os.environ.setdefault(_k.strip(), _v.strip())
+    try:
+        with open(_env_path, encoding='utf-8') as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line and not _line.startswith('#') and '=' in _line:
+                    _k, _v = _line.split('=', 1)
+                    os.environ.setdefault(_k.strip(), _v.strip())
+    except (OSError, UnicodeDecodeError) as _e:
+        print(f"[WARN] Could not read .env ({_e}); continuing with process env only.",
+              file=sys.stderr)
 
 from data.yfinance_client import (YFinanceClient, EmptyYahooResponseError,
                                   MCAP_MAX_PLAUSIBLE)
 from data.treasury_rate import fetch_risk_free_rate
-from data.validation import validate_financials
 from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re)
-from models.dcf import (two_stage_ev, fair_value_per_share, dcf_sensitivity,
-                        two_stage_ev_exit_multiple, monte_carlo_dcf,
+from models.dcf import (two_stage_ev_valuation, fair_value_per_share, dcf_sensitivity,
+                        two_stage_ev_exit_multiple_valuation, monte_carlo_dcf,
                         reverse_dcf)
 from models.ratios import (compute_ratios, calculate_roic, calculate_wacc,
                            calculate_fundamental_growth, compute_dupont)
@@ -37,10 +42,10 @@ from models.quality import (calculate_earnings_quality, calculate_piotroski_f,
                             calculate_net_debt_ebitda, get_net_debt,
                             calculate_altman_z, calculate_beneish_m)
 from models.market import compute_relative_multiples, compute_analyst_consensus, extract_next_earnings
-from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm,
-                         ddm_h_model, monte_carlo_ddm)
-from models.epv import earnings_power_value, epv_with_growth_premium
-from models.rim import residual_income_model
+from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm_valuation,
+                         ddm_h_model_valuation, monte_carlo_ddm)
+from models.epv import earnings_power_value_valuation, epv_with_growth_premium
+from models.rim import residual_income_model_valuation
 from models.nav import tangible_book_value_per_share
 from models.portfolio import position_sizes, concentration_analysis
 from models.utils import rank
@@ -64,8 +69,7 @@ from data.sec_insider_client import SECInsiderClient
 from data.provenance import ProvenanceRecorder
 from data.culture_client import CultureClient
 
-from scripts.config import (DEFAULT_RISK_FREE_RATE, ERP, TERMINAL_GROWTH_RATE,
-                            MIN_MARKET_CAP, WACC_FLOOR, WACC_CAP,
+from scripts.config import (ERP, TERMINAL_GROWTH_RATE,
                             GROWTH_WEIGHT_FCF, GROWTH_WEIGHT_REV,
                             GROWTH_WEIGHT_ANALYST_ST, GROWTH_WEIGHT_ANALYST_LT,
                             GROWTH_WEIGHT_EARNINGS_G, GROWTH_WEIGHT_FUNDAMENTAL,
@@ -73,8 +77,7 @@ from scripts.config import (DEFAULT_RISK_FREE_RATE, ERP, TERMINAL_GROWTH_RATE,
                             MARGIN_TREND_SENSITIVITY,
                             BETA_MIN, BETA_MAX, RE_MIN, RE_MAX,
                             CAPEX_DA_THRESHOLD, EXCESS_CAPEX_ADDBACK,
-                            YIELD_CEILING_MULT, HYPER_GROWTH_YIELD,
-                            HYPER_GROWTH_CAP, ANALYST_HAIRCUT, FALLBACK_GROWTH,
+                            YIELD_CEILING_MULT, HYPER_GROWTH_CAP, ANALYST_HAIRCUT, FALLBACK_GROWTH,
                             DCF_YEARS, DCF_STAGE1,
                             EXIT_MULT_DIVERGENCE_THRESHOLD,
                             EXIT_MULT_DEFAULT_EV_EBITDA,
@@ -86,10 +89,12 @@ from scripts.config import (DEFAULT_RISK_FREE_RATE, ERP, TERMINAL_GROWTH_RATE,
                             DCF_BLEND_WEIGHT_WITH_DDM, DDM_DIVERGENCE_THRESHOLD,
                             BLEND_TRIGGER, BLEND_DCF_WEIGHT, BLEND_MULT_WEIGHT,
                             EV_EBITDA_OUTLIER_MAX, MIN_SECTOR_STOCKS,
-                            DATA_QUALITY_MIN, MIN_MORNINGSTAR_SAMPLE,
+                            MIN_MORNINGSTAR_SAMPLE,
                             _get_sector_config)
 from scripts.scoring import (_mc_confidence_label, score_and_rate,
                              _print_validation_stats)
+
+logger = logging.getLogger('analyze_stock')
 
 
 # ---------------------------------------------------------------------------
@@ -450,11 +455,12 @@ def _load_founder_overrides():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
                         'data', 'founder_overrides.json')
     try:
-        with open(path) as _f:
+        with open(path, encoding='utf-8') as _f:
             raw = json.load(_f)
         out = {k: bool(v) for k, v in raw.items()
                if not k.startswith('_') and isinstance(v, bool)}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"founder_overrides.json unreadable ({e}) — founder overrides disabled this run")
         out = {}
     _FOUNDER_OVERRIDES_CACHE = out
     return out
@@ -471,10 +477,11 @@ def _load_wikidata_founders():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
                         'data', 'wikidata_founders.json')
     try:
-        with open(path) as _f:
+        with open(path, encoding='utf-8') as _f:
             raw = json.load(_f)
         out = {k: list(v) for k, v in raw.items() if not k.startswith('_')}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"wikidata_founders.json unreadable ({e}) — founder detection degraded this run")
         out = {}
     _WIKIDATA_FOUNDERS_CACHE = out
     return out
@@ -538,7 +545,8 @@ def _load_local_prices(ticker, prices_dir):
         df = pd.read_parquet(path)[['Close']].sort_index()
         df.index = pd.to_datetime(df.index).tz_localize(None)
         return df['Close']
-    except Exception:
+    except Exception as e:
+        logger.warning(f"local prices: unreadable Parquet for {ticker} ({e})")
         return None
 
 
@@ -561,7 +569,8 @@ def _load_local_ohlcv(ticker, prices_dir):
             return None
         df.index = pd.to_datetime(df.index).tz_localize(None)
         return df[['Close', 'Volume']]
-    except Exception:
+    except Exception as e:
+        logger.warning(f"local OHLCV: unreadable Parquet for {ticker} ({e})")
         return None
 
 
@@ -980,8 +989,8 @@ def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=Non
                             re, label = build_re, 'buildup (unreliable beta)'
                         if RE_MIN < re < RE_MAX:
                             return re, label, beta_diag
-        except Exception:
-            pass  # Fall through to yfinance beta
+        except Exception as e:
+            logger.debug(f"cost of equity: local-beta path failed for {ticker} ({e}); falling back to yfinance beta")
 
     # 2. CAPM with yfinance-reported beta (no R² quality check)
     beta = info.get('beta')
@@ -1028,8 +1037,8 @@ def _get_analyst_lt_growth(yf_data):
                     val = ge.loc[period, col]
                     if pd.notna(val) and isinstance(val, (int, float)):
                         return float(val)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"growth estimates table unusable ({e}); trying next source")
     return None
 
 
@@ -1072,7 +1081,8 @@ def _compute_surprise_adjustment(yf_data):
             return -SURPRISE_UPLIFT, avg_surprise
         else:
             return 0.0, avg_surprise
-    except Exception:
+    except Exception as e:
+        logger.debug(f"earnings surprise history unusable ({e}); no surprise uplift applied")
         return 0.0, None
 
 
@@ -1429,6 +1439,53 @@ def _compute_shareholder_yield(yf_data, mcap):
 
 
 # ---------------------------------------------------------------------------
+# Balance-sheet debt levels (Worksheet Step 3C)
+# ---------------------------------------------------------------------------
+
+def _debt_levels(yf_data):
+    """Point-in-time debt levels for the row (USD — statement frames are
+    FX-normalized upstream). Statements first; yfinance .info as fallback
+    only, per field (its totalDebt/totalCash are MRQ figures — fine as
+    point-in-time levels, never injected into annual frames). None stays
+    None: unknown ≠ 0.
+
+    Returns (total_debt, cash, total_liabilities, net_debt, source).
+    `source` records where the *known* levels came from: None = statements
+    only, 'yf_info' = every known level fell back to .info,
+    'statements+yf_info' = mixed. net_debt is total_debt − cash only when
+    both sides are known.
+    """
+    total_debt_val = cash_val = total_liabilities_val = None
+    _bs = yf_data.get('balance_sheet')
+    if _bs is not None and not _bs.empty:
+        _latest_bs = _bs.iloc[:, 0]
+        total_debt_val = _get(_latest_bs, DEBT_KEYS)
+        cash_val = _get(_latest_bs, CASH_KEYS)
+        total_liabilities_val = _get(
+            _latest_bs,
+            ['Total Liabilities Net Minority Interest', 'Total Liab'])
+    _yf_info = yf_data.get('info') or {}
+    _fallback = []
+    if total_debt_val is None and _yf_info.get('totalDebt') is not None:
+        total_debt_val = _yf_info.get('totalDebt')
+        _fallback.append('debt')
+    if cash_val is None and _yf_info.get('totalCash') is not None:
+        cash_val = _yf_info.get('totalCash')
+        _fallback.append('cash')
+    if not _fallback:
+        debt_source = None
+    elif len(_fallback) == 2:
+        debt_source = 'yf_info'
+    else:
+        _stmt_val = cash_val if _fallback == ['debt'] else total_debt_val
+        debt_source = 'statements+yf_info' if _stmt_val is not None else 'yf_info'
+    net_debt_val = (total_debt_val - cash_val
+                    if total_debt_val is not None and cash_val is not None
+                    else None)
+    return total_debt_val, cash_val, total_liabilities_val, net_debt_val, debt_source
+
+
+# ---------------------------------------------------------------------------
 # Forward DCF (Worksheet Step 5A)
 # ---------------------------------------------------------------------------
 
@@ -1490,7 +1547,8 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     # add-back and the SBC deduction below.
     try:
         latest_cf = cf[sorted(cf.columns)[-1]]
-    except Exception:
+    except Exception as e:
+        logger.debug(f"cash-flow columns unsortable ({e}); using positional newest column")
         latest_cf = cf.iloc[:, -1] if cf.columns.is_monotonic_increasing else cf.iloc[:, 0]
 
     def _cf_line(labels):
@@ -1554,8 +1612,6 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     if base_fcf <= 0:
         return None, None, None, {}, None
-
-    mcap = info.get('marketCap')
 
     # --- FCF growth estimation ---
     fcf_cagr = None
@@ -1631,7 +1687,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     if growth_signals:
         total_weight = sum(growth_weights)
-        weighted_avg = sum(s * w for s, w in zip(growth_signals, growth_weights)) / total_weight
+        weighted_avg = sum(s * w for s, w in zip(growth_signals, growth_weights, strict=False)) / total_weight
     else:
         weighted_avg = FALLBACK_GROWTH
 
@@ -1651,8 +1707,9 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     fcf_growth = min(growth_cap, max(-0.15, weighted_avg))
 
     # --- Two-stage DCF via shared model function (GGM terminal value) ---
-    ev_ggm = two_stage_ev(base_fcf, fcf_growth, wacc, term_g,
-                          total_years=DCF_YEARS, stage1_years=DCF_STAGE1)
+    ggm_valuation = two_stage_ev_valuation(base_fcf, fcf_growth, wacc, term_g,
+                                           total_years=DCF_YEARS, stage1_years=DCF_STAGE1)
+    ev_ggm = ggm_valuation.value
     if ev_ggm is None or ev_ggm <= 0:
         return None, None, None, {}, None
 
@@ -1674,7 +1731,8 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
         try:
             sorted_inc_cols = sorted(inc_stmt.columns)
             latest_inc = inc_stmt[sorted_inc_cols[-1]]
-        except Exception:
+        except Exception as e:
+            logger.debug(f"income-statement columns unsortable ({e}); using positional column 0")
             latest_inc = inc_stmt.iloc[:, 0]
         op_inc_val = None
         for k in ['Operating Income', 'Total Operating Income As Reported']:
@@ -1687,7 +1745,8 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
             try:
                 sorted_cf_cols = sorted(cf_for_da.columns)
                 latest_cf_da = cf_for_da[sorted_cf_cols[-1]]
-            except Exception:
+            except Exception as e:
+                logger.debug(f"cash-flow columns unsortable for D&A ({e}); using positional column 0")
                 latest_cf_da = cf_for_da.iloc[:, 0]
             for k in ['Depreciation And Amortization', 'Depreciation Amortization Depletion']:
                 if k in latest_cf_da.index and pd.notna(latest_cf_da[k]):
@@ -1697,10 +1756,11 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
             base_ebitda = op_inc_val + da_val
 
     if base_ebitda and base_ebitda > 0 and exit_multiple and shares and shares > 0:
-        ev_exit = two_stage_ev_exit_multiple(
+        exit_valuation = two_stage_ev_exit_multiple_valuation(
             base_fcf, fcf_growth, wacc, term_g,
             base_ebitda, exit_multiple,
             total_years=DCF_YEARS, stage1_years=DCF_STAGE1)
+        ev_exit = exit_valuation.value
         if ev_exit and ev_exit > 0:
             exit_mult_fv = fair_value_per_share(ev_exit, net_debt, shares)
 
@@ -1763,6 +1823,12 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
         # conflates a basis mismatch with a genuine expectation gap.
         'base_fcf': base_fcf,
         'term_g': term_g,
+        # Valuation envelope of the primary GGM leg: which path produced the
+        # number, how much its own soft warnings degrade trust in it, and the
+        # concrete caveats — so a fallback can't pose as authoritative.
+        'dcf_method': ggm_valuation.method,
+        'dcf_confidence': ggm_valuation.confidence,
+        'dcf_warnings': list(ggm_valuation.warnings),
     }
     return fv, sens_range, fcf_growth, growth_diag, mc_result
 
@@ -1839,8 +1905,8 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
             ni = inc[sorted_inc[-1]].get('Net Income')
             if equity and ni and equity > 0:
                 roe = ni / equity
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"DDM ROE inputs unusable ({e}); retention inference will warn instead")
 
     annual_divs = _annualise_dividends(div_series)
 
@@ -1878,14 +1944,18 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
     tg = TERMINAL_GROWTH_RATE + terminal_growth_adj
 
     # 3. Two-stage DDM
-    ddm_fv = two_stage_ddm(dps, g, tg, re, years=DDM_HIGH_GROWTH_YEARS)
+    ddm_valuation = two_stage_ddm_valuation(dps, g, tg, re, years=DDM_HIGH_GROWTH_YEARS)
+    ddm_fv = ddm_valuation.value
     result['ddm_fv'] = ddm_fv
+    result['ddm_confidence'] = ddm_valuation.confidence if ddm_fv is not None else None
+    result['ddm_warnings'] = list(ddm_valuation.warnings)
 
     # 4. H-Model cross-check. H is HALF the linear-decline period, so to model
     # growth fading over the same horizon the two-stage holds it (5y),
     # half_life = 5/2. Passing the full 5 modeled a 10-year fade and inflated
     # the H-model leg (and hence the averaged ddm_fv) whenever g > tg.
-    h_fv = ddm_h_model(dps, g, tg, re, half_life=DDM_HIGH_GROWTH_YEARS / 2.0)
+    h_fv = ddm_h_model_valuation(dps, g, tg, re,
+                                 half_life=DDM_HIGH_GROWTH_YEARS / 2.0).value
     result['ddm_h_fv'] = h_fv
 
     # Average the two methods when both available
@@ -2011,8 +2081,29 @@ def apply_mcap_integrity_guard(results, prior_rows=None,
             'implausible_nulled': len(implausible)}
 
 
-def _main():
-    """Entry point: screen tickers, run DCF analysis, generate reports."""
+class _ModelWarningCounter(logging.Filter):
+    """Counts model-layer warnings routed through logging.captureWarnings.
+
+    Feeds the end-of-run quality summary: total warnings, and how many
+    flagged a fabricated input (fallback rates, placeholder costs) that
+    every downstream valuation silently inherits.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.total = 0
+        self.fabricated = 0
+
+    def filter(self, record):
+        self.total += 1
+        msg = record.getMessage()
+        if 'fabricated' in msg or 'fallback' in msg:
+            self.fabricated += 1
+        return True
+
+
+def _run_setup():
+    """CLI parsing, provenance recorder, and logging/warning configuration."""
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', '-i', help='Excel file with tickers in first column')
@@ -2043,6 +2134,27 @@ def _main():
     run_start_date = date.today()
     _prov = ProvenanceRecorder(run_start_date)
 
+    # Observability: timestamped diagnostics on stderr (report output stays on
+    # stdout), model warnings routed through logging, and — critically —
+    # RuntimeWarnings forced to 'always'. Python's default once-per-location
+    # filter would show a model warning for the first ticker and silently
+    # suppress it for the other ~2,000.
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+    )
+    warnings.simplefilter('always', RuntimeWarning)
+    logging.captureWarnings(True)
+    _model_warning_counter = _ModelWarningCounter()
+    logging.getLogger('py.warnings').addFilter(_model_warning_counter)
+    return {'args': args, 'prices_dir': prices_dir,
+            'run_start_date': run_start_date, '_prov': _prov,
+            '_model_warning_counter': _model_warning_counter}
+
+
+def _run_macro_setup(args, prices_dir):
+    """Risk-free rate fetch plus the opt-in macro-economic overlay."""
     # Fetch live risk-free rate (10-yr Treasury yield)
     risk_free_rate = fetch_risk_free_rate()
     from data import treasury_rate as _treasury
@@ -2092,7 +2204,24 @@ def _main():
             commodity_data = mc_client.fetch_commodity_data()
         except Exception as e:
             print(f"  Macro overlay failed ({e}), proceeding with defaults.")
+    return {'risk_free_rate': risk_free_rate,
+            'risk_free_rate_source': risk_free_rate_source,
+            'macro_regime_result': macro_regime_result,
+            'macro_adj': macro_adj,
+            'effective_erp': effective_erp,
+            'effective_tg_adj': effective_tg_adj,
+            'effective_wacc_sigma': effective_wacc_sigma,
+            'effective_growth_sigma_mult': effective_growth_sigma_mult,
+            'effective_exit_mult_adj': effective_exit_mult_adj,
+            'effective_growth_weight_shift': effective_growth_weight_shift,
+            'sector_signals': sector_signals,
+            'commodity_data': commodity_data,
+            'sector_etf_data': sector_etf_data,
+            'local_rs': local_rs}
 
+
+def _run_build_universe(args):
+    """Assemble the ticker universe plus Morningstar P/FV and source-group maps."""
     ms_pfv_data = {}  # Morningstar Price/Fair Value ratios (if input file has them)
     ticker_source = {}  # ticker -> 'quality' | 'poor'
 
@@ -2163,7 +2292,12 @@ def _main():
         all_tickers = all_tickers + [t for t in val_tickers if t not in existing]
         print(f"Loaded {len(val_tickers)} validation tickers + {val_n_pfv} P/FV from {args.validation} "
               f"(combined universe: {len(all_tickers)} tickers, {len(ms_pfv_data)} total P/FV)")
+    return {'ms_pfv_data': ms_pfv_data, 'ticker_source': ticker_source,
+            'all_tickers': all_tickers}
 
+
+def _run_build_clients(run_start_date):
+    """Construct the Phase-1 data clients (yfinance, Tiingo, SEC EDGAR)."""
     yf_client = YFinanceClient(run_date=run_start_date)
 
     # Tiingo client initialized here so it's available for Phase 1 beta calculation
@@ -2184,14 +2318,21 @@ def _main():
         email='stockanalysis@example.com',
         request_delay=1.0,
     )
+    return {'yf_client': yf_client, 'tiingo_client': tiingo_client,
+            'sec_client': sec_client, 'sec_xbrl_client': sec_xbrl_client}
 
+
+def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
+                       tiingo_client, sec_xbrl_client, risk_free_rate,
+                       effective_erp):
+    """Phase 1: screen the full universe, caching fundamentals for Phase 2."""
     # -----------------------------------------------------------------------
     # Phase 1: Collect data for full universe (no ROIC > WACC pre-filter)
     # -----------------------------------------------------------------------
     _skip_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'skip_tickers.txt')
     _skip_set = set()
     try:
-        with open(_skip_path) as _sf:
+        with open(_skip_path, encoding='utf-8') as _sf:
             for _line in _sf:
                 _t = _line.split('#')[0].strip().upper()
                 if _t:
@@ -2214,7 +2355,7 @@ def _main():
         _prior_jsons = sorted(_glob.glob(os.path.join('output', 'results_*.json')))
         if _prior_jsons:
             _prior_path = _prior_jsons[-1]
-            with open(_prior_path) as _pf:
+            with open(_prior_path, encoding='utf-8') as _pf:
                 _prior = json.load(_pf)
             _prior_rows = _prior.get('results', _prior) if isinstance(_prior, dict) else _prior
             _carry_prior_rows = _prior_rows
@@ -2299,7 +2440,8 @@ def _main():
                     # years). Through-cycle ROIC is the right input for a
                     # DCF / value pipeline with a long terminal-value horizon.
                     xbrl_data = sec_xbrl_client.build_yfinance_shape(ticker)
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"SEC XBRL: build_yfinance_shape failed for {ticker}: {e}; falling back to yfinance statements")
                     xbrl_data = None  # network hiccup — fall through
                 if xbrl_data is not None:
                     # Filing metadata must be read here: Phase 2 evicts the
@@ -2462,7 +2604,14 @@ def _main():
             rate = o['passed'] / o['total'] if o['total'] > 0 else 0
             print(f"  {grp:>8}: {o['passed']}/{o['total']} passed ({rate:.0%})")
     print()
+    return {'qualifying': qualifying, 'screen_cache': screen_cache,
+            'screen_outcomes': screen_outcomes,
+            '_carry_prior_rows': _carry_prior_rows}
 
+
+def _run_sector_exit_multiples(qualifying, screen_cache,
+                               effective_exit_mult_adj):
+    """Pre-compute sector median EV/EBITDA exit multiples (macro-adjusted)."""
     # Pre-compute sector median EV/EBITDA for exit multiple cross-check
     _pre_sector_ee = {}
     for ticker in qualifying:
@@ -2485,7 +2634,12 @@ def _main():
         for s in sector_exit_multiples:
             sector_exit_multiples[s] = max(EXIT_MULT_MIN,
                 min(EXIT_MULT_MAX, sector_exit_multiples[s] + effective_exit_mult_adj))
+    return {'sector_exit_multiples': sector_exit_multiples,
+            'effective_exit_mult_default': effective_exit_mult_default}
 
+
+def _run_build_phase2_clients(sec_client, qualifying, screen_cache):
+    """Construct the Phase-2 clients (news, supply chain, insider, culture)."""
     # -----------------------------------------------------------------------
     # News pipeline: Tiingo (primary) + yfinance/Google RSS (fallback)
     # -----------------------------------------------------------------------
@@ -2525,7 +2679,23 @@ def _main():
 
     # Culture metrics client (no external API — derives signals from yfinance)
     culture_client = CultureClient()
+    return {'news_client': news_client, 'supply_client': supply_client,
+            'sec_supply_client': sec_supply_client,
+            'sec_insider_client': sec_insider_client,
+            'culture_client': culture_client}
 
+
+def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
+                         ticker_source, ms_pfv_data, _prov, yf_client,
+                         tiingo_client, news_client, sec_client,
+                         supply_client, sec_supply_client, sec_xbrl_client,
+                         sec_insider_client, culture_client,
+                         sector_exit_multiples, effective_exit_mult_default,
+                         effective_erp, effective_tg_adj,
+                         effective_wacc_sigma, effective_growth_sigma_mult,
+                         effective_growth_weight_shift, risk_free_rate,
+                         macro_regime_result, sector_signals):
+    """Phase 2: full per-ticker analysis of every qualifying ticker."""
     # -----------------------------------------------------------------------
     # Phase 2: Full analysis on qualifying tickers (Worksheet Steps 2-5)
     # -----------------------------------------------------------------------
@@ -2745,7 +2915,8 @@ def _main():
             # Step 5B: Dividend Discount Model (for dividend payers)
             try:
                 div_series = yf_client.fetch_dividends(ticker)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"yfinance: dividend history fetch failed for {ticker}: {e}; DDM skipped")
                 div_series = pd.Series(dtype=float)
             ddm_result = run_ddm_valuation(
                 yf_data, div_series, re_for_models,
@@ -2779,30 +2950,10 @@ def _main():
             int_cov = calculate_interest_coverage(yf_data)
             nd_ebitda = calculate_net_debt_ebitda(yf_data)
 
-            # Debt levels (USD — statement frames are FX-normalized upstream).
-            # Statements first; yfinance .info as fallback only (its totalDebt/
-            # totalCash are MRQ figures — fine as point-in-time levels, never
-            # injected into annual frames). None stays None: unknown ≠ 0.
-            total_debt_val = cash_val = total_liabilities_val = None
-            debt_source = None
-            _bs = yf_data.get('balance_sheet')
-            if _bs is not None and not _bs.empty:
-                _latest_bs = _bs.iloc[:, 0]
-                total_debt_val = _get(_latest_bs, DEBT_KEYS)
-                cash_val = _get(_latest_bs, CASH_KEYS)
-                total_liabilities_val = _get(
-                    _latest_bs,
-                    ['Total Liabilities Net Minority Interest', 'Total Liab'])
-            _yf_info = yf_data.get('info') or {}
-            if total_debt_val is None and _yf_info.get('totalDebt') is not None:
-                total_debt_val = _yf_info.get('totalDebt')
-                debt_source = 'yf_info'
-            if cash_val is None and _yf_info.get('totalCash') is not None:
-                cash_val = _yf_info.get('totalCash')
-                debt_source = debt_source or 'yf_info'
-            net_debt_val = (total_debt_val - cash_val
-                            if total_debt_val is not None and cash_val is not None
-                            else None)
+            # Debt levels — see _debt_levels for the statements-first /
+            # per-field .info fallback and provenance rules.
+            (total_debt_val, cash_val, total_liabilities_val,
+             net_debt_val, debt_source) = _debt_levels(yf_data)
 
             # Traditional ratios
             ratios = compute_ratios(yf_data)
@@ -2872,11 +3023,13 @@ def _main():
             _epv_net_debt = get_net_debt(yf_data)
             if _epv_net_debt is None:
                 epv_fv = None
+                epv_valuation = None
             else:
-                epv_fv = earnings_power_value(
+                epv_valuation = earnings_power_value_valuation(
                     _epv_ebit_used,
                     _epv_eff_tax, wacc, shares,
                     excess_cash=0, total_debt=_epv_net_debt)
+                epv_fv = epv_valuation.value
             epv_growth_fv = epv_with_growth_premium(
                 epv_fv, ratios.get('ROE'), re_for_models)
 
@@ -2894,10 +3047,11 @@ def _main():
             _rim_payout = info.get('payoutRatio')
             _rim_retention = (max(0.0, min(1.0, 1.0 - _rim_payout))
                               if isinstance(_rim_payout, (int, float)) else None)
-            rim_fv = residual_income_model(
+            rim_valuation = residual_income_model_valuation(
                 _book_value, ratios.get('ROE'), re_for_models,
                 g=TERMINAL_GROWTH_RATE + effective_tg_adj,
                 retention_ratio=_rim_retention)
+            rim_fv = rim_valuation.value
 
             # NAV (Tangible Book Value per share) — universal asset-floor
             # sanity check that strips goodwill and intangibles out of equity.
@@ -2912,14 +3066,18 @@ def _main():
             # Reverse DCF (solve for implied growth)
             rev_dcf = None
             if dcf_fv and current_price and current_price > 0 and fcf and shares:
-                net_debt_val = get_net_debt(yf_data) or 0
+                # get_net_debt (or 0) matches the forward DCF's own EV→equity
+                # bridge basis. Kept LOCAL to this branch: it must not clobber
+                # the row's statement-derived net_debt_val, whose None means
+                # "leverage unknown", not zero.
+                _rev_net_debt = get_net_debt(yf_data) or 0
                 # Solve on the same adjusted FCF base + terminal growth the
                 # forward DCF used, so implied_vs_estimated measures the
                 # expectation gap, not a basis/terminal-rate mismatch.
                 _rev_fcf = growth_diag.get('base_fcf') or fcf
                 _rev_tg = growth_diag.get('term_g')
                 rev_dcf = reverse_dcf(
-                    current_price, _rev_fcf, wacc, shares, net_debt_val,
+                    current_price, _rev_fcf, wacc, shares, _rev_net_debt,
                     terminal_g=_rev_tg if _rev_tg is not None else 0.03)
 
             # 52-Week Range
@@ -3142,6 +3300,10 @@ def _main():
                 'terminal_growth': _get_sector_config(sector)['terminal_growth'],
                 'exit_mult_fv': growth_diag.get('exit_mult_fv'),
                 'tv_method_spread': growth_diag.get('tv_method_spread'),
+                # Valuation envelope (DCF primary leg)
+                'dcf_method': growth_diag.get('dcf_method'),
+                'dcf_confidence': growth_diag.get('dcf_confidence'),
+                'dcf_warnings': growth_diag.get('dcf_warnings'),
                 'mc_p10_fv': mc_result['p10_fv'] if mc_result else None,
                 'mc_p90_fv': mc_result['p90_fv'] if mc_result else None,
                 'mc_cv': mc_result['cv'] if mc_result else None,
@@ -3237,6 +3399,8 @@ def _main():
                 'ddm_mc_p10': ddm_result.get('ddm_mc_p10'),
                 'ddm_mc_p90': ddm_result.get('ddm_mc_p90'),
                 'ddm_mc_cv': ddm_result.get('ddm_mc_cv'),
+                'ddm_confidence': ddm_result.get('ddm_confidence'),
+                'ddm_warnings': ddm_result.get('ddm_warnings'),
                 # Reverse DCF
                 'implied_growth': rev_dcf['implied_growth'] if rev_dcf and rev_dcf.get('converged') else None,
                 'implied_vs_estimated': ((rev_dcf['implied_growth'] - fcf_growth)
@@ -3251,10 +3415,16 @@ def _main():
                 'epv_growth_fv': epv_growth_fv,
                 # 'normalized' (10y-avg margin × current revenue) or 'point'
                 'epv_ebit_source': _epv_ebit_source,
+                'epv_confidence': (epv_valuation.confidence
+                    if epv_valuation is not None and epv_fv is not None else None),
+                'epv_warnings': (list(epv_valuation.warnings)
+                    if epv_valuation is not None else []),
                 # RIM (Residual Income Model)
                 'rim_fv': rim_fv,
                 'rim_mos': ((rim_fv - current_price) / rim_fv
                     if (rim_fv and current_price and rim_fv > 0) else None),
+                'rim_confidence': rim_valuation.confidence if rim_fv is not None else None,
+                'rim_warnings': list(rim_valuation.warnings),
                 # NAV (Tangible Book Value)
                 'tangible_book_per_share': tangible_book_per_share,
                 'nav_fv': nav_fv,
@@ -3310,7 +3480,11 @@ def _main():
     screen_cache.clear()
     yf_client.evict_financials()
     gc.collect()
+    return results
 
+
+def _run_postprocess(results, ms_pfv_data, _carry_prior_rows):
+    """Sector comparisons, valuation blends, profit pools, scoring, sizing."""
     # -----------------------------------------------------------------------
     # Post-processing: sector-median EV/EBITDA comparison + DCF cross-check
     # -----------------------------------------------------------------------
@@ -3503,7 +3677,13 @@ def _main():
         print(f"\n  Portfolio concentration warning: {concentration['top_sector']} "
               f"= {concentration['top_sector_weight']:.0%} "
               f"(HHI={concentration['hhi']:.2f})")
+    return {'sector_median_ee': sector_median_ee,
+            'sector_median_opm': sector_median_opm}
 
+
+def _run_narratives(results, args, sector_etf_data, macro_regime_result,
+                    commodity_data, sector_median_ee, sector_median_opm):
+    """Peer percentiles, culture and stock narratives, and the final sort."""
     # -----------------------------------------------------------------------
     # Peer percentile ranking (sector-relative position for key metrics)
     # -----------------------------------------------------------------------
@@ -3777,6 +3957,9 @@ def _main():
 
     results.sort(key=lambda r: (r.get('_composite_score') or 0, r.get('spread') or 0), reverse=True)
 
+
+def _run_validation_stats(results, ms_pfv_data, args, screen_outcomes):
+    """Morningstar comparison statistics and validation-cohort stats."""
     # -----------------------------------------------------------------------
     # Morningstar comparison statistics
     # -----------------------------------------------------------------------
@@ -3801,7 +3984,7 @@ def _main():
             n = len(model_fvs)
             rank_m = rank(model_fvs)
             rank_ms = rank(ms_fvs)
-            d_sq = sum((rm - rms) ** 2 for rm, rms in zip(rank_m, rank_ms))
+            d_sq = sum((rm - rms) ** 2 for rm, rms in zip(rank_m, rank_ms, strict=False))
             spearman_rho = 1 - (6 * d_sq) / (n * (n ** 2 - 1)) if n > 1 else 0.0
 
             print(f"\nMorningstar comparison ({len(ms_pairs)} stocks):")
@@ -3835,6 +4018,11 @@ def _main():
     if args.validation:
         _print_validation_stats(results, screen_outcomes)
 
+
+def _write_outputs(results, run_start_date, _prov, risk_free_rate,
+                   risk_free_rate_source, macro_regime_result, macro_adj,
+                   local_rs, prices_dir):
+    """Write the JSON snapshot, provenance events, HTML and Excel reports."""
     os.makedirs("output", exist_ok=True)
     today_str = run_start_date.isoformat()  # pin to run-start so a midnight-spanning run stays single-dated
     _run_prov = _prov.run_block(results)
@@ -3879,6 +4067,8 @@ def _main():
         try:
             return str(val)
         except Exception:
+            # Deliberately silent: per-value guard in the JSON writer;
+            # logging here could emit thousands of no-signal lines.
             return None
 
     json_rows = []
@@ -3898,13 +4088,30 @@ def _main():
         if local_rs:
             json_meta['sector_local_rs'] = local_rs
     json_meta['results'] = json_rows
-    with open(json_filename, 'w') as f:
+    with open(json_filename, 'w', encoding='utf-8') as f:
         json.dump(json_meta, f, indent=2, default=str)
     _prov.write_events('output')
 
+    # Macro Outlook dashboard payload (FRED). Not gated on --macro: the tab
+    # is read-only context and the FRED client caches daily. Fails soft —
+    # offline or FRED-down runs simply omit the tab.
+    macro_dash = None
+    try:
+        from data.fred_client import FREDClient
+        from scripts.macro_dashboard import build_macro_payload
+        macro_dash = build_macro_payload(FREDClient(), macro_regime_result,
+                                         macro_adj)
+        if macro_dash:
+            _n = len(macro_dash['sidecar']['series'])
+            print(f"Macro dashboard: {_n} FRED series")
+        else:
+            print("Macro dashboard skipped (no FRED data).")
+    except Exception as e:
+        print(f"Macro dashboard skipped ({e}).")
+
     html_filename = os.path.join("output", f"stock_analysis_results_{today_str}.html")
     build_html(results, html_filename, prices_dir=prices_dir, run_date=run_start_date,
-               run_provenance=_run_prov)
+               run_provenance=_run_prov, macro_payload=macro_dash)
     xlsx_filename = os.path.join("output", f"stock_analysis_results_{today_str}.xlsx")
     build_excel(results, xlsx_filename)
 
@@ -3912,6 +4119,109 @@ def _main():
     print(f"  HTML: {html_filename}")
     print(f"  Excel: {xlsx_filename}")
     print(f"  JSON: {json_filename}")
+
+
+def _run_quality_summary(risk_free_rate, risk_free_rate_source,
+                         _model_warning_counter):
+    """End-of-run quality gate: surface substituted/fabricated inputs."""
+    # Run-quality gate: surface, in one place, every way this run's numbers
+    # rest on substituted rather than observed inputs.
+    _log = logging.getLogger('analyze_stock')
+    if risk_free_rate_source == 'fallback':
+        _log.warning(
+            'RUN QUALITY: risk-free rate was a hardcoded fallback — every '
+            'CAPM/WACC/DCF number this run inherits a fabricated %.2f%% rate',
+            risk_free_rate * 100)
+    if _model_warning_counter.fabricated:
+        _log.warning(
+            'RUN QUALITY: %d model warnings flagged fabricated/fallback inputs '
+            '(see WARNING lines above for tickers affected)',
+            _model_warning_counter.fabricated)
+    _log.info('Model warnings this run: %d total, %d about fabricated inputs',
+              _model_warning_counter.total, _model_warning_counter.fabricated)
+
+
+def _main():
+    """Entry point: screen tickers, run DCF analysis, generate reports."""
+    setup = _run_setup()
+    args = setup['args']
+    prices_dir = setup['prices_dir']
+    run_start_date = setup['run_start_date']
+    _prov = setup['_prov']
+    _model_warning_counter = setup['_model_warning_counter']
+
+    macro = _run_macro_setup(args, prices_dir)
+    risk_free_rate = macro['risk_free_rate']
+    risk_free_rate_source = macro['risk_free_rate_source']
+    macro_regime_result = macro['macro_regime_result']
+    macro_adj = macro['macro_adj']
+    effective_erp = macro['effective_erp']
+    effective_tg_adj = macro['effective_tg_adj']
+    effective_wacc_sigma = macro['effective_wacc_sigma']
+    effective_growth_sigma_mult = macro['effective_growth_sigma_mult']
+    effective_exit_mult_adj = macro['effective_exit_mult_adj']
+    effective_growth_weight_shift = macro['effective_growth_weight_shift']
+    sector_signals = macro['sector_signals']
+    commodity_data = macro['commodity_data']
+    sector_etf_data = macro['sector_etf_data']
+    local_rs = macro['local_rs']
+
+    universe = _run_build_universe(args)
+    ms_pfv_data = universe['ms_pfv_data']
+    ticker_source = universe['ticker_source']
+    all_tickers = universe['all_tickers']
+
+    clients = _run_build_clients(run_start_date)
+    yf_client = clients['yf_client']
+    tiingo_client = clients['tiingo_client']
+    sec_client = clients['sec_client']
+    sec_xbrl_client = clients['sec_xbrl_client']
+
+    phase1 = _run_phase1_screen(args, _prov, all_tickers, ticker_source,
+                                yf_client, tiingo_client, sec_xbrl_client,
+                                risk_free_rate, effective_erp)
+    qualifying = phase1['qualifying']
+    screen_cache = phase1['screen_cache']
+    screen_outcomes = phase1['screen_outcomes']
+    _carry_prior_rows = phase1['_carry_prior_rows']
+
+    exit_mults = _run_sector_exit_multiples(qualifying, screen_cache,
+                                            effective_exit_mult_adj)
+    sector_exit_multiples = exit_mults['sector_exit_multiples']
+    effective_exit_mult_default = exit_mults['effective_exit_mult_default']
+
+    phase2_clients = _run_build_phase2_clients(sec_client, qualifying,
+                                               screen_cache)
+    news_client = phase2_clients['news_client']
+    supply_client = phase2_clients['supply_client']
+    sec_supply_client = phase2_clients['sec_supply_client']
+    sec_insider_client = phase2_clients['sec_insider_client']
+    culture_client = phase2_clients['culture_client']
+
+    results = _run_phase2_analysis(
+        qualifying, screen_cache, prices_dir, ticker_source, ms_pfv_data,
+        _prov, yf_client, tiingo_client, news_client, sec_client,
+        supply_client, sec_supply_client, sec_xbrl_client, sec_insider_client,
+        culture_client, sector_exit_multiples, effective_exit_mult_default,
+        effective_erp, effective_tg_adj, effective_wacc_sigma,
+        effective_growth_sigma_mult, effective_growth_weight_shift,
+        risk_free_rate, macro_regime_result, sector_signals)
+
+    post = _run_postprocess(results, ms_pfv_data, _carry_prior_rows)
+    sector_median_ee = post['sector_median_ee']
+    sector_median_opm = post['sector_median_opm']
+
+    _run_narratives(results, args, sector_etf_data, macro_regime_result,
+                    commodity_data, sector_median_ee, sector_median_opm)
+
+    _run_validation_stats(results, ms_pfv_data, args, screen_outcomes)
+
+    _write_outputs(results, run_start_date, _prov, risk_free_rate,
+                   risk_free_rate_source, macro_regime_result, macro_adj,
+                   local_rs, prices_dir)
+
+    _run_quality_summary(risk_free_rate, risk_free_rate_source,
+                         _model_warning_counter)
 
 
 if __name__ == "__main__":

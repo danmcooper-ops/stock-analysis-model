@@ -18,7 +18,7 @@ changes the routines at runtime; committing gives the change history.
 Consequences of the symlink arrangement:
 
 - **Moving or renaming this repo breaks both routines** — the symlinks point at
-  the absolute path `/Users/danmcooper/Desktop/Workspace Folder/scheduled-tasks/`.
+  the absolute path `~/Desktop/Workspace Folder/scheduled-tasks/`.
   If the repo moves (as the bond-analysis repo did), recreate them:
 
   ```bash

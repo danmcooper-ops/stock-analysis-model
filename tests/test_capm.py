@@ -1,10 +1,7 @@
 # tests/test_capm.py
-import sys
-import os
 import pytest
 import numpy as np
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.capm import (
     calculate_beta,
@@ -194,7 +191,8 @@ class TestTzNormalizeJoin:
         assert len(combined) == 2
 
     def test_beta_rejects_flat_stock_series(self):
-        import numpy as np, pytest
+        import numpy as np
+        import pytest
         from models.capm import calculate_beta
         with pytest.raises(ValueError):
             calculate_beta(np.zeros(50), np.random.RandomState(0).normal(0, 0.01, 50))

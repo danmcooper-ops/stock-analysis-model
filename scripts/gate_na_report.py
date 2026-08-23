@@ -33,13 +33,12 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from scoring import gate_metadata  # noqa: E402
+from scripts.scoring import gate_metadata  # noqa: E402
 
 
 def _load_records(path):
-    with open(path) as f:
+    with open(path, encoding='utf-8') as f:
         d = json.load(f)
     return d['results'] if (isinstance(d, dict) and 'results' in d) else d
 

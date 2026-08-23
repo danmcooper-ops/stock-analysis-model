@@ -1,10 +1,7 @@
 # tests/test_mcap_guard.py
-import sys
-import os
 
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from scripts.analyze_stock import apply_mcap_integrity_guard
 
@@ -28,7 +25,8 @@ class TestMcapIntegrityGuard:
         rows = _rows(100)
         summary = apply_mcap_integrity_guard(rows)
         assert summary == {'recovered': 0, 'still_missing': 0,
-                           'miss_pct': 0.0, 'alert': False}
+                           'miss_pct': 0.0, 'alert': False,
+                           'implausible_nulled': 0}
 
     def test_baseline_miss_rate_does_not_alert(self):
         """~0.1% (2 of 2250) is the normal level and must stay quiet."""

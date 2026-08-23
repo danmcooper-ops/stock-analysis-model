@@ -13,7 +13,7 @@ hardcoded-constant path.
 import sys
 import os
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.config import (
     ERP, TERMINAL_GROWTH_RATE, MIN_MARKET_CAP, WACC_FLOOR, WACC_CAP,

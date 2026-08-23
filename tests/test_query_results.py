@@ -8,7 +8,6 @@ import time
 import pytest
 import pandas as pd
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from scripts.query_results import (
     list_snapshot_files, load_snapshot, pick_snapshot,
@@ -207,7 +206,7 @@ def test_cli_history_json(results_dir, tmp_path, capsys):
     res = _run_main(['--results-dir', results_dir,
                      '--ticker', 'aaa', '--history', '--json', out_json], capsys)
     assert 'HOLD' in res.out
-    recs = json.loads(open(out_json).read())
+    recs = json.loads(open(out_json, encoding='utf-8').read())
     assert [r['date'] for r in recs] == ['2026-01-01', '2026-01-02', '2026-01-03']
 
 

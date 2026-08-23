@@ -3,7 +3,7 @@ import warnings as _py_warnings
 
 import numpy as np
 
-from models.valuation_types import _validate_numeric
+from models.valuation_types import Valuation, _validate_numeric
 
 
 def ddm_eligibility(div_history, payout, eps, dps, min_years=3, strict_payout=False):
@@ -136,23 +136,27 @@ def estimate_ddm_growth(div_history, payout, roe, analyst_ltg):
     return result
 
 
-def two_stage_ddm(dps, high_g, term_g, re, years=5):
-    """Two-stage Dividend Discount Model.
+def two_stage_ddm_valuation(dps, high_g, term_g, re, years=5):
+    """Two-stage Dividend Discount Model, as a Valuation envelope.
 
     Stage 1: project DPS at constant `high_g` for `years` years.
     Stage 2: terminal value via Gordon Growth Model at `term_g`.
-    Returns None on invalid inputs.
+    value is None on invalid inputs, with the reason in `warnings`.
     """
+    method = 'two_stage_ddm'
     try:
         dps = _validate_numeric('dps', dps, positive=True)
         re = _validate_numeric('re', re, positive=True, low=0.01, high=0.40)
         term_g = _validate_numeric('term_g', term_g, low=-0.10, high=0.10)
         high_g = _validate_numeric('high_g', high_g, low=-0.50, high=1.0)
     except ValueError as e:
-        _py_warnings.warn(f"two_stage_ddm input invalid: {e}", RuntimeWarning)
-        return None
+        _py_warnings.warn(f"two_stage_ddm input invalid: {e}", RuntimeWarning, stacklevel=3)
+        return Valuation.invalid(method, f'input invalid: {e}')
+    inputs = {'dps': dps, 'high_g': high_g, 'term_g': term_g, 're': re,
+              'years': years}
     if re <= term_g:
-        return None
+        return Valuation.invalid(
+            method, 're <= term_g — Gordon terminal value undefined', inputs)
 
     # Minimum spread guard
     min_spread = 0.02
@@ -173,25 +177,39 @@ def two_stage_ddm(dps, high_g, term_g, re, years=5):
     pv_terminal = terminal_value / (1 + re) ** years
 
     value = pv_divs + pv_terminal
-    return value if value > 0 else None
+    if value <= 0:
+        return Valuation.invalid(method, 'non-positive present value', inputs)
+    if term_g != effective_tg:
+        inputs['effective_terminal_growth'] = effective_tg
+    return Valuation(value=value, method=method, confidence=1.0,
+                     warnings=(), inputs_used=inputs)
 
 
-def ddm_h_model(dps, short_g, long_g, re, half_life=5):
-    """H-Model (linear growth decline) closed-form DDM.
+def two_stage_ddm(dps, high_g, term_g, re, years=5):
+    """Legacy float|None wrapper around two_stage_ddm_valuation()."""
+    return two_stage_ddm_valuation(dps, high_g, term_g, re, years=years).value
+
+
+def ddm_h_model_valuation(dps, short_g, long_g, re, half_life=5):
+    """H-Model (linear growth decline) closed-form DDM, as a Valuation envelope.
 
     V = D0 × (1 + long_g) / (re - long_g) + D0 × H × (short_g - long_g) / (re - long_g)
     where H = half_life (half the period over which growth linearly declines).
     """
+    method = 'ddm_h_model'
     try:
         dps = _validate_numeric('dps', dps, positive=True)
         re = _validate_numeric('re', re, positive=True, low=0.01, high=0.40)
         long_g = _validate_numeric('long_g', long_g, low=-0.10, high=0.10)
         short_g = _validate_numeric('short_g', short_g, low=-0.50, high=1.0)
     except ValueError as e:
-        _py_warnings.warn(f"ddm_h_model input invalid: {e}", RuntimeWarning)
-        return None
+        _py_warnings.warn(f"ddm_h_model input invalid: {e}", RuntimeWarning, stacklevel=3)
+        return Valuation.invalid(method, f'input invalid: {e}')
+    inputs = {'dps': dps, 'short_g': short_g, 'long_g': long_g, 're': re,
+              'half_life': half_life}
     if re <= long_g:
-        return None
+        return Valuation.invalid(
+            method, 're <= long_g — stable leg undefined', inputs)
 
     # Clamp the spread and substitute the effective long-growth EVERYWHERE
     # (numerator included), mirroring two_stage_ddm — clamping only the
@@ -208,7 +226,18 @@ def ddm_h_model(dps, short_g, long_g, re, half_life=5):
     growth_premium = dps * half_life * (short_g - effective_long_g) / spread
 
     value = stable_value + growth_premium
-    return value if value > 0 else None
+    if value <= 0:
+        return Valuation.invalid(method, 'non-positive present value', inputs)
+    if long_g != effective_long_g:
+        inputs['effective_long_g'] = effective_long_g
+    return Valuation(value=value, method=method, confidence=1.0,
+                     warnings=(), inputs_used=inputs)
+
+
+def ddm_h_model(dps, short_g, long_g, re, half_life=5):
+    """Legacy float|None wrapper around ddm_h_model_valuation()."""
+    return ddm_h_model_valuation(dps, short_g, long_g, re,
+                                 half_life=half_life).value
 
 
 def monte_carlo_ddm(dps, g, re, tg, n=1000,
@@ -224,7 +253,7 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
     try:
         dps = _validate_numeric('dps', dps, positive=True)
     except ValueError as e:
-        _py_warnings.warn(f"monte_carlo_ddm input invalid: {e}", RuntimeWarning)
+        _py_warnings.warn(f"monte_carlo_ddm input invalid: {e}", RuntimeWarning, stacklevel=2)
         return None
 
     rng = np.random.default_rng(42)  # fixed seed for reproducibility

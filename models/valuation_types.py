@@ -89,7 +89,7 @@ def _validate_numeric(name, value, *, positive=False, allow_zero=True,
     try:
         v = float(value)
     except (TypeError, ValueError):
-        raise ValueError(f"{name} is not numeric: {value!r}")
+        raise ValueError(f"{name} is not numeric: {value!r}") from None
     if finite and not np.isfinite(v):
         raise ValueError(f"{name} is not finite: {v}")
     if positive and v <= 0:

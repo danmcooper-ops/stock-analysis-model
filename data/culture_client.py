@@ -22,10 +22,14 @@ All network calls are wrapped in try/except with short timeouts so a
 Glassdoor failure never blocks the main pipeline.
 """
 
-import time
 import json
+import logging
 import urllib.request
 import urllib.parse
+
+from data.throttle import Throttle
+
+logger = logging.getLogger(__name__)
 
 
 _GLASSDOOR_HEADERS = {
@@ -50,8 +54,7 @@ class CultureClient:
                  request_delay: float = 1.5):
         self._glassdoor_enabled = glassdoor_enabled
         self._glassdoor_timeout = glassdoor_timeout
-        self._request_delay = request_delay
-        self._last_gd_request = 0.0
+        self._throttle = Throttle(request_delay)
 
     # ------------------------------------------------------------------
     # Public API
@@ -81,8 +84,8 @@ class CultureClient:
             try:
                 employees = int(employees)
                 result['employees'] = employees if employees > 0 else None
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as e:
+                logger.debug(f'culture: employee count parse failed: {e}')
 
         # --- CEO total compensation ---------------------------------------
         officers = info.get('companyOfficers') or []
@@ -98,16 +101,16 @@ class CultureClient:
                 try:
                     ceo_pay = int(pay)
                     result['ceo_total_pay'] = ceo_pay if ceo_pay > 0 else None
-                except (TypeError, ValueError):
-                    pass
+                except (TypeError, ValueError) as e:
+                    logger.debug(f'culture: CEO pay parse failed: {e}')
 
         # --- yfinance compensation risk score (1–10, lower = better) ----
         crisk = info.get('compensationRisk')
         if crisk is not None:
             try:
                 result['compensation_risk'] = int(crisk)
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as e:
+                logger.debug(f'culture: compensation risk parse failed: {e}')
 
         # --- Stock-based compensation (cash flow) -------------------------
         try:
@@ -123,8 +126,8 @@ class CultureClient:
                             if not (isinstance(val, float) and np.isnan(val)):
                                 result['sbc'] = float(val)
                                 break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f'culture: SBC extraction failed: {e}')
 
         return result
 
@@ -152,10 +155,7 @@ class CultureClient:
             return _glassdoor_cache[ticker]
 
         # Throttle requests
-        elapsed = time.time() - self._last_gd_request
-        if elapsed < self._request_delay:
-            time.sleep(self._request_delay - elapsed)
-        self._last_gd_request = time.time()
+        self._throttle()
 
         try:
             # Glassdoor employer autocomplete endpoint (returns JSON)
@@ -191,7 +191,8 @@ class CultureClient:
             _glassdoor_cache[ticker] = result
             return result
 
-        except Exception:
+        except Exception as e:
             # Network/parse failure — don't cache; a later ticker pass may
             # succeed. Only definitive no-match results are cached above.
+            logger.warning(f'culture: Glassdoor fetch failed for {ticker}: {e}')
             return empty

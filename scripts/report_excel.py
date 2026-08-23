@@ -701,7 +701,7 @@ def build_excel(rows, filename):
         ws = wb[sname]
         cols_list = sheets_config[sname]
         gp_col = None
-        for ci, (label, key, _) in enumerate(cols_list, 1):
+        for ci, (_label, key, _) in enumerate(cols_list, 1):
             if key == '_gates_passed':
                 gp_col = ci
                 break

@@ -2,11 +2,8 @@
 """Tests for record-level provenance tracking and the run event log."""
 
 import json
-import sys
-import os
 from datetime import date
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from data.provenance import (
     SCHEMA_VERSION, STALE_CACHE_DAYS, ProvenanceRecorder,
@@ -84,7 +81,7 @@ class TestProvenanceRecorder:
         rec = ProvenanceRecorder('2026-06-10')
         rec.record_event('stale_cache', 'JPM', 'fdic', {'cache_age_days': 12.4})
         rec.write_events(str(tmp_path))
-        with open(tmp_path / 'events_2026-06-10.json') as f:
+        with open(tmp_path / 'events_2026-06-10.json', encoding='utf-8') as f:
             data = json.load(f)
         events = data['sections']['analyze_stock']['events']
         assert len(events) == 1
@@ -151,7 +148,7 @@ class TestAppendEvents:
                       [make_event('stale_cache', 'JPM', 'fdic')])
         append_events(str(tmp_path), '2026-06-10', 'enrich_pipeline',
                       [make_event('enrichment_skipped', 'PFE', 'clinicaltrials')])
-        with open(tmp_path / 'events_2026-06-10.json') as f:
+        with open(tmp_path / 'events_2026-06-10.json', encoding='utf-8') as f:
             data = json.load(f)
         assert set(data['sections']) == {'enrich_fdic', 'enrich_pipeline'}
         assert data['date'] == '2026-06-10'
@@ -162,7 +159,7 @@ class TestAppendEvents:
                        make_event('stale_cache', 'BAC', 'fdic')])
         append_events(str(tmp_path), '2026-06-10', 'enrich_fdic',
                       [make_event('stale_cache', 'JPM', 'fdic')])
-        with open(tmp_path / 'events_2026-06-10.json') as f:
+        with open(tmp_path / 'events_2026-06-10.json', encoding='utf-8') as f:
             data = json.load(f)
         assert len(data['sections']['enrich_fdic']['events']) == 1
 
@@ -170,7 +167,7 @@ class TestAppendEvents:
         path = tmp_path / 'events_2026-06-10.json'
         path.write_text('{not json')
         append_events(str(tmp_path), '2026-06-10', 'enrich_fdic', [])
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             data = json.load(f)
         assert data['sections']['enrich_fdic']['events'] == []
 

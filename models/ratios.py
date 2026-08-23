@@ -1,11 +1,11 @@
 # models/ratios.py
 """Core financial ratios: WACC, ROIC, DuPont decomposition, fundamental growth."""
-import pandas as pd
+import warnings as _py_warnings
+
 from models.field_keys import (
     _get, EQUITY_KEYS, DEBT_KEYS, CASH_KEYS, CURRENT_ASSETS_KEYS,
     CURRENT_LIABILITIES_KEYS, NET_INCOME_KEYS, TOTAL_ASSETS_KEYS,
     OPERATING_INCOME_KEYS, INTEREST_KEYS, DA_KEYS, REVENUE_KEYS,
-    OPERATING_CF_KEYS,
 )
 
 
@@ -106,6 +106,13 @@ def calculate_wacc(financials, cost_of_equity, *,
         elif risk_free_rate is not None and risk_free_rate > 0:
             cost_of_debt = risk_free_rate + credit_spread
         else:
+            _py_warnings.warn(
+                'calculate_wacc: no interest expense and no risk-free rate — '
+                'cost of debt fabricated as cost_of_equity * 0.6; WACC may '
+                'misstate cost of capital',
+                RuntimeWarning,
+                stacklevel=2,
+            )
             cost_of_debt = cost_of_equity * 0.6
     else:
         cost_of_debt = 0
