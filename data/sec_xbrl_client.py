@@ -238,6 +238,9 @@ class SECXBRLClient:
         'sbc_cf': ['ShareBasedCompensation'],                     # 8/12
         'deferred_tax': ['DeferredIncomeTaxExpenseBenefit'],      # 11/12
         'buybacks': ['PaymentsForRepurchaseOfCommonStock'],       # 10/12
+        # Gross proceeds from issuing stock — nets against buybacks in
+        # _compute_shareholder_yield so net diluters don't read as returners.
+        'share_issuance': ['ProceedsFromIssuanceOfCommonStock'],
         'debt_issued': [                           # 8/12
             'ProceedsFromIssuanceOfLongTermDebt',
             'ProceedsFromIssuanceOfDebt',
@@ -400,6 +403,7 @@ class SECXBRLClient:
         'sbc_cf': ['ShareBasedPaymentExpense'],
         'deferred_tax': ['DeferredTaxExpenseIncome'],
         'buybacks': ['PaymentsToAcquireOrRedeemEntitysShares'],
+        'share_issuance': ['ProceedsFromIssuingShares'],
         'debt_issued': ['ProceedsFromBorrowings'],
         'debt_repaid': ['RepaymentsOfBorrowings'],
         'acquisitions': [
@@ -1348,6 +1352,14 @@ class SECXBRLClient:
         op_cf         = _ann('operating_cash_flow')
         capex         = _ann('capex')
         d_and_a       = _ann('d_and_a')
+        # SBC + shareholder-return rows: without these, the owner-earnings
+        # SBC haircut in run_forward_dcf and the buyback half of
+        # _compute_shareholder_yield silently never fire on the XBRL path
+        # (the same failure mode the d_and_a row above once had).
+        sbc           = _ann('sbc_cf')
+        dividends     = _ann('dividends_paid')
+        buybacks      = _ann('buybacks')
+        issuance      = _ann('share_issuance')
 
         # Balance sheet (point-in-time concepts). Their entries in XBRL only
         # carry end dates, no durations — _extract_annual_values' duration
@@ -1446,19 +1458,26 @@ class SECXBRLClient:
             } for y, col in zip(years, cols, strict=False)
         })
 
-        # Capex follows the yfinance sign convention: stored NEGATIVE.
-        # XBRL Payments* tags are debit-positive, so negate. Consumers that
-        # derive FCF as OCF + Capex (_fcf_series_from_cashflow) and those
-        # that abs() it (calculate_fundamental_growth, the owner-earnings
-        # add-back) both read correctly under this convention.
+        # Outflows follow the yfinance sign convention: stored NEGATIVE
+        # (capex, dividends paid, buybacks). XBRL Payments* tags are
+        # debit-positive, so negate. SBC and issuance proceeds stay positive,
+        # also matching yfinance. Consumers that derive FCF as OCF + Capex
+        # (_fcf_series_from_cashflow) and those that abs() the value
+        # (calculate_fundamental_growth, the owner-earnings add-back,
+        # _compute_shareholder_yield) all read correctly under this
+        # convention.
         def _neg(v):
             return -abs(v) if v is not None else None
 
         cash_flow_df = pd.DataFrame({
             col: {
-                'Operating Cash Flow':          op_cf.get(y),
-                'Capital Expenditure':          _neg(capex.get(y)),
+                'Operating Cash Flow':           op_cf.get(y),
+                'Capital Expenditure':           _neg(capex.get(y)),
                 'Depreciation And Amortization': d_and_a.get(y),
+                'Stock Based Compensation':      sbc.get(y),
+                'Common Stock Dividend Paid':    _neg(dividends.get(y)),
+                'Repurchase Of Capital Stock':   _neg(buybacks.get(y)),
+                'Issuance Of Capital Stock':     issuance.get(y),
             } for y, col in zip(years, cols, strict=False)
         })
 
