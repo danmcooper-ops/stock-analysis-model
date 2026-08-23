@@ -207,7 +207,7 @@ def test_cli_history_json(results_dir, tmp_path, capsys):
     res = _run_main(['--results-dir', results_dir,
                      '--ticker', 'aaa', '--history', '--json', out_json], capsys)
     assert 'HOLD' in res.out
-    recs = json.loads(open(out_json).read())
+    recs = json.loads(open(out_json, encoding='utf-8').read())
     assert [r['date'] for r in recs] == ['2026-01-01', '2026-01-02', '2026-01-03']
 
 

@@ -4,7 +4,9 @@ import sys
 import os
 import io
 import json
+import logging
 import re
+import warnings
 from datetime import date
 from statistics import median as _median
 import numpy as np
@@ -15,17 +17,20 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Load .env from project root (simple key=value parser, no dependency needed)
 _env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 if os.path.exists(_env_path):
-    with open(_env_path) as _f:
-        for _line in _f:
-            _line = _line.strip()
-            if _line and not _line.startswith('#') and '=' in _line:
-                _k, _v = _line.split('=', 1)
-                os.environ.setdefault(_k.strip(), _v.strip())
+    try:
+        with open(_env_path, encoding='utf-8') as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line and not _line.startswith('#') and '=' in _line:
+                    _k, _v = _line.split('=', 1)
+                    os.environ.setdefault(_k.strip(), _v.strip())
+    except (OSError, UnicodeDecodeError) as _e:
+        print(f"[WARN] Could not read .env ({_e}); continuing with process env only.",
+              file=sys.stderr)
 
 from data.yfinance_client import (YFinanceClient, EmptyYahooResponseError,
                                   MCAP_MAX_PLAUSIBLE)
 from data.treasury_rate import fetch_risk_free_rate
-from data.validation import validate_financials
 from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re)
 from models.dcf import (two_stage_ev, fair_value_per_share, dcf_sensitivity,
                         two_stage_ev_exit_multiple, monte_carlo_dcf,
@@ -64,8 +69,7 @@ from data.sec_insider_client import SECInsiderClient
 from data.provenance import ProvenanceRecorder
 from data.culture_client import CultureClient
 
-from scripts.config import (DEFAULT_RISK_FREE_RATE, ERP, TERMINAL_GROWTH_RATE,
-                            MIN_MARKET_CAP, WACC_FLOOR, WACC_CAP,
+from scripts.config import (ERP, TERMINAL_GROWTH_RATE,
                             GROWTH_WEIGHT_FCF, GROWTH_WEIGHT_REV,
                             GROWTH_WEIGHT_ANALYST_ST, GROWTH_WEIGHT_ANALYST_LT,
                             GROWTH_WEIGHT_EARNINGS_G, GROWTH_WEIGHT_FUNDAMENTAL,
@@ -73,8 +77,7 @@ from scripts.config import (DEFAULT_RISK_FREE_RATE, ERP, TERMINAL_GROWTH_RATE,
                             MARGIN_TREND_SENSITIVITY,
                             BETA_MIN, BETA_MAX, RE_MIN, RE_MAX,
                             CAPEX_DA_THRESHOLD, EXCESS_CAPEX_ADDBACK,
-                            YIELD_CEILING_MULT, HYPER_GROWTH_YIELD,
-                            HYPER_GROWTH_CAP, ANALYST_HAIRCUT, FALLBACK_GROWTH,
+                            YIELD_CEILING_MULT, HYPER_GROWTH_CAP, ANALYST_HAIRCUT, FALLBACK_GROWTH,
                             DCF_YEARS, DCF_STAGE1,
                             EXIT_MULT_DIVERGENCE_THRESHOLD,
                             EXIT_MULT_DEFAULT_EV_EBITDA,
@@ -86,10 +89,12 @@ from scripts.config import (DEFAULT_RISK_FREE_RATE, ERP, TERMINAL_GROWTH_RATE,
                             DCF_BLEND_WEIGHT_WITH_DDM, DDM_DIVERGENCE_THRESHOLD,
                             BLEND_TRIGGER, BLEND_DCF_WEIGHT, BLEND_MULT_WEIGHT,
                             EV_EBITDA_OUTLIER_MAX, MIN_SECTOR_STOCKS,
-                            DATA_QUALITY_MIN, MIN_MORNINGSTAR_SAMPLE,
+                            MIN_MORNINGSTAR_SAMPLE,
                             _get_sector_config)
 from scripts.scoring import (_mc_confidence_label, score_and_rate,
                              _print_validation_stats)
+
+logger = logging.getLogger('analyze_stock')
 
 
 # ---------------------------------------------------------------------------
@@ -450,11 +455,12 @@ def _load_founder_overrides():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
                         'data', 'founder_overrides.json')
     try:
-        with open(path) as _f:
+        with open(path, encoding='utf-8') as _f:
             raw = json.load(_f)
         out = {k: bool(v) for k, v in raw.items()
                if not k.startswith('_') and isinstance(v, bool)}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"founder_overrides.json unreadable ({e}) — founder overrides disabled this run")
         out = {}
     _FOUNDER_OVERRIDES_CACHE = out
     return out
@@ -471,10 +477,11 @@ def _load_wikidata_founders():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
                         'data', 'wikidata_founders.json')
     try:
-        with open(path) as _f:
+        with open(path, encoding='utf-8') as _f:
             raw = json.load(_f)
         out = {k: list(v) for k, v in raw.items() if not k.startswith('_')}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"wikidata_founders.json unreadable ({e}) — founder detection degraded this run")
         out = {}
     _WIKIDATA_FOUNDERS_CACHE = out
     return out
@@ -538,7 +545,8 @@ def _load_local_prices(ticker, prices_dir):
         df = pd.read_parquet(path)[['Close']].sort_index()
         df.index = pd.to_datetime(df.index).tz_localize(None)
         return df['Close']
-    except Exception:
+    except Exception as e:
+        logger.warning(f"local prices: unreadable Parquet for {ticker} ({e})")
         return None
 
 
@@ -561,7 +569,8 @@ def _load_local_ohlcv(ticker, prices_dir):
             return None
         df.index = pd.to_datetime(df.index).tz_localize(None)
         return df[['Close', 'Volume']]
-    except Exception:
+    except Exception as e:
+        logger.warning(f"local OHLCV: unreadable Parquet for {ticker} ({e})")
         return None
 
 
@@ -980,8 +989,8 @@ def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=Non
                             re, label = build_re, 'buildup (unreliable beta)'
                         if RE_MIN < re < RE_MAX:
                             return re, label, beta_diag
-        except Exception:
-            pass  # Fall through to yfinance beta
+        except Exception as e:
+            logger.debug(f"cost of equity: local-beta path failed for {ticker} ({e}); falling back to yfinance beta")
 
     # 2. CAPM with yfinance-reported beta (no R² quality check)
     beta = info.get('beta')
@@ -1028,8 +1037,8 @@ def _get_analyst_lt_growth(yf_data):
                     val = ge.loc[period, col]
                     if pd.notna(val) and isinstance(val, (int, float)):
                         return float(val)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"growth estimates table unusable ({e}); trying next source")
     return None
 
 
@@ -1072,7 +1081,8 @@ def _compute_surprise_adjustment(yf_data):
             return -SURPRISE_UPLIFT, avg_surprise
         else:
             return 0.0, avg_surprise
-    except Exception:
+    except Exception as e:
+        logger.debug(f"earnings surprise history unusable ({e}); no surprise uplift applied")
         return 0.0, None
 
 
@@ -1490,7 +1500,8 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     # add-back and the SBC deduction below.
     try:
         latest_cf = cf[sorted(cf.columns)[-1]]
-    except Exception:
+    except Exception as e:
+        logger.debug(f"cash-flow columns unsortable ({e}); using positional newest column")
         latest_cf = cf.iloc[:, -1] if cf.columns.is_monotonic_increasing else cf.iloc[:, 0]
 
     def _cf_line(labels):
@@ -1554,8 +1565,6 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     if base_fcf <= 0:
         return None, None, None, {}, None
-
-    mcap = info.get('marketCap')
 
     # --- FCF growth estimation ---
     fcf_cagr = None
@@ -1631,7 +1640,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     if growth_signals:
         total_weight = sum(growth_weights)
-        weighted_avg = sum(s * w for s, w in zip(growth_signals, growth_weights)) / total_weight
+        weighted_avg = sum(s * w for s, w in zip(growth_signals, growth_weights, strict=False)) / total_weight
     else:
         weighted_avg = FALLBACK_GROWTH
 
@@ -1674,7 +1683,8 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
         try:
             sorted_inc_cols = sorted(inc_stmt.columns)
             latest_inc = inc_stmt[sorted_inc_cols[-1]]
-        except Exception:
+        except Exception as e:
+            logger.debug(f"income-statement columns unsortable ({e}); using positional column 0")
             latest_inc = inc_stmt.iloc[:, 0]
         op_inc_val = None
         for k in ['Operating Income', 'Total Operating Income As Reported']:
@@ -1687,7 +1697,8 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
             try:
                 sorted_cf_cols = sorted(cf_for_da.columns)
                 latest_cf_da = cf_for_da[sorted_cf_cols[-1]]
-            except Exception:
+            except Exception as e:
+                logger.debug(f"cash-flow columns unsortable for D&A ({e}); using positional column 0")
                 latest_cf_da = cf_for_da.iloc[:, 0]
             for k in ['Depreciation And Amortization', 'Depreciation Amortization Depletion']:
                 if k in latest_cf_da.index and pd.notna(latest_cf_da[k]):
@@ -1839,8 +1850,8 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
             ni = inc[sorted_inc[-1]].get('Net Income')
             if equity and ni and equity > 0:
                 roe = ni / equity
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"DDM ROE inputs unusable ({e}); retention inference will warn instead")
 
     annual_divs = _annualise_dividends(div_series)
 
@@ -2011,6 +2022,27 @@ def apply_mcap_integrity_guard(results, prior_rows=None,
             'implausible_nulled': len(implausible)}
 
 
+class _ModelWarningCounter(logging.Filter):
+    """Counts model-layer warnings routed through logging.captureWarnings.
+
+    Feeds the end-of-run quality summary: total warnings, and how many
+    flagged a fabricated input (fallback rates, placeholder costs) that
+    every downstream valuation silently inherits.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.total = 0
+        self.fabricated = 0
+
+    def filter(self, record):
+        self.total += 1
+        msg = record.getMessage()
+        if 'fabricated' in msg or 'fallback' in msg:
+            self.fabricated += 1
+        return True
+
+
 def _main():
     """Entry point: screen tickers, run DCF analysis, generate reports."""
     import argparse
@@ -2042,6 +2074,21 @@ def _main():
     prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
     run_start_date = date.today()
     _prov = ProvenanceRecorder(run_start_date)
+
+    # Observability: timestamped diagnostics on stderr (report output stays on
+    # stdout), model warnings routed through logging, and — critically —
+    # RuntimeWarnings forced to 'always'. Python's default once-per-location
+    # filter would show a model warning for the first ticker and silently
+    # suppress it for the other ~2,000.
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+    )
+    warnings.simplefilter('always', RuntimeWarning)
+    logging.captureWarnings(True)
+    _model_warning_counter = _ModelWarningCounter()
+    logging.getLogger('py.warnings').addFilter(_model_warning_counter)
 
     # Fetch live risk-free rate (10-yr Treasury yield)
     risk_free_rate = fetch_risk_free_rate()
@@ -2191,7 +2238,7 @@ def _main():
     _skip_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'skip_tickers.txt')
     _skip_set = set()
     try:
-        with open(_skip_path) as _sf:
+        with open(_skip_path, encoding='utf-8') as _sf:
             for _line in _sf:
                 _t = _line.split('#')[0].strip().upper()
                 if _t:
@@ -2214,7 +2261,7 @@ def _main():
         _prior_jsons = sorted(_glob.glob(os.path.join('output', 'results_*.json')))
         if _prior_jsons:
             _prior_path = _prior_jsons[-1]
-            with open(_prior_path) as _pf:
+            with open(_prior_path, encoding='utf-8') as _pf:
                 _prior = json.load(_pf)
             _prior_rows = _prior.get('results', _prior) if isinstance(_prior, dict) else _prior
             _carry_prior_rows = _prior_rows
@@ -2288,7 +2335,8 @@ def _main():
                     # years). Through-cycle ROIC is the right input for a
                     # DCF / value pipeline with a long terminal-value horizon.
                     xbrl_data = sec_xbrl_client.build_yfinance_shape(ticker)
-                except Exception:
+                except Exception as e:
+                    logger.warning(f"SEC XBRL: build_yfinance_shape failed for {ticker}: {e}; falling back to yfinance statements")
                     xbrl_data = None  # network hiccup — fall through
                 if xbrl_data is not None:
                     # Filing metadata must be read here: Phase 2 evicts the
@@ -2715,7 +2763,8 @@ def _main():
             # Step 5B: Dividend Discount Model (for dividend payers)
             try:
                 div_series = yf_client.fetch_dividends(ticker)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"yfinance: dividend history fetch failed for {ticker}: {e}; DDM skipped")
                 div_series = pd.Series(dtype=float)
             ddm_result = run_ddm_valuation(
                 yf_data, div_series, re_for_models,
@@ -3771,7 +3820,7 @@ def _main():
             n = len(model_fvs)
             rank_m = rank(model_fvs)
             rank_ms = rank(ms_fvs)
-            d_sq = sum((rm - rms) ** 2 for rm, rms in zip(rank_m, rank_ms))
+            d_sq = sum((rm - rms) ** 2 for rm, rms in zip(rank_m, rank_ms, strict=False))
             spearman_rho = 1 - (6 * d_sq) / (n * (n ** 2 - 1)) if n > 1 else 0.0
 
             print(f"\nMorningstar comparison ({len(ms_pairs)} stocks):")
@@ -3849,6 +3898,8 @@ def _main():
         try:
             return str(val)
         except Exception:
+            # Deliberately silent: per-value guard in the JSON writer;
+            # logging here could emit thousands of no-signal lines.
             return None
 
     json_rows = []
@@ -3868,7 +3919,7 @@ def _main():
         if local_rs:
             json_meta['sector_local_rs'] = local_rs
     json_meta['results'] = json_rows
-    with open(json_filename, 'w') as f:
+    with open(json_filename, 'w', encoding='utf-8') as f:
         json.dump(json_meta, f, indent=2, default=str)
     _prov.write_events('output')
 
@@ -3882,6 +3933,22 @@ def _main():
     print(f"  HTML: {html_filename}")
     print(f"  Excel: {xlsx_filename}")
     print(f"  JSON: {json_filename}")
+
+    # Run-quality gate: surface, in one place, every way this run's numbers
+    # rest on substituted rather than observed inputs.
+    _log = logging.getLogger('analyze_stock')
+    if risk_free_rate_source == 'fallback':
+        _log.warning(
+            'RUN QUALITY: risk-free rate was a hardcoded fallback — every '
+            'CAPM/WACC/DCF number this run inherits a fabricated %.2f%% rate',
+            risk_free_rate * 100)
+    if _model_warning_counter.fabricated:
+        _log.warning(
+            'RUN QUALITY: %d model warnings flagged fabricated/fallback inputs '
+            '(see WARNING lines above for tickers affected)',
+            _model_warning_counter.fabricated)
+    _log.info('Model warnings this run: %d total, %d about fabricated inputs',
+              _model_warning_counter.total, _model_warning_counter.fabricated)
 
 
 if __name__ == "__main__":

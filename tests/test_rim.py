@@ -68,7 +68,6 @@ class TestRimTerminalValue:
         # RI_terminal (=RI_2) = 103·0.05 = 5.15
         # TV_1 = 5.15/(0.10−0.03) = 73.5714...; PV = /1.10 = 66.8831...
         # intrinsic = 100 + 4.5454 + 66.8831 = 171.4286
-        import pytest
         fv = residual_income_model(100.0, 0.15, 0.10, g=0.03, years=1,
                                    retention_ratio=0.2)
         assert fv == pytest.approx(171.4286, abs=1e-3)

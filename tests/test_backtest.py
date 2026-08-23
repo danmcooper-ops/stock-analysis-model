@@ -4,7 +4,6 @@
 import sys
 import os
 import pytest
-import json
 from datetime import date
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -189,7 +188,7 @@ class TestSpacedDates:
                  for i in range(100)]
         picked = _spaced_dates(dates, 30)
         assert picked[0] == date(2026, 1, 1)
-        gaps = [(b - a).days for a, b in zip(picked, picked[1:])]
+        gaps = [(b - a).days for a, b in zip(picked, picked[1:], strict=False)]
         assert all(g >= 30 for g in gaps)
         assert len(picked) == 4  # days 0, 30, 60, 90
 

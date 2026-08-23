@@ -28,7 +28,7 @@ def earnings_power_value(ebit, tax_rate, cost_of_capital, shares_outstanding,
         shares_outstanding = _validate_numeric('shares_outstanding',
                                                shares_outstanding, positive=True)
     except ValueError as e:
-        _py_warnings.warn(f"earnings_power_value input invalid: {e}", RuntimeWarning)
+        _py_warnings.warn(f"earnings_power_value input invalid: {e}", RuntimeWarning, stacklevel=2)
         return None
 
     tax_rate = max(0, min(tax_rate if tax_rate is not None else 0.21, 0.50))
@@ -70,6 +70,7 @@ def epv_with_growth_premium(epv_base, roe, cost_of_equity):
             'inflation rather than genuine compounding quality. Cross-check ROIC '
             'before treating the growth-adjusted EPV as a fair-value upgrade.',
             RuntimeWarning,
+            stacklevel=2,
         )
 
     multiplier = min(roe / cost_of_equity, 2.0)  # tightened from 3.0

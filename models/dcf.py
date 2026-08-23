@@ -22,6 +22,23 @@ def _dcf_validate_core(base_fcf, growth_rate, discount_rate, terminal_growth):
     return base_fcf, growth_rate, discount_rate, terminal_growth
 
 
+def _validate_years(total_years, stage1_years):
+    """Reject year parameters that would corrupt the projection loops.
+
+    Non-integer or non-positive years break the vectorized Monte Carlo
+    array shapes; stage1 > total silently disables the fade stage.
+    """
+    for name, v in (('total_years', total_years), ('stage1_years', stage1_years)):
+        if isinstance(v, bool) or not isinstance(v, (int, np.integer)):
+            raise ValueError(f"{name} must be an integer, got {v!r}")
+    if total_years < 1:
+        raise ValueError(f"total_years must be >= 1, got {total_years}")
+    if not (0 <= stage1_years <= total_years):
+        raise ValueError(
+            f"stage1_years must be in [0, total_years], got "
+            f"stage1_years={stage1_years}, total_years={total_years}")
+
+
 def two_stage_ev(base_fcf, growth_rate, discount_rate, terminal_growth,
                  total_years=10, stage1_years=5, min_spread=0.025):
     """
@@ -37,8 +54,9 @@ def two_stage_ev(base_fcf, growth_rate, discount_rate, terminal_growth,
     try:
         base_fcf, growth_rate, discount_rate, terminal_growth = _dcf_validate_core(
             base_fcf, growth_rate, discount_rate, terminal_growth)
+        _validate_years(total_years, stage1_years)
     except ValueError as e:
-        _py_warnings.warn(f"two_stage_ev input invalid: {e}", RuntimeWarning)
+        _py_warnings.warn(f"two_stage_ev input invalid: {e}", RuntimeWarning, stacklevel=2)
         return None
 
     if discount_rate <= terminal_growth:
@@ -52,12 +70,14 @@ def two_stage_ev(base_fcf, growth_rate, discount_rate, terminal_growth,
         _py_warnings.warn(
             f'Initial growth {growth_rate:.1%} is aggressive — sustained >25% is rare',
             RuntimeWarning,
+            stacklevel=2,
         )
     if growth_rate < 0:
         _py_warnings.warn(
             f'Negative growth ({growth_rate:.1%}) — verify this reflects secular decline, '
             'not a transient dip',
             RuntimeWarning,
+            stacklevel=2,
         )
 
     projected = []
@@ -84,6 +104,7 @@ def two_stage_ev(base_fcf, growth_rate, discount_rate, terminal_growth,
             f'Terminal value is {tv_share:.0%} of EV — result rests almost entirely '
             'on terminal assumptions',
             RuntimeWarning,
+            stacklevel=2,
         )
 
     return ev
@@ -114,8 +135,9 @@ def two_stage_ev_exit_multiple(base_fcf, growth_rate, discount_rate,
         base_ebitda = _validate_numeric('base_ebitda', base_ebitda, positive=True)
         exit_multiple = _validate_numeric('exit_multiple', exit_multiple,
                                           positive=True, low=3.0, high=40.0)
+        _validate_years(total_years, stage1_years)
     except ValueError as e:
-        _py_warnings.warn(f"two_stage_ev_exit_multiple input invalid: {e}", RuntimeWarning)
+        _py_warnings.warn(f"two_stage_ev_exit_multiple input invalid: {e}", RuntimeWarning, stacklevel=2)
         return None
 
     if discount_rate <= terminal_growth:
@@ -159,6 +181,7 @@ def two_stage_ev_exit_multiple(base_fcf, growth_rate, discount_rate,
         _py_warnings.warn(
             f'Terminal value is {tv_share:.0%} of EV — exit-multiple assumption drives result',
             RuntimeWarning,
+            stacklevel=2,
         )
     return ev
 
@@ -186,8 +209,9 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
             base_fcf, growth_rate, discount_rate, terminal_growth)
         shares_outstanding = _validate_numeric('shares_outstanding',
                                                shares_outstanding, positive=True)
+        _validate_years(total_years, stage1_years)
     except ValueError as e:
-        _py_warnings.warn(f"monte_carlo_dcf input invalid: {e}", RuntimeWarning)
+        _py_warnings.warn(f"monte_carlo_dcf input invalid: {e}", RuntimeWarning, stacklevel=2)
         return None
 
     rng = np.random.default_rng(42)  # fixed seed for reproducibility

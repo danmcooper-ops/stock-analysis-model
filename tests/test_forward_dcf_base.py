@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 sys.path.append(str(Path(__file__).resolve().parent.parent / 'scripts'))
@@ -34,7 +33,7 @@ def _yf_data(fcf_by_year, sbc=0.0, capex=200.0, da=300.0, ocf=None):
              'Depreciation And Amortization': da,
              'Capital Expenditure': -capex,
              'Stock Based Compensation': sbc}
-         for y, v in zip(years, fcf_by_year)}
+         for y, v in zip(years, fcf_by_year, strict=False)}
     )
     inc = pd.DataFrame({y: {'Total Revenue': 10_000.0} for y in years})
     info = {'marketCap': 20_000.0, 'sharesOutstanding': 1_000.0,
@@ -55,7 +54,7 @@ class TestSbcMonotoneFloor:
         fvs = [_fv(fcf_by_year=flat, sbc=s)
                for s in (0.0, 400.0, 800.0, 999.0, 1001.0, 1500.0)]
         assert all(v is not None for v in fvs)
-        for lo, hi in zip(fvs[1:], fvs):
+        for lo, hi in zip(fvs[1:], fvs, strict=False):
             assert lo <= hi + 1e-9, f'FV rose as SBC increased: {fvs}'
 
     def test_extreme_sbc_haircuts_not_aborts(self):

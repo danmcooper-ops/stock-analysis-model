@@ -1,11 +1,11 @@
 Symbol,Name,Exchange
-AAPL,Apple Inc.,NYSE
-MSFT,Microsoft Corporation,NYSE
-GOOG,Alphabet Inc.,NYSE
-AMZN,Amazon.com Inc.,NYSE
-NVDA,NVIDIA Corporation,NYSE
-META,Meta Platforms Inc.,NYSE
+AAPL,Apple Inc.,NASDAQ
+MSFT,Microsoft Corporation,NASDAQ
+GOOG,Alphabet Inc.,NASDAQ
+AMZN,Amazon.com Inc.,NASDAQ
+NVDA,NVIDIA Corporation,NASDAQ
+META,Meta Platforms Inc.,NASDAQ
 BRK.B,Berkshire Hathaway Inc.,NYSE
-TSLA,Tesla Inc.,NYSE
+TSLA,Tesla Inc.,NASDAQ
 V,Visa Inc.,NYSE
 JPM,JPMorgan Chase & Co.,NYSE

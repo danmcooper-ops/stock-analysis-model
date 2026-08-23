@@ -243,7 +243,7 @@ def compute_sector_rs_from_local(prices_dir):
         spy_df = pd.read_parquet(spy_path, columns=['Close'])
         spy_close = spy_df['Close'].dropna().sort_index()
     except Exception as exc:
-        warnings.warn(f"compute_sector_rs_from_local: cannot load SPY ({exc}); aborting.")
+        warnings.warn(f"compute_sector_rs_from_local: cannot load SPY ({exc}); aborting.", stacklevel=2)
         return {}
 
     result = {}
@@ -253,7 +253,7 @@ def compute_sector_rs_from_local(prices_dir):
             etf_df = pd.read_parquet(etf_path, columns=['Close'])
             etf_close = etf_df['Close'].dropna().sort_index()
         except Exception as exc:
-            warnings.warn(f"compute_sector_rs_from_local: skipping {ticker} ({exc})")
+            warnings.warn(f"compute_sector_rs_from_local: skipping {ticker} ({exc})", stacklevel=2)
             continue
 
         # Refuse a stale ETF outright rather than emit a number that reads as a
@@ -264,7 +264,8 @@ def compute_sector_rs_from_local(prices_dir):
                 f"compute_sector_rs_from_local: skipping {ticker} — last bar "
                 f"{etf_close.index.max().date()} is {staleness}d behind SPY "
                 f"({spy_close.index.max().date()}). Refresh {prices_dir} "
-                f"(download_prices.py --max-age-days 7)."
+                f"(download_prices.py --max-age-days 7).",
+                stacklevel=2,
             )
             continue
 
@@ -276,7 +277,8 @@ def compute_sector_rs_from_local(prices_dir):
         if len(common) <= max(_RS_WINDOWS.values()):
             warnings.warn(
                 f"compute_sector_rs_from_local: skipping {ticker} — only "
-                f"{len(common)} trading days shared with SPY."
+                f"{len(common)} trading days shared with SPY.",
+                stacklevel=2,
             )
             continue
         etf_aligned = etf_close.reindex(common)
@@ -377,7 +379,6 @@ def generate_sector_signals(sector_data, macro_regime_result, local_rs=None):
                 rs = local_rs[etf_ticker]
                 rs_1m = rs.get('rs_1m')
                 rs_3m = rs.get('rs_3m')
-                rs_6m = rs.get('rs_6m')
                 trend = rs.get('trend', 'stable')
                 rs_1m_str = f'{rs_1m:+.1%}' if rs_1m is not None else 'N/A'
                 rs_3m_str = f'{rs_3m:+.1%}' if rs_3m is not None else 'N/A'

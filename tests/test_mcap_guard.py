@@ -28,7 +28,8 @@ class TestMcapIntegrityGuard:
         rows = _rows(100)
         summary = apply_mcap_integrity_guard(rows)
         assert summary == {'recovered': 0, 'still_missing': 0,
-                           'miss_pct': 0.0, 'alert': False}
+                           'miss_pct': 0.0, 'alert': False,
+                           'implausible_nulled': 0}
 
     def test_baseline_miss_rate_does_not_alert(self):
         """~0.1% (2 of 2250) is the normal level and must stay quiet."""

@@ -66,6 +66,8 @@ def tangible_book_value_per_share(financials):
             if gw_combined == goodwill:
                 intangibles = 0
         except Exception:
+            # Non-scalar comparison (duplicate index rows) — keep both lines;
+            # worst case is a conservative (lower) tangible book value.
             pass
 
     tangible_equity = float(equity) - float(goodwill) - float(intangibles)
@@ -84,6 +86,7 @@ def tangible_book_value_per_share(financials):
             f'Goodwill + intangibles are {intangible_pct:.0%} of equity — '
             'TBV strips most of book; treat as floor only, not fair value',
             RuntimeWarning,
+            stacklevel=2,
         )
 
     return tangible_equity / float(shares)

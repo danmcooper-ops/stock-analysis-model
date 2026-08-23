@@ -173,7 +173,7 @@ def _load_prev_ratings(out_dir, run_date, max_lookback=7, extra_keys=()):
     filled_via_fallback = 0
     for d, p in dated[:max_lookback]:
         try:
-            with open(p) as f:
+            with open(p, encoding='utf-8') as f:
                 snap = json.load(f)
         except Exception as e:
             print(f"[report_html] prior-rating load failed ({p}): {e}")
@@ -368,7 +368,7 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     cache_path = os.path.join(out_dir, cache_name)
     hist, last_scanned = {}, None
     try:
-        with open(cache_path) as f:
+        with open(cache_path, encoding='utf-8') as f:
             c = json.load(f)
         if isinstance(c, dict) and isinstance(c.get('hist'), dict):
             hist = c['hist']
@@ -383,7 +383,7 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
             and (cur is None or d < cur)]
     for d, p in todo:
         try:
-            with open(p) as f:
+            with open(p, encoding='utf-8') as f:
                 snap = json.load(f)
         except Exception as e:
             print(f"[report_html] rating-history load failed ({p}): {e}")
@@ -403,7 +403,7 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
         last_scanned = d
     if todo:
         try:
-            with open(cache_path, 'w') as f:
+            with open(cache_path, 'w', encoding='utf-8') as f:
                 json.dump({'last_scanned': last_scanned, 'hist': hist}, f)
             print(f"[report_html] rating-history cache: +{len(todo)} snapshot(s), "
                   f"{len(hist)} tickers, through {last_scanned}")
@@ -427,7 +427,7 @@ def _load_russell2000():
     """
     path = os.path.join(_HERE, '..', 'data', 'russell2000_tickers.txt')
     try:
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return {ln.strip().upper() for ln in f
                     if ln.strip() and not ln.startswith('#')}
     except OSError:
@@ -682,7 +682,6 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         'supply_chain_available': r.get('supply_chain_available', False),
         'finnhub_peers': r.get('finnhub_peers', []),
         # Growth diagnostics
-        'analyst_ltg': r.get('analyst_ltg'),
         'margin_trend': r.get('margin_trend'),
         'surprise_avg': r.get('surprise_avg'),
         'fundamental_growth': r.get('fundamental_growth'),
@@ -856,7 +855,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     # Write details.json sidecar (or remove a stale one)
     try:
         if details_payload:
-            with open(details_path, 'w') as _df:
+            with open(details_path, 'w', encoding='utf-8') as _df:
                 json.dump(details_payload, _df, default=_json_default,
                           separators=_COMPACT)
         elif os.path.exists(details_path):
@@ -977,7 +976,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     # Write hist.json sidecar (or remove a stale one so old data doesn't linger)
     try:
         if hist_payload is not None:
-            with open(hist_path, 'w') as _hf:
+            with open(hist_path, 'w', encoding='utf-8') as _hf:
                 json.dump(hist_payload, _hf, default=_json_default,
                           separators=_COMPACT)
         elif os.path.exists(hist_path):
@@ -1247,7 +1246,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     prices_size_mb = 0
     try:
         if prices_payload is not None:
-            with open(prices_meta_path, 'w') as _pf2:
+            with open(prices_meta_path, 'w', encoding='utf-8') as _pf2:
                 json.dump(prices_payload, _pf2, default=_json_default,
                           separators=_COMPACT)
             # Uncompressed size, stamped into the client so download progress
@@ -1271,7 +1270,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                 _sh.rmtree(px_dir, ignore_errors=True)
             os.makedirs(px_dir, exist_ok=True)
             for _tk, _shd in px_payload.items():
-                with open(os.path.join(px_dir, f'{_tk}.json'), 'w') as _xf:
+                with open(os.path.join(px_dir, f'{_tk}.json'), 'w', encoding='utf-8') as _xf:
                     json.dump(_shd, _xf, separators=_COMPACT)
             _stale_px = 0
             for _fn in os.listdir(px_dir):
@@ -1292,7 +1291,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         if vol_payload:
             os.makedirs(vol_dir, exist_ok=True)
             for _tk, _sh in vol_payload.items():
-                with open(os.path.join(vol_dir, f'{_tk}.json'), 'w') as _vf:
+                with open(os.path.join(vol_dir, f'{_tk}.json'), 'w', encoding='utf-8') as _vf:
                     json.dump(_sh, _vf, separators=_COMPACT)
             # Belt and braces on top of the rmtree: sweep anything the manifest
             # doesn't claim. A 2026-08-08 run found 2,139 macOS conflict copies
@@ -1333,5 +1332,5 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         prev_run_date=(prev_run_date or ''),
     )
 
-    with open(filename, 'w') as f:
+    with open(filename, 'w', encoding='utf-8') as f:
         f.write(html)

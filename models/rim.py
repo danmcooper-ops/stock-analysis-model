@@ -7,7 +7,6 @@ Useful complement to DCF: anchored to book value rather than free cash flow.
 """
 import warnings as _py_warnings
 
-import numpy as np
 
 from models.valuation_types import _validate_numeric
 
@@ -46,7 +45,7 @@ def residual_income_model(book_value_per_share, roe, cost_of_equity,
                                            positive=True, low=0.01, high=0.40)
         g = _validate_numeric('g', g, low=-0.05, high=0.10)
     except ValueError as e:
-        _py_warnings.warn(f"residual_income_model input invalid: {e}", RuntimeWarning)
+        _py_warnings.warn(f"residual_income_model input invalid: {e}", RuntimeWarning, stacklevel=2)
         return None
     if cost_of_equity <= g:
         return None
@@ -60,6 +59,7 @@ def residual_income_model(book_value_per_share, roe, cost_of_equity,
                 'from g/ROE (Gordon-consistent). Pass an explicit value if you '
                 'have payout data.',
                 RuntimeWarning,
+                stacklevel=2,
             )
         else:
             retention_ratio = 1.0
@@ -67,6 +67,7 @@ def residual_income_model(book_value_per_share, roe, cost_of_equity,
                 'retention_ratio not provided and ROE <= 0 — falling back to '
                 '100% retention. Book-value evolution is suspect.',
                 RuntimeWarning,
+                stacklevel=2,
             )
     retention_ratio = max(min(retention_ratio, 1.0), 0.0)
 
@@ -98,6 +99,7 @@ def residual_income_model(book_value_per_share, roe, cost_of_equity,
             'ROE ≈ cost_of_equity — RIM degenerates toward book value '
             '(residual income near zero)',
             RuntimeWarning,
+            stacklevel=2,
         )
 
     intrinsic = book_value_per_share + pv_ri + pv_tv

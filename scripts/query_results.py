@@ -101,7 +101,7 @@ def list_snapshot_files(results_dir='output'):
 
 def load_snapshot(path):
     """(meta, rows) from one snapshot. Older files may be a bare list."""
-    with open(path) as fh:
+    with open(path, encoding='utf-8') as fh:
         data = json.load(fh)
     if isinstance(data, dict):
         rows = data.get('results', [])

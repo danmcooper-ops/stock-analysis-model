@@ -149,7 +149,7 @@ def two_stage_ddm(dps, high_g, term_g, re, years=5):
         term_g = _validate_numeric('term_g', term_g, low=-0.10, high=0.10)
         high_g = _validate_numeric('high_g', high_g, low=-0.50, high=1.0)
     except ValueError as e:
-        _py_warnings.warn(f"two_stage_ddm input invalid: {e}", RuntimeWarning)
+        _py_warnings.warn(f"two_stage_ddm input invalid: {e}", RuntimeWarning, stacklevel=2)
         return None
     if re <= term_g:
         return None
@@ -188,7 +188,7 @@ def ddm_h_model(dps, short_g, long_g, re, half_life=5):
         long_g = _validate_numeric('long_g', long_g, low=-0.10, high=0.10)
         short_g = _validate_numeric('short_g', short_g, low=-0.50, high=1.0)
     except ValueError as e:
-        _py_warnings.warn(f"ddm_h_model input invalid: {e}", RuntimeWarning)
+        _py_warnings.warn(f"ddm_h_model input invalid: {e}", RuntimeWarning, stacklevel=2)
         return None
     if re <= long_g:
         return None
@@ -224,7 +224,7 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
     try:
         dps = _validate_numeric('dps', dps, positive=True)
     except ValueError as e:
-        _py_warnings.warn(f"monte_carlo_ddm input invalid: {e}", RuntimeWarning)
+        _py_warnings.warn(f"monte_carlo_ddm input invalid: {e}", RuntimeWarning, stacklevel=2)
         return None
 
     rng = np.random.default_rng(42)  # fixed seed for reproducibility

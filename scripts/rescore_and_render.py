@@ -108,7 +108,7 @@ def _refresh_price_metrics(results, prices_dir, as_of=None):
 
 
 def rescore_and_render(json_path, prices_dir='output/prices'):
-    with open(json_path) as f:
+    with open(json_path, encoding='utf-8') as f:
         snap = json.load(f)
 
     # Snapshot may be a bare list or wrapped in a dict with 'results' key
@@ -157,7 +157,7 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
         out = snap
     else:
         out = results
-    with open(json_path, 'w') as f:
+    with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(out, f, default=str)
     print(f'Updated {json_path}')
 
@@ -173,7 +173,7 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
     rating_dist = {}
     for r in results:
         rating_dist[r.get('rating', '?')] = rating_dist.get(r.get('rating', '?'), 0) + 1
-    print(f'\nSummary:')
+    print('\nSummary:')
     print(f'  Tickers: {n}')
     print(f'  Gate denominators: {denoms}')
     if cs:

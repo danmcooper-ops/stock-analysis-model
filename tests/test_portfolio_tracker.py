@@ -15,8 +15,7 @@ from models.portfolio_tracker import (
     _compute_return_since,
 )
 import pandas as pd
-import numpy as np
-from datetime import date, timedelta
+from datetime import date
 
 
 # ---------------------------------------------------------------------------

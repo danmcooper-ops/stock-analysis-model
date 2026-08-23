@@ -20,7 +20,6 @@ Saves the patched JSON in-place (overwrites) then rebuilds the HTML.
 import argparse
 import json
 import os
-import ssl
 import sys
 import urllib.request
 import glob
@@ -32,7 +31,9 @@ from data.sec_xbrl_client import SECXBRLClient, _SSL_CTX
 # helpers
 # ---------------------------------------------------------------------------
 
-EMAIL = 'nurses.public1y@icloud.com'
+# SEC wants a contact address in the User-Agent.
+# Override via SEC_EMAIL — never commit a real address here.
+EMAIL = os.environ.get('SEC_EMAIL', 'stockanalysis@example.com')
 CIK_URL = 'https://www.sec.gov/files/company_tickers.json'
 REQUEST_DELAY = 0.15   # 6-7 req/sec — well within SEC limit of 10/sec
 
@@ -107,7 +108,7 @@ def main():
     json_path = _pick_json(args.json_path)
     print(f'[backfill] patching {json_path}')
 
-    with open(json_path) as f:
+    with open(json_path, encoding='utf-8') as f:
         doc = json.load(f)
 
     rows = doc.get('results', doc) if isinstance(doc, dict) else doc
@@ -160,7 +161,7 @@ def main():
     print(f'[backfill] done — ok={ok} skip={skip} err={err}')
 
     # Save patched JSON
-    with open(json_path, 'w') as f:
+    with open(json_path, 'w', encoding='utf-8') as f:
         # Compact, matching how analyze_stock.py writes the snapshot. indent=2
         # inflated it ~30% on every backfill: the 2026-08-03 file went 67 MB →
         # 107 MB, past GitHub's 100 MB hard cap, which would have made the
