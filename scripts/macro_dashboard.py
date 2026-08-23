@@ -380,17 +380,34 @@ def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None):
         'oas_buckets': oas_buckets,
     }
 
-    tiles = []
-    for sid in OVERVIEW_IDS:
-        s = series_out.get(sid)
-        if not s:
-            continue
-        hist_v = s['hist']['v'][-SPARK_POINTS:]
-        tiles.append({'id': sid, 'l': s['l'], 'fmt': s['fmt'],
-                      'suffix': s['suffix'], 'good': s['good'],
-                      'latest': s['latest'], 'chg_1m': s['chg_1m'],
-                      'pctile': s['pctile'], 'pct_win': s['pct_win'],
-                      'spark': hist_v})
-    summary = {'as_of': sidecar['as_of'], 'regime': regime, 'tiles': tiles}
+    return {'summary': _summary_of(sidecar), 'sidecar': sidecar}
 
-    return {'summary': summary, 'sidecar': sidecar}
+
+def _tile_of(sid, s):
+    """One Overview tile from a sidecar series entry."""
+    return {'id': sid, 'l': s['l'], 'fmt': s['fmt'],
+            'suffix': s.get('suffix', ''), 'good': s['good'],
+            'latest': s['latest'], 'chg_1m': s['chg_1m'],
+            'pctile': s['pctile'], 'pct_win': s['pct_win'],
+            'spark': (s.get('hist', {}).get('v') or [])[-SPARK_POINTS:]}
+
+
+def _summary_of(sidecar):
+    """The small inline summary (regime + Overview tiles) for a sidecar."""
+    series = (sidecar or {}).get('series') or {}
+    tiles = [_tile_of(sid, series[sid]) for sid in OVERVIEW_IDS if sid in series]
+    return {'as_of': sidecar.get('as_of'), 'regime': sidecar.get('regime'),
+            'tiles': tiles}
+
+
+def summary_from_sidecar(sidecar):
+    """Rebuild the inline summary from an existing macro.json.
+
+    The re-render path (scripts/rescore_and_render.py) reuses the sidecar the
+    main run already wrote when a fresh FRED build isn't available, so a
+    network blip during a re-render cannot delete a tab that was working
+    minutes earlier. Returns None for an empty or unusable sidecar.
+    """
+    if not sidecar or not sidecar.get('series'):
+        return None
+    return _summary_of(sidecar)

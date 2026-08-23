@@ -219,3 +219,85 @@ class TestTemplateSmoke:
         for needle in ('view-macro', 'renderMacro', 'p.mo', '_MACRO_AVAILABLE',
                        "_loadSidecar('macro.json'"):
             assert needle in html, needle
+
+
+# ---------------------------------------------------------------------------
+# Re-render path — step 1f of the daily routine
+# ---------------------------------------------------------------------------
+
+class TestSummaryFromSidecar:
+    def test_rebuilds_tiles_from_sidecar(self):
+        fred, as_of = full_stub()
+        p = build_macro_payload(fred, as_of=as_of)
+        from scripts.macro_dashboard import summary_from_sidecar
+        rebuilt = summary_from_sidecar(p['sidecar'])
+        assert rebuilt == p['summary']
+
+    def test_empty_sidecar_is_none(self):
+        from scripts.macro_dashboard import summary_from_sidecar
+        assert summary_from_sidecar(None) is None
+        assert summary_from_sidecar({}) is None
+        assert summary_from_sidecar({'series': {}}) is None
+
+
+class TestRerenderKeepsMacroTab:
+    """Regression: scripts/rescore_and_render.py re-renders the HTML after the
+    enrichment passes. Rendering with no payload dropped the Macro Outlook tab
+    and deleted the macro.json the main run had just written."""
+
+    def _snap(self):
+        return {'date': '2026-08-22',
+                'macro_regime': {'regime': 'neutral', 'composite_score': 0.0,
+                                 'indicator_scores': {}, 'raw_indicators': {}},
+                'macro_adjustments': {'erp_adjustment': 0.001}}
+
+    def test_fresh_build_used_when_fred_reachable(self, tmp_path, monkeypatch):
+        import data.fred_client as fc
+        import scripts.rescore_and_render as rr
+        fred, as_of = full_stub()
+        monkeypatch.setattr(fc, 'FREDClient', lambda *a, **k: fred)
+        payload = rr._macro_payload_for_render(
+            str(tmp_path / 'r.html'), as_of, self._snap())
+        assert payload and payload['sidecar']['series']
+        # regime from the snapshot rides along, so the banner survives
+        assert payload['sidecar']['regime']['regime'] == 'neutral'
+        assert payload['sidecar']['regime']['adjustments'] == \
+            self._snap()['macro_adjustments']
+
+    def test_falls_back_to_existing_sidecar_when_fred_down(self, tmp_path,
+                                                           monkeypatch):
+        import json as _json
+
+        import data.fred_client as fc
+        import scripts.rescore_and_render as rr
+        fred, as_of = full_stub()
+        good = build_macro_payload(fred, as_of=as_of)
+        (tmp_path / 'macro.json').write_text(_json.dumps(good['sidecar']),
+                                             encoding='utf-8')
+
+        class Dead:
+            available = False
+            def fetch_series(self, *a, **k): return {}
+            def fetch_cmt_curve(self, *a, **k): return {}
+            def fetch_bucket_oas(self, *a, **k): return {}
+
+        monkeypatch.setattr(fc, 'FREDClient', lambda *a, **k: Dead())
+        payload = rr._macro_payload_for_render(
+            str(tmp_path / 'r.html'), as_of, self._snap())
+        assert payload is not None, 'a FRED outage must not drop the tab'
+        assert payload['sidecar'] == good['sidecar']
+        assert payload['summary']['tiles']
+
+    def test_none_when_no_fred_and_no_sidecar(self, tmp_path, monkeypatch):
+        import data.fred_client as fc
+        import scripts.rescore_and_render as rr
+
+        class Dead:
+            available = False
+            def fetch_series(self, *a, **k): return {}
+            def fetch_cmt_curve(self, *a, **k): return {}
+            def fetch_bucket_oas(self, *a, **k): return {}
+
+        monkeypatch.setattr(fc, 'FREDClient', lambda *a, **k: Dead())
+        assert rr._macro_payload_for_render(
+            str(tmp_path / 'r.html'), None, self._snap()) is None
