@@ -435,39 +435,25 @@ def _load_russell2000():
         return set()
 
 
-def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None):
-    """Render the interactive HTML report via Jinja2 template."""
-    rows = _sanitize(rows)
-    _r2000 = _load_russell2000()
-    # Prior-run ratings for the "Δ vs prior" column. Sourced from the most
-    # recent earlier results_*.json sitting next to this HTML output.
-    try:
-        _out_dir_early = os.path.dirname(os.path.abspath(filename)) or '.'
-    except OSError:
-        # abspath needs getcwd(), which can raise EPERM if the working
-        # directory became unreadable mid-run (e.g. a macOS TCC revocation).
-        _out_dir_early = os.path.dirname(filename) or '.'
-    gate_meta_obj = gate_metadata()
-    # Per-gate raw values + scores from the prior snapshot feed the popup's
-    # "why the rating changed" explanation.
-    _prev_gate_keys = [k for g in gate_meta_obj['gates']
-                       for k in (g['key'], g['scoreKey'])]
-    prev_run_date, _prev_ratings = _load_prev_ratings(
-        _out_dir_early, run_date, extra_keys=_prev_gate_keys)
-    if _prev_ratings:
-        print(f"[report_html] rate-change baseline: {prev_run_date} "
-              f"({len(_prev_ratings)} tickers)")
-    else:
-        print("[report_html] rate-change baseline: none found (Yesterday's Rating shows N/A)")
-    # Long-horizon rating change-points for the popup's "BUY since ..." line.
-    _rating_hist = _load_rating_history(_out_dir_early, run_date)
+# Every sidecar is written compact. json.dump's default separators put a
+# space after each comma, which on prices.json alone (11.6M array elements)
+# wasted 11.6 MB of the 100 MB Pages budget.
+_COMPACT = (',', ':')
+
+
+def _summary_stats(rows):
+    """Header summary counts for the report banner."""
     spread_vals = [r['spread'] for r in rows if r.get('spread') is not None]
     avg_spread = sum(spread_vals) / len(spread_vals) if spread_vals else 0
     qualifying_with_mos = sum(1 for r in rows if r.get('mos') is not None and r['mos'] > 0)
     buy_count = sum(1 for r in rows if r.get('rating') == 'BUY')
     lean_buy_count = sum(1 for r in rows if r.get('rating') == 'LEAN BUY')
+    return avg_spread, qualifying_with_mos, buy_count, lean_buy_count
 
-    chart_records = [{
+
+def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
+    """Per-row payload dict consumed by the template's inline DATA blob."""
+    return {
         'ticker': r['ticker'],
         'roic': r.get('roic'), 'wacc': r.get('wacc'), 'spread': r.get('spread'),
         'dcf_fv': r.get('dcf_fv'), 'price': r.get('price'), 'mos': r.get('mos'),
@@ -782,8 +768,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         'culture_award_signal': r.get('culture_award_signal', False),
         **{k: r.get(k) for g in gate_meta_obj['gates']
            for k in (g['key'], g['gpKey'], g['scoreKey'])},
-    } for r in rows]
+    }
 
+
+def _extract_details_payload(chart_records):
     # Heavy text fields only consumed inside the detail panel. Strip them
     # from the inline DATA blob into a details.json sidecar the template
     # lazy-loads after first paint. Cuts the HTML by ~25 MB at 2k tickers.
@@ -807,12 +795,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                     _heavy[_k] = _v
         if _heavy:
             details_payload[_tk] = _heavy
+    return details_payload
 
-    chart_data = dumps_for_script(chart_records, default=_json_default)
 
-    # Gate metadata for Matrix view rendering in JavaScript
-    gate_meta = dumps_for_script(gate_meta_obj, default=_json_default)
-
+def _build_sector_pool_data(rows):
     # Per-sector profit pool narratives (top-level Profit Pool tab)
     sector_pool_data = {}
     if generate_sector_profit_pool_narrative is not None:
@@ -829,28 +815,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                     sector_pool_data[s] = narr
             except Exception as e:
                 print(f"[warn] sector pool narrative failed for {s}: {e}")
-    sector_pool_json = dumps_for_script(sector_pool_data, default=_json_default)
+    return sector_pool_data
 
-    # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
-    # template lazy-fetches them on first chart open, so the embedded HTML
-    # stays small enough to publish via GitHub Pages (<100 MB hard cap).
-    try:
-        out_dir = os.path.dirname(os.path.abspath(filename)) or '.'
-    except OSError:
-        # Same getcwd()/EPERM guard as _out_dir_early above.
-        out_dir = os.path.dirname(filename) or '.'
-    hist_path = os.path.join(out_dir, 'hist.json')
-    prices_path = os.path.join(out_dir, 'prices.json')  # legacy monolith; now only removed
-    prices_meta_path = os.path.join(out_dir, 'prices_meta.json')
-    details_path = os.path.join(out_dir, 'details.json')
-    vol_dir = os.path.join(out_dir, 'vol')
-    px_dir = os.path.join(out_dir, 'px')
 
-    # Every sidecar is written compact. json.dump's default separators put a
-    # space after each comma, which on prices.json alone (11.6M array elements)
-    # wasted 11.6 MB of the 100 MB Pages budget.
-    _COMPACT = (',', ':')
-
+def _write_details_sidecar(details_path, details_payload):
     # Write details.json sidecar (or remove a stale one)
     try:
         if details_payload:
@@ -862,6 +830,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     except Exception as _e:
         print(f"[warn] details.json write failed: {_e}")
 
+
+def _build_hist_payload(rows):
     # Historical fundamentals (EDGAR annual) per ticker
     hist_payload = None
     try:
@@ -971,7 +941,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
             print(f"[report_html] edgar history: {len(_hist_out)} tickers")
     except Exception as _e:
         print(f"[warn] edgar history load failed: {_e}")
+    return hist_payload
 
+
+def _write_hist_sidecar(hist_path, hist_payload):
     # Write hist.json sidecar (or remove a stale one so old data doesn't linger)
     try:
         if hist_payload is not None:
@@ -983,6 +956,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     except Exception as _e:
         print(f"[warn] hist.json write failed: {_e}")
 
+
+def _load_price_payloads(rows, prices_dir):
     # Load price history from local Parquet files
     prices_payload = None
     px_payload = None
@@ -1238,7 +1213,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                 print(f"[report_html] volume shards: {len(_vol_out)} tickers")
         except Exception as _e:
             print(f"[warn] price history load failed: {_e}")
+    return prices_payload, px_payload, vol_payload
 
+
+def _write_prices_meta_sidecar(prices_meta_path, prices_path, prices_payload):
     # Write prices_meta.json (dates + manifests + index series + sector
     # composites) or remove a stale one. The legacy dense prices.json is
     # always removed — per-ticker px/ shards replaced it.
@@ -1258,7 +1236,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
             os.remove(prices_path)
     except Exception as _e:
         print(f"[warn] prices_meta.json write failed: {_e}")
+    return prices_size_mb
 
+
+def _write_px_shards(px_dir, px_payload):
     # Write the px/ close-price shard directory — same lifecycle as vol/
     # below: rebuilt wholesale, then swept of anything the manifest doesn't
     # claim (iCloud conflict copies regenerate continuously in this folder).
@@ -1281,6 +1262,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     except Exception as _e:
         print(f"[warn] px/ shard write failed: {_e}")
 
+
+def _write_vol_shards(vol_dir, vol_payload):
     # Write the vol/ shard directory. Rebuilt wholesale each run so a ticker
     # that drops out of the universe can't leave a shard behind whose indices
     # no longer line up with the current dates array.
@@ -1306,6 +1289,76 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
                 print(f"[report_html] vol/: swept {_stale} unclaimed shard file(s)")
     except Exception as _e:
         print(f"[warn] vol/ shard write failed: {_e}")
+
+
+def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None):
+    """Render the interactive HTML report via Jinja2 template."""
+    rows = _sanitize(rows)
+    _r2000 = _load_russell2000()
+    # Prior-run ratings for the "Δ vs prior" column. Sourced from the most
+    # recent earlier results_*.json sitting next to this HTML output.
+    try:
+        _out_dir_early = os.path.dirname(os.path.abspath(filename)) or '.'
+    except OSError:
+        # abspath needs getcwd(), which can raise EPERM if the working
+        # directory became unreadable mid-run (e.g. a macOS TCC revocation).
+        _out_dir_early = os.path.dirname(filename) or '.'
+    gate_meta_obj = gate_metadata()
+    # Per-gate raw values + scores from the prior snapshot feed the popup's
+    # "why the rating changed" explanation.
+    _prev_gate_keys = [k for g in gate_meta_obj['gates']
+                       for k in (g['key'], g['scoreKey'])]
+    prev_run_date, _prev_ratings = _load_prev_ratings(
+        _out_dir_early, run_date, extra_keys=_prev_gate_keys)
+    if _prev_ratings:
+        print(f"[report_html] rate-change baseline: {prev_run_date} "
+              f"({len(_prev_ratings)} tickers)")
+    else:
+        print("[report_html] rate-change baseline: none found (Yesterday's Rating shows N/A)")
+    # Long-horizon rating change-points for the popup's "BUY since ..." line.
+    _rating_hist = _load_rating_history(_out_dir_early, run_date)
+    avg_spread, qualifying_with_mos, buy_count, lean_buy_count = \
+        _summary_stats(rows)
+
+    chart_records = [_row_context(r, gate_meta_obj, _r2000, _prev_ratings,
+                                  _rating_hist) for r in rows]
+
+    details_payload = _extract_details_payload(chart_records)
+
+    chart_data = dumps_for_script(chart_records, default=_json_default)
+
+    # Gate metadata for Matrix view rendering in JavaScript
+    gate_meta = dumps_for_script(gate_meta_obj, default=_json_default)
+
+    sector_pool_data = _build_sector_pool_data(rows)
+    sector_pool_json = dumps_for_script(sector_pool_data, default=_json_default)
+
+    # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
+    # template lazy-fetches them on first chart open, so the embedded HTML
+    # stays small enough to publish via GitHub Pages (<100 MB hard cap).
+    try:
+        out_dir = os.path.dirname(os.path.abspath(filename)) or '.'
+    except OSError:
+        # Same getcwd()/EPERM guard as _out_dir_early above.
+        out_dir = os.path.dirname(filename) or '.'
+    hist_path = os.path.join(out_dir, 'hist.json')
+    prices_path = os.path.join(out_dir, 'prices.json')  # legacy monolith; now only removed
+    prices_meta_path = os.path.join(out_dir, 'prices_meta.json')
+    details_path = os.path.join(out_dir, 'details.json')
+    vol_dir = os.path.join(out_dir, 'vol')
+    px_dir = os.path.join(out_dir, 'px')
+
+    _write_details_sidecar(details_path, details_payload)
+
+    hist_payload = _build_hist_payload(rows)
+    _write_hist_sidecar(hist_path, hist_payload)
+
+    prices_payload, px_payload, vol_payload = \
+        _load_price_payloads(rows, prices_dir)
+    prices_size_mb = _write_prices_meta_sidecar(
+        prices_meta_path, prices_path, prices_payload)
+    _write_px_shards(px_dir, px_payload)
+    _write_vol_shards(vol_dir, vol_payload)
 
     # Render Jinja2 template
     template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
