@@ -24,5 +24,7 @@ jobs:
       - name: Lint
         run: ruff check .
 
-      - name: Test (offline suite)
-        run: pytest -m "not network and not slow" -q
+      - name: Test (offline suite, coverage-gated)
+        # Ratchet convention: --cov-fail-under is a floor, never a target.
+        # When coverage rises, bump the floor to match; never lower it.
+        run: pytest -m "not network and not slow" -q --cov --cov-report=term --cov-fail-under=31

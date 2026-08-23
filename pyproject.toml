@@ -29,6 +29,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest~=9.1",
+    "pytest-cov~=7.0",
+    "hypothesis~=6.165",
+    "pre-commit~=4.0",
     "ruff~=0.16",
 ]
 
@@ -37,6 +40,13 @@ dev = [
 # dependency-only install until a proper package layout lands.
 [tool.setuptools]
 packages = []
+
+[tool.coverage.run]
+source = ["data", "models", "scripts"]
+
+[tool.coverage.report]
+skip_covered = false
+show_missing = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

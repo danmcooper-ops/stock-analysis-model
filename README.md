@@ -14,8 +14,10 @@ This project provides a reusable Python framework for analyzing stock data using
 3. Extend modules for custom analysis.
 
 ## Setup
-- Python 3.9+
+- Python 3.11+
 - Install dependencies: `pip install -r requirements.txt`
+- For development (tests, lint, hooks): `pip install -e ".[dev]"` then `pre-commit install`
+  — every commit then runs ruff + the offline test suite automatically.
 
 ## Structure
 - `data/` - Data ingestion modules
