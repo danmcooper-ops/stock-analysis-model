@@ -436,7 +436,8 @@ def _load_russell2000():
         return set()
 
 
-def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None):
+def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None,
+               macro_payload=None):
     """Render the interactive HTML report via Jinja2 template."""
     rows = _sanitize(rows)
     _r2000 = _load_russell2000()
@@ -863,6 +864,20 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
             os.remove(details_path)
     except Exception as _e:
         print(f"[warn] details.json write failed: {_e}")
+
+    # Write macro.json sidecar for the Macro Outlook tab (or remove a stale
+    # one so an offline rebuild doesn't serve last week's macro data).
+    macro_path = os.path.join(out_dir, 'macro.json')
+    macro_sidecar = (macro_payload or {}).get('sidecar')
+    try:
+        if macro_sidecar:
+            with open(macro_path, 'w') as _mf:
+                json.dump(_sanitize(macro_sidecar), _mf,
+                          default=_json_default, separators=_COMPACT)
+        elif os.path.exists(macro_path):
+            os.remove(macro_path)
+    except Exception as _e:
+        print(f"[warn] macro.json write failed: {_e}")
 
     # Historical fundamentals (EDGAR annual) per ticker
     hist_payload = None
@@ -1328,6 +1343,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         prices_size_mb=prices_size_mb,
         hist_available=('true' if hist_payload is not None else 'false'),
         details_available=('true' if details_payload else 'false'),
+        macro_available=('true' if macro_sidecar else 'false'),
+        macro_summary=dumps_for_script(
+            _sanitize((macro_payload or {}).get('summary')) or None,
+            default=_json_default),
         generated_at=(run_date or date.today()).strftime('%B %-d, %Y'),
         run_date_iso=(run_date or date.today()).isoformat(),
         prev_run_date=(prev_run_date or ''),
