@@ -5249,11 +5249,10 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
    flash before the real action (sort / open popup) executes. The popup-tip
    system inside the detail modal has its own tap-to-pin path and is unaffected. */
 var _isTouchDevice=window.matchMedia&&window.matchMedia('(hover: none)').matches;
-document.addEventListener('mouseover',function(e){
-  if(_isTouchDevice)return;
-  var th=e.target.closest('th[data-col-tip]');
-  if(!th)return;
-  clearTimeout(_ctTimer);
+/* Column-header tip content \u2014 shared by the desktop hover path and the touch
+   tap path below. Resolves the body from TT, the generic score/gate
+   fallbacks, or the inline data-col-tip-body (Sector Heatmap headers). */
+function _colTipContent(th){
   var key=th.getAttribute('data-col-tip');
   var label=th.getAttribute('data-col-label')||key;
   var threshold=th.getAttribute('data-col-threshold')||'';
@@ -5264,8 +5263,16 @@ document.addEventListener('mouseover',function(e){
   /* Inline body fallback \u2014 used by Sector Heatmap headers whose descriptions
      aren't in TT and are emitted via data-col-tip-body. */
   if(!body)body=th.getAttribute('data-col-tip-body')||'';
+  return{label:label,body:body,threshold:threshold};
+}
+document.addEventListener('mouseover',function(e){
+  if(_isTouchDevice)return;
+  var th=e.target.closest('th[data-col-tip]');
+  if(!th)return;
+  clearTimeout(_ctTimer);
+  var c=_colTipContent(th);
   var rect=th.getBoundingClientRect();
-  _ctTimer=setTimeout(function(){_showColTip(label,body,threshold,rect);},180);
+  _ctTimer=setTimeout(function(){_showColTip(c.label,c.body,c.threshold,rect);},180);
 },false);
 document.addEventListener('mouseout',function(e){
   if(_isTouchDevice)return;
@@ -5274,6 +5281,24 @@ document.addEventListener('mouseout',function(e){
   var to=e.relatedTarget;
   if(to&&th.contains(to))return;
   _hideColTip();
+},false);
+/* Touch devices (iPhone / iPad): tapping a column header both SORTS the
+   column and shows its tooltip for 5 seconds. The header's inline onclick
+   (mSort / tSort / _heatSort) fires during the same click's bubble \u2014 this
+   listener neither preventDefaults nor stops propagation, so ranking is
+   unaffected. The header rect is captured before the sort re-renders the
+   <thead>, so the tip anchors where the tapped header sits (the re-render
+   keeps identical column geometry). #col-tip is pointer-events:none, so the
+   visible tip never swallows the next tap. Tapping anywhere that isn't a
+   column header dismisses the tip early. */
+var _CT_TAP_MS=5000;
+document.addEventListener('click',function(e){
+  if(!_isTouchDevice)return;
+  var th=e.target.closest('th[data-col-tip]');
+  if(!th){_hideColTip();return;}
+  var c=_colTipContent(th);
+  _showColTip(c.label,c.body,c.threshold,th.getBoundingClientRect());
+  _ctAutoTimer=setTimeout(_hideColTip,_CT_TAP_MS);
 },false);
 
 document.addEventListener('mouseover',function(e){
