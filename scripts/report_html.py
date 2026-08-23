@@ -831,6 +831,20 @@ def _write_details_sidecar(details_path, details_payload):
         print(f"[warn] details.json write failed: {_e}")
 
 
+def _write_macro_sidecar(macro_path, macro_sidecar):
+    # Write macro.json for the Macro Outlook tab (or remove a stale one so an
+    # offline rebuild doesn't serve last week's macro data).
+    try:
+        if macro_sidecar:
+            with open(macro_path, 'w', encoding='utf-8') as _mf:
+                json.dump(_sanitize(macro_sidecar), _mf,
+                          default=_json_default, separators=_COMPACT)
+        elif os.path.exists(macro_path):
+            os.remove(macro_path)
+    except Exception as _e:
+        print(f"[warn] macro.json write failed: {_e}")
+
+
 def _build_hist_payload(rows):
     # Historical fundamentals (EDGAR annual) per ticker
     hist_payload = None
@@ -1291,7 +1305,8 @@ def _write_vol_shards(vol_dir, vol_payload):
         print(f"[warn] vol/ shard write failed: {_e}")
 
 
-def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None):
+def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None,
+               macro_payload=None):
     """Render the interactive HTML report via Jinja2 template."""
     rows = _sanitize(rows)
     _r2000 = _load_russell2000()
@@ -1345,10 +1360,14 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     prices_path = os.path.join(out_dir, 'prices.json')  # legacy monolith; now only removed
     prices_meta_path = os.path.join(out_dir, 'prices_meta.json')
     details_path = os.path.join(out_dir, 'details.json')
+    macro_path = os.path.join(out_dir, 'macro.json')
     vol_dir = os.path.join(out_dir, 'vol')
     px_dir = os.path.join(out_dir, 'px')
 
     _write_details_sidecar(details_path, details_payload)
+
+    macro_sidecar = (macro_payload or {}).get('sidecar')
+    _write_macro_sidecar(macro_path, macro_sidecar)
 
     hist_payload = _build_hist_payload(rows)
     _write_hist_sidecar(hist_path, hist_payload)
@@ -1379,6 +1398,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         prices_size_mb=prices_size_mb,
         hist_available=('true' if hist_payload is not None else 'false'),
         details_available=('true' if details_payload else 'false'),
+        macro_available=('true' if macro_sidecar else 'false'),
+        macro_summary=dumps_for_script(
+            _sanitize((macro_payload or {}).get('summary')) or None,
+            default=_json_default),
         generated_at=(run_date or date.today()).strftime('%B %-d, %Y'),
         run_date_iso=(run_date or date.today()).isoformat(),
         prev_run_date=(prev_run_date or ''),

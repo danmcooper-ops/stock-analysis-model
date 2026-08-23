@@ -4062,9 +4062,26 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
         json.dump(json_meta, f, indent=2, default=str)
     _prov.write_events('output')
 
+    # Macro Outlook dashboard payload (FRED). Not gated on --macro: the tab
+    # is read-only context and the FRED client caches daily. Fails soft —
+    # offline or FRED-down runs simply omit the tab.
+    macro_dash = None
+    try:
+        from data.fred_client import FREDClient
+        from scripts.macro_dashboard import build_macro_payload
+        macro_dash = build_macro_payload(FREDClient(), macro_regime_result,
+                                         macro_adj)
+        if macro_dash:
+            _n = len(macro_dash['sidecar']['series'])
+            print(f"Macro dashboard: {_n} FRED series")
+        else:
+            print("Macro dashboard skipped (no FRED data).")
+    except Exception as e:
+        print(f"Macro dashboard skipped ({e}).")
+
     html_filename = os.path.join("output", f"stock_analysis_results_{today_str}.html")
     build_html(results, html_filename, prices_dir=prices_dir, run_date=run_start_date,
-               run_provenance=_run_prov)
+               run_provenance=_run_prov, macro_payload=macro_dash)
     xlsx_filename = os.path.join("output", f"stock_analysis_results_{today_str}.xlsx")
     build_excel(results, xlsx_filename)
 

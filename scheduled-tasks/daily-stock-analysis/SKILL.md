@@ -162,7 +162,7 @@ This checks whether today's BUY/LEAN BUY/HOLD/PASS ratings correlate with the pa
 A non-zero exit code should be reported but does **not** block the remaining steps.
 
 ### 8. Publish the report
-Read `~/.claude/scheduled-tasks/publish-stock-report/SKILL.md` and execute the steps in that file. That routine copies six artifacts into the `pages-live` worktree — `output/stock_analysis_results_RUNDATE.html` → `docs/index.html`, plus `prices_meta.json`, `hist.json`, `details.json`, and the `vol/` and `px/` shard directories (the HTML lazy-loads all of those at runtime, so everything must ship together; the dense `prices.json` was retired 2026-08-11 in favor of per-ticker `px/` shards) — then amends that branch's single commit and force-pushes it. **`main` is not touched by this routine.** The old sweet-gauss copy→merge→fast-forward flow is retired.
+Read `~/.claude/scheduled-tasks/publish-stock-report/SKILL.md` and execute the steps in that file. That routine copies seven artifacts into the `pages-live` worktree — `output/stock_analysis_results_RUNDATE.html` → `docs/index.html`, plus `prices_meta.json`, `hist.json`, `details.json`, `macro.json` (optional — present only when the run reached FRED), and the `vol/` and `px/` shard directories (the HTML lazy-loads all of those at runtime, so everything must ship together; the dense `prices.json` was retired 2026-08-11 in favor of per-ticker `px/` shards) — then amends that branch's single commit and force-pushes it. **`main` is not touched by this routine.** The old sweet-gauss copy→merge→fast-forward flow is retired.
 
 Note that the publish routine uses the **run-START date** (RUNDATE), not `$(date)` — if the 3–6 hour analysis crossed midnight, `$(date)` names the wrong file.
 
