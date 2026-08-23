@@ -19,6 +19,8 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
+from data.throttle import Throttle
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,8 +54,7 @@ class SECInsiderClient:
             max_form4_files: Max Form 4 XMLs to download per ticker.
         """
         self._ua = f'StockAnalyzer/1.0 ({email})'
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self._cache = {}          # ticker -> result dict
         self._cik_map = cik_map
         self._name_map = name_map
@@ -62,12 +63,6 @@ class SECInsiderClient:
     # ------------------------------------------------------------------
     # Throttling & requests
     # ------------------------------------------------------------------
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     def _request_json(self, url, timeout=15):
         """GET request returning parsed JSON, or None on failure."""

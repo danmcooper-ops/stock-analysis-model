@@ -10,9 +10,10 @@ Falls back to empty results when unavailable. Uses only stdlib.
 import json
 import logging
 import os
-import time
 import urllib.error
 import urllib.request
+
+from data.throttle import Throttle
 
 logger = logging.getLogger(__name__)
 
@@ -24,17 +25,10 @@ class FinnhubSupplyClient:
 
     def __init__(self, api_key=None, request_delay=1.0):
         self._api_key = api_key or os.environ.get('FINNHUB_API_KEY', '')
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self._peers_cache = {}    # ticker -> list of peer tickers
         self._supply_cache = {}   # ticker -> result dict
         self._supply_disabled = False  # set True after first 403
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     def _request(self, url, timeout=10):
         """Make a GET request. Returns parsed JSON or None.

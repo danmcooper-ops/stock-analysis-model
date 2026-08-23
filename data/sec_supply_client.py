@@ -16,6 +16,8 @@ import urllib.error
 import urllib.request
 from html.parser import HTMLParser
 
+from data.throttle import Throttle
+
 logger = logging.getLogger(__name__)
 
 
@@ -112,8 +114,7 @@ class SECSupplyClient:
             request_delay: Seconds between requests.
         """
         self._ua = f'StockAnalyzer/1.0 ({email})'
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self._cache = {}              # ticker -> result dict
         self._cik_map = cik_map
         self._name_map = name_map
@@ -122,12 +123,6 @@ class SECSupplyClient:
     # ------------------------------------------------------------------
     # Throttling & requests
     # ------------------------------------------------------------------
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     def _request_json(self, url, timeout=15):
         """GET request returning parsed JSON, or None on failure."""

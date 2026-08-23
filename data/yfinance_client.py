@@ -8,6 +8,8 @@ from datetime import date
 import yfinance as yf
 import pandas as pd
 
+from data.throttle import Throttle
+
 logger = logging.getLogger(__name__)
 
 
@@ -179,8 +181,7 @@ class YFinanceClient:
                  fetch_timeout=20, prices_dir="output/prices", run_date=None):
         self._financials_cache = {}
         self._history_cache = {}
-        self._request_delay = request_delay
-        self._last_request_time = 0
+        self._throttle = Throttle(request_delay)
         self._snapshot_cache = snapshot_cache  # Optional SnapshotCache instance
         self._fetch_timeout = fetch_timeout    # hard wall-clock limit per fetch
         self._prices_dir = prices_dir          # Write-through dir for fetch_history
@@ -203,12 +204,6 @@ class YFinanceClient:
     def clear_history_cache(self):
         """Free all cached price histories and dividend series."""
         self._history_cache.clear()
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_request_time
-        if elapsed < self._request_delay:
-            time.sleep(self._request_delay - elapsed)
-        self._last_request_time = time.time()
 
     def _retry(self, func, max_retries=2):
         """Run *func* with retries for transient failures.

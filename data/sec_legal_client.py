@@ -10,9 +10,10 @@ contact email (SEC requirement). Uses only stdlib (urllib + json).
 import json
 import logging
 import ssl
-import time
 import urllib.request
 from datetime import datetime, timedelta
+
+from data.throttle import Throttle
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +40,10 @@ class SECLegalClient:
 
     def __init__(self, email='stockanalysis@example.com', request_delay=1.0):
         self._ua = f'StockAnalyzer/1.0 ({email})'
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self._cache = {}           # ticker -> result dict
         self._cik_map = None       # ticker -> zero-padded CIK string
         self._name_map = None      # ticker -> company name (from SEC)
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     def _request(self, url, timeout=15):
         """Make a GET request with User-Agent header. Returns parsed JSON or None."""

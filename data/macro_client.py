@@ -14,10 +14,10 @@ returns None.  Results are session-cached to avoid re-fetching.
 """
 
 import logging
-import time
 import numpy as np
 import yfinance as yf
 
+from data.throttle import Throttle
 from data.yf_session import make_yf_session
 
 logger = logging.getLogger(__name__)
@@ -52,18 +52,11 @@ class MacroClient:
     """Fetch macro-economic indicators from yfinance."""
 
     def __init__(self, request_delay=0.5):
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self._cache = None
         self._sector_cache = None
         # yfinance calls share the module-level curl_cffi session (_yf_session)
         # so every request carries a hard socket timeout.
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     # ------------------------------------------------------------------
     # Individual indicator fetchers

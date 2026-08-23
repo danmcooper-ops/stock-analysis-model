@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
+from data.throttle import Throttle
 from data.yf_session import make_yf_session
 
 logger = logging.getLogger(__name__)
@@ -34,17 +35,10 @@ class NewsClient:
     """Fetch news headlines from yfinance and Google News RSS."""
 
     def __init__(self, request_delay=1.0, max_age_days=30):
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self._ticker_cache = {}   # ticker -> list[dict]
         self._sector_cache = {}   # sector -> list[dict]
         self._max_age_days = max_age_days
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     # ------------------------------------------------------------------
     # yfinance news (per-ticker)

@@ -22,11 +22,12 @@ All network calls are wrapped in try/except with short timeouts so a
 Glassdoor failure never blocks the main pipeline.
 """
 
-import time
 import json
 import logging
 import urllib.request
 import urllib.parse
+
+from data.throttle import Throttle
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +54,7 @@ class CultureClient:
                  request_delay: float = 1.5):
         self._glassdoor_enabled = glassdoor_enabled
         self._glassdoor_timeout = glassdoor_timeout
-        self._request_delay = request_delay
-        self._last_gd_request = 0.0
+        self._throttle = Throttle(request_delay)
 
     # ------------------------------------------------------------------
     # Public API
@@ -155,10 +155,7 @@ class CultureClient:
             return _glassdoor_cache[ticker]
 
         # Throttle requests
-        elapsed = time.time() - self._last_gd_request
-        if elapsed < self._request_delay:
-            time.sleep(self._request_delay - elapsed)
-        self._last_gd_request = time.time()
+        self._throttle()
 
         try:
             # Glassdoor employer autocomplete endpoint (returns JSON)

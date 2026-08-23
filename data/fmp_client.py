@@ -25,13 +25,14 @@ Statement methodology:
 """
 
 import os
-import time
 import json
 import logging
 from datetime import date, timedelta
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
 import pandas as pd
+
+from data.throttle import Throttle
 
 logger = logging.getLogger(__name__)
 
@@ -80,19 +81,12 @@ _CF_MAP = {
 class FMPClient:
     def __init__(self, api_key=None, request_delay=0.3):
         self._api_key = api_key or os.environ.get('FMP_API_KEY', '')
-        self._request_delay = request_delay
-        self._last_request_time = 0
+        self._throttle = Throttle(request_delay)
         self._cache = {}
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_request_time
-        if elapsed < self._request_delay:
-            time.sleep(self._request_delay - elapsed)
-        self._last_request_time = time.time()
 
     def _get(self, path, params=None):
         """GET from FMP /stable/ API.  Returns parsed JSON or None on error."""

@@ -23,6 +23,8 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
+from data.throttle import Throttle
+
 logger = logging.getLogger(__name__)
 
 # VADER — lazy-loaded so import cost is zero when sentiment unused
@@ -53,20 +55,13 @@ class TiingoClient:
 
     def __init__(self, api_key=None, request_delay=0.5):
         self._api_key = api_key or os.environ.get('TIINGO_API_KEY', '')
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self._news_cache = {}    # ticker -> list[dict]
         self._price_cache = {}   # ticker -> pd.Series
 
     @property
     def available(self):
         return bool(self._api_key)
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     def _get(self, path, params=None, timeout=10):
         """GET request to Tiingo REST API. Returns parsed JSON or None."""
