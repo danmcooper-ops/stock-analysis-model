@@ -8085,16 +8085,16 @@ function renderCrossSectorDashboard(){
     var hhiDisp=s.hhi!=null?s.hhi.toFixed(3):'&mdash;';
     var cr4Disp=s.cr4!=null?(s.cr4*100).toFixed(0)+'%':'&mdash;';
     var pctBuyDisp=s.pctBuy!=null?(s.pctBuy*100).toFixed(0)+'%':'&mdash;';
-    /* Column order: Identity → Valuation (MoS/P-TBV/EV-EBITDA, promoted next
-       to Cos) → Concentration → Profitability/Quality → Leverage → Action. */
+    /* Column order: Identity → Concentration (HHI/CR4, next to Cos) →
+       Valuation (MoS/P-TBV/EV-EBITDA) → Profitability/Quality → Leverage → Action. */
     return'<tr>'
       +'<td class="heat-sector" onclick="showPoolTab(\''+s.sector.replace(/\'/g,"\\\\'")+'\')" title="Open '+_attr(s.sector)+' sector page">'+s.sector+'</td>'
       +'<td>'+s.n+'</td>'
+      +cell(s.hhi,hhiDisp,C.hhi,false)
+      +cell(s.cr4,cr4Disp,C.cr4,false)
       +cell(s.medMos,_f(s.medMos,'%',0),C.medMos,false)
       +cell(s.medPTBV,s.medPTBV!=null?s.medPTBV.toFixed(2)+'x':'&mdash;',C.medPTBV,true)
       +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',C.medEV,true)
-      +cell(s.hhi,hhiDisp,C.hhi,false)
-      +cell(s.cr4,cr4Disp,C.cr4,false)
       +cell(s.wtdM,_f(s.wtdM,'%',1),C.wtdM,false)
       +cell(s.medFCFM,_f(s.medFCFM,'%',1),C.medFCFM,false)
       +cell(s.medROIC,_f(s.medROIC,'%',1),C.medROIC,false)
@@ -8163,11 +8163,11 @@ function renderCrossSectorDashboard(){
       +'<div class="table-wrap"><table class="dt heatmap-table"><thead><tr>'
         +_th('sector','Sector',130,'GICS sector. Buffett: stay inside your circle of competence — only compare businesses against genuinely similar economics.',true)
         +_th('n','Cos',60,'Sector pool size. Munger: “Structure matters more than effort.” Crowded sectors compete margins to zero; lean ones favor incumbents.')
+        +_th('hhi','HHI',60,'HHI = Σ(market share)². > 0.25 = oligopoly with pricing power; < 0.15 = fragmented. Buffett: “In a commodity business, you can only be as smart as your dumbest competitor.”')
+        +_th('cr4','CR4',60,'CR4 = Top-4 Revenue / Total Sector Revenue. > 80% = true oligopoly; < 50% = fragmented. Munger: “The single biggest predictor of high returns is industry structure, not management.”')
         +_th('medMos','MoS',56,'Median (FV − Price) / FV vs. DCF. Graham’s “three most important words in investing are margin of safety.” 20%+ across a sector — verify the discount is real, not deserved.')
         +_th('medPTBV','P/TBV',60,'Median Price / Tangible Book Value. Graham’s strictest asset floor — strips goodwill/intangibles to what the business could actually liquidate. Cheap P/TBV only attractive when ROIC justifies it; otherwise a value trap.')
         +_th('medEV','EV/EBITDA',64,'Median (Mkt Cap + Net Debt) / EBITDA. Capital-structure-neutral; misleading at cyclical troughs. Buffett trusts owner earnings over EBITDA.')
-        +_th('hhi','HHI',60,'HHI = Σ(market share)². > 0.25 = oligopoly with pricing power; < 0.15 = fragmented. Buffett: “In a commodity business, you can only be as smart as your dumbest competitor.”')
-        +_th('cr4','CR4',60,'CR4 = Top-4 Revenue / Total Sector Revenue. > 80% = true oligopoly; < 50% = fragmented. Munger: “The single biggest predictor of high returns is industry structure, not management.”')
         +_th('wtdM','Op Margin',64,'Op Margin = Σ(Op Margin × Revenue Share). Buffett: “The single most important decision is pricing power.” Sustained 20%+ = where moats live.')
         +_th('medFCFM','FCF Margin',64,'Median FCF / Revenue. Graham: “Earnings are opinions; cash is a fact.” High FCF margin → genuine owner earnings.')
         +_th('medROIC','ROIC',60,'Median NOPAT / Invested Capital. The single most important metric in the Buffett framework. > 15% across a sector = compounder territory.')
