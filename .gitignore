@@ -5,7 +5,7 @@ __pycache__/
 .venv/
 
 # Output files
-output/
+output
 
 # Published report artifacts — served from the single-commit `pages-live`
 # branch (see .github/workflows/deploy-pages.yml); no longer tracked on main
