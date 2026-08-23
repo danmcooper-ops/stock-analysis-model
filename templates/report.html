@@ -1137,6 +1137,12 @@ td.ct{font-weight:700;}
 .pool-stat-value.muted{color:#7f8c9a;font-weight:600;}
 .pool-stat-value .pool-stat-sub{font-size:0.68em;font-weight:600;color:#cbd5e1;margin-left:6px;}
 .pool-stat-value .pool-stat-tk{font-weight:800;letter-spacing:0.02em;font-size:1.0em;}
+/* Clickable ticker mentions — anywhere a ticker is listed it opens the
+   company popup. Underline matches the main-table ticker affordance. */
+.tk-link{cursor:pointer;font-weight:700;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.35);text-underline-offset:2px;}
+.tk-link:hover{color:var(--accent);}
+[data-theme="dark"] .tk-link{text-decoration-color:rgba(88,166,255,0.4);}
+[data-theme="dark"] .tk-link:hover{color:#58a6ff;}
 .pool-stat-caption{font-size:0.66em;color:#7f8c9a;line-height:1.25;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pool-stat-tint{position:absolute;left:0;top:0;bottom:0;width:4px;}
 [data-theme="dark"] .pool-stat-banner{background:#010409;border-bottom-color:#30363d;}
@@ -6612,7 +6618,7 @@ function openDet(tk){
     var _hwRed=_hwNorm.filter(function(h){return h.sev==='red';});
     var _hwAmber=_hwNorm.filter(function(h){return h.sev!=='red'&&h.cat!=='thesis_risk';});
     var _hwThesis=_hwNorm.filter(function(h){return h.cat==='thesis_risk';});
-    function _hwLi(h,clr){return '<li style="color:#000;margin:4px 0"><span style="color:#37474f">'+esc(h.text)+'</span></li>';}
+    function _hwLi(h,clr){return '<li style="color:#000;margin:4px 0"><span style="color:#37474f">'+_linkifyTickers(esc(h.text))+'</span></li>';}
     var _hwHtml='';
     if(_hwRed.length){
       _hwHtml+='<ul style="margin:6px 0 0;padding-left:20px;list-style:disc">'+_hwRed.map(function(h){return _hwLi(h,'#c0392b');}).join('')+'</ul>';
@@ -6625,7 +6631,7 @@ function openDet(tk){
     }
     if(!_hwNorm.length) _hwHtml='<p style="margin:0;color:#999">None identified</p>';
     var sh='<div class="sig-wrap"><div class="sig-grid">';
-    sh+='<div class="sig-tw"><b>\u25b2 Tailwinds</b>'+(tw.length?'<ul>'+tw.map(function(t){return'<li>'+esc(typeof t==='string'?t:(t.text||''))+'</li>';}).join('')+'</ul>':'<p style="margin:0;color:#999">None identified</p>')+'</div>';
+    sh+='<div class="sig-tw"><b>\u25b2 Tailwinds</b>'+(tw.length?'<ul>'+tw.map(function(t){return'<li>'+_linkifyTickers(esc(typeof t==='string'?t:(t.text||'')))+'</li>';}).join('')+'</ul>':'<p style="margin:0;color:#999">None identified</p>')+'</div>';
     sh+='<div class="sig-hw"><b>\u25bc Headwinds</b>'+_hwHtml+'</div>';
     sh+='</div></div>';
     sigEl.innerHTML=sh;sigSec.style.display='';
@@ -7103,6 +7109,35 @@ function renderCur(){
 
 /* === PROFIT POOL === */
 function _esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+/* === Clickable tickers === Anywhere a ticker is listed it should open the
+   company popup. tkLink() wraps a known ticker (present in DATA) in a
+   .tk-link span wired to openDet(); unknown strings render as plain escaped
+   text. _linkifyTickers() upgrades ticker MENTIONS inside narrative prose:
+   it takes an ALREADY-ESCAPED string and links word-boundary ALL-CAPS tokens
+   (2+ chars) that exist in the ticker universe, skipping a stoplist of
+   finance acronyms and capitalized words (ROIC, AI, IT, BUY, ...) that could
+   shadow real symbols — ordinary prose must never turn into a false link.
+   Single-letter tickers (F, T, V, ...) are deliberately excluded from prose
+   linking; structured call sites use tkLink() directly and are unaffected. */
+var _TK_SET=null;
+function _tkSetGet(){
+  if(!_TK_SET){_TK_SET={};DATA.forEach(function(d){if(d.ticker)_TK_SET[d.ticker]=1;});}
+  return _TK_SET;
+}
+function tkLink(tk){
+  var t=(tk==null?'':String(tk));
+  if(!t||!_tkSetGet()[t])return _esc(t);
+  var safe=t.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  return '<span class="tk-link" onclick="event.stopPropagation();openDet(\''+safe+'\')" title="Open '+_esc(t)+'">'+_esc(t)+'</span>';
+}
+var _TK_STOP={AI:1,IT:1,AT:1,ALL:1,AN:1,AS:1,AM:1,BE:1,BY:1,DO:1,GO:1,HE:1,IF:1,IN:1,IS:1,NO:1,OF:1,ON:1,OR:1,SO:1,TO:1,UP:1,US:1,WE:1,AND:1,ARE:1,FOR:1,NOT:1,NOW:1,NEW:1,ONE:1,TWO:1,TOP:1,BIG:1,LOW:1,CAN:1,HAS:1,THE:1,VS:1,CEO:1,CFO:1,GDP:1,USA:1,ETF:1,IPO:1,SEC:1,EPS:1,ROE:1,PE:1,PB:1,EV:1,FCF:1,DCF:1,EPV:1,RIM:1,DDM:1,NAV:1,MOS:1,HHI:1,CR4:1,WACC:1,ROIC:1,EBITDA:1,REIT:1,GAAP:1,XBRL:1,FDIC:1,CAGR:1,YOY:1,TTM:1,SBC:1,BUY:1,SELL:1,HOLD:1,LEAN:1,CAPEX:1,COGS:1,NOPAT:1,FX:1,CET1:1,NPL:1};
+function _linkifyTickers(escHtml){
+  var set=_tkSetGet();
+  return String(escHtml==null?'':escHtml).replace(/\b[A-Z][A-Z0-9.\-]{1,9}\b/g,function(m){
+    if(_TK_STOP[m]||!set[m])return m;
+    return tkLink(m);
+  });
+}
 function _pctStr(v,d){if(v==null)return '—';return (v*100).toFixed(d==null?1:d)+'%';}
 function _roleColor(role){
   return {leader:'#1a9850',runnerup:'#2e7d32',margin_leader:'#0277bd',
@@ -7112,8 +7147,8 @@ function renderPoolPrimer(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
   if(!n||(!n.education&&!n.education_cycle))return '';
   var parts=[];
-  if(n.education)parts.push(_esc(n.education));
-  if(n.education_cycle)parts.push(_esc(n.education_cycle));
+  if(n.education)parts.push(_linkifyTickers(_esc(n.education)));
+  if(n.education_cycle)parts.push(_linkifyTickers(_esc(n.education_cycle)));
   /* The "Key risks" block previously listed thesis_risk headwinds, which
      now live in the Sector Headwinds & Tailwinds section below — drop the
      duplicate so the Primer is a clean educational paragraph. */
@@ -7124,10 +7159,10 @@ function renderPoolDescription(sec){
   if(!n)return '';
   var out='';
   if(n.overview){
-    out+='<p style="margin:0 0 8px;font-size:0.82em;line-height:1.55;color:#37474f">'+_esc(n.overview)+'</p>';
+    out+='<p style="margin:0 0 8px;font-size:0.82em;line-height:1.55;color:#37474f">'+_linkifyTickers(_esc(n.overview))+'</p>';
   }
   if(n.concentration){
-    out+='<p style="margin:0;font-size:0.82em;line-height:1.55;color:#546e7a;font-style:italic">'+_esc(n.concentration)+'</p>';
+    out+='<p style="margin:0;font-size:0.82em;line-height:1.55;color:#546e7a;font-style:italic">'+_linkifyTickers(_esc(n.concentration))+'</p>';
   }
   return out;
 }
@@ -7151,7 +7186,7 @@ function renderPoolKeyPlayers(sec){
     if(chips.length){
       out+='<div style="font-size:0.72em;margin-bottom:5px;display:flex;gap:4px;flex-wrap:wrap">'+chips.join('')+'</div>';
     }
-    out+='<div style="color:#455a64">'+_esc(p.note)+'</div>';
+    out+='<div style="color:#455a64">'+_linkifyTickers(_esc(p.note))+'</div>';
     out+='</div>';
   });
   out+='</div>';
@@ -7173,7 +7208,7 @@ function renderPoolCR4Companies(sec){
     if(p.revenue_share!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">Rev '+(p.revenue_share*100).toFixed(0)+'%</span>');
     if(p.op_margin!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">OM '+(p.op_margin*100).toFixed(1)+'%</span>');
     if(chips.length)out+='<div style="font-size:0.72em;margin-bottom:5px;display:flex;gap:4px;flex-wrap:wrap">'+chips.join('')+'</div>';
-    if(p.note)out+='<div style="color:#455a64">'+_esc(p.note)+'</div>';
+    if(p.note)out+='<div style="color:#455a64">'+_linkifyTickers(_esc(p.note))+'</div>';
     out+='</div>';
   });
   out+='</div>';
@@ -7183,7 +7218,7 @@ function renderPoolInsights(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
   if(!n||!n.insights||!n.insights.length)return '';
   var out='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f">';
-  n.insights.forEach(function(s){out+='<li style="margin:4px 0">'+_esc(s)+'</li>';});
+  n.insights.forEach(function(s){out+='<li style="margin:4px 0">'+_linkifyTickers(_esc(s))+'</li>';});
   out+='</ul>';
   return out;
 }
@@ -7200,7 +7235,7 @@ function renderPoolSectorSignals(sec){
   function _list(items,kind){
     if(!items.length)return '<p style="margin:0;color:#94a3b8;font-size:0.82em;font-style:italic">No '+kind+' identified for this sector.</p>';
     var ul='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55">';
-    items.forEach(function(s){ul+='<li style="margin:5px 0">'+_esc(s)+'</li>';});
+    items.forEach(function(s){ul+='<li style="margin:5px 0">'+_linkifyTickers(_esc(s))+'</li>';});
     return ul+'</ul>';
   }
   var twHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#1a7a45">▲ Structural Tailwinds</div>'+_list(tw,'tailwinds')+'</div>';
@@ -7702,7 +7737,7 @@ function renderPoolLiquidityInsights(sec){
     var top3Pct=dvT?top3Sum/dvT*100:0;
     var top5=s.stocks.slice(0,Math.min(5,s.stocks.length)),top5Sum=top5.reduce(function(a,x){return a+x.dv;},0);
     var top5Pct=dvT?top5Sum/dvT*100:0;
-    bullets.push('<strong>Most-traded names:</strong> '+top3.map(function(x){return x.ticker+' ('+fds(x.dv)+')';}).join(', ')+' '
+    bullets.push('<strong>Most-traded names:</strong> '+top3.map(function(x){return tkLink(x.ticker)+' ('+fds(x.dv)+')';}).join(', ')+' '
       +'— the top 3 capture '+top3Pct.toFixed(0)+'% of sector flow'+(s.stocks.length>=5?', the top 5 capture '+top5Pct.toFixed(0)+'%':'')+'. '
       +(top3Pct>=60?'Trading is highly concentrated in a handful of mega-caps; sector exposure outside these names is a different liquidity reality.':
         top3Pct>=40?'Reasonable concentration in the leaders — they drive sector flow but plenty of secondary liquidity exists.':
@@ -7747,7 +7782,7 @@ function renderPoolLiquidityInsights(sec){
       if(liqRank<=3)verdict='its profit moat is fully recognized in flow — concentrated investor attention matches concentrated profit extraction';
       else if(liqRank<=10)verdict='moat is partly recognized — it draws above-average flow but isn\'t the sector\'s headline ticker';
       else verdict='profit moat may be under-recognized — the company extracts disproportionate sector profit but is not a top liquidity name';
-      bullets.push('<strong>Profit extraction vs flow:</strong> Top profit-pool multiple is '+topMult.ticker+' ('+(topMult.pp_multiple||0).toFixed(2)+'×, capturing '+(topMult.pp_multiple>1?'more':'less')+' profit share than revenue share); it is '+rankLabel+' name in the sector — '+verdict+'.');
+      bullets.push('<strong>Profit extraction vs flow:</strong> Top profit-pool multiple is '+tkLink(topMult.ticker)+' ('+(topMult.pp_multiple||0).toFixed(2)+'×, capturing '+(topMult.pp_multiple>1?'more':'less')+' profit share than revenue share); it is '+rankLabel+' name in the sector — '+verdict+'.');
     }
   }
 
@@ -8810,12 +8845,13 @@ function _renderSectorBanner(sec){
   if(st.best){
     var b=st.best;
     var bTk=_attr(b.ticker||'');
+    var bTkJs=String(b.ticker||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     var bMult=b.pp_multiple!=null?b.pp_multiple.toFixed(2)+'×':'—';
     var bCol=RC[b.rating]||'#888';
     html+='<div class="pool-stat" title="Sector Leader — Highest profit pool multiple within the sector (profit share ÷ revenue share). A value above 1.0× means this company punches above its revenue weight in profitability.">'
       +'<span class="pool-stat-tint" style="background:'+bCol+'"></span>'
       +'<div class="pool-stat-label">Sector Leader</div>'
-      +'<div class="pool-stat-value"><span class="pool-stat-tk">'+bTk+'</span><span class="pool-stat-sub">'+bMult+'</span></div>'
+      +'<div class="pool-stat-value"><span class="pool-stat-tk tk-link" onclick="event.stopPropagation();openDet(\''+bTkJs+'\')" title="Open '+bTk+'">'+bTk+'</span><span class="pool-stat-sub">'+bMult+'</span></div>'
       +'<div class="pool-stat-caption">profit share ÷ revenue share</div>'
       +'</div>';
   }
