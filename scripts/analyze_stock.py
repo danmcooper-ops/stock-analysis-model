@@ -32,8 +32,8 @@ from data.yfinance_client import (YFinanceClient, EmptyYahooResponseError,
                                   MCAP_MAX_PLAUSIBLE)
 from data.treasury_rate import fetch_risk_free_rate
 from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re)
-from models.dcf import (two_stage_ev, fair_value_per_share, dcf_sensitivity,
-                        two_stage_ev_exit_multiple, monte_carlo_dcf,
+from models.dcf import (two_stage_ev_valuation, fair_value_per_share, dcf_sensitivity,
+                        two_stage_ev_exit_multiple_valuation, monte_carlo_dcf,
                         reverse_dcf)
 from models.ratios import (compute_ratios, calculate_roic, calculate_wacc,
                            calculate_fundamental_growth, compute_dupont)
@@ -42,10 +42,10 @@ from models.quality import (calculate_earnings_quality, calculate_piotroski_f,
                             calculate_net_debt_ebitda, get_net_debt,
                             calculate_altman_z, calculate_beneish_m)
 from models.market import compute_relative_multiples, compute_analyst_consensus, extract_next_earnings
-from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm,
-                         ddm_h_model, monte_carlo_ddm)
-from models.epv import earnings_power_value, epv_with_growth_premium
-from models.rim import residual_income_model
+from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm_valuation,
+                         ddm_h_model_valuation, monte_carlo_ddm)
+from models.epv import earnings_power_value_valuation, epv_with_growth_premium
+from models.rim import residual_income_model_valuation
 from models.nav import tangible_book_value_per_share
 from models.portfolio import position_sizes, concentration_analysis
 from models.utils import rank
@@ -1660,8 +1660,9 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     fcf_growth = min(growth_cap, max(-0.15, weighted_avg))
 
     # --- Two-stage DCF via shared model function (GGM terminal value) ---
-    ev_ggm = two_stage_ev(base_fcf, fcf_growth, wacc, term_g,
-                          total_years=DCF_YEARS, stage1_years=DCF_STAGE1)
+    ggm_valuation = two_stage_ev_valuation(base_fcf, fcf_growth, wacc, term_g,
+                                           total_years=DCF_YEARS, stage1_years=DCF_STAGE1)
+    ev_ggm = ggm_valuation.value
     if ev_ggm is None or ev_ggm <= 0:
         return None, None, None, {}, None
 
@@ -1708,10 +1709,11 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
             base_ebitda = op_inc_val + da_val
 
     if base_ebitda and base_ebitda > 0 and exit_multiple and shares and shares > 0:
-        ev_exit = two_stage_ev_exit_multiple(
+        exit_valuation = two_stage_ev_exit_multiple_valuation(
             base_fcf, fcf_growth, wacc, term_g,
             base_ebitda, exit_multiple,
             total_years=DCF_YEARS, stage1_years=DCF_STAGE1)
+        ev_exit = exit_valuation.value
         if ev_exit and ev_exit > 0:
             exit_mult_fv = fair_value_per_share(ev_exit, net_debt, shares)
 
@@ -1774,6 +1776,12 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
         # conflates a basis mismatch with a genuine expectation gap.
         'base_fcf': base_fcf,
         'term_g': term_g,
+        # Valuation envelope of the primary GGM leg: which path produced the
+        # number, how much its own soft warnings degrade trust in it, and the
+        # concrete caveats — so a fallback can't pose as authoritative.
+        'dcf_method': ggm_valuation.method,
+        'dcf_confidence': ggm_valuation.confidence,
+        'dcf_warnings': list(ggm_valuation.warnings),
     }
     return fv, sens_range, fcf_growth, growth_diag, mc_result
 
@@ -1889,14 +1897,18 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
     tg = TERMINAL_GROWTH_RATE + terminal_growth_adj
 
     # 3. Two-stage DDM
-    ddm_fv = two_stage_ddm(dps, g, tg, re, years=DDM_HIGH_GROWTH_YEARS)
+    ddm_valuation = two_stage_ddm_valuation(dps, g, tg, re, years=DDM_HIGH_GROWTH_YEARS)
+    ddm_fv = ddm_valuation.value
     result['ddm_fv'] = ddm_fv
+    result['ddm_confidence'] = ddm_valuation.confidence if ddm_fv is not None else None
+    result['ddm_warnings'] = list(ddm_valuation.warnings)
 
     # 4. H-Model cross-check. H is HALF the linear-decline period, so to model
     # growth fading over the same horizon the two-stage holds it (5y),
     # half_life = 5/2. Passing the full 5 modeled a 10-year fade and inflated
     # the H-model leg (and hence the averaged ddm_fv) whenever g > tg.
-    h_fv = ddm_h_model(dps, g, tg, re, half_life=DDM_HIGH_GROWTH_YEARS / 2.0)
+    h_fv = ddm_h_model_valuation(dps, g, tg, re,
+                                 half_life=DDM_HIGH_GROWTH_YEARS / 2.0).value
     result['ddm_h_fv'] = h_fv
 
     # Average the two methods when both available
@@ -2954,11 +2966,13 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             _epv_net_debt = get_net_debt(yf_data)
             if _epv_net_debt is None:
                 epv_fv = None
+                epv_valuation = None
             else:
-                epv_fv = earnings_power_value(
+                epv_valuation = earnings_power_value_valuation(
                     _epv_ebit_used,
                     _epv_eff_tax, wacc, shares,
                     excess_cash=0, total_debt=_epv_net_debt)
+                epv_fv = epv_valuation.value
             epv_growth_fv = epv_with_growth_premium(
                 epv_fv, ratios.get('ROE'), re_for_models)
 
@@ -2976,10 +2990,11 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             _rim_payout = info.get('payoutRatio')
             _rim_retention = (max(0.0, min(1.0, 1.0 - _rim_payout))
                               if isinstance(_rim_payout, (int, float)) else None)
-            rim_fv = residual_income_model(
+            rim_valuation = residual_income_model_valuation(
                 _book_value, ratios.get('ROE'), re_for_models,
                 g=TERMINAL_GROWTH_RATE + effective_tg_adj,
                 retention_ratio=_rim_retention)
+            rim_fv = rim_valuation.value
 
             # NAV (Tangible Book Value per share) — universal asset-floor
             # sanity check that strips goodwill and intangibles out of equity.
@@ -3224,6 +3239,10 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'terminal_growth': _get_sector_config(sector)['terminal_growth'],
                 'exit_mult_fv': growth_diag.get('exit_mult_fv'),
                 'tv_method_spread': growth_diag.get('tv_method_spread'),
+                # Valuation envelope (DCF primary leg)
+                'dcf_method': growth_diag.get('dcf_method'),
+                'dcf_confidence': growth_diag.get('dcf_confidence'),
+                'dcf_warnings': growth_diag.get('dcf_warnings'),
                 'mc_p10_fv': mc_result['p10_fv'] if mc_result else None,
                 'mc_p90_fv': mc_result['p90_fv'] if mc_result else None,
                 'mc_cv': mc_result['cv'] if mc_result else None,
@@ -3319,6 +3338,8 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'ddm_mc_p10': ddm_result.get('ddm_mc_p10'),
                 'ddm_mc_p90': ddm_result.get('ddm_mc_p90'),
                 'ddm_mc_cv': ddm_result.get('ddm_mc_cv'),
+                'ddm_confidence': ddm_result.get('ddm_confidence'),
+                'ddm_warnings': ddm_result.get('ddm_warnings'),
                 # Reverse DCF
                 'implied_growth': rev_dcf['implied_growth'] if rev_dcf and rev_dcf.get('converged') else None,
                 'implied_vs_estimated': ((rev_dcf['implied_growth'] - fcf_growth)
@@ -3333,10 +3354,16 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'epv_growth_fv': epv_growth_fv,
                 # 'normalized' (10y-avg margin × current revenue) or 'point'
                 'epv_ebit_source': _epv_ebit_source,
+                'epv_confidence': (epv_valuation.confidence
+                    if epv_valuation is not None and epv_fv is not None else None),
+                'epv_warnings': (list(epv_valuation.warnings)
+                    if epv_valuation is not None else []),
                 # RIM (Residual Income Model)
                 'rim_fv': rim_fv,
                 'rim_mos': ((rim_fv - current_price) / rim_fv
                     if (rim_fv and current_price and rim_fv > 0) else None),
+                'rim_confidence': rim_valuation.confidence if rim_fv is not None else None,
+                'rim_warnings': list(rim_valuation.warnings),
                 # NAV (Tangible Book Value)
                 'tangible_book_per_share': tangible_book_per_share,
                 'nav_fv': nav_fv,
