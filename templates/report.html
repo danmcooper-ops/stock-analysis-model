@@ -5352,13 +5352,16 @@ document.addEventListener('mouseout',function(e){
 },false);
 /* Touch devices (iPhone / iPad): tapping a column header both SORTS the
    column and shows its tooltip for 5 seconds. The header's inline onclick
-   (mSort / tSort / _heatSort) fires during the same click's bubble \u2014 this
+   (mSort / tSort / _heatSort) fires during the same click's dispatch \u2014 this
    listener neither preventDefaults nor stops propagation, so ranking is
-   unaffected. The header rect is captured before the sort re-renders the
-   <thead>, so the tip anchors where the tapped header sits (the re-render
-   keeps identical column geometry). #col-tip is pointer-events:none, so the
-   visible tip never swallows the next tap. Tapping anywhere that isn't a
-   column header dismisses the tip early. */
+   unaffected. CAPTURE PHASE is load-bearing: the sort handler re-renders the
+   <thead> innerHTML, detaching the tapped th, and a detached element reports
+   an all-zero rect \u2014 a bubble-phase listener (which runs after the inline
+   onclick) anchored the tip to the viewport's top-left corner. Capturing
+   grabs the rect while the th is still attached; the post-sort re-render
+   keeps identical column geometry, so the anchor stays correct. #col-tip is
+   pointer-events:none, so the visible tip never swallows the next tap.
+   Tapping anywhere that isn't a column header dismisses the tip early. */
 var _CT_TAP_MS=5000;
 document.addEventListener('click',function(e){
   if(!_isTouchDevice)return;
@@ -5367,7 +5370,7 @@ document.addEventListener('click',function(e){
   var c=_colTipContent(th);
   _showColTip(c.label,c.body,c.threshold,th.getBoundingClientRect());
   _ctAutoTimer=setTimeout(_hideColTip,_CT_TAP_MS);
-},false);
+},true);
 
 document.addEventListener('mouseover',function(e){
   if(_isTouchDevice)return;

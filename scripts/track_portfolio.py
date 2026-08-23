@@ -15,7 +15,7 @@ import glob
 import argparse
 from datetime import date
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from data.yfinance_client import YFinanceClient
 from data.portfolio_client import PortfolioClient
@@ -59,7 +59,7 @@ def _load_results_json(path):
     """Load a results JSON and return (meta_dict, results_by_ticker)."""
     if not path or not os.path.exists(path):
         return {}, {}
-    with open(path) as f:
+    with open(path, encoding='utf-8') as f:
         data = json.load(f)
     results = data.get('results', [])
     by_ticker = {r['ticker']: r for r in results}
@@ -216,7 +216,7 @@ def run_portfolio_tracker(
     print(f"  Fetching benchmark history ({bench_ticker})...")
     benchmark_series = pc_with_yf.fetch_benchmark_history(bench_ticker, period='2y')
 
-    print(f"  Fetching per-holding price histories...")
+    print("  Fetching per-holding price histories...")
     ticker_histories = {}
     for ticker in tickers:
         hist = pc_with_yf.fetch_ticker_history(ticker, since_date=None, period='2y')

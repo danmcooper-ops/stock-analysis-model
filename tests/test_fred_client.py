@@ -137,7 +137,7 @@ class TestDiskCache:
 
     def test_corrupt_cache_refetches(self, tmp_path, monkeypatch):
         c = make_client(tmp_path)
-        with open(c._cache_path('X'), 'w') as fh:
+        with open(c._cache_path('X'), 'w', encoding='utf-8') as fh:
             fh.write('{not json')
         assert c._load_cache('X') is None
 

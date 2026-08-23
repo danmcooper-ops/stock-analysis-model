@@ -6,13 +6,10 @@ the synthetic 'Free Cash Flow' row for many large-cap tickers after its
 2023 rewrite. Without an OCF + Capex fallback the DCF stage silently
 skipped ~80% of the universe (including every mega-cap).
 """
-import os
-import sys
 
 import pandas as pd
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from scripts.analyze_stock import _fcf_series_from_cashflow
 

@@ -1,27 +1,47 @@
 # Stock Analysis Model
 
-This project provides a reusable Python framework for analyzing stock data using CAPM, DCF, and comparison models. It pulls financial data from SEC EDGAR, yfinance, and Finnhub, and extracts all relevant data from balance sheets, income statements, and cash flow statements.
+A Python framework for valuing and rating US-listed equities. It pulls
+fundamentals from SEC EDGAR XBRL and yfinance (with optional FMP, Tiingo and
+Finnhub enrichment), runs a battery of valuation models — CAPM/WACC,
+two-stage DCF with Gordon-Growth and exit-multiple terminal values plus a
+Monte Carlo pass, DDM, EPV, RIM and tangible-book NAV — scores every company
+against quality gates (Altman Z, Beneish M, Piotroski F, earnings quality),
+and renders an interactive HTML report alongside JSON and Excel snapshots.
 
 ## Features
-- Data ingestion from SEC EDGAR, yfinance, Finnhub
-- Extraction of financial statement data
-- CAPM, DCF, and comparison model calculations
-- Modular and reusable design
-
-## Usage
-1. Configure API keys for Finnhub and SEC EDGAR if required.
-2. Use the provided scripts to fetch and analyze stock data.
-3. Extend modules for custom analysis.
+- SEC XBRL statement reconstruction (10-K/20-F/40-F) with yfinance fallback
+- Six fair-value models cross-checked and blended, each reporting its own
+  method, confidence and caveats (`Valuation` envelope)
+- Composite scoring and BUY / LEAN BUY / HOLD / PASS ratings with
+  sector-relative percentiles
+- Macro regime overlay (VIX, yield curve, credit spreads, momentum)
+- Backtesting and parameter-calibration tooling
+- Interactive HTML report with per-ticker deep-dive popups
 
 ## Setup
-- Python 3.9+
-- Install dependencies: `pip install -r requirements.txt`
+- Python 3.11+
+- Runtime only: `pip install -r requirements.txt`
+- Development (tests, lint, hooks): `pip install -e ".[dev]"` then
+  `pre-commit install` — every commit then runs ruff + the offline test
+  suite automatically.
+
+## Usage
+```bash
+python scripts/analyze_stock.py                 # S&P 500 + Dow universe
+python scripts/analyze_stock.py --universe us   # all US-listed equities
+python scripts/backtest.py --help               # historical calibration
+pytest -m "not network and not slow"            # offline test suite
+```
+
+Outputs land in `output/` (gitignored): `results_<date>.json`,
+`stock_analysis_results_<date>.html`, and an Excel workbook.
+
+## Configuration
+API keys are read from the environment (or a gitignored `.env` at the repo
+root): `SEC_EMAIL` for EDGAR identification, plus optional `FMP_API_KEY`,
+`TIINGO_API_KEY`, `FINNHUB_API_KEY`. yfinance needs no authentication.
 
 ## Structure
-- `data/` - Data ingestion modules
-- `models/` - Financial models (CAPM, DCF, comparison)
-- `scripts/` - Example usage scripts
-- `README.md` - Project documentation
-
-## License
-MIT
+See `CLAUDE.md` for the full layout and conventions: `data/` (API clients),
+`models/` (pure model functions), `scripts/` (pipeline entry points),
+`tests/` (~750 tests incl. property-based), `templates/` (report templates).

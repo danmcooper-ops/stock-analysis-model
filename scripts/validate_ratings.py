@@ -20,10 +20,8 @@ import glob
 import json
 import os
 import sys
-from collections import defaultdict
 from datetime import date
 
-import numpy as np
 import pandas as pd
 from scipy import stats as scipy_stats
 
@@ -39,7 +37,7 @@ BENCHMARK    = 'SPY'
 
 def load_snapshot(path=None, results_dir='output'):
     if path:
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return json.load(f)
     # Canonical results_YYYY-MM-DD.json only: results_X_replay.json sorts
     # lexicographically AFTER the canonical file ('_' > '.'), so a naive
@@ -54,7 +52,7 @@ def load_snapshot(path=None, results_dir='output'):
         files.append(f)
     if not files:
         raise FileNotFoundError(f"No results_*.json files in {results_dir}")
-    with open(files[-1]) as f:
+    with open(files[-1], encoding='utf-8') as f:
         return json.load(f)
 
 

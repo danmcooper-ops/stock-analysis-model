@@ -3,12 +3,9 @@
 
 These tests use synthetic XBRL fact stubs to avoid live SEC API calls.
 """
-import sys
-import os
 
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from data import sec_xbrl_client as xbrl_mod
 from data.sec_xbrl_client import SECXBRLClient

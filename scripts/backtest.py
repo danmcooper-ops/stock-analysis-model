@@ -29,7 +29,7 @@ import itertools
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 
@@ -74,7 +74,7 @@ def load_results(results_dir='output'):
     files = sorted(glob.glob(pattern))
     all_results = []
     for f in files:
-        with open(f) as fh:
+        with open(f, encoding='utf-8') as fh:
             data = json.load(fh)
             all_results.append(data)
     return all_results
@@ -247,7 +247,7 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
             path = _returns_sidecar_path(cache_dir, run_date, h)
             if os.path.exists(path):
                 try:
-                    with open(path) as f:
+                    with open(path, encoding='utf-8') as f:
                         cached = json.load(f)
                     if is_matured(cached.get('run_date', run_date),
                                   cached.get('horizon_days', h), today):
@@ -280,7 +280,7 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
             if cache_dir and ticker_returns:
                 try:
                     os.makedirs(cache_dir, exist_ok=True)
-                    with open(_returns_sidecar_path(cache_dir, run_date, h), 'w') as f:
+                    with open(_returns_sidecar_path(cache_dir, run_date, h), 'w', encoding='utf-8') as f:
                         json.dump({
                             'run_date': run_date,
                             'horizon_days': h,
@@ -412,7 +412,7 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
         n = len(gates_vals)
         rank_g = rank(gates_vals)
         rank_r = rank(return_vals)
-        d_sq = sum((rg - rr) ** 2 for rg, rr in zip(rank_g, rank_r))
+        d_sq = sum((rg - rr) ** 2 for rg, rr in zip(rank_g, rank_r, strict=False))
         gates_corr = 1 - (6 * d_sq) / (n * (n ** 2 - 1)) if n > 1 else 0.0
 
     # --- FV accuracy ---
@@ -705,7 +705,7 @@ def build_backtest_excel(all_metrics, filename):
         n = len(all_gates)
         rank_g = rank(all_gates)
         rank_r = rank(all_returns)
-        d_sq = sum((rg - rr) ** 2 for rg, rr in zip(rank_g, rank_r))
+        d_sq = sum((rg - rr) ** 2 for rg, rr in zip(rank_g, rank_r, strict=False))
         agg_rho = 1 - (6 * d_sq) / (n * (n ** 2 - 1)) if n > 1 else 0.0
         ws3.cell(row=ri, column=1, value='Spearman ρ (gates vs return)')
         ws3.cell(row=ri, column=2, value=round(agg_rho, 4))
@@ -933,7 +933,6 @@ def sector_accuracy(all_metrics):
     sector_data = defaultdict(lambda: {'returns': [], 'alphas': []})
 
     for m in all_metrics:
-        spy_ret = m['spy_return']
         stocks = m.get('_source_stocks', {})
         for d in m['details']:
             ticker = d['ticker']
@@ -1120,7 +1119,7 @@ def signal_quartile_accuracy(all_metrics, signal_key,
         # Per-snapshot Spearman (reuse the file's tie-averaged rank()).
         rank_s = rank(sigs)
         rank_e = rank(exs)
-        d_sq = sum((rs - re) ** 2 for rs, re in zip(rank_s, rank_e))
+        d_sq = sum((rs - re) ** 2 for rs, re in zip(rank_s, rank_e, strict=False))
         per_snap_rho.append(1 - (6 * d_sq) / (n * (n ** 2 - 1)) if n > 1 else 0.0)
 
     if n_snapshots == 0:
@@ -1200,46 +1199,6 @@ def filter_metrics_to_cohort(all_metrics, cohort_key='mos',
         fm['details'] = kept
         out.append(fm)
     return out
-
-
-def strong_buy_hit_rate(all_metrics):
-    """What percentage of BUY-rated stocks actually outperformed SPY?
-
-    Returns float (0-1) or None if no BUY stocks.
-    """
-    buy_alphas = []
-    for m in all_metrics:
-        for d in m['details']:
-            if d['rating'] == 'BUY':
-                buy_alphas.append(d['excess_return'])
-    if not buy_alphas:
-        return None
-    return sum(1 for a in buy_alphas if a > 0) / len(buy_alphas)
-
-
-def consensus_comparison(all_metrics):
-    """Compare model fair values vs analyst target prices.
-
-    Returns dict with: mean_bias, median_bias, n_stocks.
-    """
-    biases = []
-    for m in all_metrics:
-        stocks = m.get('_source_stocks', {})
-        for d in m['details']:
-            ticker = d['ticker']
-            stock_info = stocks.get(ticker, {})
-            model_fv = stock_info.get('dcf_fv') or d.get('dcf_fv')
-            target_mean = stock_info.get('target_mean')
-            if model_fv and model_fv > 0 and target_mean and target_mean > 0:
-                biases.append(model_fv / target_mean - 1)
-    if not biases:
-        return None
-    arr = np.array(biases)
-    return {
-        'mean_bias': float(np.mean(arr)),
-        'median_bias': float(np.median(arr)),
-        'n_stocks': len(arr),
-    }
 
 
 def print_summary(all_metrics):
@@ -1446,7 +1405,7 @@ def rank_ic_objective(metrics):
         return 0.0
     rank_s = rank(scores)
     rank_e = rank(excess)
-    d_sq = sum((a - b) ** 2 for a, b in zip(rank_s, rank_e))
+    d_sq = sum((a - b) ** 2 for a, b in zip(rank_s, rank_e, strict=False))
     return 1 - (6 * d_sq) / (n * (n ** 2 - 1))
 
 
@@ -1603,7 +1562,7 @@ def _generate_grid(search_space):
     keys, ranges, _ = _grid_axes(search_space)
     grid = []
     for combo in itertools.product(*ranges):
-        d = dict(zip(keys, combo))
+        d = dict(zip(keys, combo, strict=False))
         grid.append(d)
     return grid
 
@@ -1677,16 +1636,16 @@ def _sample_grid_from_space(search_space, n, seed=42):
     rng = np.random.default_rng(seed)
     if n >= total:
         # Tiny grid — just enumerate everything
-        return [dict(zip(keys, combo)) for combo in itertools.product(*ranges)]
+        return [dict(zip(keys, combo, strict=False)) for combo in itertools.product(*ranges)]
     indices = sorted(rng.choice(total, size=n, replace=False).tolist())
     sizes = [len(r) for r in ranges]
     combos = []
     for idx in indices:
         combo = []
-        for r, s in zip(ranges, sizes):
+        for r, s in zip(ranges, sizes, strict=False):
             combo.append(r[idx % s])
             idx //= s
-        combos.append(dict(zip(keys, combo)))
+        combos.append(dict(zip(keys, combo, strict=False)))
     return combos
 
 
@@ -2000,7 +1959,9 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
     # test data and rewards noise.
     if window_results:
         from collections import Counter, defaultdict as _dd
-        key_of = lambda p: tuple(sorted(p.items()))
+
+        def key_of(p):
+            return tuple(sorted(p.items()))
         votes = Counter(key_of(w['best_params']) for w in window_results)
         test_by_key = _dd(list)
         for w in window_results:
@@ -2077,7 +2038,7 @@ def _load_snapshots(results_dir, dates):
     for d in dates:
         path = os.path.join(results_dir, f'results_{d.isoformat()}.json')
         if os.path.exists(path):
-            with open(path) as f:
+            with open(path, encoding='utf-8') as f:
                 snapshots.append(json.load(f))
     return snapshots
 
@@ -2177,7 +2138,7 @@ def optimize_weights(results_json_path, output_path=None):
     from scripts.scoring import compute_continuous_scores, apply_composite_rating_override
     import copy
 
-    with open(results_json_path) as f:
+    with open(results_json_path, encoding='utf-8') as f:
         data = json.load(f)
     all_results = data.get('results', data) if isinstance(data, dict) else data
 
@@ -2243,14 +2204,14 @@ def optimize_weights(results_json_path, output_path=None):
     results_list.sort(key=lambda x: x['cohens_d'], reverse=True)
     best = results_list[0]
 
-    print(f"\n--- Best Weights ---")
+    print("\n--- Best Weights ---")
     w = best['weights']
     print(f"  Valuation: {w['valuation']:.0%}  Quality: {w['quality']:.0%}  "
           f"Moat: {w['moat']:.0%}  Growth: {w['growth']:.0%}")
     print(f"  Cohen's d: {best['cohens_d']:.3f} (baseline: {baseline_d:.3f})")
     print(f"  Quality mean: {best['quality_mean']}  Poor mean: {best['poor_mean']}")
 
-    print(f"\n--- Top 10 ---")
+    print("\n--- Top 10 ---")
     for i, r in enumerate(results_list[:10]):
         w = r['weights']
         print(f"  {i+1}. V={w['valuation']:.0%} Q={w['quality']:.0%} "
@@ -2268,7 +2229,7 @@ def optimize_weights(results_json_path, output_path=None):
     }
 
     if output_path:
-        with open(output_path, 'w') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(output, f, indent=2)
         print(f"\nResults written to {output_path}")
 
@@ -2366,14 +2327,14 @@ def _cli_calibrate(args):
     out_path = args.output or os.path.join(
         args.results_dir,
         f'calibration_h{hz_tag}_{date.today().isoformat()}.json')
-    with open(out_path, 'w') as f:
+    with open(out_path, 'w', encoding='utf-8') as f:
         json.dump(result, f, indent=2, default=str)
     print(f'Calibration results written to {out_path}')
 
     print(f"\nObjective:            {result.get('objective')}")
     print(f"Horizon(s):           {result.get('horizon_days')}")
     print(f"Matured by horizon:   {result.get('matured_counts')}")
-    print(f"Window mode:          "
+    print("Window mode:          "
           + ("OVERLAPPED fallback — effective independent obs "
              f"~{result.get('effective_independent_obs')}"
              if result.get('overlapped_fallback')

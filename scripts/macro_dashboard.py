@@ -142,8 +142,10 @@ def mom_diff(obs):
     if not obs:
         return {}
     dates = sorted(obs)
+    # strict=False is load-bearing: dates[1:] is one shorter than dates by
+    # construction, which is exactly the pairing this needs.
     return {d: obs[d] - obs[prev]
-            for prev, d in zip(dates, dates[1:])}
+            for prev, d in zip(dates, dates[1:], strict=False)}
 
 
 def percentile_rank(values, latest):

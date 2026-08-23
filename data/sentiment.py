@@ -8,7 +8,11 @@ short, informal text like news headlines and social media.
 Requires: nltk (pip install nltk)
 First run downloads VADER lexicon (~1MB, cached locally).
 """
+import logging
+
 import yfinance as yf
+
+from data.yf_session import make_yf_session
 
 try:
     from nltk.sentiment.vader import SentimentIntensityAnalyzer
@@ -16,7 +20,19 @@ try:
 except ImportError:
     _vader_available = False
 
+logger = logging.getLogger(__name__)
+
 _sid = None  # lazy-loaded analyzer
+
+_YF_SESSION = None
+
+
+def _yf_session():
+    """Shared curl_cffi session so every Yahoo call has a hard 15s timeout."""
+    global _YF_SESSION
+    if _YF_SESSION is None:
+        _YF_SESSION = make_yf_session()
+    return _YF_SESSION
 
 
 def _get_analyzer():
@@ -52,9 +68,10 @@ def fetch_sentiment(ticker: str, max_articles: int = 20) -> dict:
         return _empty_result()
 
     try:
-        stock = yf.Ticker(ticker)
+        stock = yf.Ticker(ticker, session=_yf_session())
         news = stock.news or []
-    except Exception:
+    except Exception as e:
+        logger.warning(f"sentiment: news fetch failed for {ticker}: {e}")
         return _empty_result()
 
     scores = []

@@ -39,7 +39,7 @@ import argparse
 import difflib
 from datetime import datetime
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 
@@ -101,7 +101,7 @@ def list_snapshot_files(results_dir='output'):
 
 def load_snapshot(path):
     """(meta, rows) from one snapshot. Older files may be a bare list."""
-    with open(path) as fh:
+    with open(path, encoding='utf-8') as fh:
         data = json.load(fh)
     if isinstance(data, dict):
         rows = data.get('results', [])

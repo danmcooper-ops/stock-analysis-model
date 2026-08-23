@@ -27,10 +27,13 @@ the per-ticker try in analyze_stock.py Phase 1, and a provenance bug
 must never turn into a silently skipped ticker.
 """
 import json
+import logging
 import os
 import sys
 import time
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 
@@ -58,7 +61,8 @@ def library_versions():
         try:
             mod = __import__(name)
             versions[name] = getattr(mod, '__version__', None)
-        except Exception:
+        except Exception as e:
+            logger.debug('provenance: version lookup failed for %s: %s' % (name, e))
             versions[name] = None
     return versions
 
@@ -104,13 +108,15 @@ class ProvenanceRecorder:
                 if v is not None:
                     entry[k] = v
             self._sources.setdefault(ticker, {})[slot] = entry
-        except Exception:
+        except Exception as e:
+            logger.debug('provenance: record_source failed for %s: %s' % (ticker, e))
             pass
 
     def record_event(self, etype, ticker=None, source=None, detail=None):
         try:
             self.events.append(make_event(etype, ticker, source, detail))
-        except Exception:
+        except Exception as e:
+            logger.debug('provenance: record_event failed for %s: %s' % (ticker, e))
             pass
 
     def ticker_block(self, ticker):
@@ -121,7 +127,8 @@ class ProvenanceRecorder:
                 'run_date': self.run_date,
                 'sources': dict(self._sources.get(ticker) or {}),
             }
-        except Exception:
+        except Exception as e:
+            logger.debug('provenance: ticker_block failed for %s: %s' % (ticker, e))
             return {'schema_version': SCHEMA_VERSION,
                     'run_date': self.run_date, 'sources': {}}
 
@@ -162,14 +169,15 @@ class ProvenanceRecorder:
                 'event_counts': self.event_counts(),
                 'events_file': 'events_%s.json' % self.run_date,
             }
-        except Exception:
+        except Exception as e:
+            logger.debug('provenance: run_block build failed: %s' % e)
             return {'schema_version': SCHEMA_VERSION}
 
     def write_events(self, output_dir, section='analyze_stock'):
         try:
             append_events(output_dir, self.run_date, section, self.events)
         except Exception as e:
-            print('[warn] provenance events write failed: %s' % e)
+            logger.warning('provenance events write failed: %s' % e)
 
 
 # ----------------------------------------------------------------------
@@ -199,7 +207,8 @@ def attach_enrichment(record, name, block):
     try:
         prov = record.setdefault('_provenance', {'schema_version': SCHEMA_VERSION})
         prov.setdefault('enrichments', {})[name] = block
-    except Exception:
+    except Exception as e:
+        logger.debug('provenance: attach_enrichment failed for %s: %s' % (name, e))
         pass
 
 
@@ -209,7 +218,8 @@ def strip_enrichment(record, name):
         prov = record.get('_provenance')
         if isinstance(prov, dict):
             (prov.get('enrichments') or {}).pop(name, None)
-    except Exception:
+    except Exception as e:
+        logger.debug('provenance: strip_enrichment failed for %s: %s' % (name, e))
         pass
 
 
@@ -222,13 +232,13 @@ def append_events(output_dir, run_date, section, events):
     path = os.path.join(output_dir, 'events_%s.json' % run_date)
     data = {'date': str(run_date), 'schema_version': SCHEMA_VERSION, 'sections': {}}
     try:
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             existing = json.load(f)
         if isinstance(existing, dict) and isinstance(existing.get('sections'), dict):
             data = existing
     except (OSError, ValueError):
         pass
     data['sections'][section] = {'written_at': now_iso(), 'events': list(events)}
-    with open(path, 'w') as f:
+    with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, default=str)
     return path

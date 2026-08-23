@@ -17,11 +17,9 @@ import json
 import argparse
 from datetime import date
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data.snapshot_cache import SnapshotCache
-from data.time_slice import slice_financials_as_of
-from scripts.param_set import default_params, merge_params, validate_params
+from scripts.param_set import merge_params, validate_params
 
 
 def replay_analysis(as_of_date, cache_dir='data/cache', output_dir='output',
@@ -89,7 +87,7 @@ def replay_analysis(as_of_date, cache_dir='data/cache', output_dir='output',
         out_path = os.path.join(
             output_dir,
             f'results_{as_of_date.isoformat()}_replay.json')
-        with open(out_path, 'w') as f:
+        with open(out_path, 'w', encoding='utf-8') as f:
             json.dump(output, f, default=str)
         print(f"Replay results written to {out_path} ({len(results)} stocks)")
 
@@ -118,7 +116,7 @@ def _load_closest_results(results_dir, as_of):
     candidates.sort(key=lambda x: x[0])
     best_fname = candidates[-1][1]
     path = os.path.join(results_dir, best_fname)
-    with open(path) as f:
+    with open(path, encoding='utf-8') as f:
         return json.load(f)
 
 

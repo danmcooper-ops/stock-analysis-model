@@ -12,11 +12,16 @@ Uses only stdlib (urllib + json + xml.etree).
 """
 
 import json
+import logging
 import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
+
+from data.throttle import Throttle
+
+logger = logging.getLogger(__name__)
 
 
 class SECInsiderClient:
@@ -49,8 +54,7 @@ class SECInsiderClient:
             max_form4_files: Max Form 4 XMLs to download per ticker.
         """
         self._ua = f'StockAnalyzer/1.0 ({email})'
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self._cache = {}          # ticker -> result dict
         self._cik_map = cik_map
         self._name_map = name_map
@@ -59,12 +63,6 @@ class SECInsiderClient:
     # ------------------------------------------------------------------
     # Throttling & requests
     # ------------------------------------------------------------------
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     def _request_json(self, url, timeout=15):
         """GET request returning parsed JSON, or None on failure."""
@@ -77,7 +75,8 @@ class SECInsiderClient:
             if e.code == 429:
                 time.sleep(5)
             return None
-        except Exception:
+        except Exception as e:
+            logger.warning(f"SEC insider: request failed for {url}: {e}")
             return None
 
     def _request_text(self, url, max_bytes=256_000, timeout=15):
@@ -92,7 +91,8 @@ class SECInsiderClient:
             if e.code == 429:
                 time.sleep(5)
             return ''
-        except Exception:
+        except Exception as e:
+            logger.warning(f"SEC insider: request failed for {url}: {e}")
             return ''
 
     # ------------------------------------------------------------------
@@ -279,7 +279,8 @@ class SECInsiderClient:
                 'shares_after': shares_after,
             }
 
-        except Exception:
+        except Exception as e:
+            logger.debug(f"SEC insider: transaction parse failed for {owner_name}: {e}")
             return None
 
     # ------------------------------------------------------------------
@@ -354,7 +355,7 @@ class SECInsiderClient:
 
         # Step 2: Parse each Form 4 XML
         all_transactions = []
-        for accession, primary_doc, filing_date in filings:
+        for accession, primary_doc, _filing_date in filings:
             txns = self._parse_form4_xml(cik, accession, primary_doc)
             all_transactions.extend(txns)
 

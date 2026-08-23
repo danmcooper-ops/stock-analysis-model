@@ -26,11 +26,11 @@ import csv
 import io
 import json
 import os
-import time
-import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date
+
+from data.throttle import Throttle
 
 API_URL = 'https://api.stlouisfed.org/fred/series/observations'
 CSV_URL = 'https://fred.stlouisfed.org/graph/fredgraph.csv'
@@ -69,8 +69,7 @@ class FREDClient:
             os.path.dirname(os.path.abspath(__file__)), 'cache', 'fred')
         self.max_age_days = max_age_days
         self._memo = {}
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self.history_source = 'keyed' if self.api_key else 'keyless'
         if not self.api_key:
             print('FRED: no FRED_API_KEY — using the keyless fredgraph.csv '
@@ -82,12 +81,6 @@ class FREDClient:
         return bool(self.api_key)
 
     # -- fetching -----------------------------------------------------------
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     def _get(self, url, params, timeout=15):
         self._throttle()

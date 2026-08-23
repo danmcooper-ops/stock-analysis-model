@@ -10,16 +10,20 @@ Free, no-auth — only requirement is a contact email in the User-Agent.
 """
 import csv
 import json
+import logging
 import os
 import ssl
 import urllib.request
 from datetime import date, datetime
 
+logger = logging.getLogger(__name__)
+
 def _ssl_context():
     try:
         import certifi
         return ssl.create_default_context(cafile=certifi.where())
-    except Exception:
+    except Exception as e:
+        logger.debug(f"us_listings: certifi unavailable, using system trust store: {e}")
         # Fall back to the system trust store — NEVER disable verification:
         # unverified TLS would let a MITM feed fabricated financial data
         # into the pipeline silently.
@@ -55,7 +59,7 @@ def _is_excluded(ticker):
 
 
 def _read_cache(cache_path):
-    with open(cache_path) as f:
+    with open(cache_path, encoding='utf-8') as f:
         return [row['ticker'] for row in csv.DictReader(f) if row.get('ticker')]
 
 
@@ -108,7 +112,7 @@ def fetch_us_listed_tickers(email='stockanalysis@example.com',
     rows.sort(key=lambda r: r['ticker'])
 
     os.makedirs(os.path.dirname(cache_path) or '.', exist_ok=True)
-    with open(cache_path, 'w', newline='') as f:
+    with open(cache_path, 'w', encoding='utf-8', newline='') as f:
         w = csv.DictWriter(f, fieldnames=['ticker', 'cik', 'name'])
         w.writeheader()
         w.writerows(rows)

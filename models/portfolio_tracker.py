@@ -4,7 +4,7 @@
 All functions are pure (no I/O).  The data layer (PortfolioClient) handles
 all file and network access; these functions operate on plain dicts/lists.
 """
-from datetime import date, datetime
+from datetime import date
 
 import pandas as pd
 

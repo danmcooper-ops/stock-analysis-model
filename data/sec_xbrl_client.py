@@ -9,18 +9,24 @@ Uses only stdlib (urllib + json + datetime).
 """
 
 import json
+import logging
 import ssl
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime as _dt
 
+from data.throttle import Throttle
+
+logger = logging.getLogger(__name__)
+
 def _ssl_context():
     """Return an SSL context using certifi certs if available, else system certs."""
     try:
         import certifi
         return ssl.create_default_context(cafile=certifi.where())
-    except Exception:
+    except Exception as e:
+        logger.debug(f"sec_xbrl: certifi unavailable, using system trust store: {e}")
         # Fall back to the system trust store — NEVER disable verification:
         # unverified TLS would let a MITM feed fabricated financial data
         # into the pipeline silently.
@@ -30,9 +36,7 @@ _SSL_CTX = _ssl_context()
 
 from models.field_keys import (
     _get, REVENUE_KEYS, NET_INCOME_KEYS, TOTAL_ASSETS_KEYS,
-    EQUITY_KEYS, DEBT_KEYS, OPERATING_INCOME_KEYS, CASH_KEYS,
-    OPERATING_CF_KEYS, GROSS_PROFIT_KEYS, INTEREST_KEYS,
-    CAPEX_KEYS, DIVIDENDS_PAID_KEYS,
+    EQUITY_KEYS, DEBT_KEYS, OPERATING_CF_KEYS, GROSS_PROFIT_KEYS, INTEREST_KEYS,
 )
 
 # FX helpers moved to data/fx_client.py so the yfinance live-data pipeline
@@ -236,6 +240,9 @@ class SECXBRLClient:
         'sbc_cf': ['ShareBasedCompensation'],                     # 8/12
         'deferred_tax': ['DeferredIncomeTaxExpenseBenefit'],      # 11/12
         'buybacks': ['PaymentsForRepurchaseOfCommonStock'],       # 10/12
+        # Gross proceeds from issuing stock — nets against buybacks in
+        # _compute_shareholder_yield so net diluters don't read as returners.
+        'share_issuance': ['ProceedsFromIssuanceOfCommonStock'],
         'debt_issued': [                           # 8/12
             'ProceedsFromIssuanceOfLongTermDebt',
             'ProceedsFromIssuanceOfDebt',
@@ -398,6 +405,7 @@ class SECXBRLClient:
         'sbc_cf': ['ShareBasedPaymentExpense'],
         'deferred_tax': ['DeferredTaxExpenseIncome'],
         'buybacks': ['PaymentsToAcquireOrRedeemEntitysShares'],
+        'share_issuance': ['ProceedsFromIssuingShares'],
         'debt_issued': ['ProceedsFromBorrowings'],
         'debt_repaid': ['RepaymentsOfBorrowings'],
         'acquisitions': [
@@ -445,8 +453,7 @@ class SECXBRLClient:
             request_delay: Seconds between requests.
         """
         self._ua = f'StockAnalyzer/1.0 ({email})'
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self._cache = {}          # ticker -> raw company facts JSON
         self._cik_map = cik_map
         self._name_map = name_map
@@ -454,12 +461,6 @@ class SECXBRLClient:
     # ------------------------------------------------------------------
     # Throttling & requests
     # ------------------------------------------------------------------
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     def _request_json(self, url, timeout=20):
         """GET request returning parsed JSON, or None on failure."""
@@ -472,7 +473,8 @@ class SECXBRLClient:
             if e.code == 429:
                 time.sleep(5)
             return None
-        except Exception:
+        except Exception as e:
+            logger.warning(f"SEC XBRL: request failed for {url}: {e}")
             return None
 
     # ------------------------------------------------------------------
@@ -532,7 +534,8 @@ class SECXBRLClient:
                                             'form': e.get('form'),
                                             'filed': filed,
                                             'fy': e.get('fy')}
-        except Exception:
+        except Exception as e:
+            logger.debug(f"SEC XBRL: filing provenance scan failed for {ticker}: {e}")
             return None
         if best is None:
             return None
@@ -1344,6 +1347,14 @@ class SECXBRLClient:
         op_cf         = _ann('operating_cash_flow')
         capex         = _ann('capex')
         d_and_a       = _ann('d_and_a')
+        # SBC + shareholder-return rows: without these, the owner-earnings
+        # SBC haircut in run_forward_dcf and the buyback half of
+        # _compute_shareholder_yield silently never fire on the XBRL path
+        # (the same failure mode the d_and_a row above once had).
+        sbc           = _ann('sbc_cf')
+        dividends     = _ann('dividends_paid')
+        buybacks      = _ann('buybacks')
+        issuance      = _ann('share_issuance')
 
         # Balance sheet (point-in-time concepts). Their entries in XBRL only
         # carry end dates, no durations — _extract_annual_values' duration
@@ -1426,7 +1437,7 @@ class SECXBRLClient:
                 'Interest Expense': interest_exp.get(y),
                 'Tax Provision':    tax_provision.get(y),
                 'Pretax Income':    pretax_income.get(y),
-            } for y, col in zip(years, cols)
+            } for y, col in zip(years, cols, strict=False)
         })
 
         balance_df = pd.DataFrame({
@@ -1439,23 +1450,30 @@ class SECXBRLClient:
                 'Current Liabilities':       curr_liabs.get(y),
                 'Total Liabilities Net Minority Interest': liabilities.get(y),
                 'Retained Earnings':         ret_earnings.get(y),
-            } for y, col in zip(years, cols)
+            } for y, col in zip(years, cols, strict=False)
         })
 
-        # Capex follows the yfinance sign convention: stored NEGATIVE.
-        # XBRL Payments* tags are debit-positive, so negate. Consumers that
-        # derive FCF as OCF + Capex (_fcf_series_from_cashflow) and those
-        # that abs() it (calculate_fundamental_growth, the owner-earnings
-        # add-back) both read correctly under this convention.
+        # Outflows follow the yfinance sign convention: stored NEGATIVE
+        # (capex, dividends paid, buybacks). XBRL Payments* tags are
+        # debit-positive, so negate. SBC and issuance proceeds stay positive,
+        # also matching yfinance. Consumers that derive FCF as OCF + Capex
+        # (_fcf_series_from_cashflow) and those that abs() the value
+        # (calculate_fundamental_growth, the owner-earnings add-back,
+        # _compute_shareholder_yield) all read correctly under this
+        # convention.
         def _neg(v):
             return -abs(v) if v is not None else None
 
         cash_flow_df = pd.DataFrame({
             col: {
-                'Operating Cash Flow':          op_cf.get(y),
-                'Capital Expenditure':          _neg(capex.get(y)),
+                'Operating Cash Flow':           op_cf.get(y),
+                'Capital Expenditure':           _neg(capex.get(y)),
                 'Depreciation And Amortization': d_and_a.get(y),
-            } for y, col in zip(years, cols)
+                'Stock Based Compensation':      sbc.get(y),
+                'Common Stock Dividend Paid':    _neg(dividends.get(y)),
+                'Repurchase Of Capital Stock':   _neg(buybacks.get(y)),
+                'Issuance Of Capital Stock':     issuance.get(y),
+            } for y, col in zip(years, cols, strict=False)
         })
 
         return {
