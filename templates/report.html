@@ -1241,6 +1241,10 @@ td.ct{font-weight:700;}
 .agg-grid-item{display:flex;align-items:center;gap:8px;padding:5px 8px;font-size:0.84em;cursor:pointer;border-radius:4px;color:#37474f;line-height:1.2;user-select:none;transition:background 0.1s;}
 .agg-grid-item:hover{background:#fff;}
 .agg-grid-item input{margin:0;cursor:pointer;flex-shrink:0;accent-color:#7030a0;}
+/* Rank prefix on the sector-price Compare-sectors grid — fixed width so
+   checkboxes stay column-aligned whether the rank is "1." or blank. */
+.agg-grid-rank{width:18px;flex-shrink:0;text-align:right;font-size:0.78em;font-weight:600;color:#7f8c9a;font-variant-numeric:tabular-nums;}
+[data-theme="dark"] .agg-grid-rank{color:#8b949e;}
 .agg-grid-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
 .agg-grid-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .agg-grid-ret{margin-left:auto;font-size:0.78em;font-weight:600;font-variant-numeric:tabular-nums;flex-shrink:0;}
@@ -7264,7 +7268,7 @@ function renderUniversePriceChart(){
     var col=_aggColor(s);
     var safe=_esc(s);
     var checked=_selectedAggs[s]?' checked':'';
-    return '<label class="agg-grid-item"><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span><span class="agg-grid-ret" title="Total price appreciation over the selected timeframe">—</span></label>';
+    return '<label class="agg-grid-item"><span class="agg-grid-rank" title="Rank by price appreciation over the selected timeframe"></span><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span><span class="agg-grid-ret" title="Total price appreciation over the selected timeframe">—</span></label>';
   }).join('');
   /* Range + benchmark controls live in the hamburger. The benchmark chip
      container ships empty and _sectorBenchBtns() fills it from PRICES.indices
@@ -7285,7 +7289,7 @@ function renderUniversePriceChart(){
     +'<div id="sector-price-legend" style="margin-top:8px"></div>'
     +'<div class="agg-grid-section">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'
-    +'<div class="agg-grid-title">Compare sectors</div>'
+    +'<div class="agg-grid-title">Compare sectors <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(ranked by price appreciation over the selected range)</span></div>'
     +'<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+helperBtns+'</div>'
     +'</div>'
     +'<div class="agg-grid" id="agg-grid">'+gridItems+'</div>'
@@ -7322,16 +7326,22 @@ function aggsClearAll(){
   _priceChartDraw();
 }
 /* Write each sector's total price appreciation into its Compare-sectors
-   grid row (.agg-grid-ret), colored green/red by sign. Pass a
-   name→appreciation-percent map for the plotted sectors; unselected or
-   no-data rows (or a null map) fall back to an em dash. */
+   grid row (.agg-grid-ret), colored green/red by sign, then RANK the grid:
+   plotted sectors sort best-to-worst by appreciation and get a 1./2./3.
+   prefix; unselected or no-data rows drop below them alphabetically with a
+   blank rank. Pass a name→appreciation-percent map for the plotted sectors
+   (or null to clear ranks back to the alphabetical order). Moving the
+   existing <label> nodes with appendChild preserves checkbox state and
+   avoids rebinding handlers. */
 function _aggSetGridRet(retByName){
   var grid=document.getElementById('agg-grid');if(!grid)return;
+  var rows=[];
   grid.querySelectorAll('.agg-grid-item').forEach(function(lbl){
     var cb=lbl.querySelector('input[type="checkbox"]');
     var span=lbl.querySelector('.agg-grid-ret');
     if(!cb||!span)return;
-    if(retByName&&cb.value in retByName){
+    var has=!!(retByName&&cb.value in retByName);
+    if(has){
       var r=retByName[cb.value];
       span.textContent=(r>=0?'+':'')+r.toFixed(1)+'%';
       /* setAttribute, not style.color=: the dark-mode override matches on
@@ -7342,6 +7352,19 @@ function _aggSetGridRet(retByName){
       span.textContent='—';
       span.style.color='';
     }
+    rows.push({lbl:lbl,name:cb.value,ret:has?retByName[cb.value]:null});
+  });
+  rows.sort(function(a,b){
+    if(a.ret==null&&b.ret==null)return a.name.localeCompare(b.name);
+    if(a.ret==null)return 1;
+    if(b.ret==null)return -1;
+    return b.ret-a.ret;
+  });
+  var rank=0;
+  rows.forEach(function(row){
+    var rk=row.lbl.querySelector('.agg-grid-rank');
+    if(rk)rk.textContent=row.ret!=null?String(++rank)+'.':'';
+    grid.appendChild(row.lbl);
   });
 }
 /* _buildAggregate (client-side mcap-weighted sector aggregation) is gone:
@@ -8062,10 +8085,12 @@ function renderCrossSectorDashboard(){
     var hhiDisp=s.hhi!=null?s.hhi.toFixed(3):'&mdash;';
     var cr4Disp=s.cr4!=null?(s.cr4*100).toFixed(0)+'%':'&mdash;';
     var pctBuyDisp=s.pctBuy!=null?(s.pctBuy*100).toFixed(0)+'%':'&mdash;';
-    /* Column order: Identity → Concentration → Profitability/Quality → Leverage → Valuation → Action. */
+    /* Column order: Identity → MoS (headline valuation, promoted next to Cos) →
+       Concentration → Profitability/Quality → Leverage → Valuation → Action. */
     return'<tr>'
       +'<td class="heat-sector" onclick="showPoolTab(\''+s.sector.replace(/\'/g,"\\\\'")+'\')" title="Open '+_attr(s.sector)+' sector page">'+s.sector+'</td>'
       +'<td>'+s.n+'</td>'
+      +cell(s.medMos,_f(s.medMos,'%',0),C.medMos,false)
       +cell(s.hhi,hhiDisp,C.hhi,false)
       +cell(s.cr4,cr4Disp,C.cr4,false)
       +cell(s.wtdM,_f(s.wtdM,'%',1),C.wtdM,false)
@@ -8075,7 +8100,6 @@ function renderCrossSectorDashboard(){
       +cell(s.medGrowth,_f(s.medGrowth,'%',1),C.medGrowth,false)
       +cell(s.medNDEB,s.medNDEB!=null?s.medNDEB.toFixed(2)+'x':'&mdash;',C.medNDEB,true)
       +cell(s.medAltZ,s.medAltZ!=null?Number(s.medAltZ).toPrecision(3):'&mdash;',C.medAltZ,false)
-      +cell(s.medMos,_f(s.medMos,'%',0),C.medMos,false)
       +cell(s.medPTBV,s.medPTBV!=null?s.medPTBV.toFixed(2)+'x':'&mdash;',C.medPTBV,true)
       +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',C.medEV,true)
       +cell(s.medShrYld,_f(s.medShrYld,'%',1),C.medShrYld,false)
@@ -8139,6 +8163,7 @@ function renderCrossSectorDashboard(){
       +'<div class="table-wrap"><table class="dt heatmap-table"><thead><tr>'
         +_th('sector','Sector',130,'GICS sector. Buffett: stay inside your circle of competence — only compare businesses against genuinely similar economics.',true)
         +_th('n','Cos',60,'Sector pool size. Munger: “Structure matters more than effort.” Crowded sectors compete margins to zero; lean ones favor incumbents.')
+        +_th('medMos','MoS',56,'Median (FV − Price) / FV vs. DCF. Graham’s “three most important words in investing are margin of safety.” 20%+ across a sector — verify the discount is real, not deserved.')
         +_th('hhi','HHI',60,'HHI = Σ(market share)². > 0.25 = oligopoly with pricing power; < 0.15 = fragmented. Buffett: “In a commodity business, you can only be as smart as your dumbest competitor.”')
         +_th('cr4','CR4',60,'CR4 = Top-4 Revenue / Total Sector Revenue. > 80% = true oligopoly; < 50% = fragmented. Munger: “The single biggest predictor of high returns is industry structure, not management.”')
         +_th('wtdM','Op Margin',64,'Op Margin = Σ(Op Margin × Revenue Share). Buffett: “The single most important decision is pricing power.” Sustained 20%+ = where moats live.')
@@ -8148,7 +8173,6 @@ function renderCrossSectorDashboard(){
         +_th('medGrowth','Rev CAGR',64,'Median 3Y Revenue CAGR. Growth + stable margins = pricing power. Munger: “Avoid growth for growth’s sake” — growth without margins is destruction at scale.')
         +_th('medNDEB','ND/EBITDA',68,'Median (Debt − Cash) / EBITDA. Buffett: “we want no debt or very modest debt.” < 2× = strength; > 4× = rolling-credit dependence when markets sour.')
         +_th('medAltZ','Altman Z',60,'Median Altman Z. > 3.0 = sector-wide health; < 1.8 = distress across the cohort. Graham: avoid permanent capital loss — Z flags the line before the market does.')
-        +_th('medMos','MoS',56,'Median (FV − Price) / FV vs. DCF. Graham’s “three most important words in investing are margin of safety.” 20%+ across a sector — verify the discount is real, not deserved.')
         +_th('medPTBV','P/TBV',60,'Median Price / Tangible Book Value. Graham’s strictest asset floor — strips goodwill/intangibles to what the business could actually liquidate. Cheap P/TBV only attractive when ROIC justifies it; otherwise a value trap.')
         +_th('medEV','EV/EBITDA',64,'Median (Mkt Cap + Net Debt) / EBITDA. Capital-structure-neutral; misleading at cyclical troughs. Buffett trusts owner earnings over EBITDA.')
         +_th('medShrYld','Shr Yld',60,'Median (Dividends + Net Buybacks) / Mkt Cap. Buffett: “The best thing a company can do when the stock is cheap is buy it back.” 4%+ cohort-wide = disciplined capital allocation.')
