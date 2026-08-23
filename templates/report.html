@@ -8085,12 +8085,14 @@ function renderCrossSectorDashboard(){
     var hhiDisp=s.hhi!=null?s.hhi.toFixed(3):'&mdash;';
     var cr4Disp=s.cr4!=null?(s.cr4*100).toFixed(0)+'%':'&mdash;';
     var pctBuyDisp=s.pctBuy!=null?(s.pctBuy*100).toFixed(0)+'%':'&mdash;';
-    /* Column order: Identity → MoS (headline valuation, promoted next to Cos) →
-       Concentration → Profitability/Quality → Leverage → Valuation → Action. */
+    /* Column order: Identity → Valuation (MoS/P-TBV/EV-EBITDA, promoted next
+       to Cos) → Concentration → Profitability/Quality → Leverage → Action. */
     return'<tr>'
       +'<td class="heat-sector" onclick="showPoolTab(\''+s.sector.replace(/\'/g,"\\\\'")+'\')" title="Open '+_attr(s.sector)+' sector page">'+s.sector+'</td>'
       +'<td>'+s.n+'</td>'
       +cell(s.medMos,_f(s.medMos,'%',0),C.medMos,false)
+      +cell(s.medPTBV,s.medPTBV!=null?s.medPTBV.toFixed(2)+'x':'&mdash;',C.medPTBV,true)
+      +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',C.medEV,true)
       +cell(s.hhi,hhiDisp,C.hhi,false)
       +cell(s.cr4,cr4Disp,C.cr4,false)
       +cell(s.wtdM,_f(s.wtdM,'%',1),C.wtdM,false)
@@ -8100,8 +8102,6 @@ function renderCrossSectorDashboard(){
       +cell(s.medGrowth,_f(s.medGrowth,'%',1),C.medGrowth,false)
       +cell(s.medNDEB,s.medNDEB!=null?s.medNDEB.toFixed(2)+'x':'&mdash;',C.medNDEB,true)
       +cell(s.medAltZ,s.medAltZ!=null?Number(s.medAltZ).toPrecision(3):'&mdash;',C.medAltZ,false)
-      +cell(s.medPTBV,s.medPTBV!=null?s.medPTBV.toFixed(2)+'x':'&mdash;',C.medPTBV,true)
-      +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',C.medEV,true)
       +cell(s.medShrYld,_f(s.medShrYld,'%',1),C.medShrYld,false)
       +cell(s.pctBuy,pctBuyDisp,C.pctBuy,false)
     +'</tr>';
@@ -8164,6 +8164,8 @@ function renderCrossSectorDashboard(){
         +_th('sector','Sector',130,'GICS sector. Buffett: stay inside your circle of competence — only compare businesses against genuinely similar economics.',true)
         +_th('n','Cos',60,'Sector pool size. Munger: “Structure matters more than effort.” Crowded sectors compete margins to zero; lean ones favor incumbents.')
         +_th('medMos','MoS',56,'Median (FV − Price) / FV vs. DCF. Graham’s “three most important words in investing are margin of safety.” 20%+ across a sector — verify the discount is real, not deserved.')
+        +_th('medPTBV','P/TBV',60,'Median Price / Tangible Book Value. Graham’s strictest asset floor — strips goodwill/intangibles to what the business could actually liquidate. Cheap P/TBV only attractive when ROIC justifies it; otherwise a value trap.')
+        +_th('medEV','EV/EBITDA',64,'Median (Mkt Cap + Net Debt) / EBITDA. Capital-structure-neutral; misleading at cyclical troughs. Buffett trusts owner earnings over EBITDA.')
         +_th('hhi','HHI',60,'HHI = Σ(market share)². > 0.25 = oligopoly with pricing power; < 0.15 = fragmented. Buffett: “In a commodity business, you can only be as smart as your dumbest competitor.”')
         +_th('cr4','CR4',60,'CR4 = Top-4 Revenue / Total Sector Revenue. > 80% = true oligopoly; < 50% = fragmented. Munger: “The single biggest predictor of high returns is industry structure, not management.”')
         +_th('wtdM','Op Margin',64,'Op Margin = Σ(Op Margin × Revenue Share). Buffett: “The single most important decision is pricing power.” Sustained 20%+ = where moats live.')
@@ -8173,8 +8175,6 @@ function renderCrossSectorDashboard(){
         +_th('medGrowth','Rev CAGR',64,'Median 3Y Revenue CAGR. Growth + stable margins = pricing power. Munger: “Avoid growth for growth’s sake” — growth without margins is destruction at scale.')
         +_th('medNDEB','ND/EBITDA',68,'Median (Debt − Cash) / EBITDA. Buffett: “we want no debt or very modest debt.” < 2× = strength; > 4× = rolling-credit dependence when markets sour.')
         +_th('medAltZ','Altman Z',60,'Median Altman Z. > 3.0 = sector-wide health; < 1.8 = distress across the cohort. Graham: avoid permanent capital loss — Z flags the line before the market does.')
-        +_th('medPTBV','P/TBV',60,'Median Price / Tangible Book Value. Graham’s strictest asset floor — strips goodwill/intangibles to what the business could actually liquidate. Cheap P/TBV only attractive when ROIC justifies it; otherwise a value trap.')
-        +_th('medEV','EV/EBITDA',64,'Median (Mkt Cap + Net Debt) / EBITDA. Capital-structure-neutral; misleading at cyclical troughs. Buffett trusts owner earnings over EBITDA.')
         +_th('medShrYld','Shr Yld',60,'Median (Dividends + Net Buybacks) / Mkt Cap. Buffett: “The best thing a company can do when the stock is cheap is buy it back.” 4%+ cohort-wide = disciplined capital allocation.')
         +_th('pctBuy','BUY %',60,'Share of sector rated BUY or LEAN BUY. High concentration = clusters of margin of safety. Buffett: “Most committee opinions are mediocre” — focus signal, not a substitute for analysis.')
       +'</tr></thead><tbody id="heat-tbody"></tbody></table></div>'
@@ -8226,7 +8226,7 @@ function renderCrossSectorProfitPool(){
      _ppDraw() after mount. */
   var gridItems=secs.map(function(a){
     var safe=_esc(a.name);
-    return '<label class="agg-grid-item"><input type="checkbox" value="'+_attr(a.name)+'" checked onchange="_ppChanged()"><span class="agg-grid-dot" style="background:'+_ppColM(a.margin)+'"></span><span class="agg-grid-name">'+safe+'</span><span class="pp-grid-rev" title="Share of operating revenue (this sector\'s width on the profit-pool x-axis)">—</span><span class="pp-grid-m" title="Operating margin">'+(a.margin*100).toFixed(0)+'%</span></label>';
+    return '<label class="agg-grid-item"><span class="agg-grid-rank" title="Position in the profit-pool chart (bars ordered by operating margin, left to right)"></span><input type="checkbox" value="'+_attr(a.name)+'" checked onchange="_ppChanged()"><span class="agg-grid-dot" style="background:'+_ppColM(a.margin)+'"></span><span class="agg-grid-name">'+safe+'</span><span class="pp-grid-rev" title="Share of operating revenue (this sector\'s width on the profit-pool x-axis)">—</span><span class="pp-grid-m" title="Operating margin">'+(a.margin*100).toFixed(0)+'%</span></label>';
   }).join('');
   var helperBtns='<button type="button" class="agg-helper-btn" onclick="_ppSelectAll()">All</button>'
     +'<button type="button" class="agg-helper-btn" onclick="_ppClearAll()">Clear</button>';
@@ -8263,14 +8263,15 @@ function _ppDraw(){
      sector's own share (the width of its bar on the profit-pool x-axis),
      recomputed over only the shown sectors so the shares sum to ~100%. */
   window._xsPoolAgg={};
-  var _revByName={};
-  sel.forEach(function(a){
+  var _revByName={},_posByName={};
+  sel.forEach(function(a,i){
     a.revShare=totalRev>0?a.rev/totalRev:0;
     a.profitShare=totalOI!==0?a.oi/totalOI:null;
     window._xsPoolAgg[a.name]=a;
     _revByName[a.name]=a.revShare;
+    _posByName[a.name]=i+1;
   });
-  _ppSetGridRev(_revByName);
+  _ppSetGridRev(_revByName,_posByName);
   var W=860,H=330,pL=54,pR=16,pT=18,pB=40,cW=W-pL-pR,cH=H-pT-pB;
   var maxM=Math.max.apply(null,sel.map(function(a){return a.margin;}));
   var minM=Math.min.apply(null,sel.map(function(a){return a.margin;}));
@@ -8312,16 +8313,22 @@ function _ppDraw(){
   wrap.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:'+W+'px;margin:2px auto 0">'+ticks+axes+bars+'</svg>';
 }
 /* Write each sector's share of operating revenue into its selector-grid
-   row's .pp-grid-rev span. Pass a name→share-fraction map for the shown
-   sectors; unshown (or null map) rows fall back to an em dash. One decimal
-   so small sectors (e.g. Real Estate ~0.7%) don't round to a misleading 1%. */
-function _ppSetGridRev(revByName){
+   row's .pp-grid-rev span, and its chart position (1-based index of its bar,
+   left to right — the same number drawn above the bar) into the row's
+   .agg-grid-rank prefix. Pass name→share-fraction and name→position maps for
+   the shown sectors; unshown (or null map) rows fall back to an em dash and
+   a blank rank. Positions renumber over only the shown sectors, tracking the
+   chart. One decimal on shares so small sectors (e.g. Real Estate ~0.7%)
+   don't round to a misleading 1%. */
+function _ppSetGridRev(revByName,posByName){
   var grid=document.getElementById('pp-grid');if(!grid)return;
   grid.querySelectorAll('.agg-grid-item').forEach(function(lbl){
     var cb=lbl.querySelector('input[type="checkbox"]');
     var span=lbl.querySelector('.pp-grid-rev');
     if(!cb||!span)return;
     span.textContent=(revByName&&cb.value in revByName)?(revByName[cb.value]*100).toFixed(1)+'%':'—';
+    var rk=lbl.querySelector('.agg-grid-rank');
+    if(rk)rk.textContent=(posByName&&cb.value in posByName)?posByName[cb.value]+'.':'';
   });
 }
 function _ppChanged(){
