@@ -2043,8 +2043,8 @@ class _ModelWarningCounter(logging.Filter):
         return True
 
 
-def _main():
-    """Entry point: screen tickers, run DCF analysis, generate reports."""
+def _run_setup():
+    """CLI parsing, provenance recorder, and logging/warning configuration."""
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', '-i', help='Excel file with tickers in first column')
@@ -2089,7 +2089,13 @@ def _main():
     logging.captureWarnings(True)
     _model_warning_counter = _ModelWarningCounter()
     logging.getLogger('py.warnings').addFilter(_model_warning_counter)
+    return {'args': args, 'prices_dir': prices_dir,
+            'run_start_date': run_start_date, '_prov': _prov,
+            '_model_warning_counter': _model_warning_counter}
 
+
+def _run_macro_setup(args, prices_dir):
+    """Risk-free rate fetch plus the opt-in macro-economic overlay."""
     # Fetch live risk-free rate (10-yr Treasury yield)
     risk_free_rate = fetch_risk_free_rate()
     from data import treasury_rate as _treasury
@@ -2139,7 +2145,24 @@ def _main():
             commodity_data = mc_client.fetch_commodity_data()
         except Exception as e:
             print(f"  Macro overlay failed ({e}), proceeding with defaults.")
+    return {'risk_free_rate': risk_free_rate,
+            'risk_free_rate_source': risk_free_rate_source,
+            'macro_regime_result': macro_regime_result,
+            'macro_adj': macro_adj,
+            'effective_erp': effective_erp,
+            'effective_tg_adj': effective_tg_adj,
+            'effective_wacc_sigma': effective_wacc_sigma,
+            'effective_growth_sigma_mult': effective_growth_sigma_mult,
+            'effective_exit_mult_adj': effective_exit_mult_adj,
+            'effective_growth_weight_shift': effective_growth_weight_shift,
+            'sector_signals': sector_signals,
+            'commodity_data': commodity_data,
+            'sector_etf_data': sector_etf_data,
+            'local_rs': local_rs}
 
+
+def _run_build_universe(args):
+    """Assemble the ticker universe plus Morningstar P/FV and source-group maps."""
     ms_pfv_data = {}  # Morningstar Price/Fair Value ratios (if input file has them)
     ticker_source = {}  # ticker -> 'quality' | 'poor'
 
@@ -2210,7 +2233,12 @@ def _main():
         all_tickers = all_tickers + [t for t in val_tickers if t not in existing]
         print(f"Loaded {len(val_tickers)} validation tickers + {val_n_pfv} P/FV from {args.validation} "
               f"(combined universe: {len(all_tickers)} tickers, {len(ms_pfv_data)} total P/FV)")
+    return {'ms_pfv_data': ms_pfv_data, 'ticker_source': ticker_source,
+            'all_tickers': all_tickers}
 
+
+def _run_build_clients(run_start_date):
+    """Construct the Phase-1 data clients (yfinance, Tiingo, SEC EDGAR)."""
     yf_client = YFinanceClient(run_date=run_start_date)
 
     # Tiingo client initialized here so it's available for Phase 1 beta calculation
@@ -2231,7 +2259,14 @@ def _main():
         email='stockanalysis@example.com',
         request_delay=1.0,
     )
+    return {'yf_client': yf_client, 'tiingo_client': tiingo_client,
+            'sec_client': sec_client, 'sec_xbrl_client': sec_xbrl_client}
 
+
+def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
+                       tiingo_client, sec_xbrl_client, risk_free_rate,
+                       effective_erp):
+    """Phase 1: screen the full universe, caching fundamentals for Phase 2."""
     # -----------------------------------------------------------------------
     # Phase 1: Collect data for full universe (no ROIC > WACC pre-filter)
     # -----------------------------------------------------------------------
@@ -2480,7 +2515,14 @@ def _main():
             rate = o['passed'] / o['total'] if o['total'] > 0 else 0
             print(f"  {grp:>8}: {o['passed']}/{o['total']} passed ({rate:.0%})")
     print()
+    return {'qualifying': qualifying, 'screen_cache': screen_cache,
+            'screen_outcomes': screen_outcomes,
+            '_carry_prior_rows': _carry_prior_rows}
 
+
+def _run_sector_exit_multiples(qualifying, screen_cache,
+                               effective_exit_mult_adj):
+    """Pre-compute sector median EV/EBITDA exit multiples (macro-adjusted)."""
     # Pre-compute sector median EV/EBITDA for exit multiple cross-check
     _pre_sector_ee = {}
     for ticker in qualifying:
@@ -2503,7 +2545,12 @@ def _main():
         for s in sector_exit_multiples:
             sector_exit_multiples[s] = max(EXIT_MULT_MIN,
                 min(EXIT_MULT_MAX, sector_exit_multiples[s] + effective_exit_mult_adj))
+    return {'sector_exit_multiples': sector_exit_multiples,
+            'effective_exit_mult_default': effective_exit_mult_default}
 
+
+def _run_build_phase2_clients(sec_client, qualifying, screen_cache):
+    """Construct the Phase-2 clients (news, supply chain, insider, culture)."""
     # -----------------------------------------------------------------------
     # News pipeline: Tiingo (primary) + yfinance/Google RSS (fallback)
     # -----------------------------------------------------------------------
@@ -2543,7 +2590,23 @@ def _main():
 
     # Culture metrics client (no external API — derives signals from yfinance)
     culture_client = CultureClient()
+    return {'news_client': news_client, 'supply_client': supply_client,
+            'sec_supply_client': sec_supply_client,
+            'sec_insider_client': sec_insider_client,
+            'culture_client': culture_client}
 
+
+def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
+                         ticker_source, ms_pfv_data, _prov, yf_client,
+                         tiingo_client, news_client, sec_client,
+                         supply_client, sec_supply_client, sec_xbrl_client,
+                         sec_insider_client, culture_client,
+                         sector_exit_multiples, effective_exit_mult_default,
+                         effective_erp, effective_tg_adj,
+                         effective_wacc_sigma, effective_growth_sigma_mult,
+                         effective_growth_weight_shift, risk_free_rate,
+                         macro_regime_result, sector_signals):
+    """Phase 2: full per-ticker analysis of every qualifying ticker."""
     # -----------------------------------------------------------------------
     # Phase 2: Full analysis on qualifying tickers (Worksheet Steps 2-5)
     # -----------------------------------------------------------------------
@@ -3329,7 +3392,11 @@ def _main():
     screen_cache.clear()
     yf_client.evict_financials()
     gc.collect()
+    return results
 
+
+def _run_postprocess(results, ms_pfv_data, _carry_prior_rows):
+    """Sector comparisons, valuation blends, profit pools, scoring, sizing."""
     # -----------------------------------------------------------------------
     # Post-processing: sector-median EV/EBITDA comparison + DCF cross-check
     # -----------------------------------------------------------------------
@@ -3522,7 +3589,13 @@ def _main():
         print(f"\n  Portfolio concentration warning: {concentration['top_sector']} "
               f"= {concentration['top_sector_weight']:.0%} "
               f"(HHI={concentration['hhi']:.2f})")
+    return {'sector_median_ee': sector_median_ee,
+            'sector_median_opm': sector_median_opm}
 
+
+def _run_narratives(results, args, sector_etf_data, macro_regime_result,
+                    commodity_data, sector_median_ee, sector_median_opm):
+    """Peer percentiles, culture and stock narratives, and the final sort."""
     # -----------------------------------------------------------------------
     # Peer percentile ranking (sector-relative position for key metrics)
     # -----------------------------------------------------------------------
@@ -3796,6 +3869,9 @@ def _main():
 
     results.sort(key=lambda r: (r.get('_composite_score') or 0, r.get('spread') or 0), reverse=True)
 
+
+def _run_validation_stats(results, ms_pfv_data, args, screen_outcomes):
+    """Morningstar comparison statistics and validation-cohort stats."""
     # -----------------------------------------------------------------------
     # Morningstar comparison statistics
     # -----------------------------------------------------------------------
@@ -3854,6 +3930,11 @@ def _main():
     if args.validation:
         _print_validation_stats(results, screen_outcomes)
 
+
+def _write_outputs(results, run_start_date, _prov, risk_free_rate,
+                   risk_free_rate_source, macro_regime_result, macro_adj,
+                   local_rs, prices_dir):
+    """Write the JSON snapshot, provenance events, HTML and Excel reports."""
     os.makedirs("output", exist_ok=True)
     today_str = run_start_date.isoformat()  # pin to run-start so a midnight-spanning run stays single-dated
     _run_prov = _prov.run_block(results)
@@ -3934,6 +4015,10 @@ def _main():
     print(f"  Excel: {xlsx_filename}")
     print(f"  JSON: {json_filename}")
 
+
+def _run_quality_summary(risk_free_rate, risk_free_rate_source,
+                         _model_warning_counter):
+    """End-of-run quality gate: surface substituted/fabricated inputs."""
     # Run-quality gate: surface, in one place, every way this run's numbers
     # rest on substituted rather than observed inputs.
     _log = logging.getLogger('analyze_stock')
@@ -3949,6 +4034,89 @@ def _main():
             _model_warning_counter.fabricated)
     _log.info('Model warnings this run: %d total, %d about fabricated inputs',
               _model_warning_counter.total, _model_warning_counter.fabricated)
+
+
+def _main():
+    """Entry point: screen tickers, run DCF analysis, generate reports."""
+    setup = _run_setup()
+    args = setup['args']
+    prices_dir = setup['prices_dir']
+    run_start_date = setup['run_start_date']
+    _prov = setup['_prov']
+    _model_warning_counter = setup['_model_warning_counter']
+
+    macro = _run_macro_setup(args, prices_dir)
+    risk_free_rate = macro['risk_free_rate']
+    risk_free_rate_source = macro['risk_free_rate_source']
+    macro_regime_result = macro['macro_regime_result']
+    macro_adj = macro['macro_adj']
+    effective_erp = macro['effective_erp']
+    effective_tg_adj = macro['effective_tg_adj']
+    effective_wacc_sigma = macro['effective_wacc_sigma']
+    effective_growth_sigma_mult = macro['effective_growth_sigma_mult']
+    effective_exit_mult_adj = macro['effective_exit_mult_adj']
+    effective_growth_weight_shift = macro['effective_growth_weight_shift']
+    sector_signals = macro['sector_signals']
+    commodity_data = macro['commodity_data']
+    sector_etf_data = macro['sector_etf_data']
+    local_rs = macro['local_rs']
+
+    universe = _run_build_universe(args)
+    ms_pfv_data = universe['ms_pfv_data']
+    ticker_source = universe['ticker_source']
+    all_tickers = universe['all_tickers']
+
+    clients = _run_build_clients(run_start_date)
+    yf_client = clients['yf_client']
+    tiingo_client = clients['tiingo_client']
+    sec_client = clients['sec_client']
+    sec_xbrl_client = clients['sec_xbrl_client']
+
+    phase1 = _run_phase1_screen(args, _prov, all_tickers, ticker_source,
+                                yf_client, tiingo_client, sec_xbrl_client,
+                                risk_free_rate, effective_erp)
+    qualifying = phase1['qualifying']
+    screen_cache = phase1['screen_cache']
+    screen_outcomes = phase1['screen_outcomes']
+    _carry_prior_rows = phase1['_carry_prior_rows']
+
+    exit_mults = _run_sector_exit_multiples(qualifying, screen_cache,
+                                            effective_exit_mult_adj)
+    sector_exit_multiples = exit_mults['sector_exit_multiples']
+    effective_exit_mult_default = exit_mults['effective_exit_mult_default']
+
+    phase2_clients = _run_build_phase2_clients(sec_client, qualifying,
+                                               screen_cache)
+    news_client = phase2_clients['news_client']
+    supply_client = phase2_clients['supply_client']
+    sec_supply_client = phase2_clients['sec_supply_client']
+    sec_insider_client = phase2_clients['sec_insider_client']
+    culture_client = phase2_clients['culture_client']
+
+    results = _run_phase2_analysis(
+        qualifying, screen_cache, prices_dir, ticker_source, ms_pfv_data,
+        _prov, yf_client, tiingo_client, news_client, sec_client,
+        supply_client, sec_supply_client, sec_xbrl_client, sec_insider_client,
+        culture_client, sector_exit_multiples, effective_exit_mult_default,
+        effective_erp, effective_tg_adj, effective_wacc_sigma,
+        effective_growth_sigma_mult, effective_growth_weight_shift,
+        risk_free_rate, macro_regime_result, sector_signals)
+
+    post = _run_postprocess(results, ms_pfv_data, _carry_prior_rows)
+    sector_median_ee = post['sector_median_ee']
+    sector_median_opm = post['sector_median_opm']
+
+    _run_narratives(results, args, sector_etf_data, macro_regime_result,
+                    commodity_data, sector_median_ee, sector_median_opm)
+
+    _run_validation_stats(results, ms_pfv_data, args, screen_outcomes)
+
+    _write_outputs(results, run_start_date, _prov, risk_free_rate,
+                   risk_free_rate_source, macro_regime_result, macro_adj,
+                   local_rs, prices_dir)
+
+    _run_quality_summary(risk_free_rate, risk_free_rate_source,
+                         _model_warning_counter)
 
 
 if __name__ == "__main__":
