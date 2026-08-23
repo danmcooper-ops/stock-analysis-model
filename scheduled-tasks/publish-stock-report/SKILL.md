@@ -11,8 +11,8 @@ This routine assumes `output/stock_analysis_results_YYYY-MM-DD.html` already exi
 Use the **run-START date** of the analysis, not `$(date)` — if the 3–6 h analysis crossed midnight, `$(date)` is wrong. Determine RUNDATE from the newest `output/stock_analysis_results_*.html` and substitute it literally in the commands below.
 
 ## Paths
-- **Main repo:** `/Users/danmcooper/Desktop/Workspace Folder`
-- **Pages worktree:** `/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live` (branch `pages-live`)
+- **Main repo:** `$HOME/Desktop/Workspace Folder`
+- **Pages worktree:** `$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live` (branch `pages-live`)
 - **GitHub Pages URL:** https://danmcooper-ops.github.io/stock-analysis-model/
 
 If the worktree is missing, recreate it: `git worktree add .claude/worktrees/pages-live pages-live`
@@ -24,26 +24,30 @@ Each command is a **separate** Bash call (single line each). This is required fo
 
 ### 1. Verify the run's HTML exists
 ```
-ls -la "/Users/danmcooper/Desktop/Workspace Folder/output/stock_analysis_results_RUNDATE.html"
+ls -la "$HOME/Desktop/Workspace Folder/output/stock_analysis_results_RUNDATE.html"
 ```
 If the file is missing, stop and report — there's nothing to publish. Do not proceed.
 
-### 2. Copy the six artifacts into the Pages worktree
-The HTML lazy-loads `prices_meta.json`, `hist.json`, `details.json`, and the per-ticker shards in `vol/` and `px/` from its own directory at runtime, so **all six artifacts must be published together**. (The dense `prices.json` is retired — per-ticker `px/` shards + the small `prices_meta.json` replaced it on 2026-08-11; if a `docs/prices.json` is still present, delete it as part of the publish.) Run each as a **separate** Bash call:
+### 2. Copy the seven artifacts into the Pages worktree
+The HTML lazy-loads `prices_meta.json`, `hist.json`, `details.json`, `macro.json`, and the per-ticker shards in `vol/` and `px/` from its own directory at runtime, so **all seven artifacts must be published together**. (The dense `prices.json` is retired — per-ticker `px/` shards + the small `prices_meta.json` replaced it on 2026-08-11; if a `docs/prices.json` is still present, delete it as part of the publish.) Run each as a **separate** Bash call:
 ```
-cp "output/stock_analysis_results_RUNDATE.html" "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/index.html"
-```
-```
-cp "/Users/danmcooper/Desktop/Workspace Folder/output/prices_meta.json" "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/prices_meta.json"
+cp "output/stock_analysis_results_RUNDATE.html" "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/index.html"
 ```
 ```
-cp "/Users/danmcooper/Desktop/Workspace Folder/output/hist.json" "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/hist.json"
+cp "$HOME/Desktop/Workspace Folder/output/prices_meta.json" "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/prices_meta.json"
 ```
 ```
-cp "/Users/danmcooper/Desktop/Workspace Folder/output/details.json" "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/details.json"
+cp "$HOME/Desktop/Workspace Folder/output/hist.json" "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/hist.json"
 ```
 ```
-PYTHON="/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "/Users/danmcooper/Desktop/Workspace Folder"; "$PYTHON" scripts/publish_vol_shards.py
+cp "$HOME/Desktop/Workspace Folder/output/details.json" "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/details.json"
+```
+```
+cp "$HOME/Desktop/Workspace Folder/output/macro.json" "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/macro.json"
+```
+`macro.json` backs the Macro Outlook tab. Unlike the other sidecars it is **optional**: the run omits it when FRED is unreachable, and the HTML then renders with no Macro Outlook tab at all (`_MACRO_AVAILABLE=false`), so a missing file is a valid state rather than a failure. If `output/macro.json` does not exist, skip this copy AND delete any stale `docs/macro.json` — publishing yesterday's macro data under today's HTML is the one outcome to avoid. When the file does exist the copy must not be skipped: the HTML advertises the tab, and without the sidecar the tab opens to "Macro history failed to load".
+```
+PYTHON="$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Desktop/Workspace Folder"; "$PYTHON" scripts/publish_vol_shards.py
 ```
 (The HTML cp source is relative — run from the main repo root. The sidecar paths are absolute so they work from any cwd. `publish_vol_shards.py` syncs **both** shard directories — `vol/` from the `vol` manifest and `px/` from the `manifest` key of `prices_meta.json`.)
 
@@ -59,13 +63,13 @@ If any sidecar is missing, the `cp` will fail; if a manifested shard is missing,
 
 ### 3. Amend the single commit and force-push
 ```
-git -C "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live" add -A
+git -C "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live" add -A
 ```
 ```
-git -C "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live" commit --amend -m "Pages: RUNDATE"
+git -C "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live" commit --amend -m "Pages: RUNDATE"
 ```
 ```
-git -C "/Users/danmcooper/Desktop/Workspace Folder/.claude/worktrees/pages-live" push --force origin pages-live
+git -C "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live" push --force origin pages-live
 ```
 `git add -A` is safe against iCloud junk because the `pages-live` worktree carries a `.gitignore` with `docs/vol/* *.json` — no real ticker symbol contains a space, so this ignores every conflict copy while leaving genuine shards tracked. This is deliberate belt-and-braces: the shards regenerate continuously, including in the window between the manifest copy and the `add`. If that `.gitignore` ever goes missing, recreate it before staging, and sanity-check with `git status --porcelain | wc -l` — a publish should stage roughly the shard delta plus four files, never ~2,000 extra.
 
@@ -83,7 +87,7 @@ curl -sS -o /dev/null -w "%{http_code}" -L "https://danmcooper-ops.github.io/sto
 Expect `200`. A `404` previously meant Pages had been disabled repo-side; the workflow's `enablement: true` re-enables it automatically, so retry once after a minute before reporting failure.
 
 ## Success criteria
-- All six artifacts copied and committed to `pages-live` (single amended commit) — `index.html`, the three sidecars (`prices_meta.json`, `hist.json`, `details.json`), **and both shard directories (`vol/`, `px/`)**
+- All seven artifacts copied and committed to `pages-live` (single amended commit) — `index.html`, the three required sidecars (`prices_meta.json`, `hist.json`, `details.json`), `macro.json` when the run produced one (see Step 2), **and both shard directories (`vol/`, `px/`)**
 - `scripts/publish_vol_shards.py` exited 0 (`docs/vol` and `docs/px` each match their `prices_meta.json` manifest exactly). Do **not** substitute a raw `ls output/vol | wc -l` comparison — those directories contain iCloud conflict copies and will not match by design
 - Force-push succeeded and the deploy workflow completed green
 - Live URL returns HTTP 200

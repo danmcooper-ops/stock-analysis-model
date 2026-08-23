@@ -131,7 +131,7 @@ def main():
         sys.exit(1)
     in_path = sys.argv[1]
     out_path = sys.argv[2] if len(sys.argv) > 2 else in_path
-    with open(in_path) as f:
+    with open(in_path, encoding="utf-8") as f:
         d = json.load(f)
     recs = _records(d)
     if recs is None:
@@ -145,7 +145,7 @@ def main():
         print("\n  Top pipelines:")
         for r in sample[:10]:
             print(f"    {r['ticker']:6}  {r.get('fda_pipeline_count'):>5}  {r.get('company_name')}")
-    with open(out_path, "w") as f:
+    with open(out_path, "w", encoding="utf-8") as f:
         json.dump(d, f)
     print(f"\n  Wrote {out_path}")
     run_date = (d.get("date") if isinstance(d, dict) else None) or \

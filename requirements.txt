@@ -1,7 +1,16 @@
-yfinance
-pandas
-openpyxl
-pytest
-jinja2
-lxml
-pyarrow
+# Runtime dependencies. Kept in sync with [project.dependencies] in
+# pyproject.toml — edit both together. Dev tools (pytest, ruff) live in
+# pyproject's [project.optional-dependencies] dev; install everything with:
+#   pip install -e ".[dev]"
+yfinance~=1.6
+pandas~=3.0
+numpy~=2.4
+requests~=2.33
+scipy~=1.17
+curl_cffi~=0.16
+certifi>=2025.1.1
+nltk~=3.10
+jinja2~=3.1
+lxml~=6.1
+pyarrow~=25.0
+openpyxl~=3.1

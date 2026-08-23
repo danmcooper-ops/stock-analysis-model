@@ -8,17 +8,22 @@ contact email (SEC requirement). Uses only stdlib (urllib + json).
 """
 
 import json
+import logging
 import ssl
-import time
 import urllib.request
 from datetime import datetime, timedelta
+
+from data.throttle import Throttle
+
+logger = logging.getLogger(__name__)
 
 def _ssl_context():
     """Return an SSL context using certifi certs if available, else system certs."""
     try:
         import certifi
         return ssl.create_default_context(cafile=certifi.where())
-    except Exception:
+    except Exception as e:
+        logger.debug(f"SEC legal: certifi unavailable, using system trust store: {e}")
         # Fall back to the system trust store — NEVER disable verification:
         # unverified TLS would let a MITM feed fabricated financial data
         # into the pipeline silently.
@@ -35,17 +40,10 @@ class SECLegalClient:
 
     def __init__(self, email='stockanalysis@example.com', request_delay=1.0):
         self._ua = f'StockAnalyzer/1.0 ({email})'
-        self._delay = request_delay
-        self._last_req = 0
+        self._throttle = Throttle(request_delay)
         self._cache = {}           # ticker -> result dict
         self._cik_map = None       # ticker -> zero-padded CIK string
         self._name_map = None      # ticker -> company name (from SEC)
-
-    def _throttle(self):
-        elapsed = time.time() - self._last_req
-        if elapsed < self._delay:
-            time.sleep(self._delay - elapsed)
-        self._last_req = time.time()
 
     def _request(self, url, timeout=15):
         """Make a GET request with User-Agent header. Returns parsed JSON or None."""
@@ -54,7 +52,8 @@ class SECLegalClient:
             req = urllib.request.Request(url, headers={'User-Agent': self._ua})
             with urllib.request.urlopen(req, context=_SSL_CTX, timeout=timeout) as resp:
                 return json.loads(resp.read())
-        except Exception:
+        except Exception as e:
+            logger.warning(f"SEC legal: request failed for {url}: {e}")
             return None
 
     # ------------------------------------------------------------------
@@ -78,7 +77,7 @@ class SECLegalClient:
             name_map[ticker] = entry.get('title', '')
         self._cik_map = cik_map
         self._name_map = name_map
-        print(f'SEC EDGAR: loaded CIK map ({len(cik_map)} tickers)')
+        logger.info(f'SEC EDGAR: loaded CIK map ({len(cik_map)} tickers)')
 
     def get_cik(self, ticker):
         """Return zero-padded CIK for a ticker, or None."""

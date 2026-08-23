@@ -1,10 +1,7 @@
 # tests/test_enrich_fixes.py
 """Guards for the 2026-07 enrichment audit fixes: net-cash must never
 fabricate zero debt, and the FDIC NPL ratio must not treat 0 as missing."""
-import sys
-import os
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import pytest
 

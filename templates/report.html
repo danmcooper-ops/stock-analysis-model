@@ -1137,6 +1137,12 @@ td.ct{font-weight:700;}
 .pool-stat-value.muted{color:#7f8c9a;font-weight:600;}
 .pool-stat-value .pool-stat-sub{font-size:0.68em;font-weight:600;color:#cbd5e1;margin-left:6px;}
 .pool-stat-value .pool-stat-tk{font-weight:800;letter-spacing:0.02em;font-size:1.0em;}
+/* Clickable ticker mentions — anywhere a ticker is listed it opens the
+   company popup. Underline matches the main-table ticker affordance. */
+.tk-link{cursor:pointer;font-weight:700;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.35);text-underline-offset:2px;}
+.tk-link:hover{color:var(--accent);}
+[data-theme="dark"] .tk-link{text-decoration-color:rgba(88,166,255,0.4);}
+[data-theme="dark"] .tk-link:hover{color:#58a6ff;}
 .pool-stat-caption{font-size:0.66em;color:#7f8c9a;line-height:1.25;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pool-stat-tint{position:absolute;left:0;top:0;bottom:0;width:4px;}
 [data-theme="dark"] .pool-stat-banner{background:#010409;border-bottom-color:#30363d;}
@@ -1241,6 +1247,10 @@ td.ct{font-weight:700;}
 .agg-grid-item{display:flex;align-items:center;gap:8px;padding:5px 8px;font-size:0.84em;cursor:pointer;border-radius:4px;color:#37474f;line-height:1.2;user-select:none;transition:background 0.1s;}
 .agg-grid-item:hover{background:#fff;}
 .agg-grid-item input{margin:0;cursor:pointer;flex-shrink:0;accent-color:#7030a0;}
+/* Rank prefix on the sector-price Compare-sectors grid — fixed width so
+   checkboxes stay column-aligned whether the rank is "1." or blank. */
+.agg-grid-rank{width:18px;flex-shrink:0;text-align:right;font-size:0.78em;font-weight:600;color:#7f8c9a;font-variant-numeric:tabular-nums;}
+[data-theme="dark"] .agg-grid-rank{color:#8b949e;}
 .agg-grid-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
 .agg-grid-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .agg-grid-ret{margin-left:auto;font-size:0.78em;font-weight:600;font-variant-numeric:tabular-nums;flex-shrink:0;}
@@ -1849,6 +1859,52 @@ td.ct{font-weight:700;}
    every scroll position. _syncWideTable reads the computed padding, so its
    min-width math follows automatically. */
 body.wide-table .container{padding-left:0;padding-right:0;}
+/* === MACRO OUTLOOK === */
+#macro-view{max-width:1180px;margin:0 auto;padding:4px 6px 40px;}
+.mac-subtabs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 14px;}
+.mac-subtab{border:1px solid #d5dce3;background:#fff;color:#4a5a68;border-radius:14px;padding:4px 12px;font-size:0.82em;font-weight:600;cursor:pointer;}
+.mac-subtab.active{background:#2874c6;border-color:#2874c6;color:#fff;}
+.mac-regime{border:1px solid #d5dce3;border-radius:8px;padding:10px 14px;margin:10px 0 14px;background:#f8fafc;font-size:0.9em;}
+.mac-regime-chips{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;}
+.mac-chip{display:inline-block;border-radius:10px;padding:2px 8px;font-size:0.78em;background:#eef2f7;color:#4a5a68;font-variant-numeric:tabular-nums;}
+.mac-note{color:#888;padding:20px;text-align:center;font-size:0.88em;}
+.mac-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin:8px 0 16px;}
+.mac-tile{border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;background:#fff;}
+.mac-tile-l{font-size:0.78em;font-weight:600;color:#64748b;}
+.mac-tile-v{font-size:1.5em;font-weight:700;font-variant-numeric:tabular-nums;margin:2px 0;}
+.mac-delta{display:inline-block;border-radius:9px;padding:1px 7px;font-size:0.75em;font-weight:600;font-variant-numeric:tabular-nums;background:#eef2f7;color:#556575;margin-right:5px;}
+.mac-delta.up{background:#e7f5ec;color:#1a9850;}
+.mac-delta.down{background:#fdecea;color:#de2d26;}
+.mac-pct-row{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:0.72em;color:#94a3b8;}
+.mac-pct-track{position:relative;flex:1;height:5px;border-radius:3px;background:#e8edf2;}
+.mac-pct-mark{position:absolute;top:-2.5px;width:3px;height:10px;border-radius:2px;background:#2874c6;}
+.mac-tile-date{font-size:0.7em;color:#94a3b8;margin-top:5px;}
+.mac-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:14px;}
+@media(max-width:560px){.mac-cards{grid-template-columns:1fr;}}
+.mac-card{border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;background:#fff;}
+.mac-card-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px;}
+.mac-card-head .mac-tile-v{font-size:1.25em;margin:0;}
+.mac-card-title{font-size:0.9em;font-weight:700;}
+.mac-band{fill:rgba(100,116,139,0.13);}
+.mac-sec-note{font-size:0.72em;color:#94a3b8;margin:2px 0 10px;}
+.mac-oas-tbl{border-collapse:collapse;font-size:0.85em;margin:6px 0;}
+.mac-oas-tbl th,.mac-oas-tbl td{border:1px solid #e2e8f0;padding:4px 10px;text-align:right;font-variant-numeric:tabular-nums;}
+.mac-oas-tbl th:first-child,.mac-oas-tbl td:first-child{text-align:left;}
+[data-theme="dark"] .mac-tile,[data-theme="dark"] .mac-card,[data-theme="dark"] .mac-subtab{background:#161b22;border-color:#30363d;}
+[data-theme="dark"] .mac-subtab.active{background:#2874c6;border-color:#2874c6;}
+[data-theme="dark"] .mac-regime{background:#161b22;border-color:#30363d;}
+[data-theme="dark"] .mac-chip{background:#21262d;}
+[data-theme="dark"] .mac-delta{background:#21262d;}
+[data-theme="dark"] .mac-delta.up{background:#0f2418;color:#7ee787 !important;}
+[data-theme="dark"] .mac-delta.down{background:#2a1418;color:#ff7b72 !important;}
+[data-theme="dark"] .mac-pct-track{background:#30363d;}
+[data-theme="dark"] .mac-oas-tbl th,[data-theme="dark"] .mac-oas-tbl td{border-color:#30363d;}
+[data-theme="dark"] .mac-band{fill:rgba(139,148,158,0.16);}
+/* Macro SVG charts — dark mode overrides for hardcoded fills/strokes */
+[data-theme="dark"] #macro-view svg text[fill="#9aaab8"]{fill:#8b949e;}
+[data-theme="dark"] #macro-view svg text[fill="#64748b"]{fill:#c9d1d9;}
+[data-theme="dark"] #macro-view svg line[stroke="#e8edf2"]{stroke:#30363d;}
+[data-theme="dark"] #macro-view svg line[stroke="#cbd5e1"]{stroke:#484f58;}
 </style>
 </head>
 <body>
@@ -1995,6 +2051,9 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   <div id="view-table" class="view">
     <div class="table-wrap"><table class="dt" id="dtbl"><thead id="dt-h"></thead><tbody id="dt-b"></tbody></table></div>
     <div id="ph-view" style="display:none"></div>
+  </div>
+  <div id="view-macro" class="view">
+    <div id="macro-view"></div>
   </div>
 </div>
 <!-- Shared hover tooltip. Lives outside the .view containers because the World
@@ -2232,6 +2291,14 @@ var _PRICES_AVAILABLE={{ prices_available }};
 var _HIST_AVAILABLE={{ hist_available }};
 var _PRICES_LOADING=false;
 var _HIST_LOADING=false;
+/* Macro Outlook: a small inline summary (regime + headline tiles) paints the
+   tab instantly; full histories lazy-load from macro.json on first open.
+   |default guards run-code skew: a render by an older report_html.py must
+   degrade to "no macro tab", not a page-killing syntax error. */
+var _MACRO_AVAILABLE={{ macro_available|default('false') }};
+var MACRO_SUM={{ macro_summary|default('null') }};
+var MACRO=null,_MACRO_LOADING=false,_MACRO_FAILED=false;
+var curMacSub='overview';
 /* Daily volume is sharded one file per ticker (vol/<TICKER>.json) rather than
    sharing the PRICES matrix — the popup only ever needs the one company it has
    open, so it fetches ~30 KB instead of the ~53 MB a second dense matrix would
@@ -2653,6 +2720,7 @@ function _stateToParam(){
   if(curView!=='pool')p.v=curView;
   if(curView==='matrix'&&curMSub&&curMSub!=='matrix')p.ms=curMSub;
   if(curView==='table'&&curTSub!=='prices')p.ts=curTSub;
+  if(curView==='macro'&&curMacSub!=='overview')p.mo=curMacSub;
   return p;
 }
 function _syncHashNow(){
@@ -2681,7 +2749,11 @@ function _restoreFromHash(){
     /* View first, so _applyFilterState's renderCur lands on the right tab. */
     if(p.ms)curMSub=p.ms;
     if(p.ts)curTSub=p.ts;
-    if(p.v&&document.getElementById('view-'+p.v))showView(p.v);
+    if(p.mo)curMacSub=p.mo;
+    /* A macro deep-link on a snapshot without macro data falls back to the
+       default view — the container div exists but there is nothing to show. */
+    if(p.v==='macro'&&!_MACRO_AVAILABLE){}
+    else if(p.v&&document.getElementById('view-'+p.v))showView(p.v);
     var st={search:p.q||'',ratings:p.r,sectors:p.s,countries:p.c,
             flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,r2000Only:!!p.r2,revFilter:p.rv|0,rcFilter:p.rc|0,
             dashFilter:(p.df&&typeof p.df==='object'&&typeof p.df.type==='string')?p.df:null};
@@ -3901,7 +3973,7 @@ var TC={
      cash), then liquidity and its working-capital drivers, earnings quality,
      the composite distress/manipulation scores (Altman Z, Beneish M), and the
      bank-specific ratios (CET1, NPL) at the end. */
-  hlth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gh'},{k:'nd_ebitda',l:'ND/EBITDA',f:'n2',g:'gh'},{k:'net_cash_to_mcap',l:'Net Cash/Mcap',f:'pct',g:'gh'},{k:'cr',l:'Curr R',f:'n2',g:'gh'},{k:'inventory_days',l:'Inv Days',f:'n1',g:'gh'},{k:'working_capital_days',l:'Work Cap Days',f:'n1',g:'gh'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gh'},{k:'accruals',l:'Accruals',f:'n3',g:'gh'},{k:'altman_z',l:'Altman Z',f:'n2',g:'gh'},{k:'beneish_m',l:'Beneish M',f:'n2',g:'gh'},{k:'trap_score',l:'Trap',f:'trap'},{k:'cet1_ratio',l:'CET1',f:'pct',g:'gh'},{k:'npl_ratio',l:'NPL Ratio',f:'pct',g:'gh'}],
+  hlth:[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'int_cov',l:'Int Cov',f:'n1',g:'gh'},{k:'nd_ebitda',l:'ND/EBITDA',f:'n2',g:'gh'},{k:'altman_z',l:'Altman Z',f:'n2',g:'gh'},{k:'net_cash_to_mcap',l:'Net Cash/Mcap',f:'pct',g:'gh'},{k:'cr',l:'Curr R',f:'n2',g:'gh'},{k:'inventory_days',l:'Inv Days',f:'n1',g:'gh'},{k:'working_capital_days',l:'Work Cap Days',f:'n1',g:'gh'},{k:'cash_conv',l:'CashConv',f:'n2',g:'gh'},{k:'accruals',l:'Accruals',f:'n3',g:'gh'},{k:'beneish_m',l:'Beneish M',f:'n2',g:'gh'},{k:'trap_score',l:'Trap',f:'trap'},{k:'cet1_ratio',l:'CET1',f:'pct',g:'gh'},{k:'npl_ratio',l:'NPL Ratio',f:'pct',g:'gh'}],
   /* Growth — the growth engine first (reinvestment rate, fundamental growth,
      margin trend), then the historical revenue CAGR ladder (3/5/10Y) and FCF
      growth, capex/reinvestment intensity, and the sector-specific growth
@@ -5245,11 +5317,10 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
    flash before the real action (sort / open popup) executes. The popup-tip
    system inside the detail modal has its own tap-to-pin path and is unaffected. */
 var _isTouchDevice=window.matchMedia&&window.matchMedia('(hover: none)').matches;
-document.addEventListener('mouseover',function(e){
-  if(_isTouchDevice)return;
-  var th=e.target.closest('th[data-col-tip]');
-  if(!th)return;
-  clearTimeout(_ctTimer);
+/* Column-header tip content \u2014 shared by the desktop hover path and the touch
+   tap path below. Resolves the body from TT, the generic score/gate
+   fallbacks, or the inline data-col-tip-body (Sector Heatmap headers). */
+function _colTipContent(th){
   var key=th.getAttribute('data-col-tip');
   var label=th.getAttribute('data-col-label')||key;
   var threshold=th.getAttribute('data-col-threshold')||'';
@@ -5260,8 +5331,16 @@ document.addEventListener('mouseover',function(e){
   /* Inline body fallback \u2014 used by Sector Heatmap headers whose descriptions
      aren't in TT and are emitted via data-col-tip-body. */
   if(!body)body=th.getAttribute('data-col-tip-body')||'';
+  return{label:label,body:body,threshold:threshold};
+}
+document.addEventListener('mouseover',function(e){
+  if(_isTouchDevice)return;
+  var th=e.target.closest('th[data-col-tip]');
+  if(!th)return;
+  clearTimeout(_ctTimer);
+  var c=_colTipContent(th);
   var rect=th.getBoundingClientRect();
-  _ctTimer=setTimeout(function(){_showColTip(label,body,threshold,rect);},180);
+  _ctTimer=setTimeout(function(){_showColTip(c.label,c.body,c.threshold,rect);},180);
 },false);
 document.addEventListener('mouseout',function(e){
   if(_isTouchDevice)return;
@@ -5271,6 +5350,27 @@ document.addEventListener('mouseout',function(e){
   if(to&&th.contains(to))return;
   _hideColTip();
 },false);
+/* Touch devices (iPhone / iPad): tapping a column header both SORTS the
+   column and shows its tooltip for 5 seconds. The header's inline onclick
+   (mSort / tSort / _heatSort) fires during the same click's dispatch \u2014 this
+   listener neither preventDefaults nor stops propagation, so ranking is
+   unaffected. CAPTURE PHASE is load-bearing: the sort handler re-renders the
+   <thead> innerHTML, detaching the tapped th, and a detached element reports
+   an all-zero rect \u2014 a bubble-phase listener (which runs after the inline
+   onclick) anchored the tip to the viewport's top-left corner. Capturing
+   grabs the rect while the th is still attached; the post-sort re-render
+   keeps identical column geometry, so the anchor stays correct. #col-tip is
+   pointer-events:none, so the visible tip never swallows the next tap.
+   Tapping anywhere that isn't a column header dismisses the tip early. */
+var _CT_TAP_MS=5000;
+document.addEventListener('click',function(e){
+  if(!_isTouchDevice)return;
+  var th=e.target.closest('th[data-col-tip]');
+  if(!th){_hideColTip();return;}
+  var c=_colTipContent(th);
+  _showColTip(c.label,c.body,c.threshold,th.getBoundingClientRect());
+  _ctAutoTimer=setTimeout(_hideColTip,_CT_TAP_MS);
+},true);
 
 document.addEventListener('mouseover',function(e){
   if(_isTouchDevice)return;
@@ -6583,7 +6683,7 @@ function openDet(tk){
     var _hwRed=_hwNorm.filter(function(h){return h.sev==='red';});
     var _hwAmber=_hwNorm.filter(function(h){return h.sev!=='red'&&h.cat!=='thesis_risk';});
     var _hwThesis=_hwNorm.filter(function(h){return h.cat==='thesis_risk';});
-    function _hwLi(h,clr){return '<li style="color:#000;margin:4px 0"><span style="color:#37474f">'+esc(h.text)+'</span></li>';}
+    function _hwLi(h,clr){return '<li style="color:#000;margin:4px 0"><span style="color:#37474f">'+_linkifyTickers(esc(h.text))+'</span></li>';}
     var _hwHtml='';
     if(_hwRed.length){
       _hwHtml+='<ul style="margin:6px 0 0;padding-left:20px;list-style:disc">'+_hwRed.map(function(h){return _hwLi(h,'#c0392b');}).join('')+'</ul>';
@@ -6596,7 +6696,7 @@ function openDet(tk){
     }
     if(!_hwNorm.length) _hwHtml='<p style="margin:0;color:#999">None identified</p>';
     var sh='<div class="sig-wrap"><div class="sig-grid">';
-    sh+='<div class="sig-tw"><b>\u25b2 Tailwinds</b>'+(tw.length?'<ul>'+tw.map(function(t){return'<li>'+esc(typeof t==='string'?t:(t.text||''))+'</li>';}).join('')+'</ul>':'<p style="margin:0;color:#999">None identified</p>')+'</div>';
+    sh+='<div class="sig-tw"><b>\u25b2 Tailwinds</b>'+(tw.length?'<ul>'+tw.map(function(t){return'<li>'+_linkifyTickers(esc(typeof t==='string'?t:(t.text||'')))+'</li>';}).join('')+'</ul>':'<p style="margin:0;color:#999">None identified</p>')+'</div>';
     sh+='<div class="sig-hw"><b>\u25bc Headwinds</b>'+_hwHtml+'</div>';
     sh+='</div></div>';
     sigEl.innerHTML=sh;sigSec.style.display='';
@@ -6827,7 +6927,7 @@ function moveFilterBar(v){
      that they seed from FD, the filters drive it and have to be reachable
      from it. The count comes back with them — on Charts it reads as "the
      pool the five were picked from". */
-  var navOnly=(v==='pool');
+  var navOnly=(v==='pool'||v==='macro');
   fb.classList.toggle('nav-only',navOnly);
   /* The centred #f-count now sits outside .filter-bar, so it is out of reach
      of the bar's `.nav-only > *` rule. Mirror the flag onto .header to keep
@@ -6978,13 +7078,15 @@ function _navSectors(){
 function _navGroups(){
   var pool=[{k:'__performance__',l:'Charts'}];
   _navSectors().forEach(function(s){pool.push({k:s,l:s});});
-  return [
+  var groups=[
     {v:'pool',l:'Sector Analysis',cur:_poolTab||'__performance__',items:pool},
     {v:'matrix',l:'Financial Model',cur:curMSub||'matrix',
      items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Gate Matrix'}]},
     {v:'table',l:'Financial Data',cur:curTSub,
      items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})}
   ];
+  if(_MACRO_AVAILABLE)groups.push({v:'macro',l:'Macro Outlook',cur:curMacSub||'overview',items:MACRO_TABS});
+  return groups;
 }
 function renderNavMenu(){
   var cols=document.getElementById('nav-cols');
@@ -7032,6 +7134,10 @@ function navGo(v,k){
     if(k!=null)curMSub=k;
     if(curView!=='matrix')showView('matrix');
     else swMSub(curMSub||'matrix');
+  }else if(v==='macro'){
+    if(k!=null)curMacSub=k;
+    if(curView!=='macro')showView('macro');
+    else{renderMacro();_syncHash();renderNavMenu();}
   }else{
     if(k!=null)curTSub=k;
     if(curView!=='table')showView('table');
@@ -7070,10 +7176,300 @@ function renderCur(){
   if(curView==='matrix'){renderMSubs();var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view');if(curMSub==='dashboard'){if(mw)mw.style.display='none';if(ov)ov.style.display='';renderOverview();}else{if(mw)mw.style.display='';if(ov)ov.style.display='none';renderMatrix();}}
   else if(curView==='table'){renderTSubs();if(curTSub==='prices'){var tw=document.querySelector('.table-wrap'),phv=document.getElementById('ph-view');if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_phResync();}}else{renderTable();}}
   else if(curView==='pool')renderPool();
+  else if(curView==='macro')renderMacro();
+}
+
+/* === MACRO OUTLOOK === */
+/* Sub-tab list is static: sections whose series all failed to fetch simply
+   render a "no data" note, which is rarer and clearer than a shifting menu. */
+var MACRO_TABS=[
+  {k:'overview',l:'Overview'},
+  {k:'rates',l:'Rates & Curve'},
+  {k:'inflation',l:'Inflation'},
+  {k:'growth',l:'Growth & Labor'},
+  {k:'credit',l:'Credit & Conditions'},
+  {k:'housing',l:'Housing & Consumer'}
+];
+/* Formatting is macro-local rather than ftc(): the builder ships values
+   already scaled for display (WALCL in $T, ICSA in K), so codes here are
+   pure decimal-places + suffix. */
+function _mfmt(v,fmt,suffix){
+  if(v==null||isNaN(v))return 'N/A';
+  var s;
+  if(fmt==='pct1')s=v.toFixed(1)+'%';
+  else if(fmt==='pct2')s=v.toFixed(2)+'%';
+  else if(fmt==='n1')s=v.toFixed(1);
+  else if(fmt==='n2')s=v.toFixed(2);
+  else if(fmt==='int')s=Math.round(v).toLocaleString('en-US');
+  else s=String(v);
+  return s+(suffix||'');
+}
+function _mdelta(v,s,label){
+  if(v==null)return '';
+  var good=s.good||'none';
+  var cls=(good==='none'||v===0)?'':((v>0)===(good==='up')?' up':' down');
+  var txt=(v>0?'+':'')+_mfmt(v,s.fmt,s.suffix);
+  return '<span class="mac-delta'+cls+'" title="Change vs '+label+'">'+txt+' '+label+'</span>';
+}
+function _mpctRow(s){
+  if(s.pctile==null)return '';
+  var pc=Math.round(s.pctile*100);
+  return '<div class="mac-pct-row"><div class="mac-pct-track"><div class="mac-pct-mark" style="left:'+Math.min(98,pc)+'%"></div></div>'
+    +'<span>'+pc+'th pctile of '+(s.pct_win||'history')+'</span></div>';
+}
+function _mSparkSVG(vals){
+  if(!vals||vals.length<2)return '';
+  var W=120,H=30,mn=Infinity,mx=-Infinity;
+  for(var i=0;i<vals.length;i++){var v=vals[i];if(v==null)continue;if(v<mn)mn=v;if(v>mx)mx=v;}
+  if(mn===Infinity)return '';
+  var rg=(mx-mn)||1;
+  var pts=[];
+  for(var j=0;j<vals.length;j++){
+    if(vals[j]==null)continue;
+    pts.push((j/(vals.length-1)*W).toFixed(1)+','+(H-2-((vals[j]-mn)/rg)*(H-4)).toFixed(1));
+  }
+  return '<svg viewBox="0 0 '+W+' '+H+'" style="width:120px;height:30px;display:block;margin-top:4px">'
+    +'<polyline points="'+pts.join(' ')+'" fill="none" stroke="#2874c6" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+}
+function _loadMacro(){
+  _MACRO_LOADING=true;
+  _loadSidecar('macro.json',function(d){
+    _MACRO_LOADING=false;
+    if(d)MACRO=d;else _MACRO_FAILED=true;
+    if(curView==='macro')renderMacro();
+  });
+}
+function macroRetry(){_MACRO_FAILED=false;_loadMacro();renderMacro();return false;}
+function renderMacro(){
+  var el=document.getElementById('macro-view');
+  if(!el)return;
+  renderNavMenu();
+  if(!_MACRO_AVAILABLE){el.innerHTML='<p class="mac-note">Macro data was not built with this snapshot.</p>';return;}
+  if(!MACRO&&!_MACRO_LOADING&&!_MACRO_FAILED)_loadMacro();
+  var h='<div class="mac-subtabs">';
+  MACRO_TABS.forEach(function(t){
+    h+='<button class="mac-subtab'+(curMacSub===t.k?' active':'')+'" onclick="navGo(\'macro\',\''+t.k+'\')">'+t.l+'</button>';
+  });
+  h+='</div>';
+  h+=_macRegimeHTML();
+  if(curMacSub==='overview')h+=_macOverviewHTML();
+  else h+=_macSectionHTML(curMacSub);
+  el.innerHTML=h;
+}
+var _MAC_REGIME_STYLE={expansion:'#1a9850',mid_cycle:'#2e8b8b',neutral:'#64748b',late_cycle:'#e67e22',contraction:'#de2d26'};
+function _macRegimeHTML(){
+  var src=(MACRO&&MACRO.regime)||(MACRO_SUM&&MACRO_SUM.regime);
+  if(!src)return '';
+  var col=_MAC_REGIME_STYLE[src.regime]||'#64748b';
+  var name=String(src.regime||'').replace('_',' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
+  var h='<div class="mac-regime"><b>Market regime:</b> <span style="color:'+col+';font-weight:700">'+name+'</span>'
+    +' <span style="color:#94a3b8">· composite '+(src.composite_score>=0?'+':'')+(src.composite_score!=null?src.composite_score.toFixed(2):'?')+'</span>';
+  if(src.indicator_scores){
+    h+='<div class="mac-regime-chips">';
+    Object.keys(src.indicator_scores).forEach(function(k){
+      var v=src.indicator_scores[k];
+      h+='<span class="mac-chip">'+k.replace(/_/g,' ')+' '+(v>=0?'+':'')+(v!=null?v.toFixed(2):'?')+'</span>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+  return h;
+}
+function _macStatusNote(){
+  if(_MACRO_FAILED)return '<p class="mac-note">Macro history failed to load. <a href="#" style="color:#2874c6" onclick="return macroRetry()">Retry</a></p>';
+  return '<p class="mac-note">Loading macro history…</p>';
+}
+function _macOverviewHTML(){
+  var h='';
+  var tiles=(MACRO_SUM&&MACRO_SUM.tiles)||[];
+  if(tiles.length){
+    h+='<div class="mac-tiles">';
+    tiles.forEach(function(t){
+      h+='<div class="mac-tile"><div class="mac-tile-l">'+t.l+'</div>'
+        +'<div class="mac-tile-v">'+_mfmt(t.latest?t.latest.v:null,t.fmt,t.suffix)+'</div>'
+        +'<div>'+_mdelta(t.chg_1m,t,'1M')+'</div>'
+        +_mSparkSVG(t.spark)
+        +_mpctRow(t)
+        +'<div class="mac-tile-date">as of '+(t.latest?t.latest.d:'?')+'</div></div>';
+    });
+    h+='</div>';
+  }
+  if(!MACRO)return h+_macStatusNote();
+  if(MACRO.curve)h+=_macCurveCard();
+  if(MACRO.series&&MACRO.series.T10Y2Y)h+='<div class="mac-cards" style="margin-top:14px">'+_macCardHTML('T10Y2Y',MACRO.series.T10Y2Y)+'</div>';
+  return h;
+}
+function _macSectionHTML(k){
+  if(!MACRO)return _macStatusNote();
+  var sec=null;
+  (MACRO.sections||[]).forEach(function(s){if(s.k===k)sec=s;});
+  if(!sec||!sec.ids||!sec.ids.length)return '<p class="mac-note">No data available for this section.</p>';
+  var h='<div class="mac-sec-note">Latest FRED vintages as of '+(MACRO.as_of||'?')+' · shaded bands are NBER recessions</div>';
+  if(k==='rates'&&MACRO.curve)h+=_macCurveCard();
+  h+='<div class="mac-cards"'+(k==='rates'&&MACRO.curve?' style="margin-top:14px"':'')+'>';
+  sec.ids.forEach(function(id){
+    var s=(MACRO.series||{})[id];
+    if(s)h+=_macCardHTML(id,s);
+  });
+  h+='</div>';
+  if(k==='credit'&&MACRO.oas_buckets)h+=_macOASTable();
+  return h;
+}
+function _macCardHTML(id,s){
+  var h='<div class="mac-card"><div class="mac-card-head">'
+    +'<span class="mac-card-title">'+s.l+'</span>'
+    +'<span class="mac-tile-v">'+_mfmt(s.latest?s.latest.v:null,s.fmt,s.suffix)+'</span>'
+    +'<span>'+_mdelta(s.chg_1m,s,'1M')+_mdelta(s.chg_1y,s,'1Y')+'</span>'
+    +'</div>';
+  h+=_macChartSVG(s);
+  h+=_mpctRow(s);
+  h+='<div class="mac-tile-date">as of '+(s.latest?s.latest.d:'?')+(s.prior?' · prior '+_mfmt(s.prior.v,s.fmt,s.suffix):'')+'</div>';
+  h+='</div>';
+  return h;
+}
+/* Single-series time chart. Sibling of _renderPolylineSVG rather than a reuse:
+   that helper is welded to multi-series indexed-to-100 sector aggregates.
+   X is time-proportional (epoch ms) because daily histories arrive
+   downsampled to uneven spacing — index-proportional would warp the axis. */
+function _macChartSVG(s){
+  var d=(s.hist&&s.hist.d)||[],v=(s.hist&&s.hist.v)||[];
+  if(d.length<2)return '<p class="mac-note">Not enough history.</p>';
+  var VW=460,VH=170,PL=46,PR=10,PT=10,PB=22;
+  var iW=VW-PL-PR,iH=VH-PT-PB;
+  var xs=[],ys=[],mn=Infinity,mx=-Infinity;
+  for(var i=0;i<d.length;i++){
+    if(v[i]==null)continue;
+    xs.push(Date.parse(d[i]));ys.push(v[i]);
+    if(v[i]<mn)mn=v[i];if(v[i]>mx)mx=v[i];
+  }
+  if(xs.length<2)return '<p class="mac-note">Not enough history.</p>';
+  if(s.zero_line){if(mn>0)mn=0;if(mx<0)mx=0;}
+  if(s.threshold!=null){if(s.threshold<mn)mn=s.threshold;if(s.threshold>mx)mx=s.threshold;}
+  var pad=(mx-mn)*0.07||0.5;mn-=pad;mx+=pad;
+  var x0=xs[0],x1=xs[xs.length-1],xr=(x1-x0)||1,yr=(mx-mn)||1;
+  function X(t){return PL+((t-x0)/xr)*iW;}
+  function Y(val){return PT+iH-((val-mn)/yr)*iH;}
+  var g='';
+  /* Recession shading first, so grid + line draw over it. */
+  ((MACRO&&MACRO.recessions)||[]).forEach(function(b){
+    var bs=Date.parse(b[0]),be=Date.parse(b[1]);
+    if(be<x0||bs>x1)return;
+    var rx=X(Math.max(bs,x0)),rw=Math.max(1,X(Math.min(be,x1))-rx);
+    g+='<rect class="mac-band" x="'+rx.toFixed(1)+'" y="'+PT+'" width="'+rw.toFixed(1)+'" height="'+iH+'"/>';
+  });
+  for(var gi=0;gi<=4;gi++){
+    var gv=mn+(gi/4)*yr,gy=Y(gv).toFixed(1);
+    if(gi>0&&gi<4)g+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" stroke="#e8edf2" stroke-width="1"/>';
+    g+='<text x="'+(PL-6)+'" y="'+(parseFloat(gy)+3.5)+'" text-anchor="end" font-size="9.5" fill="#9aaab8">'+_mfmt(gv,s.fmt==='int'?'int':(s.fmt==='pct2'?'pct1':s.fmt),'')+'</text>';
+  }
+  if(s.zero_line&&0>=mn&&0<=mx)g+='<line x1="'+PL+'" y1="'+Y(0).toFixed(1)+'" x2="'+(VW-PR)+'" y2="'+Y(0).toFixed(1)+'" stroke="#cbd5e1" stroke-width="1.1" stroke-dasharray="4,3"/>';
+  if(s.threshold!=null)g+='<line x1="'+PL+'" y1="'+Y(s.threshold).toFixed(1)+'" x2="'+(VW-PR)+'" y2="'+Y(s.threshold).toFixed(1)+'" stroke="#de2d26" stroke-width="1" stroke-dasharray="4,3" opacity="0.7"/>';
+  var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var nX=5;
+  for(var xi=0;xi<nX;xi++){
+    var t=x0+(xi/(nX-1))*xr,dt=new Date(t);
+    g+='<text x="'+X(t).toFixed(1)+'" y="'+(PT+iH+14)+'" text-anchor="'+(xi===0?'start':(xi===nX-1?'end':'middle'))+'" font-size="9.5" fill="#9aaab8">'+mo[dt.getMonth()]+'\''+String(dt.getFullYear()).slice(2)+'</text>';
+  }
+  var pts=[];
+  for(var pi=0;pi<xs.length;pi++)pts.push(X(xs[pi]).toFixed(1)+','+Y(ys[pi]).toFixed(1));
+  g+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="#2874c6" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>';
+  var lx=X(xs[xs.length-1]),ly=Y(ys[ys.length-1]);
+  g+='<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="3" fill="#2874c6"/>';
+  return '<svg viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:auto">'+g+'</svg>';
+}
+function _macCurveCard(){
+  var c=MACRO.curve;
+  if(!c||!c.now)return '';
+  var VW=560,VH=200,PL=46,PR=12,PT=12,PB=24;
+  var iW=VW-PL-PR,iH=VH-PT-PB;
+  /* sqrt-scaled x, so the 1M–2Y front end doesn't collapse into a sliver. */
+  var sx=c.yrs.map(function(y){return Math.sqrt(y);});
+  var sxMax=sx[sx.length-1];
+  var mn=Infinity,mx=-Infinity;
+  ['now','m1','y1'].forEach(function(k){
+    if(!c[k])return;
+    c[k].v.forEach(function(v){if(v==null)return;if(v<mn)mn=v;if(v>mx)mx=v;});
+  });
+  if(mn===Infinity)return '';
+  var pad=(mx-mn)*0.1||0.3;mn-=pad;mx+=pad;
+  var yr=(mx-mn)||1;
+  function X(i){return PL+(sx[i]/sxMax)*iW;}
+  function Y(v){return PT+iH-((v-mn)/yr)*iH;}
+  var g='';
+  for(var gi=0;gi<=4;gi++){
+    var gv=mn+(gi/4)*yr,gy=Y(gv).toFixed(1);
+    if(gi>0&&gi<4)g+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" stroke="#e8edf2" stroke-width="1"/>';
+    g+='<text x="'+(PL-6)+'" y="'+(parseFloat(gy)+3.5)+'" text-anchor="end" font-size="9.5" fill="#9aaab8">'+gv.toFixed(1)+'%</text>';
+  }
+  c.tenors.forEach(function(t,i){
+    g+='<text x="'+X(i).toFixed(1)+'" y="'+(PT+iH+15)+'" text-anchor="middle" font-size="9" fill="#9aaab8">'+t+'</text>';
+  });
+  var styles={now:['#2874c6','',2],m1:['#e67e22','6,4',1.5],y1:['#8b949e','2,3',1.5]};
+  ['y1','m1','now'].forEach(function(k){
+    if(!c[k])return;
+    var pts=[];
+    c[k].v.forEach(function(v,i){if(v!=null)pts.push(X(i).toFixed(1)+','+Y(v).toFixed(1));});
+    if(pts.length<2)return;
+    var st=styles[k];
+    g+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+st[0]+'"'+(st[1]?' stroke-dasharray="'+st[1]+'"':'')+' stroke-width="'+st[2]+'" stroke-linejoin="round"/>';
+  });
+  var leg='<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:0.75em;color:#64748b;margin-top:4px">'
+    +'<span><span style="color:#2874c6;font-weight:700">—</span> Now'+(c.now.d?' ('+c.now.d+')':'')+'</span>'
+    +(c.m1?'<span><span style="color:#e67e22;font-weight:700">- -</span> 1 month ago</span>':'')
+    +(c.y1?'<span><span style="color:#8b949e;font-weight:700">···</span> 1 year ago</span>':'')
+    +'</div>';
+  return '<div class="mac-card"><div class="mac-card-head"><span class="mac-card-title">Treasury Yield Curve</span></div>'
+    +'<svg viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:auto;max-height:280px">'+g+'</svg>'+leg+'</div>';
+}
+var _MAC_OAS_ORDER=['AAA','AA','A','BBB','BB','B','CCC'];
+function _macOASTable(){
+  var ob=MACRO.oas_buckets;
+  if(!ob||!ob.now)return '';
+  var h='<div class="mac-card" style="margin-top:14px"><div class="mac-card-head"><span class="mac-card-title">Credit Spreads by Rating (ICE BofA OAS)</span></div>';
+  h+='<table class="mac-oas-tbl"><tr><th>Rating</th><th>OAS</th><th>1M ago</th><th>Δ</th></tr>';
+  _MAC_OAS_ORDER.forEach(function(b){
+    var now=ob.now[b],m1=(ob.m1||{})[b];
+    if(now==null)return;
+    var chg=(m1!=null)?now-m1:null;
+    var cls=chg==null?'':(chg<0?' class="mac-delta up" style="background:none"':(chg>0?' class="mac-delta down" style="background:none"':''));
+    h+='<tr><td>'+b+'</td><td>'+now.toFixed(2)+'%</td><td>'+(m1!=null?m1.toFixed(2)+'%':'N/A')+'</td>'
+      +'<td'+cls+'>'+(chg!=null?((chg>0?'+':'')+chg.toFixed(2)+'pp'):'N/A')+'</td></tr>';
+  });
+  h+='</table><div class="mac-sec-note">FRED caps ICE BofA spread history at a rolling ~3-year window.</div></div>';
+  return h;
 }
 
 /* === PROFIT POOL === */
 function _esc(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+/* === Clickable tickers === Anywhere a ticker is listed it should open the
+   company popup. tkLink() wraps a known ticker (present in DATA) in a
+   .tk-link span wired to openDet(); unknown strings render as plain escaped
+   text. _linkifyTickers() upgrades ticker MENTIONS inside narrative prose:
+   it takes an ALREADY-ESCAPED string and links word-boundary ALL-CAPS tokens
+   (2+ chars) that exist in the ticker universe, skipping a stoplist of
+   finance acronyms and capitalized words (ROIC, AI, IT, BUY, ...) that could
+   shadow real symbols — ordinary prose must never turn into a false link.
+   Single-letter tickers (F, T, V, ...) are deliberately excluded from prose
+   linking; structured call sites use tkLink() directly and are unaffected. */
+var _TK_SET=null;
+function _tkSetGet(){
+  if(!_TK_SET){_TK_SET={};DATA.forEach(function(d){if(d.ticker)_TK_SET[d.ticker]=1;});}
+  return _TK_SET;
+}
+function tkLink(tk){
+  var t=(tk==null?'':String(tk));
+  if(!t||!_tkSetGet()[t])return _esc(t);
+  var safe=t.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  return '<span class="tk-link" onclick="event.stopPropagation();openDet(\''+safe+'\')" title="Open '+_esc(t)+'">'+_esc(t)+'</span>';
+}
+var _TK_STOP={AI:1,IT:1,AT:1,ALL:1,AN:1,AS:1,AM:1,BE:1,BY:1,DO:1,GO:1,HE:1,IF:1,IN:1,IS:1,NO:1,OF:1,ON:1,OR:1,SO:1,TO:1,UP:1,US:1,WE:1,AND:1,ARE:1,FOR:1,NOT:1,NOW:1,NEW:1,ONE:1,TWO:1,TOP:1,BIG:1,LOW:1,CAN:1,HAS:1,THE:1,VS:1,CEO:1,CFO:1,GDP:1,USA:1,ETF:1,IPO:1,SEC:1,EPS:1,ROE:1,PE:1,PB:1,EV:1,FCF:1,DCF:1,EPV:1,RIM:1,DDM:1,NAV:1,MOS:1,HHI:1,CR4:1,WACC:1,ROIC:1,EBITDA:1,REIT:1,GAAP:1,XBRL:1,FDIC:1,CAGR:1,YOY:1,TTM:1,SBC:1,BUY:1,SELL:1,HOLD:1,LEAN:1,CAPEX:1,COGS:1,NOPAT:1,FX:1,CET1:1,NPL:1};
+function _linkifyTickers(escHtml){
+  var set=_tkSetGet();
+  return String(escHtml==null?'':escHtml).replace(/\b[A-Z][A-Z0-9.\-]{1,9}\b/g,function(m){
+    if(_TK_STOP[m]||!set[m])return m;
+    return tkLink(m);
+  });
+}
 function _pctStr(v,d){if(v==null)return '—';return (v*100).toFixed(d==null?1:d)+'%';}
 function _roleColor(role){
   return {leader:'#1a9850',runnerup:'#2e7d32',margin_leader:'#0277bd',
@@ -7083,8 +7479,8 @@ function renderPoolPrimer(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
   if(!n||(!n.education&&!n.education_cycle))return '';
   var parts=[];
-  if(n.education)parts.push(_esc(n.education));
-  if(n.education_cycle)parts.push(_esc(n.education_cycle));
+  if(n.education)parts.push(_linkifyTickers(_esc(n.education)));
+  if(n.education_cycle)parts.push(_linkifyTickers(_esc(n.education_cycle)));
   /* The "Key risks" block previously listed thesis_risk headwinds, which
      now live in the Sector Headwinds & Tailwinds section below — drop the
      duplicate so the Primer is a clean educational paragraph. */
@@ -7095,10 +7491,10 @@ function renderPoolDescription(sec){
   if(!n)return '';
   var out='';
   if(n.overview){
-    out+='<p style="margin:0 0 8px;font-size:0.82em;line-height:1.55;color:#37474f">'+_esc(n.overview)+'</p>';
+    out+='<p style="margin:0 0 8px;font-size:0.82em;line-height:1.55;color:#37474f">'+_linkifyTickers(_esc(n.overview))+'</p>';
   }
   if(n.concentration){
-    out+='<p style="margin:0;font-size:0.82em;line-height:1.55;color:#546e7a;font-style:italic">'+_esc(n.concentration)+'</p>';
+    out+='<p style="margin:0;font-size:0.82em;line-height:1.55;color:#546e7a;font-style:italic">'+_linkifyTickers(_esc(n.concentration))+'</p>';
   }
   return out;
 }
@@ -7122,7 +7518,7 @@ function renderPoolKeyPlayers(sec){
     if(chips.length){
       out+='<div style="font-size:0.72em;margin-bottom:5px;display:flex;gap:4px;flex-wrap:wrap">'+chips.join('')+'</div>';
     }
-    out+='<div style="color:#455a64">'+_esc(p.note)+'</div>';
+    out+='<div style="color:#455a64">'+_linkifyTickers(_esc(p.note))+'</div>';
     out+='</div>';
   });
   out+='</div>';
@@ -7144,7 +7540,7 @@ function renderPoolCR4Companies(sec){
     if(p.revenue_share!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">Rev '+(p.revenue_share*100).toFixed(0)+'%</span>');
     if(p.op_margin!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">OM '+(p.op_margin*100).toFixed(1)+'%</span>');
     if(chips.length)out+='<div style="font-size:0.72em;margin-bottom:5px;display:flex;gap:4px;flex-wrap:wrap">'+chips.join('')+'</div>';
-    if(p.note)out+='<div style="color:#455a64">'+_esc(p.note)+'</div>';
+    if(p.note)out+='<div style="color:#455a64">'+_linkifyTickers(_esc(p.note))+'</div>';
     out+='</div>';
   });
   out+='</div>';
@@ -7154,7 +7550,7 @@ function renderPoolInsights(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
   if(!n||!n.insights||!n.insights.length)return '';
   var out='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f">';
-  n.insights.forEach(function(s){out+='<li style="margin:4px 0">'+_esc(s)+'</li>';});
+  n.insights.forEach(function(s){out+='<li style="margin:4px 0">'+_linkifyTickers(_esc(s))+'</li>';});
   out+='</ul>';
   return out;
 }
@@ -7171,7 +7567,7 @@ function renderPoolSectorSignals(sec){
   function _list(items,kind){
     if(!items.length)return '<p style="margin:0;color:#94a3b8;font-size:0.82em;font-style:italic">No '+kind+' identified for this sector.</p>';
     var ul='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55">';
-    items.forEach(function(s){ul+='<li style="margin:5px 0">'+_esc(s)+'</li>';});
+    items.forEach(function(s){ul+='<li style="margin:5px 0">'+_linkifyTickers(_esc(s))+'</li>';});
     return ul+'</ul>';
   }
   var twHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#1a7a45">▲ Structural Tailwinds</div>'+_list(tw,'tailwinds')+'</div>';
@@ -7264,7 +7660,7 @@ function renderUniversePriceChart(){
     var col=_aggColor(s);
     var safe=_esc(s);
     var checked=_selectedAggs[s]?' checked':'';
-    return '<label class="agg-grid-item"><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span><span class="agg-grid-ret" title="Total price appreciation over the selected timeframe">—</span></label>';
+    return '<label class="agg-grid-item"><span class="agg-grid-rank" title="Rank by price appreciation over the selected timeframe"></span><input type="checkbox" value="'+safe+'"'+checked+' onchange="aggsChanged()"><span class="agg-grid-dot" style="background:'+col+'"></span><span class="agg-grid-name">'+safe+'</span><span class="agg-grid-ret" title="Total price appreciation over the selected timeframe">—</span></label>';
   }).join('');
   /* Range + benchmark controls live in the hamburger. The benchmark chip
      container ships empty and _sectorBenchBtns() fills it from PRICES.indices
@@ -7285,7 +7681,7 @@ function renderUniversePriceChart(){
     +'<div id="sector-price-legend" style="margin-top:8px"></div>'
     +'<div class="agg-grid-section">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'
-    +'<div class="agg-grid-title">Compare sectors</div>'
+    +'<div class="agg-grid-title">Compare sectors <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(ranked by price appreciation over the selected range)</span></div>'
     +'<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+helperBtns+'</div>'
     +'</div>'
     +'<div class="agg-grid" id="agg-grid">'+gridItems+'</div>'
@@ -7322,16 +7718,22 @@ function aggsClearAll(){
   _priceChartDraw();
 }
 /* Write each sector's total price appreciation into its Compare-sectors
-   grid row (.agg-grid-ret), colored green/red by sign. Pass a
-   name→appreciation-percent map for the plotted sectors; unselected or
-   no-data rows (or a null map) fall back to an em dash. */
+   grid row (.agg-grid-ret), colored green/red by sign, then RANK the grid:
+   plotted sectors sort best-to-worst by appreciation and get a 1./2./3.
+   prefix; unselected or no-data rows drop below them alphabetically with a
+   blank rank. Pass a name→appreciation-percent map for the plotted sectors
+   (or null to clear ranks back to the alphabetical order). Moving the
+   existing <label> nodes with appendChild preserves checkbox state and
+   avoids rebinding handlers. */
 function _aggSetGridRet(retByName){
   var grid=document.getElementById('agg-grid');if(!grid)return;
+  var rows=[];
   grid.querySelectorAll('.agg-grid-item').forEach(function(lbl){
     var cb=lbl.querySelector('input[type="checkbox"]');
     var span=lbl.querySelector('.agg-grid-ret');
     if(!cb||!span)return;
-    if(retByName&&cb.value in retByName){
+    var has=!!(retByName&&cb.value in retByName);
+    if(has){
       var r=retByName[cb.value];
       span.textContent=(r>=0?'+':'')+r.toFixed(1)+'%';
       /* setAttribute, not style.color=: the dark-mode override matches on
@@ -7342,6 +7744,19 @@ function _aggSetGridRet(retByName){
       span.textContent='—';
       span.style.color='';
     }
+    rows.push({lbl:lbl,name:cb.value,ret:has?retByName[cb.value]:null});
+  });
+  rows.sort(function(a,b){
+    if(a.ret==null&&b.ret==null)return a.name.localeCompare(b.name);
+    if(a.ret==null)return 1;
+    if(b.ret==null)return -1;
+    return b.ret-a.ret;
+  });
+  var rank=0;
+  rows.forEach(function(row){
+    var rk=row.lbl.querySelector('.agg-grid-rank');
+    if(rk)rk.textContent=row.ret!=null?String(++rank)+'.':'';
+    grid.appendChild(row.lbl);
   });
 }
 /* _buildAggregate (client-side mcap-weighted sector aggregation) is gone:
@@ -7654,7 +8069,7 @@ function renderPoolLiquidityInsights(sec){
     var top3Pct=dvT?top3Sum/dvT*100:0;
     var top5=s.stocks.slice(0,Math.min(5,s.stocks.length)),top5Sum=top5.reduce(function(a,x){return a+x.dv;},0);
     var top5Pct=dvT?top5Sum/dvT*100:0;
-    bullets.push('<strong>Most-traded names:</strong> '+top3.map(function(x){return x.ticker+' ('+fds(x.dv)+')';}).join(', ')+' '
+    bullets.push('<strong>Most-traded names:</strong> '+top3.map(function(x){return tkLink(x.ticker)+' ('+fds(x.dv)+')';}).join(', ')+' '
       +'— the top 3 capture '+top3Pct.toFixed(0)+'% of sector flow'+(s.stocks.length>=5?', the top 5 capture '+top5Pct.toFixed(0)+'%':'')+'. '
       +(top3Pct>=60?'Trading is highly concentrated in a handful of mega-caps; sector exposure outside these names is a different liquidity reality.':
         top3Pct>=40?'Reasonable concentration in the leaders — they drive sector flow but plenty of secondary liquidity exists.':
@@ -7699,7 +8114,7 @@ function renderPoolLiquidityInsights(sec){
       if(liqRank<=3)verdict='its profit moat is fully recognized in flow — concentrated investor attention matches concentrated profit extraction';
       else if(liqRank<=10)verdict='moat is partly recognized — it draws above-average flow but isn\'t the sector\'s headline ticker';
       else verdict='profit moat may be under-recognized — the company extracts disproportionate sector profit but is not a top liquidity name';
-      bullets.push('<strong>Profit extraction vs flow:</strong> Top profit-pool multiple is '+topMult.ticker+' ('+(topMult.pp_multiple||0).toFixed(2)+'×, capturing '+(topMult.pp_multiple>1?'more':'less')+' profit share than revenue share); it is '+rankLabel+' name in the sector — '+verdict+'.');
+      bullets.push('<strong>Profit extraction vs flow:</strong> Top profit-pool multiple is '+tkLink(topMult.ticker)+' ('+(topMult.pp_multiple||0).toFixed(2)+'×, capturing '+(topMult.pp_multiple>1?'more':'less')+' profit share than revenue share); it is '+rankLabel+' name in the sector — '+verdict+'.');
     }
   }
 
@@ -8062,22 +8477,23 @@ function renderCrossSectorDashboard(){
     var hhiDisp=s.hhi!=null?s.hhi.toFixed(3):'&mdash;';
     var cr4Disp=s.cr4!=null?(s.cr4*100).toFixed(0)+'%':'&mdash;';
     var pctBuyDisp=s.pctBuy!=null?(s.pctBuy*100).toFixed(0)+'%':'&mdash;';
-    /* Column order: Identity → Concentration → Profitability/Quality → Leverage → Valuation → Action. */
+    /* Column order: Identity → Concentration (HHI/CR4, next to Cos) →
+       Valuation (MoS/P-TBV/EV-EBITDA) → Profitability/Quality → Leverage → Action. */
     return'<tr>'
       +'<td class="heat-sector" onclick="showPoolTab(\''+s.sector.replace(/\'/g,"\\\\'")+'\')" title="Open '+_attr(s.sector)+' sector page">'+s.sector+'</td>'
       +'<td>'+s.n+'</td>'
       +cell(s.hhi,hhiDisp,C.hhi,false)
       +cell(s.cr4,cr4Disp,C.cr4,false)
-      +cell(s.wtdM,_f(s.wtdM,'%',1),C.wtdM,false)
-      +cell(s.medFCFM,_f(s.medFCFM,'%',1),C.medFCFM,false)
-      +cell(s.medROIC,_f(s.medROIC,'%',1),C.medROIC,false)
-      +cell(s.medSpread,_f(s.medSpread,'%',1),C.medSpread,false)
-      +cell(s.medGrowth,_f(s.medGrowth,'%',1),C.medGrowth,false)
-      +cell(s.medNDEB,s.medNDEB!=null?s.medNDEB.toFixed(2)+'x':'&mdash;',C.medNDEB,true)
-      +cell(s.medAltZ,s.medAltZ!=null?Number(s.medAltZ).toPrecision(3):'&mdash;',C.medAltZ,false)
       +cell(s.medMos,_f(s.medMos,'%',0),C.medMos,false)
       +cell(s.medPTBV,s.medPTBV!=null?s.medPTBV.toFixed(2)+'x':'&mdash;',C.medPTBV,true)
       +cell(s.medEV,s.medEV!=null?s.medEV.toFixed(1)+'x':'&mdash;',C.medEV,true)
+      +cell(s.wtdM,_f(s.wtdM,'%',1),C.wtdM,false)
+      +cell(s.medGrowth,_f(s.medGrowth,'%',1),C.medGrowth,false)
+      +cell(s.medFCFM,_f(s.medFCFM,'%',1),C.medFCFM,false)
+      +cell(s.medROIC,_f(s.medROIC,'%',1),C.medROIC,false)
+      +cell(s.medSpread,_f(s.medSpread,'%',1),C.medSpread,false)
+      +cell(s.medNDEB,s.medNDEB!=null?s.medNDEB.toFixed(2)+'x':'&mdash;',C.medNDEB,true)
+      +cell(s.medAltZ,s.medAltZ!=null?Number(s.medAltZ).toPrecision(3):'&mdash;',C.medAltZ,false)
       +cell(s.medShrYld,_f(s.medShrYld,'%',1),C.medShrYld,false)
       +cell(s.pctBuy,pctBuyDisp,C.pctBuy,false)
     +'</tr>';
@@ -8141,16 +8557,16 @@ function renderCrossSectorDashboard(){
         +_th('n','Cos',60,'Sector pool size. Munger: “Structure matters more than effort.” Crowded sectors compete margins to zero; lean ones favor incumbents.')
         +_th('hhi','HHI',60,'HHI = Σ(market share)². > 0.25 = oligopoly with pricing power; < 0.15 = fragmented. Buffett: “In a commodity business, you can only be as smart as your dumbest competitor.”')
         +_th('cr4','CR4',60,'CR4 = Top-4 Revenue / Total Sector Revenue. > 80% = true oligopoly; < 50% = fragmented. Munger: “The single biggest predictor of high returns is industry structure, not management.”')
-        +_th('wtdM','Op Margin',64,'Op Margin = Σ(Op Margin × Revenue Share). Buffett: “The single most important decision is pricing power.” Sustained 20%+ = where moats live.')
-        +_th('medFCFM','FCF Margin',64,'Median FCF / Revenue. Graham: “Earnings are opinions; cash is a fact.” High FCF margin → genuine owner earnings.')
-        +_th('medROIC','ROIC',60,'Median NOPAT / Invested Capital. The single most important metric in the Buffett framework. > 15% across a sector = compounder territory.')
-        +_th('medSpread','ROIC–WACC',68,'Median (ROIC − WACC) — the sector’s economic profit. > 5% = capital genuinely productive. Buffett invests where the gap is wide and durable.')
-        +_th('medGrowth','Rev CAGR',64,'Median 3Y Revenue CAGR. Growth + stable margins = pricing power. Munger: “Avoid growth for growth’s sake” — growth without margins is destruction at scale.')
-        +_th('medNDEB','ND/EBITDA',68,'Median (Debt − Cash) / EBITDA. Buffett: “we want no debt or very modest debt.” < 2× = strength; > 4× = rolling-credit dependence when markets sour.')
-        +_th('medAltZ','Altman Z',60,'Median Altman Z. > 3.0 = sector-wide health; < 1.8 = distress across the cohort. Graham: avoid permanent capital loss — Z flags the line before the market does.')
         +_th('medMos','MoS',56,'Median (FV − Price) / FV vs. DCF. Graham’s “three most important words in investing are margin of safety.” 20%+ across a sector — verify the discount is real, not deserved.')
         +_th('medPTBV','P/TBV',60,'Median Price / Tangible Book Value. Graham’s strictest asset floor — strips goodwill/intangibles to what the business could actually liquidate. Cheap P/TBV only attractive when ROIC justifies it; otherwise a value trap.')
         +_th('medEV','EV/EBITDA',64,'Median (Mkt Cap + Net Debt) / EBITDA. Capital-structure-neutral; misleading at cyclical troughs. Buffett trusts owner earnings over EBITDA.')
+        +_th('wtdM','Op Margin',64,'Op Margin = Σ(Op Margin × Revenue Share). Buffett: “The single most important decision is pricing power.” Sustained 20%+ = where moats live.')
+        +_th('medGrowth','Rev CAGR',64,'Median 3Y Revenue CAGR. Growth + stable margins = pricing power. Munger: “Avoid growth for growth’s sake” — growth without margins is destruction at scale.')
+        +_th('medFCFM','FCF Margin',64,'Median FCF / Revenue. Graham: “Earnings are opinions; cash is a fact.” High FCF margin → genuine owner earnings.')
+        +_th('medROIC','ROIC',60,'Median NOPAT / Invested Capital. The single most important metric in the Buffett framework. > 15% across a sector = compounder territory.')
+        +_th('medSpread','ROIC–WACC',68,'Median (ROIC − WACC) — the sector’s economic profit. > 5% = capital genuinely productive. Buffett invests where the gap is wide and durable.')
+        +_th('medNDEB','ND/EBITDA',68,'Median (Debt − Cash) / EBITDA. Buffett: “we want no debt or very modest debt.” < 2× = strength; > 4× = rolling-credit dependence when markets sour.')
+        +_th('medAltZ','Altman Z',60,'Median Altman Z. > 3.0 = sector-wide health; < 1.8 = distress across the cohort. Graham: avoid permanent capital loss — Z flags the line before the market does.')
         +_th('medShrYld','Shr Yld',60,'Median (Dividends + Net Buybacks) / Mkt Cap. Buffett: “The best thing a company can do when the stock is cheap is buy it back.” 4%+ cohort-wide = disciplined capital allocation.')
         +_th('pctBuy','BUY %',60,'Share of sector rated BUY or LEAN BUY. High concentration = clusters of margin of safety. Buffett: “Most committee opinions are mediocre” — focus signal, not a substitute for analysis.')
       +'</tr></thead><tbody id="heat-tbody"></tbody></table></div>'
@@ -8202,7 +8618,7 @@ function renderCrossSectorProfitPool(){
      _ppDraw() after mount. */
   var gridItems=secs.map(function(a){
     var safe=_esc(a.name);
-    return '<label class="agg-grid-item"><input type="checkbox" value="'+_attr(a.name)+'" checked onchange="_ppChanged()"><span class="agg-grid-dot" style="background:'+_ppColM(a.margin)+'"></span><span class="agg-grid-name">'+safe+'</span><span class="pp-grid-rev" title="Share of operating revenue (this sector\'s width on the profit-pool x-axis)">—</span><span class="pp-grid-m" title="Operating margin">'+(a.margin*100).toFixed(0)+'%</span></label>';
+    return '<label class="agg-grid-item"><span class="agg-grid-rank" title="Position in the profit-pool chart (bars ordered by operating margin, left to right)"></span><input type="checkbox" value="'+_attr(a.name)+'" checked onchange="_ppChanged()"><span class="agg-grid-dot" style="background:'+_ppColM(a.margin)+'"></span><span class="agg-grid-name">'+safe+'</span><span class="pp-grid-rev" title="Share of operating revenue (this sector\'s width on the profit-pool x-axis)">—</span><span class="pp-grid-m" title="Operating margin">'+(a.margin*100).toFixed(0)+'%</span></label>';
   }).join('');
   var helperBtns='<button type="button" class="agg-helper-btn" onclick="_ppSelectAll()">All</button>'
     +'<button type="button" class="agg-helper-btn" onclick="_ppClearAll()">Clear</button>';
@@ -8239,14 +8655,15 @@ function _ppDraw(){
      sector's own share (the width of its bar on the profit-pool x-axis),
      recomputed over only the shown sectors so the shares sum to ~100%. */
   window._xsPoolAgg={};
-  var _revByName={};
-  sel.forEach(function(a){
+  var _revByName={},_posByName={};
+  sel.forEach(function(a,i){
     a.revShare=totalRev>0?a.rev/totalRev:0;
     a.profitShare=totalOI!==0?a.oi/totalOI:null;
     window._xsPoolAgg[a.name]=a;
     _revByName[a.name]=a.revShare;
+    _posByName[a.name]=i+1;
   });
-  _ppSetGridRev(_revByName);
+  _ppSetGridRev(_revByName,_posByName);
   var W=860,H=330,pL=54,pR=16,pT=18,pB=40,cW=W-pL-pR,cH=H-pT-pB;
   var maxM=Math.max.apply(null,sel.map(function(a){return a.margin;}));
   var minM=Math.min.apply(null,sel.map(function(a){return a.margin;}));
@@ -8288,16 +8705,22 @@ function _ppDraw(){
   wrap.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:'+W+'px;margin:2px auto 0">'+ticks+axes+bars+'</svg>';
 }
 /* Write each sector's share of operating revenue into its selector-grid
-   row's .pp-grid-rev span. Pass a name→share-fraction map for the shown
-   sectors; unshown (or null map) rows fall back to an em dash. One decimal
-   so small sectors (e.g. Real Estate ~0.7%) don't round to a misleading 1%. */
-function _ppSetGridRev(revByName){
+   row's .pp-grid-rev span, and its chart position (1-based index of its bar,
+   left to right — the same number drawn above the bar) into the row's
+   .agg-grid-rank prefix. Pass name→share-fraction and name→position maps for
+   the shown sectors; unshown (or null map) rows fall back to an em dash and
+   a blank rank. Positions renumber over only the shown sectors, tracking the
+   chart. One decimal on shares so small sectors (e.g. Real Estate ~0.7%)
+   don't round to a misleading 1%. */
+function _ppSetGridRev(revByName,posByName){
   var grid=document.getElementById('pp-grid');if(!grid)return;
   grid.querySelectorAll('.agg-grid-item').forEach(function(lbl){
     var cb=lbl.querySelector('input[type="checkbox"]');
     var span=lbl.querySelector('.pp-grid-rev');
     if(!cb||!span)return;
     span.textContent=(revByName&&cb.value in revByName)?(revByName[cb.value]*100).toFixed(1)+'%':'—';
+    var rk=lbl.querySelector('.agg-grid-rank');
+    if(rk)rk.textContent=(posByName&&cb.value in posByName)?posByName[cb.value]+'.':'';
   });
 }
 function _ppChanged(){
@@ -8754,12 +9177,13 @@ function _renderSectorBanner(sec){
   if(st.best){
     var b=st.best;
     var bTk=_attr(b.ticker||'');
+    var bTkJs=String(b.ticker||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     var bMult=b.pp_multiple!=null?b.pp_multiple.toFixed(2)+'×':'—';
     var bCol=RC[b.rating]||'#888';
     html+='<div class="pool-stat" title="Sector Leader — Highest profit pool multiple within the sector (profit share ÷ revenue share). A value above 1.0× means this company punches above its revenue weight in profitability.">'
       +'<span class="pool-stat-tint" style="background:'+bCol+'"></span>'
       +'<div class="pool-stat-label">Sector Leader</div>'
-      +'<div class="pool-stat-value"><span class="pool-stat-tk">'+bTk+'</span><span class="pool-stat-sub">'+bMult+'</span></div>'
+      +'<div class="pool-stat-value"><span class="pool-stat-tk tk-link" onclick="event.stopPropagation();openDet(\''+bTkJs+'\')" title="Open '+bTk+'">'+bTk+'</span><span class="pool-stat-sub">'+bMult+'</span></div>'
       +'<div class="pool-stat-caption">profit share ÷ revenue share</div>'
       +'</div>';
   }

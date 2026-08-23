@@ -1,9 +1,6 @@
 # tests/test_portfolio.py
-import sys
-import os
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.portfolio import position_sizes, concentration_analysis
 

@@ -18,11 +18,9 @@ Usage:
 
 import argparse
 import glob
-import io
 import json
 import os
 import sys
-from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -85,7 +83,7 @@ def find_latest_results(results_dir: str) -> str:
 
 def load_results(path: str) -> tuple[str, list[dict]]:
     """Return (date_str, list_of_stock_dicts)."""
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         data = json.load(f)
     date_str = data.get("date", "unknown")
     results = data.get("results", [])
@@ -183,7 +181,6 @@ def print_correlation_matrix(corr: pd.DataFrame, tickers: list[str]) -> list[tup
     """
     section("1. CORRELATION MATRIX  (2-year daily returns, Pearson r)")
 
-    n = len(tickers)
     col_w = 7  # width per correlation cell
 
     # Header row: print ticker abbreviations across the top

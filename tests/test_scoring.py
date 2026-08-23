@@ -1,9 +1,6 @@
 # tests/test_scoring.py
-import sys
-import os
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from scripts.scoring import (
     _score_linear, compute_continuous_scores, apply_composite_rating_override,
@@ -1144,7 +1141,6 @@ class TestMultipleVsHistory:
         so the share basis cancels. Regression for the GOOGL/NVDA zeroing —
         the old price×as-reported-shares construction read splitters at
         3-4× their own median."""
-        import pandas as pd
         from scripts.analyze_stock import compute_multiple_vs_history
         close, eh = self._inputs()
         # Split-adjusted series: same economic value, 20× smaller prices.
@@ -1324,8 +1320,6 @@ class TestTrapSignals:
         # i.e., no trap-driven cap exists yet.
         r = self._full_trap_row()
         r.update({'ticker': 'TRAP', 'price': 10.0, 'mcap': 1e9})
-        import copy
-        r2 = copy.deepcopy(r)
         score_and_rate([r])
         assert r.get('trap_score') is not None
         assert '_rating_cap_reasons' not in r or not any(

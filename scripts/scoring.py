@@ -411,7 +411,7 @@ def _compute_pool_share_trajectory(results):
         if s and h:
             sector_rows.setdefault(s, []).append((r, h))
 
-    for s, rows in sector_rows.items():
+    for _sector, rows in sector_rows.items():
         pools = {}                        # (y0, y1) -> (pool0, pool1, n_panel)
         for r, h in rows:
             ys = sorted(h)
@@ -486,7 +486,8 @@ def _t01(x, x0, x1):
 def _trap_axes(r):
     """Per-axis sub-scores for one row. None sub-inputs are skipped; an axis
     with zero resolvable sub-inputs is omitted entirely (fail-open)."""
-    num = lambda v: v if isinstance(v, (int, float)) else None
+    def num(v):
+        return v if isinstance(v, (int, float)) else None
 
     axes = {}
 
@@ -918,7 +919,7 @@ def _print_validation_stats(results, screen_outcomes):
         effect = ('large' if abs(cohens_d) >= 0.8
                   else 'medium' if abs(cohens_d) >= 0.5
                   else 'small')
-        print(f"\n--- Separation Test ---")
+        print("\n--- Separation Test ---")
         print(f"  Quality mean: {q_mean:.1f}   Poor mean: {p_mean:.1f}")
         print(f"  Cohen's d: {cohens_d:.2f} ({effect} effect)")
 
@@ -972,7 +973,7 @@ def compute_continuous_scores(results, params=None):
             for i, val, sector in all_vals:
                 sector_groups.setdefault(sector, []).append((i, val))
 
-            for sector, group in sector_groups.items():
+            for _sector, group in sector_groups.items():
                 # Fallback to global pool if sector too small
                 pool = group if len(group) >= MIN_SECTOR_SCORING else [(i, v) for i, v, _ in all_vals]
                 pctiles = _ranked_percentiles(pool, higher_better=higher_better)
