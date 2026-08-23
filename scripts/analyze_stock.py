@@ -1439,6 +1439,53 @@ def _compute_shareholder_yield(yf_data, mcap):
 
 
 # ---------------------------------------------------------------------------
+# Balance-sheet debt levels (Worksheet Step 3C)
+# ---------------------------------------------------------------------------
+
+def _debt_levels(yf_data):
+    """Point-in-time debt levels for the row (USD — statement frames are
+    FX-normalized upstream). Statements first; yfinance .info as fallback
+    only, per field (its totalDebt/totalCash are MRQ figures — fine as
+    point-in-time levels, never injected into annual frames). None stays
+    None: unknown ≠ 0.
+
+    Returns (total_debt, cash, total_liabilities, net_debt, source).
+    `source` records where the *known* levels came from: None = statements
+    only, 'yf_info' = every known level fell back to .info,
+    'statements+yf_info' = mixed. net_debt is total_debt − cash only when
+    both sides are known.
+    """
+    total_debt_val = cash_val = total_liabilities_val = None
+    _bs = yf_data.get('balance_sheet')
+    if _bs is not None and not _bs.empty:
+        _latest_bs = _bs.iloc[:, 0]
+        total_debt_val = _get(_latest_bs, DEBT_KEYS)
+        cash_val = _get(_latest_bs, CASH_KEYS)
+        total_liabilities_val = _get(
+            _latest_bs,
+            ['Total Liabilities Net Minority Interest', 'Total Liab'])
+    _yf_info = yf_data.get('info') or {}
+    _fallback = []
+    if total_debt_val is None and _yf_info.get('totalDebt') is not None:
+        total_debt_val = _yf_info.get('totalDebt')
+        _fallback.append('debt')
+    if cash_val is None and _yf_info.get('totalCash') is not None:
+        cash_val = _yf_info.get('totalCash')
+        _fallback.append('cash')
+    if not _fallback:
+        debt_source = None
+    elif len(_fallback) == 2:
+        debt_source = 'yf_info'
+    else:
+        _stmt_val = cash_val if _fallback == ['debt'] else total_debt_val
+        debt_source = 'statements+yf_info' if _stmt_val is not None else 'yf_info'
+    net_debt_val = (total_debt_val - cash_val
+                    if total_debt_val is not None and cash_val is not None
+                    else None)
+    return total_debt_val, cash_val, total_liabilities_val, net_debt_val, debt_source
+
+
+# ---------------------------------------------------------------------------
 # Forward DCF (Worksheet Step 5A)
 # ---------------------------------------------------------------------------
 
@@ -2873,30 +2920,10 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             int_cov = calculate_interest_coverage(yf_data)
             nd_ebitda = calculate_net_debt_ebitda(yf_data)
 
-            # Debt levels (USD — statement frames are FX-normalized upstream).
-            # Statements first; yfinance .info as fallback only (its totalDebt/
-            # totalCash are MRQ figures — fine as point-in-time levels, never
-            # injected into annual frames). None stays None: unknown ≠ 0.
-            total_debt_val = cash_val = total_liabilities_val = None
-            debt_source = None
-            _bs = yf_data.get('balance_sheet')
-            if _bs is not None and not _bs.empty:
-                _latest_bs = _bs.iloc[:, 0]
-                total_debt_val = _get(_latest_bs, DEBT_KEYS)
-                cash_val = _get(_latest_bs, CASH_KEYS)
-                total_liabilities_val = _get(
-                    _latest_bs,
-                    ['Total Liabilities Net Minority Interest', 'Total Liab'])
-            _yf_info = yf_data.get('info') or {}
-            if total_debt_val is None and _yf_info.get('totalDebt') is not None:
-                total_debt_val = _yf_info.get('totalDebt')
-                debt_source = 'yf_info'
-            if cash_val is None and _yf_info.get('totalCash') is not None:
-                cash_val = _yf_info.get('totalCash')
-                debt_source = debt_source or 'yf_info'
-            net_debt_val = (total_debt_val - cash_val
-                            if total_debt_val is not None and cash_val is not None
-                            else None)
+            # Debt levels — see _debt_levels for the statements-first /
+            # per-field .info fallback and provenance rules.
+            (total_debt_val, cash_val, total_liabilities_val,
+             net_debt_val, debt_source) = _debt_levels(yf_data)
 
             # Traditional ratios
             ratios = compute_ratios(yf_data)
@@ -3009,14 +3036,18 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             # Reverse DCF (solve for implied growth)
             rev_dcf = None
             if dcf_fv and current_price and current_price > 0 and fcf and shares:
-                net_debt_val = get_net_debt(yf_data) or 0
+                # get_net_debt (or 0) matches the forward DCF's own EV→equity
+                # bridge basis. Kept LOCAL to this branch: it must not clobber
+                # the row's statement-derived net_debt_val, whose None means
+                # "leverage unknown", not zero.
+                _rev_net_debt = get_net_debt(yf_data) or 0
                 # Solve on the same adjusted FCF base + terminal growth the
                 # forward DCF used, so implied_vs_estimated measures the
                 # expectation gap, not a basis/terminal-rate mismatch.
                 _rev_fcf = growth_diag.get('base_fcf') or fcf
                 _rev_tg = growth_diag.get('term_g')
                 rev_dcf = reverse_dcf(
-                    current_price, _rev_fcf, wacc, shares, net_debt_val,
+                    current_price, _rev_fcf, wacc, shares, _rev_net_debt,
                     terminal_g=_rev_tg if _rev_tg is not None else 0.03)
 
             # 52-Week Range
