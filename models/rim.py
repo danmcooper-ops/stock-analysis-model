@@ -8,12 +8,12 @@ Useful complement to DCF: anchored to book value rather than free cash flow.
 import warnings as _py_warnings
 
 
-from models.valuation_types import _validate_numeric
+from models.valuation_types import Valuation, _validate_numeric
 
 
-def residual_income_model(book_value_per_share, roe, cost_of_equity,
-                          g=0.03, years=10, retention_ratio=None):
-    """Residual Income Model: BV + PV of excess earnings.
+def residual_income_model_valuation(book_value_per_share, roe, cost_of_equity,
+                                    g=0.03, years=10, retention_ratio=None):
+    """Residual Income Model as a Valuation envelope: BV + PV of excess earnings.
 
     Value = BV + sum(RI_t / (1+Re)^t) + TV
     where RI_t = BV_t-1 * (ROE - Re), BV_t = BV_t-1 * (1 + ROE × retention)
@@ -37,39 +37,42 @@ def residual_income_model(book_value_per_share, roe, cost_of_equity,
         the truth for most firms; pass `retention_ratio=1.0` only if
         the company genuinely reinvests every dollar.
     """
+    method = 'residual_income'
+    warns = []
+
+    def _warn(msg):
+        warns.append(msg)
+        _py_warnings.warn(msg, RuntimeWarning, stacklevel=3)
+
     if book_value_per_share is None or book_value_per_share <= 0:
-        return None
+        return Valuation.invalid(method, 'book value per share missing or non-positive')
     try:
         roe = _validate_numeric('roe', roe, low=-1.0, high=2.0)
         cost_of_equity = _validate_numeric('cost_of_equity', cost_of_equity,
                                            positive=True, low=0.01, high=0.40)
         g = _validate_numeric('g', g, low=-0.05, high=0.10)
     except ValueError as e:
-        _py_warnings.warn(f"residual_income_model input invalid: {e}", RuntimeWarning, stacklevel=2)
-        return None
+        _py_warnings.warn(f"residual_income_model input invalid: {e}", RuntimeWarning, stacklevel=3)
+        return Valuation.invalid(method, f'input invalid: {e}')
+    inputs = {'book_value_per_share': book_value_per_share, 'roe': roe,
+              'cost_of_equity': cost_of_equity, 'g': g, 'years': years}
     if cost_of_equity <= g:
-        return None
+        return Valuation.invalid(
+            method, 'cost_of_equity <= g — terminal value undefined', inputs)
 
     # Resolve retention ratio
     if retention_ratio is None:
         if roe > 0:
             retention_ratio = max(min(g / roe, 1.0), 0.0)
-            _py_warnings.warn(
-                f'retention_ratio not provided — inferred {retention_ratio:.2f} '
-                'from g/ROE (Gordon-consistent). Pass an explicit value if you '
-                'have payout data.',
-                RuntimeWarning,
-                stacklevel=2,
-            )
+            _warn(f'retention_ratio not provided — inferred {retention_ratio:.2f} '
+                  'from g/ROE (Gordon-consistent). Pass an explicit value if you '
+                  'have payout data.')
         else:
             retention_ratio = 1.0
-            _py_warnings.warn(
-                'retention_ratio not provided and ROE <= 0 — falling back to '
-                '100% retention. Book-value evolution is suspect.',
-                RuntimeWarning,
-                stacklevel=2,
-            )
+            _warn('retention_ratio not provided and ROE <= 0 — falling back to '
+                  '100% retention. Book-value evolution is suspect.')
     retention_ratio = max(min(retention_ratio, 1.0), 0.0)
+    inputs['retention_ratio'] = retention_ratio
 
     bv = book_value_per_share
     pv_ri = 0.0
@@ -95,12 +98,20 @@ def residual_income_model(book_value_per_share, roe, cost_of_equity,
         pv_tv = 0.0
 
     if abs(roe - cost_of_equity) < 0.005:
-        _py_warnings.warn(
-            'ROE ≈ cost_of_equity — RIM degenerates toward book value '
-            '(residual income near zero)',
-            RuntimeWarning,
-            stacklevel=2,
-        )
+        _warn('ROE ≈ cost_of_equity — RIM degenerates toward book value '
+              '(residual income near zero)')
 
     intrinsic = book_value_per_share + pv_ri + pv_tv
-    return intrinsic if intrinsic > 0 else None
+    if intrinsic <= 0:
+        return Valuation.invalid(method, 'non-positive intrinsic value', inputs)
+    return Valuation(value=intrinsic, method=method,
+                     confidence=max(0.4, 1.0 - 0.15 * len(warns)),
+                     warnings=tuple(warns), inputs_used=inputs)
+
+
+def residual_income_model(book_value_per_share, roe, cost_of_equity,
+                          g=0.03, years=10, retention_ratio=None):
+    """Legacy float|None wrapper around residual_income_model_valuation()."""
+    return residual_income_model_valuation(
+        book_value_per_share, roe, cost_of_equity, g=g, years=years,
+        retention_ratio=retention_ratio).value

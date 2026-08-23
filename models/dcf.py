@@ -3,7 +3,7 @@ import warnings as _py_warnings
 
 import numpy as np
 
-from models.valuation_types import _validate_numeric
+from models.valuation_types import Valuation, _validate_numeric
 
 
 def _dcf_validate_core(base_fcf, growth_rate, discount_rate, terminal_growth):
@@ -39,46 +39,60 @@ def _validate_years(total_years, stage1_years):
             f"stage1_years={stage1_years}, total_years={total_years}")
 
 
-def two_stage_ev(base_fcf, growth_rate, discount_rate, terminal_growth,
-                 total_years=10, stage1_years=5, min_spread=0.025):
+def _confidence_from_warnings(warns):
+    """Heuristic confidence for a Valuation: 1.0 minus 0.15 per soft
+    warning, floored at 0.4. Invalid inputs use Valuation.invalid (0.0)."""
+    return max(0.4, 1.0 - 0.15 * len(warns))
+
+
+def two_stage_ev_valuation(base_fcf, growth_rate, discount_rate, terminal_growth,
+                           total_years=10, stage1_years=5, min_spread=0.025):
     """
-    Two-stage DCF enterprise value.
+    Two-stage DCF enterprise value, returned as a Valuation envelope.
     Stage 1 (years 1–stage1_years): constant `growth_rate`.
     Stage 2 (years stage1_years+1–total_years): linear fade to `terminal_growth`.
     Gordon Growth terminal value applied after final year.
 
-    Returns None on invalid inputs or when discount_rate <= terminal_growth.
-    Emits Python warnings for soft issues (initial growth > 25%, negative
-    growth, terminal-value share > 70% of EV) so they surface in logs.
+    value is None on invalid inputs or when discount_rate <= terminal_growth,
+    with the reason in `warnings`. Soft issues (initial growth > 25%, negative
+    growth, terminal-value share > 80% of EV) are still emitted as Python
+    warnings AND recorded on the envelope so downstream consumers see them
+    without scraping logs.
     """
+    method = 'two_stage_ev_ggm'
+    warns = []
+
+    def _warn(msg):
+        warns.append(msg)
+        _py_warnings.warn(msg, RuntimeWarning, stacklevel=3)
+
     try:
         base_fcf, growth_rate, discount_rate, terminal_growth = _dcf_validate_core(
             base_fcf, growth_rate, discount_rate, terminal_growth)
         _validate_years(total_years, stage1_years)
     except ValueError as e:
-        _py_warnings.warn(f"two_stage_ev input invalid: {e}", RuntimeWarning, stacklevel=2)
-        return None
+        _py_warnings.warn(f"two_stage_ev input invalid: {e}", RuntimeWarning, stacklevel=3)
+        return Valuation.invalid(method, f'input invalid: {e}')
+
+    inputs = {'base_fcf': base_fcf, 'growth_rate': growth_rate,
+              'discount_rate': discount_rate, 'terminal_growth': terminal_growth,
+              'total_years': total_years, 'stage1_years': stage1_years}
 
     if discount_rate <= terminal_growth:
-        return None
+        return Valuation.invalid(
+            method, 'discount_rate <= terminal_growth — Gordon terminal value undefined',
+            inputs)
 
     effective_tg = terminal_growth
     if discount_rate - terminal_growth < min_spread:
         effective_tg = discount_rate - min_spread
+        inputs['effective_terminal_growth'] = effective_tg
 
     if growth_rate > 0.25:
-        _py_warnings.warn(
-            f'Initial growth {growth_rate:.1%} is aggressive — sustained >25% is rare',
-            RuntimeWarning,
-            stacklevel=2,
-        )
+        _warn(f'Initial growth {growth_rate:.1%} is aggressive — sustained >25% is rare')
     if growth_rate < 0:
-        _py_warnings.warn(
-            f'Negative growth ({growth_rate:.1%}) — verify this reflects secular decline, '
-            'not a transient dip',
-            RuntimeWarning,
-            stacklevel=2,
-        )
+        _warn(f'Negative growth ({growth_rate:.1%}) — verify this reflects secular decline, '
+              'not a transient dip')
 
     projected = []
     prev = base_fcf
@@ -100,14 +114,21 @@ def two_stage_ev(base_fcf, growth_rate, discount_rate, terminal_growth,
 
     tv_share = pv_terminal / ev if ev > 0 else 1.0
     if tv_share > 0.80:
-        _py_warnings.warn(
-            f'Terminal value is {tv_share:.0%} of EV — result rests almost entirely '
-            'on terminal assumptions',
-            RuntimeWarning,
-            stacklevel=2,
-        )
+        _warn(f'Terminal value is {tv_share:.0%} of EV — result rests almost entirely '
+              'on terminal assumptions')
 
-    return ev
+    return Valuation(value=ev, method=method,
+                     confidence=_confidence_from_warnings(warns),
+                     warnings=tuple(warns), inputs_used=inputs)
+
+
+def two_stage_ev(base_fcf, growth_rate, discount_rate, terminal_growth,
+                 total_years=10, stage1_years=5, min_spread=0.025):
+    """Legacy float|None wrapper around two_stage_ev_valuation()."""
+    return two_stage_ev_valuation(
+        base_fcf, growth_rate, discount_rate, terminal_growth,
+        total_years=total_years, stage1_years=stage1_years,
+        min_spread=min_spread).value
 
 
 def fair_value_per_share(enterprise_value, net_debt, shares_outstanding):
@@ -120,15 +141,23 @@ def fair_value_per_share(enterprise_value, net_debt, shares_outstanding):
     return equity_value / shares_outstanding
 
 
-def two_stage_ev_exit_multiple(base_fcf, growth_rate, discount_rate,
-                               terminal_growth, base_ebitda, exit_multiple,
-                               total_years=10, stage1_years=5, min_spread=0.025):
-    """Two-stage DCF with EV/EBITDA exit multiple for terminal value.
+def two_stage_ev_exit_multiple_valuation(base_fcf, growth_rate, discount_rate,
+                                         terminal_growth, base_ebitda, exit_multiple,
+                                         total_years=10, stage1_years=5,
+                                         min_spread=0.025):
+    """Two-stage DCF with EV/EBITDA exit multiple, as a Valuation envelope.
 
     FCF projection identical to two_stage_ev().
     Terminal Value = Year 10 EBITDA × exit_multiple (instead of Gordon Growth).
-    Returns None on invalid inputs.
+    value is None on invalid inputs, with the reason in `warnings`.
     """
+    method = 'two_stage_ev_exit_multiple'
+    warns = []
+
+    def _warn(msg):
+        warns.append(msg)
+        _py_warnings.warn(msg, RuntimeWarning, stacklevel=3)
+
     try:
         base_fcf, growth_rate, discount_rate, terminal_growth = _dcf_validate_core(
             base_fcf, growth_rate, discount_rate, terminal_growth)
@@ -137,11 +166,17 @@ def two_stage_ev_exit_multiple(base_fcf, growth_rate, discount_rate,
                                           positive=True, low=3.0, high=40.0)
         _validate_years(total_years, stage1_years)
     except ValueError as e:
-        _py_warnings.warn(f"two_stage_ev_exit_multiple input invalid: {e}", RuntimeWarning, stacklevel=2)
-        return None
+        _py_warnings.warn(f"two_stage_ev_exit_multiple input invalid: {e}", RuntimeWarning, stacklevel=3)
+        return Valuation.invalid(method, f'input invalid: {e}')
+
+    inputs = {'base_fcf': base_fcf, 'growth_rate': growth_rate,
+              'discount_rate': discount_rate, 'terminal_growth': terminal_growth,
+              'base_ebitda': base_ebitda, 'exit_multiple': exit_multiple,
+              'total_years': total_years, 'stage1_years': stage1_years}
 
     if discount_rate <= terminal_growth:
-        return None
+        return Valuation.invalid(
+            method, 'discount_rate <= terminal_growth — fade target undefined', inputs)
 
     effective_tg = terminal_growth
     if discount_rate - terminal_growth < min_spread:
@@ -178,12 +213,21 @@ def two_stage_ev_exit_multiple(base_fcf, growth_rate, discount_rate,
 
     tv_share = pv_terminal / ev if ev > 0 else 1.0
     if tv_share > 0.80:
-        _py_warnings.warn(
-            f'Terminal value is {tv_share:.0%} of EV — exit-multiple assumption drives result',
-            RuntimeWarning,
-            stacklevel=2,
-        )
-    return ev
+        _warn(f'Terminal value is {tv_share:.0%} of EV — exit-multiple assumption drives result')
+
+    return Valuation(value=ev, method=method,
+                     confidence=_confidence_from_warnings(warns),
+                     warnings=tuple(warns), inputs_used=inputs)
+
+
+def two_stage_ev_exit_multiple(base_fcf, growth_rate, discount_rate,
+                               terminal_growth, base_ebitda, exit_multiple,
+                               total_years=10, stage1_years=5, min_spread=0.025):
+    """Legacy float|None wrapper around two_stage_ev_exit_multiple_valuation()."""
+    return two_stage_ev_exit_multiple_valuation(
+        base_fcf, growth_rate, discount_rate, terminal_growth,
+        base_ebitda, exit_multiple, total_years=total_years,
+        stage1_years=stage1_years, min_spread=min_spread).value
 
 
 def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,

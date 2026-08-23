@@ -139,3 +139,67 @@ class TestValuationEnvelope:
         assert v.confidence == 1.0
         assert v.warnings == ()
         assert v.inputs_used == {}
+
+
+class TestEnvelopePrimaries:
+    """The *_valuation variants are the primary implementations; the legacy
+    float|None functions must be exact .value views of them."""
+
+    def test_two_stage_ev_envelope_matches_legacy(self):
+        import warnings as w
+        from models.dcf import two_stage_ev, two_stage_ev_valuation
+        with w.catch_warnings():
+            w.simplefilter('ignore', RuntimeWarning)
+            v = two_stage_ev_valuation(100.0, 0.08, 0.10, 0.025)
+            legacy = two_stage_ev(100.0, 0.08, 0.10, 0.025)
+        assert v.value == legacy
+        assert v.method == 'two_stage_ev_ggm'
+        assert 0.4 <= v.confidence <= 1.0
+        assert v.inputs_used['base_fcf'] == 100.0
+
+    def test_two_stage_ev_invalid_carries_reason(self):
+        import warnings as w
+        from models.dcf import two_stage_ev_valuation
+        with w.catch_warnings():
+            w.simplefilter('ignore', RuntimeWarning)
+            v = two_stage_ev_valuation(-5.0, 0.08, 0.10, 0.025)
+        assert v.value is None
+        assert v.confidence == 0.0
+        assert any('invalid' in msg for msg in v.warnings)
+
+    def test_soft_warnings_reduce_confidence(self):
+        import warnings as w
+        from models.dcf import two_stage_ev_valuation
+        with w.catch_warnings():
+            w.simplefilter('ignore', RuntimeWarning)
+            calm = two_stage_ev_valuation(100.0, 0.05, 0.12, 0.02)
+            aggressive = two_stage_ev_valuation(100.0, 0.40, 0.12, 0.02)
+        assert aggressive.confidence < calm.confidence
+        assert any('aggressive' in msg for msg in aggressive.warnings)
+
+    def test_equity_models_envelopes_match_legacy(self):
+        import warnings as w
+        from models.ddm import (two_stage_ddm, two_stage_ddm_valuation,
+                                ddm_h_model, ddm_h_model_valuation)
+        from models.epv import earnings_power_value, earnings_power_value_valuation
+        from models.rim import residual_income_model, residual_income_model_valuation
+        with w.catch_warnings():
+            w.simplefilter('ignore', RuntimeWarning)
+            assert (two_stage_ddm_valuation(2.0, 0.06, 0.025, 0.09).value
+                    == two_stage_ddm(2.0, 0.06, 0.025, 0.09))
+            assert (ddm_h_model_valuation(2.0, 0.08, 0.03, 0.09).value
+                    == ddm_h_model(2.0, 0.08, 0.03, 0.09))
+            assert (earnings_power_value_valuation(500.0, 0.21, 0.09, 100.0).value
+                    == earnings_power_value(500.0, 0.21, 0.09, 100.0))
+            assert (residual_income_model_valuation(50.0, 0.15, 0.09).value
+                    == residual_income_model(50.0, 0.15, 0.09))
+
+    def test_rim_envelope_records_inferred_retention(self):
+        import warnings as w
+        from models.rim import residual_income_model_valuation
+        with w.catch_warnings():
+            w.simplefilter('ignore', RuntimeWarning)
+            v = residual_income_model_valuation(50.0, 0.15, 0.09)
+        assert 'retention_ratio' in v.inputs_used
+        assert any('retention_ratio not provided' in msg for msg in v.warnings)
+        assert v.confidence < 1.0
