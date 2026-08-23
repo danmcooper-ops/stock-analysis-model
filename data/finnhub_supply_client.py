@@ -8,10 +8,13 @@ Falls back to empty results when unavailable. Uses only stdlib.
 """
 
 import json
+import logging
 import os
 import time
 import urllib.error
 import urllib.request
+
+logger = logging.getLogger(__name__)
 
 
 class FinnhubSupplyClient:
@@ -49,8 +52,10 @@ class FinnhubSupplyClient:
                 return json.loads(resp.read())
         except urllib.error.HTTPError as e:
             self._last_http_code = e.code
+            logger.debug(f'finnhub: HTTP {e.code} for {url.split("?", 1)[0]}')
             return None
-        except Exception:
+        except Exception as e:
+            logger.warning(f'finnhub: request failed for {url.split("?", 1)[0]}: {e}')
             return None
 
     @property
@@ -126,7 +131,7 @@ class FinnhubSupplyClient:
         # 403 means premium-only — disable for all future tickers
         if self._last_http_code == 403:
             self._supply_disabled = True
-            print('Finnhub supply-chain requires premium tier — skipping.')
+            logger.warning('Finnhub supply-chain requires premium tier — skipping.')
             self._supply_cache[ticker] = empty
             return empty
 

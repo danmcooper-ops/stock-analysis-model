@@ -11,6 +11,7 @@ Directory structure:
 
 import os
 import json
+import logging
 from datetime import date, datetime
 
 import numpy as np
@@ -18,6 +19,8 @@ import pandas as pd
 
 from data.provenance import library_versions as _lib_versions
 from data.provenance import now_iso as _now_iso
+
+logger = logging.getLogger(__name__)
 
 
 def _yf_version():
@@ -57,7 +60,7 @@ class SnapshotCache:
         # Write-then-rename so a crash/watchdog kill mid-write can't leave a
         # truncated JSON that breaks every future replay load for this ticker.
         tmp_path = f'{file_path}.tmp.{os.getpid()}'
-        with open(tmp_path, 'w') as f:
+        with open(tmp_path, 'w', encoding='utf-8') as f:
             json.dump(payload, f, default=_json_default)
         os.replace(tmp_path, file_path)
         return file_path
@@ -86,12 +89,12 @@ class SnapshotCache:
             self._cache_dir, ticker.upper(),
             f'financials_{best.isoformat()}.json')
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 raw = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             # A corrupt/truncated snapshot must not crash every replay —
             # treat it as missing (and say so).
-            print(f'WARNING: unreadable snapshot {file_path}: {e}')
+            logger.warning(f'unreadable snapshot {file_path}: {e}')
             return None
         return self._deserialize_financials(raw)
 
@@ -110,7 +113,8 @@ class SnapshotCache:
                 date_str = fname.replace('financials_', '').replace('.json', '')
                 try:
                     dates.append(date.fromisoformat(date_str))
-                except ValueError:
+                except ValueError as e:
+                    logger.debug(f'snapshot: unparseable snapshot filename {fname}: {e}')
                     continue
         return sorted(dates)
 

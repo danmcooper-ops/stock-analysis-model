@@ -27,10 +27,13 @@ Statement methodology:
 import os
 import time
 import json
+import logging
 from datetime import date, timedelta
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 _BASE = 'https://financialmodelingprep.com/stable'
 
@@ -104,9 +107,13 @@ class FMPClient:
                 return json.loads(resp.read().decode())
         except HTTPError as e:
             if e.code in (401, 402, 403, 404):
+                logger.debug(f'FMP: HTTP {e.code} for {path} — plan/endpoint limitation')
                 return None   # Plan or endpoint limitation — degrade gracefully
-            raise
-        except URLError:
+            # Never re-raise the original error: it carries the request URL,
+            # and the apikey query param would leak into tracebacks/logs.
+            raise RuntimeError(f'FMP request failed: HTTP {e.code} for {path}') from None
+        except URLError as e:
+            logger.warning(f'FMP: request failed for {path}: {e.reason}')
             return None
 
     def _build_statement_df(self, records, code_map, n_periods=4):
@@ -164,7 +171,8 @@ class FMPClient:
             if not non_null:
                 return None
             return pd.DataFrame({'stockTrend': rows})
-        except Exception:
+        except Exception as e:
+            logger.debug(f'FMP: growth estimate build failed: {e}')
             return None
 
     # ------------------------------------------------------------------
@@ -199,8 +207,8 @@ class FMPClient:
                     try:
                         low52  = float(parts[0].strip())
                         high52 = float(parts[1].strip())
-                    except (ValueError, IndexError):
-                        pass
+                    except (ValueError, IndexError) as e:
+                        logger.debug(f'FMP: 52w range parse failed for {ticker}: {e}')
 
                 result['info'].update({
                     'longName':            p.get('companyName', ''),
@@ -217,8 +225,8 @@ class FMPClient:
                     'averageVolume':       p.get('averageVolume'),
                     'dividendRate':        p.get('lastDividend'),
                 })
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'FMP: profile fetch failed for {ticker}: {e}')
 
         # 2. Shares outstanding and float
         try:
@@ -227,8 +235,8 @@ class FMPClient:
                 f = floats[0]
                 result['info']['floatShares']      = f.get('floatShares')
                 result['info']['sharesOutstanding'] = f.get('outstandingShares')
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'FMP: shares-float fetch failed for {ticker}: {e}')
 
         # 3. TTM valuation ratios (no limit needed — single TTM record)
         try:
@@ -246,8 +254,8 @@ class FMPClient:
                     'enterpriseToEbitda':   r.get('enterpriseValueMultipleTTM'),
                     'enterpriseToRevenue':  r.get('priceToSalesRatioTTM'),
                 })
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'FMP: ratios-ttm fetch failed for {ticker}: {e}')
 
         # 4. Annual key metrics (EV, ROIC — most recent fiscal year)
         try:
@@ -263,8 +271,8 @@ class FMPClient:
                     result['info']['forwardPE']  = m.get('peRatio')
                 if not result['info'].get('priceToBook'):
                     result['info']['priceToBook'] = m.get('pbRatio')
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'FMP: key-metrics fetch failed for {ticker}: {e}')
 
         # 5. Revenue / earnings growth rates (most recent fiscal year)
         try:
@@ -274,8 +282,8 @@ class FMPClient:
                 g = growth[0]
                 result['info']['revenueGrowth']  = g.get('revenueGrowth')
                 result['info']['earningsGrowth'] = g.get('netIncomeGrowth')
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'FMP: financial-growth fetch failed for {ticker}: {e}')
 
         # 6. Analyst price targets
         try:
@@ -286,8 +294,8 @@ class FMPClient:
                 result['info']['targetHighPrice']   = t.get('targetHigh')
                 result['info']['targetLowPrice']    = t.get('targetLow')
                 result['info']['targetMedianPrice'] = t.get('targetMedian')
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'FMP: price-target fetch failed for {ticker}: {e}')
 
         # 7. Key executives (companyOfficers)
         try:
@@ -297,8 +305,8 @@ class FMPClient:
                     {'name': e.get('name', ''), 'title': e.get('title', '')}
                     for e in execs[:5]
                 ]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'FMP: key-executives fetch failed for {ticker}: {e}')
 
         # 8. Financial statements (annual, ~4 years using from-date)
         stmt_start = (date.today() - timedelta(days=4 * 370)).isoformat()
@@ -307,32 +315,32 @@ class FMPClient:
                                 {'symbol': ticker, 'period': 'annual', 'from': stmt_start})
             if is_data:
                 result['income_statement'] = self._build_statement_df(is_data, _IS_MAP)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'FMP: income-statement fetch failed for {ticker}: {e}')
 
         try:
             bs_data = self._get('/balance-sheet-statement',
                                 {'symbol': ticker, 'period': 'annual', 'from': stmt_start})
             if bs_data:
                 result['balance_sheet'] = self._build_statement_df(bs_data, _BS_MAP)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'FMP: balance-sheet fetch failed for {ticker}: {e}')
 
         try:
             cf_data = self._get('/cash-flow-statement',
                                 {'symbol': ticker, 'period': 'annual', 'from': stmt_start})
             if cf_data:
                 result['cash_flow'] = self._build_statement_df(cf_data, _CF_MAP)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'FMP: cash-flow fetch failed for {ticker}: {e}')
 
         # 9. Analyst EPS estimates → growth_estimates DataFrame
         try:
             estimates = self._get('/analyst-estimates',
                                   {'symbol': ticker, 'period': 'annual'})
             result['growth_estimates'] = self._build_growth_estimates(estimates)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'FMP: analyst-estimates fetch failed for {ticker}: {e}')
 
         self._cache[cache_key] = result
         return result
@@ -348,7 +356,8 @@ class FMPClient:
 
         try:
             years = int(period.replace('y', ''))
-        except Exception:
+        except Exception as e:
+            logger.debug(f'FMP: period parse failed for {period!r}: {e}')
             years = 10
         start = (date.today() - timedelta(days=years * 365)).isoformat()
 
@@ -364,7 +373,8 @@ class FMPClient:
                    and (d.get('adjDividend') or d.get('dividend', 0)) > 0
             }
             result = pd.Series(divs, dtype=float).sort_index()
-        except Exception:
+        except Exception as e:
+            logger.warning(f'FMP: dividends fetch failed for {ticker}: {e}')
             result = pd.Series(dtype=float)
 
         self._cache[cache_key] = result
@@ -382,7 +392,8 @@ class FMPClient:
 
         try:
             years = int(period.replace('y', ''))
-        except Exception:
+        except Exception as e:
+            logger.debug(f'FMP: period parse failed for {period!r}: {e}')
             years = 5
         start = (date.today() - timedelta(days=years * 365)).isoformat()
 
@@ -397,7 +408,8 @@ class FMPClient:
             idx  = [pd.Timestamp(p['date']).tz_localize(None) for p in data]
             vals = [p.get('price') for p in data]
             result = pd.Series(vals, index=idx, dtype=float)
-        except Exception:
+        except Exception as e:
+            logger.warning(f'FMP: history fetch failed for {ticker}: {e}')
             result = pd.Series(dtype=float)
 
         self._cache[cache_key] = result
@@ -415,7 +427,8 @@ class FMPClient:
 
         try:
             years = int(period.replace('y', ''))
-        except Exception:
+        except Exception as e:
+            logger.debug(f'FMP: period parse failed for {period!r}: {e}')
             years = 1
         start = (date.today() - timedelta(days=years * 365)).isoformat()
 
@@ -430,7 +443,8 @@ class FMPClient:
                 for p in data
                 if p.get('price') is not None
             ]
-        except Exception:
+        except Exception as e:
+            logger.warning(f'FMP: price history fetch failed for {ticker}: {e}')
             result = []
 
         self._cache[cache_key] = result

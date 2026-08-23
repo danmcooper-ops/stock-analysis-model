@@ -13,9 +13,25 @@ Each indicator is fetched independently with try/except; missing data
 returns None.  Results are session-cached to avoid re-fetching.
 """
 
+import logging
 import time
 import numpy as np
 import yfinance as yf
+
+from data.yf_session import make_yf_session
+
+logger = logging.getLogger(__name__)
+
+_YF_SESSION = None
+
+
+def _yf_session():
+    """Shared curl_cffi session so every Yahoo call has a hard 15s timeout."""
+    global _YF_SESSION
+    if _YF_SESSION is None:
+        _YF_SESSION = make_yf_session()
+    return _YF_SESSION
+
 
 # GICS sector → SPDR sector ETF
 SECTOR_ETF_MAP = {
@@ -40,7 +56,8 @@ class MacroClient:
         self._last_req = 0
         self._cache = None
         self._sector_cache = None
-        # yfinance 1.x manages its own curl_cffi session; no custom session needed.
+        # yfinance calls share the module-level curl_cffi session (_yf_session)
+        # so every request carries a hard socket timeout.
 
     def _throttle(self):
         elapsed = time.time() - self._last_req
@@ -56,71 +73,71 @@ class MacroClient:
         """Current VIX level (e.g. 18.5)."""
         self._throttle()
         try:
-            price = yf.Ticker('^VIX').info.get('regularMarketPrice')
+            price = yf.Ticker('^VIX', session=_yf_session()).info.get('regularMarketPrice')
             if price and 5 < price < 90:
                 return round(float(price), 2)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'macro: VIX fetch failed for ^VIX: {e}')
         return None
 
     def _fetch_yield_curve_slope(self):
         """10yr − 3mo Treasury yield spread as decimal (e.g. 0.012 = 1.2%)."""
         self._throttle()
         try:
-            tnx = yf.Ticker('^TNX').info.get('regularMarketPrice')
+            tnx = yf.Ticker('^TNX', session=_yf_session()).info.get('regularMarketPrice')
             self._throttle()
-            irx = yf.Ticker('^IRX').info.get('regularMarketPrice')
+            irx = yf.Ticker('^IRX', session=_yf_session()).info.get('regularMarketPrice')
             if tnx is not None and irx is not None:
                 slope = (float(tnx) - float(irx)) / 100.0
                 if -0.06 < slope < 0.06:
                     return round(slope, 4)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'macro: yield curve fetch failed for ^TNX/^IRX: {e}')
         return None
 
     def _fetch_credit_spread(self):
         """LQD 3m return − HYG 3m return.  Positive = stress (HYG lagging)."""
         try:
             self._throttle()
-            hyg = yf.Ticker('HYG').history(period='3mo')
+            hyg = yf.Ticker('HYG', session=_yf_session()).history(period='3mo')
             self._throttle()
-            lqd = yf.Ticker('LQD').history(period='3mo')
+            lqd = yf.Ticker('LQD', session=_yf_session()).history(period='3mo')
             if hyg is not None and lqd is not None and len(hyg) > 5 and len(lqd) > 5:
                 hyg_ret = float(hyg['Close'].iloc[-1] / hyg['Close'].iloc[0]) - 1
                 lqd_ret = float(lqd['Close'].iloc[-1] / lqd['Close'].iloc[0]) - 1
                 return round(lqd_ret - hyg_ret, 4)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'macro: credit spread fetch failed for HYG/LQD: {e}')
         return None
 
     def _fetch_spy_momentum(self):
         """SPY current price / 200-day SMA ratio (e.g. 1.04)."""
         try:
             self._throttle()
-            hist = yf.Ticker('SPY').history(period='1y')
+            hist = yf.Ticker('SPY', session=_yf_session()).history(period='1y')
             if hist is not None and len(hist) >= 200:
                 current = float(hist['Close'].iloc[-1])
                 sma200 = float(hist['Close'].iloc[-200:].mean())
                 if sma200 > 0:
                     return round(current / sma200, 4)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'macro: SPY momentum fetch failed for SPY: {e}')
         return None
 
     def _fetch_industrial_rs(self):
         """XLI 3m return − SPY 3m return.  Positive = cyclical strength."""
         try:
             self._throttle()
-            xli = yf.Ticker('XLI').history(period='3mo')
+            xli = yf.Ticker('XLI', session=_yf_session()).history(period='3mo')
             self._throttle()
-            spy = yf.Ticker('SPY').history(period='3mo')
+            spy = yf.Ticker('SPY', session=_yf_session()).history(period='3mo')
             if (xli is not None and spy is not None
                     and len(xli) > 5 and len(spy) > 5):
                 xli_ret = float(xli['Close'].iloc[-1] / xli['Close'].iloc[0]) - 1
                 spy_ret = float(spy['Close'].iloc[-1] / spy['Close'].iloc[0]) - 1
                 return round(xli_ret - spy_ret, 4)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'macro: industrial RS fetch failed for XLI/SPY: {e}')
         return None
 
     # ------------------------------------------------------------------
@@ -138,7 +155,7 @@ class MacroClient:
         if self._cache is not None:
             return self._cache
 
-        print('Fetching macro indicators...')
+        logger.info('Fetching macro indicators...')
         self._cache = {
             'vix': self._fetch_vix(),
             'yield_curve_slope': self._fetch_yield_curve_slope(),
@@ -158,12 +175,13 @@ class MacroClient:
         if self._sector_cache is not None:
             return self._sector_cache
 
-        print('Fetching sector ETF data...')
+        logger.info('Fetching sector ETF data...')
         # Fetch SPY as benchmark (1 year)
         self._throttle()
         try:
-            spy_hist = yf.Ticker('SPY').history(period='1y')
-        except Exception:
+            spy_hist = yf.Ticker('SPY', session=_yf_session()).history(period='1y')
+        except Exception as e:
+            logger.warning(f'macro: benchmark fetch failed for SPY: {e}')
             spy_hist = None
 
         if spy_hist is None or len(spy_hist) < 60:
@@ -177,7 +195,7 @@ class MacroClient:
         for sector, etf in SECTOR_ETF_MAP.items():
             self._throttle()
             try:
-                hist = yf.Ticker(etf).history(period='1y')
+                hist = yf.Ticker(etf, session=_yf_session()).history(period='1y')
                 if hist is None or len(hist) < 60:
                     continue
                 close = hist['Close']
@@ -206,7 +224,8 @@ class MacroClient:
                     'sma200_ratio': round(sma_ratio, 4) if sma_ratio else None,
                     'volatility_30d': round(vol_30d, 4) if vol_30d else None,
                 }
-            except Exception:
+            except Exception as e:
+                logger.warning(f'macro: sector ETF fetch failed for {etf}: {e}')
                 continue
 
         self._sector_cache = result
@@ -222,7 +241,7 @@ class MacroClient:
         if hasattr(self, '_commodity_cache') and self._commodity_cache is not None:
             return self._commodity_cache
 
-        print('Fetching commodity & cross-sector data...')
+        logger.info('Fetching commodity & cross-sector data...')
         result = {}
 
         tickers = {
@@ -234,7 +253,7 @@ class MacroClient:
         for key, symbol in tickers.items():
             self._throttle()
             try:
-                hist = yf.Ticker(symbol).history(period='1y')
+                hist = yf.Ticker(symbol, session=_yf_session()).history(period='1y')
                 if hist is not None and len(hist) >= 60:
                     close = hist['Close']
                     n = len(close)
@@ -244,15 +263,16 @@ class MacroClient:
                         'return_3m': round(ret_3m, 4),
                         'return_6m': round(ret_6m, 4) if ret_6m is not None else None,
                     }
-            except Exception:
+            except Exception as e:
+                logger.warning(f'macro: commodity fetch failed for {symbol}: {e}')
                 continue
 
         # Consumer sentiment proxy: XLY/XLP ratio (discretionary vs staples)
         self._throttle()
         try:
-            xly = yf.Ticker('XLY').history(period='6mo')
+            xly = yf.Ticker('XLY', session=_yf_session()).history(period='6mo')
             self._throttle()
-            xlp = yf.Ticker('XLP').history(period='6mo')
+            xlp = yf.Ticker('XLP', session=_yf_session()).history(period='6mo')
             if (xly is not None and xlp is not None
                     and len(xly) >= 60 and len(xlp) >= 60):
                 # Current ratio vs 3-month-ago ratio
@@ -261,8 +281,8 @@ class MacroClient:
                 result['consumer_sentiment'] = {
                     'xly_xlp_ratio': round(ratio_now / ratio_3m, 4) if ratio_3m > 0 else None,
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f'macro: consumer sentiment fetch failed for XLY/XLP: {e}')
 
         self._commodity_cache = result
         return self._commodity_cache
