@@ -24,7 +24,7 @@ import sys
 import urllib.request
 import glob
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data.sec_xbrl_client import SECXBRLClient, _SSL_CTX
 
 # ---------------------------------------------------------------------------

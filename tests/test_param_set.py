@@ -1,11 +1,8 @@
 # tests/test_param_set.py
 """Tests for param_set module: creation, merging, and validation."""
 
-import sys
-import os
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from scripts.param_set import default_params, merge_params, validate_params
 

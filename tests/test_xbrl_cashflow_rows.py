@@ -10,13 +10,10 @@ _compute_shareholder_yield silently never fired for US companies.
 
 Synthetic companyfacts stubs; no live SEC API calls.
 """
-import sys
-import os
 
 import pandas as pd
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from data.sec_xbrl_client import SECXBRLClient
 from scripts.analyze_stock import _compute_shareholder_yield, run_forward_dcf

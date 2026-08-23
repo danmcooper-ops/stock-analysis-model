@@ -12,7 +12,7 @@ from statistics import median as _median
 import numpy as np
 import pandas as pd
 from urllib.request import urlopen, Request
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Load .env from project root (simple key=value parser, no dependency needed)
 _env_path = os.path.join(os.path.dirname(__file__), '..', '.env')

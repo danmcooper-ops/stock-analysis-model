@@ -11,14 +11,11 @@ Input ranges mirror the bounds the models themselves enforce via
 _dcf_validate_core / _validate_numeric, minus a margin so the guards
 (e.g. two_stage_ev's min_spread shift) don't mask the property under test.
 """
-import sys
-import os
 
 import numpy as np
 import pytest
 from hypothesis import assume, given, settings, strategies as st
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.capm import calculate_beta
 from models.dcf import two_stage_ev, fair_value_per_share, monte_carlo_dcf

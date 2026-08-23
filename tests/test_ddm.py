@@ -1,10 +1,7 @@
 # tests/test_ddm.py
-import sys
-import os
 import pytest
 import numpy as np
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.ddm import (
     two_stage_ddm, ddm_h_model, ddm_eligibility,

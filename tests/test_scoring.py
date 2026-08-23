@@ -1,9 +1,6 @@
 # tests/test_scoring.py
-import sys
-import os
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from scripts.scoring import (
     _score_linear, compute_continuous_scores, apply_composite_rating_override,

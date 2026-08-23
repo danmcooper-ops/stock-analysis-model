@@ -8,7 +8,6 @@ import time
 import pytest
 import pandas as pd
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from scripts.query_results import (
     list_snapshot_files, load_snapshot, pick_snapshot,

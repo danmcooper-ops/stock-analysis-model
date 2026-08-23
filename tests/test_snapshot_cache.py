@@ -1,13 +1,10 @@
 # tests/test_snapshot_cache.py
 """Tests for snapshot cache and point-in-time financial slicing."""
 
-import sys
-import os
 import pytest
 import pandas as pd
 from datetime import date
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from data.snapshot_cache import SnapshotCache
 from data.time_slice import slice_financials_as_of, _is_available

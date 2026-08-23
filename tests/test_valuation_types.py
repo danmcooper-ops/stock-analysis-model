@@ -2,13 +2,10 @@
 valuation model calls before dividing or discounting. It had no direct
 coverage despite being the layer that turns bad inputs into loud errors.
 """
-import sys
-import os
 
 import numpy as np
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from models.valuation_types import Valuation, _validate_numeric, _validate_returns
 from models.dcf import _validate_years

@@ -33,9 +33,8 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from scoring import gate_metadata  # noqa: E402
+from scripts.scoring import gate_metadata  # noqa: E402
 
 
 def _load_records(path):

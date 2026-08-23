@@ -13,13 +13,9 @@ Regression tests for two July-audit findings:
    deduction and the growth-capex add-back entirely. The ceiling now caps the
    raw base first; adjustments apply on top.
 """
-import sys
-from pathlib import Path
 
 import pandas as pd
 
-sys.path.append(str(Path(__file__).resolve().parent.parent))
-sys.path.append(str(Path(__file__).resolve().parent.parent / 'scripts'))
 
 from scripts.analyze_stock import run_forward_dcf  # noqa: E402
 

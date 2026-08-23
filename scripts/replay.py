@@ -17,7 +17,7 @@ import json
 import argparse
 from datetime import date
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.param_set import merge_params, validate_params
 

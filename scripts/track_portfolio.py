@@ -15,7 +15,7 @@ import glob
 import argparse
 from datetime import date
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from data.yfinance_client import YFinanceClient
 from data.portfolio_client import PortfolioClient

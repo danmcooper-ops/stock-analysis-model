@@ -1,12 +1,9 @@
 # tests/test_backtest.py
 """Tests for the merged backtest module: window splitting, objectives, grid search."""
 
-import sys
-import os
 import pytest
 from datetime import date
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from scripts.backtest import (
     generate_windows,

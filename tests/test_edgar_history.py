@@ -1,10 +1,7 @@
 # tests/test_edgar_history.py
-import sys
-import os
 
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from scripts.analyze_stock import _flow_to_annual, _stock_to_annual
 

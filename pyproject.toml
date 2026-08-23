@@ -35,11 +35,12 @@ dev = [
     "ruff~=0.16",
 ]
 
-# The repo is not yet an installable package (modules resolve via sys.path
-# convention; see CLAUDE.md). This keeps `pip install -e .[dev]` working as a
-# dependency-only install until a proper package layout lands.
+# Flat-layout packages. `pip install -e ".[dev]"` makes data/models/scripts
+# importable from anywhere (tests rely on it via conftest as a fallback).
+# Entry-point scripts keep a one-line sys.path prelude so a bare
+# `python scripts/analyze_stock.py` still works on an uninstalled checkout.
 [tool.setuptools]
-packages = []
+packages = ["data", "models", "scripts"]
 
 [tool.coverage.run]
 source = ["data", "models", "scripts"]

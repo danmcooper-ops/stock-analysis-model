@@ -10,8 +10,7 @@ import numpy as np
 
 import sys as _sys
 _HERE = os.path.dirname(os.path.abspath(__file__))
-if os.path.join(_HERE, '..') not in _sys.path:
-    _sys.path.append(os.path.join(_HERE, '..'))
+_sys.path.insert(0, os.path.dirname(_HERE))
 try:
     from models.narrative import generate_sector_profit_pool_narrative
 except Exception:
