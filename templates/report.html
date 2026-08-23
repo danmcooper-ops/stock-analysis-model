@@ -1905,6 +1905,69 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 [data-theme="dark"] #macro-view svg text[fill="#64748b"]{fill:#c9d1d9;}
 [data-theme="dark"] #macro-view svg line[stroke="#e8edf2"]{stroke:#30363d;}
 [data-theme="dark"] #macro-view svg line[stroke="#cbd5e1"]{stroke:#484f58;}
+/* --- MACRO OUTLOOK ON PHONES ------------------------------------------
+   Both blocks sit last in the sheet on purpose: like the portrait/landscape
+   compaction blocks above, they re-assert over the desktop macro rules,
+   which appear earlier at equal specificity.
+
+   The charts are plain <svg viewBox> with no fixed height, so their height
+   is a function of the card's WIDTH — which makes the card grid, not any
+   height rule, what decides whether a chart fits on screen.
+
+   PORTRAIT (393px-wide iPhone): the six sub-tab chips wrapped to three rows
+   and, with the regime box, pushed the first tile 230px down the page; the
+   tile grid's 240px floor left one column with ~40% of each tile empty
+   beside the 120px sparkline. Tighter chips plus a 165px floor give two
+   tile columns and cut the Overview scroll roughly in half. Cards stay one
+   per row — a 369px chart is 125px tall, which is the right size here. */
+@media(max-width:900px) and (orientation:portrait){
+  #macro-view{padding:2px 4px 32px;}
+  .mac-subtabs{gap:5px;margin:7px 0 9px;}
+  .mac-subtab{padding:3px 10px;font-size:0.76em;}
+  .mac-regime{padding:8px 11px;margin:7px 0 9px;font-size:0.85em;}
+  .mac-tiles{grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:8px;margin:6px 0 12px;}
+  .mac-tile{padding:8px 10px;}
+  .mac-tile-v{font-size:1.3em;}
+  .mac-cards{gap:10px;}
+  .mac-card{padding:10px 11px;}
+}
+/* Tablet portrait (iPad, ~820px): one column of the desktop grid put a
+   776px-wide chart — 287px tall — on a page that has room for two of them
+   side by side. Scoped to portrait tablets so the desktop grid, sized for a
+   1180px content column, is untouched. */
+@media(min-width:601px) and (max-width:1024px) and (orientation:portrait){
+  .mac-cards{grid-template-columns:repeat(auto-fill,minmax(360px,1fr));}
+}
+/* LANDSCAPE (852x393): height is the scarce axis. The 460px card floor left
+   ONE full-width card per row, and at 828px wide its chart rendered 295px
+   tall — a single chart taller than the whole viewport, with SVG-scaled axis
+   labels to match. A 300px floor puts two charts per row at about half that
+   height (and keeps two on the 667px-wide SE), while the chrome above them
+   is trimmed so the first row starts near the top rather than 184px down.
+   Side padding clears the notch: viewport-fit=cover means the landscape
+   inset is ours to honour, and unlike the two table views there is no
+   horizontal pan here to shift content out from under it. */
+@media(orientation:landscape) and (max-height:500px){
+  #macro-view{padding:2px max(6px,env(safe-area-inset-right)) 28px max(6px,env(safe-area-inset-left));}
+  .mac-subtabs{gap:5px;margin:5px 0 7px;}
+  .mac-subtab{padding:2px 10px;font-size:0.74em;}
+  .mac-regime{padding:5px 10px;margin:5px 0 7px;font-size:0.8em;}
+  .mac-regime-chips{margin-top:4px;}
+  .mac-sec-note{margin:0 0 6px;}
+  .mac-tiles{grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:8px;margin:5px 0 10px;}
+  .mac-tile{padding:7px 9px;}
+  .mac-tile-v{font-size:1.25em;}
+  .mac-cards{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;}
+  .mac-card{padding:9px 10px;}
+  .mac-card-head .mac-tile-v{font-size:1.1em;}
+  /* The two cards that sit OUTSIDE the grid as direct children — the yield
+     curve on Rates & Curve and the OAS table on Credit & Conditions — are
+     full-bleed, so the curve alone drew 828x280 and owned the entire
+     landscape viewport. Capping them at the curve's own 560-unit viewBox
+     renders it 1:1 (no upscaled 9px tenor labels) and leaves the first row
+     of section cards on screen beneath it. */
+  #macro-view>.mac-card{max-width:560px;}
+}
 </style>
 </head>
 <body>
@@ -7085,7 +7148,12 @@ function _navGroups(){
     {v:'table',l:'Financial Data',cur:curTSub,
      items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})}
   ];
-  if(_MACRO_AVAILABLE)groups.push({v:'macro',l:'Macro Outlook',cur:curMacSub||'overview',items:MACRO_TABS});
+  /* Macro Outlook leads the menu: it is top-down context (regime, rates,
+     inflation) that frames everything the other three views say about
+     individual names, so it reads first — leftmost column on desktop, first
+     block in the stacked phone layout. unshift, not push: the group list is
+     also what _syncNavCrumb walks, and order there is purely presentational. */
+  if(_MACRO_AVAILABLE)groups.unshift({v:'macro',l:'Macro Outlook',cur:curMacSub||'overview',items:MACRO_TABS});
   return groups;
 }
 function renderNavMenu(){
