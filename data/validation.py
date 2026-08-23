@@ -3,7 +3,10 @@
 Data quality checks for yfinance financial data.
 Flags missing fields, stale data, and extreme values.
 """
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 def validate_financials(financials, ticker):
@@ -80,7 +83,8 @@ def validate_financials(financials, ticker):
                     warnings.append(
                         f'{ticker}: Financial data may be stale ({age_days} days old)')
                     score -= 10
-            except Exception:
+            except Exception as e:
+                logger.debug(f'validation: staleness check failed for {ticker}: {e}')
                 pass
 
     return {

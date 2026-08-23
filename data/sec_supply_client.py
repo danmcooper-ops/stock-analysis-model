@@ -9,12 +9,14 @@ Uses only stdlib (urllib + json + re + html.parser).
 """
 
 import json
-import os
+import logging
 import re
 import time
 import urllib.error
 import urllib.request
 from html.parser import HTMLParser
+
+logger = logging.getLogger(__name__)
 
 
 class _HTMLStripper(HTMLParser):
@@ -69,8 +71,7 @@ class SECSupplyClient:
         'that', 'these', 'those', 'such', 'each', 'other', 'more',
         # Business / financial terms common in filings
         'financial', 'institutions', 'services', 'service', 'solutions',
-        'systems', 'management', 'resources', 'partners', 'partners',
-        'consulting', 'advisors', 'investments', 'properties',
+        'systems', 'management', 'resources', 'partners', 'consulting', 'advisors', 'investments', 'properties',
         'target', 'group', 'senior', 'billion', 'million', 'annual',
         'quality', 'industrial', 'strategic', 'strategy', 'emerging',
         'intelligent', 'magnitude', 'frequency', 'reliability',
@@ -139,7 +140,8 @@ class SECSupplyClient:
             if e.code == 429:
                 time.sleep(5)
             return None
-        except Exception:
+        except Exception as e:
+            logger.warning(f"SEC supply chain: request failed for {url}: {e}")
             return None
 
     def _request_text(self, url, max_bytes=512_000, timeout=30):
@@ -154,7 +156,8 @@ class SECSupplyClient:
             if e.code == 429:
                 time.sleep(5)
             return ''
-        except Exception:
+        except Exception as e:
+            logger.warning(f"SEC supply chain: request failed for {url}: {e}")
             return ''
 
     # ------------------------------------------------------------------
@@ -198,7 +201,7 @@ class SECSupplyClient:
             except re.error:
                 continue
         self._reverse_map = rmap
-        print(f'SEC supply chain: built reverse name map ({len(rmap)} entries)')
+        logger.info(f'SEC supply chain: built reverse name map ({len(rmap)} entries)')
 
     # ------------------------------------------------------------------
     # Filing discovery & download
@@ -240,7 +243,8 @@ class SECSupplyClient:
         stripper = _HTMLStripper()
         try:
             stripper.feed(html)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"SEC supply chain: HTML strip failed for {url}: {e}")
             pass
         return stripper.get_text()
 

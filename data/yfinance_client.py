@@ -1,4 +1,5 @@
 # data/yfinance_client.py
+import logging
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
@@ -6,6 +7,8 @@ from datetime import date
 
 import yfinance as yf
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 class EmptyYahooResponseError(Exception):
@@ -95,7 +98,8 @@ def _backfill_shares_and_mcap(stock, info):
     fast = None
     try:
         fast = stock.fast_info
-    except Exception:
+    except Exception as e:
+        logger.debug(f"yfinance: fast_info unavailable for {getattr(stock, 'ticker', info.get('symbol'))}: {e}")
         fast = None
 
     def _fast(attr):
@@ -104,7 +108,9 @@ def _backfill_shares_and_mcap(stock, info):
         try:
             val = getattr(fast, attr, None)
             return float(val) if val else None
-        except Exception:
+        except Exception as e:
+            logger.debug(f"yfinance: fast_info.{attr} read failed for "
+                         f"{getattr(stock, 'ticker', info.get('symbol'))}: {e}")
             return None
 
     if not info.get('sharesOutstanding'):
@@ -117,7 +123,9 @@ def _backfill_shares_and_mcap(stock, info):
                 series = stock.get_shares_full(start='2020-01-01')
                 if series is not None and len(series):
                     shares = float(series.iloc[-1])
-            except Exception:
+            except Exception as e:
+                logger.debug(f"yfinance: get_shares_full failed for "
+                             f"{getattr(stock, 'ticker', info.get('symbol'))}: {e}")
                 shares = None
         if shares and shares > 0:
             info['sharesOutstanding'] = shares
@@ -163,7 +171,7 @@ def _run_with_timeout(func, timeout_seconds):
         future.cancel()
         raise TimeoutError(
             f"yfinance call timed out after {timeout_seconds}s"
-        )
+        ) from None
 
 
 class YFinanceClient:
@@ -302,11 +310,13 @@ class YFinanceClient:
             # Growth estimates and earnings history (may fail for some tickers)
             try:
                 data['growth_estimates'] = stock.growth_estimates
-            except Exception:
+            except Exception as e:
+                logger.debug(f"yfinance: growth_estimates fetch failed for {ticker}: {e}")
                 data['growth_estimates'] = None
             try:
                 data['earnings_history'] = stock.earnings_history
-            except Exception:
+            except Exception as e:
+                logger.debug(f"yfinance: earnings_history fetch failed for {ticker}: {e}")
                 data['earnings_history'] = None
             # Capture quote and reporting currencies so the analysis pipeline
             # can normalize foreign-domiciled financials to USD before any
@@ -329,7 +339,8 @@ class YFinanceClient:
             try:
                 self._snapshot_cache.save(ticker, financials,
                                           as_of=self.run_date or date.today())
-            except Exception:
+            except Exception as e:
+                logger.debug(f"yfinance: snapshot cache write failed for {ticker}: {e}")
                 pass  # Cache write failures are non-fatal
 
         return financials
@@ -360,7 +371,8 @@ class YFinanceClient:
                     dividends = pd.Series(dtype=float)
                 else:
                     dividends = dividends.iloc[:, 0]
-        except Exception:
+        except Exception as e:
+            logger.warning(f"yfinance: dividends fetch failed for {ticker}: {e}")
             dividends = pd.Series(dtype=float)
             fetch_failed = True
         # Only cache real responses: caching after an exception turns a
@@ -382,7 +394,8 @@ class YFinanceClient:
         fetch_failed = False
         try:
             hist = self._retry(_fetch)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"yfinance: history fetch failed for {ticker}: {e}")
             hist = None
             fetch_failed = True
 
@@ -421,5 +434,6 @@ class YFinanceClient:
                 df.columns = ['Close']
             df.index = pd.to_datetime(df.index).tz_localize(None)
             df.to_parquet(path)
-        except Exception:
+        except Exception as e:
+            logger.debug(f"yfinance: price parquet write failed for {ticker}: {e}")
             pass

@@ -12,11 +12,14 @@ Uses only stdlib (urllib + json + xml.etree).
 """
 
 import json
+import logging
 import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 
 class SECInsiderClient:
@@ -77,7 +80,8 @@ class SECInsiderClient:
             if e.code == 429:
                 time.sleep(5)
             return None
-        except Exception:
+        except Exception as e:
+            logger.warning(f"SEC insider: request failed for {url}: {e}")
             return None
 
     def _request_text(self, url, max_bytes=256_000, timeout=15):
@@ -92,7 +96,8 @@ class SECInsiderClient:
             if e.code == 429:
                 time.sleep(5)
             return ''
-        except Exception:
+        except Exception as e:
+            logger.warning(f"SEC insider: request failed for {url}: {e}")
             return ''
 
     # ------------------------------------------------------------------
@@ -279,7 +284,8 @@ class SECInsiderClient:
                 'shares_after': shares_after,
             }
 
-        except Exception:
+        except Exception as e:
+            logger.debug(f"SEC insider: transaction parse failed for {owner_name}: {e}")
             return None
 
     # ------------------------------------------------------------------
@@ -354,7 +360,7 @@ class SECInsiderClient:
 
         # Step 2: Parse each Form 4 XML
         all_transactions = []
-        for accession, primary_doc, filing_date in filings:
+        for accession, primary_doc, _filing_date in filings:
             txns = self._parse_form4_xml(cik, accession, primary_doc)
             all_transactions.extend(txns)
 

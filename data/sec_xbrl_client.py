@@ -9,18 +9,22 @@ Uses only stdlib (urllib + json + datetime).
 """
 
 import json
+import logging
 import ssl
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime as _dt
 
+logger = logging.getLogger(__name__)
+
 def _ssl_context():
     """Return an SSL context using certifi certs if available, else system certs."""
     try:
         import certifi
         return ssl.create_default_context(cafile=certifi.where())
-    except Exception:
+    except Exception as e:
+        logger.debug(f"sec_xbrl: certifi unavailable, using system trust store: {e}")
         # Fall back to the system trust store — NEVER disable verification:
         # unverified TLS would let a MITM feed fabricated financial data
         # into the pipeline silently.
@@ -30,9 +34,7 @@ _SSL_CTX = _ssl_context()
 
 from models.field_keys import (
     _get, REVENUE_KEYS, NET_INCOME_KEYS, TOTAL_ASSETS_KEYS,
-    EQUITY_KEYS, DEBT_KEYS, OPERATING_INCOME_KEYS, CASH_KEYS,
-    OPERATING_CF_KEYS, GROSS_PROFIT_KEYS, INTEREST_KEYS,
-    CAPEX_KEYS, DIVIDENDS_PAID_KEYS,
+    EQUITY_KEYS, DEBT_KEYS, OPERATING_CF_KEYS, GROSS_PROFIT_KEYS, INTEREST_KEYS,
 )
 
 # FX helpers moved to data/fx_client.py so the yfinance live-data pipeline
@@ -472,7 +474,8 @@ class SECXBRLClient:
             if e.code == 429:
                 time.sleep(5)
             return None
-        except Exception:
+        except Exception as e:
+            logger.warning(f"SEC XBRL: request failed for {url}: {e}")
             return None
 
     # ------------------------------------------------------------------
@@ -532,7 +535,8 @@ class SECXBRLClient:
                                             'form': e.get('form'),
                                             'filed': filed,
                                             'fy': e.get('fy')}
-        except Exception:
+        except Exception as e:
+            logger.debug(f"SEC XBRL: filing provenance scan failed for {ticker}: {e}")
             return None
         if best is None:
             return None
@@ -1426,7 +1430,7 @@ class SECXBRLClient:
                 'Interest Expense': interest_exp.get(y),
                 'Tax Provision':    tax_provision.get(y),
                 'Pretax Income':    pretax_income.get(y),
-            } for y, col in zip(years, cols)
+            } for y, col in zip(years, cols, strict=False)
         })
 
         balance_df = pd.DataFrame({
@@ -1439,7 +1443,7 @@ class SECXBRLClient:
                 'Current Liabilities':       curr_liabs.get(y),
                 'Total Liabilities Net Minority Interest': liabilities.get(y),
                 'Retained Earnings':         ret_earnings.get(y),
-            } for y, col in zip(years, cols)
+            } for y, col in zip(years, cols, strict=False)
         })
 
         # Capex follows the yfinance sign convention: stored NEGATIVE.
@@ -1455,7 +1459,7 @@ class SECXBRLClient:
                 'Operating Cash Flow':          op_cf.get(y),
                 'Capital Expenditure':          _neg(capex.get(y)),
                 'Depreciation And Amortization': d_and_a.get(y),
-            } for y, col in zip(years, cols)
+            } for y, col in zip(years, cols, strict=False)
         })
 
         return {
