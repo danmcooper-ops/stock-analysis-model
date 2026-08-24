@@ -7276,7 +7276,7 @@ function _mpctRow(s){
   return '<div class="mac-pct-row"><div class="mac-pct-track"><div class="mac-pct-mark" style="left:'+Math.min(98,pc)+'%"></div></div>'
     +'<span>'+pc+'th pctile of '+(s.pct_win||'history')+'</span></div>';
 }
-function _mSparkSVG(vals){
+function _mSparkSVG(vals,dates,hid,fmt,suffix){
   if(!vals||vals.length<2)return '';
   var W=120,H=30,mn=Infinity,mx=-Infinity;
   for(var i=0;i<vals.length;i++){var v=vals[i];if(v==null)continue;if(v<mn)mn=v;if(v>mx)mx=v;}
@@ -7287,8 +7287,19 @@ function _mSparkSVG(vals){
     if(vals[j]==null)continue;
     pts.push((j/(vals.length-1)*W).toFixed(1)+','+(H-2-((vals[j]-mn)/rg)*(H-4)).toFixed(1));
   }
-  return '<svg viewBox="0 0 '+W+' '+H+'" style="width:120px;height:30px;display:block;margin-top:4px">'
-    +'<polyline points="'+pts.join(' ')+'" fill="none" stroke="#2874c6" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+  var g='<polyline points="'+pts.join(' ')+'" fill="none" stroke="#2874c6" stroke-width="1.3" stroke-linejoin="round"/>';
+  if(!hid)return '<svg viewBox="0 0 '+W+' '+H+'" style="width:120px;height:30px;display:block;margin-top:4px">'+g+'</svg>';
+  /* Same scrub as the full charts, sized down: 120x30 is small for a
+     crosshair, so the marker does the work and the line is hairline. The
+     tile's own value + date are the readout. */
+  g+='<line id="'+hid+'-vl" x1="0" y1="0" x2="0" y2="'+H+'" stroke="#94a3b8" stroke-width="0.8" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>'
+    +'<circle id="'+hid+'-dot" cx="0" cy="0" r="2.6" fill="#fff" stroke="#2874c6" stroke-width="1.4" opacity="0" pointer-events="none"/>';
+  _MAC_HOV[hid]={kind:'spark',vals:vals,ds:dates||[],W:W,H:H,mn:mn,rg:rg,
+                 fmt:fmt,suffix:suffix};
+  return '<svg id="'+hid+'" viewBox="0 0 '+W+' '+H+'" style="width:120px;height:30px;display:block;margin-top:4px;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
+    +' onmousemove="macHovMove(event,\''+hid+'\')" onmouseleave="macHovLeave(\''+hid+'\')"'
+    +' ontouchstart="macHovTouch(event,\''+hid+'\')" ontouchmove="macHovTouch(event,\''+hid+'\')"'
+    +' ontouchend="macHovLeave(\''+hid+'\')" ontouchcancel="macHovLeave(\''+hid+'\')">'+g+'</svg>';
 }
 function _loadMacro(){
   _MACRO_LOADING=true;
@@ -7305,6 +7316,9 @@ function renderMacro(){
   renderNavMenu();
   if(!_MACRO_AVAILABLE){el.innerHTML='<p class="mac-note">Macro data was not built with this snapshot.</p>';return;}
   if(!MACRO&&!_MACRO_LOADING&&!_MACRO_FAILED)_loadMacro();
+  /* Every chart below re-registers itself while its HTML is built; the
+     previous render's nodes are about to be replaced wholesale. */
+  _MAC_HOV={};_MAC_READ={};
   /* No sub-tab row here: the six section buttons duplicated the nav
      dropdown's Macro Outlook column, which is where every other view's
      sub-tabs already live (see renderMSubs / renderTSubs). The regime box
@@ -7343,12 +7357,19 @@ function _macOverviewHTML(){
   if(tiles.length){
     h+='<div class="mac-tiles">';
     tiles.forEach(function(t){
+      /* spark_d rides alongside spark from the builder. A snapshot rendered
+         before it existed still scrubs — the readout just shows the value
+         with the tile's own date left alone. */
+      var hid=_macHid();
+      var vHTML=_mfmt(t.latest?t.latest.v:null,t.fmt,t.suffix);
+      var dHTML='as of '+(t.latest?t.latest.d:'?');
       h+='<div class="mac-tile"><div class="mac-tile-l">'+t.l+'</div>'
-        +'<div class="mac-tile-v">'+_mfmt(t.latest?t.latest.v:null,t.fmt,t.suffix)+'</div>'
+        +'<div class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</div>'
         +'<div>'+_mdelta(t.chg_1m,t,'1M')+'</div>'
-        +_mSparkSVG(t.spark)
+        +_mSparkSVG(t.spark,t.spark_d,hid,t.fmt,t.suffix)
         +_mpctRow(t)
-        +'<div class="mac-tile-date">as of '+(t.latest?t.latest.d:'?')+'</div></div>';
+        +'<div class="mac-tile-date" id="'+hid+'-d">'+dHTML+'</div></div>';
+      _macRegisterReadout(hid,vHTML,dHTML);
     });
     h+='</div>';
   }
@@ -7374,30 +7395,149 @@ function _macSectionHTML(k){
   return h;
 }
 function _macCardHTML(id,s){
+  /* The value and date line carry ids so the chart's scrub can retarget them
+     to the hovered observation; _macRegisterReadout stores what they say at
+     rest, which is what the pointer leaving puts back. */
+  var hid=_macHid();
+  var vHTML=_mfmt(s.latest?s.latest.v:null,s.fmt,s.suffix);
+  var dHTML='as of '+(s.latest?s.latest.d:'?')+(s.prior?' · prior '+_mfmt(s.prior.v,s.fmt,s.suffix):'');
   var h='<div class="mac-card"><div class="mac-card-head">'
     +'<span class="mac-card-title">'+s.l+'</span>'
-    +'<span class="mac-tile-v">'+_mfmt(s.latest?s.latest.v:null,s.fmt,s.suffix)+'</span>'
+    +'<span class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</span>'
     +'<span>'+_mdelta(s.chg_1m,s,'1M')+_mdelta(s.chg_1y,s,'1Y')+'</span>'
     +'</div>';
-  h+=_macChartSVG(s);
+  h+=_macChartSVG(s,hid);
   h+=_mpctRow(s);
-  h+='<div class="mac-tile-date">as of '+(s.latest?s.latest.d:'?')+(s.prior?' · prior '+_mfmt(s.prior.v,s.fmt,s.suffix):'')+'</div>';
+  h+='<div class="mac-tile-date" id="'+hid+'-d">'+dHTML+'</div>';
   h+='</div>';
+  _macRegisterReadout(hid,vHTML,dHTML);
   return h;
 }
 /* Single-series time chart. Sibling of _renderPolylineSVG rather than a reuse:
    that helper is welded to multi-series indexed-to-100 sector aggregates.
    X is time-proportional (epoch ms) because daily histories arrive
    downsampled to uneven spacing — index-proportional would warp the axis. */
-function _macChartSVG(s){
+/* === MACRO CHART SCRUB ===
+   Every chart in this tab reads its values off the pointer: the crosshair
+   snaps to the nearest observation and the card's own headline value + date
+   line become the readout, so the numbers a viewer already reads at rest are
+   the ones that move. No new tooltip surface, and no layout shift — the
+   readout writes into elements that are always there.
+
+   One registry keyed by chart id, rebuilt on every renderMacro (which
+   replaces the whole subtree, orphaning the previous nodes). Geometry is
+   captured at draw time rather than recomputed, so the hit test cannot drift
+   from what was actually painted. */
+var _MAC_HOV={},_MAC_READ={},_MAC_HID=0;
+function _macHid(){return 'mch'+(++_MAC_HID);}
+/* What the value + date line say at rest, restored when the pointer goes. */
+function _macRegisterReadout(hid,vHTML,dHTML){_MAC_READ[hid]={v:vHTML,d:dHTML};}
+/* Nearest index in a sorted array — the observations are irregularly spaced
+   (daily series thin out past a year, monthly ones never were dense), so
+   proportional indexing would snap to the wrong point. */
+function _macNearest(arr,t){
+  var lo=0,hi=arr.length-1;
+  if(t<=arr[0])return 0;
+  if(t>=arr[hi])return hi;
+  while(hi-lo>1){var mid=(lo+hi)>>1;if(arr[mid]<=t)lo=mid;else hi=mid;}
+  return (t-arr[lo]<=arr[hi]-t)?lo:hi;
+}
+function _macMark(hid,x,y,key){
+  var vl=document.getElementById(hid+'-vl');
+  if(vl){vl.setAttribute('x1',x.toFixed(1));vl.setAttribute('x2',x.toFixed(1));vl.setAttribute('opacity','1');}
+  var dot=document.getElementById(hid+'-dot'+(key?'-'+key:''));
+  if(dot){dot.setAttribute('cx',x.toFixed(1));dot.setAttribute('cy',y.toFixed(1));dot.setAttribute('opacity','1');}
+}
+function _macReadout(hid,vHTML,dText){
+  var ve=document.getElementById(hid+'-v');
+  if(ve)ve.innerHTML=vHTML;
+  var de=document.getElementById(hid+'-d');
+  if(de&&dText)de.textContent=dText;
+}
+function macHovMove(e,hid){
+  var st=_MAC_HOV[hid];if(!st)return;
+  var svg=document.getElementById(hid);if(!svg||!svg.createSVGPoint)return;
+  var m=svg.getScreenCTM();if(!m)return;
+  var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  var sp=pt.matrixTransform(m.inverse());
+  /* Only x is tested. These cards are short, and dropping the crosshair
+     because the pointer strayed over the axis labels reads as flicker. */
+  if(st.kind==='spark'){
+    var n=st.vals.length;
+    var si=Math.max(0,Math.min(n-1,Math.round(sp.x/st.W*(n-1))));
+    if(st.vals[si]==null)return;
+    _macMark(hid,si/(n-1)*st.W,st.H-2-((st.vals[si]-st.mn)/st.rg)*(st.H-4));
+    _macReadout(hid,_mfmt(st.vals[si],st.fmt,st.suffix),st.ds[si]||'');
+    return;
+  }
+  if(st.kind==='curve'){
+    var best=0,bd=Infinity;
+    for(var i=0;i<st.sx.length;i++){
+      var xi=st.PL+(st.sx[i]/st.sxMax)*st.iW,dd=Math.abs(xi-sp.x);
+      if(dd<bd){bd=dd;best=i;}
+    }
+    var cx=st.PL+(st.sx[best]/st.sxMax)*st.iW;
+    var vl=document.getElementById(hid+'-vl');
+    if(vl){vl.setAttribute('x1',cx.toFixed(1));vl.setAttribute('x2',cx.toFixed(1));vl.setAttribute('opacity','1');}
+    var LBL={now:'Now',m1:'1M ago',y1:'1Y ago'};
+    var out='<span style="font-weight:700;color:var(--text)">'+st.c.tenors[best]+'</span>';
+    ['now','m1','y1'].forEach(function(k){
+      var snap=st.c[k];
+      var dot=document.getElementById(hid+'-dot-'+k);
+      if(!snap||snap.v[best]==null){if(dot)dot.setAttribute('opacity','0');return;}
+      var y=st.PT+st.iH-((snap.v[best]-st.mn)/st.yr)*st.iH;
+      if(dot){dot.setAttribute('cx',cx.toFixed(1));dot.setAttribute('cy',y.toFixed(1));dot.setAttribute('opacity','1');}
+      out+='<span><span style="color:'+st.styles[k][0]+';font-weight:700">'+(k==='now'?'—':(k==='m1'?'- -':'···'))+'</span> '
+        +LBL[k]+' <b style="color:var(--text)">'+snap.v[best].toFixed(2)+'%</b></span>';
+    });
+    var re=document.getElementById(hid+'-r');
+    if(re)re.innerHTML=out;
+    return;
+  }
+  var relX=Math.max(0,Math.min(sp.x-st.PL,st.iW));
+  var idx=_macNearest(st.xs,st.x0+(relX/st.iW)*st.xr);
+  _macMark(hid,st.PL+((st.xs[idx]-st.x0)/st.xr)*st.iW,
+           st.PT+st.iH-((st.ys[idx]-st.mn)/st.yr)*st.iH);
+  _macReadout(hid,_mfmt(st.ys[idx],st.fmt,st.suffix),st.ds[idx]);
+}
+function macHovLeave(hid){
+  var st=_MAC_HOV[hid];
+  var vl=document.getElementById(hid+'-vl');
+  if(vl)vl.setAttribute('opacity','0');
+  ['','-now','-m1','-y1'].forEach(function(k){
+    var dot=document.getElementById(hid+'-dot'+k);
+    if(dot)dot.setAttribute('opacity','0');
+  });
+  if(st&&st.kind==='curve'){
+    var re=document.getElementById(hid+'-r');
+    if(re)re.innerHTML=st.legend;
+    return;
+  }
+  var def=_MAC_READ[hid];
+  if(!def)return;
+  var ve=document.getElementById(hid+'-v');
+  if(ve)ve.innerHTML=def.v;
+  var de=document.getElementById(hid+'-d');
+  if(de)de.textContent=def.d;
+}
+/* Deliberately no preventDefault, unlike the sector chart: on a phone these
+   charts stack the full height of the tab, so swallowing the touchmove would
+   trap the page. touch-action:pan-y already gives horizontal drags to us and
+   leaves vertical scrolling to the browser; a scrub that happens during a
+   scroll is harmless because touchend puts the values back. */
+function macHovTouch(e,hid){
+  if(!e.touches||!e.touches.length)return;
+  macHovMove({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY},hid);
+}
+function _macChartSVG(s,hid){
   var d=(s.hist&&s.hist.d)||[],v=(s.hist&&s.hist.v)||[];
   if(d.length<2)return '<p class="mac-note">Not enough history.</p>';
   var VW=460,VH=170,PL=46,PR=10,PT=10,PB=22;
   var iW=VW-PL-PR,iH=VH-PT-PB;
-  var xs=[],ys=[],mn=Infinity,mx=-Infinity;
+  var xs=[],ys=[],ds=[],mn=Infinity,mx=-Infinity;
   for(var i=0;i<d.length;i++){
     if(v[i]==null)continue;
-    xs.push(Date.parse(d[i]));ys.push(v[i]);
+    xs.push(Date.parse(d[i]));ys.push(v[i]);ds.push(d[i]);
     if(v[i]<mn)mn=v[i];if(v[i]>mx)mx=v[i];
   }
   if(xs.length<2)return '<p class="mac-note">Not enough history.</p>';
@@ -7433,7 +7573,18 @@ function _macChartSVG(s){
   g+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="#2874c6" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>';
   var lx=X(xs[xs.length-1]),ly=Y(ys[ys.length-1]);
   g+='<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="3" fill="#2874c6"/>';
-  return '<svg viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:auto">'+g+'</svg>';
+  if(!hid)return '<svg viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:auto">'+g+'</svg>';
+  /* Scrub overlay, hidden until the pointer is over the plot. Registered
+     against the card's headline value + date line, which are what the
+     readout rewrites — the chart itself only moves the crosshair. */
+  g+='<line id="'+hid+'-vl" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0" pointer-events="none"/>'
+    +'<circle id="'+hid+'-dot" cx="0" cy="0" r="3.6" fill="#fff" stroke="#2874c6" stroke-width="2" opacity="0" pointer-events="none"/>';
+  _MAC_HOV[hid]={kind:'line',xs:xs,ys:ys,ds:ds,PL:PL,PT:PT,iW:iW,iH:iH,
+                 x0:x0,xr:xr,mn:mn,yr:yr,fmt:s.fmt,suffix:s.suffix};
+  return '<svg id="'+hid+'" viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:auto;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
+    +' onmousemove="macHovMove(event,\''+hid+'\')" onmouseleave="macHovLeave(\''+hid+'\')"'
+    +' ontouchstart="macHovTouch(event,\''+hid+'\')" ontouchmove="macHovTouch(event,\''+hid+'\')"'
+    +' ontouchend="macHovLeave(\''+hid+'\')" ontouchcancel="macHovLeave(\''+hid+'\')">'+g+'</svg>';
 }
 function _macCurveCard(){
   var c=MACRO.curve;
@@ -7471,13 +7622,26 @@ function _macCurveCard(){
     var st=styles[k];
     g+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+st[0]+'"'+(st[1]?' stroke-dasharray="'+st[1]+'"':'')+' stroke-width="'+st[2]+'" stroke-linejoin="round"/>';
   });
-  var leg='<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:0.75em;color:#64748b;margin-top:4px">'
-    +'<span><span style="color:#2874c6;font-weight:700">—</span> Now'+(c.now.d?' ('+c.now.d+')':'')+'</span>'
+  var legInner='<span><span style="color:#2874c6;font-weight:700">—</span> Now'+(c.now.d?' ('+c.now.d+')':'')+'</span>'
     +(c.m1?'<span><span style="color:#e67e22;font-weight:700">- -</span> 1 month ago</span>':'')
-    +(c.y1?'<span><span style="color:#8b949e;font-weight:700">···</span> 1 year ago</span>':'')
-    +'</div>';
+    +(c.y1?'<span><span style="color:#8b949e;font-weight:700">···</span> 1 year ago</span>':'');
+  /* Three series share one x, so the readout cannot live in a headline
+     value the way the single-series cards' does. The legend line becomes it:
+     same row, same height, so filling it in costs no layout shift. */
+  var hid=_macHid();
+  var leg='<div id="'+hid+'-r" style="display:flex;gap:14px;flex-wrap:wrap;font-size:0.75em;color:#64748b;margin-top:4px">'+legInner+'</div>';
+  g+='<line id="'+hid+'-vl" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0" pointer-events="none"/>';
+  ['now','m1','y1'].forEach(function(k){
+    if(!c[k])return;
+    g+='<circle id="'+hid+'-dot-'+k+'" cx="0" cy="0" r="3.6" fill="#fff" stroke="'+styles[k][0]+'" stroke-width="2" opacity="0" pointer-events="none"/>';
+  });
+  _MAC_HOV[hid]={kind:'curve',c:c,sx:sx,sxMax:sxMax,PL:PL,PT:PT,iW:iW,iH:iH,
+                 mn:mn,yr:yr,styles:styles,legend:legInner};
   return '<div class="mac-card"><div class="mac-card-head"><span class="mac-card-title">Treasury Yield Curve</span></div>'
-    +'<svg viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:auto;max-height:280px">'+g+'</svg>'+leg+'</div>';
+    +'<svg id="'+hid+'" viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:auto;max-height:280px;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
+    +' onmousemove="macHovMove(event,\''+hid+'\')" onmouseleave="macHovLeave(\''+hid+'\')"'
+    +' ontouchstart="macHovTouch(event,\''+hid+'\')" ontouchmove="macHovTouch(event,\''+hid+'\')"'
+    +' ontouchend="macHovLeave(\''+hid+'\')" ontouchcancel="macHovLeave(\''+hid+'\')">'+g+'</svg>'+leg+'</div>';
 }
 var _MAC_OAS_ORDER=['AAA','AA','A','BBB','BB','B','CCC'];
 function _macOASTable(){

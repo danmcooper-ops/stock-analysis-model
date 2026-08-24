@@ -82,6 +82,35 @@ def test_macro_tiles_go_two_column_on_a_portrait_phone():
         'the Overview tiles need a floor that fits two columns at 393px'
 
 
+def test_every_macro_chart_is_scrubbable():
+    """All three chart shapes — the section/overview line charts, the tile
+    sparklines and the yield curve — hand the pointer to the same handlers.
+    A new chart added without them would read as broken next to the others."""
+    css = _css()
+    for fn in ('_macChartSVG', '_mSparkSVG', '_macCurveCard'):
+        body = re.search(r'function ' + fn + r'\(.*?\n\}\n', css, re.S)
+        assert body, 'could not find %s' % fn
+        for handler in ('onmousemove="macHovMove', 'onmouseleave="macHovLeave',
+                        'ontouchmove="macHovTouch', 'ontouchend="macHovLeave'):
+            assert handler in body.group(0), '%s is missing %s' % (fn, handler)
+
+
+def test_scrub_registry_is_cleared_per_render():
+    """renderMacro replaces the whole subtree; keeping the previous render's
+    entries would leak a chart per visit and let a stale id win a lookup."""
+    body = re.search(r'function renderMacro\(\).*?\n\}\n', _css(), re.S)
+    assert body and '_MAC_HOV={}' in body.group(0)
+    assert '_MAC_READ={}' in body.group(0)
+
+
+def test_touch_scrub_does_not_swallow_the_gesture():
+    """The macro tab stacks charts the full height of a phone screen, so the
+    touch handler must not preventDefault — that would trap the page scroll
+    (the sector chart can afford it; one chart does not fill the view)."""
+    body = re.search(r'function macHovTouch\(.*?\n\}\n', _css(), re.S)
+    assert body and 'preventDefault' not in body.group(0)
+
+
 def test_out_of_grid_macro_cards_are_capped_in_landscape():
     """The yield-curve and OAS cards are direct children of #macro-view, so
     the grid floor above does not reach them — they need their own cap or the
