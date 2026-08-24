@@ -177,6 +177,13 @@ class TestBuildMacroPayload:
         tiles = p['summary']['tiles']
         assert [t['id'] for t in tiles] == OVERVIEW_IDS
         assert all(len(t['spark']) <= 60 for t in tiles)
+        # spark_d names the observation under the pointer when the sparkline
+        # is scrubbed, so it has to stay index-aligned with spark.
+        for t in tiles:
+            assert len(t['spark_d']) == len(t['spark'])
+            hist = sc['series'][t['id']]['hist']
+            assert t['spark_d'] == hist['d'][-len(t['spark']):]
+            assert t['spark'] == hist['v'][-len(t['spark']):]
 
     def test_offline_returns_none(self):
         assert build_macro_payload(StubFRED()) is None

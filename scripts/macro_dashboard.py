@@ -384,12 +384,19 @@ def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None):
 
 
 def _tile_of(sid, s):
-    """One Overview tile from a sidecar series entry."""
+    """One Overview tile from a sidecar series entry.
+
+    ``spark_d`` carries the dates behind ``spark`` so the tile's sparkline can
+    name the observation the pointer is on. The two are sliced from the same
+    history with the same bound and stay index-aligned.
+    """
+    hist = s.get('hist', {})
     return {'id': sid, 'l': s['l'], 'fmt': s['fmt'],
             'suffix': s.get('suffix', ''), 'good': s['good'],
             'latest': s['latest'], 'chg_1m': s['chg_1m'],
             'pctile': s['pctile'], 'pct_win': s['pct_win'],
-            'spark': (s.get('hist', {}).get('v') or [])[-SPARK_POINTS:]}
+            'spark': (hist.get('v') or [])[-SPARK_POINTS:],
+            'spark_d': (hist.get('d') or [])[-SPARK_POINTS:]}
 
 
 def _summary_of(sidecar):
