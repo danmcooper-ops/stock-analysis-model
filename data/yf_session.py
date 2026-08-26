@@ -18,4 +18,6 @@ def make_yf_session(timeout=_TIMEOUT):
         session = make_yf_session()
         ticker  = yf.Ticker('AAPL', session=session)
     """
-    return Session(timeout=timeout)
+    # Yahoo 429s any client whose TLS fingerprint is not a real browser,
+    # so impersonate Chrome (yfinance's own default session does the same).
+    return Session(timeout=timeout, impersonate="chrome")
