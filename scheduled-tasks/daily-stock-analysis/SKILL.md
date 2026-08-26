@@ -31,6 +31,13 @@ Refreshes every already-cached ticker whose last bar is older than 2 days, plus 
 
 A non-zero exit code (or partial ticker failures — Yahoo outages, delisted names) should be reported but does **not** block the remaining steps: the analysis still works on slightly-stale bars, which was the status quo before this step existed. Individual delisted-ticker errors in the output are routine noise, not failures.
 
+### 0.5 Fast-forward main so the render uses merged template work
+PRs merged on GitHub are invisible to this run until the local checkout is updated: the pipeline reads `templates/report.html` from the working tree at render time, so a stale `main` silently re-publishes old UI. (Bitten 2026-08-25: local `main` was 6 commits behind `origin/main` and the nightly render reverted the merged Macro Outlook nav order on the live site.) Run as a **single Bash call**:
+```
+cd "$HOME/Desktop/Workspace Folder"; git fetch origin main; git pull --ff-only origin main
+```
+If the pull fails (non-fast-forward divergence, or uncommitted changes that conflict), do **not** force-update or discard anything: report the divergence prominently in the run summary and continue the run on the current checkout. A stale render is recoverable later with `rescore_and_render.py` + a republish; a forced update can destroy local work.
+
 ### 1. Run the analysis
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
