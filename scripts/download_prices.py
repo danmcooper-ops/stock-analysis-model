@@ -66,6 +66,25 @@ def _parquet_max_date(path):
             return None
 
 
+def _parquet_is_stub(path):
+    """True when the parquet is a Close-only write-through stub.
+
+    YFinanceClient._maybe_persist_prices seeds missing tickers with just the
+    Close column of whatever short window the pipeline happened to fetch
+    (5y for beta, even 5d from the portfolio path). Those files carry a
+    fraction of the listing's real history, and the freshness check alone
+    never upgrades them — their latest bar is current from day one. Files
+    written by this script always carry full OHLCV, so a missing Volume
+    column is a reliable stub marker.
+    """
+    try:
+        import pyarrow.parquet as pq
+        return 'Volume' not in pq.read_schema(path).names
+    except Exception as e:
+        logger.debug(f"prices: schema read failed for {path}: {e}")
+        return False
+
+
 def download_ticker(ticker: str, output_dir: str, delay: float,
                     refresh: bool = False, max_age_days: int = 1) -> str:
     """Download max history for one ticker and save as Parquet.
@@ -74,7 +93,8 @@ def download_ticker(ticker: str, output_dir: str, delay: float,
     With *refresh*, an existing file is re-downloaded only when its latest bar
     is more than *max_age_days* old — so stale prices (which silently truncate
     forward-return calculations) get refreshed without re-fetching files that
-    are already current.
+    are already current. Close-only stub files (see _parquet_is_stub) are
+    re-downloaded regardless of freshness so they pick up full history.
 
     Returns 'skipped', 'fresh', 'ok', or an error message string.
     """
@@ -83,7 +103,7 @@ def download_ticker(ticker: str, output_dir: str, delay: float,
         if not refresh:
             return "skipped"
         last = _parquet_max_date(dest)
-        if last is not None:
+        if last is not None and not _parquet_is_stub(dest):
             cutoff = date.today() - timedelta(days=max_age_days)
             if last >= cutoff:
                 return "fresh"  # already current — no re-download needed

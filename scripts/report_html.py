@@ -979,24 +979,24 @@ def _load_price_payloads(rows, prices_dir):
     if prices_dir and os.path.isdir(prices_dir):
         try:
             import pandas as _pd
-            _cutoff = _pd.Timestamp.now().normalize() - _pd.DateOffset(years=20)
 
             def _clean_close(s):
                 # The yfinance cache carries garbage closes on ~57 OTC lines:
                 # negative back-adjusted prices, 1e28-scale blowups, and
-                # sub-penny quotes that round to 0.00 in the 2-decimal shard
-                # format. Any of these poisons every chart downstream (a zero
-                # or negative rebase base turns a whole sector composite line
+                # sub-penny quotes that round to 0.00 in the shard format.
+                # Any of these poisons every chart downstream (a zero or
+                # negative rebase base turns a whole sector composite line
                 # into inf/None), so they are dropped here at ingestion, not
                 # patched around per-chart. Bounds: positive after rounding,
-                # and within 1000x of the series median — no real close sits
-                # 1000x from its own 20-year median (NVDA's full run is ~40x),
-                # but the adjustment glitches sit at 1e6x and beyond.
+                # and within 100,000x of the series median — the full
+                # adjusted history of a mega-compounder sits ~1000x from its
+                # own median (AAPL back to 1980 is ~800x), while the
+                # adjustment glitches sit at 1e6x and beyond.
                 s = s[s > 0.005]
                 if len(s):
                     _med = float(s.median())
                     if _med > 0:
-                        s = s[s <= _med * 1000]
+                        s = s[s <= _med * 100000]
                 return s
             _series = {}
             _vol_series = {}
@@ -1009,10 +1009,14 @@ def _load_price_payloads(rows, prices_dir):
                 if not os.path.exists(pf):
                     continue
                 try:
+                    # Full history, no cutoff: the parquet cache holds
+                    # whatever period="max" returned (decades for mature
+                    # listings), and the chart's MAX range should show all
+                    # of it — a 20-year clip here silently truncated over
+                    # half the universe at the same start date.
                     df = _pd.read_parquet(pf).sort_index()
                     df.index = _pd.to_datetime(df.index).tz_localize(None).normalize()
-                    _keep = df.index >= _cutoff
-                    s = _clean_close(df['Close'][_keep].dropna())
+                    s = _clean_close(df['Close'].dropna())
                     if len(s) >= 20:
                         _series[tk] = s
                         # Volume rides along for the popup chart's sub-panel.
@@ -1020,7 +1024,7 @@ def _load_price_payloads(rows, prices_dir):
                         # files were written Close-only by the yfinance_client
                         # fallback and the projection would raise on those.
                         if 'Volume' in df.columns:
-                            _v = df['Volume'][_keep].dropna()
+                            _v = df['Volume'].dropna()
                             if len(_v) >= 20:
                                 _vol_series[tk] = _v
                                 # Estimated buying share of the day's volume,
@@ -1032,10 +1036,10 @@ def _load_price_payloads(rows, prices_dir):
                                 # and the report labels it as one. A zero-range
                                 # day (limit move, halt) splits evenly.
                                 if 'High' in df.columns and 'Low' in df.columns:
-                                    _hi = df['High'][_keep]
-                                    _lo = df['Low'][_keep]
+                                    _hi = df['High']
+                                    _lo = df['Low']
                                     _rng = _hi - _lo
-                                    _f = ((df['Close'][_keep] - _lo) / _rng)
+                                    _f = ((df['Close'] - _lo) / _rng)
                                     _f = _f.where(_rng > 0, 0.5).clip(0.0, 1.0)
                                     _buyfrac_series[tk] = _f
                 except Exception:
@@ -1050,7 +1054,7 @@ def _load_price_payloads(rows, prices_dir):
                 try:
                     _idf = _pd.read_parquet(_ipf)[['Close']].sort_index()
                     _idf.index = _pd.to_datetime(_idf.index).tz_localize(None).normalize()
-                    _is = _clean_close(_idf['Close'][_idf.index >= _cutoff].dropna())
+                    _is = _clean_close(_idf['Close'].dropna())
                     if len(_is) >= 20:
                         _series[_itk] = _is
                         _indices_found.append({'ticker': _itk, 'label': _ilabel})
@@ -1066,7 +1070,12 @@ def _load_price_payloads(rows, prices_dir):
                     for dt, v in s.items():
                         i = _date_idx.get(dt)
                         if i is not None:
-                            arr[i] = round(float(v), 2)
+                            # Sub-$1 closes get 4 decimals: decades-old
+                            # split/dividend-adjusted prices routinely sit
+                            # at a few cents, where 2-decimal rounding
+                            # quantizes a year of moves into flat steps.
+                            v = float(v)
+                            arr[i] = round(v, 2) if v >= 1 else round(v, 4)
                     _prices_out[tk] = arr
                 # Daily volume ships as one small file per ticker rather than a
                 # second dense matrix: the popup opens one company at a time, so
