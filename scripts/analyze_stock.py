@@ -4021,7 +4021,7 @@ def _run_validation_stats(results, ms_pfv_data, args, screen_outcomes):
 
 def _write_outputs(results, run_start_date, _prov, risk_free_rate,
                    risk_free_rate_source, macro_regime_result, macro_adj,
-                   local_rs, prices_dir):
+                   local_rs, prices_dir, sector_etf_data=None):
     """Write the JSON snapshot, provenance events, HTML and Excel reports."""
     os.makedirs("output", exist_ok=True)
     today_str = run_start_date.isoformat()  # pin to run-start so a midnight-spanning run stays single-dated
@@ -4098,12 +4098,16 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
     macro_dash = None
     try:
         from data.fred_client import FREDClient
-        from scripts.macro_dashboard import build_macro_payload
+        from scripts.macro_dashboard import build_macro_payload, make_narrative_client
         macro_dash = build_macro_payload(FREDClient(), macro_regime_result,
-                                         macro_adj)
+                                         macro_adj,
+                                         sector_data=sector_etf_data,
+                                         local_rs=local_rs,
+                                         narrative_client=make_narrative_client())
         if macro_dash:
             _n = len(macro_dash['sidecar']['series'])
-            print(f"Macro dashboard: {_n} FRED series")
+            _nar = ' + Claude narrative' if macro_dash['sidecar'].get('narrative') else ''
+            print(f"Macro dashboard: {_n} FRED series{_nar}")
         else:
             print("Macro dashboard skipped (no FRED data).")
     except Exception as e:
@@ -4218,7 +4222,7 @@ def _main():
 
     _write_outputs(results, run_start_date, _prov, risk_free_rate,
                    risk_free_rate_source, macro_regime_result, macro_adj,
-                   local_rs, prices_dir)
+                   local_rs, prices_dir, sector_etf_data=sector_etf_data)
 
     _run_quality_summary(risk_free_rate, risk_free_rate_source,
                          _model_warning_counter)

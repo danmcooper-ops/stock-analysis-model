@@ -126,10 +126,16 @@ def _macro_payload_for_render(html_path, run_date, snap):
     """
     regime = snap.get('macro_regime') if isinstance(snap, dict) else None
     adj = snap.get('macro_adjustments') if isinstance(snap, dict) else None
+    local_rs = snap.get('sector_local_rs') if isinstance(snap, dict) else None
     try:
         from data.fred_client import FREDClient
-        from scripts.macro_dashboard import build_macro_payload
-        payload = build_macro_payload(FREDClient(), regime, adj, as_of=run_date)
+        from scripts.macro_dashboard import build_macro_payload, make_narrative_client
+        # No sector_etf_data here — the snapshot doesn't store ETF metrics;
+        # local_rs still gives the narrative per-sector relative strength.
+        # The narrative's per-as_of cache makes the daily re-render free.
+        payload = build_macro_payload(FREDClient(), regime, adj, as_of=run_date,
+                                      local_rs=local_rs,
+                                      narrative_client=make_narrative_client())
         if payload:
             print(f"Macro dashboard: {len(payload['sidecar']['series'])} FRED series")
             return payload

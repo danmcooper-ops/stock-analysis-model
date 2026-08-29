@@ -313,12 +313,64 @@ def _build_curve(fred, as_of):
             'yrs': [round(CURVE_YEARS[t], 4) for t in tenors], **snaps}
 
 
-def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None):
+def _sector_facts(sector_data, local_rs):
+    """Compact per-sector facts (ETF momentum + local relative strength)
+    for the sidecar, keyed by GICS sector name. Pure.
+
+    ``sector_data`` is MacroClient.fetch_sector_data's sector-keyed dict
+    (covers 10 sectors — its ETF map has no XLF); ``local_rs`` is
+    compute_sector_rs_from_local's ETF-keyed dict (all 11). Either may be
+    None. Returns None when nothing usable arrived.
+    """
+    from data.macro_client import SECTOR_ETF_MAP
+    etf_map = dict(SECTOR_ETF_MAP, **{'Financial Services': 'XLF'})
+    out = {}
+    for sector, etf in etf_map.items():
+        entry = {'etf': etf}
+        metrics = (sector_data or {}).get(sector) or {}
+        for k in ('return_3m', 'return_6m', 'rel_strength_3m',
+                  'sma200_ratio', 'volatility_30d'):
+            if metrics.get(k) is not None:
+                entry[k] = metrics[k]
+        rs = (local_rs or {}).get(etf) or {}
+        for k in ('rs_1m', 'rs_3m', 'rs_6m', 'trend'):
+            if rs.get(k) is not None:
+                entry[k] = rs[k]
+        if len(entry) > 1:
+            out[sector] = entry
+    return out or None
+
+
+def make_narrative_client():
+    """Config-driven Claude narrative client, or None when disabled.
+
+    Central seam so analyze_stock and rescore_and_render construct the
+    client identically; scripts/config.py stays the single home for the
+    tunables (data/ never imports scripts/).
+    """
+    from scripts.config import (CLAUDE_NARRATIVE_ENABLED,
+                                CLAUDE_NARRATIVE_MAX_TOKENS,
+                                CLAUDE_NARRATIVE_MODEL)
+    if not CLAUDE_NARRATIVE_ENABLED:
+        return None
+    from data.claude_narrative import ClaudeNarrativeClient
+    return ClaudeNarrativeClient(model=CLAUDE_NARRATIVE_MODEL,
+                                 max_tokens=CLAUDE_NARRATIVE_MAX_TOKENS)
+
+
+def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
+                        sector_data=None, local_rs=None,
+                        narrative_client=None):
     """Fetch, transform and package everything the Macro Outlook tab needs.
 
     Returns {'summary': small-inline-dict, 'sidecar': macro.json-dict}, or
     None when too little data arrived to be worth a tab (offline, FRED down).
     Individual series failures are skipped — a partial dashboard beats none.
+
+    When ``narrative_client`` is provided (see make_narrative_client), a
+    Claude-written narrative of the economy and its per-sector implications
+    is attached to the sidecar and summary; any failure there degrades to a
+    dashboard without prose, never to no dashboard.
     """
     as_of = as_of or date.today()
     daily_start = as_of - timedelta(days=int(DAILY_HISTORY_YEARS * 365.25))
@@ -380,6 +432,19 @@ def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None):
         'oas_buckets': oas_buckets,
     }
 
+    sector_facts = _sector_facts(sector_data, local_rs)
+    if sector_facts:
+        sidecar['sector_data'] = sector_facts
+
+    if narrative_client is not None:
+        try:
+            narrative = narrative_client.generate(sidecar)
+        except Exception as e:
+            print(f"  Macro narrative skipped ({e}).")
+            narrative = None
+        if narrative:
+            sidecar['narrative'] = narrative
+
     return {'summary': _summary_of(sidecar), 'sidecar': sidecar}
 
 
@@ -404,7 +469,7 @@ def _summary_of(sidecar):
     series = (sidecar or {}).get('series') or {}
     tiles = [_tile_of(sid, series[sid]) for sid in OVERVIEW_IDS if sid in series]
     return {'as_of': sidecar.get('as_of'), 'regime': sidecar.get('regime'),
-            'tiles': tiles}
+            'tiles': tiles, 'narrative': sidecar.get('narrative')}
 
 
 def summary_from_sidecar(sidecar):

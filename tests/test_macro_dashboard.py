@@ -11,7 +11,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from scripts.macro_dashboard import (
     yoy, mom_diff, percentile_rank, zscore, downsample, recession_bands,
-    build_macro_payload, MACRO_SERIES, OVERVIEW_IDS,
+    build_macro_payload, make_narrative_client, _sector_facts,
+    MACRO_SERIES, OVERVIEW_IDS,
 )
 
 
@@ -214,6 +215,96 @@ class TestBuildMacroPayload:
 
 
 # ---------------------------------------------------------------------------
+# Sector facts + Claude narrative attachment
+# ---------------------------------------------------------------------------
+
+class TestSectorFacts:
+    def test_merges_etf_metrics_and_local_rs(self):
+        sector_data = {'Technology': {'etf': 'XLK', 'return_3m': 0.08,
+                                      'rel_strength_3m': 0.02,
+                                      'return_6m': None}}
+        local_rs = {'XLK': {'rs_1m': 0.01, 'rs_3m': 0.03, 'trend': 'improving'},
+                    'XLF': {'rs_3m': -0.02, 'trend': 'weakening'}}
+        out = _sector_facts(sector_data, local_rs)
+        tech = out['Technology']
+        assert tech == {'etf': 'XLK', 'return_3m': 0.08,
+                        'rel_strength_3m': 0.02, 'rs_1m': 0.01,
+                        'rs_3m': 0.03, 'trend': 'improving'}
+        # XLF has no entry in MacroClient's 10-sector ETF map, so its RS is
+        # the only route Financial Services facts can arrive by.
+        assert out['Financial Services'] == {'etf': 'XLF', 'rs_3m': -0.02,
+                                             'trend': 'weakening'}
+        # sectors with nothing beyond the ETF name are dropped
+        assert 'Utilities' not in out
+
+    def test_nothing_usable_is_none(self):
+        assert _sector_facts(None, None) is None
+        assert _sector_facts({}, {}) is None
+
+
+class StubNarrativeClient:
+    def __init__(self, narrative=None, error=None):
+        self.narrative = narrative
+        self.error = error
+        self.seen = []
+
+    def generate(self, sidecar):
+        self.seen.append(sidecar)
+        if self.error:
+            raise self.error
+        return self.narrative
+
+
+class TestNarrativeAttachment:
+    def _narrative(self):
+        return {'paragraphs': ['The economy is fine.'],
+                'headwinds': [], 'tailwinds': [],
+                'sectors': [{'sector': 'Technology', 'stance': 'neutral',
+                             'outlook': 'Flat.'}]}
+
+    def test_attached_to_sidecar_and_summary(self):
+        fred, as_of = full_stub()
+        client = StubNarrativeClient(self._narrative())
+        local_rs = {'XLK': {'rs_3m': 0.03, 'trend': 'improving'}}
+        p = build_macro_payload(fred, as_of=as_of, local_rs=local_rs,
+                                narrative_client=client)
+        assert p['sidecar']['narrative'] == self._narrative()
+        assert p['summary']['narrative'] == self._narrative()
+        # the client saw the sidecar with sector facts already attached
+        assert client.seen[0]['sector_data']['Technology']['rs_3m'] == 0.03
+
+    def test_generator_failure_degrades_to_no_narrative(self):
+        fred, as_of = full_stub()
+        p = build_macro_payload(fred, as_of=as_of,
+                                narrative_client=StubNarrativeClient(
+                                    error=RuntimeError('api down')))
+        assert p is not None
+        assert 'narrative' not in p['sidecar']
+        assert p['summary']['narrative'] is None
+
+    def test_no_client_no_narrative(self):
+        fred, as_of = full_stub()
+        p = build_macro_payload(fred, as_of=as_of)
+        assert 'narrative' not in p['sidecar']
+        assert p['summary']['narrative'] is None
+
+
+class TestMakeNarrativeClient:
+    def test_disabled_by_config_flag(self, monkeypatch):
+        import scripts.config as config
+        monkeypatch.setattr(config, 'CLAUDE_NARRATIVE_ENABLED', False)
+        assert make_narrative_client() is None
+
+    def test_enabled_builds_configured_client(self, monkeypatch):
+        import scripts.config as config
+        monkeypatch.setattr(config, 'CLAUDE_NARRATIVE_ENABLED', True)
+        client = make_narrative_client()
+        assert client is not None
+        assert client.model == config.CLAUDE_NARRATIVE_MODEL
+        assert client.max_tokens == config.CLAUDE_NARRATIVE_MAX_TOKENS
+
+
+# ---------------------------------------------------------------------------
 # Template smoke — the tab's hooks exist and degrade without a payload
 # ---------------------------------------------------------------------------
 
@@ -240,6 +331,15 @@ class TestSummaryFromSidecar:
         rebuilt = summary_from_sidecar(p['sidecar'])
         assert rebuilt == p['summary']
 
+    def test_replay_carries_the_narrative(self):
+        fred, as_of = full_stub()
+        nar = {'paragraphs': ['Prose.'], 'headwinds': [], 'tailwinds': [],
+               'sectors': []}
+        p = build_macro_payload(fred, as_of=as_of,
+                                narrative_client=StubNarrativeClient(nar))
+        from scripts.macro_dashboard import summary_from_sidecar
+        assert summary_from_sidecar(p['sidecar'])['narrative'] == nar
+
     def test_empty_sidecar_is_none(self):
         from scripts.macro_dashboard import summary_from_sidecar
         assert summary_from_sidecar(None) is None
@@ -260,9 +360,12 @@ class TestRerenderKeepsMacroTab:
 
     def test_fresh_build_used_when_fred_reachable(self, tmp_path, monkeypatch):
         import data.fred_client as fc
+        import scripts.macro_dashboard as md
         import scripts.rescore_and_render as rr
         fred, as_of = full_stub()
         monkeypatch.setattr(fc, 'FREDClient', lambda *a, **k: fred)
+        # keep the test hermetic: never construct a real Claude client here
+        monkeypatch.setattr(md, 'make_narrative_client', lambda: None)
         payload = rr._macro_payload_for_render(
             str(tmp_path / 'r.html'), as_of, self._snap())
         assert payload and payload['sidecar']['series']
