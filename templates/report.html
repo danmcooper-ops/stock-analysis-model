@@ -1286,6 +1286,10 @@ td.ct{font-weight:700;}
 [data-theme="dark"] #dtc-chart svg text[fill="#9aaab8"]{fill:#7d8b9a;}
 [data-theme="dark"] #ph-chart svg line[stroke="#e8edf2"],
 [data-theme="dark"] #dtc-chart svg line[stroke="#e8edf2"]{stroke:#21262d;}
+/* Label backing chips (DCF FV, the history-begins note) are white-on-light;
+   swap to the dark surface so they don't glow on a dark chart. */
+[data-theme="dark"] #ph-chart svg rect[fill="white"],
+[data-theme="dark"] #dtc-chart svg rect[fill="white"]{fill:#161b22;}
 [data-theme="dark"] .dp-vol-area{fill:#8fa5bb;opacity:0.38;}
 [data-theme="dark"] .dp-vol-area.dp-vol-sell{fill:#f0616d;opacity:0.4;}
 [data-theme="dark"] .dp-vol-buy{fill:#3fb950;opacity:0.5;}
@@ -4464,18 +4468,23 @@ function phSetRange(r){
   document.querySelectorAll('.ph-range-btn').forEach(function(b){b.classList.toggle('active',b.dataset.range===r);});
   renderPHChart();
 }
+/* Start-of-window for a price range, anchored to the data's last date, not
+   the wall clock: the cache ends wherever the last refresh ended, so a
+   wall-clock "1M" shrinks day by day and an archived report eventually shows
+   nothing on every short range. Parsing at T00:00:00 also floors the
+   boundary, so 1M is a full month rather than "31 days ago at the current
+   time of day". Returns null for MAX / unknown / no data. */
+function _phRangeCutoff(range){
+  var cutMs={'1M':31,'3M':92,'6M':184,'1YR':366,'5YR':1827,'10YR':3653,'20YR':7305}[range];
+  if(!cutMs||!PRICES||!PRICES.dates||!PRICES.dates.length)return null;
+  var edge=new Date(PRICES.dates[PRICES.dates.length-1]+'T00:00:00');
+  return new Date(+edge-cutMs*86400000);
+}
 function _phGetPricePts(ticker,range){
   range=range||_phRange;
   if(!PRICES||!PRICES.prices[ticker])return[];
   var allD=PRICES.dates,allP=PRICES.prices[ticker];
-  /* Ranges anchor to the data's last date, not the wall clock: the cache ends
-     wherever the last refresh ended, so a wall-clock "1M" shrinks day by day
-     and an archived report eventually shows nothing on every short range.
-     Parsing at T00:00:00 also floors the boundary, so 1M is a full month
-     rather than "31 days ago at the current time of day". */
-  var edge=allD.length?new Date(allD[allD.length-1]+'T00:00:00'):new Date();
-  var cutMs={'1M':31,'3M':92,'6M':184,'1YR':366,'5YR':1827,'10YR':3653,'20YR':7305}[range];
-  var cutoff=cutMs?new Date(+edge-cutMs*86400000):null;
+  var cutoff=_phRangeCutoff(range);
   /* Volume rides along so the strip can be drawn in single-stock mode; it is
      null until this ticker's shard lands (or forever, for a Close-only file). */
   var sh=_VOL[ticker]||null,volArr=sh?sh.v:null,volI0=sh?sh.i0:0,fArr=(sh&&sh.f)||null;
@@ -4598,7 +4607,7 @@ function _phRenderSVG(allRaw,refs,ctx){
   /* ctx: {key, chartId, tipId, stocks, metric} — defaults reproduce the
      top-level Charts view exactly (key '' keeps every generated id
      byte-identical to the pre-ctx code). */
-  ctx=ctx||{key:'',chartId:'ph-chart',tipId:'ph-tip-bar',stocks:_phStocks,metric:_phMetric};
+  ctx=ctx||{key:'',chartId:'ph-chart',tipId:'ph-tip-bar',stocks:_phStocks,metric:_phMetric,rangeCutoff:_phRangeCutoff(_phRange)};
   var K=ctx.key;
   var el=document.getElementById(ctx.chartId);if(!el)return;
   var def=_phMetricDef(ctx.metric);
@@ -4722,6 +4731,24 @@ function _phRenderSVG(allRaw,refs,ctx){
      the stride would stop short of it (and has room not to collide). */
   var ref0=series[0].pts;
   var uSpan=[{d:uDates[0]},{d:uDates[uLen-1]}];
+  /* When the selected range reaches back before the data starts, every wider
+     range draws the same window and the buttons look broken — say why. The
+     10-day grace absorbs holidays/weekends around the window boundary. */
+  var noteSVG='';
+  if(!annual&&ctx.rangeCutoff&&uDates.length){
+    var _d0=new Date(uDates[0]+'T00:00:00');
+    if(+_d0-(+ctx.rangeCutoff)>10*86400000){
+      var _mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      var _noteTxt='full history shown — data begins '+_mo[_d0.getMonth()]+' '+_d0.getDate()+', '+_d0.getFullYear();
+      /* Backing chip (same trick as the DCF FV label): the note sits inside
+         the plot area, where a reference line or the price line itself can
+         run underneath it. ~6.2px per char at font-size 10.5 italic. */
+      var _noteW=Math.ceil(_noteTxt.length*6.2)+10;
+      noteSVG='<rect x="'+(VW-PR-4-_noteW)+'" y="'+PT+'" width="'+_noteW+'" height="16" fill="white" opacity="0.75" rx="2"/>'
+        +'<text x="'+(VW-PR-8)+'" y="'+(PT+12)+'" text-anchor="end" font-size="10.5" font-style="italic" fill="#9aaab8">'
+        +_noteTxt+'</text>';
+    }
+  }
   var xH='';var nX=Math.min(annual?Math.min(uLen,10):7,uLen);var xstep=Math.max(1,Math.floor((uLen-1)/Math.max(1,nX-1)));
   for(var xi=0;xi<uLen;xi+=xstep){xH+='<text x="'+xOf(xi).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+_phFmtDate(uDates[xi],uSpan,false)+'</text>';}
   if(uLen>1&&(uLen-1)%xstep>=xstep/2){xH+='<text x="'+xOf(uLen-1).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+_phFmtDate(uDates[uLen-1],uSpan,false)+'</text>';}
@@ -4763,7 +4790,7 @@ function _phRenderSVG(allRaw,refs,ctx){
     +'<defs><linearGradient id="ph-g'+K+'" x1="0" y1="0" x2="0" y2="1">'
     +'<stop offset="0%" stop-color="'+series[0].col+'" stop-opacity="0.15"/><stop offset="100%" stop-color="'+series[0].col+'" stop-opacity="0.01"/>'
     +'</linearGradient></defs>'
-    +yH+xH+zeroSVG+refSVG+volSVG+linesSVG+dotsSVG
+    +yH+xH+zeroSVG+refSVG+volSVG+noteSVG+linesSVG+dotsSVG
     +'<line id="ph-vl'+K+'" x1="0" y1="'+PT+'" x2="0" y2="'+xBase+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0"/>'
     +'</svg>';
   el.innerHTML=svg;
@@ -5081,7 +5108,7 @@ function dtcToggleBench(tk){
 function _dtcCtx(){
   return{key:'-dtc',chartId:'dtc-chart',tipId:'dtc-tip-bar',
          stocks:[_dpTicker].concat(_dtcBenchOn().map(_dtcIndexLabel)),
-         metric:_dtcMetric};
+         metric:_dtcMetric,rangeCutoff:_phRangeCutoff(_dtcRange)};
 }
 function dtcSetMetric(k){
   if(_dtcMetric===k)return;
