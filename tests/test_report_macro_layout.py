@@ -118,3 +118,47 @@ def test_out_of_grid_macro_cards_are_capped_in_landscape():
     rules = re.findall(r'#macro-view>\.mac-card\{([^}]*)\}',
                        _media_block(_LANDSCAPE))
     assert rules and any('max-width' in r for r in rules)
+
+
+def test_macro_narrative_leads_the_overview_subtab():
+    """The Claude narrative is the tab's headline read; it must render before
+    the tile grid, and only from the narrative renderer so the block cannot
+    silently drift below the tiles."""
+    body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', _css(), re.S)
+    assert body, 'could not find _macOverviewHTML'
+    body = body.group(0)
+    nar_at = body.find('_macNarrativeHTML()')
+    tiles_at = body.find('mac-tiles')
+    assert nar_at >= 0, '_macOverviewHTML no longer renders the narrative'
+    assert tiles_at > nar_at, 'the narrative must precede the tile grid'
+
+
+def test_macro_narrative_escapes_every_model_string():
+    """Narrative strings are Claude output, not repo-authored markup: every
+    interpolation of them must pass through _esc(), and the stance value may
+    only reach a class attribute through the whitelist lookup."""
+    body = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', _css(), re.S)
+    assert body, 'could not find _macNarrativeHTML'
+    body = body.group(0)
+    # every read of a narrative field that lands in HTML is wrapped in _esc(
+    for field in ('s.sector', 's.outlook', 'nar.model'):
+        for at in [m.start() for m in re.finditer(re.escape(field), body)]:
+            prefix = body[max(0, at - 6):at]
+            assert '_esc(' in prefix, \
+                '%s is interpolated without _esc()' % field
+    assert "STANCE={tailwind:'up',headwind:'down'}" in body, \
+        'stance must map to CSS classes only through the whitelist'
+    assert "STANCE[s.stance]||''" in body
+
+
+def test_macro_narrative_columns_collapse_on_narrow_screens():
+    css = _css()
+    # two-column on desktop…
+    assert re.search(r'\.mac-nar-cols\{[^}]*grid-template-columns:1fr 1fr',
+                     css)
+    assert re.search(r'\.mac-nar-sectors\{[^}]*grid-template-columns:1fr 1fr',
+                     css)
+    # …one column on a phone
+    assert ('@media(max-width:700px){.mac-nar-cols,.mac-nar-sectors'
+            '{grid-template-columns:1fr;}}') in css, \
+        'the narrative grids need a narrow-screen collapse'

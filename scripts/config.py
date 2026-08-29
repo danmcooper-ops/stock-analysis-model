@@ -69,6 +69,13 @@ SCORE_WEIGHT_MOAT = 0.30
 SCORE_WEIGHT_GROWTH = 0.10
 SCORE_WEIGHT_OWNERSHIP = 0.10
 
+# Macro narrative (Claude API). Generated at report-build time for the
+# Macro Outlook tab; skipped cleanly when ANTHROPIC_API_KEY is unset or the
+# API is unreachable. See data/claude_narrative.py.
+CLAUDE_NARRATIVE_ENABLED = True
+CLAUDE_NARRATIVE_MODEL = 'claude-opus-5'
+CLAUDE_NARRATIVE_MAX_TOKENS = 6000   # ~2-3 paragraphs + 11 sector outlooks
+
 # Post-processing
 BLEND_TRIGGER = 1.5            # DCF > 1.5× multiples-FV triggers blending
 BLEND_DCF_WEIGHT = 0.60        # Blend: 60% DCF

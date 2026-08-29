@@ -139,3 +139,30 @@ def test_build_html_renders_empty_results(tmp_path):
     # No rows means no sidecars — and no crash.
     assert not (tmp_path / 'details.json').exists()
     assert not (tmp_path / 'hist.json').exists()
+
+
+def test_build_html_plumbs_macro_narrative_through_summary(tmp_path):
+    """The Claude macro narrative rides MACRO_SUM inline. Its strings are
+    model output, so a </script> inside one must never terminate the script
+    block (dumps_for_script escapes HTML-significant characters)."""
+    hostile = 'Growth is slowing.</script><script>alert(1)'
+    macro_payload = {
+        'summary': {
+            'as_of': '2026-08-22', 'regime': None, 'tiles': [],
+            'narrative': {
+                'paragraphs': [hostile],
+                'headwinds': ['Curve inverted'], 'tailwinds': [],
+                'sectors': [{'sector': 'Technology', 'stance': 'neutral',
+                             'outlook': 'Flat.'}],
+                'model': 'claude-opus-5', 'generated_at': '2026-08-22T09:00:00+00:00',
+            },
+        },
+        'sidecar': {'as_of': '2026-08-22', 'series': {'DGS10': {}}},
+    }
+    out = tmp_path / 'report.html'
+    build_html([_rich_row()], str(out), prices_dir=None,
+               macro_payload=macro_payload)
+    html = out.read_text(encoding='utf-8')
+    assert 'Curve inverted' in html
+    assert hostile not in html            # raw </script> never lands verbatim
+    assert 'Growth is slowing.' in html   # ...but the content does
