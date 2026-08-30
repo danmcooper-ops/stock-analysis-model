@@ -272,6 +272,10 @@ class TestNarrativeAttachment:
         assert p['summary']['narrative'] == self._narrative()
         # the client saw the sidecar with sector facts already attached
         assert client.seen[0]['sector_data']['Technology']['rs_3m'] == 0.03
+        # sector_data rides the inline summary too — the report's metric
+        # figs paint at first render from MACRO_SUM, before macro.json loads
+        assert p['summary']['sector_data'] == p['sidecar']['sector_data']
+        assert p['summary']['sector_data']['Technology']['rs_3m'] == 0.03
 
     def test_generator_failure_degrades_to_no_narrative(self):
         fred, as_of = full_stub()

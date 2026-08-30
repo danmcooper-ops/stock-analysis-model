@@ -469,7 +469,8 @@ def _summary_of(sidecar):
     series = (sidecar or {}).get('series') or {}
     tiles = [_tile_of(sid, series[sid]) for sid in OVERVIEW_IDS if sid in series]
     return {'as_of': sidecar.get('as_of'), 'regime': sidecar.get('regime'),
-            'tiles': tiles, 'narrative': sidecar.get('narrative')}
+            'tiles': tiles, 'narrative': sidecar.get('narrative'),
+            'sector_data': sidecar.get('sector_data')}
 
 
 def summary_from_sidecar(sidecar):
