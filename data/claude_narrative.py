@@ -37,21 +37,31 @@ GICS_SECTORS = [
 
 # Structured-output schema: the API guarantees the response validates, so
 # the render side can trust the shape (content strings still get escaped).
+# Array lengths are NOT pinned here — the structured-outputs grammar rejects
+# minItems other than 0/1 (400 invalid_request_error, seen live 2026-08-31),
+# so counts are enforced by the prompt and checked post-parse in generate().
 NARRATIVE_SCHEMA = {
     'type': 'object',
     'properties': {
+        # Three named paragraphs rather than an array: the grammar CAN pin a
+        # fixed set of required object keys, which is how "exactly 3" is
+        # actually enforced (the prompt alone was ignored — a live run
+        # returned 5). generate() flattens them to the list the page renders.
         'paragraphs': {
-            'type': 'array', 'items': {'type': 'string'},
-            'minItems': 2, 'maxItems': 4,
+            'type': 'object',
+            'properties': {
+                'growth_labor': {'type': 'string'},
+                'inflation_rates': {'type': 'string'},
+                'credit_conditions': {'type': 'string'},
+            },
+            'required': ['growth_labor', 'inflation_rates',
+                         'credit_conditions'],
+            'additionalProperties': False,
         },
-        'headwinds': {
-            'type': 'array', 'items': {'type': 'string'}, 'maxItems': 5,
-        },
-        'tailwinds': {
-            'type': 'array', 'items': {'type': 'string'}, 'maxItems': 5,
-        },
+        'headwinds': {'type': 'array', 'items': {'type': 'string'}},
+        'tailwinds': {'type': 'array', 'items': {'type': 'string'}},
         'sectors': {
-            'type': 'array', 'minItems': 11, 'maxItems': 11,
+            'type': 'array',
             'items': {
                 'type': 'object',
                 'properties': {
@@ -81,10 +91,10 @@ SYSTEM_PROMPT = (
     "(e.g. 'core PCE at 2.8%'). Never invent a data point.\n"
     '- Declarative plain-English prose for a long-horizon value investor; '
     'no hedging boilerplate, no first person, no investment advice.\n'
-    '- paragraphs: 2-3 paragraphs walking growth and labor, inflation and '
-    'rates, then credit and financial conditions.\n'
-    '- headwinds / tailwinds: the sharpest economy-wide risks and supports, '
-    'one clause each.\n'
+    '- paragraphs: three named paragraphs — growth_labor, inflation_rates, '
+    'credit_conditions — each a single flowing paragraph.\n'
+    '- headwinds / tailwinds: AT MOST 5 of each — only the sharpest '
+    'economy-wide risks and supports, one clause each.\n'
     '- sectors: one entry for EVERY GICS sector listed in the data (all '
     '11, including any without ETF metrics). Style: The Economist — pithy '
     'but dense with information. For each sector write:\n'
@@ -251,9 +261,22 @@ class ClaudeNarrativeClient:
             logger.warning('macro narrative skipped: unparseable response '
                            '(%s)', e)
             return None
+        if isinstance(narrative, dict) and \
+                isinstance(narrative.get('paragraphs'), dict):
+            p = narrative['paragraphs']
+            narrative['paragraphs'] = [p[k] for k in
+                                       ('growth_labor', 'inflation_rates',
+                                        'credit_conditions') if p.get(k)]
         if not isinstance(narrative, dict) or not narrative.get('paragraphs'):
             logger.warning('macro narrative skipped: empty response')
             return None
+        n_sectors = len(narrative.get('sectors') or [])
+        if n_sectors != len(GICS_SECTORS):
+            # The schema cannot pin array lengths (grammar restriction), so
+            # police the prompt's all-11 requirement here. A short list still
+            # renders; it just deserves a loud line in the run log.
+            logger.warning('macro narrative: %d sector outlooks (expected %d)',
+                           n_sectors, len(GICS_SECTORS))
 
         narrative['model'] = self.model
         narrative['generated_at'] = datetime.now(timezone.utc).isoformat()

@@ -68,9 +68,21 @@ class TestBuildMacroFacts:
         assert facts['series'] == {}
         assert set(facts['sectors']) == set(GICS_SECTORS)
 
-    def test_schema_pins_11_sectors(self):
+    def test_schema_pins_three_named_paragraphs(self):
+        # "exactly 3" must live in the schema as required object keys — the
+        # grammar rejects minItems > 1 and ignored the prompt's own cap
+        # (a live run returned 5 array paragraphs).
+        p = NARRATIVE_SCHEMA['properties']['paragraphs']
+        assert p['type'] == 'object'
+        assert p['required'] == ['growth_labor', 'inflation_rates',
+                                 'credit_conditions']
+
+    def test_schema_pins_sector_shape(self):
         sec = NARRATIVE_SCHEMA['properties']['sectors']
-        assert sec['minItems'] == sec['maxItems'] == 11
+        # The structured-outputs grammar rejects minItems other than 0/1
+        # (live 400 on 2026-08-31), so lengths must NOT be pinned here —
+        # the prompt + generate()'s post-parse check own the all-11 rule.
+        assert 'minItems' not in sec and 'maxItems' not in sec
         assert set(sec['items']['properties']['sector']['enum']) == \
             set(GICS_SECTORS)
         # the Economist-style kicker: required on new generations, capped so
@@ -81,7 +93,11 @@ class TestBuildMacroFacts:
 
 
 def _narrative():
-    return {'paragraphs': ['Growth is slowing.', 'Inflation is sticky.'],
+    """API-shaped response: paragraphs arrive as the schema's named object
+    and generate() flattens them to the list the page renders."""
+    return {'paragraphs': {'growth_labor': 'Growth is slowing.',
+                           'inflation_rates': 'Inflation is sticky.',
+                           'credit_conditions': 'Credit is calm.'},
             'headwinds': ['Curve inverted'], 'tailwinds': ['Credit calm'],
             'sectors': [{'sector': s, 'stance': 'neutral',
                          'headline': 'Flat is fine', 'outlook': 'Flat.'}
