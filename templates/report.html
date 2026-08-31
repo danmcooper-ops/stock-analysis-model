@@ -70,7 +70,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    spacing it had when it was a direct .header child. */
 .hdr-title-row{display:flex;align-items:baseline;gap:14px;}
 .hdr-view{font-size:0.8em;font-weight:600;line-height:1.1;opacity:0.82;white-space:nowrap;}
-/* Second header line: view name + (phones only) the run date. The date span
+/* Second header line: "view - sub-tab" + (phones only) the run date. The date span
    is display:none at desktop widths — .last-updated in the title row already
    carries it there — and switches on in the ≤768px block, where
    .last-updated is what gets dropped. The · separator lives on the span's
@@ -151,8 +151,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .header>p{display:none;}
   .header h1{font-size:0.88em;margin:0;text-align:left;}
   /* Scaled with the title so the stack stays legible on a phone row. This is
-     the only on-screen view name here — the crumb and count are both gone. */
-  .hdr-view{font-size:0.62em;}
+     the only on-screen view name here — the crumb and count are both gone.
+     The subtitle now carries "view - sub-tab" and this row can't wrap
+     (.header is flex-wrap:nowrap here), so the title stack gives up its
+     desktop flex-shrink:0 and the subtitle truncates with an ellipsis
+     instead of pushing the dropdown icons off-screen. */
+  .hdr-title{min-width:0;flex-shrink:1;}
+  .hdr-view{font-size:0.62em;overflow:hidden;text-overflow:ellipsis;}
   .last-updated{display:none;}
   /* The run date replaces the dropped .last-updated on this line — same
      size as the view name it sits beside. */
@@ -7219,7 +7224,7 @@ function _syncNavCrumb(){
   var el=document.getElementById('nav-crumb');
   if(el)el.innerHTML=esc(g.l)+(sub?'<span class="navmenu-crumb-sub">'+esc(sub)+'</span>':'');
   var hv=document.getElementById('hdr-view');
-  if(hv)hv.textContent=g.l;
+  if(hv)hv.textContent=g.l+(sub?' - '+sub:'');
   var btn=document.getElementById('nav-btn');
   if(btn)btn.title=g.l+(sub?' › '+sub:'');
 }
