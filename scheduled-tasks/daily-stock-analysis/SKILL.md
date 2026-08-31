@@ -184,6 +184,12 @@ This is run as the final step of the analysis routine, but the publish routine i
 
 ## Notes
 - The script reads API keys from `.env` in the main repo root — do not commit that file
+- `ANTHROPIC_API_KEY` in that `.env` powers the Claude-generated macro narrative
+  (Macro Outlook tab, Economic Narrative card with per-sector outlooks). Without
+  it the run still succeeds — the dashboard renders with no narrative and the log
+  shows "macro narrative skipped: no ANTHROPIC_API_KEY". The narrative is cached
+  per run date (`data/cache/claude_narrative/`), so the re-render in Step 1f and
+  any manual `rescore_and_render.py` replay reuse it instead of re-paying.
 - SSL certificate errors on macOS are fixed by setting `SSL_CERT_FILE` to certifi's bundle (see Step 1)
 - Use `git -C <path>` for all git commands so you don't need to change directories
 - The `phase-1-api` venv has all required packages (yfinance, pandas, openpyxl, jinja2, lxml, certifi)
