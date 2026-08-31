@@ -58,9 +58,10 @@ NARRATIVE_SCHEMA = {
                     'sector': {'type': 'string', 'enum': GICS_SECTORS},
                     'stance': {'type': 'string',
                                'enum': ['tailwind', 'neutral', 'headwind']},
+                    'headline': {'type': 'string', 'maxLength': 60},
                     'outlook': {'type': 'string'},
                 },
-                'required': ['sector', 'stance', 'outlook'],
+                'required': ['sector', 'stance', 'headline', 'outlook'],
                 'additionalProperties': False,
             },
         },
@@ -84,12 +85,20 @@ SYSTEM_PROMPT = (
     'rates, then credit and financial conditions.\n'
     '- headwinds / tailwinds: the sharpest economy-wide risks and supports, '
     'one clause each.\n'
-    '- sectors: one outlook for EVERY GICS sector listed in the data (all '
-    "11, including any without ETF metrics), 1-2 sentences each, tying the "
-    "sector's macro sensitivities (rate sensitivity, cyclicality, commodity "
-    'linkage, defensiveness) to the current data and its ETF momentum and '
-    'relative strength; set stance to the net read: tailwind, neutral, or '
-    'headwind.'
+    '- sectors: one entry for EVERY GICS sector listed in the data (all '
+    '11, including any without ETF metrics). Style: The Economist — pithy '
+    'but dense with information. For each sector write:\n'
+    '  headline: a 3-6 word kicker leading the entry, wordplay in the '
+    "paper's tradition (e.g. 'Banks bank the curve', 'Rates tax the "
+    "growth premium'); sentence case, no terminal period.\n"
+    '  outlook: ONE declarative active-voice sentence, 25 words maximum, '
+    'in which every clause carries a figure from the data (an ETF return '
+    'or relative strength, a yield, a spread, an indicator level), tying '
+    "the sector's macro sensitivities (rate sensitivity, cyclicality, "
+    'commodity linkage, defensiveness) to those numbers. Dry wit is '
+    'welcome; filler and hedging are not — never write "may", "could", '
+    '"likely", "remains to be seen", or "bears watching".\n'
+    '  stance: the net read — tailwind, neutral, or headwind.'
 )
 
 # Per-series keys worth showing the model; 'hist' (hundreds of points per

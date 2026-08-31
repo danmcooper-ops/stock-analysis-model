@@ -141,14 +141,47 @@ def test_macro_narrative_escapes_every_model_string():
     assert body, 'could not find _macNarrativeHTML'
     body = body.group(0)
     # every read of a narrative field that lands in HTML is wrapped in _esc(
-    for field in ('s.sector', 's.outlook', 'nar.model'):
+    for field in ('s.sector', 's.headline', 's.outlook', 'nar.model'):
         for at in [m.start() for m in re.finditer(re.escape(field), body)]:
+            if (field == 's.sector'
+                    and body[at - 3:at + len(field) + 1] == 'sd[s.sector]'):
+                # data lookup keyed by the schema-pinned GICS enum; the value
+                # never lands in HTML (it feeds _macSecFigs, which formats)
+                continue
             prefix = body[max(0, at - 6):at]
             assert '_esc(' in prefix, \
                 '%s is interpolated without _esc()' % field
     assert "STANCE={tailwind:'up',headwind:'down'}" in body, \
         'stance must map to CSS classes only through the whitelist'
     assert "STANCE[s.stance]||''" in body
+    # trend reaches HTML only through the glyph whitelist in _macSecFigs
+    figs = re.search(r'function _macSecFigs\(.*?\n\}\n', _css(), re.S)
+    assert figs and 'TRENDG={improving:' in figs.group(0), \
+        'trend must map to glyphs only through the whitelist'
+
+
+def test_macro_narrative_sector_rows_carry_metric_figs():
+    """The Sector implications rows are the card's core: each carries the
+    sector's hard ETF numbers from sector_data, sourced inline (MACRO_SUM)
+    so they paint at first render, and degrading to prose-only when a
+    sector has no metrics or the snapshot predates sector_data."""
+    css = _css()
+    figs = re.search(r'function _macSecFigs\(d\)\{.*?\n\}\n', css, re.S)
+    assert figs, 'could not find _macSecFigs'
+    figs = figs.group(0)
+    assert "if(!d)return ''" in figs, 'figs must degrade to nothing'
+    # local parquet RS is fresher than the yfinance fallback — keep the order
+    assert figs.find('d.rs_3m!=null') < figs.find('rel_strength_3m'), \
+        'rs_3m must be preferred over rel_strength_3m'
+    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
+    assert nar, 'could not find _macNarrativeHTML'
+    nar = nar.group(0)
+    assert '(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)' \
+        in nar, 'sector_data must come from the inline summary first'
+    assert '_macSecFigs(sd[s.sector])' in nar
+    assert re.search(r'\.mac-nar-figs\{[^}]*tabular-nums', css), \
+        'metric figs need tabular numerals'
+    assert '[data-theme="dark"] .mac-nar-figs' in css
 
 
 def test_macro_narrative_columns_collapse_on_narrow_screens():

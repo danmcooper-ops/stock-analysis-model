@@ -73,12 +73,18 @@ class TestBuildMacroFacts:
         assert sec['minItems'] == sec['maxItems'] == 11
         assert set(sec['items']['properties']['sector']['enum']) == \
             set(GICS_SECTORS)
+        # the Economist-style kicker: required on new generations, capped so
+        # it stays a kicker and not a sentence
+        assert sec['items']['properties']['headline']['maxLength'] == 60
+        assert set(sec['items']['required']) == \
+            {'sector', 'stance', 'headline', 'outlook'}
 
 
 def _narrative():
     return {'paragraphs': ['Growth is slowing.', 'Inflation is sticky.'],
             'headwinds': ['Curve inverted'], 'tailwinds': ['Credit calm'],
-            'sectors': [{'sector': s, 'stance': 'neutral', 'outlook': 'Flat.'}
+            'sectors': [{'sector': s, 'stance': 'neutral',
+                         'headline': 'Flat is fine', 'outlook': 'Flat.'}
                         for s in GICS_SECTORS]}
 
 

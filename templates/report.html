@@ -1897,6 +1897,9 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-nar-sectors{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-top:6px;}
 .mac-nar-sec{font-size:0.85em;line-height:1.45;}
 .mac-nar-sec .mac-delta{margin-right:7px;}
+.mac-nar-sec-top{display:flex;align-items:baseline;gap:2px 7px;flex-wrap:wrap;}
+.mac-nar-figs{margin-left:auto;font-size:0.82em;color:#94a3b8;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.mac-nar-sec-name{font-size:0.78em;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.03em;}
 @media(max-width:700px){.mac-nar-cols,.mac-nar-sectors{grid-template-columns:1fr;}}
 .mac-oas-tbl{border-collapse:collapse;font-size:0.85em;margin:6px 0;}
 .mac-oas-tbl th,.mac-oas-tbl td{border:1px solid #e2e8f0;padding:4px 10px;text-align:right;font-variant-numeric:tabular-nums;}
@@ -1909,6 +1912,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 [data-theme="dark"] .mac-delta.down{background:#2a1418;color:#ff7b72 !important;}
 [data-theme="dark"] .mac-pct-track{background:#30363d;}
 [data-theme="dark"] .mac-nar-h{color:#8b949e;}
+[data-theme="dark"] .mac-nar-figs,[data-theme="dark"] .mac-nar-sec-name{color:#8b949e;}
 [data-theme="dark"] .mac-oas-tbl th,[data-theme="dark"] .mac-oas-tbl td{border-color:#30363d;}
 [data-theme="dark"] .mac-band{fill:rgba(139,148,158,0.16);}
 /* Macro SVG charts — dark mode overrides for hardcoded fills/strokes */
@@ -7389,12 +7393,30 @@ function _macStatusNote(){
   if(_MACRO_FAILED)return '<p class="mac-note">Macro history failed to load. <a href="#" style="color:#2874c6" onclick="return macroRetry()">Retry</a></p>';
   return '<p class="mac-note">Loading macro history…</p>';
 }
+function _macSecFigs(d){
+  /* Hard numbers for one sector row, from the builder's sector_data.
+     Numbers are formatted locally with toFixed, the ticker is escaped, and
+     trend reaches HTML only through the glyph whitelist — nothing from the
+     sidecar lands raw. Sidecar fractions (0.021) render as signed percents
+     (+2.1%). Degrades to nothing for a sector without metrics. */
+  if(!d)return '';
+  var TRENDG={improving:'↗',deteriorating:'↘',stable:'→'};
+  var f=[];
+  if(d.etf)f.push(_esc(String(d.etf)));
+  var rs=(d.rs_3m!=null)?d.rs_3m:d.rel_strength_3m;
+  if(rs!=null)f.push('3m RS '+(rs>=0?'+':'')+(rs*100).toFixed(1)+'%');
+  if(d.return_3m!=null)f.push('3m '+(d.return_3m>=0?'+':'')+(d.return_3m*100).toFixed(1)+'%');
+  if(TRENDG[d.trend])f.push(TRENDG[d.trend]);
+  return f.length?'<span class="mac-nar-figs">'+f.join(' · ')+'</span>':'';
+}
 function _macNarrativeHTML(){
   /* Claude-written narrative from the builder (data/claude_narrative.py).
      Rides on MACRO_SUM so it paints at first render; falls back to the
      sidecar for older inline summaries. All strings pass through _esc() —
      the text is model output, not repo-authored markup — and stance maps
-     to CSS classes only through the whitelist below. */
+     to CSS classes only through the whitelist below. Sector rows carry the
+     ETF figures via _macSecFigs; a pre-headline cached narrative renders
+     without the bold kicker and loses nothing else. */
   var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
   if(!nar||!(nar.paragraphs||[]).length)return '';
   var h='<div class="mac-card mac-narrative"><div class="mac-card-title">Economic Narrative</div>';
@@ -7411,10 +7433,15 @@ function _macNarrativeHTML(){
   }
   if((nar.sectors||[]).length){
     var STANCE={tailwind:'up',headwind:'down'};
+    var sd=(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)||{};
     h+='<div class="mac-nar-h" style="margin-top:12px">Sector implications</div><div class="mac-nar-sectors">';
     nar.sectors.forEach(function(s){
-      h+='<div class="mac-nar-sec"><span class="mac-delta '+(STANCE[s.stance]||'')+'">'+_esc(s.stance||'neutral')+'</span>'
-        +'<b>'+_esc(s.sector)+'</b> — '+_esc(s.outlook)+'</div>';
+      h+='<div class="mac-nar-sec">'
+        +'<div class="mac-nar-sec-top"><span class="mac-delta '+(STANCE[s.stance]||'')+'">'+_esc(s.stance||'neutral')+'</span>'
+        +'<b>'+_esc(s.headline||'')+'</b>'
+        +_macSecFigs(sd[s.sector])
+        +'</div>'
+        +'<div class="mac-nar-sec-txt"><span class="mac-nar-sec-name">'+_esc(s.sector)+'</span> — '+_esc(s.outlook)+'</div></div>';
     });
     h+='</div>';
   }
