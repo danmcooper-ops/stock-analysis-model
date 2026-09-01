@@ -1575,9 +1575,16 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     # --- Fix F: Growth capex add-back for capex-heavy companies ---
     # If Capex > 2× D&A, significant growth capex is depressing accounting FCF.
-    # Add back 50% of excess capex (above maintenance proxy = D&A).
-    # This is more conservative than full owner earnings (OCF - D&A) which
-    # over-inflates companies like GOOG where capex is partially maintenance.
+    # Add back 50% of the capex above that 2× D&A band. Measuring the excess
+    # from the SAME threshold that triggers the adjustment keeps fair value
+    # continuous in capex: at exactly 2× D&A the add-back is zero and it ramps
+    # from there. (The excess was previously measured from 1× D&A while the
+    # trigger sat at 2×, so the add-back jumped from 0 to 0.5× D&A the instant
+    # the ratio crossed 2.0 — a $0.02 capex change swung fair value ~25%, and
+    # spending MORE on capex could RAISE fair value. Same cliff class as the
+    # old all-or-nothing SBC guard below.) Still more conservative than full
+    # owner earnings (OCF - D&A), which over-inflates companies like GOOG
+    # where capex is partially maintenance.
     if cfg['check_owner_earnings']:
         ocf = _cf_line(['Operating Cash Flow', 'Total Cash From Operating Activities'])
         da = _cf_line(['Depreciation And Amortization', 'Depreciation Amortization Depletion'])
@@ -1585,9 +1592,9 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
         capex = abs(_cap) if _cap is not None else None
 
         if ocf and da and capex and da > 0 and capex / da > CAPEX_DA_THRESHOLD:
-            # Excess capex above maintenance (D&A) is growth capex.
-            # Add back portion of it — assume half is truly discretionary growth.
-            excess_capex = capex - da
+            # Capex above the maintenance band (2× D&A) is growth capex.
+            # Add back a portion — assume half is truly discretionary growth.
+            excess_capex = capex - CAPEX_DA_THRESHOLD * da
             growth_add_back = excess_capex * EXCESS_CAPEX_ADDBACK
             adjusted = base_fcf + growth_add_back
             if adjusted > 0:

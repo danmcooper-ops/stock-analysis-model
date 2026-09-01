@@ -12,6 +12,13 @@ Regression tests for two July-audit findings:
    against a raw-FCF average. Whenever the ceiling bound, it erased the SBC
    deduction and the growth-capex add-back entirely. The ceiling now caps the
    raw base first; adjustments apply on top.
+
+3. Growth-capex cliff (September audit): the add-back fired at capex > 2x D&A
+   but measured the excess from 1x D&A, so the adjustment jumped from 0 to
+   0.5x D&A the instant the ratio crossed the threshold — a $0.02 capex change
+   swung fair value ~25%, and spending MORE on capex could RAISE fair value.
+   The excess is now measured from the 2x D&A band itself, making fair value
+   continuous and monotone non-increasing in capex.
 """
 
 import pandas as pd
@@ -61,6 +68,60 @@ class TestSbcMonotoneFloor:
         fv_clean = _fv(fcf_by_year=flat, sbc=0.0)
         assert fv_heavy is not None
         assert fv_heavy < fv_clean * 0.5
+
+
+def _capex_yf_data(capex, ocf=2000.0, da=500.0, years=4):
+    """yf_data where FCF is genuinely OCF − capex, so sweeping capex moves
+    both the base and the add-back the way it does for a real filer."""
+    idx = pd.to_datetime([f'{2021 + i}-12-31' for i in range(years)])
+    cf = pd.DataFrame(
+        {y: {'Free Cash Flow': ocf - capex,
+             'Operating Cash Flow': ocf,
+             'Depreciation And Amortization': da,
+             'Capital Expenditure': -capex}
+         for y in idx}
+    )
+    inc = pd.DataFrame({y: {'Total Revenue': 10_000.0} for y in idx})
+    info = {'marketCap': 20_000.0, 'sharesOutstanding': 1_000.0,
+            'totalDebt': 0.0, 'totalCash': 0.0, 'currentPrice': 20.0}
+    return {'cash_flow': cf, 'income_statement': inc, 'info': info}
+
+
+def _capex_fv(**kw):
+    # Technology has check_owner_earnings=True, so the add-back is live.
+    fv, _, _, _, _ = run_forward_dcf(_capex_yf_data(**kw), wacc=0.10,
+                                     sector='Technology')
+    return fv
+
+
+class TestGrowthCapexAddback:
+    def test_fv_monotone_nonincreasing_in_capex(self):
+        """Sweep capex through the 2x D&A trigger (da=500 -> threshold 1000)
+        holding OCF fixed: each extra capex dollar lowers FCF, so fair value
+        must never rise. The old excess-from-1x-D&A add-back made FV JUMP UP
+        as capex crossed the threshold."""
+        fvs = [_capex_fv(capex=float(c)) for c in range(900, 1601, 50)]
+        assert all(v is not None for v in fvs)
+        for hi, lo in zip(fvs, fvs[1:], strict=False):
+            assert lo <= hi + 1e-9, f'FV rose as capex increased: {fvs}'
+
+    def test_fv_continuous_at_threshold(self):
+        """A cent of capex either side of 2x D&A must not move fair value
+        materially (the old cliff was a ~25% jump here)."""
+        below = _capex_fv(capex=999.99)
+        above = _capex_fv(capex=1000.01)
+        assert below is not None and above is not None
+        assert abs(above - below) / below < 0.001
+
+    def test_addback_still_rewards_capex_heavy_firms(self):
+        """The reform must not disable the add-back itself: two firms with
+        identical reported FCF, one depressed by heavy growth capex (3x D&A)
+        and one capex-light (1x D&A), must separate in the heavy firm's
+        favor."""
+        fv_heavy = _capex_fv(capex=1500.0, ocf=2000.0, da=500.0)  # FCF 500
+        fv_light = _capex_fv(capex=500.0, ocf=1000.0, da=500.0)   # FCF 500
+        assert fv_heavy is not None and fv_light is not None
+        assert fv_heavy > fv_light + 1e-9
 
 
 class TestCeilingBasis:

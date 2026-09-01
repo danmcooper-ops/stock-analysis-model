@@ -30,7 +30,7 @@ RE_MIN, RE_MAX = 0.04, 0.30           # Valid cost-of-equity range
 
 # DCF parameters
 CAPEX_DA_THRESHOLD = 2.0       # Owner earnings: capex > 2× D&A triggers growth-capex adj
-EXCESS_CAPEX_ADDBACK = 0.50    # Add back 50% of excess capex as growth investment
+EXCESS_CAPEX_ADDBACK = 0.50    # Add back 50% of capex above the threshold band (continuous at the threshold)
 YIELD_CEILING_MULT = 1.25      # Mean-reversion: cap base FCF at 1.25× own trailing avg positive FCF (pre-adjustment basis)
 HYPER_GROWTH_YIELD = 0.025     # FCF yield below 2.5% signals hyper-growth pricing
 HYPER_GROWTH_CAP = 0.25        # Absolute ceiling on hyper-growth override
