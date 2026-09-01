@@ -77,6 +77,14 @@ class SECXBRLClient:
             'StockholdersEquity',
             'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest',
         ],
+        # Split views of the same line, consumed by _resolve_equity_annual:
+        # parent-attributable equity is what yfinance's 'Stockholders Equity'
+        # row (and every per-share model) means. A filer that only tags the
+        # NCI-inclusive total gets minority interest subtracted back out.
+        'equity_parent': ['StockholdersEquity'],
+        'equity_incl_nci': [
+            'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest',
+        ],
         # Debt components are extracted SEPARATELY (not alias-merged) and
         # combined by _resolve_total_debt_annual: US-GAAP LongTermDebt
         # includes current maturities while LongTermDebtNoncurrent does not,
@@ -288,6 +296,8 @@ class SECXBRLClient:
             'Equity',
             'EquityAttributableToOwnersOfParent',
         ],
+        'equity_parent': ['EquityAttributableToOwnersOfParent'],
+        'equity_incl_nci': ['Equity'],
         # Debt components mirror the US-GAAP split (see _XBRL_TAG_MAP).
         # IFRS filers tag borrowings by current/noncurrent classification;
         # 'Borrowings' (undifferentiated total) is the ltd_total-tier
@@ -821,6 +831,41 @@ class SECXBRLClient:
                 return vals, taxonomy_key, ccy
         return {}, None, ccy
 
+    def _resolve_equity_annual(self, facts_json):
+        """Parent-attributable equity per fiscal year, (values, currency).
+
+        The 'total_equity' alias list merges StockholdersEquity with the
+        NCI-inclusive variant, so a filer that tags only the inclusive total
+        (or restates it in a later filing) hands every per-share model
+        equity that belongs partly to minority holders. Per year:
+
+        1. parent-only tag when present;
+        2. otherwise the NCI-inclusive total minus tagged minority interest;
+        3. otherwise the inclusive total as-is (best available).
+        """
+        parent, _t, ccy = self._extract_concept_annual(facts_json, 'equity_parent')
+        incl, _t2, ccy2 = self._extract_concept_annual(facts_json, 'equity_incl_nci')
+        if not parent and not incl:
+            return {}, ccy
+        nci, _t3, _c3 = self._extract_concept_annual(facts_json, 'minority_interest')
+        out = {}
+        for fy in sorted(set(parent) | set(incl)):
+            if parent.get(fy) is not None:
+                out[fy] = parent[fy]
+                continue
+            total = incl.get(fy)
+            if total is None:
+                continue
+            mi = nci.get(fy)
+            if mi is None:
+                logger.debug(
+                    f"SEC XBRL: FY{fy} equity is NCI-inclusive with no "
+                    f"MinorityInterest tag; using the total as-is")
+                out[fy] = total
+            else:
+                out[fy] = total - mi
+        return out, (ccy if parent else ccy2)
+
     def _extract_concept_periodic(self, facts_json, concept, units_key=None,
                                   point_in_time=False):
         """Periodic equivalent of _extract_concept_annual.
@@ -1061,7 +1106,7 @@ class SECXBRLClient:
         ca_h, ca_ccy             = _flow('current_assets')
         cl_h, cl_ccy             = _flow('current_liabilities')
         liabs_h, liabs_ccy       = _flow('total_liabilities')
-        equity_h, equity_ccy     = _flow('total_equity')
+        equity_h, equity_ccy     = self._resolve_equity_annual(facts)
         retearn_h, retearn_ccy   = _flow('retained_earnings')
         # GAAP presentation lines. Grouped by statement; every one of these
         # is optional — the statement tabs drop a row whose series is empty.
@@ -1360,7 +1405,7 @@ class SECXBRLClient:
         # carry end dates, no durations — _extract_annual_values' duration
         # filter conditional skips them naturally, and the fy match keeps the
         # right period-end value per fiscal year.
-        equity        = _ann('total_equity')
+        equity, _eq_ccy = self._resolve_equity_annual(facts)
         cash          = _ann('cash')
         assets        = _ann('total_assets')
         curr_assets   = _ann('current_assets')
@@ -1373,6 +1418,11 @@ class SECXBRLClient:
         # filer (the same failure mode the SBC / buyback rows above once had).
         goodwill      = _ann('goodwill')
         intangibles   = _ann('intangibles')
+        # Period-end share count (an instant, same date as the equity above)
+        # so per-share book metrics divide like-dated numerator and
+        # denominator instead of year-old equity by today's float.
+        shares_fye, _t_sh, _u_sh = self._extract_concept_annual(
+            facts, 'shares_outstanding', units_key='shares')
         # Total debt is composed from separately-tagged components (LTD +
         # current debt) — a single-tag read understates leverage by the
         # short-term portion for most filers.
@@ -1458,6 +1508,7 @@ class SECXBRLClient:
                 'Retained Earnings':         ret_earnings.get(y),
                 'Goodwill':                  goodwill.get(y),
                 'Other Intangible Assets':   intangibles.get(y),
+                'Ordinary Shares Number':    shares_fye.get(y),
             } for y, col in zip(years, cols, strict=False)
         })
 

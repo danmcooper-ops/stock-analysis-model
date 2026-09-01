@@ -17,7 +17,39 @@ from models.field_keys import (
     EQUITY_KEYS,
     GOODWILL_KEYS,
     INTANGIBLES_KEYS,
+    SHARES_OUTSTANDING_KEYS,
 )
+
+# A balance-sheet share count is only trusted when it sits within this band
+# of the live count (when one exists). Outside it the row is almost always
+# a single class of a multi-class filer, not the whole capital base.
+_SHARE_COUNT_BAND = (2.0 / 3.0, 1.5)
+
+
+def _resolve_share_count(latest_bs, info):
+    """Pick the denominator for per-share book metrics.
+
+    Prefers the period-end count from the balance sheet — dated like the
+    equity it divides — and falls back to ``info['sharesOutstanding']``
+    (today's count) when the row is absent, non-positive, or implausible
+    against the live count. Returns None when neither is usable.
+    """
+    bs_shares = _get(latest_bs, SHARES_OUTSTANDING_KEYS)
+    live = info.get('sharesOutstanding')
+    live_ok = isinstance(live, (int, float)) and live > 0
+    try:
+        bs_ok = bs_shares is not None and float(bs_shares) > 0
+    except (TypeError, ValueError):
+        bs_ok = False
+    if bs_ok:
+        if not live_ok:
+            return float(bs_shares)
+        ratio = float(bs_shares) / float(live)
+        if _SHARE_COUNT_BAND[0] <= ratio <= _SHARE_COUNT_BAND[1]:
+            return float(bs_shares)
+    if live_ok:
+        return float(live)
+    return None
 
 
 def tangible_equity_per_share(financials):
@@ -25,7 +57,10 @@ def tangible_equity_per_share(financials):
 
     *financials* is the same dict shape used by the other model functions —
     ``balance_sheet`` (a pandas DataFrame, latest period in column 0) and
-    ``info`` (a dict with ``sharesOutstanding`` or similar).
+    ``info`` (a dict with ``sharesOutstanding`` or similar). The share
+    count comes from the balance sheet's period-end 'Ordinary Shares
+    Number' when present and plausible, so numerator and denominator carry
+    the same date; ``info['sharesOutstanding']`` is the fallback.
 
     Unlike :func:`tangible_book_value_per_share`, this keeps the SIGN: a
     buyback-rich compounder whose goodwill exceeds its equity returns a
@@ -76,8 +111,8 @@ def tangible_equity_per_share(financials):
             # worst case is a conservative (lower) tangible book value.
             pass
 
-    shares = info.get('sharesOutstanding')
-    if not shares or shares <= 0:
+    shares = _resolve_share_count(latest_bs, info)
+    if shares is None:
         return None
 
     tangible_equity = float(equity) - float(goodwill) - float(intangibles)

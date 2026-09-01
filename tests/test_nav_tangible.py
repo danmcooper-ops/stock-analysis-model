@@ -162,3 +162,115 @@ class TestScoringExemptionWiring:
         fin = _financials(equity=800.0, goodwill=300.0)
         row = {'tangible_book_ps': tangible_equity_per_share(fin), 'p_tbv': 2.0}
         assert _appl_positive_tbv(row) is True
+
+
+# ---------------------------------------------------------------------------
+# Parent-attributable equity + period-matched share count on the XBRL path
+# ---------------------------------------------------------------------------
+
+def _facts_with_units(concepts):
+    """Like _company_facts but each concept picks its own units key."""
+    return {'facts': {'us-gaap': {
+        tag: {'units': {units: _annual_entries(years_values)}}
+        for tag, (units, years_values) in concepts.items()
+    }}}
+
+
+def _shape_from(concepts):
+    c = _make_client()
+    base = {
+        'Revenues':            ('USD', {y: 1000.0 for y in YEARS}),
+        'NetIncomeLoss':       ('USD', {y: 150.0 for y in YEARS}),
+        'OperatingIncomeLoss': ('USD', {y: 200.0 for y in YEARS}),
+        'Assets':              ('USD', {y: 2000.0 for y in YEARS}),
+    }
+    base.update(concepts)
+    c._cache['TEST'] = _facts_with_units(base)
+    shape = c.build_yfinance_shape('TEST')
+    assert shape is not None
+    return shape
+
+
+_INCL = 'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest'
+
+
+class TestParentEquityResolution:
+    def test_parent_tag_wins_when_both_present(self):
+        latest = _shape_from({
+            'StockholdersEquity': ('USD', {y: 800.0 for y in YEARS}),
+            _INCL:                ('USD', {y: 950.0 for y in YEARS}),
+            'MinorityInterest':   ('USD', {y: 150.0 for y in YEARS}),
+        })['balance_sheet'].iloc[:, 0]
+        assert latest['Stockholders Equity'] == 800.0
+
+    def test_inclusive_only_subtracts_minority_interest(self):
+        latest = _shape_from({
+            _INCL:              ('USD', {y: 950.0 for y in YEARS}),
+            'MinorityInterest': ('USD', {y: 150.0 for y in YEARS}),
+        })['balance_sheet'].iloc[:, 0]
+        assert latest['Stockholders Equity'] == 800.0
+
+    def test_inclusive_only_without_nci_tag_uses_total(self):
+        latest = _shape_from({
+            _INCL: ('USD', {y: 950.0 for y in YEARS}),
+        })['balance_sheet'].iloc[:, 0]
+        assert latest['Stockholders Equity'] == 950.0
+
+    def test_per_year_fallback(self):
+        """Parent tag for recent years, inclusive-only for an older one."""
+        latest_year = YEARS[-1]
+        old_year = YEARS[0]
+        bs = _shape_from({
+            'StockholdersEquity': ('USD', {latest_year: 800.0}),
+            _INCL:                ('USD', {y: 950.0 for y in YEARS}),
+            'MinorityInterest':   ('USD', {y: 150.0 for y in YEARS}),
+        })['balance_sheet']
+        assert bs.iloc[:, 0]['Stockholders Equity'] == 800.0
+        old_col = pd.Timestamp(year=old_year, month=12, day=31)
+        assert bs[old_col]['Stockholders Equity'] == 800.0
+
+    def test_history_path_uses_same_resolution(self):
+        c = _make_client()
+        c._cache['TEST'] = _facts_with_units({
+            'Revenues':            ('USD', {y: 1000.0 for y in YEARS}),
+            'NetIncomeLoss':       ('USD', {y: 150.0 for y in YEARS}),
+            _INCL:                 ('USD', {y: 950.0 for y in YEARS}),
+            'MinorityInterest':    ('USD', {y: 150.0 for y in YEARS}),
+        })
+        vals, _ccy = c._resolve_equity_annual(c._cache['TEST'])
+        assert vals[YEARS[-1]] == 800.0
+
+
+class TestPeriodMatchedShareCount:
+    def test_shares_row_emitted_from_instant_tag(self):
+        latest = _shape_from({
+            'StockholdersEquity':          ('USD', {y: 800.0 for y in YEARS}),
+            'CommonStockSharesOutstanding': ('shares', {y: 100.0 for y in YEARS}),
+        })['balance_sheet'].iloc[:, 0]
+        assert latest['Ordinary Shares Number'] == 100.0
+
+    def test_nav_prefers_period_end_count(self):
+        """Year-end 100 shares vs 90 live after buybacks: divide by 100."""
+        shape = _shape_from({
+            'StockholdersEquity':          ('USD', {y: 800.0 for y in YEARS}),
+            'Goodwill':                    ('USD', {y: 300.0 for y in YEARS}),
+            'CommonStockSharesOutstanding': ('shares', {y: 100.0 for y in YEARS}),
+        })
+        shape['info'] = {'sharesOutstanding': 90.0}
+        assert tangible_equity_per_share(shape) == pytest.approx(5.0)
+
+    def test_implausible_period_count_falls_back_to_live(self):
+        """A single share class (1/3 of the live count) is not the base."""
+        fin = _financials(equity=900.0, goodwill=0.0, shares=300.0)
+        fin['balance_sheet'].loc['Ordinary Shares Number'] = 100.0
+        assert tangible_equity_per_share(fin) == pytest.approx(3.0)
+
+    def test_period_count_used_when_live_missing(self):
+        fin = _financials(equity=900.0, goodwill=0.0)
+        fin['balance_sheet'].loc['Ordinary Shares Number'] = 100.0
+        fin['info'] = {}
+        assert tangible_equity_per_share(fin) == pytest.approx(9.0)
+
+    def test_live_count_when_row_absent(self):
+        fin = _financials(equity=900.0, goodwill=0.0, shares=300.0)
+        assert tangible_equity_per_share(fin) == pytest.approx(3.0)
