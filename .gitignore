@@ -1,0 +1,6 @@
+# iCloud Drive syncs ~/Desktop and resurrects deleted shards under
+# space-suffixed conflict names ("AAPL 2.json"). They regenerate continuously,
+# including between the manifest copy and `git add -A`, so ignore them
+# outright — no real ticker symbol contains a space.
+docs/vol/* *.json
+docs/px/* *.json
