@@ -1367,6 +1367,12 @@ class SECXBRLClient:
         curr_liabs    = _ann('current_liabilities')
         liabilities   = _ann('total_liabilities')
         ret_earnings  = _ann('retained_earnings')
+        # Goodwill + intangibles: without these rows the NAV model's
+        # tangible-book strip finds nothing to subtract on the XBRL path, so
+        # nav_fv / p_tbv silently degrade to plain book value for every US
+        # filer (the same failure mode the SBC / buyback rows above once had).
+        goodwill      = _ann('goodwill')
+        intangibles   = _ann('intangibles')
         # Total debt is composed from separately-tagged components (LTD +
         # current debt) — a single-tag read understates leverage by the
         # short-term portion for most filers.
@@ -1450,6 +1456,8 @@ class SECXBRLClient:
                 'Current Liabilities':       curr_liabs.get(y),
                 'Total Liabilities Net Minority Interest': liabilities.get(y),
                 'Retained Earnings':         ret_earnings.get(y),
+                'Goodwill':                  goodwill.get(y),
+                'Other Intangible Assets':   intangibles.get(y),
             } for y, col in zip(years, cols, strict=False)
         })
 

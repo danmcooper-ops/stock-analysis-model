@@ -20,26 +20,32 @@ from models.field_keys import (
 )
 
 
-def tangible_book_value_per_share(financials):
-    """Tangible book value per share = (Equity − Goodwill − Intangibles) / Shares.
+def tangible_equity_per_share(financials):
+    """Signed tangible equity per share = (Equity − Goodwill − Intangibles) / Shares.
 
     *financials* is the same dict shape used by the other model functions —
     ``balance_sheet`` (a pandas DataFrame, latest period in column 0) and
     ``info`` (a dict with ``sharesOutstanding`` or similar).
 
+    Unlike :func:`tangible_book_value_per_share`, this keeps the SIGN: a
+    buyback-rich compounder whose goodwill exceeds its equity returns a
+    negative number rather than None. Scoring relies on that distinction —
+    "negative tangible book" makes P/TBV structurally inapplicable, whereas
+    "balance sheet missing" (None) is a data gap that should score worst.
+
     Returns
     -------
     float
-        TBV per share when equity and shares are both present and positive.
+        Signed tangible equity per share when equity and shares are present
+        and shares are positive. Goodwill / intangibles absent are treated
+        as 0 (some firms legitimately carry none).
     None
-        When equity, shares, or the balance sheet itself are missing, or
-        when tangible equity is non-positive. Goodwill / intangibles
-        absent are treated as 0 (some firms legitimately carry none).
+        When equity, shares, or the balance sheet itself are missing.
 
-    Emits a warning when goodwill + intangibles exceed 50% of equity —
-    in that regime TBV strips most of book value and the asset-floor
-    reading is materially below BV, so callers should weight it as a
-    floor only, not a fair-value estimate.
+    Emits a warning when goodwill + intangibles exceed 50% of (positive)
+    equity — in that regime TBV strips most of book value and the
+    asset-floor reading is materially below BV, so callers should weight
+    it as a floor only, not a fair-value estimate.
     """
     bs = financials.get('balance_sheet')
     info = financials.get('info') or {}
@@ -48,7 +54,7 @@ def tangible_book_value_per_share(financials):
     latest_bs = bs.iloc[:, 0]
 
     equity = _get(latest_bs, EQUITY_KEYS)
-    if not equity or equity <= 0:
+    if equity is None:
         return None
 
     goodwill = _get(latest_bs, GOODWILL_KEYS) or 0
@@ -70,23 +76,37 @@ def tangible_book_value_per_share(financials):
             # worst case is a conservative (lower) tangible book value.
             pass
 
-    tangible_equity = float(equity) - float(goodwill) - float(intangibles)
-    if tangible_equity <= 0:
-        return None
-
     shares = info.get('sharesOutstanding')
     if not shares or shares <= 0:
         return None
 
+    tangible_equity = float(equity) - float(goodwill) - float(intangibles)
+
     # Heads-up when intangibles dominate equity — caller may want to treat
     # TBV strictly as a floor and lean on other valuation methods.
-    intangible_pct = (float(goodwill) + float(intangibles)) / float(equity)
-    if intangible_pct > 0.5:
-        _py_warnings.warn(
-            f'Goodwill + intangibles are {intangible_pct:.0%} of equity — '
-            'TBV strips most of book; treat as floor only, not fair value',
-            RuntimeWarning,
-            stacklevel=2,
-        )
+    if equity > 0:
+        intangible_pct = (float(goodwill) + float(intangibles)) / float(equity)
+        if intangible_pct > 0.5:
+            _py_warnings.warn(
+                f'Goodwill + intangibles are {intangible_pct:.0%} of equity — '
+                'TBV strips most of book; treat as floor only, not fair value',
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
     return tangible_equity / float(shares)
+
+
+def tangible_book_value_per_share(financials):
+    """Tangible book value per share, as a positive asset floor.
+
+    Thin wrapper over :func:`tangible_equity_per_share` that returns None
+    when tangible equity is non-positive (insolvent on a tangible basis, or
+    equity itself non-positive) — a negative "floor" is not a usable fair
+    value. Callers that need to tell negative tangible book apart from
+    missing data should use the signed function directly.
+    """
+    tbv = tangible_equity_per_share(financials)
+    if tbv is None or tbv <= 0:
+        return None
+    return tbv
