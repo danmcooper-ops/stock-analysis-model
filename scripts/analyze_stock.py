@@ -75,7 +75,7 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE,
                             GROWTH_WEIGHT_EARNINGS_G, GROWTH_WEIGHT_FUNDAMENTAL,
                             SURPRISE_THRESHOLD, SURPRISE_UPLIFT,
                             MARGIN_TREND_SENSITIVITY,
-                            BETA_MIN, BETA_MAX, RE_MIN, RE_MAX,
+                            BETA_MIN, BETA_MAX, RE_MIN, RE_MAX, RE_CAP_SPREAD,
                             CAPEX_DA_THRESHOLD, EXCESS_CAPEX_ADDBACK,
                             YIELD_CEILING_MULT, HYPER_GROWTH_CAP, ANALYST_HAIRCUT, FALLBACK_GROWTH,
                             DCF_YEARS, DCF_STAGE1,
@@ -992,10 +992,13 @@ def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=Non
         except Exception as e:
             logger.debug(f"cost of equity: local-beta path failed for {ticker} ({e}); falling back to yfinance beta")
 
-    # 2. CAPM with yfinance-reported beta (no R² quality check)
+    # 2. CAPM with yfinance-reported beta (no R² quality check). Yahoo's
+    #    beta is a RAW 5y-monthly regression beta; Blume-adjust it so this
+    #    path sits on the same basis as path 1's adjusted_beta.
     beta = info.get('beta')
     if beta is not None and BETA_MIN < beta < BETA_MAX:
-        re = risk_free_rate + beta * erp
+        adj_beta = (2 / 3) * beta + (1 / 3)
+        re = risk_free_rate + adj_beta * erp
         if RE_MIN < re < RE_MAX:
             return re, 'capm', beta_diag
 
@@ -1011,6 +1014,20 @@ def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=Non
     # 4. Build-Up fallback (no size/industry premiums — too imprecise)
     re = buildup_re(risk_free_rate, erp, size_premium=0, industry_premium=0)
     return re, 'buildup', beta_diag
+
+
+def _bound_re_for_models(cost_of_equity, sector):
+    """Floor/cap the cost of equity used by the equity-flow models.
+
+    Floor = the sector WACC floor (an equity flow can't be discounted below
+    the blended-capital floor the DCF is held to). Cap = sector WACC cap +
+    RE_CAP_SPREAD, since Re exceeds WACC by construction.
+    """
+    if cost_of_equity is None:
+        return None
+    cfg = _get_sector_config(sector)
+    return max(cfg['wacc_floor'],
+               min(cfg['wacc_cap'] + RE_CAP_SPREAD, cost_of_equity))
 
 
 # ---------------------------------------------------------------------------
@@ -2813,16 +2830,15 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             sector = info.get('sector') or ''
             industry = info.get('industry') or ''
             country = info.get('country') or ''
-            # Discount-rate discipline: floor/cap the cost of equity with the
-            # same sector bounds that bound WACC, so the equity-flow models
-            # (DDM, RIM, EPV growth premium) can't discount at a raw GGM/
-            # build-up Re below the blended-capital floor while the DCF is
-            # floored. Diagnostic 'er' keeps the raw estimate.
-            re_for_models = cost_of_equity
-            if cost_of_equity is not None:
-                _re_cfg = _get_sector_config(sector)
-                re_for_models = max(_re_cfg['wacc_floor'],
-                                    min(_re_cfg['wacc_cap'], cost_of_equity))
+            # Discount-rate discipline: floor the cost of equity at the
+            # sector WACC floor so the equity-flow models (DDM, RIM, EPV
+            # growth premium) can't discount at a raw GGM/build-up Re below
+            # the blended-capital floor while the DCF is floored. The cap
+            # sits RE_CAP_SPREAD above the sector WACC cap: Re exceeds WACC
+            # by construction, so capping at the WACC cap itself pulled every
+            # high-beta name down to one rate. Diagnostic 'er' keeps the raw
+            # estimate.
+            re_for_models = _bound_re_for_models(cost_of_equity, sector)
             # Tiingo is primary news source; fall back to yfinance/Google RSS
             if tiingo_client.available:
                 tiingo_news = tiingo_client.fetch_ticker_news(ticker, max_age_days=30, max_items=12)

@@ -3,7 +3,10 @@
 
 # --- Constants ---
 DEFAULT_RISK_FREE_RATE = 0.04  # Fallback if live Treasury fetch fails
-ERP = 0.055                    # Equity Risk Premium (Damodaran)
+ERP = 0.055                    # Equity Risk Premium — house assumption. Damodaran's
+                               # implied ERP has run ~4.3-4.6% since 2024; 5.5% sits
+                               # nearer the historical/survey figure. The macro overlay
+                               # flexes it by regime (models/macro.py).
 TERMINAL_GROWTH_RATE = 0.03
 MIN_MARKET_CAP = 0             # No market-cap floor
 WACC_FLOOR = 0.07              # Morningstar-aligned WACC bounds (global default)
@@ -27,6 +30,10 @@ MARGIN_TREND_SENSITIVITY = 0.5  # 50% of margin annual change flows to growth pr
 # Cost-of-equity bounds
 BETA_MIN, BETA_MAX = 0.1, 4.0         # Valid beta range
 RE_MIN, RE_MAX = 0.04, 0.30           # Valid cost-of-equity range
+# Equity-model discount-rate cap = sector wacc_cap + this spread. Re must
+# exceed WACC by construction, so capping Re at the WACC cap itself collapsed
+# every beta above ~1.6 onto one discount rate. The floor stays shared.
+RE_CAP_SPREAD = 0.03
 
 # DCF parameters
 CAPEX_DA_THRESHOLD = 2.0       # Owner earnings: capex > 2× D&A triggers growth-capex adj
