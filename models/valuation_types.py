@@ -103,6 +103,20 @@ def _validate_numeric(name, value, *, positive=False, allow_zero=True,
     return v
 
 
+def _validate_count(name, value, minimum=1):
+    """Validate an integer count (iterations, projection years).
+
+    Rejects bools, floats and anything below `minimum` so a bad count fails
+    loudly at the door instead of surfacing as a ZeroDivisionError or a
+    numpy shape error deep inside a vectorized simulation.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+        raise ValueError(f"{name} must be an integer, got {value!r}")
+    if value < minimum:
+        raise ValueError(f"{name} must be >= {minimum}, got {value}")
+    return int(value)
+
+
 def _validate_returns(name, arr, min_obs=24):
     """Validate a 1-D return series for beta / correlation work.
 

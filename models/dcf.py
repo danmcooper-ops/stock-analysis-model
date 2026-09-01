@@ -3,7 +3,7 @@ import warnings as _py_warnings
 
 import numpy as np
 
-from models.valuation_types import Valuation, _validate_numeric
+from models.valuation_types import Valuation, _validate_count, _validate_numeric
 
 
 def _dcf_validate_core(base_fcf, growth_rate, discount_rate, terminal_growth):
@@ -247,25 +247,43 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
     invalid_rate, clip_rate — the last two surface the upward bias from
     constraint-flooring so callers can judge whether the median is
     trustworthy. Returns None on invalid inputs or too few valid iterations.
+
+    The exit-multiple leg runs only when BOTH base_ebitda (> 0) and
+    exit_multiple (> 0) are supplied; a non-finite or non-positive
+    exit_multiple, or a non-finite base_ebitda, drops the leg with a
+    RuntimeWarning rather than silently valuing it at the floor multiple.
     """
     try:
         base_fcf, growth_rate, discount_rate, terminal_growth = _dcf_validate_core(
             base_fcf, growth_rate, discount_rate, terminal_growth)
         shares_outstanding = _validate_numeric('shares_outstanding',
                                                shares_outstanding, positive=True)
+        # None = leverage unknown, treated as 0 (matches fair_value_per_share).
+        net_debt = 0.0 if net_debt is None else _validate_numeric('net_debt', net_debt)
+        n = _validate_count('n_iterations', n_iterations)
         _validate_years(total_years, stage1_years)
     except ValueError as e:
         _py_warnings.warn(f"monte_carlo_dcf input invalid: {e}", RuntimeWarning, stacklevel=2)
         return None
 
+    has_exit = False
+    if base_ebitda is not None and exit_multiple is not None:
+        try:
+            base_ebitda = _validate_numeric('base_ebitda', base_ebitda)
+            exit_multiple = _validate_numeric('exit_multiple', exit_multiple, positive=True)
+        except ValueError as e:
+            _py_warnings.warn(f"monte_carlo_dcf exit-multiple leg skipped: {e}",
+                              RuntimeWarning, stacklevel=2)
+        else:
+            has_exit = base_ebitda > 0
+
     rng = np.random.default_rng(42)  # fixed seed for reproducibility
 
     if growth_sigma is None:
         growth_sigma = abs(growth_rate) * 0.30 if growth_rate != 0 else 0.02
-    if exit_mult_sigma is None and exit_multiple:
+    if exit_mult_sigma is None and has_exit:
         exit_mult_sigma = exit_multiple * 0.15
 
-    n = n_iterations
     g_samples = rng.normal(growth_rate, max(growth_sigma, 0.001), n)
     w_samples = rng.normal(discount_rate, max(wacc_sigma, 0.001), n)
     tg_samples = rng.normal(terminal_growth, max(tg_sigma, 0.001), n)
@@ -306,13 +324,11 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
     pv_tv_ggm = tv_ggm / (1 + w_samples) ** total_years
     ev_ggm = pv_fcfs + pv_tv_ggm
 
-    equity_ggm = ev_ggm - (net_debt or 0)
+    equity_ggm = ev_ggm - net_debt
     fv_ggm = np.where(equity_ggm > 0, equity_ggm / shares_outstanding, 0)
 
     # --- Exit multiple terminal value (if available) ---
     fv_exit = np.zeros(n)
-    has_exit = (base_ebitda is not None and base_ebitda > 0 and
-                exit_multiple is not None)
     if has_exit:
         em_samples = rng.normal(exit_multiple, max(exit_mult_sigma or 1.0, 0.5), n)
         em_samples = np.maximum(em_samples, exit_mult_floor)  # align with pipeline floor
@@ -331,7 +347,7 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
         tv_exit = prev_ebitda * em_samples
         pv_tv_exit = tv_exit / (1 + w_samples) ** total_years
         ev_exit = pv_fcfs + pv_tv_exit
-        equity_exit = ev_exit - (net_debt or 0)
+        equity_exit = ev_exit - net_debt
         fv_exit = np.where(equity_exit > 0, equity_exit / shares_outstanding, 0)
 
     # --- Average methods ---

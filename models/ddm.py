@@ -3,7 +3,7 @@ import warnings as _py_warnings
 
 import numpy as np
 
-from models.valuation_types import Valuation, _validate_numeric
+from models.valuation_types import Valuation, _validate_count, _validate_numeric
 
 
 def ddm_eligibility(div_history, payout, eps, dps, min_years=3, strict_payout=False):
@@ -249,9 +249,21 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
     n_valid, n_iterations, invalid_rate, clip_rate. The last two surface
     how aggressively the constraint walls clipped samples and how many
     iterations produced non-positive value (and were filtered).
+
+    Inputs are validated with the same bounds as two_stage_ddm_valuation
+    and re <= tg returns None, so the simulation can never report a
+    distribution around a point estimate that is itself undefined.
+    Returns None on invalid inputs or too few valid iterations.
     """
     try:
         dps = _validate_numeric('dps', dps, positive=True)
+        re = _validate_numeric('re', re, positive=True, low=0.01, high=0.40)
+        tg = _validate_numeric('tg', tg, low=-0.10, high=0.10)
+        g = _validate_numeric('g', g, low=-0.50, high=1.0)
+        n = _validate_count('n', n)
+        years = _validate_count('years', years)
+        if re <= tg:
+            raise ValueError(f"re <= tg — Gordon terminal value undefined (re={re}, tg={tg})")
     except ValueError as e:
         _py_warnings.warn(f"monte_carlo_ddm input invalid: {e}", RuntimeWarning, stacklevel=2)
         return None
@@ -268,8 +280,13 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
     # Track clip counts before applying constraint walls
     n_re_clipped = int(np.sum(re_samples < 0.03))
     re_samples = np.maximum(re_samples, 0.03)
-    n_tg_clipped = int(np.sum(tg_samples > re_samples - 0.01))
-    tg_samples = np.minimum(tg_samples, re_samples - 0.01)
+    # Clip the terminal spread at 2% to MATCH two_stage_ddm's min_spread. The
+    # old 1% wall let clipped draws capitalise the terminal dividend on a
+    # spread up to 2x tighter than the point estimate ever uses, which pushed
+    # the MC median/p90 far above the point FV for exactly the low-Re payers
+    # the clip_rate flags (same defect fixed earlier in monte_carlo_dcf).
+    n_tg_clipped = int(np.sum(tg_samples > re_samples - 0.02))
+    tg_samples = np.minimum(tg_samples, re_samples - 0.02)
 
     # --- Vectorized dividend projection: shape (n, years) ---
     projected = np.empty((n, years))
