@@ -294,3 +294,37 @@ def calculate_fundamental_growth(financials, roic_override=None):
         'reinvestment_rate': reinvestment_rate,
         'roic_used': roic_val,
     }
+
+
+def effective_tax_rate(income_statement, years=3, default=0.21,
+                       low=0.05, high=0.40):
+    """Through-cycle effective tax rate from the income statement.
+
+    Median of (tax provision / pretax income) over the most recent `years`
+    columns that have a POSITIVE pretax income. A single-year ratio is a poor
+    input for a perpetuity: a loss year with a positive provision (state
+    taxes, a valuation allowance) inverts the sign, a near-breakeven year
+    explodes it, and one-off deferred-tax revaluations distort it. The median
+    absorbs one such year; the [low, high] band absorbs the rest.
+
+    Returns (rate, source) with source 'median' (in-band median of >=1
+    qualifying years), 'clamped' (median pushed to the band edge) or
+    'default' (no qualifying year -> `default`, the statutory rate).
+    """
+    if income_statement is None or income_statement.empty:
+        return default, 'default'
+    rates = []
+    for col in income_statement.columns[:years]:
+        period = income_statement[col]
+        provision = _get(period, ['Tax Provision'])
+        pretax = _get(period, ['Pretax Income'], allow_zero=False)
+        if provision is None or pretax is None or pretax <= 0:
+            continue
+        rates.append(float(provision) / float(pretax))
+    if not rates:
+        return default, 'default'
+    rates.sort()
+    n = len(rates)
+    median = rates[n // 2] if n % 2 else (rates[n // 2 - 1] + rates[n // 2]) / 2
+    clamped = max(low, min(median, high))
+    return clamped, ('clamped' if clamped != median else 'median')

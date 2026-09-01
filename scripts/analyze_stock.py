@@ -36,7 +36,8 @@ from models.dcf import (two_stage_ev_valuation, fair_value_per_share, dcf_sensit
                         two_stage_ev_exit_multiple_valuation, monte_carlo_dcf,
                         reverse_dcf)
 from models.ratios import (compute_ratios, calculate_roic, calculate_wacc,
-                           calculate_fundamental_growth, compute_dupont)
+                           calculate_fundamental_growth, compute_dupont,
+                           effective_tax_rate)
 from models.quality import (calculate_earnings_quality, calculate_piotroski_f,
                             calculate_revenue_cagr, calculate_interest_coverage,
                             calculate_net_debt_ebitda, get_net_debt,
@@ -2996,7 +2997,6 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             # EPV (Earnings Power Value)
             inc_stmt = yf_data.get('income_statement')
             _epv_ebit = None
-            _epv_eff_tax = 0.21
             _epv_yf_revenue = None
             if inc_stmt is not None and not inc_stmt.empty:
                 _latest_inc = inc_stmt.iloc[:, 0]
@@ -3004,14 +3004,12 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 _rev_val = _latest_inc.get('Total Revenue')
                 if pd.notna(_rev_val) and _rev_val is not None:
                     _epv_yf_revenue = float(_rev_val)
-                if pd.notna(_epv_ebit) and _epv_ebit is not None:
-                    _tax_prov = _latest_inc.get('Tax Provision')
-                    _pretax = _latest_inc.get('Pretax Income')
-                    if (pd.notna(_tax_prov) and pd.notna(_pretax) and
-                            _pretax and _pretax != 0):
-                        _epv_eff_tax = max(0, min(float(_tax_prov) / float(_pretax), 0.50))
-                else:
+                if not (pd.notna(_epv_ebit) and _epv_ebit is not None):
                     _epv_ebit = None
+            # Through-cycle effective rate (3y median, banded), derived
+            # whether or not point EBIT exists so the normalized-EBIT path
+            # never silently defaults to the statutory rate.
+            _epv_eff_tax, _epv_tax_source = effective_tax_rate(inc_stmt)
 
             _epv_ebit_used, _epv_ebit_source = _select_epv_ebit(
                 float(_epv_ebit) if _epv_ebit is not None else None,
@@ -3020,14 +3018,18 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 _edgar_metrics.get('op_margin_hist_years', 0))
 
             bs = yf_data.get('balance_sheet')
-            # Equity bridge: get_net_debt = total debt - cash, so passing it
-            # as total_debt (with excess_cash=0) nets cash against debt in
-            # one term. NOPAT/WACC is enterprise value; without this bridge
-            # levered firms get an EPV floor overstated by debt-per-share.
-            # None = leverage unknown (no balance sheet) → disqualify EPV
-            # rather than fabricate an unlevered per-share floor, since EPV
-            # is the widest-resolving leg of the consensus fallback.
-            _epv_net_debt = get_net_debt(yf_data)
+            # Equity bridge: net debt passed as total_debt (with
+            # excess_cash=0) nets cash against debt in one term. NOPAT/WACC
+            # is enterprise value; without this bridge levered firms get an
+            # EPV floor overstated by debt-per-share. Use the row's own
+            # net_debt_val (statements first, per-field .info fallback) so
+            # the bridge and the reported Net Debt can never disagree; the
+            # balance-sheet-only read (untagged debt = 0) is the fallback.
+            # None = leverage unknown → disqualify EPV rather than fabricate
+            # an unlevered per-share floor, since EPV is the widest-resolving
+            # leg of the consensus fallback.
+            _epv_net_debt = (net_debt_val if net_debt_val is not None
+                             else get_net_debt(yf_data))
             if _epv_net_debt is None:
                 epv_fv = None
                 epv_valuation = None
@@ -3035,10 +3037,23 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 epv_valuation = earnings_power_value_valuation(
                     _epv_ebit_used,
                     _epv_eff_tax, wacc, shares,
-                    excess_cash=0, total_debt=_epv_net_debt)
+                    excess_cash=0, total_debt=_epv_net_debt,
+                    ebit_source=_epv_ebit_source)
                 epv_fv = epv_valuation.value
-            epv_growth_fv = epv_with_growth_premium(
-                epv_fv, ratios.get('ROE'), re_for_models)
+            # Growth premium on the same basis as the base EPV: the zero-
+            # growth figure is an enterprise value capitalized at WACC, so
+            # compare through-cycle ROIC to WACC. Book-equity ROE vs cost of
+            # equity is the fallback when ROIC is unavailable, and the only
+            # basis for financials, where the ROIC formula is meaningless.
+            _epv_roic = roic_data.get('avg_roic') if roic_data else None
+            if (_epv_roic is not None and wacc
+                    and sector != 'Financial Services'):
+                _epv_growth_basis = 'roic_wacc'
+                epv_growth_fv = epv_with_growth_premium(epv_fv, _epv_roic, wacc)
+            else:
+                _epv_growth_basis = 'roe_re'
+                epv_growth_fv = epv_with_growth_premium(
+                    epv_fv, ratios.get('ROE'), re_for_models)
 
             # RIM (Residual Income Model)
             _book_value = info.get('bookValue')
@@ -3422,6 +3437,9 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'epv_growth_fv': epv_growth_fv,
                 # 'normalized' (10y-avg margin × current revenue) or 'point'
                 'epv_ebit_source': _epv_ebit_source,
+                'epv_tax_source': _epv_tax_source,
+                'epv_growth_basis': (_epv_growth_basis
+                    if epv_growth_fv is not None else None),
                 'epv_confidence': (epv_valuation.confidence
                     if epv_valuation is not None and epv_fv is not None else None),
                 'epv_warnings': (list(epv_valuation.warnings)
