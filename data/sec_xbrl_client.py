@@ -111,7 +111,19 @@ class SECXBRLClient:
         ],
         'cash': [
             'CashAndCashEquivalentsAtCarryingValue',
+        ],
+        # Liquidity beyond plain cash. Mega-caps (AAPL, MSFT, GOOGL) hold
+        # most of it as marketable securities; the EV→equity bridge reads
+        # the combined row first (CASH_KEYS), so it must exist on the XBRL
+        # path or net debt is overstated by the whole securities book.
+        'cash_and_st_investments': [
             'CashCashEquivalentsAndShortTermInvestments',
+        ],
+        # Claims ahead of common equity in the EV→equity bridge.
+        # (Short-term investments: see the existing 'st_investments' concept.)
+        'preferred_stock': [
+            'PreferredStockValue',
+            'PreferredStockValueOutstanding',
         ],
         'operating_cash_flow': [
             'NetCashProvidedByUsedInOperatingActivities',
@@ -320,6 +332,10 @@ class SECXBRLClient:
         'cash': [
             'CashAndCashEquivalents',
         ],
+        # IFRS has no standard combined cash + short-term-investments total
+        # and preferred capital sits inside IssuedCapital; left untagged.
+        'cash_and_st_investments': [],
+        'preferred_stock': [],
         'operating_cash_flow': [
             'CashFlowsFromUsedInOperatingActivities',
         ],
@@ -1362,6 +1378,10 @@ class SECXBRLClient:
         # right period-end value per fiscal year.
         equity        = _ann('total_equity')
         cash          = _ann('cash')
+        cash_sti      = _ann('cash_and_st_investments')
+        st_inv        = _ann('st_investments')
+        minority      = _ann('minority_interest')
+        preferred     = _ann('preferred_stock')
         assets        = _ann('total_assets')
         curr_assets   = _ann('current_assets')
         curr_liabs    = _ann('current_liabilities')
@@ -1426,6 +1446,17 @@ class SECXBRLClient:
                 if a is not None and e is not None:
                     liabilities[y] = a - e
 
+        # Liquidity rows for the EV→equity bridge. Plain cash falls back to
+        # the combined tag for filers that only report the total; the
+        # combined row is composed as cash + short-term investments when
+        # the filer tags them separately (the common case: AAPL, GOOGL tag
+        # MarketableSecuritiesCurrent, MSFT tags ShortTermInvestments).
+        for y in years:
+            if cash.get(y) is None and cash_sti.get(y) is not None:
+                cash[y] = cash_sti[y]
+            if cash_sti.get(y) is None and cash.get(y) is not None:
+                cash_sti[y] = cash[y] + (st_inv.get(y) or 0)
+
         cols = [pd.Timestamp(year=y, month=12, day=31) for y in years]
 
         income_df = pd.DataFrame({
@@ -1445,6 +1476,9 @@ class SECXBRLClient:
                 'Stockholders Equity':       equity.get(y),
                 'Total Debt':                debt.get(y),
                 'Cash And Cash Equivalents': cash.get(y),
+                'Cash Cash Equivalents And Short Term Investments': cash_sti.get(y),
+                'Minority Interest':         minority.get(y),
+                'Preferred Stock Equity':    preferred.get(y),
                 'Total Assets':              assets.get(y),
                 'Current Assets':            curr_assets.get(y),
                 'Current Liabilities':       curr_liabs.get(y),

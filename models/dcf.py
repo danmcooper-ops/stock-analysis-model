@@ -220,6 +220,17 @@ def two_stage_ev_exit_multiple_valuation(base_fcf, growth_rate, discount_rate,
                      warnings=tuple(warns), inputs_used=inputs)
 
 
+def blend_fair_value_legs(fv_ggm, fv_exit):
+    """Combine the GGM and exit-multiple per-share legs into the headline
+    fair value: the average when both are available, otherwise whichever
+    one is. Shared by run_forward_dcf and reverse_dcf so the reverse solve
+    targets the SAME number the forward model reports.
+    """
+    if fv_ggm and fv_exit:
+        return (fv_ggm + fv_exit) / 2.0
+    return fv_ggm or fv_exit
+
+
 def two_stage_ev_exit_multiple(base_fcf, growth_rate, discount_rate,
                                terminal_growth, base_ebitda, exit_multiple,
                                total_years=10, stage1_years=5, min_spread=0.025):
@@ -392,20 +403,45 @@ def dcf_sensitivity(base_fcf, growth_rate, base_wacc, base_terminal_growth,
 
 def reverse_dcf(price, fcf, wacc, shares_outstanding, net_debt=0,
                 terminal_g=0.03, total_years=10, stage1_years=5,
-                growth_range=(0.0, 0.30), tol=1e-6, max_iter=80):
-    """Solve for implied growth rate that makes DCF fair value equal market price.
+                growth_range=(-0.30, 0.30), tol=1e-6, max_iter=80,
+                base_ebitda=None, exit_multiple=None):
+    """Solve for the implied growth rate that makes DCF fair value equal
+    the market price.
 
-    Uses bisection (no scipy dependency) to find the growth rate g such that
-    fair_value_per_share(two_stage_ev(fcf, g, wacc, terminal_g), ...) == price.
+    Uses bisection (no scipy dependency) on the same per-share fair value
+    run_forward_dcf reports: the GGM leg, plus the exit-multiple leg when
+    `base_ebitda` and `exit_multiple` are supplied, blended by
+    blend_fair_value_legs. Pass the forward model's own inputs (adjusted
+    base FCF, EV→equity bridge as `net_debt`, EBITDA, multiple) so the
+    implied growth is comparable with its estimated growth.
+
+    The default range spans decline as well as growth: the forward
+    estimate floors at -15%, so a solve floored at 0% blanked the implied
+    growth for every stock priced for shrinkage.
     """
     if (price is None or price <= 0 or fcf is None or fcf <= 0 or
             wacc is None or wacc <= 0 or
             shares_outstanding is None or shares_outstanding <= 0):
         return None
 
+    use_exit = (base_ebitda is not None and base_ebitda > 0
+                and exit_multiple is not None and exit_multiple > 0)
+
     def _fv_at_growth(g):
-        ev = two_stage_ev(fcf, g, wacc, terminal_g, total_years, stage1_years)
-        fv = fair_value_per_share(ev, net_debt, shares_outstanding)
+        # Solver probes are not user inputs: silence the aggressive-growth /
+        # negative-growth advisories the model would otherwise emit on every
+        # bisection step.
+        with _py_warnings.catch_warnings():
+            _py_warnings.simplefilter('ignore', RuntimeWarning)
+            ev = two_stage_ev(fcf, g, wacc, terminal_g, total_years, stage1_years)
+            fv_ggm = fair_value_per_share(ev, net_debt, shares_outstanding)
+            fv_exit = None
+            if use_exit:
+                ev_exit = two_stage_ev_exit_multiple(
+                    fcf, g, wacc, terminal_g, base_ebitda, exit_multiple,
+                    total_years, stage1_years)
+                fv_exit = fair_value_per_share(ev_exit, net_debt, shares_outstanding)
+        fv = blend_fair_value_legs(fv_ggm, fv_exit)
         return fv if fv is not None else 0.0
 
     lo, hi = growth_range

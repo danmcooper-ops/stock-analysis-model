@@ -34,12 +34,13 @@ from data.treasury_rate import fetch_risk_free_rate
 from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re)
 from models.dcf import (two_stage_ev_valuation, fair_value_per_share, dcf_sensitivity,
                         two_stage_ev_exit_multiple_valuation, monte_carlo_dcf,
-                        reverse_dcf)
+                        reverse_dcf, blend_fair_value_legs)
 from models.ratios import (compute_ratios, calculate_roic, calculate_wacc,
                            calculate_fundamental_growth, compute_dupont)
 from models.quality import (calculate_earnings_quality, calculate_piotroski_f,
                             calculate_revenue_cagr, calculate_interest_coverage,
                             calculate_net_debt_ebitda, get_net_debt,
+                            get_ev_to_equity_bridge,
                             calculate_altman_z, calculate_beneish_m)
 from models.market import compute_relative_multiples, compute_analyst_consensus, extract_next_earnings
 from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm_valuation,
@@ -1720,12 +1721,14 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     if ev_ggm is None or ev_ggm <= 0:
         return None, None, None, {}, None
 
-    # None = balance sheet absent (leverage unknown). The DCF's EV→equity
-    # bridge treats it as 0 (the historical behavior for this cohort, which
-    # usually also lacks the FCF to compute a DCF at all).
-    net_debt = get_net_debt(yf_data) or 0
+    # EV→COMMON equity bridge: net debt (debt − cash incl. short-term
+    # investments) + minority interest + preferred stock. None = balance
+    # sheet absent (leverage unknown); the DCF treats it as 0 (the historical
+    # behavior for this cohort, which usually also lacks the FCF to compute a
+    # DCF at all).
+    equity_bridge = get_ev_to_equity_bridge(yf_data) or 0
     shares = info.get('sharesOutstanding')
-    fv_ggm = fair_value_per_share(ev_ggm, net_debt, shares)
+    fv_ggm = fair_value_per_share(ev_ggm, equity_bridge, shares)
 
     # --- Exit multiple cross-check ---
     exit_mult_fv = None
@@ -1769,22 +1772,19 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
             total_years=DCF_YEARS, stage1_years=DCF_STAGE1)
         ev_exit = exit_valuation.value
         if ev_exit and ev_exit > 0:
-            exit_mult_fv = fair_value_per_share(ev_exit, net_debt, shares)
+            exit_mult_fv = fair_value_per_share(ev_exit, equity_bridge, shares)
 
-    # Average GGM and exit multiple FVs
-    fv = fv_ggm
+    # Average GGM and exit multiple FVs (shared rule — reverse_dcf solves
+    # against the same blend, so implied growth is on the headline's basis)
+    fv = blend_fair_value_legs(fv_ggm, exit_mult_fv)
     if fv_ggm and exit_mult_fv:
-        fv = (fv_ggm + exit_mult_fv) / 2.0
-        avg_fv = (fv_ggm + exit_mult_fv) / 2.0
-        tv_method_spread = abs(fv_ggm - exit_mult_fv) / avg_fv if avg_fv > 0 else None
-    elif exit_mult_fv:
-        fv = exit_mult_fv
+        tv_method_spread = abs(fv_ggm - exit_mult_fv) / fv if fv > 0 else None
 
     # Sensitivity range (supplementary)
     sens_range = None
     if shares and shares > 0:
         sens = dcf_sensitivity(base_fcf, fcf_growth, wacc, term_g,
-                               net_debt, shares, years=DCF_YEARS, stage1=DCF_STAGE1)
+                               equity_bridge, shares, years=DCF_YEARS, stage1=DCF_STAGE1)
         vals = [v for v in sens.values() if v is not None]
         if vals:
             sens_range = (min(vals), max(vals))
@@ -1803,7 +1803,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
         mc_result = monte_carlo_dcf(
             base_fcf, fcf_growth, wacc, term_g,
-            net_debt, shares,
+            equity_bridge, shares,
             base_ebitda=base_ebitda, exit_multiple=exit_multiple,
             n_iterations=MC_ITERATIONS,
             growth_sigma=g_sigma, wacc_sigma=wacc_sigma,
@@ -1825,11 +1825,15 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
         'exit_mult_fv': exit_mult_fv,
         'tv_method_spread': tv_method_spread,
         'mc_result': mc_result,
-        # Exposed so reverse_dcf can solve on the SAME adjusted FCF base and
-        # terminal growth as the forward DCF — otherwise implied_vs_estimated
-        # conflates a basis mismatch with a genuine expectation gap.
+        # Exposed so reverse_dcf can solve on the SAME adjusted FCF base,
+        # terminal growth, equity bridge and terminal-value legs as the
+        # forward DCF — otherwise implied_vs_estimated conflates a basis
+        # mismatch with a genuine expectation gap.
         'base_fcf': base_fcf,
         'term_g': term_g,
+        'equity_bridge': equity_bridge,
+        'base_ebitda': base_ebitda,
+        'exit_multiple': exit_multiple if (base_ebitda and base_ebitda > 0) else None,
         # Valuation envelope of the primary GGM leg: which path produced the
         # number, how much its own soft warnings degrade trust in it, and the
         # concrete caveats — so a fallback can't pose as authoritative.
@@ -3073,19 +3077,22 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             # Reverse DCF (solve for implied growth)
             rev_dcf = None
             if dcf_fv and current_price and current_price > 0 and fcf and shares:
-                # get_net_debt (or 0) matches the forward DCF's own EV→equity
-                # bridge basis. Kept LOCAL to this branch: it must not clobber
-                # the row's statement-derived net_debt_val, whose None means
-                # "leverage unknown", not zero.
-                _rev_net_debt = get_net_debt(yf_data) or 0
-                # Solve on the same adjusted FCF base + terminal growth the
-                # forward DCF used, so implied_vs_estimated measures the
-                # expectation gap, not a basis/terminal-rate mismatch.
+                # Solve on exactly the forward DCF's inputs — adjusted FCF
+                # base, terminal growth, EV→equity bridge and the exit-
+                # multiple leg — so implied_vs_estimated measures the
+                # expectation gap, not a basis mismatch. Kept LOCAL to this
+                # branch: it must not clobber the row's statement-derived
+                # net_debt_val, whose None means "leverage unknown", not zero.
+                _rev_bridge = growth_diag.get('equity_bridge')
+                if _rev_bridge is None:
+                    _rev_bridge = get_ev_to_equity_bridge(yf_data) or 0
                 _rev_fcf = growth_diag.get('base_fcf') or fcf
                 _rev_tg = growth_diag.get('term_g')
                 rev_dcf = reverse_dcf(
-                    current_price, _rev_fcf, wacc, shares, _rev_net_debt,
-                    terminal_g=_rev_tg if _rev_tg is not None else 0.03)
+                    current_price, _rev_fcf, wacc, shares, _rev_bridge,
+                    terminal_g=_rev_tg if _rev_tg is not None else 0.03,
+                    base_ebitda=growth_diag.get('base_ebitda'),
+                    exit_multiple=growth_diag.get('exit_multiple'))
 
             # 52-Week Range
             high_52w = info.get('fiftyTwoWeekHigh')

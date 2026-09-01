@@ -74,4 +74,5 @@ class TestDebtLevels:
         import scripts.analyze_stock as mod
         src = inspect.getsource(mod._run_phase2_analysis)
         assert 'net_debt_val = get_net_debt' not in src
-        assert '_rev_net_debt = get_net_debt' in src
+        assert 'net_debt_val = get_ev_to_equity_bridge' not in src
+        assert '_rev_bridge = get_ev_to_equity_bridge' in src
