@@ -115,6 +115,13 @@ class SECXBRLClient:
         ],
         'operating_cash_flow': [
             'NetCashProvidedByUsedInOperatingActivities',
+            # Filers with discontinued operations (DIS, JCI, DRI, T post-
+            # WarnerMedia, HON) tag the continuing-ops subtotal INSTEAD of
+            # the total, and most large caps used this element for their
+            # FY2014-2017 10-Ks (AAPL, MSFT, CSCO, INTC, TXN, ...). Without
+            # it those years are holes in the OCF/FCF history. Listed second
+            # so the total wins whenever a filing carries both.
+            'NetCashProvidedByUsedInOperatingActivitiesContinuingOperations',
         ],
         'capex': [
             'PaymentsToAcquirePropertyPlantAndEquipment',
@@ -122,6 +129,9 @@ class SECXBRLClient:
             # under the "ProductiveAssets" line rather than PP&E.
             'PaymentsToAcquireProductiveAssets',
             'PaymentsToAcquireOtherProductiveAssets',
+            # LLY ($7.8B/yr) and ADP tag purchases of PP&E under the
+            # "Other" PP&E element only — without it their FCF is None.
+            'PaymentsToAcquireOtherPropertyPlantAndEquipment',
             'PaymentsForCapitalImprovements',
             'CapitalExpendituresIncurringObligation',
         ],
@@ -148,6 +158,11 @@ class SECXBRLClient:
         ],
         'interest_expense': [
             'InterestExpense',
+            # The 2024 US-GAAP taxonomy retired InterestExpense in favour of
+            # the operating/non-operating split; VZ, T, MSFT, HD, NVDA, ...
+            # now tag only this element, leaving the latest year blank for
+            # WACC cost of debt, interest coverage and the FCFF add-back.
+            'InterestExpenseNonoperating',
             'InterestAndDebtExpense',
             'InterestExpenseDebt',
         ],
@@ -554,8 +569,17 @@ class SECXBRLClient:
         Selection logic per fiscal year:
         1. Only 10-K / 20-F / 40-F filings with fp='FY'
         2. Period must span ~1 full year (340-400 days)
-        3. Period end year must match the fiscal year
-        4. If multiple match, keep the latest filed date
+        3. Period end year must match the filing's fiscal year (or fy+1
+           for Jan/Feb year-ends labelled by the year the period starts)
+        4. Entries are grouped by period END date. The value comes from
+           the latest filing (restatements win); the fiscal-year label
+           comes from the EARLIEST filing that carried the period — the
+           one in which it was the current year. Keying on each entry's
+           own 'fy' mislabels Jan/Feb year-end filers (HD, LOW, TGT, KR,
+           DG, ROST, ...): the newest 10-K's prior-year comparative
+           carries the newest fy, ties with the current year on filed
+           date, and wins on JSON order, so every year in the history
+           shifted back by one and the "latest" year was stale.
 
         Args:
             facts_json: Raw companyfacts JSON.
@@ -574,7 +598,9 @@ class SECXBRLClient:
 
         # Merge values across all matching tags. Companies often switch
         # XBRL tags over time (e.g. SalesRevenueNet → RevenueFromContract...)
-        merged = {}  # {fy: (filed_date, value)}
+        # Grouped by period end date — see the docstring for why the
+        # entry's own 'fy' cannot be the key.
+        by_end = {}  # {end: {'val': (filed, value), 'label': (filed, fy)}}
 
         for tag in tag_list:
             concept = us_gaap.get(tag)
@@ -598,7 +624,7 @@ class SECXBRLClient:
                 filed = e.get('filed', '')
                 start = e.get('start', '')
                 end = e.get('end', '')
-                if fy is None or val is None:
+                if fy is None or val is None or not end:
                     continue
                 # Only full-year figures
                 if fp not in ('FY', 'CY'):
@@ -626,15 +652,32 @@ class SECXBRLClient:
                 except (ValueError, TypeError):
                     pass  # If dates can't be parsed, keep the entry
 
-                candidates.append((fy, filed, val))
+                candidates.append((fy, filed, val, end))
 
-            # Deduplicate by fiscal year — keep the latest filed date
-            for fy, filed, val in candidates:
-                if fy not in merged or filed > merged[fy][0]:
-                    merged[fy] = (filed, val)
+            # Per period end: latest filed value (restatements supersede),
+            # earliest filed fiscal-year label (the original filing). Ties
+            # on filed date keep the first tag in tag_list, as before.
+            for fy, filed, val, end in candidates:
+                rec = by_end.get(end)
+                if rec is None:
+                    by_end[end] = {'val': (filed, val), 'label': (filed, fy)}
+                    continue
+                if filed > rec['val'][0]:
+                    rec['val'] = (filed, val)
+                if filed < rec['label'][0]:
+                    rec['label'] = (filed, fy)
 
-        if not merged:
+        if not by_end:
             return {}
+
+        # Two period ends can only share a label when a filer's original
+        # filing is missing from companyfacts; keep the later period.
+        merged = {}  # {fy_label: (end, value)}
+        for end, rec in by_end.items():
+            label = rec['label'][1]
+            prev = merged.get(label)
+            if prev is None or end > prev[0]:
+                merged[label] = (end, rec['val'][1])
 
         return {fy: info[1] for fy, info in sorted(merged.items())}
 

@@ -32,6 +32,21 @@ RE_MIN, RE_MAX = 0.04, 0.30           # Valid cost-of-equity range
 CAPEX_DA_THRESHOLD = 2.0       # Owner earnings: capex > 2× D&A triggers growth-capex adj
 EXCESS_CAPEX_ADDBACK = 0.50    # Add back 50% of capex above the threshold band (continuous at the threshold)
 YIELD_CEILING_MULT = 1.25      # Mean-reversion: cap base FCF at 1.25× own trailing avg positive FCF (pre-adjustment basis)
+# Years of history the ceiling averages over. The cap was calibrated when
+# statements came from yfinance (4-5 columns); SEC XBRL returns 10-17 years,
+# and averaging a compounder's whole history cut base FCF 40-67% for NOW,
+# CRM, NFLX, ADBE, V, MA and 18-40% for AAPL/GOOGL/META/NVDA. A 5-year
+# window still catches a peak-cycle year without pricing a steady grower
+# off its decade-old cash flows.
+YIELD_CEILING_WINDOW = 5
+# DCF base FCF is unlevered to FCFF: OCF under US GAAP is AFTER interest
+# paid, so OCF − capex is a levered flow. Discounting it at WACC and then
+# subtracting net debt charges the cost of debt twice (VZ/T: ~25% of base
+# FCF). Add back interest × (1 − tax rate); off for Financial Services,
+# where interest is an operating cost.
+DCF_UNLEVER_INTEREST = True
+DCF_DEFAULT_TAX_RATE = 0.21    # Statutory US rate when the effective rate can't be read
+DCF_MAX_TAX_RATE = 0.35        # Clamp for one-off effective-rate spikes
 HYPER_GROWTH_YIELD = 0.025     # FCF yield below 2.5% signals hyper-growth pricing
 HYPER_GROWTH_CAP = 0.25        # Absolute ceiling on hyper-growth override
 ANALYST_HAIRCUT = 0.80         # Apply 20% haircut to analyst growth estimate

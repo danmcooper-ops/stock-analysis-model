@@ -77,7 +77,9 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE,
                             MARGIN_TREND_SENSITIVITY,
                             BETA_MIN, BETA_MAX, RE_MIN, RE_MAX,
                             CAPEX_DA_THRESHOLD, EXCESS_CAPEX_ADDBACK,
-                            YIELD_CEILING_MULT, HYPER_GROWTH_CAP, ANALYST_HAIRCUT, FALLBACK_GROWTH,
+                            YIELD_CEILING_MULT, YIELD_CEILING_WINDOW,
+                            DCF_UNLEVER_INTEREST, DCF_DEFAULT_TAX_RATE, DCF_MAX_TAX_RATE,
+                            HYPER_GROWTH_CAP, ANALYST_HAIRCUT, FALLBACK_GROWTH,
                             DCF_YEARS, DCF_STAGE1,
                             EXIT_MULT_DIVERGENCE_THRESHOLD,
                             EXIT_MULT_DEFAULT_EV_EBITDA,
@@ -247,14 +249,14 @@ def derive_edgar_metrics(edgar_history):
                 out['rev_growth_vol'] = (sum((x - _gm) ** 2 for x in _gr) / len(_gr)) ** 0.5
         newest_rev = rev_hist[sy[-1]] if sy else None
         if newest_rev and newest_rev > 0:
-            if len(sy) >= 6:
-                yr5 = rev_hist.get(sy[-6])
-                if yr5 and yr5 > 0:
-                    out['rev_cagr_5y'] = (newest_rev / yr5) ** (1 / 5) - 1
-            if len(sy) >= 11:
-                yr10 = rev_hist.get(sy[-11])
-                if yr10 and yr10 > 0:
-                    out['rev_cagr_10y'] = (newest_rev / yr10) ** (1 / 10) - 1
+            # Year-keyed, not position-keyed: a hole in the filing history
+            # must not stretch a "5-year" CAGR over 7 or 8 years.
+            yr5 = rev_hist.get(sy[-1] - 5)
+            if yr5 and yr5 > 0:
+                out['rev_cagr_5y'] = (newest_rev / yr5) ** (1 / 5) - 1
+            yr10 = rev_hist.get(sy[-1] - 10)
+            if yr10 and yr10 > 0:
+                out['rev_cagr_10y'] = (newest_rev / yr10) ** (1 / 10) - 1
         # Consecutive YoY revenue declines ending at the latest fiscal year —
         # the "still shrinking NOW" complement to the CAGRs (a −2% 5y CAGR
         # can hide a business that already re-based and is growing again;
@@ -284,12 +286,20 @@ def derive_edgar_metrics(edgar_history):
         # basis as the row's revenue/mcap, so the downstream fcf_margin and
         # pfcf ratios stay FX-consistent. Requiring capex (via common_years)
         # avoids overstating FCF as bare OCF.
-        if cap_hist and common_years:
+        # Only when capex is tagged for the latest OCF year: otherwise the
+        # last common year is an older one and the figure is stale.
+        if cap_hist and common_years and common_years[-1] == max(ocf_hist):
             out['fcf_edgar'] = fcf_hist[common_years[-1]]
-        if len(fcf_vals) >= 6 and fcf_vals[-6] > 0 and fcf_vals[-1] > 0:
-            out['fcf_cagr_5y'] = (fcf_vals[-1] / fcf_vals[-6]) ** (1 / 5) - 1
-        if len(fcf_vals) >= 11 and fcf_vals[-11] > 0 and fcf_vals[-1] > 0:
-            out['fcf_cagr_10y'] = (fcf_vals[-1] / fcf_vals[-11]) ** (1 / 10) - 1
+        if fcf_vals:
+            # Year-keyed CAGRs (see the revenue block above).
+            latest_y = common_years[-1]
+            latest_v = fcf_hist[latest_y]
+            v5 = fcf_hist.get(latest_y - 5)
+            if v5 is not None and v5 > 0 and latest_v is not None and latest_v > 0:
+                out['fcf_cagr_5y'] = (latest_v / v5) ** (1 / 5) - 1
+            v10 = fcf_hist.get(latest_y - 10)
+            if v10 is not None and v10 > 0 and latest_v is not None and latest_v > 0:
+                out['fcf_cagr_10y'] = (latest_v / v10) ** (1 / 10) - 1
         # Negative-FCF years among the last ≤5 — chronic cash burn reads
         # differently from one bad year, and the CAGR fields are None for any
         # series that starts or ends negative, which is exactly the cohort a
@@ -1336,13 +1346,41 @@ def _fcf_series_from_cashflow(cf):
     """
     if cf is None or cf.empty:
         return None
-    # Preferred: yfinance's pre-computed synthetic row when present.
+    # Preferred: yfinance's pre-computed synthetic row when present — unless
+    # it stops short of the newest column and OCF + Capex can reach it.
+    row_fcf = None
     if 'Free Cash Flow' in cf.index:
-        fcf = cf.loc['Free Cash Flow'].dropna().sort_index()
-        if len(fcf) > 0:
-            return fcf
-    # Fallback: derive FCF = OCF + Capex (Capex stored as a negative
-    # number in yfinance, so addition gives FCF).
+        row_fcf = cf.loc['Free Cash Flow'].dropna().sort_index()
+        if len(row_fcf) > 0 and _fcf_series_is_current(cf, row_fcf):
+            return row_fcf
+    derived = _derive_fcf_series(cf)
+    if derived is None:
+        return row_fcf if row_fcf is not None and len(row_fcf) > 0 else None
+    if row_fcf is not None and len(row_fcf) > 0 and row_fcf.index[-1] >= derived.index[-1]:
+        return row_fcf
+    return derived
+
+
+def _fcf_series_is_current(cf, fcf_series):
+    """True when the FCF series' last point is the newest statement column.
+
+    OCF + Capex only exists for periods with BOTH rows. When a filer stops
+    tagging capex under any mapped concept (ABNB 2023+, JCI 2022+) the
+    intersection ends years before the newest column, and the 'most recent
+    annual' FCF is silently a stale year — priced against today's market
+    cap in fcf_yield / P/FCF and extrapolated by the DCF.
+    """
+    if fcf_series is None or len(fcf_series) == 0:
+        return False
+    try:
+        newest = max(cf.columns)
+    except (TypeError, ValueError):
+        return True  # unsortable columns: nothing to compare against
+    return fcf_series.index[-1] == newest
+
+
+def _derive_fcf_series(cf):
+    """FCF = OCF + Capex from the statement rows (Capex negative), or None."""
     ocf_row = None
     for key in OPERATING_CF_KEYS:
         if key in cf.index:
@@ -1489,6 +1527,67 @@ def _debt_levels(yf_data):
 # Forward DCF (Worksheet Step 5A)
 # ---------------------------------------------------------------------------
 
+def _trailing_window(series, years):
+    """Values of `series` dated within the last `years` fiscal years of its
+    newest point — by DATE, not position, so a hole in the history (NVDA's
+    capex is tagged under a custom element for FY2012-2023) can't drag a
+    decade-old figure into a 'trailing 5-year' average. Falls back to the
+    last `years` points when the index isn't date-like."""
+    try:
+        newest_year = int(series.index[-1].year)
+        return [float(v) for d, v in series.items()
+                if int(d.year) > newest_year - years]
+    except (AttributeError, TypeError, ValueError):
+        return [float(v) for v in series.values[-years:]]
+
+
+def _period_span_years(index):
+    """Whole years between the first and last period of a sorted index, or
+    None when the index isn't date-like."""
+    try:
+        first, last = index[0], index[-1]
+        span = int(last.year) - int(first.year)
+        return span if span > 0 else None
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def _after_tax_interest(yf_data):
+    """Latest-year interest expense × (1 − effective tax rate), or 0.0.
+
+    The effective rate is Tax Provision / Pretax Income from the same
+    column, clamped to [0, DCF_MAX_TAX_RATE]; DCF_DEFAULT_TAX_RATE when
+    either is missing or pretax income is non-positive.
+    """
+    inc = yf_data.get('income_statement')
+    if inc is None or (hasattr(inc, 'empty') and inc.empty):
+        inc = yf_data.get('income_stmt')
+    if inc is None or (hasattr(inc, 'empty') and inc.empty):
+        return 0.0
+    try:
+        latest = inc[max(inc.columns)]
+    except (TypeError, ValueError):
+        latest = inc.iloc[:, 0]
+
+    def _line(labels):
+        for lbl in labels:
+            if lbl in latest.index and pd.notna(latest[lbl]):
+                return float(latest[lbl])
+        return None
+
+    interest = _line(['Interest Expense', 'Interest Expense Non Operating'])
+    if interest is None or interest == 0:
+        return 0.0
+    interest = abs(interest)
+    tax = _line(['Tax Provision', 'Income Tax Expense'])
+    pretax = _line(['Pretax Income', 'Income Before Tax'])
+    if tax is not None and pretax is not None and pretax > 0:
+        rate = min(max(tax / pretax, 0.0), DCF_MAX_TAX_RATE)
+    else:
+        rate = DCF_DEFAULT_TAX_RATE
+    return interest * (1.0 - rate)
+
+
 def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=None,
                     terminal_growth_adj=0.0, wacc_sigma=None, tg_sigma=None,
                     growth_sigma_mult=1.0, growth_weight_shift=0.0):
@@ -1531,6 +1630,12 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     fcf_series = _fcf_series_from_cashflow(cf)
     if fcf_series is None:
         return None, None, None, {}, None
+    if not _fcf_series_is_current(cf, fcf_series):
+        # A base year that predates the newest statement is not a base year.
+        logger.info(f"DCF skipped for {info.get('symbol', '?')}: latest FCF point "
+                    f"({fcf_series.index[-1]}) predates newest statement column "
+                    f"({max(cf.columns)}) — capex untagged for the latest year(s)")
+        return None, None, None, {}, None
     fcf_values = fcf_series.values.tolist()
     if not fcf_values:
         return None, None, None, {}, None
@@ -1566,7 +1671,10 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     # add-back / SBC deduction silently compared adjusted FCF against a
     # raw-FCF average, undoing the add-back for exactly the capex-heavy
     # firms it exists for.
-    _pos_fcf = [v for v in fcf_values if v > 0]
+    # Windowed: XBRL statements carry 10-17 years, and averaging a
+    # compounder's whole history is not "its trailing normal" (see
+    # YIELD_CEILING_WINDOW in config).
+    _pos_fcf = [v for v in _trailing_window(fcf_series, YIELD_CEILING_WINDOW) if v > 0]
     if _pos_fcf and base_fcf > 0:
         trailing_avg_fcf = sum(_pos_fcf) / len(_pos_fcf)
         fcf_ceiling = YIELD_CEILING_MULT * trailing_avg_fcf
@@ -1620,10 +1728,24 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     if base_fcf <= 0:
         return None, None, None, {}, None
 
+    # --- Unlever to FCFF: add back after-tax interest ---
+    # US GAAP OCF is after interest paid, so OCF − capex is a flow to
+    # EQUITY holders. The EV bridge below discounts at WACC and subtracts
+    # net debt; feeding it a levered flow charges debt twice and
+    # understates levered firms (VZ, T, utilities) by ~20-25% of base FCF.
+    interest_addback = 0.0
+    if DCF_UNLEVER_INTEREST and sector != 'Financial Services':
+        interest_addback = _after_tax_interest(yf_data)
+        if interest_addback > 0:
+            base_fcf += interest_addback
+
     # --- FCF growth estimation ---
+    # Span in YEARS, not points: XBRL histories can have holes (a year
+    # whose capex or OCF wasn't tagged), and len−1 over a gappy series
+    # overstates growth.
     fcf_cagr = None
     if len(fcf_values) >= 2 and fcf_values[0] > 0 and fcf_values[-1] > 0:
-        n = len(fcf_values) - 1
+        n = _period_span_years(fcf_series.index) or (len(fcf_values) - 1)
         fcf_cagr = (fcf_values[-1] / fcf_values[0]) ** (1 / n) - 1
 
     # Revenue CAGR as secondary signal
@@ -1829,6 +1951,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
         # terminal growth as the forward DCF — otherwise implied_vs_estimated
         # conflates a basis mismatch with a genuine expectation gap.
         'base_fcf': base_fcf,
+        'interest_addback': interest_addback,
         'term_g': term_g,
         # Valuation envelope of the primary GGM leg: which path produced the
         # number, how much its own soft warnings degrade trust in it, and the
@@ -2972,7 +3095,15 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             fcf = None
             fcf_series = _fcf_series_from_cashflow(cf)
             if fcf_series is not None and len(fcf_series) > 0:
-                fcf = fcf_series.iloc[-1]  # most recent annual
+                if _fcf_series_is_current(cf, fcf_series):
+                    fcf = fcf_series.iloc[-1]  # most recent annual
+                else:
+                    # Capex untagged for the newest year(s): the last FCF
+                    # point is an older year. Leave fcf None (scoring falls
+                    # back to fcf_edgar, which applies the same guard)
+                    # rather than price a stale figure against today's mcap.
+                    logger.debug(f"{ticker}: FCF series ends {fcf_series.index[-1]} "
+                                 f"before newest column {max(cf.columns)}; fcf left None")
 
             # --- NEW MODELS ---
 
