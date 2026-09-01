@@ -7,7 +7,8 @@ from collections import namedtuple
 from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH,
                              SCORE_WEIGHT_OWNERSHIP, MIN_SECTOR_STOCKS,
-                             MIN_ADV_FOR_BUY)
+                             MIN_ADV_FOR_BUY,
+                            MC_CLIP_RATE_DOWNGRADE, MC_INVALID_RATE_DOWNGRADE)
 
 # Unified gate spec — ONE entry per metric drives both the pass/fail Gate
 # Matrix cell and the continuous 0-100 score, so a gate's threshold and its
@@ -123,17 +124,30 @@ def _cap_rating(rating, cap):
     return RATING_BY_RANK[min(RATING_RANK[rating], RATING_RANK[cap])]
 
 
-def _mc_confidence_label(cv):
-    """Convert coefficient of variation to a confidence label with CV%."""
+def _mc_confidence_label(cv, clip_rate=None, invalid_rate=None):
+    """Convert coefficient of variation to a confidence label with CV%.
+
+    When the simulation's constraint diagnostics are supplied, the label is
+    downgraded one notch (HIGH → MEDIUM → LOW) and tagged "constrained" if
+    the most binding wall forced more than MC_CLIP_RATE_DOWNGRADE of the
+    draws or more than MC_INVALID_RATE_DOWNGRADE of them wiped out equity.
+    A tight CV in that state says more about the walls than the inputs.
+    """
     if cv is None:
         return None
     pct = round(cv * 100)
     if cv < 0.20:
-        return f'HIGH ({pct}%)'
+        level = 'HIGH'
     elif cv < 0.40:
-        return f'MEDIUM ({pct}%)'
+        level = 'MEDIUM'
     else:
-        return f'LOW ({pct}%)'
+        level = 'LOW'
+    constrained = ((clip_rate is not None and clip_rate > MC_CLIP_RATE_DOWNGRADE) or
+                   (invalid_rate is not None and invalid_rate > MC_INVALID_RATE_DOWNGRADE))
+    if constrained:
+        level = {'HIGH': 'MEDIUM', 'MEDIUM': 'LOW', 'LOW': 'LOW'}[level]
+        return f'{level} ({pct}%, constrained)'
+    return f'{level} ({pct}%)'
 
 
 def _score_linear(value, worst, best):

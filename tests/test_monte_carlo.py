@@ -107,8 +107,10 @@ class TestDcfMatchesPointEstimate:
         args = (100.0, 0.04, 0.05, 0.03, 0.0, 1000.0)
         res = _quiet(monte_carlo_dcf, *args, n_iterations=1000, **TINY_DCF)
         assert res['median_fv'] == pytest.approx(_dcf_point(*args), rel=1e-2)
-        # Every tg draw hit the wall, no wacc draw hit its floor → exactly 1/2.
-        assert res['clip_rate'] == pytest.approx(0.5)
+        # Every tg draw hit the wall; the discount-rate floor excluded nothing.
+        assert res['tg_wall_rate'] == 1.0
+        assert res['wacc_floor_rate'] == pytest.approx(0.0, abs=1e-9)
+        assert res['clip_rate'] == 1.0
 
     def test_exit_multiple_leg_collapses_to_average_of_both_methods(self):
         base_fcf, g, w, tg, nd, sh = BENIGN_DCF
@@ -208,19 +210,25 @@ class TestDcfInvariants:
             assert small[k] == pytest.approx(large[k], rel=0.05), k
 
     def test_essentially_no_clipping_for_benign_inputs(self):
-        """tg - wacc ~ N(-6pp, 1.1pp): the 2.5% wall is a 3-sigma event, so
+        """tg - wacc ~ N(-6pp, ~1pp): the 2.5% wall is a 3-sigma event, so
         at most a draw or two in a thousand should touch it."""
         res = monte_carlo_dcf(*BENIGN_DCF, n_iterations=1000)
         assert res['clip_rate'] < 0.005
+        assert res['tg_wall_rate'] < 0.005
+        assert res['wacc_floor_rate'] < 1e-6
+        assert res['exit_floor_rate'] is None
         assert res['invalid_rate'] == 0.0
 
-    def test_clip_rate_counts_wacc_floor_hits(self):
-        """WACC ~ N(3.1%, 1pp) → ~46% of draws fall below the 3% floor. The
-        tg wall is checked AFTER flooring, so with tg = 0 it never fires:
-        clip_rate ≈ 0.46 / 2."""
-        res = monte_carlo_dcf(100.0, 0.02, 0.031, 0.0, 0.0, 1000.0, n_iterations=4000,
+    def test_wacc_floor_rate_is_the_exact_excluded_mass(self):
+        """The discount rate is an exact truncated normal, so the floor
+        diagnostic is the analytic tail mass below 3%, not a draw count.
+        The floor keeps wacc - 2.5% above tg = 0, so the tg wall never fires."""
+        from scipy.stats import norm
+        res = monte_carlo_dcf(100.0, 0.02, 0.031, 0.0, 0.0, 1000.0, n_iterations=1024,
                               wacc_sigma=0.01, tg_sigma=1e-9, growth_sigma=1e-9)
-        assert 0.20 < res['clip_rate'] < 0.27
+        assert res['wacc_floor_rate'] == pytest.approx(norm.cdf((0.03 - 0.031) / 0.01), abs=1e-9)
+        assert res['tg_wall_rate'] == 0.0
+        assert res['clip_rate'] == res['wacc_floor_rate']
         assert res['median_fv'] > 0
 
     def test_returns_none_when_nearly_every_draw_is_insolvent(self):
@@ -239,6 +247,90 @@ class TestDcfInvariants:
         assert res['n_valid'] == 1
         assert res['p10_fv'] == res['median_fv'] == res['p90_fv']
         assert res['std_fv'] == 0.0 and res['cv'] == 0.0
+
+
+class TestDcfSampling:
+    """Sobol scenarios, per-ticker seeds, correlated rates, log-normal multiples."""
+
+    def test_seed_none_is_the_default_seed(self):
+        from models.montecarlo import DEFAULT_SEED
+        a = monte_carlo_dcf(*BENIGN_DCF, n_iterations=256)
+        b = monte_carlo_dcf(*BENIGN_DCF, n_iterations=256, seed=DEFAULT_SEED)
+        assert a == b
+        assert a['seed'] == DEFAULT_SEED == 42
+
+    def test_seeds_give_different_but_reproducible_scenarios(self):
+        a1 = monte_carlo_dcf(*BENIGN_DCF, n_iterations=256, seed=1)
+        a2 = monte_carlo_dcf(*BENIGN_DCF, n_iterations=256, seed=1)
+        b = monte_carlo_dcf(*BENIGN_DCF, n_iterations=256, seed=2)
+        assert a1 == a2
+        assert a1['median_fv'] != b['median_fv']
+        # ...but not by much: the seed changes the sampling error, not the answer.
+        assert a1['median_fv'] == pytest.approx(b['median_fv'], rel=0.05)
+
+    def test_seed_from_ticker_is_stable_and_distinct(self):
+        from models.montecarlo import seed_from_ticker
+        assert seed_from_ticker('AAPL') == seed_from_ticker('AAPL')
+        assert seed_from_ticker('AAPL') == seed_from_ticker(' aapl ')
+        assert seed_from_ticker('AAPL') != seed_from_ticker('MSFT')
+        assert seed_from_ticker(None) == 42
+        assert 0 <= seed_from_ticker('BRK-B') < 2 ** 32
+
+    def test_correlated_rates_hit_the_spread_wall_less_often(self):
+        """wacc 6% / tg 3%: independent draws collapse the spread in ~1/3 of
+        scenarios; the shared rate component makes that rarer."""
+        rates = [monte_carlo_dcf(100.0, 0.05, 0.06, 0.03, 0.0, 1000.0, n_iterations=4096,
+                                 wacc_tg_corr=rho)['tg_wall_rate'] for rho in (0.0, 0.5, 0.9)]
+        assert rates[0] > rates[1] > rates[2]
+        assert 0.28 < rates[0] < 0.38
+        assert rates[2] < 0.25
+
+    @pytest.mark.parametrize('rho', [1.5, -1.01, float('nan')])
+    def test_invalid_correlation_returns_none_with_warning(self, rho):
+        _invalid(monte_carlo_dcf, 'wacc_tg_corr', *BENIGN_DCF, n_iterations=100,
+                 wacc_tg_corr=rho)
+
+    def test_correlation_does_not_move_the_collapsed_median(self):
+        for rho in (0.0, 0.9):
+            res = monte_carlo_dcf(*BENIGN_DCF, n_iterations=500, wacc_tg_corr=rho, **TINY_DCF)
+            assert res['median_fv'] == pytest.approx(_dcf_point(*BENIGN_DCF), rel=1e-2)
+
+    def test_exit_multiple_is_lognormal_so_never_nonpositive(self):
+        """A normal with sigma = multiple would go negative ~16% of the time
+        and rely on the floor; log-normal draws never do."""
+        res = _quiet(monte_carlo_dcf, *BENIGN_DCF, n_iterations=4096, base_ebitda=2e9,
+                     exit_multiple=3.0, exit_mult_sigma=3.0, exit_mult_floor=1e-9)
+        assert res['exit_floor_rate'] == 0.0
+        assert np.isfinite(res['median_fv']) and res['median_fv'] > 0
+
+    def test_exit_floor_rate_matches_the_lognormal_tail(self):
+        from scipy.stats import norm
+        res = monte_carlo_dcf(*BENIGN_DCF, n_iterations=4096, base_ebitda=2e9,
+                              exit_multiple=6.0, exit_mult_sigma=1.5, exit_mult_floor=5.0)
+        expected = norm.cdf(np.log(5.0 / 6.0) / (1.5 / 6.0))
+        assert res['exit_floor_rate'] == pytest.approx(expected, abs=0.01)
+        assert res['clip_rate'] == max(res['wacc_floor_rate'], res['tg_wall_rate'],
+                                       res['exit_floor_rate'])
+
+    def test_typical_exit_multiple_never_touches_the_floor(self):
+        res = monte_carlo_dcf(*BENIGN_DCF, n_iterations=1024, base_ebitda=2e9,
+                              exit_multiple=12.0, exit_mult_floor=5.0)
+        assert res['exit_floor_rate'] == 0.0
+
+    def test_production_count_is_within_one_percent_of_a_large_run(self):
+        from scripts.config import MC_ITERATIONS
+        assert MC_ITERATIONS & (MC_ITERATIONS - 1) == 0, 'Sobol wants a power of two'
+        small = monte_carlo_dcf(*BENIGN_DCF, n_iterations=MC_ITERATIONS)
+        large = monte_carlo_dcf(*BENIGN_DCF, n_iterations=16384)
+        assert small['median_fv'] == pytest.approx(large['median_fv'], rel=0.01)
+        assert small['p10_fv'] == pytest.approx(large['p10_fv'], rel=0.02)
+        assert small['p90_fv'] == pytest.approx(large['p90_fv'], rel=0.02)
+
+    def test_non_power_of_two_count_is_silent(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')  # scipy's Sobol balance UserWarning included
+            res = monte_carlo_dcf(*BENIGN_DCF, n_iterations=1000)
+        assert res is not None and res['n_iterations'] == 1000
 
 
 class TestDcfInputValidation:
@@ -387,9 +479,12 @@ class TestDdmInvariants:
         for k in ('median_fv', 'p10_fv', 'p90_fv'):
             assert small[k] == pytest.approx(large[k], rel=0.05), k
 
-    def test_no_clipping_for_benign_inputs(self):
+    def test_essentially_no_clipping_for_benign_inputs(self):
+        """re ~ N(10%, 1pp): the 3% floor is a 7-sigma event, so the analytic
+        excluded mass is ~1e-12 rather than exactly zero."""
         res = monte_carlo_ddm(*BENIGN_DDM, n=1000)
-        assert res['clip_rate'] == 0.0
+        assert res['clip_rate'] < 1e-6
+        assert res['tg_wall_rate'] == 0.0
         assert res['invalid_rate'] == 0.0
 
     def test_independent_of_global_numpy_rng_state(self):
@@ -399,6 +494,46 @@ class TestDdmInvariants:
         np.random.random(37)
         r2 = monte_carlo_ddm(*BENIGN_DDM, n=200)
         assert r1 == r2
+
+
+class TestDdmSampling:
+    def test_seed_none_is_the_default_seed(self):
+        a = monte_carlo_ddm(*BENIGN_DDM, n=256)
+        b = monte_carlo_ddm(*BENIGN_DDM, n=256, seed=42)
+        assert a == b and a['seed'] == 42
+
+    def test_seeds_give_different_but_reproducible_scenarios(self):
+        a1 = monte_carlo_ddm(*BENIGN_DDM, n=256, seed=7)
+        a2 = monte_carlo_ddm(*BENIGN_DDM, n=256, seed=7)
+        b = monte_carlo_ddm(*BENIGN_DDM, n=256, seed=8)
+        assert a1 == a2
+        assert a1['median_fv'] != b['median_fv']
+        assert a1['median_fv'] == pytest.approx(b['median_fv'], rel=0.05)
+
+    def test_correlated_rates_hit_the_spread_wall_less_often(self):
+        """re 6% / tg 3%: 1pp of headroom above the 2% wall. (Exactly ON the
+        wall the hit rate is 50% whatever the correlation, so test off it.)"""
+        rates = [monte_carlo_ddm(2.0, 0.05, 0.06, 0.03, n=4096, re_tg_corr=rho)['tg_wall_rate']
+                 for rho in (0.0, 0.5, 0.9)]
+        assert rates[0] > rates[1] > rates[2]
+        assert 0.14 < rates[0] < 0.25
+        assert rates[2] < 0.10
+
+    def test_re_floor_rate_is_the_exact_excluded_mass(self):
+        from scipy.stats import norm
+        res = monte_carlo_ddm(2.0, 0.02, 0.035, 0.0, n=1024, re_sigma=0.01, tg_sigma=1e-9)
+        assert res['re_floor_rate'] == pytest.approx(norm.cdf((0.03 - 0.035) / 0.01), abs=1e-9)
+        assert res['clip_rate'] == max(res['re_floor_rate'], res['tg_wall_rate'])
+
+    @pytest.mark.parametrize('rho', [1.5, -2.0])
+    def test_invalid_correlation_returns_none_with_warning(self, rho):
+        _invalid(monte_carlo_ddm, 're_tg_corr', *BENIGN_DDM, n=100, re_tg_corr=rho)
+
+    def test_production_count_is_within_one_percent_of_a_large_run(self):
+        from scripts.config import MC_ITERATIONS
+        small = monte_carlo_ddm(*BENIGN_DDM, n=MC_ITERATIONS)
+        large = monte_carlo_ddm(*BENIGN_DDM, n=16384)
+        assert small['median_fv'] == pytest.approx(large['median_fv'], rel=0.01)
 
 
 class TestDdmInputValidation:
@@ -500,6 +635,18 @@ class TestForwardDcfWiring:
         _, wide, _, _, _ = run_forward_dcf(_dcf_yf_data(), wacc=0.10, wacc_sigma=0.03)
         assert (wide[1] - wide[0]) > (narrow[1] - narrow[0])
 
+    def test_seed_flows_through_and_diagnostics_are_exposed(self):
+        from scripts.analyze_stock import run_forward_dcf
+        from scripts.config import MC_WACC_TG_CORRELATION
+        _, _, _, _, mc_default = run_forward_dcf(_dcf_yf_data(), wacc=0.10)
+        _, _, _, _, mc_seeded = run_forward_dcf(_dcf_yf_data(), wacc=0.10, seed=12345)
+        assert mc_default['seed'] == 42 and mc_seeded['seed'] == 12345
+        assert mc_default['median_fv'] != mc_seeded['median_fv']
+        assert mc_default['median_fv'] == pytest.approx(mc_seeded['median_fv'], rel=0.05)
+        for k in ('clip_rate', 'invalid_rate', 'wacc_floor_rate', 'tg_wall_rate'):
+            assert isinstance(mc_default[k], float), k
+        assert -1.0 <= MC_WACC_TG_CORRELATION <= 1.0
+
 
 def _dividend_series(years=('2021', '2022', '2023', '2024', '2025'), quarterly=0.50, growth=0.05):
     rows = []
@@ -526,6 +673,29 @@ class TestDdmValuationWiring:
                               years=DDM_HIGH_GROWTH_YEARS)
         assert res['ddm_mc_median'] == pytest.approx(point, rel=0.10)
         assert res['ddm_mc_p10'] < point < res['ddm_mc_p90']
+        assert isinstance(res['ddm_mc_clip_rate'], float)
+        assert res['ddm_mc_invalid_rate'] == 0.0
+
+    def test_sigma_overlay_reaches_the_ddm_band(self):
+        """The DDM simulator must run on the same uncertainty regime as the
+        DCF's: a wider (realized-vol / macro) discount-rate sigma widens it."""
+        from scripts.analyze_stock import run_ddm_valuation
+        narrow = run_ddm_valuation(_ddm_yf_data(), _dividend_series(), cost_of_equity=0.09,
+                                   re_sigma=0.002)
+        wide = run_ddm_valuation(_ddm_yf_data(), _dividend_series(), cost_of_equity=0.09,
+                                 re_sigma=0.03)
+        stressed = run_ddm_valuation(_ddm_yf_data(), _dividend_series(), cost_of_equity=0.09,
+                                     re_sigma=0.002, growth_sigma_mult=3.0)
+        band = lambda r: r['ddm_mc_p90'] - r['ddm_mc_p10']  # noqa: E731
+        assert band(wide) > band(narrow)
+        assert band(stressed) > band(narrow)
+
+    def test_seed_flows_through_to_the_ddm_band(self):
+        from scripts.analyze_stock import run_ddm_valuation
+        a = run_ddm_valuation(_ddm_yf_data(), _dividend_series(), cost_of_equity=0.09, seed=1)
+        b = run_ddm_valuation(_ddm_yf_data(), _dividend_series(), cost_of_equity=0.09, seed=2)
+        assert a['ddm_mc_median'] != b['ddm_mc_median']
+        assert a['ddm_mc_median'] == pytest.approx(b['ddm_mc_median'], rel=0.05)
 
     def test_undefined_point_estimate_leaves_mc_fields_empty(self):
         """cost_of_equity <= terminal growth: the two-stage DDM is undefined
@@ -539,7 +709,8 @@ class TestDdmValuationWiring:
                                     cost_of_equity=TERMINAL_GROWTH_RATE - 0.005)
         assert res['ddm_eligible']
         assert res['ddm_fv'] is None
-        for k in ('ddm_mc_median', 'ddm_mc_p10', 'ddm_mc_p90', 'ddm_mc_cv'):
+        for k in ('ddm_mc_median', 'ddm_mc_p10', 'ddm_mc_p90', 'ddm_mc_cv',
+                  'ddm_mc_clip_rate', 'ddm_mc_invalid_rate'):
             assert res[k] is None, k
 
     def test_ineligible_payer_has_no_mc_fields(self):
@@ -547,5 +718,6 @@ class TestDdmValuationWiring:
         res = run_ddm_valuation({'info': {'trailingEps': 5.0, 'dividendRate': 0.0}},
                                 _dividend_series(), cost_of_equity=0.09)
         assert not res['ddm_eligible']
-        for k in ('ddm_mc_median', 'ddm_mc_p10', 'ddm_mc_p90', 'ddm_mc_cv'):
+        for k in ('ddm_mc_median', 'ddm_mc_p10', 'ddm_mc_p90', 'ddm_mc_cv',
+                  'ddm_mc_clip_rate', 'ddm_mc_invalid_rate'):
             assert res[k] is None, k
