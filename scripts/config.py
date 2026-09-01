@@ -24,6 +24,10 @@ SURPRISE_UPLIFT = 0.015         # +1.5% growth for consistent beaters
 # Margin trend adjustment
 MARGIN_TREND_SENSITIVITY = 0.5  # 50% of margin annual change flows to growth premium
 
+# Residual Income Model (see models/rim.py)
+RIM_SPREAD_PERSISTENCE = 0.5   # Share of the ROE−Re spread surviving into the terminal period
+RIM_MAX_BOOK_GROWTH = 0.25     # Cap on clean-surplus book growth (ROE × retention) per year
+
 # Cost-of-equity bounds
 BETA_MIN, BETA_MAX = 0.1, 4.0         # Valid beta range
 RE_MIN, RE_MAX = 0.04, 0.30           # Valid cost-of-equity range
