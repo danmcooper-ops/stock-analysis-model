@@ -1847,12 +1847,16 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 def _annualise_dividends(div_series, as_of_year=None):
     """Convert a per-payment dividend Series to annual DPS (oldest first).
 
-    Groups by calendar year and sums. Two corrections vs a naive groupby:
+    Groups by calendar year and sums. Three corrections vs a naive groupby:
 
     - The current (partial) calendar year is dropped: a mid-year run would
       otherwise read a quarterly payer's year-to-date sum as a full-year
       DPS, collapsing the dividend CAGR toward the −10% floor for most of
       the dividend universe.
+    - The first calendar year is dropped when it has fewer payments than the
+      modal year (a mid-year initiation or a feed that starts mid-year), so
+      the partial sum can't masquerade as a full-year DPS at the start of
+      the CAGR span.
     - Interior skipped years are filled with 0.0 rather than vanishing, so a
       suspension is visible to the consecutive-year eligibility screen and
       doesn't silently compress the CAGR time span.
@@ -1865,15 +1869,28 @@ def _annualise_dividends(div_series, as_of_year=None):
         div_series = div_series.iloc[:, 0] if not div_series.empty else pd.Series(dtype=float)
     if len(div_series) == 0:
         return []
-    annual = div_series.groupby(div_series.index.year).sum().sort_index()
+    by_year = div_series.groupby(div_series.index.year)
+    annual = by_year.sum().sort_index()
+    counts = by_year.size().reindex(annual.index)
     if as_of_year is None:
         as_of_year = date.today().year
     # Drop the current partial year (keep it only if it's the sole year, so a
     # freshly-initiated payer still surfaces something).
     if as_of_year in annual.index and len(annual) > 1:
         annual = annual.drop(index=as_of_year)
+        counts = counts.drop(index=as_of_year)
     if annual.empty:
         return []
+    # Drop a partial FIRST year too: a dividend initiated mid-year (or a
+    # history feed that starts mid-year) has fewer payments than a full year,
+    # and its small sum would inflate the dividend CAGR toward the 25% cap.
+    # A year is partial when it carries fewer payments than the modal count
+    # across the remaining years. Keep it when it is the only year.
+    if len(annual) > 1:
+        first_year = int(annual.index[0])
+        modal_count = counts.drop(index=first_year).mode()
+        if not modal_count.empty and counts[first_year] < modal_count.iloc[0]:
+            annual = annual.drop(index=first_year)
     # Reindex to a contiguous year range, filling suspension gaps with 0.
     full_range = range(int(annual.index.min()), int(annual.index.max()) + 1)
     annual = annual.reindex(full_range, fill_value=0.0)
@@ -1898,6 +1915,10 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
     """
     info = (yf_data.get('info') or {}) if yf_data else {}
     eps = info.get('trailingEps')
+    # yfinance `dividendRate` is the FORWARD annual rate (last declared
+    # payment × frequency), i.e. next year's dividend D1, not the trailing
+    # D0. The model legs are told so via dps_is_forward=True and pin the
+    # year-1 dividend at this rate instead of compounding it again.
     dps = info.get('dividendRate')
     payout = info.get('payoutRatio')
     roe = None
@@ -1951,7 +1972,8 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
     tg = TERMINAL_GROWTH_RATE + terminal_growth_adj
 
     # 3. Two-stage DDM
-    ddm_valuation = two_stage_ddm_valuation(dps, g, tg, re, years=DDM_HIGH_GROWTH_YEARS)
+    ddm_valuation = two_stage_ddm_valuation(dps, g, tg, re, years=DDM_HIGH_GROWTH_YEARS,
+                                            dps_is_forward=True)
     ddm_fv = ddm_valuation.value
     result['ddm_fv'] = ddm_fv
     result['ddm_confidence'] = ddm_valuation.confidence if ddm_fv is not None else None
@@ -1962,7 +1984,8 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
     # half_life = 5/2. Passing the full 5 modeled a 10-year fade and inflated
     # the H-model leg (and hence the averaged ddm_fv) whenever g > tg.
     h_fv = ddm_h_model_valuation(dps, g, tg, re,
-                                 half_life=DDM_HIGH_GROWTH_YEARS / 2.0).value
+                                 half_life=DDM_HIGH_GROWTH_YEARS / 2.0,
+                                 dps_is_forward=True).value
     result['ddm_h_fv'] = h_fv
 
     # Average the two methods when both available
@@ -1972,7 +1995,8 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
         result['ddm_fv'] = h_fv
 
     # 5. Monte Carlo DDM
-    mc = monte_carlo_ddm(dps, g, re, tg, n=MC_ITERATIONS, years=DDM_HIGH_GROWTH_YEARS)
+    mc = monte_carlo_ddm(dps, g, re, tg, n=MC_ITERATIONS, years=DDM_HIGH_GROWTH_YEARS,
+                         dps_is_forward=True)
     if mc:
         result['ddm_mc_median'] = mc['median_fv']
         result['ddm_mc_p10'] = mc['p10_fv']
