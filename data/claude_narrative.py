@@ -25,7 +25,12 @@ from models.narrative import _SECTOR_MACRO_DRIVERS
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = 'claude-opus-5'
-DEFAULT_MAX_TOKENS = 6000
+# Headroom, not a target. The grammar cannot pin array lengths, so output
+# size is model-determined: an 11-sector reply runs ~1.9k tokens, but a
+# 2026-08-31 run returned 26 sector entries at 4,959 tokens. At 6000 that
+# draw tripped stop_reason='max_tokens' and the whole narrative was
+# discarded, silently un-shipping the card. Cost is per-use, not per-cap.
+DEFAULT_MAX_TOKENS = 12000
 
 # The 11 GICS sectors under the yfinance naming this repo uses everywhere
 # (rows, SECTOR_CONFIG, sector ETF maps). The narrative must cover all 11.
@@ -270,11 +275,24 @@ class ClaudeNarrativeClient:
         if not isinstance(narrative, dict) or not narrative.get('paragraphs'):
             logger.warning('macro narrative skipped: empty response')
             return None
-        n_sectors = len(narrative.get('sectors') or [])
+        # The grammar pins no array length (minItems>1 AND maxItems both 400
+        # live, verified 2026-09-01), so the model may repeat sectors — one
+        # run returned 26 entries spanning the 11 names. Keep the first
+        # outlook per sector, in canonical GICS order, so the page renders one
+        # card each instead of duplicates; then police the count as before.
+        raw_sectors = narrative.get('sectors') or []
+        first_by_sector = {}
+        for entry in raw_sectors:
+            name = (entry or {}).get('sector')
+            if name and name not in first_by_sector:
+                first_by_sector[name] = entry
+        if len(first_by_sector) != len(raw_sectors):
+            logger.warning('macro narrative: %d sector entries collapsed to '
+                           '%d unique', len(raw_sectors), len(first_by_sector))
+        narrative['sectors'] = [first_by_sector[name] for name in GICS_SECTORS
+                                if name in first_by_sector]
+        n_sectors = len(narrative['sectors'])
         if n_sectors != len(GICS_SECTORS):
-            # The schema cannot pin array lengths (grammar restriction), so
-            # police the prompt's all-11 requirement here. A short list still
-            # renders; it just deserves a loud line in the run log.
             logger.warning('macro narrative: %d sector outlooks (expected %d)',
                            n_sectors, len(GICS_SECTORS))
 

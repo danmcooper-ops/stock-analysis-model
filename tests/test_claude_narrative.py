@@ -188,6 +188,32 @@ class TestClaudeNarrativeClient:
                             .read_text(encoding='utf-8'))
         assert cached['paragraphs'] == out['paragraphs']
 
+    def test_duplicate_sectors_collapse_to_one_per_sector(self, tmp_path,
+                                                          monkeypatch):
+        """A live 2026-08-31 run returned 26 entries across the 11 names:
+        the grammar cannot pin array length, so dedupe post-parse."""
+        payload = _narrative()
+        payload['sectors'] = payload['sectors'] + [
+            {'sector': s, 'stance': 'headwind',
+             'headline': 'Second take', 'outlook': 'Dupe.'}
+            for s in GICS_SECTORS[:4]]
+        _install_fake_anthropic(
+            monkeypatch, response=_FakeResponse(json.dumps(payload)))
+        out = self._client(tmp_path).generate(_sidecar())
+        names = [x['sector'] for x in out['sectors']]
+        assert names == GICS_SECTORS            # canonical order, no dupes
+        # the FIRST outlook per sector wins, not the later duplicate
+        assert all(x['outlook'] == 'Flat.' for x in out['sectors'])
+
+    def test_partial_sector_list_survives_dedupe(self, tmp_path, monkeypatch):
+        """A short list still renders — dedupe must not invent entries."""
+        payload = _narrative()
+        payload['sectors'] = payload['sectors'][:5]
+        _install_fake_anthropic(
+            monkeypatch, response=_FakeResponse(json.dumps(payload)))
+        out = self._client(tmp_path).generate(_sidecar())
+        assert [x['sector'] for x in out['sectors']] == GICS_SECTORS[:5]
+
     def test_cache_hit_skips_the_api(self, tmp_path, monkeypatch):
         calls = []
         _install_fake_anthropic(
