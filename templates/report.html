@@ -370,7 +370,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .fpop-panel{display:none;position:absolute;top:0;left:0;z-index:1200;background:#fff;border:1px solid #ccd;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,0.14);min-width:340px;max-width:480px;max-height:min(72vh,520px);flex-direction:column;}
 .fpop-panel.open{display:flex;}
 .fpop-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid #eee;flex-shrink:0;}
-.fpop-title{font-size:0.85em;font-weight:700;color:#1a252f;}
+.fpop-title{font-size:0.95em;font-weight:700;color:#1a252f;}
 .fpop-close{border:none;background:none;cursor:pointer;color:#aaa;font-size:1em;line-height:1;padding:2px 4px;}
 .fpop-close:hover{color:#de2d26;}
 .fpop-body{padding:10px 14px 12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;flex:1 1 auto;}
@@ -403,7 +403,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .cfr-remove:hover{color:#de2d26;}
 .add-filter-btn{align-self:flex-start;padding:5px 12px;font-size:0.85em;border:1px dashed #b0b8c8;border-radius:5px;background:transparent;cursor:pointer;color:#667;white-space:nowrap;}
 .add-filter-btn:hover{background:#f0f4ff;border-color:var(--accent);color:var(--accent);}
-.fpop-section-label{font-size:0.68em;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#7f8c9a;margin:0 0 5px;}
+/* Section headers (Ratings / Sectors / Countries / Quick Filters / Column
+   Filters). These used to be the same tiny grey caps as the AND connector,
+   so the column headings sank into the checkbox lists below them. Dark,
+   larger, with a rule underneath: they now read as headings over their
+   lists rather than as one more row in them. */
+.fpop-section-label{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#1a252f;padding:0 8px 5px;margin:0 0 6px;border-bottom:2px solid #dfe4ea;}
 .fpop-divider{height:1px;background:#eef1f5;margin:11px -14px 9px;}
 [data-theme="dark"] .fpop-divider{background:#21262d;}
 .fpop-toggles{display:flex;gap:6px;flex-wrap:wrap;}
@@ -453,18 +458,39 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .navmenu-cols{display:flex;gap:20px;align-items:flex-start;}
 /* Content-sized columns (not flex:1 1 0) so the longest sector name sets the
    column width instead of being ellipsised into three equal shares. */
-.navmenu-col{display:flex;flex-direction:column;gap:1px;flex:0 0 auto;min-width:120px;max-width:220px;}
-.navmenu-grp{display:block;width:100%;text-align:left;border:none;background:none;cursor:pointer;padding:4px 8px;margin-bottom:3px;border-radius:5px;font-size:0.68em;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#7f8c9a;white-space:nowrap;}
-.navmenu-grp:hover{background:#eef2f7;color:var(--accent);}
-.navmenu-grp.cur{color:var(--accent);}
-.navmenu-item{display:block;width:100%;text-align:left;border:none;background:none;cursor:pointer;padding:5px 10px;border-radius:6px;font-size:0.82em;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.navmenu-item:hover{background:#eef2f7;}
-.navmenu-item.active{background:var(--accent);color:#fff;font-weight:600;}
-[data-theme="dark"] .navmenu-grp:hover,[data-theme="dark"] .navmenu-item:hover{background:#21262d;}
-[data-theme="dark"] .navmenu-item.active{background:var(--accent);color:#fff;}
+.navmenu-col{display:flex;flex-direction:column;gap:1px;flex:0 0 auto;min-width:130px;max-width:220px;}
+/* Group header = the view (Macro Outlook / Screener / Financial Data ...).
+   It was styled as a 0.68em grey caps label, lighter and smaller than the
+   sub-tabs it introduced, so the menu read as one flat list of small links
+   with faint captions. Now it is the biggest, darkest text in the column,
+   sits on a tinted strip with a rule underneath, and carries a trailing
+   chevron so it still reads as clickable (it navigates to the view). The
+   current view's header swaps the rule and chevron to the accent colour. */
+.navmenu-grp{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;border:none;border-bottom:2px solid #dfe4ea;background:#f3f6fa;cursor:pointer;padding:7px 10px 6px;margin-bottom:5px;border-radius:6px 6px 0 0;font-size:0.9em;font-weight:700;color:#1a252f;white-space:nowrap;}
+.navmenu-grp::after{content:"\203A";font-size:1.15em;line-height:1;color:#9aa6b4;flex-shrink:0;}
+.navmenu-grp:hover{background:#e8eef6;color:var(--accent);border-bottom-color:var(--accent);}
+.navmenu-grp:hover::after{color:var(--accent);}
+.navmenu-grp.cur{color:var(--accent);border-bottom-color:var(--accent);}
+.navmenu-grp.cur::after{color:var(--accent);}
+/* Sub-tabs hang under their header: inset with a thin guide line down the
+   left so they read as children of the heading, not peers of it, and in
+   a lighter weight/colour than the header. */
+.navmenu-item{display:block;width:calc(100% - 10px);margin-left:10px;text-align:left;border:none;border-left:2px solid #e3e8ee;background:none;cursor:pointer;padding:5px 10px 5px 12px;border-radius:0 6px 6px 0;font-size:0.82em;font-weight:400;color:#3d4b5c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.navmenu-item:hover{background:#eef2f7;border-left-color:#b9c6d6;color:var(--text);}
+.navmenu-item.active{background:var(--accent);border-left-color:var(--accent);color:#fff;font-weight:600;}
+[data-theme="dark"] .navmenu-grp{background:#1c2128;border-bottom-color:#30363d;color:#e6edf3;}
+[data-theme="dark"] .navmenu-grp::after{color:#6e7681;}
+[data-theme="dark"] .navmenu-grp:hover{background:#262c34;color:var(--accent);border-bottom-color:var(--accent);}
+[data-theme="dark"] .navmenu-grp.cur{color:var(--accent);border-bottom-color:var(--accent);}
+[data-theme="dark"] .fpop-panel .navmenu-item{border-left-color:#30363d;color:#c9d1d9;}
+[data-theme="dark"] .fpop-panel .navmenu-item:hover{background:#21262d;border-left-color:#484f58;color:#e6edf3;}
+[data-theme="dark"] .navmenu-item.active{background:var(--accent);border-left-color:var(--accent);color:#fff;}
 /* Narrow screens: the three view columns stack into one scrolling list. */
 @media(max-width:700px){
   .navmenu-cols{flex-direction:column;gap:10px;}
+  /* Stacked columns fill the panel so each view's header strip spans the
+     full width instead of stopping at the end of its own label. */
+  .navmenu-col{max-width:none;width:100%;}
   .nav-panel{min-width:200px;}
 }
 /* Nav-only mode: Sector Analysis has nothing to filter, so the whole filter
@@ -1673,7 +1699,8 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .ps-tbl td{border-color:#21262d;color:#c9d1d9;}
 [data-theme="dark"] .gv-v.pass{color:#7ee787;}
 [data-theme="dark"] .gv-v.fail{color:#ff7b72;}
-[data-theme="dark"] .score-sep,[data-theme="dark"] .col-unit,[data-theme="dark"] .col-filters-and-label,[data-theme="dark"] .fpop-section-label{color:#8b949e;}
+[data-theme="dark"] .score-sep,[data-theme="dark"] .col-unit,[data-theme="dark"] .col-filters-and-label{color:#8b949e;}
+[data-theme="dark"] .fpop-section-label{color:#e6edf3;border-bottom-color:#30363d;}
 [data-theme="dark"] .fpop-close{color:#8b949e;}
 [data-theme="dark"] .cfr-remove{color:#6e7681;}
 [data-theme="dark"] .fpop-panel,[data-theme="dark"] .fpop-panel *,[data-theme="dark"] .ms-drop,[data-theme="dark"] .ms-drop *{color:#fff;}
