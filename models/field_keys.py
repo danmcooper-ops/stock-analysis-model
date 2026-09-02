@@ -20,13 +20,14 @@ def _get(series, keys, allow_zero=True):
 # --- Canonical field-key lists (DRY across all functions) ---
 EQUITY_KEYS = ['Stockholders Equity', 'Total Stockholder Equity', 'Common Stock Equity']
 DEBT_KEYS = ['Total Debt', 'Long Term Debt']
-# Liquid assets, securities-inclusive row first: netting only bank cash
-# against debt reads cash-rich filers (AAPL, GOOGL, MSFT park most of their
-# liquidity in marketable securities) as far more levered than they are in
-# every EV->equity bridge and in invested capital. yfinance emits the
-# inclusive row when Yahoo has it; the XBRL shape composes it from the
-# equivalents + current-investments tags.
+# Liquid assets for the EV→equity bridge and invested capital. Prefer the
+# cash + short-term-investments total: mega-caps park most of their liquidity
+# in marketable securities, and reading plain cash first overstated net debt
+# by tens of billions for exactly those names.
 CASH_KEYS = ['Cash Cash Equivalents And Short Term Investments', 'Cash And Cash Equivalents', 'Cash Financial']
+# Non-common claims on enterprise value, subtracted alongside net debt.
+MINORITY_INTEREST_KEYS = ['Minority Interest']
+PREFERRED_STOCK_KEYS = ['Preferred Stock Equity', 'Preferred Stock']
 CURRENT_ASSETS_KEYS = ['Current Assets', 'Total Current Assets']
 CURRENT_LIABILITIES_KEYS = ['Current Liabilities', 'Total Current Liabilities']
 NET_INCOME_KEYS = ['Net Income', 'Net Income Common Stockholders']

@@ -5,7 +5,7 @@ from models.field_keys import (
     _get, EQUITY_KEYS, DEBT_KEYS, CASH_KEYS, CURRENT_ASSETS_KEYS,
     CURRENT_LIABILITIES_KEYS, NET_INCOME_KEYS, TOTAL_ASSETS_KEYS,
     OPERATING_CF_KEYS, REVENUE_KEYS, INTEREST_KEYS, DA_KEYS, AR_KEYS, PPE_KEYS, SGA_KEYS,
-    GROSS_PROFIT_KEYS, LTD_KEYS,
+    GROSS_PROFIT_KEYS, LTD_KEYS, MINORITY_INTEREST_KEYS, PREFERRED_STOCK_KEYS,
 )
 
 def calculate_earnings_quality(financials):
@@ -420,6 +420,34 @@ def get_net_debt(financials):
     total_debt = _get(latest_bs, DEBT_KEYS) or 0
     cash = _get(latest_bs, CASH_KEYS) or 0
     return total_debt - cash
+
+
+def get_non_common_claims(financials):
+    """Minority interest + preferred stock, or None when the balance sheet
+    is missing entirely.
+
+    Both are claims on enterprise value that rank ahead of common equity, so
+    an EV→equity bridge that stops at net debt overstates what is left for
+    the common shares. Absent lines read as 0 (no such claims tagged).
+    """
+    bs = financials.get('balance_sheet')
+    if bs is None or bs.empty:
+        return None
+    latest_bs = bs.iloc[:, 0]
+    minority = _get(latest_bs, MINORITY_INTEREST_KEYS) or 0
+    preferred = _get(latest_bs, PREFERRED_STOCK_KEYS) or 0
+    return minority + preferred
+
+
+def get_ev_to_equity_bridge(financials):
+    """Amount to subtract from enterprise value to reach COMMON equity:
+    net debt + minority interest + preferred stock. None when the balance
+    sheet is missing (leverage unknown), mirroring get_net_debt.
+    """
+    net_debt = get_net_debt(financials)
+    if net_debt is None:
+        return None
+    return net_debt + (get_non_common_claims(financials) or 0)
 
 
 # ---------------------------------------------------------------------------

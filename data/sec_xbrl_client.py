@@ -119,7 +119,6 @@ class SECXBRLClient:
         ],
         'cash': [
             'CashAndCashEquivalentsAtCarryingValue',
-            'CashCashEquivalentsAndShortTermInvestments',
         ],
         # The securities-inclusive total on its own (never alias-merged with
         # 'cash'): build_yfinance_shape composes the yfinance
@@ -127,6 +126,12 @@ class SECXBRLClient:
         # from cash + st_investments when the filer tags the pieces.
         'cash_incl_sti': [
             'CashCashEquivalentsAndShortTermInvestments',
+        ],
+        # Claims ahead of common equity in the EV→equity bridge.
+        # (Short-term investments: see the existing 'st_investments' concept.)
+        'preferred_stock': [
+            'PreferredStockValue',
+            'PreferredStockValueOutstanding',
         ],
         'operating_cash_flow': [
             'NetCashProvidedByUsedInOperatingActivities',
@@ -342,6 +347,9 @@ class SECXBRLClient:
         'cash': [
             'CashAndCashEquivalents',
         ],
+        # IFRS has no standard combined cash + short-term-investments total
+        # and preferred capital sits inside IssuedCapital; left untagged.
+        'preferred_stock': [],
         'operating_cash_flow': [
             'CashFlowsFromUsedInOperatingActivities',
         ],
@@ -1446,6 +1454,8 @@ class SECXBRLClient:
                 cash_sti[_y] = cash_incl[_y]
             elif cash.get(_y) is not None and st_inv.get(_y) is not None:
                 cash_sti[_y] = cash[_y] + st_inv[_y]
+        minority      = _ann('minority_interest')
+        preferred     = _ann('preferred_stock')
         assets        = _ann('total_assets')
         curr_assets   = _ann('current_assets')
         curr_liabs    = _ann('current_liabilities')
@@ -1521,6 +1531,15 @@ class SECXBRLClient:
                 if a is not None and e is not None:
                     liabilities[y] = a - e
 
+        # Plain cash falls back to the combined tag for filers that only
+        # report the total. The reverse is deliberately NOT done: a year
+        # with no investments tag leaves the combined row None, and
+        # consumers fall back to the bare cash row via CASH_KEYS order
+        # rather than reading a phantom "inclusive" figure equal to cash.
+        for y in years:
+            if cash.get(y) is None and cash_sti.get(y) is not None:
+                cash[y] = cash_sti[y]
+
         cols = [pd.Timestamp(year=y, month=12, day=31) for y in years]
 
         income_df = pd.DataFrame({
@@ -1541,6 +1560,8 @@ class SECXBRLClient:
                 'Total Debt':                debt.get(y),
                 'Cash And Cash Equivalents': cash.get(y),
                 'Cash Cash Equivalents And Short Term Investments': cash_sti.get(y),
+                'Minority Interest':         minority.get(y),
+                'Preferred Stock Equity':    preferred.get(y),
                 'Total Assets':              assets.get(y),
                 'Current Assets':            curr_assets.get(y),
                 'Current Liabilities':       curr_liabs.get(y),

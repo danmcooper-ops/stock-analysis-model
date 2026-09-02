@@ -1,4 +1,6 @@
 # tests/test_dcf.py
+import warnings
+
 import pytest
 import numpy as np
 
@@ -6,6 +8,7 @@ import numpy as np
 from models.dcf import (
     two_stage_ev, fair_value_per_share, dcf_sensitivity,
     two_stage_ev_exit_multiple, monte_carlo_dcf, reverse_dcf,
+    blend_fair_value_legs,
 )
 
 
@@ -310,6 +313,43 @@ class TestReverseDCF:
         r_high = reverse_dcf(200.0, 1e9, 0.09, 1e9, net_debt=5e9)
         assert r_low is not None and r_high is not None
         assert r_high['implied_growth'] > r_low['implied_growth']
+
+
+class TestReverseDCFBasis:
+    """Reverse DCF must solve on the headline's basis (Sept accuracy review)."""
+
+    def test_recovers_negative_growth(self):
+        fv = fair_value_per_share(two_stage_ev(100.0, -0.08, 0.09, 0.03), 200.0, 10.0)
+        rev = reverse_dcf(fv, 100.0, 0.09, 10.0, 200.0, terminal_g=0.03)
+        assert rev['converged']
+        assert rev['implied_growth'] == pytest.approx(-0.08, abs=1e-5)
+
+    def test_recovers_growth_on_blended_fair_value(self):
+        fv_ggm = fair_value_per_share(two_stage_ev(100.0, 0.10, 0.09, 0.03), 200.0, 10.0)
+        fv_exit = fair_value_per_share(
+            two_stage_ev_exit_multiple(100.0, 0.10, 0.09, 0.03, 150.0, 12.0), 200.0, 10.0)
+        assert fv_ggm != pytest.approx(fv_exit)
+        price = blend_fair_value_legs(fv_ggm, fv_exit)
+        rev = reverse_dcf(price, 100.0, 0.09, 10.0, 200.0, terminal_g=0.03,
+                          base_ebitda=150.0, exit_multiple=12.0)
+        assert rev['converged']
+        assert rev['implied_growth'] == pytest.approx(0.10, abs=1e-5)
+        # Solving GGM-only against the blended price lands elsewhere.
+        ggm_only = reverse_dcf(price, 100.0, 0.09, 10.0, 200.0, terminal_g=0.03)
+        assert ggm_only['implied_growth'] != pytest.approx(0.10, abs=1e-3)
+
+    def test_probes_emit_no_warnings(self):
+        fv = fair_value_per_share(two_stage_ev(100.0, 0.28, 0.09, 0.03), 200.0, 10.0)
+        with warnings.catch_warnings(record=True) as rec:
+            warnings.simplefilter('always')
+            reverse_dcf(fv, 100.0, 0.09, 10.0, 200.0, terminal_g=0.03)
+        assert rec == []
+
+    def test_blend_rule(self):
+        assert blend_fair_value_legs(10.0, 20.0) == 15.0
+        assert blend_fair_value_legs(10.0, None) == 10.0
+        assert blend_fair_value_legs(None, 20.0) == 20.0
+        assert blend_fair_value_legs(None, None) is None
 
 
 class TestRescaleFvBand:
