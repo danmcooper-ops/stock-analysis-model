@@ -113,3 +113,53 @@ class TestBackfillSharesAndMcap:
         recovered = _backfill_shares_and_mcap(stock, info)
         assert recovered == ['sharesOutstanding']
         assert info['marketCap'] is None
+
+
+# ---------------------------------------------------------------------------
+# _reconcile_shares_with_mcap — dual-class / ADR share counts
+# ---------------------------------------------------------------------------
+
+from data.yfinance_client import _reconcile_shares_with_mcap  # noqa: E402
+
+
+class TestReconcileSharesWithMcap:
+    def test_agreeing_counts_are_left_alone(self):
+        info = {'marketCap': 1_000.0, 'currentPrice': 10.0, 'sharesOutstanding': 105.0}
+        assert _reconcile_shares_with_mcap(info) == []
+        assert info['sharesOutstanding'] == 105.0
+        assert 'sharesOutstanding_reported' not in info
+
+    def test_one_class_count_is_replaced_by_implied(self):
+        """GOOGL-style: Class A only reported, cap is the whole company."""
+        info = {'marketCap': 2_000.0, 'currentPrice': 10.0, 'sharesOutstanding': 100.0}
+        assert _reconcile_shares_with_mcap(info) == ['sharesOutstanding_implied']
+        assert info['sharesOutstanding'] == pytest.approx(200.0)
+        assert info['sharesOutstanding_reported'] == 100.0
+
+    def test_yahoo_implied_field_preferred_over_cap_over_price(self):
+        info = {'marketCap': 2_000.0, 'currentPrice': 10.0,
+                'sharesOutstanding': 100.0, 'impliedSharesOutstanding': 190.0}
+        _reconcile_shares_with_mcap(info)
+        assert info['sharesOutstanding'] == pytest.approx(190.0)
+
+    def test_zero_implied_field_falls_back(self):
+        info = {'marketCap': 2_000.0, 'regularMarketPrice': 10.0,
+                'sharesOutstanding': 100.0, 'impliedSharesOutstanding': 0}
+        _reconcile_shares_with_mcap(info)
+        assert info['sharesOutstanding'] == pytest.approx(200.0)
+
+    def test_unknown_sides_are_a_noop(self):
+        for info in ({'sharesOutstanding': 100.0},
+                     {'marketCap': 2_000.0, 'sharesOutstanding': 100.0},
+                     {'marketCap': 2_000.0, 'currentPrice': 10.0},
+                     {'marketCap': 2_000.0, 'currentPrice': 10.0, 'sharesOutstanding': 0}):
+            before = dict(info)
+            assert _reconcile_shares_with_mcap(info) == []
+            assert info == before
+
+    def test_tolerance_boundary(self):
+        # Tolerance is relative to the IMPLIED count: 25/125 = 20% exactly.
+        info = {'marketCap': 1_250.0, 'currentPrice': 10.0, 'sharesOutstanding': 100.0}
+        assert _reconcile_shares_with_mcap(info) == []
+        info = {'marketCap': 1_260.0, 'currentPrice': 10.0, 'sharesOutstanding': 100.0}
+        assert _reconcile_shares_with_mcap(info) == ['sharesOutstanding_implied']

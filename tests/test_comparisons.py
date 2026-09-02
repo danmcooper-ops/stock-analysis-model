@@ -509,6 +509,21 @@ class TestGetNetDebt:
         bs = pd.DataFrame({pd.Timestamp('2024-12-31'): {'Total Assets': 100.0}})
         assert get_net_debt({'balance_sheet': bs}) == 0
 
+    def test_prefers_securities_inclusive_cash(self):
+        """Marketable securities are liquid: net them against debt too."""
+        import pandas as pd
+        bs = pd.DataFrame({pd.Timestamp('2024-12-31'): {
+            'Total Debt': 100.0,
+            'Cash And Cash Equivalents': 30.0,
+            'Cash Cash Equivalents And Short Term Investments': 160.0}})
+        assert get_net_debt({'balance_sheet': bs}) == pytest.approx(-60.0)
+
+    def test_falls_back_to_bare_cash(self):
+        import pandas as pd
+        bs = pd.DataFrame({pd.Timestamp('2024-12-31'): {
+            'Total Debt': 100.0, 'Cash And Cash Equivalents': 30.0}})
+        assert get_net_debt({'balance_sheet': bs}) == pytest.approx(70.0)
+
 
 # ---------------------------------------------------------------------------
 # calculate_revenue_cagr

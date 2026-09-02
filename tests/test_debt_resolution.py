@@ -260,3 +260,52 @@ class TestBackfillDetect:
 
     def test_empty_history_still_triggers(self):
         assert _needs_refetch({}) is True
+
+
+# ---------------------------------------------------------------------------
+# build_yfinance_shape: securities-inclusive cash row
+# ---------------------------------------------------------------------------
+
+class TestCashInclusiveRow:
+    """The bridges net ALL liquid assets, not just bank cash."""
+
+    def test_composed_from_cash_plus_current_investments(self):
+        facts = _full_facts()
+        facts['facts']['us-gaap']['ShortTermInvestments'] = {
+            'units': {'USD': [_pit(2024, 120.0)]}}
+        shape = _shape(facts)
+        latest = shape['balance_sheet'].iloc[:, 0]
+        assert latest['Cash And Cash Equivalents'] == 50.0
+        assert latest['Cash Cash Equivalents And Short Term Investments'] == 170.0
+        # Net debt = 240 debt - 170 liquid, not 240 - 50.
+        assert get_net_debt(shape) == pytest.approx(70.0)
+
+    def test_inclusive_tag_wins_over_composition(self):
+        facts = _full_facts()
+        facts['facts']['us-gaap']['CashCashEquivalentsAndShortTermInvestments'] = {
+            'units': {'USD': [_pit(2024, 180.0)]}}
+        facts['facts']['us-gaap']['ShortTermInvestments'] = {
+            'units': {'USD': [_pit(2024, 120.0)]}}
+        shape = _shape(facts)
+        latest = shape['balance_sheet'].iloc[:, 0]
+        assert latest['Cash Cash Equivalents And Short Term Investments'] == 180.0
+
+    def test_absent_when_investments_untagged(self):
+        """No phantom zero: consumers fall back to the bare cash row."""
+        import pandas as pd
+        shape = _shape(_full_facts())
+        latest = shape['balance_sheet'].iloc[:, 0]
+        assert pd.isna(latest['Cash Cash Equivalents And Short Term Investments'])
+        assert get_net_debt(shape) == pytest.approx(190.0)   # 240 - 50
+
+    def test_year_without_investments_stays_absent(self):
+        import pandas as pd
+        facts = _full_facts()
+        facts['facts']['us-gaap']['CashAndCashEquivalentsAtCarryingValue'] = {
+            'units': {'USD': [_pit(2023, 40.0), _pit(2024, 50.0)]}}
+        facts['facts']['us-gaap']['ShortTermInvestments'] = {
+            'units': {'USD': [_pit(2024, 120.0)]}}
+        shape = _shape(facts)
+        bs = shape['balance_sheet']
+        assert bs.iloc[:, 0]['Cash Cash Equivalents And Short Term Investments'] == 170.0
+        assert pd.isna(bs.iloc[:, 1]['Cash Cash Equivalents And Short Term Investments'])

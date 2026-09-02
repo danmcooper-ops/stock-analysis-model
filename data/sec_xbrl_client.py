@@ -121,6 +121,13 @@ class SECXBRLClient:
             'CashAndCashEquivalentsAtCarryingValue',
             'CashCashEquivalentsAndShortTermInvestments',
         ],
+        # The securities-inclusive total on its own (never alias-merged with
+        # 'cash'): build_yfinance_shape composes the yfinance
+        # 'Cash Cash Equivalents And Short Term Investments' row from it, or
+        # from cash + st_investments when the filer tags the pieces.
+        'cash_incl_sti': [
+            'CashCashEquivalentsAndShortTermInvestments',
+        ],
         'operating_cash_flow': [
             'NetCashProvidedByUsedInOperatingActivities',
         ],
@@ -1423,12 +1430,22 @@ class SECXBRLClient:
         # right period-end value per fiscal year.
         equity, _eq_ccy = self._resolve_equity_annual(facts)
         cash          = _ann('cash')
-        # Short-term investments, so invested capital / net debt can net
-        # the whole liquid pile (AAPL / GOOG-style balance sheets keep most
-        # of it outside 'cash and equivalents'). Emitted as the yfinance-
-        # named combined row; None when the filer tags no such line, which
-        # leaves consumers on the plain cash row.
-        st_invest     = _ann('st_investments')
+        # Liquid assets beyond bank cash. The 'cash' concept prefers the
+        # equivalents-only tag, so filers that park liquidity in marketable
+        # securities (AAPL, GOOGL, MSFT) read as far more levered than they
+        # are in every net-debt bridge. Compose the securities-inclusive row:
+        # the inclusive tag when the filer reports it, else cash + current
+        # investments when both are tagged for the year. Years where neither
+        # resolves stay None so consumers fall back to the bare cash row
+        # rather than reading a phantom zero.
+        cash_incl     = _ann('cash_incl_sti')
+        st_inv        = _ann('st_investments')
+        cash_sti = {}
+        for _y in set(cash) | set(cash_incl):
+            if cash_incl.get(_y) is not None:
+                cash_sti[_y] = cash_incl[_y]
+            elif cash.get(_y) is not None and st_inv.get(_y) is not None:
+                cash_sti[_y] = cash[_y] + st_inv[_y]
         assets        = _ann('total_assets')
         curr_assets   = _ann('current_assets')
         curr_liabs    = _ann('current_liabilities')
@@ -1523,10 +1540,7 @@ class SECXBRLClient:
                 'Stockholders Equity':       equity.get(y),
                 'Total Debt':                debt.get(y),
                 'Cash And Cash Equivalents': cash.get(y),
-                'Cash Cash Equivalents And Short Term Investments': (
-                    cash[y] + st_invest[y]
-                    if cash.get(y) is not None and st_invest.get(y) is not None
-                    else None),
+                'Cash Cash Equivalents And Short Term Investments': cash_sti.get(y),
                 'Total Assets':              assets.get(y),
                 'Current Assets':            curr_assets.get(y),
                 'Current Liabilities':       curr_liabs.get(y),

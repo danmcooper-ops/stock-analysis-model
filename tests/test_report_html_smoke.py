@@ -183,3 +183,19 @@ def test_build_html_plumbs_macro_narrative_through_summary(tmp_path):
     assert 'Curve inverted' in html
     assert hostile not in html            # raw </script> never lands verbatim
     assert 'Growth is slowing.' in html   # ...but the content does
+
+
+def test_epv_tooltips_keyed_to_row_fields():
+    """The detail panel looks tooltips up by the row key it renders; an
+    orphaned key (epv_p_fv vs the row's epv_pfv) left the P/EPV column
+    without a tooltip, and the growth-adjusted label reused the zero-growth
+    text."""
+    import re
+    from pathlib import Path
+    src = Path(__file__).resolve().parents[1] / 'templates' / 'report.html'
+    html = src.read_text(encoding='utf-8')
+    assert 'epv_p_fv' not in html
+    assert re.search(r"^epv_pfv:'", html, re.M)
+    assert re.search(r"^epv_growth_fv:'", html, re.M)
+    assert "'EPV Growth-Adj':'epv_growth_fv'" in html
+    assert 'gate passes below 1.2' not in html

@@ -20,9 +20,12 @@ def _get(series, keys, allow_zero=True):
 # --- Canonical field-key lists (DRY across all functions) ---
 EQUITY_KEYS = ['Stockholders Equity', 'Total Stockholder Equity', 'Common Stock Equity']
 DEBT_KEYS = ['Total Debt', 'Long Term Debt']
-# Cash + short-term investments first: invested capital and net debt should
-# net the whole liquid pile, not just the 'equivalents' slice. Plain cash
-# is the fallback for filers without a combined line.
+# Liquid assets, securities-inclusive row first: netting only bank cash
+# against debt reads cash-rich filers (AAPL, GOOGL, MSFT park most of their
+# liquidity in marketable securities) as far more levered than they are in
+# every EV->equity bridge and in invested capital. yfinance emits the
+# inclusive row when Yahoo has it; the XBRL shape composes it from the
+# equivalents + current-investments tags.
 CASH_KEYS = ['Cash Cash Equivalents And Short Term Investments', 'Cash And Cash Equivalents', 'Cash Financial']
 CURRENT_ASSETS_KEYS = ['Current Assets', 'Total Current Assets']
 CURRENT_LIABILITIES_KEYS = ['Current Liabilities', 'Total Current Liabilities']

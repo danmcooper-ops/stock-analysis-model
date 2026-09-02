@@ -65,6 +65,43 @@ def _sanitize_implausible_mcap(info):
     return changed
 
 
+# Reported vs implied share count disagreement beyond this fraction means
+# the reported figure is not the count the price and market cap are quoted
+# on (one share class of a dual-class filer, ordinary shares behind an ADS).
+SHARES_MCAP_TOLERANCE = 0.20
+
+
+def _reconcile_shares_with_mcap(info, tolerance=SHARES_MCAP_TOLERANCE):
+    """Replace ``sharesOutstanding`` with the count implied by market cap
+    when the two disagree materially.
+
+    Yahoo's ``sharesOutstanding`` is one share class for dual-class filers
+    (GOOGL reports Class A only) and the ordinary-share count for many ADRs,
+    while ``marketCap`` is the whole company at the quoted price. Every
+    per-share model divides a firm-wide numerator (EV, NOPAT, book value)
+    by this count, so a one-class figure inflates each fair value by the
+    class ratio. ``impliedSharesOutstanding`` is Yahoo's own reconciliation
+    of the two; market cap / price is the fallback.
+
+    Mutates *info* in place: the reported count is preserved under
+    ``sharesOutstanding_reported``. Returns a list describing what changed
+    (empty when the counts agree or either side is unknown).
+    """
+    shares = info.get('sharesOutstanding')
+    price = info.get('currentPrice') or info.get('regularMarketPrice')
+    mcap = info.get('marketCap')
+    implied = info.get('impliedSharesOutstanding')
+    if not implied or implied <= 0:
+        implied = (float(mcap) / float(price)) if (mcap and price and price > 0) else None
+    if not shares or shares <= 0 or not implied or implied <= 0:
+        return []
+    if abs(float(shares) - float(implied)) / float(implied) <= tolerance:
+        return []
+    info['sharesOutstanding_reported'] = shares
+    info['sharesOutstanding'] = float(implied)
+    return ['sharesOutstanding_implied']
+
+
 def _backfill_shares_and_mcap(stock, info):
     """Backfill ``marketCap`` / ``sharesOutstanding`` from ``fast_info``.
 
@@ -302,6 +339,14 @@ class YFinanceClient:
             if _sanitized:
                 data['info'] = info
                 data['_info_sanitized'] = _sanitized
+            # Dual-class / ADR share counts: the reported count must be the
+            # one the price and market cap are quoted on, or every per-share
+            # fair value is off by the class ratio. Runs after the repair so
+            # a rederived cap (price x shares) is a no-op here.
+            _reconciled = _reconcile_shares_with_mcap(info)
+            if _reconciled:
+                data['info'] = info
+                data['_info_shares_reconciled'] = _reconciled
             # Growth estimates and earnings history (may fail for some tickers)
             try:
                 data['growth_estimates'] = stock.growth_estimates
