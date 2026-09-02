@@ -2,10 +2,11 @@
 """Tests for screening-gate behavior — correctness of pass/fail logic
 and the upstream fields they consume."""
 import pandas as pd
+import pytest
 
 
 from scripts.scoring import GATES
-from scripts.analyze_stock import _compute_shareholder_yield
+from scripts.analyze_stock import _compute_shareholder_yield, _rim_retention_ratio
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +80,16 @@ class TestShareholderYield:
         out = _compute_shareholder_yield({'cash_flow': cf}, self.MCAP)
         assert out['shareholder_yield'] == 0.03
         assert out['buyback_rate'] == 0.03
+        assert out['total_return'] == 300_000_000
+
+    def test_total_return_nets_issuance(self):
+        """total_return is the dollar figure the RIM retention uses:
+        dividends + buybacks − issuance."""
+        cf = _cf_frame({'Cash Dividends Paid': -100_000_000,
+                        'Repurchase Of Capital Stock': -300_000_000,
+                        'Issuance Of Capital Stock': 50_000_000})
+        out = _compute_shareholder_yield({'cash_flow': cf}, self.MCAP)
+        assert out['total_return'] == 350_000_000
 
     def test_net_dilution_produces_negative_buyback_rate(self):
         """Issuance > buybacks → buyback_rate negative (NOT floored at 0)."""
@@ -199,3 +210,30 @@ class TestNewGateThresholds:
         assert fn(0.0, {}) is False      # boundary is strict >
         assert fn(-0.03, {}) is False    # losing share
         assert fn(None, {}) is None
+
+
+class TestRimRetentionRatio:
+    """Retention for the RIM prefers total shareholder returns over the
+    dividend-only payoutRatio, which misreads buyback-heavy firms."""
+
+    def test_prefers_total_returns_over_payout_ratio(self):
+        # NI $100M; $15M dividends + $85M buybacks. payoutRatio (dividend-
+        # only) says 85% retained; the cash-flow truth is 0%.
+        sy = {'shareholder_yield': 0.04, 'buyback_rate': 0.034,
+              'total_return': 100_000_000}
+        assert _rim_retention_ratio(sy, 100_000_000, 0.15) == 0.0
+
+    def test_falls_back_to_payout_ratio(self):
+        assert _rim_retention_ratio(None, 100_000_000, 0.4) == pytest.approx(0.6)
+        assert _rim_retention_ratio({'total_return': None}, 100_000_000, 0.4) == pytest.approx(0.6)
+        # Loss year: total-return retention undefined → payout fallback.
+        assert _rim_retention_ratio({'total_return': 10.0}, -5.0, 0.4) == pytest.approx(0.6)
+
+    def test_payout_fallback_clamped(self):
+        assert _rim_retention_ratio(None, None, 1.4) == 0.0
+        assert _rim_retention_ratio(None, None, -0.3) == 1.0
+
+    def test_none_when_nothing_resolves(self):
+        assert _rim_retention_ratio(None, None, None) is None
+        assert _rim_retention_ratio({}, -1.0, float('nan')) is None
+        assert _rim_retention_ratio({}, None, True) is None

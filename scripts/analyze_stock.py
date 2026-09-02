@@ -48,12 +48,13 @@ from models.montecarlo import seed_from_ticker
 from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm_valuation,
                          ddm_h_model_valuation, monte_carlo_ddm)
 from models.epv import earnings_power_value_valuation, epv_with_growth_premium
-from models.rim import residual_income_model_valuation
+from models.rim import (residual_income_model_valuation,
+                        retention_from_shareholder_returns)
 from models.nav import tangible_equity_per_share
 from models.portfolio import position_sizes, concentration_analysis
 from models.utils import rank
 from models.field_keys import (OPERATING_CF_KEYS, CAPEX_KEYS, _get,
-                               DEBT_KEYS, CASH_KEYS)
+                               DEBT_KEYS, CASH_KEYS, NET_INCOME_KEYS)
 from scripts.report_excel import build_excel
 from scripts.report_html import build_html
 from data.macro_client import MacroClient
@@ -73,6 +74,7 @@ from data.provenance import ProvenanceRecorder
 from data.culture_client import CultureClient
 
 from scripts.config import (ERP, TERMINAL_GROWTH_RATE,
+                            RIM_SPREAD_PERSISTENCE, RIM_MAX_BOOK_GROWTH,
                             GROWTH_WEIGHT_FCF, GROWTH_WEIGHT_REV,
                             GROWTH_WEIGHT_ANALYST_ST, GROWTH_WEIGHT_ANALYST_LT,
                             GROWTH_WEIGHT_EARNINGS_G, GROWTH_WEIGHT_FUNDAMENTAL,
@@ -1393,7 +1395,9 @@ def _compute_shareholder_yield(yf_data, mcap):
     is missing (Yahoo leaves it blank for ~78% of tickers even when the
     company genuinely pays a dividend).
 
-    Returns dict with 'shareholder_yield' and 'buyback_rate' (both decimal), or None.
+    Returns dict with 'shareholder_yield' and 'buyback_rate' (both decimal)
+    plus 'total_return' (dividends + net buybacks, in statement currency —
+    the RIM's retention input), or None.
     """
     if not mcap or mcap <= 0:
         return None
@@ -1449,8 +1453,32 @@ def _compute_shareholder_yield(yf_data, mcap):
     if abs(shareholder_yield) > 0.50:
         shareholder_yield = None
         buyback_rate = None
+        total_return = None
 
-    return {'shareholder_yield': shareholder_yield, 'buyback_rate': buyback_rate}
+    return {'shareholder_yield': shareholder_yield, 'buyback_rate': buyback_rate,
+            'total_return': total_return}
+
+
+def _rim_retention_ratio(sy_result, net_income, payout_ratio):
+    """Earnings retention for the RIM's clean-surplus book roll-forward.
+
+    Prefers 1 − (dividends + net buybacks) / net income from the cash-flow
+    statement, because the dividend-only ``payoutRatio`` reports a
+    buyback-heavy firm as retaining most of its earnings, and under clean
+    surplus that phantom retention compounds book value at ROE × retention
+    every year (a 150% ROE at 85% retention more than doubles book annually).
+    Falls back to 1 − payoutRatio when cash-flow returns are unavailable or
+    net income is non-positive, and to None (the model then infers a
+    Gordon-consistent retention and warns) when neither source resolves.
+    """
+    total_return = (sy_result or {}).get('total_return')
+    retention = retention_from_shareholder_returns(net_income, total_return)
+    if retention is not None:
+        return retention
+    if (isinstance(payout_ratio, (int, float)) and not isinstance(payout_ratio, bool)
+            and payout_ratio == payout_ratio):
+        return max(0.0, min(1.0, 1.0 - float(payout_ratio)))
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -3117,17 +3145,21 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                     _eq_val = bs.iloc[:, 0].get('Stockholders Equity')
                     if pd.notna(_eq_val) and _eq_val:
                         _book_value = float(_eq_val) / shares
-            # Retention = 1 − payout, from the same info payload DDM uses.
-            # Passing it makes clean-surplus book growth match reality (and
-            # silences the g/ROE inference warning). None → the model infers
-            # a Gordon-consistent retention as before.
-            _rim_payout = info.get('payoutRatio')
-            _rim_retention = (max(0.0, min(1.0, 1.0 - _rim_payout))
-                              if isinstance(_rim_payout, (int, float)) else None)
+            # Retention = 1 − total payout (dividends + net buybacks) / net
+            # income, with 1 − payoutRatio as the fallback. See
+            # _rim_retention_ratio for why the dividend-only ratio is wrong
+            # here. None → the model infers a Gordon-consistent retention.
+            _rim_inc = yf_data.get('income_statement')
+            _rim_ni = (_get(_rim_inc.iloc[:, 0], NET_INCOME_KEYS)
+                       if _rim_inc is not None and not _rim_inc.empty else None)
+            _rim_retention = _rim_retention_ratio(
+                sy_result, _rim_ni, info.get('payoutRatio'))
             rim_valuation = residual_income_model_valuation(
                 _book_value, ratios.get('ROE'), re_for_models,
                 g=TERMINAL_GROWTH_RATE + effective_tg_adj,
-                retention_ratio=_rim_retention)
+                retention_ratio=_rim_retention,
+                spread_persistence=RIM_SPREAD_PERSISTENCE,
+                max_book_growth=RIM_MAX_BOOK_GROWTH)
             rim_fv = rim_valuation.value
 
             # NAV (Tangible Book Value per share) — universal asset-floor
