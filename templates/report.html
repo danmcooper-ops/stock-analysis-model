@@ -8,8 +8,14 @@
      table is an unreadable sliver. 0.5 keeps the ID columns plus a full
      category band on screen at the floor, still legible as a heat map. iOS
      honors minimum-scale; its accessibility override only refuses to cap
-     zooming IN, so no maximum-scale / user-scalable=no here. -->
-<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, viewport-fit=cover">
+     zooming IN, so no maximum-scale / user-scalable=no here.
+     shrink-to-fit=no: without it iOS Safari ignores initial-scale whenever
+     the document is wider than the screen and OPENS the page zoomed out to
+     fit it — clamped by the floor, so the table views loaded at 0.5 with
+     the header, filters and every cell at half size. The floor is for the
+     user's pinch, not the default view; initial-scale=1.0 must actually
+     apply, with the wide table panning as page content instead. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, shrink-to-fit=no, viewport-fit=cover">
 <!-- Standalone mode for Home-Screen bookmarks (Share → Add to Home Screen):
      opens with no Safari URL bar at all. In-browser, the URL bar cannot be
      programmatically minimized — the layout already uses 100dvh so the space

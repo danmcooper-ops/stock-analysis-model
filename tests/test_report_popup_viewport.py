@@ -93,6 +93,20 @@ def test_pinch_zoom_out_has_a_floor():
     assert 'user-scalable=no' not in content and 'maximum-scale' not in content, content
 
 
+def test_wide_tables_open_at_full_scale():
+    """iOS Safari ignores initial-scale when the document is wider than the
+    screen and opens the page zoomed out to fit it (clamped by the
+    minimum-scale floor). The table views widen the document to the table,
+    so the Gate Matrix loaded at the 0.5 floor with the header, filters and
+    every cell at half size. shrink-to-fit=no makes initial-scale=1.0 apply;
+    the wide table then pans as page content."""
+    meta = re.search(r'<meta name="viewport" content="([^"]*)"', _css())
+    assert meta, 'viewport meta missing'
+    content = meta.group(1)
+    assert 'shrink-to-fit=no' in content, content
+    assert re.search(r'initial-scale=1(\.0)?\b', content), content
+
+
 def test_popup_remeasures_the_viewport_before_it_opens():
     body = re.search(r'function openDet\(tk\)\{.*?\n\}', _css(), re.S)
     assert body, 'openDet not found'
