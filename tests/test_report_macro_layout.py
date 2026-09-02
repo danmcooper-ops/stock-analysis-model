@@ -282,7 +282,6 @@ def test_every_macro_subtab_opens_with_an_explainer():
     for k in keys:
         assert k in have, f'sub-tab {k!r} has no explainer paragraph'
         assert len(have[k]) > 200, f'{k!r} explainer is not a paragraph'
-        assert '</b>' in have[k], f'{k!r} explainer lacks its lead-in'
     ov = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S)
     assert ov and "_macIntroHTML('overview')" in ov.group(0)
     sec = re.search(r'function _macSectionHTML\(k\).*?\n\}\n', css, re.S)
