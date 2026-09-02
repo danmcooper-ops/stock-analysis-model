@@ -53,12 +53,24 @@ EXIT_MULT_MIN = 5.0                     # Floor on exit multiple
 EXIT_MULT_MAX = 30.0                    # Cap on exit multiple
 
 # Monte Carlo simulation
-MC_ITERATIONS = 250  # 250 iterations converges to within ~1-2% of 1000; saves ~2 min/run
+# Scrambled Sobol points per simulation. A power of two keeps the sequence
+# balanced; 1024 puts the median's sampling error under 1% at ~1 ms per
+# ticker (the simulation is vectorized — the old "250 saves 2 min" predates that).
+MC_ITERATIONS = 1024
 MC_GROWTH_SIGMA_RATIO = 0.30    # Growth sigma = 30% of point estimate
 MC_WACC_SIGMA = 0.01            # WACC sigma = 1 percentage point
 MC_TERMINAL_GROWTH_SIGMA = 0.005 # Terminal growth sigma = 0.5pp
 MC_EXIT_MULT_SIGMA_RATIO = 0.15 # Exit multiple sigma = 15% of point estimate
 MC_HIGH_DIVERGENCE_SIGMA_MULT = 1.5  # Widen sigma 50% if TV methods diverge >30%
+# Discount rate and terminal growth share the inflation / real-rate component;
+# drawing them independently overstates how often the terminal spread collapses.
+MC_WACC_TG_CORRELATION = 0.5
+# MC confidence label is downgraded one notch when the simulation had to force
+# more than this share of draws against a constraint wall (clip) or more than
+# this share wiped out equity (invalid): the median then reflects the walls as
+# much as the inputs.
+MC_CLIP_RATE_DOWNGRADE = 0.20
+MC_INVALID_RATE_DOWNGRADE = 0.10
 
 # DDM (Dividend Discount Model) parameters
 DDM_HIGH_GROWTH_YEARS = 5              # High-growth stage years

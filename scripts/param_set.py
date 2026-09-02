@@ -28,7 +28,7 @@ from scripts.config import (
     EXIT_MULT_MIN, EXIT_MULT_MAX,
     MC_ITERATIONS, MC_GROWTH_SIGMA_RATIO, MC_WACC_SIGMA,
     MC_TERMINAL_GROWTH_SIGMA, MC_EXIT_MULT_SIGMA_RATIO,
-    MC_HIGH_DIVERGENCE_SIGMA_MULT,
+    MC_HIGH_DIVERGENCE_SIGMA_MULT, MC_WACC_TG_CORRELATION,
     DDM_HIGH_GROWTH_YEARS, DDM_BLEND_WEIGHT,
     DCF_BLEND_WEIGHT_WITH_DDM, DDM_DIVERGENCE_THRESHOLD,
     BLEND_TRIGGER, BLEND_DCF_WEIGHT, BLEND_MULT_WEIGHT,
@@ -88,6 +88,7 @@ def default_params():
         'mc_terminal_growth_sigma': MC_TERMINAL_GROWTH_SIGMA,
         'mc_exit_mult_sigma_ratio': MC_EXIT_MULT_SIGMA_RATIO,
         'mc_high_divergence_sigma_mult': MC_HIGH_DIVERGENCE_SIGMA_MULT,
+        'mc_wacc_tg_correlation': MC_WACC_TG_CORRELATION,
 
         # DDM blending
         'ddm_high_growth_years': DDM_HIGH_GROWTH_YEARS,
@@ -208,5 +209,10 @@ def validate_params(params):
     mc = params.get('mc_iterations', 0)
     if mc < 100:
         errors.append(f"mc_iterations = {mc} is below minimum 100")
+
+    # MC discount-rate / terminal-growth correlation must be a valid coefficient
+    rho = params.get('mc_wacc_tg_correlation', 0.0)
+    if not (-1.0 <= rho <= 1.0):
+        errors.append(f"mc_wacc_tg_correlation = {rho} outside [-1, 1]")
 
     return errors
