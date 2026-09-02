@@ -3,7 +3,9 @@
 
 # --- Constants ---
 DEFAULT_RISK_FREE_RATE = 0.04  # Fallback if live Treasury fetch fails
-ERP = 0.055                    # Equity Risk Premium (Damodaran)
+ERP = 0.045                    # Equity Risk Premium. Damodaran's implied ERP ran
+                               # ~4.2-4.6% Jan 2024 - Jan 2026; refresh annually
+                               # (set 2026-09; models/capm.buildup_re mirrors it)
 TERMINAL_GROWTH_RATE = 0.03
 MIN_MARKET_CAP = 0             # No market-cap floor
 WACC_FLOOR = 0.07              # Morningstar-aligned WACC bounds (global default)
@@ -27,6 +29,10 @@ MARGIN_TREND_SENSITIVITY = 0.5  # 50% of margin annual change flows to growth pr
 # Cost-of-equity bounds
 BETA_MIN, BETA_MAX = 0.1, 4.0         # Valid beta range
 RE_MIN, RE_MAX = 0.04, 0.30           # Valid cost-of-equity range
+# Precision-weighted beta shrinkage (models/capm.shrink_beta): the regression
+# beta is pulled toward BETA_PRIOR_MEAN with weight sd² / (sd² + SE²).
+BETA_PRIOR_MEAN = 1.0
+BETA_PRIOR_SD = 0.20
 
 # DCF parameters
 CAPEX_DA_THRESHOLD = 2.0       # Owner earnings: capex > 2× D&A triggers growth-capex adj

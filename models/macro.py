@@ -480,8 +480,12 @@ def _fmt_ratio(v):
     return f'{v:.3f}'
 
 
-def print_macro_summary(regime_result, adjustments):
-    """Print formatted macro regime summary to console."""
+def print_macro_summary(regime_result, adjustments, base_erp=None):
+    """Print formatted macro regime summary to console.
+
+    *base_erp* is the run's unadjusted equity risk premium (scripts.config.ERP);
+    when given, the ERP line shows base -> adjusted.
+    """
     r = regime_result
     a = adjustments
     raw = r['raw_indicators']
@@ -510,9 +514,12 @@ def print_macro_summary(regime_result, adjustments):
 
     print()
     print('  Adjustments:')
-    erp_new = 0.055 + a['erp_adjustment']
-    print(f"    ERP:             {a['erp_adjustment']:+.4f}"
-          f"   (5.50% -> {erp_new:.2%})")
+    if base_erp is not None:
+        erp_new = base_erp + a['erp_adjustment']
+        print(f"    ERP:             {a['erp_adjustment']:+.4f}"
+              f"   ({base_erp:.2%} -> {erp_new:.2%})")
+    else:
+        print(f"    ERP:             {a['erp_adjustment']:+.4f}")
     print(f"    Terminal Growth: {a['terminal_growth_adjustment']:+.4f}")
     wacc_s_new = 0.01 + a['wacc_sigma_adjustment']
     print(f"    WACC Sigma:      {a['wacc_sigma_adjustment']:+.4f}"

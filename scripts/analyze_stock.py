@@ -31,7 +31,8 @@ if os.path.exists(_env_path):
 from data.yfinance_client import (YFinanceClient, EmptyYahooResponseError,
                                   MCAP_MAX_PLAUSIBLE)
 from data.treasury_rate import fetch_risk_free_rate
-from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re)
+from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re,
+                         weekly_returns, rolling_betas, ROLLING_BETA_WINDOWS)
 from models.dcf import (two_stage_ev_valuation, fair_value_per_share, dcf_sensitivity,
                         two_stage_ev_exit_multiple_valuation, monte_carlo_dcf,
                         reverse_dcf)
@@ -76,6 +77,7 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE,
                             SURPRISE_THRESHOLD, SURPRISE_UPLIFT,
                             MARGIN_TREND_SENSITIVITY,
                             BETA_MIN, BETA_MAX, RE_MIN, RE_MAX,
+                            BETA_PRIOR_MEAN, BETA_PRIOR_SD,
                             CAPEX_DA_THRESHOLD, EXCESS_CAPEX_ADDBACK,
                             YIELD_CEILING_MULT, HYPER_GROWTH_CAP, ANALYST_HAIRCUT, FALLBACK_GROWTH,
                             DCF_YEARS, DCF_STAGE1,
@@ -644,29 +646,18 @@ def compute_multiple_vs_history(close, edgar_history, operating_income,
     return (p_now / operating_income) / med - 1.0, len(mults)
 
 
-def _compute_rolling_beta(stock_close, market_close, window_years):
-    """Compute beta and R² over a trailing window of *window_years* years.
-
-    Returns None on degenerate inputs (too few overlapping observations,
-    flat market, NaN-laden series) — calculate_beta now raises ValueError
-    on those instead of returning garbage, so we catch and degrade.
-    """
-    window_days = int(window_years * 252)
-    s = stock_close.tail(window_days)
-    # Align on the ACTUAL shared trading dates. reindex(method='nearest')
-    # paired stock dates with stale/duplicated market closes (a real stock
-    # return vs a ~0 market return), attenuating beta and R².
-    m = market_close.reindex(s.index)
-    combined = pd.DataFrame({'s': s, 'm': m}).dropna()
-    if len(combined) < 60:
-        return None
-    stock_ret  = combined['s'].pct_change().dropna().values
-    market_ret = combined['m'].pct_change().dropna().values
-    n = min(len(stock_ret), len(market_ret))
+def _rolling_betas_from_prices(stock_close, market_close):
+    """Weekly rolling 1y/3y/5y betas from two close series (see
+    models.capm.rolling_betas). Same method as the headline beta in
+    select_cost_of_equity, so a parquet-sourced fallback is comparable.
+    Returns {} on degenerate inputs."""
     try:
-        return calculate_beta(stock_ret[:n], market_ret[:n])
+        s_ret, m_ret, _ = weekly_returns(_to_tznaive(stock_close),
+                                         _to_tznaive(market_close))
+        return rolling_betas(s_ret, m_ret,
+                             prior_mean=BETA_PRIOR_MEAN, prior_sd=BETA_PRIOR_SD)
     except ValueError:
-        return None
+        return {}
 
 
 def _realized_vol(close_series, window_days=252):
@@ -912,10 +903,12 @@ def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=Non
     """Select cost of equity using a four-level hierarchy.
 
     Tries each method in order, returning the first that passes validation:
-      1. CAPM with computed beta + R² quality gate (preferred)
-      2. CAPM with yfinance-reported beta (fallback)
-      3. GGM-implied Re (for dividend payers)
-      4. Build-Up (last resort)
+      1. CAPM with a locally computed 5-year weekly beta, shrunk toward
+         BETA_PRIOR_MEAN by its estimation precision (preferred; label 'capm')
+      2. CAPM with yfinance-reported beta, Blume-adjusted since it carries
+         no standard error (label 'capm (yahoo beta)')
+      3. GGM-implied Re (for dividend payers; label 'ggm')
+      4. Build-Up (last resort; label 'buildup')
 
     Args:
         financials: Dict of financial data from YFinanceClient.
@@ -945,66 +938,72 @@ def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=Non
                     market_prices = tiingo_client.fetch_history('SPY', period="5y")
             if (stock_prices is not None and market_prices is not None
                     and len(stock_prices) > 60):
-                combined = pd.DataFrame({
-                    'stock': _to_tznaive(stock_prices),
-                    'market': _to_tznaive(market_prices),
-                }).dropna()
-                # WEEKLY returns (5y ≈ 260 obs): the frequency at which the
-                # 0.60/0.40 R² thresholds are calibrated. Daily single-stock
-                # R² vs SPY rarely clears them, so the quality gate almost
-                # never fired and most names silently used Yahoo's beta.
-                weekly = combined.resample('W-FRI').last().dropna()
-                if len(weekly) > 60:
-                    stock_ret = weekly['stock'].pct_change().dropna().values
-                    market_ret = weekly['market'].pct_change().dropna().values
-                    n = min(len(stock_ret), len(market_ret))
-                    stock_ret, market_ret = stock_ret[:n], market_ret[:n]
-
-                    beta_result = calculate_beta(stock_ret, market_ret)
-                    r2_class, r2_method = r2_diagnostic(beta_result['r_squared'])
+                # WEEKLY returns (5y ≈ 260 obs). Daily single-stock betas are
+                # attenuated by non-synchronous trading; weekly is the
+                # frequency the rolling-beta diagnostic shares, so the 5y
+                # window there equals this headline beta by construction.
+                stock_ret, market_ret, _ = weekly_returns(
+                    _to_tznaive(stock_prices), _to_tznaive(market_prices))
+                if len(stock_ret) > 60:
+                    n5 = ROLLING_BETA_WINDOWS['5y']
+                    beta_result = calculate_beta(
+                        stock_ret[-n5:], market_ret[-n5:],
+                        prior_mean=BETA_PRIOR_MEAN, prior_sd=BETA_PRIOR_SD)
+                    r2_class, _r2_method = r2_diagnostic(beta_result['r_squared'])
                     beta_diag = {
                         **beta_result,
                         'r2_classification': r2_class,
-                        'r2_method': r2_method,
+                        'beta_source': 'weekly_5y',
+                        'rolling_betas': rolling_betas(
+                            stock_ret, market_ret,
+                            prior_mean=BETA_PRIOR_MEAN, prior_sd=BETA_PRIOR_SD) or None,
                     }
+                    for _msg in beta_result['warnings']:
+                        warnings.warn(f"{ticker}: beta: {_msg}", RuntimeWarning,
+                                      stacklevel=2)
 
-                    # Blend by R² quality (the tiers r2_diagnostic defines but
-                    # the old code never implemented):
-                    #   reliable    → pure CAPM on the computed beta
-                    #   directional → 50/50 CAPM + build-up (dilute a noisy beta)
-                    #   unreliable  → fundamental build-up only (NOT Yahoo's
-                    #                 unvetted beta, which the gate is meant to
-                    #                 avoid)
-                    adj_beta = beta_result['adjusted_beta']
-                    if BETA_MIN < adj_beta < BETA_MAX:
-                        capm_re = risk_free_rate + adj_beta * erp
-                        build_re = buildup_re(risk_free_rate, erp,
-                                              size_premium=0, industry_premium=0)
-                        if r2_class == 'reliable':
-                            re, label = capm_re, 'capm (reliable)'
-                        elif r2_class == 'directional':
-                            re, label = (0.5 * capm_re + 0.5 * build_re,
-                                         'capm+buildup (directional)')
-                        else:
-                            re, label = build_re, 'buildup (unreliable beta)'
+                    # The precision-weighted beta already carries the
+                    # "how much to trust this regression" decision (a noisy
+                    # beta is pulled toward the prior), so no R² tiering.
+                    beta_used = beta_result['shrunk_beta']
+                    if BETA_MIN < beta_used < BETA_MAX:
+                        re = risk_free_rate + beta_used * erp
                         if RE_MIN < re < RE_MAX:
-                            return re, label, beta_diag
+                            return re, 'capm', beta_diag
         except Exception as e:
-            logger.debug(f"cost of equity: local-beta path failed for {ticker} ({e}); falling back to yfinance beta")
+            logger.warning(f"cost of equity: local-beta path failed for {ticker} "
+                           f"(yfinance/tiingo prices: {e}); falling back to yfinance beta")
 
-    # 2. CAPM with yfinance-reported beta (no R² quality check)
+    # 2. CAPM with yfinance-reported beta. Yahoo's is a raw 5-year monthly
+    #    beta with no standard error, so apply the Blume adjustment rather
+    #    than leave it unshrunk next to the precision-weighted local betas.
     beta = info.get('beta')
     if beta is not None and BETA_MIN < beta < BETA_MAX:
-        re = risk_free_rate + beta * erp
+        beta_used = (2 / 3) * beta + (1 / 3) * BETA_PRIOR_MEAN
+        re = risk_free_rate + beta_used * erp
         if RE_MIN < re < RE_MAX:
-            return re, 'capm', beta_diag
+            yahoo_diag = {
+                'raw_beta': float(beta),
+                'adjusted_beta': beta_used,
+                'shrunk_beta': beta_used,
+                'shrink_weight': 2 / 3,
+                'r_squared': None, 'se_beta': None, 'n_observations': None,
+                'r2_classification': None,
+                'beta_source': 'yahoo',
+                'warnings': ['Yahoo-reported beta (no local price history); '
+                             'Blume-adjusted, precision unknown'],
+            }
+            if beta_diag:  # keep any rolling diagnostics the local path built
+                yahoo_diag['rolling_betas'] = beta_diag.get('rolling_betas')
+            return re, 'capm (yahoo beta)', yahoo_diag
 
-    # 3. GGM-implied: Re = D1/P + g  (works for dividend payers)
+    # 3. GGM-implied: Re = D1/P + g. yfinance's dividendRate is the forward
+    #    (indicated) annual rate, so the yield is already D1/P.
     div_rate = info.get('dividendRate')
     price = info.get('currentPrice') or info.get('regularMarketPrice')
     div_yield = (div_rate / price) if (div_rate and price and price > 0) else None
     if div_yield and div_yield > 0:
-        re = ggm_implied_re(div_yield, TERMINAL_GROWTH_RATE)
+        re = ggm_implied_re(div_yield, TERMINAL_GROWTH_RATE, forward=True)
         if re is not None and RE_MIN < re < RE_MAX:
             return re, 'ggm', beta_diag
 
@@ -2189,7 +2188,7 @@ def _run_macro_setup(args, prices_dir):
             macro_indicators = mc_client.fetch_macro_indicators()
             macro_regime_result = assess_macro_regime(macro_indicators)
             macro_adj = compute_macro_adjustments(macro_regime_result)
-            print_macro_summary(macro_regime_result, macro_adj)
+            print_macro_summary(macro_regime_result, macro_adj, base_erp=ERP)
 
             effective_erp = ERP + macro_adj['erp_adjustment']
             effective_tg_adj = macro_adj['terminal_growth_adjustment']
@@ -2534,10 +2533,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                 yf_data, risk_free_rate, yf_client, ticker, erp=effective_erp,
                 tiingo_client=tiingo_client)
             _prov.record_source(ticker, 'beta', re_method)
-            if re_method in ('ggm', 'buildup'):
+            if re_method != 'capm':
+                # Anything but the locally regressed beta is a fallback:
+                # Yahoo's unvetted beta, GGM, or the build-up.
                 _prov.record_event('source_fallback', ticker, 'beta',
                                    {'method': re_method,
-                                    'reason': 'CAPM beta unavailable or unreliable'})
+                                    'reason': 'local 5y weekly beta unavailable'})
             wacc = calculate_wacc(yf_data, cost_of_equity,
                                   risk_free_rate=risk_free_rate)
             if wacc is not None:
@@ -2741,7 +2742,9 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             _ticker_dd_2008      = None
             _ticker_dd_2020      = None
             _ticker_dd_2022      = None
-            _rolling_beta_diag   = {}
+            # Rolling betas come from phase 1 (weekly, same frame as the
+            # headline beta) whether or not a local price file exists.
+            _rolling_beta_diag   = (beta_diag or {}).get('rolling_betas') or {}
 
             if _local_close is not None and len(_local_close) > 60:
                 # 1. Realized volatility (252-day) → replaces fixed MC_WACC_SIGMA
@@ -2758,26 +2761,17 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 _ticker_dd_2020 = _max_drawdown_period(_local_close, '2020-01-01', '2020-09-30')
                 _ticker_dd_2022 = _max_drawdown_period(_local_close, '2022-01-01', '2022-12-31')
 
-                # 4. Rolling beta across 1yr / 3yr / 5yr windows
-                if _spy_local is not None:
-                    for _yrs, _label in [(1, '1y'), (3, '3y'), (5, '5y')]:
-                        _rb = _compute_rolling_beta(_local_close, _spy_local, _yrs)
-                        if _rb:
-                            _rolling_beta_diag[_label] = {
-                                'beta': round(_rb['adjusted_beta'], 3),
-                                'r2':   round(_rb['r_squared'], 3),
-                            }
-                    # Promote the best-R² window's beta into beta_diag
+                # 4. Rolling beta across 1y / 3y / 5y windows. Only fall back
+                #    to the local parquet closes when phase 1 produced none,
+                #    using the same weekly method so the windows stay
+                #    comparable with the headline beta.
+                if not _rolling_beta_diag and _spy_local is not None:
+                    _rolling_beta_diag = _rolling_betas_from_prices(_local_close, _spy_local)
                     if _rolling_beta_diag:
-                        _best = max(_rolling_beta_diag.items(),
-                                    key=lambda kv: kv[1]['r2'])
                         if beta_diag is None:
                             beta_diag = {}
                         beta_diag['rolling_betas'] = _rolling_beta_diag
-                        beta_diag['best_window']   = _best[0]
-                        # Compute beta stability (std of betas across windows)
-                        _betas = [v['beta'] for v in _rolling_beta_diag.values()]
-                        beta_diag['beta_stability'] = round(float(np.std(_betas)), 3) if len(_betas) > 1 else 0.0
+                        beta_diag['rolling_source'] = 'parquet'
 
             # Use ticker realized vol for MC WACC sigma (floor at macro-adjusted base)
             _effective_wacc_sigma_ticker = effective_wacc_sigma
@@ -3288,11 +3282,16 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 're_method': cached['re_method'],
                 # Beta diagnostics (Step 4A)
                 'beta_raw': beta_diag.get('raw_beta') if beta_diag else None,
-                'beta_adjusted': beta_diag.get('adjusted_beta') if beta_diag else None,
+                # beta_adjusted is the beta that entered CAPM: precision-
+                # weighted (local) or Blume (Yahoo fallback).
+                'beta_adjusted': beta_diag.get('shrunk_beta') if beta_diag else None,
+                'beta_shrink_weight': beta_diag.get('shrink_weight') if beta_diag else None,
                 'beta_r2': beta_diag.get('r_squared') if beta_diag else None,
                 'beta_se': beta_diag.get('se_beta') if beta_diag else None,
                 'beta_n_obs': beta_diag.get('n_observations') if beta_diag else None,
                 'beta_r2_class': beta_diag.get('r2_classification') if beta_diag else None,
+                'beta_source': beta_diag.get('beta_source') if beta_diag else None,
+                'beta_warnings': (beta_diag.get('warnings') or None) if beta_diag else None,
                 # Valuation (Step 5)
                 'dcf_fv': dcf_fv,
                 'price': current_price,
@@ -3467,7 +3466,7 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'drawdown_2008':   round(_ticker_dd_2008, 4) if _ticker_dd_2008 is not None else None,
                 'drawdown_2020':   round(_ticker_dd_2020, 4) if _ticker_dd_2020 is not None else None,
                 'drawdown_2022':   round(_ticker_dd_2022, 4) if _ticker_dd_2022 is not None else None,
-                'rolling_betas':   _rolling_beta_diag if _rolling_beta_diag else None,
+                'rolling_betas':   _rolling_beta_diag or None,
                 # --- Market & risk metrics (momentum / liquidity) ---
                 **_round_price_metrics(_price_metrics),
             }
@@ -4133,7 +4132,7 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
 
 
 def _run_quality_summary(risk_free_rate, risk_free_rate_source,
-                         _model_warning_counter):
+                         _model_warning_counter, _prov=None):
     """End-of-run quality gate: surface substituted/fabricated inputs."""
     # Run-quality gate: surface, in one place, every way this run's numbers
     # rest on substituted rather than observed inputs.
@@ -4143,6 +4142,18 @@ def _run_quality_summary(risk_free_rate, risk_free_rate_source,
             'RUN QUALITY: risk-free rate was a hardcoded fallback — every '
             'CAPM/WACC/DCF number this run inherits a fabricated %.2f%% rate',
             risk_free_rate * 100)
+    if _prov is not None:
+        _beta_fallbacks = {}
+        for _ev in getattr(_prov, 'events', []):
+            if _ev.get('type') == 'source_fallback' and _ev.get('source') == 'beta':
+                _m = (_ev.get('detail') or {}).get('method', 'unknown')
+                _beta_fallbacks[_m] = _beta_fallbacks.get(_m, 0) + 1
+        if _beta_fallbacks:
+            _log.warning(
+                'RUN QUALITY: %d tickers priced without a local regression beta '
+                '(cost of equity from %s)',
+                sum(_beta_fallbacks.values()),
+                ', '.join(f'{k}: {v}' for k, v in sorted(_beta_fallbacks.items())))
     if _model_warning_counter.fabricated:
         _log.warning(
             'RUN QUALITY: %d model warnings flagged fabricated/fallback inputs '
@@ -4232,7 +4243,7 @@ def _main():
                    local_rs, prices_dir, sector_etf_data=sector_etf_data)
 
     _run_quality_summary(risk_free_rate, risk_free_rate_source,
-                         _model_warning_counter)
+                         _model_warning_counter, _prov)
 
 
 if __name__ == "__main__":

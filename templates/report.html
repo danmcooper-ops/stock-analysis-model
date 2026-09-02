@@ -3121,7 +3121,7 @@ amihud_illiquidity:'Amihud price impact, in basis points of price move per $1M t
 drawdown_2020:'Worst peak-to-trough fall during the COVID crash (Jan–Sep 2020). A stress test you did not have to design — how far did this business fall when the world stopped?',
 drawdown_2022:'Worst peak-to-trough fall during the 2022 bear market. The rate-shock test: long-duration, no-earnings stories fell hardest here.',
 drawdown_2008:'Worst peak-to-trough fall during the GFC (Jan 2008–Mar 2009). Blank for anything that listed later — absence here means no history, not resilience.',
-beta_adjusted:'Blume-adjusted beta ((2/3)×raw + 1/3), pulled toward 1.0 because raw betas mean-revert. Feeds the cost of equity in the DCF, so it moves fair value directly. Check the R² before trusting it — a low-R² beta is noise wearing a number.',
+beta_adjusted:'Precision-weighted beta: the 5-year weekly regression beta shrunk toward 1.0 with weight = prior variance ÷ (prior variance + SE²). A precisely estimated beta keeps most of its own value; a noisy one is pulled toward the market. This is the beta that feeds the cost of equity, so it moves fair value directly. Beta Shrink Wt is the share of the raw beta that survived.',
 _flagged:'Your personal flag for stocks that deserve a closer look — Buffett’s “definitely interesting” pile, the opposite of his “too hard” pile. Click ⚑ to toggle; saved in browser local storage.',
 _reviewed:'Mark a stock reviewed once your own due diligence is complete. Click ✓ to toggle — it tracks what you have evaluated against what remains on the list. Saved in browser local storage.'
 };
@@ -5634,7 +5634,7 @@ var DT_TABS=[
   {t:'Momentum',cols:[{k:'momentum_12_1'},{k:'momentum_6_1'},{k:'momentum_3m'},{k:'vol_adj_momentum'}]},
   {t:'Liquidity',cols:[{k:'avg_dollar_volume_3m'},{k:'volume_trend'},{k:'amihud_illiquidity'},{k:'share_turnover_rate'}]},
   {t:'52-Week Range',cols:[{k:'high_52w',l:'52W High',f:'dollar'},{k:'low_52w',l:'52W Low',f:'dollar'},{k:'range_52w_position'},{k:'pct_from_52w_high'},{k:'pct_from_52w_low',l:'% from Low',f:'pct'}]},
-  {t:'Risk & Beta',cols:[{k:'realized_vol'},{k:'beta_adjusted'},{k:'beta_raw',l:'Beta (raw)',f:'n2'},{k:'beta_r2',l:'Beta R²',f:'n2'},{k:'beta_n_obs',l:'Beta Obs (mo)',f:'int'},{k:'drawdown_2020'},{k:'drawdown_2022'},{k:'drawdown_2008'}]}
+  {t:'Risk & Beta',cols:[{k:'realized_vol'},{k:'beta_adjusted'},{k:'beta_raw',l:'Beta (raw)',f:'n2'},{k:'beta_shrink_weight',l:'Beta Shrink Wt',f:'n2'},{k:'beta_se',l:'Beta SE',f:'n2'},{k:'beta_r2',l:'Beta R²',f:'n2'},{k:'beta_n_obs',l:'Beta Obs (wk)',f:'int'},{k:'drawdown_2020'},{k:'drawdown_2022'},{k:'drawdown_2008'}]}
  ],extra:_detRollingBetaHtml},
  {k:'val',l:'Valuation',groups:[
   /* The full Intrinsic Value block (DCF, Monte Carlo, DDM, EPV/RIM/NAV,
@@ -5834,7 +5834,7 @@ function _detRollingBetaHtml(d){
   if(stab==null&&_rb1n!=null&&_rb5n!=null)stab=Math.abs(_rb1n-_rb5n);
   var stabLbl=stab!=null?(stab<0.1?'Stable':stab<0.2?'Moderate':'Volatile'):'N/A';
   var stabC=stab!=null?(stab<0.1?'color:#1a9850':stab>=0.2?'color:#de2d26':''):'';
-  return '<div class="dsec"><h3>Rolling Beta</h3><div class="dkvg">'+bkv([['1yr Beta',rb1],['3yr Beta',rb3],['5yr Beta',rb5],['Stability',stabLbl,stabC]])+'</div></div>';
+  return '<div class="dsec"><h3>Rolling Beta (raw, weekly)</h3><div class="dkvg">'+bkv([['1yr Beta (raw)',rb1],['3yr Beta (raw)',rb3],['5yr Beta (raw)',rb5],['Stability',stabLbl,stabC]])+'</div></div>';
 }
 function _detStreetHtml(d){
   if(d.target_mean==null&&!d.analyst_rec&&d.num_analysts==null)return '';

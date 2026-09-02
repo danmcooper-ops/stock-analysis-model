@@ -126,7 +126,8 @@ class TestCalculateBeta:
         assume(float(np.var(s, ddof=1)) > 1e-12)
         assume(float(np.var(m, ddof=1)) > 1e-12)
         result = calculate_beta(s, m)
-        for key in ('raw_beta', 'adjusted_beta', 'r_squared', 'se_beta'):
+        for key in ('raw_beta', 'adjusted_beta', 'shrunk_beta', 'shrink_weight',
+                    'r_squared', 'se_beta'):
             assert result[key] is None or np.isfinite(result[key]), key
 
 
