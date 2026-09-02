@@ -296,3 +296,143 @@ class TestDivCagrOverGaps:
                                 payout=0.5, roe=None, analyst_ltg=None)
         import pytest
         assert g['div_cagr'] == pytest.approx((1.4 / 1.0) ** (1 / 4) - 1, abs=1e-4)
+
+
+# ---------------------------------------------------------------------------
+# Forward-rate DPS (yfinance dividendRate is D1, not D0)
+# ---------------------------------------------------------------------------
+
+class TestForwardDps:
+    """dps_is_forward=True pins the year-1 dividend at `dps` instead of
+    compounding a forward rate a second time."""
+
+    D, G, TG, RE = 2.0, 0.07, 0.03, 0.10
+
+    def test_two_stage_forward_equals_trailing_backed_out(self):
+        fwd = two_stage_ddm(self.D, self.G, self.TG, self.RE, dps_is_forward=True)
+        trailing = two_stage_ddm(self.D / (1 + self.G), self.G, self.TG, self.RE)
+        assert fwd == pytest.approx(trailing)
+
+    def test_two_stage_forward_lower_by_one_year_of_growth(self):
+        fwd = two_stage_ddm(self.D, self.G, self.TG, self.RE, dps_is_forward=True)
+        d0 = two_stage_ddm(self.D, self.G, self.TG, self.RE)
+        assert d0 / fwd == pytest.approx(1 + self.G)
+
+    def test_two_stage_year1_dividend_is_dps(self):
+        """Hand-built PV with D1 = dps must match the forward-mode value."""
+        pv = sum(self.D * (1 + self.G) ** (t - 1) / (1 + self.RE) ** t
+                 for t in range(1, 6))
+        d5 = self.D * (1 + self.G) ** 4
+        tv = d5 * (1 + self.TG) / (self.RE - self.TG) / (1 + self.RE) ** 5
+        fwd = two_stage_ddm(self.D, self.G, self.TG, self.RE, dps_is_forward=True)
+        assert fwd == pytest.approx(pv + tv)
+
+    def test_two_stage_zero_growth_unchanged(self):
+        """With g = 0 the forward and trailing readings coincide."""
+        assert two_stage_ddm(self.D, 0.0, self.TG, self.RE, dps_is_forward=True) == \
+            pytest.approx(two_stage_ddm(self.D, 0.0, self.TG, self.RE))
+
+    def test_h_model_forward_equals_trailing_backed_out(self):
+        fwd = ddm_h_model(self.D, self.G, self.TG, self.RE, half_life=2.5,
+                          dps_is_forward=True)
+        trailing = ddm_h_model(self.D / (1 + self.G), self.G, self.TG, self.RE,
+                               half_life=2.5)
+        assert fwd == pytest.approx(trailing)
+
+    def test_envelope_records_d0(self):
+        from models.ddm import two_stage_ddm_valuation
+        v = two_stage_ddm_valuation(self.D, self.G, self.TG, self.RE, dps_is_forward=True)
+        assert v.inputs_used['dps_is_forward'] is True
+        assert v.inputs_used['d0'] == pytest.approx(self.D / (1 + self.G))
+        v0 = two_stage_ddm_valuation(self.D, self.G, self.TG, self.RE)
+        assert v0.inputs_used['dps_is_forward'] is False
+        assert v0.inputs_used['d0'] == pytest.approx(self.D)
+
+    def test_monte_carlo_forward_median_tracks_deterministic(self):
+        mc = monte_carlo_ddm(self.D, self.G, self.RE, self.TG, n=2000, dps_is_forward=True)
+        det = two_stage_ddm(self.D, self.G, self.TG, self.RE, dps_is_forward=True)
+        assert mc['median_fv'] == pytest.approx(det, rel=0.05)
+        mc0 = monte_carlo_ddm(self.D, self.G, self.RE, self.TG, n=2000)
+        assert mc0['median_fv'] > mc['median_fv']
+
+    def test_monte_carlo_forward_survives_extreme_growth_draws(self):
+        """A negative growth draw below −100% must not flip or blow up D0."""
+        mc = monte_carlo_ddm(self.D, -0.10, self.RE, self.TG, n=2000,
+                             g_sigma=0.60, dps_is_forward=True)
+        assert mc is not None
+        assert np.isfinite(mc['median_fv']) and mc['median_fv'] > 0
+
+    def test_default_is_trailing(self):
+        """Existing callers passing D0 see no change."""
+        assert two_stage_ddm(self.D, self.G, self.TG, self.RE) == \
+            pytest.approx(two_stage_ddm(self.D, self.G, self.TG, self.RE,
+                                        dps_is_forward=False))
+
+
+class TestAnnualiseDividendsPartialFirstYear:
+    """A mid-year initiation (or a feed starting mid-year) must not enter the
+    CAGR span as a full-year DPS."""
+
+    def _series(self, pairs):
+        import pandas as pd
+        idx = pd.to_datetime([p[0] for p in pairs])
+        return pd.Series([p[1] for p in pairs], index=idx)
+
+    def _quarterly(self, start_year, end_year, start_q=0.25, growth=0.05):
+        rows, q = [], start_q
+        for y in range(start_year, end_year + 1):
+            for m in (3, 6, 9, 12):
+                rows.append((f'{y}-{m:02d}-01', q))
+            q *= 1 + growth
+        return rows
+
+    def test_partial_initiation_year_dropped(self):
+        from scripts.analyze_stock import _annualise_dividends
+        rows = [('2021-12-01', 0.25)] + self._quarterly(2022, 2025, 0.2625)
+        ann = _annualise_dividends(self._series(rows), as_of_year=2026)
+        assert len(ann) == 4
+        assert ann[0] == pytest.approx(1.05)
+
+    def test_partial_first_year_no_longer_inflates_cagr(self):
+        from scripts.analyze_stock import _annualise_dividends
+        rows = [('2016-12-01', 0.25)] + self._quarterly(2017, 2025, 0.2625)
+        ann = _annualise_dividends(self._series(rows), as_of_year=2026)
+        g = estimate_ddm_growth(ann, None, None, None)
+        assert g['div_cagr'] == pytest.approx(0.05, abs=1e-6)
+
+    def test_full_first_year_kept(self):
+        from scripts.analyze_stock import _annualise_dividends
+        rows = self._quarterly(2022, 2025)
+        ann = _annualise_dividends(self._series(rows), as_of_year=2026)
+        assert len(ann) == 4
+        assert ann[0] == pytest.approx(1.0)
+
+    def test_annual_payer_first_year_kept(self):
+        """One payment a year is the modal count, so nothing is dropped."""
+        from scripts.analyze_stock import _annualise_dividends
+        s = self._series([('2021-06', 1.0), ('2022-06', 1.1),
+                          ('2023-06', 1.2), ('2024-06', 1.3)])
+        assert _annualise_dividends(s, as_of_year=2025) == [1.0, 1.1, 1.2, 1.3]
+
+    def test_partial_first_and_partial_current_year(self):
+        from scripts.analyze_stock import _annualise_dividends
+        rows = ([('2022-12-01', 0.25)] + self._quarterly(2023, 2025, 0.25, 0.0)
+                + [('2026-03-01', 0.25)])
+        assert _annualise_dividends(self._series(rows), as_of_year=2026) == \
+            pytest.approx([1.0, 1.0, 1.0])
+
+    def test_two_partial_years_keeps_the_older_one(self):
+        """Partial first year + partial current year: current is dropped and
+        the remaining sole year is kept so a new payer still surfaces."""
+        from scripts.analyze_stock import _annualise_dividends
+        s = self._series([('2025-12-01', 0.25), ('2026-03-01', 0.25)])
+        assert _annualise_dividends(s, as_of_year=2026) == [0.25]
+
+    def test_special_dividend_year_does_not_shift_modal_count(self):
+        """A year with an extra special payment doesn't make regular years
+        look partial."""
+        from scripts.analyze_stock import _annualise_dividends
+        rows = self._quarterly(2022, 2025, 0.25, 0.0) + [('2024-07-15', 1.0)]
+        ann = _annualise_dividends(self._series(rows), as_of_year=2026)
+        assert len(ann) == 4
+        assert ann[2] == pytest.approx(2.0)

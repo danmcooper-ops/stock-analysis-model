@@ -145,12 +145,34 @@ def estimate_ddm_growth(div_history, payout, roe, analyst_ltg):
     return result
 
 
-def two_stage_ddm_valuation(dps, high_g, term_g, re, years=5):
+def _d0_from_dps(dps, growth, dps_is_forward):
+    """Return the base-year dividend D0 for a given DPS input.
+
+    When `dps_is_forward` is True the caller is passing a forward annual
+    rate (e.g. yfinance `dividendRate` = last declared payment × frequency),
+    which is already the year-1 dividend D1. Backing it out by one year of
+    growth means the first projected dividend equals the declared rate
+    instead of being compounded a second time, which overstated every DDM
+    leg by roughly (1 + g).
+    """
+    if not dps_is_forward:
+        return dps
+    # Floor the back-out growth at the deterministic models' −50% bound so
+    # an unclipped Monte Carlo growth draw can't flip or explode D0.
+    return dps / (1 + np.maximum(growth, -0.50))
+
+
+def two_stage_ddm_valuation(dps, high_g, term_g, re, years=5,
+                            dps_is_forward=False):
     """Two-stage Dividend Discount Model, as a Valuation envelope.
 
     Stage 1: project DPS at constant `high_g` for `years` years.
     Stage 2: terminal value via Gordon Growth Model at `term_g`.
     value is None on invalid inputs, with the reason in `warnings`.
+
+    `dps` is the trailing (base-year, D0) dividend by default. Pass
+    `dps_is_forward=True` when it is a forward annual rate (D1): the
+    year-1 dividend is then `dps` itself rather than `dps × (1 + high_g)`.
     """
     method = 'two_stage_ddm'
     try:
@@ -161,8 +183,9 @@ def two_stage_ddm_valuation(dps, high_g, term_g, re, years=5):
     except ValueError as e:
         _py_warnings.warn(f"two_stage_ddm input invalid: {e}", RuntimeWarning, stacklevel=3)
         return Valuation.invalid(method, f'input invalid: {e}')
+    d0 = _d0_from_dps(dps, high_g, dps_is_forward)
     inputs = {'dps': dps, 'high_g': high_g, 'term_g': term_g, 're': re,
-              'years': years}
+              'years': years, 'dps_is_forward': bool(dps_is_forward), 'd0': d0}
     if re <= term_g:
         return Valuation.invalid(
             method, 're <= term_g — Gordon terminal value undefined', inputs)
@@ -175,7 +198,7 @@ def two_stage_ddm_valuation(dps, high_g, term_g, re, years=5):
 
     # Stage 1: PV of projected dividends
     pv_divs = 0.0
-    projected_div = dps
+    projected_div = d0
     for yr in range(1, years + 1):
         projected_div = projected_div * (1 + high_g)
         pv_divs += projected_div / (1 + re) ** yr
@@ -194,16 +217,22 @@ def two_stage_ddm_valuation(dps, high_g, term_g, re, years=5):
                      warnings=(), inputs_used=inputs)
 
 
-def two_stage_ddm(dps, high_g, term_g, re, years=5):
+def two_stage_ddm(dps, high_g, term_g, re, years=5, dps_is_forward=False):
     """Legacy float|None wrapper around two_stage_ddm_valuation()."""
-    return two_stage_ddm_valuation(dps, high_g, term_g, re, years=years).value
+    return two_stage_ddm_valuation(dps, high_g, term_g, re, years=years,
+                                   dps_is_forward=dps_is_forward).value
 
 
-def ddm_h_model_valuation(dps, short_g, long_g, re, half_life=5):
+def ddm_h_model_valuation(dps, short_g, long_g, re, half_life=5,
+                          dps_is_forward=False):
     """H-Model (linear growth decline) closed-form DDM, as a Valuation envelope.
 
     V = D0 × (1 + long_g) / (re - long_g) + D0 × H × (short_g - long_g) / (re - long_g)
     where H = half_life (half the period over which growth linearly declines).
+
+    `dps` is D0 by default. With `dps_is_forward=True` it is treated as the
+    forward (year-1) rate and backed out by one year of `short_g`, the
+    growth the H-model applies in its first year.
     """
     method = 'ddm_h_model'
     try:
@@ -214,8 +243,10 @@ def ddm_h_model_valuation(dps, short_g, long_g, re, half_life=5):
     except ValueError as e:
         _py_warnings.warn(f"ddm_h_model input invalid: {e}", RuntimeWarning, stacklevel=3)
         return Valuation.invalid(method, f'input invalid: {e}')
+    d0 = _d0_from_dps(dps, short_g, dps_is_forward)
     inputs = {'dps': dps, 'short_g': short_g, 'long_g': long_g, 're': re,
-              'half_life': half_life}
+              'half_life': half_life, 'dps_is_forward': bool(dps_is_forward),
+              'd0': d0}
     if re <= long_g:
         return Valuation.invalid(
             method, 're <= long_g — stable leg undefined', inputs)
@@ -230,9 +261,9 @@ def ddm_h_model_valuation(dps, short_g, long_g, re, half_life=5):
     spread = re - effective_long_g
 
     # Stable component
-    stable_value = dps * (1 + effective_long_g) / spread
+    stable_value = d0 * (1 + effective_long_g) / spread
     # Growth premium
-    growth_premium = dps * half_life * (short_g - effective_long_g) / spread
+    growth_premium = d0 * half_life * (short_g - effective_long_g) / spread
 
     value = stable_value + growth_premium
     if value <= 0:
@@ -243,15 +274,16 @@ def ddm_h_model_valuation(dps, short_g, long_g, re, half_life=5):
                      warnings=(), inputs_used=inputs)
 
 
-def ddm_h_model(dps, short_g, long_g, re, half_life=5):
+def ddm_h_model(dps, short_g, long_g, re, half_life=5, dps_is_forward=False):
     """Legacy float|None wrapper around ddm_h_model_valuation()."""
     return ddm_h_model_valuation(dps, short_g, long_g, re,
-                                 half_life=half_life).value
+                                 half_life=half_life,
+                                 dps_is_forward=dps_is_forward).value
 
 
 def monte_carlo_ddm(dps, g, re, tg, n=1000,
                     g_sigma=None, re_sigma=0.01, tg_sigma=0.005,
-                    years=5, re_tg_corr=0.5, seed=None):
+                    years=5, re_tg_corr=0.5, seed=None, dps_is_forward=False):
     """Vectorized quasi-Monte Carlo simulation for DDM fair value.
 
     Same sampling scheme as monte_carlo_dcf (scrambled Sobol; g ~ normal;
@@ -259,6 +291,10 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
     `re_tg_corr` and clipped to re - MC_MIN_SPREAD, the substitution
     two_stage_ddm applies). Pass seed=seed_from_ticker(ticker) for
     independent draws per ticker; None keeps the historical fixed seed.
+
+    With `dps_is_forward=True` the year-1 dividend is pinned at `dps` in
+    every sample (a declared forward rate carries no growth uncertainty);
+    the sampled growth applies from year 2 onward.
 
     Returns dict with median_fv, mean_fv, p10_fv, p90_fv, std_fv, cv,
     n_valid, n_iterations, invalid_rate and the constraint diagnostics
@@ -310,7 +346,8 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
 
     # --- Vectorized dividend projection: shape (n, years) ---
     projected = np.empty((n, years))
-    prev = np.full(n, dps)
+    # Per-sample D0 so that D1 == dps exactly when dps is a forward rate.
+    prev = _d0_from_dps(np.full(n, dps), g_samples, dps_is_forward)
     for yr in range(years):
         prev = prev * (1 + g_samples)
         projected[:, yr] = prev
