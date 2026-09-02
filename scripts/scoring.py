@@ -75,8 +75,9 @@ def _appl_margin_history(r):
 
 def _appl_incr_roic(r):
     """Incremental ROIC is undefined (not bad) when the capital base shrank —
-    a capital-light compounder returning cash must not score 0."""
-    return not r.get('_incr_roic_undefined')
+    a capital-light compounder returning cash must not score 0. Masked for
+    Financial Services alongside the other ROIC gates (see Moat: Spread)."""
+    return _appl_non_financial(r) and not r.get('_incr_roic_undefined')
 
 
 def _appl_mult_history(r):
@@ -289,12 +290,20 @@ GATES = [
          lambda v, r, pct: _score_linear(v, 0, 9)),
 
     # ---- Moat ----
+    # The ROIC family (Spread, Consistency, Incr ROIC) is masked for
+    # Financial Services: NOPAT / (equity + debt - cash) is meaningless for
+    # capital intermediaries (deposits are not "debt", cash is inventory),
+    # which is exactly why the Phase-1 screen already bypasses the spread
+    # filter for the sector. Scoring the same number here contradicted that.
+    # Bank quality is carried by the FDIC metrics (NIM / efficiency / CET1).
     Gate('Moat: Spread', 'spread',
          lambda v, r: v > 0.07 if v is not None else None,
-         lambda v, r, pct: _score_linear(v, 0.0, 0.20)),  # tightened: best 25%→20%
+         lambda v, r, pct: _score_linear(v, 0.0, 0.20),  # tightened: best 25%→20%
+         applicable=_appl_non_financial),
     Gate('Moat: ROIC Consistency', 'roic_cv',
          lambda v, r: v < 0.30 if v is not None else None,
-         lambda v, r, pct: _score_linear(v, 0.60, 0.0)),
+         lambda v, r, pct: _score_linear(v, 0.60, 0.0),
+         applicable=_appl_non_financial),
     # Incremental ROIC (ΔNOPAT/ΔIC over the statement window): the moat-
     # TRAJECTORY test — is each new dollar of capital still earning above
     # the cost of capital? The better replacement for the retired ROIC

@@ -69,16 +69,98 @@ class TestCalculateROIC:
         assert result is None
 
     def test_per_year_intermediates_align_with_roic(self, sample_financials):
-        """nopat_by_year / invested_capital_by_year share roic_by_year's keys
-        and reproduce the ratio (feeds the Moat: Incr ROIC gate)."""
+        """nopat_by_year / avg_invested_capital_by_year share roic_by_year's
+        keys and reproduce the ratio; invested_capital_by_year carries the
+        CLOSING balance the Moat: Incr ROIC delta needs."""
         result = calculate_roic(sample_financials)
-        assert set(result['nopat_by_year']) == set(result['roic_by_year'])
-        assert set(result['invested_capital_by_year']) == set(result['roic_by_year'])
+        for key in ('nopat_by_year', 'invested_capital_by_year',
+                    'avg_invested_capital_by_year', 'ic_basis_by_year'):
+            assert set(result[key]) == set(result['roic_by_year'])
         for y, roic in result['roic_by_year'].items():
             nopat = result['nopat_by_year'][y]
-            ic = result['invested_capital_by_year'][y]
+            ic = result['avg_invested_capital_by_year'][y]
             assert ic > 0
             assert nopat / ic == pytest.approx(roic)
+
+    def test_numeric_values_against_fixture(self, sample_financials):
+        """Hand-computed from conftest: 2024 NOPAT = 12e9 x (1 - 2/10) =
+        9.6e9 over average IC (35e9 + 34e9) / 2; 2023 NOPAT = 10e9 x
+        (1 - 1.5/7.5) = 8e9 over closing IC 34e9 (no opening balance)."""
+        result = calculate_roic(sample_financials)
+        assert result['nopat_by_year']['2024'] == pytest.approx(9.6e9)
+        assert result['invested_capital_by_year']['2024'] == pytest.approx(35e9)
+        assert result['avg_invested_capital_by_year']['2024'] == pytest.approx(34.5e9)
+        assert result['ic_basis_by_year'] == {'2023': 'closing', '2024': 'average'}
+        assert result['roic_by_year']['2024'] == pytest.approx(9.6 / 34.5)
+        assert result['roic_by_year']['2023'] == pytest.approx(8.0 / 34.0)
+        # Median of two values is their mean; the alias must track it.
+        expected = (9.6 / 34.5 + 8.0 / 34.0) / 2
+        assert result['roic_median_5y'] == pytest.approx(expected)
+        assert result['avg_roic'] == pytest.approx(expected)
+
+    def test_headline_is_trailing_five_year_median(self):
+        """Six years with one absurd early year: the headline ignores it
+        (outside the window) and a mid-window outlier cannot drag it."""
+        years = pd.to_datetime([f'{y}-12-31' for y in range(2024, 2018, -1)])
+        op = {2024: 10.0, 2023: 10.0, 2022: 10.0, 2021: 50.0, 2020: 10.0, 2019: 10.0}
+        eq = {2024: 100.0, 2023: 100.0, 2022: 100.0, 2021: 100.0, 2020: 100.0, 2019: 1.0}
+        bs = pd.DataFrame({d: {'Stockholders Equity': eq[d.year], 'Total Debt': 0.0,
+                               'Cash And Cash Equivalents': 0.0} for d in years})
+        inc = pd.DataFrame({d: {'Operating Income': op[d.year], 'Tax Provision': 0.0,
+                                'Pretax Income': op[d.year]} for d in years})
+        result = calculate_roic({'balance_sheet': bs, 'income_statement': inc})
+        by = result['roic_by_year']
+        assert by['2019'] == pytest.approx(10.0)      # closing basis, tiny capital
+        assert by['2021'] == pytest.approx(0.5)       # the in-window outlier
+        # 2020 uses average of 1 and 100 -> ~0.198; 2022-2024 are 0.10
+        window = sorted(by[y] for y in ('2020', '2021', '2022', '2023', '2024'))
+        assert result['roic_median_5y'] == pytest.approx(window[2])
+        assert result['roic_median_5y'] == pytest.approx(0.10)
+        assert '2019' not in [y for y in sorted(by)[-5:]]
+
+    def test_zero_tax_provision_is_a_real_zero_rate(self):
+        """An explicit 0 provision (REIT / NOL) must not fall back to 21%."""
+        d = pd.to_datetime(['2024-12-31'])
+        bs = pd.DataFrame({d[0]: {'Stockholders Equity': 100.0, 'Total Debt': 0.0,
+                                  'Cash And Cash Equivalents': 0.0}})
+        inc = pd.DataFrame({d[0]: {'Operating Income': 10.0, 'Tax Provision': 0.0,
+                                   'Pretax Income': 9.0}})
+        result = calculate_roic({'balance_sheet': bs, 'income_statement': inc})
+        assert result['nopat_by_year']['2024'] == pytest.approx(10.0)
+
+    def test_missing_tax_fields_default_to_21pct_not_skip(self):
+        d = pd.to_datetime(['2024-12-31'])
+        bs = pd.DataFrame({d[0]: {'Stockholders Equity': 100.0}})
+        inc = pd.DataFrame({d[0]: {'Operating Income': 10.0}})
+        result = calculate_roic({'balance_sheet': bs, 'income_statement': inc})
+        assert result['nopat_by_year']['2024'] == pytest.approx(7.9)
+
+    def test_negative_opening_capital_falls_back_to_closing(self):
+        d = pd.to_datetime(['2024-12-31', '2023-12-31'])
+        bs = pd.DataFrame({d[0]: {'Stockholders Equity': 50.0, 'Total Debt': 0.0,
+                                  'Cash And Cash Equivalents': 0.0},
+                           d[1]: {'Stockholders Equity': -40.0, 'Total Debt': 10.0,
+                                  'Cash And Cash Equivalents': 0.0}})
+        inc = pd.DataFrame({d[0]: {'Operating Income': 10.0, 'Tax Provision': 0.0,
+                                   'Pretax Income': 10.0},
+                           d[1]: {'Operating Income': 10.0, 'Tax Provision': 0.0,
+                                  'Pretax Income': 10.0}})
+        result = calculate_roic({'balance_sheet': bs, 'income_statement': inc})
+        assert list(result['roic_by_year']) == ['2024']
+        assert result['ic_basis_by_year']['2024'] == 'closing'
+        assert result['roic_by_year']['2024'] == pytest.approx(0.2)
+        assert result['warnings'] == [
+            '2023: closing invested capital <= 0 (equity + debt - cash = -30), skipped']
+
+    def test_short_term_investments_netted_when_present(self):
+        d = pd.to_datetime(['2024-12-31'])
+        bs = pd.DataFrame({d[0]: {'Stockholders Equity': 100.0, 'Total Debt': 20.0,
+                                  'Cash And Cash Equivalents': 10.0,
+                                  'Cash Cash Equivalents And Short Term Investments': 40.0}})
+        inc = pd.DataFrame({d[0]: {'Operating Income': 8.0, 'Tax Provision': 0.0,
+                                   'Pretax Income': 8.0}})
+        result = calculate_roic({'balance_sheet': bs, 'income_statement': inc})
+        assert result['invested_capital_by_year']['2024'] == pytest.approx(80.0)
 
 
 # ---------------------------------------------------------------------------

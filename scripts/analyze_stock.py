@@ -1686,7 +1686,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     # Signal 6: Fundamental growth (Reinvestment Rate × ROIC)
     fund_result = calculate_fundamental_growth(yf_data,
-                    roic_override=roic_data.get('avg_roic') if roic_data else None)
+                    roic_override=roic_data.get('roic_median_5y') if roic_data else None)
     fundamental_g = fund_result.get('fundamental_growth')
     if fundamental_g is not None:
         growth_signals.append(fundamental_g)
@@ -2544,12 +2544,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                 s_cfg = _get_sector_config(sector)
                 wacc = max(s_cfg['wacc_floor'], min(s_cfg['wacc_cap'], wacc))
 
-            spread = (roic_data['avg_roic'] - wacc
+            spread = (roic_data['roic_median_5y'] - wacc
                       if (roic_data and wacc is not None) else None)
 
             # --- Phase-1 filters (applied before expensive Phase-2 work) ---
             mcap = info.get('marketCap') or 0
-            roic_str = f"ROIC {roic_data['avg_roic']:.1%} " if roic_data else "ROIC N/A "
+            roic_str = f"ROIC {roic_data['roic_median_5y']:.1%} " if roic_data else "ROIC N/A "
             wacc_str = f"WACC {wacc:.1%} " if wacc is not None else "WACC N/A "
             spread_str = f"spread {spread:.1%}" if spread is not None else "spread N/A"
 
@@ -3260,8 +3260,9 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'insider_net_value': insider_data.get('net_value_365d') if insider_data and insider_data.get('available') else None,
                 'insider_transactions': (insider_data.get('transactions', [])[:10] if insider_data and insider_data.get('available') else []),
                 'roic_by_year': roic_data.get('roic_by_year'),
-                # Per-year NOPAT / invested capital (Moat: Incr ROIC gate —
-                # scoring derives incremental ROIC = ΔNOPAT/ΔIC from these)
+                # Per-year NOPAT / CLOSING invested capital (Moat: Incr ROIC
+                # gate — scoring derives incremental ROIC = ΔNOPAT/ΔIC from
+                # these; per-year ROIC itself divides by average capital)
                 '_nopat_by_year': roic_data.get('nopat_by_year'),
                 '_ic_by_year': roic_data.get('invested_capital_by_year'),
                 'roic_cv': roic_cv,
@@ -3269,10 +3270,10 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'shareholder_yield': shareholder_yield,
                 'div_yield': div_yield,
                 'payout_ratio': payout_ratio,
-                # Core screen
-                'roic': roic_data['avg_roic'],
+                # Core screen — trailing five-year median of per-year ROIC
+                'roic': roic_data['roic_median_5y'],
                 'wacc': wacc,
-                'spread': roic_data['avg_roic'] - wacc,
+                'spread': roic_data['roic_median_5y'] - wacc,
                 'mcap': multiples.get('market_cap'),
                 # Time-series cheapness (Valuation: Mult vs Hist gate)
                 'mult_vs_hist': mult_vs_hist,

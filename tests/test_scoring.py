@@ -966,15 +966,23 @@ class TestApplicabilityMask:
         bank = _full_row(ticker='BANK', sector='Financial Services')
         generic = _full_row(ticker='TECH')
         apply_screening_matrix([bank, generic])
-        # ebit_ev, fcf_yield, fcf_cagr_5y, int_coverage, net_debt_ebitda and
-        # margins masked for financials; pool_share is inapplicable for BOTH
-        # rows (no edgar_history in the fixture)
-        assert bank['_gates_inapplicable'] == 7
+        # ebit_ev, fcf_yield, fcf_cagr_5y, int_coverage, net_debt_ebitda,
+        # margins and the ROIC family (spread, roic_consistency, incr_roic)
+        # masked for financials; pool_share is inapplicable for BOTH rows
+        # (no edgar_history in the fixture)
+        assert bank['_gates_inapplicable'] == 10
         assert generic['_gates_inapplicable'] == 1
         bank_denom = int(bank['_gates_passed'].split('/')[1])
         gen_denom = int(generic['_gates_passed'].split('/')[1])
-        assert gen_denom - bank_denom == 6
+        assert gen_denom - bank_denom == 9
         assert bank['_gp_ebit_ev'] is None
+        # NOPAT / (equity + debt - cash) is meaningless for a bank: the
+        # Phase-1 screen already bypasses the spread filter for the sector,
+        # and scoring must not quietly grade it on the same number.
+        assert bank['_gp_spread'] is None
+        assert bank['_gp_roic_consistency'] is None
+        assert bank['_gp_incr_roic'] is None
+        assert generic['_gp_spread'] is True
         assert bank['_gp_fcf_yield'] is None
         assert bank['_gp_int_coverage'] is None
         assert bank['_gp_net_debt_ebitda'] is None
@@ -996,6 +1004,8 @@ class TestApplicabilityMask:
         assert bank['_score_fcf_yield'] is None
         assert bank['_score_int_coverage'] is None
         assert bank['_score_net_debt_ebitda'] is None
+        assert bank['_score_spread'] is None
+        assert bank['_score_incr_roic'] is None
         # Category averages must not be dragged to 0 by the masked gates:
         # both rows share identical applicable-gate inputs, so the bank's
         # category scores stay in a sane band rather than collapsing.

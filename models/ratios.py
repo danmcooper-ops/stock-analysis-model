@@ -8,6 +8,24 @@ from models.field_keys import (
     OPERATING_INCOME_KEYS, INTEREST_KEYS, DA_KEYS, REVENUE_KEYS,
 )
 
+DEFAULT_TAX_RATE = 0.21
+
+
+def _effective_tax_rate(inc_year):
+    """Effective tax rate for one income-statement column.
+
+    Provision / pretax income, clamped to [0, 0.50]. Falls back to
+    DEFAULT_TAX_RATE only when either input is genuinely MISSING (None) or
+    pretax income is zero. An explicit zero provision (REITs, NOL users) is
+    a real 0% rate, not missing data - the old truthiness test silently
+    haircut those filers' NOPAT by 21%.
+    """
+    tax_provision = _get(inc_year, ['Tax Provision'])
+    pretax_income = _get(inc_year, ['Pretax Income'], allow_zero=False)
+    if tax_provision is None or pretax_income is None:
+        return DEFAULT_TAX_RATE
+    return max(0.0, min(tax_provision / pretax_income, 0.50))
+
 
 def compute_ratios(financials):
     """Quick ratios: ROE, Debt-to-Equity, Current Ratio, ROA.
@@ -87,8 +105,6 @@ def calculate_wacc(financials, cost_of_equity, *,
 
     total_debt = _get(latest_bs, DEBT_KEYS) or 0
     interest_expense = _get(latest_inc, INTEREST_KEYS)
-    tax_provision = _get(latest_inc, ['Tax Provision'])
-    pretax_income = _get(latest_inc, ['Pretax Income'], allow_zero=False)
 
     if not total_equity or total_equity <= 0:
         return None
@@ -117,23 +133,42 @@ def calculate_wacc(financials, cost_of_equity, *,
     else:
         cost_of_debt = 0
 
-    tax_rate = (
-        tax_provision / pretax_income
-        if (tax_provision and pretax_income and pretax_income != 0)
-        else 0.21
-    )
-    tax_rate = max(0.0, min(tax_rate, 0.50))
+    tax_rate = _effective_tax_rate(latest_inc)
     return weight_equity * cost_of_equity + weight_debt * cost_of_debt * (1 - tax_rate)
 
 
 def calculate_roic(financials):
-    """Per-year and average ROIC = NOPAT / (Equity + Debt − Cash).
+    """Per-year ROIC = NOPAT / average invested capital, plus a trailing
+    five-year median as the headline figure.
 
-    Returns dict with 'roic_by_year', 'avg_roic', 'warnings' (years skipped
-    because invested_capital was non-positive, for instance), plus the
-    per-year intermediates 'nopat_by_year' and 'invested_capital_by_year'
-    (same year keys and skip conditions as roic_by_year) so consumers can
-    compute incremental ROIC (ΔNOPAT/ΔIC) without re-deriving them.
+    NOPAT = operating income x (1 - effective tax rate); see
+    _effective_tax_rate for the rate. Invested capital = equity + debt -
+    cash, where cash prefers the cash-plus-short-term-investments line
+    when the statement carries it. The capital base for a year is the
+    average of the opening and closing balances (the opening balance is
+    the prior column's closing balance); the oldest column, or any year
+    whose opening balance is non-positive, falls back to closing capital.
+    ic_basis_by_year records which was used.
+
+    Debt follows the statement source: the SEC XBRL frames exclude
+    operating-lease liabilities (finance leases only), while yfinance's
+    'Total Debt' includes lease obligations. Operating income is after
+    lease expense either way, so leases are left out on the XBRL path
+    rather than added in.
+
+    Returns None when the statements are missing or no year is computable,
+    else a dict with:
+      roic_by_year               {year: ROIC} over the full statement window
+      roic_median_5y             median of the five most recent years - the
+                                 headline / screening number
+      avg_roic                   alias of roic_median_5y kept for callers
+                                 written against the old full-window mean
+      nopat_by_year              per-year NOPAT (same keys as roic_by_year)
+      invested_capital_by_year   per-year CLOSING invested capital - what the
+                                 incremental-ROIC delta in scoring needs
+      avg_invested_capital_by_year  the capital base actually divided into
+      ic_basis_by_year           'average' or 'closing'
+      warnings                   years skipped and why
     """
     bs = financials.get('balance_sheet')
     inc = financials.get('income_statement')
@@ -144,47 +179,82 @@ def calculate_roic(financials):
     if len(common_years) == 0:
         return None
 
+    # Closing invested capital for every column first: a year's opening
+    # balance is its predecessor's closing balance. Columns are newest-
+    # first by convention, so walk them chronologically.
+    ordered = sorted(common_years)
+    closing_ic = {}
+    for year in ordered:
+        bs_year = bs[year]
+        total_equity = _get(bs_year, EQUITY_KEYS, allow_zero=False)
+        if total_equity is None:
+            continue
+        total_debt = _get(bs_year, DEBT_KEYS)
+        cash = _get(bs_year, CASH_KEYS)
+        closing_ic[year] = total_equity + (total_debt or 0) - (cash or 0)
+
     roic_by_year = {}
     nopat_by_year = {}
     invested_capital_by_year = {}
+    avg_ic_by_year = {}
+    ic_basis_by_year = {}
     warnings = []
-    for year in common_years:
-        bs_year = bs[year]
+    prev_year = None
+    for year in ordered:
         inc_year = inc[year]
-
         operating_income = _get(inc_year, OPERATING_INCOME_KEYS)
-        tax_provision = _get(inc_year, ['Tax Provision'])
-        pretax_income = _get(inc_year, ['Pretax Income'], allow_zero=False)
-        total_equity = _get(bs_year, EQUITY_KEYS, allow_zero=False)
-        total_debt = _get(bs_year, DEBT_KEYS)
-        cash = _get(bs_year, CASH_KEYS)
-
-        if operating_income is None or pretax_income is None or total_equity is None:
+        closing = closing_ic.get(year)
+        if operating_income is None or closing is None:
+            prev_year = year
             continue
-
-        tax_rate = (tax_provision / pretax_income) if tax_provision and pretax_income else 0.21
-        tax_rate = max(0.0, min(tax_rate, 0.50))
-        nopat = operating_income * (1 - tax_rate)
-        invested_capital = total_equity + (total_debt or 0) - (cash or 0)
-        if invested_capital <= 0:
-            warnings.append(
-                f"{year}: invested_capital <= 0 (cash > equity + debt), skipped"
-            )
-            continue
-
         year_key = str(year.year) if hasattr(year, 'year') else str(year)
-        roic_by_year[year_key] = nopat / invested_capital
+        if closing <= 0:
+            warnings.append(
+                f"{year_key}: closing invested capital <= 0 "
+                f"(equity + debt - cash = {closing:,.0f}), skipped"
+            )
+            prev_year = year
+            continue
+
+        opening = closing_ic.get(prev_year) if prev_year is not None else None
+        if opening is not None and opening > 0:
+            capital_base, basis = (opening + closing) / 2.0, 'average'
+        else:
+            capital_base, basis = closing, 'closing'
+
+        nopat = operating_income * (1 - _effective_tax_rate(inc_year))
+        roic_by_year[year_key] = nopat / capital_base
         nopat_by_year[year_key] = nopat
-        invested_capital_by_year[year_key] = invested_capital
+        invested_capital_by_year[year_key] = closing
+        avg_ic_by_year[year_key] = capital_base
+        ic_basis_by_year[year_key] = basis
+        prev_year = year
 
     if not roic_by_year:
         return None
 
-    avg_roic = sum(roic_by_year.values()) / len(roic_by_year)
-    return {'roic_by_year': roic_by_year, 'avg_roic': avg_roic,
+    roic_median_5y = _trailing_median(roic_by_year, 5)
+    return {'roic_by_year': roic_by_year,
+            'roic_median_5y': roic_median_5y,
+            'avg_roic': roic_median_5y,
             'warnings': warnings,
             'nopat_by_year': nopat_by_year,
-            'invested_capital_by_year': invested_capital_by_year}
+            'invested_capital_by_year': invested_capital_by_year,
+            'avg_invested_capital_by_year': avg_ic_by_year,
+            'ic_basis_by_year': ic_basis_by_year}
+
+
+def _trailing_median(by_year, n):
+    """Median of the *n* most recent entries of a {year_key: value} dict.
+
+    Year keys sort lexically ('2019' < '2024'); a median rather than a mean
+    so one year with a near-zero capital base cannot dominate the headline.
+    """
+    recent = sorted(by_year.items())[-n:]
+    vals = sorted(v for _, v in recent)
+    m = len(vals)
+    mid = m // 2
+    return vals[mid] if m % 2 else (vals[mid - 1] + vals[mid]) / 2.0
 
 
 def dupont_decomposition(net_income, revenue, total_assets, equity):
@@ -248,10 +318,7 @@ def calculate_fundamental_growth(financials, roic_override=None):
     if not operating_income or operating_income <= 0:
         return {}
 
-    tax_provision = _get(latest_inc, ['Tax Provision'])
-    pretax_income = _get(latest_inc, ['Pretax Income'], allow_zero=False)
-    tax_rate = (tax_provision / pretax_income) if (tax_provision and pretax_income) else 0.21
-    tax_rate = max(0, min(tax_rate, 0.50))
+    tax_rate = _effective_tax_rate(latest_inc)
     nopat = operating_income * (1 - tax_rate)
     if nopat <= 0:
         return {}
@@ -282,7 +349,7 @@ def calculate_fundamental_growth(financials, roic_override=None):
     roic_val = roic_override
     if roic_val is None:
         roic_result = calculate_roic(financials)
-        roic_val = roic_result['avg_roic'] if roic_result else None
+        roic_val = roic_result['roic_median_5y'] if roic_result else None
     if roic_val is None or roic_val <= 0:
         return {}
 
