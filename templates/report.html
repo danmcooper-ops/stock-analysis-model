@@ -1896,62 +1896,111 @@ td.ct{font-weight:700;}
    min-width math follows automatically. */
 body.wide-table .container{padding-left:0;padding-right:0;}
 /* === MACRO OUTLOOK === */
-#macro-view{max-width:1180px;margin:0 auto;padding:4px 6px 40px;}
-.mac-regime{border:1px solid #d5dce3;border-radius:8px;padding:10px 14px;margin:10px 0 14px;background:#f8fafc;font-size:0.9em;}
-.mac-regime-chips{margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;}
-.mac-chip{display:inline-block;border-radius:10px;padding:2px 8px;font-size:0.78em;background:#eef2f7;color:#4a5a68;font-variant-numeric:tabular-nums;}
-.mac-note{color:#888;padding:20px;text-align:center;font-size:0.88em;}
-.mac-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin:8px 0 16px;}
-.mac-tile{border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;background:#fff;}
-.mac-tile-l{font-size:0.78em;font-weight:600;color:#64748b;}
-.mac-tile-v{font-size:1.5em;font-weight:700;font-variant-numeric:tabular-nums;margin:2px 0;}
-.mac-delta{display:inline-block;border-radius:9px;padding:1px 7px;font-size:0.75em;font-weight:600;font-variant-numeric:tabular-nums;background:#eef2f7;color:#556575;margin-right:5px;}
-.mac-delta.up{background:#e7f5ec;color:#1a9850;}
-.mac-delta.down{background:#fdecea;color:#de2d26;}
-.mac-pct-row{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:0.72em;color:#94a3b8;}
-.mac-pct-track{position:relative;flex:1;height:5px;border-radius:3px;background:#e8edf2;}
-.mac-pct-mark{position:absolute;top:-2.5px;width:3px;height:10px;border-radius:2px;background:#2874c6;}
-.mac-tile-date{font-size:0.7em;color:#94a3b8;margin-top:5px;}
+/* The tab is read top-down — a regime, a story, a row of glance numbers,
+   then charts on the section sub-tabs — so it gets a calmer surface than
+   the tables: hairline borders, one accent, muted axis chrome, prose set
+   at a book measure. Everything is a token on #macro-view; dark mode swaps
+   the tokens instead of chasing hex values through the SVGs. */
+#macro-view{--mac-card:#fff;--mac-border:#e4e8ee;--mac-muted:#6b7784;--mac-faint:#9aa5b1;
+  --mac-line:#edf0f4;--mac-accent:#2f6fb4;--mac-up:#1f8a4c;--mac-up-bg:#e8f5ee;
+  --mac-down:#c2402f;--mac-down-bg:#fbeae7;--mac-chip:#f2f4f7;
+  --mac-shadow:0 1px 2px rgba(16,24,40,0.04);
+  max-width:1120px;margin:0 auto;padding:12px 8px 48px;font-size:15px;line-height:1.5;}
+[data-theme="dark"] #macro-view{--mac-card:#161b22;--mac-border:#2a313a;--mac-muted:#8b949e;
+  --mac-faint:#6e7681;--mac-line:#242b34;--mac-accent:#5b9cf0;--mac-up:#6fd08c;--mac-up-bg:#10261a;
+  --mac-down:#ff8a80;--mac-down-bg:#2c1518;--mac-chip:#21262d;--mac-shadow:none;}
+.mac-card,.mac-tile,.mac-regime{border:1px solid var(--mac-border);border-radius:12px;background:var(--mac-card);box-shadow:var(--mac-shadow);}
+.mac-note{color:var(--mac-muted);padding:24px;text-align:center;font-size:0.9em;}
+/* --- regime strip: the one-line read, plus its five inputs as meters --- */
+.mac-regime{display:flex;align-items:center;gap:16px 32px;flex-wrap:wrap;padding:14px 20px;margin:0 0 16px;}
+.mac-regime-main{min-width:220px;}
+.mac-regime-k{font-size:0.72em;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--mac-muted);}
+.mac-regime-name{display:flex;align-items:center;gap:9px;font-size:1.45em;font-weight:700;line-height:1.2;margin-top:2px;}
+.mac-regime-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
+.mac-regime-gloss{color:var(--mac-muted);font-size:0.86em;margin-top:3px;}
+.mac-regime-gloss span{font-variant-numeric:tabular-nums;}
+.mac-meters{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px 22px;flex:1 1 320px;}
+.mac-meter{font-size:0.76em;color:var(--mac-muted);}
+.mac-meter-top{display:flex;justify-content:space-between;gap:8px;}
+.mac-meter-v{font-variant-numeric:tabular-nums;font-weight:600;}
+.mac-meter-v.up{color:var(--mac-up);}.mac-meter-v.down{color:var(--mac-down);}
+.mac-meter-track{position:relative;height:4px;border-radius:2px;background:var(--mac-line);margin-top:5px;}
+.mac-meter-track::after{content:"";position:absolute;left:50%;top:-2px;width:1px;height:8px;background:var(--mac-faint);}
+.mac-meter-fill{position:absolute;top:0;height:4px;border-radius:2px;background:var(--mac-faint);}
+.mac-meter-fill.up{background:var(--mac-up);}.mac-meter-fill.down{background:var(--mac-down);}
+/* --- overview: story on the left, glance numbers in a rail on the right --- */
+/* Two columns only where the rail has room; below that the tiles follow
+   the story and keep the phone floors set further down (those rules are
+   single-class, so nothing here may outrank them). */
+.mac-overview{display:grid;grid-template-columns:1fr;gap:18px;align-items:start;}
+.mac-overview .mac-tiles{margin:0;}
+@media(min-width:1001px){.mac-overview{grid-template-columns:minmax(0,1fr) 400px;}.mac-overview .mac-tiles{grid-template-columns:1fr 1fr;}}
+/* --- narrative: prose at a reading measure, no bullet lists --- */
+.mac-narrative{max-width:78ch;padding:22px 28px 18px;}
+.mac-nar-k{font-size:0.72em;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--mac-muted);margin:18px 0 4px;}
+.mac-nar-k:first-child{margin-top:0;}
+.mac-nar-p{font-size:1em;line-height:1.7;margin:0 0 6px;}
+.mac-nar-wind{font-size:0.95em;line-height:1.65;margin:8px 0 0;color:var(--text);}
+.mac-nar-wind b{font-weight:700;}
+.mac-nar-wind.up b{color:var(--mac-up);}.mac-nar-wind.down b{color:var(--mac-down);}
+/* --- sector implications: its own section, three stance columns --- */
+.mac-sectors{margin-top:18px;padding:20px 24px 12px;}
+.mac-sectors-head{display:flex;align-items:baseline;gap:6px 14px;flex-wrap:wrap;margin-bottom:14px;}
+.mac-sectors-title{font-size:1.05em;font-weight:700;}
+.mac-sectors-sub{font-size:0.8em;color:var(--mac-muted);}
+.mac-sec-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 28px;}
+@media(max-width:900px){.mac-sec-cols{grid-template-columns:1fr;}}
+.mac-nar-group-h{display:flex;align-items:center;gap:7px;font-size:0.86em;font-weight:700;margin:0;}
+.mac-nar-group-n{font-size:0.8em;font-weight:600;color:var(--mac-muted);background:var(--mac-chip);border-radius:9px;padding:0 7px;}
+.mac-nar-group-sub{font-size:0.76em;color:var(--mac-muted);margin:1px 0 10px 15px;}
+.mac-nar-none{font-size:0.85em;color:var(--mac-faint);font-style:italic;margin:0 0 8px;}
+.mac-stance{width:8px;height:8px;border-radius:50%;background:var(--mac-faint);flex-shrink:0;display:inline-block;}
+.mac-stance.up{background:var(--mac-up);}.mac-stance.down{background:var(--mac-down);}
+.mac-nar-sec{font-size:0.92em;line-height:1.55;margin:0 0 12px;padding-left:12px;border-left:3px solid var(--mac-line);}
+.mac-nar-sec.up{border-left-color:var(--mac-up);}.mac-nar-sec.down{border-left-color:var(--mac-down);}
+.mac-nar-sec-name{font-size:0.76em;font-weight:600;color:var(--mac-muted);text-transform:uppercase;letter-spacing:0.05em;margin-right:7px;}
+.mac-nar-sec b{font-weight:700;}
+.mac-nar-figs{display:block;font-size:0.78em;color:var(--mac-faint);font-variant-numeric:tabular-nums;margin-top:2px;}
+.mac-nar-foot{font-size:0.72em;color:var(--mac-faint);margin-top:16px;}
+/* --- glance tiles --- */
+.mac-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:0 0 18px;}
+.mac-tile{padding:14px 16px;}
+.mac-tile-l{font-size:0.76em;font-weight:600;color:var(--mac-muted);}
+.mac-tile-v{font-size:1.55em;font-weight:700;letter-spacing:-0.01em;line-height:1.15;font-variant-numeric:tabular-nums;margin:3px 0 5px;}
+.mac-delta{display:inline-block;border-radius:9px;padding:1px 8px;font-size:0.74em;font-weight:600;font-variant-numeric:tabular-nums;background:var(--mac-chip);color:var(--mac-muted);margin-right:5px;}
+.mac-delta.up{background:var(--mac-up-bg);color:var(--mac-up);}
+.mac-delta.down{background:var(--mac-down-bg);color:var(--mac-down);}
+.mac-pct-row{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:0.7em;color:var(--mac-faint);}
+.mac-pct-track{position:relative;flex:1;height:4px;border-radius:2px;background:var(--mac-line);}
+.mac-pct-mark{position:absolute;top:-2px;width:3px;height:8px;border-radius:2px;background:var(--mac-accent);}
+.mac-tile-date{font-size:0.7em;color:var(--mac-faint);margin-top:6px;}
+.mac-explore{font-size:0.8em;color:var(--mac-muted);margin:2px 0 0;line-height:1.8;}
+.mac-explore a{color:var(--mac-accent);text-decoration:none;font-weight:600;white-space:nowrap;}
+.mac-explore a:hover{text-decoration:underline;}
+/* --- section sub-tabs: chart cards --- */
+.mac-sec-note{font-size:0.74em;color:var(--mac-faint);margin:0 0 12px;}
 .mac-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:14px;}
 @media(max-width:560px){.mac-cards{grid-template-columns:1fr;}}
-.mac-card{border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;background:#fff;}
-.mac-card-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px;}
-.mac-card-head .mac-tile-v{font-size:1.25em;margin:0;}
-.mac-card-title{font-size:0.9em;font-weight:700;}
-.mac-band{fill:rgba(100,116,139,0.13);}
-.mac-sec-note{font-size:0.72em;color:#94a3b8;margin:2px 0 10px;}
-.mac-narrative{margin:0 0 14px;}
-.mac-nar-p{font-size:0.9em;line-height:1.55;margin:6px 0;}
-.mac-nar-cols{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;margin-top:8px;}
-.mac-nar-h{font-size:0.76em;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;}
-.mac-nar-list{margin:4px 0 0;padding-left:18px;font-size:0.85em;}
-.mac-nar-list li{margin:2px 0;}
-.mac-nar-sectors{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-top:6px;}
-.mac-nar-sec{font-size:0.85em;line-height:1.45;}
-.mac-nar-sec .mac-delta{margin-right:7px;}
-.mac-nar-sec-top{display:flex;align-items:baseline;gap:2px 7px;flex-wrap:wrap;}
-.mac-nar-figs{margin-left:auto;font-size:0.82em;color:#94a3b8;font-variant-numeric:tabular-nums;white-space:nowrap;}
-.mac-nar-sec-name{font-size:0.78em;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.03em;}
-@media(max-width:700px){.mac-nar-cols,.mac-nar-sectors{grid-template-columns:1fr;}}
-.mac-oas-tbl{border-collapse:collapse;font-size:0.85em;margin:6px 0;}
-.mac-oas-tbl th,.mac-oas-tbl td{border:1px solid #e2e8f0;padding:4px 10px;text-align:right;font-variant-numeric:tabular-nums;}
-.mac-oas-tbl th:first-child,.mac-oas-tbl td:first-child{text-align:left;}
-[data-theme="dark"] .mac-tile,[data-theme="dark"] .mac-card{background:#161b22;border-color:#30363d;}
-[data-theme="dark"] .mac-regime{background:#161b22;border-color:#30363d;}
-[data-theme="dark"] .mac-chip{background:#21262d;}
-[data-theme="dark"] .mac-delta{background:#21262d;}
-[data-theme="dark"] .mac-delta.up{background:#0f2418;color:#7ee787 !important;}
-[data-theme="dark"] .mac-delta.down{background:#2a1418;color:#ff7b72 !important;}
-[data-theme="dark"] .mac-pct-track{background:#30363d;}
-[data-theme="dark"] .mac-nar-h{color:#8b949e;}
-[data-theme="dark"] .mac-nar-figs,[data-theme="dark"] .mac-nar-sec-name{color:#8b949e;}
-[data-theme="dark"] .mac-oas-tbl th,[data-theme="dark"] .mac-oas-tbl td{border-color:#30363d;}
+.mac-card{padding:16px 18px;}
+.mac-card-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+.mac-card-head .mac-tile-v{font-size:1.3em;margin:0;}
+.mac-card-title{font-size:0.82em;font-weight:600;color:var(--mac-muted);}
+/* SVG chrome reads its colours from the tokens: axis text, gridlines, the
+   zero/threshold guides, the series line and the scrub marker. */
+.mac-ax{fill:var(--mac-faint);}
+.mac-grid{stroke:var(--mac-line);}
+.mac-zero{stroke:var(--mac-faint);}
+.mac-ln{stroke:var(--mac-accent);}
+.mac-pt{fill:var(--mac-accent);}
+.mac-dot{fill:var(--mac-card);stroke:var(--mac-accent);}
+.mac-band{fill:rgba(100,116,139,0.12);}
 [data-theme="dark"] .mac-band{fill:rgba(139,148,158,0.16);}
-/* Macro SVG charts — dark mode overrides for hardcoded fills/strokes */
-[data-theme="dark"] #macro-view svg text[fill="#9aaab8"]{fill:#8b949e;}
-[data-theme="dark"] #macro-view svg text[fill="#64748b"]{fill:#c9d1d9;}
-[data-theme="dark"] #macro-view svg line[stroke="#e8edf2"]{stroke:#30363d;}
-[data-theme="dark"] #macro-view svg line[stroke="#cbd5e1"]{stroke:#484f58;}
+.mac-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:0.76em;color:var(--mac-muted);margin-top:6px;}
+.mac-oas-tbl{border-collapse:collapse;font-size:0.86em;margin:6px 0;}
+.mac-oas-tbl th,.mac-oas-tbl td{border-bottom:1px solid var(--mac-line);padding:5px 12px;text-align:right;font-variant-numeric:tabular-nums;}
+.mac-oas-tbl th{font-weight:600;color:var(--mac-muted);font-size:0.9em;}
+.mac-oas-tbl th:first-child,.mac-oas-tbl td:first-child{text-align:left;padding-left:0;}
+.mac-oas-tbl td.up{color:var(--mac-up);}.mac-oas-tbl td.down{color:var(--mac-down);}
 /* --- MACRO OUTLOOK ON PHONES ------------------------------------------
    Both blocks sit last in the sheet on purpose: like the portrait/landscape
    compaction blocks above, they re-assert over the desktop macro rules,
@@ -4761,7 +4810,7 @@ function _phRenderSVG(allRaw,refs,ctx){
   /* y-axis */
   var yH='';
   for(var gi=0;gi<=5;gi++){var gv=minP+(gi/5)*pRange;var gy=yOf(gv).toFixed(1);
-    if(gi>0)yH+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" stroke="#e8edf2" stroke-width="1"/>';
+    if(gi>0)yH+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" class="mac-grid" stroke-width="1"/>';
     var gl=rebase?((gv-100>=0?'+':'')+(gv-100).toFixed(0)+'%'):_phFmtAxis(gv,def.fmt);
     yH+='<text x="'+(PL-7)+'" y="'+(parseFloat(gy)+4)+'" text-anchor="end" font-size="11" fill="#9aaab8">'+gl+'</text>';}
   /* x-axis from the union axis, so the labels describe every line, not just
@@ -4830,7 +4879,7 @@ function _phRenderSVG(allRaw,refs,ctx){
     +'<stop offset="0%" stop-color="'+series[0].col+'" stop-opacity="0.15"/><stop offset="100%" stop-color="'+series[0].col+'" stop-opacity="0.01"/>'
     +'</linearGradient></defs>'
     +yH+xH+zeroSVG+refSVG+volSVG+noteSVG+linesSVG+dotsSVG
-    +'<line id="ph-vl'+K+'" x1="0" y1="'+PT+'" x2="0" y2="'+xBase+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0"/>'
+    +'<line id="ph-vl'+K+'" x1="0" y1="'+PT+'" x2="0" y2="'+xBase+'" class="mac-zero" stroke-width="1" stroke-dasharray="3,2" opacity="0"/>'
     +'</svg>';
   el.innerHTML=svg;
   _phStates[K]={series:series,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,minP:minP,pRange:pRange,cmpMode:cmpMode,def:def,annual:annual,ctx:ctx,
@@ -4967,7 +5016,7 @@ function _volStripSVG(pts,o){
   /* o: {PL, PR, VW, iW, volTop, volBase, VOL_H, volMax, xOf} */
   var svg='',i;
   var vOf=function(v){return o.volBase-(v/o.volMax)*o.VOL_H;};
-  svg+='<line x1="'+o.PL+'" y1="'+o.volBase+'" x2="'+(o.VW-o.PR)+'" y2="'+o.volBase+'" stroke="#e8edf2" stroke-width="1"/>';
+  svg+='<line x1="'+o.PL+'" y1="'+o.volBase+'" x2="'+(o.VW-o.PR)+'" y2="'+o.volBase+'" class="mac-grid" stroke-width="1"/>';
   svg+='<text x="'+(o.PL-7)+'" y="'+(o.volTop+8)+'" text-anchor="end" font-size="10" fill="#9aaab8">'+_dpFmtVol(o.volMax)+'</text>';
   if(pts.length<=300){
     /* Capped so a 1M window doesn't turn into fat slabs that overhang the plot
@@ -7364,13 +7413,13 @@ function _mSparkSVG(vals,dates,hid,fmt,suffix){
     if(vals[j]==null)continue;
     pts.push((j/(vals.length-1)*W).toFixed(1)+','+(H-2-((vals[j]-mn)/rg)*(H-4)).toFixed(1));
   }
-  var g='<polyline points="'+pts.join(' ')+'" fill="none" stroke="#2874c6" stroke-width="1.3" stroke-linejoin="round"/>';
+  var g='<polyline points="'+pts.join(' ')+'" class="mac-ln" fill="none" stroke-width="1.3" stroke-linejoin="round"/>';
   if(!hid)return '<svg viewBox="0 0 '+W+' '+H+'" style="width:120px;height:30px;display:block;margin-top:4px">'+g+'</svg>';
   /* Same scrub as the full charts, sized down: 120x30 is small for a
      crosshair, so the marker does the work and the line is hairline. The
      tile's own value + date are the readout. */
-  g+='<line id="'+hid+'-vl" x1="0" y1="0" x2="0" y2="'+H+'" stroke="#94a3b8" stroke-width="0.8" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>'
-    +'<circle id="'+hid+'-dot" cx="0" cy="0" r="2.6" fill="#fff" stroke="#2874c6" stroke-width="1.4" opacity="0" pointer-events="none"/>';
+  g+='<line id="'+hid+'-vl" x1="0" y1="0" x2="0" y2="'+H+'" class="mac-zero" stroke-width="0.8" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>'
+    +'<circle id="'+hid+'-dot" cx="0" cy="0" r="2.6" class="mac-dot" stroke-width="1.4" opacity="0" pointer-events="none"/>';
   _MAC_HOV[hid]={kind:'spark',vals:vals,ds:dates||[],W:W,H:H,mn:mn,rg:rg,
                  fmt:fmt,suffix:suffix};
   return '<svg id="'+hid+'" viewBox="0 0 '+W+' '+H+'" style="width:120px;height:30px;display:block;margin-top:4px;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
@@ -7400,24 +7449,41 @@ function renderMacro(){
      dropdown's Macro Outlook column, which is where every other view's
      sub-tabs already live (see renderMSubs / renderTSubs). The regime box
      is now the first thing under the banner. */
-  var h=_macRegimeHTML();
+  var h=_macRegimeHTML(curMacSub==='overview');
   if(curMacSub==='overview')h+=_macOverviewHTML();
   else h+=_macSectionHTML(curMacSub);
   el.innerHTML=h;
 }
 var _MAC_REGIME_STYLE={expansion:'#1a9850',mid_cycle:'#2e8b8b',neutral:'#64748b',late_cycle:'#e67e22',contraction:'#de2d26'};
-function _macRegimeHTML(){
+/* One plain-English line per regime, so the strip reads without knowing the
+   composite's thresholds; the inputs get the labels a reader would use. */
+var _MAC_REGIME_GLOSS={expansion:'Broad growth, easy conditions',mid_cycle:'Growth intact, momentum moderating',
+  neutral:'Mixed signals, no clear lean',late_cycle:'Growth slowing, conditions tightening',contraction:'Growth contracting, stress rising'};
+var _MAC_IND_LABEL={vix:'Volatility (VIX)',yield_curve:'Yield curve',credit_spread:'Credit spreads',spy_momentum:'S&P momentum',industrial_rs:'Industrials vs market'};
+function _macRegimeHTML(full){
   var src=(MACRO&&MACRO.regime)||(MACRO_SUM&&MACRO_SUM.regime);
   if(!src)return '';
   var col=_MAC_REGIME_STYLE[src.regime]||'#64748b';
   var name=String(src.regime||'').replace('_',' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
-  var h='<div class="mac-regime"><b>Market regime:</b> <span style="color:'+col+';font-weight:700">'+name+'</span>'
-    +' <span style="color:#94a3b8">· composite '+(src.composite_score>=0?'+':'')+(src.composite_score!=null?src.composite_score.toFixed(2):'?')+'</span>';
-  if(src.indicator_scores){
-    h+='<div class="mac-regime-chips">';
+  var comp=src.composite_score;
+  var h='<div class="mac-regime"><div class="mac-regime-main"><div class="mac-regime-k">Market regime</div>'
+    +'<div class="mac-regime-name"><span class="mac-regime-dot" style="background:'+col+'"></span>'+_esc(name)+'</div>'
+    +'<div class="mac-regime-gloss">'+(_MAC_REGIME_GLOSS[src.regime]||'')
+    +(comp!=null?' · composite <span>'+(comp>=0?'+':'')+comp.toFixed(2)+'</span>':'')+'</div></div>';
+  /* Each input scored −1…+1 draws as a bar from the centre line: the
+     direction is the read, the number is there for the curious. Only the
+     Overview carries the meters; the chart sub-tabs get the one-liner. */
+  if(full&&src.indicator_scores){
+    h+='<div class="mac-meters">';
     Object.keys(src.indicator_scores).forEach(function(k){
       var v=src.indicator_scores[k];
-      h+='<span class="mac-chip">'+k.replace(/_/g,' ')+' '+(v>=0?'+':'')+(v!=null?v.toFixed(2):'?')+'</span>';
+      var lbl=_MAC_IND_LABEL[k]||_esc(k.replace(/_/g,' '));
+      var n=(v==null||isNaN(v))?0:Math.max(-1,Math.min(1,v));
+      var cls=n>0.05?' up':(n<-0.05?' down':'');
+      var w=(Math.abs(n)*50).toFixed(1),left=n>=0?'50%':(50-Math.abs(n)*50).toFixed(1)+'%';
+      h+='<div class="mac-meter"><div class="mac-meter-top"><span>'+lbl+'</span>'
+        +'<span class="mac-meter-v'+cls+'">'+(v==null?'?':(v>=0?'+':'')+v.toFixed(2))+'</span></div>'
+        +'<div class="mac-meter-track"><div class="mac-meter-fill'+cls+'" style="left:'+left+';width:'+w+'%"></div></div></div>';
     });
     h+='</div>';
   }
@@ -7425,7 +7491,7 @@ function _macRegimeHTML(){
   return h;
 }
 function _macStatusNote(){
-  if(_MACRO_FAILED)return '<p class="mac-note">Macro history failed to load. <a href="#" style="color:#2874c6" onclick="return macroRetry()">Retry</a></p>';
+  if(_MACRO_FAILED)return '<p class="mac-note">Macro history failed to load. <a href="#" style="color:var(--mac-accent)" onclick="return macroRetry()">Retry</a></p>';
   return '<p class="mac-note">Loading macro history…</p>';
 }
 function _macSecFigs(d){
@@ -7444,49 +7510,87 @@ function _macSecFigs(d){
   if(TRENDG[d.trend])f.push(TRENDG[d.trend]);
   return f.length?'<span class="mac-nar-figs">'+f.join(' · ')+'</span>':'';
 }
+/* Bullet clauses joined into one sentence: "a; b; and c." Clauses are
+   model output and already escaped by the caller. */
+function _macJoinClauses(items){
+  var xs=items.map(function(x){return String(x).replace(/[.\s]+$/,'');});
+  if(xs.length===1)return xs[0]+'.';
+  return xs.slice(0,-1).join('; ')+'; and '+xs[xs.length-1]+'.';
+}
 function _macNarrativeHTML(){
-  /* Claude-written narrative from the builder (data/claude_narrative.py).
+  /* Claude-written narrative from the builder (data/claude_narrative.py),
+     set as continuous prose: three kickered paragraphs, the tailwinds and
+     headwinds folded into one sentence each. The sector outlooks are their
+     own section (_macSectorsHTML) beneath the story and the tiles.
      Rides on MACRO_SUM so it paints at first render; falls back to the
      sidecar for older inline summaries. All strings pass through _esc() —
      the text is model output, not repo-authored markup — and stance maps
-     to CSS classes only through the whitelist below. Sector rows carry the
-     ETF figures via _macSecFigs; a pre-headline cached narrative renders
-     without the bold kicker and loses nothing else. */
+     to CSS classes only through the whitelist in _macSectorsHTML. */
   var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
   if(!nar||!(nar.paragraphs||[]).length)return '';
-  var h='<div class="mac-card mac-narrative"><div class="mac-card-title">Economic Narrative</div>';
-  (nar.paragraphs||[]).forEach(function(p){h+='<p class="mac-nar-p">'+_esc(p)+'</p>';});
-  var cols=[['Tailwinds',nar.tailwinds||[]],['Headwinds',nar.headwinds||[]]].filter(function(c){return c[1].length;});
-  if(cols.length){
-    h+='<div class="mac-nar-cols">';
-    cols.forEach(function(c){
-      h+='<div><div class="mac-nar-h">'+c[0]+'</div><ul class="mac-nar-list">';
-      c[1].forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
-      h+='</ul></div>';
-    });
-    h+='</div>';
+  var ps=nar.paragraphs||[];
+  /* The builder emits the three paragraphs in this order (schema keys
+     growth_labor, inflation_rates, credit_conditions); an older cache with
+     a different count simply runs unkickered. */
+  var KICK=ps.length===3?['Growth & labor','Inflation & rates','Credit & conditions']:[];
+  var h='<div class="mac-card mac-narrative">';
+  ps.forEach(function(p,i){
+    if(KICK[i])h+='<div class="mac-nar-k">'+KICK[i]+'</div>';
+    h+='<p class="mac-nar-p">'+_esc(p)+'</p>';
+  });
+  var tw=(nar.tailwinds||[]).map(_esc),hw=(nar.headwinds||[]).map(_esc);
+  if(tw.length||hw.length){
+    h+='<div class="mac-nar-k">The balance</div>';
+    if(tw.length)h+='<p class="mac-nar-wind up"><b>Working for the economy:</b> '+_macJoinClauses(tw)+'</p>';
+    if(hw.length)h+='<p class="mac-nar-wind down"><b>Working against it:</b> '+_macJoinClauses(hw)+'</p>';
   }
-  if((nar.sectors||[]).length){
-    var STANCE={tailwind:'up',headwind:'down'};
-    var sd=(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)||{};
-    h+='<div class="mac-nar-h" style="margin-top:12px">Sector implications</div><div class="mac-nar-sectors">';
-    nar.sectors.forEach(function(s){
-      h+='<div class="mac-nar-sec">'
-        +'<div class="mac-nar-sec-top"><span class="mac-delta '+(STANCE[s.stance]||'')+'">'+_esc(s.stance||'neutral')+'</span>'
-        +'<b>'+_esc(s.headline||'')+'</b>'
-        +_macSecFigs(sd[s.sector])
-        +'</div>'
-        +'<div class="mac-nar-sec-txt"><span class="mac-nar-sec-name">'+_esc(s.sector)+'</span> — '+_esc(s.outlook)+'</div></div>';
-    });
-    h+='</div>';
-  }
-  h+='<div class="mac-tile-date">Generated by Claude ('+_esc(nar.model||'')+') · '
+  h+='<div class="mac-nar-foot">Written by Claude ('+_esc(nar.model||'')+') from the indicator data · '
     +_esc(nar.generated_at?String(nar.generated_at).slice(0,10):'')+'</div></div>';
   return h;
 }
+function _macSectorsHTML(){
+  /* The eleven sector outlooks as their own full-width section: three
+     stance columns (tailwind / neutral / headwind) so the read is "which
+     side of the cycle is each sector on" before any sentence is read.
+     Strings are model output and pass through _esc(); stance maps to CSS
+     classes only through the whitelist. Each entry carries the sector's
+     hard ETF numbers via _macSecFigs, and a pre-headline cached narrative
+     renders without the bold kicker and loses nothing else. */
+  var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
+  if(!nar||!(nar.sectors||[]).length)return '';
+  var STANCE={tailwind:'up',headwind:'down'};
+  var GROUPS=[['tailwind','Tailwinds','The cycle at their back'],['neutral','Neutral','Neither helped nor hurt'],['headwind','Headwinds','Leaning into the cycle']];
+  var sd=(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)||{};
+  var h='<div class="mac-card mac-sectors"><div class="mac-sectors-head"><span class="mac-sectors-title">Sector implications</span>'
+    +'<span class="mac-sectors-sub">How the regime lands on each GICS sector, with the sector ETF\'s three-month relative strength</span></div>'
+    +'<div class="mac-sec-cols">';
+  GROUPS.forEach(function(g){
+    var rows=nar.sectors.filter(function(s){return (s.stance||'neutral')===g[0];});
+    var cls=STANCE[g[0]]||'';
+    h+='<div class="mac-nar-group"><div class="mac-nar-group-h"><span class="mac-stance '+cls+'"></span>'+g[1]
+      +'<span class="mac-nar-group-n">'+rows.length+'</span></div><div class="mac-nar-group-sub">'+g[2]+'</div>';
+    if(!rows.length)h+='<p class="mac-nar-none">None this run.</p>';
+    rows.forEach(function(s){
+      var hl=_esc(s.headline||'');
+      h+='<p class="mac-nar-sec '+(STANCE[s.stance]||'')+'"><span class="mac-nar-sec-name">'+_esc(s.sector)+'</span>'
+        +(hl?'<b>'+hl+'.</b> ':'')
+        +_esc(s.outlook)
+        +_macSecFigs(sd[s.sector])+'</p>';
+    });
+    h+='</div>';
+  });
+  h+='</div></div>';
+  return h;
+}
 function _macOverviewHTML(){
-  var h=_macNarrativeHTML();
+  /* Story first, glance numbers beside it, the sector section beneath
+     both. The full histories live on the
+     five section sub-tabs (menu), so nothing charted there is repeated
+     here — the Overview used to re-draw the yield curve and the 10Y–2Y
+     history under the tiles. */
+  var h='<div class="mac-overview">'+_macNarrativeHTML();
   var tiles=(MACRO_SUM&&MACRO_SUM.tiles)||[];
+  h+='<div>';
   if(tiles.length){
     h+='<div class="mac-tiles">';
     tiles.forEach(function(t){
@@ -7506,9 +7610,17 @@ function _macOverviewHTML(){
     });
     h+='</div>';
   }
-  if(!MACRO)return h+_macStatusNote();
-  if(MACRO.curve)h+=_macCurveCard();
-  if(MACRO.series&&MACRO.series.T10Y2Y)h+='<div class="mac-cards" style="margin-top:14px">'+_macCardHTML('T10Y2Y',MACRO.series.T10Y2Y)+'</div>';
+  if(!MACRO)h+=_macStatusNote();
+  else{
+    var links=[];
+    MACRO_TABS.forEach(function(t){
+      if(t.k==='overview')return;
+      links.push('<a href="#" onclick="navGo(\'macro\',\''+t.k+'\');return false">'+t.l+'</a>');
+    });
+    h+='<p class="mac-explore">Full histories: '+links.join(' · ')+'</p>';
+  }
+  h+='</div></div>';
+  h+=_macSectorsHTML();
   return h;
 }
 function _macSectionHTML(k){
@@ -7516,7 +7628,7 @@ function _macSectionHTML(k){
   var sec=null;
   (MACRO.sections||[]).forEach(function(s){if(s.k===k)sec=s;});
   if(!sec||!sec.ids||!sec.ids.length)return '<p class="mac-note">No data available for this section.</p>';
-  var h='<div class="mac-sec-note">Latest FRED vintages as of '+(MACRO.as_of||'?')+' · shaded bands are NBER recessions</div>';
+  var h='<div class="mac-sec-note">FRED data as of '+(MACRO.as_of||'?')+' · shaded bands mark NBER recessions · hover a chart to read a date</div>';
   if(k==='rates'&&MACRO.curve)h+=_macCurveCard();
   h+='<div class="mac-cards"'+(k==='rates'&&MACRO.curve?' style="margin-top:14px"':'')+'>';
   sec.ids.forEach(function(id){
@@ -7690,28 +7802,28 @@ function _macChartSVG(s,hid){
   });
   for(var gi=0;gi<=4;gi++){
     var gv=mn+(gi/4)*yr,gy=Y(gv).toFixed(1);
-    if(gi>0&&gi<4)g+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" stroke="#e8edf2" stroke-width="1"/>';
-    g+='<text x="'+(PL-6)+'" y="'+(parseFloat(gy)+3.5)+'" text-anchor="end" font-size="9.5" fill="#9aaab8">'+_mfmt(gv,s.fmt==='int'?'int':(s.fmt==='pct2'?'pct1':s.fmt),'')+'</text>';
+    if(gi>0&&gi<4)g+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" class="mac-grid" stroke-width="1"/>';
+    g+='<text x="'+(PL-6)+'" y="'+(parseFloat(gy)+3.5)+'" text-anchor="end" class="mac-ax" font-size="9.5">'+_mfmt(gv,s.fmt==='int'?'int':(s.fmt==='pct2'?'pct1':s.fmt),'')+'</text>';
   }
-  if(s.zero_line&&0>=mn&&0<=mx)g+='<line x1="'+PL+'" y1="'+Y(0).toFixed(1)+'" x2="'+(VW-PR)+'" y2="'+Y(0).toFixed(1)+'" stroke="#cbd5e1" stroke-width="1.1" stroke-dasharray="4,3"/>';
+  if(s.zero_line&&0>=mn&&0<=mx)g+='<line x1="'+PL+'" y1="'+Y(0).toFixed(1)+'" x2="'+(VW-PR)+'" y2="'+Y(0).toFixed(1)+'" class="mac-zero" stroke-width="1.1" stroke-dasharray="4,3"/>';
   if(s.threshold!=null)g+='<line x1="'+PL+'" y1="'+Y(s.threshold).toFixed(1)+'" x2="'+(VW-PR)+'" y2="'+Y(s.threshold).toFixed(1)+'" stroke="#de2d26" stroke-width="1" stroke-dasharray="4,3" opacity="0.7"/>';
   var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var nX=5;
   for(var xi=0;xi<nX;xi++){
     var t=x0+(xi/(nX-1))*xr,dt=new Date(t);
-    g+='<text x="'+X(t).toFixed(1)+'" y="'+(PT+iH+14)+'" text-anchor="'+(xi===0?'start':(xi===nX-1?'end':'middle'))+'" font-size="9.5" fill="#9aaab8">'+mo[dt.getMonth()]+'\''+String(dt.getFullYear()).slice(2)+'</text>';
+    g+='<text x="'+X(t).toFixed(1)+'" y="'+(PT+iH+14)+'" text-anchor="'+(xi===0?'start':(xi===nX-1?'end':'middle'))+'" class="mac-ax" font-size="9.5">'+mo[dt.getMonth()]+'\''+String(dt.getFullYear()).slice(2)+'</text>';
   }
   var pts=[];
   for(var pi=0;pi<xs.length;pi++)pts.push(X(xs[pi]).toFixed(1)+','+Y(ys[pi]).toFixed(1));
-  g+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="#2874c6" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>';
+  g+='<polyline points="'+pts.join(' ')+'" class="mac-ln" fill="none" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>';
   var lx=X(xs[xs.length-1]),ly=Y(ys[ys.length-1]);
-  g+='<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="3" fill="#2874c6"/>';
+  g+='<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="3" class="mac-pt"/>';
   if(!hid)return '<svg viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:auto">'+g+'</svg>';
   /* Scrub overlay, hidden until the pointer is over the plot. Registered
      against the card's headline value + date line, which are what the
      readout rewrites — the chart itself only moves the crosshair. */
-  g+='<line id="'+hid+'-vl" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0" pointer-events="none"/>'
-    +'<circle id="'+hid+'-dot" cx="0" cy="0" r="3.6" fill="#fff" stroke="#2874c6" stroke-width="2" opacity="0" pointer-events="none"/>';
+  g+='<line id="'+hid+'-vl" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" class="mac-zero" stroke-width="1" stroke-dasharray="3,2" opacity="0" pointer-events="none"/>'
+    +'<circle id="'+hid+'-dot" cx="0" cy="0" r="3.6" class="mac-dot" stroke-width="2" opacity="0" pointer-events="none"/>';
   _MAC_HOV[hid]={kind:'line',xs:xs,ys:ys,ds:ds,PL:PL,PT:PT,iW:iW,iH:iH,
                  x0:x0,xr:xr,mn:mn,yr:yr,fmt:s.fmt,suffix:s.suffix};
   return '<svg id="'+hid+'" viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:auto;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
@@ -7740,13 +7852,13 @@ function _macCurveCard(){
   var g='';
   for(var gi=0;gi<=4;gi++){
     var gv=mn+(gi/4)*yr,gy=Y(gv).toFixed(1);
-    if(gi>0&&gi<4)g+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" stroke="#e8edf2" stroke-width="1"/>';
-    g+='<text x="'+(PL-6)+'" y="'+(parseFloat(gy)+3.5)+'" text-anchor="end" font-size="9.5" fill="#9aaab8">'+gv.toFixed(1)+'%</text>';
+    if(gi>0&&gi<4)g+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" class="mac-grid" stroke-width="1"/>';
+    g+='<text x="'+(PL-6)+'" y="'+(parseFloat(gy)+3.5)+'" text-anchor="end" class="mac-ax" font-size="9.5">'+gv.toFixed(1)+'%</text>';
   }
   c.tenors.forEach(function(t,i){
-    g+='<text x="'+X(i).toFixed(1)+'" y="'+(PT+iH+15)+'" text-anchor="middle" font-size="9" fill="#9aaab8">'+t+'</text>';
+    g+='<text x="'+X(i).toFixed(1)+'" y="'+(PT+iH+15)+'" text-anchor="middle" class="mac-ax" font-size="9">'+t+'</text>';
   });
-  var styles={now:['#2874c6','',2],m1:['#e67e22','6,4',1.5],y1:['#8b949e','2,3',1.5]};
+  var styles={now:['#2f6fb4','',2],m1:['#e67e22','6,4',1.5],y1:['#8b949e','2,3',1.5]};
   ['y1','m1','now'].forEach(function(k){
     if(!c[k])return;
     var pts=[];
@@ -7755,18 +7867,18 @@ function _macCurveCard(){
     var st=styles[k];
     g+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+st[0]+'"'+(st[1]?' stroke-dasharray="'+st[1]+'"':'')+' stroke-width="'+st[2]+'" stroke-linejoin="round"/>';
   });
-  var legInner='<span><span style="color:#2874c6;font-weight:700">—</span> Now'+(c.now.d?' ('+c.now.d+')':'')+'</span>'
+  var legInner='<span><span style="color:#2f6fb4;font-weight:700">—</span> Now'+(c.now.d?' ('+c.now.d+')':'')+'</span>'
     +(c.m1?'<span><span style="color:#e67e22;font-weight:700">- -</span> 1 month ago</span>':'')
     +(c.y1?'<span><span style="color:#8b949e;font-weight:700">···</span> 1 year ago</span>':'');
   /* Three series share one x, so the readout cannot live in a headline
      value the way the single-series cards' does. The legend line becomes it:
      same row, same height, so filling it in costs no layout shift. */
   var hid=_macHid();
-  var leg='<div id="'+hid+'-r" style="display:flex;gap:14px;flex-wrap:wrap;font-size:0.75em;color:#64748b;margin-top:4px">'+legInner+'</div>';
-  g+='<line id="'+hid+'-vl" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0" pointer-events="none"/>';
+  var leg='<div id="'+hid+'-r" class="mac-legend">'+legInner+'</div>';
+  g+='<line id="'+hid+'-vl" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" class="mac-zero" stroke-width="1" stroke-dasharray="3,2" opacity="0" pointer-events="none"/>';
   ['now','m1','y1'].forEach(function(k){
     if(!c[k])return;
-    g+='<circle id="'+hid+'-dot-'+k+'" cx="0" cy="0" r="3.6" fill="#fff" stroke="'+styles[k][0]+'" stroke-width="2" opacity="0" pointer-events="none"/>';
+    g+='<circle id="'+hid+'-dot-'+k+'" cx="0" cy="0" r="3.6" class="mac-dot" style="stroke:'+styles[k][0]+'" stroke-width="2" opacity="0" pointer-events="none"/>';
   });
   _MAC_HOV[hid]={kind:'curve',c:c,sx:sx,sxMax:sxMax,PL:PL,PT:PT,iW:iW,iH:iH,
                  mn:mn,yr:yr,styles:styles,legend:legInner};
@@ -7786,7 +7898,7 @@ function _macOASTable(){
     var now=ob.now[b],m1=(ob.m1||{})[b];
     if(now==null)return;
     var chg=(m1!=null)?now-m1:null;
-    var cls=chg==null?'':(chg<0?' class="mac-delta up" style="background:none"':(chg>0?' class="mac-delta down" style="background:none"':''));
+    var cls=chg==null?'':(chg<0?' class="up"':(chg>0?' class="down"':''));
     h+='<tr><td>'+b+'</td><td>'+now.toFixed(2)+'%</td><td>'+(m1!=null?m1.toFixed(2)+'%':'N/A')+'</td>'
       +'<td'+cls+'>'+(chg!=null?((chg>0?'+':'')+chg.toFixed(2)+'pp'):'N/A')+'</td></tr>';
   });
@@ -8221,7 +8333,7 @@ function _renderPolylineSVG(el,dates,aggs){
   var grid='';
   for(var gi=0;gi<=5;gi++){
     var gv=minP+(gi/5)*pRange;var gy=yOf(gv).toFixed(1);
-    if(gi>0)grid+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" stroke="#e8edf2" stroke-width="1"/>';
+    if(gi>0)grid+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" class="mac-grid" stroke-width="1"/>';
     grid+='<text x="'+(PL-7)+'" y="'+(parseFloat(gy)+4)+'" text-anchor="end" font-size="11" fill="#9aaab8">'+Math.round(gv)+'</text>';
   }
   if(100>=minP&&100<=maxP){
@@ -8256,7 +8368,7 @@ function _renderPolylineSVG(el,dates,aggs){
   /* Hover overlay: a vertical crosshair line + one circle marker
      per series, all initially hidden (opacity=0). aggChartMove
      positions them based on mouse X. */
-  var hoverOverlay='<line id="agg-vl" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2" opacity="0" pointer-events="none"/>';
+  var hoverOverlay='<line id="agg-vl" x1="0" y1="'+PT+'" x2="0" y2="'+(PT+iH)+'" class="mac-zero" stroke-width="1" stroke-dasharray="3,2" opacity="0" pointer-events="none"/>';
   aggs.forEach(function(a,si){
     hoverOverlay+='<circle id="agg-dot'+si+'" cx="0" cy="0" r="4" fill="#fff" stroke="'+a.color+'" stroke-width="2" opacity="0" pointer-events="none"/>';
   });

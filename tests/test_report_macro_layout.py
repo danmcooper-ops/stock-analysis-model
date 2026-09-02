@@ -9,6 +9,8 @@ to undo by accident:
     other views say about individual names. It is the only group appended
     conditionally, so the natural edit — `groups.push` — silently sends it
     back to last place;
+  * its Overview is a story beside a rail of glance tiles — the full
+    histories are drawn once, on the section sub-tabs, never repeated here;
   * its charts are `<svg viewBox>` with no fixed height, so their height is a
     function of the CARD's width. That makes the card/tile grid floors, not
     any height rule, what decides whether a chart fits on an iPhone screen.
@@ -137,9 +139,12 @@ def test_macro_narrative_escapes_every_model_string():
     """Narrative strings are Claude output, not repo-authored markup: every
     interpolation of them must pass through _esc(), and the stance value may
     only reach a class attribute through the whitelist lookup."""
-    body = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', _css(), re.S)
-    assert body, 'could not find _macNarrativeHTML'
-    body = body.group(0)
+    css = _css()
+    body = ''
+    for fn in ('_macNarrativeHTML', '_macSectorsHTML'):
+        m = re.search(r'function ' + fn + r'\(\).*?\n\}\n', css, re.S)
+        assert m, 'could not find %s' % fn
+        body += m.group(0)
     # every read of a narrative field that lands in HTML is wrapped in _esc(
     for field in ('s.sector', 's.headline', 's.outlook', 'nar.model'):
         for at in [m.start() for m in re.finditer(re.escape(field), body)]:
@@ -155,16 +160,17 @@ def test_macro_narrative_escapes_every_model_string():
         'stance must map to CSS classes only through the whitelist'
     assert "STANCE[s.stance]||''" in body
     # trend reaches HTML only through the glyph whitelist in _macSecFigs
-    figs = re.search(r'function _macSecFigs\(.*?\n\}\n', _css(), re.S)
+    figs = re.search(r'function _macSecFigs\(.*?\n\}\n', css, re.S)
     assert figs and 'TRENDG={improving:' in figs.group(0), \
         'trend must map to glyphs only through the whitelist'
 
 
 def test_macro_narrative_sector_rows_carry_metric_figs():
-    """The Sector implications rows are the card's core: each carries the
-    sector's hard ETF numbers from sector_data, sourced inline (MACRO_SUM)
-    so they paint at first render, and degrading to prose-only when a
-    sector has no metrics or the snapshot predates sector_data."""
+    """Each sector entry carries the sector's hard ETF numbers from
+    sector_data, sourced inline (MACRO_SUM) so they paint at first render,
+    and degrading to prose-only when a sector has no metrics or the
+    snapshot predates sector_data. They are set in the muted token so they
+    read as a footnote to the sentence, not a second column."""
     css = _css()
     figs = re.search(r'function _macSecFigs\(d\)\{.*?\n\}\n', css, re.S)
     assert figs, 'could not find _macSecFigs'
@@ -173,25 +179,89 @@ def test_macro_narrative_sector_rows_carry_metric_figs():
     # local parquet RS is fresher than the yfinance fallback — keep the order
     assert figs.find('d.rs_3m!=null') < figs.find('rel_strength_3m'), \
         'rs_3m must be preferred over rel_strength_3m'
+    sec = re.search(r'function _macSectorsHTML\(\).*?\n\}\n', css, re.S)
+    assert sec, 'could not find _macSectorsHTML'
+    sec = sec.group(0)
+    assert '(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)' \
+        in sec, 'sector_data must come from the inline summary first'
+    assert '_macSecFigs(sd[s.sector])' in sec
+    assert re.search(r'\.mac-nar-figs\{[^}]*tabular-nums', css), \
+        'metric figs need tabular numerals'
+    assert re.search(r'\.mac-nar-figs\{[^}]*color:var\(--mac-', css), \
+        'figs take their colour from the macro tokens (dark mode swaps them)'
+    assert '[data-theme="dark"] #macro-view{' in css, \
+        'the macro tokens need a dark-mode redefinition'
+
+
+def test_macro_narrative_is_prose_not_lists():
+    """The narrative reads top to bottom as a story: kickered paragraphs at
+    a book measure, the tailwinds and headwinds folded into one sentence
+    each, and the sector outlooks grouped by stance (through the same
+    whitelist that picks their class) rather than laid out as a grid of
+    rows with bullet lists beside it."""
+    css = _css()
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
     assert nar, 'could not find _macNarrativeHTML'
     nar = nar.group(0)
-    assert '(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)' \
-        in nar, 'sector_data must come from the inline summary first'
-    assert '_macSecFigs(sd[s.sector])' in nar
-    assert re.search(r'\.mac-nar-figs\{[^}]*tabular-nums', css), \
-        'metric figs need tabular numerals'
-    assert '[data-theme="dark"] .mac-nar-figs' in css
+    assert '<ul' not in nar and '<li' not in nar, \
+        'tailwinds/headwinds are sentences now, not bullet lists'
+    assert '_macJoinClauses(tw)' in nar and '_macJoinClauses(hw)' in nar
+    assert 's.outlook' not in nar, \
+        'the sector outlooks are their own section, not part of the story'
+    assert re.search(r'\.mac-narrative\{[^}]*max-width:\d+ch', css), \
+        'prose needs a reading measure'
+    assert re.search(r'\.mac-nar-p\{[^}]*line-height:1\.[6-9]', css), \
+        'paragraphs need a generous leading'
+    assert '.mac-nar-cols' not in css, 'the two-column bullet grid is gone'
 
 
-def test_macro_narrative_columns_collapse_on_narrow_screens():
+def test_macro_sector_implications_are_their_own_section():
+    """The eleven sector outlooks render as a full-width section beneath the
+    story and the tiles — three stance columns, collapsing to one on a
+    phone — rather than as a tail on the narrative card."""
     css = _css()
-    # two-column on desktop…
-    assert re.search(r'\.mac-nar-cols\{[^}]*grid-template-columns:1fr 1fr',
-                     css)
-    assert re.search(r'\.mac-nar-sectors\{[^}]*grid-template-columns:1fr 1fr',
-                     css)
-    # …one column on a phone
-    assert ('@media(max-width:700px){.mac-nar-cols,.mac-nar-sectors'
-            '{grid-template-columns:1fr;}}') in css, \
-        'the narrative grids need a narrow-screen collapse'
+    sec = re.search(r'function _macSectorsHTML\(\).*?\n\}\n', css, re.S)
+    assert sec, 'could not find _macSectorsHTML'
+    sec = sec.group(0)
+    assert "GROUPS=[['tailwind'," in sec and "['neutral'," in sec \
+        and "['headwind'," in sec, 'sectors are grouped by stance'
+    assert 'mac-sec-cols' in sec
+    ov = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S)
+    assert ov, 'could not find _macOverviewHTML'
+    ov = ov.group(0)
+    assert ov.find('_macSectorsHTML()') > ov.find('mac-tiles'), \
+        'the sector section follows the story + tiles grid'
+    assert re.search(r'\.mac-sec-cols\{[^}]*repeat\(3,', css)
+    assert ('@media(max-width:900px){.mac-sec-cols{grid-template-columns:1fr;}}'
+            in css), 'the sector columns need a narrow-screen collapse'
+
+
+def test_macro_overview_does_not_repeat_section_charts():
+    """Every full history is drawn on one of the five section sub-tabs; the
+    Overview used to redraw the yield curve and the 10Y–2Y history under
+    the tiles. It keeps the sparkline tiles and links to the sections."""
+    css = _css()
+    body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S)
+    assert body, 'could not find _macOverviewHTML'
+    body = body.group(0)
+    assert '_macCurveCard' not in body, 'the yield curve lives on Rates & Curve'
+    assert '_macCardHTML' not in body, 'full histories live on the section tabs'
+    assert '_mSparkSVG' in body, 'the glance tiles keep their sparklines'
+    assert "navGo('macro'" in body.replace('\\', ''), \
+        'the overview must point at the section sub-tabs'
+    # the curve is still drawn where it belongs
+    sec = re.search(r'function _macSectionHTML\(k\).*?\n\}\n', css, re.S)
+    assert sec and "k==='rates'&&MACRO.curve" in sec.group(0)
+
+
+def test_macro_overview_rail_collapses_below_desktop():
+    """Story left, tiles right on a desktop; one column below ~1000px. The
+    two-column rule must be the one behind a min-width query so the phone
+    tile floors (single-class rules further down) are not outranked."""
+    css = _css()
+    assert re.search(r'\.mac-overview\{[^}]*grid-template-columns:1fr;', css)
+    wide = _media_block('@media(min-width:1001px){')
+    assert re.search(r'\.mac-overview\{[^}]*grid-template-columns:minmax', wide)
+    assert re.search(r'\.mac-overview \.mac-tiles\{[^}]*1fr 1fr', wide)
+    assert not re.search(r'@media\(max-width:\d+px\)\{[^@]*\.mac-overview \.mac-tiles\{[^}]*grid-template-columns', css), \
+        'a max-width rule on .mac-overview .mac-tiles would beat the phone floors'
