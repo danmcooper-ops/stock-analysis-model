@@ -265,3 +265,28 @@ def test_macro_overview_rail_collapses_below_desktop():
     assert re.search(r'\.mac-overview \.mac-tiles\{[^}]*1fr 1fr', wide)
     assert not re.search(r'@media\(max-width:\d+px\)\{[^@]*\.mac-overview \.mac-tiles\{[^}]*grid-template-columns', css), \
         'a max-width rule on .mac-overview .mac-tiles would beat the phone floors'
+
+
+def test_every_macro_subtab_opens_with_an_explainer():
+    """Each Macro Outlook sub-tab leads with one paragraph saying what its
+    graphs show and how to read them. The text lives in one map keyed by
+    sub-tab; a sub-tab added to MACRO_TABS without an entry would render
+    bare, so the two lists must agree, and both renderers must draw it."""
+    css = _css()
+    tabs = re.search(r'var MACRO_TABS=\[(.*?)\];', css, re.S)
+    assert tabs, 'could not find MACRO_TABS'
+    keys = re.findall(r"k:'(\w+)'", tabs.group(1))
+    intro = re.search(r'var _MAC_SEC_INTRO=\{(.*?)\n\};', css, re.S)
+    assert intro, 'could not find _MAC_SEC_INTRO'
+    have = dict(re.findall(r"\n  (\w+):'(.*)'", intro.group(1)))
+    for k in keys:
+        assert k in have, f'sub-tab {k!r} has no explainer paragraph'
+        assert len(have[k]) > 200, f'{k!r} explainer is not a paragraph'
+        assert '</b>' in have[k], f'{k!r} explainer lacks its lead-in'
+    ov = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S)
+    assert ov and "_macIntroHTML('overview')" in ov.group(0)
+    sec = re.search(r'function _macSectionHTML\(k\).*?\n\}\n', css, re.S)
+    assert sec and '_macIntroHTML(k)' in sec.group(0)
+    # the explainer precedes the data note, so it is the first thing read
+    body = sec.group(0)
+    assert body.find('_macIntroHTML(k)') < body.find('mac-sec-note')
