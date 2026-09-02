@@ -1943,15 +1943,24 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-nar-wind{font-size:0.95em;line-height:1.65;margin:8px 0 0;color:var(--text);}
 .mac-nar-wind b{font-weight:700;}
 .mac-nar-wind.up b{color:var(--mac-up);}.mac-nar-wind.down b{color:var(--mac-down);}
-.mac-nar-group{margin-top:12px;}
-.mac-nar-group-h{display:flex;align-items:center;gap:7px;font-size:0.78em;font-weight:700;color:var(--mac-muted);margin:0 0 6px;}
+/* --- sector implications: its own section, three stance columns --- */
+.mac-sectors{margin-top:18px;padding:20px 24px 12px;}
+.mac-sectors-head{display:flex;align-items:baseline;gap:6px 14px;flex-wrap:wrap;margin-bottom:14px;}
+.mac-sectors-title{font-size:1.05em;font-weight:700;}
+.mac-sectors-sub{font-size:0.8em;color:var(--mac-muted);}
+.mac-sec-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 28px;}
+@media(max-width:900px){.mac-sec-cols{grid-template-columns:1fr;}}
+.mac-nar-group-h{display:flex;align-items:center;gap:7px;font-size:0.86em;font-weight:700;margin:0;}
+.mac-nar-group-n{font-size:0.8em;font-weight:600;color:var(--mac-muted);background:var(--mac-chip);border-radius:9px;padding:0 7px;}
+.mac-nar-group-sub{font-size:0.76em;color:var(--mac-muted);margin:1px 0 10px 15px;}
+.mac-nar-none{font-size:0.85em;color:var(--mac-faint);font-style:italic;margin:0 0 8px;}
 .mac-stance{width:8px;height:8px;border-radius:50%;background:var(--mac-faint);flex-shrink:0;display:inline-block;}
 .mac-stance.up{background:var(--mac-up);}.mac-stance.down{background:var(--mac-down);}
-.mac-nar-sec{font-size:0.95em;line-height:1.6;margin:0 0 9px;padding-left:14px;border-left:3px solid var(--mac-line);}
+.mac-nar-sec{font-size:0.92em;line-height:1.55;margin:0 0 12px;padding-left:12px;border-left:3px solid var(--mac-line);}
 .mac-nar-sec.up{border-left-color:var(--mac-up);}.mac-nar-sec.down{border-left-color:var(--mac-down);}
 .mac-nar-sec-name{font-size:0.76em;font-weight:600;color:var(--mac-muted);text-transform:uppercase;letter-spacing:0.05em;margin-right:7px;}
 .mac-nar-sec b{font-weight:700;}
-.mac-nar-figs{font-size:0.8em;color:var(--mac-faint);font-variant-numeric:tabular-nums;white-space:nowrap;margin-left:6px;}
+.mac-nar-figs{display:block;font-size:0.78em;color:var(--mac-faint);font-variant-numeric:tabular-nums;margin-top:2px;}
 .mac-nar-foot{font-size:0.72em;color:var(--mac-faint);margin-top:16px;}
 /* --- glance tiles --- */
 .mac-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:0 0 18px;}
@@ -7508,14 +7517,12 @@ function _macJoinClauses(items){
 function _macNarrativeHTML(){
   /* Claude-written narrative from the builder (data/claude_narrative.py),
      set as continuous prose: three kickered paragraphs, the tailwinds and
-     headwinds folded into one sentence each, and the sector outlooks grouped
-     by stance and read as a list of short entries rather than a grid.
+     headwinds folded into one sentence each. The sector outlooks are their
+     own section (_macSectorsHTML) beneath the story and the tiles.
      Rides on MACRO_SUM so it paints at first render; falls back to the
      sidecar for older inline summaries. All strings pass through _esc() —
      the text is model output, not repo-authored markup — and stance maps
-     to CSS classes only through the whitelist below. Sector rows carry the
-     ETF figures via _macSecFigs; a pre-headline cached narrative renders
-     without the bold kicker and loses nothing else. */
+     to CSS classes only through the whitelist in _macSectorsHTML. */
   var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
   if(!nar||!(nar.paragraphs||[]).length)return '';
   var ps=nar.paragraphs||[];
@@ -7534,32 +7541,47 @@ function _macNarrativeHTML(){
     if(tw.length)h+='<p class="mac-nar-wind up"><b>Working for the economy:</b> '+_macJoinClauses(tw)+'</p>';
     if(hw.length)h+='<p class="mac-nar-wind down"><b>Working against it:</b> '+_macJoinClauses(hw)+'</p>';
   }
-  if((nar.sectors||[]).length){
-    var STANCE={tailwind:'up',headwind:'down'};
-    var GROUPS=[['tailwind','Sectors with the cycle at their back'],['neutral','Sectors the cycle leaves alone'],['headwind','Sectors leaning into it']];
-    var sd=(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)||{};
-    h+='<div class="mac-nar-k">Sector implications</div>';
-    GROUPS.forEach(function(g){
-      var rows=nar.sectors.filter(function(s){return (s.stance||'neutral')===g[0];});
-      if(!rows.length)return;
-      var cls=STANCE[g[0]]||'';
-      h+='<div class="mac-nar-group"><div class="mac-nar-group-h"><span class="mac-stance '+cls+'"></span>'+g[1]+'</div>';
-      rows.forEach(function(s){
-        var hl=_esc(s.headline||'');
-        h+='<p class="mac-nar-sec '+(STANCE[s.stance]||'')+'"><span class="mac-nar-sec-name">'+_esc(s.sector)+'</span>'
-          +(hl?'<b>'+hl+'.</b> ':'')
-          +_esc(s.outlook)
-          +_macSecFigs(sd[s.sector])+'</p>';
-      });
-      h+='</div>';
-    });
-  }
   h+='<div class="mac-nar-foot">Written by Claude ('+_esc(nar.model||'')+') from the indicator data · '
     +_esc(nar.generated_at?String(nar.generated_at).slice(0,10):'')+'</div></div>';
   return h;
 }
+function _macSectorsHTML(){
+  /* The eleven sector outlooks as their own full-width section: three
+     stance columns (tailwind / neutral / headwind) so the read is "which
+     side of the cycle is each sector on" before any sentence is read.
+     Strings are model output and pass through _esc(); stance maps to CSS
+     classes only through the whitelist. Each entry carries the sector's
+     hard ETF numbers via _macSecFigs, and a pre-headline cached narrative
+     renders without the bold kicker and loses nothing else. */
+  var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
+  if(!nar||!(nar.sectors||[]).length)return '';
+  var STANCE={tailwind:'up',headwind:'down'};
+  var GROUPS=[['tailwind','Tailwinds','The cycle at their back'],['neutral','Neutral','Neither helped nor hurt'],['headwind','Headwinds','Leaning into the cycle']];
+  var sd=(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)||{};
+  var h='<div class="mac-card mac-sectors"><div class="mac-sectors-head"><span class="mac-sectors-title">Sector implications</span>'
+    +'<span class="mac-sectors-sub">How the regime lands on each GICS sector, with the sector ETF\'s three-month relative strength</span></div>'
+    +'<div class="mac-sec-cols">';
+  GROUPS.forEach(function(g){
+    var rows=nar.sectors.filter(function(s){return (s.stance||'neutral')===g[0];});
+    var cls=STANCE[g[0]]||'';
+    h+='<div class="mac-nar-group"><div class="mac-nar-group-h"><span class="mac-stance '+cls+'"></span>'+g[1]
+      +'<span class="mac-nar-group-n">'+rows.length+'</span></div><div class="mac-nar-group-sub">'+g[2]+'</div>';
+    if(!rows.length)h+='<p class="mac-nar-none">None this run.</p>';
+    rows.forEach(function(s){
+      var hl=_esc(s.headline||'');
+      h+='<p class="mac-nar-sec '+(STANCE[s.stance]||'')+'"><span class="mac-nar-sec-name">'+_esc(s.sector)+'</span>'
+        +(hl?'<b>'+hl+'.</b> ':'')
+        +_esc(s.outlook)
+        +_macSecFigs(sd[s.sector])+'</p>';
+    });
+    h+='</div>';
+  });
+  h+='</div></div>';
+  return h;
+}
 function _macOverviewHTML(){
-  /* Story first, glance numbers beside it. The full histories live on the
+  /* Story first, glance numbers beside it, the sector section beneath
+     both. The full histories live on the
      five section sub-tabs (menu), so nothing charted there is repeated
      here — the Overview used to re-draw the yield curve and the 10Y–2Y
      history under the tiles. */
@@ -7595,6 +7617,7 @@ function _macOverviewHTML(){
     h+='<p class="mac-explore">Full histories: '+links.join(' · ')+'</p>';
   }
   h+='</div></div>';
+  h+=_macSectorsHTML();
   return h;
 }
 function _macSectionHTML(k){
