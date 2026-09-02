@@ -12,6 +12,8 @@ _dcf_validate_core / _validate_numeric, minus a margin so the guards
 (e.g. two_stage_ev's min_spread shift) don't mask the property under test.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 from hypothesis import assume, given, settings, strategies as st
@@ -19,7 +21,7 @@ from hypothesis import assume, given, settings, strategies as st
 
 from models.capm import calculate_beta
 from models.dcf import two_stage_ev, fair_value_per_share, monte_carlo_dcf
-from models.ddm import two_stage_ddm, ddm_h_model
+from models.ddm import monte_carlo_ddm, two_stage_ddm, ddm_h_model
 from models.epv import earnings_power_value
 from models.rim import residual_income_model
 
@@ -180,3 +182,103 @@ class TestMonteCarloDcf:
         assert result['p10_fv'] <= result['median_fv'] <= result['p90_fv']
         for key in ('median_fv', 'mean_fv', 'p10_fv', 'p90_fv', 'std_fv'):
             assert np.isfinite(result[key]), key
+
+    @settings(max_examples=25, deadline=None)
+    @given(base_fcf=st.floats(min_value=1e6, max_value=1e11),
+           g=st.floats(min_value=-0.1, max_value=0.3),
+           d=st.floats(min_value=0.07, max_value=0.20),
+           tg=st.floats(min_value=0.0, max_value=0.04),
+           ebitda_mult=st.floats(min_value=0.5, max_value=5.0),
+           exit_mult=st.floats(min_value=3.0, max_value=25.0))
+    def test_exit_multiple_leg_ordered_finite_and_bookkept(self, base_fcf, g, d, tg,
+                                                           ebitda_mult, exit_mult):
+        assume(d >= tg + 0.04)
+        result = monte_carlo_dcf(base_fcf, g, d, tg, net_debt=0, shares_outstanding=1e8,
+                                 base_ebitda=base_fcf * ebitda_mult, exit_multiple=exit_mult,
+                                 n_iterations=300)
+        assume(result is not None)
+        assert 0 <= result['p10_fv'] <= result['median_fv'] <= result['p90_fv']
+        assert 0.0 <= result['clip_rate'] <= 1.0
+        assert 0.0 <= result['invalid_rate'] <= 0.9
+        assert result['n_valid'] == pytest.approx(300 * (1 - result['invalid_rate']), abs=1e-6)
+        for key in ('median_fv', 'mean_fv', 'p10_fv', 'p90_fv', 'std_fv'):
+            assert np.isfinite(result[key]), key
+
+    @settings(max_examples=25, deadline=None)
+    @given(base_fcf=st.floats(min_value=1e6, max_value=1e11),
+           g=st.floats(min_value=-0.1, max_value=0.3),
+           d=st.floats(min_value=0.07, max_value=0.20),
+           tg=st.floats(min_value=0.0, max_value=0.04),
+           n=st.floats(min_value=1e6, max_value=1e10))
+    def test_tiny_sigma_median_matches_point_estimate(self, base_fcf, g, d, tg, n):
+        """Collapse the sampling noise: the simulation must reproduce the
+        deterministic two-stage value, whatever the (valid) inputs."""
+        assume(d >= tg + 0.04)
+        result = monte_carlo_dcf(base_fcf, g, d, tg, net_debt=0, shares_outstanding=n,
+                                 n_iterations=400, growth_sigma=1e-9, wacc_sigma=1e-9,
+                                 tg_sigma=1e-9)
+        point = fair_value_per_share(two_stage_ev(base_fcf, g, d, tg), 0, n)
+        assert result is not None and point is not None
+        assert result['median_fv'] == pytest.approx(point, rel=2e-2)
+
+    @settings(max_examples=25, deadline=None)
+    @given(base_fcf=st.floats(min_value=1e6, max_value=1e11),
+           g=st.floats(min_value=-0.1, max_value=0.3),
+           d=st.floats(min_value=0.07, max_value=0.20),
+           tg=st.floats(min_value=0.0, max_value=0.04),
+           scale=st.floats(min_value=0.1, max_value=10.0))
+    def test_homogeneous_in_base_fcf(self, base_fcf, g, d, tg, scale):
+        """Same seed → same draws: scaling the cash flow scales every
+        per-share statistic exactly and leaves the CV unchanged."""
+        assume(d >= tg + 0.04)
+        a = monte_carlo_dcf(base_fcf, g, d, tg, net_debt=0, shares_outstanding=1e8,
+                            n_iterations=200)
+        b = monte_carlo_dcf(base_fcf * scale, g, d, tg, net_debt=0, shares_outstanding=1e8,
+                            n_iterations=200)
+        assume(a is not None and b is not None)
+        for key in ('median_fv', 'mean_fv', 'p10_fv', 'p90_fv', 'std_fv'):
+            assert b[key] == pytest.approx(a[key] * scale, rel=1e-9), key
+        assert b['cv'] == pytest.approx(a['cv'], rel=1e-9)
+
+
+class TestMonteCarloDdm:
+    @settings(max_examples=25, deadline=None)
+    @given(dps=st.floats(min_value=0.01, max_value=50.0),
+           g=st.floats(min_value=-0.1, max_value=0.25),
+           re=st.floats(min_value=0.05, max_value=0.20),
+           tg=st.floats(min_value=0.0, max_value=0.04))
+    def test_percentiles_ordered_finite_and_bookkept(self, dps, g, re, tg):
+        assume(re >= tg + 0.03)
+        result = monte_carlo_ddm(dps, g, re, tg, n=300)
+        assume(result is not None)
+        assert 0 <= result['p10_fv'] <= result['median_fv'] <= result['p90_fv']
+        assert 0.0 <= result['clip_rate'] <= 1.0
+        assert result['n_valid'] == pytest.approx(300 * (1 - result['invalid_rate']), abs=1e-6)
+        for key in ('median_fv', 'mean_fv', 'p10_fv', 'p90_fv', 'std_fv'):
+            assert np.isfinite(result[key]), key
+
+    @settings(max_examples=25, deadline=None)
+    @given(dps=st.floats(min_value=0.01, max_value=50.0),
+           g=st.floats(min_value=-0.1, max_value=0.25),
+           re=st.floats(min_value=0.05, max_value=0.20),
+           tg=st.floats(min_value=0.0, max_value=0.04))
+    def test_tiny_sigma_median_matches_point_estimate(self, dps, g, re, tg):
+        """Holds INSIDE the 2% minimum-spread wall too: both sides must
+        substitute the same effective terminal growth."""
+        assume(re > tg)
+        result = monte_carlo_ddm(dps, g, re, tg, n=400,
+                                 g_sigma=1e-9, re_sigma=1e-9, tg_sigma=1e-9)
+        point = two_stage_ddm(dps, g, tg, re)
+        assert result is not None and point is not None
+        assert result['median_fv'] == pytest.approx(point, rel=2e-2)
+
+    @settings(max_examples=25, deadline=None)
+    @given(dps=st.floats(min_value=0.01, max_value=50.0),
+           g=st.floats(min_value=-0.1, max_value=0.25),
+           re=st.floats(min_value=0.05, max_value=0.20),
+           tg=st.floats(min_value=0.0, max_value=0.04))
+    def test_defined_exactly_when_point_estimate_is_defined(self, dps, g, re, tg):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', RuntimeWarning)
+            result = monte_carlo_ddm(dps, g, re, tg, n=200)
+        assert (result is None) == (two_stage_ddm(dps, g, tg, re) is None)

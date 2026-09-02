@@ -147,6 +147,11 @@ class SECXBRLClient:
             'GrossProfit',
         ],
         'interest_expense': [
+            # The 2024 US-GAAP taxonomy deprecated InterestExpense in favour
+            # of InterestExpenseNonoperating; MSFT, JNJ, AMZN, KO and others
+            # switched for FY2024+. Without this tag the latest-year row is
+            # NaN and calculate_wacc / interest coverage fall back silently.
+            'InterestExpenseNonoperating',
             'InterestExpense',
             'InterestAndDebtExpense',
             'InterestExpenseDebt',

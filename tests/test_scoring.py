@@ -228,6 +228,33 @@ class TestMCConfidenceLabel:
         assert _mc_confidence_label(0.40) == 'LOW (40%)'
 
 
+class TestMcConfidenceLabelConstrained:
+    """Constraint diagnostics downgrade the label one notch and tag it."""
+
+    def test_high_becomes_medium_when_clipped(self):
+        assert _mc_confidence_label(0.15, clip_rate=0.35) == 'MEDIUM (15%, constrained)'
+
+    def test_medium_becomes_low_when_wipeouts_are_common(self):
+        assert _mc_confidence_label(0.30, clip_rate=0.0, invalid_rate=0.25) == 'LOW (30%, constrained)'
+
+    def test_low_stays_low_but_is_tagged(self):
+        assert _mc_confidence_label(0.55, clip_rate=0.9) == 'LOW (55%, constrained)'
+
+    def test_thresholds_are_exclusive(self):
+        from scripts.config import MC_CLIP_RATE_DOWNGRADE, MC_INVALID_RATE_DOWNGRADE
+        assert _mc_confidence_label(0.15, clip_rate=MC_CLIP_RATE_DOWNGRADE,
+                                    invalid_rate=MC_INVALID_RATE_DOWNGRADE) == 'HIGH (15%)'
+        assert _mc_confidence_label(0.15, clip_rate=MC_CLIP_RATE_DOWNGRADE + 1e-9) \
+            == 'MEDIUM (15%, constrained)'
+
+    def test_missing_diagnostics_leave_label_unchanged(self):
+        assert _mc_confidence_label(0.15) == 'HIGH (15%)'
+        assert _mc_confidence_label(0.15, clip_rate=None, invalid_rate=None) == 'HIGH (15%)'
+
+    def test_none_cv_still_none(self):
+        assert _mc_confidence_label(None, clip_rate=0.9, invalid_rate=0.9) is None
+
+
 # ---------------------------------------------------------------------------
 # compute_continuous_scores
 # ---------------------------------------------------------------------------

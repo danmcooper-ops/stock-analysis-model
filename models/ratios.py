@@ -8,24 +8,6 @@ from models.field_keys import (
     OPERATING_INCOME_KEYS, INTEREST_KEYS, DA_KEYS, REVENUE_KEYS,
 )
 
-DEFAULT_TAX_RATE = 0.21
-
-
-def _effective_tax_rate(inc_year):
-    """Effective tax rate for one income-statement column.
-
-    Provision / pretax income, clamped to [0, 0.50]. Falls back to
-    DEFAULT_TAX_RATE only when either input is genuinely MISSING (None) or
-    pretax income is zero. An explicit zero provision (REITs, NOL users) is
-    a real 0% rate, not missing data - the old truthiness test silently
-    haircut those filers' NOPAT by 21%.
-    """
-    tax_provision = _get(inc_year, ['Tax Provision'])
-    pretax_income = _get(inc_year, ['Pretax Income'], allow_zero=False)
-    if tax_provision is None or pretax_income is None:
-        return DEFAULT_TAX_RATE
-    return max(0.0, min(tax_provision / pretax_income, 0.50))
-
 
 def compute_ratios(financials):
     """Quick ratios: ROE, Debt-to-Equity, Current Ratio, ROA.
@@ -71,11 +53,79 @@ def compute_ratios(financials):
     return ratios
 
 
+# Cost-of-debt sanity band, relative to the risk-free rate. Below the floor
+# the implied rate reflects legacy low-coupon debt and understates the
+# MARGINAL cost of borrowing; above the cap the denominator (period-end
+# debt) is almost certainly wrong (debt repaid mid-year, lease interest in
+# the numerator, etc.).
+KD_SPREAD_CAP = 0.10
+TAX_RATE_DEFAULT = 0.21
+TAX_RATE_YEARS = 3
+
+
+def effective_tax_rate(inc, *, max_years=TAX_RATE_YEARS, default=TAX_RATE_DEFAULT):
+    """Effective tax rate for the debt tax shield.
+
+    Averages Tax Provision / Pretax Income over the latest ``max_years``
+    columns that have POSITIVE pretax income (each clipped to [0, 0.50]).
+    Loss years are skipped: dividing a tax benefit by a pretax loss yields a
+    positive "rate" that would grant a shield to a firm paying no tax. A
+    genuine zero provision on positive pretax income counts as 0%, not as
+    missing.
+
+    Returns 0.0 when no positive-pretax year exists in the window but the
+    latest year is a known loss (no shield to claim), else ``default``.
+    """
+    if inc is None or inc.empty:
+        return default
+    rates = []
+    for col_idx in range(min(max_years, inc.shape[1])):
+        col = inc.iloc[:, col_idx]
+        pretax = _get(col, ['Pretax Income'])
+        tax = _get(col, ['Tax Provision'])
+        if pretax is None or tax is None or pretax <= 0:
+            continue
+        rates.append(max(0.0, min(tax / pretax, 0.50)))
+    if rates:
+        return sum(rates) / len(rates)
+    latest_pretax = _get(inc.iloc[:, 0], ['Pretax Income'])
+    if latest_pretax is not None and latest_pretax <= 0:
+        return 0.0
+    return default
+
+
+def _effective_tax_rate(inc_year):
+    """Effective tax rate for ONE income-statement column (per-year NOPAT).
+
+    The multi-year ``effective_tax_rate`` above serves the WACC debt shield,
+    where a smoothed rate is wanted; per-year ROIC needs that year's own
+    rate so NOPAT and the capital base describe the same period.
+
+    Provision / pretax income, clamped to [0, 0.50]. Falls back to
+    TAX_RATE_DEFAULT only when either input is genuinely MISSING (None) or
+    pretax income is zero. An explicit zero provision (REITs, NOL users) is
+    a real 0% rate, not missing data - the old truthiness test silently
+    haircut those filers' NOPAT by 21%.
+    """
+    tax_provision = _get(inc_year, ['Tax Provision'])
+    pretax_income = _get(inc_year, ['Pretax Income'], allow_zero=False)
+    if tax_provision is None or pretax_income is None:
+        return TAX_RATE_DEFAULT
+    return max(0.0, min(tax_provision / pretax_income, 0.50))
+
+
 def calculate_wacc(financials, cost_of_equity, *,
                    risk_free_rate=None, credit_spread=0.025):
     """
     WACC = (E/V)*Re + (D/V)*Rd*(1-T).
     Uses market cap for equity weight (not book), per worksheet Step 4C.
+
+    Cost of debt = interest expense / AVERAGE debt (latest and prior
+    period-end, when a prior column exists) so a mid-year repayment or
+    issuance doesn't distort the rate. When ``risk_free_rate`` is given the
+    result is clamped to [Rf, Rf + KD_SPREAD_CAP] with a RuntimeWarning on
+    either clip: legacy low-coupon debt understates the marginal cost, and
+    a rate far above Rf means the denominator is wrong.
 
     Hardened: when debt exists but interest_expense is missing or zero,
     fall back to cost_of_debt = risk_free_rate + credit_spread instead of
@@ -86,6 +136,8 @@ def calculate_wacc(financials, cost_of_equity, *,
     to cost_of_equity × 0.6 as a last-resort placeholder. WACC may
     misstate cost of capital meaningfully in that case — check upstream
     data quality.
+
+    Tax rate: see ``effective_tax_rate`` (multi-year, positive-pretax only).
 
     Returns the WACC as a float, or None when equity cannot be sourced.
     """
@@ -118,7 +170,26 @@ def calculate_wacc(financials, cost_of_equity, *,
     # levered firm with a sparse cash-flow statement.
     if total_debt > 0:
         if interest_expense and interest_expense > 0:
-            cost_of_debt = interest_expense / total_debt
+            prior_debt = _get(bs.iloc[:, 1], DEBT_KEYS) if bs.shape[1] > 1 else None
+            debt_base = ((total_debt + prior_debt) / 2
+                         if prior_debt and prior_debt > 0 else total_debt)
+            cost_of_debt = interest_expense / debt_base
+            if risk_free_rate is not None and risk_free_rate > 0:
+                kd_floor, kd_cap = risk_free_rate, risk_free_rate + KD_SPREAD_CAP
+                if cost_of_debt < kd_floor:
+                    _py_warnings.warn(
+                        f'calculate_wacc: implied cost of debt {cost_of_debt:.2%} is '
+                        f'below the risk-free rate {kd_floor:.2%} (legacy coupons); '
+                        f'floored at Rf for the marginal cost',
+                        RuntimeWarning, stacklevel=2)
+                    cost_of_debt = kd_floor
+                elif cost_of_debt > kd_cap:
+                    _py_warnings.warn(
+                        f'calculate_wacc: implied cost of debt {cost_of_debt:.2%} '
+                        f'exceeds Rf + {KD_SPREAD_CAP:.0%} — interest/debt mismatch '
+                        f'(mid-year repayment or lease interest); capped at {kd_cap:.2%}',
+                        RuntimeWarning, stacklevel=2)
+                    cost_of_debt = kd_cap
         elif risk_free_rate is not None and risk_free_rate > 0:
             cost_of_debt = risk_free_rate + credit_spread
         else:
@@ -133,7 +204,7 @@ def calculate_wacc(financials, cost_of_equity, *,
     else:
         cost_of_debt = 0
 
-    tax_rate = _effective_tax_rate(latest_inc)
+    tax_rate = effective_tax_rate(inc)
     return weight_equity * cost_of_equity + weight_debt * cost_of_debt * (1 - tax_rate)
 
 

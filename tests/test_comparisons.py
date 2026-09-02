@@ -1,10 +1,12 @@
 # tests/test_comparisons.py
+import warnings
+
 import pytest
 import pandas as pd
 import numpy as np
 
 
-from models.ratios import (calculate_wacc, calculate_roic, compute_ratios,
+from models.ratios import (calculate_wacc, effective_tax_rate, calculate_roic, compute_ratios,
                            calculate_fundamental_growth, dupont_decomposition,
                            compute_dupont)
 from models.quality import (calculate_piotroski_f, calculate_altman_z,
@@ -20,17 +22,143 @@ from models.nav import tangible_book_value_per_share
 # ---------------------------------------------------------------------------
 
 class TestCalculateWACC:
+    # Fixture: mcap 100e9, debt 10e9 (prior 11e9), interest 0.5e9,
+    # tax 2e9/10e9 and 1.5e9/7.5e9 -> 20% both years.
+    #   E/V = 100/110, D/V = 10/110
+    #   Kd  = 0.5e9 / avg(10e9, 11e9) = 0.047619
+    #   WACC = (100/110)*0.10 + (10/110)*0.047619*(1-0.20) = 0.094372
+    EXPECTED = (100 / 110) * 0.10 + (10 / 110) * (0.5 / 10.5) * 0.8
+
     def test_returns_positive(self, sample_financials):
         """WACC should be a positive decimal."""
         wacc = calculate_wacc(sample_financials, cost_of_equity=0.10)
         assert wacc is not None
         assert 0 < wacc < 0.30
 
+    def test_exact_value(self, sample_financials):
+        """Hand-computed: market-cap weights, Kd on average debt, 20% tax."""
+        wacc = calculate_wacc(sample_financials, cost_of_equity=0.10)
+        assert wacc == pytest.approx(self.EXPECTED, rel=1e-6)
+
+    def test_exact_value_with_rf_inside_band(self, sample_financials):
+        """Kd 4.76% sits inside [Rf, Rf+10%] for Rf=4% -> no clamp, same value."""
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', RuntimeWarning)
+            wacc = calculate_wacc(sample_financials, cost_of_equity=0.10,
+                                  risk_free_rate=0.04)
+        assert wacc == pytest.approx(self.EXPECTED, rel=1e-6)
+
     def test_higher_re_gives_higher_wacc(self, sample_financials):
         """Higher cost of equity → higher WACC."""
         wacc_low = calculate_wacc(sample_financials, cost_of_equity=0.08)
         wacc_high = calculate_wacc(sample_financials, cost_of_equity=0.14)
         assert wacc_high > wacc_low
+
+    def test_kd_uses_average_debt(self, sample_financials):
+        """A prior-period balance halves the impact of a year-end repayment."""
+        fin = _copy_fin(sample_financials)
+        _set(fin['balance_sheet'], 'Total Debt', 1, 30e9)  # prior year
+        wacc = calculate_wacc(fin, cost_of_equity=0.10)
+        kd = 0.5e9 / ((10e9 + 30e9) / 2)
+        expected = (100 / 110) * 0.10 + (10 / 110) * kd * 0.8
+        assert wacc == pytest.approx(expected, rel=1e-6)
+
+    def test_kd_floored_at_rf(self, sample_financials):
+        """Legacy 1% coupons -> Kd floored at Rf, with a warning."""
+        fin = _copy_fin(sample_financials)
+        _set(fin['income_statement'], 'Interest Expense', 0, 0.1e9)  # ~0.95%
+        with pytest.warns(RuntimeWarning, match='below the risk-free rate'):
+            wacc = calculate_wacc(fin, cost_of_equity=0.10, risk_free_rate=0.04)
+        expected = (100 / 110) * 0.10 + (10 / 110) * 0.04 * 0.8
+        assert wacc == pytest.approx(expected, rel=1e-6)
+
+    def test_kd_capped_at_rf_plus_spread(self, sample_financials):
+        """Interest / debt of 19% -> capped at Rf + 10%, with a warning."""
+        fin = _copy_fin(sample_financials)
+        _set(fin['income_statement'], 'Interest Expense', 0, 2.0e9)
+        with pytest.warns(RuntimeWarning, match='exceeds Rf'):
+            wacc = calculate_wacc(fin, cost_of_equity=0.10, risk_free_rate=0.04)
+        expected = (100 / 110) * 0.10 + (10 / 110) * 0.14 * 0.8
+        assert wacc == pytest.approx(expected, rel=1e-6)
+
+    def test_no_clamp_without_rf(self, sample_financials):
+        """Without a risk-free rate there is no band to clamp to."""
+        fin = _copy_fin(sample_financials)
+        _set(fin['income_statement'], 'Interest Expense', 0, 2.0e9)
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', RuntimeWarning)
+            wacc = calculate_wacc(fin, cost_of_equity=0.10)
+        kd = 2.0e9 / 10.5e9
+        expected = (100 / 110) * 0.10 + (10 / 110) * kd * 0.8
+        assert wacc == pytest.approx(expected, rel=1e-6)
+
+    def test_credit_spread_fallback_when_interest_missing(self, sample_financials):
+        """No interest expense row -> Kd = Rf + credit spread."""
+        fin = _copy_fin(sample_financials)
+        fin['income_statement'] = fin['income_statement'].drop(index='Interest Expense')
+        wacc = calculate_wacc(fin, cost_of_equity=0.10, risk_free_rate=0.04,
+                              credit_spread=0.025)
+        expected = (100 / 110) * 0.10 + (10 / 110) * 0.065 * 0.8
+        assert wacc == pytest.approx(expected, rel=1e-6)
+
+    def test_loss_year_gets_no_tax_shield(self, sample_financials):
+        """Pretax loss with a tax benefit in every year -> 0% rate, not
+        (-benefit)/(-loss) = a positive shield."""
+        fin = _copy_fin(sample_financials)
+        for i in range(2):
+            _set(fin['income_statement'], 'Pretax Income', i, -5e9)
+            _set(fin['income_statement'], 'Tax Provision', i, -1e9)
+        wacc = calculate_wacc(fin, cost_of_equity=0.10)
+        kd = 0.5e9 / 10.5e9
+        expected = (100 / 110) * 0.10 + (10 / 110) * kd * 1.0
+        assert wacc == pytest.approx(expected, rel=1e-6)
+
+    def test_loss_year_uses_prior_positive_years(self, sample_financials):
+        """A one-off loss year is skipped; the prior profitable year's 20%
+        still carries the shield."""
+        fin = _copy_fin(sample_financials)
+        _set(fin['income_statement'], 'Pretax Income', 0, -5e9)
+        _set(fin['income_statement'], 'Tax Provision', 0, -1e9)
+        wacc = calculate_wacc(fin, cost_of_equity=0.10)
+        assert wacc == pytest.approx(self.EXPECTED, rel=1e-6)
+
+    def test_zero_provision_is_zero_rate_not_default(self, sample_financials):
+        """A genuine 0 provision on positive pretax income is a 0% rate."""
+        fin = _copy_fin(sample_financials)
+        for i in range(2):
+            _set(fin['income_statement'], 'Tax Provision', i, 0.0)
+        wacc = calculate_wacc(fin, cost_of_equity=0.10)
+        kd = 0.5e9 / 10.5e9
+        expected = (100 / 110) * 0.10 + (10 / 110) * kd * 1.0
+        assert wacc == pytest.approx(expected, rel=1e-6)
+
+    def test_tax_rate_defaults_when_rows_missing(self, sample_financials):
+        fin = _copy_fin(sample_financials)
+        fin['income_statement'] = fin['income_statement'].drop(
+            index=['Tax Provision', 'Pretax Income'])
+        wacc = calculate_wacc(fin, cost_of_equity=0.10)
+        kd = 0.5e9 / 10.5e9
+        expected = (100 / 110) * 0.10 + (10 / 110) * kd * (1 - 0.21)
+        assert wacc == pytest.approx(expected, rel=1e-6)
+
+    def test_negative_book_equity_with_market_cap(self, sample_financials):
+        """Negative book equity is irrelevant when market cap is available."""
+        fin = _copy_fin(sample_financials)
+        _set(fin['balance_sheet'], 'Stockholders Equity', 0, -5e9)
+        wacc = calculate_wacc(fin, cost_of_equity=0.10)
+        assert wacc == pytest.approx(self.EXPECTED, rel=1e-6)
+
+    def test_negative_book_equity_without_market_cap_is_none(self, sample_financials):
+        fin = _copy_fin(sample_financials)
+        fin['info'] = dict(fin['info'], marketCap=None)
+        _set(fin['balance_sheet'], 'Stockholders Equity', 0, -5e9)
+        assert calculate_wacc(fin, cost_of_equity=0.10) is None
+
+    def test_no_debt_is_pure_cost_of_equity(self, sample_financials):
+        fin = _copy_fin(sample_financials)
+        fin['balance_sheet'] = fin['balance_sheet'].drop(
+            index=['Total Debt', 'Long Term Debt'])
+        assert calculate_wacc(fin, cost_of_equity=0.10) == pytest.approx(0.10)
 
     def test_none_with_missing_data(self):
         """Missing financial data → None."""
@@ -41,6 +169,49 @@ class TestCalculateWACC:
         """None financials causes AttributeError (no guard); test actual behavior."""
         with pytest.raises(AttributeError):
             calculate_wacc(None, cost_of_equity=0.10)
+
+
+class TestEffectiveTaxRate:
+    def _inc(self, pairs):
+        """pairs: list of (pretax, tax) newest first; None omits the row."""
+        cols = pd.to_datetime([f'{2024 - i}-12-31' for i in range(len(pairs))])
+        return pd.DataFrame({
+            c: {'Pretax Income': p, 'Tax Provision': t}
+            for c, (p, t) in zip(cols, pairs, strict=True)
+        })
+
+    def test_averages_positive_years(self):
+        inc = self._inc([(100, 10), (100, 30), (100, 20), (100, 50)])
+        assert effective_tax_rate(inc) == pytest.approx(0.20)  # 3-year window
+
+    def test_skips_loss_years(self):
+        inc = self._inc([(-50, -10), (100, 25)])
+        assert effective_tax_rate(inc) == pytest.approx(0.25)
+
+    def test_all_loss_is_zero(self):
+        inc = self._inc([(-50, -10), (-20, 5)])
+        assert effective_tax_rate(inc) == 0.0
+
+    def test_clips_to_half(self):
+        inc = self._inc([(100, 80)])
+        assert effective_tax_rate(inc) == pytest.approx(0.50)
+
+    def test_tax_benefit_on_profit_is_zero(self):
+        inc = self._inc([(100, -5)])
+        assert effective_tax_rate(inc) == 0.0
+
+    def test_default_when_unknown(self):
+        inc = pd.DataFrame({pd.Timestamp('2024-12-31'): {'Total Revenue': 1.0}})
+        assert effective_tax_rate(inc) == pytest.approx(0.21)
+        assert effective_tax_rate(None) == pytest.approx(0.21)
+
+
+def _set(df, row, col_idx, val):
+    df.iloc[df.index.get_loc(row), col_idx] = val
+
+
+def _copy_fin(fin):
+    return {k: (v.copy() if hasattr(v, 'copy') else v) for k, v in fin.items()}
 
 
 # ---------------------------------------------------------------------------
