@@ -27,6 +27,7 @@ class TestDefaultParams:
             'growth_weight_analyst_lt', 'growth_weight_fundamental',
             'analyst_haircut', 'margin_trend_sensitivity',
             'dcf_years', 'dcf_stage1', 'mc_iterations',
+            'mc_wacc_tg_correlation',
             'ddm_blend_weight', 'dcf_blend_weight_with_ddm',
         ]
         for key in required:
@@ -160,6 +161,12 @@ class TestValidateParams:
         p['dcf_years'] = 10
         errors = validate_params(p)
         assert any('dcf_stage1' in e for e in errors)
+
+    def test_mc_correlation_out_of_range(self):
+        p = default_params()
+        p['mc_wacc_tg_correlation'] = 1.5
+        errors = validate_params(p)
+        assert any('mc_wacc_tg_correlation' in e for e in errors)
 
     def test_mc_iterations_too_low(self):
         p = default_params()

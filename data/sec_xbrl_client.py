@@ -147,6 +147,11 @@ class SECXBRLClient:
             'GrossProfit',
         ],
         'interest_expense': [
+            # The 2024 US-GAAP taxonomy deprecated InterestExpense in favour
+            # of InterestExpenseNonoperating; MSFT, JNJ, AMZN, KO and others
+            # switched for FY2024+. Without this tag the latest-year row is
+            # NaN and calculate_wacc / interest coverage fall back silently.
+            'InterestExpenseNonoperating',
             'InterestExpense',
             'InterestAndDebtExpense',
             'InterestExpenseDebt',
@@ -554,8 +559,16 @@ class SECXBRLClient:
         Selection logic per fiscal year:
         1. Only 10-K / 20-F / 40-F filings with fp='FY'
         2. Period must span ~1 full year (340-400 days)
-        3. Period end year must match the fiscal year
-        4. If multiple match, keep the latest filed date
+        3. Period end year must match the fiscal year (or fy+1, for
+           filers whose fiscal year ends in January/February and is
+           labelled by its STARTING calendar year - HD, LOW, TGT, DG)
+        4. If multiple match, keep the latest period END, then the latest
+           filed date. The end-date rule matters for the fy+1 filers in
+           (3): their 10-K's prior-year comparative also satisfies the
+           year match and shares the filed date, and a filed-date-only
+           tie-break kept whichever came first in the JSON - the
+           comparative - so every year came out shifted by one and the
+           latest fiscal year was dropped entirely.
 
         Args:
             facts_json: Raw companyfacts JSON.
@@ -574,7 +587,7 @@ class SECXBRLClient:
 
         # Merge values across all matching tags. Companies often switch
         # XBRL tags over time (e.g. SalesRevenueNet → RevenueFromContract...)
-        merged = {}  # {fy: (filed_date, value)}
+        merged = {}  # {fy: (end_date, filed_date, value)}
 
         for tag in tag_list:
             concept = us_gaap.get(tag)
@@ -626,17 +639,20 @@ class SECXBRLClient:
                 except (ValueError, TypeError):
                     pass  # If dates can't be parsed, keep the entry
 
-                candidates.append((fy, filed, val))
+                candidates.append((fy, end or '', filed, val))
 
-            # Deduplicate by fiscal year — keep the latest filed date
-            for fy, filed, val in candidates:
-                if fy not in merged or filed > merged[fy][0]:
-                    merged[fy] = (filed, val)
+            # Deduplicate by fiscal year — keep the latest period end (the
+            # filing's own current period beats a prior-year comparative
+            # that also matched), then the latest filed date (restatement
+            # wins). Ties leave the earlier tag's value in place.
+            for fy, end, filed, val in candidates:
+                if fy not in merged or (end, filed) > merged[fy][:2]:
+                    merged[fy] = (end, filed, val)
 
         if not merged:
             return {}
 
-        return {fy: info[1] for fy, info in sorted(merged.items())}
+        return {fy: info[2] for fy, info in sorted(merged.items())}
 
     def _extract_periodic_values(self, facts_json, tag_list, units_key='USD',
                                  point_in_time=False, taxonomy_key='us-gaap'):
@@ -1362,6 +1378,12 @@ class SECXBRLClient:
         # right period-end value per fiscal year.
         equity        = _ann('total_equity')
         cash          = _ann('cash')
+        # Short-term investments, so invested capital / net debt can net
+        # the whole liquid pile (AAPL / GOOG-style balance sheets keep most
+        # of it outside 'cash and equivalents'). Emitted as the yfinance-
+        # named combined row; None when the filer tags no such line, which
+        # leaves consumers on the plain cash row.
+        st_invest     = _ann('st_investments')
         assets        = _ann('total_assets')
         curr_assets   = _ann('current_assets')
         curr_liabs    = _ann('current_liabilities')
@@ -1394,8 +1416,8 @@ class SECXBRLClient:
         # operating_income (NKE), or operating_income but not pretax_income (REITs
         # like BXP). The accounting identity is pretax ≈ operating - interest_exp
         # (treating other_income/expense as ≈ 0). Use it to fill missing entries
-        # so calculate_roic's all([op, pretax, equity]) gate can pass. Never
-        # overwrite a value that XBRL already provided.
+        # so calculate_roic / calculate_wacc can derive a real tax rate instead
+        # of the 21% default. Never overwrite a value that XBRL already provided.
         for y in years:
             op = op_income.get(y)
             pti = pretax_income.get(y)
@@ -1445,6 +1467,10 @@ class SECXBRLClient:
                 'Stockholders Equity':       equity.get(y),
                 'Total Debt':                debt.get(y),
                 'Cash And Cash Equivalents': cash.get(y),
+                'Cash Cash Equivalents And Short Term Investments': (
+                    cash[y] + st_invest[y]
+                    if cash.get(y) is not None and st_invest.get(y) is not None
+                    else None),
                 'Total Assets':              assets.get(y),
                 'Current Assets':            curr_assets.get(y),
                 'Current Liabilities':       curr_liabs.get(y),

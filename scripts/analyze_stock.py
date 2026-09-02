@@ -43,6 +43,7 @@ from models.quality import (calculate_earnings_quality, calculate_piotroski_f,
                             calculate_net_debt_ebitda, get_net_debt,
                             calculate_altman_z, calculate_beneish_m)
 from models.market import compute_relative_multiples, compute_analyst_consensus, extract_next_earnings
+from models.montecarlo import seed_from_ticker
 from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm_valuation,
                          ddm_h_model_valuation, monte_carlo_ddm)
 from models.epv import earnings_power_value_valuation, epv_with_growth_premium
@@ -76,7 +77,7 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE,
                             GROWTH_WEIGHT_EARNINGS_G, GROWTH_WEIGHT_FUNDAMENTAL,
                             SURPRISE_THRESHOLD, SURPRISE_UPLIFT,
                             MARGIN_TREND_SENSITIVITY,
-                            BETA_MIN, BETA_MAX, RE_MIN, RE_MAX,
+                            BETA_MIN, BETA_MAX, RE_MIN, RE_MAX, RE_CAP_SPREAD,
                             BETA_PRIOR_MEAN, BETA_PRIOR_SD,
                             CAPEX_DA_THRESHOLD, EXCESS_CAPEX_ADDBACK,
                             YIELD_CEILING_MULT, HYPER_GROWTH_CAP, ANALYST_HAIRCUT, FALLBACK_GROWTH,
@@ -86,7 +87,7 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE,
                             EXIT_MULT_MIN, EXIT_MULT_MAX,
                             MC_ITERATIONS, MC_GROWTH_SIGMA_RATIO, MC_WACC_SIGMA,
                             MC_TERMINAL_GROWTH_SIGMA, MC_EXIT_MULT_SIGMA_RATIO,
-                            MC_HIGH_DIVERGENCE_SIGMA_MULT,
+                            MC_HIGH_DIVERGENCE_SIGMA_MULT, MC_WACC_TG_CORRELATION,
                             DDM_HIGH_GROWTH_YEARS, DDM_BLEND_WEIGHT,
                             DCF_BLEND_WEIGHT_WITH_DDM, DDM_DIVERGENCE_THRESHOLD,
                             BLEND_TRIGGER, BLEND_DCF_WEIGHT, BLEND_MULT_WEIGHT,
@@ -1003,13 +1004,27 @@ def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=Non
     price = info.get('currentPrice') or info.get('regularMarketPrice')
     div_yield = (div_rate / price) if (div_rate and price and price > 0) else None
     if div_yield and div_yield > 0:
-        re = ggm_implied_re(div_yield, TERMINAL_GROWTH_RATE, forward=True)
+        re = ggm_implied_re(div_yield, TERMINAL_GROWTH_RATE)
         if re is not None and RE_MIN < re < RE_MAX:
             return re, 'ggm', beta_diag
 
     # 4. Build-Up fallback (no size/industry premiums — too imprecise)
     re = buildup_re(risk_free_rate, erp, size_premium=0, industry_premium=0)
     return re, 'buildup', beta_diag
+
+
+def _bound_re_for_models(cost_of_equity, sector):
+    """Floor/cap the cost of equity used by the equity-flow models.
+
+    Floor = the sector WACC floor (an equity flow can't be discounted below
+    the blended-capital floor the DCF is held to). Cap = sector WACC cap +
+    RE_CAP_SPREAD, since Re exceeds WACC by construction.
+    """
+    if cost_of_equity is None:
+        return None
+    cfg = _get_sector_config(sector)
+    return max(cfg['wacc_floor'],
+               min(cfg['wacc_cap'] + RE_CAP_SPREAD, cost_of_equity))
 
 
 # ---------------------------------------------------------------------------
@@ -1490,7 +1505,7 @@ def _debt_levels(yf_data):
 
 def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=None,
                     terminal_growth_adj=0.0, wacc_sigma=None, tg_sigma=None,
-                    growth_sigma_mult=1.0, growth_weight_shift=0.0):
+                    growth_sigma_mult=1.0, growth_weight_shift=0.0, seed=None):
     """Run a two-stage 10-year DCF with sector-specific parameters.
 
     Includes: sector growth caps, averaged FCF for cyclicals,
@@ -1504,6 +1519,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
         tg_sigma: Override for MC terminal growth sigma (defaults to MC_TERMINAL_GROWTH_SIGMA).
         growth_sigma_mult: Multiplicative adjustment to growth sigma (macro overlay).
         growth_weight_shift: Shift from analyst LT weight to fundamental weight (macro overlay).
+        seed: Monte Carlo seed (models.montecarlo.seed_from_ticker); None = fixed default.
 
     Returns:
         Tuple of (fair_value, sensitivity_range, fcf_growth, growth_diag, mc_result),
@@ -1685,7 +1701,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     # Signal 6: Fundamental growth (Reinvestment Rate × ROIC)
     fund_result = calculate_fundamental_growth(yf_data,
-                    roic_override=roic_data.get('avg_roic') if roic_data else None)
+                    roic_override=roic_data.get('roic_median_5y') if roic_data else None)
     fundamental_g = fund_result.get('fundamental_growth')
     if fundamental_g is not None:
         growth_signals.append(fundamental_g)
@@ -1808,7 +1824,8 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
             growth_sigma=g_sigma, wacc_sigma=wacc_sigma,
             tg_sigma=tg_sigma, exit_mult_sigma=em_sigma,
             exit_mult_floor=EXIT_MULT_MIN,
-            total_years=DCF_YEARS, stage1_years=DCF_STAGE1)
+            total_years=DCF_YEARS, stage1_years=DCF_STAGE1,
+            wacc_tg_corr=MC_WACC_TG_CORRELATION, seed=seed)
 
     # Use MC percentiles for bear/bull instead of sensitivity grid
     if mc_result:
@@ -1880,8 +1897,14 @@ def _annualise_dividends(div_series, as_of_year=None):
 
 
 def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
-                      terminal_growth_adj=0.0):
+                      terminal_growth_adj=0.0, re_sigma=None, tg_sigma=None,
+                      growth_sigma_mult=1.0, seed=None):
     """Run Dividend Discount Model valuation for a single stock.
+
+    re_sigma / tg_sigma / growth_sigma_mult are the same uncertainty overlay
+    run_forward_dcf receives (realized-vol WACC sigma, macro stress), so the
+    DDM Monte Carlo band describes the same regime as the DCF band instead
+    of running on the model's static defaults. seed as in run_forward_dcf.
 
     Args:
         yf_data: Dict of financial data from YFinanceClient.
@@ -1932,6 +1955,8 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
         'ddm_mc_p10': None,
         'ddm_mc_p90': None,
         'ddm_mc_cv': None,
+        'ddm_mc_clip_rate': None,
+        'ddm_mc_invalid_rate': None,
     }
 
     if not elig['eligible']:
@@ -1970,13 +1995,21 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
     elif h_fv:
         result['ddm_fv'] = h_fv
 
-    # 5. Monte Carlo DDM
-    mc = monte_carlo_ddm(dps, g, re, tg, n=MC_ITERATIONS, years=DDM_HIGH_GROWTH_YEARS)
+    # 5. Monte Carlo DDM — same sigma overlay as the DCF's Monte Carlo
+    g_sigma = (abs(g) * MC_GROWTH_SIGMA_RATIO if g != 0 else 0.02) * growth_sigma_mult
+    mc = monte_carlo_ddm(
+        dps, g, re, tg, n=MC_ITERATIONS, years=DDM_HIGH_GROWTH_YEARS,
+        g_sigma=g_sigma,
+        re_sigma=MC_WACC_SIGMA if re_sigma is None else re_sigma,
+        tg_sigma=MC_TERMINAL_GROWTH_SIGMA if tg_sigma is None else tg_sigma,
+        re_tg_corr=MC_WACC_TG_CORRELATION, seed=seed)
     if mc:
         result['ddm_mc_median'] = mc['median_fv']
         result['ddm_mc_p10'] = mc['p10_fv']
         result['ddm_mc_p90'] = mc['p90_fv']
         result['ddm_mc_cv'] = mc['cv']
+        result['ddm_mc_clip_rate'] = mc['clip_rate']
+        result['ddm_mc_invalid_rate'] = mc['invalid_rate']
 
     return result
 
@@ -2545,12 +2578,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                 s_cfg = _get_sector_config(sector)
                 wacc = max(s_cfg['wacc_floor'], min(s_cfg['wacc_cap'], wacc))
 
-            spread = (roic_data['avg_roic'] - wacc
+            spread = (roic_data['roic_median_5y'] - wacc
                       if (roic_data and wacc is not None) else None)
 
             # --- Phase-1 filters (applied before expensive Phase-2 work) ---
             mcap = info.get('marketCap') or 0
-            roic_str = f"ROIC {roic_data['avg_roic']:.1%} " if roic_data else "ROIC N/A "
+            roic_str = f"ROIC {roic_data['roic_median_5y']:.1%} " if roic_data else "ROIC N/A "
             wacc_str = f"WACC {wacc:.1%} " if wacc is not None else "WACC N/A "
             spread_str = f"spread {spread:.1%}" if spread is not None else "spread N/A"
 
@@ -2807,16 +2840,15 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             sector = info.get('sector') or ''
             industry = info.get('industry') or ''
             country = info.get('country') or ''
-            # Discount-rate discipline: floor/cap the cost of equity with the
-            # same sector bounds that bound WACC, so the equity-flow models
-            # (DDM, RIM, EPV growth premium) can't discount at a raw GGM/
-            # build-up Re below the blended-capital floor while the DCF is
-            # floored. Diagnostic 'er' keeps the raw estimate.
-            re_for_models = cost_of_equity
-            if cost_of_equity is not None:
-                _re_cfg = _get_sector_config(sector)
-                re_for_models = max(_re_cfg['wacc_floor'],
-                                    min(_re_cfg['wacc_cap'], cost_of_equity))
+            # Discount-rate discipline: floor the cost of equity at the
+            # sector WACC floor so the equity-flow models (DDM, RIM, EPV
+            # growth premium) can't discount at a raw GGM/build-up Re below
+            # the blended-capital floor while the DCF is floored. The cap
+            # sits RE_CAP_SPREAD above the sector WACC cap: Re exceeds WACC
+            # by construction, so capping at the WACC cap itself pulled every
+            # high-beta name down to one rate. Diagnostic 'er' keeps the raw
+            # estimate.
+            re_for_models = _bound_re_for_models(cost_of_equity, sector)
             # Tiingo is primary news source; fall back to yfinance/Google RSS
             if tiingo_client.available:
                 tiingo_news = tiingo_client.fetch_ticker_news(ticker, max_age_days=30, max_items=12)
@@ -2910,7 +2942,8 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 wacc_sigma=_effective_wacc_sigma_ticker,
                 tg_sigma=MC_TERMINAL_GROWTH_SIGMA,
                 growth_sigma_mult=effective_growth_sigma_mult,
-                growth_weight_shift=effective_growth_weight_shift)
+                growth_weight_shift=effective_growth_weight_shift,
+                seed=seed_from_ticker(ticker))
             mos = (dcf_fv - current_price) / dcf_fv if (dcf_fv and current_price and dcf_fv > 0) else None
 
             # Step 5B: Dividend Discount Model (for dividend payers)
@@ -2922,7 +2955,11 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             ddm_result = run_ddm_valuation(
                 yf_data, div_series, re_for_models,
                 analyst_ltg=growth_diag.get('analyst_ltg'),
-                terminal_growth_adj=effective_tg_adj)
+                terminal_growth_adj=effective_tg_adj,
+                re_sigma=_effective_wacc_sigma_ticker,
+                tg_sigma=MC_TERMINAL_GROWTH_SIGMA,
+                growth_sigma_mult=effective_growth_sigma_mult,
+                seed=seed_from_ticker(ticker))
 
             # Step 3A/3B: Earnings quality
             eq = calculate_earnings_quality(yf_data)
@@ -3254,8 +3291,9 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'insider_net_value': insider_data.get('net_value_365d') if insider_data and insider_data.get('available') else None,
                 'insider_transactions': (insider_data.get('transactions', [])[:10] if insider_data and insider_data.get('available') else []),
                 'roic_by_year': roic_data.get('roic_by_year'),
-                # Per-year NOPAT / invested capital (Moat: Incr ROIC gate —
-                # scoring derives incremental ROIC = ΔNOPAT/ΔIC from these)
+                # Per-year NOPAT / CLOSING invested capital (Moat: Incr ROIC
+                # gate — scoring derives incremental ROIC = ΔNOPAT/ΔIC from
+                # these; per-year ROIC itself divides by average capital)
                 '_nopat_by_year': roic_data.get('nopat_by_year'),
                 '_ic_by_year': roic_data.get('invested_capital_by_year'),
                 'roic_cv': roic_cv,
@@ -3263,10 +3301,10 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'shareholder_yield': shareholder_yield,
                 'div_yield': div_yield,
                 'payout_ratio': payout_ratio,
-                # Core screen
-                'roic': roic_data['avg_roic'],
+                # Core screen — trailing five-year median of per-year ROIC
+                'roic': roic_data['roic_median_5y'],
                 'wacc': wacc,
-                'spread': roic_data['avg_roic'] - wacc,
+                'spread': roic_data['roic_median_5y'] - wacc,
                 'mcap': multiples.get('market_cap'),
                 # Time-series cheapness (Valuation: Mult vs Hist gate)
                 'mult_vs_hist': mult_vs_hist,
@@ -3313,7 +3351,11 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'mc_p10_fv': mc_result['p10_fv'] if mc_result else None,
                 'mc_p90_fv': mc_result['p90_fv'] if mc_result else None,
                 'mc_cv': mc_result['cv'] if mc_result else None,
-                'mc_confidence': _mc_confidence_label(mc_result['cv']) if mc_result and mc_result.get('cv') is not None else None,
+                'mc_clip_rate': mc_result['clip_rate'] if mc_result else None,
+                'mc_invalid_rate': mc_result['invalid_rate'] if mc_result else None,
+                'mc_confidence': (_mc_confidence_label(mc_result['cv'], mc_result.get('clip_rate'),
+                                                       mc_result.get('invalid_rate'))
+                                  if mc_result and mc_result.get('cv') is not None else None),
                 'ms_diff': ms_diff,
                 'ms_fv': ms_fv,
                 'ms_pfv': ms_pfv,
@@ -3405,6 +3447,8 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'ddm_mc_p10': ddm_result.get('ddm_mc_p10'),
                 'ddm_mc_p90': ddm_result.get('ddm_mc_p90'),
                 'ddm_mc_cv': ddm_result.get('ddm_mc_cv'),
+                'ddm_mc_clip_rate': ddm_result.get('ddm_mc_clip_rate'),
+                'ddm_mc_invalid_rate': ddm_result.get('ddm_mc_invalid_rate'),
                 'ddm_confidence': ddm_result.get('ddm_confidence'),
                 'ddm_warnings': ddm_result.get('ddm_warnings'),
                 # Reverse DCF

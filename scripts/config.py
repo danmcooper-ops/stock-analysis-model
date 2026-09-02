@@ -3,9 +3,11 @@
 
 # --- Constants ---
 DEFAULT_RISK_FREE_RATE = 0.04  # Fallback if live Treasury fetch fails
-ERP = 0.045                    # Equity Risk Premium. Damodaran's implied ERP ran
-                               # ~4.2-4.6% Jan 2024 - Jan 2026; refresh annually
-                               # (set 2026-09; models/capm.buildup_re mirrors it)
+ERP = 0.045                    # Equity Risk Premium. Damodaran's implied ERP has run
+                               # ~4.2-4.6% since 2024; 4.5% is the mid-point (set
+                               # 2026-09, refresh annually; models/capm.buildup_re
+                               # mirrors it). The macro overlay flexes it by regime
+                               # (models/macro.py).
 TERMINAL_GROWTH_RATE = 0.03
 MIN_MARKET_CAP = 0             # No market-cap floor
 WACC_FLOOR = 0.07              # Morningstar-aligned WACC bounds (global default)
@@ -33,6 +35,10 @@ RE_MIN, RE_MAX = 0.04, 0.30           # Valid cost-of-equity range
 # beta is pulled toward BETA_PRIOR_MEAN with weight sd² / (sd² + SE²).
 BETA_PRIOR_MEAN = 1.0
 BETA_PRIOR_SD = 0.20
+# Equity-model discount-rate cap = sector wacc_cap + this spread. Re must
+# exceed WACC by construction, so capping Re at the WACC cap itself collapsed
+# every beta above ~1.6 onto one discount rate. The floor stays shared.
+RE_CAP_SPREAD = 0.03
 
 # DCF parameters
 CAPEX_DA_THRESHOLD = 2.0       # Owner earnings: capex > 2× D&A triggers growth-capex adj
@@ -52,12 +58,24 @@ EXIT_MULT_MIN = 5.0                     # Floor on exit multiple
 EXIT_MULT_MAX = 30.0                    # Cap on exit multiple
 
 # Monte Carlo simulation
-MC_ITERATIONS = 250  # 250 iterations converges to within ~1-2% of 1000; saves ~2 min/run
+# Scrambled Sobol points per simulation. A power of two keeps the sequence
+# balanced; 1024 puts the median's sampling error under 1% at ~1 ms per
+# ticker (the simulation is vectorized — the old "250 saves 2 min" predates that).
+MC_ITERATIONS = 1024
 MC_GROWTH_SIGMA_RATIO = 0.30    # Growth sigma = 30% of point estimate
 MC_WACC_SIGMA = 0.01            # WACC sigma = 1 percentage point
 MC_TERMINAL_GROWTH_SIGMA = 0.005 # Terminal growth sigma = 0.5pp
 MC_EXIT_MULT_SIGMA_RATIO = 0.15 # Exit multiple sigma = 15% of point estimate
 MC_HIGH_DIVERGENCE_SIGMA_MULT = 1.5  # Widen sigma 50% if TV methods diverge >30%
+# Discount rate and terminal growth share the inflation / real-rate component;
+# drawing them independently overstates how often the terminal spread collapses.
+MC_WACC_TG_CORRELATION = 0.5
+# MC confidence label is downgraded one notch when the simulation had to force
+# more than this share of draws against a constraint wall (clip) or more than
+# this share wiped out equity (invalid): the median then reflects the walls as
+# much as the inputs.
+MC_CLIP_RATE_DOWNGRADE = 0.20
+MC_INVALID_RATE_DOWNGRADE = 0.10
 
 # DDM (Dividend Discount Model) parameters
 DDM_HIGH_GROWTH_YEARS = 5              # High-growth stage years

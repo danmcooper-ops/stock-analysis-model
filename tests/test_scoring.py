@@ -228,6 +228,33 @@ class TestMCConfidenceLabel:
         assert _mc_confidence_label(0.40) == 'LOW (40%)'
 
 
+class TestMcConfidenceLabelConstrained:
+    """Constraint diagnostics downgrade the label one notch and tag it."""
+
+    def test_high_becomes_medium_when_clipped(self):
+        assert _mc_confidence_label(0.15, clip_rate=0.35) == 'MEDIUM (15%, constrained)'
+
+    def test_medium_becomes_low_when_wipeouts_are_common(self):
+        assert _mc_confidence_label(0.30, clip_rate=0.0, invalid_rate=0.25) == 'LOW (30%, constrained)'
+
+    def test_low_stays_low_but_is_tagged(self):
+        assert _mc_confidence_label(0.55, clip_rate=0.9) == 'LOW (55%, constrained)'
+
+    def test_thresholds_are_exclusive(self):
+        from scripts.config import MC_CLIP_RATE_DOWNGRADE, MC_INVALID_RATE_DOWNGRADE
+        assert _mc_confidence_label(0.15, clip_rate=MC_CLIP_RATE_DOWNGRADE,
+                                    invalid_rate=MC_INVALID_RATE_DOWNGRADE) == 'HIGH (15%)'
+        assert _mc_confidence_label(0.15, clip_rate=MC_CLIP_RATE_DOWNGRADE + 1e-9) \
+            == 'MEDIUM (15%, constrained)'
+
+    def test_missing_diagnostics_leave_label_unchanged(self):
+        assert _mc_confidence_label(0.15) == 'HIGH (15%)'
+        assert _mc_confidence_label(0.15, clip_rate=None, invalid_rate=None) == 'HIGH (15%)'
+
+    def test_none_cv_still_none(self):
+        assert _mc_confidence_label(None, clip_rate=0.9, invalid_rate=0.9) is None
+
+
 # ---------------------------------------------------------------------------
 # compute_continuous_scores
 # ---------------------------------------------------------------------------
@@ -966,15 +993,23 @@ class TestApplicabilityMask:
         bank = _full_row(ticker='BANK', sector='Financial Services')
         generic = _full_row(ticker='TECH')
         apply_screening_matrix([bank, generic])
-        # ebit_ev, fcf_yield, fcf_cagr_5y, int_coverage, net_debt_ebitda and
-        # margins masked for financials; pool_share is inapplicable for BOTH
-        # rows (no edgar_history in the fixture)
-        assert bank['_gates_inapplicable'] == 7
+        # ebit_ev, fcf_yield, fcf_cagr_5y, int_coverage, net_debt_ebitda,
+        # margins and the ROIC family (spread, roic_consistency, incr_roic)
+        # masked for financials; pool_share is inapplicable for BOTH rows
+        # (no edgar_history in the fixture)
+        assert bank['_gates_inapplicable'] == 10
         assert generic['_gates_inapplicable'] == 1
         bank_denom = int(bank['_gates_passed'].split('/')[1])
         gen_denom = int(generic['_gates_passed'].split('/')[1])
-        assert gen_denom - bank_denom == 6
+        assert gen_denom - bank_denom == 9
         assert bank['_gp_ebit_ev'] is None
+        # NOPAT / (equity + debt - cash) is meaningless for a bank: the
+        # Phase-1 screen already bypasses the spread filter for the sector,
+        # and scoring must not quietly grade it on the same number.
+        assert bank['_gp_spread'] is None
+        assert bank['_gp_roic_consistency'] is None
+        assert bank['_gp_incr_roic'] is None
+        assert generic['_gp_spread'] is True
         assert bank['_gp_fcf_yield'] is None
         assert bank['_gp_int_coverage'] is None
         assert bank['_gp_net_debt_ebitda'] is None
@@ -996,6 +1031,8 @@ class TestApplicabilityMask:
         assert bank['_score_fcf_yield'] is None
         assert bank['_score_int_coverage'] is None
         assert bank['_score_net_debt_ebitda'] is None
+        assert bank['_score_spread'] is None
+        assert bank['_score_incr_roic'] is None
         # Category averages must not be dragged to 0 by the masked gates:
         # both rows share identical applicable-gate inputs, so the bank's
         # category scores stay in a sane band rather than collapsing.

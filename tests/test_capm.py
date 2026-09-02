@@ -128,10 +128,10 @@ class TestExpectedReturn:
 
 class TestGGMImpliedRe:
     def test_basic(self):
-        """Re = div_yield*(1+g) + g."""
+        """Re = D1/P + g; the yield passed in is already forward, so no
+        (1+g) roll-forward (that double-counted growth)."""
         re = ggm_implied_re(0.03, 0.03)
-        expected = 0.03 * 1.03 + 0.03  # 0.0609
-        assert re == pytest.approx(expected)
+        assert re == pytest.approx(0.06)
 
     def test_zero_yield_returns_none(self):
         assert ggm_implied_re(0, 0.03) is None
@@ -372,11 +372,3 @@ class TestRollingBetas:
         s, m = self._weekly(20)
         assert rolling_betas(s, m) == {}
 
-
-class TestGGMForward:
-    def test_forward_yield_is_not_grown_again(self):
-        assert ggm_implied_re(0.03, 0.03, forward=True) == pytest.approx(0.06)
-        assert ggm_implied_re(0.03, 0.03, forward=False) == pytest.approx(0.03 * 1.03 + 0.03)
-
-    def test_forward_none_for_nonpositive_yield(self):
-        assert ggm_implied_re(0.0, 0.03, forward=True) is None

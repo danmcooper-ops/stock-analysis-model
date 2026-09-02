@@ -245,19 +245,17 @@ def expected_return(risk_free_rate, beta, market_return):
     return risk_free_rate + beta * (market_return - risk_free_rate)
 
 
-def ggm_implied_re(dividend_yield, growth_rate, forward=False):
-    """Gordon-growth-implied cost of equity: Re = D1 / P + g.
+def ggm_implied_re(dividend_yield, growth_rate):
+    """GGM-implied Re = D1/P + g.
 
-    *dividend_yield* is D/P. With forward=False it is treated as a trailing
-    yield (D0 / P) and grown one year: Re = yield * (1 + g) + g. With
-    forward=True it is already D1 / P (e.g. yfinance's ``dividendRate``,
-    the indicated forward annual rate) and Re = yield + g.
+    ``dividend_yield`` must be the FORWARD yield (D1/P). The pipeline feeds
+    yfinance's ``dividendRate``, which is already the indicated forward
+    annual dividend, so no further (1+g) roll-forward is applied — doing so
+    double-counted growth.
     """
     if dividend_yield is None or dividend_yield <= 0:
         return None
-    if forward:
-        return dividend_yield + growth_rate
-    return dividend_yield * (1 + growth_rate) + growth_rate
+    return dividend_yield + growth_rate
 
 
 def buildup_re(risk_free_rate, erp=0.045, size_premium=0.02, industry_premium=0.01):

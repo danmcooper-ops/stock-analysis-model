@@ -345,15 +345,15 @@ class TestMonteCarloDownsideTail:
 
     def test_p10_captures_insolvency_for_levered_name(self):
         from models.dcf import monte_carlo_dcf
-        # ~13% of draws insolvent (equity <= 0): p10 sits at 0 (wipeout risk)
-        # while the median stays positive — a survivors-only p10 would have
-        # hidden the bear tail entirely.
+        # A comfortable share of draws insolvent (equity <= 0): p10 sits at 0
+        # (wipeout risk) while the median stays positive — a survivors-only
+        # p10 would have hidden the bear tail entirely.
         res = monte_carlo_dcf(
             base_fcf=100.0, growth_rate=0.03, discount_rate=0.10,
             terminal_growth=0.025, shares_outstanding=1000.0,
-            net_debt=1200.0, n_iterations=800)
+            net_debt=1300.0, n_iterations=800)
         assert res is not None
-        assert res['invalid_rate'] > 0.0     # some draws did wipe out
+        assert res['invalid_rate'] > 0.10    # more than a decile wiped out
         assert res['p10_fv'] == 0.0          # bottom decile includes wipeouts
         assert res['median_fv'] > 0.0        # but the centre is still positive
 

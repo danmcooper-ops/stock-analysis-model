@@ -653,6 +653,8 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
         'mc_cv': r.get('mc_cv'),
         'mc_p10_fv': r.get('mc_p10_fv'),
         'mc_p90_fv': r.get('mc_p90_fv'),
+        'mc_clip_rate': r.get('mc_clip_rate'),
+        'mc_invalid_rate': r.get('mc_invalid_rate'),
         # Macro
         'macro_regime': r.get('macro_regime'),
         'macro_composite': r.get('macro_composite'),
@@ -693,6 +695,8 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
         'ddm_mc_p10': r.get('ddm_mc_p10'),
         'ddm_mc_p90': r.get('ddm_mc_p90'),
         'ddm_mc_cv': r.get('ddm_mc_cv'),
+        'ddm_mc_clip_rate': r.get('ddm_mc_clip_rate'),
+        'ddm_mc_invalid_rate': r.get('ddm_mc_invalid_rate'),
         '_blended_method': r.get('_blended_method', 'DCF'),
         '_ddm_low_confidence': r.get('_ddm_low_confidence', False),
         # Reverse DCF
