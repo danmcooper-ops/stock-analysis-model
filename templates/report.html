@@ -7459,10 +7459,10 @@ function renderMacro(){
   else h+=_macSectionHTML(curMacSub);
   el.innerHTML=h;
 }
-/* One paragraph per sub-tab explaining what its graphs show and how to read
-   them. Repo-authored plain text, so it is not escaped. */
+/* One paragraph per section sub-tab explaining what its graphs show and how
+   to read them; the Overview's narrative speaks for itself. Repo-authored
+   plain text, so it is not escaped. */
 var _MAC_SEC_INTRO={
-  overview:'The regime strip scores five market signals from \u22121 to +1 and blends them into one composite that names where the cycle sits; each meter fills from the centre line toward green (supportive) or red (stressed). Beneath it, the narrative reads the indicators as a story, and the tiles beside it show each headline series\u2019 latest value, its one-month change, a sparkline of the recent trend (hover to read a date) and a marker for where today\u2019s reading ranks in the series\u2019 own history. The sector panel at the bottom maps the regime onto the eleven GICS sectors.',
   rates:'The yield curve plots Treasury yields from one month to thirty years today, a month ago and a year ago, so its shape (steep, flat or inverted) and its recent shift are read together; the short end is stretched so the front tenors do not bunch up. The cards below trace the 10-year yield and the effective fed funds rate, which set the discount rate and the cost of borrowing across the economy, and the 10Y\u20132Y and 10Y\u20133M spreads, where a dip below the dashed zero line marks an inversion of the kind that has preceded each recession shaded on the charts.',
   inflation:'The four price indices track year-over-year inflation from two angles: CPI is what consumers pay, PCE is the gauge the Fed targets, and the core versions strip out food and energy to expose the underlying trend. The 10-year breakeven and the 5y5y forward are what the bond market expects inflation to average, read from the gap between nominal and inflation-protected Treasuries; when they hold near 2% the market still believes the Fed is in control, whatever the latest prints say. The percentile bar under each chart shows how today\u2019s reading ranks against the series\u2019 own history.',
   growth:'Real GDP, industrial production and retail sales gauge output and demand, and a reading below the dashed zero line means contraction. The labor charts read the jobs market from both ends: the unemployment rate and the monthly change in payrolls lag the cycle, while weekly jobless claims and job openings turn first. The Sahm Rule is a recession trigger: once the three-month average unemployment rate rises half a point above its twelve-month low (the red dashed line), a downturn has historically already begun.',
@@ -7607,7 +7607,7 @@ function _macOverviewHTML(){
      five section sub-tabs (menu), so nothing charted there is repeated
      here — the Overview used to re-draw the yield curve and the 10Y–2Y
      history under the tiles. */
-  var h=_macIntroHTML('overview')+'<div class="mac-overview">'+_macNarrativeHTML();
+  var h='<div class="mac-overview">'+_macNarrativeHTML();
   var tiles=(MACRO_SUM&&MACRO_SUM.tiles)||[];
   h+='<div>';
   if(tiles.length){
