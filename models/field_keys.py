@@ -42,4 +42,6 @@ LTD_KEYS = ['Long Term Debt']
 CAPEX_KEYS = ['Capital Expenditure', 'Purchase Of Ppe', 'Purchases Of Property Plant And Equipment']
 DIVIDENDS_PAID_KEYS = ['Common Stock Dividend Paid', 'Payment Of Dividends', 'Cash Dividends Paid']
 GOODWILL_KEYS = ['Goodwill', 'Goodwill And Other Intangible Assets']
+# Period-end share count on the balance sheet (an instant dated like equity).
+SHARES_OUTSTANDING_KEYS = ['Ordinary Shares Number']
 INTANGIBLES_KEYS = ['Other Intangible Assets', 'Intangible Assets', 'Net Intangibles', 'Intangibles', 'Other Intangibles']

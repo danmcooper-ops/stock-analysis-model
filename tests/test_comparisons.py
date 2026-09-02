@@ -412,9 +412,16 @@ class TestTangibleBookValuePerShare:
     def test_none_with_empty_dict(self):
         assert tangible_book_value_per_share({}) is None
 
-    def test_none_with_zero_shares(self, sample_balance_sheet):
+    def test_zero_info_shares_falls_back_to_balance_sheet_count(self, sample_balance_sheet):
+        """A corrupt/zero live count defers to the period-end row."""
         info = {'sharesOutstanding': 0}
         financials = {'balance_sheet': sample_balance_sheet, 'info': info}
+        tbv = tangible_book_value_per_share(financials)
+        assert tbv is not None and 40 < tbv < 50
+
+    def test_none_with_no_share_count_anywhere(self, sample_balance_sheet):
+        bs = sample_balance_sheet.drop(index='Ordinary Shares Number')
+        financials = {'balance_sheet': bs, 'info': {'sharesOutstanding': 0}}
         assert tangible_book_value_per_share(financials) is None
 
     def test_none_with_negative_equity(self, sample_info, sample_balance_sheet):

@@ -48,7 +48,7 @@ from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm_valu
                          ddm_h_model_valuation, monte_carlo_ddm)
 from models.epv import earnings_power_value_valuation, epv_with_growth_premium
 from models.rim import residual_income_model_valuation
-from models.nav import tangible_book_value_per_share
+from models.nav import tangible_equity_per_share
 from models.portfolio import position_sizes, concentration_analysis
 from models.utils import rank
 from models.field_keys import (OPERATING_CF_KEYS, CAPEX_KEYS, _get,
@@ -3117,9 +3117,13 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
 
             # NAV (Tangible Book Value per share) — universal asset-floor
             # sanity check that strips goodwill and intangibles out of equity.
-            tangible_book_per_share = tangible_book_value_per_share(yf_data)
-            nav_fv = tangible_book_per_share if (
-                tangible_book_per_share and tangible_book_per_share > 0) else None
+            # Signed TBV/share feeds scoring's P/TBV applicability predicate
+            # (negative tangible book -> gate inapplicable, not a failed
+            # test); the positive-only floor feeds nav_fv / p_tbv.
+            tangible_book_ps = tangible_equity_per_share(yf_data)
+            tangible_book_per_share = (tangible_book_ps
+                if tangible_book_ps is not None and tangible_book_ps > 0 else None)
+            nav_fv = tangible_book_per_share
             nav_mos = ((nav_fv - current_price) / nav_fv
                 if (nav_fv and current_price and nav_fv > 0) else None)
             p_tbv = (current_price / nav_fv
@@ -3507,7 +3511,7 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 # Raw sign-preserving TBV/share: lets scoring distinguish
                 # "negative tangible book" (P/TBV structurally inapplicable)
                 # from "balance sheet missing" (N/A scores worst)
-                'tangible_book_ps': tangible_book_per_share,
+                'tangible_book_ps': tangible_book_ps,
                 # Altman Z-Score
                 'altman_z': altman_z,
                 'altman_z_zone': altman_z_zone,
