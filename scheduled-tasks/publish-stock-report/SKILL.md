@@ -11,8 +11,8 @@ This routine assumes `output/stock_analysis_results_YYYY-MM-DD.html` already exi
 Use the **run-START date** of the analysis, not `$(date)` — if the 3–6 h analysis crossed midnight, `$(date)` is wrong. Determine RUNDATE from the newest `output/stock_analysis_results_*.html` and substitute it literally in the commands below.
 
 ## Paths
-- **Main repo:** `$HOME/Desktop/Workspace Folder`
-- **Pages worktree:** `$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live` (branch `pages-live`)
+- **Main repo:** `$HOME/Projects/Workspace Folder`
+- **Pages worktree:** `$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live` (branch `pages-live`)
 - **GitHub Pages URL:** https://danmcooper-ops.github.io/stock-analysis-model/
 
 If the worktree is missing, recreate it: `git worktree add .claude/worktrees/pages-live pages-live`
@@ -24,30 +24,30 @@ Each command is a **separate** Bash call (single line each). This is required fo
 
 ### 1. Verify the run's HTML exists
 ```
-ls -la "$HOME/Desktop/Workspace Folder/output/stock_analysis_results_RUNDATE.html"
+ls -la "$HOME/Projects/Workspace Folder/output/stock_analysis_results_RUNDATE.html"
 ```
 If the file is missing, stop and report — there's nothing to publish. Do not proceed.
 
 ### 2. Copy the seven artifacts into the Pages worktree
 The HTML lazy-loads `prices_meta.json`, `hist.json`, `details.json`, `macro.json`, and the per-ticker shards in `vol/` and `px/` from its own directory at runtime, so **all seven artifacts must be published together**. (The dense `prices.json` is retired — per-ticker `px/` shards + the small `prices_meta.json` replaced it on 2026-08-11; if a `docs/prices.json` is still present, delete it as part of the publish.) Run each as a **separate** Bash call:
 ```
-cp "output/stock_analysis_results_RUNDATE.html" "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/index.html"
+cp "output/stock_analysis_results_RUNDATE.html" "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live/docs/index.html"
 ```
 ```
-cp "$HOME/Desktop/Workspace Folder/output/prices_meta.json" "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/prices_meta.json"
+cp "$HOME/Projects/Workspace Folder/output/prices_meta.json" "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live/docs/prices_meta.json"
 ```
 ```
-cp "$HOME/Desktop/Workspace Folder/output/hist.json" "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/hist.json"
+cp "$HOME/Projects/Workspace Folder/output/hist.json" "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live/docs/hist.json"
 ```
 ```
-cp "$HOME/Desktop/Workspace Folder/output/details.json" "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/details.json"
+cp "$HOME/Projects/Workspace Folder/output/details.json" "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live/docs/details.json"
 ```
 ```
-cp "$HOME/Desktop/Workspace Folder/output/macro.json" "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live/docs/macro.json"
+cp "$HOME/Projects/Workspace Folder/output/macro.json" "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live/docs/macro.json"
 ```
 `macro.json` backs the Macro Outlook tab. Unlike the other sidecars it is **optional**: the run omits it when FRED is unreachable, and the HTML then renders with no Macro Outlook tab at all (`_MACRO_AVAILABLE=false`), so a missing file is a valid state rather than a failure. Within it, the `narrative` key (the Economic Narrative card) additionally requires `ANTHROPIC_API_KEY` in the main repo's `.env` at render time — a macro.json without a narrative means the key was missing or the Claude API call failed, which the analysis run's log reports but does not fail on. If `output/macro.json` does not exist, skip this copy AND delete any stale `docs/macro.json` — publishing yesterday's macro data under today's HTML is the one outcome to avoid. When the file does exist the copy must not be skipped: the HTML advertises the tab, and without the sidecar the tab opens to "Macro history failed to load".
 ```
-PYTHON="$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Desktop/Workspace Folder"; "$PYTHON" scripts/publish_vol_shards.py
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/publish_vol_shards.py
 ```
 (The HTML cp source is relative — run from the main repo root. The sidecar paths are absolute so they work from any cwd. `publish_vol_shards.py` syncs **both** shard directories — `vol/` from the `vol` manifest and `px/` from the `manifest` key of `prices_meta.json`.)
 
@@ -63,13 +63,13 @@ If any sidecar is missing, the `cp` will fail; if a manifested shard is missing,
 
 ### 3. Amend the single commit and force-push
 ```
-git -C "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live" add -A
+git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live" add -A
 ```
 ```
-git -C "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live" commit --amend -m "Pages: RUNDATE"
+git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live" commit --amend -m "Pages: RUNDATE"
 ```
 ```
-git -C "$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live" push --force origin pages-live
+git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live" push --force origin pages-live
 ```
 `git add -A` is safe against iCloud junk because the `pages-live` worktree carries a `.gitignore` with `docs/vol/* *.json` — no real ticker symbol contains a space, so this ignores every conflict copy while leaving genuine shards tracked. This is deliberate belt-and-braces: the shards regenerate continuously, including in the window between the manifest copy and the `add`. If that `.gitignore` ever goes missing, recreate it before staging, and sanity-check with `git status --porcelain | wc -l` — a publish should stage roughly the shard delta plus four files, never ~2,000 extra.
 
