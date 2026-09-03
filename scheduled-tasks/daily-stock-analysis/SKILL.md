@@ -27,7 +27,7 @@ The `output/prices` parquets never refresh themselves; the analysis, the report'
 ```
 PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/download_prices.py --output-dir output/prices --max-age-days 2 --tickers $(ls output/prices/*.parquet | sed 's|.*/||;s|\.parquet||') SPY QQQ IWM DIA
 ```
-Refreshes every already-cached ticker whose last bar is older than 2 days, plus the four benchmark indices explicitly (SPY/QQQ/IWM/DIA feed the report's index-comparison lines; the weekly backtest job only refreshes SPY). Idempotent — current files are skipped, so the day after a full refresh this is nearly a no-op. **Typical runtime: 15–40 min on a normal weekday; up to ~60 min after weekends/gaps.** Do not run it concurrently with Step 1 — Step 1 reads these files.
+Refreshes every already-cached ticker whose last bar is older than 2 days, plus the four benchmark indices explicitly (SPY/QQQ/IWM/DIA feed the report's index-comparison lines; the weekly backtest routine reuses these files). Idempotent — current files are skipped, so the day after a full refresh this is nearly a no-op. **Typical runtime: 15–40 min on a normal weekday; up to ~60 min after weekends/gaps.** Do not run it concurrently with Step 1 — Step 1 reads these files.
 
 A non-zero exit code (or partial ticker failures — Yahoo outages, delisted names) should be reported but does **not** block the remaining steps: the analysis still works on slightly-stale bars, which was the status quo before this step existed. Individual delisted-ticker errors in the output are routine noise, not failures.
 
@@ -158,12 +158,12 @@ Prints, for each of the 26 model gate columns, how many records have an N/A raw 
 
 Must run after 1f (so it measures the final enriched/rescored snapshot). A non-zero exit code should be reported but does **not** block the remaining steps.
 
-### 5. Validate ratings against trailing price returns
+### 5. Momentum sanity check: today's ratings vs TRAILING price returns
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
 PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/validate_ratings.py --snapshot "output/results_$(date +%Y-%m-%d).json" --prices-dir output/prices
 ```
-This checks whether today's BUY/LEAN BUY/HOLD/PASS ratings correlate with the past 12 months of actual price returns. Print the full output in the run summary. Key things to flag:
+This compares today's BUY/LEAN BUY/HOLD/PASS ratings with the **past** 12 months of price returns. It is a momentum-chasing check, **not** a measure of accuracy — accuracy is the forward-return question, measured by the weekly `weekly-backtest` routine (`scripts/backtest.py measure` / `readiness`). Print the full output in the run summary. Key things to flag:
 - If BUY-rated stocks had significantly *higher* trailing returns than HOLD/PASS, the model may be chasing momentum rather than identifying value — worth reviewing
 - The Spearman correlation between composite score and trailing return is expected to be **negative** (value model buys laggards); flag it if it turns positive and significant (r > +0.15, p < 0.05)
 A non-zero exit code should be reported but does **not** block the remaining steps.
@@ -179,7 +179,7 @@ This is run as the final step of the analysis routine, but the publish routine i
 - `output/stock_analysis_results_YYYY-MM-DD.html` was created today
 - `output/results_YYYY-MM-DD.json` was committed to `data/snapshots` and pushed
 - Gate N/A coverage table (per-gate N/A % + deltas) is included in the run summary, with any ⚠ JUMP flags called out
-- Trailing validation output (rating buckets + Spearman r) is included in the run summary
+- Trailing momentum-check output (rating buckets + Spearman r) is included in the run summary
 - The publish routine completed successfully (or its failure was reported clearly)
 
 ## Notes
