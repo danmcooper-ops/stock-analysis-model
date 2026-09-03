@@ -17,13 +17,16 @@ Usage:
 """
 
 import argparse
-import glob
 import json
 import os
 import sys
 
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from data.snapshot_store import list_snapshot_files  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -74,8 +77,8 @@ def section(title: str) -> None:
 
 
 def find_latest_results(results_dir: str) -> str:
-    pattern = os.path.join(results_dir, "results_*.json")
-    files = sorted(glob.glob(pattern))
+    # Canonical results_YYYY-MM-DD.json only (never a *_replay.json copy).
+    files = [p for _, p in list_snapshot_files(results_dir)]
     if not files:
         sys.exit(f"[ERROR] No results_*.json files found in '{results_dir}'")
     return files[-1]

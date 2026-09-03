@@ -26,14 +26,14 @@ flags are informational and must not block the daily pipeline.
 """
 
 import argparse
-import glob
 import json
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from data.snapshot_store import (SnapshotStore, prior_snapshot_file,  # noqa: E402
+                                 snapshot_date_from_path)
 from scripts.scoring import gate_metadata  # noqa: E402
 
 
@@ -44,17 +44,29 @@ def _load_records(path):
 
 
 def _prior_snapshot(path):
-    """Most recent results_*.json in the same dir dated strictly before ``path``."""
-    m = re.search(r'results_(\d{4}-\d{2}-\d{2})\.json$', os.path.basename(path))
-    if not m:
+    """``(date, path)`` of the most recent results_*.json in the same dir
+    dated strictly before ``path``, or None."""
+    cur = snapshot_date_from_path(path)
+    if cur is None:
         return None
-    cur = m.group(1)
-    best = None
-    for p in glob.glob(os.path.join(os.path.dirname(path) or '.', 'results_*.json')):
-        pm = re.search(r'results_(\d{4}-\d{2}-\d{2})\.json$', os.path.basename(p))
-        if pm and pm.group(1) < cur and (best is None or pm.group(1) > best[0]):
-            best = (pm.group(1), p)
-    return best
+    return prior_snapshot_file(os.path.dirname(path) or '.', cur)
+
+
+def _load_prior_records(prior, gates):
+    """Gate columns of the prior snapshot: from the DuckDB snapshot store next
+    to it when the store holds that date (a few ms), else by parsing the
+    ~66 MB JSON."""
+    prior_date, prior_path = prior
+    keys = [g['key'] for g in gates]
+    try:
+        store = SnapshotStore.for_results_dir(os.path.dirname(prior_path) or '.')
+        if store is not None:
+            with store:
+                if store.has_date(prior_date):
+                    return store.rows(prior_date, keys)
+    except Exception as e:  # informational path: fall back to the JSON file
+        print(f"[gate_na] snapshot store read failed ({e}); parsing JSON")
+    return _load_records(prior_path)
 
 
 def _na_pcts(records, gates):
@@ -86,7 +98,7 @@ def main():
     prev = {}
     if prior:
         try:
-            prev = _na_pcts(_load_records(prior[1]), gates)
+            prev = _na_pcts(_load_prior_records(prior, gates), gates)
         except Exception as e:  # informational only — never block on the prior
             print(f"[gate_na] prior snapshot load failed ({prior[1]}): {e}")
             prior = None

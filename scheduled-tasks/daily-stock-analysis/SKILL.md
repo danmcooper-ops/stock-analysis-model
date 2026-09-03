@@ -124,6 +124,12 @@ PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/
 ```
 This overwrites `output/stock_analysis_results_YYYY-MM-DD.html` with a render that includes every Phase 1–4 enrichment. If any of the enrichment steps failed (no fields populated), this step is still safe — the affected banners just fall back to "—".
 
+The analysis, each enrichment script and this re-render also mirror the snapshot into `output/snapshots.duckdb` (the DuckDB snapshot store, see `data/snapshot_store.py`), which the carry-forward, the report's rating-history readers, Step 4 and the portfolio tracker query instead of re-parsing whole JSON files. The mirror is a derived index and never blocks a step; a "snapshot store sync failed" warning in the log means those readers fall back to the JSON for that date. To rebuild or backfill it (e.g. after restoring snapshots from the `data/snapshots` branch), run as a **single Bash call**:
+```
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/ingest_snapshots.py --results-dir output
+```
+Idempotent — dates already present are skipped (add `--replace` to force).
+
 ### 2. Commit today's snapshot to the data/snapshots branch
 Run each as a **separate** Bash call (single line each):
 ```

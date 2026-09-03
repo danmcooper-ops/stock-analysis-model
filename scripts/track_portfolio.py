@@ -11,12 +11,13 @@ Or called programmatically from analyze_stock.py via run_portfolio_tracker().
 import sys
 import os
 import json
-import glob
 import argparse
 from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from data.snapshot_store import (SnapshotStore, list_snapshot_files,
+                                 snapshot_date_from_path)
 from data.yfinance_client import YFinanceClient
 from data.portfolio_client import PortfolioClient
 from models.portfolio_tracker import (
@@ -41,18 +42,29 @@ def _find_latest_results(output_dir='output', exclude=None):
     Suffixed variants (results_*_replay.json) sort lexicographically AFTER
     the canonical file and are re-scored copies, not live snapshots — skip.
     """
-    pattern = os.path.join(output_dir, 'results_*.json')
-    files = []
-    for f in sorted(glob.glob(pattern)):
-        stem = os.path.basename(f)[len('results_'):-len('.json')]
-        try:
-            date.fromisoformat(stem)
-        except ValueError:
-            continue
-        files.append(f)
+    files = [p for _, p in list_snapshot_files(output_dir)]
     if exclude:
         files = [f for f in files if f != exclude]
     return files[-1] if files else None
+
+
+def _load_prior_by_ticker(prev_path):
+    """{ticker: {'rating': ...}} for the prior snapshot — the only field
+    detect_alerts reads from it. Served from the DuckDB snapshot store next
+    to the file when it holds that date, else by parsing the JSON."""
+    prev_date = snapshot_date_from_path(prev_path)
+    if prev_date:
+        try:
+            store = SnapshotStore.for_results_dir(os.path.dirname(prev_path) or '.')
+            if store is not None:
+                with store:
+                    if store.has_date(prev_date):
+                        return {r['ticker']: r
+                                for r in store.rows(prev_date, ['rating'])}
+        except Exception as e:  # alert diffing is best-effort: fall back
+            print(f"  Snapshot store read failed ({e}); parsing prior JSON")
+    _, prev_by_ticker = _load_results_json(prev_path)
+    return prev_by_ticker
 
 
 def _load_results_json(path):
@@ -201,7 +213,7 @@ def run_portfolio_tracker(
     # --- Load prior-day results for alert diffing ---
     prev_path = _find_latest_results(output_dir, exclude=json_filename)
     if prev_path:
-        _, prev_by_ticker = _load_results_json(prev_path)
+        prev_by_ticker = _load_prior_by_ticker(prev_path)
         print(f"  Prior results: {os.path.basename(prev_path)}")
     else:
         prev_by_ticker = {}
