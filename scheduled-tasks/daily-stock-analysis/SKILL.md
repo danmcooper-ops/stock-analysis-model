@@ -10,12 +10,12 @@ You are running the end-of-day stock analysis routine. Execute the following ste
 - **Always run on the latest available model.** Use the most capable current Claude model for this routine; do not pin to or fall back to an older model.
 
 ## Paths
-- **Main repo:** `$HOME/Desktop/Workspace Folder`
-- **Pages worktree:** `$HOME/Desktop/Workspace Folder/.claude/worktrees/pages-live` (branch `pages-live`; used only by the publish routine in Step 8)
-- **Snapshots worktree:** `$HOME/Desktop/Workspace Folder/.claude/worktrees/snapshots-data`
-- **Python:** `$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python`
+- **Main repo:** `$HOME/Projects/Workspace Folder`
+- **Pages worktree:** `$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live` (branch `pages-live`; used only by the publish routine in Step 8)
+- **Snapshots worktree:** `$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data`
+- **Python:** `$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python`
 - **SSL fix:** set `SSL_CERT_FILE` to the output of `.venv/bin/python -m certifi` before running any Python script
-- **Historical snapshots (git branch `data/snapshots`):** `$HOME/Desktop/Workspace Folder/.claude/worktrees/snapshots-data/results_*.json`
+- **Historical snapshots (git branch `data/snapshots`):** `$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data/results_*.json`
 
 ## IMPORTANT: Command format
 All Python script invocations **must be sent as a single-line semicolon-separated Bash command** (not multi-line). This is required for permission matching to work. Use the exact format shown in each step below.
@@ -25,7 +25,7 @@ All Python script invocations **must be sent as a single-line semicolon-separate
 ### 0. Refresh the price cache
 The `output/prices` parquets never refresh themselves; the analysis, the report's px/vol chart shards, and the validation steps all read them, so they must be brought current at the start of each run. Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Desktop/Workspace Folder"; "$PYTHON" scripts/download_prices.py --output-dir output/prices --max-age-days 2 --tickers $(ls output/prices/*.parquet | sed 's|.*/||;s|\.parquet||') SPY QQQ IWM DIA
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/download_prices.py --output-dir output/prices --max-age-days 2 --tickers $(ls output/prices/*.parquet | sed 's|.*/||;s|\.parquet||') SPY QQQ IWM DIA
 ```
 Refreshes every already-cached ticker whose last bar is older than 2 days, plus the four benchmark indices explicitly (SPY/QQQ/IWM/DIA feed the report's index-comparison lines; the weekly backtest job only refreshes SPY). Idempotent — current files are skipped, so the day after a full refresh this is nearly a no-op. **Typical runtime: 15–40 min on a normal weekday; up to ~60 min after weekends/gaps.** Do not run it concurrently with Step 1 — Step 1 reads these files.
 
@@ -34,14 +34,14 @@ A non-zero exit code (or partial ticker failures — Yahoo outages, delisted nam
 ### 0.5 Fast-forward main so the render uses merged template work
 PRs merged on GitHub are invisible to this run until the local checkout is updated: the pipeline reads `templates/report.html` from the working tree at render time, so a stale `main` silently re-publishes old UI. (Bitten 2026-08-25: local `main` was 6 commits behind `origin/main` and the nightly render reverted the merged Macro Outlook nav order on the live site.) Run as a **single Bash call**:
 ```
-cd "$HOME/Desktop/Workspace Folder"; git fetch origin main; git pull --ff-only origin main
+cd "$HOME/Projects/Workspace Folder"; git fetch origin main; git pull --ff-only origin main
 ```
 If the pull fails (non-fast-forward divergence, or uncommitted changes that conflict), do **not** force-update or discard anything: report the divergence prominently in the run summary and continue the run on the current checkout. A stale render is recoverable later with `rescore_and_render.py` + a republish; a forced update can destroy local work.
 
 ### 1. Run the analysis
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Desktop/Workspace Folder"; "$PYTHON" scripts/analyze_stock.py --macro --prices-dir output/prices --universe us --min-spread 0 --mcap-min 300e6
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/analyze_stock.py --macro --prices-dir output/prices --universe us --min-spread 0 --mcap-min 300e6
 ```
 This expands the ticker universe from ~500 S&P/Dow stocks to all US-listed equities (~7,000–10,000 tickers from SEC EDGAR), then applies two Phase-1 filters before the expensive Phase 2 deep analysis: (1) market cap ≥ $300M (drops micro-caps and shells that can't be meaningfully valued) and (2) ROIC > WACC (positive economic spread — the business creates value). **Expected runtime: 3–6 hours.** The SEC listings are cached locally for 7 days (`data/cache/us_listings.csv`) so Phase 1 startup is fast on subsequent runs.
 
@@ -52,7 +52,7 @@ If the script exits non-zero, do not proceed with any further steps.
 ### 1b. Enrich Financial Services records with FDIC call-report data
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Desktop/Workspace Folder"; "$PYTHON" scripts/enrich_fdic.py "output/results_$(date +%Y-%m-%d).json"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/enrich_fdic.py "output/results_$(date +%Y-%m-%d).json"
 ```
 Joins NIM / Efficiency Ratio / CET1 / NPL / Deposit Beta from the FDIC BankFind Suite API into each mapped bank's record (writes `nim`, `efficiency_ratio`, `cet1_ratio`, `npl_ratio`, `deposit_beta`, `fdic_cert`, `fdic_repdte` in place). `deposit_beta` = Δ(cost of deposits) / Δ(fed funds) across the 2021→23 hiking cycle, from two historical FDIC quarters (EDEP/DEP). Mapping lives in `data/ticker_fdic_map.py` (~45 US-chartered banks); responses cached for 30 days under `data/cache/fdic/`. The script is idempotent — strips prior enrichment before running, and a staleness guard rejects records older than 2024 so any wrong CERT fails closed.
 
@@ -61,7 +61,7 @@ A non-zero exit code should be reported but does **not** block the remaining ste
 ### 1c. Enrich Real Estate records with FFO Growth + AFFO Margin proxies
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Desktop/Workspace Folder"; "$PYTHON" scripts/enrich_reit.py "output/results_$(date +%Y-%m-%d).json"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/enrich_reit.py "output/results_$(date +%Y-%m-%d).json"
 ```
 Computes two REIT-specific proxies from each Real Estate stock's existing `edgar_history` (no network calls):
 - `ffo_growth_5y` — 5-yr CAGR of operating cash flow (proxy for FFO growth)
@@ -74,7 +74,7 @@ A non-zero exit code should be reported but does **not** block the remaining ste
 ### 1d. Enrich sector-specific KPIs via SEC XBRL (Phases 3–6)
 Covers nine sectors in a single pass: Technology / Healthcare / Communication Services / Industrials / Consumer Cyclical / Consumer Defensive / Energy / Utilities / Basic Materials. Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Desktop/Workspace Folder"; "$PYTHON" scripts/enrich_xbrl.py "output/results_$(date +%Y-%m-%d).json"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/enrich_xbrl.py "output/results_$(date +%Y-%m-%d).json"
 ```
 For every target-sector stock with a known SEC CIK, fetches the companyfacts blob once and derives:
 
@@ -111,7 +111,7 @@ A non-zero exit code should be reported but does **not** block the remaining ste
 ### 1e. Enrich Healthcare drug/biotech records with FDA pipeline depth
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Desktop/Workspace Folder"; "$PYTHON" scripts/enrich_pipeline.py "output/results_$(date +%Y-%m-%d).json"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/enrich_pipeline.py "output/results_$(date +%Y-%m-%d).json"
 ```
 Counts each drug/biotech company's active sponsored interventional trials on the ClinicalTrials.gov API v2 and writes `fda_pipeline_count`. Scoped to drug/biotech industries (devices/payers/services are skipped so they don't distort the sector median). Sponsor name comes from `data/ticker_sponsor_map.py` when mapped, else the cleaned company name; the lookup matches on the lead-sponsor field so unrelated companies don't collide. Responses cached for 30 days under `data/cache/clinicaltrials/`. Idempotent — strips prior enrichment first; API/network failures degrade to "—" rather than raising.
 
@@ -120,37 +120,37 @@ A non-zero exit code should be reported but does **not** block the remaining ste
 ### 1f. Re-render the HTML report so banners pick up the enrichment
 Must run **after** 1b, 1c, 1d, and 1e so the final HTML reflects every enriched field. Run as a **single Bash call**:
 ```
-PYTHON="$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Desktop/Workspace Folder"; "$PYTHON" scripts/rescore_and_render.py "output/results_$(date +%Y-%m-%d).json"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/rescore_and_render.py "output/results_$(date +%Y-%m-%d).json"
 ```
 This overwrites `output/stock_analysis_results_YYYY-MM-DD.html` with a render that includes every Phase 1–4 enrichment. If any of the enrichment steps failed (no fields populated), this step is still safe — the affected banners just fall back to "—".
 
 ### 2. Commit today's snapshot to the data/snapshots branch
 Run each as a **separate** Bash call (single line each):
 ```
-cp "output/results_$(date +%Y-%m-%d).json" "$HOME/Desktop/Workspace Folder/.claude/worktrees/snapshots-data/"
+cp "output/results_$(date +%Y-%m-%d).json" "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data/"
 ```
 ```
-git -C "$HOME/Desktop/Workspace Folder/.claude/worktrees/snapshots-data" add "results_$(date +%Y-%m-%d).json"
+git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" add "results_$(date +%Y-%m-%d).json"
 ```
 ```
-git -C "$HOME/Desktop/Workspace Folder/.claude/worktrees/snapshots-data" commit -m "Snapshot: $(date +%Y-%m-%d)"
+git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" commit -m "Snapshot: $(date +%Y-%m-%d)"
 ```
 ```
-git -C "$HOME/Desktop/Workspace Folder/.claude/worktrees/snapshots-data" push origin data/snapshots
+git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" push origin data/snapshots
 ```
 This persists the snapshot to GitHub so it is never lost if the local worktree is deleted. A non-zero exit code should be reported but does **not** block the remaining steps.
 
 ### 3. Run portfolio concentration and drawdown report
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Desktop/Workspace Folder"; "$PYTHON" scripts/portfolio_report.py --results-dir output/ --prices-dir output/prices
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/portfolio_report.py --results-dir output/ --prices-dir output/prices
 ```
 This saves `output/portfolio_report_YYYY-MM-DD.txt` automatically in addition to printing to the console. Print the full output in the run summary. Flag: any sector > 35% of the BUY/LEAN BUY bucket (concentration risk), any highly correlated pair (r > 0.85) that are not obvious duplicates (e.g. GOOG/GOOGL), and any BUY-rated stock with a 2020 drawdown worse than -50%. A non-zero exit code should be reported but does **not** block remaining steps.
 
 ### 4. Report gate N/A coverage
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Desktop/Workspace Folder"; "$PYTHON" scripts/gate_na_report.py "output/results_$(date +%Y-%m-%d).json"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/gate_na_report.py "output/results_$(date +%Y-%m-%d).json"
 ```
 Prints, for each of the 26 model gate columns, how many records have an N/A raw value (`_gate_*` is null) and the percentage of the universe affected, plus the day-over-day delta vs the prior snapshot. **Print the full table in the run summary.** Flags to act on:
 - **⚠ JUMP** — a gate's N/A share rose ≥ 10 points vs the prior snapshot. This is the signal that a data source degraded *today* (e.g. the 2026-07-22 run silently dropped ~100 tickers to fetch timeouts). Call it out prominently in the run summary.
@@ -161,7 +161,7 @@ Must run after 1f (so it measures the final enriched/rescored snapshot). A non-z
 ### 5. Validate ratings against trailing price returns
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Desktop/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Desktop/Workspace Folder"; "$PYTHON" scripts/validate_ratings.py --snapshot "output/results_$(date +%Y-%m-%d).json" --prices-dir output/prices
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/validate_ratings.py --snapshot "output/results_$(date +%Y-%m-%d).json" --prices-dir output/prices
 ```
 This checks whether today's BUY/LEAN BUY/HOLD/PASS ratings correlate with the past 12 months of actual price returns. Print the full output in the run summary. Key things to flag:
 - If BUY-rated stocks had significantly *higher* trailing returns than HOLD/PASS, the model may be chasing momentum rather than identifying value — worth reviewing
