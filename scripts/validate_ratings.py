@@ -1,13 +1,18 @@
 """scripts/validate_ratings.py
 
-Validate model ratings against historical price returns.
+TRAILING-return sanity check on today's ratings — NOT a measure of accuracy.
 
 Loads the most recent results_*.json snapshot, then for each ticker looks up
-actual returns from the local parquet price files over 1 trailing horizon
-(default 252 trading days ≈ 1 year).
+the return from the local parquet price files over 1 trailing horizon
+(default 252 trading days ≈ 1 year) ENDING on the snapshot date.
 
-Answers the core question: do stocks the model rates BUY actually beat PASS
-stocks over the prior year?  If yes, the model is directionally calibrated.
+What it answers: is the model quietly chasing momentum? A value model buys
+laggards, so the composite-vs-trailing-return correlation is expected to be
+negative; a significant positive reading means the ratings are riding what
+already ran. It says nothing about whether BUYs go on to beat the market —
+that is the FORWARD question, answered by `scripts/backtest.py measure`
+(and `backtest.py readiness` for when the answer becomes statistically
+meaningful).
 
 Usage:
     python scripts/validate_ratings.py

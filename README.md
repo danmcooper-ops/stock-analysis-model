@@ -15,7 +15,8 @@ and renders an interactive HTML report alongside JSON and Excel snapshots.
 - Composite scoring and BUY / LEAN BUY / HOLD / PASS ratings with
   sector-relative percentiles
 - Macro regime overlay (VIX, yield curve, credit spreads, momentum)
-- Backtesting and parameter-calibration tooling
+- Forward-return backtesting and walk-forward calibration tooling, with a
+  readiness census that says when the snapshot corpus is long enough to trust
 - Interactive HTML report with per-ticker deep-dive popups
 
 ## Setup
@@ -29,7 +30,9 @@ and renders an interactive HTML report alongside JSON and Excel snapshots.
 ```bash
 python scripts/analyze_stock.py                 # S&P 500 + Dow universe
 python scripts/analyze_stock.py --universe us   # all US-listed equities
-python scripts/backtest.py --help               # historical calibration
+python scripts/backtest.py readiness            # how much evidence the snapshots hold
+python scripts/backtest.py measure              # forward-return backtest (needs output/prices)
+python scripts/backtest.py --help               # calibrate / annotate
 pytest -m "not network and not slow"            # offline test suite
 ```
 

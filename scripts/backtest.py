@@ -3,22 +3,29 @@
 Backtest + calibrate pipeline for the stock analysis model.
 
 Subcommands:
+  readiness          How much statistically independent evidence the snapshot
+                     corpus holds per horizon, and the calendar dates at which
+                     walk-forward calibration and a significance test become
+                     possible. Reads snapshot dates only (no prices).
   measure            Run backtest analysis on accumulated snapshots — measures
                      whether the model's ratings predict forward returns.
+  annotate           Warm the forward-return sidecar cache.
   calibrate          Walk-forward parameter calibration. Splits snapshots into
                      rolling train/test windows; for each window, sweeps the
                      parameter grid and records out-of-sample performance.
-  optimize-weights   Cohen's d weight optimization on a single snapshot.
-                     Searches the 4-weight valuation/quality/moat/growth grid
-                     for the combo that best separates quality vs poor stocks.
+                     Refuses to run until the corpus holds MIN_EFFECTIVE_N
+                     independent periods (override with --force).
 
 Examples:
+  python scripts/backtest.py readiness --horizons 30,90,180
   python scripts/backtest.py measure --horizons 30,90,180
   python scripts/backtest.py calibrate --objective hit_rate --max-evals 200
-  python scripts/backtest.py optimize-weights output/results_2026-04-26.json
 
-All three modes consume the same results_YYYY-MM-DD.json snapshots produced
-by analyze_stock.py and share the objective functions and snapshot loaders.
+All modes consume the same results_YYYY-MM-DD.json snapshots produced by
+analyze_stock.py and share the objective functions and snapshot loaders.
+Snapshots dated before MIN_CONSISTENT_DATE (2026-07-06, the first snapshot
+with the full post-rebalance gate set) or missing any current gate field are
+excluded by default (--since).
 """
 import sys
 import os
@@ -58,6 +65,32 @@ SIGNAL_SPECS = [
 # signal rather than split into noisy 3-name buckets.
 MIN_SIGNAL_PER_SNAPSHOT = 20
 
+# Corpus consistency. The gate set was rebalanced in early July 2026 (three
+# new gates, FCF Margin retired, Pool Share swap); 2026-07-06 is the first
+# nightly snapshot carrying every current gate field (the 07-03 re-score still
+# lacks incremental_roic / margin_vs_hist / mult_vs_hist / pool_share_cagr).
+# Earlier snapshots lack up to 13 of the current gate fields, so a re-score
+# treats those gates as 0, and the universe was also different (451 S&P/Dow
+# names until 2026-04-26). Measuring or calibrating across that boundary
+# mixes two models. Everything dated before this is skipped unless --since
+# overrides it; snapshot_is_current() still checks the fields themselves.
+MIN_CONSISTENT_DATE = date(2026, 7, 6)
+
+# Walk-forward calibration refuses to run below this many statistically
+# independent periods (corpus span // horizon + 1). With daily snapshots,
+# adjacent windows share ~97% of their return period at a 90d horizon, so
+# "18 windows" on a 4-month corpus is one observation, not eighteen.
+MIN_EFFECTIVE_N = 8
+
+# Independent periods needed before a mean rank-IC of ~0.03 (typical for a
+# value composite, time-series sd ~0.06) clears t = 2. Reported by
+# `readiness` as the date the corpus becomes long enough to test.
+IC_SIGNIFICANCE_PERIODS = 16
+
+# Fair-value accuracy (DCF FV vs realised price) is only meaningful at a
+# multi-year horizon; at 30/90 days it just re-measures the margin of safety.
+FV_ACCURACY_MIN_HORIZON = 365
+
 
 
 # ===========================================================================
@@ -69,14 +102,21 @@ MIN_SIGNAL_PER_SNAPSHOT = 20
 # ---------------------------------------------------------------------------
 
 def load_results(results_dir='output'):
-    """Load all results JSON files, sorted by date."""
+    """Load all canonical results_YYYY-MM-DD.json files, sorted by date.
+
+    Non-canonical names (results_<date>_replay.json) are re-scored copies of
+    an earlier observation and are skipped, as in _discover_snapshot_dates.
+    """
     pattern = os.path.join(results_dir, 'results_*.json')
-    files = sorted(glob.glob(pattern))
     all_results = []
-    for f in files:
+    for f in sorted(glob.glob(pattern)):
+        stem = os.path.basename(f)[len('results_'):-len('.json')]
+        try:
+            date.fromisoformat(stem)
+        except ValueError:
+            continue
         with open(f, encoding='utf-8') as fh:
-            data = json.load(fh)
-            all_results.append(data)
+            all_results.append(json.load(fh))
     return all_results
 
 
@@ -306,6 +346,237 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
 
 
 # ---------------------------------------------------------------------------
+# Corpus consistency + readiness (shared by measure / calibrate / readiness)
+# ---------------------------------------------------------------------------
+
+def _spearman(xs, ys):
+    """Spearman rho via the tie-averaged rank() (same formula as gates_corr)."""
+    n = len(xs)
+    if n < 2:
+        return 0.0
+    rank_x = rank(xs)
+    rank_y = rank(ys)
+    d_sq = sum((a - b) ** 2 for a, b in zip(rank_x, rank_y, strict=False))
+    return 1 - (6 * d_sq) / (n * (n ** 2 - 1))
+
+
+def snapshot_is_current(snapshot):
+    """(ok, missing_fields): does the snapshot carry every current gate field?
+
+    A field counts as present when ANY row has a non-None value — many gates
+    are legitimately sparse (sector-inapplicable, short histories), so a
+    per-row check would reject everything. A field absent from every row means
+    the snapshot predates that gate: a re-score would silently score it 0 and
+    the stored composite came from a different model.
+    """
+    from scripts.scoring import GATES
+    rows = snapshot.get('results') or []
+    fields = sorted({g.field for g in GATES})
+    missing = [f for f in fields
+               if not any(r.get(f) is not None for r in rows)]
+    return (not missing), missing
+
+
+def parse_since(value):
+    """CLI --since: None/'' → MIN_CONSISTENT_DATE; 'none' → no floor; else a date."""
+    if value is None or value == '':
+        return MIN_CONSISTENT_DATE
+    if str(value).lower() == 'none':
+        return None
+    return date.fromisoformat(str(value)[:10])
+
+
+def filter_snapshot_dates(snapshot_dates, since=MIN_CONSISTENT_DATE):
+    """Drop snapshot dates before *since* (None = keep all)."""
+    if since is None:
+        return list(snapshot_dates)
+    return [d for d in snapshot_dates if d >= since]
+
+
+def _filter_consistent_snapshots(snapshots, since=MIN_CONSISTENT_DATE):
+    """Split loaded snapshots into (kept, [(date, reason), ...]).
+
+    Drops snapshots dated before *since* and snapshots that fail
+    snapshot_is_current, so measure/calibrate operate on ONE model.
+    """
+    kept, skipped = [], []
+    for snap in snapshots:
+        ds = str(snap.get('date') or '')[:10]
+        try:
+            d = date.fromisoformat(ds)
+        except ValueError:
+            skipped.append((ds or '?', 'no parseable date'))
+            continue
+        if since is not None and d < since:
+            skipped.append((ds, f'dated before {since} (--since)'))
+            continue
+        ok, missing = snapshot_is_current(snap)
+        if not ok:
+            shown = ', '.join(missing[:4]) + (' …' if len(missing) > 4 else '')
+            skipped.append((ds, f'missing gate fields: {shown}'))
+            continue
+        kept.append(snap)
+    return kept, skipped
+
+
+def readiness_report(snapshot_dates, horizons, today=None, train_size=3,
+                     test_size=1, min_effective_n=MIN_EFFECTIVE_N,
+                     ic_periods=IC_SIGNIFICANCE_PERIODS):
+    """Per-horizon evidence census from snapshot DATES alone.
+
+    For each horizon h the dict holds:
+      n_snapshots / n_matured  snapshots, and those with run_date + h <= today
+      span_days                first → last matured snapshot
+      effective_n              span_days // h + 1: independent periods — the
+                               number that matters, not the window count
+      spaced_matured           matured dates spaced >= h apart; de-overlapped
+                               walk-forward needs train_size + test_size
+      date_walk_forward        when the (train+test)-th spaced date matures
+      date_calibrate           when effective_n reaches min_effective_n
+      date_ic_test             when effective_n reaches ic_periods
+    Milestone dates assume snapshots keep arriving and are None once reached.
+    """
+    today = today or date.today()
+    dates = sorted(snapshot_dates)
+    first = dates[0] if dates else None
+    out = {}
+    for h in horizons:
+        matured = [d for d in dates if is_matured(d.isoformat(), h, today)]
+        span = (matured[-1] - matured[0]).days if matured else 0
+        eff = (span // h + 1) if matured else 0
+        spaced = _spaced_dates(dates, h)
+        spaced_matured = [d for d in spaced
+                          if is_matured(d.isoformat(), h, today)]
+        need_spaced = train_size + test_size
+
+        def when(k, _h=h):
+            # The k-th spaced date sits at first + (k-1)*h and matures h later.
+            return (first + timedelta(days=k * _h)) if first else None
+
+        out[h] = {
+            'n_snapshots': len(dates),
+            'n_matured': len(matured),
+            'span_days': span,
+            'effective_n': eff,
+            'spaced_matured': len(spaced_matured),
+            'spaced_needed': need_spaced,
+            'date_walk_forward': (None if len(spaced_matured) >= need_spaced
+                                  else when(need_spaced)),
+            'date_calibrate': (None if eff >= min_effective_n
+                               else when(min_effective_n)),
+            'date_ic_test': None if eff >= ic_periods else when(ic_periods),
+        }
+    return out
+
+
+def print_readiness(report):
+    """Console table for readiness_report output."""
+    def ds(v):
+        return 'ready' if v is None else v.isoformat()
+    print(f"\n  {'Horizon':<8s} {'Matured':>8s} {'Span d':>7s} {'Eff n':>6s} "
+          f"{'Spaced':>9s} {'Walk-fwd':>12s} "
+          f"{'Calibrate':>12s} {'IC test':>12s}")
+    print(f"  {'':<8s} {'':>8s} {'':>7s} {'':>6s} {'(need)':>9s} "
+          f"{'ready':>12s} {'(eff n>=%d)' % MIN_EFFECTIVE_N:>12s} "
+          f"{'(eff n>=%d)' % IC_SIGNIFICANCE_PERIODS:>12s}")
+    print(f"  {'-' * 80}")
+    for h in sorted(report):
+        r = report[h]
+        print(f"  {h:<8d} {r['n_matured']:>8d} {r['span_days']:>7d} "
+              f"{r['effective_n']:>6d} "
+              f"{'%d (%d)' % (r['spaced_matured'], r['spaced_needed']):>9s} "
+              f"{ds(r['date_walk_forward']):>12s} "
+              f"{ds(r['date_calibrate']):>12s} {ds(r['date_ic_test']):>12s}")
+    print("  Eff n = span // horizon + 1: daily snapshots over one horizon are "
+          "ONE observation, whatever the window count.")
+
+
+def composite_ic_summary(all_metrics):
+    """Per-snapshot Spearman IC of _composite_score vs forward EXCESS return.
+
+    Fama–MacBeth style: one IC per (snapshot, horizon), then the mean, the
+    share positive, and a t-stat on the EFFECTIVE independent sample
+    (span // horizon + 1) rather than the snapshot count — daily snapshots
+    over one horizon are one observation. Returns {horizon: {...}}; empty
+    when no (snapshot, horizon) has >= 10 usable rows.
+    """
+    by_h = defaultdict(list)   # horizon -> [(run_date, ic)]
+    for m in all_metrics:
+        xs, ys = [], []
+        for d in m['details']:
+            s, ex = d.get('_composite_score'), d.get('excess_return')
+            if (isinstance(s, (int, float)) and not isinstance(s, bool)
+                    and isinstance(ex, (int, float)) and math.isfinite(s)
+                    and math.isfinite(ex)):
+                xs.append(float(s))
+                ys.append(float(ex))
+        if len(xs) >= 10:
+            by_h[m['horizon']].append((m['run_date'], _spearman(xs, ys)))
+    out = {}
+    for h, pairs in by_h.items():
+        pairs.sort()
+        ics = np.array([ic for _, ic in pairs])
+        d0 = date.fromisoformat(str(pairs[0][0])[:10])
+        d1 = date.fromisoformat(str(pairs[-1][0])[:10])
+        eff = (d1 - d0).days // h + 1
+        mean = float(np.mean(ics))
+        sd = float(np.std(ics, ddof=1)) if len(ics) > 1 else 0.0
+        out[h] = {
+            'n_snapshots': len(ics),
+            'mean_ic': mean,
+            'median_ic': float(np.median(ics)),
+            'frac_positive': float(np.mean(ics > 0)),
+            'effective_n': eff,
+            't_stat_effective': (mean / sd * math.sqrt(eff)) if sd > 0 else None,
+            'first': pairs[0][0],
+            'last': pairs[-1][0],
+        }
+    return out
+
+
+def print_composite_ic(ic):
+    if not ic:
+        return
+    print("\n  Composite-score rank IC vs forward excess return (one IC per snapshot):")
+    print(f"  {'Horizon':<8s} {'Snaps':>6s} {'Mean IC':>8s} {'Med IC':>8s} "
+          f"{'IC>0':>6s} {'Eff n':>6s} {'t(eff)':>7s}")
+    for h in sorted(ic):
+        s = ic[h]
+        t = (f"{s['t_stat_effective']:.2f}"
+             if s['t_stat_effective'] is not None else 'n/a')
+        print(f"  {h:<8d} {s['n_snapshots']:>6d} {s['mean_ic']:>+8.3f} "
+              f"{s['median_ic']:>+8.3f} {s['frac_positive']:>6.0%} "
+              f"{s['effective_n']:>6d} {t:>7s}")
+    print("  (t uses effective n = span // horizon + 1; |t| >= 2 is the bar "
+          "for calling the signal real)")
+
+
+def aggregate_buckets(all_metrics):
+    """{horizon: {rating: {n, mean_excess, median_excess, hit_rate}}}."""
+    acc = defaultdict(lambda: defaultdict(list))
+    for m in all_metrics:
+        for d in m['details']:
+            ex = d.get('excess_return')
+            if isinstance(ex, (int, float)) and math.isfinite(ex):
+                acc[m['horizon']][d.get('rating')].append(ex)
+    out = {}
+    for h, by_rating in acc.items():
+        out[h] = {}
+        for rating in RATING_ORDER:
+            v = by_rating.get(rating)
+            if not v:
+                continue
+            arr = np.array(v)
+            out[h][rating] = {
+                'n': len(arr),
+                'mean_excess': float(np.mean(arr)),
+                'median_excess': float(np.median(arr)),
+                'hit_rate': float(np.mean(arr > 0)),
+            }
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Single-run analysis
 # ---------------------------------------------------------------------------
 
@@ -369,6 +640,7 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
             'rating': rating,
             'gates_passed': s.get('_gates_passed', 'N/A'),
             'gates_num': gates,
+            '_composite_score': s.get('_composite_score'),
             'dcf_fv': fv,
             'start_price': fwd.get('start_price'),
             'end_price': end_price,
@@ -384,7 +656,9 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
             gates_vals.append(gates)
             return_vals.append(ret)
 
-        if fv and fv > 0 and end_price > 0:
+        # FV accuracy only at a multi-year horizon (see FV_ACCURACY_MIN_HORIZON).
+        if (horizon_days >= FV_ACCURACY_MIN_HORIZON
+                and fv and fv > 0 and end_price > 0):
             fv_preds.append(fv)
             fv_actuals.append(end_price)
 
@@ -471,21 +745,31 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
 # Full backtest across all snapshots and horizons
 # ---------------------------------------------------------------------------
 
-def run_backtest(results_dir, horizons, yf_client, prices_dir=None):
-    """Run backtest for all snapshots × horizons. Returns list of result dicts."""
+def run_backtest(results_dir, horizons, yf_client, prices_dir=None,
+                 since=MIN_CONSISTENT_DATE):
+    """Run backtest for all snapshots × horizons. Returns list of result dicts.
+
+    Snapshots dated before *since* (None = no floor) or missing any current
+    gate field are skipped and listed, so the measured corpus is one model.
+    """
     all_results = load_results(results_dir)
     if not all_results:
         print("No results files found in", results_dir)
         return []
 
-    print(f"Loaded {len(all_results)} snapshot(s).")
-    for r in all_results:
+    kept, skipped_snaps = _filter_consistent_snapshots(all_results, since)
+    print(f"Loaded {len(all_results)} snapshot(s): {len(kept)} usable, "
+          f"{len(skipped_snaps)} skipped (dated before {since} or missing "
+          f"current gate fields).")
+    for r in kept:
         print(f"  {r.get('date', '?')}: {r.get('count', 0)} stocks")
+    for d, why in skipped_snaps:
+        print(f"  {d}: skipped — {why}")
 
     metrics = []
     skipped = 0
 
-    for run in all_results:
+    for run in kept:
         run_date_str = run.get('date')
         if not run_date_str:
             continue
@@ -747,8 +1031,13 @@ def build_backtest_excel(all_metrics, filename):
             if isinstance(val, float):
                 ws3.cell(row=ri, column=2).number_format = '0.0%'
             ri += 1
-    else:
+    elif any(m['horizon'] >= FV_ACCURACY_MIN_HORIZON for m in all_metrics):
         ws3.cell(row=ri, column=1, value='Not enough data yet')
+    else:
+        ws3.cell(row=ri, column=1,
+                 value=f'Not measured below a {FV_ACCURACY_MIN_HORIZON}d '
+                       'horizon (FV is a multi-year anchor; at 30/90d this '
+                       'would only re-measure the margin of safety)')
 
     auto_width(ws3, stats_headers)
     ws3.column_dimensions['A'].width = 30
@@ -1233,6 +1522,11 @@ def print_summary(all_metrics):
     print("ENHANCED ANALYTICS")
     print(f"{'='*70}")
 
+    # Does the composite score rank future winners above losers? Per-snapshot
+    # IC with a t-stat on the effective (independent) sample — the headline
+    # number for "is the model working".
+    print_composite_ic(composite_ic_summary(all_metrics))
+
     # Strong BUY hit rate
     buy_hit = strong_buy_hit_rate(all_metrics)
     if buy_hit is not None:
@@ -1382,17 +1676,24 @@ def compute_objective(backtest_metrics, objective='hit_rate'):
 
 
 def rank_ic_objective(metrics):
-    """Spearman rank IC between ``_composite_score`` and forward excess return.
+    """Mean per-snapshot Spearman rank IC between ``_composite_score`` and
+    forward excess return.
 
-    Computed across the FULL population (every row that has both a composite
-    score and a forward excess return), not just BUY-rated names.  With only
-    ~2 BUY per snapshot the BUY-only objectives are near-degenerate; rank IC
-    uses ~2,000 rows/snapshot, so it actually discriminates between candidate
-    parameter sets.  Higher = the model's score ranks future winners above
-    losers.  Reuses the same Spearman formula as ``analyze_run``'s gates_corr.
+    Computed across the FULL population of each snapshot (every row that has
+    both a composite score and a forward excess return), not just BUY-rated
+    names.  With only ~2 BUY per snapshot the BUY-only objectives are
+    near-degenerate; rank IC uses ~2,000 rows/snapshot, so it actually
+    discriminates between candidate parameter sets.
+
+    One IC per (snapshot, horizon) entry, then the mean (Fama–MacBeth): a
+    single correlation pooled across days would let the highest-dispersion
+    days dominate.  Entries with fewer than 10 usable rows are skipped; 0.0
+    when none remain.  Higher = the model's score ranks future winners above
+    losers.  Same Spearman formula as ``analyze_run``'s gates_corr.
     """
-    scores, excess = [], []
+    ics = []
     for m in metrics:
+        scores, excess = [], []
         for detail in m.get('details', []):
             s = detail.get('_composite_score')
             er = detail.get('excess_return')
@@ -1400,13 +1701,9 @@ def rank_ic_objective(metrics):
                     and math.isfinite(s) and math.isfinite(er)):
                 scores.append(s)
                 excess.append(er)
-    n = len(scores)
-    if n < 10:
-        return 0.0
-    rank_s = rank(scores)
-    rank_e = rank(excess)
-    d_sq = sum((a - b) ** 2 for a, b in zip(rank_s, rank_e, strict=False))
-    return 1 - (6 * d_sq) / (n * (n ** 2 - 1))
+        if len(scores) >= 10:
+            ics.append(_spearman(scores, excess))
+    return float(np.mean(ics)) if ics else 0.0
 
 
 def hit_rate_objective(metrics):
@@ -1461,26 +1758,17 @@ def information_ratio_objective(metrics):
 
 
 def composite_objective(metrics):
-    """Blended objective: 0.4 * hit_rate + 0.3 * norm_alpha + 0.3 * fv_accuracy."""
+    """Blended rating-bucket objective: 0.6 * hit_rate + 0.4 * norm_alpha.
+
+    The former fair-value-accuracy term (DCF FV within ±20% of the horizon-end
+    price) was dropped: at 30/90 days it measures the margin of safety, not
+    FV accuracy (see FV_ACCURACY_MIN_HORIZON).
+    """
     hr = hit_rate_objective(metrics)
     alpha = alpha_objective(metrics)
     # Normalise alpha to [0, 1] (cap at 10%)
     norm_alpha = max(0.0, min(1.0, alpha / 0.10))
-
-    # Fair-value accuracy: fraction within ±20% of actual price
-    within = 0
-    fv_total = 0
-    for m in metrics:
-        for detail in m.get('details', []):
-            fv = detail.get('dcf_fv')
-            actual = detail.get('end_price')
-            if fv and actual and actual > 0:
-                fv_total += 1
-                if abs(fv - actual) / actual <= 0.20:
-                    within += 1
-    fv_acc = within / fv_total if fv_total > 0 else 0.0
-
-    return 0.4 * hr + 0.3 * norm_alpha + 0.3 * fv_acc
+    return 0.6 * hr + 0.4 * norm_alpha
 
 
 # ---------------------------------------------------------------------------
@@ -1510,7 +1798,7 @@ SEARCH_SPACE = {
 # them), but they only move rating-bucket objectives (hit_rate/alpha/...) —
 # rank_ic correlates the raw composite score and cannot see them. They also
 # multiply the grid ~12x, so they are opt-in via calibrate --include-thresholds
-# rather than part of the weekly exhaustive sweep. (Ported from main's
+# rather than part of the default exhaustive sweep. (Ported from main's
 # independently-developed calibrate.py.)
 THRESHOLD_SPACE = {
     'rating_threshold_buy':  (52, 67, 5),
@@ -1748,28 +2036,51 @@ def compute_stability(window_results):
 # Walk-forward calibration loop
 # ---------------------------------------------------------------------------
 
+def _calib_stub(today, objective, horizons, matured_counts, error, **extra):
+    """Result dict for a calibration that refused to run (n_windows = 0)."""
+    out = {
+        'date': today.isoformat(),
+        'objective': objective,
+        'horizon_days': horizons,
+        'matured_counts': matured_counts,
+        'n_windows': 0,
+        'windows': [],
+        'overall': {'error': error},
+        'recommended_params': _calibrated_weights(default_params()),
+    }
+    out.update(extra)
+    return out
+
+
 def walk_forward_calibrate(results_dir='output', horizons=None,
                            train_size=3, test_size=1, step=1,
                            objective='rank_ic', max_evaluations=400,
                            lambda_reg=0.05, yf_client=None,
                            prices_dir='output/prices', cache_dir='output/returns',
                            today=None,
-                           search_space=None):
+                           search_space=None,
+                           since=MIN_CONSISTENT_DATE,
+                           min_effective_n=MIN_EFFECTIVE_N,
+                           force=False):
     """Run the full walk-forward calibration.
 
     Pipeline:
-      1. Census snapshot maturity per horizon; refuse loudly if a horizon has
+      1. Load every snapshot once; drop those dated before *since* or missing
+         any current gate field (one model per corpus).
+      2. Census snapshot maturity per horizon; refuse loudly if a horizon has
          zero matured snapshots (forward returns can't exist yet).
-      2. Load every snapshot once and annotate forward returns once (cache-aware,
-         shared by reference across windows) — returns are param-independent.
-      3. For each rolling window whose TEST date is matured:
+      3. Refuse when the corpus holds fewer than *min_effective_n* independent
+         periods (span // horizon + 1) unless *force* — on one market episode
+         the sweep can only fit noise.
+      4. Annotate forward returns once (cache-aware, shared by reference
+         across windows) — returns are param-independent.
+      5. For each rolling window whose TEST date is matured:
          a. sweep candidate ParamSets on the train window
          b. select the best, measure it out-of-sample on the test window
 
     Args:
         results_dir: Directory containing results_YYYY-MM-DD.json files.
-        horizons: Forward-return horizons in days.  Defaults to [30] (the only
-            matured horizon for current data; 90/180 mature later in 2026).
+        horizons: Forward-return horizons in days.  Defaults to [30].
         train_size/test_size/step: Walk-forward window geometry.
         objective: Objective function name (default 'rank_ic').
         max_evaluations: Max parameter combinations per window.
@@ -1778,6 +2089,10 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
         prices_dir: Local parquet price dir for forward-return fetches.
         cache_dir: Sidecar dir for cached forward returns.
         today: Override "today" (for testing maturity logic).
+        search_space: Override SEARCH_SPACE.
+        since: Date floor for snapshots (None = no floor).
+        min_effective_n: Independent-period floor below which the run refuses.
+        force: Run anyway below the floor (result is flagged 'forced').
 
     Returns:
         dict with 'windows', 'overall', 'recommended_params', 'matured_counts'.
@@ -1786,9 +2101,35 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
         horizons = [30]
     today = today or date.today()
 
-    snapshot_dates = _discover_snapshot_dates(results_dir)
+    # 1. Load once, keep only a consistent corpus.
+    all_dates = _discover_snapshot_dates(results_dir)
+    since_dates = filter_snapshot_dates(all_dates, since)
+    n_before_since = len(all_dates) - len(since_dates)
+    if n_before_since:
+        print(f"[calibrate] skipping {n_before_since} snapshot(s) dated before "
+              f"{since} (--since)")
+    snaps_by_date = {}
+    skipped_inconsistent = []
+    for d in since_dates:
+        loaded = _load_snapshots(results_dir, [d])
+        if not loaded:
+            continue
+        ok, missing = snapshot_is_current(loaded[0])
+        if ok:
+            snaps_by_date[d] = loaded[0]
+        else:
+            skipped_inconsistent.append(d.isoformat())
+            print(f"[calibrate] skipping {d}: missing current gate fields "
+                  f"({', '.join(missing[:4])}{' …' if len(missing) > 4 else ''})")
+    snapshot_dates = sorted(snaps_by_date)
+    corpus = {
+        'since': since.isoformat() if since else None,
+        'n_snapshots_before_since': n_before_since,
+        'n_snapshots_skipped_inconsistent': len(skipped_inconsistent),
+        'skipped_inconsistent': skipped_inconsistent,
+    }
 
-    # 1. Per-horizon maturity census (loud guard — never silently score 0.0).
+    # 2. Per-horizon maturity census (loud guard — never silently score 0.0).
     matured_counts = {
         h: sum(1 for d in snapshot_dates if is_matured(d.isoformat(), h, today))
         for h in horizons
@@ -1798,19 +2139,11 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
         earliest = snapshot_dates[0].isoformat() if snapshot_dates else 'none'
         msg = (f"No matured snapshots for horizon(s) {horizons} as of {today}. "
                f"A (snapshot, horizon) pair matures when snapshot_date + horizon "
-               f"<= today; earliest snapshot is {earliest}. "
+               f"<= today; earliest usable snapshot is {earliest}. "
                f"Nothing to calibrate — refusing to emit a 0.0 result.")
         print(f"[calibrate] {msg}")
-        return {
-            'date': today.isoformat(),
-            'objective': objective,
-            'horizon_days': horizons,
-            'matured_counts': matured_counts,
-            'n_windows': 0,
-            'windows': [],
-            'overall': {'error': msg},
-            'recommended_params': _calibrated_weights(default_params()),
-        }
+        return _calib_stub(today, objective, horizons, matured_counts, msg,
+                           **corpus)
     if set(usable_horizons) != set(horizons):
         dropped = [h for h in horizons if h not in usable_horizons]
         print(f"[calibrate] dropping immature horizon(s) {dropped} "
@@ -1848,30 +2181,32 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
               f">= {spacing}d apart ({len(spaced_matured)} matured) — "
               f"de-overlapped walk-forward.")
 
+    # 3. Evidence floor. Below min_effective_n the sweep is fitting one market
+    # episode; the majority-vote "recommendation" would be noise dressed as a
+    # result. `readiness` reports the date this clears.
+    if effective_n < min_effective_n and not force:
+        msg = (f"only ~{effective_n} independent period(s) at horizon(s) "
+               f"{horizons} (need {min_effective_n}); a sweep on this corpus "
+               f"would fit noise. Run `backtest.py readiness` for the date "
+               f"this clears, or pass --force to run anyway.")
+        print(f"[calibrate] REFUSED: {msg}")
+        return _calib_stub(today, objective, horizons, matured_counts, msg,
+                           effective_independent_obs=effective_n,
+                           min_effective_n=min_effective_n,
+                           refused=True, **corpus)
+
     windows = generate_windows(dates_for_windows, train_size, test_size, step)
     if not windows:
-        return {
-            'date': today.isoformat(),
-            'objective': objective,
-            'horizon_days': horizons,
-            'matured_counts': matured_counts,
-            'n_windows': 0,
-            'windows': [],
-            'overall': {'error': 'Insufficient snapshots for walk-forward'},
-            'recommended_params': _calibrated_weights(default_params()),
-        }
+        return _calib_stub(today, objective, horizons, matured_counts,
+                           'Insufficient snapshots for walk-forward',
+                           effective_independent_obs=effective_n, **corpus)
 
-    # 2. Load every snapshot once, share by reference, annotate returns once.
+    # 4. Annotate returns once, shared by reference across windows.
     if yf_client is None:
         from data.yfinance_client import YFinanceClient
         yf_client = YFinanceClient()
     pdir = prices_dir if (prices_dir and os.path.isdir(prices_dir)) else None
 
-    snaps_by_date = {}
-    for d in snapshot_dates:
-        loaded = _load_snapshots(results_dir, [d])
-        if loaded:
-            snaps_by_date[d] = loaded[0]
     annotated_rows = 0
     for snap in snaps_by_date.values():
         res = annotate_snapshot_returns(snap, horizons, yf_client,
@@ -1889,19 +2224,11 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
                f"reaches the eval date — local prices are likely stale "
                f"(refresh output/prices). Refusing to emit a 0.0 result.")
         print(f"[calibrate] {msg}")
-        return {
-            'date': today.isoformat(),
-            'objective': objective,
-            'horizon_days': horizons,
-            'matured_counts': matured_counts,
-            'annotated_rows': 0,
-            'n_windows': 0,
-            'windows': [],
-            'overall': {'error': msg},
-            'recommended_params': _calibrated_weights(default_params()),
-        }
+        return _calib_stub(today, objective, horizons, matured_counts, msg,
+                           annotated_rows=0,
+                           effective_independent_obs=effective_n, **corpus)
 
-    # 3. Walk forward over windows with a matured test date.
+    # 5. Walk forward over windows with a matured test date.
     window_results = []
     skipped_immature = 0
     for win in windows:
@@ -1993,10 +2320,13 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
         'objective': objective,
         'horizon_days': horizons,
         'matured_counts': matured_counts,
+        **corpus,
         'annotated_rows': annotated_rows,
         'window_spacing_days': spacing,
         'overlapped_fallback': overlapped_fallback,
         'effective_independent_obs': effective_n,
+        'min_effective_n': min_effective_n,
+        'forced': bool(force and effective_n < min_effective_n),
         'n_windows': len(window_results),
         'n_windows_skipped_immature': skipped_immature,
         'n_evaluations_per_window': max_evaluations,
@@ -2051,34 +2381,30 @@ def _evaluate_params_on_snapshots(snapshots, params, horizons):
     The fair values from the original snapshot are preserved; only the
     scoring/rating layer changes.
 
-    Mutates each snapshot's ``results`` rows in place (no deepcopy).  The
-    original rating is cached on each row as ``_rating_orig`` and restored
-    before every rescore so that ``apply_composite_rating_override`` (which
-    only downgrades) starts from a clean baseline on each candidate.  This
-    is the hot path of walk_forward_calibrate: a deepcopy here costs ~50ms
+    Mutates each snapshot's ``results`` rows in place (no deepcopy): this is
+    the hot path of walk_forward_calibrate, and a deepcopy here costs ~50ms
     per snapshot and ~3GB peak RSS across a typical sweep.
 
     Returns:
         list[dict]: Backtest-compatible metric dicts, one per snapshot×horizon.
     """
-    from scripts.scoring import (compute_continuous_scores,
-                                 apply_composite_rating_override)
+    from scripts.scoring import compute_continuous_scores, apply_rating_caps
 
     metrics = []
     for snap in snapshots:
         results = snap.get('results', [])
         run_date = snap.get('date', '')
 
-        # Cache original rating once per row, then reset before rescoring so
-        # downgrades from a prior candidate don't bleed into this one.
-        for r in results:
-            if '_rating_orig' not in r:
-                r['_rating_orig'] = r.get('rating')
-            r['rating'] = r['_rating_orig']
-
-        # Re-score with candidate params (only changes composite weights)
+        # Re-score with candidate params (only changes composite weights),
+        # then derive the rating exactly as the live pipeline does: composite
+        # thresholds AND the investability caps (Beneish, Altman distress,
+        # liquidity, thin EDGAR history, ...). apply_rating_caps recomputes
+        # the rating from scratch on every call, so no reset between
+        # candidates is needed. Rating-bucket objectives (hit_rate / alpha /
+        # information_ratio / composite) must see the rating the pipeline
+        # actually emits — the uncapped one has ~2x the BUY count.
         compute_continuous_scores(results, params=params)
-        apply_composite_rating_override(results, params=params)
+        apply_rating_caps(results, params=params)
 
         # Build a lightweight metric dict compatible with objective functions.
         # Forward returns are horizon-keyed under r['_fwd'][h], pre-computed
@@ -2106,136 +2432,6 @@ def _evaluate_params_on_snapshots(snapshots, params, horizons):
     return metrics
 
 
-# ---------------------------------------------------------------------------
-# Weight calibration via Cohen's d
-# ---------------------------------------------------------------------------
-
-def _cohens_d(group_a, group_b):
-    """Compute Cohen's d effect size between two score lists."""
-    if len(group_a) < 2 or len(group_b) < 2:
-        return 0.0
-    mean_a = sum(group_a) / len(group_a)
-    mean_b = sum(group_b) / len(group_b)
-    var_a = sum((x - mean_a) ** 2 for x in group_a) / (len(group_a) - 1)
-    var_b = sum((x - mean_b) ** 2 for x in group_b) / (len(group_b) - 1)
-    pooled_sd = math.sqrt((var_a + var_b) / 2)
-    return (mean_a - mean_b) / pooled_sd if pooled_sd > 0 else 0.0
-
-
-def optimize_weights(results_json_path, output_path=None):
-    """Grid search over category weight combinations to maximize Cohen's d.
-
-    Loads a results JSON, generates all 4-weight combos that sum to 1.0,
-    re-scores each combo, and computes Cohen's d between quality/poor groups.
-
-    Args:
-        results_json_path: Path to results_YYYY-MM-DD.json.
-        output_path: Optional path to write calibration results JSON.
-
-    Returns:
-        dict with best weights, Cohen's d, and top-10 results.
-    """
-    from scripts.scoring import compute_continuous_scores, apply_composite_rating_override
-    import copy
-
-    with open(results_json_path, encoding='utf-8') as f:
-        data = json.load(f)
-    all_results = data.get('results', data) if isinstance(data, dict) else data
-
-    # Check we have quality/poor labels
-    quality = [r for r in all_results if r.get('source_group') == 'quality']
-    poor = [r for r in all_results if r.get('source_group') == 'poor']
-    if len(quality) < 3 or len(poor) < 3:
-        print(f"Insufficient labelled data: {len(quality)} quality, {len(poor)} poor")
-        return None
-
-    # Generate weight grid: all combos of 4 weights from step=0.05 that sum to 1.0
-    steps = [round(v, 2) for v in np.arange(0.10, 0.40, 0.05)]
-    grid = []
-    for wv in steps:
-        for wq in steps:
-            for wm in steps:
-                wg = round(1.0 - wv - wq - wm, 2)
-                if 0.05 <= wg <= 0.40:
-                    grid.append((wv, wq, wm, wg))
-
-    print(f"Optimizing weights: {len(grid)} combos, "
-          f"{len(quality)} quality, {len(poor)} poor stocks")
-
-    # Compute baseline Cohen's d
-    baseline_results = copy.deepcopy(all_results)
-    compute_continuous_scores(baseline_results)
-    apply_composite_rating_override(baseline_results)
-    q_baseline = [r['_composite_score'] for r in baseline_results
-                  if r.get('source_group') == 'quality' and r.get('_composite_score') is not None]
-    p_baseline = [r['_composite_score'] for r in baseline_results
-                  if r.get('source_group') == 'poor' and r.get('_composite_score') is not None]
-    baseline_d = _cohens_d(q_baseline, p_baseline)
-    print(f"Baseline Cohen's d: {baseline_d:.3f} "
-          f"(weights: 0.30/0.25/0.25/0.20)")
-
-    results_list = []
-    for wv, wq, wm, wg in grid:
-        trial = copy.deepcopy(all_results)
-        params = {
-            'score_weight_valuation': wv,
-            'score_weight_quality': wq,
-            'score_weight_moat': wm,
-            'score_weight_growth': wg,
-        }
-        compute_continuous_scores(trial, params=params)
-        apply_composite_rating_override(trial, params=params)
-
-        q_scores = [r['_composite_score'] for r in trial
-                    if r.get('source_group') == 'quality' and r.get('_composite_score') is not None]
-        p_scores = [r['_composite_score'] for r in trial
-                    if r.get('source_group') == 'poor' and r.get('_composite_score') is not None]
-        d = _cohens_d(q_scores, p_scores)
-        q_mean = sum(q_scores) / len(q_scores) if q_scores else 0
-        p_mean = sum(p_scores) / len(p_scores) if p_scores else 0
-
-        results_list.append({
-            'weights': {'valuation': wv, 'quality': wq, 'moat': wm, 'growth': wg},
-            'cohens_d': round(d, 4),
-            'quality_mean': round(q_mean, 1),
-            'poor_mean': round(p_mean, 1),
-        })
-
-    results_list.sort(key=lambda x: x['cohens_d'], reverse=True)
-    best = results_list[0]
-
-    print("\n--- Best Weights ---")
-    w = best['weights']
-    print(f"  Valuation: {w['valuation']:.0%}  Quality: {w['quality']:.0%}  "
-          f"Moat: {w['moat']:.0%}  Growth: {w['growth']:.0%}")
-    print(f"  Cohen's d: {best['cohens_d']:.3f} (baseline: {baseline_d:.3f})")
-    print(f"  Quality mean: {best['quality_mean']}  Poor mean: {best['poor_mean']}")
-
-    print("\n--- Top 10 ---")
-    for i, r in enumerate(results_list[:10]):
-        w = r['weights']
-        print(f"  {i+1}. V={w['valuation']:.0%} Q={w['quality']:.0%} "
-              f"M={w['moat']:.0%} G={w['growth']:.0%}  "
-              f"d={r['cohens_d']:.3f}  q={r['quality_mean']} p={r['poor_mean']}")
-
-    output = {
-        'date': date.today().isoformat(),
-        'baseline_cohens_d': round(baseline_d, 4),
-        'best': best,
-        'top_10': results_list[:10],
-        'n_quality': len(quality),
-        'n_poor': len(poor),
-        'grid_size': len(grid),
-    }
-
-    if output_path:
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(output, f, indent=2)
-        print(f"\nResults written to {output_path}")
-
-    return output
-
-
 # ===========================================================================
 # CLI: Subcommand dispatch
 # ===========================================================================
@@ -2250,6 +2446,7 @@ def _cli_measure(args):
                            for k in args.signals.split(',') if k.strip()]
 
     horizons = [int(h.strip()) for h in args.horizons.split(',')]
+    since = parse_since(args.since)
 
     from data.yfinance_client import YFinanceClient
     yf_client = YFinanceClient()
@@ -2259,10 +2456,18 @@ def _cli_measure(args):
         print(f"Using local price files from: {prices_dir}")
 
     all_metrics = run_backtest(args.results_dir, horizons, yf_client,
-                               prices_dir=prices_dir)
+                               prices_dir=prices_dir, since=since)
 
     if all_metrics:
         print_summary(all_metrics)
+
+        # Evidence census: how much of this is statistically independent, and
+        # when the corpus becomes long enough to calibrate / test.
+        dates = filter_snapshot_dates(_discover_snapshot_dates(args.results_dir),
+                                      since)
+        readiness = readiness_report(dates, horizons)
+        print(f"\n  {'-'*60}\n  READINESS (independent evidence per horizon)\n  {'-'*60}")
+        print_readiness(readiness)
 
         if getattr(args, 'cohort', None):
             coh = filter_metrics_to_cohort(all_metrics, cohort_key=args.cohort)
@@ -2281,12 +2486,52 @@ def _cli_measure(args):
                     min_per_snapshot=10)
 
         os.makedirs('output', exist_ok=True)
-        xlsx = os.path.join('output', f'backtest_{date.today().isoformat()}.xlsx')
+        stamp = date.today().isoformat()
+        xlsx = os.path.join('output', f'backtest_{stamp}.xlsx')
         build_backtest_excel(all_metrics, xlsx)
         print(f"\nExcel: {xlsx}")
+
+        # Compact machine-readable summary (committed alongside the snapshots
+        # by the weekly runbook so the evidence trail is versioned).
+        summary_path = os.path.join('output', f'backtest_summary_{stamp}.json')
+        summary = {
+            'date': stamp,
+            'horizons': horizons,
+            'since': since.isoformat() if since else None,
+            'snapshots': sorted({m['run_date'] for m in all_metrics}),
+            'readiness': {str(h): {k: (v.isoformat() if isinstance(v, date) else v)
+                                   for k, v in r.items()}
+                          for h, r in readiness.items()},
+            'composite_ic': {str(h): v for h, v in
+                             composite_ic_summary(all_metrics).items()},
+            'rating_buckets': {str(h): v for h, v in
+                               aggregate_buckets(all_metrics).items()},
+        }
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            json.dump(summary, f, indent=2, default=str)
+        print(f"Summary: {summary_path}")
     else:
         print("\nNo backtest results to report yet.")
         print("As you accumulate snapshots over time, the backtest will activate.")
+
+
+def _cli_readiness(args):
+    """Evidence census from snapshot dates only (no prices, no loading)."""
+    horizons = [int(h) for h in args.horizons.split(',')]
+    since = parse_since(args.since)
+    all_dates = _discover_snapshot_dates(args.results_dir)
+    dates = filter_snapshot_dates(all_dates, since)
+    today = date.today()
+    span = (f" ({dates[0].isoformat()} → {dates[-1].isoformat()})"
+            if dates else '')
+    print(f"Snapshots: {len(all_dates)} total, {len(dates)} on/after "
+          f"{since or 'the beginning'}{span}   today {today}")
+    if not dates:
+        print("Nothing to assess.")
+        return
+    print_readiness(readiness_report(dates, horizons, today=today,
+                                     train_size=args.train_size,
+                                     test_size=args.test_size))
 
 
 def _cli_calibrate(args):
@@ -2312,17 +2557,23 @@ def _cli_calibrate(args):
         lambda_reg=args.lambda_reg,
         prices_dir=args.prices_dir,
         search_space=space,
+        since=parse_since(args.since),
+        min_effective_n=args.min_effective_n,
+        force=args.force,
     )
 
     overall = result.get('overall', {})
-    # Refuse to write a meaningless 0.0 result when no horizon is matured.
+    # Refuse to write a meaningless 0.0 result when no horizon is matured, or
+    # a noise result when the corpus is too short.
     if result.get('n_windows', 0) == 0:
         print(f"\nNo calibration performed: {overall.get('error', 'no usable windows')}")
         print(f"Matured snapshots by horizon: {result.get('matured_counts')}")
+        if result.get('n_snapshots_skipped_inconsistent'):
+            print(f"Skipped (missing gate fields): {result['skipped_inconsistent']}")
         return
 
-    # Default filename embeds the horizon so per-horizon runs don't clobber
-    # each other (the weekly job calibrates 30d and 90d separately).
+    # Default filename embeds the horizon so per-horizon runs (30d, 90d)
+    # don't clobber each other.
     hz_tag = '-'.join(str(h) for h in result.get('horizon_days', horizons))
     out_path = args.output or os.path.join(
         args.results_dir,
@@ -2333,7 +2584,13 @@ def _cli_calibrate(args):
 
     print(f"\nObjective:            {result.get('objective')}")
     print(f"Horizon(s):           {result.get('horizon_days')}")
+    print(f"Corpus:               since {result.get('since')}; "
+          f"{result.get('n_snapshots_before_since', 0)} before --since, "
+          f"{result.get('n_snapshots_skipped_inconsistent', 0)} missing gate fields")
     print(f"Matured by horizon:   {result.get('matured_counts')}")
+    if result.get('forced'):
+        print(f"FORCED:               effective n {result.get('effective_independent_obs')}"
+              f" < {result.get('min_effective_n')} — treat as exploratory only")
     print("Window mode:          "
           + ("OVERLAPPED fallback — effective independent obs "
              f"~{result.get('effective_independent_obs')}"
@@ -2387,21 +2644,13 @@ def _cli_annotate(args):
     print(f"\nCache warmed under {args.cache_dir} ({total} matured (date,horizon) pairs).")
 
 
-def _cli_optimize_weights(args):
-    """Run Cohen's d weight optimization on a single snapshot."""
-    out = args.output or os.path.join(
-        os.path.dirname(args.snapshot) or '.',
-        f'weight_calibration_{date.today().isoformat()}.json')
-    optimize_weights(args.snapshot, output_path=out)
-
-
 if __name__ == '__main__':
     import argparse
 
     # Legacy-CLI shim: before the subcommand split, this script was invoked as
     # `python scripts/backtest.py --results-dir ...`. Keep those invocations
     # working by defaulting to the `measure` subcommand.
-    _subcommands = {'measure', 'calibrate', 'annotate', 'optimize-weights', '-h', '--help'}
+    _subcommands = {'readiness', 'measure', 'calibrate', 'annotate', '-h', '--help'}
     if len(sys.argv) == 1 or sys.argv[1] not in _subcommands:
         if len(sys.argv) > 1 and not sys.argv[1].startswith('-'):
             pass  # unknown positional — let argparse report it
@@ -2414,7 +2663,27 @@ if __name__ == '__main__':
         description='Backtest + calibrate the stock model. Subcommands share '
                     'the same results_*.json snapshots and objective functions.')
     sub = parser.add_subparsers(dest='command', required=True,
-                                metavar='{measure,calibrate,annotate,optimize-weights}')
+                                metavar='{readiness,measure,calibrate,annotate}')
+    _since_help = ('Ignore snapshots dated before this (YYYY-MM-DD). Default: '
+                   f'{MIN_CONSISTENT_DATE} (first snapshot with the full '
+                   'post-rebalance gate set — earlier ones lack current gate '
+                   'fields). Pass "none" to disable.')
+
+    # ---- readiness ----
+    p_ready = sub.add_parser(
+        'readiness',
+        help='How much independent evidence the corpus holds, and when '
+             'calibration / a significance test become possible.',
+        description='Reads snapshot DATES only. Reports, per horizon, matured '
+                    'snapshots, effective independent periods (span // horizon '
+                    '+ 1), de-overlapped walk-forward readiness, and the '
+                    'calendar dates at which each milestone arrives.')
+    p_ready.add_argument('--results-dir', default='output')
+    p_ready.add_argument('--horizons', default='30,90,180')
+    p_ready.add_argument('--since', default=None, help=_since_help)
+    p_ready.add_argument('--train-size', type=int, default=3)
+    p_ready.add_argument('--test-size', type=int, default=1)
+    p_ready.set_defaults(func=_cli_readiness)
 
     # ---- measure ----
     p_measure = sub.add_parser(
@@ -2439,6 +2708,7 @@ if __name__ == '__main__':
     p_measure.add_argument('--exclude-capped', action='store_true',
                            help='With --cohort: drop rows already vetoed by the '
                                 'beneish/altman-distress rating caps.')
+    p_measure.add_argument('--since', default=None, help=_since_help)
     p_measure.set_defaults(func=_cli_measure)
 
     # ---- calibrate ----
@@ -2474,6 +2744,13 @@ if __name__ == '__main__':
                             'bucket objectives can see thresholds.')
     p_cal.add_argument('--output', default=None,
                        help='Output JSON path (default: output/calibration_DATE.json)')
+    p_cal.add_argument('--since', default=None, help=_since_help)
+    p_cal.add_argument('--min-effective-n', type=int, default=MIN_EFFECTIVE_N,
+                       help='Refuse below this many independent periods '
+                            f'(span // horizon + 1). Default {MIN_EFFECTIVE_N}.')
+    p_cal.add_argument('--force', action='store_true',
+                       help='Run even below --min-effective-n (result is '
+                            'flagged "forced": exploratory only).')
     p_cal.set_defaults(func=_cli_calibrate)
 
     # ---- annotate ----
@@ -2493,19 +2770,6 @@ if __name__ == '__main__':
                        help='Sidecar cache directory (default: output/returns)')
     p_ann.set_defaults(func=_cli_annotate)
 
-    # ---- optimize-weights ----
-    p_opt = sub.add_parser(
-        'optimize-weights',
-        help="Cohen's d weight optimization on a single snapshot.",
-        description='Searches the 4-weight valuation/quality/moat/growth grid '
-                    "for the combo that best separates quality vs poor source "
-                    'groups in a single snapshot.')
-    p_opt.add_argument('snapshot',
-                       help='Path to a results_YYYY-MM-DD.json snapshot file')
-    p_opt.add_argument('--output', default=None,
-                       help='Output JSON path '
-                            '(default: weight_calibration_DATE.json next to the snapshot)')
-    p_opt.set_defaults(func=_cli_optimize_weights)
 
     args = parser.parse_args()
     args.func(args)

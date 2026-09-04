@@ -1123,8 +1123,10 @@ def rating_from_composite(composite, params=None):
     (BUY +0.32pp, LEAN +1.0pp) — inside tolerance, thresholds unchanged.
     PROVISIONAL: old snapshots carry no per-year NOPAT/invested-capital,
     so Incr ROIC scores 0 on rescores; the first live run will lift
-    composites slightly — revisit then (the weekly calibrate job also
-    searches these thresholds against forward returns).
+    composites slightly — revisit then. `backtest.py calibrate
+    --include-thresholds` can search these thresholds against forward
+    returns once the corpus holds enough independent periods (it refuses
+    below MIN_EFFECTIVE_N; see `backtest.py readiness`).
 
     Returns None when composite is None. Thresholds tunable via params.
     """
