@@ -21,6 +21,7 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
+from data.snapshot_store import sync_snapshot_file
 from scripts.scoring import score_and_rate
 from scripts.report_html import build_html
 from scripts.analyze_stock import (derive_edgar_metrics, _load_local_prices,
@@ -211,6 +212,10 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
     with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(out, f, default=str)
     print(f'Updated {json_path}')
+    # Keep the DuckDB snapshot store in step with the rewritten file (the
+    # enrichment scripts also rewrite it, so this re-sync covers steps 1b-1f).
+    if sync_snapshot_file(json_path, data=out):
+        print(f'Synced {json_path} into the snapshot store')
 
     # Quick sanity summary
     n = len(results)

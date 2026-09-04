@@ -72,6 +72,7 @@ from data.sec_xbrl_client import SECXBRLClient
 from data.fx_client import get_spot_fx_rate, apply_fx_to_statement_df
 from data.sec_insider_client import SECInsiderClient
 from data.provenance import ProvenanceRecorder
+from data.snapshot_store import SnapshotStore, list_snapshot_files, sync_snapshot_file
 from data.culture_client import CultureClient
 
 from scripts.config import (ERP, TERMINAL_GROWTH_RATE,
@@ -2541,6 +2542,28 @@ def _run_build_clients(run_start_date):
             'sec_client': sec_client, 'sec_xbrl_client': sec_xbrl_client}
 
 
+def _load_carry_forward_rows(prior_date, prior_path):
+    """Rows of the most recent prior snapshot for the carry-forward set and
+    the market-cap integrity guard, which together need only ``ticker``,
+    ``shares_out`` and ``mcap``. Reads those three columns from the DuckDB
+    snapshot store when it holds that date (milliseconds) instead of parsing
+    the ~66 MB JSON; falls back to the file otherwise."""
+    try:
+        store = SnapshotStore.for_results_dir(os.path.dirname(prior_path) or 'output')
+        if store is not None:
+            with store:
+                if store.has_date(prior_date):
+                    rows = store.rows(prior_date, ['ticker', 'shares_out', 'mcap'])
+                    print(f"Carry-forward: read {len(rows)} prior rows from snapshot store")
+                    return rows
+    except Exception as e:
+        logger.warning("snapshot store read failed for %s (%s); parsing JSON",
+                       prior_date, e)
+    with open(prior_path, encoding='utf-8') as pf:
+        prior = json.load(pf)
+    return prior.get('results', prior) if isinstance(prior, dict) else prior
+
+
 def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                        tiingo_client, sec_xbrl_client, risk_free_rate,
                        effective_erp):
@@ -2570,13 +2593,10 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     # integrity guard further down can fall back to yesterday's share count.
     _carry_prior_rows = []
     try:
-        import glob as _glob
-        _prior_jsons = sorted(_glob.glob(os.path.join('output', 'results_*.json')))
-        if _prior_jsons:
-            _prior_path = _prior_jsons[-1]
-            with open(_prior_path, encoding='utf-8') as _pf:
-                _prior = json.load(_pf)
-            _prior_rows = _prior.get('results', _prior) if isinstance(_prior, dict) else _prior
+        _prior_snapshots = list_snapshot_files('output')
+        if _prior_snapshots:
+            _prior_date, _prior_path = _prior_snapshots[-1]
+            _prior_rows = _load_carry_forward_rows(_prior_date, _prior_path)
             _carry_prior_rows = _prior_rows
             _carry_set = {r['ticker'] for r in _prior_rows if r.get('ticker')} - _skip_set
             print(f"Carry-forward: {len(_carry_set)} ticker(s) from {os.path.basename(_prior_path)} "
@@ -4357,6 +4377,13 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
     with open(json_filename, 'w', encoding='utf-8') as f:
         json.dump(json_meta, f, indent=2, default=str)
     _prov.write_events('output')
+    # Mirror the snapshot into output/snapshots.duckdb so tomorrow's
+    # carry-forward, the report's rating-history readers and the gate N/A
+    # report can select a few columns instead of re-parsing this file. The
+    # store is a derived index: a failure is logged and never blocks the run.
+    if sync_snapshot_file(json_filename, data=json_meta):
+        print(f"Snapshot store: {len(json_rows)} rows for {today_str} mirrored to "
+              f"output/snapshots.duckdb")
 
     # Macro Outlook dashboard payload (FRED). Not gated on --macro: the tab
     # is read-only context and the FRED client caches daily. Fails soft —

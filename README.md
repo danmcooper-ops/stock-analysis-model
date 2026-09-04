@@ -37,7 +37,20 @@ pytest -m "not network and not slow"            # offline test suite
 ```
 
 Outputs land in `output/` (gitignored): `results_<date>.json`,
-`stock_analysis_results_<date>.html`, and an Excel workbook.
+`stock_analysis_results_<date>.html`, and an Excel workbook. Each run is
+also mirrored into `output/snapshots.duckdb`, an embedded DuckDB index over
+the daily snapshots that the cross-run readers (yesterday's rating, rating
+history, gate coverage deltas, carry-forward) query instead of re-parsing
+the JSON files. Backfill it from archived snapshots with
+`python scripts/ingest_snapshots.py --results-dir <dir>` (idempotent), and
+query it ad hoc:
+
+```python
+from data.snapshot_store import SnapshotStore
+with SnapshotStore.open_existing('output/snapshots.duckdb') as s:
+    print(s.query("SELECT date, count(*) FILTER (WHERE rating = 'BUY') AS buys "
+                  "FROM results GROUP BY date ORDER BY date"))
+```
 
 ## Configuration
 API keys are read from the environment (or a gitignored `.env` at the repo

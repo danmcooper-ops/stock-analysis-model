@@ -34,14 +34,14 @@ import sys
 import os
 import re
 import json
-import glob
 import argparse
 import difflib
-from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
+
+from data.snapshot_store import list_snapshot_files as _list_snapshot_files
 
 # Slim per-snapshot column set persisted in the index cache. Bump the cache
 # dir version suffix when this list changes so stale files rebuild cleanly.
@@ -82,21 +82,12 @@ _WHERE_RE = re.compile(r'^\s*([A-Za-z_]\w*)\s*(>=|<=|!=|==|>|<)\s*(.+?)\s*$')
 def list_snapshot_files(results_dir='output'):
     """[(date_str, path)] for canonical results_YYYY-MM-DD.json, sorted.
 
-    Same strict stem validation as backtest.load_results() (scripts/
-    backtest.py) — suffixed variants like results_*_replay.json are
+    Thin wrapper over data.snapshot_store.list_snapshot_files (the shared
+    discovery helper): suffixed variants like results_*_replay.json are
     re-scored copies of earlier data and must never be queried as if they
-    were live runs. Replicated rather than imported because load_results()
-    eagerly json.loads every file, which this tool exists to avoid.
+    were live runs.
     """
-    out = []
-    for f in sorted(glob.glob(os.path.join(results_dir, 'results_*.json'))):
-        stem = os.path.basename(f)[len('results_'):-len('.json')]
-        try:
-            datetime.strptime(stem, '%Y-%m-%d')
-        except ValueError:
-            continue
-        out.append((stem, f))
-    return out
+    return _list_snapshot_files(results_dir)
 
 
 def load_snapshot(path):

@@ -11,7 +11,7 @@ gates, and renders an interactive HTML report plus JSON/Excel snapshots.
 
 - **Language:** Python 3.11+
 - **Packaging:** `pyproject.toml` (pinned deps; dev extra with pytest, ruff, hypothesis, pytest-cov, pre-commit)
-- **Core deps:** yfinance, pandas, numpy, requests, scipy, curl_cffi, jinja2, lxml, pyarrow, openpyxl, nltk
+- **Core deps:** yfinance, pandas, numpy, requests, scipy, curl_cffi, jinja2, lxml, pyarrow, openpyxl, nltk, duckdb
 
 ## Project Structure
 
@@ -20,17 +20,20 @@ data/            - Data clients (SEC XBRL/insider/legal/supply, yfinance, FMP,
                    Tiingo, Finnhub supply, macro, news, culture, FDIC,
                    clinical trials, social sentiment, FX, treasury, US listings)
                    plus shared helpers: throttle.py, yf_session.py,
-                   snapshot_cache.py, provenance.py, validation.py
+                   snapshot_cache.py, snapshot_store.py (DuckDB index over
+                   the daily results snapshots), provenance.py, validation.py
 models/          - Pure model functions: capm, dcf, ddm, epv, rim, nav,
                    ratios (WACC/ROIC), quality (Altman/Beneish/Piotroski),
                    market, macro, narrative, portfolio, valuation_types
 scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    report_html.py / report_excel.py, scoring.py, config.py,
-                   param_set.py, replay.py, plus enrichment/maintenance scripts
+                   param_set.py, replay.py, ingest_snapshots.py (backfill the
+                   snapshot store), plus enrichment/maintenance scripts
 tests/           - pytest suite (~750 tests) incl. hypothesis property tests
 templates/       - jinja2 report templates
 scheduled-tasks/ - Operational runbooks for the nightly analysis + publish
-output/          - (gitignored) run artifacts: results JSON, HTML, prices
+output/          - (gitignored) run artifacts: results JSON, HTML, prices,
+                   snapshots.duckdb (derived index over the results JSONs)
 ```
 
 ## Setup
@@ -65,6 +68,19 @@ ruff check .
   `models/valuation_types.py`); same-named legacy wrappers return
   `.value` as float|None. Soft issues are RuntimeWarnings AND recorded
   on the envelope.
+- **Snapshot store (`data/snapshot_store.py`):** every run's
+  `output/results_<date>.json` (~66 MB, ~2,300 rows x ~270 keys) is mirrored
+  into `output/snapshots.duckdb` (tables `runs`, `results`; scalar keys
+  become typed columns, dicts/lists become JSON columns, new keys add
+  columns on the fly). The JSON stays canonical; the store is a derived
+  index that cross-run readers (carry-forward, "yesterday's rating", rating
+  history, gate N/A deltas, portfolio alerts) query for a few columns
+  instead of re-parsing whole files. Every reader falls back to the JSON
+  when the store is absent or does not hold the dates it needs.
+  `sync_snapshot_file()` re-mirrors a rewritten file (analyze_stock, the
+  enrich_* scripts and rescore_and_render call it); `scripts/
+  ingest_snapshots.py` backfills history. `backtest.py` and
+  `query_results.py` still read the JSON files directly.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). `report_html.build_html()` orchestrates the per-row

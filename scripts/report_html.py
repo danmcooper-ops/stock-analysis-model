@@ -129,7 +129,9 @@ def _load_prev_ratings(out_dir, run_date, max_lookback=7, extra_keys=()):
 
     Scans ``out_dir`` for ``results_YYYY-MM-DD.json`` snapshots dated strictly
     before ``run_date`` (ISO date strings sort lexicographically, so a plain
-    string compare is correct) and walks them newest-first. For every ticker it
+    string compare is correct) and walks them newest-first (from the DuckDB
+    snapshot store when it holds that window, else by parsing the files). For
+    every ticker it
     records the rating from the *most recent* snapshot that contains it — i.e.
     "last known rating", not "rating in exactly the prior file". This makes the
     "Yesterday's Rating" column resilient to a single degraded run: a ticker
@@ -168,6 +170,10 @@ def _load_prev_ratings(out_dir, run_date, max_lookback=7, extra_keys=()):
         return None, {}
     dated.sort(key=lambda t: t[0], reverse=True)
     primary_date = dated[0][0]
+    from_store = _prev_ratings_from_store(
+        out_dir, cur, [d for d, _ in dated[:max_lookback]], extra_keys)
+    if from_store is not None:
+        return from_store
     out = {}
     filled_via_fallback = 0
     for d, p in dated[:max_lookback]:
@@ -197,6 +203,68 @@ def _load_prev_ratings(out_dir, run_date, max_lookback=7, extra_keys=()):
         print(f"[report_html] rate-change: {filled_via_fallback} ticker(s) "
               f"baselined via fallback look-back (missing from {primary_date})")
     return primary_date, out
+
+def _open_snapshot_store(out_dir):
+    """Read-only handle on out_dir/snapshots.duckdb, or None when absent."""
+    try:
+        from data.snapshot_store import SnapshotStore
+        return SnapshotStore.for_results_dir(out_dir)
+    except Exception as e:  # missing duckdb, locked/corrupt file: use JSON
+        print(f"[report_html] snapshot store unavailable, parsing JSON: {e}")
+        return None
+
+
+def _prev_ratings_from_store(out_dir, cur, window_dates, extra_keys):
+    """_load_prev_ratings via the DuckDB snapshot store.
+
+    *window_dates* are the (newest-first) snapshot files the JSON path would
+    parse; the store is used only when it holds exactly that window, so a
+    store that lags the files (a snapshot written but not yet ingested) can
+    never change the baseline.  Returns ``(primary_date, drivers)`` or None
+    to fall back to parsing the JSON files.
+    """
+    if cur is None or not window_dates:
+        return None
+    store = _open_snapshot_store(out_dir)
+    if store is None:
+        return None
+    try:
+        with store:
+            have = store.dates(before=cur)[-len(window_dates):]
+            if have != sorted(window_dates):
+                return None
+            cols = list(_PREV_DRIVER_KEYS) + [k for k in extra_keys
+                                              if k not in _PREV_DRIVER_KEYS]
+            primary, out, n_fallback = store.last_known_rows(
+                cur, cols, max_lookback=len(window_dates))
+    except Exception as e:
+        print(f"[report_html] snapshot store read failed, parsing JSON: {e}")
+        return None
+    if n_fallback:
+        print(f"[report_html] rate-change: {n_fallback} ticker(s) "
+              f"baselined via fallback look-back (missing from {primary})")
+    print("[report_html] rate-change baseline read from snapshot store")
+    return primary, out
+
+
+def _rating_history_from_store(out_dir, cur, file_dates):
+    """_load_rating_history via the snapshot store, or None to fall back.
+    Used only when the store holds exactly the snapshot dates the JSON path
+    would scan (every file dated before *cur*)."""
+    store = _open_snapshot_store(out_dir)
+    if store is None:
+        return None
+    try:
+        with store:
+            if store.dates(before=cur) != sorted(file_dates):
+                return None
+            hist = store.rating_history(before=cur)
+    except Exception as e:
+        print(f"[report_html] snapshot store read failed, parsing JSON: {e}")
+        return None
+    print(f"[report_html] rating history read from snapshot store ({len(hist)} tickers)")
+    return hist
+
 
 # Composite-score floors for each rating band (see rating_from_composite in
 # scripts/scoring.py — 57/39/25 are the calibrated defaults). Keyed by the
@@ -342,8 +410,11 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     strictly before ``run_date`` so re-rendering an old snapshot never sees
     "future" history.
 
-    Parsing every historical results_*.json (~66MB each) on every render would
-    be minutes of work, so an incremental cache (``out_dir/rating_history.json``)
+    When ``out_dir/snapshots.duckdb`` (data/snapshot_store.py) holds every
+    prior snapshot, the change-points come from one window-function query.
+    Otherwise: parsing every historical results_*.json (~66MB each) on every
+    render would be minutes of work, so an incremental cache
+    (``out_dir/rating_history.json``)
     stores the accumulated change-points plus the last snapshot date scanned;
     each render only parses snapshots newer than that. Only strictly-newer dates
     are appended, so a late-backfilled older snapshot can't corrupt ordering
@@ -364,6 +435,10 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     dated.sort()
     if not dated:
         return {}
+    from_store = _rating_history_from_store(
+        out_dir, cur, [d for d, _ in dated if cur is None or d < cur])
+    if from_store is not None:
+        return from_store
     cache_path = os.path.join(out_dir, cache_name)
     hist, last_scanned = {}, None
     try:

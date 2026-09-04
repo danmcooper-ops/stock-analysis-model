@@ -29,6 +29,7 @@ _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO not in sys.path:
     sys.path.insert(0, _REPO)
 
+from data.snapshot_store import sync_snapshot_file
 from data import fdic_client
 from data.provenance import (append_events, attach_enrichment,
                              enrichment_block, make_event, strip_enrichment)
@@ -231,6 +232,7 @@ def main():
             )
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(d, f)
+    sync_snapshot_file(out_path, data=d)  # keep the DuckDB snapshot store in step
     print(f"\n  Wrote {out_path}")
     run_date = (d.get("date") if isinstance(d, dict) else None) or \
         os.path.basename(in_path).replace("results_", "").replace(".json", "")
