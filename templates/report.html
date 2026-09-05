@@ -460,7 +460,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 [data-theme="dark"] .navmenu-crumb{color:#e6edf3;}
 [data-theme="dark"] .navmenu-crumb-sub{color:#8b949e;}
 .navmenu-btn.active .navmenu-crumb,.navmenu-btn.active .navmenu-crumb-sub{color:#fff;}
-.nav-panel{min-width:220px;max-width:min(760px,calc(100vw - 20px));}
+/* 900, not the 760 this started at: the group headers carry a shortcut badge
+   now, and the columns are flex:0 0 auto with nowrap labels, so the menu cannot
+   compress to fit. At 760 the last column's ::after chevron fell outside the
+   panel and .fpop-body's overflow (overflow-x computes to auto next to its
+   overflow-y) clipped it. Column 2 is sized by the longest sector name, which
+   is data-driven, so the fit needs slack rather than luck; .navmenu-col's 220px
+   cap bounds the worst case at ~968px. The panel is width:max-content, so this
+   is only ever a ceiling — it renders at 755px today. */
+.nav-panel{min-width:220px;max-width:min(900px,calc(100vw - 20px));}
 .navmenu-cols{display:flex;gap:20px;align-items:flex-start;}
 /* Content-sized columns (not flex:1 1 0) so the longest sector name sets the
    column width instead of being ellipsised into three equal shares. */
@@ -10359,10 +10367,14 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .hk-foot{padding:0 18px 16px;font-size:11.5px;color:var(--text-muted);}
 .navmenu-hkhint{display:flex;align-items:center;gap:6px;width:100%;margin-top:10px;padding:8px 4px 2px;border:none;border-top:1px solid var(--border);background:none;color:var(--text-muted);font:inherit;font-size:12px;cursor:pointer;}
 .navmenu-hkhint:hover{color:var(--text);}
-.navmenu-key{margin-left:7px;opacity:.75;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;padding:1px 5px;border:1px solid var(--border);border-radius:4px;}
-/* No physical keyboard to shortcut with, and the sheet would crowd the
-   viewport — hide both the badges and the hint on touch-sized screens. */
-@media (max-width:700px){.navmenu-key,.navmenu-hkhint{display:none;}}
+.navmenu-key{opacity:.75;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;padding:1px 5px;border:1px solid var(--border);border-radius:4px;}
+/* Below ~780px of viewport it is calc(100vw - 20px), not the 900px cap, that
+   bounds the panel, and the badges push the menu back over that line — so they
+   go first, at 840px, before they can clip the chevron again. The hint is
+   width:100% inside a column-flex body and adds no width; it only needs to go
+   when there is no physical keyboard to shortcut with. */
+@media (max-width:840px){.navmenu-key{display:none;}}
+@media (max-width:700px){.navmenu-hkhint{display:none;}}
 </style>
 <div id="hk-overlay" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onclick="if(event.target===this)hkOverlayClose()">
   <div class="hk-card">
