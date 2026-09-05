@@ -1,0 +1,53 @@
+name: Daily EOD run
+
+# Actions cron is UTC-only, so one schedule cannot hold 16:00 New York across
+# a DST change. Both crons below fire year-round and the gate job decides
+# which one is the real 16:00 firing today; the other exits in seconds.
+# Adding an offset (or retargeting another zone) means adding a cron line
+# here — scripts/should_build.py needs no change.
+on:
+  schedule:
+    - cron: '0 20 * * 1-5'   # 16:00 America/New_York while EDT
+    - cron: '0 21 * * 1-5'   # 16:00 America/New_York while EST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-eod
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.chk.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # should_build.py is stdlib-only on purpose: the gate runs on every
+      # firing, including the ones it exists to throw away, so it must not
+      # pay for a dependency install to decide it has nothing to do.
+      # Interpolating github.event.schedule into the command is safe here —
+      # it can only ever be one of the cron strings written above. It is
+      # empty on workflow_dispatch, which the script treats as "always build".
+      - id: chk
+        run: |
+          python scripts/should_build.py \
+            --tz America/New_York --hour 16 --cron "${{ github.event.schedule }}"
+
+  build:
+    needs: gate
+    if: needs.gate.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      # TODO: the actual end-of-day pipeline goes here. Today it runs as the
+      # local Claude Code routine in scheduled-tasks/daily-stock-analysis/;
+      # nothing is ported yet, so this job only proves the gate opened.
+      - run: echo "Gate opened — 16:00 America/New_York. Pipeline step not wired up yet."
