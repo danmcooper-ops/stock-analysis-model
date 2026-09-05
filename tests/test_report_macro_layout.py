@@ -9,8 +9,11 @@ to undo by accident:
     other views say about individual names. It is the only group appended
     conditionally, so the natural edit — `groups.push` — silently sends it
     back to last place;
-  * its Overview is a story beside a rail of glance tiles — the full
-    histories are drawn once, on the section sub-tabs, never repeated here;
+  * its Overview is a story beside a rail of glance tiles and nothing else —
+    the full histories are drawn once, on the section sub-tabs, never
+    repeated here, and the eleven per-sector outlooks render on their own
+    Sector Analysis tabs (renderPoolMacroOutlook), not in a grid trailing
+    the tiles;
   * its charts are `<svg viewBox>` with no fixed height, so their height is a
     function of the CARD's width. That makes the card/tile grid floors, not
     any height rule, what decides whether a chart fits on an iPhone screen.
@@ -141,24 +144,26 @@ def test_macro_narrative_escapes_every_model_string():
     only reach a class attribute through the whitelist lookup."""
     css = _css()
     body = ''
-    for fn in ('_macNarrativeHTML', '_macSectorsHTML'):
-        m = re.search(r'function ' + fn + r'\(\).*?\n\}\n', css, re.S)
+    for fn, arg in (('_macNarrativeHTML', ''), ('renderPoolMacroOutlook',
+                                                'sec')):
+        m = re.search(r'function ' + fn + r'\(' + arg + r'\).*?\n\}\n',
+                      css, re.S)
         assert m, 'could not find %s' % fn
         body += m.group(0)
     # every read of a narrative field that lands in HTML is wrapped in _esc(
-    for field in ('s.sector', 's.headline', 's.outlook', 'nar.model'):
+    for field in ('row.headline', 'row.outlook', 'nar.model'):
         for at in [m.start() for m in re.finditer(re.escape(field), body)]:
-            if (field == 's.sector'
-                    and body[at - 3:at + len(field) + 1] == 'sd[s.sector]'):
-                # data lookup keyed by the schema-pinned GICS enum; the value
-                # never lands in HTML (it feeds _macSecFigs, which formats)
-                continue
+            if body[at - 1] == '!':
+                continue  # a truthiness guard, not an interpolation
             prefix = body[max(0, at - 6):at]
             assert '_esc(' in prefix, \
                 '%s is interpolated without _esc()' % field
     assert "STANCE={tailwind:'up',headwind:'down'}" in body, \
         'stance must map to CSS classes only through the whitelist'
-    assert "STANCE[s.stance]||''" in body
+    assert "STANCE[row.stance]||''" in body
+    # the stance LABEL is repo-authored text picked by the same key, never
+    # the model's own stance string echoed into the page
+    assert "LABEL[row.stance]||" in body
     # trend reaches HTML only through the glyph whitelist in _macSecFigs
     figs = re.search(r'function _macSecFigs\(.*?\n\}\n', css, re.S)
     assert figs and 'TRENDG={improving:' in figs.group(0), \
@@ -166,10 +171,10 @@ def test_macro_narrative_escapes_every_model_string():
 
 
 def test_macro_narrative_sector_rows_carry_metric_figs():
-    """Each sector entry carries the sector's hard ETF numbers from
+    """The sector's outlook carries the sector's hard ETF numbers from
     sector_data, sourced inline (MACRO_SUM) so they paint at first render,
     and degrading to prose-only when a sector has no metrics or the
-    snapshot predates sector_data. They are set in the muted token so they
+    snapshot predates sector_data. They are set muted and tabular so they
     read as a footnote to the sentence, not a second column."""
     css = _css()
     figs = re.search(r'function _macSecFigs\(d\)\{.*?\n\}\n', css, re.S)
@@ -179,16 +184,19 @@ def test_macro_narrative_sector_rows_carry_metric_figs():
     # local parquet RS is fresher than the yfinance fallback — keep the order
     assert figs.find('d.rs_3m!=null') < figs.find('rel_strength_3m'), \
         'rs_3m must be preferred over rel_strength_3m'
-    sec = re.search(r'function _macSectorsHTML\(\).*?\n\}\n', css, re.S)
-    assert sec, 'could not find _macSectorsHTML'
+    sec = re.search(r'function renderPoolMacroOutlook\(sec\).*?\n\}\n',
+                    css, re.S)
+    assert sec, 'could not find renderPoolMacroOutlook'
     sec = sec.group(0)
     assert '(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)' \
         in sec, 'sector_data must come from the inline summary first'
-    assert '_macSecFigs(sd[s.sector])' in sec
-    assert re.search(r'\.mac-nar-figs\{[^}]*tabular-nums', css), \
+    assert '_macSecFigs(sd[sec])' in sec
+    assert re.search(r'\.pp-macro-figs\{[^}]*tabular-nums', css), \
         'metric figs need tabular numerals'
-    assert re.search(r'\.mac-nar-figs\{[^}]*color:var\(--mac-', css), \
-        'figs take their colour from the macro tokens (dark mode swaps them)'
+    # the section lives in #view-pool, where the --mac-* tokens are not
+    # declared, so the figs need a literal muted colour, not a token
+    assert re.search(r'\.pp-macro-figs\{[^}]*color:#', css), \
+        'the figs need an explicit muted colour'
     assert '[data-theme="dark"] #macro-view{' in css, \
         'the macro tokens need a dark-mode redefinition'
 
@@ -215,25 +223,67 @@ def test_macro_narrative_is_prose_not_lists():
     assert '.mac-nar-cols' not in css, 'the two-column bullet grid is gone'
 
 
-def test_macro_sector_implications_are_their_own_section():
-    """The eleven sector outlooks render as a full-width section beneath the
-    story and the tiles — three stance columns, collapsing to one on a
-    phone — rather than as a tail on the narrative card."""
+def test_sector_outlooks_live_on_their_sector_tab():
+    """Each sector's macro outlook renders on that sector's own Sector
+    Analysis tab, in a Macro Outlook section directly above Sector
+    Headwinds & Tailwinds — top-down read, then bottom-up. It used to be an
+    eleven-sector "Sector implications" grid trailing the Macro Outlook
+    Overview, read once and left behind."""
     css = _css()
-    sec = re.search(r'function _macSectorsHTML\(\).*?\n\}\n', css, re.S)
-    assert sec, 'could not find _macSectorsHTML'
-    sec = sec.group(0)
-    assert "GROUPS=[['tailwind'," in sec and "['neutral'," in sec \
-        and "['headwind'," in sec, 'sectors are grouped by stance'
-    assert 'mac-sec-cols' in sec
+    assert '_macSectorsHTML' not in css, \
+        'the all-sectors grid is gone; the outlooks are per sector now'
+    for cls in ('mac-sectors', 'mac-sec-cols', 'mac-nar-sec', 'mac-stance'):
+        assert cls not in css, '%s is dead markup, drop the CSS too' % cls
     ov = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S)
     assert ov, 'could not find _macOverviewHTML'
-    ov = ov.group(0)
-    assert ov.find('_macSectorsHTML()') > ov.find('mac-tiles'), \
-        'the sector section follows the story + tiles grid'
-    assert re.search(r'\.mac-sec-cols\{[^}]*repeat\(3,', css)
-    assert ('@media(max-width:900px){.mac-sec-cols{grid-template-columns:1fr;}}'
-            in css), 'the sector columns need a narrow-screen collapse'
+    body = re.sub(r'/\*.*?\*/', '', ov.group(0), flags=re.S)
+    assert 'sector' not in body.lower(), \
+        'the Overview is the story and the tiles, nothing else'
+    sec = re.search(r'function renderPoolMacroOutlook\(sec\).*?\n\}\n',
+                    css, re.S)
+    assert sec, 'could not find renderPoolMacroOutlook'
+    sec = sec.group(0)
+    assert 's.sector===sec' in sec, 'the entry is matched to this sector'
+    # a narrative that is missing (no ANTHROPIC_API_KEY) or that skips a
+    # sector is a legal state: drop the section rather than render an empty
+    assert sec.count("return ''") >= 2, \
+        'a missing narrative or sector must drop the section'
+    # prose in the pp idiom: escaped first, then linkified like every other
+    # renderPool* helper
+    assert '_linkifyTickers(_esc(row.outlook))' in sec
+    # the section sits between Structural Insights and Sector Headwinds
+    pool = re.search(r'var insightsHtml=renderPoolInsights\(sec\);'
+                     r'.*?pp-section pp-signals', css, re.S)
+    assert pool, 'could not find the per-sector section assembly'
+    pool = pool.group(0)
+    assert pool.find('pp-section pp-insights') < pool.find('pp-section pp-macro') \
+        < pool.find('pp-section pp-signals'), \
+        'Macro Outlook goes above Sector Headwinds & Tailwinds'
+    assert 'pp-section-label">Macro Outlook<' in pool
+
+
+def test_sector_macro_outlook_is_styled_like_its_neighbours():
+    """.pp-macro is a pp-section like the blocks around it, so it has to be
+    registered in each of the enumerated class lists — the shared surface
+    rule, the section-label colour, and the dark-mode surface list — or it
+    renders unstyled, or fine in light mode and broken in dark."""
+    css = _css()
+    surface = re.search(r'\n([^\n]*\.pp-insights,[^\n]*)\{background:#f7f9fb',
+                        css)
+    assert surface and '.pp-macro,' in surface.group(1), \
+        '.pp-macro missing from the shared pp-section surface rule'
+    assert '.pp-macro .pp-section-label,' in css, \
+        '.pp-macro missing from the section-label colour list'
+    assert '[data-theme="dark"] .pp-macro,' in css, \
+        '.pp-macro missing from the dark-mode surface list'
+    # prose set like the Structural Insights / Overview blocks above it
+    assert re.search(r'\.pp-macro-p\{[^}]*font-size:0\.82em', css) and \
+        re.search(r'\.pp-macro-p\{[^}]*line-height:1\.55', css), \
+        'the outlook is set in the pp prose idiom'
+    # stance is carried by colour, and both stance colours swap in dark mode
+    for cls in ('.pp-macro-p.up', '.pp-macro-p.down'):
+        assert cls + '{border-left-color:' in css
+        assert '[data-theme="dark"] ' + cls + '{border-left-color:' in css
 
 
 def test_macro_overview_does_not_repeat_section_charts():

@@ -152,5 +152,7 @@ by analyze_stock and gitignored):
 - `SEC_EMAIL` — contact email for SEC EDGAR User-Agent
 - `FMP_API_KEY`, `TIINGO_API_KEY`, `FINNHUB_API_KEY` — optional data sources
 - `ANTHROPIC_API_KEY` — optional; enables the Claude-generated macro
-  narrative on the Macro Outlook tab (skipped cleanly when unset)
+  narrative — the story on the Macro Outlook tab, and each sector's outlook
+  in the Macro Outlook section of its Sector Analysis tab (skipped cleanly
+  when unset: both render without it, minus those blocks)
 - yfinance requires no authentication
