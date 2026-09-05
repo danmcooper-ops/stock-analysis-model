@@ -28,7 +28,9 @@ Schema (``schema_version`` = :data:`SCHEMA_VERSION`):
     later snapshots require); dict and list values are stored as JSON.
     Columns are added on the fly as new keys appear, so schema drift between
     snapshot versions never blocks an ingest.  The nested ``edgar_history``
-    block is stored as a slim projection (:data:`DEFAULT_PROJECTIONS`).
+    block is stored as a slim projection (:data:`DEFAULT_PROJECTIONS`), and
+    the report-only narrative blocks are dropped entirely
+    (:data:`DEFAULT_EXCLUDE_KEYS`).
 
 Identifiers are always double-quoted: row keys such as ``_composite_score``
 or ``pe`` are stored verbatim.
@@ -44,7 +46,7 @@ from datetime import date, datetime
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 DB_FILENAME = 'snapshots.duckdb'
 DEFAULT_RESULTS_DIR = 'output'
 
@@ -55,9 +57,24 @@ _SNAPSHOT_RE = re.compile(r'^results_(\d{4}-\d{2}-\d{2})\.json$')
 _TYPE_RANK = {'BOOLEAN': 0, 'BIGINT': 1, 'DOUBLE': 2, 'VARCHAR': 3, 'JSON': 4}
 _RESERVED_COLUMNS = ('date',)
 
-# Row keys left out of the store entirely.  Nothing is dropped wholesale by
-# default; pass ``exclude=('key', ...)`` to skip one.
-DEFAULT_EXCLUDE_KEYS = ()
+# Row keys left out of the store entirely: the narrative and report-payload
+# blocks that exist only to render the HTML report.  Measured over 84 real
+# snapshots they were 2.6 GB of a 3.5 GB store — news_headlines alone was
+# 819 MB — while no cross-run reader, no re-scoring path and none of the
+# columns query_results exposes touches any of them.  The snapshot JSON stays
+# the source for them; pass ``exclude=()`` to store everything.
+#
+# Anything scoring reads must NOT be added here. roic_by_year, _nopat_by_year,
+# _ic_by_year and _trap_components look like the same kind of payload and are
+# deliberately absent from this list because scripts/scoring.py reads them;
+# tests/test_snapshot_store.py asserts the list stays disjoint from the fields
+# the scoring path depends on.
+DEFAULT_EXCLUDE_KEYS = (
+    'news_headlines', 'legal_filings', 'insider_transactions',
+    'sector_headwinds', 'sector_tailwinds', 'description', '_description',
+    'financial_summary', '_provenance', 'culture_narrative', 'customers',
+    'rolling_betas', 'edgar_discrepancies', 'ceo_bio', 'suppliers', '_peers',
+)
 
 # Nested blocks stored as a slim projection rather than whole.
 # ``edgar_history`` carries 54 fundamentals series per ticker and is what
@@ -145,8 +162,36 @@ def _quote(name):
 # Value normalisation / type inference
 # ---------------------------------------------------------------------------
 
+# Non-finite floats that reached the JSON as strings. analyze_stock's
+# _make_json_safe nulls a numpy nan/inf, but a plain Python inf survives to be
+# written (and re-read after an enrichment rewrite) as "Infinity" — 557 of the
+# 84 archived snapshots' `pe` values are that string. Treated as text they gave
+# a numeric column VARCHAR evidence, which turned every other row's float into
+# a string: 2,413 of one snapshot's 2,471 `pe` values. They carry no type
+# evidence instead (see _value_type), so a column stays numeric on the strength
+# of its real values and these cast to the float they denote; a genuinely
+# textual column keeps them verbatim.
+_NONFINITE_STRINGS = {
+    'nan': float('nan'), 'inf': float('inf'), '-inf': float('-inf'),
+    'infinity': float('inf'), '-infinity': float('-inf'),
+}
+
+
+def _nonfinite_string(v):
+    """The float a stringified non-finite denotes, or None if it isn't one."""
+    if isinstance(v, str):
+        return _NONFINITE_STRINGS.get(v.strip().lower())
+    return None
+
+
 def _scalar(v):
-    """Coerce numpy / pandas scalars to plain Python; NaN and inf become None."""
+    """Coerce numpy / pandas scalars to plain Python.
+
+    NaN and inf are preserved rather than nulled: the scoring path distinguishes
+    a missing value (None -> the gate is N/A) from a non-finite one (nan fails
+    every comparison, so the gate FAILS), and collapsing the two silently moved
+    rows between those cases.
+    """
     if v is None:
         return None
     if isinstance(v, bool):
@@ -154,7 +199,7 @@ def _scalar(v):
     if isinstance(v, (int, str)):
         return v
     if isinstance(v, float):
-        return None if (math.isnan(v) or math.isinf(v)) else v
+        return v
     if isinstance(v, (dict, list, tuple)):
         return v
     item = getattr(v, 'item', None)  # numpy scalars
@@ -176,7 +221,8 @@ def _value_type(v):
     if isinstance(v, float):
         return 'DOUBLE'
     if isinstance(v, str):
-        return 'VARCHAR'
+        # A stringified non-finite is not evidence that the column is textual.
+        return None if _nonfinite_string(v) is not None else 'VARCHAR'
     return 'JSON'
 
 
@@ -186,6 +232,19 @@ def _widen(a, b):
     if b is None:
         return a
     return a if _TYPE_RANK[a] >= _TYPE_RANK[b] else b
+
+
+def _json_safe(v, _depth=0):
+    """Recursively replace non-finite floats with None for JSON storage."""
+    if _depth > 12:
+        return None
+    if isinstance(v, float):
+        return None if (math.isnan(v) or math.isinf(v)) else v
+    if isinstance(v, dict):
+        return {k: _json_safe(x, _depth + 1) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_json_safe(x, _depth + 1) for x in v]
+    return v
 
 
 def _json_default(o):
@@ -203,8 +262,16 @@ def _cast(v, col_type):
     """Render a normalised Python value for a column of *col_type*."""
     if v is None:
         return None
+    if col_type in ('DOUBLE', 'BIGINT', 'BOOLEAN'):
+        # "Infinity" in a numeric column is the float, not the word.
+        nf = _nonfinite_string(v)
+        if nf is not None:
+            return nf if col_type == 'DOUBLE' else None
     if col_type == 'JSON':
-        return json.dumps(v, default=_json_default)
+        # json.dumps would emit bare NaN/Infinity tokens, which are not valid
+        # JSON and which DuckDB's JSON type rejects, so non-finite floats
+        # nested inside a stored block become null.
+        return json.dumps(_json_safe(v), default=_json_default)
     if col_type == 'VARCHAR':
         if isinstance(v, (dict, list, tuple)):
             return json.dumps(v, default=_json_default)
