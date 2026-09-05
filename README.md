@@ -45,12 +45,22 @@ the JSON files. Backfill it from archived snapshots with
 `python scripts/ingest_snapshots.py --results-dir <dir>` (idempotent), and
 query it ad hoc:
 
+```bash
+python scripts/query_results.py --sql "SELECT date, count(*) FILTER (WHERE rating='BUY') AS buys FROM results GROUP BY date ORDER BY date"
+```
+
+or from Python:
+
 ```python
 from data.snapshot_store import SnapshotStore
 with SnapshotStore.open_existing('output/snapshots.duckdb') as s:
     print(s.query("SELECT date, count(*) FILTER (WHERE rating = 'BUY') AS buys "
                   "FROM results GROUP BY date ORDER BY date"))
 ```
+
+`backtest.py` and `query_results.py --history` read the store when it holds
+the snapshots they need and fall back to the JSON files otherwise, so the
+store is an optimisation you can delete and rebuild at any time.
 
 ## Configuration
 API keys are read from the environment (or a gitignored `.env` at the repo

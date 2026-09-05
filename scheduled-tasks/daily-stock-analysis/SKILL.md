@@ -130,6 +130,14 @@ PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/
 ```
 Idempotent — dates already present are skipped (add `--replace` to force).
 
+**After a release that bumps the store's `SCHEMA_VERSION`** (see
+`data/snapshot_store.py`), the first writable open rebuilds the file empty and
+logs "rebuilding at v<N>" — the store is a derived index, so its columns are
+re-derived rather than migrated. Everything keeps working meanwhile (every
+reader falls back to the JSON snapshots), but history-backed columns such as
+the report's rating history stay on the slow path until the backfill above is
+re-run once against the snapshot archive.
+
 ### 2. Commit today's snapshot to the data/snapshots branch
 Run each as a **separate** Bash call (single line each):
 ```

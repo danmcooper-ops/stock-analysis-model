@@ -21,7 +21,8 @@ data/            - Data clients (SEC XBRL/insider/legal/supply, yfinance, FMP,
                    clinical trials, social sentiment, FX, treasury, US listings)
                    plus shared helpers: throttle.py, yf_session.py,
                    snapshot_cache.py, snapshot_store.py (DuckDB index over
-                   the daily results snapshots), provenance.py, validation.py
+                   the daily results snapshots), price_store.py (bulk DuckDB
+                   reads over the price parquets), provenance.py, validation.py
 models/          - Pure model functions: capm, dcf, ddm, epv, rim, nav,
                    ratios (WACC/ROIC), quality (Altman/Beneish/Piotroski),
                    market, macro, narrative, portfolio, valuation_types
@@ -77,10 +78,26 @@ ruff check .
   history, gate N/A deltas, portfolio alerts) query for a few columns
   instead of re-parsing whole files. Every reader falls back to the JSON
   when the store is absent or does not hold the dates it needs.
-  `sync_snapshot_file()` re-mirrors a rewritten file (analyze_stock, the
-  enrich_* scripts and rescore_and_render call it); `scripts/
-  ingest_snapshots.py` backfills history. `backtest.py` and
-  `query_results.py` still read the JSON files directly.
+  `edgar_history` is kept as a slim projection (`years_available` and
+  `operating_income_history` — the only sub-keys any scoring path reads), so
+  a store row is a drop-in for re-scoring while the other 52 series stay in
+  the JSON. `sync_snapshot_file()` re-mirrors a rewritten file (analyze_stock,
+  the enrich_* scripts and rescore_and_render call it); `scripts/
+  ingest_snapshots.py` backfills history. The store is versioned
+  (`SCHEMA_VERSION`): readers ignore a store built at another version and a
+  writable open rebuilds it empty, so a stale index degrades to the JSON path
+  rather than serving wrong columns.
+- **Backtest/query reads:** `backtest.py` loads each snapshot from the store
+  when it holds that date (per-date decision, `--no-store` forces JSON) —
+  the corpus costs roughly half the RSS of parsing the files, which is what
+  made a calibration sweep expensive. Forward returns come from one DuckDB
+  scan of `output/prices/*.parquet` (`data/price_store.window_closes`)
+  instead of a parquet open per ticker; both paths select the same bar
+  (nearest, ties to the later bar, nothing beyond 7 days) so measurements are
+  unchanged. `query_results.py` serves `--history` from the store (all
+  columns, no full-scan penalty) and offers `--sql` for raw queries, falling
+  back to its older `.query_index_v1/` parquet index when the store is absent
+  or incomplete.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). `report_html.build_html()` orchestrates the per-row
