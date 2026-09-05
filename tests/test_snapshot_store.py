@@ -24,7 +24,9 @@ def _row(ticker, rating='BUY', **kw):
         'shares_out': 500_000_000, 'founder_led': False,
         '_composite_score': 60.0, '_gates_passed': '11/17',
         '_rating_cap_reasons': [], 'dcf_sens_range': (90.0, 130.0),
-        'edgar_history': {'revenue_history': {'2024-12-31': 1.0e9}},
+        'edgar_history': {'revenue_history': {'2024-12-31': 1.0e9},
+                          'operating_income_history': {'2024-12-31': 2.0e8},
+                          'years_available': 11},
         'beta': None, '_gate_roic': 0.2, '_gate_mos': None,
     }
     r.update(kw)
@@ -106,7 +108,7 @@ def test_schema_drift_adds_and_widens_columns(results_dir):
         assert 'new_field' not in types
         assert types['founder_led'] == 'BOOLEAN'
         assert types['_rating_cap_reasons'] == 'JSON'
-        assert 'edgar_history' not in types  # DEFAULT_EXCLUDE_KEYS
+        assert types['edgar_history'] == 'JSON'  # slim projection, see below
         assert types['shares_out'] == 'BIGINT'
         # all-null keys create no column until a value shows up
         assert 'beta' not in types and '_gate_mos' not in types
@@ -138,11 +140,18 @@ def test_ingest_rows_normalises_numpy_and_dedupes_tickers(tmp_path):
         assert got[0]['_rating_cap_reasons'] == []
         with pytest.raises(ValueError):
             store.ingest_rows({}, rows)  # no date anywhere
-        # exclude=() keeps the heavy nested block as a JSON column
-        store.ingest_rows({}, rows, run_date='2026-02-02', exclude=())
-        got = store.rows('2026-02-02', ['edgar_history'])
-        assert got[0]['edgar_history'] == {'revenue_history': {'2024-12-31': 1.0e9}}
-        assert store.rows('2026-02-01', ['edgar_history'])[0]['edgar_history'] is None
+        # edgar_history is stored as the slim projection the re-scoring path
+        # reads, not the whole 54-series block.
+        assert got[0]['edgar_history'] == {
+            'operating_income_history': {'2024-12-31': 2.0e8},
+            'years_available': 11}
+        # projections={} keeps the block whole; exclude drops it entirely.
+        store.ingest_rows({}, rows, run_date='2026-02-02', projections={})
+        whole = store.rows('2026-02-02', ['edgar_history'])[0]['edgar_history']
+        assert whole['revenue_history'] == {'2024-12-31': 1.0e9}
+        store.ingest_rows({}, rows, run_date='2026-02-03',
+                          exclude=('edgar_history',))
+        assert store.rows('2026-02-03', ['edgar_history'])[0]['edgar_history'] is None
 
 
 def test_rows_prior_rows_and_unknown_columns(results_dir):
@@ -314,3 +323,32 @@ def test_analyze_stock_carry_forward_reads_store(results_dir, capsys):
     assert {r['ticker'] for r in rows} == {'AAA', 'BBB', 'CCC'}
     assert set(rows[0]) == {'ticker', 'shares_out', 'mcap'}
     assert 'snapshot store' in capsys.readouterr().out
+
+
+# --- schema versioning ------------------------------------------------------
+
+def test_stale_schema_is_ignored_by_readers_and_rebuilt_on_write(results_dir, caplog):
+    """A store built under an older layout holds columns projected by different
+    rules, so readers must ignore it rather than trust it."""
+    import data.snapshot_store as ss
+    db = db_path_for(str(results_dir))
+    ingest_dir(str(results_dir))
+    with SnapshotStore.open_existing(db) as store:
+        assert store.schema_version() == ss.SCHEMA_VERSION
+        assert store.dates()
+
+    # Simulate a store written by an older release.
+    with SnapshotStore(db) as store:
+        store._con.execute("UPDATE schema_version SET version = ?",
+                           [ss.SCHEMA_VERSION - 1])
+
+    # Readers refuse it, so every migrated caller falls back to the JSON files.
+    assert SnapshotStore.open_existing(db) is None
+
+    # A writable open rebuilds it empty at the current version; the JSONs stay
+    # the source of truth, so a re-ingest refills it.
+    with SnapshotStore(db) as store:
+        assert store.schema_version() == ss.SCHEMA_VERSION
+        assert store.dates() == []
+    ingested, _, _ = ingest_dir(str(results_dir))
+    assert ingested == ['2026-01-01', '2026-01-02', '2026-01-03']

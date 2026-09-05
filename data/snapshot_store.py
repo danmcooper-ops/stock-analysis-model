@@ -28,7 +28,7 @@ Schema (``schema_version`` = :data:`SCHEMA_VERSION`):
     later snapshots require); dict and list values are stored as JSON.
     Columns are added on the fly as new keys appear, so schema drift between
     snapshot versions never blocks an ingest.  The nested ``edgar_history``
-    block is left out by default (:data:`DEFAULT_EXCLUDE_KEYS`).
+    block is stored as a slim projection (:data:`DEFAULT_PROJECTIONS`).
 
 Identifiers are always double-quoted: row keys such as ``_composite_score``
 or ``pe`` are stored verbatim.
@@ -44,7 +44,7 @@ from datetime import date, datetime
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 DB_FILENAME = 'snapshots.duckdb'
 DEFAULT_RESULTS_DIR = 'output'
 
@@ -55,12 +55,22 @@ _SNAPSHOT_RE = re.compile(r'^results_(\d{4}-\d{2}-\d{2})\.json$')
 _TYPE_RANK = {'BOOLEAN': 0, 'BIGINT': 1, 'DOUBLE': 2, 'VARCHAR': 3, 'JSON': 4}
 _RESERVED_COLUMNS = ('date',)
 
-# Row keys left out of the store by default.  ``edgar_history`` is the nested
-# 54-series fundamentals block that makes each snapshot ~66 MB; it changes
-# quarterly, no cross-run reader needs it, and as a JSON column it would
-# make the store grow faster than the JSON files it indexes.  The snapshot
-# file remains the source for it.  Pass ``exclude=()`` to keep everything.
-DEFAULT_EXCLUDE_KEYS = ('edgar_history',)
+# Row keys left out of the store entirely.  Nothing is dropped wholesale by
+# default; pass ``exclude=('key', ...)`` to skip one.
+DEFAULT_EXCLUDE_KEYS = ()
+
+# Nested blocks stored as a slim projection rather than whole.
+# ``edgar_history`` carries 54 fundamentals series per ticker and is what
+# makes a snapshot ~66 MB; storing it intact would grow the store faster
+# than the JSON files it indexes.  But the re-scoring path reads two things
+# out of it — ``years_available`` (the thin-history rating cap in
+# scripts/scoring._rating_cap_for_row) and ``operating_income_history`` (the
+# pool-share CAGR signal) — so keeping exactly those makes a store row a
+# drop-in for re-scoring while costing a few values per ticker.  The
+# snapshot JSON remains the source for the other 52 series.
+DEFAULT_PROJECTIONS = {
+    'edgar_history': ('years_available', 'operating_income_history'),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -258,10 +268,22 @@ class SnapshotStore:
         if not os.path.exists(path):
             return None
         try:
-            return cls(path, read_only=read_only)
+            store = cls(path, read_only=read_only)
         except Exception as e:
             logger.warning("snapshot store %s could not be opened: %s", path, e)
             return None
+        # A store built under an older schema holds columns projected by
+        # different rules; readers must fall back to the JSON files rather
+        # than trust it. A writable open rebuilds it instead (_ensure_schema).
+        found = store.schema_version()
+        if found != SCHEMA_VERSION:
+            logger.warning(
+                "snapshot store %s is schema v%s, expected v%s — ignoring it "
+                "(re-run scripts/ingest_snapshots.py to rebuild)",
+                path, found, SCHEMA_VERSION)
+            store.close()
+            return None
+        return store
 
     @classmethod
     def for_results_dir(cls, results_dir, read_only=True):
@@ -281,11 +303,34 @@ class SnapshotStore:
 
     # -- schema -----------------------------------------------------------
 
+    def schema_version(self):
+        """Version the store on disk was built at, or None when unstamped."""
+        try:
+            row = self._con.execute(
+                "SELECT max(version) FROM schema_version").fetchone()
+        except Exception:
+            return None
+        return row[0] if row else None
+
     def _ensure_schema(self):
         con = self._con
         con.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER)")
-        row = con.execute("SELECT max(version) FROM schema_version").fetchone()
-        if row is None or row[0] is None:
+        found = self.schema_version()
+        if found is not None and found != SCHEMA_VERSION:
+            # The store is a derived index, so an older layout is rebuilt
+            # rather than migrated: the columns it holds were projected under
+            # different rules and cannot be reinterpreted in place. Readers
+            # fall back to the JSON files until scripts/ingest_snapshots.py
+            # refills it.
+            logger.warning(
+                "snapshot store %s built at schema v%s, rebuilding at v%s "
+                "(re-run scripts/ingest_snapshots.py to refill history)",
+                self.path, found, SCHEMA_VERSION)
+            con.execute("DROP TABLE IF EXISTS results")
+            con.execute("DROP TABLE IF EXISTS runs")
+            con.execute("DELETE FROM schema_version")
+            found = None
+        if found is None:
             con.execute("INSERT INTO schema_version VALUES (?)", [SCHEMA_VERSION])
         con.execute("""
             CREATE TABLE IF NOT EXISTS runs (
@@ -318,7 +363,7 @@ class SnapshotStore:
 
     # -- ingest -----------------------------------------------------------
 
-    def ingest_json(self, path, replace=False, exclude=None):
+    def ingest_json(self, path, replace=False, exclude=None, projections=None):
         """Ingest one canonical snapshot file.  Returns True when rows were
         written, False when the date was already present (and *replace* is
         False) or the path is not a canonical snapshot."""
@@ -328,13 +373,16 @@ class SnapshotStore:
             return False
         meta, rows = load_snapshot_file(path)
         return self.ingest_rows(meta, rows, run_date=meta.get('date') or d,
-                                source_path=path, replace=replace, exclude=exclude)
+                                source_path=path, replace=replace, exclude=exclude,
+                                projections=projections)
 
     def ingest_rows(self, meta, rows, run_date=None, source_path=None,
-                    replace=False, exclude=None):
+                    replace=False, exclude=None, projections=None):
         """Ingest in-memory ``(meta, rows)``.  *run_date* defaults to
         ``meta['date']``; *exclude* names row keys to leave out (default
-        :data:`DEFAULT_EXCLUDE_KEYS`).  Returns True when rows were written."""
+        :data:`DEFAULT_EXCLUDE_KEYS`) and *projections* maps a nested key to
+        the sub-keys to keep (default :data:`DEFAULT_PROJECTIONS`).  Returns
+        True when rows were written."""
         if self.read_only:
             raise RuntimeError("snapshot store opened read-only")
         run_date = _iso(run_date or (meta or {}).get('date'))
@@ -347,7 +395,9 @@ class SnapshotStore:
             self.delete_date(run_date)
 
         exclude = DEFAULT_EXCLUDE_KEYS if exclude is None else tuple(exclude)
-        table, col_types = self._build_batch(run_date, rows, exclude)
+        projections = (DEFAULT_PROJECTIONS if projections is None
+                       else dict(projections))
+        table, col_types = self._build_batch(run_date, rows, exclude, projections)
         self._reconcile_columns(col_types)
 
         con = self._con
@@ -380,7 +430,7 @@ class SnapshotStore:
         logger.info("snapshot store: ingested %d rows for %s", table.num_rows, run_date)
         return True
 
-    def _build_batch(self, run_date, rows, exclude=()):
+    def _build_batch(self, run_date, rows, exclude=(), projections=None):
         """Flatten *rows* into a typed pyarrow table plus ``{col: type}``."""
         import pyarrow as pa
         # Dedupe on ticker (last occurrence wins) and drop ticker-less rows.
@@ -400,6 +450,9 @@ class SnapshotStore:
                 if k == 'ticker' or k in exclude:
                     continue
                 k = str(k)
+                if projections and k in projections and isinstance(v, dict):
+                    keep = projections[k]
+                    v = {sk: v[sk] for sk in keep if sk in v}
                 if k in _RESERVED_COLUMNS:
                     k = '_row_' + k
                 v = _scalar(v)

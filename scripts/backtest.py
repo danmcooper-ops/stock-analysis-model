@@ -30,7 +30,7 @@ excluded by default (--since).
 import sys
 import os
 import json
-import glob
+import logging
 import math
 import itertools
 from datetime import date, datetime, timedelta
@@ -40,8 +40,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 
+from data.price_store import parquet_paths, window_closes
+from data.snapshot_store import SnapshotStore, list_snapshot_files
 from models.utils import rank
 from scripts.param_set import default_params, merge_params, validate_params
+
+logger = logging.getLogger(__name__)
 
 
 # Rating order (best → worst) for display
@@ -101,23 +105,71 @@ FV_ACCURACY_MIN_HORIZON = 365
 # Data loading
 # ---------------------------------------------------------------------------
 
-def load_results(results_dir='output'):
-    """Load all canonical results_YYYY-MM-DD.json files, sorted by date.
+# Set False (CLI --no-store) to read every snapshot from its JSON file even
+# when the DuckDB snapshot store holds it.
+USE_SNAPSHOT_STORE = True
+
+
+def _load_snapshot_json(path):
+    """One snapshot file as ``{'date': ..., 'results': [...]}``."""
+    with open(path, encoding='utf-8') as fh:
+        return json.load(fh)
+
+
+def load_corpus(results_dir='output', dates=None, use_store=None):
+    """Load canonical snapshots as ``[{'date':..., 'results':[...]}, ...]``.
 
     Non-canonical names (results_<date>_replay.json) are re-scored copies of
-    an earlier observation and are skipped, as in _discover_snapshot_dates.
+    an earlier observation and are always skipped.
+
+    Each snapshot comes from ``output/snapshots.duckdb`` when that store holds
+    its date, and from the JSON file otherwise — decided per date, so a
+    partially backfilled store still helps.  The store drops the 52
+    ``edgar_history`` series no scoring path reads (see
+    data/snapshot_store.DEFAULT_PROJECTIONS), which is most of a ~66 MB
+    snapshot, so a corpus of N snapshots costs a fraction of the RSS that
+    parsing the files does.  Set *use_store* False to force the JSON path.
+
+    Args:
+        results_dir: directory holding the snapshots (and the store).
+        dates: restrict to these ``date`` objects (default: every snapshot).
     """
-    pattern = os.path.join(results_dir, 'results_*.json')
-    all_results = []
-    for f in sorted(glob.glob(pattern)):
-        stem = os.path.basename(f)[len('results_'):-len('.json')]
-        try:
-            date.fromisoformat(stem)
-        except ValueError:
-            continue
-        with open(f, encoding='utf-8') as fh:
-            all_results.append(json.load(fh))
-    return all_results
+    if use_store is None:
+        use_store = USE_SNAPSHOT_STORE
+    by_date = dict(list_snapshot_files(results_dir))
+    if dates is not None:
+        wanted = [d.isoformat() if hasattr(d, 'isoformat') else str(d)[:10]
+                  for d in dates]
+        by_date = {d: p for d, p in by_date.items() if d in wanted}
+
+    store = SnapshotStore.for_results_dir(results_dir) if use_store else None
+    snapshots, n_store = [], 0
+    try:
+        for d in sorted(by_date):
+            snap = None
+            if store is not None and store.has_date(d):
+                try:
+                    snap = dict(store.run_meta(d) or {})
+                    snap['results'] = store.rows(d)
+                    n_store += 1
+                except Exception as e:
+                    logger.warning("snapshot store read failed for %s (%s); "
+                                   "parsing JSON", d, e)
+                    snap = None
+            snapshots.append(snap if snap is not None
+                             else _load_snapshot_json(by_date[d]))
+    finally:
+        if store is not None:
+            store.close()
+    if n_store:
+        print(f"[backtest] {n_store}/{len(snapshots)} snapshot(s) read from "
+              f"the snapshot store")
+    return snapshots
+
+
+def load_results(results_dir='output'):
+    """Every canonical snapshot, sorted by date (see :func:`load_corpus`)."""
+    return load_corpus(results_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +214,13 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
     it is used directly (fast, no network).  Falls back to yf_client for any
     ticker not found locally.
 
+    The local parquets are read in ONE DuckDB scan
+    (``data.price_store.window_closes``) rather than one open per ticker;
+    only tickers it could not answer for fall through to the per-ticker
+    pandas/yfinance path below.  Both paths select the same bar (nearest to
+    the target, ties to the later bar, nothing beyond MAX_SNAP_GAP_DAYS) and
+    apply the same finiteness rejection.
+
     Returns:
         dict: {ticker: {'ret': float, 'start': float, 'end': float}}
         None for tickers where data is unavailable.
@@ -173,6 +232,31 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
     returns = {}
 
     all_tickers = list(set(tickers + [BENCHMARK]))
+
+    # --- Bulk local-parquet path: one scan for every ticker at once ---
+    if prices_dir:
+        try:
+            bulk = window_closes(prices_dir, run_dt.date(), eval_dt.date(),
+                                 tickers=all_tickers,
+                                 max_gap_days=MAX_SNAP_GAP_DAYS)
+        except Exception as e:
+            logger.warning("bulk price query failed (%s); reading per ticker", e)
+            bulk = None
+        if bulk is not None:
+            for ticker, px in bulk.items():
+                start_price, end_price = px['start'], px['end']
+                ret = (end_price - start_price) / start_price
+                if math.isfinite(ret):
+                    returns[ticker] = {'ret': ret, 'start': start_price,
+                                       'end': end_price}
+            # A ticker with a parquet on disk is settled by the scan, answered
+            # or not — the per-ticker path would re-read the same file and
+            # reach the same verdict. Only tickers with no local file fall
+            # through to yfinance, which is what the per-ticker path did.
+            local = {os.path.basename(p)[:-len('.parquet')]
+                     for p in parquet_paths(prices_dir, all_tickers)}
+            all_tickers = [t for t in all_tickers
+                           if t not in returns and t not in local]
 
     for ticker in all_tickers:
         try:
@@ -2344,33 +2428,17 @@ def walk_forward_calibrate(results_dir='output', horizons=None,
 # ---------------------------------------------------------------------------
 
 def _discover_snapshot_dates(results_dir):
-    """Find all results_YYYY-MM-DD.json files and return sorted dates."""
-    dates = []
-    if not os.path.isdir(results_dir):
-        return dates
-    for fname in os.listdir(results_dir):
-        if fname.startswith('results_') and fname.endswith('.json'):
-            date_str = fname.replace('results_', '').replace('.json', '')
-            try:
-                dates.append(date.fromisoformat(date_str))
-            except ValueError:
-                continue
-    return sorted(dates)
+    """Sorted dates of every canonical results_YYYY-MM-DD.json."""
+    return [date.fromisoformat(d) for d, _ in list_snapshot_files(results_dir)]
 
 
 def _load_snapshots(results_dir, dates):
-    """Load results JSON files for the given dates.
+    """Load the given snapshot dates (store-backed, see :func:`load_corpus`).
 
     Returns:
-        list[dict]: Each dict is the full JSON structure with 'date' and 'results'.
+        list[dict]: Each dict is the full snapshot with 'date' and 'results'.
     """
-    snapshots = []
-    for d in dates:
-        path = os.path.join(results_dir, f'results_{d.isoformat()}.json')
-        if os.path.exists(path):
-            with open(path, encoding='utf-8') as f:
-                snapshots.append(json.load(f))
-    return snapshots
+    return load_corpus(results_dir, dates=dates)
 
 
 def _evaluate_params_on_snapshots(snapshots, params, horizons):
@@ -2662,6 +2730,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Backtest + calibrate the stock model. Subcommands share '
                     'the same results_*.json snapshots and objective functions.')
+    parser.add_argument('--no-store', action='store_true',
+                        help='Parse every snapshot from its JSON file instead '
+                             'of reading output/snapshots.duckdb (the store '
+                             'holds the same scoring fields and far less RAM; '
+                             'use this to compare the two paths).')
     sub = parser.add_subparsers(dest='command', required=True,
                                 metavar='{readiness,measure,calibrate,annotate}')
     _since_help = ('Ignore snapshots dated before this (YYYY-MM-DD). Default: '
@@ -2772,4 +2845,8 @@ if __name__ == '__main__':
 
 
     args = parser.parse_args()
+    if args.no_store:
+        # Module level under __main__, so this rebinds the global the loaders read.
+        USE_SNAPSHOT_STORE = False
+        print('[backtest] --no-store: reading snapshots from JSON files')
     args.func(args)

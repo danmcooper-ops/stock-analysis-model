@@ -24,11 +24,16 @@ numeric when it parses as a float (1e10 works), else compared as a string
 _composite_score, composite_raw → _composite_score_raw, market_cap → mcap,
 gates → _gates_passed (its "11/17" strings compare by the leading number).
 
-History mode is backed by an incremental per-snapshot index cache under
-output/.query_index_v1/ holding a slim column set — the first run reads
-every JSON once (~1s/file); afterwards only new or modified snapshots are
-re-read.  A requested column outside the index falls back to a full scan
-(--no-cache forces that path).
+3. SQL mode — query the snapshot store directly:
+    python scripts/query_results.py --sql "SELECT date, count(*) FILTER (WHERE rating='BUY') AS buys FROM results GROUP BY date ORDER BY date"
+
+History mode reads output/snapshots.duckdb (the DuckDB snapshot store, see
+data/snapshot_store.py) when it holds every snapshot on disk — it carries all
+scalar columns, so no column forces a slow path.  Without the store it falls
+back to the older incremental parquet index under output/.query_index_v1/
+(a slim column set; a column outside it triggers a full JSON scan).
+--no-cache forces the full-scan path.  Build or refresh the store with:
+    python scripts/ingest_snapshots.py --results-dir output
 """
 import sys
 import os
@@ -41,6 +46,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 
+from data.snapshot_store import SnapshotStore, db_path_for
 from data.snapshot_store import list_snapshot_files as _list_snapshot_files
 
 # Slim per-snapshot column set persisted in the index cache. Bump the cache
@@ -73,6 +79,7 @@ FIELD_ALIASES = {
 }
 
 _WHERE_RE = re.compile(r'^\s*([A-Za-z_]\w*)\s*(>=|<=|!=|==|>|<)\s*(.+?)\s*$')
+_IDENT_RE = re.compile(r'^[A-Za-z_]\w*$')
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +247,76 @@ def build_index(results_dir='output', force=False):
     return pd.concat(frames, ignore_index=True)
 
 
+def history_from_store(results_dir, ticker, columns):
+    """One ticker's per-snapshot history from the DuckDB snapshot store.
+
+    The store holds every scalar column of every ingested snapshot, so unlike
+    the parquet index it never forces a full-scan fallback for an "off-index"
+    column.  Returns a DataFrame (possibly empty) or None when the store is
+    absent/unreadable, in which case the caller keeps its JSON path.
+    """
+    store = SnapshotStore.for_results_dir(results_dir)
+    if store is None:
+        return None
+    try:
+        with store:
+            have = set(store.dates())
+            if not have:
+                return None
+            # Only trust the store when it covers every snapshot on disk;
+            # a partial store would silently truncate the ticker's history.
+            on_disk = {d for d, _ in list_snapshot_files(results_dir)}
+            if not on_disk.issubset(have):
+                missing = len(on_disk - have)
+                print('Snapshot store is missing %d snapshot(s) — reading JSON '
+                      '(run scripts/ingest_snapshots.py to refresh).' % missing,
+                      file=sys.stderr)
+                return None
+            known = set(store.column_types())
+            wanted = [c for c in columns if c != 'date']
+            sel = ['CAST(date AS VARCHAR) AS date']
+            sel += [_sql_ident(c) for c in wanted if c in known]
+            df = store.query(
+                'SELECT %s FROM results WHERE ticker = ? ORDER BY date'
+                % ', '.join(sel), [ticker])
+            # A key that was None in every row of every snapshot has no
+            # column. Fill it in as Python None (not a typed NA) so the
+            # rendering matches the JSON path exactly.
+            for c in wanted:
+                if c not in known:
+                    df[c] = None
+    except Exception as e:
+        print('Snapshot store read failed (%s) — reading JSON.' % e,
+              file=sys.stderr)
+        return None
+    return df.reindex(columns=columns)
+
+
+def _sql_ident(name):
+    """Quote a column name for SQL (NULL when it isn't a plain identifier)."""
+    if not _IDENT_RE.match(name):
+        return 'NULL AS "%s"' % name.replace('"', '')
+    return '"%s"' % name
+
+
+def run_sql(results_dir, sql):
+    """Run raw SQL against the snapshot store; returns a DataFrame.
+
+    Exits with a message when the store is absent — there is nothing to query
+    without it.
+    """
+    store = SnapshotStore.for_results_dir(results_dir)
+    if store is None:
+        sys.exit('No snapshot store at %s. Build one with:\n'
+                 '  python scripts/ingest_snapshots.py --results-dir %s'
+                 % (db_path_for(results_dir), results_dir))
+    with store:
+        try:
+            return store.query(sql)
+        except Exception as e:
+            sys.exit('Query failed: %s' % e)
+
+
 def history_full_scan(results_dir, ticker, columns):
     """Slow path: pull one ticker's row out of every snapshot JSON."""
     files = list_snapshot_files(results_dir)
@@ -325,15 +402,18 @@ def cmd_history(args):
     extra = [FIELD_ALIASES.get(c, c) for c in extra]
     cols = HISTORY_COLUMNS + [c for c in extra if c not in HISTORY_COLUMNS]
 
-    off_index = [c for c in cols if c not in INDEX_COLUMNS]
-    if args.no_cache or off_index:
-        if off_index and not args.no_cache:
-            print('Column(s) %s not in the index — full scan (slower).'
-                  % ', '.join(off_index), file=sys.stderr)
-        df = history_full_scan(args.results_dir, ticker, cols)
-    else:
-        idx = build_index(args.results_dir, force=False)
-        df = idx[idx['ticker'] == ticker][cols]
+    df = None if args.no_cache else history_from_store(
+        args.results_dir, ticker, cols)
+    if df is None:
+        off_index = [c for c in cols if c not in INDEX_COLUMNS]
+        if args.no_cache or off_index:
+            if off_index and not args.no_cache:
+                print('Column(s) %s not in the index — full scan (slower).'
+                      % ', '.join(off_index), file=sys.stderr)
+            df = history_full_scan(args.results_dir, ticker, cols)
+        else:
+            idx = build_index(args.results_dir, force=False)
+            df = idx[idx['ticker'] == ticker][cols]
 
     if df.empty:
         sys.exit('Ticker %s not found in any snapshot.' % ticker)
@@ -361,13 +441,19 @@ def main():
     ap.add_argument('--ticker', help='ticker for --history mode')
     ap.add_argument('--history', action='store_true',
                     help='track --ticker across all snapshots')
+    ap.add_argument('--sql', metavar='QUERY',
+                    help='Run raw SQL against the snapshot store '
+                         '(tables: results, runs) and print the result. '
+                         'Ignores every other filter/selection flag.')
     ap.add_argument('--no-cache', action='store_true',
                     help='history mode: bypass the index cache (full scan)')
     ap.add_argument('--csv', help="also write CSV to PATH ('-' = stdout)")
     ap.add_argument('--json', help="also write JSON to PATH ('-' = stdout)")
     args = ap.parse_args()
 
-    if args.history:
+    if args.sql:
+        emit(run_sql(args.results_dir, args.sql), args)
+    elif args.history:
         if not args.ticker:
             ap.error('--history requires --ticker')
         cmd_history(args)

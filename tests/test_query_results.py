@@ -215,3 +215,66 @@ def test_cli_unknown_ticker_history_exits(results_dir, capsys):
         _run_main(['--results-dir', results_dir, '--ticker', 'NOPE', '--history'],
                   capsys)
     assert 'not found' in str(e.value)
+
+
+# --- snapshot-store-backed history ------------------------------------------
+
+class TestHistoryFromStore:
+    """History mode reads the DuckDB store when it holds every snapshot.
+
+    Unlike the parquet index it carries all scalar columns, so no column
+    forces a full JSON scan — but the rows it returns must be identical.
+    """
+
+    def _ingest(self, results_dir):
+        from scripts.ingest_snapshots import ingest_dir
+        ingest_dir(results_dir)
+
+    def test_matches_the_full_scan_including_off_index_columns(self, results_dir):
+        from scripts.query_results import (HISTORY_COLUMNS, history_from_store,
+                                           history_full_scan)
+        self._ingest(results_dir)
+        cols = HISTORY_COLUMNS + ['dcf_fv']       # dcf_fv is not in INDEX_COLUMNS
+        from_store = history_from_store(results_dir, 'AAA', cols)
+        assert from_store is not None
+        scanned = history_full_scan(results_dir, 'AAA', cols)
+        assert list(from_store.columns) == list(scanned.columns) == cols
+        assert from_store['date'].tolist() == scanned['date'].tolist()
+        for c in cols:
+            # NaN-aware: the oldest snapshot is a thin old-schema row, so both
+            # paths legitimately carry NaN for the fields it never had.
+            pd.testing.assert_series_equal(
+                from_store[c].reset_index(drop=True),
+                scanned[c].reset_index(drop=True),
+                check_dtype=False, check_names=False, obj=c)
+
+    def test_absent_column_comes_back_as_none(self, results_dir):
+        from scripts.query_results import history_from_store
+        self._ingest(results_dir)
+        df = history_from_store(results_dir, 'AAA', ['date', 'not_a_field'])
+        assert df['not_a_field'].tolist() == [None, None, None]
+
+    def test_partial_store_falls_back(self, results_dir, capsys):
+        from scripts.query_results import HISTORY_COLUMNS, history_from_store
+        from scripts.ingest_snapshots import ingest_dir
+        ingest_dir(results_dir, since='2026-01-03')     # only the newest
+        assert history_from_store(results_dir, 'AAA', HISTORY_COLUMNS) is None
+        assert 'missing' in capsys.readouterr().err
+
+    def test_no_store_returns_none(self, results_dir):
+        from scripts.query_results import HISTORY_COLUMNS, history_from_store
+        assert history_from_store(results_dir, 'AAA', HISTORY_COLUMNS) is None
+
+    def test_sql_mode(self, results_dir):
+        from scripts.query_results import run_sql
+        self._ingest(results_dir)
+        df = run_sql(results_dir, "SELECT ticker, count(*) AS n FROM results "
+                                  "GROUP BY ticker ORDER BY ticker")
+        assert df['ticker'].tolist() == ['AAA', 'BBB', 'CCC']
+        assert df['n'].tolist() == [3, 2, 1]
+
+    def test_sql_mode_without_a_store_exits_with_guidance(self, results_dir):
+        from scripts.query_results import run_sql
+        with pytest.raises(SystemExit) as e:
+            run_sql(results_dir, 'SELECT 1')
+        assert 'ingest_snapshots' in str(e.value)
