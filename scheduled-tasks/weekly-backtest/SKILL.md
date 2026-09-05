@@ -12,6 +12,24 @@ fails.
 - **Always run fully autonomously (auto mode).** Do not pause for confirmation. Only the "write" actions described below (writing under `output/`, committing/pushing the summary to `data/snapshots`) are permitted.
 - **Run on Sunday** (or the first quiet day after), never concurrently with `daily-stock-analysis` — both read and refresh `output/prices`.
 
+## This job is already automated — check before running it by hand
+A launchd agent runs the unattended half of this routine every **Sunday at
+20:00 America/New_York**, with no agent involved:
+
+- `com.stockmodel.weekly.plist` → `~/Library/LaunchAgents/`
+- `weekly_backtest.sh` → `~/Library/Application Support/StockModel/`
+
+Both are versioned next to this file; the copies in those two locations are
+what actually run, so edit here and copy out (there is no symlink). The script
+covers price refresh, `annotate`, `measure`, and per-horizon `calibrate`. It
+does **not** do the readiness census or publish the summary — those steps below
+are the agent's job.
+
+Before running this runbook on a Sunday, check the log for that day at
+`~/Library/Logs/StockModel/weekly_<date>.log`. Starting a manual run while the
+launchd job is working violates the concurrency rule above just as surely as
+overlapping with `daily-stock-analysis` — both refresh `output/prices`.
+
 ## Paths
 - **Main repo:** `$HOME/Projects/Workspace Folder`
 - **Snapshots worktree:** `$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data` (branch `data/snapshots`; holds every `results_YYYY-MM-DD.json` and is the backtest's input)

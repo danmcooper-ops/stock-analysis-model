@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.stockmodel.weekly</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/danmcooper/Library/Application Support/StockModel/weekly_backtest.sh</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key><integer>0</integer>
+        <key>Hour</key><integer>20</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/danmcooper/Library/Logs/StockModel/launchd_weekly.out</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/danmcooper/Library/Logs/StockModel/launchd_weekly.err</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
