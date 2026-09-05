@@ -26,20 +26,19 @@ flags are informational and must not block the daily pipeline.
 """
 
 import argparse
-import json
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from data.snapshot_store import (SnapshotStore, prior_snapshot_file,  # noqa: E402
+                                 read_snapshot,
                                  snapshot_date_from_path)
 from scripts.scoring import gate_metadata  # noqa: E402
 
 
 def _load_records(path):
-    with open(path, encoding='utf-8') as f:
-        d = json.load(f)
+    d = read_snapshot(path)
     return d['results'] if (isinstance(d, dict) and 'results' in d) else d
 
 

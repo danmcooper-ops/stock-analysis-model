@@ -19,7 +19,6 @@ Usage:
 Re-runs are idempotent; FDIC responses are cached for 30 days under
 data/cache/fdic/.
 """
-import json
 import os
 import sys
 import time
@@ -29,7 +28,8 @@ _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO not in sys.path:
     sys.path.insert(0, _REPO)
 
-from data.snapshot_store import sync_snapshot_file
+from data.snapshot_store import (read_snapshot, snapshot_date_from_path,
+                                 sync_snapshot_file, write_snapshot_file)
 from data import fdic_client
 from data.provenance import (append_events, attach_enrichment,
                              enrichment_block, make_event, strip_enrichment)
@@ -206,8 +206,7 @@ def main():
         sys.exit(1)
     in_path = sys.argv[1]
     out_path = sys.argv[2] if len(sys.argv) > 2 else in_path
-    with open(in_path, encoding="utf-8") as f:
-        d = json.load(f)
+    d = read_snapshot(in_path)
     recs = _records(d)
     if recs is None:
         print("Could not locate records list in JSON")
@@ -230,12 +229,11 @@ def main():
                 f"NPL={_pct(r.get('npl_ratio'), 2):>7}  "
                 f"(repdte={r.get('fdic_repdte')})"
             )
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(d, f)
+    write_snapshot_file(out_path, d)
     sync_snapshot_file(out_path, data=d)  # keep the DuckDB snapshot store in step
     print(f"\n  Wrote {out_path}")
     run_date = (d.get("date") if isinstance(d, dict) else None) or \
-        os.path.basename(in_path).replace("results_", "").replace(".json", "")
+        snapshot_date_from_path(in_path)
     append_events(os.path.dirname(out_path) or ".", run_date, "enrich_fdic", events)
 
 

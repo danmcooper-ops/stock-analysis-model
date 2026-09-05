@@ -22,10 +22,11 @@ import json
 import os
 import sys
 import urllib.request
-import glob
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data.sec_xbrl_client import SECXBRLClient, _SSL_CTX
+from data.snapshot_store import (list_snapshot_files, read_snapshot,
+                                 snapshot_date_from_path, write_snapshot_file)
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -61,25 +62,17 @@ def _parse_args():
 def _pick_json(arg=None):
     if arg:
         return arg
-    pattern = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        'output', 'results_*.json')
-    # Canonical results_YYYY-MM-DD.json only — results_X_replay.json sorts
+    # Canonical results_YYYY-MM-DD.json(.gz) only — results_X_replay.json sorts
     # AFTER the canonical file, and backfill patches its pick IN PLACE, so a
-    # naive files[-1] would enrich the wrong artifact.
-    from datetime import date as _date
-    files = []
-    for f in sorted(glob.glob(pattern)):
-        stem = os.path.basename(f)[len('results_'):-len('.json')]
-        try:
-            _date.fromisoformat(stem)
-        except ValueError:
-            continue
-        files.append(f)
+    # naive files[-1] would enrich the wrong artifact.  list_snapshot_files
+    # applies that rule (and the .gz archive form) for every caller.
+    out_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'output')
+    files = list_snapshot_files(out_dir)
     if not files:
         print('[backfill] no results_*.json found in output/')
         sys.exit(1)
-    return files[-1]
+    return files[-1][1]
 
 
 # ---------------------------------------------------------------------------
@@ -108,8 +101,7 @@ def main():
     json_path = _pick_json(args.json_path)
     print(f'[backfill] patching {json_path}')
 
-    with open(json_path, encoding='utf-8') as f:
-        doc = json.load(f)
+    doc = read_snapshot(json_path)
 
     rows = doc.get('results', doc) if isinstance(doc, dict) else doc
     if not isinstance(rows, list):
@@ -163,18 +155,20 @@ def main():
     print(f'[backfill] done — ok={ok} skip={skip} err={err}')
 
     # Save patched JSON
-    with open(json_path, 'w', encoding='utf-8') as f:
-        # Compact, matching how analyze_stock.py writes the snapshot. indent=2
-        # inflated it ~30% on every backfill: the 2026-08-03 file went 67 MB →
-        # 107 MB, past GitHub's 100 MB hard cap, which would have made the
-        # snapshot branch unpushable. Same content compact is 82 MB.
-        json.dump(doc, f, default=str)
+    # write_snapshot_file owns the compact encoding: indent=2 here once
+    # took the 2026-08-03 file from 67 MB to 107 MB, past GitHub's 100 MiB
+    # blob cap, which would have made the snapshot branch unpushable.
+    write_snapshot_file(json_path, doc)
     print(f'[backfill] saved {json_path}')
 
     # Rebuild HTML
     try:
         from scripts.report_html import build_html
-        html_path = json_path.replace('results_', 'stock_analysis_results_').replace('.json', '.html')
+        # Build from the parsed date, not str.replace: a '.json.gz'
+        # archive path would otherwise yield '...html.gz'.
+        html_path = os.path.join(
+            os.path.dirname(os.path.abspath(json_path)),
+            'stock_analysis_results_%s.html' % snapshot_date_from_path(json_path))
         prices_dir = os.path.join(os.path.dirname(os.path.abspath(json_path)), 'prices')
         if not os.path.isdir(prices_dir):
             prices_dir = None

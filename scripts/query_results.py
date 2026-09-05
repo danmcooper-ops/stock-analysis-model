@@ -38,7 +38,6 @@ back to the older incremental parquet index under output/.query_index_v1/
 import sys
 import os
 import re
-import json
 import argparse
 import difflib
 
@@ -48,6 +47,7 @@ import pandas as pd
 
 from data.snapshot_store import SnapshotStore, db_path_for
 from data.snapshot_store import list_snapshot_files as _list_snapshot_files
+from data.snapshot_store import read_snapshot
 
 # Slim per-snapshot column set persisted in the index cache. Bump the cache
 # dir version suffix when this list changes so stale files rebuild cleanly.
@@ -99,8 +99,7 @@ def list_snapshot_files(results_dir='output'):
 
 def load_snapshot(path):
     """(meta, rows) from one snapshot. Older files may be a bare list."""
-    with open(path, encoding='utf-8') as fh:
-        data = json.load(fh)
+    data = read_snapshot(path)
     if isinstance(data, dict):
         rows = data.get('results', [])
         meta = {k: v for k, v in data.items() if k != 'results'}

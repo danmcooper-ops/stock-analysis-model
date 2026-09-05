@@ -355,6 +355,30 @@ def test_stale_schema_is_ignored_by_readers_and_rebuilt_on_write(results_dir, ca
     assert ingested == ['2026-01-01', '2026-01-02', '2026-01-03']
 
 
+def test_ingest_reads_gzipped_snapshots(tmp_path):
+    """ingest_dir must build the same store rows from the .json.gz archive
+    form as from the plain files."""
+    from data.snapshot_store import write_snapshot_file
+
+    plain, gzipped = tmp_path / 'plain', tmp_path / 'gz'
+    plain.mkdir()
+    gzipped.mkdir()
+    snap = {'date': '2026-09-03', 'risk_free_rate': 0.04, 'count': 2,
+            'results': [_row('AAA'), _row('BBB', rating='PASS')]}
+    write_snapshot_file(str(plain / 'results_2026-09-03.json'), snap)
+    write_snapshot_file(str(gzipped / 'results_2026-09-03.json.gz'), snap)
+
+    ingest_dir(str(plain))
+    ingest_dir(str(gzipped))
+
+    with SnapshotStore(db_path_for(str(plain))) as a, \
+            SnapshotStore(db_path_for(str(gzipped))) as b:
+        assert a.dates() == b.dates() == ['2026-09-03']
+        assert a.counts() == b.counts()
+        assert a.rows('2026-09-03') == b.rows('2026-09-03')
+        assert a.run_meta('2026-09-03') == b.run_meta('2026-09-03')
+
+
 # --- what the store may drop, and what it must not -------------------------
 
 class TestExclusionsAndTypes:

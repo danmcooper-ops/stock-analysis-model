@@ -223,3 +223,40 @@ def test_unusable_bulk_query_falls_back_to_the_per_ticker_path(corpus, monkeypat
     got = bt.fetch_forward_returns(TICKERS, '2026-01-05', 30, _RecordingClient(),
                                    prices_dir=str(corpus / 'prices'))
     assert len(got) > 5
+
+
+def test_load_corpus_reads_gzipped_archive(tmp_path):
+    """The weekly backtest runs with --results-dir pointed at the
+    data/snapshots worktree, which holds the gzipped archive form, so the JSON
+    path must read .json.gz identically to .json."""
+    from data.snapshot_store import write_snapshot_file
+
+    plain, gzipped = tmp_path / 'plain', tmp_path / 'gz'
+    plain.mkdir()
+    gzipped.mkdir()
+    for n, day in enumerate(DATES):
+        snap = {'date': day, 'risk_free_rate': 0.04, 'count': len(TICKERS),
+                'results': [_row(t, n * 100 + i) for i, t in enumerate(TICKERS)]}
+        write_snapshot_file(str(plain / f'results_{day}.json'), snap)
+        write_snapshot_file(str(gzipped / f'results_{day}.json.gz'), snap)
+
+    from_plain = bt.load_corpus(str(plain), use_store=False)
+    from_gz = bt.load_corpus(str(gzipped), use_store=False)
+
+    assert [s['date'] for s in from_gz] == DATES
+    assert from_gz == from_plain
+
+
+def test_load_corpus_does_not_double_count_a_mixed_date(tmp_path):
+    """A date present as both .json and .json.gz is one run, not two."""
+    from data.snapshot_store import write_snapshot_file
+
+    d = tmp_path / 'mixed'
+    d.mkdir()
+    snap = {'date': DATES[0], 'risk_free_rate': 0.04, 'count': len(TICKERS),
+            'results': [_row(t, i) for i, t in enumerate(TICKERS)]}
+    write_snapshot_file(str(d / f'results_{DATES[0]}.json'), snap)
+    write_snapshot_file(str(d / f'results_{DATES[0]}.json.gz'), snap)
+
+    corpus = bt.load_corpus(str(d), use_store=False)
+    assert [s['date'] for s in corpus] == [DATES[0]]

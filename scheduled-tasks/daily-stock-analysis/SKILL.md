@@ -140,21 +140,36 @@ reader falls back to the JSON snapshots), but history-backed columns such as
 the report's rating history stay on the slow path until the backfill above is
 re-run once against the snapshot archive.
 
-### 2. Commit today's snapshot to the data/snapshots branch
+### 2. Archive today's snapshot to the data/snapshots branch
+The snapshot is archived **gzipped** (`results_YYYY-MM-DD.json.gz`). Plain JSON no longer fits: `results_2026-09-01.json` reached 97.2 MiB against GitHub's 100 MiB per-blob hard cap, and `results_2026-08-11.json` was rejected outright at 102.4 MB and lost. Gzip takes a ~87 MiB snapshot to ~27 MiB and stops the branch checkout growing ~90 MB a night. Every reader (`backtest.py`, `ingest_snapshots.py`, `query_results.py`, …) handles both forms, so the archive can hold a mix of `.json` and `.json.gz`.
+
+**Run date:** `scripts/archive_snapshot.py` picks the newest snapshot in `output/` itself — do **not** interpolate `$(date +%Y-%m-%d)` here. A 3–6 h run that crossed midnight would name a file that does not exist, and the night would be skipped silently. For the `git add` and commit message below, substitute RUNDATE literally, read from the filename the script prints.
+
 Run each as a **separate** Bash call (single line each):
 ```
-cp "output/results_$(date +%Y-%m-%d).json" "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data/"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/archive_snapshot.py --dest "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data"
 ```
 ```
-git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" add "results_$(date +%Y-%m-%d).json"
+git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" add "results_RUNDATE.json.gz"
 ```
 ```
-git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" commit -m "Snapshot: $(date +%Y-%m-%d)"
+git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" commit -m "Snapshot: RUNDATE"
 ```
 ```
 git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" push origin data/snapshots
 ```
-This persists the snapshot to GitHub so it is never lost if the local worktree is deleted. A non-zero exit code should be reported but does **not** block the remaining steps.
+
+This persists the snapshot to GitHub so it is never lost if the local worktree is deleted — it is the canonical corpus the weekly backtest reads, so a missing day is a hole in the calibration inputs, not a cosmetic gap.
+
+**This step is blocking.** Previously a non-zero exit here was reported but not acted on, which is exactly how the 2026-08-11 snapshot was lost. Treat each outcome as follows:
+- **exit 2** — the archive breached the 80 MiB hard guard. Do **not** push. Report it as a failed success criterion: the archive is on course for the 100 MiB cap again and needs a size fix (the `edgar_history` statement series are the obvious candidate to split out — they are ~25% of a snapshot).
+- **exit 1** — source missing or the gzip round-trip did not reproduce the source bytes. Report and stop; do not push a snapshot that failed verification.
+- A **WARNING** line (past the 50 MiB soft guard) still pushes, but call it out in the run summary.
+
+To check for days that never made it to the archive:
+```
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/archive_snapshot.py --dest "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" --audit
+```
 
 ### 3. Run portfolio concentration and drawdown report
 Run as a **single Bash call** (all on one line, semicolons not newlines):
@@ -193,7 +208,7 @@ This is run as the final step of the analysis routine, but the publish routine i
 
 ## Success criteria
 - `output/stock_analysis_results_YYYY-MM-DD.html` was created today
-- `output/results_YYYY-MM-DD.json` was committed to `data/snapshots` and pushed
+- `results_YYYY-MM-DD.json.gz` was archived to `data/snapshots` and pushed, with the archive script exiting 0 and under its size guard
 - Gate N/A coverage table (per-gate N/A % + deltas) is included in the run summary, with any ⚠ JUMP flags called out
 - Trailing momentum-check output (rating buckets + Spearman r) is included in the run summary
 - The publish routine completed successfully (or its failure was reported clearly)

@@ -15,6 +15,15 @@ derived index that is rebuilt from the files by ``scripts/ingest_snapshots.py``
 and kept current by the pipeline's write hook.  Every reader falls back to the
 JSON files when the store is missing or does not yet hold the date it needs.
 
+A snapshot exists in two interchangeable forms: ``results_<date>.json`` in
+``output/``, and the gzipped ``results_<date>.json.gz`` that
+``scripts/archive_snapshot.py`` pushes to the ``data/snapshots`` branch (plain
+JSON had reached 97.2 MiB against GitHub's 100 MiB per-blob cap, and one day
+was rejected and lost).  The helpers below — :func:`list_snapshot_files`,
+:func:`snapshot_date_from_path`, :func:`read_snapshot`,
+:func:`write_snapshot_file` — handle both, so a directory may hold a mix; the
+weekly backtest reads the archive worktree directly and relies on this.
+
 Schema (``schema_version`` = :data:`SCHEMA_VERSION`):
 
 ``runs``
@@ -37,6 +46,8 @@ or ``pe`` are stored verbatim.
 """
 
 import glob
+import gzip
+import io
 import json
 import logging
 import math
@@ -50,7 +61,11 @@ SCHEMA_VERSION = 3
 DB_FILENAME = 'snapshots.duckdb'
 DEFAULT_RESULTS_DIR = 'output'
 
-_SNAPSHOT_RE = re.compile(r'^results_(\d{4}-\d{2}-\d{2})\.json$')
+# json.dump's defaults put a space after every comma and colon.  On a
+# ~2,500-row snapshot that is ~5 MB of nothing; indent=2 costs far more.
+_COMPACT = (',', ':')
+
+_SNAPSHOT_RE = re.compile(r'^results_(\d{4}-\d{2}-\d{2})\.json(?:\.gz)?$')
 
 # Column-type lattice for scalar row values.  A column is widened (never
 # narrowed) when a later snapshot carries a wider type; JSON absorbs anything.
@@ -109,14 +124,23 @@ def snapshot_date_from_path(path):
 
 
 def list_snapshot_files(results_dir=DEFAULT_RESULTS_DIR):
-    """``[(date_str, path), ...]`` of canonical snapshots, ascending by date."""
-    out = []
-    for p in glob.glob(os.path.join(results_dir, 'results_*.json')):
-        d = snapshot_date_from_path(p)
-        if d:
-            out.append((d, p))
-    out.sort()
-    return out
+    """``[(date_str, path), ...]`` of canonical snapshots, ascending by date.
+
+    Both the plain ``results_<date>.json`` and the gzipped archive form
+    ``results_<date>.json.gz`` are discovered.  A date carried by both yields
+    the plain file: that is the live working copy the pipeline rewrites, while
+    the ``.gz`` is an archive copy of the same run.  A date is never emitted
+    twice, so callers keyed by date (the store's ``runs`` PK, the backtest
+    corpus) cannot double-count one run.
+    """
+    by_date = {}
+    for pattern in ('results_*.json', 'results_*.json.gz'):
+        for p in glob.glob(os.path.join(results_dir, pattern)):
+            d = snapshot_date_from_path(p)
+            if not d or (d in by_date and p.endswith('.gz')):
+                continue
+            by_date[d] = p
+    return sorted(by_date.items())
 
 
 def prior_snapshot_file(results_dir, before):
@@ -136,10 +160,74 @@ def split_snapshot(data):
     return {}, list(data or [])
 
 
+def open_snapshot(path):
+    """Open a snapshot for text reading, transparently handling ``.json.gz``.
+
+    The ``data/snapshots`` archive branch holds the gzipped form, and the
+    weekly backtest reads that directory directly, so every reader of a
+    snapshot must go through here rather than a bare ``open()``.
+    """
+    if path.endswith('.gz'):
+        return gzip.open(path, 'rt', encoding='utf-8')
+    return open(path, encoding='utf-8')
+
+
+def read_snapshot(path):
+    """The decoded snapshot structure at *path* (a dict, or a bare list on
+    older files).  Use :func:`load_snapshot_file` for ``(meta, rows)``."""
+    with open_snapshot(path) as f:
+        return json.load(f)
+
+
 def load_snapshot_file(path):
-    """``(meta, rows)`` for a snapshot JSON path."""
-    with open(path, encoding='utf-8') as f:
-        return split_snapshot(json.load(f))
+    """``(meta, rows)`` for a snapshot path, plain ``.json`` or ``.json.gz``."""
+    return split_snapshot(read_snapshot(path))
+
+
+def write_snapshot_file(path, data):
+    """Write a snapshot to *path* in the canonical compact encoding.
+
+    Every writer of a snapshot goes through here so the encoding cannot drift
+    per call site.  It has drifted before: ``indent=2`` inflated the
+    2026-08-03 file from 67 MB to 107 MB, past GitHub's 100 MiB blob cap,
+    which is what makes a snapshot unpushable to the ``data/snapshots``
+    archive branch.
+
+    ``default=str`` matches what the pipeline's canonical writer has always
+    used.  It is deliberately *not* widened to a numpy-aware encoder here:
+    that would render numpy scalars as JSON numbers where every archived
+    snapshot renders them as strings, silently shifting values under a
+    backtest corpus whose whole purpose is cross-run comparability.
+
+    A ``.gz`` path is written gzipped and deterministically (``mtime=0``), so
+    re-archiving identical content produces an identical blob rather than
+    churning the archive branch's history.
+
+    The write is atomic: the canonical snapshot is rewritten in place by
+    rescore_and_render and all four enrich_* scripts, and a crash partway
+    through a direct write would truncate the run's only copy.
+    """
+    tmp = '%s.tmp.%d' % (path, os.getpid())
+    try:
+        if path.endswith('.gz'):
+            # filename='' as well as mtime=0: GzipFile otherwise stores the
+            # temp file's name (which carries the pid) in the gzip header,
+            # so identical content would produce a different blob per run.
+            with open(tmp, 'wb') as _raw:
+                with gzip.GzipFile(filename='', fileobj=_raw, mode='wb',
+                                   compresslevel=9, mtime=0) as _gz:
+                    with io.TextIOWrapper(_gz, encoding='utf-8') as f:
+                        json.dump(data, f, separators=_COMPACT, default=str)
+        else:
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(data, f, separators=_COMPACT, default=str)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def db_path_for(results_dir=DEFAULT_RESULTS_DIR):

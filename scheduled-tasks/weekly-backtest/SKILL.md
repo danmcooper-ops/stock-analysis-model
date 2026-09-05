@@ -32,7 +32,7 @@ overlapping with `daily-stock-analysis` — both refresh `output/prices`.
 
 ## Paths
 - **Main repo:** `$HOME/Projects/Workspace Folder`
-- **Snapshots worktree:** `$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data` (branch `data/snapshots`; holds every `results_YYYY-MM-DD.json` and is the backtest's input)
+- **Snapshots worktree:** `$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data` (branch `data/snapshots`; holds every `results_YYYY-MM-DD.json.gz` — older days are still plain `.json` — and is the backtest's input. `backtest.py` reads both forms transparently)
 - **Python:** `$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python`
 - **SSL fix:** set `SSL_CERT_FILE` to the output of `.venv/bin/python -m certifi` before running any Python script
 

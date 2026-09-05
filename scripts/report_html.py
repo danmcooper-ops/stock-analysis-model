@@ -150,22 +150,15 @@ def _load_prev_ratings(out_dir, run_date, max_lookback=7, extra_keys=()):
     Returns ``(None, {})`` when there is no earlier snapshot at all — the
     column then degrades to 'NEW'/N/A for every row rather than raising.
     """
-    import glob
-    import re
+    from data.snapshot_store import list_snapshot_files, read_snapshot
     try:
         cur = run_date.isoformat() if run_date is not None else None
     except Exception:
         cur = None
-    # Collect all prior snapshots, newest date first.
-    dated = []
-    for p in glob.glob(os.path.join(out_dir, 'results_*.json')):
-        m = re.search(r'results_(\d{4}-\d{2}-\d{2})\.json$', os.path.basename(p))
-        if not m:
-            continue
-        d = m.group(1)
-        if cur is not None and d >= cur:
-            continue
-        dated.append((d, p))
+    # Collect all prior snapshots, newest date first.  list_snapshot_files
+    # owns the canonical-name rule and also finds the .json.gz archive form.
+    dated = [(d, p) for d, p in list_snapshot_files(out_dir)
+             if cur is None or d < cur]
     if not dated:
         return None, {}
     dated.sort(key=lambda t: t[0], reverse=True)
@@ -178,8 +171,7 @@ def _load_prev_ratings(out_dir, run_date, max_lookback=7, extra_keys=()):
     filled_via_fallback = 0
     for d, p in dated[:max_lookback]:
         try:
-            with open(p, encoding='utf-8') as f:
-                snap = json.load(f)
+            snap = read_snapshot(p)
         except Exception as e:
             print(f"[report_html] prior-rating load failed ({p}): {e}")
             continue
@@ -421,18 +413,12 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     (delete the cache to force a full rebuild that includes it). A missing or
     corrupt cache also triggers a full rebuild.
     """
-    import glob
-    import re
+    from data.snapshot_store import list_snapshot_files, read_snapshot
     try:
         cur = run_date.isoformat() if run_date is not None else None
     except Exception:
         cur = None
-    dated = []
-    for p in glob.glob(os.path.join(out_dir, 'results_*.json')):
-        m = re.search(r'results_(\d{4}-\d{2}-\d{2})\.json$', os.path.basename(p))
-        if m:
-            dated.append((m.group(1), p))
-    dated.sort()
+    dated = list_snapshot_files(out_dir)
     if not dated:
         return {}
     from_store = _rating_history_from_store(
@@ -457,8 +443,7 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
             and (cur is None or d < cur)]
     for d, p in todo:
         try:
-            with open(p, encoding='utf-8') as f:
-                snap = json.load(f)
+            snap = read_snapshot(p)
         except Exception as e:
             print(f"[report_html] rating-history load failed ({p}): {e}")
             continue

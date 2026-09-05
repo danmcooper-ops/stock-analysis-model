@@ -72,7 +72,8 @@ from data.sec_xbrl_client import SECXBRLClient
 from data.fx_client import get_spot_fx_rate, apply_fx_to_statement_df
 from data.sec_insider_client import SECInsiderClient
 from data.provenance import ProvenanceRecorder
-from data.snapshot_store import SnapshotStore, list_snapshot_files, sync_snapshot_file
+from data.snapshot_store import (SnapshotStore, list_snapshot_files,
+                                 sync_snapshot_file, write_snapshot_file)
 from data.culture_client import CultureClient
 
 from scripts.config import (ERP, TERMINAL_GROWTH_RATE,
@@ -4382,8 +4383,7 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
         if local_rs:
             json_meta['sector_local_rs'] = local_rs
     json_meta['results'] = json_rows
-    with open(json_filename, 'w', encoding='utf-8') as f:
-        json.dump(json_meta, f, indent=2, default=str)
+    write_snapshot_file(json_filename, json_meta)
     _prov.write_events('output')
     # Mirror the snapshot into output/snapshots.duckdb so tomorrow's
     # carry-forward, the report's rating-history readers and the gate N/A
