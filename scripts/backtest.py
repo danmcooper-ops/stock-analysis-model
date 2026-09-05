@@ -2712,20 +2712,49 @@ def _cli_annotate(args):
     print(f"\nCache warmed under {args.cache_dir} ({total} matured (date,horizon) pairs).")
 
 
+# The subcommands, and the flags argparse accepts BEFORE one. The legacy shim
+# needs both: a leading top-level flag is not a missing subcommand. Any new
+# top-level flag must be added here too (test_backtest.py::TestLegacyCliShim
+# walks every argv form against this list).
+CLI_SUBCOMMANDS = ('readiness', 'measure', 'calibrate', 'annotate')
+CLI_TOP_LEVEL_FLAGS = ('--no-store',)
+
+
+def apply_legacy_cli_shim(argv, subcommands=CLI_SUBCOMMANDS,
+                          top_level_flags=CLI_TOP_LEVEL_FLAGS):
+    """Return *argv* with ``measure`` inserted when no subcommand was given.
+
+    Before the subcommand split this script was invoked as
+    ``backtest.py --results-dir ...``; those invocations still work.
+
+    The subcommand is located after skipping any top-level flags, so
+    ``backtest.py --no-store measure`` reads as an explicit ``measure``. Keying
+    on ``argv[1]`` alone (as this did until the ``--no-store`` flag landed) saw
+    the flag as a missing subcommand and rewrote argv to
+    ``measure --no-store measure``, which argparse rejects — i.e. every
+    ``--no-store`` invocation failed. A legacy invocation that carries a
+    top-level flag gets ``measure`` inserted AFTER it, where the parser expects
+    the subcommand.
+    """
+    argv = list(argv)
+    rest = [a for a in argv[1:] if a not in top_level_flags]
+    if rest and (rest[0] in subcommands or rest[0] in ('-h', '--help')):
+        return argv                      # explicit subcommand (or help)
+    if rest and not rest[0].startswith('-'):
+        return argv                      # unknown positional — argparse reports it
+    print("[backtest] no subcommand given — defaulting to 'measure' "
+          "(legacy CLI compatibility)")
+    i = 1
+    while i < len(argv) and argv[i] in top_level_flags:
+        i += 1
+    argv.insert(i, 'measure')
+    return argv
+
+
 if __name__ == '__main__':
     import argparse
 
-    # Legacy-CLI shim: before the subcommand split, this script was invoked as
-    # `python scripts/backtest.py --results-dir ...`. Keep those invocations
-    # working by defaulting to the `measure` subcommand.
-    _subcommands = {'readiness', 'measure', 'calibrate', 'annotate', '-h', '--help'}
-    if len(sys.argv) == 1 or sys.argv[1] not in _subcommands:
-        if len(sys.argv) > 1 and not sys.argv[1].startswith('-'):
-            pass  # unknown positional — let argparse report it
-        else:
-            print("[backtest] no subcommand given — defaulting to 'measure' "
-                  "(legacy CLI compatibility)")
-            sys.argv.insert(1, 'measure')
+    sys.argv = apply_legacy_cli_shim(sys.argv)
 
     parser = argparse.ArgumentParser(
         description='Backtest + calibrate the stock model. Subcommands share '
