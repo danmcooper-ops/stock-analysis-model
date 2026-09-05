@@ -1197,7 +1197,7 @@ td.ct{font-weight:700;}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
-.pp-primer,.pp-desc,.pp-insights,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players,.pp-top,.pp-kpis{background:#f7f9fb;border-left:5px solid #1a252f;}
+.pp-primer,.pp-desc,.pp-insights,.pp-macro,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players,.pp-top,.pp-kpis{background:#f7f9fb;border-left:5px solid #1a252f;}
 /* Sector KPI banner — two-row grid placed above "How This Sector Makes
    Money". Row 1 = sector-relevant medians computed live from the
    sector's stocks (tracked). Row 2 = critical sector KPIs not yet in
@@ -1243,6 +1243,7 @@ td.ct{font-weight:700;}
 .pp-primer .pp-section-label,
 .pp-desc .pp-section-label,
 .pp-insights .pp-section-label,
+.pp-macro .pp-section-label,
 .pp-liquidity .pp-section-label,
 .pp-headwinds .pp-section-label,
 .pp-signals .pp-section-label,
@@ -1258,9 +1259,42 @@ td.ct{font-weight:700;}
 .pp-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
 .pp-signals-col-hdr{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
 @media(max-width:760px){.pp-signals-grid{grid-template-columns:1fr;gap:14px;}}
+/* Macro Outlook — the sector's entry from the Claude macro narrative,
+   migrated off the Macro Outlook tab's old "Sector implications" grid so
+   the top-down read sits directly above the sector's own structural
+   forces. Set in the pp prose idiom (0.82em / 1.55) rather than the
+   macro tab's --mac-* tokens, which are scoped to #macro-view and would
+   resolve to nothing here. Stance is carried twice: a chip that rides the
+   section-label line (inline-flex, like the label itself) set to match the
+   ▲/▼ column headers of the Headwinds & Tailwinds section below, and the
+   paragraph's left border. */
+.pp-macro-stance{display:inline-flex;align-items:center;vertical-align:middle;gap:7px;font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#5a6776;margin:0 0 0 10px;}
+.pp-macro-stance.up{color:#1a7a45;}
+.pp-macro-stance.down{color:#c0392b;}
+.pp-macro-dot{width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0;display:inline-block;}
+.pp-macro-stance.up .pp-macro-dot{background:#1a7a45;}
+.pp-macro-stance.down .pp-macro-dot{background:#c0392b;}
+.pp-macro-p{margin:0;font-size:0.82em;line-height:1.55;color:#37474f;padding-left:12px;border-left:3px solid #cfd8e0;}
+.pp-macro-p.up{border-left-color:#1a7a45;}
+.pp-macro-p.down{border-left-color:#c0392b;}
+.pp-macro-p b{font-weight:700;color:#1a252f;}
+.pp-macro-figs{display:block;font-size:0.78em;color:#7c8a9a;font-variant-numeric:tabular-nums;margin-top:3px;}
+.pp-macro-foot{margin:8px 0 0;font-size:0.72em;color:#94a3b8;}
+/* Dark mode carries the stance on the border and the dot, not the text:
+   `[data-theme="dark"] body *{color:#fff!important}` below paints every
+   word in the report white, and the adjacent Headwinds & Tailwinds headers
+   lose their green/red to it the same way. Border and background are not
+   caught by that rule, so the stance still reads. */
+[data-theme="dark"] .pp-macro-dot{background:#6e7681;}
+[data-theme="dark"] .pp-macro-stance.up .pp-macro-dot{background:#6fd08c;}
+[data-theme="dark"] .pp-macro-stance.down .pp-macro-dot{background:#ff8a80;}
+[data-theme="dark"] .pp-macro-p{border-left-color:#30363d;}
+[data-theme="dark"] .pp-macro-p.up{border-left-color:#6fd08c;}
+[data-theme="dark"] .pp-macro-p.down{border-left-color:#ff8a80;}
 [data-theme="dark"] .pp-primer,
 [data-theme="dark"] .pp-desc,
 [data-theme="dark"] .pp-insights,
+[data-theme="dark"] .pp-macro,
 [data-theme="dark"] .pp-liquidity,
 [data-theme="dark"] .pp-headwinds,
 [data-theme="dark"] .pp-signals,
@@ -1949,24 +1983,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-nar-wind{font-size:0.95em;line-height:1.65;margin:8px 0 0;color:var(--text);}
 .mac-nar-wind b{font-weight:700;}
 .mac-nar-wind.up b{color:var(--mac-up);}.mac-nar-wind.down b{color:var(--mac-down);}
-/* --- sector implications: its own section, three stance columns --- */
-.mac-sectors{margin-top:18px;padding:20px 24px 12px;}
-.mac-sectors-head{display:flex;align-items:baseline;gap:6px 14px;flex-wrap:wrap;margin-bottom:14px;}
-.mac-sectors-title{font-size:1.05em;font-weight:700;}
-.mac-sectors-sub{font-size:0.8em;color:var(--mac-muted);}
-.mac-sec-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 28px;}
-@media(max-width:900px){.mac-sec-cols{grid-template-columns:1fr;}}
-.mac-nar-group-h{display:flex;align-items:center;gap:7px;font-size:0.86em;font-weight:700;margin:0;}
-.mac-nar-group-n{font-size:0.8em;font-weight:600;color:var(--mac-muted);background:var(--mac-chip);border-radius:9px;padding:0 7px;}
-.mac-nar-group-sub{font-size:0.76em;color:var(--mac-muted);margin:1px 0 10px 15px;}
-.mac-nar-none{font-size:0.85em;color:var(--mac-faint);font-style:italic;margin:0 0 8px;}
-.mac-stance{width:8px;height:8px;border-radius:50%;background:var(--mac-faint);flex-shrink:0;display:inline-block;}
-.mac-stance.up{background:var(--mac-up);}.mac-stance.down{background:var(--mac-down);}
-.mac-nar-sec{font-size:0.92em;line-height:1.55;margin:0 0 12px;padding-left:12px;border-left:3px solid var(--mac-line);}
-.mac-nar-sec.up{border-left-color:var(--mac-up);}.mac-nar-sec.down{border-left-color:var(--mac-down);}
-.mac-nar-sec-name{font-size:0.76em;font-weight:600;color:var(--mac-muted);text-transform:uppercase;letter-spacing:0.05em;margin-right:7px;}
-.mac-nar-sec b{font-weight:700;}
-.mac-nar-figs{display:block;font-size:0.78em;color:var(--mac-faint);font-variant-numeric:tabular-nums;margin-top:2px;}
 .mac-nar-foot{font-size:0.72em;color:var(--mac-faint);margin-top:16px;}
 /* --- glance tiles --- */
 .mac-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:0 0 18px;}
@@ -7681,22 +7697,6 @@ function _macStatusNote(){
   if(_MACRO_FAILED)return '<p class="mac-note">Macro history failed to load. <a href="#" style="color:var(--mac-accent)" onclick="return macroRetry()">Retry</a></p>';
   return '<p class="mac-note">Loading macro history…</p>';
 }
-function _macSecFigs(d){
-  /* Hard numbers for one sector row, from the builder's sector_data.
-     Numbers are formatted locally with toFixed, the ticker is escaped, and
-     trend reaches HTML only through the glyph whitelist — nothing from the
-     sidecar lands raw. Sidecar fractions (0.021) render as signed percents
-     (+2.1%). Degrades to nothing for a sector without metrics. */
-  if(!d)return '';
-  var TRENDG={improving:'↗',deteriorating:'↘',stable:'→'};
-  var f=[];
-  if(d.etf)f.push(_esc(String(d.etf)));
-  var rs=(d.rs_3m!=null)?d.rs_3m:d.rel_strength_3m;
-  if(rs!=null)f.push('3m RS '+(rs>=0?'+':'')+(rs*100).toFixed(1)+'%');
-  if(d.return_3m!=null)f.push('3m '+(d.return_3m>=0?'+':'')+(d.return_3m*100).toFixed(1)+'%');
-  if(TRENDG[d.trend])f.push(TRENDG[d.trend]);
-  return f.length?'<span class="mac-nar-figs">'+f.join(' · ')+'</span>':'';
-}
 /* Bullet clauses joined into one sentence: "a; b; and c." Clauses are
    model output and already escaped by the caller. */
 function _macJoinClauses(items){
@@ -7707,12 +7707,13 @@ function _macJoinClauses(items){
 function _macNarrativeHTML(){
   /* Claude-written narrative from the builder (data/claude_narrative.py),
      set as continuous prose: three kickered paragraphs, the tailwinds and
-     headwinds folded into one sentence each. The sector outlooks are their
-     own section (_macSectorsHTML) beneath the story and the tiles.
+     headwinds folded into one sentence each. The per-sector outlooks are
+     not here — each one renders on its own Sector Analysis tab, in the
+     Macro Outlook section above that sector's Headwinds & Tailwinds
+     (renderPoolMacroOutlook), where the sector is actually being read.
      Rides on MACRO_SUM so it paints at first render; falls back to the
      sidecar for older inline summaries. All strings pass through _esc() —
-     the text is model output, not repo-authored markup — and stance maps
-     to CSS classes only through the whitelist in _macSectorsHTML. */
+     the text is model output, not repo-authored markup. */
   var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
   if(!nar||!(nar.paragraphs||[]).length)return '';
   var ps=nar.paragraphs||[];
@@ -7735,46 +7736,13 @@ function _macNarrativeHTML(){
     +_esc(nar.generated_at?String(nar.generated_at).slice(0,10):'')+'</div></div>';
   return h;
 }
-function _macSectorsHTML(){
-  /* The eleven sector outlooks as their own full-width section: three
-     stance columns (tailwind / neutral / headwind) so the read is "which
-     side of the cycle is each sector on" before any sentence is read.
-     Strings are model output and pass through _esc(); stance maps to CSS
-     classes only through the whitelist. Each entry carries the sector's
-     hard ETF numbers via _macSecFigs, and a pre-headline cached narrative
-     renders without the bold kicker and loses nothing else. */
-  var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
-  if(!nar||!(nar.sectors||[]).length)return '';
-  var STANCE={tailwind:'up',headwind:'down'};
-  var GROUPS=[['tailwind','Tailwinds','The cycle at their back'],['neutral','Neutral','Neither helped nor hurt'],['headwind','Headwinds','Leaning into the cycle']];
-  var sd=(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)||{};
-  var h='<div class="mac-card mac-sectors"><div class="mac-sectors-head"><span class="mac-sectors-title">Sector implications</span>'
-    +'<span class="mac-sectors-sub">How the regime lands on each GICS sector, with the sector ETF\'s three-month relative strength</span></div>'
-    +'<div class="mac-sec-cols">';
-  GROUPS.forEach(function(g){
-    var rows=nar.sectors.filter(function(s){return (s.stance||'neutral')===g[0];});
-    var cls=STANCE[g[0]]||'';
-    h+='<div class="mac-nar-group"><div class="mac-nar-group-h"><span class="mac-stance '+cls+'"></span>'+g[1]
-      +'<span class="mac-nar-group-n">'+rows.length+'</span></div><div class="mac-nar-group-sub">'+g[2]+'</div>';
-    if(!rows.length)h+='<p class="mac-nar-none">None this run.</p>';
-    rows.forEach(function(s){
-      var hl=_esc(s.headline||'');
-      h+='<p class="mac-nar-sec '+(STANCE[s.stance]||'')+'"><span class="mac-nar-sec-name">'+_esc(s.sector)+'</span>'
-        +(hl?'<b>'+hl+'.</b> ':'')
-        +_esc(s.outlook)
-        +_macSecFigs(sd[s.sector])+'</p>';
-    });
-    h+='</div>';
-  });
-  h+='</div></div>';
-  return h;
-}
 function _macOverviewHTML(){
-  /* Story first, glance numbers beside it, the sector section beneath
-     both. The full histories live on the
-     five section sub-tabs (menu), so nothing charted there is repeated
-     here — the Overview used to re-draw the yield curve and the 10Y–2Y
-     history under the tiles. */
+  /* Story first, glance numbers beside it, and nothing else. The full
+     histories live on the five section sub-tabs (menu), so nothing charted
+     there is repeated here — the Overview used to re-draw the yield curve
+     and the 10Y–2Y history under the tiles. The eleven sector outlooks
+     used to trail the tiles as a "Sector implications" grid; each one now
+     renders on its own Sector Analysis tab instead. */
   var h='<div class="mac-overview">'+_macNarrativeHTML();
   var tiles=(MACRO_SUM&&MACRO_SUM.tiles)||[];
   h+='<div>';
@@ -7807,7 +7775,6 @@ function _macOverviewHTML(){
     h+='<p class="mac-explore">Full histories: '+links.join(' · ')+'</p>';
   }
   h+='</div></div>';
-  h+=_macSectorsHTML();
   return h;
 }
 function _macSectionHTML(k){
@@ -8206,6 +8173,55 @@ function renderPoolInsights(sec){
   var out='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f">';
   n.insights.forEach(function(s){out+='<li style="margin:4px 0">'+_linkifyTickers(_esc(s))+'</li>';});
   out+='</ul>';
+  return out;
+}
+/* Hard numbers for one sector, from the macro builder's sector_data.
+   Numbers are formatted locally with toFixed, the ticker is escaped, and
+   trend reaches HTML only through the glyph whitelist — nothing from the
+   sidecar lands raw. Sidecar fractions (0.021) render as signed percents
+   (+2.1%). Degrades to nothing for a sector without metrics. */
+function _macSecFigs(d){
+  if(!d)return '';
+  var TRENDG={improving:'↗',deteriorating:'↘',stable:'→'};
+  var f=[];
+  if(d.etf)f.push(_esc(String(d.etf)));
+  var rs=(d.rs_3m!=null)?d.rs_3m:d.rel_strength_3m;
+  if(rs!=null)f.push('3m RS '+(rs>=0?'+':'')+(rs*100).toFixed(1)+'%');
+  if(d.return_3m!=null)f.push('3m '+(d.return_3m>=0?'+':'')+(d.return_3m*100).toFixed(1)+'%');
+  if(TRENDG[d.trend])f.push(TRENDG[d.trend]);
+  return f.length?'<span class="pp-macro-figs">'+f.join(' · ')+'</span>':'';
+}
+/* The sector's macro outlook: the entry Claude wrote for this GICS sector
+   in the macro narrative (data/claude_narrative.py), plus the sector ETF's
+   three-month numbers. Used to render for all eleven sectors at once as a
+   "Sector implications" grid on the Macro Outlook tab; it reads better one
+   sector at a time, directly above that sector's own structural forces.
+   Rides on the inline MACRO_SUM so it paints at first render, with the
+   lazily-loaded macro.json sidecar as the fallback. The narrative is model
+   output, so every string passes _esc() before _linkifyTickers() (the
+   convention of every other renderPool* helper) and stance reaches a class
+   only through the whitelist. Returns '' — and the section is dropped —
+   when the narrative is missing (no ANTHROPIC_API_KEY) or does not cover
+   this sector, which is a legal partial result. */
+function renderPoolMacroOutlook(sec){
+  var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
+  if(!nar||!(nar.sectors||[]).length)return '';
+  var row=null;
+  nar.sectors.forEach(function(s){if(s.sector===sec)row=s;});
+  if(!row||!row.outlook)return '';
+  var STANCE={tailwind:'up',headwind:'down'};
+  var LABEL={tailwind:'▲ Macro tailwind',headwind:'▼ Macro headwind'};
+  var cls=STANCE[row.stance]||'';
+  var sd=(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)||{};
+  var hl=_linkifyTickers(_esc(row.headline||''));
+  var out='<div class="pp-macro-stance '+cls+'"><span class="pp-macro-dot"></span>'
+    +(LABEL[row.stance]||'Macro neutral')+'</div>';
+  out+='<p class="pp-macro-p '+cls+'">'+(hl?'<b>'+hl+'.</b> ':'')
+    +_linkifyTickers(_esc(row.outlook))+_macSecFigs(sd[sec])+'</p>';
+  out+='<div class="pp-macro-foot">Written by Claude ('+_esc(nar.model||'')
+    +') from the FRED indicator data'
+    +(nar.generated_at?' · '+_esc(String(nar.generated_at).slice(0,10)):'')
+    +'</div>';
   return out;
 }
 /* Sector-level structural headwinds + tailwinds, rendered as a two-column
@@ -9960,6 +9976,7 @@ function renderPool(){
     var primerHtml=renderPoolPrimer(sec);
     var descHtml=renderPoolDescription(sec);
     var insightsHtml=renderPoolInsights(sec);
+    var macroHtml=renderPoolMacroOutlook(sec);
     var signalsHtml=renderPoolSectorSignals(sec);
     var liquidityHtml=renderPoolLiquidityInsights(sec);
     var playersHtml=renderPoolKeyPlayers(sec);
@@ -9974,6 +9991,12 @@ function renderPool(){
     }
     if(insightsHtml){
       chartHtml+='<div class="pp-section pp-insights"><span class="pp-section-label">Structural Insights</span>'+insightsHtml+'</div>';
+    }
+    /* Top-down before bottom-up: the macro regime's read on this sector
+       (from the Claude macro narrative) sits directly above the sector's
+       own structural forces. */
+    if(macroHtml){
+      chartHtml+='<div class="pp-section pp-macro"><span class="pp-section-label">Macro Outlook</span>'+macroHtml+'</div>';
     }
     if(signalsHtml){
       chartHtml+='<div class="pp-section pp-signals"><span class="pp-section-label">Sector Headwinds &amp; Tailwinds</span>'+signalsHtml+'</div>';
