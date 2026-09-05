@@ -4,6 +4,7 @@ readers that use it (gate N/A report, portfolio tracker prior lookup,
 report_html prior-rating / rating-history fast paths, ingest CLI)."""
 
 import json
+import math
 import os
 from datetime import date
 
@@ -376,3 +377,82 @@ def test_ingest_reads_gzipped_snapshots(tmp_path):
         assert a.counts() == b.counts()
         assert a.rows('2026-09-03') == b.rows('2026-09-03')
         assert a.run_meta('2026-09-03') == b.run_meta('2026-09-03')
+
+
+# --- what the store may drop, and what it must not -------------------------
+
+class TestExclusionsAndTypes:
+
+    def test_excluded_keys_are_never_read_by_the_scoring_path(self):
+        """Guard on DEFAULT_EXCLUDE_KEYS: it drops report payload only.
+
+        Adding a field scoring depends on would silently change re-scored
+        ratings for every store-backed backtest, so the list is asserted
+        disjoint from the gate fields, the rating drivers and the columns
+        query_results exposes.
+        """
+        import data.snapshot_store as ss
+        from scripts.query_results import (DEFAULT_COLUMNS, FIELD_ALIASES,
+                                           HISTORY_COLUMNS, INDEX_COLUMNS)
+        from scripts.report_html import _PREV_DRIVER_KEYS
+        from scripts.scoring import GATES
+        excluded = set(ss.DEFAULT_EXCLUDE_KEYS)
+        assert excluded, 'the narrative payload should still be excluded'
+        assert not excluded & {g.field for g in GATES}
+        assert not excluded & set(_PREV_DRIVER_KEYS)
+        assert not excluded & (set(INDEX_COLUMNS) | set(DEFAULT_COLUMNS)
+                               | set(HISTORY_COLUMNS) | set(FIELD_ALIASES.values()))
+        # Fields that look like report payload but that scoring does read.
+        assert not excluded & {'roic_by_year', '_nopat_by_year', '_ic_by_year',
+                               '_trap_components', 'edgar_history'}
+
+    def test_excluded_columns_are_absent_but_the_row_is_otherwise_whole(self, tmp_path):
+        import data.snapshot_store as ss
+        row = _row('AAA')
+        row.update({k: ['payload'] for k in ss.DEFAULT_EXCLUDE_KEYS})
+        with SnapshotStore(str(tmp_path / 's.duckdb')) as store:
+            store.ingest_rows({}, [row], run_date='2026-01-01')
+            got = store.rows('2026-01-01')[0]
+            assert not set(got) & set(ss.DEFAULT_EXCLUDE_KEYS)
+            assert got['rating'] == 'BUY' and got['_gate_roic'] == 0.2
+
+    def test_nan_survives_the_round_trip(self, tmp_path):
+        """Scoring reads a missing value (None) as N/A but a NaN as a failed
+        comparison, so collapsing NaN to NULL moves rows between those."""
+        with SnapshotStore(str(tmp_path / 's.duckdb')) as store:
+            store.ingest_rows({}, [_row('AAA', mos=float('nan')),
+                                   _row('BBB', mos=0.2)], run_date='2026-01-01')
+            got = {r['ticker']: r for r in store.rows('2026-01-01', ['mos'])}
+            assert math.isnan(got['AAA']['mos'])
+            assert got['BBB']['mos'] == 0.2
+
+    def test_stringified_infinity_does_not_make_a_numeric_column_textual(self, tmp_path):
+        """One "Infinity" among 2,413 floats used to turn every `pe` in the
+        real archive into a string. It must cast, not widen."""
+        with SnapshotStore(str(tmp_path / 's.duckdb')) as store:
+            store.ingest_rows({}, [_row('AAA', pe=18.5), _row('BBB', pe='Infinity'),
+                                   _row('CCC', pe=-21.0)], run_date='2026-01-01')
+            assert store.column_types()['pe'] == 'DOUBLE'
+            got = {r['ticker']: r for r in store.rows('2026-01-01', ['pe'])}
+            assert got['AAA']['pe'] == 18.5 and got['CCC']['pe'] == -21.0
+            assert math.isinf(got['BBB']['pe'])
+
+    def test_a_genuinely_textual_column_keeps_those_words(self, tmp_path):
+        """The coercion is driven by the column's other values, so a ticker
+        called NAN or a company called 'Infinity Corp' is left alone."""
+        with SnapshotStore(str(tmp_path / 's.duckdb')) as store:
+            store.ingest_rows({}, [_row('NAN', company_name='NaN Holdings'),
+                                   _row('BBB', company_name='Infinity')],
+                              run_date='2026-01-01')
+            got = {r['ticker']: r for r in store.rows('2026-01-01', ['company_name'])}
+            assert got['NAN']['company_name'] == 'NaN Holdings'
+            assert got['BBB']['company_name'] == 'Infinity'
+
+    def test_nonfinite_nested_in_a_json_block_is_stored_as_null(self, tmp_path):
+        """Bare NaN/Infinity tokens are not valid JSON and DuckDB rejects them."""
+        with SnapshotStore(str(tmp_path / 's.duckdb')) as store:
+            store.ingest_rows({}, [_row('AAA', roic_by_year={
+                '2024': float('inf'), '2023': float('nan'), '2022': 0.2})],
+                run_date='2026-01-01')
+            got = store.rows('2026-01-01', ['roic_by_year'])[0]['roic_by_year']
+            assert got == {'2024': None, '2023': None, '2022': 0.2}
