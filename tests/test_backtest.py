@@ -728,3 +728,85 @@ class TestCalibrateEvidenceFloor:
         # Past the evidence floor; no price data -> 0 annotated rows guard.
         assert res.get('refused') is None
         assert res['n_windows'] == 0 and res['annotated_rows'] == 0
+
+
+# ======================================================================
+# Legacy CLI shim
+# ======================================================================
+
+from scripts.backtest import (  # noqa: E402
+    CLI_SUBCOMMANDS, CLI_TOP_LEVEL_FLAGS, apply_legacy_cli_shim,
+)
+
+
+class TestLegacyCliShim:
+    """Every argv form the CLI accepts, through the shim.
+
+    The shim exists so the pre-subcommand `backtest.py --results-dir ...`
+    invocation keeps working. It regressed once already: it keyed on argv[1],
+    so the top-level `--no-store` flag read as a missing subcommand and argv
+    was rewritten to `measure --no-store <subcommand>`, which argparse
+    rejects. Neither the flag nor the shim was wrong alone — only the
+    combination — so this table walks both together.
+    """
+
+    def _shim(self, *args):
+        return apply_legacy_cli_shim(['backtest.py', *args])[1:]
+
+    # --- explicit subcommands are passed through untouched ---
+
+    @pytest.mark.parametrize('sub', CLI_SUBCOMMANDS)
+    def test_explicit_subcommand_untouched(self, sub):
+        assert self._shim(sub) == [sub]
+        assert self._shim(sub, '--horizons', '30') == [sub, '--horizons', '30']
+
+    @pytest.mark.parametrize('sub', CLI_SUBCOMMANDS)
+    def test_top_level_flag_before_subcommand(self, sub):
+        # The regression: must stay `--no-store <sub>`, never gain a `measure`.
+        for flag in CLI_TOP_LEVEL_FLAGS:
+            assert self._shim(flag, sub) == [flag, sub]
+            assert self._shim(flag, sub, '--horizons', '30') == [
+                flag, sub, '--horizons', '30']
+
+    # --- legacy invocations still default to measure ---
+
+    def test_bare_invocation_defaults_to_measure(self):
+        assert self._shim() == ['measure']
+
+    def test_legacy_flags_default_to_measure(self):
+        assert self._shim('--results-dir', 'output') == [
+            'measure', '--results-dir', 'output']
+
+    def test_legacy_flags_after_top_level_flag(self):
+        # `measure` goes AFTER the top-level flag, where the parser wants it.
+        assert self._shim('--no-store', '--results-dir', 'output') == [
+            '--no-store', 'measure', '--results-dir', 'output']
+
+    def test_top_level_flag_alone_defaults_to_measure(self):
+        assert self._shim('--no-store') == ['--no-store', 'measure']
+
+    # --- help and bad input are left for argparse ---
+
+    @pytest.mark.parametrize('h', ['-h', '--help'])
+    def test_help_untouched(self, h):
+        assert self._shim(h) == [h]
+
+    def test_unknown_positional_untouched(self):
+        # argparse must report it; silently running `measure` would hide a typo.
+        assert self._shim('bogus') == ['bogus']
+        assert self._shim('measur') == ['measur']
+
+    def test_does_not_mutate_caller_argv(self):
+        argv = ['backtest.py', '--results-dir', 'output']
+        apply_legacy_cli_shim(argv)
+        assert argv == ['backtest.py', '--results-dir', 'output']
+
+    def test_every_top_level_flag_is_declared(self):
+        # A flag added to the parser but not to CLI_TOP_LEVEL_FLAGS would
+        # reintroduce the regression, so keep the two in step.
+        import re
+        src = open('scripts/backtest.py', encoding='utf-8').read()
+        main_block = src[src.index("if __name__ == '__main__':"):]
+        top = main_block[:main_block.index('sub = parser.add_subparsers')]
+        declared = set(re.findall(r"parser\.add_argument\('(--[\w-]+)'", top))
+        assert declared == set(CLI_TOP_LEVEL_FLAGS)
