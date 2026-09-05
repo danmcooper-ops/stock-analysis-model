@@ -8,17 +8,37 @@ Free API — no authentication required, just User-Agent with email.
 Uses only stdlib (urllib + json + datetime).
 """
 
+import gzip
 import json
 import logging
 import ssl
 import time
 import urllib.error
 import urllib.request
+from datetime import date as _date
 from datetime import datetime as _dt
+from datetime import timedelta as _timedelta
 
+from data.sec_facts_cache import SECFactsCache, _norm_cik
 from data.throttle import Throttle
 
 logger = logging.getLogger(__name__)
+
+
+class _Absent:
+    """Sentinel: SEC answered that the resource does not exist (403/404).
+
+    Distinct from a failed request. The daily filing index is absent on
+    weekends and holidays, which genuinely means 'nothing was filed'; a
+    timeout or 5xx means 'unknown', and the two must not be confused or a
+    sweep would advance its watermark past filings it never read.
+    """
+
+    def __repr__(self):
+        return '<absent>'
+
+
+ABSENT = _Absent()
 
 def _ssl_context():
     """Return an SSL context using certifi certs if available, else system certs."""
@@ -53,6 +73,30 @@ class SECXBRLClient:
     """Fetch and interpret XBRL Company Facts from SEC EDGAR."""
 
     _COMPANY_FACTS_URL = 'https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json'
+    # Daily list of everything disseminated on a date, pipe-delimited as
+    # CIK|Company Name|Form Type|Date Filed|File Name. Drives cache
+    # invalidation: companyfacts carries no ETag/Last-Modified, so this
+    # is the only way to know a blob changed without refetching it.
+    _DAILY_INDEX_URL = ('https://www.sec.gov/Archives/edgar/daily-index/'
+                        '{year}/QTR{quarter}/master.{yyyymmdd}.idx')
+
+    # Form types that revise the XBRL facts this client actually reads, with
+    # their /A amendments: the periodic reports carrying financial statements,
+    # plus 6-K (how foreign private issuers file interim financials).
+    #
+    # Deliberately excludes 8-K. Its cover page is inline-XBRL tagged, so an
+    # 8-K does touch a filer's companyfacts blob — but only `dei` cover facts,
+    # never the us-gaap/ifrs-full statement concepts extracted here. The one
+    # dei fact this client reads, EntityCommonStockSharesOutstanding, is a
+    # periodic-report cover requirement and is not on an 8-K cover. Including
+    # 8-K measured ~257 filers/day against ~97 without it, so it would evict
+    # (and re-download) roughly two and a half times as much for no change in
+    # any value the model consumes.
+    _FACT_BEARING_FORMS = ('10-K', '10-Q', '20-F', '40-F', '6-K')
+
+    # Walking more index days than this costs more than it saves, so a
+    # longer gap falls back to the cache's own age backstop.
+    _MAX_INDEX_SWEEP_DAYS = 30
 
     # Multiple possible US-GAAP tags per financial concept.
     # Ordered by prevalence — first match wins.
@@ -489,37 +533,80 @@ class SECXBRLClient:
     }
 
     def __init__(self, cik_map, name_map,
-                 email='stockanalysis@example.com', request_delay=1.0):
+                 email='stockanalysis@example.com', request_delay=1.0,
+                 facts_cache=None):
         """
         Args:
             cik_map: dict {ticker: zero-padded CIK} from SECLegalClient.
             name_map: dict {ticker: company name} from SECLegalClient.
             email: Contact email for SEC User-Agent header.
             request_delay: Seconds between requests.
+            facts_cache: persistent companyfacts cache. A SECFactsCache, a
+                directory path, or True for the default location; None (the
+                default) keeps the per-process in-memory cache only, which is
+                what the tests and one-shot callers want.
         """
         self._ua = f'StockAnalyzer/1.0 ({email})'
         self._throttle = Throttle(request_delay)
         self._cache = {}          # ticker -> raw company facts JSON
         self._cik_map = cik_map
         self._name_map = name_map
+        self._facts_cache = self._resolve_facts_cache(facts_cache)
+
+    @staticmethod
+    def _resolve_facts_cache(facts_cache):
+        if facts_cache is None or facts_cache is False:
+            return None
+        if facts_cache is True:
+            return SECFactsCache()
+        if isinstance(facts_cache, str):
+            return SECFactsCache(cache_dir=facts_cache)
+        return facts_cache
 
     # ------------------------------------------------------------------
     # Throttling & requests
     # ------------------------------------------------------------------
 
-    def _request_json(self, url, timeout=20):
-        """GET request returning parsed JSON, or None on failure."""
+    def _request_bytes(self, url, timeout=20, absent_codes=()):
+        """GET returning the decoded body, or None on failure.
+
+        Asks for gzip: companyfacts blobs are ~14x smaller on the wire that
+        way (a 3.9 MB blob ships as ~270 KB), and urllib sends no
+        Accept-Encoding of its own, so without this every fetch pulls the
+        full uncompressed JSON.
+
+        *absent_codes* are HTTP statuses that mean "no such resource" for the
+        caller rather than a failure; they return :data:`ABSENT` and are not
+        logged. Everything else that goes wrong returns None.
+        """
         self._throttle()
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': self._ua})
+            req = urllib.request.Request(url, headers={
+                'User-Agent': self._ua, 'Accept-Encoding': 'gzip'})
             with urllib.request.urlopen(req, context=_SSL_CTX, timeout=timeout) as resp:
-                return json.loads(resp.read())
+                raw = resp.read()
+                if resp.headers.get('Content-Encoding') == 'gzip':
+                    raw = gzip.decompress(raw)
+                return raw
         except urllib.error.HTTPError as e:
+            if e.code in absent_codes:
+                return ABSENT
             if e.code == 429:
                 time.sleep(5)
             return None
         except Exception as e:
             logger.warning(f"SEC XBRL: request failed for {url}: {e}")
+            return None
+
+    def _request_json(self, url, timeout=20):
+        """GET request returning parsed JSON, or None on failure."""
+        raw = self._request_bytes(url, timeout=timeout)
+        if raw is None:
+            return None
+        try:
+            return json.loads(raw)
+        except ValueError as e:
+            logger.warning(f"SEC XBRL: bad JSON from {url}: {e}")
             return None
 
     # ------------------------------------------------------------------
@@ -528,6 +615,11 @@ class SECXBRLClient:
 
     def fetch_company_facts(self, ticker):
         """Fetch full XBRL company facts JSON from SEC EDGAR.
+
+        Looks in the per-process dict, then the persistent cache when one is
+        configured, and only then the network — so a run re-downloads a blob
+        only when its filer has filed since it was stored (see
+        :meth:`refresh_stale_facts`).
 
         Returns:
             dict: The raw companyfacts JSON, or None on failure.
@@ -540,13 +632,130 @@ class SECXBRLClient:
             self._cache[ticker] = None
             return None
 
+        if self._facts_cache is not None:
+            cached = self._facts_cache.get(cik)
+            if cached is not None:
+                self._cache[ticker] = cached
+                return cached
+
         url = self._COMPANY_FACTS_URL.format(cik=cik)
         data = self._request_json(url)
         # Don't cache request failures: a transient timeout would otherwise
         # read as "this ticker has no XBRL data" for the rest of the run.
         if data is not None:
             self._cache[ticker] = data
+            if self._facts_cache is not None:
+                self._facts_cache.put(cik, data)
         return data
+
+    # ------------------------------------------------------------------
+    # Persistent-cache freshness
+    # ------------------------------------------------------------------
+
+    def _daily_index_ciks(self, day):
+        """CIKs with a fact-bearing filing disseminated on *day*.
+
+        Returns a set when the index was read, an empty set when SEC says
+        there is no index for that day (weekends, holidays — nothing was
+        filed), or None when the request failed for any other reason. The
+        caller must not advance its watermark past a None, or that day's
+        filings are never seen.
+        """
+        url = self._DAILY_INDEX_URL.format(
+            year=day.year, quarter=(day.month - 1) // 3 + 1,
+            yyyymmdd=day.strftime('%Y%m%d'))
+        raw = self._request_bytes(url, absent_codes=(403, 404))
+        if raw is ABSENT:
+            return set()
+        if raw is None:
+            return None
+        ciks = set()
+        for line in raw.decode('latin-1').splitlines():
+            parts = line.split('|')
+            if len(parts) != 5:
+                continue
+            form = parts[2].strip().upper()
+            # "10-K/A" and friends count; the base form is before the slash.
+            if form.split('/')[0] not in self._FACT_BEARING_FORMS:
+                continue
+            norm = _norm_cik(parts[0])
+            if norm:
+                ciks.add(norm)
+        return ciks
+
+    def refresh_stale_facts(self, today=None, max_days=None):
+        """Evict cached companyfacts whose filers have filed since the last sweep.
+
+        companyfacts carries no ETag or Last-Modified, so there is no cheap way
+        to ask whether one blob changed. SEC's daily index answers the question
+        for every filer at once: one ~0.4 MB request per calendar day lists
+        everything disseminated, and only the fact-bearing forms matter.
+
+        Days are walked from the last recorded sweep up to yesterday (today's
+        index is incomplete while the day is still running, and is picked up on
+        the next run). A gap longer than *max_days* is not walked — the cache's
+        own age backstop covers that case instead.
+
+        Returns a summary dict; never raises, since a failed sweep must degrade
+        to serving slightly staler facts rather than break the run.
+        """
+        cache = self._facts_cache
+        if cache is None:
+            return {'swept': 0, 'invalidated': 0, 'reason': 'no persistent cache'}
+        today = today or _date.today()
+        through = today - _timedelta(days=1)
+        last = cache.last_sweep()
+        if last is None:
+            # First sweep: nothing was cached under a known-good watermark, so
+            # just start the clock. Entries age out via the backstop until the
+            # next run has a real window to walk.
+            cache.record_sweep(through)
+            return {'swept': 0, 'invalidated': 0, 'reason': 'first sweep'}
+        if last >= through:
+            return {'swept': 0, 'invalidated': 0, 'reason': 'already current'}
+
+        max_days = max_days or self._MAX_INDEX_SWEEP_DAYS
+        days = (through - last).days
+        if days > max_days:
+            logger.warning(
+                "SEC XBRL: %d days since the last filing-index sweep (max %d); "
+                "skipping it — cached facts fall back to the age backstop",
+                days, max_days)
+            return {'swept': 0, 'invalidated': 0, 'reason': f'gap {days}d > {max_days}d'}
+
+        # The watermark may only advance over an unbroken run of resolved
+        # days: the first day whose index could not be read stops it, so that
+        # day is retried next run instead of its filings being skipped.
+        filed, swept, resolved_through = set(), 0, last
+        stalled_on = None
+        day = last + _timedelta(days=1)
+        while day <= through:
+            got = self._daily_index_ciks(day)
+            if got is None:
+                stalled_on = day
+                break
+            filed |= got
+            swept += 1
+            resolved_through = day
+            day += _timedelta(days=1)
+
+        removed = cache.invalidate(filed)
+        pruned = cache.prune_expired()
+        if resolved_through > last:
+            cache.record_sweep(resolved_through)
+        if stalled_on is not None:
+            logger.warning("SEC XBRL: filing index unreadable for %s; sweeping "
+                           "resumes there next run", stalled_on)
+        logger.info("SEC XBRL: filing-index sweep %s..%s — %d filer(s) filed, "
+                    "%d cached blob(s) evicted", last + _timedelta(days=1),
+                    resolved_through, len(filed), removed)
+        return {'swept': swept, 'filers': len(filed), 'invalidated': removed,
+                'pruned': pruned, 'through': resolved_through.isoformat(),
+                'stalled_on': stalled_on.isoformat() if stalled_on else None}
+
+    def facts_cache_stats(self):
+        """Persistent-cache counters for the run-quality summary, or None."""
+        return None if self._facts_cache is None else self._facts_cache.stats()
 
     def get_filing_provenance(self, ticker):
         """Latest annual-filing metadata from the cached companyfacts blob.

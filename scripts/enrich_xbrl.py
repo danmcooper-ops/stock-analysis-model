@@ -474,7 +474,12 @@ def enrich(records, verbose=True, events=None):
         name_map={},
         email="stockanalysis@example.com",
         request_delay=0.15,
+        facts_cache=True,
     )
+    _sweep = xbrl.refresh_stale_facts()
+    if _sweep.get("invalidated"):
+        print(f"  SEC facts cache: {_sweep['invalidated']} blob(s) evicted "
+              f"({_sweep.get('filers', 0)} filer(s) filed since the last sweep)")
 
     n_mapped = 0
     counters = {k: 0 for k in _NEW_FIELDS}

@@ -43,6 +43,8 @@ Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
 PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/analyze_stock.py --macro --prices-dir output/prices --universe us --min-spread 0 --mcap-min 300e6
 ```
+SEC XBRL companyfacts are now cached on disk under `data/cache/sec_facts/` (gzipped, ~270 KB per filer). The run starts by walking SEC's daily filing index since the last run and evicting only the filers who filed a 10-K/10-Q/20-F/40-F/6-K, so the corpus is no longer re-downloaded nightly — expect the first run after this change to be a full download (~0.4 GB of transfer for the enriched universe) and later runs to fetch only what changed. The cache is disposable: deleting the directory costs one slow run. A "filing index unreadable" warning means the sweep stopped early and will resume there next run; facts stay served from cache meanwhile, with a 30-day age backstop.
+
 This expands the ticker universe from ~500 S&P/Dow stocks to all US-listed equities (~7,000–10,000 tickers from SEC EDGAR), then applies two Phase-1 filters before the expensive Phase 2 deep analysis: (1) market cap ≥ $300M (drops micro-caps and shells that can't be meaningfully valued) and (2) ROIC > WACC (positive economic spread — the business creates value). **Expected runtime: 3–6 hours.** The SEC listings are cached locally for 7 days (`data/cache/us_listings.csv`) so Phase 1 startup is fast on subsequent runs.
 
 This produces `output/stock_analysis_results_YYYY-MM-DD.html` and `output/results_YYYY-MM-DD.json` (where YYYY-MM-DD is today's date). Confirm both files exist before continuing.
