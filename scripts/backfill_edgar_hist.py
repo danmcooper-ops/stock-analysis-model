@@ -137,7 +137,9 @@ def main():
         print('[backfill] nothing to do'); return
 
     cik_map, name_map = _fetch_cik_map()
-    client = SECXBRLClient(cik_map, name_map, email=EMAIL, request_delay=REQUEST_DELAY)
+    client = SECXBRLClient(cik_map, name_map, email=EMAIL,
+                           request_delay=REQUEST_DELAY, facts_cache=True)
+    client.refresh_stale_facts()
 
     ok = err = skip = 0
     row_by_ticker = {r['ticker']: r for r in rows if r.get('ticker')}

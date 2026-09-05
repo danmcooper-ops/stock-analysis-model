@@ -22,7 +22,8 @@ data/            - Data clients (SEC XBRL/insider/legal/supply, yfinance, FMP,
                    plus shared helpers: throttle.py, yf_session.py,
                    snapshot_cache.py, snapshot_store.py (DuckDB index over
                    the daily results snapshots), price_store.py (bulk DuckDB
-                   reads over the price parquets), provenance.py, validation.py
+                   reads over the price parquets), sec_facts_cache.py
+                   (on-disk companyfacts blobs), provenance.py, validation.py
 models/          - Pure model functions: capm, dcf, ddm, epv, rim, nav,
                    ratios (WACC/ROIC), quality (Altman/Beneish/Piotroski),
                    market, macro, narrative, portfolio, valuation_types
@@ -69,6 +70,19 @@ ruff check .
   `models/valuation_types.py`); same-named legacy wrappers return
   `.value` as float|None. Soft issues are RuntimeWarnings AND recorded
   on the envelope.
+- **SEC companyfacts cache (`data/sec_facts_cache.py`):** companyfacts blobs
+  are ~3.9 MB each uncompressed and were re-downloaded every run, so they are
+  now kept gzipped (~14x smaller) under `data/cache/sec_facts/{CIK}.json.gz`.
+  SEC serves no `ETag`/`Last-Modified` on that endpoint, so freshness is
+  driven by filings instead of a TTL: `SECXBRLClient.refresh_stale_facts()`
+  walks SEC's daily filing index from its last watermark and evicts the CIKs
+  that filed a fact-bearing form (10-K/10-Q/20-F/40-F/6-K — *not* 8-K, whose
+  inline XBRL only touches `dei` cover facts). The watermark stops at the
+  first day whose index could not be read, so a transient failure re-reads
+  that day rather than skipping its filings. `max_age_days` (env
+  `SEC_FACTS_CACHE_MAX_AGE_DAYS`, default 30) is only a backstop for when the
+  sweep cannot run; entries past it are pruned. Requests send
+  `Accept-Encoding: gzip`, which urllib omits by default.
 - **Snapshot store (`data/snapshot_store.py`):** every run's
   `output/results_<date>.json` (~66 MB, ~2,300 rows x ~270 keys) is mirrored
   into `output/snapshots.duckdb` (tables `runs`, `results`; scalar keys

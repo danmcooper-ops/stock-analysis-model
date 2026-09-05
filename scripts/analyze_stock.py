@@ -2537,7 +2537,15 @@ def _run_build_clients(run_start_date):
         name_map=sec_client._name_map,
         email='stockanalysis@example.com',
         request_delay=1.0,
+        facts_cache=True,
     )
+    # Evict the cached companyfacts of filers who have filed since the last
+    # run, so this run re-downloads those and only those. Fails soft: without
+    # it the cache serves slightly staler facts, it never blocks the run.
+    _sweep = sec_xbrl_client.refresh_stale_facts()
+    if _sweep.get('invalidated'):
+        print(f"SEC facts cache: {_sweep['invalidated']} blob(s) evicted "
+              f"({_sweep.get('filers', 0)} filer(s) filed since the last sweep)")
     return {'yf_client': yf_client, 'tiingo_client': tiingo_client,
             'sec_client': sec_client, 'sec_xbrl_client': sec_xbrl_client}
 
