@@ -239,8 +239,9 @@ class TestFilingIndexSweep:
     def test_only_fact_bearing_forms_invalidate(self, tmp_path):
         c = self._client_with_index(tmp_path, {'20260902': INDEX})
         got = c._daily_index_ciks(date(2026, 9, 2))
-        # 10-Q, 10-K/A and 6-K count; 8-K and form 4 do not.
-        assert got == {'0000320193', '0001682852', '0000001001'}
+        # 10-Q, 10-K/A, 6-K and 8-K all contribute statement facts; ownership
+        # forms (4) never do. See _FACT_BEARING_FORMS for the measurements.
+        assert got == {'0000320193', '0001682852', '0000001001', '0000021344'}
 
     def test_absent_index_means_nothing_filed(self, tmp_path):
         c = self._client_with_index(tmp_path, {})
@@ -253,12 +254,14 @@ class TestFilingIndexSweep:
     def test_sweep_evicts_the_filers_that_filed(self, tmp_path):
         c = self._client_with_index(tmp_path, {'20260902': INDEX})
         c._facts_cache.put(AAPL_CIK, FACTS)          # filed a 10-Q
-        c._facts_cache.put('0000021344', FACTS)      # filed only an 8-K
+        c._facts_cache.put('0000021344', FACTS)      # filed an 8-K
+        c._facts_cache.put('0000000999', FACTS)      # filed nothing
         c._facts_cache.record_sweep(date(2026, 9, 1))
         out = c.refresh_stale_facts(today=date(2026, 9, 3))
-        assert out['invalidated'] == 1
+        assert out['invalidated'] == 2
         assert c._facts_cache.get(AAPL_CIK) is None
-        assert c._facts_cache.get('0000021344') == FACTS
+        assert c._facts_cache.get('0000021344') is None
+        assert c._facts_cache.get('0000000999') == FACTS
         assert c._facts_cache.last_sweep() == date(2026, 9, 2)
 
     def test_first_sweep_only_starts_the_clock(self, tmp_path):
@@ -330,7 +333,7 @@ class TestPruning:
         c = _client(tmp_path)
         c._request_bytes = lambda *a, **k: ABSENT
         c._facts_cache.max_age_days = 7
-        stale = c._facts_cache.put('0000021344', FACTS)
+        stale = c._facts_cache.put('0000007777', FACTS)
         old = time.time() - 9 * 86400
         os.utime(stale, (old, old))
         c._facts_cache.record_sweep(date(2026, 9, 1))

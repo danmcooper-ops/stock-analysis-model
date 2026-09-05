@@ -80,19 +80,32 @@ class SECXBRLClient:
     _DAILY_INDEX_URL = ('https://www.sec.gov/Archives/edgar/daily-index/'
                         '{year}/QTR{quarter}/master.{yyyymmdd}.idx')
 
-    # Form types that revise the XBRL facts this client actually reads, with
-    # their /A amendments: the periodic reports carrying financial statements,
-    # plus 6-K (how foreign private issuers file interim financials).
+    # Form types that revise the XBRL facts this client reads, with their /A
+    # amendments (matched on the base form, so 10-K/A counts as 10-K).
     #
-    # Deliberately excludes 8-K. Its cover page is inline-XBRL tagged, so an
-    # 8-K does touch a filer's companyfacts blob — but only `dei` cover facts,
-    # never the us-gaap/ifrs-full statement concepts extracted here. The one
-    # dei fact this client reads, EntityCommonStockSharesOutstanding, is a
-    # periodic-report cover requirement and is not on an 8-K cover. Including
-    # 8-K measured ~257 filers/day against ~97 without it, so it would evict
-    # (and re-download) roughly two and a half times as much for no change in
-    # any value the model consumes.
-    _FACT_BEARING_FORMS = ('10-K', '10-Q', '20-F', '40-F', '6-K')
+    # Derived by enumerating the `form` field on every fact in the
+    # companyfacts blobs of a spread of filers rather than from the filing
+    # rules, because the two disagree. Measured contributions of statement
+    # (us-gaap / ifrs-full) facts:
+    #   10-K, 10-Q          domestic periodic reports — the bulk
+    #   20-F, 40-F          foreign annual reports
+    #   6-K                 substantial for foreign issuers (Shell 3.5k facts,
+    #                       BTI 3.9k, ORIX 5.8k) — NOT skippable, even though
+    #                       an individual recent 6-K often has not landed yet
+    #   8-K                 real but largely duplicative (AAPL 337 client-read
+    #                       facts, JPM 252): an earnings-release 8-K previews
+    #                       figures the following 10-Q restates, so almost no
+    #                       datapoint is 8-K-only. Included anyway — it keeps
+    #                       the freshest quarter from lagging its 10-Q by days,
+    #                       and the whole filter still only evicts ~3% of a
+    #                       cache per day (below), so it is nearly free.
+    # DEF 14A supplies a handful of stray tagged values (5 for JPM) that the
+    # periodic reports also carry; not worth evicting for.
+    #
+    # Measured cost of the filter as a whole: ~294 filers/day file one of
+    # these forms, ~251 of them listed companies — about 3% of SEC's ~8,000
+    # listed CIKs, so ~97% of a warm cache survives each run.
+    _FACT_BEARING_FORMS = ('10-K', '10-Q', '20-F', '40-F', '6-K', '8-K')
 
     # Walking more index days than this costs more than it saves, so a
     # longer gap falls back to the cache's own age backstop.
