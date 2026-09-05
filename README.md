@@ -60,7 +60,10 @@ with SnapshotStore.open_existing('output/snapshots.duckdb') as s:
 
 `backtest.py` and `query_results.py --history` read the store when it holds
 the snapshots they need and fall back to the JSON files otherwise, so the
-store is an optimisation you can delete and rebuild at any time.
+store is an optimisation you can delete and rebuild at any time. It indexes
+the scoring and screening columns, not the narrative payload the HTML report
+renders, so it costs roughly 6-7% of the snapshots it indexes (a 5.3 GB
+archive of 84 runs builds a ~350 MB store).
 
 ## Configuration
 API keys are read from the environment (or a gitignored `.env` at the repo

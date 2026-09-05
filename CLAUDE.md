@@ -95,7 +95,14 @@ ruff check .
   `edgar_history` is kept as a slim projection (`years_available` and
   `operating_income_history` — the only sub-keys any scoring path reads), so
   a store row is a drop-in for re-scoring while the other 52 series stay in
-  the JSON. `sync_snapshot_file()` re-mirrors a rewritten file (analyze_stock,
+  the JSON. The report-only narrative blocks (`news_headlines`,
+  `legal_filings`, `insider_transactions`, descriptions, sector head/tailwinds
+  …) are dropped entirely via `DEFAULT_EXCLUDE_KEYS`: measured over 84 real
+  snapshots they were 2.6 GB of a 3.5 GB store, and nothing outside the HTML
+  render reads them. NaN and inf are stored as-is rather than nulled (scoring
+  treats a missing value as N/A but a NaN as a failed comparison), and a
+  stringified `"Infinity"` does not give a numeric column VARCHAR evidence —
+  one such `pe` value used to turn 2,413 floats in a snapshot into strings. `sync_snapshot_file()` re-mirrors a rewritten file (analyze_stock,
   the enrich_* scripts and rescore_and_render call it); `scripts/
   ingest_snapshots.py` backfills history. The store is versioned
   (`SCHEMA_VERSION`): readers ignore a store built at another version and a
