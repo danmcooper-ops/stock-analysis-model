@@ -30,8 +30,10 @@ models/          - Pure model functions: capm, dcf, ddm, epv, rim, nav,
 scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    report_html.py / report_excel.py, scoring.py, config.py,
                    param_set.py, replay.py, ingest_snapshots.py (backfill the
-                   snapshot store), plus enrichment/maintenance scripts
-tests/           - pytest suite (~750 tests) incl. hypothesis property tests
+                   snapshot store), archive_snapshot.py (gzip a run onto the
+                   data/snapshots branch, with a size guard), plus
+                   enrichment/maintenance scripts
+tests/           - pytest suite (~1,300 tests) incl. hypothesis property tests
 templates/       - jinja2 report templates
 scheduled-tasks/ - Operational runbooks for the nightly analysis + publish
 output/          - (gitignored) run artifacts: results JSON, HTML, prices,
@@ -83,6 +85,22 @@ ruff check .
   `SEC_FACTS_CACHE_MAX_AGE_DAYS`, default 30) is only a backstop for when the
   sweep cannot run; entries past it are pruned. Requests send
   `Accept-Encoding: gzip`, which urllib omits by default.
+- **Snapshot archive:** `output/results_<date>.json` is the canonical run
+  artifact and stays plain JSON locally, but the copy pushed to the
+  `data/snapshots` branch is gzipped (`results_<date>.json.gz`, ~87 MiB ->
+  ~27 MiB) by `scripts/archive_snapshot.py`. Plain JSON had reached 97.2 MiB
+  against GitHub's 100 MiB per-blob cap and one day was already rejected and
+  lost. The four discovery/IO helpers in `data/snapshot_store.py` —
+  `list_snapshot_files`, `snapshot_date_from_path`, `read_snapshot`,
+  `write_snapshot_file` — handle both forms, so the archive can hold a mix and
+  every reader (backtest, ingest, query, report) works unchanged; a date
+  present in both forms resolves to the plain file exactly once.
+  `write_snapshot_file` is the single snapshot writer: compact separators
+  (`indent=2` once inflated a file from 67 MB to 107 MB), `default=str` to
+  match the historical encoding, atomic via `os.replace`, and deterministic
+  when gzipping (`mtime=0`, `filename=''`) so re-archiving does not churn the
+  branch. The archive script verifies the round-trip by SHA-256 and fails
+  non-zero past an 80 MiB guard.
 - **Snapshot store (`data/snapshot_store.py`):** every run's
   `output/results_<date>.json` (~66 MB, ~2,300 rows x ~270 keys) is mirrored
   into `output/snapshots.duckdb` (tables `runs`, `results`; scalar keys

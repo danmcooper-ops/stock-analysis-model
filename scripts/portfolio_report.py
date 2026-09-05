@@ -17,7 +17,6 @@ Usage:
 """
 
 import argparse
-import json
 import os
 import sys
 
@@ -26,7 +25,8 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data.snapshot_store import list_snapshot_files  # noqa: E402
+from data.snapshot_store import (list_snapshot_files,  # noqa: E402
+                                 read_snapshot)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -86,8 +86,7 @@ def find_latest_results(results_dir: str) -> str:
 
 def load_results(path: str) -> tuple[str, list[dict]]:
     """Return (date_str, list_of_stock_dicts)."""
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+    data = read_snapshot(path)
     date_str = data.get("date", "unknown")
     results = data.get("results", [])
     return date_str, results

@@ -10,13 +10,12 @@ Or called programmatically from analyze_stock.py via run_portfolio_tracker().
 """
 import sys
 import os
-import json
 import argparse
 from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data.snapshot_store import (SnapshotStore, list_snapshot_files,
+from data.snapshot_store import (SnapshotStore, list_snapshot_files, read_snapshot,
                                  snapshot_date_from_path)
 from data.yfinance_client import YFinanceClient
 from data.portfolio_client import PortfolioClient
@@ -71,8 +70,7 @@ def _load_results_json(path):
     """Load a results JSON and return (meta_dict, results_by_ticker)."""
     if not path or not os.path.exists(path):
         return {}, {}
-    with open(path, encoding='utf-8') as f:
-        data = json.load(f)
+    data = read_snapshot(path)
     results = data.get('results', [])
     by_ticker = {r['ticker']: r for r in results}
     return data, by_ticker

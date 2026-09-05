@@ -24,7 +24,6 @@ Reuses data/sec_xbrl_client.SECXBRLClient. Bounded by SEC's 10 req/sec
 rate limit; for ~500 mapped tickers expect ~60-90 seconds wall clock
 on a cold cache. Idempotent — strips prior enrichment before running.
 """
-import json
 import os
 import sys
 
@@ -32,7 +31,8 @@ _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO not in sys.path:
     sys.path.insert(0, _REPO)
 
-from data.snapshot_store import sync_snapshot_file
+from data.snapshot_store import (read_snapshot, snapshot_date_from_path,
+                                 sync_snapshot_file, write_snapshot_file)
 from data.provenance import (append_events, attach_enrichment,
                              enrichment_block, make_event, strip_enrichment)
 from data.sec_legal_client import SECLegalClient
@@ -536,20 +536,18 @@ def main():
         sys.exit(1)
     in_path = sys.argv[1]
     out_path = sys.argv[2] if len(sys.argv) > 2 else in_path
-    with open(in_path, encoding="utf-8") as f:
-        d = json.load(f)
+    d = read_snapshot(in_path)
     recs = _records(d)
     if recs is None:
         print("Could not locate records list in JSON")
         sys.exit(1)
     events = []
     enrich(recs, events=events)
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(d, f)
+    write_snapshot_file(out_path, d)
     sync_snapshot_file(out_path, data=d)  # keep the DuckDB snapshot store in step
     print(f"\n  Wrote {out_path}")
     run_date = (d.get("date") if isinstance(d, dict) else None) or \
-        os.path.basename(in_path).replace("results_", "").replace(".json", "")
+        snapshot_date_from_path(in_path)
     append_events(os.path.dirname(out_path) or ".", run_date, "enrich_xbrl", events)
 
 

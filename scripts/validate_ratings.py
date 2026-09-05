@@ -21,7 +21,6 @@ Usage:
 """
 
 import argparse
-import json
 import os
 import sys
 
@@ -30,7 +29,8 @@ from scipy import stats as scipy_stats
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data.snapshot_store import list_snapshot_files  # noqa: E402
+from data.snapshot_store import (list_snapshot_files,  # noqa: E402
+                                 read_snapshot)
 
 RATING_ORDER = ['BUY', 'LEAN BUY', 'HOLD', 'PASS']
 BENCHMARK    = 'SPY'
@@ -42,16 +42,14 @@ BENCHMARK    = 'SPY'
 
 def load_snapshot(path=None, results_dir='output'):
     if path:
-        with open(path, encoding='utf-8') as f:
-            return json.load(f)
+        return read_snapshot(path)
     # Canonical results_YYYY-MM-DD.json only: results_X_replay.json sorts
     # lexicographically AFTER the canonical file ('_' > '.'), so a naive
     # files[-1] would silently validate a re-scored replay copy.
     files = [p for _, p in list_snapshot_files(results_dir)]
     if not files:
         raise FileNotFoundError(f"No results_*.json files in {results_dir}")
-    with open(files[-1], encoding='utf-8') as f:
-        return json.load(f)
+    return read_snapshot(files[-1])
 
 
 def trailing_return(ticker, as_of, horizon_td, prices_dir):

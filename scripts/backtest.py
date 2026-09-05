@@ -41,7 +41,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 
 from data.price_store import parquet_paths, window_closes
-from data.snapshot_store import SnapshotStore, list_snapshot_files
+from data.snapshot_store import (SnapshotStore, list_snapshot_files,
+                                 read_snapshot)
 from models.utils import rank
 from scripts.param_set import default_params, merge_params, validate_params
 
@@ -111,9 +112,13 @@ USE_SNAPSHOT_STORE = True
 
 
 def _load_snapshot_json(path):
-    """One snapshot file as ``{'date': ..., 'results': [...]}``."""
-    with open(path, encoding='utf-8') as fh:
-        return json.load(fh)
+    """One snapshot file as ``{'date': ..., 'results': [...]}``.
+
+    Goes through read_snapshot because --results-dir is routinely pointed at
+    the data/snapshots worktree (the weekly backtest does exactly that), and
+    that archive holds the gzipped ``results_<date>.json.gz`` form.
+    """
+    return read_snapshot(path)
 
 
 def load_corpus(results_dir='output', dates=None, use_store=None):
