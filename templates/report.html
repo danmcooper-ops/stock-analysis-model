@@ -2202,7 +2202,9 @@ body.wide-table .container{padding-left:0;padding-right:0;}
           <span class="fpop-title">Views</span>
           <button class="fpop-close" onclick="toggleNavMenu(event)">&#215;</button>
         </div>
-        <div class="fpop-body"><div class="navmenu-cols" id="nav-cols"></div></div>
+        <div class="fpop-body"><div class="navmenu-cols" id="nav-cols"></div>
+          <button class="navmenu-hkhint" onclick="hkOverlayOpen()">Keyboard shortcuts <kbd>?</kbd></button>
+        </div>
       </div>
     </div>
   </div>
@@ -7078,6 +7080,14 @@ function _startGlide(el,dir){
 }
 function _stopGlide(){_sdir=0;}
 document.addEventListener('keydown',function(e){
+  /* The shortcuts overlay sits above everything else, so it gets first refusal
+     on Escape: without this a menu underneath would close instead, leaving the
+     overlay stranded on screen. It also swallows every other key, so nothing
+     navigates behind it. */
+  if(_hkOverlayOpen()){
+    if(e.key==='Escape'||e.key==='?'){e.preventDefault();hkOverlayClose();}
+    return;
+  }
   if(e.key==='Escape'){
     var np=document.getElementById('nav-panel');
     if(np&&np.classList.contains('open')){e.preventDefault();closeNavMenu();return;}
@@ -7103,7 +7113,12 @@ document.addEventListener('keydown',function(e){
     else if(e.key==='ArrowUp'){e.preventDefault();var m=_detScroller();if(m)_startGlide(m,-1);}
     else if(e.key==='ArrowDown'){e.preventDefault();var m=_detScroller();if(m)_startGlide(m,1);}
     else if(e.key==='Enter'){e.preventDefault();var tk=document.getElementById('d-tk').textContent;if(tk&&!isReviewed(tk)){toggleReviewed(tk);_syncRevDet();}navDet(1);}
+    /* The popup owns the keyboard while it is open — an unhandled key must not
+       fall through and navigate the page out from under it. */
+    return;
   }
+  if(_hkBlocked(e))return;
+  _hkDispatch(e);
 });
 document.addEventListener('keyup',function(e){if(e.key==='ArrowUp'||e.key==='ArrowDown')_stopGlide();});
 
@@ -7294,9 +7309,13 @@ function renderNavMenu(){
   var cols=document.getElementById('nav-cols');
   if(!cols)return;
   var h='';
-  _navGroups().forEach(function(g){
+  /* The badge is the group's index+1 — the same number _hkDispatch maps the
+     digit keys onto, read from this same list, so the menu can never advertise
+     a shortcut that doesn't work. */
+  _navGroups().forEach(function(g,gi){
     h+='<div class="navmenu-col">'
-      +'<button class="navmenu-grp'+(curView===g.v?' cur':'')+'" data-v="'+g.v+'">'+esc(g.l)+'</button>';
+      +'<button class="navmenu-grp'+(curView===g.v?' cur':'')+'" data-v="'+g.v+'"'
+      +' title="Shortcut: '+(gi+1)+'">'+esc(g.l)+'<kbd class="navmenu-key">'+(gi+1)+'</kbd></button>';
     g.items.forEach(function(it){
       /* Sector names carry apostrophes ("Consumer Staples" is tame, but the
          list is data-driven), so the key rides a data attribute and a single
@@ -7351,6 +7370,143 @@ document.addEventListener('click',function(e){
   if(!b)return;
   navGo(b.getAttribute('data-v'),b.hasAttribute('data-k')?b.getAttribute('data-k'):null);
 });
+/* === KEYBOARD SHORTCUTS ===
+   One table drives both the dispatcher and the ? overlay, so a binding cannot
+   exist in one and not the other. `k` is the list of keys as the cheat sheet
+   prints them; the dispatcher below matches the same characters. The popup
+   rows describe the handler that already lives up at the det-modal block —
+   listing them here is what makes ? a complete map rather than half of one. */
+var HOTKEYS=[
+  /* A function, so the digits listed are exactly the ones _hkDispatch will
+     accept — a report without macro data shows 1-3, not a dead 4. */
+  {g:'Navigation',k:function(){return _navGroups().map(function(_,i){return String(i+1);});},
+   l:'Jump straight to a view'},
+  {g:'Navigation',k:[']','['],l:'Next / previous tab in this view'},
+  {g:'Navigation',k:['}','{'],l:'Next / previous view'},
+  {g:'Search & panels',k:['/'],l:'Search tickers (views with a table)'},
+  {g:'Search & panels',k:['f'],l:'Filters menu (views with a table)'},
+  {g:'Search & panels',k:['v'],l:'Views menu'},
+  {g:'Search & panels',k:['?'],l:'This cheat sheet'},
+  {g:'Search & panels',k:['Esc'],l:'Close the open overlay, menu or popup'},
+  {g:'Ticker popup',k:['←','→'],l:'Previous / next ticker'},
+  {g:'Ticker popup',k:['↑','↓'],l:'Scroll the popup'},
+  {g:'Ticker popup',k:['Enter'],l:'Mark reviewed, then next ticker'}
+];
+/* Hotkeys stay out of the way of typing and of the browser's own chords.
+   One target test covers every text field on the page at once — the ticker
+   search (#f-search), the column-picker search (.cfsel-search) and the AI
+   panel's textarea (#ai-input) — so none of them needs special-casing.
+   Shift is deliberately NOT tested: e.key already reports '{' and '}'
+   directly, and rejecting shifted keys would kill both. */
+function _hkBlocked(e){
+  if(e.ctrlKey||e.metaKey||e.altKey)return true;
+  if(e.isComposing||e.keyCode===229)return true;
+  var t=e.target;
+  if(!t||!t.tagName)return false;
+  if(t.isContentEditable)return true;
+  var tag=t.tagName.toLowerCase();
+  return tag==='input'||tag==='textarea'||tag==='select';
+}
+/* Views are addressed by their position in _navGroups(), not by name: that
+   list drops Macro Outlook on snapshots without macro data, and a fixed
+   name mapping would leave '1' dead there. renderNavMenu prints the same
+   index as a badge, so the digits always match what the menu shows.
+   ki omitted = keep whichever sub-tab the view was last on, matching a click
+   on the menu's group header. Both indices wrap. */
+function _hkGo(gi,ki){
+  var gs=_navGroups();
+  if(!gs.length)return;
+  var g=gs[((gi%gs.length)+gs.length)%gs.length];
+  var n=g.items.length;
+  if(ki==null||!n){navGo(g.v,null);return;}
+  navGo(g.v,g.items[((ki%n)+n)%n].k);
+}
+/* Where we are now, as indices into _navGroups(). Falls back to 0/0 rather
+   than throwing when the current view somehow isn't in the list. */
+function _hkCurIdx(){
+  var gs=_navGroups(),gi=0,ki=0;
+  if(!gs.length)return null;
+  gs.forEach(function(g,i){if(g.v===curView)gi=i;});
+  gs[gi].items.forEach(function(it,i){if(it.k===gs[gi].cur)ki=i;});
+  return{gi:gi,ki:ki};
+}
+function _hkStepSub(d){var c=_hkCurIdx();if(c)_hkGo(c.gi,c.ki+d);}
+function _hkStepView(d){var c=_hkCurIdx();if(c)_hkGo(c.gi+d,null);}
+/* Sector Analysis and Macro Outlook have no table to filter, so moveFilterBar
+   gives the bar .nav-only and CSS hides everything but the nav icon. Opening
+   the panel there would anchor _positionFpop to an invisible button and put
+   the caret somewhere the user can't see, so / and f are inert on those views
+   — the same as the button they stand in for. */
+function _hkFiltersUsable(){
+  var fb=document.querySelector('.filter-bar');
+  return!!(fb&&!fb.classList.contains('nav-only'));
+}
+function _hkDispatch(e){
+  var k=e.key;
+  if(k>='1'&&k<='9'){
+    var i=+k-1;
+    if(i<_navGroups().length){e.preventDefault();_hkGo(i,null);}
+    return;
+  }
+  if(k===']'){e.preventDefault();_hkStepSub(1);}
+  else if(k==='['){e.preventDefault();_hkStepSub(-1);}
+  else if(k==='}'){e.preventDefault();_hkStepView(1);}
+  else if(k==='{'){e.preventDefault();_hkStepView(-1);}
+  else if(k==='/'){
+    /* preventDefault or Firefox's quick-find swallows the slash. Opening the
+       panel already focuses #f-search on non-touch devices, so only the
+       already-open case has to place the caret itself. */
+    e.preventDefault();
+    if(!_hkFiltersUsable())return;
+    var fp=document.getElementById('filt-panel');
+    if(fp&&fp.classList.contains('open')){
+      var fs=document.getElementById('f-search');
+      if(fs)fs.focus({preventScroll:true});
+    }else toggleFiltMenu(null);
+  }
+  /* f/v open their menus; Escape is the way back out, because opening Filters
+     drops the caret in the search box where a second 'f' is just a letter. */
+  else if(k==='f'){e.preventDefault();if(_hkFiltersUsable())toggleFiltMenu(null);}
+  else if(k==='v'){e.preventDefault();toggleNavMenu(null);}
+  else if(k==='?'){e.preventDefault();hkOverlayOpen();}
+}
+function _hkOverlayOpen(){var o=document.getElementById('hk-overlay');return!!(o&&o.classList.contains('open'));}
+function hkOverlayClose(){var o=document.getElementById('hk-overlay');if(o){o.classList.remove('open');_unlockBody();}}
+function hkOverlayOpen(){
+  var o=document.getElementById('hk-overlay'),body=document.getElementById('hk-body');
+  if(!o)return;
+  /* Clear everything the overlay would cover. The AI panel is included
+     because it keeps its own document-level Escape handler further down the
+     file: leaving it open would make one Escape close two things. Its script
+     block is an IIFE, so aiClose() is out of reach — drop the same two
+     classes it drops instead. */
+  closeNavMenu();closeFiltMenu();
+  var ai=document.getElementById('ai-panel');
+  if(ai){ai.classList.remove('open');ai.classList.remove('settings');}
+  /* Rebuilt on every open: the view list is data-driven, so the digit row has
+     to be re-read rather than cached. */
+  if(body){
+    var order=[],byG={};
+    HOTKEYS.forEach(function(h){
+      if(!byG[h.g]){byG[h.g]=[];order.push(h.g);}
+      byG[h.g].push(h);
+    });
+    var html='';
+    order.forEach(function(g){
+      html+='<div class="hk-group"><div class="hk-group-t">'+esc(g)+'</div>';
+      byG[g].forEach(function(h){
+        var keys=(typeof h.k==='function')?h.k():h.k;
+        html+='<div class="hk-row"><span class="hk-keys">'
+          +keys.map(function(x){return'<kbd>'+esc(x)+'</kbd>';}).join('<span class="hk-sep">/</span>')
+          +'</span><span class="hk-desc">'+esc(h.l)+'</span></div>';
+      });
+      html+='</div>';
+    });
+    body.innerHTML=html;
+  }
+  o.classList.add('open');
+  _lockBody();
+}
 function toggleNavMenu(e){
   if(e)e.stopPropagation();
   var panel=document.getElementById('nav-panel');
@@ -10153,6 +10309,43 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   <div class="ai-inrow">
     <textarea id="ai-input" rows="1" placeholder="Ask about the data&hellip;"></textarea>
     <button id="ai-sendbtn" title="Send">&#10148;</button>
+  </div>
+</div>
+<!-- Keyboard shortcuts cheat sheet. Self-contained style + markup pair, in
+     the manner of the AI panel above it. The body is empty here and filled
+     once by hkOverlayOpen from the HOTKEYS table, so the sheet and the
+     dispatcher can never disagree about what a key does. Colours come from
+     the report's own custom properties, which both themes redefine, so dark
+     mode needs no rules of its own. -->
+<style>
+#hk-overlay{position:fixed;inset:0;z-index:1600;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);padding:20px;}
+#hk-overlay.open{display:flex;}
+.hk-card{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:14px;box-shadow:0 12px 44px rgba(0,0,0,.35);max-width:640px;width:100%;max-height:100%;display:flex;flex-direction:column;}
+.hk-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);flex:0 0 auto;}
+.hk-head h3{font-size:15px;font-weight:600;}
+.hk-close{background:none;border:none;color:var(--text-muted);font-size:20px;line-height:1;cursor:pointer;padding:2px 6px;border-radius:6px;}
+.hk-close:hover{color:var(--text);background:var(--bg);}
+#hk-body{padding:6px 18px 16px;overflow-y:auto;}
+.hk-group{margin-top:12px;}
+.hk-group-t{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:5px;}
+.hk-row{display:flex;align-items:baseline;gap:12px;padding:4px 0;font-size:13px;}
+.hk-keys{flex:0 0 132px;display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;}
+.hk-sep{color:var(--text-muted);font-size:11px;}
+.hk-desc{color:var(--text-muted);}
+#hk-overlay kbd,.navmenu-hkhint kbd{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.4;min-width:20px;text-align:center;padding:2px 6px;border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;background:var(--bg);color:var(--text);}
+.hk-foot{padding:0 18px 16px;font-size:11.5px;color:var(--text-muted);}
+.navmenu-hkhint{display:flex;align-items:center;gap:6px;width:100%;margin-top:10px;padding:8px 4px 2px;border:none;border-top:1px solid var(--border);background:none;color:var(--text-muted);font:inherit;font-size:12px;cursor:pointer;}
+.navmenu-hkhint:hover{color:var(--text);}
+.navmenu-key{margin-left:7px;opacity:.75;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;padding:1px 5px;border:1px solid var(--border);border-radius:4px;}
+/* No physical keyboard to shortcut with, and the sheet would crowd the
+   viewport — hide both the badges and the hint on touch-sized screens. */
+@media (max-width:700px){.navmenu-key,.navmenu-hkhint{display:none;}}
+</style>
+<div id="hk-overlay" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onclick="if(event.target===this)hkOverlayClose()">
+  <div class="hk-card">
+    <div class="hk-head"><h3>Keyboard shortcuts</h3><button class="hk-close" onclick="hkOverlayClose()" aria-label="Close">&#215;</button></div>
+    <div id="hk-body"></div>
+    <div class="hk-foot">Views are numbered in the order the Views menu lists them. Keys are ignored while you are typing in a search or filter box.</div>
   </div>
 </div>
 <button id="ai-fab" title="AI Analyst" aria-label="Open AI Analyst">
