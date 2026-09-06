@@ -330,9 +330,17 @@ GATES = [
     # signal orthogonal to ROIC. Also carries the margin-vs-sector signal of
     # the retired Gross Margin percentile gate (same axis, operating level).
     # Score: sector-median → 33, +20pp → 100.
+    # Masked for Financial Services on the same grounds as Int Coverage and
+    # the ROIC family: a bank's operating income is derived as pretax +
+    # interest expense, and interest is its cost of goods, so the "margin"
+    # is not one. In the 2026-09-03 snapshot the 80 banks that had a revenue
+    # read a median operating margin of 174% (max 15.7x) and 78 of them
+    # passed this gate; the other 144 read N/A. Bank quality is carried by
+    # the FDIC metrics (NIM / efficiency / CET1).
     Gate('Moat: Margin Advantage', 'margin_advantage',
          lambda v, r: v > 0.05 if v is not None else None,
-         lambda v, r, pct: _score_linear(v, -0.10, 0.20)),
+         lambda v, r, pct: _score_linear(v, -0.10, 0.20),
+         applicable=_appl_non_financial),
     # Pool-share trajectory: 5-yr CAGR of the company's share of its
     # sector's operating-profit pool (consistent panel) — is it WINNING
     # share of sector profit over time? Share-of-pool complement to

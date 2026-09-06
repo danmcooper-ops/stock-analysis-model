@@ -120,8 +120,46 @@ class SECXBRLClient:
             'RevenueFromContractWithCustomerIncludingAssessedTax',
             'SalesRevenueNet',
             'SalesRevenueGoodsNet',
+            # Pre-ASC 606 (FY2017 and earlier) totals. The 2018 taxonomy
+            # retired these in favour of RevenueFromContractWithCustomer*,
+            # and companyfacts keeps the old years under the old tags only —
+            # so a filer that had used one of them started its revenue
+            # history in 2018 and read N/A on 10Y Rev CAGR and Rev
+            # Volatility however long it had filed (HCA, ODFL, PLD, VLO, EQT,
+            # BAH, MAN, RHI ... 64 filers with 11+ years of balance sheets
+            # in the 2026-09-03 snapshot). Values merge per period end, and
+            # a tie on filed date keeps the earlier tag, so these can never
+            # displace a total tagged above. Only whole-company totals are
+            # listed: gross-of-provision and component lines (patient
+            # service revenue before bad debts, lease revenue, food and
+            # beverage, advertising, home building) are deliberately absent
+            # because a component stitched onto a later total fabricates a
+            # growth step at the tag boundary.
+            'SalesRevenueServicesNet',
+            'RealEstateRevenueNet',
+            'HealthCareOrganizationRevenue',
+            'HealthCareOrganizationPatientServiceRevenueLessProvisionForBadDebts',
+            'RegulatedAndUnregulatedOperatingRevenue',
+            'ElectricUtilityRevenue',
+            'RegulatedOperatingRevenue',
+            'RegulatedOperatingRevenueGas',
+            'OilAndGasRevenue',
+            'OilAndGasSalesRevenue',
+            'RefiningAndMarketingRevenue',
+            'RevenueOilAndGasServices',
+            'ContractsRevenue',
             'RevenueFromContractWithCustomerExcludingAssessedTaxTransferredAtAPointInTime',
         ],
+        # Bank revenue components. Banks tag no revenue total: their
+        # ASC 606 line is fee income only (BKU: $22M against $1.1B of net
+        # revenue), and the standard "total revenue" a bank reports — and
+        # yfinance's totalRevenue — is net interest income + noninterest
+        # income. _resolve_revenue_annual sums these two where both are
+        # tagged; JPM, COF and WFC, which tag Revenues as well, show the
+        # sum equals that line. Insurers, brokers and asset managers do not
+        # tag NoninterestIncome, so the derivation cannot fire on them.
+        'net_interest_income': ['InterestIncomeExpenseNet'],
+        'noninterest_income': ['NoninterestIncome'],
         'net_income': [
             'NetIncomeLoss',
             'NetIncomeLossAvailableToCommonStockholdersBasic',
@@ -809,14 +847,37 @@ class SECXBRLClient:
         best['cik'] = self._cik_map.get(ticker)
         return best
 
+    # Concepts whose alias tags are the whole-company total or components of
+    # it, so when one filing carries several of them for the same period the
+    # LARGEST of the aliases is the total. Revenue is the one such concept in
+    # the map: NJR tags RegulatedAndUnregulatedOperatingRevenue ($2.6B, the
+    # operating revenues line) alongside
+    # RevenueFromContractWithCustomerExcludingAssessedTax ($0.8B, the ASC 606
+    # slice) every year since 2019, and the first-tag tie-break read the
+    # slice as revenue — a 3x understatement that only surfaced once the
+    # pre-2019 totals joined the series. The first tag in the list
+    # ('Revenues', the explicit GAAP total) still wins every tie outright:
+    # for E&Ps it is SMALLER than the gas-sales alias because derivative
+    # losses sit inside it (EQT 2021: $3.1B vs $6.8B), and that total is the
+    # figure wanted. Not generalised beyond revenue: for net income the
+    # NCI-inclusive ProfitLoss is larger than the parent-only figure the
+    # models want, so first-tag-wins stays the default elsewhere.
+    _TIE_BREAK_MAX = frozenset({'revenue'})
+
     def _extract_annual_values(self, facts_json, tag_list, form_filter='10-K',
-                               units_key='USD', taxonomy_key='us-gaap'):
+                               units_key='USD', taxonomy_key='us-gaap',
+                               tie_break='first'):
         """Extract annual values for a concept from XBRL facts.
 
         Tries each tag in tag_list until one has data.  Filters for the
         specified form type.  Handles the complexity of XBRL entries which
         include segment breakdowns and prior-year restatements alongside
         total annual figures.
+
+        tie_break: how to choose between tags that carry a value for the
+            same period end with the same filed date — 'first' keeps the
+            earlier tag in tag_list; 'max' keeps the first tag when it is
+            among them and otherwise the largest value (see _TIE_BREAK_MAX).
 
         Selection logic per fiscal year:
         1. Only 10-K / 20-F / 40-F filings with fp='FY'
@@ -854,7 +915,7 @@ class SECXBRLClient:
         # entry's own 'fy' cannot be the key.
         by_end = {}  # {end: {'val': (filed, value), 'label': (filed, fy)}}
 
-        for tag in tag_list:
+        for rank, tag in enumerate(tag_list):
             concept = us_gaap.get(tag)
             if not concept:
                 continue
@@ -908,14 +969,21 @@ class SECXBRLClient:
 
             # Per period end: latest filed value (restatements supersede),
             # earliest filed fiscal-year label (the original filing). Ties
-            # on filed date keep the first tag in tag_list, as before.
+            # on filed date keep the first tag in tag_list, unless the
+            # concept opted into the largest-value rule (tie_break='max').
             for fy, filed, val, end in candidates:
                 rec = by_end.get(end)
                 if rec is None:
-                    by_end[end] = {'val': (filed, val), 'label': (filed, fy)}
+                    by_end[end] = {'val': (filed, val), 'label': (filed, fy),
+                                   'rank': rank}
                     continue
                 if filed > rec['val'][0]:
                     rec['val'] = (filed, val)
+                    rec['rank'] = rank
+                elif (tie_break == 'max' and filed == rec['val'][0]
+                        and rec['rank'] > 0 and val > rec['val'][1]):
+                    rec['val'] = (filed, val)
+                    rec['rank'] = rank
                 if filed < rec['label'][0]:
                     rec['label'] = (filed, fy)
 
@@ -1106,15 +1174,42 @@ class SECXBRLClient:
         None, the method auto-picks USD or the foreign filer's currency.
         """
         ccy = units_key or self._detect_currency(facts_json, concept) or 'USD'
+        tie_break = 'max' if concept in self._TIE_BREAK_MAX else 'first'
         for taxonomy_key, tag_map in self._TAXONOMIES:
             tags = tag_map.get(concept, [])
             if not tags:
                 continue
             vals = self._extract_annual_values(
-                facts_json, tags, units_key=ccy, taxonomy_key=taxonomy_key)
+                facts_json, tags, units_key=ccy, taxonomy_key=taxonomy_key,
+                tie_break=tie_break)
             if vals:
                 return vals, taxonomy_key, ccy
         return {}, None, ccy
+
+    def _resolve_revenue_annual(self, facts_json):
+        """Whole-company revenue per fiscal year, (values, currency).
+
+        The generic revenue aliases, then — for filers that tag both net
+        interest income and noninterest income, i.e. banks — the larger of
+        that sum and the alias value for each year. Banks tag no revenue
+        total in the alias list: 144 of 224 banks in the 2026-09-03 snapshot
+        had no revenue at all and the other 80 carried their ASC 606 fee
+        slice, which is why 78 of them "passed" Margin Advantage on
+        operating margins above 100%. Where a bank does tag Revenues it is
+        this same net figure (JPM 2025: 95.4B + 87.0B = 182.4B), so the max
+        is a no-op there and only replaces the fee slice.
+        """
+        rev, _tax, ccy = self._extract_concept_annual(facts_json, 'revenue')
+        nii, _t2, nii_ccy = self._extract_concept_annual(facts_json, 'net_interest_income')
+        nonint, _t3, _c3 = self._extract_concept_annual(facts_json, 'noninterest_income')
+        if not nii or not nonint:
+            return rev, ccy
+        out = dict(rev)
+        for fy in set(nii) & set(nonint):
+            bank_rev = nii[fy] + nonint[fy]
+            if out.get(fy) is None or bank_rev > out[fy]:
+                out[fy] = bank_rev
+        return dict(sorted(out.items())), (ccy if rev else nii_ccy)
 
     def _resolve_equity_annual(self, facts_json):
         """Parent-attributable equity per fiscal year, (values, currency).
@@ -1369,7 +1464,7 @@ class SECXBRLClient:
             vals, _tax, ccy = self._extract_concept_annual(facts, concept)
             return vals, ccy
 
-        rev, rev_ccy             = _flow('revenue')
+        rev, rev_ccy             = self._resolve_revenue_annual(facts)
         ni,  ni_ccy              = _flow('net_income')
         ocf, ocf_ccy             = _flow('operating_cash_flow')
         capex, capex_ccy         = _flow('capex')
@@ -1423,6 +1518,37 @@ class SECXBRLClient:
         acq_h, _c26     = _flow('acquisitions')
         chgcash_h, _c27 = _flow('net_change_cash')
         fxeff_h, _c28   = _flow('fx_effect_cash')
+        # ----- Derive missing income-statement series -----
+        # build_yfinance_shape fills the ROW-level statements from accounting
+        # identities when a filer never tags the line (HCA, ZTS, ADP, BMY,
+        # MRK, LLY, COP, CLX ... tag pretax income but no OperatingIncomeLoss;
+        # ~380 filers tag CostOfRevenue but no GrossProfit). The multi-year
+        # series here did not, so for those filers every history-backed
+        # consumer — Mult vs Hist, Pool Share, Margin vs Hist, the
+        # int_cov_edgar fallback and the gross-margin trend — read N/A while
+        # the point-in-time figures resolved fine. Same rules as the shape
+        # builder, never overwriting a tagged value:
+        #   pretax    = net income + tax provision           (last resort)
+        #   operating = pretax + interest expense            (other income ~ 0)
+        #   gross     = revenue - cost of revenue
+        # Every operand is in the reporting currency, so this sits before the
+        # FX pass; the derived years are re-sorted so the series stay
+        # year-ordered like every other history dict.
+        for _y in set(ni) | set(taxprov):
+            if (pretax.get(_y) is None and ni.get(_y) is not None
+                    and taxprov.get(_y) is not None):
+                pretax[_y] = ni[_y] + taxprov[_y]
+        for _y in set(pretax):
+            if opinc.get(_y) is None and pretax.get(_y) is not None:
+                opinc[_y] = pretax[_y] + (intexp.get(_y) or 0)
+        for _y in set(rev) & set(cogs_h):
+            if (gp.get(_y) is None and rev.get(_y) is not None
+                    and cogs_h.get(_y) is not None):
+                gp[_y] = rev[_y] - cogs_h[_y]
+        pretax = dict(sorted(pretax.items()))
+        opinc = dict(sorted(opinc.items()))
+        gp = dict(sorted(gp.items()))
+
         # A classified balance sheet splits borrowings across the current and
         # non-current captions, but the shared resolver only returns the
         # composed total. Rebuild the two halves from the same component
@@ -1665,7 +1791,7 @@ class SECXBRLClient:
             return self._extract_annual_values(facts, tags) if tags else {}
 
         # Income statement (flow concepts)
-        revenue       = _ann('revenue')
+        revenue, _rev_ccy = self._resolve_revenue_annual(facts)
         net_income    = _ann('net_income')
         op_income     = _ann('operating_income')
         gross_profit  = _ann('gross_profit')

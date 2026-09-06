@@ -393,6 +393,23 @@ def derive_edgar_metrics(edgar_history):
             s0, s1 = sh_hist.get(shy[-6]), sh_hist.get(shy[-1])
             if s0 and s0 > 0 and s1 and s1 > 0:
                 out['shares_cagr_5y'] = (s1 / s0) ** (1 / 5) - 1
+    if out['shares_cagr_5y'] is None:
+        # Period-end share counts are a balance-sheet instant that many
+        # filers tag for only a few years (AOS: 2014-2015 against 14 years
+        # of weighted-average counts; USLM: 2022-2024), so Ownership: Share
+        # Shrink read N/A for ~210 EDGAR-backed rows whose 10-Ks carried a
+        # 6+ year share history under the EPS denominators. Fall back to the
+        # weighted-average series, basic before diluted, year-keyed so a
+        # hole in the filing history cannot stretch the 5-year window.
+        for _key in ('wavg_basic_history', 'wavg_diluted_history'):
+            w_hist = _flow_to_annual(edgar_history.get(_key, {}))
+            if not w_hist:
+                continue
+            latest_y = max(w_hist)
+            s0, s1 = w_hist.get(latest_y - 5), w_hist.get(latest_y)
+            if s0 and s0 > 0 and s1 and s1 > 0:
+                out['shares_cagr_5y'] = (s1 / s0) ** (1 / 5) - 1
+                break
 
     # Net-debt trajectory over the last 4 common years, expressed as the
     # per-year build as a fraction of latest revenue — a slope, not a CAGR,
@@ -1632,6 +1649,34 @@ def _after_tax_interest(yf_data):
     else:
         rate = DCF_DEFAULT_TAX_RATE
     return interest * (1.0 - rate)
+
+
+def _ensure_fundamental_growth(growth_diag, yf_data, roic_data):
+    """Fill ``fundamental_growth`` / ``reinvestment_rate`` on a DCF growth
+    diagnostic that never reached the growth-signal block.
+
+    Reinvestment rate x ROIC is a scored gate in its own right (Growth: Fund
+    Growth), but it was only ever computed inside run_forward_dcf, AFTER that
+    function's early exits — an empty cash-flow frame, a WACC at or below
+    terminal growth, a missing FCF series or a non-positive base FCF all
+    returned an empty diagnostic. Measured on the 2026-09-03 snapshot, 492 of
+    the 504 rows without a DCF value were N/A on the gate, ~190 of them
+    non-financials with positive EBIT and ROIC whose statements carried every
+    input (VITL computes 0.15 standalone). The signal does not depend on the
+    FCF sign, so compute it on its own when the DCF path skipped it. Returns
+    the (possibly copied) diagnostic; a genuinely uncomputable row stays N/A.
+    """
+    if growth_diag.get('fundamental_growth') is not None:
+        return growth_diag
+    fund_result = calculate_fundamental_growth(
+        yf_data,
+        roic_override=roic_data.get('roic_median_5y') if roic_data else None)
+    if fund_result.get('fundamental_growth') is None:
+        return growth_diag
+    out = dict(growth_diag)
+    out['fundamental_growth'] = fund_result['fundamental_growth']
+    out['reinvestment_rate'] = fund_result.get('reinvestment_rate')
+    return out
 
 
 def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=None,
@@ -3094,6 +3139,16 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             sec_xbrl_client._cache.pop(ticker, None)
             # SEC EDGAR: insider transactions from Form 4
             insider_data = sec_insider_client.fetch_insider_activity(ticker, days_back=365)
+            if insider_data.get('fetch_failed'):
+                # Whole-source failure: the Form 4 counts stay None and the
+                # Insider Buying gate reads N/A. Say so, so a run that lost
+                # its insider data (UTHR was empty for three consecutive
+                # snapshots while parsing fine standalone) is visible in the
+                # log rather than indistinguishable from a quiet insider set.
+                logger.warning(f"{ticker}: SEC insider (Form 4) fetch failed — "
+                               f"insider counts left N/A for this run")
+                _prov.record_event('insider_fetch_failed', ticker, 'sec_insider',
+                                   {'form4_total_365d': insider_data.get('form4_total_365d')})
 
             officers = info.get('companyOfficers') or []
             ceo_officer = next(
@@ -3153,6 +3208,7 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 growth_sigma_mult=effective_growth_sigma_mult,
                 growth_weight_shift=effective_growth_weight_shift,
                 seed=seed_from_ticker(ticker))
+            growth_diag = _ensure_fundamental_growth(growth_diag, yf_data, roic_data)
             mos = (dcf_fv - current_price) / dcf_fv if (dcf_fv and current_price and dcf_fv > 0) else None
 
             # Step 5B: Dividend Discount Model (for dividend payers)
@@ -3529,6 +3585,11 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'insider_sell_count_90d': insider_data.get('sell_count_90d') if insider_data and insider_data.get('available') else None,
                 'insider_buy_count_365d': insider_data.get('buy_count_365d') if insider_data and insider_data.get('available') else None,
                 'insider_sell_count_365d': insider_data.get('sell_count_365d') if insider_data and insider_data.get('available') else None,
+                # Coverage of the counts above: Form 4s filed in the window
+                # vs the capped number actually parsed. When total exceeds
+                # parsed the counts are a lower bound, not a census.
+                'insider_form4_total_365d': insider_data.get('form4_total_365d') if insider_data and insider_data.get('available') else None,
+                'insider_form4_parsed': insider_data.get('form4_parsed') if insider_data and insider_data.get('available') else None,
                 'insider_net_shares': insider_data.get('net_shares_365d') if insider_data and insider_data.get('available') else None,
                 'insider_net_value': insider_data.get('net_value_365d') if insider_data and insider_data.get('available') else None,
                 'insider_transactions': (insider_data.get('transactions', [])[:10] if insider_data and insider_data.get('available') else []),

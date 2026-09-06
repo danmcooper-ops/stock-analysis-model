@@ -32,6 +32,17 @@ DEFAULT_MODEL = 'claude-opus-5'
 # discarded, silently un-shipping the card. Cost is per-use, not per-cap.
 DEFAULT_MAX_TOKENS = 12000
 
+# Bumped whenever the narrative's shape changes. The day cache is keyed by
+# as_of alone and a hit short-circuits every post-parse check below, so
+# without this a run on the day of a shape change replays yesterday's shape
+# — bullet-less sector sections — until the date rolls over.
+SCHEMA_VERSION = 2
+
+# Advisory bullet band per sector; the ceiling is enforced in
+# _clamp_sector_bullets, the floor is only ever counted (never padded).
+MIN_SECTOR_BULLETS = 3
+MAX_SECTOR_BULLETS = 5
+
 # The 11 GICS sectors under the yfinance naming this repo uses everywhere
 # (rows, SECTOR_CONFIG, sector ETF maps). The narrative must cover all 11.
 GICS_SECTORS = [
@@ -75,8 +86,17 @@ NARRATIVE_SCHEMA = {
                                'enum': ['tailwind', 'neutral', 'headwind']},
                     'headline': {'type': 'string', 'maxLength': 60},
                     'outlook': {'type': 'string'},
+                    # Per-sector bullets, distinct from the economy-wide
+                    # arrays above. Same no-length-pinning rule applies —
+                    # and it applies to these NESTED arrays too, which is
+                    # the easy place to forget it.
+                    'tailwinds': {'type': 'array',
+                                  'items': {'type': 'string'}},
+                    'headwinds': {'type': 'array',
+                                  'items': {'type': 'string'}},
                 },
-                'required': ['sector', 'stance', 'headline', 'outlook'],
+                'required': ['sector', 'stance', 'headline', 'outlook',
+                             'tailwinds', 'headwinds'],
                 'additionalProperties': False,
             },
         },
@@ -113,13 +133,41 @@ SYSTEM_PROMPT = (
     'commodity linkage, defensiveness) to those numbers. Dry wit is '
     'welcome; filler and hedging are not — never write "may", "could", '
     '"likely", "remains to be seen", or "bears watching".\n'
-    '  stance: the net read — tailwind, neutral, or headwind.'
+    '  tailwinds / headwinds: the macro forces acting on THIS sector, '
+    'split by direction — not the economy-wide headwinds/tailwinds above, '
+    'which are a separate top-level field. Write 3 to 5 bullets in TOTAL '
+    'across the two lists (not 3-5 each), putting at least one on each '
+    'side when the data supports it. Never pad to reach three: a sector '
+    'the data pushes one way gets a lopsided split, and a bullet with no '
+    'figure behind it should not exist.\n'
+    '    Each bullet: ONE clause, 20 words maximum, naming its indicator '
+    "and its figure — 'core PCE at 2.8%, 71st percentile of 10 years', "
+    "'BBB spreads 18bp wider in a month'. Same ban on filler and hedging "
+    'as outlook.\n'
+    "    Spread a sector's bullets across DIFFERENT indicator families — "
+    "each series carries a 'sec' key (rates, inflation, growth, credit, "
+    'housing) and the yield curve, the OAS buckets by rating, the regime '
+    "scores and the sector's own ETF relative strength are all fair game. "
+    'Four restatements of the 10-year yield is the failure to avoid.\n'
+    "    Each series also carries 'good' — the direction the report treats "
+    'as favourable for the economy. Use it as a starting point, not the '
+    "answer: the bullet belongs in the list matching THIS sector's "
+    'exposure. A rising 10-year is a tailwind for banks and a headwind '
+    'for utilities and REITs.\n'
+    '  stance: the net read across those bullets — tailwind, neutral, or '
+    'headwind.'
 )
 
 # Per-series keys worth showing the model; 'hist' (hundreds of points per
 # series) is deliberately excluded to keep the prompt a few thousand tokens.
-_SERIES_FACT_KEYS = ('l', 'latest', 'chg_1m', 'chg_1y', 'pctile', 'pct_win',
-                     'z', 'suffix')
+# 'good' and 'sec' are cheap and load-bearing for the per-sector bullets:
+# 'good' is the repo's own view of which direction is favourable — headwind
+# vs tailwind polarity, stated rather than inferred from the label — and
+# 'sec' is the indicator family (rates / inflation / growth / credit /
+# housing), which is what lets the model spread a sector's bullets across
+# families instead of restating one rate four times.
+_SERIES_FACT_KEYS = ('l', 'sec', 'latest', 'chg_1m', 'chg_1y', 'pctile',
+                     'pct_win', 'z', 'suffix', 'good')
 
 
 def _driver_for(sector):
@@ -165,6 +213,33 @@ def build_macro_facts(sidecar):
     }
 
 
+def _clamp_sector_bullets(sectors):
+    """Hold each sector to at most MAX_SECTOR_BULLETS bullets in total.
+
+    The grammar pins no array length at any depth, so the prompt's "3 to 5
+    in total" is advisory in exactly the way the all-11-sectors rule is.
+    Trim from the longer list first so a 6-1 draw comes back 4-1 rather
+    than losing the lone bullet on the other side. Under-filled sectors are
+    left alone and merely counted: padding would mean inventing a bullet
+    with no figure behind it, which is the one thing the prompt forbids.
+    Mutates in place; pure otherwise.
+    """
+    short = 0
+    for entry in sectors or []:
+        if not isinstance(entry, dict):
+            continue
+        tw = [b for b in (entry.get('tailwinds') or []) if b]
+        hw = [b for b in (entry.get('headwinds') or []) if b]
+        while len(tw) + len(hw) > MAX_SECTOR_BULLETS:
+            (tw if len(tw) >= len(hw) else hw).pop()
+        entry['tailwinds'], entry['headwinds'] = tw, hw
+        if len(tw) + len(hw) < MIN_SECTOR_BULLETS:
+            short += 1
+    if short:
+        logger.warning('macro narrative: %d sectors under %d bullets',
+                       short, MIN_SECTOR_BULLETS)
+
+
 class ClaudeNarrativeClient:
     """Generates the macro narrative via the Claude API, with a per-day
     on-disk cache (same pattern as FREDClient's per-series cache)."""
@@ -194,9 +269,18 @@ class ClaudeNarrativeClient:
                 cached = json.load(fh)
         except (OSError, ValueError):
             return None
-        if isinstance(cached, dict) and cached.get('paragraphs'):
-            return cached
-        return None
+        # A cached narrative written under an older shape is unusable: the
+        # hit below short-circuits every post-parse check, so it would be
+        # served straight to the page missing whatever the new shape added.
+        # Treat a version mismatch as a miss and regenerate.
+        if not isinstance(cached, dict) or not cached.get('paragraphs'):
+            return None
+        if cached.get('schema_version') != SCHEMA_VERSION:
+            logger.info('macro narrative cache for %s is schema v%s, want '
+                        'v%s — regenerating', as_of,
+                        cached.get('schema_version'), SCHEMA_VERSION)
+            return None
+        return cached
 
     def _write_cache(self, as_of, narrative):
         try:
@@ -295,9 +379,11 @@ class ClaudeNarrativeClient:
         if n_sectors != len(GICS_SECTORS):
             logger.warning('macro narrative: %d sector outlooks (expected %d)',
                            n_sectors, len(GICS_SECTORS))
+        _clamp_sector_bullets(narrative['sectors'])
 
         narrative['model'] = self.model
         narrative['generated_at'] = datetime.now(timezone.utc).isoformat()
+        narrative['schema_version'] = SCHEMA_VERSION
         self._write_cache(as_of, narrative)
         logger.info('macro narrative: generated for %s (%d sectors)',
                     as_of, len(narrative.get('sectors') or []))

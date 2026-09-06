@@ -1236,7 +1236,12 @@ td.ct{font-weight:700;}
 .pp-macro-p.down{border-left-color:#c0392b;}
 .pp-macro-p b{font-weight:700;color:#1a252f;}
 .pp-macro-figs{display:block;font-size:0.78em;color:#7c8a9a;font-variant-numeric:tabular-nums;margin-top:3px;}
+.pp-macro-grid{margin-top:12px;}
+.pp-macro-ul{margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f;}
+.pp-macro-ul li{margin:5px 0;}
+.pp-macro-none{margin:0;color:#94a3b8;font-size:0.82em;font-style:italic;}
 .pp-macro-foot{margin:8px 0 0;font-size:0.72em;color:#94a3b8;}
+[data-theme="dark"] .pp-macro-ul{color:#c9d1d9;}
 /* Dark mode carries the stance on the border and the dot, not the text:
    `[data-theme="dark"] body *{color:#fff!important}` below paints every
    word in the report white, and the adjacent Headwinds & Tailwinds headers
@@ -8218,16 +8223,43 @@ function renderPoolMacroOutlook(sec){
   if(!nar||!(nar.sectors||[]).length)return '';
   var row=null;
   nar.sectors.forEach(function(s){if(s.sector===sec)row=s;});
-  if(!row||!row.outlook)return '';
+  if(!row)return '';
+  /* Escaped once, here, so every guard below reads a local and the only
+     interpolation of a model string is this one. */
+  var ol=_linkifyTickers(_esc(row.outlook||''));
+  var hl=_linkifyTickers(_esc(row.headline||''));
+  var tw=(row.tailwinds||[]).filter(Boolean),hw=(row.headwinds||[]).filter(Boolean);
+  /* Both shapes render. A narrative cached before the bullets existed —
+     or replayed from a days-old output/macro.json by the re-render path —
+     carries an outlook and no bullets; a future one could carry bullets
+     and no outlook. Either alone is enough to draw the section. */
+  if(!ol&&!hl&&!tw.length&&!hw.length)return '';
   var STANCE={tailwind:'up',headwind:'down'};
   var LABEL={tailwind:'▲ Macro tailwind',headwind:'▼ Macro headwind'};
   var cls=STANCE[row.stance]||'';
   var sd=(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)||{};
-  var hl=_linkifyTickers(_esc(row.headline||''));
   var out='<div class="pp-macro-stance '+cls+'"><span class="pp-macro-dot"></span>'
     +(LABEL[row.stance]||'Macro neutral')+'</div>';
-  out+='<p class="pp-macro-p '+cls+'">'+(hl?'<b>'+hl+'.</b> ':'')
-    +_linkifyTickers(_esc(row.outlook))+_macSecFigs(sd[sec])+'</p>';
+  if(ol||hl){
+    out+='<p class="pp-macro-p '+cls+'">'+(hl?'<b>'+hl+'.</b> ':'')
+      +ol+_macSecFigs(sd[sec])+'</p>';
+  }
+  if(tw.length||hw.length){
+    /* Two columns reusing .pp-signals-grid from the Sector Headwinds &
+       Tailwinds block below, so the pair reads as cyclical-then-structural
+       and the 760px stack comes for free. */
+    function _macList(items,kind){
+      if(!items.length)return '<p class="pp-macro-none">No macro '+kind+' this run.</p>';
+      var ul='<ul class="pp-macro-ul">';
+      items.forEach(function(b){ul+='<li>'+_linkifyTickers(_esc(b))+'</li>';});
+      return ul+'</ul>';
+    }
+    out+='<div class="pp-signals-grid pp-macro-grid">'
+      +'<div><div class="pp-signals-col-hdr" style="color:#1a7a45">▲ Macro Tailwinds</div>'
+      +_macList(tw,'tailwinds')+'</div>'
+      +'<div><div class="pp-signals-col-hdr" style="color:#c0392b">▼ Macro Headwinds</div>'
+      +_macList(hw,'headwinds')+'</div></div>';
+  }
   out+='<div class="pp-macro-foot">Written by Claude ('+_esc(nar.model||'')
     +') from the FRED indicator data'
     +(nar.generated_at?' · '+_esc(String(nar.generated_at).slice(0,10)):'')

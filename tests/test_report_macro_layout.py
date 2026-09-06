@@ -164,6 +164,11 @@ def test_macro_narrative_escapes_every_model_string():
     # the stance LABEL is repo-authored text picked by the same key, never
     # the model's own stance string echoed into the page
     assert "LABEL[row.stance]||" in body
+    # the per-sector bullets are model strings too, and they are the newest
+    # path into the page — the loop above cannot reach them (the item is a
+    # bare loop variable), so pin the interpolation itself
+    assert '_linkifyTickers(_esc(b))' in body, \
+        'sector bullets must be escaped before they reach HTML'
     # trend reaches HTML only through the glyph whitelist in _macSecFigs
     figs = re.search(r'function _macSecFigs\(.*?\n\}\n', css, re.S)
     assert figs and 'TRENDG={improving:' in figs.group(0), \
@@ -250,7 +255,7 @@ def test_sector_outlooks_live_on_their_sector_tab():
         'a missing narrative or sector must drop the section'
     # prose in the pp idiom: escaped first, then linkified like every other
     # renderPool* helper
-    assert '_linkifyTickers(_esc(row.outlook))' in sec
+    assert '_linkifyTickers(_esc(row.outlook||' in sec
     # The Context arc reads primer -> macro -> the sector's own structural
     # forces, and the whole arc sits above the Profit Pool Structure block.
     pool = re.search(r'var primerHtml=renderPoolPrimer\(sec\);'
@@ -263,6 +268,34 @@ def test_sector_outlooks_live_on_their_sector_tab():
     assert pool.find('pp-section pp-macro') < pool.find('pp-section pp-structure'), \
         'the top-down macro read frames the pool, so it comes first'
     assert 'pp-section-label">Macro Outlook<' in pool
+
+
+def test_sector_macro_bullets_mirror_the_section_below():
+    """The macro bullets render as two stance columns reusing the Sector
+    Headwinds & Tailwinds grid, so the pair reads as cyclical-then-
+    structural and the phone stack comes for free. The lede (chip,
+    headline, outlook) stays above them."""
+    css = _css()
+    sec = re.search(r'function renderPoolMacroOutlook\(sec\).*?\n\}\n',
+                    css, re.S)
+    assert sec, 'could not find renderPoolMacroOutlook'
+    sec = sec.group(0)
+    # reuse, not a second grid: .pp-signals-grid is not scoped to .pp-signals
+    assert 'pp-signals-grid pp-macro-grid' in sec
+    assert 'pp-signals-col-hdr' in sec
+    assert re.search(r'@media\(max-width:760px\)\{\.pp-signals-grid\{'
+                     r'grid-template-columns:1fr', css), \
+        'the shared grid is what gives the macro columns their phone stack'
+    # tailwinds column first, matching the block below
+    assert sec.find('Macro Tailwinds') < sec.find('Macro Headwinds')
+    # the lede precedes the columns
+    assert sec.find('pp-macro-p') < sec.find('pp-macro-grid')
+    # a bullet-less narrative (stale cache, or replayed sidecar) still
+    # draws the lede — the grid is conditional, not assumed
+    assert 'if(tw.length||hw.length)' in sec
+    assert re.search(r'\.pp-macro-ul\{[^}]*font-size:0\.82em', css), \
+        'bullets take the pp prose idiom, like the list below them'
+    assert '[data-theme="dark"] .pp-macro-ul{' in css
 
 
 def test_sector_macro_outlook_is_styled_like_its_neighbours():
