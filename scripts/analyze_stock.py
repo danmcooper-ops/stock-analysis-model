@@ -1634,6 +1634,34 @@ def _after_tax_interest(yf_data):
     return interest * (1.0 - rate)
 
 
+def _ensure_fundamental_growth(growth_diag, yf_data, roic_data):
+    """Fill ``fundamental_growth`` / ``reinvestment_rate`` on a DCF growth
+    diagnostic that never reached the growth-signal block.
+
+    Reinvestment rate x ROIC is a scored gate in its own right (Growth: Fund
+    Growth), but it was only ever computed inside run_forward_dcf, AFTER that
+    function's early exits — an empty cash-flow frame, a WACC at or below
+    terminal growth, a missing FCF series or a non-positive base FCF all
+    returned an empty diagnostic. Measured on the 2026-09-03 snapshot, 492 of
+    the 504 rows without a DCF value were N/A on the gate, ~190 of them
+    non-financials with positive EBIT and ROIC whose statements carried every
+    input (VITL computes 0.15 standalone). The signal does not depend on the
+    FCF sign, so compute it on its own when the DCF path skipped it. Returns
+    the (possibly copied) diagnostic; a genuinely uncomputable row stays N/A.
+    """
+    if growth_diag.get('fundamental_growth') is not None:
+        return growth_diag
+    fund_result = calculate_fundamental_growth(
+        yf_data,
+        roic_override=roic_data.get('roic_median_5y') if roic_data else None)
+    if fund_result.get('fundamental_growth') is None:
+        return growth_diag
+    out = dict(growth_diag)
+    out['fundamental_growth'] = fund_result['fundamental_growth']
+    out['reinvestment_rate'] = fund_result.get('reinvestment_rate')
+    return out
+
+
 def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=None,
                     terminal_growth_adj=0.0, wacc_sigma=None, tg_sigma=None,
                     growth_sigma_mult=1.0, growth_weight_shift=0.0, seed=None):
@@ -3153,6 +3181,7 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 growth_sigma_mult=effective_growth_sigma_mult,
                 growth_weight_shift=effective_growth_weight_shift,
                 seed=seed_from_ticker(ticker))
+            growth_diag = _ensure_fundamental_growth(growth_diag, yf_data, roic_data)
             mos = (dcf_fv - current_price) / dcf_fv if (dcf_fv and current_price and dcf_fv > 0) else None
 
             # Step 5B: Dividend Discount Model (for dividend payers)
