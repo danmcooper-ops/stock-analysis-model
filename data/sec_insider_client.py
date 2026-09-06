@@ -35,6 +35,15 @@ class SECInsiderClient:
     # Excluded: A (award/grant), M (exercise), G (gift), C (conversion),
     #           F (tax withholding), J (other), W (will/inheritance)
 
+    # Form 4s are parsed newest-first under a per-ticker file budget
+    # (max_form4_files). An annual grant cycle files one Form 4 per insider
+    # on the same day — PPG and GWW each had 8+ award-only filings on
+    # 2026-09-01 — and used to exhaust the whole budget, so a company with
+    # steady open-market selling read as "no insider data". Capping the
+    # files taken from any one filing date spreads the budget across the
+    # year, where open-market trades actually sit.
+    _MAX_FILES_PER_DAY = 3
+
     # Human-readable transaction type mapping
     _CODE_LABELS = {
         'P': 'buy', 'S': 'sell', 'A': 'award', 'M': 'exercise',
@@ -72,6 +81,7 @@ class SECInsiderClient:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.loads(resp.read())
         except urllib.error.HTTPError as e:
+            logger.warning(f"SEC insider: HTTP {e.code} for {url}")
             if e.code == 429:
                 time.sleep(5)
             return None
@@ -88,6 +98,7 @@ class SECInsiderClient:
                 raw = resp.read(max_bytes)
             return raw.decode('utf-8', errors='ignore')
         except urllib.error.HTTPError as e:
+            logger.warning(f"SEC insider: HTTP {e.code} for {url}")
             if e.code == 429:
                 time.sleep(5)
             return ''
@@ -103,15 +114,19 @@ class SECInsiderClient:
         """Find recent Form 4 filings from SEC submissions API.
 
         Returns:
-            list of (accession_number, primary_document, filing_date) tuples,
-            newest first, capped at max_form4_files.
+            (filings, total_in_window): filings is a list of
+            (accession_number, primary_document, filing_date) tuples, newest
+            first, capped at max_form4_files with at most _MAX_FILES_PER_DAY
+            from any one filing date; total_in_window counts every Form 4
+            filed in the window, so a caller can tell a census from a
+            sample. None (not a tuple) when the submissions request failed.
         """
         url = self._SUBMISSIONS_URL.format(cik=cik)
         data = self._request_json(url)
         if data is None:
             return None  # request failed — caller must not cache
         if not data:
-            return []
+            return [], 0
 
         recent = data.get('filings', {}).get('recent', {})
         forms = recent.get('form', [])
@@ -121,6 +136,8 @@ class SECInsiderClient:
 
         cutoff = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
         results = []
+        total = 0
+        per_day = {}
 
         for i, form in enumerate(forms):
             if form != '4':
@@ -130,11 +147,16 @@ class SECInsiderClient:
             filing_date = filing_dates[i]
             if filing_date < cutoff:
                 break  # Filings are sorted newest-first
-            results.append((accessions[i], primary_docs[i], filing_date))
+            total += 1
             if len(results) >= self._max_files:
-                break
+                continue  # keep counting the window, stop collecting
+            taken = per_day.get(filing_date, 0)
+            if taken >= self._MAX_FILES_PER_DAY:
+                continue
+            per_day[filing_date] = taken + 1
+            results.append((accessions[i], primary_docs[i], filing_date))
 
-        return results
+        return results, total
 
     # ------------------------------------------------------------------
     # Form 4 XML parsing
@@ -144,7 +166,8 @@ class SECInsiderClient:
         """Download and parse a Form 4 XML filing.
 
         Returns:
-            list of transaction dicts, or empty list on failure.
+            list of transaction dicts (empty when the filing reports none),
+            or None when the document could not be fetched or parsed.
         """
         cik_num = cik.lstrip('0') or '0'
         accession_clean = accession.replace('-', '')
@@ -159,12 +182,13 @@ class SECInsiderClient:
 
         xml_text = self._request_text(url)
         if not xml_text:
-            return []
+            return None
 
         try:
             root = ET.fromstring(xml_text)
         except ET.ParseError:
-            return []
+            logger.warning(f"SEC insider: unparseable Form 4 {accession} for CIK {cik}")
+            return None
 
         # Extract reporting owner info
         # Handle both namespaced and non-namespaced XML
@@ -336,6 +360,13 @@ class SECInsiderClient:
             'buy_count_365d': 0, 'sell_count_365d': 0, 'buy_ratio_365d': None,
             'net_shares_365d': 0, 'net_value_365d': 0.0,
             'insider_buy_ratio': None,
+            # Coverage + failure telemetry. form4_total_365d counts every
+            # Form 4 in the window, form4_parsed the ones actually read;
+            # fetch_failed marks a whole-source outage (submissions request
+            # or every document fetch failed) as distinct from a filer with
+            # no Form 4s — the two used to be the same empty dict, so a run
+            # that lost its insider data was invisible in the snapshot.
+            'form4_total_365d': 0, 'form4_parsed': 0, 'fetch_failed': False,
         }
 
         cik = self._cik_map.get(ticker)
@@ -344,24 +375,36 @@ class SECInsiderClient:
             return empty
 
         # Step 1: Find recent Form 4 filings
-        filings = self._find_form4_filings(cik, days_back=days_back)
-        if filings is None:
+        found = self._find_form4_filings(cik, days_back=days_back)
+        if found is None:
             # Submissions request failed — return empty but DON'T cache, so a
             # transient blip doesn't read as "no insider activity" all run.
-            return empty
+            return {**empty, 'fetch_failed': True}
+        filings, total_in_window = found
         if not filings:
             self._cache[ticker] = empty
             return empty
 
-        # Step 2: Parse each Form 4 XML
+        # Step 2: Parse each Form 4 XML. A filing that reports no
+        # transaction (holdings-only, or awards the aggregation ignores) is
+        # still a successful read: the filer HAS Form 4 data and its
+        # open-market counts are genuinely zero. Only documents that could
+        # not be fetched or parsed (None) are excluded, and if none survived
+        # the whole thing is an outage, not a quiet insider set.
         all_transactions = []
+        parsed = 0
         for accession, primary_doc, _filing_date in filings:
             txns = self._parse_form4_xml(cik, accession, primary_doc)
+            if txns is None:
+                continue
+            parsed += 1
             all_transactions.extend(txns)
 
-        if not all_transactions:
-            self._cache[ticker] = empty
-            return empty
+        if parsed == 0:
+            logger.warning(f"SEC insider: none of {len(filings)} Form 4 documents "
+                           f"for {ticker} could be read — not caching")
+            return {**empty, 'fetch_failed': True,
+                    'form4_total_365d': total_in_window}
 
         # Sort by date descending
         all_transactions.sort(key=lambda t: t['date'], reverse=True)
@@ -431,6 +474,9 @@ class SECInsiderClient:
             'available': True,
             'transactions': display_txns,
             'reporting_officers': reporting_officers,
+            'form4_total_365d': total_in_window,
+            'form4_parsed': parsed,
+            'fetch_failed': False,
             'buy_count_90d': buy_90,
             'sell_count_90d': sell_90,
             'buy_ratio_90d': round(buy_ratio_90d, 3) if buy_ratio_90d is not None else None,

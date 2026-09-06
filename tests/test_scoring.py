@@ -994,14 +994,16 @@ class TestApplicabilityMask:
         generic = _full_row(ticker='TECH')
         apply_screening_matrix([bank, generic])
         # ebit_ev, fcf_yield, fcf_cagr_5y, int_coverage, net_debt_ebitda,
-        # margins and the ROIC family (spread, roic_consistency, incr_roic)
-        # masked for financials; pool_share is inapplicable for BOTH rows
-        # (no edgar_history in the fixture)
-        assert bank['_gates_inapplicable'] == 10
+        # margins, margin_advantage and the ROIC family (spread,
+        # roic_consistency, incr_roic) masked for financials; pool_share is
+        # inapplicable for BOTH rows (no edgar_history in the fixture)
+        assert bank['_gates_inapplicable'] == 11
         assert generic['_gates_inapplicable'] == 1
+        assert bank['_gate_margin_advantage'] is None
+        assert bank['_gp_margin_advantage'] is None
         bank_denom = int(bank['_gates_passed'].split('/')[1])
         gen_denom = int(generic['_gates_passed'].split('/')[1])
-        assert gen_denom - bank_denom == 9
+        assert gen_denom - bank_denom == 10
         assert bank['_gp_ebit_ev'] is None
         # NOPAT / (equity + debt - cash) is meaningless for a bank: the
         # Phase-1 screen already bypasses the spread filter for the sector,
