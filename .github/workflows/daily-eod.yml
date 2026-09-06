@@ -1,5 +1,9 @@
-name: Daily EOD run
+name: Daily EOD delivery check
 
+# Fires at 16:00 New York, which checks the PREVIOUS night's delivery -- the
+# EOD run starts after the close and takes 3-6h, so today's snapshot does not
+# exist yet at this hour and is not what is being asserted.
+#
 # Actions cron is UTC-only, so one schedule cannot hold 16:00 New York across
 # a DST change. Both crons below fire year-round and the gate job decides
 # which one is the real 16:00 firing today; the other exits in seconds.
@@ -40,14 +44,29 @@ jobs:
           python scripts/should_build.py \
             --tz America/New_York --hour 16 --cron "${{ github.event.schedule }}"
 
-  build:
+  verify:
     needs: gate
     if: needs.gate.outputs.build == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      # TODO: the actual end-of-day pipeline goes here. Today it runs as the
-      # local Claude Code routine in scheduled-tasks/daily-stock-analysis/;
-      # nothing is ported yet, so this job only proves the gate opened.
-      - run: echo "Gate opened — 16:00 America/New_York. Pipeline step not wired up yet."
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # The EOD pipeline itself is NOT run here and cannot be: step 1 alone
+      # takes 3-6h against a hosted runner's 6h job cap, it reads ~878 MB of
+      # gitignored price parquets that exist only on the machine that owns
+      # the run, and SEC/Yahoo throttle datacenter IPs. It stays a local
+      # Claude Code routine (scheduled-tasks/daily-stock-analysis/).
+      #
+      # What was missing was not compute but an alarm. Between 2026-08-17 and
+      # 2026-09-05, five of fifteen weekdays produced no snapshot at all and
+      # nothing said so; 2026-08-11 was lost outright. This job watches the
+      # archive the routine is supposed to be filling and goes red when it
+      # stops filling.
+      - id: delivery
+        run: |
+          python scripts/check_eod_delivery.py --repo "${{ github.repository }}"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
