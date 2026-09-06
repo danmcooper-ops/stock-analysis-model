@@ -393,6 +393,23 @@ def derive_edgar_metrics(edgar_history):
             s0, s1 = sh_hist.get(shy[-6]), sh_hist.get(shy[-1])
             if s0 and s0 > 0 and s1 and s1 > 0:
                 out['shares_cagr_5y'] = (s1 / s0) ** (1 / 5) - 1
+    if out['shares_cagr_5y'] is None:
+        # Period-end share counts are a balance-sheet instant that many
+        # filers tag for only a few years (AOS: 2014-2015 against 14 years
+        # of weighted-average counts; USLM: 2022-2024), so Ownership: Share
+        # Shrink read N/A for ~210 EDGAR-backed rows whose 10-Ks carried a
+        # 6+ year share history under the EPS denominators. Fall back to the
+        # weighted-average series, basic before diluted, year-keyed so a
+        # hole in the filing history cannot stretch the 5-year window.
+        for _key in ('wavg_basic_history', 'wavg_diluted_history'):
+            w_hist = _flow_to_annual(edgar_history.get(_key, {}))
+            if not w_hist:
+                continue
+            latest_y = max(w_hist)
+            s0, s1 = w_hist.get(latest_y - 5), w_hist.get(latest_y)
+            if s0 and s0 > 0 and s1 and s1 > 0:
+                out['shares_cagr_5y'] = (s1 / s0) ** (1 / 5) - 1
+                break
 
     # Net-debt trajectory over the last 4 common years, expressed as the
     # per-year build as a fraction of latest revenue — a slope, not a CAGR,
@@ -3122,6 +3139,16 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             sec_xbrl_client._cache.pop(ticker, None)
             # SEC EDGAR: insider transactions from Form 4
             insider_data = sec_insider_client.fetch_insider_activity(ticker, days_back=365)
+            if insider_data.get('fetch_failed'):
+                # Whole-source failure: the Form 4 counts stay None and the
+                # Insider Buying gate reads N/A. Say so, so a run that lost
+                # its insider data (UTHR was empty for three consecutive
+                # snapshots while parsing fine standalone) is visible in the
+                # log rather than indistinguishable from a quiet insider set.
+                logger.warning(f"{ticker}: SEC insider (Form 4) fetch failed — "
+                               f"insider counts left N/A for this run")
+                _prov.record_event('insider_fetch_failed', ticker, 'sec_insider',
+                                   {'form4_total_365d': insider_data.get('form4_total_365d')})
 
             officers = info.get('companyOfficers') or []
             ceo_officer = next(
@@ -3558,6 +3585,11 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'insider_sell_count_90d': insider_data.get('sell_count_90d') if insider_data and insider_data.get('available') else None,
                 'insider_buy_count_365d': insider_data.get('buy_count_365d') if insider_data and insider_data.get('available') else None,
                 'insider_sell_count_365d': insider_data.get('sell_count_365d') if insider_data and insider_data.get('available') else None,
+                # Coverage of the counts above: Form 4s filed in the window
+                # vs the capped number actually parsed. When total exceeds
+                # parsed the counts are a lower bound, not a census.
+                'insider_form4_total_365d': insider_data.get('form4_total_365d') if insider_data and insider_data.get('available') else None,
+                'insider_form4_parsed': insider_data.get('form4_parsed') if insider_data and insider_data.get('available') else None,
                 'insider_net_shares': insider_data.get('net_shares_365d') if insider_data and insider_data.get('available') else None,
                 'insider_net_value': insider_data.get('net_value_365d') if insider_data and insider_data.get('available') else None,
                 'insider_transactions': (insider_data.get('transactions', [])[:10] if insider_data and insider_data.get('available') else []),

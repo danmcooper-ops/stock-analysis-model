@@ -45,6 +45,7 @@ EVENT_TYPES = (
     'cross_source_conflict',
     'stale_cache',
     'fx_fetch_failed',
+    'insider_fetch_failed',
     'enrichment_skipped',
 )
 

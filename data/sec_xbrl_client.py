@@ -150,6 +150,16 @@ class SECXBRLClient:
             'ContractsRevenue',
             'RevenueFromContractWithCustomerExcludingAssessedTaxTransferredAtAPointInTime',
         ],
+        # Bank revenue components. Banks tag no revenue total: their
+        # ASC 606 line is fee income only (BKU: $22M against $1.1B of net
+        # revenue), and the standard "total revenue" a bank reports — and
+        # yfinance's totalRevenue — is net interest income + noninterest
+        # income. _resolve_revenue_annual sums these two where both are
+        # tagged; JPM, COF and WFC, which tag Revenues as well, show the
+        # sum equals that line. Insurers, brokers and asset managers do not
+        # tag NoninterestIncome, so the derivation cannot fire on them.
+        'net_interest_income': ['InterestIncomeExpenseNet'],
+        'noninterest_income': ['NoninterestIncome'],
         'net_income': [
             'NetIncomeLoss',
             'NetIncomeLossAvailableToCommonStockholdersBasic',
@@ -1176,6 +1186,31 @@ class SECXBRLClient:
                 return vals, taxonomy_key, ccy
         return {}, None, ccy
 
+    def _resolve_revenue_annual(self, facts_json):
+        """Whole-company revenue per fiscal year, (values, currency).
+
+        The generic revenue aliases, then — for filers that tag both net
+        interest income and noninterest income, i.e. banks — the larger of
+        that sum and the alias value for each year. Banks tag no revenue
+        total in the alias list: 144 of 224 banks in the 2026-09-03 snapshot
+        had no revenue at all and the other 80 carried their ASC 606 fee
+        slice, which is why 78 of them "passed" Margin Advantage on
+        operating margins above 100%. Where a bank does tag Revenues it is
+        this same net figure (JPM 2025: 95.4B + 87.0B = 182.4B), so the max
+        is a no-op there and only replaces the fee slice.
+        """
+        rev, _tax, ccy = self._extract_concept_annual(facts_json, 'revenue')
+        nii, _t2, nii_ccy = self._extract_concept_annual(facts_json, 'net_interest_income')
+        nonint, _t3, _c3 = self._extract_concept_annual(facts_json, 'noninterest_income')
+        if not nii or not nonint:
+            return rev, ccy
+        out = dict(rev)
+        for fy in set(nii) & set(nonint):
+            bank_rev = nii[fy] + nonint[fy]
+            if out.get(fy) is None or bank_rev > out[fy]:
+                out[fy] = bank_rev
+        return dict(sorted(out.items())), (ccy if rev else nii_ccy)
+
     def _resolve_equity_annual(self, facts_json):
         """Parent-attributable equity per fiscal year, (values, currency).
 
@@ -1429,7 +1464,7 @@ class SECXBRLClient:
             vals, _tax, ccy = self._extract_concept_annual(facts, concept)
             return vals, ccy
 
-        rev, rev_ccy             = _flow('revenue')
+        rev, rev_ccy             = self._resolve_revenue_annual(facts)
         ni,  ni_ccy              = _flow('net_income')
         ocf, ocf_ccy             = _flow('operating_cash_flow')
         capex, capex_ccy         = _flow('capex')
@@ -1756,7 +1791,7 @@ class SECXBRLClient:
             return self._extract_annual_values(facts, tags) if tags else {}
 
         # Income statement (flow concepts)
-        revenue       = _ann('revenue')
+        revenue, _rev_ccy = self._resolve_revenue_annual(facts)
         net_income    = _ann('net_income')
         op_income     = _ann('operating_income')
         gross_profit  = _ann('gross_profit')

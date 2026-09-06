@@ -282,3 +282,43 @@ class TestTrapDetectors:
         for k in ('rev_down_years', 'net_debt_slope_3y',
                   'div_fcf_ratio_3y', 'fcf_neg_years_5y'):
             assert m[k] is None
+
+
+class TestSharesCagrFallback:
+    """Ownership: Share Shrink from weighted-average counts when the
+    period-end share series is too short (AOS: period-end shares tagged for
+    2014-2015 only against 14 years of weighted-average counts)."""
+
+    def _hist(self, **series):
+        from scripts.analyze_stock import derive_edgar_metrics
+        base = {'revenue_history': {y: 100.0 for y in range(2015, 2026)}}
+        base.update(series)
+        return derive_edgar_metrics(base)
+
+    def test_period_end_series_preferred_when_long_enough(self):
+        out = self._hist(
+            shares_history={f'{y}-12-31': 100.0 - (y - 2019) for y in range(2019, 2026)},
+            wavg_basic_history={y: 500.0 for y in range(2015, 2026)})
+        assert out['shares_cagr_5y'] == pytest.approx((94.0 / 99.0) ** 0.2 - 1)
+
+    def test_sparse_period_end_falls_back_to_weighted_average(self):
+        out = self._hist(
+            shares_history={'2014-12-31': 100.0, '2015-12-31': 99.0},
+            wavg_basic_history={y: 200.0 * (0.98 ** (y - 2015)) for y in range(2015, 2026)})
+        assert out['shares_cagr_5y'] == pytest.approx(0.98 - 1)
+
+    def test_diluted_used_when_basic_missing(self):
+        out = self._hist(
+            wavg_diluted_history={y: 300.0 * (1.03 ** (y - 2015)) for y in range(2015, 2026)})
+        assert out['shares_cagr_5y'] == pytest.approx(0.03)
+
+    def test_hole_at_year_five_stays_none(self):
+        """Year-keyed: a gap in the filing history must not stretch the
+        window over more than five years."""
+        w = {y: 200.0 for y in range(2015, 2026)}
+        del w[2020]
+        out = self._hist(wavg_basic_history=w)
+        assert out['shares_cagr_5y'] is None
+
+    def test_no_series_at_all_stays_none(self):
+        assert self._hist()['shares_cagr_5y'] is None
