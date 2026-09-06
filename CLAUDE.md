@@ -170,7 +170,11 @@ by analyze_stock and gitignored):
 - `SEC_EMAIL` — contact email for SEC EDGAR User-Agent
 - `FMP_API_KEY`, `TIINGO_API_KEY`, `FINNHUB_API_KEY` — optional data sources
 - `ANTHROPIC_API_KEY` — optional; enables the Claude-generated macro
-  narrative — the story on the Macro Outlook tab, and each sector's outlook
-  in the Macro Outlook section of its Sector Analysis tab (skipped cleanly
-  when unset: both render without it, minus those blocks)
+  narrative — the story on the Macro Outlook tab, and, in the Macro Outlook
+  section of each Sector Analysis tab, that sector's outlook plus 3-5
+  headwind/tailwind bullets drawn from the FRED indicators (skipped cleanly
+  when unset: both render without it, minus those blocks). The narrative's
+  shape is versioned (`SCHEMA_VERSION` in `data/claude_narrative.py`): the
+  day cache is keyed by date alone and a hit skips every post-parse check,
+  so a shape change must bump it or the cache replays the old shape.
 - yfinance requires no authentication

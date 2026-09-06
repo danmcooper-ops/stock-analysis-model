@@ -169,8 +169,11 @@ def test_build_html_plumbs_macro_narrative_through_summary(tmp_path):
             'narrative': {
                 'paragraphs': [hostile],
                 'headwinds': ['Curve inverted'], 'tailwinds': [],
+                # the hostile string rides a per-sector bullet too — the
+                # newest model-authored path onto the page
                 'sectors': [{'sector': 'Technology', 'stance': 'neutral',
-                             'outlook': 'Flat.'}],
+                             'headline': 'Flat is fine', 'outlook': 'Flat.',
+                             'tailwinds': [hostile], 'headwinds': []}],
                 'model': 'claude-opus-5', 'generated_at': '2026-08-22T09:00:00+00:00',
             },
         },

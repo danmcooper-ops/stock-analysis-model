@@ -118,14 +118,17 @@ SCORE_WEIGHT_OWNERSHIP = 0.10
 # data/claude_narrative.py.
 CLAUDE_NARRATIVE_ENABLED = True
 CLAUDE_NARRATIVE_MODEL = 'claude-opus-5'
-# Headroom, matching DEFAULT_MAX_TOKENS in data/claude_narrative.py — not a
-# target. An 11-sector reply runs ~1.9k tokens, but the structured-output
-# grammar cannot pin array lengths, so a long draw (26 sector entries at
-# 4,959 tokens on 2026-08-31) can run far past that, and thinking tokens
-# count against the cap too. A truncated reply is discarded whole, taking
-# the Macro Outlook story and every sector tab's outlook with it, so cap
-# well clear of the expected size. Cost is per-use, not per-cap.
-CLAUDE_NARRATIVE_MAX_TOKENS = 12000
+# Headroom, not a target — above DEFAULT_MAX_TOKENS in
+# data/claude_narrative.py because the reply got wordier. An 11-sector reply
+# ran ~1.9k tokens before each sector gained 3-5 bullets; ~3.5k after. The
+# tail is what sets this number: the grammar cannot pin array lengths at any
+# depth, so an unbounded OUTER array (26 sector entries at 4,959 tokens on
+# 2026-08-31) now multiplies an unbounded INNER one, and thinking tokens
+# count against the same cap. A truncated reply is discarded whole — no
+# partial salvage — taking the Macro Outlook story and all eleven sector
+# sections with it, and saying so only in a log line. Cost is per-use, not
+# per-cap, so buying margin here is free.
+CLAUDE_NARRATIVE_MAX_TOKENS = 16000
 
 # Post-processing
 BLEND_TRIGGER = 1.5            # DCF > 1.5× multiples-FV triggers blending
