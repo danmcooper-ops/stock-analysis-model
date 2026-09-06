@@ -251,14 +251,17 @@ def test_sector_outlooks_live_on_their_sector_tab():
     # prose in the pp idiom: escaped first, then linkified like every other
     # renderPool* helper
     assert '_linkifyTickers(_esc(row.outlook))' in sec
-    # the section sits between Structural Insights and Sector Headwinds
-    pool = re.search(r'var insightsHtml=renderPoolInsights\(sec\);'
-                     r'.*?pp-section pp-signals', css, re.S)
+    # The Context arc reads primer -> macro -> the sector's own structural
+    # forces, and the whole arc sits above the Profit Pool Structure block.
+    pool = re.search(r'var primerHtml=renderPoolPrimer\(sec\);'
+                     r'.*?pp-section pp-liquidity', css, re.S)
     assert pool, 'could not find the per-sector section assembly'
     pool = pool.group(0)
-    assert pool.find('pp-section pp-insights') < pool.find('pp-section pp-macro') \
+    assert pool.find('pp-section pp-primer') < pool.find('pp-section pp-macro') \
         < pool.find('pp-section pp-signals'), \
-        'Macro Outlook goes above Sector Headwinds & Tailwinds'
+        'Macro Outlook goes below the primer and above Sector Headwinds & Tailwinds'
+    assert pool.find('pp-section pp-macro') < pool.find('pp-section pp-structure'), \
+        'the top-down macro read frames the pool, so it comes first'
     assert 'pp-section-label">Macro Outlook<' in pool
 
 
@@ -268,7 +271,7 @@ def test_sector_macro_outlook_is_styled_like_its_neighbours():
     rule, the section-label colour, and the dark-mode surface list — or it
     renders unstyled, or fine in light mode and broken in dark."""
     css = _css()
-    surface = re.search(r'\n([^\n]*\.pp-insights,[^\n]*)\{background:#f7f9fb',
+    surface = re.search(r'\n([^\n]*\.pp-structure,[^\n]*)\{background:#f7f9fb',
                         css)
     assert surface and '.pp-macro,' in surface.group(1), \
         '.pp-macro missing from the shared pp-section surface rule'
@@ -276,7 +279,7 @@ def test_sector_macro_outlook_is_styled_like_its_neighbours():
         '.pp-macro missing from the section-label colour list'
     assert '[data-theme="dark"] .pp-macro,' in css, \
         '.pp-macro missing from the dark-mode surface list'
-    # prose set like the Structural Insights / Overview blocks above it
+    # prose set like the Profit Pool Structure block below it
     assert re.search(r'\.pp-macro-p\{[^}]*font-size:0\.82em', css) and \
         re.search(r'\.pp-macro-p\{[^}]*line-height:1\.55', css), \
         'the outlook is set in the pp prose idiom'

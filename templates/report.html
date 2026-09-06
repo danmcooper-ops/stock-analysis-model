@@ -1160,43 +1160,40 @@ td.ct{font-weight:700;}
 .pool-sec-hdr{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 18px;background:linear-gradient(135deg,#1a252f 0%,#2c3e50 100%);color:white;border-bottom:3px solid var(--accent,#3498db);}
 .pool-sec-name{font-weight:700;font-size:1.05em;color:white;letter-spacing:0.01em;}
 .pool-sec-stats{font-size:0.78em;color:#b0bec5;}
-/* Top-5 sector banner: compact strip with a dark gradient background so
-   it visually anchors the per-sector page. Chips are translucent over
-   the dark bg, with a rating-color dot, white ticker, and a small score
-   pill — designed to read at a glance without taking much vertical space. */
-/* Top 5 by Model Score uses the same .pp-section .pp-top wrapper as
-   Company Highlights and CR4 Companies, with inline-styled company
-   cards rendered into a CSS grid — see the dark-mode overrides further
-   down that already target pp-top via the `[style*="background:white"]`
-   and `[style*="background:#eef2f7"]` selectors. */
-/* Per-sector stat banner — six critical sector-level metrics in one row,
-   meant for quick reference on each individual sector tab. Full set of
-   metrics still lives on the Overview tab's Sector Heatmap. Each cell
-   color-tinted by cross-sector rank (green=best, red=worst). Single row
-   enforced via fixed 6-column grid; overflow scrolls on narrow viewports. */
-.pool-stat-banner{display:grid;grid-template-columns:repeat(6,minmax(110px,1fr));gap:1px;padding:0;background:#10171f;border-bottom:1px solid #1a252f;overflow-x:auto;}
-.pool-stat{display:flex;flex-direction:column;justify-content:center;gap:5px;padding:12px 14px 12px 18px;background:#1a252f;min-height:78px;position:relative;overflow:hidden;cursor:default;transition:background 0.12s;}
-.pool-stat:hover{background:#22303d;}
-.pool-stat-label{font-size:0.66em;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#9aa9b9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.pool-stat-value{font-size:1.22em;font-weight:700;color:#fff;line-height:1.05;font-variant-numeric:tabular-nums;}
-.pool-stat-value.muted{color:#7f8c9a;font-weight:600;}
-.pool-stat-value .pool-stat-sub{font-size:0.68em;font-weight:600;color:#cbd5e1;margin-left:6px;}
-.pool-stat-value .pool-stat-tk{font-weight:800;letter-spacing:0.02em;font-size:1.0em;}
+/* One company grid for the whole sector page. Company Highlights, CR4
+   Companies and Top 5 by Model Score used to be three sections, each with
+   its own copy of this card markup inlined; the same mega-cap therefore
+   appeared three times, once per grid. Now a company gets one card and
+   accumulates a badge per reason it earned a place. Real classes (rather
+   than the old inline styles) let dark mode be a normal override instead
+   of an `[style*="background:white"]` attribute match. */
+.pp-co-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:10px;}
+.pp-co{cursor:pointer;background:#fff;border:1px solid #eef1f4;border-left:4px solid #aaa;border-radius:5px;padding:9px 12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);font-size:0.82em;line-height:1.55;color:#37474f;transition:transform 0.1s,box-shadow 0.1s;}
+.pp-co:hover{transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,0.1);}
+.pp-co-hdr{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:5px;}
+.pp-co-id{display:flex;align-items:center;gap:6px;min-width:0;}
+.pp-co-tk{font-weight:700;color:#1a252f;}
+.pp-co-nm{font-weight:400;color:#888;font-size:0.9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pp-co-badges{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px;}
+.pp-co-badge{font-size:0.7em;font-weight:700;color:#fff;padding:2px 7px;border-radius:10px;letter-spacing:0.03em;white-space:nowrap;}
+.pp-co-chips{font-size:0.72em;margin-bottom:5px;display:flex;gap:4px;flex-wrap:wrap;}
+.pp-co-chip{background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f;font-variant-numeric:tabular-nums;}
+.pp-co-chip.rating{color:#fff;font-weight:700;}
+.pp-co-note{color:#455a64;}
+.pp-co-note + .pp-co-note{margin-top:4px;color:#5b6b76;}
+[data-theme="dark"] .pp-co{background:#1c2128;border-color:#30363d;box-shadow:0 1px 4px rgba(0,0,0,0.3);color:#c9d1d9;}
+[data-theme="dark"] .pp-co:hover{box-shadow:0 3px 8px rgba(0,0,0,0.45);}
+[data-theme="dark"] .pp-co-tk{color:#e6edf3;}
+[data-theme="dark"] .pp-co-nm{color:#8b949e;}
+[data-theme="dark"] .pp-co-chip{background:#21262d;color:#c9d1d9;}
+[data-theme="dark"] .pp-co-note{color:#a9b4be;}
+[data-theme="dark"] .pp-co-note + .pp-co-note{color:#8b949e;}
 /* Clickable ticker mentions — anywhere a ticker is listed it opens the
    company popup. Underline matches the main-table ticker affordance. */
 .tk-link{cursor:pointer;font-weight:700;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.35);text-underline-offset:2px;}
 .tk-link:hover{color:var(--accent);}
 [data-theme="dark"] .tk-link{text-decoration-color:rgba(88,166,255,0.4);}
 [data-theme="dark"] .tk-link:hover{color:#58a6ff;}
-.pool-stat-caption{font-size:0.66em;color:#7f8c9a;line-height:1.25;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.pool-stat-tint{position:absolute;left:0;top:0;bottom:0;width:4px;}
-[data-theme="dark"] .pool-stat-banner{background:#010409;border-bottom-color:#30363d;}
-[data-theme="dark"] .pool-stat{background:#0d1117;}
-[data-theme="dark"] .pool-stat:hover{background:#161b22;}
-[data-theme="dark"] .pool-stat-label{color:#8b949e;}
-[data-theme="dark"] .pool-stat-value{color:#e6edf3;}
-[data-theme="dark"] .pool-stat-value.muted{color:#6e7681;}
-[data-theme="dark"] .pool-stat-caption{color:#6e7681;}
 .pp-section{padding:16px 20px;border-bottom:1px solid #e0e5eb;position:relative;}
 .pp-section:last-child{border-bottom:none;}
 .pp-section-label{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:0.8em;letter-spacing:0.14em;text-transform:uppercase;padding:8px 16px 8px 14px;border-radius:4px;margin:0 0 14px;box-shadow:0 2px 5px rgba(0,0,0,0.12);color:white;position:relative;}
@@ -1205,65 +1202,17 @@ td.ct{font-weight:700;}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
-.pp-primer,.pp-desc,.pp-insights,.pp-macro,.pp-liquidity,.pp-headwinds,.pp-signals,.pp-cr4,.pp-sectorprice,.pp-players,.pp-top,.pp-kpis{background:#f7f9fb;border-left:5px solid #1a252f;}
-/* Sector KPI banner — two-row grid placed above "How This Sector Makes
-   Money". Row 1 = sector-relevant medians computed live from the
-   sector's stocks (tracked). Row 2 = critical sector KPIs not yet in
-   the data model, shown as dashed muted cells so the data gap is
-   visible. Each cell carries a title= tooltip with the metric's role. */
-.pp-kpis{padding:14px 16px 16px;}
-/* Header strip — bumped from 0.78 → 0.85em so the universal context
-   (companies / MoS / BUY% / leader) is comfortably scannable. */
-.kpi-header-strip{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:0.85em;color:#5a6776;margin:4px 0 10px;line-height:1.5;}
-[data-theme="dark"] .kpi-header-strip{color:#9da7b3;}
-.kpi-header-strip strong{color:#1a252f;font-weight:700;}
-[data-theme="dark"] .kpi-header-strip strong{color:#e6edf3;}
-.kpi-header-strip .sep{color:#b8c2cf;font-weight:300;}
-[data-theme="dark"] .kpi-header-strip .sep{color:#3d434b;}
-.kpi-header-strip a.kpi-leader-tk{color:#1a252f;font-weight:700;text-decoration:none;border-bottom:1px dotted #b8c2cf;cursor:pointer;padding-bottom:1px;}
-.kpi-header-strip a.kpi-leader-tk:hover{color:var(--accent);border-bottom-color:var(--accent);}
-[data-theme="dark"] .kpi-header-strip a.kpi-leader-tk{color:#e6edf3;border-bottom-color:#3d434b;}
-/* KPI grid rows — 4 cells on desktop, 2 on mobile. */
-.kpi-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;}
-.kpi-row.kpi-row-tracked{margin-bottom:0;}
-/* Cell — bumped padding, value font, gap between label and value for
-   easier scanning at arm's length on phone. */
-.kpi-cell{padding:11px 13px;background:#fff;border:1px solid #d9dee6;border-radius:6px;display:flex;flex-direction:column;gap:4px;min-width:0;cursor:default;transition:border-color 0.12s,box-shadow 0.12s;}
-.kpi-cell:hover{border-color:#c0cbda;box-shadow:0 1px 3px rgba(0,0,0,0.04);}
-[data-theme="dark"] .kpi-cell{background:#0d1117;border-color:#2a3038;}
-[data-theme="dark"] .kpi-cell:hover{border-color:#3d434b;}
-.kpi-cell-label{font-size:0.72em;color:#7c8a9a;font-weight:600;letter-spacing:0.03em;line-height:1.25;overflow:hidden;text-overflow:ellipsis;}
-[data-theme="dark"] .kpi-cell-label{color:#9da7b3;}
-.kpi-cell-value{font-size:1.22em;font-weight:700;color:#1a252f;font-variant-numeric:tabular-nums;line-height:1.15;}
-[data-theme="dark"] .kpi-cell-value{color:#e6edf3;}
-.kpi-cell-value.muted{color:#b8c2cf;font-weight:600;}
-[data-theme="dark"] .kpi-cell-value.muted{color:#6e7681;}
-@media(max-width:700px){
-  .kpi-row{grid-template-columns:repeat(2,minmax(0,1fr));}
-  .kpi-cell-value{font-size:1.15em;}
-  .kpi-header-strip{font-size:0.8em;}
-}
-/* Soft-blue panel for the Top 5 by Model Score block — distinct wash so
-   it reads as a separate summary block from the adjacent pp-cr4 / pp-players
-   neutral panels, and clear of the green/orange/red rating palette used by
-   the Profit Pool Analysis chart. */
-.pp-top{background:#eaf2fb;}
+.pp-primer,.pp-structure,.pp-macro,.pp-liquidity,.pp-signals,.pp-companies,.pp-chart{background:#f7f9fb;border-left:5px solid #1a252f;}
 .pp-primer .pp-section-label,
-.pp-desc .pp-section-label,
-.pp-insights .pp-section-label,
+.pp-structure .pp-section-label,
 .pp-macro .pp-section-label,
 .pp-liquidity .pp-section-label,
-.pp-headwinds .pp-section-label,
 .pp-signals .pp-section-label,
-.pp-cr4 .pp-section-label,
-.pp-sectorprice .pp-section-label,
-.pp-players .pp-section-label,
-.pp-top .pp-section-label,
-.pp-kpis .pp-section-label,
+.pp-companies .pp-section-label,
 .pp-chart .pp-section-label{background:#1a252f;}
 /* Combined sector-level Headwinds + Tailwinds block — two columns on
-   desktop, stacked on mobile. Renders below the Structural Insights
-   block as the third qualitative narrative on the per-sector page. */
+   desktop, stacked on mobile. Closes the Context arc, directly under the
+   macro read. */
 .pp-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
 .pp-signals-col-hdr{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
 @media(max-width:760px){.pp-signals-grid{grid-template-columns:1fr;gap:14px;}}
@@ -1300,17 +1249,12 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-macro-p.up{border-left-color:#6fd08c;}
 [data-theme="dark"] .pp-macro-p.down{border-left-color:#ff8a80;}
 [data-theme="dark"] .pp-primer,
-[data-theme="dark"] .pp-desc,
-[data-theme="dark"] .pp-insights,
+[data-theme="dark"] .pp-structure,
 [data-theme="dark"] .pp-macro,
 [data-theme="dark"] .pp-liquidity,
-[data-theme="dark"] .pp-headwinds,
 [data-theme="dark"] .pp-signals,
-[data-theme="dark"] .pp-cr4,
-[data-theme="dark"] .pp-sectorprice,
-[data-theme="dark"] .pp-players,
-[data-theme="dark"] .pp-top,
-[data-theme="dark"] .pp-kpis{background:#161b22;border-left-color:#c9d1d9;}
+[data-theme="dark"] .pp-companies,
+[data-theme="dark"] .pp-chart{background:#161b22;border-left-color:#c9d1d9;}
 [data-theme="dark"] .pp-section-label{background:#30363d !important;}
 .pp-range-btn{padding:3px 11px;font-size:0.74em;font-weight:600;border:1px solid #d0d8e4;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
 .pp-range-btn:hover{background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
@@ -1341,7 +1285,6 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .agg-grid-item:hover{background:#21262d;}
 [data-theme="dark"] .agg-helper-btn{background:#161b22;border-color:#30363d;color:#8b949e;}
 [data-theme="dark"] .agg-helper-btn:hover{border-color:#58a6ff;color:#e6edf3;}
-[data-theme="dark"] .pp-sectorprice{background:#15102a;}
 [data-theme="dark"] .pp-range-btn{background:#161b22;border-color:#30363d;color:#c9d1d9;}
 [data-theme="dark"] .pp-range-btn:hover{background:#21262d;border-color:#58a6ff;color:#e6edf3;}
 [data-theme="dark"] .pp-range-btn.active{background:#7030a0;border-color:#7030a0;color:#fff;}
@@ -1690,13 +1633,9 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pool-sector{background:#161b22;border-color:#30363d;}
 [data-theme="dark"] .pp-section{border-color:#30363d;}
 [data-theme="dark"] .pp-primer{background:#0f1f3a;}
-[data-theme="dark"] .pp-desc{background:#0e1c30;}
-[data-theme="dark"] .pp-insights{background:#2a2010;}
+[data-theme="dark"] .pp-structure{background:#0e1c30;}
+[data-theme="dark"] .pp-companies{background:#102a1b;}
 [data-theme="dark"] .pp-liquidity{background:#0d2528;}
-[data-theme="dark"] .pp-headwinds{background:#2a1414;}
-[data-theme="dark"] .pp-cr4{background:#1c1530;}
-[data-theme="dark"] .pp-players{background:#102a1b;}
-[data-theme="dark"] .pp-top{background:#0b1d2e;}
 [data-theme="dark"] .pp-chart{background:#161b22;}
 [data-theme="dark"] .pool-legend{color:#8b949e;}
 [data-theme="dark"] .pool-sec-stats{color:#c9d1d9;}
@@ -1783,18 +1722,6 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-chart svg line[stroke="#aaa"]{stroke:#6e7681;}
 [data-theme="dark"] .pp-chart svg line[stroke="#f5f5f5"]{stroke:#21262d;}
 [data-theme="dark"] .pp-chart > div[style*="border-top"]{border-top-color:#30363d !important;}
-/* Cross-sector scatter chart (Margin vs. Concentration quadrant) */
-[data-theme="dark"] #xsect-scatter-wrap svg rect[fill="#e8f5e9"]{fill:#0f2418;}
-[data-theme="dark"] #xsect-scatter-wrap svg rect[fill="#f3e5f5"]{fill:#1f1428;}
-[data-theme="dark"] #xsect-scatter-wrap svg rect[fill="#f5f5f5"]{fill:#1c2128;}
-[data-theme="dark"] #xsect-scatter-wrap svg rect[fill="#fde8e8"]{fill:#2a1418;}
-[data-theme="dark"] #xsect-scatter-wrap svg line[stroke="#ccc"]{stroke:#30363d;}
-[data-theme="dark"] #xsect-scatter-wrap svg line[stroke="#bbb"]{stroke:#484f58;}
-[data-theme="dark"] #xsect-scatter-wrap svg line[stroke="#ebebeb"]{stroke:#21262d;}
-[data-theme="dark"] #xsect-scatter-wrap svg text[fill="#444"]{fill:#c9d1d9;}
-[data-theme="dark"] #xsect-scatter-wrap svg text[fill="#333"]{fill:#e6edf3;}
-[data-theme="dark"] #xsect-scatter-wrap svg text[fill="#222"]{fill:#e6edf3;}
-[data-theme="dark"] #xsect-scatter-wrap svg text[fill="#9e9e9e"]{fill:#b0b0b0;}
 /* Cross-Sector Profit Pool map (SVG fill/stroke overrides + legend chips) */
 [data-theme="dark"] #xsect-pp-wrap svg text[fill="#999"]{fill:#8b949e;}
 [data-theme="dark"] #xsect-pp-wrap svg text[fill="#444"]{fill:#c9d1d9;}
@@ -1808,19 +1735,6 @@ td.ct{font-weight:700;}
 /* Cross-sector cap volume KPI cards (inline-styled backgrounds) */
 [data-theme="dark"] .xsect-dashboard div[style*="background:#fafbfc"]{background:#1c2128 !important;}
 [data-theme="dark"] .xsect-dashboard div[style*="background:#f0f0f0"]{background:#21262d !important;}
-/* Company Highlights & CR4 Companies cards (inline-styled with background:white).
-   Cards have JS hover handlers that mutate this.style — browsers normalize the
-   inline string and rewrite `background:white` as `background: white`, so we
-   must match both forms or the dark-mode override is dropped on hover. */
-[data-theme="dark"] .pp-players div[style*="background:white"],
-[data-theme="dark"] .pp-players div[style*="background: white"],
-[data-theme="dark"] .pp-cr4 div[style*="background:white"],
-[data-theme="dark"] .pp-cr4 div[style*="background: white"],
-[data-theme="dark"] .pp-top div[style*="background:white"],
-[data-theme="dark"] .pp-top div[style*="background: white"]{background:#1c2128 !important;border-color:#30363d !important;box-shadow:0 1px 4px rgba(0,0,0,0.3) !important;}
-[data-theme="dark"] .pp-players span[style*="background:#eef2f7"],
-[data-theme="dark"] .pp-cr4 span[style*="background:#eef2f7"],
-[data-theme="dark"] .pp-top span[style*="background:#eef2f7"]{background:#21262d !important;}
 /* Cross-Sector Trading by Volume and Value — inline white card containers */
 [data-theme="dark"] .xsect-trading-section div[style*="background:#fff"]{background:#1c2128 !important;box-shadow:0 2px 8px rgba(0,0,0,0.3) !important;}
 /* Financial Model → Dashboard sub-view (#m-overview-view) — inline-styled white cards and progress tracks */
@@ -2237,7 +2151,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 <div class="container">
   <div id="view-pool" class="view active">
     <div id="pool-chart-area"></div>
-    <div id="pool-sector-table"></div>
     <div class="pp-quad-tip" id="pp-quad-tip"></div>
   </div>
   <div id="view-matrix" class="view">
@@ -8099,7 +8012,6 @@ function _linkifyTickers(escHtml){
     return tkLink(m);
   });
 }
-function _pctStr(v,d){if(v==null)return '—';return (v*100).toFixed(d==null?1:d)+'%';}
 function _roleColor(role){
   return {leader:'#1a9850',runnerup:'#2e7d32',margin_leader:'#0277bd',
           efficiency:'#6a1b9a',laggard:'#c62828'}[role]||'#555';
@@ -8115,7 +8027,13 @@ function renderPoolPrimer(sec){
      duplicate so the Primer is a clean educational paragraph. */
   return '<p style="margin:0;font-size:0.82em;line-height:1.55;color:#37474f">'+parts.join(' ')+'</p>';
 }
-function renderPoolDescription(sec){
+/* The sector's structure in one block: what the pool is worth, how
+   concentrated it is, and what follows from that. These were two sections
+   ("Overview" — a label left over from a retired sub-tab — and "Structural
+   Insights") that restated the same three numbers between them; the prose
+   generator now states each one once and this renders the result as a
+   single argument. */
+function renderPoolStructure(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
   if(!n)return '';
   var out='';
@@ -8125,63 +8043,147 @@ function renderPoolDescription(sec){
   if(n.concentration){
     out+='<p style="margin:0;font-size:0.82em;line-height:1.55;color:#546e7a;font-style:italic">'+_linkifyTickers(_esc(n.concentration))+'</p>';
   }
+  if(n.insights&&n.insights.length){
+    out+='<ul style="margin:10px 0 0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f">';
+    n.insights.forEach(function(t){out+='<li style="margin:4px 0">'+_linkifyTickers(_esc(t))+'</li>';});
+    out+='</ul>';
+  }
   return out;
 }
-function renderPoolKeyPlayers(sec){
-  var n=SECTOR_POOL&&SECTOR_POOL[sec];
-  if(!n||!n.key_players||!n.key_players.length)return '';
-  var out='';
-  out+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">';
-  n.key_players.forEach(function(p){
-    var col=_roleColor(p.role);
-    var tk=p.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    out+='<div onclick="openDet(\''+tk+'\')" style="cursor:pointer;background:white;border-left:4px solid '+col+';border-radius:5px;padding:9px 12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);border-top:1px solid #eef1f4;border-right:1px solid #eef1f4;border-bottom:1px solid #eef1f4;font-size:0.82em;line-height:1.55;color:#37474f;transition:transform 0.1s,box-shadow 0.1s" onmouseenter="this.style.transform=\'translateY(-1px)\';this.style.boxShadow=\'0 3px 8px rgba(0,0,0,0.1)\'" onmouseleave="this.style.transform=\'none\';this.style.boxShadow=\'0 1px 4px rgba(0,0,0,0.06)\'">';
-    out+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
-    out+='<span style="display:flex;align-items:center;gap:6px"><span style="font-weight:700;color:#1a252f">'+_esc(p.ticker)+'</span>'+_revHtml(p.ticker)+_starHtml(p.ticker)+(p.company_name?' <span style="font-weight:400;color:#888;font-size:0.9em">'+_esc(p.company_name).slice(0,24)+'</span>':'')+'</span>';
-    out+='<span style="font-size:0.7em;font-weight:700;color:white;background:'+col+';padding:2px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:0.03em">'+_esc(p.role_label)+'</span>';
-    out+='</div>';
-    var chips=[];
-    if(p.profit_share!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">Profit '+(p.profit_share*100).toFixed(0)+'%</span>');
-    if(p.op_margin!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">OM '+(p.op_margin*100).toFixed(1)+'%</span>');
-    if(p.pp_multiple!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">'+p.pp_multiple.toFixed(2)+'x</span>');
-    if(chips.length){
-      out+='<div style="font-size:0.72em;margin-bottom:5px;display:flex;gap:4px;flex-wrap:wrap">'+chips.join('')+'</div>';
+/* The sector page's single company grid. It used to be three separate
+   sections — Company Highlights (pool roles), CR4 Companies (top 4 by
+   revenue) and Top 5 by Model Score — whose membership overlapped so
+   heavily that a sector's mega-cap normally appeared in all three, and
+   again as a labelled bar in the profit-pool chart directly above. Each
+   company now gets exactly one card carrying a badge per reason it is
+   here, so the reasons accumulate instead of the cards.
+
+   Ordered by revenue share so the grid reads as an annotated legend for
+   the chart it sits under. `cos` is the sector's gated row set, which is
+   also where the live model metrics (score, MoS, ROIC, spread) come from —
+   SECTOR_POOL only carries the pool figures and the prose. */
+function _ppModelNote(d){
+  /* Metric-driven blurb framing valuation (MoS) and quality (ROIC x
+     economic spread) in one sentence, so a card reads as analysis rather
+     than raw chips. Previously inlined in the Top 5 by Model Score block. */
+  var parts=[];
+  if(d.mos!=null){
+    var m=d.mos;
+    if(m>0.30)parts.push('Deeply discounted to DCF fair value ('+(m*100).toFixed(0)+'% MoS)');
+    else if(m>0.15)parts.push('Trades '+(m*100).toFixed(0)+'% below fair value');
+    else if(m>0)parts.push('Slight discount to fair value ('+(m*100).toFixed(0)+'% MoS)');
+    else parts.push('Trades above DCF fair value');
+  }
+  if(d.roic!=null && d.spread!=null){
+    if(d.roic>0.20 && d.spread>0.10)parts.push('high-quality compounder earning '+(d.roic*100).toFixed(0)+'% ROIC on '+(d.spread*100).toFixed(0)+'pp of economic spread');
+    else if(d.spread>0)parts.push('positive '+(d.spread*100).toFixed(0)+'pp economic spread on '+(d.roic*100).toFixed(0)+'% ROIC');
+    else parts.push((d.roic*100).toFixed(0)+'% ROIC but returns trail cost of capital');
+  } else if(d.roic!=null){
+    if(d.roic>0.20)parts.push('strong '+(d.roic*100).toFixed(0)+'% returns on invested capital');
+    else parts.push((d.roic*100).toFixed(0)+'% ROIC');
+  }
+  if(!parts.length)return '';
+  var t=parts.join('; ');
+  return t.charAt(0).toUpperCase()+t.slice(1)+'.';
+}
+function renderPoolCompanies(sec,cos){
+  var n=(SECTOR_POOL&&SECTOR_POOL[sec])||{};
+  var rowByTk={};
+  (cos||[]).forEach(function(d){rowByTk[d.ticker]=d;});
+
+  var byTk={},order=[];
+  function _entry(tk,name){
+    if(!tk)return null;
+    if(!byTk[tk]){
+      byTk[tk]={ticker:tk,name:name||'',badges:[],poolNote:'',row:rowByTk[tk]||null,
+                revenue_share:null,profit_share:null,op_margin:null,pp_multiple:null,rating:null};
+      order.push(byTk[tk]);
     }
-    out+='<div style="color:#455a64">'+_linkifyTickers(_esc(p.note))+'</div>';
-    out+='</div>';
+    var e=byTk[tk];
+    if(!e.name&&name)e.name=name;
+    return e;
+  }
+  function _fill(e,src){
+    ['revenue_share','profit_share','op_margin','pp_multiple','rating'].forEach(function(k){
+      if(e[k]==null&&src[k]!=null)e[k]=src[k];
+    });
+  }
+
+  /* 1. Pool roles. One entry can hold several — a name that leads on
+        profit AND margin AND efficiency now shows three badges. */
+  (n.key_players||[]).forEach(function(p){
+    var e=_entry(p.ticker,p.company_name);if(!e)return;
+    _fill(e,p);
+    (p.roles||[]).forEach(function(r){
+      e.badges.push({label:r.role_label,color:_roleColor(r.role)});
+      if(r.note)e.poolNote+=(e.poolNote?' ':'')+r.note;
+    });
   });
-  out+='</div>';
-  return out;
-}
-function renderPoolCR4Companies(sec){
-  var n=SECTOR_POOL&&SECTOR_POOL[sec];
-  if(!n||!n.cr4_companies||!n.cr4_companies.length)return '';
-  var out='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">';
-  n.cr4_companies.forEach(function(p,i){
-    var col=RC[p.rating]||'#aaa';
-    var tk=(p.ticker||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    out+='<div onclick="openDet(\''+tk+'\')" style="cursor:pointer;background:white;border-left:4px solid '+col+';border-radius:5px;padding:9px 12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);border-top:1px solid #eef1f4;border-right:1px solid #eef1f4;border-bottom:1px solid #eef1f4;font-size:0.82em;line-height:1.55;color:#37474f;transition:transform 0.1s,box-shadow 0.1s" onmouseenter="this.style.transform=\'translateY(-1px)\';this.style.boxShadow=\'0 3px 8px rgba(0,0,0,0.1)\'" onmouseleave="this.style.transform=\'none\';this.style.boxShadow=\'0 1px 4px rgba(0,0,0,0.06)\'">';
-    out+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
-    out+='<span style="display:flex;align-items:center;gap:6px"><span style="font-weight:700;color:#1a252f">'+_esc(p.ticker)+'</span>'+_revHtml(p.ticker)+_starHtml(p.ticker)+(p.company_name?' <span style="font-weight:400;color:#888;font-size:0.9em">'+_esc(p.company_name).slice(0,24)+'</span>':'')+'</span>';
-    out+='<span style="font-size:0.7em;font-weight:700;color:white;background:#5e35b1;padding:2px 7px;border-radius:10px;letter-spacing:0.03em">#'+(i+1)+'</span>';
-    out+='</div>';
+
+  /* 2. Revenue rank. `rank` is null when the sector has no CR4 (fewer
+        than three tickers), in which case the header band shows no CR4
+        figure either and a "#2 by revenue" badge would contradict it. */
+  (n.cr4_companies||[]).forEach(function(p){
+    var e=_entry(p.ticker,p.company_name);if(!e)return;
+    _fill(e,p);
+    if(p.rank!=null)e.badges.push({label:'#'+p.rank+' by revenue',color:'#5e35b1'});
+    if(!e.poolNote&&p.note)e.poolNote=p.note;
+  });
+
+  /* 3. Model conviction — the sector's best-scoring names. */
+  (cos||[]).slice().filter(function(d){return d._composite_score!=null;})
+    .sort(function(a,b){return(b._composite_score||0)-(a._composite_score||0);})
+    .slice(0,5).forEach(function(d){
+      var e=_entry(d.ticker,d.company_name);if(!e)return;
+      e.badges.push({label:'Model '+Math.round(d._composite_score),color:cc(d._composite_score)});
+    });
+
+  if(!order.length)return '';
+
+  order.sort(function(a,b){
+    var ar=(a.revenue_share!=null?a.revenue_share:(a.row&&a.row.pp_revenue_share))||0;
+    var br=(b.revenue_share!=null?b.revenue_share:(b.row&&b.row.pp_revenue_share))||0;
+    return br-ar;
+  });
+
+  var out='<div class="pp-co-grid">';
+  order.forEach(function(e){
+    var d=e.row||{};
+    var rating=e.rating||d.rating;
+    var col=RC[rating]||'#aaa';
+    var tk=e.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    out+='<div class="pp-co" style="border-left-color:'+col+'" onclick="openDet(\''+tk+'\')">';
+    out+='<div class="pp-co-hdr"><span class="pp-co-id"><span class="pp-co-tk">'+_esc(e.ticker)+'</span>'
+      +_revHtml(e.ticker)+_starHtml(e.ticker)
+      +(e.name?'<span class="pp-co-nm">'+_esc(e.name).slice(0,24)+'</span>':'')+'</span></div>';
+    if(e.badges.length){
+      out+='<div class="pp-co-badges">';
+      e.badges.forEach(function(b){
+        out+='<span class="pp-co-badge" style="background:'+b.color+'">'+_esc(b.label)+'</span>';
+      });
+      out+='</div>';
+    }
+    /* One chip row for every card. The model metrics (MoS, ROIC, spread)
+       are deliberately left to the prose line below rather than repeated
+       here as chips — the same number twice on one card is the drift this
+       page is being cleaned of. */
     var chips=[];
-    if(p.revenue_share!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">Rev '+(p.revenue_share*100).toFixed(0)+'%</span>');
-    if(p.op_margin!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">OM '+(p.op_margin*100).toFixed(1)+'%</span>');
-    if(chips.length)out+='<div style="font-size:0.72em;margin-bottom:5px;display:flex;gap:4px;flex-wrap:wrap">'+chips.join('')+'</div>';
-    if(p.note)out+='<div style="color:#455a64">'+_linkifyTickers(_esc(p.note))+'</div>';
+    if(rating)chips.push('<span class="pp-co-chip rating" style="background:'+col+'">'+_esc(rating)+'</span>');
+    var rs=e.revenue_share!=null?e.revenue_share:d.pp_revenue_share;
+    var ps=e.profit_share!=null?e.profit_share:d.pp_profit_share;
+    var om=e.op_margin!=null?e.op_margin:d.operating_margin;
+    var mu=e.pp_multiple!=null?e.pp_multiple:d.pp_multiple;
+    if(rs!=null)chips.push('<span class="pp-co-chip">Rev '+(rs*100).toFixed(0)+'%</span>');
+    if(ps!=null)chips.push('<span class="pp-co-chip">Profit '+(ps*100).toFixed(0)+'%</span>');
+    if(om!=null)chips.push('<span class="pp-co-chip">OM '+(om*100).toFixed(1)+'%</span>');
+    if(mu!=null)chips.push('<span class="pp-co-chip">'+mu.toFixed(2)+'x</span>');
+    if(chips.length)out+='<div class="pp-co-chips">'+chips.join('')+'</div>';
+    if(e.poolNote)out+='<div class="pp-co-note">'+_linkifyTickers(_esc(e.poolNote))+'</div>';
+    var mn=e.row?_ppModelNote(e.row):'';
+    if(mn)out+='<div class="pp-co-note">'+_esc(mn)+'</div>';
     out+='</div>';
   });
-  out+='</div>';
-  return out;
-}
-function renderPoolInsights(sec){
-  var n=SECTOR_POOL&&SECTOR_POOL[sec];
-  if(!n||!n.insights||!n.insights.length)return '';
-  var out='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f">';
-  n.insights.forEach(function(s){out+='<li style="margin:4px 0">'+_linkifyTickers(_esc(s))+'</li>';});
-  out+='</ul>';
-  return out;
+  return out+'</div>';
 }
 /* Hard numbers for one sector, from the macro builder's sector_data.
    Numbers are formatted locally with toFixed, the ticker is escaped, and
@@ -8680,20 +8682,31 @@ function aggChartTouch(e){
 /* Computes per-sector liquidity aggregates from DATA once and caches the
    result. Provides $ volume, share-count flow, per-tier breakdown, top-N
    most-traded names, and cross-sector ranks for use in the per-sector
-   insights panel. */
+   insights panel.
+
+   The row predicate below is deliberately identical to renderPool's, to
+   models/narrative.py's, and to renderCrossSectorProfitPool's. It used to
+   walk DATA unfiltered — bucketing on `d.sector||'Unknown'` with no gate —
+   so this block's ticker count and its flow-vs-revenue CR4 were measured
+   over a wider universe than the header band, chart and prose on the very
+   same page, and could contradict them. Keep in sync with those three. */
 function _ppLiquidityCache(){
   if(window._ppLiqCache)return window._ppLiqCache;
   function _capTier(b){return b<2?'small':(b<10?'mid':'large');}
   function _med(a){if(!a.length)return 0;var s=a.slice().sort(function(x,y){return x-y;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
   var bySec={},allDV=0,allShr=0,allOIPos=0;
   DATA.forEach(function(d){
-    var sec=d.sector||'Unknown';
+    if(!d.sector||d.pp_revenue_share==null)return;
+    var _rev=_num(d.revenue),_oi=_num(d.operating_income);
+    if(_rev==null||_oi==null||_rev<=0)return;
+    var sec=d.sector;
     var mc=d.mcap||0,tor=d.share_turnover_rate;
-    if(!bySec[sec])bySec[sec]={dv:0,shr:0,n:0,oi:0,rev:0,
+    if(!bySec[sec])bySec[sec]={dv:0,shr:0,n:0,oi:0,rev:0,cr4Rev:null,
       byTier:{small:{dv:0,shr:0,n:0,tors:[]},mid:{dv:0,shr:0,n:0,tors:[]},large:{dv:0,shr:0,n:0,tors:[]}},
       stocks:[]};
     if(d.operating_income){bySec[sec].oi+=d.operating_income;if(d.operating_income>0)allOIPos+=d.operating_income;}
     if(d.revenue)bySec[sec].rev+=d.revenue;
+    if(bySec[sec].cr4Rev==null&&d.pp_sector_cr4!=null)bySec[sec].cr4Rev=d.pp_sector_cr4;
     bySec[sec].stocks.push({ticker:d.ticker,name:d.company_name,dv:(mc>0&&tor!=null)?tor*mc:0,tor:tor,mcap:mc,oi:d.operating_income,rev:d.revenue,rating:d.rating,pp_multiple:d.pp_multiple,operating_margin:d.operating_margin});
     if(mc<=0||tor==null)return;
     var dv=tor*mc;var so=d.shares_out||0;var shr=so?so*tor:0;
@@ -8727,18 +8740,39 @@ function renderPoolLiquidityInsights(sec){
   if(!s||!s.dv)return '';
   var bullets=[];
 
+  /* Five bullets, not nine. The four that were dropped restated numbers the
+     rest of the page already carries: profit-extraction-vs-flow re-named the
+     Efficiency Leader from the company grid, model-conviction-vs-flow
+     re-stated the model badges on those same cards, margin-quartile-vs-flow
+     was a second cut of bullet 2, and turnover-by-size is folded into
+     bullet 2 as the sentence it always belonged to. */
+
   /* 1. Liquidity rank + share of universe flow. */
   var dvShare=cache.allDV?(s.dv/cache.allDV*100):0;
   bullets.push('<strong>Liquidity profile — '+fds(s.dv)+'/day:</strong> '+sec+' ranks '+_ord(s.dvRank)+' of '+cache.nSectors+' sectors by trading flow, capturing '+dvShare.toFixed(1)+'% of universe $-volume across '+s.n+' tickers.');
 
-  /* 2. Cap-tier flow vs count: shows where the dollars actually concentrate. */
+  /* 2. Where the dollars concentrate by cap tier, and how fast each tier
+        churns — the two size cuts read as one thought. */
   var dvT=s.dv,nT=s.n;
   var pctL_dv=dvT?s.byTier.large.dv/dvT*100:0,pctM_dv=dvT?s.byTier.mid.dv/dvT*100:0,pctS_dv=dvT?s.byTier.small.dv/dvT*100:0;
   var pctL_n=nT?s.byTier.large.n/nT*100:0,pctM_n=nT?s.byTier.mid.n/nT*100:0,pctS_n=nT?s.byTier.small.n/nT*100:0;
-  bullets.push('<strong>Where the flow lives:</strong> Large caps generate '+pctL_dv.toFixed(0)+'% of $ volume from '+pctL_n.toFixed(0)+'% of names; mid caps '+pctM_dv.toFixed(0)+'%/'+pctM_n.toFixed(0)+'%; small caps '+pctS_dv.toFixed(0)+'%/'+pctS_n.toFixed(0)+'%. '
+  var flowBullet='<strong>Where the flow lives:</strong> Large caps generate '+pctL_dv.toFixed(0)+'% of $ volume from '+pctL_n.toFixed(0)+'% of names; mid caps '+pctM_dv.toFixed(0)+'%/'+pctM_n.toFixed(0)+'%; small caps '+pctS_dv.toFixed(0)+'%/'+pctS_n.toFixed(0)+'%. '
     +(pctL_dv>2.5*pctL_n?'Liquidity is heavily skewed to mega-caps relative to count — a few large names dominate.':
       pctS_dv>0.6*pctS_n?'Smaller names contribute notably more flow than their headcount alone would imply.':
-      'Flow distribution roughly tracks the cap-count distribution — no single tier is disproportionately liquid.'));
+      'Flow distribution roughly tracks the cap-count distribution — no single tier is disproportionately liquid.');
+  var tiers=[{name:'small caps',v:s.byTier.small.medTor,n:s.byTier.small.n},
+             {name:'mid caps',v:s.byTier.mid.medTor,n:s.byTier.mid.n},
+             {name:'large caps',v:s.byTier.large.medTor,n:s.byTier.large.n}].filter(function(t){return t.n>0&&t.v>0;});
+  if(tiers.length>=2){
+    tiers.sort(function(a,b){return b.v-a.v;});
+    var fast=tiers[0],slow=tiers[tiers.length-1];
+    var ratio=slow.v?fast.v/slow.v:0;
+    flowBullet+=' The typical '+fast.name.replace(/s$/,'')+' turns over '+(fast.v*100).toFixed(2)+'% of float/day against '+(slow.v*100).toFixed(2)+'% for '+slow.name+' — '
+      +(ratio>=1.5?'swing and momentum activity is concentrated in '+fast.name+'.':
+        ratio>=1.2?'modestly higher churn in '+fast.name+', the usual pattern where less float is institutionally locked up.':
+        'turnover is fairly uniform across cap sizes, with no clear momentum tilt by size.');
+  }
+  bullets.push(flowBullet);
 
   /* 3. Top-3 names by $ volume + concentration check. */
   if(s.stocks.length>=3){
@@ -8747,21 +8781,22 @@ function renderPoolLiquidityInsights(sec){
     var top3Pct=dvT?top3Sum/dvT*100:0;
     var top5=s.stocks.slice(0,Math.min(5,s.stocks.length)),top5Sum=top5.reduce(function(a,x){return a+x.dv;},0);
     var top5Pct=dvT?top5Sum/dvT*100:0;
-    bullets.push('<strong>Most-traded names:</strong> '+top3.map(function(x){return tkLink(x.ticker)+' ('+fds(x.dv)+')';}).join(', ')+' '
+    bullets.push('<strong>Most-traded names:</strong> '+top3.map(function(x){return tkLink(x.ticker)+' ('+fds(x.dv)+')';}).join(', ')+' '
       +'— the top 3 capture '+top3Pct.toFixed(0)+'% of sector flow'+(s.stocks.length>=5?', the top 5 capture '+top5Pct.toFixed(0)+'%':'')+'. '
       +(top3Pct>=60?'Trading is highly concentrated in a handful of mega-caps; sector exposure outside these names is a different liquidity reality.':
         top3Pct>=40?'Reasonable concentration in the leaders — they drive sector flow but plenty of secondary liquidity exists.':
         'Flow is broadly distributed; no single mega-cap dominates the sector\'s daily volume.'));
   }
 
-  /* 4. CORRELATION: liquidity concentration vs revenue concentration.
-     Compares CR4 by trading flow against CR4 by revenue. Divergence reveals
-     whether the market trades the *biggest* names or the *most exciting*
-     ones. */
-  if(s.stocks.length>=4&&s.rev>0){
+  /* 4. Liquidity concentration vs revenue concentration. Divergence reveals
+        whether the market trades the *biggest* names or the *most exciting*
+        ones. The revenue side is the sector's canonical CR4 (pp_sector_cr4,
+        the same figure the header band prints) rather than a second one
+        derived here — those two used to be able to disagree. */
+  if(s.stocks.length>=4&&s.cr4Rev!=null){
     var byRev=s.stocks.slice().filter(function(x){return x.rev;}).sort(function(a,b){return(b.rev||0)-(a.rev||0);});
     if(byRev.length>=4){
-      var cr4Rev=byRev.slice(0,4).reduce(function(a,x){return a+(x.rev||0);},0)/s.rev*100;
+      var cr4Rev=s.cr4Rev*100;
       var cr4Liq=s.stocks.slice(0,4).reduce(function(a,x){return a+x.dv;},0)/dvT*100;
       var revLeaders=byRev.slice(0,4).map(function(x){return x.ticker;});
       var liqLeaders=s.stocks.slice(0,4).map(function(x){return x.ticker;});
@@ -8772,94 +8807,20 @@ function renderPoolLiquidityInsights(sec){
       else if(diff>=10)verdict='trading is more concentrated than revenue ('+diff.toFixed(0)+' pp gap) — flow chases a narrower subset than the underlying business would suggest';
       else if(diff<=-10)verdict='trading is more diffuse than revenue ('+(-diff).toFixed(0)+' pp gap) — secondary names attract more flow than their revenue weight implies';
       else verdict=overlap+'/4 of the revenue leaders are also liquidity leaders — partial alignment between business size and trading interest';
-      bullets.push('<strong>Liquidity vs business concentration:</strong> Top-4 by trading flow capture '+cr4Liq.toFixed(0)+'% of $-volume; top-4 by revenue capture '+cr4Rev.toFixed(0)+'% of sector revenue. '+verdict+'.');
+      bullets.push('<strong>Liquidity vs business concentration:</strong> Top-4 by trading flow capture '+cr4Liq.toFixed(0)+'% of $-volume; top-4 by revenue capture '+cr4Rev.toFixed(0)+'% of revenue — '+verdict+'.');
     }
   }
 
-  /* 5. CORRELATION: profit extraction vs trading interest.
-     Top profit-pool-multiple = company extracting disproportionate profit
-     from its revenue share. Is that name also liquid? Mismatch flags
-     under-priced moats or hype-driven flow. */
-  var withMult=s.stocks.filter(function(x){return x.pp_multiple!=null&&x.pp_multiple>0;});
-  if(withMult.length>=3){
-    withMult.sort(function(a,b){return(b.pp_multiple||0)-(a.pp_multiple||0);});
-    var topMult=withMult[0];
-    var liqRank=0;
-    for(var ii=0;ii<s.stocks.length;ii++){if(s.stocks[ii].ticker===topMult.ticker){liqRank=ii+1;break;}}
-    if(liqRank>0){
-      var rankLabel=liqRank<=3?'a top-3 most-traded':liqRank<=5?'a top-5 most-traded':liqRank<=10?'a top-10 most-traded':'the #'+liqRank+' most-traded';
-      var verdict;
-      if(liqRank<=3)verdict='its profit moat is fully recognized in flow — concentrated investor attention matches concentrated profit extraction';
-      else if(liqRank<=10)verdict='moat is partly recognized — it draws above-average flow but isn\'t the sector\'s headline ticker';
-      else verdict='profit moat may be under-recognized — the company extracts disproportionate sector profit but is not a top liquidity name';
-      bullets.push('<strong>Profit extraction vs flow:</strong> Top profit-pool multiple is '+tkLink(topMult.ticker)+' ('+(topMult.pp_multiple||0).toFixed(2)+'×, capturing '+(topMult.pp_multiple>1?'more':'less')+' profit share than revenue share); it is '+rankLabel+' name in the sector — '+verdict+'.');
-    }
-  }
-
-  /* 6. CORRELATION: are high-margin names disproportionately traded?
-     Splits the sector into top-quartile by operating margin vs the rest,
-     then compares each group's share of $ flow against its share of names. */
-  var withMargin=s.stocks.filter(function(x){return x.operating_margin!=null&&x.dv>0;});
-  if(withMargin.length>=8){
-    var sortedM=withMargin.slice().sort(function(a,b){return(b.operating_margin||0)-(a.operating_margin||0);});
-    var qSize=Math.max(1,Math.floor(sortedM.length/4));
-    var topQ=sortedM.slice(0,qSize);
-    var topQDv=topQ.reduce(function(a,x){return a+x.dv;},0);
-    var totalDvM=withMargin.reduce(function(a,x){return a+x.dv;},0);
-    var dvShareQ=totalDvM?topQDv/totalDvM*100:0;
-    var nShareQ=topQ.length/withMargin.length*100;
-    var ratioQ=nShareQ?dvShareQ/nShareQ:0;
-    var verdict;
-    if(ratioQ>=1.4)verdict='the most profitable companies attract disproportionate flow ('+ratioQ.toFixed(2)+'× their share of names) — margin and trading interest are tightly coupled in this sector';
-    else if(ratioQ>=0.9)verdict='top-margin names get roughly proportional flow — no clear margin premium in trading interest';
-    else verdict='top-margin names get *less* than proportional flow ('+ratioQ.toFixed(2)+'× their headcount share) — investors are looking past margins, perhaps focused on growth or recovery plays';
-    bullets.push('<strong>Margin × flow correlation:</strong> Top-quartile by operating margin captures '+dvShareQ.toFixed(0)+'% of sector flow from '+nShareQ.toFixed(0)+'% of names — '+verdict+'.');
-  }
-
-  /* 7. CORRELATION: trading flow concentration in BUY/LEAN BUY rated names.
-     Direct measure of whether the model's high-conviction picks attract
-     proportional liquidity. */
-  var withRating=s.stocks.filter(function(x){return x.rating&&x.dv>0;});
-  if(withRating.length>=5){
-    var actionable=withRating.filter(function(x){return x.rating==='BUY'||x.rating==='LEAN BUY';});
-    if(actionable.length){
-      var aDv=actionable.reduce(function(a,x){return a+x.dv;},0);
-      var totalRD=withRating.reduce(function(a,x){return a+x.dv;},0);
-      var aDvShare=totalRD?aDv/totalRD*100:0;
-      var aNShare=actionable.length/withRating.length*100;
-      var ratioR=aNShare?aDvShare/aNShare:0;
-      var verdict;
-      if(ratioR>=1.3)verdict='actionable names attract more flow than their headcount share — the market\'s attention overlaps with the model\'s conviction';
-      else if(ratioR>=0.85)verdict='actionable names get proportional flow — neutral overlap between liquidity and model conviction';
-      else verdict='actionable names get *less* than proportional flow — the model is finding under-traded value the market hasn\'t priced in yet';
-      bullets.push('<strong>Model conviction × flow:</strong> BUY/LEAN BUY-rated names capture '+aDvShare.toFixed(0)+'% of sector flow from '+aNShare.toFixed(0)+'% of names ('+ratioR.toFixed(2)+'×) — '+verdict+'.');
-    }
-  }
-
-  /* 8. Cap-tier turnover comparison: where momentum/swing activity concentrates. */
-  var medL=s.byTier.large.medTor,medM=s.byTier.mid.medTor,medS=s.byTier.small.medTor;
-  var tiers=[{k:'small',name:'small caps',v:medS,n:s.byTier.small.n},{k:'mid',name:'mid caps',v:medM,n:s.byTier.mid.n},{k:'large',name:'large caps',v:medL,n:s.byTier.large.n}].filter(function(t){return t.n>0&&t.v>0;});
-  if(tiers.length>=2){
-    tiers.sort(function(a,b){return b.v-a.v;});
-    var fast=tiers[0],slow=tiers[tiers.length-1];
-    var ratio=slow.v?fast.v/slow.v:0;
-    var verdict=ratio>=1.5?'concentrated swing/momentum activity in '+fast.name+' — their volatility and lower float-base attract active traders':
-                ratio>=1.2?'modestly higher churn in '+fast.name+' than '+slow.name+' — typical pattern of less institutional float-locking in smaller names':
-                'turnover is fairly uniform across cap sizes — no clear momentum tilt by size';
-    bullets.push('<strong>Turnover by size:</strong> The typical '+fast.name+' turn over '+(fast.v*100).toFixed(2)+'% of float/day vs '+(slow.v*100).toFixed(2)+'% for '+slow.name+' ('+ratio.toFixed(1)+'×). '+verdict+'.');
-  }
-
-  /* 9. CORRELATION: flow share vs profit-pool share — captures whether
-     the sector is over- or under-traded relative to its economic weight. */
+  /* 5. Flow share vs profit-pool share — whether the sector is over- or
+        under-traded relative to its economic weight. */
   if(cache.allOIPos>0&&s.oi>0){
     var poolShare=s.oi/cache.allOIPos*100;
-    var diff=dvShare-poolShare;
-    var absDiff=Math.abs(diff);
-    var verdict;
-    if(absDiff<2)verdict='trades roughly in line with its share of US operating income';
-    else if(diff>0)verdict='attracts disproportionate trading interest — +'+diff.toFixed(1)+' pp more flow than its share of profits would suggest, often a sign of momentum or thematic bid';
-    else verdict='trades thinly relative to its profit contribution — '+(-diff).toFixed(1)+' pp under-traded vs its economic weight, often the case for income-oriented sectors with sticky long-term holders';
-    bullets.push('<strong>Flow vs economic weight:</strong> '+sec+' is '+dvShare.toFixed(1)+'% of trading volume but '+poolShare.toFixed(1)+'% of US operating income — the sector '+verdict+'.');
+    var diff2=dvShare-poolShare;
+    var verdict2;
+    if(Math.abs(diff2)<2)verdict2='trades roughly in line with its share of US operating income';
+    else if(diff2>0)verdict2='attracts disproportionate trading interest — +'+diff2.toFixed(1)+' pp more flow than its share of profits would suggest, often a sign of momentum or thematic bid';
+    else verdict2='trades thinly relative to its profit contribution — '+(-diff2).toFixed(1)+' pp under-traded vs its economic weight, often the case for income-oriented sectors with sticky long-term holders';
+    bullets.push('<strong>Flow vs economic weight:</strong> '+sec+' is '+dvShare.toFixed(1)+'% of trading volume but '+poolShare.toFixed(1)+'% of US operating income — the sector '+verdict2+'.');
   }
 
   if(!bullets.length)return '';
@@ -9429,452 +9390,11 @@ function ppPoolTip(e,name){
   var _rect=(e.target&&e.target.getBoundingClientRect)?e.target.getBoundingClientRect():{left:e.clientX,top:e.clientY,right:e.clientX,bottom:e.clientY,width:0,height:0};
   _placeTip(_rect,tt);
 }
-function _buildScatterSVG(W,H){
-  var allStats=window._xsStats,maxM=window._xsMaxM;
-  if(!allStats||!allStats.length)return'';
-  var spL=62,spR=18,spT=30,spB=50;
-  var sCW=W-spL-spR,sCH=H-spT-spB;
-  /* Scale the X-axis (HHI) to the actual data — sectors range widely from
-     fragmented (~0.05 Financial Services) to near-monopoly (~0.94
-     Communication Services). A fixed linear ceiling of 0.23 left high-HHI
-     sectors piled against the right edge. A sqrt scale spreads the data
-     across the full axis: fragmented sectors no longer crush together on
-     the left, and concentrated sectors no longer pile on the right. The
-     quadrant divider still sits at HHI=0.15 (DOJ "concentrated" threshold)
-     and ends up around 38% across — a visually balanced split. */
-  var dataMaxHHI=allStats.reduce(function(a,s){return Math.max(a,s.hhi||0);},0);
-  var maxHHI=Math.max(0.30,Math.min(1.0,dataMaxHHI*1.08));
-  var maxSM=Math.max(0.40,maxM*1.08);
-  function _hhiX(h){return spL+Math.sqrt(Math.max(0,Math.min(h,maxHHI))/maxHHI)*sCW;}
-  var qxMid=_hhiX(0.15),qyMid=spT+sCH-(0.20/maxSM)*sCH;
-  var s='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:'+W+'px;height:'+H+'px;overflow:visible">';
-  s+='<rect x="'+spL+'" y="'+spT+'" width="'+(qxMid-spL).toFixed(1)+'" height="'+(qyMid-spT).toFixed(1)+'" fill="#e8f5e9" opacity="0.55"/>';
-  s+='<rect x="'+qxMid.toFixed(1)+'" y="'+spT+'" width="'+(spL+sCW-qxMid).toFixed(1)+'" height="'+(qyMid-spT).toFixed(1)+'" fill="#f3e5f5" opacity="0.55"/>';
-  s+='<rect x="'+spL+'" y="'+qyMid.toFixed(1)+'" width="'+(qxMid-spL).toFixed(1)+'" height="'+(spT+sCH-qyMid).toFixed(1)+'" fill="#f5f5f5" opacity="0.55"/>';
-  s+='<rect x="'+qxMid.toFixed(1)+'" y="'+qyMid.toFixed(1)+'" width="'+(spL+sCW-qxMid).toFixed(1)+'" height="'+(spT+sCH-qyMid).toFixed(1)+'" fill="#fde8e8" opacity="0.55"/>';
-  s+='<line x1="'+spL+'" y1="'+spT+'" x2="'+spL+'" y2="'+(spT+sCH)+'" stroke="#ccc" stroke-width="1"/>';
-  s+='<line x1="'+spL+'" y1="'+(spT+sCH)+'" x2="'+(spL+sCW)+'" y2="'+(spT+sCH)+'" stroke="#ccc" stroke-width="1"/>';
-  s+='<line x1="'+qxMid.toFixed(1)+'" y1="'+spT+'" x2="'+qxMid.toFixed(1)+'" y2="'+(spT+sCH)+'" stroke="#bbb" stroke-width="1" stroke-dasharray="4,3"/>';
-  s+='<line x1="'+spL+'" y1="'+qyMid.toFixed(1)+'" x2="'+(spL+sCW)+'" y2="'+qyMid.toFixed(1)+'" stroke="#bbb" stroke-width="1" stroke-dasharray="4,3"/>';
-  var _qlbl=' style="cursor:default" onmousemove="ppQuadMove(event)" onmouseleave="ppQuadHide()"';
-  s+='<text x="'+(spL+6)+'" y="'+(spT+14)+'" font-size="11" fill="#43a047" font-weight="700" text-decoration="underline"'+_qlbl+' onmouseenter="ppQuadTip(event,\'q\')">Quality</text>';
-  s+='<text x="'+(qxMid+6)+'" y="'+(spT+14)+'" font-size="11" fill="#8e24aa" font-weight="700" text-decoration="underline"'+_qlbl+' onmouseenter="ppQuadTip(event,\'po\')">Profitable Oligopoly</text>';
-  s+='<text x="'+(spL+6)+'" y="'+(spT+sCH-6)+'" font-size="11" fill="#9e9e9e" font-weight="700" text-decoration="underline"'+_qlbl+' onmouseenter="ppQuadTip(event,\'f\')">Fragmented</text>';
-  s+='<text x="'+(qxMid+6)+'" y="'+(spT+sCH-6)+'" font-size="11" fill="#e53935" font-weight="700" text-decoration="underline"'+_qlbl+' onmouseenter="ppQuadTip(event,\'vt\')">Value Trap</text>';
-  [0,0.10,0.20,0.30,0.40,0.50,0.60].forEach(function(v){
-    if(v>maxSM+0.01)return;
-    var ty=spT+sCH-(v/maxSM)*sCH;
-    s+='<text x="'+(spL-6)+'" y="'+(ty+4).toFixed(1)+'" text-anchor="end" font-size="11" fill="#444">'+(v*100).toFixed(0)+'%</text>';
-    if(v>0)s+='<line x1="'+spL+'" y1="'+ty.toFixed(1)+'" x2="'+(spL+sCW)+'" y2="'+ty.toFixed(1)+'" stroke="#ebebeb" stroke-width="1"/>';
-  });
-  /* X-axis tick labels (positioned via _hhiX so they're sqrt-scaled).
-     Tick set adapts to maxHHI: tight when most sectors are fragmented,
-     sparser when the universe spans into concentrated territory. The
-     0.15 regulatory threshold is always included so the quadrant divider
-     lines up with a labelled tick. */
-  var hhiTicks=maxHHI<=0.35
-    ?[0,0.05,0.10,0.15,0.20,0.25,0.30]
-    :maxHHI<=0.65
-      ?[0,0.05,0.15,0.30,0.45,0.60]
-      :[0,0.05,0.15,0.30,0.50,0.75,1.00];
-  hhiTicks.forEach(function(v){
-    if(v>maxHHI+1e-9)return;
-    var tx=_hhiX(v);
-    s+='<text x="'+tx.toFixed(1)+'" y="'+(spT+sCH+18)+'" text-anchor="middle" font-size="11" fill="#444">'+v.toFixed(2)+'</text>';
-  });
-  var yCtr=spT+sCH/2;
-  s+='<text x="14" y="'+yCtr.toFixed(1)+'" text-anchor="middle" font-size="12" fill="#333" font-weight="600" transform="rotate(-90,14,'+yCtr.toFixed(1)+')">Operating Margin \u2192</text>';
-  s+='<text x="'+(spL+sCW/2)+'" y="'+(H-8)+'" text-anchor="middle" font-size="12" fill="#333" font-weight="600">HHI (Concentration \u2192 more concentrated) <tspan font-size="10" font-weight="400" fill="#9aaab8">\u00b7 \u221a scale</tspan></text>';
-  allStats.forEach(function(st){
-    var cx=_hhiX(st.hhi||0);
-    /* Clamped at both ends like _hhiX: a negative blended margin otherwise
-       plots below the axis and (overflow:visible) collides with the title. */
-    var cy=spT+sCH-Math.max(0,Math.min(st.margin/maxSM,0.999))*sCH;
-    var col=st.margin>=0.25?'#1a9850':st.margin>=0.15?'#4caf50':st.margin>=0.10?'#ff9800':'#e53935';
-    var sE=st.name.replace(/'/g,"\\'");
-    var clk='onclick="showPoolTab(\''+sE+'\')" style="cursor:pointer"';
-    /* Hover handlers wire the rich chartTip with HHI band, op margin band,
-       company count, BUY-rated %, top earner, and the quadrant verdict. */
-    var hov=' onmouseenter="_scatterTip(event,\''+sE+'\')" onmouseleave="chartTip.hide()"';
-    s+='<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="9" fill="'+col+'" opacity="0.88" stroke="white" stroke-width="1.5" '+clk+hov+'/>';
-    var lx=cx+13,ly=cy-3,ta='start';
-    if(cx>spL+sCW*0.65){lx=cx-13;ta='end';}
-    if(cy<spT+20){ly=cy+20;}
-    s+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="'+ta+'" font-size="11" fill="#222" font-weight="600" '+clk+hov+'>'+st.name+'</text>';
-  });
-  s+='</svg>';
-  return s;
-}
-/* === Sector Banner =====================================================
-   Per-sector stat strip shown at the top of each individual sector tab.
-   Mirrors the Sector Heatmap columns from the Overview tab so the same
-   metrics that let you compare sectors are available in one glance on the
-   tab for the sector you've drilled into. Colors are scaled cross-sector
-   (green = best, red = worst within the metric) matching the heatmap.
-
-   Logic is intentionally parallel to renderCrossSectorDashboard's _sumStats
-   block so this works even if the user lands directly on a sector tab and
-   never visits the Overview tab (heatmap closure hasn't fired). Cached on
-   window._allSecStats; invalidated on filter changes by clearing the cache. */
-function _poolSecMed(arr){if(!arr.length)return null;var s=arr.slice().sort(function(a,b){return a-b;});var m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
-function _buildAllSectorStats(){
-  if(window._allSecStats)return window._allSecStats;
-  var by={};DATA.forEach(function(d){if(!d.sector||d.pp_revenue_share==null)return;(by[d.sector]=by[d.sector]||[]).push(d);});
-  var out=[];
-  Object.keys(by).sort().forEach(function(sec){
-    var cos=by[sec];if(!cos||!cos.length)return;
-    var sorted=cos.slice().sort(function(a,b){return(b.operating_margin||0)-(a.operating_margin||0);});
-    var totalRev=sorted.reduce(function(s,d){return s+(d.pp_revenue_share||0);},0);if(!totalRev)return;
-    var hhi=sorted[0].pp_sector_hhi,cr4=sorted[0].pp_sector_cr4;
-    var wtdM=sorted.reduce(function(s,d){return s+(d.operating_margin||0)*(d.pp_revenue_share||0);},0)/totalRev;
-    var best=sorted.reduce(function(a,b){return(a.pp_multiple||0)>(b.pp_multiple||0)?a:b;});
-    var avgMult=sorted.reduce(function(s,d){return s+(d.pp_multiple||0);},0)/sorted.length;
-    var mosVals=cos.map(function(d){return d.mos;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var ptbvVals=cos.map(function(d){return d.p_tbv;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<50;});
-    var evVals=cos.map(function(d){return d.ev_ebitda;}).filter(function(v){return v!=null&&!isNaN(v)&&v>0&&v<100;});
-    var spreadVals=cos.map(function(d){return d.spread;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var growthVals=cos.map(function(d){return d.rev_cagr;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var nBuy=cos.filter(function(d){return d.rating==='BUY'||d.rating==='LEAN BUY';}).length;
-    var roicVals=cos.map(function(d){return d.roic;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var ndEbVals=cos.map(function(d){return d.nd_ebitda;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var shrYldVals=cos.map(function(d){var sy=d.shareholder_yield;if(sy==null||sy===0){var bb=d.share_buyback_rate,dy=d.div_yield;if((bb!=null&&bb!==0)||(dy!=null&&dy!==0))sy=(bb||0)+(dy||0);}return sy;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var fcfMVals=cos.map(function(d){return d.fcf_margin;}).filter(function(v){return v!=null&&!isNaN(v);});
-    var altZVals=cos.map(function(d){return d.altman_z;}).filter(function(v){return v!=null&&!isNaN(v);});
-    out.push({sector:sec,n:sorted.length,wtdM:wtdM,hhi:hhi,cr4:cr4,
-      medMos:_poolSecMed(mosVals),medPTBV:_poolSecMed(ptbvVals),medEV:_poolSecMed(evVals),
-      medSpread:_poolSecMed(spreadVals),medGrowth:_poolSecMed(growthVals),
-      medROIC:_poolSecMed(roicVals),medNDEB:_poolSecMed(ndEbVals),medShrYld:_poolSecMed(shrYldVals),
-      medFCFM:_poolSecMed(fcfMVals),medAltZ:_poolSecMed(altZVals),
-      nBuy:nBuy,pctBuy:cos.length?nBuy/cos.length:null,best:best,avgMult:avgMult});
-  });
-  window._allSecStats=out;return out;
-}
-/* HSL band scaler — same formula as _heatBg in the heatmap. asc=true means
-   lower-is-better (cheap P/B, low leverage); higher values map to red. */
-function _poolSecTint(val,vals,asc){
-  if(val==null||isNaN(val))return '';
-  var clean=vals.filter(function(v){return v!=null&&!isNaN(v);});
-  if(clean.length<2)return '';
-  var mn=Math.min.apply(null,clean),mx=Math.max.apply(null,clean);
-  if(mx===mn)return '';
-  var t=(val-mn)/(mx-mn);if(asc)t=1-t;
-  var hue=Math.round(t*120);
-  return 'background:hsla('+hue+',72%,45%,0.85)';
-}
-/* Per-sector KPI banner config. tracked = [label, dataKey, fmt, tip]
-   where fmt is 'pct' (× 100, append %), 'n1'/'n2' (raw + ×), or 'plain'
-   (raw). gap = [label, tip] for KPIs critical to the sector but not yet
-   computed; render as dashed muted cells so the data gap is visible. */
-var SECTOR_KPI_BANNER={
-  /* Technology: all four gap KPIs now derived from SEC XBRL filings
-     (see scripts/enrich_xbrl.py). Coverage ~70-80% of US filers. The
-     generic profitability metrics (op margin, ROIC) are still in the
-     data and accessible via column filters but no longer dominate the
-     sector view — these four are what actually distinguish tech
-     compounders from commoditizing software vendors. */
-  'Technology':{
-    tracked:[
-      ['R&D / Revenue','rd_intensity_xbrl','pct','Median R&D intensity from XBRL. >15% = innovation engine; <8% = commoditizing or mature.'],
-      ['FCF Margin ex-SBC','fcf_margin_ex_sbc','pct','(Operating CF − Capex − SBC) / Revenue. Strips out the SBC mirage; the honest cash-quality number for tech.'],
-      ['Net Cash / Mcap','net_cash_to_mcap','pct','(Cash + ST Investments − Debt) / Market Cap. Positive = capital under-deployed; negative = leveraged.'],
-      ['Deferred Rev Growth','deferred_rev_growth','pct','YoY change in contract-with-customer liability. The leading indicator for SaaS billings.'],
-      ['Rule of 40','rule_of_40','plain','5yr revenue CAGR + FCF-ex-SBC margin, in points. >40 = healthy compounder; <30 = struggling.']
-    ],
-    gap:[
-      ['ARR Growth','Annual Recurring Revenue YoY — leading metric for SaaS. Reported in earnings calls, not XBRL.'],
-      ['Net Revenue Retention','NRR: (revenue from existing customers + expansion − churn) / starting revenue. >110% = expansion playbook working.'],
-      ['Cohort Retention','% of cohort customers retained at 12/24 months. Quality-of-revenue signal.']
-    ]
-  },
-  /* Healthcare: R&D / Revenue now from SEC XBRL (was 5% pop from
-     yfinance, now ~70-80% from XBRL across pharma + devices + services).
-     Dropped Op Margin from tracked to keep at 4 cells. */
-  'Healthcare':{
-    tracked:[
-      ['R&D / Revenue','rd_intensity_xbrl','pct','Median R&D intensity from XBRL. Large-cap pharma 18–22%; biotech can exceed 100%.'],
-      ['Gross Margin','gross_margin','pct','Median gross margin. Pharma 60–80%, devices 50–70%, services lower.'],
-      ['ROIC','roic','pct','Median return on invested capital.'],
-      ['Cash Conversion','cash_conv','plain','CFO / Net Income. >0.9 = earnings backed by real cash.'],
-      ['FDA Pipeline Count','fda_pipeline_count','int','Median count of active sponsored interventional trials (ClinicalTrials.gov) — pipeline-depth proxy for drug & biotech names.']
-    ],
-    gap:[
-      ['Patent Cliff %','% of revenue from products losing exclusivity in the next 5 years. Specialty databases (Cortellis / IQVIA).'],
-      ['Generic Exposure','% of revenue exposed to generic / biosimilar competition. Per-company press releases.'],
-      ['Clinical Trial Success','Phase II→III and III→approval success rate. Needs FDA submissions data.']
-    ]
-  },
-  /* Consumer Defensive Phase 5: Inventory Days from XBRL; Brand Spend
-     from AdvertisingExpense. Op Margin and Int Cov dropped from
-     tracked. Brand Spend coverage is moderate — many staples bury ad
-     spend inside SG&A so it doesn't get separately tagged. */
-  'Consumer Defensive':{
-    tracked:[
-      ['ROIC','roic','pct','Median return on invested capital.'],
-      ['Shareholder Yield','shareholder_yield','pct','Median dividends + net buybacks / market cap.'],
-      ['Inventory Days','inventory_days','plain','Inventory / (COGS / 365). Defensive staples should run lean; >120 days = sluggish.'],
-      ['Brand Spend / Rev','brand_spend_pct_rev','pct','XBRL AdvertisingExpense / Revenue. Direction matters: falling with rising market share = moat tightening.']
-    ],
-    gap:[
-      ['Volume Growth','Real volume growth ex-pricing. Separates pricing power from genuine demand.'],
-      ['Pricing Power Δ','Contribution of price / mix to revenue growth. Sustained 3%+ = brand strength.'],
-      ['Same-Store Sales','Retail-only: organic comparable-store revenue growth.'],
-      ['Customer Reorder Rate','% of revenue from repeat customers. Quality-of-revenue signal.']
-    ]
-  },
-  /* Consumer Cyclical Phase 5: Inventory Days + Working Capital Days
-     now from XBRL (InventoryNet + COGS + receivables/payables). These
-     two are the canonical cyclical-stress diagnostics. Op Margin and
-     ROE dropped from tracked (still in data; less cyclical-distinctive
-     than working-capital metrics). */
-  'Consumer Cyclical':{
-    tracked:[
-      ['ROIC','roic','pct','Median return on invested capital.'],
-      ['Altman Z','altman_z','plain','Median financial-strength score. Cyclicals need a buffer; >3 = safe zone.'],
-      ['Inventory Days','inventory_days','plain','Inventory / (COGS / 365). Rising days = future markdown risk. <60 = lean; >120 = stockholders.'],
-      ['Working Capital Days','working_capital_days','plain','Cash Conversion Cycle = Inv Days + AR Days − AP Days. Negative = working capital funds the business (Costco / Amazon model).'],
-      ['Brand Spend Trend','brand_spend_trend','pct','Annualized change in advertising / revenue. Positive = ramping brand investment; direction matters more than level.']
-    ],
-    gap:[
-      ['Same-Store Sales','Comparable-store revenue growth. Per-company earnings releases; not standardized.'],
-      ['Price / Mix Δ','Contribution of price vs. unit-mix to revenue growth.'],
-      ['eCommerce Mix','% of revenue online — different margin and growth profile.']
-    ]
-  },
-  /* Industrials Phase 4: Capex/Sales now from edgar_history (capex
-     history / revenue history, latest year). Backlog/Revenue from
-     XBRL RemainingPerformanceObligation (the ASC-606 successor to
-     legacy Backlog disclosures). Op Margin and Int Cov dropped from
-     tracked (still in data, accessible via column filters). */
-  'Industrials':{
-    tracked:[
-      ['ROIC','roic','pct','Median return on invested capital.'],
-      ['Spread','spread','pct','Median ROIC − WACC. Genuine economic profit margin.'],
-      ['Capex / Sales','capex_intensity','pct','Median capex / revenue. Low (<5%) = capital-light scale; high (>15%) = heavy reinvestment cycle.'],
-      ['Backlog / Revenue','backlog_to_revenue','plain','Median Remaining Performance Obligation / revenue (XBRL). >1.0× = strong forward visibility.'],
-      ['Book-to-Bill','book_to_bill_proxy','n2','(ΔBacklog + Revenue) / Revenue from RPO. >1.0× = orders replacing and exceeding billings.'],
-      ['Working Capital Days','working_capital_days','plain','Cash Conversion Cycle = Inv Days + AR Days − AP Days (XBRL). Rising = late-cycle stress.']
-    ],
-    gap:[
-      ['Aftermarket %','Services and parts as % of revenue. Lives in segment-disclosure narrative.'],
-      ['Order Cancellation Rate','Cancellations / starting backlog. Cyclical-stress signal in late expansion.']
-    ]
-  },
-  /* Basic Materials Phase 6: Capex/D&A now from XBRL (Capex from
-     edgar_history, DD&A from companyfacts). Op Margin dropped from
-     tracked. */
-  'Basic Materials':{
-    tracked:[
-      ['ROIC','roic','pct','Median return on invested capital — volatile through commodity cycles.'],
-      ['ND / EBITDA','nd_ebitda','n2','Median net debt / EBITDA. <2× preferred for cyclical commodity.'],
-      ['Capex / D&A','capex_to_dd_ratio','plain','Capital reinvestment discipline. >1.5× sustained = building ahead of depreciation (future writedown risk); <1× = aging asset base.'],
-      ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / market cap.']
-    ],
-    gap:[
-      ['All-In Sustaining Cost','Mining: full cash cost per unit vs spot price. Per-company quarterly disclosure, not standardized XBRL.'],
-      ['Reserve Life','Years of reserves at current production rate. Specialty databases.'],
-      ['% Hedged','% of next-12mo production hedged. 10-Q footnotes, not XBRL.'],
-      ['Realized Price vs Spot','Hedging effectiveness — realized price / spot benchmark.']
-    ]
-  },
-  'Communication Services':{
-    tracked:[
-      ['ROIC','roic','pct','Median return on invested capital.'],
-      ['ROE','roe','pct','Median return on equity.'],
-      ['Op Margin','operating_margin','pct','Median operating margin.'],
-      ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / mcap. Lower for ad-funded internet.']
-    ],
-    gap:[
-      ['ARPU Growth','Telecom & streaming: average revenue per user growth.'],
-      ['Net Subscriber Adds','Net new subscribers vs prior period.'],
-      ['Churn Rate','Subscriber attrition. <2%/month = sticky.'],
-      ['DAU / MAU','Social platforms: engagement intensity. >60% = highly engaged user base.']
-    ]
-  },
-  /* Energy Phase 6: Capex/D&A from XBRL. For oil & gas filers,
-     DepreciationDepletionAndAmortization captures depletion of
-     reserves alongside ordinary depreciation — the right basis for
-     comparison. ROE dropped from tracked (still in data). */
-  'Energy':{
-    tracked:[
-      ['ROIC','roic','pct','Median return on invested capital — heavily cycle-dependent.'],
-      ['ND / EBITDA','nd_ebitda','n2','Median net debt / EBITDA. <3× = survives commodity troughs.'],
-      ['Capex / D&A','capex_to_dd_ratio','plain','Reinvestment discipline. D&A includes depletion of reserves for E&P filers; >1.5× = growing reserves base, <1× = harvesting.'],
-      ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / mcap. Energy now favors return over reinvestment.']
-    ],
-    gap:[
-      ['Reserve Replacement','Reserves added vs produced. <100% = liquidation in slow motion. SDOAG disclosure not in standardized XBRL.'],
-      ['Break-even Oil $','Oil price at which projects clear hurdle rate. Per-company analyst day disclosure.'],
-      ['F&D Cost / boe','Finding and development cost per barrel. SDOAG tables not in standardized XBRL.'],
-      ['% Hedged','% of next-12mo production hedged.']
-    ]
-  },
-  /* Utilities Phase 6: Capex/D&A from XBRL is a proxy for Capex/Rate
-     Base (D&A grows with the rate base over time for regulated
-     utilities). ROE dropped from tracked; ROE is still useful but
-     duplicates info that's downstream of rate-base economics. */
-  'Utilities':{
-    tracked:[
-      ['ROIC','roic','pct','Median return on invested capital — regulated returns mean modest ROIC.'],
-      ['ND / EBITDA','nd_ebitda','n2','Median net debt / EBITDA. Higher acceptable due to stable cash flows.'],
-      ['Capex / D&A','capex_to_dd_ratio','plain','Capital reinvestment intensity — proxy for Capex / Rate Base (D&A grows with rate base over time). >1.5× = active rate-base growth; ~1× = steady-state.'],
-      ['Shareholder Yield','shareholder_yield','pct','Median dividends + buybacks / mcap.']
-    ],
-    gap:[
-      ['Authorized ROE','Regulatory ROE granted in last rate case. State PUC filings.'],
-      ['Rate Base CAGR','Compounded growth in regulated rate base. From rate-case disclosures.'],
-      ['Regulatory Lag','Months between cost incurrence and rate recovery. State-specific.'],
-      ['Storm / Outage Risk','Reliability metrics (SAIDI / SAIFI) — operational risk for IOUs.']
-    ]
-  },
-  /* Real Estate: FFO Growth and AFFO Margin are now computed as proxies
-     from operating-cash-flow history (see data/reit_metrics.py +
-     scripts/enrich_reit.py). The proxies cover ~85% of the REIT
-     universe. ROE and ND/EBITDA dropped from tracked — they're still
-     in the data and accessible via filters, but FFO/AFFO are more
-     REIT-distinctive and Buffett-aligned. */
-  'Real Estate':{
-    tracked:[
-      ['FFO Growth','ffo_growth_5y','pct','5-yr CAGR of operating cash flow — proxy for FFO growth (NAREIT\'s FFO definition isn\'t in standardized XBRL). Mid-single-digit = stable; >10% = compounding REIT.'],
-      ['AFFO Margin','affo_margin','pct','(Operating CF − Capex) / Revenue, latest year — proxy for AFFO margin. Storage / data-center REITs typically 50%+; healthcare / hotels 15–25%.'],
-      ['Shareholder Yield','shareholder_yield','pct','Median dividends as % of market cap. REITs distribute by law.'],
-      ['NAV MoS','nav_mos','pct','Median margin of safety vs NAV. Negative = trading above NAV.'],
-      ['Debt Maturity Wall','debt_maturity_wall_yrs','yr','Principal-weighted average years to maturity across disclosed XBRL repayment buckets. Longer = less near-term refinancing risk.']
-    ],
-    gap:[
-      ['Occupancy %','Property-level occupancy across the sector. Lives in quarterly supplementals, not in XBRL.'],
-      ['Same-Store NOI Growth','Comparable-property NOI growth — organic rent + occupancy gains. Requires per-REIT supplemental parsing.'],
-      ['Lease Term Remaining','Weighted-avg lease term — quality of long-duration income.']
-    ]
-  },
-  /* Financials: tracked row now powered by FDIC call-report data
-     (data/fdic_client.py + scripts/enrich_fdic.py). Median computed
-     over the subset of Financial Services stocks mapped to a verified
-     FDIC certificate — currently ~25 US-chartered banks; expanding
-     coverage requires more entries in data/ticker_fdic_map.py. */
-  'Financial Services':{
-    tracked:[
-      ['NIM','nim','pct','Net Interest Margin (FDIC). Spread between asset yields and funding costs — Buffett\'s #1 bank quality test. 2.5–4% typical.'],
-      ['Efficiency','efficiency_ratio','pct','Efficiency ratio (FDIC) = non-interest expense / revenue. <55% = best-in-class operations.'],
-      ['CET1','cet1_ratio','pct','Common Equity Tier 1 capital ratio (FDIC). >10% = well-capitalized; regulatory floor 4.5% + buffers.'],
-      ['NPL','npl_ratio','pct','Non-performing loan ratio (FDIC) = non-current loans / total loans. <1% = healthy credit quality.'],
-      ['Deposit Beta','deposit_beta','pct','Banks: share of the 2021→23 Fed hikes passed to depositors (FDIC). <40% = sticky, low-cost deposit franchise.']
-    ],
-    gap:[
-      ['Combined Ratio','Insurers: loss ratio + expense ratio. <100% = underwriting profit. XBRL underwriting-income tags are segment-scoped — needs dimension-aware extraction before it can headline.'],
-      ['Float Cost','Insurers: combined ratio − 100%. Negative cost = Berkshire-style structural edge. Depends on a clean combined ratio (see above).'],
-      ['AUM Net Flow Rate','Asset managers: annual flows / starting AUM. Positive net flows are gold; most actives run -2 to -5%.']
-    ]
-  }
-};
-function _kpiMedian(cos,key){
-  var v=[];for(var i=0;i<cos.length;i++){var x=cos[i][key];if(x!=null&&!isNaN(x))v.push(x);}
-  if(!v.length)return null;v.sort(function(a,b){return a-b;});return v[Math.floor(v.length/2)];
-}
-function _kpiFmt(v,fmt){
-  if(v==null)return '—';
-  if(fmt==='pct')return (v*100).toFixed(1)+'%';
-  if(fmt==='n1')return v.toFixed(1)+'×';
-  if(fmt==='n2')return v.toFixed(2)+'×';
-  if(fmt==='int')return Math.round(v).toString();
-  if(fmt==='yr')return v.toFixed(1)+'y';
-  if(fmt==='plain')return v.toFixed(2);
-  return v.toFixed(2);
-}
-function _renderSectorKpiBanner(sec,cos){
-  var cfg=SECTOR_KPI_BANNER[sec];
-  if(!cfg||!cos||!cos.length)return '';
-  var html='<div class="pp-section pp-kpis"><span class="pp-section-label">Sector KPIs</span>';
-  /* Universal context strip — Companies / Median MoS / BUY-Rated /
-     Sector Leader. Replaces the metric cells (Op Margin, ROIC) of the
-     old _renderSectorBanner since those now live in sector-tracked. */
-  var all=_buildAllSectorStats();
-  var st=null;for(var i=0;i<all.length;i++){if(all[i].sector===sec){st=all[i];break;}}
-  if(st){
-    var bits=[];
-    bits.push('<span><strong>'+st.n+'</strong> Companies</span>');
-    if(st.medMos!=null&&!isNaN(st.medMos)){
-      bits.push('<span>Median MoS: <strong>'+(st.medMos*100).toFixed(0)+'%</strong></span>');
-    }
-    if(st.pctBuy!=null&&!isNaN(st.pctBuy)){
-      bits.push('<span>BUY-Rated: <strong>'+(st.pctBuy*100).toFixed(0)+'%</strong></span>');
-    }
-    if(st.best&&st.best.ticker){
-      var bTk=_attr(st.best.ticker);
-      var bMult=st.best.pp_multiple!=null?st.best.pp_multiple.toFixed(2)+'×':'';
-      bits.push('<span>Leader: <a class="kpi-leader-tk" onclick="openDet(\''+bTk+'\')">'+bTk+'</a>'+(bMult?' <span style="font-size:0.92em">('+bMult+')</span>':'')+'</span>');
-    }
-    html+='<div class="kpi-header-strip">'+bits.join('<span class="sep">·</span>')+'</div>';
-  }
-  /* Row 1 — tracked: medians from the sector's stocks. No label —
-     solid cells with strong values are self-explanatory. */
-  html+='<div class="kpi-row kpi-row-tracked">';
-  cfg.tracked.forEach(function(k){
-    var label=k[0],key=k[1],fmt=k[2],tip=k[3];
-    var v=_kpiMedian(cos,key);
-    var disp=_kpiFmt(v,fmt);
-    var cls=v==null?'kpi-cell-value muted':'kpi-cell-value';
-    html+='<div class="kpi-cell" title="'+_attr(label+' — '+tip)+'">'
-      +'<div class="kpi-cell-label">'+_attr(label)+'</div>'
-      +'<div class="'+cls+'">'+disp+'</div></div>';
-  });
-  html+='</div>';
-  html+='</div>';
-  return html;
-}
-function _renderSectorBanner(sec){
-  var all=_buildAllSectorStats();
-  var st=null;for(var i=0;i<all.length;i++){if(all[i].sector===sec){st=all[i];break;}}
-  if(!st)return '';
-  /* Critical 5 + Top Earner — one cell each for sector count, pricing power
-     (Buffett moat test), compounding quality (most-important Buffett metric),
-     value gap (Graham MoS), model action signal, and the sector leader. The
-     full metric set still lives on the Overview Sector Heatmap. */
-  var col={};['wtdM','medROIC','medMos','pctBuy'].forEach(function(k){col[k]=all.map(function(s){return s[k];});});
-  function _f(v,sfx,decs){if(v==null||isNaN(v))return {disp:'—',missing:true};return {disp:(v*(sfx==='%'?100:1)).toFixed(decs)+sfx,missing:false};}
-  /* [label, formatted, tooltip, color-key, asc-flag (true=lower-better), caption] */
-  var rows=[
-    ['Companies',{disp:''+st.n,missing:false},'Number of companies in the sector pool. Munger: "Structure matters more than effort" — sectors crowded with similar competitors compete margins toward zero, while lean sectors with structural barriers favor incumbents.',null,false,'in this sector'],
-    ['Op Margin',_f(st.wtdM,'%',1),'Pool-weighted operating margin — sum(margin × revenue share). The first moat test applied at sector scale; sustained 20%+ reveals durable competitive advantage.','wtdM',false,'revenue-weighted'],
-    ['ROIC',_f(st.medROIC,'%',1),'Median ROIC across the sector — the single most important metric in the Buffett framework. Sectors compounding capital at 15%+ turn each retained dollar into more than a dollar of intrinsic value.','medROIC',false,'sector median'],
-    ['Margin of Safety',_f(st.medMos,'%',0),'Median Margin of Safety vs. DCF fair value. Graham\'s foundational principle. A sector at 20%+ median MoS may be temporarily out of favor — verify the discount is real, not deserved.','medMos',false,'median vs. fair value'],
-    ['BUY-Rated',_f(st.pctBuy,'%',0),'% of sector rated BUY or LEAN BUY by the screener. High concentration signals where the model finds clusters of margin of safety.','pctBuy',false,'share of sector']
-  ];
-  var html='<div class="pool-stat-banner">';
-  rows.forEach(function(r){
-    var label=r[0],v=r[1],tip=r[2],ck=r[3],asc=r[4],cap=r[5];
-    var tint=(ck&&!v.missing)?_poolSecTint(st[ck],col[ck],asc):'';
-    var tintHtml=tint?'<span class="pool-stat-tint" style="'+tint+'"></span>':'';
-    var valClass=v.missing?'pool-stat-value muted':'pool-stat-value';
-    html+='<div class="pool-stat" title="'+_attr(label+' — '+tip)+'">'+tintHtml
-      +'<div class="pool-stat-label">'+label+'</div>'
-      +'<div class="'+valClass+'">'+v.disp+'</div>'
-      +'<div class="pool-stat-caption">'+_attr(cap)+'</div>'
-      +'</div>';
-  });
-  /* Sector Leader — top company by profit pool multiple (profit share ÷ rev share). */
-  if(st.best){
-    var b=st.best;
-    var bTk=_attr(b.ticker||'');
-    var bTkJs=String(b.ticker||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    var bMult=b.pp_multiple!=null?b.pp_multiple.toFixed(2)+'×':'—';
-    var bCol=RC[b.rating]||'#888';
-    html+='<div class="pool-stat" title="Sector Leader — Highest profit pool multiple within the sector (profit share ÷ revenue share). A value above 1.0× means this company punches above its revenue weight in profitability.">'
-      +'<span class="pool-stat-tint" style="background:'+bCol+'"></span>'
-      +'<div class="pool-stat-label">Sector Leader</div>'
-      +'<div class="pool-stat-value"><span class="pool-stat-tk tk-link" onclick="event.stopPropagation();openDet(\''+bTkJs+'\')" title="Open '+bTk+'">'+bTk+'</span><span class="pool-stat-sub">'+bMult+'</span></div>'
-      +'<div class="pool-stat-caption">profit share ÷ revenue share</div>'
-      +'</div>';
-  }
-  html+='</div>';
-  return html;
-}
 /* _attr already declared inside renderCrossSectorDashboard's scope; redeclare
-   at top level for the banner so we don't depend on the heatmap having run. */
+   at top level for the nav and detail-tab buttons, which build markup outside
+   that closure and so cannot depend on the heatmap having run. */
 function _attr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function renderPool(){
-  /* Invalidate the sector-stats cache on every render so flag/filter changes
-     downstream (which can shift _ACTIONABLE counts) are reflected on the banner. */
-  window._allSecStats=null;
   /* Hide any hover tooltip before the re-render: clicking a chart bar
      (showPoolTab) destroys the hovered element, so its onmouseleave never
      fires and the tooltip would stay stuck over the new view. */
@@ -9977,28 +9497,26 @@ function renderPool(){
     if(hhi!=null)chartHtml+=' &nbsp;&middot;&nbsp; HHI: '+hhi.toFixed(3)+' ('+conc+')';
     if(cr4!=null)chartHtml+=' &nbsp;&middot;&nbsp; CR4: '+(cr4*100).toFixed(0)+'%';
     chartHtml+='</span></div>';
-    /* Sector KPI banner removed — the Companies / Median MoS / BUY-Rated /
-       Leader context strip and the tracked KPI cells didn't add signal over
-       the sector header and the Overview heatmap. _renderSectorKpiBanner and
-       _renderSectorBanner remain defined but unused. */
+    /* === The sector page reads as four arcs ==========================
+       A. Context      — what this sector is, and what is acting on it now
+       B. The Pool     — its structure, then the chart of that structure
+       C. Who owns it  — one company grid, annotating the chart above
+       D. Flow         — how the sector actually trades
+       Ten stacked sections became four because they had drifted into
+       restating each other: HHI/CR4 was quoted in three of them, the
+       blended margin in three, and three separate card grids listed
+       largely the same companies. Every section stays conditional, so a
+       sector with thin data drops blocks rather than rendering empties. */
     var primerHtml=renderPoolPrimer(sec);
-    var descHtml=renderPoolDescription(sec);
-    var insightsHtml=renderPoolInsights(sec);
     var macroHtml=renderPoolMacroOutlook(sec);
     var signalsHtml=renderPoolSectorSignals(sec);
+    var structureHtml=renderPoolStructure(sec);
+    var companiesHtml=renderPoolCompanies(sec,cos);
     var liquidityHtml=renderPoolLiquidityInsights(sec);
-    var playersHtml=renderPoolKeyPlayers(sec);
-    var cr4Html=renderPoolCR4Companies(sec);
-    /* Per-sector price chart removed — see Overview tab's
-       Sector vs. S&P 500 chart for the cross-sector comparison. */
+
+    /* --- A. Context ------------------------------------------------- */
     if(primerHtml){
       chartHtml+='<div class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
-    }
-    if(descHtml){
-      chartHtml+='<div class="pp-section pp-desc"><span class="pp-section-label">Overview</span>'+descHtml+'</div>';
-    }
-    if(insightsHtml){
-      chartHtml+='<div class="pp-section pp-insights"><span class="pp-section-label">Structural Insights</span>'+insightsHtml+'</div>';
     }
     /* Top-down before bottom-up: the macro regime's read on this sector
        (from the Claude macro narrative) sits directly above the sector's
@@ -10009,67 +9527,23 @@ function renderPool(){
     if(signalsHtml){
       chartHtml+='<div class="pp-section pp-signals"><span class="pp-section-label">Sector Headwinds &amp; Tailwinds</span>'+signalsHtml+'</div>';
     }
-    if(liquidityHtml){
-      chartHtml+='<div class="pp-section pp-liquidity"><span class="pp-section-label">Liquidity Insights</span>'+liquidityHtml+'</div>';
+
+    /* --- B. The Pool ------------------------------------------------
+       The chart follows the prose that describes it; they used to sit
+       four sections apart. */
+    if(structureHtml){
+      chartHtml+='<div class="pp-section pp-structure"><span class="pp-section-label">Profit Pool Structure</span>'+structureHtml+'</div>';
     }
     chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Analysis</span><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#90a4ae"></span>Others (pooled tail)</span></div><span style="font-size:0.7em;color:#aaa">Bar width &prop; &radic;revenue share (top 25 by revenue shown; remainder pooled as Others) &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>';
 
-    if(playersHtml){
-      chartHtml+='<div class="pp-section pp-players"><span class="pp-section-label">Company Highlights</span>'+playersHtml+'</div>';
+    /* --- C. Who Owns the Pool --------------------------------------- */
+    if(companiesHtml){
+      chartHtml+='<div class="pp-section pp-companies"><span class="pp-section-label">Who Owns the Pool</span>'+companiesHtml+'</div>';
     }
-    if(cr4Html){
-      chartHtml+='<div class="pp-section pp-cr4"><span class="pp-section-label">CR4 Companies</span>'+cr4Html+'</div>';
-    }
-    var topRated=cos.slice().filter(function(d){return d._composite_score!=null;}).sort(function(a,b){return(b._composite_score||0)-(a._composite_score||0);}).slice(0,5);
-    if(topRated.length){
-      /* Build a brief, metric-driven prose blurb per card — frames
-         valuation (MoS) and quality (ROIC × economic spread) in one
-         sentence so the card reads as analysis, not raw chips. */
-      var _topNote=function(d){
-        var parts=[];
-        if(d.mos!=null){
-          var m=d.mos;
-          if(m>0.30)parts.push('Deeply discounted to DCF fair value ('+(m*100).toFixed(0)+'% MoS)');
-          else if(m>0.15)parts.push('Trades '+(m*100).toFixed(0)+'% below fair value');
-          else if(m>0)parts.push('Slight discount to fair value ('+(m*100).toFixed(0)+'% MoS)');
-          else parts.push('Trades above DCF fair value');
-        }
-        if(d.roic!=null && d.spread!=null){
-          if(d.roic>0.20 && d.spread>0.10)parts.push('high-quality compounder earning '+(d.roic*100).toFixed(0)+'% ROIC on '+(d.spread*100).toFixed(0)+'pp of economic spread');
-          else if(d.spread>0)parts.push('positive '+(d.spread*100).toFixed(0)+'pp economic spread on '+(d.roic*100).toFixed(0)+'% ROIC');
-          else parts.push((d.roic*100).toFixed(0)+'% ROIC but returns trail cost of capital');
-        } else if(d.roic!=null){
-          if(d.roic>0.20)parts.push('strong '+(d.roic*100).toFixed(0)+'% returns on invested capital');
-          else parts.push((d.roic*100).toFixed(0)+'% ROIC');
-        }
-        if(!parts.length)return '';
-        var s=parts.join('; ');
-        return s.charAt(0).toUpperCase()+s.slice(1)+'.';
-      };
-      var topCards=topRated.map(function(d){
-        var tk=d.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var col=RC[d.rating]||'#888';
-        var scoreNum=d._composite_score;
-        var scoreText=(scoreNum!=null)?Math.round(scoreNum)+'':'';
-        var scoreCol=cc(scoreNum);
-        var card='';
-        card+='<div onclick="openDet(\''+tk+'\')" style="cursor:pointer;background:white;border-left:4px solid '+col+';border-radius:5px;padding:9px 12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);border-top:1px solid #eef1f4;border-right:1px solid #eef1f4;border-bottom:1px solid #eef1f4;font-size:0.82em;line-height:1.55;color:#37474f;transition:transform 0.1s,box-shadow 0.1s" onmouseenter="this.style.transform=\'translateY(-1px)\';this.style.boxShadow=\'0 3px 8px rgba(0,0,0,0.1)\'" onmouseleave="this.style.transform=\'none\';this.style.boxShadow=\'0 1px 4px rgba(0,0,0,0.06)\'">';
-        card+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
-        card+='<span style="display:flex;align-items:center;gap:6px"><span style="font-weight:700;color:#1a252f">'+_esc(d.ticker)+'</span>'+_revHtml(d.ticker)+_starHtml(d.ticker)+(d.company_name?' <span style="font-weight:400;color:#888;font-size:0.9em">'+_esc(d.company_name).slice(0,24)+'</span>':'')+'</span>';
-        card+='<span style="font-size:0.75em;font-weight:700;color:white;background:'+scoreCol+';padding:2px 8px;border-radius:10px;letter-spacing:0.02em">'+scoreText+'</span>';
-        card+='</div>';
-        var chips=[];
-        chips.push('<span style="background:'+col+';color:white;padding:1px 6px;border-radius:3px;font-weight:700">'+_esc(d.rating||'')+'</span>');
-        if(d.mos!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">MoS '+fp(d.mos)+'</span>');
-        if(d.roic!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">ROIC '+fp(d.roic)+'</span>');
-        if(d.spread!=null)chips.push('<span style="background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f">Spread '+fp(d.spread)+'</span>');
-        card+='<div style="font-size:0.72em;margin-bottom:5px;display:flex;gap:4px;flex-wrap:wrap">'+chips.join('')+'</div>';
-        var note=_topNote(d);
-        if(note)card+='<div style="color:#455a64">'+_esc(note)+'</div>';
-        card+='</div>';
-        return card;
-      }).join('');
-      chartHtml+='<div class="pp-section pp-top"><span class="pp-section-label">Top 5 by Model Score</span><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px">'+topCards+'</div></div>';
+
+    /* --- D. Flow ---------------------------------------------------- */
+    if(liquidityHtml){
+      chartHtml+='<div class="pp-section pp-liquidity"><span class="pp-section-label">Liquidity &amp; Flow</span>'+liquidityHtml+'</div>';
     }
     chartHtml+='</div>';
     /* Per-sector summary tableRows removed: rows were only built when a
@@ -10079,19 +9553,6 @@ function renderPool(){
        summary is rendered by renderCrossSectorDashboard on the Overview. */
   });
   document.getElementById('pool-chart-area').innerHTML=chartHtml||'<p style="color:#999;padding:20px;font-size:0.9em">No profit pool data available.</p>';
-  function _syncScatter(){
-    var sw=document.getElementById('xsect-scatter-wrap');
-    if(!sw||!window._xsStats)return;
-    var W=Math.floor(sw.getBoundingClientRect().width)||800;
-    var H=380;
-    sw.style.marginLeft='0';
-    sw.innerHTML=_buildScatterSVG(W,H);
-  }
-  setTimeout(_syncScatter,0);
-  window.addEventListener('resize',_syncScatter);
-  /* pool-sector-table slot stays empty: the Sector Summary table it once held
-     only ever rendered on the retired __all__ (Overview) sub-tab. */
-  document.getElementById('pool-sector-table').innerHTML='';
 }
 function ppTip(e,ticker){
   if(_isTouchDevice)return;

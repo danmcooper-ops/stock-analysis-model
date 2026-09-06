@@ -842,20 +842,6 @@ _SECTOR_EDUCATION = {
             'the NOI-minus-financing equation.'
         ),
     },
-    'Consumer Staples': {
-        'model': (
-            'Consumer Staples (same playbook as Consumer Defensive) relies on '
-            'repeat purchase and brand loyalty for pricing power. Volume growth '
-            'is anemic, so returns come from taking price, expanding internationally, '
-            'and disciplined cost control.'
-        ),
-        'cycle': (
-            'Defensive and late-cycle. The sector rotates in as the cycle matures '
-            'and investors prioritize earnings stability over growth, and lags '
-            'whenever risk assets are bid. A dollar-denominated profit base also '
-            'makes FX and commodity input costs a meaningful swing factor.'
-        ),
-    },
 }
 
 
@@ -1517,12 +1503,16 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
 
     Returns:
         dict with keys:
-            overview:      str — 2–3 sentence framing of the pool size & shape
+            overview:      str — 1–2 sentence framing of the pool size & shape
             concentration: str — HHI/CR4 interpretation sentence
-            key_players:   list[dict] — up to 5 notable companies, each with
-                           {ticker, company_name, role, role_label, note,
-                            rating, profit_share, op_margin, pp_multiple}
-            insights:      list[str] — 3–5 strategic bullets about the pool
+            key_players:   list[dict] — one entry per notable company, each
+                           with {ticker, company_name, rating, profit_share,
+                           revenue_share, op_margin, pp_multiple} plus a
+                           `roles` list of {role, role_label, note} holding
+                           every role that company earns
+            cr4_companies: list[dict] — top 4 by revenue share, each with a
+                           `rank` that is None when the sector has no CR4
+            insights:      list[str] — up to 4 strategic bullets about the pool
 
         or None if the sector has no usable profit pool data.
     """
@@ -1611,25 +1601,30 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
             f"of the pool on {(top1.get('pp_revenue_share') or 0)*100:.0f}% "
             f"of the revenue, setting the pace for the group."
         )
-    if len(by_profit) >= 3 and top3_profit_share > 0:
-        overview_parts.append(
-            f'The top three names together account for '
-            f'{top3_profit_share*100:.0f}% of profits from '
-            f'{top3_rev_share*100:.0f}% of the revenue — '
-            + ('a lopsided pool where scale and pricing power compound.'
-               if top3_profit_share > top3_rev_share + 0.05
-               else 'roughly proportional to their revenue footprint.')
-        )
+    # The top-3 profit-vs-revenue split is deliberately NOT restated here:
+    # the pool-skew insight below quotes both numbers together with the
+    # reading that makes them mean something. One statement, one place.
     overview = ' '.join(overview_parts)
 
     # ----- CONCENTRATION -----
+    # This sentence is the ONLY place the HHI/CR4 reading is spelled out. The
+    # header band already prints the raw figures, so the structural insights
+    # below no longer restate the threshold — what used to be a separate
+    # "oligopoly in practice" bullet now rides here as `tell`, the half that
+    # said something the label did not.
     concentration = ''
     if hhi is not None:
+        tell = ''
         if hhi > 0.25:
             label = 'concentrated'
             gloss = (
                 'a small number of players set price and earn most of the profits; '
                 'new entrants face a steep climb.'
+            )
+            tell = (
+                ' Rational competitors avoid price wars because everyone loses, so '
+                'watch coordinated capacity discipline and share-buyback intensity '
+                'as the signs incumbents are playing the long game.'
             )
         elif hhi > 0.15:
             label = 'moderately concentrated'
@@ -1643,10 +1638,17 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
                 'fragmentation keeps pricing honest and makes the pool hard to defend; '
                 'margin discipline matters more than scale.'
             )
+            if hhi < 0.10:
+                tell = (
+                    ' At this level of fragmentation consolidation is usually the '
+                    'fastest path to value creation — an acquirer with the balance '
+                    'sheet can collapse the cost curve and re-rate the pool.'
+                )
         concentration = (
             f'HHI of {hhi:.3f} flags the sector as {label}'
             + (f' with the top 4 capturing {cr4*100:.0f}% of revenue — {gloss}'
                if cr4 is not None else f' — {gloss}')
+            + tell
         )
     elif cr4 is not None:
         concentration = (
@@ -1655,84 +1657,83 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
         )
 
     # ----- KEY PLAYERS -----
+    # One entry per company, carrying every role it earns. The same name
+    # routinely leads on profit AND margin AND efficiency; the list used to
+    # drop the second and third of those on the floor (first role wins,
+    # later ones skipped), which lost real signal. The client renders each
+    # entry as one card with a badge per role.
     key_players = []
-    seen = set()
+    _by_ticker = {}
 
     def _add_player(r, role, role_label, note):
-        if r is None or r['ticker'] in seen:
+        if r is None:
             return
-        seen.add(r['ticker'])
-        key_players.append({
-            'ticker': r['ticker'],
-            'company_name': r.get('company_name', ''),
+        _entry = _by_ticker.get(r['ticker'])
+        if _entry is None:
+            _entry = {
+                'ticker': r['ticker'],
+                'company_name': r.get('company_name', ''),
+                'roles': [],
+                'rating': r.get('rating'),
+                'profit_share': r.get('pp_profit_share'),
+                'revenue_share': r.get('pp_revenue_share'),
+                'op_margin': r.get('operating_margin'),
+                'pp_multiple': r.get('pp_multiple'),
+            }
+            _by_ticker[r['ticker']] = _entry
+            key_players.append(_entry)
+        _entry['roles'].append({
             'role': role,
             'role_label': role_label,
             'note': note,
-            'rating': r.get('rating'),
-            'profit_share': r.get('pp_profit_share'),
-            'revenue_share': r.get('pp_revenue_share'),
-            'op_margin': r.get('operating_margin'),
-            'pp_multiple': r.get('pp_multiple'),
         })
 
+    # The profit share, operating margin and profit-pool multiple quoted in
+    # these notes used to sit right next to chips showing the same figures on
+    # the same card. The chips keep the numbers; the notes say what they mean.
     # Profit leader
     if by_profit:
-        r = by_profit[0]
-        ps = (r.get('pp_profit_share') or 0) * 100
         _add_player(
-            r, 'leader', 'Profit Leader',
-            f"Captures {ps:.0f}% of the sector's operating income — "
-            f"the center of gravity for the profit pool."
+            by_profit[0], 'leader', 'Profit Leader',
+            "The center of gravity for the sector's profit pool."
         )
     # Runner-up
     if len(by_profit) >= 2:
-        r = by_profit[1]
-        ps = (r.get('pp_profit_share') or 0) * 100
         _add_player(
-            r, 'runnerup', 'Runner-Up',
-            f"Holds {ps:.0f}% of sector profits, the clear number-two position."
+            by_profit[1], 'runnerup', 'Runner-Up',
+            'The clear number-two claim on sector profits.'
         )
-    # Margin leader (if not already in the list)
+    # Margin leader
     if by_margin:
-        r = by_margin[0]
-        om = (r.get('operating_margin') or 0) * 100
         _add_player(
-            r, 'margin_leader', 'Margin Leader',
-            f"Runs the sector's fattest operating margin at {om:.1f}%, "
-            f"signaling pricing power or cost discipline the rest can't match."
+            by_margin[0], 'margin_leader', 'Margin Leader',
+            "Runs the sector's fattest operating margin, signalling pricing "
+            "power or cost discipline the rest can't match."
         )
     # Value capture efficiency leader (pp_multiple)
     if by_multiple:
-        r = by_multiple[0]
-        m = r.get('pp_multiple') or 0
         _add_player(
-            r, 'efficiency', 'Efficiency Leader',
-            f"Turns each dollar of revenue into {m:.2f}x its share of sector "
-            f"profits — the most capital-efficient slice of the pool."
+            by_multiple[0], 'efficiency', 'Efficiency Leader',
+            'Converts revenue into profit more efficiently than anyone else '
+            'in the pool.'
         )
     # Margin laggard (highlight the tail risk)
     if by_margin and len(by_margin) >= 3:
         r = by_margin[-1]
-        om = (r.get('operating_margin') or 0) * 100
         # Only flag if it's meaningfully below the weighted average
         if (r.get('operating_margin') or 0) < wtd_margin - 0.05:
             _add_player(
                 r, 'laggard', 'Margin Laggard',
-                f"Operates at {om:.1f}% — well below the sector's "
-                f"{wtd_margin*100:.1f}% blended margin, hinting at a structural "
-                f"disadvantage or a turnaround still in progress."
+                "Operates well below the sector's blended margin, hinting at "
+                "a structural disadvantage or a turnaround still in progress."
             )
 
-    # Pad to exactly 4 using remaining top-profit companies
-    for r in by_profit:
-        if len(key_players) >= 4:
-            break
-        if r['ticker'] in seen:
-            continue
-        ps = (r.get('pp_profit_share') or 0) * 100
-        _add_player(r, 'notable', 'Notable Player',
-                    f"Holds {ps:.0f}% of sector profits.")
-    key_players = key_players[:4]
+    # No padding and no truncation. The list used to be forced to exactly
+    # four, which both invented 'Notable Player' filler cards for thin
+    # sectors and — because the Margin Laggard is appended fifth — dropped
+    # the one downside role almost every time. The client renders these as
+    # badges on a single company grid, so a short list simply means fewer
+    # badges, not a gap to fill.
 
     # ----- INSIGHTS -----
     insights = []
@@ -1775,37 +1776,24 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
                 f"and capital allocation, not cost structure."
             )
 
-    # 3) Concentration-linked insight
-    if hhi is not None:
-        if hhi > 0.25:
-            insights.append(
-                "With HHI above 0.25, this is an oligopoly in practice: "
-                "rational competitors avoid price wars because everyone loses. "
-                "Watch for coordinated capacity discipline and share-buyback "
-                "intensity as signs the incumbents are playing the long game."
-            )
-        elif hhi < 0.10:
-            insights.append(
-                "The fragmented structure (HHI < 0.10) makes this a sector "
-                "where consolidation is usually the fastest path to value "
-                "creation — an acquirer with the balance sheet can collapse "
-                "the cost curve and re-rate the pool."
-            )
+    # (The concentration-linked bullet that used to sit here was folded into
+    # the `concentration` sentence above — it restated an HHI threshold the
+    # header band and that sentence both already carry.)
 
-    # 4) Blended margin quality
+    # 3) Blended margin quality. The figure itself is stated once, in the
+    #    overview sentence above; these bullets carry only the verdict.
     if wtd_margin >= 0.20:
         insights.append(
-            f"A blended {wtd_margin*100:.1f}% operating margin puts the sector "
-            f"in rarefied air — pricing power is the default, not the exception, "
-            f"and the only question is whether customer value grows fast enough "
-            f"to justify current multiples."
+            "That blended margin puts the sector in rarefied air — pricing "
+            "power is the default, not the exception, and the only question is "
+            "whether customer value grows fast enough to justify current "
+            "multiples."
         )
     elif wtd_margin < 0.08 and wtd_margin > 0:
         insights.append(
-            f"Blended margins of just {wtd_margin*100:.1f}% mean the pool is "
-            f"thin: a single cycle turn or input-cost shock can wipe out a "
-            f"year's earnings, so balance-sheet strength matters more than "
-            f"top-line growth."
+            "Margins that thin mean the pool has no cushion: a single cycle "
+            "turn or input-cost shock can wipe out a year's earnings, so "
+            "balance-sheet strength matters more than top-line growth."
         )
     elif wtd_margin <= 0:
         insights.append(
@@ -1814,7 +1802,7 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
             "to own only the producer that can outlast the others."
         )
 
-    # 5) Efficiency spread (pp_multiple)
+    # 4) Efficiency spread (pp_multiple)
     if len(by_multiple) >= 2:
         best_mult = by_multiple[0].get('pp_multiple') or 0
         worst_mult = by_multiple[-1].get('pp_multiple') or 0
@@ -1826,8 +1814,9 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
                 f"toward the efficient operator, and weak hands eventually exit."
             )
 
-    # Cap insights at 5
-    insights = insights[:5]
+    # Cap insights at 4 (one of the original five was folded into the
+    # concentration sentence).
+    insights = insights[:4]
 
     _edu = _SECTOR_EDUCATION.get(sector)
     if isinstance(_edu, dict):
@@ -1841,34 +1830,40 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
         education_cycle = None
     # Top 4 by revenue share
     by_rev = sorted(cos, key=lambda r: r.get('pp_revenue_share') or 0, reverse=True)
-    _rank_labels = ['Largest player', 'Second-largest', 'Third-largest', 'Fourth-largest']
     cr4_companies = []
     for _i, r in enumerate(by_rev[:4]):
         _rev_share = r.get('pp_revenue_share')
         _opm = r.get('operating_margin')
         _mult = r.get('pp_multiple')
         _ma = r.get('pp_margin_advantage')
-        _parts = [_rank_labels[_i] + ' by revenue'
-                  + (f' ({_rev_share*100:.0f}% of sector)' if _rev_share else '')]
+        # The rank itself is the card's badge and the revenue share and
+        # multiple are its chips, so this note carries only the margin
+        # comparison — the one reading nothing else on the card shows.
+        _parts = []
         if _ma is not None:
             if _ma > 0.03:
-                _parts.append(f'margin runs {_ma*100:.1f}pp above sector median')
+                _parts.append(f'Margin runs {_ma*100:.1f}pp above the sector median')
             elif _ma < -0.03:
-                _parts.append(f'margin trails sector median by {abs(_ma)*100:.1f}pp')
+                _parts.append(f'Margin trails the sector median by {abs(_ma)*100:.1f}pp')
             else:
-                _parts.append('margin is near the sector median')
+                _parts.append('Margin sits near the sector median')
         if _mult is not None:
             if _mult >= 1.2:
-                _parts.append(f'captures profit disproportionately ({_mult:.2f}x share)')
+                _parts.append('captures profit disproportionately for its size')
             elif _mult <= 0.8:
-                _parts.append(f'under-earns its size ({_mult:.2f}x profit-to-revenue ratio)')
+                _parts.append('under-earns its size')
         cr4_companies.append({
             'ticker': r['ticker'],
             'company_name': r.get('company_name', ''),
             'revenue_share': _rev_share,
             'op_margin': _opm,
             'rating': r.get('rating'),
-            'note': '; '.join(_parts) + '.',
+            'note': ('; '.join(_parts) + '.') if _parts else '',
+            # Rank is only meaningful when the sector actually has a CR4.
+            # analyze_stock only computes one at >=3 tickers, and the client
+            # hides the "#N by revenue" badge when this is None so the cards
+            # and the header band can never disagree.
+            'rank': (_i + 1) if cr4 is not None else None,
         })
 
     return {
