@@ -20,6 +20,43 @@ You are running the end-of-day stock analysis routine. Execute the following ste
 ## IMPORTANT: Command format
 All Python script invocations **must be sent as a single-line semicolon-separated Bash command** (not multi-line). This is required for permission matching to work. Use the exact format shown in each step below.
 
+## Preflight: skip the run entirely if the market was closed
+
+**Run this before Step 0 and before anything else.** On a day the US equity
+market never opened there are no new bars, so the whole 3-6 hour pipeline would
+re-publish the previous session's data under a new date and add a
+duplicate-content day to the `data/snapshots` corpus the weekly backtest
+calibrates on. Run as a **single Bash call**:
+```
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/market_open.py; echo "market_open exit=$?"
+```
+`scripts/market_open.py` computes the NYSE calendar from the exchange's rules
+(no network, no dependency beyond the standard library) and prints a one-line
+verdict. **Act on the exit code, not the wording:**
+
+| exit | meaning | what to do |
+|---|---|---|
+| `0` | the market traded today | continue to Step 0 and run the routine normally |
+| `10` | weekend, holiday or known ad-hoc closure | **stop here.** Report "market closed — run skipped" plus the printed reason as the entire run summary. Do not run any later step, do not archive a snapshot, do not publish. |
+| anything else | the gate itself failed | **continue the run anyway** and flag the gate failure in the run summary |
+
+That last row is deliberate: failing open means a bug in the gate costs one
+wasted run, whereas failing closed would silently stop the daily corpus from
+growing for weeks — the opposite of what this project exists to do. Only `10`
+means skip.
+
+The task's cron is `0 16 * * 1-5`, so weekends never fire and the holiday check
+is what this actually buys. Bitten twice: a snapshot exists for **2026-07-03**
+(observed Independence Day) and the **2026-09-07** Labor Day run was killed
+manually at Step 0.
+
+Unscheduled closures — national days of mourning, hurricanes — cannot be derived
+from a rule and live in `AD_HOC_CLOSURES` in that script. That table is the one
+part that goes stale; if the exchange announces a closure of that kind, add the
+date there. Early-close sessions (the day after Thanksgiving, Christmas Eve) are
+**not** closures: the market trades, bars are produced, and the run should go
+ahead as normal.
+
 ## Steps
 
 ### 0. Refresh the price cache
@@ -207,6 +244,11 @@ Note that the publish routine uses the **run-START date** (RUNDATE), not `$(date
 This is run as the final step of the analysis routine, but the publish routine is a **separate failure surface**: if it fails, the analysis itself is still considered successful (today's JSON and HTML exist locally and the snapshot has been pushed). Report the publish failure but do not retroactively fail the analysis run. The publish routine can be re-invoked manually to retry without re-running analysis.
 
 ## Success criteria
+A run the preflight skipped (`market_open.py` exit 10) is a **success**, and the
+criteria below do not apply to it — the correct and complete output for a closed
+day is the one-line "market closed — run skipped" summary. Everything below
+applies only to a run that got past the preflight.
+
 - `output/stock_analysis_results_YYYY-MM-DD.html` was created today
 - `results_YYYY-MM-DD.json.gz` was archived to `data/snapshots` and pushed, with the archive script exiting 0 and under its size guard
 - Gate N/A coverage table (per-gate N/A % + deltas) is included in the run summary, with any ⚠ JUMP flags called out
