@@ -1712,9 +1712,9 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .flag-star.flagged{color:#ff8c00 !important;}
 [data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:rgba(255,255,255,0.72) !important;opacity:1;}
 [data-theme="dark"] select option{background:#0d1117 !important;color:#fff !important;}
-[data-theme="dark"] .rev-chk:not(.checked),[data-theme="dark"] .rev-chk-det:not(.checked),[data-theme="dark"] #f-reviewed{color:#fff !important;--chk-border:#fff;--chk-mark:#fff;}
+[data-theme="dark"] .rev-chk:not(.checked),[data-theme="dark"] .rev-chk-det:not(.checked),[data-theme="dark"] #f-reviewed,[data-theme="dark"] #f-unreviewed{color:#fff !important;--chk-border:#fff;--chk-mark:#fff;}
 [data-theme="dark"] .rev-chk:not(.checked):hover,[data-theme="dark"] .rev-chk-det:not(.checked):hover{--chk-border:#fff;--chk-mark:#fff;}
-[data-theme="dark"] #f-reviewed svg,[data-theme="dark"] #f-reviewed span{color:#fff !important;}
+[data-theme="dark"] #f-reviewed svg,[data-theme="dark"] #f-reviewed span,[data-theme="dark"] #f-unreviewed svg,[data-theme="dark"] #f-unreviewed span{color:#fff !important;}
 [data-theme="dark"] td.gp,[data-theme="dark"] td.sg,[data-theme="dark"] .gv-v.pass,[data-theme="dark"] [style*="color:#1a9850"],[data-theme="dark"] [style*="color:#27ae60"],[data-theme="dark"] [style*="color:#2e7d48"]{color:#7ee787 !important;}
 [data-theme="dark"] td.gf,[data-theme="dark"] td.sp,[data-theme="dark"] .gv-v.fail,[data-theme="dark"] [style*="color:#de2d26"],[data-theme="dark"] [style*="color:#e74c3c"],[data-theme="dark"] [style*="color:#c0392b"]{color:#ff7b72 !important;}
 [data-theme="dark"] td.sm,[data-theme="dark"] [style*="color:#fd8d3c"],[data-theme="dark"] [style*="color:#e67e22"]{color:#ffd33d !important;}
@@ -2105,11 +2105,12 @@ body.wide-table .container{padding-left:0;padding-right:0;}
                    (pointer-events:none, synced by _syncQfChecks from the
                    real state vars) — the whole row stays the click target
                    and the existing toggle handlers stay the state owners.
-                   All unchecked by default. The Reviewed button's mode word
-                   lives in #f-reviewed-label so cycling the 3-state filter
-                   swaps the text without rebuilding the button's DOM. -->
+                   All unchecked by default. Reviewed/Unreviewed are a
+                   mutually-exclusive pair over one state var, the same shape
+                   as Upgrades/Downgrades below. -->
               <div class="qf-menu">
-                <button class="fpop-toggle-btn" id="f-reviewed" onclick="cycleRevFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true"><span id="f-reviewed-label">Reviewed</span><span id="rev-count-label"></span></button>
+                <button class="fpop-toggle-btn" id="f-reviewed" onclick="setRevFilter(2)" title="Only stocks you have marked reviewed (&check;). Marks are saved in this browser's local storage."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Reviewed<span id="rev-count-label"></span></button>
+                <button class="fpop-toggle-btn" id="f-unreviewed" onclick="setRevFilter(1)" title="Only stocks you have not marked reviewed — what is still left to work through."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Unreviewed</button>
                 <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Flagged<span class="flag-count" id="flag-count-label"></span></button>
                 <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Founder-Led</button>
                 <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3)."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Blue Chip</button>
@@ -2683,7 +2684,8 @@ function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.get
    which every toggle / clear / preset / hash-restore path funnels through,
    so the boxes can never drift from the state. All off by default. */
 function _syncQfChecks(){
-  var m={'f-reviewed':_revFilter>0,'f-flagged':_flagOnly,'f-founder':_founderOnly,
+  var m={'f-reviewed':_revFilter===2,'f-unreviewed':_revFilter===1,
+         'f-flagged':_flagOnly,'f-founder':_founderOnly,
          'f-bluechip':_blueChipOnly,'f-r2000':_r2000Only,
          'f-upgrades':_rcFilter===1,'f-downgrades':_rcFilter===2};
   Object.keys(m).forEach(function(id){
@@ -2699,19 +2701,25 @@ _updateFlagCount();
 var _CHK_SVG='<svg viewBox="0 0 22 22" style="width:1.4em;height:1.4em;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="var(--chk-bg,none)" stroke="var(--chk-border,currentColor)" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="var(--chk-mark,currentColor)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 var _REV_KEY='stock_reviewed_v1';
 var _revd=(function(){try{return JSON.parse(localStorage.getItem(_REV_KEY))||{};}catch(e){return{};}})();
-var _revFilter=0; /* 3-state: 0=show all (Reviewed label, grayed),
-                                 1=unreviewed only (active blue),
-                                 2=reviewed only (active blue) */
+var _revFilter=0; /* 0=show all, 1=unreviewed only, 2=reviewed only.
+                     Two mutually-exclusive buttons drive it (same shape as
+                     Upgrades/Downgrades); clicking the active one turns the
+                     filter off. The numbering predates the split and is kept
+                     so filter-hash URLs shared from older reports still
+                     restore to the mode they were saved in. */
 function _saveRevd(){try{localStorage.setItem(_REV_KEY,JSON.stringify(_revd));}catch(e){}}
 function isReviewed(tk){return !!_revd[tk];}
 function toggleReviewed(tk,e){if(e)e.stopPropagation();_revd[tk]?delete _revd[tk]:_revd[tk]=1;_saveRevd();_updateRevCount();applyFilters();}
 function _syncRevDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;var c=isReviewed(tk)?'rev-chk-det checked':'rev-chk-det';['d-rev','d-rev2'].forEach(function(id){var el=document.getElementById(id);if(el){el.className=c;el.innerHTML=_CHK_SVG;el.title=isReviewed(tk)?'Reviewed — click to unmark':'Mark as reviewed';}});}
 function toggleReviewedDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;toggleReviewed(tk);_syncRevDet();}
-/* The mode word swaps in place (the button DOM is static now — it holds
-   the qf-chk checkbox and the reviewed count span, which an innerHTML
-   rewrite would destroy). */
-function _setRevLabel(){var s=document.getElementById('f-reviewed-label');if(s)s.textContent=(['Reviewed','Unreviewed','Reviewed'])[_revFilter];}
-function cycleRevFilter(){_revFilter=(_revFilter+1)%3;var el=document.getElementById('f-reviewed');el.classList.toggle('active',_revFilter>0);_setRevLabel();applyFilters();}
+/* Light both buttons off the one state var. Kept separate from setRevFilter
+   because the restore and clear paths set _revFilter directly. */
+function _syncRevBtns(){
+  var r=document.getElementById('f-reviewed'),u=document.getElementById('f-unreviewed');
+  if(r)r.classList.toggle('active',_revFilter===2);
+  if(u)u.classList.toggle('active',_revFilter===1);
+}
+function setRevFilter(v){_revFilter=(_revFilter===v)?0:v;_syncRevBtns();applyFilters();}
 function _updateRevCount(){var n=Object.keys(_revd).length;var el=document.getElementById('rev-count-label');if(el)el.textContent=n>0?' ('+n+')':'';}
 function clearAllReviewed(){if(!Object.keys(_revd).length)return;if(!confirm('Clear all '+Object.keys(_revd).length+' reviewed checkmarks?'))return;_revd={};_saveRevd();_updateRevCount();_syncRevDet();applyFilters();}
 function _revHtml(tk){var c=isReviewed(tk);return '<span class="rev-chk'+(c?' checked':'')+'" onclick="toggleReviewed(\''+tk.replace(/'/g,"\\'")+'\',event)" title="'+(c?'Reviewed — click to unmark':'Mark as reviewed')+'">'+_CHK_SVG+'</span>';}
@@ -2795,8 +2803,7 @@ function _applyFilterState(st){
   _blueChipOnly=!!st.blueChipOnly;document.getElementById('f-bluechip').classList.toggle('active',_blueChipOnly);
   _r2000Only=!!st.r2000Only;document.getElementById('f-r2000').classList.toggle('active',_r2000Only);
   _revFilter=st.revFilter|0;
-  var rEl=document.getElementById('f-reviewed');
-  if(rEl){rEl.classList.toggle('active',_revFilter>0);_setRevLabel();}
+  _syncRevBtns();
   _rcFilter=st.rcFilter|0;
   document.getElementById('f-upgrades').classList.toggle('active',_rcFilter===1);
   document.getElementById('f-downgrades').classList.toggle('active',_rcFilter===2);
@@ -3298,9 +3305,9 @@ function applyFilters(){
      filter, and each multi-select with anything deselected. The search
      counts because it lives INSIDE the panel — without a badge slot, a
      filtering search would be invisible while the panel is closed.
-     3-state Reviewed filter: state 0 (gray Reviewed) shows all and
-     doesn't count; states 1 (Unreviewed) and 2 (Reviewed) are active
-     filters. */
+     Reviewed/Unreviewed share one state var, so an engaged pair counts
+     once: state 0 shows all and doesn't count; states 1 (Unreviewed) and
+     2 (Reviewed) are active filters. */
   var fn=(toks.length?1:0)
         +(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)
         +(_revFilter>0?1:0)+(_rcFilter>0?1:0)
@@ -3487,7 +3494,7 @@ function clearFilters(){
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
   _blueChipOnly=false;document.getElementById('f-bluechip').classList.remove('active');
   _r2000Only=false;document.getElementById('f-r2000').classList.remove('active');
-  _revFilter=0;var rEl=document.getElementById('f-reviewed');if(rEl){rEl.classList.remove('active');_setRevLabel();}
+  _revFilter=0;_syncRevBtns();
   _rcFilter=0;document.getElementById('f-upgrades').classList.remove('active');document.getElementById('f-downgrades').classList.remove('active');
   _revd={};_saveRevd();_updateRevCount();
   applyFilters();
