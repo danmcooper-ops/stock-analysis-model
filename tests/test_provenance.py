@@ -180,3 +180,48 @@ def test_library_versions_never_raises():
 
 def test_stale_threshold_is_sane_for_daily_pipeline():
     assert 0 < STALE_CACHE_DAYS < 30
+
+
+# ======================================================================
+# Run-quality summary: Phase-2 drops must be visible
+# ======================================================================
+
+class TestPhase2SkipVisibility:
+    """A ticker dropped in Phase 2 leaves no trace in the snapshot.
+
+    The gate N/A report only describes rows that made it into the results
+    JSON, so a cohort failing out earlier is invisible to it — that is how
+    235 foreign filers left the 2026-09-08 run unnoticed. The run-quality
+    summary is the one place the loss can surface.
+    """
+
+    def _summary_logs(self, caplog, events):
+        import logging
+        from scripts.analyze_stock import _run_quality_summary
+
+        prov = ProvenanceRecorder(date(2026, 9, 8))
+        for ticker in events:
+            prov.record_event('phase2_skip', ticker, 'roic_wacc',
+                              {'reason': 'ROIC or WACC unavailable'})
+
+        class _Counter:
+            total = 0
+            fabricated = 0
+
+        with caplog.at_level(logging.WARNING, logger='analyze_stock'):
+            _run_quality_summary(0.0481, 'live', _Counter(), prov)
+        return caplog.text
+
+    def test_phase2_skips_are_reported(self, caplog):
+        text = self._summary_logs(caplog, ['ASML', 'AZN', 'BP'])
+        assert '3 ticker(s) dropped in Phase 2' in text
+        assert 'ASML' in text and 'AZN' in text
+
+    def test_no_warning_when_nothing_was_skipped(self, caplog):
+        text = self._summary_logs(caplog, [])
+        assert 'dropped in Phase 2' not in text
+
+    def test_ticker_list_is_truncated(self, caplog):
+        text = self._summary_logs(caplog, [f'T{i}' for i in range(25)])
+        assert '25 ticker(s) dropped in Phase 2' in text
+        assert ', ...' in text
