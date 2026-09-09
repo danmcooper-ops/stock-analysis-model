@@ -1,5 +1,6 @@
 # scripts/report_portfolio_html.py
 """Portfolio HTML report builder — renders the portfolio Jinja2 report."""
+import logging
 import os
 from html import escape
 from datetime import date
@@ -8,6 +9,8 @@ import jinja2
 import numpy as np
 
 from scripts.safe_json import dumps_for_script
+
+logger = logging.getLogger('report_portfolio_html')
 
 
 def _json_default(obj):
@@ -20,6 +23,13 @@ def _json_default(obj):
         return float(obj) if not np.isnan(obj) else None
     if isinstance(obj, np.ndarray):
         return obj.tolist()
+    if isinstance(obj, (complex, np.complexfloating)):
+        # Same narrow backstop as report_html._json_default: a complex value
+        # is an upstream arithmetic bug, and aborting the render loses far
+        # more than nulling the one cell that carries it.
+        logger.warning("portfolio payload: complex value %r coerced to null "
+                       "(upstream growth-rate guard missing)", obj)
+        return None
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
