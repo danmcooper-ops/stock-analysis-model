@@ -9,6 +9,9 @@ daily pipeline.
 | `publish-stock-report/SKILL.md` | Copies the five report artifacts into the `pages-live` worktree, amends its single commit, force-pushes to GitHub Pages |
 | `weekly-backtest/SKILL.md` | Weekly: refresh prices → forward-return backtest over the snapshot corpus → readiness census → commit the summary to `data/snapshots`. Measurement only; calibration stays off until `readiness` clears it |
 
+If the repo directory itself is gone — deleted, moved or restored from a
+backup — see `RECOVERY.md` in this directory for the full rebuild.
+
 ## These ARE the live files (symlinked since 2026-08-10)
 
 `~/.claude/scheduled-tasks/daily-stock-analysis` and
