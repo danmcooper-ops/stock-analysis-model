@@ -4107,7 +4107,14 @@ def _run_narratives(results, args, sector_etf_data, macro_regime_result,
             earliest = rev_hist[years[0]]
             latest   = rev_hist[years[-1]]
             n_years  = years[-1] - years[0]
-            if earliest and latest and earliest > 0 and n_years > 0:
+            # BOTH endpoints must be positive. A negative latest-year revenue
+            # is real (HBNC booked -$27.0M for FY2025 on a securities-portfolio
+            # restructuring loss) and makes the ratio negative — and a negative
+            # base raised to a fractional power returns a COMPLEX number in
+            # Python 3 rather than raising, which then propagates all the way
+            # to the JSON writers. A CAGR across zero is undefined anyway, so
+            # the correct result is None.
+            if earliest and latest and earliest > 0 and latest > 0 and n_years > 0:
                 rpe_earliest = earliest / emp
                 rpe_latest   = latest   / emp
                 r['rpe_cagr'] = (rpe_latest / rpe_earliest) ** (1 / n_years) - 1
@@ -4375,6 +4382,60 @@ def _run_validation_stats(results, ms_pfv_data, args, screen_outcomes):
         _print_validation_stats(results, screen_outcomes)
 
 
+def _make_json_safe(val, _depth=0):
+    """Recursively convert a value to a JSON-safe structure (max depth 8)."""
+    if _depth > 8:
+        return None
+    # None and bool must come before int (bool is a subclass of int in Python)
+    if val is None or isinstance(val, bool):
+        return val
+    if isinstance(val, int):
+        return val
+    if isinstance(val, float):
+        # inf/nan are not valid JSON; replace with None (→ JSON null)
+        import math
+        return None if (math.isnan(val) or math.isinf(val)) else val
+    if isinstance(val, str):
+        return val
+    # numpy scalars — np.int64/int32 are NOT subclasses of int;
+    # np.float32 is NOT a subclass of float; handle explicitly
+    try:
+        import numpy as _np
+        if isinstance(val, _np.integer):
+            return int(val)
+        if isinstance(val, _np.floating):
+            v = float(val)
+            import math
+            return None if (math.isnan(v) or math.isinf(v)) else v
+        if isinstance(val, _np.bool_):
+            return bool(val)
+        if isinstance(val, _np.complexfloating):
+            val = complex(val)
+    except ImportError:
+        pass
+    # A complex value is always a bug upstream (a negative base raised to a
+    # fractional power — see the rpe_cagr guard in _run_narratives). The
+    # stringify fallthrough below would silently write
+    # "(-0.0877+0.2082j)" into a numeric field, which then poisons the
+    # snapshot store's typed column exactly the way a stringified
+    # "Infinity" once did. Null it and say so.
+    if isinstance(val, complex):
+        logger.warning("JSON writer: complex value %r coerced to null "
+                       "(upstream growth-rate guard missing)", val)
+        return None
+    if isinstance(val, dict):
+        return {str(k): _make_json_safe(v, _depth + 1) for k, v in val.items()}
+    if isinstance(val, (list, tuple)):
+        return [_make_json_safe(x, _depth + 1) for x in val]
+    # pandas Timestamp, Decimal, and other stringifiable types
+    try:
+        return str(val)
+    except Exception:
+        # Deliberately silent: per-value guard in the JSON writer;
+        # logging here could emit thousands of no-signal lines.
+        return None
+
+
 def _write_outputs(results, run_start_date, _prov, risk_free_rate,
                    risk_free_rate_source, macro_regime_result, macro_adj,
                    local_rs, prices_dir, sector_etf_data=None):
@@ -4386,47 +4447,6 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
     # Save results as JSON for backtesting pipeline. Written BEFORE the
     # HTML/Excel renders so the Phase-2 snapshot survives a render crash.
     json_filename = os.path.join("output", f"results_{run_start_date.isoformat()}.json")
-    def _make_json_safe(val, _depth=0):
-        """Recursively convert a value to a JSON-safe structure (max depth 8)."""
-        if _depth > 8:
-            return None
-        # None and bool must come before int (bool is a subclass of int in Python)
-        if val is None or isinstance(val, bool):
-            return val
-        if isinstance(val, int):
-            return val
-        if isinstance(val, float):
-            # inf/nan are not valid JSON; replace with None (→ JSON null)
-            import math
-            return None if (math.isnan(val) or math.isinf(val)) else val
-        if isinstance(val, str):
-            return val
-        # numpy scalars — np.int64/int32 are NOT subclasses of int;
-        # np.float32 is NOT a subclass of float; handle explicitly
-        try:
-            import numpy as _np
-            if isinstance(val, _np.integer):
-                return int(val)
-            if isinstance(val, _np.floating):
-                v = float(val)
-                import math
-                return None if (math.isnan(v) or math.isinf(v)) else v
-            if isinstance(val, _np.bool_):
-                return bool(val)
-        except ImportError:
-            pass
-        if isinstance(val, dict):
-            return {str(k): _make_json_safe(v, _depth + 1) for k, v in val.items()}
-        if isinstance(val, (list, tuple)):
-            return [_make_json_safe(x, _depth + 1) for x in val]
-        # pandas Timestamp, Decimal, and other stringifiable types
-        try:
-            return str(val)
-        except Exception:
-            # Deliberately silent: per-value guard in the JSON writer;
-            # logging here could emit thousands of no-signal lines.
-            return None
-
     json_rows = []
     for r in results:
         jr = {k: _make_json_safe(v) for k, v in r.items()}
