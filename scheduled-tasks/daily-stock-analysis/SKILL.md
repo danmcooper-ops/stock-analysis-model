@@ -5,6 +5,13 @@ description: Run full stock analysis and publish updated report to GitHub Pages
 
 You are running the end-of-day stock analysis routine. Execute the following steps in order. Stop and report an error if any step fails.
 
+> **Dormant since 2026-09-09.** The local working copy this runbook depends on
+> was deleted; the daily run is now the cloud Routine documented in
+> `../cloud-daily-stock-analysis/SKILL.md`, whose `run.sh` performs these same
+> steps from a fresh container. Keep this file as the step-by-step reference;
+> do not run both on the same day (both archive to `data/snapshots` and
+> force-push `pages-live`).
+
 ## Execution mode
 - **Always run fully autonomously (auto mode).** Do not pause for confirmation or ask clarifying questions — this is an unattended scheduled run. Make reasonable choices for any ambiguity and note them in the run summary. Only "write" actions explicitly described in the steps below (committing/pushing snapshots, publishing the report) are permitted; do not take other outward-facing or destructive actions.
 - **Always run on the latest available model.** Use the most capable current Claude model for this routine; do not pin to or fall back to an older model.

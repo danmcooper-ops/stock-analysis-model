@@ -9,6 +9,13 @@ absolute, and `~/.claude/scheduled-tasks/*` are symlinks into that directory
 Deleted **2026-09-09**; this file is the record of what that costs and how to
 get back.
 
+**Since 2026-09-10 the daily run no longer depends on the Mac at all**: it is
+the cloud Routine in `cloud-daily-stock-analysis/` (see this directory's
+`README.md`). Rebuilding the local copy is optional — do it for local
+development, backtests, or to run the report by hand — and if you re-arm the
+Mac scheduled task, disable the cloud Routine first: two daily runs would both
+append to `data/snapshots` and both force-push `pages-live`.
+
 ## Before anything else: check the Trash
 
 macOS `rm` from Finder moves rather than deletes. If the folder is still in

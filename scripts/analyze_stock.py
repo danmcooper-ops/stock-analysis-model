@@ -72,7 +72,7 @@ from data.sec_xbrl_client import SECXBRLClient
 from data.fx_client import get_spot_fx_rate, apply_fx_to_statement_df
 from data.sec_insider_client import SECInsiderClient
 from data.provenance import ProvenanceRecorder
-from data.snapshot_store import (SnapshotStore, list_snapshot_files,
+from data.snapshot_store import (SnapshotStore, list_snapshot_files, read_snapshot,
                                  sync_snapshot_file, write_snapshot_file)
 from data.culture_client import CultureClient
 
@@ -2391,6 +2391,10 @@ def _run_setup():
                              'Use 0 to keep only value-creating businesses (ROIC > WACC). '
                              'Tickers where spread cannot be computed are also skipped. '
                              'Recommended with --universe us to keep Phase-2 manageable.')
+    parser.add_argument('--tickers', nargs='+', metavar='TICKER',
+                        help='Restrict the universe to exactly these tickers (skips the '
+                             'S&P/NYSE/Dow/SEC universe fetch and limits carry-forward to '
+                             'them). For smoke tests of the pipeline, not for production runs.')
     parser.add_argument('--mcap-min', type=float, default=0, metavar='DOLLARS',
                         help='Phase-1 filter: skip tickers with market cap below this threshold '
                              '(e.g. 500e6 for $500M). Default 0 = no filter. '
@@ -2517,14 +2521,19 @@ def _run_build_universe(args):
                     n_pfv += 1
         return tickers, n_pfv
 
-    # Always start with the full SP500/NYSE/DOW universe
-    sp500 = set(get_sp500_tickers())
-    nyse = set(get_nyse_tickers())
-    dow = set(get_dow_tickers())
-    all_tickers = sorted(sp500 | nyse | dow)
+    if getattr(args, 'tickers', None):
+        # Smoke-test mode: exactly the tickers given, no universe fetch.
+        all_tickers = sorted({t.strip().upper() for t in args.tickers if t.strip()})
+        print(f"Universe restricted by --tickers: {len(all_tickers)} ticker(s)")
+    else:
+        # Always start with the full SP500/NYSE/DOW universe
+        sp500 = set(get_sp500_tickers())
+        nyse = set(get_nyse_tickers())
+        dow = set(get_dow_tickers())
+        all_tickers = sorted(sp500 | nyse | dow)
 
     # Optional broader universe from SEC EDGAR (--universe us)
-    if args.universe == 'us':
+    if args.universe == 'us' and not getattr(args, 'tickers', None):
         from data.us_listings import fetch_us_listed_tickers
         print(f"Fetching US-listed universe from SEC EDGAR (User-Agent: {args.sec_email})...")
         us_tickers = fetch_us_listed_tickers(email=args.sec_email)
@@ -2613,8 +2622,9 @@ def _load_carry_forward_rows(prior_date, prior_path):
     except Exception as e:
         logger.warning("snapshot store read failed for %s (%s); parsing JSON",
                        prior_date, e)
-    with open(prior_path, encoding='utf-8') as pf:
-        prior = json.load(pf)
+    # read_snapshot handles the gzipped archive form too — the cloud routine
+    # stages yesterday straight from data/snapshots as results_<date>.json.gz.
+    prior = read_snapshot(prior_path)
     return prior.get('results', prior) if isinstance(prior, dict) else prior
 
 
@@ -2653,6 +2663,10 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             _prior_rows = _load_carry_forward_rows(_prior_date, _prior_path)
             _carry_prior_rows = _prior_rows
             _carry_set = {r['ticker'] for r in _prior_rows if r.get('ticker')} - _skip_set
+            if getattr(args, 'tickers', None):
+                # --tickers is a smoke test: never let carry-forward re-grow
+                # the universe to yesterday's ~2,300 names.
+                _carry_set &= set(all_tickers)
             print(f"Carry-forward: {len(_carry_set)} ticker(s) from {os.path.basename(_prior_path)} "
                   f"will bypass Phase-1 filters")
             # Also ensure carry-forward tickers are in the universe (they may

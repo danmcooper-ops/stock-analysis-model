@@ -9,6 +9,7 @@ import yfinance as yf
 import pandas as pd
 
 from data.throttle import Throttle
+from data.yf_session import install_default_session
 
 logger = logging.getLogger(__name__)
 
@@ -219,6 +220,9 @@ class YFinanceClient:
         self._financials_cache = {}
         self._history_cache = {}
         self._throttle = Throttle(request_delay)
+        # Bare yf.Ticker() calls below use yfinance's own session; honour a
+        # YF_IMPERSONATE override for them too (no-op on the default profile).
+        install_default_session()
         self._snapshot_cache = snapshot_cache  # Optional SnapshotCache instance
         self._fetch_timeout = fetch_timeout    # hard wall-clock limit per fetch
         self._prices_dir = prices_dir          # Write-through dir for fetch_history
@@ -296,9 +300,10 @@ class YFinanceClient:
         # --- Live fetch path (unchanged behaviour when no cache) ---
         if ticker in self._financials_cache:
             return self._financials_cache[ticker]
-        # NOTE: Do NOT pass a custom session — yfinance requires its own
-        # curl_cffi session for Yahoo's API.  Connection pool hygiene is
-        # handled by the 20s timeout + no-retry-on-timeout policy instead.
+        # NOTE: no per-call session — yfinance's own curl_cffi session is
+        # used (re-pointed by install_default_session() when YF_IMPERSONATE
+        # is set).  Connection pool hygiene is handled by the 20s timeout +
+        # no-retry-on-timeout policy instead.
         stock = yf.Ticker(ticker)
 
         def _fetch():
