@@ -1489,6 +1489,13 @@ def _fmt_dollars_compact(v):
     return f'{sign}${a:,.0f}'
 
 
+# Floor on a company's share of sector revenue before the page will name it
+# as that sector's best or worst operator. 0.1% is deliberately low — it keeps
+# every genuine mid-cap (135 of Technology's 296 rows clear it) and only
+# excludes the tail whose margin and profit-pool ratios are numerical noise.
+_MIN_MATERIAL_REV_SHARE = 0.001
+
+
 def generate_sector_profit_pool_narrative(sector, rows_in_sector):
     """Build a rich profit pool narrative for one sector.
 
@@ -1568,15 +1575,29 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
     margin_sane = [r for r in cos
                    if r.get('operating_margin') is not None
                    and abs(r['operating_margin']) <= 1.0]
+    # Second filter, on SIZE rather than sanity. |OM| <= 100% still admits
+    # companies far too small to exemplify their sector: on 2026-09-05 the
+    # Technology "Margin Leader" was OBICY on $865M of revenue (0.02% of the
+    # sector) and the #4 slot went to NVEC on $26M — against a $3.8T pool
+    # containing NVDA and SNDK. A name the page holds up as the sector's best
+    # or worst operator should own a material slice of it. The floor also
+    # happens to drop the ADR/foreign-ordinary double listings (OBICY/OBIIF
+    # are one company twice) that would otherwise take two ranking slots.
+    material = [r for r in margin_sane
+                if (r.get('pp_revenue_share') or 0) >= _MIN_MATERIAL_REV_SHARE]
+    # A sector thin enough that the floor leaves nothing to rank keeps the
+    # unfiltered set — better a small-cap exemplar than no storyline at all.
+    if len(material) < 5:
+        material = margin_sane
     # Sort by operating margin desc
     by_margin = sorted(
-        margin_sane,
+        material,
         key=lambda r: r.get('operating_margin') or -999,
         reverse=True,
     )
     # Sort by PP multiple desc (profit share / revenue share)
     by_multiple = sorted(
-        [r for r in margin_sane if r.get('pp_multiple') is not None],
+        [r for r in material if r.get('pp_multiple') is not None],
         key=lambda r: r.get('pp_multiple') or 0,
         reverse=True,
     )
@@ -1802,16 +1823,39 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
             "to own only the producer that can outlast the others."
         )
 
-    # 4) Efficiency spread (pp_multiple)
+    # 4) Efficiency spread (pp_multiple). This used to divide the best
+    #    multiple by the worst and quote the quotient, which was not a real
+    #    measurement. pp_profit_share clamps its numerator at max(opinc, 0),
+    #    so every loss-making company has a multiple of exactly 0 and the
+    #    bottom of this list is ALWAYS one of them; the code then divided by
+    #    max(worst, 0.01), making the printed figure best x 100 — a function
+    #    of that floor constant, not of the company it named. Technology's
+    #    "262.3x more efficiently than SYNA" was 2.621 x 100, and SYNA's own
+    #    multiple never entered the arithmetic. Even restricted to profitable
+    #    names the quotient stays unusable, because a large company can be
+    #    barely profitable and put a near-zero value in the denominator
+    #    (Industrials reached 2,064x that way). So quote the two multiples
+    #    themselves: same two companies, same point, nothing to explode.
     if len(by_multiple) >= 2:
-        best_mult = by_multiple[0].get('pp_multiple') or 0
-        worst_mult = by_multiple[-1].get('pp_multiple') or 0
+        best = by_multiple[0]
+        best_mult = best.get('pp_multiple') or 0
+        # Loss-makers all sit at exactly 0, so the tail of this list is a tie
+        # and by_multiple[-1] would name whichever of them happened to sort
+        # last. Among a tie, name the one that matters most — the largest by
+        # revenue share — so the sentence is both deterministic and about a
+        # company worth mentioning.
+        worst = min(by_multiple,
+                    key=lambda r: ((r.get('pp_multiple') or 0),
+                                   -(r.get('pp_revenue_share') or 0)))
+        worst_mult = worst.get('pp_multiple') or 0
         if best_mult > 1.5 and worst_mult < 0.7:
             insights.append(
-                f"{by_multiple[0]['ticker']} converts revenue into profit "
-                f"{best_mult/max(worst_mult, 0.01):.1f}x more efficiently than "
-                f"{by_multiple[-1]['ticker']} — the pool is being drained "
-                f"toward the efficient operator, and weak hands eventually exit."
+                f"{best['ticker']} takes {best_mult:.2f}x its share of sector "
+                f"revenue in profit while {worst['ticker']} takes "
+                + (f"{worst_mult:.2f}x"
+                   if worst_mult > 0 else "none of it, operating at a loss")
+                + " — the pool is draining toward the efficient operator, "
+                  "and weak hands eventually exit."
             )
 
     # Cap insights at 4 (one of the original five was folded into the
