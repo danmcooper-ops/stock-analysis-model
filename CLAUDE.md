@@ -35,7 +35,9 @@ scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    enrichment/maintenance scripts
 tests/           - pytest suite (~1,300 tests) incl. hypothesis property tests
 templates/       - jinja2 report templates
-scheduled-tasks/ - Operational runbooks for the nightly analysis + publish
+scheduled-tasks/ - Operational runbooks for the nightly analysis + publish;
+                   cloud-daily-stock-analysis/run.sh is the live (cloud
+                   Routine) pipeline, the rest are the dormant Mac runbooks
 output/          - (gitignored) run artifacts: results JSON, HTML, prices,
                    snapshots.duckdb (derived index over the results JSONs)
 ```
@@ -63,7 +65,12 @@ ruff check .
   returning yfinance-shaped DataFrames/dicts. Every HTTP client shares
   `data/throttle.py` for rate limiting; every raw yfinance call goes through
   `data/yf_session.py` (15s socket timeout) or `YFinanceClient`'s 20s
-  wall-clock guard. For US filers, SEC XBRL statements replace yfinance
+  wall-clock guard. The browser profile yfinance impersonates is
+  `YF_IMPERSONATE` (default `chrome`); `yf_session.install_default_session()`
+  re-points yfinance's own singleton session so bare `yf.Ticker()` calls
+  follow it, and `yf.download` must always be passed `session=` or it
+  silently replaces that singleton. The cloud routine sets `chrome116`
+  because its egress proxy resets the newer Chrome TLS profiles. For US filers, SEC XBRL statements replace yfinance
   frames (`SECXBRLClient.build_yfinance_shape`, newest column first,
   outflows negative).
 - **Models layer (`models/`):** pure functions. The fair-value models'

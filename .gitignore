@@ -50,3 +50,7 @@ test_tickers.xlsx
 
 # Coverage data
 .coverage
+
+# cloud routine scratch (scheduled-tasks/cloud-daily-stock-analysis/run.sh)
+.cloud-run/
+.cloud-run.log

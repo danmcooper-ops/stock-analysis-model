@@ -326,6 +326,17 @@ def test_analyze_stock_carry_forward_reads_store(results_dir, capsys):
     assert 'snapshot store' in capsys.readouterr().out
 
 
+def test_analyze_stock_carry_forward_reads_gzipped_archive(tmp_path):
+    # The cloud routine stages yesterday straight from data/snapshots as
+    # results_<date>.json.gz; the JSON fallback must read that form too.
+    from data.snapshot_store import write_snapshot_file
+    from scripts.analyze_stock import _load_carry_forward_rows
+    p = str(tmp_path / 'results_2026-01-05.json.gz')
+    write_snapshot_file(p, {'results': [{'ticker': 'AAA', 'shares_out': 10, 'mcap': 100}]})
+    rows = _load_carry_forward_rows('2026-01-05', p)
+    assert rows == [{'ticker': 'AAA', 'shares_out': 10, 'mcap': 100}]
+
+
 # --- schema versioning ------------------------------------------------------
 
 def test_stale_schema_is_ignored_by_readers_and_rebuilt_on_write(results_dir, caplog):
