@@ -1786,9 +1786,27 @@ class SECXBRLClient:
         if not facts:
             return None
 
-        def _ann(concept):
-            tags = self._XBRL_TAG_MAP.get(concept, [])
-            return self._extract_annual_values(facts, tags) if tags else {}
+        # Concept reads must be currency- and taxonomy-aware. A foreign
+        # private issuer tags its statements in its own currency (ASML: EUR)
+        # and often under the IFRS taxonomy, so _extract_annual_values'
+        # us-gaap/USD defaults return nothing for it. _extract_concept_annual
+        # tries us-gaap with these same tags first and only then IFRS, and
+        # _detect_currency prefers USD where present, so US filers resolve
+        # exactly as before.
+        #
+        # Getting this wrong is not a partial degradation: revenue and equity
+        # have their own currency-aware resolvers, so a EUR filer cleared the
+        # usability guard below on revenue alone while every other row came
+        # back empty — and analyze_stock replaces yfinance's statements with
+        # this shape unconditionally. That dropped 235 foreign filers from the
+        # 2026-09-08 run (ASML, AZN, BHP, BP, BTI) on ROIC N/A.
+        _ccy_votes = {}
+
+        def _ann(concept, _vote=True):
+            vals, _taxo, ccy = self._extract_concept_annual(facts, concept)
+            if _vote:
+                _ccy_votes[concept] = ccy
+            return vals
 
         # Income statement (flow concepts)
         revenue, _rev_ccy = self._resolve_revenue_annual(facts)
@@ -1855,11 +1873,56 @@ class SECXBRLClient:
         # Total debt is composed from separately-tagged components (LTD +
         # current debt) — a single-tag read understates leverage by the
         # short-term portion for most filers.
-        debt, debt_tagged = self._resolve_total_debt_annual(facts)
+        debt, _debt_taxo, _debt_ccy, debt_tagged = \
+            self._resolve_total_debt_concept(facts)
 
         # Need at least revenue or net income to consider the data usable.
         if not revenue and not net_income:
             return None
+
+        # These frames REPLACE yfinance's statements in analyze_stock, so a
+        # shape carrying revenue and nothing else is worse than no shape at
+        # all — it silently blanks working data. Require one real earnings
+        # line beside revenue before claiming the filer.
+        if not (net_income or op_income or pretax_income):
+            logger.warning(
+                "SEC XBRL: %s has revenue but no earnings line "
+                "(net/operating/pretax income) — declining the shape so "
+                "callers keep their yfinance statements", ticker)
+            return None
+
+        # Foreign filers report in their own currency; the caller merges
+        # yfinance's USD `info` on top of these frames, so every monetary
+        # series has to be converted or the ratios mix currencies. Mirrors
+        # fetch_historical_financials: the primary income-statement concepts
+        # vote on the reporting currency, everything else rides that rate.
+        # revenue / equity / debt come from their own resolvers rather than
+        # _ann, so their currencies are passed in explicitly here.
+        _primary_ccy = (
+            _rev_ccy,
+            _ccy_votes.get('net_income'),
+            _ccy_votes.get('operating_income'),
+            _ccy_votes.get('gross_profit'),
+            _ccy_votes.get('operating_cash_flow'),
+            _ccy_votes.get('capex'),
+            _eq_ccy,
+            _debt_ccy,
+        )
+        reporting_ccy = next(
+            (_c for _c in _primary_ccy if _c and _c != 'USD'), 'USD')
+        if reporting_ccy != 'USD':
+            _fx = _get_fx_rates_to_usd(reporting_ccy)
+            _monetary = [
+                revenue, net_income, op_income, gross_profit, interest_exp,
+                tax_provision, pretax_income, op_cf, capex, d_and_a, sbc,
+                dividends, buybacks, issuance, equity, cash, cash_incl,
+                st_inv, cash_sti, minority, preferred, assets, curr_assets,
+                curr_liabs, liabilities, ret_earnings, goodwill,
+                intangibles, debt,
+            ]
+            for _series in _monetary:
+                if _series:
+                    _series.update(_apply_fx_annual(dict(_series), _fx))
 
         years = sorted(set(revenue) | set(net_income) | set(op_income) |
                        set(equity) | set(debt) | set(assets) | set(pretax_income),

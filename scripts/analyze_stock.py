@@ -3015,6 +3015,16 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             # with either missing — skip the ticker rather than crash.
             if not roic_data or wacc is None:
                 print(f"  Skipping {ticker}: ROIC or WACC unavailable today")
+                # Recorded, not just printed: this skip silently removed 235
+                # foreign filers from the 2026-09-08 run (a USD-only XBRL read
+                # blanked their statements) and nothing in the run summary or
+                # the gate N/A report could see it — those only describe rows
+                # that made it into the snapshot. A count here is the only
+                # place a whole cohort going missing shows up.
+                _prov.record_event(
+                    'phase2_skip', ticker, 'roic_wacc',
+                    {'reason': 'ROIC or WACC unavailable',
+                     'roic': bool(roic_data), 'wacc': wacc is not None})
                 continue
 
             # --- Price-history enrichments (local Parquet) ---
@@ -4530,6 +4540,18 @@ def _run_quality_summary(risk_free_rate, risk_free_rate_source,
                 '(cost of equity from %s)',
                 sum(_beta_fallbacks.values()),
                 ', '.join(f'{k}: {v}' for k, v in sorted(_beta_fallbacks.items())))
+    if _prov is not None:
+        _p2_skips = [_ev for _ev in getattr(_prov, 'events', [])
+                     if _ev.get('type') == 'phase2_skip']
+        if _p2_skips:
+            _log.warning(
+                'RUN QUALITY: %d ticker(s) dropped in Phase 2 with no ROIC/WACC '
+                '— they are absent from the snapshot entirely, so no gate N/A '
+                'figure reflects them. A jump here means a data source '
+                'degraded: %s%s',
+                len(_p2_skips),
+                ', '.join(_ev.get('ticker', '?') for _ev in _p2_skips[:10]),
+                ', ...' if len(_p2_skips) > 10 else '')
     if _model_warning_counter.fabricated:
         _log.warning(
             'RUN QUALITY: %d model warnings flagged fabricated/fallback inputs '

@@ -139,7 +139,22 @@ def _flow(fy, val):
             'filed': f'{fy + 1}-02-01', 'start': f'{fy}-01-01', 'end': f'{fy}-12-31'}
 
 
+_EARNINGS_TAGS = ('NetIncomeLoss', 'OperatingIncomeLoss',
+                  'IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest')
+
+
 def _client_with(tag_entries):
+    """A client whose TEST filer carries `tag_entries`.
+
+    build_yfinance_shape declines a filer that tags revenue but no earnings
+    line at all (such a shape would blank the caller's yfinance statements),
+    so supply a nominal NetIncomeLoss unless the case under test provides its
+    own earnings tag. These fixtures exercise balance-sheet composition; the
+    guard itself is covered by TestXbrlShapeUsability.
+    """
+    tag_entries = dict(tag_entries)
+    if not any(t in tag_entries for t in _EARNINGS_TAGS):
+        tag_entries['NetIncomeLoss'] = [_flow(2024, 100.0)]
     c = SECXBRLClient(cik_map={'TEST': '0000000001'}, name_map={'TEST': 'Test Co'},
                       email='test@example.com', request_delay=0)
     c._cache['TEST'] = {'facts': {'us-gaap': {
