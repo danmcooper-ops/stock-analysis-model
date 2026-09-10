@@ -155,8 +155,10 @@ ls output/prices/*.parquet | wc -l                         # thousands, not 4
 ls .claude/worktrees/snapshots-data/results_*.json* | wc -l # the corpus
 ```
 
-Then a cheap end-to-end proof before trusting the nightly run — the S&P 500
-universe instead of `us`, ~20 minutes rather than 3–6 hours:
+Then a cheap end-to-end proof before trusting the nightly run — the default
+S&P 500 + Dow universe instead of `us`, a few hundred tickers rather than
+~9,100 (`daily-stock-analysis/SKILL.md` carries the measured runtime of the
+full nightly run; don't rely on a second copy of that figure here):
 
 ```bash
 PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/analyze_stock.py --prices-dir output/prices
