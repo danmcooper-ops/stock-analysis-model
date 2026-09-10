@@ -2,6 +2,7 @@
 """HTML report builder — renders the interactive Jinja2 report."""
 import os
 import json
+import logging
 import re
 import shutil
 import jinja2
@@ -18,6 +19,8 @@ except Exception:
 from scripts.scoring import gate_metadata
 from scripts.safe_json import dumps_for_script
 
+logger = logging.getLogger('report_html')
+
 
 def _json_default(obj):
     """Convert numpy types to native Python types for JSON serialization."""
@@ -31,16 +34,45 @@ def _json_default(obj):
         return None if (math.isnan(v) or math.isinf(v)) else v
     if isinstance(obj, np.ndarray):
         return obj.tolist()
+    if isinstance(obj, (complex, np.complexfloating)):
+        # Last line of defence, deliberately narrow. A complex value here is
+        # an upstream arithmetic bug (a negative base raised to a fractional
+        # power), and it used to abort the whole render at the END of a
+        # 13-hour pipeline: on 2026-09-08 a single HBNC rpe_cagr killed
+        # build_html after every expensive phase had already completed.
+        # Losing one cell to a null beats losing the report, but only
+        # because this WARNING makes the bad value findable — the encoder
+        # still raises for every other unhandled type, so genuinely novel
+        # breakage is not silently swallowed.
+        logger.warning("report payload: complex value %r coerced to null "
+                       "(upstream growth-rate guard missing)", obj)
+        return None
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
-def _sanitize(obj):
+_COMPLEX_REPR = re.compile(r'^\(-?\d[\d.eE+-]*[+-]\d[\d.eE+-]*j\)$')
+
+
+def _label(path):
+    return '.'.join(str(p) for p in path) if path else '<root>'
+
+
+def _sanitize(obj, _path=()):
     """Recursively replace inf/-inf/NaN (numeric or stringified) with None.
 
     Some upstream snapshots round-trip numeric infinity through ``str()`` and
     arrive here as the literal string ``"Infinity"``, which silently breaks
     the browser-side popup formatters. Normalise those to ``None`` so the JS
     sees a clean ``null``.
+
+    Complex values get the same treatment, but noisily: they are always an
+    upstream arithmetic bug rather than a data quirk, so each one is logged
+    at WARNING with the ticker and field that carried it. ``_path`` is the
+    breadcrumb used to build that label — a record's own ``ticker`` value
+    roots the path when present, so the operator gets ``HBNC.rpe_cagr``
+    rather than an anonymous list index. It is carried as a tuple and only
+    joined in the warning branch: this walks every scalar in a ~60 MB
+    payload, so the common path must not format a string per key.
     """
     import math
     if obj is None:
@@ -50,16 +82,31 @@ def _sanitize(obj):
     if isinstance(obj, (np.floating,)):
         v = float(obj)
         return None if (math.isnan(v) or math.isinf(v)) else v
+    if isinstance(obj, (complex, np.complexfloating)):
+        logger.warning("%s: complex value %r coerced to null "
+                       "(upstream growth-rate guard missing)",
+                       _label(_path), obj)
+        return None
     if isinstance(obj, str):
         if obj in ('Infinity', '-Infinity', 'inf', '-inf', 'NaN', 'nan'):
             return None
+        # A snapshot written before the JSON writer learned about complex
+        # numbers can carry one as its repr, e.g. "(-0.0877+0.2082j)".
+        # Cheap prefix/suffix test first: the regex must not run against
+        # every string in a 60 MB payload.
+        if obj[:1] == '(' and obj[-2:] == 'j)' and _COMPLEX_REPR.match(obj):
+            logger.warning("%s: stringified complex value %r coerced to null "
+                           "(stale snapshot)", _label(_path), obj)
+            return None
         return obj
     if isinstance(obj, dict):
-        return {k: _sanitize(v) for k, v in obj.items()}
+        tk = obj.get('ticker')
+        base = (tk,) if isinstance(tk, str) and tk else _path
+        return {k: _sanitize(v, base + (k,)) for k, v in obj.items()}
     if isinstance(obj, list):
-        return [_sanitize(x) for x in obj]
+        return [_sanitize(x, _path + (i,)) for i, x in enumerate(obj)]
     if isinstance(obj, tuple):
-        return tuple(_sanitize(x) for x in obj)
+        return tuple(_sanitize(x, _path + (i,)) for i, x in enumerate(obj))
     return obj
 
 
