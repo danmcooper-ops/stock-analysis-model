@@ -131,8 +131,13 @@ A run the preflight skipped is a success. Otherwise:
 
 ## Running it by hand / changing the schedule
 The Routine lives in the claude.ai Routines list under the name
-**Daily stock analysis (cloud)**; fire it out of schedule from there, or from a
-session with the `mcp__Claude_Code_Remote__fire_trigger` tool. The schedule is
+**Daily stock analysis (cloud)** (id `trig_017kRuovqnvA3hk31Zd4zBMe`, created
+2026-09-10 from a Claude Code session, environment "Default"); fire it out of
+schedule from there, or from a session with the
+`mcp__Claude_Code_Remote__fire_trigger` tool. Sessions it fires carry no MCP
+connector tools, so the `add_repo` fallback above may not exist there; if a
+push is refused for credentials, recreate the Routine from the claude.ai
+Routines UI with this repository attached as a source. The schedule is
 `0 21 * * 1-5` UTC (17:00 New York in summer, 16:00 in winter — always after
 the close; cloud cron is UTC-only, so the local hour drifts with DST instead
 of ever landing before the bell). To test the script itself without touching
