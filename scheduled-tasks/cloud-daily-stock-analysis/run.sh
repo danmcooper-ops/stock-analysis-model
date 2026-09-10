@@ -345,9 +345,12 @@ publish_pages() {
   push_with_retry "$PAGES" "HEAD:refs/heads/$PAGES_BRANCH" --force || return 1
   [ "$DRY_RUN" = 1 ] && return 0
   # GitHub Pages redeploys from the push; give it a few minutes.
+  # Fetch to a file, then grep: with pipefail, `curl | grep -q` fails on the
+  # SIGPIPE grep -q sends curl after the first match.
   for i in $(seq 1 20); do
     sleep 30
-    if curl -sSL --max-time 30 "$PAGES_URL" | grep -q "$RUNDATE"; then
+    curl -sSL --max-time 30 -o "$WORK/live.html" "$PAGES_URL" 2>/dev/null || true
+    if grep -q "$RUNDATE" "$WORK/live.html" 2>/dev/null; then
       echo "live: $PAGES_URL serves the $RUNDATE report"; return 0
     fi
   done
