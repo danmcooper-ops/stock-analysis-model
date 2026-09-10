@@ -23,7 +23,7 @@ All Python script invocations **must be sent as a single-line semicolon-separate
 ## Preflight: skip the run entirely if the market was closed
 
 **Run this before Step 0 and before anything else.** On a day the US equity
-market never opened there are no new bars, so the whole 3-6 hour pipeline would
+market never opened there are no new bars, so the whole 13-16 hour pipeline would
 re-publish the previous session's data under a new date and add a
 duplicate-content day to the `data/snapshots` corpus the weekly backtest
 calibrates on. Run as a **single Bash call**:
@@ -64,7 +64,7 @@ The `output/prices` parquets never refresh themselves; the analysis, the report'
 ```
 PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/download_prices.py --output-dir output/prices --max-age-days 2 --tickers $(ls output/prices/*.parquet | sed 's|.*/||;s|\.parquet||') SPY QQQ IWM DIA
 ```
-Refreshes every already-cached ticker whose last bar is older than 2 days, plus the four benchmark indices explicitly (SPY/QQQ/IWM/DIA feed the report's index-comparison lines; the weekly backtest routine reuses these files). Idempotent — current files are skipped, so the day after a full refresh this is nearly a no-op. **Typical runtime: 15–40 min on a normal weekday; up to ~60 min after weekends/gaps.** Do not run it concurrently with Step 1 — Step 1 reads these files.
+Refreshes every already-cached ticker whose last bar is older than 2 days (so a file carrying *yesterday's* close is "fresh" and skipped: after close on day D, ~93% of parquets still end at D-1 — the cache runs one session behind by design; the report's own prices come from yfinance `.info` in Phase 2, the parquets feed momentum/vol/px shards and the weekly backtest), plus the four benchmark indices explicitly (SPY/QQQ/IWM/DIA feed the report's index-comparison lines; the weekly backtest routine reuses these files). Idempotent — current files are skipped, so the day after a full refresh this is nearly a no-op. **Typical runtime: 15–40 min on a normal weekday; up to ~60 min after weekends/gaps.** Do not run it concurrently with Step 1 — Step 1 reads these files.
 
 A non-zero exit code (or partial ticker failures — Yahoo outages, delisted names) should be reported but does **not** block the remaining steps: the analysis still works on slightly-stale bars, which was the status quo before this step existed. Individual delisted-ticker errors in the output are routine noise, not failures.
 
@@ -78,20 +78,44 @@ If the pull fails (non-fast-forward divergence, or uncommitted changes that conf
 ### 1. Run the analysis
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/analyze_stock.py --macro --prices-dir output/prices --universe us --min-spread 0 --mcap-min 300e6
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; pgrep -fl "scripts/analyze_stock.py" && { echo "REFUSING: an analyze_stock is already running"; exit 1; }; nohup "$PYTHON" scripts/analyze_stock.py --macro --prices-dir output/prices --universe us --min-spread 0 --mcap-min 300e6 > "output/run_$(date +%Y-%m-%d).log" 2>&1 < /dev/null & disown; echo "analyze_stock pid=$!"
 ```
+
+**Launch it detached, exactly as written.** `nohup … & disown` with the log
+redirected to `output/run_<date>.log` makes the process survive the Claude
+session that started it. The 2026-09-09 run was launched as an ordinary
+background command and was killed at ticker 1427/9100 when its session was
+torn down — no snapshot, no error, nothing in the run summary. The `pgrep`
+guard refuses to start a second pipeline over a live one (2026-07-31: two
+concurrent runs wrote the same results JSON and both published).
+
+Then wait for the pid to exit with a background waiter (not by watching the
+log — Phase-1 ticker lines are not a liveness signal), and read
+`output/run_<date>.log` for the run-quality summary when it does:
+```
+PID=<pid printed above>; until ! kill -0 $PID 2>/dev/null; do sleep 120; done; echo "analyze_stock exited $(date +%H:%M)"; tail -20 "$HOME/Projects/Workspace Folder/output/run_$(ls -t "$HOME/Projects/Workspace Folder"/output/run_*.log | head -1 | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}').log"
+```
+If this session is gone when the pipeline finishes, the JSON/HTML are still
+on disk: re-open the runbook and continue from Step 1b — every later step is
+idempotent.
+
+**Run date (RUNDATE).** Every command from Step 1b onward resolves the
+snapshot as the newest `output/results_YYYY-MM-DD.json` — the
+`RUNDATE=$(ls -t …)` fragment in each line — instead of `$(date)`, because
+the run finishes the morning after it starts. Each command is its own Bash call, so the fragment recomputes it every time; before Step 1b confirm the newest file is this run and not a stale one
+: `ls -t output/results_????-??-??.json | head -1`.
 SEC XBRL companyfacts are now cached on disk under `data/cache/sec_facts/` (gzipped, ~270 KB per filer). The run starts by walking SEC's daily filing index since the last run and evicting only the filers who filed a 10-K/10-Q/20-F/40-F/6-K, so the corpus is no longer re-downloaded nightly — expect the first run after this change to be a full download (~0.4 GB of transfer for the enriched universe) and later runs to fetch only what changed. The cache is disposable: deleting the directory costs one slow run. A "filing index unreadable" warning means the sweep stopped early and will resume there next run; facts stay served from cache meanwhile, with a 30-day age backstop.
 
-This expands the ticker universe from ~500 S&P/Dow stocks to all US-listed equities (~7,000–10,000 tickers from SEC EDGAR), then applies two Phase-1 filters before the expensive Phase 2 deep analysis: (1) market cap ≥ $300M (drops micro-caps and shells that can't be meaningfully valued) and (2) ROIC > WACC (positive economic spread — the business creates value). **Expected runtime: 3–6 hours.** The SEC listings are cached locally for 7 days (`data/cache/us_listings.csv`) so Phase 1 startup is fast on subsequent runs.
+This expands the ticker universe from ~500 S&P/Dow stocks to all US-listed equities (~7,000–10,000 tickers from SEC EDGAR), then applies two Phase-1 filters before the expensive Phase 2 deep analysis: (1) market cap ≥ $300M (drops micro-caps and shells that can't be meaningfully valued) and (2) ROIC > WACC (positive economic spread — the business creates value). **Expected runtime: 13–16 hours** (observed 13.6–16.6 h on every run since 2026-08-31, 25 h on 2026-09-03 when Yahoo was slow; Phase 1 ≈ 4.7 h for ~9,100 tickers, Phase 2 ≈ 9 h at ~330 tickers/h). Started at 16:08 it finishes between 06:00 and 09:00 the next morning, so **every weekday run crosses midnight** — see the run-date rule below. The SEC listings are cached locally for 7 days (`data/cache/us_listings.csv`) so Phase 1 startup is fast on subsequent runs.
 
-This produces `output/stock_analysis_results_YYYY-MM-DD.html` and `output/results_YYYY-MM-DD.json` (where YYYY-MM-DD is today's date). Confirm both files exist before continuing.
+This produces `output/stock_analysis_results_YYYY-MM-DD.html` and `output/results_YYYY-MM-DD.json` (where YYYY-MM-DD is the date the run **started** — it finishes the next morning). Confirm both files exist before continuing.
 
 If the script exits non-zero, do not proceed with any further steps.
 
 ### 1b. Enrich Financial Services records with FDIC call-report data
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/enrich_fdic.py "output/results_$(date +%Y-%m-%d).json"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; RUNDATE=$(ls -t output/results_????-??-??.json | head -1 | sed -E 's/.*results_([0-9-]+)\.json/\1/'); "$PYTHON" scripts/enrich_fdic.py "output/results_${RUNDATE}.json"
 ```
 Joins NIM / Efficiency Ratio / CET1 / NPL / Deposit Beta from the FDIC BankFind Suite API into each mapped bank's record (writes `nim`, `efficiency_ratio`, `cet1_ratio`, `npl_ratio`, `deposit_beta`, `fdic_cert`, `fdic_repdte` in place). `deposit_beta` = Δ(cost of deposits) / Δ(fed funds) across the 2021→23 hiking cycle, from two historical FDIC quarters (EDEP/DEP). Mapping lives in `data/ticker_fdic_map.py` (~45 US-chartered banks); responses cached for 30 days under `data/cache/fdic/`. The script is idempotent — strips prior enrichment before running, and a staleness guard rejects records older than 2024 so any wrong CERT fails closed.
 
@@ -100,7 +124,7 @@ A non-zero exit code should be reported but does **not** block the remaining ste
 ### 1c. Enrich Real Estate records with FFO Growth + AFFO Margin proxies
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/enrich_reit.py "output/results_$(date +%Y-%m-%d).json"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; RUNDATE=$(ls -t output/results_????-??-??.json | head -1 | sed -E 's/.*results_([0-9-]+)\.json/\1/'); "$PYTHON" scripts/enrich_reit.py "output/results_${RUNDATE}.json"
 ```
 Computes two REIT-specific proxies from each Real Estate stock's existing `edgar_history` (no network calls):
 - `ffo_growth_5y` — 5-yr CAGR of operating cash flow (proxy for FFO growth)
@@ -113,7 +137,7 @@ A non-zero exit code should be reported but does **not** block the remaining ste
 ### 1d. Enrich sector-specific KPIs via SEC XBRL (Phases 3–6)
 Covers nine sectors in a single pass: Technology / Healthcare / Communication Services / Industrials / Consumer Cyclical / Consumer Defensive / Energy / Utilities / Basic Materials. Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/enrich_xbrl.py "output/results_$(date +%Y-%m-%d).json"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; RUNDATE=$(ls -t output/results_????-??-??.json | head -1 | sed -E 's/.*results_([0-9-]+)\.json/\1/'); "$PYTHON" scripts/enrich_xbrl.py "output/results_${RUNDATE}.json"
 ```
 For every target-sector stock with a known SEC CIK, fetches the companyfacts blob once and derives:
 
@@ -150,7 +174,7 @@ A non-zero exit code should be reported but does **not** block the remaining ste
 ### 1e. Enrich Healthcare drug/biotech records with FDA pipeline depth
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/enrich_pipeline.py "output/results_$(date +%Y-%m-%d).json"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; RUNDATE=$(ls -t output/results_????-??-??.json | head -1 | sed -E 's/.*results_([0-9-]+)\.json/\1/'); "$PYTHON" scripts/enrich_pipeline.py "output/results_${RUNDATE}.json"
 ```
 Counts each drug/biotech company's active sponsored interventional trials on the ClinicalTrials.gov API v2 and writes `fda_pipeline_count`. Scoped to drug/biotech industries (devices/payers/services are skipped so they don't distort the sector median). Sponsor name comes from `data/ticker_sponsor_map.py` when mapped, else the cleaned company name; the lookup matches on the lead-sponsor field so unrelated companies don't collide. Responses cached for 30 days under `data/cache/clinicaltrials/`. Idempotent — strips prior enrichment first; API/network failures degrade to "—" rather than raising.
 
@@ -159,7 +183,7 @@ A non-zero exit code should be reported but does **not** block the remaining ste
 ### 1f. Re-render the HTML report so banners pick up the enrichment
 Must run **after** 1b, 1c, 1d, and 1e so the final HTML reflects every enriched field. Run as a **single Bash call**:
 ```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/rescore_and_render.py "output/results_$(date +%Y-%m-%d).json"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; RUNDATE=$(ls -t output/results_????-??-??.json | head -1 | sed -E 's/.*results_([0-9-]+)\.json/\1/'); "$PYTHON" scripts/rescore_and_render.py "output/results_${RUNDATE}.json"
 ```
 This overwrites `output/stock_analysis_results_YYYY-MM-DD.html` with a render that includes every Phase 1–4 enrichment. If any of the enrichment steps failed (no fields populated), this step is still safe — the affected banners just fall back to "—".
 
@@ -180,7 +204,7 @@ re-run once against the snapshot archive.
 ### 2. Archive today's snapshot to the data/snapshots branch
 The snapshot is archived **gzipped** (`results_YYYY-MM-DD.json.gz`). Plain JSON no longer fits: `results_2026-09-01.json` reached 97.2 MiB against GitHub's 100 MiB per-blob hard cap, and `results_2026-08-11.json` was rejected outright at 102.4 MB and lost. Gzip takes a ~87 MiB snapshot to ~27 MiB and stops the branch checkout growing ~90 MB a night. Every reader (`backtest.py`, `ingest_snapshots.py`, `query_results.py`, …) handles both forms, so the archive can hold a mix of `.json` and `.json.gz`.
 
-**Run date:** `scripts/archive_snapshot.py` picks the newest snapshot in `output/` itself — do **not** interpolate `$(date +%Y-%m-%d)` here. A 3–6 h run that crossed midnight would name a file that does not exist, and the night would be skipped silently. For the `git add` and commit message below, substitute RUNDATE literally, read from the filename the script prints.
+**Run date:** `scripts/archive_snapshot.py` picks the newest snapshot in `output/` itself — do **not** interpolate `$(date +%Y-%m-%d)` here. Every weekday run now crosses midnight (13–16 h from a 16:08 start), so `$(date)` names a file that does not exist and the night would be skipped silently. For the `git add` and commit message below, substitute RUNDATE literally, read from the filename the script prints.
 
 Run each as a **separate** Bash call (single line each):
 ```
@@ -218,7 +242,7 @@ This saves `output/portfolio_report_YYYY-MM-DD.txt` automatically in addition to
 ### 4. Report gate N/A coverage
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/gate_na_report.py "output/results_$(date +%Y-%m-%d).json"
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; RUNDATE=$(ls -t output/results_????-??-??.json | head -1 | sed -E 's/.*results_([0-9-]+)\.json/\1/'); "$PYTHON" scripts/gate_na_report.py "output/results_${RUNDATE}.json"
 ```
 Prints, for each of the 26 model gate columns, how many records have an N/A raw value (`_gate_*` is null) and the percentage of the universe affected, plus the day-over-day delta vs the prior snapshot. **Print the full table in the run summary.** Flags to act on:
 - **⚠ JUMP** — a gate's N/A share rose ≥ 10 points vs the prior snapshot. This is the signal that a data source degraded *today* (e.g. the 2026-07-22 run silently dropped ~100 tickers to fetch timeouts). Call it out prominently in the run summary.
@@ -229,7 +253,7 @@ Must run after 1f (so it measures the final enriched/rescored snapshot). A non-z
 ### 5. Momentum sanity check: today's ratings vs TRAILING price returns
 Run as a **single Bash call** (all on one line, semicolons not newlines):
 ```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/validate_ratings.py --snapshot "output/results_$(date +%Y-%m-%d).json" --prices-dir output/prices
+PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; RUNDATE=$(ls -t output/results_????-??-??.json | head -1 | sed -E 's/.*results_([0-9-]+)\.json/\1/'); "$PYTHON" scripts/validate_ratings.py --snapshot "output/results_${RUNDATE}.json" --prices-dir output/prices
 ```
 This compares today's BUY/LEAN BUY/HOLD/PASS ratings with the **past** 12 months of price returns. It is a momentum-chasing check, **not** a measure of accuracy — accuracy is the forward-return question, measured by the weekly `weekly-backtest` routine (`scripts/backtest.py measure` / `readiness`). Print the full output in the run summary. Key things to flag:
 - If BUY-rated stocks had significantly *higher* trailing returns than HOLD/PASS, the model may be chasing momentum rather than identifying value — worth reviewing
@@ -239,7 +263,7 @@ A non-zero exit code should be reported but does **not** block the remaining ste
 ### 8. Publish the report
 Read `$HOME/.claude/scheduled-tasks/publish-stock-report/SKILL.md` and execute the steps in that file. That routine copies seven artifacts into the `pages-live` worktree — `output/stock_analysis_results_RUNDATE.html` → `docs/index.html`, plus `prices_meta.json`, `hist.json`, `details.json`, `macro.json` (optional — present only when the run reached FRED), and the `vol/` and `px/` shard directories (the HTML lazy-loads all of those at runtime, so everything must ship together; the dense `prices.json` was retired 2026-08-11 in favor of per-ticker `px/` shards) — then amends that branch's single commit and force-pushes it. **`main` is not touched by this routine.** The old sweet-gauss copy→merge→fast-forward flow is retired.
 
-Note that the publish routine uses the **run-START date** (RUNDATE), not `$(date)` — if the 3–6 hour analysis crossed midnight, `$(date)` names the wrong file.
+Note that the publish routine uses the **run-START date** (RUNDATE), not `$(date)` — every weekday run crosses midnight (13–16 h), so `$(date)` names the wrong file.
 
 This is run as the final step of the analysis routine, but the publish routine is a **separate failure surface**: if it fails, the analysis itself is still considered successful (today's JSON and HTML exist locally and the snapshot has been pushed). Report the publish failure but do not retroactively fail the analysis run. The publish routine can be re-invoked manually to retry without re-running analysis.
 

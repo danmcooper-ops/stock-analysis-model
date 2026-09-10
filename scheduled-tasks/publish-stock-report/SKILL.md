@@ -8,7 +8,7 @@ You are running the publish step for the daily stock analysis. This task copies 
 This routine assumes `output/stock_analysis_results_YYYY-MM-DD.html` already exists for the run date — produced by the `daily-stock-analysis` routine. If the HTML is missing, stop and report; there is nothing to publish.
 
 ## Run date (IMPORTANT)
-Use the **run-START date** of the analysis, not `$(date)` — if the 3–6 h analysis crossed midnight, `$(date)` is wrong. Determine RUNDATE from the newest `output/stock_analysis_results_*.html` and substitute it literally in the commands below.
+Use the **run-START date** of the analysis, not `$(date)` — every weekday run crosses midnight (13–16 h), so `$(date)` is wrong. Determine RUNDATE from the newest `output/stock_analysis_results_*.html` and substitute it literally in the commands below.
 
 ## Paths
 - **Main repo:** `$HOME/Projects/Workspace Folder`
