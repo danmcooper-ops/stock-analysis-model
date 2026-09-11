@@ -2897,6 +2897,13 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             # on-disk cache, and keeping one per US filer for the whole
             # universe sweep is what OOM-killed the cloud run at 13 GiB.
             sec_xbrl_client.release_facts(ticker)
+            # A ticker that did not qualify is never read again (Phase 2
+            # walks screen_cache), so drop its yfinance financials and
+            # histories as well: fetch_financials runs before the market-cap
+            # bail, and the ~6k micro-caps it screens out would otherwise
+            # stay cached until the end of the sweep.
+            if ticker not in screen_cache:
+                yf_client.evict_ticker(ticker)
         # Flush after every ticker so the log reflects progress if OOM-killed
         sys.stdout.flush()
 

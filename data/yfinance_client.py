@@ -246,6 +246,17 @@ class YFinanceClient:
         """Free all cached price histories and dividend series."""
         self._history_cache.clear()
 
+    def evict_ticker(self, ticker):
+        """Free everything cached for one ticker: its financials and every
+        price history and dividend series.  Phase 1 of analyze_stock calls
+        this for a ticker that did not qualify, since nothing reads that data
+        again; fetch_financials runs before the market-cap bail, so the ~6k
+        micro-caps a full-universe sweep screens out would otherwise stay
+        cached until the end of the phase."""
+        self._financials_cache.pop(ticker, None)
+        for key in [k for k in self._history_cache if k[0] == ticker]:
+            del self._history_cache[key]
+
     def _retry(self, func, max_retries=2):
         """Run *func* with retries for transient failures.
 
