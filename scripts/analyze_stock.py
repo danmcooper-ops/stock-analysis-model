@@ -2891,6 +2891,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
 
         except Exception as e:
             print(f"  [{i}/{len(all_tickers)}] {ticker} - error: {e}")
+        finally:
+            # Release the raw companyfacts blob (7-27 MB each) on every path,
+            # the SKIP `continue`s included: Phase 2 re-reads it from the
+            # on-disk cache, and keeping one per US filer for the whole
+            # universe sweep is what OOM-killed the cloud run at 13 GiB.
+            sec_xbrl_client.release_facts(ticker)
         # Flush after every ticker so the log reflects progress if OOM-killed
         sys.stdout.flush()
 

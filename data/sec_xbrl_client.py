@@ -11,6 +11,7 @@ Uses only stdlib (urllib + json + datetime).
 import gzip
 import json
 import logging
+import os
 import ssl
 import time
 import urllib.error
@@ -698,6 +699,27 @@ class SECXBRLClient:
             if self._facts_cache is not None:
                 self._facts_cache.put(cik, data)
         return data
+
+    def release_facts(self, ticker):
+        """Drop *ticker*'s raw companyfacts blob from the in-memory cache.
+
+        A blob is 7-27 MB as Python objects and Phase 1 of analyze_stock
+        fetches one for every US filer past the market-cap floor, so holding
+        all of them across the ~9k-ticker universe is what OOM-killed the
+        cloud run at 13 GiB.  Once the gzipped copy is on disk the next
+        fetch_company_facts call re-reads it in milliseconds, so the blob is
+        released only when that copy exists; with no on-disk cache (tests,
+        one-shot callers) it stays, because dropping it would cost a
+        re-download.  The None sentinel for a ticker with no CIK is kept.
+        Returns True if a blob was released.
+        """
+        if self._facts_cache is None or self._cache.get(ticker) is None:
+            return False
+        path = self._facts_cache.path_for(self._cik_map.get(ticker))
+        if not (path and os.path.exists(path)):
+            return False
+        del self._cache[ticker]
+        return True
 
     # ------------------------------------------------------------------
     # Persistent-cache freshness
