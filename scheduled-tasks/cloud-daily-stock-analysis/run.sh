@@ -59,6 +59,12 @@ FORCE="${FORCE:-0}"
 BENCHMARKS="SPY QQQ IWM DIA XLK XLV XLF XLY XLP XLE XLI XLB XLU XLRE XLC"
 
 export YF_IMPERSONATE="${YF_IMPERSONATE:-chrome116}"
+# The Routine fires at 21:00 New York (01:00 UTC in summer), and the container
+# clock is UTC, so RUNDATE and analyze_stock's date.today() both landed on the
+# calendar day AFTER the session being analysed: the first cloud run would
+# have archived Thursday's close as results_<Friday>.  The Mac ran in New
+# York local time, which is the convention the archive already carries.
+export TZ="${TZ:-America/New_York}"
 export SEC_EMAIL="${SEC_EMAIL:-stockanalysis@example.com}"
 # The cloud egress proxy re-terminates TLS; every client must trust its CA.
 if [ -z "${SSL_CERT_FILE:-}" ] && [ -r /root/.ccr/ca-bundle.crt ]; then
