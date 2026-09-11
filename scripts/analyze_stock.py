@@ -2891,6 +2891,20 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
 
         except Exception as e:
             print(f"  [{i}/{len(all_tickers)}] {ticker} - error: {e}")
+        finally:
+            # Release the raw companyfacts blob (7-27 MB each) on every path,
+            # the SKIP `continue`s included: Phase 2 re-reads it from the
+            # on-disk cache, and keeping one per US filer for the whole
+            # universe sweep is what OOM-killed the cloud run at 13 GiB.
+            sec_xbrl_client.release_facts(ticker)
+            # Drop the ticker's yfinance financials and histories now rather
+            # than in the evict_financials() / clear_history_cache() sweep
+            # after the phase: that sweep already relies on screen_cache
+            # holding its own references to what Phase 2 needs, so evicting
+            # per ticker reaches the same end state ~9k tickers earlier.  A
+            # qualifying ticker's raw yfinance dict was the bulk of the
+            # ~4 MB it otherwise held until the sweep.
+            yf_client.evict_ticker(ticker)
         # Flush after every ticker so the log reflects progress if OOM-killed
         sys.stdout.flush()
 

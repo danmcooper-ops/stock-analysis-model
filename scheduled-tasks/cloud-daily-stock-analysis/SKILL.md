@@ -34,7 +34,7 @@ and both force-push `pages-live`.
 | 01-venv | | yes | `.venv` + `pip install -e ".[dev]"` (~1 min) |
 | 02-stage-snapshots | | yes | blob-less, checkout-less clone of `data/snapshots`; materialises the newest `SNAPSHOT_HISTORY` (10) snapshots and `rating_history.json` into `output/` so carry-forward, Yesterday's Rating, the rate-change look-back, rating history and gate N/A deltas all work exactly as they did locally |
 | 03-prices | | no | full price history for every ticker in the newest prior snapshot + benchmarks (~2,300 tickers, 25–45 min) |
-| 04-analyze | | **yes** | `analyze_stock.py --macro --universe us --min-spread 0 --mcap-min 300e6` — **3–6 hours**. SEC companyfacts are re-downloaded every run (the on-disk cache does not survive the container) |
+| 04-analyze | | **yes** | `analyze_stock.py --macro --universe us --min-spread 0 --mcap-min 300e6` — **10–16 hours** (Phase 1 ~5h at ~30 tickers/min, then Phase 2 over ~2,300 qualifiers). SEC companyfacts are re-downloaded every run (the on-disk cache does not survive the container) |
 | 05a–05d enrich | | no | FDIC, REIT, XBRL, FDA pipeline — same as the Mac runbook 1b–1e |
 | 05e-prices-topup | | no | full history for Phase-2 entrants that only got a Close-only stub during the run |
 | 05f-rerender | | yes | `rescore_and_render.py` so the HTML carries every enrichment |
@@ -62,7 +62,9 @@ cd /home/user/stock-analysis-model && git fetch origin main && git checkout -q m
 
 ### 2. Start the script in the background and wait for it
 Run it as a **background** Bash command (the Bash tool's `run_in_background`),
-so the session is woken when it exits; the run takes **4–8 hours**:
+so the session is woken when it exits; the run takes **12–20 hours** (the
+Mac's 2026-09-08 `analyze_stock` alone ran 13h37m by its own provenance
+timestamps; the Routine prompt's "4–8 hours" predates that measurement):
 ```
 cd /home/user/stock-analysis-model && bash scheduled-tasks/cloud-daily-stock-analysis/run.sh > .cloud-run.log 2>&1
 ```
@@ -138,9 +140,12 @@ schedule from there, or from a session with the
 connector tools, so the `add_repo` fallback above may not exist there; if a
 push is refused for credentials, recreate the Routine from the claude.ai
 Routines UI with this repository attached as a source. The schedule is
-`0 21 * * 1-5` UTC (17:00 New York in summer, 16:00 in winter — always after
-the close; cloud cron is UTC-only, so the local hour drifts with DST instead
-of ever landing before the bell). To test the script itself without touching
+entered in the Routine UI in **local (New York) time** and is currently
+**21:00 New York** on weekdays — 01:00 UTC in summer, 02:00 in winter — which
+is why the 2026-09-10 session's run started at 01:01 UTC on 09-11. `run.sh`
+therefore exports `TZ=America/New_York` so `RUNDATE` and the snapshot name
+carry the session date, as the Mac runs did. A 12–20 hour run started at
+21:00 finishes mid-afternoon the next day, before the next firing. To test the script itself without touching
 GitHub: `SMOKE=1 FORCE=1 DRY_RUN=1 bash scheduled-tasks/cloud-daily-stock-analysis/run.sh`
 runs eight tickers end to end and pushes nothing.
 
@@ -150,4 +155,11 @@ runs eight tickers end to end and pushes nothing.
   cloud egress proxy, and a plain client is 429'd by Yahoo.
 - `.cloud-run/` is gitignored scratch; the blob-less snapshot clone inside it
   never downloads more than the staged days plus today's upload.
+- `01-venv` routes pip through the egress proxy on purpose. The proxy's
+  noProxy set contains `pypi.org` and `files.pythonhosted.org`, so pip would
+  otherwise reach PyPI directly — and direct egress answers the request but
+  never streams the body (a 1 MiB wheel stalled at 0 bytes for 60s), failing
+  every install with `ReadTimeoutError`. `pip_no_proxy()` drops just those two
+  hosts from `no_proxy`; the localhost/link-local/internal entries stay, and
+  when no proxy is configured the list is left alone.
 - The weekly backtest is a separate routine and is **not** covered here.
