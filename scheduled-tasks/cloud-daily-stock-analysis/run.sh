@@ -127,10 +127,30 @@ fi
 # 1. Python environment
 # ---------------------------------------------------------------------------
 PYTHON="$REPO/.venv/bin/python"
+
+# The cloud session's egress proxy lists pypi.org and files.pythonhosted.org in
+# its noProxy set, so pip reaches PyPI directly instead of through the proxy.
+# Direct egress answers the request but never streams the body -- a 1 MiB wheel
+# sat at 0 bytes for 60s -- so every install died in a ReadTimeoutError, while
+# the same wheel through the proxy arrives in under a second.  Drop just those
+# two hosts from no_proxy for pip, leaving the localhost/link-local/internal
+# entries (and the whole list, when no proxy is configured) untouched.
+pip_no_proxy() {
+  local np="${NO_PROXY:-${no_proxy:-}}"
+  if [ -z "${HTTPS_PROXY:-${https_proxy:-}}" ] || [ -z "$np" ]; then
+    printf '%s' "$np"; return 0
+  fi
+  printf '%s' "$np" | tr ',' '\n' \
+    | grep -vxE 'pypi\.org|files\.pythonhosted\.org' | paste -sd, - || true
+  return 0
+}
+
 bootstrap_venv() {
   [ -x "$PYTHON" ] || python3 -m venv "$REPO/.venv" || return 1
   "$PYTHON" -c "import yfinance, pandas, duckdb, scipy, curl_cffi, openpyxl, jinja2" 2>/dev/null && return 0
-  "$PYTHON" -m pip install -q -e "$REPO[dev]"
+  local np; np="$(pip_no_proxy)"
+  NO_PROXY="$np" no_proxy="$np" \
+    "$PYTHON" -m pip install -q --timeout 120 --retries 8 -e "$REPO[dev]"
 }
 run_step 01-venv 1 bootstrap_venv || exit 1
 
