@@ -54,3 +54,4 @@ test_tickers.xlsx
 # cloud routine scratch (scheduled-tasks/cloud-daily-stock-analysis/run.sh)
 .cloud-run/
 .cloud-run.log
+.cloud-run-*.log
