@@ -208,6 +208,12 @@ SECTOR_DEFAULT = {
 }
 
 
+# Phase-2 network prefetch threads (analyze_stock --workers). All SEC clients
+# share one throttle, so this raises throughput without exceeding EDGAR's
+# rate limit; the model math stays single-threaded.
+PHASE2_IO_WORKERS = 4
+
+
 def _get_sector_config(sector):
     """Look up sector-specific DCF parameters with default fallback."""
     return SECTOR_CONFIG.get(sector, SECTOR_DEFAULT)

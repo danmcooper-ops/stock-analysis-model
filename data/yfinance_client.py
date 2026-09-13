@@ -192,7 +192,9 @@ def _backfill_shares_and_mcap(stock, info):
 # thread avoids the memory/thread leak of creating (and never joining) a
 # fresh ThreadPoolExecutor per yfinance call.  max_workers=4 allows light
 # concurrency for overlapping timeout calls while capping thread count.
-_TIMEOUT_EXECUTOR = ThreadPoolExecutor(max_workers=4)
+# Sized above analyze_stock's Phase-2 prefetch threads (default 4) so a few
+# orphaned timed-out calls cannot starve them into spurious timeouts.
+_TIMEOUT_EXECUTOR = ThreadPoolExecutor(max_workers=8)
 
 
 def _run_with_timeout(func, timeout_seconds):

@@ -1,5 +1,6 @@
 # scripts/analyze_stock.py
 import gc
+from concurrent.futures import ThreadPoolExecutor
 import sys
 import os
 import io
@@ -78,7 +79,7 @@ from data.snapshot_store import (SnapshotStore, list_snapshot_files,
                                  sync_snapshot_file, write_snapshot_file)
 from data.culture_client import CultureClient
 
-from scripts.config import (ERP, TERMINAL_GROWTH_RATE,
+from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             RIM_SPREAD_PERSISTENCE, RIM_MAX_BOOK_GROWTH,
                             GROWTH_WEIGHT_FCF, GROWTH_WEIGHT_REV,
                             GROWTH_WEIGHT_ANALYST_ST, GROWTH_WEIGHT_ANALYST_LT,
@@ -2397,6 +2398,9 @@ def _run_setup():
                         help='Phase-1 filter: skip tickers with market cap below this threshold '
                              '(e.g. 500e6 for $500M). Default 0 = no filter. '
                              'Useful with --universe us to drop shells and micro-caps quickly.')
+    parser.add_argument('--workers', type=int, default=PHASE2_IO_WORKERS, metavar='N',
+                        help='Threads prefetching Phase-2 network data ahead of the (sequential) '
+                             f'analysis loop; 1 disables prefetch. Default {PHASE2_IO_WORKERS}.')
     parser.add_argument('--no-screen-cache', action='store_true',
                         help='Ignore data/cache/screen_skip.json and fetch every universe ticker '
                              '(the cache skips tickers recently far below --mcap-min or dead).')
@@ -3030,8 +3034,13 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                          effective_erp, effective_tg_adj,
                          effective_wacc_sigma, effective_growth_sigma_mult,
                          effective_growth_weight_shift, risk_free_rate,
-                         macro_regime_result, sector_signals):
-    """Phase 2: full per-ticker analysis of every qualifying ticker."""
+                         macro_regime_result, sector_signals, io_workers=1):
+    """Phase 2: full per-ticker analysis of every qualifying ticker.
+
+    With ``io_workers > 1`` a thread pool prefetches each ticker's network
+    data ahead of the loop (see ``_prefetch``); the analysis itself stays
+    sequential, so results and warnings are exactly as with one worker.
+    """
     # -----------------------------------------------------------------------
     # Phase 2: Full analysis on qualifying tickers (Worksheet Steps 2-5)
     # -----------------------------------------------------------------------
@@ -3039,8 +3048,43 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
     # Pre-load SPY local prices once for rolling-beta comparisons
     _spy_local = _load_local_prices('SPY', prices_dir)
 
+    # Network prefetch. ~15 s/ticker of Phase 2 was spent waiting on
+    # throttled HTTP (Tiingo/RSS news, SEC legal/supply/Form 4, Finnhub,
+    # dividends, Glassdoor) while the model code takes well under a second.
+    # Every one of those calls memoizes its result per ticker, so warming the
+    # caches from worker threads makes the loop's identical calls cache hits.
+    # Only I/O runs in the pool: model code uses warnings.catch_warnings(),
+    # which is not thread-safe, and must stay on this thread.
+    def _prefetch(ticker):
+        try:
+            info = ((screen_cache.get(ticker) or {}).get('yf_data') or {}).get('info') or {}
+            news = (tiingo_client.fetch_ticker_news(ticker, max_age_days=30, max_items=12)
+                    if tiingo_client.available else [])
+            if not news:
+                news_client.get_combined_news(ticker, info.get('sector') or '', max_total=12)
+            sec_client.fetch_legal_filings(ticker, days_back=730)
+            if not supply_client.fetch_supply_chain(ticker).get('available'):
+                sec_supply_client.fetch_supply_chain(ticker)
+            supply_client.fetch_peers(ticker)
+            sec_insider_client.fetch_insider_activity(ticker, days_back=365)
+            culture_client.fetch_glassdoor(info.get('shortName') or info.get('longName') or '', ticker)
+            yf_client.fetch_dividends(ticker)
+        except Exception as e:
+            # The loop repeats each call and handles (and logs) the failure.
+            logger.debug(f"phase2 prefetch failed for {ticker}: {e}")
+
+    _pool = None
+    _pending = {}
+    if io_workers and io_workers > 1:
+        _pool = ThreadPoolExecutor(max_workers=io_workers, thread_name_prefix='phase2-io')
+        _pending = {t: _pool.submit(_prefetch, t) for t in qualifying}
+        print(f"Phase 2: prefetching network data with {io_workers} worker thread(s)")
+
     results = []
     for ticker in qualifying:
+        _fut = _pending.pop(ticker, None)
+        if _fut is not None:
+            _fut.result()  # _prefetch never raises
         print(f"Analyzing {ticker}...")
         try:
             cached = screen_cache[ticker]
@@ -3883,6 +3927,9 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 screen_cache[ticker].pop('yf_data', None)
             sys.stdout.flush()
 
+    if _pool is not None:
+        _pool.shutdown(wait=True, cancel_futures=True)
+
     # All per-ticker analysis complete — release remaining caches
     screen_cache.clear()
     yf_client.evict_financials()
@@ -4667,7 +4714,8 @@ def _main():
         culture_client, sector_exit_multiples, effective_exit_mult_default,
         effective_erp, effective_tg_adj, effective_wacc_sigma,
         effective_growth_sigma_mult, effective_growth_weight_shift,
-        risk_free_rate, macro_regime_result, sector_signals)
+        risk_free_rate, macro_regime_result, sector_signals,
+        io_workers=args.workers)
 
     post = _run_postprocess(results, ms_pfv_data, _carry_prior_rows)
     sector_median_ee = post['sector_median_ee']
