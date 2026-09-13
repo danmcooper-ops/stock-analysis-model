@@ -3,269 +3,95 @@ name: daily-stock-analysis
 description: Run full stock analysis and publish updated report to GitHub Pages
 ---
 
-You are running the end-of-day stock analysis routine. Execute the following steps in order. Stop and report an error if any step fails.
+You are running the end-of-day stock analysis routine. The whole pipeline is
+one script, `scripts/run_daily.sh`; your job is to launch it, wait for it, and
+write the run summary from what it produced.
 
 ## Execution mode
-- **Always run fully autonomously (auto mode).** Do not pause for confirmation or ask clarifying questions — this is an unattended scheduled run. Make reasonable choices for any ambiguity and note them in the run summary. Only "write" actions explicitly described in the steps below (committing/pushing snapshots, publishing the report) are permitted; do not take other outward-facing or destructive actions.
-- **Always run on the latest available model.** Use the most capable current Claude model for this routine; do not pin to or fall back to an older model.
+- **Always run fully autonomously (auto mode).** Do not pause for confirmation or ask clarifying questions — this is an unattended scheduled run. The only write actions permitted are the ones the script performs itself (snapshot commit/push to `data/snapshots`, force-push of `pages-live`) and the retry commands listed below. Do not take other outward-facing or destructive actions.
+- **Always run on the latest available model.**
 
-## Paths
-- **Main repo:** `$HOME/Projects/Workspace Folder`
-- **Pages worktree:** `$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live` (branch `pages-live`; used only by the publish routine in Step 8)
-- **Snapshots worktree:** `$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data`
-- **Python:** `$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python`
-- **SSL fix:** set `SSL_CERT_FILE` to the output of `.venv/bin/python -m certifi` before running any Python script
-- **Historical snapshots (git branch `data/snapshots`):** `$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data/results_*.json`
+## Why a script
+Until 2026-09-13 this file listed ~15 commands for Claude to run one by one.
+That chain broke often. On 2026-09-09 the 15-hour analysis finished after midnight. The
+`$(date)`-named enrichment paths then pointed at a file that did not exist, and
+the snapshot was never archived or published. `run_daily.sh` fixes RUNDATE
+once at start, runs every step in order, keeps the Mac awake (`caffeinate`),
+holds a lock so two runs never overlap, and records each step's exit code and
+duration in `output/run_summary_<RUNDATE>.json`.
 
-## IMPORTANT: Command format
-All Python script invocations **must be sent as a single-line semicolon-separated Bash command** (not multi-line). This is required for permission matching to work. Use the exact format shown in each step below.
-
-## Preflight: skip the run entirely if the market was closed
-
-**Run this before Step 0 and before anything else.** On a day the US equity
-market never opened there are no new bars, so the whole 3-6 hour pipeline would
-re-publish the previous session's data under a new date and add a
-duplicate-content day to the `data/snapshots` corpus the weekly backtest
-calibrates on. Run as a **single Bash call**:
+## Step 1 — Launch the pipeline
+Run as a **single Bash call, in the background** (it takes hours; the Bash tool
+would time out in the foreground):
 ```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/market_open.py; echo "market_open exit=$?"
+cd "$HOME/Projects/Workspace Folder"; scripts/run_daily.sh
 ```
-`scripts/market_open.py` computes the NYSE calendar from the exchange's rules
-(no network, no dependency beyond the standard library) and prints a one-line
-verdict. **Act on the exit code, not the wording:**
+You will be notified when it exits. Do not start a second copy while waiting;
+the lock file makes a second copy exit immediately anyway.
 
-| exit | meaning | what to do |
-|---|---|---|
-| `0` | the market traded today | continue to Step 0 and run the routine normally |
-| `10` | weekend, holiday or known ad-hoc closure | **stop here.** Report "market closed — run skipped" plus the printed reason as the entire run summary. Do not run any later step, do not archive a snapshot, do not publish. |
-| anything else | the gate itself failed | **continue the run anyway** and flag the gate failure in the run summary |
+Exit codes: `0` success **or** market-closed skip · `1` a blocking step
+failed (analysis, or the snapshot archive) · `3` finished, but a non-blocking
+step failed.
 
-That last row is deliberate: failing open means a bug in the gate costs one
-wasted run, whereas failing closed would silently stop the daily corpus from
-growing for weeks — the opposite of what this project exists to do. Only `10`
-means skip.
+## Step 2 — Read the results
+RUNDATE is the date in the script's first log line (`RUNDATE=YYYY-MM-DD`).
+1. `output/run_summary_RUNDATE.json` holds `status` (`ok` / `degraded` /
+   `failed` / `skipped`), each step's `rc` and `seconds`, and `notes`.
+2. The full log is `~/Library/Logs/StockModel/daily_RUNDATE.log`. The
+   analysis output is also in `output/run_RUNDATE.log`.
 
-The task's cron is `0 16 * * 1-5`, so weekends never fire and the holiday check
-is what this actually buys. Bitten twice: a snapshot exists for **2026-07-03**
-(observed Independence Day) and the **2026-09-07** Labor Day run was killed
-manually at Step 0.
+If `status` is `skipped`, the entire run summary is: "market closed — run
+skipped" plus the reason `market_open.py` printed. Stop there.
 
-Unscheduled closures — national days of mourning, hurricanes — cannot be derived
-from a rule and live in `AD_HOC_CLOSURES` in that script. That table is the one
-part that goes stale; if the exchange announces a closure of that kind, add the
-date there. Early-close sessions (the day after Thanksgiving, Christmas Eve) are
-**not** closures: the market trades, bars are produced, and the run should go
-ahead as normal.
+## Step 3 — Write the run summary
+Include, from the log:
+- **Status and timing:** the overall status, total duration, and each step's rc/duration. Call out anything over the 6 h analysis budget.
+- **Notes:** every entry in `notes` (battery power, SEC_EMAIL missing, skipped fast-forward, archive not pushed, publish failure…).
+- **Gate N/A coverage** (`gate_na_report` section): print the full table.
+  - Call out every **⚠ JUMP**, a gate's N/A share up ≥10 points vs the prior snapshot. It means a data source degraded today.
+  - Mention **⚠ HIGH** only if the set of HIGH gates changed vs recent runs. Several gates are structurally high.
+- **Momentum check** (`validate_ratings` section): print the rating buckets and Spearman r.
+  - Flag it if BUY/LEAN BUY had clearly higher trailing returns than HOLD/PASS.
+  - Flag it if r is above +0.15 with p < 0.05. A value model is expected to show a negative r.
+- **Portfolio report** (`portfolio_report` section): flag any sector above 35% of the BUY/LEAN BUY bucket, any highly correlated pair (r > 0.85) that isn't an obvious duplicate (GOOG/GOOGL), and any BUY with a 2020 drawdown worse than -50%.
+- **Run quality:** the analysis's closing `RUN QUALITY:` lines, and the `Screen skip cache:` line from Phase 1.
+- **Publish:** the result, with the live URL's HTTP code.
 
-## Steps
+## Step 4 — Recover a failed step (only when the summary shows one)
+Each step can be resumed without re-running the analysis. Run the command in the background, with RUNDATE substituted literally:
 
-### 0. Refresh the price cache
-The `output/prices` parquets never refresh themselves; the analysis, the report's px/vol chart shards, and the validation steps all read them, so they must be brought current at the start of each run. Run as a **single Bash call** (all on one line, semicolons not newlines):
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/download_prices.py --output-dir output/prices --max-age-days 2 --tickers $(ls output/prices/*.parquet | sed 's|.*/||;s|\.parquet||') SPY QQQ IWM DIA
-```
-Refreshes every already-cached ticker whose last bar is older than 2 days, plus the four benchmark indices explicitly (SPY/QQQ/IWM/DIA feed the report's index-comparison lines; the weekly backtest routine reuses these files). Idempotent — current files are skipped, so the day after a full refresh this is nearly a no-op. **Typical runtime: 15–40 min on a normal weekday; up to ~60 min after weekends/gaps.** Do not run it concurrently with Step 1 — Step 1 reads these files.
+| Symptom | Command |
+|---|---|
+| enrichment / render failed transiently | `cd "$HOME/Projects/Workspace Folder"; scripts/run_daily.sh --from enrich --date RUNDATE` |
+| `archive_push` failed (network) | `cd "$HOME/Projects/Workspace Folder"; scripts/run_daily.sh --from archive --date RUNDATE` |
+| publish failed | `cd "$HOME/Projects/Workspace Folder"; scripts/run_daily.sh --from publish --date RUNDATE` |
 
-A non-zero exit code (or partial ticker failures — Yahoo outages, delisted names) should be reported but does **not** block the remaining steps: the analysis still works on slightly-stale bars, which was the status quo before this step existed. Individual delisted-ticker errors in the output are routine noise, not failures.
+Retry once at most. Do **not** retry these:
+- **`archive_snapshot` rc=2:** the snapshot breached the 80 MiB guard. It needs a size fix, likely splitting out the `edgar_history` series, which are ~25% of a snapshot.
+- **`archive_snapshot` rc=1:** the gzip round-trip failed verification.
+- **`analyze` failures.**
 
-### 0.5 Fast-forward main so the render uses merged template work
-PRs merged on GitHub are invisible to this run until the local checkout is updated: the pipeline reads `templates/report.html` from the working tree at render time, so a stale `main` silently re-publishes old UI. (Bitten 2026-08-25: local `main` was 6 commits behind `origin/main` and the nightly render reverted the merged Macro Outlook nav order on the live site.) Run as a **single Bash call**:
-```
-cd "$HOME/Projects/Workspace Folder"; git fetch origin main; git pull --ff-only origin main
-```
-If the pull fails (non-fast-forward divergence, or uncommitted changes that conflict), do **not** force-update or discard anything: report the divergence prominently in the run summary and continue the run on the current checkout. A stale render is recoverable later with `rescore_and_render.py` + a republish; a forced update can destroy local work.
-
-### 1. Run the analysis
-Run as a **single Bash call** (all on one line, semicolons not newlines):
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/analyze_stock.py --macro --prices-dir output/prices --universe us --min-spread 0 --mcap-min 300e6
-```
-SEC XBRL companyfacts are now cached on disk under `data/cache/sec_facts/` (gzipped, ~270 KB per filer). The run starts by walking SEC's daily filing index since the last run and evicting only the filers who filed a 10-K/10-Q/20-F/40-F/6-K, so the corpus is no longer re-downloaded nightly — expect the first run after this change to be a full download (~0.4 GB of transfer for the enriched universe) and later runs to fetch only what changed. The cache is disposable: deleting the directory costs one slow run. A "filing index unreadable" warning means the sweep stopped early and will resume there next run; facts stay served from cache meanwhile, with a 30-day age backstop.
-
-This expands the ticker universe from ~500 S&P/Dow stocks to all US-listed equities (~7,000–10,000 tickers from SEC EDGAR), then applies two Phase-1 filters before the expensive Phase 2 deep analysis: (1) market cap ≥ $300M (drops micro-caps and shells that can't be meaningfully valued) and (2) ROIC > WACC (positive economic spread — the business creates value). **Expected runtime: 3–6 hours.** The SEC listings are cached locally for 7 days (`data/cache/us_listings.csv`) so Phase 1 startup is fast on subsequent runs.
-
-This produces `output/stock_analysis_results_YYYY-MM-DD.html` and `output/results_YYYY-MM-DD.json` (where YYYY-MM-DD is today's date). Confirm both files exist before continuing.
-
-If the script exits non-zero, do not proceed with any further steps.
-
-### 1b. Enrich Financial Services records with FDIC call-report data
-Run as a **single Bash call** (all on one line, semicolons not newlines):
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/enrich_fdic.py "output/results_$(date +%Y-%m-%d).json"
-```
-Joins NIM / Efficiency Ratio / CET1 / NPL / Deposit Beta from the FDIC BankFind Suite API into each mapped bank's record (writes `nim`, `efficiency_ratio`, `cet1_ratio`, `npl_ratio`, `deposit_beta`, `fdic_cert`, `fdic_repdte` in place). `deposit_beta` = Δ(cost of deposits) / Δ(fed funds) across the 2021→23 hiking cycle, from two historical FDIC quarters (EDEP/DEP). Mapping lives in `data/ticker_fdic_map.py` (~45 US-chartered banks); responses cached for 30 days under `data/cache/fdic/`. The script is idempotent — strips prior enrichment before running, and a staleness guard rejects records older than 2024 so any wrong CERT fails closed.
-
-A non-zero exit code should be reported but does **not** block the remaining steps — the analysis itself is still valid even if FDIC enrichment fails (e.g. API outage). The Financials sector banner will simply show `—` for the four FDIC-backed KPIs.
-
-### 1c. Enrich Real Estate records with FFO Growth + AFFO Margin proxies
-Run as a **single Bash call** (all on one line, semicolons not newlines):
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/enrich_reit.py "output/results_$(date +%Y-%m-%d).json"
-```
-Computes two REIT-specific proxies from each Real Estate stock's existing `edgar_history` (no network calls):
-- `ffo_growth_5y` — 5-yr CAGR of operating cash flow (proxy for FFO growth)
-- `affo_margin` — (CFO − capex) / revenue, latest year (proxy for AFFO margin)
-
-The NAREIT FFO/AFFO definitions aren't in standardized XBRL; these CFO-based proxies cover ~85% of the REIT universe and match the right qualitative ranking (storage / data-center REITs land in the 50%+ AFFO band; healthcare / hotels at 15-25%). Idempotent.
-
-A non-zero exit code should be reported but does **not** block the remaining steps. Pure local computation — failure is unlikely unless the JSON is malformed.
-
-### 1d. Enrich sector-specific KPIs via SEC XBRL (Phases 3–6)
-Covers nine sectors in a single pass: Technology / Healthcare / Communication Services / Industrials / Consumer Cyclical / Consumer Defensive / Energy / Utilities / Basic Materials. Run as a **single Bash call** (all on one line, semicolons not newlines):
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/enrich_xbrl.py "output/results_$(date +%Y-%m-%d).json"
-```
-For every target-sector stock with a known SEC CIK, fetches the companyfacts blob once and derives:
-
-**Phase 3 — Tech / Healthcare / Comm:**
-- `rd_intensity_xbrl` — R&D / Revenue (XBRL is more reliable than yfinance income statement)
-- `sbc_pct_rev_xbrl` — Stock-based comp / Revenue
-- `fcf_margin_ex_sbc` — (CFO − Capex − SBC) / Revenue
-- `net_cash_to_mcap` — (Cash + ST Inv − Debt) / Market Cap
-- `deferred_rev_growth` — YoY change in contract-with-customer liability
-
-**Phase 4 — Industrials:**
-- `capex_intensity` — abs(Capex) / Revenue (pure local from edgar_history)
-- `backlog_to_revenue` — RemainingPerformanceObligation / Revenue
-
-**Phase 5 — Consumer Cyclical / Defensive:**
-- `inventory_days` — Inventory / (COGS / 365)
-- `working_capital_days` — Inventory Days + AR Days − AP Days (Cash Conversion Cycle)
-- `brand_spend_pct_rev` — AdvertisingExpense / Revenue
-
-**Phase 6 — Energy / Utilities / Materials:**
-- `capex_to_dd_ratio` — abs(Capex) / D&A (universal capital-reinvestment discipline ratio; for E&P filers, D&A includes depletion of reserves)
-
-**Phase 7 — cross-sector quick wins + Real Estate + insurers** (Real Estate and insurer-only Financial Services records were added to the target set; banks in Financial Services are skipped here since they're enriched via FDIC):
-- `rule_of_40` — 5yr revenue CAGR + FCF-ex-SBC margin, in points (Technology; pure local)
-- `book_to_bill_proxy` — (ΔBacklog + Revenue) / Revenue from the RPO series (Industrials; pure local)
-- `brand_spend_trend` — annualized change in AdvertisingExpense / Revenue (Consumer Cyclical/Defensive; pure local)
-- `debt_maturity_wall_yrs` — principal-weighted average years to maturity from XBRL `LongTermDebtMaturitiesRepaymentsOfPrincipal*` buckets (Real Estate)
-- `combined_ratio` / `float_cost` — insurers: `1 − UnderwritingIncomeLoss / PremiumsEarnedNet`, and combined − 1 (Financial Services insurers)
-
-Bounded by SEC's 10 req/sec rate limit; ~250 seconds wall clock for ~1,500 mapped tickers on a cold in-memory cache. Idempotent — strips prior enrichment first.
-
-A non-zero exit code should be reported but does **not** block the remaining steps. Stocks for which the SEC XBRL fetch fails just show "—" for the affected KPIs in their sector banners.
-
-### 1e. Enrich Healthcare drug/biotech records with FDA pipeline depth
-Run as a **single Bash call** (all on one line, semicolons not newlines):
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/enrich_pipeline.py "output/results_$(date +%Y-%m-%d).json"
-```
-Counts each drug/biotech company's active sponsored interventional trials on the ClinicalTrials.gov API v2 and writes `fda_pipeline_count`. Scoped to drug/biotech industries (devices/payers/services are skipped so they don't distort the sector median). Sponsor name comes from `data/ticker_sponsor_map.py` when mapped, else the cleaned company name; the lookup matches on the lead-sponsor field so unrelated companies don't collide. Responses cached for 30 days under `data/cache/clinicaltrials/`. Idempotent — strips prior enrichment first; API/network failures degrade to "—" rather than raising.
-
-A non-zero exit code should be reported but does **not** block the remaining steps. The Healthcare banner simply shows `—` for FDA Pipeline Count if the enrichment fails.
-
-### 1f. Re-render the HTML report so banners pick up the enrichment
-Must run **after** 1b, 1c, 1d, and 1e so the final HTML reflects every enriched field. Run as a **single Bash call**:
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/rescore_and_render.py "output/results_$(date +%Y-%m-%d).json"
-```
-This overwrites `output/stock_analysis_results_YYYY-MM-DD.html` with a render that includes every Phase 1–4 enrichment. If any of the enrichment steps failed (no fields populated), this step is still safe — the affected banners just fall back to "—".
-
-The analysis, each enrichment script and this re-render also mirror the snapshot into `output/snapshots.duckdb` (the DuckDB snapshot store, see `data/snapshot_store.py`), which the carry-forward, the report's rating-history readers, Step 4 and the portfolio tracker query instead of re-parsing whole JSON files. The mirror is a derived index and never blocks a step; a "snapshot store sync failed" warning in the log means those readers fall back to the JSON for that date. To rebuild or backfill it (e.g. after restoring snapshots from the `data/snapshots` branch), run as a **single Bash call**:
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/ingest_snapshots.py --results-dir output
-```
-Idempotent — dates already present are skipped (add `--replace` to force).
-
-**After a release that bumps the store's `SCHEMA_VERSION`** (see
-`data/snapshot_store.py`), the first writable open rebuilds the file empty and
-logs "rebuilding at v<N>" — the store is a derived index, so its columns are
-re-derived rather than migrated. Everything keeps working meanwhile (every
-reader falls back to the JSON snapshots), but history-backed columns such as
-the report's rating history stay on the slow path until the backfill above is
-re-run once against the snapshot archive.
-
-### 2. Archive today's snapshot to the data/snapshots branch
-The snapshot is archived **gzipped** (`results_YYYY-MM-DD.json.gz`). Plain JSON no longer fits: `results_2026-09-01.json` reached 97.2 MiB against GitHub's 100 MiB per-blob hard cap, and `results_2026-08-11.json` was rejected outright at 102.4 MB and lost. Gzip takes a ~87 MiB snapshot to ~27 MiB and stops the branch checkout growing ~90 MB a night. Every reader (`backtest.py`, `ingest_snapshots.py`, `query_results.py`, …) handles both forms, so the archive can hold a mix of `.json` and `.json.gz`.
-
-**Run date:** `scripts/archive_snapshot.py` picks the newest snapshot in `output/` itself — do **not** interpolate `$(date +%Y-%m-%d)` here. A 3–6 h run that crossed midnight would name a file that does not exist, and the night would be skipped silently. For the `git add` and commit message below, substitute RUNDATE literally, read from the filename the script prints.
-
-Run each as a **separate** Bash call (single line each):
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/archive_snapshot.py --dest "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data"
-```
-```
-git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" add "results_RUNDATE.json.gz"
-```
-```
-git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" commit -m "Snapshot: RUNDATE"
-```
-```
-git -C "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" push origin data/snapshots
-```
-
-This persists the snapshot to GitHub so it is never lost if the local worktree is deleted — it is the canonical corpus the weekly backtest reads, so a missing day is a hole in the calibration inputs, not a cosmetic gap.
-
-**This step is blocking.** Previously a non-zero exit here was reported but not acted on, which is exactly how the 2026-08-11 snapshot was lost. Treat each outcome as follows:
-- **exit 2** — the archive breached the 80 MiB hard guard. Do **not** push. Report it as a failed success criterion: the archive is on course for the 100 MiB cap again and needs a size fix (the `edgar_history` statement series are the obvious candidate to split out — they are ~25% of a snapshot).
-- **exit 1** — source missing or the gzip round-trip did not reproduce the source bytes. Report and stop; do not push a snapshot that failed verification.
-- A **WARNING** line (past the 50 MiB soft guard) still pushes, but call it out in the run summary.
-
-To check for days that never made it to the archive:
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/archive_snapshot.py --dest "$HOME/Projects/Workspace Folder/.claude/worktrees/snapshots-data" --audit
-```
-
-### 3. Run portfolio concentration and drawdown report
-Run as a **single Bash call** (all on one line, semicolons not newlines):
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/portfolio_report.py --results-dir output/ --prices-dir output/prices
-```
-This saves `output/portfolio_report_YYYY-MM-DD.txt` automatically in addition to printing to the console. Print the full output in the run summary. Flag: any sector > 35% of the BUY/LEAN BUY bucket (concentration risk), any highly correlated pair (r > 0.85) that are not obvious duplicates (e.g. GOOG/GOOGL), and any BUY-rated stock with a 2020 drawdown worse than -50%. A non-zero exit code should be reported but does **not** block remaining steps.
-
-### 4. Report gate N/A coverage
-Run as a **single Bash call** (all on one line, semicolons not newlines):
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/gate_na_report.py "output/results_$(date +%Y-%m-%d).json"
-```
-Prints, for each of the 26 model gate columns, how many records have an N/A raw value (`_gate_*` is null) and the percentage of the universe affected, plus the day-over-day delta vs the prior snapshot. **Print the full table in the run summary.** Flags to act on:
-- **⚠ JUMP** — a gate's N/A share rose ≥ 10 points vs the prior snapshot. This is the signal that a data source degraded *today* (e.g. the 2026-07-22 run silently dropped ~100 tickers to fetch timeouts). Call it out prominently in the run summary.
-- **⚠ HIGH** — a gate is ≥ 40% N/A. Several gates are structurally high (sector-inapplicable metrics, short-history requirements like 10Y Rev CAGR), so HIGH alone is baseline, not a problem — only flag it in the summary if a gate is newly HIGH or its set of HIGH gates changed vs recent runs.
-
-Must run after 1f (so it measures the final enriched/rescored snapshot). A non-zero exit code should be reported but does **not** block the remaining steps.
-
-### 5. Momentum sanity check: today's ratings vs TRAILING price returns
-Run as a **single Bash call** (all on one line, semicolons not newlines):
-```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/validate_ratings.py --snapshot "output/results_$(date +%Y-%m-%d).json" --prices-dir output/prices
-```
-This compares today's BUY/LEAN BUY/HOLD/PASS ratings with the **past** 12 months of price returns. It is a momentum-chasing check, **not** a measure of accuracy — accuracy is the forward-return question, measured by the weekly `weekly-backtest` routine (`scripts/backtest.py measure` / `readiness`). Print the full output in the run summary. Key things to flag:
-- If BUY-rated stocks had significantly *higher* trailing returns than HOLD/PASS, the model may be chasing momentum rather than identifying value — worth reviewing
-- The Spearman correlation between composite score and trailing return is expected to be **negative** (value model buys laggards); flag it if it turns positive and significant (r > +0.15, p < 0.05)
-A non-zero exit code should be reported but does **not** block the remaining steps.
-
-### 8. Publish the report
-Read `$HOME/.claude/scheduled-tasks/publish-stock-report/SKILL.md` and execute the steps in that file. That routine copies seven artifacts into the `pages-live` worktree — `output/stock_analysis_results_RUNDATE.html` → `docs/index.html`, plus `prices_meta.json`, `hist.json`, `details.json`, `macro.json` (optional — present only when the run reached FRED), and the `vol/` and `px/` shard directories (the HTML lazy-loads all of those at runtime, so everything must ship together; the dense `prices.json` was retired 2026-08-11 in favor of per-ticker `px/` shards) — then amends that branch's single commit and force-pushes it. **`main` is not touched by this routine.** The old sweet-gauss copy→merge→fast-forward flow is retired.
-
-Note that the publish routine uses the **run-START date** (RUNDATE), not `$(date)` — if the 3–6 hour analysis crossed midnight, `$(date)` names the wrong file.
-
-This is run as the final step of the analysis routine, but the publish routine is a **separate failure surface**: if it fails, the analysis itself is still considered successful (today's JSON and HTML exist locally and the snapshot has been pushed). Report the publish failure but do not retroactively fail the analysis run. The publish routine can be re-invoked manually to retry without re-running analysis.
+Report them as failed success criteria.
 
 ## Success criteria
-A run the preflight skipped (`market_open.py` exit 10) is a **success**, and the
-criteria below do not apply to it — the correct and complete output for a closed
-day is the one-line "market closed — run skipped" summary. Everything below
-applies only to a run that got past the preflight.
+A market-closed skip is a success, and the criteria below don't apply to it.
+- `output/stock_analysis_results_RUNDATE.html` was created this run.
+- `results_RUNDATE.json.gz` was archived and pushed to `data/snapshots`. That means the `archive_*` steps are all rc=0, or the note says it was unchanged.
+- The run summary includes the gate N/A table (with JUMP flags called out) and the momentum check.
+- Publish succeeded, or its failure was reported clearly with the retry command.
 
-- `output/stock_analysis_results_YYYY-MM-DD.html` was created today
-- `results_YYYY-MM-DD.json.gz` was archived to `data/snapshots` and pushed, with the archive script exiting 0 and under its size guard
-- Gate N/A coverage table (per-gate N/A % + deltas) is included in the run summary, with any ⚠ JUMP flags called out
-- Trailing momentum-check output (rating buckets + Spearman r) is included in the run summary
-- The publish routine completed successfully (or its failure was reported clearly)
-
-## Notes
-- The script reads API keys from `.env` in the main repo root — do not commit that file
-- `ANTHROPIC_API_KEY` in that `.env` powers the Claude-generated macro narrative
-  (Macro Outlook tab, Economic Narrative card with per-sector outlooks). Without
-  it the run still succeeds — the dashboard renders with no narrative and the log
-  shows "macro narrative skipped: no ANTHROPIC_API_KEY". The narrative is cached
-  per run date (`data/cache/claude_narrative/`), so the re-render in Step 1f and
-  any manual `rescore_and_render.py` replay reuse it instead of re-paying.
-- SSL certificate errors on macOS are fixed by setting `SSL_CERT_FILE` to certifi's bundle (see Step 1)
-- Use `git -C <path>` for all git commands so you don't need to change directories
-- The `phase-1-api` venv has all required packages (yfinance, pandas, openpyxl, jinja2, lxml, certifi)
-- If the `pages-live` or `snapshots-data` worktrees are missing, recreate them:
-  - `git worktree add .claude/worktrees/pages-live pages-live`
-  - `git worktree add .claude/worktrees/snapshots-data data/snapshots`
+## Reference
+- **Paths:**
+  - Main repo: `$HOME/Projects/Workspace Folder`
+  - Snapshots worktree: `.claude/worktrees/snapshots-data` (branch `data/snapshots`)
+  - Pages worktree: `.claude/worktrees/pages-live` (branch `pages-live`)
+  - Python: `.claude/worktrees/phase-1-api/.venv/bin/python`. The repo `.venv` lacks duckdb/scipy.
+  - If a worktree is missing, recreate it: `git worktree add .claude/worktrees/pages-live pages-live` or `git worktree add .claude/worktrees/snapshots-data data/snapshots`.
+- **Branch:** the script fast-forwards `main` only when the checkout is on `main`. A feature branch left checked out renders with that branch's templates, and the summary notes it. These task files are symlinked from `~/.claude/scheduled-tasks`, so the checked-out branch also decides which version of this file runs.
+- **Market-open gate:** `scripts/market_open.py` computes the NYSE calendar offline and fails open. Unscheduled closures go in its `AD_HOC_CLOSURES`.
+- **Screen skip cache:** `data/cache/screen_skip.json` makes Phase 1 skip tickers that were recently far below the $300M floor, or had no data from any source. It is disposable. `analyze_stock.py --no-screen-cache` ignores it for one run.
+- **Phase 2 prefetch:** Phase 2 fetches network data on 4 threads (`--workers`). The analysis itself stays single-threaded.
+- **Power:** the Mac must be on AC power. `caffeinate` can't hold off sleep on a nearly empty battery (the 2026-09-09 run hibernated at 1%).
+- **API keys:** read from `.env` in the repo root, which must never be committed. `SEC_EMAIL` sets the SEC User-Agent. `ANTHROPIC_API_KEY` powers the macro narrative, which is cached per run date. `TIINGO_API_KEY`, `FMP_API_KEY` and `FINNHUB_API_KEY` are optional.
+- **Snapshot store:** `output/snapshots.duckdb` is a derived index. To rebuild it: `"$PYTHON" scripts/ingest_snapshots.py --results-dir output`.
+- **Find days missing from the archive:** `"$PYTHON" scripts/archive_snapshot.py --dest .claude/worktrees/snapshots-data --audit`.

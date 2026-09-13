@@ -5,6 +5,12 @@ description: Publish today's stock analysis HTML to GitHub Pages via the single-
 
 You are running the publish step for the daily stock analysis. This task copies the report artifacts into the `pages-live` worktree, amends that branch's single commit, and force-pushes so GitHub Pages serves the fresh report — **without growing git history** (the branch always holds exactly one commit).
 
+**Preferred path:** the same publish is implemented in `scripts/run_daily.sh`, and the nightly run does it automatically. To (re)publish a run by hand, run this as one background Bash call, with RUNDATE substituted:
+```
+cd "$HOME/Projects/Workspace Folder"; scripts/run_daily.sh --from publish --date RUNDATE
+```
+It performs Steps 1-4 below and verifies the live URL. Use the manual steps only if the script itself is broken.
+
 This routine assumes `output/stock_analysis_results_YYYY-MM-DD.html` already exists for the run date — produced by the `daily-stock-analysis` routine. If the HTML is missing, stop and report; there is nothing to publish.
 
 ## Run date (IMPORTANT)

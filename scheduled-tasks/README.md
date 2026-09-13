@@ -5,7 +5,7 @@ daily pipeline.
 
 | Task | What it does |
 |---|---|
-| `daily-stock-analysis/SKILL.md` | End-of-day run: analysis → enrichment (FDIC, REIT, XBRL, FDA) → re-render → snapshot commit → portfolio/gate/validation reports → publish |
+| `daily-stock-analysis/SKILL.md` | End-of-day run. Launches `scripts/run_daily.sh` (preflight → prices → analysis → enrichment → re-render → snapshot archive → reports → publish), then writes the run summary from `output/run_summary_<date>.json` |
 | `publish-stock-report/SKILL.md` | Copies the five report artifacts into the `pages-live` worktree, amends its single commit, force-pushes to GitHub Pages |
 | `weekly-backtest/SKILL.md` | Weekly: refresh prices → forward-return backtest over the snapshot corpus → readiness census → commit the summary to `data/snapshots`. Measurement only; calibration stays off until `readiness` clears it |
 

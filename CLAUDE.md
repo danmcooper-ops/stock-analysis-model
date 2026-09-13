@@ -53,6 +53,7 @@ pre-commit install   # runs ruff + the offline test suite before each commit
 ```bash
 python scripts/analyze_stock.py                 # S&P 500 + Dow universe
 python scripts/analyze_stock.py --universe us   # all US-listed (~7-8k tickers)
+scripts/run_daily.sh --dry-run                  # nightly pipeline end to end (see script header)
 pytest -m "not network and not slow"            # offline suite (CI-equivalent)
 ruff check .
 ```
