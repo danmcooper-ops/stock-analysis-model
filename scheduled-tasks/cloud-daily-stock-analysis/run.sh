@@ -184,6 +184,8 @@ stage_snapshots() {
   # Never `git ls-tree -l` here: sizes force every blob to download.
   "$PYTHON" - "$SNAP" "$REPO/output" "$SNAPSHOT_HISTORY" <<'PY'
 import re, subprocess, sys
+sys.path.insert(0, '.')
+from scripts.stage_snapshot_blobs import stage_blobs
 snap, out, n = sys.argv[1], sys.argv[2], int(sys.argv[3])
 names = subprocess.check_output(['git', '-C', snap, 'ls-tree', '--name-only', 'HEAD'], text=True).split()
 names = [nm for nm in names if re.fullmatch(r'results_\d{4}-\d{2}-\d{2}\.json(\.gz)?', nm)]
@@ -200,6 +202,10 @@ for nm in picked:
     with open(f"{out}/{nm}", 'wb') as fh:
         subprocess.check_call(['git', '-C', snap, 'show', f'HEAD:{nm}'], stdout=fh)
     print('  staged', nm)
+# Archived .gz snapshots reference their edgar_history by hash; bring those
+# blobs into output/blobs in a few batched fetches, or the staged files
+# cannot be read.
+stage_blobs(snap, out, [f"{out}/{nm}" for nm in picked])
 PY
   [ $? -eq 0 ] || return 1
   if git -C "$SNAP" cat-file -e HEAD:rating_history.json 2>/dev/null; then
@@ -215,6 +221,7 @@ PY
 import os, re, subprocess, sys, time
 sys.path.insert(0, '.')
 from scripts.report_html import _load_rating_history
+from scripts.stage_snapshot_blobs import stage_blobs
 snap, out = sys.argv[1], sys.argv[2]
 staged = {nm for nm in os.listdir(out) if nm.startswith('results_')}
 names = subprocess.check_output(['git', '-C', snap, 'ls-tree', '--name-only', 'HEAD'], text=True).split()
@@ -231,6 +238,9 @@ for nm in older:
     with open(dest, 'wb') as fh:
         subprocess.check_call(['git', '-C', snap, 'show', f'HEAD:{nm}'], stdout=fh)
     try:
+        # Only the histories that changed since the previous day are fetched;
+        # the rest are already in output/blobs from earlier iterations.
+        stage_blobs(snap, out, [dest], log=lambda *_: None)
         _load_rating_history(out, None)      # appends this day's change-points to the cache
     finally:
         os.remove(dest)
@@ -320,7 +330,9 @@ if [ "$FAILED" = 1 ]; then echo "RESULT FAILED at rerender" >> "$STATUS"; exit 1
 # 6. Archive today's snapshot (+ the rating-history cache) to data/snapshots
 # ---------------------------------------------------------------------------
 archive_snapshot() {
-  "$PYTHON" scripts/archive_snapshot.py "$RESULTS" --dest "$SNAP"; local rc=$?
+  local paths="$WORK/archive-paths.txt" oids="$WORK/archive-oids.txt"
+  "$PYTHON" scripts/archive_snapshot.py "$RESULTS" --dest "$SNAP" \
+      --list-blobs "$WORK/archive-blobs.txt"; local rc=$?
   case $rc in
     0) ;;
     2) echo "ARCHIVE OVER THE 80 MiB HARD GUARD — not pushed; the snapshot needs a size fix"; return 2 ;;
@@ -335,12 +347,22 @@ archive_snapshot() {
   # commit lazily fetches the archive's blobs (gigabytes) before it writes
   # anything. hash-object/update-index/write-tree/commit-tree touch only the
   # objects being added, and the push sends only those.
-  local blob tree commit
+  #
+  # The snapshot's edgar_history blobs (blobs/edgar_history/..., listed by
+  # --list-blobs) go in the same batch. All ~2,500 are rewritten into the
+  # empty checkout, but an unchanged one hashes to the oid HEAD already has,
+  # so update-index leaves it alone and only the day's changed histories
+  # become new objects.
+  local tree commit
+  : > "$paths"
   for f in "results_$RUNDATE.json.gz" rating_history.json; do
-    [ -s "$SNAP/$f" ] || continue
-    blob=$(git -C "$SNAP" hash-object -w "$f") || return 1
-    git -C "$SNAP" update-index --add --cacheinfo "100644,$blob,$f" || return 1
+    [ -s "$SNAP/$f" ] && echo "$f" >> "$paths"
   done
+  cat "$WORK/archive-blobs.txt" >> "$paths" || return 1
+  git -C "$SNAP" hash-object -w --stdin-paths < "$paths" > "$oids" || return 1
+  [ "$(wc -l < "$oids")" -eq "$(wc -l < "$paths")" ] || return 1
+  paste "$oids" "$paths" | awk -F'\t' '{printf "100644 %s\t%s\n", $1, $2}' \
+    | git -C "$SNAP" update-index --add --index-info || return 1
   # --missing-ok: without it write-tree verifies every index entry's blob
   # exists locally, which lazily downloads the whole archive.
   tree=$(git -C "$SNAP" write-tree --missing-ok) || return 1

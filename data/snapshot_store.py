@@ -47,6 +47,7 @@ or ``pe`` are stored verbatim.
 
 import glob
 import gzip
+import hashlib
 import io
 import json
 import logging
@@ -178,18 +179,252 @@ def open_snapshot(path):
 
     The ``data/snapshots`` archive branch holds the gzipped form, and the
     weekly backtest reads that directory directly, so every reader of a
-    snapshot must go through here rather than a bare ``open()``.
+    snapshot must go through :func:`read_snapshot` rather than a bare
+    ``open()``.  This returns the file's text *as stored*: in the ``.gz``
+    form the :data:`BLOB_KEYS` values are references, not data (see
+    :func:`write_snapshot_file`).
     """
     if path.endswith('.gz'):
         return gzip.open(path, 'rt', encoding='utf-8')
     return open(path, encoding='utf-8')
 
 
-def read_snapshot(path):
+def read_snapshot(path, blob_cache=True):
     """The decoded snapshot structure at *path* (a dict, or a bare list on
-    older files).  Use :func:`load_snapshot_file` for ``(meta, rows)``."""
+    older files).  Use :func:`load_snapshot_file` for ``(meta, rows)``.
+
+    Blob references (the ``.gz`` archive form) are resolved, so every row
+    comes back self-contained — identical to the plain file.  Pass
+    ``blob_cache=False`` to re-read and re-verify every blob from disk
+    (the archive's round-trip check does).
+    """
     with open_snapshot(path) as f:
-        return json.load(f)
+        data = json.load(f)
+    _rehydrate(data, path, use_cache=blob_cache)
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Content-addressed blobs for the .gz archive form
+# ---------------------------------------------------------------------------
+
+# Row keys stored once per distinct value in the ``.gz`` form.
+# ``edgar_history`` is ~a third of every snapshot and identical day over day
+# for ~99% of tickers (2,449 of 2,471 between 2026-09-02 and 09-03), so each
+# night re-archived ~12 MB of gzipped history that had not changed.  In the
+# archive a row carries ``{"$blob": "<sha256>"}`` instead, and the value
+# lives in ``blobs/<key>/<sha[:2]>/<sha>.json.gz`` — git stores an unchanged
+# blob once no matter how many snapshots reference it.
+BLOB_KEYS = ('edgar_history',)
+BLOB_DIRNAME = 'blobs'
+_BLOB_REF = '$blob'
+_SHA_RE = re.compile(r'^[0-9a-f]{64}$')
+
+# Decompressed blob text by sha, bounded by total characters.  Text, never
+# parsed objects: every row gets its own json.loads, so a caller mutating one
+# row's history cannot leak into another row or another snapshot.
+_BLOB_CACHE_MAX_CHARS = 64 * 1024 ** 2
+_blob_cache = {}
+_blob_cache_chars = 0
+
+
+def _is_blob_ref(v):
+    return (isinstance(v, dict) and len(v) == 1
+            and isinstance(v.get(_BLOB_REF), str))
+
+
+def _snapshot_rows(data):
+    if isinstance(data, dict):
+        rows = data.get('results')
+        return rows if isinstance(rows, list) else []
+    return data if isinstance(data, list) else []
+
+
+def blob_relpath(key, sha):
+    """``<key>/<sha[:2]>/<sha>.json.gz``, relative to a blob root."""
+    return os.path.join(key, sha[:2], f'{sha}.json.gz')
+
+
+def default_blob_root(path):
+    """Where a snapshot at *path* writes its blobs: the first existing root
+    of :func:`_blob_roots` (so a rewrite of ``retired/results_X.json.gz``
+    joins the archive's store), else ``<dir>/blobs``."""
+    for root in _blob_roots(path):
+        if os.path.isdir(root):
+            return root
+    return _blob_roots(path)[0]
+
+
+def _blob_roots(path):
+    """Blob roots a snapshot at *path* resolves against, in order: its own
+    directory's, then its parent's — ``retired/`` snapshots share the
+    archive root's store (relabel_snapshots writes them that way)."""
+    here = os.path.dirname(os.path.abspath(path))
+    return [os.path.join(here, BLOB_DIRNAME),
+            os.path.join(os.path.dirname(here), BLOB_DIRNAME)]
+
+
+def _read_blob_file(fp, sha):
+    """Decompressed text of a blob file, or None if it is corrupt."""
+    try:
+        with gzip.open(fp, 'rb') as fh:
+            raw = fh.read()
+    except (OSError, EOFError):
+        return None
+    if hashlib.sha256(raw).hexdigest() != sha:
+        return None
+    return raw.decode('utf-8')
+
+
+def _cache_put(sha, text):
+    global _blob_cache_chars
+    if len(text) > _BLOB_CACHE_MAX_CHARS:
+        return
+    while _blob_cache and _blob_cache_chars + len(text) > _BLOB_CACHE_MAX_CHARS:
+        old = next(iter(_blob_cache))            # insertion order: evict oldest
+        _blob_cache_chars -= len(_blob_cache.pop(old))
+    _blob_cache[sha] = text
+    _blob_cache_chars += len(text)
+
+
+def clear_blob_cache():
+    global _blob_cache_chars
+    _blob_cache.clear()
+    _blob_cache_chars = 0
+
+
+def load_blob_text(key, sha, roots, use_cache=True):
+    """The verified JSON text of blob *sha* under the first root holding it.
+
+    Raises ``FileNotFoundError`` when no root holds an intact copy — a
+    snapshot copied without its blobs must fail loudly, never load with the
+    history silently missing.
+    """
+    if not _SHA_RE.match(sha or ''):
+        raise ValueError(f'malformed blob reference {sha!r} for {key}')
+    if use_cache and sha in _blob_cache:
+        return _blob_cache[sha]
+    rel = blob_relpath(key, sha)
+    corrupt = []
+    for root in roots:
+        fp = os.path.join(root, rel)
+        if not os.path.exists(fp):
+            continue
+        text = _read_blob_file(fp, sha)
+        if text is None:
+            corrupt.append(fp)
+            continue
+        if use_cache:
+            _cache_put(sha, text)
+        return text
+    if corrupt:
+        raise FileNotFoundError(f'blob {rel} is corrupt (hash mismatch): {corrupt}')
+    raise FileNotFoundError(f'blob {rel} not found under {roots}')
+
+
+def _rehydrate(data, path, use_cache=True):
+    """Replace every blob reference in *data*'s rows with its value, in place
+    (the key keeps its position, so re-serializing reproduces the source)."""
+    roots = None
+    for row in _snapshot_rows(data):
+        if not isinstance(row, dict):
+            continue
+        for key in BLOB_KEYS:
+            v = row.get(key)
+            if _is_blob_ref(v):
+                if roots is None:
+                    roots = _blob_roots(path)
+                row[key] = json.loads(
+                    load_blob_text(key, v[_BLOB_REF], roots, use_cache))
+
+
+def has_blob_refs(data):
+    """True when any row of the loaded (unresolved) *data* holds a reference."""
+    return any(isinstance(row, dict) and any(_is_blob_ref(row.get(k)) for k in BLOB_KEYS)
+               for row in _snapshot_rows(data))
+
+
+def snapshot_blob_refs(path):
+    """``[(key, sha), ...]`` (unique, first-seen order) referenced by the
+    snapshot at *path*, without resolving them."""
+    with open_snapshot(path) as f:
+        data = json.load(f)
+    seen = {}
+    for row in _snapshot_rows(data):
+        if isinstance(row, dict):
+            for key in BLOB_KEYS:
+                v = row.get(key)
+                if _is_blob_ref(v):
+                    seen.setdefault((key, v[_BLOB_REF]), None)
+    return list(seen)
+
+
+def _gzip_bytes_to(path, payload):
+    """Atomically write *payload* gzipped, deterministically (``mtime=0`` and
+    ``filename=''``, so the same bytes always make the same git blob)."""
+    tmp = '%s.tmp.%d' % (path, os.getpid())
+    try:
+        with open(tmp, 'wb') as _raw:
+            with gzip.GzipFile(filename='', fileobj=_raw, mode='wb',
+                               compresslevel=9, mtime=0) as _gz:
+                _gz.write(payload)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _put_blob(root, key, value):
+    """Store *value* under *root*; return ``(sha, wrote_bytes)``.
+
+    An existing intact copy is left alone (0 bytes written); a corrupt one is
+    replaced."""
+    raw = json.dumps(value, separators=_COMPACT, default=str).encode('utf-8')
+    sha = hashlib.sha256(raw).hexdigest()
+    fp = os.path.join(root, blob_relpath(key, sha))
+    if os.path.exists(fp) and _read_blob_file(fp, sha) is not None:
+        return sha, 0
+    os.makedirs(os.path.dirname(fp), exist_ok=True)
+    _gzip_bytes_to(fp, raw)
+    return sha, os.path.getsize(fp)
+
+
+def externalize_blobs(data, blob_root):
+    """A shallow copy of *data* with each :data:`BLOB_KEYS` value moved into
+    the blob store at *blob_root* and replaced by a reference.
+
+    *data* itself is not modified.  Returns ``(new_data, stats)`` where
+    *stats* is ``{'refs': n, 'new_blobs': n, 'new_bytes': n}``.
+    """
+    stats = {'refs': 0, 'new_blobs': 0, 'new_bytes': 0}
+    rows = _snapshot_rows(data)
+    out_rows = []
+    for row in rows:
+        if isinstance(row, dict) and any(
+                isinstance(row.get(k), dict) and row.get(k) and not _is_blob_ref(row.get(k))
+                for k in BLOB_KEYS):
+            row = dict(row)                      # preserves key order
+            for key in BLOB_KEYS:
+                v = row.get(key)
+                if isinstance(v, dict) and v and not _is_blob_ref(v):
+                    sha, wrote = _put_blob(blob_root, key, v)
+                    row[key] = {_BLOB_REF: sha}
+                    stats['refs'] += 1
+                    if wrote:
+                        stats['new_blobs'] += 1
+                        stats['new_bytes'] += wrote
+        out_rows.append(row)
+    if isinstance(data, dict):
+        out = dict(data)
+        if isinstance(data.get('results'), list):
+            out['results'] = out_rows
+        return out, stats
+    if isinstance(data, list):
+        return out_rows, stats
+    return data, stats
 
 
 def load_snapshot_file(path):
@@ -197,7 +432,7 @@ def load_snapshot_file(path):
     return split_snapshot(read_snapshot(path))
 
 
-def write_snapshot_file(path, data):
+def write_snapshot_file(path, data, blob_root=None):
     """Write a snapshot to *path* in the canonical compact encoding.
 
     Every writer of a snapshot goes through here so the encoding cannot drift
@@ -216,10 +451,18 @@ def write_snapshot_file(path, data):
     re-archiving identical content produces an identical blob rather than
     churning the archive branch's history.
 
+    A ``.gz`` path also externalizes :data:`BLOB_KEYS` into the blob store at
+    *blob_root* (default ``<dir>/blobs``, see :func:`externalize_blobs`);
+    blobs are written before the snapshot, so a snapshot never references a
+    blob that is not there.  A plain ``.json`` stays self-contained — it is
+    the live working copy the pipeline rewrites and ``run.sh`` names.
+
     The write is atomic: the canonical snapshot is rewritten in place by
     rescore_and_render and all four enrich_* scripts, and a crash partway
     through a direct write would truncate the run's only copy.
     """
+    if path.endswith('.gz'):
+        data, _ = externalize_blobs(data, blob_root or default_blob_root(path))
     tmp = '%s.tmp.%d' % (path, os.getpid())
     try:
         if path.endswith('.gz'):

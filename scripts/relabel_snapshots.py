@@ -39,7 +39,8 @@ import sys
 from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from data.snapshot_store import read_snapshot, write_snapshot_file  # noqa: E402
+from data.snapshot_store import (BLOB_DIRNAME, read_snapshot,  # noqa: E402
+                                 write_snapshot_file)
 from scripts.archive_snapshot import check_archive_size  # noqa: E402
 from scripts.market_open import market_status  # noqa: E402
 
@@ -70,8 +71,8 @@ def relabeled(data, old, new, reason):
     return out
 
 
-def _write_verified(path, data):
-    write_snapshot_file(path, data)
+def _write_verified(path, data, blob_root=None):
+    write_snapshot_file(path, data, blob_root=blob_root)
     if _canonical(read_snapshot(path)) != _canonical(data):
         os.remove(path)
         raise OSError(f'read-back of {path} does not match what was written')
@@ -132,7 +133,8 @@ def apply(maps, retires, dest, results_dir=None, dry_run=False, log=print):
         data = read_snapshot(src)
         os.makedirs(os.path.join(dest, RETIRED_DIR), exist_ok=True)
         target = os.path.join(dest, RETIRED_DIR, f'results_{day}.json.gz')
-        _write_verified(target, data)
+        # One blob store per archive: retired/ resolves against the root's.
+        _write_verified(target, data, blob_root=os.path.join(dest, BLOB_DIRNAME))
         for p in _existing(dest, day):
             os.remove(p)
             changed['removed'].append(p)
