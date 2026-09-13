@@ -8,6 +8,7 @@ Free API — no authentication required, just User-Agent with email.
 Uses only stdlib (urllib + json + datetime).
 """
 
+import collections
 import gzip
 import json
 import logging
@@ -1188,6 +1189,59 @@ class SECXBRLClient:
                         return k
         return None
 
+    # Concepts whose units decide which currency a filer reports in. Only
+    # the primary statement lines the shape and history builders actually
+    # read: tallying every tag in the blob instead lets an ancillary
+    # disclosure vote (Fresenius carries 12.1k USD facts against 11.5k EUR
+    # ones and reports in EUR), and asking one concept at a time lets a
+    # convenience translation win outright, because _detect_currency
+    # prefers USD wherever it appears.
+    _REPORTING_CCY_CONCEPTS = (
+        'revenue', 'net_income', 'operating_income', 'pretax_income',
+        'operating_cash_flow', 'total_assets', 'total_liabilities',
+        'equity_parent', 'equity_incl_nci', 'current_assets',
+        'current_liabilities', 'cash',
+    )
+
+    def reporting_currency(self, facts_json):
+        """The currency a filer presents its statements in, 'USD' if unknown.
+
+        The dominant currency across :data:`_REPORTING_CCY_CONCEPTS`, counted
+        by how many facts each carries. One answer for the whole filer, rather
+        than one per concept, because every consumer needs the statement rows
+        to be in the SAME currency before they can be compared, summed or
+        converted — a per-concept answer produced frames whose revenue was in
+        USD and whose net income was in CNY, which one FX rate then cannot
+        fix.
+
+        Dual-tagged filers are why the majority, not mere presence, decides:
+        BABA, JD, BIDU, NTES and ~30 other China-domiciled 20-F filers tag a
+        USD convenience translation alongside the CNY statements, and
+        _detect_currency prefers USD wherever it appears. Against yfinance's
+        financialCurrency over 255 cached filers this agrees 244 times; the
+        per-concept detector 212.
+        """
+        if not facts_json:
+            return 'USD'
+        facts = facts_json.get('facts', {})
+        tally = collections.Counter()
+        for taxonomy_key, tag_map in self._TAXONOMIES:
+            ns = facts.get(taxonomy_key, {})
+            if not ns:
+                continue
+            for concept in self._REPORTING_CCY_CONCEPTS:
+                for tag in tag_map.get(concept, []):
+                    units = ns.get(tag, {}).get('units', {})
+                    for unit, entries in units.items():
+                        if len(unit) == 3 and unit.isalpha() and unit.isupper():
+                            tally[unit] += len(entries)
+        if not tally:
+            return 'USD'
+        # Deterministic: most facts, then USD, then alphabetical — so a filer
+        # that tags two currencies equally resolves the same way every run.
+        return max(tally.items(),
+                   key=lambda kv: (kv[1], kv[0] == 'USD', kv[0]))[0]
+
     def _extract_concept_annual(self, facts_json, concept, units_key=None):
         """Try US-GAAP first, fall back to IFRS, auto-detect currency.
 
@@ -1210,8 +1264,11 @@ class SECXBRLClient:
                 return vals, taxonomy_key, ccy
         return {}, None, ccy
 
-    def _resolve_revenue_annual(self, facts_json):
+    def _resolve_revenue_annual(self, facts_json, units_key=None):
         """Whole-company revenue per fiscal year, (values, currency).
+
+        *units_key* pins the currency (see :meth:`reporting_currency`); None
+        auto-detects it per concept.
 
         The generic revenue aliases, then — for filers that tag both net
         interest income and noninterest income, i.e. banks — the larger of
@@ -1223,9 +1280,12 @@ class SECXBRLClient:
         this same net figure (JPM 2025: 95.4B + 87.0B = 182.4B), so the max
         is a no-op there and only replaces the fee slice.
         """
-        rev, _tax, ccy = self._extract_concept_annual(facts_json, 'revenue')
-        nii, _t2, nii_ccy = self._extract_concept_annual(facts_json, 'net_interest_income')
-        nonint, _t3, _c3 = self._extract_concept_annual(facts_json, 'noninterest_income')
+        rev, _tax, ccy = self._extract_concept_annual(
+            facts_json, 'revenue', units_key=units_key)
+        nii, _t2, nii_ccy = self._extract_concept_annual(
+            facts_json, 'net_interest_income', units_key=units_key)
+        nonint, _t3, _c3 = self._extract_concept_annual(
+            facts_json, 'noninterest_income', units_key=units_key)
         if not nii or not nonint:
             return rev, ccy
         out = dict(rev)
@@ -1235,8 +1295,11 @@ class SECXBRLClient:
                 out[fy] = bank_rev
         return dict(sorted(out.items())), (ccy if rev else nii_ccy)
 
-    def _resolve_equity_annual(self, facts_json):
+    def _resolve_equity_annual(self, facts_json, units_key=None):
         """Parent-attributable equity per fiscal year, (values, currency).
+
+        *units_key* pins the currency (see :meth:`reporting_currency`); None
+        auto-detects it per concept.
 
         The 'total_equity' alias list merges StockholdersEquity with the
         NCI-inclusive variant, so a filer that tags only the inclusive total
@@ -1247,11 +1310,14 @@ class SECXBRLClient:
         2. otherwise the NCI-inclusive total minus tagged minority interest;
         3. otherwise the inclusive total as-is (best available).
         """
-        parent, _t, ccy = self._extract_concept_annual(facts_json, 'equity_parent')
-        incl, _t2, ccy2 = self._extract_concept_annual(facts_json, 'equity_incl_nci')
+        parent, _t, ccy = self._extract_concept_annual(
+            facts_json, 'equity_parent', units_key=units_key)
+        incl, _t2, ccy2 = self._extract_concept_annual(
+            facts_json, 'equity_incl_nci', units_key=units_key)
         if not parent and not incl:
             return {}, ccy
-        nci, _t3, _c3 = self._extract_concept_annual(facts_json, 'minority_interest')
+        nci, _t3, _c3 = self._extract_concept_annual(
+            facts_json, 'minority_interest', units_key=units_key)
         out = {}
         for fy in sorted(set(parent) | set(incl)):
             if parent.get(fy) is not None:
@@ -1340,7 +1406,7 @@ class SECXBRLClient:
                 out[y] = ltd_total[y] + (stb.get(y) or 0)
         return out, tagged
 
-    def _resolve_total_debt_concept(self, facts_json):
+    def _resolve_total_debt_concept(self, facts_json, units_key=None):
         """Dual-taxonomy, currency-aware total-debt resolution.
 
         The _extract_concept_annual equivalent for the composed total-debt
@@ -1349,7 +1415,7 @@ class SECXBRLClient:
 
         Returns (values {fy: float}, taxonomy_key, currency, tagged).
         """
-        ccy = None
+        ccy = units_key
         for concept in self._DEBT_COMPONENT_CONCEPTS:
             ccy = ccy or self._detect_currency(facts_json, concept)
         ccy = ccy or 'USD'
@@ -1484,11 +1550,23 @@ class SECXBRLClient:
         if not facts:
             return None
 
+        # One currency for every series, resolved before any extraction —
+        # see reporting_currency. Reading each concept in whatever currency
+        # it happened to prefer built histories that MIXED units and then
+        # converted the whole lot at one rate: for a China-domiciled filer
+        # that tags a USD convenience translation (BABA, JD, BIDU, NTES,
+        # ~30 more) revenue came out in USD, net income in CNY, and the
+        # non-USD vote below then declared the filer CNY — so the USD
+        # revenue was scaled by the CNY rate as well.
+        reporting_ccy = self.reporting_currency(facts)
+
         def _flow(concept):
-            vals, _tax, ccy = self._extract_concept_annual(facts, concept)
+            vals, _tax, ccy = self._extract_concept_annual(
+                facts, concept, units_key=reporting_ccy)
             return vals, ccy
 
-        rev, rev_ccy             = self._resolve_revenue_annual(facts)
+        rev, rev_ccy             = self._resolve_revenue_annual(
+            facts, units_key=reporting_ccy)
         ni,  ni_ccy              = _flow('net_income')
         ocf, ocf_ccy             = _flow('operating_cash_flow')
         capex, capex_ccy         = _flow('capex')
@@ -1510,7 +1588,8 @@ class SECXBRLClient:
         ca_h, ca_ccy             = _flow('current_assets')
         cl_h, cl_ccy             = _flow('current_liabilities')
         liabs_h, liabs_ccy       = _flow('total_liabilities')
-        equity_h, equity_ccy     = self._resolve_equity_annual(facts)
+        equity_h, equity_ccy     = self._resolve_equity_annual(
+            facts, units_key=reporting_ccy)
         retearn_h, retearn_ccy   = _flow('retained_earnings')
         # GAAP presentation lines. Grouped by statement; every one of these
         # is optional — the statement tabs drop a row whose series is empty.
@@ -1600,7 +1679,7 @@ class SECXBRLClient:
                 # when they're separately tagged, else take it as reported.
                 debt_nc_h[_y] = ltdt_h[_y] - ltdc_h.get(_y, 0.0)
         debt_h, _dtx, debt_ccy, debt_tagged = \
-            self._resolve_total_debt_concept(facts)
+            self._resolve_total_debt_concept(facts, units_key=reporting_ccy)
         shares, _tax_s, _ccy_s   = self._extract_concept_periodic(
             facts, 'shares_outstanding', units_key='shares', point_in_time=True)
         if not shares:
@@ -1614,17 +1693,18 @@ class SECXBRLClient:
         if not rev and not ni:
             return None
 
-        # The reporting currency is whichever non-USD currency appears on the
-        # primary income-statement concepts. If revenue is in JPY but a US-GAAP
-        # subsidiary tag happens to carry USD on, say, dividends, treat the
-        # filer as JPY.
-        # Deliberately NOT widened to the statement-tab series added below:
-        # this list decides whether every OTHER series gets FX-converted, so
-        # a new concept flipping the detection would move published scores.
-        # The new series ride the detected rate; they don't vote on it.
-        currencies = [c for c in (rev_ccy, ni_ccy, ocf_ccy, capex_ccy,
-                                  gp_ccy, intexp_ccy, div_ccy, opinc_ccy) if c]
-        reporting_ccy = next((c for c in currencies if c != 'USD'), 'USD')
+        # reporting_ccy was resolved above, before extraction, so every
+        # series here is already denominated in it and one rate converts the
+        # lot. The per-concept currencies are kept only as a consistency
+        # check: they can differ now only for a concept carrying no facts in
+        # the reporting currency at all, whose series is then empty anyway.
+        _stray = {c for c in (rev_ccy, ni_ccy, ocf_ccy, capex_ccy, gp_ccy,
+                              intexp_ccy, div_ccy, opinc_ccy, equity_ccy,
+                              debt_ccy)
+                  if c and c != reporting_ccy}
+        if _stray:
+            logger.debug("SEC XBRL: %s reports in %s; %s carried no facts in "
+                         "it", ticker, reporting_ccy, ', '.join(sorted(_stray)))
         fx_converted = reporting_ccy != 'USD'
 
         # Per-share amounts live under a compound unit ("USD/shares"), and
@@ -1792,6 +1872,12 @@ class SECXBRLClient:
         that want CAPM / market-cap-weighted WACC should merge yfinance's
         info dict on top of this result.
 
+        Values are always USD: a filer reporting in another currency is
+        detected (see :meth:`reporting_currency`) and converted at year-end
+        rates before the frames are built, so callers can treat the result
+        as USD without consulting yfinance's ``financialCurrency``. The
+        currency it was read in comes back as ``reporting_currency``.
+
         Args:
             ticker: Stock ticker symbol.
             year_limit: Optional cap on the number of year columns kept
@@ -1802,7 +1888,12 @@ class SECXBRLClient:
                 input to long-horizon terminal-value calculations.
 
         Returns:
-            dict or None if no XBRL data is available for ticker.
+            dict, or None when XBRL cannot produce usable statements for
+            *ticker*: no facts, no revenue and no net income, no earnings
+            line, or a non-USD filer with no FX rates. None means "use
+            yfinance for this ticker" — these frames replace yfinance's, so
+            a half-empty one costs the ticker its ROIC and drops it from the
+            universe.
         """
         import pandas as pd
 
@@ -1824,16 +1915,23 @@ class SECXBRLClient:
         # back empty — and analyze_stock replaces yfinance's statements with
         # this shape unconditionally. That dropped 235 foreign filers from the
         # 2026-09-08 run (ASML, AZN, BHP, BP, BTI) on ROIC N/A.
-        _ccy_votes = {}
+        #
+        # The currency is resolved ONCE for the filer and pinned, rather than
+        # detected per concept: _detect_currency prefers USD wherever it
+        # appears, so a dual-tagged filer (BABA, JD, BIDU, NTES and ~30 more
+        # China-domiciled 20-F filers carry a USD convenience translation)
+        # would read revenue in USD and net income in CNY, and no single rate
+        # can convert a frame like that.
+        reporting_ccy = self.reporting_currency(facts)
 
-        def _ann(concept, _vote=True):
-            vals, _taxo, ccy = self._extract_concept_annual(facts, concept)
-            if _vote:
-                _ccy_votes[concept] = ccy
+        def _ann(concept):
+            vals, _taxo, _ccy = self._extract_concept_annual(
+                facts, concept, units_key=reporting_ccy)
             return vals
 
         # Income statement (flow concepts)
-        revenue, _rev_ccy = self._resolve_revenue_annual(facts)
+        revenue, _rev_ccy = self._resolve_revenue_annual(
+            facts, units_key=reporting_ccy)
         net_income    = _ann('net_income')
         op_income     = _ann('operating_income')
         gross_profit  = _ann('gross_profit')
@@ -1858,7 +1956,8 @@ class SECXBRLClient:
         # carry end dates, no durations — _extract_annual_values' duration
         # filter conditional skips them naturally, and the fy match keeps the
         # right period-end value per fiscal year.
-        equity, _eq_ccy = self._resolve_equity_annual(facts)
+        equity, _eq_ccy = self._resolve_equity_annual(
+            facts, units_key=reporting_ccy)
         cash          = _ann('cash')
         # Liquid assets beyond bank cash. The 'cash' concept prefers the
         # equivalents-only tag, so filers that park liquidity in marketable
@@ -1898,7 +1997,7 @@ class SECXBRLClient:
         # current debt) — a single-tag read understates leverage by the
         # short-term portion for most filers.
         debt, _debt_taxo, _debt_ccy, debt_tagged = \
-            self._resolve_total_debt_concept(facts)
+            self._resolve_total_debt_concept(facts, units_key=reporting_ccy)
 
         # Need at least revenue or net income to consider the data usable.
         if not revenue and not net_income:
@@ -1916,26 +2015,26 @@ class SECXBRLClient:
             return None
 
         # Foreign filers report in their own currency; the caller merges
-        # yfinance's USD `info` on top of these frames, so every monetary
-        # series has to be converted or the ratios mix currencies. Mirrors
-        # fetch_historical_financials: the primary income-statement concepts
-        # vote on the reporting currency, everything else rides that rate.
-        # revenue / equity / debt come from their own resolvers rather than
-        # _ann, so their currencies are passed in explicitly here.
-        _primary_ccy = (
-            _rev_ccy,
-            _ccy_votes.get('net_income'),
-            _ccy_votes.get('operating_income'),
-            _ccy_votes.get('gross_profit'),
-            _ccy_votes.get('operating_cash_flow'),
-            _ccy_votes.get('capex'),
-            _eq_ccy,
-            _debt_ccy,
-        )
-        reporting_ccy = next(
-            (_c for _c in _primary_ccy if _c and _c != 'USD'), 'USD')
+        # yfinance's USD `info` on top of these frames and then tells
+        # _convert_financials_to_usd the statements are already USD, so every
+        # monetary series has to be converted here or the ratios mix
+        # currencies. Every one of them was read in reporting_ccy above, so
+        # one rate per year converts the lot.
+        #
+        # No rates means no shape. _apply_fx_annual passes values through
+        # unchanged when the rate table is empty, which would publish EUR or
+        # CNY magnitudes as dollars with nothing to flag it — 43 rows in the
+        # 2026-09-08 snapshot did exactly that. yfinance's own statements at
+        # least carry a financialCurrency the FX layer can act on, so falling
+        # back beats guessing.
         if reporting_ccy != 'USD':
             _fx = _get_fx_rates_to_usd(reporting_ccy)
+            if not _fx:
+                logger.warning(
+                    "SEC XBRL: %s reports in %s and no FX rates are "
+                    "available — declining the shape so callers keep their "
+                    "yfinance statements", ticker, reporting_ccy)
+                return None
             _monetary = [
                 revenue, net_income, op_income, gross_profit, interest_exp,
                 tax_provision, pretax_income, op_cf, capex, d_and_a, sbc,
@@ -2070,4 +2169,9 @@ class SECXBRLClient:
             'info':             {'symbol': ticker, '_source': 'sec_xbrl'},
             'growth_estimates': None,
             'earnings_history': None,
+            # What the frames were read in before conversion. They are USD by
+            # the time they get here, so this is the only record that a
+            # foreign filer took the XBRL path at all.
+            'reporting_currency': reporting_ccy,
+            'fx_converted':      reporting_ccy != 'USD',
         }

@@ -131,6 +131,93 @@ class TestXbrlShapeUsability:
         assert c.build_yfinance_shape('TEST') is not None
 
 
+class TestReportingCurrency:
+    """One currency per filer, chosen by majority over the primary concepts.
+
+    Asking concept by concept is not enough: _detect_currency returns USD
+    whenever a concept carries any USD units, so the ~30 China-, Japan- and
+    India-domiciled 20-F filers that tag a USD convenience translation beside
+    their real statements (BABA, JD, BIDU, NTES, ZTO, QFIN, HTHT, VIPS, IX,
+    UMC, HDB, ASX ...) read as USD-reporting. Their frames then mixed units —
+    revenue in USD, net income in CNY — which no single FX rate can fix.
+    Measured against yfinance's financialCurrency over 255 cached filers, the
+    majority agrees 244 times and the per-concept detector 212.
+    """
+
+    def test_single_currency_filer(self):
+        c = _client({'us-gaap': _US_GAAP_STATEMENT}, currency='EUR')
+        assert c.reporting_currency(c._cache['TEST']) == 'EUR'
+
+    def test_convenience_translation_does_not_win(self):
+        c = _client({'us-gaap': _US_GAAP_STATEMENT}, currency='CNY')
+        # A USD translation of revenue only, as such a filer tags it.
+        c._cache['TEST']['facts']['us-gaap']['Revenues']['units']['USD'] = [
+            _flow(2023, 140.0), _flow(2024, 168.0)]
+        assert c.reporting_currency(c._cache['TEST']) == 'CNY'
+
+    def test_shape_reads_every_row_in_the_majority_currency(self):
+        """The row tagged in both currencies must be read in the filer's own
+        and converted, not passed through as though it were already USD."""
+        c = _client({'us-gaap': _US_GAAP_STATEMENT}, currency='CNY')
+        c._cache['TEST']['facts']['us-gaap']['Revenues']['units']['USD'] = [
+            _flow(2023, 140.0), _flow(2024, 168.0)]
+        shape = c.build_yfinance_shape('TEST')
+        assert shape['reporting_currency'] == 'CNY'
+        inc = shape['income_statement']
+        latest = inc.columns[0]
+        assert inc.loc['Total Revenue', latest] == pytest.approx(1200.0 * 1.25)
+        assert inc.loc['Operating Income', latest] == pytest.approx(200.0 * 1.25)
+
+    def test_ties_resolve_to_usd_deterministically(self):
+        c = _client({'us-gaap': _US_GAAP_STATEMENT}, currency='EUR')
+        for tag in c._cache['TEST']['facts']['us-gaap'].values():
+            tag['units']['USD'] = list(next(iter(tag['units'].values())))
+        assert c.reporting_currency(c._cache['TEST']) == 'USD'
+
+    def test_no_currency_units_defaults_to_usd(self):
+        c = _client({'us-gaap': _US_GAAP_STATEMENT})
+        assert c.reporting_currency({'facts': {}}) == 'USD'
+        assert c.reporting_currency(None) == 'USD'
+
+
+class TestMissingFxRates:
+    def test_no_rates_declines_the_shape(self, monkeypatch):
+        """_apply_fx_annual passes values through unchanged on an empty rate
+        table, so converting anyway would publish EUR magnitudes as dollars
+        with nothing to flag it. yfinance's statements at least carry a
+        financialCurrency the FX layer can act on."""
+        monkeypatch.setattr('data.sec_xbrl_client._get_fx_rates_to_usd',
+                            lambda ccy: {})
+        c = _client({'us-gaap': _US_GAAP_STATEMENT}, currency='EUR')
+        assert c.build_yfinance_shape('TEST') is None
+
+    def test_a_usd_filer_never_asks_for_rates(self, monkeypatch):
+        monkeypatch.setattr(
+            'data.sec_xbrl_client._get_fx_rates_to_usd',
+            lambda ccy: pytest.fail('USD filer must not fetch FX rates'))
+        c = _client({'us-gaap': _US_GAAP_STATEMENT}, currency='USD')
+        assert c.build_yfinance_shape('TEST') is not None
+
+
+class TestHistoryUsesTheSameCurrency:
+    """fetch_historical_financials must read what it converts.
+
+    It picked the first non-USD currency among per-concept votes, so for a
+    dual-tagged filer it read revenue in USD, net income in CNY, decided the
+    filer was CNY, and then scaled the USD revenue by the CNY rate too.
+    """
+
+    def test_dual_tagged_filer_reads_and_converts_in_one_currency(self):
+        c = _client({'us-gaap': _US_GAAP_STATEMENT}, currency='CNY')
+        c._cache['TEST']['facts']['us-gaap']['Revenues']['units']['USD'] = [
+            _flow(2023, 140.0), _flow(2024, 168.0)]
+        h = c.fetch_historical_financials('TEST')
+        assert h['reporting_currency'] == 'CNY'
+        assert h['fx_converted'] is True
+        assert h['revenue_history'][2024] == pytest.approx(1200.0 * 1.25)
+        assert h['earnings_history'][2024] == pytest.approx(120.0 * 1.25)
+
+
 def pd_notna(v):
     import pandas as pd
     return pd.notna(v)
