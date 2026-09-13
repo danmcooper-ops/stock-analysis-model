@@ -37,6 +37,13 @@
 #   SEC_EMAIL, FMP_API_KEY, TIINGO_API_KEY, FINNHUB_API_KEY, ANTHROPIC_API_KEY,
 #   FRED_API_KEY         as in the Mac runbook; all optional but SEC_EMAIL
 #   FORCE=1              run even when scripts/market_open.py says closed
+#   RUNDATE=YYYY-MM-DD   the session to analyse (default: today, New York).
+#                        Re-runs a failed weekday the next morning under its own
+#                        date: the market gate checks that date, and every
+#                        output and the archive entry are named after it.
+#   RESUME=0             ignore output/.checkpoint and start the analysis over
+#                        (default: re-running after an interrupted analysis
+#                        for the same RUNDATE resumes where it stopped)
 #   DRY_RUN=1            do everything except push
 #   SMOKE=1              tiny universe (SMOKE_TICKERS), for testing this script
 set -uo pipefail
@@ -65,6 +72,9 @@ export YF_IMPERSONATE="${YF_IMPERSONATE:-chrome116}"
 # have archived Thursday's close as results_<Friday>.  The Mac ran in New
 # York local time, which is the convention the archive already carries.
 export TZ="${TZ:-America/New_York}"
+# Fixed once, before the gate: a 12-20 h run crosses midnight, and a recovery
+# run the next morning must still be filed under the session it analyses.
+RUNDATE="${RUNDATE:-$(date +%F)}"
 export SEC_EMAIL="${SEC_EMAIL:-stockanalysis@example.com}"
 # The cloud egress proxy re-terminates TLS; every client must trust its CA.
 if [ -z "${SSL_CERT_FILE:-}" ] && [ -r /root/.ccr/ca-bundle.crt ]; then
@@ -120,7 +130,7 @@ push_with_retry() {
 # Preflight: was the market open? (exit 10 = closed -> skip the whole run)
 # ---------------------------------------------------------------------------
 say "cloud daily stock analysis — repo $REPO, work $WORK"
-python3 scripts/market_open.py > "$LOG/00-preflight.log" 2>&1; gate_rc=$?
+python3 scripts/market_open.py --date "$RUNDATE" > "$LOG/00-preflight.log" 2>&1; gate_rc=$?
 record preflight "$gate_rc" 0
 cat "$LOG/00-preflight.log"
 if [ "$gate_rc" = 10 ] && [ "$FORCE" != 1 ]; then
@@ -266,9 +276,13 @@ run_step 03-prices 0 download_prices
 # ---------------------------------------------------------------------------
 # 4. The analysis (blocking)
 # ---------------------------------------------------------------------------
-RUNDATE=$(date +%F)     # analyze_stock names its outputs after date.today() at start
 ANALYZE_ARGS=(--macro --prices-dir output/prices --universe us --min-spread 0 --mcap-min 300e6)
 [ "$SMOKE" = 1 ] && ANALYZE_ARGS=(--macro --prices-dir output/prices --tickers $SMOKE_TICKERS)
+# --run-date names the outputs; progress is checkpointed under
+# output/.checkpoint/$RUNDATE, so re-running this script after a container
+# restart resumes the analysis instead of starting it over.
+ANALYZE_ARGS+=(--run-date "$RUNDATE")
+[ "${RESUME:-1}" = 0 ] && ANALYZE_ARGS+=(--no-resume)
 run_step 04-analyze 1 "$PYTHON" scripts/analyze_stock.py "${ANALYZE_ARGS[@]}"
 RESULTS="output/results_$RUNDATE.json"
 HTML="output/stock_analysis_results_$RUNDATE.html"
