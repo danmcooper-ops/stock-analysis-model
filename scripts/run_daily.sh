@@ -14,6 +14,9 @@
 #   scripts/run_daily.sh --from enrich --date 2026-09-09
 #                                             resume an existing snapshot from a step
 #   scripts/run_daily.sh --from publish --date 2026-09-09   republish only
+#   scripts/run_daily.sh --from analyze --date 2026-09-11   re-run a failed session the
+#                                             next day (an interrupted analysis resumes
+#                                             from output/.checkpoint)
 #   scripts/run_daily.sh --dry-run            print the plan, run nothing
 #   scripts/run_daily.sh --force              skip the market-open gate
 #
@@ -171,7 +174,7 @@ if wants preflight; then
   if [ "$FORCE" = 1 ]; then
     note "market-open gate bypassed (--force)"
   else
-    run preflight gate "$VPY" scripts/market_open.py
+    run preflight gate "$VPY" scripts/market_open.py --date "$RUNDATE"
     rc=$(tail -1 "$STEPLOG" | cut -f2)
     if [ "$rc" = 10 ]; then
       note "market closed — run skipped"
@@ -205,7 +208,7 @@ fi
 
 # ---------------------------------------------------------------- analyze
 if wants analyze; then
-  run analyze blocking bash -c "set -o pipefail; \"$VPY\" scripts/analyze_stock.py --macro --prices-dir output/prices \
+  run analyze blocking bash -c "set -o pipefail; \"$VPY\" scripts/analyze_stock.py --run-date $RUNDATE --macro --prices-dir output/prices \
       --universe us --min-spread 0 --mcap-min 300e6 2>&1 | tee output/run_$RUNDATE.log"
   if [ "$BLOCKED" = 1 ]; then
     note "analyze_stock.py failed — nothing downstream was run"

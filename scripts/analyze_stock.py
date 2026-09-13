@@ -75,7 +75,7 @@ from data.sec_xbrl_client import SECXBRLClient
 from data.fx_client import get_spot_fx_rate, apply_fx_to_statement_df
 from data.sec_insider_client import SECInsiderClient
 from data.provenance import ProvenanceRecorder
-from data.snapshot_store import (SnapshotStore, list_snapshot_files, read_snapshot,
+from data.snapshot_store import (SnapshotStore, prior_snapshot_file, read_snapshot,
                                  sync_snapshot_file, write_snapshot_file)
 from data.culture_client import CultureClient
 
@@ -2495,6 +2495,27 @@ class _ModelWarningCounter(logging.Filter):
         return True
 
 
+def _parse_run_date(value, parser=None):
+    """The run date: ``date.today()``, or a past/present ``YYYY-MM-DD``."""
+    if not value:
+        return date.today()
+    try:
+        d = date.fromisoformat(value)
+    except ValueError:
+        msg = f"--run-date must be YYYY-MM-DD, got {value!r}"
+        if parser is None:
+            raise ValueError(msg) from None
+        parser.error(msg)
+    if d > date.today():
+        msg = f"--run-date {d} is in the future"
+        if parser is None:
+            raise ValueError(msg)
+        parser.error(msg)
+    if d != date.today():
+        print(f"Run date {d} (set by --run-date; today is {date.today()})")
+    return d
+
+
 def _run_setup():
     """CLI parsing, provenance recorder, and logging/warning configuration."""
     import argparse
@@ -2529,6 +2550,13 @@ def _run_setup():
     parser.add_argument('--workers', type=int, default=PHASE2_IO_WORKERS, metavar='N',
                         help='Threads prefetching Phase-2 network data ahead of the (sequential) '
                              f'analysis loop; 1 disables prefetch. Default {PHASE2_IO_WORKERS}.')
+    parser.add_argument('--run-date', metavar='YYYY-MM-DD', default=None,
+                        help='Date the run is for (default: today). Names every output after it and '
+                             'reads carry-forward from the snapshot before it, so a failed session '
+                             'can be re-run the next morning without being filed under the wrong day.')
+    parser.add_argument('--no-resume', action='store_true',
+                        help='Ignore output/.checkpoint/<run date>/ and start the run from scratch '
+                             '(by default an interrupted run for the same date and options resumes).')
     parser.add_argument('--no-screen-cache', action='store_true',
                         help='Ignore data/cache/screen_skip.json and fetch every universe ticker '
                              '(the cache skips tickers recently far below --mcap-min or dead).')
@@ -2537,7 +2565,7 @@ def _run_setup():
     # --sec-email reaches them too, not just the universe fetch.
     os.environ['SEC_EMAIL'] = args.sec_email
     prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
-    run_start_date = date.today()
+    run_start_date = _parse_run_date(args.run_date, parser)
     _prov = ProvenanceRecorder(run_start_date)
 
     # Observability: timestamped diagnostics on stderr (report output stays on
@@ -2775,7 +2803,7 @@ def _load_carry_forward_rows(prior_date, prior_path):
 
 def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                        tiingo_client, sec_xbrl_client, risk_free_rate,
-                       effective_erp):
+                       effective_erp, checkpoint=None):
     """Phase 1: screen the full universe, caching fundamentals for Phase 2."""
     # -----------------------------------------------------------------------
     # Phase 1: Collect data for full universe (no ROIC > WACC pre-filter)
@@ -2802,9 +2830,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     # integrity guard further down can fall back to yesterday's share count.
     _carry_prior_rows = []
     try:
-        _prior_snapshots = list_snapshot_files('output')
-        if _prior_snapshots:
-            _prior_date, _prior_path = _prior_snapshots[-1]
+        # The newest snapshot strictly BEFORE the run date: a re-run of a past
+        # session (--run-date) or a same-day re-run must not carry forward
+        # from its own, or a later, snapshot.
+        _prior = prior_snapshot_file('output', yf_client.run_date or date.today())
+        if _prior:
+            _prior_date, _prior_path = _prior
             _prior_rows = _load_carry_forward_rows(_prior_date, _prior_path)
             _carry_prior_rows = _prior_rows
             _carry_set = {r['ticker'] for r in _prior_rows if r.get('ticker')} - _skip_set
@@ -2831,6 +2862,10 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
         print(f"Screen skip cache: {len(_skip_cache)} ticker(s) remembered as "
               f"below the mcap floor or dead (--no-screen-cache to re-fetch all)")
     _cache_skipped = 0
+    _ckpt_skipped = 0
+    if checkpoint is not None and checkpoint.counts()['screened_out']:
+        print(f"Resuming: {checkpoint.counts()['screened_out']} ticker(s) already screened out "
+              f"earlier for this run date will be skipped without a fetch")
 
     print(f"Processing {len(all_tickers)} tickers (full universe)...")
     _universe_n = len(all_tickers)
@@ -2857,6 +2892,15 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
         _grp = ticker_source.get(ticker, 'quality')
         screen_outcomes[_grp]['total'] += 1
         _carried = ticker in _carry_set
+        if checkpoint is not None and checkpoint.screened_out(ticker):
+            _ckpt_skipped += 1
+            print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP screened out earlier this run (checkpoint)")
+            sys.stdout.flush()
+            continue
+        # Checkpoint outcome of this attempt: stays None for a deliberate
+        # screen-out, which is the only outcome recorded (errors retry on a
+        # resume; qualifiers must be re-fetched for Phase 2 anyway).
+        _ckpt_outcome = None
         if _skip_cache is not None and not _carried:
             _reason = _skip_cache.skip_reason(ticker, args.mcap_min)
             if _reason:
@@ -2953,6 +2997,7 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                     # this attempt's screen_outcomes count (the retry attempt
                     # re-increments it, so each ticker is counted once).
                     _fetch_retry_queued.add(ticker)
+                    _ckpt_outcome = 'requeued'
                     all_tickers.append(ticker)
                     screen_outcomes[_grp]['total'] -= 1
                     print(f"  [{i}/{len(all_tickers)}] {ticker} - "
@@ -3042,6 +3087,7 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                     continue
 
             qualifying.append(ticker)
+            _ckpt_outcome = 'qualified'
             screen_outcomes[_grp]['passed'] += 1
             screen_cache[ticker] = {
                 'roic_data': roic_data, 'wacc': wacc,
@@ -3054,8 +3100,11 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             print(f"  [{i}/{len(all_tickers)}] {ticker} - {roic_str}{wacc_str}{spread_str} [{re_method}] <{_data_source}>")
 
         except Exception as e:
+            _ckpt_outcome = 'error'
             print(f"  [{i}/{len(all_tickers)}] {ticker} - error: {e}")
         finally:
+            if checkpoint is not None and _ckpt_outcome is None:
+                checkpoint.record_screened_out(ticker, _grp)
             # Release the raw companyfacts blob (7-27 MB each) on every path,
             # the SKIP `continue`s included: Phase 2 re-reads it from the
             # on-disk cache, and keeping one per US filer for the whole
@@ -3079,6 +3128,8 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     gc.collect()
 
     print(f"\n{len(qualifying)} tickers collected out of {_universe_n} total.")
+    if _ckpt_skipped:
+        print(f"  Resumed: {_ckpt_skipped} ticker(s) skipped as already screened out (checkpoint)")
     if _skip_cache is not None:
         _skip_cache.save()
         print(f"  Screen skip cache: {_cache_skipped} ticker(s) skipped without a fetch; "
@@ -3186,7 +3237,8 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                          effective_erp, effective_tg_adj,
                          effective_wacc_sigma, effective_growth_sigma_mult,
                          effective_growth_weight_shift, risk_free_rate,
-                         macro_regime_result, sector_signals, io_workers=1):
+                         macro_regime_result, sector_signals, io_workers=1,
+                         checkpoint=None):
     """Phase 2: full per-ticker analysis of every qualifying ticker.
 
     With ``io_workers > 1`` a thread pool prefetches each ticker's network
@@ -3225,15 +3277,35 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             # The loop repeats each call and handles (and logs) the failure.
             logger.debug(f"phase2 prefetch failed for {ticker}: {e}")
 
+    # Rows already finished earlier for this run date (see run_checkpoint).
+    _resumed = {}
+    if checkpoint is not None:
+        for t in qualifying:
+            rec = checkpoint.phase2_record(t)
+            if rec is not None:
+                _resumed[t] = rec
+        if _resumed:
+            print(f"Phase 2: resuming — {len(_resumed)} of {len(qualifying)} ticker(s) "
+                  f"already analysed earlier for this run date (checkpoint)")
+
     _pool = None
     _pending = {}
     if io_workers and io_workers > 1:
         _pool = ThreadPoolExecutor(max_workers=io_workers, thread_name_prefix='phase2-io')
-        _pending = {t: _pool.submit(_prefetch, t) for t in qualifying}
+        _pending = {t: _pool.submit(_prefetch, t) for t in qualifying if t not in _resumed}
         print(f"Phase 2: prefetching network data with {io_workers} worker thread(s)")
 
     results = []
     for ticker in qualifying:
+        if ticker in _resumed:
+            _row, _skip = _resumed[ticker]
+            if _row is not None:
+                results.append(_row)
+            else:
+                _prov.record_event('phase2_skip', ticker, 'roic_wacc', _skip or {})
+            if ticker in screen_cache:
+                screen_cache[ticker].pop('yf_data', None)
+            continue
         _fut = _pending.pop(ticker, None)
         if _fut is not None:
             _fut.result()  # _prefetch never raises
@@ -3258,10 +3330,11 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 # the gate N/A report could see it — those only describe rows
                 # that made it into the snapshot. A count here is the only
                 # place a whole cohort going missing shows up.
-                _prov.record_event(
-                    'phase2_skip', ticker, 'roic_wacc',
-                    {'reason': 'ROIC or WACC unavailable',
-                     'roic': bool(roic_data), 'wacc': wacc is not None})
+                _skip_detail = {'reason': 'ROIC or WACC unavailable',
+                                'roic': bool(roic_data), 'wacc': wacc is not None}
+                _prov.record_event('phase2_skip', ticker, 'roic_wacc', _skip_detail)
+                if checkpoint is not None:
+                    checkpoint.record_phase2(ticker, None, _skip_detail)
                 continue
 
             # --- Price-history enrichments (local Parquet) ---
@@ -4068,6 +4141,8 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             row['rating'] = None
             row['_provenance'] = _prov.ticker_block(ticker)
             results.append(row)
+            if checkpoint is not None:
+                checkpoint.record_phase2(ticker, row)
         except Exception as e:
             print(f"  Error analyzing {ticker}: {e}")
         finally:
@@ -4829,6 +4904,11 @@ def _main():
     ticker_source = universe['ticker_source']
     all_tickers = universe['all_tickers']
 
+    checkpoint = None
+    if not args.no_resume:
+        from scripts.run_checkpoint import RunCheckpoint, fingerprint
+        checkpoint = RunCheckpoint(run_start_date, fingerprint(run_start_date, args))
+
     clients = _run_build_clients(run_start_date)
     yf_client = clients['yf_client']
     tiingo_client = clients['tiingo_client']
@@ -4837,7 +4917,8 @@ def _main():
 
     phase1 = _run_phase1_screen(args, _prov, all_tickers, ticker_source,
                                 yf_client, tiingo_client, sec_xbrl_client,
-                                risk_free_rate, effective_erp)
+                                risk_free_rate, effective_erp,
+                                checkpoint=checkpoint)
     qualifying = phase1['qualifying']
     screen_cache = phase1['screen_cache']
     screen_outcomes = phase1['screen_outcomes']
@@ -4864,7 +4945,7 @@ def _main():
         effective_erp, effective_tg_adj, effective_wacc_sigma,
         effective_growth_sigma_mult, effective_growth_weight_shift,
         risk_free_rate, macro_regime_result, sector_signals,
-        io_workers=args.workers)
+        io_workers=args.workers, checkpoint=checkpoint)
 
     post = _run_postprocess(results, ms_pfv_data, _carry_prior_rows)
     sector_median_ee = post['sector_median_ee']
@@ -4878,6 +4959,9 @@ def _main():
     _write_outputs(results, run_start_date, _prov, risk_free_rate,
                    risk_free_rate_source, macro_regime_result, macro_adj,
                    local_rs, prices_dir, sector_etf_data=sector_etf_data)
+    if checkpoint is not None:
+        # The outputs exist now; saved progress for this date is spent.
+        checkpoint.clear()
 
     _run_quality_summary(risk_free_rate, risk_free_rate_source,
                          _model_warning_counter, _prov)
