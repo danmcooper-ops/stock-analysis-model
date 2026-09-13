@@ -57,7 +57,9 @@ from datetime import date, datetime
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 3
+# v4: text no longer widens a numeric column (the v3 store had pe and
+# rpe_cagr stuck at VARCHAR); a rebuild re-derives every column type.
+SCHEMA_VERSION = 4
 DB_FILENAME = 'snapshots.duckdb'
 DEFAULT_RESULTS_DIR = 'output'
 
@@ -312,6 +314,23 @@ def _scalar(v):
     return str(v)
 
 
+_NUMERIC_TYPES = ('BOOLEAN', 'BIGINT', 'DOUBLE')
+
+
+def _parse_number(v):
+    """The int/float a numeric string denotes, else None."""
+    s = v.strip()
+    try:
+        return int(s)
+    except ValueError:
+        pass
+    try:
+        f = float(s)
+    except ValueError:
+        return None
+    return f
+
+
 def _value_type(v):
     if isinstance(v, bool):
         return 'BOOLEAN'
@@ -375,6 +394,16 @@ def _cast(v, col_type):
         if isinstance(v, (dict, list, tuple)):
             return json.dumps(v, default=_json_default)
         return v if isinstance(v, str) else json.dumps(v)
+    if isinstance(v, str) and col_type in _NUMERIC_TYPES:
+        # Text in a numeric column: its number if it is one, else NULL.
+        n = _parse_number(v) if col_type != 'BOOLEAN' else None
+        if n is None:
+            return None
+        if col_type == 'BIGINT':
+            return int(n) if float(n).is_integer() else None
+        return float(n)
+    if isinstance(v, (dict, list, tuple)) and col_type in _NUMERIC_TYPES:
+        return None
     if col_type == 'DOUBLE':
         return float(v)
     if col_type == 'BIGINT':
@@ -616,7 +645,8 @@ class SnapshotStore:
                 continue
             by_ticker[str(tk)] = r
         clean = []
-        col_types = {}
+        col_types = {}      # type evidence from non-text values
+        text_cols = set()   # columns holding at least one text value
         for tk, r in by_ticker.items():
             row = {}
             for k, v in r.items():
@@ -634,26 +664,54 @@ class SnapshotStore:
                     col_types.setdefault(k, None)
                     continue
                 row[k] = v
-                col_types[k] = _widen(col_types.get(k), _value_type(v))
+                t = _value_type(v)
+                if t == 'VARCHAR':
+                    text_cols.add(k)
+                    col_types.setdefault(k, None)
+                else:
+                    col_types[k] = _widen(col_types.get(k), t)
             row['ticker'] = tk
             clean.append(row)
-        # A key that is None in every row carries no type evidence: leave it
-        # out of this batch so a later snapshot can create the column with
-        # its real type (readers get NULL for unknown columns either way).
-        col_types = {k: t for k, t in col_types.items() if t is not None}
-        # Existing column types take part in widening decisions so the batch
-        # is rendered in the type the table will end up with.
         existing = self.column_types()
-        for k in col_types:
-            if k in existing and existing[k] != 'DATE':
-                col_types[k] = _widen(col_types[k], existing[k])
+        final = {}
+        for k, t in col_types.items():
+            # Existing column types take part in widening decisions so the
+            # batch is rendered in the type the table will end up with.
+            ex = existing.get(k)
+            base = _widen(t, ex if ex != 'DATE' else None)
+            if k in text_cols:
+                if base in _NUMERIC_TYPES:
+                    # Text never widens a numeric column: one stray value (an
+                    # "Infinity" pe, a stringified complex rpe_cagr) used to
+                    # turn a column VARCHAR for good, handing every reader
+                    # strings. Numeric text casts; anything else is NULL here
+                    # (the JSON snapshot keeps it verbatim).
+                    if base == 'BIGINT' and any(
+                            isinstance(r.get(k), str) and _parse_number(r[k]) is not None
+                            and not float(_parse_number(r[k])).is_integer()
+                            for r in clean):
+                        base = 'DOUBLE'
+                else:
+                    base = _widen(base, 'VARCHAR')
+            # A key that is None in every row carries no type evidence: leave
+            # it out of this batch so a later snapshot can create the column
+            # with its real type (readers get NULL for unknown columns anyway).
+            if base is not None:
+                final[k] = base
         arrays = {
             'date': pa.array([date.fromisoformat(run_date)] * len(clean), pa.date32()),
             'ticker': pa.array([r['ticker'] for r in clean], pa.string()),
         }
-        for k, t in col_types.items():
-            arrays[k] = pa.array([_cast(r.get(k), t) for r in clean], _pa_type(t))
-        return pa.table(arrays), col_types
+        for k, t in final.items():
+            values = [_cast(r.get(k), t) for r in clean]
+            if k in text_cols and t in _NUMERIC_TYPES:
+                dropped = sum(1 for r, cv in zip(clean, values, strict=True)
+                              if r.get(k) is not None and cv is None)
+                if dropped:
+                    logger.warning("snapshot store: %s %s: %d non-numeric value(s) stored "
+                                   "as NULL in %s column", run_date, k, dropped, t)
+            arrays[k] = pa.array(values, _pa_type(t))
+        return pa.table(arrays), final
 
     def _reconcile_columns(self, col_types):
         """Add missing columns and widen narrower ones (never in a txn: DuckDB
@@ -845,3 +903,55 @@ def sync_snapshot_file(path, data=None, db_path=None):
     except Exception as e:
         logger.warning("snapshot store sync failed for %s (%s): %s", run_date, db_path, e)
         return False
+
+
+def compact_store(db_path=None):
+    """Rewrite the store without its free blocks; returns ``(before, after)``
+    sizes in bytes, or None when there is no store.
+
+    DuckDB does not return the space of deleted rows to the filesystem, and
+    the pipeline replaces the same date after every enrichment step, so the
+    file grows ~30 MB a night (567 MiB holding 265 MiB of data on
+    2026-09-13). The copy is verified table by table before it replaces the
+    original. The source is attached read-write, which takes DuckDB's file
+    lock: a concurrent writer or reader makes this raise instead of racing.
+    """
+    import duckdb
+    db_path = db_path or db_path_for()
+    if not os.path.exists(db_path):
+        return None
+    tmp = db_path + '.compact'
+    for leftover in (tmp, tmp + '.wal'):
+        if os.path.exists(leftover):
+            os.remove(leftover)
+    before = os.path.getsize(db_path)
+
+    def lit(path):
+        return "'" + path.replace("'", "''") + "'"
+
+    con = duckdb.connect()
+    try:
+        con.execute(f"ATTACH {lit(db_path)} AS src")
+        con.execute(f"ATTACH {lit(tmp)} AS dst")
+        con.execute("COPY FROM DATABASE src TO dst")
+        tables = [r[0] for r in con.execute(
+            "SELECT table_name FROM duckdb_tables() WHERE database_name = 'src'").fetchall()]
+        for t in tables:
+            a = con.execute(f"SELECT count(*) FROM src.{_quote(t)}").fetchone()[0]
+            b = con.execute(f"SELECT count(*) FROM dst.{_quote(t)}").fetchone()[0]
+            if a != b:
+                raise RuntimeError(f"compacted copy of {t} has {b} rows, source {a}")
+        con.execute("DETACH dst")
+        con.execute("DETACH src")
+    except BaseException:
+        con.close()
+        for leftover in (tmp, tmp + '.wal'):
+            if os.path.exists(leftover):
+                os.remove(leftover)
+        raise
+    con.close()
+    os.replace(tmp, db_path)
+    after = os.path.getsize(db_path)
+    logger.info("snapshot store: compacted %s %.0f MiB -> %.0f MiB",
+                db_path, before / 2**20, after / 2**20)
+    return before, after

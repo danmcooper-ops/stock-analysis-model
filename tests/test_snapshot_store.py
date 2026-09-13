@@ -121,11 +121,33 @@ def test_schema_drift_adds_and_widens_columns(results_dir):
         rows = {r['ticker']: r for r in store.rows('2026-01-02', ['new_field', 'mcap'])}
         assert rows['CCC']['new_field'] == 3 and rows['AAA']['new_field'] is None
         assert rows['BBB']['mcap'] is None
-        # string in a numeric column widens it to VARCHAR without failing
+        # Text never widens a numeric column: non-numeric text is stored as
+        # NULL, numeric text as its number, and the column stays DOUBLE.
         store.ingest_rows({'date': '2026-01-04'},
-                          [_row('AAA', mcap='n/a')], replace=True)
-        assert store.column_types()['mcap'] == 'VARCHAR'
-        assert store.rows('2026-01-04', ['mcap'])[0]['mcap'] == 'n/a'
+                          [_row('AAA', mcap='n/a'), _row('BBB', mcap='7.5')], replace=True)
+        assert store.column_types()['mcap'] == 'DOUBLE'
+        rows = {r['ticker']: r['mcap'] for r in store.rows('2026-01-04', ['mcap'])}
+        assert rows == {'AAA': None, 'BBB': 7.5}
+
+
+def test_text_never_widens_numeric_columns_in_one_batch(tmp_path):
+    # The 2026 store had pe and rpe_cagr stuck at VARCHAR after one stray
+    # value each; within a single snapshot the numbers must win too.
+    with SnapshotStore(str(tmp_path / 's.duckdb')) as store:
+        store.ingest_rows({'date': '2026-01-01'}, [
+            _row('AAA', pe=7.77, rpe_cagr=0.09, fdic_cert='3510', note='ok'),
+            _row('BBB', pe='Infinity', rpe_cagr='(0.1+0.2j)', fdic_cert='628', note='12'),
+            _row('CCC', pe='12.5', rpe_cagr=None, fdic_cert=None, note=None),
+        ])
+        types = store.column_types()
+        assert types['pe'] == 'DOUBLE' and types['rpe_cagr'] == 'DOUBLE'
+        # A column that only ever holds text stays text, digits included.
+        assert types['fdic_cert'] == 'VARCHAR' and types['note'] == 'VARCHAR'
+        rows = {r['ticker']: r for r in store.rows('2026-01-01', ['pe', 'rpe_cagr', 'fdic_cert'])}
+        assert rows['AAA']['pe'] == 7.77 and rows['CCC']['pe'] == 12.5
+        assert rows['BBB']['pe'] == float('inf')
+        assert rows['BBB']['rpe_cagr'] is None
+        assert rows['BBB']['fdic_cert'] == '628'
 
 
 def test_ingest_rows_normalises_numpy_and_dedupes_tickers(tmp_path):
@@ -497,3 +519,53 @@ def test_failed_replace_keeps_the_previous_rows(results_dir):
         # The store is still writable afterwards: no transaction left open.
         assert store.ingest_json(path, replace=True) is True
         assert store.counts() == {'2026-01-03': 3}
+
+
+def test_compact_store_reclaims_space_and_keeps_data(results_dir):
+    from data.snapshot_store import compact_store
+    db = db_path_for(str(results_dir))
+    ingest_dir(str(results_dir))
+    # Churn the same date, as the nightly enrichment re-syncs do.
+    with SnapshotStore(db) as store:
+        rows = [_row(f'T{i:04d}', description='x' * 400) for i in range(3000)]
+        for _ in range(4):
+            store.ingest_rows({'date': '2026-01-03'}, rows, replace=True)
+        before_counts, before_hist = store.counts(), store.rating_history()
+    before, after = compact_store(db)
+    assert after < before
+    import duckdb
+    with SnapshotStore(db) as store:
+        assert store.counts() == before_counts
+        assert store.rating_history() == before_hist
+        # The primary key survived the copy.
+        with pytest.raises(duckdb.ConstraintException):
+            store._con.execute("INSERT INTO results (date, ticker) VALUES ('2026-01-03', 'T0000')")
+    assert not os.path.exists(db + '.compact')
+    assert compact_store(str(results_dir / 'absent.duckdb')) is None
+
+
+def test_compact_store_refuses_while_store_is_open(results_dir):
+    from data.snapshot_store import compact_store
+    db = db_path_for(str(results_dir))
+    ingest_dir(str(results_dir))
+    before = os.path.getsize(db)
+    import multiprocessing as mp
+    ctx = mp.get_context('spawn')
+    ready, done = ctx.Event(), ctx.Event()
+    p = ctx.Process(target=_hold_store_open, args=(db, ready, done))
+    p.start()
+    try:
+        assert ready.wait(30)
+        import duckdb
+        with pytest.raises(duckdb.IOException):
+            compact_store(db)
+    finally:
+        done.set()
+        p.join(30)
+    assert os.path.getsize(db) == before and not os.path.exists(db + '.compact')
+
+
+def _hold_store_open(db, ready, done):
+    with SnapshotStore(db):
+        ready.set()
+        done.wait(30)

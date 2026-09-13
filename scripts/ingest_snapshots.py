@@ -13,6 +13,7 @@ Usage:
     python scripts/ingest_snapshots.py --since 2026-08-01    # only dates >= this
     python scripts/ingest_snapshots.py --replace output/results_2026-09-03.json
     python scripts/ingest_snapshots.py --db /tmp/x.duckdb --results-dir output
+    python scripts/ingest_snapshots.py --compact              # also reclaim free space
 
 Idempotent: dates already present are skipped unless --replace is given.
 Exit code is non-zero only when a snapshot fails to ingest.
@@ -24,7 +25,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data.snapshot_store import (SnapshotStore, db_path_for,  # noqa: E402
+from data.snapshot_store import (SnapshotStore, compact_store, db_path_for,  # noqa: E402
                                  list_snapshot_files, snapshot_date_from_path)
 
 logger = logging.getLogger(__name__)
@@ -79,12 +80,24 @@ def main(argv=None):
     ap.add_argument('--replace', action='store_true',
                     help='re-ingest dates already in the store')
     ap.add_argument('--since', default=None, help='only snapshots dated >= YYYY-MM-DD')
+    ap.add_argument('--compact', action='store_true',
+                    help='after ingesting, rewrite the store without free blocks '
+                         '(fails safely if another process has it open)')
     args = ap.parse_args(argv)
+    db = args.db or db_path_for(args.results_dir)
     ingested, skipped, failed = ingest_dir(
         args.results_dir, db_path=args.db, replace=args.replace,
         since=args.since, paths=args.paths)
     print(f"[ingest] {len(ingested)} ingested, {len(skipped)} already present, "
-          f"{len(failed)} failed -> {args.db or db_path_for(args.results_dir)}")
+          f"{len(failed)} failed -> {db}")
+    if args.compact:
+        try:
+            before, after = compact_store(db)
+            print(f"[ingest] compacted {db}: {before / 2**20:.0f} MiB -> {after / 2**20:.0f} MiB")
+        except Exception as e:
+            logger.warning("compaction failed for %s: %s", db, e)
+            print(f"[ingest] compaction FAILED — {e}")
+            return 1
     return 1 if failed else 0
 
 

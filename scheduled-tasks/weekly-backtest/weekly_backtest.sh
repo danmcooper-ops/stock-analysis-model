@@ -75,6 +75,12 @@ fi
 #    refuse loudly (no file) when a horizon has no matured/usable data.
 #    Track the worst stage exit code — a crashed stage must not report rc=0.
 overall_rc=0
+# Snapshot store upkeep before the backtest reads it: ingest any date the
+# nightly sync missed (or all of them after a SCHEMA_VERSION rebuild), then
+# compact. The nightly re-syncs leave ~30 MB of free blocks per run; Sunday
+# has no daily run, so nothing holds the store open. A failure here is
+# reported but the backtest still runs (it falls back to the JSON files).
+"$VPY" scripts/ingest_snapshots.py --results-dir output --compact || overall_rc=$?
 "$VPY" scripts/backtest.py annotate  --horizons 30,90,180 || overall_rc=$?
 "$VPY" scripts/backtest.py measure   --horizons 30,90,180 || overall_rc=$?
 # Calibrate each horizon SEPARATELY — pooling 30d and 90d returns into one
