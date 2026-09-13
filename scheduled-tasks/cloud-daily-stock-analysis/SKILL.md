@@ -34,7 +34,7 @@ and both force-push `pages-live`.
 | 01-venv | | yes | `.venv` + `pip install -e ".[dev]"` (~1 min) |
 | 02-stage-snapshots | | yes | blob-less, checkout-less clone of `data/snapshots`; materialises the newest `SNAPSHOT_HISTORY` (10) snapshots and `rating_history.json` into `output/` so carry-forward, Yesterday's Rating, the rate-change look-back, rating history and gate N/A deltas all work exactly as they did locally |
 | 03-prices | | no | full price history for every ticker in the newest prior snapshot + benchmarks (~2,300 tickers, 25–45 min) |
-| 04-analyze | | **yes** | `analyze_stock.py --macro --universe us --min-spread 0 --mcap-min 300e6` — **10–16 hours** (Phase 1 ~5h at ~30 tickers/min, then Phase 2 over ~2,300 qualifiers). SEC companyfacts are re-downloaded every run (the on-disk cache does not survive the container) |
+| 04-analyze | | **yes** | `analyze_stock.py --macro --universe us --min-spread 0 --mcap-min 300e6 --run-date $RUNDATE` — **10–16 hours** before the 2026-09-13 speedups (Phase 1 ~5h at ~30 tickers/min, then Phase 2 over ~2,300 qualifiers). SEC companyfacts are re-downloaded every run (the on-disk cache does not survive the container). Progress is checkpointed under `output/.checkpoint/$RUNDATE`, so an interrupted analysis resumes (see 3b) |
 | 05a–05d enrich | | no | FDIC, REIT, XBRL, FDA pipeline — same as the Mac runbook 1b–1e |
 | 05e-prices-topup | | no | full history for Phase-2 entrants that only got a Close-only stub during the run |
 | 05f-rerender | | yes | `rescore_and_render.py` so the HTML carries every enrichment |
@@ -88,14 +88,42 @@ When the background command finishes, read `.cloud-run/status.txt` first.
   with the tail of `logs/08-publish.log`.
 - `RESULT FAILED at ...` → say which step, quote the last ~30 lines of that
   step's log, and state plainly what did **not** happen (no snapshot archived
-  / nothing published). Do not retry the whole pipeline; a second 6-hour run
-  in the same session rarely helps and can double-post. If only the push in
+  / nothing published). Do not retry a failure that came from the pipeline
+  itself (a step that exited non-zero); a second run rarely helps. The
+  exceptions are an interrupted run and a push-only failure, below. If only the push in
   06-archive failed (`git push` in the log, the `.json.gz` exists in
   `.cloud-run/snapshots-data/`), retry just that push once:
   `git -C .cloud-run/snapshots-data push https://github.com/danmcooper-ops/stock-analysis-model.git HEAD:refs/heads/data/snapshots`.
   If the push was rejected for lack of credentials, call the
   `mcp__Claude_Code_Remote__add_repo` tool with `owner: danmcooper-ops`,
   `repo: stock-analysis-model`, `access: push` and retry once.
+
+### 3b. The container restarted mid-run (the script was killed, not failed)
+Container restarts killed the 2026-09-11 run twice, 3h24m and 12h49m into
+`04-analyze`. The analysis now checkpoints its progress under
+`output/.checkpoint/<RUNDATE>/`, and `output/` survives a restart. Tickers
+already screened out are skipped, and finished Phase-2 rows are reused, so
+**re-running the same command resumes instead of starting over**. When you wake
+up to a killed run (no `RESULT` line in `status.txt`, no `run.sh` process):
+- **Same session date:** the run was started today, or it is still before
+  the next weekday's firing. Re-run it with the **original session date**
+  pinned, so a run that crosses midnight is not refiled under the next day:
+  `cd /home/user/stock-analysis-model && RUNDATE=<session date> bash scheduled-tasks/cloud-daily-stock-analysis/run.sh > .cloud-run.log 2>&1`
+  in the background, as in step 2. The date is on the `RUNDATE` line of
+  the killed run's log, or is the date the run was fired, New York time.
+  The script's market gate checks that date, so no `FORCE` is needed for a
+  past weekday.
+- The analysis log then prints `Resuming: N ticker(s) already screened out`
+  and `Phase 2: resuming — N of M ticker(s) already analysed`. Report both.
+- **Do not resume across a code change.** The checkpoint is discarded
+  automatically when `main` moved or the options differ, which makes it a
+  full run. Only resume if there is still time before the next firing; a
+  full run takes most of a day. Never run two copies.
+
+A session that ended FAILED because of a restart can also be recovered from a
+later session or by hand the same way: `RUNDATE=<the failed weekday>` re-runs
+that session and files every output under its own date. Doing that on a
+weekend is exactly what the 2026-09-12 recovery could not do.
 
 ### 4. Write the run summary
 Lead with the result line and the run date, then, in this order:
@@ -141,8 +169,9 @@ connector tools, so the `add_repo` fallback above may not exist there; if a
 push is refused for credentials, recreate the Routine from the claude.ai
 Routines UI with this repository attached as a source. The schedule is
 entered in the Routine UI in **local (New York) time** and is currently
-**21:00 New York** on weekdays — 01:00 UTC in summer, 02:00 in winter — which
-is why the 2026-09-10 session's run started at 01:01 UTC on 09-11. `run.sh`
+**21:00 UTC** on weekdays (cron `0 21 * * 1-5`; 17:00 New York in summer,
+16:00 in winter) since 2026-09-11. It was briefly 21:00 New York, which is why
+the 2026-09-10 session's run started at 01:01 UTC on 09-11. `run.sh`
 therefore exports `TZ=America/New_York` so `RUNDATE` and the snapshot name
 carry the session date, as the Mac runs did. A 12–20 hour run started at
 21:00 finishes mid-afternoon the next day, before the next firing. To test the script itself without touching

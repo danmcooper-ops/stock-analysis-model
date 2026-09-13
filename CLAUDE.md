@@ -154,7 +154,15 @@ ruff check .
   or incomplete.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
-  write outputs). `report_html.build_html()` orchestrates the per-row
+  write outputs). A run is resumable: `scripts/run_checkpoint.py`
+  keeps progress in `output/.checkpoint/<run date>/` (Phase-1 screen-outs,
+  Phase-2 rows as a pickle stream), keyed by a fingerprint of the analysis
+  options and a hash of the pipeline source. A re-run with the same date and
+  options continues where an interrupted one stopped. The directory is
+  removed once the outputs are written, and `--no-resume` starts over.
+  `--run-date YYYY-MM-DD` names the outputs after a past session, with
+  carry-forward read from the snapshot before it, so a failed weekday can be
+  re-run the next morning. `report_html.build_html()` orchestrates the per-row
   context builder and sidecar writers. `scripts/config.py` holds all
   tunable constants; `scripts/param_set.py` validates parameter sets.
 
