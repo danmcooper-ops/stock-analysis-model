@@ -11,7 +11,7 @@ REPO="/Users/danmcooper/Projects/Workspace Folder"
 WT="$REPO"
 # Same interpreter the nightly runbooks use. The repo-root .venv lacks scipy,
 # which backtest.py now needs transitively via models/montecarlo.py on main.
-VPY="$REPO/.claude/worktrees/phase-1-api/.venv/bin/python"
+VPY="${PYTHON:-$HOME/.venvs/stock-model/bin/python}"
 
 # Pin the CA bundle for all HTTPS. The python.org 3.14 build's default SSL
 # trust file is a symlink that Install Certificates.command creates; a Python

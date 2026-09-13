@@ -36,7 +36,7 @@ verify with the "Check it worked" section at the bottom.
 | Source tree | — | **Yes** — `git clone` (branch `main`) |
 | Snapshot corpus | `.claude/worktrees/snapshots-data` | **Yes** — branch `data/snapshots`, every archived day |
 | Published site | `.claude/worktrees/pages-live` | **Yes** — branch `pages-live` (the live site was never affected) |
-| Python venv | `.claude/worktrees/phase-1-api/.venv` | Rebuild — `pip install -e ".[dev]"` |
+| Python venv | `~/.venvs/stock-model` (outside the repo) | Rebuild — see step 3 |
 | **API keys** | `.env` | **No** — gitignored, never committed. Re-issue or re-enter by hand |
 | **Price cache** | `output/prices/*.parquet` | **No** — not in git. Re-download, hours |
 | Today's results | `output/results_*.json`, `*.html` | Only as far back as the last archived snapshot |
@@ -61,12 +61,11 @@ git clone https://github.com/danmcooper-ops/stock-analysis-model.git \
 cd "$HOME/Projects/Workspace Folder"
 ```
 
-### 2. Recreate the three worktrees
+### 2. Recreate the two worktrees
 
 ```bash
 git worktree add .claude/worktrees/pages-live      pages-live
 git worktree add .claude/worktrees/snapshots-data  data/snapshots
-git worktree add .claude/worktrees/phase-1-api     feature/phase-1-api
 ```
 
 `snapshots-data` is the large one — it carries the whole
@@ -74,15 +73,18 @@ git worktree add .claude/worktrees/phase-1-api     feature/phase-1-api
 
 ### 3. Rebuild the venv
 
-The runbooks invoke Python as
-`.claude/worktrees/phase-1-api/.venv/bin/python`, so the venv goes there:
+The runbooks and `scripts/run_daily.sh` invoke Python as
+`~/.venvs/stock-model/bin/python`. It lives outside the repo on purpose: the
+old location, the `phase-1-api` worktree's `.venv`, was deleted along with that
+worktree on 2026-09-13, in the middle of a run. Install the pinned
+dependencies (not an editable install, which would tie the venv to one
+checkout):
 
 ```bash
-VENV="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv"
-python3 -m venv "$VENV"
+VENV="$HOME/.venvs/stock-model"
+/Library/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m venv "$VENV"
 cd "$HOME/Projects/Workspace Folder"
-"$VENV/bin/pip" install -e ".[dev]"
-"$VENV/bin/pip" install certifi
+"$VENV/bin/pip" install -r requirements.txt 'pytest~=9.1' 'pytest-cov~=7.0' 'hypothesis~=6.165' 'ruff~=0.16'
 ```
 
 `certifi` is required — every runbook step sets `SSL_CERT_FILE` from
@@ -133,7 +135,7 @@ empty directory it fetches the four benchmarks and nothing else — and the
 report silently loses its price charts and Yesterday's Rating.
 
 ```bash
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/download_prices.py --output-dir output/prices --universe us
+PYTHON="$HOME/.venvs/stock-model/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/download_prices.py --output-dir output/prices --universe us
 ```
 
 Several hours for ~7–10k tickers at the 0.35 s inter-request delay. Without
@@ -143,7 +145,7 @@ so it is safe to interrupt and re-run until it completes.
 ### 7. Rebuild the DuckDB index from the archive
 
 ```bash
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/ingest_snapshots.py --results-dir .claude/worktrees/snapshots-data
+PYTHON="$HOME/.venvs/stock-model/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/ingest_snapshots.py --results-dir .claude/worktrees/snapshots-data
 ```
 
 Idempotent. Until this runs, cross-run readers (rating history, yesterday's
@@ -156,7 +158,7 @@ just slower.
 cd "$HOME/Projects/Workspace Folder"
 readlink ~/.claude/scheduled-tasks/daily-stock-analysis    # symlink resolves
 git worktree list                                          # three worktrees
-.claude/worktrees/phase-1-api/.venv/bin/python -c "import yfinance, pandas, duckdb, certifi; print('deps ok')"
+"$HOME/.venvs/stock-model/bin/python" -c "import yfinance, pandas, duckdb, certifi; print('deps ok')"
 test -s .env && echo ".env present"
 ls output/prices/*.parquet | wc -l                         # thousands, not 4
 ls .claude/worktrees/snapshots-data/results_*.json* | wc -l # the corpus
@@ -168,7 +170,7 @@ S&P 500 + Dow universe instead of `us`, a few hundred tickers rather than
 full nightly run; don't rely on a second copy of that figure here):
 
 ```bash
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/analyze_stock.py --prices-dir output/prices
+PYTHON="$HOME/.venvs/stock-model/bin/python"; SSL_CERT_FILE=$("$PYTHON" -m certifi); export SSL_CERT_FILE; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/analyze_stock.py --prices-dir output/prices
 ```
 
 If that produces `output/results_<today>.json` and the matching HTML, the

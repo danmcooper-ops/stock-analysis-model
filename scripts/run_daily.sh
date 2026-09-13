@@ -35,9 +35,11 @@
 set -uo pipefail
 
 REPO="/Users/danmcooper/Projects/Workspace Folder"
-# The repo-root .venv lacks duckdb/scipy; this is the interpreter every
-# routine has used. Override with PYTHON=... if the venv moves.
-VPY="${PYTHON:-$REPO/.claude/worktrees/phase-1-api/.venv/bin/python}"
+# The pipeline's interpreter lives OUTSIDE the repo so deleting or recreating
+# a worktree cannot take it with it (the phase-1-api worktree's .venv, which
+# every routine used, was removed on 2026-09-13 mid-run). Rebuild it with
+# scheduled-tasks/RECOVERY.md step 3; override with PYTHON=... .
+VPY="${PYTHON:-$HOME/.venvs/stock-model/bin/python}"
 PAGES_WT="$REPO/.claude/worktrees/pages-live"
 SNAP_WT="$REPO/.claude/worktrees/snapshots-data"
 PAGES_URL="https://danmcooper-ops.github.io/stock-analysis-model/"

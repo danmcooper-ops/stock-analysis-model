@@ -95,7 +95,7 @@ A market-closed skip is a success, and the criteria below don't apply to it.
   - Main repo: `$HOME/Projects/Workspace Folder`
   - Snapshots worktree: `.claude/worktrees/snapshots-data` (branch `data/snapshots`)
   - Pages worktree: `.claude/worktrees/pages-live` (branch `pages-live`)
-  - Python: `.claude/worktrees/phase-1-api/.venv/bin/python`. The repo `.venv` lacks duckdb/scipy.
+  - Python: `~/.venvs/stock-model/bin/python`, outside the repo so worktree changes cannot delete it (rebuild: `scheduled-tasks/RECOVERY.md` step 3).
   - If a worktree is missing, recreate it: `git worktree add .claude/worktrees/pages-live pages-live` or `git worktree add .claude/worktrees/snapshots-data data/snapshots`.
 - **Branch:** the script fast-forwards `main` only when the checkout is on `main`. A feature branch left checked out renders with that branch's templates, and the summary notes it. These task files are symlinked from `~/.claude/scheduled-tasks`, so the checked-out branch also decides which version of this file runs.
 - **Market-open gate:** `scripts/market_open.py` computes the NYSE calendar offline and fails open. Unscheduled closures go in its `AD_HOC_CLOSURES`.

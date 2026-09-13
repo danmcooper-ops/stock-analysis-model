@@ -53,7 +53,7 @@ cp "$HOME/Projects/Workspace Folder/output/macro.json" "$HOME/Projects/Workspace
 ```
 `macro.json` backs the Macro Outlook tab. Unlike the other sidecars it is **optional**: the run omits it when FRED is unreachable, and the HTML then renders with no Macro Outlook tab at all (`_MACRO_AVAILABLE=false`), so a missing file is a valid state rather than a failure. Within it, the `narrative` key (the Economic Narrative card) additionally requires `ANTHROPIC_API_KEY` in the main repo's `.env` at render time — a macro.json without a narrative means the key was missing or the Claude API call failed, which the analysis run's log reports but does not fail on. If `output/macro.json` does not exist, skip this copy AND delete any stale `docs/macro.json` — publishing yesterday's macro data under today's HTML is the one outcome to avoid. When the file does exist the copy must not be skipped: the HTML advertises the tab, and without the sidecar the tab opens to "Macro history failed to load".
 ```
-PYTHON="$HOME/Projects/Workspace Folder/.claude/worktrees/phase-1-api/.venv/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/publish_vol_shards.py
+PYTHON="$HOME/.venvs/stock-model/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/publish_vol_shards.py
 ```
 (The HTML cp source is relative — run from the main repo root. The sidecar paths are absolute so they work from any cwd. `publish_vol_shards.py` syncs **both** shard directories — `vol/` from the `vol` manifest and `px/` from the `manifest` key of `prices_meta.json`.)
 
