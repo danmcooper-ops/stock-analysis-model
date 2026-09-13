@@ -54,9 +54,13 @@ def _get_fx_rates_to_usd(currency):
         return {}
     try:
         import yfinance as yf
+        from data.yf_session import make_yf_session
         pair = f'{currency}USD=X'
+        # yf.download without session= would install a fresh default session
+        # on yfinance's singleton, discarding the YF_IMPERSONATE override.
         df = yf.download(pair, period='max', interval='1d',
-                         progress=False, auto_adjust=False)
+                         progress=False, auto_adjust=False,
+                         session=make_yf_session())
         if df is None or df.empty:
             _FX_CACHE[currency] = {}
             return {}

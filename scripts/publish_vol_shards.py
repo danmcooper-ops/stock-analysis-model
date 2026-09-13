@@ -28,7 +28,10 @@ import sys
 # when running against a different checkout (e.g. a worktree).
 REPO = os.environ.get('STOCK_MODEL_REPO') or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 META = os.path.join(REPO, "output", "prices_meta.json")
-DOCS = os.path.join(REPO, ".claude", "worktrees", "pages-live", "docs")
+# Destination docs/ directory. Override via PAGES_DOCS when the pages-live
+# checkout is not the usual worktree (the cloud routine builds it in a temp
+# clone).
+DOCS = os.environ.get('PAGES_DOCS') or os.path.join(REPO, ".claude", "worktrees", "pages-live", "docs")
 FAMILIES = [
     # (label, manifest key in prices_meta.json, source dir, dest dir)
     ("vol", "vol", os.path.join(REPO, "output", "vol"), os.path.join(DOCS, "vol")),
