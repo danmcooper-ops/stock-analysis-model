@@ -230,3 +230,43 @@ class TestNullUncorroboratedShares:
         recovered = _backfill_shares_and_mcap(stock, info)
         assert info['sharesOutstanding'] == 45_000_000
         assert set(recovered) == {'marketCap', 'sharesOutstanding'}
+
+
+class TestStaleSharesSeries:
+    """Yahoo's shares series for the Fannie/Freddie preferred lines ends on
+    2021-03-17. Its last row must not corroborate a poisoned count nor refill
+    a nulled one (it rebuilt $5-11B phantom caps on 2026-09-13)."""
+
+    @staticmethod
+    def _series(days_old, value):
+        end = pd.Timestamp.now(tz='America/New_York') - pd.Timedelta(days=days_old)
+        idx = pd.DatetimeIndex([end - pd.Timedelta(days=200), end])
+        return pd.Series([value, value], index=idx)
+
+    def test_stale_series_does_not_corroborate(self):
+        # FMCCT: the 2021 series (3,221,309,952) is within tolerance of the
+        # poisoned packaged count, but five years old.
+        info = {'marketCap': None, 'sharesOutstanding': 3_221_329_920,
+                'regularMarketPrice': 14.55}
+        stock = _Stock(_FastInfo(market_cap=None, shares=None),
+                       shares_full=self._series(1_640, 3_221_309_952))
+        assert (_null_uncorroborated_shares(stock, info)
+                == ['sharesOutstanding_uncorroborated'])
+
+    def test_stale_series_does_not_refill_a_nulled_count(self):
+        # FMCCG: nulled, then the backfill must not take 460,190,016 from 2021.
+        info = {'marketCap': None, 'sharesOutstanding': 3_221_329_920,
+                'regularMarketPrice': 11.9}
+        stock = _Stock(_FastInfo(market_cap=None, shares=None),
+                       shares_full=self._series(1_640, 460_190_016))
+        _null_uncorroborated_shares(stock, info)
+        assert _backfill_shares_and_mcap(stock, info) == []
+        assert info['sharesOutstanding'] is None and info['marketCap'] is None
+
+    def test_recent_series_still_recovers(self):
+        info = {'marketCap': None, 'sharesOutstanding': None, 'currentPrice': 10.0}
+        stock = _Stock(_FastInfo(market_cap=None, shares=None),
+                       shares_full=self._series(40, 2_000_000))
+        recovered = _backfill_shares_and_mcap(stock, info)
+        assert info['sharesOutstanding'] == 2_000_000
+        assert 'sharesOutstanding' in recovered

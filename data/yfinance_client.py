@@ -103,6 +103,36 @@ def _reconcile_shares_with_mcap(info, tolerance=SHARES_MCAP_TOLERANCE):
     return ['sharesOutstanding_implied']
 
 
+# A shares-outstanding series whose newest observation is older than this is
+# no evidence about today's count. Yahoo's series for the Fannie/Freddie and
+# Ameren preferred lines stops at 2021-03-17 (FMCCG: 460,190,016 forever), so
+# trusting its last row refilled a nulled count with a five-year-old figure
+# and rebuilt the phantom caps ($5-11B) this module exists to remove.
+SHARES_SERIES_MAX_AGE_DAYS = 540
+
+
+def _recent_series_shares(stock, max_age_days=SHARES_SERIES_MAX_AGE_DAYS):
+    """Last value of ``get_shares_full`` when it is recent, else None.
+
+    Raises whatever ``get_shares_full`` raises; callers already guard it.
+    A series without a datetime index cannot be dated and is taken as is.
+    """
+    series = stock.get_shares_full(start='2020-01-01')
+    if series is None or not len(series):
+        return None
+    series = series.dropna()
+    if not len(series):
+        return None
+    if isinstance(series.index, pd.DatetimeIndex):
+        # Yahoo repeats dates in this series; the newest row wins.
+        series = series.sort_index()
+        newest = series.index[-1]
+        now = pd.Timestamp.now(tz=newest.tz)
+        if (now - newest).days > max_age_days:
+            return None
+    return float(series.iloc[-1])
+
+
 # A packaged share count with no packaged market cap is only trusted when an
 # independent Yahoo source agrees with it. The tolerance is loose because the
 # sources report different as-of dates; contamination is 100-5000x off.
@@ -165,9 +195,7 @@ def _null_uncorroborated_shares(stock, info):
     if fast_mcap and price and _agrees(fast_mcap / float(price)):
         return []
     try:
-        series = stock.get_shares_full(start='2020-01-01')
-        series_last = (float(series.iloc[-1])
-                       if series is not None and len(series) else 0.0)
+        series_last = _recent_series_shares(stock) or 0.0
     except Exception:
         series_last = 0.0
     if _agrees(series_last):
@@ -231,11 +259,9 @@ def _backfill_shares_and_mcap(stock, info):
         if not shares:
             # Last resort: the shares-outstanding time series. Its final row is
             # the same figure fast_info reports, but it survives cases where
-            # fast_info itself comes back bare.
+            # fast_info itself comes back bare. A stale series is ignored.
             try:
-                series = stock.get_shares_full(start='2020-01-01')
-                if series is not None and len(series):
-                    shares = float(series.iloc[-1])
+                shares = _recent_series_shares(stock)
             except Exception as e:
                 logger.debug(f"yfinance: get_shares_full failed for "
                              f"{getattr(stock, 'ticker', info.get('symbol'))}: {e}")
