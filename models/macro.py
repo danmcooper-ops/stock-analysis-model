@@ -7,13 +7,24 @@ conservative parameter adjustments for the DCF pipeline.
 All functions are pure (no I/O, no side-effects) and fully testable.
 """
 
+import math
+
 # ---------------------------------------------------------------------------
 # Indicator scoring functions  [-1.0 bearish … 0 neutral … +1.0 bullish]
 # ---------------------------------------------------------------------------
 
+def _missing(x):
+    """None or NaN — an indicator that did not arrive scores neutral.
+
+    NaN must be caught explicitly: every threshold comparison with NaN is
+    False, so it would otherwise fall through to the most bearish bucket.
+    """
+    return x is None or (isinstance(x, float) and math.isnan(x))
+
+
 def _score_vix(vix):
     """VIX level → sentiment signal."""
-    if vix is None:
+    if _missing(vix):
         return 0.0
     if vix < 15:
         return 1.0
@@ -28,7 +39,7 @@ def _score_vix(vix):
 
 def _score_yield_curve(slope):
     """Yield-curve slope (10yr − 3mo, as decimal) → recession signal."""
-    if slope is None:
+    if _missing(slope):
         return 0.0
     if slope > 0.015:
         return 1.0
@@ -43,7 +54,7 @@ def _score_yield_curve(slope):
 
 def _score_credit_spread(spread_signal):
     """LQD − HYG 3-month return. Positive = HYG under-performs = stress."""
-    if spread_signal is None:
+    if _missing(spread_signal):
         return 0.0
     if spread_signal < -0.02:
         return 1.0
@@ -58,7 +69,7 @@ def _score_credit_spread(spread_signal):
 
 def _score_spy_momentum(ratio):
     """SPY price / 200-day SMA ratio."""
-    if ratio is None:
+    if _missing(ratio):
         return 0.0
     if ratio > 1.05:
         return 1.0
@@ -73,7 +84,7 @@ def _score_spy_momentum(ratio):
 
 def _score_industrial_rs(rs):
     """XLI − SPY 3-month relative return.  Positive = cyclical strength."""
-    if rs is None:
+    if _missing(rs):
         return 0.0
     if rs > 0.03:
         return 1.0

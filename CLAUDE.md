@@ -55,6 +55,7 @@ pre-commit install   # runs ruff + the offline test suite before each commit
 ```bash
 python scripts/analyze_stock.py                 # S&P 500 + Dow universe
 python scripts/analyze_stock.py --universe us   # all US-listed (~7-8k tickers)
+scripts/run_daily.sh --dry-run                  # nightly pipeline end to end (see script header)
 pytest -m "not network and not slow"            # offline suite (CI-equivalent)
 ruff check .
 ```
@@ -127,12 +128,19 @@ ruff check .
   render reads them. NaN and inf are stored as-is rather than nulled (scoring
   treats a missing value as N/A but a NaN as a failed comparison), and a
   stringified `"Infinity"` does not give a numeric column VARCHAR evidence —
-  one such `pe` value used to turn 2,413 floats in a snapshot into strings. `sync_snapshot_file()` re-mirrors a rewritten file (analyze_stock,
+  one such `pe` value used to turn 2,413 floats in a snapshot into strings.
+  More generally, text never widens a numeric column (v4): numeric text casts,
+  other text in a numeric column is stored NULL with a warning (the JSON keeps
+  it). A replace (delete + insert of a date) is one transaction.
+  `sync_snapshot_file()` re-mirrors a rewritten file (analyze_stock,
   the enrich_* scripts and rescore_and_render call it); `scripts/
   ingest_snapshots.py` backfills history. The store is versioned
   (`SCHEMA_VERSION`): readers ignore a store built at another version and a
   writable open rebuilds it empty, so a stale index degrades to the JSON path
-  rather than serving wrong columns.
+  rather than serving wrong columns. DuckDB keeps the space of deleted rows,
+  and the nightly re-syncs replace the same date several times, so the weekly
+  job runs `ingest_snapshots.py --compact` (`compact_store()`: verified copy,
+  then swap; refuses while another process has the store open).
 - **Backtest/query reads:** `backtest.py` loads each snapshot from the store
   when it holds that date (per-date decision, `--no-store` forces JSON) —
   the corpus costs roughly half the RSS of parsing the files, which is what

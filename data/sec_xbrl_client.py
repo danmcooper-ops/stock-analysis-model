@@ -586,20 +586,22 @@ class SECXBRLClient:
 
     def __init__(self, cik_map, name_map,
                  email='stockanalysis@example.com', request_delay=1.0,
-                 facts_cache=None):
+                 facts_cache=None, throttle=None):
         """
         Args:
             cik_map: dict {ticker: zero-padded CIK} from SECLegalClient.
             name_map: dict {ticker: company name} from SECLegalClient.
             email: Contact email for SEC User-Agent header.
             request_delay: Seconds between requests.
+            throttle: shared Throttle (overrides request_delay) so several
+                SEC clients stay under EDGAR's per-process rate limit together.
             facts_cache: persistent companyfacts cache. A SECFactsCache, a
                 directory path, or True for the default location; None (the
                 default) keeps the per-process in-memory cache only, which is
                 what the tests and one-shot callers want.
         """
         self._ua = f'StockAnalyzer/1.0 ({email})'
-        self._throttle = Throttle(request_delay)
+        self._throttle = throttle or Throttle(request_delay)
         self._cache = {}          # ticker -> raw company facts JSON
         self._cik_map = cik_map
         self._name_map = name_map

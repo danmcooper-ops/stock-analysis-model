@@ -6,7 +6,7 @@ daily pipeline.
 | Task | What it does |
 |---|---|
 | `cloud-daily-stock-analysis/` | **The live daily routine since 2026-09-10.** A Claude Code cloud Routine ("Daily stock analysis (cloud)", `0 21 * * 1-5` UTC) starts a fresh session each weekday that runs `run.sh`: stage the newest days of the `data/snapshots` archive → price cache → analysis → enrichment → re-render → snapshot commit to `data/snapshots` → portfolio/gate/momentum reports → rebuild + force-push `pages-live`. `SKILL.md` is what the Routine's session follows |
-| `daily-stock-analysis/SKILL.md` | End-of-day run: analysis → enrichment (FDIC, REIT, XBRL, FDA) → re-render → snapshot commit → portfolio/gate/validation reports → publish |
+| `daily-stock-analysis/SKILL.md` | **Dormant** (Mac). Launches `scripts/run_daily.sh` (preflight → prices → analysis → enrichment → re-render → snapshot archive → reports → publish), then summarizes `output/run_summary_<date>.json`. Must stay off while the cloud routine is live |
 | `publish-stock-report/SKILL.md` | Copies the five report artifacts into the `pages-live` worktree, amends its single commit, force-pushes to GitHub Pages |
 | `weekly-backtest/SKILL.md` | Weekly: refresh prices → forward-return backtest over the snapshot corpus → readiness census → commit the summary to `data/snapshots`. Measurement only; calibration stays off until `readiness` clears it |
 

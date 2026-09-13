@@ -193,7 +193,9 @@ def _backfill_shares_and_mcap(stock, info):
 # thread avoids the memory/thread leak of creating (and never joining) a
 # fresh ThreadPoolExecutor per yfinance call.  max_workers=4 allows light
 # concurrency for overlapping timeout calls while capping thread count.
-_TIMEOUT_EXECUTOR = ThreadPoolExecutor(max_workers=4)
+# Sized above analyze_stock's Phase-2 prefetch threads (default 4) so a few
+# orphaned timed-out calls cannot starve them into spurious timeouts.
+_TIMEOUT_EXECUTOR = ThreadPoolExecutor(max_workers=8)
 
 
 def _run_with_timeout(func, timeout_seconds):
@@ -212,6 +214,17 @@ def _run_with_timeout(func, timeout_seconds):
         raise TimeoutError(
             f"yfinance call timed out after {timeout_seconds}s"
         ) from None
+
+
+def _is_not_found(exc):
+    """True for a definitive "symbol does not exist" answer from Yahoo.
+
+    Retrying a 404 cannot succeed and costs ~3s of sleeps per dead symbol,
+    which across a ~9k-ticker universe screen adds up to hours.
+    """
+    msg = str(exc)
+    return ('404' in msg or 'Not Found' in msg
+            or 'Quote not found' in msg or 'No fundamentals data found' in msg)
 
 
 class YFinanceClient:
@@ -278,8 +291,8 @@ class YFinanceClient:
             except TimeoutError:
                 # Don't retry — Yahoo is unresponsive for this ticker.
                 raise
-            except Exception:
-                if attempt == max_retries:
+            except Exception as e:
+                if attempt == max_retries or _is_not_found(e):
                     raise
                 time.sleep(1.0 * (attempt + 1))
 

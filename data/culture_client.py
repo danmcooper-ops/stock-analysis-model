@@ -45,6 +45,8 @@ _GLASSDOOR_HEADERS = {
 
 _glassdoor_cache: dict = {}   # company_name → result dict
 
+GLASSDOOR_MAX_CONSECUTIVE_FAILURES = 10
+
 
 class CultureClient:
     """Extract culture proxy metrics from yfinance data and Glassdoor."""
@@ -54,6 +56,7 @@ class CultureClient:
                  request_delay: float = 1.5):
         self._glassdoor_enabled = glassdoor_enabled
         self._glassdoor_timeout = glassdoor_timeout
+        self._glassdoor_failures = 0   # consecutive; reset on any success
         self._throttle = Throttle(request_delay)
 
     # ------------------------------------------------------------------
@@ -189,10 +192,19 @@ class CultureClient:
                                      else (int(rec_pct) if rec_pct is not None else None),
             }
             _glassdoor_cache[ticker] = result
+            self._glassdoor_failures = 0
             return result
 
         except Exception as e:
             # Network/parse failure — don't cache; a later ticker pass may
             # succeed. Only definitive no-match results are cached above.
             logger.warning(f'culture: Glassdoor fetch failed for {ticker}: {e}')
+            self._glassdoor_failures += 1
+            if (self._glassdoor_enabled
+                    and self._glassdoor_failures >= GLASSDOOR_MAX_CONSECUTIVE_FAILURES):
+                # The endpoint is down or blocking us (it 404'd every ticker on
+                # 2026-09-09); stop paying throttle + timeout per ticker.
+                self._glassdoor_enabled = False
+                logger.warning('culture: Glassdoor disabled for the rest of the run '
+                               f'after {self._glassdoor_failures} consecutive failures')
             return empty

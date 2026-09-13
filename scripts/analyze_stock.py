@@ -1,5 +1,6 @@
 # scripts/analyze_stock.py
 import gc
+from concurrent.futures import ThreadPoolExecutor
 import sys
 import os
 import io
@@ -28,6 +29,8 @@ if os.path.exists(_env_path):
         print(f"[WARN] Could not read .env ({_e}); continuing with process env only.",
               file=sys.stderr)
 
+from data.screen_skip_cache import ScreenSkipCache
+from data.throttle import SEC_MIN_INTERVAL, Throttle
 from data.yfinance_client import (YFinanceClient, EmptyYahooResponseError,
                                   MCAP_MAX_PLAUSIBLE)
 from data.treasury_rate import fetch_risk_free_rate
@@ -76,7 +79,7 @@ from data.snapshot_store import (SnapshotStore, list_snapshot_files, read_snapsh
                                  sync_snapshot_file, write_snapshot_file)
 from data.culture_client import CultureClient
 
-from scripts.config import (ERP, TERMINAL_GROWTH_RATE,
+from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             RIM_SPREAD_PERSISTENCE, RIM_MAX_BOOK_GROWTH,
                             GROWTH_WEIGHT_FCF, GROWTH_WEIGHT_REV,
                             GROWTH_WEIGHT_ANALYST_ST, GROWTH_WEIGHT_ANALYST_LT,
@@ -2399,7 +2402,16 @@ def _run_setup():
                         help='Phase-1 filter: skip tickers with market cap below this threshold '
                              '(e.g. 500e6 for $500M). Default 0 = no filter. '
                              'Useful with --universe us to drop shells and micro-caps quickly.')
+    parser.add_argument('--workers', type=int, default=PHASE2_IO_WORKERS, metavar='N',
+                        help='Threads prefetching Phase-2 network data ahead of the (sequential) '
+                             f'analysis loop; 1 disables prefetch. Default {PHASE2_IO_WORKERS}.')
+    parser.add_argument('--no-screen-cache', action='store_true',
+                        help='Ignore data/cache/screen_skip.json and fetch every universe ticker '
+                             '(the cache skips tickers recently far below --mcap-min or dead).')
     args = parser.parse_args()
+    # Every SEC client reads SEC_EMAIL for its User-Agent; export the flag so
+    # --sec-email reaches them too, not just the universe fetch.
+    os.environ['SEC_EMAIL'] = args.sec_email
     prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
     run_start_date = date.today()
     _prov = ProvenanceRecorder(run_start_date)
@@ -2571,6 +2583,11 @@ def _run_build_universe(args):
             'all_tickers': all_tickers}
 
 
+def _sec_email():
+    """Contact address for SEC EDGAR's required User-Agent."""
+    return os.environ.get('SEC_EMAIL', 'stockanalysis@example.com')
+
+
 def _run_build_clients(run_start_date):
     """Construct the Phase-1 data clients (yfinance, Tiingo, SEC EDGAR)."""
     yf_client = YFinanceClient(run_date=run_start_date)
@@ -2585,13 +2602,17 @@ def _run_build_clients(run_start_date):
     # SEC EDGAR clients initialized here (rather than at Phase-2 setup) so the
     # SECXBRLClient is available as a Phase-1 fallback when yfinance returns
     # an empty payload (Yahoo soft-throttle). The CIK-map load is idempotent.
-    sec_client = SECLegalClient(email='stockanalysis@example.com', request_delay=1.0)
+    # One throttle for every SEC client: EDGAR's 10 req/s limit is per
+    # requester, not per endpoint, and four 1s-per-client throttles left
+    # Phase 2 idle most of each ticker.
+    sec_throttle = Throttle(SEC_MIN_INTERVAL)
+    sec_client = SECLegalClient(email=_sec_email(), throttle=sec_throttle)
     sec_client._load_cik_map()
     sec_xbrl_client = SECXBRLClient(
         cik_map=sec_client._cik_map,
         name_map=sec_client._name_map,
-        email='stockanalysis@example.com',
-        request_delay=1.0,
+        email=_sec_email(),
+        throttle=sec_throttle,
         facts_cache=True,
     )
     # Evict the cached companyfacts of filers who have filed since the last
@@ -2681,6 +2702,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     except Exception as _ce:
         print(f"[warn] carry-forward load failed: {_ce}")
 
+    _skip_cache = None if args.no_screen_cache else ScreenSkipCache(today=yf_client.run_date)
+    if _skip_cache is not None and len(_skip_cache):
+        print(f"Screen skip cache: {len(_skip_cache)} ticker(s) remembered as "
+              f"below the mcap floor or dead (--no-screen-cache to re-fetch all)")
+    _cache_skipped = 0
+
     print(f"Processing {len(all_tickers)} tickers (full universe)...")
     _universe_n = len(all_tickers)
     # Fetch-failure retry: when BOTH sources return nothing, the cause is
@@ -2705,6 +2732,14 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             continue
         _grp = ticker_source.get(ticker, 'quality')
         screen_outcomes[_grp]['total'] += 1
+        _carried = ticker in _carry_set
+        if _skip_cache is not None and not _carried:
+            _reason = _skip_cache.skip_reason(ticker, args.mcap_min)
+            if _reason:
+                _cache_skipped += 1
+                print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP {_reason}")
+                sys.stdout.flush()
+                continue
         try:
             # ----------------------------------------------------------------
             # Fundamentals fetch — SEC XBRL is the primary source for the
@@ -2728,10 +2763,11 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             # micro-caps the mcap filter will drop the ticker anyway —
             # no point spending 1 second on a SEC fetch we'll discard.
             # Carry-forwards bypass the mcap filter, so they still proceed.
-            _carried = ticker in _carry_set
             if (yf_data is not None and args.mcap_min and not _carried):
                 _early_mcap = (yf_data.get('info') or {}).get('marketCap') or 0
                 if _early_mcap < args.mcap_min:
+                    if _skip_cache is not None:
+                        _skip_cache.record_mcap(ticker, _early_mcap)
                     print(f"  [{i}/{len(all_tickers)}] {ticker} - "
                           f"SKIP mcap ${_early_mcap/1e6:.0f}M < "
                           f"${args.mcap_min/1e6:.0f}M floor")
@@ -2800,12 +2836,16 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                           "— re-queued for retry")
                 else:
                     _fetch_retry_failed.add(ticker)
+                    if _skip_cache is not None:
+                        _skip_cache.record_dead(ticker)
                     print(f"  [{i}/{len(all_tickers)}] {ticker} - "
                           "error: yfinance empty AND no SEC XBRL coverage "
                           "(retry also failed)")
                 sys.stdout.flush()
                 continue
 
+            if _skip_cache is not None:
+                _skip_cache.forget(ticker)
             _prov.record_source(ticker, 'statements', _data_source, sec=sec_prov)
             _prov.record_source(
                 ticker, 'market_data',
@@ -2915,6 +2955,10 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     gc.collect()
 
     print(f"\n{len(qualifying)} tickers collected out of {_universe_n} total.")
+    if _skip_cache is not None:
+        _skip_cache.save()
+        print(f"  Screen skip cache: {_cache_skipped} ticker(s) skipped without a fetch; "
+              f"{len(_skip_cache)} remembered for the next run")
     if _fetch_retry_queued:
         _recovered = len(_fetch_retry_queued) - len(_fetch_retry_failed)
         print(f"  Fetch-failure retry: {len(_fetch_retry_queued)} re-queued, "
@@ -2987,20 +3031,21 @@ def _run_build_phase2_clients(sec_client, qualifying, screen_cache):
     sec_supply_client = SECSupplyClient(
         cik_map=sec_client._cik_map,
         name_map=sec_client._name_map,
-        email='stockanalysis@example.com',
-        request_delay=1.0,
+        email=_sec_email(),
+        throttle=sec_client._throttle,
     )
 
     # SEC EDGAR: insider transaction tracking from Form 4 filings
     sec_insider_client = SECInsiderClient(
         cik_map=sec_client._cik_map,
         name_map=sec_client._name_map,
-        email='stockanalysis@example.com',
-        request_delay=1.0,
+        email=_sec_email(),
+        throttle=sec_client._throttle,
         max_form4_files=15,
     )
 
-    # Culture metrics client (no external API — derives signals from yfinance)
+    # Culture metrics client: yfinance-derived signals plus a best-effort
+    # Glassdoor lookup that switches itself off after repeated failures.
     culture_client = CultureClient()
     return {'news_client': news_client, 'supply_client': supply_client,
             'sec_supply_client': sec_supply_client,
@@ -3017,8 +3062,13 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                          effective_erp, effective_tg_adj,
                          effective_wacc_sigma, effective_growth_sigma_mult,
                          effective_growth_weight_shift, risk_free_rate,
-                         macro_regime_result, sector_signals):
-    """Phase 2: full per-ticker analysis of every qualifying ticker."""
+                         macro_regime_result, sector_signals, io_workers=1):
+    """Phase 2: full per-ticker analysis of every qualifying ticker.
+
+    With ``io_workers > 1`` a thread pool prefetches each ticker's network
+    data ahead of the loop (see ``_prefetch``); the analysis itself stays
+    sequential, so results and warnings are exactly as with one worker.
+    """
     # -----------------------------------------------------------------------
     # Phase 2: Full analysis on qualifying tickers (Worksheet Steps 2-5)
     # -----------------------------------------------------------------------
@@ -3026,8 +3076,43 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
     # Pre-load SPY local prices once for rolling-beta comparisons
     _spy_local = _load_local_prices('SPY', prices_dir)
 
+    # Network prefetch. ~15 s/ticker of Phase 2 was spent waiting on
+    # throttled HTTP (Tiingo/RSS news, SEC legal/supply/Form 4, Finnhub,
+    # dividends, Glassdoor) while the model code takes well under a second.
+    # Every one of those calls memoizes its result per ticker, so warming the
+    # caches from worker threads makes the loop's identical calls cache hits.
+    # Only I/O runs in the pool: model code uses warnings.catch_warnings(),
+    # which is not thread-safe, and must stay on this thread.
+    def _prefetch(ticker):
+        try:
+            info = ((screen_cache.get(ticker) or {}).get('yf_data') or {}).get('info') or {}
+            news = (tiingo_client.fetch_ticker_news(ticker, max_age_days=30, max_items=12)
+                    if tiingo_client.available else [])
+            if not news:
+                news_client.get_combined_news(ticker, info.get('sector') or '', max_total=12)
+            sec_client.fetch_legal_filings(ticker, days_back=730)
+            if not supply_client.fetch_supply_chain(ticker).get('available'):
+                sec_supply_client.fetch_supply_chain(ticker)
+            supply_client.fetch_peers(ticker)
+            sec_insider_client.fetch_insider_activity(ticker, days_back=365)
+            culture_client.fetch_glassdoor(info.get('shortName') or info.get('longName') or '', ticker)
+            yf_client.fetch_dividends(ticker)
+        except Exception as e:
+            # The loop repeats each call and handles (and logs) the failure.
+            logger.debug(f"phase2 prefetch failed for {ticker}: {e}")
+
+    _pool = None
+    _pending = {}
+    if io_workers and io_workers > 1:
+        _pool = ThreadPoolExecutor(max_workers=io_workers, thread_name_prefix='phase2-io')
+        _pending = {t: _pool.submit(_prefetch, t) for t in qualifying}
+        print(f"Phase 2: prefetching network data with {io_workers} worker thread(s)")
+
     results = []
     for ticker in qualifying:
+        _fut = _pending.pop(ticker, None)
+        if _fut is not None:
+            _fut.result()  # _prefetch never raises
         print(f"Analyzing {ticker}...")
         try:
             cached = screen_cache[ticker]
@@ -3870,6 +3955,9 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 screen_cache[ticker].pop('yf_data', None)
             sys.stdout.flush()
 
+    if _pool is not None:
+        _pool.shutdown(wait=True, cancel_futures=True)
+
     # All per-ticker analysis complete — release remaining caches
     screen_cache.clear()
     yf_client.evict_financials()
@@ -4521,6 +4609,7 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
         from scripts.macro_dashboard import build_macro_payload, make_narrative_client
         macro_dash = build_macro_payload(FREDClient(), macro_regime_result,
                                          macro_adj,
+                                         as_of=run_start_date,
                                          sector_data=sector_etf_data,
                                          local_rs=local_rs,
                                          narrative_client=make_narrative_client())
@@ -4653,7 +4742,8 @@ def _main():
         culture_client, sector_exit_multiples, effective_exit_mult_default,
         effective_erp, effective_tg_adj, effective_wacc_sigma,
         effective_growth_sigma_mult, effective_growth_weight_shift,
-        risk_free_rate, macro_regime_result, sector_signals)
+        risk_free_rate, macro_regime_result, sector_signals,
+        io_workers=args.workers)
 
     post = _run_postprocess(results, ms_pfv_data, _carry_prior_rows)
     sector_median_ee = post['sector_median_ee']

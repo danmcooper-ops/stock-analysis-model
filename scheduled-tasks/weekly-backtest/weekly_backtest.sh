@@ -39,14 +39,15 @@ cd "$WT" || { echo "worktree not found"; exit 1; }
 #    failed reads with EDEADLK before) rather than aborting the whole run.
 rm -f /tmp/sm_matured_tickers.txt
 "$VPY" - <<'PYEOF'
-import json, glob, os
 from datetime import date, timedelta
+from data.snapshot_store import list_snapshot_files, read_snapshot, split_snapshot
 today = date.today(); mat = set(); skipped = 0
-for p in sorted(glob.glob('output/results_*.json')):
-    d = date.fromisoformat(os.path.basename(p)[8:18])
+# list_snapshot_files covers the gzipped .json.gz form too.
+for ds, p in list_snapshot_files('output'):
+    d = date.fromisoformat(ds)
     if d + timedelta(days=30) <= today:
         try:
-            rows = json.load(open(p)).get('results', [])
+            rows = split_snapshot(read_snapshot(p))[1]
         except Exception as e:
             print(f'  [warn] unreadable snapshot {p}: {e}')
             skipped += 1
@@ -74,6 +75,12 @@ fi
 #    refuse loudly (no file) when a horizon has no matured/usable data.
 #    Track the worst stage exit code — a crashed stage must not report rc=0.
 overall_rc=0
+# Snapshot store upkeep before the backtest reads it: ingest any date the
+# nightly sync missed (or all of them after a SCHEMA_VERSION rebuild), then
+# compact. The nightly re-syncs leave ~30 MB of free blocks per run; Sunday
+# has no daily run, so nothing holds the store open. A failure here is
+# reported but the backtest still runs (it falls back to the JSON files).
+"$VPY" scripts/ingest_snapshots.py --results-dir output --compact || overall_rc=$?
 "$VPY" scripts/backtest.py annotate  --horizons 30,90,180 || overall_rc=$?
 "$VPY" scripts/backtest.py measure   --horizons 30,90,180 || overall_rc=$?
 # Calibrate each horizon SEPARATELY — pooling 30d and 90d returns into one

@@ -38,9 +38,10 @@ class SECLegalClient:
     _EFTS_URL = 'https://efts.sec.gov/LATEST/search-index'
     _CIK_URL = 'https://www.sec.gov/files/company_tickers.json'
 
-    def __init__(self, email='stockanalysis@example.com', request_delay=1.0):
+    def __init__(self, email='stockanalysis@example.com', request_delay=1.0,
+                 throttle=None):
         self._ua = f'StockAnalyzer/1.0 ({email})'
-        self._throttle = Throttle(request_delay)
+        self._throttle = throttle or Throttle(request_delay)
         self._cache = {}           # ticker -> result dict
         self._cik_map = None       # ticker -> zero-padded CIK string
         self._name_map = None      # ticker -> company name (from SEC)

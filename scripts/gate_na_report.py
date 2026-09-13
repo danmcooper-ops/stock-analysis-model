@@ -31,7 +31,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data.snapshot_store import (SnapshotStore, prior_snapshot_file,  # noqa: E402
+from data.snapshot_store import (SnapshotStore, latest_snapshot_path, prior_snapshot_file,  # noqa: E402
                                  read_snapshot,
                                  snapshot_date_from_path)
 from scripts.scoring import gate_metadata  # noqa: E402
@@ -81,13 +81,18 @@ def _na_pcts(records, gates):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[2])
-    ap.add_argument('snapshot', help='results_YYYY-MM-DD.json to analyze')
+    ap.add_argument('snapshot', nargs='?', default=None,
+                    help='results_YYYY-MM-DD.json to analyze (default: newest in output/)')
     ap.add_argument('--high', type=float, default=40.0,
                     help='flag gates with N/A%% at or above this (default 40)')
     ap.add_argument('--jump', type=float, default=10.0,
                     help='flag gates whose N/A%% rose by at least this many '
                          'points vs the prior snapshot (default 10)')
     args = ap.parse_args()
+    if args.snapshot is None:
+        args.snapshot = latest_snapshot_path()
+        if not args.snapshot:
+            ap.error('no snapshot given and none found in output/')
 
     records = _load_records(args.snapshot)
     gates = gate_metadata()['gates']
