@@ -58,7 +58,7 @@ from models.nav import tangible_equity_per_share
 from models.portfolio import position_sizes, concentration_analysis
 from models.utils import rank
 from models.field_keys import (OPERATING_CF_KEYS, CAPEX_KEYS, _get,
-                               DEBT_KEYS, CASH_KEYS, NET_INCOME_KEYS)
+                               DEBT_KEYS, CASH_KEYS, NET_INCOME_KEYS, EQUITY_KEYS)
 from scripts.report_excel import build_excel
 from scripts.report_html import build_html
 from data.macro_client import MacroClient
@@ -1518,6 +1518,61 @@ def _compute_shareholder_yield(yf_data, mcap):
 
     return {'shareholder_yield': shareholder_yield, 'buyback_rate': buyback_rate,
             'total_return': total_return}
+
+
+# info['bookValue'] and statement book/share disagreeing by more than this
+# factor (either way) means they are on different bases — a dual-class
+# share, or an ADS vs ordinary share — not a real difference in book value.
+RIM_BOOK_BASIS_MAX_RATIO = 5.0
+
+
+def _rim_book_value_per_share(info, balance_sheet, shares, fx_meta):
+    """``(book value per share, source)`` for the RIM, on the price's basis.
+
+    yfinance's ``info['bookValue']`` is in the statement currency and often
+    per ordinary share, while the price and share count are per quoted
+    (USD/ADS) share. For a US-listed ADR that put RIM fair values at local-
+    currency scale — EC at 505x its price, PIFMF at 70,000x — and dual-class
+    names hit the same basis bug in USD (BRK-B: bookValue per A-share
+    equivalent, 1,280x the B-share price, rated LEAN BUY on 2026-09-09).
+
+    The balance sheet here is already FX-converted to USD, so equity divided
+    by the same share count the price uses is unit-consistent. It is used
+    whenever the statement and quote currencies differ, whenever the two
+    estimates disagree by more than :data:`RIM_BOOK_BASIS_MAX_RATIO`, and
+    when ``bookValue`` is missing. Returns ``(None, None)`` when neither
+    source resolves.
+    """
+    info = info or {}
+    fx_meta = fx_meta or {}
+    ccy_fin, ccy_quote = fx_meta.get('currency_financial'), fx_meta.get('currency_quote')
+    ccy_mismatch = bool(ccy_fin and ccy_quote and ccy_fin != ccy_quote)
+
+    book_stmt = None
+    if shares and shares > 0 and balance_sheet is not None and not balance_sheet.empty:
+        equity = _get(balance_sheet.iloc[:, 0], EQUITY_KEYS)
+        if equity is not None and pd.notna(equity) and equity != 0:
+            book_stmt = float(equity) / shares
+
+    book_info = info.get('bookValue')
+    if not isinstance(book_info, (int, float)) or isinstance(book_info, bool) or book_info != book_info:
+        book_info = None
+
+    if ccy_mismatch and book_stmt is not None:
+        return book_stmt, 'statement_ccy_mismatch'
+    if ccy_mismatch:
+        # No usable statement equity: a local-currency bookValue is worse
+        # than no RIM at all.
+        return None, None
+    if book_info is not None and book_stmt is not None and book_stmt > 0 and book_info > 0:
+        ratio = book_info / book_stmt
+        if ratio > RIM_BOOK_BASIS_MAX_RATIO or ratio < 1 / RIM_BOOK_BASIS_MAX_RATIO:
+            return book_stmt, 'statement_basis_mismatch'
+    if book_info is not None:
+        return float(book_info), 'info'
+    if book_stmt is not None:
+        return book_stmt, 'statement'
+    return None, None
 
 
 def _rim_retention_ratio(sy_result, net_income, payout_ratio):
@@ -3482,12 +3537,8 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                     epv_fv, ratios.get('ROE'), re_for_models)
 
             # RIM (Residual Income Model)
-            _book_value = info.get('bookValue')
-            if _book_value is None and shares and shares > 0:
-                if bs is not None and not bs.empty:
-                    _eq_val = bs.iloc[:, 0].get('Stockholders Equity')
-                    if pd.notna(_eq_val) and _eq_val:
-                        _book_value = float(_eq_val) / shares
+            _book_value, _rim_book_source = _rim_book_value_per_share(
+                info, bs, shares, fx_meta)
             # Retention = 1 − total payout (dividends + net buybacks) / net
             # income, with 1 − payoutRatio as the fallback. See
             # _rim_retention_ratio for why the dividend-only ratio is wrong
@@ -3900,6 +3951,7 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                     if epv_valuation is not None else []),
                 # RIM (Residual Income Model)
                 'rim_fv': rim_fv,
+                'rim_book_source': _rim_book_source,
                 'rim_mos': ((rim_fv - current_price) / rim_fv
                     if (rim_fv and current_price and rim_fv > 0) else None),
                 'rim_confidence': rim_valuation.confidence if rim_fv is not None else None,
