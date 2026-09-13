@@ -243,7 +243,9 @@ if wants archive; then
   rc=$(tail -1 "$STEPLOG" | cut -f2)
   case "$rc" in
     0|dry-run)
-      run archive_add blocking git -C "$SNAP_WT" add "results_$RUNDATE.json.gz"
+      # blobs/: the snapshot's edgar_history is stored there by hash; only
+      # the histories that changed since the last run are new files.
+      run archive_add blocking git -C "$SNAP_WT" add "results_$RUNDATE.json.gz" blobs
       if [ "$DRY_RUN" = 1 ] || ! git -C "$SNAP_WT" diff --cached --quiet; then
         run archive_commit blocking git -C "$SNAP_WT" commit -q -m "Snapshot: $RUNDATE"
       else

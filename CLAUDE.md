@@ -109,6 +109,25 @@ ruff check .
   when gzipping (`mtime=0`, `filename=''`) so re-archiving does not churn the
   branch. The archive script verifies the round-trip by SHA-256 and fails
   non-zero past an 80 MiB guard.
+  In the `.gz` form only, `edgar_history` (`BLOB_KEYS`) is stored once per
+  distinct value: a row carries `{"$blob": "<sha256>"}` and the value lives in
+  `blobs/edgar_history/<sha[:2]>/<sha>.json.gz` beside the snapshot (a
+  `retired/` snapshot resolves against its parent's `blobs/`). ~99% of
+  histories are unchanged day over day, so a night archives ~17 MB plus ~20
+  new blobs instead of ~29 MB, and git keeps each unchanged blob once.
+  `read_snapshot` resolves references (hash-checked; a bounded cache holds
+  text, never shared parsed objects) and fails loudly on a missing or corrupt
+  blob, so a `.gz` copied without its `blobs/` cannot load with history
+  silently absent. `archive_snapshot.py` parses the source, writes the
+  referenced form, then resolves it from disk and re-serializes in the
+  source's encoding (compact, or `json.dump` defaults for pre-compact files)
+  and requires the source's SHA-256 — peak RSS ~0.9 GB for a 90 MB snapshot; a
+  non-canonical source is archived verbatim as before. `--list-blobs` names
+  the blob files to commit (the cloud routine's plumbing adds them with the
+  snapshot); `--externalize <dir>` migrates an existing archive in place,
+  verified per file. Cloud staging runs `scripts/stage_snapshot_blobs.py`,
+  which batch-fetches only the referenced blobs missing from `output/blobs`
+  out of the blob-less clone.
 - **Snapshot store (`data/snapshot_store.py`):** every run's
   `output/results_<date>.json` (~66 MB, ~2,300 rows x ~270 keys) is mirrored
   into `output/snapshots.duckdb` (tables `runs`, `results`; scalar keys
