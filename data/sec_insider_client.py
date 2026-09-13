@@ -53,17 +53,19 @@ class SECInsiderClient:
 
     def __init__(self, cik_map, name_map,
                  email='stockanalysis@example.com', request_delay=1.0,
-                 max_form4_files=20):
+                 max_form4_files=20, throttle=None):
         """
         Args:
             cik_map: dict {ticker: zero-padded CIK} from SECLegalClient.
             name_map: dict {ticker: company name} from SECLegalClient.
             email: Contact email for SEC User-Agent header.
             request_delay: Seconds between requests.
+            throttle: shared Throttle (overrides request_delay) so several
+                SEC clients stay under EDGAR's per-process rate limit together.
             max_form4_files: Max Form 4 XMLs to download per ticker.
         """
         self._ua = f'StockAnalyzer/1.0 ({email})'
-        self._throttle = Throttle(request_delay)
+        self._throttle = throttle or Throttle(request_delay)
         self._cache = {}          # ticker -> result dict
         self._cik_map = cik_map
         self._name_map = name_map

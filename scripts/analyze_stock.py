@@ -28,6 +28,8 @@ if os.path.exists(_env_path):
         print(f"[WARN] Could not read .env ({_e}); continuing with process env only.",
               file=sys.stderr)
 
+from data.screen_skip_cache import ScreenSkipCache
+from data.throttle import SEC_MIN_INTERVAL, Throttle
 from data.yfinance_client import (YFinanceClient, EmptyYahooResponseError,
                                   MCAP_MAX_PLAUSIBLE)
 from data.treasury_rate import fetch_risk_free_rate
@@ -2395,6 +2397,9 @@ def _run_setup():
                         help='Phase-1 filter: skip tickers with market cap below this threshold '
                              '(e.g. 500e6 for $500M). Default 0 = no filter. '
                              'Useful with --universe us to drop shells and micro-caps quickly.')
+    parser.add_argument('--no-screen-cache', action='store_true',
+                        help='Ignore data/cache/screen_skip.json and fetch every universe ticker '
+                             '(the cache skips tickers recently far below --mcap-min or dead).')
     args = parser.parse_args()
     # Every SEC client reads SEC_EMAIL for its User-Agent; export the flag so
     # --sec-email reaches them too, not just the universe fetch.
@@ -2584,13 +2589,17 @@ def _run_build_clients(run_start_date):
     # SEC EDGAR clients initialized here (rather than at Phase-2 setup) so the
     # SECXBRLClient is available as a Phase-1 fallback when yfinance returns
     # an empty payload (Yahoo soft-throttle). The CIK-map load is idempotent.
-    sec_client = SECLegalClient(email=_sec_email(), request_delay=1.0)
+    # One throttle for every SEC client: EDGAR's 10 req/s limit is per
+    # requester, not per endpoint, and four 1s-per-client throttles left
+    # Phase 2 idle most of each ticker.
+    sec_throttle = Throttle(SEC_MIN_INTERVAL)
+    sec_client = SECLegalClient(email=_sec_email(), throttle=sec_throttle)
     sec_client._load_cik_map()
     sec_xbrl_client = SECXBRLClient(
         cik_map=sec_client._cik_map,
         name_map=sec_client._name_map,
         email=_sec_email(),
-        request_delay=1.0,
+        throttle=sec_throttle,
         facts_cache=True,
     )
     # Evict the cached companyfacts of filers who have filed since the last
@@ -2675,6 +2684,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     except Exception as _ce:
         print(f"[warn] carry-forward load failed: {_ce}")
 
+    _skip_cache = None if args.no_screen_cache else ScreenSkipCache(today=yf_client.run_date)
+    if _skip_cache is not None and len(_skip_cache):
+        print(f"Screen skip cache: {len(_skip_cache)} ticker(s) remembered as "
+              f"below the mcap floor or dead (--no-screen-cache to re-fetch all)")
+    _cache_skipped = 0
+
     print(f"Processing {len(all_tickers)} tickers (full universe)...")
     _universe_n = len(all_tickers)
     # Fetch-failure retry: when BOTH sources return nothing, the cause is
@@ -2699,6 +2714,14 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             continue
         _grp = ticker_source.get(ticker, 'quality')
         screen_outcomes[_grp]['total'] += 1
+        _carried = ticker in _carry_set
+        if _skip_cache is not None and not _carried:
+            _reason = _skip_cache.skip_reason(ticker, args.mcap_min)
+            if _reason:
+                _cache_skipped += 1
+                print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP {_reason}")
+                sys.stdout.flush()
+                continue
         try:
             # ----------------------------------------------------------------
             # Fundamentals fetch — SEC XBRL is the primary source for the
@@ -2722,10 +2745,11 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             # micro-caps the mcap filter will drop the ticker anyway —
             # no point spending 1 second on a SEC fetch we'll discard.
             # Carry-forwards bypass the mcap filter, so they still proceed.
-            _carried = ticker in _carry_set
             if (yf_data is not None and args.mcap_min and not _carried):
                 _early_mcap = (yf_data.get('info') or {}).get('marketCap') or 0
                 if _early_mcap < args.mcap_min:
+                    if _skip_cache is not None:
+                        _skip_cache.record_mcap(ticker, _early_mcap)
                     print(f"  [{i}/{len(all_tickers)}] {ticker} - "
                           f"SKIP mcap ${_early_mcap/1e6:.0f}M < "
                           f"${args.mcap_min/1e6:.0f}M floor")
@@ -2794,12 +2818,16 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                           "— re-queued for retry")
                 else:
                     _fetch_retry_failed.add(ticker)
+                    if _skip_cache is not None:
+                        _skip_cache.record_dead(ticker)
                     print(f"  [{i}/{len(all_tickers)}] {ticker} - "
                           "error: yfinance empty AND no SEC XBRL coverage "
                           "(retry also failed)")
                 sys.stdout.flush()
                 continue
 
+            if _skip_cache is not None:
+                _skip_cache.forget(ticker)
             _prov.record_source(ticker, 'statements', _data_source, sec=sec_prov)
             _prov.record_source(
                 ticker, 'market_data',
@@ -2895,6 +2923,10 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     gc.collect()
 
     print(f"\n{len(qualifying)} tickers collected out of {_universe_n} total.")
+    if _skip_cache is not None:
+        _skip_cache.save()
+        print(f"  Screen skip cache: {_cache_skipped} ticker(s) skipped without a fetch; "
+              f"{len(_skip_cache)} remembered for the next run")
     if _fetch_retry_queued:
         _recovered = len(_fetch_retry_queued) - len(_fetch_retry_failed)
         print(f"  Fetch-failure retry: {len(_fetch_retry_queued)} re-queued, "
@@ -2968,7 +3000,7 @@ def _run_build_phase2_clients(sec_client, qualifying, screen_cache):
         cik_map=sec_client._cik_map,
         name_map=sec_client._name_map,
         email=_sec_email(),
-        request_delay=1.0,
+        throttle=sec_client._throttle,
     )
 
     # SEC EDGAR: insider transaction tracking from Form 4 filings
@@ -2976,11 +3008,12 @@ def _run_build_phase2_clients(sec_client, qualifying, screen_cache):
         cik_map=sec_client._cik_map,
         name_map=sec_client._name_map,
         email=_sec_email(),
-        request_delay=1.0,
+        throttle=sec_client._throttle,
         max_form4_files=15,
     )
 
-    # Culture metrics client (no external API — derives signals from yfinance)
+    # Culture metrics client: yfinance-derived signals plus a best-effort
+    # Glassdoor lookup that switches itself off after repeated failures.
     culture_client = CultureClient()
     return {'news_client': news_client, 'supply_client': supply_client,
             'sec_supply_client': sec_supply_client,

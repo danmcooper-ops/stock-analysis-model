@@ -213,6 +213,17 @@ def _run_with_timeout(func, timeout_seconds):
         ) from None
 
 
+def _is_not_found(exc):
+    """True for a definitive "symbol does not exist" answer from Yahoo.
+
+    Retrying a 404 cannot succeed and costs ~3s of sleeps per dead symbol,
+    which across a ~9k-ticker universe screen adds up to hours.
+    """
+    msg = str(exc)
+    return ('404' in msg or 'Not Found' in msg
+            or 'Quote not found' in msg or 'No fundamentals data found' in msg)
+
+
 class YFinanceClient:
     def __init__(self, request_delay=1.0, snapshot_cache=None,
                  fetch_timeout=20, prices_dir="output/prices", run_date=None):
@@ -261,8 +272,8 @@ class YFinanceClient:
             except TimeoutError:
                 # Don't retry — Yahoo is unresponsive for this ticker.
                 raise
-            except Exception:
-                if attempt == max_retries:
+            except Exception as e:
+                if attempt == max_retries or _is_not_found(e):
                     raise
                 time.sleep(1.0 * (attempt + 1))
 
