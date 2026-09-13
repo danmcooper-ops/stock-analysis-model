@@ -33,6 +33,17 @@ def _yf_session():
     return _YF_SESSION
 
 
+def _closes(hist):
+    """Close series with NaN bars dropped, or None.
+
+    Yahoo sometimes returns a partial last row whose Close is NaN; an
+    ``iloc[-1]`` on it turns the whole indicator into NaN.
+    """
+    if hist is None or 'Close' not in hist:
+        return None
+    return hist['Close'].dropna()
+
+
 # GICS sector → SPDR sector ETF
 SECTOR_ETF_MAP = {
     'Technology': 'XLK',
@@ -92,12 +103,12 @@ class MacroClient:
         """LQD 3m return − HYG 3m return.  Positive = stress (HYG lagging)."""
         try:
             self._throttle()
-            hyg = yf.Ticker('HYG', session=_yf_session()).history(period='3mo')
+            hyg = _closes(yf.Ticker('HYG', session=_yf_session()).history(period='3mo'))
             self._throttle()
-            lqd = yf.Ticker('LQD', session=_yf_session()).history(period='3mo')
+            lqd = _closes(yf.Ticker('LQD', session=_yf_session()).history(period='3mo'))
             if hyg is not None and lqd is not None and len(hyg) > 5 and len(lqd) > 5:
-                hyg_ret = float(hyg['Close'].iloc[-1] / hyg['Close'].iloc[0]) - 1
-                lqd_ret = float(lqd['Close'].iloc[-1] / lqd['Close'].iloc[0]) - 1
+                hyg_ret = float(hyg.iloc[-1] / hyg.iloc[0]) - 1
+                lqd_ret = float(lqd.iloc[-1] / lqd.iloc[0]) - 1
                 return round(lqd_ret - hyg_ret, 4)
         except Exception as e:
             logger.warning(f'macro: credit spread fetch failed for HYG/LQD: {e}')
@@ -107,10 +118,10 @@ class MacroClient:
         """SPY current price / 200-day SMA ratio (e.g. 1.04)."""
         try:
             self._throttle()
-            hist = yf.Ticker('SPY', session=_yf_session()).history(period='1y')
-            if hist is not None and len(hist) >= 200:
-                current = float(hist['Close'].iloc[-1])
-                sma200 = float(hist['Close'].iloc[-200:].mean())
+            closes = _closes(yf.Ticker('SPY', session=_yf_session()).history(period='1y'))
+            if closes is not None and len(closes) >= 200:
+                current = float(closes.iloc[-1])
+                sma200 = float(closes.iloc[-200:].mean())
                 if sma200 > 0:
                     return round(current / sma200, 4)
         except Exception as e:
@@ -121,13 +132,13 @@ class MacroClient:
         """XLI 3m return − SPY 3m return.  Positive = cyclical strength."""
         try:
             self._throttle()
-            xli = yf.Ticker('XLI', session=_yf_session()).history(period='3mo')
+            xli = _closes(yf.Ticker('XLI', session=_yf_session()).history(period='3mo'))
             self._throttle()
-            spy = yf.Ticker('SPY', session=_yf_session()).history(period='3mo')
+            spy = _closes(yf.Ticker('SPY', session=_yf_session()).history(period='3mo'))
             if (xli is not None and spy is not None
                     and len(xli) > 5 and len(spy) > 5):
-                xli_ret = float(xli['Close'].iloc[-1] / xli['Close'].iloc[0]) - 1
-                spy_ret = float(spy['Close'].iloc[-1] / spy['Close'].iloc[0]) - 1
+                xli_ret = float(xli.iloc[-1] / xli.iloc[0]) - 1
+                spy_ret = float(spy.iloc[-1] / spy.iloc[0]) - 1
                 return round(xli_ret - spy_ret, 4)
         except Exception as e:
             logger.warning(f'macro: industrial RS fetch failed for XLI/SPY: {e}')

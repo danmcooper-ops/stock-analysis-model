@@ -143,6 +143,17 @@ def list_snapshot_files(results_dir=DEFAULT_RESULTS_DIR):
     return sorted(by_date.items())
 
 
+def latest_snapshot_path(results_dir=DEFAULT_RESULTS_DIR):
+    """Path of the newest snapshot in *results_dir*, or None.
+
+    The default for pipeline steps given no explicit path. Never derive the
+    name from today's date: a run that crosses midnight would name a file
+    that does not exist.
+    """
+    files = list_snapshot_files(results_dir)
+    return files[-1][1] if files else None
+
+
 def prior_snapshot_file(results_dir, before):
     """``(date_str, path)`` of the newest snapshot dated strictly before
     *before* (ISO string or date), or None."""

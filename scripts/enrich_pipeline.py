@@ -128,9 +128,14 @@ def enrich(records, verbose=True, events=None):
 
 def main():
     if len(sys.argv) < 2:
-        print("usage: enrich_pipeline.py <input.json> [output.json]")
-        sys.exit(1)
-    in_path = sys.argv[1]
+        from data.snapshot_store import latest_snapshot_path
+        in_path = latest_snapshot_path()
+        if not in_path:
+            print("usage: enrich_pipeline.py [input.json] [output.json]  (default: newest output/results_*.json)")
+            sys.exit(1)
+        print(f"[enrich_pipeline] no path given; using newest snapshot {in_path}")
+    else:
+        in_path = sys.argv[1]
     out_path = sys.argv[2] if len(sys.argv) > 2 else in_path
     d = read_snapshot(in_path)
     recs = _records(d)

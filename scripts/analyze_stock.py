@@ -2396,6 +2396,9 @@ def _run_setup():
                              '(e.g. 500e6 for $500M). Default 0 = no filter. '
                              'Useful with --universe us to drop shells and micro-caps quickly.')
     args = parser.parse_args()
+    # Every SEC client reads SEC_EMAIL for its User-Agent; export the flag so
+    # --sec-email reaches them too, not just the universe fetch.
+    os.environ['SEC_EMAIL'] = args.sec_email
     prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
     run_start_date = date.today()
     _prov = ProvenanceRecorder(run_start_date)
@@ -2562,6 +2565,11 @@ def _run_build_universe(args):
             'all_tickers': all_tickers}
 
 
+def _sec_email():
+    """Contact address for SEC EDGAR's required User-Agent."""
+    return os.environ.get('SEC_EMAIL', 'stockanalysis@example.com')
+
+
 def _run_build_clients(run_start_date):
     """Construct the Phase-1 data clients (yfinance, Tiingo, SEC EDGAR)."""
     yf_client = YFinanceClient(run_date=run_start_date)
@@ -2576,12 +2584,12 @@ def _run_build_clients(run_start_date):
     # SEC EDGAR clients initialized here (rather than at Phase-2 setup) so the
     # SECXBRLClient is available as a Phase-1 fallback when yfinance returns
     # an empty payload (Yahoo soft-throttle). The CIK-map load is idempotent.
-    sec_client = SECLegalClient(email='stockanalysis@example.com', request_delay=1.0)
+    sec_client = SECLegalClient(email=_sec_email(), request_delay=1.0)
     sec_client._load_cik_map()
     sec_xbrl_client = SECXBRLClient(
         cik_map=sec_client._cik_map,
         name_map=sec_client._name_map,
-        email='stockanalysis@example.com',
+        email=_sec_email(),
         request_delay=1.0,
         facts_cache=True,
     )
@@ -2959,7 +2967,7 @@ def _run_build_phase2_clients(sec_client, qualifying, screen_cache):
     sec_supply_client = SECSupplyClient(
         cik_map=sec_client._cik_map,
         name_map=sec_client._name_map,
-        email='stockanalysis@example.com',
+        email=_sec_email(),
         request_delay=1.0,
     )
 
@@ -2967,7 +2975,7 @@ def _run_build_phase2_clients(sec_client, qualifying, screen_cache):
     sec_insider_client = SECInsiderClient(
         cik_map=sec_client._cik_map,
         name_map=sec_client._name_map,
-        email='stockanalysis@example.com',
+        email=_sec_email(),
         request_delay=1.0,
         max_form4_files=15,
     )
@@ -4493,6 +4501,7 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
         from scripts.macro_dashboard import build_macro_payload, make_narrative_client
         macro_dash = build_macro_payload(FREDClient(), macro_regime_result,
                                          macro_adj,
+                                         as_of=run_start_date,
                                          sector_data=sector_etf_data,
                                          local_rs=local_rs,
                                          narrative_client=make_narrative_client())

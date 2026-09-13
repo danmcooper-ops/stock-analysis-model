@@ -271,7 +271,13 @@ def _print_cohort_parity(results):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('json_path', help='Path to results_YYYY-MM-DD.json')
+    ap.add_argument('json_path', nargs='?', default=None,
+                    help='Path to results_YYYY-MM-DD.json (default: newest in output/)')
     ap.add_argument('--prices-dir', default='output/prices')
     args = ap.parse_args()
+    if args.json_path is None:
+        from data.snapshot_store import latest_snapshot_path
+        args.json_path = latest_snapshot_path()
+        if not args.json_path:
+            ap.error('no snapshot given and none found in output/')
     rescore_and_render(args.json_path, prices_dir=args.prices_dir)

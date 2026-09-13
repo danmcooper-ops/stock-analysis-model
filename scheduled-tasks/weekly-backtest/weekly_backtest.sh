@@ -39,14 +39,15 @@ cd "$WT" || { echo "worktree not found"; exit 1; }
 #    failed reads with EDEADLK before) rather than aborting the whole run.
 rm -f /tmp/sm_matured_tickers.txt
 "$VPY" - <<'PYEOF'
-import json, glob, os
 from datetime import date, timedelta
+from data.snapshot_store import list_snapshot_files, read_snapshot, split_snapshot
 today = date.today(); mat = set(); skipped = 0
-for p in sorted(glob.glob('output/results_*.json')):
-    d = date.fromisoformat(os.path.basename(p)[8:18])
+# list_snapshot_files covers the gzipped .json.gz form too.
+for ds, p in list_snapshot_files('output'):
+    d = date.fromisoformat(ds)
     if d + timedelta(days=30) <= today:
         try:
-            rows = json.load(open(p)).get('results', [])
+            rows = split_snapshot(read_snapshot(p))[1]
         except Exception as e:
             print(f'  [warn] unreadable snapshot {p}: {e}')
             skipped += 1

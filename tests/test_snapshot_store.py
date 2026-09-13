@@ -456,3 +456,12 @@ class TestExclusionsAndTypes:
                 run_date='2026-01-01')
             got = store.rows('2026-01-01', ['roic_by_year'])[0]['roic_by_year']
             assert got == {'2024': None, '2023': None, '2022': 0.2}
+
+
+def test_latest_snapshot_path_picks_newest_date_not_today(tmp_path):
+    from data.snapshot_store import latest_snapshot_path
+    assert latest_snapshot_path(str(tmp_path)) is None
+    for name in ('results_2026-09-08.json', 'results_2026-09-09.json',
+                 'results_2026-08-11.json.gz', 'results_2026-09-09_replay.json'):
+        (tmp_path / name).write_text('{}', encoding='utf-8')
+    assert latest_snapshot_path(str(tmp_path)).endswith('results_2026-09-09.json')

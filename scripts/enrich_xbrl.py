@@ -467,12 +467,12 @@ def enrich(records, verbose=True, events=None):
     # Initialize SEC clients. SECLegalClient owns the CIK map; SECXBRLClient
     # uses it. Both are throttled internally to stay under SEC's 10 req/sec
     # limit.
-    sec = SECLegalClient(email="stockanalysis@example.com", request_delay=0.1)
+    sec = SECLegalClient(email=os.environ.get("SEC_EMAIL", "stockanalysis@example.com"), request_delay=0.1)
     sec._load_cik_map()
     xbrl = SECXBRLClient(
         cik_map=sec._cik_map,
         name_map={},
-        email="stockanalysis@example.com",
+        email=os.environ.get("SEC_EMAIL", "stockanalysis@example.com"),
         request_delay=0.15,
         facts_cache=True,
     )
@@ -532,9 +532,14 @@ def enrich(records, verbose=True, events=None):
 
 def main():
     if len(sys.argv) < 2:
-        print("usage: enrich_xbrl.py <input.json> [output.json]")
-        sys.exit(1)
-    in_path = sys.argv[1]
+        from data.snapshot_store import latest_snapshot_path
+        in_path = latest_snapshot_path()
+        if not in_path:
+            print("usage: enrich_xbrl.py [input.json] [output.json]  (default: newest output/results_*.json)")
+            sys.exit(1)
+        print(f"[enrich_xbrl] no path given; using newest snapshot {in_path}")
+    else:
+        in_path = sys.argv[1]
     out_path = sys.argv[2] if len(sys.argv) > 2 else in_path
     d = read_snapshot(in_path)
     recs = _records(d)

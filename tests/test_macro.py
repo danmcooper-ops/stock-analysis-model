@@ -77,6 +77,26 @@ class TestScoreIndustrialRS:
         assert _score_industrial_rs(-0.05) == -1.0
 
 
+@pytest.mark.parametrize('scorer', [
+    _score_vix, _score_yield_curve, _score_credit_spread,
+    _score_spy_momentum, _score_industrial_rs,
+])
+def test_nan_scores_neutral_not_bearish(scorer):
+    # Every threshold comparison with NaN is False, so an unguarded scorer
+    # fell through to -1.0 (the 2026-09-09 run scored three NaNs bearish).
+    assert scorer(float('nan')) == 0.0
+
+
+def test_closes_drops_nan_bars():
+    import pandas as pd
+    from data.macro_client import _closes
+    hist = pd.DataFrame({'Close': [100.0, 101.0, float('nan')]})
+    closes = _closes(hist)
+    assert list(closes) == [100.0, 101.0]
+    assert _closes(None) is None
+    assert _closes(pd.DataFrame()) is None
+
+
 # ---------------------------------------------------------------------------
 # Regime assessment
 # ---------------------------------------------------------------------------
