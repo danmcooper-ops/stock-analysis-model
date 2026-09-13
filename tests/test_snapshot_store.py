@@ -465,3 +465,35 @@ def test_latest_snapshot_path_picks_newest_date_not_today(tmp_path):
                  'results_2026-08-11.json.gz', 'results_2026-09-09_replay.json'):
         (tmp_path / name).write_text('{}', encoding='utf-8')
     assert latest_snapshot_path(str(tmp_path)).endswith('results_2026-09-09.json')
+
+
+def test_failed_replace_keeps_the_previous_rows(results_dir):
+    """A replace whose insert fails must roll back its delete too: the
+    pipeline re-syncs a date after every step, and a delete committed ahead
+    of a failed insert used to drop that date from the store."""
+    class _FailingInsert:
+        def __init__(self, con):
+            self._con = con
+
+        def execute(self, sql, *a, **kw):
+            if sql.startswith('INSERT INTO results'):
+                raise RuntimeError('simulated insert failure')
+            return self._con.execute(sql, *a, **kw)
+
+        def __getattr__(self, name):
+            return getattr(self._con, name)
+
+    path = str(results_dir / 'results_2026-01-03.json')
+    with SnapshotStore(db_path_for(str(results_dir))) as store:
+        assert store.ingest_json(path) is True
+        real = store._con
+        store._con = _FailingInsert(real)
+        with pytest.raises(RuntimeError, match='simulated'):
+            store.ingest_json(path, replace=True)
+        store._con = real
+        assert store.has_date('2026-01-03')
+        assert store.counts() == {'2026-01-03': 3}
+        assert [r['ticker'] for r in store.rows('2026-01-03', ['rating'])] == ['AAA', 'BBB', 'CCC']
+        # The store is still writable afterwards: no transaction left open.
+        assert store.ingest_json(path, replace=True) is True
+        assert store.counts() == {'2026-01-03': 3}

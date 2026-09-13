@@ -554,11 +554,10 @@ class SnapshotStore:
         run_date = _iso(run_date or (meta or {}).get('date'))
         if not run_date:
             raise ValueError("snapshot has no date (pass run_date=)")
-        if self.has_date(run_date):
-            if not replace:
-                logger.debug("snapshot store: %s already ingested", run_date)
-                return False
-            self.delete_date(run_date)
+        replacing = self.has_date(run_date)
+        if replacing and not replace:
+            logger.debug("snapshot store: %s already ingested", run_date)
+            return False
 
         exclude = DEFAULT_EXCLUDE_KEYS if exclude is None else tuple(exclude)
         projections = (DEFAULT_PROJECTIONS if projections is None
@@ -575,11 +574,19 @@ class SnapshotStore:
         rf = float(rf) if isinstance(rf, (int, float)) and not isinstance(rf, bool) else None
         count = _scalar(meta.get('count'))
         count = int(count) if isinstance(count, int) and not isinstance(count, bool) else None
+        # The delete of a replaced date shares the insert's transaction: the
+        # pipeline re-syncs the same date after every enrichment step, and a
+        # delete committed ahead of a failed insert used to leave that date
+        # missing from the store entirely until the next successful sync.
         con.execute("BEGIN")
         try:
+            if replacing:
+                self.delete_date(run_date)
             con.register('_snapshot_batch', table)
-            con.execute("INSERT INTO results BY NAME SELECT * FROM _snapshot_batch")
-            con.unregister('_snapshot_batch')
+            try:
+                con.execute("INSERT INTO results BY NAME SELECT * FROM _snapshot_batch")
+            finally:
+                con.unregister('_snapshot_batch')
             con.execute(
                 "INSERT INTO runs (date, risk_free_rate, risk_free_rate_source, "
                 "count, n_rows, meta, source_path, ingested_at) "
