@@ -188,6 +188,32 @@ def load_results(results_dir='output'):
 # span (or recorded as a fake 0.0 when both ends snap to the same last bar).
 MAX_SNAP_GAP_DAYS = 7
 
+# A forward return is dropped as bad price data only when BOTH hold: the start
+# bar disagrees with the price the snapshot itself recorded by more than this
+# factor, AND the return is extreme (above RET_IMPLAUSIBLE_HIGH or below
+# RET_IMPLAUSIBLE_LOW). Disagreement alone is not evidence: a split-adjusted
+# parquet keeps start and end on one basis, so CFNB (50x) and TOP (5x) carry
+# valid returns. On 2026-09-13 GRKZF's parquet held a $0.001 close for
+# 2026-08-14 against a recorded $23.35 -- a +1,552,400% "return" that swamped
+# every mean it entered (the PASS bucket +1,440%, Consumer Cyclical +196%).
+START_PRICE_MAX_RATIO = 5.0
+RET_IMPLAUSIBLE_HIGH = 1.0
+RET_IMPLAUSIBLE_LOW = -0.9
+
+
+def implausible_forward_return(snapshot_price, fwd):
+    """True when *fwd* (a ``_fwd`` entry) is almost surely a bad price bar."""
+    start = (fwd or {}).get('start_price')
+    ret = (fwd or {}).get('ret')
+    if not isinstance(snapshot_price, (int, float)) or isinstance(snapshot_price, bool):
+        return False
+    if not (start and snapshot_price and start > 0 and snapshot_price > 0
+            and isinstance(ret, (int, float))):
+        return False
+    ratio = max(snapshot_price / start, start / snapshot_price)
+    return (ratio > START_PRICE_MAX_RATIO
+            and (ret > RET_IMPLAUSIBLE_HIGH or ret < RET_IMPLAUSIBLE_LOW))
+
 
 def _nearest_bar(index, target, max_gap_days=MAX_SNAP_GAP_DAYS):
     """Index position of the bar nearest *target*, or None if too far away."""
@@ -420,15 +446,25 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
                 except Exception:
                     pass
 
-        # 3. Annotate rows in place (horizon-keyed).
+        # 3. Annotate rows in place (horizon-keyed). Applied here rather than
+        # when computing, so returns cached before the guard existed are
+        # filtered too.
         n = 0
+        dropped = []
         for r in rows:
             t = r.get('ticker')
             fr = ticker_returns.get(t) if t else None
             if fr is None:
                 continue
+            if implausible_forward_return(r.get('price'), fr):
+                dropped.append(t)
+                continue
             r.setdefault('_fwd', {})[h] = fr
             n += 1
+        if dropped:
+            logger.warning('%s +%dd: dropped %d forward return(s) with a start bar >%gx off '
+                           'the snapshot price and an extreme return: %s', run_date, h,
+                           len(dropped), START_PRICE_MAX_RATIO, ', '.join(sorted(dropped)))
         out[h] = n
 
     return out
