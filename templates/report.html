@@ -5151,6 +5151,21 @@ var _dtcMetric='price',_dtcRange='MAX';
    selection persists across companies so a benchmark stays on while you
    page through the list. */
 var _dtcBench=[];
+/* The S&P 500 is the report's default yardstick: every detail popup opens
+   with it overlaid on the price chart. Seeded per company rather than baked
+   into _dtcBench above, so it comes back for the next company even when it
+   was toggled off for this one; and applied from _dtcRender rather than at
+   open, because PRICES — and with it the index list — arrives lazily. */
+var _DTC_DEFAULT_BENCH='SPY';
+var _dtcBenchSeeded=null;
+function _dtcSeedBench(){
+  if(_dtcBenchSeeded===_dpTicker)return;
+  var ixs=(PRICES&&PRICES.indices)||[];
+  if(!ixs.length)return;            /* sidecar not in yet — retry next render */
+  _dtcBenchSeeded=_dpTicker;
+  var have=ixs.filter(function(x){return x.ticker===_DTC_DEFAULT_BENCH;}).length>0;
+  if(have&&_dtcBench.indexOf(_DTC_DEFAULT_BENCH)<0)_dtcBench.push(_DTC_DEFAULT_BENCH);
+}
 function _dtcBenchOn(){return _dtcMetric==='price'?_dtcBench.slice():[];}
 function _dtcIndexLabel(tk){
   var ix=((PRICES&&PRICES.indices)||[]).filter(function(x){return x.ticker===tk;})[0];
@@ -5219,6 +5234,7 @@ function _dtcButtons(){
 }
 function _dtcRender(){
   var tk=_dpTicker;if(!tk)return;
+  _dtcSeedBench();
   _dtcButtons();
   var def=_phMetricDef(_dtcMetric);
   var el=document.getElementById('dtc-chart');if(!el)return;
@@ -6807,6 +6823,7 @@ function openDet(tk){
      chart's renderer, which no longer exists. Set it here, before the
      Charts block renders, so those guards keep working. */
   _dpTicker=d.ticker;
+  _dtcBenchSeeded=null;   /* re-seed the S&P overlay for this company */
   try{_dtcRender();}catch(e){console.error('detail chart error:',e);}
   var fsEl=document.getElementById('d-fin-summary'),fsSec=document.getElementById('d-section-finsummary');var _fs=d.financial_summary;var _fsItems=Array.isArray(_fs)?_fs:(_fs?[_fs]:[]);
   var _fsHtml=_fsItems.length?'<ul class="fin-list">'+_fsItems.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul>':'';
