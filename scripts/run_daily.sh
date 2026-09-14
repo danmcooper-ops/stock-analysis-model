@@ -27,7 +27,7 @@
 #   analyze    analyze_stock.py                            (BLOCKING)
 #   enrich     FDIC, REIT, XBRL, FDA enrichment + re-render (non-blocking each)
 #   archive    gzip snapshot to data/snapshots, commit, push (BLOCKING for publish)
-#   reports    portfolio, gate N/A, momentum check          (non-blocking)
+#   reports    portfolio, gate N/A, momentum, store sync check (non-blocking)
 #   publish    copy artifacts to pages-live, amend, force-push, verify (non-blocking)
 #   compact    gzip aged output/ artifacts, keeping the newest 5 snapshots plain
 #              (non-blocking; scripts/compact_output.py)
@@ -289,6 +289,10 @@ if wants reports; then
   run portfolio_report soft "$VPY" scripts/portfolio_report.py --results-dir output/ --prices-dir output/prices
   run gate_na_report   soft "$VPY" scripts/gate_na_report.py "$SNAPSHOT"
   run validate_ratings soft "$VPY" scripts/validate_ratings.py --snapshot "$SNAPSHOT" --prices-dir output/prices
+  # The store's syncs never fail a step; this is where a store that stopped
+  # keeping up with the snapshot shows as a failure.
+  run store_check      soft "$VPY" scripts/check_snapshot_store.py --results-dir output --date "$RUNDATE" \
+    || note "snapshot store is out of step with results_$RUNDATE.json (see the store_check output)"
 fi
 
 # ---------------------------------------------------------------- publish

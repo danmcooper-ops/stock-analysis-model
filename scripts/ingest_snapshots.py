@@ -92,8 +92,12 @@ def main(argv=None):
           f"{len(failed)} failed -> {db}")
     if args.compact:
         try:
-            before, after = compact_store(db)
-            print(f"[ingest] compacted {db}: {before / 2**20:.0f} MiB -> {after / 2**20:.0f} MiB")
+            sizes = compact_store(db)
+            if sizes is None:
+                print(f"[ingest] no store at {db}; nothing to compact")
+            else:
+                before, after = sizes
+                print(f"[ingest] compacted {db}: {before / 2**20:.0f} MiB -> {after / 2**20:.0f} MiB")
         except Exception as e:
             logger.warning("compaction failed for %s: %s", db, e)
             print(f"[ingest] compaction FAILED — {e}")

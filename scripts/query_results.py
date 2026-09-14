@@ -28,8 +28,10 @@ gates → _gates_passed (its "11/17" strings compare by the leading number).
     python scripts/query_results.py --sql "SELECT date, count(*) FILTER (WHERE rating='BUY') AS buys FROM results GROUP BY date ORDER BY date"
 
 History mode reads output/snapshots.duckdb (the DuckDB snapshot store, see
-data/snapshot_store.py) when it holds every snapshot on disk — it carries all
-scalar columns, so no column forces a slow path.  Without the store it falls
+data/snapshot_store.py) when it holds every snapshot on disk — it carries
+nearly every column, so few force a slow path. The report-only blocks it drops
+(description, news_headlines, ...) and edgar_history, which it keeps only in
+part, are read from the JSON.  Without the store it falls
 back to the older incremental parquet index under output/.query_index_v1/
 (a slim column set; a column outside it triggers a full JSON scan).
 --no-cache forces the full-scan path.  Build or refresh the store with:
@@ -45,7 +47,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 
-from data.snapshot_store import SnapshotStore, db_path_for
+from data.snapshot_store import (DEFAULT_EXCLUDE_KEYS, DEFAULT_PROJECTIONS,
+                                 SnapshotStore, db_path_for)
 from data.snapshot_store import list_snapshot_files as _list_snapshot_files
 from data.snapshot_store import read_snapshot
 
@@ -254,6 +257,12 @@ def history_from_store(results_dir, ticker, columns):
     column.  Returns a DataFrame (possibly empty) or None when the store is
     absent/unreadable, in which case the caller keeps its JSON path.
     """
+    partial = [c for c in columns
+               if c in DEFAULT_EXCLUDE_KEYS or c in DEFAULT_PROJECTIONS]
+    if partial:
+        print('Column(s) %s are not kept whole in the snapshot store — reading JSON.'
+              % ', '.join(partial), file=sys.stderr)
+        return None
     store = SnapshotStore.for_results_dir(results_dir)
     if store is None:
         return None
@@ -271,10 +280,12 @@ def history_from_store(results_dir, ticker, columns):
                       '(run scripts/ingest_snapshots.py to refresh).' % missing,
                       file=sys.stderr)
                 return None
-            known = set(store.column_types())
+            known = {c.lower() for c in store.column_types()}
             wanted = [c for c in columns if c != 'date']
             sel = ['CAST(date AS VARCHAR) AS date']
-            sel += [_sql_ident(c) for c in wanted if c in known]
+            # Quoted identifiers still match case-insensitively in DuckDB,
+            # and the result column keeps the requested spelling.
+            sel += [_sql_ident(c) for c in wanted if c.lower() in known]
             df = store.query(
                 'SELECT %s FROM results WHERE ticker = ? ORDER BY date'
                 % ', '.join(sel), [ticker])
@@ -282,7 +293,7 @@ def history_from_store(results_dir, ticker, columns):
             # column. Fill it in as Python None (not a typed NA) so the
             # rendering matches the JSON path exactly.
             for c in wanted:
-                if c not in known:
+                if c.lower() not in known:
                     df[c] = None
     except Exception as e:
         print('Snapshot store read failed (%s) — reading JSON.' % e,
@@ -292,10 +303,11 @@ def history_from_store(results_dir, ticker, columns):
 
 
 def _sql_ident(name):
-    """Quote a column name for SQL (NULL when it isn't a plain identifier)."""
+    """Select a column under its requested spelling (NULL when it isn't a
+    plain identifier)."""
     if not _IDENT_RE.match(name):
         return 'NULL AS "%s"' % name.replace('"', '')
-    return '"%s"' % name
+    return '"%s" AS "%s"' % (name, name)
 
 
 def run_sql(results_dir, sql):

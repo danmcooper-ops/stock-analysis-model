@@ -254,6 +254,31 @@ class TestHistoryFromStore:
         df = history_from_store(results_dir, 'AAA', ['date', 'not_a_field'])
         assert df['not_a_field'].tolist() == [None, None, None]
 
+    def test_columns_the_store_does_not_keep_whole_fall_back(self, results_dir, capsys):
+        """description is dropped from the store and edgar_history is kept as
+        a projection; serving them from the store rendered None / a partial
+        dict with no warning."""
+        import json as _json
+        from scripts.query_results import history_from_store
+        p = os.path.join(results_dir, 'results_2026-01-03.json')
+        data = _json.loads(open(p, encoding='utf-8').read())
+        data['results'][0]['description'] = 'Makes widgets'
+        with open(p, 'w', encoding='utf-8') as f:
+            _json.dump(data, f)
+        self._ingest(results_dir)
+        for col in ('description', 'edgar_history'):
+            assert history_from_store(results_dir, 'AAA', ['date', col]) is None
+            assert 'reading JSON' in capsys.readouterr().err
+        res = _run_main(['--results-dir', results_dir, '--ticker', 'AAA',
+                         '--history', '--columns', 'description'], capsys)
+        assert 'Makes widgets' in res.out
+
+    def test_column_names_match_case_insensitively(self, results_dir):
+        from scripts.query_results import history_from_store
+        self._ingest(results_dir)
+        df = history_from_store(results_dir, 'AAA', ['date', 'PRICE'])
+        assert df['PRICE'].tolist() == [90.0, 95.0, 101.0]
+
     def test_partial_store_falls_back(self, results_dir, capsys):
         from scripts.query_results import HISTORY_COLUMNS, history_from_store
         from scripts.ingest_snapshots import ingest_dir

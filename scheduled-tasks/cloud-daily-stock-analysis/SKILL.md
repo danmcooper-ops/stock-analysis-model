@@ -143,9 +143,12 @@ Lead with the result line and the run date, then, in this order:
    > 35% of the BUY/LEAN BUY bucket, any correlated pair (r > 0.85) that is
    not an obvious duplicate (GOOG/GOOGL), any BUY with a 2020 drawdown worse
    than −50%.
-5. **Publish** — the live URL and whether it served today's date; the deploy
+5. **Snapshot store** — if `07d-store-check` failed, quote its `PROBLEM:`
+   lines from `logs/07d-store-check.log`. Store syncs never fail a step, so
+   this is the only place a store that stopped updating shows up.
+6. **Publish** — the live URL and whether it served today's date; the deploy
    workflow otherwise.
-6. **Run quality** — the analysis log's closing run-quality summary
+7. **Run quality** — the analysis log's closing run-quality summary
    (fabricated/fallback input counts), the number of tickers screened /
    qualifying, any step in `SOFT_FAILURES` with one line on why, missing API
    keys, and total elapsed time.

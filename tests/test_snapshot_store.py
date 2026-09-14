@@ -580,3 +580,104 @@ def _hold_store_open(db, ready, done):
     with SnapshotStore(db):
         ready.set()
         done.wait(30)
+
+
+def test_text_column_widens_to_json_when_a_list_arrives(tmp_path):
+    """A column stored as text that later receives a list/dict must widen to
+    JSON: a plain cast rejects the existing text ('Technology' is not JSON),
+    which used to fail every later ingest while the sync hook hid the error."""
+    with SnapshotStore(str(tmp_path / 's.duckdb')) as store:
+        store.ingest_rows({'date': '2026-01-01'}, [{'ticker': 'A', 'x': 'Technology'},
+                                                   {'ticker': 'B', 'x': '[1,2]'}])
+        assert store.ingest_rows({'date': '2026-01-02'}, [{'ticker': 'A', 'x': ['a', 'b']}])
+        assert store.column_types()['x'] == 'JSON'
+        assert [r['x'] for r in store.rows('2026-01-01', ['x'])] == ['Technology', '[1,2]']
+        assert store.rows('2026-01-02', ['x'])[0]['x'] == ['a', 'b']
+
+
+def test_keys_differing_only_by_case_share_one_column(tmp_path, caplog):
+    """DuckDB identifiers are case-insensitive: 'PE' after 'pe', or a 'Date'
+    / 'Ticker' row key, used to fail with 'Column ... already exists'."""
+    with SnapshotStore(str(tmp_path / 's.duckdb')) as store:
+        store.ingest_rows({'date': '2026-01-01'}, [{'ticker': 'A', 'pe': 1.0, 'rating': 'BUY'}])
+        assert store.ingest_rows({'date': '2026-01-02'}, [{'ticker': 'A', 'PE': 2.0, 'Rating': 'HOLD'}])
+        assert store.ingest_rows({'date': '2026-01-03'}, [
+            {'ticker': 'A', 'pe': 3.0, 'PE': 4.0, 'Date': 'x', 'Ticker': 'y', 'RATING': 'HOLD'}])
+        names = [c.lower() for c in store.column_types()]
+        assert names.count('pe') == 1 and len(names) == len(set(names))
+        assert [store.rows(d, ['PE'])[0]['PE'] for d in store.dates()] == [1.0, 2.0, 4.0]
+        assert store.rows('2026-01-03', ['_row_Date', '_row_Ticker'])[0] == {
+            'ticker': 'A', '_row_Date': 'x', '_row_Ticker': 'y'}
+        assert store.last_known_rows('2026-01-04', ['pe'], require='PE')[1]['A'] == {'pe': 4.0}
+        assert store.rating_history(column='RATING') == {
+            'A': [['2026-01-01', 'BUY'], ['2026-01-02', 'HOLD']]}
+    assert 'differ only by case' in caplog.text
+
+
+def test_nonfinite_strings_create_a_double_column_on_first_sight(tmp_path):
+    with SnapshotStore(str(tmp_path / 's.duckdb')) as store:
+        store.ingest_rows({'date': '2026-01-01'}, [{'ticker': 'A', 'pe': 'Infinity'},
+                                                   {'ticker': 'B', 'pe': 'NaN'},
+                                                   {'ticker': 'C', 'label': 'Infinity'},
+                                                   {'ticker': 'D', 'label': 'abc'}])
+        types = store.column_types()
+        assert types['pe'] == 'DOUBLE' and types['label'] == 'VARCHAR'
+        a, b, c, d = store.rows('2026-01-01', ['pe', 'label'])
+        assert a['pe'] == math.inf and math.isnan(b['pe'])
+        assert (c['label'], d['label']) == ('Infinity', 'abc')
+
+
+def test_ingest_json_dates_a_run_by_its_filename(tmp_path, caplog):
+    p = _write(tmp_path, '2026-01-05', [_row('AAA')], meta={'date': '2026-01-04'})
+    with SnapshotStore(str(tmp_path / 's.duckdb')) as store:
+        assert store.ingest_json(p) is True
+        assert store.dates() == ['2026-01-05']
+    assert '2026-01-04' in caplog.text
+
+
+def test_ingest_cli_compact_without_a_store(tmp_path, capsys):
+    from scripts.ingest_snapshots import main
+    empty = tmp_path / 'empty'
+    empty.mkdir()
+    db = str(tmp_path / 'absent.duckdb')
+    import scripts.ingest_snapshots as cli
+    real = cli.ingest_dir
+    cli.ingest_dir = lambda *a, **kw: ([], [], [])     # leave no store behind
+    try:
+        assert main(['--results-dir', str(empty), '--db', db, '--compact']) == 0
+    finally:
+        cli.ingest_dir = real
+    assert 'nothing to compact' in capsys.readouterr().out
+
+
+def test_compact_store_folds_a_crashed_writers_wal(results_dir):
+    """A read-only source does not replay-and-remove a stale WAL, so without
+    the leading checkpoint the old WAL would sit beside the swapped-in file
+    and be replayed into it."""
+    import subprocess
+    import sys
+    from data.snapshot_store import compact_store
+    db = db_path_for(str(results_dir))
+    ingest_dir(str(results_dir))
+    subprocess.run([sys.executable, '-c',
+                    "import duckdb, os, sys; c = duckdb.connect(sys.argv[1]); "
+                    "c.execute('PRAGMA disable_checkpoint_on_shutdown'); "
+                    "c.execute(\"DELETE FROM runs WHERE date = '2026-01-01'\"); "
+                    "c.execute(\"DELETE FROM results WHERE date = '2026-01-01'\"); "
+                    "os._exit(0)", db], check=True)
+    assert os.path.exists(db + '.wal')
+    assert compact_store(db) is not None
+    assert not os.path.exists(db + '.wal')
+    with SnapshotStore(db) as store:
+        assert store.dates() == ['2026-01-02', '2026-01-03']
+
+
+def test_rating_history_works_on_a_numeric_column(tmp_path):
+    """The empty-string filter is for text columns only: on a DOUBLE column
+    `<> ''` made DuckDB try to cast '' and raise."""
+    with SnapshotStore(str(tmp_path / 's.duckdb')) as store:
+        for day, score in (('2026-01-01', 50.0), ('2026-01-02', 50.0), ('2026-01-03', 61.5)):
+            store.ingest_rows({'date': day}, [{'ticker': 'A', '_composite_score': score},
+                                              {'ticker': 'B', '_composite_score': None}])
+        assert store.rating_history(column='_composite_score') == {
+            'A': [['2026-01-01', 50.0], ['2026-01-03', 61.5]]}
