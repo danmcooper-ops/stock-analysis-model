@@ -29,6 +29,8 @@
 #   archive    gzip snapshot to data/snapshots, commit, push (BLOCKING for publish)
 #   reports    portfolio, gate N/A, momentum check          (non-blocking)
 #   publish    copy artifacts to pages-live, amend, force-push, verify (non-blocking)
+#   compact    gzip aged output/ artifacts, keeping the newest 5 snapshots plain
+#              (non-blocking; scripts/compact_output.py)
 #
 # Exit codes: 0 success or market-closed skip; 1 a blocking step failed;
 # 3 finished, but at least one non-blocking step failed.
@@ -44,7 +46,10 @@ PAGES_WT="$REPO/.claude/worktrees/pages-live"
 SNAP_WT="$REPO/.claude/worktrees/snapshots-data"
 PAGES_URL="https://danmcooper-ops.github.io/stock-analysis-model/"
 LOGDIR="$HOME/Library/Logs/StockModel"
-STEPS=(preflight prices pull analyze enrich archive reports publish)
+STEPS=(preflight prices pull analyze enrich archive reports publish compact)
+# Snapshots left as plain JSON by the compact step. A --from resume of a date
+# older than these finds only results_<date>.json.gz; it is restored below.
+KEEP_PLAIN=5
 
 # ---------------------------------------------------------------- arguments
 FROM="preflight"; RUNDATE=""; DRY_RUN=0; FORCE=0
@@ -54,7 +59,7 @@ while [ $# -gt 0 ]; do
     --date)    RUNDATE="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --force)   FORCE=1; shift ;;
-    -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,34p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -115,6 +120,22 @@ echo "=== run_daily start $(date) RUNDATE=$RUNDATE from=$FROM dry_run=$DRY_RUN =
 [ -z "$SEC_EMAIL" ] && note "SEC_EMAIL is not set (.env) — SEC requests use a placeholder User-Agent"
 if pmset -g batt 2>/dev/null | grep -q "Battery Power"; then
   note "running on battery — the Mac can still sleep; plug in for unattended runs"
+fi
+
+# The compact step gzips all but the newest $KEEP_PLAIN snapshots, but the
+# enrich/render scripts rewrite results_<date>.json in place. Resuming an
+# older date therefore restores the plain file first (gunzip checks the CRC)
+# and drops the .gz, so a later compact does not find two differing copies.
+if [ "$FROM_I" -ge "$(step_index analyze)" ] && [ ! -f "$SNAPSHOT" ] && [ -f "$SNAPSHOT.gz" ]; then
+  if [ "$DRY_RUN" = 1 ]; then
+    note "would restore $SNAPSHOT from $SNAPSHOT.gz"
+  elif gunzip -c "$SNAPSHOT.gz" >"$SNAPSHOT.tmp" && mv "$SNAPSHOT.tmp" "$SNAPSHOT"; then
+    rm -f "$SNAPSHOT.gz"
+    note "restored $SNAPSHOT from its compacted .gz"
+  else
+    rm -f "$SNAPSHOT.tmp"
+    note "could not restore $SNAPSHOT from $SNAPSHOT.gz"
+  fi
 fi
 
 # ---------------------------------------------------------------- helpers
@@ -303,6 +324,14 @@ publish() {
 
 if wants publish; then
   run publish soft publish || note "publish failed — retry with: scripts/run_daily.sh --from publish --date $RUNDATE"
+fi
+
+# ---------------------------------------------------------------- compact
+# Last, so nothing later in the run reads a file this gzips. Every snapshot
+# reader accepts the .gz form; see scripts/compact_output.py.
+if wants compact; then
+  run compact_output soft "$VPY" scripts/compact_output.py --results-dir output \
+      --keep-plain "$KEEP_PLAIN" --apply
 fi
 
 # ---------------------------------------------------------------- done

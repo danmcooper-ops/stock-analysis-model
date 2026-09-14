@@ -94,7 +94,11 @@ ruff check .
   sweep cannot run; entries past it are pruned. Requests send
   `Accept-Encoding: gzip`, which urllib omits by default.
 - **Snapshot archive:** `output/results_<date>.json` is the canonical run
-  artifact and stays plain JSON locally, but the copy pushed to the
+  artifact. Locally only the newest 5 stay plain JSON: the last `run_daily.sh`
+  step (and the weekly job, as a backstop) runs `scripts/compact_output.py`,
+  which gzips older snapshots and 30-day-old sidecars in place, SHA-256
+  verified; a `--from` resume of an older date restores its plain file first.
+  The copy pushed to the
   `data/snapshots` branch is gzipped (`results_<date>.json.gz`, ~87 MiB ->
   ~27 MiB) by `scripts/archive_snapshot.py`. Plain JSON had reached 97.2 MiB
   against GitHub's 100 MiB per-blob cap and one day was already rejected and

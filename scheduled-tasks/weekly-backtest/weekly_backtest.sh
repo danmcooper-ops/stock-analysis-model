@@ -81,6 +81,9 @@ overall_rc=0
 # has no daily run, so nothing holds the store open. A failure here is
 # reported but the backtest still runs (it falls back to the JSON files).
 "$VPY" scripts/ingest_snapshots.py --results-dir output --compact || overall_rc=$?
+# Backstop for weeks with no local daily run (its last step does the same):
+# gzip aged snapshots and sidecars. Backtest reads .json.gz transparently.
+"$VPY" scripts/compact_output.py --results-dir output --keep-plain 5 --apply || overall_rc=$?
 "$VPY" scripts/backtest.py annotate  --horizons 30,90,180 || overall_rc=$?
 "$VPY" scripts/backtest.py measure   --horizons 30,90,180 || overall_rc=$?
 # Calibrate each horizon SEPARATELY — pooling 30d and 90d returns into one
