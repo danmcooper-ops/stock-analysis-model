@@ -55,3 +55,18 @@ def test_guard_filters_returns_from_an_existing_cache(tmp_path):
     assert '_fwd' not in rows['GRKZF']
     assert rows['CFNB']['_fwd'][30]['ret'] == 0.0
     assert rows['AAPL']['_fwd'][30]['ret'] == 0.04
+
+
+def test_consensus_mean_bias_is_winsorized_but_raw_is_kept():
+    from scripts.backtest import consensus_comparison
+    # 5 broken fair values (0.5%) among 1,000 ordinary ones, the regime the
+    # 1st/99th-percentile clip is meant for.
+    biases = [0.1] * 995 + [50.0, 80.0, 120.0, 90.0, 60.0]
+    details = [{'ticker': f'T{i}', 'dcf_fv': 100.0} for i in range(len(biases))]
+    stocks = {f'T{i}': {'dcf_fv': 100.0, 'target_mean': 100.0 / (1 + b)}
+              for i, b in enumerate(biases)}
+    c = consensus_comparison([{'details': details, '_source_stocks': stocks}])
+    assert c['n_stocks'] == 1000
+    assert c['median_bias'] == pytest.approx(0.1)
+    assert c['mean_bias_raw'] > 0.4          # the broken fair values dominate
+    assert c['mean_bias'] == pytest.approx(0.1, abs=0.01)

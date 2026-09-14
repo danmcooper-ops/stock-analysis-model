@@ -197,6 +197,9 @@ MAX_SNAP_GAP_DAYS = 7
 # 2026-08-14 against a recorded $23.35 -- a +1,552,400% "return" that swamped
 # every mean it entered (the PASS bucket +1,440%, Consumer Cyclical +196%).
 START_PRICE_MAX_RATIO = 5.0
+# consensus_comparison clips model-vs-analyst biases to these percentiles
+# before averaging (the median is reported unclipped).
+BIAS_WINSOR_PCT = 1
 RET_IMPLAUSIBLE_HIGH = 1.0
 RET_IMPLAUSIBLE_LOW = -0.9
 
@@ -1244,7 +1247,8 @@ def build_backtest_excel(all_metrics, filename):
         ws6.cell(row=ri, column=2).fill = gray
         ri += 1
         metrics_data = [
-            ('Mean Bias (Model/Target − 1)', consensus['mean_bias']),
+            ('Mean Bias (Model/Target − 1, winsorized 1/99)', consensus['mean_bias']),
+            ('Mean Bias, raw', consensus['mean_bias_raw']),
             ('Median Bias', consensus['median_bias']),
             ('# Stocks Compared', consensus['n_stocks']),
         ]
@@ -1432,7 +1436,8 @@ def strong_buy_hit_rate(all_metrics):
 def consensus_comparison(all_metrics):
     """Compare model fair values vs analyst target prices.
 
-    Returns dict with: mean_bias, median_bias, n_stocks.
+    Returns dict with: mean_bias (winsorized at the 1st/99th percentile),
+    mean_bias_raw, median_bias, n_stocks.
     """
     biases = []
     for m in all_metrics:
@@ -1447,8 +1452,15 @@ def consensus_comparison(all_metrics):
     if not biases:
         return None
     arr = np.array(biases)
+    # A handful of broken fair values (a local-currency DCF priced against a
+    # USD ADR sits at +1,000% and beyond) dominate a raw mean: on the
+    # 2026-09-13 corpus the mean bias read +27.8% against a -12.1% median.
+    # Winsorize at the 1st/99th percentile so the headline mean describes the
+    # typical stock; the median is exact and the raw mean stays reported.
+    lo, hi = np.percentile(arr, [BIAS_WINSOR_PCT, 100 - BIAS_WINSOR_PCT])
     return {
-        'mean_bias': float(np.mean(arr)),
+        'mean_bias': float(np.mean(np.clip(arr, lo, hi))),
+        'mean_bias_raw': float(np.mean(arr)),
         'median_bias': float(np.median(arr)),
         'n_stocks': len(arr),
     }
@@ -1682,7 +1694,7 @@ def print_summary(all_metrics):
     consensus = consensus_comparison(all_metrics)
     if consensus:
         print(f"\n  Model vs Analyst Targets ({consensus['n_stocks']} stocks):")
-        print(f"    Mean bias:   {consensus['mean_bias']:+.1%}")
+        print(f"    Mean bias:   {consensus['mean_bias']:+.1%}  (winsorized 1/99; raw {consensus['mean_bias_raw']:+.1%})")
         print(f"    Median bias: {consensus['median_bias']:+.1%}")
 
 
