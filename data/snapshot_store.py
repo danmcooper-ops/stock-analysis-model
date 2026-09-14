@@ -73,7 +73,9 @@ _SNAPSHOT_RE = re.compile(r'^results_(\d{4}-\d{2}-\d{2})\.json(?:\.gz)?$')
 # Column-type lattice for scalar row values.  A column is widened (never
 # narrowed) when a later snapshot carries a wider type; JSON absorbs anything.
 _TYPE_RANK = {'BOOLEAN': 0, 'BIGINT': 1, 'DOUBLE': 2, 'VARCHAR': 3, 'JSON': 4}
-_RESERVED_COLUMNS = ('date',)
+# Row keys matching a table key column (case-insensitively: DuckDB identifiers
+# are) are stored as ``_row_<key>``.  The exact key ``ticker`` is the row key.
+_RESERVED_COLUMNS = ('date', 'ticker')
 
 # Row keys left out of the store entirely: the narrative and report-payload
 # blocks that exist only to render the HTML report.  Measured over 84 real
@@ -502,6 +504,15 @@ def _quote(name):
     return '"' + str(name).replace('"', '""') + '"'
 
 
+def _ci_lookup(types, name):
+    """The stored spelling of column *name* in *types*, or None.  DuckDB
+    matches identifiers case-insensitively, so ``PE`` names a ``pe`` column."""
+    if name in types:
+        return name
+    low = str(name).lower()
+    return next((c for c in types if c.lower() == low), None)
+
+
 # ---------------------------------------------------------------------------
 # Value normalisation / type inference
 # ---------------------------------------------------------------------------
@@ -810,7 +821,12 @@ class SnapshotStore:
             logger.debug("snapshot store: skipping non-canonical %s", path)
             return False
         meta, rows = load_snapshot_file(path)
-        return self.ingest_rows(meta, rows, run_date=meta.get('date') or d,
+        # The filename date, as sync_snapshot_file, list_snapshot_files and
+        # every coverage check use: a run must not land under two dates.
+        if meta.get('date') and _iso(meta['date']) != d:
+            logger.warning("snapshot store: %s carries date %s; storing it under "
+                           "its filename date %s", path, meta['date'], d)
+        return self.ingest_rows(meta, rows, run_date=d,
                                 source_path=path, replace=replace, exclude=exclude,
                                 projections=projections)
 
@@ -887,9 +903,15 @@ class SnapshotStore:
             if not tk:
                 continue
             by_ticker[str(tk)] = r
+        existing = self.column_types()
+        # DuckDB identifiers are case-insensitive, so every spelling of a key
+        # maps to one column: the existing column's, else the first seen.
+        canon = {c.lower(): c for c in existing}
         clean = []
         col_types = {}      # type evidence from non-text values
         text_cols = set()   # columns holding at least one text value
+        nonfinite_cols = set()  # columns holding a stringified non-finite
+        collided = set()    # columns given two spellings within one row
         for tk, r in by_ticker.items():
             row = {}
             for k, v in r.items():
@@ -899,8 +921,11 @@ class SnapshotStore:
                 if projections and k in projections and isinstance(v, dict):
                     keep = projections[k]
                     v = {sk: v[sk] for sk in keep if sk in v}
-                if k in _RESERVED_COLUMNS:
+                if k.lower() in _RESERVED_COLUMNS:
                     k = '_row_' + k
+                k = canon.setdefault(k.lower(), k)
+                if k in row:
+                    collided.add(k)
                 v = _scalar(v)
                 if v is None:
                     row[k] = None
@@ -911,11 +936,16 @@ class SnapshotStore:
                 if t == 'VARCHAR':
                     text_cols.add(k)
                     col_types.setdefault(k, None)
+                elif t is None:
+                    nonfinite_cols.add(k)
+                    col_types.setdefault(k, None)
                 else:
                     col_types[k] = _widen(col_types.get(k), t)
             row['ticker'] = tk
             clean.append(row)
-        existing = self.column_types()
+        for k in sorted(collided):
+            logger.warning("snapshot store: %s: row keys differ only by case from "
+                           "column %r; the last spelling's value is stored", run_date, k)
         final = {}
         for k, t in col_types.items():
             # Existing column types take part in widening decisions so the
@@ -936,6 +966,9 @@ class SnapshotStore:
                         base = 'DOUBLE'
                 else:
                     base = _widen(base, 'VARCHAR')
+            elif base is None and k in nonfinite_cols:
+                # Only "Infinity"/"NaN" strings so far: they denote floats.
+                base = 'DOUBLE'
             # A key that is None in every row carries no type evidence: leave
             # it out of this batch so a later snapshot can create the column
             # with its real type (readers get NULL for unknown columns anyway).
@@ -961,13 +994,18 @@ class SnapshotStore:
         DDL on an indexed table commits immediately)."""
         existing = self.column_types()
         for k, t in col_types.items():
-            cur = existing.get(k)
+            name = _ci_lookup(existing, k)
+            cur = existing.get(name)
             if cur is None:
                 self._con.execute(f"ALTER TABLE results ADD COLUMN {_quote(k)} {t}")
             elif cur != 'DATE' and _TYPE_RANK[t] > _TYPE_RANK[cur]:
-                logger.debug("snapshot store: widening %s %s -> %s", k, cur, t)
+                logger.debug("snapshot store: widening %s %s -> %s", name, cur, t)
+                # A plain cast to JSON parses the stored text ('Technology' is
+                # not JSON) and fails; to_json keeps each old value as the same
+                # string, number or boolean.
+                using = f" USING to_json({_quote(name)})" if t == 'JSON' else ''
                 self._con.execute(
-                    f"ALTER TABLE results ALTER COLUMN {_quote(k)} SET DATA TYPE {t}")
+                    f"ALTER TABLE results ALTER COLUMN {_quote(name)} SET DATA TYPE {t}{using}")
 
     def delete_date(self, run_date):
         run_date = _iso(run_date)
@@ -1013,9 +1051,10 @@ class SnapshotStore:
             columns = [c for c in types if c != 'date']
         parts, json_keys = [], set()
         for c in columns:
-            if c in types:
-                parts.append(f"{_quote(c)} AS {_quote(c)}")
-                if types[c] == 'JSON':
+            name = _ci_lookup(types, c)
+            if name is not None:
+                parts.append(f"{_quote(name)} AS {_quote(c)}")
+                if types[name] == 'JSON':
                     json_keys.add(c)
             else:
                 parts.append(f"NULL AS {_quote(c)}")
@@ -1075,7 +1114,8 @@ class SnapshotStore:
         sel = ', '.join(['"date"', '"ticker"'] + parts)
         types = self.column_types()
         where = "date >= ? AND date < ?"
-        if require and require in types:
+        require = _ci_lookup(types, require) if require else None
+        if require:
             where += f" AND {_quote(require)} IS NOT NULL"
             if types[require] == 'VARCHAR':
                 where += f" AND {_quote(require)} <> ''"
@@ -1096,10 +1136,14 @@ class SnapshotStore:
         """``{ticker: [[date, rating], ...]}`` change-points (first observation
         plus every transition) ascending by date, over snapshots strictly
         before *before* (all snapshots when None)."""
-        if column not in self.column_types():
+        types = self.column_types()
+        column = _ci_lookup(types, column)
+        if column is None:
             return {}
         col = _quote(column)
-        where = f"{col} IS NOT NULL AND {col} <> ''"
+        where = f"{col} IS NOT NULL"
+        if types[column] == 'VARCHAR':
+            where += f" AND {col} <> ''"
         params = []
         if before is not None:
             where += " AND date < ?"
@@ -1156,14 +1200,21 @@ def compact_store(db_path=None):
     the pipeline replaces the same date after every enrichment step, so the
     file grows ~30 MB a night (567 MiB holding 265 MiB of data on
     2026-09-13). The copy is verified table by table before it replaces the
-    original. The source is attached read-write, which takes DuckDB's file
-    lock: a concurrent writer or reader makes this raise instead of racing.
+    original.
+
+    A read-write open and CHECKPOINT first folds in any WAL a crashed writer
+    left (a read-only attach would leave it beside the swapped-in file, to be
+    replayed into it) and takes DuckDB's file lock: a concurrent writer or
+    reader makes this raise instead of racing. The source is then attached
+    read-only and stays attached through the swap, so no writer can open the
+    old file between the copy and the replace.
     """
     import duckdb
     db_path = db_path or db_path_for()
     if not os.path.exists(db_path):
         return None
     tmp = db_path + '.compact'
+    wal = db_path + '.wal'
     for leftover in (tmp, tmp + '.wal'):
         if os.path.exists(leftover):
             os.remove(leftover)
@@ -1172,28 +1223,43 @@ def compact_store(db_path=None):
     def lit(path):
         return "'" + path.replace("'", "''") + "'"
 
-    con = duckdb.connect()
-    try:
-        con.execute(f"ATTACH {lit(db_path)} AS src")
-        con.execute(f"ATTACH {lit(tmp)} AS dst")
-        con.execute("COPY FROM DATABASE src TO dst")
-        tables = [r[0] for r in con.execute(
-            "SELECT table_name FROM duckdb_tables() WHERE database_name = 'src'").fetchall()]
-        for t in tables:
-            a = con.execute(f"SELECT count(*) FROM src.{_quote(t)}").fetchone()[0]
-            b = con.execute(f"SELECT count(*) FROM dst.{_quote(t)}").fetchone()[0]
-            if a != b:
-                raise RuntimeError(f"compacted copy of {t} has {b} rows, source {a}")
-        con.execute("DETACH dst")
-        con.execute("DETACH src")
-    except BaseException:
-        con.close()
+    def remove_tmp():
         for leftover in (tmp, tmp + '.wal'):
             if os.path.exists(leftover):
                 os.remove(leftover)
-        raise
-    con.close()
-    os.replace(tmp, db_path)
+
+    ck = duckdb.connect(db_path)
+    try:
+        ck.execute("CHECKPOINT")
+    finally:
+        ck.close()
+
+    con = duckdb.connect()
+    try:
+        con.execute(f"ATTACH {lit(db_path)} AS src (READ_ONLY)")
+        try:
+            con.execute(f"ATTACH {lit(tmp)} AS dst")
+            con.execute("COPY FROM DATABASE src TO dst")
+            tables = [r[0] for r in con.execute(
+                "SELECT table_name FROM duckdb_tables() WHERE database_name = 'src'").fetchall()]
+            for t in tables:
+                a = con.execute(f"SELECT count(*) FROM src.{_quote(t)}").fetchone()[0]
+                b = con.execute(f"SELECT count(*) FROM dst.{_quote(t)}").fetchone()[0]
+                if a != b:
+                    raise RuntimeError(f"compacted copy of {t} has {b} rows, source {a}")
+            con.execute("DETACH dst")
+            if os.path.exists(wal):
+                raise RuntimeError(f"{wal} appeared during compaction; not replacing")
+        except BaseException:
+            con.close()
+            remove_tmp()
+            raise
+        # Still attached read-only: the shared lock keeps writers off the old
+        # file until the new one is in place.
+        os.replace(tmp, db_path)
+        con.execute("DETACH src")
+    finally:
+        con.close()
     after = os.path.getsize(db_path)
     logger.info("snapshot store: compacted %s %.0f MiB -> %.0f MiB",
                 db_path, before / 2**20, after / 2**20)

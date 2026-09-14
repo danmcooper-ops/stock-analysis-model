@@ -30,7 +30,10 @@ models/          - Pure model functions: capm, dcf, ddm, epv, rim, nav,
 scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    report_html.py / report_excel.py, scoring.py, config.py,
                    param_set.py, replay.py, ingest_snapshots.py (backfill the
-                   snapshot store), archive_snapshot.py (gzip a run onto the
+                   snapshot store), check_snapshot_store.py (nightly: fail
+                   when the store did not keep up with the run's snapshot,
+                   since store syncs never fail a step),
+                   archive_snapshot.py (gzip a run onto the
                    data/snapshots branch, with a size guard), plus
                    enrichment/maintenance scripts
 tests/           - pytest suite (~1,300 tests) incl. hypothesis property tests
@@ -154,7 +157,10 @@ ruff check .
   one such `pe` value used to turn 2,413 floats in a snapshot into strings.
   More generally, text never widens a numeric column (v4): numeric text casts,
   other text in a numeric column is stored NULL with a warning (the JSON keeps
-  it). A replace (delete + insert of a date) is one transaction.
+  it). Column names match case-insensitively, as DuckDB identifiers do
+  (`PE` lands in `pe`), and a text column that later gets a list/dict widens
+  to JSON via `to_json`, keeping old values as strings. A replace (delete +
+  insert of a date) is one transaction.
   `sync_snapshot_file()` re-mirrors a rewritten file (analyze_stock,
   the enrich_* scripts and rescore_and_render call it); `scripts/
   ingest_snapshots.py` backfills history. The store is versioned
@@ -162,8 +168,9 @@ ruff check .
   writable open rebuilds it empty, so a stale index degrades to the JSON path
   rather than serving wrong columns. DuckDB keeps the space of deleted rows,
   and the nightly re-syncs replace the same date several times, so the weekly
-  job runs `ingest_snapshots.py --compact` (`compact_store()`: verified copy,
-  then swap; refuses while another process has the store open).
+  job runs `ingest_snapshots.py --compact` (`compact_store()`: checkpoint,
+  verified copy from a read-only attach held through the swap; refuses while
+  another process has the store open).
 - **Backtest/query reads:** `backtest.py` loads each snapshot from the store
   when it holds that date (per-date decision, `--no-store` forces JSON) —
   the corpus costs roughly half the RSS of parsing the files, which is what
