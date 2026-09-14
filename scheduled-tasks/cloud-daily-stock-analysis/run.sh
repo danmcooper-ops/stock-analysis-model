@@ -384,6 +384,8 @@ ARCHIVE_RC=$?
 run_step 07a-portfolio-report 0 "$PYTHON" scripts/portfolio_report.py --results-dir output/ --prices-dir output/prices
 run_step 07b-gate-na-report   0 "$PYTHON" scripts/gate_na_report.py "$RESULTS"
 run_step 07c-validate-ratings 0 "$PYTHON" scripts/validate_ratings.py --snapshot "$RESULTS" --prices-dir output/prices
+# Store syncs never fail a step; this surfaces a store that stopped keeping up.
+run_step 07d-store-check      0 "$PYTHON" scripts/check_snapshot_store.py --results-dir output --date "$RUNDATE"
 
 # ---------------------------------------------------------------------------
 # 8. Publish: rebuild pages-live as one fresh commit and force-push it
