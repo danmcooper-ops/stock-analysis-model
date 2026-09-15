@@ -515,6 +515,12 @@ def enrich(records, verbose=True, events=None):
             continue
         attach_enrichment(r, "xbrl", enrichment_block(applied=True))
         _compute_one(r, facts, xbrl)
+        # Drop the raw blob (7-27 MB as Python objects) now its gzipped copy
+        # is on disk. Holding one per filer OOM-killed this step at ~1,150
+        # of 2,471 tickers on the 2026-09-14 cloud run (rc=137), the same
+        # leak analyze_stock's Phase 1 fixed in db4e294b.
+        del facts
+        xbrl.release_facts(tk)
         for k in _NEW_FIELDS:
             if r.get(k) is not None:
                 counters[k] += 1
