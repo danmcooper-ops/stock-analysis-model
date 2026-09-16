@@ -1902,13 +1902,21 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-overview{display:grid;grid-template-columns:1fr;gap:18px;align-items:start;}
 .mac-overview .mac-tiles{margin:0;}
 @media(min-width:1001px){.mac-overview{grid-template-columns:minmax(0,1fr) 400px;}.mac-overview .mac-tiles{grid-template-columns:1fr 1fr;}}
-/* --- narrative: prose at a reading measure, no bullet lists --- */
+/* --- narrative: a lead sentence per section, evidence as bullets, at a reading measure --- */
 .mac-narrative{max-width:78ch;padding:22px 28px 18px;}
 .mac-nar-k{font-size:0.72em;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--mac-muted);margin:18px 0 4px;}
 .mac-nar-k:first-child{margin-top:0;}
-.mac-nar-p{font-size:1em;line-height:1.7;margin:0 0 6px;}
+.mac-nar-p{font-size:1em;line-height:1.7;margin:0 0 6px;font-weight:600;}
+.mac-nar-ul{margin:0 0 6px;padding-left:20px;list-style:disc;font-size:0.95em;line-height:1.6;}
+.mac-nar-ul li{margin:4px 0;}
+.mac-nar-ul li::marker{color:var(--mac-faint);}
 .mac-nar-wind{font-size:0.95em;line-height:1.65;margin:8px 0 0;color:var(--text);}
+.mac-nar-wind .mac-nar-ul{font-size:1em;margin-top:2px;}
 .mac-nar-wind b{font-weight:700;}
+.mac-nar-inf a,.mac-nar-neutral a{color:var(--mac-accent);font-weight:600;text-decoration:none;}
+.mac-nar-inf a:hover,.mac-nar-neutral a:hover{text-decoration:underline;}
+.mac-nar-neutral{font-size:0.95em;line-height:1.65;margin:8px 0 0;color:var(--mac-muted);}
+.mac-nar-neutral b{font-weight:700;}
 .mac-nar-wind.up b{color:var(--mac-up);}.mac-nar-wind.down b{color:var(--mac-down);}
 .mac-nar-foot{font-size:0.72em;color:var(--mac-faint);margin-top:16px;}
 /* --- glance tiles --- */
@@ -2616,7 +2624,11 @@ Object.keys(COUNTRY_ISO3).forEach(function(k){ISO_TO_COUNTRY[COUNTRY_ISO3[k]]=k;
 var _poolTab='__performance__';
 function showPoolTab(sec){_poolTab=sec||'__performance__';renderPool();window.scrollTo({top:0,behavior:'auto'});}
 function xsToggle(hdr){var c=hdr&&hdr.parentElement;if(c)c.classList.toggle('open');}
-var curView='pool',curTSub='prices';
+/* Landing view: the Macro Overview when this snapshot carries macro data —
+   top-down context first — otherwise Sector Analysis. The hash omits v only
+   for this default, so the two must stay one variable. */
+var _DEFAULT_VIEW=_MACRO_AVAILABLE?'macro':'pool';
+var curView=_DEFAULT_VIEW,curTSub='prices';
 var _detNav=[],_detIdx=-1;
 /* === FLAGS (localStorage) === */
 var _FLAG_KEY='stock_flags_v1';
@@ -2838,7 +2850,7 @@ function _stateToParam(){
   if(st.revFilter)p.rv=st.revFilter;
   if(st.rcFilter)p.rc=st.rcFilter;
   if(st.dashFilter)p.df=st.dashFilter;
-  if(curView!=='pool')p.v=curView;
+  if(curView!==_DEFAULT_VIEW)p.v=curView;
   if(curView==='matrix'&&curMSub&&curMSub!=='matrix')p.ms=curMSub;
   if(curView==='table'&&curTSub!=='prices')p.ts=curTSub;
   if(curView==='macro'&&curMacSub!=='overview')p.mo=curMacSub;
@@ -7647,23 +7659,47 @@ function _macStatusNote(){
   if(_MACRO_FAILED)return '<p class="mac-note">Macro history failed to load. <a href="#" style="color:var(--mac-accent)" onclick="return macroRetry()">Retry</a></p>';
   return '<p class="mac-note">Loading macro history…</p>';
 }
-/* Bullet clauses joined into one sentence: "a; b; and c." Clauses are
-   model output and already escaped by the caller. */
-function _macJoinClauses(items){
-  var xs=items.map(function(x){return String(x).replace(/[.\s]+$/,'');});
-  if(xs.length===1)return xs[0]+'.';
-  return xs.slice(0,-1).join('; ')+'; and '+xs[xs.length-1]+'.';
+/* Model paragraphs split into sentences so each can lead + bullet. Splits
+   on terminal punctuation followed by a capital or digit, so decimals
+   (4.96%) never split; a single-letter or common abbreviation before the
+   stop (U.S., vs., e.g.) keeps the sentence whole. */
+function _macSentences(text){
+  var t=String(text||'').replace(/\s+/g,' ').trim(),out=[],cur='';
+  var ABBR=/(?:\b[A-Za-z]|\bvs|\be\.g|\bi\.e|\betc|\bapprox|\bJan|\bFeb|\bMar|\bApr|\bJun|\bJul|\bAug|\bSep|\bSept|\bOct|\bNov|\bDec|\bNo)\.$/;
+  var re=/[.!?]["')”]?\s+(?=["(“]?[A-Z0-9$])/g,m,last=0;
+  while((m=re.exec(t))){
+    var piece=t.slice(last,m.index+m[0].length).trim();
+    cur+=(cur?' ':'')+piece;
+    last=m.index+m[0].length;
+    if(ABBR.test(piece.replace(/["')”]$/,'')))continue;
+    out.push(cur);cur='';
+  }
+  var tail=t.slice(last).trim();
+  if(tail)cur+=(cur?' ':'')+tail;
+  if(cur)out.push(cur);
+  return out;
+}
+/* Jump from the narrative's sector list to that sector's Sector Analysis
+   tab. Addressed by index into the narrative, so no model string is ever
+   written into an onclick attribute. */
+function _macGoSector(i){
+  var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
+  var row=nar&&(nar.sectors||[])[i];
+  if(row&&row.sector){navGo('pool',row.sector);window.scrollTo({top:0,behavior:'auto'});}
+  return false;
 }
 function _macNarrativeHTML(){
   /* Claude-written narrative from the builder (data/claude_narrative.py),
-     set as continuous prose: three kickered paragraphs, the tailwinds and
-     headwinds folded into one sentence each. The per-sector outlooks are
-     not here — each one renders on its own Sector Analysis tab, in the
-     Macro Outlook section above that sector's Headwinds & Tailwinds
-     (renderPoolMacroOutlook), where the sector is actually being read.
-     Rides on MACRO_SUM so it paints at first render; falls back to the
-     sidecar for older inline summaries. All strings pass through _esc() —
-     the text is model output, not repo-authored markup. */
+     set part paragraph, part bullets: each kickered section opens with its
+     lead sentence as a paragraph and lists the supporting evidence as
+     bullets underneath. The tailwinds and headwinds follow as two short
+     lists, then the key sector influences — every sector the narrative
+     calls a macro tailwind or headwind, with its one-line headline, linked
+     to that sector's own tab where the full outlook renders
+     (renderPoolMacroOutlook). Rides on MACRO_SUM so it paints at first
+     render; falls back to the sidecar for older inline summaries. All
+     strings pass through _esc() — the text is model output, not
+     repo-authored markup. */
   var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
   if(!nar||!(nar.paragraphs||[]).length)return '';
   var ps=nar.paragraphs||[];
@@ -7674,13 +7710,57 @@ function _macNarrativeHTML(){
   var h='<div class="mac-card mac-narrative">';
   ps.forEach(function(p,i){
     if(KICK[i])h+='<div class="mac-nar-k">'+KICK[i]+'</div>';
-    h+='<p class="mac-nar-p">'+_esc(p)+'</p>';
+    var ss=_macSentences(p);
+    if(!ss.length)return;
+    h+='<p class="mac-nar-p">'+_esc(ss[0])+'</p>';
+    if(ss.length>1){
+      h+='<ul class="mac-nar-ul">';
+      ss.slice(1).forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
+      h+='</ul>';
+    }
   });
-  var tw=(nar.tailwinds||[]).map(_esc),hw=(nar.headwinds||[]).map(_esc);
+  var tw=(nar.tailwinds||[]).filter(Boolean),hw=(nar.headwinds||[]).filter(Boolean);
   if(tw.length||hw.length){
     h+='<div class="mac-nar-k">The balance</div>';
-    if(tw.length)h+='<p class="mac-nar-wind up"><b>Working for the economy:</b> '+_macJoinClauses(tw)+'</p>';
-    if(hw.length)h+='<p class="mac-nar-wind down"><b>Working against it:</b> '+_macJoinClauses(hw)+'</p>';
+    if(tw.length){
+      h+='<div class="mac-nar-wind up"><b>Working for the economy</b><ul class="mac-nar-ul">';
+      tw.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
+      h+='</ul></div>';
+    }
+    if(hw.length){
+      h+='<div class="mac-nar-wind down"><b>Working against it</b><ul class="mac-nar-ul">';
+      hw.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
+      h+='</ul></div>';
+    }
+  }
+  /* Key sector influences: tailwinds, then headwinds, then the neutral
+     sectors folded into one line. Stance picks the group only through the
+     whitelist, never echoed from the model. */
+  var STANCE={tailwind:'up',headwind:'down'};
+  var grp={up:[],down:[],'':[]};
+  (nar.sectors||[]).forEach(function(row,i){
+    if(!row||!row.sector)return;
+    grp[STANCE[row.stance]||''].push({row:row,i:i});
+  });
+  if(grp.up.length||grp.down.length){
+    h+='<div class="mac-nar-k">Key sector influences</div>';
+    var secList=function(items,cls,label){
+      if(!items.length)return '';
+      var o='<div class="mac-nar-wind '+cls+'"><b>'+label+'</b><ul class="mac-nar-ul mac-nar-inf">';
+      items.forEach(function(it){
+        var row=it.row;
+        o+='<li><a href="#" onclick="return _macGoSector('+it.i+')">'+_esc(row.sector)+'</a>'
+          +(row.headline?' — '+_esc(row.headline):'')+'</li>';
+      });
+      return o+'</ul></div>';
+    };
+    h+=secList(grp.up,'up','▲ Macro tailwind');
+    h+=secList(grp.down,'down','▼ Macro headwind');
+    if(grp[''].length){
+      h+='<p class="mac-nar-neutral"><b>Neutral:</b> '+grp[''].map(function(it){
+        return '<a href="#" onclick="return _macGoSector('+it.i+')">'+_esc(it.row.sector)+'</a>';
+      }).join(', ')+'</p>';
+    }
   }
   h+='<div class="mac-nar-foot">Written by Claude ('+_esc(nar.model||'')+') from the indicator data · '
     +_esc(nar.generated_at?String(nar.generated_at).slice(0,10):'')+'</div></div>';
@@ -9749,6 +9829,9 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   var _fs=document.getElementById('f-search');
   _fs.addEventListener('compositionstart',function(){_imeComposing=true;});
   _fs.addEventListener('compositionend',function(){_imeComposing=false;onSearchInput();});
+  /* #view-pool ships as the active view in the markup; hand the class to
+     the default view before the first render. */
+  document.querySelectorAll('.view').forEach(function(el){el.classList.toggle('active',el.id==='view-'+curView);});
   moveFilterBar(curView);
   /* A #s= hash (shared link) restores its filters + view and runs
      applyFilters itself; otherwise do the normal initial pass. */

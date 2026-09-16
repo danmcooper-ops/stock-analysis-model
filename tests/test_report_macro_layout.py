@@ -153,7 +153,8 @@ def test_macro_narrative_escapes_every_model_string():
     # every read of a narrative field that lands in HTML is wrapped in _esc(
     for field in ('row.headline', 'row.outlook', 'nar.model'):
         for at in [m.start() for m in re.finditer(re.escape(field), body)]:
-            if body[at - 1] == '!':
+            if body[at - 1] in '!(' and \
+                    body[at + len(field)] in '?)&|':
                 continue  # a truthiness guard, not an interpolation
             prefix = body[max(0, at - 6):at]
             assert '_esc(' in prefix, \
@@ -206,26 +207,71 @@ def test_macro_narrative_sector_rows_carry_metric_figs():
         'the macro tokens need a dark-mode redefinition'
 
 
-def test_macro_narrative_is_prose_not_lists():
-    """The narrative reads top to bottom as a story: kickered paragraphs at
-    a book measure, the tailwinds and headwinds folded into one sentence
-    each, and the sector outlooks grouped by stance (through the same
-    whitelist that picks their class) rather than laid out as a grid of
-    rows with bullet lists beside it."""
+def test_macro_narrative_is_lead_paragraphs_with_bullets():
+    """The narrative reads part paragraph, part list: each kickered section
+    opens with its lead sentence as a paragraph and lists the supporting
+    sentences as bullets, and the tailwinds and headwinds are short lists.
+    The split is done client-side from the model's paragraphs, so cached
+    narratives render the same way."""
     css = _css()
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
     assert nar, 'could not find _macNarrativeHTML'
     nar = nar.group(0)
-    assert '<ul' not in nar and '<li' not in nar, \
-        'tailwinds/headwinds are sentences now, not bullet lists'
-    assert '_macJoinClauses(tw)' in nar and '_macJoinClauses(hw)' in nar
-    assert 's.outlook' not in nar, \
-        'the sector outlooks are their own section, not part of the story'
+    assert '_macSentences(p)' in nar
+    assert '<p class="mac-nar-p">\'+_esc(ss[0])' in nar, \
+        'the lead sentence is the paragraph'
+    assert "ss.slice(1).forEach" in nar and 'mac-nar-ul' in nar, \
+        'the rest of the section renders as bullets'
+    assert 's.outlook' not in nar and 'row.outlook' not in nar, \
+        'the full sector outlooks live on their own sector tabs'
     assert re.search(r'\.mac-narrative\{[^}]*max-width:\d+ch', css), \
         'prose needs a reading measure'
     assert re.search(r'\.mac-nar-p\{[^}]*line-height:1\.[6-9]', css), \
         'paragraphs need a generous leading'
     assert '.mac-nar-cols' not in css, 'the two-column bullet grid is gone'
+
+
+def test_macro_sentence_split_keeps_decimals_and_abbreviations():
+    """The splitter must never break a sentence on a decimal (4.96%) or on
+    an abbreviation (U.S., vs.) — pin the guards in the regexes."""
+    fn = re.search(r'function _macSentences\(text\)\{.*?\n\}\n', _css(), re.S)
+    assert fn, 'could not find _macSentences'
+    fn = fn.group(0)
+    assert r'\s+(?=' in fn, 'a split needs whitespace after the stop'
+    assert r'\bvs' in fn and r'\b[A-Za-z]' in fn
+
+
+def test_macro_narrative_lists_key_sector_influences():
+    """The Overview narrative ends with the sectors the macro backdrop is
+    helping or hurting, grouped by stance through the whitelist and linked
+    by index (never by a model string in an attribute) to each sector's own
+    tab, where the full outlook renders."""
+    css = _css()
+    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
+    assert nar, 'could not find _macNarrativeHTML'
+    nar = nar.group(0)
+    assert 'Key sector influences' in nar
+    assert "STANCE={tailwind:'up',headwind:'down'}" in nar
+    assert "grp[STANCE[row.stance]||'']" in nar
+    assert '_macGoSector(\'+it.i+\')' in nar, 'links address sectors by index'
+    assert '_esc(row.sector)' in nar and '_esc(row.headline)' in nar
+    go = re.search(r'function _macGoSector\(i\)\{.*?\n\}\n', css, re.S)
+    assert go and "navGo('pool',row.sector)" in go.group(0)
+
+
+def test_macro_overview_is_the_landing_view():
+    """The report opens on the Macro Overview when the snapshot has macro
+    data, and on Sector Analysis otherwise. The hash omits `v` only for the
+    default view, so both must read the same variable."""
+    css = _css()
+    assert "var _DEFAULT_VIEW=_MACRO_AVAILABLE?'macro':'pool';" in css
+    assert 'var curView=_DEFAULT_VIEW,' in css
+    assert 'if(curView!==_DEFAULT_VIEW)p.v=curView;' in css
+    assert "if(curView!=='pool')p.v=curView;" not in css
+    # the markup ships #view-pool active; init hands the class over
+    init = css[css.rindex('moveFilterBar(curView);') - 300:
+               css.rindex('moveFilterBar(curView);')]
+    assert "classList.toggle('active',el.id==='view-'+curView)" in init
 
 
 def test_sector_outlooks_live_on_their_sector_tab():
