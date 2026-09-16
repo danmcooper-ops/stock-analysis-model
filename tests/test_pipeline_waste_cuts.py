@@ -106,3 +106,48 @@ def test_forget_and_corrupt_file(tmp_path):
     assert c.skip_reason('GONE', 0) is None
     (tmp_path / 'skip.json').write_text('{not json', encoding='utf-8')
     assert len(_cache(tmp_path)) == 0
+
+
+# --- Staged across cloud runs (scheduled-tasks/cloud-daily-stock-analysis) ---
+# The cache is committed to the data/snapshots branch AFTER the analysis, so a
+# staged copy is always at least a day old by the time the next run reads it.
+
+def test_staged_cache_still_skips_when_a_day_or_more_stale(tmp_path):
+    c = _cache(tmp_path)
+    c.record_mcap('TINY', 20e6)
+    c.record_dead('GONE')
+    c.save()
+    # A normal night (staged from yesterday) and a few missed nights.
+    for lag in (1, 2, 5):
+        nxt = _cache(tmp_path, D0 + timedelta(days=lag))
+        assert nxt.skip_reason('TINY', 300e6), f"mcap entry lost at lag {lag}"
+        assert nxt.skip_reason('GONE', 300e6), f"dead entry lost at lag {lag}"
+
+
+def test_future_dated_entries_are_refetched_not_skipped(tmp_path):
+    """A --run-date re-run of a past session stages a NEWER cache.
+
+    Those entries describe a day that hasn't happened yet for this run, so
+    they must not screen anything out: _age_ok's `0 <= days` rejects them.
+    """
+    c = _cache(tmp_path)
+    c.record_mcap('TINY', 1e6)
+    c.record_dead('GONE')
+    c.save()
+    past = _cache(tmp_path, D0 - timedelta(days=3))
+    assert past.skip_reason('TINY', 300e6) is None
+    assert past.skip_reason('GONE', 300e6) is None
+
+
+def test_save_is_idempotent_while_not_dirty(tmp_path):
+    """The periodic in-loop flush must not rewrite the file every 500 tickers."""
+    c = _cache(tmp_path)
+    c.record_mcap('TINY', 1e6)
+    c.save()
+    path = tmp_path / 'skip.json'
+    before = path.stat().st_mtime_ns
+    c.save()   # nothing recorded since — must be a no-op
+    assert path.stat().st_mtime_ns == before
+    c.record_dead('GONE')
+    c.save()
+    assert 'GONE' in path.read_text(encoding='utf-8')
