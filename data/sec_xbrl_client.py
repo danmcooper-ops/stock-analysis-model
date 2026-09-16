@@ -71,6 +71,29 @@ from data.fx_client import (  # noqa: F401
 )
 
 
+
+# The series years_available spans (the list points_available always used).
+_YEARS_AVAILABLE_KEYS = ('revenue_history', 'earnings_history', 'operating_cf_history',
+                         'capex_history', 'gross_profit_history',
+                         'interest_expense_history', 'dividends_paid_history',
+                         'shares_history', 'operating_income_history',
+                         'total_debt_history', 'cash_history')
+
+
+def edgar_years_available(hist):
+    """Distinct fiscal years spanned by the longest EDGAR history series.
+
+    Keys may be ints or strings ('2024', or a period end '2024-12-31'); only
+    the year part counts, so shares_history's quarterly period-ends can never
+    read as more years than they span. Deliberately not revenue-only: on the
+    2026-09-15 snapshot that would newly cap 129 rows as thin, SAN (1 revenue
+    year, 12 of everything else) and PBR-A (2 vs 10) among them, against 50.
+    """
+    if not hist:
+        return 0
+    return max((len({str(k)[:4] for k in (hist.get(key) or {})})
+                for key in _YEARS_AVAILABLE_KEYS), default=0)
+
 class SECXBRLClient:
     """Fetch and interpret XBRL Company Facts from SEC EDGAR."""
 
@@ -1921,12 +1944,22 @@ class SECXBRLClient:
         if not debt_tagged and not debt_h:
             debt_h = {y: 0.0 for y in (rev or ni)}
 
-        # Unchanged on purpose: years_available gates backfill refetch and
-        # model eligibility upstream, so the statement-tab series must not
-        # be able to inflate it.
+        # points_available is the old measure (longest series, in points). It
+        # counted shares_history's quarterly period-ends as years (UTHR read
+        # 66 over 18 real years; a one-year-old filer read 5 and escaped the
+        # thin-history HOLD cap), so years_available now counts fiscal years
+        # (see edgar_years_available). The statement-tab series must not be
+        # able to inflate either.
         all_series = [rev, ni, ocf, capex, gp, intexp, div, shares, opinc,
                       debt_h, cash_h]
-        years_available = max((len(s) for s in all_series if s), default=0)
+        points_available = max((len(s) for s in all_series if s), default=0)
+        years_available = edgar_years_available(
+            {'revenue_history': rev, 'earnings_history': ni,
+             'operating_cf_history': ocf, 'capex_history': capex,
+             'gross_profit_history': gp, 'interest_expense_history': intexp,
+             'dividends_paid_history': div, 'shares_history': shares,
+             'operating_income_history': opinc, 'total_debt_history': debt_h,
+             'cash_history': cash_h})
 
         hist = {
             'revenue_history':          rev,
@@ -1987,6 +2020,7 @@ class SECXBRLClient:
             'net_change_cash_history':  chgcash_h,
             'fx_effect_cash_history':   fxeff_h,
             'years_available':          years_available,
+            'points_available':         points_available,
             'reporting_currency':       reporting_ccy,
             'fx_converted':             fx_converted,
         }

@@ -479,3 +479,39 @@ class TestFallbackTags:
         h = c.fetch_historical_financials('TEST')
         assert h['sbc_cf_history'] == {2023: 4e6}
         assert h['capex_history'] == {}
+
+
+class TestYearsAvailable:
+    """years_available counts fiscal years; points_available keeps the old
+    longest-series point count."""
+
+    def test_quarterly_share_points_do_not_count_as_years(self, monkeypatch):
+        from data.sec_xbrl_client import SECXBRLClient
+        c = SECXBRLClient(cik_map={}, name_map={}, email='t@e.com', request_delay=0)
+        rev = [{'form': '10-K', 'fy': y, 'fp': 'FY', 'val': 1e9, 'filed': f'{y + 1}-02-15',
+                'start': f'{y}-01-01', 'end': f'{y}-12-31'} for y in (2023, 2024, 2025)]
+        shares = [{'form': '10-Q' if q < 4 else '10-K', 'fy': y, 'fp': f'Q{q}' if q < 4 else 'FY',
+                   'val': 1e8, 'filed': f'{y}-{3 * q:02d}-28', 'end': f'{y}-{3 * q:02d}-28'}
+                  for y in (2023, 2024, 2025) for q in (1, 2, 3, 4)]
+        facts = {'facts': {'us-gaap': {'Revenues': {'units': {'USD': rev}}},
+                           'dei': {'EntityCommonStockSharesOutstanding': {'units': {'shares': shares}}}}}
+        monkeypatch.setattr(c, 'fetch_company_facts', lambda tk: facts)
+        h = c.fetch_historical_financials('TEST')
+        assert len(h['shares_history']) == 12
+        assert h['years_available'] == 3
+        assert h['points_available'] == 12
+
+    def test_helper(self):
+        from data.sec_xbrl_client import edgar_years_available
+        assert edgar_years_available(None) == 0
+        assert edgar_years_available({}) == 0
+        assert edgar_years_available({'revenue_history': {'2023': 1, '2024': 2}}) == 2
+        assert edgar_years_available({'revenue_history': {2023: 1, 2024: 2, 2025: 3}}) == 3
+        # longest series by distinct year, not revenue alone; quarterly points
+        # collapse to their years
+        assert edgar_years_available({'revenue_history': {'2021': 1},
+                                      'earnings_history': {2020: 1, 2021: 1},
+                                      'operating_cf_history': {'2019': 1, '2020': 1, '2021': 1},
+                                      'shares_history': {f'2025-{m:02d}-28': 1 for m in range(1, 13)}}) == 3
+        assert edgar_years_available({'shares_history': {
+            f'{y}-{m:02d}-28': 1 for y in (2024, 2025) for m in (3, 6, 9, 12)}}) == 2
