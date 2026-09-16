@@ -367,14 +367,27 @@ def compute_dupont(financials):
 # ---------------------------------------------------------------------------
 
 
+# How many columns back calculate_fundamental_growth may look for a year with
+# operating income, capex and D&A all present.
+FUNDAMENTAL_GROWTH_MAX_LOOKBACK = 2
+
+
 def calculate_fundamental_growth(financials, roic_override=None):
     """Fundamental growth rate = Reinvestment Rate × ROIC.
 
     Reinvestment Rate = (Capex - D&A + ΔWorkingCapital) / NOPAT
     NOPAT = Operating Income × (1 - tax_rate)
 
-    Returns dict with 'fundamental_growth', 'reinvestment_rate', 'roic_used'
-    or empty dict on insufficient data.
+    Uses the newest statement column where operating income, capex and D&A
+    are all present, looking back at most FUNDAMENTAL_GROWTH_MAX_LOOKBACK
+    columns: a filer's latest 10-K often tags capex or D&A under an element
+    we don't read (HRMY, GNE, VC, AN, ...) while the prior year has it. A
+    latest year with an operating loss still returns {} — the lookback only
+    skips missing data, never a bad year.
+
+    Returns dict with 'fundamental_growth', 'reinvestment_rate', 'roic_used',
+    'growth_basis_year' (the column label used) or empty dict on
+    insufficient data.
     """
     inc = financials.get('income_statement')
     cf = financials.get('cash_flow')
@@ -382,8 +395,24 @@ def calculate_fundamental_growth(financials, roic_override=None):
     if inc is None or inc.empty or cf is None or cf.empty:
         return {}
 
-    latest_inc = inc.iloc[:, 0]
-    latest_cf = cf.iloc[:, 0]
+    j = None
+    latest_opinc_seen = False
+    for col in range(min(inc.shape[1], cf.shape[1], FUNDAMENTAL_GROWTH_MAX_LOOKBACK + 1)):
+        op = _get(inc.iloc[:, col], OPERATING_INCOME_KEYS)
+        if op is not None and not latest_opinc_seen:
+            latest_opinc_seen = True
+            if op <= 0:
+                return {}
+        if (op is not None
+                and _get(cf.iloc[:, col], ['Capital Expenditure', 'Capital Expenditures']) is not None
+                and _get(cf.iloc[:, col], DA_KEYS) is not None):
+            j = col
+            break
+    if j is None:
+        return {}
+
+    latest_inc = inc.iloc[:, j]
+    latest_cf = cf.iloc[:, j]
 
     operating_income = _get(latest_inc, OPERATING_INCOME_KEYS)
     if not operating_income or operating_income <= 0:
@@ -394,18 +423,14 @@ def calculate_fundamental_growth(financials, roic_override=None):
     if nopat <= 0:
         return {}
 
-    capex = _get(latest_cf, ['Capital Expenditure', 'Capital Expenditures'])
-    da = _get(latest_cf, DA_KEYS)
-    if capex is None or da is None:
-        return {}
-    capex = abs(capex)
-    da = abs(da)
+    capex = abs(_get(latest_cf, ['Capital Expenditure', 'Capital Expenditures']))
+    da = abs(_get(latest_cf, DA_KEYS))
 
-    # Delta working capital (need 2 years of balance sheet)
+    # Delta working capital (need the basis year and the one before it)
     delta_wc = 0
-    if bs is not None and not bs.empty and bs.shape[1] >= 2:
-        curr_bs = bs.iloc[:, 0]
-        prev_bs = bs.iloc[:, 1]
+    if bs is not None and not bs.empty and bs.shape[1] >= j + 2:
+        curr_bs = bs.iloc[:, j]
+        prev_bs = bs.iloc[:, j + 1]
         ca_curr = _get(curr_bs, CURRENT_ASSETS_KEYS) or 0
         cl_curr = _get(curr_bs, CURRENT_LIABILITIES_KEYS) or 0
         ca_prev = _get(prev_bs, CURRENT_ASSETS_KEYS) or 0
@@ -431,7 +456,20 @@ def calculate_fundamental_growth(financials, roic_override=None):
         'fundamental_growth': fundamental_growth,
         'reinvestment_rate': reinvestment_rate,
         'roic_used': roic_val,
+        'growth_basis_year': _column_year(inc.columns[j]),
     }
+
+
+def _column_year(label):
+    """Fiscal year of a statement column label (Timestamp, date string or
+    int); the raw label when no year can be read."""
+    year = getattr(label, 'year', None)
+    if isinstance(year, int):
+        return year
+    try:
+        return int(str(label)[:4])
+    except ValueError:
+        return label
 
 
 def through_cycle_tax_rate(income_statement, years=3, default=0.21,

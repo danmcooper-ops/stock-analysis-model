@@ -82,7 +82,7 @@ from data.snapshot_store import (SnapshotStore, prior_snapshot_file, read_snapsh
 from data.culture_client import CultureClient
 
 from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
-                            PHASE1_LOCAL_PRICE_MAX_AGE_DAYS,
+                            PHASE1_LOCAL_PRICE_MAX_AGE_DAYS, SEC_CIK_PREDECESSORS,
                             RIM_SPREAD_PERSISTENCE, RIM_MAX_BOOK_GROWTH,
                             GROWTH_WEIGHT_FCF, GROWTH_WEIGHT_REV,
                             GROWTH_WEIGHT_ANALYST_ST, GROWTH_WEIGHT_ANALYST_LT,
@@ -1784,6 +1784,7 @@ def _ensure_fundamental_growth(growth_diag, yf_data, roic_data):
     out = dict(growth_diag)
     out['fundamental_growth'] = fund_result['fundamental_growth']
     out['reinvestment_rate'] = fund_result.get('reinvestment_rate')
+    out['fundamental_growth_basis_year'] = fund_result.get('growth_basis_year')
     return out
 
 
@@ -2144,6 +2145,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
         'surprise_avg': surprise_avg,
         'fundamental_growth': fundamental_g,
         'reinvestment_rate': fund_result.get('reinvestment_rate'),
+        'fundamental_growth_basis_year': fund_result.get('growth_basis_year'),
         'exit_mult_fv': exit_mult_fv,
         'tv_method_spread': tv_method_spread,
         'mc_result': mc_result,
@@ -2816,6 +2818,7 @@ def _run_build_clients(run_start_date):
         email=_sec_email(),
         throttle=sec_throttle,
         facts_cache=True,
+        cik_predecessors=SEC_CIK_PREDECESSORS,
     )
     # Evict the cached companyfacts of filers who have filed since the last
     # run, so this run re-downloads those and only those. Fails soft: without
@@ -4170,6 +4173,7 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'surprise_avg': growth_diag.get('surprise_avg'),
                 'fundamental_growth': growth_diag.get('fundamental_growth'),
                 'reinvestment_rate': growth_diag.get('reinvestment_rate'),
+                'fundamental_growth_basis_year': growth_diag.get('fundamental_growth_basis_year'),
                 'terminal_growth': _get_sector_config(sector)['terminal_growth'],
                 'exit_mult_fv': growth_diag.get('exit_mult_fv'),
                 'tv_method_spread': growth_diag.get('tv_method_spread'),

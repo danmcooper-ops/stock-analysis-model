@@ -208,6 +208,19 @@ SECTOR_DEFAULT = {
 }
 
 
+# SEC ticker map overrides for a ticker that moved to a new registrant with no
+# companyfacts history yet: {successor CIK: predecessor CIK}. SEC's
+# company_tickers.json maps XOM to CIK 2115436 "ExxonMobil Holdings Corp", a
+# 2026 holding company whose companyfacts carry no revenue; the 60+ years live
+# under Exxon Mobil Corp (CIK 34088), so XOM ran yfinance-only from at least
+# 2026-08-28. SECXBRLClient reads the predecessor only while the successor has
+# fewer than 2 fiscal years of revenue, so the override retires itself. Only
+# for a clean corporate reorganisation — carve-outs and new companies (HONA,
+# PS, BOBS, JMKE) have no predecessor to borrow.
+SEC_CIK_PREDECESSORS = {
+    '0002115436': '0000034088',   # XOM: ExxonMobil Holdings Corp <- Exxon Mobil Corp
+}
+
 # Phase-2 network prefetch threads (analyze_stock --workers). All SEC clients
 # share one throttle, so this raises throughput without exceeding EDGAR's
 # rate limit; the model math stays single-threaded.

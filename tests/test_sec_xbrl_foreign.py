@@ -362,3 +362,77 @@ class TestCompanyFactsNotFound:
         assert c.fetch_company_facts('TEST') is None
         assert c.fetch_company_facts('TEST') is None
         assert len(calls) == 2
+
+
+class TestPredecessorCik:
+    """XOM: SEC maps the ticker to a 2026 holding-company registrant with no
+    history; the predecessor's facts stand in until the successor has 2 years."""
+
+    SUCC, PRED = '0002115436', '0000034088'
+
+    def _client(self, monkeypatch, blobs, facts_cache=None):
+        c = SECXBRLClient(cik_map={'XOM': self.SUCC}, name_map={}, email='t@e.com',
+                          request_delay=0, facts_cache=facts_cache,
+                          cik_predecessors={self.SUCC: self.PRED})
+        calls = []
+
+        def fake_request(url, timeout=20, absent_codes=()):
+            calls.append(url)
+            for cik, blob in blobs.items():
+                if f'CIK{cik}' in url:
+                    return blob
+            raise AssertionError(url)
+
+        monkeypatch.setattr(c, '_request_json', fake_request)
+        return c, calls
+
+    def test_thin_successor_uses_predecessor(self, monkeypatch):
+        thin = {'cik': 2115436, 'facts': {'dei': {}}}
+        full = _us_gaap_revenue_facts({2023: 344e9, 2024: 339e9, 2025: 320e9})
+        c, calls = self._client(monkeypatch, {self.SUCC: thin, self.PRED: full})
+        facts = c.fetch_company_facts('XOM')
+        assert facts['_predecessor_cik'] == self.PRED
+        assert 'Revenues' in facts['facts']['us-gaap']
+        assert '_predecessor_cik' not in full          # the source blob is not mutated
+        h = c.fetch_historical_financials('XOM')
+        assert h['predecessor_cik'] == self.PRED
+        assert h['revenue_history'] == {2023: 344e9, 2024: 339e9, 2025: 320e9}
+        assert len(calls) == 2                          # second read is a memory hit
+
+    def test_one_year_successor_is_still_thin(self, monkeypatch):
+        succ = _us_gaap_revenue_facts({2026: 80e9})
+        full = _us_gaap_revenue_facts({2024: 339e9, 2025: 320e9})
+        c, _ = self._client(monkeypatch, {self.SUCC: succ, self.PRED: full})
+        assert c.fetch_company_facts('XOM')['_predecessor_cik'] == self.PRED
+
+    def test_full_successor_is_preferred(self, monkeypatch):
+        succ = _us_gaap_revenue_facts({2025: 320e9, 2026: 330e9})
+        c, calls = self._client(monkeypatch, {self.SUCC: succ, self.PRED: {}})
+        facts = c.fetch_company_facts('XOM')
+        assert facts is succ and '_predecessor_cik' not in facts
+        assert len(calls) == 1
+        assert 'predecessor_cik' not in c.fetch_historical_financials('XOM')
+
+    def test_successor_404_uses_predecessor(self, monkeypatch):
+        full = _us_gaap_revenue_facts({2024: 339e9, 2025: 320e9})
+        c, _ = self._client(monkeypatch, {self.SUCC: xbrl_mod.ABSENT, self.PRED: full})
+        assert c.fetch_company_facts('XOM')['_predecessor_cik'] == self.PRED
+
+    def test_disk_cache_keeps_each_cik_untagged(self, monkeypatch, tmp_path):
+        thin = {'facts': {}}
+        full = _us_gaap_revenue_facts({2024: 339e9, 2025: 320e9})
+        c, _ = self._client(monkeypatch, {self.SUCC: thin, self.PRED: full},
+                            facts_cache=str(tmp_path))
+        assert c.fetch_company_facts('XOM')['_predecessor_cik'] == self.PRED
+        assert '_predecessor_cik' not in c._facts_cache.get(self.PRED)
+        assert c._facts_cache.get(self.SUCC) == thin
+
+    def test_no_override_leaves_thin_successor(self, monkeypatch):
+        thin = {'facts': {}}
+        c, calls = self._client(monkeypatch, {self.SUCC: thin})
+        c._cik_predecessors = {}
+        assert c.fetch_company_facts('XOM') is thin and len(calls) == 1
+
+    def test_config_maps_xom(self):
+        from scripts.config import SEC_CIK_PREDECESSORS
+        assert SEC_CIK_PREDECESSORS[self.SUCC] == self.PRED

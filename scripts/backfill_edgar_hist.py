@@ -25,6 +25,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data.sec_xbrl_client import SECXBRLClient, _SSL_CTX
+from scripts.config import SEC_CIK_PREDECESSORS
 from data.snapshot_store import (list_snapshot_files, read_snapshot,
                                  snapshot_date_from_path, write_snapshot_file)
 
@@ -130,7 +131,8 @@ def main():
 
     cik_map, name_map = _fetch_cik_map()
     client = SECXBRLClient(cik_map, name_map, email=EMAIL,
-                           request_delay=REQUEST_DELAY, facts_cache=True)
+                           request_delay=REQUEST_DELAY, facts_cache=True,
+                           cik_predecessors=SEC_CIK_PREDECESSORS)
     client.refresh_stale_facts()
 
     ok = err = skip = 0
