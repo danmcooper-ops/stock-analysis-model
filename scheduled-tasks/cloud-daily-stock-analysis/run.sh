@@ -4,8 +4,9 @@
 # The end-of-day stock analysis, packaged for a STATELESS container: a Claude
 # Code cloud Routine fires a fresh session each weekday, that session runs this
 # script, and the only state that survives between runs is what lives on
-# GitHub — the `data/snapshots` archive (every day's results, gzipped) and the
-# single-commit `pages-live` branch the report is served from.
+# GitHub — the `data/snapshots` archive (every day's results gzipped, plus the
+# rating-history and Phase-1 screen-skip caches) and the single-commit
+# `pages-live` branch the report is served from.
 #
 # It is the cloud counterpart of ../daily-stock-analysis/SKILL.md (the Mac
 # runbook, which assumed a persistent checkout, a venv, a price cache and
@@ -250,6 +251,19 @@ print(f"rating history rebuilt over {len(older) + len(staged)} snapshots, "
 PY
     [ $? -eq 0 ] || return 1
   fi
+  # The Phase-1 screen skip list. data/cache/ is gitignored, so it dies with
+  # the container: without staging it, every night re-fetches the ~4.5k
+  # tickers the last run already proved are far below the mcap floor or dead.
+  # Measured: a cold screen takes ~4h15m, a warm one ~2h54m.
+  if git -C "$SNAP" cat-file -e HEAD:screen_skip.json 2>/dev/null; then
+    mkdir -p "$REPO/data/cache" || return 1
+    git -C "$SNAP" show HEAD:screen_skip.json > "$REPO/data/cache/screen_skip.json" || return 1
+    echo "staged screen_skip.json ($(wc -c < "$REPO/data/cache/screen_skip.json") bytes)"
+  else
+    # First run, or the cache was dropped. Not an error: tonight's screen runs
+    # cold and rebuilds it for tomorrow.
+    echo "no screen_skip.json in the archive — tonight's screen starts cold"
+  fi
 }
 run_step 02-stage-snapshots 1 stage_snapshots || exit 1
 
@@ -327,7 +341,8 @@ run_step 05f-rerender 1 "$PYTHON" scripts/rescore_and_render.py "$RESULTS"
 if [ "$FAILED" = 1 ]; then echo "RESULT FAILED at rerender" >> "$STATUS"; exit 1; fi
 
 # ---------------------------------------------------------------------------
-# 6. Archive today's snapshot (+ the rating-history cache) to data/snapshots
+# 6. Archive today's snapshot (+ the rating-history and screen-skip caches)
+#    to data/snapshots
 # ---------------------------------------------------------------------------
 archive_snapshot() {
   local paths="$WORK/archive-paths.txt" oids="$WORK/archive-oids.txt"
@@ -339,6 +354,13 @@ archive_snapshot() {
     *) echo "archive failed (rc=$rc) — not pushed"; return 1 ;;
   esac
   cp "$REPO/output/rating_history.json" "$SNAP/rating_history.json" 2>/dev/null
+  # Write the screen skip list back for tomorrow. Guarded on size and SMOKE:
+  # a smoke run screens a handful of tickers and would otherwise replace
+  # ~4.5k learned rejections with a near-empty file.
+  if [ "$SMOKE" != 1 ] && \
+     [ "$(wc -c < "$REPO/data/cache/screen_skip.json" 2>/dev/null || echo 0)" -gt 10000 ]; then
+    cp "$REPO/data/cache/screen_skip.json" "$SNAP/screen_skip.json"
+  fi
   # Re-render already refreshed hist.json/rating_history.json for today; the
   # cache's last_scanned is the newest PRIOR day, so tomorrow's run only
   # parses today's file on top of it.
@@ -355,7 +377,7 @@ archive_snapshot() {
   # become new objects.
   local tree commit
   : > "$paths"
-  for f in "results_$RUNDATE.json.gz" rating_history.json; do
+  for f in "results_$RUNDATE.json.gz" rating_history.json screen_skip.json; do
     [ -s "$SNAP/$f" ] && echo "$f" >> "$paths"
   done
   cat "$WORK/archive-blobs.txt" >> "$paths" || return 1

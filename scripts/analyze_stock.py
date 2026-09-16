@@ -3118,6 +3118,14 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             # qualifying ticker's raw yfinance dict was the bulk of the
             # ~4 MB it otherwise held until the sweep.
             yf_client.evict_ticker(ticker)
+            # Checkpoint the skip cache periodically. Saving only after the
+            # loop (below) loses the whole night's learning when a run is
+            # killed mid-phase, as the 2026-09-11 container restarts were —
+            # RunCheckpoint had the screen-outs, this had nothing. save() is a
+            # no-op while not dirty and atomic via os.replace, so the cost is
+            # one ~260 KB dump per 500 tickers.
+            if _skip_cache is not None and i % 500 == 0:
+                _skip_cache.save()
         # Flush after every ticker so the log reflects progress if OOM-killed
         sys.stdout.flush()
 

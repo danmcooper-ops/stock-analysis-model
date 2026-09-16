@@ -96,6 +96,17 @@ ruff check .
   `SEC_FACTS_CACHE_MAX_AGE_DAYS`, default 30) is only a backstop for when the
   sweep cannot run; entries past it are pruned. Requests send
   `Accept-Encoding: gzip`, which urllib omits by default.
+- **Phase-1 screen skip cache (`data/screen_skip_cache.py`):** remembers the
+  ~4.5k tickers a run rejected as far below `--mcap-min` or dead, with a
+  staggered 7-14 / 14-28 day TTL, so the next screen skips them without a
+  fetch. It is what makes the screen ~2h54m instead of ~4h15m. `data/cache/` is
+  gitignored and the cloud container is stateless, so the cloud routine stages
+  `screen_skip.json` from the `data/snapshots` branch and commits it back with
+  the snapshot (same mechanism as `rating_history.json`); the write-back is
+  guarded on size and `SMOKE` so a smoke run cannot clobber it. The run flushes
+  it every 500 tickers, not just at the end, so a container restart mid-phase
+  keeps the night's learning. `--no-screen-cache` bypasses it, and
+  carry-forward tickers are never skipped.
 - **Snapshot archive:** `output/results_<date>.json` is the canonical run
   artifact. Locally only the newest 5 stay plain JSON: the last `run_daily.sh`
   step (and the weekly job, as a backstop) runs `scripts/compact_output.py`,
