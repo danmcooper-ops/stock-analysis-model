@@ -2851,6 +2851,46 @@ def _load_carry_forward_rows(prior_date, prior_path):
     return prior.get('results', prior) if isinstance(prior, dict) else prior
 
 
+def lost_sec_tickers(prior_rows, cik_map):
+    """Tickers that had SEC XBRL data in *prior_rows* but are no longer in
+    SEC's ticker map (e.g. LEG on 2026-09-09, XOM's successor-CIK swap).
+    Without the map entry the run silently degrades them to yfinance-only.
+    An empty/None map means the map load failed, so nothing is reported."""
+    if not cik_map:
+        return []
+    return sorted({r['ticker'] for r in prior_rows
+                   if isinstance(r, dict) and r.get('ticker')
+                   and str(r.get('data_source') or '').startswith('sec_xbrl')
+                   and r['ticker'] not in cik_map})
+
+
+def _check_lost_sec_tickers(run_date, cik_map, results_dir='output'):
+    """Warn for every prior-snapshot SEC ticker missing from *cik_map*.
+    Informational: any failure logs and returns []."""
+    try:
+        prior = prior_snapshot_file(results_dir, run_date)
+        if not prior or not cik_map:
+            return []
+        prior_date, prior_path = prior
+        rows = None
+        store = SnapshotStore.for_results_dir(os.path.dirname(prior_path) or results_dir)
+        if store is not None:
+            with store:
+                if store.has_date(prior_date):
+                    rows = store.rows(prior_date, ['ticker', 'data_source'])
+        if rows is None:
+            data = read_snapshot(prior_path)
+            rows = data.get('results', data) if isinstance(data, dict) else data
+        lost = lost_sec_tickers(rows, cik_map)
+    except Exception as e:
+        logger.warning('lost-SEC check failed (%s); skipping', e)
+        return []
+    for tk in lost:
+        logger.warning('%s: dropped from SEC ticker map (had SEC data on %s)',
+                       tk, prior_date)
+    return lost
+
+
 def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                        tiingo_client, sec_xbrl_client, risk_free_rate,
                        effective_erp, checkpoint=None, prices_dir=None):
@@ -2926,7 +2966,8 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     # the queue drains, hours have passed and the outage has cleared.
     # Neither client caches these failures (EmptyYahooResponseError is
     # raised before the yfinance cache write; the SEC client deliberately
-    # skips caching request failures), so the retry re-fetches for real.
+    # skips caching request failures other than a permanent 404), so the
+    # retry re-fetches for real.
     _fetch_retry_queued = set()
     _fetch_retry_failed = set()
     qualifying = []
@@ -3313,7 +3354,7 @@ def _print_phase1_timings(t):
         print(f"    SEC companyfacts: {s.get('net_calls', 0)} fetched "
               f"({s.get('net_seconds', 0) / 60:.1f} min), "
               f"{s.get('disk_hits', 0)} from disk, {s.get('mem_hits', 0)} from memory, "
-              f"{s.get('failures', 0)} failed")
+              f"{s.get('not_found', 0)} not found (404), {s.get('failures', 0)} failed")
     st = t.get('sec_throttle') or {}
     if st.get('calls'):
         print(f"    SEC throttle: {st['calls']} call(s), "
@@ -5000,7 +5041,7 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
 
 
 def _run_quality_summary(risk_free_rate, risk_free_rate_source,
-                         _model_warning_counter, _prov=None):
+                         _model_warning_counter, _prov=None, lost_sec=None):
     """End-of-run quality gate: surface substituted/fabricated inputs."""
     # Run-quality gate: surface, in one place, every way this run's numbers
     # rest on substituted rather than observed inputs.
@@ -5034,6 +5075,12 @@ def _run_quality_summary(risk_free_rate, risk_free_rate_source,
                 len(_p2_skips),
                 ', '.join(_ev.get('ticker', '?') for _ev in _p2_skips[:10]),
                 ', ...' if len(_p2_skips) > 10 else '')
+    if lost_sec:
+        _log.warning(
+            'RUN QUALITY: %d ticker(s) lost SEC history (dropped from SEC\'s '
+            'ticker map, now yfinance-only): %s%s',
+            len(lost_sec), ', '.join(lost_sec[:10]),
+            ', ...' if len(lost_sec) > 10 else '')
     if _model_warning_counter.fabricated:
         _log.warning(
             'RUN QUALITY: %d model warnings flagged fabricated/fallback inputs '
@@ -5118,6 +5165,7 @@ def _main():
     tiingo_client = clients['tiingo_client']
     sec_client = clients['sec_client']
     sec_xbrl_client = clients['sec_xbrl_client']
+    lost_sec = _check_lost_sec_tickers(run_start_date, sec_client._cik_map)
 
     phase1 = _run_phase1_screen(args, _prov, all_tickers, ticker_source,
                                 yf_client, tiingo_client, sec_xbrl_client,
@@ -5183,7 +5231,7 @@ def _main():
 
     _clock.tick('write_outputs')
     _run_quality_summary(risk_free_rate, risk_free_rate_source,
-                         _model_warning_counter, _prov)
+                         _model_warning_counter, _prov, lost_sec=lost_sec)
     print(_clock.table())
 
 
