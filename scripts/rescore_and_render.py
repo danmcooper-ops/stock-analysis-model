@@ -21,6 +21,7 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
+from data.sec_xbrl_client import edgar_years_available
 from data.snapshot_store import (read_snapshot, sync_snapshot_file,
                                  write_snapshot_file)
 from scripts.scoring import score_and_rate
@@ -52,6 +53,9 @@ def _refresh_edgar_derived_metrics(results):
         m = derive_edgar_metrics(eh)
         for k, v in m.items():
             r[k] = v
+        # Snapshots before 2026-09 stored a point count here (quarterly share
+        # period-ends read as years); the thin-history cap wants fiscal years.
+        eh['years_available'] = edgar_years_available(eh)
         n += 1
     print(f'Refreshed EDGAR-derived metrics for {n} rows')
 

@@ -276,7 +276,7 @@ GATES = [
     Gate('Quality: Int Coverage', 'int_cov',
          lambda v, r: v > 3.0 if v is not None else None,
          lambda v, r, pct: _score_linear(
-             min(v, 40) if v is not None else None, 1.0, 20.0),
+             min(v, INT_COV_CAP) if v is not None else None, 1.0, 20.0),
          applicable=_appl_non_financial),
     Gate('Quality: Net Debt/EBITDA', 'nd_ebitda',
          lambda v, r: v <= 1.5 if v is not None else None,
@@ -385,9 +385,13 @@ GATES = [
          lambda v, r: v >= 0 if v is not None else None,
          lambda v, r, pct: _score_linear(v, -0.05, 0.05),
          applicable=_appl_non_financial),
+    # Reinvestment (capex − D&A + ΔWC) × ROIC: meaningless for banks and
+    # insurers for the same reason as the other capex/ROIC gates, which mask
+    # the sector; unmasked, 243 FS rows scored 0 on it (2026-09-15).
     Gate('Growth: Fund Growth', 'fundamental_growth',
          lambda v, r: v > 0.03 if v is not None else None,
-         lambda v, r, pct: _score_linear(v, 0.0, 0.10)),
+         lambda v, r, pct: _score_linear(v, 0.0, 0.10),
+         applicable=_appl_non_financial),
 
     # ---- Ownership ----
     Gate('Ownership: Shrhldr Yield', 'shareholder_yield',
@@ -666,6 +670,48 @@ def compute_trap_signals(results):
                                  for k, (s, w) in axes.items()}
 
 
+# Interest coverage is capped at this in the Int Coverage score, and a
+# debt-free filer with no interest series is assigned it.
+INT_COV_CAP = 40.0
+# Debt below this share of total assets counts as debt-free for that purpose.
+INT_COV_DEBT_FREE_MAX_DEBT_TO_ASSETS = 0.02
+
+
+def _latest_hist_value(hist):
+    """(year, value) of the newest non-None entry of a {year: value} series."""
+    items = [(str(k), k, v) for k, v in (hist or {}).items() if v is not None]
+    if not items:
+        return None, None
+    _s, k, v = max(items, key=lambda t: t[0])
+    return k, v
+
+
+def _is_debt_free(r):
+    """True when the latest total debt is 0 or below
+    INT_COV_DEBT_FREE_MAX_DEBT_TO_ASSETS of total assets. Unknown debt is not
+    debt-free."""
+    eh = r.get('edgar_history') or {}
+    debt_year, debt = _latest_hist_value(eh.get('total_debt_history'))
+    if debt is None:
+        cur_y, cur = _latest_hist_value(eh.get('debt_current_history'))
+        nc_y, nc = _latest_hist_value(eh.get('debt_noncurrent_history'))
+        if cur is not None or nc is not None:
+            debt_year = max((y for y in (cur_y, nc_y) if y is not None), key=str)
+            debt = (cur or 0) + (nc or 0)
+    if debt is None and isinstance(r.get('total_debt'), (int, float)):
+        debt = r['total_debt']
+    if not isinstance(debt, (int, float)) or debt != debt:   # None / NaN
+        return False
+    if debt <= 0:
+        return True
+    assets_hist = eh.get('total_assets_history') or {}
+    assets = assets_hist.get(debt_year) if debt_year is not None else None
+    if assets is None:
+        _y, assets = _latest_hist_value(assets_hist)
+    return (isinstance(assets, (int, float)) and assets > 0
+            and debt / assets < INT_COV_DEBT_FREE_MAX_DEBT_TO_ASSETS)
+
+
 def prepare_scoring_fields(results):
     """Populate derived fields shared by gates and continuous scoring."""
     _compute_pool_share_trajectory(results)
@@ -703,6 +749,12 @@ def prepare_scoring_fields(results):
             if int_cov_edgar is not None:
                 r['int_cov'] = int_cov_edgar
                 r['_int_cov_source'] = 'edgar'
+            elif _is_debt_free(r):
+                # No interest series anywhere, but no debt to service either:
+                # the coverage test passes at the scorer's cap instead of
+                # scoring 0 for "cannot cover interest".
+                r['int_cov'] = INT_COV_CAP
+                r['_int_cov_source'] = 'debt_free'
         price = r.get('price')
         # Effective fair value: prefer the DCF; when it's absent (no yfinance
         # cash flow — ~75% of the expanded universe) fall back to a robust

@@ -93,6 +93,79 @@ class TestEdgarIntCovFallback:
         assert r['_int_cov_source'] == 'edgar'
 
 
+class TestDebtFreeIntCov:
+    """No interest series anywhere and no debt to service: the coverage test
+    passes at the cap instead of scoring 0 on absent data."""
+
+    def _row(self, sector='Technology', **eh):
+        return {'sector': sector, 'int_cov': None, 'int_cov_edgar': None,
+                'edgar_history': eh}
+
+    def test_zero_debt_gets_the_cap(self):
+        r = self._row(total_debt_history={'2024': 5e6, '2025': 0.0},
+                      total_assets_history={'2025': 1e9})
+        prepare_scoring_fields([r])
+        assert r['int_cov'] == 40.0 and r['_int_cov_source'] == 'debt_free'
+
+    def test_debt_under_two_percent_of_assets_is_debt_free(self):
+        r = self._row(total_debt_history={2025: 19e6}, total_assets_history={2025: 1e9})
+        prepare_scoring_fields([r])
+        assert r['int_cov'] == 40.0
+
+    def test_debt_at_or_over_two_percent_stays_none(self):
+        r = self._row(total_debt_history={'2025': 20e6}, total_assets_history={'2025': 1e9})
+        prepare_scoring_fields([r])
+        assert r['int_cov'] is None and '_int_cov_source' not in r
+
+    def test_debt_components_when_no_total(self):
+        r = self._row(debt_current_history={'2025': 1e6},
+                      debt_noncurrent_history={'2025': 50e6},
+                      total_assets_history={'2025': 1e9})
+        prepare_scoring_fields([r])
+        assert r['int_cov'] is None
+        r = self._row(debt_current_history={'2025': 1e6},
+                      total_assets_history={'2025': 1e9})
+        prepare_scoring_fields([r])
+        assert r['int_cov'] == 40.0
+
+    def test_row_total_debt_zero_without_history(self):
+        r = {'sector': 'Technology', 'int_cov': None, 'total_debt': 0.0}
+        prepare_scoring_fields([r])
+        assert r['int_cov'] == 40.0
+
+    def test_unknown_debt_stays_none(self):
+        for r in (self._row(total_assets_history={'2025': 1e9}),
+                  {'sector': 'Technology', 'int_cov': None},
+                  {'sector': 'Technology', 'int_cov': None, 'total_debt': float('nan')}):
+            prepare_scoring_fields([r])
+            assert r['int_cov'] is None
+
+    def test_positive_debt_without_assets_stays_none(self):
+        r = self._row(total_debt_history={'2025': 1.0})
+        prepare_scoring_fields([r])
+        assert r['int_cov'] is None
+
+    def test_edgar_coverage_wins_over_debt_free(self):
+        r = self._row(total_debt_history={'2025': 0.0})
+        r['int_cov_edgar'] = 12.0
+        prepare_scoring_fields([r])
+        assert r['int_cov'] == 12.0 and r['_int_cov_source'] == 'edgar'
+
+    def test_financial_services_untouched(self):
+        r = self._row(sector='Financial Services', total_debt_history={'2025': 0.0})
+        prepare_scoring_fields([r])
+        assert r['int_cov'] is None
+
+
+class TestFundGrowthApplicability:
+    def test_financial_services_masked(self):
+        from scripts.scoring import _gate_applicable
+        g = next(g for g in GATES if g.name == 'Growth: Fund Growth')
+        assert not _gate_applicable(g, {'sector': 'Financial Services'})
+        assert _gate_applicable(g, {'sector': 'Real Estate'})
+        assert _gate_applicable(g, {'sector': 'Technology'})
+
+
 class TestSbcXbrlPreference:
     def test_xbrl_value_preferred_over_yfinance(self):
         r = {'sector': 'Technology', 'sbc': 10.0, 'revenue': 1000.0,
@@ -994,16 +1067,16 @@ class TestApplicabilityMask:
         generic = _full_row(ticker='TECH')
         apply_screening_matrix([bank, generic])
         # ebit_ev, fcf_yield, fcf_cagr_5y, int_coverage, net_debt_ebitda,
-        # margins, margin_advantage and the ROIC family (spread,
+        # margins, margin_advantage, fund_growth and the ROIC family (spread,
         # roic_consistency, incr_roic) masked for financials; pool_share is
         # inapplicable for BOTH rows (no edgar_history in the fixture)
-        assert bank['_gates_inapplicable'] == 11
+        assert bank['_gates_inapplicable'] == 12
         assert generic['_gates_inapplicable'] == 1
         assert bank['_gate_margin_advantage'] is None
         assert bank['_gp_margin_advantage'] is None
         bank_denom = int(bank['_gates_passed'].split('/')[1])
         gen_denom = int(generic['_gates_passed'].split('/')[1])
-        assert gen_denom - bank_denom == 10
+        assert gen_denom - bank_denom == 11
         assert bank['_gp_ebit_ev'] is None
         # NOPAT / (equity + debt - cash) is meaningless for a bank: the
         # Phase-1 screen already bypasses the spread filter for the sector,
@@ -1015,6 +1088,7 @@ class TestApplicabilityMask:
         assert bank['_gp_fcf_yield'] is None
         assert bank['_gp_int_coverage'] is None
         assert bank['_gp_net_debt_ebitda'] is None
+        assert bank['_gp_fund_growth'] is None
         # Gross margin does not exist for banks/insurers — the gate must be
         # masked, not silently failed against the denominator. The fixture
         # supplies a passing gross_margin_trend, so a mask (rather than a

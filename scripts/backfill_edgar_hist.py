@@ -145,7 +145,8 @@ def main():
             if hist:
                 row_by_ticker[tk]['edgar_history'] = hist
                 ok += 1
-                series_found = [k for k in hist if k != 'years_available' and hist[k]]
+                series_found = [k for k in hist
+                                if k not in ('years_available', 'points_available') and hist[k]]
                 print(f'ok ({", ".join(series_found[:4])})')
             else:
                 skip += 1
