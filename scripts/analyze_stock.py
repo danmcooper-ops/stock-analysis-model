@@ -1,4 +1,5 @@
 # scripts/analyze_stock.py
+import collections
 import gc
 from concurrent.futures import ThreadPoolExecutor
 import sys
@@ -7,6 +8,7 @@ import io
 import json
 import logging
 import re
+import time
 import warnings
 from datetime import date
 from statistics import median as _median
@@ -2883,8 +2885,24 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     screen_cache = {}
     screen_outcomes = {'quality': {'total': 0, 'passed': 0},
                        'poor': {'total': 0, 'passed': 0}}
+    # Per-leg wall clock, so a slow screen can be attributed rather than
+    # guessed at. Summed per ticker and reported after the phase.
+    _legs = collections.Counter()
+    _leg_counts = collections.Counter()
+    _phase_t0 = time.perf_counter()
+    _hb_t0 = _phase_t0
 
     for i, ticker in enumerate(all_tickers, 1):
+        # Progress heartbeat: a 3-5h phase writing one line per ticker is
+        # unreadable live, and until now nothing reported a rate.
+        if i % 250 == 0:
+            _now = time.perf_counter()
+            _rate = 250 / (_now - _hb_t0) if _now > _hb_t0 else 0
+            _hb_t0 = _now
+            print(f"  ... [{i}/{len(all_tickers)}] {_rate:.2f} tickers/s, "
+                  f"{(_now - _phase_t0) / 60:.1f} min elapsed, "
+                  f"{len(qualifying)} qualifying")
+            sys.stdout.flush()
         if ticker in _skip_set:
             print(f"  [{i}/{len(all_tickers)}] {ticker} - SKIP (skip_tickers.txt)")
             sys.stdout.flush()
@@ -2922,10 +2940,14 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             #   'yfinance'           yfinance both (foreign / OTC, no CIK)
             #   'sec_xbrl'           XBRL only (yfinance throttled for a US filer)
             # ----------------------------------------------------------------
+            _t = time.perf_counter()
             try:
                 yf_data = yf_client.fetch_financials(ticker)
             except EmptyYahooResponseError:
                 yf_data = None
+            finally:
+                _legs['yf_fetch'] += time.perf_counter() - _t
+                _leg_counts['yf_fetch'] += 1
 
             # Early mcap bail before paying the XBRL fetch cost. For ~6K
             # micro-caps the mcap filter will drop the ticker anyway —
@@ -2934,6 +2956,7 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             if (yf_data is not None and args.mcap_min and not _carried):
                 _early_mcap = (yf_data.get('info') or {}).get('marketCap') or 0
                 if _early_mcap < args.mcap_min:
+                    _leg_counts['early_mcap_bail'] += 1
                     if _skip_cache is not None:
                         _skip_cache.record_mcap(ticker, _early_mcap)
                     print(f"  [{i}/{len(all_tickers)}] {ticker} - "
@@ -2946,6 +2969,8 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             sec_prov = None
             _xbrl_attempted = ticker in sec_xbrl_client._cik_map
             if _xbrl_attempted:
+                _t = time.perf_counter()
+                _leg_counts['xbrl'] += 1
                 try:
                     # No year_limit: use all available XBRL history (10-16
                     # years). Through-cycle ROIC is the right input for a
@@ -2958,6 +2983,7 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                     # Filing metadata must be read here: Phase 2 evicts the
                     # companyfacts blob from the client's memory cache.
                     sec_prov = sec_xbrl_client.get_filing_provenance(ticker)
+                _legs['xbrl'] += time.perf_counter() - _t
 
             if xbrl_data is not None and yf_data is not None:
                 yf_data = {
@@ -3027,8 +3053,10 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             # Statements from SEC XBRL are already USD — don't convert them
             # again even if yfinance reports a foreign financialCurrency.
             _stmts_usd = _data_source in ('sec_xbrl', 'sec_xbrl+yfinance')
+            _t = time.perf_counter()
             yf_data, fx_meta = _convert_financials_to_usd(
                 yf_data, statements_are_usd=_stmts_usd)
+            _legs['fx'] += time.perf_counter() - _t
             _prov.record_source(ticker, 'fx', 'fx_client',
                                 converted=fx_meta.get('fx_converted', False))
             if fx_meta.get('fx_fetch_failed'):
@@ -3038,10 +3066,18 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             info = yf_data.get('info') or {}
             sector = info.get('sector', '')
 
+            _t = time.perf_counter()
             roic_data = calculate_roic(yf_data)
+            _legs['roic'] += time.perf_counter() - _t
+
+            # The second yfinance round trip of the phase (5y history for the
+            # beta regression), so this leg is mostly throttle sleep.
+            _t = time.perf_counter()
             cost_of_equity, re_method, beta_diag = select_cost_of_equity(
                 yf_data, risk_free_rate, yf_client, ticker, erp=effective_erp,
                 tiingo_client=tiingo_client)
+            _legs['cost_of_equity'] += time.perf_counter() - _t
+            _leg_counts['cost_of_equity'] += 1
             _prov.record_source(ticker, 'beta', re_method)
             if re_method != 'capm':
                 # Anything but the locally regressed beta is a fallback:
@@ -3049,8 +3085,10 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                 _prov.record_event('source_fallback', ticker, 'beta',
                                    {'method': re_method,
                                     'reason': 'local 5y weekly beta unavailable'})
+            _t = time.perf_counter()
             wacc = calculate_wacc(yf_data, cost_of_equity,
                                   risk_free_rate=risk_free_rate)
+            _legs['wacc'] += time.perf_counter() - _t
             if wacc is not None:
                 s_cfg = _get_sector_config(sector)
                 wacc = max(s_cfg['wacc_floor'], min(s_cfg['wacc_cap'], wacc))
@@ -3153,10 +3191,65 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             o = screen_outcomes[grp]
             rate = o['passed'] / o['total'] if o['total'] > 0 else 0
             print(f"  {grp:>8}: {o['passed']}/{o['total']} passed ({rate:.0%})")
+
+    _elapsed = time.perf_counter() - _phase_t0
+    _timings = _phase1_timings(_elapsed, _legs, _leg_counts, yf_client,
+                               sec_xbrl_client)
+    _print_phase1_timings(_timings)
     print()
     return {'qualifying': qualifying, 'screen_cache': screen_cache,
             'screen_outcomes': screen_outcomes,
+            'timings': _timings,
             '_carry_prior_rows': _carry_prior_rows}
+
+
+def _phase1_timings(elapsed, legs, leg_counts, yf_client, sec_xbrl_client):
+    """Collect the Phase-1 cost breakdown as a plain dict (also snapshotted
+    into provenance, so a slow night can be compared against a fast one)."""
+    yf_stats = dict(getattr(yf_client, 'stats', {}) or {})
+    yf_throttle = (yf_client._throttle.stats()
+                   if hasattr(getattr(yf_client, '_throttle', None), 'stats') else {})
+    sec_stats = dict(getattr(sec_xbrl_client, 'facts_stats', {}) or {})
+    sec_throttle = (sec_xbrl_client._throttle.stats()
+                    if hasattr(getattr(sec_xbrl_client, '_throttle', None), 'stats') else {})
+    return {'elapsed': elapsed,
+            'legs': dict(legs), 'leg_counts': dict(leg_counts),
+            'yfinance': yf_stats, 'yfinance_throttle': yf_throttle,
+            'sec_facts': sec_stats, 'sec_throttle': sec_throttle}
+
+
+def _print_phase1_timings(t):
+    """Human-readable Phase-1 cost breakdown."""
+    elapsed = t.get('elapsed') or 0.0
+    def _pct(s):
+        return f"{100 * s / elapsed:5.1f}%" if elapsed > 0 else "    -"
+    print(f"\n  Phase 1 took {elapsed / 60:.1f} min. Where it went:")
+    for name, secs in sorted(t.get('legs', {}).items(), key=lambda kv: -kv[1]):
+        n = t.get('leg_counts', {}).get(name)
+        per = f", {secs / n:.2f}s each over {n}" if n else ""
+        print(f"    {name:<16} {secs / 60:8.1f} min  {_pct(secs)}{per}")
+    yt = t.get('yfinance_throttle') or {}
+    if yt.get('calls'):
+        print(f"    yfinance: {yt['calls']} throttled call(s), "
+              f"{yt['slept'] / 60:.1f} min asleep at {yt.get('delay')}s "
+              f"({_pct(yt['slept'])} of the phase), "
+              f"{yt.get('waited', 0) / 60:.1f} min blocked on the lock")
+    y = t.get('yfinance') or {}
+    if y.get('calls'):
+        print(f"    yfinance calls={y['calls']} seconds={y['seconds'] / 60:.1f} min "
+              f"retries={y.get('retries', 0)} not_found={y.get('not_found', 0)} "
+              f"empty_attempts={y.get('empty_attempts', 0)} "
+              f"timeouts={y.get('timeouts', 0)} errors={y.get('errors', 0)}")
+    s = t.get('sec_facts') or {}
+    if any(s.values()):
+        print(f"    SEC companyfacts: {s.get('net_calls', 0)} fetched "
+              f"({s.get('net_seconds', 0) / 60:.1f} min), "
+              f"{s.get('disk_hits', 0)} from disk, {s.get('mem_hits', 0)} from memory, "
+              f"{s.get('failures', 0)} failed")
+    st = t.get('sec_throttle') or {}
+    if st.get('calls'):
+        print(f"    SEC throttle: {st['calls']} call(s), "
+              f"{st['slept'] / 60:.1f} min asleep at {st.get('delay')}s")
 
 
 def _run_sector_exit_multiples(qualifying, screen_cache,
@@ -4882,9 +4975,41 @@ def _run_quality_summary(risk_free_rate, risk_free_rate_source,
               _model_warning_counter.total, _model_warning_counter.fabricated)
 
 
+class _PhaseClock:
+    """Wall clock per pipeline phase.
+
+    `tick(name)` closes the phase that just ran, so a phase costs one line at
+    its call site and nothing has to be re-indented into a `with`.
+    """
+
+    def __init__(self):
+        self._t = time.perf_counter()
+        self.phases = []
+
+    def tick(self, name):
+        now = time.perf_counter()
+        self.phases.append((name, now - self._t))
+        self._t = now
+
+    def table(self):
+        total = sum(s for _, s in self.phases) or 1.0
+        lines = ["\nElapsed by phase:"]
+        for name, secs in self.phases:
+            lines.append(f"  {name:<22} {secs / 60:8.1f} min  "
+                         f"{100 * secs / total:5.1f}%")
+        lines.append(f"  {'TOTAL':<22} {total / 60:8.1f} min")
+        return "\n".join(lines)
+
+    def as_dict(self):
+        return {'phases': [{'name': n, 'seconds': s} for n, s in self.phases],
+                'total_seconds': sum(s for _, s in self.phases)}
+
+
 def _main():
     """Entry point: screen tickers, run DCF analysis, generate reports."""
+    _clock = _PhaseClock()
     setup = _run_setup()
+    _clock.tick('setup')
     args = setup['args']
     prices_dir = setup['prices_dir']
     run_start_date = setup['run_start_date']
@@ -4892,6 +5017,7 @@ def _main():
     _model_warning_counter = setup['_model_warning_counter']
 
     macro = _run_macro_setup(args, prices_dir)
+    _clock.tick('macro_setup')
     risk_free_rate = macro['risk_free_rate']
     risk_free_rate_source = macro['risk_free_rate_source']
     macro_regime_result = macro['macro_regime_result']
@@ -4908,6 +5034,7 @@ def _main():
     local_rs = macro['local_rs']
 
     universe = _run_build_universe(args)
+    _clock.tick('build_universe')
     ms_pfv_data = universe['ms_pfv_data']
     ticker_source = universe['ticker_source']
     all_tickers = universe['all_tickers']
@@ -4918,6 +5045,7 @@ def _main():
         checkpoint = RunCheckpoint(run_start_date, fingerprint(run_start_date, args))
 
     clients = _run_build_clients(run_start_date)
+    _clock.tick('build_clients')
     yf_client = clients['yf_client']
     tiingo_client = clients['tiingo_client']
     sec_client = clients['sec_client']
@@ -4927,6 +5055,7 @@ def _main():
                                 yf_client, tiingo_client, sec_xbrl_client,
                                 risk_free_rate, effective_erp,
                                 checkpoint=checkpoint)
+    _clock.tick('phase1_screen')
     qualifying = phase1['qualifying']
     screen_cache = phase1['screen_cache']
     screen_outcomes = phase1['screen_outcomes']
@@ -4934,11 +5063,13 @@ def _main():
 
     exit_mults = _run_sector_exit_multiples(qualifying, screen_cache,
                                             effective_exit_mult_adj)
+    _clock.tick('sector_exit_multiples')
     sector_exit_multiples = exit_mults['sector_exit_multiples']
     effective_exit_mult_default = exit_mults['effective_exit_mult_default']
 
     phase2_clients = _run_build_phase2_clients(sec_client, qualifying,
                                                screen_cache)
+    _clock.tick('build_phase2_clients')
     news_client = phase2_clients['news_client']
     supply_client = phase2_clients['supply_client']
     sec_supply_client = phase2_clients['sec_supply_client']
@@ -4954,15 +5085,26 @@ def _main():
         effective_growth_sigma_mult, effective_growth_weight_shift,
         risk_free_rate, macro_regime_result, sector_signals,
         io_workers=args.workers, checkpoint=checkpoint)
+    _clock.tick('phase2_analysis')
 
     post = _run_postprocess(results, ms_pfv_data, _carry_prior_rows)
+    _clock.tick('postprocess')
     sector_median_ee = post['sector_median_ee']
     sector_median_opm = post['sector_median_opm']
 
     _run_narratives(results, args, sector_etf_data, macro_regime_result,
                     commodity_data, sector_median_ee, sector_median_opm)
+    _clock.tick('narratives')
 
     _run_validation_stats(results, ms_pfv_data, args, screen_outcomes)
+    _clock.tick('validation_stats')
+
+    # Before _write_outputs: the snapshot carries the provenance block, so the
+    # timings have to be attached while there is still something to attach
+    # them to. Phases after this point are printed but not stored.
+    _timings = _clock.as_dict()
+    _timings['phase1'] = phase1.get('timings')
+    _prov.record_timings(_timings)
 
     _write_outputs(results, run_start_date, _prov, risk_free_rate,
                    risk_free_rate_source, macro_regime_result, macro_adj,
@@ -4971,8 +5113,10 @@ def _main():
         # The outputs exist now; saved progress for this date is spent.
         checkpoint.clear()
 
+    _clock.tick('write_outputs')
     _run_quality_summary(risk_free_rate, risk_free_rate_source,
                          _model_warning_counter, _prov)
+    print(_clock.table())
 
 
 if __name__ == "__main__":

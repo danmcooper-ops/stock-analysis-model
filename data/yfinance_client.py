@@ -332,6 +332,13 @@ class YFinanceClient:
         self._financials_cache = {}
         self._history_cache = {}
         self._throttle = Throttle(request_delay)
+        # Per-run call accounting (see stats()). `empty` counts Yahoo's soft
+        # throttle, which _is_not_found deliberately does NOT match, so a
+        # throttled ticker costs 3 throttle ticks + 3s of backoff before the
+        # caller's retry queue even sees it. That amplification is the thing
+        # to watch before raising concurrency or cutting the delay.
+        self.stats = {'calls': 0, 'seconds': 0.0, 'retries': 0, 'timeouts': 0,
+                      'not_found': 0, 'empty_attempts': 0, 'errors': 0}
         # Bare yf.Ticker() calls below use yfinance's own session; honour a
         # YF_IMPERSONATE override for them too (no-op on the default profile).
         install_default_session()
@@ -380,20 +387,37 @@ class YFinanceClient:
         which poisons yfinance's internal connection pool for subsequent
         tickers.  Other exceptions (HTTP errors, parse errors) still retry.
         """
-        for attempt in range(max_retries + 1):
-            try:
-                self._throttle()
-                if self._fetch_timeout is not None:
-                    return _run_with_timeout(func, self._fetch_timeout)
-                else:
-                    return func()
-            except TimeoutError:
-                # Don't retry — Yahoo is unresponsive for this ticker.
-                raise
-            except Exception as e:
-                if attempt == max_retries or _is_not_found(e):
+        t0 = time.perf_counter()
+        self.stats['calls'] += 1
+        try:
+            for attempt in range(max_retries + 1):
+                if attempt:
+                    self.stats['retries'] += 1
+                try:
+                    self._throttle()
+                    if self._fetch_timeout is not None:
+                        return _run_with_timeout(func, self._fetch_timeout)
+                    else:
+                        return func()
+                except TimeoutError:
+                    # Don't retry — Yahoo is unresponsive for this ticker.
+                    self.stats['timeouts'] += 1
                     raise
-                time.sleep(1.0 * (attempt + 1))
+                except Exception as e:
+                    if isinstance(e, EmptyYahooResponseError):
+                        # Per ATTEMPT, not per call: a soft-throttled ticker
+                        # raises on all three, and that 3x is the cost worth
+                        # seeing.
+                        self.stats['empty_attempts'] += 1
+                    if attempt == max_retries or _is_not_found(e):
+                        if _is_not_found(e):
+                            self.stats['not_found'] += 1
+                        else:
+                            self.stats['errors'] += 1
+                        raise
+                    time.sleep(1.0 * (attempt + 1))
+        finally:
+            self.stats['seconds'] += time.perf_counter() - t0
 
     def fetch_financials(self, ticker, as_of=None):
         """Fetch financial data for *ticker*.
