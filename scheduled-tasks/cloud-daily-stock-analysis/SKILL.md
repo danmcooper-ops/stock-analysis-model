@@ -32,13 +32,13 @@ and both force-push `pages-live`.
 |---|---|---|---|
 | preflight | `00-preflight.log` | — | `scripts/market_open.py`; exit 10 = market closed → the script exits 0 immediately and `status.txt` says `SKIPPED market closed`. **That is a successful run**; report the one-line reason and stop. |
 | 01-venv | | yes | `.venv` + `pip install -e ".[dev]"` (~1 min) |
-| 02-stage-snapshots | | yes | blob-less, checkout-less clone of `data/snapshots`; materialises the newest `SNAPSHOT_HISTORY` (10) snapshots and `rating_history.json` into `output/` so carry-forward, Yesterday's Rating, the rate-change look-back, rating history and gate N/A deltas all work exactly as they did locally |
+| 02-stage-snapshots | | yes | blob-less, checkout-less clone of `data/snapshots`; materialises the newest `SNAPSHOT_HISTORY` (10) snapshots and `rating_history.json` into `output/` so carry-forward, Yesterday's Rating, the rate-change look-back, rating history and gate N/A deltas all work exactly as they did locally; also stages `screen_skip.json` into `data/cache/` (absent = the screen runs cold and rebuilds it) |
 | 03-prices | | no | full price history for every ticker in the newest prior snapshot + benchmarks (~2,300 tickers, 25–45 min) |
 | 04-analyze | | **yes** | `analyze_stock.py --macro --universe us --min-spread 0 --mcap-min 300e6 --run-date $RUNDATE` — **10–16 hours** before the 2026-09-13 speedups (Phase 1 ~5h at ~30 tickers/min, then Phase 2 over ~2,300 qualifiers). SEC companyfacts are re-downloaded every run (the on-disk cache does not survive the container). Progress is checkpointed under `output/.checkpoint/$RUNDATE`, so an interrupted analysis resumes (see 3b) |
 | 05a–05d enrich | | no | FDIC, REIT, XBRL, FDA pipeline — same as the Mac runbook 1b–1e |
 | 05e-prices-topup | | no | full history for Phase-2 entrants that only got a Close-only stub during the run |
 | 05f-rerender | | yes | `rescore_and_render.py` so the HTML carries every enrichment |
-| 06-archive | | **yes** | `archive_snapshot.py` (gzip + SHA-256 round-trip + 80 MiB guard), commit `Snapshot: <date>` on top of the remote tip, push with retries. rc 2 = over the hard guard, not pushed |
+| 06-archive | | **yes** | `archive_snapshot.py` (gzip + SHA-256 round-trip + 80 MiB guard), commit `Snapshot: <date>` (with `rating_history.json` and, unless `SMOKE=1` or the file is under 10 KB, `screen_skip.json`) on top of the remote tip, push with retries. rc 2 = over the hard guard, not pushed |
 | 07a–07c reports | | no | portfolio concentration/drawdown, gate N/A coverage + deltas, trailing-momentum sanity check — **their logs are the body of your summary** |
 | 08-publish | | no* | rebuilds `pages-live` (index.html, prices_meta/hist/details/macro sidecars, `px/` and `vol/` shards by manifest) as one fresh commit, force-pushes it, then polls the live URL for today's date. *A publish failure does not fail the analysis (the snapshot is safe); report it and note that re-running only step 8 is possible by hand |
 
@@ -129,10 +129,14 @@ weekend is exactly what the 2026-09-12 recovery could not do.
 Lead with the result line and the run date, then, in this order:
 1. **Archive:** the `Snapshot: <date>` commit hash and archive size from
    `logs/06-archive.log` (call out a WARNING past the 50 MiB soft guard).
-2. **Gate N/A coverage** — paste the full table from `logs/07b-gate-na-report.log`
-   and call out any **⚠ JUMP** (a gate's N/A share rose ≥ 10 points vs the
-   prior snapshot: a data source degraded today). **⚠ HIGH** alone is
-   baseline; only mention a gate that is *newly* HIGH.
+2. **Gate N/A coverage** — paste the full table from `logs/07b-gate-na-report.log`.
+   Each gate's `N/A %` is split into `Masked %` (gate not applicable, e.g.
+   Financial Services on FCF/EV gates — excluded from scoring) and
+   `Missing %` (applicable but no data — scores 0). `Δ pts` and both flags
+   are on the missing share. Call out any **⚠ JUMP** (a gate's missing share
+   rose ≥ 10 points vs the prior snapshot: a data source degraded today).
+   **⚠ HIGH** (missing ≥ 40 %) alone is baseline; only mention a gate that is
+   *newly* HIGH.
 3. **Momentum sanity check** — the rating-bucket table and Spearman r from
    `logs/07c-validate-ratings.log`. It compares today's ratings with the
    *past* 12 months of returns; the correlation is expected to be negative

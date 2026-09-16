@@ -284,7 +284,9 @@ def test_gate_na_report_reads_prior_from_store(results_dir, capsys):
     assert len(recs) == 3 and 'edgar_history' in recs[0]
     ingest_dir(str(results_dir))
     recs = _load_prior_records(prior, gates)
-    assert len(recs) == 3 and set(recs[0]) == {'ticker', '_gate_roic', '_gate_mos'}
+    from scripts.scoring import APPLICABILITY_FIELDS
+    assert len(recs) == 3 and set(recs[0]) == {'ticker', '_gate_roic', '_gate_mos',
+                                               *APPLICABILITY_FIELDS}
     assert all(r['_gate_mos'] is None for r in recs)
     assert _prior_snapshot('output/results_2026-01-02_replay.json') is None
 

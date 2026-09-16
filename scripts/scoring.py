@@ -96,6 +96,17 @@ def _appl_pool_share(r):
     old snapshots lack operating_income_history entirely (added 2026-07)."""
     return not r.get('_pool_share_undefined')
 
+
+# Every row key an applicability predicate above reads. Readers that load a
+# column subset (e.g. the gate N/A report's prior-day store read) need these to
+# tell a masked gate from a missing one. tests/test_gate_na_report.py pins it.
+APPLICABILITY_FIELDS = (
+    'sector', 'tangible_book_ps',
+    'insider_buy_count_365d', 'insider_sell_count_365d',
+    'op_margin_hist_years', '_incr_roic_undefined', 'mult_hist_years',
+    '_pool_share_undefined',
+)
+
 MIN_SECTOR_SCORING = 5  # Min stocks per sector for sector-relative percentile
 RATING_RANK = {'PASS': 0, 'HOLD': 1, 'LEAN BUY': 2, 'BUY': 3}
 RATING_BY_RANK = {v: k for k, v in RATING_RANK.items()}

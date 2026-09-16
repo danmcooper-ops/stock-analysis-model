@@ -309,3 +309,56 @@ class TestBuildYfinanceShapeCapexDA:
         import pandas as pd
         assert pd.isna(latest['Capital Expenditure'])
         assert pd.isna(latest['Depreciation And Amortization'])
+
+
+class TestCompanyFactsNotFound:
+    """Foreign ADR/12g3-2(b) CIKs 404 on companyfacts every night: remembered
+    for the run, while transient failures are still retried."""
+
+    def _patch_urlopen(self, monkeypatch, exc):
+        calls = []
+
+        def fake_urlopen(req, context=None, timeout=None):
+            calls.append(req.full_url)
+            raise exc
+
+        monkeypatch.setattr(xbrl_mod.urllib.request, 'urlopen', fake_urlopen)
+        return calls
+
+    def test_404_is_cached_for_the_run(self, monkeypatch):
+        import urllib.error
+        c = _make_client()
+        calls = self._patch_urlopen(monkeypatch, urllib.error.HTTPError(
+            'https://data.sec.gov/x', 404, 'Not Found', {}, None))
+        assert c.fetch_company_facts('TEST') is None
+        assert c.fetch_company_facts('TEST') is None
+        assert len(calls) == 1
+        assert c.facts_stats['not_found'] == 1 and c.facts_stats['failures'] == 0
+        assert c.facts_stats['mem_hits'] == 1
+
+    def test_404_never_reaches_the_disk_cache(self, monkeypatch, tmp_path):
+        import urllib.error
+        c = SECXBRLClient(cik_map={'TEST': '0000000001'}, name_map={}, email='t@e.com',
+                          request_delay=0, facts_cache=str(tmp_path))
+        self._patch_urlopen(monkeypatch, urllib.error.HTTPError(
+            'https://data.sec.gov/x', 404, 'Not Found', {}, None))
+        assert c.fetch_company_facts('TEST') is None
+        assert c._facts_cache.get('0000000001') is None
+        assert not any(p.is_file() for p in tmp_path.rglob('*.json.gz'))
+
+    def test_timeout_is_retried(self, monkeypatch):
+        c = _make_client()
+        calls = self._patch_urlopen(monkeypatch, TimeoutError('timed out'))
+        assert c.fetch_company_facts('TEST') is None
+        assert c.fetch_company_facts('TEST') is None
+        assert len(calls) == 2
+        assert c.facts_stats['failures'] == 2 and c.facts_stats['not_found'] == 0
+
+    def test_5xx_is_retried(self, monkeypatch):
+        import urllib.error
+        c = _make_client()
+        calls = self._patch_urlopen(monkeypatch, urllib.error.HTTPError(
+            'https://data.sec.gov/x', 503, 'Unavailable', {}, None))
+        assert c.fetch_company_facts('TEST') is None
+        assert c.fetch_company_facts('TEST') is None
+        assert len(calls) == 2

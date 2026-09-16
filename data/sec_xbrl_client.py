@@ -613,7 +613,7 @@ class SECXBRLClient:
         # 0.12s throttle — not bandwidth-bound.
         self.facts_stats = {'net_calls': 0, 'net_seconds': 0.0,
                             'mem_hits': 0, 'disk_hits': 0, 'no_cik': 0,
-                            'failures': 0}
+                            'failures': 0, 'not_found': 0}
 
     @staticmethod
     def _resolve_facts_cache(facts_cache):
@@ -660,11 +660,12 @@ class SECXBRLClient:
             logger.warning(f"SEC XBRL: request failed for {url}: {e}")
             return None
 
-    def _request_json(self, url, timeout=20):
-        """GET request returning parsed JSON, or None on failure."""
-        raw = self._request_bytes(url, timeout=timeout)
-        if raw is None:
-            return None
+    def _request_json(self, url, timeout=20, absent_codes=()):
+        """GET request returning parsed JSON, or None on failure
+        (:data:`ABSENT` for an *absent_codes* status, see ``_request_bytes``)."""
+        raw = self._request_bytes(url, timeout=timeout, absent_codes=absent_codes)
+        if raw is None or raw is ABSENT:
+            return raw
         try:
             return json.loads(raw)
         except ValueError as e:
@@ -705,11 +706,19 @@ class SECXBRLClient:
 
         url = self._COMPANY_FACTS_URL.format(cik=cik)
         _t0 = time.perf_counter()
-        data = self._request_json(url)
+        data = self._request_json(url, absent_codes=(404,))
         self.facts_stats['net_calls'] += 1
         self.facts_stats['net_seconds'] += time.perf_counter() - _t0
-        # Don't cache request failures: a transient timeout would otherwise
-        # read as "this ticker has no XBRL data" for the rest of the run.
+        if data is ABSENT:
+            # A 404 is permanent (F-6 ADRs and 12g3-2(b) filers have a CIK but
+            # no companyfacts; ~280 of them a night), so remember it for this
+            # run only — never on disk, where it would outlive a first filing.
+            logger.debug('SEC XBRL: no companyfacts for %s (CIK %s, 404)', ticker, cik)
+            self.facts_stats['not_found'] += 1
+            self._cache[ticker] = None
+            return None
+        # Don't cache other request failures: a transient timeout would
+        # otherwise read as "this ticker has no XBRL data" for the rest of the run.
         if data is not None:
             self._cache[ticker] = data
             if self._facts_cache is not None:
