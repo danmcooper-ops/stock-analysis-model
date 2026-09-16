@@ -251,6 +251,11 @@ class SECXBRLClient:
             'PaymentsToAcquireOtherPropertyPlantAndEquipment',
             'PaymentsForCapitalImprovements',
             'CapitalExpendituresIncurringObligation',
+            # Fallback-only (_FALLBACK_TAGS): capitalised software alone, or
+            # capex net of disposal proceeds, when no gross PP&E tag exists
+            # for the period (29 and 27 of 500 sampled companyfacts blobs).
+            'PaymentsToDevelopSoftware',
+            'PaymentsForProceedsFromProductiveAssets',
         ],
         # D&A from the cash-flow statement. Needed by
         # calculate_fundamental_growth (Reinvestment Rate × ROIC) and the
@@ -278,15 +283,18 @@ class SECXBRLClient:
             # of InterestExpenseNonoperating; MSFT, JNJ, AMZN, KO and others
             # switched for FY2024+. Without this tag the latest-year row is
             # NaN and calculate_wacc / interest coverage fall back silently.
+            # The 2024 taxonomy retired InterestExpense in favour of the
+            # operating/non-operating split; VZ, T, MSFT, HD, NVDA, ... now tag
+            # only this element, leaving the latest year blank for WACC cost of
+            # debt, interest coverage and the FCFF add-back.
             'InterestExpenseNonoperating',
             'InterestExpense',
-            # The 2024 US-GAAP taxonomy retired InterestExpense in favour of
-            # the operating/non-operating split; VZ, T, MSFT, HD, NVDA, ...
-            # now tag only this element, leaving the latest year blank for
-            # WACC cost of debt, interest coverage and the FCFF add-back.
-            'InterestExpenseNonoperating',
             'InterestAndDebtExpense',
             'InterestExpenseDebt',
+            # Fallback-only (_FALLBACK_TAGS): the cash-flow supplemental. The
+            # most common interest tag in the corpus (354/500 blobs); 39 of the
+            # 150 blobs with no expense tag carry it.
+            'InterestPaidNet',
         ],
         'dividends_paid': [
             'PaymentsOfDividendsCommonStock',
@@ -374,7 +382,11 @@ class SECXBRLClient:
         # exists above as 'operating_cash_flow'.
         'investing_cf': ['NetCashProvidedByUsedInInvestingActivities'],   # 11/12
         'financing_cf': ['NetCashProvidedByUsedInFinancingActivities'],   # 11/12
-        'sbc_cf': ['ShareBasedCompensation'],                     # 8/12
+        'sbc_cf': ['ShareBasedCompensation',                      # 8/12
+                   # Fallback-only (_FALLBACK_TAGS): 18 and 4 of the 124/500
+                   # sampled blobs without ShareBasedCompensation.
+                   'AllocatedShareBasedCompensationExpense',
+                   'StockIssuedDuringPeriodValueShareBasedCompensation'],
         'deferred_tax': ['DeferredIncomeTaxExpenseBenefit'],      # 11/12
         'buybacks': ['PaymentsForRepurchaseOfCommonStock'],       # 10/12
         # Gross proceeds from issuing stock — nets against buybacks in
@@ -587,7 +599,7 @@ class SECXBRLClient:
 
     def __init__(self, cik_map, name_map,
                  email='stockanalysis@example.com', request_delay=1.0,
-                 facts_cache=None, throttle=None):
+                 facts_cache=None, throttle=None, cik_predecessors=None):
         """
         Args:
             cik_map: dict {ticker: zero-padded CIK} from SECLegalClient.
@@ -600,6 +612,9 @@ class SECXBRLClient:
                 directory path, or True for the default location; None (the
                 default) keeps the per-process in-memory cache only, which is
                 what the tests and one-shot callers want.
+            cik_predecessors: {successor CIK: predecessor CIK} for filers whose
+                ticker moved to a new registrant with no history yet
+                (scripts.config.SEC_CIK_PREDECESSORS); see fetch_company_facts.
         """
         self._ua = f'StockAnalyzer/1.0 ({email})'
         self._throttle = throttle or Throttle(request_delay)
@@ -607,6 +622,7 @@ class SECXBRLClient:
         self._cik_map = cik_map
         self._name_map = name_map
         self._facts_cache = self._resolve_facts_cache(facts_cache)
+        self._cik_predecessors = dict(cik_predecessors or {})
         # Companyfacts accounting: how much of the SEC leg is network vs. the
         # two cache layers. The blobs ship gzipped (~139 KB), so this leg is
         # latency-bound — net_calls x round-trip, serialized behind the shared
@@ -697,11 +713,35 @@ class SECXBRLClient:
             self._cache[ticker] = None
             return None
 
+        data = self._facts_for_cik(cik, ticker)
+        pred = self._cik_predecessors.get(cik)
+        if pred and (data is ABSENT or (isinstance(data, dict)
+                                        and self._revenue_year_count(data) < 2)):
+            # The ticker now maps to a successor registrant with no history
+            # (XOM -> ExxonMobil Holdings Corp, 2026). Read the predecessor's
+            # facts until the successor has two fiscal years of its own.
+            pred_data = self._facts_for_cik(pred, ticker)
+            if isinstance(pred_data, dict):
+                logger.info('SEC XBRL: %s CIK %s is thin; using predecessor CIK %s',
+                            ticker, cik, pred)
+                data = {**pred_data, '_predecessor_cik': pred}
+        if data is ABSENT:
+            self._cache[ticker] = None
+            return None
+        # Don't cache other request failures: a transient timeout would
+        # otherwise read as "this ticker has no XBRL data" for the rest of the run.
+        if data is not None:
+            self._cache[ticker] = data
+        return data
+
+    def _facts_for_cik(self, cik, ticker):
+        """One CIK's companyfacts from disk or the network: the JSON dict,
+        :data:`ABSENT` for a 404, or None for any other failure. Successful
+        fetches are written to the disk cache; 404s never are."""
         if self._facts_cache is not None:
             cached = self._facts_cache.get(cik)
             if cached is not None:
                 self.facts_stats['disk_hits'] += 1
-                self._cache[ticker] = cached
                 return cached
 
         url = self._COMPANY_FACTS_URL.format(cik=cik)
@@ -711,21 +751,37 @@ class SECXBRLClient:
         self.facts_stats['net_seconds'] += time.perf_counter() - _t0
         if data is ABSENT:
             # A 404 is permanent (F-6 ADRs and 12g3-2(b) filers have a CIK but
-            # no companyfacts; ~280 of them a night), so remember it for this
-            # run only — never on disk, where it would outlive a first filing.
+            # no companyfacts; ~280 of them a night), so the caller remembers
+            # it for this run only — never on disk, where it would outlive a
+            # first filing.
             logger.debug('SEC XBRL: no companyfacts for %s (CIK %s, 404)', ticker, cik)
             self.facts_stats['not_found'] += 1
-            self._cache[ticker] = None
-            return None
-        # Don't cache other request failures: a transient timeout would
-        # otherwise read as "this ticker has no XBRL data" for the rest of the run.
-        if data is not None:
-            self._cache[ticker] = data
-            if self._facts_cache is not None:
-                self._facts_cache.put(cik, data)
-        else:
+        elif data is None:
             self.facts_stats['failures'] += 1
+        elif self._facts_cache is not None:
+            self._facts_cache.put(cik, data)
         return data
+
+    # A fallback tag's series must reach within this many years of the filer's
+    # latest fiscal year to be used at all (see _extract_annual_values).
+    FALLBACK_MAX_LAG_YEARS = 1
+
+    @classmethod
+    def _fallback_min_year(cls, *series):
+        """Oldest acceptable newest-year for a fallback series, from the
+        filer's primary annual series (revenue, net income, OCF); None when
+        none of them has data, which leaves fallbacks unconstrained."""
+        years = [int(y) for s in series if s for y in s]
+        return max(years) - cls.FALLBACK_MAX_LAG_YEARS if years else None
+
+    def _revenue_year_count(self, facts):
+        """Fiscal years of whole-company revenue in *facts* (either taxonomy)."""
+        try:
+            vals, _ccy = self._resolve_revenue_annual(facts)
+        except Exception as e:  # a malformed blob must not break the lookup
+            logger.debug('SEC XBRL: revenue year count failed: %s', e)
+            return 0
+        return len(vals)
 
     def release_facts(self, ticker):
         """Drop *ticker*'s raw companyfacts blob from the in-memory cache.
@@ -913,9 +969,27 @@ class SECXBRLClient:
     # models want, so first-tag-wins stays the default elsewhere.
     _TIE_BREAK_MAX = frozenset({'revenue'})
 
+    # Near-substitutes appended to a US-GAAP tag list that must never displace
+    # a primary tag: merging is latest-filed-wins across tags, so a cash-paid
+    # interest figure in a later 10-K's comparatives would otherwise overwrite
+    # the expense an earlier 10-K tagged for the same year. Annual extraction
+    # uses one only for a period end no primary tag covers; periodic extraction
+    # only when the primary tags yield nothing at all (a derived Q4 must not
+    # subtract one tag's quarters from another's year). Every one is a payment
+    # or expense, so a negative value is a sign error or a net proceeds figure
+    # and is ignored (AAMI's StockIssued... SBC reads -8% of revenue). They sit
+    # at the tail of their lists (tests/test_edgar_history.py pins that).
+    _FALLBACK_TAGS = frozenset({
+        'InterestPaidNet',
+        'AllocatedShareBasedCompensationExpense',
+        'StockIssuedDuringPeriodValueShareBasedCompensation',
+        'PaymentsToDevelopSoftware',
+        'PaymentsForProceedsFromProductiveAssets',
+    })
+
     def _extract_annual_values(self, facts_json, tag_list, form_filter='10-K',
                                units_key='USD', taxonomy_key='us-gaap',
-                               tie_break='first'):
+                               tie_break='first', fallback_min_year=None):
         """Extract annual values for a concept from XBRL facts.
 
         Tries each tag in tag_list until one has data.  Filters for the
@@ -927,6 +1001,11 @@ class SECXBRLClient:
             same period end with the same filed date — 'first' keeps the
             earlier tag in tag_list; 'max' keeps the first tag when it is
             among them and otherwise the largest value (see _TIE_BREAK_MAX).
+        fallback_min_year: when set, the years filled by _FALLBACK_TAGS are
+            kept only if the newest of them is at least this year — a
+            fallback series the filer stopped tagging long ago (SO's last
+            AllocatedShareBasedCompensationExpense is 2016) must not stand in
+            for the current year.
 
         Selection logic per fiscal year:
         1. Only 10-K / 20-F / 40-F filings with fp='FY'
@@ -963,8 +1042,12 @@ class SECXBRLClient:
         # Grouped by period end date — see the docstring for why the
         # entry's own 'fy' cannot be the key.
         by_end = {}  # {end: {'val': (filed, value), 'label': (filed, fy)}}
+        primary_ends = None  # period ends the primary tags covered
 
         for rank, tag in enumerate(tag_list):
+            fallback = tag in self._FALLBACK_TAGS
+            if fallback and primary_ends is None:
+                primary_ends = frozenset(by_end)
             concept = us_gaap.get(tag)
             if not concept:
                 continue
@@ -1021,10 +1104,12 @@ class SECXBRLClient:
             # on filed date keep the first tag in tag_list, unless the
             # concept opted into the largest-value rule (tie_break='max').
             for fy, filed, val, end in candidates:
+                if fallback and (end in primary_ends or val < 0):
+                    continue
                 rec = by_end.get(end)
                 if rec is None:
                     by_end[end] = {'val': (filed, val), 'label': (filed, fy),
-                                   'rank': rank}
+                                   'rank': rank, 'fallback': fallback}
                     continue
                 if filed > rec['val'][0]:
                     rec['val'] = (filed, val)
@@ -1040,13 +1125,22 @@ class SECXBRLClient:
             return {}
 
         # Two period ends can only share a label when a filer's original
-        # filing is missing from companyfacts; keep the later period.
-        merged = {}  # {fy_label: (end, value)}
+        # filing is missing from companyfacts (or mislabels fy); keep the later
+        # period — but never let a fallback tag's period displace a primary's
+        # (Shopify's 2023 InterestPaidNet is filed as fy 2022).
+        merged = {}  # {fy_label: (end, value, fallback)}
         for end, rec in by_end.items():
             label = rec['label'][1]
             prev = merged.get(label)
-            if prev is None or end > prev[0]:
-                merged[label] = (end, rec['val'][1])
+            fb = rec.get('fallback', False)
+            if (prev is None or (prev[2] and not fb)
+                    or (prev[2] == fb and end > prev[0])):
+                merged[label] = (end, rec['val'][1], fb)
+
+        if fallback_min_year is not None:
+            fb_years = [fy for fy, info in merged.items() if info[2]]
+            if fb_years and max(fb_years) < fallback_min_year:
+                merged = {fy: info for fy, info in merged.items() if not info[2]}
 
         return {fy: info[1] for fy, info in sorted(merged.items())}
 
@@ -1084,7 +1178,12 @@ class SECXBRLClient:
         # keep the latest filed version per (end, kind).
         merged = {}  # {(end_str, kind): (filed_str, val)}
 
+        reached_fallbacks = False
         for tag in tag_list:
+            if tag in self._FALLBACK_TAGS and not reached_fallbacks:
+                reached_fallbacks = True
+                if merged:
+                    break  # fallbacks only when the primary tags found nothing
             concept = us_gaap.get(tag)
             if not concept:
                 continue
@@ -1101,6 +1200,8 @@ class SECXBRLClient:
                 start = e.get('start', '')
                 end = e.get('end', '')
                 if val is None or not end:
+                    continue
+                if val < 0 and tag in self._FALLBACK_TAGS:
                     continue
 
                 if point_in_time:
@@ -1266,7 +1367,8 @@ class SECXBRLClient:
         return max(tally.items(),
                    key=lambda kv: (kv[1], kv[0] == 'USD', kv[0]))[0]
 
-    def _extract_concept_annual(self, facts_json, concept, units_key=None):
+    def _extract_concept_annual(self, facts_json, concept, units_key=None,
+                                fallback_min_year=None):
         """Try US-GAAP first, fall back to IFRS, auto-detect currency.
 
         Returns (values_dict, taxonomy_key, currency) tuple. values_dict is
@@ -1274,6 +1376,7 @@ class SECXBRLClient:
 
         units_key: explicit override (e.g. 'shares' for share counts). If
         None, the method auto-picks USD or the foreign filer's currency.
+        fallback_min_year: see _extract_annual_values.
         """
         ccy = units_key or self._detect_currency(facts_json, concept) or 'USD'
         tie_break = 'max' if concept in self._TIE_BREAK_MAX else 'first'
@@ -1283,7 +1386,7 @@ class SECXBRLClient:
                 continue
             vals = self._extract_annual_values(
                 facts_json, tags, units_key=ccy, taxonomy_key=taxonomy_key,
-                tie_break=tie_break)
+                tie_break=tie_break, fallback_min_year=fallback_min_year)
             if vals:
                 return vals, taxonomy_key, ccy
         return {}, None, ccy
@@ -1584,15 +1687,19 @@ class SECXBRLClient:
         # revenue was scaled by the CNY rate as well.
         reporting_ccy = self.reporting_currency(facts)
 
+        fallback_min_year = None   # set once the filer's latest year is known
+
         def _flow(concept):
             vals, _tax, ccy = self._extract_concept_annual(
-                facts, concept, units_key=reporting_ccy)
+                facts, concept, units_key=reporting_ccy,
+                fallback_min_year=fallback_min_year)
             return vals, ccy
 
         rev, rev_ccy             = self._resolve_revenue_annual(
             facts, units_key=reporting_ccy)
         ni,  ni_ccy              = _flow('net_income')
         ocf, ocf_ccy             = _flow('operating_cash_flow')
+        fallback_min_year = self._fallback_min_year(rev, ni, ocf)
         capex, capex_ccy         = _flow('capex')
         gp, gp_ccy               = _flow('gross_profit')
         intexp, intexp_ccy       = _flow('interest_expense')
@@ -1821,7 +1928,7 @@ class SECXBRLClient:
                       debt_h, cash_h]
         years_available = max((len(s) for s in all_series if s), default=0)
 
-        return {
+        hist = {
             'revenue_history':          rev,
             'earnings_history':         ni,
             'operating_cf_history':     ocf,
@@ -1883,6 +1990,10 @@ class SECXBRLClient:
             'reporting_currency':       reporting_ccy,
             'fx_converted':             fx_converted,
         }
+        if facts.get('_predecessor_cik'):
+            # Provenance: this history was read from the predecessor registrant.
+            hist['predecessor_cik'] = facts['_predecessor_cik']
+        return hist
 
     def build_yfinance_shape(self, ticker, year_limit=None):
         """Construct a yfinance-shaped financials dict from SEC XBRL data.
@@ -1948,15 +2059,20 @@ class SECXBRLClient:
         # can convert a frame like that.
         reporting_ccy = self.reporting_currency(facts)
 
+        fallback_min_year = None   # set once the filer's latest year is known
+
         def _ann(concept):
             vals, _taxo, _ccy = self._extract_concept_annual(
-                facts, concept, units_key=reporting_ccy)
+                facts, concept, units_key=reporting_ccy,
+                fallback_min_year=fallback_min_year)
             return vals
 
         # Income statement (flow concepts)
         revenue, _rev_ccy = self._resolve_revenue_annual(
             facts, units_key=reporting_ccy)
         net_income    = _ann('net_income')
+        fallback_min_year = self._fallback_min_year(
+            revenue, net_income, _ann('operating_cash_flow'))
         op_income     = _ann('operating_income')
         gross_profit  = _ann('gross_profit')
         interest_exp  = _ann('interest_expense')

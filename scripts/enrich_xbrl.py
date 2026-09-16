@@ -37,6 +37,7 @@ from data.provenance import (append_events, attach_enrichment,
                              enrichment_block, make_event, strip_enrichment)
 from data.sec_legal_client import SECLegalClient
 from data.sec_xbrl_client import SECXBRLClient
+from scripts.config import SEC_CIK_PREDECESSORS
 
 # Sectors we enrich. Communication Services included so Meta / Google /
 # Netflix get clean SBC and Tech-style derived KPIs. Industrials added
@@ -75,6 +76,10 @@ _TAGS = {
     "sbc": [
         "ShareBasedCompensation",
         "StockBasedCompensation",
+        # Fallback-only (SECXBRLClient._FALLBACK_TAGS): used for a year no
+        # tag above covers. This field feeds the SBC Dilution gate.
+        "AllocatedShareBasedCompensationExpense",
+        "StockIssuedDuringPeriodValueShareBasedCompensation",
     ],
     "cash": [
         "CashAndCashEquivalentsAtCarryingValue",
@@ -206,12 +211,13 @@ def _latest(d):
     return y, d[y]
 
 
-def _extract(xbrl_client, facts, concept):
+def _extract(xbrl_client, facts, concept, fallback_min_year=None):
     """Pull the annual time series for a concept (tries each tag alias)."""
     tags = _TAGS.get(concept, [])
     if not tags:
         return {}
-    vals = xbrl_client._extract_annual_values(facts, tags)
+    vals = xbrl_client._extract_annual_values(
+        facts, tags, fallback_min_year=fallback_min_year)
     return vals or {}
 
 
@@ -219,7 +225,12 @@ def _compute_one(rec, facts, xbrl_client):
     """Derive the five Phase-3 KPIs for one stock record. Mutates rec."""
     # Pull every concept we need from the cached facts blob.
     rd = _extract(xbrl_client, facts, "rd")
-    sbc = _extract(xbrl_client, facts, "sbc")
+    # A fallback SBC tag counts only when it reaches the latest revenue year
+    # (less SECXBRLClient.FALLBACK_MAX_LAG_YEARS).
+    _rev_years = [int(y) for y in ((rec.get("edgar_history") or {}).get("revenue_history") or {})]
+    sbc = _extract(xbrl_client, facts, "sbc",
+                   fallback_min_year=(max(_rev_years) - xbrl_client.FALLBACK_MAX_LAG_YEARS
+                                      if _rev_years else None))
     cash = _extract(xbrl_client, facts, "cash")
     sti = _extract(xbrl_client, facts, "st_investments")
     dr_cur = _extract(xbrl_client, facts, "def_rev_current")
@@ -475,6 +486,7 @@ def enrich(records, verbose=True, events=None):
         email=os.environ.get("SEC_EMAIL", "stockanalysis@example.com"),
         request_delay=0.15,
         facts_cache=True,
+        cik_predecessors=SEC_CIK_PREDECESSORS,
     )
     _sweep = xbrl.refresh_stale_facts()
     if _sweep.get("invalidated"):

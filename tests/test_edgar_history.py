@@ -322,3 +322,160 @@ class TestSharesCagrFallback:
 
     def test_no_series_at_all_stays_none(self):
         assert self._hist()['shares_cagr_5y'] is None
+
+
+class TestFallbackTags:
+    """Tags appended as near-substitutes (InterestPaidNet for interest expense,
+    the allocated/stock-issued SBC tags, net/software capex) fill a year only
+    when no primary tag covers it — merging is latest-filed-wins across tags,
+    so without the guard a later 10-K's comparative could displace a primary."""
+
+    @staticmethod
+    def _entries(years_values, filed_year_offset=1, fp='FY'):
+        return [{'form': '10-K', 'fy': fy, 'fp': fp, 'val': val,
+                 'filed': f'{fy + filed_year_offset}-02-15',
+                 'start': f'{fy}-01-01', 'end': f'{fy}-12-31'}
+                for fy, val in years_values.items()]
+
+    def _client(self, monkeypatch, tags):
+        from data.sec_xbrl_client import SECXBRLClient
+        c = SECXBRLClient(cik_map={'TEST': '0000000001'}, name_map={},
+                          email='t@e.com', request_delay=0)
+        facts = {'facts': {'us-gaap': {
+            'Revenues': {'units': {'USD': self._entries({2022: 1e9, 2023: 1.1e9, 2024: 1.2e9})}},
+            'OperatingIncomeLoss': {'units': {'USD': self._entries(
+                {2022: 100e6, 2023: 120e6, 2024: 150e6})}},
+            **{t: {'units': {'USD': e}} for t, e in tags.items()},
+        }}}
+        monkeypatch.setattr(c, 'fetch_company_facts', lambda tk: facts)
+        return c
+
+    def test_interest_paid_only_resolves_history_and_int_cov(self, monkeypatch):
+        from scripts.analyze_stock import derive_edgar_metrics
+        c = self._client(monkeypatch, {
+            'InterestPaidNet': self._entries({2022: 10e6, 2023: 12e6, 2024: 15e6})})
+        h = c.fetch_historical_financials('TEST')
+        assert h['interest_expense_history'] == {2022: 10e6, 2023: 12e6, 2024: 15e6}
+        assert derive_edgar_metrics(h)['int_cov_edgar'] == pytest.approx(10.0)
+
+    def test_expense_tag_wins_where_both_exist(self, monkeypatch):
+        c = self._client(monkeypatch, {
+            'InterestExpense': self._entries({2022: 20e6, 2023: 22e6}),
+            # a later filing's cash-paid comparative for 2022 must not win
+            'InterestPaidNet': self._entries({2022: 9e6, 2023: 11e6, 2024: 13e6},
+                                             filed_year_offset=3),
+        })
+        h = c.fetch_historical_financials('TEST')
+        # 2024 has no expense tag, so the fallback fills that year only
+        assert h['interest_expense_history'] == {2022: 20e6, 2023: 22e6, 2024: 13e6}
+
+    def test_sbc_fallback_order(self, monkeypatch):
+        c = self._client(monkeypatch, {
+            'AllocatedShareBasedCompensationExpense': self._entries({2023: 5e6}),
+            'StockIssuedDuringPeriodValueShareBasedCompensation': self._entries(
+                {2023: 99e6, 2024: 6e6}),
+        })
+        h = c.fetch_historical_financials('TEST')
+        assert h['sbc_cf_history'] == {2023: 5e6, 2024: 6e6}
+        c2 = self._client(monkeypatch, {
+            'ShareBasedCompensation': self._entries({2023: 7e6}),
+            'AllocatedShareBasedCompensationExpense': self._entries({2023: 5e6}),
+        })
+        assert c2.fetch_historical_financials('TEST')['sbc_cf_history'] == {2023: 7e6}
+
+    def test_capex_fallbacks(self, monkeypatch):
+        c = self._client(monkeypatch, {
+            'PaymentsToAcquirePropertyPlantAndEquipment': self._entries({2024: 40e6}),
+            'PaymentsToDevelopSoftware': self._entries({2023: 8e6, 2024: 9e6}),
+            'PaymentsForProceedsFromProductiveAssets': self._entries({2022: 30e6}),
+        })
+        h = c.fetch_historical_financials('TEST')
+        assert h['capex_history'] == {2022: 30e6, 2023: 8e6, 2024: 40e6}
+
+    def test_periodic_uses_fallback_only_without_any_primary(self):
+        from data.sec_xbrl_client import SECXBRLClient
+        c = SECXBRLClient(cik_map={}, name_map={}, email='t@e.com', request_delay=0)
+        tags = SECXBRLClient._XBRL_TAG_MAP['interest_expense']
+        only_paid = {'facts': {'us-gaap': {
+            'InterestPaidNet': {'units': {'USD': self._entries({2023: 12e6})}}}}}
+        assert c._extract_periodic_values(only_paid, tags) == {'2023-12-31': 12e6}
+        both = {'facts': {'us-gaap': {
+            'InterestExpense': {'units': {'USD': self._entries({2023: 20e6})}},
+            'InterestPaidNet': {'units': {'USD': self._entries({2023: 12e6, 2024: 13e6},
+                                                               filed_year_offset=2)}}}}}
+        assert c._extract_periodic_values(both, tags) == {'2023-12-31': 20e6}
+
+    def test_fallback_tags_sit_at_the_tail_of_their_lists(self):
+        from data.sec_xbrl_client import SECXBRLClient
+        fb = SECXBRLClient._FALLBACK_TAGS
+        seen = set()
+        for tags in SECXBRLClient._XBRL_TAG_MAP.values():
+            flags = [t in fb for t in tags]
+            if any(flags):
+                first = flags.index(True)
+                assert all(flags[first:]), tags
+                seen |= {t for t in tags if t in fb}
+            assert len(tags) == len(set(tags)), f'duplicate tag in {tags}'
+        assert seen == fb
+
+    def test_mislabelled_fallback_period_cannot_displace_primary_label(self):
+        """Shopify: a 2023 InterestPaidNet fact filed with fy=2022 shares the
+        2022 label with the expense tag's 2022 period."""
+        from data.sec_xbrl_client import SECXBRLClient
+        c = SECXBRLClient(cik_map={}, name_map={}, email='t@e.com', request_delay=0)
+        facts = {'facts': {'us-gaap': {
+            'InterestExpense': {'units': {'USD': self._entries({2022: 3_499_000})}},
+            'InterestPaidNet': {'units': {'USD': [
+                {'form': '40-F', 'fy': 2022, 'fp': 'FY', 'val': 1_000_000,
+                 'filed': '2024-02-13', 'start': '2023-01-01', 'end': '2023-12-31'}]}},
+        }}}
+        tags = SECXBRLClient._XBRL_TAG_MAP['interest_expense']
+        assert c._extract_annual_values(facts, tags) == {2022: 3_499_000}
+
+    def test_stale_fallback_series_is_dropped(self, monkeypatch):
+        """SO: AllocatedShareBasedCompensationExpense last tagged 2016 must not
+        become the current SBC; a current fallback series keeps its history."""
+        c = self._client(monkeypatch, {
+            'AllocatedShareBasedCompensationExpense': self._entries({2015: 2e6, 2016: 3e6}),
+            'InterestPaidNet': self._entries({2016: 8e6, 2023: 9e6}),
+        })
+        h = c.fetch_historical_financials('TEST')        # revenue runs to 2024
+        assert h['sbc_cf_history'] == {}
+        assert h['interest_expense_history'] == {2016: 8e6, 2023: 9e6}
+
+    def test_stale_rule_never_touches_primary_tags(self, monkeypatch):
+        c = self._client(monkeypatch, {
+            'ShareBasedCompensation': self._entries({2016: 3e6}),
+            'AllocatedShareBasedCompensationExpense': self._entries({2015: 2e6}),
+        })
+        # the primary 2016 stays; the stale fallback-only 2015 goes
+        assert c.fetch_historical_financials('TEST')['sbc_cf_history'] == {2016: 3e6}
+        facts = c.fetch_company_facts('TEST')
+        from data.sec_xbrl_client import SECXBRLClient
+        tags = SECXBRLClient._XBRL_TAG_MAP['sbc_cf']
+        assert c._extract_annual_values(facts, tags, fallback_min_year=2023) == {2016: 3e6}
+        assert c._extract_annual_values(facts, tags) == {2015: 2e6, 2016: 3e6}
+
+    def test_enrich_sbc_uses_only_current_fallbacks(self):
+        from data.sec_xbrl_client import SECXBRLClient
+        from scripts.enrich_xbrl import _compute_one
+        c = SECXBRLClient(cik_map={}, name_map={}, email='t@e.com', request_delay=0)
+        rec = {'edgar_history': {'revenue_history': {'2023': 1e9, '2024': 1.2e9}}}
+        stale = {'facts': {'us-gaap': {'AllocatedShareBasedCompensationExpense': {
+            'units': {'USD': self._entries({2016: 3e6})}}}}}
+        _compute_one(rec, stale, c)
+        assert rec.get('sbc_pct_rev_xbrl') is None
+        current = {'facts': {'us-gaap': {'AllocatedShareBasedCompensationExpense': {
+            'units': {'USD': self._entries({2024: 12e6})}}}}}
+        _compute_one(rec, current, c)
+        assert rec['sbc_pct_rev_xbrl'] == pytest.approx(0.01)
+
+    def test_negative_fallback_values_are_ignored(self, monkeypatch):
+        c = self._client(monkeypatch, {
+            'StockIssuedDuringPeriodValueShareBasedCompensation': self._entries(
+                {2023: 4e6, 2024: -90e6}),
+            'PaymentsForProceedsFromProductiveAssets': self._entries({2024: -5e6}),
+        })
+        h = c.fetch_historical_financials('TEST')
+        assert h['sbc_cf_history'] == {2023: 4e6}
+        assert h['capex_history'] == {}
