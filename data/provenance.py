@@ -91,6 +91,10 @@ class ProvenanceRecorder:
         self.finished_at = None
         self.events = []
         self._sources = {}  # ticker -> {slot: {...}}
+        # Per-phase wall clock and the Phase-1 cost breakdown. Only
+        # run_started_at/finished_at were recorded before, so a slow night
+        # could not be attributed without diffing raw stdout timestamps.
+        self.timings = {}
 
     def record_source(self, ticker, slot, source,
                       cache_hit=None, cache_age_days=None, **extra):
@@ -139,6 +143,13 @@ class ProvenanceRecorder:
             counts[e['type']] = counts.get(e['type'], 0) + 1
         return counts
 
+    def record_timings(self, block):
+        """Attach the run's phase timings (see analyze_stock._main)."""
+        try:
+            self.timings = dict(block or {})
+        except Exception as e:
+            logger.debug('provenance: timings record failed: %s' % e)
+
     def run_block(self, results_rows=None):
         """Top-level ``provenance`` dict for the results JSON.
 
@@ -161,7 +172,7 @@ class ProvenanceRecorder:
                     src = (slots.get('statements') or {}).get('source')
                     if src:
                         stmt_counts[src] = stmt_counts.get(src, 0) + 1
-            return {
+            block = {
                 'schema_version': SCHEMA_VERSION,
                 'run_started_at': self.started_at,
                 'run_finished_at': self.finished_at,
@@ -170,6 +181,9 @@ class ProvenanceRecorder:
                 'event_counts': self.event_counts(),
                 'events_file': 'events_%s.json' % self.run_date,
             }
+            if self.timings:
+                block['timings'] = self.timings
+            return block
         except Exception as e:
             logger.debug('provenance: run_block build failed: %s' % e)
             return {'schema_version': SCHEMA_VERSION}

@@ -607,6 +607,13 @@ class SECXBRLClient:
         self._cik_map = cik_map
         self._name_map = name_map
         self._facts_cache = self._resolve_facts_cache(facts_cache)
+        # Companyfacts accounting: how much of the SEC leg is network vs. the
+        # two cache layers. The blobs ship gzipped (~139 KB), so this leg is
+        # latency-bound — net_calls x round-trip, serialized behind the shared
+        # 0.12s throttle — not bandwidth-bound.
+        self.facts_stats = {'net_calls': 0, 'net_seconds': 0.0,
+                            'mem_hits': 0, 'disk_hits': 0, 'no_cik': 0,
+                            'failures': 0}
 
     @staticmethod
     def _resolve_facts_cache(facts_cache):
@@ -680,27 +687,35 @@ class SECXBRLClient:
             dict: The raw companyfacts JSON, or None on failure.
         """
         if ticker in self._cache:
+            self.facts_stats['mem_hits'] += 1
             return self._cache[ticker]
 
         cik = self._cik_map.get(ticker)
         if not cik:
+            self.facts_stats['no_cik'] += 1
             self._cache[ticker] = None
             return None
 
         if self._facts_cache is not None:
             cached = self._facts_cache.get(cik)
             if cached is not None:
+                self.facts_stats['disk_hits'] += 1
                 self._cache[ticker] = cached
                 return cached
 
         url = self._COMPANY_FACTS_URL.format(cik=cik)
+        _t0 = time.perf_counter()
         data = self._request_json(url)
+        self.facts_stats['net_calls'] += 1
+        self.facts_stats['net_seconds'] += time.perf_counter() - _t0
         # Don't cache request failures: a transient timeout would otherwise
         # read as "this ticker has no XBRL data" for the rest of the run.
         if data is not None:
             self._cache[ticker] = data
             if self._facts_cache is not None:
                 self._facts_cache.put(cik, data)
+        else:
+            self.facts_stats['failures'] += 1
         return data
 
     def release_facts(self, ticker):

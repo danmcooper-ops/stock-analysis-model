@@ -96,6 +96,19 @@ ruff check .
   `SEC_FACTS_CACHE_MAX_AGE_DAYS`, default 30) is only a backstop for when the
   sweep cannot run; entries past it are pruned. Requests send
   `Accept-Encoding: gzip`, which urllib omits by default.
+- **Run timings:** `_PhaseClock` in `analyze_stock.py` records wall clock per
+  `_run_*` phase and prints an "Elapsed by phase" table at the end;
+  `_run_phase1_screen` additionally times each leg (yf_fetch, xbrl, fx, roic,
+  cost_of_equity, wacc) and prints a Phase-1 breakdown, with a `tickers/s`
+  heartbeat every 250 tickers. `Throttle` counts `calls`/`slept`/`waited`
+  (lock contention), `YFinanceClient.stats` counts calls/retries/not_found/
+  `empty_attempts` (Yahoo's soft throttle, counted per attempt because it
+  burns all three), and `SECXBRLClient.facts_stats` splits companyfacts
+  network fetches from memory/disk hits. All of it lands in the snapshot's
+  `provenance.timings`, so a slow night can be compared against a fast one
+  instead of diffing stdout timestamps. The instrumentation is defensive —
+  a client without counters degrades to empty dicts rather than failing a
+  5-hour run.
 - **Phase-1 screen skip cache (`data/screen_skip_cache.py`):** remembers the
   ~4.5k tickers a run rejected as far below `--mcap-min` or dead, with a
   staggered 7-14 / 14-28 day TTL, so the next screen skips them without a
