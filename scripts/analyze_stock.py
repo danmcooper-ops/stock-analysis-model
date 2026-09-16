@@ -82,6 +82,7 @@ from data.snapshot_store import (SnapshotStore, prior_snapshot_file, read_snapsh
 from data.culture_client import CultureClient
 
 from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
+                            PHASE1_LOCAL_PRICE_MAX_AGE_DAYS,
                             RIM_SPREAD_PERSISTENCE, RIM_MAX_BOOK_GROWTH,
                             GROWTH_WEIGHT_FCF, GROWTH_WEIGHT_REV,
                             GROWTH_WEIGHT_ANALYST_ST, GROWTH_WEIGHT_ANALYST_LT,
@@ -591,6 +592,42 @@ def _load_local_prices(ticker, prices_dir):
         return None
 
 
+def _fresh_local_prices(ticker, prices_dir, as_of,
+                        max_age_days=PHASE1_LOCAL_PRICE_MAX_AGE_DAYS,
+                        min_obs=60):
+    """A 5y Close series from the local Parquet, or None.
+
+    Phase 1's beta regression is the second yfinance round trip of the run,
+    and the nightly pipeline has already downloaded those same closes into
+    output/prices right before the analysis (run.sh step 03). Returning them
+    here avoids a throttled fetch; None means the caller goes to the network
+    exactly as before.
+
+    Only a file fresh enough to stand in for a live fetch qualifies, and the
+    series is sliced to the same ~5y window yfinance's period="5y" returns —
+    the parquets hold full history, and a longer window would move the
+    headline beta (which is stock_ret[-260:]) for names whose 5y window is
+    slightly short.
+    """
+    if not prices_dir or as_of is None:
+        return None
+    series = _load_local_prices(ticker, prices_dir)
+    if series is None or len(series) <= min_obs:
+        return None
+    try:
+        last = series.index[-1].date()
+    except Exception:
+        return None
+    # Staleness is measured against the RUN date, not today: a long run
+    # crosses midnight and would otherwise start rejecting its own parquets.
+    age = (as_of - last).days
+    if age < 0 or age > max_age_days:
+        return None
+    cutoff = pd.Timestamp(last) - pd.DateOffset(years=5)
+    window = series[series.index >= cutoff]
+    return window if len(window) > min_obs else None
+
+
 def _load_local_ohlcv(ticker, prices_dir):
     """Load Close + Volume from local Parquet. Returns DataFrame or None.
 
@@ -938,7 +975,8 @@ def _to_tznaive(series):
 
 
 def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=None,
-                          erp=None, tiingo_client=None):
+                          erp=None, tiingo_client=None,
+                          local_prices=None, local_market_prices=None):
     """Select cost of equity using a four-level hierarchy.
 
     Tries each method in order, returning the first that passes validation:
@@ -955,6 +993,11 @@ def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=Non
         yf_client: Optional YFinanceClient for computing beta from prices.
         ticker: Optional ticker symbol for price history lookup.
         erp: Equity risk premium override (defaults to module-level ERP).
+        local_prices / local_market_prices: pre-loaded Close series to use
+            instead of fetching (see _fresh_local_prices). Both must be given
+            together or neither is used — mixing a local series with a fetched
+            one would regress two differently-sourced samples against each
+            other. Absent, the network path runs exactly as before.
 
     Returns:
         Tuple of (cost_of_equity, method_label, beta_diagnostics_or_None).
@@ -967,8 +1010,13 @@ def select_cost_of_equity(financials, risk_free_rate, yf_client=None, ticker=Non
     # 1. CAPM with computed beta and R² quality gate
     if yf_client and ticker:
         try:
-            stock_prices = yf_client.fetch_history(ticker, period="5y")
-            market_prices = yf_client.fetch_history('SPY', period="5y")
+            _local = (local_prices is not None
+                      and local_market_prices is not None)
+            if _local:
+                stock_prices, market_prices = local_prices, local_market_prices
+            else:
+                stock_prices = yf_client.fetch_history(ticker, period="5y")
+                market_prices = yf_client.fetch_history('SPY', period="5y")
             # Fall back to Tiingo if yfinance returns insufficient price data
             if tiingo_client and tiingo_client.available:
                 if stock_prices is None or len(stock_prices) <= 60:
@@ -2805,7 +2853,7 @@ def _load_carry_forward_rows(prior_date, prior_path):
 
 def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                        tiingo_client, sec_xbrl_client, risk_free_rate,
-                       effective_erp, checkpoint=None):
+                       effective_erp, checkpoint=None, prices_dir=None):
     """Phase 1: screen the full universe, caching fundamentals for Phase 2."""
     # -----------------------------------------------------------------------
     # Phase 1: Collect data for full universe (no ROIC > WACC pre-filter)
@@ -2891,6 +2939,20 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     _leg_counts = collections.Counter()
     _phase_t0 = time.perf_counter()
     _hb_t0 = _phase_t0
+
+    # The market leg of every beta regression, loaded once. SPY is in the
+    # nightly run's BENCHMARKS, so its parquet is refreshed alongside the
+    # rest; without it no ticker can use the local path, because a local
+    # stock series is never regressed against a fetched market series.
+    _run_day = yf_client.run_date or date.today()
+    _spy_local = _fresh_local_prices('SPY', prices_dir, _run_day)
+    if _spy_local is not None:
+        print(f"Phase 1: beta from local prices where fresh "
+              f"(SPY parquet has {len(_spy_local)} bars through "
+              f"{_spy_local.index[-1].date()})")
+    elif prices_dir:
+        print("Phase 1: no fresh local SPY parquet — beta history comes from "
+              "the network for every ticker")
 
     for i, ticker in enumerate(all_tickers, 1):
         # Progress heartbeat: a 3-5h phase writing one line per ticker is
@@ -3071,11 +3133,17 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             _legs['roic'] += time.perf_counter() - _t
 
             # The second yfinance round trip of the phase (5y history for the
-            # beta regression), so this leg is mostly throttle sleep.
+            # beta regression) unless the local parquet can serve it.
+            _px_local = (_fresh_local_prices(ticker, prices_dir, _run_day)
+                         if _spy_local is not None else None)
+            _leg_counts['beta_from_local' if _px_local is not None
+                        else 'beta_from_network'] += 1
             _t = time.perf_counter()
             cost_of_equity, re_method, beta_diag = select_cost_of_equity(
                 yf_data, risk_free_rate, yf_client, ticker, erp=effective_erp,
-                tiingo_client=tiingo_client)
+                tiingo_client=tiingo_client,
+                local_prices=_px_local,
+                local_market_prices=_spy_local if _px_local is not None else None)
             _legs['cost_of_equity'] += time.perf_counter() - _t
             _leg_counts['cost_of_equity'] += 1
             _prov.record_source(ticker, 'beta', re_method)
@@ -5054,7 +5122,7 @@ def _main():
     phase1 = _run_phase1_screen(args, _prov, all_tickers, ticker_source,
                                 yf_client, tiingo_client, sec_xbrl_client,
                                 risk_free_rate, effective_erp,
-                                checkpoint=checkpoint)
+                                checkpoint=checkpoint, prices_dir=prices_dir)
     _clock.tick('phase1_screen')
     qualifying = phase1['qualifying']
     screen_cache = phase1['screen_cache']

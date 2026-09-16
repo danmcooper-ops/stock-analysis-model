@@ -213,6 +213,13 @@ SECTOR_DEFAULT = {
 # rate limit; the model math stays single-threaded.
 PHASE2_IO_WORKERS = 4
 
+# How stale output/prices/<ticker>.parquet may be and still stand in for a
+# live 5y fetch in the Phase-1 beta regression. The nightly pipeline refreshes
+# those files immediately before the analysis (run.sh step 03), so a hit is
+# normally same-day; 5 days covers a long weekend plus a holiday without
+# admitting the months-old drift a stale checkout can carry.
+PHASE1_LOCAL_PRICE_MAX_AGE_DAYS = 5
+
 
 def _get_sector_config(sector):
     """Look up sector-specific DCF parameters with default fallback."""

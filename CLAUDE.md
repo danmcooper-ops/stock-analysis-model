@@ -96,6 +96,21 @@ ruff check .
   `SEC_FACTS_CACHE_MAX_AGE_DAYS`, default 30) is only a backstop for when the
   sweep cannot run; entries past it are pruned. Requests send
   `Accept-Encoding: gzip`, which urllib omits by default.
+- **Phase-1 beta from local prices:** the nightly run downloads every prior
+  snapshot ticker's closes into `output/prices` immediately before the
+  analysis (`run.sh` step 03), so Phase 1 reads that parquet for the beta
+  regression instead of paying a second throttled yfinance call per ticker.
+  `_fresh_local_prices()` gates it: the file must exist, hold >60 bars, and
+  end within `PHASE1_LOCAL_PRICE_MAX_AGE_DAYS` (5) of the **run** date — not
+  today, since a long run crosses midnight. It slices to the same ~5y window
+  `period="5y"` returns, because the parquets hold full history and the
+  headline beta is `stock_ret[-260:]`. SPY is loaded once; a ticker is served
+  locally only when SPY is too, since a local series is never regressed
+  against a fetched one. Anything missing, stale, short or future-dated falls
+  through to the network unchanged, and the Tiingo fallbacks are untouched.
+  Measured against live fetches on 10 large caps the shrunk beta moves by
+  <0.001 (the local window carries one extra weekly observation), which is
+  ~0.3bp on the ROIC−WACC spread.
 - **Run timings:** `_PhaseClock` in `analyze_stock.py` records wall clock per
   `_run_*` phase and prints an "Elapsed by phase" table at the end;
   `_run_phase1_screen` additionally times each leg (yf_fetch, xbrl, fx, roic,
