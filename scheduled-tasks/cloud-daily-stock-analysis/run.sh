@@ -37,6 +37,8 @@
 #                        proxy; see data/yf_session.py)
 #   SEC_EMAIL, FMP_API_KEY, TIINGO_API_KEY, FINNHUB_API_KEY, ANTHROPIC_API_KEY,
 #   FRED_API_KEY         as in the Mac runbook; all optional but SEC_EMAIL
+#   MACRO_ANTHROPIC_API_KEY  the macro narrative's key in the cloud, where
+#                        ANTHROPIC_API_KEY itself is reserved and stripped
 #   FORCE=1              run even when scripts/market_open.py says closed
 #   RUNDATE=YYYY-MM-DD   the session to analyse (default: today, New York).
 #                        Re-runs a failed weekday the next morning under its own
@@ -77,6 +79,12 @@ export TZ="${TZ:-America/New_York}"
 # run the next morning must still be filed under the session it analyses.
 RUNDATE="${RUNDATE:-$(date +%F)}"
 export SEC_EMAIL="${SEC_EMAIL:-stockanalysis@example.com}"
+# Claude Code's cloud environment reserves ANTHROPIC_API_KEY for session
+# auth and strips it from the process environment, so the macro narrative
+# saw no key however the Routine environment set it.  Carry it under an
+# unreserved name instead.  Guarded for set -u: an unset MACRO_ key must
+# leave the narrative cleanly skipped, not abort the run.
+export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-${MACRO_ANTHROPIC_API_KEY:-}}"
 # The cloud egress proxy re-terminates TLS; every client must trust its CA.
 if [ -z "${SSL_CERT_FILE:-}" ] && [ -r /root/.ccr/ca-bundle.crt ]; then
   export SSL_CERT_FILE=/root/.ccr/ca-bundle.crt
