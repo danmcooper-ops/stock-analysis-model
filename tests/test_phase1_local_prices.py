@@ -15,6 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import scripts.analyze_stock as A  # noqa: E402
 from scripts.analyze_stock import (_fresh_local_prices,  # noqa: E402
                                    select_cost_of_equity)
 
@@ -150,3 +151,56 @@ def test_local_and_network_betas_agree(tmp_path):
     network = select_cost_of_equity(_financials(), 0.04, _Both(), 'AAA')
     assert local[0] == pytest.approx(network[0])
     assert local[1] == network[1]
+
+
+# --- --prices-dir must reach the client ------------------------------------
+
+class _StubSECLegal:
+    """_run_build_clients loads the real SEC CIK map; these tests are about
+    argument threading, so stub the network out and keep them offline."""
+
+    def __init__(self, *a, **k):
+        self._cik_map = {}
+        self._name_map = {}
+
+    def _load_cik_map(self):
+        pass
+
+
+class _StubSECXBRL:
+    def __init__(self, *a, **k):
+        pass
+
+    def refresh_stale_facts(self):
+        return {}
+
+
+@pytest.fixture
+def _offline_clients(monkeypatch):
+    monkeypatch.setattr(A, 'SECLegalClient', _StubSECLegal)
+    monkeypatch.setattr(A, 'SECXBRLClient', _StubSECXBRL)
+
+
+def test_build_clients_threads_prices_dir_to_the_client(tmp_path, _offline_clients):
+    """The client's write-through dir has its own default, so a run pointed
+    elsewhere used to read from --prices-dir but write stubs to
+    output/prices — seeding files in a tree nothing was reading."""
+    clients = A._run_build_clients(date(2026, 9, 22), yf_delay=0,
+                                   prices_dir=str(tmp_path / 'custom'))
+    assert clients['yf_client']._prices_dir == str(tmp_path / 'custom')
+
+
+def test_build_clients_keeps_the_default_when_unset(_offline_clients):
+    clients = A._run_build_clients(date(2026, 9, 22), yf_delay=0)
+    assert clients['yf_client']._prices_dir == 'output/prices'
+
+
+def test_write_through_lands_in_the_configured_dir(tmp_path):
+    """End of the same path: the stub is written where the run was told."""
+    from data.yfinance_client import YFinanceClient
+    import pandas as pd
+    d = tmp_path / 'custom'
+    client = YFinanceClient(request_delay=0, prices_dir=str(d))
+    idx = pd.bdate_range(end=pd.Timestamp('2026-09-22'), periods=80)
+    client._maybe_persist_prices('AAA', pd.DataFrame({'Close': range(80)}, index=idx))
+    assert (d / 'AAA.parquet').exists()

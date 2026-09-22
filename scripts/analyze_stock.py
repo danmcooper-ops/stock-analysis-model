@@ -2804,12 +2804,20 @@ def _sec_email():
     return os.environ.get('SEC_EMAIL', 'stockanalysis@example.com')
 
 
-def _run_build_clients(run_start_date, yf_delay=YF_REQUEST_DELAY):
-    """Construct the Phase-1 data clients (yfinance, Tiingo, SEC EDGAR)."""
+def _run_build_clients(run_start_date, yf_delay=YF_REQUEST_DELAY,
+                       prices_dir=None):
+    """Construct the Phase-1 data clients (yfinance, Tiingo, SEC EDGAR).
+
+    *prices_dir* is the run's --prices-dir. Without it the client keeps its
+    own "output/prices" default, so a run pointed at another directory read
+    from that one but wrote its price write-throughs back to the default —
+    seeding stubs in a tree nothing was reading.
+    """
     yf_client = YFinanceClient(run_date=run_start_date, request_delay=yf_delay,
                                delay_max=YF_REQUEST_DELAY_MAX,
                                penalty=YF_THROTTLE_PENALTY,
-                               relax_step=YF_THROTTLE_RELAX)
+                               relax_step=YF_THROTTLE_RELAX,
+                               **({'prices_dir': prices_dir} if prices_dir else {}))
     print(f"yfinance throttle: {yf_delay}s minimum interval "
           f"(backs off to {YF_REQUEST_DELAY_MAX}s on soft throttles)")
 
@@ -5292,7 +5300,8 @@ def _main():
         from scripts.run_checkpoint import RunCheckpoint, fingerprint
         checkpoint = RunCheckpoint(run_start_date, fingerprint(run_start_date, args))
 
-    clients = _run_build_clients(run_start_date, yf_delay=args.yf_delay)
+    clients = _run_build_clients(run_start_date, yf_delay=args.yf_delay,
+                                 prices_dir=prices_dir)
     _clock.tick('build_clients')
     yf_client = clients['yf_client']
     tiingo_client = clients['tiingo_client']
