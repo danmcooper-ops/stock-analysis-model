@@ -118,12 +118,13 @@ SEC_EMAIL=
 FMP_API_KEY=
 TIINGO_API_KEY=
 FINNHUB_API_KEY=
-ANTHROPIC_API_KEY=
+MACRO_ANTHROPIC_API_KEY=
 ENV
 chmod 600 "$HOME/Projects/Workspace Folder/.env"
 ```
 
-Without `ANTHROPIC_API_KEY` the run still succeeds — the Macro Outlook tab and
+Without `MACRO_ANTHROPIC_API_KEY` (or the older `ANTHROPIC_API_KEY`, still
+read as a fallback) the run still succeeds — the Macro Outlook tab and
 the per-sector outlook bullets just render empty, and the log says "macro
 narrative skipped".
 

@@ -73,11 +73,21 @@ occasionally to confirm progress, but do nothing else to the repo. Never start
 a second copy.
 
 API keys come from the environment (`SEC_EMAIL`, `FMP_API_KEY`, `TIINGO_API_KEY`,
-`FINNHUB_API_KEY`, `ANTHROPIC_API_KEY`, `FRED_API_KEY`). They are configured on
+`FINNHUB_API_KEY`, `MACRO_ANTHROPIC_API_KEY`, `FRED_API_KEY`). They are configured on
 the cloud environment, not in the repo; if `SEC_EMAIL` is unset the script
 falls back to a placeholder contact address and everything else degrades as
-documented in the Mac runbook (no `ANTHROPIC_API_KEY` = no macro narrative,
-still a successful run). Mention in the summary which keys were absent.
+documented in the Mac runbook (no `MACRO_ANTHROPIC_API_KEY` = no macro
+narrative, still a successful run). Mention in the summary which keys were
+absent.
+
+**The macro key is deliberately not called `ANTHROPIC_API_KEY`.** This
+container is a Claude Code session, which owns that name for its own auth —
+one configured on the environment never arrived here on any of the
+2026-09-15..18 runs, while every other key did, so four nights published
+without a narrative. `data/claude_narrative.py` reads
+`MACRO_ANTHROPIC_API_KEY` first and keeps the old name as a fallback for the
+Mac runbook. If the narrative is missing again, check that name in the
+environment config before anything else.
 
 ### 3. Read the outcome
 When the background command finishes, read `.cloud-run/status.txt` first.

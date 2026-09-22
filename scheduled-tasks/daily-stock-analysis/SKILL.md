@@ -103,6 +103,6 @@ A market-closed skip is a success, and the criteria below don't apply to it.
 - **Screen skip cache:** `data/cache/screen_skip.json` makes Phase 1 skip tickers that were recently far below the $300M floor, or had no data from any source. It is disposable. `analyze_stock.py --no-screen-cache` ignores it for one run.
 - **Phase 2 prefetch:** Phase 2 fetches network data on 4 threads (`--workers`). The analysis itself stays single-threaded.
 - **Power:** the Mac must be on AC power. `caffeinate` can't hold off sleep on a nearly empty battery (the 2026-09-09 run hibernated at 1%).
-- **API keys:** read from `.env` in the repo root, which must never be committed. `SEC_EMAIL` sets the SEC User-Agent. `ANTHROPIC_API_KEY` powers the macro narrative, which is cached per run date. `TIINGO_API_KEY`, `FMP_API_KEY` and `FINNHUB_API_KEY` are optional.
+- **API keys:** read from `.env` in the repo root, which must never be committed. `SEC_EMAIL` sets the SEC User-Agent. `MACRO_ANTHROPIC_API_KEY` powers the macro narrative, which is cached per run date (`ANTHROPIC_API_KEY` is read as a fallback). `TIINGO_API_KEY`, `FMP_API_KEY` and `FINNHUB_API_KEY` are optional.
 - **Snapshot store:** `output/snapshots.duckdb` is a derived index. To rebuild it: `"$PYTHON" scripts/ingest_snapshots.py --results-dir output`.
 - **Find days missing from the archive:** `"$PYTHON" scripts/archive_snapshot.py --dest .claude/worktrees/snapshots-data --audit`.

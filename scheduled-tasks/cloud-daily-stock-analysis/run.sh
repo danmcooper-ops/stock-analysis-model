@@ -35,8 +35,12 @@
 #   YF_IMPERSONATE       curl_cffi browser profile (default chrome116 here —
 #                        the newer Chrome profiles are reset by the egress
 #                        proxy; see data/yf_session.py)
-#   SEC_EMAIL, FMP_API_KEY, TIINGO_API_KEY, FINNHUB_API_KEY, ANTHROPIC_API_KEY,
-#   FRED_API_KEY         as in the Mac runbook; all optional but SEC_EMAIL
+#   SEC_EMAIL, FMP_API_KEY, TIINGO_API_KEY, FINNHUB_API_KEY,
+#   MACRO_ANTHROPIC_API_KEY, FRED_API_KEY
+#                        as in the Mac runbook; all optional but SEC_EMAIL.
+#                        The macro key is NOT ANTHROPIC_API_KEY: this is a
+#                        Claude Code container and that name is the
+#                        session's own (see the runbook's key section)
 #   FORCE=1              run even when scripts/market_open.py says closed
 #   RUNDATE=YYYY-MM-DD   the session to analyse (default: today, New York).
 #                        Re-runs a failed weekday the next morning under its own
