@@ -97,7 +97,8 @@ class TestDebtFreeIntCov:
     """No interest series anywhere and no debt to service: the coverage test
     passes at the cap instead of scoring 0 on absent data."""
 
-    def _row(self, sector='Technology', **eh):
+    def _row(self, sector='Technology', latest_year=2025, **eh):
+        eh.setdefault('revenue_history', {str(latest_year): 1e9})
         return {'sector': sector, 'int_cov': None, 'int_cov_edgar': None,
                 'edgar_history': eh}
 
@@ -128,14 +129,40 @@ class TestDebtFreeIntCov:
         prepare_scoring_fields([r])
         assert r['int_cov'] == 40.0
 
-    def test_row_total_debt_zero_without_history(self):
-        r = {'sector': 'Technology', 'int_cov': None, 'total_debt': 0.0}
+    def test_row_total_debt_zero_without_history_is_not_evidence(self):
+        """yfinance reporting nothing is not a filer reporting zero."""
+        r = {'sector': 'Technology', 'int_cov': None, 'total_debt': 0.0,
+             'edgar_history': {'revenue_history': {'2025': 1e9}}}
+        prepare_scoring_fields([r])
+        assert r['int_cov'] is None and '_int_cov_source' not in r
+
+    def test_stale_debt_is_not_debt_free(self):
+        """YELP last tagged debt in 2016; that says nothing about 2025."""
+        r = self._row(total_debt_history={'2016': 0.0}, latest_year=2025)
+        prepare_scoring_fields([r])
+        assert r['int_cov'] is None
+        # one year behind the latest reported year is still current
+        r = self._row(total_debt_history={'2024': 0.0}, latest_year=2025)
+        prepare_scoring_fields([r])
+        assert r['int_cov'] == 40.0
+
+    def test_undatable_debt_year_is_not_debt_free(self):
+        r = self._row(total_debt_history={'n/a': 0.0}, latest_year=2025)
+        prepare_scoring_fields([r])
+        assert r['int_cov'] is None
+
+    def test_no_reported_year_still_accepts_dated_debt(self):
+        """A filer with a debt series but no flow series keeps the old
+        behaviour — there is nothing to date the staleness against."""
+        r = {'sector': 'Technology', 'int_cov': None,
+             'edgar_history': {'total_debt_history': {'2019': 0.0}}}
         prepare_scoring_fields([r])
         assert r['int_cov'] == 40.0
 
     def test_unknown_debt_stays_none(self):
         for r in (self._row(total_assets_history={'2025': 1e9}),
                   {'sector': 'Technology', 'int_cov': None},
+                  {'sector': 'Technology', 'int_cov': None, 'total_debt': 5e6},
                   {'sector': 'Technology', 'int_cov': None, 'total_debt': float('nan')}):
             prepare_scoring_fields([r])
             assert r['int_cov'] is None
