@@ -375,8 +375,13 @@ class YFinanceClient:
         tickers' worth (a qualifying ticker's raw yfinance dict is ~4 MB)
         across the sweep."""
         self._financials_cache.pop(ticker, None)
-        for key in [k for k in self._history_cache if k[0] == ticker]:
-            del self._history_cache[key]
+        # list() first: the comprehension runs Python bytecode per item, so
+        # iterating the live dict raises "dictionary changed size during
+        # iteration" as soon as another thread inserts a history key. list(d)
+        # is a single C-level call and is atomic under the GIL. Harmless while
+        # Phase 1 was sequential; fatal once it prefetches on a pool.
+        for key in [k for k in list(self._history_cache) if k[0] == ticker]:
+            self._history_cache.pop(key, None)
 
     def _retry(self, func, max_retries=2):
         """Run *func* with retries for transient failures.
