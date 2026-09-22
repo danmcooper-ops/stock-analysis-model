@@ -1146,6 +1146,19 @@ td.ct{font-weight:700;}
 .dtr-cagr{font-weight:700;}
 [data-theme="dark"] .dtr-tbl th{border-bottom-color:#30363d;}
 [data-theme="dark"] .dtr-tbl td{border-bottom-color:#21262d;color:#e6edf3;}
+/* Freeze the row-label column so the metric name stays readable while the FY
+   columns scroll in .dtr-wrap. Scoped to #d-track because .dtr-tbl is shared
+   with the statement tables, which keep their normal scroll. The opaque
+   background stops scrolled cells bleeding through; border-collapse drops a
+   sticky cell's own border in Chrome, so the row rule is redrawn as an inset
+   shadow. */
+#d-track .dtr-tbl th:first-child,#d-track .dtr-tbl td:first-child{position:-webkit-sticky;position:sticky;left:0;z-index:2;background:var(--surface);}
+#d-track .dtr-tbl th:first-child{box-shadow:inset 0 -1px 0 #dde5f5;}
+#d-track .dtr-tbl td:first-child{box-shadow:inset 0 -1px 0 #eef1f6;}
+#d-track .dtr-tbl tr:last-child td:first-child{box-shadow:none;}
+[data-theme="dark"] #d-track .dtr-tbl th:first-child{box-shadow:inset 0 -1px 0 #30363d;}
+[data-theme="dark"] #d-track .dtr-tbl td:first-child{box-shadow:inset 0 -1px 0 #21262d;}
+[data-theme="dark"] #d-track .dtr-tbl tr:last-child td:first-child{box-shadow:none;}
 .dsec h3{font-size:0.73em;text-transform:uppercase;letter-spacing:0.06em;color:#1a3a6b;font-weight:700;margin-bottom:9px;padding-bottom:5px;border-bottom:2px solid #c8d6f0;}
 .dkvg{display:grid;grid-template-columns:1fr 1fr;gap:1px 10px;}
 .dkv{display:flex;justify-content:space-between;padding:4px 6px;font-size:0.82em;line-height:1.55;border-radius:4px;color:#37474f;}
@@ -5621,16 +5634,28 @@ function _renderTrackRecord(d){
     {l:'Shares Out',get:function(k){return _near(sh,k,220);},fmt:_trFmtSh,inv:true,total:true},
     {l:'Dividends Paid',get:function(k){return dv[k]!=null?Math.abs(dv[k]):null;},fmt:fds},
   ];
-  var html='<div class="dtr-wrap"><table class="dtr-tbl"><tr><th></th>';
+  var html='<div class="dtr-wrap"><table class="dtr-tbl"><tr><th></th><th>Trend</th>';
   cols.forEach(function(k){html+='<th>FY'+k.slice(0,4)+'</th>';});
-  html+='<th>Trend</th></tr>';
+  html+='</tr>';
   var shown=0;
   rows.forEach(function(rw){
     var vals=cols.map(function(k){return rw.get(k);});
     var nn=vals.filter(function(v){return v!=null;});
     if(nn.length<2)return;
     shown++;
-    html+='<tr><td>'+rw.l+'</td>';
+    /* Trend column: CAGR for flow rows, total change for shares/debt, signed
+       dollar delta for net debt (it crosses zero, so ratio math is nonsense),
+       pp for margin. neut rows (banks) render the trend uncolored. It is
+       computed before the FY cells because it now renders second, next to
+       the row label, rather than last after ten FY columns. */
+    var f=nn[0],l=nn[nn.length-1],trend='—',tSty='';
+    var span=cols.length-1;
+    if(rw.margin){var pp=(l-f)*100;trend=(pp>0?'+':'')+pp.toFixed(1)+' pp';tSty=pp>0?'color:#1a9850':(pp<0?'color:#c0392b':'');}
+    else if(rw.delta){var dl=l-f;trend=(dl>0?'+':'')+fds(dl);tSty=(rw.inv?dl<0:dl>0)?'color:#1a9850':'color:#c0392b';}
+    else if(rw.total){var ch=f!==0?(l/f-1):null;if(ch!=null){trend=(ch>0?'+':'')+(ch*100).toFixed(1)+'%';tSty=(rw.inv?ch<0:ch>0)?'color:#1a9850':'color:#c0392b';}}
+    else if(f>0&&l>0&&span>0){var cg=Math.pow(l/f,1/span)-1;trend=(cg>0?'+':'')+(cg*100).toFixed(1)+'%/yr';tSty=cg>0?'color:#1a9850':'color:#c0392b';}
+    if(rw.neut)tSty='';
+    html+='<tr><td>'+rw.l+'</td><td class="dtr-cagr" style="'+tSty+'">'+trend+'</td>';
     var prev=null;
     vals.forEach(function(v){
       var sty='';
@@ -5643,17 +5668,7 @@ function _renderTrackRecord(d){
       html+='<td'+sty+'>'+(v!=null?rw.fmt(v):'—')+'</td>';
       if(v!=null)prev=v;
     });
-    /* Trend column: CAGR for flow rows, total change for shares/debt, signed
-       dollar delta for net debt (it crosses zero, so ratio math is nonsense),
-       pp for margin. neut rows (banks) render the trend uncolored. */
-    var f=nn[0],l=nn[nn.length-1],trend='—',tSty='';
-    var span=cols.length-1;
-    if(rw.margin){var pp=(l-f)*100;trend=(pp>0?'+':'')+pp.toFixed(1)+' pp';tSty=pp>0?'color:#1a9850':(pp<0?'color:#c0392b':'');}
-    else if(rw.delta){var dl=l-f;trend=(dl>0?'+':'')+fds(dl);tSty=(rw.inv?dl<0:dl>0)?'color:#1a9850':'color:#c0392b';}
-    else if(rw.total){var ch=f!==0?(l/f-1):null;if(ch!=null){trend=(ch>0?'+':'')+(ch*100).toFixed(1)+'%';tSty=(rw.inv?ch<0:ch>0)?'color:#1a9850':'color:#c0392b';}}
-    else if(f>0&&l>0&&span>0){var cg=Math.pow(l/f,1/span)-1;trend=(cg>0?'+':'')+(cg*100).toFixed(1)+'%/yr';tSty=cg>0?'color:#1a9850':'color:#c0392b';}
-    if(rw.neut)tSty='';
-    html+='<td class="dtr-cagr" style="'+tSty+'">'+trend+'</td></tr>';
+    html+='</tr>';
   });
   html+='</table></div>';
   html+='<div style="font-size:0.68em;color:var(--text-muted);margin-top:6px">Annual figures from SEC EDGAR XBRL filings · Free Cash Flow = operating cash flow − capex · Net Debt = total debt − cash &amp; equivalents · Int Coverage = operating income ÷ interest expense · shares interpolated to fiscal year-end'+(_finSec?' · debt rows uncolored: borrowings are operating inputs for financials, not distress':'')+'</div>';
