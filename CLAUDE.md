@@ -96,6 +96,26 @@ ruff check .
   `SEC_FACTS_CACHE_MAX_AGE_DAYS`, default 30) is only a backstop for when the
   sweep cannot run; entries past it are pruned. Requests send
   `Accept-Encoding: gzip`, which urllib omits by default.
+- **Phase-1 network prefetch (`--phase1-workers`, `PHASE1_IO_WORKERS`=4):** a
+  thread pool warms each ticker's yfinance financials, companyfacts blob and
+  (when no fresh parquet exists) 5y history a little ahead of the sequential
+  screen. The pool touches **only** the client caches: every decision, print,
+  counter, checkpoint write and skip-cache mutation stays in the loop, in
+  `all_tickers` order, so stdout is unchanged apart from the pool's own
+  banner. `_prefetch_skip()` mirrors the loop's three skip checks so the pool
+  never spends a request on a ticker the loop drops, and it mirrors the early
+  mcap bail so a sub-floor ticker costs no SEC or history fetch.
+  The look-ahead window (`PHASE1_PREFETCH_WINDOW_MULT` × workers = 12) bounds
+  memory, not throughput — holding the universe's companyfacts blobs is what
+  OOM-killed the cloud run at 13.3 GiB; 12 in flight is ~370 MB worst case.
+  A soft-throttle valve (`PHASE1_EMPTY_RATE_ALARM`) stops submitting for the
+  rest of the phase if Yahoo's empty-response rate crosses 10%, since a
+  throttled ticker burns three attempts plus 3 s of backoff.
+  Measured cold on 12 tickers: the `xbrl` leg falls from 37% of Phase 1 to
+  0.4% — the same 13 companyfacts are fetched, but off the critical path.
+  Note the crossover: once latency is hidden, the yfinance `Throttle(1.0)`
+  becomes the binding constraint (91% of the phase asleep in that test), so
+  `request_delay` is the next lever, not the first one.
 - **Phase-1 beta from local prices:** the nightly run downloads every prior
   snapshot ticker's closes into `output/prices` immediately before the
   analysis (`run.sh` step 03), so Phase 1 reads that parquet for the beta

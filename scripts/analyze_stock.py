@@ -8,6 +8,7 @@ import io
 import json
 import logging
 import re
+import threading
 import time
 import warnings
 from datetime import date
@@ -83,6 +84,8 @@ from data.culture_client import CultureClient
 
 from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             PHASE1_LOCAL_PRICE_MAX_AGE_DAYS, SEC_CIK_PREDECESSORS,
+                            PHASE1_IO_WORKERS, PHASE1_PREFETCH_WINDOW_MULT,
+                            PHASE1_EMPTY_RATE_ALARM, PHASE1_EMPTY_ALARM_MIN_CALLS,
                             RIM_SPREAD_PERSISTENCE, RIM_MAX_BOOK_GROWTH,
                             GROWTH_WEIGHT_FCF, GROWTH_WEIGHT_REV,
                             GROWTH_WEIGHT_ANALYST_ST, GROWTH_WEIGHT_ANALYST_LT,
@@ -2599,6 +2602,9 @@ def _run_setup():
                         help='Phase-1 filter: skip tickers with market cap below this threshold '
                              '(e.g. 500e6 for $500M). Default 0 = no filter. '
                              'Useful with --universe us to drop shells and micro-caps quickly.')
+    parser.add_argument('--phase1-workers', type=int, default=PHASE1_IO_WORKERS, metavar='N',
+                        help='Phase-1 network prefetch threads; 1 disables the '
+                             f'prefetch pool. Default {PHASE1_IO_WORKERS}.')
     parser.add_argument('--workers', type=int, default=PHASE2_IO_WORKERS, metavar='N',
                         help='Threads prefetching Phase-2 network data ahead of the (sequential) '
                              f'analysis loop; 1 disables prefetch. Default {PHASE2_IO_WORKERS}.')
@@ -2896,7 +2902,8 @@ def _check_lost_sec_tickers(run_date, cik_map, results_dir='output'):
 
 def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                        tiingo_client, sec_xbrl_client, risk_free_rate,
-                       effective_erp, checkpoint=None, prices_dir=None):
+                       effective_erp, checkpoint=None, prices_dir=None,
+                       phase1_workers=1):
     """Phase 1: screen the full universe, caching fundamentals for Phase 2."""
     # -----------------------------------------------------------------------
     # Phase 1: Collect data for full universe (no ROIC > WACC pre-filter)
@@ -2998,7 +3005,98 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
         print("Phase 1: no fresh local SPY parquet — beta history comes from "
               "the network for every ticker")
 
+    # ------------------------------------------------------------------
+    # Network prefetch. The pool only WARMS CACHES: every decision, print,
+    # counter, checkpoint write and skip-cache mutation stays in the
+    # sequential loop below, in all_tickers order. The only observable
+    # difference is that a ticker's bytes arrived a few seconds earlier.
+    # ------------------------------------------------------------------
+    def _prefetch_skip(t):
+        """True when the loop will skip *t* without fetching anything.
+
+        Mirrors the loop's three skip checks and is strictly read-only —
+        ScreenSkipCache.skip_reason is a pure lookup. Kept in sync by
+        tests/test_phase1_prefetch.py, which asserts the pool never fetches
+        a ticker the loop skips.
+        """
+        if t in _skip_set:
+            return True
+        if checkpoint is not None and checkpoint.screened_out(t):
+            return True
+        if _skip_cache is not None and t not in _carry_set:
+            if _skip_cache.skip_reason(t, args.mcap_min):
+                return True
+        return False
+
+    _prefetch_empty = set()     # tickers Yahoo soft-throttled in the pool
+    _throttle_alarm = threading.Event()
+
+    def _prefetch(t):
+        """Warm the caches the loop is about to read. Never raises."""
+        try:
+            data = yf_client.fetch_financials(t)
+        except EmptyYahooResponseError:
+            # Record it: without this the loop re-fetches and pays a second
+            # round trip in exactly the window Yahoo is already unhappy.
+            _prefetch_empty.add(t)
+            return
+        except Exception:
+            return          # the loop retries for real
+        # Mirror the loop's early mcap bail: a ticker that will be dropped on
+        # market cap must not cost a SEC fetch or a price history.
+        if args.mcap_min and t not in _carry_set:
+            if ((data.get('info') or {}).get('marketCap') or 0) < args.mcap_min:
+                return
+        if t in sec_xbrl_client._cik_map:
+            try:
+                sec_xbrl_client.fetch_company_facts(t)
+            except Exception:
+                pass
+        if _spy_local is None or _fresh_local_prices(t, prices_dir, _run_day) is None:
+            try:
+                yf_client.fetch_history(t, period='5y')
+            except Exception:
+                pass
+
+    def _check_throttle_alarm():
+        """Trip once Yahoo's soft-throttle rate gets dangerous."""
+        if _throttle_alarm.is_set():
+            return
+        st = getattr(yf_client, 'stats', None) or {}
+        calls = st.get('calls', 0)
+        if calls < PHASE1_EMPTY_ALARM_MIN_CALLS:
+            return
+        if st.get('empty_attempts', 0) / max(calls, 1) > PHASE1_EMPTY_RATE_ALARM:
+            _throttle_alarm.set()
+            print(f"  [!] Phase 1: yfinance empty-response rate "
+                  f"{st['empty_attempts']}/{calls} over the alarm threshold — "
+                  f"prefetch disabled for the rest of the phase")
+            sys.stdout.flush()
+
+    _pool = None
+    _pending = {}
+    _submitted = 0
+    _window = max(1, phase1_workers) * PHASE1_PREFETCH_WINDOW_MULT
+    if phase1_workers and phase1_workers > 1:
+        _pool = ThreadPoolExecutor(max_workers=phase1_workers,
+                                   thread_name_prefix='phase1-io')
+        print(f"Phase 1: prefetching network data with {phase1_workers} "
+              f"worker thread(s), look-ahead window {_window}")
+
     for i, ticker in enumerate(all_tickers, 1):
+        # Keep the window full. Runs before the skip checks so skipped
+        # tickers do not stall the pipeline, and re-reads len(all_tickers)
+        # each pass so the fetch-failure requeue is picked up naturally.
+        if _pool is not None and not _throttle_alarm.is_set():
+            _check_throttle_alarm()
+            while (_submitted < len(all_tickers)
+                   and _submitted < i - 1 + _window
+                   and not _throttle_alarm.is_set()):
+                _t_sub = all_tickers[_submitted]
+                _submitted += 1
+                if _t_sub in _pending or _prefetch_skip(_t_sub):
+                    continue
+                _pending[_t_sub] = _pool.submit(_prefetch, _t_sub)
         # Progress heartbeat: a 3-5h phase writing one line per ticker is
         # unreadable live, and until now nothing reported a rate.
         if i % 250 == 0:
@@ -3047,8 +3145,18 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             #   'sec_xbrl'           XBRL only (yfinance throttled for a US filer)
             # ----------------------------------------------------------------
             _t = time.perf_counter()
+            _fut = _pending.pop(ticker, None)
+            if _fut is not None:
+                _fut.result()          # _prefetch never raises
             try:
-                yf_data = yf_client.fetch_financials(ticker)
+                if ticker in _prefetch_empty:
+                    # Yahoo soft-throttled this one in the pool. Consume the
+                    # marker (a requeued retry must fetch for real) and take
+                    # the same path the direct call would have taken.
+                    _prefetch_empty.discard(ticker)
+                    yf_data = None
+                else:
+                    yf_data = yf_client.fetch_financials(ticker)
             except EmptyYahooResponseError:
                 yf_data = None
             finally:
@@ -3278,6 +3386,16 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                 _skip_cache.save()
         # Flush after every ticker so the log reflects progress if OOM-killed
         sys.stdout.flush()
+
+    if _pool is not None:
+        # Cancel whatever the window still holds — the loop is done, so any
+        # outstanding prefetch is for a ticker already decided (or requeued
+        # and handled). wait=True so no thread outlives the phase and keeps
+        # a companyfacts blob alive past the sweep below.
+        for _f in _pending.values():
+            _f.cancel()
+        _pending.clear()
+        _pool.shutdown(wait=True)
 
     # Free memory: drop ALL cached financials and price histories.
     # Qualifying tickers' data survives via screen_cache references.
@@ -5174,7 +5292,8 @@ def _main():
     phase1 = _run_phase1_screen(args, _prov, all_tickers, ticker_source,
                                 yf_client, tiingo_client, sec_xbrl_client,
                                 risk_free_rate, effective_erp,
-                                checkpoint=checkpoint, prices_dir=prices_dir)
+                                checkpoint=checkpoint, prices_dir=prices_dir,
+                                phase1_workers=args.phase1_workers)
     _clock.tick('phase1_screen')
     qualifying = phase1['qualifying']
     screen_cache = phase1['screen_cache']
