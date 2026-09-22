@@ -86,6 +86,8 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             PHASE1_LOCAL_PRICE_MAX_AGE_DAYS, SEC_CIK_PREDECESSORS,
                             PHASE1_IO_WORKERS, PHASE1_PREFETCH_WINDOW_MULT,
                             PHASE1_EMPTY_RATE_ALARM, PHASE1_EMPTY_ALARM_MIN_CALLS,
+                            YF_REQUEST_DELAY, YF_REQUEST_DELAY_MAX,
+                            YF_THROTTLE_PENALTY, YF_THROTTLE_RELAX,
                             RIM_SPREAD_PERSISTENCE, RIM_MAX_BOOK_GROWTH,
                             GROWTH_WEIGHT_FCF, GROWTH_WEIGHT_REV,
                             GROWTH_WEIGHT_ANALYST_ST, GROWTH_WEIGHT_ANALYST_LT,
@@ -2602,6 +2604,10 @@ def _run_setup():
                         help='Phase-1 filter: skip tickers with market cap below this threshold '
                              '(e.g. 500e6 for $500M). Default 0 = no filter. '
                              'Useful with --universe us to drop shells and micro-caps quickly.')
+    parser.add_argument('--yf-delay', type=float, default=YF_REQUEST_DELAY, metavar='SEC',
+                        help='Minimum seconds between yfinance requests. Backs '
+                             'off automatically on Yahoo soft-throttles. '
+                             f'Default {YF_REQUEST_DELAY} (env YF_REQUEST_DELAY).')
     parser.add_argument('--phase1-workers', type=int, default=PHASE1_IO_WORKERS, metavar='N',
                         help='Phase-1 network prefetch threads; 1 disables the '
                              f'prefetch pool. Default {PHASE1_IO_WORKERS}.')
@@ -2798,9 +2804,14 @@ def _sec_email():
     return os.environ.get('SEC_EMAIL', 'stockanalysis@example.com')
 
 
-def _run_build_clients(run_start_date):
+def _run_build_clients(run_start_date, yf_delay=YF_REQUEST_DELAY):
     """Construct the Phase-1 data clients (yfinance, Tiingo, SEC EDGAR)."""
-    yf_client = YFinanceClient(run_date=run_start_date)
+    yf_client = YFinanceClient(run_date=run_start_date, request_delay=yf_delay,
+                               delay_max=YF_REQUEST_DELAY_MAX,
+                               penalty=YF_THROTTLE_PENALTY,
+                               relax_step=YF_THROTTLE_RELAX)
+    print(f"yfinance throttle: {yf_delay}s minimum interval "
+          f"(backs off to {YF_REQUEST_DELAY_MAX}s on soft throttles)")
 
     # Tiingo client initialized here so it's available for Phase 1 beta calculation
     tiingo_client = TiingoClient(request_delay=0.5)
@@ -5281,7 +5292,7 @@ def _main():
         from scripts.run_checkpoint import RunCheckpoint, fingerprint
         checkpoint = RunCheckpoint(run_start_date, fingerprint(run_start_date, args))
 
-    clients = _run_build_clients(run_start_date)
+    clients = _run_build_clients(run_start_date, yf_delay=args.yf_delay)
     _clock.tick('build_clients')
     yf_client = clients['yf_client']
     tiingo_client = clients['tiingo_client']

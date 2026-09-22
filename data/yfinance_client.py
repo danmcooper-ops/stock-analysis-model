@@ -328,10 +328,17 @@ def _is_not_found(exc):
 
 class YFinanceClient:
     def __init__(self, request_delay=1.0, snapshot_cache=None,
-                 fetch_timeout=20, prices_dir="output/prices", run_date=None):
+                 fetch_timeout=20, prices_dir="output/prices", run_date=None,
+                 delay_max=None, penalty=1.5, relax_step=0.98):
         self._financials_cache = {}
         self._history_cache = {}
         self._throttle = Throttle(request_delay)
+        # Adaptive back-off bounds. Yahoo publishes no rate limit, so the
+        # interval is a guess; these let a wrong guess correct itself in-run
+        # instead of spending the night in a retry storm.
+        self._delay_max = delay_max if delay_max is not None else max(request_delay * 7.5, 3.0)
+        self._penalty = penalty
+        self._relax_step = relax_step
         # Per-run call accounting (see stats()). `empty` counts Yahoo's soft
         # throttle, which _is_not_found deliberately does NOT match, so a
         # throttled ticker costs 3 throttle ticks + 3s of backoff before the
@@ -401,9 +408,13 @@ class YFinanceClient:
                 try:
                     self._throttle()
                     if self._fetch_timeout is not None:
-                        return _run_with_timeout(func, self._fetch_timeout)
+                        _out = _run_with_timeout(func, self._fetch_timeout)
                     else:
-                        return func()
+                        _out = func()
+                    # Healthy response: walk a penalised interval back down.
+                    # Never below the configured base (relax() floors there).
+                    self._throttle.relax(self._relax_step)
+                    return _out
                 except TimeoutError:
                     # Don't retry — Yahoo is unresponsive for this ticker.
                     self.stats['timeouts'] += 1
@@ -414,6 +425,10 @@ class YFinanceClient:
                         # raises on all three, and that 3x is the cost worth
                         # seeing.
                         self.stats['empty_attempts'] += 1
+                        # Yahoo pushed back: widen the interval for everyone
+                        # sharing this client (the pool's workers included)
+                        # before the next attempt goes out.
+                        self._throttle.penalize(self._penalty, cap=self._delay_max)
                     if attempt == max_retries or _is_not_found(e):
                         if _is_not_found(e):
                             self.stats['not_found'] += 1

@@ -26,11 +26,13 @@ class Throttle:
 
     def __init__(self, delay):
         self.delay = delay
+        self.base_delay = delay      # what the caller asked for; relax()'s floor
         self._last = 0.0
         self._lock = threading.Lock()
         self.calls = 0
         self.slept = 0.0
         self.waited = 0.0
+        self.penalties = 0
 
     def __call__(self):
         t0 = time.time()
@@ -49,4 +51,31 @@ class Throttle:
 
     def stats(self):
         return {'calls': self.calls, 'slept': self.slept, 'waited': self.waited,
-                'delay': self.delay}
+                'delay': self.delay, 'base_delay': self.base_delay,
+                'penalties': self.penalties}
+
+    # -- adaptive back-off -------------------------------------------------
+    # A minimum interval is a guess at somebody else's undocumented limit, so
+    # it has to be able to move. penalize() widens it when the far end pushes
+    # back; relax() walks it home once traffic is healthy again. Both clamp,
+    # so the delay can never run away or fall below what the caller asked for.
+
+    def penalize(self, factor=1.5, cap=None):
+        """Widen the interval after the far end signalled a rate problem."""
+        with self._lock:
+            new = self.delay * max(factor, 1.0)
+            if cap is not None:
+                new = min(new, cap)
+            if new > self.delay:
+                self.penalties += 1
+            self.delay = new
+            return self.delay
+
+    def relax(self, step=0.98, floor=None):
+        """Walk a penalised interval back toward the configured base."""
+        with self._lock:
+            floor = self.base_delay if floor is None else floor
+            if self.delay <= floor:
+                return self.delay
+            self.delay = max(self.delay * step, floor)
+            return self.delay
