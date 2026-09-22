@@ -234,6 +234,29 @@ PHASE2_IO_WORKERS = 4
 # admitting the months-old drift a stale checkout can carry.
 PHASE1_LOCAL_PRICE_MAX_AGE_DAYS = 5
 
+# Phase-1 network prefetch threads (analyze_stock --phase1-workers).
+#
+# Measured on the 2026-09-17 cloud run: Phase 1 took 3.48 h, of which the
+# yfinance throttle slept only 0.44 h (13%). The 1 s delay rarely engages
+# because the request itself already takes longer than that — the cost is
+# latency (yf_fetch 2.35 h, xbrl 0.95 h), not sleep. Latency is what a pool
+# hides, which is why this exists and why cutting the delay would not have
+# helped much.
+#
+# The window bounds memory, not throughput: Phase 1 releases each ticker's
+# companyfacts blob (7-27 MB) and yfinance dict (~4 MB) as soon as its screen
+# is over, and holding the whole universe's worth is what OOM-killed the
+# cloud run at 13.3 GiB. A window of 3x the workers keeps every thread fed
+# while capping the in-flight set at ~12 tickers (~370 MB worst case).
+PHASE1_IO_WORKERS = 4
+PHASE1_PREFETCH_WINDOW_MULT = 3
+# Stop prefetching for the rest of the phase when Yahoo's soft throttle
+# (EmptyYahooResponseError) exceeds this share of recent attempts. A throttled
+# ticker burns all three retry attempts plus 3 s of backoff, so pushing harder
+# into a throttle makes the run slower AND drops tickers.
+PHASE1_EMPTY_RATE_ALARM = 0.10
+PHASE1_EMPTY_ALARM_MIN_CALLS = 200
+
 
 def _get_sector_config(sector):
     """Look up sector-specific DCF parameters with default fallback."""
