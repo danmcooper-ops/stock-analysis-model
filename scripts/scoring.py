@@ -675,6 +675,14 @@ def compute_trap_signals(results):
 INT_COV_CAP = 40.0
 # Debt below this share of total assets counts as debt-free for that purpose.
 INT_COV_DEBT_FREE_MAX_DEBT_TO_ASSETS = 0.02
+# ...and the debt figure must be no older than this many years behind the
+# filer's latest reported year. A filer that stopped tagging debt in 2016
+# (YELP, SAM) says nothing about what it owes now, and the cap is a passing
+# score: absent evidence must not read as "no debt".
+INT_COV_DEBT_FREE_MAX_LAG_YEARS = 1
+# The annual series that date a filer's latest reported year.
+_LATEST_YEAR_HISTORY_KEYS = ('revenue_history', 'earnings_history',
+                             'operating_cf_history', 'operating_income_history')
 
 
 def _latest_hist_value(hist):
@@ -686,10 +694,28 @@ def _latest_hist_value(hist):
     return k, v
 
 
+def _year_of(key):
+    """Fiscal year of a history key (2024, '2024' or '2024-12-31'), or None."""
+    try:
+        return int(str(key)[:4])
+    except (TypeError, ValueError):
+        return None
+
+
+def _latest_reported_year(eh):
+    """The filer's newest fiscal year across its annual flow series, or None."""
+    years = [y for k in _LATEST_YEAR_HISTORY_KEYS
+             for y in (_year_of(key) for key in (eh.get(k) or {})) if y is not None]
+    return max(years) if years else None
+
+
 def _is_debt_free(r):
-    """True when the latest total debt is 0 or below
-    INT_COV_DEBT_FREE_MAX_DEBT_TO_ASSETS of total assets. Unknown debt is not
-    debt-free."""
+    """True when the filer's LATEST reported total debt is 0 or below
+    INT_COV_DEBT_FREE_MAX_DEBT_TO_ASSETS of total assets.
+
+    Unknown, undatable and stale debt are all "not debt-free": this assigns a
+    passing score, so it needs current evidence of no debt, not the absence of
+    evidence of debt."""
     eh = r.get('edgar_history') or {}
     debt_year, debt = _latest_hist_value(eh.get('total_debt_history'))
     if debt is None:
@@ -698,9 +724,14 @@ def _is_debt_free(r):
         if cur is not None or nc is not None:
             debt_year = max((y for y in (cur_y, nc_y) if y is not None), key=str)
             debt = (cur or 0) + (nc or 0)
-    if debt is None and isinstance(r.get('total_debt'), (int, float)):
-        debt = r['total_debt']
+    # A row-level total_debt of 0 with no debt history at all is yfinance
+    # reporting nothing, not a filer reporting zero (DISPF, OBICY and four
+    # other foreign listings on 2026-09-18), so it is not evidence.
     if not isinstance(debt, (int, float)) or debt != debt:   # None / NaN
+        return False
+    latest_year, debt_y = _latest_reported_year(eh), _year_of(debt_year)
+    if debt_y is None or (latest_year is not None
+                          and debt_y < latest_year - INT_COV_DEBT_FREE_MAX_LAG_YEARS):
         return False
     if debt <= 0:
         return True
