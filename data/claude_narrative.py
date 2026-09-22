@@ -7,7 +7,16 @@ a structured narrative: economy-wide paragraphs, headwind/tailwind bullets,
 and one outlook per GICS sector. The LLM call is network I/O, so this
 lives in data/ rather than models/.
 
-Fails soft everywhere: missing ANTHROPIC_API_KEY, the `anthropic` package
+The key is read from MACRO_ANTHROPIC_API_KEY, falling back to
+ANTHROPIC_API_KEY. The cloud container that runs the nightly routine is a
+Claude Code session, which owns the ANTHROPIC_* namespace for its own auth
+(ANTHROPIC_BASE_URL arrives pre-set, and an ANTHROPIC_API_KEY configured on
+the environment never reached the container over four consecutive nightly
+runs, 2026-09-15..18, while every other key did). MACRO_ANTHROPIC_API_KEY is
+a name the platform has no claim on; the fallback keeps the Mac runbook's
+.env and any existing shell export working unchanged.
+
+Fails soft everywhere: no key, the `anthropic` package
 not installed, API errors, refusals, truncation, or unparseable output all
 log a warning and return None — the dashboard simply renders without prose.
 Results are cached per as_of date on disk (data/cache/claude_narrative/) so
@@ -246,7 +255,11 @@ class ClaudeNarrativeClient:
 
     def __init__(self, api_key=None, cache_dir=None, model=None,
                  max_tokens=None):
-        self.api_key = (api_key or os.environ.get('ANTHROPIC_API_KEY', '')
+        # MACRO_ANTHROPIC_API_KEY first, ANTHROPIC_API_KEY second (see the
+        # module docstring: the cloud routine cannot receive the latter).
+        self.api_key = (api_key
+                        or os.environ.get('MACRO_ANTHROPIC_API_KEY', '')
+                        or os.environ.get('ANTHROPIC_API_KEY', '')
                         or None)
         self.cache_dir = cache_dir or os.path.join(
             os.path.dirname(os.path.abspath(__file__)), 'cache',
@@ -302,7 +315,8 @@ class ClaudeNarrativeClient:
             logger.info('macro narrative: cache hit for %s', as_of)
             return cached
         if not self.available:
-            logger.warning('macro narrative skipped: no ANTHROPIC_API_KEY')
+            logger.warning('macro narrative skipped: no '
+                           'MACRO_ANTHROPIC_API_KEY (or ANTHROPIC_API_KEY)')
             return None
         try:
             import anthropic

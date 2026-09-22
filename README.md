@@ -69,8 +69,9 @@ archive of 84 runs builds a ~350 MB store).
 API keys are read from the environment (or a gitignored `.env` at the repo
 root): `SEC_EMAIL` for EDGAR identification, plus optional `FMP_API_KEY`,
 `TIINGO_API_KEY`, `FINNHUB_API_KEY`, `FRED_API_KEY` (macro series fall back
-to FRED's keyless CSV endpoint when unset) and `ANTHROPIC_API_KEY` (the
-Claude-generated macro narrative). yfinance needs no authentication.
+to FRED's keyless CSV endpoint when unset) and `MACRO_ANTHROPIC_API_KEY`
+(the Claude-generated macro narrative; `ANTHROPIC_API_KEY` is still read as
+a fallback). yfinance needs no authentication.
 
 ## Structure
 See `CLAUDE.md` for the full layout and conventions: `data/` (API clients),

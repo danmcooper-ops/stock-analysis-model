@@ -263,7 +263,7 @@ by analyze_stock and gitignored):
 - `FMP_API_KEY`, `TIINGO_API_KEY`, `FINNHUB_API_KEY` — optional data sources
 - `FRED_API_KEY` — optional; selects FRED's keyed JSON API for the macro
   series (unset falls back to the keyless `fredgraph.csv` endpoint)
-- `ANTHROPIC_API_KEY` — optional; enables the Claude-generated macro
+- `MACRO_ANTHROPIC_API_KEY` — optional; enables the Claude-generated macro
   narrative — the story on the Macro Outlook tab, and, in the Macro Outlook
   section of each Sector Analysis tab, that sector's outlook plus 3-5
   headwind/tailwind bullets drawn from the FRED indicators (skipped cleanly

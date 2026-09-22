@@ -203,10 +203,36 @@ class TestClaudeNarrativeClient:
         return ClaudeNarrativeClient(**kw)
 
     def test_no_key_returns_none_without_import(self, tmp_path, monkeypatch):
+        # BOTH names, or the test passes for the wrong reason on a machine
+        # where only one of them happens to be exported.
+        monkeypatch.delenv('MACRO_ANTHROPIC_API_KEY', raising=False)
         monkeypatch.delenv('ANTHROPIC_API_KEY', raising=False)
         c = ClaudeNarrativeClient(cache_dir=str(tmp_path / 'nar'))
         assert not c.available
         assert c.generate(_sidecar()) is None
+
+    def test_macro_key_is_read_and_wins_over_the_anthropic_one(
+            self, tmp_path, monkeypatch):
+        """The cloud routine's container never receives ANTHROPIC_API_KEY —
+        that name belongs to the Claude Code session running the routine — so
+        the narrative reads MACRO_ANTHROPIC_API_KEY first. An explicit
+        api_key argument still outranks both."""
+        cache = str(tmp_path / 'nar')
+        monkeypatch.setenv('MACRO_ANTHROPIC_API_KEY', 'sk-macro')
+        monkeypatch.setenv('ANTHROPIC_API_KEY', 'sk-session')
+        assert ClaudeNarrativeClient(cache_dir=cache).api_key == 'sk-macro'
+        assert ClaudeNarrativeClient(cache_dir=cache,
+                                     api_key='sk-arg').api_key == 'sk-arg'
+
+    def test_anthropic_key_still_works_as_a_fallback(self, tmp_path,
+                                                     monkeypatch):
+        """The Mac runbook's .env and any existing shell export keep
+        working: the old name is still read when the new one is absent."""
+        monkeypatch.delenv('MACRO_ANTHROPIC_API_KEY', raising=False)
+        monkeypatch.setenv('ANTHROPIC_API_KEY', 'sk-legacy')
+        c = ClaudeNarrativeClient(cache_dir=str(tmp_path / 'nar'))
+        assert c.api_key == 'sk-legacy'
+        assert c.available
 
     def test_happy_path_attaches_provenance_and_caches(self, tmp_path,
                                                        monkeypatch):

@@ -114,8 +114,9 @@ SCORE_WEIGHT_OWNERSHIP = 0.10
 
 # Macro narrative (Claude API). Generated at report-build time for the Macro
 # Outlook tab's story and each sector tab's Macro Outlook section; skipped
-# cleanly when ANTHROPIC_API_KEY is unset or the API is unreachable. See
-# data/claude_narrative.py.
+# cleanly when no key is set or the API is unreachable. The key is
+# MACRO_ANTHROPIC_API_KEY, falling back to ANTHROPIC_API_KEY. See
+# data/claude_narrative.py for why the macro-specific name exists.
 CLAUDE_NARRATIVE_ENABLED = True
 CLAUDE_NARRATIVE_MODEL = 'claude-opus-5'
 # Headroom, not a target — above DEFAULT_MAX_TOKENS in
