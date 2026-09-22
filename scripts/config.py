@@ -1,6 +1,8 @@
 # scripts/config.py
 """Constants and sector-specific DCF parameters for the stock analysis pipeline."""
 
+import os
+
 # --- Constants ---
 DEFAULT_RISK_FREE_RATE = 0.04  # Fallback if live Treasury fetch fails
 ERP = 0.045                    # Equity Risk Premium. Damodaran's implied ERP has run
@@ -249,6 +251,31 @@ PHASE1_LOCAL_PRICE_MAX_AGE_DAYS = 5
 # cloud run at 13.3 GiB. A window of 3x the workers keeps every thread fed
 # while capping the in-flight set at ~12 tickers (~370 MB worst case).
 PHASE1_IO_WORKERS = 4
+
+# Minimum interval between yfinance requests (analyze_stock --yf-delay, env
+# YF_REQUEST_DELAY). Yahoo publishes no rate limit, so this is a guess that
+# has to be justified by measurement and able to back off on its own.
+#
+# It was an unexamined 1.0. Measured on the 2026-09-21 run: 7,319 calls, mean
+# real request time 1.03 s, mean throttle sleep 0.21 s — the interval and the
+# request were almost exactly balanced, so Phase 1 admitted ~1 call/s and the
+# yfinance legs cost 2.54 h. That ceiling is per-process, not per-thread, so
+# the Phase-1 pool could not beat it however many workers it had; the pool
+# collapsed the SEC leg and left this one untouched.
+#
+# 0.4 lifts the ceiling to 2.5 calls/s, which 4 workers can actually feed
+# (4 / 1.03 s = 3.9 calls/s of capacity). One fetch_financials is a single
+# tick but ~6 HTTP requests (statements, info, growth, earnings all sit
+# inside one _retry), so this moves Yahoo's burst rate from ~6/s to ~15/s.
+# Headroom for that: the 2026-09-21 run saw 72 empty responses in 7,319 calls
+# (0.98%). If that assumption is wrong the valve below corrects it in-run.
+YF_REQUEST_DELAY = float(os.environ.get('YF_REQUEST_DELAY', 0.4))
+# Ceiling for the adaptive back-off, and how hard it reacts. A soft-throttled
+# ticker is not matched by _is_not_found, so it burns all three attempts plus
+# 3 s of sleep — pushing harder into a throttle costs more than it saves.
+YF_REQUEST_DELAY_MAX = 3.0
+YF_THROTTLE_PENALTY = 1.5
+YF_THROTTLE_RELAX = 0.98
 PHASE1_PREFETCH_WINDOW_MULT = 3
 # Stop prefetching for the rest of the phase when Yahoo's soft throttle
 # (EmptyYahooResponseError) exceeds this share of recent attempts. A throttled

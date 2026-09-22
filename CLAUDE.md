@@ -96,6 +96,24 @@ ruff check .
   `SEC_FACTS_CACHE_MAX_AGE_DAYS`, default 30) is only a backstop for when the
   sweep cannot run; entries past it are pruned. Requests send
   `Accept-Encoding: gzip`, which urllib omits by default.
+- **yfinance request interval (`--yf-delay`, `YF_REQUEST_DELAY`=0.4):** Yahoo
+  publishes no rate limit, so the interval is a guess that has to be justified
+  and able to back off. It sat at an unexamined 1.0 s. Measured on 2026-09-21:
+  7,319 calls, mean real request 1.03 s, mean throttle sleep 0.21 s — interval
+  and request almost exactly balanced, so Phase 1 admitted ~1 call/s and the
+  yfinance legs cost 2.54 h. That ceiling is per-process, so the Phase-1 pool
+  could not beat it however many workers it had; the pool collapsed the SEC
+  leg and left this one untouched. 0.4 s lifts the ceiling to 2.5 calls/s,
+  which 4 workers can feed. One `fetch_financials` is a single tick but ~6
+  HTTP requests, so Yahoo's burst rate moves from ~6/s to ~15/s; the headroom
+  for that was 72 empty responses in 7,319 calls (0.98%) on 2026-09-21.
+  `Throttle.penalize()/relax()` make a wrong guess self-correcting: a soft
+  throttle widens the interval by 1.5x up to `YF_REQUEST_DELAY_MAX` (3 s) for
+  every thread sharing the client, and healthy responses walk it back down,
+  never below the configured base. A 404 does not penalise — a dead symbol
+  says nothing about our rate. Measured on 12 tickers with cold caches, 25
+  identical calls: Phase 1 30 s -> 12 s, `yf_fetch` 1.69 s -> 0.66 s per
+  ticker, no soft throttles, identical decisions.
 - **Phase-1 network prefetch (`--phase1-workers`, `PHASE1_IO_WORKERS`=4):** a
   thread pool warms each ticker's yfinance financials, companyfacts blob and
   (when no fresh parquet exists) 5y history a little ahead of the sequential

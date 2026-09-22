@@ -200,3 +200,70 @@ def test_provenance_timings_never_raise():
     p = ProvenanceRecorder('2026-09-15')
     p.record_timings(None)
     assert p.run_block()['schema_version']
+
+
+# --- Adaptive back-off ------------------------------------------------------
+# The interval is a guess at Yahoo's undocumented limit, so a wrong guess has
+# to correct itself in-run rather than spend the night in a retry storm.
+
+def test_penalize_widens_and_clamps_to_cap():
+    t = Throttle(0.4)
+    assert t.penalize(1.5, cap=3.0) == pytest.approx(0.6)
+    assert t.penalize(1.5, cap=3.0) == pytest.approx(0.9)
+    for _ in range(50):
+        t.penalize(1.5, cap=3.0)
+    assert t.delay == pytest.approx(3.0)       # never runs away
+    assert t.stats()['penalties'] > 0
+
+
+def test_penalize_never_shrinks_the_interval():
+    t = Throttle(0.4)
+    assert t.penalize(0.5) == pytest.approx(0.4)   # factor < 1 is ignored
+    assert t.penalties == 0
+
+
+def test_relax_walks_back_only_to_the_configured_base():
+    t = Throttle(0.4)
+    t.penalize(4.0, cap=3.0)                   # 1.6
+    for _ in range(500):
+        t.relax(0.9)
+    assert t.delay == pytest.approx(0.4)       # floors at base, never below
+    assert t.base_delay == pytest.approx(0.4)
+
+
+def test_relax_is_a_noop_at_base():
+    t = Throttle(0.4)
+    assert t.relax(0.5) == pytest.approx(0.4)
+
+
+def test_retry_penalizes_on_soft_throttle_and_relaxes_on_success(monkeypatch):
+    monkeypatch.setattr(time, 'sleep', lambda s: None)
+    c = YFinanceClient(request_delay=0.4, fetch_timeout=None,
+                       delay_max=3.0, penalty=1.5, relax_step=0.5)
+
+    def throttled():
+        raise EmptyYahooResponseError('empty payload')
+
+    with pytest.raises(EmptyYahooResponseError):
+        c._retry(throttled)
+    widened = c._throttle.delay
+    assert widened > 0.4, "a soft throttle must widen the interval"
+    assert widened <= 3.0
+
+    for _ in range(50):                        # healthy traffic resumes
+        c._retry(lambda: 'ok')
+    assert c._throttle.delay == pytest.approx(0.4)
+
+
+def test_retry_does_not_penalize_on_a_404(monkeypatch):
+    """A dead symbol says nothing about our request rate."""
+    monkeypatch.setattr(time, 'sleep', lambda s: None)
+    c = YFinanceClient(request_delay=0.4, fetch_timeout=None)
+
+    def dead():
+        raise RuntimeError('HTTP Error 404: Quote not found for symbol: ZZZZ')
+
+    with pytest.raises(RuntimeError):
+        c._retry(dead)
+    assert c._throttle.delay == pytest.approx(0.4)
+    assert c._throttle.penalties == 0
