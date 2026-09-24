@@ -305,8 +305,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    deliberately no colour, so the table reads like the filing rather than
    like a diff. */
 .stmt-tbl td.stmt-lbl{font-weight:400;}
-.stmt-tbl tr.stmt-i1 td.stmt-lbl{padding-left:20px;}
-.stmt-tbl tr.stmt-i2 td.stmt-lbl{padding-left:34px;}
 .stmt-tbl tr.stmt-sub td{font-weight:700;border-top:1px solid #c8d2e2;}
 .stmt-tbl tr.stmt-tot td{font-weight:800;border-top:2px double #9fb0c9;
   border-bottom:2px double #9fb0c9;}
@@ -335,6 +333,39 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .stmt-pdf-btn:hover{background:rgba(255,255,255,0.28);}
 .stmt-pdf-btn svg{width:13px;height:13px;display:block;}
 [data-theme="dark"] .stmt-tbl tr.stmt-drv td{color:#8b98a5;}
+/* Frozen caption column. Ten FY columns never fit a phone, and with the
+   captions unwrapped the label column alone was wider than an iPhone in
+   portrait, so a sideways scroll showed either the captions or the figures,
+   never both. The label cell is sticky and wraps inside a fixed width that
+   tracks the viewport (--stmt-lbl-w; min-width, since an overflowing auto
+   table shrinks every column to its minimum and ignores width), with a hanging indent so a wrapped
+   caption still reads as one line item. Section captions span the full row,
+   so the colspan cell cannot stick; its text (.stmt-cap) sticks instead, and
+   on phones wraps to the same width (wider screens keep it on one line). border-collapse:separate keeps each sticky cell's
+   own rules attached to it — collapsed borders belong to the table and are
+   left behind (or dropped, in Chrome) when the cell sticks. The right edge
+   is a shadow, not a border, so it does not widen the column. */
+.stmt-body{padding:14px 16px;background:var(--surface);}
+.stmt-tbl{--stmt-lbl-w:min(44vw,22em);border-collapse:separate;border-spacing:0;}
+.stmt-tbl th:first-child,.stmt-tbl td.stmt-lbl{position:-webkit-sticky;position:sticky;left:0;z-index:2;
+  background:var(--surface);box-shadow:1px 0 0 #dde5f5;}
+.stmt-tbl td.stmt-lbl{white-space:normal;min-width:var(--stmt-lbl-w);max-width:var(--stmt-lbl-w);
+  padding-left:16px;text-indent:-8px;overflow-wrap:break-word;}
+.stmt-tbl tr.stmt-i1 td.stmt-lbl{padding-left:28px;}
+.stmt-tbl tr.stmt-i2 td.stmt-lbl{padding-left:42px;}
+.stmt-tbl .stmt-cap{position:-webkit-sticky;position:sticky;left:8px;display:inline-block;}
+[data-theme="dark"] .stmt-tbl th:first-child,[data-theme="dark"] .stmt-tbl td.stmt-lbl{box-shadow:1px 0 0 #30363d;}
+/* Phones: tighter padding and indents buy back a column of figures. */
+@media(max-width:600px){
+  .stmt-body{padding:10px 4px 12px;}
+  .stmt-tbl{--stmt-lbl-w:42vw;}
+  .stmt-tbl th,.stmt-tbl td{padding-left:6px;padding-right:6px;}
+  .stmt-tbl td.stmt-lbl{padding-left:12px;}
+  .stmt-tbl tr.stmt-i1 td.stmt-lbl{padding-left:20px;}
+  .stmt-tbl tr.stmt-i2 td.stmt-lbl{padding-left:28px;}
+  .stmt-tbl .stmt-cap{left:4px;white-space:normal;max-width:var(--stmt-lbl-w);}
+  .stmt-tbl tr.stmt-hdr2 td{padding-left:4px;}
+}
 /* The bar WRAPS when crowded (no hidden horizontal scroll) and keeps
    overflow visible: its dropdowns/panel are position:absolute children
    anchored inside it, and an overflow-clipping bar would cut them off.
@@ -1148,7 +1179,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .dtr-tbl td{border-bottom-color:#21262d;color:#e6edf3;}
 /* Freeze the row-label column so the metric name stays readable while the FY
    columns scroll in .dtr-wrap. Scoped to #d-track because .dtr-tbl is shared
-   with the statement tables, which keep their normal scroll. The opaque
+   with the statement tables, which freeze theirs separately (.stmt-tbl). The opaque
    background stops scrolled cells bleeding through; border-collapse drops a
    sticky cell's own border in Chrome, so the row rule is redrawn as an inset
    shadow. */
@@ -6053,7 +6084,7 @@ function _stmtShell(meta,inner,withPdf){
       +'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>'
       +'</button>':'')
     +'</div>'
-    +'<div style="padding:14px 16px;background:var(--surface)">'+inner+'</div></div>';
+    +'<div class="stmt-body">'+inner+'</div></div>';
 }
 /* Row spec: {l, get(k), fmt} plus optional hdr (section rule), sub (subtotal
    rule + bold), drv (derived → italic, sits in the trailing block), need
@@ -6495,7 +6526,7 @@ function _stmtBuildTable(key,h,d){
     shown++;
     pendingHdr.forEach(function(ph){
       body+='<tr class="stmt-hdr'+(ph.sub2?' stmt-hdr2':'')+'"><td colspan="'+(cols.length+1)+'">'
-        +esc(ph.hdr)+'</td></tr>';
+        +'<span class="stmt-cap">'+esc(ph.hdr)+'</span></td></tr>';
     });
     pendingHdr=[];
     var cls=[];
@@ -6524,7 +6555,7 @@ function _stmtBuildTable(key,h,d){
   if(!shown)return {label:meta.l,empty:'No '+meta.l.toLowerCase()+' line items tagged in this company’s filings.'};
   /* Supplementary (non-GAAP) block, visually separated from the statement. */
   if(drvRows.length){
-    body+='<tr class="stmt-hdr stmt-drv-head"><td colspan="'+(cols.length+1)+'">Supplementary — not part of the filed statement</td></tr>';
+    body+='<tr class="stmt-hdr stmt-drv-head"><td colspan="'+(cols.length+1)+'"><span class="stmt-cap">Supplementary — not part of the filed statement</span></td></tr>';
     drvRows.forEach(function(x){
       body+='<tr class="stmt-drv"><td class="stmt-lbl">'+esc(x.rw.l)+'</td>';
       x.vals.forEach(function(v){body+='<td>'+(v==null?'—':(x.rw.fmt(v)==null?'—':x.rw.fmt(v)))+'</td>';});
