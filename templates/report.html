@@ -346,6 +346,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
    left behind (or dropped, in Chrome) when the cell sticks. The right edge
    is a shadow, not a border, so it does not widen the column. */
 .stmt-body{padding:14px 16px;background:var(--surface);}
+.stmt-note{position:-webkit-sticky;position:sticky;left:0;font-size:0.68em;color:var(--text-muted);
+  margin-top:8px;white-space:normal;}
 .stmt-tbl{--stmt-lbl-w:min(44vw,22em);border-collapse:separate;border-spacing:0;}
 .stmt-tbl th:first-child,.stmt-tbl td.stmt-lbl{position:-webkit-sticky;position:sticky;left:0;z-index:2;
   background:var(--surface);box-shadow:1px 0 0 #dde5f5;}
@@ -365,6 +367,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .stmt-tbl tr.stmt-i2 td.stmt-lbl{padding-left:28px;}
   .stmt-tbl .stmt-cap{left:4px;white-space:normal;max-width:var(--stmt-lbl-w);}
   .stmt-tbl tr.stmt-hdr2 td{padding-left:4px;}
+  /* Frozen title band and FY header row. The FY row cannot stick to the
+     popup's scroller (.d-body): .dtr-wrap scrolls sideways, which makes it
+     the scroll container for BOTH axes. So on phones the wrap becomes the
+     vertical scroller too — _stmtFitWrap caps its height to the space left
+     under the title band — and the header row sticks to its top while the
+     captions stick to its left. The corner cell sits above both. The card
+     clips with overflow:clip rather than hidden, since clip rounds the
+     corners without creating a scroll container, so the title band can
+     stick to .d-body as the footnote scrolls into view. */
+  #d-pane-stmt .dgroup{overflow:clip;}
+  #d-pane-stmt .dgroup-title{position:-webkit-sticky;position:sticky;top:0;z-index:5;}
+  .stmt-tbl th{position:-webkit-sticky;position:sticky;top:0;z-index:3;background:var(--surface);}
+  .stmt-tbl th:first-child{z-index:4;}
 }
 /* The bar WRAPS when crowded (no hidden horizontal scroll) and keeps
    overflow visible: its dropdowns/panel are position:absolute children
@@ -6471,9 +6486,35 @@ function _renderDetStmtTab(key){
   var t=_stmtBuildTable(key,h,d);
   if(!t){el.innerHTML='';return;}
   if(t.empty){el.innerHTML=empty(t.empty);return;}
-  var note='<div style="font-size:0.68em;color:var(--text-muted);margin-top:8px">'+esc(t.note)+'</div>';
-  el.innerHTML=_stmtShell(meta,'<div class="dtr-wrap"><table class="dtr-tbl stmt-tbl">'+t.headRow+t.body+'</table></div>'+note,true);
+  /* The footnote sits INSIDE the wrap (pinned left by .stmt-note) so on
+     phones it is the end of the scrolling pane, not page content below it —
+     scrolling the page to reach it would carry the frozen header away. */
+  var note='<div class="stmt-note">'+esc(t.note)+'</div>';
+  el.innerHTML=_stmtShell(meta,'<div class="dtr-wrap"><table class="dtr-tbl stmt-tbl">'+t.headRow+t.body+'</table>'+note+'</div>',true);
+  _stmtFitWrap();
 }
+/* Phones: cap the statement wrap to the popup body's height less the title
+   band, so the table is a pane that scrolls both ways under a frozen FY
+   header row (see the .stmt-tbl phone CSS). Re-fit on resize, since Safari's
+   collapsing toolbars and rotation change the body height. Wider screens
+   clear the cap and scroll the page as before. */
+var _STMT_PHONE_MQ=window.matchMedia?window.matchMedia('(max-width:600px)'):null;
+function _stmtFitWrap(){
+  var w=document.querySelector('#d-pane-stmt .dtr-wrap');if(!w)return;
+  if(!_STMT_PHONE_MQ||!_STMT_PHONE_MQ.matches){w.style.maxHeight='';return;}
+  var sc=document.querySelector('#det-modal .d-body'),g=w.closest('.dgroup');
+  var ti=g&&g.querySelector('.dgroup-title');
+  if(!sc||!ti)return;
+  var pad=w.getBoundingClientRect().top-ti.getBoundingClientRect().bottom;
+  var h=sc.clientHeight-ti.offsetHeight-pad;
+  w.style.maxHeight=h+'px';
+  /* Then take back whatever still overflows the body (card border, bottom
+     padding), so the page has nothing left to scroll. */
+  h-=Math.max(0,sc.scrollHeight-sc.clientHeight);
+  w.style.maxHeight=Math.max(240,h)+'px';
+}
+window.addEventListener('resize',_stmtFitWrap);
+if(window.visualViewport)window.visualViewport.addEventListener('resize',_stmtFitWrap);
 /* Builds one statement's table pieces — shared by the tab renderer above and
    the PDF exporter below, so the paper copy can never drift from the tab.
    Returns {label, empty} when the filer gave us nothing to show, else
