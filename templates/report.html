@@ -5197,16 +5197,54 @@ document.addEventListener('click',function(e){
      keeps iOS momentum-scroll jitter and rubber-band bounces from
      flickering the band; <=40 also catches the programmatic scroll-to-top
      on tab switches and stock navigation. */
-  var dm=document.getElementById('det-modal'),_lastSt=0;
+  var _lastSt=0;
   b.addEventListener('scroll',function(){
     document.querySelectorAll('.cm-panel.open.cm-fixed').forEach(_cmClose);
     var st=b.scrollTop;
-    if(st<=40)dm.classList.remove('hdr-min');
-    else if(st>_lastSt+2)dm.classList.add('hdr-min');
-    else if(st<_lastSt-6)dm.classList.remove('hdr-min');
+    _detHdrOnScroll(st,_lastSt);
     _lastSt=st;
   },{passive:true});
+  /* On phones the statement tabs scroll inside .dtr-wrap, not .d-body (see
+     _stmtFitWrap), so the wrap's VERTICAL scroll drives the banner too.
+     scroll does not bubble; a capture listener on the pane sees every wrap
+     the tab renders. A horizontal-only pan leaves scrollTop unchanged and is
+     ignored — panning across the years is not scrolling into the data. */
+  var sp=document.getElementById('d-pane-stmt');
+  if(sp){
+    var _wEl=null,_wSt=0;
+    sp.addEventListener('scroll',function(e){
+      var w=e.target;
+      if(!w.classList||!w.classList.contains('dtr-wrap'))return;
+      if(w!==_wEl){_wEl=w;_wSt=0;}
+      var st=w.scrollTop;if(st===_wSt)return;
+      _detHdrOnScroll(st,_wSt);
+      _wSt=st;
+    },{capture:true,passive:true});
+  }
+  /* The banner collapsing or expanding changes .d-body's height; re-fit the
+     statement pane so the freed space goes to the table (and an expanding
+     banner does not leave the page something to scroll). */
+  if(window.ResizeObserver)new ResizeObserver(function(){_stmtFitWrap();}).observe(b);
 })();
+/* Banner collapse state (touch only — the hdr-min rules live inside the
+   (hover:none)+(pointer:coarse) block, so the class is inert on desktop).
+   Direction-based with hysteresis: scrolling into the data collapses,
+   6px of reverse scroll or nearing the top expands. The +2/-6 asymmetry
+   keeps iOS momentum-scroll jitter and rubber-band bounces from
+   flickering the band; <=40 also catches the programmatic scroll-to-top
+   on tab switches and stock navigation. Each toggle holds for the band's
+   .28s transition: resizing the band resizes the scroller under it, and
+   at the end of the content that clamps scrollTop — a phantom reverse
+   scroll that would otherwise flip the band straight back. */
+var _hdrHoldUntil=0;
+function _detHdrOnScroll(st,last){
+  var dm=document.getElementById('det-modal');if(!dm)return;
+  var min=dm.classList.contains('hdr-min');
+  if(st<=40){if(min)dm.classList.remove('hdr-min');return;}
+  var now=Date.now();if(now<_hdrHoldUntil)return;
+  if(!min&&st>last+2){dm.classList.add('hdr-min');_hdrHoldUntil=now+350;}
+  else if(min&&st<last-6){dm.classList.remove('hdr-min');_hdrHoldUntil=now+350;}
+}
 function _cmSum(k,txt){var s=document.getElementById(k+'-cm-sum');if(s)s.textContent=txt;}
 
 /* === DETAIL POPUP CHARTS BLOCK === */
@@ -6496,12 +6534,14 @@ function _renderDetStmtTab(key){
 /* Phones: cap the statement wrap to the popup body's height less the title
    band, so the table is a pane that scrolls both ways under a frozen FY
    header row (see the .stmt-tbl phone CSS). Re-fit on resize, since Safari's
-   collapsing toolbars and rotation change the body height. Wider screens
+   collapsing toolbars and rotation change the body height; the .d-body
+   ResizeObserver re-fits when the banner collapses or expands. Wider screens
    clear the cap and scroll the page as before. */
 var _STMT_PHONE_MQ=window.matchMedia?window.matchMedia('(max-width:600px)'):null;
 function _stmtFitWrap(){
   var w=document.querySelector('#d-pane-stmt .dtr-wrap');if(!w)return;
   if(!_STMT_PHONE_MQ||!_STMT_PHONE_MQ.matches){w.style.maxHeight='';return;}
+  if(!w.offsetParent)return;   /* pane hidden (another tab): nothing to measure */
   var sc=document.querySelector('#det-modal .d-body'),g=w.closest('.dgroup');
   var ti=g&&g.querySelector('.dgroup-title');
   if(!sc||!ti)return;
