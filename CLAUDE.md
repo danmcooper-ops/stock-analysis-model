@@ -26,7 +26,9 @@ data/            - Data clients (SEC XBRL/insider/legal/supply, yfinance, FMP,
                    (on-disk companyfacts blobs), provenance.py, validation.py
 models/          - Pure model functions: capm, dcf, ddm, epv, rim, nav,
                    ratios (WACC/ROIC), quality (Altman/Beneish/Piotroski),
-                   market, macro, narrative, portfolio, valuation_types
+                   market, macro, narrative, portfolio, valuation_types,
+                   data_tab_narrative (popup Data sub-tab summaries, built
+                   at render time by report_html and shipped in details.json)
 scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    report_html.py / report_excel.py, scoring.py, config.py,
                    param_set.py, replay.py, ingest_snapshots.py (backfill the

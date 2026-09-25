@@ -16,6 +16,7 @@ try:
     from models.narrative import generate_sector_profit_pool_narrative
 except Exception:
     generate_sector_profit_pool_narrative = None
+from models.data_tab_narrative import generate_data_tab_summaries
 from scripts.scoring import gate_metadata
 from scripts.safe_json import dumps_for_script
 
@@ -885,6 +886,49 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
     }
 
 
+# Fields the Data-tab summaries compare against a sector median. A median
+# needs at least _SECTOR_STAT_MIN_N finite, positive values to be quoted.
+_SECTOR_STAT_FIELDS = ('pe', 'ev_ebitda', 'pfcf', 'revenue_per_emp')
+_SECTOR_STAT_MIN_N = 5
+
+
+def _sector_stats(chart_records):
+    """Return {sector: {field: median}} over the rendered rows."""
+    import math
+    import statistics
+    pools = {}
+    for rec in chart_records:
+        sector = rec.get('sector')
+        if not sector:
+            continue
+        for f in _SECTOR_STAT_FIELDS:
+            v = rec.get(f)
+            if (isinstance(v, (int, float)) and not isinstance(v, bool)
+                    and math.isfinite(v) and v > 0):
+                pools.setdefault(sector, {}).setdefault(f, []).append(float(v))
+    return {sector: {f: statistics.median(vs) for f, vs in fields.items()
+                     if len(vs) >= _SECTOR_STAT_MIN_N}
+            for sector, fields in pools.items()}
+
+
+def _attach_data_summaries(chart_records):
+    """Add the popup Data-tab summaries (``data_summaries``) to each record.
+
+    Built at render time from the payload itself, so a rescore or re-render
+    picks up generator changes without a live run. A failure on one row
+    drops that row's summaries rather than the report.
+    """
+    stats = _sector_stats(chart_records)
+    for rec in chart_records:
+        try:
+            summ = generate_data_tab_summaries(rec, stats.get(rec.get('sector')))
+            rec['data_summaries'] = {k: v for k, v in summ.items() if v}
+        except Exception:
+            logger.warning('data-tab summaries failed for %s', rec.get('ticker'),
+                           exc_info=True)
+            rec['data_summaries'] = {}
+
+
 def _extract_details_payload(chart_records):
     # Heavy text fields only consumed inside the detail panel. Strip them
     # from the inline DATA blob into a details.json sidecar the template
@@ -895,6 +939,7 @@ def _extract_details_payload(chart_records):
         'news_headlines', 'news_sentiment',
         'legal_filings', 'insider_transactions',
         '_trap_components',  # per-axis trap sub-scores; popup-only detail
+        'data_summaries',    # Data sub-tab narratives (_attach_data_summaries)
     )
     details_payload = {}
     for _rec in chart_records:
@@ -1460,6 +1505,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
 
     chart_records = [_row_context(r, gate_meta_obj, _r2000, _prev_ratings,
                                   _rating_hist) for r in rows]
+    _attach_data_summaries(chart_records)
 
     details_payload = _extract_details_payload(chart_records)
 

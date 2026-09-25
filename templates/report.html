@@ -1182,6 +1182,10 @@ td.ct{font-weight:700;}
 .dgrid-inner{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 16px;background:#fff;}
 @media(max-width:700px){.dgrid-inner{grid-template-columns:1fr;}}
 .dsec{background:#f5f8ff;border-radius:9px;padding:12px 14px;border:1px solid #dde5f5;}
+/* Data sub-tab narrative (data_summaries, from details.json) — leads the tab */
+.dsummary{background:#f5f8ff;border:1px solid #dde5f5;border-left:4px solid #2c5a94;border-radius:9px;padding:10px 14px;}
+.dsummary-h{font-size:0.66em;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;color:#1a3a6b;margin-bottom:4px;}
+.dsummary p{margin:0;font-size:0.84em;line-height:1.55;color:#37474f;}
 /* Track Record annual-fundamentals table */
 .dtr-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .dtr-tbl{border-collapse:collapse;width:100%;font-size:0.78em;}
@@ -1689,6 +1693,9 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .dgroup-asm > span:not(:first-child){color:#8b949e!important;}
 [data-theme="dark"] .dgroup-asm > span > strong{color:#e6edf3!important;}
 [data-theme="dark"] .dsec{background:#1c2128;border-color:#30363d;}
+[data-theme="dark"] .dsummary{background:#1c2128;border-color:#30363d;border-left-color:#58a6ff;}
+[data-theme="dark"] .dsummary-h{color:#58a6ff;}
+[data-theme="dark"] .dsummary p{color:#c9d1d9;}
 [data-theme="dark"] .dsec h3{color:#58a6ff;border-color:#30363d;}
 [data-theme="dark"] .dkv{color:#c9d1d9;}
 [data-theme="dark"] .dkv:nth-child(odd){background:rgba(88,166,255,0.06);}
@@ -6084,6 +6091,11 @@ function _renderDetDataTab(key){
   var tab=null;for(var i=0;i<DT_TABS.length;i++)if(DT_TABS[i].k===key)tab=DT_TABS[i];
   if(!d||!tab){el.innerHTML='';return;}
   var h='';
+  /* Plain-English lead for the tab (models/data_tab_narrative.py). Rides
+     details.json, so it is absent until that sidecar lands (openDet re-renders
+     then) and on reports built before it existed — render nothing either way. */
+  var _sm=d.data_summaries&&d.data_summaries[key];
+  if(_sm&&_sm.length)h+='<div class="dsummary"><div class="dsummary-h">Summary</div><p>'+_sm.map(function(x){return esc(x);}).join(' ')+'</p></div>';
   if(tab.groups.length||tab.extra){
   h+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>'+esc(tab.l)
     +'</div><div class="dgrid-inner">';
