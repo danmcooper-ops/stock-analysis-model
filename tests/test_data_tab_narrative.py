@@ -167,13 +167,113 @@ def test_thin_liquidity_mentions_buy_floor():
     assert '$400K a day' in txt and 'BUY' in txt
 
 
+def test_market_reversal_and_drawdowns():
+    txt = _text(generate_data_tab_summaries(_row(momentum_12_1=0.5, momentum_3m=-0.16,
+                                                 drawdown_2020=-0.31, drawdown_2022=-0.3)), 'mkt')
+    assert 'pulled back 16% over the last three months' in txt
+    assert 'fell 31% in the 2020 crash and 30% in the 2022 bear market' in txt
+
+
+def test_mult_vs_hist_follows_gate():
+    dear = _text(generate_data_tab_summaries(_row(_gate_mult_vs_hist=0.86,
+                                                  _gp_mult_vs_hist=False)), 'val')
+    cheap = _text(generate_data_tab_summaries(_row(_gate_mult_vs_hist=-0.26,
+                                                   _gp_mult_vs_hist=True)), 'val')
+    assert 'dear: the EBIT multiple sits 86% above' in dear
+    assert 'cheap: the EBIT multiple sits 26% below' in cheap
+
+
+def test_monte_carlo_range_rides_the_dispersion_sentence():
+    txt = _text(generate_data_tab_summaries(_row(mc_p10_fv=102.4, mc_p90_fv=432.9)), 'val')
+    assert 'Monte Carlo range runs $102 to $433 (P10-P90)' in txt
+
+
+def test_street_target_mentions_upside():
+    txt = _text(generate_data_tab_summaries(_row(price=100.0, target_mean=120.0,
+                                                 num_analysts=12)), 'val')
+    assert 'The 12 covering analysts target $120 on average, 20% above the price' in txt
+
+
+def test_dupont_caveat_only_when_leverage_lifts_roe():
+    lev = _text(generate_data_tab_summaries(_row(roe=0.6, dupont_leverage=4.5)), 'prof')
+    weak = _text(generate_data_tab_summaries(_row(roe=0.01, dupont_leverage=4.5)), 'prof')
+    bank = _text(generate_data_tab_summaries(_row(sector='Financial Services', roe=0.16,
+                                                  dupont_leverage=12.0)), 'prof')
+    assert 'amplified by 4.5x balance-sheet leverage' in lev
+    assert 'amplified' not in weak
+    assert 'return on equity' in bank and 'amplified' not in bank
+
+
+def test_sbc_above_gate_is_flagged():
+    txt = _text(generate_data_tab_summaries(_row(sbc_pct_rev_xbrl=0.031, _gp_sbc_dilution=False)),
+                'prof')
+    assert '3.1% of revenue on stock compensation (above the 2% gate)' in txt
+
+
+def test_health_warnings_survive_the_sentence_cap():
+    row = _row(altman_z=1.1, altman_z_zone='distress', trap_score=72, cr=0.8,
+               working_capital_days=-60, debt_maturity_wall_yrs=1.5, goodwill_pct=0.5,
+               beneish_m=-2.0, edgar_fields_flagged=2)
+    hlth = generate_data_tab_summaries(row)['hlth']
+    assert len(hlth) == MAX_SENTENCES
+    txt = ' '.join(hlth)
+    assert 'caps the rating at HOLD' in txt and 'value-trap profile is high' in txt
+    assert '2 reported figures differ' in txt
+
+
+def test_beneish_grey_zone():
+    txt = _text(generate_data_tab_summaries(_row(beneish_m=-2.0)), 'hlth')
+    assert 'just under the manipulation line' in txt
+    clean = _text(generate_data_tab_summaries(_row(beneish_m=-2.6)), 'hlth')
+    assert 'manipulation line' not in clean
+
+
+def test_growth_forward_indicators_and_capex():
+    txt = _text(generate_data_tab_summaries(_row(book_to_bill_proxy=1.22, backlog_to_revenue=0.45,
+                                                 capex_to_dd_ratio=0.5, capex_intensity=0.02)),
+                'growth')
+    assert 'book-to-bill of 1.22 (orders outpacing sales)' in txt
+    assert 'backlog worth 45% of annual revenue' in txt
+    assert 'Capex runs only 0.5x depreciation (2.0% of sales)' in txt
+
+
+def test_share_count_and_issuance_netting():
+    shrink = _text(generate_data_tab_summaries(_row(_gate_share_shrink=-0.022)), 'own')
+    assert 'shrunk 2.2% a year over five years' in shrink
+    issue = _text(generate_data_tab_summaries(_row(shareholder_yield=0.045, div_yield=0.065,
+                                                   share_buyback_rate=-0.02)), 'own')
+    assert '6.5% in dividends, less 2.0% of net share issuance' in issue
+
+
+def test_people_founder_and_negative_money():
+    txt = _text(generate_data_tab_summaries(_row(founder_led=True, ceo='Mr. Ada  Founder',
+                                                 fcf_per_emp=-65_000)), 'people')
+    assert 'founder-led' in txt and 'Ada' not in txt
+    assert '-$65K per employee' in txt
+
+
 _VAL = st.one_of(st.none(), st.booleans(), st.text(max_size=4),
                  st.floats(allow_nan=True, allow_infinity=True),
                  st.integers(min_value=-10**12, max_value=10**12))
 _KEYS = list(_row()) + ['cet1_ratio', 'npl_ratio', 'nim', 'efficiency_ratio',
                         'combined_ratio', 'affo_margin', 'trap_score', 'goodwill_pct',
                         'glassdoor_rating', 'rule_of_40', 'surprise_avg', 'short_pct_float',
-                        'insider_buy_count_365d', 'insider_sell_count_365d']
+                        'insider_buy_count_365d', 'insider_sell_count_365d',
+                        'momentum_3m', 'drawdown_2020', 'drawdown_2022', 'drawdown_2008',
+                        'price_data_stale', 'mc_p10_fv', 'mc_p90_fv', 'target_mean', 'price',
+                        'num_analysts', '_gate_mult_vs_hist', '_gp_mult_vs_hist',
+                        '_gate_fcf_yield', '_gp_fcf_yield', '_gate_ebit_ev', 'roe',
+                        'dupont_leverage', 'rd_intensity_xbrl', 'sbc_pct_rev_xbrl',
+                        'sga_yoy_change', '_gate_margin_vs_hist', '_gp_margin_vs_hist',
+                        'working_capital_days', 'debt_maturity_wall_yrs', 'beneish_m',
+                        'edgar_fields_flagged', 'cash', 'total_debt', 'book_to_bill_proxy',
+                        'backlog_to_revenue', 'deferred_rev_growth', 'ffo_growth_5y',
+                        'fda_pipeline_count', 'capex_to_dd_ratio', 'capex_intensity',
+                        'analyst_ltg', '_gate_fcf_durability', '_gate_rev_volatility',
+                        '_gate_share_shrink', 'dividend_cagr_5y', 'insider_net_value',
+                        'employees', 'fcf_per_emp', 'sbc_per_emp', 'founder_led', 'ceo',
+                        'glassdoor_rec_pct', 'glassdoor_ceo_pct', 'pp_revenue_share',
+                        'pp_profit_share', '_gate_pool_share', 'pp_sector_cr4']
 
 
 @settings(max_examples=200, deadline=None)

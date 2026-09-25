@@ -2,7 +2,7 @@
 
 Each Data sub-tab (Sector, Market, Valuation, Profitability, Health, Growth,
 Ownership, People) is a grid of raw numbers. This module turns the same row
-into 0-4 sentences per tab saying what those numbers add up to, so the popup
+into 0-6 sentences per tab saying what those numbers add up to, so the popup
 can lead each tab with a verdict instead of leaving the reader to decode it.
 
 Rule-based and pure (no I/O). The thresholds are the ones the report already
@@ -22,7 +22,9 @@ import math
 from models.narrative import _fmt_dollars_compact
 
 TAB_KEYS = ('sect', 'mkt', 'val', 'prof', 'hlth', 'growth', 'own', 'people')
-MAX_SENTENCES = 4
+# Builders emit sentences most-important first; anything past the cap is cut,
+# so the tail of each builder holds the context that is nice to have.
+MAX_SENTENCES = 6
 
 # --- Thresholds (source in brackets) ---------------------------------------
 MOS_WIDE = 0.15            # popup MoS cue: green above 15%, red below 0
@@ -48,6 +50,13 @@ HHI_MODERATE = 0.15
 BETA_UNSTABLE = 0.2        # popup rolling-beta cue: |1y - 5y| >= 0.2 volatile
 TRAP_RED = 70              # popup trap cue: >= 70 red, >= 50 amber
 TRAP_AMBER = 50
+SBC_DILUTION_MAX = 0.02    # sbc_dilution gate: SBC/Rev <= 2%
+MULT_VS_HIST_CHEAP = -0.10  # mult_vs_hist gate: >= 10% below own 10y median
+MARGIN_VS_HIST_MAX = 0.05  # margin_vs_hist gate: OpM < hist avg + 5pp
+EBIT_EV_MIN = 0.08         # ebit_ev gate: EBIT/EV > 8%
+P_TBV_MAX = 2.5            # p_tbv gate: P/TBV <= 2.5x
+BENEISH_THRESHOLD = -1.78  # models/quality.py manipulation flag: M > -1.78
+BENEISH_NEAR = -2.22       # Beneish's original 5-variable cutoff: the grey zone below the flag
 MIN_ADV_FOR_BUY = 1_000_000  # mirrors scripts/config.MIN_ADV_FOR_BUY (HOLD cap)
 GOODWILL_HIGH = 0.35       # narrative._risk_flag_signals amber goodwill line
 # No existing home — chosen for this module:
@@ -65,6 +74,14 @@ SURPRISE_MOVE = 0.02
 SHORT_HIGH = 0.10
 COMP_RISK_HIGH = 8         # yfinance compensation risk, 1-10 (lower = better)
 COMP_RISK_LOW = 3
+ADV_DEEP = 100_000_000     # $100M+ a day reads as deep liquidity
+CAPEX_GROWTH = 1.5         # capex / D&A above 1.5x: building capacity
+CAPEX_HARVEST = 0.8        # below 0.8x: running the asset base down
+BOOK_TO_BILL_UP = 1.05
+BOOK_TO_BILL_DOWN = 0.95
+DUPONT_LEVERAGED = 3.0     # equity multiplier above 3x: ROE leans on leverage
+DEBT_WALL_NEAR = 2.0       # years
+STREET_GAP = 0.30          # popup Street-vs-model cue: |diff| > 30%
 
 _FINANCIALS = ('Financial Services',)
 _FV_SOURCE_LABEL = {'dcf': 'DCF', 'blend': 'blended-model', 'consensus': 'multi-model'}
@@ -93,7 +110,7 @@ def _num(row, key, lo=None, hi=None):
 def _money(v):
     """Company-scale dollars: $2.8M, $569K, $1.2B."""
     if abs(v) < 1e6 and abs(v) >= 1e3:
-        return f'${v / 1e3:.0f}K'
+        return f'{"-" if v < 0 else ""}${abs(v) / 1e3:.0f}K'
     return _fmt_dollars_compact(v)
 
 
@@ -164,10 +181,24 @@ def _summ_sector(row, stats):
         else:
             out.append(f'It captures well under its share of sector profits ({ppm:.2f}x its '
                        f'revenue share).')
+    rs, ps = _num(row, 'pp_revenue_share', lo=0, hi=1), _num(row, 'pp_profit_share', lo=-1, hi=1)
+    if rs is not None and rs >= 0.001:
+        s = f'It accounts for {_pct(rs, 1)} of sector revenue'
+        if ps is not None:
+            s += (f' and {_pct(ps, 1)} of sector operating profit' if ps >= 0
+                  else ', but loses money while its peers profit')
+        out.append(s + '.')
+    pool = _num(row, '_gate_pool_share', lo=-1, hi=1)
+    if pool is not None and abs(pool) >= 0.01:
+        out.append(f'Over five years it has been {"gaining" if pool > 0 else "losing"} share of '
+                   f'the sector profit pool ({_pct(pool, 1, signed=True)} a year).')
     hhi = _num(row, 'pp_sector_hhi')
     if hhi is not None:
         n = _num(row, 'pp_sector_count')
+        cr4 = _num(row, 'pp_sector_cr4', lo=0, hi=1)
         n_txt = f' across {int(n)} companies in the universe' if n else ''
+        if cr4 is not None:
+            n_txt += f'; the top four hold {_pct(cr4)} of revenue'
         if hhi > HHI_CONCENTRATED:
             out.append(f'The sector is concentrated (HHI {hhi:.2f}{n_txt}), which tends to '
                        f'support pricing power for the leaders.')
@@ -192,7 +223,10 @@ def _rolling_beta(rb, key):
 
 def _summ_market(row, stats):
     out = []
-    mom = _num(row, 'momentum_12_1')
+    if row.get('price_data_stale') is True:
+        out.append('Price data for this stock is stale, so the market figures below may lag.')
+    mom = _num(row, 'momentum_12_1', lo=-1, hi=20)
+    m3 = _num(row, 'momentum_3m', lo=-1, hi=20)
     if mom is not None:
         if mom > MOMENTUM_STRONG:
             out.append(f'The shares are in a strong uptrend, up {_pct(mom)} over the past year '
@@ -209,6 +243,11 @@ def _summ_market(row, stats):
         else:
             out.append('The shares are roughly flat over the past year excluding the latest '
                        'month.')
+        # A three-month move against the year's trend is worth calling out.
+        if m3 is not None and abs(m3) >= MOMENTUM_MILD and abs(mom) > MOMENTUM_MILD \
+                and (m3 > 0) != (mom > 0):
+            verb = 'rebounded' if m3 > 0 else 'pulled back'
+            out[-1] = out[-1][:-1] + f', though it has {verb} {_pct(m3)} over the last three months.'
     pos, off_high = _num(row, 'range_52w_position'), _num(row, 'pct_from_52w_high')
     if pos is not None:
         hi_txt = f', {_pct(off_high)} below the high' if off_high is not None and off_high < 0 else ''
@@ -238,14 +277,25 @@ def _summ_market(row, stats):
                   f'loosely')
         out.append(s + '.')
     adv = _num(row, 'avg_dollar_volume_3m')
+    vt = _num(row, 'volume_trend', lo=0, hi=50)
+    hot = (f', and interest is running hot at {vt:.1f}x its yearly average volume'
+           if vt is not None and vt >= 1.5 else '')
     if adv is not None and adv < MIN_ADV_FOR_BUY:
         out.append(f'Trading is thin (about {_money(adv)} a day), below the '
                    f'liquidity floor for a BUY rating; building a position would move the price.')
-    else:
-        vt = _num(row, 'volume_trend')
-        if vt is not None and vt >= 1.5:
-            out.append(f'Trading interest is running hot, at {vt:.1f}x its yearly average '
-                       f'volume.')
+    elif adv is not None and adv >= ADV_DEEP:
+        out.append(f'Liquidity is deep, with about {_money(adv)} traded a day{hot}.')
+    elif adv is not None:
+        out.append(f'About {_money(adv)} trades a day, enough to build a position{hot}.')
+    elif hot:
+        out.append(f'Trading interest is running hot, at {vt:.1f}x its yearly average volume.')
+    dds = [(_num(row, k, lo=-1, hi=0), lbl) for k, lbl in
+           (('drawdown_2020', 'the 2020 crash'), ('drawdown_2022', 'the 2022 bear market'),
+            ('drawdown_2008', '2008'))]
+    dds = [(v, lbl) for v, lbl in dds if v is not None]
+    if dds:
+        out.append('In past sell-offs it fell '
+                   + _join([f'{_pct(v)} in {lbl}' for v, lbl in dds]) + '.')
     return out
 
 
@@ -272,12 +322,16 @@ def _summ_valuation(row, stats):
         ok = _gate(row, 'fv_dispersion')
         if ok is None:
             ok = disp <= FV_DISPERSION_MAX
+        p10, p90 = _num(row, 'mc_p10_fv'), _num(row, 'mc_p90_fv')
+        mc_txt = ''
+        if p10 is not None and p90 is not None and 0 < p10 < p90:
+            mc_txt = f', and the Monte Carlo range runs {_price(p10)} to {_price(p90)} (P10-P90)'
         if not ok:
-            out.append(f'The fair-value models disagree (dispersion {_pct(disp)}), so treat the '
-                       f'estimate as noisy.')
+            out.append(f'The fair-value models disagree (dispersion {_pct(disp)}){mc_txt}, so '
+                       f'treat the estimate as noisy.')
         else:
             out.append(f'The fair-value models corroborate one another (dispersion '
-                       f'{_pct(disp)}).')
+                       f'{_pct(disp)}){mc_txt}.')
     sector = row.get('sector') or 'sector'
     if stats:
         cheap, rich = [], []
@@ -299,7 +353,50 @@ def _summ_valuation(row, stats):
         elif rich and cheap:
             out.append(f'Multiples send mixed signals against {sector} peers: cheaper on '
                        f'{_join(cheap)}, richer on {_join(rich)} (sector median).')
-    ig, ive = _num(row, 'implied_growth'), _num(row, 'implied_vs_estimated')
+    mvh = _num(row, '_gate_mult_vs_hist', lo=-1, hi=20)
+    if mvh is not None:
+        ok = _gate(row, 'mult_vs_hist')
+        if ok is None:
+            ok = mvh < MULT_VS_HIST_CHEAP
+        if ok:
+            out.append(f'Against its own history it is cheap: the EBIT multiple sits '
+                       f'{_pct(mvh)} below its 10-year median.')
+        elif mvh > 0:
+            out.append(f'Against its own history it is dear: the EBIT multiple sits '
+                       f'{_pct(mvh)} above its 10-year median.')
+        else:
+            out.append(f'The EBIT multiple is close to its own 10-year median '
+                       f'({_pct(mvh, signed=True)}).')
+    ylds = []
+    fy = _num(row, '_gate_fcf_yield', lo=-1, hi=1)
+    if fy is not None:
+        ok = _gate(row, 'fcf_yield')
+        ylds.append((f'an FCF yield of {_pct(fy, 1, signed=fy < 0)}'
+                     + (' (above the risk-free rate)' if ok else ' (below the risk-free rate)'
+                        if ok is False else ''), ok))
+    ee = _num(row, '_gate_ebit_ev', lo=-1, hi=1)
+    if ee is not None:
+        ok = _gate(row, 'ebit_ev')
+        if ok is None:
+            ok = ee > EBIT_EV_MIN
+        ylds.append((f'an EBIT/EV of {_pct(ee, 1, signed=ee < 0)} (vs the 8% bar)', ok))
+    if ylds:
+        oks = [ok for _, ok in ylds if ok is not None]
+        lead = ('Earnings yields are attractive' if oks and all(oks)
+                else 'Earnings yields are thin' if oks and not any(oks)
+                else 'Earnings yields are mixed')
+        out.append(f'{lead}: {_join([t for t, _ in ylds])}.')
+    tgt, price, na = _num(row, 'target_mean'), _num(row, 'price'), _num(row, 'num_analysts')
+    if tgt is not None and price is not None and tgt > 0 and price > 0:
+        up = tgt / price - 1
+        who = f'The {int(na)} covering analysts' if na and na > 1 else 'The Street'
+        s = (f'{who} target {_price(tgt)} on average, '
+             + (f'{_pct(up)} above the price' if up >= 0.005
+                else f'{_pct(up)} below the price' if up <= -0.005 else 'in line with the price'))
+        if fv is not None and fv > 0 and abs(tgt / fv - 1) > STREET_GAP:
+            s += ', well away from the model\'s fair value'
+        out.append(s + '.')
+    ig, ive = _num(row, 'implied_growth', lo=-1, hi=2), _num(row, 'implied_vs_estimated', lo=-2, hi=2)
     if ig is not None:
         s = f'The price implies {_pct(ig, 1)} annual cash-flow growth'
         if ive is not None and abs(ive) >= 0.01:
@@ -380,59 +477,113 @@ def _summ_profitability(row, stats):
     affo = _num(row, 'affo_margin')
     if affo is not None:
         out.append(f'AFFO margin (a proxy for distributable REIT cash) is {_pct(affo, signed=affo < 0)}.')
+    roe, lev = _num(row, 'roe', lo=-5, hi=5), _num(row, 'dupont_leverage', lo=0, hi=100)
+    if roe is not None and roe > 0 and _is_financial(row):
+        # Balance-sheet leverage is the business model for a lender, not a
+        # flattering distortion, so the DuPont caveat below doesn't apply.
+        out.append(f'It earns a {_pct(roe)} return on equity.')
+    elif roe is not None and roe > 0 and lev is not None:
+        # The leverage caveat only matters when leverage is lifting ROE above
+        # the return the business itself earns.
+        if lev > DUPONT_LEVERAGED and (roic is None or roe > roic):
+            out.append(f'ROE of {_pct(roe)} is amplified by {_x(lev)} balance-sheet leverage '
+                       f'(DuPont), so ROIC is the cleaner read on the business.')
+        else:
+            out.append(f'ROE of {_pct(roe)} comes mostly from margins and asset turnover rather '
+                       f'than leverage ({_x(lev)} equity multiplier).')
+    mvh = _num(row, '_gate_margin_vs_hist', lo=-1, hi=1)
+    if mvh is not None and _gate(row, 'margin_vs_hist') is False:
+        out.append(f'Operating margin is running {_pp(mvh)} above its own historical average, '
+                   f'a peak-margin risk if conditions normalise.')
+    costs = []
+    rd = _num(row, 'rd_intensity_xbrl', lo=0, hi=5)
+    if rd is not None and rd >= 0.005:
+        costs.append(f'{_pct(rd, 1)} of revenue on R&D')
+    sbc = _num(row, 'sbc_pct_rev_xbrl', lo=0, hi=5)
+    if sbc is not None and sbc >= 0.001:
+        ok = _gate(row, 'sbc_dilution')
+        if ok is None:
+            ok = sbc <= SBC_DILUTION_MAX
+        costs.append(f'{_pct(sbc, 1)}{"" if costs else " of revenue"} on stock compensation'
+                     + ('' if ok else ' (above the 2% gate)'))
+    sga = _num(row, 'sga_yoy_change', lo=-1, hi=5)
+    if costs:
+        s = f'It spends {_join(costs)}'
+        if sga is not None and sga > 0.12:
+            s += f', and SG&A jumped {_pct(sga)} last year'
+        out.append(s + '.')
+    elif sga is not None and sga > 0.12:
+        out.append(f'SG&A jumped {_pct(sga)} last year, worth watching.')
     return out
 
 
 # --- Health ----------------------------------------------------------------
 
 def _summ_health(row, stats):
-    out = []
+    # Lead with solvency, then anything that caps the rating or flags a trap,
+    # then the secondary detail — the cap cuts from the end.
+    lead, warn, detail = [], [], []
     fin = _is_financial(row)
     if fin:
         cet1, npl = _num(row, 'cet1_ratio'), _num(row, 'npl_ratio')
         if cet1 is not None:
-            out.append(f'CET1 capital of {_pct(cet1, 1)} '
-                       + ('sits comfortably above the ~7% regulatory minimum with buffer.'
-                          if cet1 >= 0.10 else 'leaves little room over the ~7% regulatory minimum.'))
+            lead.append(f'CET1 capital of {_pct(cet1, 1)} '
+                        + ('sits comfortably above the ~7% regulatory minimum with buffer.'
+                           if cet1 >= 0.10 else 'leaves little room over the ~7% regulatory minimum.'))
         if npl is not None:
-            out.append(f'Non-performing loans are {_pct(npl, 2)} of the book'
-                       + (', a clean credit profile.' if npl < 0.01
-                          else ', elevated enough to watch.' if npl > 0.03 else '.'))
+            lead.append(f'Non-performing loans are {_pct(npl, 2)} of the book'
+                        + (', a clean credit profile.' if npl < 0.01
+                           else ', elevated enough to watch.' if npl > 0.03 else '.'))
     else:
         nce, nd = _num(row, 'net_cash_to_mcap'), _num(row, 'net_debt')
         lev = _num(row, 'nd_ebitda')
         ic = _num(row, 'int_cov')
         if nd is not None and nd < 0:
             mc_txt = f' ({_pct(nce)} of market cap)' if nce is not None and nce > 0 else ''
-            out.append(f'The balance sheet carries net cash of {_money(-nd)}{mc_txt}.')
+            lead.append(f'The balance sheet carries net cash of {_money(-nd)}{mc_txt}.')
         elif lev is not None and lev < 0:
-            out.append('The company holds more cash than debt.')
+            lead.append('The company holds more cash than debt.')
         elif lev is not None:
             ok = _gate(row, 'net_debt_ebitda')
             if ok is None:
                 ok = lev <= ND_EBITDA_MAX
+            cash, debt = _num(row, 'cash', lo=0), _num(row, 'total_debt', lo=0)
+            bal = (f' ({_money(cash)} of cash against {_money(debt)} of debt)'
+                   if cash is not None and debt is not None and debt > 0 else '')
             if ok:
-                s = f'Leverage is conservative at {_x(lev)} net debt to EBITDA'
+                s = f'Leverage is conservative at {_x(lev)} net debt to EBITDA{bal}'
             elif lev <= ND_EBITDA_HEAVY:
-                s = f'Leverage is moderate at {_x(lev)} net debt to EBITDA, above the 1.5x gate'
+                s = (f'Leverage is moderate at {_x(lev)} net debt to EBITDA{bal}, above the '
+                     f'1.5x gate')
             else:
-                s = f'Leverage is heavy at {_x(lev)} net debt to EBITDA'
+                s = f'Leverage is heavy at {_x(lev)} net debt to EBITDA{bal}'
             ic_ok = _gate(row, 'int_coverage')
             if ic_ok is None and ic is not None:
                 ic_ok = ic > INT_COV_MIN
             if ic is not None:
                 s += (f', with interest covered {_x(ic)}' if ic_ok
                       else f', and interest cover is thin at {_x(ic)}')
-            out.append(s + '.')
+            lead.append(s + '.')
         elif ic is not None:
-            out.append(f'Interest is covered {_x(ic)}'
-                       + ('.' if ic > INT_COV_MIN else ', thinner than the 3x gate.'))
+            lead.append(f'Interest is covered {_x(ic)}'
+                        + ('.' if ic > INT_COV_MIN else ', thinner than the 3x gate.'))
         cr = _num(row, 'cr')
         if cr is not None and cr < 1.0:
-            out.append(f'The current ratio of {cr:.2f} means short-term liabilities exceed '
-                       f'current assets.')
+            detail.append(f'The current ratio of {cr:.2f} means short-term liabilities exceed '
+                          f'current assets.')
         elif cr is not None and cr >= 2.0:
-            out.append(f'Short-term liquidity is ample (current ratio {cr:.2f}).')
+            detail.append(f'Short-term liquidity is ample (current ratio {cr:.2f}).')
+        wall = _num(row, 'debt_maturity_wall_yrs', lo=0, hi=100)
+        if wall is not None and wall < DEBT_WALL_NEAR:
+            detail.append(f'Its debt comes due soon (maturity wall about {wall:.1f} years out), '
+                          f'so refinancing terms matter.')
+        wcd = _num(row, 'working_capital_days', lo=-365, hi=365)
+        if wcd is not None and wcd <= -15:
+            detail.append(f'It runs on negative working capital ({wcd:.0f} days), so customers '
+                          f'and suppliers effectively fund its operations.')
+        elif wcd is not None and wcd >= 120:
+            detail.append(f'Working capital ties up about {wcd:.0f} days of sales, a drag on '
+                          f'cash generation.')
     flags = []
     z, zone = _num(row, 'altman_z'), row.get('altman_z_zone')
     if not fin and zone == 'distress' and z is not None:
@@ -441,19 +592,30 @@ def _summ_health(row, stats):
         flags.append('a Beneish M-score that flags possible earnings manipulation')
     if flags:
         cap = 'either one caps' if len(flags) > 1 else 'which caps'
-        out.append(f'Warning signs: {_join(flags)}, {cap} the rating at HOLD.')
+        warn.append(f'Warning signs: {_join(flags)}, {cap} the rating at HOLD.')
     elif not fin and zone == 'safe' and z is not None and row.get('beneish_flag') is False:
-        out.append(f'No distress or manipulation flags (Altman Z {z:.1f}, in the safe zone).')
-    gw = _num(row, 'goodwill_pct')
-    if gw is not None and gw > GOODWILL_HIGH:
-        out.append(f'Goodwill makes up {_pct(gw)} of assets, a soft asset exposed to '
-                   f'impairment.')
+        detail.insert(0, f'No distress or manipulation flags (Altman Z {z:.1f}, in the safe '
+                         f'zone).')
     trap = _num(row, 'trap_score')
     if trap is not None and trap >= TRAP_AMBER:
         lvl = 'high' if trap >= TRAP_RED else 'elevated'
-        out.append(f'The value-trap profile is {lvl} ({round(trap)}/100); see the breakdown '
-                   f'below.')
-    return out
+        warn.append(f'The value-trap profile is {lvl} ({round(trap)}/100); see the breakdown '
+                    f'below.')
+    bm = _num(row, 'beneish_m', lo=-50, hi=50)
+    if bm is not None and row.get('beneish_flag') is not True \
+            and BENEISH_NEAR < bm <= BENEISH_THRESHOLD:
+        detail.append(f'The Beneish M-score ({bm:.2f}) sits just under the manipulation line, '
+                      f'so earnings quality bears watching.')
+    gw = _num(row, 'goodwill_pct')
+    if gw is not None and gw > GOODWILL_HIGH:
+        detail.append(f'Goodwill makes up {_pct(gw)} of assets, a soft asset exposed to '
+                      f'impairment.')
+    ef = _num(row, 'edgar_fields_flagged', lo=0)
+    if ef:
+        warn.append(f'{int(ef)} reported figure{"s" if ef > 1 else ""} '
+                    f'differ{"" if ef > 1 else "s"} by more than 5% between yfinance and SEC '
+                    f'filings; see the data-quality note.')
+    return lead + warn + detail
 
 
 # --- Growth ----------------------------------------------------------------
@@ -472,28 +634,79 @@ def _summ_growth(row, stats):
                 s += ', so the decline is easing' if shrinking else ', so growth is accelerating'
             elif c5 - c3 > CAGR_SHIFT:
                 s += ', so the decline is deepening' if shrinking else ', so growth is decelerating'
+        vol = _num(row, '_gate_rev_volatility', lo=0, hi=5)
+        if vol is not None and _gate(row, 'rev_volatility') is False:
+            s += f', and it has been lumpy (year-to-year swings of {_pct(vol)})'
         out.append(s + '.')
     fg = _num(row, 'fundamental_growth', lo=-1, hi=1)
     rr = _num(row, 'reinvestment_rate', lo=-5, hi=5)
-    if fg is not None:
+    if fg is not None and rr is not None and abs(rr) < 0.005 and abs(fg) < 0.005:
+        # models/ratios.py clamps the rate at 0 when capex + working-capital
+        # build does not exceed depreciation — no net reinvestment, not no data.
+        out.append('Net reinvestment is nil (capex and working capital no more than cover '
+                   'depreciation), so fundamental growth is near zero.')
+    elif fg is not None:
         rr_txt = f'reinvesting {_pct(rr)} of profits' if rr is not None else 'its reinvestment'
         verdict = ('enough to sustain growth' if fg > FUND_GROWTH_MIN
                    else 'too little to drive meaningful growth')
         out.append(f'At current returns, {rr_txt} supports about {_pct(fg, 1, signed=fg < 0)} '
                    f'a year of fundamental growth, {verdict}.')
+    fcf5 = _num(row, '_gate_fcf_durability', lo=-0.9, hi=1.0)
+    if fcf5 is not None:
+        out.append(f'Free cash flow has compounded {_pct(fcf5, 1, signed=fcf5 < 0)} a year over '
+                   f'five years' + (', short of the 5% durability bar.'
+                                    if _gate(row, 'fcf_durability') is False else '.'))
     mt = _num(row, 'margin_trend', lo=-0.5, hi=0.5)
     if mt is not None and abs(mt) >= MARGIN_TREND_MOVE:
         out.append(f'Margins are {"expanding" if mt > 0 else "contracting"} '
                    f'({_pct(mt, 1, signed=True)} trend).')
-    r40 = _num(row, 'rule_of_40')
+    lead_ind = []
+    btb = _num(row, 'book_to_bill_proxy', lo=0, hi=10)
+    if btb is not None:
+        lead_ind.append(f'a book-to-bill of {btb:.2f}'
+                        + (' (orders outpacing sales)' if btb >= BOOK_TO_BILL_UP
+                           else ' (orders lagging sales)' if btb <= BOOK_TO_BILL_DOWN else ''))
+    bl = _num(row, 'backlog_to_revenue', lo=0, hi=50)
+    if bl is not None:
+        lead_ind.append(f'a backlog worth {_pct(bl)} of annual revenue' if bl < 1
+                        else f'a backlog worth {bl:.1f}x annual revenue')
+    drg = _num(row, 'deferred_rev_growth', lo=-0.9, hi=5)
+    if drg is not None and abs(drg) >= 0.02:
+        lead_ind.append(f'deferred revenue {"up" if drg > 0 else "down"} {_pct(drg)}')
+    ffo = _num(row, 'ffo_growth_5y', lo=-0.9, hi=1)
+    if ffo is not None:
+        lead_ind.append(f'FFO growth of {_pct(ffo, 1, signed=ffo < 0)} a year over five years')
+    fda = _num(row, 'fda_pipeline_count', lo=0)
+    if fda:
+        lead_ind.append(f'{int(fda)} active clinical trial{"s" if fda > 1 else ""}')
+    if lead_ind:
+        out.append(f'Forward indicators: {_join(lead_ind)}.')
+    cdd, ci = _num(row, 'capex_to_dd_ratio', lo=0, hi=50), _num(row, 'capex_intensity', lo=0, hi=5)
+    if cdd is not None:
+        ci_txt = f' ({_pct(ci, 1)} of sales)' if ci is not None else ''
+        if cdd >= CAPEX_GROWTH:
+            out.append(f'Capex runs {_x(cdd)} depreciation{ci_txt}, so it is building capacity '
+                       f'for future growth.')
+        elif cdd <= CAPEX_HARVEST:
+            out.append(f'Capex runs only {_x(cdd)} depreciation{ci_txt}, so the asset base is '
+                       f'being harvested rather than grown.')
+        else:
+            ci_txt = f', {_pct(ci, 1)} of sales' if ci is not None else ''
+            out.append(f'Capex roughly matches depreciation ({_x(cdd)}{ci_txt}), a maintenance '
+                       f'pace.')
+    r40 = _num(row, 'rule_of_40', lo=-500, hi=500)
     if r40 is not None:
         out.append(f'Its Rule of 40 score is {r40:.0f}, '
                    + ('clearing the bar for a healthy growth business.' if r40 >= 40
                       else 'below the 40 that marks a healthy growth business.'))
     sa = _num(row, 'surprise_avg', lo=-2, hi=2)
-    if sa is not None and abs(sa) >= SURPRISE_MOVE and len(out) < MAX_SENTENCES:
+    if sa is not None and abs(sa) >= SURPRISE_MOVE:
         out.append(f'It has {"beaten" if sa > 0 else "missed"} earnings estimates by '
                    f'{_pct(sa, 1)} on average.')
+    ltg = _num(row, 'analyst_ltg', lo=-0.5, hi=1)
+    if ltg is not None:
+        out.append(f'Analysts expect {_pct(ltg, 1, signed=ltg < 0)} long-term annual earnings '
+                   f'growth.')
     return out
 
 
@@ -515,11 +728,19 @@ def _summ_ownership(row, stats):
             s += f', and institutions hold {_pct(inst)}'
         out.append(s + '.')
     buys, sells = _num(row, 'insider_buy_count_365d'), _num(row, 'insider_sell_count_365d')
+    nv = _num(row, 'insider_net_value')
+    nv_txt = (f', net {_money(abs(nv))} {"bought" if nv > 0 else "sold"}'
+              if nv is not None and abs(nv) >= 1e5 else '')
     if buys is not None and sells is not None:
         if buys > 0 and sells == 0:
-            out.append(f'Insiders have only bought over the past year ({int(buys)} purchases).')
+            out.append(f'Insiders have only bought over the past year ({int(buys)} '
+                       f'purchase{"s" if buys > 1 else ""}{nv_txt}).')
         elif sells >= 5 and buys == 0:
-            out.append(f'Insiders have only sold over the past year ({int(sells)} sales).')
+            out.append(f'Insiders have only sold over the past year ({int(sells)} sales{nv_txt}).')
+        elif buys > 0 and sells > 0:
+            out.append(f'Insider trading is two-way: {int(buys)} purchase{"s" if buys > 1 else ""} '
+                       f'and {int(sells)} sale{"s" if sells > 1 else ""} over the past '
+                       f'year{nv_txt}.')
     sy = _num(row, 'shareholder_yield')
     if sy is not None:
         bb, dy = _num(row, 'share_buyback_rate'), _num(row, 'div_yield')
@@ -528,6 +749,9 @@ def _summ_ownership(row, stats):
             parts.append(f'{_pct(bb, 1)} in buybacks')
         if dy is not None and dy > 0:
             parts.append(f'{_pct(dy, 1)} in dividends')
+        if bb is not None and bb <= -0.001:
+            parts[-1:] = [(parts[-1] + ', ' if parts else '')
+                          + f'less {_pct(bb, 1)} of net share issuance']
         detail = f' ({_join(parts)})' if parts else ''
         if sy > SHRHLDR_YIELD_MIN:
             out.append(f'It returns {_pct(sy, 1)} a year to shareholders{detail}.')
@@ -536,14 +760,25 @@ def _summ_ownership(row, stats):
         elif sy <= -0.001:
             out.append(f'Net share issuance leaves shareholder yield negative '
                        f'({_pct(sy, 1, signed=True)}), diluting holders.')
-    pr, streak = _num(row, 'payout_ratio'), _num(row, 'ddm_consecutive_years')
+    shr = _num(row, '_gate_share_shrink', lo=-0.5, hi=2)
+    if shr is not None and abs(shr) >= 0.005:
+        out.append(f'The share count has {"shrunk" if shr < 0 else "grown"} {_pct(shr, 1)} a '
+                   f'year over five years'
+                   + (', steadily raising each holder\'s stake.' if shr < 0
+                      else ', diluting existing holders.'))
+    pr, streak = _num(row, 'payout_ratio', lo=0, hi=100), _num(row, 'ddm_consecutive_years', lo=0)
+    dg = _num(row, 'dividend_cagr_5y', lo=-0.9, hi=2)
     if pr is not None and pr > 1.0:
         out.append(f'It pays out {_pct(pr)} of earnings, more than it earns, so the dividend '
                    f'is at risk.')
     elif streak is not None and streak >= 10:
-        out.append(f'It has paid a dividend for {int(streak)} consecutive years.')
-    si = _num(row, 'short_pct_float')
-    if si is not None and si > SHORT_HIGH and len(out) < MAX_SENTENCES:
+        s = f'It has paid a dividend for {int(streak)} consecutive years'
+        if dg is not None and abs(dg) >= 0.005:
+            s += (f', raising it {_pct(dg, 1)} a year over the last five' if dg > 0
+                  else f', though it has been cut {_pct(dg, 1)} a year over the last five')
+        out.append(s + '.')
+    si = _num(row, 'short_pct_float', lo=0, hi=5)
+    if si is not None and si > SHORT_HIGH:
         sr = _num(row, 'short_ratio')
         sr_txt = f', {sr:.1f} days to cover' if sr is not None else ''
         out.append(f'Short interest is elevated at {_pct(si, 1)} of the float{sr_txt}.')
@@ -555,8 +790,10 @@ def _summ_ownership(row, stats):
 def _summ_people(row, stats):
     out = []
     rpe = _num(row, 'revenue_per_emp')
+    emp = _num(row, 'employees', lo=1)
     if rpe is not None and rpe > 0:
-        s = f'Each employee generates about {_money(rpe)} of revenue'
+        s = (f'With about {int(emp):,} employees, each generates about {_money(rpe)} of revenue'
+             if emp else f'Each employee generates about {_money(rpe)} of revenue')
         med = (stats or {}).get('revenue_per_emp')
         if med is not None and med > 0:
             rel = rpe / med
@@ -568,18 +805,32 @@ def _summ_people(row, stats):
             s += (f', and productivity has {"risen" if g > 0 else "fallen"} '
                   f'{_pct(g, 1)} a year')
         out.append(s + '.')
+        fpe = _num(row, 'fcf_per_emp')
+        if fpe is not None and abs(fpe) >= 1e3:
+            out.append(f'That works out to {_money(fpe)} of free cash flow per employee.'
+                       if fpe > 0 else
+                       f'Free cash flow is negative, at {_money(fpe)} per employee.')
+    elif emp:
+        out.append(f'It employs about {int(emp):,} people.')
+    if row.get('founder_led') is True:
+        out.append('The company is founder-led, which often keeps management aligned with '
+                   'long-term owners.')
     pay, ratio = _num(row, 'ceo_total_pay'), _num(row, 'ceo_pay_ratio')
-    risk = _num(row, 'compensation_risk')
+    risk = _num(row, 'compensation_risk', lo=1, hi=10)
+    risk_txt = ''
+    if risk is not None and risk >= COMP_RISK_HIGH:
+        risk_txt = f'compensation governance scores poorly ({int(risk)}/10, lower is better)'
+    elif risk is not None and risk <= COMP_RISK_LOW:
+        risk_txt = f'compensation governance scores well ({int(risk)}/10, lower is better)'
     if pay is not None and pay > 0:
         s = f'CEO pay is {_money(pay)}'
         if ratio is not None:
             s += f' ({ratio:.0f}x revenue per employee)'
+        if risk_txt:
+            s += f', and {risk_txt}'
         out.append(s + '.')
-    if risk is not None:
-        if risk >= COMP_RISK_HIGH:
-            out.append(f'Compensation governance scores poorly ({int(risk)}/10, lower is better).')
-        elif risk <= COMP_RISK_LOW:
-            out.append(f'Compensation governance scores well ({int(risk)}/10, lower is better).')
+    elif risk_txt:
+        out.append(risk_txt[0].upper() + risk_txt[1:] + '.')
     flags = []
     if row.get('employment_legal_flag') is True:
         flags.append('employment-related legal filings')
@@ -587,10 +838,18 @@ def _summ_people(row, stats):
         flags.append('recent layoff news')
     if flags:
         out.append(f'Culture flags: {_join(flags)}.')
-    gd = _num(row, 'glassdoor_rating')
-    if gd is not None and len(out) < MAX_SENTENCES:
-        out.append(f'Employees rate it {gd:.1f}/5 on Glassdoor.')
-    if row.get('culture_award_signal') is True and len(out) < MAX_SENTENCES:
+    gd = _num(row, 'glassdoor_rating', lo=0, hi=5)
+    if gd is not None:
+        extra = [f'{_pct(v)} {lbl}' for v, lbl in
+                 ((_num(row, 'glassdoor_rec_pct', lo=0, hi=1), 'would recommend it'),
+                  (_num(row, 'glassdoor_ceo_pct', lo=0, hi=1), 'approve of the CEO'))
+                 if v is not None]
+        out.append(f'Employees rate it {gd:.1f}/5 on Glassdoor'
+                   + (f'; {_join(extra)}' if extra else '') + '.')
+    spe = _num(row, 'sbc_per_emp', lo=0)
+    if spe is not None and spe >= 1e3:
+        out.append(f'Stock compensation averages {_money(spe)} per employee.')
+    if row.get('culture_award_signal') is True:
         out.append('It has recently been recognised with a workplace culture award.')
     return out
 
