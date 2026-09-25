@@ -33,11 +33,11 @@ and both force-push `pages-live`.
 | preflight | `00-preflight.log` | — | `scripts/market_open.py`; exit 10 = market closed → the script exits 0 immediately and `status.txt` says `SKIPPED market closed`. **That is a successful run**; report the one-line reason and stop. |
 | 01-venv | | yes | `.venv` + `pip install -e ".[dev]"` (~1 min) |
 | 02-stage-snapshots | | yes | blob-less, checkout-less clone of `data/snapshots`; materialises the newest `SNAPSHOT_HISTORY` (10) snapshots and `rating_history.json` into `output/` so carry-forward, Yesterday's Rating, the rate-change look-back, rating history and gate N/A deltas all work exactly as they did locally; also stages `screen_skip.json` into `data/cache/` (absent = the screen runs cold and rebuilds it) |
-| 03-prices | | no | full price history for every ticker in the newest prior snapshot + benchmarks (~2,300 tickers, 25–45 min) |
-| 04-analyze | | **yes** | `analyze_stock.py --macro --universe us --min-spread 0 --mcap-min 300e6 --run-date $RUNDATE` — **10–16 hours** before the 2026-09-13 speedups (Phase 1 ~5h at ~30 tickers/min, then Phase 2 over ~2,300 qualifiers). SEC companyfacts are re-downloaded every run (the on-disk cache does not survive the container). Progress is checkpointed under `output/.checkpoint/$RUNDATE`, so an interrupted analysis resumes (see 3b) |
+| 03-prices | | no | full price history for every ticker in the newest prior snapshot + benchmarks (~2,500 tickers, 25–45 min; 31 min on 2026-09-23) |
+| 04-analyze | | **yes** | `analyze_stock.py --macro --universe us --min-spread 0 --mcap-min 300e6 --run-date $RUNDATE` — **about 4 hours**: 3h44m and 3h56m on 2026-09-22/23 (Phase 1 screen ~2h at ~70 tickers/min over ~9,200 tickers, Phase 2 ~1h45m over ~2,500 qualifiers, outputs ~9 min). It was 10–16 h before the 2026-09-13 speedups and 4.4–7.2 h on 09-16..21, before the 0.4 s yfinance interval. SEC companyfacts are re-downloaded every run (the on-disk cache does not survive the container). Progress is checkpointed under `output/.checkpoint/$RUNDATE`, so an interrupted analysis resumes (see 3b) |
 | 05a–05d enrich | | no | FDIC, REIT, XBRL, FDA pipeline — same as the Mac runbook 1b–1e |
 | 05e-prices-topup | | no | full history for Phase-2 entrants that only got a Close-only stub during the run |
-| 05f-rerender | | yes | `rescore_and_render.py` so the HTML carries every enrichment |
+| 05f-rerender | | yes | `rescore_and_render.py` so the HTML carries every enrichment (~9 min) |
 | 06-archive | | **yes** | `archive_snapshot.py` (gzip + SHA-256 round-trip + 80 MiB guard), commit `Snapshot: <date>` (with `rating_history.json` and, unless `SMOKE=1` or the file is under 10 KB, `screen_skip.json`) on top of the remote tip, push with retries. rc 2 = over the hard guard, not pushed |
 | 07a–07c reports | | no | portfolio concentration/drawdown, gate N/A coverage + deltas, trailing-momentum sanity check — **their logs are the body of your summary** |
 | 08-publish | | no* | rebuilds `pages-live` (index.html, prices_meta/hist/details/macro sidecars, `px/` and `vol/` shards by manifest) as one fresh commit, force-pushes it, then polls the live URL for today's date. *A publish failure does not fail the analysis (the snapshot is safe); report it and note that re-running only step 8 is possible by hand |
@@ -62,9 +62,14 @@ cd /home/user/stock-analysis-model && git fetch origin main && git checkout -q m
 
 ### 2. Start the script in the background and wait for it
 Run it as a **background** Bash command (the Bash tool's `run_in_background`),
-so the session is woken when it exits; the run takes **12–20 hours** (the
-Mac's 2026-09-08 `analyze_stock` alone ran 13h37m by its own provenance
-timestamps; the Routine prompt's "4–8 hours" predates that measurement):
+so the session is woken when it exits; the run takes **about 5 hours** end
+to end — `run.sh` took 4h55m on 2026-09-23, and the 09-22 snapshot was pushed
+4h48m after its 17:00 New York firing; `04-analyze` is ~4 h of that and
+`03-prices` ~30 min. A slow night still runs longer (firing to snapshot push
+took 5h50m–7h50m on 09-17..21, before the 0.4 s yfinance
+interval; 12–20 h before the 2026-09-13 speedups, when the Mac's 2026-09-08
+`analyze_stock` alone ran 13h37m), so wait for the completion notice rather
+than assuming a finish time:
 ```
 cd /home/user/stock-analysis-model && bash scheduled-tasks/cloud-daily-stock-analysis/run.sh > .cloud-run.log 2>&1
 ```
@@ -128,7 +133,8 @@ up to a killed run (no `RESULT` line in `status.txt`, no `run.sh` process):
 - **Do not resume across a code change.** The checkpoint is discarded
   automatically when `main` moved or the options differ, which makes it a
   full run. Only resume if there is still time before the next firing; a
-  full run takes most of a day. Never run two copies.
+  full run takes about 5 hours, so on a weekday there nearly always is.
+  Never run two copies.
 
 A session that ended FAILED because of a restart can also be recovered from a
 later session or by hand the same way: `RUNDATE=<the failed weekday>` re-runs
@@ -190,8 +196,10 @@ entered in the Routine UI in **local (New York) time** and is currently
 16:00 in winter) since 2026-09-11. It was briefly 21:00 New York, which is why
 the 2026-09-10 session's run started at 01:01 UTC on 09-11. `run.sh`
 therefore exports `TZ=America/New_York` so `RUNDATE` and the snapshot name
-carry the session date, as the Mac runs did. A 12–20 hour run started at
-21:00 finishes mid-afternoon the next day, before the next firing. To test the script itself without touching
+carry the session date, as the Mac runs did. A ~5 hour run started at
+21:00 UTC finishes around 02:00 UTC (22:00 New York in summer), long before
+the next firing; only a slow night or a resumed run crosses New York
+midnight. To test the script itself without touching
 GitHub: `SMOKE=1 FORCE=1 DRY_RUN=1 bash scheduled-tasks/cloud-daily-stock-analysis/run.sh`
 runs eight tickers end to end and pushes nothing.
 

@@ -87,7 +87,7 @@ def _get_fx_rates_to_usd(currency):
         logger.warning(f"FX: rate fetch failed for {currency}: {e}")
         # Don't cache the failure: a transient yfinance error at run start
         # would otherwise leave every ticker in this currency unconverted
-        # for the whole 3-6h run. Next ticker retries the fetch.
+        # for the whole ~4h analysis. Next ticker retries the fetch.
         return {}
 
 

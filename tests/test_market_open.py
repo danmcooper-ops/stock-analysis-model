@@ -1,6 +1,6 @@
 """Tests for scripts/market_open.py — the trading-day gate on the daily run.
 
-The gate's job is to stop a 3-6 hour pipeline from running on a day that
+The gate's job is to stop a ~5 hour pipeline from running on a day that
 produced no bars, so the cases worth pinning are the ones where a plain
 "is it a weekday" check gets it wrong: the moving holidays, the weekend
 observance shifts, and the two exceptions (New Year's Day on a Saturday,

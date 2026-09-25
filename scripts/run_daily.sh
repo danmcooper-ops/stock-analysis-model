@@ -72,7 +72,7 @@ FROM_I=$(step_index "$FROM")
 if [ "$FROM_I" -gt "$(step_index analyze)" ] && [ -z "$RUNDATE" ]; then
   echo "--from $FROM needs --date YYYY-MM-DD (the snapshot to resume)" >&2; exit 2
 fi
-# Fixed once, at start: a 3-6 h run crosses midnight.
+# Fixed once, at start: a ~5 h run can cross midnight.
 RUNDATE="${RUNDATE:-$(date +%F)}"
 
 # Keep the Mac awake for the whole run (re-exec under caffeinate once). The

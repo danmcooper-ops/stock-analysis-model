@@ -163,11 +163,19 @@ ruff check .
   `provenance.timings`, so a slow night can be compared against a fast one
   instead of diffing stdout timestamps. The instrumentation is defensive —
   a client without counters degrades to empty dicts rather than failing a
-  5-hour run.
+  5-hour run. **Current cost** (cloud runs of 2026-09-22/23): ~5 h end to
+  end — `run.sh` took 4h55m on 09-23, and the 09-22 snapshot was pushed
+  4h48m after its 17:00 New York firing.
+  `03-prices` ~30 min; `analyze_stock` ~4 h (Phase 1 screen ~2 h over
+  ~9,200 tickers, Phase 2 ~1h45m over ~2,500 qualifiers, outputs ~9 min);
+  enrichment + re-render ~15 min; archive, reports and publish ~3 min. It
+  was 12–20 h before the 2026-09-13 speedups and 5h50m–7h50m (firing to
+  push) on 09-17..21, before the 0.4 s yfinance interval.
 - **Phase-1 screen skip cache (`data/screen_skip_cache.py`):** remembers the
   ~4.5k tickers a run rejected as far below `--mcap-min` or dead, with a
   staggered 7-14 / 14-28 day TTL, so the next screen skips them without a
-  fetch. It is what makes the screen ~2h54m instead of ~4h15m. `data/cache/` is
+  fetch. At the old 1.0 s interval it made the screen ~2h54m instead of
+  ~4h15m; with the 0.4 s interval and prefetch pool a warm screen is ~2 h. `data/cache/` is
   gitignored and the cloud container is stateless, so the cloud routine stages
   `screen_skip.json` from the `data/snapshots` branch and commits it back with
   the snapshot (same mechanism as `rating_history.json`); the write-back is

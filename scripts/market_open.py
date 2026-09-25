@@ -1,7 +1,7 @@
 # scripts/market_open.py
 """Decide whether the US equity market traded on a given day.
 
-The daily analysis routine costs 3-6 hours and writes an ~85 MiB snapshot to
+The daily analysis routine costs ~5 hours and writes an ~85 MiB snapshot to
 the `data/snapshots` archive. On a day the exchanges never opened there are no
 new bars to fetch, so all of that work re-publishes the previous session's data
 under a new date and puts a duplicate-content day into the corpus the weekly

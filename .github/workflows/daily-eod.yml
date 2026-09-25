@@ -1,7 +1,7 @@
 name: Daily EOD delivery check
 
 # Fires at 16:00 New York, which checks the PREVIOUS night's delivery -- the
-# EOD run starts after the close and takes 3-6h, so today's snapshot does not
+# EOD run starts after the close and takes ~5h, so today's snapshot does not
 # exist yet at this hour and is not what is being asserted.
 #
 # Actions cron is UTC-only, so one schedule cannot hold 16:00 New York across
@@ -55,7 +55,7 @@ jobs:
         with:
           python-version: '3.11'
       # The EOD pipeline itself is NOT run here and cannot be: step 1 alone
-      # takes 3-6h against a hosted runner's 6h job cap, it reads ~878 MB of
+      # takes ~4h (7h on a slow night) against a hosted runner's 6h job cap, it reads ~878 MB of
       # gitignored price parquets that exist only on the machine that owns
       # the run, and SEC/Yahoo throttle datacenter IPs. It stays a local
       # Claude Code routine (scheduled-tasks/daily-stock-analysis/).

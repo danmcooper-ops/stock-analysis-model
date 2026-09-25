@@ -339,7 +339,7 @@ def main(argv=None):
 
     src = args.source
     if not src:
-        # Never $(date): a 3-6 h run that crosses midnight would name a file
+        # Never $(date): a run that crosses midnight would name a file
         # that does not exist, and the archive would silently skip the night.
         files = [(d, p) for d, p in list_snapshot_files(args.results_dir)
                  if not p.endswith('.gz')]

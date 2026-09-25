@@ -3116,7 +3116,7 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                 if _t_sub in _pending or _prefetch_skip(_t_sub):
                     continue
                 _pending[_t_sub] = _pool.submit(_prefetch, _t_sub)
-        # Progress heartbeat: a 3-5h phase writing one line per ticker is
+        # Progress heartbeat: a ~2h phase writing one line per ticker is
         # unreadable live, and until now nothing reported a rate.
         if i % 250 == 0:
             _now = time.perf_counter()

@@ -77,8 +77,9 @@ export YF_IMPERSONATE="${YF_IMPERSONATE:-chrome116}"
 # have archived Thursday's close as results_<Friday>.  The Mac ran in New
 # York local time, which is the convention the archive already carries.
 export TZ="${TZ:-America/New_York}"
-# Fixed once, before the gate: a 12-20 h run crosses midnight, and a recovery
-# run the next morning must still be filed under the session it analyses.
+# Fixed once, before the gate: a ~5 h run from 17:00 ends near 22:00, but a
+# slow night or a resumed run crosses midnight, and a recovery run the next
+# morning must still be filed under the session it analyses.
 RUNDATE="${RUNDATE:-$(date +%F)}"
 export SEC_EMAIL="${SEC_EMAIL:-stockanalysis@example.com}"
 # The cloud egress proxy re-terminates TLS; every client must trust its CA.
@@ -258,7 +259,9 @@ PY
   # The Phase-1 screen skip list. data/cache/ is gitignored, so it dies with
   # the container: without staging it, every night re-fetches the ~4.5k
   # tickers the last run already proved are far below the mcap floor or dead.
-  # Measured: a cold screen takes ~4h15m, a warm one ~2h54m.
+  # Measured at the old 1.0 s yfinance interval: a cold screen took ~4h15m,
+  # a warm one ~2h54m. With the 0.4 s interval and the prefetch pool a warm
+  # screen takes ~2h (2026-09-22/23).
   if git -C "$SNAP" cat-file -e HEAD:screen_skip.json 2>/dev/null; then
     mkdir -p "$REPO/data/cache" || return 1
     git -C "$SNAP" show HEAD:screen_skip.json > "$REPO/data/cache/screen_skip.json" || return 1

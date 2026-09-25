@@ -1,7 +1,7 @@
 """Re-score a saved snapshot JSON and regenerate the HTML report.
 
 Use this after editing scoring.py / report_html.py to refresh today's HTML
-without re-running the 3-6h analysis. Loads the JSON, re-applies the canonical
+without re-running the ~4h analysis. Loads the JSON, re-applies the canonical
 scoring pipeline, and writes a new HTML next to the JSON.
 
 Usage:

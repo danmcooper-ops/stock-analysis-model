@@ -352,7 +352,7 @@ class YFinanceClient:
         self._snapshot_cache = snapshot_cache  # Optional SnapshotCache instance
         self._fetch_timeout = fetch_timeout    # hard wall-clock limit per fetch
         self._prices_dir = prices_dir          # Write-through dir for fetch_history
-        # Run-START date for snapshot stamping: a 3-6h run crosses midnight,
+        # Run-START date for snapshot stamping: a long run can cross midnight,
         # and per-ticker date.today() would date post-midnight tickers run+1,
         # making a same-day replay silently miss them (load requires <= as_of).
         self.run_date = run_date
