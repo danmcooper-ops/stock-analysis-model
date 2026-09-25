@@ -202,3 +202,21 @@ def test_epv_tooltips_keyed_to_row_fields():
     assert re.search(r"^epv_growth_fv:'", html, re.M)
     assert "'EPV Growth-Adj':'epv_growth_fv'" in html
     assert 'gate passes below 1.2' not in html
+
+
+def test_build_html_ships_data_tab_summaries_in_details(tmp_path):
+    """The Data sub-tab narratives are built at render time and ride
+    details.json (never the inline DATA blob); a row with nothing to say
+    gets no entry."""
+    import json
+    out = tmp_path / 'report.html'
+    rich = _rich_row()
+    rich['company_name'] = 'Rich </script><script>alert(1)'
+    build_html([rich, _sparse_row()], str(out), prices_dir=None)
+    details = json.loads((tmp_path / 'details.json').read_text(encoding='utf-8'))
+    summ = details['RICH']['data_summaries']
+    assert summ['val'] and summ['prof'] and summ['hlth']
+    assert 'data_summaries' not in details.get('SPRS', {})
+    html = out.read_text(encoding='utf-8')
+    assert 'data_summaries' not in html.split('var DATA=')[1].split(';\n')[0]
+    assert '</script><script>alert(1)' not in html
