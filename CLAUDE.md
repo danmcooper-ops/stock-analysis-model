@@ -261,7 +261,7 @@ ruff check .
   keeps the night's learning. `--no-screen-cache` bypasses it, and
   carry-forward tickers are never skipped.
 - **Carry-forward drops tickers that stopped trading
-  (`stopped_trading_carry_forwards`):** carry-forward re-enters every
+  (`data/price_store.stopped_trading`):** carry-forward re-enters every
   prior-snapshot ticker past the mcap/spread filters and the skip cache, and
   Yahoo keeps answering `.info` for a delisted symbol with its frozen last
   quote, so an acquired company used to be re-rated nightly on a dead price
@@ -279,8 +279,14 @@ ruff check .
   nothing), and if more than max(10, 5%) of the carry set reads as stopped
   it is treated as a failed refresh and nothing is dropped. Replayed over
   07-01..09-14 it dropped 7-21 names a night, every one a 1-6 bar file.
-  Rows already in archived snapshots are unaffected; the backtest's
-  `gone_before_snapshot` still covers those.
+  The render applies the same rule to every row (`report_html.
+  _drop_stopped_rows`, after step 05e's top-up refreshed each row's
+  parquet), so a snapshot written before the rule — or a row that reached
+  Phase 2 another way — renders without its stopped names, and the table,
+  portfolio stats and sidecars follow. It needs an explicit `run_date`
+  (judging an old snapshot against today's parquets would drop names live on
+  its date) and never edits the snapshot JSON, which stays the canonical
+  record; the backtest's `gone_before_snapshot` covers the archived rows.
 - **Snapshot archive:** `output/results_<date>.json` is the canonical run
   artifact. Locally only the newest 5 stay plain JSON: the last `run_daily.sh`
   step (and the weekly job, as a backstop) runs `scripts/compact_output.py`,
