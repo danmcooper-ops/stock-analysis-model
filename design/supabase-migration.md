@@ -220,6 +220,27 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
   - *Passes when:* CI applies the migrations cleanly, `squawk` reports nothing, and the codec property tests and registry coverage tests pass.
 - **P2: Write path.**
   - *Passes when:* stability checks 3–6 pass.
+  - **Built 2026-09-26:**
+    - `supabase/migrations/*_publish_rpc.sql` adds `pipeline.stage_chunk` and `pipeline.publish_run`.
+    - `data/db/publish.py` provides the REST and direct transports.
+    - `scripts/db_publish.py` is the CLI.
+    - `run.sh` step `06a-db-publish` is non-blocking. It is skipped when `SUPABASE_URL` is unset and runs as a dry run for SMOKE/DRY_RUN.
+  - **Results:**
+    - A real day (2.5k rows, about 45 chunks) publishes in about 5 s direct and about 11 s over the Data API. Most of that is the 0.2 s request throttle.
+    - The first version took 190 s. Its `(jsonb_populate_record(...)).*` called the function once per column, and `CROSS JOIN LATERAL` fixed it.
+    - `db_fidelity_check.py --published` finds 0 mismatches on REST-published days.
+    - `core.rating_changes` equals a full recompute after publishing in order, publishing out of order, and repairs.
+    - `anon` is refused at the gateway ("permission denied for schema pipeline"), and `core` is not exposed.
+  - **Stability checks:**
+    - **3:** a publisher killed mid-transaction, concurrent publishers, and idempotent republish all pass (`tests/test_db_publish_pg.py`).
+    - **4:** out-of-order publishing and repair pass.
+    - **5:** row-drop refusal, `--force` with its audit, structural errors, and cast-failure gating all pass.
+    - **6:** a connect timeout on a silent server passes, and so does REST retrying only idempotent calls. The reader-side SHA fallback arrives with the readers in P4.
+  - **Moved to P4,** alongside the readers and export they serve:
+    - Storage and Parquet uploads, and `core.snapshot_objects`;
+    - `sync_snapshot_file` deferring or publishing (R2);
+    - `check_snapshot_store.py` becoming the post-publish check;
+    - the `core.screen_skip` upsert.
 - **P3: Backfill the whole archive.**
   - *Passes when:* fidelity and decision parity (stability checks 1–2) hold for every date.
 - **P4: Switch readers, Parquet backtest, public export.**
