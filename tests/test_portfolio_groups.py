@@ -349,21 +349,21 @@ class TestReport:
 # ---------------------------------------------------------------- stats & alerts (PR 2)
 
 TODAY = [
-    {'ticker': 'AAA', 'rating': 'BUY', 'sector': 'Energy', 'mos': 0.40, '_gate_mos': 0.40,
+    {'ticker': 'AAA', 'price': 10.0, 'company_name': 'Aaa Corp', 'rating': 'BUY', 'sector': 'Energy', 'mos': 0.40, '_gate_mos': 0.40,
      '_composite_score': 70.0, 'spread': 0.05},
-    {'ticker': 'BBB', 'rating': 'LEAN BUY', 'sector': 'Energy', 'mos': 0.25, '_gate_mos': 0.25,
+    {'ticker': 'BBB', 'price': 10.0, 'company_name': 'Bbb Corp', 'rating': 'LEAN BUY', 'sector': 'Energy', 'mos': 0.25, '_gate_mos': 0.25,
      '_composite_score': 50.0, 'spread': -0.02},
-    {'ticker': 'CCC', 'rating': 'BUY', 'sector': 'Technology', 'mos': 0.35, '_gate_mos': 0.35,
+    {'ticker': 'CCC', 'price': 10.0, 'company_name': 'Ccc Corp', 'rating': 'BUY', 'sector': 'Technology', 'mos': 0.35, '_gate_mos': 0.35,
      '_composite_score': 58.0, 'spread': 0.10},
 ]
 YESTERDAY = [
-    {'ticker': 'AAA', 'rating': 'LEAN BUY', 'sector': 'Energy', 'mos': 0.38, '_gate_mos': 0.38,
+    {'ticker': 'AAA', 'price': 10.0, 'company_name': 'Aaa Corp', 'rating': 'LEAN BUY', 'sector': 'Energy', 'mos': 0.38, '_gate_mos': 0.38,
      '_composite_score': 66.0},
-    {'ticker': 'BBB', 'rating': 'BUY', 'sector': 'Energy', 'mos': 0.32, '_gate_mos': 0.32,
+    {'ticker': 'BBB', 'price': 10.0, 'company_name': 'Bbb Corp', 'rating': 'BUY', 'sector': 'Energy', 'mos': 0.32, '_gate_mos': 0.32,
      '_composite_score': 63.0},
-    {'ticker': 'CCC', 'rating': 'BUY', 'sector': 'Technology', 'mos': 0.28, '_gate_mos': 0.28,
+    {'ticker': 'CCC', 'price': 10.0, 'company_name': 'Ccc Corp', 'rating': 'BUY', 'sector': 'Technology', 'mos': 0.28, '_gate_mos': 0.28,
      '_composite_score': 57.0},
-    {'ticker': 'GONE', 'rating': 'BUY', 'sector': 'Energy', 'mos': 0.5, '_gate_mos': 0.5,
+    {'ticker': 'GONE', 'price': 10.0, 'company_name': 'Gone Corp', 'rating': 'BUY', 'sector': 'Energy', 'mos': 0.5, '_gate_mos': 0.5,
      '_composite_score': 60.0},
 ]
 
@@ -386,18 +386,21 @@ class TestStatsAndAlerts:
         assert st['concentrated'] is True
         assert (st['upgrades'], st['downgrades']) == (1, 1)
 
-    def test_change_alerts_skip_valuation_gap(self):
-        al = pg.change_alerts(pg.rows_by_ticker(TODAY), pg.rows_by_ticker(YESTERDAY), '2026-09-14')
-        kinds = sorted((a['ticker'], a['alert_type']) for a in al)
-        assert kinds == [('AAA', 'rating_upgrade'), ('BBB', 'rating_downgrade'),
-                         ('BBB', 'score_drop')]
+    def test_classify_changes_levels(self):
+        al, st = pg.classify_changes(pg.rows_by_ticker(TODAY), pg.rows_by_ticker(YESTERDAY), '2026-09-14')
+        kinds = sorted((a['ticker'], a['kind'], a['level']) for a in al)
+        # LEAN BUY <-> BUY never crosses the buy line: FYI, not an alert.
+        assert kinds == [('AAA', 'same_side', 'fyi'), ('BBB', 'same_side', 'fyi'),
+                         ('BBB', 'score_drop', 'watch')]
+        assert st['changed'] == 2 and st['flood'] is True   # 2 of 3 rows re-rated
 
     def test_membership_events_explain_the_flip(self):
         p = _pf(id='deep', name='Deep', tickers=['GONE'],
                 rule={'ratings': ['BUY'], 'cf': [{'key': 'mos', 'min': 0.3}]})
         ev = pg.membership_events([p], pg.rows_by_ticker(TODAY),
                                   pg.rows_by_ticker(YESTERDAY), '2026-09-14')
-        msgs = {(e['ticker'], e['alert_type']): e['message'] for e in ev}
+        msgs = {(e['ticker'], e['kind']): e['message'] for e in ev}
+        assert {e['level'] for e in ev} == {'watch'}
         assert set(msgs) == {('AAA', 'joined'), ('BBB', 'left'), ('CCC', 'joined'),
                              ('GONE', 'dropped_out')}
         assert 'rating LEAN BUY → BUY' in msgs[('AAA', 'joined')]
@@ -412,14 +415,17 @@ class TestStatsAndAlerts:
         p = _pf(id='x', tickers=['AAA'])
         assert pg.membership_events([p], pg.rows_by_ticker(TODAY), pg.rows_by_ticker(YESTERDAY)) == []
 
-    def test_portfolio_alerts_attribute_once(self):
-        pfs = [_pf(id='a', tickers=['AAA', 'BBB']), _pf(id='b', tickers=['BBB'])]
-        al = pg.portfolio_alerts(pfs, pg.rows_by_ticker(TODAY), pg.rows_by_ticker(YESTERDAY), '2026-09-14')
-        bbb = [a for a in al if a['ticker'] == 'BBB']
-        assert {a['alert_type'] for a in bbb} == {'rating_downgrade', 'score_drop'}
-        assert all(a['portfolios'] == ['a', 'b'] for a in bbb)
-        assert [a['severity'] for a in al] == sorted((a['severity'] for a in al), key=pg.SEVERITY_ORDER.get)
-        assert not [a for a in al if a['ticker'] == 'CCC']  # in no portfolio
+    def test_portfolio_alerts_per_portfolio_and_modes(self):
+        pfs = [_pf(id='a', tickers=['AAA', 'BBB']), _pf(id='b', tickers=['BBB'], alerts='all'),
+               _pf(id='c', tickers=['BBB'], alerts='off')]
+        by_id, st = pg.portfolio_alerts(pfs, pg.rows_by_ticker(TODAY), pg.rows_by_ticker(YESTERDAY),
+                                        '2026-09-14')
+        assert [(a['ticker'], a['kind'], a['level']) for a in by_id['a']] == [
+            ('BBB', 'score_drop', 'watch'), ('AAA', 'same_side', 'fyi'), ('BBB', 'same_side', 'fyi')]
+        # 'all' promotes moves within a side to Watch; 'off' mutes.
+        assert {(a['kind'], a['level']) for a in by_id['b']} == {('same_side', 'watch'), ('score_drop', 'watch')}
+        assert by_id['c'] == []
+        assert st['n'] == 3
 
     def test_rule_columns(self):
         p = _pf(rule={'ratings': ['BUY'], 'cf': [{'key': 'mos', 'min': 0.3}, {'key': 'industry', 'txt': 'x'}]})
@@ -463,10 +469,11 @@ class TestPriorRowsAndCliAlerts:
         out = (tmp_path / 'a_2026-09-14.txt').read_text(encoding='utf-8')
         assert out.startswith('Portfolio alerts 2026-09-14 (vs 2026-09-11)')
         assert 'Deep [deep]: 2 stocks' in out
-        assert 'AAA joined Deep (rating LEAN BUY → BUY)' in out
-        assert 'BBB left Deep (rating BUY → LEAN BUY; mos 0.32 → 0.25 (rule: ≥ 0.3))' in out
-        assert 'GONE left Deep (dropped out' in out
-        assert '[LOW   ] CCC joined Deep' in out
+        assert 'WATCH  AAA joined Deep (rating LEAN BUY → BUY)' in out
+        assert 'WATCH  BBB left Deep (rating BUY → LEAN BUY; mos 0.32 → 0.25 (rule: ≥ 0.3))' in out
+        assert 'WATCH  GONE left Deep (dropped out' in out
+        assert 'WATCH  CCC joined Deep' in out
+        assert out.startswith('Portfolio alerts 2026-09-14 (vs 2026-09-11)\n\n!! Model-wide shift')
 
     def test_alerts_without_portfolios_or_prior(self, tmp_path, capsys):
         from data.snapshot_store import write_snapshot_file
@@ -496,7 +503,9 @@ class TestPriorRowsAndCliAlerts:
         html = out.read_text(encoding='utf-8')
         payload = json.loads(re.search(r'var PF_PUB=\(function\(\)\{var p=(.*?);return', html).group(1))
         assert payload['prev_date'] == '2026-09-11'
-        assert {(c['ticker'], c['alert_type']) for c in payload['changes']} == {
-            ('AAA', 'rating_upgrade'), ('BBB', 'rating_downgrade'), ('BBB', 'score_drop')}
-        assert {(e['ticker'], e['alert_type']) for e in payload['events']} == {
+        assert {(c['ticker'], c['kind'], c['level']) for c in payload['changes']} == {
+            ('AAA', 'same_side', 'fyi'), ('BBB', 'same_side', 'fyi'), ('BBB', 'score_drop', 'watch')}
+        assert {(e['ticker'], e['kind']) for e in payload['events']} == {
             ('AAA', 'joined'), ('BBB', 'left'), ('CCC', 'joined'), ('GONE', 'dropped_out')}
+        assert payload['systemic']['flood'] is True and payload['systemic']['cause'] == 'model'
+        assert payload['portfolios'][0]['alerts'] == 'buy_line'

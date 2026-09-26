@@ -252,6 +252,17 @@ PHASE1_LOCAL_PRICE_MAX_AGE_DAYS = 5
 # while capping the in-flight set at ~12 tickers (~370 MB worst case).
 PHASE1_IO_WORKERS = 4
 
+# Workers for the bulk price download (scripts/download_prices.py
+# --price-workers, env PRICE_IO_WORKERS). That script fetches one
+# period="max" history per ticker in a plain sequential loop, so on a cold
+# cache — which is every night in the stateless cloud container, where
+# output/prices/ does not survive the run — ~2,300 tickers each pay the
+# throttle interval plus a full request. Four workers against the shared
+# Throttle lift the same per-process ceiling the Phase-1 pool works under
+# (see YF_REQUEST_DELAY below); the throttle, not the worker count, is what
+# bounds the request rate. 1 restores the sequential path exactly.
+PRICE_IO_WORKERS = int(os.environ.get('PRICE_IO_WORKERS', 4))
+
 # Minimum interval between yfinance requests (analyze_stock --yf-delay, env
 # YF_REQUEST_DELAY). Yahoo publishes no rate limit, so this is a guess that
 # has to be justified by measurement and able to back off on its own.

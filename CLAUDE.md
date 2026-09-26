@@ -157,6 +157,26 @@ ruff check .
   Measured against live fetches on 10 large caps the shrunk beta moves by
   <0.001 (the local window carries one extra weekly observation), which is
   ~0.3bp on the ROIC−WACC spread.
+- **Bulk price download pool (`--price-workers`, `PRICE_IO_WORKERS`=4):**
+  `scripts/download_prices.py` fetches one `period="max"` history per ticker.
+  It ran sequentially with an inline `time.sleep(--delay)`, which only showed
+  up once the run went stateless: `output/prices/` does not survive the cloud
+  container, so `run.sh` step 03 starts cold every night and nothing
+  short-circuits — ~2,300 tickers each pay the interval plus a full request.
+  The loop is now a `ThreadPoolExecutor` over one shared `data/throttle.py`
+  `Throttle`, so the interval stays a per-process budget and the workers only
+  decide how fully it is used; the pool does network only, while tallying and
+  printing stay in the main thread in submission order, so stdout is
+  unchanged. Measured synthetically (60 tickers, 0.2 s request, 0.05 s
+  interval): 12.2 s -> 3.2 s at 4 workers, and 8 workers gives nothing more
+  because the throttle ceiling (60/20 calls/s = 3.0 s) is then binding —
+  raise `--delay` headroom, not the worker count. Empty responses feed
+  `Throttle.penalize()` only in a **streak** of 3 (`_EmptyStreakGovernor`):
+  a soft throttle arrives as a run of empties, a delisted ticker as an
+  isolated one, and penalising the latter would ratchet the interval up on a
+  healthy run — the same reason a 404 does not penalise. Writes go through
+  `os.replace` because the freshness check reads a parquet's index, so a
+  half-written file could read as current.
 - **Run timings:** `_PhaseClock` in `analyze_stock.py` records wall clock per
   `_run_*` phase and prints an "Elapsed by phase" table at the end;
   `_run_phase1_screen` additionally times each leg (yf_fetch, xbrl, fx, roic,
@@ -287,18 +307,29 @@ ruff check .
   the path; an unreadable file renders with no portfolios and says why in the
   Manage dialog. The report's Portfolios view (cards, then a page per
   portfolio) computes stats in the browser from `DATA`, so it follows local
-  edits. Alerts are *changes* only — rating moves and score drops via
-  `detect_alerts` (whose valuation-gap check is left out: a gap to fair value
-  is most stocks' normal state), plus joined/left/dropped-out events that
-  judge **both** days with today's definition, so editing a portfolio never
-  reads as a wave of joins, and that name the rule clause that flipped. Per-
-  ticker changes ship for the whole universe (browser-edited portfolios get
-  them); events need the prior run's rows and exist only for published
-  definitions. `scripts/portfolios.prior_rows` reads the prior run from the
-  store but never requests a `_gate_*` column the store lacks (it would come
-  back NULL and drop every row). Nightly: `portfolios.py alerts` (run_daily
-  `portfolio_alerts`, cloud `07e-portfolio-alerts`) writes
-  `output/portfolio_alerts_<date>.txt`.
+  edits. **Alerts** (`classify_changes`) have three levels, set by what is
+  actionable for a buy-oriented model: **Action** = the rating crossed the
+  buy line (into/out of BUY/LEAN BUY); **Watch** = a crossing that reverses
+  one within 7 days (rating-history cache), composite drop ≥10 pts, fair
+  value ±50%, portfolio join/leave (judged on both days with today's
+  definition, naming the clause that flipped), earnings within 7 days;
+  **FYI** = moves within a side, and anything on a row with no price or
+  identity (`data_missing` — the 2026-09-25 `.info` throttle produced 751
+  such "downgrades"). Measured over 82 run pairs: rating changes median
+  53/run, Action median 5.5; 36% of crossings are reversals. A run that
+  re-rates or loses data for ≥10% of the universe is a **systemic day**
+  (7 of 82): a banner leads, cause `model` or `data`. Each portfolio's
+  `alerts` mode (`buy_line` default / `all` / `off`) sets final levels.
+  `detect_alerts` (holdings tracker) is separate and unchanged. Nightly:
+  `portfolios.py alerts` (run_daily `portfolio_alerts`, cloud
+  `05g-portfolio-alerts`, BEFORE the archive) writes `.txt`/`.md` and
+  `output/portfolio_alerts.json`, which the cloud archives to
+  `data/snapshots`; `.github/workflows/portfolio-alerts.yml` (Tue–Sat
+  07:00/13:00 UTC) reads it via the contents API and
+  `scripts/portfolio_digest.py post` opens one idempotent
+  `Portfolio alerts — <date>` issue when there is an Action/Watch alert or
+  a systemic banner (stdlib-only, `GITHUB_TOKEN`, no secrets).
+  `portfolios.py alerts --replay` re-classifies archived runs for tuning.
   **Performance** is a point-in-time NAV ledger, `output/portfolio_nav.json`
   (`data/portfolio_nav.py`): each run records every portfolio's members as
   resolved that day and compounds the equal-weighted return of the previous

@@ -550,7 +550,8 @@ def _load_russell2000():
         return set()
 
 
-def _load_portfolio_payload(rows, out_dir=None, run_date=None, prices_dir=None):
+def _load_portfolio_payload(rows, out_dir=None, run_date=None, prices_dir=None,
+                            rating_hist=None):
     """Portfolio groupings for the report: ``(payload, {ticker: [ids]})``.
 
     The payload (inline ``PORTFOLIOS``) carries the definitions with colors
@@ -577,12 +578,15 @@ def _load_portfolio_payload(rows, out_dir=None, run_date=None, prices_dir=None):
             index.setdefault(t, []).append(p['id'])
         p['missing'] = resolved[p['id']]['missing']
     payload = {'rev': pg.revision(doc), 'portfolios': pfs,
-               'prev_date': None, 'changes': [], 'events': []}
-    # Change alerts vs the prior run. Per-ticker ones (rating moves, score
-    # drops) cover the whole universe so portfolios edited in the browser
-    # get them too; joined/left events need the prior rows' rule columns
-    # and so exist only for the published definitions. Best-effort: a
-    # failure here costs the alerts, never the render.
+               'prev_date': None, 'changes': [], 'events': [], 'systemic': None}
+    # Change alerts vs the prior run, classified Action / Watch / FYI by
+    # models.portfolio_groups.classify_changes. Per-ticker entries cover the
+    # whole universe so portfolios edited in the browser get them too (the
+    # client applies each portfolio's alert mode and adds earnings dates);
+    # joined/left events need the prior rows' rule columns and so exist only
+    # for the published definitions. "Why" bullets are not shipped: the
+    # client already has them as DATA.rating_chg_why. Best-effort: a failure
+    # here costs the alerts, never the render.
     prev_day, prev = None, []
     if out_dir and pfs:
         try:
@@ -592,12 +596,11 @@ def _load_portfolio_payload(rows, out_dir=None, run_date=None, prices_dir=None):
             if prev_day:
                 by_tk, prev_by_tk = pg.rows_by_ticker(rows), pg.rows_by_ticker(prev)
                 payload['prev_date'] = prev_day
-                payload['changes'] = [
-                    {k: a[k] for k in ('ticker', 'alert_type', 'severity', 'message')}
-                    for a in pg.change_alerts(by_tk, prev_by_tk, day)]
-                payload['events'] = [
-                    {k: e[k] for k in ('ticker', 'portfolio', 'alert_type', 'severity', 'message')}
-                    for e in pg.membership_events(pfs, by_tk, prev_by_tk, day)]
+                entries, stats = pg.classify_changes(by_tk, prev_by_tk, day,
+                                                     history=rating_hist or {})
+                payload['changes'] = entries
+                payload['systemic'] = dict(stats, message=pg.systemic_message(stats))
+                payload['events'] = pg.membership_events(pfs, by_tk, prev_by_tk, day)
         except Exception as e:
             logger.warning("portfolios: change alerts unavailable (%s)", e)
     if out_dir and pfs:
@@ -605,7 +608,9 @@ def _load_portfolio_payload(rows, out_dir=None, run_date=None, prices_dir=None):
     if pfs:
         print(f"[report_html] portfolios: {len(pfs)} "
               f"({sum(len(v) for v in index.values())} memberships, "
-              f"{len(payload['events'])} membership events vs {payload['prev_date']})")
+              f"{len(payload['changes'])} change entries, {len(payload['events'])} membership "
+              f"events vs {payload['prev_date']}"
+              f"{'; SYSTEMIC ' + payload['systemic']['cause'] if (payload['systemic'] or {}).get('flood') else ''})")
     return payload, index
 
 
@@ -1598,7 +1603,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     chart_records = [_row_context(r, gate_meta_obj, _r2000, _prev_ratings,
                                   _rating_hist) for r in rows]
     portfolios_payload, _pf_index = _load_portfolio_payload(rows, _out_dir_early, run_date,
-                                                            prices_dir)
+                                                            prices_dir, _rating_hist)
     for _rec in chart_records:
         # Portfolio ids this ticker belongs to (resolved server-side; the
         # client re-resolves only portfolios edited in the browser).
