@@ -91,7 +91,7 @@ def test_fresh_computation_records_coverage(tmp_path):
 
 def test_complete_sidecar_is_reused_without_fetching(tmp_path):
     _write(tmp_path, {'run_date': RUN, 'horizon_days': 30, 'spy_return': 0.02,
-                      'coverage': 1.0, 'n_requested': 10, 'n_priced': 10,
+                      'coverage': 1.0, 'n_requested': 10, 'n_priced': 10, 'method': 2,
                       'tickers': {t: _fwd() for t in TICKERS}})
     snap = _snapshot()
     out = bt.annotate_snapshot_returns(snap, [30], _Forbidden(),
@@ -222,7 +222,7 @@ def test_measure_cli_names_outputs_by_stamp(tmp_path, monkeypatch):
 
 def test_topup_that_finds_nothing_leaves_the_sidecar_untouched(tmp_path):
     body = {'run_date': RUN, 'horizon_days': 30, 'spy_return': 0.02,
-            'coverage': 0.5, 'n_requested': 10, 'n_priced': 5,
+            'coverage': 0.5, 'n_requested': 10, 'n_priced': 5, 'method': 2,
             'updated_at': '2026-08-10', 'tickers': {t: _fwd() for t in TICKERS[:5]}}
     path = _write(tmp_path, body)
     before = path.read_text(encoding='utf-8')

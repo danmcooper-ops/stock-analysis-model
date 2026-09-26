@@ -39,6 +39,7 @@ in `output/`.
 | 02-stage-corpus | yes | `scripts/backtest_cloud.py stage`: every snapshot dated ≥ 2026-07-06 (`MIN_CONSISTENT_DATE`) with its edgar_history blobs, the persisted `returns/` sidecars and last week's summary, fetched in batches out of a blob-less clone (~1.5 GB) |
 | 03-store | no | `ingest_snapshots.py` → `output/snapshots.duckdb`; on failure the backtest parses the JSON instead (slower, more RAM) |
 | 04-prices | yes | cold download for every ticker of every matured snapshot (two passes), then a **gate**: SPY must end within 5 days of today and ≥ 90% of the tickers must have a price file. Failing it stops the run, so that a throttled download night never shrinks the sample. |
+| 04b-backfill | no | `backtest_cloud.py backfill-prices`: Tiingo for tickers Yahoo lacks, mostly delisted (acquired) names whose history Yahoo drops. At most `TIINGO_MAX_CALLS` (40) fetches; each series is cached in `price_backfill/` on the branch. Writes the list of confirmed delistings that `measure` measures to their last close. rc 1 = key unset or rate limited |
 | 05-readiness | no | evidence census, dates only |
 | 06-measure | yes | `backtest.py measure --local-prices-only --stamp <RUNDATE>`: reuses sidecars at ≥ 90% coverage, tops up the rest, never measures against a missing SPY |
 | 07-compare | no | `backtest_cloud.py compare`: `REGRESSION:` lines vs last week's summary; rc 1 = at least one |
@@ -90,11 +91,19 @@ and the summary JSON:
    BUY > LEAN BUY > HOLD > PASS on mean excess return. A reversal that
    persists three weeks running is worth a note; a single week is noise.
 4. **Signal quartile spreads**, and the mos-cohort spreads.
-5. **Coverage and attrition** from `coverage` in the summary JSON: the
-   lowest per-(date, horizon) coverage, and whether `unpriced_by_rating`
-   concentrates in one rating. Unpriced names are mostly delistings, and a
-   PASS-heavy share flatters PASS (survivorship). Only report it; nothing is
-   corrected for it yet.
+5. **Coverage and attrition** from `coverage` in the summary JSON and
+   `logs/04b-backfill.log`:
+   - the lowest per-(date, horizon) coverage
+   - delisted names measured to their last close (`delisted_by_rating`, by
+     kind), with any `performance` delisting named
+   - `gone_before_snapshot`: rows for tickers already delisted when the
+     snapshot was taken, so stale rows are excluded
+   - `unpriced_by_rating`: names no source could price
+   - how many backfill fetches were `deferred` to next week (call cap or
+     Tiingo rate limit)
+
+   If 04b failed or TIINGO_API_KEY is absent, say that delisted names were
+   dropped this week.
 6. **Week over week** (`logs/07-compare.log`): list every `REGRESSION:` line
    verbatim, or say "no regressions". A newly skipped snapshot ("missing gate
    fields") means a nightly run wrote a snapshot without current gate

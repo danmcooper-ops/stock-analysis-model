@@ -17,11 +17,16 @@
 #   04 prices     cold download for every ticker of every matured snapshot,
 #                 a second pass for what the first missed, then a gate: SPY
 #                 must be current and >= 90% of the tickers must have prices
+#   04b backfill  Tiingo for what Yahoo lacks — mostly delisted (acquired)
+#                 names, whose history Yahoo drops. Fetched series are cached
+#                 in price_backfill/ (persisted, fetched once); confirmed
+#                 delistings are measured to their last close (survivorship)
 #   05 readiness  evidence census (dates only)
 #   06 measure    measure, offline (--local-prices-only), files stamped
 #                 with RUNDATE; tops up and re-freezes the return sidecars
 #   07 compare    week-over-week regression check against last week's summary
-#   08 archive    commit summary + xlsx + new/changed returns/ sidecars to
+#   08 archive    commit summary + xlsx + new/changed returns/ sidecars and
+#                 price_backfill/ series to
 #                 data/snapshots (plumbing — the blob-less clone never
 #                 downloads the archive) and push; a push rejected because
 #                 the branch moved is rebuilt on the new tip and retried
@@ -41,6 +46,8 @@
 #                        scripts/backtest.py MIN_CONSISTENT_DATE)
 #   HORIZONS             default 30,90,180
 #   MIN_PRICE_SHARE      price-file floor for step 04 (default 0.90)
+#   TIINGO_API_KEY       step 04b's source (unset: delisted names stay unmeasured)
+#   TIINGO_MAX_CALLS     Tiingo requests per run (default 40; the rest wait a week)
 #   RUNDATE=YYYY-MM-DD   the date the outputs are named after (default today, New York)
 #   DRY_RUN=1            do everything except push
 #   SMOKE=1              the newest SMOKE_SNAPSHOTS matured snapshots and
@@ -58,6 +65,7 @@ SNAP_BRANCH="${SNAP_BRANCH:-data/snapshots}"
 BACKTEST_SINCE="${BACKTEST_SINCE:-2026-07-06}"
 HORIZONS="${HORIZONS:-30,90,180}"
 MIN_PRICE_SHARE="${MIN_PRICE_SHARE:-0.90}"
+TIINGO_MAX_CALLS="${TIINGO_MAX_CALLS:-40}"
 SMOKE="${SMOKE:-0}"
 SMOKE_SNAPSHOTS="${SMOKE_SNAPSHOTS:-3}"
 SMOKE_TICKERS="${SMOKE_TICKERS:-AAPL MSFT JPM XOM PLD AMGN CAT PG}"
@@ -186,6 +194,13 @@ download_prices() {
 }
 run_step 04-prices 1 download_prices || fail 04-prices
 
+# 4b. Delisted names: Yahoo drops a delisted symbol's history, Tiingo keeps it.
+# Non-blocking — without it those names are reported as unpriced, as before.
+[ "$SMOKE" = 1 ] && TIINGO_MAX_CALLS=3
+run_step 04b-backfill 0 "$PYTHON" scripts/backtest_cloud.py backfill-prices \
+    --results-dir "$OUT" --prices-dir "$OUT/prices" --cache-dir "$OUT/price_backfill" \
+    --since "$BACKTEST_SINCE" --max-calls "$TIINGO_MAX_CALLS"
+
 # ---------------------------------------------------------------------------
 # 5-7. Readiness, measure, week-over-week comparison
 # ---------------------------------------------------------------------------
@@ -209,15 +224,18 @@ run_step 07-compare 0 "$PYTHON" scripts/backtest_cloud.py compare "$SUMMARY"
 build_commit() {
   local paths="$WORK/archive-paths.txt" oids="$WORK/archive-oids.txt" tree commit
   git -C "$SNAP" reset -q || return 1
-  mkdir -p "$SNAP/returns"
   cp "$SUMMARY" "$XLSX" "$SNAP/" || return 1
   echo "backtest_summary_$RUNDATE.json" > "$paths"
   echo "backtest_$RUNDATE.xlsx" >> "$paths"
-  # Every sidecar is rewritten; one whose content is unchanged hashes to the
-  # oid HEAD already has, so update-index leaves it alone.
-  for f in "$OUT"/returns/*.json; do
-    [ -e "$f" ] || continue
-    cp "$f" "$SNAP/returns/" && echo "returns/$(basename "$f")" >> "$paths"
+  # Every sidecar / cached series is rewritten; one whose content is
+  # unchanged hashes to the oid HEAD already has, so update-index leaves it.
+  local d f
+  for d in returns price_backfill; do
+    mkdir -p "$SNAP/$d"
+    for f in "$OUT/$d"/*.json; do
+      [ -e "$f" ] || continue
+      cp "$f" "$SNAP/$d/" && echo "$d/$(basename "$f")" >> "$paths"
+    done
   done
   (cd "$SNAP" && git hash-object -w --stdin-paths < "$paths") > "$oids" || return 1
   [ "$(wc -l < "$oids")" -eq "$(wc -l < "$paths")" ] || return 1

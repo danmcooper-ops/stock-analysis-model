@@ -228,6 +228,28 @@ RET_IMPLAUSIBLE_LOW = -0.9
 # so the floor sits below the ~5% a 90-day window loses to them.
 MIN_RETURN_COVERAGE = 0.90
 
+# Sidecar format. 2 = delisted names measured to their last close (see
+# terminal_returns). A sidecar written by an older method is topped up once:
+# only its missing tickers are fetched, its frozen returns stay.
+SIDECAR_METHOD = 2
+
+# Delistings (survivorship). A ticker Yahoo dropped is measured from Tiingo's
+# history (scripts/backtest_cloud.py backfill-prices), and one whose series
+# ends inside the window is a confirmed delisting listed in
+# <prices_dir>/_backfill.json. Its return runs to the last close, and the
+# proceeds are reinvested in the benchmark until the eval date (CRSP style),
+# so a take-out counts as its deal price rather than vanishing. On the
+# 2026-07..09 corpus the dropped names were overwhelmingly acquisitions
+# (EA, TMHC, NFBK, LEG, TWO, NSA, AVB...). A last close that collapsed —
+# below DELIST_PERF_RATIO of the start price or below DELIST_PERF_MIN_PRICE —
+# is treated as a performance delisting and takes Shumway's (1997) -30%
+# delisting return on top, since the last print of a failing stock overstates
+# what holders recovered.
+BACKFILL_MANIFEST = '_backfill.json'
+DELIST_PERF_RATIO = 0.5
+DELIST_PERF_MIN_PRICE = 1.0
+DELIST_PERF_RETURN = -0.30
+
 
 def implausible_forward_return(snapshot_price, fwd):
     """True when *fwd* (a ``_fwd`` entry) is almost surely a bad price bar."""
@@ -308,6 +330,17 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
                 if math.isfinite(ret):
                     returns[ticker] = {'ret': ret, 'start': start_price,
                                        'end': end_price}
+            # Confirmed delistings inside the window: measured to the last
+            # close instead of dropped (survivorship, see terminal_returns).
+            delisted = load_backfill_manifest(prices_dir)['delisted']
+            gone = [t for t in all_tickers if t not in returns and t in delisted]
+            if gone:
+                try:
+                    returns.update(terminal_returns(prices_dir, gone, run_dt,
+                                                    eval_dt, delisted))
+                except Exception as e:
+                    logger.warning("delisting returns failed for %s +%dd (%s)",
+                                   run_date_str, horizon_days, e)
             # A ticker with a parquet on disk is settled by the scan, answered
             # or not — the per-ticker path would re-read the same file and
             # reach the same verdict. Only tickers with no local file fall
@@ -390,6 +423,90 @@ def is_matured(run_date_str, horizon_days, today=None):
     return run_dt + timedelta(days=horizon_days) <= today
 
 
+_MANIFEST_CACHE = {}
+
+
+def load_backfill_manifest(prices_dir):
+    """``{'delisted': {ticker: {last_date, last_close, source}}, 'backfilled': [..]}``
+    from ``<prices_dir>/_backfill.json``; empty when absent or unreadable."""
+    empty = {'delisted': {}, 'backfilled': []}
+    if not prices_dir:
+        return empty
+    path = os.path.join(prices_dir, BACKFILL_MANIFEST)
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return empty
+    hit = _MANIFEST_CACHE.get(path)
+    if hit and hit[0] == mtime:
+        return hit[1]
+    try:
+        with open(path, encoding='utf-8') as f:
+            body = json.load(f)
+        man = {'delisted': dict(body.get('delisted') or {}),
+               'backfilled': list(body.get('backfilled') or [])}
+    except (OSError, ValueError) as e:
+        logger.warning('unreadable backfill manifest %s (%s); ignoring it', path, e)
+        man = empty
+    _MANIFEST_CACHE[path] = (mtime, man)
+    return man
+
+
+def delisting_kind(start, last_close):
+    """'performance' for a collapsed last print, else 'merger'."""
+    if last_close < DELIST_PERF_MIN_PRICE or last_close < DELIST_PERF_RATIO * start:
+        return 'performance'
+    return 'merger'
+
+
+def terminal_returns(prices_dir, tickers, run_dt, eval_dt, delisted):
+    """Forward returns for confirmed delistings inside ``(run_dt, eval_dt)``.
+
+    For each ticker in *delisted* whose last trading day falls on/after the
+    snapshot and more than MAX_SNAP_GAP_DAYS before the eval date (so the
+    bulk path found no end bar): start = the bar nearest the snapshot, end =
+    the last close (Shumway haircut for a performance delisting), and the
+    proceeds ride the benchmark from the delisting to the eval date.
+
+    Returns ``{ticker: {'ret', 'start', 'end', 'delisted': {'date', 'kind'}}}``.
+    """
+    out = {}
+    run_d, eval_d = run_dt.date(), eval_dt.date()
+    groups = defaultdict(list)          # last_date -> tickers
+    for t in tickers:
+        info = delisted.get(t)
+        if not info or not info.get('last_date'):
+            continue
+        last = date.fromisoformat(str(info['last_date'])[:10])
+        if run_d <= last < eval_d - timedelta(days=MAX_SNAP_GAP_DAYS):
+            groups[last].append(t)
+    if not groups:
+        return out
+    for last, group in sorted(groups.items()):
+        px = window_closes(prices_dir, run_d, last, tickers=group,
+                           max_gap_days=MAX_SNAP_GAP_DAYS) or {}
+        bench = window_closes(prices_dir, last, eval_d, tickers=[BENCHMARK],
+                              max_gap_days=MAX_SNAP_GAP_DAYS) or {}
+        b = bench.get(BENCHMARK)
+        if not b:
+            logger.warning('%s: no %s bars around %s — delisted %s left unmeasured',
+                           run_d, BENCHMARK, last, ', '.join(sorted(group)))
+            continue
+        carry = b['end'] / b['start']
+        for t in group:
+            p = px.get(t)
+            if not p:
+                continue
+            start, last_close = p['start'], p['end']
+            kind = delisting_kind(start, last_close)
+            end_value = last_close * (1 + DELIST_PERF_RETURN) if kind == 'performance' else last_close
+            ret = end_value / start * carry - 1
+            if math.isfinite(ret):
+                out[t] = {'ret': ret, 'start': start, 'end': end_value,
+                          'delisted': {'date': last.isoformat(), 'kind': kind}}
+    return out
+
+
 def _returns_sidecar_path(cache_dir, run_date_str, horizon_days):
     return os.path.join(cache_dir, f"{run_date_str}_h{horizon_days}.json")
 
@@ -411,17 +528,28 @@ def _read_sidecar(path, run_date, h, today):
     return cached
 
 
-def sidecar_is_complete(cached):
+def sidecar_is_complete(cached, tickers=(), manifest=None):
     """True when a sidecar may be reused without re-fetching anything.
 
-    It must carry a benchmark return and a recorded coverage at or above
-    MIN_RETURN_COVERAGE. Sidecars written before coverage was recorded count
-    as incomplete: their missing tickers are filled in once, and the file is
-    rewritten with the fields.
+    It must carry a benchmark return, a recorded coverage at or above
+    MIN_RETURN_COVERAGE, and the current SIDECAR_METHOD. A sidecar written
+    before coverage was recorded, or by an older method (before delisted
+    names were measured), is incomplete: its missing tickers are filled in
+    once and the file is rewritten. So is one missing a ticker that the price
+    backfill has since resolved (*manifest*, see load_backfill_manifest):
+    a delisting confirmed after the sidecar was frozen must still count.
     """
     cov = cached.get('coverage')
-    return (isinstance(cached.get('spy_return'), (int, float))
-            and isinstance(cov, (int, float)) and cov >= MIN_RETURN_COVERAGE)
+    if not (isinstance(cached.get('spy_return'), (int, float))
+            and isinstance(cov, (int, float)) and cov >= MIN_RETURN_COVERAGE
+            and cached.get('method', 1) >= SIDECAR_METHOD):
+        return False
+    if manifest:
+        have = cached.get('tickers') or {}
+        resolved = set(manifest.get('delisted') or ()) | set(manifest.get('backfilled') or ())
+        if any(t not in have and t in resolved for t in tickers):
+            return False
+    return True
 
 
 def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
@@ -473,7 +601,8 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
 
         path = _returns_sidecar_path(cache_dir, run_date, h) if cache_dir else None
         cached = _read_sidecar(path, run_date, h, today) if path else None
-        from_cache = cached is not None and sidecar_is_complete(cached)
+        from_cache = cached is not None and sidecar_is_complete(
+            cached, tickers, load_backfill_manifest(prices_dir))
 
         if from_cache:
             ticker_returns = cached.get('tickers', {})
@@ -509,6 +638,8 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
                     'end_price': v['end'],
                     'spy_return': spy_ret,
                 }
+                if v.get('delisted'):
+                    ticker_returns[t]['delisted'] = v['delisted']
 
         n_priced = sum(1 for t in tickers if t in ticker_returns)
         coverage = n_priced / len(tickers) if tickers else 0.0
@@ -520,7 +651,8 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
         # A top-up that found nothing new leaves the file alone, so a pair
         # held below the floor by delistings does not churn the archive weekly.
         changed = (cached is None or 'coverage' not in cached
-                   or n_priced != cached.get('n_priced'))
+                   or n_priced != cached.get('n_priced')
+                   or cached.get('method', 1) != SIDECAR_METHOD)
         if path and ticker_returns and not from_cache and changed:
             try:
                 os.makedirs(cache_dir, exist_ok=True)
@@ -530,6 +662,7 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
                         'horizon_days': h,
                         'computed_at': (cached or {}).get('computed_at', today.isoformat()),
                         'updated_at': today.isoformat(),
+                        'method': SIDECAR_METHOD,
                         'spy_return': spy_ret,
                         'n_requested': len(tickers),
                         'n_priced': n_priced,
@@ -873,6 +1006,7 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
             'return': ret,
             'spy_return': spy_ret,
             'excess_return': excess,
+            'delisted': (fwd.get('delisted') or {}).get('kind'),
         }
         details.append(detail)
 
@@ -891,14 +1025,28 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
     if not details:
         return None
 
-    # --- Attrition: rows that got no forward return, by rating. A missing
-    # end bar is what a delisting or bankruptcy looks like, so an unpriced
-    # share concentrated in PASS flatters that bucket (survivorship). Only
-    # reported for now; treating a delisting as a terminal return is a
-    # modelling decision still to make.
+    # --- Attrition. Delisted names are measured to their last close
+    # (terminal_returns) and counted here by rating and kind, so the share of
+    # each bucket that left the market stays visible. What is still unpriced
+    # is a data gap (no price anywhere), or a row for a ticker that had
+    # already delisted before the snapshot (a stale row, not a holding).
+    delisted_man = load_backfill_manifest(prices_dir)['delisted']
     unpriced = defaultdict(int)
+    delisted_by = defaultdict(lambda: defaultdict(int))
+    gone_before = 0
     for s in stocks:
-        if s.get('ticker') and not (s.get('_fwd') or {}).get(horizon_days):
+        t = s.get('ticker')
+        if not t:
+            continue
+        fwd = (s.get('_fwd') or {}).get(horizon_days)
+        if fwd:
+            if fwd.get('delisted'):
+                delisted_by[s.get('rating', 'UNKNOWN')][fwd['delisted'].get('kind', '?')] += 1
+            continue
+        info = delisted_man.get(t)
+        if info and str(info.get('last_date', ''))[:10] < str(run_date)[:10]:
+            gone_before += 1
+        else:
             unpriced[s.get('rating', 'UNKNOWN')] += 1
     fwd_stats = (run.get('_fwd_stats') or {}).get(horizon_days) or {}
     coverage = {
@@ -908,6 +1056,9 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
         'implausible': fwd_stats.get('implausible'),
         'coverage': fwd_stats.get('coverage'),
         'from_cache': fwd_stats.get('cached'),
+        'delisted_by_rating': {r: dict(sorted(k.items()))
+                               for r, k in sorted(delisted_by.items())},
+        'gone_before_snapshot': gone_before,
         'unpriced_by_rating': dict(sorted(unpriced.items())),
     }
 

@@ -321,10 +321,25 @@ ruff check .
   (priced / requested tickers). One below `MIN_RETURN_COVERAGE` (0.90) keeps
   what it holds and has only its missing tickers re-fetched each run. A
   (date, horizon) with no SPY return is left unmeasured and uncached, never
-  measured against 0%. `measure` writes per-pair coverage, unpriced names by
-  rating (delistings, i.e. survivorship), skipped snapshots and the git SHA
-  into `backtest_summary_<stamp>.json`, and `scripts/backtest_cloud.py compare`
+  measured against 0%. `measure` writes per-pair coverage, delisted and
+  unpriced names by rating, skipped snapshots and the git SHA into
+  `backtest_summary_<stamp>.json`, and `scripts/backtest_cloud.py compare`
   diffs it against the prior week's.
+  **Delistings (survivorship):** Yahoo drops a delisted symbol's history, so
+  the names that left the market — overwhelmingly acquisitions (EA, TMHC,
+  NFBK, LEG... on the 2026-07..09 corpus) — used to vanish from the backtest.
+  `backtest_cloud.py backfill-prices` (weekly step 04b) fetches what Yahoo
+  lacks from Tiingo, at most `TIINGO_MAX_CALLS` per run. Each series is cached
+  under `price_backfill/` on `data/snapshots`, so it is fetched once. The step
+  writes `<prices>/_backfill.json`, listing confirmed delistings (Tiingo's
+  series stopped more than 7 days before it was fetched). `terminal_returns`
+  measures those to the last close, with the proceeds reinvested in SPY to
+  the eval date. A last close below half the start price or below $1 is a
+  performance delisting and takes Shumway's −30% on top. A row for a ticker
+  already delisted before the snapshot is a stale row: excluded and counted
+  as `gone_before_snapshot`. Sidecars carry `method` (`SIDECAR_METHOD` = 2).
+  An older one, or one missing a ticker the manifest has since resolved, is
+  topped up once, and its frozen returns stay.
 - **Report sidecars and the Pages size limits:** the HTML lazy-loads
   everything heavy from files beside it, through `_loadSidecar` (relative
   paths). Per-ticker shards: `vol/`, `px/` (manifested in `prices_meta.json`)
