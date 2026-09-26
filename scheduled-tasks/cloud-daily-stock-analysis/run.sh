@@ -57,6 +57,8 @@
 #                        Storage (steps 02b/05e2, design/cache-persistence.md);
 #                        unset skips those too and the run pays a cold cache
 #   PRICE_CACHE_BUCKET   bucket for that cache (default price-cache)
+#   SEC_CACHE_BUCKET     bucket for the companyfacts cache (steps 02c/04b,
+#                        default sec-facts-cache)
 #   DRY_RUN=1            do everything except push
 #   SMOKE=1              tiny universe (SMOKE_TICKERS), for testing this script
 set -uo pipefail
@@ -313,6 +315,21 @@ restore_price_cache() {
 run_step 02b-restore-prices 0 restore_price_cache
 
 # ---------------------------------------------------------------------------
+# 2c. Restore the SEC companyfacts cache. data/cache/ is gitignored and the
+#     container is stateless, so without this SEC serves the whole corpus
+#     again every night (design/cache-persistence.md, Phase C). The sweep
+#     watermark travels with the blobs and the age backstop reads it, so a
+#     cache whose sweep fell behind reads as entirely missing rather than
+#     serving stale fundamentals — the restore cannot smuggle old facts in.
+#     Non-blocking, and skipped without the Supabase secrets or for SMOKE.
+# ---------------------------------------------------------------------------
+restore_sec_cache() {
+  if [ "$SMOKE" = 1 ]; then echo "SMOKE; not restoring the sec cache"; return 0; fi
+  "$PYTHON" scripts/sec_cache.py restore
+}
+run_step 02c-restore-sec-facts 0 restore_sec_cache
+
+# ---------------------------------------------------------------------------
 # 3. Price cache: full history for every ticker in the newest snapshot
 #    (they all re-enter Phase 2 via carry-forward) plus the benchmarks.
 # ---------------------------------------------------------------------------
@@ -350,6 +367,20 @@ ANALYZE_ARGS=(--macro --prices-dir output/prices --universe us --min-spread 0 --
 ANALYZE_ARGS+=(--run-date "$RUNDATE")
 [ "${RESUME:-1}" = 0 ] && ANALYZE_ARGS+=(--no-resume)
 run_step 04-analyze 1 "$PYTHON" scripts/analyze_stock.py "${ANALYZE_ARGS[@]}"
+
+# Save the companyfacts cache back. Straight after the analysis, which is the
+# only step that fetches facts or evicts them, and before the enrichment that
+# could still fail. Evicted blobs are deleted from the bucket too, or they
+# would return on the next restore and the sweep would not evict them again.
+# Never on a SMOKE or DRY_RUN pass, and the store refuses a local set far
+# smaller than what it holds, so a half-failed run cannot gut the cache.
+save_sec_cache() {
+  if [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
+    echo "SMOKE/DRY_RUN; not saving the sec cache"; return 0
+  fi
+  "$PYTHON" scripts/sec_cache.py save
+}
+run_step 04b-save-sec-facts 0 save_sec_cache
 RESULTS="output/results_$RUNDATE.json"
 HTML="output/stock_analysis_results_$RUNDATE.html"
 if [ "$FAILED" = 1 ] || [ ! -s "$RESULTS" ] || [ ! -s "$HTML" ]; then

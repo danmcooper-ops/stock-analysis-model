@@ -41,6 +41,8 @@ class FakeSession:
     def request(self, method, url, headers=None, timeout=None, **kw):
         self.calls.append((method, url, kw))
         self.headers_seen.append(headers or {})
+        if '/bucket' in url:                       # ensure_bucket: already there
+            return FakeResponse(200, {'name': 'b'})
         if method == 'POST' and '/object/list/' in url:
             rows = [{'name': n, 'metadata': {'size': len(b)}}
                     for n, b in sorted(self.objects.items())]
@@ -83,7 +85,7 @@ def test_request_shape_carries_the_service_key():
 
 
 def test_listing_pages_past_the_limit(monkeypatch):
-    monkeypatch.setattr('data.price_cache_store.LIST_PAGE', 2)
+    monkeypatch.setattr('data.supabase_storage.LIST_PAGE', 2)
     s = FakeSession({f'T{i}.parquet': b'ab' for i in range(5)})
     assert len(_store(s).list_objects()) == 5
     # 2 + 2 + 1: the short page ends it.

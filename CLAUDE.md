@@ -106,6 +106,17 @@ ruff check .
   `SEC_FACTS_CACHE_MAX_AGE_DAYS`, default 30) is only a backstop for when the
   sweep cannot run; entries past it are pruned. Requests send
   `Accept-Encoding: gzip`, which urllib omits by default.
+  The backstop is measured **two** ways, because mtime stopped being
+  trustworthy once the cache began travelling between runs (below): a
+  restored file is written now, so its mtime claims "fetched today" whatever
+  the blob's real age, and the backstop it feeds would never fire again.
+  `sweep_is_lagging()` reads the watermark instead, which does survive the
+  trip and measures the thing the backstop cares about — whether
+  filing-driven eviction kept up. `refresh_stale_facts()` never advances the
+  watermark over a day it could not read, so a current watermark means every
+  filing day since has been walked; when it lags past `max_age_days` the
+  whole cache reads as missing. A cache that never swept (a dev box) has no
+  watermark and falls back to mtime, which is honest there.
 - **yfinance request interval (`--yf-delay`, `YF_REQUEST_DELAY`=0.4):** Yahoo
   publishes no rate limit, so the interval is a guess that has to be justified
   and able to back off. It sat at an unexamined 1.0 s. Measured on 2026-09-21:
@@ -183,7 +194,8 @@ ruff check .
   `output/prices/` dies with the stateless container, which is what made the
   cold step 03 above cost an hour. The parquets are now carried in a Supabase
   Storage bucket (`PRICE_CACHE_BUCKET`, default `price-cache`), one object per
-  ticker, replaced in place — the same host, service-role key and HTTPS egress
+  ticker via the shared `data/supabase_storage.py` bucket client, replaced in
+  place — the same host, service-role key and HTTPS egress
   step `06a-db-publish` already uses, so it is unaffected by P0's finding that
   the container cannot open raw TCP to Postgres. `run.sh` restores in step
   `02b` (before the download) and saves in `05e2` (after the top-up, so new
@@ -200,7 +212,30 @@ ruff check .
   upload). A restore never overwrites a local file (a resumed run may hold
   something fresher), one bad object never ends the sweep, and the store
   refuses to save a local set under 80% of what it already holds, so a
-  half-failed run cannot clobber a good cache.
+  half-failed run cannot clobber a good cache. A save calls `ensure_bucket()`
+  first, so the first run of all creates the bucket instead of failing every
+  upload against one nobody made.
+- **Companyfacts cache transport (`data/sec_facts_cache_store.py`,
+  `scripts/sec_cache.py`):** `data/cache/` is gitignored and the container is
+  stateless, so SEC served the whole corpus again every night. The blobs now
+  ride the same Supabase Storage plumbing as the parquets
+  (`data/supabase_storage.py`, which wraps P4b's `data/db/storage.StorageClient`
+  rather than opening a second Storage client, adding only what a cache needs
+  and a publish does not: a paginated prefix listing, deletes and a worker
+  pool; bucket `SEC_CACHE_BUCKET`), restored in
+  `run.sh` step `02c` and saved in `04b` — straight after the analysis, the
+  only step that fetches facts or evicts them. The Phase-1 prefetch pool
+  already hides this leg's latency, so the win is fewer SEC requests and a
+  smaller failure surface, not wall clock; `facts_stats` in
+  `provenance.timings` is where to see it.
+  Two things make it sound. `_state.json` travels **with** the blobs and is
+  always uploaded: the watermark is part of the cache, and blobs restored
+  without it would be vouched for by nothing (see the sweep-lag guard above).
+  And evictions are deleted from the bucket, because a blob dropped locally
+  but left stored would return on the next restore, and the sweep would not
+  evict it again — the watermark has already moved past the day its filer
+  filed. That delete is gated on the same 80% floor as the price cache, so a
+  half-failed run cannot gut the bucket.
 - **Run timings:** `_PhaseClock` in `analyze_stock.py` records wall clock per
   `_run_*` phase and prints an "Elapsed by phase" table at the end;
   `_run_phase1_screen` additionally times each leg (yf_fetch, xbrl, fx, roic,
