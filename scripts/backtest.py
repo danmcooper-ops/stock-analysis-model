@@ -121,15 +121,18 @@ def _load_snapshot_json(path):
     return read_snapshot(path)
 
 
-def load_corpus(results_dir='output', dates=None, use_store=None):
+def load_corpus(results_dir='output', dates=None, use_store=None, parquet_dir=None):
     """Load canonical snapshots as ``[{'date':..., 'results':[...]}, ...]``.
 
     Non-canonical names (results_<date>_replay.json) are re-scored copies of
     an earlier observation and are always skipped.
 
-    Each snapshot comes from ``output/snapshots.duckdb`` when that store holds
-    its date, and from the JSON file otherwise — decided per date, so a
-    partially backfilled store still helps.  The store drops the 52
+    Each snapshot comes, per date, from its Parquet export when one exists
+    (``<results_dir>/parquet/results_<date>.parquet`` or *parquet_dir*, see
+    data/db/parquet.py), else from ``output/snapshots.duckdb`` when that
+    store holds its date, else from the JSON file, so a partially backfilled
+    corpus still helps. The Parquet path carries the same slim
+    ``edgar_history`` as the store; the database is never read here.  The store drops the 52
     ``edgar_history`` series no scoring path reads (see
     data/snapshot_store.DEFAULT_PROJECTIONS), which is most of a ~66 MB
     snapshot, so a corpus of N snapshots costs a fraction of the RSS that
@@ -148,11 +151,21 @@ def load_corpus(results_dir='output', dates=None, use_store=None):
         by_date = {d: p for d, p in by_date.items() if d in wanted}
 
     store = SnapshotStore.for_results_dir(results_dir, allow_db=False) if use_store else None
-    snapshots, n_store = [], 0
+    pq_dir = parquet_dir or os.path.join(results_dir, 'parquet')
+    snapshots, n_store, n_parquet = [], 0, 0
     try:
         for d in sorted(by_date):
             snap = None
-            if store is not None and store.has_date(d):
+            pq_file = os.path.join(pq_dir, f'results_{d}.parquet')
+            if use_store and os.path.exists(pq_file):
+                try:
+                    from data.db.parquet import read_snapshot_parquet
+                    snap = read_snapshot_parquet(pq_file)
+                    n_parquet += 1
+                except Exception as e:
+                    logger.warning("parquet export %s unreadable (%s); trying the store/JSON", pq_file, e)
+                    snap = None
+            if snap is None and store is not None and store.has_date(d):
                 try:
                     snap = dict(store.run_meta(d) or {})
                     snap['results'] = store.rows(d)
@@ -166,6 +179,9 @@ def load_corpus(results_dir='output', dates=None, use_store=None):
     finally:
         if store is not None:
             store.close()
+    if n_parquet:
+        print(f"[backtest] {n_parquet}/{len(snapshots)} snapshot(s) read from "
+              f"Parquet exports")
     if n_store:
         print(f"[backtest] {n_store}/{len(snapshots)} snapshot(s) read from "
               f"the snapshot store")

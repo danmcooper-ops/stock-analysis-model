@@ -13,6 +13,14 @@ up within a week or two) without the whole list expiring on the same night.
 Only a ticker far enough below the floor is skipped: a micro-cap at 80% of
 the floor could cross it on a normal move, so it keeps being fetched.
 Carry-forward tickers are never skipped by the caller.
+
+With the database backend selected (``SNAPSHOT_STORE_BACKEND=postgres``, see
+data/db/reader.py) the cache also lives in ``core.screen_skip``: loading
+merges the database's entries with the file's (the newer observation of a
+ticker wins), and every save replaces the database copy as well as writing
+the file. The stateless cloud container then keeps the night's learning
+without the git archive's copy, which stays as the fallback. A database
+failure is logged and the file carries on alone.
 """
 
 import json
@@ -49,6 +57,45 @@ class ScreenSkipCache:
             pass
         except (OSError, ValueError) as e:
             logger.warning('screen skip cache unreadable at %s (%s); starting empty', path, e)
+        self._db = None
+        self._merge_database()
+
+    # ------------------------------------------------------------------
+    def _db_transport(self):
+        """The database transport when the backend is selected, else None."""
+        from data.db.reader import db_backend_requested
+        if not db_backend_requested():
+            return None
+        if self._db is None:
+            from data.db.publish import transport_from_env
+            self._db, _, _ = transport_from_env()
+        return self._db
+
+    def _merge_database(self):
+        try:
+            transport = self._db_transport()
+            if transport is None:
+                return
+            remote = transport.call('screen_skip_load', {}, idempotent=True) or {}
+        except Exception as e:
+            logger.warning('screen skip cache: database load failed (%s); using the file only', e)
+            self._db = False
+            return
+        for ticker, entry in remote.items():
+            mine = self._entries.get(ticker)
+            if mine is None or str(entry.get('date', '')) > str(mine.get('date', '')):
+                self._entries[ticker] = entry
+        logger.info('screen skip cache: %d entries from the database', len(remote))
+
+    def _save_database(self):
+        if self._db is False:            # the load already failed this run
+            return
+        try:
+            transport = self._db_transport()
+            if transport is not None:
+                transport.call('screen_skip_replace', {'p_entries': self._entries}, idempotent=True)
+        except Exception as e:
+            logger.warning('screen skip cache: database save failed (%s); the file is still written', e)
 
     # ------------------------------------------------------------------
     def _age_ok(self, entry, ticker, base_ttl):
@@ -101,6 +148,7 @@ class ScreenSkipCache:
             self._dirty = False
         except OSError as e:
             logger.warning('screen skip cache save failed at %s: %s', self.path, e)
+        self._save_database()
 
     def __len__(self):
         return len(self._entries)

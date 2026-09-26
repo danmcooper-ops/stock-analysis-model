@@ -292,6 +292,23 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
     - The 10 newest real snapshots (25k rows) were read through DuckDB and the database, both direct and over the local Data API, and every reader matched: dates, `rows` for five column sets (including unknown and nested keys), `last_known_rows` over three windows including the fallback look-back, `rating_history` (4,538 points), and `run_meta`.
     - `tests/test_db_reader_pg.py` (16 tests) repeats this on synthetic data with NaN, ±Inf, NUL, gaps and a ticker that drops out, and runs the real call sites with the backend selected.
     - One deliberate difference: the database keeps a NaN nested inside a dict or list as the file has it, where the DuckDB store's JSON columns turn it into null.
+  - **P4b built 2026-09-27:**
+    - **Parquet exports** (`data/db/parquet.py`): one `results_<date>.parquet` per run, with the registry's typed columns, `extra` as codec JSON text, the projected `edgar_history`, and the snapshot metadata in the file's key-value metadata. A day is about 4–5 MB, against about 90 MB of JSON.
+      - `backtest.load_corpus` prefers a date's Parquet export, then the DuckDB store, then the JSON, deciding per date. The database is never read for a backtest.
+      - `db_publish.py` writes the export after every publish, and `export_dir()` backfills it from an archive.
+    - **Storage** (`data/db/storage.py`): after a publish, `db_publish.py` uploads `json/results_<date>.json.gz` and `parquet/results_<date>.parquet` to the private `snapshots` bucket.
+      - The `.json.gz` is the canonical snapshot, gzipped deterministically, so it is the full row including the report-only keys.
+      - Each upload is verified by downloading it back and comparing SHA-256, then recorded through `pipeline.record_snapshot_objects` (migration `*_objects_screen_skip_rpcs.sql`).
+      - The bucket is created on first use. `--no-upload` skips the upload.
+    - **Screen-skip cache:** with the database backend selected, `data/screen_skip_cache.py` merges `core.screen_skip` into what it loads (the newer observation of a ticker wins) and replaces the database copy on every save, through `pipeline.screen_skip_load/replace`. The file and its git write-back stay as the fallback.
+    - **A pre-existing bug found and fixed:** the `edgar_history` projection shared by the DuckDB store and the Parquet exports (`DEFAULT_PROJECTIONS`) kept only `years_available` and `operating_income_history`.
+      - Since 2026-09-16, the debt-free Int Coverage rule (`scoring._is_debt_free`) also reads seven more series: `total_debt_history`, `debt_current_history`, `debt_noncurrent_history`, `total_assets_history`, `revenue_history`, `earnings_history` and `operating_cf_history`.
+      - So re-scoring through the store differed from the JSON for snapshots that need that rule. On 2026-09-14 to 16 there were 78–82 differing decision values per day.
+      - The projection now keeps those series. The store's `SCHEMA_VERSION` goes to 5, so stale stores are ignored and rebuilt. A new test records every `edgar_history` key scoring reads and fails if the projection drops one.
+  - **P4b results:**
+    - The 10 newest real snapshots exported and read back from Parquet: 0 rows differ from the JSON, and 0 re-scored decisions differ (rating, raw rating, cap, composite) on every date.
+    - Publishing 2026-09-24 and 09-25 through the local Data API and Storage uploaded 29 MB and 22 MB `.json.gz` objects. Each decompresses to exactly the published `source_sha256`, and `core.snapshot_objects` holds both.
+    - The anon key cannot download from the private bucket.
 - **P5: Scale tests.**
   - *Passes when:* every scalability target is met.
 - **P6: Cutover.**

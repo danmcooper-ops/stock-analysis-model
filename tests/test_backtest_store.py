@@ -41,6 +41,7 @@ def _row(ticker, seed):
             'years_available': 11,
             'operating_income_history': {str(y): 1e8 + y for y in range(2015, 2026)},
             'revenue_history': {str(y): 1e9 for y in range(2015, 2026)},
+            'capex_history': {str(y): 5e7 for y in range(2015, 2026)},   # read by nothing
         },
     }
     for f in sorted({g.field for g in GATES}):
@@ -99,8 +100,9 @@ def test_corpus_from_store_carries_the_same_scoring_fields(corpus):
     assert s_row['edgar_history'] == {
         'years_available': 11,
         'operating_income_history': j_row['edgar_history']['operating_income_history'],
+        'revenue_history': j_row['edgar_history']['revenue_history'],
     }
-    assert 'revenue_history' in j_row['edgar_history']
+    assert 'capex_history' in j_row['edgar_history']
 
 
 def test_rescoring_is_identical_through_either_path(corpus):
@@ -260,3 +262,61 @@ def test_load_corpus_does_not_double_count_a_mixed_date(tmp_path):
 
     corpus = bt.load_corpus(str(d), use_store=False)
     assert [s['date'] for s in corpus] == [DATES[0]]
+
+
+# --- the Parquet exports (data/db/parquet.py) ------------------------------
+
+@pytest.fixture
+def parquet_corpus(corpus):
+    """The same corpus with a Parquet export per date and no DuckDB store,
+    so every snapshot must come from Parquet."""
+    from data.db.parquet import export_dir
+    assert len(export_dir(str(corpus), str(corpus / 'parquet'))) == len(DATES)
+    (corpus / 'snapshots.duckdb').unlink()
+    return corpus
+
+
+def test_corpus_from_parquet_matches_the_json(parquet_corpus, capsys):
+    pq_snaps = _load(parquet_corpus, True)
+    assert f'{len(DATES)}/{len(DATES)} snapshot(s) read from Parquet' in capsys.readouterr().out
+    js_snaps = _load(parquet_corpus, False)
+    assert [s['date'] for s in pq_snaps] == [s['date'] for s in js_snaps] == DATES
+    assert pq_snaps[0]['risk_free_rate'] == 0.04 and pq_snaps[0]['provenance'] == {'run': DATES[0]}
+    p_row = {r['ticker']: r for r in pq_snaps[0]['results']}['B00']
+    j_row = {r['ticker']: r for r in js_snaps[0]['results']}['B00']
+    for field in sorted({g.field for g in GATES}) + ['rating', 'mos', 'price', '_composite_score', 'sector',
+                                                     '_gates_passed', '_gates_passed_num', 'beneish_flag']:
+        assert p_row[field] == j_row[field]
+    assert 'capex_history' not in p_row['edgar_history']
+    assert p_row['edgar_history']['revenue_history'] == j_row['edgar_history']['revenue_history']
+
+
+def test_rescoring_and_measurement_are_identical_from_parquet(parquet_corpus):
+    params = default_params()
+    scored, runs = {}, {}
+
+    class _NoNet:
+        def fetch_history(self, *a, **k):
+            return None
+
+    for use in (True, False):
+        snaps = _load(parquet_corpus, use)
+        metrics = bt._evaluate_params_on_snapshots(snaps, params, [30])
+        scored[use] = [(m['run_date'], sorted((d['ticker'], d['rating'], d['_composite_score'])
+                                              for d in m['details'])) for m in metrics]
+        bt.USE_SNAPSHOT_STORE = use
+        ms = bt.run_backtest(str(parquet_corpus), [30, 90], _NoNet(),
+                             prices_dir=str(parquet_corpus / 'prices'), since=None)
+        runs[use] = [(m['run_date'], m['horizon'], m['spy_return'], m['buckets'],
+                      sorted((d['ticker'], d['return'], d['excess_return']) for d in m['details']))
+                     for m in sorted(ms, key=lambda m: (m['run_date'], m['horizon']))]
+    assert scored[True] and scored[True] == scored[False]
+    assert runs[True] and runs[True] == runs[False]
+
+
+def test_a_date_without_parquet_falls_back(parquet_corpus):
+    (parquet_corpus / 'parquet' / f'results_{DATES[1]}.parquet').unlink()
+    (parquet_corpus / 'parquet' / f'results_{DATES[2]}.parquet').write_bytes(b'not parquet')
+    snaps = _load(parquet_corpus, True)
+    assert [s['date'] for s in snaps] == DATES
+    assert all(len(s['results']) == len(TICKERS) for s in snaps)

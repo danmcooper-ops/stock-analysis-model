@@ -251,9 +251,11 @@ ruff check .
   history, gate N/A deltas, portfolio alerts) query for a few columns
   instead of re-parsing whole files. Every reader falls back to the JSON
   when the store is absent or does not hold the dates it needs.
-  `edgar_history` is kept as a slim projection (`years_available` and
-  `operating_income_history` — the only sub-keys any scoring path reads), so
-  a store row is a drop-in for re-scoring while the other 52 series stay in
+  `edgar_history` is kept as a slim projection (`DEFAULT_PROJECTIONS`: the
+  nine sub-keys scoring reads — `years_available`, `operating_income_history`
+  and the debt/assets/annual-flow series the debt-free Int Coverage rule
+  dates its evidence with; a test records what scoring actually reads), so
+  a store row is a drop-in for re-scoring while the other series stay in
   the JSON. The report-only narrative blocks (`news_headlines`,
   `legal_filings`, `insider_transactions`, descriptions, sector head/tailwinds
   …) are dropped entirely via `DEFAULT_EXCLUDE_KEYS`: measured over 84 real
@@ -420,5 +422,9 @@ by analyze_stock and gitignored):
   `snapshots.duckdb` (`data/db/reader.py`), over the Data API or
   `SUPABASE_READER_URL`/`SUPABASE_DB_URL`; any failure falls back to the JSON.
   `DB_DEFER_PUBLISH=1` (set by run.sh) stops `sync_snapshot_file` republishing
-  each rewrite during the nightly run.
+  each rewrite during the nightly run. The same switch backs the Phase-1
+  screen-skip cache with `core.screen_skip`. `db_publish.py` also writes
+  `output/parquet/results_<date>.parquet` (the backtest's preferred corpus,
+  `data/db/parquet.py`) and uploads it plus the canonical `.json.gz` to the
+  private `snapshots` Storage bucket (`data/db/storage.py`).
 - yfinance requires no authentication
