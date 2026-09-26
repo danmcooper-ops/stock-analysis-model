@@ -177,6 +177,8 @@ def cmd_edit(doc, a):
         p['color'] = a.color
     if a.description is not None:
         p['description'] = a.description
+    if a.alerts:
+        p['alerts'] = a.alerts
     return f"updated {a.id}"
 
 
@@ -225,7 +227,8 @@ def cmd_show(doc, a):
             for c in p['rule']['cf']:
                 if not any(c['key'] in r for r in rows):
                     print(f"  warning: no row has a {c['key']!r} field, so this rule matches nothing")
-        print('  ' + _stats_line(pg.portfolio_stats(res['members'], by_tk)))
+        from scripts.portfolio_digest import stats_line
+        print('  ' + stats_line(pg.portfolio_stats(res['members'], by_tk)))
         manual, ruled = set(res['manual']), set(res['ruled'])
         print(f"  {'Ticker':<8} {'Rating':<9} {'MoS':>6} {'Score':>6}  {'Src':<5} Sector")
         for t in res['members']:
@@ -237,51 +240,123 @@ def cmd_show(doc, a):
             print(f"  not in universe: {' '.join(res['missing'])}")
 
 
-def _stats_line(st):
-    mix = ' '.join(f"{k}:{v}" for k, v in st['ratings'].items() if v) or 'no ratings'
-    conc = ''
-    if st['top_sector']:
-        conc = f"  top sector {st['top_sector']} {st['top_sector_weight']:.0%}"
-        if st['concentrated']:
-            conc += ' (concentrated)'
-    return (f"{mix}  median MoS {_fmt_pct(st['median_mos'])}  "
-            f"score {_fmt_num(st['median_score'])}  "
-            f"spread {_fmt_pct(st['median_spread'])}{conc}")
+def alert_columns(portfolios):
+    """Prior-run columns the alerts read: the rule columns plus the drivers
+    ``report_html._explain_rating_change`` compares (composite, category
+    scores, rating cap, and every gate value/score)."""
+    from scripts.report_html import _PREV_DRIVER_KEYS, gate_metadata
+    gates = [k for g in gate_metadata()['gates'] for k in (g['key'], g['scoreKey'])]
+    return sorted(set(pg.rule_columns(portfolios)) | set(_PREV_DRIVER_KEYS) | set(gates))
 
 
-def build_alerts_report(portfolios, rows, prev_rows, day, prev_day):
-    """The text of output/portfolio_alerts_<date>.txt."""
+def rating_explainer():
+    """``explain(prev_row, row)`` → the popup's "why the rating changed"
+    bullets, or None when the report module can't load."""
+    try:
+        from scripts.report_html import _explain_rating_change, gate_metadata
+        gm = gate_metadata()
+    except Exception as e:  # the alerts still work without the bullets
+        logger.warning("portfolios: rating explanations unavailable (%s)", e)
+        return None
+    return lambda prev, cur: _explain_rating_change(prev, cur, gm)
+
+
+def rating_history(results_dir, day):
+    """Rating change-points before *day* (the report's cache/store reader)."""
+    try:
+        from datetime import date as _date
+        from scripts.report_html import _load_rating_history
+        return _load_rating_history(results_dir, _date.fromisoformat(day))
+    except Exception as e:
+        logger.warning("portfolios: rating history unavailable (%s); no reversal detection", e)
+        return {}
+
+
+def build_digest(portfolios, rows, prev_rows, day, prev_day, history=None, explain=None):
+    """The machine-readable alerts digest (output/portfolio_alerts.json) that
+    the nightly text, the GitHub issue and tests all render from."""
     by_tk, prev_by_tk = pg.rows_by_ticker(rows), pg.rows_by_ticker(prev_rows)
-    names = {p['id']: p['name'] for p in portfolios}
-    alerts = pg.portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=day)
-    lines = [f"Portfolio alerts {day} (vs {prev_day or 'no prior snapshot'})", '']
-    if not portfolios:
-        return '\n'.join(lines + ['No portfolios defined.']) + '\n'
+    by_id, stats = ({p['id']: [] for p in portfolios},
+                    pg.universe_stats(by_tk, prev_by_tk)) if not prev_day else \
+        pg.portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=day,
+                            history=history, explain=explain)
+    systemic = dict(stats, message=pg.systemic_message(stats)) if prev_day else None
+    out = []
     for p in portfolios:
         res = pg.resolve_members(p, by_tk)
-        st = pg.portfolio_stats(res['members'], by_tk, prev_by_tk)
-        chg = f"  today: +{st['upgrades']} up / -{st['downgrades']} down" \
-            if prev_day else ''
-        lines.append(f"{p['name']} [{p['id']}]: {st['n']} stocks{chg}")
-        lines.append('  ' + _stats_line(st))
-    lines += ['', f"{len(alerts)} alert(s)" + ('' if prev_day else
-              ' — no prior snapshot, so no change alerts')]
-    for al in alerts:
-        pfs = ', '.join(names.get(i, i) for i in al['portfolios'])
-        lines.append(f"  [{al['severity']:<6}] {al['message']}  — {pfs}")
-    return '\n'.join(lines) + '\n'
+        out.append({'id': p['id'], 'name': p['name'], 'color': p.get('color'),
+                    'mode': p.get('alerts') or 'buy_line', 'missing': res['missing'],
+                    'stats': pg.portfolio_stats(res['members'], by_tk, prev_by_tk),
+                    'alerts': by_id.get(p['id'], [])})
+    return {'version': 1, 'date': day, 'prev_date': prev_day, 'systemic': systemic,
+            'portfolios': out}
+
+
+def _write(path, text):
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(text)
+    print(f"wrote {path}")
 
 
 def cmd_alerts(doc, a):
+    from scripts import portfolio_digest as pdg
+    if a.replay:
+        return cmd_alerts_replay(doc, a)
+    pfs = doc['portfolios']
     day, rows = _latest_rows(a.results_dir, a.date)
-    prev_day, prev = prior_rows(a.results_dir, day, pg.rule_columns(doc['portfolios']))
-    text = build_alerts_report(doc['portfolios'], rows, prev, day, prev_day)
+    prev_day, prev = prior_rows(a.results_dir, day, alert_columns(pfs))
+    digest = build_digest(pfs, rows, prev, day, prev_day,
+                          history=rating_history(a.results_dir, day) if prev_day else None,
+                          explain=rating_explainer() if prev_day else None)
+    text = pdg.render_text(digest)
     print(text, end='')
     if a.out:
-        out = a.out.replace('{date}', day)
-        with open(out, 'w', encoding='utf-8') as f:
-            f.write(text)
-        print(f"wrote {out}")
+        _write(a.out.replace('{date}', day), text)
+    if a.json:
+        _write(a.json.replace('{date}', day),
+               json.dumps(digest, ensure_ascii=False, indent=1, default=str) + '\n')
+    if a.markdown:
+        _write(a.markdown.replace('{date}', day), pdg.render_markdown(digest, a.pages_url))
+
+
+def cmd_alerts_replay(doc, a):
+    """Run the classifier over consecutive archived snapshots and print the
+    per-day level mix — to tune thresholds and to check a change against
+    history. Reversals use change-points rebuilt from the replayed days."""
+    import statistics
+    cols = ['ticker', 'rating', 'price', 'company_name', 'sector',
+            '_composite_score', '_fv_effective']
+    snaps = load_snapshots(a.results_dir, cols, since=a.since)
+    hist, prev = {}, None
+    rows_out = []
+    print(f"{'date':<11} {'n':>5} {'rerated':>8} {'no-data':>8} {'ACTION':>7} {'reversal':>9} "
+          f"{'same-side':>10} {'data-gap':>9} {'score':>6} {'fv':>5}  flood")
+    for day, rows in snaps:
+        by_tk = pg.rows_by_ticker(rows)
+        if prev is not None:
+            entries, st = pg.classify_changes(by_tk, prev, day, history=hist)
+            c = {}
+            for e in entries:
+                c[e['kind']] = c.get(e['kind'], 0) + 1
+            action = c.get('entered_buy', 0) + c.get('exited_buy', 0)
+            rows_out.append((action, c.get('reversal', 0), c.get('same_side', 0), st['flood']))
+            print(f"{day:<11} {st['n']:>5} {st['changed_share']:>8.1%} {st['missing_share']:>8.1%} "
+                  f"{action:>7} {c.get('reversal', 0):>9} {c.get('same_side', 0):>10} "
+                  f"{c.get('data_gap', 0):>9} {c.get('score_drop', 0):>6} {c.get('fv_jump', 0):>5}  "
+                  f"{(st['cause'] or '').upper() if st['flood'] else ''}")
+        for t, r in by_tk.items():
+            pts = hist.setdefault(t, [])
+            if r.get('rating') and (not pts or pts[-1][1] != r['rating']):
+                pts.append([day, r['rating']])
+        prev = by_tk
+    if rows_out:
+        acts = [r[0] for r in rows_out]
+        crossings = sum(r[0] + r[1] for r in rows_out)
+        print(f"\n{len(rows_out)} run(s): ACTION median {statistics.median(acts):g}/run, "
+              f"max {max(acts)}; reversals {sum(r[1] for r in rows_out)} of {crossings} crossings "
+              f"({sum(r[1] for r in rows_out) / max(1, crossings):.0%}); "
+              f"same-side median {statistics.median(r[2] for r in rows_out):g}/run; "
+              f"flood runs {sum(1 for r in rows_out if r[3])}")
 
 
 def load_snapshots(results_dir, columns, since=None):
@@ -417,11 +492,14 @@ def build_parser():
     sp.add_argument('--clear', action='store_true')
     _add_rule_flags(sp)
 
-    sp = sub.add_parser('edit', help='rename / recolor / describe')
+    sp = sub.add_parser('edit', help='rename / recolor / describe / alert mode')
     sp.add_argument('id')
     sp.add_argument('--name')
     sp.add_argument('--color')
     sp.add_argument('--description')
+    sp.add_argument('--alerts', choices=pg.ALERT_MODES,
+                    help='buy_line (default): Action on buy-line crossings; '
+                         'all: also moves within a side; off: mute')
 
     sp = sub.add_parser('delete', help='delete a portfolio')
     sp.add_argument('id')
@@ -440,7 +518,13 @@ def build_parser():
     sp = sub.add_parser('alerts', help='per-portfolio stats and change alerts vs the prior run')
     sp.add_argument('--results-dir', default='output')
     sp.add_argument('--date', help='snapshot date (default: latest)')
-    sp.add_argument('--out', help='also write the report here ({date} is substituted)')
+    sp.add_argument('--out', help='also write the text here ({date} is substituted)')
+    sp.add_argument('--json', help='also write the digest JSON here ({date} is substituted)')
+    sp.add_argument('--markdown', help='also write the GitHub-issue markdown here')
+    sp.add_argument('--pages-url', help='report URL linked from the markdown')
+    sp.add_argument('--replay', action='store_true',
+                    help='classify every archived run pair and print the per-day mix')
+    sp.add_argument('--since', help='first snapshot date for --replay')
 
     sp = sub.add_parser('nav', help='NAV history per portfolio; --rebuild backfills it')
     sp.add_argument('--id', action='append', help='portfolio id (repeat; default: all)')
