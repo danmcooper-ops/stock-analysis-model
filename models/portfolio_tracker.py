@@ -371,7 +371,8 @@ def compute_portfolio_returns(enriched_holdings, benchmark_series, ticker_histor
 # ---------------------------------------------------------------------------
 
 def detect_alerts(enriched_holdings, prev_results_by_ticker,
-                  valuation_gap_threshold=0.20, score_drop_threshold=10.0):
+                  valuation_gap_threshold=0.20, score_drop_threshold=10.0,
+                  run_date=None):
     """Detect rating changes, valuation divergence, and score drops.
 
     Parameters
@@ -384,13 +385,17 @@ def detect_alerts(enriched_holdings, prev_results_by_ticker,
         Fractional gap |price - dcf_fv| / dcf_fv that triggers a MEDIUM alert.
     score_drop_threshold : float
         Point drop in composite score that triggers a MEDIUM alert.
+    run_date : str or date, optional
+        Stamped on each alert. Defaults to today, which is wrong for a run
+        that crosses midnight — pipeline callers pass the run-start date.
 
     Returns
     -------
     list of dict
         Sorted: HIGH severity first.
     """
-    today = date.today().isoformat()
+    today = (run_date.isoformat() if hasattr(run_date, 'isoformat')
+             else run_date) or date.today().isoformat()
     alerts = []
 
     for h in enriched_holdings:

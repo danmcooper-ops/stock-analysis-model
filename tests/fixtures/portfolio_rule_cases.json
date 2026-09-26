@@ -1,0 +1,25 @@
+{
+  "_doc": "Shared by tests/test_portfolio_groups.py (Python rule_matches) and the report's _pfRuleMatch (run through node when available). Each case lists the tickers of `rows` its rule must match, in row order.",
+  "rows": [
+    {"ticker": "AAA", "rating": "BUY", "sector": "Energy", "country": "Canada", "mos": 0.35, "_gate_mos": 0.35, "mcap": 5e9, "industry": "Oil & Gas E&P", "pe": 9.5, "founder_led": true},
+    {"ticker": "BBB", "rating": "LEAN BUY", "sector": "Energy", "country": "United States", "mos": 0.10, "_gate_mos": 0.10, "mcap": 1.5e9, "industry": "Oil & Gas Midstream", "pe": "14", "founder_led": false},
+    {"ticker": "CCC", "rating": "HOLD", "sector": "Technology", "country": "United States", "mos": 0.50, "_gate_mos": null, "mcap": 3e11, "industry": "Software - Infrastructure", "pe": "Infinity"},
+    {"ticker": "DDD", "rating": "PASS", "sector": "Technology", "country": "Taiwan", "mos": null, "mcap": 8e11, "industry": "Semiconductors", "pe": ""},
+    {"ticker": "EEE", "rating": null, "sector": null, "country": null, "mos": "0.4", "mcap": null, "industry": null, "pe": 30},
+    {"ticker": "FFF", "rating": "BUY", "sector": "Utilities", "country": "United States", "mos": 0.2, "_gate_mos": 0.2, "mcap": 2e9, "industry": "Utilities - Regulated Electric", "pe": 20, "score": 1.0}
+  ],
+  "cases": [
+    {"name": "rating list", "rule": {"ratings": ["BUY", "LEAN BUY"], "sectors": null, "countries": null, "cf": []}, "expect": ["AAA", "BBB", "FFF"]},
+    {"name": "empty rating list matches nothing", "rule": {"ratings": [], "sectors": null, "countries": null, "cf": [{"key": "pe", "min": 0, "max": null}]}, "expect": []},
+    {"name": "sector + country", "rule": {"ratings": null, "sectors": ["Energy"], "countries": ["United States"], "cf": []}, "expect": ["BBB"]},
+    {"name": "pct column as fraction; gate-null drops CCC; string mos counts", "rule": {"ratings": null, "sectors": null, "countries": null, "cf": [{"key": "mos", "min": 0.3, "max": null}]}, "expect": ["AAA", "EEE"]},
+    {"name": "min and max inclusive", "rule": {"ratings": null, "sectors": null, "countries": null, "cf": [{"key": "mos", "min": 0.1, "max": 0.2}]}, "expect": ["BBB", "FFF"]},
+    {"name": "numeric strings coerce; Infinity is N/A; empty string is 0", "rule": {"ratings": null, "sectors": null, "countries": null, "cf": [{"key": "pe", "min": null, "max": 15}]}, "expect": ["AAA", "BBB", "DDD"]},
+    {"name": "missing field fails a numeric clause", "rule": {"ratings": null, "sectors": null, "countries": null, "cf": [{"key": "mcap", "min": 0, "max": null}]}, "expect": ["AAA", "BBB", "CCC", "DDD", "FFF"]},
+    {"name": "text clause is case-insensitive substring", "rule": {"ratings": null, "sectors": null, "countries": null, "cf": [{"key": "industry", "txt": "OIL"}]}, "expect": ["AAA", "BBB"]},
+    {"name": "text clause on a bool field", "rule": {"ratings": null, "sectors": null, "countries": null, "cf": [{"key": "founder_led", "txt": "TRUE"}]}, "expect": ["AAA"]},
+    {"name": "text clause on an integral float", "rule": {"ratings": null, "sectors": null, "countries": null, "cf": [{"key": "score", "txt": "1"}]}, "expect": ["FFF"]},
+    {"name": "bool as number", "rule": {"ratings": null, "sectors": null, "countries": null, "cf": [{"key": "founder_led", "min": 1, "max": null}]}, "expect": ["AAA"]},
+    {"name": "everything combined", "rule": {"ratings": ["BUY", "LEAN BUY", "HOLD"], "sectors": ["Energy", "Technology"], "countries": null, "cf": [{"key": "mcap", "min": 2e9, "max": null}, {"key": "industry", "txt": "o"}]}, "expect": ["AAA", "CCC"]}
+  ]
+}

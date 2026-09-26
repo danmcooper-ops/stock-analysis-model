@@ -15,16 +15,22 @@ Three workloads shape the design:
 
 An independent adversarial review checked this plan against the code for stability and scalability. The 13 issues it raised are fixed below and marked **[R#]**.
 
+P0 (2026-09-26, `design/p0/FINDINGS.md`) led to amendments **A1–A4**, which are folded in below and were accepted, with **Cloudflare** chosen to host the public files:
+- **A1:** the cloud cannot open raw TCP to Postgres, so every cloud connection goes over HTTPS through Data API RPCs.
+- **A2:** every stable scalar key gets a typed column (~370), not ~120.
+- **A3:** the size check is ≤ 4 GiB/yr at today's universe, with a 3-year window in Postgres at 8k tickers.
+- **A4:** the public payloads are split small and served from Cloudflare, not GitHub Pages.
+
 ## Target architecture
 
 ```
-nightly run ─COPY─► TEMP load table ─► core.publish_run() ── one transaction, session pooler
+nightly run ─HTTPS─► pipeline.stage_chunk() ×N ─► pipeline.publish_run(load_id) ── one transaction (A1)
                                         ├─ core.results         (yearly partitions, typed + jsonb)
                                         ├─ core.rating_changes  (recomputed per affected ticker)
                                         ├─ core.latest_results  (only if D ≥ latest complete)
                                         └─ core.runs.status='complete', source_sha256
           └─► Storage: full .json.gz (private) + Parquet (analytics)
-          └─► public payloads: latest.json, changes.json, history shards → Pages / public bucket (CDN)
+          └─► public payloads: latest.json, changes.json, history shards → Cloudflare (Pages + R2) (A4)
 
 public traffic ─► CDN (static JSON)                 ✗ no anon access to Postgres
 pipeline readers ─► core.* (pipeline_reader, timeouts, JSON fallback)
@@ -33,14 +39,19 @@ backtest ─► DuckDB over Parquet (union_by_name), JSON fallback per date
 
 ## Schema: fixed, versioned, changed only by migrations
 
-There are two private schemas: `core` (the data) and `internal` (functions). Nothing is exposed to PostgREST for the `anon` role **[R1]**.
+There are two private schemas: `core` (the data) and `internal` (helper functions). A third schema, `pipeline`, is the only one the Data API exposes. It holds only the RPCs, and only `service_role` can execute them (A1). Nothing is reachable by `anon` or `authenticated` **[R1]**.
+
+As built in P1 (`supabase/migrations/`), there are a few simplifications:
+- `core.tickers` holds only `ticker_id`, `ticker`, `first_seen` and `last_seen`. Sector and the other attributes are per-row values in `core.results`.
+- `core.latest_results` is a pointer `(ticker_id, run_date)` that gets joined to `core.results`.
+- `core.screen_skip` stores `observed_on` and computes expiry in code, as it does today.
 
 **Tables**
 - `core.tickers`: `ticker_id identity pk`, `ticker unique`, `cik`, `name`, `sector`, `industry`, `exchange`, `first_seen`, `last_seen`.
 - `core.runs`: `run_date pk`, `status` (`loading`|`complete`|`failed`), `risk_free_rate`, `risk_free_rate_source`, `macro_regime`, `n_rows`, `source_sha256` (SHA-256 of the **uncompressed canonical JSON** **[R2]**), `pipeline_version`, `meta jsonb`, `started_at`, `completed_at`.
 - `core.results`:
   - Primary key `(run_date, ticker_id)`, `PARTITION BY RANGE (run_date)` with **yearly** partitions, pre-created 5 years ahead by a migration. There is no DEFAULT partition, and publishing fails fast if a date has no partition. No DDL runs at runtime **[R7]**.
-  - About 120 typed columns, taken from the registry.
+  - About 370 typed columns, one per stable scalar key, taken from the registry (A2).
   - `extra jsonb` holds every other key.
   - `edgar_history_sha` points into `core.edgar_blobs`.
   - Indexes: the primary key, `(ticker_id, run_date DESC)`, and `(run_date, rating)`.
@@ -52,27 +63,32 @@ There are two private schemas: `core` (the data) and `internal` (functions). Not
 - `core.snapshot_objects`: `run_date pk`, `json_path`, `sha256`, `bytes`, `n_rows`, `parquet_path`.
 
 **Column registry (`data/db/columns.py`)**
-- Maps each promoted key to `(pg_type, nullable)`. It is seeded with the ~120 keys the code actually reads:
-  - `_PREV_DRIVER_KEYS` (`scripts/report_html.py:166`);
-  - the 26 gates' `_gate_`/`_score_`/`_gp_` keys and their input fields;
-  - `APPLICABILITY_FIELDS` (`scripts/scoring.py:103`);
-  - the inputs to the rating caps, trap score and `prepare_scoring_fields`;
-  - carry-forward keys (`shares_out`, `mcap`, `data_source`);
-  - backtest keys (`pp_multiple`, `trap_score`, `_gates_passed_num`, …);
-  - identity and price keys.
-- Promoting another key is a reviewed migration plus a backfill that moves it out of `extra`.
-- A test extends `tests/test_snapshot_store.py:421`: every key a scorer or reader touches must be in the registry.
+- It is generated from the archived snapshots by `scripts/db_gen_registry.py` (A2):
+  - every key whose values are always scalar and of one compatible type gets a typed column;
+  - dicts, lists, mixed types, non-identifier keys, and keys not seen in the newest 10 snapshots (retired) stay in `extra`.
+- The generator also writes the typed column block into the core migration.
+- `scripts/db_gen_registry.py --check <snapshot>` flags new keys and keys that no longer fit their column. A key that stays in `extra` for 30 days becomes a candidate for promotion.
+- Promoting a key is a new migration (`ALTER TABLE … ADD COLUMN`) plus a backfill that moves it out of `extra`.
+- `tests/test_db_registry.py` checks three things:
+  - every key a scorer or reader touches is registered;
+  - the scalar reader keys are typed columns;
+  - the migration matches the registry byte for byte.
 
 **Codec (`data/db/codec.py`) [R8]**
 - **Non-finite numbers.** Postgres `double precision` columns keep NaN and ±Infinity natively. Inside jsonb, which can't hold them, they are encoded as `{"$nf": "NaN"|"Inf"|"-Inf"}`.
 - **Reserved keys.** A real dict whose keys start with `$` is escaped by wrapping it as `{"$lit": …}`.
 - **Encoding.** The codec walks every nested value and serializes with `json.dumps(allow_nan=False)`, so a bare `NaN` can never reach psycopg.
-- **NUL characters** (`\u0000`) in strings are escaped both in text columns and in jsonb.
-- **Fidelity contract.** Before writing it, grep the scorers and readers for `'k' in row` checks.
-  - **None found:** fidelity means `.get()`-equivalence, with NaN equal to NaN and int equal to float.
-  - **Any found:** each row also stores a bitmap recording which typed keys were present.
+- **NUL characters and lone surrogates**, which jsonb rejects, are stored as `{"$s": "<JSON string literal>"}`. A text column never receives them; such a value goes to `extra` instead.
+- **Fidelity contract:** `.get()`-equivalence, with NaN equal to NaN and int equal to float. A NULL typed column is left out of the rebuilt row.
+  - P1 found no `'k' in row` checks in the scorers or readers, so no presence bitmap is needed.
+  - The only place that iterates a row's keys, `_purge_stale_gate_fields`, copes with missing keys.
 - **Pinned quirks, each with its own test:** `"Infinity"` strings become floats, and jsonb normalizes `-0.0` to `0`.
 - **Tests.** Hypothesis property tests round-trip adversarial values: `$nf`-shaped dicts, NUL characters, nested NaN, and very large ints.
+
+- **Float precision (found in P1).** The Supabase image runs with `extra_float_digits = 0`, so Postgres prints doubles with only 15 significant digits. Values are stored exactly, but reading them rounds them: `0.03932028370017462` came back as `0.0393202837001746`.
+  - Every direct connection goes through `data/db/connect.connect()`, which sets `extra_float_digits=3` and `connect_timeout=5`.
+  - **P2 RPCs must do the same:** set `SET extra_float_digits = 3` as a function attribute, and never convert a `double precision` value through `numeric` or `to_jsonb()`. Both truncate to 15 digits. Instead, return the values as text, or ship the stored `extra` and the typed values as text in `jsonb`.
+- **P1 check:** `scripts/db_fidelity_check.py` round-tripped the 10 newest snapshots (25,052 rows) through the migrated schema on the Supabase Postgres 17 image. There were 0 mismatches and 0 cast failures.
 
 **What stays out of the DB.** The report-only narrative keys (`DEFAULT_EXCLUDE_KEYS`, `data/snapshot_store.py:92`) live only in the full `.json.gz` in private Storage. That file is the canonical copy of the complete row.
 
@@ -80,9 +96,17 @@ There are two private schemas: `core` (the data) and `internal` (functions). Not
 
 | Role | Access | Timeouts and connection settings |
 |---|---|---|
-| `pipeline_writer` | Writes only through `internal.publish_run` | `lock_timeout=5s`, `statement_timeout=10min` |
+| `service_role` | Executes the `pipeline` RPCs over HTTPS; has no direct grants on `core` (A1) | Each RPC sets its own `statement_timeout`/`lock_timeout` |
+| `pipeline_writer` | Direct connections from dev, CI and admin work; writes to `core` | `lock_timeout=5s`, `statement_timeout=10min` |
 | `pipeline_reader` | Read-only on `core` | `statement_timeout=30s`, `idle_in_transaction_session_timeout=60s` |
-| `public_export` | Read-only; used by the export step | — |
+
+`pipeline_writer` and `pipeline_reader` are NOLOGIN groups. Postgres does not inherit role settings from a group, so the timeouts go on each login user, and those users are created by hand per project:
+
+```sql
+CREATE ROLE nightly_writer LOGIN PASSWORD '...' IN ROLE pipeline_writer;
+ALTER ROLE nightly_writer SET lock_timeout = '5s';
+ALTER ROLE nightly_writer SET statement_timeout = '10min';
+```
 
 - `anon` and `authenticated` have no grants on `core`, and RLS is on for every table.
 - Every Python connection sets `connect_timeout=5`.
@@ -91,13 +115,11 @@ There are two private schemas: `core` (the data) and `internal` (functions). Not
 ## Write path: one writer, validated, atomic, re-runnable
 
 1. **Where it runs.** `scripts/db_publish.py --run-date D` is the blocking step `06a-db-publish` in `scheduled-tasks/cloud-daily-stock-analysis/run.sh`. It runs after `05f` rescore and before the git archive.
-2. **One transaction on the session pooler (port 5432) [R6].** Inside it:
-   - Take `pg_advisory_xact_lock`.
-   - Create a `TEMP TABLE … ON COMMIT DROP`.
-   - Split each row with the registry and codec, and `COPY` the rows in with psycopg 3.
-   - Call `internal.publish_run(D, sha256, expectations)`.
-
-   No other writer can see the staged rows or truncate them. Nothing is unlogged, so replicas and crashes are safe.
+2. **Staged over HTTPS, applied in one transaction (A1, R6).** The cloud can't open raw TCP to Postgres, so:
+   - `pipeline.stage_chunk(load_id, chunk_no, rows jsonb)` appends chunks of about 1 MB (rows already split with the registry and codec) to `internal.load_rows`, keyed by `load_id`. It is idempotent per `(load_id, chunk_no)`, so a retried request can't double-load. Uploads go through `data/throttle.py`.
+   - `pipeline.publish_run(load_id, D, sha256, expectations)` takes `pg_advisory_xact_lock` and does everything below in one transaction.
+   - Staged rows are keyed by `load_id`, so two publishers can never see or truncate each other's rows. Stale loads are purged after a day.
+   - From a dev machine or CI, `db_publish.py --direct` does the same thing over `psycopg`, using a `TEMP` table and `COPY`.
 3. **`publish_run` validates first [R9].** It raises and changes nothing if any check fails:
    - the row count matches the snapshot;
    - there are no duplicate tickers;
@@ -155,7 +177,7 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
   - `latest.json`: all ~8k rows, so the PostgREST 1,000-row cap never comes into play;
   - `changes_<window>.json`;
   - per-ticker history shards, the same shard pattern as the existing `vol/` and `px/` folders.
-- The files go to Pages, the existing CDN, and optionally to a public Storage bucket, where Smart CDN caches them.
+- The files go to **Cloudflare** (A4): Pages for the site and R2 for the data shards, behind cache rules set in P4. Neither has a soft bandwidth cap like GitHub Pages' 100 GB/month, and R2 has no egress fees. The P5 load test targets that host.
 - The site fetches only those files.
 - There is no anon access to PostgREST and no Edge Function in the hot path. If a live query is ever needed, it will be a fixed-parameter RPC behind a CDN that I've confirmed caches it. P0 checks that with the `cf-cache-status` and `Age` headers.
 
@@ -164,9 +186,10 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
 - **Environments:** local (`supabase start`), `staging` (a Supabase project that is also the load-test target), and `prod` (Pro plan with point-in-time recovery, PITR).
 - **Migrations:**
   - live in `supabase/migrations/`;
-  - CI applies them to a fresh `postgres:17` service;
+  - CI's `db` job applies them with `supabase db start` (the Supabase Postgres 17 image, which includes its standard roles) and runs the `pg` tests;
   - `squawk` lints them for table locks;
-  - `supabase db push` runs to staging on merge and to prod by manual dispatch.
+  - The repo's Supabase GitHub integration builds a preview branch per PR and deploys to the linked project `llvjffhwuivwsusovjfg`, which is the **sandbox/staging** project, on merge. Prod will be a separate project, deployed by manual dispatch.
+  - The hosted projects must expose only the `pipeline` schema to the Data API. This is set in the dashboard and matches `[api] schemas` in `supabase/config.toml`.
 - **Retention.** Old yearly partitions are already exported to Parquet and can be removed with `DETACH … CONCURRENTLY`, outside a transaction. Backfill builds a standalone table with a CHECK constraint and then `ATTACH`es it **[R7]**.
 - **Observability:**
   - `pg_stat_statements`;
@@ -174,11 +197,11 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
   - `core.runs` timings added to `provenance.timings`;
   - `daily-eod.yml` alerts if `runs.status` isn't `complete` by 07:00 ET.
 - **Secrets** go in the cloud environment:
-  - `SUPABASE_DB_URL`: the session-pooler DSN for `pipeline_writer`;
-  - `SUPABASE_READER_URL`;
-  - `SUPABASE_URL`;
-  - `SUPABASE_SERVICE_ROLE_KEY`: used for Storage only.
-- **Dependencies.** Add `psycopg[binary]~=3.2` to `pyproject.toml` and `requirements.txt`. Keep `duckdb`.
+  - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`: the pipeline RPCs and Storage over HTTPS (A1);
+  - the Cloudflare R2 credentials, for the public payloads (A4).
+
+  `SUPABASE_DB_URL`, the session-pooler DSN for a `pipeline_writer` login, is used only on dev machines and in admin work.
+- **Dependencies.** `psycopg[binary]~=3.3` is in `pyproject.toml` and `requirements.txt`. `duckdb` stays.
 
 ## Phases and the check that closes each
 
@@ -187,12 +210,64 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
   - Measure bytes per row on 10 archived snapshots.
   - Confirm the CDN caching behaviour.
   - *Passes when:* the connection works, and the projected size at **8k tickers** is ≤ 8 GB/yr **[R13]**.
+  - **Ran 2026-09-26; see `design/p0/FINDINGS.md`.**
+    - **Connection:** raw TCP from the cloud is blocked by the proxy. Publishing and cloud reads move to HTTPS (Data API RPCs).
+    - **Size:** 2.8 GiB/yr at today's ~2.5k rows/day and 8.9 GiB/yr at 8k, once every scalar key is typed.
+    - **CDN:** Pages caches, but its bandwidth cap is the real traffic limit.
+    - Amendments A1–A4 in that file override this plan's direct-connection write path, its ~120-column registry, the pass line above, and hosting public payloads on Pages.
+  - **Passed with amendments A1–A4** (accepted 2026-09-26; Cloudflare chosen for A4). The size check is now the A3 line: ≤ 4 GiB/yr at today's universe (measured 2.8).
 - **P1: Migrations, registry, codec and roles.**
   - *Passes when:* CI applies the migrations cleanly, `squawk` reports nothing, and the codec property tests and registry coverage tests pass.
 - **P2: Write path.**
   - *Passes when:* stability checks 3–6 pass.
+  - **Built 2026-09-26:**
+    - `supabase/migrations/*_publish_rpc.sql` adds `pipeline.stage_chunk` and `pipeline.publish_run`.
+    - `data/db/publish.py` provides the REST and direct transports.
+    - `scripts/db_publish.py` is the CLI.
+    - `run.sh` step `06a-db-publish` is non-blocking. It is skipped when `SUPABASE_URL` is unset and runs as a dry run for SMOKE/DRY_RUN.
+  - **Results:**
+    - A real day (2.5k rows, about 45 chunks) publishes in about 5 s direct and about 11 s over the Data API. Most of that is the 0.2 s request throttle.
+    - The first version took 190 s. Its `(jsonb_populate_record(...)).*` called the function once per column, and `CROSS JOIN LATERAL` fixed it.
+    - `db_fidelity_check.py --published` finds 0 mismatches on REST-published days.
+    - `core.rating_changes` equals a full recompute after publishing in order, publishing out of order, and repairs.
+    - `anon` is refused at the gateway ("permission denied for schema pipeline"), and `core` is not exposed.
+  - **Stability checks:**
+    - **3:** a publisher killed mid-transaction, concurrent publishers, and idempotent republish all pass (`tests/test_db_publish_pg.py`).
+    - **4:** out-of-order publishing and repair pass.
+    - **5:** row-drop refusal, `--force` with its audit, structural errors, and cast-failure gating all pass.
+    - **6:** a connect timeout on a silent server passes, and so does REST retrying only idempotent calls. The reader-side SHA fallback arrives with the readers in P4.
+  - **Moved to P4,** alongside the readers and export they serve:
+    - Storage and Parquet uploads, and `core.snapshot_objects`;
+    - `sync_snapshot_file` deferring or publishing (R2);
+    - `check_snapshot_store.py` becoming the post-publish check;
+    - the `core.screen_skip` upsert.
 - **P3: Backfill the whole archive.**
   - *Passes when:* fidelity and decision parity (stability checks 1–2) hold for every date.
+  - **Built 2026-09-26:**
+    - **`scripts/db_backfill.py`** publishes the archive in date order through the nightly path. It is resumable: `pipeline.list_runs()` (a new RPC) lets it skip dates that are already published and unchanged, which also works over HTTPS. It stops at a refusal unless `--keep-going` is given, and `--force-reason` is audited for each date.
+    - **`scripts/db_parity_check.py`** runs stability checks 1–2 for each date, against a direct connection.
+  - **Local run** against the Supabase Postgres 17 image:
+    - All 92 archived dates (2026-04-20 → 2026-09-25), 195,132 rows. None were refused and none needed `--force`.
+    - **Parity: passed.**
+      - 0 fidelity mismatches: every row rebuilds exactly, and each run's status, `source_sha256`, risk-free rate and meta match.
+      - 0 decision mismatches: re-scoring the rebuilt rows and the file rows with today's `score_and_rate` gives the same rating, raw rating, cap and composite score for every ticker.
+      - The rating change points match exactly: 13,943 from the files and 13,943 in the database.
+      - A deliberately corrupted input (one ticker's `mos`) was caught as a composite-score mismatch, so the check is not vacuous.
+    - **Size:** 885 MB in the database, of which `core.results` is 730 MB (3.9 KB per row with indexes) and edgar blobs are 58 MB (19,931 distinct). That projects to about 2.6 GiB/yr at ~2.5k rows/day, inside the A3 limit.
+  - **Performance fix** (migration `*_publish_run_perf.sql`): during the backfill, one day's publish grew from 4.5 s to 15.8 s.
+    - ANALYZE of all ~370 columns took 8.5 s. It now analyzes only `run_date`, `ticker_id` and `rating`, and autoanalyze covers the rest.
+    - The rating recompute anchored on each ticker's last change point, so a stable ticker rescanned every day since then. It now anchors on the previous rated day, with one index probe.
+    - A republish of the newest date now takes 4.6 s in total, with the same change points. The P5 volume test re-checks this at 20M rows.
+  - **Hosted backfill runbook** (sandbox first, then prod once it exists):
+    1. Apply the migrations. Merging applies them to the sandbox through the GitHub integration; `supabase db push` applies them elsewhere.
+    2. Make a blob-less clone of the archive, like `run.sh` step 02:
+       `git clone --filter=blob:none --depth 1 --no-checkout --single-branch -b data/snapshots <repo> /tmp/snaparch`
+    3. From any machine with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set (HTTPS only, so the cloud container works):
+       `python scripts/db_backfill.py --archive-git /tmp/snaparch --keep-files --work output/archive`
+       It takes about 25 s a date, mostly git fetching each day's blobs. Re-running it is safe.
+    4. From a machine that can reach Postgres directly (the session pooler DSN of a `pipeline_reader` login):
+       `python scripts/db_parity_check.py --results-dir output/archive --dsn "$DSN"`
+       It must report 0 mismatches before P4 switches any reader to the database.
 - **P4: Switch readers, Parquet backtest, public export.**
   - *Passes when:* the parity checks pass and the site renders from the exported files.
 - **P5: Scale tests.**

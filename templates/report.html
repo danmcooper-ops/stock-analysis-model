@@ -2199,6 +2199,11 @@ body.wide-table .container{padding-left:0;padding-right:0;}
                 <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose rating declined vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Downgrades</button>
               </div>
             </div>
+            <div class="filt-col" id="pf-filt-col">
+              <div class="fpop-section-label">Portfolios<span class="pf-sync-badge" id="pf-sync-badge" style="display:none">&#9679;</span></div>
+              <div class="ms-drop pf-filt-opts" id="pf-filt-opts"></div>
+              <div class="pf-filt-actions"><button type="button" class="pf-link" onclick="pfSaveFilterOpen()">Save filter as portfolio&hellip;</button><button type="button" class="pf-link" onclick="pfManageOpen()">Manage&hellip;</button></div>
+            </div>
           </div>
           <div class="fpop-divider"></div>
           <div class="fpop-section-label">Column Filters</div>
@@ -2250,6 +2255,9 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   <div id="view-macro" class="view">
     <div id="macro-view"></div>
   </div>
+  <div id="view-pf" class="view">
+    <div id="pf-view"></div>
+  </div>
 </div>
 <!-- Shared hover tooltip. Lives outside the .view containers because the World
      MoS Map (Financial Model -> Dashboard) and the Sector Heatmap / Profit Pool
@@ -2270,7 +2278,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
            on top, then price·rating·composite. -->
       <div class="d-rating-row"><div class="dpx" id="d-px"></div><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
       <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div></div>
-      <div class="d-mini-nav-actions"><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
+      <div class="d-mini-nav-actions"><span id="d-pf" class="d-pf-btn" onclick="pfDetMenu(event)" role="button" tabindex="0" title="Portfolios"></span><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
     </div>
     <div class="d-body">
       <div id="d-pane-overview" class="d-pane active">
@@ -2328,6 +2336,7 @@ function setTheme(t){
   if(t==='dark'){document.documentElement.setAttribute('data-theme','dark');if(k)k.innerHTML='&#9790;';}
   else{document.documentElement.removeAttribute('data-theme');if(k)k.innerHTML='&#9728;';}
   try{localStorage.setItem(_THEME_KEY,t);}catch(e){}
+  if(typeof _pfOnTheme==='function')_pfOnTheme();
 }
 function toggleTheme(){var cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';setTheme(cur==='dark'?'light':'dark');}
 (function(){var t='light';try{if(localStorage.getItem(_THEME_KEY)==='dark')t='dark';}catch(e){}var k=document.getElementById('tt-knob');if(k)k.innerHTML=(t==='dark'?'&#9790;':'&#9728;');})();
@@ -2809,6 +2818,803 @@ function clearAllReviewed(){if(!Object.keys(_revd).length)return;if(!confirm('Cl
 function _revHtml(tk){var c=isReviewed(tk);return '<span class="rev-chk'+(c?' checked':'')+'" onclick="toggleReviewed(\''+tk.replace(/'/g,"\\'")+'\',event)" title="'+(c?'Reviewed — click to unmark':'Mark as reviewed')+'">'+_CHK_SVG+'</span>';}
 _updateRevCount();
 
+/* === PORTFOLIOS ===
+   Named groupings of tickers — hand-picked, rule-driven, or both; a ticker
+   may sit in any number of them. The source of truth is the committed
+   portfolio/portfolios.json (models/portfolio_groups.py), published here as
+   PF_PUB with membership pre-resolved server-side into each row's d.pf.
+   Edits made in this browser live in localStorage as a working copy
+   ({base_rev, portfolios}) and are published by Export + `scripts/
+   portfolios.py import`. Sync states: clean (no local copy: follow the
+   published file), dirty (local edits on top of the current file), stale
+   (the published file changed since the local edits began).
+   A rule is the Filters panel's own state (ratings/sectors/countries/cf),
+   with min/max on % columns stored as fractions. _pfRuleMatch mirrors
+   rule_matches() in portfolio_groups.py clause for clause — keep them in
+   step (tests/fixtures/portfolio_rule_cases.json pins both). */
+var PF_PUB=(function(){var p={{ portfolios_json|default('null') }};return(p&&Array.isArray(p.portfolios))?p:{rev:null,portfolios:[]};})();
+var _PF_KEY='stock_portfolios_v1';
+/* The dataviz reference categorical palette, validated for CVD and
+   normal-vision separation in both themes. Portfolios store the light step;
+   dark mode draws the same hue's dark step (_pfCol). */
+var _PF_PALETTE=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948'];
+var _PF_DARK={'#2a78d6':'#3987e5','#eb6834':'#d95926','#1baf7a':'#199e70','#eda100':'#c98500','#e87ba4':'#d55181','#008300':'#008300','#4a3aa7':'#9085e9','#e34948':'#e66767'};
+function _pfCol(c){c=c||'#888888';return document.documentElement.getAttribute('data-theme')==='dark'&&_PF_DARK[c]?_PF_DARK[c]:c;}
+function _pfOnTheme(){_pfRenderFilter();_pfSyncDet();if(curView==='pf')renderPfView();else if(typeof applyFilters==='function')applyFilters();}
+var _PF_FIELDS=['id','name','color','description','created','tickers','exclude','rule'];
+var _pfLocal=(function(){try{var v=JSON.parse(localStorage.getItem(_PF_KEY));return(v&&Array.isArray(v.portfolios))?v:null;}catch(e){return null;}})();
+var _pfMem={},_pfById={},_pfTk={},_pfRow={},_pfSel=[],_pfEditingId=null;
+function _pfEsc(s){return(s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function _pfJsArg(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+function _pfClean(p){var o={};_PF_FIELDS.forEach(function(k){o[k]=p[k]===undefined?null:p[k];});o.tickers=(o.tickers||[]).slice().sort();o.exclude=(o.exclude||[]).slice().sort();return o;}
+function _pfCanon(list){return JSON.stringify((list||[]).map(_pfClean));}
+function _pfDefs(){return _pfLocal?_pfLocal.portfolios:PF_PUB.portfolios;}
+function _pfSyncState(){if(!_pfLocal)return'clean';return _pfLocal.base_rev===PF_PUB.rev?'dirty':'stale';}
+function _pfToday(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function _pfSlug(name){var s=String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40).replace(/-+$/,'');return s||'portfolio';}
+function _pfUniqueId(base){var id=base,n=2;while(_pfById[id]){var suf='-'+n++;id=base.slice(0,40-suf.length)+suf;}return id;}
+function _pfNextColor(){var used={};_pfDefs().forEach(function(p){if(p.color)used[p.color]=1;});for(var i=0;i<_PF_PALETTE.length;i++)if(!used[_PF_PALETTE[i]])return _PF_PALETTE[i];return _PF_PALETTE[_pfDefs().length%_PF_PALETTE.length];}
+function _pfRuleMatch(r,d){
+  if(!r||!d)return false;
+  if(r.ratings!=null&&r.ratings.indexOf(d.rating)<0)return false;
+  if(r.sectors!=null&&r.sectors.indexOf(d.sector)<0)return false;
+  if(r.countries!=null&&r.countries.indexOf(d.country)<0)return false;
+  var cf=r.cf||[];
+  for(var i=0;i<cf.length;i++){
+    var c=cf[i];
+    if(c.txt!=null){
+      if(String(d[c.key]==null?'':d[c.key]).toUpperCase().indexOf(String(c.txt).toUpperCase())<0)return false;
+      continue;
+    }
+    var v=_num(d[c.key]);
+    if(v==null)return false;
+    var g='_gate_'+c.key;
+    if(g in d&&_num(d[g])==null)return false;
+    if(c.min!=null&&v<c.min)return false;
+    if(c.max!=null&&v>c.max)return false;
+  }
+  return true;
+}
+/* Rebuild membership. Clean state reads the server-resolved d.pf; with a
+   local working copy every portfolio is re-resolved here against DATA. */
+function _pfRecompute(){
+  _pfMem={};_pfById={};_pfTk={};_pfRow={};
+  DATA.forEach(function(d){_pfTk[d.ticker]=1;_pfRow[d.ticker]=d;});
+  var defs=_pfDefs();
+  defs.forEach(function(p){_pfById[p.id]=p;});
+  if(!_pfLocal){
+    DATA.forEach(function(d){if(d.pf&&d.pf.length)_pfMem[d.ticker]=d.pf.filter(function(id){return _pfById[id];});});
+  }else{
+    var byTk={};DATA.forEach(function(d){byTk[d.ticker]=d;});
+    defs.forEach(function(p){
+      var ex={},set={};
+      (p.exclude||[]).forEach(function(t){ex[t]=1;});
+      (p.tickers||[]).forEach(function(t){if(byTk[t]&&!ex[t])set[t]=1;});
+      if(p.rule)DATA.forEach(function(d){if(!ex[d.ticker]&&_pfRuleMatch(p.rule,d))set[d.ticker]=1;});
+      Object.keys(set).forEach(function(t){(_pfMem[t]=_pfMem[t]||[]).push(p.id);});
+    });
+  }
+  _pfSel=_pfSel.filter(function(id){return _pfById[id];});
+}
+function _pfMembers(id){var out=[];Object.keys(_pfMem).forEach(function(t){if(_pfMem[t].indexOf(id)>=0)out.push(t);});return out.sort();}
+function _pfIsMember(id,tk){var m=_pfMem[tk];return !!(m&&m.indexOf(id)>=0);}
+function _pfPass(d){
+  if(!_pfSel.length)return true;
+  var m=_pfMem[d.ticker];if(!m)return false;
+  for(var i=0;i<m.length;i++)if(_pfSel.indexOf(m[i])>=0)return true;
+  return false;
+}
+function _pfSave(){try{localStorage.setItem(_PF_KEY,JSON.stringify(_pfLocal));}catch(e){}}
+function _pfBeginEdit(){
+  if(!_pfLocal)_pfLocal={base_rev:PF_PUB.rev,portfolios:PF_PUB.portfolios.map(_pfClean)};
+  return _pfLocal.portfolios;
+}
+/* After any mutation: a working copy identical to the published file is
+   dropped (back to clean), so undoing an edit by hand really undoes it. */
+function _pfCommit(){
+  if(_pfLocal&&_pfCanon(_pfLocal.portfolios)===_pfCanon(PF_PUB.portfolios)){
+    _pfLocal=null;try{localStorage.removeItem(_PF_KEY);}catch(e){}
+  }else _pfSave();
+  _pfRefresh();
+}
+function _pfRefresh(){
+  _pfRecompute();_pfRenderFilter();
+  if(typeof applyFilters==='function')applyFilters();
+  _pfSyncDet();
+  if(_pfOverlayOpen())_pfRenderManage();
+  if(curView==='pf')renderPfView();
+}
+function _pfLabel(k){var o=window._CF_OPTS||[];for(var i=0;i<o.length;i++)if(o[i].k===k)return String(o[i].l).replace(/\s*\([^)]*\)$/,'');return k;}
+function _pfRuleSummary(r){
+  if(!r)return'';
+  var parts=[];
+  if(r.ratings!=null)parts.push(r.ratings.length?r.ratings.join(' / '):'no ratings');
+  if(r.sectors!=null)parts.push(r.sectors.length?r.sectors.join(' / '):'no sectors');
+  if(r.countries!=null)parts.push(r.countries.length?r.countries.join(' / '):'no countries');
+  (r.cf||[]).forEach(function(c){
+    var lbl=_pfLabel(c.key);
+    if(c.txt!=null){parts.push(lbl+' contains "'+c.txt+'"');return;}
+    var pct=window._CF_FMT&&_CF_FMT[c.key]==='pct';
+    function f(x){return pct?(Math.round(x*1e4)/1e2)+'%':(Math.abs(x)>=1e9?(x/1e9)+'B':Math.abs(x)>=1e6?(x/1e6)+'M':String(x));}
+    if(c.min!=null&&c.max!=null)parts.push(f(c.min)+' ≤ '+lbl+' ≤ '+f(c.max));
+    else if(c.min!=null)parts.push(lbl+' ≥ '+f(c.min));
+    else parts.push(lbl+' ≤ '+f(c.max));
+  });
+  return parts.join(' · ');
+}
+/* Row marker: up to three colored dots, then "+n". */
+function _pfDots(tk){
+  var m=_pfMem[tk];if(!m||!m.length)return'';
+  var names=m.map(function(id){return _pfById[id]?_pfById[id].name:id;}).join(', ');
+  var h='<span class="pf-dots" title="'+_pfEsc(names)+'">';
+  m.slice(0,3).forEach(function(id){var p=_pfById[id];h+='<span class="pf-dot" style="background:'+_pfEsc(_pfCol(p&&p.color))+'"></span>';});
+  if(m.length>3)h+='<span class="pf-more">+'+(m.length-3)+'</span>';
+  return h+'</span>';
+}
+
+/* --- Filters panel: Portfolios column (OR across the checked ones) --- */
+function _pfRenderFilter(){
+  var el=document.getElementById('pf-filt-opts');if(!el)return;
+  var defs=_pfDefs();
+  if(!defs.length){el.innerHTML='<div class="pf-empty">No portfolios yet.</div>';}
+  else{
+    var h='';
+    defs.forEach(function(p){
+      var n=_pfMembers(p.id).length;
+      h+='<label><input type="checkbox" data-pf="'+_pfEsc(p.id)+'"'+(_pfSel.indexOf(p.id)>=0?' checked':'')
+        +' onchange="pfToggleSel(\''+_pfJsArg(p.id)+'\')"><span class="pf-dot" style="background:'+_pfEsc(_pfCol(p.color))+'"></span>'
+        +_pfEsc(p.name)+' <span class="pf-n">'+n+'</span></label>';
+    });
+    el.innerHTML=h;
+  }
+  var st=_pfSyncState(),b=document.getElementById('pf-sync-badge');
+  if(b){b.style.display=st==='clean'?'none':'';b.title=st==='stale'?'Local edits are based on an older published portfolio file':'Unpublished local edits — open Manage to export';}
+}
+function pfToggleSel(id){
+  var i=_pfSel.indexOf(id);
+  if(i>=0)_pfSel.splice(i,1);else _pfSel.push(id);
+  applyFilters();
+}
+function pfShowOnly(id){
+  _pfSel=[id];_pfRenderFilter();pfManageClose();
+  /* Only the table views are filtered by it; land on one. */
+  applyFilters();
+  if(curView!=='table'&&curView!=='matrix'){if(curTSub==='prices')curTSub='val';showView('table');}
+}
+
+/* --- Detail popup: membership menu --- */
+function _pfDetTk(){var el=document.getElementById('d-tk');return el?el.textContent:'';}
+function _pfSyncDet(){
+  var el=document.getElementById('d-pf');if(!el)return;
+  var tk=_pfDetTk();
+  var m=_pfMem[tk]||[];
+  el.innerHTML='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5.5h5l1.5 2h8.5v8.5h-15z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>'
+    +(m.length?'<span class="pf-det-n">'+m.length+'</span>':'');
+  el.title=m.length?'In: '+m.map(function(id){return _pfById[id]?_pfById[id].name:id;}).join(', '):'Add to a portfolio';
+  el.classList.toggle('on',m.length>0);
+  var pop=document.getElementById('pf-pop');
+  if(pop&&pop.classList.contains('open'))_pfRenderPop();
+}
+function _pfRenderPop(){
+  var pop=document.getElementById('pf-pop'),tk=_pfDetTk();
+  var d=null;for(var i=0;i<DATA.length;i++)if(DATA[i].ticker===tk){d=DATA[i];break;}
+  var h='<div class="pf-pop-h">Portfolios — '+_pfEsc(tk)+'</div>';
+  _pfDefs().forEach(function(p){
+    var on=_pfIsMember(p.id,tk);
+    var viaRule=on&&p.rule&&(p.tickers||[]).indexOf(tk)<0;
+    h+='<label class="pf-pop-row"><input type="checkbox"'+(on?' checked':'')+' onchange="pfDetToggle(\''+_pfJsArg(p.id)+'\',this.checked)">'
+      +'<span class="pf-dot" style="background:'+_pfEsc(_pfCol(p.color))+'"></span><span class="pf-pop-name">'+_pfEsc(p.name)+'</span>'
+      +(viaRule?'<span class="pf-tag" title="Member because it matches the rule; unchecking excludes it">rule</span>':'')+'</label>';
+  });
+  if(!_pfDefs().length)h+='<div class="pf-empty">No portfolios yet.</div>';
+  h+='<button class="pf-link" onclick="pfNewWithTicker()">+ New portfolio with '+_pfEsc(tk)+'…</button>';
+  h+='<button class="pf-link" onclick="pfManageOpen()">Manage portfolios…</button>';
+  pop.innerHTML=h;
+}
+function pfDetMenu(e){
+  if(e)e.stopPropagation();
+  var pop=document.getElementById('pf-pop'),btn=document.getElementById('d-pf');
+  if(!pop||!btn)return;
+  if(pop.classList.contains('open')){pfPopClose();return;}
+  _pfRenderPop();
+  pop.classList.add('open');
+  var r=btn.getBoundingClientRect(),w=Math.min(280,window.innerWidth-16);
+  pop.style.width=w+'px';
+  pop.style.left=Math.max(8,Math.min(r.right-w,window.innerWidth-w-8))+'px';
+  pop.style.top=(r.bottom+6)+'px';
+}
+function pfPopClose(){var pop=document.getElementById('pf-pop');if(pop)pop.classList.remove('open');}
+function pfDetToggle(id,checked){
+  var tk=_pfDetTk();if(!tk)return;
+  var list=_pfBeginEdit(),p=null;
+  for(var i=0;i<list.length;i++)if(list[i].id===id){p=list[i];break;}
+  if(!p)return;
+  var d=null;for(var j=0;j<DATA.length;j++)if(DATA[j].ticker===tk){d=DATA[j];break;}
+  p.tickers=p.tickers||[];p.exclude=p.exclude||[];
+  if(checked){
+    p.exclude=p.exclude.filter(function(t){return t!==tk;});
+    /* Re-admitted by its rule? Then leave it rule-driven. */
+    if(!(p.rule&&_pfRuleMatch(p.rule,d))&&p.tickers.indexOf(tk)<0)p.tickers.push(tk);
+  }else{
+    p.tickers=p.tickers.filter(function(t){return t!==tk;});
+    if(p.rule&&_pfRuleMatch(p.rule,d)&&p.exclude.indexOf(tk)<0)p.exclude.push(tk);
+  }
+  _pfCommit();
+}
+function _pfCreate(fields){
+  var list=_pfBeginEdit();
+  _pfById={};list.forEach(function(p){_pfById[p.id]=p;});
+  var p={id:_pfUniqueId(_pfSlug(fields.name)),name:fields.name,color:fields.color||_pfNextColor(),
+         description:fields.description||'',created:_pfToday(),
+         tickers:(fields.tickers||[]).slice(),exclude:[],rule:fields.rule||null};
+  list.push(p);
+  return p;
+}
+function pfNewWithTicker(){
+  var tk=_pfDetTk();
+  var name=prompt('Name for the new portfolio:');
+  if(!name||!name.trim())return;
+  _pfCreate({name:name.trim(),tickers:tk?[tk]:[]});
+  _pfCommit();
+}
+
+/* --- Save the current filter as a portfolio --- */
+function _pfRuleFromFilters(){
+  var st=_getCurrentFilterState();
+  var r={ratings:st.ratings||null,sectors:st.sectors||null,countries:st.countries||null,cf:[]};
+  (st.colFilters||[]).forEach(function(c){
+    if(c.txt!=null){r.cf.push({key:c.key,txt:String(c.txt).toUpperCase()});return;}
+    var pct=_CF_FMT[c.key]==='pct';
+    function conv(x){return x==null?null:(pct?Math.round(x*1e6)/1e8:x);}
+    r.cf.push({key:c.key,min:conv(c.min),max:conv(c.max)});
+  });
+  var ignored=[];
+  if(st.search)ignored.push('search');
+  if(st.flagOnly)ignored.push('Flagged');if(st.founderOnly)ignored.push('Founder-Led');
+  if(st.blueChipOnly)ignored.push('Blue Chip');if(st.r2000Only)ignored.push('Russell 2000');
+  if(st.revFilter)ignored.push('Reviewed');if(st.rcFilter)ignored.push('Upgrades/Downgrades');
+  if(st.dashFilter)ignored.push('dashboard drill-down');if(_pfSel.length)ignored.push('Portfolios');
+  var empty=r.ratings==null&&r.sectors==null&&r.countries==null&&!r.cf.length;
+  return{rule:empty?null:r,ignored:ignored};
+}
+function pfSaveFilterOpen(){
+  closeFiltMenu();
+  var info=_pfRuleFromFilters(),nRule=0;
+  if(info.rule)DATA.forEach(function(d){if(_pfRuleMatch(info.rule,d))nRule++;});
+  var shown=(FD||[]).length;
+  var ed=_pfEditingId&&_pfById[_pfEditingId];
+  var h='<div class="pf-form">'
+    +'<label class="pf-fl">Name<input type="text" id="pf-sf-name" value="'+_pfEsc(ed?ed.name:'')+'" placeholder="e.g. Energy BUYs"></label>'
+    +'<label class="pf-radio"><input type="radio" name="pf-sf-mode" value="rule"'+(info.rule?' checked':' disabled')+'>'
+    +'<span><b>Rule</b> — re-evaluated every run; '+nRule+' stock'+(nRule===1?'':'s')+' match today'
+    +(info.rule?'<br><span class="pf-muted">'+_pfEsc(_pfRuleSummary(info.rule))+'</span>':'<br><span class="pf-muted">Set a rating, sector, country or column filter to save a rule.</span>')+'</span></label>'
+    +'<label class="pf-radio"><input type="radio" name="pf-sf-mode" value="list"'+(info.rule?'':' checked')+'>'
+    +'<span><b>Fixed list</b> — the '+shown+' stock'+(shown===1?'':'s')+' shown now</span></label>'
+    +(info.ignored.length?'<div class="pf-note">Not part of a rule: '+_pfEsc(info.ignored.join(', '))+'. They still narrow the fixed list.</div>':'')
+    +(ed?'<label class="pf-check"><input type="checkbox" id="pf-sf-update" checked> Update “'+_pfEsc(ed.name)+'” instead of creating a new portfolio</label>':'')
+    +'<div class="pf-actions"><button class="pf-btn" onclick="pfManageClose()">Cancel</button><button class="pf-btn pf-primary" onclick="pfSaveFilterDo()">Save</button></div></div>';
+  _pfOverlayShow('Save filter as portfolio',h);
+  var n=document.getElementById('pf-sf-name');if(n)n.focus();
+}
+function pfSaveFilterDo(){
+  var name=(document.getElementById('pf-sf-name').value||'').trim();
+  var mode=(document.querySelector('input[name="pf-sf-mode"]:checked')||{}).value;
+  var upd=document.getElementById('pf-sf-update');
+  var info=_pfRuleFromFilters();
+  if(!name){alert('Give the portfolio a name.');return;}
+  if(mode==='rule'&&!info.rule)return;
+  var tickers=mode==='list'?(FD||[]).map(function(d){return d.ticker;}):[];
+  var rule=mode==='rule'?info.rule:null;
+  if(upd&&upd.checked&&_pfEditingId){
+    var list=_pfBeginEdit();
+    list.forEach(function(p){if(p.id===_pfEditingId){p.name=name;p.rule=rule;if(mode==='list'){p.tickers=tickers;p.exclude=[];}}});
+  }else{
+    _pfCreate({name:name,tickers:tickers,rule:rule});
+  }
+  _pfEditingId=null;
+  pfManageClose();
+  _pfCommit();
+}
+/* Load a rule portfolio's rule into the Filters panel for tweaking; the
+   next "Save filter as portfolio" offers to update it in place. */
+function pfEditRule(id){
+  var p=_pfById[id];if(!p||!p.rule)return;
+  var r=p.rule;
+  /* A rule written by the CLI can use a row field the Filters panel has no
+     column for; loading it here would silently drop that clause on save. */
+  var lost=(r.cf||[]).filter(function(c){return !(window._CF_FMT&&(c.key in _CF_FMT));}).map(function(c){return c.key;});
+  if(lost.length&&!confirm('This rule also uses '+lost.join(', ')+', which the Filters panel has no column for. Editing it here would drop '+(lost.length>1?'those conditions':'that condition')+' when you save.\n\nContinue?'))return;
+  var cf=(r.cf||[]).filter(function(c){return window._CF_FMT&&(c.key in _CF_FMT);}).map(function(c){
+    if(c.txt!=null)return{key:c.key,txt:c.txt};
+    var pct=_CF_FMT[c.key]==='pct';
+    function conv(x){return x==null?null:(pct?Math.round(x*1e8)/1e6:x);}
+    return{key:c.key,min:conv(c.min),max:conv(c.max)};
+  });
+  _pfSel=[];
+  _applyFilterState({ratings:r.ratings||undefined,sectors:r.sectors||undefined,countries:r.countries||undefined,colFilters:cf});
+  _pfEditingId=id;
+  pfManageClose();
+  toggleFiltMenu(null);
+}
+
+/* --- Manage dialog --- */
+function _pfOverlayOpen(){var o=document.getElementById('pf-overlay');return!!(o&&o.classList.contains('open'));}
+function _pfOverlayShow(title,html){
+  var o=document.getElementById('pf-overlay');if(!o)return;
+  document.getElementById('pf-ov-title').textContent=title;
+  document.getElementById('pf-ov-body').innerHTML=html;
+  o.classList.add('open');o.dataset.mode=title==='Portfolios'?'manage':'form';
+}
+function pfManageClose(){var o=document.getElementById('pf-overlay');if(o)o.classList.remove('open');}
+function pfManageOpen(){
+  closeFiltMenu();pfPopClose();
+  _pfOverlayShow('Portfolios','');
+  _pfRenderManage();
+}
+function _pfRenderManage(){
+  var o=document.getElementById('pf-overlay');if(!o||o.dataset.mode!=='manage')return;
+  var st=_pfSyncState(),h='';
+  var msg={clean:'Showing the published portfolio file. Changes you make here are saved in this browser until you export them.',
+           dirty:'You have unpublished changes in this browser. Export them and run <code>scripts/portfolios.py import &lt;file&gt;</code> to publish.',
+           stale:'The published portfolio file changed after you started editing here. Export, then <code>portfolios.py import &lt;file&gt; --dry-run</code> to review before importing.'}[st];
+  if(PF_PUB.error)h+='<div class="pf-sync pf-sync-stale">The published portfolio file could not be read, so none are shown: '+_pfEsc(PF_PUB.error)+'</div>';
+  h+='<div class="pf-sync pf-sync-'+st+'">'+msg+(st!=='clean'?' <button class="pf-link" onclick="pfDiscardLocal()">Discard local changes</button>':'')+'</div>';
+  var defs=_pfDefs();
+  if(!defs.length)h+='<div class="pf-empty">No portfolios yet. Create one below, or filter the table and use <b>Save filter as portfolio</b>.</div>';
+  defs.forEach(function(p){
+    var id=_pfJsArg(p.id),n=_pfMembers(p.id).length,missL=(p.tickers||[]).filter(function(t){return !_pfTk[t];}),miss=missL.length;
+    h+='<div class="pf-row">'
+      +'<input type="color" class="pf-color" value="'+_pfEsc(p.color||'#888888')+'" onchange="pfSetField(\''+id+'\',\'color\',this.value)" title="Color">'
+      +'<div class="pf-row-main"><input type="text" class="pf-name" value="'+_pfEsc(p.name)+'" onchange="pfSetField(\''+id+'\',\'name\',this.value)" aria-label="Name">'
+      +'<div class="pf-muted">'+n+' stock'+(n===1?'':'s')
+      +((p.tickers||[]).length?' · '+p.tickers.length+' picked':'')
+      +(p.rule?' · rule: '+_pfEsc(_pfRuleSummary(p.rule)):'')
+      +((p.exclude||[]).length?' · excludes '+_pfEsc(p.exclude.join(', ')):'')
+      +(miss?' · <span title="'+_pfEsc(missL.join(', '))+'">'+miss+' not in today’s universe</span>':'')+'</div></div>'
+      +'<div class="pf-row-btns"><button class="pf-btn" onclick="pfShowOnly(\''+id+'\')">Show</button>'
+      +(p.rule?'<button class="pf-btn" onclick="pfEditRule(\''+id+'\')">Edit rule</button>':'')
+      +'<button class="pf-btn" onclick="pfShare(\''+id+'\')">Share link</button>'
+      +'<button class="pf-btn pf-danger" onclick="pfDelete(\''+id+'\')">Delete</button></div></div>';
+  });
+  var nf=Object.keys(_flags||{}).length;
+  h+='<div class="pf-actions pf-actions-l">'
+    +'<button class="pf-btn" onclick="pfNewEmpty()">+ New portfolio</button>'
+    +'<button class="pf-btn" onclick="pfFromFlags()"'+(nf?'':' disabled')+'>From ⚑ flagged ('+nf+')</button>'
+    +'<span class="pf-spacer"></span>'
+    +'<button class="pf-btn" onclick="pfImportPick()">Import…</button>'
+    +'<button class="pf-btn pf-primary" onclick="pfExport()"'+(defs.length||st!=='clean'?'':' disabled')+'>Export</button></div>'
+    +'<input type="file" id="pf-import-file" accept=".json,application/json" style="display:none" onchange="pfImportFile(this)">';
+  document.getElementById('pf-ov-body').innerHTML=h;
+}
+function pfSetField(id,field,val){
+  if(field==='name'&&!String(val).trim()){_pfRenderManage();return;}
+  var list=_pfBeginEdit();
+  list.forEach(function(p){if(p.id===id)p[field]=field==='name'?String(val).trim():val;});
+  _pfCommit();
+}
+function pfDelete(id){
+  var p=_pfById[id];if(!p)return;
+  if(!confirm('Delete the portfolio “'+p.name+'”?'))return;
+  var list=_pfBeginEdit();
+  _pfLocal.portfolios=list.filter(function(q){return q.id!==id;});
+  _pfCommit();
+}
+function pfNewEmpty(){
+  var name=prompt('Name for the new portfolio:');
+  if(!name||!name.trim())return;
+  _pfCreate({name:name.trim()});
+  _pfCommit();
+}
+function pfFromFlags(){
+  var tks=Object.keys(_flags||{}).filter(function(t){return _flags[t];});
+  if(!tks.length)return;
+  var name=prompt('Name for a portfolio of your '+tks.length+' flagged stocks:','Flagged');
+  if(!name||!name.trim())return;
+  _pfCreate({name:name.trim(),tickers:tks});
+  _pfCommit();
+}
+function pfDiscardLocal(){
+  if(!confirm('Discard every portfolio change made in this browser and go back to the published file?'))return;
+  _pfLocal=null;try{localStorage.removeItem(_PF_KEY);}catch(e){}
+  _pfRefresh();
+}
+function pfExport(){
+  var doc={version:1,base_rev:_pfLocal?_pfLocal.base_rev:PF_PUB.rev,exported:new Date().toISOString(),
+           portfolios:_pfDefs().map(_pfClean)};
+  var blob=new Blob([JSON.stringify(doc,null,2)+'\n'],{type:'application/json'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='portfolios.json';
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);
+}
+function pfImportPick(){var f=document.getElementById('pf-import-file');if(f)f.click();}
+function pfImportFile(inp){
+  var f=inp.files&&inp.files[0];if(!f)return;
+  var rd=new FileReader();
+  rd.onload=function(){
+    var doc;try{doc=JSON.parse(rd.result);}catch(e){alert('That file is not valid JSON.');return;}
+    var inc=doc&&Array.isArray(doc.portfolios)?doc.portfolios:(doc&&doc.id?[doc]:null);
+    if(!inc){alert('No portfolios found in that file.');return;}
+    _pfAddIncoming(inc);
+  };
+  rd.readAsText(f);inp.value='';
+}
+/* Merge incoming portfolios into the working copy: new ids are added; an
+   id that exists with different content asks whether to replace it, and
+   otherwise lands as a copy under a fresh id. */
+function _pfAddIncoming(inc){
+  var list=_pfBeginEdit(),added=0,replaced=0;
+  inc.forEach(function(raw){
+    if(!raw||!raw.id||!raw.name)return;
+    var p=_pfClean(raw);
+    if(p.color&&!/^#[0-9a-f]{6}$/i.test(p.color))p.color=null;
+    var idx=-1;for(var i=0;i<list.length;i++)if(list[i].id===p.id){idx=i;break;}
+    if(idx>=0){
+      if(_pfCanon([list[idx]])===_pfCanon([p]))return;
+      if(confirm('A portfolio “'+list[idx].name+'” ('+p.id+') already exists here. Replace it with the imported version?\n\nCancel keeps both.')){list[idx]=p;replaced++;return;}
+      _pfById={};list.forEach(function(q){_pfById[q.id]=q;});
+      p.id=_pfUniqueId(p.id);p.name=p.name+' (imported)';
+    }
+    if(!p.color)p.color=_pfNextColor();
+    list.push(p);added++;
+  });
+  _pfCommit();
+  if(added||replaced)alert('Imported: '+added+' added'+(replaced?', '+replaced+' replaced':'')+'. Export to publish them.');
+}
+function _pfB64Enc(s){return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function _pfB64Dec(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return decodeURIComponent(escape(atob(s)));}
+function pfShare(id){
+  var p=_pfById[id];if(!p)return;
+  var url=location.href.split('#')[0]+'#pf='+_pfB64Enc(JSON.stringify(_pfClean(p)));
+  function done(){alert('Share link for “'+p.name+'” copied. Opening it in any browser offers to add the portfolio.');}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,function(){prompt('Copy this link:',url);});
+  else prompt('Copy this link:',url);
+}
+/* Opening a #pf= share link: offer to add the portfolio, then drop the
+   hash so a reload doesn't ask again. */
+function _pfConsumeShareHash(){
+  var h=location.hash||'';
+  if(h.indexOf('#pf=')!==0)return;
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+  var p;try{p=JSON.parse(_pfB64Dec(h.slice(4)));}catch(e){return;}
+  if(!p||!p.id||!p.name)return;
+  var n=((p.tickers||[]).length),r=p.rule?' + a rule ('+_pfRuleSummary(p.rule)+')':'';
+  if(!confirm('Add the shared portfolio “'+p.name+'” to this browser?\n\n'+n+' picked stock'+(n===1?'':'s')+r))return;
+  _pfAddIncoming([p]);
+}
+/* --- Portfolios view (curView 'pf'): an overview of cards, then one page
+   per portfolio (curPfSub = its id). Stats are computed here from DATA, so
+   they follow browser edits; alerts come from PF_PUB — per-ticker changes
+   (rating moves, score drops) for the whole universe, attributed through
+   today's membership, and joined/left events that exist only for published
+   definitions (they need the prior run's rows), so a portfolio edited in
+   this browser shows them only while its definition still matches. --- */
+var curPfSub='overview';
+var _PF_SEV={HIGH:0,MEDIUM:1,LOW:2};
+function _pfPubUnchanged(id){
+  if(!_pfLocal)return true;
+  var a=null,b=null;
+  PF_PUB.portfolios.forEach(function(p){if(p.id===id)a=p;});
+  _pfLocal.portfolios.forEach(function(p){if(p.id===id)b=p;});
+  return !!(a&&b&&_pfCanon([a])===_pfCanon([b]));
+}
+function _pfAlertsFor(id){
+  var out=[];
+  (PF_PUB.changes||[]).forEach(function(a){if(_pfIsMember(id,a.ticker))out.push(a);});
+  if(_pfPubUnchanged(id))(PF_PUB.events||[]).forEach(function(e){if(e.portfolio===id)out.push(e);});
+  out.sort(function(x,y){return(_PF_SEV[x.severity]-_PF_SEV[y.severity])||(x.ticker<y.ticker?-1:x.ticker>y.ticker?1:0);});
+  return out;
+}
+function _pfMedian(a){a=a.filter(function(v){return v!=null;}).sort(function(x,y){return x-y;});if(!a.length)return null;var m=a.length>>1;return a.length%2?a[m]:(a[m-1]+a[m])/2;}
+function _pfStats(id){
+  var rows=_pfMembers(id).map(function(t){return _pfRow[t];}).filter(Boolean);
+  var mix={'BUY':0,'LEAN BUY':0,'HOLD':0,'PASS':0},sec={},up=0,down=0;
+  rows.forEach(function(d){
+    if(d.rating in mix)mix[d.rating]++;
+    var s=d.sector||'Unknown';sec[s]=(sec[s]||0)+1;
+    if(d.rating_chg>0)up++;else if(d.rating_chg<0)down++;
+  });
+  var n=rows.length,secs=Object.keys(sec).sort(function(a,b){return sec[b]-sec[a];}),hhi=0;
+  secs.forEach(function(s){var w=sec[s]/n;hhi+=w*w;});
+  var top=secs[0]||null,topW=n?sec[top]/n:0;
+  return{n:n,mix:mix,up:up,down:down,sectors:secs.map(function(s){return{s:s,w:sec[s]/n,c:sec[s]};}),
+    top:top,topW:topW,hhi:hhi,concentrated:n>1&&(topW>0.4||hhi>0.25),
+    mos:_pfMedian(rows.map(function(d){return _num(d.mos);})),
+    score:_pfMedian(rows.map(function(d){return _num(d._composite_score);})),
+    spread:_pfMedian(rows.map(function(d){return _num(d.spread);}))};
+}
+function _pfPct(v,sign){if(v==null)return'—';var s=(v*100).toFixed(0)+'%';return sign&&v>0?'+'+s:s;}
+function _pfMixBar(st){
+  if(!st.n)return'<div class="pfv-mix pfv-mix-empty"></div>';
+  var h='<div class="pfv-mix" title="'+_pfEsc(Object.keys(st.mix).map(function(r){return r+' '+st.mix[r];}).join(' · '))+'">';
+  Object.keys(st.mix).forEach(function(r){if(st.mix[r])h+='<span style="width:'+(100*st.mix[r]/st.n)+'%;background:'+RC[r]+'"></span>';});
+  var other=st.n-Object.keys(st.mix).reduce(function(s,r){return s+st.mix[r];},0);
+  if(other)h+='<span style="width:'+(100*other/st.n)+'%;background:#999"></span>';
+  return h+'</div>';
+}
+function _pfKpis(st){
+  function k(l,v,cls){return'<div class="pfv-kpi"><div class="pfv-kpi-l">'+l+'</div><div class="pfv-kpi-v'+(cls?' '+cls:'')+'">'+v+'</div></div>';}
+  function tone(v){return v==null?'':v>0?'pos':v<0?'neg':'';}
+  return'<div class="pfv-kpis">'
+    +k('Median MoS',_pfPct(st.mos,true),tone(st.mos))
+    +k('Median score',st.score==null?'—':Math.round(st.score))
+    +k('ROIC−WACC',_pfPct(st.spread,true),tone(st.spread))
+    +'</div>'
+    +(st.top?'<div class="pfv-top">Top sector <b>'+_pfEsc(st.top)+'</b> '+_pfPct(st.topW)
+      +(st.concentrated?' <span class="warn" title="Top sector over 40% or sector HHI over 0.25">· concentrated</span>':'')+'</div>':'');
+}
+function _pfAlertRow(a,showPf){
+  var t=_pfJsArg(a.ticker);
+  var pfs='';
+  if(showPf){(_pfMem[a.ticker]||(a.portfolio?[a.portfolio]:[])).forEach(function(id){var p=_pfById[id];if(p)pfs+='<span class="pf-dot" title="'+_pfEsc(p.name)+'" style="background:'+_pfEsc(_pfCol(p.color))+'"></span>';});}
+  return'<div class="pfv-alert"><span class="pfv-sev pfv-sev-'+_pfEsc(String(a.severity).toLowerCase())+'">'+_pfEsc(a.severity)+'</span>'
+    +'<span class="tk-link" onclick="openDet(\''+t+'\')">'+_pfEsc(a.ticker)+'</span>'
+    +'<span class="pfv-alert-msg">'+_pfEsc(String(a.message||'').indexOf(a.ticker+' ')===0?a.message.slice(a.ticker.length+1):a.message)+'</span>'+(pfs?'<span class="pfv-alert-pf">'+pfs+'</span>':'')+'</div>';
+}
+function _pfSyncNote(){
+  var st=_pfSyncState();
+  if(st==='clean')return'';
+  return'<div class="pf-sync pf-sync-'+st+'">'+(st==='stale'?'The published portfolio file changed after you started editing here.':'Showing this browser’s unpublished edits.')
+    +' <button class="pf-link" onclick="pfManageOpen()">Manage / export…</button></div>';
+}
+function renderPfView(){
+  var el=document.getElementById('pf-view');if(!el)return;
+  if(curPfSub!=='overview'&&!_pfById[curPfSub])curPfSub='overview';
+  el.innerHTML=curPfSub==='overview'?_pfOverviewHtml():_pfDetailHtml(curPfSub);
+  if(curPfSub!=='overview')_pfDrawChart();
+}
+var _pfResizeT=null;
+window.addEventListener('resize',function(){
+  if(curView!=='pf'||curPfSub==='overview')return;
+  clearTimeout(_pfResizeT);_pfResizeT=setTimeout(_pfDrawChart,150);
+});
+function _pfOverviewHtml(){
+  var defs=_pfDefs();
+  var h='<div class="pfv"><div class="pfv-head"><h2>Portfolios</h2>'
+    +(PF_PUB.prev_date?'<span class="pfv-sub">changes vs '+_pfEsc(PF_PUB.prev_date)+'</span>':'')
+    +'<span class="pf-spacer"></span><button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSyncNote();
+  if(!defs.length){
+    return h+'<div class="pfv-empty"><p><b>No portfolios yet.</b> A portfolio is a named group of stocks — picked by hand, defined by a rule, or both — and a stock can be in as many as you like.</p>'
+      +'<p>Filter the Financial Data table and choose <b>Save filter as portfolio</b> in the Filters panel, add a stock from its popup (the folder button), or start one here.</p>'
+      +'<button class="pf-btn pf-primary" onclick="pfNewEmpty()">+ New portfolio</button></div></div>';
+  }
+  h+='<div class="pfv-grid">';
+  defs.forEach(function(p){
+    var st=_pfStats(p.id),al=_pfAlertsFor(p.id),id=_pfJsArg(p.id);
+    var hi=al.filter(function(a){return a.severity!=='LOW';}).length;
+    var joined=al.filter(function(a){return a.alert_type==='joined';}).length,
+        left=al.filter(function(a){return a.alert_type==='left'||a.alert_type==='dropped_out';}).length;
+    var kind=p.rule?((p.tickers||[]).length?'Rule + '+p.tickers.length+' picked':'Rule'):'Hand-picked';
+    h+='<div class="pfv-card" style="--pf:'+_pfEsc(_pfCol(p.color))+'" role="button" tabindex="0" onclick="navGo(\'pf\',\''+id+'\')" onkeydown="if(event.key===\'Enter\')navGo(\'pf\',\''+id+'\')">'
+      +'<div class="pfv-card-h"><span class="pfv-name">'+_pfEsc(p.name)+'</span>'
+      +(al.length?'<span class="pfv-badge'+(hi?' hot':'')+'" title="'+al.length+' alert(s) today">'+al.length+'</span>':'')+'</div>'
+      +'<div class="pfv-meta">'+st.n+' stock'+(st.n===1?'':'s')+' · '+_pfEsc(kind)+'</div>'
+      +(p.rule?'<div class="pfv-rule">'+_pfEsc(_pfRuleSummary(p.rule))+'</div>':'')
+      +_pfMixBar(st)+_pfKpis(st)
+      +'<div class="pfv-perf">'+_pfSpark(p.id,p.color)+_pfPerfLine(p.id)+'</div>'
+      +'<div class="pfv-foot">'+(PF_PUB.prev_date?'Today: <span class="pos">▲'+st.up+'</span> <span class="neg">▼'+st.down+'</span>'
+        +(joined?' · +'+joined+' joined':'')+(left?' · −'+left+' left':''):'No prior run to compare')+'</div></div>';
+  });
+  h+='</div>';
+  var all={},list=[];
+  defs.forEach(function(p){_pfAlertsFor(p.id).forEach(function(a){var key=a.alert_type+'|'+a.ticker+'|'+(a.portfolio||'');if(!all[key]){all[key]=1;list.push(a);}});});
+  list.sort(function(x,y){return(_PF_SEV[x.severity]-_PF_SEV[y.severity])||(x.ticker<y.ticker?-1:1);});
+  h+='<h3 class="pfv-h3">Alerts'+(list.length?' <span class="pfv-count">'+list.length+'</span>':'')+'</h3>';
+  h+=list.length?'<div class="pfv-alerts">'+list.map(function(a){return _pfAlertRow(a,true);}).join('')+'</div>'
+    :'<div class="pf-empty">'+(PF_PUB.prev_date?'No rating changes, score drops or membership changes in your portfolios today.':'No prior run to compare against.')+'</div>';
+  return h+'</div>';
+}
+function _pfDetailHtml(id){
+  var p=_pfById[id],st=_pfStats(id),al=_pfAlertsFor(id),jid=_pfJsArg(id);
+  var picked={};(p.tickers||[]).forEach(function(t){picked[t]=1;});
+  var miss=(p.tickers||[]).filter(function(t){return !_pfTk[t];});
+  var h='<div class="pfv"><button class="pf-link pfv-back" onclick="navGo(\'pf\',\'overview\')">← All portfolios</button>'
+    +'<div class="pfv-head pfv-detail-head" style="--pf:'+_pfEsc(_pfCol(p.color))+'"><span class="pfv-swatch"></span><h2>'+_pfEsc(p.name)+'</h2>'
+    +'<span class="pf-spacer"></span>'
+    +'<button class="pf-btn pf-primary" onclick="pfShowOnly(\''+jid+'\')">Open in table</button>'
+    +(p.rule?'<button class="pf-btn" onclick="pfEditRule(\''+jid+'\')">Edit rule</button>':'')
+    +'<button class="pf-btn" onclick="pfShare(\''+jid+'\')">Share link</button>'
+    +'<button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSyncNote()
+    +(p.description?'<p class="pfv-desc">'+_pfEsc(p.description)+'</p>':'')
+    +'<div class="pfv-meta">'+st.n+' stock'+(st.n===1?'':'s')
+    +((p.tickers||[]).length?' · '+p.tickers.length+' picked':'')
+    +(p.rule?' · rule: '+_pfEsc(_pfRuleSummary(p.rule)):'')
+    +((p.exclude||[]).length?' · excludes '+_pfEsc(p.exclude.join(', ')):'')
+    +(miss.length?' · not in today’s universe: '+_pfEsc(miss.join(', ')):'')
+    +' · created '+_pfEsc(p.created||'')+'</div>'
+    +'<div class="pfv-detail-grid"><div class="pfv-panel">'+_pfMixBar(st)
+    +'<div class="pfv-legend">'+Object.keys(st.mix).map(function(r){return'<span><i style="background:'+RC[r]+'"></i>'+r+' '+st.mix[r]+'</span>';}).join('')+'</div>'
+    +_pfKpis(st)+'</div>'
+    +'<div class="pfv-panel"><div class="pfv-kpi-l">Sectors (equal weight)'+(st.concentrated?' — <span class="warn">concentrated</span>':'')+'</div>'
+    +st.sectors.slice(0,8).map(function(s){return'<div class="pfv-sec"><span class="pfv-sec-l">'+_pfEsc(s.s)+'</span><span class="pfv-sec-bar"><span style="width:'+(100*s.w)+'%"></span></span><span class="pfv-sec-v">'+s.c+'</span></div>';}).join('')
+    +(st.sectors.length>8?'<div class="pf-muted">+'+(st.sectors.length-8)+' more</div>':'')+'</div></div>';
+  h+='<h3 class="pfv-h3">Performance</h3><div class="pfv-panel pfc-panel">'+_pfChartHtml(id)+'</div>';
+  h+='<h3 class="pfv-h3">Alerts'+(al.length?' <span class="pfv-count">'+al.length+'</span>':'')+'</h3>'
+    +(al.length?'<div class="pfv-alerts">'+al.map(function(a){return _pfAlertRow(a,false);}).join('')+'</div>'
+      :'<div class="pf-empty">'+(PF_PUB.prev_date?'Nothing changed for these stocks since '+_pfEsc(PF_PUB.prev_date)+'.':'No prior run to compare against.')+'</div>');
+  var rows=_pfMembers(id).map(function(t){return _pfRow[t];}).filter(Boolean);
+  rows.sort(function(a,b){return(_num(b._composite_score)||-1)-(_num(a._composite_score)||-1);});
+  h+='<h3 class="pfv-h3">Members</h3><div class="pfv-tbl-wrap"><table class="pfv-tbl"><thead><tr><th>Ticker</th><th>Company</th><th>Rating</th><th>Prior</th><th class="r">MoS</th><th class="r">Score</th><th class="r">ROIC−WACC</th><th>Sector</th><th>Via</th></tr></thead><tbody>';
+  rows.forEach(function(d){
+    var t=_pfJsArg(d.ticker),via=picked[d.ticker]?(p.rule&&_pfRuleMatch(p.rule,d)?'both':'pick'):'rule';
+    var mos=_num(d.mos),sp=_num(d.spread);
+    h+='<tr><td><span class="tk-link" onclick="openDet(\''+t+'\')">'+_pfEsc(d.ticker)+'</span></td>'
+      +'<td class="pfv-co">'+_pfEsc(d.company_name||'')+'</td><td>'+rb(d.rating,d)+'</td><td>'+rb(d.rating_prev)+'</td>'
+      +'<td class="r '+(mos==null?'':mos>0?'pos':'neg')+'">'+_pfPct(mos,true)+'</td>'
+      +'<td class="r">'+(_num(d._composite_score)==null?'—':Math.round(d._composite_score))+'</td>'
+      +'<td class="r '+(sp==null?'':sp>0?'pos':'neg')+'">'+_pfPct(sp,true)+'</td>'
+      +'<td>'+_pfEsc(d.sector||'')+'</td><td><span class="pf-tag">'+via+'</span></td></tr>';
+  });
+  if(!rows.length)h+='<tr><td colspan="9" class="pf-empty">No members in today’s universe.</td></tr>';
+  return h+'</tbody></table></div></div>';
+}
+/* --- Performance (PR 3): the NAV ledger's series, shipped as PF_PUB.nav.
+   Every line is rebased to 0% at the portfolio's first point, so one axis
+   carries all three (portfolio, SPY, equal-weighted universe). Flags per
+   point: 1 backfilled (hypothetical replay), 2 definition changed,
+   4 under 80% of members priced. --- */
+function _pfNavRaw(id){return(PF_PUB.nav&&PF_PUB.nav.pf&&PF_PUB.nav.pf[id])||null;}
+function _pfPerf(id){
+  var s=_pfNavRaw(id);if(!s||s.length<2)return null;
+  function mapOf(a){var m={};(a||[]).forEach(function(p){m[p[0]]=p[1];});return m;}
+  var spy=mapOf(PF_PUB.nav.spy),ew=mapOf(PF_PUB.nav.universe);
+  var d0=s[0][0],b={pf:s[0][1],spy:spy[d0],ew:ew[d0]};
+  var out={dates:[],pf:[],spy:[],ew:[],bfEnd:-1,defchg:[],lowcov:0,empty:0};
+  s.forEach(function(p,i){
+    out.dates.push(p[0]);
+    out.pf.push(p[1]/b.pf-1);
+    out.spy.push(b.spy&&spy[p[0]]!=null?spy[p[0]]/b.spy-1:null);
+    out.ew.push(b.ew&&ew[p[0]]!=null?ew[p[0]]/b.ew-1:null);
+    if(p[2]&1)out.bfEnd=i;
+    if(p[2]&2)out.defchg.push(i);
+    if(p[2]&4)out.lowcov++;
+    if(p[2]&8)out.empty++;
+  });
+  return out;
+}
+/* Return over the trailing window (calendar days; 'ytd'; null = all) of an
+   index series expressed as cumulative fractions. */
+function _pfWin(perf,key,days){
+  var v=perf[key],ds=perf.dates,n=ds.length-1;
+  if(v[n]==null)return null;
+  var i0=0;
+  if(days!=null){
+    var end=new Date(ds[n]+'T00:00:00Z'),start;
+    if(days==='ytd')start=ds[n].slice(0,4)+'-01-01';
+    else{start=new Date(end.getTime()-days*864e5).toISOString().slice(0,10);}
+    i0=-1;for(var i=0;i<=n;i++){if(ds[i]<=start)i0=i;}
+    if(i0<0)return null;
+  }
+  if(v[i0]==null)return null;
+  return(1+v[n])/(1+v[i0])-1;
+}
+function _pfMaxDD(perf,key){
+  var peak=-Infinity,dd=0;
+  perf[key].forEach(function(v){if(v==null)return;var x=1+v;if(x>peak)peak=x;dd=Math.min(dd,x/peak-1);});
+  return dd;
+}
+function _pfFmtRet(v){if(v==null)return'—';var s=(v*100).toFixed(1)+'%';return v>0?'+'+s:s;}
+function _pfPath(xs,ys){var d='',pen=false;for(var i=0;i<xs.length;i++){if(ys[i]==null){pen=false;continue;}d+=(pen?'L':'M')+xs[i].toFixed(1)+' '+ys[i].toFixed(1);pen=true;}return d;}
+function _pfSpark(id,color){
+  var pf=_pfPerf(id);if(!pf)return'';
+  var W=120,H=30,all=pf.pf.concat(pf.spy).filter(function(v){return v!=null;});
+  var lo=Math.min.apply(null,all),hi=Math.max.apply(null,all);if(hi===lo){hi+=0.01;lo-=0.01;}
+  var n=pf.dates.length;
+  var xs=pf.dates.map(function(_,i){return i/(n-1)*W;});
+  function ys(a){return a.map(function(v){return v==null?null:H-2-(v-lo)/(hi-lo)*(H-4);});}
+  var bf=pf.bfEnd>=0?'<rect x="0" y="0" width="'+xs[pf.bfEnd].toFixed(1)+'" height="'+H+'" class="pfc-bf"/>':'';
+  return'<svg class="pfv-spark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true">'+bf
+    +'<path d="'+_pfPath(xs,ys(pf.spy))+'" class="pfc-spy"/>'
+    +'<path d="'+_pfPath(xs,ys(pf.pf))+'" class="pfc-pf" style="stroke:'+_pfEsc(_pfCol(color))+'"/></svg>';
+}
+function _pfPerfLine(id){
+  var pf=_pfPerf(id);
+  if(!pf)return'<div class="pfv-perf-line pf-muted">Performance starts with the next run after this portfolio is published.</div>';
+  var r=_pfWin(pf,'pf',null),s=_pfWin(pf,'spy',null);
+  return'<div class="pfv-perf-line">Since '+_pfEsc(pf.dates[0])+(pf.bfEnd>=0?'<span class="pfv-bf-tag" title="Includes a backfilled (hypothetical) replay of today’s definition">*</span>':'')
+    +': <b class="'+(r>0?'pos':r<0?'neg':'')+'">'+_pfFmtRet(r)+'</b> <span class="pf-muted">vs SPY '+_pfFmtRet(s)+'</span></div>';
+}
+var _PF_SERIES=[{k:'pf',l:null},{k:'spy',l:'S&P 500 (SPY)',cls:'pfc-spy'},{k:'ew',l:'Equal-weight universe',cls:'pfc-ew'}];
+function _pfChartHtml(id){
+  var p=_pfById[id],pf=_pfPerf(id);
+  if(!pf){
+    return'<div class="pf-empty">No performance history yet. It starts with the first run after this portfolio is published'
+      +(p.rule?', or backfill it now with <code>scripts/portfolios.py nav --rebuild --id '+_pfEsc(id)+'</code>':'')+'.</div>';
+  }
+  var notes=[];
+  if(pf.bfEnd>=0)notes.push('Shaded: backfilled — today’s definition replayed over past runs (hypothetical, not what was tracked then).');
+  if(pf.defchg.length)notes.push('Dotted verticals: the definition changed.');
+  if(pf.empty)notes.push(pf.empty+' day'+(pf.empty===1?'':'s')+' held no stocks (nothing matched the rule), counted as cash.');
+  if(pf.lowcov)notes.push(pf.lowcov+' day'+(pf.lowcov===1?'':'s')+' priced under 80% of members.');
+  if(!_pfPubUnchanged(id))notes.push('This history follows the published definition; your local edits apply from the next run after you publish them.');
+  var legend='<div class="pfc-legend">'
+    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-pf" style="stroke:'+_pfEsc(_pfCol(p.color))+'"/></svg>'+_pfEsc(p.name)+'</span>'
+    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-spy"/></svg>S&amp;P 500 (SPY)</span>'
+    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-ew"/></svg>Equal-weight universe</span></div>';
+  function row(label,key){
+    return'<tr><td>'+label+'</td>'+[30,91,'ytd',null].map(function(w){var v=_pfWin(pf,key,w);return'<td class="r '+(v>0?'pos':v<0?'neg':'')+'">'+_pfFmtRet(v)+'</td>';}).join('')
+      +'<td class="r">'+_pfFmtRet(_pfMaxDD(pf,key))+'</td></tr>';
+  }
+  return legend+'<div class="pfc-wrap" id="pfc-wrap" data-id="'+_pfEsc(id)+'"></div>'
+    +(notes.length?'<div class="pfc-notes">'+notes.map(_pfEsc).join('<br>')+'</div>':'')
+    +'<div class="pfv-tbl-wrap pfc-tbl"><table class="pfv-tbl"><thead><tr><th></th><th class="r">1M</th><th class="r">3M</th><th class="r">YTD</th><th class="r">Since '+_pfEsc(pf.dates[0])+'</th><th class="r">Max drawdown</th></tr></thead><tbody>'
+    +row(_pfEsc(p.name),'pf')+row('S&amp;P 500 (SPY)','spy')+row('Equal-weight universe','ew')+'</tbody></table></div>'
+    +'<div class="pfc-notes">Equal-weighted and rebalanced at every run; members are recorded as they stood each day. Returns are price-only.</div>';
+}
+/* Drawn after the page's HTML is in place, at the container's real width. */
+function _pfDrawChart(){
+  var wrap=document.getElementById('pfc-wrap');if(!wrap)return;
+  var id=wrap.getAttribute('data-id'),p=_pfById[id],pf=_pfPerf(id);if(!p||!pf)return;
+  var W=Math.max(280,wrap.clientWidth||600),H=W<500?200:260,L=46,R=12,T=10,B=24;
+  var t=pf.dates.map(function(d){return Date.parse(d+'T00:00:00Z');});
+  var t0=t[0],t1=t[t.length-1]||t0+1;
+  var vals=pf.pf.concat(pf.spy,pf.ew).filter(function(v){return v!=null;});
+  var lo=Math.min(0,Math.min.apply(null,vals)),hi=Math.max(0,Math.max.apply(null,vals));
+  var span=hi-lo||0.02,step=[0.01,0.02,0.05,0.1,0.2,0.25,0.5,1,2][0];
+  [0.01,0.02,0.05,0.1,0.2,0.25,0.5,1,2].some(function(s){step=s;return span/s<=5;});
+  lo=Math.floor(lo/step)*step;hi=Math.ceil(hi/step)*step;
+  function X(ms){return L+(ms-t0)/(t1-t0||1)*(W-L-R);}
+  function Y(v){return T+(hi-v)/(hi-lo)*(H-T-B);}
+  var xs=t.map(X);
+  var g='';
+  for(var v=lo;v<=hi+1e-9;v+=step){
+    var y=Y(v).toFixed(1);
+    g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'" class="'+(Math.abs(v)<1e-9?'pfc-zero':'pfc-grid')+'"/>'
+      +'<text x="'+(L-6)+'" y="'+y+'" class="pfc-ax" text-anchor="end" dominant-baseline="middle">'+(v>0?'+':'')+Math.round(v*100)+'%</text>';
+  }
+  /* Month ticks, thinned so labels never collide. */
+  var months=[],d=new Date(t0);d=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1));
+  while(d.getTime()<=t1){months.push(d.getTime());d=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1));}
+  var every=Math.max(1,Math.ceil(months.length/Math.floor((W-L-R)/60)));
+  var MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  months.forEach(function(ms,i){if(i%every)return;var x=X(ms).toFixed(1);var dd=new Date(ms);
+    g+='<text x="'+x+'" y="'+(H-6)+'" class="pfc-ax" text-anchor="middle">'+MN[dd.getUTCMonth()]+(dd.getUTCMonth()===0?' '+dd.getUTCFullYear():'')+'</text>';});
+  var bf=pf.bfEnd>=0?'<rect x="'+L+'" y="'+T+'" width="'+(xs[pf.bfEnd]-L).toFixed(1)+'" height="'+(H-T-B)+'" class="pfc-bf"/>'
+    +'<text x="'+(L+6)+'" y="'+(T+12)+'" class="pfc-ax">backfilled</text>':'';
+  var dc=pf.defchg.map(function(i){return'<line x1="'+xs[i].toFixed(1)+'" x2="'+xs[i].toFixed(1)+'" y1="'+T+'" y2="'+(H-B)+'" class="pfc-def"><title>Definition changed '+pf.dates[i]+'</title></line>';}).join('');
+  function ys(a){return a.map(function(v){return v==null?null:Y(v);});}
+  var lines='<path d="'+_pfPath(xs,ys(pf.ew))+'" class="pfc-ew"/><path d="'+_pfPath(xs,ys(pf.spy))+'" class="pfc-spy"/>'
+    +'<path d="'+_pfPath(xs,ys(pf.pf))+'" class="pfc-pf" style="stroke:'+_pfEsc(_pfCol(p.color))+'"/>';
+  wrap.innerHTML='<svg class="pfc" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+_pfEsc(p.name)+' cumulative return versus SPY and the equal-weight universe">'
+    +bf+g+dc+lines
+    +'<line class="pfc-cross" id="pfc-cross" y1="'+T+'" y2="'+(H-B)+'" style="display:none"/>'
+    +'<g id="pfc-dots"></g><rect x="'+L+'" y="0" width="'+(W-L-R)+'" height="'+H+'" fill="transparent" id="pfc-hit"/></svg>'
+    +'<div class="pfc-tip" id="pfc-tip"></div>';
+  var hit=document.getElementById('pfc-hit'),cross=document.getElementById('pfc-cross'),dots=document.getElementById('pfc-dots'),tip=document.getElementById('pfc-tip');
+  var svgEl=wrap.querySelector('svg.pfc');
+  function show(clientX){
+    /* The SVG scales with its panel (CSS width:100%), so map screen pixels
+       to viewBox units and back. */
+    var sr=svgEl.getBoundingClientRect(),k=sr.width?W/sr.width:1,x=(clientX-sr.left)*k,best=0;
+    for(var i=1;i<xs.length;i++){if(Math.abs(xs[i]-x)<Math.abs(xs[best]-x))best=i;}
+    var cx=xs[best].toFixed(1);cross.setAttribute('x1',cx);cross.setAttribute('x2',cx);cross.style.display='';
+    var dh='',th='<div class="pfc-tip-d">'+pf.dates[best]+(best<=pf.bfEnd?' <span class="pf-muted">(backfilled)</span>':'')+'</div>';
+    [['pf',p.name,_pfCol(p.color),'pfc-pf'],['spy','S&P 500 (SPY)',null,'pfc-spy'],['ew','Equal-weight universe',null,'pfc-ew']].forEach(function(s){
+      var v=pf[s[0]][best];if(v==null)return;
+      dh+='<circle cx="'+cx+'" cy="'+Y(v).toFixed(1)+'" r="4" class="pfc-dot '+s[3]+'"'+(s[2]?' style="fill:'+_pfEsc(s[2])+'"':'')+'/>';
+      th+='<div class="pfc-tip-r"><svg width="16" height="8"><line x1="1" y1="4" x2="15" y2="4" class="'+s[3]+'"'+(s[2]?' style="stroke:'+_pfEsc(s[2])+'"':'')+'/></svg><span>'+_pfEsc(s[1])+'</span><b>'+_pfFmtRet(v)+'</b></div>';
+    });
+    dots.innerHTML=dh;tip.innerHTML=th;tip.style.display='block';
+    var px=xs[best]/k,tw=tip.offsetWidth,left=px+12;if(left+tw>sr.width)left=px-tw-12;
+    tip.style.left=Math.max(0,left)+'px';tip.style.top=(T/k)+'px';
+  }
+  function hide(){cross.style.display='none';dots.innerHTML='';tip.style.display='none';}
+  hit.addEventListener('mousemove',function(e){show(e.clientX);});
+  hit.addEventListener('mouseleave',hide);
+  hit.addEventListener('touchstart',function(e){if(e.touches[0])show(e.touches[0].clientX);},{passive:true});
+  hit.addEventListener('touchmove',function(e){if(e.touches[0])show(e.touches[0].clientX);},{passive:true});
+}
+(function(){
+  if(_pfLocal&&_pfCanon(_pfLocal.portfolios)===_pfCanon(PF_PUB.portfolios)){
+    _pfLocal=null;try{localStorage.removeItem(_PF_KEY);}catch(e){}
+  }
+  _pfRecompute();
+})();
+document.addEventListener('click',function(e){
+  var pop=document.getElementById('pf-pop');
+  if(pop&&pop.classList.contains('open')&&!pop.contains(e.target)&&e.target.closest&&!e.target.closest('#d-pf'))pfPopClose();
+});
+
 /* === FILTER STATE SNAPSHOT / RESTORE ===
    _getCurrentFilterState captures everything applyFilters() reads;
    _applyFilterState restores it. Both serve the URL-shareable hash
@@ -2842,6 +3648,7 @@ function _getCurrentFilterState(){
   st.colFilters=cf;
   st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.r2000Only=_r2000Only;st.revFilter=_revFilter;st.rcFilter=_rcFilter;
   if(_dashFilter)st.dashFilter=_dashFilter;
+  if(_pfSel.length)st.portfolios=_pfSel.slice();
   return st;
 }
 function _applyFilterState(st){
@@ -2891,6 +3698,8 @@ function _applyFilterState(st){
   _rcFilter=st.rcFilter|0;
   document.getElementById('f-upgrades').classList.toggle('active',_rcFilter===1);
   document.getElementById('f-downgrades').classList.toggle('active',_rcFilter===2);
+  _pfSel=(st.portfolios||[]).filter(function(id){return _pfById[id];});
+  _pfRenderFilter();
   applyFilters();
 }
 
@@ -2922,10 +3731,12 @@ function _stateToParam(){
   if(st.revFilter)p.rv=st.revFilter;
   if(st.rcFilter)p.rc=st.rcFilter;
   if(st.dashFilter)p.df=st.dashFilter;
+  if(st.portfolios)p.pf=st.portfolios;
   if(curView!==_DEFAULT_VIEW)p.v=curView;
   if(curView==='matrix'&&curMSub&&curMSub!=='matrix')p.ms=curMSub;
   if(curView==='table'&&curTSub!=='prices')p.ts=curTSub;
   if(curView==='macro'&&curMacSub!=='overview')p.mo=curMacSub;
+  if(curView==='pf'&&curPfSub!=='overview')p.po=curPfSub;
   return p;
 }
 function _syncHashNow(){
@@ -2955,13 +3766,15 @@ function _restoreFromHash(){
     if(p.ms)curMSub=p.ms;
     if(p.ts)curTSub=p.ts;
     if(p.mo)curMacSub=p.mo;
+    if(p.po)curPfSub=p.po;
     /* A macro deep-link on a snapshot without macro data falls back to the
        default view — the container div exists but there is nothing to show. */
     if(p.v==='macro'&&!_MACRO_AVAILABLE){}
     else if(p.v&&document.getElementById('view-'+p.v))showView(p.v);
     var st={search:p.q||'',ratings:p.r,sectors:p.s,countries:p.c,
             flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,r2000Only:!!p.r2,revFilter:p.rv|0,rcFilter:p.rc|0,
-            dashFilter:(p.df&&typeof p.df==='object'&&typeof p.df.type==='string')?p.df:null};
+            dashFilter:(p.df&&typeof p.df==='object'&&typeof p.df.type==='string')?p.df:null,
+            portfolios:Array.isArray(p.pf)?p.pf:null};
     st.colFilters=(p.cf||[]).filter(function(c){
       return c&&c[0]&&window._CF_FMT&&(c[0]in window._CF_FMT);
     }).map(function(c){
@@ -3326,6 +4139,7 @@ function applyFilters(){
     if(_founderOnly&&!d.founder_led)return false;
     if(_blueChipOnly&&!_isBlueChip(d))return false;
     if(_r2000Only&&!d.r2000)return false;
+    if(!_pfPass(d))return false;
     if(_revFilter===1&&isReviewed(d.ticker))return false;
     if(_revFilter===2&&!isReviewed(d.ticker))return false;
     /* Rating-change filter: null rating_chg (new ticker or no prior
@@ -3394,6 +4208,7 @@ function applyFilters(){
      2 (Reviewed) are active filters. */
   var fn=(toks.length?1:0)
         +(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)
+        +(_pfSel.length?1:0)
         +(_revFilter>0?1:0)+(_rcFilter>0?1:0)
         +(_dashFilter?1:0)
         +colFilters.length
@@ -3578,6 +4393,7 @@ function clearFilters(){
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
   _blueChipOnly=false;document.getElementById('f-bluechip').classList.remove('active');
   _r2000Only=false;document.getElementById('f-r2000').classList.remove('active');
+  _pfSel=[];_pfEditingId=null;_pfRenderFilter();
   _revFilter=0;_syncRevBtns();
   _rcFilter=0;document.getElementById('f-upgrades').classList.remove('active');document.getElementById('f-downgrades').classList.remove('active');
   _revd={};_saveRevd();_updateRevCount();
@@ -3912,7 +4728,7 @@ function _mtxBuildRow(d,_i){
   html+='<td>'+(_i+1)+'</td>';
   html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
   html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
-  html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+'</td>';
+  html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+_pfDots(d.ticker)+'</td>';
   html+='<td>'+rb(d.rating,d)+'</td>';
   html+='<td>'+rb(d.rating_prev)+'</td>';
   html+='<td style="font-size:0.75em">'+(d.sector||'N/A')+'</td>';
@@ -4307,7 +5123,7 @@ function _dtBuildRow(d,_i){
   _dtCols.forEach(function(c){
     var r=ftc(d[c.k],c.f);
     var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';
-    html+='<td'+cls+' data-value="'+r.v+'">'+r.t+'</td>';
+    html+='<td'+cls+' data-value="'+r.v+'">'+r.t+(c.k==='ticker'?_pfDots(d.ticker):'')+'</td>';
   });
   html+='</tr>';
   return html;
@@ -6774,6 +7590,7 @@ function openDet(tk){
   var _cn=document.getElementById('d-cname');if(_cn)_cn.textContent=d.company_name||'';
   _syncFlagDet();
   _syncRevDet();
+  pfPopClose();_pfSyncDet();
   var pxEl=document.getElementById('d-px');if(pxEl)pxEl.textContent=d.price!=null?'$'+(d.price<1?d.price.toFixed(4):d.price.toFixed(2)):'N/A';
   var rEl=document.getElementById('d-rt');rEl.textContent=(d.rating||'N/A')+(isCapped(d)?' ⚠':'');rEl.title=isCapped(d)?capTip(d):'';rEl.style.background=RC[d.rating]||'#888';
   var cEl=document.getElementById('d-cs');var cs=d._composite_score;cEl.textContent=cs!=null?Math.round(cs)+'%':'N/A';cEl.style.background=cc(cs);
@@ -7208,7 +8025,15 @@ document.addEventListener('keydown',function(e){
     if(e.key==='Escape'||e.key==='?'){e.preventDefault();hkOverlayClose();}
     return;
   }
+  /* The portfolio dialog is modal the same way; the membership menu stacks
+     above the detail popup, so it takes the first Escape. */
+  if(_pfOverlayOpen()){
+    if(e.key==='Escape'){e.preventDefault();pfManageClose();}
+    return;
+  }
   if(e.key==='Escape'){
+    var pfp=document.getElementById('pf-pop');
+    if(pfp&&pfp.classList.contains('open')){e.preventDefault();pfPopClose();return;}
     var np=document.getElementById('nav-panel');
     if(np&&np.classList.contains('open')){e.preventDefault();closeNavMenu();return;}
     var fp=document.getElementById('filt-panel');
@@ -7259,7 +8084,7 @@ function moveFilterBar(v){
      that they seed from FD, the filters drive it and have to be reachable
      from it. The count comes back with them — on Charts it reads as "the
      pool the five were picked from". */
-  var navOnly=(v==='pool'||v==='macro');
+  var navOnly=(v==='pool'||v==='macro'||v==='pf');
   fb.classList.toggle('nav-only',navOnly);
   /* The centred #f-count now sits outside .filter-bar, so it is out of reach
      of the bar's `.nav-only > *` rule. Mirror the flag onto .header to keep
@@ -7415,7 +8240,9 @@ function _navGroups(){
     {v:'matrix',l:'Financial Model',cur:curMSub||'matrix',
      items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Gate Matrix'}]},
     {v:'table',l:'Financial Data',cur:curTSub,
-     items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})}
+     items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})},
+    {v:'pf',l:'Portfolios',cur:curPfSub,
+     items:[{k:'overview',l:'Overview'}].concat(_pfDefs().map(function(p){return{k:p.id,l:p.name};}))}
   ];
   /* Macro Outlook leads the menu: it is top-down context (regime, rates,
      inflation) that frames everything the other three views say about
@@ -7479,6 +8306,11 @@ function navGo(v,k){
     if(k!=null)curMacSub=k;
     if(curView!=='macro')showView('macro');
     else{renderMacro();_syncHash();renderNavMenu();}
+  }else if(v==='pf'){
+    if(k!=null)curPfSub=k;
+    if(curView!=='pf')showView('pf');
+    else{renderPfView();_syncHash();renderNavMenu();}
+    window.scrollTo(0,0);
   }else{
     if(k!=null)curTSub=k;
     if(curView!=='table')showView('table');
@@ -7655,6 +8487,7 @@ function renderCur(){
   else if(curView==='table'){renderTSubs();if(curTSub==='prices'){var tw=document.querySelector('.table-wrap'),phv=document.getElementById('ph-view');if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_phResync();}}else{renderTable();}}
   else if(curView==='pool')renderPool();
   else if(curView==='macro')renderMacro();
+  else if(curView==='pf'){renderPfView();renderNavMenu();}
 }
 
 /* === MACRO OUTLOOK === */
@@ -9977,6 +10810,8 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   moveFilterBar(curView);
   /* A #s= hash (shared link) restores its filters + view and runs
      applyFilters itself; otherwise do the normal initial pass. */
+  _pfRenderFilter();
+  _pfConsumeShareHash();
   if(!_restoreFromHash())applyFilters();
   /* Every render path above ends in renderCur, which repaints the menu — but
      seed it once unconditionally so the icon is never a dead button if an
@@ -10123,6 +10958,159 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
     <div class="hk-head"><h3>Keyboard shortcuts</h3><button class="hk-close" onclick="hkOverlayClose()" aria-label="Close">&#215;</button></div>
     <div id="hk-body"></div>
     <div class="hk-foot">Views are numbered in the order the Views menu lists them. Keys are ignored while you are typing in a search or filter box.</div>
+  </div>
+</div>
+<!-- Portfolios: the Manage / Save-filter dialog and the detail popup's
+     membership menu (logic in the PORTFOLIOS script block). Colours come
+     from the report's custom properties, so both themes need no extra rules. -->
+<style>
+.pf-dots{display:inline-flex;align-items:center;gap:2px;margin-left:5px;vertical-align:middle;}
+.pf-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,.12);}
+.pf-more{font-size:10px;color:var(--text-muted);margin-left:1px;}
+.pf-filt-opts label{gap:7px;}
+.pf-filt-opts .pf-n{margin-left:auto;padding-left:8px;font-size:0.85em;opacity:.6;}
+.pf-empty{padding:6px 8px;font-size:0.85em;color:var(--text-muted);}
+.pf-filt-actions{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border);}
+.pf-link{background:none;border:none;padding:3px 8px;font:inherit;font-size:0.85em;color:var(--accent);cursor:pointer;text-align:left;border-radius:5px;}
+.pf-link:hover{background:var(--bg);}
+.pf-sync-badge{color:#e8833a;margin-left:6px;font-size:0.8em;cursor:help;}
+.d-pf-btn{display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:rgba(255,255,255,.55);line-height:1;user-select:none;touch-action:manipulation;}
+.d-pf-btn svg{width:1.35em;height:1.35em;}
+.d-pf-btn.on{color:#fff;}
+.d-pf-btn:hover{color:#fff;}
+.pf-det-n{font-size:0.75em;font-weight:700;}
+#pf-pop{display:none;position:fixed;z-index:1500;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.28);padding:6px;max-height:min(420px,70vh);overflow-y:auto;}
+#pf-pop.open{display:block;}
+.pf-pop-h{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);padding:6px 8px 4px;}
+.pf-pop-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:13px;}
+.pf-pop-row:hover{background:var(--bg);}
+.pf-pop-row input{margin:0;accent-color:var(--accent);}
+.pf-pop-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pf-tag{font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);}
+#pf-pop .pf-link{display:block;width:100%;margin-top:2px;}
+#pf-overlay{position:fixed;inset:0;z-index:1650;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);padding:16px;}
+#pf-overlay.open{display:flex;}
+#pf-overlay .hk-card{max-width:720px;}
+#pf-ov-body{padding:12px 18px 16px;overflow-y:auto;}
+.pf-sync{font-size:12.5px;padding:8px 10px;border-radius:8px;margin-bottom:10px;background:var(--bg);color:var(--text-muted);}
+.pf-sync-dirty,.pf-sync-stale{border-left:3px solid #e8833a;color:var(--text);}
+.pf-sync code{font-size:11.5px;}
+.pf-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);}
+.pf-color{width:28px;height:28px;padding:0;border:1px solid var(--border);border-radius:6px;background:none;cursor:pointer;flex:0 0 auto;}
+.pf-row-main{flex:1 1 0;min-width:0;}
+.pf-name{width:100%;font:inherit;font-size:14px;font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 6px;margin-left:-6px;}
+.pf-name:hover,.pf-name:focus{border-color:var(--border);background:var(--bg);outline:none;}
+.pf-muted{font-size:12px;color:var(--text-muted);overflow-wrap:anywhere;}
+.pf-row-btns{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;flex:0 0 auto;max-width:48%;}
+.pf-btn{font:inherit;font-size:12.5px;padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;white-space:nowrap;}
+.pf-btn:hover:not([disabled]){background:var(--bg);}
+.pf-btn[disabled]{opacity:.45;cursor:default;}
+.pf-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.pf-primary:hover:not([disabled]){background:var(--accent);filter:brightness(1.08);}
+.pf-danger{color:#d9534f;}
+.pf-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap;}
+.pf-actions-l{justify-content:flex-start;padding-top:12px;border-top:1px solid var(--border);}
+.pf-spacer{flex:1 1 auto;}
+.pf-form{display:flex;flex-direction:column;gap:12px;font-size:13px;}
+.pf-fl{display:flex;flex-direction:column;gap:4px;font-weight:600;}
+.pf-fl input{font:inherit;font-weight:400;padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);}
+.pf-radio,.pf-check{display:flex;gap:8px;align-items:flex-start;cursor:pointer;}
+.pf-radio input,.pf-check input{margin-top:3px;accent-color:var(--accent);}
+.pf-note{font-size:12px;color:var(--text-muted);}
+@media (max-width:600px){
+  .pf-row{flex-wrap:wrap;}
+  .pf-row-btns{max-width:none;width:100%;justify-content:flex-start;padding-left:38px;}
+}
+.pfv{max-width:1200px;margin:0 auto;padding:18px 16px 40px;color:var(--text);}
+.pfv-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+.pfv-head h2{font-size:20px;font-weight:700;margin:0;}
+.pfv-sub{font-size:12.5px;color:var(--text-muted);}
+.pfv-empty{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;font-size:14px;line-height:1.5;}
+.pfv-empty p{margin:0 0 10px;}
+.pfv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+.pfv-card{background:var(--surface);border:1px solid var(--border);border-top:4px solid var(--pf);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:box-shadow .15s,transform .15s;}
+.pfv-card:hover,.pfv-card:focus{box-shadow:0 6px 20px rgba(0,0,0,.12);transform:translateY(-1px);outline:none;}
+.pfv-card-h{display:flex;align-items:center;gap:8px;}
+.pfv-name{font-size:15.5px;font-weight:700;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pfv-badge{font-size:11px;font-weight:700;min-width:20px;text-align:center;padding:2px 6px;border-radius:10px;background:var(--bg);color:var(--text-muted);border:1px solid var(--border);}
+.pfv-badge.hot{background:#e8833a;border-color:#e8833a;color:#fff;}
+.pfv-meta,.pfv-rule{font-size:12px;color:var(--text-muted);overflow-wrap:anywhere;}
+.pfv-mix{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--bg);}
+.pfv-mix span{display:block;height:100%;}
+.pfv-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
+.pfv-top{font-size:12px;color:var(--text-muted);}
+.pfv-top b{color:var(--text);font-weight:600;}
+.pfv-kpi-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);}
+.pfv-kpi-v{font-size:14px;font-weight:600;overflow-wrap:anywhere;}
+.pfv .pos{color:#1a9850;}.pfv .neg{color:#de2d26;}.pfv .warn{color:#e8833a;}
+.pfv-foot{font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;margin-top:auto;}
+.pfv-perf{display:flex;align-items:center;gap:10px;}
+.pfv-spark{width:96px;height:28px;flex:0 0 auto;overflow:visible;}
+.pfv-perf-line{font-size:12.5px;color:var(--text);}
+.pfv-bf-tag{color:var(--text-muted);margin-left:1px;cursor:help;}
+.pfc-pf{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke;}
+.pfc-spy{fill:none;stroke:var(--text);opacity:.55;stroke-width:1.5;stroke-dasharray:5 3;vector-effect:non-scaling-stroke;}
+.pfc-ew{fill:none;stroke:var(--text-muted);opacity:.8;stroke-width:1.5;stroke-dasharray:1.5 2.5;stroke-linecap:round;vector-effect:non-scaling-stroke;}
+.pfc-bf{fill:var(--text-muted);opacity:.08;}
+.pfc-grid{stroke:var(--border);stroke-width:1;}
+.pfc-zero{stroke:var(--text-muted);stroke-width:1;opacity:.6;}
+.pfc-def{stroke:var(--text-muted);stroke-width:1;stroke-dasharray:2 3;}
+.pfc-ax{font-size:10.5px;fill:var(--text-muted);}
+.pfc-cross{stroke:var(--text-muted);stroke-width:1;}
+.pfc-dot{stroke:var(--surface);stroke-width:2;fill:var(--text-muted);}
+.pfc-dot.pfc-spy,.pfc-dot.pfc-ew{stroke-dasharray:none;opacity:1;fill:var(--text-muted);stroke:var(--surface);stroke-width:2;}
+.pfc-panel{gap:8px;}
+.pfc-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--text);}
+.pfc-legend span{display:inline-flex;align-items:center;gap:6px;}
+.pfc-wrap{position:relative;width:100%;}
+/* width:100% + viewBox: the chart scales with its panel even before the
+   resize redraw lands (a viewport change need not fire window resize). */
+.pfc{display:block;width:100%;height:auto;touch-action:pan-y;}
+.pfc-tip{display:none;position:absolute;pointer-events:none;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.15);padding:7px 9px;font-size:12px;white-space:nowrap;z-index:2;}
+.pfc-tip-d{font-weight:600;margin-bottom:3px;}
+.pfc-tip-r{display:flex;align-items:center;gap:6px;}
+.pfc-tip-r b{margin-left:auto;padding-left:10px;font-weight:600;}
+.pfc-notes{font-size:11.5px;color:var(--text-muted);line-height:1.5;}
+.pfc-tbl{margin-top:4px;}
+.pfv-h3{font-size:14px;font-weight:700;margin:22px 0 8px;display:flex;align-items:center;gap:8px;}
+.pfv-count{font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);}
+.pfv-alerts{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.pfv-alert{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--border);font-size:13px;}
+.pfv-alert:first-child{border-top:none;}
+.pfv-sev{flex:0 0 auto;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 6px;border-radius:4px;color:#fff;background:#8a94a6;}
+.pfv-sev-high{background:#de2d26;}.pfv-sev-medium{background:#e8833a;}
+.pfv-alert .tk-link{flex:0 0 auto;font-weight:700;}
+.pfv-alert-msg{flex:1 1 auto;min-width:0;color:var(--text-muted);overflow-wrap:anywhere;}
+.pfv-alert-pf{display:flex;gap:3px;flex:0 0 auto;}
+.pfv-back{padding-left:0;margin-bottom:6px;}
+.pfv-detail-head .pfv-swatch{width:14px;height:14px;border-radius:4px;background:var(--pf);}
+.pfv-desc{font-size:13.5px;margin:0 0 6px;}
+.pfv-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:12px;}
+.pfv-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
+.pfv-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--text-muted);}
+.pfv-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px;}
+.pfv-sec{display:grid;grid-template-columns:minmax(0,150px) 1fr 28px;align-items:center;gap:8px;font-size:12.5px;}
+.pfv-sec-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pfv-sec-bar{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;}
+.pfv-sec-bar span{display:block;height:100%;background:var(--accent);}
+.pfv-sec-v{text-align:right;color:var(--text-muted);}
+.pfv-tbl-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;}
+.pfv-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.pfv-tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.pfv-tbl td{padding:7px 10px;border-top:1px solid var(--border);white-space:nowrap;}
+.pfv-tbl .r{text-align:right;}
+.pfv-co{max-width:240px;overflow:hidden;text-overflow:ellipsis;}
+@media (max-width:700px){
+  .pfv-detail-grid{grid-template-columns:1fr;}
+  .pfv-alert{flex-wrap:wrap;}
+  .pfv-alert-msg{flex-basis:100%;}
+}
+</style>
+<div id="pf-pop" role="menu" onclick="event.stopPropagation()"></div>
+<div id="pf-overlay" role="dialog" aria-modal="true" aria-labelledby="pf-ov-title" onclick="if(event.target===this)pfManageClose()">
+  <div class="hk-card">
+    <div class="hk-head"><h3 id="pf-ov-title">Portfolios</h3><button class="hk-close" onclick="pfManageClose()" aria-label="Close">&#215;</button></div>
+    <div id="pf-ov-body"></div>
   </div>
 </div>
 <button id="ai-fab" title="AI Analyst" aria-label="Open AI Analyst">

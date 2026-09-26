@@ -49,6 +49,10 @@
 #   RESUME=0             ignore output/.checkpoint and start the analysis over
 #                        (default: re-running after an interrupted analysis
 #                        for the same RUNDATE resumes where it stopped)
+#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+#                        publish the run to the Supabase database over HTTPS
+#                        (step 06a, design/supabase-migration.md). Unset: the
+#                        step is skipped. Non-blocking until the P6 cutover
 #   DRY_RUN=1            do everything except push
 #   SMOKE=1              tiny universe (SMOKE_TICKERS), for testing this script
 set -uo pipefail
@@ -255,6 +259,15 @@ print(f"rating history rebuilt over {len(older) + len(staged)} snapshots, "
 PY
     [ $? -eq 0 ] || return 1
   fi
+  # The portfolio NAV ledger (data/portfolio_nav.py): the render appends
+  # tonight's point to it, so without staging every night would start the
+  # performance history over. Absent on the first run after portfolios exist.
+  if git -C "$SNAP" cat-file -e HEAD:portfolio_nav.json 2>/dev/null; then
+    git -C "$SNAP" show HEAD:portfolio_nav.json > "$REPO/output/portfolio_nav.json" || return 1
+    echo "staged portfolio_nav.json ($(wc -c < "$REPO/output/portfolio_nav.json") bytes)"
+  else
+    echo "no portfolio_nav.json in the archive — portfolio performance starts tonight"
+  fi
   # The Phase-1 screen skip list. data/cache/ is gitignored, so it dies with
   # the container: without staging it, every night re-fetches the ~4.5k
   # tickers the last run already proved are far below the mcap floor or dead.
@@ -345,6 +358,24 @@ run_step 05f-rerender 1 "$PYTHON" scripts/rescore_and_render.py "$RESULTS"
 if [ "$FAILED" = 1 ]; then echo "RESULT FAILED at rerender" >> "$STATUS"; exit 1; fi
 
 # ---------------------------------------------------------------------------
+# 6a. Publish to the Supabase database (Data API over HTTPS: the container
+#     cannot reach Postgres over TCP). Skipped without the Supabase secrets and
+#     for SMOKE/DRY_RUN runs; non-blocking until the P6 cutover makes it the
+#     primary store (design/supabase-migration.md).
+# ---------------------------------------------------------------------------
+db_publish() {
+  if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+    echo "SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not set; skipping"; return 0
+  fi
+  if [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
+    echo "SMOKE/DRY_RUN; building the payload only"
+    "$PYTHON" scripts/db_publish.py "$RESULTS" --dry-run; return $?
+  fi
+  "$PYTHON" scripts/db_publish.py "$RESULTS"
+}
+run_step 06a-db-publish 0 db_publish
+
+# ---------------------------------------------------------------------------
 # 6. Archive today's snapshot (+ the rating-history and screen-skip caches)
 #    to data/snapshots
 # ---------------------------------------------------------------------------
@@ -358,6 +389,11 @@ archive_snapshot() {
     *) echo "archive failed (rc=$rc) — not pushed"; return 1 ;;
   esac
   cp "$REPO/output/rating_history.json" "$SNAP/rating_history.json" 2>/dev/null
+  # The NAV ledger, guarded on SMOKE: a smoke run renders a handful of
+  # tickers and would plant a point whose universe benchmark is meaningless.
+  if [ "$SMOKE" != 1 ] && [ -s "$REPO/output/portfolio_nav.json" ]; then
+    cp "$REPO/output/portfolio_nav.json" "$SNAP/portfolio_nav.json"
+  fi
   # Write the screen skip list back for tomorrow. Guarded on size and SMOKE:
   # a smoke run screens a handful of tickers and would otherwise replace
   # ~4.5k learned rejections with a near-empty file.
@@ -381,7 +417,7 @@ archive_snapshot() {
   # become new objects.
   local tree commit
   : > "$paths"
-  for f in "results_$RUNDATE.json.gz" rating_history.json screen_skip.json; do
+  for f in "results_$RUNDATE.json.gz" rating_history.json screen_skip.json portfolio_nav.json; do
     [ -s "$SNAP/$f" ] && echo "$f" >> "$paths"
   done
   cat "$WORK/archive-blobs.txt" >> "$paths" || return 1
@@ -412,6 +448,9 @@ run_step 07b-gate-na-report   0 "$PYTHON" scripts/gate_na_report.py "$RESULTS"
 run_step 07c-validate-ratings 0 "$PYTHON" scripts/validate_ratings.py --snapshot "$RESULTS" --prices-dir output/prices
 # Store syncs never fail a step; this surfaces a store that stopped keeping up.
 run_step 07d-store-check      0 "$PYTHON" scripts/check_snapshot_store.py --results-dir output --date "$RUNDATE"
+# Your portfolio groupings (portfolio/portfolios.json): stats + change alerts.
+run_step 07e-portfolio-alerts 0 "$PYTHON" scripts/portfolios.py alerts --results-dir output --date "$RUNDATE" \
+  --out "output/portfolio_alerts_$RUNDATE.txt"
 
 # ---------------------------------------------------------------------------
 # 8. Publish: rebuild pages-live as one fresh commit and force-push it

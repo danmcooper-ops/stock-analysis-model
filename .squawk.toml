@@ -1,0 +1,6 @@
+# squawk (Postgres migration linter), run by the `db` CI job over
+# supabase/migrations. See design/supabase-migration.md.
+pg_version = "17.0"
+# The Supabase CLI applies each migration file inside a transaction, so a
+# failed file leaves nothing behind and IF NOT EXISTS would only hide drift.
+assume_in_transaction = true

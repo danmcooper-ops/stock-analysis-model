@@ -287,6 +287,9 @@ fi
 # ---------------------------------------------------------------- reports
 if wants reports; then
   run portfolio_report soft "$VPY" scripts/portfolio_report.py --results-dir output/ --prices-dir output/prices
+  # Your portfolio groupings (portfolio/portfolios.json): stats + change alerts.
+  run portfolio_alerts soft "$VPY" scripts/portfolios.py alerts --results-dir output --date "$RUNDATE" \
+    --out "output/portfolio_alerts_$RUNDATE.txt"
   run gate_na_report   soft "$VPY" scripts/gate_na_report.py "$SNAPSHOT"
   run validate_ratings soft "$VPY" scripts/validate_ratings.py --snapshot "$SNAPSHOT" --prices-dir output/prices
   # The store's syncs never fail a step; this is where a store that stopped

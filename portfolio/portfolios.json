@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "portfolios": [
+    {
+      "id": "semis",
+      "name": "Semiconductors",
+      "color": "#2a78d6",
+      "description": "",
+      "created": "2026-09-26",
+      "tickers": [
+        "AMD",
+        "AVGO",
+        "NVDA",
+        "TSM"
+      ],
+      "exclude": [],
+      "rule": null
+    }
+  ]
+}
