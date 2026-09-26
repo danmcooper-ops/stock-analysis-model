@@ -2255,6 +2255,9 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   <div id="view-macro" class="view">
     <div id="macro-view"></div>
   </div>
+  <div id="view-pf" class="view">
+    <div id="pf-view"></div>
+  </div>
 </div>
 <!-- Shared hover tooltip. Lives outside the .view containers because the World
      MoS Map (Financial Model -> Dashboard) and the Sector Heatmap / Profit Pool
@@ -2833,7 +2836,7 @@ var _PF_KEY='stock_portfolios_v1';
 var _PF_PALETTE=['#4f7cff','#e8833a','#2fa36b','#c9469b','#8a63d2','#d4a72c','#1fa2b8','#d9534f','#6c8a3a','#9b6b43'];
 var _PF_FIELDS=['id','name','color','description','created','tickers','exclude','rule'];
 var _pfLocal=(function(){try{var v=JSON.parse(localStorage.getItem(_PF_KEY));return(v&&Array.isArray(v.portfolios))?v:null;}catch(e){return null;}})();
-var _pfMem={},_pfById={},_pfTk={},_pfSel=[],_pfEditingId=null;
+var _pfMem={},_pfById={},_pfTk={},_pfRow={},_pfSel=[],_pfEditingId=null;
 function _pfEsc(s){return(s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function _pfJsArg(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
 function _pfClean(p){var o={};_PF_FIELDS.forEach(function(k){o[k]=p[k]===undefined?null:p[k];});o.tickers=(o.tickers||[]).slice().sort();o.exclude=(o.exclude||[]).slice().sort();return o;}
@@ -2868,8 +2871,8 @@ function _pfRuleMatch(r,d){
 /* Rebuild membership. Clean state reads the server-resolved d.pf; with a
    local working copy every portfolio is re-resolved here against DATA. */
 function _pfRecompute(){
-  _pfMem={};_pfById={};_pfTk={};
-  DATA.forEach(function(d){_pfTk[d.ticker]=1;});
+  _pfMem={};_pfById={};_pfTk={};_pfRow={};
+  DATA.forEach(function(d){_pfTk[d.ticker]=1;_pfRow[d.ticker]=d;});
   var defs=_pfDefs();
   defs.forEach(function(p){_pfById[p.id]=p;});
   if(!_pfLocal){
@@ -2912,6 +2915,7 @@ function _pfRefresh(){
   if(typeof applyFilters==='function')applyFilters();
   _pfSyncDet();
   if(_pfOverlayOpen())_pfRenderManage();
+  if(curView==='pf')renderPfView();
 }
 function _pfLabel(k){var o=window._CF_OPTS||[];for(var i=0;i<o.length;i++)if(o[i].k===k)return String(o[i].l).replace(/\s*\([^)]*\)$/,'');return k;}
 function _pfRuleSummary(r){
@@ -2965,7 +2969,10 @@ function pfToggleSel(id){
   applyFilters();
 }
 function pfShowOnly(id){
-  _pfSel=[id];_pfRenderFilter();applyFilters();pfManageClose();
+  _pfSel=[id];_pfRenderFilter();pfManageClose();
+  /* Only the table views are filtered by it; land on one. */
+  applyFilters();
+  if(curView!=='table'&&curView!=='matrix'){if(curTSub==='prices')curTSub='val';showView('table');}
 }
 
 /* --- Detail popup: membership menu --- */
@@ -3268,6 +3275,164 @@ function _pfConsumeShareHash(){
   if(!confirm('Add the shared portfolio “'+p.name+'” to this browser?\n\n'+n+' picked stock'+(n===1?'':'s')+r))return;
   _pfAddIncoming([p]);
 }
+/* --- Portfolios view (curView 'pf'): an overview of cards, then one page
+   per portfolio (curPfSub = its id). Stats are computed here from DATA, so
+   they follow browser edits; alerts come from PF_PUB — per-ticker changes
+   (rating moves, score drops) for the whole universe, attributed through
+   today's membership, and joined/left events that exist only for published
+   definitions (they need the prior run's rows), so a portfolio edited in
+   this browser shows them only while its definition still matches. --- */
+var curPfSub='overview';
+var _PF_SEV={HIGH:0,MEDIUM:1,LOW:2};
+function _pfPubUnchanged(id){
+  if(!_pfLocal)return true;
+  var a=null,b=null;
+  PF_PUB.portfolios.forEach(function(p){if(p.id===id)a=p;});
+  _pfLocal.portfolios.forEach(function(p){if(p.id===id)b=p;});
+  return !!(a&&b&&_pfCanon([a])===_pfCanon([b]));
+}
+function _pfAlertsFor(id){
+  var out=[];
+  (PF_PUB.changes||[]).forEach(function(a){if(_pfIsMember(id,a.ticker))out.push(a);});
+  if(_pfPubUnchanged(id))(PF_PUB.events||[]).forEach(function(e){if(e.portfolio===id)out.push(e);});
+  out.sort(function(x,y){return(_PF_SEV[x.severity]-_PF_SEV[y.severity])||(x.ticker<y.ticker?-1:x.ticker>y.ticker?1:0);});
+  return out;
+}
+function _pfMedian(a){a=a.filter(function(v){return v!=null;}).sort(function(x,y){return x-y;});if(!a.length)return null;var m=a.length>>1;return a.length%2?a[m]:(a[m-1]+a[m])/2;}
+function _pfStats(id){
+  var rows=_pfMembers(id).map(function(t){return _pfRow[t];}).filter(Boolean);
+  var mix={'BUY':0,'LEAN BUY':0,'HOLD':0,'PASS':0},sec={},up=0,down=0;
+  rows.forEach(function(d){
+    if(d.rating in mix)mix[d.rating]++;
+    var s=d.sector||'Unknown';sec[s]=(sec[s]||0)+1;
+    if(d.rating_chg>0)up++;else if(d.rating_chg<0)down++;
+  });
+  var n=rows.length,secs=Object.keys(sec).sort(function(a,b){return sec[b]-sec[a];}),hhi=0;
+  secs.forEach(function(s){var w=sec[s]/n;hhi+=w*w;});
+  var top=secs[0]||null,topW=n?sec[top]/n:0;
+  return{n:n,mix:mix,up:up,down:down,sectors:secs.map(function(s){return{s:s,w:sec[s]/n,c:sec[s]};}),
+    top:top,topW:topW,hhi:hhi,concentrated:n>1&&(topW>0.4||hhi>0.25),
+    mos:_pfMedian(rows.map(function(d){return _num(d.mos);})),
+    score:_pfMedian(rows.map(function(d){return _num(d._composite_score);})),
+    spread:_pfMedian(rows.map(function(d){return _num(d.spread);}))};
+}
+function _pfPct(v,sign){if(v==null)return'—';var s=(v*100).toFixed(0)+'%';return sign&&v>0?'+'+s:s;}
+function _pfMixBar(st){
+  if(!st.n)return'<div class="pfv-mix pfv-mix-empty"></div>';
+  var h='<div class="pfv-mix" title="'+_pfEsc(Object.keys(st.mix).map(function(r){return r+' '+st.mix[r];}).join(' · '))+'">';
+  Object.keys(st.mix).forEach(function(r){if(st.mix[r])h+='<span style="width:'+(100*st.mix[r]/st.n)+'%;background:'+RC[r]+'"></span>';});
+  var other=st.n-Object.keys(st.mix).reduce(function(s,r){return s+st.mix[r];},0);
+  if(other)h+='<span style="width:'+(100*other/st.n)+'%;background:#999"></span>';
+  return h+'</div>';
+}
+function _pfKpis(st){
+  function k(l,v,cls){return'<div class="pfv-kpi"><div class="pfv-kpi-l">'+l+'</div><div class="pfv-kpi-v'+(cls?' '+cls:'')+'">'+v+'</div></div>';}
+  function tone(v){return v==null?'':v>0?'pos':v<0?'neg':'';}
+  return'<div class="pfv-kpis">'
+    +k('Median MoS',_pfPct(st.mos,true),tone(st.mos))
+    +k('Median score',st.score==null?'—':Math.round(st.score))
+    +k('ROIC−WACC',_pfPct(st.spread,true),tone(st.spread))
+    +'</div>'
+    +(st.top?'<div class="pfv-top">Top sector <b>'+_pfEsc(st.top)+'</b> '+_pfPct(st.topW)
+      +(st.concentrated?' <span class="warn" title="Top sector over 40% or sector HHI over 0.25">· concentrated</span>':'')+'</div>':'');
+}
+function _pfAlertRow(a,showPf){
+  var t=_pfJsArg(a.ticker);
+  var pfs='';
+  if(showPf){(_pfMem[a.ticker]||(a.portfolio?[a.portfolio]:[])).forEach(function(id){var p=_pfById[id];if(p)pfs+='<span class="pf-dot" title="'+_pfEsc(p.name)+'" style="background:'+_pfEsc(p.color)+'"></span>';});}
+  return'<div class="pfv-alert"><span class="pfv-sev pfv-sev-'+_pfEsc(String(a.severity).toLowerCase())+'">'+_pfEsc(a.severity)+'</span>'
+    +'<span class="tk-link" onclick="openDet(\''+t+'\')">'+_pfEsc(a.ticker)+'</span>'
+    +'<span class="pfv-alert-msg">'+_pfEsc(String(a.message||'').indexOf(a.ticker+' ')===0?a.message.slice(a.ticker.length+1):a.message)+'</span>'+(pfs?'<span class="pfv-alert-pf">'+pfs+'</span>':'')+'</div>';
+}
+function _pfSyncNote(){
+  var st=_pfSyncState();
+  if(st==='clean')return'';
+  return'<div class="pf-sync pf-sync-'+st+'">'+(st==='stale'?'The published portfolio file changed after you started editing here.':'Showing this browser’s unpublished edits.')
+    +' <button class="pf-link" onclick="pfManageOpen()">Manage / export…</button></div>';
+}
+function renderPfView(){
+  var el=document.getElementById('pf-view');if(!el)return;
+  if(curPfSub!=='overview'&&!_pfById[curPfSub])curPfSub='overview';
+  el.innerHTML=curPfSub==='overview'?_pfOverviewHtml():_pfDetailHtml(curPfSub);
+}
+function _pfOverviewHtml(){
+  var defs=_pfDefs();
+  var h='<div class="pfv"><div class="pfv-head"><h2>Portfolios</h2>'
+    +(PF_PUB.prev_date?'<span class="pfv-sub">changes vs '+_pfEsc(PF_PUB.prev_date)+'</span>':'')
+    +'<span class="pf-spacer"></span><button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSyncNote();
+  if(!defs.length){
+    return h+'<div class="pfv-empty"><p><b>No portfolios yet.</b> A portfolio is a named group of stocks — picked by hand, defined by a rule, or both — and a stock can be in as many as you like.</p>'
+      +'<p>Filter the Financial Data table and choose <b>Save filter as portfolio</b> in the Filters panel, add a stock from its popup (the folder button), or start one here.</p>'
+      +'<button class="pf-btn pf-primary" onclick="pfNewEmpty()">+ New portfolio</button></div></div>';
+  }
+  h+='<div class="pfv-grid">';
+  defs.forEach(function(p){
+    var st=_pfStats(p.id),al=_pfAlertsFor(p.id),id=_pfJsArg(p.id);
+    var hi=al.filter(function(a){return a.severity!=='LOW';}).length;
+    var joined=al.filter(function(a){return a.alert_type==='joined';}).length,
+        left=al.filter(function(a){return a.alert_type==='left'||a.alert_type==='dropped_out';}).length;
+    var kind=p.rule?((p.tickers||[]).length?'Rule + '+p.tickers.length+' picked':'Rule'):'Hand-picked';
+    h+='<div class="pfv-card" style="--pf:'+_pfEsc(p.color)+'" role="button" tabindex="0" onclick="navGo(\'pf\',\''+id+'\')" onkeydown="if(event.key===\'Enter\')navGo(\'pf\',\''+id+'\')">'
+      +'<div class="pfv-card-h"><span class="pfv-name">'+_pfEsc(p.name)+'</span>'
+      +(al.length?'<span class="pfv-badge'+(hi?' hot':'')+'" title="'+al.length+' alert(s) today">'+al.length+'</span>':'')+'</div>'
+      +'<div class="pfv-meta">'+st.n+' stock'+(st.n===1?'':'s')+' · '+_pfEsc(kind)+'</div>'
+      +(p.rule?'<div class="pfv-rule">'+_pfEsc(_pfRuleSummary(p.rule))+'</div>':'')
+      +_pfMixBar(st)+_pfKpis(st)
+      +'<div class="pfv-foot">'+(PF_PUB.prev_date?'Today: <span class="pos">▲'+st.up+'</span> <span class="neg">▼'+st.down+'</span>'
+        +(joined?' · +'+joined+' joined':'')+(left?' · −'+left+' left':''):'No prior run to compare')+'</div></div>';
+  });
+  h+='</div>';
+  var all={},list=[];
+  defs.forEach(function(p){_pfAlertsFor(p.id).forEach(function(a){var key=a.alert_type+'|'+a.ticker+'|'+(a.portfolio||'');if(!all[key]){all[key]=1;list.push(a);}});});
+  list.sort(function(x,y){return(_PF_SEV[x.severity]-_PF_SEV[y.severity])||(x.ticker<y.ticker?-1:1);});
+  h+='<h3 class="pfv-h3">Alerts'+(list.length?' <span class="pfv-count">'+list.length+'</span>':'')+'</h3>';
+  h+=list.length?'<div class="pfv-alerts">'+list.map(function(a){return _pfAlertRow(a,true);}).join('')+'</div>'
+    :'<div class="pf-empty">'+(PF_PUB.prev_date?'No rating changes, score drops or membership changes in your portfolios today.':'No prior run to compare against.')+'</div>';
+  return h+'</div>';
+}
+function _pfDetailHtml(id){
+  var p=_pfById[id],st=_pfStats(id),al=_pfAlertsFor(id),jid=_pfJsArg(id);
+  var picked={};(p.tickers||[]).forEach(function(t){picked[t]=1;});
+  var miss=(p.tickers||[]).filter(function(t){return !_pfTk[t];});
+  var h='<div class="pfv"><button class="pf-link pfv-back" onclick="navGo(\'pf\',\'overview\')">← All portfolios</button>'
+    +'<div class="pfv-head pfv-detail-head" style="--pf:'+_pfEsc(p.color)+'"><span class="pfv-swatch"></span><h2>'+_pfEsc(p.name)+'</h2>'
+    +'<span class="pf-spacer"></span>'
+    +'<button class="pf-btn pf-primary" onclick="pfShowOnly(\''+jid+'\')">Open in table</button>'
+    +(p.rule?'<button class="pf-btn" onclick="pfEditRule(\''+jid+'\')">Edit rule</button>':'')
+    +'<button class="pf-btn" onclick="pfShare(\''+jid+'\')">Share link</button>'
+    +'<button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSyncNote()
+    +(p.description?'<p class="pfv-desc">'+_pfEsc(p.description)+'</p>':'')
+    +'<div class="pfv-meta">'+st.n+' stock'+(st.n===1?'':'s')
+    +((p.tickers||[]).length?' · '+p.tickers.length+' picked':'')
+    +(p.rule?' · rule: '+_pfEsc(_pfRuleSummary(p.rule)):'')
+    +((p.exclude||[]).length?' · excludes '+_pfEsc(p.exclude.join(', ')):'')
+    +(miss.length?' · not in today’s universe: '+_pfEsc(miss.join(', ')):'')
+    +' · created '+_pfEsc(p.created||'')+'</div>'
+    +'<div class="pfv-detail-grid"><div class="pfv-panel">'+_pfMixBar(st)
+    +'<div class="pfv-legend">'+Object.keys(st.mix).map(function(r){return'<span><i style="background:'+RC[r]+'"></i>'+r+' '+st.mix[r]+'</span>';}).join('')+'</div>'
+    +_pfKpis(st)+'</div>'
+    +'<div class="pfv-panel"><div class="pfv-kpi-l">Sectors (equal weight)'+(st.concentrated?' — <span class="warn">concentrated</span>':'')+'</div>'
+    +st.sectors.slice(0,8).map(function(s){return'<div class="pfv-sec"><span class="pfv-sec-l">'+_pfEsc(s.s)+'</span><span class="pfv-sec-bar"><span style="width:'+(100*s.w)+'%"></span></span><span class="pfv-sec-v">'+s.c+'</span></div>';}).join('')
+    +(st.sectors.length>8?'<div class="pf-muted">+'+(st.sectors.length-8)+' more</div>':'')+'</div></div>';
+  h+='<h3 class="pfv-h3">Alerts'+(al.length?' <span class="pfv-count">'+al.length+'</span>':'')+'</h3>'
+    +(al.length?'<div class="pfv-alerts">'+al.map(function(a){return _pfAlertRow(a,false);}).join('')+'</div>'
+      :'<div class="pf-empty">'+(PF_PUB.prev_date?'Nothing changed for these stocks since '+_pfEsc(PF_PUB.prev_date)+'.':'No prior run to compare against.')+'</div>');
+  var rows=_pfMembers(id).map(function(t){return _pfRow[t];}).filter(Boolean);
+  rows.sort(function(a,b){return(_num(b._composite_score)||-1)-(_num(a._composite_score)||-1);});
+  h+='<h3 class="pfv-h3">Members</h3><div class="pfv-tbl-wrap"><table class="pfv-tbl"><thead><tr><th>Ticker</th><th>Company</th><th>Rating</th><th>Prior</th><th class="r">MoS</th><th class="r">Score</th><th class="r">ROIC−WACC</th><th>Sector</th><th>Via</th></tr></thead><tbody>';
+  rows.forEach(function(d){
+    var t=_pfJsArg(d.ticker),via=picked[d.ticker]?(p.rule&&_pfRuleMatch(p.rule,d)?'both':'pick'):'rule';
+    var mos=_num(d.mos),sp=_num(d.spread);
+    h+='<tr><td><span class="tk-link" onclick="openDet(\''+t+'\')">'+_pfEsc(d.ticker)+'</span></td>'
+      +'<td class="pfv-co">'+_pfEsc(d.company_name||'')+'</td><td>'+rb(d.rating,d)+'</td><td>'+rb(d.rating_prev)+'</td>'
+      +'<td class="r '+(mos==null?'':mos>0?'pos':'neg')+'">'+_pfPct(mos,true)+'</td>'
+      +'<td class="r">'+(_num(d._composite_score)==null?'—':Math.round(d._composite_score))+'</td>'
+      +'<td class="r '+(sp==null?'':sp>0?'pos':'neg')+'">'+_pfPct(sp,true)+'</td>'
+      +'<td>'+_pfEsc(d.sector||'')+'</td><td><span class="pf-tag">'+via+'</span></td></tr>';
+  });
+  if(!rows.length)h+='<tr><td colspan="9" class="pf-empty">No members in today’s universe.</td></tr>';
+  return h+'</tbody></table></div></div>';
+}
 (function(){
   if(_pfLocal&&_pfCanon(_pfLocal.portfolios)===_pfCanon(PF_PUB.portfolios)){
     _pfLocal=null;try{localStorage.removeItem(_PF_KEY);}catch(e){}
@@ -3400,6 +3565,7 @@ function _stateToParam(){
   if(curView==='matrix'&&curMSub&&curMSub!=='matrix')p.ms=curMSub;
   if(curView==='table'&&curTSub!=='prices')p.ts=curTSub;
   if(curView==='macro'&&curMacSub!=='overview')p.mo=curMacSub;
+  if(curView==='pf'&&curPfSub!=='overview')p.po=curPfSub;
   return p;
 }
 function _syncHashNow(){
@@ -3429,6 +3595,7 @@ function _restoreFromHash(){
     if(p.ms)curMSub=p.ms;
     if(p.ts)curTSub=p.ts;
     if(p.mo)curMacSub=p.mo;
+    if(p.po)curPfSub=p.po;
     /* A macro deep-link on a snapshot without macro data falls back to the
        default view — the container div exists but there is nothing to show. */
     if(p.v==='macro'&&!_MACRO_AVAILABLE){}
@@ -7746,7 +7913,7 @@ function moveFilterBar(v){
      that they seed from FD, the filters drive it and have to be reachable
      from it. The count comes back with them — on Charts it reads as "the
      pool the five were picked from". */
-  var navOnly=(v==='pool'||v==='macro');
+  var navOnly=(v==='pool'||v==='macro'||v==='pf');
   fb.classList.toggle('nav-only',navOnly);
   /* The centred #f-count now sits outside .filter-bar, so it is out of reach
      of the bar's `.nav-only > *` rule. Mirror the flag onto .header to keep
@@ -7902,7 +8069,9 @@ function _navGroups(){
     {v:'matrix',l:'Financial Model',cur:curMSub||'matrix',
      items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Gate Matrix'}]},
     {v:'table',l:'Financial Data',cur:curTSub,
-     items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})}
+     items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})},
+    {v:'pf',l:'Portfolios',cur:curPfSub,
+     items:[{k:'overview',l:'Overview'}].concat(_pfDefs().map(function(p){return{k:p.id,l:p.name};}))}
   ];
   /* Macro Outlook leads the menu: it is top-down context (regime, rates,
      inflation) that frames everything the other three views say about
@@ -7966,6 +8135,11 @@ function navGo(v,k){
     if(k!=null)curMacSub=k;
     if(curView!=='macro')showView('macro');
     else{renderMacro();_syncHash();renderNavMenu();}
+  }else if(v==='pf'){
+    if(k!=null)curPfSub=k;
+    if(curView!=='pf')showView('pf');
+    else{renderPfView();_syncHash();renderNavMenu();}
+    window.scrollTo(0,0);
   }else{
     if(k!=null)curTSub=k;
     if(curView!=='table')showView('table');
@@ -8142,6 +8316,7 @@ function renderCur(){
   else if(curView==='table'){renderTSubs();if(curTSub==='prices'){var tw=document.querySelector('.table-wrap'),phv=document.getElementById('ph-view');if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_phResync();}}else{renderTable();}}
   else if(curView==='pool')renderPool();
   else if(curView==='macro')renderMacro();
+  else if(curView==='pf'){renderPfView();renderNavMenu();}
 }
 
 /* === MACRO OUTLOOK === */
@@ -10674,6 +10849,62 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 @media (max-width:600px){
   .pf-row{flex-wrap:wrap;}
   .pf-row-btns{max-width:none;width:100%;justify-content:flex-start;padding-left:38px;}
+}
+.pfv{max-width:1200px;margin:0 auto;padding:18px 16px 40px;color:var(--text);}
+.pfv-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+.pfv-head h2{font-size:20px;font-weight:700;margin:0;}
+.pfv-sub{font-size:12.5px;color:var(--text-muted);}
+.pfv-empty{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;font-size:14px;line-height:1.5;}
+.pfv-empty p{margin:0 0 10px;}
+.pfv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+.pfv-card{background:var(--surface);border:1px solid var(--border);border-top:4px solid var(--pf);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:box-shadow .15s,transform .15s;}
+.pfv-card:hover,.pfv-card:focus{box-shadow:0 6px 20px rgba(0,0,0,.12);transform:translateY(-1px);outline:none;}
+.pfv-card-h{display:flex;align-items:center;gap:8px;}
+.pfv-name{font-size:15.5px;font-weight:700;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pfv-badge{font-size:11px;font-weight:700;min-width:20px;text-align:center;padding:2px 6px;border-radius:10px;background:var(--bg);color:var(--text-muted);border:1px solid var(--border);}
+.pfv-badge.hot{background:#e8833a;border-color:#e8833a;color:#fff;}
+.pfv-meta,.pfv-rule{font-size:12px;color:var(--text-muted);overflow-wrap:anywhere;}
+.pfv-mix{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--bg);}
+.pfv-mix span{display:block;height:100%;}
+.pfv-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
+.pfv-top{font-size:12px;color:var(--text-muted);}
+.pfv-top b{color:var(--text);font-weight:600;}
+.pfv-kpi-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);}
+.pfv-kpi-v{font-size:14px;font-weight:600;overflow-wrap:anywhere;}
+.pfv .pos{color:#1a9850;}.pfv .neg{color:#de2d26;}.pfv .warn{color:#e8833a;}
+.pfv-foot{font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;margin-top:auto;}
+.pfv-h3{font-size:14px;font-weight:700;margin:22px 0 8px;display:flex;align-items:center;gap:8px;}
+.pfv-count{font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);}
+.pfv-alerts{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.pfv-alert{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--border);font-size:13px;}
+.pfv-alert:first-child{border-top:none;}
+.pfv-sev{flex:0 0 auto;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 6px;border-radius:4px;color:#fff;background:#8a94a6;}
+.pfv-sev-high{background:#de2d26;}.pfv-sev-medium{background:#e8833a;}
+.pfv-alert .tk-link{flex:0 0 auto;font-weight:700;}
+.pfv-alert-msg{flex:1 1 auto;min-width:0;color:var(--text-muted);overflow-wrap:anywhere;}
+.pfv-alert-pf{display:flex;gap:3px;flex:0 0 auto;}
+.pfv-back{padding-left:0;margin-bottom:6px;}
+.pfv-detail-head .pfv-swatch{width:14px;height:14px;border-radius:4px;background:var(--pf);}
+.pfv-desc{font-size:13.5px;margin:0 0 6px;}
+.pfv-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:12px;}
+.pfv-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
+.pfv-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--text-muted);}
+.pfv-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px;}
+.pfv-sec{display:grid;grid-template-columns:minmax(0,150px) 1fr 28px;align-items:center;gap:8px;font-size:12.5px;}
+.pfv-sec-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pfv-sec-bar{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;}
+.pfv-sec-bar span{display:block;height:100%;background:var(--accent);}
+.pfv-sec-v{text-align:right;color:var(--text-muted);}
+.pfv-tbl-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;}
+.pfv-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.pfv-tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.pfv-tbl td{padding:7px 10px;border-top:1px solid var(--border);white-space:nowrap;}
+.pfv-tbl .r{text-align:right;}
+.pfv-co{max-width:240px;overflow:hidden;text-overflow:ellipsis;}
+@media (max-width:700px){
+  .pfv-detail-grid{grid-template-columns:1fr;}
+  .pfv-alert{flex-wrap:wrap;}
+  .pfv-alert-msg{flex-basis:100%;}
 }
 </style>
 <div id="pf-pop" role="menu" onclick="event.stopPropagation()"></div>

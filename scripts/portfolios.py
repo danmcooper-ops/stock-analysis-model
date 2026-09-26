@@ -19,13 +19,16 @@ Rule min/max on percent columns are fractions (--min mos=0.2 means MoS >= 20%).
 """
 import argparse
 import json
+import logging
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data.snapshot_store import list_snapshot_files, load_snapshot_file  # noqa: E402
+from data.snapshot_store import SnapshotStore, list_snapshot_files, load_snapshot_file  # noqa: E402
 from models import portfolio_groups as pg  # noqa: E402
+
+logger = logging.getLogger('portfolios')
 
 
 def _split_csv(s):
@@ -94,6 +97,36 @@ def _latest_rows(results_dir, day=None):
     d, path = files[-1]
     _, rows = load_snapshot_file(path)
     return d, rows
+
+
+def prior_rows(results_dir, before, columns):
+    """``(date, rows)`` of the newest snapshot strictly before *before*
+    (``YYYY-MM-DD``), or ``(None, [])``.
+
+    Served from the DuckDB snapshot store when it holds that date — only
+    *columns* are read — else by parsing the JSON. The store answers an
+    unknown column with NULL, which a rule would read as a present-but-N/A
+    ``_gate_<key>`` and so drop every row; gate columns the store lacks are
+    therefore never requested.
+    """
+    files = [(d, p) for d, p in list_snapshot_files(results_dir) if d < before]
+    if not files:
+        return None, []
+    day, path = files[-1]
+    try:
+        store = SnapshotStore.for_results_dir(results_dir)
+        if store is not None:
+            with store:
+                if store.has_date(day):
+                    have = {c.lower() for c in store.columns()}
+                    cols = [c for c in columns
+                            if not c.startswith('_gate_') or c.lower() in have]
+                    return day, store.rows(day, cols)
+    except Exception as e:  # the JSON is canonical; the store is a shortcut
+        logger.warning("portfolios: snapshot store read for %s failed (%s); "
+                       "parsing the JSON", day, e)
+    _, rows = load_snapshot_file(path)
+    return day, rows
 
 
 def _fmt_pct(v):
@@ -192,6 +225,7 @@ def cmd_show(doc, a):
             for c in p['rule']['cf']:
                 if not any(c['key'] in r for r in rows):
                     print(f"  warning: no row has a {c['key']!r} field, so this rule matches nothing")
+        print('  ' + _stats_line(pg.portfolio_stats(res['members'], by_tk)))
         manual, ruled = set(res['manual']), set(res['ruled'])
         print(f"  {'Ticker':<8} {'Rating':<9} {'MoS':>6} {'Score':>6}  {'Src':<5} Sector")
         for t in res['members']:
@@ -201,6 +235,53 @@ def cmd_show(doc, a):
                   f"{_fmt_num(r.get('_composite_score')):>6}  {src:<5} {r.get('sector') or '—'}")
         if res['missing']:
             print(f"  not in universe: {' '.join(res['missing'])}")
+
+
+def _stats_line(st):
+    mix = ' '.join(f"{k}:{v}" for k, v in st['ratings'].items() if v) or 'no ratings'
+    conc = ''
+    if st['top_sector']:
+        conc = f"  top sector {st['top_sector']} {st['top_sector_weight']:.0%}"
+        if st['concentrated']:
+            conc += ' (concentrated)'
+    return (f"{mix}  median MoS {_fmt_pct(st['median_mos'])}  "
+            f"score {_fmt_num(st['median_score'])}  "
+            f"spread {_fmt_pct(st['median_spread'])}{conc}")
+
+
+def build_alerts_report(portfolios, rows, prev_rows, day, prev_day):
+    """The text of output/portfolio_alerts_<date>.txt."""
+    by_tk, prev_by_tk = pg.rows_by_ticker(rows), pg.rows_by_ticker(prev_rows)
+    names = {p['id']: p['name'] for p in portfolios}
+    alerts = pg.portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=day)
+    lines = [f"Portfolio alerts {day} (vs {prev_day or 'no prior snapshot'})", '']
+    if not portfolios:
+        return '\n'.join(lines + ['No portfolios defined.']) + '\n'
+    for p in portfolios:
+        res = pg.resolve_members(p, by_tk)
+        st = pg.portfolio_stats(res['members'], by_tk, prev_by_tk)
+        chg = f"  today: +{st['upgrades']} up / -{st['downgrades']} down" \
+            if prev_day else ''
+        lines.append(f"{p['name']} [{p['id']}]: {st['n']} stocks{chg}")
+        lines.append('  ' + _stats_line(st))
+    lines += ['', f"{len(alerts)} alert(s)" + ('' if prev_day else
+              ' — no prior snapshot, so no change alerts')]
+    for al in alerts:
+        pfs = ', '.join(names.get(i, i) for i in al['portfolios'])
+        lines.append(f"  [{al['severity']:<6}] {al['message']}  — {pfs}")
+    return '\n'.join(lines) + '\n'
+
+
+def cmd_alerts(doc, a):
+    day, rows = _latest_rows(a.results_dir, a.date)
+    prev_day, prev = prior_rows(a.results_dir, day, pg.rule_columns(doc['portfolios']))
+    text = build_alerts_report(doc['portfolios'], rows, prev, day, prev_day)
+    print(text, end='')
+    if a.out:
+        out = a.out.replace('{date}', day)
+        with open(out, 'w', encoding='utf-8') as f:
+            f.write(text)
+        print(f"wrote {out}")
 
 
 def cmd_import(doc, a):
@@ -283,6 +364,11 @@ def build_parser():
     sp.add_argument('--results-dir', default='output')
     sp.add_argument('--date', help='snapshot date (default: latest)')
 
+    sp = sub.add_parser('alerts', help='per-portfolio stats and change alerts vs the prior run')
+    sp.add_argument('--results-dir', default='output')
+    sp.add_argument('--date', help='snapshot date (default: latest)')
+    sp.add_argument('--out', help='also write the report here ({date} is substituted)')
+
     sp = sub.add_parser('import', help="merge a report export or share link")
     sp.add_argument('source', help='exported JSON file, JSON text, or a #pf= share link')
     sp.add_argument('--overwrite', action='store_true',
@@ -297,7 +383,8 @@ def build_parser():
 
 COMMANDS = {'list': cmd_list, 'create': cmd_create, 'set-rule': cmd_set_rule,
             'edit': cmd_edit, 'delete': cmd_delete, 'add': cmd_add,
-            'remove': cmd_remove, 'show': cmd_show, 'import': cmd_import}
+            'remove': cmd_remove, 'show': cmd_show, 'alerts': cmd_alerts,
+            'import': cmd_import}
 
 
 def main(argv=None):

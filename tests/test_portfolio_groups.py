@@ -344,3 +344,159 @@ class TestReport:
         script.write_text(js, encoding='utf-8')
         r = subprocess.run(['node', str(script)], capture_output=True, text=True, check=False)
         assert r.returncode == 0, r.stdout + r.stderr
+
+
+# ---------------------------------------------------------------- stats & alerts (PR 2)
+
+TODAY = [
+    {'ticker': 'AAA', 'rating': 'BUY', 'sector': 'Energy', 'mos': 0.40, '_gate_mos': 0.40,
+     '_composite_score': 70.0, 'spread': 0.05},
+    {'ticker': 'BBB', 'rating': 'LEAN BUY', 'sector': 'Energy', 'mos': 0.25, '_gate_mos': 0.25,
+     '_composite_score': 50.0, 'spread': -0.02},
+    {'ticker': 'CCC', 'rating': 'BUY', 'sector': 'Technology', 'mos': 0.35, '_gate_mos': 0.35,
+     '_composite_score': 58.0, 'spread': 0.10},
+]
+YESTERDAY = [
+    {'ticker': 'AAA', 'rating': 'LEAN BUY', 'sector': 'Energy', 'mos': 0.38, '_gate_mos': 0.38,
+     '_composite_score': 66.0},
+    {'ticker': 'BBB', 'rating': 'BUY', 'sector': 'Energy', 'mos': 0.32, '_gate_mos': 0.32,
+     '_composite_score': 63.0},
+    {'ticker': 'CCC', 'rating': 'BUY', 'sector': 'Technology', 'mos': 0.28, '_gate_mos': 0.28,
+     '_composite_score': 57.0},
+    {'ticker': 'GONE', 'rating': 'BUY', 'sector': 'Energy', 'mos': 0.5, '_gate_mos': 0.5,
+     '_composite_score': 60.0},
+]
+
+
+class TestStatsAndAlerts:
+    def test_detect_alerts_stamps_run_date(self):
+        from models.portfolio_tracker import detect_alerts
+        al = detect_alerts([{'ticker': 'X', 'in_universe': True, 'rating': 'PASS'}],
+                           {'X': {'rating': 'BUY'}}, run_date='2026-09-14')
+        assert al[0]['date'] == '2026-09-14' and al[0]['alert_type'] == 'rating_downgrade'
+
+    def test_portfolio_stats(self):
+        by, prev = pg.rows_by_ticker(TODAY), pg.rows_by_ticker(YESTERDAY)
+        st = pg.portfolio_stats(['AAA', 'BBB', 'CCC', 'NOPE'], by, prev)
+        assert st['n'] == 3
+        assert st['ratings'] == {'BUY': 2, 'LEAN BUY': 1, 'HOLD': 0, 'PASS': 0}
+        assert st['median_mos'] == 0.35 and st['median_score'] == 58.0
+        assert st['median_spread'] == 0.05
+        assert st['top_sector'] == 'Energy' and st['top_sector_weight'] == pytest.approx(2 / 3)
+        assert st['concentrated'] is True
+        assert (st['upgrades'], st['downgrades']) == (1, 1)
+
+    def test_change_alerts_skip_valuation_gap(self):
+        al = pg.change_alerts(pg.rows_by_ticker(TODAY), pg.rows_by_ticker(YESTERDAY), '2026-09-14')
+        kinds = sorted((a['ticker'], a['alert_type']) for a in al)
+        assert kinds == [('AAA', 'rating_upgrade'), ('BBB', 'rating_downgrade'),
+                         ('BBB', 'score_drop')]
+
+    def test_membership_events_explain_the_flip(self):
+        p = _pf(id='deep', name='Deep', tickers=['GONE'],
+                rule={'ratings': ['BUY'], 'cf': [{'key': 'mos', 'min': 0.3}]})
+        ev = pg.membership_events([p], pg.rows_by_ticker(TODAY),
+                                  pg.rows_by_ticker(YESTERDAY), '2026-09-14')
+        msgs = {(e['ticker'], e['alert_type']): e['message'] for e in ev}
+        assert set(msgs) == {('AAA', 'joined'), ('BBB', 'left'), ('CCC', 'joined'),
+                             ('GONE', 'dropped_out')}
+        assert 'rating LEAN BUY → BUY' in msgs[('AAA', 'joined')]
+        assert 'rating BUY → LEAN BUY' in msgs[('BBB', 'left')]
+        assert 'mos 0.32 → 0.25 (rule: ≥ 0.3)' in msgs[('BBB', 'left')]
+        assert 'mos 0.28 → 0.35 (rule: ≥ 0.3)' in msgs[('CCC', 'joined')]
+        assert "dropped out of today's universe" in msgs[('GONE', 'dropped_out')]
+
+    def test_definition_edit_is_not_a_join(self):
+        # Today's definition judges both days, so a newly added pick of a
+        # stock present both days produces no event.
+        p = _pf(id='x', tickers=['AAA'])
+        assert pg.membership_events([p], pg.rows_by_ticker(TODAY), pg.rows_by_ticker(YESTERDAY)) == []
+
+    def test_portfolio_alerts_attribute_once(self):
+        pfs = [_pf(id='a', tickers=['AAA', 'BBB']), _pf(id='b', tickers=['BBB'])]
+        al = pg.portfolio_alerts(pfs, pg.rows_by_ticker(TODAY), pg.rows_by_ticker(YESTERDAY), '2026-09-14')
+        bbb = [a for a in al if a['ticker'] == 'BBB']
+        assert {a['alert_type'] for a in bbb} == {'rating_downgrade', 'score_drop'}
+        assert all(a['portfolios'] == ['a', 'b'] for a in bbb)
+        assert [a['severity'] for a in al] == sorted((a['severity'] for a in al), key=pg.SEVERITY_ORDER.get)
+        assert not [a for a in al if a['ticker'] == 'CCC']  # in no portfolio
+
+    def test_rule_columns(self):
+        p = _pf(rule={'ratings': ['BUY'], 'cf': [{'key': 'mos', 'min': 0.3}, {'key': 'industry', 'txt': 'x'}]})
+        cols = pg.rule_columns([p])
+        assert {'mos', '_gate_mos', 'industry', 'rating', '_composite_score'} <= set(cols)
+        assert '_gate_industry' not in cols
+
+
+def _write_days(res):
+    from data.snapshot_store import write_snapshot_file
+    res.mkdir(exist_ok=True)
+    write_snapshot_file(str(res / 'results_2026-09-11.json'), {'results': YESTERDAY})
+    write_snapshot_file(str(res / 'results_2026-09-14.json'), {'results': TODAY})
+
+
+class TestPriorRowsAndCliAlerts:
+    def test_prior_rows_json_and_store_agree(self, tmp_path):
+        from scripts.ingest_snapshots import ingest_dir
+        res = tmp_path / 'out'
+        _write_days(res)
+        cols = ['ticker', 'rating', 'mos', '_gate_mos', '_gate_mcap', 'mcap']
+        d1, json_rows = cli.prior_rows(str(res), '2026-09-14', cols)
+        ingest_dir(str(res))
+        d2, store_rows = cli.prior_rows(str(res), '2026-09-14', cols)
+        assert d1 == d2 == '2026-09-11'
+        # The store answers an unknown column with NULL; a phantom
+        # _gate_mcap would make every mcap clause drop every row.
+        assert all('_gate_mcap' not in r for r in store_rows)
+        rule = pg.normalize_rule({'cf': [{'key': 'mos', 'min': 0.3}]})
+        match = lambda rows: sorted(r['ticker'] for r in rows if pg.rule_matches(rule, r))  # noqa: E731
+        assert match(json_rows) == match(store_rows) == ['AAA', 'BBB', 'GONE']
+        assert cli.prior_rows(str(res), '2026-09-11', cols) == (None, [])
+
+    def test_alerts_command_writes_report(self, tmp_path, capsys):
+        res = tmp_path / 'out'
+        _write_days(res)
+        f = tmp_path / 'pf.json'
+        _run(f, 'create', 'deep', '--name', 'Deep', '--rating', 'BUY', '--min', 'mos=0.3', '--tickers', 'GONE')
+        capsys.readouterr()
+        _run(f, 'alerts', '--results-dir', str(res), '--out', str(tmp_path / 'a_{date}.txt'))
+        out = (tmp_path / 'a_2026-09-14.txt').read_text(encoding='utf-8')
+        assert out.startswith('Portfolio alerts 2026-09-14 (vs 2026-09-11)')
+        assert 'Deep [deep]: 2 stocks' in out
+        assert 'AAA joined Deep (rating LEAN BUY → BUY)' in out
+        assert 'BBB left Deep (rating BUY → LEAN BUY; mos 0.32 → 0.25 (rule: ≥ 0.3))' in out
+        assert 'GONE left Deep (dropped out' in out
+        assert '[LOW   ] CCC joined Deep' in out
+
+    def test_alerts_without_portfolios_or_prior(self, tmp_path, capsys):
+        from data.snapshot_store import write_snapshot_file
+        res = tmp_path / 'out'
+        res.mkdir()
+        write_snapshot_file(str(res / 'results_2026-09-14.json'), {'results': TODAY})
+        f = tmp_path / 'pf.json'
+        _run(f, 'alerts', '--results-dir', str(res))
+        assert 'No portfolios defined.' in capsys.readouterr().out
+        _run(f, 'create', 'a', '--name', 'A', '--tickers', 'AAA')
+        capsys.readouterr()
+        _run(f, 'alerts', '--results-dir', str(res))
+        assert 'no prior snapshot, so no change alerts' in capsys.readouterr().out
+
+    def test_report_payload_carries_changes_and_events(self, tmp_path, monkeypatch):
+        from datetime import date
+        from scripts.report_html import build_html
+        res = tmp_path / 'out'
+        _write_days(res)
+        pf = tmp_path / 'pf.json'
+        pg.save_portfolios({'version': 1, 'portfolios': [
+            {'id': 'deep', 'name': 'Deep', 'rule': {'ratings': ['BUY'], 'cf': [{'key': 'mos', 'min': 0.3}]}}]},
+            str(pf))
+        monkeypatch.setenv('PORTFOLIOS_FILE', str(pf))
+        out = res / 'report.html'
+        build_html([dict(r) for r in TODAY], str(out), prices_dir=None, run_date=date(2026, 9, 14))
+        html = out.read_text(encoding='utf-8')
+        payload = json.loads(re.search(r'var PF_PUB=\(function\(\)\{var p=(.*?);return', html).group(1))
+        assert payload['prev_date'] == '2026-09-11'
+        assert {(c['ticker'], c['alert_type']) for c in payload['changes']} == {
+            ('AAA', 'rating_upgrade'), ('BBB', 'rating_downgrade'), ('BBB', 'score_drop')}
+        assert {(e['ticker'], e['alert_type']) for e in payload['events']} == {
+            ('AAA', 'joined'), ('BBB', 'left'), ('CCC', 'joined'), ('GONE', 'dropped_out')}

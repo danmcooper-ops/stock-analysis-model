@@ -39,7 +39,7 @@ and both force-push `pages-live`.
 | 05e-prices-topup | | no | full history for Phase-2 entrants that only got a Close-only stub during the run |
 | 05f-rerender | | yes | `rescore_and_render.py` so the HTML carries every enrichment |
 | 06-archive | | **yes** | `archive_snapshot.py` (gzip + SHA-256 round-trip + 80 MiB guard), commit `Snapshot: <date>` (with `rating_history.json` and, unless `SMOKE=1` or the file is under 10 KB, `screen_skip.json`) on top of the remote tip, push with retries. rc 2 = over the hard guard, not pushed |
-| 07a–07c reports | | no | portfolio concentration/drawdown, gate N/A coverage + deltas, trailing-momentum sanity check — **their logs are the body of your summary** |
+| 07a–07e reports | | no | portfolio concentration/drawdown, gate N/A coverage + deltas, trailing-momentum sanity check — **their logs are the body of your summary** |
 | 08-publish | | no* | rebuilds `pages-live` (index.html, prices_meta/hist/details/macro sidecars, `px/` and `vol/` shards by manifest) as one fresh commit, force-pushes it, then polls the live URL for today's date. *A publish failure does not fail the analysis (the snapshot is safe); report it and note that re-running only step 8 is possible by hand |
 
 Everything lands under `$REPO/.cloud-run/`: `status.txt` (one `step rc=N seconds=S`
@@ -160,6 +160,11 @@ Lead with the result line and the run date, then, in this order:
 5. **Snapshot store** — if `07d-store-check` failed, quote its `PROBLEM:`
    lines from `logs/07d-store-check.log`. Store syncs never fail a step, so
    this is the only place a store that stopped updating shows up.
+5a. **Your portfolios** — from `logs/07e-portfolio-alerts.log`: one line per
+   portfolio (size, rating mix, median MoS), then list every HIGH and MEDIUM
+   alert verbatim (downgrades, score drops, stocks that left a portfolio and
+   why). Say "no portfolio alerts" when the count is 0; skip the section
+   when it reports "No portfolios defined."
 6. **Publish** — the live URL and whether it served today's date; the deploy
    workflow otherwise.
 7. **Run quality** — the analysis log's closing run-quality summary
