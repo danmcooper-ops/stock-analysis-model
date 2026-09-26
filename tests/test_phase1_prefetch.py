@@ -291,3 +291,48 @@ def test_workers_one_creates_no_pool():
     tickers = ['A1', 'A2']
     _, out, _, _ = _run(tickers, 1)
     assert 'prefetching network data' not in out
+
+
+def test_beta_is_attributed_to_the_network_when_the_pool_fetched_it(monkeypatch, tmp_path):
+    """fetch_history write-throughs land a parquet, so by the time the loop
+    reaches a prefetched ticker a file exists and the beta used to be counted
+    as local — 4,412 vs a true ~2,470 on 2026-09-22. Attribution must follow
+    where the data came from this run, not what is on disk now.
+    """
+    import pandas as pd
+    series = pd.Series(range(300),
+                       index=pd.bdate_range(end='2026-09-25', periods=300))
+    tickers = ['AAA', 'BBB']
+    written = set()
+
+    # No parquet when the pool decides; one appears afterwards, exactly as
+    # _maybe_persist_prices does.
+    def _fresh(ticker, prices_dir, as_of, *a, **k):
+        if ticker == 'SPY' or ticker in written:
+            return series
+        return None
+
+    monkeypatch.setattr(A, '_fresh_local_prices', _fresh)
+
+    yf = _FakeYF()
+    real_history = yf.fetch_history
+
+    def _history(ticker, period="5y"):
+        written.add(ticker)                    # the write-through
+        return real_history(ticker, period)
+
+    yf.fetch_history = _history
+
+    with redirect_stdout(io.StringIO()):
+        out = A._run_phase1_screen(_args(), _Prov(), list(tickers),
+                                   {t: 'quality' for t in tickers}, yf, None,
+                                   _FakeSEC(ciks=tickers), 0.04, 0.045,
+                                   prices_dir=str(tmp_path), phase1_workers=4)
+
+    counts = out['timings']['leg_counts']
+    assert sorted(yf.history) == tickers, "the pool should have fetched both"
+    assert all(t in written for t in tickers), "parquets now exist for both"
+    # The assertion that matters.
+    assert counts.get('beta_from_network') == 2, counts
+    assert not counts.get('beta_from_local'), (
+        f"a pool-fetched beta was credited to the local parquet: {counts}")

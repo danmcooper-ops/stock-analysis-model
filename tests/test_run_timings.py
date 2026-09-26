@@ -267,3 +267,45 @@ def test_retry_does_not_penalize_on_a_404(monkeypatch):
         c._retry(dead)
     assert c._throttle.delay == pytest.approx(0.4)
     assert c._throttle.penalties == 0
+
+
+def test_valve_break_even_stays_above_observed_empty_rates():
+    """penalize and relax are a control loop; they cancel at
+    penalty * relax**(n-1) == 1, i.e. one empty per n calls.
+
+    At 1.5 / 0.98 that was one per 21.1 calls (4.75%) while the 2026-09-22..25
+    runs sat at 4.66-5.30%, so the delay ratcheted to the cap and stayed
+    pinned. The configured pair must keep a real margin over that.
+    """
+    import math
+    from scripts.config import YF_THROTTLE_PENALTY, YF_THROTTLE_RELAX
+    n = 1 + math.log(1 / YF_THROTTLE_PENALTY) / math.log(YF_THROTTLE_RELAX)
+    break_even_rate = 1 / n
+    assert break_even_rate > 0.08, (
+        f"valve breaks even at {break_even_rate:.1%} empty; observed runs hit "
+        "5.3%, so this leaves no margin and the delay will ratchet to the cap")
+
+
+def test_a_realistic_empty_rate_does_not_ratchet_to_the_cap():
+    """Simulate the observed 5.2% empty rate against the configured pair."""
+    from scripts.config import (YF_REQUEST_DELAY, YF_REQUEST_DELAY_MAX,
+                                YF_THROTTLE_PENALTY, YF_THROTTLE_RELAX)
+    t = Throttle(YF_REQUEST_DELAY)
+    for i in range(8000):
+        if i % 19 == 0:                    # ~5.3% empty
+            t.penalize(YF_THROTTLE_PENALTY, cap=YF_REQUEST_DELAY_MAX)
+        else:
+            t.relax(YF_THROTTLE_RELAX)
+    assert t.delay < YF_REQUEST_DELAY_MAX * 0.5, (
+        f"delay settled at {t.delay:.2f}s, heading for the "
+        f"{YF_REQUEST_DELAY_MAX}s cap as it did on 2026-09-23/25")
+
+
+def test_a_genuine_rate_problem_still_reaches_the_cap():
+    """Softening the loop must not disarm it."""
+    from scripts.config import (YF_REQUEST_DELAY, YF_REQUEST_DELAY_MAX,
+                                YF_THROTTLE_PENALTY)
+    t = Throttle(YF_REQUEST_DELAY)
+    for _ in range(200):
+        t.penalize(YF_THROTTLE_PENALTY, cap=YF_REQUEST_DELAY_MAX)
+    assert t.delay == pytest.approx(YF_REQUEST_DELAY_MAX)
