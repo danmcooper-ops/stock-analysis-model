@@ -543,6 +543,38 @@ def _load_russell2000():
         return set()
 
 
+def _load_portfolio_payload(rows):
+    """Portfolio groupings for the report: ``(payload, {ticker: [ids]})``.
+
+    The payload (inline ``PORTFOLIOS``) carries the definitions with colors
+    filled in and their revision hash, which the report's local-edit sync
+    compares against. Membership is resolved here against the raw rows so
+    the unedited published set never depends on the browser's evaluator.
+    ``PORTFOLIOS_FILE`` overrides the path (tests, alternate books). A
+    missing or invalid file degrades to no portfolios; it never fails a
+    render.
+    """
+    from models import portfolio_groups as pg
+    path = os.environ.get('PORTFOLIOS_FILE') or pg.DEFAULT_PORTFOLIOS_PATH
+    try:
+        doc = pg.load_portfolios(path)
+    except (OSError, ValueError) as e:
+        logger.warning("portfolios: %s unusable (%s); rendering without portfolios",
+                       path, e)
+        return {'rev': None, 'portfolios': [], 'error': str(e)}, {}
+    pfs = pg.with_colors(doc['portfolios'])
+    resolved = pg.resolve_all(pfs, rows)
+    index = {}
+    for p in pfs:
+        for t in resolved[p['id']]['members']:
+            index.setdefault(t, []).append(p['id'])
+        p['missing'] = resolved[p['id']]['missing']
+    if pfs:
+        print(f"[report_html] portfolios: {len(pfs)} "
+              f"({sum(len(v) for v in index.values())} memberships)")
+    return {'rev': pg.revision(doc), 'portfolios': pfs}, index
+
+
 # Every sidecar is written compact. json.dump's default separators put a
 # space after each comma, which on prices.json alone (11.6M array elements)
 # wasted 11.6 MB of the 100 MB Pages budget.
@@ -1505,6 +1537,11 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
 
     chart_records = [_row_context(r, gate_meta_obj, _r2000, _prev_ratings,
                                   _rating_hist) for r in rows]
+    portfolios_payload, _pf_index = _load_portfolio_payload(rows)
+    for _rec in chart_records:
+        # Portfolio ids this ticker belongs to (resolved server-side; the
+        # client re-resolves only portfolios edited in the browser).
+        _rec['pf'] = _pf_index.get(str(_rec['ticker']).upper(), [])
     _attach_data_summaries(chart_records)
 
     details_payload = _extract_details_payload(chart_records)
@@ -1562,6 +1599,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         lean_buy_count=lean_buy_count,
         chart_data=chart_data,
         gate_meta=gate_meta,
+        portfolios_json=dumps_for_script(portfolios_payload, default=_json_default),
         sector_pool_json=sector_pool_json,
         prices_available=('true' if prices_payload is not None else 'false'),
         prices_size_mb=prices_size_mb,

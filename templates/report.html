@@ -2199,6 +2199,11 @@ body.wide-table .container{padding-left:0;padding-right:0;}
                 <button class="fpop-toggle-btn" id="f-downgrades" onclick="setRcFilter(2)" title="Only stocks whose rating declined vs the prior run's snapshot (Yesterday's Rating). Stocks new since the prior run don't count."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Downgrades</button>
               </div>
             </div>
+            <div class="filt-col" id="pf-filt-col">
+              <div class="fpop-section-label">Portfolios<span class="pf-sync-badge" id="pf-sync-badge" style="display:none">&#9679;</span></div>
+              <div class="ms-drop pf-filt-opts" id="pf-filt-opts"></div>
+              <div class="pf-filt-actions"><button type="button" class="pf-link" onclick="pfSaveFilterOpen()">Save filter as portfolio&hellip;</button><button type="button" class="pf-link" onclick="pfManageOpen()">Manage&hellip;</button></div>
+            </div>
           </div>
           <div class="fpop-divider"></div>
           <div class="fpop-section-label">Column Filters</div>
@@ -2270,7 +2275,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
            on top, then price·rating·composite. -->
       <div class="d-rating-row"><div class="dpx" id="d-px"></div><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
       <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div></div>
-      <div class="d-mini-nav-actions"><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
+      <div class="d-mini-nav-actions"><span id="d-pf" class="d-pf-btn" onclick="pfDetMenu(event)" role="button" tabindex="0" title="Portfolios"></span><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
     </div>
     <div class="d-body">
       <div id="d-pane-overview" class="d-pane active">
@@ -2809,6 +2814,471 @@ function clearAllReviewed(){if(!Object.keys(_revd).length)return;if(!confirm('Cl
 function _revHtml(tk){var c=isReviewed(tk);return '<span class="rev-chk'+(c?' checked':'')+'" onclick="toggleReviewed(\''+tk.replace(/'/g,"\\'")+'\',event)" title="'+(c?'Reviewed — click to unmark':'Mark as reviewed')+'">'+_CHK_SVG+'</span>';}
 _updateRevCount();
 
+/* === PORTFOLIOS ===
+   Named groupings of tickers — hand-picked, rule-driven, or both; a ticker
+   may sit in any number of them. The source of truth is the committed
+   portfolio/portfolios.json (models/portfolio_groups.py), published here as
+   PF_PUB with membership pre-resolved server-side into each row's d.pf.
+   Edits made in this browser live in localStorage as a working copy
+   ({base_rev, portfolios}) and are published by Export + `scripts/
+   portfolios.py import`. Sync states: clean (no local copy: follow the
+   published file), dirty (local edits on top of the current file), stale
+   (the published file changed since the local edits began).
+   A rule is the Filters panel's own state (ratings/sectors/countries/cf),
+   with min/max on % columns stored as fractions. _pfRuleMatch mirrors
+   rule_matches() in portfolio_groups.py clause for clause — keep them in
+   step (tests/fixtures/portfolio_rule_cases.json pins both). */
+var PF_PUB=(function(){var p={{ portfolios_json|default('null') }};return(p&&Array.isArray(p.portfolios))?p:{rev:null,portfolios:[]};})();
+var _PF_KEY='stock_portfolios_v1';
+var _PF_PALETTE=['#4f7cff','#e8833a','#2fa36b','#c9469b','#8a63d2','#d4a72c','#1fa2b8','#d9534f','#6c8a3a','#9b6b43'];
+var _PF_FIELDS=['id','name','color','description','created','tickers','exclude','rule'];
+var _pfLocal=(function(){try{var v=JSON.parse(localStorage.getItem(_PF_KEY));return(v&&Array.isArray(v.portfolios))?v:null;}catch(e){return null;}})();
+var _pfMem={},_pfById={},_pfTk={},_pfSel=[],_pfEditingId=null;
+function _pfEsc(s){return(s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function _pfJsArg(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+function _pfClean(p){var o={};_PF_FIELDS.forEach(function(k){o[k]=p[k]===undefined?null:p[k];});o.tickers=(o.tickers||[]).slice().sort();o.exclude=(o.exclude||[]).slice().sort();return o;}
+function _pfCanon(list){return JSON.stringify((list||[]).map(_pfClean));}
+function _pfDefs(){return _pfLocal?_pfLocal.portfolios:PF_PUB.portfolios;}
+function _pfSyncState(){if(!_pfLocal)return'clean';return _pfLocal.base_rev===PF_PUB.rev?'dirty':'stale';}
+function _pfToday(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function _pfSlug(name){var s=String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40).replace(/-+$/,'');return s||'portfolio';}
+function _pfUniqueId(base){var id=base,n=2;while(_pfById[id]){var suf='-'+n++;id=base.slice(0,40-suf.length)+suf;}return id;}
+function _pfNextColor(){var used={};_pfDefs().forEach(function(p){if(p.color)used[p.color]=1;});for(var i=0;i<_PF_PALETTE.length;i++)if(!used[_PF_PALETTE[i]])return _PF_PALETTE[i];return _PF_PALETTE[_pfDefs().length%_PF_PALETTE.length];}
+function _pfRuleMatch(r,d){
+  if(!r||!d)return false;
+  if(r.ratings!=null&&r.ratings.indexOf(d.rating)<0)return false;
+  if(r.sectors!=null&&r.sectors.indexOf(d.sector)<0)return false;
+  if(r.countries!=null&&r.countries.indexOf(d.country)<0)return false;
+  var cf=r.cf||[];
+  for(var i=0;i<cf.length;i++){
+    var c=cf[i];
+    if(c.txt!=null){
+      if(String(d[c.key]==null?'':d[c.key]).toUpperCase().indexOf(String(c.txt).toUpperCase())<0)return false;
+      continue;
+    }
+    var v=_num(d[c.key]);
+    if(v==null)return false;
+    var g='_gate_'+c.key;
+    if(g in d&&_num(d[g])==null)return false;
+    if(c.min!=null&&v<c.min)return false;
+    if(c.max!=null&&v>c.max)return false;
+  }
+  return true;
+}
+/* Rebuild membership. Clean state reads the server-resolved d.pf; with a
+   local working copy every portfolio is re-resolved here against DATA. */
+function _pfRecompute(){
+  _pfMem={};_pfById={};_pfTk={};
+  DATA.forEach(function(d){_pfTk[d.ticker]=1;});
+  var defs=_pfDefs();
+  defs.forEach(function(p){_pfById[p.id]=p;});
+  if(!_pfLocal){
+    DATA.forEach(function(d){if(d.pf&&d.pf.length)_pfMem[d.ticker]=d.pf.filter(function(id){return _pfById[id];});});
+  }else{
+    var byTk={};DATA.forEach(function(d){byTk[d.ticker]=d;});
+    defs.forEach(function(p){
+      var ex={},set={};
+      (p.exclude||[]).forEach(function(t){ex[t]=1;});
+      (p.tickers||[]).forEach(function(t){if(byTk[t]&&!ex[t])set[t]=1;});
+      if(p.rule)DATA.forEach(function(d){if(!ex[d.ticker]&&_pfRuleMatch(p.rule,d))set[d.ticker]=1;});
+      Object.keys(set).forEach(function(t){(_pfMem[t]=_pfMem[t]||[]).push(p.id);});
+    });
+  }
+  _pfSel=_pfSel.filter(function(id){return _pfById[id];});
+}
+function _pfMembers(id){var out=[];Object.keys(_pfMem).forEach(function(t){if(_pfMem[t].indexOf(id)>=0)out.push(t);});return out.sort();}
+function _pfIsMember(id,tk){var m=_pfMem[tk];return !!(m&&m.indexOf(id)>=0);}
+function _pfPass(d){
+  if(!_pfSel.length)return true;
+  var m=_pfMem[d.ticker];if(!m)return false;
+  for(var i=0;i<m.length;i++)if(_pfSel.indexOf(m[i])>=0)return true;
+  return false;
+}
+function _pfSave(){try{localStorage.setItem(_PF_KEY,JSON.stringify(_pfLocal));}catch(e){}}
+function _pfBeginEdit(){
+  if(!_pfLocal)_pfLocal={base_rev:PF_PUB.rev,portfolios:PF_PUB.portfolios.map(_pfClean)};
+  return _pfLocal.portfolios;
+}
+/* After any mutation: a working copy identical to the published file is
+   dropped (back to clean), so undoing an edit by hand really undoes it. */
+function _pfCommit(){
+  if(_pfLocal&&_pfCanon(_pfLocal.portfolios)===_pfCanon(PF_PUB.portfolios)){
+    _pfLocal=null;try{localStorage.removeItem(_PF_KEY);}catch(e){}
+  }else _pfSave();
+  _pfRefresh();
+}
+function _pfRefresh(){
+  _pfRecompute();_pfRenderFilter();
+  if(typeof applyFilters==='function')applyFilters();
+  _pfSyncDet();
+  if(_pfOverlayOpen())_pfRenderManage();
+}
+function _pfLabel(k){var o=window._CF_OPTS||[];for(var i=0;i<o.length;i++)if(o[i].k===k)return String(o[i].l).replace(/\s*\([^)]*\)$/,'');return k;}
+function _pfRuleSummary(r){
+  if(!r)return'';
+  var parts=[];
+  if(r.ratings!=null)parts.push(r.ratings.length?r.ratings.join(' / '):'no ratings');
+  if(r.sectors!=null)parts.push(r.sectors.length?r.sectors.join(' / '):'no sectors');
+  if(r.countries!=null)parts.push(r.countries.length?r.countries.join(' / '):'no countries');
+  (r.cf||[]).forEach(function(c){
+    var lbl=_pfLabel(c.key);
+    if(c.txt!=null){parts.push(lbl+' contains "'+c.txt+'"');return;}
+    var pct=window._CF_FMT&&_CF_FMT[c.key]==='pct';
+    function f(x){return pct?(Math.round(x*1e4)/1e2)+'%':(Math.abs(x)>=1e9?(x/1e9)+'B':Math.abs(x)>=1e6?(x/1e6)+'M':String(x));}
+    if(c.min!=null&&c.max!=null)parts.push(f(c.min)+' ≤ '+lbl+' ≤ '+f(c.max));
+    else if(c.min!=null)parts.push(lbl+' ≥ '+f(c.min));
+    else parts.push(lbl+' ≤ '+f(c.max));
+  });
+  return parts.join(' · ');
+}
+/* Row marker: up to three colored dots, then "+n". */
+function _pfDots(tk){
+  var m=_pfMem[tk];if(!m||!m.length)return'';
+  var names=m.map(function(id){return _pfById[id]?_pfById[id].name:id;}).join(', ');
+  var h='<span class="pf-dots" title="'+_pfEsc(names)+'">';
+  m.slice(0,3).forEach(function(id){var p=_pfById[id];h+='<span class="pf-dot" style="background:'+_pfEsc(p&&p.color||'#888')+'"></span>';});
+  if(m.length>3)h+='<span class="pf-more">+'+(m.length-3)+'</span>';
+  return h+'</span>';
+}
+
+/* --- Filters panel: Portfolios column (OR across the checked ones) --- */
+function _pfRenderFilter(){
+  var el=document.getElementById('pf-filt-opts');if(!el)return;
+  var defs=_pfDefs();
+  if(!defs.length){el.innerHTML='<div class="pf-empty">No portfolios yet.</div>';}
+  else{
+    var h='';
+    defs.forEach(function(p){
+      var n=_pfMembers(p.id).length;
+      h+='<label><input type="checkbox" data-pf="'+_pfEsc(p.id)+'"'+(_pfSel.indexOf(p.id)>=0?' checked':'')
+        +' onchange="pfToggleSel(\''+_pfJsArg(p.id)+'\')"><span class="pf-dot" style="background:'+_pfEsc(p.color)+'"></span>'
+        +_pfEsc(p.name)+' <span class="pf-n">'+n+'</span></label>';
+    });
+    el.innerHTML=h;
+  }
+  var st=_pfSyncState(),b=document.getElementById('pf-sync-badge');
+  if(b){b.style.display=st==='clean'?'none':'';b.title=st==='stale'?'Local edits are based on an older published portfolio file':'Unpublished local edits — open Manage to export';}
+}
+function pfToggleSel(id){
+  var i=_pfSel.indexOf(id);
+  if(i>=0)_pfSel.splice(i,1);else _pfSel.push(id);
+  applyFilters();
+}
+function pfShowOnly(id){
+  _pfSel=[id];_pfRenderFilter();applyFilters();pfManageClose();
+}
+
+/* --- Detail popup: membership menu --- */
+function _pfDetTk(){var el=document.getElementById('d-tk');return el?el.textContent:'';}
+function _pfSyncDet(){
+  var el=document.getElementById('d-pf');if(!el)return;
+  var tk=_pfDetTk();
+  var m=_pfMem[tk]||[];
+  el.innerHTML='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 5.5h5l1.5 2h8.5v8.5h-15z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>'
+    +(m.length?'<span class="pf-det-n">'+m.length+'</span>':'');
+  el.title=m.length?'In: '+m.map(function(id){return _pfById[id]?_pfById[id].name:id;}).join(', '):'Add to a portfolio';
+  el.classList.toggle('on',m.length>0);
+  var pop=document.getElementById('pf-pop');
+  if(pop&&pop.classList.contains('open'))_pfRenderPop();
+}
+function _pfRenderPop(){
+  var pop=document.getElementById('pf-pop'),tk=_pfDetTk();
+  var d=null;for(var i=0;i<DATA.length;i++)if(DATA[i].ticker===tk){d=DATA[i];break;}
+  var h='<div class="pf-pop-h">Portfolios — '+_pfEsc(tk)+'</div>';
+  _pfDefs().forEach(function(p){
+    var on=_pfIsMember(p.id,tk);
+    var viaRule=on&&p.rule&&(p.tickers||[]).indexOf(tk)<0;
+    h+='<label class="pf-pop-row"><input type="checkbox"'+(on?' checked':'')+' onchange="pfDetToggle(\''+_pfJsArg(p.id)+'\',this.checked)">'
+      +'<span class="pf-dot" style="background:'+_pfEsc(p.color)+'"></span><span class="pf-pop-name">'+_pfEsc(p.name)+'</span>'
+      +(viaRule?'<span class="pf-tag" title="Member because it matches the rule; unchecking excludes it">rule</span>':'')+'</label>';
+  });
+  if(!_pfDefs().length)h+='<div class="pf-empty">No portfolios yet.</div>';
+  h+='<button class="pf-link" onclick="pfNewWithTicker()">+ New portfolio with '+_pfEsc(tk)+'…</button>';
+  h+='<button class="pf-link" onclick="pfManageOpen()">Manage portfolios…</button>';
+  pop.innerHTML=h;
+}
+function pfDetMenu(e){
+  if(e)e.stopPropagation();
+  var pop=document.getElementById('pf-pop'),btn=document.getElementById('d-pf');
+  if(!pop||!btn)return;
+  if(pop.classList.contains('open')){pfPopClose();return;}
+  _pfRenderPop();
+  pop.classList.add('open');
+  var r=btn.getBoundingClientRect(),w=Math.min(280,window.innerWidth-16);
+  pop.style.width=w+'px';
+  pop.style.left=Math.max(8,Math.min(r.right-w,window.innerWidth-w-8))+'px';
+  pop.style.top=(r.bottom+6)+'px';
+}
+function pfPopClose(){var pop=document.getElementById('pf-pop');if(pop)pop.classList.remove('open');}
+function pfDetToggle(id,checked){
+  var tk=_pfDetTk();if(!tk)return;
+  var list=_pfBeginEdit(),p=null;
+  for(var i=0;i<list.length;i++)if(list[i].id===id){p=list[i];break;}
+  if(!p)return;
+  var d=null;for(var j=0;j<DATA.length;j++)if(DATA[j].ticker===tk){d=DATA[j];break;}
+  p.tickers=p.tickers||[];p.exclude=p.exclude||[];
+  if(checked){
+    p.exclude=p.exclude.filter(function(t){return t!==tk;});
+    /* Re-admitted by its rule? Then leave it rule-driven. */
+    if(!(p.rule&&_pfRuleMatch(p.rule,d))&&p.tickers.indexOf(tk)<0)p.tickers.push(tk);
+  }else{
+    p.tickers=p.tickers.filter(function(t){return t!==tk;});
+    if(p.rule&&_pfRuleMatch(p.rule,d)&&p.exclude.indexOf(tk)<0)p.exclude.push(tk);
+  }
+  _pfCommit();
+}
+function _pfCreate(fields){
+  var list=_pfBeginEdit();
+  _pfById={};list.forEach(function(p){_pfById[p.id]=p;});
+  var p={id:_pfUniqueId(_pfSlug(fields.name)),name:fields.name,color:fields.color||_pfNextColor(),
+         description:fields.description||'',created:_pfToday(),
+         tickers:(fields.tickers||[]).slice(),exclude:[],rule:fields.rule||null};
+  list.push(p);
+  return p;
+}
+function pfNewWithTicker(){
+  var tk=_pfDetTk();
+  var name=prompt('Name for the new portfolio:');
+  if(!name||!name.trim())return;
+  _pfCreate({name:name.trim(),tickers:tk?[tk]:[]});
+  _pfCommit();
+}
+
+/* --- Save the current filter as a portfolio --- */
+function _pfRuleFromFilters(){
+  var st=_getCurrentFilterState();
+  var r={ratings:st.ratings||null,sectors:st.sectors||null,countries:st.countries||null,cf:[]};
+  (st.colFilters||[]).forEach(function(c){
+    if(c.txt!=null){r.cf.push({key:c.key,txt:String(c.txt).toUpperCase()});return;}
+    var pct=_CF_FMT[c.key]==='pct';
+    function conv(x){return x==null?null:(pct?Math.round(x*1e6)/1e8:x);}
+    r.cf.push({key:c.key,min:conv(c.min),max:conv(c.max)});
+  });
+  var ignored=[];
+  if(st.search)ignored.push('search');
+  if(st.flagOnly)ignored.push('Flagged');if(st.founderOnly)ignored.push('Founder-Led');
+  if(st.blueChipOnly)ignored.push('Blue Chip');if(st.r2000Only)ignored.push('Russell 2000');
+  if(st.revFilter)ignored.push('Reviewed');if(st.rcFilter)ignored.push('Upgrades/Downgrades');
+  if(st.dashFilter)ignored.push('dashboard drill-down');if(_pfSel.length)ignored.push('Portfolios');
+  var empty=r.ratings==null&&r.sectors==null&&r.countries==null&&!r.cf.length;
+  return{rule:empty?null:r,ignored:ignored};
+}
+function pfSaveFilterOpen(){
+  closeFiltMenu();
+  var info=_pfRuleFromFilters(),nRule=0;
+  if(info.rule)DATA.forEach(function(d){if(_pfRuleMatch(info.rule,d))nRule++;});
+  var shown=(FD||[]).length;
+  var ed=_pfEditingId&&_pfById[_pfEditingId];
+  var h='<div class="pf-form">'
+    +'<label class="pf-fl">Name<input type="text" id="pf-sf-name" value="'+_pfEsc(ed?ed.name:'')+'" placeholder="e.g. Energy BUYs"></label>'
+    +'<label class="pf-radio"><input type="radio" name="pf-sf-mode" value="rule"'+(info.rule?' checked':' disabled')+'>'
+    +'<span><b>Rule</b> — re-evaluated every run; '+nRule+' stock'+(nRule===1?'':'s')+' match today'
+    +(info.rule?'<br><span class="pf-muted">'+_pfEsc(_pfRuleSummary(info.rule))+'</span>':'<br><span class="pf-muted">Set a rating, sector, country or column filter to save a rule.</span>')+'</span></label>'
+    +'<label class="pf-radio"><input type="radio" name="pf-sf-mode" value="list"'+(info.rule?'':' checked')+'>'
+    +'<span><b>Fixed list</b> — the '+shown+' stock'+(shown===1?'':'s')+' shown now</span></label>'
+    +(info.ignored.length?'<div class="pf-note">Not part of a rule: '+_pfEsc(info.ignored.join(', '))+'. They still narrow the fixed list.</div>':'')
+    +(ed?'<label class="pf-check"><input type="checkbox" id="pf-sf-update" checked> Update “'+_pfEsc(ed.name)+'” instead of creating a new portfolio</label>':'')
+    +'<div class="pf-actions"><button class="pf-btn" onclick="pfManageClose()">Cancel</button><button class="pf-btn pf-primary" onclick="pfSaveFilterDo()">Save</button></div></div>';
+  _pfOverlayShow('Save filter as portfolio',h);
+  var n=document.getElementById('pf-sf-name');if(n)n.focus();
+}
+function pfSaveFilterDo(){
+  var name=(document.getElementById('pf-sf-name').value||'').trim();
+  var mode=(document.querySelector('input[name="pf-sf-mode"]:checked')||{}).value;
+  var upd=document.getElementById('pf-sf-update');
+  var info=_pfRuleFromFilters();
+  if(!name){alert('Give the portfolio a name.');return;}
+  if(mode==='rule'&&!info.rule)return;
+  var tickers=mode==='list'?(FD||[]).map(function(d){return d.ticker;}):[];
+  var rule=mode==='rule'?info.rule:null;
+  if(upd&&upd.checked&&_pfEditingId){
+    var list=_pfBeginEdit();
+    list.forEach(function(p){if(p.id===_pfEditingId){p.name=name;p.rule=rule;if(mode==='list'){p.tickers=tickers;p.exclude=[];}}});
+  }else{
+    _pfCreate({name:name,tickers:tickers,rule:rule});
+  }
+  _pfEditingId=null;
+  pfManageClose();
+  _pfCommit();
+}
+/* Load a rule portfolio's rule into the Filters panel for tweaking; the
+   next "Save filter as portfolio" offers to update it in place. */
+function pfEditRule(id){
+  var p=_pfById[id];if(!p||!p.rule)return;
+  var r=p.rule;
+  /* A rule written by the CLI can use a row field the Filters panel has no
+     column for; loading it here would silently drop that clause on save. */
+  var lost=(r.cf||[]).filter(function(c){return !(window._CF_FMT&&(c.key in _CF_FMT));}).map(function(c){return c.key;});
+  if(lost.length&&!confirm('This rule also uses '+lost.join(', ')+', which the Filters panel has no column for. Editing it here would drop '+(lost.length>1?'those conditions':'that condition')+' when you save.\n\nContinue?'))return;
+  var cf=(r.cf||[]).filter(function(c){return window._CF_FMT&&(c.key in _CF_FMT);}).map(function(c){
+    if(c.txt!=null)return{key:c.key,txt:c.txt};
+    var pct=_CF_FMT[c.key]==='pct';
+    function conv(x){return x==null?null:(pct?Math.round(x*1e8)/1e6:x);}
+    return{key:c.key,min:conv(c.min),max:conv(c.max)};
+  });
+  _pfSel=[];
+  _applyFilterState({ratings:r.ratings||undefined,sectors:r.sectors||undefined,countries:r.countries||undefined,colFilters:cf});
+  _pfEditingId=id;
+  pfManageClose();
+  toggleFiltMenu(null);
+}
+
+/* --- Manage dialog --- */
+function _pfOverlayOpen(){var o=document.getElementById('pf-overlay');return!!(o&&o.classList.contains('open'));}
+function _pfOverlayShow(title,html){
+  var o=document.getElementById('pf-overlay');if(!o)return;
+  document.getElementById('pf-ov-title').textContent=title;
+  document.getElementById('pf-ov-body').innerHTML=html;
+  o.classList.add('open');o.dataset.mode=title==='Portfolios'?'manage':'form';
+}
+function pfManageClose(){var o=document.getElementById('pf-overlay');if(o)o.classList.remove('open');}
+function pfManageOpen(){
+  closeFiltMenu();pfPopClose();
+  _pfOverlayShow('Portfolios','');
+  _pfRenderManage();
+}
+function _pfRenderManage(){
+  var o=document.getElementById('pf-overlay');if(!o||o.dataset.mode!=='manage')return;
+  var st=_pfSyncState(),h='';
+  var msg={clean:'Showing the published portfolio file. Changes you make here are saved in this browser until you export them.',
+           dirty:'You have unpublished changes in this browser. Export them and run <code>scripts/portfolios.py import &lt;file&gt;</code> to publish.',
+           stale:'The published portfolio file changed after you started editing here. Export, then <code>portfolios.py import &lt;file&gt; --dry-run</code> to review before importing.'}[st];
+  if(PF_PUB.error)h+='<div class="pf-sync pf-sync-stale">The published portfolio file could not be read, so none are shown: '+_pfEsc(PF_PUB.error)+'</div>';
+  h+='<div class="pf-sync pf-sync-'+st+'">'+msg+(st!=='clean'?' <button class="pf-link" onclick="pfDiscardLocal()">Discard local changes</button>':'')+'</div>';
+  var defs=_pfDefs();
+  if(!defs.length)h+='<div class="pf-empty">No portfolios yet. Create one below, or filter the table and use <b>Save filter as portfolio</b>.</div>';
+  defs.forEach(function(p){
+    var id=_pfJsArg(p.id),n=_pfMembers(p.id).length,missL=(p.tickers||[]).filter(function(t){return !_pfTk[t];}),miss=missL.length;
+    h+='<div class="pf-row">'
+      +'<input type="color" class="pf-color" value="'+_pfEsc(p.color||'#888888')+'" onchange="pfSetField(\''+id+'\',\'color\',this.value)" title="Color">'
+      +'<div class="pf-row-main"><input type="text" class="pf-name" value="'+_pfEsc(p.name)+'" onchange="pfSetField(\''+id+'\',\'name\',this.value)" aria-label="Name">'
+      +'<div class="pf-muted">'+n+' stock'+(n===1?'':'s')
+      +((p.tickers||[]).length?' · '+p.tickers.length+' picked':'')
+      +(p.rule?' · rule: '+_pfEsc(_pfRuleSummary(p.rule)):'')
+      +((p.exclude||[]).length?' · excludes '+_pfEsc(p.exclude.join(', ')):'')
+      +(miss?' · <span title="'+_pfEsc(missL.join(', '))+'">'+miss+' not in today’s universe</span>':'')+'</div></div>'
+      +'<div class="pf-row-btns"><button class="pf-btn" onclick="pfShowOnly(\''+id+'\')">Show</button>'
+      +(p.rule?'<button class="pf-btn" onclick="pfEditRule(\''+id+'\')">Edit rule</button>':'')
+      +'<button class="pf-btn" onclick="pfShare(\''+id+'\')">Share link</button>'
+      +'<button class="pf-btn pf-danger" onclick="pfDelete(\''+id+'\')">Delete</button></div></div>';
+  });
+  var nf=Object.keys(_flags||{}).length;
+  h+='<div class="pf-actions pf-actions-l">'
+    +'<button class="pf-btn" onclick="pfNewEmpty()">+ New portfolio</button>'
+    +'<button class="pf-btn" onclick="pfFromFlags()"'+(nf?'':' disabled')+'>From ⚑ flagged ('+nf+')</button>'
+    +'<span class="pf-spacer"></span>'
+    +'<button class="pf-btn" onclick="pfImportPick()">Import…</button>'
+    +'<button class="pf-btn pf-primary" onclick="pfExport()"'+(defs.length||st!=='clean'?'':' disabled')+'>Export</button></div>'
+    +'<input type="file" id="pf-import-file" accept=".json,application/json" style="display:none" onchange="pfImportFile(this)">';
+  document.getElementById('pf-ov-body').innerHTML=h;
+}
+function pfSetField(id,field,val){
+  if(field==='name'&&!String(val).trim()){_pfRenderManage();return;}
+  var list=_pfBeginEdit();
+  list.forEach(function(p){if(p.id===id)p[field]=field==='name'?String(val).trim():val;});
+  _pfCommit();
+}
+function pfDelete(id){
+  var p=_pfById[id];if(!p)return;
+  if(!confirm('Delete the portfolio “'+p.name+'”?'))return;
+  var list=_pfBeginEdit();
+  _pfLocal.portfolios=list.filter(function(q){return q.id!==id;});
+  _pfCommit();
+}
+function pfNewEmpty(){
+  var name=prompt('Name for the new portfolio:');
+  if(!name||!name.trim())return;
+  _pfCreate({name:name.trim()});
+  _pfCommit();
+}
+function pfFromFlags(){
+  var tks=Object.keys(_flags||{}).filter(function(t){return _flags[t];});
+  if(!tks.length)return;
+  var name=prompt('Name for a portfolio of your '+tks.length+' flagged stocks:','Flagged');
+  if(!name||!name.trim())return;
+  _pfCreate({name:name.trim(),tickers:tks});
+  _pfCommit();
+}
+function pfDiscardLocal(){
+  if(!confirm('Discard every portfolio change made in this browser and go back to the published file?'))return;
+  _pfLocal=null;try{localStorage.removeItem(_PF_KEY);}catch(e){}
+  _pfRefresh();
+}
+function pfExport(){
+  var doc={version:1,base_rev:_pfLocal?_pfLocal.base_rev:PF_PUB.rev,exported:new Date().toISOString(),
+           portfolios:_pfDefs().map(_pfClean)};
+  var blob=new Blob([JSON.stringify(doc,null,2)+'\n'],{type:'application/json'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='portfolios.json';
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);
+}
+function pfImportPick(){var f=document.getElementById('pf-import-file');if(f)f.click();}
+function pfImportFile(inp){
+  var f=inp.files&&inp.files[0];if(!f)return;
+  var rd=new FileReader();
+  rd.onload=function(){
+    var doc;try{doc=JSON.parse(rd.result);}catch(e){alert('That file is not valid JSON.');return;}
+    var inc=doc&&Array.isArray(doc.portfolios)?doc.portfolios:(doc&&doc.id?[doc]:null);
+    if(!inc){alert('No portfolios found in that file.');return;}
+    _pfAddIncoming(inc);
+  };
+  rd.readAsText(f);inp.value='';
+}
+/* Merge incoming portfolios into the working copy: new ids are added; an
+   id that exists with different content asks whether to replace it, and
+   otherwise lands as a copy under a fresh id. */
+function _pfAddIncoming(inc){
+  var list=_pfBeginEdit(),added=0,replaced=0;
+  inc.forEach(function(raw){
+    if(!raw||!raw.id||!raw.name)return;
+    var p=_pfClean(raw);
+    if(p.color&&!/^#[0-9a-f]{6}$/i.test(p.color))p.color=null;
+    var idx=-1;for(var i=0;i<list.length;i++)if(list[i].id===p.id){idx=i;break;}
+    if(idx>=0){
+      if(_pfCanon([list[idx]])===_pfCanon([p]))return;
+      if(confirm('A portfolio “'+list[idx].name+'” ('+p.id+') already exists here. Replace it with the imported version?\n\nCancel keeps both.')){list[idx]=p;replaced++;return;}
+      _pfById={};list.forEach(function(q){_pfById[q.id]=q;});
+      p.id=_pfUniqueId(p.id);p.name=p.name+' (imported)';
+    }
+    if(!p.color)p.color=_pfNextColor();
+    list.push(p);added++;
+  });
+  _pfCommit();
+  if(added||replaced)alert('Imported: '+added+' added'+(replaced?', '+replaced+' replaced':'')+'. Export to publish them.');
+}
+function _pfB64Enc(s){return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function _pfB64Dec(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return decodeURIComponent(escape(atob(s)));}
+function pfShare(id){
+  var p=_pfById[id];if(!p)return;
+  var url=location.href.split('#')[0]+'#pf='+_pfB64Enc(JSON.stringify(_pfClean(p)));
+  function done(){alert('Share link for “'+p.name+'” copied. Opening it in any browser offers to add the portfolio.');}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,function(){prompt('Copy this link:',url);});
+  else prompt('Copy this link:',url);
+}
+/* Opening a #pf= share link: offer to add the portfolio, then drop the
+   hash so a reload doesn't ask again. */
+function _pfConsumeShareHash(){
+  var h=location.hash||'';
+  if(h.indexOf('#pf=')!==0)return;
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+  var p;try{p=JSON.parse(_pfB64Dec(h.slice(4)));}catch(e){return;}
+  if(!p||!p.id||!p.name)return;
+  var n=((p.tickers||[]).length),r=p.rule?' + a rule ('+_pfRuleSummary(p.rule)+')':'';
+  if(!confirm('Add the shared portfolio “'+p.name+'” to this browser?\n\n'+n+' picked stock'+(n===1?'':'s')+r))return;
+  _pfAddIncoming([p]);
+}
+(function(){
+  if(_pfLocal&&_pfCanon(_pfLocal.portfolios)===_pfCanon(PF_PUB.portfolios)){
+    _pfLocal=null;try{localStorage.removeItem(_PF_KEY);}catch(e){}
+  }
+  _pfRecompute();
+})();
+document.addEventListener('click',function(e){
+  var pop=document.getElementById('pf-pop');
+  if(pop&&pop.classList.contains('open')&&!pop.contains(e.target)&&e.target.closest&&!e.target.closest('#d-pf'))pfPopClose();
+});
+
 /* === FILTER STATE SNAPSHOT / RESTORE ===
    _getCurrentFilterState captures everything applyFilters() reads;
    _applyFilterState restores it. Both serve the URL-shareable hash
@@ -2842,6 +3312,7 @@ function _getCurrentFilterState(){
   st.colFilters=cf;
   st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.r2000Only=_r2000Only;st.revFilter=_revFilter;st.rcFilter=_rcFilter;
   if(_dashFilter)st.dashFilter=_dashFilter;
+  if(_pfSel.length)st.portfolios=_pfSel.slice();
   return st;
 }
 function _applyFilterState(st){
@@ -2891,6 +3362,8 @@ function _applyFilterState(st){
   _rcFilter=st.rcFilter|0;
   document.getElementById('f-upgrades').classList.toggle('active',_rcFilter===1);
   document.getElementById('f-downgrades').classList.toggle('active',_rcFilter===2);
+  _pfSel=(st.portfolios||[]).filter(function(id){return _pfById[id];});
+  _pfRenderFilter();
   applyFilters();
 }
 
@@ -2922,6 +3395,7 @@ function _stateToParam(){
   if(st.revFilter)p.rv=st.revFilter;
   if(st.rcFilter)p.rc=st.rcFilter;
   if(st.dashFilter)p.df=st.dashFilter;
+  if(st.portfolios)p.pf=st.portfolios;
   if(curView!==_DEFAULT_VIEW)p.v=curView;
   if(curView==='matrix'&&curMSub&&curMSub!=='matrix')p.ms=curMSub;
   if(curView==='table'&&curTSub!=='prices')p.ts=curTSub;
@@ -2961,7 +3435,8 @@ function _restoreFromHash(){
     else if(p.v&&document.getElementById('view-'+p.v))showView(p.v);
     var st={search:p.q||'',ratings:p.r,sectors:p.s,countries:p.c,
             flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,r2000Only:!!p.r2,revFilter:p.rv|0,rcFilter:p.rc|0,
-            dashFilter:(p.df&&typeof p.df==='object'&&typeof p.df.type==='string')?p.df:null};
+            dashFilter:(p.df&&typeof p.df==='object'&&typeof p.df.type==='string')?p.df:null,
+            portfolios:Array.isArray(p.pf)?p.pf:null};
     st.colFilters=(p.cf||[]).filter(function(c){
       return c&&c[0]&&window._CF_FMT&&(c[0]in window._CF_FMT);
     }).map(function(c){
@@ -3326,6 +3801,7 @@ function applyFilters(){
     if(_founderOnly&&!d.founder_led)return false;
     if(_blueChipOnly&&!_isBlueChip(d))return false;
     if(_r2000Only&&!d.r2000)return false;
+    if(!_pfPass(d))return false;
     if(_revFilter===1&&isReviewed(d.ticker))return false;
     if(_revFilter===2&&!isReviewed(d.ticker))return false;
     /* Rating-change filter: null rating_chg (new ticker or no prior
@@ -3394,6 +3870,7 @@ function applyFilters(){
      2 (Reviewed) are active filters. */
   var fn=(toks.length?1:0)
         +(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)
+        +(_pfSel.length?1:0)
         +(_revFilter>0?1:0)+(_rcFilter>0?1:0)
         +(_dashFilter?1:0)
         +colFilters.length
@@ -3578,6 +4055,7 @@ function clearFilters(){
   _founderOnly=false;document.getElementById('f-founder').classList.remove('active');
   _blueChipOnly=false;document.getElementById('f-bluechip').classList.remove('active');
   _r2000Only=false;document.getElementById('f-r2000').classList.remove('active');
+  _pfSel=[];_pfEditingId=null;_pfRenderFilter();
   _revFilter=0;_syncRevBtns();
   _rcFilter=0;document.getElementById('f-upgrades').classList.remove('active');document.getElementById('f-downgrades').classList.remove('active');
   _revd={};_saveRevd();_updateRevCount();
@@ -3912,7 +4390,7 @@ function _mtxBuildRow(d,_i){
   html+='<td>'+(_i+1)+'</td>';
   html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
   html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
-  html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+'</td>';
+  html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+_pfDots(d.ticker)+'</td>';
   html+='<td>'+rb(d.rating,d)+'</td>';
   html+='<td>'+rb(d.rating_prev)+'</td>';
   html+='<td style="font-size:0.75em">'+(d.sector||'N/A')+'</td>';
@@ -4307,7 +4785,7 @@ function _dtBuildRow(d,_i){
   _dtCols.forEach(function(c){
     var r=ftc(d[c.k],c.f);
     var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';
-    html+='<td'+cls+' data-value="'+r.v+'">'+r.t+'</td>';
+    html+='<td'+cls+' data-value="'+r.v+'">'+r.t+(c.k==='ticker'?_pfDots(d.ticker):'')+'</td>';
   });
   html+='</tr>';
   return html;
@@ -6774,6 +7252,7 @@ function openDet(tk){
   var _cn=document.getElementById('d-cname');if(_cn)_cn.textContent=d.company_name||'';
   _syncFlagDet();
   _syncRevDet();
+  pfPopClose();_pfSyncDet();
   var pxEl=document.getElementById('d-px');if(pxEl)pxEl.textContent=d.price!=null?'$'+(d.price<1?d.price.toFixed(4):d.price.toFixed(2)):'N/A';
   var rEl=document.getElementById('d-rt');rEl.textContent=(d.rating||'N/A')+(isCapped(d)?' ⚠':'');rEl.title=isCapped(d)?capTip(d):'';rEl.style.background=RC[d.rating]||'#888';
   var cEl=document.getElementById('d-cs');var cs=d._composite_score;cEl.textContent=cs!=null?Math.round(cs)+'%':'N/A';cEl.style.background=cc(cs);
@@ -7208,7 +7687,15 @@ document.addEventListener('keydown',function(e){
     if(e.key==='Escape'||e.key==='?'){e.preventDefault();hkOverlayClose();}
     return;
   }
+  /* The portfolio dialog is modal the same way; the membership menu stacks
+     above the detail popup, so it takes the first Escape. */
+  if(_pfOverlayOpen()){
+    if(e.key==='Escape'){e.preventDefault();pfManageClose();}
+    return;
+  }
   if(e.key==='Escape'){
+    var pfp=document.getElementById('pf-pop');
+    if(pfp&&pfp.classList.contains('open')){e.preventDefault();pfPopClose();return;}
     var np=document.getElementById('nav-panel');
     if(np&&np.classList.contains('open')){e.preventDefault();closeNavMenu();return;}
     var fp=document.getElementById('filt-panel');
@@ -9977,6 +10464,8 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   moveFilterBar(curView);
   /* A #s= hash (shared link) restores its filters + view and runs
      applyFilters itself; otherwise do the normal initial pass. */
+  _pfRenderFilter();
+  _pfConsumeShareHash();
   if(!_restoreFromHash())applyFilters();
   /* Every render path above ends in renderCur, which repaints the menu — but
      seed it once unconditionally so the icon is never a dead button if an
@@ -10123,6 +10612,75 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
     <div class="hk-head"><h3>Keyboard shortcuts</h3><button class="hk-close" onclick="hkOverlayClose()" aria-label="Close">&#215;</button></div>
     <div id="hk-body"></div>
     <div class="hk-foot">Views are numbered in the order the Views menu lists them. Keys are ignored while you are typing in a search or filter box.</div>
+  </div>
+</div>
+<!-- Portfolios: the Manage / Save-filter dialog and the detail popup's
+     membership menu (logic in the PORTFOLIOS script block). Colours come
+     from the report's custom properties, so both themes need no extra rules. -->
+<style>
+.pf-dots{display:inline-flex;align-items:center;gap:2px;margin-left:5px;vertical-align:middle;}
+.pf-dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,.12);}
+.pf-more{font-size:10px;color:var(--text-muted);margin-left:1px;}
+.pf-filt-opts label{gap:7px;}
+.pf-filt-opts .pf-n{margin-left:auto;padding-left:8px;font-size:0.85em;opacity:.6;}
+.pf-empty{padding:6px 8px;font-size:0.85em;color:var(--text-muted);}
+.pf-filt-actions{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border);}
+.pf-link{background:none;border:none;padding:3px 8px;font:inherit;font-size:0.85em;color:var(--accent);cursor:pointer;text-align:left;border-radius:5px;}
+.pf-link:hover{background:var(--bg);}
+.pf-sync-badge{color:#e8833a;margin-left:6px;font-size:0.8em;cursor:help;}
+.d-pf-btn{display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:rgba(255,255,255,.55);line-height:1;user-select:none;touch-action:manipulation;}
+.d-pf-btn svg{width:1.35em;height:1.35em;}
+.d-pf-btn.on{color:#fff;}
+.d-pf-btn:hover{color:#fff;}
+.pf-det-n{font-size:0.75em;font-weight:700;}
+#pf-pop{display:none;position:fixed;z-index:1500;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.28);padding:6px;max-height:min(420px,70vh);overflow-y:auto;}
+#pf-pop.open{display:block;}
+.pf-pop-h{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-muted);padding:6px 8px 4px;}
+.pf-pop-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:13px;}
+.pf-pop-row:hover{background:var(--bg);}
+.pf-pop-row input{margin:0;accent-color:var(--accent);}
+.pf-pop-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pf-tag{font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);}
+#pf-pop .pf-link{display:block;width:100%;margin-top:2px;}
+#pf-overlay{position:fixed;inset:0;z-index:1650;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);padding:16px;}
+#pf-overlay.open{display:flex;}
+#pf-overlay .hk-card{max-width:720px;}
+#pf-ov-body{padding:12px 18px 16px;overflow-y:auto;}
+.pf-sync{font-size:12.5px;padding:8px 10px;border-radius:8px;margin-bottom:10px;background:var(--bg);color:var(--text-muted);}
+.pf-sync-dirty,.pf-sync-stale{border-left:3px solid #e8833a;color:var(--text);}
+.pf-sync code{font-size:11.5px;}
+.pf-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);}
+.pf-color{width:28px;height:28px;padding:0;border:1px solid var(--border);border-radius:6px;background:none;cursor:pointer;flex:0 0 auto;}
+.pf-row-main{flex:1 1 0;min-width:0;}
+.pf-name{width:100%;font:inherit;font-size:14px;font-weight:600;color:var(--text);background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 6px;margin-left:-6px;}
+.pf-name:hover,.pf-name:focus{border-color:var(--border);background:var(--bg);outline:none;}
+.pf-muted{font-size:12px;color:var(--text-muted);overflow-wrap:anywhere;}
+.pf-row-btns{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;flex:0 0 auto;max-width:48%;}
+.pf-btn{font:inherit;font-size:12.5px;padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;white-space:nowrap;}
+.pf-btn:hover:not([disabled]){background:var(--bg);}
+.pf-btn[disabled]{opacity:.45;cursor:default;}
+.pf-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.pf-primary:hover:not([disabled]){background:var(--accent);filter:brightness(1.08);}
+.pf-danger{color:#d9534f;}
+.pf-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap;}
+.pf-actions-l{justify-content:flex-start;padding-top:12px;border-top:1px solid var(--border);}
+.pf-spacer{flex:1 1 auto;}
+.pf-form{display:flex;flex-direction:column;gap:12px;font-size:13px;}
+.pf-fl{display:flex;flex-direction:column;gap:4px;font-weight:600;}
+.pf-fl input{font:inherit;font-weight:400;padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);}
+.pf-radio,.pf-check{display:flex;gap:8px;align-items:flex-start;cursor:pointer;}
+.pf-radio input,.pf-check input{margin-top:3px;accent-color:var(--accent);}
+.pf-note{font-size:12px;color:var(--text-muted);}
+@media (max-width:600px){
+  .pf-row{flex-wrap:wrap;}
+  .pf-row-btns{max-width:none;width:100%;justify-content:flex-start;padding-left:38px;}
+}
+</style>
+<div id="pf-pop" role="menu" onclick="event.stopPropagation()"></div>
+<div id="pf-overlay" role="dialog" aria-modal="true" aria-labelledby="pf-ov-title" onclick="if(event.target===this)pfManageClose()">
+  <div class="hk-card">
+    <div class="hk-head"><h3 id="pf-ov-title">Portfolios</h3><button class="hk-close" onclick="pfManageClose()" aria-label="Close">&#215;</button></div>
+    <div id="pf-ov-body"></div>
   </div>
 </div>
 <button id="ai-fab" title="AI Analyst" aria-label="Open AI Analyst">
