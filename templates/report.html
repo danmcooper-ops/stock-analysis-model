@@ -763,10 +763,11 @@ td.ct{font-weight:700;}
   /* Collapsing popup banner: scrolling INTO the data (finger up) shrinks
      the header band to two lines — the TICKER on top, then price · rating
      · composite — plus the ☰/× pair, which stay pinned top-right so
-     Sections and Close never need a scroll-up to reach. Any scroll back
-     toward the top restores the full band (arrows/flag/name return
-     there). The band is a non-scrolling flex sibling above .d-body, so
-     every reclaimed pixel goes to the data. Class toggled by the .d-body
+     Sections and Close never need a scroll-up to reach. It stays
+     collapsed until the scroll is back at the very top, which restores
+     the full band (arrows/flag/name return there). The band is a
+     non-scrolling flex sibling above .d-body, so every reclaimed pixel
+     goes to the data. Class toggled by the .d-body
      scroll listener; rules live here so desktop (mouse) never collapses.
      Paddings carry !important to beat the width-media band rules that
      also use it. */
@@ -5202,13 +5203,7 @@ document.addEventListener('click',function(e){
 (function(){
   var b=document.querySelector('#det-modal .d-body');
   if(!b)return;
-  /* Banner collapse state (touch only — the hdr-min rules live inside the
-     (hover:none)+(pointer:coarse) block, so the class is inert on desktop).
-     Direction-based with hysteresis: scrolling into the data collapses,
-     6px of reverse scroll or nearing the top expands. The +2/-6 asymmetry
-     keeps iOS momentum-scroll jitter and rubber-band bounces from
-     flickering the band; <=40 also catches the programmatic scroll-to-top
-     on tab switches and stock navigation. */
+  /* Banner collapse state: see _detHdrOnScroll below. */
   var _lastSt=0;
   b.addEventListener('scroll',function(){
     document.querySelectorAll('.cm-panel.open.cm-fixed').forEach(_cmClose);
@@ -5240,22 +5235,25 @@ document.addEventListener('click',function(e){
 })();
 /* Banner collapse state (touch only — the hdr-min rules live inside the
    (hover:none)+(pointer:coarse) block, so the class is inert on desktop).
-   Direction-based with hysteresis: scrolling into the data collapses,
-   6px of reverse scroll or nearing the top expands. The +2/-6 asymmetry
-   keeps iOS momentum-scroll jitter and rubber-band bounces from
-   flickering the band; <=40 also catches the programmatic scroll-to-top
-   on tab switches and stock navigation. Each toggle holds for the band's
-   .28s transition: resizing the band resizes the scroller under it, and
-   at the end of the content that clamps scrollTop — a phantom reverse
-   scroll that would otherwise flip the band straight back. */
+   Scrolling into the data (past 40px, +2px of forward travel so iOS
+   momentum jitter does not trip it) collapses; only a return to the very
+   top expands. Scrolling back up mid-content leaves it collapsed — it
+   used to expand on 6px of reverse scroll, which popped the full band
+   back over the data while the user was still reading it. <1 rather than
+   ===0 absorbs sub-pixel offsets and the negative scrollTop of an iOS
+   rubber-band bounce, and also catches the programmatic scroll-to-top on
+   tab switches and stock navigation. A collapse holds for the band's .28s
+   transition: it grows the scroller under it, and on content barely taller
+   than the popup that clamps scrollTop to the top — which expands the band
+   again, and it must not re-collapse at once and flicker. */
 var _hdrHoldUntil=0;
 function _detHdrOnScroll(st,last){
   var dm=document.getElementById('det-modal');if(!dm)return;
   var min=dm.classList.contains('hdr-min');
-  if(st<=40){if(min)dm.classList.remove('hdr-min');return;}
+  if(st<1){if(min)dm.classList.remove('hdr-min');return;}
+  if(min)return;
   var now=Date.now();if(now<_hdrHoldUntil)return;
-  if(!min&&st>last+2){dm.classList.add('hdr-min');_hdrHoldUntil=now+350;}
-  else if(min&&st<last-6){dm.classList.remove('hdr-min');_hdrHoldUntil=now+350;}
+  if(st>40&&st>last+2){dm.classList.add('hdr-min');_hdrHoldUntil=now+350;}
 }
 function _cmSum(k,txt){var s=document.getElementById(k+'-cm-sum');if(s)s.textContent=txt;}
 
