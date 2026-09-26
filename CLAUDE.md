@@ -47,7 +47,9 @@ supabase/        - Supabase project (config.toml, migrations/) for the planned
 design/          - design docs and spikes (Supabase migration plan, P0 findings)
 scheduled-tasks/ - Operational runbooks for the nightly analysis + publish;
                    cloud-daily-stock-analysis/run.sh is the live (cloud
-                   Routine) pipeline, the rest are the dormant Mac runbooks
+                   Routine) pipeline, cloud-weekly-backtest/run.sh the live
+                   Sunday backtest (helpers in scripts/backtest_cloud.py),
+                   the rest are the dormant Mac runbooks
 output/          - (gitignored) run artifacts: results JSON, HTML, prices,
                    snapshots.duckdb (derived index over the results JSONs)
 ```
@@ -309,6 +311,17 @@ ruff check .
   columns, no full-scan penalty) and offers `--sql` for raw queries, falling
   back to its older `.query_index_v1/` parquet index when the store is absent
   or incomplete.
+- **Forward-return sidecars (`output/returns/<date>_h<h>.json`):** matured
+  returns are immutable, so `annotate_snapshot_returns` freezes them, and the
+  cloud weekly routine persists them under `returns/` on `data/snapshots`.
+  Because a frozen value is reused forever, a sidecar records `coverage`
+  (priced / requested tickers). One below `MIN_RETURN_COVERAGE` (0.90) keeps
+  what it holds and has only its missing tickers re-fetched each run. A
+  (date, horizon) with no SPY return is left unmeasured and uncached, never
+  measured against 0%. `measure` writes per-pair coverage, unpriced names by
+  rating (delistings, i.e. survivorship), skipped snapshots and the git SHA
+  into `backtest_summary_<stamp>.json`, and `scripts/backtest_cloud.py compare`
+  diffs it against the prior week's.
 - **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
   named sets of tickers — hand-picked, rule-driven, or both — and a ticker may
   sit in any number of them (membership only; `portfolio/holdings.json` stays
@@ -426,4 +439,10 @@ by analyze_stock and gitignored):
   over the Data API (design/supabase-migration.md). The same pair also carries
   the price-parquet cache in Storage (`scripts/price_cache.py`, steps 02b and
   05e2; `PRICE_CACHE_BUCKET` names the bucket). Unset: both skipped.
+- `SNAPSHOT_STORE_BACKEND=postgres` — opt-in; the snapshot-store readers
+  (`SnapshotStore.for_results_dir`) read the Supabase database instead of
+  `snapshots.duckdb` (`data/db/reader.py`), over the Data API or
+  `SUPABASE_READER_URL`/`SUPABASE_DB_URL`; any failure falls back to the JSON.
+  `DB_DEFER_PUBLISH=1` (set by run.sh) stops `sync_snapshot_file` republishing
+  each rewrite during the nightly run.
 - yfinance requires no authentication

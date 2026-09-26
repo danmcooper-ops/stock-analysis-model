@@ -19,8 +19,15 @@ Other snapshot dates missing from the store are listed but do not fail the
 check: the cloud routine stages only recent history, and readers already
 fall back per date.
 
+With ``--database`` it checks the Supabase database instead (the post-publish
+check after ``scripts/db_publish.py``, design/supabase-migration.md): the run is
+``complete``, holds one row per distinct ticker, and its ``source_sha256`` equals
+the file's, so the file has not been rewritten since it was published. The
+transport comes from the environment, as for db_publish.
+
 Usage:
     python scripts/check_snapshot_store.py --date 2026-09-11
+    python scripts/check_snapshot_store.py --date 2026-09-11 --database
     python scripts/check_snapshot_store.py --date 2026-09-11 --results-dir output --db x.duckdb
 
 Exit status: 0 the store matches the snapshot, 1 it does not, 2 the snapshot
@@ -99,21 +106,64 @@ def check_store(results_dir, run_date, db_path=None):
     return problems, info
 
 
+def check_database(results_dir, run_date, transport):
+    """``(problems, info)`` for the published run of *run_date*."""
+    from data.db.publish import canonical_sha256
+    from data.snapshot_store import read_snapshot, split_snapshot
+    path = snapshot_path(results_dir, run_date)
+    if path is None:
+        raise OSError(f'no results_{run_date}.json[.gz] in {results_dir}')
+    data = read_snapshot(path)
+    tickers = {r['ticker'] for r in split_snapshot(data)[1] if isinstance(r, dict) and r.get('ticker')}
+    runs = {r['run_date']: r for r in (transport.call('list_runs', {}, idempotent=True) or [])}
+    run = runs.get(run_date)
+    if run is None:
+        return [f'the database has no run for {run_date}'], []
+    problems = []
+    if run.get('status') != 'complete':
+        problems.append(f"run {run_date} is {run.get('status')}, not complete")
+    if run.get('n_rows') != len(tickers):
+        problems.append(f"database holds {run.get('n_rows')} rows for {run_date}, the snapshot {len(tickers)}")
+    if run.get('source_sha256') != canonical_sha256(data):
+        problems.append(f'{path} changed since it was published (source_sha256 differs); re-run db_publish')
+    missing = sorted(d for d, _ in list_snapshot_files(results_dir) if d not in runs)
+    info = [f"database holds {run_date}: {run.get('n_rows')} rows, status {run.get('status')}"]
+    if missing:
+        info.append(f"{len(missing)} other snapshot date(s) not published: {', '.join(missing[:5])}"
+                    + (' ...' if len(missing) > 5 else ''))
+    return problems, info
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     ap.add_argument('--date', required=True, help='run date YYYY-MM-DD')
     ap.add_argument('--results-dir', default='output')
     ap.add_argument('--db', default=None, help='store path (default: <results-dir>/snapshots.duckdb)')
+    ap.add_argument('--database', action='store_true', help='check the Supabase database instead')
     args = ap.parse_args(argv)
     try:
-        problems, info = check_store(args.results_dir, args.date, args.db)
+        if args.database:
+            from data.db.publish import PublishError, transport_from_env
+            try:
+                transport, closer, _ = transport_from_env(('SUPABASE_READER_URL', 'SUPABASE_DB_URL'))
+            except PublishError as e:
+                print(f'check_snapshot_store: {e}', file=sys.stderr)
+                return 2
+            try:
+                problems, info = check_database(args.results_dir, args.date, transport)
+            finally:
+                if closer is not None:
+                    closer.close()
+        else:
+            problems, info = check_store(args.results_dir, args.date, args.db)
     except (OSError, ValueError) as e:
         print(f'check_snapshot_store: could not read the {args.date} snapshot: {e}', file=sys.stderr)
         return 2
     for line in problems:
         print(f'PROBLEM: {line}')
     for line in info:
-        print(f'{"OK" if not problems and line.startswith("store holds") else "note"}: {line}')
+        ok = not problems and line.startswith(('store holds', 'database holds'))
+        print(f'{"OK" if ok else "note"}: {line}')
     return 1 if problems else 0
 
 
