@@ -225,6 +225,27 @@ ruff check .
   it every 500 tickers, not just at the end, so a container restart mid-phase
   keeps the night's learning. `--no-screen-cache` bypasses it, and
   carry-forward tickers are never skipped.
+- **Carry-forward drops tickers that stopped trading
+  (`stopped_trading_carry_forwards`):** carry-forward re-enters every
+  prior-snapshot ticker past the mcap/spread filters and the skip cache, and
+  Yahoo keeps answering `.info` for a delisted symbol with its frozen last
+  quote, so an acquired company used to be re-rated nightly on a dead price
+  (JHG/SEM/BLD/STEL for weeks after their last bar on 2026-07-01, HONAV to
+  08-26; 311 30-day backtest rows). Its parquet is what gives it away:
+  step 03 re-fetches every prior-snapshot ticker just before the analysis, and
+  `period="max"` for a dead symbol returns only its last 1-6 bars — which is
+  also why `price_data_stale` (needs >60 bars) never fired. Phase 1 now
+  drops, before any fetch, a carry-forward whose last bar as of the run date
+  is more than `CARRY_FORWARD_MAX_PRICE_LAG_BARS` (10) SPY trading days
+  behind SPY's last bar (one `price_store.asof_closes` scan). Each drop logs a
+  WARNING and a `carry_forward_stopped` provenance event. The rule is off
+  when SPY's parquet is missing or >5 days old, a ticker with no parquet is
+  kept, lag is measured against SPY (so a wholesale failed download drops
+  nothing), and if more than max(10, 5%) of the carry set reads as stopped
+  it is treated as a failed refresh and nothing is dropped. Replayed over
+  07-01..09-14 it dropped 7-21 names a night, every one a 1-6 bar file.
+  Rows already in archived snapshots are unaffected; the backtest's
+  `gone_before_snapshot` still covers those.
 - **Snapshot archive:** `output/results_<date>.json` is the canonical run
   artifact. Locally only the newest 5 stay plain JSON: the last `run_daily.sh`
   step (and the weekly job, as a backstop) runs `scripts/compact_output.py`,
