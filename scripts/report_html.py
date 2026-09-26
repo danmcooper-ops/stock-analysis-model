@@ -18,6 +18,11 @@ except Exception:
     generate_sector_profit_pool_narrative = None
 from models.data_tab_narrative import generate_data_tab_summaries
 from scripts.scoring import gate_metadata
+from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
+                            CARRY_FORWARD_STOPPED_GUARD_FLOOR,
+                            CARRY_FORWARD_STOPPED_MAX_SHARE,
+                            PHASE1_LOCAL_PRICE_MAX_AGE_DAYS)
+from data.price_store import mass_stop, stopped_trading
 from scripts.safe_json import dumps_for_script
 
 logger = logging.getLogger('report_html')
@@ -1570,10 +1575,53 @@ def _write_vol_shards(vol_dir, vol_payload):
         print(f"[warn] vol/ shard write failed: {_e}")
 
 
+def _drop_stopped_rows(rows, prices_dir, run_date):
+    """*rows* without the tickers whose price data shows they stopped trading.
+
+    Phase 1 now drops such carry-forwards before they are analysed, but the
+    snapshots written before that rule — and any row that reached Phase 2
+    another way — still hold acquired companies at their frozen last quote
+    (JHG at $51.95 for weeks after its last bar). The render applies the same
+    rule (data.price_store.stopped_trading) so the table, portfolio stats and
+    sidecars never show them. run.sh step 05e refreshes every row's parquet
+    just before the re-render, which is what makes a lagging file evidence.
+
+    Needs an explicit *run_date*: judging an old snapshot against today's
+    parquets would drop names that were live on its date. The snapshot JSON
+    is left as it is — it stays the canonical record of what the run saw.
+    """
+    if not prices_dir or run_date is None or not rows:
+        return rows
+    tickers = {str(r.get('ticker')) for r in rows
+               if isinstance(r, dict) and r.get('ticker')}
+    try:
+        stopped = stopped_trading(prices_dir, tickers, run_date,
+                                  max_lag_bars=CARRY_FORWARD_MAX_PRICE_LAG_BARS,
+                                  spy_max_age_days=PHASE1_LOCAL_PRICE_MAX_AGE_DAYS)
+    except Exception as e:
+        logger.warning("stopped-trading check failed (%s); rendering every row", e)
+        return rows
+    if not stopped:
+        return rows
+    if mass_stop(len(stopped), len(tickers), CARRY_FORWARD_STOPPED_MAX_SHARE,
+                 CARRY_FORWARD_STOPPED_GUARD_FLOOR):
+        logger.warning("%d of %d row(s) read as stopped trading — treating it as "
+                       "a failed price refresh and rendering every row",
+                       len(stopped), len(tickers))
+        return rows
+    for tk, (last_bar, lag) in sorted(stopped.items()):
+        logger.warning("%s: left out of the report — last price bar %s is %d SPY "
+                       "trading days old (stopped trading)", tk, last_bar, lag)
+    print(f"[report_html] left out {len(stopped)} row(s) whose price data "
+          f"stopped: {', '.join(sorted(stopped))}")
+    return [r for r in rows
+            if not (isinstance(r, dict) and str(r.get('ticker')) in stopped)]
+
+
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None,
                macro_payload=None):
     """Render the interactive HTML report via Jinja2 template."""
-    rows = _sanitize(rows)
+    rows = _drop_stopped_rows(_sanitize(rows), prices_dir, run_date)
     _r2000 = _load_russell2000()
     # Prior-run ratings for the "Δ vs prior" column. Sourced from the most
     # recent earlier results_*.json sitting next to this HTML output.

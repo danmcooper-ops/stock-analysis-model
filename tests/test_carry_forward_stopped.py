@@ -191,3 +191,61 @@ def test_phase1_never_fetches_a_stopped_carry_forward(prices, monkeypatch):
     assert 'LIVE' in out['qualifying']            # carry-forward still bypasses mcap
     assert 'DEAD' not in out['qualifying']
     assert 'Carry-forward: 1 ticker(s)' in buf.getvalue()
+
+
+# --- the report -------------------------------------------------------------
+# Snapshots written before the Phase-1 rule still hold stopped tickers; the
+# render leaves them out with the same rule.
+
+def _report_rows():
+    return [{'ticker': 'LIVECO', 'price': 10.0, 'rating': 'HOLD'},
+            {'ticker': 'DEADCO', 'price': 51.95, 'rating': 'LEAN BUY'},
+            {'ticker': 'NOFILE', 'price': 5.0, 'rating': 'PASS'}]
+
+
+def _report_prices(prices):
+    _write(prices, 'LIVECO', _ending_bars_ago(0))
+    _write(prices, 'DEADCO', [SPY_DAYS[-55]])
+
+
+def test_report_leaves_out_stopped_rows(prices, caplog):
+    from scripts.report_html import _drop_stopped_rows
+    _report_prices(prices)
+    with caplog.at_level(logging.WARNING, logger='report_html'), \
+            redirect_stdout(io.StringIO()):
+        kept = _drop_stopped_rows(_report_rows(), str(prices), RUN_DAY)
+    assert [r['ticker'] for r in kept] == ['LIVECO', 'NOFILE']
+    assert any('DEADCO: left out of the report' in r.getMessage()
+               for r in caplog.records)
+
+
+def test_report_needs_a_run_date_to_judge(prices):
+    """An old snapshot rendered without its date must not be judged against
+    today's parquets — names live on its date would vanish."""
+    from scripts.report_html import _drop_stopped_rows
+    _report_prices(prices)
+    rows = _report_rows()
+    assert _drop_stopped_rows(rows, str(prices), None) == rows
+    assert _drop_stopped_rows(rows, None, RUN_DAY) == rows
+
+
+def test_report_mass_stop_renders_every_row(prices):
+    from scripts.report_html import _drop_stopped_rows
+    rows = [{'ticker': f'T{i:02d}'} for i in range(30)]
+    for r in rows:
+        _write(prices, r['ticker'], _ending_bars_ago(40))
+    assert _drop_stopped_rows(rows, str(prices), RUN_DAY) == rows
+
+
+def test_rendered_report_omits_the_stopped_row(prices, tmp_path):
+    from scripts.report_html import build_html
+    _report_prices(prices)
+    site = tmp_path / 'site'
+    site.mkdir()
+    out = site / 'report.html'
+    with redirect_stdout(io.StringIO()):
+        build_html(_report_rows(), str(out), prices_dir=str(prices),
+                   run_date=RUN_DAY)
+    html = out.read_text(encoding='utf-8')
+    assert 'LIVECO' in html and 'NOFILE' in html
+    assert 'DEADCO' not in html

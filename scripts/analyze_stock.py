@@ -78,7 +78,7 @@ from data.sec_xbrl_client import SECXBRLClient
 from data.fx_client import get_spot_fx_rate, apply_fx_to_statement_df
 from data.sec_insider_client import SECInsiderClient
 from data.provenance import ProvenanceRecorder
-from data.price_store import asof_closes
+from data.price_store import mass_stop, stopped_trading
 from data.snapshot_store import (SnapshotStore, prior_snapshot_file, read_snapshot,
                                  sync_snapshot_file, write_snapshot_file)
 from data.culture_client import CultureClient
@@ -659,28 +659,9 @@ def stopped_trading_carry_forwards(tickers, prices_dir, as_of,
     *spy_max_age_days*, or the price store cannot answer; a ticker with no
     parquet is never dropped, since absence says nothing about trading.
     """
-    if not prices_dir or as_of is None or not tickers:
-        return {}
-    spy = _load_local_prices('SPY', prices_dir)
-    if spy is None:
-        return {}
-    as_of_ts = pd.Timestamp(as_of)
-    spy = spy[(spy > 0) & (spy.index <= as_of_ts)].dropna()
-    if spy.empty or (as_of_ts - spy.index[-1]).days > spy_max_age_days:
-        return {}
-    spy_days = spy.index
-    # No gap limit: the question is exactly how far behind the last bar is.
-    bars = asof_closes(prices_dir, [as_of_ts.date().isoformat()],
-                       tickers=sorted(set(tickers) - {'SPY'}),
-                       max_gap_days=100_000)
-    if not bars:
-        return {}
-    out = {}
-    for tk, (bar_day, _close) in next(iter(bars.values())).items():
-        lag = int((spy_days > pd.Timestamp(bar_day)).sum())
-        if lag > max_lag_bars:
-            out[tk] = (bar_day, lag)
-    return out
+    return stopped_trading(prices_dir, tickers, as_of,
+                           max_lag_bars=max_lag_bars,
+                           spy_max_age_days=spy_max_age_days)
 
 
 def _drop_stopped_carry_forwards(carry_set, prices_dir, as_of, prov=None,
@@ -703,11 +684,10 @@ def _drop_stopped_carry_forwards(carry_set, prices_dir, as_of, prov=None,
         return set()
     if not stopped:
         return set()
-    limit = max(guard_floor, max_share * len(carry_set))
-    if len(stopped) > limit:
+    if mass_stop(len(stopped), len(carry_set), max_share, guard_floor):
         logger.warning("carry-forward: %d of %d ticker(s) read as stopped trading "
-                       "(> %d) — treating it as a failed price refresh and "
-                       "dropping none", len(stopped), len(carry_set), int(limit))
+                       "— treating it as a failed price refresh and dropping none",
+                       len(stopped), len(carry_set))
         return set()
     for tk, (last_bar, lag) in sorted(stopped.items()):
         logger.warning("%s: dropped from carry-forward — last price bar %s is "
