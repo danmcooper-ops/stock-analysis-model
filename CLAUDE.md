@@ -285,7 +285,20 @@ ruff check .
   otherwise merges, refusing changed ids without `--overwrite`. `#pf=` share
   links carry one portfolio as base64url JSON. `PORTFOLIOS_FILE` overrides
   the path; an unreadable file renders with no portfolios and says why in the
-  Manage dialog.
+  Manage dialog. The report's Portfolios view (cards, then a page per
+  portfolio) computes stats in the browser from `DATA`, so it follows local
+  edits. Alerts are *changes* only — rating moves and score drops via
+  `detect_alerts` (whose valuation-gap check is left out: a gap to fair value
+  is most stocks' normal state), plus joined/left/dropped-out events that
+  judge **both** days with today's definition, so editing a portfolio never
+  reads as a wave of joins, and that name the rule clause that flipped. Per-
+  ticker changes ship for the whole universe (browser-edited portfolios get
+  them); events need the prior run's rows and exist only for published
+  definitions. `scripts/portfolios.prior_rows` reads the prior run from the
+  store but never requests a `_gate_*` column the store lacks (it would come
+  back NULL and drop every row). Nightly: `portfolios.py alerts` (run_daily
+  `portfolio_alerts`, cloud `07e-portfolio-alerts`) writes
+  `output/portfolio_alerts_<date>.txt`.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`

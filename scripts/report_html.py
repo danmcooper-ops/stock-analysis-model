@@ -543,7 +543,7 @@ def _load_russell2000():
         return set()
 
 
-def _load_portfolio_payload(rows):
+def _load_portfolio_payload(rows, out_dir=None, run_date=None):
     """Portfolio groupings for the report: ``(payload, {ticker: [ids]})``.
 
     The payload (inline ``PORTFOLIOS``) carries the definitions with colors
@@ -569,10 +569,34 @@ def _load_portfolio_payload(rows):
         for t in resolved[p['id']]['members']:
             index.setdefault(t, []).append(p['id'])
         p['missing'] = resolved[p['id']]['missing']
+    payload = {'rev': pg.revision(doc), 'portfolios': pfs,
+               'prev_date': None, 'changes': [], 'events': []}
+    # Change alerts vs the prior run. Per-ticker ones (rating moves, score
+    # drops) cover the whole universe so portfolios edited in the browser
+    # get them too; joined/left events need the prior rows' rule columns
+    # and so exist only for the published definitions. Best-effort: a
+    # failure here costs the alerts, never the render.
+    if out_dir and pfs:
+        try:
+            from scripts.portfolios import prior_rows
+            day = (run_date or date.today()).isoformat()
+            prev_day, prev = prior_rows(out_dir, day, pg.rule_columns(pfs))
+            if prev_day:
+                by_tk, prev_by_tk = pg.rows_by_ticker(rows), pg.rows_by_ticker(prev)
+                payload['prev_date'] = prev_day
+                payload['changes'] = [
+                    {k: a[k] for k in ('ticker', 'alert_type', 'severity', 'message')}
+                    for a in pg.change_alerts(by_tk, prev_by_tk, day)]
+                payload['events'] = [
+                    {k: e[k] for k in ('ticker', 'portfolio', 'alert_type', 'severity', 'message')}
+                    for e in pg.membership_events(pfs, by_tk, prev_by_tk, day)]
+        except Exception as e:
+            logger.warning("portfolios: change alerts unavailable (%s)", e)
     if pfs:
         print(f"[report_html] portfolios: {len(pfs)} "
-              f"({sum(len(v) for v in index.values())} memberships)")
-    return {'rev': pg.revision(doc), 'portfolios': pfs}, index
+              f"({sum(len(v) for v in index.values())} memberships, "
+              f"{len(payload['events'])} membership events vs {payload['prev_date']})")
+    return payload, index
 
 
 # Every sidecar is written compact. json.dump's default separators put a
@@ -1537,7 +1561,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
 
     chart_records = [_row_context(r, gate_meta_obj, _r2000, _prev_ratings,
                                   _rating_hist) for r in rows]
-    portfolios_payload, _pf_index = _load_portfolio_payload(rows)
+    portfolios_payload, _pf_index = _load_portfolio_payload(rows, _out_dir_early, run_date)
     for _rec in chart_records:
         # Portfolio ids this ticker belongs to (resolved server-side; the
         # client re-resolves only portfolios edited in the browser).

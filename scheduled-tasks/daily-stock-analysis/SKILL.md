@@ -64,6 +64,7 @@ Include, from the log:
   - Flag it if BUY/LEAN BUY had clearly higher trailing returns than HOLD/PASS.
   - Flag it if r is above +0.15 with p < 0.05. A value model is expected to show a negative r.
 - **Portfolio report** (`portfolio_report` section): flag any sector above 35% of the BUY/LEAN BUY bucket, any highly correlated pair (r > 0.85) that isn't an obvious duplicate (GOOG/GOOGL), and any BUY with a 2020 drawdown worse than -50%.
+- **Your portfolios** (`portfolio_alerts` section): one line per portfolio (size, rating mix, median MoS), then every HIGH and MEDIUM alert verbatim. Say "no portfolio alerts" when the count is 0; skip it when it reports "No portfolios defined."
 - **Snapshot store** (`store_check` section): if it failed, quote its `PROBLEM:` lines. Store syncs never fail a step, so this is the only place a store that stopped updating shows up.
 - **Run quality:** the analysis's closing `RUN QUALITY:` lines, and the `Screen skip cache:` line from Phase 1.
 - **Publish:** the result, with the live URL's HTTP code.

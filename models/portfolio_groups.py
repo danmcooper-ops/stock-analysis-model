@@ -458,3 +458,189 @@ def merge_portfolios(current, incoming, overwrite=False):
             pos[p['id']] = len(out)
             out.append(p)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Stats and change alerts
+# ---------------------------------------------------------------------------
+
+RATINGS = ('BUY', 'LEAN BUY', 'HOLD', 'PASS')
+SEVERITY_ORDER = {'HIGH': 0, 'MEDIUM': 1, 'LOW': 2}
+
+
+def rule_columns(portfolios):
+    """Row columns needed to evaluate every rule (plus the ones alerts read),
+    for a narrow snapshot-store query of the prior run."""
+    cols = {'ticker', 'rating', 'sector', 'country', '_composite_score'}
+    for p in portfolios:
+        for c in (p.get('rule') or {}).get('cf') or ():
+            cols.add(c['key'])
+            if c.get('txt') is None:
+                cols.add('_gate_' + c['key'])
+    return sorted(cols)
+
+
+def _median(vals):
+    v = sorted(x for x in vals if x is not None)
+    if not v:
+        return None
+    m = len(v) // 2
+    return v[m] if len(v) % 2 else (v[m - 1] + v[m]) / 2
+
+
+def portfolio_stats(members, by_tk, prev_by_tk=None):
+    """Summary of one portfolio's resolved members (equal-weighted).
+
+    Returns count, rating mix, medians of MoS / composite score / ROIC-WACC
+    spread, sector weights with the top sector's share and HHI (via
+    ``models.portfolio.concentration_analysis``), and how many members were
+    upgraded / downgraded vs *prev_by_tk*.
+    """
+    from models.portfolio import concentration_analysis
+    rows = [by_tk[t] for t in members if t in by_tk]
+    mix = {r: 0 for r in RATINGS}
+    for r in rows:
+        if r.get('rating') in mix:
+            mix[r['rating']] += 1
+    conc = concentration_analysis([{'ticker': r['ticker'], 'sector': r.get('sector')}
+                                   for r in rows])
+    up = down = 0
+    for r in rows:
+        prev = (prev_by_tk or {}).get(r['ticker']) or {}
+        a, b = prev.get('rating'), r.get('rating')
+        if a in RATINGS and b in RATINGS and a != b:
+            if RATINGS.index(b) < RATINGS.index(a):
+                up += 1
+            else:
+                down += 1
+    return {
+        'n': len(rows),
+        'ratings': mix,
+        'median_mos': _median(js_num(r.get('mos')) for r in rows),
+        'median_score': _median(js_num(r.get('_composite_score')) for r in rows),
+        'median_spread': _median(js_num(r.get('spread')) for r in rows),
+        'sector_weights': conc['sector_weights'],
+        'top_sector': conc['top_sector'],
+        'top_sector_weight': conc['top_sector_weight'],
+        'hhi': conc['hhi'],
+        'concentrated': conc['concentration_flag'],
+        'upgrades': up,
+        'downgrades': down,
+    }
+
+
+def change_alerts(by_tk, prev_by_tk, run_date=None, score_drop_threshold=10.0):
+    """Per-ticker change alerts over every ticker present on both days:
+    rating up/downgrades and composite-score drops, via the holdings
+    tracker's ``detect_alerts`` (its valuation-gap check is left out — a gap
+    to fair value is the normal state of most stocks, not a change)."""
+    from models.portfolio_tracker import detect_alerts
+    held = []
+    for t, r in by_tk.items():
+        if t in prev_by_tk:
+            held.append({'ticker': t, 'in_universe': True, 'rating': r.get('rating'),
+                         '_composite_score': js_num(r.get('_composite_score'))})
+    prev = {t: {'rating': p.get('rating'),
+                '_composite_score': js_num(p.get('_composite_score'))}
+            for t, p in prev_by_tk.items()}
+    return detect_alerts(held, prev, score_drop_threshold=score_drop_threshold,
+                         run_date=run_date)
+
+
+def _fmt_val(v):
+    n = js_num(v)
+    if n is None:
+        return 'N/A' if v is None or not isinstance(v, str) else repr(v)
+    return f"{n:.3g}" if abs(n) < 1000 else f"{n:,.0f}"
+
+
+def explain_rule_change(rule, prev_row, row):
+    """Why *rule* judges the two rows differently: one phrase per clause
+    whose verdict flipped, e.g. ``rating BUY → LEAN BUY`` or
+    ``mos 0.289 → 0.311 (rule: ≥ 0.3)``."""
+    if not rule:
+        return []
+    out = []
+    for key, field in (('ratings', 'rating'), ('sectors', 'sector'),
+                       ('countries', 'country')):
+        allowed = rule.get(key)
+        if allowed is None:
+            continue
+        a, b = prev_row.get(field), row.get(field)
+        if (a in allowed) != (b in allowed):
+            out.append(f"{field} {a or 'N/A'} → {b or 'N/A'}")
+    for c in rule.get('cf') or ():
+        one = {'ratings': None, 'sectors': None, 'countries': None, 'cf': [c]}
+        if rule_matches(one, prev_row) == rule_matches(one, row):
+            continue
+        k = c['key']
+        if c.get('txt') is not None:
+            out.append(f"{k} {prev_row.get(k)!r} → {row.get(k)!r} (rule: contains {c['txt']!r})")
+            continue
+        bounds = ' and '.join(x for x in (
+            f"≥ {c['min']:g}" if c.get('min') is not None else '',
+            f"≤ {c['max']:g}" if c.get('max') is not None else '') if x)
+        out.append(f"{k} {_fmt_val(prev_row.get(k))} → {_fmt_val(row.get(k))} (rule: {bounds})")
+    return out
+
+
+def membership_events(portfolios, by_tk, prev_by_tk, run_date=None):
+    """Joined / left / dropped-out events per portfolio.
+
+    Today's definition is evaluated against both days' rows, so an edit to
+    the definition itself never reads as a wave of joins; what shows is the
+    data moving a stock across the rule's lines. A hand-picked ticker that
+    was in yesterday's universe but not today's is ``dropped_out``.
+    """
+    day = (run_date.isoformat() if hasattr(run_date, 'isoformat') else run_date) \
+        or date.today().isoformat()
+    out = []
+    for p in portfolios:
+        now = set(resolve_members(p, by_tk)['members'])
+        before = set(resolve_members(p, prev_by_tk)['members'])
+        picked = set(p.get('tickers') or ())
+        for t in sorted(now - before):
+            if t not in prev_by_tk:
+                why = 'back in the universe' if t in picked else 'new to the universe'
+            else:
+                why = '; '.join(explain_rule_change(p.get('rule'), prev_by_tk[t], by_tk[t])) \
+                    or 'now matches the rule'
+            out.append({'ticker': t, 'portfolio': p['id'], 'alert_type': 'joined',
+                        'severity': 'LOW', 'date': day,
+                        'message': f"{t} joined {p['name']} ({why})"})
+        for t in sorted(before - now):
+            if t in by_tk:
+                why = '; '.join(explain_rule_change(p.get('rule'), prev_by_tk[t], by_tk[t])) \
+                    or 'no longer matches the rule'
+                atype = 'left'
+            else:
+                why = "dropped out of today's universe"
+                atype = 'dropped_out'
+            out.append({'ticker': t, 'portfolio': p['id'], 'alert_type': atype,
+                        'severity': 'MEDIUM', 'date': day,
+                        'message': f"{t} left {p['name']} ({why})"})
+    return out
+
+
+def portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=None,
+                     score_drop_threshold=10.0):
+    """All alerts for the portfolios, one entry per event.
+
+    Per-ticker change alerts are listed once with ``portfolios`` naming
+    every portfolio the ticker is in today; membership events carry their
+    one portfolio. Sorted by severity, then ticker.
+    """
+    index = {}
+    for p in portfolios:
+        for t in resolve_members(p, by_tk)['members']:
+            index.setdefault(t, []).append(p['id'])
+    out = []
+    for a in change_alerts(by_tk, prev_by_tk, run_date, score_drop_threshold):
+        if a['ticker'] in index:
+            out.append(dict(a, portfolios=index[a['ticker']]))
+    for e in membership_events(portfolios, by_tk, prev_by_tk, run_date):
+        pid = e.pop('portfolio')
+        out.append(dict(e, portfolios=[pid]))
+    out.sort(key=lambda a: (SEVERITY_ORDER.get(a['severity'], 3), a['ticker'],
+                            a['alert_type']))
+    return out
