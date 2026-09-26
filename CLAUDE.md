@@ -47,7 +47,9 @@ supabase/        - Supabase project (config.toml, migrations/) for the planned
 design/          - design docs and spikes (Supabase migration plan, P0 findings)
 scheduled-tasks/ - Operational runbooks for the nightly analysis + publish;
                    cloud-daily-stock-analysis/run.sh is the live (cloud
-                   Routine) pipeline, the rest are the dormant Mac runbooks
+                   Routine) pipeline, cloud-weekly-backtest/run.sh the live
+                   Sunday backtest (helpers in scripts/backtest_cloud.py),
+                   the rest are the dormant Mac runbooks
 output/          - (gitignored) run artifacts: results JSON, HTML, prices,
                    snapshots.duckdb (derived index over the results JSONs)
 ```
@@ -287,6 +289,17 @@ ruff check .
   columns, no full-scan penalty) and offers `--sql` for raw queries, falling
   back to its older `.query_index_v1/` parquet index when the store is absent
   or incomplete.
+- **Forward-return sidecars (`output/returns/<date>_h<h>.json`):** matured
+  returns are immutable, so `annotate_snapshot_returns` freezes them, and the
+  cloud weekly routine persists them under `returns/` on `data/snapshots`.
+  Because a frozen value is reused forever, a sidecar records `coverage`
+  (priced / requested tickers). One below `MIN_RETURN_COVERAGE` (0.90) keeps
+  what it holds and has only its missing tickers re-fetched each run. A
+  (date, horizon) with no SPY return is left unmeasured and uncached, never
+  measured against 0%. `measure` writes per-pair coverage, unpriced names by
+  rating (delistings, i.e. survivorship), skipped snapshots and the git SHA
+  into `backtest_summary_<stamp>.json`, and `scripts/backtest_cloud.py compare`
+  diffs it against the prior week's.
 - **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
   named sets of tickers — hand-picked, rule-driven, or both — and a ticker may
   sit in any number of them (membership only; `portfolio/holdings.json` stays

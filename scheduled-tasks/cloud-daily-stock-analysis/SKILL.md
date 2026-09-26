@@ -216,4 +216,5 @@ runs eight tickers end to end and pushes nothing.
   every install with `ReadTimeoutError`. `pip_no_proxy()` drops just those two
   hosts from `no_proxy`; the localhost/link-local/internal entries stay, and
   when no proxy is configured the list is left alone.
-- The weekly backtest is a separate routine and is **not** covered here.
+- The weekly backtest is a separate routine (`../cloud-weekly-backtest/`,
+  Sundays) and is **not** covered here.
