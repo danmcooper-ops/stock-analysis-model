@@ -243,6 +243,31 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
     - the `core.screen_skip` upsert.
 - **P3: Backfill the whole archive.**
   - *Passes when:* fidelity and decision parity (stability checks 1–2) hold for every date.
+  - **Built 2026-09-26:**
+    - **`scripts/db_backfill.py`** publishes the archive in date order through the nightly path. It is resumable: `pipeline.list_runs()` (a new RPC) lets it skip dates that are already published and unchanged, which also works over HTTPS. It stops at a refusal unless `--keep-going` is given, and `--force-reason` is audited for each date.
+    - **`scripts/db_parity_check.py`** runs stability checks 1–2 for each date, against a direct connection.
+  - **Local run** against the Supabase Postgres 17 image:
+    - All 92 archived dates (2026-04-20 → 2026-09-25), 195,132 rows. None were refused and none needed `--force`.
+    - **Parity: passed.**
+      - 0 fidelity mismatches: every row rebuilds exactly, and each run's status, `source_sha256`, risk-free rate and meta match.
+      - 0 decision mismatches: re-scoring the rebuilt rows and the file rows with today's `score_and_rate` gives the same rating, raw rating, cap and composite score for every ticker.
+      - The rating change points match exactly: 13,943 from the files and 13,943 in the database.
+      - A deliberately corrupted input (one ticker's `mos`) was caught as a composite-score mismatch, so the check is not vacuous.
+    - **Size:** 885 MB in the database, of which `core.results` is 730 MB (3.9 KB per row with indexes) and edgar blobs are 58 MB (19,931 distinct). That projects to about 2.6 GiB/yr at ~2.5k rows/day, inside the A3 limit.
+  - **Performance fix** (migration `*_publish_run_perf.sql`): during the backfill, one day's publish grew from 4.5 s to 15.8 s.
+    - ANALYZE of all ~370 columns took 8.5 s. It now analyzes only `run_date`, `ticker_id` and `rating`, and autoanalyze covers the rest.
+    - The rating recompute anchored on each ticker's last change point, so a stable ticker rescanned every day since then. It now anchors on the previous rated day, with one index probe.
+    - A republish of the newest date now takes 4.6 s in total, with the same change points. The P5 volume test re-checks this at 20M rows.
+  - **Hosted backfill runbook** (sandbox first, then prod once it exists):
+    1. Apply the migrations. Merging applies them to the sandbox through the GitHub integration; `supabase db push` applies them elsewhere.
+    2. Make a blob-less clone of the archive, like `run.sh` step 02:
+       `git clone --filter=blob:none --depth 1 --no-checkout --single-branch -b data/snapshots <repo> /tmp/snaparch`
+    3. From any machine with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set (HTTPS only, so the cloud container works):
+       `python scripts/db_backfill.py --archive-git /tmp/snaparch --keep-files --work output/archive`
+       It takes about 25 s a date, mostly git fetching each day's blobs. Re-running it is safe.
+    4. From a machine that can reach Postgres directly (the session pooler DSN of a `pipeline_reader` login):
+       `python scripts/db_parity_check.py --results-dir output/archive --dsn "$DSN"`
+       It must report 0 mismatches before P4 switches any reader to the database.
 - **P4: Switch readers, Parquet backtest, public export.**
   - *Passes when:* the parity checks pass and the site renders from the exported files.
 - **P5: Scale tests.**
