@@ -180,6 +180,28 @@ ruff check .
   healthy run — the same reason a 404 does not penalise. Writes go through
   `os.replace` because the freshness check reads a parquet's index, so a
   half-written file could read as current.
+- **Price-parquet cache (`data/price_cache_store.py`, `scripts/price_cache.py`):**
+  `output/prices/` dies with the stateless container, which is what made the
+  cold step 03 above cost an hour. The parquets are now carried in a Supabase
+  Storage bucket (`PRICE_CACHE_BUCKET`, default `price-cache`), one object per
+  ticker, replaced in place — the same host, service-role key and HTTPS egress
+  step `06a-db-publish` already uses, so it is unaffected by P0's finding that
+  the container cannot open raw TCP to Postgres. `run.sh` restores in step
+  `02b` (before the download) and saves in `05e2` (after the top-up, so new
+  entrants ride along). Both are non-blocking and skipped without the Supabase
+  secrets, so a dev box and a `SMOKE` run behave exactly as before.
+  The safety argument is the same one that lets the restore be non-blocking:
+  freshness is read from parquet **content** (`_parquet_max_date` reads the
+  index), never mtime, so a restored file that is behind fails the check and
+  is re-downloaded. An old, partial or corrupt cache degrades to today's cold
+  behaviour and can never serve a stale price. Consequently the save's
+  change-detection may be a heuristic — a parquet is uploaded when its size
+  differs from the stored object's, since a re-downloaded history has gained
+  bars; being wrong costs one wasted fetch next run (`--all` forces a full
+  upload). A restore never overwrites a local file (a resumed run may hold
+  something fresher), one bad object never ends the sweep, and the store
+  refuses to save a local set under 80% of what it already holds, so a
+  half-failed run cannot clobber a good cache.
 - **Run timings:** `_PhaseClock` in `analyze_stock.py` records wall clock per
   `_run_*` phase and prints an "Elapsed by phase" table at the end;
   `_run_phase1_screen` additionally times each leg (yf_fetch, xbrl, fx, roic,
@@ -436,7 +458,9 @@ by analyze_stock and gitignored):
   so a shape change must bump it or the cache replays the old shape.
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — optional; `scripts/db_publish.py`
   (nightly step 06a, non-blocking) publishes the run to the Supabase database
-  over the Data API (design/supabase-migration.md). Unset: skipped.
+  over the Data API (design/supabase-migration.md). The same pair also carries
+  the price-parquet cache in Storage (`scripts/price_cache.py`, steps 02b and
+  05e2; `PRICE_CACHE_BUCKET` names the bucket). Unset: both skipped.
 - `SNAPSHOT_STORE_BACKEND=postgres` — opt-in; the snapshot-store readers
   (`SnapshotStore.for_results_dir`) read the Supabase database instead of
   `snapshots.duckdb` (`data/db/reader.py`), over the Data API or
