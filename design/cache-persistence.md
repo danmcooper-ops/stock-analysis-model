@@ -148,27 +148,59 @@ full universe rather than erroring. The first `02b` finds an empty bucket and
 correctly restores nothing, so night one is a normal cold run that seeds the
 cache; the saving appears on night two.
 
-## Phase C — the SEC facts cache (conditional; do not start with this)
+## Phase C — the SEC facts cache
 
-Lower value than it looks. The Phase-1 prefetch pool already moved the `xbrl`
-leg from 37% of Phase 1 to 0.4% by hiding it behind other work, so persisting
-these blobs buys politeness to SEC and a smaller failure surface, **not** wall
-clock. It also carries a hazard Phase B does not:
+**Status: shipped, against this plan's own advice.** What follows is the
+recommendation as written; it was overridden deliberately, and the value
+judgement still stands — this buys fewer SEC requests and a smaller failure
+surface, not wall clock. `facts_stats` in `provenance.timings` is where to
+check whether that judgement was right.
+
+The original case for deferring: the Phase-1 prefetch pool already moved the
+`xbrl` leg from 37% of Phase 1 to 0.4% by hiding it behind other work, so
+persisting these blobs buys politeness to SEC rather than time. (Note the
+measurement behind that figure was 12 tickers, not 2,300, so it is weaker
+evidence than it looks.) It also carried a hazard the price cache did not:
 
 - **mtime-based freshness.** `get()`, `age_days()` and `prune_expired()` all
-  read `os.path.getmtime()` (`data/sec_facts_cache.py:84, 94, 169`). A git
-  checkout stamps every restored file with the checkout time, so restored blobs
-  look freshly downloaded and the `max_age_days` backstop never fires. Transport
-  must preserve mtime (a tar does; a git checkout does not), or the cache needs
-  an explicit stamp inside the blob instead of mtime.
-- **The watermark travels with the blobs.** `_state.json` (`_STATE_FILE`,
-  line 40) lives inside the cache directory and holds `last_index_sweep`. It
-  must be restored atomically with the blobs it describes, or eviction is
-  reasoning about a filing window the cache does not match.
+  read `os.path.getmtime()`. A restore writes every file now, so restored
+  blobs look freshly downloaded and the `max_age_days` backstop never fires
+  again — transport alone would have silently disabled the one guard against
+  indefinitely-stale fundamentals.
+- **The watermark travels with the blobs.** `_state.json` holds
+  `last_index_sweep` and must be restored atomically with what it describes,
+  or eviction is reasoning about a filing window the cache does not match.
 
-Recommendation: ship A and B, measure, and only then decide whether C is worth
-the mtime work. If it is, prefer changing freshness to an explicit stamp over
-engineering the transport to preserve mtime.
+**How it was resolved**, taking this plan's own preference for an explicit
+stamp over engineering the transport to preserve mtime — though not the form
+it expected. Rather than stamping each blob, the backstop now also reads the
+**watermark**, which survives the trip and measures what the backstop
+actually cares about: whether filing-driven eviction kept up.
+`refresh_stale_facts()` never advances the watermark over a day it could not
+read, so a current watermark means every filing day since has been walked and
+its filers evicted — precisely the claim that lets an untouched blob stay
+valid. `SECFactsCache.sweep_is_lagging()` makes the whole cache read as
+missing when that lag exceeds `max_age_days`. A cache that never swept has no
+watermark and falls back to mtime, which on a dev box is honest.
+
+A third hazard surfaced during the build, in neither the plan nor the
+original review: **evictions have to reach the bucket.** `invalidate()`
+removes a blob locally because its filer filed; if the object stayed stored
+it would come back on the next restore, and the sweep would *not* evict it
+again, because the watermark has already moved past that day. That blob would
+then be served indefinitely. So the save deletes stored objects with no local
+counterpart, gated on the same 80% floor as the price cache.
+
+`run.sh` restores in `02c` and saves in `04b`, immediately after the analysis
+— the only step that fetches facts or evicts them, and before enrichment that
+could still fail. Both non-blocking and skipped without the Supabase secrets.
+
+*Passes when:* a restored cache with a current watermark serves its blobs; one
+with a lagging watermark serves none despite fresh mtimes; an eviction
+propagates to the bucket; and a run without the secrets behaves as before.
+All four are pinned in `tests/test_sec_facts_cache_store.py` (16 tests) and
+exercised together end to end. As with Phase B, the live API is unverified —
+the tests run against a fake session.
 
 ## Relationship to the Supabase plan
 

@@ -83,7 +83,7 @@ def test_request_shape_carries_the_service_key():
 
 
 def test_listing_pages_past_the_limit(monkeypatch):
-    monkeypatch.setattr('data.price_cache_store.LIST_PAGE', 2)
+    monkeypatch.setattr('data.supabase_storage.LIST_PAGE', 2)
     s = FakeSession({f'T{i}.parquet': b'ab' for i in range(5)})
     assert len(_store(s).list_objects()) == 5
     # 2 + 2 + 1: the short page ends it.

@@ -19,6 +19,22 @@ network at sweep time, a gap too long to walk): entries older than it are
 treated as missing so the cache can never serve indefinitely-stale
 fundamentals.
 
+That backstop is measured two ways, because file mtime alone stopped being
+trustworthy once the cache began travelling between runs
+(``data/sec_facts_cache_store.py``). A restored file is written now, so its
+mtime says "fetched today" no matter how old the blob really is, and the
+backstop it feeds would never fire again.
+
+The watermark does survive the trip, and it measures the thing the backstop
+actually cares about: whether filing-driven eviction has been keeping up.
+``refresh_stale_facts()`` stops at the first day whose index it could not
+read, so the watermark never advances over a gap — a current watermark means
+every filing day since has been walked and its filers evicted, which is
+exactly the claim that lets an untouched blob stay valid. So when the sweep
+is lagging by more than ``max_age_days`` the whole cache reads as missing,
+transport or no transport. A cache that never swept at all (a dev box) has no
+watermark and falls back to mtime, which there is genuine.
+
 This module performs no network I/O; the client owns every request.
 """
 
@@ -68,6 +84,9 @@ class SECFactsCache:
         # running, since nothing else would ever expire a blob.
         self.max_age_days = max_age_days if max_age_days > 0 else None
         self.hits = self.misses = self.writes = self.invalidated = 0
+        # get() is called once per ticker, so the watermark is read once and
+        # remembered rather than re-read from disk ~2,500 times.
+        self._sweep_lagging = None
 
     # -- paths ------------------------------------------------------------
 
@@ -83,12 +102,42 @@ class SECFactsCache:
             return None
         return (time.time() - os.path.getmtime(path)) / 86400.0
 
+    def sweep_lag_days(self):
+        """Days since the filing index was last walked, or None if never."""
+        last = self.last_sweep()
+        if last is None:
+            return None
+        return (date.today() - last).days
+
+    def sweep_is_lagging(self):
+        """True when filing-driven eviction can no longer vouch for the cache.
+
+        This is the half of the age backstop that survives being restored from
+        elsewhere. It is deliberately silent about a cache that has never
+        swept: on a dev box there is no watermark and mtime is honest, so the
+        per-file check below is the whole backstop there.
+        """
+        if self._sweep_lagging is None:
+            lag = self.sweep_lag_days()
+            self._sweep_lagging = bool(
+                self.max_age_days is not None and lag is not None
+                and lag > self.max_age_days)
+            if self._sweep_lagging:
+                logger.warning(
+                    "sec facts cache: the filing index was last walked %dd ago "
+                    "(backstop %.0fd); treating every entry as missing",
+                    lag, self.max_age_days)
+        return self._sweep_lagging
+
     # -- read / write -----------------------------------------------------
 
     def get(self, cik):
         """The cached companyfacts blob, or None when absent/expired/corrupt."""
         path = self.path_for(cik)
         if not path or not os.path.exists(path):
+            self.misses += 1
+            return None
+        if self.sweep_is_lagging():
             self.misses += 1
             return None
         age = (time.time() - os.path.getmtime(path)) / 86400.0
@@ -199,6 +248,7 @@ class SECFactsCache:
 
     def record_sweep(self, through):
         """Record that the filing index is walked through *through* (a date)."""
+        self._sweep_lagging = None      # the memo above is now out of date
         state = self._read_state()
         state['last_index_sweep'] = (through.isoformat()
                                      if hasattr(through, 'isoformat')
