@@ -3488,6 +3488,7 @@ def _print_phase1_timings(t):
         print(f"    yfinance calls={y['calls']} seconds={y['seconds'] / 60:.1f} min "
               f"retries={y.get('retries', 0)} not_found={y.get('not_found', 0)} "
               f"empty_attempts={y.get('empty_attempts', 0)} "
+              f"auth_failures={y.get('auth_failures', 0)} "
               f"timeouts={y.get('timeouts', 0)} errors={y.get('errors', 0)}")
     s = t.get('sec_facts') or {}
     if any(s.values()):

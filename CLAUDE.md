@@ -136,6 +136,19 @@ ruff check .
   Note the crossover: once latency is hidden, the yfinance `Throttle(1.0)`
   becomes the binding constraint (91% of the phase asleep in that test), so
   `request_delay` is the next lever, not the first one.
+- **yfinance crumb poisoning (`YahooAuthError`):** yfinance 1.7.0 stores the
+  getcrumb response as its crumb before validating it, so a rate-limited
+  getcrumb leaves "Too Many Requests" cached and every `.info` call gets
+  HTTP 401 ("Invalid Crumb"), which yfinance logs and swallows. On
+  2026-09-25 that lasted all of Phase 1 and 60% of the snapshot had no
+  price/sector/EV. `data/yf_session.py` counts yfinance's logged 401s per
+  thread and clears a bad crumb; `fetch_financials` turns a 401 into
+  `YahooAuthError` (a subclass of `EmptyYahooResponseError`, so the
+  soft-throttle paths and the empty-rate valve see it), retries on a fresh
+  `yf.Ticker` (yfinance caches a failed `.info` on the object), and every
+  thread pauses 10s doubling to 120s, 30 min per run at most. When retries
+  or the budget run out it keeps the statements it got, flagged
+  `_info_auth_failed`, so the worst case equals the old behaviour.
 - **Phase-1 beta from local prices:** the nightly run downloads every prior
   snapshot ticker's closes into `output/prices` immediately before the
   analysis (`run.sh` step 03), so Phase 1 reads that parquet for the beta
@@ -158,7 +171,8 @@ ruff check .
   heartbeat every 250 tickers. `Throttle` counts `calls`/`slept`/`waited`
   (lock contention), `YFinanceClient.stats` counts calls/retries/not_found/
   `empty_attempts` (Yahoo's soft throttle, counted per attempt because it
-  burns all three), and `SECXBRLClient.facts_stats` splits companyfacts
+  burns all three) and `auth_failures` (401s, see crumb poisoning above),
+  and `SECXBRLClient.facts_stats` splits companyfacts
   network fetches from memory/disk hits. All of it lands in the snapshot's
   `provenance.timings`, so a slow night can be compared against a fast one
   instead of diffing stdout timestamps. The instrumentation is defensive —
