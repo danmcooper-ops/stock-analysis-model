@@ -270,6 +270,28 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
        It must report 0 mismatches before P4 switches any reader to the database.
 - **P4: Switch readers, Parquet backtest, public export.**
   - *Passes when:* the parity checks pass and the site renders from the exported files.
+  - P4 is split into three PRs so each can be reviewed and verified on its own:
+    - **P4a:** the reader switch (below).
+    - **P4b:** Parquet exports and Storage uploads, `core.snapshot_objects`, backtests on Parquet, and the `core.screen_skip` upsert.
+    - **P4c:** the public export to Cloudflare, which needs Cloudflare credentials.
+  - **P4a built 2026-09-27:**
+    - **Migration `*_read_rpcs.sql`:** read RPCs `pipeline.read_rows`, `last_known_rows`, `rating_history` and `run_meta`, callable by service_role and the pipeline roles.
+      - They build jsonb only from the requested columns. The first version rendered all ~370 columns and filtered afterwards; that took 1.5 s for a 3-column read and 15 s for `last_known_rows`, now about 0.05 s and 0.8 s on a real day.
+      - They set `extra_float_digits = 3`, because jsonb renders float8 through its output function and the Supabase default of 0 truncates the last two digits.
+    - **`data/db/reader.DbStore`** provides the reader half of `SnapshotStore`. `SnapshotStore.for_results_dir()` returns it when `SNAPSHOT_STORE_BACKEND=postgres` is set and the database is reachable, so every existing call site switches unchanged:
+      - carry-forward and lost-SEC-tickers in `analyze_stock`;
+      - previous ratings and rating history in `report_html`;
+      - `track_portfolio`, `gate_na_report` and `portfolios`.
+    - **Still on DuckDB:** `query_results` (raw SQL) and `backtest` (moving to Parquet in P4b) pass `allow_db=False`.
+    - **Transport:** the Data API when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set, otherwise `SUPABASE_READER_URL`/`SUPABASE_DB_URL` direct.
+    - **Failure handling:** the first failure disables the backend for the process (R10). Under pytest only a local host is accepted, and that is checked before connecting (R12).
+    - **Staleness (R2):** a date is served only if its run is complete and any local plain `results_<date>.json` hashes to the published `source_sha256`. `sync_snapshot_file()` republishes a rewritten snapshot when the backend is selected; the nightly run sets `DB_DEFER_PUBLISH=1` and publishes once, at 06a.
+    - **R3:** `report_html`'s rating-history check accepts a database whose dates cover the staged files, rather than requiring an exact match.
+    - **Post-publish check:** `check_snapshot_store.py --database` confirms the run is complete, the row count, and `source_sha256`. It runs as `run.sh` step `07e-db-check`, non-blocking.
+  - **P4a results:**
+    - The 10 newest real snapshots (25k rows) were read through DuckDB and the database, both direct and over the local Data API, and every reader matched: dates, `rows` for five column sets (including unknown and nested keys), `last_known_rows` over three windows including the fallback look-back, `rating_history` (4,538 points), and `run_meta`.
+    - `tests/test_db_reader_pg.py` (16 tests) repeats this on synthetic data with NaN, ±Inf, NUL, gaps and a ticker that drops out, and runs the real call sites with the backend selected.
+    - One deliberate difference: the database keeps a NaN nested inside a dict or list as the file has it, where the DuckDB store's JSON columns turn it into null.
 - **P5: Scale tests.**
   - *Passes when:* every scalability target is met.
 - **P6: Cutover.**

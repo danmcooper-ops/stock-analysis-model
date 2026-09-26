@@ -371,4 +371,10 @@ by analyze_stock and gitignored):
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — optional; `scripts/db_publish.py`
   (nightly step 06a, non-blocking) publishes the run to the Supabase database
   over the Data API (design/supabase-migration.md). Unset: skipped.
+- `SNAPSHOT_STORE_BACKEND=postgres` — opt-in; the snapshot-store readers
+  (`SnapshotStore.for_results_dir`) read the Supabase database instead of
+  `snapshots.duckdb` (`data/db/reader.py`), over the Data API or
+  `SUPABASE_READER_URL`/`SUPABASE_DB_URL`; any failure falls back to the JSON.
+  `DB_DEFER_PUBLISH=1` (set by run.sh) stops `sync_snapshot_file` republishing
+  each rewrite during the nightly run.
 - yfinance requires no authentication

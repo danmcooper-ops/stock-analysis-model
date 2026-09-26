@@ -147,7 +147,7 @@ def load_corpus(results_dir='output', dates=None, use_store=None):
                   for d in dates]
         by_date = {d: p for d, p in by_date.items() if d in wanted}
 
-    store = SnapshotStore.for_results_dir(results_dir) if use_store else None
+    store = SnapshotStore.for_results_dir(results_dir, allow_db=False) if use_store else None
     snapshots, n_store = [], 0
     try:
         for d in sorted(by_date):

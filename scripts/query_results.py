@@ -263,7 +263,7 @@ def history_from_store(results_dir, ticker, columns):
         print('Column(s) %s are not kept whole in the snapshot store — reading JSON.'
               % ', '.join(partial), file=sys.stderr)
         return None
-    store = SnapshotStore.for_results_dir(results_dir)
+    store = SnapshotStore.for_results_dir(results_dir, allow_db=False)
     if store is None:
         return None
     try:
@@ -316,7 +316,7 @@ def run_sql(results_dir, sql):
     Exits with a message when the store is absent — there is nothing to query
     without it.
     """
-    store = SnapshotStore.for_results_dir(results_dir)
+    store = SnapshotStore.for_results_dir(results_dir, allow_db=False)
     if store is None:
         sys.exit('No snapshot store at %s. Build one with:\n'
                  '  python scripts/ingest_snapshots.py --results-dir %s'
