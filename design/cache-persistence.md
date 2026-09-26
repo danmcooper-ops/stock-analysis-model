@@ -131,6 +131,23 @@ failed restore costs the hour, not the run.
 re-downloaded rather than used; a run without the Supabase secrets behaves
 exactly as today; and a `SMOKE=1` run leaves the stored cache untouched.
 
+**Status: shipped, unproven against the real bucket.**
+`data/price_cache_store.py` and `scripts/price_cache.py` implement the round
+trip; `run.sh` restores in `02b` and saves in `05e2`, both non-blocking.
+`tests/test_price_cache_store.py` (17 tests) pins the request shape, list
+pagination, the `x-upsert` replace, and the harm-avoidance properties: a local
+file is never overwritten by a stored one, one bad object does not end the
+sweep, a failed download leaves no truncated parquet, an under-floor local set
+is refused, and absent credentials are a clean no-op.
+
+What the tests **cannot** cover is the live API, since they run against a fake
+session. Before relying on this, confirm on a real run that the bucket exists
+and the service-role key can write it, that Storage's list pagination behaves
+as assumed past 1,000 objects, and that the first night's `05e2` uploads the
+full universe rather than erroring. The first `02b` finds an empty bucket and
+correctly restores nothing, so night one is a normal cold run that seeds the
+cache; the saving appears on night two.
+
 ## Phase C — the SEC facts cache (conditional; do not start with this)
 
 Lower value than it looks. The Phase-1 prefetch pool already moved the `xbrl`

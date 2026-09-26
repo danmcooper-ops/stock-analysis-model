@@ -52,7 +52,11 @@
 #   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 #                        publish the run to the Supabase database over HTTPS
 #                        (step 06a, design/supabase-migration.md). Unset: the
-#                        step is skipped. Non-blocking until the P6 cutover
+#                        step is skipped. Non-blocking until the P6 cutover.
+#                        The same pair carries the price-parquet cache in
+#                        Storage (steps 02b/05e2, design/cache-persistence.md);
+#                        unset skips those too and the run pays a cold cache
+#   PRICE_CACHE_BUCKET   bucket for that cache (default price-cache)
 #   DRY_RUN=1            do everything except push
 #   SMOKE=1              tiny universe (SMOKE_TICKERS), for testing this script
 set -uo pipefail
@@ -292,6 +296,23 @@ PRIOR_DATE=$(ls "$REPO/output" | grep -E '^results_[0-9-]+\.json(\.gz)?$' | sed 
 say "   newest prior snapshot: ${PRIOR_DATE:-none}"
 
 # ---------------------------------------------------------------------------
+# 2b. Restore the price parquets from Supabase Storage. output/prices/ dies
+#     with the container, so without this step 03 re-fetches the whole
+#     universe from Yahoo every night (design/cache-persistence.md, Phase B).
+#     Non-blocking and skipped without the Supabase secrets: a failed restore
+#     costs the cold-cache hour, not the run. Nothing here can serve a stale
+#     price — step 03's freshness check reads each parquet's own last bar and
+#     re-downloads anything behind, exactly as it does for a cold cache.
+#     Skipped for SMOKE, whose tiny universe would otherwise pull ~2,300
+#     objects it will not use.
+# ---------------------------------------------------------------------------
+restore_price_cache() {
+  if [ "$SMOKE" = 1 ]; then echo "SMOKE; not restoring the price cache"; return 0; fi
+  "$PYTHON" scripts/price_cache.py restore --prices-dir output/prices
+}
+run_step 02b-restore-prices 0 restore_price_cache
+
+# ---------------------------------------------------------------------------
 # 3. Price cache: full history for every ticker in the newest snapshot
 #    (they all re-enter Phase 2 via carry-forward) plus the benchmarks.
 # ---------------------------------------------------------------------------
@@ -358,6 +379,17 @@ PY
   "$PYTHON" scripts/download_prices.py --output-dir output/prices --max-age-days 2 --tickers $tickers
 }
 run_step 05e-prices-topup 0 topup_prices
+# Save the refreshed parquets back. After the top-up, so new entrants ride
+# along; only objects whose size changed are uploaded. Never on a SMOKE or
+# DRY_RUN pass, and the store itself refuses a local set far smaller than
+# what it already holds, so a half-failed run cannot clobber a good cache.
+save_price_cache() {
+  if [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
+    echo "SMOKE/DRY_RUN; not saving the price cache"; return 0
+  fi
+  "$PYTHON" scripts/price_cache.py save --prices-dir output/prices
+}
+run_step 05e2-save-prices 0 save_price_cache
 run_step 05f-rerender 1 "$PYTHON" scripts/rescore_and_render.py "$RESULTS"
 # Your portfolio groupings (portfolio/portfolios.json): Action / Watch / FYI
 # alerts vs the prior run. Runs BEFORE the archive so portfolio_alerts.json
