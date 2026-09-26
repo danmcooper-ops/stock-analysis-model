@@ -83,29 +83,39 @@ worker count applies on its own.
 
 ## Phase B — persist the price cache between runs
 
-**Transport is constrained to git.** `push_with_retry()` (`run.sh:121`) uses a
-plain `git push` to an HTTPS remote via the container's credential helper. There
-is no `gh` CLI and no API token, so GitHub Releases are not available without
-adding a secret. Git it is.
+**Transport: Supabase Storage.** This plan originally argued the transport was
+constrained to git, because `push_with_retry()` (`run.sh:121`) is a plain
+`git push` through the container's credential helper and there was no API
+token to reach anything else. That is no longer true. The Supabase migration's
+P1-P3 landed while this plan was being written, and `SUPABASE_URL` /
+`SUPABASE_SERVICE_ROLE_KEY` are now in the cloud environment and exercised
+nightly by step `06a-db-publish` (`run.sh:366-376`). Storage is the same HTTPS
+API with the same key, so the cache rides credentials and an egress path that
+are already proven in this container.
 
-**Where.** A **dedicated cache repository**, written as a single force-pushed
-commit — the `pages-live` pattern (`run.sh:432-435`: `git init` a scratch dir,
-one commit, `push --force`). Files are stored individually (~100 KB each, far
-under the 100 MiB blob cap); a single tarball would breach it.
+That also settles the shape: P0 found the container **cannot reach Postgres
+over TCP**, which is why `db_publish` speaks the Data API over HTTPS. Storage
+is HTTPS too, so it is unaffected by the block that forced that fallback.
 
-Not the main repo: every parquet gains a bar each trading day, so every file
-changes nightly. Even force-pushed, the superseded objects linger until GitHub
-GCs them, and `data/snapshots` has already taken that repo past 5 GB. Isolating
-the churn means the cache repo can be deleted and recreated if it ever bloats,
-with no risk to the archive. This needs the new repo added to the session's
-GitHub scope.
+A private bucket holds one object per ticker, keyed `prices/<TICKER>.parquet`.
+Objects are replaced in place; there is no history to accumulate and no
+100 MiB blob cap to shard around.
+
+**Why not a git cache repo** (the earlier recommendation, kept as the fallback
+if Storage is ever unavailable): every parquet gains a bar each trading day, so
+the whole set churns nightly. Even force-pushed as a single commit, superseded
+objects linger until GitHub GCs them, and `data/snapshots` has already taken
+that repo past 5 GB. It would work, but it trades a bucket for a repo that
+needs periodic deletion and recreation.
 
 **Restore** in a new non-blocking step `02b-restore-prices`, before step 03:
-blob-less clone, materialise into `output/prices/`, report the file count.
-**Save** after step 05e (the top-up), so the pushed cache includes new entrants.
-Guards, matching the `screen_skip` write-back: skip the save when `SMOKE=1`,
-skip on `DRY_RUN=1`, and refuse to push a set smaller than a floor fraction of
-what was restored.
+list the bucket prefix, download in parallel into `output/prices/` (the same
+`Throttle` + pool shape Phase A established, against Storage rather than
+Yahoo), and report the file count. **Save** after step 05e (the top-up), so
+the stored cache includes new entrants. Guards, matching both the `screen_skip`
+write-back and `db_publish`: skip the save when `SMOKE=1` or `DRY_RUN=1`, skip
+silently when the Supabase secrets are unset, and refuse to push a set smaller
+than a floor fraction of what was restored.
 
 **Why this is safe.** Price freshness is read from parquet *content*
 (`_parquet_max_date()` reads the index, `scripts/download_prices.py:52`), not
@@ -117,9 +127,9 @@ truncate forward-return calculations"*. Step 02b is therefore non-blocking: a
 failed restore costs the hour, not the run.
 
 *Passes when:* a warm restore drops step 03 under 5 minutes; a deliberately
-7-day-stale bundle yields parquets identical to a cold run; a corrupt file is
-re-downloaded rather than used; and a `SMOKE=1` run leaves the stored cache
-untouched.
+7-day-stale bundle yields parquets identical to a cold run; a corrupt object is
+re-downloaded rather than used; a run without the Supabase secrets behaves
+exactly as today; and a `SMOKE=1` run leaves the stored cache untouched.
 
 ## Phase C — the SEC facts cache (conditional; do not start with this)
 
@@ -145,12 +155,15 @@ engineering the transport to preserve mtime.
 
 ## Relationship to the Supabase plan
 
-Independent, and deliberately so — this is a caching change, not a data-model
-change. `design/supabase-migration.md` addresses the *data* side of
-statelessness and says nothing about these caches. Keep Phase B's restore and
-save behind one pair of functions so the backend is swappable: if the migration
-lands, Supabase Storage replaces the cache repo without touching `run.sh`'s step
-structure.
+Complementary, not independent. `design/supabase-migration.md` addresses the
+*data* side of statelessness — the snapshots — and says nothing about these
+caches; this plan covers the caches. But since that migration is now live
+through P3, it supplies Phase B's transport rather than merely coexisting with
+it, and Phase B should reuse `data/db/connect.py`'s credential handling rather
+than reading the environment a second way.
+
+Phase A is genuinely independent: it changes scheduling inside one script and
+needs no credentials, no network path and no `run.sh` change.
 
 ## Verification
 
@@ -168,14 +181,16 @@ structure.
 
 ## Critical files
 
-- **Changed:** `scripts/download_prices.py` (pool, throttle, atomic write),
-  `scripts/config.py` (`PRICE_IO_WORKERS`),
-  `scheduled-tasks/cloud-daily-stock-analysis/run.sh` (steps 02b and the save),
-  `scheduled-tasks/cloud-daily-stock-analysis/SKILL.md`, `CLAUDE.md`.
-- **New:** the cache repository; a `tests/test_download_prices.py` case for the
-  pool's parity with the sequential path and for the atomic write.
-- **Reused as-is:** `data/throttle.py`, `push_with_retry()`, the `pages-live`
-  single-commit publish pattern, the `screen_skip` size/`SMOKE` guard idiom.
+- **Phase A (done):** `scripts/download_prices.py` (pool, throttle, atomic
+  write, interrupt handling), `scripts/config.py` (`PRICE_IO_WORKERS`),
+  `tests/test_download_prices_pool.py`, `CLAUDE.md`. No `run.sh` change.
+- **Phase B (to do):** a `data/price_cache_store.py` for the Storage
+  round-trip; `scheduled-tasks/cloud-daily-stock-analysis/run.sh` (step 02b and
+  the save after 05e); `scheduled-tasks/cloud-daily-stock-analysis/SKILL.md`;
+  a private Storage bucket.
+- **Reused as-is:** `data/throttle.py` and the Phase-A pool shape,
+  `data/db/connect.py`'s credential handling, `db_publish`'s
+  secrets/`SMOKE`/`DRY_RUN` skip idiom, the `screen_skip` size guard.
 
 ## What this does not do
 
