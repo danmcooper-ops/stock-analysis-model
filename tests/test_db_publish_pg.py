@@ -282,3 +282,10 @@ def test_public_roles_cannot_call_the_rpcs(con, role):
 def test_service_role_can_call_the_rpcs(con):
     for fn in ('pipeline.stage_chunk(uuid, integer, jsonb, jsonb)', 'pipeline.publish_run(uuid, date, jsonb, jsonb)'):
         assert con.execute("SELECT has_function_privilege('service_role', %s, 'EXECUTE')", (fn,)).fetchone()[0]
+
+
+def test_list_runs_reports_published_dates(con):
+    _publish(con, D1, [_row('ZZTA', 'BUY')])
+    runs = {r['run_date']: r for r in pub.DirectTransport(con).call('list_runs', {})}
+    assert runs[D1]['status'] == 'complete' and runs[D1]['n_rows'] == 1
+    assert len(runs[D1]['source_sha256']) == 64
