@@ -49,6 +49,10 @@
 #   RESUME=0             ignore output/.checkpoint and start the analysis over
 #                        (default: re-running after an interrupted analysis
 #                        for the same RUNDATE resumes where it stopped)
+#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+#                        publish the run to the Supabase database over HTTPS
+#                        (step 06a, design/supabase-migration.md). Unset: the
+#                        step is skipped. Non-blocking until the P6 cutover
 #   DRY_RUN=1            do everything except push
 #   SMOKE=1              tiny universe (SMOKE_TICKERS), for testing this script
 set -uo pipefail
@@ -343,6 +347,24 @@ PY
 run_step 05e-prices-topup 0 topup_prices
 run_step 05f-rerender 1 "$PYTHON" scripts/rescore_and_render.py "$RESULTS"
 if [ "$FAILED" = 1 ]; then echo "RESULT FAILED at rerender" >> "$STATUS"; exit 1; fi
+
+# ---------------------------------------------------------------------------
+# 6a. Publish to the Supabase database (Data API over HTTPS: the container
+#     cannot reach Postgres over TCP). Skipped without the Supabase secrets and
+#     for SMOKE/DRY_RUN runs; non-blocking until the P6 cutover makes it the
+#     primary store (design/supabase-migration.md).
+# ---------------------------------------------------------------------------
+db_publish() {
+  if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+    echo "SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not set; skipping"; return 0
+  fi
+  if [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
+    echo "SMOKE/DRY_RUN; building the payload only"
+    "$PYTHON" scripts/db_publish.py "$RESULTS" --dry-run; return $?
+  fi
+  "$PYTHON" scripts/db_publish.py "$RESULTS"
+}
+run_step 06a-db-publish 0 db_publish
 
 # ---------------------------------------------------------------------------
 # 6. Archive today's snapshot (+ the rating-history and screen-skip caches)

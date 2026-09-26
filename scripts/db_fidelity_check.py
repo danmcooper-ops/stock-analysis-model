@@ -7,6 +7,11 @@ with ``join_row`` and compared with the source row under the codec's fidelity
 contract (``data/db/codec.rows_equivalent``). Every date runs in its own
 transaction that is rolled back, so the database is left unchanged.
 
+With ``--published`` nothing is written: rows already published for each
+date (by ``scripts/db_publish.py``) are read back and compared, and
+``core.runs.source_sha256`` is checked against the file. This is how a
+backfill is verified (P3).
+
 Needs a direct connection to a database with ``supabase/migrations`` applied
 (local ``supabase start``/``supabase db start``, or a dev machine on the session
 pooler); the cloud container cannot reach Postgres over TCP.
@@ -24,11 +29,13 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from data.db.publish import canonical_sha256  # noqa: E402
 from data.db.codec import blob_sha, dumps, join_row, rows_equivalent, split_row  # noqa: E402
 from data.db.columns import COLUMNS  # noqa: E402
 from data.db.connect import connect  # noqa: E402
 from data.db.schema import quote_ident  # noqa: E402
-from data.snapshot_store import load_snapshot_file, snapshot_date_from_path  # noqa: E402
+from data.snapshot_store import (load_snapshot_file, read_snapshot, snapshot_date_from_path,  # noqa: E402
+                                 split_snapshot)
 
 COLS = list(COLUMNS)
 _INSERT_NAMES = ', '.join(['run_date', 'ticker_id', *map(quote_ident, COLS), 'extra', 'edgar_history_sha'])
@@ -71,29 +78,61 @@ def check_snapshot(con, path, max_report=5):
             f'SELECT {_SELECT} FROM core.results r JOIN core.tickers t USING (ticker_id) '
             'LEFT JOIN core.edgar_blobs b ON b.sha = r.edgar_history_sha WHERE r.run_date = %s',
             (run_date,)).fetchall()
+    mismatches += _compare(got, by_ticker, max_report)
+    return len(by_ticker), mismatches, failures
+
+
+def _compare(got, by_ticker, max_report=5):
+    mismatches = []
     if len(got) != len(by_ticker):
-        mismatches.append(('<row count>', [f'{len(got)} read back, {len(by_ticker)} written']))
+        mismatches.append(('<row count>', [f'{len(got)} in the database, {len(by_ticker)} in the file']))
     for rec in got:
         ticker = rec[0]
-        rebuilt = join_row(ticker, COLS, rec[1:1 + len(COLS)], rec[-2], rec[-1])
-        diff = rows_equivalent(by_ticker[ticker], rebuilt)
+        if ticker not in by_ticker:
+            mismatches.append((ticker, ['<not in the file>']))
+            continue
+        diff = rows_equivalent(by_ticker[ticker], join_row(ticker, COLS, rec[1:1 + len(COLS)], rec[-2], rec[-1]))
         if diff:
             mismatches.append((ticker, diff))
     for ticker, diff in mismatches[:max_report]:
         print(f'    {ticker}: {diff[:10]}')
-    return len(by_ticker), mismatches, failures
+    return mismatches
+
+
+def check_published(con, path):
+    """``(n_rows, mismatches, {})`` comparing a published date with its file."""
+    run_date = snapshot_date_from_path(path)
+    data = read_snapshot(path)
+    by_ticker = {r['ticker']: r for r in split_snapshot(data)[1] if r.get('ticker')}
+    run = con.execute('SELECT status::text, source_sha256, n_rows FROM core.runs WHERE run_date = %s',
+                      (run_date,)).fetchone()
+    if run is None:
+        return len(by_ticker), [('<run>', ['not published'])], {}
+    mismatches = []
+    if run[0] != 'complete':
+        mismatches.append(('<run>', [f'status {run[0]}']))
+    if run[1] != canonical_sha256(data):
+        mismatches.append(('<run>', ['source_sha256 differs from the file (rewritten since publishing?)']))
+    got = con.execute(
+        f'SELECT {_SELECT} FROM core.results r JOIN core.tickers t USING (ticker_id) '
+        'LEFT JOIN core.edgar_blobs b ON b.sha = r.edgar_history_sha WHERE r.run_date = %s',
+        (run_date,)).fetchall()
+    return len(by_ticker), mismatches + _compare(got, by_ticker), {}
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('--dsn', default=os.environ.get('TEST_DATABASE_URL'), required='TEST_DATABASE_URL' not in os.environ)
+    ap.add_argument('--published', action='store_true',
+                    help='compare dates already published instead of round-tripping (read-only)')
     ap.add_argument('files', nargs='+')
     a = ap.parse_args(argv)
+    check = check_published if a.published else check_snapshot
     total_rows, total_bad, all_failures = 0, 0, collections.Counter()
     with connect(a.dsn) as con:
         for path in sorted(a.files):
             t0 = time.time()
-            n, bad, failures = check_snapshot(con, path)
+            n, bad, failures = check(con, path)
             total_rows += n
             total_bad += len(bad)
             all_failures.update(failures)

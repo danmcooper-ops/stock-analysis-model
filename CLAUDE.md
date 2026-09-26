@@ -316,4 +316,7 @@ by analyze_stock and gitignored):
   shape is versioned (`SCHEMA_VERSION` in `data/claude_narrative.py`): the
   day cache is keyed by date alone and a hit skips every post-parse check,
   so a shape change must bump it or the cache replays the old shape.
+- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — optional; `scripts/db_publish.py`
+  (nightly step 06a, non-blocking) publishes the run to the Supabase database
+  over the Data API (design/supabase-migration.md). Unset: skipped.
 - yfinance requires no authentication
