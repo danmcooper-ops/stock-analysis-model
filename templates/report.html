@@ -3581,8 +3581,11 @@ function _pfDrawChart(){
     +'<g id="pfc-dots"></g><rect x="'+L+'" y="0" width="'+(W-L-R)+'" height="'+H+'" fill="transparent" id="pfc-hit"/></svg>'
     +'<div class="pfc-tip" id="pfc-tip"></div>';
   var hit=document.getElementById('pfc-hit'),cross=document.getElementById('pfc-cross'),dots=document.getElementById('pfc-dots'),tip=document.getElementById('pfc-tip');
+  var svgEl=wrap.querySelector('svg.pfc');
   function show(clientX){
-    var r=hit.getBoundingClientRect(),x=clientX-r.left+L,best=0;
+    /* The SVG scales with its panel (CSS width:100%), so map screen pixels
+       to viewBox units and back. */
+    var sr=svgEl.getBoundingClientRect(),k=sr.width?W/sr.width:1,x=(clientX-sr.left)*k,best=0;
     for(var i=1;i<xs.length;i++){if(Math.abs(xs[i]-x)<Math.abs(xs[best]-x))best=i;}
     var cx=xs[best].toFixed(1);cross.setAttribute('x1',cx);cross.setAttribute('x2',cx);cross.style.display='';
     var dh='',th='<div class="pfc-tip-d">'+pf.dates[best]+(best<=pf.bfEnd?' <span class="pf-muted">(backfilled)</span>':'')+'</div>';
@@ -3592,8 +3595,8 @@ function _pfDrawChart(){
       th+='<div class="pfc-tip-r"><svg width="16" height="8"><line x1="1" y1="4" x2="15" y2="4" class="'+s[3]+'"'+(s[2]?' style="stroke:'+_pfEsc(s[2])+'"':'')+'/></svg><span>'+_pfEsc(s[1])+'</span><b>'+_pfFmtRet(v)+'</b></div>';
     });
     dots.innerHTML=dh;tip.innerHTML=th;tip.style.display='block';
-    var tw=tip.offsetWidth,left=xs[best]+12;if(left+tw>W)left=xs[best]-tw-12;
-    tip.style.left=Math.max(0,left)+'px';tip.style.top=T+'px';
+    var px=xs[best]/k,tw=tip.offsetWidth,left=px+12;if(left+tw>sr.width)left=px-tw-12;
+    tip.style.left=Math.max(0,left)+'px';tip.style.top=(T/k)+'px';
   }
   function hide(){cross.style.display='none';dots.innerHTML='';tip.style.display='none';}
   hit.addEventListener('mousemove',function(e){show(e.clientX);});
@@ -11060,7 +11063,9 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfc-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--text);}
 .pfc-legend span{display:inline-flex;align-items:center;gap:6px;}
 .pfc-wrap{position:relative;width:100%;}
-.pfc{display:block;touch-action:pan-y;}
+/* width:100% + viewBox: the chart scales with its panel even before the
+   resize redraw lands (a viewport change need not fire window resize). */
+.pfc{display:block;width:100%;height:auto;touch-action:pan-y;}
 .pfc-tip{display:none;position:absolute;pointer-events:none;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.15);padding:7px 9px;font-size:12px;white-space:nowrap;z-index:2;}
 .pfc-tip-d{font-weight:600;margin-bottom:3px;}
 .pfc-tip-r{display:flex;align-items:center;gap:6px;}
