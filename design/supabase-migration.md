@@ -177,7 +177,7 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
   - `latest.json`: all ~8k rows, so the PostgREST 1,000-row cap never comes into play;
   - `changes_<window>.json`;
   - per-ticker history shards, the same shard pattern as the existing `vol/` and `px/` folders.
-- The files go to **Cloudflare** (A4): Pages for the site and R2 for the data shards, behind cache rules set in P4. Neither has a soft bandwidth cap like GitHub Pages' 100 GB/month, and R2 has no egress fees. The P5 load test targets that host.
+- The files go to **Cloudflare Pages** (A4), which has no soft bandwidth cap like GitHub Pages' 100 GB/month. P4c chose Pages alone, with no R2: once the two oversized sidecars were split, every file fits Pages' 25 MiB limit. R2 stays the option if a file ever outgrows it. The P5 load test targets that host.
 - The site fetches only those files.
 - There is no anon access to PostgREST and no Edge Function in the hot path. If a live query is ever needed, it will be a fixed-parameter RPC behind a CDN that I've confirmed caches it. P0 checks that with the `cf-cache-status` and `Age` headers.
 
@@ -198,7 +198,7 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
   - `daily-eod.yml` alerts if `runs.status` isn't `complete` by 07:00 ET.
 - **Secrets** go in the cloud environment:
   - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`: the pipeline RPCs and Storage over HTTPS (A1);
-  - the Cloudflare R2 credentials, for the public payloads (A4).
+  - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `CF_PAGES_PROJECT` (plus an optional `CF_PAGES_URL`), for the Cloudflare Pages deploy (A4, P4c).
 
   `SUPABASE_DB_URL`, the session-pooler DSN for a `pipeline_writer` login, is used only on dev machines and in admin work.
 - **Dependencies.** `psycopg[binary]~=3.3` is in `pyproject.toml` and `requirements.txt`. `duckdb` stays.
@@ -309,6 +309,37 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
     - The 10 newest real snapshots exported and read back from Parquet: 0 rows differ from the JSON, and 0 re-scored decisions differ (rating, raw rating, cap, composite) on every date.
     - Publishing 2026-09-24 and 09-25 through the local Data API and Storage uploaded 29 MB and 22 MB `.json.gz` objects. Each decompresses to exactly the published `source_sha256`, and `core.snapshot_objects` holds both.
     - The anon key cannot download from the private bucket.
+  - **P4c built 2026-09-27: the site on Cloudflare Pages.**
+    - **Why files had to change.** Cloudflare Pages (free plan) refuses any file of 25 MiB or more, and more than 20,000 files per deploy. Two sidecars were over the per-file limit on the 2026-09-25 report:
+      - `hist.json`, 28.8 MB. All five consumers loaded the whole file to read one ticker.
+      - `details.json`, 30.4 MiB. This one was not in the plan; the new size check caught it on the first real render.
+    - **`hist/` shards.** `report_html` now writes `hist/<TICKER>.json`, one per ticker (~2.2k files, ~13 KB each), and `hist_index.json` (`{"tickers": [...]}`). The ticker list is also inlined in the page, so it knows which shards exist without an extra request.
+      - The template's `_ensureHist(tickers, onDone)` is modelled on `_ensurePx`. It fetches only the shards a view needs, shares in-flight loads, and records a failed load as `null` so nothing retries in a loop.
+      - The five consumers use it: the price-history chart (for its charted tickers), the popup chart, Track Record, the statements tabs and the PDF export.
+      - The page no longer downloads 29 MB to show one company's fundamentals.
+    - **`details/` parts.** The popup's heavy text fields are merged into every row after first paint, and some views may read them across rows. So the behaviour is kept and only the file is split: numbered parts of about 8 MiB each (4 on 2026-09-25), listed in `details_index.json`. All parts load in parallel and are merged exactly as the single file was.
+    - **Publishing.** `publish_vol_shards.py` copies `hist/` and `details/` by manifest, like `vol/` and `px/`, and prunes and verifies each destination. `run.sh` step 08 and `run_daily.sh` copy `hist_index.json` and `details_index.json` in place of the two monoliths.
+    - **`scripts/check_pages_limits.py`** fails a deploy directory with a file of 25 MiB or more, or more than 20,000 files. It warns at 80% of either limit. `index.html` is at 97% (24.2 MiB on 2026-09-25), so the warning is already firing: splitting the inline `DATA` blob is the next file to plan.
+    - **Step `08b-publish-cloudflare`** (non-blocking) runs after the GitHub Pages push, on the same `docs/`. GitHub Pages stays live during the switch.
+      - It skips cleanly unless `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `CF_PAGES_PROJECT` are set, and under SMOKE or DRY_RUN.
+      - Otherwise it runs the size check, then `npx wrangler@4.141.0 pages deploy` (pinned, overridable with `WRANGLER_VERSION`), then polls the live URL (`CF_PAGES_URL`, default `https://$CF_PAGES_PROJECT.pages.dev/`) until it shows the run date.
+    - **Headers.** `pages_headers` becomes `docs/_headers` and adds `nosniff` and a referrer policy. Cache rules are deliberately left at Pages' default (`max-age=0, must-revalidate` with an ETag). A `px/` shard is an offset into `prices_meta.json`'s dates axis, so yesterday's shard cached next to today's axis would draw a series shifted by a day. Revalidating is a 304 from the edge.
+  - **P4c results:**
+    - The 2026-09-25 snapshot (2,531 rows) rendered and built into `docs/` the way step 08 does: 2,280 files, 83.7 MiB, largest file `index.html` at 24.2 MiB. The size check passes, with the `index.html` warning.
+    - That `docs/` was served by `wrangler pages dev` (the local Cloudflare Pages emulator) and driven in headless Chromium. The test opened a popup's Track Record, statements tab and fundamentals chart, a company with no shard, and the price-history chart with two tickers on Revenue.
+      - Only `hist/A.json`, `hist/AAMI.json` and `hist/AAON.json` were fetched, never `hist.json`.
+      - Each loaded value equals the old `hist.json` payload.
+      - All four `details/` parts loaded and merged into every row.
+      - There were no console errors.
+      - The emulator served the `_headers` rules.
+    - **Not yet done:** a real deploy. Nothing in Cloudflare exists yet; the setup runbook below lists what's needed.
+  - **Cloudflare Pages setup runbook** (one time):
+    1. In the Cloudflare dashboard, go to Workers & Pages → Create → Pages → **Direct Upload**. Name the project (for example `stock-analysis`); the name becomes `CF_PAGES_PROJECT`. Don't connect Git: the routine uploads the built `docs/`.
+    2. Create an API token (My Profile → API Tokens → Create Token → Custom) with the single permission **Account → Cloudflare Pages → Edit**, scoped to that account. Note the account ID from the dashboard sidebar.
+    3. Add `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `CF_PAGES_PROJECT` to the cloud environment that runs the nightly routine. Add `CF_PAGES_URL` if a custom domain is attached.
+    4. The next nightly run deploys. Check `logs/08b-publish-cloudflare.log` and the `status.txt` line for step 08b, then open the `*.pages.dev` URL.
+    5. Optional: attach a custom domain under the project's Custom domains tab, then set `CF_PAGES_URL` to it.
+    6. **Retiring GitHub Pages later:** after some green nights on both, make 08b blocking and drop the `pages-live` push and live check from step 08. Keep the `docs/` build. Then disable Pages in the repository settings and delete `.github/workflows/deploy-pages.yml` and the `pages-live` branch.
 - **P5: Scale tests.**
   - *Passes when:* every scalability target is met.
 - **P6: Cutover.**

@@ -1028,7 +1028,7 @@ def _attach_data_summaries(chart_records):
 
 def _extract_details_payload(chart_records):
     # Heavy text fields only consumed inside the detail panel. Strip them
-    # from the inline DATA blob into a details.json sidecar the template
+    # from the inline DATA blob into the details/ parts the template
     # lazy-loads after first paint. Cuts the HTML by ~25 MB at 2k tickers.
     _DETAIL_HEAVY_KEYS = (
         'description_full', 'ceo_bio', 'culture_narrative',
@@ -1074,17 +1074,54 @@ def _build_sector_pool_data(rows):
     return sector_pool_data
 
 
-def _write_details_sidecar(details_path, details_payload):
-    # Write details.json sidecar (or remove a stale one)
+_DETAILS_PART_BYTES = 8 * 1024 * 1024
+
+
+def _write_details_parts(details_dir, index_path, details_payload, legacy_path=None,
+                         part_bytes=_DETAILS_PART_BYTES):
+    """Write the details payload as ``details/<n>.json`` parts of about
+    *part_bytes* each, plus ``details_index.json`` (``{"parts": [...]}``);
+    return the part names.
+
+    details.json reached ~30 MiB, over Cloudflare Pages' 25 MiB per-file
+    limit (design/supabase-migration.md, P4c). The page still loads every
+    part after first paint and merges it into DATA exactly as it merged the
+    single file, so nothing downstream changes; the parts only keep each
+    file small. Tickers are split in sorted order, so a part only ever holds
+    whole tickers. Rebuilt wholesale each run; the legacy details.json is
+    removed so a stale copy cannot be published.
+    """
+    parts = []
     try:
-        if details_payload:
-            with open(details_path, 'w', encoding='utf-8') as _df:
-                json.dump(details_payload, _df, default=_json_default,
-                          separators=_COMPACT)
-        elif os.path.exists(details_path):
-            os.remove(details_path)
+        if legacy_path and os.path.exists(legacy_path):
+            os.remove(legacy_path)
+        if os.path.isdir(details_dir):
+            shutil.rmtree(details_dir)
+        chunks, cur, size = [], {}, 0
+        for _tk in sorted(details_payload or {}):
+            _n = len(json.dumps(details_payload[_tk], default=_json_default, separators=_COMPACT))
+            if cur and size + _n > part_bytes:
+                chunks.append(cur)
+                cur, size = {}, 0
+            cur[_tk] = details_payload[_tk]
+            size += _n + len(_tk) + 4
+        if cur:
+            chunks.append(cur)
+        if chunks:
+            os.makedirs(details_dir, exist_ok=True)
+        for _i, _chunk in enumerate(chunks):
+            with open(os.path.join(details_dir, f'{_i}.json'), 'w', encoding='utf-8') as _df:
+                json.dump(_chunk, _df, default=_json_default, separators=_COMPACT)
+            parts.append(str(_i))
+        if parts:
+            with open(index_path, 'w', encoding='utf-8') as _xf:
+                json.dump({'parts': parts}, _xf, separators=_COMPACT)
+        elif os.path.exists(index_path):
+            os.remove(index_path)
     except Exception as _e:
-        print(f"[warn] details.json write failed: {_e}")
+        print(f"[warn] details/ part write failed: {_e}")
+        parts = []
+    return parts
 
 
 def _write_macro_sidecar(macro_path, macro_sidecar):
@@ -1214,17 +1251,42 @@ def _build_hist_payload(rows):
     return hist_payload
 
 
-def _write_hist_sidecar(hist_path, hist_payload):
-    # Write hist.json sidecar (or remove a stale one so old data doesn't linger)
+_SHARD_TICKER = re.compile(r'[A-Za-z0-9._-]{1,15}')
+
+
+def _write_hist_shards(hist_dir, index_path, hist_payload, legacy_path=None):
+    """Write the hist/ shards (one ``<TICKER>.json`` per ticker) and
+    ``hist_index.json`` (``{"tickers": [...]}``); return the tickers written.
+
+    hist.json was one ~29 MB file, over Cloudflare Pages' 25 MiB per-file
+    limit (design/supabase-migration.md, P4c), and every consumer read a
+    single ticker out of it. Rebuilt wholesale each run, like vol/, so a
+    ticker that leaves the universe cannot leave a shard behind; the legacy
+    hist.json is removed so a stale copy cannot be published.
+    """
+    written = []
     try:
-        if hist_payload is not None:
-            with open(hist_path, 'w', encoding='utf-8') as _hf:
-                json.dump(hist_payload, _hf, default=_json_default,
-                          separators=_COMPACT)
-        elif os.path.exists(hist_path):
-            os.remove(hist_path)
+        if legacy_path and os.path.exists(legacy_path):
+            os.remove(legacy_path)
+        if os.path.isdir(hist_dir):
+            shutil.rmtree(hist_dir)
+        if hist_payload:
+            os.makedirs(hist_dir, exist_ok=True)
+            for _tk in sorted(hist_payload):
+                if not _SHARD_TICKER.fullmatch(str(_tk)):
+                    continue
+                with open(os.path.join(hist_dir, f'{_tk}.json'), 'w', encoding='utf-8') as _hf:
+                    json.dump(hist_payload[_tk], _hf, default=_json_default, separators=_COMPACT)
+                written.append(_tk)
+        if written:
+            with open(index_path, 'w', encoding='utf-8') as _xf:
+                json.dump({'tickers': written}, _xf, separators=_COMPACT)
+        elif os.path.exists(index_path):
+            os.remove(index_path)
     except Exception as _e:
-        print(f"[warn] hist.json write failed: {_e}")
+        print(f"[warn] hist/ shard write failed: {_e}")
+        written = []
+    return written
 
 
 def _load_price_payloads(rows, prices_dir):
@@ -1622,27 +1684,33 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
 
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
     # template lazy-fetches them on first chart open, so the embedded HTML
-    # stays small enough to publish via GitHub Pages (<100 MB hard cap).
+    # stays small enough to publish via GitHub Pages (<100 MB hard cap) and
+    # every file under Cloudflare Pages' 25 MiB per-file limit.
     try:
         out_dir = os.path.dirname(os.path.abspath(filename)) or '.'
     except OSError:
         # Same getcwd()/EPERM guard as _out_dir_early above.
         out_dir = os.path.dirname(filename) or '.'
-    hist_path = os.path.join(out_dir, 'hist.json')
+    hist_path = os.path.join(out_dir, 'hist.json')   # legacy monolith; now only removed
+    hist_dir = os.path.join(out_dir, 'hist')
+    hist_index_path = os.path.join(out_dir, 'hist_index.json')
     prices_path = os.path.join(out_dir, 'prices.json')  # legacy monolith; now only removed
     prices_meta_path = os.path.join(out_dir, 'prices_meta.json')
-    details_path = os.path.join(out_dir, 'details.json')
+    details_path = os.path.join(out_dir, 'details.json')   # legacy monolith; now only removed
+    details_dir = os.path.join(out_dir, 'details')
+    details_index_path = os.path.join(out_dir, 'details_index.json')
     macro_path = os.path.join(out_dir, 'macro.json')
     vol_dir = os.path.join(out_dir, 'vol')
     px_dir = os.path.join(out_dir, 'px')
 
-    _write_details_sidecar(details_path, details_payload)
+    details_parts = _write_details_parts(details_dir, details_index_path, details_payload,
+                                         legacy_path=details_path)
 
     macro_sidecar = (macro_payload or {}).get('sidecar')
     _write_macro_sidecar(macro_path, macro_sidecar)
 
     hist_payload = _build_hist_payload(rows)
-    _write_hist_sidecar(hist_path, hist_payload)
+    hist_tickers = _write_hist_shards(hist_dir, hist_index_path, hist_payload, legacy_path=hist_path)
 
     prices_payload, px_payload, vol_payload = \
         _load_price_payloads(rows, prices_dir)
@@ -1669,8 +1737,10 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         sector_pool_json=sector_pool_json,
         prices_available=('true' if prices_payload is not None else 'false'),
         prices_size_mb=prices_size_mb,
-        hist_available=('true' if hist_payload is not None else 'false'),
-        details_available=('true' if details_payload else 'false'),
+        hist_available=('true' if hist_tickers else 'false'),
+        hist_tickers=dumps_for_script(hist_tickers),
+        details_available=('true' if details_parts else 'false'),
+        details_parts=dumps_for_script(details_parts),
         macro_available=('true' if macro_sidecar else 'false'),
         macro_summary=dumps_for_script(
             _sanitize((macro_payload or {}).get('summary')) or None,

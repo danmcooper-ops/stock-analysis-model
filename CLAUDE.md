@@ -30,7 +30,8 @@ models/          - Pure model functions: capm, dcf, ddm, epv, rim, nav,
                    ratios (WACC/ROIC), quality (Altman/Beneish/Piotroski),
                    market, macro, narrative, portfolio, valuation_types,
                    data_tab_narrative (popup Data sub-tab summaries, built
-                   at render time by report_html and shipped in details.json)
+                   at render time by report_html and shipped in the
+                   details/ parts)
 scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    report_html.py / report_excel.py, scoring.py, config.py,
                    param_set.py, replay.py, ingest_snapshots.py (backfill the
@@ -302,6 +303,25 @@ ruff check .
   rating (delistings, i.e. survivorship), skipped snapshots and the git SHA
   into `backtest_summary_<stamp>.json`, and `scripts/backtest_cloud.py compare`
   diffs it against the prior week's.
+- **Report sidecars and the Pages size limits:** the HTML lazy-loads
+  everything heavy from files beside it, through `_loadSidecar` (relative
+  paths). Per-ticker shards: `vol/`, `px/` (manifested in `prices_meta.json`)
+  and `hist/<T>.json` (annual EDGAR fundamentals, manifested in
+  `hist_index.json` and inlined as `_HIST_TICKERS`, loaded per view by
+  `_ensureHist`). The popup's heavy text fields are split into ~8 MiB
+  `details/<n>.json` parts (`details_index.json`), which all load after first
+  paint and merge into `DATA` as the single `details.json` once did. Both
+  monoliths were split because Cloudflare Pages refuses files of 25 MiB or
+  more (and more than 20,000 files); `scripts/check_pages_limits.py` enforces
+  that before a deploy and warns at 80%. `index.html` itself is at ~97%, so
+  the inline `DATA` blob is the next thing to split.
+  `scripts/publish_vol_shards.py` copies all four families into `docs/` by
+  manifest. `run.sh` step 08 pushes `docs/` to GitHub Pages (`pages-live`);
+  step `08b-publish-cloudflare` (non-blocking) deploys the same directory
+  with a pinned wrangler once the Cloudflare secrets exist (setup runbook in
+  design/supabase-migration.md, P4c). Cache headers stay at Pages' default
+  revalidation, because a `px/` shard is an offset into `prices_meta.json`'s
+  dates axis and must never be mixed across deploys.
 - **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
   named sets of tickers — hand-picked, rule-driven, or both — and a ticker may
   sit in any number of them (membership only; `portfolio/holdings.json` stays
@@ -427,4 +447,9 @@ by analyze_stock and gitignored):
   `output/parquet/results_<date>.parquet` (the backtest's preferred corpus,
   `data/db/parquet.py`) and uploads it plus the canonical `.json.gz` to the
   private `snapshots` Storage bucket (`data/db/storage.py`).
+- `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT` —
+  optional; the nightly step 08b deploys the report to Cloudflare Pages
+  (token scoped to Account → Cloudflare Pages → Edit). `CF_PAGES_URL`
+  overrides the live-check URL, `WRANGLER_VERSION` the pinned wrangler.
+  Unset: skipped.
 - yfinance requires no authentication

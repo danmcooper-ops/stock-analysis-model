@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Copy per-ticker shard directories into the pages-live worktree, by manifest.
 
-Two shard families ship with the report: vol/ (daily volume) and px/ (daily
-closes) — both one small JSON per ticker, both manifested in prices_meta.json
-("vol" and "manifest" keys respectively).
+Four shard families ship with the report: vol/ (daily volume) and px/
+(daily closes), manifested in prices_meta.json ("vol" and "manifest" keys);
+hist/ (annual EDGAR fundamentals), manifested in hist_index.json
+("tickers"); all three one small JSON per ticker. And details/ (the popup's
+heavy text fields), ~8 MiB numbered parts manifested in details_index.json
+("parts").
 
 The repo lives under ~/Desktop, which iCloud Drive syncs. iCloud continuously
 resurrects shards that were deleted locally, under space-suffixed conflict
@@ -26,17 +29,27 @@ import sys
 
 # Repo root: this file's parent directory. Override via STOCK_MODEL_REPO
 # when running against a different checkout (e.g. a worktree).
-REPO = os.environ.get('STOCK_MODEL_REPO') or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-META = os.path.join(REPO, "output", "prices_meta.json")
-# Destination docs/ directory. Override via PAGES_DOCS when the pages-live
+# Destination docs/ directory: override via PAGES_DOCS when the pages-live
 # checkout is not the usual worktree (the cloud routine builds it in a temp
-# clone).
-DOCS = os.environ.get('PAGES_DOCS') or os.path.join(REPO, ".claude", "worktrees", "pages-live", "docs")
-FAMILIES = [
-    # (label, manifest key in prices_meta.json, source dir, dest dir)
-    ("vol", "vol", os.path.join(REPO, "output", "vol"), os.path.join(DOCS, "vol")),
-    ("px", "manifest", os.path.join(REPO, "output", "px"), os.path.join(DOCS, "px")),
-]
+# clone). Both are read at call time.
+def _paths():
+    repo = os.environ.get('STOCK_MODEL_REPO') or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    docs = os.environ.get('PAGES_DOCS') or os.path.join(repo, ".claude", "worktrees", "pages-live", "docs")
+    return repo, docs
+
+
+def families(repo, docs):
+    """(label, manifest file, manifest key, source dir, dest dir) per family."""
+    out = os.path.join(repo, "output")
+    meta = os.path.join(out, "prices_meta.json")
+    return [
+        ("vol", meta, "vol", os.path.join(out, "vol"), os.path.join(docs, "vol")),
+        ("px", meta, "manifest", os.path.join(out, "px"), os.path.join(docs, "px")),
+        ("hist", os.path.join(out, "hist_index.json"), "tickers",
+         os.path.join(out, "hist"), os.path.join(docs, "hist")),
+        ("details", os.path.join(out, "details_index.json"), "parts",
+         os.path.join(out, "details"), os.path.join(docs, "details")),
+    ]
 
 
 def sync_family(label, want, src_dir, dst_dir):
@@ -90,14 +103,20 @@ def sync_family(label, want, src_dir, dst_dir):
 
 
 def main():
-    with open(META, encoding="utf-8") as fh:
-        meta = json.load(fh)
-
+    repo, docs = _paths()
     ok = True
-    for label, key, src_dir, dst_dir in FAMILIES:
-        want = set(meta.get(key) or [])
+    manifests = {}
+    for label, manifest, key, src_dir, dst_dir in families(repo, docs):
+        if manifest not in manifests:
+            try:
+                with open(manifest, encoding="utf-8") as fh:
+                    manifests[manifest] = json.load(fh)
+            except (OSError, ValueError) as e:
+                print(f"ERROR: cannot read {manifest}: {e}", file=sys.stderr)
+                manifests[manifest] = {}
+        want = set(manifests[manifest].get(key) or [])
         if not want:
-            print(f"ERROR: no '{key}' manifest in {META}", file=sys.stderr)
+            print(f"ERROR: no '{key}' manifest in {manifest}", file=sys.stderr)
             ok = False
             continue
         ok = sync_family(label, want, src_dir, dst_dir) and ok

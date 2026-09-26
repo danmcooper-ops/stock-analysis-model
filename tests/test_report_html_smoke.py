@@ -6,6 +6,7 @@ included) and asserts the render succeeds and carries the expected markers.
 Deliberately not a byte-golden: the template changes constantly; these tests
 only pin "renders without exception, non-trivial output, rows present".
 """
+import json
 import math
 
 from scripts.report_html import build_html
@@ -112,7 +113,7 @@ def _rich_row():
         # NaN / stringified-infinity exercise the _sanitize normalization.
         'net_cash_to_mcap': math.nan,
         'deferred_rev_growth': 'Infinity',
-        # edgar_history exercises the hist.json sidecar builder, including the
+        # edgar_history exercises the hist/ shard builder, including the
         # int-year and date-string key normalization.
         'edgar_history': {
             'revenue_history': {2021: 8e9, '2022': 9e9, '2023-12-31': 10e9},
@@ -142,10 +143,14 @@ def test_build_html_renders_synthetic_rows(tmp_path):
 def test_build_html_writes_detail_and_hist_sidecars(tmp_path):
     out = tmp_path / 'report.html'
     build_html([_rich_row(), _sparse_row()], str(out), prices_dir=None)
-    # Heavy popup-only fields are stripped into details.json; the rich row's
-    # edgar_history feeds hist.json.
-    assert (tmp_path / 'details.json').exists()
-    assert (tmp_path / 'hist.json').exists()
+    # Heavy popup-only fields are stripped into the details/ parts; the rich row's
+    # edgar_history feeds its hist/ shard, listed in hist_index.json.
+    assert json.loads((tmp_path / 'details_index.json').read_text(encoding='utf-8')) == {'parts': ['0']}
+    assert (tmp_path / 'details' / '0.json').exists() and not (tmp_path / 'details.json').exists()
+    assert (tmp_path / 'hist' / 'RICH.json').exists()
+    assert json.loads((tmp_path / 'hist_index.json').read_text(encoding='utf-8')) == {'tickers': ['RICH']}
+    assert not (tmp_path / 'hist.json').exists()
+    assert "_HIST_TICKERS=[\"RICH\"]" in out.read_text(encoding='utf-8')
 
 
 def test_build_html_renders_empty_results(tmp_path):
@@ -155,7 +160,10 @@ def test_build_html_renders_empty_results(tmp_path):
     assert len(out.read_text(encoding='utf-8')) > 100 * 1024
     # No rows means no sidecars — and no crash.
     assert not (tmp_path / 'details.json').exists()
+    assert not (tmp_path / 'details_index.json').exists()
     assert not (tmp_path / 'hist.json').exists()
+    assert not (tmp_path / 'hist_index.json').exists()
+    assert not (tmp_path / 'hist').exists()
 
 
 def test_build_html_plumbs_macro_narrative_through_summary(tmp_path):
@@ -206,14 +214,14 @@ def test_epv_tooltips_keyed_to_row_fields():
 
 def test_build_html_ships_data_tab_summaries_in_details(tmp_path):
     """The Data sub-tab narratives are built at render time and ride
-    details.json (never the inline DATA blob); a row with nothing to say
+    the details/ parts (never the inline DATA blob); a row with nothing to say
     gets no entry."""
     import json
     out = tmp_path / 'report.html'
     rich = _rich_row()
     rich['company_name'] = 'Rich </script><script>alert(1)'
     build_html([rich, _sparse_row()], str(out), prices_dir=None)
-    details = json.loads((tmp_path / 'details.json').read_text(encoding='utf-8'))
+    details = json.loads((tmp_path / 'details' / '0.json').read_text(encoding='utf-8'))
     summ = details['RICH']['data_summaries']
     assert summ['val'] and summ['prof'] and summ['hlth']
     assert 'data_summaries' not in details.get('SPRS', {})

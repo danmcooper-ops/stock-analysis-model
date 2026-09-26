@@ -35,7 +35,7 @@ ls -la "$HOME/Projects/Workspace Folder/output/stock_analysis_results_RUNDATE.ht
 If the file is missing, stop and report — there's nothing to publish. Do not proceed.
 
 ### 2. Copy the seven artifacts into the Pages worktree
-The HTML lazy-loads `prices_meta.json`, `hist.json`, `details.json`, `macro.json`, and the per-ticker shards in `vol/` and `px/` from its own directory at runtime, so **all seven artifacts must be published together**. (The dense `prices.json` is retired — per-ticker `px/` shards + the small `prices_meta.json` replaced it on 2026-08-11; if a `docs/prices.json` is still present, delete it as part of the publish.) Run each as a **separate** Bash call:
+The HTML lazy-loads `prices_meta.json`, `hist_index.json`, `details_index.json`, `macro.json`, the per-ticker shards in `vol/`, `px/` and `hist/`, and the numbered `details/` parts from its own directory at runtime, so **all of them must be published together**. (`hist.json` and `details.json` were split into `hist/` and `details/` on 2026-09-27 to fit Cloudflare Pages' 25 MiB per-file limit; delete any stale `docs/hist.json` or `docs/details.json`.) (The dense `prices.json` is retired — per-ticker `px/` shards + the small `prices_meta.json` replaced it on 2026-08-11; if a `docs/prices.json` is still present, delete it as part of the publish.) Run each as a **separate** Bash call:
 ```
 cp "output/stock_analysis_results_RUNDATE.html" "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live/docs/index.html"
 ```
@@ -43,10 +43,10 @@ cp "output/stock_analysis_results_RUNDATE.html" "$HOME/Projects/Workspace Folder
 cp "$HOME/Projects/Workspace Folder/output/prices_meta.json" "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live/docs/prices_meta.json"
 ```
 ```
-cp "$HOME/Projects/Workspace Folder/output/hist.json" "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live/docs/hist.json"
+cp "$HOME/Projects/Workspace Folder/output/hist_index.json" "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live/docs/hist_index.json"
 ```
 ```
-cp "$HOME/Projects/Workspace Folder/output/details.json" "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live/docs/details.json"
+cp "$HOME/Projects/Workspace Folder/output/details_index.json" "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live/docs/details_index.json"
 ```
 ```
 cp "$HOME/Projects/Workspace Folder/output/macro.json" "$HOME/Projects/Workspace Folder/.claude/worktrees/pages-live/docs/macro.json"
@@ -55,7 +55,7 @@ cp "$HOME/Projects/Workspace Folder/output/macro.json" "$HOME/Projects/Workspace
 ```
 PYTHON="$HOME/.venvs/stock-model/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/publish_vol_shards.py
 ```
-(The HTML cp source is relative — run from the main repo root. The sidecar paths are absolute so they work from any cwd. `publish_vol_shards.py` syncs **both** shard directories — `vol/` from the `vol` manifest and `px/` from the `manifest` key of `prices_meta.json`.)
+(The HTML cp source is relative — run from the main repo root. The sidecar paths are absolute so they work from any cwd. `publish_vol_shards.py` syncs **all four** shard directories — `vol/` from the `vol` manifest and `px/` from the `manifest` key of `prices_meta.json`, `hist/` from `hist_index.json`, and `details/` from `details_index.json`.)
 
 **The shard sync is not optional, and must NOT be a `cp -R` or a bare `rsync`.** `docs/vol/` holds ~2,300 per-ticker volume shards (~59 MB) that feed the popup price chart's volume strip, and `docs/px/` holds ~2,300 per-ticker close-price shards (~53 MB) that feed every price chart.
 
@@ -93,7 +93,7 @@ curl -sS -o /dev/null -w "%{http_code}" -L "https://danmcooper-ops.github.io/sto
 Expect `200`. A `404` previously meant Pages had been disabled repo-side; the workflow's `enablement: true` re-enables it automatically, so retry once after a minute before reporting failure.
 
 ## Success criteria
-- All seven artifacts copied and committed to `pages-live` (single amended commit) — `index.html`, the three required sidecars (`prices_meta.json`, `hist.json`, `details.json`), `macro.json` when the run produced one (see Step 2), **and both shard directories (`vol/`, `px/`)**
+- All seven artifacts copied and committed to `pages-live` (single amended commit) — `index.html`, the three required sidecars (`prices_meta.json`, `hist_index.json`, `details_index.json`), `macro.json` when the run produced one (see Step 2), **and all four shard directories (`vol/`, `px/`, `hist/`, `details/`)**
 - `scripts/publish_vol_shards.py` exited 0 (`docs/vol` and `docs/px` each match their `prices_meta.json` manifest exactly). Do **not** substitute a raw `ls output/vol | wc -l` comparison — those directories contain iCloud conflict copies and will not match by design
 - Force-push succeeded and the deploy workflow completed green
 - Live URL returns HTTP 200
