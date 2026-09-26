@@ -151,6 +151,26 @@ ruff check .
   Measured against live fetches on 10 large caps the shrunk beta moves by
   <0.001 (the local window carries one extra weekly observation), which is
   ~0.3bp on the ROIC−WACC spread.
+- **Bulk price download pool (`--price-workers`, `PRICE_IO_WORKERS`=4):**
+  `scripts/download_prices.py` fetches one `period="max"` history per ticker.
+  It ran sequentially with an inline `time.sleep(--delay)`, which only showed
+  up once the run went stateless: `output/prices/` does not survive the cloud
+  container, so `run.sh` step 03 starts cold every night and nothing
+  short-circuits — ~2,300 tickers each pay the interval plus a full request.
+  The loop is now a `ThreadPoolExecutor` over one shared `data/throttle.py`
+  `Throttle`, so the interval stays a per-process budget and the workers only
+  decide how fully it is used; the pool does network only, while tallying and
+  printing stay in the main thread in submission order, so stdout is
+  unchanged. Measured synthetically (60 tickers, 0.2 s request, 0.05 s
+  interval): 12.2 s -> 3.2 s at 4 workers, and 8 workers gives nothing more
+  because the throttle ceiling (60/20 calls/s = 3.0 s) is then binding —
+  raise `--delay` headroom, not the worker count. Empty responses feed
+  `Throttle.penalize()` only in a **streak** of 3 (`_EmptyStreakGovernor`):
+  a soft throttle arrives as a run of empties, a delisted ticker as an
+  isolated one, and penalising the latter would ratchet the interval up on a
+  healthy run — the same reason a 404 does not penalise. Writes go through
+  `os.replace` because the freshness check reads a parquet's index, so a
+  half-written file could read as current.
 - **Run timings:** `_PhaseClock` in `analyze_stock.py` records wall clock per
   `_run_*` phase and prints an "Elapsed by phase" table at the end;
   `_run_phase1_screen` additionally times each leg (yf_fetch, xbrl, fx, roic,

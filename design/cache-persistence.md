@@ -71,6 +71,16 @@ identical bar coverage to a sequential run; wall clock improves ≥3×; the run
 records no soft throttles; and `scripts/validate_ratings.py` over the resulting
 prices is unchanged.
 
+**Status: shipped.** `tests/test_download_prices_pool.py` pins the parity
+(identical stdout rows and parquet set at 1 and 4 workers), that only real
+fetches tick the throttle, the atomic write, and the streak governor.
+Synthetically — 60 tickers, 0.2 s per request, 0.05 s interval — 12.2 s -> 3.2 s
+at 4 workers; 8 workers gives nothing further because the throttle ceiling
+(3.0 s) is then binding, which is the intended shape. The production saving is
+still unmeasured: it needs a real nightly run, and step 03's wall clock in
+`$WORK/status.txt` is where to read it. `run.sh` needs no change — the default
+worker count applies on its own.
+
 ## Phase B — persist the price cache between runs
 
 **Transport is constrained to git.** `push_with_retry()` (`run.sh:121`) uses a
