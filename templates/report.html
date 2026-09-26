@@ -2841,7 +2841,7 @@ var _PF_PALETTE=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4
 var _PF_DARK={'#2a78d6':'#3987e5','#eb6834':'#d95926','#1baf7a':'#199e70','#eda100':'#c98500','#e87ba4':'#d55181','#008300':'#008300','#4a3aa7':'#9085e9','#e34948':'#e66767'};
 function _pfCol(c){c=c||'#888888';return document.documentElement.getAttribute('data-theme')==='dark'&&_PF_DARK[c]?_PF_DARK[c]:c;}
 function _pfOnTheme(){_pfRenderFilter();_pfSyncDet();if(curView==='pf')renderPfView();else if(typeof applyFilters==='function')applyFilters();}
-var _PF_FIELDS=['id','name','color','description','created','tickers','exclude','rule'];
+var _PF_FIELDS=['id','name','color','description','created','tickers','exclude','rule','alerts'];
 var _pfLocal=(function(){try{var v=JSON.parse(localStorage.getItem(_PF_KEY));return(v&&Array.isArray(v.portfolios))?v:null;}catch(e){return null;}})();
 var _pfMem={},_pfById={},_pfTk={},_pfRow={},_pfSel=[],_pfEditingId=null;
 function _pfEsc(s){return(s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -3171,7 +3171,9 @@ function _pfRenderManage(){
       +(p.rule?' · rule: '+_pfEsc(_pfRuleSummary(p.rule)):'')
       +((p.exclude||[]).length?' · excludes '+_pfEsc(p.exclude.join(', ')):'')
       +(miss?' · <span title="'+_pfEsc(missL.join(', '))+'">'+miss+' not in today’s universe</span>':'')+'</div></div>'
-      +'<div class="pf-row-btns"><button class="pf-btn" onclick="pfShowOnly(\''+id+'\')">Show</button>'
+      +'<div class="pf-row-btns"><select class="pf-btn pf-mode" title="Alerts for this portfolio" onchange="pfSetField(\''+id+'\',\'alerts\',this.value)">'
+      +[['buy_line','Alerts: buy line'],['all','Alerts: all changes'],['off','Alerts: off']].map(function(o){return'<option value="'+o[0]+'"'+(((p.alerts||'buy_line')===o[0])?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'
+      +'<button class="pf-btn" onclick="pfShowOnly(\''+id+'\')">Show</button>'
       +(p.rule?'<button class="pf-btn" onclick="pfEditRule(\''+id+'\')">Edit rule</button>':'')
       +'<button class="pf-btn" onclick="pfShare(\''+id+'\')">Share link</button>'
       +'<button class="pf-btn pf-danger" onclick="pfDelete(\''+id+'\')">Delete</button></div></div>';
@@ -3290,7 +3292,31 @@ function _pfConsumeShareHash(){
    definitions (they need the prior run's rows), so a portfolio edited in
    this browser shows them only while its definition still matches. --- */
 var curPfSub='overview';
-var _PF_SEV={HIGH:0,MEDIUM:1,LOW:2};
+/* Alert levels (models/portfolio_groups.py): Action = crossed the buy line,
+   Watch = worth a look, FYI = quiet (moves within a side, or on missing
+   data). Each portfolio's alert mode (buy_line / all / off) sets the final
+   level. "New" = the run is newer than the last one viewed in this browser,
+   captured once per page load so the pills survive the visit that clears
+   them. */
+var _PF_LV={action:0,watch:1,fyi:2},_PF_LVN={action:'Action',watch:'Watch',fyi:'FYI'};
+var _PF_RATING_KINDS={entered_buy:1,exited_buy:1,reversal:1,same_side:1};
+var _PF_SEEN_KEY='stock_pf_alerts_seen_v1';
+var _pfSeenBefore=(function(){try{return localStorage.getItem(_PF_SEEN_KEY)||'';}catch(e){return'';}})();
+function _pfRunDate(){return /^\d{4}-\d{2}-\d{2}$/.test(RUN_DATE)?RUN_DATE:'';}
+function _pfMarkSeen(){var d=_pfRunDate();if(!d)return;try{localStorage.setItem(_PF_SEEN_KEY,d);}catch(e){}}
+function _pfIsNew(){var d=_pfRunDate();return !!(PF_PUB.prev_date&&d&&d>_pfSeenBefore);}
+function _pfLevelFor(a,mode){if(mode==='off')return null;if(mode==='all'&&a.kind==='same_side')return'watch';return a.level;}
+function _pfAddDays(d,n){return new Date(Date.parse(d+'T00:00:00Z')+n*864e5).toISOString().slice(0,10);}
+function _pfEarnings(id){
+  var d0=_pfRunDate();if(!d0)return[];
+  var until=_pfAddDays(d0,7),out=[];
+  _pfMembers(id).forEach(function(t){
+    var d=String((_pfRow[t]||{}).earnings_next_date||'').slice(0,10);
+    if(d&&d>=d0&&d<=until)out.push({ticker:t,kind:'earnings_soon',level:'watch',message:t+' reports earnings on '+d});
+  });
+  return out;
+}
+function _pfSortAlerts(a){return a.sort(function(x,y){return(_PF_LV[x.level]-_PF_LV[y.level])||(x.ticker<y.ticker?-1:x.ticker>y.ticker?1:0);});}
 function _pfPubUnchanged(id){
   if(!_pfLocal)return true;
   var a=null,b=null;
@@ -3299,11 +3325,55 @@ function _pfPubUnchanged(id){
   return !!(a&&b&&_pfCanon([a])===_pfCanon([b]));
 }
 function _pfAlertsFor(id){
+  var p=_pfById[id],mode=(p&&p.alerts)||'buy_line';
+  if(mode==='off')return[];
   var out=[];
-  (PF_PUB.changes||[]).forEach(function(a){if(_pfIsMember(id,a.ticker))out.push(a);});
+  (PF_PUB.changes||[]).forEach(function(a){
+    if(!_pfIsMember(id,a.ticker))return;
+    var lv=_pfLevelFor(a,mode);if(!lv)return;
+    if(lv===a.level){out.push(a);return;}
+    var c={};for(var k in a)c[k]=a[k];c.level=lv;out.push(c);
+  });
   if(_pfPubUnchanged(id))(PF_PUB.events||[]).forEach(function(e){if(e.portfolio===id)out.push(e);});
-  out.sort(function(x,y){return(_PF_SEV[x.severity]-_PF_SEV[y.severity])||(x.ticker<y.ticker?-1:x.ticker>y.ticker?1:0);});
-  return out;
+  return _pfSortAlerts(out.concat(_pfEarnings(id)));
+}
+function _pfCount(al){var c={action:0,watch:0,fyi:0};al.forEach(function(a){c[a.level]=(c[a.level]||0)+1;});return c;}
+function _pfSystemicHtml(){
+  var s=PF_PUB.systemic;
+  if(!s||!s.flood||!s.message)return'';
+  return'<div class="pfv-banner pfv-banner-'+_pfEsc(s.cause||'model')+'"><b>'+(s.cause==='data'?'Data problem':'Model-wide shift')+'.</b> '
+    +_pfEsc(String(s.message).replace(/^[^:]*:\s*/,''))+'</div>';
+}
+/* Alerts grouped Action, Watch, then FYI collapsed. */
+function _pfAlertsHtml(al,showPf,emptyMsg){
+  var act=al.filter(function(a){return a.level!=='fyi';}),fyi=al.filter(function(a){return a.level==='fyi';});
+  var h='';
+  if(act.length)h+='<div class="pfv-alerts">'+act.map(function(a){return _pfAlertRow(a,showPf);}).join('')+'</div>';
+  else h+='<div class="pf-empty">'+emptyMsg+'</div>';
+  if(fyi.length)h+='<details class="pfv-fyi"><summary>'+fyi.length+' quieter change'+(fyi.length===1?'':'s')
+    +' <span class="pf-muted">(moves within a side, or on missing data)</span></summary><div class="pfv-alerts">'
+    +fyi.map(function(a){return _pfAlertRow(a,showPf);}).join('')+'</div></details>';
+  return h;
+}
+/* Rating change-points from DATA.rating_hist (dates before this run) plus
+   today's move, over the last three weeks. */
+function _pfRecentHtml(id){
+  var d0=_pfRunDate(),cut=d0?_pfAddDays(d0,-21):'',ev=[];
+  _pfMembers(id).forEach(function(t){
+    var d=_pfRow[t];if(!d)return;
+    var pts=(d.rating_hist||[]).slice();
+    if(d0&&d.rating&&(!pts.length||pts[pts.length-1][1]!==d.rating))pts.push([d0,d.rating]);
+    for(var i=1;i<pts.length;i++){if(pts[i][0]>=cut)ev.push({d:pts[i][0],t:t,a:pts[i-1][1],b:pts[i][1]});}
+  });
+  if(!ev.length)return'<div class="pf-empty">No rating changes among these stocks in the last three weeks.</div>';
+  ev.sort(function(x,y){return x.d<y.d?1:x.d>y.d?-1:(x.t<y.t?-1:1);});
+  var BUY={'BUY':1,'LEAN BUY':1};
+  return'<div class="pfv-alerts pfv-recent">'+ev.slice(0,15).map(function(e){
+    var cross=!!BUY[e.a]!==!!BUY[e.b],mark=cross?(BUY[e.b]?'<span class="pos">▲</span>':'<span class="neg">▼</span>'):'<span class="pf-muted">·</span>';
+    return'<div class="pfv-alert"><span class="pfv-date">'+_pfEsc(e.d)+'</span>'+mark
+      +'<span class="tk-link" onclick="openDet(\''+_pfJsArg(e.t)+'\')">'+_pfEsc(e.t)+'</span>'
+      +'<span class="pfv-alert-msg">'+_pfEsc(e.a)+' → '+_pfEsc(e.b)+'</span></div>';
+  }).join('')+'</div>'+(ev.length>15?'<div class="pf-muted pfv-more">+'+(ev.length-15)+' earlier</div>':'');
 }
 function _pfMedian(a){a=a.filter(function(v){return v!=null;}).sort(function(x,y){return x-y;});if(!a.length)return null;var m=a.length>>1;return a.length%2?a[m]:(a[m-1]+a[m])/2;}
 function _pfStats(id){
@@ -3312,7 +3382,10 @@ function _pfStats(id){
   rows.forEach(function(d){
     if(d.rating in mix)mix[d.rating]++;
     var s=d.sector||'Unknown';sec[s]=(sec[s]||0)+1;
-    if(d.rating_chg>0)up++;else if(d.rating_chg<0)down++;
+    /* A move on a row with no price or identity is a data gap, not an
+       up/downgrade (models/portfolio_groups.data_missing). */
+    var gap=_num(d.price)==null||!(d.company_name||d.sector);
+    if(!gap){if(d.rating_chg>0)up++;else if(d.rating_chg<0)down++;}
   });
   var n=rows.length,secs=Object.keys(sec).sort(function(a,b){return sec[b]-sec[a];}),hhi=0;
   secs.forEach(function(s){var w=sec[s]/n;hhi+=w*w;});
@@ -3346,10 +3419,17 @@ function _pfKpis(st){
 function _pfAlertRow(a,showPf){
   var t=_pfJsArg(a.ticker);
   var pfs='';
-  if(showPf){(_pfMem[a.ticker]||(a.portfolio?[a.portfolio]:[])).forEach(function(id){var p=_pfById[id];if(p)pfs+='<span class="pf-dot" title="'+_pfEsc(p.name)+'" style="background:'+_pfEsc(_pfCol(p.color))+'"></span>';});}
-  return'<div class="pfv-alert"><span class="pfv-sev pfv-sev-'+_pfEsc(String(a.severity).toLowerCase())+'">'+_pfEsc(a.severity)+'</span>'
-    +'<span class="tk-link" onclick="openDet(\''+t+'\')">'+_pfEsc(a.ticker)+'</span>'
-    +'<span class="pfv-alert-msg">'+_pfEsc(String(a.message||'').indexOf(a.ticker+' ')===0?a.message.slice(a.ticker.length+1):a.message)+'</span>'+(pfs?'<span class="pfv-alert-pf">'+pfs+'</span>':'')+'</div>';
+  if(showPf){(a.portfolio?[a.portfolio]:(_pfMem[a.ticker]||[])).forEach(function(id){var p=_pfById[id];if(p)pfs+='<span class="pf-dot" title="'+_pfEsc(p.name)+'" style="background:'+_pfEsc(_pfCol(p.color))+'"></span>';});}
+  var dir=a.kind==='entered_buy'?'<span class="pos" title="Into the buy zone">▲</span>':a.kind==='exited_buy'?'<span class="neg" title="Out of the buy zone">▼</span>':'';
+  var msg=String(a.message||'');if(msg.indexOf(a.ticker+' ')===0)msg=msg.slice(a.ticker.length+1);
+  var why=_PF_RATING_KINDS[a.kind]&&_pfRow[a.ticker]&&_pfRow[a.ticker].rating_chg_why;
+  var row='<span class="pfv-lv pfv-lv-'+_pfEsc(a.level)+'">'+_pfEsc(_PF_LVN[a.level]||a.level)+'</span>'
+    +(_pfIsNew()&&a.level!=='fyi'?'<span class="pfv-new">NEW</span>':'')+dir
+    +'<span class="tk-link" onclick="event.preventDefault();event.stopPropagation();openDet(\''+t+'\')">'+_pfEsc(a.ticker)+'</span>'
+    +'<span class="pfv-alert-msg">'+_pfEsc(msg)+'</span>'+(pfs?'<span class="pfv-alert-pf">'+pfs+'</span>':'');
+  if(why&&why.length)return'<details class="pfv-alert-x"><summary class="pfv-alert">'+row+'<span class="pfv-why-tog" title="Why the rating changed">why</span></summary>'
+    +'<ul class="pfv-why">'+why.map(function(w){return'<li>'+_pfEsc(w)+'</li>';}).join('')+'</ul></details>';
+  return'<div class="pfv-alert">'+row+'</div>';
 }
 function _pfSyncNote(){
   var st=_pfSyncState();
@@ -3362,6 +3442,7 @@ function renderPfView(){
   if(curPfSub!=='overview'&&!_pfById[curPfSub])curPfSub='overview';
   el.innerHTML=curPfSub==='overview'?_pfOverviewHtml():_pfDetailHtml(curPfSub);
   if(curPfSub!=='overview')_pfDrawChart();
+  _pfMarkSeen();
 }
 var _pfResizeT=null;
 window.addEventListener('resize',function(){
@@ -3372,7 +3453,7 @@ function _pfOverviewHtml(){
   var defs=_pfDefs();
   var h='<div class="pfv"><div class="pfv-head"><h2>Portfolios</h2>'
     +(PF_PUB.prev_date?'<span class="pfv-sub">changes vs '+_pfEsc(PF_PUB.prev_date)+'</span>':'')
-    +'<span class="pf-spacer"></span><button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSyncNote();
+    +'<span class="pf-spacer"></span><button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSystemicHtml()+_pfSyncNote();
   if(!defs.length){
     return h+'<div class="pfv-empty"><p><b>No portfolios yet.</b> A portfolio is a named group of stocks — picked by hand, defined by a rule, or both — and a stock can be in as many as you like.</p>'
       +'<p>Filter the Financial Data table and choose <b>Save filter as portfolio</b> in the Filters panel, add a stock from its popup (the folder button), or start one here.</p>'
@@ -3381,13 +3462,13 @@ function _pfOverviewHtml(){
   h+='<div class="pfv-grid">';
   defs.forEach(function(p){
     var st=_pfStats(p.id),al=_pfAlertsFor(p.id),id=_pfJsArg(p.id);
-    var hi=al.filter(function(a){return a.severity!=='LOW';}).length;
-    var joined=al.filter(function(a){return a.alert_type==='joined';}).length,
-        left=al.filter(function(a){return a.alert_type==='left'||a.alert_type==='dropped_out';}).length;
+    var cnt=_pfCount(al),nAW=cnt.action+cnt.watch;
+    var joined=al.filter(function(a){return a.kind==='joined';}).length,
+        left=al.filter(function(a){return a.kind==='left'||a.kind==='dropped_out';}).length;
     var kind=p.rule?((p.tickers||[]).length?'Rule + '+p.tickers.length+' picked':'Rule'):'Hand-picked';
     h+='<div class="pfv-card" style="--pf:'+_pfEsc(_pfCol(p.color))+'" role="button" tabindex="0" onclick="navGo(\'pf\',\''+id+'\')" onkeydown="if(event.key===\'Enter\')navGo(\'pf\',\''+id+'\')">'
       +'<div class="pfv-card-h"><span class="pfv-name">'+_pfEsc(p.name)+'</span>'
-      +(al.length?'<span class="pfv-badge'+(hi?' hot':'')+'" title="'+al.length+' alert(s) today">'+al.length+'</span>':'')+'</div>'
+      +(nAW?'<span class="pfv-badge'+(cnt.action?' hot':'')+(_pfIsNew()?' new':'')+'" title="'+cnt.action+' action, '+cnt.watch+' watch'+(_pfIsNew()?' (new)':'')+'">'+nAW+'</span>':'')+'</div>'
       +'<div class="pfv-meta">'+st.n+' stock'+(st.n===1?'':'s')+' · '+_pfEsc(kind)+'</div>'
       +(p.rule?'<div class="pfv-rule">'+_pfEsc(_pfRuleSummary(p.rule))+'</div>':'')
       +_pfMixBar(st)+_pfKpis(st)
@@ -3397,11 +3478,16 @@ function _pfOverviewHtml(){
   });
   h+='</div>';
   var all={},list=[];
-  defs.forEach(function(p){_pfAlertsFor(p.id).forEach(function(a){var key=a.alert_type+'|'+a.ticker+'|'+(a.portfolio||'');if(!all[key]){all[key]=1;list.push(a);}});});
-  list.sort(function(x,y){return(_PF_SEV[x.severity]-_PF_SEV[y.severity])||(x.ticker<y.ticker?-1:1);});
-  h+='<h3 class="pfv-h3">Alerts'+(list.length?' <span class="pfv-count">'+list.length+'</span>':'')+'</h3>';
-  h+=list.length?'<div class="pfv-alerts">'+list.map(function(a){return _pfAlertRow(a,true);}).join('')+'</div>'
-    :'<div class="pf-empty">'+(PF_PUB.prev_date?'No rating changes, score drops or membership changes in your portfolios today.':'No prior run to compare against.')+'</div>';
+  defs.forEach(function(p){_pfAlertsFor(p.id).forEach(function(a){
+    var key=a.kind+'|'+a.ticker+'|'+(a.portfolio||'');
+    /* One row per event; a ticker in two portfolios keeps its most urgent level. */
+    if(all[key]==null){all[key]=list.length;list.push(a);}
+    else if(_PF_LV[a.level]<_PF_LV[list[all[key]].level])list[all[key]]=a;
+  });});
+  _pfSortAlerts(list);
+  var oc=_pfCount(list);
+  h+='<h3 class="pfv-h3">Alerts'+(oc.action+oc.watch?' <span class="pfv-count">'+(oc.action+oc.watch)+'</span>':'')+'</h3>';
+  h+=_pfAlertsHtml(list,true,PF_PUB.prev_date?'Nothing crossed the buy line, reversed, or needs watching in your portfolios today.':'No prior run to compare against.');
   return h+'</div>';
 }
 function _pfDetailHtml(id){
@@ -3414,7 +3500,7 @@ function _pfDetailHtml(id){
     +'<button class="pf-btn pf-primary" onclick="pfShowOnly(\''+jid+'\')">Open in table</button>'
     +(p.rule?'<button class="pf-btn" onclick="pfEditRule(\''+jid+'\')">Edit rule</button>':'')
     +'<button class="pf-btn" onclick="pfShare(\''+jid+'\')">Share link</button>'
-    +'<button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSyncNote()
+    +'<button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSystemicHtml()+_pfSyncNote()
     +(p.description?'<p class="pfv-desc">'+_pfEsc(p.description)+'</p>':'')
     +'<div class="pfv-meta">'+st.n+' stock'+(st.n===1?'':'s')
     +((p.tickers||[]).length?' · '+p.tickers.length+' picked':'')
@@ -3429,9 +3515,12 @@ function _pfDetailHtml(id){
     +st.sectors.slice(0,8).map(function(s){return'<div class="pfv-sec"><span class="pfv-sec-l">'+_pfEsc(s.s)+'</span><span class="pfv-sec-bar"><span style="width:'+(100*s.w)+'%"></span></span><span class="pfv-sec-v">'+s.c+'</span></div>';}).join('')
     +(st.sectors.length>8?'<div class="pf-muted">+'+(st.sectors.length-8)+' more</div>':'')+'</div></div>';
   h+='<h3 class="pfv-h3">Performance</h3><div class="pfv-panel pfc-panel">'+_pfChartHtml(id)+'</div>';
-  h+='<h3 class="pfv-h3">Alerts'+(al.length?' <span class="pfv-count">'+al.length+'</span>':'')+'</h3>'
-    +(al.length?'<div class="pfv-alerts">'+al.map(function(a){return _pfAlertRow(a,false);}).join('')+'</div>'
-      :'<div class="pf-empty">'+(PF_PUB.prev_date?'Nothing changed for these stocks since '+_pfEsc(PF_PUB.prev_date)+'.':'No prior run to compare against.')+'</div>');
+  var dc=_pfCount(al),mode=p.alerts||'buy_line';
+  h+='<h3 class="pfv-h3">Alerts'+(dc.action+dc.watch?' <span class="pfv-count">'+(dc.action+dc.watch)+'</span>':'')
+    +(mode!=='buy_line'?' <span class="pf-tag">'+(mode==='off'?'muted':'all changes')+'</span>':'')+'</h3>'
+    +_pfAlertsHtml(al,false,mode==='off'?'Alerts are muted for this portfolio (Manage → Alerts).':
+      (PF_PUB.prev_date?'Nothing crossed the buy line, reversed, or needs watching since '+_pfEsc(PF_PUB.prev_date)+'.':'No prior run to compare against.'));
+  h+='<h3 class="pfv-h3">Recent rating changes <span class="pf-muted pfv-h3-sub">last 3 weeks</span></h3>'+_pfRecentHtml(id);
   var rows=_pfMembers(id).map(function(t){return _pfRow[t];}).filter(Boolean);
   rows.sort(function(a,b){return(_num(b._composite_score)||-1)-(_num(a._composite_score)||-1);});
   h+='<h3 class="pfv-h3">Members</h3><div class="pfv-tbl-wrap"><table class="pfv-tbl"><thead><tr><th>Ticker</th><th>Company</th><th>Rating</th><th>Prior</th><th class="r">MoS</th><th class="r">Score</th><th class="r">ROIC−WACC</th><th>Sector</th><th>Via</th></tr></thead><tbody>';
@@ -11077,8 +11166,26 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfv-alerts{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
 .pfv-alert{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--border);font-size:13px;}
 .pfv-alert:first-child{border-top:none;}
-.pfv-sev{flex:0 0 auto;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 6px;border-radius:4px;color:#fff;background:#8a94a6;}
-.pfv-sev-high{background:#de2d26;}.pfv-sev-medium{background:#e8833a;}
+.pfv-lv{flex:0 0 auto;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:4px;color:#fff;background:#8a94a6;min-width:46px;text-align:center;}
+.pfv-lv-action{background:var(--accent);}.pfv-lv-watch{background:#e8833a;}
+.pfv-new{flex:0 0 auto;font-size:9.5px;font-weight:700;letter-spacing:.05em;padding:1px 5px;border-radius:4px;border:1px solid var(--accent);color:var(--accent);}
+.pfv-badge.new{box-shadow:0 0 0 2px var(--surface),0 0 0 3px var(--accent);}
+.pfv-banner{font-size:13px;line-height:1.45;padding:10px 12px;border-radius:10px;margin:0 0 12px;background:var(--surface);border:1px solid var(--border);border-left:4px solid #e8833a;}
+.pfv-banner-data{border-left-color:#de2d26;}
+.pfv-alert-x{border-top:1px solid var(--border);}
+.pfv-alert-x:first-child{border-top:none;}
+.pfv-alert-x > summary{list-style:none;cursor:pointer;border-top:none;}
+.pfv-alert-x > summary::-webkit-details-marker{display:none;}
+.pfv-why-tog{flex:0 0 auto;font-size:11px;color:var(--accent);}
+.pfv-alert-x[open] .pfv-why-tog{opacity:.6;}
+.pfv-why{margin:0;padding:0 14px 10px 76px;font-size:12.5px;color:var(--text-muted);line-height:1.5;}
+.pfv-fyi{margin-top:8px;}
+.pfv-fyi > summary{cursor:pointer;font-size:12.5px;color:var(--text);padding:4px 2px;}
+.pfv-fyi .pfv-alerts{margin-top:6px;}
+.pfv-date{flex:0 0 auto;font-size:11.5px;color:var(--text-muted);font-variant-numeric:tabular-nums;}
+.pfv-h3-sub{font-size:11.5px;font-weight:500;}
+.pfv-more{padding:6px 2px;font-size:12px;}
+.pf-mode{padding:4px 6px;}
 .pfv-alert .tk-link{flex:0 0 auto;font-weight:700;}
 .pfv-alert-msg{flex:1 1 auto;min-width:0;color:var(--text-muted);overflow-wrap:anywhere;}
 .pfv-alert-pf{display:flex;gap:3px;flex:0 0 auto;}

@@ -165,7 +165,10 @@ def normalize_portfolio(p, today=None):
         'tickers': _norm_tickers(p.get('tickers'), f"{pid}.tickers"),
         'exclude': _norm_tickers(p.get('exclude'), f"{pid}.exclude"),
         'rule': normalize_rule(p.get('rule'), f"{pid}.rule"),
+        'alerts': p.get('alerts') or 'buy_line',
     }
+    if out['alerts'] not in ALERT_MODES:
+        raise ValueError(f"{pid}: alerts must be one of {', '.join(ALERT_MODES)}")
     # An empty portfolio (no tickers, no rule) is legitimate: just created,
     # not filled yet.
     return out
@@ -467,13 +470,31 @@ def merge_portfolios(current, incoming, overwrite=False):
 # ---------------------------------------------------------------------------
 
 RATINGS = ('BUY', 'LEAN BUY', 'HOLD', 'PASS')
-SEVERITY_ORDER = {'HIGH': 0, 'MEDIUM': 1, 'LOW': 2}
+BUY_SIDE = frozenset(('BUY', 'LEAN BUY'))
+# Alert levels, most urgent first. Action = the rating crossed the buy line
+# (the model's actionable signal); Watch = worth a look; FYI = recorded but
+# quiet (moves within a side, and anything resting on missing data).
+LEVELS = ('action', 'watch', 'fyi')
+LEVEL_ORDER = {lv: i for i, lv in enumerate(LEVELS)}
+ALERT_MODES = ('buy_line', 'all', 'off')
+
+SCORE_DROP_PTS = 10.0
+# Fair values are noisy run to run: over 82 run pairs (04-20..09-14) a >=25%
+# move hit a median of 12.5 tickers a run (1,166 on 09-02); >=50% is 5.
+FV_JUMP = 0.50
+REVERSAL_DAYS = 7          # ~5 trading runs
+EARNINGS_DAYS = 7
+# A run re-rating (or missing prices for) at least this share of the
+# universe is a systemic day — a model change or a data outage — not news
+# about individual stocks. 7 of 82 runs cleared it between 04-20 and 09-14.
+FLOOD_SHARE = 0.10
 
 
 def rule_columns(portfolios):
     """Row columns needed to evaluate every rule (plus the ones alerts read),
     for a narrow snapshot-store query of the prior run."""
-    cols = {'ticker', 'rating', 'sector', 'country', '_composite_score', 'price'}
+    cols = {'ticker', 'rating', 'sector', 'country', '_composite_score', 'price',
+            'company_name', '_fv_effective'}
     for p in portfolios:
         for c in (p.get('rule') or {}).get('cf') or ():
             cols.add(c['key'])
@@ -509,6 +530,8 @@ def portfolio_stats(members, by_tk, prev_by_tk=None):
     up = down = 0
     for r in rows:
         prev = (prev_by_tk or {}).get(r['ticker']) or {}
+        if data_missing(r) or (prev and data_missing(prev)):
+            continue            # a move on absent data is not an up/downgrade
         a, b = prev.get('rating'), r.get('rating')
         if a in RATINGS and b in RATINGS and a != b:
             if RATINGS.index(b) < RATINGS.index(a):
@@ -531,22 +554,150 @@ def portfolio_stats(members, by_tk, prev_by_tk=None):
     }
 
 
-def change_alerts(by_tk, prev_by_tk, run_date=None, score_drop_threshold=10.0):
-    """Per-ticker change alerts over every ticker present on both days:
-    rating up/downgrades and composite-score drops, via the holdings
-    tracker's ``detect_alerts`` (its valuation-gap check is left out — a gap
-    to fair value is the normal state of most stocks, not a change)."""
-    from models.portfolio_tracker import detect_alerts
-    held = []
-    for t, r in by_tk.items():
-        if t in prev_by_tk:
-            held.append({'ticker': t, 'in_universe': True, 'rating': r.get('rating'),
-                         '_composite_score': js_num(r.get('_composite_score'))})
-    prev = {t: {'rating': p.get('rating'),
-                '_composite_score': js_num(p.get('_composite_score'))}
-            for t, p in prev_by_tk.items()}
-    return detect_alerts(held, prev, score_drop_threshold=score_drop_threshold,
-                         run_date=run_date)
+def _day(run_date):
+    return (run_date.isoformat() if hasattr(run_date, 'isoformat') else run_date) \
+        or date.today().isoformat()
+
+
+def data_missing(row):
+    """True when a row rests on a failed quote fetch: no usable price, or no
+    identity at all (name and sector both blank). On 2026-09-25 Yahoo
+    throttled ``.info`` for 1,548 rows this way and 751 of them changed
+    rating on absent data."""
+    if not row:
+        return True
+    return js_num(row.get('price')) is None or not (row.get('company_name') or row.get('sector'))
+
+
+def universe_stats(by_tk, prev_by_tk):
+    """How much of the universe moved or lost data today, and whether that
+    makes it a systemic (flood) day."""
+    n = len(by_tk) or 1
+    changed = sum(1 for t, r in by_tk.items()
+                  if t in prev_by_tk and r.get('rating') in RATINGS
+                  and prev_by_tk[t].get('rating') in RATINGS
+                  and r['rating'] != prev_by_tk[t]['rating'])
+    missing = sum(1 for r in by_tk.values() if data_missing(r))
+    changed_share, missing_share = changed / n, missing / n
+    flood = changed_share >= FLOOD_SHARE or missing_share >= FLOOD_SHARE
+    cause = None
+    if flood:
+        cause = 'data' if missing_share >= FLOOD_SHARE else 'model'
+    return {'n': len(by_tk), 'changed': changed, 'changed_share': round(changed_share, 4),
+            'missing_data': missing, 'missing_share': round(missing_share, 4),
+            'flood': flood, 'cause': cause}
+
+
+def systemic_message(st):
+    if not st or not st.get('flood'):
+        return None
+    if st['cause'] == 'data':
+        return (f"Data problem: {st['missing_data']:,} of {st['n']:,} rows are missing a price "
+                f"or identity, and {st['changed_share']:.0%} of the universe changed rating. "
+                "Rating moves on affected rows are shown as data gaps, not signals.")
+    return (f"Model-wide shift: {st['changed_share']:.0%} of the universe "
+            f"({st['changed']:,} stocks) changed rating in one run — usually a scoring "
+            "change rather than news about individual stocks.")
+
+
+def _recent_reversal(points, into_buy, day, days=REVERSAL_DAYS):
+    """Date of a buy-line crossing in the opposite direction within *days*
+    before *day*, from rating-history change-points ``[[date, rating], …]``
+    (ascending, strictly before *day*). None when there is none."""
+    from datetime import timedelta
+    if not points:
+        return None
+    cutoff = (date.fromisoformat(day) - timedelta(days=days)).isoformat()
+    hit = None
+    for (_, r0), (d1, r1) in zip(points, points[1:], strict=False):
+        if d1 < cutoff or r0 not in RATINGS or r1 not in RATINGS:
+            continue
+        was, now = r0 in BUY_SIDE, r1 in BUY_SIDE
+        # Today's move goes into (out of) the buy side; the reversed one went
+        # the other way.
+        if was != now and now != into_buy:
+            hit = d1
+    return hit
+
+
+def classify_changes(by_tk, prev_by_tk, run_date=None, history=None, explain=None,
+                     score_drop=SCORE_DROP_PTS, fv_jump=FV_JUMP):
+    """Classify every ticker's run-over-run change, universe-wide.
+
+    Returns ``(entries, stats)``. Each entry: ``{ticker, kind, level, from,
+    to, message}`` plus ``reversal_of`` / ``flood`` / ``why`` when they
+    apply. *history* is the rating-history cache (``{ticker: [[date,
+    rating], …]}``) used to spot reversals; *explain(prev_row, row)* returns
+    "why the rating changed" bullets for rating moves.
+
+    A row resting on missing data yields one ``data_gap`` FYI entry and
+    nothing else — a rating move or score drop on absent inputs is not a
+    signal.
+    """
+    day = _day(run_date)
+    stats = universe_stats(by_tk, prev_by_tk)
+    out = []
+    for t in sorted(by_tk):
+        r, p = by_tk[t], prev_by_tk.get(t)
+        if p is None:
+            continue
+        a, b = p.get('rating'), r.get('rating')
+        moved = a in RATINGS and b in RATINGS and a != b
+        if data_missing(r) or data_missing(p):
+            if moved:
+                which = 'today' if data_missing(r) else 'the prior run'
+                out.append({'ticker': t, 'kind': 'data_gap', 'level': 'fyi', 'from': a, 'to': b,
+                            'message': f"{t} {a} → {b}, but {which}'s row is missing its price or "
+                                       "identity (likely a data outage), so this is not a signal"})
+            continue
+        if moved:
+            into, was = b in BUY_SIDE, a in BUY_SIDE
+            e = {'ticker': t, 'from': a, 'to': b}
+            if into != was:
+                rev = _recent_reversal((history or {}).get(t), into, day)
+                verb = f"moved into the buy zone: {a} → {b}" if into else \
+                    f"fell out of the buy zone: {a} → {b}"
+                if rev:
+                    e.update(kind='reversal', level='watch', reversal_of=rev,
+                             message=f"{t} {verb} (reverses the {rev} move)")
+                else:
+                    e.update(kind='entered_buy' if into else 'exited_buy', level='action',
+                             message=f"{t} {verb}")
+            else:
+                e.update(kind='same_side', level='fyi', message=f"{t} {a} → {b}")
+            if stats['flood']:
+                e['flood'] = True
+            if explain:
+                why = explain(p, r)
+                if why:
+                    e['why'] = why
+            out.append(e)
+        s0, s1 = js_num(p.get('_composite_score')), js_num(r.get('_composite_score'))
+        if s0 is not None and s1 is not None and s0 - s1 > score_drop:
+            out.append({'ticker': t, 'kind': 'score_drop', 'level': 'watch',
+                        'message': f"{t} composite score dropped {s0 - s1:.1f} pts "
+                                   f"({s0:.1f} → {s1:.1f})"})
+        f0, f1 = js_num(p.get('_fv_effective')), js_num(r.get('_fv_effective'))
+        if f0 and f1 and f0 > 0 and abs(f1 / f0 - 1) >= fv_jump:
+            out.append({'ticker': t, 'kind': 'fv_jump', 'level': 'watch',
+                        'message': f"{t} fair value moved {f1 / f0 - 1:+.0%} "
+                                   f"(${f0:,.2f} → ${f1:,.2f})"})
+    return out, stats
+
+
+def earnings_soon(members, by_tk, run_date=None, days=EARNINGS_DAYS):
+    """Watch entries for members reporting within *days* of the run date
+    (``earnings_next_date`` is a live-run field; absent means no entry)."""
+    from datetime import timedelta
+    day = _day(run_date)
+    until = (date.fromisoformat(day) + timedelta(days=days)).isoformat()
+    out = []
+    for t in members:
+        d = str((by_tk.get(t) or {}).get('earnings_next_date') or '')[:10]
+        if d and day <= d <= until:
+            out.append({'ticker': t, 'kind': 'earnings_soon', 'level': 'watch',
+                        'message': f"{t} reports earnings on {d}"})
+    return out
 
 
 def _fmt_val(v):
@@ -587,15 +738,14 @@ def explain_rule_change(rule, prev_row, row):
 
 
 def membership_events(portfolios, by_tk, prev_by_tk, run_date=None):
-    """Joined / left / dropped-out events per portfolio.
+    """Joined / left / dropped-out events per portfolio (Watch level).
 
     Today's definition is evaluated against both days' rows, so an edit to
     the definition itself never reads as a wave of joins; what shows is the
     data moving a stock across the rule's lines. A hand-picked ticker that
-    was in yesterday's universe but not today's is ``dropped_out``.
+    was in yesterday's universe but not today's is ``dropped_out``. A move
+    that rests on missing data (see ``data_missing``) is FYI, not Watch.
     """
-    day = (run_date.isoformat() if hasattr(run_date, 'isoformat') else run_date) \
-        or date.today().isoformat()
     out = []
     for p in portfolios:
         now = set(resolve_members(p, by_tk)['members'])
@@ -607,42 +757,67 @@ def membership_events(portfolios, by_tk, prev_by_tk, run_date=None):
             else:
                 why = '; '.join(explain_rule_change(p.get('rule'), prev_by_tk[t], by_tk[t])) \
                     or 'now matches the rule'
-            out.append({'ticker': t, 'portfolio': p['id'], 'alert_type': 'joined',
-                        'severity': 'LOW', 'date': day,
+            gap = data_missing(by_tk[t]) or (t in prev_by_tk and data_missing(prev_by_tk[t]))
+            out.append({'ticker': t, 'portfolio': p['id'], 'kind': 'joined',
+                        'level': 'fyi' if gap else 'watch',
                         'message': f"{t} joined {p['name']} ({why})"})
         for t in sorted(before - now):
             if t in by_tk:
                 why = '; '.join(explain_rule_change(p.get('rule'), prev_by_tk[t], by_tk[t])) \
                     or 'no longer matches the rule'
-                atype = 'left'
+                kind = 'left'
+                gap = data_missing(by_tk[t]) or data_missing(prev_by_tk[t])
             else:
                 why = "dropped out of today's universe"
-                atype = 'dropped_out'
-            out.append({'ticker': t, 'portfolio': p['id'], 'alert_type': atype,
-                        'severity': 'MEDIUM', 'date': day,
+                kind, gap = 'dropped_out', False
+            out.append({'ticker': t, 'portfolio': p['id'], 'kind': kind,
+                        'level': 'fyi' if gap else 'watch',
                         'message': f"{t} left {p['name']} ({why})"})
     return out
 
 
-def portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=None,
-                     score_drop_threshold=10.0):
-    """All alerts for the portfolios, one entry per event.
+def level_for(entry, mode):
+    """An entry's level under a portfolio's alert mode (None = hidden)."""
+    if mode == 'off':
+        return None
+    if mode == 'all' and entry['kind'] == 'same_side':
+        return 'watch'
+    return entry['level']
 
-    Per-ticker change alerts are listed once with ``portfolios`` naming
-    every portfolio the ticker is in today; membership events carry their
-    one portfolio. Sorted by severity, then ticker.
+
+def _sort_key(a):
+    return (LEVEL_ORDER.get(a['level'], 9), a['ticker'], a['kind'])
+
+
+def portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=None, history=None,
+                     explain=None, changes=None):
+    """Per-portfolio alerts: ``(by_id, stats)`` with ``by_id = {id:
+    [entries]}``, each list sorted Action → Watch → FYI.
+
+    Change entries (``classify_changes``; pass *changes* to reuse a
+    ``(entries, stats)`` already computed) are attributed through today's
+    membership; membership events and earnings dates are added per
+    portfolio; each portfolio's ``alerts`` mode sets the final level.
     """
-    index = {}
-    for p in portfolios:
-        for t in resolve_members(p, by_tk)['members']:
-            index.setdefault(t, []).append(p['id'])
-    out = []
-    for a in change_alerts(by_tk, prev_by_tk, run_date, score_drop_threshold):
-        if a['ticker'] in index:
-            out.append(dict(a, portfolios=index[a['ticker']]))
+    entries, stats = changes if changes is not None else classify_changes(
+        by_tk, prev_by_tk, run_date, history, explain)
+    by_ticker = {}
+    for e in entries:
+        by_ticker.setdefault(e['ticker'], []).append(e)
+    events = {}
     for e in membership_events(portfolios, by_tk, prev_by_tk, run_date):
-        pid = e.pop('portfolio')
-        out.append(dict(e, portfolios=[pid]))
-    out.sort(key=lambda a: (SEVERITY_ORDER.get(a['severity'], 3), a['ticker'],
-                            a['alert_type']))
-    return out
+        events.setdefault(e['portfolio'], []).append(e)
+    out = {}
+    for p in portfolios:
+        mode = p.get('alerts') or 'buy_line'
+        members = resolve_members(p, by_tk)['members']
+        lst = [e for t in members for e in by_ticker.get(t, ())]
+        lst += events.get(p['id'], [])
+        lst += earnings_soon(members, by_tk, run_date)
+        shown = []
+        for e in lst:
+            lv = level_for(e, mode)
+            if lv:
+                shown.append(dict(e, level=lv))
+        out[p['id']] = sorted(shown, key=_sort_key)
+    return out, stats

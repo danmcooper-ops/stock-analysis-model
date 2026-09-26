@@ -355,6 +355,13 @@ PY
 }
 run_step 05e-prices-topup 0 topup_prices
 run_step 05f-rerender 1 "$PYTHON" scripts/rescore_and_render.py "$RESULTS"
+# Your portfolio groupings (portfolio/portfolios.json): Action / Watch / FYI
+# alerts vs the prior run. Runs BEFORE the archive so portfolio_alerts.json
+# rides into data/snapshots with the snapshot, where the digest workflow
+# (.github/workflows/portfolio-alerts.yml) picks it up for the GitHub issue.
+run_step 05g-portfolio-alerts 0 "$PYTHON" scripts/portfolios.py alerts --results-dir output --date "$RUNDATE" \
+  --out "output/portfolio_alerts_$RUNDATE.txt" --json output/portfolio_alerts.json \
+  --markdown "output/portfolio_alerts_$RUNDATE.md" --pages-url "$PAGES_URL"
 if [ "$FAILED" = 1 ]; then echo "RESULT FAILED at rerender" >> "$STATUS"; exit 1; fi
 
 # ---------------------------------------------------------------------------
@@ -394,6 +401,11 @@ archive_snapshot() {
   if [ "$SMOKE" != 1 ] && [ -s "$REPO/output/portfolio_nav.json" ]; then
     cp "$REPO/output/portfolio_nav.json" "$SNAP/portfolio_nav.json"
   fi
+  # Tonight's alerts digest, for the GitHub-issue workflow. Same SMOKE guard:
+  # a smoke run's universe would read as a flood day.
+  if [ "$SMOKE" != 1 ] && [ -s "$REPO/output/portfolio_alerts.json" ]; then
+    cp "$REPO/output/portfolio_alerts.json" "$SNAP/portfolio_alerts.json"
+  fi
   # Write the screen skip list back for tomorrow. Guarded on size and SMOKE:
   # a smoke run screens a handful of tickers and would otherwise replace
   # ~4.5k learned rejections with a near-empty file.
@@ -417,7 +429,7 @@ archive_snapshot() {
   # become new objects.
   local tree commit
   : > "$paths"
-  for f in "results_$RUNDATE.json.gz" rating_history.json screen_skip.json portfolio_nav.json; do
+  for f in "results_$RUNDATE.json.gz" rating_history.json screen_skip.json portfolio_nav.json portfolio_alerts.json; do
     [ -s "$SNAP/$f" ] && echo "$f" >> "$paths"
   done
   cat "$WORK/archive-blobs.txt" >> "$paths" || return 1
@@ -448,9 +460,6 @@ run_step 07b-gate-na-report   0 "$PYTHON" scripts/gate_na_report.py "$RESULTS"
 run_step 07c-validate-ratings 0 "$PYTHON" scripts/validate_ratings.py --snapshot "$RESULTS" --prices-dir output/prices
 # Store syncs never fail a step; this surfaces a store that stopped keeping up.
 run_step 07d-store-check      0 "$PYTHON" scripts/check_snapshot_store.py --results-dir output --date "$RUNDATE"
-# Your portfolio groupings (portfolio/portfolios.json): stats + change alerts.
-run_step 07e-portfolio-alerts 0 "$PYTHON" scripts/portfolios.py alerts --results-dir output --date "$RUNDATE" \
-  --out "output/portfolio_alerts_$RUNDATE.txt"
 
 # ---------------------------------------------------------------------------
 # 8. Publish: rebuild pages-live as one fresh commit and force-push it
