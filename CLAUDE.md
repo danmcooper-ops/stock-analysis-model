@@ -122,24 +122,34 @@ ruff check .
   filing day since has been walked; when it lags past `max_age_days` the
   whole cache reads as missing. A cache that never swept (a dev box) has no
   watermark and falls back to mtime, which is honest there.
-- **yfinance request interval (`--yf-delay`, `YF_REQUEST_DELAY`=0.4):** Yahoo
+- **yfinance request interval (`--yf-delay`, `YF_REQUEST_DELAY`=0.7):** Yahoo
   publishes no rate limit, so the interval is a guess that has to be justified
   and able to back off. It sat at an unexamined 1.0 s. Measured on 2026-09-21:
   7,319 calls, mean real request 1.03 s, mean throttle sleep 0.21 s — interval
   and request almost exactly balanced, so Phase 1 admitted ~1 call/s and the
   yfinance legs cost 2.54 h. That ceiling is per-process, so the Phase-1 pool
   could not beat it however many workers it had; the pool collapsed the SEC
-  leg and left this one untouched. 0.4 s lifts the ceiling to 2.5 calls/s,
-  which 4 workers can feed. One `fetch_financials` is a single tick but ~6
-  HTTP requests, so Yahoo's burst rate moves from ~6/s to ~15/s; the headroom
-  for that was 72 empty responses in 7,319 calls (0.98%) on 2026-09-21.
-  `Throttle.penalize()/relax()` make a wrong guess self-correcting: a soft
-  throttle widens the interval by 1.5x up to `YF_REQUEST_DELAY_MAX` (3 s) for
-  every thread sharing the client, and healthy responses walk it back down,
-  never below the configured base. A 404 does not penalise — a dead symbol
-  says nothing about our rate. Measured on 12 tickers with cold caches, 25
-  identical calls: Phase 1 30 s -> 12 s, `yf_fetch` 1.69 s -> 0.66 s per
-  ticker, no soft throttles, identical decisions.
+  leg and left this one untouched.
+  0.4 s was tried first and was too much: four nights (2026-09-22..25) ran
+  empty-response rates of 4.66-5.30% against 0.98% at 1.0 s, and Phase 1
+  drifted 1.97 h -> 2.69 h as the valve fought it. The 12-ticker bench that
+  justified 0.4 saw zero soft throttles — too small to surface a limit that
+  only bites over thousands of calls. 0.7 s keeps the empty rate under the
+  valve's break-even.
+  **The valve is a control loop.** `Throttle.penalize()/relax()` cancel at
+  `penalty * relax**(n-1) == 1` — one empty per n calls. At 1.5/0.98 that was
+  one per 21.1 calls (4.75%), which those runs straddled, so on three of four
+  nights the delay ratcheted to `YF_REQUEST_DELAY_MAX` (3 s) and stayed pinned
+  (357 penalties on 09-25, mean sleep 0.97 s — the old rate with thrash on
+  top). 1.25/0.97 moves break-even to ~12%, absorbing ordinary pushback while
+  a genuine rate problem still reaches the cap. Both bounds are asserted in
+  `tests/test_run_timings.py`, including a simulation at the observed 5.3%;
+  keep that margin if either is retuned. A 404 does not penalise — a dead
+  symbol says nothing about our rate.
+  Note `beta_from_local`/`beta_from_network` attribute by where the data came
+  from *this run*: the pool's `fetch_history` write-throughs land a parquet, so
+  inferring it from disk credited pool fetches to the local path (4,412 vs a
+  true ~2,470 on 09-22).
 - **Phase-1 network prefetch (`--phase1-workers`, `PHASE1_IO_WORKERS`=4):** a
   thread pool warms each ticker's yfinance financials, companyfacts blob and
   (when no fresh parquet exists) 5y history a little ahead of the sequential
