@@ -284,6 +284,79 @@ def cmd_alerts(doc, a):
         print(f"wrote {out}")
 
 
+def load_snapshots(results_dir, columns, since=None):
+    """``[(date, rows)]`` ascending for every snapshot (optionally from
+    *since*), reading only *columns* from the snapshot store for the dates it
+    holds and parsing the JSON for the rest."""
+    files = [(d, p) for d, p in list_snapshot_files(results_dir) if not since or d >= since]
+    out, store = [], None
+    try:
+        store = SnapshotStore.for_results_dir(results_dir)
+    except Exception as e:
+        logger.warning("portfolios: snapshot store unavailable (%s); parsing JSON", e)
+    try:
+        have = {c.lower() for c in store.columns()} if store is not None else set()
+        cols = [c for c in columns if not c.startswith('_gate_') or c.lower() in have]
+        for d, path in files:
+            if store is not None and store.has_date(d):
+                out.append((d, store.rows(d, cols)))
+            else:
+                out.append((d, load_snapshot_file(path)[1]))
+    finally:
+        if store is not None:
+            store.close()
+    return out
+
+
+def _nav_table(led, portfolios):
+    from data import portfolio_nav as pn
+    spy, uni = led['bench']['spy'], led['bench']['universe']
+    lines = [f"{'Portfolio':<26} {'Since':<11} {'Total':>7} {'vs SPY':>7} {'vs EW':>7} "
+             f"{'1M':>6} {'3M':>6}  Notes"]
+    for p in portfolios:
+        s = led['portfolios'].get(p['id']) or []
+        if not s:
+            lines.append(f"{p['name'][:26]:<26} (no history yet)")
+            continue
+        start = s[0]['d']
+        tot = pn.window_return(s, None)
+        rs, ru = pn.rebased(spy, start), pn.rebased(uni, start)
+        last = s[-1]['d']
+        vs_spy = (tot - (rs[last] - 1)) if tot is not None and last in rs else None
+        vs_ew = (tot - (ru[last] - 1)) if tot is not None and last in ru else None
+        notes = []
+        bf = sum(1 for e in s if e.get('bf'))
+        if bf:
+            notes.append(f"{bf} backfilled day(s)")
+        low = sum(1 for e in s if e.get('cov') is not None and e['cov'] < pn.LOW_COVERAGE)
+        if low:
+            notes.append(f"{low} low-coverage day(s)")
+        if len({e.get('h') for e in s}) > 1:
+            notes.append('definition changed')
+        lines.append(f"{p['name'][:26]:<26} {start:<11} {_fmt_pct(tot):>7} {_fmt_pct(vs_spy):>7} "
+                     f"{_fmt_pct(vs_ew):>7} {_fmt_pct(pn.window_return(s, 30)):>6} "
+                     f"{_fmt_pct(pn.window_return(s, 91)):>6}  {', '.join(notes)}")
+    return '\n'.join(lines)
+
+
+def cmd_nav(doc, a):
+    from data import portfolio_nav as pn
+    path = pn.ledger_path(a.results_dir)
+    led = pn.load_ledger(path)
+    pfs = doc['portfolios']
+    if a.id:
+        pfs = [_find(doc, i) for i in a.id]
+    if a.rebuild:
+        snaps = load_snapshots(a.results_dir, pg.rule_columns(pfs), since=a.since)
+        print(f"replaying {len(pfs)} portfolio(s) over {len(snaps)} snapshot(s)"
+              + (f" ({snaps[0][0]} .. {snaps[-1][0]})" if snaps else ''))
+        rebuilt = pn.rebuild(pfs, snaps, a.prices_dir)
+        pn.merge_rebuild(led, rebuilt, ids={p['id'] for p in pfs})
+        pn.save_ledger(path, led)
+        print(f"wrote {path}")
+    print(_nav_table(led, pfs))
+
+
 def cmd_import(doc, a):
     """Bring in a report export or share link.
 
@@ -369,6 +442,15 @@ def build_parser():
     sp.add_argument('--date', help='snapshot date (default: latest)')
     sp.add_argument('--out', help='also write the report here ({date} is substituted)')
 
+    sp = sub.add_parser('nav', help='NAV history per portfolio; --rebuild backfills it')
+    sp.add_argument('--id', action='append', help='portfolio id (repeat; default: all)')
+    sp.add_argument('--rebuild', action='store_true',
+                    help='replay the current definitions over archived snapshots '
+                         '(marked backfilled) in front of the live history')
+    sp.add_argument('--since', help='first snapshot date for --rebuild')
+    sp.add_argument('--results-dir', default='output')
+    sp.add_argument('--prices-dir', default='output/prices')
+
     sp = sub.add_parser('import', help="merge a report export or share link")
     sp.add_argument('source', help='exported JSON file, JSON text, or a #pf= share link')
     sp.add_argument('--overwrite', action='store_true',
@@ -383,7 +465,7 @@ def build_parser():
 
 COMMANDS = {'list': cmd_list, 'create': cmd_create, 'set-rule': cmd_set_rule,
             'edit': cmd_edit, 'delete': cmd_delete, 'add': cmd_add,
-            'remove': cmd_remove, 'show': cmd_show, 'alerts': cmd_alerts,
+            'remove': cmd_remove, 'show': cmd_show, 'alerts': cmd_alerts, 'nav': cmd_nav,
             'import': cmd_import}
 
 

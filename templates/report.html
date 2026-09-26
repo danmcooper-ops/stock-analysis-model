@@ -2336,6 +2336,7 @@ function setTheme(t){
   if(t==='dark'){document.documentElement.setAttribute('data-theme','dark');if(k)k.innerHTML='&#9790;';}
   else{document.documentElement.removeAttribute('data-theme');if(k)k.innerHTML='&#9728;';}
   try{localStorage.setItem(_THEME_KEY,t);}catch(e){}
+  if(typeof _pfOnTheme==='function')_pfOnTheme();
 }
 function toggleTheme(){var cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';setTheme(cur==='dark'?'light':'dark');}
 (function(){var t='light';try{if(localStorage.getItem(_THEME_KEY)==='dark')t='dark';}catch(e){}var k=document.getElementById('tt-knob');if(k)k.innerHTML=(t==='dark'?'&#9790;':'&#9728;');})();
@@ -2833,7 +2834,13 @@ _updateRevCount();
    step (tests/fixtures/portfolio_rule_cases.json pins both). */
 var PF_PUB=(function(){var p={{ portfolios_json|default('null') }};return(p&&Array.isArray(p.portfolios))?p:{rev:null,portfolios:[]};})();
 var _PF_KEY='stock_portfolios_v1';
-var _PF_PALETTE=['#4f7cff','#e8833a','#2fa36b','#c9469b','#8a63d2','#d4a72c','#1fa2b8','#d9534f','#6c8a3a','#9b6b43'];
+/* The dataviz reference categorical palette, validated for CVD and
+   normal-vision separation in both themes. Portfolios store the light step;
+   dark mode draws the same hue's dark step (_pfCol). */
+var _PF_PALETTE=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948'];
+var _PF_DARK={'#2a78d6':'#3987e5','#eb6834':'#d95926','#1baf7a':'#199e70','#eda100':'#c98500','#e87ba4':'#d55181','#008300':'#008300','#4a3aa7':'#9085e9','#e34948':'#e66767'};
+function _pfCol(c){c=c||'#888888';return document.documentElement.getAttribute('data-theme')==='dark'&&_PF_DARK[c]?_PF_DARK[c]:c;}
+function _pfOnTheme(){_pfRenderFilter();_pfSyncDet();if(curView==='pf')renderPfView();else if(typeof applyFilters==='function')applyFilters();}
 var _PF_FIELDS=['id','name','color','description','created','tickers','exclude','rule'];
 var _pfLocal=(function(){try{var v=JSON.parse(localStorage.getItem(_PF_KEY));return(v&&Array.isArray(v.portfolios))?v:null;}catch(e){return null;}})();
 var _pfMem={},_pfById={},_pfTk={},_pfRow={},_pfSel=[],_pfEditingId=null;
@@ -2940,7 +2947,7 @@ function _pfDots(tk){
   var m=_pfMem[tk];if(!m||!m.length)return'';
   var names=m.map(function(id){return _pfById[id]?_pfById[id].name:id;}).join(', ');
   var h='<span class="pf-dots" title="'+_pfEsc(names)+'">';
-  m.slice(0,3).forEach(function(id){var p=_pfById[id];h+='<span class="pf-dot" style="background:'+_pfEsc(p&&p.color||'#888')+'"></span>';});
+  m.slice(0,3).forEach(function(id){var p=_pfById[id];h+='<span class="pf-dot" style="background:'+_pfEsc(_pfCol(p&&p.color))+'"></span>';});
   if(m.length>3)h+='<span class="pf-more">+'+(m.length-3)+'</span>';
   return h+'</span>';
 }
@@ -2955,7 +2962,7 @@ function _pfRenderFilter(){
     defs.forEach(function(p){
       var n=_pfMembers(p.id).length;
       h+='<label><input type="checkbox" data-pf="'+_pfEsc(p.id)+'"'+(_pfSel.indexOf(p.id)>=0?' checked':'')
-        +' onchange="pfToggleSel(\''+_pfJsArg(p.id)+'\')"><span class="pf-dot" style="background:'+_pfEsc(p.color)+'"></span>'
+        +' onchange="pfToggleSel(\''+_pfJsArg(p.id)+'\')"><span class="pf-dot" style="background:'+_pfEsc(_pfCol(p.color))+'"></span>'
         +_pfEsc(p.name)+' <span class="pf-n">'+n+'</span></label>';
     });
     el.innerHTML=h;
@@ -2996,7 +3003,7 @@ function _pfRenderPop(){
     var on=_pfIsMember(p.id,tk);
     var viaRule=on&&p.rule&&(p.tickers||[]).indexOf(tk)<0;
     h+='<label class="pf-pop-row"><input type="checkbox"'+(on?' checked':'')+' onchange="pfDetToggle(\''+_pfJsArg(p.id)+'\',this.checked)">'
-      +'<span class="pf-dot" style="background:'+_pfEsc(p.color)+'"></span><span class="pf-pop-name">'+_pfEsc(p.name)+'</span>'
+      +'<span class="pf-dot" style="background:'+_pfEsc(_pfCol(p.color))+'"></span><span class="pf-pop-name">'+_pfEsc(p.name)+'</span>'
       +(viaRule?'<span class="pf-tag" title="Member because it matches the rule; unchecking excludes it">rule</span>':'')+'</label>';
   });
   if(!_pfDefs().length)h+='<div class="pf-empty">No portfolios yet.</div>';
@@ -3339,7 +3346,7 @@ function _pfKpis(st){
 function _pfAlertRow(a,showPf){
   var t=_pfJsArg(a.ticker);
   var pfs='';
-  if(showPf){(_pfMem[a.ticker]||(a.portfolio?[a.portfolio]:[])).forEach(function(id){var p=_pfById[id];if(p)pfs+='<span class="pf-dot" title="'+_pfEsc(p.name)+'" style="background:'+_pfEsc(p.color)+'"></span>';});}
+  if(showPf){(_pfMem[a.ticker]||(a.portfolio?[a.portfolio]:[])).forEach(function(id){var p=_pfById[id];if(p)pfs+='<span class="pf-dot" title="'+_pfEsc(p.name)+'" style="background:'+_pfEsc(_pfCol(p.color))+'"></span>';});}
   return'<div class="pfv-alert"><span class="pfv-sev pfv-sev-'+_pfEsc(String(a.severity).toLowerCase())+'">'+_pfEsc(a.severity)+'</span>'
     +'<span class="tk-link" onclick="openDet(\''+t+'\')">'+_pfEsc(a.ticker)+'</span>'
     +'<span class="pfv-alert-msg">'+_pfEsc(String(a.message||'').indexOf(a.ticker+' ')===0?a.message.slice(a.ticker.length+1):a.message)+'</span>'+(pfs?'<span class="pfv-alert-pf">'+pfs+'</span>':'')+'</div>';
@@ -3354,7 +3361,13 @@ function renderPfView(){
   var el=document.getElementById('pf-view');if(!el)return;
   if(curPfSub!=='overview'&&!_pfById[curPfSub])curPfSub='overview';
   el.innerHTML=curPfSub==='overview'?_pfOverviewHtml():_pfDetailHtml(curPfSub);
+  if(curPfSub!=='overview')_pfDrawChart();
 }
+var _pfResizeT=null;
+window.addEventListener('resize',function(){
+  if(curView!=='pf'||curPfSub==='overview')return;
+  clearTimeout(_pfResizeT);_pfResizeT=setTimeout(_pfDrawChart,150);
+});
 function _pfOverviewHtml(){
   var defs=_pfDefs();
   var h='<div class="pfv"><div class="pfv-head"><h2>Portfolios</h2>'
@@ -3372,12 +3385,13 @@ function _pfOverviewHtml(){
     var joined=al.filter(function(a){return a.alert_type==='joined';}).length,
         left=al.filter(function(a){return a.alert_type==='left'||a.alert_type==='dropped_out';}).length;
     var kind=p.rule?((p.tickers||[]).length?'Rule + '+p.tickers.length+' picked':'Rule'):'Hand-picked';
-    h+='<div class="pfv-card" style="--pf:'+_pfEsc(p.color)+'" role="button" tabindex="0" onclick="navGo(\'pf\',\''+id+'\')" onkeydown="if(event.key===\'Enter\')navGo(\'pf\',\''+id+'\')">'
+    h+='<div class="pfv-card" style="--pf:'+_pfEsc(_pfCol(p.color))+'" role="button" tabindex="0" onclick="navGo(\'pf\',\''+id+'\')" onkeydown="if(event.key===\'Enter\')navGo(\'pf\',\''+id+'\')">'
       +'<div class="pfv-card-h"><span class="pfv-name">'+_pfEsc(p.name)+'</span>'
       +(al.length?'<span class="pfv-badge'+(hi?' hot':'')+'" title="'+al.length+' alert(s) today">'+al.length+'</span>':'')+'</div>'
       +'<div class="pfv-meta">'+st.n+' stock'+(st.n===1?'':'s')+' · '+_pfEsc(kind)+'</div>'
       +(p.rule?'<div class="pfv-rule">'+_pfEsc(_pfRuleSummary(p.rule))+'</div>':'')
       +_pfMixBar(st)+_pfKpis(st)
+      +'<div class="pfv-perf">'+_pfSpark(p.id,p.color)+_pfPerfLine(p.id)+'</div>'
       +'<div class="pfv-foot">'+(PF_PUB.prev_date?'Today: <span class="pos">▲'+st.up+'</span> <span class="neg">▼'+st.down+'</span>'
         +(joined?' · +'+joined+' joined':'')+(left?' · −'+left+' left':''):'No prior run to compare')+'</div></div>';
   });
@@ -3395,7 +3409,7 @@ function _pfDetailHtml(id){
   var picked={};(p.tickers||[]).forEach(function(t){picked[t]=1;});
   var miss=(p.tickers||[]).filter(function(t){return !_pfTk[t];});
   var h='<div class="pfv"><button class="pf-link pfv-back" onclick="navGo(\'pf\',\'overview\')">← All portfolios</button>'
-    +'<div class="pfv-head pfv-detail-head" style="--pf:'+_pfEsc(p.color)+'"><span class="pfv-swatch"></span><h2>'+_pfEsc(p.name)+'</h2>'
+    +'<div class="pfv-head pfv-detail-head" style="--pf:'+_pfEsc(_pfCol(p.color))+'"><span class="pfv-swatch"></span><h2>'+_pfEsc(p.name)+'</h2>'
     +'<span class="pf-spacer"></span>'
     +'<button class="pf-btn pf-primary" onclick="pfShowOnly(\''+jid+'\')">Open in table</button>'
     +(p.rule?'<button class="pf-btn" onclick="pfEditRule(\''+jid+'\')">Edit rule</button>':'')
@@ -3414,6 +3428,7 @@ function _pfDetailHtml(id){
     +'<div class="pfv-panel"><div class="pfv-kpi-l">Sectors (equal weight)'+(st.concentrated?' — <span class="warn">concentrated</span>':'')+'</div>'
     +st.sectors.slice(0,8).map(function(s){return'<div class="pfv-sec"><span class="pfv-sec-l">'+_pfEsc(s.s)+'</span><span class="pfv-sec-bar"><span style="width:'+(100*s.w)+'%"></span></span><span class="pfv-sec-v">'+s.c+'</span></div>';}).join('')
     +(st.sectors.length>8?'<div class="pf-muted">+'+(st.sectors.length-8)+' more</div>':'')+'</div></div>';
+  h+='<h3 class="pfv-h3">Performance</h3><div class="pfv-panel pfc-panel">'+_pfChartHtml(id)+'</div>';
   h+='<h3 class="pfv-h3">Alerts'+(al.length?' <span class="pfv-count">'+al.length+'</span>':'')+'</h3>'
     +(al.length?'<div class="pfv-alerts">'+al.map(function(a){return _pfAlertRow(a,false);}).join('')+'</div>'
       :'<div class="pf-empty">'+(PF_PUB.prev_date?'Nothing changed for these stocks since '+_pfEsc(PF_PUB.prev_date)+'.':'No prior run to compare against.')+'</div>');
@@ -3432,6 +3447,159 @@ function _pfDetailHtml(id){
   });
   if(!rows.length)h+='<tr><td colspan="9" class="pf-empty">No members in today’s universe.</td></tr>';
   return h+'</tbody></table></div></div>';
+}
+/* --- Performance (PR 3): the NAV ledger's series, shipped as PF_PUB.nav.
+   Every line is rebased to 0% at the portfolio's first point, so one axis
+   carries all three (portfolio, SPY, equal-weighted universe). Flags per
+   point: 1 backfilled (hypothetical replay), 2 definition changed,
+   4 under 80% of members priced. --- */
+function _pfNavRaw(id){return(PF_PUB.nav&&PF_PUB.nav.pf&&PF_PUB.nav.pf[id])||null;}
+function _pfPerf(id){
+  var s=_pfNavRaw(id);if(!s||s.length<2)return null;
+  function mapOf(a){var m={};(a||[]).forEach(function(p){m[p[0]]=p[1];});return m;}
+  var spy=mapOf(PF_PUB.nav.spy),ew=mapOf(PF_PUB.nav.universe);
+  var d0=s[0][0],b={pf:s[0][1],spy:spy[d0],ew:ew[d0]};
+  var out={dates:[],pf:[],spy:[],ew:[],bfEnd:-1,defchg:[],lowcov:0,empty:0};
+  s.forEach(function(p,i){
+    out.dates.push(p[0]);
+    out.pf.push(p[1]/b.pf-1);
+    out.spy.push(b.spy&&spy[p[0]]!=null?spy[p[0]]/b.spy-1:null);
+    out.ew.push(b.ew&&ew[p[0]]!=null?ew[p[0]]/b.ew-1:null);
+    if(p[2]&1)out.bfEnd=i;
+    if(p[2]&2)out.defchg.push(i);
+    if(p[2]&4)out.lowcov++;
+    if(p[2]&8)out.empty++;
+  });
+  return out;
+}
+/* Return over the trailing window (calendar days; 'ytd'; null = all) of an
+   index series expressed as cumulative fractions. */
+function _pfWin(perf,key,days){
+  var v=perf[key],ds=perf.dates,n=ds.length-1;
+  if(v[n]==null)return null;
+  var i0=0;
+  if(days!=null){
+    var end=new Date(ds[n]+'T00:00:00Z'),start;
+    if(days==='ytd')start=ds[n].slice(0,4)+'-01-01';
+    else{start=new Date(end.getTime()-days*864e5).toISOString().slice(0,10);}
+    i0=-1;for(var i=0;i<=n;i++){if(ds[i]<=start)i0=i;}
+    if(i0<0)return null;
+  }
+  if(v[i0]==null)return null;
+  return(1+v[n])/(1+v[i0])-1;
+}
+function _pfMaxDD(perf,key){
+  var peak=-Infinity,dd=0;
+  perf[key].forEach(function(v){if(v==null)return;var x=1+v;if(x>peak)peak=x;dd=Math.min(dd,x/peak-1);});
+  return dd;
+}
+function _pfFmtRet(v){if(v==null)return'—';var s=(v*100).toFixed(1)+'%';return v>0?'+'+s:s;}
+function _pfPath(xs,ys){var d='',pen=false;for(var i=0;i<xs.length;i++){if(ys[i]==null){pen=false;continue;}d+=(pen?'L':'M')+xs[i].toFixed(1)+' '+ys[i].toFixed(1);pen=true;}return d;}
+function _pfSpark(id,color){
+  var pf=_pfPerf(id);if(!pf)return'';
+  var W=120,H=30,all=pf.pf.concat(pf.spy).filter(function(v){return v!=null;});
+  var lo=Math.min.apply(null,all),hi=Math.max.apply(null,all);if(hi===lo){hi+=0.01;lo-=0.01;}
+  var n=pf.dates.length;
+  var xs=pf.dates.map(function(_,i){return i/(n-1)*W;});
+  function ys(a){return a.map(function(v){return v==null?null:H-2-(v-lo)/(hi-lo)*(H-4);});}
+  var bf=pf.bfEnd>=0?'<rect x="0" y="0" width="'+xs[pf.bfEnd].toFixed(1)+'" height="'+H+'" class="pfc-bf"/>':'';
+  return'<svg class="pfv-spark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true">'+bf
+    +'<path d="'+_pfPath(xs,ys(pf.spy))+'" class="pfc-spy"/>'
+    +'<path d="'+_pfPath(xs,ys(pf.pf))+'" class="pfc-pf" style="stroke:'+_pfEsc(_pfCol(color))+'"/></svg>';
+}
+function _pfPerfLine(id){
+  var pf=_pfPerf(id);
+  if(!pf)return'<div class="pfv-perf-line pf-muted">Performance starts with the next run after this portfolio is published.</div>';
+  var r=_pfWin(pf,'pf',null),s=_pfWin(pf,'spy',null);
+  return'<div class="pfv-perf-line">Since '+_pfEsc(pf.dates[0])+(pf.bfEnd>=0?'<span class="pfv-bf-tag" title="Includes a backfilled (hypothetical) replay of today’s definition">*</span>':'')
+    +': <b class="'+(r>0?'pos':r<0?'neg':'')+'">'+_pfFmtRet(r)+'</b> <span class="pf-muted">vs SPY '+_pfFmtRet(s)+'</span></div>';
+}
+var _PF_SERIES=[{k:'pf',l:null},{k:'spy',l:'S&P 500 (SPY)',cls:'pfc-spy'},{k:'ew',l:'Equal-weight universe',cls:'pfc-ew'}];
+function _pfChartHtml(id){
+  var p=_pfById[id],pf=_pfPerf(id);
+  if(!pf){
+    return'<div class="pf-empty">No performance history yet. It starts with the first run after this portfolio is published'
+      +(p.rule?', or backfill it now with <code>scripts/portfolios.py nav --rebuild --id '+_pfEsc(id)+'</code>':'')+'.</div>';
+  }
+  var notes=[];
+  if(pf.bfEnd>=0)notes.push('Shaded: backfilled — today’s definition replayed over past runs (hypothetical, not what was tracked then).');
+  if(pf.defchg.length)notes.push('Dotted verticals: the definition changed.');
+  if(pf.empty)notes.push(pf.empty+' day'+(pf.empty===1?'':'s')+' held no stocks (nothing matched the rule), counted as cash.');
+  if(pf.lowcov)notes.push(pf.lowcov+' day'+(pf.lowcov===1?'':'s')+' priced under 80% of members.');
+  if(!_pfPubUnchanged(id))notes.push('This history follows the published definition; your local edits apply from the next run after you publish them.');
+  var legend='<div class="pfc-legend">'
+    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-pf" style="stroke:'+_pfEsc(_pfCol(p.color))+'"/></svg>'+_pfEsc(p.name)+'</span>'
+    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-spy"/></svg>S&amp;P 500 (SPY)</span>'
+    +'<span><svg width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" class="pfc-ew"/></svg>Equal-weight universe</span></div>';
+  function row(label,key){
+    return'<tr><td>'+label+'</td>'+[30,91,'ytd',null].map(function(w){var v=_pfWin(pf,key,w);return'<td class="r '+(v>0?'pos':v<0?'neg':'')+'">'+_pfFmtRet(v)+'</td>';}).join('')
+      +'<td class="r">'+_pfFmtRet(_pfMaxDD(pf,key))+'</td></tr>';
+  }
+  return legend+'<div class="pfc-wrap" id="pfc-wrap" data-id="'+_pfEsc(id)+'"></div>'
+    +(notes.length?'<div class="pfc-notes">'+notes.map(_pfEsc).join('<br>')+'</div>':'')
+    +'<div class="pfv-tbl-wrap pfc-tbl"><table class="pfv-tbl"><thead><tr><th></th><th class="r">1M</th><th class="r">3M</th><th class="r">YTD</th><th class="r">Since '+_pfEsc(pf.dates[0])+'</th><th class="r">Max drawdown</th></tr></thead><tbody>'
+    +row(_pfEsc(p.name),'pf')+row('S&amp;P 500 (SPY)','spy')+row('Equal-weight universe','ew')+'</tbody></table></div>'
+    +'<div class="pfc-notes">Equal-weighted and rebalanced at every run; members are recorded as they stood each day. Returns are price-only.</div>';
+}
+/* Drawn after the page's HTML is in place, at the container's real width. */
+function _pfDrawChart(){
+  var wrap=document.getElementById('pfc-wrap');if(!wrap)return;
+  var id=wrap.getAttribute('data-id'),p=_pfById[id],pf=_pfPerf(id);if(!p||!pf)return;
+  var W=Math.max(280,wrap.clientWidth||600),H=W<500?200:260,L=46,R=12,T=10,B=24;
+  var t=pf.dates.map(function(d){return Date.parse(d+'T00:00:00Z');});
+  var t0=t[0],t1=t[t.length-1]||t0+1;
+  var vals=pf.pf.concat(pf.spy,pf.ew).filter(function(v){return v!=null;});
+  var lo=Math.min(0,Math.min.apply(null,vals)),hi=Math.max(0,Math.max.apply(null,vals));
+  var span=hi-lo||0.02,step=[0.01,0.02,0.05,0.1,0.2,0.25,0.5,1,2][0];
+  [0.01,0.02,0.05,0.1,0.2,0.25,0.5,1,2].some(function(s){step=s;return span/s<=5;});
+  lo=Math.floor(lo/step)*step;hi=Math.ceil(hi/step)*step;
+  function X(ms){return L+(ms-t0)/(t1-t0||1)*(W-L-R);}
+  function Y(v){return T+(hi-v)/(hi-lo)*(H-T-B);}
+  var xs=t.map(X);
+  var g='';
+  for(var v=lo;v<=hi+1e-9;v+=step){
+    var y=Y(v).toFixed(1);
+    g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'" class="'+(Math.abs(v)<1e-9?'pfc-zero':'pfc-grid')+'"/>'
+      +'<text x="'+(L-6)+'" y="'+y+'" class="pfc-ax" text-anchor="end" dominant-baseline="middle">'+(v>0?'+':'')+Math.round(v*100)+'%</text>';
+  }
+  /* Month ticks, thinned so labels never collide. */
+  var months=[],d=new Date(t0);d=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1));
+  while(d.getTime()<=t1){months.push(d.getTime());d=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1));}
+  var every=Math.max(1,Math.ceil(months.length/Math.floor((W-L-R)/60)));
+  var MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  months.forEach(function(ms,i){if(i%every)return;var x=X(ms).toFixed(1);var dd=new Date(ms);
+    g+='<text x="'+x+'" y="'+(H-6)+'" class="pfc-ax" text-anchor="middle">'+MN[dd.getUTCMonth()]+(dd.getUTCMonth()===0?' '+dd.getUTCFullYear():'')+'</text>';});
+  var bf=pf.bfEnd>=0?'<rect x="'+L+'" y="'+T+'" width="'+(xs[pf.bfEnd]-L).toFixed(1)+'" height="'+(H-T-B)+'" class="pfc-bf"/>'
+    +'<text x="'+(L+6)+'" y="'+(T+12)+'" class="pfc-ax">backfilled</text>':'';
+  var dc=pf.defchg.map(function(i){return'<line x1="'+xs[i].toFixed(1)+'" x2="'+xs[i].toFixed(1)+'" y1="'+T+'" y2="'+(H-B)+'" class="pfc-def"><title>Definition changed '+pf.dates[i]+'</title></line>';}).join('');
+  function ys(a){return a.map(function(v){return v==null?null:Y(v);});}
+  var lines='<path d="'+_pfPath(xs,ys(pf.ew))+'" class="pfc-ew"/><path d="'+_pfPath(xs,ys(pf.spy))+'" class="pfc-spy"/>'
+    +'<path d="'+_pfPath(xs,ys(pf.pf))+'" class="pfc-pf" style="stroke:'+_pfEsc(_pfCol(p.color))+'"/>';
+  wrap.innerHTML='<svg class="pfc" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+_pfEsc(p.name)+' cumulative return versus SPY and the equal-weight universe">'
+    +bf+g+dc+lines
+    +'<line class="pfc-cross" id="pfc-cross" y1="'+T+'" y2="'+(H-B)+'" style="display:none"/>'
+    +'<g id="pfc-dots"></g><rect x="'+L+'" y="0" width="'+(W-L-R)+'" height="'+H+'" fill="transparent" id="pfc-hit"/></svg>'
+    +'<div class="pfc-tip" id="pfc-tip"></div>';
+  var hit=document.getElementById('pfc-hit'),cross=document.getElementById('pfc-cross'),dots=document.getElementById('pfc-dots'),tip=document.getElementById('pfc-tip');
+  function show(clientX){
+    var r=hit.getBoundingClientRect(),x=clientX-r.left+L,best=0;
+    for(var i=1;i<xs.length;i++){if(Math.abs(xs[i]-x)<Math.abs(xs[best]-x))best=i;}
+    var cx=xs[best].toFixed(1);cross.setAttribute('x1',cx);cross.setAttribute('x2',cx);cross.style.display='';
+    var dh='',th='<div class="pfc-tip-d">'+pf.dates[best]+(best<=pf.bfEnd?' <span class="pf-muted">(backfilled)</span>':'')+'</div>';
+    [['pf',p.name,_pfCol(p.color),'pfc-pf'],['spy','S&P 500 (SPY)',null,'pfc-spy'],['ew','Equal-weight universe',null,'pfc-ew']].forEach(function(s){
+      var v=pf[s[0]][best];if(v==null)return;
+      dh+='<circle cx="'+cx+'" cy="'+Y(v).toFixed(1)+'" r="4" class="pfc-dot '+s[3]+'"'+(s[2]?' style="fill:'+_pfEsc(s[2])+'"':'')+'/>';
+      th+='<div class="pfc-tip-r"><svg width="16" height="8"><line x1="1" y1="4" x2="15" y2="4" class="'+s[3]+'"'+(s[2]?' style="stroke:'+_pfEsc(s[2])+'"':'')+'/></svg><span>'+_pfEsc(s[1])+'</span><b>'+_pfFmtRet(v)+'</b></div>';
+    });
+    dots.innerHTML=dh;tip.innerHTML=th;tip.style.display='block';
+    var tw=tip.offsetWidth,left=xs[best]+12;if(left+tw>W)left=xs[best]-tw-12;
+    tip.style.left=Math.max(0,left)+'px';tip.style.top=T+'px';
+  }
+  function hide(){cross.style.display='none';dots.innerHTML='';tip.style.display='none';}
+  hit.addEventListener('mousemove',function(e){show(e.clientX);});
+  hit.addEventListener('mouseleave',hide);
+  hit.addEventListener('touchstart',function(e){if(e.touches[0])show(e.touches[0].clientX);},{passive:true});
+  hit.addEventListener('touchmove',function(e){if(e.touches[0])show(e.touches[0].clientX);},{passive:true});
 }
 (function(){
   if(_pfLocal&&_pfCanon(_pfLocal.portfolios)===_pfCanon(PF_PUB.portfolios)){
@@ -10873,6 +11041,32 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfv-kpi-v{font-size:14px;font-weight:600;overflow-wrap:anywhere;}
 .pfv .pos{color:#1a9850;}.pfv .neg{color:#de2d26;}.pfv .warn{color:#e8833a;}
 .pfv-foot{font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;margin-top:auto;}
+.pfv-perf{display:flex;align-items:center;gap:10px;}
+.pfv-spark{width:96px;height:28px;flex:0 0 auto;overflow:visible;}
+.pfv-perf-line{font-size:12.5px;color:var(--text);}
+.pfv-bf-tag{color:var(--text-muted);margin-left:1px;cursor:help;}
+.pfc-pf{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke;}
+.pfc-spy{fill:none;stroke:var(--text);opacity:.55;stroke-width:1.5;stroke-dasharray:5 3;vector-effect:non-scaling-stroke;}
+.pfc-ew{fill:none;stroke:var(--text-muted);opacity:.8;stroke-width:1.5;stroke-dasharray:1.5 2.5;stroke-linecap:round;vector-effect:non-scaling-stroke;}
+.pfc-bf{fill:var(--text-muted);opacity:.08;}
+.pfc-grid{stroke:var(--border);stroke-width:1;}
+.pfc-zero{stroke:var(--text-muted);stroke-width:1;opacity:.6;}
+.pfc-def{stroke:var(--text-muted);stroke-width:1;stroke-dasharray:2 3;}
+.pfc-ax{font-size:10.5px;fill:var(--text-muted);}
+.pfc-cross{stroke:var(--text-muted);stroke-width:1;}
+.pfc-dot{stroke:var(--surface);stroke-width:2;fill:var(--text-muted);}
+.pfc-dot.pfc-spy,.pfc-dot.pfc-ew{stroke-dasharray:none;opacity:1;fill:var(--text-muted);stroke:var(--surface);stroke-width:2;}
+.pfc-panel{gap:8px;}
+.pfc-legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--text);}
+.pfc-legend span{display:inline-flex;align-items:center;gap:6px;}
+.pfc-wrap{position:relative;width:100%;}
+.pfc{display:block;touch-action:pan-y;}
+.pfc-tip{display:none;position:absolute;pointer-events:none;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.15);padding:7px 9px;font-size:12px;white-space:nowrap;z-index:2;}
+.pfc-tip-d{font-weight:600;margin-bottom:3px;}
+.pfc-tip-r{display:flex;align-items:center;gap:6px;}
+.pfc-tip-r b{margin-left:auto;padding-left:10px;font-weight:600;}
+.pfc-notes{font-size:11.5px;color:var(--text-muted);line-height:1.5;}
+.pfc-tbl{margin-top:4px;}
 .pfv-h3{font-size:14px;font-weight:700;margin:22px 0 8px;display:flex;align-items:center;gap:8px;}
 .pfv-count{font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);}
 .pfv-alerts{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}

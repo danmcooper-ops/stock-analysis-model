@@ -129,3 +129,54 @@ def window_closes(prices_dir, start, end, tickers=None,
     return {ticker: {'start': float(s_close), 'end': float(e_close)}
             for ticker, s_close, e_close in rows
             if s_close is not None and e_close is not None}
+
+
+def asof_closes(prices_dir, dates, tickers=None, max_gap_days=DEFAULT_MAX_GAP_DAYS):
+    """The last finite, positive close on or before each date, in one scan.
+
+    As-of rather than nearest: a return "as of date D" must never peek at a
+    bar after D. Rows with a NULL/NaN/non-positive close are skipped (the
+    previous good bar stands), and a bar more than *max_gap_days* before the
+    date is no answer — a delisted ticker's last print does not carry on.
+
+    Returns ``{date_str: {ticker: (bar_date_str, close)}}`` holding only the
+    pairs that resolved; None when the query cannot run.
+    """
+    paths = parquet_paths(prices_dir, tickers)
+    if not paths or not dates:
+        return None if not paths else {}
+    con = _connect()
+    if con is None:
+        return None
+    ds = sorted({str(d)[:10] for d in dates})
+    sql = """
+        WITH bars AS (
+            SELECT regexp_extract(filename, '([^/\\\\]+)\\.parquet$', 1) AS ticker,
+                   CAST("Date" AS DATE) AS d,
+                   CAST("Close" AS DOUBLE) AS close
+            FROM read_parquet($paths, filename = true, union_by_name = true)
+            WHERE "Close" IS NOT NULL
+        ),
+        good AS (SELECT * FROM bars WHERE isfinite(close) AND close > 0),
+        tk AS (SELECT DISTINCT ticker FROM good),
+        targets AS (
+            SELECT tk.ticker, CAST(u.t AS DATE) AS target
+            FROM tk, (SELECT unnest($dates) AS t) u
+        )
+        SELECT targets.ticker, targets.target, good.d, good.close
+        FROM targets ASOF JOIN good
+          ON targets.ticker = good.ticker AND targets.target >= good.d
+        WHERE date_diff('day', good.d, targets.target) <= $gap
+    """
+    try:
+        rows = con.execute(sql, {'paths': paths, 'dates': ds,
+                                 'gap': int(max_gap_days)}).fetchall()
+    except Exception as e:
+        logger.warning("price store as-of query failed (%s)", e)
+        return None
+    finally:
+        con.close()
+    out = {d: {} for d in ds}
+    for ticker, target, bar_d, close in rows:
+        out[target.isoformat()][ticker] = (bar_d.isoformat(), float(close))
+    return out
