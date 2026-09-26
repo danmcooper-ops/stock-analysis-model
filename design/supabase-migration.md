@@ -187,6 +187,11 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
   - Measure bytes per row on 10 archived snapshots.
   - Confirm the CDN caching behaviour.
   - *Passes when:* the connection works, and the projected size at **8k tickers** is ≤ 8 GB/yr **[R13]**.
+  - **Ran 2026-09-26; see `design/p0/FINDINGS.md`.**
+    - **Connection:** raw TCP from the cloud is blocked by the proxy. Publishing and cloud reads move to HTTPS (Data API RPCs).
+    - **Size:** 2.8 GiB/yr at today's ~2.5k rows/day and 8.9 GiB/yr at 8k, once every scalar key is typed.
+    - **CDN:** Pages caches, but its bandwidth cap is the real traffic limit.
+    - Amendments A1–A4 in that file override this plan's direct-connection write path, its ~120-column registry, the pass line above, and hosting public payloads on Pages.
 - **P1: Migrations, registry, codec and roles.**
   - *Passes when:* CI applies the migrations cleanly, `squawk` reports nothing, and the codec property tests and registry coverage tests pass.
 - **P2: Write path.**
