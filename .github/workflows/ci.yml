@@ -27,7 +27,7 @@ jobs:
       - name: Test (offline suite, coverage-gated)
         # Ratchet convention: --cov-fail-under is a floor, never a target.
         # When coverage rises, bump the floor to match; never lower it.
-        run: pytest -m "not network and not slow" -q --cov --cov-report=term --cov-fail-under=59
+        run: pytest -m "not network and not slow" -q --cov --cov-report=term --cov-fail-under=62
 
   # Supabase schema (design/supabase-migration.md). Applies supabase/migrations
   # to the Supabase Postgres image and runs the `pg` tests against it.
@@ -58,4 +58,4 @@ jobs:
       - name: Schema, publish and reader tests
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
-        run: pytest -m pg -q tests/test_db_schema.py tests/test_db_publish_pg.py tests/test_db_reader_pg.py
+        run: pytest -m pg -q tests/test_db_schema.py tests/test_db_publish_pg.py tests/test_db_reader_pg.py tests/test_db_objects_pg.py

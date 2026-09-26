@@ -60,7 +60,10 @@ logger = logging.getLogger(__name__)
 
 # v4: text no longer widens a numeric column (the v3 store had pe and
 # rpe_cagr stuck at VARCHAR); a rebuild re-derives every column type.
-SCHEMA_VERSION = 4
+# v5: the edgar_history projection gained the seven series the debt-free
+# Int Coverage rule reads (see DEFAULT_PROJECTIONS); v4 rows re-score
+# differently from their JSON for snapshots that need that rule.
+SCHEMA_VERSION = 5
 DB_FILENAME = 'snapshots.duckdb'
 DEFAULT_RESULTS_DIR = 'output'
 
@@ -99,14 +102,22 @@ DEFAULT_EXCLUDE_KEYS = (
 # Nested blocks stored as a slim projection rather than whole.
 # ``edgar_history`` carries 54 fundamentals series per ticker and is what
 # makes a snapshot ~66 MB; storing it intact would grow the store faster
-# than the JSON files it indexes.  But the re-scoring path reads two things
-# out of it — ``years_available`` (the thin-history rating cap in
-# scripts/scoring._rating_cap_for_row) and ``operating_income_history`` (the
-# pool-share CAGR signal) — so keeping exactly those makes a store row a
-# drop-in for re-scoring while costing a few values per ticker.  The
-# snapshot JSON remains the source for the other 52 series.
+# than the JSON files it indexes.  The re-scoring path reads a few of them —
+# ``years_available`` (the thin-history rating cap in
+# scripts/scoring._rating_cap_for_row), ``operating_income_history`` (the
+# pool-share CAGR signal) and, since 2026-09-16, the debt, assets and
+# annual-flow series the debt-free Int Coverage rule dates its evidence with
+# (scripts/scoring._is_debt_free) — so keeping exactly those makes a store row
+# a drop-in for re-scoring while costing a few series per ticker. The
+# snapshot JSON remains the source for the rest. The Parquet exports
+# (data/db/parquet.py) use the same projection, and
+# tests/test_snapshot_store.py records what scoring actually reads, so a new
+# read cannot silently make these rows re-score differently again.
 DEFAULT_PROJECTIONS = {
-    'edgar_history': ('years_available', 'operating_income_history'),
+    'edgar_history': ('years_available', 'operating_income_history',
+                      'total_debt_history', 'debt_current_history', 'debt_noncurrent_history',
+                      'total_assets_history', 'revenue_history', 'earnings_history',
+                      'operating_cf_history'),
 }
 
 
