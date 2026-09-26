@@ -58,6 +58,10 @@ class TiingoClient:
         self._throttle = Throttle(request_delay)
         self._news_cache = {}    # ticker -> list[dict]
         self._price_cache = {}   # ticker -> pd.Series
+        # HTTP status of the last request (None: no response at all), so a
+        # caller can tell "Tiingo has no such ticker" (404) from a failure.
+        self.last_status = None
+        self.rate_limited = False
 
     @property
     def available(self):
@@ -68,6 +72,7 @@ class TiingoClient:
         if not self._api_key:
             return None
         self._throttle()
+        self.last_status = None
         query = dict(params or {})
         query['token'] = self._api_key
         url = f'{self._BASE_URL}{path}?{urllib.parse.urlencode(query)}'
@@ -77,11 +82,17 @@ class TiingoClient:
                 'User-Agent': 'StockAnalyzer/1.0',
             })
             with urllib.request.urlopen(req, timeout=timeout) as resp:
+                self.last_status = resp.status
                 return json.loads(resp.read())
         except urllib.error.HTTPError as e:
+            self.last_status = e.code
             if e.code == 401:
                 logger.warning('Tiingo: invalid API key (401) — disabling.')
                 self._api_key = ''
+            elif e.code == 429:
+                if not self.rate_limited:
+                    logger.warning('Tiingo: rate limited (429) on %s', path)
+                self.rate_limited = True
             else:
                 logger.debug(f'tiingo: HTTP {e.code} for {path}')
             return None
@@ -199,6 +210,41 @@ class TiingoClient:
     # ------------------------------------------------------------------
     # EOD price history
     # ------------------------------------------------------------------
+
+    def fetch_closes(self, ticker, start):
+        """Adjusted daily closes from *start* (a date or 'YYYY-MM-DD') to now.
+
+        Unlike :meth:`fetch_history` there is no minimum length and no cache:
+        the backtest's price backfill wants whatever exists, including the
+        few final bars of a symbol delisted soon after *start*, which Tiingo
+        keeps and Yahoo drops.
+
+        Returns:
+            pd.Series (date index, may be empty when Tiingo has the ticker but
+            no bars in the window, or answered 404 for it), or None when the
+            request failed (no key, network error, rate limit) — retry later.
+        """
+        if not self._api_key:
+            return None
+        data = self._get(f'/tiingo/daily/{ticker.lower()}/prices',
+                         params={'startDate': str(start)[:10],
+                                 'resampleFreq': 'daily'},
+                         timeout=20)
+        if data is None:
+            return pd.Series(dtype=float) if self.last_status == 404 else None
+        if not isinstance(data, list):
+            logger.warning('tiingo: unexpected price payload for %s', ticker)
+            return None
+        if not data:
+            return pd.Series(dtype=float)
+        try:
+            df = pd.DataFrame(data)
+            idx = pd.to_datetime(df['date']).dt.tz_localize(None).dt.normalize()
+            col = 'adjClose' if 'adjClose' in df.columns else 'close'
+            return pd.Series(df[col].astype(float).values, index=idx).sort_index().dropna()
+        except Exception as e:
+            logger.warning('tiingo: price window parse failed for %s: %s', ticker, e)
+            return None
 
     def fetch_history(self, ticker, period='5y'):
         """Fetch adjusted EOD close prices from Tiingo.

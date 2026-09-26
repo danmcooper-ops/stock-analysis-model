@@ -18,6 +18,15 @@ cold. These subcommands keep that logic out of shell heredocs:
   check-prices   Fail (exit 1) when the downloaded prices cannot support a
                  measurement: the benchmark's parquet must be current, and
                  at least --min-share of the tickers must have a parquet.
+  backfill-prices
+                 Fill what Yahoo lacks from Tiingo: tickers with no price
+                 file, a history that starts after their first snapshot
+                 (Yahoo keeps only a stub of a delisted symbol), or one that
+                 ends early. Writes the parquet from Tiingo's series, caches
+                 every fetched series under price_backfill/ (persisted on
+                 data/snapshots, so each is fetched once), and writes
+                 <prices>/_backfill.json: the confirmed delistings that
+                 backtest.py measures to their last close.
   compare        Week-over-week regression check of two backtest summaries.
                  Exit 1 with REGRESSION lines when the corpus shrank, a new
                  snapshot was skipped, a (date, horizon) went unmeasured or
@@ -27,6 +36,7 @@ Usage:
     python scripts/backtest_cloud.py stage --repo .cloud-backtest/snapshots-data --dest output
     python scripts/backtest_cloud.py tickers --results-dir output
     python scripts/backtest_cloud.py check-prices --tickers-file tickers.txt --prices-dir output/prices
+    python scripts/backtest_cloud.py backfill-prices --results-dir output --prices-dir output/prices
     python scripts/backtest_cloud.py compare output/backtest_summary_2026-09-27.json
 """
 
@@ -48,6 +58,8 @@ from scripts.stage_snapshot_blobs import _cat_blobs, _git, stage_blobs  # noqa: 
 SNAPSHOT_RE = re.compile(r'results_(\d{4}-\d{2}-\d{2})\.json(\.gz)?')
 SUMMARY_RE = re.compile(r'backtest_summary_(\d{4}-\d{2}-\d{2})\.json')
 RETURNS_DIR = 'returns'
+BACKFILL_DIR = 'price_backfill'
+PERSISTED_DIRS = (RETURNS_DIR, BACKFILL_DIR)
 BENCHMARKS = ('SPY', 'QQQ', 'IWM', 'DIA')
 FETCH_BATCH = 500
 
@@ -122,18 +134,21 @@ def stage(repo, dest, since=None, newest=None, matured_days=None, remote='origin
     if not picked:
         raise OSError(f'no snapshots on the archive branch match since={since} '
                       f'newest={newest} matured_days={matured_days}')
-    returns = _tree(repo, path=RETURNS_DIR)
+    persisted = {d: _tree(repo, path=d) for d in PERSISTED_DIRS}
+    returns = persisted[RETURNS_DIR]
     summaries = sorted(nm for nm in top if SUMMARY_RE.fullmatch(nm))
     prior = summaries[-1:]
 
     wanted = {nm: top[nm] for nm in picked}
-    wanted.update(returns)
+    for tree in persisted.values():
+        wanted.update(tree)
     wanted.update({nm: top[nm] for nm in prior})
     blobs = fetch_objects(repo, wanted.values(), remote=remote)
     for name, oid in wanted.items():
         _write_atomic(os.path.join(dest, name), blobs[oid])
     log(f'[stage] {len(picked)} snapshot(s) {picked[0][8:18]} .. {picked[-1][8:18]}, '
-        f'{len(returns)} return sidecar(s), prior summary: '
+        f'{len(returns)} return sidecar(s), '
+        f'{len(persisted[BACKFILL_DIR])} backfilled price series, prior summary: '
         f'{prior[0] if prior else "none"}')
     stage_blobs(repo, dest, [os.path.join(dest, nm) for nm in picked],
                 remote=remote, log=log)
@@ -151,14 +166,15 @@ def matured_snapshots(results_dir, horizon=30, today=None):
             if date.fromisoformat(d) <= cutoff]
 
 
-def matured_tickers(results_dir, horizon=30, today=None):
-    """Every ticker of every matured snapshot, plus the benchmarks.
+def matured_ticker_dates(results_dir, horizon=30, today=None):
+    """``{ticker: [date_str, ...]}`` over every matured snapshot, oldest first.
 
-    Reads the ticker column from the snapshot store when it holds the date
-    (a few ms), and parses the file otherwise (seconds, blobs resolved).
+    Reads the ticker column from the local snapshot store when it holds the
+    date (a few ms), and parses the file otherwise (seconds, blobs resolved).
+    Never the database: the corpus is what was staged here.
     """
-    tickers = set(BENCHMARKS)
-    store = SnapshotStore.for_results_dir(results_dir)
+    dates = {}
+    store = SnapshotStore.for_results_dir(results_dir, allow_db=False)
     try:
         for d, path in matured_snapshots(results_dir, horizon, today):
             rows = None
@@ -166,18 +182,30 @@ def matured_tickers(results_dir, horizon=30, today=None):
                 rows = store.rows(d, columns=['ticker'])
             if rows is None:
                 _, rows = split_snapshot(read_snapshot(path))
-            tickers.update(r['ticker'] for r in rows
-                           if isinstance(r, dict) and r.get('ticker'))
+            for r in rows:
+                if isinstance(r, dict) and r.get('ticker'):
+                    dates.setdefault(r['ticker'], []).append(d)
     finally:
         if store is not None:
             store.close()
-    return sorted(tickers)
+    return dates
+
+
+def matured_tickers(results_dir, horizon=30, today=None):
+    """Every ticker of every matured snapshot, plus the benchmarks."""
+    return sorted(set(BENCHMARKS) | set(matured_ticker_dates(results_dir, horizon, today)))
+
+
+def _bar_span(path):
+    """``(first, last)`` bar dates of a price parquet, or None."""
+    import pandas as pd
+    idx = pd.to_datetime(pd.read_parquet(path, columns=[]).index)
+    return (idx.min().date(), idx.max().date()) if len(idx) else None
 
 
 def _last_bar(path):
-    import pandas as pd
-    idx = pd.to_datetime(pd.read_parquet(path, columns=[]).index)
-    return idx.max().date() if len(idx) else None
+    span = _bar_span(path)
+    return span[1] if span else None
 
 
 def check_prices(tickers, prices_dir, today=None, min_share=0.90,
@@ -208,6 +236,182 @@ def check_prices(tickers, prices_dir, today=None, min_share=0.90,
         line = 'PROBLEM: ' + line
     lines.append(line)
     return ok, lines
+
+
+# ---------------------------------------------------------------------------
+# backfill-prices
+# ---------------------------------------------------------------------------
+
+GAP_DAYS = 7                 # = backtest.MAX_SNAP_GAP_DAYS
+CACHE_FRESH_DAYS = 7         # a still-trading series is refetched after this
+UNKNOWN_RETRY_DAYS = 28      # a ticker Tiingo does not know is retried after this
+
+
+def price_problems(ticker_dates, prices_dir, today=None, gap=GAP_DAYS):
+    """Tickers whose price file cannot answer every matured snapshot.
+
+    Returns ``{ticker: {'first': date, 'rows': n, 'reason': ...}}`` where the
+    reason is 'missing' (no file), 'starts_late' (no bar within *gap* days of
+    the first snapshot holding it — Yahoo's stub of a delisted symbol) or
+    'ends_early' (the last bar is more than *gap* days old).
+    """
+    today = today or date.today()
+    out = {}
+    for t, ds in ticker_dates.items():
+        if t in BENCHMARKS:
+            continue
+        first = date.fromisoformat(min(ds))
+        path = os.path.join(prices_dir, f'{t}.parquet')
+        span = None
+        if os.path.exists(path):
+            try:
+                span = _bar_span(path)
+            except Exception as e:           # a corrupt file is as good as none
+                print(f'  [warn] unreadable price file {path}: {e}')
+        if span is None:
+            reason = 'missing'
+        elif span[0] > first + timedelta(days=gap):
+            reason = 'starts_late'
+        elif span[1] < today - timedelta(days=gap):
+            reason = 'ends_early'
+        else:
+            continue
+        out[t] = {'first': first, 'rows': len(ds), 'reason': reason}
+    return out
+
+
+def _cache_path(cache_dir, t):
+    return os.path.join(cache_dir, f'{t}.json')
+
+
+def _load_cached(cache_dir, t):
+    try:
+        with open(_cache_path(cache_dir, t), encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _cache_usable(entry, today, gap=GAP_DAYS):
+    """Whether a cached fetch still answers without a new request."""
+    if not entry or 'fetched' not in entry:
+        return False
+    fetched = date.fromisoformat(entry['fetched'])
+    if entry.get('status') == 'unknown':
+        return (today - fetched).days < UNKNOWN_RETRY_DAYS
+    closes = entry.get('closes') or {}
+    if closes and date.fromisoformat(max(closes)) < fetched - timedelta(days=gap):
+        return True                          # already delisted when fetched: final
+    return (today - fetched).days < CACHE_FRESH_DAYS
+
+
+def _series_from_entry(entry):
+    import pandas as pd
+    closes = (entry or {}).get('closes') or {}
+    if not closes:
+        return pd.Series(dtype=float)
+    return pd.Series({pd.Timestamp(d): float(v) for d, v in closes.items()}).sort_index()
+
+
+def backfill_prices(problems, prices_dir, cache_dir, client, since, today=None,
+                    max_calls=40, gap=GAP_DAYS, log=print):
+    """Resolve *problems* (see price_problems) from Tiingo; write the manifest.
+
+    Fetches at most *max_calls* series (most-affected tickers first; the rest
+    wait for next week, since each fetch is cached), and stops early on a rate
+    limit. A Tiingo series replaces the price file when it covers more of the
+    window than the file does. A series whose last bar is more than *gap*
+    days before *today* is a confirmed delisting. The manifest also lists the
+    tickers whose file was replaced, so a return sidecar frozen before this
+    run knows to top them up.
+    """
+    import pandas as pd
+    today = today or date.today()
+    os.makedirs(cache_dir, exist_ok=True)
+    calls = 0
+    stats = {'problems': len(problems), 'fetched': 0, 'cached': 0,
+             'unknown': 0, 'deferred': 0, 'written': 0, 'delisted': 0}
+    backfilled, deferred = [], []
+    order = sorted(problems.items(), key=lambda kv: (-kv[1]['rows'], kv[0]))
+    for t, _info in order:
+        entry = _load_cached(cache_dir, t)
+        if _cache_usable(entry, today, gap):
+            stats['cached'] += 1
+        elif calls >= max_calls or getattr(client, 'rate_limited', False):
+            deferred.append(t)
+            if not entry:
+                continue
+        else:
+            calls += 1
+            series = client.fetch_closes(t, since)
+            if series is None:               # failed: keep any older entry
+                deferred.append(t)
+                if not entry:
+                    continue
+            else:
+                stats['fetched'] += 1
+                entry = {'ticker': t, 'fetched': today.isoformat(),
+                         'status': 'ok' if len(series) else 'unknown',
+                         'source': 'tiingo',
+                         'closes': {d.date().isoformat(): round(float(v), 6)
+                                    for d, v in series.items()}}
+                _write_atomic(_cache_path(cache_dir, t),
+                              json.dumps(entry, sort_keys=True).encode())
+        series = _series_from_entry(entry)
+        if not len(series):
+            stats['unknown'] += 1
+            continue
+        path = os.path.join(prices_dir, f'{t}.parquet')
+        span = None
+        if os.path.exists(path):
+            try:
+                span = _bar_span(path)
+            except Exception:
+                span = None
+        s_first, s_last = series.index.min().date(), series.index.max().date()
+        if span is None or s_first < span[0] or s_last > span[1]:
+            df = pd.DataFrame({'Close': series.values},
+                              index=pd.DatetimeIndex(series.index, name='Date'))
+            df.to_parquet(path)
+            backfilled.append(t)
+            stats['written'] += 1
+    stats['deferred'] = len(deferred)
+
+    # The manifest is rebuilt from every cached series, not just this run's
+    # problems: a delisting found in an earlier week still has to be measured.
+    delisted = {}
+    for fn in sorted(os.listdir(cache_dir)):
+        if not fn.endswith('.json'):
+            continue
+        t = fn[:-5]
+        path = os.path.join(prices_dir, f'{t}.parquet')
+        if not os.path.exists(path):
+            continue
+        entry = _load_cached(cache_dir, t)
+        closes = (entry or {}).get('closes') or {}
+        if not closes:
+            continue
+        fetched = date.fromisoformat(entry['fetched'])
+        last = max(closes)
+        # Delisted: Tiingo's series stopped well before it was fetched, and
+        # the price file (whichever source) ends there too.
+        span = _bar_span(path)
+        if (date.fromisoformat(last) < fetched - timedelta(days=gap)
+                and span and span[1] < today - timedelta(days=gap)):
+            delisted[t] = {'last_date': span[1].isoformat(),
+                           'last_close': closes[last], 'source': 'tiingo'}
+    stats['delisted'] = len(delisted)
+    manifest = {'generated': today.isoformat(), 'delisted': delisted,
+                'backfilled': sorted(backfilled), 'deferred': sorted(deferred)}
+    _write_atomic(os.path.join(prices_dir, '_backfill.json'),
+                  json.dumps(manifest, indent=1, sort_keys=True).encode())
+    log(f'[backfill] {stats["problems"]} ticker(s) without usable prices: '
+        f'{stats["fetched"]} fetched, {stats["cached"]} from cache, '
+        f'{stats["deferred"]} deferred, {stats["unknown"]} unknown to Tiingo; '
+        f'{stats["written"]} price file(s) written, {stats["delisted"]} confirmed delisting(s)')
+    for t in sorted(delisted):
+        log(f'  delisted {t}: last close {delisted[t]["last_close"]} on {delisted[t]["last_date"]}')
+    return stats
 
 
 # ---------------------------------------------------------------------------
@@ -287,6 +491,17 @@ def main(argv=None):
     p.add_argument('--prices-dir', default='output/prices')
     p.add_argument('--min-share', type=float, default=0.90)
 
+    p = sub.add_parser('backfill-prices')
+    p.add_argument('--results-dir', default='output')
+    p.add_argument('--prices-dir', default='output/prices')
+    p.add_argument('--cache-dir', default=None,
+                   help=f'default: <results-dir>/{BACKFILL_DIR}')
+    p.add_argument('--since', default='2026-07-06',
+                   help='fetch closes from 10 days before this date')
+    p.add_argument('--horizon', type=int, default=30)
+    p.add_argument('--max-calls', type=int, default=40,
+                   help='Tiingo requests per run (the rest wait a week)')
+
     p = sub.add_parser('compare')
     p.add_argument('current', help="this week's backtest_summary_<date>.json")
     p.add_argument('--prior', default=None,
@@ -313,6 +528,20 @@ def main(argv=None):
         ok, lines = check_prices(tickers, args.prices_dir, min_share=args.min_share)
         print('\n'.join(lines))
         return 0 if ok else 1
+
+    if args.cmd == 'backfill-prices':
+        from data.tiingo_client import TiingoClient
+        client = TiingoClient()
+        if not client.available:
+            print('[backfill] TIINGO_API_KEY unset — delisted names stay unmeasured')
+            return 1
+        since = (date.fromisoformat(args.since) - timedelta(days=10)).isoformat()
+        problems = price_problems(matured_ticker_dates(args.results_dir, args.horizon),
+                                  args.prices_dir)
+        backfill_prices(problems, args.prices_dir,
+                        args.cache_dir or os.path.join(args.results_dir, BACKFILL_DIR),
+                        client, since, max_calls=args.max_calls)
+        return 1 if client.rate_limited else 0
 
     # compare
     with open(args.current, encoding='utf-8') as f:
