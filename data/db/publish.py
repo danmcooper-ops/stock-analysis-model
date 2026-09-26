@@ -185,13 +185,18 @@ class RestTransport:
 class DirectTransport:
     """The same RPCs over a psycopg connection, one transaction per call."""
 
+    # RPC parameters declared text[]: psycopg adapts a list to an array. Every
+    # other list or dict goes as jsonb.
+    ARRAY_PARAMS = frozenset({'p_columns'})
+
     def __init__(self, con):
         self.con = con
 
     def call(self, fn, args, idempotent=False):
         from psycopg.types.json import Jsonb
         names = ', '.join(f'{k} => %s' for k in args)
-        values = [Jsonb(v) if isinstance(v, (dict, list)) else v for v in args.values()]
+        values = [v if k in self.ARRAY_PARAMS else Jsonb(v) if isinstance(v, (dict, list)) else v
+                  for k, v in args.items()]
         try:
             with self.con.transaction():
                 return self.con.execute(f'SELECT pipeline.{fn}({names})', values).fetchone()[0]
@@ -228,3 +233,45 @@ def publish(load, transport, force=False, reason=None, chunk_bytes=DEFAULT_CHUNK
     result = dict(result or {}, chunks=len(chunks), staged_s=round(staged_s, 1),
                   total_s=round(time.time() - t0, 1), load_id=load_id)
     return result
+
+
+def transport_from_env(dsn_vars=('SUPABASE_DB_URL',)):
+    """``(transport, closer, where)`` from the environment.
+
+    The Data API (``SUPABASE_URL`` + ``SUPABASE_SERVICE_ROLE_KEY``) wins, since
+    it is the cloud container's only path (A1). Otherwise the first DSN
+    variable in *dsn_vars* that is set gives a direct connection. Under pytest,
+    only a local database is accepted (R12).
+    """
+    import os
+    from urllib.parse import urlparse
+    url, key = os.environ.get('SUPABASE_URL'), os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
+    dsn = None if (url and key) else next((os.environ[v] for v in dsn_vars if os.environ.get(v)), None)
+    where = url if (url and key) else dsn
+    if not where:
+        raise PublishError('no database configured: set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY, '
+                           f'or {" / ".join(dsn_vars)}')
+    # Checked before anything connects: a test must never reach a real database.
+    host = urlparse(where).hostname or ''
+    if 'PYTEST_CURRENT_TEST' in os.environ and host not in ('localhost', '127.0.0.1', '::1'):
+        raise PublishError(f'refusing a non-local database ({host}) under pytest')
+    if dsn is None:
+        return RestTransport(url, key, timeout=(5, 120), retries=2), None, url
+    from data.db.connect import connect
+    con = connect(dsn, autocommit=True)
+    return DirectTransport(con), con, dsn
+
+
+def publish_file(path, data=None, **kwargs):
+    """Publish the snapshot at *path* (already-loaded *data* skips a re-read)
+    with the transport from the environment. Raises :class:`PublishError`."""
+    from data.snapshot_store import read_snapshot, snapshot_date_from_path
+    run_date = snapshot_date_from_path(path)
+    if run_date is None:
+        raise PublishError(f'{path} is not a canonical results_<date> snapshot')
+    transport, closer, _ = transport_from_env()
+    try:
+        return publish(build_load(data if data is not None else read_snapshot(path), run_date), transport, **kwargs)
+    finally:
+        if closer is not None:
+            closer.close()

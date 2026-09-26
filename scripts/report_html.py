@@ -296,7 +296,14 @@ def _rating_history_from_store(out_dir, cur, file_dates):
         return None
     try:
         with store:
-            if store.dates(before=cur) != sorted(file_dates):
+            have = store.dates(before=cur)
+            if getattr(store, 'authoritative', False):
+                # The database holds the whole published history, while the
+                # cloud stages only the newest few files: it must cover them,
+                # not equal them (plan item R3).
+                if not set(file_dates) <= set(have):
+                    return None
+            elif have != sorted(file_dates):
                 return None
             hist = store.rating_history(before=cur)
     except Exception as e:

@@ -71,6 +71,10 @@ SNAPSHOT_HISTORY="${SNAPSHOT_HISTORY:-10}"
 SMOKE="${SMOKE:-0}"
 SMOKE_TICKERS="${SMOKE_TICKERS:-AAPL MSFT JPM XOM PLD AMGN CAT PG}"
 DRY_RUN="${DRY_RUN:-0}"
+# The snapshot is rewritten several times tonight (enrich steps, rescore);
+# with the database backend selected, sync_snapshot_file would republish each
+# time. Step 06a publishes once instead.
+export DB_DEFER_PUBLISH=1
 FORCE="${FORCE:-0}"
 BENCHMARKS="SPY QQQ IWM DIA XLK XLV XLF XLY XLP XLE XLI XLB XLU XLRE XLC"
 
@@ -460,6 +464,13 @@ run_step 07b-gate-na-report   0 "$PYTHON" scripts/gate_na_report.py "$RESULTS"
 run_step 07c-validate-ratings 0 "$PYTHON" scripts/validate_ratings.py --snapshot "$RESULTS" --prices-dir output/prices
 # Store syncs never fail a step; this surfaces a store that stopped keeping up.
 run_step 07d-store-check      0 "$PYTHON" scripts/check_snapshot_store.py --results-dir output --date "$RUNDATE"
+db_check() {
+  if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
+    echo "database check skipped (no Supabase secrets, or SMOKE/DRY_RUN)"; return 0
+  fi
+  "$PYTHON" scripts/check_snapshot_store.py --database --results-dir output --date "$RUNDATE"
+}
+run_step 07e-db-check         0 db_check
 
 # ---------------------------------------------------------------------------
 # 8. Publish: rebuild pages-live as one fresh commit and force-push it
