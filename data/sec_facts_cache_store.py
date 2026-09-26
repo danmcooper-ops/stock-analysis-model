@@ -127,6 +127,10 @@ class SecFactsCacheStore(StorageBucket):
                 f'{len(stored)} stored ({floor}); refusing to save. Pass force=True '
                 f'if the cache really shrank this much.')
 
+        # The first run of all finds no bucket; make it rather than failing
+        # every upload against something nobody created.
+        self.ensure_bucket()
+
         pending = [n for n, size in local.items()
                    if all_files or n == _STATE_FILE or stored.get(n) != size]
         counts['unchanged'] = len(local) - len(pending)

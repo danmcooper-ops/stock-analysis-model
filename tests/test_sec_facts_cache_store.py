@@ -207,3 +207,24 @@ class TestCli:
                             classmethod(lambda c, **k: _store(s)))
         assert cli.main(['save', '--cache-dir', str(tmp_path)]) == 1
         assert 'refusing to save' in capsys.readouterr().err
+
+
+def test_the_first_save_creates_the_bucket(tmp_path):
+    """Night one has no bucket; making it beats failing every upload."""
+    created = []
+
+    class _NoBucket(DeletingFakeSession):
+        def request(self, method, url, headers=None, timeout=None, **kw):
+            if url.endswith('/bucket'):            # the create
+                created.append((kw.get('json') or {}))
+                return FakeResponse(200, {'name': 'sec-facts-cache'})
+            if '/bucket/' in url:                  # the existence probe
+                return FakeResponse(404, {'error': 'not found'})
+            return super().request(method, url, headers=headers, timeout=timeout, **kw)
+
+    (tmp_path / '0000320193.json.gz').write_bytes(_blob())
+    (tmp_path / '_state.json').write_bytes(_state(1))
+    s = _NoBucket({})
+    counts = _store(s).save(str(tmp_path))
+    assert counts['uploaded'] == 2
+    assert created and created[0].get('public') is False, 'the cache bucket is private'

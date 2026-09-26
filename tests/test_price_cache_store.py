@@ -41,6 +41,8 @@ class FakeSession:
     def request(self, method, url, headers=None, timeout=None, **kw):
         self.calls.append((method, url, kw))
         self.headers_seen.append(headers or {})
+        if '/bucket' in url:                       # ensure_bucket: already there
+            return FakeResponse(200, {'name': 'b'})
         if method == 'POST' and '/object/list/' in url:
             rows = [{'name': n, 'metadata': {'size': len(b)}}
                     for n, b in sorted(self.objects.items())]

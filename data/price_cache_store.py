@@ -115,6 +115,10 @@ class PriceCacheStore(StorageBucket):
                 f'{len(stored)} stored ({floor}); refusing to save. Pass force=True if '
                 f'the universe really shrank.')
 
+        # The first run of all finds no bucket; make it rather than failing
+        # every upload against something nobody created.
+        self.ensure_bucket()
+
         pending = [n for n, size in local.items()
                    if all_files or stored.get(n) != size]
         counts['unchanged'] = len(local) - len(pending)

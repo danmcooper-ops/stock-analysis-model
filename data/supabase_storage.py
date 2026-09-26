@@ -1,21 +1,27 @@
-"""A Supabase Storage bucket, for the caches that must survive the container.
+"""A Supabase Storage bucket of cache objects, for what must outlive the container.
 
 The cloud container is stateless, so every on-disk cache dies with it. The
 snapshots ride the ``data/snapshots`` git branch, but the bigger caches do not
-fit that shape, and Storage is the transport already proven here: the same
-host, service-role key and HTTPS egress that step ``06a-db-publish`` uses
-nightly (``data/db/publish.RestTransport``). P0 found the container cannot
-open raw TCP to Postgres; Storage is HTTPS like the Data API, so it is
-unaffected.
+fit that shape, and Storage is the transport already proven here
+(``data/db/storage.py``, P4b): the same host, service-role key and HTTPS
+egress the publish RPCs use. P0 found the container cannot open raw TCP to
+Postgres; Storage is HTTPS like the Data API, so it is unaffected.
 
-This module is the plumbing only — list, download, upload, delete, and a small
-worker pool. What is safe to restore, and when, is the caller's business:
-``data/price_cache_store.py`` and ``data/sec_facts_cache_store.py`` each carry
-their own argument for why a stale or partial restore cannot harm a run.
+The request layer is ``data/db/storage.StorageClient`` — one Storage client in
+the repo, not two. What this adds is what a *cache* needs and a publish does
+not: listing a prefix (paginated), deleting evicted objects, and a worker pool,
+since these caches move thousands of small objects rather than two big ones.
+
+This module is plumbing only. What is safe to restore, and when, is the
+caller's business: ``data/price_cache_store.py`` and
+``data/sec_facts_cache_store.py`` each carry their own argument for why a
+stale or partial restore cannot harm a run.
 """
 import concurrent.futures
 import logging
 import os
+
+from data.db.storage import StorageClient, StorageError  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -26,85 +32,43 @@ LIST_PAGE = 1000
 DEFAULT_WORKERS = int(os.environ.get('CACHE_STORE_WORKERS', 8))
 
 
-class StorageError(Exception):
-    """The bucket could not be read or written."""
-
-
 class StorageBucket:
-    """List, download, upload and delete objects under one bucket prefix."""
+    """List, download, upload and delete cache objects under one prefix."""
 
     #: only objects ending in this are listed; None lists everything.
     suffix = None
 
-    def __init__(self, url, service_key, bucket, prefix,
-                 session=None, throttle=None, timeout=(5, 120), retries=3):
-        import requests
-        self.base = url.rstrip('/') + '/storage/v1'
+    def __init__(self, url, service_key, bucket, prefix, session=None,
+                 throttle=None, timeout=(5, 120), retries=3, client=None):
+        self.client = client or StorageClient(url, service_key, session=session,
+                                              timeout=timeout, retries=retries)
         self.bucket = bucket
         self.prefix = prefix.strip('/')
-        self.session = session or requests.Session()
-        self.headers = {
-            'apikey': service_key,
-            'Authorization': f'Bearer {service_key}',
-        }
         self.throttle = throttle
-        self.timeout = timeout
-        self.retries = retries
 
-    @classmethod
-    def from_env(cls, **kwargs):
-        """Build from SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY, or None if unset.
+    def _key(self, name):
+        return f'{self.prefix}/{name}' if self.prefix else name
 
-        None is a normal outcome, not an error: a developer machine and a
-        smoke run have no Supabase credentials and must behave exactly as they
-        did before this cache existed.
+    def _json(self, method, path, **kw):
+        """A call whose body we read, raising rather than returning a status.
+
+        StorageClient hands back 4xx for its callers to inspect (ensure_bucket
+        needs to see a 404); a cache has nothing to do with one but fail.
         """
-        url = os.environ.get('SUPABASE_URL')
-        key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
-        if not url or not key:
-            return None
-        return cls(url, key, **kwargs)
+        if self.throttle:
+            self.throttle()
+        resp = self.client._request(method, path, **kw)
+        if resp.status_code >= 400:
+            raise StorageError(f'{method} {path}: HTTP {resp.status_code}: {resp.text[:300]}')
+        return resp
 
-    # -- HTTP -------------------------------------------------------------
+    def ensure_bucket(self):
+        """Create the bucket if this is the first run. Returns True if created.
 
-    def _request(self, method, path, *, retry, headers=None, **kwargs):
-        """One Storage call, retrying transport errors and 5xx when *retry*.
-
-        *headers* adds to the auth headers rather than replacing them; every
-        call needs the service key.
+        Worth doing rather than documenting as a prerequisite: the first night
+        would otherwise fail every upload against a bucket nobody had made.
         """
-        import requests
-        hdrs = {**self.headers, **headers} if headers else self.headers
-        attempts = self.retries + 1 if retry else 1
-        for attempt in range(attempts):
-            if self.throttle:
-                self.throttle()
-            try:
-                resp = self.session.request(method, self.base + path, headers=hdrs,
-                                            timeout=self.timeout, **kwargs)
-            except requests.RequestException as e:
-                if attempt + 1 >= attempts:
-                    raise StorageError(f'{method} {path}: {e}') from e
-                logger.warning('storage: %s %s: %s; retrying (%d/%d)',
-                               method, path, e, attempt + 1, attempts - 1)
-                _backoff(attempt)
-                continue
-            if resp.status_code >= 500 and attempt + 1 < attempts:
-                logger.warning('storage: %s %s: HTTP %s; retrying (%d/%d)',
-                               method, path, resp.status_code, attempt + 1, attempts - 1)
-                _backoff(attempt)
-                continue
-            if resp.status_code >= 400:
-                raise StorageError(
-                    f'{method} {path}: HTTP {resp.status_code}: {resp.text[:300]}')
-            return resp
-        raise StorageError(f'{method} {path}: no attempts left')  # pragma: no cover
-
-    def _object_path(self, name):
-        return f'/object/{self.bucket}/{self.prefix}/{name}' if self.prefix \
-            else f'/object/{self.bucket}/{name}'
-
-    # -- operations -------------------------------------------------------
+        return self.client.ensure_bucket(self.bucket)
 
     def list_objects(self):
         """``{filename: size}`` for every object under the prefix."""
@@ -112,8 +76,7 @@ class StorageBucket:
         while True:
             body = {'prefix': self.prefix, 'limit': LIST_PAGE, 'offset': offset,
                     'sortBy': {'column': 'name', 'order': 'asc'}}
-            rows = self._request('POST', f'/object/list/{self.bucket}',
-                                 retry=True, json=body).json()
+            rows = self._json('POST', f'/object/list/{self.bucket}', json=body).json()
             if not isinstance(rows, list):
                 raise StorageError(f'list: expected a list, got {type(rows).__name__}')
             for row in rows:
@@ -129,44 +92,43 @@ class StorageBucket:
 
     def download(self, name, dest):
         """Fetch one object to *dest*, atomically. Returns bytes written."""
-        resp = self._request('GET', self._object_path(name), retry=True)
+        if self.throttle:
+            self.throttle()
+        body = self.client.download(self._key(name), bucket=self.bucket)
         tmp = f'{dest}.tmp.{os.getpid()}.{_thread_id()}'
         try:
             with open(tmp, 'wb') as fh:
-                fh.write(resp.content)
+                fh.write(body)
             os.replace(tmp, dest)
         except Exception:
             _unlink(tmp)
             raise
-        return len(resp.content)
+        return len(body)
 
     def upload(self, name, src):
         """Write *src* to the object, replacing any existing one."""
         with open(src, 'rb') as fh:
             payload = fh.read()
-        # POST creates and 409s on an existing object; x-upsert makes it a
-        # replace, which is what a nightly refresh always is.
-        # Not retried: a partial upload would be replayed over a good object,
-        # and the caller's next run re-uploads anyway.
-        self._request('POST', self._object_path(name), retry=False, data=payload,
-                      headers={'Content-Type': 'application/octet-stream',
-                               'x-upsert': 'true'})
+        if self.throttle:
+            self.throttle()
+        # x-upsert (StorageClient.upload sets it) makes this a replace, which
+        # is what a refresh always is — and what makes a retried upload safe.
+        self.client.upload(self._key(name), payload, 'application/octet-stream',
+                           bucket=self.bucket)
         return len(payload)
-
 
     def delete(self, names):
         """Remove objects under the prefix. Returns how many were requested.
 
-        Evictions have to reach the bucket: a blob dropped locally but left
+        Evictions have to reach the bucket: an object dropped locally but left
         stored would come back on the next restore, and nothing downstream
         would know it was meant to be gone.
         """
         names = list(names)
         if not names:
             return 0
-        prefixes = [f'{self.prefix}/{n}' if self.prefix else n for n in names]
-        self._request('DELETE', f'/object/{self.bucket}', retry=True,
-                      json={'prefixes': prefixes})
+        self._json('DELETE', f'/object/{self.bucket}',
+                   json={'prefixes': [self._key(n) for n in names]})
         return len(names)
 
 
@@ -180,7 +142,7 @@ def _map(fn, names, workers):
     """
     workers = max(1, int(workers))
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=workers,
-                                                 thread_name_prefix='price-cache')
+                                                 thread_name_prefix='cache-store')
     try:
         for name, future in [(n, pool.submit(fn, n)) for n in names]:
             try:
@@ -195,11 +157,6 @@ def _map(fn, names, workers):
         pool.shutdown(wait=True, cancel_futures=True)
 
 
-def _backoff(attempt):
-    import time
-    time.sleep(2 ** attempt)
-
-
 def _thread_id():
     import threading
     return threading.get_ident()
@@ -209,4 +166,4 @@ def _unlink(path):
     try:
         os.remove(path)
     except OSError as e:
-        logger.debug('price cache: could not remove %s: %s', path, e)
+        logger.debug('cache store: could not remove %s: %s', path, e)

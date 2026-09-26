@@ -212,12 +212,17 @@ ruff check .
   upload). A restore never overwrites a local file (a resumed run may hold
   something fresher), one bad object never ends the sweep, and the store
   refuses to save a local set under 80% of what it already holds, so a
-  half-failed run cannot clobber a good cache.
+  half-failed run cannot clobber a good cache. A save calls `ensure_bucket()`
+  first, so the first run of all creates the bucket instead of failing every
+  upload against one nobody made.
 - **Companyfacts cache transport (`data/sec_facts_cache_store.py`,
   `scripts/sec_cache.py`):** `data/cache/` is gitignored and the container is
   stateless, so SEC served the whole corpus again every night. The blobs now
   ride the same Supabase Storage plumbing as the parquets
-  (`data/supabase_storage.py`, bucket `SEC_CACHE_BUCKET`), restored in
+  (`data/supabase_storage.py`, which wraps P4b's `data/db/storage.StorageClient`
+  rather than opening a second Storage client, adding only what a cache needs
+  and a publish does not: a paginated prefix listing, deletes and a worker
+  pool; bucket `SEC_CACHE_BUCKET`), restored in
   `run.sh` step `02c` and saved in `04b` — straight after the analysis, the
   only step that fetches facts or evicts them. The Phase-1 prefetch pool
   already hides this leg's latency, so the win is fewer SEC requests and a

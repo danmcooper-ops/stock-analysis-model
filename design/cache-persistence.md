@@ -195,6 +195,15 @@ counterpart, gated on the same 80% floor as the price cache.
 — the only step that fetches facts or evicts them, and before enrichment that
 could still fail. Both non-blocking and skipped without the Supabase secrets.
 
+A fourth thing turned up only after the code was written: P4b had already
+added a Storage client (`data/db/storage.StorageClient`) for the snapshot
+uploads, and the first cut of `data/supabase_storage.py` duplicated its
+request layer. It now wraps that client and adds only what a cache needs and
+a publish does not — a paginated listing, deletes, a worker pool. Reusing it
+also brought `ensure_bucket()`, which removes one of the three live-API
+unknowns Phase B had to leave open: the first save creates the bucket rather
+than failing against one nobody made.
+
 *Passes when:* a restored cache with a current watermark serves its blobs; one
 with a lagging watermark serves none despite fresh mtimes; an eviction
 propagates to the bucket; and a run without the secrets behaves as before.
