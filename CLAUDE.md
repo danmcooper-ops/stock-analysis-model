@@ -66,6 +66,7 @@ pre-commit install   # runs ruff + the offline test suite before each commit
 python scripts/analyze_stock.py                 # S&P 500 + Dow universe
 python scripts/analyze_stock.py --universe us   # all US-listed (~7-8k tickers)
 scripts/run_daily.sh --dry-run                  # nightly pipeline end to end (see script header)
+python scripts/portfolios.py list               # portfolio groupings (create/add/remove/show/import)
 pytest -m "not network and not slow"            # offline suite (CI-equivalent)
 ruff check .
 ```
@@ -266,6 +267,25 @@ ruff check .
   columns, no full-scan penalty) and offers `--sql` for raw queries, falling
   back to its older `.query_index_v1/` parquet index when the store is absent
   or incomplete.
+- **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
+  named sets of tickers — hand-picked, rule-driven, or both — and a ticker may
+  sit in any number of them (membership only; `portfolio/holdings.json` stays
+  the P&L tracker). Members = (`tickers` ∪ rule matches) − `exclude`. A rule
+  *is* the report's Filters-panel state (`ratings`/`sectors`/`countries`/`cf`),
+  so "Save filter as portfolio" and "Edit rule" round-trip through the panel;
+  min/max on % columns are stored as fractions. `rule_matches()` mirrors the
+  report's `passOther` clause for clause (`_num` N/A semantics, the
+  `_gate_<key>` null drop) and so does `_pfRuleMatch` in the template —
+  `tests/fixtures/portfolio_rule_cases.json` pins both, so change all three
+  together. `report_html` resolves membership into each row's `pf` and ships
+  the definitions plus a content `revision()` as `PF_PUB`; browser edits live
+  in localStorage (`stock_portfolios_v1`, `{base_rev, portfolios}`) until
+  exported. `scripts/portfolios.py import` fast-forwards an export whose
+  `base_rev` is the file's current revision (deletions included) and
+  otherwise merges, refusing changed ids without `--overwrite`. `#pf=` share
+  links carry one portfolio as base64url JSON. `PORTFOLIOS_FILE` overrides
+  the path; an unreadable file renders with no portfolios and says why in the
+  Manage dialog.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`
