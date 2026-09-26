@@ -543,7 +543,7 @@ def _load_russell2000():
         return set()
 
 
-def _load_portfolio_payload(rows, out_dir=None, run_date=None):
+def _load_portfolio_payload(rows, out_dir=None, run_date=None, prices_dir=None):
     """Portfolio groupings for the report: ``(payload, {ticker: [ids]})``.
 
     The payload (inline ``PORTFOLIOS``) carries the definitions with colors
@@ -576,6 +576,7 @@ def _load_portfolio_payload(rows, out_dir=None, run_date=None):
     # get them too; joined/left events need the prior rows' rule columns
     # and so exist only for the published definitions. Best-effort: a
     # failure here costs the alerts, never the render.
+    prev_day, prev = None, []
     if out_dir and pfs:
         try:
             from scripts.portfolios import prior_rows
@@ -592,11 +593,39 @@ def _load_portfolio_payload(rows, out_dir=None, run_date=None):
                     for e in pg.membership_events(pfs, by_tk, prev_by_tk, day)]
         except Exception as e:
             logger.warning("portfolios: change alerts unavailable (%s)", e)
+    if out_dir and pfs:
+        payload['nav'] = _portfolio_nav(pfs, rows, prev, out_dir, run_date, prices_dir)
     if pfs:
         print(f"[report_html] portfolios: {len(pfs)} "
               f"({sum(len(v) for v in index.values())} memberships, "
               f"{len(payload['events'])} membership events vs {payload['prev_date']})")
     return payload, index
+
+
+def _portfolio_nav(pfs, rows, prev, out_dir, run_date, prices_dir):
+    """Advance the NAV ledger (output/portfolio_nav.json) to this run and
+    return the report's compact series.
+
+    Like the rating-history cache, the render keeps the ledger current. It
+    only writes when *run_date* is explicit, prices are available, and
+    ``results_<run_date>`` sits in *out_dir* — so re-rendering someone
+    else's rows (backfill_edgar_hist, a test) can never plant a point, and
+    re-rendering the same day replaces that day's point.
+    """
+    from data import portfolio_nav as pn
+    from data.snapshot_store import list_snapshot_files
+    path = pn.ledger_path(out_dir)
+    try:
+        led = pn.load_ledger(path)
+        day = run_date.isoformat() if run_date else None
+        if day and prices_dir and os.path.isdir(prices_dir) and \
+                any(d == day for d, _ in list_snapshot_files(out_dir)):
+            if pn.update(led, pfs, day, rows, pn.prices_closes_fn(prices_dir), prev_rows=prev):
+                pn.save_ledger(path, led)
+        return pn.payload(led, [p['id'] for p in pfs])
+    except Exception as e:
+        logger.warning("portfolios: NAV ledger not updated (%s)", e)
+        return None
 
 
 # Every sidecar is written compact. json.dump's default separators put a
@@ -1561,7 +1590,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
 
     chart_records = [_row_context(r, gate_meta_obj, _r2000, _prev_ratings,
                                   _rating_hist) for r in rows]
-    portfolios_payload, _pf_index = _load_portfolio_payload(rows, _out_dir_early, run_date)
+    portfolios_payload, _pf_index = _load_portfolio_payload(rows, _out_dir_early, run_date,
+                                                            prices_dir)
     for _rec in chart_records:
         # Portfolio ids this ticker belongs to (resolved server-side; the
         # client re-resolves only portfolios edited in the browser).

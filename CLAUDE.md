@@ -299,6 +299,25 @@ ruff check .
   back NULL and drop every row). Nightly: `portfolios.py alerts` (run_daily
   `portfolio_alerts`, cloud `07e-portfolio-alerts`) writes
   `output/portfolio_alerts_<date>.txt`.
+  **Performance** is a point-in-time NAV ledger, `output/portfolio_nav.json`
+  (`data/portfolio_nav.py`): each run records every portfolio's members as
+  resolved that day and compounds the equal-weighted return of the previous
+  entry's members (plus SPY and the equal-weighted universe). The render
+  advances it, like the rating-history cache, but only for an explicit
+  `run_date` whose `results_<date>` sits beside the HTML, and a same-day
+  re-render replaces that day's point. Both ends of every step come from the
+  *current* parquets as of recorded market dates (SPY's last bar ≤ the
+  snapshot date, via `price_store.asof_closes`) — never a remembered close,
+  since re-adjusted history would turn a split into a crash — so lagging data
+  only defers a move to the next step. A single member's move outside
+  0.25–4× (or from below $0.01) is bad data and left unpriced (GRKZF's
+  $0.001→$15.52 print once moved the universe +672%); `cov` records the
+  priced share. `portfolios.py nav --rebuild` replays today's definitions over
+  archived snapshots (entries flagged `bf`, hypothetical) and splices them in
+  front of the live history, rescaling it. The cloud routine stages the
+  ledger from, and writes it back to, `data/snapshots` (SMOKE-guarded).
+  Portfolio colors use the dataviz reference categorical palette (validated
+  both themes; dark mode swaps in each hue's dark step).
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`

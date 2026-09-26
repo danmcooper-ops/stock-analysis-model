@@ -259,6 +259,15 @@ print(f"rating history rebuilt over {len(older) + len(staged)} snapshots, "
 PY
     [ $? -eq 0 ] || return 1
   fi
+  # The portfolio NAV ledger (data/portfolio_nav.py): the render appends
+  # tonight's point to it, so without staging every night would start the
+  # performance history over. Absent on the first run after portfolios exist.
+  if git -C "$SNAP" cat-file -e HEAD:portfolio_nav.json 2>/dev/null; then
+    git -C "$SNAP" show HEAD:portfolio_nav.json > "$REPO/output/portfolio_nav.json" || return 1
+    echo "staged portfolio_nav.json ($(wc -c < "$REPO/output/portfolio_nav.json") bytes)"
+  else
+    echo "no portfolio_nav.json in the archive — portfolio performance starts tonight"
+  fi
   # The Phase-1 screen skip list. data/cache/ is gitignored, so it dies with
   # the container: without staging it, every night re-fetches the ~4.5k
   # tickers the last run already proved are far below the mcap floor or dead.
@@ -380,6 +389,11 @@ archive_snapshot() {
     *) echo "archive failed (rc=$rc) — not pushed"; return 1 ;;
   esac
   cp "$REPO/output/rating_history.json" "$SNAP/rating_history.json" 2>/dev/null
+  # The NAV ledger, guarded on SMOKE: a smoke run renders a handful of
+  # tickers and would plant a point whose universe benchmark is meaningless.
+  if [ "$SMOKE" != 1 ] && [ -s "$REPO/output/portfolio_nav.json" ]; then
+    cp "$REPO/output/portfolio_nav.json" "$SNAP/portfolio_nav.json"
+  fi
   # Write the screen skip list back for tomorrow. Guarded on size and SMOKE:
   # a smoke run screens a handful of tickers and would otherwise replace
   # ~4.5k learned rejections with a near-empty file.
@@ -403,7 +417,7 @@ archive_snapshot() {
   # become new objects.
   local tree commit
   : > "$paths"
-  for f in "results_$RUNDATE.json.gz" rating_history.json screen_skip.json; do
+  for f in "results_$RUNDATE.json.gz" rating_history.json screen_skip.json portfolio_nav.json; do
     [ -s "$SNAP/$f" ] && echo "$f" >> "$paths"
   done
   cat "$WORK/archive-blobs.txt" >> "$paths" || return 1

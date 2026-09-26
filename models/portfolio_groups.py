@@ -48,10 +48,12 @@ DEFAULT_PORTFOLIOS_PATH = os.path.join(
 
 # Assigned in id order to portfolios without an explicit color, so a
 # portfolio keeps its color across runs as long as the set of colorless
-# portfolios doesn't change. Mid-saturation hues that read on both the
-# light and dark report themes.
-PALETTE = ['#4f7cff', '#e8833a', '#2fa36b', '#c9469b', '#8a63d2',
-           '#d4a72c', '#1fa2b8', '#d9534f', '#6c8a3a', '#9b6b43']
+# portfolios doesn't change. The dataviz reference categorical palette's
+# light steps, in its validated order (adjacent CVD separation >= 8,
+# normal-vision >= 15); the report swaps in each hue's dark step in dark
+# mode (_PF_DARK in the template).
+PALETTE = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100',
+           '#e87ba4', '#008300', '#4a3aa7', '#e34948']
 
 _ID_RE = re.compile(r'^[a-z0-9][a-z0-9-]{0,39}$')
 _COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
@@ -471,7 +473,7 @@ SEVERITY_ORDER = {'HIGH': 0, 'MEDIUM': 1, 'LOW': 2}
 def rule_columns(portfolios):
     """Row columns needed to evaluate every rule (plus the ones alerts read),
     for a narrow snapshot-store query of the prior run."""
-    cols = {'ticker', 'rating', 'sector', 'country', '_composite_score'}
+    cols = {'ticker', 'rating', 'sector', 'country', '_composite_score', 'price'}
     for p in portfolios:
         for c in (p.get('rule') or {}).get('cf') or ():
             cols.add(c['key'])
