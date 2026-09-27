@@ -4,10 +4,12 @@ Serializes the macro.json sidecar's numeric facts (regime model output,
 FRED series with changes/percentiles, the Treasury curve, credit spreads,
 and per-sector ETF momentum) into a prompt for the Claude API and returns
 a structured narrative: economy-wide paragraphs, headwind/tailwind bullets,
-and one outlook per GICS sector — a kicker, a one-sentence outlook and
-bullets for the sector's own tab, plus an `influence` paragraph that the
-Overview's "Key sector influences" section sets as full prose. The LLM call is network I/O, so this
-lives in data/ rather than models/.
+and one entry per GICS sector — a kicker, a one-sentence outlook and
+tailwind/headwind bullets, plus an `influence` paragraph that the
+Overview's "Key sector influences" section sets as full prose. Only the
+kicker, stance and influence render; the outlook and bullets are the
+scaffolding the influence is written from. The LLM call is network I/O,
+so this lives in data/ rather than models/.
 
 The key is read from MACRO_ANTHROPIC_API_KEY, falling back to
 ANTHROPIC_API_KEY. The cloud container that runs the nightly routine is a

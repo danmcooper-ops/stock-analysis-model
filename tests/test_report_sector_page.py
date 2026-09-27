@@ -39,7 +39,7 @@ def test_sections_render_in_arc_order():
     order = [m.group(1) for m in
              re.finditer(r'pp-section (pp-[a-z]+)"><span class="pp-section-label"',
                          body)]
-    assert order == ['pp-primer', 'pp-macro', 'pp-signals', 'pp-structure',
+    assert order == ['pp-primer', 'pp-signals', 'pp-structure',
                      'pp-chart', 'pp-companies', 'pp-liquidity'], order
 
 

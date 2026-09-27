@@ -1276,62 +1276,21 @@ td.ct{font-weight:700;}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
-.pp-primer,.pp-structure,.pp-macro,.pp-liquidity,.pp-signals,.pp-companies,.pp-chart{background:#f7f9fb;border-left:5px solid #1a252f;}
+.pp-primer,.pp-structure,.pp-liquidity,.pp-signals,.pp-companies,.pp-chart{background:#f7f9fb;border-left:5px solid #1a252f;}
 .pp-primer .pp-section-label,
 .pp-structure .pp-section-label,
-.pp-macro .pp-section-label,
 .pp-liquidity .pp-section-label,
 .pp-signals .pp-section-label,
 .pp-companies .pp-section-label,
 .pp-chart .pp-section-label{background:#1a252f;}
 /* Combined sector-level Headwinds + Tailwinds block — two columns on
    desktop, stacked on mobile. Closes the Context arc, directly under the
-   macro read. */
+   primer. */
 .pp-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
 .pp-signals-col-hdr{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
 @media(max-width:760px){.pp-signals-grid{grid-template-columns:1fr;gap:14px;}}
-/* Macro Outlook — the sector's entry from the Claude macro narrative,
-   migrated off the Macro Outlook tab's old "Sector implications" grid so
-   the top-down read sits directly above the sector's own structural
-   forces. Set in the pp prose idiom (0.82em / 1.55) rather than the
-   macro tab's --mac-* tokens, which are scoped to #macro-view and would
-   resolve to nothing here. Stance is carried twice: a chip that rides the
-   section-label line (inline-flex, like the label itself) set to match the
-   ▲/▼ column headers of the Headwinds & Tailwinds section below, and the
-   paragraph's left border. */
-.pp-macro-stance{display:inline-flex;align-items:center;vertical-align:middle;gap:7px;font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#5a6776;margin:0 0 0 10px;}
-.pp-macro-stance.up{color:#1a7a45;}
-.pp-macro-stance.down{color:#c0392b;}
-.pp-macro-dot{width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0;display:inline-block;}
-.pp-macro-stance.up .pp-macro-dot{background:#1a7a45;}
-.pp-macro-stance.down .pp-macro-dot{background:#c0392b;}
-.pp-macro-p{margin:0;font-size:0.82em;line-height:1.55;color:#37474f;padding-left:12px;border-left:3px solid #cfd8e0;}
-.pp-macro-p.up{border-left-color:#1a7a45;}
-.pp-macro-p.down{border-left-color:#c0392b;}
-.pp-macro-p b{font-weight:700;color:#1a252f;}
-.pp-macro-inf{margin:10px 0 0;font-size:0.82em;line-height:1.6;color:#37474f;}
-.pp-macro-figs{display:block;font-size:0.78em;color:#7c8a9a;font-variant-numeric:tabular-nums;margin-top:3px;}
-.pp-macro-grid{margin-top:12px;}
-.pp-macro-ul{margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f;}
-.pp-macro-ul li{margin:5px 0;}
-.pp-macro-none{margin:0;color:#94a3b8;font-size:0.82em;font-style:italic;}
-.pp-macro-foot{margin:8px 0 0;font-size:0.72em;color:#94a3b8;}
-[data-theme="dark"] .pp-macro-ul{color:#c9d1d9;}
-[data-theme="dark"] .pp-macro-inf{color:#c9d1d9;}
-/* Dark mode carries the stance on the border and the dot, not the text:
-   `[data-theme="dark"] body *{color:#fff!important}` below paints every
-   word in the report white, and the adjacent Headwinds & Tailwinds headers
-   lose their green/red to it the same way. Border and background are not
-   caught by that rule, so the stance still reads. */
-[data-theme="dark"] .pp-macro-dot{background:#6e7681;}
-[data-theme="dark"] .pp-macro-stance.up .pp-macro-dot{background:#6fd08c;}
-[data-theme="dark"] .pp-macro-stance.down .pp-macro-dot{background:#ff8a80;}
-[data-theme="dark"] .pp-macro-p{border-left-color:#30363d;}
-[data-theme="dark"] .pp-macro-p.up{border-left-color:#6fd08c;}
-[data-theme="dark"] .pp-macro-p.down{border-left-color:#ff8a80;}
 [data-theme="dark"] .pp-primer,
 [data-theme="dark"] .pp-structure,
-[data-theme="dark"] .pp-macro,
 [data-theme="dark"] .pp-liquidity,
 [data-theme="dark"] .pp-signals,
 [data-theme="dark"] .pp-companies,
@@ -9269,8 +9228,8 @@ function _macNarrativeHTML(){
      bullets underneath. The tailwinds and headwinds follow as two short
      lists, then the key sector influences — every sector, grouped by
      stance, set as its kicker and a full influence paragraph (schema v3)
-     and linked to that sector's own tab where the outlook and bullets
-     render (renderPoolMacroOutlook). A narrative cached before v3 has no
+     and linked to that sector's own tab. This is the only place the
+     per-sector narrative renders. A narrative cached before v3 has no
      influence and falls back to the old one-line kicker list. Rides on MACRO_SUM so it paints at first
      render; falls back to the sidecar for older inline summaries. All
      strings pass through _esc() — the text is model output, not
@@ -9367,9 +9326,9 @@ function _macOverviewHTML(){
   /* Story first, glance numbers beside it, and nothing else. The full
      histories live on the five section sub-tabs (menu), so nothing charted
      there is repeated here — the Overview used to re-draw the yield curve
-     and the 10Y–2Y history under the tiles. The eleven sector outlooks
-     used to trail the tiles as a "Sector implications" grid; each one now
-     renders on its own Sector Analysis tab instead. */
+     and the 10Y–2Y history under the tiles. The per-sector read is the
+     narrative's Key sector influences; it no longer repeats on each Sector
+     Analysis tab. */
   var h='<div class="mac-overview">'+_macNarrativeHTML();
   var tiles=(MACRO_SUM&&MACRO_SUM.tiles)||[];
   h+='<div>';
@@ -9890,87 +9849,6 @@ function renderPoolCompanies(sec,cos){
     out+='</div>';
   });
   return out+'</div>';
-}
-/* Hard numbers for one sector, from the macro builder's sector_data.
-   Numbers are formatted locally with toFixed, the ticker is escaped, and
-   trend reaches HTML only through the glyph whitelist — nothing from the
-   sidecar lands raw. Sidecar fractions (0.021) render as signed percents
-   (+2.1%). Degrades to nothing for a sector without metrics. */
-function _macSecFigs(d){
-  if(!d)return '';
-  var TRENDG={improving:'↗',deteriorating:'↘',stable:'→'};
-  var f=[];
-  if(d.etf)f.push(_esc(String(d.etf)));
-  var rs=(d.rs_3m!=null)?d.rs_3m:d.rel_strength_3m;
-  if(rs!=null)f.push('3m RS '+(rs>=0?'+':'')+(rs*100).toFixed(1)+'%');
-  if(d.return_3m!=null)f.push('3m '+(d.return_3m>=0?'+':'')+(d.return_3m*100).toFixed(1)+'%');
-  if(TRENDG[d.trend])f.push(TRENDG[d.trend]);
-  return f.length?'<span class="pp-macro-figs">'+f.join(' · ')+'</span>':'';
-}
-/* The sector's macro outlook: the entry Claude wrote for this GICS sector
-   in the macro narrative (data/claude_narrative.py), plus the sector ETF's
-   three-month numbers. Used to render for all eleven sectors at once as a
-   "Sector implications" grid on the Macro Outlook tab; it reads better one
-   sector at a time, directly above that sector's own structural forces.
-   Rides on the inline MACRO_SUM so it paints at first render, with the
-   lazily-loaded macro.json sidecar as the fallback. The narrative is model
-   output, so every string passes _esc() before _linkifyTickers() (the
-   convention of every other renderPool* helper) and stance reaches a class
-   only through the whitelist. Returns '' — and the section is dropped —
-   when the narrative is missing (no ANTHROPIC_API_KEY) or does not cover
-   this sector, which is a legal partial result. */
-function renderPoolMacroOutlook(sec){
-  var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
-  if(!nar||!(nar.sectors||[]).length)return '';
-  var row=null;
-  nar.sectors.forEach(function(s){if(s.sector===sec)row=s;});
-  if(!row)return '';
-  /* Escaped once, here, so every guard below reads a local and the only
-     interpolation of a model string is this one. */
-  var ol=_linkifyTickers(_esc(row.outlook||''));
-  var hl=_linkifyTickers(_esc(row.headline||''));
-  /* The long-form read the Overview prints under Key sector influences
-     (schema v3+), repeated here under the outlook. Absent from older
-     caches, where the section renders exactly as before. */
-  var inf=_linkifyTickers(_esc(row.influence||''));
-  var tw=(row.tailwinds||[]).filter(Boolean),hw=(row.headwinds||[]).filter(Boolean);
-  /* Both shapes render. A narrative cached before the bullets existed —
-     or replayed from a days-old output/macro.json by the re-render path —
-     carries an outlook and no bullets; a future one could carry bullets
-     and no outlook. Either alone is enough to draw the section. */
-  if(!ol&&!hl&&!inf&&!tw.length&&!hw.length)return '';
-  var STANCE={tailwind:'up',headwind:'down'};
-  var LABEL={tailwind:'▲ Macro tailwind',headwind:'▼ Macro headwind'};
-  var cls=STANCE[row.stance]||'';
-  var sd=(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)||{};
-  var out='<div class="pp-macro-stance '+cls+'"><span class="pp-macro-dot"></span>'
-    +(LABEL[row.stance]||'Macro neutral')+'</div>';
-  if(ol||hl){
-    out+='<p class="pp-macro-p '+cls+'">'+(hl?'<b>'+hl+'.</b> ':'')
-      +ol+_macSecFigs(sd[sec])+'</p>';
-  }
-  if(inf)out+='<p class="pp-macro-inf">'+inf+'</p>';
-  if(tw.length||hw.length){
-    /* Two columns reusing .pp-signals-grid from the Sector Headwinds &
-       Tailwinds block below, so the pair reads as cyclical-then-structural
-       and the 760px stack comes for free. */
-    function _macList(items,kind){
-      if(!items.length)return '<p class="pp-macro-none">No macro '+kind+' this run.</p>';
-      var ul='<ul class="pp-macro-ul">';
-      items.forEach(function(b){ul+='<li>'+_linkifyTickers(_esc(b))+'</li>';});
-      return ul+'</ul>';
-    }
-    out+='<div class="pp-signals-grid pp-macro-grid">'
-      +'<div><div class="pp-signals-col-hdr" style="color:#1a7a45">▲ Macro Tailwinds</div>'
-      +_macList(tw,'tailwinds')+'</div>'
-      +'<div><div class="pp-signals-col-hdr" style="color:#c0392b">▼ Macro Headwinds</div>'
-      +_macList(hw,'headwinds')+'</div></div>';
-  }
-  out+='<div class="pp-macro-foot">Written by Claude ('+_esc(nar.model||'')
-    +') from the FRED indicator data'
-    +(nar.generated_at?' · '+_esc(String(nar.generated_at).slice(0,10)):'')
-    +'</div>';
-  return out;
 }
 /* Sector-level structural headwinds + tailwinds, rendered as a two-column
    block that mirrors the per-stock Headwinds & Tailwinds card on the
@@ -11246,7 +11124,6 @@ function renderPool(){
        largely the same companies. Every section stays conditional, so a
        sector with thin data drops blocks rather than rendering empties. */
     var primerHtml=renderPoolPrimer(sec);
-    var macroHtml=renderPoolMacroOutlook(sec);
     var signalsHtml=renderPoolSectorSignals(sec);
     var structureHtml=renderPoolStructure(sec);
     var companiesHtml=renderPoolCompanies(sec,cos);
@@ -11256,12 +11133,9 @@ function renderPool(){
     if(primerHtml){
       chartHtml+='<div class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
     }
-    /* Top-down before bottom-up: the macro regime's read on this sector
-       (from the Claude macro narrative) sits directly above the sector's
-       own structural forces. */
-    if(macroHtml){
-      chartHtml+='<div class="pp-section pp-macro"><span class="pp-section-label">Macro Outlook</span>'+macroHtml+'</div>';
-    }
+    /* The Claude macro narrative's read on this sector lives on the
+       Macro Outlook Overview (Key sector influences); the sector tab keeps
+       only its own structural headwinds and tailwinds. */
     if(signalsHtml){
       chartHtml+='<div class="pp-section pp-signals"><span class="pp-section-label">Sector Headwinds &amp; Tailwinds</span>'+signalsHtml+'</div>';
     }

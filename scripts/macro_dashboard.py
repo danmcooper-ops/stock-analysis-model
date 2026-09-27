@@ -465,12 +465,14 @@ def _tile_of(sid, s):
 
 
 def _summary_of(sidecar):
-    """The small inline summary (regime + Overview tiles) for a sidecar."""
+    """The small inline summary (regime + Overview tiles) for a sidecar.
+
+    sector_data stays in the sidecar only: it is narrative input, and the
+    sector-tab ETF figures that once read it inline are gone."""
     series = (sidecar or {}).get('series') or {}
     tiles = [_tile_of(sid, series[sid]) for sid in OVERVIEW_IDS if sid in series]
     return {'as_of': sidecar.get('as_of'), 'regime': sidecar.get('regime'),
-            'tiles': tiles, 'narrative': sidecar.get('narrative'),
-            'sector_data': sidecar.get('sector_data')}
+            'tiles': tiles, 'narrative': sidecar.get('narrative')}
 
 
 def summary_from_sidecar(sidecar):
