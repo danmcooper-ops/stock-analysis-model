@@ -30,7 +30,9 @@ cold. These subcommands keep that logic out of shell heredocs:
   compare        Week-over-week regression check of two backtest summaries.
                  Exit 1 with REGRESSION lines when the corpus shrank, a new
                  snapshot was skipped, a (date, horizon) went unmeasured or
-                 fell below the return-coverage floor.
+                 fell below the return-coverage floor. NOTICE lines (no
+                 failure) say when the scoring model changed or the
+                 as-recorded headline pools more than one model.
 
 Usage:
     python scripts/backtest_cloud.py stage --repo .cloud-backtest/snapshots-data --dest output
@@ -451,6 +453,27 @@ def compare_summaries(cur, prior, min_coverage=None):
     return out
 
 
+def model_notices(cur, prior):
+    """NOTICE lines about the scoring model — informational, never a failure.
+
+    A weight or gate change is a reviewed decision, not a regression, but it
+    changes what the as-recorded headline means: from the change on it pools
+    two models. Say so, and point at the re-scored view.
+    """
+    out = []
+    cur_hash = (cur.get('provenance') or {}).get('current_params_hash')
+    prior_hash = ((prior or {}).get('provenance') or {}).get('current_params_hash')
+    if cur_hash and prior_hash and cur_hash != prior_hash:
+        out.append(f'scoring model changed since last week ({prior_hash} -> {cur_hash}); '
+                   f'the re-scored view measures the new model over every snapshot')
+    regimes = cur.get('regimes') or []
+    if len(regimes) > 1:
+        out.append('as-recorded headline pools ' + ', '.join(
+            f'{r["params_hash"]} ({r["snapshots"]} snapshot(s) {r["first"]}..{r["last"]})'
+            for r in regimes))
+    return out
+
+
 def _prior_summary_path(current_path):
     """The newest ``backtest_summary_*.json`` beside *current_path*, dated before it."""
     m = SUMMARY_RE.fullmatch(os.path.basename(current_path))
@@ -555,6 +578,8 @@ def main(argv=None):
     if prior:
         print(f'snapshots measured: {len(prior.get("snapshots", []))} -> '
               f'{len(cur.get("snapshots", []))}')
+    for line in model_notices(cur, prior):
+        print(f'NOTICE: {line}')
     problems = compare_summaries(cur, prior)
     for line in problems:
         print(f'REGRESSION: {line}')

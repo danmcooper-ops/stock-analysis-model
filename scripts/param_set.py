@@ -216,3 +216,52 @@ def validate_params(params):
         errors.append(f"mc_wacc_tg_correlation = {rho} outside [-1, 1]")
 
     return errors
+
+
+def _callable_source(fn):
+    """A stable text for a gate's test/score function (never its repr, which
+    carries a memory address)."""
+    import inspect
+    try:
+        return inspect.getsource(fn).strip()
+    except (OSError, TypeError):
+        code = getattr(fn, '__code__', None)
+        return code.co_code.hex() if code is not None else getattr(fn, '__name__', '')
+
+
+def scoring_params_hash(params=None):
+    """12-hex fingerprint of the scoring model: every tunable parameter
+    (``default_params()``, or *params*) plus the gate definitions in
+    scripts/scoring.py (field, weight, direction and the source of each
+    test/score function).
+
+    Two snapshots with the same hash were rated by the same model, so the
+    backtest can measure each model on its own snapshots instead of pooling
+    ratings from different weightings (see backtest.build_measure_summary).
+    """
+    import hashlib
+    import json
+    from scripts.scoring import GATES
+    gates = [{k: (_callable_source(v) if callable(v) else v)
+              for k, v in g._asdict().items()} for g in GATES]
+    body = json.dumps({'params': params if params is not None else default_params(),
+                       'gates': gates}, sort_keys=True, default=str)
+    return hashlib.sha256(body.encode('utf-8')).hexdigest()[:12]
+
+
+def scoring_fingerprint():
+    """``{'params_hash', 'git_sha'}`` for a snapshot's ``provenance.scoring``.
+
+    git_sha is the checkout the run came from (None outside git); the hash is
+    what the backtest groups by, since a commit that does not touch scoring
+    leaves it unchanged.
+    """
+    import subprocess
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        sha = subprocess.check_output(['git', '-C', repo, 'rev-parse', 'HEAD'],
+                                      text=True, stderr=subprocess.DEVNULL,
+                                      timeout=10).strip() or None
+    except (OSError, subprocess.SubprocessError):
+        sha = None
+    return {'params_hash': scoring_params_hash(), 'git_sha': sha}

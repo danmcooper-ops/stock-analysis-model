@@ -87,6 +87,13 @@ and the summary JSON:
    effective n, t at effective n. The headline is **t(eff)**, not the
    snapshot count or the pooled n. Below |t| = 2 the signal is not
    distinguishable from zero; say so plainly rather than reading the sign.
+2a. **Scoring models**: the "SCORING MODELS IN THE CORPUS" and "CURRENT MODEL
+    ... RE-SCORED" blocks (`regimes` and `rescored_current` in the summary).
+    Give the re-scored IC and buckets next to the as-recorded ones. The
+    as-recorded headline measures whichever model rated each day, so once the
+    weights change it pools models. The re-scored view holds today's model
+    fixed. It is in-sample for weights that were calibrated on this corpus;
+    say so if a weight PR landed since the corpus began.
 3. **Rating buckets**: the aggregated table. They should stay ordered
    BUY > LEAN BUY > HOLD > PASS on mean excess return. A reversal that
    persists three weeks running is worth a note; a single week is noise.
@@ -105,7 +112,8 @@ and the summary JSON:
    If 04b failed or TIINGO_API_KEY is absent, say that delisted names were
    dropped this week.
 6. **Week over week** (`logs/07-compare.log`): list every `REGRESSION:` line
-   verbatim, or say "no regressions". A newly skipped snapshot ("missing gate
+   verbatim, or say "no regressions". Quote `NOTICE:` lines too: a scoring
+   model change is expected after a weight PR, not a failure. A newly skipped snapshot ("missing gate
    fields") means a nightly run wrote a snapshot without current gate
    fields — flag it prominently.
 7. **Archive**: the `Weekly backtest: <date>` commit from `logs/08-archive.log`
@@ -121,7 +129,10 @@ and the summary JSON:
   be copied into `scripts/config.py`.
 - **No config changes.** Weights and thresholds change only through a
   reviewed PR, after a non-forced calibration whose recommendation won a
-  majority of de-overlapped windows.
+  majority of de-overlapped windows. After such a PR merges, the new model's
+  own as-recorded evidence starts from zero (its regime in `regimes`). Until
+  it matures, `rescored_current` is the only measure of the new weights, and
+  it is in-sample.
 
 ## Running it by hand
 - `SMOKE=1 bash scheduled-tasks/cloud-weekly-backtest/run.sh` measures the
