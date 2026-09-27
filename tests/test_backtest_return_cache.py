@@ -91,7 +91,8 @@ def test_fresh_computation_records_coverage(tmp_path):
 
 def test_complete_sidecar_is_reused_without_fetching(tmp_path):
     _write(tmp_path, {'run_date': RUN, 'horizon_days': 30, 'spy_return': 0.02,
-                      'coverage': 1.0, 'n_requested': 10, 'n_priced': 10, 'method': 2,
+                      'coverage': 1.0, 'n_requested': 10, 'n_priced': 10,
+                      'method': bt.SIDECAR_METHOD, 'window_unverified': True,
                       'tickers': {t: _fwd() for t in TICKERS}})
     snap = _snapshot()
     out = bt.annotate_snapshot_returns(snap, [30], _Forbidden(),
@@ -222,7 +223,8 @@ def test_measure_cli_names_outputs_by_stamp(tmp_path, monkeypatch):
 
 def test_topup_that_finds_nothing_leaves_the_sidecar_untouched(tmp_path):
     body = {'run_date': RUN, 'horizon_days': 30, 'spy_return': 0.02,
-            'coverage': 0.5, 'n_requested': 10, 'n_priced': 5, 'method': 2,
+            'coverage': 0.5, 'n_requested': 10, 'n_priced': 5,
+            'method': bt.SIDECAR_METHOD, 'window_unverified': True,
             'updated_at': '2026-08-10', 'tickers': {t: _fwd() for t in TICKERS[:5]}}
     path = _write(tmp_path, body)
     before = path.read_text(encoding='utf-8')
@@ -231,3 +233,118 @@ def test_topup_that_finds_nothing_leaves_the_sidecar_untouched(tmp_path):
                                        cache_dir=str(tmp_path), today=TODAY)
     assert out == {30: 5}
     assert path.read_text(encoding='utf-8') == before
+
+
+# ---------------------------------------------------------------------------
+# The measured window, not just the measured tickers
+# ---------------------------------------------------------------------------
+# is_matured() says the CALENDAR has passed; it does not say the market has.
+# Measuring the moment a horizon matures takes whatever bar is nearest within
+# MAX_SNAP_GAP_DAYS, and when the eval date is a Sunday that is the Friday
+# before: a 28-day window recorded as a 30-day return, then frozen for good by
+# a sidecar whose coverage reads 1.0. The weekly routine runs on Sundays, so
+# the newest matured snapshot's eval date IS a Sunday every single week.
+
+def _px(prices_dir, ticker, upto, step='2026-09-11', before=100.0, after=110.0):
+    """A business-day close series that steps up after *step*, cut at *upto*."""
+    idx = pd.date_range('2026-07-01', upto, freq='B', name='Date')
+    pd.DataFrame({'Close': [before if d <= pd.Timestamp(step) else after
+                            for d in idx]}, index=idx
+                 ).to_parquet(prices_dir / f'{ticker}.parquet')
+
+
+@pytest.fixture
+def unsettled_corpus(tmp_path):
+    """run 2026-08-14 + 30d -> eval Sun 2026-09-13; bars stop Fri 2026-09-11."""
+    prices = tmp_path / 'prices'
+    prices.mkdir()
+    cache = tmp_path / 'returns'
+    bt._BAR_CACHE.clear()
+    return prices, cache
+
+
+def _snap_one(run='2026-08-14'):
+    return {'date': run, 'results': [{'ticker': 'AAA', 'price': 100.0}]}
+
+
+def test_unsettled_eval_date_is_deferred_and_nothing_is_frozen(unsettled_corpus):
+    prices, cache = unsettled_corpus
+    _px(prices, 'SPY', '2026-09-11')
+    _px(prices, 'AAA', '2026-09-11', before=50.0, after=50.0)
+    snap = _snap_one()
+    out = bt.annotate_snapshot_returns(snap, [30], None, prices_dir=str(prices),
+                                       cache_dir=str(cache), today=date(2026, 9, 13))
+    assert out == {30: None}                       # matured by the calendar...
+    assert bt.is_matured('2026-08-14', 30, date(2026, 9, 13))
+    assert '_fwd' not in snap['results'][0]        # ...but not measured
+    assert snap['_fwd_stats'][30]['unsettled'] is True
+    assert snap['_fwd_stats'][30]['bench_last_bar'] == '2026-09-11'
+    assert not (cache / '2026-08-14_h30.json').exists()   # nothing frozen
+
+
+def test_the_full_window_is_measured_once_the_benchmark_settles(unsettled_corpus):
+    prices, cache = unsettled_corpus
+    _px(prices, 'SPY', '2026-09-30')              # now reaches past the eval date
+    _px(prices, 'AAA', '2026-09-30', before=50.0, after=50.0)
+    snap = _snap_one()
+    bt.annotate_snapshot_returns(snap, [30], None, prices_dir=str(prices),
+                                 cache_dir=str(cache), today=date(2026, 9, 20))
+    fwd = snap['results'][0]['_fwd'][30]
+    # AAA flat; SPY 100 -> 110 across the 09-11/09-14 step the short window missed
+    assert fwd['ret'] == pytest.approx(0.0)
+    assert fwd['spy_return'] == pytest.approx(0.10)
+    assert fwd['excess_return'] == pytest.approx(-0.10)
+    body = json.loads((cache / '2026-08-14_h30.json').read_text(encoding='utf-8'))
+    assert body['eval_date'] == '2026-09-13' and body['bench_last_bar'] == '2026-09-30'
+    assert bt.sidecar_window_settled(body) and bt.sidecar_is_complete(body, ['AAA'])
+
+
+def test_a_short_window_sidecar_does_not_survive_as_complete(unsettled_corpus):
+    """The exact file the old code froze: coverage 1.0, no window record."""
+    prices, cache = unsettled_corpus
+    cache.mkdir()
+    short = {'run_date': '2026-08-14', 'horizon_days': 30, 'method': 2,
+             'spy_return': 0.0, 'coverage': 1.0, 'n_requested': 1, 'n_priced': 1,
+             'tickers': {'AAA': {'excess_return': 0.0, 'ret': 0.0,
+                                 'start_price': 50.0, 'end_price': 50.0,
+                                 'spy_return': 0.0}}}
+    assert not bt.sidecar_is_complete(short, ['AAA'])
+    (cache / '2026-08-14_h30.json').write_text(json.dumps(short), encoding='utf-8')
+    _px(prices, 'SPY', '2026-09-30')
+    _px(prices, 'AAA', '2026-09-30', before=50.0, after=50.0)
+    snap = _snap_one()
+    bt.annotate_snapshot_returns(snap, [30], None, prices_dir=str(prices),
+                                 cache_dir=str(cache), today=date(2026, 9, 20))
+    # repaired, not carried forward
+    assert snap['results'][0]['_fwd'][30]['excess_return'] == pytest.approx(-0.10)
+
+
+# ---------------------------------------------------------------------------
+# One benchmark per cross-section
+# ---------------------------------------------------------------------------
+# The benchmark return belongs to the (date, horizon), not to a row. A top-up
+# used to measure its new rows against a freshly fetched SPY while the frozen
+# rows kept an older one, leaving two benchmarks inside one snapshot -- so the
+# rows' excess returns were no longer comparable and analyze_run's spy_return
+# and bucket alphas depended on row order.
+
+def test_topup_keeps_one_benchmark_across_the_cross_section(tmp_path):
+    frozen = {t: _fwd(ret=0.05, spy=0.02) for t in TICKERS[:5]}
+    path = _write(tmp_path, {'run_date': RUN, 'horizon_days': 30,
+                             'spy_return': 0.02, 'coverage': 0.5,
+                             'method': bt.SIDECAR_METHOD,
+                             'window_unverified': True,
+                             'n_requested': 10, 'n_priced': 5, 'tickers': frozen})
+    have = {t: _series() for t in TICKERS}
+    have['SPY'] = _series(drift=0.0005)          # a DIFFERENT benchmark return
+    snap = _snapshot()
+    bt.annotate_snapshot_returns(snap, [30], _Client(have),
+                                 cache_dir=str(tmp_path), today=TODAY)
+    body = json.loads(path.read_text(encoding='utf-8'))
+    spys = {v['spy_return'] for v in body['tickers'].values()}
+    assert len(spys) == 1, f'two benchmarks in one cross-section: {sorted(spys)}'
+    assert spys == {0.02}                         # the frozen one governs
+    for v in body['tickers'].values():            # and excess follows it
+        assert v['excess_return'] == pytest.approx(v['ret'] - 0.02)
+    rows = {r['ticker']: r['_fwd'][30]['spy_return'] for r in snap['results']}
+    assert set(rows.values()) == {0.02}

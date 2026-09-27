@@ -368,6 +368,25 @@ ruff check .
   job runs `ingest_snapshots.py --compact` (`compact_store()`: checkpoint,
   verified copy from a read-only attach held through the swap; refuses while
   another process has the store open).
+- **Parquet exports are derived, and are invalidated like the store:** a
+  per-run export (`output/parquet/results_<date>.parquet`, `data/db/parquet.py`)
+  is what `load_corpus` prefers over both the store and the JSON, because the
+  plan's analytics path never scans Postgres for a backtest. But only
+  `db_publish` / `storage.upload_run` write them, while `rescore_and_render` and
+  the four `enrich_*` steps rewrite a snapshot and refresh only the DuckDB store
+  — so an export outlived its snapshot and served the ratings from *before* the
+  re-score, together with the pre-re-score `provenance.scoring.params_hash`.
+  That made the pooled model invisible to `model_regimes` and to `compare`'s
+  NOTICE, the two checks built to catch it. `sync_snapshot_file` — the single
+  choke point every rewriter already goes through, and where
+  `_republish_to_database` lives for the same reason (R2) — now drops the export
+  (`invalidate_parquet_export`); the reader ignores one older than its snapshot
+  (`parquet_export_is_stale`, mtime not a content hash: verifying an 87 MB
+  gzipped snapshot per date would cost more than the export saves); and
+  `export_dir` rebuilds a stale file even without `replace=True`. Removal rather
+  than re-export, because the caller has just re-mirrored the store every reader
+  falls back to, and a rebuild needs pyarrow and the column registry — neither
+  may fail a pipeline step.
 - **Backtest/query reads:** `backtest.py` loads each snapshot from the store
   when it holds that date (per-date decision, `--no-store` forces JSON) —
   the corpus costs roughly half the RSS of parsing the files, which is what
@@ -390,6 +409,34 @@ ruff check .
   unpriced names by rating, skipped snapshots and the git SHA into
   `backtest_summary_<stamp>.json`, and `scripts/backtest_cloud.py compare`
   diffs it against the prior week's.
+  **The window, not just the tickers (`SIDECAR_METHOD` 3):** `is_matured`
+  says the *calendar* passed, not that the market did. `_nearest_bar` /
+  `window_closes` accept any bar within `MAX_SNAP_GAP_DAYS` (7) of the eval
+  target, so a pair measured the moment it matures takes whatever bar exists
+  that day — and the routine runs Sundays, so the newest matured snapshot's
+  eval date IS a Sunday every week, snapping back to the Friday before. That
+  froze a 28-day window as a 30-day return with `coverage` 1.0, permanently
+  and undetectably: of 74 local sidecars, 2026-07-17 / 08-07 / 08-14 / 08-21
+  were each frozen on their own (Sunday) eval date, with SPY off 44–55 bp and
+  a different end bar for ~all tickers. So `benchmark_settlement` now requires
+  the benchmark to hold a bar **on or after** the eval date; otherwise the pair
+  is *deferred* — not measured, nothing written — and lands in the summary's
+  `deferred` list (`compare` treats a first week as normal and a second as a
+  regression, since the prices have stopped advancing). Each sidecar records
+  `eval_date` + `bench_last_bar`, so the window it covers is auditable, and one
+  that cannot prove its eval date traded is recomputed rather than topped up
+  (`sidecar_window_settled`). With no `--prices-dir` there is nothing to judge
+  by: such a file is stamped `window_unverified` and behaves as before, since
+  proving settlement through a live client would cost the very fetch the
+  sidecar exists to avoid. The weekly routine always passes one.
+  **One benchmark per cross-section:** the benchmark return belongs to the
+  (date, horizon), not to a row. A top-up used to measure its new rows against
+  a freshly fetched SPY while the frozen rows kept the old one, leaving two
+  benchmarks inside one snapshot — incomparable excess returns, and an
+  `analyze_run` `spy_return`/bucket `alpha` that depended on row order. A
+  settled sidecar's frozen value now governs every row in it (the fresh one
+  only when there is nothing frozen), every entry is re-derived from it, and
+  `analyze_run` warns if rows still disagree.
   **Delistings (survivorship):** Yahoo drops a delisted symbol's history, so
   the names that left the market — overwhelmingly acquisitions (EA, TMHC,
   NFBK, LEG... on the 2026-07..09 corpus) — used to vanish from the backtest.

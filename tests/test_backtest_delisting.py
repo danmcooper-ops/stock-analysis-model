@@ -116,11 +116,14 @@ def _fwd(ret):
             'end_price': 50.0 * (1 + ret), 'spy_return': 0.0}
 
 
-def test_method_1_sidecar_is_topped_up_once_keeping_frozen_returns(prices, tmp_path):
+def test_sidecar_with_no_window_record_is_recomputed_not_topped_up(prices, tmp_path):
+    """A sidecar written before the measured window was recorded cannot be told
+    apart from one truncated back to whatever bar existed that day, so once the
+    local prices can prove the eval date traded, it is recomputed outright."""
     cache = tmp_path / 'returns'
     cache.mkdir()
     path = cache / f'{RUN}_h30.json'
-    path.write_text(json.dumps({                    # complete by coverage, old method
+    path.write_text(json.dumps({                    # complete by coverage, no window
         'run_date': RUN, 'horizon_days': 30, 'spy_return': 0.1, 'coverage': 0.95,
         'n_requested': 2, 'n_priced': 1, 'tickers': {'LIVE': _fwd(0.123)}}),
         encoding='utf-8')
@@ -131,7 +134,9 @@ def test_method_1_sidecar_is_topped_up_once_keeping_frozen_returns(prices, tmp_p
     assert out == {30: 2}
     body = json.loads(path.read_text(encoding='utf-8'))
     assert body['method'] == bt.SIDECAR_METHOD
-    assert body['tickers']['LIVE']['ret'] == 0.123        # frozen, not recomputed
+    assert body['eval_date'] == '2026-08-05'         # RUN + 30d
+    assert body['bench_last_bar'] == '2026-09-25'    # settled: bar >= eval date
+    assert body['tickers']['LIVE']['ret'] == pytest.approx(0.0)   # LIVE is flat
     assert body['tickers']['DEAL']['delisted']['kind'] == 'merger'
     assert snap['_fwd_stats'][30]['cached'] is False
     # ...and from now on it is complete
@@ -142,8 +147,29 @@ def test_method_1_sidecar_is_topped_up_once_keeping_frozen_returns(prices, tmp_p
     assert snap2['_fwd_stats'][30]['cached'] is True
 
 
+def test_a_settled_sidecar_below_coverage_keeps_its_frozen_returns(prices, tmp_path):
+    """The repair above applies only to sidecars that cannot prove their window.
+    One that records a settled eval date is still topped up, not recomputed."""
+    cache = tmp_path / 'returns'
+    cache.mkdir()
+    path = cache / f'{RUN}_h30.json'
+    path.write_text(json.dumps({
+        'run_date': RUN, 'horizon_days': 30, 'spy_return': 0.1, 'coverage': 0.5,
+        'eval_date': '2026-08-05', 'bench_last_bar': '2026-09-25',
+        'method': bt.SIDECAR_METHOD, 'n_requested': 2, 'n_priced': 1,
+        'tickers': {'LIVE': _fwd(0.123)}}), encoding='utf-8')
+    snap = {'date': RUN, 'results': [{'ticker': 'LIVE', 'price': 50.0},
+                                     {'ticker': 'DEAL', 'price': 40.0}]}
+    bt.annotate_snapshot_returns(snap, [30], None, prices_dir=str(prices),
+                                 cache_dir=str(cache), today=TODAY)
+    body = json.loads(path.read_text(encoding='utf-8'))
+    assert body['tickers']['LIVE']['ret'] == 0.123       # frozen, kept
+    assert body['tickers']['DEAL']['delisted']['kind'] == 'merger'
+
+
 def test_complete_sidecar_reopens_for_a_newly_confirmed_delisting(prices):
     cached = {'spy_return': 0.1, 'coverage': 0.95, 'method': bt.SIDECAR_METHOD,
+              'eval_date': '2026-08-05', 'bench_last_bar': '2026-09-25',
               'tickers': {'LIVE': _fwd(0.1)}}
     man = bt.load_backfill_manifest(str(prices))
     assert bt.sidecar_is_complete(cached, ['LIVE'], man)

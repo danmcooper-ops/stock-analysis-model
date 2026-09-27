@@ -29,8 +29,8 @@ cold. These subcommands keep that logic out of shell heredocs:
                  backtest.py measures to their last close.
   compare        Week-over-week regression check of two backtest summaries.
                  Exit 1 with REGRESSION lines when the corpus shrank, a new
-                 snapshot was skipped, a (date, horizon) went unmeasured or
-                 fell below the return-coverage floor. NOTICE lines (no
+                 snapshot was skipped, a (date, horizon) went unmeasured, stayed
+                 deferred for a second week, or fell below the coverage floor. NOTICE lines (no
                  failure) say when the scoring model changed or the
                  as-recorded headline pools more than one model.
 
@@ -425,6 +425,11 @@ def compare_summaries(cur, prior, min_coverage=None):
 
     Also flags current-only problems (unmeasured pairs, low coverage), so a
     first week with no prior summary is still checked.
+
+    A *deferred* pair is not a regression: the newest matured snapshot's eval
+    date falls on the run day itself, so its benchmark bar does not exist yet
+    and backtest.py defers it rather than freezing a short window. One still
+    deferred a week later is a regression — the prices have stopped advancing.
     """
     out = []
     floor = min_coverage
@@ -445,6 +450,12 @@ def compare_summaries(cur, prior, min_coverage=None):
                 out.append(f'newly skipped snapshot {d}: {why}')
     for u in cur.get('unmeasured', []):
         out.append(f'{u["run_date"]} +{u["horizon"]}d unmeasured: {u["reason"]}')
+    was_deferred = {(d['run_date'], d['horizon'])
+                    for d in (prior or {}).get('deferred', [])}
+    for d in cur.get('deferred', []):
+        if (d['run_date'], d['horizon']) in was_deferred:
+            out.append(f'{d["run_date"]} +{d["horizon"]}d still deferred a week '
+                       f'later: {d["reason"]}')
     for c in cur.get('coverage', []):
         cov = c.get('coverage')
         if cov is not None and cov < floor:

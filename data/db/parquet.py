@@ -24,7 +24,8 @@ import pyarrow.parquet as pq
 
 from data.db.codec import decode, dumps, split_row
 from data.db.columns import COLUMNS
-from data.snapshot_store import BLOB_KEYS, DEFAULT_PROJECTIONS, split_snapshot
+from data.snapshot_store import (BLOB_KEYS, DEFAULT_PROJECTIONS,
+                                 parquet_export_is_stale, split_snapshot)
 
 FORMAT = 'stock-analysis/results-parquet-v1'
 _ARROW = {'double precision': pa.float64(), 'bigint': pa.int64(), 'boolean': pa.bool_(), 'text': pa.string()}
@@ -123,16 +124,21 @@ def read_snapshot_parquet(path):
 
 
 def export_dir(results_dir, parquet_dir, dates=None, replace=False):
-    """Export every snapshot in *results_dir* (or *dates*) that has no Parquet
-    file yet; returns ``[(date, n_rows)]``. Used to backfill the analytics
-    corpus from the archive."""
+    """Export every snapshot in *results_dir* (or *dates*) whose Parquet file is
+    missing or stale; returns ``[(date, n_rows)]``. Used to backfill the
+    analytics corpus from the archive.
+
+    A file older than the snapshot it derives from is rebuilt even without
+    *replace*: it is a derived copy of a snapshot that has since been rewritten,
+    so leaving it in place is what let a stale export shadow a re-score.
+    """
     from data.snapshot_store import list_snapshot_files, read_snapshot
     done = []
     for d, path in list_snapshot_files(results_dir):
         if dates is not None and d not in dates:
             continue
         out = parquet_path(parquet_dir, d)
-        if os.path.exists(out) and not replace:
+        if os.path.exists(out) and not replace and not parquet_export_is_stale(out, path):
             continue
         n, _ = export_snapshot(read_snapshot(path), d, out)
         done.append((d, n))

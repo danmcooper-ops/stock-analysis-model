@@ -34,7 +34,7 @@ import logging
 import math
 import itertools
 from datetime import date, datetime, timedelta
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -42,7 +42,7 @@ import numpy as np
 
 from data.price_store import parquet_paths, window_closes
 from data.snapshot_store import (SnapshotStore, list_snapshot_files,
-                                 read_snapshot)
+                                 parquet_export_is_stale, read_snapshot)
 from models.utils import rank
 from scripts.param_set import (default_params, merge_params, scoring_params_hash,
                                validate_params)
@@ -129,10 +129,14 @@ def load_corpus(results_dir='output', dates=None, use_store=None, parquet_dir=No
     an earlier observation and are always skipped.
 
     Each snapshot comes, per date, from its Parquet export when one exists
+    and is not older than the snapshot file it derives from
     (``<results_dir>/parquet/results_<date>.parquet`` or *parquet_dir*, see
     data/db/parquet.py), else from ``output/snapshots.duckdb`` when that
     store holds its date, else from the JSON file, so a partially backfilled
-    corpus still helps. The Parquet path carries the same slim
+    corpus still helps. An export that a re-score or an enrich step has left
+    behind is ignored, not trusted: it would serve the ratings from before the
+    re-score together with the pre-re-score ``provenance.scoring.params_hash``,
+    hiding the model mix from model_regimes. The Parquet path carries the same slim
     ``edgar_history`` as the store; the database is never read here.  The store drops the 52
     ``edgar_history`` series no scoring path reads (see
     data/snapshot_store.DEFAULT_PROJECTIONS), which is most of a ~66 MB
@@ -153,19 +157,27 @@ def load_corpus(results_dir='output', dates=None, use_store=None, parquet_dir=No
 
     store = SnapshotStore.for_results_dir(results_dir, allow_db=False) if use_store else None
     pq_dir = parquet_dir or os.path.join(results_dir, 'parquet')
-    snapshots, n_store, n_parquet = [], 0, 0
+    snapshots, n_store, n_parquet, n_stale = [], 0, 0, 0
     try:
         for d in sorted(by_date):
             snap = None
             pq_file = os.path.join(pq_dir, f'results_{d}.parquet')
             if use_store and os.path.exists(pq_file):
-                try:
-                    from data.db.parquet import read_snapshot_parquet
-                    snap = read_snapshot_parquet(pq_file)
-                    n_parquet += 1
-                except Exception as e:
-                    logger.warning("parquet export %s unreadable (%s); trying the store/JSON", pq_file, e)
-                    snap = None
+                if parquet_export_is_stale(pq_file, by_date[d]):
+                    logger.warning("%s: the Parquet export is older than %s — "
+                                   "ignoring it and reading the store/JSON; "
+                                   "rebuild it with "
+                                   "data.db.parquet.export_dir(replace=True)",
+                                   d, by_date[d])
+                    n_stale += 1
+                else:
+                    try:
+                        from data.db.parquet import read_snapshot_parquet
+                        snap = read_snapshot_parquet(pq_file)
+                        n_parquet += 1
+                    except Exception as e:
+                        logger.warning("parquet export %s unreadable (%s); trying the store/JSON", pq_file, e)
+                        snap = None
             if snap is None and store is not None and store.has_date(d):
                 try:
                     snap = dict(store.run_meta(d) or {})
@@ -183,6 +195,9 @@ def load_corpus(results_dir='output', dates=None, use_store=None, parquet_dir=No
     if n_parquet:
         print(f"[backtest] {n_parquet}/{len(snapshots)} snapshot(s) read from "
               f"Parquet exports")
+    if n_stale:
+        print(f"[backtest] {n_stale} stale Parquet export(s) ignored (older "
+              f"than their snapshot)")
     if n_store:
         print(f"[backtest] {n_store}/{len(snapshots)} snapshot(s) read from "
               f"the snapshot store")
@@ -230,9 +245,13 @@ RET_IMPLAUSIBLE_LOW = -0.9
 MIN_RETURN_COVERAGE = 0.90
 
 # Sidecar format. 2 = delisted names measured to their last close (see
-# terminal_returns). A sidecar written by an older method is topped up once:
-# only its missing tickers are fetched, its frozen returns stay.
-SIDECAR_METHOD = 2
+# terminal_returns). 3 = the window the returns were measured over is recorded
+# (``eval_date`` + ``bench_last_bar``), so a truncated freeze is auditable and
+# repairable. A sidecar written by an older method is topped up once: only its
+# missing tickers are fetched, its frozen returns stay — EXCEPT that a sidecar
+# which cannot prove its eval date had traded is recomputed outright, since its
+# frozen returns may cover a short window (see sidecar_window_settled).
+SIDECAR_METHOD = 3
 
 # Delistings (survivorship). A ticker Yahoo dropped is measured from Tiingo's
 # history (scripts/backtest_cloud.py backfill-prices), and one whose series
@@ -424,6 +443,103 @@ def is_matured(run_date_str, horizon_days, today=None):
     return run_dt + timedelta(days=horizon_days) <= today
 
 
+# Whether the market has actually traded through a pair's eval date.
+#
+# is_matured() only says the CALENDAR has passed. It does not say the prices
+# have: measuring the moment a horizon matures picks up whatever bar is nearest
+# within MAX_SNAP_GAP_DAYS, and when the eval date is a Sunday that is the
+# Friday before — a 28-day window recorded as a 30-day return, then frozen
+# forever by the sidecar. The weekly routine runs on Sundays, so the newest
+# matured date's eval date IS a Sunday every single week. A pair whose
+# benchmark has not reached the eval date is therefore deferred, not measured.
+SETTLED, UNSETTLED, UNKNOWN = 'settled', 'unsettled', 'unknown'
+
+_BAR_CACHE = {}
+
+
+def _last_bar_date(prices_dir, ticker):
+    """Last bar date in ``<prices_dir>/<ticker>.parquet``, or None.
+
+    Reads the index only (no columns), and caches on the file's mtime: the
+    benchmark is asked for once per (snapshot, horizon) across a whole corpus.
+    """
+    if not prices_dir:
+        return None
+    path = os.path.join(prices_dir, f'{ticker}.parquet')
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return None
+    hit = _BAR_CACHE.get(path)
+    if hit and hit[0] == mtime:
+        return hit[1]
+    last = None
+    try:
+        import pandas as pd
+        idx = pd.to_datetime(pd.read_parquet(path, columns=[]).index)
+        if getattr(idx, 'tz', None) is not None:
+            idx = idx.tz_localize(None)
+        if len(idx):
+            last = idx.max().date()
+    except Exception as e:
+        logger.warning('unreadable price index %s (%s)', path, e)
+    _BAR_CACHE[path] = (mtime, last)
+    return last
+
+
+def eval_date_for(run_date_str, horizon_days):
+    """The target date a (snapshot, horizon) pair is measured to."""
+    return (date.fromisoformat(str(run_date_str)[:10])
+            + timedelta(days=horizon_days))
+
+
+def benchmark_settlement(prices_dir, run_date_str, horizon_days,
+                         benchmark=BENCHMARK):
+    """``(state, last_bar)``: has the benchmark traded through the eval date?
+
+    SETTLED    the benchmark has a bar on or after the eval date, so the
+               nearest-bar search has seen both sides of the target and the
+               measurement may be frozen.
+    UNSETTLED  its bars stop short: the window would be truncated (and the
+               truncation frozen), so the pair is deferred to a later run.
+    UNKNOWN    no local benchmark parquet to judge by — behave as before.
+    """
+    last = _last_bar_date(prices_dir, benchmark)
+    if last is None:
+        return UNKNOWN, None
+    target = eval_date_for(run_date_str, horizon_days)
+    return (SETTLED if last >= target else UNSETTLED), last
+
+
+def sidecar_window_settled(cached):
+    """True when a sidecar records that its own eval date had traded.
+
+    Sidecars written before SIDECAR_METHOD 3 carry no such record, so their
+    frozen returns cannot be told apart from a window truncated back to the
+    last bar that existed when they were written.
+    """
+    cached = cached or {}
+    ev, last = cached.get('eval_date'), cached.get('bench_last_bar')
+    if not ev or not last:
+        return False
+    return str(last)[:10] >= str(ev)[:10]
+
+
+def sidecar_window_ok(cached):
+    """Whether *cached* may be trusted not to hold a truncated window.
+
+    True when it records a settled eval date, and also when it records that no
+    local price corpus existed to judge by (``window_unverified``). The guard
+    is a property of the local parquets — proving settlement through a live
+    client would cost a benchmark fetch on every reuse, which is exactly what
+    the sidecar exists to avoid — so a run with no ``--prices-dir`` keeps the
+    behaviour it always had. The weekly routine always passes one, so there the
+    guard always applies.
+    """
+    cached = cached or {}
+    return bool(cached.get('window_unverified')) or sidecar_window_settled(cached)
+
+
 _MANIFEST_CACHE = {}
 
 
@@ -539,11 +655,16 @@ def sidecar_is_complete(cached, tickers=(), manifest=None):
     once and the file is rewritten. So is one missing a ticker that the price
     backfill has since resolved (*manifest*, see load_backfill_manifest):
     a delisting confirmed after the sidecar was frozen must still count.
+
+    It must also record that its eval date had actually traded
+    (:func:`sidecar_window_settled`); one that cannot prove it may hold a
+    window truncated back to whatever bar existed when it was written.
     """
     cov = cached.get('coverage')
     if not (isinstance(cached.get('spy_return'), (int, float))
             and isinstance(cov, (int, float)) and cov >= MIN_RETURN_COVERAGE
-            and cached.get('method', 1) >= SIDECAR_METHOD):
+            and cached.get('method', 1) >= SIDECAR_METHOD
+            and sidecar_window_ok(cached)):
         return False
     if manifest:
         have = cached.get('tickers') or {}
@@ -600,6 +721,20 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
             out[h] = None
             continue
 
+        # The calendar has passed; has the market? Freezing a pair whose
+        # benchmark has not reached the eval date would freeze a short window.
+        settlement, bench_last = benchmark_settlement(prices_dir, run_date, h)
+        if settlement == UNSETTLED:
+            logger.info('%s +%dd: %s bars end %s, before the %s eval date — '
+                        'deferred, nothing measured or frozen', run_date, h,
+                        BENCHMARK, bench_last, eval_date_for(run_date, h))
+            stats_by_h[h] = {'requested': len(tickers), 'priced': 0,
+                             'implausible': 0, 'coverage': 0.0, 'cached': False,
+                             'unsettled': True,
+                             'bench_last_bar': bench_last.isoformat()}
+            out[h] = None
+            continue
+
         path = _returns_sidecar_path(cache_dir, run_date, h) if cache_dir else None
         cached = _read_sidecar(path, run_date, h, today) if path else None
         from_cache = cached is not None and sidecar_is_complete(
@@ -609,16 +744,40 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
             ticker_returns = cached.get('tickers', {})
             spy_ret = cached['spy_return']
         else:
-            # Keep every return an earlier run froze; fetch only the rest.
-            known = dict((cached or {}).get('tickers') or {})
+            # Keep every return an earlier run froze; fetch only the rest —
+            # unless the sidecar cannot prove its eval date had traded, in
+            # which case its returns may cover a truncated window and the pair
+            # is recomputed outright. Only done when the benchmark says the
+            # window is now settled, so a repair never trades a frozen
+            # measurement for a worse one.
+            if cached is None:
+                reuse = False
+            elif sidecar_window_ok(cached):
+                reuse = True
+            elif settlement == SETTLED:
+                reuse = False
+                logger.warning('%s +%dd: sidecar records no settled eval date; '
+                               'recomputing it rather than topping it up (%s)',
+                               run_date, h, path)
+            else:
+                reuse = True        # nothing to judge by; keep what we have
+            known = dict((cached or {}).get('tickers') or {}) if reuse else {}
             wanted = [t for t in tickers if t not in known]
             raw = fetch_forward_returns(wanted, run_date, h, yf_client,
                                         prices_dir=prices_dir)
-            spy = raw.get(BENCHMARK)
-            if spy is not None:
-                spy_ret = spy['ret']
-            elif cached is not None and isinstance(cached.get('spy_return'), (int, float)):
-                spy_ret = cached['spy_return']
+            # ONE benchmark for the whole cross-section. The benchmark return
+            # is a property of the (date, horizon), not of a row: a top-up
+            # used to measure its new rows against a freshly fetched SPY while
+            # the frozen rows kept an older one, leaving two benchmarks inside
+            # one snapshot and making each row's excess_return incomparable.
+            # A settled sidecar's frozen value is the immutable truth and the
+            # new rows join it; otherwise the fresh one governs every row.
+            fresh = (raw.get(BENCHMARK) or {}).get('ret')
+            pinned = cached.get('spy_return') if (reuse and cached) else None
+            if isinstance(pinned, (int, float)):
+                spy_ret = pinned
+            elif isinstance(fresh, (int, float)):
+                spy_ret = fresh
             else:
                 logger.warning('%s +%dd: no %s return (price data missing or '
                                'short) — horizon left unmeasured, nothing cached',
@@ -641,6 +800,13 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
                 }
                 if v.get('delisted'):
                     ticker_returns[t]['delisted'] = v['delisted']
+            # Re-derive every carried-over entry against the pinned benchmark
+            # too, so a file an older top-up left holding two SPY returns is
+            # repaired the first time it is opened.
+            for v in ticker_returns.values():
+                if isinstance(v.get('ret'), (int, float)):
+                    v['spy_return'] = spy_ret
+                    v['excess_return'] = v['ret'] - spy_ret
 
         n_priced = sum(1 for t in tickers if t in ticker_returns)
         coverage = n_priced / len(tickers) if tickers else 0.0
@@ -653,7 +819,10 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
         # held below the floor by delistings does not churn the archive weekly.
         changed = (cached is None or 'coverage' not in cached
                    or n_priced != cached.get('n_priced')
-                   or cached.get('method', 1) != SIDECAR_METHOD)
+                   or cached.get('method', 1) != SIDECAR_METHOD
+                   # a file with no window record gets one, once
+                   or (bench_last is not None
+                       and not sidecar_window_settled(cached)))
         if path and ticker_returns and not from_cache and changed:
             try:
                 os.makedirs(cache_dir, exist_ok=True)
@@ -661,6 +830,14 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
                     json.dump({
                         'run_date': run_date,
                         'horizon_days': h,
+                        # The window these returns actually cover. bench_last
+                        # >= eval_date is what makes the freeze trustworthy.
+                        'eval_date': eval_date_for(run_date, h).isoformat(),
+                        'bench_last_bar': (bench_last.isoformat()
+                                           if bench_last else None),
+                        # No local benchmark parquet to judge settlement by;
+                        # see sidecar_window_ok.
+                        'window_unverified': bench_last is None,
                         'computed_at': (cached or {}).get('computed_at', today.isoformat()),
                         'updated_at': today.isoformat(),
                         'method': SIDECAR_METHOD,
@@ -966,13 +1143,19 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
                               prices_dir=prices_dir, cache_dir=cache_dir,
                               today=today)
 
-    # SPY return is identical across rows for a given (date, horizon).
-    spy_ret = 0.0
-    for s in stocks:
-        fwd = (s.get('_fwd') or {}).get(horizon_days)
-        if fwd:
-            spy_ret = fwd.get('spy_return', 0.0)
-            break
+    # The benchmark return is a property of the (date, horizon), not of a row:
+    # annotate_snapshot_returns pins one across the whole cross-section. Taking
+    # whichever row came first used to hide a sidecar holding two of them, so
+    # disagreement is now reported and resolved deterministically.
+    seen = Counter(fwd['spy_return'] for s in stocks
+                   if (fwd := (s.get('_fwd') or {}).get(horizon_days))
+                   and isinstance(fwd.get('spy_return'), (int, float)))
+    if len(seen) > 1:
+        logger.warning('%s +%dd: %d different %s returns across the annotated '
+                       'rows (%s) — using the most common; the return sidecar '
+                       'is inconsistent', run_date, horizon_days, len(seen),
+                       BENCHMARK, sorted(seen))
+    spy_ret = seen.most_common(1)[0][0] if seen else 0.0
 
     # Build detail rows
     details = []
@@ -1175,12 +1358,14 @@ def run_backtest(results_dir, horizons, yf_client, prices_dir=None,
     all_results = load_results(results_dir)
     if not all_results:
         print("No results files found in", results_dir)
-        report.update(loaded=0, usable=0, skipped=[], unmeasured=[])
+        report.update(loaded=0, usable=0, skipped=[], unmeasured=[],
+                      deferred=[])
         return []
 
     kept, skipped_snaps = _filter_consistent_snapshots(all_results, since)
     report.update(loaded=len(all_results), usable=len(kept),
-                  skipped=[[d, why] for d, why in skipped_snaps], unmeasured=[])
+                  skipped=[[d, why] for d, why in skipped_snaps], unmeasured=[],
+                  deferred=[])
     # The annotated snapshots themselves, for the re-scored view. Private: not
     # serialized into the summary.
     report['_kept'] = kept
@@ -1216,10 +1401,20 @@ def run_backtest(results_dir, horizons, yf_client, prices_dir=None,
                 metrics.append(result)
             else:
                 stats = (run.get('_fwd_stats') or {}).get(h) or {}
-                report['unmeasured'].append({
-                    'run_date': run_date_str, 'horizon': h,
-                    'reason': ('no benchmark return' if stats.get('no_benchmark')
-                               else 'no forward returns')})
+                if stats.get('unsettled'):
+                    # Matured by the calendar, but the benchmark has not traded
+                    # through the eval date yet. Measuring now would freeze a
+                    # short window; it is measured on a later run instead.
+                    report['deferred'].append({
+                        'run_date': run_date_str, 'horizon': h,
+                        'reason': (f"{BENCHMARK} bars end "
+                                   f"{stats.get('bench_last_bar')}, before the "
+                                   f"{eval_date_for(run_date_str, h)} eval date")})
+                else:
+                    report['unmeasured'].append({
+                        'run_date': run_date_str, 'horizon': h,
+                        'reason': ('no benchmark return' if stats.get('no_benchmark')
+                                   else 'no forward returns')})
 
     if skipped and not metrics:
         print(f"\nAll {skipped} snapshot-horizon pairs have evaluation dates in the future.")
@@ -2937,6 +3132,9 @@ def _cli_measure(args):
         with open(summary_path, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2, default=str)
         print(f"Summary: {summary_path}")
+        for d in summary.get('deferred', []):
+            print(f"\n  DEFERRED: {d['run_date']} +{d['horizon']}d — {d['reason']}."
+                  f" It is measured once the benchmark settles.")
         low = [c for c in summary['coverage']
                if c['coverage'] is not None and c['coverage'] < MIN_RETURN_COVERAGE]
         if low:
@@ -3040,6 +3238,7 @@ def build_measure_summary(all_metrics, horizons, since, stamp, readiness,
         'snapshots': sorted({m['run_date'] for m in all_metrics}),
         'skipped_snapshots': report.get('skipped', []),
         'unmeasured': report.get('unmeasured', []),
+        'deferred': report.get('deferred', []),
         'coverage': coverage,
         'readiness': {str(h): {k: (v.isoformat() if isinstance(v, date) else v)
                                for k, v in r.items()}
