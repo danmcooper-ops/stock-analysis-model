@@ -114,3 +114,56 @@ def test_rendered_report_ships_the_chrome(tmp_path):
     # The search moved to the top bar and kept its id (applyFilters reads it).
     assert html.count('id="f-search"') == 1
     assert html.index('id="f-search"') < html.index('id="filt-panel"')
+
+
+def test_peers_pane_and_card_share_one_peer_list():
+    src = _tpl()
+    assert '_detPeerList(d)' in _fn(src, '_detPeersCardHtml')
+    open_det = src[src.index('function openDet(tk){'):src.index('function closeDetail(){')]
+    assert 'var _allPeers=_detPeerList(d);' in open_det
+    assert '_detFillSide(d);' in open_det
+
+
+def test_ticker_page_search_and_phone_back_button():
+    src = _tpl()
+    # Search on the ticker page switches ticker instead of filtering the
+    # table hidden underneath it.
+    assert "classList.contains('det-open')" in _fn(src, '_qrActive')
+    tap = _fn(src, 'hdrMenuTap')
+    assert tap.index('closeDetail()') < tap.index('sbOpen()')
+    assert '_detOpenState(false)' in src[src.index('function closeDetail(){'):][:300]
+
+
+def _range_js(tmp_path, rows):
+    src = _tpl()
+    js = ('function esc(s){return String(s);}\n'
+          + re.search(r'^function _num\(v\)\{.*?\}$', src, re.M).group(0) + '\n'
+          + re.search(r'^function fd\(v\)\{.*?\}$', src, re.M).group(0) + '\n'
+          + _fn(src, 'fd2') + _fn(src, '_rngPct') + _fn(src, '_detRangeHtml')
+          + 'var rows=' + json.dumps(rows) + ';\n'
+          + 'console.log(JSON.stringify(rows.map(_detRangeHtml)));\n')
+    script = tmp_path / 'range.js'
+    script.write_text(js, encoding='utf-8')
+    r = subprocess.run(['node', str(script)], capture_output=True, text=True, check=False)
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout)
+
+
+@pytest.mark.skipif(shutil.which('node') is None, reason='node not installed')
+def test_value_range_card(tmp_path):
+    mc, sens, none = _range_js(tmp_path, [
+        {'price': 100, 'mc_p10_fv': 80, 'mc_p90_fv': 160, '_fv_effective': 120,
+         'low_52w': 70, 'high_52w': 110},
+        {'price': 100, 'dcf_sens_range': [90, 140], 'dcf_fv': 115},
+        {'price': 100},
+    ])
+    assert 'Monte Carlo P10' in mc and '52-week range' in mc
+
+    def left(html, cls):
+        return float(re.search(r'class="' + cls + r'" style="left:([\d.]+)%', html).group(1))
+    band = re.search(r'class="rg-band" style="left:([\d.]+)%;width:([\d.]+)%', mc)
+    b0, bw = float(band.group(1)), float(band.group(2))
+    assert 0 <= b0 and b0 + bw <= 100.0001
+    assert b0 <= left(mc, 'rg-tick') <= b0 + bw   # base inside bear..bull
+    assert 'DCF sensitivity' in sens and '52-week' not in sens
+    assert none == ''

@@ -2454,6 +2454,64 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
   .d-tab{font-size:15px;padding:0 10px;height:42px;}
   #det-modal.hdr-min .d-tabs{margin-top:6px;}
 }
+/* Summary: chart + side column (value range, peers). */
+#det-modal .d-body{container-type:inline-size;container-name:detbody;}
+.d-sum-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start;}
+.d-sum-side{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start;}
+.d-sum-side.empty{display:none;}
+@container detbody (min-width:1100px){
+  .d-sum-grid{grid-template-columns:minmax(0,1fr) 320px;}
+  .d-sum-side{grid-template-columns:minmax(0,1fr);}
+}
+@container detbody (max-width:620px){.d-sum-side{grid-template-columns:minmax(0,1fr);}}
+.d-side-card{--sac:var(--chrome-heading);}
+.d-side-body{padding:6px 20px 16px;display:flex;flex-direction:column;gap:14px;font-size:14px;}
+.rg-blk{display:flex;flex-direction:column;gap:6px;}
+.rg-k{--sac:var(--chrome-heading);font-weight:600;}
+.rg-src{--sac:var(--chrome-muted);font-weight:400;font-size:12px;margin-left:6px;}
+.rg-bar{position:relative;height:22px;}
+.rg-track{position:absolute;left:0;right:0;top:9px;height:4px;border-radius:2px;background:var(--chip-border);}
+.rg-band{position:absolute;top:9px;height:4px;border-radius:2px;background:var(--chrome-pos);opacity:.45;}
+.rg-tick{position:absolute;top:3px;width:3px;height:16px;margin-left:-1.5px;background:var(--chrome-pos);border-radius:1px;}
+.rg-dot{position:absolute;top:4px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--chrome-heading);border:2px solid var(--surface);box-sizing:border-box;}
+.rg-52 .rg-dot{background:var(--chrome-muted);}
+.rg-lbls{--sac:var(--chrome-muted);display:flex;justify-content:space-between;gap:8px;font-size:12px;font-variant-numeric:tabular-nums;}
+.pc-list{display:flex;flex-direction:column;}
+.pc-row{display:grid;grid-template-columns:minmax(0,1fr) auto 64px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--chip-border);}
+.pc-id{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.pc-tk{--sac:var(--link);font-weight:700;font-size:15px;cursor:pointer;text-decoration:none;}
+.pc-nm{--sac:var(--chrome-muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pc-px{display:flex;flex-direction:column;align-items:flex-end;gap:3px;font-variant-numeric:tabular-nums;}
+.pc-px .rb{font-size:10px;}
+html body .d-side-card .rb{color:#fff !important;}
+.pc-mos{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;}
+.pc-mos.pos{--sac:var(--chrome-pos);}
+.pc-mos.neg{--sac:var(--chrome-neg);}
+.pc-all{--sac:var(--chrome-heading);height:38px;border:1px solid var(--chip-border);background:var(--chip-bg);border-radius:6px;font:inherit;font-size:14px;cursor:pointer;}
+.pc-all:hover{background:var(--menu-hover);}
+.pc-tk:focus-visible,.pc-all:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:2px;}
+/* Phone top bar over the ticker page: the bar stays visible (above the
+   modal), its ☰ becomes the back arrow, and the page starts below it. */
+.hdr-menu .hm-back{display:none;}
+@media(max-width:768px),(orientation:landscape) and (max-height:500px){
+  html.det-open .header{position:fixed;top:0;left:var(--sb-cur);z-index:1020;}
+  html.det-open body .detail-modal{top:var(--hdr-h,64px);}
+  html.det-open body .detail-content{height:calc(max(100dvh,var(--vvh,0px)) - var(--hdr-h,64px)) !important;}
+  html.det-open #det-modal .d-header-band{padding-top:10px !important;}
+  html.det-open #det-modal .detail-close{top:10px;}
+  html.det-open #det-modal .d-mini-nav{top:10px;}
+  html.det-open #det-modal .d-mini-nav-actions{top:54px;}
+  html.det-open .header .filter-bar{display:none;}
+}
+@media(max-width:768px){
+  html.det-open #det-modal .d-back{display:none;}
+  html.det-open .hdr-menu .hm-menu{display:none;}
+  html.det-open .hdr-menu .hm-back{display:block;}
+  html.det-open .header{width:var(--vvw,100vw);}
+}
+@media(orientation:landscape) and (max-height:500px){
+  html.det-open .header{width:calc(var(--vvw,100vw) - var(--sb-cur));}
+}
 /* Phones keep the tab bar over the ticker page (it closes the page and
    navigates); landscape phones keep the rail. */
 @media(max-width:768px){ #tabbar{z-index:1010;}}
@@ -2464,7 +2522,9 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 <body>
 <div class="header">
   <!-- Phones: the drawer opens from here (the sidebar is off-canvas). -->
-  <button type="button" class="hdr-menu sa-chrome" onclick="sbOpen()" aria-label="Open menu" aria-controls="sidebar"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+  <!-- Phones: opens the drawer; while a ticker page is open it is that
+       page's back arrow instead (hdrMenuTap). -->
+  <button type="button" class="hdr-menu sa-chrome" id="hdr-menu" onclick="hdrMenuTap()" aria-label="Open menu" aria-controls="sidebar"><svg class="hm-menu" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><svg class="hm-back" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   <!-- The ticker search, promoted out of the Filters panel into the top bar.
        Same ids (#f-search, #f-suggest), so applyFilters, the hash restore
        and the / hotkey are unchanged. On views with no table it lists
@@ -2683,6 +2743,10 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       <div id="d-kmetrics" class="d-kmetrics"></div>
       <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
       <div id="d-gate-values" class="d-gate-values"></div>
+      <!-- Chart beside a side column (value range + peers), Seeking Alpha's
+           chart / "People also follow" row. Stacks under the chart when the
+           ticker page is narrow (container query on .d-body). -->
+      <div class="d-sum-grid">
         <div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Charts</div>
           <div style="padding:14px 16px;background:var(--surface)">
             <div class="cm-wrap">
@@ -2698,6 +2762,11 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
             <div id="dtc-chart"></div>
           </div>
         </div>
+        <div class="d-sum-side">
+          <div id="d-range-card" class="dgroup d-side-card sa-chrome" style="display:none"></div>
+          <div id="d-peers-card" class="dgroup d-side-card sa-chrome" style="display:none"></div>
+        </div>
+      </div>
       <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span>The Track Record</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
       <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
       <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
@@ -7216,6 +7285,77 @@ function _dtcButtons(){
   _cmSum('dtc',_phMetricDef(_dtcMetric).lbl+' · '+_dtcRange
     +(bn.length?' · vs '+bn.map(_dtcIndexLabel).join(', '):''));
 }
+/* Finnhub + industry peers, de-duplicated, self excluded — one list for the
+   Peers tab and the Summary's Peers card so the two can never disagree. */
+function _detPeerList(d){
+  var fh=d.finnhub_peers||[];
+  var ind=Array.isArray(d._peers)?d._peers:(typeof d._peers==='string'&&d._peers.length>0?d._peers.split(/,\s*/):[]);
+  var seen={},out=[];
+  fh.concat(ind).forEach(function(t){t=String(t||'').trim();if(t&&!seen[t]&&t!==d.ticker){seen[t]=1;out.push(t);}});
+  return out;
+}
+/* Position of v on [lo,hi] as a clamped percentage for the range bars. */
+function _rngPct(v,lo,hi){return Math.max(0,Math.min(100,(v-lo)/(hi-lo)*100));}
+/* VALUE RANGE card: the bear / base / bull fair-value band (Monte Carlo
+   P10-P90, else the DCF sensitivity grid) and the 52-week range, each with
+   the price as a dot, drawn to one scale per bar that always contains the
+   price. Empty string when neither bar can be drawn. */
+function _detRangeHtml(d){
+  var px=_num(d.price),h='';
+  var bear=_num(d.mc_p10_fv),bull=_num(d.mc_p90_fv),src='Monte Carlo P10–P90';
+  if(bear==null||bull==null||!(bull>bear)){
+    var sr=d.dcf_sens_range||[];
+    bear=_num(d._sens_low!=null?d._sens_low:sr[0]);bull=_num(d._sens_high!=null?d._sens_high:sr[1]);src='DCF sensitivity';
+  }
+  var base=_num(d._fv_effective!=null?d._fv_effective:d.dcf_fv);
+  if(bear!=null&&bull!=null&&bull>bear){
+    var lo=Math.min(bear,px!=null?px:bear),hi=Math.max(bull,px!=null?px:bull);
+    if(base!=null){lo=Math.min(lo,base);hi=Math.max(hi,base);}
+    var pad=(hi-lo)*0.04;lo-=pad;hi+=pad;
+    var b0=_rngPct(bear,lo,hi),b1=_rngPct(bull,lo,hi);
+    h+='<div class="rg-blk"><div class="rg-k">Fair value <span class="rg-src">'+esc(src)+'</span></div>'
+      +'<div class="rg-bar" role="img" aria-label="Fair value '+esc(fd(bear))+' to '+esc(fd(bull))+(base!=null?', base '+esc(fd(base)):'')+(px!=null?', price '+esc(fd(px)):'')+'">'
+      +'<span class="rg-track"></span><span class="rg-band" style="left:'+b0.toFixed(1)+'%;width:'+(b1-b0).toFixed(1)+'%"></span>'
+      +(base!=null?'<span class="rg-tick" style="left:'+_rngPct(base,lo,hi).toFixed(1)+'%"></span>':'')
+      +(px!=null?'<span class="rg-dot" style="left:'+_rngPct(px,lo,hi).toFixed(1)+'%"></span>':'')+'</div>'
+      +'<div class="rg-lbls"><span>Bear '+fd(bear)+'</span>'+(base!=null?'<span>Base '+fd(base)+'</span>':'')+'<span>Bull '+fd(bull)+'</span></div></div>';
+  }
+  var l52=_num(d.low_52w),h52=_num(d.high_52w);
+  if(l52!=null&&h52!=null&&h52>l52){
+    var lo2=Math.min(l52,px!=null?px:l52),hi2=Math.max(h52,px!=null?px:h52);
+    h+='<div class="rg-blk"><div class="rg-k">52-week range</div>'
+      +'<div class="rg-bar rg-52" role="img" aria-label="52-week range '+esc(fd2(l52))+' to '+esc(fd2(h52))+'"><span class="rg-track"></span>'
+      +(px!=null?'<span class="rg-dot" style="left:'+_rngPct(px,lo2,hi2).toFixed(1)+'%"></span>':'')+'</div>'
+      +'<div class="rg-lbls"><span>'+fd2(l52)+'</span><span>'+fd2(h52)+'</span></div></div>';
+  }
+  return h?'<div class="dgroup-title">Value range</div><div class="d-side-body">'+h+'</div>':'';
+}
+function fd2(v){var n=_num(v);return n!=null?'$'+n.toFixed(2):'N/A';}
+/* PEERS card: the first peers that are in this report, each a link that
+   switches the ticker page. Empty string when none is in DATA. */
+function _detPeersCardHtml(d){
+  var rows=[],all=_detPeerList(d);
+  all.forEach(function(t){if(rows.length>=6)return;var p=DATA.find(function(x){return x.ticker===t;});if(p)rows.push(p);});
+  if(!rows.length)return'';
+  var h='<div class="dgroup-title">Peers</div><div class="d-side-body"><div class="pc-list">';
+  rows.forEach(function(p){
+    var m=_num(p.mos);
+    h+='<div class="pc-row"><div class="pc-id"><span class="ps-tk pc-tk" role="link" tabindex="0" onclick="openDet(\''+_pfJsArg(p.ticker)+'\')">'+esc(p.ticker)+'</span>'
+      +'<span class="pc-nm">'+esc(p.company_name||'')+'</span></div>'
+      +'<div class="pc-px"><span>'+fd2(p.price)+'</span>'+rb(p.rating)+'</div>'
+      +'<span class="pc-mos '+(m==null?'':m>=0?'pos':'neg')+'">'+(m==null?'—':(m>=0?'+':'−')+Math.abs(m*100).toFixed(1)+'%')+'</span></div>';
+  });
+  h+='</div><button type="button" class="pc-all" onclick="swDetTab(\'peers\')">See all peers'+(all.length>rows.length?' ('+all.length+')':'')+'</button></div>';
+  return h;
+}
+function _detFillSide(d){
+  [['d-range-card',_detRangeHtml(d)],['d-peers-card',_detPeersCardHtml(d)]].forEach(function(x){
+    var el=document.getElementById(x[0]);if(!el)return;
+    el.innerHTML=x[1];el.style.display=x[1]?'':'none';
+  });
+  var side=document.querySelector('#det-modal .d-sum-side');
+  if(side)side.classList.toggle('empty',!document.querySelector('#det-modal .d-side-card:not([style*="none"])'));
+}
 /* The ticker page's one-day move beside the price — Seeking Alpha's
    "0.79 (+6.00%)". No per-ticker daily change ships inline, so it comes from
    the last two closes in the ticker's px/ shard (lazy, ~30 KB); it stays
@@ -8916,12 +9056,8 @@ function openDet(tk){
   /* --- Peers / Suppliers / Customers stacked sections with financial
      snapshots (full-width tables; .ps-grid is a single column) --- */
   var psEl=document.getElementById('d-peers-supply');
-  var _fhPeers=d.finnhub_peers||[];
-  var _indPeers=Array.isArray(d._peers)?d._peers:(typeof d._peers==='string'&&d._peers.length>0?d._peers.split(/,\s*/):[]);
   var _sArr=d.suppliers||[];
-  /* Merge finnhub + industry peers, deduplicated, self excluded */
-  var _seenP={},_allPeers=[];
-  _fhPeers.concat(_indPeers).forEach(function(t){t=t.trim();if(t&&!_seenP[t]&&t!==d.ticker){_seenP[t]=1;_allPeers.push(t);}});
+  var _allPeers=_detPeerList(d);
   /* Deduplicate suppliers */
   var _seenS={},_allSupp=[];
   _sArr.forEach(function(s){var sym=(s.symbol||'').trim();if(sym&&!_seenS[sym]&&sym!==d.ticker){_seenS[sym]=1;_allSupp.push(s);}});
@@ -8976,6 +9112,8 @@ function openDet(tk){
   document.getElementById('d-section-network').style.display=psH.length>0?'':'none';
 
   var _dm=document.getElementById('det-modal');
+  _detFillSide(d);
+  _detOpenState(true);
   swDetTab(_detTab);
   _detDayChg(tk);
   /* Re-measure the visible viewport before the popup is sized against it, so
@@ -8987,7 +9125,7 @@ function openDet(tk){
   _dm.scrollTop=0;
   _lockBody();
 }
-function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_dm.classList.remove('hdr-min');_unlockBody();}
+function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_dm.classList.remove('hdr-min');_unlockBody();_detOpenState(false);}
 /* Pin the page while the popup is open. body{overflow:hidden} — the old
    lock — is ignored by iOS Safari: the table kept scrolling under the
    popup, and that scroll collapsed/expanded the browser toolbars, thrashing
@@ -9577,7 +9715,30 @@ document.addEventListener('click',function(e){
    no table for the search to filter, so there the top-bar search lists the
    best matches (same relevance as the table's best-match order) and opens
    the ticker page. The table views keep filtering as they always have. */
-function _qrActive(){return curView==='pool'||curView==='macro'||curView==='pf';}
+function _qrActive(){
+  /* The ticker page too: its search switches ticker rather than filtering
+     the table hidden underneath it. */
+  if(document.documentElement.classList.contains('det-open'))return true;
+  return curView==='pool'||curView==='macro'||curView==='pf';
+}
+/* The phone top bar's left button: back out of an open ticker page, else
+   open the drawer. */
+function hdrMenuTap(){
+  var dm=document.getElementById('det-modal');
+  if(dm&&dm.classList.contains('open')){closeDetail();return;}
+  sbOpen();
+}
+/* html.det-open + the top bar's measured height, so on phones the ticker
+   page can sit under the (still visible) dark top bar. */
+function _detOpenState(on){
+  var r=document.documentElement;
+  r.classList.toggle('det-open',!!on);
+  var hd=document.querySelector('.header');
+  if(hd)r.style.setProperty('--hdr-h',hd.offsetHeight+'px');
+  var b=document.getElementById('hdr-menu');
+  if(b)b.setAttribute('aria-label',on?'Back':'Open menu');
+  var q=document.getElementById('hdr-qr');if(q)q.classList.remove('open');
+}
 function qrRender(){
   var box=document.getElementById('hdr-qr'),inp=document.getElementById('f-search');
   if(!box||!inp)return;
