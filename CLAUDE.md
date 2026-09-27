@@ -403,6 +403,24 @@ ruff check .
   as `gone_before_snapshot`. Sidecars carry `method` (`SIDECAR_METHOD` = 2).
   An older one, or one missing a ticker the manifest has since resolved, is
   topped up once, and its frozen returns stay.
+  **Scoring model changes:** `measure` scores the rating each snapshot
+  *recorded*, so after a weight or gate change the headline pools two models,
+  and nothing used to say so. The corpus already mixes several: gate N/A
+  masking on 09-16, the debt-free Int Coverage rule on 09-22. Each snapshot now
+  carries `provenance.scoring = {params_hash, git_sha}`, stamped by
+  `analyze_stock` and restamped by `rescore_and_render`.
+  `param_set.scoring_params_hash()` hashes `default_params()` plus every gate's
+  field, weight, direction and test/score source, so any change to what rates
+  a row changes it, while an unrelated commit does not. `measure` adds:
+  - `regimes`: the as-recorded IC and buckets per hash; unstamped snapshots
+    form `pre-fingerprint`, itself a blend of those models;
+  - `rescored_current`: today's model re-applied to every snapshot's stored
+    fields (the calibrate path, `_evaluate_params_on_snapshots`), one model
+    across the whole corpus. It is in-sample if its weights were calibrated
+    on that corpus; walk-forward calibrate stays the out-of-sample test.
+
+  `backtest_cloud.compare` prints a `NOTICE` (not a failure) when the model
+  changed since last week or the headline pools more than one model.
 - **Report sidecars and the Pages size limits:** the HTML lazy-loads
   everything heavy from files beside it, through `_loadSidecar` (relative
   paths). Per-ticker shards: `vol/`, `px/` (manifested in `prices_meta.json`)

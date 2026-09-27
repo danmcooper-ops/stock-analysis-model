@@ -44,7 +44,8 @@ from data.price_store import parquet_paths, window_closes
 from data.snapshot_store import (SnapshotStore, list_snapshot_files,
                                  read_snapshot)
 from models.utils import rank
-from scripts.param_set import default_params, merge_params, validate_params
+from scripts.param_set import (default_params, merge_params, scoring_params_hash,
+                               validate_params)
 
 logger = logging.getLogger(__name__)
 
@@ -1143,6 +1144,22 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
 # Full backtest across all snapshots and horizons
 # ---------------------------------------------------------------------------
 
+# Snapshots written before provenance.scoring existed (2026-09-27). The
+# scoring model changed inside that span more than once (gate N/A masking on
+# 2026-09-16, the debt-free Int Coverage rule on 2026-09-22), so this regime is
+# itself a blend; the re-scored view (build_measure_summary) is the one that
+# holds a single model across the whole corpus.
+UNFINGERPRINTED = 'pre-fingerprint'
+
+
+def snapshot_params_hash(snapshot):
+    """The scoring model that rated *snapshot* (``provenance.scoring``)."""
+    prov = snapshot.get('provenance') if isinstance(snapshot, dict) else None
+    scoring = prov.get('scoring') if isinstance(prov, dict) else None
+    h = scoring.get('params_hash') if isinstance(scoring, dict) else None
+    return h or UNFINGERPRINTED
+
+
 def run_backtest(results_dir, horizons, yf_client, prices_dir=None,
                  since=MIN_CONSISTENT_DATE, cache_dir='output/returns',
                  report=None):
@@ -1164,6 +1181,9 @@ def run_backtest(results_dir, horizons, yf_client, prices_dir=None,
     kept, skipped_snaps = _filter_consistent_snapshots(all_results, since)
     report.update(loaded=len(all_results), usable=len(kept),
                   skipped=[[d, why] for d, why in skipped_snaps], unmeasured=[])
+    # The annotated snapshots themselves, for the re-scored view. Private: not
+    # serialized into the summary.
+    report['_kept'] = kept
     print(f"Loaded {len(all_results)} snapshot(s): {len(kept)} usable, "
           f"{len(skipped_snaps)} skipped (dated before {since} or missing "
           f"current gate fields).")
@@ -1192,6 +1212,7 @@ def run_backtest(results_dir, horizons, yf_client, prices_dir=None,
             result = analyze_run(run, h, yf_client, prices_dir=prices_dir,
                                  cache_dir=cache_dir)
             if result:
+                result['params_hash'] = snapshot_params_hash(run)
                 metrics.append(result)
             else:
                 stats = (run.get('_fwd_stats') or {}).get(h) or {}
@@ -2904,8 +2925,15 @@ def _cli_measure(args):
         # Compact machine-readable summary (committed alongside the snapshots
         # by the weekly routine so the evidence trail is versioned).
         summary_path = os.path.join(out_dir, f'backtest_summary_{stamp}.json')
+        # Last, because re-scoring rewrites the rows' ratings in place.
+        rescored = None
+        try:
+            rescored = rescored_current_view(report.get('_kept') or [], horizons)
+        except Exception as e:
+            logger.warning('re-scored view failed (%s); summary carries as-recorded only', e)
         summary = build_measure_summary(all_metrics, horizons, since, stamp,
-                                        readiness, report)
+                                        readiness, report, rescored=rescored)
+        print_regimes_and_rescored(summary['regimes'], rescored)
         with open(summary_path, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2, default=str)
         print(f"Summary: {summary_path}")
@@ -2934,8 +2962,57 @@ def _git_head():
         return None
 
 
+def model_regimes(all_metrics):
+    """As-recorded metrics grouped by the scoring model that rated them.
+
+    ``[{params_hash, first, last, snapshots, composite_ic, rating_buckets}]``,
+    oldest regime first. More than one entry means the weekly headline pools
+    ratings from different models.
+    """
+    by_hash = defaultdict(list)
+    for m in all_metrics:
+        by_hash[m.get('params_hash') or UNFINGERPRINTED].append(m)
+    out = []
+    for h, ms in by_hash.items():
+        dates = sorted({m['run_date'] for m in ms})
+        out.append({
+            'params_hash': h, 'first': dates[0], 'last': dates[-1],
+            'snapshots': len(dates),
+            'composite_ic': {str(k): v for k, v in composite_ic_summary(ms).items()},
+            'rating_buckets': {str(k): v for k, v in aggregate_buckets(ms).items()},
+        })
+    return sorted(out, key=lambda r: (r['first'], r['params_hash']))
+
+
+def rescored_current_view(snapshots, horizons):
+    """Today's scoring model re-applied to every usable snapshot.
+
+    The as-recorded headline measures whatever model rated each day, so after
+    a weight change it pools two models. This view re-scores every snapshot's
+    stored fields with ``default_params()`` (the calibrate path, so ratings
+    match what the live pipeline would emit) and measures one model across
+    the whole corpus. Caveat: if the current weights were chosen by
+    calibrating on this corpus, the view is in-sample — walk-forward
+    calibrate is the out-of-sample test.
+
+    Mutates the rows' rating/_composite_score in place (like calibrate), so
+    call it only after the as-recorded metrics have been computed.
+    """
+    metrics = _evaluate_params_on_snapshots(snapshots, default_params(), horizons)
+    metrics = [m for m in metrics
+               if any(d.get('excess_return') is not None for d in m['details'])]
+    return {
+        'params_hash': scoring_params_hash(),
+        'snapshots': len({m['run_date'] for m in metrics}),
+        'composite_ic': {str(h): v for h, v in composite_ic_summary(metrics).items()},
+        'rating_buckets': {str(h): v for h, v in aggregate_buckets(metrics).items()},
+        'note': ('current weights and gates re-applied to every snapshot; '
+                 'in-sample if those weights were calibrated on this corpus'),
+    }
+
+
 def build_measure_summary(all_metrics, horizons, since, stamp, readiness,
-                          report=None):
+                          report=None, rescored=None):
     """The versioned ``backtest_summary_<stamp>.json`` body.
 
     Beyond the headline IC and rating buckets it carries what is needed to
@@ -2955,6 +3032,7 @@ def build_measure_summary(all_metrics, horizons, since, stamp, readiness,
         'since': since.isoformat() if since else None,
         'provenance': {
             'git_sha': _git_head(),
+            'current_params_hash': scoring_params_hash(),
             'min_return_coverage': MIN_RETURN_COVERAGE,
             'snapshots_loaded': report.get('loaded'),
             'snapshots_usable': report.get('usable'),
@@ -2970,7 +3048,34 @@ def build_measure_summary(all_metrics, horizons, since, stamp, readiness,
                          composite_ic_summary(all_metrics).items()},
         'rating_buckets': {str(h): v for h, v in
                            aggregate_buckets(all_metrics).items()},
+        'regimes': model_regimes(all_metrics),
+        'rescored_current': rescored,
     }
+
+
+def print_regimes_and_rescored(regimes, rescored):
+    """stdout: the as-recorded IC per scoring model, then the re-scored view."""
+    print(f"\n  {'-'*60}\n  SCORING MODELS IN THE CORPUS (as-recorded ratings)\n  {'-'*60}")
+    for r in regimes:
+        ics = ', '.join(f"{h}d IC {v['mean_ic']:+.3f} (t_eff {v['t_stat_effective']:.2f})"
+                        if v.get('t_stat_effective') is not None
+                        else f"{h}d IC {v['mean_ic']:+.3f}"
+                        for h, v in sorted(r['composite_ic'].items(), key=lambda kv: int(kv[0])))
+        print(f"  {r['params_hash']:<16s} {r['first']} .. {r['last']}  "
+              f"{r['snapshots']:>3d} snapshot(s)  {ics or 'no matured pairs'}")
+    if len(regimes) > 1:
+        print("  NOTE: the headline above pools ratings from these models.")
+    if not rescored:
+        return
+    print(f"\n  {'-'*60}\n  CURRENT MODEL ({rescored['params_hash']}) RE-SCORED OVER "
+          f"{rescored['snapshots']} SNAPSHOT(S)\n  {'-'*60}")
+    print(f"  ({rescored['note']})")
+    print_composite_ic({int(h): v for h, v in rescored['composite_ic'].items()})
+    for h, by_rating in sorted(rescored['rating_buckets'].items(), key=lambda kv: int(kv[0])):
+        print(f"\n  {h}d  {'Rating':<10s} {'n':>7s} {'Mean ex':>9s} {'Median ex':>10s} {'Beat SPY':>9s}")
+        for rating, v in by_rating.items():
+            print(f"       {rating:<10s} {v['n']:>7d} {v['mean_excess']:>+9.2%} "
+                  f"{v['median_excess']:>+10.2%} {v['hit_rate']:>9.0%}")
 
 
 def _cli_yf_client(args):

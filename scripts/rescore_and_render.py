@@ -24,6 +24,7 @@ if _REPO_ROOT not in sys.path:
 from data.sec_xbrl_client import edgar_years_available
 from data.snapshot_store import (read_snapshot, sync_snapshot_file,
                                  write_snapshot_file)
+from scripts.param_set import scoring_fingerprint
 from scripts.scoring import score_and_rate
 from scripts.report_html import build_html
 from scripts.analyze_stock import (derive_edgar_metrics, _load_local_prices,
@@ -210,6 +211,11 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
     # Persist the rescored JSON back so the snapshot is consistent with the HTML
     if isinstance(snap, dict) and 'results' in snap:
         snap['results'] = results
+        # The rows were just re-rated by this checkout's model: restamp it.
+        prov = snap.get('provenance')
+        if not isinstance(prov, dict):
+            prov = snap['provenance'] = {}
+        prov['scoring'] = scoring_fingerprint()
         out = snap
     else:
         out = results
