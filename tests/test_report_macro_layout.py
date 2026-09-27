@@ -309,6 +309,12 @@ def test_sector_outlooks_live_on_their_sector_tab():
     # prose in the pp idiom: escaped first, then linkified like every other
     # renderPool* helper
     assert '_linkifyTickers(_esc(row.outlook||' in sec
+    # the Overview's influence paragraph repeats here, escaped the same way,
+    # between the outlook and the bullet columns
+    assert '_linkifyTickers(_esc(row.influence||' in sec
+    assert sec.find('pp-macro-p') < sec.find('pp-macro-inf') \
+        < sec.find('pp-macro-grid')
+    assert re.search(r'\.pp-macro-inf\{[^}]*font-size:0\.82em', css)
     # The Context arc reads primer -> macro -> the sector's own structural
     # forces, and the whole arc sits above the Profit Pool Structure block.
     pool = re.search(r'var primerHtml=renderPoolPrimer\(sec\);'
