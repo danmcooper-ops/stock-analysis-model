@@ -1,0 +1,8 @@
+{
+  "name": "stock-report-pages-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/worker.test.mjs"
+  }
+}

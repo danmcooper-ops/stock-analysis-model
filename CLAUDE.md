@@ -44,6 +44,8 @@ scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
 tests/           - pytest suite (~1,300 tests) incl. hypothesis property tests;
                    tests/load/ holds the P5 database scale harness and k6 script
 templates/       - jinja2 report templates
+cloudflare/      - the login in front of the Cloudflare Pages report
+                   (Access runbook + the JWT-checking pages/_worker.js)
 supabase/        - Supabase project (config.toml, migrations/) for the planned
                    primary database; see design/supabase-migration.md
 design/          - design docs and spikes (Supabase migration plan, P0 findings)
@@ -437,7 +439,8 @@ ruff check .
   manifest. `run.sh` step 08 pushes `docs/` to GitHub Pages (`pages-live`);
   step `08b-publish-cloudflare` (non-blocking) deploys the same directory
   with a pinned wrangler once the Cloudflare secrets exist (setup runbook in
-  design/supabase-migration.md, P4c). Cache headers stay at Pages' default
+  design/supabase-migration.md, P4c), behind the Access login in
+  `cloudflare/README.md`. Cache headers stay at Pages' default
   revalidation, because a `px/` shard is an offset into `prices_meta.json`'s
   dates axis and must never be mixed across deploys.
 - **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
@@ -599,4 +602,13 @@ by analyze_stock and gitignored):
   (token scoped to Account → Cloudflare Pages → Edit). `CF_PAGES_URL`
   overrides the live-check URL, `WRANGLER_VERSION` the pinned wrangler.
   Unset: skipped.
+- `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `CF_ACCESS_CLIENT_ID`,
+  `CF_ACCESS_CLIENT_SECRET` — the Cloudflare site is behind a login:
+  Cloudflare Access (allowlisted emails, one-time code) in front of
+  `*.pages.dev`, and `cloudflare/pages/_worker.js` (staged into the deploy by
+  `scripts/stage_pages_worker.py`, which fills in the team domain and AUD tag)
+  re-verifies the Access JWT on every request, so the site fails closed.
+  Step 08b refuses to deploy without the first two, fails if an anonymous
+  request gets a 200, and signs its live check in with the service token (the
+  last two). Runbook: `cloudflare/README.md`.
 - yfinance requires no authentication
