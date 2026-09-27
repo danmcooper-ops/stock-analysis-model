@@ -1974,7 +1974,7 @@ class SECXBRLClient:
             'cash_history':             cash_h,
             'shares_history':           shares,
             # Statement-tab series (popup Balance Sheet / Income Statement /
-            # Cash Flow). Consumed only by the report's hist.json sidecar.
+            # Cash Flow). Consumed only by the report's hist/ shards.
             'pretax_income_history':    pretax,
             'tax_provision_history':    taxprov,
             'd_and_a_history':          dna,

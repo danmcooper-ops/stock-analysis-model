@@ -2488,13 +2488,16 @@ if(GM&&GM.gates){for(var _gi=0;_gi<GM.gates.length;_gi++){if(GM.gates[_gi].label
 var SECTOR_POOL={{ sector_pool_json }};
 /* PRICES context lives in prices_meta.json (dates axis, manifests, index
    series, sector composites) with per-ticker closes sharded under px/;
-   HIST lives in hist.json. All lazy-load on first chart open. */
+   HIST is sharded per ticker under hist/ (the inline _HIST_TICKERS says
+   which shards exist). All lazy-load on first use. */
 var PRICES=null;
-var HIST=null;
+var HIST={};
 var _PRICES_AVAILABLE={{ prices_available }};
 var _HIST_AVAILABLE={{ hist_available }};
 var _PRICES_LOADING=false;
-var _HIST_LOADING=false;
+var _HIST_TICKERS={{ hist_tickers|default('[]') }};
+var _HIST_SET={};_HIST_TICKERS.forEach(function(t){_HIST_SET[t]=true;});
+var _HIST_LOADING={};
 /* Macro Outlook: a small inline summary (regime + headline tiles) paints the
    tab instantly; full histories lazy-load from macro.json on first open.
    |default guards run-code skew: a render by an older report_html.py must
@@ -2646,12 +2649,42 @@ function _ensurePx(tks,onDone){
     });
   });
 }
+/* A ticker "has hist" when a shard exists for it and a load has not failed.
+   HIST[tk]: undefined = not loaded yet, null = load failed, else the series. */
+function _histHas(tk){return !!(_HIST_SET[tk]&&HIST[tk]!==null);}
+function _histPending(tk){return !!(_HIST_SET[tk]&&HIST[tk]===undefined);}
+/* Fetch hist/<T>.json for every ticker in `tks` that has a shard and is not
+   loaded yet (parallel; a load already in flight is shared), then onDone.
+   A failed fetch settles to HIST[t]=null so callers stop retrying — a reload
+   is the retry path, as for px/. */
+function _ensureHist(tks,onDone){
+  var need=[];
+  (tks||[]).forEach(function(t){if(t&&_histPending(t)&&need.indexOf(t)<0)need.push(t);});
+  if(!need.length){if(onDone)onDone();return;}
+  var left=need.length;
+  var done=function(){if(--left===0&&onDone)onDone();};
+  need.forEach(function(t){
+    if(_HIST_LOADING[t]){
+      var poll=setInterval(function(){if(!_HIST_LOADING[t]){clearInterval(poll);done();}},120);
+      return;
+    }
+    _HIST_LOADING[t]=true;
+    _loadSidecar('hist/'+encodeURIComponent(t)+'.json',function(h){
+      _HIST_LOADING[t]=false;
+      HIST[t]=(h&&typeof h==='object')?h:null;
+      done();
+    });
+  });
+}
 /* DETAILS sidecar carries the heavy per-ticker text fields (news, legal,
    insider txns, full description, sector signals, fin summary, culture).
    Lazy-loaded after first paint and merged back into DATA so existing
    detail-panel code reads d.news_headlines etc. without changes. */
 var DETAILS=null;
 var _DETAILS_AVAILABLE={{ details_available }};
+/* details.json is split into ~8 MiB parts (details/<n>.json) to stay under
+   Cloudflare Pages' 25 MiB per-file limit; all of them load and merge. */
+var _DETAILS_PARTS={{ details_parts|default('[]') }};
 var _DETAILS_LOADING=false;
 var _DETAILS_LOADED=false;
 var _DETAILS_WAITERS=[];
@@ -2661,16 +2694,25 @@ function _loadDetails(cb){
   if(cb)_DETAILS_WAITERS.push(cb);
   if(_DETAILS_LOADING)return;
   _DETAILS_LOADING=true;
-  _loadSidecar('details.json',function(d){
-    _DETAILS_LOADING=false;_DETAILS_LOADED=true;DETAILS=d||{};
-    if(d){
-      for(var i=0;i<DATA.length;i++){
-        var rec=DATA[i],ext=d[rec.ticker];
-        if(ext){for(var k in ext)rec[k]=ext[k];}
-      }
+  /* Fetch every part in parallel; merge once all have settled. A failed
+     part leaves its tickers without the heavy fields, as a failed
+     details.json left all of them. */
+  var got={},left=_DETAILS_PARTS.length;
+  var finish=function(){
+    _DETAILS_LOADING=false;_DETAILS_LOADED=true;DETAILS=got;
+    for(var i=0;i<DATA.length;i++){
+      var rec=DATA[i],ext=got[rec.ticker];
+      if(ext){for(var k in ext)rec[k]=ext[k];}
     }
     var ws=_DETAILS_WAITERS;_DETAILS_WAITERS=[];
     for(var j=0;j<ws.length;j++){try{ws[j]();}catch(e){console.error('details waiter:',e);}}
+  };
+  if(!left){finish();return;}
+  _DETAILS_PARTS.forEach(function(p){
+    _loadSidecar('details/'+encodeURIComponent(p)+'.json',function(d){
+      if(d){for(var t in d)got[t]=d[t];}
+      if(--left===0)finish();
+    });
   });
 }
 /* Kick off the background fetch once the initial render lands. Most users
@@ -5388,13 +5430,9 @@ function initPriceChart(){
 }
 function _buildPHMetricBtns(){
   var el=document.getElementById('ph-metric-btns');if(!el)return;
-  var hasHist=HIST&&Object.keys(HIST).length>0;
-  // Kick off HIST sidecar load in the background so historical-fundamentals
-  // metrics enable themselves once data arrives. Non-blocking.
-  if(!HIST&&_HIST_AVAILABLE&&!_HIST_LOADING){
-    _HIST_LOADING=true;
-    _loadSidecar('hist.json',function(d){_HIST_LOADING=false;HIST=d;_buildPHMetricBtns();});
-  }
+  /* Fundamentals metrics need hist shards, which renderPHChart fetches for
+     the charted tickers on demand, so they are enabled whenever any exist. */
+  var hasHist=_HIST_AVAILABLE&&_HIST_TICKERS.length>0;
   el.innerHTML=_PH_METRICS.map(function(m){
     var dis=(m.src==='hist'&&!hasHist)?' disabled':'';
     return '<button class="ph-metric-btn'+(m.k===_phMetric?' active':'')+'"'+dis+' onclick="phSetMetric(\''+m.k+'\')" title="'+m.lbl+'">'+m.lbl+'</button>';
@@ -5548,7 +5586,7 @@ function _phGetPricePts(ticker,range){
 }
 function _phGetHistPts(ticker,metricKey,range){
   range=range||_phRange;
-  if(!HIST||!HIST[ticker])return[];
+  if(!HIST[ticker])return[];
   var h=HIST[ticker];
   // Series are keyed by period-end date string ("YYYY-MM-DD"). Sort
   // lexicographically (works because format is fixed-width zero-padded).
@@ -5622,6 +5660,18 @@ function renderPHChart(){
     var _snap=_phStocks.join(',');
     _ensurePx(_pend,function(){if(_phStocks.join(',')===_snap)renderPHChart();});
     return;
+  }
+  /* Same for a fundamentals metric: fetch the charted tickers' hist shards
+     (~10 KB each) before drawing. */
+  if(_phMetricDef(_phMetric).src==='hist'){
+    var _hpend=_phStocks.filter(_histPending);
+    if(_hpend.length){
+      var _e3=document.getElementById('ph-chart');
+      if(_e3)_e3.innerHTML=_pxLoadingHTML();
+      var _hsnap=_phStocks.join(',')+'|'+_phMetric;
+      _ensureHist(_hpend,function(){if(_phStocks.join(',')+'|'+_phMetric===_hsnap)renderPHChart();});
+      return;
+    }
   }
   var allRaw=_phStocks.map(function(tk){return _phGetPts(tk);});
   var sd=null;for(var i=0;i<DATA.length;i++){if(DATA[i].ticker===_phStocks[0]){sd=DATA[i];break;}}
@@ -6217,11 +6267,8 @@ function dtcSetRange(r){_dtcRange=r;_dtcRender();}
 function _dtcButtons(){
   var mb=document.getElementById('dtc-metric-btns');
   if(mb){
-    var hasHist=HIST&&Object.keys(HIST).length>0;
-    if(!HIST&&_HIST_AVAILABLE&&!_HIST_LOADING){
-      _HIST_LOADING=true;
-      _loadSidecar('hist.json',function(d){_HIST_LOADING=false;HIST=d;if(_detTab==='overview')_dtcRender();});
-    }
+    /* Enabled when this company has a hist shard; _dtcRender fetches it. */
+    var hasHist=_histHas(_dpTicker);
     mb.innerHTML=_PH_METRICS.map(function(m){
       var dis=(m.src==='hist'&&!hasHist)?' disabled':'';
       return '<button class="ph-metric-btn'+(m.k===_dtcMetric?' active':'')+'"'+dis+' onclick="dtcSetMetric(\''+m.k+'\')" title="'+m.lbl+'">'+m.lbl+'</button>';
@@ -6287,15 +6334,10 @@ function _dtcRender(){
       return;
     }
   }else{
-    if(!HIST){
-      if(!_HIST_AVAILABLE){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Historical fundamentals not available for this report.</p>';if(tb)tb.innerHTML='';return;}
+    if(!_HIST_AVAILABLE){el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Historical fundamentals not available for this report.</p>';if(tb)tb.innerHTML='';return;}
+    if(_histPending(tk)){
       el.innerHTML='<p style="color:#888;padding:20px;text-align:center;font-size:0.88em">Loading historical fundamentals…</p>';if(tb)tb.innerHTML='';
-      /* _dtcButtons above already kicked off the hist.json load; if another
-         view started it first, poll for completion (its callback won't
-         re-render this pane). */
-      if(_HIST_LOADING){
-        var hpoll=setInterval(function(){if(!_HIST_LOADING){clearInterval(hpoll);if(live())_dtcRender();}},120);
-      }
+      _ensureHist([tk],function(){if(live())_dtcRender();});
       return;
     }
   }
@@ -6581,8 +6623,8 @@ document.addEventListener('mouseout',function(e){
   _tipHideTimer=setTimeout(_hideTip,100);
 });
 
-/* === TRACK RECORD (popup) — annual fundamentals table from the hist.json
-   sidecar (SEC EDGAR XBRL series already shipped for the Financial Data tab).
+/* === TRACK RECORD (popup) — annual fundamentals table from the ticker's
+   hist/<T>.json shard (SEC EDGAR XBRL series already shipped for the Financial Data tab).
    Answers "is the business actually compounding?" without leaving the popup. === */
 function _trFmtSh(v){if(v==null)return'—';var a=Math.abs(v);if(a>=1e9)return(v/1e9).toFixed(2)+'B';if(a>=1e6)return(v/1e6).toFixed(0)+'M';return Math.round(v).toLocaleString();}
 function _renderTrackRecord(d){
@@ -6590,13 +6632,12 @@ function _renderTrackRecord(d){
   if(!sec||!el)return;
   var tk=d.ticker;
   var _again=function(){if(_dpTicker===tk){var dd=DATA.find(function(x){return x.ticker===tk;});if(dd)_renderTrackRecord(dd);}};
-  if(!HIST&&_HIST_AVAILABLE){
+  if(_histPending(tk)){
     sec.style.display='none';
-    if(!_HIST_LOADING){_HIST_LOADING=true;_loadSidecar('hist.json',function(h){_HIST_LOADING=false;HIST=h;_again();});}
-    else{var _poll=setInterval(function(){if(!_HIST_LOADING){clearInterval(_poll);_again();}},150);}
+    _ensureHist([tk],_again);
     return;
   }
-  var h=(HIST||{})[tk];
+  var h=HIST[tk];
   if(!h){sec.style.display='none';el.innerHTML='';return;}
   var rev=h.rev||{},ni=h.ni||{},ocf=h.ocf||{},capex=h.capex||{},sh=h.shares||{},dv=h.div||{},db=h.debt||{},csh=h.cash||{};
   var gp=h.gp||{},op=h.op||{},intexp=h.intexp||{};
@@ -7031,7 +7072,7 @@ function _renderDetDataTab(key){
   el.innerHTML=h;
 }
 /* === STATEMENT TABS — Balance Sheet / Income Statement / Cash Flow ===
-   Filed annual figures straight from the hist.json EDGAR XBRL sidecar: the
+   Filed annual figures straight from the hist/<T>.json EDGAR XBRL shard: the
    same series the Track Record table reads, plus the balance-sheet, tax,
    pre-tax and D&A lines added to the extractor in 2026-08.
 
@@ -7044,7 +7085,6 @@ function _renderDetDataTab(key){
       and spelled out in the footnote. Filed lines are never mixed with
       arithmetic, and nothing is back-solved out of model outputs — an
       "assets" figure inferred from ROA is not a balance sheet. */
-var _HIST_TRIED=false;
 function _stmtShell(meta,inner,withPdf){
   /* The export button rides the title band (right-justified via the band's
      flex), only when the tab actually rendered a statement — an empty or
@@ -7428,18 +7468,16 @@ function _renderDetStmtTab(key){
   var meta=null;for(var i=0;i<DT_STMTS.length;i++)if(DT_STMTS[i].k===key)meta=DT_STMTS[i];
   if(!d||!meta){el.innerHTML='';return;}
   var empty=function(msg){return _stmtShell(meta,'<div style="color:#888;padding:24px;text-align:center;font-size:0.88em">'+msg+'</div>');};
-  /* hist.json is lazy-loaded — mirror _renderTrackRecord's load-then-rerender,
-     but latch _HIST_TRIED so a failed fetch (onDone(null)) settles on the
-     empty state instead of re-firing on every re-render. */
-  if(!HIST&&_HIST_AVAILABLE&&!_HIST_TRIED){
+  /* The shard is lazy-loaded — mirror _renderTrackRecord's load-then-rerender.
+     A failed fetch settles HIST[tk] to null, so it lands on the empty state
+     instead of re-firing on every re-render. */
+  if(_histPending(_dpTicker)){
     el.innerHTML=empty('Loading filed financials&hellip;');
     var tk=_dpTicker;
-    var again=function(){_HIST_TRIED=true;if(_dpTicker===tk&&_detTab===key)_renderDetStmtTab(key);};
-    if(!_HIST_LOADING){_HIST_LOADING=true;_loadSidecar('hist.json',function(hh){_HIST_LOADING=false;HIST=hh;again();});}
-    else{var poll=setInterval(function(){if(!_HIST_LOADING){clearInterval(poll);again();}},150);}
+    _ensureHist([tk],function(){if(_dpTicker===tk&&_detTab===key)_renderDetStmtTab(key);});
     return;
   }
-  var h=(HIST||{})[_dpTicker];
+  var h=HIST[_dpTicker];
   if(!h){el.innerHTML=empty('No SEC EDGAR filing history for this company.');return;}
   var t=_stmtBuildTable(key,h,d);
   if(!t){el.innerHTML='';return;}
@@ -7588,13 +7626,9 @@ function exportStmtPdf(){
   var d=DATA.find(function(x){return x.ticker===_dpTicker;});
   if(!d)return;
   /* The button only renders on a populated tab, but guard the sidecar
-     anyway — export can race a ticker switch while hist.json reloads. */
-  if(!HIST&&_HIST_AVAILABLE){
-    if(!_HIST_LOADING){_HIST_LOADING=true;_loadSidecar('hist.json',function(hh){_HIST_LOADING=false;_HIST_TRIED=true;HIST=hh;exportStmtPdf();});}
-    else{var poll=setInterval(function(){if(!_HIST_LOADING){clearInterval(poll);exportStmtPdf();}},150);}
-    return;
-  }
-  var h=(HIST||{})[_dpTicker];
+     anyway — export can race a ticker switch while the shard loads. */
+  if(_histPending(_dpTicker)){_ensureHist([_dpTicker],exportStmtPdf);return;}
+  var h=HIST[_dpTicker];
   if(!h){alert('No SEC EDGAR filing history for this company.');return;}
   var css=[
     '@page{size:letter landscape;margin:11mm 10mm}',

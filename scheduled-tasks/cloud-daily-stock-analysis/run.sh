@@ -59,6 +59,11 @@
 #   PRICE_CACHE_BUCKET   bucket for that cache (default price-cache)
 #   SEC_CACHE_BUCKET     bucket for the companyfacts cache (steps 02c/04b,
 #                        default sec-facts-cache)
+#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CF_PAGES_PROJECT
+#                        deploy the same docs/ to Cloudflare Pages (step 08b,
+#                        design/supabase-migration.md P4c). Unset: skipped.
+#                        CF_PAGES_URL overrides the live-check URL (default
+#                        https://$CF_PAGES_PROJECT.pages.dev/)
 #   DRY_RUN=1            do everything except push
 #   SMOKE=1              tiny universe (SMOKE_TICKERS), for testing this script
 set -uo pipefail
@@ -480,7 +485,7 @@ archive_snapshot() {
      [ "$(wc -c < "$REPO/data/cache/screen_skip.json" 2>/dev/null || echo 0)" -gt 10000 ]; then
     cp "$REPO/data/cache/screen_skip.json" "$SNAP/screen_skip.json"
   fi
-  # Re-render already refreshed hist.json/rating_history.json for today; the
+  # Re-render already refreshed hist/ and rating_history.json for today; the
   # cache's last_scanned is the newest PRIOR day, so tomorrow's run only
   # parses today's file on top of it.
   #
@@ -542,15 +547,17 @@ PAGES="$WORK/pages"
 publish_pages() {
   rm -rf "$PAGES"; mkdir -p "$PAGES/docs" "$PAGES/.github/workflows"
   cp "$HTML" "$PAGES/docs/index.html" || return 1
-  for f in prices_meta.json hist.json details.json; do
+  for f in prices_meta.json hist_index.json details_index.json; do
     cp "$REPO/output/$f" "$PAGES/docs/$f" || { echo "missing sidecar $f"; return 1; }
   done
+  # Cloudflare Pages response headers (inert on GitHub Pages).
+  cp "$REPO/scheduled-tasks/cloud-daily-stock-analysis/pages_headers" "$PAGES/docs/_headers" || return 1
   if [ -s "$REPO/output/macro.json" ]; then cp "$REPO/output/macro.json" "$PAGES/docs/macro.json"
   else echo "no macro.json this run — the Macro Outlook tab is absent, by design"; fi
   STOCK_MODEL_REPO="$REPO" PAGES_DOCS="$PAGES/docs" "$PYTHON" scripts/publish_vol_shards.py || return 1
   # The deploy workflow must live on the branch itself for the push trigger.
   cp "$REPO/.github/workflows/deploy-pages.yml" "$PAGES/.github/workflows/deploy-pages.yml" || return 1
-  printf 'docs/vol/* *.json\ndocs/px/* *.json\n' > "$PAGES/.gitignore"
+  printf 'docs/vol/* *.json\ndocs/px/* *.json\ndocs/hist/* *.json\ndocs/details/* *.json\n' > "$PAGES/.gitignore"
   git -C "$PAGES" init -q -b "$PAGES_BRANCH" || return 1
   git -C "$PAGES" add -A && git -C "$PAGES" commit -q -m "Pages: $RUNDATE" || return 1
   echo "pages commit: $(git -C "$PAGES" rev-parse --short HEAD), $(git -C "$PAGES" ls-files | wc -l) files"
@@ -571,6 +578,35 @@ publish_pages() {
 }
 run_step 08-publish 0 publish_pages
 PUBLISH_RC=$?
+
+# ---------------------------------------------------------------------------
+# 8b. Publish the same docs/ to Cloudflare Pages (non-blocking while GitHub
+#     Pages stays the primary site; design/supabase-migration.md, P4c)
+# ---------------------------------------------------------------------------
+WRANGLER_VERSION="${WRANGLER_VERSION:-4.141.0}"
+publish_cloudflare() {
+  if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ] || \
+     [ -z "${CF_PAGES_PROJECT:-}" ] || [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
+    echo "Cloudflare publish skipped (no CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID/CF_PAGES_PROJECT, or SMOKE/DRY_RUN)"
+    return 0
+  fi
+  [ -s "$PAGES/docs/index.html" ] || { echo "no $PAGES/docs/index.html — step 08 did not build the site"; return 1; }
+  "$PYTHON" "$REPO/scripts/check_pages_limits.py" "$PAGES/docs" || return 1
+  command -v npx >/dev/null || { echo "npx not found — Node.js is needed for wrangler"; return 1; }
+  npx -y "wrangler@$WRANGLER_VERSION" pages deploy "$PAGES/docs" --project-name "$CF_PAGES_PROJECT" \
+    --branch main --commit-dirty=true --commit-message "Pages: $RUNDATE" || return 1
+  local url="${CF_PAGES_URL:-https://$CF_PAGES_PROJECT.pages.dev/}"
+  for i in $(seq 1 10); do
+    curl -sSL --max-time 30 -o "$WORK/live-cf.html" "$url" 2>/dev/null || true
+    if grep -q "$RUNDATE" "$WORK/live-cf.html" 2>/dev/null; then
+      echo "live: $url serves the $RUNDATE report"; return 0
+    fi
+    sleep 30
+  done
+  echo "WARNING: $url did not show $RUNDATE within 5 minutes of the deploy"
+  return 1
+}
+run_step 08b-publish-cloudflare 0 publish_cloudflare
 
 # ---------------------------------------------------------------------------
 # Wrap up

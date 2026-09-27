@@ -306,13 +306,14 @@ publish() {
   [ -d "$docs" ] || { echo "publish: $docs missing (git worktree add .claude/worktrees/pages-live pages-live)"; return 1; }
   [ -f "$PAGES_WT/.gitignore" ] || { echo "publish: pages-live .gitignore missing — refusing to stage iCloud conflict copies"; return 1; }
   cp "$HTML" "$docs/index.html" || return 1
-  for f in prices_meta.json hist.json details.json; do
+  for f in prices_meta.json hist_index.json details_index.json; do
     cp "output/$f" "$docs/$f" || { echo "publish: required sidecar output/$f missing"; return 1; }
   done
   # macro.json is optional; never publish yesterday's under today's HTML.
   if [ -f output/macro.json ]; then cp output/macro.json "$docs/macro.json" || return 1
   else rm -f "$docs/macro.json"; fi
   rm -f "$docs/prices.json"   # retired 2026-08-11
+  rm -f "$docs/hist.json" "$docs/details.json"   # split into hist/ and details/ (P4c)
   "$VPY" scripts/publish_vol_shards.py || { echo "publish: shard sync failed"; return 1; }
   git -C "$PAGES_WT" add -A || return 1
   if git -C "$PAGES_WT" rev-parse -q --verify HEAD >/dev/null; then
