@@ -46,6 +46,8 @@ def stats_line(st):
         conc = f"  top sector {st['top_sector']} {_pct(st.get('top_sector_weight'), False)}"
         if st.get('concentrated'):
             conc += ' (concentrated)'
+    if st.get('no_sector'):
+        conc += f"; {st['no_sector']} without sector data"
     return (f"{mix}  median MoS {_pct(st.get('median_mos'))}  "
             f"score {'—' if score is None else f'{score:.0f}'}  "
             f"spread {_pct(st.get('median_spread'))}{conc}")

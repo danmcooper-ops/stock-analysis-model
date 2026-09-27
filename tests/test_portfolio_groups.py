@@ -385,6 +385,29 @@ class TestStatsAndAlerts:
         assert st['top_sector'] == 'Energy' and st['top_sector_weight'] == pytest.approx(2 / 3)
         assert st['concentrated'] is True
         assert (st['upgrades'], st['downgrades']) == (1, 1)
+        assert st['no_sector'] == 0
+
+    def test_portfolio_stats_ignores_missing_sector(self):
+        # A missing sector is a data gap, not a sector named "Unknown".
+        by = pg.rows_by_ticker([
+            {'ticker': 'A', 'rating': 'HOLD', 'sector': None},
+            {'ticker': 'B', 'rating': 'HOLD', 'sector': ''},
+            {'ticker': 'C', 'rating': 'PASS', 'sector': 'Technology'},
+            {'ticker': 'D', 'rating': 'BUY', 'sector': 'Energy'},
+            {'ticker': 'E', 'rating': 'BUY', 'sector': 'Utilities'},
+        ])
+        st = pg.portfolio_stats(['A', 'B', 'C', 'D', 'E'], by)
+        assert 'Unknown' not in st['sector_weights']
+        assert sum(st['sector_weights'].values()) == pytest.approx(1.0)
+        assert st['sector_weights']['Technology'] == pytest.approx(1 / 3)
+        assert st['no_sector'] == 2 and st['n'] == 5
+        # One sectored member of three: 100% of the known sectors, but not
+        # "concentrated" — the report's Portfolios view says the same.
+        st1 = pg.portfolio_stats(['A', 'B', 'C'], by)
+        assert st1['top_sector'] == 'Technology' and st1['top_sector_weight'] == pytest.approx(1.0)
+        assert st1['concentrated'] is False and st1['no_sector'] == 2
+        st0 = pg.portfolio_stats(['A', 'B'], by)
+        assert st0['top_sector'] is None and st0['concentrated'] is False and st0['no_sector'] == 2
 
     def test_classify_changes_levels(self):
         al, st = pg.classify_changes(pg.rows_by_ticker(TODAY), pg.rows_by_ticker(YESTERDAY), '2026-09-14')

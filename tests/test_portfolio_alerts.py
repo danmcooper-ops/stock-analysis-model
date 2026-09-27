@@ -259,3 +259,19 @@ class TestCli:
         cli.main(['--file', str(tmp_path / 'pf.json'), 'alerts', '--replay', '--results-dir', str(res)])
         out = capsys.readouterr().out
         assert '2026-09-25' in out and '1 run(s): ACTION median 1/run' in out
+
+
+class TestStatsLine:
+    BASE = {'n': 3, 'ratings': {'HOLD': 2, 'PASS': 1}, 'median_mos': -0.5, 'median_score': 40,
+            'median_spread': 0.3, 'top_sector': 'Technology', 'top_sector_weight': 1.0,
+            'concentrated': False}
+
+    def test_no_sector_suffix(self):
+        line = pdg.stats_line(dict(self.BASE, no_sector=2))
+        assert line.endswith('top sector Technology 100%; 2 without sector data')
+        assert 'Unknown' not in line
+
+    def test_no_suffix_when_zero_or_absent(self):
+        # Digests written before no_sector existed render unchanged.
+        assert pdg.stats_line(dict(self.BASE, no_sector=0)) == pdg.stats_line(self.BASE)
+        assert 'sector data' not in pdg.stats_line(self.BASE)
