@@ -59,6 +59,11 @@
 #   PRICE_CACHE_BUCKET   bucket for that cache (default price-cache)
 #   SEC_CACHE_BUCKET     bucket for the companyfacts cache (steps 02c/04b,
 #                        default sec-facts-cache)
+#   DB_PRIMARY=1         the database is the primary store (P6 cutover): step 06a
+#                        becomes blocking, and missing Supabase secrets fail it
+#                        instead of skipping it. Set it only once step 07e's
+#                        DB_CUTOVER_STREAK line reads 20/20 (scheduled-tasks/
+#                        RECOVERY.md). The git archive (06) still runs first-class.
 #   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CF_PAGES_PROJECT
 #                        deploy the same docs/ to Cloudflare Pages (step 08b,
 #                        design/supabase-migration.md P4c). Unset: skipped.
@@ -82,6 +87,7 @@ SNAPSHOT_HISTORY="${SNAPSHOT_HISTORY:-10}"
 SMOKE="${SMOKE:-0}"
 SMOKE_TICKERS="${SMOKE_TICKERS:-AAPL MSFT JPM XOM PLD AMGN CAT PG}"
 DRY_RUN="${DRY_RUN:-0}"
+DB_PRIMARY="${DB_PRIMARY:-0}"
 # The snapshot is rewritten several times tonight (enrich steps, rescore);
 # with the database backend selected, sync_snapshot_file would republish each
 # time. Step 06a publishes once instead.
@@ -439,11 +445,15 @@ if [ "$FAILED" = 1 ]; then echo "RESULT FAILED at rerender" >> "$STATUS"; exit 1
 # ---------------------------------------------------------------------------
 # 6a. Publish to the Supabase database (Data API over HTTPS: the container
 #     cannot reach Postgres over TCP). Skipped without the Supabase secrets and
-#     for SMOKE/DRY_RUN runs; non-blocking until the P6 cutover makes it the
-#     primary store (design/supabase-migration.md).
+#     for SMOKE/DRY_RUN runs. Non-blocking until DB_PRIMARY=1 (the P6 cutover,
+#     design/supabase-migration.md); even then a failure does not stop the git
+#     archive below, so the day is never lost, but the run ends FAILED.
 # ---------------------------------------------------------------------------
 db_publish() {
   if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+    if [ "$DB_PRIMARY" = 1 ]; then
+      echo "DB_PRIMARY=1 but SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY are not set"; return 1
+    fi
     echo "SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not set; skipping"; return 0
   fi
   if [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
@@ -452,7 +462,9 @@ db_publish() {
   fi
   "$PYTHON" scripts/db_publish.py "$RESULTS"
 }
-run_step 06a-db-publish 0 db_publish
+DB_BLOCKING=0; [ "$DB_PRIMARY" = 1 ] && DB_BLOCKING=1
+run_step 06a-db-publish "$DB_BLOCKING" db_publish
+DB_RC=$?
 
 # ---------------------------------------------------------------------------
 # 6. Archive today's snapshot (+ the rating-history and screen-skip caches)
@@ -532,11 +544,15 @@ run_step 07b-gate-na-report   0 "$PYTHON" scripts/gate_na_report.py "$RESULTS"
 run_step 07c-validate-ratings 0 "$PYTHON" scripts/validate_ratings.py --snapshot "$RESULTS" --prices-dir output/prices
 # Store syncs never fail a step; this surfaces a store that stopped keeping up.
 run_step 07d-store-check      0 "$PYTHON" scripts/check_snapshot_store.py --results-dir output --date "$RUNDATE"
+# The night's verdict (published, row count and SHA, rating-history parity
+# against output/rating_history.json) is recorded in core.night_checks, and
+# the cutover streak is appended to the status file (P6).
 db_check() {
   if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
     echo "database check skipped (no Supabase secrets, or SMOKE/DRY_RUN)"; return 0
   fi
-  "$PYTHON" scripts/check_snapshot_store.py --database --results-dir output --date "$RUNDATE"
+  "$PYTHON" scripts/db_night_check.py record --date "$RUNDATE" --publish-rc "$DB_RC" \
+    --results-dir output --status-file "$STATUS"
 }
 run_step 07e-db-check         0 db_check
 
@@ -617,10 +633,12 @@ ELAPSED=$(( $(date +%s) - RUN_T0 ))
   echo "PRIOR_SNAPSHOT ${PRIOR_DATE:-none}"
   echo "ELAPSED_SECONDS $ELAPSED"
   echo "SOFT_FAILURES ${SOFT_FAILED[*]:-none}"
-  if [ "$ARCHIVE_RC" = 0 ] && [ "$PUBLISH_RC" = 0 ]; then echo "RESULT OK"
-  elif [ "$ARCHIVE_RC" = 0 ]; then echo "RESULT OK-BUT-PUBLISH-FAILED"
-  else echo "RESULT FAILED at archive (publish rc=$PUBLISH_RC)"; fi
+  if [ "$ARCHIVE_RC" != 0 ]; then echo "RESULT FAILED at archive (publish rc=$PUBLISH_RC)"
+  elif [ "$DB_PRIMARY" = 1 ] && [ "$DB_RC" != 0 ]; then echo "RESULT FAILED at db-publish (DB_PRIMARY=1; archived)"
+  elif [ "$PUBLISH_RC" = 0 ]; then echo "RESULT OK"
+  else echo "RESULT OK-BUT-PUBLISH-FAILED"; fi
 } >> "$STATUS"
 say "done in ${ELAPSED}s"; cat "$STATUS"
 [ "$ARCHIVE_RC" = 0 ] || exit 1
+if [ "$DB_PRIMARY" = 1 ] && [ "$DB_RC" != 0 ]; then exit 1; fi
 exit 0

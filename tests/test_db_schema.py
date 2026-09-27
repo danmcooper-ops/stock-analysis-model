@@ -22,7 +22,7 @@ from data.db.codec import dumps, blob_sha, join_row, rows_equivalent, split_row 
 from data.db.columns import COLUMNS  # noqa: E402
 from data.db.connect import connect  # noqa: E402
 
-CORE_TABLES = {'tickers', 'runs', 'edgar_blobs', 'results', 'rating_changes', 'latest_results',
+CORE_TABLES = {'tickers', 'runs', 'edgar_blobs', 'results', 'rating_changes', 'latest_results', 'night_checks',
                'screen_skip', 'snapshot_objects'}
 PARTITIONS = {f'results_{y}' for y in range(2026, 2032)}
 
