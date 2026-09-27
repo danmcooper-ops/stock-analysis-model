@@ -238,7 +238,9 @@ SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... python scripts/db_night_check.py 
 
 **Stepping back.** Unset `DB_PRIMARY`. The nightly run carries on with the
 database as a non-blocking copy, and the readers fall back to the files
-wherever the database is behind.
+wherever the database is behind. To take the readers off the database
+entirely, set `SNAPSHOT_STORE_BACKEND=duckdb`; the run otherwise selects
+`postgres` whenever the Supabase secrets are set.
 
 ## A night where 06a failed
 

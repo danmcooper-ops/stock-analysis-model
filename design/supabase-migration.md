@@ -408,6 +408,17 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
       | git archive | 87 s | 70 s | 178 s |
 
       That projects to 17–27 minutes for the 92-day archive. Every run, row and change point after the first restored day matched, and so did the latest pointers.
+  - **Readers on the database (2026-09-27).**
+    - `run.sh` exports `SNAPSHOT_STORE_BACKEND=postgres` whenever the Supabase secrets are set, so these read the database and fall back to the files:
+      - carry-forward and the lost-SEC check;
+      - the render's previous ratings and rating history;
+      - portfolio alerts;
+      - the gate N/A report;
+      - the screen-skip cache.
+    - Three fixes came with it:
+      - `rating_history.json` keeps advancing from the files even when the database answers the render. Otherwise the cache freezes: 07e's parity check would compare the same day every night and count a vacuous green toward the cutover, and a fallback night would lose every change point older than the 10 staged days.
+      - 07e treats a cache more than 5 trading days behind as "not checked".
+      - A failed screen-skip save stops further database saves for the run, instead of paying the timeout at every 500-ticker flush.
   - **Still open, and yours:**
     1. Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to the cloud environment, and backfill the hosted project (the P3 runbook).
     2. Let 20 trading nights accumulate.

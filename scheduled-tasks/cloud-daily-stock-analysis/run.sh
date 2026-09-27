@@ -59,6 +59,10 @@
 #   PRICE_CACHE_BUCKET   bucket for that cache (default price-cache)
 #   SEC_CACHE_BUCKET     bucket for the companyfacts cache (steps 02c/04b,
 #                        default sec-facts-cache)
+#   SNAPSHOT_STORE_BACKEND
+#                        defaults to postgres when the Supabase secrets are
+#                        set: the readers use the database, falling back to
+#                        the files. Set duckdb to keep them off it
 #   DB_PRIMARY=1         the database is the primary store (P6 cutover): step 06a
 #                        becomes blocking, and missing Supabase secrets fail it
 #                        instead of skipping it. Set it only once step 07e's
@@ -92,6 +96,14 @@ DB_PRIMARY="${DB_PRIMARY:-0}"
 # with the database backend selected, sync_snapshot_file would republish each
 # time. Step 06a publishes once instead.
 export DB_DEFER_PUBLISH=1
+# Readers (carry-forward, previous ratings, rating history, alerts, the gate
+# N/A report, the screen-skip cache) use the database whenever the secrets
+# exist; each falls back to the files on any failure. Set only with the
+# secrets, so a run without them doesn't pay a failed probe in every step. An
+# explicit SNAPSHOT_STORE_BACKEND (e.g. duckdb, to step back) wins.
+if [ -n "${SUPABASE_URL:-}" ] && [ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+  export SNAPSHOT_STORE_BACKEND="${SNAPSHOT_STORE_BACKEND:-postgres}"
+fi
 FORCE="${FORCE:-0}"
 BENCHMARKS="SPY QQQ IWM DIA XLK XLV XLF XLY XLP XLE XLI XLB XLU XLRE XLC"
 
