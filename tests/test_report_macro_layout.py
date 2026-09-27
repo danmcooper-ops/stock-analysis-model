@@ -151,7 +151,8 @@ def test_macro_narrative_escapes_every_model_string():
         assert m, 'could not find %s' % fn
         body += m.group(0)
     # every read of a narrative field that lands in HTML is wrapped in _esc(
-    for field in ('row.headline', 'row.outlook', 'nar.model'):
+    for field in ('row.headline', 'row.outlook', 'row.influence',
+                  'nar.model'):
         for at in [m.start() for m in re.finditer(re.escape(field), body)]:
             if body[at - 1] in '!(' and \
                     body[at + len(field)] in '?)&|':
@@ -254,7 +255,13 @@ def test_macro_narrative_lists_key_sector_influences():
     assert "STANCE={tailwind:'up',headwind:'down'}" in nar
     assert "grp[STANCE[row.stance]||'']" in nar
     assert '_macGoSector(\'+it.i+\')' in nar, 'links address sectors by index'
-    assert '_esc(row.sector)' in nar and '_esc(row.headline)' in nar
+    assert '_esc(it.row.sector)' in nar and '_esc(row.headline)' in nar
+    # schema v3: each sector reads as a full paragraph, neutral ones too,
+    # and a pre-v3 cache without influence keeps the one-line kicker list
+    assert '_esc(row.influence)' in nar
+    assert "secList(grp[''],'flat'" in nar
+    assert 'mac-nar-neutral' in nar, 'pre-v3 neutral fallback is kept'
+    assert 'min read' in nar
     go = re.search(r'function _macGoSector\(i\)\{.*?\n\}\n', css, re.S)
     assert go and "navGo('pool',row.sector)" in go.group(0)
 

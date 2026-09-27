@@ -4,7 +4,9 @@ Serializes the macro.json sidecar's numeric facts (regime model output,
 FRED series with changes/percentiles, the Treasury curve, credit spreads,
 and per-sector ETF momentum) into a prompt for the Claude API and returns
 a structured narrative: economy-wide paragraphs, headwind/tailwind bullets,
-and one outlook per GICS sector. The LLM call is network I/O, so this
+and one outlook per GICS sector — a kicker, a one-sentence outlook and
+bullets for the sector's own tab, plus an `influence` paragraph that the
+Overview's "Key sector influences" section sets as full prose. The LLM call is network I/O, so this
 lives in data/ rather than models/.
 
 The key is read from MACRO_ANTHROPIC_API_KEY, falling back to
@@ -39,18 +41,30 @@ DEFAULT_MODEL = 'claude-opus-5'
 # 2026-08-31 run returned 26 sector entries at 4,959 tokens. At 6000 that
 # draw tripped stop_reason='max_tokens' and the whole narrative was
 # discarded, silently un-shipping the card. Cost is per-use, not per-cap.
-DEFAULT_MAX_TOKENS = 12000
+# The cap also covers the model's adaptive thinking, which is the bigger
+# share: the first schema-v3 run (per-sector influence paragraphs) spent
+# 10.3k thinking + ~6k text = 16.3k and was truncated at a 16k cap.
+# Past ~21k the SDK refuses a non-streaming request unless it is given an
+# explicit timeout, hence REQUEST_TIMEOUT_S below.
+DEFAULT_MAX_TOKENS = 32000
+REQUEST_TIMEOUT_S = 900
 
 # Bumped whenever the narrative's shape changes. The day cache is keyed by
 # as_of alone and a hit short-circuits every post-parse check below, so
 # without this a run on the day of a shape change replays yesterday's shape
 # — bullet-less sector sections — until the date rolls over.
-SCHEMA_VERSION = 2
+# v3: per-sector `influence` paragraph; tighter paragraph rules.
+SCHEMA_VERSION = 3
 
 # Advisory bullet band per sector; the ceiling is enforced in
 # _clamp_sector_bullets, the floor is only ever counted (never padded).
 MIN_SECTOR_BULLETS = 3
 MAX_SECTOR_BULLETS = 5
+
+# Advisory floor for a sector's influence paragraph, only ever counted:
+# under it the Overview is back to reading like a kicker, which is what
+# the paragraph replaced.
+MIN_INFLUENCE_WORDS = 50
 
 # The 11 GICS sectors under the yfinance naming this repo uses everywhere
 # (rows, SECTOR_CONFIG, sector ETF maps). The narrative must cover all 11.
@@ -65,6 +79,17 @@ GICS_SECTORS = [
 # Array lengths are NOT pinned here — the structured-outputs grammar rejects
 # minItems other than 0/1 (400 invalid_request_error, seen live 2026-08-31),
 # so counts are enforced by the prompt and checked post-parse in generate().
+_PARAGRAPH_SCHEMA = {
+    'type': 'object',
+    'properties': {
+        'lead': {'type': 'string'},
+        'points': {'type': 'array', 'items': {'type': 'string'}},
+    },
+    'required': ['lead', 'points'],
+    'additionalProperties': False,
+}
+PARAGRAPH_KEYS = ('growth_labor', 'inflation_rates', 'credit_conditions')
+
 NARRATIVE_SCHEMA = {
     'type': 'object',
     'properties': {
@@ -72,12 +97,15 @@ NARRATIVE_SCHEMA = {
         # fixed set of required object keys, which is how "exactly 3" is
         # actually enforced (the prompt alone was ignored — a live run
         # returned 5). generate() flattens them to the list the page renders.
+        # Each is a lead plus its supporting points rather than one string:
+        # the first v3 run, asked in prose for "a lead then 4 to 6
+        # sentences", returned the lead alone for all three.
         'paragraphs': {
             'type': 'object',
             'properties': {
-                'growth_labor': {'type': 'string'},
-                'inflation_rates': {'type': 'string'},
-                'credit_conditions': {'type': 'string'},
+                'growth_labor': _PARAGRAPH_SCHEMA,
+                'inflation_rates': _PARAGRAPH_SCHEMA,
+                'credit_conditions': _PARAGRAPH_SCHEMA,
             },
             'required': ['growth_labor', 'inflation_rates',
                          'credit_conditions'],
@@ -103,9 +131,13 @@ NARRATIVE_SCHEMA = {
                                   'items': {'type': 'string'}},
                     'headwinds': {'type': 'array',
                                   'items': {'type': 'string'}},
+                    # The Overview's prose for this sector. Last in the
+                    # object so it is generated after — and can synthesise
+                    # — the bullets above it.
+                    'influence': {'type': 'string'},
                 },
                 'required': ['sector', 'stance', 'headline', 'outlook',
-                             'tailwinds', 'headwinds'],
+                             'tailwinds', 'headwinds', 'influence'],
                 'additionalProperties': False,
             },
         },
@@ -125,10 +157,31 @@ SYSTEM_PROMPT = (
     "(e.g. 'core PCE at 2.8%'). Never invent a data point.\n"
     '- Declarative plain-English prose for a long-horizon value investor; '
     'no hedging boilerplate, no first person, no investment advice.\n'
-    '- paragraphs: three named paragraphs — growth_labor, inflation_rates, '
-    'credit_conditions — each a single flowing paragraph.\n'
+    '- Figures: round for a reader, not a terminal — at most two decimals '
+    "('3.35%', not '3.353%'), whole-number ordinal percentiles ('2nd "
+    "percentile', never '1.5th'), basis points as 'bp', and name each "
+    "series the way a reader knows it ('the 10-year Treasury yield', not "
+    "'DGS10'). Give a percentile its window once ('71st percentile of 10 "
+    "years') rather than on every mention.\n"
+    '- paragraphs: three named sections — growth_labor, inflation_rates, '
+    'credit_conditions — each a lead and its points. The page sets the '
+    'lead as a paragraph and each point as a bullet under it.\n'
+    '  lead: ONE sentence, the verdict on that part of the economy, 25 '
+    'words maximum, stated plainly with at most one figure.\n'
+    '  points: 4 to 6 supporting sentences — never fewer than 4 — each '
+    'ONE complete sentence ending in a full stop, one point in 30 words or '
+    'fewer, carrying at most two figures, and each saying what its figure '
+    "means — 'claims of 197,000, the 2nd percentile of a decade, show "
+    "employers still hoarding workers' — rather than listing more numbers. "
+    'No semicolon chains, no parenthetical asides, no dashes stacking a '
+    'second clause of figures onto the first, no mixed metaphors.\n'
+    '  Each sentence must stand alone as a bullet: no sentence that opens '
+    "with 'This', 'That' or 'It' pointing back at the one before.\n"
     '- headwinds / tailwinds: AT MOST 5 of each — only the sharpest '
-    'economy-wide risks and supports, one clause each.\n'
+    'economy-wide risks and supports. Each one clause, 15 words maximum, '
+    "in the form indicator, figure, consequence: 'initial claims at "
+    "197,000, the tightest in a decade, keep incomes growing'. No two "
+    'items on the same indicator.\n'
     '- sectors: one entry for EVERY GICS sector listed in the data (all '
     '11, including any without ETF metrics). Style: The Economist — pithy '
     'but dense with information. For each sector write:\n'
@@ -164,7 +217,19 @@ SYSTEM_PROMPT = (
     'exposure. A rising 10-year is a tailwind for banks and a headwind '
     'for utilities and REITs.\n'
     '  stance: the net read across those bullets — tailwind, neutral, or '
-    'headwind.'
+    'headwind.\n'
+    '  influence: the long-form read the Overview prints under "Key sector '
+    'influences", where it is the only thing a reader sees about the '
+    'sector. 3 to 5 complete sentences, 70 to 110 words, plain declarative '
+    'prose rather than wordplay. Explain the MECHANISM: which two or three '
+    'macro forces matter most for this sector now, the channel each works '
+    'through (financing costs, consumer or business demand, input and '
+    'commodity prices, pricing power and margins, or the discount rate on '
+    'long-dated earnings), and how the sector ETF has priced it so far. '
+    'Close with the net effect on the sector and the one indicator whose '
+    'move would change that call. Cite figures as the outlook does, but '
+    'explain them — do not re-list the bullets, and do not repeat the '
+    'headline or the outlook sentence. The hedging ban above applies.'
 )
 
 # Per-series keys worth showing the model; 'hist' (hundreds of points per
@@ -247,6 +312,25 @@ def _clamp_sector_bullets(sectors):
     if short:
         logger.warning('macro narrative: %d sectors under %d bullets',
                        short, MIN_SECTOR_BULLETS)
+
+
+def _flatten_paragraph(p):
+    """One paragraph string from the schema's {lead, points}: the page
+    splits it back into lead + bullets by sentence (_macSentences), which
+    is also how every cached narrative before this shape renders. Each
+    piece gets a terminal stop so the split lands between them. A bare
+    string passes through."""
+    if isinstance(p, str):
+        return p.strip()
+    if not isinstance(p, dict):
+        return ''
+    parts = [str(x).strip() for x in [p.get('lead')] + list(p.get('points')
+                                                            or []) if x]
+    parts = [x if x[-1] in '.!?' else x + '.' for x in parts if x]
+    if len(parts) < 3:
+        logger.warning('macro narrative: a paragraph came back with %d '
+                       'sentences', len(parts))
+    return ' '.join(parts)
 
 
 class ClaudeNarrativeClient:
@@ -332,6 +416,7 @@ class ClaudeNarrativeClient:
             response = anthropic.Anthropic(api_key=self.api_key).messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
+                timeout=REQUEST_TIMEOUT_S,
                 system=SYSTEM_PROMPT,
                 output_config={'format': {'type': 'json_schema',
                                           'schema': NARRATIVE_SCHEMA}},
@@ -367,9 +452,9 @@ class ClaudeNarrativeClient:
         if isinstance(narrative, dict) and \
                 isinstance(narrative.get('paragraphs'), dict):
             p = narrative['paragraphs']
-            narrative['paragraphs'] = [p[k] for k in
-                                       ('growth_labor', 'inflation_rates',
-                                        'credit_conditions') if p.get(k)]
+            narrative['paragraphs'] = [t for t in (_flatten_paragraph(p.get(k))
+                                                   for k in PARAGRAPH_KEYS)
+                                       if t]
         if not isinstance(narrative, dict) or not narrative.get('paragraphs'):
             logger.warning('macro narrative skipped: empty response')
             return None
@@ -394,6 +479,12 @@ class ClaudeNarrativeClient:
             logger.warning('macro narrative: %d sector outlooks (expected %d)',
                            n_sectors, len(GICS_SECTORS))
         _clamp_sector_bullets(narrative['sectors'])
+        thin = sum(1 for e in narrative['sectors']
+                   if len(str((e or {}).get('influence') or '').split())
+                   < MIN_INFLUENCE_WORDS)
+        if thin:
+            logger.warning('macro narrative: %d sector influences under %d '
+                           'words', thin, MIN_INFLUENCE_WORDS)
 
         narrative['model'] = self.model
         narrative['generated_at'] = datetime.now(timezone.utc).isoformat()

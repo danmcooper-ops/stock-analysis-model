@@ -1994,6 +1994,9 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-nar-wind b{font-weight:700;}
 .mac-nar-inf a,.mac-nar-neutral a{color:var(--mac-accent);font-weight:600;text-decoration:none;}
 .mac-nar-inf a:hover,.mac-nar-neutral a:hover{text-decoration:underline;}
+.mac-nar-infp{margin:8px 0 12px;line-height:1.7;}
+.mac-nar-infp .mac-nar-kick{font-style:italic;color:var(--mac-muted);}
+.mac-nar-wind.flat b{color:var(--mac-muted);}
 .mac-nar-neutral{font-size:0.95em;line-height:1.65;margin:8px 0 0;color:var(--mac-muted);}
 .mac-nar-neutral b{font-weight:700;}
 .mac-nar-wind.up b{color:var(--mac-up);}.mac-nar-wind.down b{color:var(--mac-down);}
@@ -9262,10 +9265,11 @@ function _macNarrativeHTML(){
      set part paragraph, part bullets: each kickered section opens with its
      lead sentence as a paragraph and lists the supporting evidence as
      bullets underneath. The tailwinds and headwinds follow as two short
-     lists, then the key sector influences — every sector the narrative
-     calls a macro tailwind or headwind, with its one-line headline, linked
-     to that sector's own tab where the full outlook renders
-     (renderPoolMacroOutlook). Rides on MACRO_SUM so it paints at first
+     lists, then the key sector influences — every sector, grouped by
+     stance, set as its kicker and a full influence paragraph (schema v3)
+     and linked to that sector's own tab where the outlook and bullets
+     render (renderPoolMacroOutlook). A narrative cached before v3 has no
+     influence and falls back to the old one-line kicker list. Rides on MACRO_SUM so it paints at first
      render; falls back to the sidecar for older inline summaries. All
      strings pass through _esc() — the text is model output, not
      repo-authored markup. */
@@ -9313,26 +9317,48 @@ function _macNarrativeHTML(){
   });
   if(grp.up.length||grp.down.length){
     h+='<div class="mac-nar-k">Key sector influences</div>';
+    var secLink=function(it){
+      return '<a href="#" onclick="return _macGoSector('+it.i+')">'+_esc(it.row.sector)+'</a>';
+    };
+    var hasInf=function(it){var row=it.row;return !!(row.influence);};
     var secList=function(items,cls,label){
       if(!items.length)return '';
-      var o='<div class="mac-nar-wind '+cls+'"><b>'+label+'</b><ul class="mac-nar-ul mac-nar-inf">';
-      items.forEach(function(it){
+      var o='<div class="mac-nar-wind '+cls+'"><b>'+label+'</b>';
+      var prose=items.filter(hasInf);
+      var rest=items.filter(function(it){return !hasInf(it);});
+      prose.forEach(function(it){
         var row=it.row;
-        o+='<li><a href="#" onclick="return _macGoSector('+it.i+')">'+_esc(row.sector)+'</a>'
-          +(row.headline?' — '+_esc(row.headline):'')+'</li>';
+        o+='<p class="mac-nar-inf mac-nar-infp">'+secLink(it)
+          +(row.headline?' <span class="mac-nar-kick">'+_esc(row.headline)+'</span>':'')
+          +'<br>'+_esc(row.influence)+'</p>';
       });
-      return o+'</ul></div>';
+      if(rest.length){
+        o+='<ul class="mac-nar-ul mac-nar-inf">';
+        rest.forEach(function(it){
+          var row=it.row;
+          o+='<li>'+secLink(it)+(row.headline?' — '+_esc(row.headline):'')+'</li>';
+        });
+        o+='</ul>';
+      }
+      return o+'</div>';
     };
     h+=secList(grp.up,'up','▲ Macro tailwind');
     h+=secList(grp.down,'down','▼ Macro headwind');
-    if(grp[''].length){
-      h+='<p class="mac-nar-neutral"><b>Neutral:</b> '+grp[''].map(function(it){
-        return '<a href="#" onclick="return _macGoSector('+it.i+')">'+_esc(it.row.sector)+'</a>';
-      }).join(', ')+'</p>';
+    /* Neutral sectors carry an influence paragraph too, and get it in
+       full; a pre-v3 narrative folds them into one line as before. */
+    if(grp[''].some(hasInf)){
+      h+=secList(grp[''],'flat','● Neutral');
+    }else if(grp[''].length){
+      h+='<p class="mac-nar-neutral"><b>Neutral:</b> '+grp[''].map(secLink).join(', ')+'</p>';
     }
   }
+  /* Reading time for the whole card, at 230 words a minute. */
+  var words=0,wc=function(x){if(x)words+=String(x).split(/\s+/).filter(Boolean).length;};
+  ps.forEach(wc);tw.forEach(wc);hw.forEach(wc);
+  (nar.sectors||[]).forEach(function(r){if(r){wc(r.headline);wc(r.influence);}});
+  var mins=Math.max(1,Math.round(words/230));
   h+='<div class="mac-nar-foot">Written by Claude ('+_esc(nar.model||'')+') from the indicator data · '
-    +_esc(nar.generated_at?String(nar.generated_at).slice(0,10):'')+'</div></div>';
+    +_esc(nar.generated_at?String(nar.generated_at).slice(0,10):'')+' · '+mins+' min read</div></div>';
   return h;
 }
 function _macOverviewHTML(){
