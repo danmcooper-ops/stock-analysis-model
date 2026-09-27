@@ -57,3 +57,8 @@ test_tickers.xlsx
 .cloud-run-*.log
 .cloud-backtest/
 .cloud-backtest.log
+
+# Cloudflare local state (cloudflare/pages)
+node_modules/
+.wrangler/
+.dev.vars

@@ -73,6 +73,13 @@
 #                        design/supabase-migration.md P4c). Unset: skipped.
 #                        CF_PAGES_URL overrides the live-check URL (default
 #                        https://$CF_PAGES_PROJECT.pages.dev/)
+#   CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD
+#                        the Cloudflare Access login in front of that site
+#                        (cloudflare/README.md). Required for step 08b: without
+#                        them it refuses to deploy rather than publish a
+#                        public site
+#   CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET
+#                        Access service token step 08b's live check signs in with
 #   DRY_RUN=1            do everything except push
 #   SMOKE=1              tiny universe (SMOKE_TICKERS), for testing this script
 set -uo pipefail
@@ -611,6 +618,11 @@ PUBLISH_RC=$?
 # 8b. Publish the same docs/ to Cloudflare Pages (non-blocking while GitHub
 #     Pages stays the primary site; design/supabase-migration.md, P4c)
 # ---------------------------------------------------------------------------
+# The Cloudflare site is behind a Cloudflare Access login (cloudflare/README.md).
+# The deploy carries cloudflare/pages/_worker.js, which re-checks the Access
+# token on every request, so a site whose Access app is missing answers 403
+# instead of serving the report. The live check signs in with the Access
+# service token, and also asserts that an anonymous request is refused.
 WRANGLER_VERSION="${WRANGLER_VERSION:-4.141.0}"
 publish_cloudflare() {
   if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ] || \
@@ -619,13 +631,32 @@ publish_cloudflare() {
     return 0
   fi
   [ -s "$PAGES/docs/index.html" ] || { echo "no $PAGES/docs/index.html — step 08 did not build the site"; return 1; }
+  # Never deploy the report without its login.
+  "$PYTHON" "$REPO/scripts/stage_pages_worker.py" "$PAGES/docs" \
+    || { echo "refusing to deploy: set CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD (cloudflare/README.md)"; return 1; }
   "$PYTHON" "$REPO/scripts/check_pages_limits.py" "$PAGES/docs" || return 1
   command -v npx >/dev/null || { echo "npx not found — Node.js is needed for wrangler"; return 1; }
   npx -y "wrangler@$WRANGLER_VERSION" pages deploy "$PAGES/docs" --project-name "$CF_PAGES_PROJECT" \
     --branch main --commit-dirty=true --commit-message "Pages: $RUNDATE" || return 1
-  local url="${CF_PAGES_URL:-https://$CF_PAGES_PROJECT.pages.dev/}"
+  local url="${CF_PAGES_URL:-https://$CF_PAGES_PROJECT.pages.dev/}" code
+  # Anonymous requests must be turned away (302 to the Access login, or the
+  # Worker's 403). A 200 here means the report is public: fail the step loudly.
+  code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$url" 2>/dev/null || true)"
+  case "$code" in
+    200) echo "ERROR: $url serves the report WITHOUT a login — check the Access application (cloudflare/README.md)"; return 1 ;;
+    302|303|401|403) echo "anonymous request refused as expected ($code)" ;;
+    *) echo "WARNING: anonymous request to $url returned $code" ;;
+  esac
+  if [ -z "${CF_ACCESS_CLIENT_ID:-}" ] || [ -z "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
+    echo "WARNING: deployed, but CF_ACCESS_CLIENT_ID/CF_ACCESS_CLIENT_SECRET are unset, so the live check cannot sign in"
+    return 1
+  fi
   for i in $(seq 1 10); do
-    curl -sSL --max-time 30 -o "$WORK/live-cf.html" "$url" 2>/dev/null || true
+    # The service token goes in a curl config on stdin, not argv, so it
+    # never shows in the process list.
+    printf 'header = "CF-Access-Client-Id: %s"\nheader = "CF-Access-Client-Secret: %s"\n' \
+        "$CF_ACCESS_CLIENT_ID" "$CF_ACCESS_CLIENT_SECRET" \
+      | curl -sS --max-time 30 -K - -o "$WORK/live-cf.html" "$url" 2>/dev/null || true
     if grep -q "$RUNDATE" "$WORK/live-cf.html" 2>/dev/null; then
       echo "live: $url serves the $RUNDATE report"; return 0
     fi

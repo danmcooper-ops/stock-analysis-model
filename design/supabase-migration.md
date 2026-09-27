@@ -337,9 +337,10 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
     1. In the Cloudflare dashboard, go to Workers & Pages → Create → Pages → **Direct Upload**. Name the project (for example `stock-analysis`); the name becomes `CF_PAGES_PROJECT`. Don't connect Git: the routine uploads the built `docs/`.
     2. Create an API token (My Profile → API Tokens → Create Token → Custom) with the single permission **Account → Cloudflare Pages → Edit**, scoped to that account. Note the account ID from the dashboard sidebar.
     3. Add `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `CF_PAGES_PROJECT` to the cloud environment that runs the nightly routine. Add `CF_PAGES_URL` if a custom domain is attached.
-    4. The next nightly run deploys. Check `logs/08b-publish-cloudflare.log` and the `status.txt` line for step 08b, then open the `*.pages.dev` URL.
-    5. Optional: attach a custom domain under the project's Custom domains tab, then set `CF_PAGES_URL` to it.
-    6. **Retiring GitHub Pages later:** after some green nights on both, make 08b blocking and drop the `pages-live` push and live check from step 08. Keep the `docs/` build. Then disable Pages in the repository settings and delete `.github/workflows/deploy-pages.yml` and the `pages-live` branch.
+    4. Put the site behind the login before the first deploy: `cloudflare/README.md` (Cloudflare Access, plus `CF_ACCESS_TEAM_DOMAIN`/`CF_ACCESS_AUD` and a service token). Step 08b refuses to deploy without them.
+    5. The next nightly run deploys. Check `logs/08b-publish-cloudflare.log` and the `status.txt` line for step 08b, then open the `*.pages.dev` URL.
+    6. Optional: attach a custom domain under the project's Custom domains tab, then set `CF_PAGES_URL` to it.
+    7. **Retiring GitHub Pages later:** after some green nights on both, make 08b blocking and drop the `pages-live` push and live check from step 08. Keep the `docs/` build. Then disable Pages in the repository settings and delete `.github/workflows/deploy-pages.yml` and the `pages-live` branch.
 - **P5: Scale tests.**
   - *Passes when:* every scalability target is met.
   - **Run 2026-09-27, scaled down locally** (decision: build the tooling, measure what fits, extrapolate). The plan's 20M rows need about 75 GB; the container had 21 GB. So the run used the full ticker count, 8,000, over fewer days. Per-night costs depend on the tickers; history-dependent costs were measured at two sizes to get their slope:
