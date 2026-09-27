@@ -36,6 +36,11 @@
   --score-good:#C6EFCE;--score-mid:#FFEB9C;--score-poor:#FFC7CE;
   --bg:#f0f2f5;--surface:#fff;--text:#333;--text-muted:#666;
   --border:#e0e4ea;--header-bg:#1a252f;--accent:#2980b9;
+  /* Portfolios view: signed values, warnings and the solid chips (alert
+     level, badges). Text colours hold >=4.5:1 on --surface in both themes;
+     --pf-on-chip is the text colour on a solid chip. */
+  --pf-pos:#1a7f3c;--pf-neg:#c62828;--pf-warn:#b35c00;
+  --pf-chip-action:#2474a8;--pf-chip-warn:#b35c00;--pf-chip-muted:#6b7585;--pf-on-chip:#fff;
   /* Tooltip design tokens — shared across .tk-tip, #col-tip, #popup-tip, .pool-tt, .pp-quad-tip */
   --tip-bg:#1a252f;--tip-fg:#e8edf5;--tip-fg-muted:#c0cfe0;--tip-border:#2c3e50;
   --tip-shadow:0 6px 28px rgba(0,0,0,0.35);
@@ -1588,6 +1593,8 @@ td.ct{font-weight:700;}
   --score-good:#1e4d2b;--score-mid:#5a4a14;--score-poor:#5a1f25;
   --bg:#0e1117;--surface:#161b22;--text:#e6edf3;--text-muted:#8b949e;
   --border:#30363d;--header-bg:#0d1117;--accent:#58a6ff;
+  --pf-pos:#3fb950;--pf-neg:#f85149;--pf-warn:#e3a13b;
+  --pf-chip-action:#58a6ff;--pf-chip-warn:#e3a13b;--pf-chip-muted:#8b949e;--pf-on-chip:#0d1117;
 }
 [data-theme="dark"] body{background:var(--bg);color:var(--text);}
 [data-theme="dark"] .sub-btn{background:#161b22;color:#c9d1d9;border-color:#30363d;}
@@ -3413,7 +3420,7 @@ function _pfRecentHtml(id){
   return'<div class="pfv-alerts pfv-recent">'+ev.slice(0,15).map(function(e){
     var cross=!!BUY[e.a]!==!!BUY[e.b],mark=cross?(BUY[e.b]?'<span class="pos">▲</span>':'<span class="neg">▼</span>'):'<span class="pf-muted">·</span>';
     return'<div class="pfv-alert"><span class="pfv-date">'+_pfEsc(e.d)+'</span>'+mark
-      +'<span class="tk-link" onclick="openDet(\''+_pfJsArg(e.t)+'\')">'+_pfEsc(e.t)+'</span>'
+      +_pfTkLink(e.t)
       +'<span class="pfv-alert-msg">'+_pfEsc(e.a)+' → '+_pfEsc(e.b)+'</span></div>';
   }).join('')+'</div>'+(ev.length>15?'<div class="pf-muted pfv-more">+'+(ev.length-15)+' earlier</div>':'');
 }
@@ -3441,10 +3448,10 @@ function _pfStats(id){
 function _pfPct(v,sign){if(v==null)return'—';var s=(v*100).toFixed(0)+'%';return sign&&v>0?'+'+s:s;}
 function _pfMixBar(st){
   if(!st.n)return'<div class="pfv-mix pfv-mix-empty"></div>';
-  var h='<div class="pfv-mix" title="'+_pfEsc(Object.keys(st.mix).map(function(r){return r+' '+st.mix[r];}).join(' · '))+'">';
+  var h='<div class="pfv-mix" role="img" aria-label="Rating mix: '+_pfEsc(Object.keys(st.mix).map(function(r){return r+' '+st.mix[r];}).join(', '))+'" title="'+_pfEsc(Object.keys(st.mix).map(function(r){return r+' '+st.mix[r];}).join(' · '))+'">';
   Object.keys(st.mix).forEach(function(r){if(st.mix[r])h+='<span style="width:'+(100*st.mix[r]/st.n)+'%;background:'+RC[r]+'"></span>';});
   var other=st.n-Object.keys(st.mix).reduce(function(s,r){return s+st.mix[r];},0);
-  if(other)h+='<span style="width:'+(100*other/st.n)+'%;background:#999"></span>';
+  if(other)h+='<span style="width:'+(100*other/st.n)+'%;background:var(--pf-chip-muted)"></span>';
   return h+'</div>';
 }
 function _pfKpis(st){
@@ -3459,7 +3466,6 @@ function _pfKpis(st){
       +(st.concentrated?' <span class="warn" title="Top sector over 40% or sector HHI over 0.25">· concentrated</span>':'')+'</div>':'');
 }
 function _pfAlertRow(a,showPf){
-  var t=_pfJsArg(a.ticker);
   var pfs='';
   if(showPf){(a.portfolio?[a.portfolio]:(_pfMem[a.ticker]||[])).forEach(function(id){var p=_pfById[id];if(p)pfs+='<span class="pf-dot" title="'+_pfEsc(p.name)+'" style="background:'+_pfEsc(_pfCol(p.color))+'"></span>';});}
   var dir=a.kind==='entered_buy'?'<span class="pos" title="Into the buy zone">▲</span>':a.kind==='exited_buy'?'<span class="neg" title="Out of the buy zone">▼</span>':'';
@@ -3467,7 +3473,7 @@ function _pfAlertRow(a,showPf){
   var why=_PF_RATING_KINDS[a.kind]&&_pfRow[a.ticker]&&_pfRow[a.ticker].rating_chg_why;
   var row='<span class="pfv-lv pfv-lv-'+_pfEsc(a.level)+'">'+_pfEsc(_PF_LVN[a.level]||a.level)+'</span>'
     +(_pfIsNew()&&a.level!=='fyi'?'<span class="pfv-new">NEW</span>':'')+dir
-    +'<span class="tk-link" onclick="event.preventDefault();event.stopPropagation();openDet(\''+t+'\')">'+_pfEsc(a.ticker)+'</span>'
+    +_pfTkLink(a.ticker)
     +'<span class="pfv-alert-msg">'+_pfEsc(msg)+'</span>'+(pfs?'<span class="pfv-alert-pf">'+pfs+'</span>':'');
   if(why&&why.length)return'<details class="pfv-alert-x"><summary class="pfv-alert">'+row+'<span class="pfv-why-tog" title="Why the rating changed">why</span></summary>'
     +'<ul class="pfv-why">'+why.map(function(w){return'<li>'+_pfEsc(w)+'</li>';}).join('')+'</ul></details>';
@@ -3483,9 +3489,18 @@ function renderPfView(){
   var el=document.getElementById('pf-view');if(!el)return;
   if(curPfSub!=='overview'&&!_pfById[curPfSub])curPfSub='overview';
   el.innerHTML=curPfSub==='overview'?_pfOverviewHtml():_pfDetailHtml(curPfSub);
-  if(curPfSub!=='overview')_pfDrawChart();
+  if(curPfSub!=='overview'){_pfDrawChart();_pfmNeedPx();}
   _pfMarkSeen();
 }
+/* Keyboard: Enter/Space on a ticker link or a sortable header acts as a click. */
+(function(){
+  var el=document.getElementById('pf-view');if(!el)return;
+  el.addEventListener('keydown',function(e){
+    if(e.key!=='Enter'&&e.key!==' ')return;
+    var t=e.target;if(!t||!t.classList)return;
+    if(t.classList.contains('tk-link')||t.classList.contains('pfm-th')){e.preventDefault();t.click();}
+  });
+})();
 var _pfResizeT=null;
 window.addEventListener('resize',function(){
   if(curView!=='pf'||curPfSub==='overview')return;
@@ -3534,9 +3549,8 @@ function _pfOverviewHtml(){
 }
 function _pfDetailHtml(id){
   var p=_pfById[id],st=_pfStats(id),al=_pfAlertsFor(id),jid=_pfJsArg(id);
-  var picked={};(p.tickers||[]).forEach(function(t){picked[t]=1;});
   var miss=(p.tickers||[]).filter(function(t){return !_pfTk[t];});
-  var h='<div class="pfv"><button class="pf-link pfv-back" onclick="navGo(\'pf\',\'overview\')">← All portfolios</button>'
+  var h='<div class="pfv pfv-detail"><button class="pf-link pfv-back" onclick="navGo(\'pf\',\'overview\')">← All portfolios</button>'
     +'<div class="pfv-head pfv-detail-head" style="--pf:'+_pfEsc(_pfCol(p.color))+'"><span class="pfv-swatch"></span><h2>'+_pfEsc(p.name)+'</h2>'
     +'<span class="pf-spacer"></span>'
     +'<button class="pf-btn pf-primary" onclick="pfShowOnly(\''+jid+'\')">Open in table</button>'
@@ -3549,36 +3563,205 @@ function _pfDetailHtml(id){
     +(p.rule?' · rule: '+_pfEsc(_pfRuleSummary(p.rule)):'')
     +((p.exclude||[]).length?' · excludes '+_pfEsc(p.exclude.join(', ')):'')
     +(miss.length?' · not in today’s universe: '+_pfEsc(miss.join(', ')):'')
-    +' · created '+_pfEsc(p.created||'')+'</div>'
-    +'<div class="pfv-detail-grid"><div class="pfv-panel">'+_pfMixBar(st)
+    +' · created '+_pfEsc(p.created||'')+'</div>';
+  var dc=_pfCount(al),mode=p.alerts||'buy_line';
+  /* Section jumps are buttons, not #anchors: the hash carries view state. */
+  h+='<nav class="pfv-toc" aria-label="Sections">'+[['pfs-summary','Summary'],['pfs-members','Members'],['pfs-perf','Performance'],
+      ['pfs-alerts','Alerts'+(dc.action+dc.watch?' ('+(dc.action+dc.watch)+')':'')],['pfs-recent','Rating changes']]
+    .map(function(s,i){return'<button type="button" class="pfv-toc-b'+(i>2?' pfv-toc-rail':'')+'" onclick="_pfJump(\''+s[0]+'\')">'+s[1]+'</button>';}).join('')+'</nav>';
+  /* Main column: what the portfolio is (summary, members, performance).
+     Side rail (wide screens only): what changed (alerts, rating moves). */
+  h+='<div class="pfv-cols"><div class="pfv-main">'
+    +'<div class="pfv-detail-grid" id="pfs-summary"><div class="pfv-panel">'+_pfMixBar(st)
     +'<div class="pfv-legend">'+Object.keys(st.mix).map(function(r){return'<span><i style="background:'+RC[r]+'"></i>'+r+' '+st.mix[r]+'</span>';}).join('')+'</div>'
     +_pfKpis(st)+'</div>'
     +'<div class="pfv-panel"><div class="pfv-kpi-l">Sectors (equal weight)'+(st.concentrated?' — <span class="warn">concentrated</span>':'')+'</div>'
     +st.sectors.slice(0,8).map(function(s){return'<div class="pfv-sec"><span class="pfv-sec-l">'+_pfEsc(s.s)+'</span><span class="pfv-sec-bar"><span style="width:'+(100*s.w)+'%"></span></span><span class="pfv-sec-v">'+s.c+'</span></div>';}).join('')
     +(st.sectors.length>8?'<div class="pf-muted">+'+(st.sectors.length-8)+' more</div>':'')+'</div></div>';
-  h+='<h3 class="pfv-h3">Performance</h3><div class="pfv-panel pfc-panel">'+_pfChartHtml(id)+'</div>';
-  var dc=_pfCount(al),mode=p.alerts||'buy_line';
-  h+='<h3 class="pfv-h3">Alerts'+(dc.action+dc.watch?' <span class="pfv-count">'+(dc.action+dc.watch)+'</span>':'')
+  h+='<h3 class="pfv-h3" id="pfs-members">Members <span class="pfv-count">'+st.n+'</span></h3>'+_pfmHtml(id);
+  h+='<h3 class="pfv-h3" id="pfs-perf">Performance</h3><div class="pfv-panel pfc-panel">'+_pfChartHtml(id)+'</div>';
+  h+='</div><aside class="pfv-rail">';
+  h+='<h3 class="pfv-h3" id="pfs-alerts">Alerts'+(dc.action+dc.watch?' <span class="pfv-count">'+(dc.action+dc.watch)+'</span>':'')
     +(mode!=='buy_line'?' <span class="pf-tag">'+(mode==='off'?'muted':'all changes')+'</span>':'')+'</h3>'
     +_pfAlertsHtml(al,false,mode==='off'?'Alerts are muted for this portfolio (Manage → Alerts).':
       (PF_PUB.prev_date?'Nothing crossed the buy line, reversed, or needs watching since '+_pfEsc(PF_PUB.prev_date)+'.':'No prior run to compare against.'));
-  h+='<h3 class="pfv-h3">Recent rating changes <span class="pf-muted pfv-h3-sub">last 3 weeks</span></h3>'+_pfRecentHtml(id);
-  var rows=_pfMembers(id).map(function(t){return _pfRow[t];}).filter(Boolean);
-  rows.sort(function(a,b){return(_num(b._composite_score)||-1)-(_num(a._composite_score)||-1);});
-  h+='<h3 class="pfv-h3">Members</h3><div class="pfv-tbl-wrap"><table class="pfv-tbl"><thead><tr><th>Ticker</th><th>Company</th><th>Rating</th><th>Prior</th><th class="r">MoS</th><th class="r">Score</th><th class="r">ROIC−WACC</th><th>Sector</th><th>Via</th></tr></thead><tbody>';
-  rows.forEach(function(d){
-    var t=_pfJsArg(d.ticker),via=picked[d.ticker]?(p.rule&&_pfRuleMatch(p.rule,d)?'both':'pick'):'rule';
-    var mos=_num(d.mos),sp=_num(d.spread);
-    h+='<tr><td><span class="tk-link" onclick="openDet(\''+t+'\')">'+_pfEsc(d.ticker)+'</span></td>'
-      +'<td class="pfv-co">'+_pfEsc(d.company_name||'')+'</td><td>'+rb(d.rating,d)+'</td><td>'+rb(d.rating_prev)+'</td>'
-      +'<td class="r '+(mos==null?'':mos>0?'pos':'neg')+'">'+_pfPct(mos,true)+'</td>'
-      +'<td class="r">'+(_num(d._composite_score)==null?'—':Math.round(d._composite_score))+'</td>'
-      +'<td class="r '+(sp==null?'':sp>0?'pos':'neg')+'">'+_pfPct(sp,true)+'</td>'
-      +'<td>'+_pfEsc(d.sector||'')+'</td><td><span class="pf-tag">'+via+'</span></td></tr>';
-  });
-  if(!rows.length)h+='<tr><td colspan="9" class="pf-empty">No members in today’s universe.</td></tr>';
-  return h+'</tbody></table></div></div>';
+  h+='<h3 class="pfv-h3" id="pfs-recent">Recent rating changes <span class="pf-muted pfv-h3-sub">last 3 weeks</span></h3>'+_pfRecentHtml(id);
+  return h+'</aside></div></div>';
 }
+function _pfJump(secId){
+  var el=document.getElementById(secId);if(!el)return;
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView({behavior:reduce?'auto':'smooth',block:'start'});
+}
+/* A focusable ticker link (Enter opens the popup; see the keydown hook
+   under renderPfView). */
+function _pfTkLink(t){return'<span class="tk-link" role="link" tabindex="0" onclick="event.preventDefault();event.stopPropagation();openDet(\''+_pfJsArg(t)+'\')">'+_pfEsc(t)+'</span>';}
+/* Run cb(ok) once px/ shards for `tks` are loaded, fetching prices_meta.json
+   first if no other view has (same handoff poll as the other consumers). */
+function _pfWithPx(tks,cb){
+  if(!_PRICES_AVAILABLE||_PRICES_FAILED){cb(false);return;}
+  if(PRICES){_ensurePx(tks,function(){cb(true);});return;}
+  if(_PRICES_LOADING){var poll=setInterval(function(){if(!_PRICES_LOADING){clearInterval(poll);_pfWithPx(tks,cb);}},120);return;}
+  _PRICES_LOADING=true;
+  _loadSidecar('prices_meta.json',function(d){_PRICES_LOADING=false;PRICES=_pxMetaInit(d);_PRICES_FAILED=!PRICES;_pfWithPx(tks,cb);});
+}
+/* Price return over the trailing `days` calendar days, from the px/ closes:
+   the latest close against the last close on or before the window start. */
+function _pfPxRet(t,days){
+  if(!PRICES||!PRICES.dates)return null;
+  var a=PRICES.prices[t];if(!a)return null;
+  var ds=PRICES.dates,i1=a.length-1;
+  while(i1>=0&&a[i1]==null)i1--;
+  if(i1<0)return null;
+  var cut=_pfAddDays(ds[i1],-days);
+  for(var i=i1-1;i>=0;i--){if(ds[i]<=cut&&a[i]!=null)return a[i]?a[i1]/a[i]-1:null;}
+  return null;
+}
+/* --- Members table. Column presets use the Financial Data column-def shape
+   ({k,l,f}, formatted by ftc()); `x` marks a column with its own renderer,
+   `tone` colours the sign, `px` presets need the px/ shards. Sort, preset
+   and search redraw only the table (never the page), N/A sorts last in
+   either direction, and preset + sort persist per portfolio for the tab's
+   session. Over _PFM_CAP members the rest wait behind "Show all". --- */
+var _PF_RANK={'BUY':0,'LEAN BUY':1,'HOLD':2,'PASS':3};
+var _PFM_R={k:'rating',l:'Rating',x:'rating'},_PFM_PX={k:'price',l:'Price',f:'dollar'},_PFM_MOS={k:'mos',l:'MoS',x:'mos'};
+var _PFM_PRESETS=[
+  {id:'overview',l:'Overview',sort:'_composite_score',cols:[_PFM_R,{k:'rating_prev',l:'Prior',x:'prior'},_PFM_PX,{k:'dcf_fv',l:'DCF FV',f:'dollar'},_PFM_MOS,
+    {k:'_composite_score',l:'Score',f:'int'},{k:'spread',l:'ROIC−WACC',f:'pct',tone:1},{k:'sector',l:'Sector',f:'text'},{k:'_via',l:'Via',x:'via'}]},
+  {id:'valuation',l:'Valuation',sort:'mos',cols:[_PFM_R,_PFM_PX,_PFM_MOS,{k:'pe',l:'P/E',f:'n1'},{k:'ev_ebitda',l:'EV/EBITDA',f:'n1'},
+    {k:'pfcf',l:'P/FCF',f:'n1'},{k:'pb',l:'P/B',f:'n2'},{k:'pct_from_52w_high',l:'From 52w high',f:'pct',tone:1}]},
+  {id:'income',l:'Income',sort:'div_yield',cols:[_PFM_R,_PFM_PX,{k:'div_yield',l:'Div yield',f:'pct'},{k:'payout_ratio',l:'Payout',f:'pct'},
+    {k:'shareholder_yield',l:'Shareholder yield',f:'pct',tone:1},{k:'spread',l:'ROIC−WACC',f:'pct',tone:1}]},
+  {id:'momentum',l:'Momentum',sort:'_r3m',px:1,cols:[_PFM_R,_PFM_PX,{k:'_r1m',l:'1M',x:'ret',days:30},{k:'_r3m',l:'3M',x:'ret',days:91},
+    {k:'momentum_12_1',l:'12−1 mom.',f:'pct',tone:1},{k:'pct_from_52w_high',l:'From 52w high',f:'pct',tone:1},{k:'earnings_next_date',l:'Next earnings',x:'earn'}]}
+];
+var _PFM_KEY='stock_pf_members_v1',_PFM_CAP=100;
+var _pfm={id:null,preset:'overview',k:null,asc:false,q:'',all:false,px:false};
+function _pfmPreset(pid){for(var i=0;i<_PFM_PRESETS.length;i++)if(_PFM_PRESETS[i].id===pid)return _PFM_PRESETS[i];return _PFM_PRESETS[0];}
+function _pfmStore(){try{return JSON.parse(sessionStorage.getItem(_PFM_KEY))||{};}catch(e){return{};}}
+function _pfmLoad(id){
+  if(_pfm.id===id)return;
+  var v=_pfmStore()[id]||{};
+  _pfm={id:id,preset:_pfmPreset(v.preset).id,k:v.k||null,asc:!!v.asc,q:'',all:false,px:false};
+}
+function _pfmSave(){try{var s=_pfmStore();s[_pfm.id]={preset:_pfm.preset,k:_pfm.k,asc:_pfm.asc};sessionStorage.setItem(_PFM_KEY,JSON.stringify(s));}catch(e){}}
+function _pfmCol(pr,k){for(var i=0;i<pr.cols.length;i++)if(pr.cols[i].k===k)return pr.cols[i];return null;}
+/* Text-like columns first sort ascending (A→Z, BUY first, soonest date);
+   numbers first sort descending. */
+function _pfmAscFirst(c){return !c||c.f==='text'||c.x==='rating'||c.x==='prior'||c.x==='via'||c.x==='earn';}
+function _pfmSortState(pr){
+  var k=_pfm.k&&(_pfm.k==='ticker'||_pfmCol(pr,_pfm.k))?_pfm.k:null;
+  if(k)return{k:k,asc:_pfm.asc};
+  return{k:pr.sort,asc:false};
+}
+function _pfmCtx(id){
+  var p=_pfById[id],picked={},d0=_pfRunDate();
+  (p.tickers||[]).forEach(function(t){picked[t]=1;});
+  return{d0:d0,soon:d0?_pfAddDays(d0,7):'',
+    via:function(d){return picked[d.ticker]?(p.rule&&_pfRuleMatch(p.rule,d)?'both':'pick'):'rule';},
+    gap:function(d){return _num(d.price)==null||!(d.company_name||d.sector);}};
+}
+function _pfmVal(c,d,ctx){
+  if(!c)return d.ticker;
+  if(c.x==='ret')return _pfPxRet(d.ticker,c.days);
+  if(c.x==='rating'||c.x==='prior'){var r=d[c.k];return r in _PF_RANK?_PF_RANK[r]:null;}
+  if(c.x==='via')return ctx.via(d);
+  if(c.x==='earn')return String(d[c.k]||'').slice(0,10)||null;
+  if(c.f==='text')return d[c.k]==null||d[c.k]===''?null:String(d[c.k]);
+  return _num(d[c.k]);
+}
+function _pfmCell(c,d,v,ctx){
+  var tone=function(x){return x==null?'':x>0?' pos':x<0?' neg':'';};
+  if(c.x==='rating'){
+    var ch='';
+    if(!ctx.gap(d)){if(d.rating_chg>0)ch='<span class="pos pfm-chg" title="Upgraded from '+_pfEsc(d.rating_prev||'')+'">▲</span>';else if(d.rating_chg<0)ch='<span class="neg pfm-chg" title="Downgraded from '+_pfEsc(d.rating_prev||'')+'">▼</span>';}
+    return'<td>'+rb(d.rating,d)+ch+'</td>';
+  }
+  if(c.x==='prior')return'<td>'+(d.rating_prev?rb(d.rating_prev):'<span class="pf-muted">—</span>')+'</td>';
+  if(c.x==='via')return'<td><span class="pf-tag">'+v+'</span></td>';
+  if(v==null){
+    var pend=c.x==='ret'&&!_pfm.px&&_PRICES_AVAILABLE&&!_PRICES_FAILED;
+    return'<td class="'+(c.f==='text'?'':'r ')+'pf-muted">'+(pend?'…':'—')+'</td>';
+  }
+  if(c.x==='earn'){
+    var soon=ctx.d0&&v>=ctx.d0&&v<=ctx.soon;
+    return'<td class="r'+(soon?' warn':'')+'"'+(soon?' title="Reports within 7 days"':'')+'>'+_pfEsc(v)+'</td>';
+  }
+  if(c.x==='mos'){
+    /* Diverging in-cell bar, ±100% full scale, centred on zero. */
+    var w=Math.min(Math.abs(v),1)*50;
+    return'<td class="r"><span class="pfm-mos"><span class="pfm-bar" aria-hidden="true"><i class="'+(v>=0?'pos':'neg')+'" style="'+(v>=0?'left:50%':'left:'+(50-w)+'%')+';width:'+w+'%"></i></span>'
+      +'<span class="'+tone(v).trim()+'">'+_pfPct(v,true)+'</span></span></td>';
+  }
+  if(c.x==='ret')return'<td class="r'+tone(v)+'">'+_pfFmtRet(v)+'</td>';
+  if(c.f==='text')return'<td>'+_pfEsc(v)+'</td>';
+  return'<td class="r'+(c.tone?tone(v):'')+'">'+ftc(v,c.f).t+'</td>';
+}
+function _pfmTable(id){
+  var pr=_pfmPreset(_pfm.preset),ss=_pfmSortState(pr),sc=ss.k==='ticker'?null:_pfmCol(pr,ss.k),ctx=_pfmCtx(id);
+  var q=_pfm.q.trim().toUpperCase();
+  var rows=_pfMembers(id).map(function(t){return _pfRow[t];}).filter(Boolean);
+  var total=rows.length;
+  if(q)rows=rows.filter(function(d){return d.ticker.toUpperCase().indexOf(q)>=0||String(d.company_name||'').toUpperCase().indexOf(q)>=0;});
+  var vs=rows.map(function(d){return{d:d,v:_pfmVal(sc,d,ctx)};});
+  vs.sort(function(a,b){
+    var tk=a.d.ticker<b.d.ticker?-1:a.d.ticker>b.d.ticker?1:0;
+    if(a.v==null||b.v==null)return a.v==null&&b.v==null?tk:a.v==null?1:-1;
+    var c=a.v<b.v?-1:a.v>b.v?1:0;
+    return(ss.asc?c:-c)||tk;
+  });
+  function th(k,l,num){
+    var on=ss.k===k,arrow=on?(ss.asc?'▲':'▼'):'';
+    return'<th class="pfm-th'+(num?' r':'')+(on?' on':'')+'" tabindex="0" aria-sort="'+(on?(ss.asc?'ascending':'descending'):'none')+'" onclick="pfmSort(\''+k+'\')">'
+      +l+'<span class="pfm-ar">'+arrow+'</span></th>';
+  }
+  var h='<thead><tr>'+th('ticker','Stock',false)
+    +pr.cols.map(function(c){return th(c.k,c.l,!(c.f==='text'||c.x==='rating'||c.x==='prior'||c.x==='via'));}).join('')+'</tr></thead><tbody>';
+  var cap=_pfm.all||q?vs.length:Math.min(vs.length,_PFM_CAP);
+  for(var i=0;i<cap;i++){
+    var d=vs[i].d;
+    h+='<tr><td class="pfm-stk">'+_pfTkLink(d.ticker)+'<div class="pfm-co" title="'+_pfEsc(d.company_name||'')+'">'+_pfEsc(d.company_name||'')+'</div></td>'
+      +pr.cols.map(function(c){return _pfmCell(c,d,c===sc?vs[i].v:_pfmVal(c,d,ctx),ctx);}).join('')+'</tr>';
+  }
+  var ncol=pr.cols.length+1;
+  if(!total)h+='<tr><td colspan="'+ncol+'" class="pf-empty">No members in today’s universe.</td></tr>';
+  else if(!vs.length)h+='<tr><td colspan="'+ncol+'" class="pf-empty">No members match “'+_pfEsc(_pfm.q)+'”.</td></tr>';
+  else if(cap<vs.length)h+='<tr class="pfm-more-row"><td colspan="'+ncol+'"><button class="pf-link" onclick="pfmAll()">Show all '+vs.length+' members</button>'
+    +'<span class="pf-muted"> · showing the first '+cap+' by the current sort</span></td></tr>';
+  return{html:h+'</tbody>',shown:vs.length,total:total};
+}
+function _pfmHtml(id){
+  _pfmLoad(id);
+  var t=_pfmTable(id);
+  return'<div class="pfm-top"><div class="pfm-seg" role="group" aria-label="Column set">'
+    +_PFM_PRESETS.map(function(pr){var on=pr.id===_pfm.preset;return'<button type="button" class="pfm-seg-b'+(on?' on':'')+'" aria-pressed="'+on+'" onclick="pfmPreset(\''+pr.id+'\')">'+pr.l+'</button>';}).join('')
+    +'</div><input type="search" class="pfm-q" placeholder="Filter by ticker or name" aria-label="Filter members" value="'+_pfEsc(_pfm.q)+'" oninput="pfmQuery(this.value)">'
+    +'<span class="pf-muted pfm-n" id="pfm-n">'+(t.shown<t.total?t.shown+' of '+t.total:'')+'</span></div>'
+    +'<div class="pfv-tbl-wrap pfm-wrap"><table class="pfv-tbl pfm-tbl" id="pfm-tbl">'+t.html+'</table></div>';
+}
+function _pfmRedraw(){
+  var tb=document.getElementById('pfm-tbl');if(!tb||!_pfm.id||!_pfById[_pfm.id])return;
+  var t=_pfmTable(_pfm.id);tb.innerHTML=t.html;
+  var n=document.getElementById('pfm-n');if(n)n.textContent=t.shown<t.total?t.shown+' of '+t.total:'';
+  var bs=document.querySelectorAll('.pfm-seg-b');
+  for(var i=0;i<bs.length;i++){var on=_PFM_PRESETS[i].id===_pfm.preset;bs[i].classList.toggle('on',on);bs[i].setAttribute('aria-pressed',on);}
+}
+/* Momentum needs closes: fetch the members' px/ shards once, then redraw. */
+function _pfmNeedPx(){
+  if(!_pfmPreset(_pfm.preset).px||_pfm.px||!_pfm.id)return;
+  var id=_pfm.id;
+  _pfWithPx(_pfMembers(id),function(){if(_pfm.id!==id)return;_pfm.px=true;_pfmRedraw();});
+}
+function pfmPreset(pid){_pfm.preset=_pfmPreset(pid).id;_pfmSave();_pfmRedraw();_pfmNeedPx();}
+function pfmSort(k){
+  var pr=_pfmPreset(_pfm.preset),ss=_pfmSortState(pr);
+  if(ss.k===k){_pfm.k=k;_pfm.asc=!ss.asc;}
+  else{_pfm.k=k;_pfm.asc=_pfmAscFirst(k==='ticker'?null:_pfmCol(pr,k));}
+  _pfmSave();_pfmRedraw();
+}
+var _pfmQT=null;
+function pfmQuery(v){_pfm.q=v;clearTimeout(_pfmQT);_pfmQT=setTimeout(_pfmRedraw,80);}
+function pfmAll(){_pfm.all=true;_pfmRedraw();}
 /* --- Performance (PR 3): the NAV ledger's series, shipped as PF_PUB.nav.
    Every line is rebased to 0% at the portfolio's first point, so one axis
    carries all three (portfolio, SPY, equal-weighted universe). Flags per
@@ -11096,7 +11279,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pf-filt-actions{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border);}
 .pf-link{background:none;border:none;padding:3px 8px;font:inherit;font-size:0.85em;color:var(--accent);cursor:pointer;text-align:left;border-radius:5px;}
 .pf-link:hover{background:var(--bg);}
-.pf-sync-badge{color:#e8833a;margin-left:6px;font-size:0.8em;cursor:help;}
+.pf-sync-badge{color:var(--pf-warn);margin-left:6px;font-size:0.8em;cursor:help;}
 .d-pf-btn{display:inline-flex;align-items:center;gap:3px;cursor:pointer;color:rgba(255,255,255,.55);line-height:1;user-select:none;touch-action:manipulation;}
 .d-pf-btn svg{width:1.35em;height:1.35em;}
 .d-pf-btn.on{color:#fff;}
@@ -11116,7 +11299,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 #pf-overlay .hk-card{max-width:720px;}
 #pf-ov-body{padding:12px 18px 16px;overflow-y:auto;}
 .pf-sync{font-size:12.5px;padding:8px 10px;border-radius:8px;margin-bottom:10px;background:var(--bg);color:var(--text-muted);}
-.pf-sync-dirty,.pf-sync-stale{border-left:3px solid #e8833a;color:var(--text);}
+.pf-sync-dirty,.pf-sync-stale{border-left:3px solid var(--pf-warn);color:var(--text);}
 .pf-sync code{font-size:11.5px;}
 .pf-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);}
 .pf-color{width:28px;height:28px;padding:0;border:1px solid var(--border);border-radius:6px;background:none;cursor:pointer;flex:0 0 auto;}
@@ -11144,7 +11327,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   .pf-row{flex-wrap:wrap;}
   .pf-row-btns{max-width:none;width:100%;justify-content:flex-start;padding-left:38px;}
 }
-.pfv{max-width:1200px;margin:0 auto;padding:18px 16px 40px;color:var(--text);}
+.pfv{max-width:1440px;margin:0 auto;padding:18px 16px 40px;color:var(--text);}
 .pfv-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
 .pfv-head h2{font-size:20px;font-weight:700;margin:0;}
 .pfv-sub{font-size:12.5px;color:var(--text-muted);}
@@ -11152,11 +11335,12 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfv-empty p{margin:0 0 10px;}
 .pfv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
 .pfv-card{background:var(--surface);border:1px solid var(--border);border-top:4px solid var(--pf);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:box-shadow .15s,transform .15s;}
-.pfv-card:hover,.pfv-card:focus{box-shadow:0 6px 20px rgba(0,0,0,.12);transform:translateY(-1px);outline:none;}
+.pfv-card:hover,.pfv-card:focus-visible{box-shadow:0 6px 20px rgba(0,0,0,.12);transform:translateY(-1px);outline:none;}
+.pfv-card:focus-visible{box-shadow:0 0 0 2px var(--accent),0 6px 20px rgba(0,0,0,.12);}
 .pfv-card-h{display:flex;align-items:center;gap:8px;}
 .pfv-name{font-size:15.5px;font-weight:700;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .pfv-badge{font-size:11px;font-weight:700;min-width:20px;text-align:center;padding:2px 6px;border-radius:10px;background:var(--bg);color:var(--text-muted);border:1px solid var(--border);}
-.pfv-badge.hot{background:#e8833a;border-color:#e8833a;color:#fff;}
+.pfv-badge.hot{background:var(--pf-chip-warn);border-color:var(--pf-chip-warn);color:var(--pf-on-chip);}
 .pfv-meta,.pfv-rule{font-size:12px;color:var(--text-muted);overflow-wrap:anywhere;}
 .pfv-mix{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--bg);}
 .pfv-mix span{display:block;height:100%;}
@@ -11164,8 +11348,8 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfv-top{font-size:12px;color:var(--text-muted);}
 .pfv-top b{color:var(--text);font-weight:600;}
 .pfv-kpi-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);}
-.pfv-kpi-v{font-size:14px;font-weight:600;overflow-wrap:anywhere;}
-.pfv .pos{color:#1a9850;}.pfv .neg{color:#de2d26;}.pfv .warn{color:#e8833a;}
+.pfv-kpi-v{font-size:14px;font-weight:600;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+.pfv .pos{color:var(--pf-pos);}.pfv .neg{color:var(--pf-neg);}.pfv .warn{color:var(--pf-warn);}
 .pfv-foot{font-size:12px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;margin-top:auto;}
 .pfv-perf{display:flex;align-items:center;gap:10px;}
 .pfv-spark{width:96px;height:28px;flex:0 0 auto;overflow:visible;}
@@ -11200,12 +11384,12 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfv-alerts{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
 .pfv-alert{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--border);font-size:13px;}
 .pfv-alert:first-child{border-top:none;}
-.pfv-lv{flex:0 0 auto;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:4px;color:#fff;background:#8a94a6;min-width:46px;text-align:center;}
-.pfv-lv-action{background:var(--accent);}.pfv-lv-watch{background:#e8833a;}
+.pfv-lv{flex:0 0 auto;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:4px;color:var(--pf-on-chip);background:var(--pf-chip-muted);min-width:46px;text-align:center;}
+.pfv-lv-action{background:var(--pf-chip-action);}.pfv-lv-watch{background:var(--pf-chip-warn);}
 .pfv-new{flex:0 0 auto;font-size:9.5px;font-weight:700;letter-spacing:.05em;padding:1px 5px;border-radius:4px;border:1px solid var(--accent);color:var(--accent);}
 .pfv-badge.new{box-shadow:0 0 0 2px var(--surface),0 0 0 3px var(--accent);}
-.pfv-banner{font-size:13px;line-height:1.45;padding:10px 12px;border-radius:10px;margin:0 0 12px;background:var(--surface);border:1px solid var(--border);border-left:4px solid #e8833a;}
-.pfv-banner-data{border-left-color:#de2d26;}
+.pfv-banner{font-size:13px;line-height:1.45;padding:10px 12px;border-radius:10px;margin:0 0 12px;background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--pf-warn);}
+.pfv-banner-data{border-left-color:var(--pf-neg);}
 .pfv-alert-x{border-top:1px solid var(--border);}
 .pfv-alert-x:first-child{border-top:none;}
 .pfv-alert-x > summary{list-style:none;cursor:pointer;border-top:none;}
@@ -11239,10 +11423,65 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfv-tbl{width:100%;border-collapse:collapse;font-size:13px;}
 .pfv-tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
 .pfv-tbl td{padding:7px 10px;border-top:1px solid var(--border);white-space:nowrap;}
-.pfv-tbl .r{text-align:right;}
+.pfv-tbl .r{text-align:right;font-variant-numeric:tabular-nums;}
 .pfv-co{max-width:240px;overflow:hidden;text-overflow:ellipsis;}
+.pfv .tk-link:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px;}
+/* Detail page: main column + a sticky side rail for alerts and rating moves
+   on wide screens; one column below 1100px. */
+.pfv-toc{display:flex;flex-wrap:wrap;gap:4px;margin:10px 0 2px;}
+.pfv-toc-b{font:inherit;font-size:12px;padding:4px 10px;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--text-muted);cursor:pointer;}
+.pfv-toc-b:hover{color:var(--text);border-color:var(--accent);}
+.pfv-cols{display:grid;grid-template-columns:minmax(0,1fr);gap:0 20px;}
+.pfv-main,.pfv-rail{min-width:0;}
+.pfv-detail .pfv-h3{scroll-margin-top:12px;}
+@media (min-width:1100px){
+  .pfv-cols{grid-template-columns:minmax(0,1fr) minmax(300px,380px);}
+  .pfv-rail{position:-webkit-sticky;position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);overflow-y:auto;overscroll-behavior:contain;padding:0 2px 12px;}
+  .pfv-rail .pfv-alert{flex-wrap:wrap;row-gap:2px;}
+  .pfv-rail .pfv-alert-msg{flex-basis:100%;padding-left:2px;}
+  .pfv-rail .pfv-why{padding-left:14px;}
+  .pfv-toc-rail{display:none;}
+}
+/* Members table: presets, search, sticky header and stock column. */
+.pfm-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;}
+.pfm-seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface);}
+.pfm-seg-b{font:inherit;font-size:12.5px;padding:5px 11px;border:none;border-left:1px solid var(--border);background:none;color:var(--text-muted);cursor:pointer;}
+.pfm-seg-b:first-child{border-left:none;}
+.pfm-seg-b:hover{color:var(--text);background:var(--bg);}
+.pfm-seg-b.on{background:var(--accent);color:#fff;}
+[data-theme="dark"] .pfm-seg-b.on{color:#0d1117;}
+.pfm-q{font:inherit;font-size:12.5px;padding:5px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);min-width:0;flex:0 1 220px;}
+.pfm-n{margin-left:auto;}
+.pfm-wrap{max-height:min(70vh,760px);overflow:auto;}
+.pfm-tbl{border-collapse:separate;border-spacing:0;}
+.pfm-tbl thead th{position:-webkit-sticky;position:sticky;top:0;z-index:2;background:var(--surface);}
+.pfm-tbl th:first-child,.pfm-tbl td.pfm-stk{position:-webkit-sticky;position:sticky;left:0;z-index:1;background:var(--surface);box-shadow:1px 0 0 var(--border);}
+.pfm-tbl thead th:first-child{z-index:3;}
+.pfm-tbl tbody tr:hover td{background:var(--bg);}
+.pfm-th{cursor:pointer;user-select:none;}
+.pfm-th:hover,.pfm-th.on{color:var(--text);}
+.pfm-th:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+.pfm-ar{display:inline-block;width:1em;font-size:9px;margin-left:2px;}
+.pfm-stk{min-width:110px;max-width:220px;}
+.pfm-co{font-size:11.5px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;}
+.pfm-chg{font-size:10px;margin-left:4px;}
+.pfm-mos{display:inline-flex;align-items:center;gap:8px;justify-content:flex-end;}
+.pfm-bar{position:relative;display:inline-block;width:44px;height:6px;border-radius:3px;background:var(--bg);}
+.pfm-bar::after{content:'';position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--text-muted);opacity:.5;}
+.pfm-bar i{position:absolute;top:0;bottom:0;border-radius:3px;}
+.pfm-bar i.pos{background:var(--pf-pos);}.pfm-bar i.neg{background:var(--pf-neg);}
+.pfm-more-row td{text-align:center;}
+@media (prefers-reduced-motion:reduce){
+  .pfv-card{transition:none;}
+  .pfv-card:hover,.pfv-card:focus-visible{transform:none;}
+}
 @media (max-width:700px){
   .pfv-detail-grid{grid-template-columns:1fr;}
+  .pfm-q{flex:1 1 100%;}
+  .pfm-stk{min-width:0;max-width:112px;}
+  .pfm-co{max-width:96px;}
+  .pfm-tbl td,.pfm-tbl th{padding:6px 8px;}
+  .pfm-n{margin-left:0;}
   .pfv-alert{flex-wrap:wrap;}
   .pfv-alert-msg{flex-basis:100%;}
 }
