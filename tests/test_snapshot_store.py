@@ -334,8 +334,10 @@ def test_report_html_readers_match_json_path(results_dir, capsys):
     assert store_prev[1]['BBB']['rating'] == 'BUY'
     assert store_prev[1]['BBB']['_rating_cap_reasons'] == []
     assert store_hist['BBB'] == [['2026-01-01', 'PASS'], ['2026-01-02', 'BUY']]
-    # The store path writes no rating_history cache file.
-    assert not (results_dir / 'rh_store.json').exists()
+    # The cache still advances when the store answers (P6: it is the parity
+    # check's independent record), identical to the JSON path's.
+    assert json.loads((results_dir / 'rh_store.json').read_text(encoding='utf-8')) == \
+        json.loads((results_dir / 'rh_json.json').read_text(encoding='utf-8'))
     # No run_date: the JSON path is used (store needs a cut-off).
     assert _load_prev_ratings(out_dir, None, extra_keys=extra)[0] == '2026-01-03'
 

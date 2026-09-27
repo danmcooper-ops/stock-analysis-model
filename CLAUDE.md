@@ -579,10 +579,15 @@ by analyze_stock and gitignored):
   `scripts/db_restore_drill.py` rebuilds into a scratch database from
   Storage or the git archive and compares; `scheduled-tasks/RECOVERY.md`
   has the database runbook.
-- `SNAPSHOT_STORE_BACKEND=postgres` — opt-in; the snapshot-store readers
+- `SNAPSHOT_STORE_BACKEND=postgres` — the snapshot-store readers
   (`SnapshotStore.for_results_dir`) read the Supabase database instead of
   `snapshots.duckdb` (`data/db/reader.py`), over the Data API or
   `SUPABASE_READER_URL`/`SUPABASE_DB_URL`; any failure falls back to the JSON.
+  The nightly `run.sh` selects it whenever the Supabase secrets are set (an
+  explicit value, e.g. `duckdb`, wins). `rating_history.json` keeps advancing
+  from the files even when the database serves the render: it is the
+  independent record 07e's parity check compares against, and 07e reads a
+  cache more than 5 trading days behind as "not checked".
   `DB_DEFER_PUBLISH=1` (set by run.sh) stops `sync_snapshot_file` republishing
   each rewrite during the nightly run. The same switch backs the Phase-1
   screen-skip cache with `core.screen_skip`. `db_publish.py` also writes

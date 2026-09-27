@@ -472,6 +472,12 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     are appended, so a late-backfilled older snapshot can't corrupt ordering
     (delete the cache to force a full rebuild that includes it). A missing or
     corrupt cache also triggers a full rebuild.
+
+    The cache advances even when a store answers: with the database backend
+    it is the independent record the nightly parity check compares the
+    database against (scripts/db_night_check.py), and the fallback when the
+    database misses a day. Left frozen, that check would compare the same
+    day forever, and a fallback would lose every change point in the gap.
     """
     from data.snapshot_store import list_snapshot_files, read_snapshot
     try:
@@ -481,10 +487,6 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     dated = list_snapshot_files(out_dir)
     if not dated:
         return {}
-    from_store = _rating_history_from_store(
-        out_dir, cur, [d for d, _ in dated if cur is None or d < cur])
-    if from_store is not None:
-        return from_store
     cache_path = os.path.join(out_dir, cache_name)
     hist, last_scanned = {}, None
     try:
@@ -528,6 +530,10 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
                   f"{len(hist)} tickers, through {last_scanned}")
         except Exception as e:
             print(f"[warn] rating-history cache write failed: {e}")
+    from_store = _rating_history_from_store(
+        out_dir, cur, [d for d, _ in dated if cur is None or d < cur])
+    if from_store is not None:
+        return from_store
     if cur is None:
         return hist
     # Exclude entries on/after the render date (rescoring an older snapshot).

@@ -195,6 +195,27 @@ def test_rating_history_accepts_a_superset_only_from_the_database(monkeypatch, a
     assert report_html._rating_history_from_store('x', '2031-11-03', ['2031-11-01', '2031-11-02']) == expected
 
 
+def test_rating_history_cache_advances_while_the_database_answers(monkeypatch, tmp_path):
+    """The JSON cache is the parity check's independent record (P6): it must
+    keep advancing when the database serves the report."""
+    import json
+
+    from data.snapshot_store import write_snapshot_file
+    from scripts import report_html
+    for d, rt in (('2031-11-01', 'BUY'), ('2031-11-02', 'HOLD'), ('2031-11-03', 'HOLD')):
+        write_snapshot_file(str(tmp_path / f'results_{d}.json'), {'date': d, 'results': [{'ticker': 'A', 'rating': rt}]})
+    store = _Store(['2031-10-31', '2031-11-01', '2031-11-02', '2031-11-03'], True)
+    monkeypatch.setattr(report_html, '_open_snapshot_store', lambda out_dir: store)
+    import datetime as dt
+    got = report_html._load_rating_history(str(tmp_path), dt.date(2031, 11, 3))
+    assert got == {'A': [['2031-11-01', 'BUY']]}                         # served by the database
+    cache = json.loads((tmp_path / 'rating_history.json').read_text(encoding='utf-8'))
+    assert cache == {'last_scanned': '2031-11-02',
+                     'hist': {'A': [['2031-11-01', 'BUY'], ['2031-11-02', 'HOLD']]}}   # and the cache advanced
+    report_html._load_rating_history(str(tmp_path), None)                 # the next night folds in 11-03
+    assert json.loads((tmp_path / 'rating_history.json').read_text(encoding='utf-8'))['last_scanned'] == '2031-11-03'
+
+
 def test_check_database(tmp_path):
     from scripts.check_snapshot_store import check_database
     data = {'date': '2031-11-03', 'results': [{'ticker': 'A'}, {'ticker': 'B'}, {'ticker': 'B'}]}

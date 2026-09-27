@@ -88,14 +88,17 @@ class ScreenSkipCache:
         logger.info('screen skip cache: %d entries from the database', len(remote))
 
     def _save_database(self):
-        if self._db is False:            # the load already failed this run
+        if self._db is False:            # the load or an earlier save failed this run
             return
         try:
             transport = self._db_transport()
             if transport is not None:
                 transport.call('screen_skip_replace', {'p_entries': self._entries}, idempotent=True)
         except Exception as e:
-            logger.warning('screen skip cache: database save failed (%s); the file is still written', e)
+            # A run saves every 500 tickers; don't pay the timeout ~18 times.
+            self._db = False
+            logger.warning('screen skip cache: database save failed (%s); the file is still written, '
+                           'and the database is skipped for the rest of this run', e)
 
     # ------------------------------------------------------------------
     def _age_ok(self, entry, ticker, base_ttl):

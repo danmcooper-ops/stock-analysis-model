@@ -210,6 +210,28 @@ def test_screen_skip_survives_a_database_failure(tmp_path, backend, caplog):
     assert set(json.loads((tmp_path / 'screen_skip.json').read_text(encoding='utf-8'))) == {'CCC', 'DDD'}
 
 
+class FlakySaveTransport(SkipTransport):
+    def __init__(self):
+        super().__init__()
+        self.saves = 0
+
+    def call(self, fn, args, idempotent=False):
+        if fn == 'screen_skip_replace':
+            self.saves += 1
+            raise RuntimeError('gateway timeout')
+        return super().call(fn, args, idempotent)
+
+
+def test_screen_skip_stops_saving_to_the_database_after_a_failure(tmp_path, backend, caplog):
+    t = FlakySaveTransport()
+    cache = _cache(tmp_path, t, backend)
+    for tk in ('DDD', 'EEE', 'FFF'):                    # three flushes, as every 500 tickers
+        cache.record_dead(tk)
+        cache.save()
+    assert t.saves == 1 and caplog.text.count('database save failed') == 1
+    assert set(json.loads((tmp_path / 'screen_skip.json').read_text(encoding='utf-8'))) == {'DDD', 'EEE', 'FFF'}
+
+
 def test_screen_skip_without_the_backend_never_calls_the_database(tmp_path, monkeypatch):
     monkeypatch.delenv('SNAPSHOT_STORE_BACKEND', raising=False)
     t = SkipTransport(fail=True)

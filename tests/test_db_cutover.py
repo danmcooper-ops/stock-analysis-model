@@ -155,6 +155,18 @@ def test_record_without_the_cache_is_not_green(tmp_path, monkeypatch):
     assert args['p_parity_ok'] is None and 'not checked' in args['p_details']['parity']
 
 
+def test_a_stale_cache_is_not_evidence(tmp_path):
+    _cache(tmp_path, {'AAA': [['2026-09-01', 'BUY']]}, '2026-09-21')
+    t = FakeTransport(db_hist=[['AAA', '2026-09-01', 'BUY']])
+    assert nc.cache_lag('2026-09-30', '2026-10-01') == 1                  # the normal night
+    ok, details = nc.check_parity(t, str(tmp_path), '2026-09-28')          # 5 trading days behind
+    assert ok is True
+    n_calls = len(t.calls)
+    ok, details = nc.check_parity(t, str(tmp_path), '2026-09-29')          # 6: stale
+    assert ok is None and 'cache stale since 2026-09-21 (6 trading days behind)' in details['parity']
+    assert len(t.calls) == n_calls                                          # nothing compared
+
+
 def test_status_appends_the_gate_line(tmp_path, capsys):
     days = [d.isoformat() for d in list(nc.trading_days_back(dt.date(2026, 10, 30)))[:20]]
     t = FakeTransport(records=[_green(d) for d in days])
@@ -181,6 +193,23 @@ def test_db_publish_without_secrets(primary, rc, says):
     env = {k: v for k, v in os.environ.items() if not k.startswith('SUPABASE_')}
     r = subprocess.run(['bash', '-c', script], env=env, capture_output=True, text=True, timeout=30)
     assert r.returncode == rc and says in r.stdout
+
+
+@pytest.mark.skipif(shutil.which('bash') is None, reason='needs bash')
+@pytest.mark.parametrize('env, want', [
+    ({}, ''),                                                               # no secrets: files only
+    ({'SUPABASE_URL': 'u'}, ''),
+    ({'SUPABASE_URL': 'u', 'SUPABASE_SERVICE_ROLE_KEY': 'k'}, 'postgres'),
+    ({'SUPABASE_URL': 'u', 'SUPABASE_SERVICE_ROLE_KEY': 'k', 'SNAPSHOT_STORE_BACKEND': 'duckdb'}, 'duckdb'),
+])
+def test_run_sh_selects_the_database_readers_with_the_secrets(env, want):
+    src = open(RUN_SH, encoding='utf-8').read()
+    m = re.search(r'^if \[ -n "\$\{SUPABASE_URL:-\}" \].*?^fi\n', src, re.S | re.M)
+    assert m and 'SNAPSHOT_STORE_BACKEND' in m.group(0)
+    base = {k: v for k, v in os.environ.items() if not k.startswith(('SUPABASE_', 'SNAPSHOT_STORE'))}
+    r = subprocess.run(['bash', '-c', m.group(0) + 'printf %s "${SNAPSHOT_STORE_BACKEND:-}"'],
+                       env={**base, **env}, capture_output=True, text=True, timeout=30)
+    assert r.stdout == want
 
 
 def test_run_sh_makes_06a_blocking_only_as_primary():

@@ -40,6 +40,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 NEED = 20
+MAX_CACHE_LAG = 5         # trading days the rating-history cache may trail the run
 _BEFORE = 'before'
 
 
@@ -113,12 +114,34 @@ def load_cache(results_dir, name='rating_history.json'):
     return c['hist'], c['last_scanned']
 
 
-def check_parity(transport, results_dir):
-    """``(parity_ok, details)`` of the database against the cache."""
+def cache_lag(as_of, run_date):
+    """Trading days after the cache's *as_of* up to *run_date* (1 is normal:
+    the cache holds every day before tonight)."""
+    end, start = dt.date.fromisoformat(run_date), dt.date.fromisoformat(as_of)
+    n = 0
+    for d in trading_days_back(end):
+        if d <= start:
+            break
+        n += 1
+    return n
+
+
+def check_parity(transport, results_dir, run_date=None, max_lag=MAX_CACHE_LAG):
+    """``(parity_ok, details)`` of the database against the cache.
+
+    A cache more than *max_lag* trading days behind *run_date* is not
+    evidence: comparing the database with the same old day every night
+    would pass without checking anything new. It reads "not checked".
+    """
     try:
         cache, as_of = load_cache(results_dir)
     except (OSError, ValueError) as e:
         return None, {'parity': f'not checked: {e}'}
+    if run_date is not None:
+        lag = cache_lag(as_of, run_date)
+        if lag > max_lag:
+            return None, {'parity': f'not checked: cache stale since {as_of} ({lag} trading days behind)',
+                          'parity_as_of': as_of}
     before = (dt.date.fromisoformat(as_of) + dt.timedelta(days=1)).isoformat()
     db_rows = transport.call('rating_history', {'p_before': before}, idempotent=True) or []
     mismatches, stats = rating_history_parity(_by_ticker(db_rows), cache, as_of)
@@ -182,7 +205,7 @@ def cmd_record(a, transport):
         problems, info = check_database(a.results_dir, a.date, transport)
     except (OSError, ValueError) as e:
         problems, info = [f'could not read the {a.date} snapshot: {e}'], []
-    parity_ok, details = check_parity(transport, a.results_dir)
+    parity_ok, details = check_parity(transport, a.results_dir, a.date)
     details.update({'db_problems': problems[:10], 'db_info': info[:5]})
     rec = transport.call('record_night_check', {
         'p_run_date': a.date, 'p_publish_rc': a.publish_rc, 'p_db_check_ok': not problems,
