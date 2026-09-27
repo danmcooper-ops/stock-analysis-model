@@ -553,6 +553,14 @@ by analyze_stock and gitignored):
   `pipeline.publish_outcome` rather than reported as a failure. Scale
   numbers and the harness that measures them: design/supabase-migration.md
   (P5) and `tests/load/`.
+- `DB_PRIMARY=1` — the P6 cutover: step 06a becomes blocking (the git archive
+  still runs after it). Set it by hand once step 07e's
+  `DB_CUTOVER_STREAK` reads 20/20. 07e (`scripts/db_night_check.py record`)
+  records each night in `core.night_checks`: published, row count and SHA,
+  and rating-history parity with `output/rating_history.json`.
+  `scripts/db_restore_drill.py` rebuilds into a scratch database from
+  Storage or the git archive and compares; `scheduled-tasks/RECOVERY.md`
+  has the database runbook.
 - `SNAPSHOT_STORE_BACKEND=postgres` — opt-in; the snapshot-store readers
   (`SnapshotStore.for_results_dir`) read the Supabase database instead of
   `snapshots.duckdb` (`data/db/reader.py`), over the Data API or

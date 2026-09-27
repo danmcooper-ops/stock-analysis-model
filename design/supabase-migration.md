@@ -388,6 +388,31 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
 - **P6: Cutover.**
   - `06a` becomes blocking, and `RECOVERY.md` and `CLAUDE.md` are updated.
   - *Passes when:* 20 nightly runs in a row publish green with rating-history parity, and the restore drill passes.
+  - **Built 2026-09-27 as a gated cutover** (decision: the hosted project had not yet received a nightly publish, so the 20 nights had not started). Everything the cutover needs is in place; the flip is one environment variable, set by hand once the gate reads 20/20.
+    - **The nightly check** (`scripts/db_night_check.py record`) replaces step 07e's store check. It checks three things:
+      - the run is complete, with the right row count and source SHA;
+      - rating-history parity, against the JSON cache the report keeps (`output/rating_history.json`), as the "BUY since …" line consumes it. Each ticker's rating and since-date must match as of the cache's last day. The two sources are compared from the later of their first days, and a ticker only one source knows, and only from before that day, is allowed: that is what the cache deliberately ignores.
+      - 06a's exit code.
+    - **The night log.** Each night's verdict goes to `core.night_checks` (migration `*_night_checks.sql`, RLS on, reachable only through `pipeline.record_night_check` and `pipeline.night_checks`).
+    - **The readiness gate** (`db_night_check.py status`) counts consecutive NYSE trading days with a green record. A night with no record breaks the streak, so an unreachable database or a dead run cannot pass silently. 07e appends `DB_CUTOVER_STREAK n/20` to the run's status file.
+    - **`DB_PRIMARY=1`** (`run.sh`) makes 06a blocking, and missing secrets become a failure rather than a skip. The git archive (06) still runs after it, so a failed publish never loses the day. The run ends `RESULT FAILED at db-publish (DB_PRIMARY=1; archived)` and exits 1.
+    - **The restore drill** (`scripts/db_restore_drill.py`) rebuilds into a scratch database from Storage (SHA-checked against `core.snapshot_objects`) or from the git archive. It compares every run, row digest, change point and latest pointer with the live database, and refuses the live database's name. A pg test checks that it catches a tampered row.
+    - **Runbooks.** `scheduled-tasks/RECOVERY.md` gains the database section: when to set `DB_PRIMARY`, stepping back, a failed 06a, and restore by PITR, from the archive, or by rehearsal.
+  - **Results:**
+    - Nightly check, on the 10 newest real runs published through the local Data API: parity over 2,538 tickers from 2026-09-14 to 2026-09-25 with 0 mismatches. The night recorded green, and the gate read 1/20, broken by the day before, which had no record.
+    - Restore drill on the same 10 runs (25,052 rows): identical from both sources.
+
+      | source | fetch | publish | total |
+      |---|---|---|---|
+      | Storage `.json.gz` | 16 s | 75 s | 112 s |
+      | git archive | 87 s | 70 s | 178 s |
+
+      That projects to 17–27 minutes for the 92-day archive. Every run, row and change point after the first restored day matched, and so did the latest pointers.
+  - **Still open, and yours:**
+    1. Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to the cloud environment, and backfill the hosted project (the P3 runbook).
+    2. Let 20 trading nights accumulate.
+    3. Set `DB_PRIMARY=1`.
+    4. Time a PITR restore once the project is on Pro, which is the third part of stability check 8.
 
 ## Verification: stability
 
