@@ -2361,6 +2361,104 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
 }
 @media(hover:none) and (pointer:coarse){ #sidebar .navmenu-key{display:none;}.hdr-kbd{display:none;}}
 @media(prefers-reduced-motion:reduce){ #sidebar{transition:none;}}
+/* ---- ticker page: the #det-modal popup as a Seeking Alpha ticker page ----
+   It fills the main area beside the sidebar (left:--sb-cur) instead of
+   floating over a dimmed report, keeps every id the renderers write into,
+   and trades the navy gradient band for a light page header with an
+   underlined tab bar (#d-tabs) in place of the ☰ section menu. Dark mode
+   rides the existing dark rules: the band's ground follows --bg and the
+   blanket white-text rule does the rest. */
+html body .detail-modal{left:var(--sb-cur);background:var(--bg);}
+html body .detail-modal.open{padding:0 !important;display:block;}
+html body .detail-content{max-width:none !important;width:100% !important;border-radius:0 !important;box-shadow:none;background:var(--bg);
+  height:max(100dvh,var(--vvh,0px)) !important;}
+@supports not (height:100dvh){html body .detail-content{height:var(--vvh,100vh) !important;}}
+#det-modal .d-header-band{background:var(--bg);padding:calc(14px + env(safe-area-inset-top)) 40px 0 !important;border-bottom:0;overflow:visible;}
+#det-modal .d-header-band::before{display:none;}
+.d-back{--sac:var(--chrome-muted);background:none;border:0;padding:0;font:inherit;font-size:14px;cursor:pointer;text-align:left;margin-bottom:6px;display:block;}
+.d-back:hover{--sac:var(--chrome-heading);text-decoration:underline;}
+.d-back:empty{display:none;}
+.d-chg{--sac:var(--chrome-muted);font-size:1.45em;font-weight:700;font-variant-numeric:tabular-nums;}
+.d-chg.pos{--sac:var(--chrome-pos);}
+.d-chg.neg{--sac:var(--chrome-neg);}
+.d-chg:empty{display:none;}
+#det-modal .dh{padding-right:190px;}
+#det-modal .dh .dtk{font-size:2.1em;color:var(--chrome-heading);text-shadow:none;letter-spacing:-.5px;}
+#det-modal .det-nav-pos{color:var(--chrome-muted);font-size:.85em;}
+#det-modal .dcname{font-size:1.15em;font-weight:700;color:var(--chrome-heading);margin-top:2px;}
+#det-modal .dmeta{font-size:.82em;color:var(--chrome-muted);padding-right:190px;}
+#det-modal .d-rating-row{margin-top:10px;gap:12px;padding-right:0;}
+#det-modal .dpx{background:none;box-shadow:none;padding:0;font-size:2.1em;font-weight:800;color:var(--chrome-heading);letter-spacing:-.6px;}
+#det-modal .drt{font-size:.95em;padding:7px 16px;border-radius:6px;box-shadow:none;letter-spacing:.05em;}
+#det-modal .dcs{font-size:.95em;padding:7px 12px;border-radius:6px;box-shadow:none;}
+#det-modal .d-rating-row .d-gp,#det-modal .d-rsince{color:var(--chrome-muted);font-size:.8em;}
+#det-modal .d-rsince .rs-up{color:var(--chrome-pos);}
+#det-modal .d-rsince .rs-dn{color:var(--chrome-neg);}
+#det-modal .detail-close,#det-modal .detail-menu-btn{background:var(--chip-bg);border:1px solid var(--chip-border);color:var(--chrome-heading);width:40px;height:40px;border-radius:8px;font-size:1.25em;top:calc(14px + env(safe-area-inset-top));right:40px;}
+#det-modal .detail-close:hover{background:var(--menu-hover);}
+#det-modal .detail-menu-btn{display:none;}
+#det-modal .d-mini-nav{top:calc(14px + env(safe-area-inset-top));right:90px;transform:none;}
+#det-modal .d-mini-nav-btn{background:var(--chip-bg);border:1px solid var(--chip-border);color:var(--chrome-heading);width:40px;height:40px;border-radius:8px;font-size:20px;}
+#det-modal .d-mini-nav-btn:hover:not(:disabled){background:var(--menu-hover);}
+#det-modal .d-mini-nav-arrows{gap:6px;}
+#det-modal .d-mini-nav-actions{top:calc(66px + env(safe-area-inset-top));bottom:auto;right:40px;gap:14px;}
+#det-modal .d-mini-nav-actions .flag-star:not(.flagged){color:var(--chrome-muted);}
+#det-modal .d-mini-nav-actions>*{font-size:1.1em;}
+/* The action icons were white-on-navy; on the light page header they take
+   the heading colour (the portfolio folder is later in the file, so it is
+   restated with the id to win). */
+#det-modal .rev-chk-det:not(.checked){--chk-border:var(--chrome-muted);--chk-mark:var(--chrome-muted);}
+#det-modal .rev-chk-det:not(.checked):hover{--chk-border:var(--chrome-heading);--chk-mark:var(--chrome-heading);}
+html body #det-modal .d-pf-btn{color:var(--chrome-muted);}
+html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
+/* Underlined tab bar — Seeking Alpha's Summary · Ratings · … row. */
+.d-tabs{--sac:var(--chrome-muted);display:flex;gap:4px;margin-top:16px;border-bottom:1.5px solid var(--chrome-heading);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.d-tabs::-webkit-scrollbar{display:none;}
+.d-tab{flex-shrink:0;height:46px;padding:0 14px;border:0;background:none;font:inherit;font-size:16.5px;cursor:pointer;white-space:nowrap;margin-bottom:-1.5px;}
+.d-tab:hover{--sac:var(--chrome-heading);}
+.d-tab.cur{--sac:var(--chrome-heading);font-weight:700;box-shadow:inset 0 -4px 0 var(--chrome-heading);}
+.d-tab:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
+.d-tab-sep{flex-shrink:0;width:1px;margin:12px 6px;background:var(--chip-border);}
+#det-modal .d-body{padding:20px 40px calc(28px + var(--tabbar-h) + env(safe-area-inset-bottom)) !important;background:var(--bg);}
+/* Cards: plain uppercase headings in place of the gradient title bars. */
+#det-modal .dgroup{border-radius:14px;box-shadow:none;border:1px solid var(--border);background:var(--surface);}
+#det-modal .dgroup-title{background:none !important;color:var(--chrome-heading);text-shadow:none;font-size:.9em;letter-spacing:.06em;padding:16px 20px 6px;}
+#det-modal .dgroup-title .dg-icon{display:none;}
+/* Chart controls sit in the open, Seeking Alpha's 1D…MAX row, instead of
+   behind the ☰ chart menu (the ticker page has the width for them). */
+#det-modal #dtc-cm-panel{display:flex !important;flex-wrap:wrap;gap:6px 22px;position:static !important;box-shadow:none;border:0;padding:0;min-width:0;max-width:none;background:none;}
+#det-modal #dtc-cm-panel .cm-row{margin:0;align-items:center;}
+#det-modal .cm-wrap:has(#dtc-cm-panel) .cm-btn,#det-modal #dtc-cm-sum{display:none;}
+#det-modal .d-kmetrics{background:var(--surface);border:1px solid var(--border);box-shadow:none;border-radius:14px;}
+#det-modal .d-kmetrics .km-cell{border-right:1px solid var(--border);padding:12px 16px;}
+#det-modal .d-kmetrics .km-k{color:var(--chrome-muted);font-size:.62em;}
+#det-modal .d-kmetrics .km-v{color:var(--chrome-heading);font-size:1em;}
+#det-modal .d-kmetrics .km-sub{color:var(--chrome-muted);}
+@media(min-width:769px) and (max-width:1023px){
+  #det-modal .d-header-band{padding-left:24px !important;padding-right:24px !important;}
+  #det-modal .d-body{padding-left:24px !important;padding-right:24px !important;}
+  #det-modal .detail-close,#det-modal .d-mini-nav-actions{right:24px;}
+  #det-modal .d-mini-nav{right:74px;}
+}
+@media(max-width:768px),(orientation:landscape) and (max-height:500px){
+  #det-modal .d-header-band{padding:calc(10px + env(safe-area-inset-top)) 16px 0 !important;}
+  #det-modal .d-body{padding:12px 12px calc(12px + var(--tabbar-h) + env(safe-area-inset-bottom)) !important;}
+  #det-modal .dh,#det-modal .dmeta{padding-right:96px;}
+  #det-modal .dh .dtk{font-size:1.7em;}
+  #det-modal .dpx{font-size:1.6em;}
+  #det-modal .detail-close,#det-modal .d-mini-nav-btn{width:36px;height:36px;}
+  #det-modal .detail-close{right:12px;top:calc(10px + env(safe-area-inset-top));}
+  #det-modal .d-mini-nav{right:54px;top:calc(10px + env(safe-area-inset-top));}
+  #det-modal .d-mini-nav-actions{right:12px;top:calc(54px + env(safe-area-inset-top));}
+  .d-tabs{margin:12px -16px 0;padding:0 8px;}
+  .d-tab{font-size:15px;padding:0 10px;height:42px;}
+  #det-modal.hdr-min .d-tabs{margin-top:6px;}
+}
+/* Phones keep the tab bar over the ticker page (it closes the page and
+   navigates); landscape phones keep the rail. */
+@media(max-width:768px){ #tabbar{z-index:1010;}}
+html.sb-over #sidebar,html.sb-drawer #sidebar{z-index:1310;}
+html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 </style>
 </head>
 <body>
@@ -2564,7 +2662,8 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
 <div id="det-modal" class="detail-modal" onclick="if(event.target===this)closeDetail()">
   <div class="detail-content">
     <div class="d-header-band">
-      <button class="detail-close" onclick="closeDetail()">&times;</button>
+      <button type="button" class="d-back sa-chrome" id="d-back" onclick="closeDetail()"></button>
+      <button class="detail-close" onclick="closeDetail()" aria-label="Close ticker page">&times;</button>
       <button class="detail-menu-btn" id="d-tbtn-all" aria-haspopup="menu" aria-expanded="false" title="Sections" onclick="toggleDetMenu(event)">&#9776;</button>
       <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span class="det-nav-pos"></span></div></div>
       <div class="dcname" id="d-cname"></div>
@@ -2572,9 +2671,12 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
       <!-- Rating row is the band's BOTTOM line (below the CEO meta line),
            in the expanded AND collapsed states — collapsed shows ticker
            on top, then price·rating·composite. -->
-      <div class="d-rating-row"><div class="dpx" id="d-px"></div><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
+      <div class="d-rating-row"><div class="dpx" id="d-px"></div><span class="d-chg sa-chrome" id="d-chg"></span><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
       <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div></div>
       <div class="d-mini-nav-actions"><span id="d-pf" class="d-pf-btn" onclick="pfDetMenu(event)" role="button" tabindex="0" title="Portfolios"></span><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
+      <!-- Section tabs (Seeking Alpha's Summary · Ratings · … row). Rendered by
+           _renderDetTabBar from _detMenuItems(); clicks go to swDetTab. -->
+      <div class="d-tabs sa-chrome" id="d-tabs" role="tablist" aria-label="Sections"></div>
     </div>
     <div class="d-body">
       <div id="d-pane-overview" class="d-pane active">
@@ -7114,6 +7216,25 @@ function _dtcButtons(){
   _cmSum('dtc',_phMetricDef(_dtcMetric).lbl+' · '+_dtcRange
     +(bn.length?' · vs '+bn.map(_dtcIndexLabel).join(', '):''));
 }
+/* The ticker page's one-day move beside the price — Seeking Alpha's
+   "0.79 (+6.00%)". No per-ticker daily change ships inline, so it comes from
+   the last two closes in the ticker's px/ shard (lazy, ~30 KB); it stays
+   blank until that lands and when there is no price history at all. */
+function _detDayChg(tk){
+  var el=document.getElementById('d-chg');if(!el)return;
+  el.textContent='';el.removeAttribute('title');
+  if(typeof _pfWithPx!=='function')return;
+  _pfWithPx([tk],function(ok){
+    if(!ok||_dpTicker!==tk||!PRICES||!PRICES.prices[tk])return;
+    var row=PRICES.prices[tk],b=-1,a=-1;
+    for(var i=row.length-1;i>=0;i--){if(row[i]!=null&&isFinite(row[i])){if(b<0)b=i;else{a=i;break;}}}
+    if(a<0||!(row[a]>0))return;
+    var d=row[b]-row[a],pc=d/row[a];
+    el.className='d-chg sa-chrome '+(d>=0?'pos':'neg');
+    el.textContent=(d>=0?'+':'\u2212')+Math.abs(d).toFixed(2)+' ('+(d>=0?'+':'\u2212')+Math.abs(pc*100).toFixed(2)+'%)';
+    el.title='Close '+(PRICES.dates[b]||'')+' vs '+(PRICES.dates[a]||'');
+  });
+}
 function _dtcRender(){
   var tk=_dpTicker;if(!tk)return;
   _dtcSeedBench();
@@ -7620,8 +7741,26 @@ function _detMenuItems(){
     .concat(_detDataItems()).concat(DT_STMTS);
 }
 function _renderDetTabBar(){
-  /* No bar anymore — sync the hamburger's title and any open menu (ticker
-     navigation re-renders while the menu can still be open). */
+  /* The underlined section tabs, plus the back link naming where the page
+     was opened from. The ☰ menu is hidden by CSS but kept in sync, so
+     anything that still opens it lists the same sections. */
+  var tb=document.getElementById('d-tabs');
+  if(tb){
+    var h='';
+    _detMenuItems().forEach(function(it){
+      if(it.k===DT_STMTS[0].k)h+='<span class="d-tab-sep" aria-hidden="true"></span>';
+      var on=it.k===_detTab;
+      h+='<button type="button" class="d-tab'+(on?' cur':'')+'" role="tab" aria-selected="'+(on?'true':'false')+'" data-dtab="'+_attr(it.k)+'">'+esc(it.k==='overview'?'Summary':it.l)+'</button>';
+    });
+    tb.innerHTML=h;
+    var on=tb.querySelector('.d-tab.cur');
+    if(on&&tb.scrollWidth>tb.clientWidth){
+      var l=on.offsetLeft-tb.offsetLeft,r=l+on.offsetWidth;
+      if(l<tb.scrollLeft||r>tb.scrollLeft+tb.clientWidth)tb.scrollLeft=Math.max(0,l-24);
+    }
+  }
+  var bk=document.getElementById('d-back'),sc=document.getElementById('sn-crumb'),st=document.getElementById('sn-title');
+  if(bk){var where=(sc&&sc.textContent)||(st&&st.textContent)||'';bk.textContent=where?'\u2039 '+where:'\u2039 Back';}
   var b=document.getElementById('d-tbtn-all');
   if(b){
     var cur=null;_detMenuItems().forEach(function(it){if(it.k===_detTab)cur=it;});
@@ -7680,7 +7819,7 @@ function toggleDetMenu(e){
   _positionDetMenu();
 }
 document.addEventListener('click',function(e){
-  var it=e.target.closest?e.target.closest('.dtb-menu [data-dtab]'):null;
+  var it=e.target.closest?e.target.closest('.dtb-menu [data-dtab],#d-tabs [data-dtab]'):null;
   if(it){swDetTab(it.getAttribute('data-dtab'));return;}
   /* Any click that isn't on the hamburger or inside the menu closes it. */
   if(e.target.closest&&e.target.closest('.detail-menu-btn'))return;
@@ -8838,6 +8977,7 @@ function openDet(tk){
 
   var _dm=document.getElementById('det-modal');
   swDetTab(_detTab);
+  _detDayChg(tk);
   /* Re-measure the visible viewport before the popup is sized against it, so
      the shell can never open against a reading missed while it was closed. */
   if(window._syncVv)window._syncVv();
@@ -9345,8 +9485,12 @@ document.addEventListener('click',function(e){
   var b=e.target.closest?e.target.closest('#sidebar [data-v],#tabbar [data-v],#subnav [data-v]'):null;
   if(!b)return;
   /* Sector names carry apostrophes, so the key rides a data attribute and
-     this one delegated listener dispatches — no inline-onclick escaping. */
+     this one delegated listener dispatches — no inline-onclick escaping.
+     Navigating away from a ticker page closes it (the phone tab bar and the
+     sidebar stay usable over it). */
   sbClose();
+  var dm=document.getElementById('det-modal');
+  if(dm&&dm.classList.contains('open'))closeDetail();
   navGo(b.getAttribute('data-v'),b.hasAttribute('data-k')?b.getAttribute('data-k'):null);
 });
 /* === SIDEBAR STATE ===
