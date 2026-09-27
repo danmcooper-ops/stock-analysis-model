@@ -449,7 +449,14 @@ ruff check .
   definition, naming the clause that flipped), earnings within 7 days;
   **FYI** = moves within a side, and anything on a row with no price or
   identity (`data_missing` — the 2026-09-25 `.info` throttle produced 751
-  such "downgrades"). Measured over 82 run pairs: rating changes median
+  such "downgrades"). Stopped-trading names (the carry-forward rule's
+  `stopped_trading`, via `report_html.stopped_map`) are left out of both
+  days before classifying, each judged as of its own date
+  (`portfolios.drop_stopped`; `alerts --prices-dir`, default
+  `<results-dir>/prices`): a frozen quote's rating move is never a signal,
+  and a member that stopped since the prior run gets one Watch,
+  `stopped_trading`, naming its last bar. The report's alert payload uses
+  the same rows. Measured over 82 run pairs: rating changes median
   53/run, Action median 5.5; 36% of crossings are reversals. A run that
   re-rates or loses data for ≥10% of the universe is a **systemic day**
   (7 of 82): a banner leads, cause `model` or `data`. Each portfolio's

@@ -129,6 +129,39 @@ def prior_rows(results_dir, before, columns):
     return day, rows
 
 
+def drop_stopped(rows, prev_rows, day, prev_day, prices_dir):
+    """``(rows, prev_rows, stopped)`` with each day's stopped-trading names
+    removed, for the alerts.
+
+    Yahoo keeps serving a delisted symbol's frozen last quote, so a snapshot
+    row for an acquired company looks healthy and its rating moves on stale
+    inputs read as signals. Each day is judged as of its own date
+    (``report_html.stopped_map``, the rule the render uses): a name already
+    stopped on *prev_day* is gone from both days and raises nothing, while
+    one that stopped since leaves yesterday's members — *stopped* (today's
+    map) lets ``membership_events`` report that as ``stopped_trading``, once.
+    Rows are returned unchanged without *day* or *prices_dir*.
+    """
+    if not day or not prices_dir:
+        return rows, prev_rows, {}
+    from scripts.report_html import stopped_map
+
+    def _tk(rs):
+        return {str(r['ticker']) for r in rs if isinstance(r, dict) and r.get('ticker')}
+
+    stopped = stopped_map(_tk(rows) | _tk(prev_rows), prices_dir, day, what='alert row')
+    before = (stopped_map(_tk(prev_rows), prices_dir, prev_day, what='alert row')
+              if prev_day and stopped else {})
+    if not stopped:
+        return rows, prev_rows, {}
+    newly = sorted(t for t in stopped if t not in before and t in _tk(prev_rows))
+    if newly:
+        logger.warning("portfolios: stopped trading since %s: %s", prev_day, ', '.join(newly))
+    return ([r for r in rows if str(r.get('ticker')) not in stopped],
+            [r for r in prev_rows if str(r.get('ticker')) not in before],
+            stopped)
+
+
 def _fmt_pct(v):
     return '—' if not isinstance(v, (int, float)) else f"{v:+.0%}"
 
@@ -272,14 +305,17 @@ def rating_history(results_dir, day):
         return {}
 
 
-def build_digest(portfolios, rows, prev_rows, day, prev_day, history=None, explain=None):
+def build_digest(portfolios, rows, prev_rows, day, prev_day, history=None, explain=None,
+                 prices_dir=None):
     """The machine-readable alerts digest (output/portfolio_alerts.json) that
-    the nightly text, the GitHub issue and tests all render from."""
+    the nightly text, the GitHub issue and tests all render from. With
+    *prices_dir*, stopped-trading names are left out first (``drop_stopped``)."""
+    rows, prev_rows, stopped = drop_stopped(rows, prev_rows, day, prev_day, prices_dir)
     by_tk, prev_by_tk = pg.rows_by_ticker(rows), pg.rows_by_ticker(prev_rows)
     by_id, stats = ({p['id']: [] for p in portfolios},
                     pg.universe_stats(by_tk, prev_by_tk)) if not prev_day else \
         pg.portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=day,
-                            history=history, explain=explain)
+                            history=history, explain=explain, stopped=stopped)
     systemic = dict(stats, message=pg.systemic_message(stats)) if prev_day else None
     out = []
     for p in portfolios:
@@ -307,7 +343,9 @@ def cmd_alerts(doc, a):
     prev_day, prev = prior_rows(a.results_dir, day, alert_columns(pfs))
     digest = build_digest(pfs, rows, prev, day, prev_day,
                           history=rating_history(a.results_dir, day) if prev_day else None,
-                          explain=rating_explainer() if prev_day else None)
+                          explain=rating_explainer() if prev_day else None,
+                          prices_dir=(a.prices_dir if a.prices_dir is not None
+                                      else os.path.join(a.results_dir, 'prices')))
     text = pdg.render_text(digest)
     print(text, end='')
     if a.out:
@@ -525,6 +563,9 @@ def build_parser():
     sp.add_argument('--replay', action='store_true',
                     help='classify every archived run pair and print the per-day mix')
     sp.add_argument('--since', help='first snapshot date for --replay')
+    sp.add_argument('--prices-dir',
+                    help="price parquets used to leave out stopped-trading names "
+                         "(default: <results-dir>/prices; '' keeps every row)")
 
     sp = sub.add_parser('nav', help='NAV history per portfolio; --rebuild backfills it')
     sp.add_argument('--id', action='append', help='portfolio id (repeat; default: all)')
