@@ -350,7 +350,9 @@ def test_analyze_stock_carry_forward_reads_store(results_dir, capsys):
     ingest_dir(str(results_dir))
     rows = _load_carry_forward_rows(d, p)
     assert {r['ticker'] for r in rows} == {'AAA', 'BBB', 'CCC'}
-    assert set(rows[0]) == {'ticker', 'shares_out', 'mcap'}
+    # The identity columns feed the fill for tickers whose .info stays empty.
+    assert set(rows[0]) == {'ticker', 'shares_out', 'mcap', 'company_name', 'sector',
+                            'industry', 'country'}
     assert 'snapshot store' in capsys.readouterr().out
 
 

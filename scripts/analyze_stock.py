@@ -2924,10 +2924,42 @@ def _run_build_clients(run_start_date, yf_delay=YF_REQUEST_DELAY,
             'sec_client': sec_client, 'sec_xbrl_client': sec_xbrl_client}
 
 
+# Identity fields a ticker keeps from the prior snapshot when Yahoo's .info
+# stays empty through the end-of-pass retry (see fill_identity_from_prior).
+PRIOR_IDENTITY_KEYS = ('company_name', 'sector', 'industry', 'country')
+
+
+def fill_identity_from_prior(info, prior_row):
+    """Fill an empty .info's identity from the ticker's prior snapshot row.
+
+    When Yahoo throttles the quoteSummary endpoint for a whole window of the
+    run (2026-09-25: 1,548 tickers) and the end-of-pass retry still finds it
+    empty, a US filer proceeds on SEC statements alone. Without identity it
+    loses its sector — which drives the sector medians, the profit-pool
+    shares and the bank branch of the models — and its name. Sector,
+    industry, country and name change so rarely that yesterday's values are
+    a far better answer than blanks; price is NOT carried (it is the one
+    field that must be observed). Mutates *info*; returns the keys filled,
+    for the row's ``_identity_source`` provenance.
+    """
+    if not prior_row:
+        return []
+    filled = []
+    name = prior_row.get('company_name')
+    if name and not (info.get('shortName') or info.get('longName')):
+        info['shortName'] = name
+        filled.append('company_name')
+    for k in ('sector', 'industry', 'country'):
+        if prior_row.get(k) and not info.get(k):
+            info[k] = prior_row[k]
+            filled.append(k)
+    return filled
+
+
 def _load_carry_forward_rows(prior_date, prior_path):
-    """Rows of the most recent prior snapshot for the carry-forward set and
-    the market-cap integrity guard, which together need only ``ticker``,
-    ``shares_out`` and ``mcap``. Reads those three columns from the DuckDB
+    """Rows of the most recent prior snapshot for the carry-forward set, the
+    market-cap integrity guard and the identity fill, which together need
+    ``ticker``, ``shares_out``, ``mcap`` and ``PRIOR_IDENTITY_KEYS``. Reads those columns from the DuckDB
     snapshot store when it holds that date (milliseconds) instead of parsing
     the ~66 MB JSON; falls back to the file otherwise."""
     try:
@@ -2935,7 +2967,8 @@ def _load_carry_forward_rows(prior_date, prior_path):
         if store is not None:
             with store:
                 if store.has_date(prior_date):
-                    rows = store.rows(prior_date, ['ticker', 'shares_out', 'mcap'])
+                    rows = store.rows(prior_date, ['ticker', 'shares_out', 'mcap',
+                                                   *PRIOR_IDENTITY_KEYS])
                     print(f"Carry-forward: read {len(rows)} prior rows from snapshot store")
                     return rows
     except Exception as e:
@@ -3072,6 +3105,10 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     # retry re-fetches for real.
     _fetch_retry_queued = set()
     _fetch_retry_failed = set()
+    _yf_throttled = set()          # raised EmptyYahooResponseError at least once
+    _yf_still_empty = set()        # yfinance empty on the end-of-pass retry too
+    _identity_filled = set()       # SEC-only rows given the prior snapshot's identity
+    _prior_identity = {r.get('ticker'): r for r in (_carry_prior_rows or []) if r.get('ticker')}
     qualifying = []
     screen_cache = {}
     screen_outcomes = {'quality': {'total': 0, 'passed': 0},
@@ -3247,13 +3284,35 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                     # the same path the direct call would have taken.
                     _prefetch_empty.discard(ticker)
                     yf_data = None
+                    _yf_throttled.add(ticker)
                 else:
                     yf_data = yf_client.fetch_financials(ticker)
             except EmptyYahooResponseError:
                 yf_data = None
+                _yf_throttled.add(ticker)
             finally:
                 _legs['yf_fetch'] += time.perf_counter() - _t
                 _leg_counts['yf_fetch'] += 1
+
+            # Yahoo failed (throttled, or empty) on the first attempt: re-queue
+            # at the end of the pass BEFORE falling back to SEC-only data. The
+            # cause is usually an outage window (2026-09-25 lost .info for a
+            # contiguous BIPH..MYRG block), and by the time the queue drains
+            # it has cleared. This used to happen only when SEC had nothing
+            # either — never for a US filer, which went straight to a row with
+            # no price, sector or name. The companyfacts blob is cached, so
+            # the retry costs one Yahoo call, not a second SEC fetch.
+            if yf_data is None and ticker in _fetch_retry_queued:
+                _yf_still_empty.add(ticker)
+            if yf_data is None and ticker not in _fetch_retry_queued:
+                _fetch_retry_queued.add(ticker)
+                _ckpt_outcome = 'requeued'
+                all_tickers.append(ticker)
+                screen_outcomes[_grp]['total'] -= 1
+                print(f"  [{i}/{len(all_tickers)}] {ticker} - "
+                      "yfinance empty (likely throttled) — re-queued for retry")
+                sys.stdout.flush()
+                continue
 
             # Early mcap bail before paying the XBRL fetch cost. For ~6K
             # micro-caps the mcap filter will drop the ticker anyway —
@@ -3302,13 +3361,22 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                 }
                 _data_source = 'sec_xbrl+yfinance'
             elif xbrl_data is not None:
-                # yfinance throttled for a US filer — XBRL-only path.
-                # info is sparse → CAPM falls to buildup, WACC uses book equity.
+                # yfinance still empty for a US filer after the end-of-pass
+                # retry — XBRL-only path. info is sparse → CAPM falls to
+                # buildup, WACC uses book equity. Identity comes from the
+                # prior snapshot so the row keeps its sector and name.
                 yf_data = xbrl_data
                 _data_source = 'sec_xbrl'
                 _prov.record_event('source_fallback', ticker, 'yfinance',
                                    {'from': 'yfinance', 'to': 'sec_xbrl',
                                     'reason': 'yfinance empty for US filer'})
+                _info = yf_data.setdefault('info', {}) if isinstance(yf_data, dict) else {}
+                _filled = fill_identity_from_prior(_info, _prior_identity.get(ticker))
+                if _filled:
+                    _identity_filled.add(ticker)
+                    _prov.record_event('source_fallback', ticker, 'identity',
+                                       {'from': 'yfinance', 'to': 'prior_snapshot',
+                                        'fields': _filled})
             elif yf_data is not None:
                 # No CIK (foreign / OTC) — yfinance is the only source.
                 _data_source = 'yfinance'
@@ -3324,24 +3392,18 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                                        {'from': 'sec_xbrl', 'to': 'yfinance',
                                         'reason': _fb_reason})
             else:
-                if ticker not in _fetch_retry_queued:
-                    # First failure: re-queue at the end of the pass and undo
-                    # this attempt's screen_outcomes count (the retry attempt
-                    # re-increments it, so each ticker is counted once).
-                    _fetch_retry_queued.add(ticker)
-                    _ckpt_outcome = 'requeued'
-                    all_tickers.append(ticker)
-                    screen_outcomes[_grp]['total'] -= 1
-                    print(f"  [{i}/{len(all_tickers)}] {ticker} - "
-                          "error: yfinance empty AND no SEC XBRL coverage "
-                          "— re-queued for retry")
-                else:
-                    _fetch_retry_failed.add(ticker)
-                    if _skip_cache is not None:
-                        _skip_cache.record_dead(ticker)
-                    print(f"  [{i}/{len(all_tickers)}] {ticker} - "
-                          "error: yfinance empty AND no SEC XBRL coverage "
-                          "(retry also failed)")
+                # Only reachable on the retry: the first attempt re-queued
+                # above whenever yfinance came back empty.
+                _fetch_retry_failed.add(ticker)
+                # A throttled response says nothing about the ticker, so it
+                # must not land in the skip cache as dead for 2-4 weeks —
+                # during a long outage that would silently drop a whole
+                # alphabetical block from the next nights' screens.
+                if _skip_cache is not None and ticker not in _yf_throttled:
+                    _skip_cache.record_dead(ticker)
+                print(f"  [{i}/{len(all_tickers)}] {ticker} - "
+                      "error: yfinance empty AND no SEC XBRL coverage "
+                      "(retry also failed)")
                 sys.stdout.flush()
                 continue
 
@@ -3503,9 +3565,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
         print(f"  Screen skip cache: {_cache_skipped} ticker(s) skipped without a fetch; "
               f"{len(_skip_cache)} remembered for the next run")
     if _fetch_retry_queued:
-        _recovered = len(_fetch_retry_queued) - len(_fetch_retry_failed)
+        _recovered = len(_fetch_retry_queued) - len(_yf_still_empty)
         print(f"  Fetch-failure retry: {len(_fetch_retry_queued)} re-queued, "
-              f"{_recovered} recovered, {len(_fetch_retry_failed)} failed twice")
+              f"{_recovered} recovered, {len(_yf_still_empty)} still empty on Yahoo "
+              f"({len(_yf_still_empty) - len(_fetch_retry_failed)} kept on SEC data, "
+              f"{len(_identity_filled)} with the prior snapshot's identity; "
+              f"{len(_fetch_retry_failed)} dropped)")
         if _fetch_retry_failed:
             print(f"  Failed twice: {', '.join(sorted(_fetch_retry_failed))}")
     if args.validation:
@@ -5265,8 +5330,14 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
     print(f"  JSON: {json_filename}")
 
 
+# A share of rows with no price or identity above this is a Yahoo .info
+# outage, not the usual handful of thin listings (40-160 a night, 2-6%).
+INFO_MISSING_ALERT_SHARE = 0.10
+
+
 def _run_quality_summary(risk_free_rate, risk_free_rate_source,
-                         _model_warning_counter, _prov=None, lost_sec=None):
+                         _model_warning_counter, _prov=None, lost_sec=None,
+                         results=None):
     """End-of-run quality gate: surface substituted/fabricated inputs."""
     # Run-quality gate: surface, in one place, every way this run's numbers
     # rest on substituted rather than observed inputs.
@@ -5300,6 +5371,24 @@ def _run_quality_summary(risk_free_rate, risk_free_rate_source,
                 len(_p2_skips),
                 ', '.join(_ev.get('ticker', '?') for _ev in _p2_skips[:10]),
                 ', ...' if len(_p2_skips) > 10 else '')
+    if _prov is not None:
+        _id_fills = sum(1 for _ev in getattr(_prov, 'events', [])
+                        if _ev.get('type') == 'source_fallback' and _ev.get('source') == 'identity')
+        if _id_fills:
+            _log.warning(
+                'RUN QUALITY: %d ticker(s) had an empty Yahoo .info even on the retry; '
+                'their sector/industry/country/name come from the prior snapshot and '
+                'they have no price', _id_fills)
+    if results:
+        from models.portfolio_groups import data_missing
+        _no_info = [r.get('ticker') for r in results if data_missing(r)]
+        if len(_no_info) >= INFO_MISSING_ALERT_SHARE * len(results):
+            _log.warning(
+                'RUN QUALITY: %d of %d rows (%.0f%%) have no price or identity — a Yahoo '
+                '.info outage (2026-09-25 lost 1,548 this way). Their ratings rest on '
+                'missing inputs; the portfolio alerts treat them as data gaps: %s%s',
+                len(_no_info), len(results), 100 * len(_no_info) / len(results),
+                ', '.join(map(str, _no_info[:10])), ', ...' if len(_no_info) > 10 else '')
     if lost_sec:
         _log.warning(
             'RUN QUALITY: %d ticker(s) lost SEC history (dropped from SEC\'s '
@@ -5458,7 +5547,8 @@ def _main():
 
     _clock.tick('write_outputs')
     _run_quality_summary(risk_free_rate, risk_free_rate_source,
-                         _model_warning_counter, _prov, lost_sec=lost_sec)
+                         _model_warning_counter, _prov, lost_sec=lost_sec,
+                         results=results)
     print(_clock.table())
 
 
