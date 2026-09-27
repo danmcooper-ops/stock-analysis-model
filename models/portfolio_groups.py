@@ -737,15 +737,19 @@ def explain_rule_change(rule, prev_row, row):
     return out
 
 
-def membership_events(portfolios, by_tk, prev_by_tk, run_date=None):
+def membership_events(portfolios, by_tk, prev_by_tk, run_date=None, stopped=None):
     """Joined / left / dropped-out events per portfolio (Watch level).
 
     Today's definition is evaluated against both days' rows, so an edit to
     the definition itself never reads as a wave of joins; what shows is the
-    data moving a stock across the rule's lines. A hand-picked ticker that
-    was in yesterday's universe but not today's is ``dropped_out``. A move
+    data moving a stock across the rule's lines. A member that was in
+    yesterday's universe but not today's is ``dropped_out`` — or
+    ``stopped_trading`` when *stopped* (``{ticker: (last_bar, lag_bars)}``,
+    see ``scripts.portfolios.drop_stopped``) says its prices ended, which
+    names the last bar instead of leaving a delisting unexplained. A move
     that rests on missing data (see ``data_missing``) is FYI, not Watch.
     """
+    stopped = stopped or {}
     out = []
     for p in portfolios:
         now = set(resolve_members(p, by_tk)['members'])
@@ -767,6 +771,9 @@ def membership_events(portfolios, by_tk, prev_by_tk, run_date=None):
                     or 'no longer matches the rule'
                 kind = 'left'
                 gap = data_missing(by_tk[t]) or data_missing(prev_by_tk[t])
+            elif t in stopped:
+                why = f"stopped trading — last price bar {stopped[t][0]}"
+                kind, gap = 'stopped_trading', False
             else:
                 why = "dropped out of today's universe"
                 kind, gap = 'dropped_out', False
@@ -790,7 +797,7 @@ def _sort_key(a):
 
 
 def portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=None, history=None,
-                     explain=None, changes=None):
+                     explain=None, changes=None, stopped=None):
     """Per-portfolio alerts: ``(by_id, stats)`` with ``by_id = {id:
     [entries]}``, each list sorted Action → Watch → FYI.
 
@@ -798,6 +805,7 @@ def portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=None, history=None,
     ``(entries, stats)`` already computed) are attributed through today's
     membership; membership events and earnings dates are added per
     portfolio; each portfolio's ``alerts`` mode sets the final level.
+    *stopped* labels members whose prices ended (``membership_events``).
     """
     entries, stats = changes if changes is not None else classify_changes(
         by_tk, prev_by_tk, run_date, history, explain)
@@ -805,7 +813,7 @@ def portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=None, history=None,
     for e in entries:
         by_ticker.setdefault(e['ticker'], []).append(e)
     events = {}
-    for e in membership_events(portfolios, by_tk, prev_by_tk, run_date):
+    for e in membership_events(portfolios, by_tk, prev_by_tk, run_date, stopped):
         events.setdefault(e['portfolio'], []).append(e)
     out = {}
     for p in portfolios:

@@ -3464,7 +3464,7 @@ function _pfOverviewHtml(){
     var st=_pfStats(p.id),al=_pfAlertsFor(p.id),id=_pfJsArg(p.id);
     var cnt=_pfCount(al),nAW=cnt.action+cnt.watch;
     var joined=al.filter(function(a){return a.kind==='joined';}).length,
-        left=al.filter(function(a){return a.kind==='left'||a.kind==='dropped_out';}).length;
+        left=al.filter(function(a){return a.kind==='left'||a.kind==='dropped_out'||a.kind==='stopped_trading';}).length;
     var kind=p.rule?((p.tickers||[]).length?'Rule + '+p.tickers.length+' picked':'Rule'):'Hand-picked';
     h+='<div class="pfv-card" style="--pf:'+_pfEsc(_pfCol(p.color))+'" role="button" tabindex="0" onclick="navGo(\'pf\',\''+id+'\')" onkeydown="if(event.key===\'Enter\')navGo(\'pf\',\''+id+'\')">'
       +'<div class="pfv-card-h"><span class="pfv-name">'+_pfEsc(p.name)+'</span>'

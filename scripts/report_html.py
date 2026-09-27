@@ -595,17 +595,22 @@ def _load_portfolio_payload(rows, out_dir=None, run_date=None, prices_dir=None,
     prev_day, prev = None, []
     if out_dir and pfs:
         try:
-            from scripts.portfolios import prior_rows
+            from scripts.portfolios import drop_stopped, prior_rows
             day = (run_date or date.today()).isoformat()
             prev_day, prev = prior_rows(out_dir, day, pg.rule_columns(pfs))
             if prev_day:
-                by_tk, prev_by_tk = pg.rows_by_ticker(rows), pg.rows_by_ticker(prev)
+                # Same rows the nightly alerts classify: neither day's
+                # stopped names, so a frozen quote never reads as a signal.
+                cur, prev_live, stopped = drop_stopped(
+                    rows, prev, day if run_date else None, prev_day, prices_dir)
+                by_tk, prev_by_tk = pg.rows_by_ticker(cur), pg.rows_by_ticker(prev_live)
                 payload['prev_date'] = prev_day
                 entries, stats = pg.classify_changes(by_tk, prev_by_tk, day,
                                                      history=rating_hist or {})
                 payload['changes'] = entries
                 payload['systemic'] = dict(stats, message=pg.systemic_message(stats))
-                payload['events'] = pg.membership_events(pfs, by_tk, prev_by_tk, day)
+                payload['events'] = pg.membership_events(pfs, by_tk, prev_by_tk, day,
+                                                         stopped)
         except Exception as e:
             logger.warning("portfolios: change alerts unavailable (%s)", e)
     if out_dir and pfs:
@@ -1575,6 +1580,36 @@ def _write_vol_shards(vol_dir, vol_payload):
         print(f"[warn] vol/ shard write failed: {_e}")
 
 
+def stopped_map(tickers, prices_dir, as_of, what='row'):
+    """``{ticker: (last_bar, lag_bars)}`` for *tickers* whose price data shows
+    they stopped trading as of *as_of* (``data.price_store.stopped_trading``
+    with the run's thresholds), or {} when the rule cannot judge.
+
+    {} without *prices_dir* or an explicit *as_of* — judging an old snapshot
+    against today's parquets would flag names that were live on its date —
+    when the check fails, or when so many read as stopped that it is a failed
+    price refresh (``mass_stop``), which is logged. Shared by the render and
+    the portfolio alerts so both leave out the same names.
+    """
+    tickers = {str(t) for t in tickers if t}
+    if not prices_dir or as_of is None or not tickers:
+        return {}
+    try:
+        stopped = stopped_trading(prices_dir, tickers, as_of,
+                                  max_lag_bars=CARRY_FORWARD_MAX_PRICE_LAG_BARS,
+                                  spy_max_age_days=PHASE1_LOCAL_PRICE_MAX_AGE_DAYS)
+    except Exception as e:
+        logger.warning("stopped-trading check failed (%s); keeping every %s", e, what)
+        return {}
+    if stopped and mass_stop(len(stopped), len(tickers), CARRY_FORWARD_STOPPED_MAX_SHARE,
+                             CARRY_FORWARD_STOPPED_GUARD_FLOOR):
+        logger.warning("%d of %d %s(s) read as stopped trading as of %s — treating it "
+                       "as a failed price refresh and keeping every %s",
+                       len(stopped), len(tickers), what, as_of, what)
+        return {}
+    return stopped
+
+
 def _drop_stopped_rows(rows, prices_dir, run_date):
     """*rows* without the tickers whose price data shows they stopped trading.
 
@@ -1582,32 +1617,18 @@ def _drop_stopped_rows(rows, prices_dir, run_date):
     snapshots written before that rule — and any row that reached Phase 2
     another way — still hold acquired companies at their frozen last quote
     (JHG at $51.95 for weeks after its last bar). The render applies the same
-    rule (data.price_store.stopped_trading) so the table, portfolio stats and
-    sidecars never show them. run.sh step 05e refreshes every row's parquet
-    just before the re-render, which is what makes a lagging file evidence.
+    rule (``stopped_map``) so the table, portfolio stats and sidecars never
+    show them. run.sh step 05e refreshes every row's parquet just before the
+    re-render, which is what makes a lagging file evidence.
 
-    Needs an explicit *run_date*: judging an old snapshot against today's
-    parquets would drop names that were live on its date. The snapshot JSON
-    is left as it is — it stays the canonical record of what the run saw.
+    Needs an explicit *run_date* (see ``stopped_map``). The snapshot JSON is
+    left as it is — it stays the canonical record of what the run saw.
     """
-    if not prices_dir or run_date is None or not rows:
+    if not rows:
         return rows
-    tickers = {str(r.get('ticker')) for r in rows
-               if isinstance(r, dict) and r.get('ticker')}
-    try:
-        stopped = stopped_trading(prices_dir, tickers, run_date,
-                                  max_lag_bars=CARRY_FORWARD_MAX_PRICE_LAG_BARS,
-                                  spy_max_age_days=PHASE1_LOCAL_PRICE_MAX_AGE_DAYS)
-    except Exception as e:
-        logger.warning("stopped-trading check failed (%s); rendering every row", e)
-        return rows
+    stopped = stopped_map((r.get('ticker') for r in rows if isinstance(r, dict)),
+                          prices_dir, run_date)
     if not stopped:
-        return rows
-    if mass_stop(len(stopped), len(tickers), CARRY_FORWARD_STOPPED_MAX_SHARE,
-                 CARRY_FORWARD_STOPPED_GUARD_FLOOR):
-        logger.warning("%d of %d row(s) read as stopped trading — treating it as "
-                       "a failed price refresh and rendering every row",
-                       len(stopped), len(tickers))
         return rows
     for tk, (last_bar, lag) in sorted(stopped.items()):
         logger.warning("%s: left out of the report — last price bar %s is %d SPY "

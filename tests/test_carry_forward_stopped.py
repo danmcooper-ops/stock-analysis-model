@@ -249,3 +249,106 @@ def test_rendered_report_omits_the_stopped_row(prices, tmp_path):
     html = out.read_text(encoding='utf-8')
     assert 'LIVECO' in html and 'NOFILE' in html
     assert 'DEADCO' not in html
+
+
+# --- the portfolio alerts ---------------------------------------------------
+# A stopped name's snapshot row keeps its frozen quote and identity, so a
+# rating move on it used to read as a real buy-line crossing. Each day is
+# judged as of its own date: NEWDEAD stopped between the runs (one Watch
+# naming its last bar), OLDDEAD was already stopped yesterday (nothing).
+
+PREV_DAY = SPY_DAYS[-2].date()                  # the Friday before RUN_DAY
+
+
+def _arow(t, rating):
+    return {'ticker': t, 'rating': rating, 'price': 10.0,
+            'company_name': f'{t} Corp', 'sector': 'Technology'}
+
+
+_BG = [_arow(f'Z{i:03d}', 'HOLD') for i in range(60)]     # no parquets: kept
+
+
+def _alert_days(tmp_path):
+    from data.snapshot_store import write_snapshot_file
+    res = tmp_path / 'out'
+    (res / 'prices').mkdir(parents=True)
+    prices = res / 'prices'
+    _write(prices, 'SPY', SPY_DAYS)
+    _write(prices, 'LIVE', _ending_bars_ago(0))
+    # 11 bars behind today's SPY, 10 behind Friday's: stopped only today.
+    _write(prices, 'NEWDEAD', [SPY_DAYS[-1 - (CARRY_FORWARD_MAX_PRICE_LAG_BARS + 1)]])
+    _write(prices, 'OLDDEAD', [SPY_DAYS[-41]])
+    prior = [_arow('LIVE', 'HOLD'), _arow('NEWDEAD', 'HOLD'), _arow('OLDDEAD', 'HOLD'), *_BG]
+    # Frozen quotes, but the ratings still move on them.
+    today = [_arow('LIVE', 'BUY'), _arow('NEWDEAD', 'BUY'), _arow('OLDDEAD', 'BUY'), *_BG]
+    write_snapshot_file(str(res / f'results_{PREV_DAY}.json'), {'results': prior})
+    write_snapshot_file(str(res / f'results_{RUN_DAY}.json'), {'results': today})
+    return res
+
+
+def _pf_file(tmp_path, cli):
+    f = tmp_path / 'pf.json'
+    with redirect_stdout(io.StringIO()):
+        cli.main(['--file', str(f), 'create', 'p', '--name', 'P',
+                  '--tickers', 'LIVE,NEWDEAD,OLDDEAD'])
+        cli.main(['--file', str(f), 'edit', 'p', '--alerts', 'all'])
+    return f
+
+
+def _alerts_json(tmp_path, *extra):
+    import json
+    from scripts import portfolios as cli
+    res, f = _alert_days(tmp_path), _pf_file(tmp_path, cli)
+    out = tmp_path / 'a.json'
+    with redirect_stdout(io.StringIO()):
+        cli.main(['--file', str(f), 'alerts', '--results-dir', str(res),
+                  '--json', str(out), *extra])
+    d = json.loads(out.read_text(encoding='utf-8'))
+    return sorted((a['ticker'], a['kind'], a['level'])
+                  for a in d['portfolios'][0]['alerts']), d
+
+
+def test_membership_event_names_the_last_bar():
+    from models import portfolio_groups as pg
+    pf = [{'id': 'p', 'name': 'P', 'tickers': ['GONE', 'AWAY'], 'exclude': [], 'rule': None}]
+    prev = pg.rows_by_ticker([_arow('GONE', 'HOLD'), _arow('AWAY', 'HOLD')])
+    ev = pg.membership_events(pf, {}, prev, RUN_DAY,
+                              stopped={'GONE': ('2026-07-02', 25)})
+    got = {e['ticker']: e for e in ev}
+    assert (got['GONE']['kind'], got['GONE']['level']) == ('stopped_trading', 'watch')
+    assert 'last price bar 2026-07-02' in got['GONE']['message']
+    assert got['AWAY']['kind'] == 'dropped_out'
+
+
+def test_alerts_report_a_stop_once_and_never_a_frozen_rating_move(tmp_path):
+    alerts, d = _alerts_json(tmp_path)
+    assert alerts == [('LIVE', 'entered_buy', 'action'),
+                      ('NEWDEAD', 'stopped_trading', 'watch')]
+    msg = {a['ticker']: a['message'] for a in d['portfolios'][0]['alerts']}
+    assert 'stopped trading — last price bar' in msg['NEWDEAD']
+    # Portfolio stats count the live member only.
+    assert d['portfolios'][0]['stats']['n'] == 1
+
+
+def test_alerts_without_prices_keep_the_old_behaviour(tmp_path):
+    """--prices-dir '' turns the rule off: the frozen moves come back."""
+    alerts, _ = _alerts_json(tmp_path, '--prices-dir', '')
+    assert alerts == [('LIVE', 'entered_buy', 'action'),
+                      ('NEWDEAD', 'entered_buy', 'action'),
+                      ('OLDDEAD', 'entered_buy', 'action')]
+
+
+def test_report_alert_payload_uses_the_same_rows(tmp_path, monkeypatch):
+    from scripts import portfolios as cli
+    from scripts.report_html import _load_portfolio_payload
+    from data.snapshot_store import load_snapshot_file
+    res = _alert_days(tmp_path)
+    monkeypatch.setenv('PORTFOLIOS_FILE', str(_pf_file(tmp_path, cli)))
+    _, rows = load_snapshot_file(str(res / f'results_{RUN_DAY}.json'))
+    with redirect_stdout(io.StringIO()):
+        payload, _ = _load_portfolio_payload(rows, str(res), RUN_DAY, str(res / 'prices'), {})
+    changes = {(e['ticker'], e['kind']) for e in payload['changes']}
+    assert ('LIVE', 'entered_buy') in changes
+    assert not {t for t, _ in changes} & {'NEWDEAD', 'OLDDEAD'}
+    assert [(e['ticker'], e['kind']) for e in payload['events']] == \
+        [('NEWDEAD', 'stopped_trading')]
