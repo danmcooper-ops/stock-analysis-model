@@ -559,7 +559,9 @@ by analyze_stock and gitignored):
   paragraph per sector under "Key sector influences" (skipped cleanly when
   unset: the tab renders without it). The Sector Analysis tabs carry no
   macro narrative; their Sector Headwinds & Tailwinds block is the
-  sector's own structural read. The narrative's
+  sector's own structural read, and each influence paragraph weighs
+  today's macro forces against that same list (`build_macro_facts` passes
+  it as the sector's `structural` facts). The narrative's
   shape is versioned (`SCHEMA_VERSION` in `data/claude_narrative.py`): the
   day cache is keyed by date alone and a hit skips every post-parse check,
   so a shape change must bump it or the cache replays the old shape.

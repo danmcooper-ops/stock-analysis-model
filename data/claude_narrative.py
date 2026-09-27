@@ -31,7 +31,11 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from models.narrative import _SECTOR_MACRO_DRIVERS
+from models.narrative import (
+    _SECTOR_MACRO_DRIVERS,
+    _SECTOR_THESIS_RISKS,
+    _SECTOR_THESIS_TAILWINDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +61,10 @@ REQUEST_TIMEOUT_S = 900
 # v4: the Overview cut to a ~750-word budget.
 # v5: per-sector outlook and bullets dropped (nothing renders them since
 #     the sector tabs lost their Macro Outlook section).
-SCHEMA_VERSION = 5
+# v6: each influence blends the sector's structural headwinds/tailwinds
+#     (the Sector Analysis tab's list) with today's macro forces. Same
+#     shape; bumped so a same-day v5 cache is not replayed.
+SCHEMA_VERSION = 6
 
 # Advisory floor for a sector's influence paragraph, only ever counted:
 # under it the Overview is back to reading like a kicker, which is what
@@ -67,7 +74,8 @@ MIN_INFLUENCE_WORDS = 20
 # Target length of the Overview read (paragraphs + economy-wide winds +
 # sector headlines and influences), ~3 minutes. The per-field ceilings in
 # the prompt sum to it: 3 x (20 + 3 x 20) + 8 x 12 + 11 x (4 + 40) ~= 820
-# at the ceilings, ~750 as drawn. Counted post-parse, never enforced.
+# at the ceilings, ~750 as drawn. Influences are drawn at their ceiling:
+# a 45-word one put the v6 Overview at 820 words. Counted post-parse, never enforced.
 OVERVIEW_WORD_BUDGET = 750
 
 # The 11 GICS sectors under the yfinance naming this repo uses everywhere
@@ -187,14 +195,19 @@ SYSTEM_PROMPT = (
     '11, including any without ETF metrics), each written in this order:\n'
     '  influence: the read the Overview prints under "Key sector '
     'influences", where it is the only thing a reader sees about the '
-    'sector. 2 or 3 complete sentences, 30 to 40 words, plain declarative '
+    'sector. 3 short complete sentences, 30 to 40 words in all, plain '
+    'declarative '
     'prose rather than wordplay. Explain the MECHANISM: the one or two '
     'macro forces that matter most for this sector now and the channel '
     'each works through (financing costs, consumer or business demand, '
     'input and commodity prices, pricing power and margins, or the '
-    'discount rate on long-dated earnings), then the net effect as the '
-    "sector ETF has priced it. Cite each force's indicator and figure, "
-    'and explain it rather than list it.\n'
+    'discount rate on long-dated earnings). Then weigh them against the '
+    "sector's standing forces — its 'structural' headwinds and tailwinds "
+    'in the data, the list its own Sector Analysis tab shows — naming the '
+    'ONE structural force that most reinforces or offsets them, and say '
+    'which dominates now, as the sector ETF has priced it. Cite each macro '
+    "force's indicator and figure and explain it rather than list it; "
+    'paraphrase the structural force in a few words, never quote it.\n'
     '    When two forces matter, draw them from DIFFERENT indicator '
     "families — each series carries a 'sec' key (rates, inflation, "
     'growth, credit, housing), and the yield curve, the OAS buckets by '
@@ -207,8 +220,8 @@ SYSTEM_PROMPT = (
     '  headline: a 3-6 word kicker for that paragraph, wordplay in The '
     "Economist's tradition (e.g. 'Banks bank the curve', 'Rates tax the "
     "growth premium'); sentence case, no terminal period.\n"
-    '  stance: the net effect the influence describes — tailwind, '
-    'neutral, or headwind.'
+    "  stance: the net effect of today's macro backdrop on the sector, read "
+    'against its structural position — tailwind, neutral, or headwind.'
 )
 
 # Per-series keys worth showing the model; 'hist' (hundreds of points per
@@ -254,6 +267,14 @@ def build_macro_facts(sidecar):
         drivers = _driver_for(sector)
         if drivers:
             entry['macro_sensitivities'] = drivers
+        # The standing forces the Sector Analysis tab lists under Sector
+        # Headwinds & Tailwinds, so each influence can weigh today's macro
+        # against them rather than repeat them.
+        structural = {k: list(src.get(sector) or [])
+                      for k, src in (('headwinds', _SECTOR_THESIS_RISKS),
+                                     ('tailwinds', _SECTOR_THESIS_TAILWINDS))}
+        if any(structural.values()):
+            entry['structural'] = structural
         sectors[sector] = entry
 
     return {
