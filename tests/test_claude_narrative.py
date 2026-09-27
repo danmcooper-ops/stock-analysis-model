@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from data.claude_narrative import (
     GICS_SECTORS, MAX_SECTOR_BULLETS, NARRATIVE_SCHEMA, SCHEMA_VERSION,
     SYSTEM_PROMPT, ClaudeNarrativeClient, build_macro_facts,
+    overview_word_count,
 )
 
 
@@ -87,6 +88,11 @@ class TestBuildMacroFacts:
         assert p['type'] == 'object'
         assert p['required'] == ['growth_labor', 'inflation_rates',
                                  'credit_conditions']
+        # each is a lead plus points, so the supporting sentences are a
+        # field the model must fill, not a length it can ignore
+        for k in p['required']:
+            assert p['properties'][k]['required'] == ['lead', 'points']
+            assert 'minItems' not in p['properties'][k]['properties']['points']
 
     def test_schema_pins_sector_shape(self):
         sec = NARRATIVE_SCHEMA['properties']['sectors']
@@ -101,7 +107,10 @@ class TestBuildMacroFacts:
         assert sec['items']['properties']['headline']['maxLength'] == 60
         assert set(sec['items']['required']) == \
             {'sector', 'stance', 'headline', 'outlook',
-             'tailwinds', 'headwinds'}
+             'tailwinds', 'headwinds', 'influence'}
+        # the Overview's long-form prose is generated last, after the
+        # bullets it synthesises
+        assert list(sec['items']['properties'])[-1] == 'influence'
         # The no-pinned-lengths rule binds the NESTED per-sector arrays too,
         # and this is the easy place to forget it: a minItems smuggled in
         # here reads as valid JSON Schema, passes every offline test, and
@@ -130,18 +139,42 @@ class TestBuildMacroFacts:
         # per-sector bullets must not be confused with the economy-wide ones
         assert 'not the economy-wide headwinds/tailwinds above' in p
 
+    def test_overview_word_count_counts_what_the_page_prints(self):
+        n = {'paragraphs': ['One two three.', 'Four.'],
+             'tailwinds': ['five six'], 'headwinds': [],
+             'sectors': [{'headline': 'Seven eight', 'influence': 'Nine.',
+                          'outlook': 'not printed on the Overview'}]}
+        assert overview_word_count(n) == 9
+        assert overview_word_count(None) == 0
+
+    def test_prompt_states_the_overview_prose_rules(self):
+        """The Overview's length and readability live only in the prompt:
+        the influence band that makes the page a several-minute read, the
+        lead-plus-bullets layout the paragraphs are split into, and the
+        rounding rule that keeps '1.5th percentile' off the page."""
+        p = SYSTEM_PROMPT
+        assert 'influence:' in p and '30 to 40 words' in p
+        assert 'total about 750 words' in p
+        assert 'MECHANISM' in p, 'influence explains channels, not bullets'
+        assert 'do not re-list the bullets' in p
+        assert 'lead: ONE sentence' in p and 'points:' in p
+        assert 'exactly 3 supporting sentences' in p
+        assert 'whole-number ordinal percentiles' in p
+
 
 def _narrative():
     """API-shaped response: paragraphs arrive as the schema's named object
     and generate() flattens them to the list the page renders."""
-    return {'paragraphs': {'growth_labor': 'Growth is slowing.',
+    return {'paragraphs': {'growth_labor': {'lead': 'Growth is slowing',
+                                            'points': ['Claims are low.']},
                            'inflation_rates': 'Inflation is sticky.',
                            'credit_conditions': 'Credit is calm.'},
             'headwinds': ['Curve inverted'], 'tailwinds': ['Credit calm'],
             'sectors': [{'sector': s, 'stance': 'neutral',
                          'headline': 'Flat is fine', 'outlook': 'Flat.',
                          'tailwinds': ['Core PCE at 2.8%'],
-                         'headwinds': ['10Y at 4.3%', 'HY OAS at 3.9%']}
+                         'headwinds': ['10Y at 4.3%', 'HY OAS at 3.9%'],
+                         'influence': 'Rates and credit offset.'}
                         for s in GICS_SECTORS]}
 
 
@@ -242,7 +275,7 @@ class TestClaudeNarrativeClient:
             calls=calls)
         c = self._client(tmp_path, model='claude-opus-5', max_tokens=6000)
         out = c.generate(_sidecar())
-        assert out['paragraphs'][0] == 'Growth is slowing.'
+        assert out['paragraphs'][0] == 'Growth is slowing. Claims are low.'  # lead + points, stop added
         assert len(out['sectors']) == 11
         assert out['model'] == 'claude-opus-5'
         assert out['generated_at']
