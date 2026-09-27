@@ -11,7 +11,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from data.claude_narrative import (
-    GICS_SECTORS, MAX_SECTOR_BULLETS, NARRATIVE_SCHEMA, SCHEMA_VERSION,
+    GICS_SECTORS, NARRATIVE_SCHEMA, SCHEMA_VERSION,
     SYSTEM_PROMPT, ClaudeNarrativeClient, build_macro_facts,
     overview_word_count,
 )
@@ -105,45 +105,35 @@ class TestBuildMacroFacts:
         # the Economist-style kicker: required on new generations, capped so
         # it stays a kicker and not a sentence
         assert sec['items']['properties']['headline']['maxLength'] == 60
-        assert set(sec['items']['required']) == \
-            {'sector', 'stance', 'headline', 'outlook',
-             'tailwinds', 'headwinds', 'influence'}
-        # the Overview's long-form prose is generated last, after the
-        # bullets it synthesises
-        assert list(sec['items']['properties'])[-1] == 'influence'
-        # The no-pinned-lengths rule binds the NESTED per-sector arrays too,
-        # and this is the easy place to forget it: a minItems smuggled in
-        # here reads as valid JSON Schema, passes every offline test, and
-        # 400s live — where the handler turns it into a silent None.
-        for k in ('tailwinds', 'headwinds'):
-            arr = sec['items']['properties'][k]
-            assert arr == {'type': 'array', 'items': {'type': 'string'}}, \
-                '%s must stay an unpinned array<string>' % k
+        # only what the Overview renders; the outlook and per-sector bullets
+        # went with the sector tabs' Macro Outlook section (schema v5)
+        assert sec['items']['required'] == \
+            ['sector', 'influence', 'headline', 'stance']
+        # the argument first, then the kicker and stance that summarise it
+        assert list(sec['items']['properties']) == \
+            ['sector', 'influence', 'headline', 'stance']
+        assert sec['items']['additionalProperties'] is False
 
-    def test_prompt_states_the_per_sector_bullet_rules(self):
-        """The bullet count and the one-figure-per-bullet rule live only in
-        the prompt — the grammar cannot express either — so pin the prompt.
-        Without this the rules can be deleted and nothing fails."""
+    def test_prompt_states_the_per_sector_rules(self):
+        """How a sector's influence picks and judges its forces lives only
+        in the prompt, so pin it — without this the rules can be deleted and
+        nothing fails."""
         p = SYSTEM_PROMPT
-        assert 'tailwinds / headwinds:' in p, 'the bullets need their own rule'
-        # a band, stated as a TOTAL: 3-5 each would be 55-110 bullets a run
-        assert '3 to 5 bullets in TOTAL' in p
-        assert 'not 3-5 each' in p
-        # never pad — an invented bullet has no figure behind it
-        assert 'Never pad' in p
-        # the strong citation rule is scoped to outlook today; the bullets
-        # need their own copy or they inherit only the weak global one
-        assert 'naming its indicator and its figure' in p
-        # the two fields build_macro_facts newly passes are explained
+        # the two fields build_macro_facts passes for this are explained
         assert "'sec' key" in p and "carries 'good'" in p
-        # per-sector bullets must not be confused with the economy-wide ones
-        assert 'not the economy-wide headwinds/tailwinds above' in p
+        assert 'DIFFERENT indicator' in p
+        assert "judge each force by THIS sector's exposure" in p
+        # the ban once scoped to the outlook now binds all prose
+        assert '"may", "could", "likely"' in p and '"bears watching"' in p
+        for gone in ('outlook:', 'tailwinds / headwinds: the macro forces',
+                     '3 to 5 bullets in TOTAL'):
+            assert gone not in p, '%r is a dropped field' % gone
 
     def test_overview_word_count_counts_what_the_page_prints(self):
         n = {'paragraphs': ['One two three.', 'Four.'],
              'tailwinds': ['five six'], 'headwinds': [],
              'sectors': [{'headline': 'Seven eight', 'influence': 'Nine.',
-                          'outlook': 'not printed on the Overview'}]}
+                          'stance': 'neutral'}]}
         assert overview_word_count(n) == 9
         assert overview_word_count(None) == 0
 
@@ -156,7 +146,7 @@ class TestBuildMacroFacts:
         assert 'influence:' in p and '30 to 40 words' in p
         assert 'total about 750 words' in p
         assert 'MECHANISM' in p, 'influence explains channels, not bullets'
-        assert 'do not re-list the bullets' in p
+        assert 'explain it rather than list it' in p
         assert 'lead: ONE sentence' in p and 'points:' in p
         assert 'exactly 3 supporting sentences' in p
         assert 'whole-number ordinal percentiles' in p
@@ -170,11 +160,8 @@ def _narrative():
                            'inflation_rates': 'Inflation is sticky.',
                            'credit_conditions': 'Credit is calm.'},
             'headwinds': ['Curve inverted'], 'tailwinds': ['Credit calm'],
-            'sectors': [{'sector': s, 'stance': 'neutral',
-                         'headline': 'Flat is fine', 'outlook': 'Flat.',
-                         'tailwinds': ['Core PCE at 2.8%'],
-                         'headwinds': ['10Y at 4.3%', 'HY OAS at 3.9%'],
-                         'influence': 'Rates and credit offset.'}
+            'sectors': [{'sector': s, 'influence': 'Rates and credit offset.',
+                         'headline': 'Flat is fine', 'stance': 'neutral'}
                         for s in GICS_SECTORS]}
 
 
@@ -294,20 +281,17 @@ class TestClaudeNarrativeClient:
         the grammar cannot pin array length, so dedupe post-parse."""
         payload = _narrative()
         payload['sectors'] = payload['sectors'] + [
-            {'sector': s, 'stance': 'headwind',
-             'headline': 'Second take', 'outlook': 'Dupe.',
-             'tailwinds': ['Dupe tailwind'], 'headwinds': []}
+            {'sector': s, 'influence': 'Dupe.', 'headline': 'Second take',
+             'stance': 'headwind'}
             for s in GICS_SECTORS[:4]]
         _install_fake_anthropic(
             monkeypatch, response=_FakeResponse(json.dumps(payload)))
         out = self._client(tmp_path).generate(_sidecar())
         names = [x['sector'] for x in out['sectors']]
         assert names == GICS_SECTORS            # canonical order, no dupes
-        # the FIRST entry per sector wins whole — outlook AND its bullets,
-        # not a merge of the two draws
-        assert all(x['outlook'] == 'Flat.' for x in out['sectors'])
-        assert all(x['tailwinds'] == ['Core PCE at 2.8%']
-                   for x in out['sectors'])
+        # the FIRST entry per sector wins whole, not a merge of two draws
+        assert all(x['influence'] == 'Rates and credit offset.' and
+                   x['stance'] == 'neutral' for x in out['sectors'])
 
     def test_partial_sector_list_survives_dedupe(self, tmp_path, monkeypatch):
         """A short list still renders — dedupe must not invent entries."""
@@ -348,33 +332,14 @@ class TestClaudeNarrativeClient:
         # rewrite it as the previous shape, as a pre-upgrade run would have
         cached.pop('schema_version')
         for entry in cached['sectors']:
-            entry.pop('tailwinds', None)
-            entry.pop('headwinds', None)
+            entry['outlook'] = 'Flat.'
+            entry.pop('influence', None)
         with open(path, 'w', encoding='utf-8') as fh:
             json.dump(cached, fh)
         out = c.generate(_sidecar())
         assert len(calls) == 2, 'stale-shape cache must regenerate'
-        assert out['sectors'][0]['tailwinds'] == ['Core PCE at 2.8%']
-
-    def test_bullets_are_clamped_but_never_padded(self, tmp_path, monkeypatch):
-        """The grammar pins no array length at any depth, so the prompt's
-        3-5 band is advisory. Enforce the ceiling; leave a short sector
-        short — padding would mean inventing a bullet with no figure."""
-        payload = _narrative()
-        payload['sectors'][0]['tailwinds'] = ['t%d' % i for i in range(6)]
-        payload['sectors'][0]['headwinds'] = ['h1']
-        payload['sectors'][1]['tailwinds'] = []
-        payload['sectors'][1]['headwinds'] = ['only one']
-        _install_fake_anthropic(
-            monkeypatch, response=_FakeResponse(json.dumps(payload)))
-        out = self._client(tmp_path).generate(_sidecar())
-        fat, thin = out['sectors'][0], out['sectors'][1]
-        assert len(fat['tailwinds']) + len(fat['headwinds']) == \
-            MAX_SECTOR_BULLETS
-        # trimmed from the longer side, so the lone headwind survives
-        assert fat['headwinds'] == ['h1']
-        # short sector left exactly as it came back
-        assert thin['tailwinds'] == [] and thin['headwinds'] == ['only one']
+        assert out['sectors'][0]['influence'] == 'Rates and credit offset.'
+        assert 'outlook' not in out['sectors'][0]
 
     @pytest.mark.parametrize('stop_reason', ['refusal', 'max_tokens'])
     def test_bad_stop_reasons_return_none(self, tmp_path, monkeypatch,

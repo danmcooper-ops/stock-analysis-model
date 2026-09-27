@@ -4,12 +4,10 @@ Serializes the macro.json sidecar's numeric facts (regime model output,
 FRED series with changes/percentiles, the Treasury curve, credit spreads,
 and per-sector ETF momentum) into a prompt for the Claude API and returns
 a structured narrative: economy-wide paragraphs, headwind/tailwind bullets,
-and one entry per GICS sector — a kicker, a one-sentence outlook and
-tailwind/headwind bullets, plus an `influence` paragraph that the
-Overview's "Key sector influences" section sets as full prose. Only the
-kicker, stance and influence render; the outlook and bullets are the
-scaffolding the influence is written from. The LLM call is network I/O,
-so this lives in data/ rather than models/.
+and one entry per GICS sector — an `influence` paragraph, a kicker and a
+stance — which the Overview's "Key sector influences" section sets as
+full prose. The LLM call is network I/O, so this lives in data/ rather
+than models/.
 
 The key is read from MACRO_ANTHROPIC_API_KEY, falling back to
 ANTHROPIC_API_KEY. The cloud container that runs the nightly routine is a
@@ -57,12 +55,9 @@ REQUEST_TIMEOUT_S = 900
 # — bullet-less sector sections — until the date rolls over.
 # v3: per-sector `influence` paragraph; tighter paragraph rules.
 # v4: the Overview cut to a ~750-word budget.
-SCHEMA_VERSION = 4
-
-# Advisory bullet band per sector; the ceiling is enforced in
-# _clamp_sector_bullets, the floor is only ever counted (never padded).
-MIN_SECTOR_BULLETS = 3
-MAX_SECTOR_BULLETS = 5
+# v5: per-sector outlook and bullets dropped (nothing renders them since
+#     the sector tabs lost their Macro Outlook section).
+SCHEMA_VERSION = 5
 
 # Advisory floor for a sector's influence paragraph, only ever counted:
 # under it the Overview is back to reading like a kicker, which is what
@@ -126,27 +121,17 @@ NARRATIVE_SCHEMA = {
             'type': 'array',
             'items': {
                 'type': 'object',
+                # Generated in this order: the influence paragraph first,
+                # then the kicker and the stance that summarise it, so
+                # neither is committed to before the argument is made.
                 'properties': {
                     'sector': {'type': 'string', 'enum': GICS_SECTORS},
+                    'influence': {'type': 'string'},
+                    'headline': {'type': 'string', 'maxLength': 60},
                     'stance': {'type': 'string',
                                'enum': ['tailwind', 'neutral', 'headwind']},
-                    'headline': {'type': 'string', 'maxLength': 60},
-                    'outlook': {'type': 'string'},
-                    # Per-sector bullets, distinct from the economy-wide
-                    # arrays above. Same no-length-pinning rule applies —
-                    # and it applies to these NESTED arrays too, which is
-                    # the easy place to forget it.
-                    'tailwinds': {'type': 'array',
-                                  'items': {'type': 'string'}},
-                    'headwinds': {'type': 'array',
-                                  'items': {'type': 'string'}},
-                    # The Overview's prose for this sector. Last in the
-                    # object so it is generated after — and can synthesise
-                    # — the bullets above it.
-                    'influence': {'type': 'string'},
                 },
-                'required': ['sector', 'stance', 'headline', 'outlook',
-                             'tailwinds', 'headwinds', 'influence'],
+                'required': ['sector', 'influence', 'headline', 'stance'],
                 'additionalProperties': False,
             },
         },
@@ -165,7 +150,9 @@ SYSTEM_PROMPT = (
     '- Use ONLY the numbers provided, and cite specific figures inline '
     "(e.g. 'core PCE at 2.8%'). Never invent a data point.\n"
     '- Declarative plain-English prose for a long-horizon value investor; '
-    'no hedging boilerplate, no first person, no investment advice.\n'
+    'no hedging boilerplate, no first person, no investment advice. Never '
+    'write "may", "could", "likely", "remains to be seen", or "bears '
+    'watching".\n'
     '- Figures: round for a reader, not a terminal — at most two decimals '
     "('3.35%', not '3.353%'), whole-number ordinal percentiles ('2nd "
     "percentile', never '1.5th'), basis points as 'bp', and name each "
@@ -197,42 +184,8 @@ SYSTEM_PROMPT = (
     "197,000, the tightest in a decade, keep incomes growing'. No two "
     'items on the same indicator.\n'
     '- sectors: one entry for EVERY GICS sector listed in the data (all '
-    '11, including any without ETF metrics). Style: The Economist — pithy '
-    'but dense with information. For each sector write:\n'
-    '  headline: a 3-6 word kicker leading the entry, wordplay in the '
-    "paper's tradition (e.g. 'Banks bank the curve', 'Rates tax the "
-    "growth premium'); sentence case, no terminal period.\n"
-    '  outlook: ONE declarative active-voice sentence, 25 words maximum, '
-    'in which every clause carries a figure from the data (an ETF return '
-    'or relative strength, a yield, a spread, an indicator level), tying '
-    "the sector's macro sensitivities (rate sensitivity, cyclicality, "
-    'commodity linkage, defensiveness) to those numbers. Dry wit is '
-    'welcome; filler and hedging are not — never write "may", "could", '
-    '"likely", "remains to be seen", or "bears watching".\n'
-    '  tailwinds / headwinds: the macro forces acting on THIS sector, '
-    'split by direction — not the economy-wide headwinds/tailwinds above, '
-    'which are a separate top-level field. Write 3 to 5 bullets in TOTAL '
-    'across the two lists (not 3-5 each), putting at least one on each '
-    'side when the data supports it. Never pad to reach three: a sector '
-    'the data pushes one way gets a lopsided split, and a bullet with no '
-    'figure behind it should not exist.\n'
-    '    Each bullet: ONE clause, 20 words maximum, naming its indicator '
-    "and its figure — 'core PCE at 2.8%, 71st percentile of 10 years', "
-    "'BBB spreads 18bp wider in a month'. Same ban on filler and hedging "
-    'as outlook.\n'
-    "    Spread a sector's bullets across DIFFERENT indicator families — "
-    "each series carries a 'sec' key (rates, inflation, growth, credit, "
-    'housing) and the yield curve, the OAS buckets by rating, the regime '
-    "scores and the sector's own ETF relative strength are all fair game. "
-    'Four restatements of the 10-year yield is the failure to avoid.\n'
-    "    Each series also carries 'good' — the direction the report treats "
-    'as favourable for the economy. Use it as a starting point, not the '
-    "answer: the bullet belongs in the list matching THIS sector's "
-    'exposure. A rising 10-year is a tailwind for banks and a headwind '
-    'for utilities and REITs.\n'
-    '  stance: the net read across those bullets — tailwind, neutral, or '
-    'headwind.\n'
-    '  influence: the long-form read the Overview prints under "Key sector '
+    '11, including any without ETF metrics), each written in this order:\n'
+    '  influence: the read the Overview prints under "Key sector '
     'influences", where it is the only thing a reader sees about the '
     'sector. 2 or 3 complete sentences, 30 to 40 words, plain declarative '
     'prose rather than wordplay. Explain the MECHANISM: the one or two '
@@ -240,19 +193,32 @@ SYSTEM_PROMPT = (
     'each works through (financing costs, consumer or business demand, '
     'input and commodity prices, pricing power and margins, or the '
     'discount rate on long-dated earnings), then the net effect as the '
-    'sector ETF has priced it. Cite figures as the outlook does, but '
-    'explain them — do not re-list the bullets, and do not repeat the '
-    'headline or the outlook sentence. The hedging ban above applies.'
+    "sector ETF has priced it. Cite each force's indicator and figure, "
+    'and explain it rather than list it.\n'
+    '    When two forces matter, draw them from DIFFERENT indicator '
+    "families — each series carries a 'sec' key (rates, inflation, "
+    'growth, credit, housing), and the yield curve, the OAS buckets by '
+    "rating, the regime scores and the sector's own ETF relative strength "
+    'are all fair game.\n'
+    "    Each series also carries 'good' — the direction the report treats "
+    'as favourable for the economy. Use it as a starting point, not the '
+    "answer: judge each force by THIS sector's exposure. A rising 10-year "
+    'helps banks and hurts utilities and REITs.\n'
+    '  headline: a 3-6 word kicker for that paragraph, wordplay in The '
+    "Economist's tradition (e.g. 'Banks bank the curve', 'Rates tax the "
+    "growth premium'); sentence case, no terminal period.\n"
+    '  stance: the net effect the influence describes — tailwind, '
+    'neutral, or headwind.'
 )
 
 # Per-series keys worth showing the model; 'hist' (hundreds of points per
 # series) is deliberately excluded to keep the prompt a few thousand tokens.
-# 'good' and 'sec' are cheap and load-bearing for the per-sector bullets:
+# 'good' and 'sec' are cheap and load-bearing for the per-sector reads:
 # 'good' is the repo's own view of which direction is favourable — headwind
 # vs tailwind polarity, stated rather than inferred from the label — and
 # 'sec' is the indicator family (rates / inflation / growth / credit /
-# housing), which is what lets the model spread a sector's bullets across
-# families instead of restating one rate four times.
+# housing), which is what lets the model draw a sector's forces from
+# different families instead of restating one rate twice.
 _SERIES_FACT_KEYS = ('l', 'sec', 'latest', 'chg_1m', 'chg_1y', 'pctile',
                      'pct_win', 'z', 'suffix', 'good')
 
@@ -298,33 +264,6 @@ def build_macro_facts(sidecar):
         'credit_oas_by_rating': sidecar.get('oas_buckets'),
         'sectors': sectors,
     }
-
-
-def _clamp_sector_bullets(sectors):
-    """Hold each sector to at most MAX_SECTOR_BULLETS bullets in total.
-
-    The grammar pins no array length at any depth, so the prompt's "3 to 5
-    in total" is advisory in exactly the way the all-11-sectors rule is.
-    Trim from the longer list first so a 6-1 draw comes back 4-1 rather
-    than losing the lone bullet on the other side. Under-filled sectors are
-    left alone and merely counted: padding would mean inventing a bullet
-    with no figure behind it, which is the one thing the prompt forbids.
-    Mutates in place; pure otherwise.
-    """
-    short = 0
-    for entry in sectors or []:
-        if not isinstance(entry, dict):
-            continue
-        tw = [b for b in (entry.get('tailwinds') or []) if b]
-        hw = [b for b in (entry.get('headwinds') or []) if b]
-        while len(tw) + len(hw) > MAX_SECTOR_BULLETS:
-            (tw if len(tw) >= len(hw) else hw).pop()
-        entry['tailwinds'], entry['headwinds'] = tw, hw
-        if len(tw) + len(hw) < MIN_SECTOR_BULLETS:
-            short += 1
-    if short:
-        logger.warning('macro narrative: %d sectors under %d bullets',
-                       short, MIN_SECTOR_BULLETS)
 
 
 def overview_word_count(narrative):
@@ -489,7 +428,7 @@ class ClaudeNarrativeClient:
         # The grammar pins no array length (minItems>1 AND maxItems both 400
         # live, verified 2026-09-01), so the model may repeat sectors — one
         # run returned 26 entries spanning the 11 names. Keep the first
-        # outlook per sector, in canonical GICS order, so the page renders one
+        # entry per sector, in canonical GICS order, so the page renders one
         # card each instead of duplicates; then police the count as before.
         raw_sectors = narrative.get('sectors') or []
         first_by_sector = {}
@@ -504,9 +443,8 @@ class ClaudeNarrativeClient:
                                 if name in first_by_sector]
         n_sectors = len(narrative['sectors'])
         if n_sectors != len(GICS_SECTORS):
-            logger.warning('macro narrative: %d sector outlooks (expected %d)',
+            logger.warning('macro narrative: %d sector entries (expected %d)',
                            n_sectors, len(GICS_SECTORS))
-        _clamp_sector_bullets(narrative['sectors'])
         thin = sum(1 for e in narrative['sectors']
                    if len(str((e or {}).get('influence') or '').split())
                    < MIN_INFLUENCE_WORDS)

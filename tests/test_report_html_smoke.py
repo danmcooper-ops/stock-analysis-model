@@ -177,11 +177,10 @@ def test_build_html_plumbs_macro_narrative_through_summary(tmp_path):
             'narrative': {
                 'paragraphs': [hostile],
                 'headwinds': ['Curve inverted'], 'tailwinds': [],
-                # the hostile string rides a per-sector bullet too — the
-                # newest model-authored path onto the page
-                'sectors': [{'sector': 'Technology', 'stance': 'neutral',
-                             'headline': 'Flat is fine', 'outlook': 'Flat.',
-                             'tailwinds': [hostile], 'headwinds': []}],
+                # the hostile string rides a sector's influence too — the
+                # per-sector model-authored path onto the page
+                'sectors': [{'sector': 'Technology', 'influence': hostile,
+                             'headline': 'Flat is fine', 'stance': 'neutral'}],
                 'model': 'claude-opus-5', 'generated_at': '2026-08-22T09:00:00+00:00',
             },
         },
