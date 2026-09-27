@@ -490,6 +490,31 @@ ruff check .
   `cloudflare/README.md`. Cache headers stay at Pages' default
   revalidation, because a `px/` shard is an offset into `prices_meta.json`'s
   dates axis and must never be mixed across deploys.
+- **Report navigation and appearance (`templates/report.html`, "SA CHROME"):**
+  Seeking Alpha-style chrome replaced the header's Views dropdown. There is a
+  fixed black `#sidebar` (desktop, or a 72px rail via `html.sb-rail`, stored in
+  `stock_sidebar_v1`), a rail with an overlay sidebar at 769-1023px, and a
+  drawer plus bottom `#tabbar` on phones. Sub-tabs are the `#subnav` chips.
+  `renderNavMenu()` renders every one of these surfaces from `_navGroups()`,
+  and one delegated `[data-v]` listener calls `navGo`.
+  - **Page offset:** `--sb-cur` is the width the page must clear. It drives body
+    padding, the sticky header/subnav, every frozen `#dtbl`/`#mtx` column, and
+    `_syncWideTable`'s width math.
+  - **Chrome colours:** chrome text colours are set through `--sac`, because one
+    `.sa-chrome` rule outranks the blanket dark
+    `body *{color:#fff !important}`.
+  - **Search:** the ticker search (`#f-search`) lives in the top bar. On views
+    with no table it lists quick results (`#hdr-qr`) that open the ticker page.
+  - **Ticker page:** the `#det-modal` popup is now a page beside the sidebar,
+    with section tabs (`#d-tabs`). It shows a one-day change taken from the
+    `px/` shard.
+  - **Appearance:** `stock_theme_v1` is `light | dark | auto`, where missing
+    means auto. A pre-paint script resolves Auto via `prefers-color-scheme`,
+    and a `matchMedia` listener follows the device live. `data-theme="dark"`
+    is still the only thing CSS and JS read.
+  - **Tests:** `tests/test_report_sidebar.py` and
+    `tests/test_report_appearance.py`. The latter includes a WCAG contrast
+    check of the chrome tokens in both themes.
 - **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
   named sets of tickers — hand-picked, rule-driven, or both — and a ticker may
   sit in any number of them (membership only; `portfolio/holdings.json` stays
