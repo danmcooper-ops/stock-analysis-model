@@ -5189,6 +5189,14 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
     os.makedirs("output", exist_ok=True)
     today_str = run_start_date.isoformat()  # pin to run-start so a midnight-spanning run stays single-dated
     _run_prov = _prov.run_block(results)
+    # Which scoring model rated these rows: the backtest measures each model
+    # on its own snapshots (backtest.build_measure_summary), so a weight
+    # change never silently pools two models.
+    try:
+        from scripts.param_set import scoring_fingerprint
+        _run_prov['scoring'] = scoring_fingerprint()
+    except Exception as e:
+        logger.warning('provenance: scoring fingerprint failed (%s)', e)
 
     # Save results as JSON for backtesting pipeline. Written BEFORE the
     # HTML/Excel renders so the Phase-2 snapshot survives a render crash.
