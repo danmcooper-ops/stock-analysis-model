@@ -37,6 +37,12 @@ CORR_CLUSTER = 0.75     # include in cluster analysis
 DRAWDOWN_WARN = -0.40   # 2020 drawdown warning threshold
 LOOKBACK_DAYS = 730     # ~2 years of trading history
 
+# A name with no sector is a data gap, not a sector: it is left out of the
+# sector groups, counts and percentages below and reported as a count, so an
+# "Unknown" row can never top the concentration table (see
+# models/portfolio.concentration_analysis).
+NO_SECTOR = "—"
+
 SECTION_SEP = "=" * 72
 SUBSEP = "-" * 72
 
@@ -244,13 +250,18 @@ def print_cluster_analysis(corr: pd.DataFrame, stocks: list[dict]) -> dict[str, 
     """
     section("2. CLUSTER ANALYSIS  (sector groups, pairs with r > 0.75)")
 
-    ticker_to_sector = {s["ticker"]: s.get("sector") or "Unknown" for s in stocks}
+    ticker_to_sector = {s["ticker"]: s.get("sector") for s in stocks}
     tickers = corr.index.tolist()
 
-    # Group tickers in our corr matrix by sector
+    # Group tickers in our corr matrix by sector (names with no sector are
+    # not a group, so they never form a cluster "within" one)
     sector_tickers: dict[str, list[str]] = {}
+    no_sector = 0
     for t in tickers:
-        sec = ticker_to_sector.get(t, "Unknown")
+        sec = ticker_to_sector.get(t)
+        if not sec:
+            no_sector += 1
+            continue
         sector_tickers.setdefault(sec, []).append(t)
 
     for sector, members in sorted(sector_tickers.items()):
@@ -282,6 +293,8 @@ def print_cluster_analysis(corr: pd.DataFrame, stocks: list[dict]) -> dict[str, 
         for t1, t2, r in sorted(high_pairs, key=lambda x: -x[2]):
             print(f"    {t1} <-> {t2}  r={r:.2f}")
 
+    if no_sector:
+        print(f"  ({no_sector} ticker(s) with no sector data left out of the sector groups)")
     return sector_tickers
 
 
@@ -290,15 +303,19 @@ def print_concentration_summary(stocks: list[dict], total_rated: int) -> None:
 
     sector_counts: dict[str, int] = {}
     for s in stocks:
-        sec = s.get("sector") or "Unknown"
-        sector_counts[sec] = sector_counts.get(sec, 0) + 1
+        sec = s.get("sector")
+        if sec:
+            sector_counts[sec] = sector_counts.get(sec, 0) + 1
 
     n = len(stocks)
+    n_sectored = sum(sector_counts.values())
     print(f"  Total BUY / LEAN BUY: {n} stocks  (out of {total_rated} analyzed)\n")
 
     by_rating: dict[str, dict[str, int]] = {}
     for s in stocks:
-        sec = s.get("sector") or "Unknown"
+        sec = s.get("sector")
+        if not sec:
+            continue
         rating = s.get("rating", "")
         by_rating.setdefault(sec, {"BUY": 0, "LEAN BUY": 0})
         if rating in by_rating[sec]:
@@ -307,11 +324,14 @@ def print_concentration_summary(stocks: list[dict], total_rated: int) -> None:
     print(f"  {'Sector':<32}  {'Count':>5}  {'% of bucket':>11}  {'BUY':>4}  {'LEAN BUY':>9}")
     print("  " + SUBSEP)
     for sec, cnt in sorted(sector_counts.items(), key=lambda x: -x[1]):
-        pct = cnt / n * 100 if n else 0
+        pct = cnt / n_sectored * 100 if n_sectored else 0
         b = by_rating.get(sec, {}).get("BUY", 0)
         lb = by_rating.get(sec, {}).get("LEAN BUY", 0)
         bar = "#" * int(pct / 2)  # max ~25 chars for 50%
         print(f"  {sec:<32}  {cnt:>5}  {pct:>9.1f}%  {b:>4}  {lb:>9}   {bar}")
+    if n - n_sectored:
+        print(f"  {n - n_sectored} with no sector data (excluded; % is of the "
+              f"{n_sectored} with a sector)")
 
 
 def compute_drawdowns_from_prices(
@@ -370,7 +390,7 @@ def compute_drawdowns_from_prices(
 
         rows.append({
             "ticker": ticker,
-            "sector": s.get("sector") or "Unknown",
+            "sector": s.get("sector") or NO_SECTOR,
             "composite_score": s.get("_composite_score"),
             "rating": s.get("rating", ""),
             "dd_2008": dd_2008,
@@ -408,7 +428,7 @@ def print_drawdown_table(drawdown_rows: list[dict]) -> None:
 
         print(
             f"  {row['ticker']:<7}  "
-            f"{(row['sector'] or 'Unknown'):<28}  "
+            f"{(row['sector'] or NO_SECTOR):<28}  "
             f"{fmt_pct(row['dd_2020']):>8}  "
             f"{fmt_pct(row['dd_2022']):>8}  "
             f"{fmt_pct(row['dd_2008']):>8}  "
@@ -434,7 +454,7 @@ def print_summary(
     section("5. SUMMARY")
 
     n = len(stocks)
-    n_sectors = len({s.get("sector") or "Unknown" for s in stocks})
+    n_sectors = len({s.get("sector") for s in stocks if s.get("sector")})
     n_high_corr = len(high_corr_pairs)
     n_severe_dd = sum(
         1 for r in drawdown_rows
@@ -445,10 +465,12 @@ def print_summary(
 
     sector_counts = {}
     for s in stocks:
-        sec = s.get("sector") or "Unknown"
-        sector_counts[sec] = sector_counts.get(sec, 0) + 1
+        sec = s.get("sector")
+        if sec:
+            sector_counts[sec] = sector_counts.get(sec, 0) + 1
+    n_sectored = sum(sector_counts.values())
     top_sector = max(sector_counts, key=sector_counts.get) if sector_counts else "N/A"
-    top_sector_pct = sector_counts.get(top_sector, 0) / n * 100 if n else 0
+    top_sector_pct = sector_counts.get(top_sector, 0) / n_sectored * 100 if n_sectored else 0
 
     corr_note = (
         f"{n_high_corr} highly correlated pair(s) (r > {CORR_HIGH}) were identified, "
@@ -474,7 +496,8 @@ def print_summary(
         f"  As of {results_date}, the {ratings_str} bucket contains {n} stocks spanning "
         f"{n_sectors} sectors, with an average composite score of "
         f"{f'{avg_score:.1f}' if avg_score is not None else 'n/a'}.  "
-        f"The largest sector concentration is {top_sector} at {top_sector_pct:.1f}% of the bucket.  "
+        f"The largest sector concentration is {top_sector} at {top_sector_pct:.1f}% of the bucket"
+        f"{f' ({n - n_sectored} with no sector data excluded)' if n - n_sectored else ''}.  "
         f"Correlation analysis found {corr_note}.  "
         f"On the resilience side, {dd_note}.  "
         f"Investors should monitor sector concentration and correlated positions "

@@ -4773,12 +4773,15 @@ def _run_postprocess(results, ms_pfv_data, _carry_prior_rows):
     weights = position_sizes(results)
     for r in results:
         r['position_weight'] = weights.get(r['ticker'])
-    concentration = concentration_analysis(
-        [r for r in results if r.get('rating') in ('BUY', 'LEAN BUY')])
+    picks = [r for r in results if r.get('rating') in ('BUY', 'LEAN BUY')]
+    concentration = concentration_analysis(picks)
     if concentration.get('concentration_flag'):
+        # Weights are over the picks that have a sector; say how many had none.
+        gap = concentration.get('n_unclassified') or 0
         print(f"\n  Portfolio concentration warning: {concentration['top_sector']} "
               f"= {concentration['top_sector_weight']:.0%} "
-              f"(HHI={concentration['hhi']:.2f})")
+              f"(HHI={concentration['hhi']:.2f})"
+              + (f" ({gap} of {len(picks)} picks without sector data)" if gap else ''))
     return {'sector_median_ee': sector_median_ee,
             'sector_median_opm': sector_median_opm}
 
