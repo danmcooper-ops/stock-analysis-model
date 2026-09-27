@@ -55,10 +55,10 @@
       "run_date": "2026-07-06",
       "horizon": 30,
       "rows": 2259,
-      "measured": 2245,
-      "priced": 2245,
+      "measured": 2246,
+      "priced": 2246,
       "implausible": 0,
-      "coverage": 0.9938,
+      "coverage": 0.9942,
       "from_cache": false,
       "delisted_by_rating": {
         "HOLD": {
@@ -68,20 +68,20 @@
           "merger": 4
         }
       },
-      "gone_before_snapshot": 3,
+      "gone_before_snapshot": 5,
       "unpriced_by_rating": {
-        "HOLD": 7,
-        "PASS": 4
+        "HOLD": 6,
+        "PASS": 2
       }
     },
     {
       "run_date": "2026-07-07",
       "horizon": 30,
       "rows": 2260,
-      "measured": 2246,
-      "priced": 2246,
+      "measured": 2247,
+      "priced": 2247,
       "implausible": 0,
-      "coverage": 0.9938,
+      "coverage": 0.9942,
       "from_cache": false,
       "delisted_by_rating": {
         "HOLD": {
@@ -91,20 +91,20 @@
           "merger": 4
         }
       },
-      "gone_before_snapshot": 3,
+      "gone_before_snapshot": 5,
       "unpriced_by_rating": {
-        "HOLD": 7,
-        "PASS": 4
+        "HOLD": 6,
+        "PASS": 2
       }
     },
     {
       "run_date": "2026-07-08",
       "horizon": 30,
       "rows": 2261,
-      "measured": 2247,
-      "priced": 2247,
+      "measured": 2248,
+      "priced": 2248,
       "implausible": 0,
-      "coverage": 0.9938,
+      "coverage": 0.9943,
       "from_cache": false,
       "delisted_by_rating": {
         "HOLD": {
@@ -114,20 +114,20 @@
           "merger": 4
         }
       },
-      "gone_before_snapshot": 3,
+      "gone_before_snapshot": 5,
       "unpriced_by_rating": {
-        "HOLD": 7,
-        "PASS": 4
+        "HOLD": 6,
+        "PASS": 2
       }
     },
     {
       "run_date": "2026-07-10",
       "horizon": 30,
       "rows": 2261,
-      "measured": 2246,
-      "priced": 2246,
+      "measured": 2247,
+      "priced": 2247,
       "implausible": 0,
-      "coverage": 0.9934,
+      "coverage": 0.9938,
       "from_cache": false,
       "delisted_by_rating": {
         "HOLD": {
@@ -140,10 +140,10 @@
           "merger": 4
         }
       },
-      "gone_before_snapshot": 4,
+      "gone_before_snapshot": 6,
       "unpriced_by_rating": {
-        "HOLD": 8,
-        "PASS": 3
+        "HOLD": 7,
+        "PASS": 1
       }
     },
     {
@@ -166,10 +166,10 @@
           "merger": 4
         }
       },
-      "gone_before_snapshot": 6,
+      "gone_before_snapshot": 7,
       "unpriced_by_rating": {
         "HOLD": 7,
-        "PASS": 3
+        "PASS": 2
       }
     },
     {
@@ -192,10 +192,10 @@
           "merger": 5
         }
       },
-      "gone_before_snapshot": 6,
+      "gone_before_snapshot": 7,
       "unpriced_by_rating": {
         "HOLD": 7,
-        "PASS": 3
+        "PASS": 2
       }
     },
     {
@@ -218,10 +218,10 @@
           "merger": 4
         }
       },
-      "gone_before_snapshot": 7,
+      "gone_before_snapshot": 8,
       "unpriced_by_rating": {
         "HOLD": 7,
-        "PASS": 3
+        "PASS": 2
       }
     },
     {
@@ -244,10 +244,10 @@
           "merger": 4
         }
       },
-      "gone_before_snapshot": 7,
+      "gone_before_snapshot": 8,
       "unpriced_by_rating": {
         "HOLD": 7,
-        "PASS": 3
+        "PASS": 2
       }
     },
     {
@@ -270,10 +270,10 @@
           "merger": 4
         }
       },
-      "gone_before_snapshot": 8,
+      "gone_before_snapshot": 9,
       "unpriced_by_rating": {
         "HOLD": 7,
-        "PASS": 3
+        "PASS": 2
       }
     },
     {
@@ -296,10 +296,10 @@
           "merger": 4
         }
       },
-      "gone_before_snapshot": 8,
+      "gone_before_snapshot": 9,
       "unpriced_by_rating": {
         "HOLD": 7,
-        "PASS": 3
+        "PASS": 2
       }
     },
     {
@@ -473,10 +473,10 @@
       "run_date": "2026-07-30",
       "horizon": 30,
       "rows": 2316,
-      "measured": 2296,
-      "priced": 2297,
+      "measured": 2297,
+      "priced": 2298,
       "implausible": 1,
-      "coverage": 0.9918,
+      "coverage": 0.9922,
       "from_cache": false,
       "delisted_by_rating": {
         "HOLD": {
@@ -489,7 +489,7 @@
       "gone_before_snapshot": 10,
       "unpriced_by_rating": {
         "HOLD": 6,
-        "PASS": 4
+        "PASS": 3
       }
     },
     {
@@ -519,10 +519,10 @@
       "run_date": "2026-08-03",
       "horizon": 30,
       "rows": 2324,
-      "measured": 2303,
-      "priced": 2304,
+      "measured": 2304,
+      "priced": 2305,
       "implausible": 1,
-      "coverage": 0.9914,
+      "coverage": 0.9918,
       "from_cache": false,
       "delisted_by_rating": {
         "HOLD": {
@@ -535,7 +535,7 @@
       "gone_before_snapshot": 11,
       "unpriced_by_rating": {
         "HOLD": 6,
-        "PASS": 4
+        "PASS": 3
       }
     },
     {
@@ -778,10 +778,10 @@
       "run_date": "2026-08-19",
       "horizon": 30,
       "rows": 2329,
-      "measured": 2312,
-      "priced": 2312,
+      "measured": 2313,
+      "priced": 2313,
       "implausible": 0,
-      "coverage": 0.9927,
+      "coverage": 0.9931,
       "from_cache": false,
       "delisted_by_rating": {
         "LEAN BUY": {
@@ -793,7 +793,7 @@
       },
       "gone_before_snapshot": 10,
       "unpriced_by_rating": {
-        "HOLD": 6,
+        "HOLD": 5,
         "PASS": 1
       }
     },
@@ -801,10 +801,10 @@
       "run_date": "2026-08-21",
       "horizon": 30,
       "rows": 2331,
-      "measured": 2313,
-      "priced": 2313,
+      "measured": 2314,
+      "priced": 2314,
       "implausible": 0,
-      "coverage": 0.9923,
+      "coverage": 0.9927,
       "from_cache": false,
       "delisted_by_rating": {
         "LEAN BUY": {
@@ -816,7 +816,7 @@
       },
       "gone_before_snapshot": 11,
       "unpriced_by_rating": {
-        "HOLD": 6,
+        "HOLD": 5,
         "PASS": 1
       }
     },
@@ -824,10 +824,10 @@
       "run_date": "2026-08-25",
       "horizon": 30,
       "rows": 2335,
-      "measured": 2317,
-      "priced": 2317,
+      "measured": 2318,
+      "priced": 2318,
       "implausible": 0,
-      "coverage": 0.9923,
+      "coverage": 0.9927,
       "from_cache": false,
       "delisted_by_rating": {
         "LEAN BUY": {
@@ -839,7 +839,7 @@
       },
       "gone_before_snapshot": 11,
       "unpriced_by_rating": {
-        "HOLD": 6,
+        "HOLD": 5,
         "PASS": 1
       }
     },
@@ -847,10 +847,10 @@
       "run_date": "2026-08-26",
       "horizon": 30,
       "rows": 2337,
-      "measured": 2318,
-      "priced": 2318,
+      "measured": 2319,
+      "priced": 2319,
       "implausible": 0,
-      "coverage": 0.9919,
+      "coverage": 0.9923,
       "from_cache": false,
       "delisted_by_rating": {
         "LEAN BUY": {
@@ -859,7 +859,7 @@
       },
       "gone_before_snapshot": 12,
       "unpriced_by_rating": {
-        "HOLD": 6,
+        "HOLD": 5,
         "PASS": 1
       }
     }
@@ -902,11 +902,11 @@
   "composite_ic": {
     "30": {
       "n_snapshots": 34,
-      "mean_ic": 0.0316727371384402,
+      "mean_ic": 0.031735332720425224,
       "median_ic": 0.025182408715327453,
       "frac_positive": 0.7058823529411765,
       "effective_n": 2,
-      "t_stat_effective": 0.8548631103038866,
+      "t_stat_effective": 0.856632702103323,
       "first": "2026-07-06",
       "last": "2026-08-26"
     }
@@ -926,16 +926,16 @@
         "hit_rate": 0.4270089088824204
       },
       "HOLD": {
-        "n": 28083,
-        "mean_excess": -0.003686574467901789,
-        "median_excess": -0.013651174923040174,
-        "hit_rate": 0.4199693764911156
+        "n": 28090,
+        "mean_excess": -0.0036895350585348903,
+        "median_excess": -0.013650633955357042,
+        "hit_rate": 0.4199003203987184
       },
       "PASS": {
-        "n": 37272,
-        "mean_excess": -0.015234850495469663,
-        "median_excess": -0.024496305705765366,
-        "hit_rate": 0.3827538098304357
+        "n": 37275,
+        "mean_excess": -0.015235532529844931,
+        "median_excess": -0.02449467309975736,
+        "hit_rate": 0.38272300469483567
       }
     }
   }
