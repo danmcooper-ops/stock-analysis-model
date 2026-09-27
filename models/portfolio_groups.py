@@ -518,6 +518,13 @@ def portfolio_stats(members, by_tk, prev_by_tk=None):
     spread, sector weights with the top sector's share and HHI (via
     ``models.portfolio.concentration_analysis``), and how many members were
     upgraded / downgraded vs *prev_by_tk*.
+
+    Sector weights, HHI and ``concentrated`` are over the members that have a
+    sector; ``no_sector`` counts the rest. A missing sector is a data gap, not
+    a sector: counted as "Unknown" it was the top sector (67%, concentrated)
+    of a 3-stock portfolio on 2026-09-25, when 61% of the universe had no
+    sector. Same rule as the report's Portfolios view (``_pfRowStats``),
+    including that one sectored member is never "concentrated".
     """
     from models.portfolio import concentration_analysis
     rows = [by_tk[t] for t in members if t in by_tk]
@@ -525,8 +532,8 @@ def portfolio_stats(members, by_tk, prev_by_tk=None):
     for r in rows:
         if r.get('rating') in mix:
             mix[r['rating']] += 1
-    conc = concentration_analysis([{'ticker': r['ticker'], 'sector': r.get('sector')}
-                                   for r in rows])
+    sectored = [{'ticker': r['ticker'], 'sector': r['sector']} for r in rows if r.get('sector')]
+    conc = concentration_analysis(sectored)
     up = down = 0
     for r in rows:
         prev = (prev_by_tk or {}).get(r['ticker']) or {}
@@ -548,7 +555,8 @@ def portfolio_stats(members, by_tk, prev_by_tk=None):
         'top_sector': conc['top_sector'],
         'top_sector_weight': conc['top_sector_weight'],
         'hhi': conc['hhi'],
-        'concentrated': conc['concentration_flag'],
+        'concentrated': bool(conc['concentration_flag']) and len(sectored) > 1,
+        'no_sector': len(rows) - len(sectored),
         'upgrades': up,
         'downgrades': down,
     }
