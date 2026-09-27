@@ -1309,6 +1309,7 @@ td.ct{font-weight:700;}
 .pp-macro-p.up{border-left-color:#1a7a45;}
 .pp-macro-p.down{border-left-color:#c0392b;}
 .pp-macro-p b{font-weight:700;color:#1a252f;}
+.pp-macro-inf{margin:10px 0 0;font-size:0.82em;line-height:1.6;color:#37474f;}
 .pp-macro-figs{display:block;font-size:0.78em;color:#7c8a9a;font-variant-numeric:tabular-nums;margin-top:3px;}
 .pp-macro-grid{margin-top:12px;}
 .pp-macro-ul{margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f;}
@@ -1316,6 +1317,7 @@ td.ct{font-weight:700;}
 .pp-macro-none{margin:0;color:#94a3b8;font-size:0.82em;font-style:italic;}
 .pp-macro-foot{margin:8px 0 0;font-size:0.72em;color:#94a3b8;}
 [data-theme="dark"] .pp-macro-ul{color:#c9d1d9;}
+[data-theme="dark"] .pp-macro-inf{color:#c9d1d9;}
 /* Dark mode carries the stance on the border and the dot, not the text:
    `[data-theme="dark"] body *{color:#fff!important}` below paints every
    word in the report white, and the adjacent Headwinds & Tailwinds headers
@@ -9927,12 +9929,16 @@ function renderPoolMacroOutlook(sec){
      interpolation of a model string is this one. */
   var ol=_linkifyTickers(_esc(row.outlook||''));
   var hl=_linkifyTickers(_esc(row.headline||''));
+  /* The long-form read the Overview prints under Key sector influences
+     (schema v3+), repeated here under the outlook. Absent from older
+     caches, where the section renders exactly as before. */
+  var inf=_linkifyTickers(_esc(row.influence||''));
   var tw=(row.tailwinds||[]).filter(Boolean),hw=(row.headwinds||[]).filter(Boolean);
   /* Both shapes render. A narrative cached before the bullets existed —
      or replayed from a days-old output/macro.json by the re-render path —
      carries an outlook and no bullets; a future one could carry bullets
      and no outlook. Either alone is enough to draw the section. */
-  if(!ol&&!hl&&!tw.length&&!hw.length)return '';
+  if(!ol&&!hl&&!inf&&!tw.length&&!hw.length)return '';
   var STANCE={tailwind:'up',headwind:'down'};
   var LABEL={tailwind:'▲ Macro tailwind',headwind:'▼ Macro headwind'};
   var cls=STANCE[row.stance]||'';
@@ -9943,6 +9949,7 @@ function renderPoolMacroOutlook(sec){
     out+='<p class="pp-macro-p '+cls+'">'+(hl?'<b>'+hl+'.</b> ':'')
       +ol+_macSecFigs(sd[sec])+'</p>';
   }
+  if(inf)out+='<p class="pp-macro-inf">'+inf+'</p>';
   if(tw.length||hw.length){
     /* Two columns reusing .pp-signals-grid from the Sector Headwinds &
        Tailwinds block below, so the pair reads as cyclical-then-structural
