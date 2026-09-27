@@ -42,6 +42,8 @@ scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    enrichment/maintenance scripts
 tests/           - pytest suite (~1,300 tests) incl. hypothesis property tests
 templates/       - jinja2 report templates
+cloudflare/      - Worker + setup runbook for the login-protected report
+                   (Cloudflare Access in front of an R2 bucket)
 supabase/        - Supabase project (config.toml, migrations/) for the planned
                    primary database; see design/supabase-migration.md
 design/          - design docs and spikes (Supabase migration plan, P0 findings)
@@ -316,6 +318,15 @@ by analyze_stock and gitignored):
   shape is versioned (`SCHEMA_VERSION` in `data/claude_narrative.py`): the
   day cache is keyed by date alone and a hit skips every post-parse check,
   so a shape change must bump it or the cache replays the old shape.
+- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (+ optional
+  `R2_BUCKET`), `REPORT_URL`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`
+  — the report is served behind a login: a Cloudflare Worker
+  (`cloudflare/worker/`) serves an R2 bucket with Cloudflare Access in front
+  (allowlisted emails, one-time-code login), and the Worker re-verifies the
+  Access JWT so it fails closed. Nightly step 08 syncs the site with
+  `scripts/publish_report.py` and checks it via the Access service token.
+  With `R2_*` unset, step 08 falls back to the legacy public `pages-live`
+  GitHub Pages branch. Setup and retirement runbook: `cloudflare/README.md`.
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — optional; `scripts/db_publish.py`
   (nightly step 06a, non-blocking) publishes the run to the Supabase database
   over the Data API (design/supabase-migration.md). Unset: skipped.

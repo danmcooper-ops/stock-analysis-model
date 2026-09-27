@@ -21,7 +21,8 @@ and both force-push `pages-live`.
   Make reasonable choices for anything ambiguous and note them in the summary.
 - The only outward actions permitted are the ones `run.sh` performs: a commit
   on `data/snapshots` (today's `results_<date>.json.gz` plus
-  `rating_history.json`) and a force-push of the single-commit `pages-live`
+  `rating_history.json`), and the report publish: an upload to the R2 bucket
+  or, until R2 is configured, a force-push of the single-commit `pages-live`
   branch. Never push to `main` or any other branch, never open a PR, never
   edit scoring/config files.
 
@@ -40,7 +41,7 @@ and both force-push `pages-live`.
 | 05f-rerender | | yes | `rescore_and_render.py` so the HTML carries every enrichment |
 | 06-archive | | **yes** | `archive_snapshot.py` (gzip + SHA-256 round-trip + 80 MiB guard), commit `Snapshot: <date>` (with `rating_history.json` and, unless `SMOKE=1` or the file is under 10 KB, `screen_skip.json`) on top of the remote tip, push with retries. rc 2 = over the hard guard, not pushed |
 | 07a–07c reports | | no | portfolio concentration/drawdown, gate N/A coverage + deltas, trailing-momentum sanity check — **their logs are the body of your summary** |
-| 08-publish | | no* | rebuilds `pages-live` (index.html, prices_meta/hist/details/macro sidecars, `px/` and `vol/` shards by manifest) as one fresh commit, force-pushes it, then polls the live URL for today's date. *A publish failure does not fail the analysis (the snapshot is safe); report it and note that re-running only step 8 is possible by hand |
+| 08-publish | | no* | stages the site (index.html, prices_meta/hist/details/macro sidecars, `px/` and `vol/` shards by manifest), then with `R2_*` set syncs it to the R2 bucket behind the Cloudflare Access login (`scripts/publish_report.py`, `cloudflare/README.md`) and checks the live URL with the Access service token; with `R2_*` unset it falls back to rebuilding and force-pushing the legacy public `pages-live` branch. *A publish failure does not fail the analysis (the snapshot is safe); report it and note that re-running only step 8 is possible by hand |
 
 Everything lands under `$REPO/.cloud-run/`: `status.txt` (one `step rc=N seconds=S`
 line per step, then `RUNDATE`, `SOFT_FAILURES`, `RESULT ...`) and `logs/<step>.log`.

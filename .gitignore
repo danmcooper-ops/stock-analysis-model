@@ -55,3 +55,8 @@ test_tickers.xlsx
 .cloud-run/
 .cloud-run.log
 .cloud-run-*.log
+
+# Cloudflare Worker local state (cloudflare/worker)
+node_modules/
+.wrangler/
+.dev.vars

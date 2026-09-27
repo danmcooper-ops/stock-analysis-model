@@ -1,0 +1,21 @@
+# The stock report's Worker: serves the R2 bucket that scripts/publish_report.py
+# fills, behind Cloudflare Access. Setup runbook: ../README.md.
+name = "stock-report"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# Served at https://stock-report.<your-subdomain>.workers.dev. Preview URLs
+# are a second hostname Access would not cover unless configured, so they
+# are off.
+workers_dev = true
+preview_urls = false
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "stock-report"
+
+[vars]
+# Both come from Zero Trust after the Access application exists (README step 4).
+# Until they are set the Worker answers every request with 500 — fail closed.
+ACCESS_TEAM_DOMAIN = ""   # e.g. "yourteam.cloudflareaccess.com"
+ACCESS_AUD = ""           # the Access application's "Application Audience (AUD) Tag"

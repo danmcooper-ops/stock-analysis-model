@@ -5,8 +5,8 @@
 # Code cloud Routine fires a fresh session each weekday, that session runs this
 # script, and the only state that survives between runs is what lives on
 # GitHub — the `data/snapshots` archive (every day's results gzipped, plus the
-# rating-history and Phase-1 screen-skip caches) and the single-commit
-# `pages-live` branch the report is served from.
+# rating-history and Phase-1 screen-skip caches) and the published report
+# (the R2 bucket behind the Cloudflare Access login; see step 08).
 #
 # It is the cloud counterpart of ../daily-stock-analysis/SKILL.md (the Mac
 # runbook, which assumed a persistent checkout, a venv, a price cache and
@@ -18,8 +18,10 @@
 #     checkout; only the newest SNAPSHOT_HISTORY files are materialised, and
 #     the new day's archive is committed on top of the remote tip with the
 #     rest of the tree untouched.
-#   * `pages-live` is rebuilt as a fresh single commit from today's artifacts
-#     and force-pushed — the branch's history is intentionally one commit.
+#   * The report is staged into a docs/ directory and synced to the R2 bucket
+#     the Cloudflare Worker serves behind an Access login. Until R2 is
+#     configured, the legacy public `pages-live` branch is rebuilt as a fresh
+#     single commit and force-pushed instead.
 #
 # Every step logs to $WORK/logs/<step>.log and records `step rc seconds` in
 # $WORK/status.txt; the agent running the routine reads those to write the
@@ -53,7 +55,14 @@
 #                        publish the run to the Supabase database over HTTPS
 #                        (step 06a, design/supabase-migration.md). Unset: the
 #                        step is skipped. Non-blocking until the P6 cutover
-#   DRY_RUN=1            do everything except push
+#   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
+#                        publish the report to the R2 bucket behind the
+#                        Cloudflare Access login (step 08, cloudflare/README.md).
+#                        Unset: step 08 falls back to the public pages-live
+#   REPORT_URL, CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET
+#                        the protected site and the Access service token step
+#                        08 uses to check it serves today's report
+#   DRY_RUN=1            do everything except push (R2: plan the sync only)
 #   SMOKE=1              tiny universe (SMOKE_TICKERS), for testing this script
 set -uo pipefail
 
@@ -66,7 +75,7 @@ CLONE_REMOTE="${CLONE_REMOTE:-$GITHUB_URL}"
 PUSH_REMOTE="${PUSH_REMOTE:-$GITHUB_URL}"
 SNAP_BRANCH="${SNAP_BRANCH:-data/snapshots}"
 PAGES_BRANCH="${PAGES_BRANCH:-pages-live}"
-PAGES_URL="${PAGES_URL:-https://danmcooper-ops.github.io/stock-analysis-model/}"
+PAGES_URL="${PAGES_URL:-https://danmcooper-ops.github.io/stock-analysis-model/}"   # legacy public site
 SNAPSHOT_HISTORY="${SNAPSHOT_HISTORY:-10}"
 SMOKE="${SMOKE:-0}"
 SMOKE_TICKERS="${SMOKE_TICKERS:-AAPL MSFT JPM XOM PLD AMGN CAT PG}"
@@ -436,11 +445,16 @@ run_step 07c-validate-ratings 0 "$PYTHON" scripts/validate_ratings.py --snapshot
 run_step 07d-store-check      0 "$PYTHON" scripts/check_snapshot_store.py --results-dir output --date "$RUNDATE"
 
 # ---------------------------------------------------------------------------
-# 8. Publish: rebuild pages-live as one fresh commit and force-push it
+# 8. Publish: stage the site, then sync it to R2 (behind Cloudflare Access)
 # ---------------------------------------------------------------------------
+# With R2 credentials set, the staged docs/ is synced to the bucket the
+# login-protected Worker serves (scripts/publish_report.py, cloudflare/).
+# Without them it falls back to the legacy public GitHub Pages branch, so the
+# nightly run keeps publishing until the Cloudflare setup is finished; that
+# fallback is removed when pages-live is retired (cloudflare/README.md).
 PAGES="$WORK/pages"
-publish_pages() {
-  rm -rf "$PAGES"; mkdir -p "$PAGES/docs" "$PAGES/.github/workflows"
+stage_site() {
+  rm -rf "$PAGES"; mkdir -p "$PAGES/docs"
   cp "$HTML" "$PAGES/docs/index.html" || return 1
   for f in prices_meta.json hist.json details.json; do
     cp "$REPO/output/$f" "$PAGES/docs/$f" || { echo "missing sidecar $f"; return 1; }
@@ -448,6 +462,15 @@ publish_pages() {
   if [ -s "$REPO/output/macro.json" ]; then cp "$REPO/output/macro.json" "$PAGES/docs/macro.json"
   else echo "no macro.json this run — the Macro Outlook tab is absent, by design"; fi
   STOCK_MODEL_REPO="$REPO" PAGES_DOCS="$PAGES/docs" "$PYTHON" scripts/publish_vol_shards.py || return 1
+}
+publish_r2() {
+  local dry=()
+  [ "$DRY_RUN" = 1 ] && dry=(--dry-run)
+  "$PYTHON" scripts/publish_report.py "$PAGES/docs" --rundate "$RUNDATE" "${dry[@]}"
+}
+publish_pages_legacy() {
+  echo "R2 not configured — publishing to the legacy public GitHub Pages branch"
+  mkdir -p "$PAGES/.github/workflows"
   # The deploy workflow must live on the branch itself for the push trigger.
   cp "$REPO/.github/workflows/deploy-pages.yml" "$PAGES/.github/workflows/deploy-pages.yml" || return 1
   printf 'docs/vol/* *.json\ndocs/px/* *.json\n' > "$PAGES/.gitignore"
@@ -468,6 +491,14 @@ publish_pages() {
   done
   echo "WARNING: $PAGES_URL did not show $RUNDATE within 10 minutes — check the deploy-pages workflow"
   return 1
+}
+publish_pages() {
+  stage_site || return 1
+  if [ -n "${R2_ACCOUNT_ID:-}" ] && [ -n "${R2_ACCESS_KEY_ID:-}" ] && [ -n "${R2_SECRET_ACCESS_KEY:-}" ]; then
+    publish_r2
+  else
+    publish_pages_legacy
+  fi
 }
 run_step 08-publish 0 publish_pages
 PUBLISH_RC=$?
