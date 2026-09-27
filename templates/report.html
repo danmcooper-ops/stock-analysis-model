@@ -9613,7 +9613,11 @@ function qrKey(e){
     if(i>=0){items[i].classList.remove('hi');items[i].setAttribute('aria-selected','false');}
     i=((i<0?0:i)+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;
     items[i].classList.add('hi');items[i].setAttribute('aria-selected','true');
-  }else if(e.key==='Enter'){e.preventDefault();_qrOpen(items[Math.max(0,i)].getAttribute('data-qr'));}
+  }else if(e.key==='Enter'){
+    /* stopPropagation: the popup's own Enter (mark reviewed, next ticker)
+       must not see the keystroke that just opened it. */
+    e.preventDefault();e.stopPropagation();_qrOpen(items[Math.max(0,i)].getAttribute('data-qr'));
+  }
 }
 document.addEventListener('click',function(e){
   var b=e.target.closest?e.target.closest('#hdr-qr [data-qr]'):null;
