@@ -69,11 +69,16 @@ def test_digit_keys_index_the_live_nav_group_list():
 def test_filter_hotkeys_inert_where_the_filter_bar_is_hidden():
     """Sector Analysis and Macro Outlook get .nav-only, which hides the
     Filters button; opening its panel there would anchor to an invisible
-    element and put the caret out of sight."""
+    element and put the caret out of sight. '/' is NOT gated: the search
+    sits in the top bar on every view (views without a table list quick
+    results instead of filtering)."""
     src = _tpl()
     assert "classList.contains('nav-only')" in src.split('function _hkFiltersUsable(){')[1]
-    dispatch = src.split('function _hkDispatch(e){')[1]
-    assert dispatch.count('_hkFiltersUsable()') == 2
+    dispatch = src.split('function _hkDispatch(e){')[1].split('\n}\n')[0]
+    assert dispatch.count('_hkFiltersUsable()') == 1
+    slash = dispatch.split("k==='/'")[1].split("k==='f'")[0]
+    assert '_hkFiltersUsable' not in slash
+    assert "getElementById('f-search')" in slash
 
 
 def test_overlay_ships_in_the_rendered_report(tmp_path):

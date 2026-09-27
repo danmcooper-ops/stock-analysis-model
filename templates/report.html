@@ -24,7 +24,21 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Stock Analysis — Interactive Report</title>
-<script>(function(){try{var t=localStorage.getItem('stock_theme_v1');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+<!-- Toolbar tint for Safari / iOS. setTheme() keeps it in step with the
+     resolved theme; the phone top bar is dark in both themes. -->
+<meta name="theme-color" id="meta-theme-color" content="#0b0b0b">
+<!-- Appearance, resolved BEFORE first paint so a dark page never flashes
+     light. stock_theme_v1 holds the viewer's choice: 'light' | 'dark' |
+     'auto'; missing means auto (follow the device). data-theme="dark" is
+     still the ONLY thing the CSS and JS read — Auto just decides it here
+     from prefers-color-scheme. data-theme-pref carries the choice for the
+     appearance controls. -->
+<script>(function(){var p='auto';try{var s=localStorage.getItem('stock_theme_v1');if(s==='light'||s==='dark'||s==='auto')p=s;}catch(e){}var d=p==='dark'||(p==='auto'&&!!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches));var r=document.documentElement;r.setAttribute('data-theme-pref',p);if(d)r.setAttribute('data-theme','dark');})();</script>
+<!-- Sidebar state before first paint too, so the page does not jump from the
+     240px sidebar to the rail on load. stock_sidebar_v1 = 'rail' | 'open'
+     (desktop only); 769-1023px is always the rail (its full sidebar opens
+     as an overlay instead). -->
+<script>(function(){var w=window.innerWidth||1280,s='';try{s=localStorage.getItem('stock_sidebar_v1')||'';}catch(e){}if((w>=1024&&s==='rail')||(w>768&&w<1024))document.documentElement.classList.add('sb-rail');})();</script>
 <style>
 :root {
   --cat-val-dark:#2F5496;--cat-val-light:#D6E4F0;
@@ -1534,18 +1548,6 @@ td.ct{font-weight:700;}
 .gate-pass-rate{font-size:1.35em;font-weight:700;}
 .gate-pass-label{font-size:0.73em;color:var(--text-muted);margin-top:2px;}
 #m-gate-view .table-wrap{border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.07);overflow:auto;-webkit-overflow-scrolling:touch;}
-/* === THEME TOGGLE === */
-/* Sits at the far right of the header flex row, after the view tabs — it was
-   absolutely positioned into the left gutter when the title was centred. */
-.theme-toggle{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:20px;width:48px;height:24px;cursor:pointer;padding:2px;transition:background 0.2s;display:flex;align-items:center;flex-shrink:0;}
-.theme-toggle:hover{background:rgba(255,255,255,0.28);}
-.theme-toggle .tt-knob{width:18px;height:18px;border-radius:50%;background:#ffd76b;color:#5a3b00;display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1;transition:transform 0.2s,background 0.2s,color 0.2s;}
-[data-theme="dark"] .theme-toggle .tt-knob{transform:translateX(22px);background:#1f2937;color:#e6edf3;}
-@media(max-width:768px){
-  .theme-toggle{position:static;transform:none;width:38px;height:20px;flex-shrink:0;order:0;}
-  .theme-toggle .tt-knob{width:14px;height:14px;font-size:9px;}
-  [data-theme="dark"] .theme-toggle .tt-knob{transform:translateX(18px);}
-}
 /* === DARK MODE === */
 [data-theme="dark"]{
   --cat-val-light:#1a3358;--cat-qual-light:#2a4a2c;--cat-moat-light:#5a3015;
@@ -2069,10 +2071,313 @@ body.wide-table .container{padding-left:0;padding-right:0;}
      of section cards on screen beneath it. */
   #macro-view>.mac-card{max-width:560px;}
 }
+/* === SA CHROME: sidebar · top bar · view chips · tab bar ===============
+   Seeking Alpha-style navigation. One DOM serves every layout:
+     - desktop >=1024px: fixed 240px black sidebar (html.sb-rail = 72px rail)
+     - 769-1023px (iPad portrait): rail by default; opening it lays the full
+       sidebar OVER the content (html.sb-over) so tables never reflow
+     - phones <=768px: off-canvas drawer (html.sb-drawer) + bottom tab bar
+     - phone landscape: rail, no tab bar (vertical space is scarce)
+   --sb-cur is the width the page must clear; body padding, the sticky
+   header/subnav and the frozen table columns all offset by it.
+
+   Colour: every chrome element sets --sac (its text colour) instead of
+   `color`, and ONE rule below turns --sac into color:!important. That is
+   what lets the chrome keep its orange/green/red through the blanket
+   `[data-theme="dark"] body *{color:#fff !important}` rule without a dark
+   twin for each selector: custom properties inherit, so a child without
+   its own --sac takes its parent's, exactly like inherited color would.
+   Tokens are declared on bare :root and only redefined for dark. */
+:root{
+  color-scheme:light;
+  --sb-w:240px;--sb-w-rail:72px;--sb-cur:var(--sb-w);--tabbar-h:0px;
+  --sb-bg:#0b0b0b;--sb-text:#f5f5f4;--sb-muted:#a9a8a5;--sb-kbd:#8a8a88;--sb-div:#2b2b2b;
+  --sb-hover:#1c1c1c;--sb-active-bg:#171717;--sb-btn:#3a3a3a;--sb-edge:transparent;
+  --chrome-accent:#f47b20;--chrome-pos:#137333;--chrome-neg:#b3261e;
+  --chrome-pill-pos:#137333;--chrome-pill-neg:#b3261e;
+  --chip-on-bg:#3b3a38;--chip-on-fg:#fff;--chip-bg:#fff;--chip-fg:#1b1a19;--chip-border:#e4e2de;
+  --search-bg:#fff;--search-border:#dcdad6;--search-fg:#1b1a19;--search-muted:#6b6965;
+  --topbar-bg:var(--bg);--topbar-fg:#1b1a19;--topbar-muted:#5f5d59;
+  --topbtn-bg:#fff;--topbtn-border:#1b1a19;--topbtn-soft:#dcdad6;
+  --menu-bg:#fff;--menu-border:#dcdad6;--menu-hover:#f2f1ef;--menu-shadow:0 10px 30px rgba(0,0,0,0.18);
+  --link:#1d4ed8;
+  --rt-buy-bg:#137333;--rt-buy-fg:#fff;--rt-lean-bg:#e3f1e6;--rt-lean-fg:#0d5a26;
+  --rt-hold-bg:#ecebe8;--rt-hold-fg:#46443f;--rt-sell-bg:#fbe4e2;--rt-sell-fg:#9c1f18;
+  --tabbar-bg:#f7f7f6;--tabbar-fg:#5f5d59;--tabbar-border:#e0ded9;
+  --chrome-heading:#1b1a19;--chrome-muted:#5f5d59;
+}
+[data-theme="dark"]{
+  color-scheme:dark;
+  --sb-edge:#21262d;
+  --chrome-accent:#ff8a3d;--chrome-pos:#3fb950;--chrome-neg:#f85149;
+  --chrome-pill-pos:#238636;--chrome-pill-neg:#da3633;
+  --chip-on-bg:#e6edf3;--chip-on-fg:#0d1117;--chip-bg:#161b22;--chip-fg:#e6edf3;--chip-border:#30363d;
+  --search-bg:#161b22;--search-border:#30363d;--search-fg:#e6edf3;--search-muted:#8b949e;
+  --topbar-fg:#e6edf3;--topbar-muted:#8b949e;
+  --topbtn-bg:#0e1117;--topbtn-border:#e6edf3;--topbtn-soft:#30363d;
+  --menu-bg:#161b22;--menu-border:#30363d;--menu-hover:#21262d;--menu-shadow:0 10px 30px rgba(0,0,0,0.5);
+  --link:#58a6ff;
+  --rt-buy-bg:#238636;--rt-buy-fg:#fff;--rt-lean-bg:#12361f;--rt-lean-fg:#56d364;
+  --rt-hold-bg:#262c36;--rt-hold-fg:#c9d1d9;--rt-sell-bg:#3d1418;--rt-sell-fg:#ff7b72;
+  --tabbar-bg:#0b0b0b;--tabbar-fg:#8b949e;--tabbar-border:#21262d;
+  --chrome-heading:#e6edf3;--chrome-muted:#8b949e;
+}
+html body .sa-chrome,html body .sa-chrome *{color:var(--sac) !important;}
+.sa-chrome svg{flex-shrink:0;}
+
+/* ---- page offset ---- */
+html.sb-rail{--sb-cur:var(--sb-w-rail);}
+body{padding-left:var(--sb-cur);padding-bottom:var(--tabbar-h);}
+/* The two page-panning tables pin their frozen columns to the viewport's
+   left edge — which is now under the sidebar. Shift every frozen offset by
+   --sb-cur (scoped to #dtbl/#mtx: the heatmap and pool tables scroll inside
+   their own wraps and must keep left:0). */
+#dtbl th:nth-child(1),#dtbl tbody td:nth-child(1){left:var(--sb-cur);}
+#dtbl th:nth-child(2),#dtbl tbody td:nth-child(2){left:calc(var(--sb-cur) + 40px);}
+#dtbl th:nth-child(3),#dtbl tbody td:nth-child(3){left:calc(var(--sb-cur) + 68px);}
+#dtbl th:nth-child(4),#dtbl td.tk2{left:calc(var(--sb-cur) + 100px);}
+#dtbl th:nth-child(5),#dtbl tbody td:nth-child(5){left:calc(var(--sb-cur) + 168px);}
+#dtbl th:nth-child(6),#dtbl tbody td:nth-child(6){left:calc(var(--sb-cur) + 240px);}
+#mtx thead tr:first-child th:nth-child(1),#mtx tbody td:nth-child(1){left:var(--sb-cur);}
+#mtx thead tr:first-child th:nth-child(2),#mtx tbody td:nth-child(2){left:calc(var(--sb-cur) + 40px);}
+#mtx thead tr:first-child th:nth-child(3),#mtx tbody td:nth-child(3){left:calc(var(--sb-cur) + 68px);}
+#mtx thead tr:first-child th:nth-child(4),#mtx td.tk{left:calc(var(--sb-cur) + 100px);}
+#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 160px);}
+#mtx thead tr:first-child th:nth-child(6),#mtx tbody td:nth-child(6){left:calc(var(--sb-cur) + 232px);}
+.header,.secondary-nav,#subnav{left:var(--sb-cur);width:calc(var(--vvw,100vw) - var(--sb-cur));}
+/* Touch devices freeze only the ticker, at the left edge (see the
+   (hover:none) block by the column widths) — which is now --sb-cur. */
+@media (hover:none) and (pointer:coarse){
+  #dtbl th:nth-child(4),#dtbl td.tk2,#mtx thead tr:first-child th:nth-child(4),#mtx td.tk{left:var(--sb-cur);}
+}
+
+/* ---- sidebar ---- */
+#sidebar{--sac:var(--sb-text);position:fixed;left:0;top:0;bottom:0;width:var(--sb-cur);z-index:950;
+  background:var(--sb-bg);border-right:1px solid var(--sb-edge);display:flex;flex-direction:column;
+  padding:calc(16px + env(safe-area-inset-top)) 0 calc(14px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+  box-sizing:border-box;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
+  font-size:15px;line-height:1.2;transition:width .18s ease,transform .22s ease;}
+#sidebar button{font:inherit;background:none;border:0;cursor:pointer;text-align:left;}
+.sb-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 14px 0 20px;min-height:40px;}
+.sb-brand{--sac:#fff;font-family:Georgia,'Times New Roman',serif;font-size:20px;letter-spacing:-.2px;white-space:nowrap;}
+.sb-brand sup{--sac:var(--chrome-accent);font-size:14px;margin-left:1px;}
+.sb-sq,#sidebar .sb-sq{--sac:#fff;width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:var(--sb-btn);border-radius:2px;flex-shrink:0;}
+.sb-sq svg{width:18px;height:18px;}
+#sidebar .sb-sq:hover{background:#4a4a4a;}
+#sidebar .sb-close{display:none;}
+.sb-div{height:1px;background:var(--sb-div);margin:12px 20px;flex-shrink:0;}
+.sb-row{display:flex;align-items:center;gap:14px;width:100%;min-height:44px;padding:0 16px 0 22px;box-sizing:border-box;position:relative;white-space:nowrap;}
+#sidebar .sb-row:hover{background:var(--sb-hover);}
+.sb-row .sb-ic{width:20px;height:20px;}
+.sb-lbl{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+.sb-row.cur{--sac:var(--chrome-accent);background:var(--sb-active-bg);box-shadow:inset 3px 0 0 var(--chrome-accent);}
+#sidebar .sb-row.cur:hover{background:var(--sb-active-bg);}
+#sidebar .navmenu-key{--sac:var(--sb-kbd);font:inherit;font-size:12px;background:none;border:0;padding:0;min-width:0;box-shadow:none;}
+.sb-badge{--sac:var(--chrome-accent);font-size:11px;font-weight:700;letter-spacing:.5px;border:1.5px solid var(--chrome-accent);border-radius:10px;padding:1px 7px;flex-shrink:0;}
+.sb-dot{display:none;}
+.sb-head{--sac:var(--sb-muted);width:100%;box-sizing:border-box;display:flex;align-items:center;gap:12px;padding:0 16px 0 22px;min-height:30px;font-size:13px;letter-spacing:.8px;text-transform:uppercase;}
+.sb-head svg{width:18px;height:18px;}
+.sb-pf{min-height:40px;gap:10px;font-size:15px;}
+.sb-pfdot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.sb-pill{--sac:#fff;font-size:12.5px;font-weight:600;padding:3px 6px;border-radius:2px;min-width:50px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums;}
+.sb-pill.pos{background:var(--chrome-pill-pos);}
+.sb-pill.neg{background:var(--chrome-pill-neg);}
+.sb-more{--sac:#c9c8c5;font-size:13px;letter-spacing:.5px;text-decoration:underline;padding:6px 22px 0;text-transform:uppercase;align-self:flex-start;}
+.sb-appear{display:flex;flex-direction:column;gap:8px;padding:6px 16px 0 22px;}
+.sb-seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;padding:3px;background:#1c1c1c;border:1px solid var(--sb-div);border-radius:8px;}
+#sidebar .sb-seg button{--sac:var(--sb-text);text-align:center;height:30px;border-radius:6px;font-size:13.5px;}
+#sidebar .sb-seg button[aria-checked="true"]{--sac:var(--chrome-accent);background:var(--sb-btn);font-weight:700;}
+#sidebar .sb-seg button:focus-visible,#sidebar .sb-row:focus-visible,#sidebar .sb-sq:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
+.sb-now{--sac:var(--sb-kbd);font-size:12px;}
+.sb-now:empty{display:none;}
+.sb-appear-ic{display:none;}
+.sb-appear-ic svg{width:22px;height:22px;flex-shrink:0;}
+.sb-foot{--sac:var(--sb-kbd);font-size:12px;line-height:1.5;padding:12px 22px 0;margin-top:auto;}
+/* Rail: icons only. Labels move to the title tooltip (set in JS). */
+html.sb-rail #sidebar .sb-lbl,html.sb-rail #sidebar .navmenu-key,html.sb-rail #sidebar .sb-brand,
+html.sb-rail #sidebar .sb-pf,html.sb-rail #sidebar .sb-more,html.sb-rail #sidebar .sb-foot,
+html.sb-rail #sidebar .sb-head span,html.sb-rail #sidebar .sb-appear,html.sb-rail #sidebar .sb-badge{display:none;}
+html.sb-rail .sb-top{justify-content:center;padding:0;}
+html.sb-rail .sb-row,html.sb-rail .sb-head{justify-content:center;padding:0;gap:0;}
+html.sb-rail .sb-head{min-height:44px;cursor:pointer;}
+html.sb-rail .sb-row{min-height:52px;}
+html.sb-rail .sb-row .sb-ic{width:22px;height:22px;}
+html.sb-rail .sb-div{margin:12px 16px;}
+html.sb-rail .sb-dot{display:block;position:absolute;top:11px;right:20px;width:9px;height:9px;border-radius:50%;background:var(--chrome-accent);border:2px solid var(--sb-bg);}
+html.sb-rail .sb-appear-ic{display:flex;}
+html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
+/* The rail's portfolio heading doubles as the way into All Portfolios. */
+.sb-scrim{display:none;}
+
+/* ---- top bar (the existing .header, restyled) ---- */
+.header{background:var(--topbar-bg);color:var(--topbar-fg);min-height:88px;padding:14px 32px;gap:14px;
+  border-bottom:4px solid var(--chrome-accent);flex-wrap:nowrap;}
+[data-theme="dark"] .header{background:var(--topbar-bg) !important;}
+.header .hdr-title{display:none;}
+.hdr-menu{display:none;}
+.hdr-search{--sac:var(--search-muted);position:relative;flex:0 1 560px;min-width:0;height:52px;display:flex;align-items:center;gap:10px;
+  padding:0 8px 0 16px;background:var(--search-bg);border:1px solid var(--search-border);border-radius:10px;box-sizing:border-box;}
+.hdr-search:focus-within{border-color:var(--chrome-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--chrome-accent) 22%,transparent);}
+.hdr-search>svg{width:20px;height:20px;}
+.hdr-search .search-wrap{flex:1 1 auto;min-width:0;display:flex;align-items:center;}
+.header .hdr-search #f-search{--sac:var(--search-fg);width:100%;border:0;outline:none;background:transparent;font:inherit;font-size:16px;padding:0 26px 0 0;box-shadow:none;height:40px;}
+.header .hdr-search #f-search::placeholder{color:var(--search-muted) !important;opacity:1;}
+.hdr-kbd{--sac:var(--search-muted);font:inherit;font-size:12px;border:1px solid var(--search-border);border-radius:4px;padding:1px 6px;flex-shrink:0;}
+.hdr-search:focus-within .hdr-kbd{display:none;}
+.hdr-search .f-suggest{position:absolute;left:0;top:calc(100% + 6px);z-index:30;background:var(--menu-bg);border:1px solid var(--menu-border);border-radius:8px;box-shadow:var(--menu-shadow);padding:8px 12px;white-space:nowrap;}
+/* Quick results: views with no table to filter (Sector Analysis, Macro,
+   Portfolios) still search — the matches open the ticker page directly. */
+.hdr-qr{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:31;background:var(--menu-bg);border:1px solid var(--menu-border);border-radius:10px;box-shadow:var(--menu-shadow);padding:6px;display:none;}
+.hdr-qr.open{display:block;}
+.hdr-qr button{--sac:var(--chrome-heading);display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;background:none;border-radius:6px;cursor:pointer;font:inherit;font-size:14px;text-align:left;}
+.hdr-qr button:hover,.hdr-qr button.hi{background:var(--menu-hover);}
+.hdr-qr .qr-tk{--sac:var(--link);font-weight:700;min-width:56px;}
+.hdr-qr .qr-nm{--sac:var(--chrome-muted);flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hdr-qr .qr-empty{--sac:var(--chrome-muted);padding:8px 10px;font-size:13px;}
+.header .hdr-center{order:0;}
+.header .filter-count{color:var(--topbar-muted) !important;font-size:14px;}
+.header #filter-bar .fpop-btn{background:var(--topbtn-bg);border:1.5px solid var(--topbtn-border);color:var(--topbar-fg);height:46px;padding:0 18px;border-radius:6px;font-size:15px;letter-spacing:.4px;text-transform:uppercase;display:flex;align-items:center;gap:8px;}
+.header #filter-bar .fpop-btn:hover{background:var(--menu-hover);border-color:var(--topbtn-border);}
+.header #filter-bar .fpop-btn.active,.header #filter-bar .fpop-btn.active:hover{background:var(--chip-on-bg);border-color:var(--chip-on-bg);color:var(--chip-on-fg);}
+[data-theme="dark"] .header #filter-bar .fpop-btn,[data-theme="dark"] .header #filter-bar .fpop-btn *{color:var(--topbar-fg) !important;}
+[data-theme="dark"] .header #filter-bar .fpop-btn.active,[data-theme="dark"] .header #filter-bar .fpop-btn.active *{color:var(--chip-on-fg) !important;}
+[data-theme="dark"] .header #filter-bar .fpop-btn{background:var(--topbtn-bg);border-color:var(--topbtn-border);}
+[data-theme="dark"] .header #filter-bar .fpop-btn.active{background:var(--chip-on-bg);border-color:var(--chip-on-bg);}
+.header #filter-bar .fpop-btn svg{width:18px;height:18px;}
+.header .filt-btn-label{display:inline;}
+.hdr-ic{--sac:var(--topbar-fg);width:46px;height:46px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  background:var(--topbtn-bg);border:1px solid var(--topbtn-soft);border-radius:8px;cursor:pointer;padding:0;}
+.hdr-ic svg{width:20px;height:20px;}
+.hdr-ic:hover{background:var(--menu-hover);}
+/* Appearance menu — one floating menu shared by the top-bar and rail icons. */
+#theme-menu{--sac:var(--chrome-heading);position:fixed;z-index:1600;width:210px;background:var(--menu-bg);border:1px solid var(--menu-border);
+  border-radius:10px;box-shadow:var(--menu-shadow);padding:6px;display:none;flex-direction:column;}
+#theme-menu.open{display:flex;}
+#theme-menu button{display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border:0;background:none;border-radius:6px;font:inherit;font-size:15px;cursor:pointer;text-align:left;}
+#theme-menu button:hover{background:var(--menu-hover);}
+#theme-menu button[aria-checked="true"]{--sac:var(--chrome-accent);font-weight:600;background:var(--menu-hover);}
+#theme-menu svg{width:18px;height:18px;}
+#theme-menu button:focus-visible,.hdr-qr button:focus-visible,.hdr-ic:focus-visible,.hdr-menu:focus-visible,#tabbar button:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
+#theme-menu .tm-sub{--sac:var(--chrome-muted);margin-left:auto;font-size:12px;font-weight:400;}
+#theme-menu .tm-now{--sac:var(--chrome-muted);font-size:12px;padding:6px 12px 4px;border-top:1px solid var(--menu-border);margin-top:4px;}
+#theme-menu .tm-now:empty{display:none;}
+
+/* ---- view heading + sub-tab chips ---- */
+#subnav{--sac:var(--chrome-heading);position:sticky;box-sizing:border-box;max-width:100%;padding:20px 0 14px;display:flex;flex-direction:column;gap:14px;}
+body.wide-table #subnav{padding-left:20px;padding-right:20px;}
+.sn-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;}
+.sn-title{font-size:34px;font-weight:800;letter-spacing:-.5px;text-transform:uppercase;line-height:1.05;margin:0;}
+.sn-crumb{--sac:var(--chrome-muted);font-size:15px;}
+.sn-date{--sac:var(--chrome-muted);font-size:14px;margin-left:auto;white-space:nowrap;}
+.sn-chips{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:1px 0;}
+.sn-chips::-webkit-scrollbar{display:none;}
+.sn-chip{--sac:var(--chip-fg);flex-shrink:0;height:38px;padding:0 16px;border-radius:19px;border:1px solid var(--chip-border);background:var(--chip-bg);font:inherit;font-size:15px;white-space:nowrap;cursor:pointer;}
+.sn-chip:hover{border-color:var(--chip-on-bg);}
+.sn-chip.cur{--sac:var(--chip-on-fg);background:var(--chip-on-bg);border-color:var(--chip-on-bg);font-weight:700;}
+.sn-chip:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:2px;}
+.sn-chips:empty{display:none;}
+
+/* ---- bottom tab bar (phones) ---- */
+#tabbar{--sac:var(--tabbar-fg);display:none;position:fixed;left:0;right:0;bottom:0;z-index:940;background:var(--tabbar-bg);
+  border-top:1px solid var(--tabbar-border);padding:6px 4px env(safe-area-inset-bottom);grid-template-columns:repeat(var(--tb-n,5),minmax(0,1fr));}
+#tabbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;height:56px;border:0;background:none;font:inherit;font-size:11px;cursor:pointer;position:relative;}
+#tabbar button svg{width:24px;height:24px;}
+#tabbar button.cur{--sac:var(--chrome-accent);font-weight:700;}
+#tabbar .tb-n{--sac:#fff;position:absolute;top:2px;left:50%;margin-left:6px;min-width:18px;height:18px;border-radius:9px;background:var(--chrome-accent);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;box-sizing:border-box;}
+
+/* ---- iPad portrait / narrow desktop: rail; the full sidebar overlays ---- */
+@media(min-width:769px) and (max-width:1023px){
+  html:root{--sb-cur:var(--sb-w-rail);}
+  html.sb-over #sidebar{width:280px;box-shadow:8px 0 24px rgba(0,0,0,.35);}
+  html.sb-over .sb-scrim{display:block;position:fixed;inset:0;z-index:945;background:rgba(0,0,0,.45);}
+  .header{padding:12px 20px;}
+  .header .filt-btn-label,.header .hdr-center{display:none;}
+  .header #filter-bar .fpop-btn{width:46px;padding:0;justify-content:center;}
+  .sn-title{font-size:28px;}
+}
+/* ---- phones: drawer + bottom tabs ---- */
+@media(max-width:768px){
+  html:root{--sb-cur:0px;--tabbar-h:calc(62px + env(safe-area-inset-bottom));}
+  #sidebar{width:300px;max-width:86vw;transform:translateX(-102%);z-index:1300;box-shadow:none;}
+  html.sb-drawer #sidebar{transform:none;box-shadow:8px 0 24px rgba(0,0,0,.4);}
+  html.sb-drawer .sb-scrim{display:block;position:fixed;inset:0;z-index:1290;background:rgba(0,0,0,.55);}
+  #sidebar .sb-collapse{display:none;}
+  #sidebar .sb-close{display:flex;}
+  #sidebar .navmenu-key{display:none;}
+  #tabbar{display:grid;}
+  #subnav{padding:14px 0 10px;gap:10px;}
+  .sn-title{font-size:24px;}
+  .sn-crumb{display:none;}
+  .sn-chips{margin-right:-6px;}
+  .sn-chip{height:36px;padding:0 14px;}
+  #ai-fab{bottom:calc(var(--tabbar-h) + 14px) !important;}
+}
+/* ---- phones, both orientations: the dark Seeking Alpha iOS top bar ---- */
+@media(max-width:768px),(orientation:landscape) and (max-height:500px){
+  .header{--topbar-bg:#0b0b0b;background:#0b0b0b !important;border-bottom:1px solid #21262d;min-height:0;padding:calc(8px + env(safe-area-inset-top)) 8px 8px 4px;gap:6px;}
+  .hdr-search{flex:1 1 auto;height:44px;background:#2a2a2a;border-color:#2a2a2a;--sac:#b8b7b4;}
+  .header .hdr-search #f-search{--sac:#fff;font-size:16px;}
+  .header .hdr-search #f-search::placeholder{color:#b8b7b4 !important;}
+  .hdr-kbd,.header .hdr-center,.header .hdr-theme,.header .filt-btn-label{display:none !important;}
+  .header #filter-bar .fpop-btn,[data-theme="dark"] .header #filter-bar .fpop-btn{width:44px;height:44px;padding:0;justify-content:center;background:transparent;border:0;}
+  .header #filter-bar .fpop-btn,.header #filter-bar .fpop-btn *{color:#fff !important;}
+  .header #filter-bar .fpop-btn.active,[data-theme="dark"] .header #filter-bar .fpop-btn.active{background:#2a2a2a;}
+}
+@media(max-width:768px){
+  .hdr-menu{--sac:#fff;display:flex;width:44px;height:44px;align-items:center;justify-content:center;background:none;border:0;cursor:pointer;flex-shrink:0;padding:0;}
+  .hdr-menu svg{width:26px;height:26px;}
+  /* Pinned to the VISIBLE bottom edge (--vvh, the visual-viewport bridge),
+     not the layout viewport's: an in-app or emulated browser widens the
+     layout viewport to the panning table's width, where bottom:0 would
+     sit off-screen. */
+  #tabbar{bottom:auto;right:auto;top:calc(var(--vvh,100dvh) - var(--tabbar-h));width:var(--vvw,100vw);height:var(--tabbar-h);box-sizing:border-box;}
+}
+/* ---- phone landscape: rail, no tab bar ---- */
+@media(orientation:landscape) and (max-height:500px){
+  html:root{--sb-cur:calc(64px + env(safe-area-inset-left));--tabbar-h:0px;}
+  #tabbar{display:none !important;}
+  #sidebar{width:var(--sb-cur);transform:none;}
+  #sidebar .sb-lbl,#sidebar .navmenu-key,#sidebar .sb-brand,#sidebar .sb-pf,#sidebar .sb-more,#sidebar .sb-foot,
+  #sidebar .sb-head span,#sidebar .sb-appear,#sidebar .sb-badge,#sidebar .sb-div{display:none;}
+  #sidebar .sb-row,#sidebar .sb-head{justify-content:center;padding:0;min-height:44px;}
+  #sidebar .sb-top{justify-content:center;padding:0;}
+  #sidebar .sb-appear-ic{display:flex;}
+  /* The rail's top square opens the full drawer here; inside the drawer it
+     becomes the close button. */
+  #sidebar .sb-chev-l{display:none;}
+  #sidebar .sb-chev-r{display:block;}
+  #sidebar .sb-close{display:none;}
+  html.sb-drawer #sidebar .sb-collapse{display:none;}
+  html.sb-drawer #sidebar .sb-close{display:flex;}
+  #sidebar .sb-dot{display:block;position:absolute;top:8px;right:16px;width:9px;height:9px;border-radius:50%;background:var(--chrome-accent);border:2px solid var(--sb-bg);}
+  html.sb-drawer #sidebar{width:300px;box-shadow:8px 0 24px rgba(0,0,0,.4);}
+  html.sb-drawer #sidebar .sb-lbl,html.sb-drawer #sidebar .sb-brand,html.sb-drawer #sidebar .sb-pf,html.sb-drawer #sidebar .sb-head span,html.sb-drawer #sidebar .sb-appear,html.sb-drawer #sidebar .sb-div,html.sb-drawer #sidebar .sb-badge{display:revert;}
+  html.sb-drawer #sidebar .sb-row,html.sb-drawer #sidebar .sb-head{justify-content:flex-start;padding:0 16px 0 22px;}
+  html.sb-drawer .sb-scrim{display:block;position:fixed;inset:0;z-index:1290;background:rgba(0,0,0,.55);}
+  .header{padding:calc(6px + env(safe-area-inset-top)) 16px 6px 8px;}
+  #subnav{padding:8px 0;gap:6px;}
+  .sn-head{display:none;}
+  .sn-chip{height:32px;font-size:14px;}
+}
+@media(hover:none) and (pointer:coarse){ #sidebar .navmenu-key{display:none;}.hdr-kbd{display:none;}}
+@media(prefers-reduced-motion:reduce){ #sidebar{transition:none;}}
 </style>
 </head>
 <body>
 <div class="header">
+  <!-- Phones: the drawer opens from here (the sidebar is off-canvas). -->
+  <button type="button" class="hdr-menu sa-chrome" onclick="sbOpen()" aria-label="Open menu" aria-controls="sidebar"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+  <!-- The ticker search, promoted out of the Filters panel into the top bar.
+       Same ids (#f-search, #f-suggest), so applyFilters, the hash restore
+       and the / hotkey are unchanged. On views with no table it lists
+       matches in #hdr-qr instead, which open the ticker page. -->
+  <div class="hdr-search sa-chrome" role="search">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></g></svg>
+    <span class="search-wrap"><input type="text" id="f-search" placeholder="Search tickers or companies" aria-label="Search tickers or companies" autocomplete="off" oninput="onSearchInput()" onkeydown="qrKey(event)" onfocus="qrRender()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
+    <kbd class="hdr-kbd">/</kbd>
+    <span class="f-suggest" id="f-suggest"></span>
+    <div class="hdr-qr" id="hdr-qr" role="listbox" aria-label="Matching tickers"></div>
+  </div>
   <!-- Title stacks over the current view name ("Sector Analysis" /
        "Financial Model" / "Financial Data"), filled by _syncNavCrumb from
        the same nav group it uses for the button tooltip. The column is
@@ -2123,11 +2428,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
           <span class="filt-header-actions"><button class="filter-clear" onclick="clearFilters()">Clear</button><button class="fpop-close" onclick="toggleFiltMenu(event)">&#215;</button></span>
         </div>
         <div class="fpop-body">
-          <!-- Search leads the panel; the button opens with it focused on
-               non-touch devices, so filter-icon-then-type still flows. The
-               "did you mean" suggestions render right below it. -->
-          <span class="search-wrap"><input type="text" id="f-search" placeholder="Search ticker, name, sector, industry, description" oninput="onSearchInput()"><button type="button" class="search-clear" id="f-search-clear" onclick="clearSearch()" aria-label="Clear search">&times;</button></span>
-          <span class="f-suggest" id="f-suggest"></span>
           <div class="filt-cols">
             <div class="filt-col">
               <div class="fpop-section-label">Ratings</div>
@@ -2183,34 +2483,59 @@ body.wide-table .container{padding-left:0;padding-right:0;}
         </div>
       </div>
     </div>
-    <!-- Nav menu — one icon in place of the old two-row tab stack. The
-         dropdown (built by renderNavMenu) lists all three views with their
-         sub-tabs and marks the current one (.cur / .active). The crumb span
-         is still populated by _syncNavCrumb — it is CSS-hidden, and the same
-         text rides the button's title attribute as a hover tooltip.
-         Sits after the Filters button; DOM order rather than a CSS `order`
-         swap, so keyboard focus follows what the eye sees. The nav-only
-         views hide the rest of this bar via `> *:not(.navmenu-wrap)`, which
-         keys off the class, not position. -->
-    <div class="navmenu-wrap" id="nav-wrap">
-      <button class="fpop-btn navmenu-btn" id="nav-btn" onclick="toggleNavMenu(event)" aria-haspopup="true" aria-expanded="false" aria-label="Views and tabs menu">
-        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h14"/><path d="M3 10h14"/><path d="M3 15h14"/></g></svg>
-        <span class="navmenu-crumb" id="nav-crumb"></span>
-      </button>
-      <div class="fpop-panel nav-panel" id="nav-panel">
-        <div class="fpop-header">
-          <span class="fpop-title">Views</span>
-          <button class="fpop-close" onclick="toggleNavMenu(event)">&#215;</button>
-        </div>
-        <div class="fpop-body"><div class="navmenu-cols" id="nav-cols"></div>
-          <button class="navmenu-hkhint" onclick="hkOverlayOpen()">Keyboard shortcuts <kbd>?</kbd></button>
-        </div>
-      </div>
-    </div>
   </div>
-  <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode"><span class="tt-knob" id="tt-knob">&#9728;</span></button>
+  <button type="button" class="hdr-ic hdr-theme sa-chrome" data-theme-icon onclick="themeMenuToggle(event,this)" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance"></button>
+</div>
+<!-- Seeking Alpha-style navigation (see SA CHROME in the stylesheet). The
+     views and portfolio rows are rendered by renderNavMenu() from
+     _navGroups(), so the digit hotkeys, the rows and the chips below can
+     never disagree. Clicks on any [data-v] go through one delegated
+     listener to navGo(). -->
+<nav id="sidebar" class="sa-chrome" aria-label="Report navigation">
+  <div class="sb-top">
+    <span class="sb-brand">Securities Analysis<sup>&beta;</sup></span>
+    <button type="button" class="sb-sq sb-collapse" onclick="sbToggle()" aria-label="Collapse sidebar" title="Collapse sidebar (v)">
+      <svg class="sb-chev-l" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg class="sb-chev-r" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button type="button" class="sb-sq sb-close" onclick="sbClose()" aria-label="Close menu">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="sb-div"></div>
+  <div id="sb-views"></div>
+  <div class="sb-div"></div>
+  <div id="sb-pf"></div>
+  <div class="sb-div"></div>
+  <button type="button" class="sb-row" onclick="sbClose();toggleFiltMenu(event)" title="Filters"><svg class="sb-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5h16l-6 7v6l-4 2v-8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="sb-lbl">Filters</span><kbd class="navmenu-key">F</kbd></button>
+  <button type="button" class="sb-row" onclick="sbClose();hkOverlayOpen()" title="Keyboard shortcuts"><svg class="sb-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></g></svg><span class="sb-lbl">Shortcuts</span><kbd class="navmenu-key">?</kbd></button>
+  <button type="button" class="sb-row sb-appear-ic" data-theme-icon onclick="themeMenuToggle(event,this)" aria-haspopup="menu" aria-label="Appearance"></button>
+  <div class="sb-appear">
+    <span class="sb-head" style="padding:0;min-height:0"><span>Appearance</span></span>
+    <div class="sb-seg" role="radiogroup" aria-label="Appearance">
+      <button type="button" role="radio" data-theme-ctl="light" onclick="setTheme('light')">Light</button>
+      <button type="button" role="radio" data-theme-ctl="auto" onclick="setTheme('auto')">Auto</button>
+      <button type="button" role="radio" data-theme-ctl="dark" onclick="setTheme('dark')">Dark</button>
+    </div>
+    <span class="sb-now" data-theme-now></span>
+  </div>
+  <div class="sb-foot">Data as of {{ generated_at }}</div>
+</nav>
+<div class="sb-scrim" id="sb-scrim" onclick="sbClose()"></div>
+<nav id="tabbar" class="sa-chrome" aria-label="Views"></nav>
+<div id="theme-menu" class="sa-chrome" role="menu" aria-label="Appearance">
+  <button type="button" role="menuitemradio" data-theme-ctl="light" onclick="setTheme('light');themeMenuClose()"></button>
+  <button type="button" role="menuitemradio" data-theme-ctl="auto" onclick="setTheme('auto');themeMenuClose()"></button>
+  <button type="button" role="menuitemradio" data-theme-ctl="dark" onclick="setTheme('dark');themeMenuClose()"></button>
+  <div class="tm-now" data-theme-now></div>
 </div>
 <div class="container">
+  <!-- The view's name and its sub-tabs as Seeking Alpha-style chips —
+       the only route to a sub-tab now that the Views dropdown is gone. -->
+  <div id="subnav" class="sa-chrome">
+    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span></div>
+    <div class="sn-chips" id="sn-chips" role="tablist"></div>
+  </div>
   <div id="view-pool" class="view active">
     <div id="pool-chart-area"></div>
     <div class="pp-quad-tip" id="pp-quad-tip"></div>
@@ -2300,17 +2625,74 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 <div id="cfsel-panel"><input type="text" class="cfsel-search" placeholder="Search columns&hellip;" oninput="_cfselRender(this.value)" onkeydown="cfselKey(event)"><div class="cfsel-list"></div></div>
 <div id="chart-tip"></div>
 <script>
-/* === THEME === */
+/* === THEME ===
+   Three choices — Light, Auto, Dark — stored in stock_theme_v1 (missing =
+   auto). The pre-paint script in <head> applies the same resolution before
+   first paint; this block keeps it live: every appearance control
+   ([data-theme-ctl]) calls setTheme(pref), and while the choice is Auto a
+   prefers-color-scheme listener follows the device (iOS/macOS flipping at
+   sunset repaints the open report). Only data-theme="dark" on <html> is
+   ever read by the CSS and the colour-picking JS (_pfCol, ppQuadTip), so
+   the resolution lives here and nowhere else. */
 var _THEME_KEY='stock_theme_v1';
-function setTheme(t){
-  var k=document.getElementById('tt-knob');
-  if(t==='dark'){document.documentElement.setAttribute('data-theme','dark');if(k)k.innerHTML='&#9790;';}
-  else{document.documentElement.removeAttribute('data-theme');if(k)k.innerHTML='&#9728;';}
-  try{localStorage.setItem(_THEME_KEY,t);}catch(e){}
-  if(typeof _pfOnTheme==='function')_pfOnTheme();
+var _THEME_MQ=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+function _themePref(){var p=document.documentElement.getAttribute('data-theme-pref');return(p==='light'||p==='dark')?p:'auto';}
+function _themeResolved(p){return(p==='dark'||(p==='auto'&&!!(_THEME_MQ&&_THEME_MQ.matches)))?'dark':'light';}
+var _THEME_ICON={
+  light:'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g></svg>',
+  auto:'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>',
+  dark:'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>'
+};
+var _THEME_LABEL={light:'Light',auto:'Auto',dark:'Dark'};
+/* Paint every control from the current choice: radios get aria-checked,
+   icon buttons ([data-theme-icon]) show the choice's glyph and name both
+   the choice and, under Auto, what it resolved to. */
+function _syncThemeCtl(){
+  var p=_themePref(),t=_themeResolved(p);
+  var desc='Appearance: '+_THEME_LABEL[p]+(p==='auto'?' ('+t+' now)':'');
+  document.querySelectorAll('[data-theme-ctl]').forEach(function(el){
+    el.setAttribute('aria-checked',el.getAttribute('data-theme-ctl')===p?'true':'false');
+  });
+  document.querySelectorAll('[data-theme-icon]').forEach(function(el){
+    el.innerHTML=_THEME_ICON[p];el.setAttribute('aria-label',desc);el.title=desc;
+  });
+  document.querySelectorAll('[data-theme-now]').forEach(function(el){
+    el.textContent=p==='auto'?'Follows your device · now '+t:'';
+  });
 }
-function toggleTheme(){var cur=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light';setTheme(cur==='dark'?'light':'dark');}
-(function(){var t='light';try{if(localStorage.getItem(_THEME_KEY)==='dark')t='dark';}catch(e){}var k=document.getElementById('tt-knob');if(k)k.innerHTML=(t==='dark'?'&#9790;':'&#9728;');})();
+/* Safari's toolbar tint: the phone top bar is dark in both themes; wider
+   screens show the page ground under the toolbar. */
+function _syncThemeColor(){
+  var m=document.getElementById('meta-theme-color');if(!m)return;
+  var phone=window.matchMedia&&window.matchMedia('(max-width:768px)').matches;
+  var dark=document.documentElement.getAttribute('data-theme')==='dark';
+  m.setAttribute('content',phone?'#0b0b0b':(dark?'#0d1117':'#f0f2f5'));
+}
+/* Resolve and apply; repaint the colour-bearing JS output only when the
+   resolved theme actually changed (Light -> Auto on a light device is a
+   no-op for the page). */
+function _applyTheme(){
+  var r=document.documentElement,was=r.getAttribute('data-theme')==='dark'?'dark':'light';
+  var t=_themeResolved(_themePref());
+  if(t==='dark')r.setAttribute('data-theme','dark');else r.removeAttribute('data-theme');
+  _syncThemeCtl();_syncThemeColor();
+  if(t!==was&&typeof _pfOnTheme==='function')_pfOnTheme();
+}
+function setTheme(p){
+  if(p!=='light'&&p!=='dark')p='auto';
+  document.documentElement.setAttribute('data-theme-pref',p);
+  try{localStorage.setItem(_THEME_KEY,p);}catch(e){}
+  _applyTheme();
+}
+/* Kept for any caller that just wants the other theme: flips the resolved
+   theme and pins it (leaves Auto). */
+function toggleTheme(){setTheme(_themeResolved(_themePref())==='dark'?'light':'dark');}
+if(_THEME_MQ){
+  var _themeMqChange=function(){if(_themePref()==='auto')_applyTheme();};
+  if(_THEME_MQ.addEventListener)_THEME_MQ.addEventListener('change',_themeMqChange);
+  else if(_THEME_MQ.addListener)_THEME_MQ.addListener(_themeMqChange);
+}
+window.addEventListener('resize',_syncThemeColor);
 /* Visual-viewport bridge — the CSS viewport units alone can't describe what is
    actually on screen on iOS. Both vars are the visible extent measured from
    the LAYOUT viewport's top-left corner, which is where a position:fixed box
@@ -2853,7 +3235,7 @@ var _PF_KEY='stock_portfolios_v1';
 var _PF_PALETTE=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948'];
 var _PF_DARK={'#2a78d6':'#3987e5','#eb6834':'#d95926','#1baf7a':'#199e70','#eda100':'#c98500','#e87ba4':'#d55181','#008300':'#008300','#4a3aa7':'#9085e9','#e34948':'#e66767'};
 function _pfCol(c){c=c||'#888888';return document.documentElement.getAttribute('data-theme')==='dark'&&_PF_DARK[c]?_PF_DARK[c]:c;}
-function _pfOnTheme(){_pfRenderFilter();_pfSyncDet();if(curView==='pf')renderPfView();else if(typeof applyFilters==='function')applyFilters();}
+function _pfOnTheme(){_pfRenderFilter();_pfSyncDet();if(curView==='pf')renderPfView();else if(typeof applyFilters==='function')applyFilters();if(typeof renderNavMenu==='function')renderNavMenu();}
 var _PF_FIELDS=['id','name','color','description','created','tickers','exclude','rule','alerts'];
 var _pfLocal=(function(){try{var v=JSON.parse(localStorage.getItem(_PF_KEY));return(v&&Array.isArray(v.portfolios))?v:null;}catch(e){return null;}})();
 var _pfMem={},_pfById={},_pfTk={},_pfRow={},_pfSel=[],_pfEditingId=null;
@@ -2936,6 +3318,7 @@ function _pfRefresh(){
   _pfSyncDet();
   if(_pfOverlayOpen())_pfRenderManage();
   if(curView==='pf')renderPfView();
+  if(typeof renderNavMenu==='function')renderNavMenu();
 }
 function _pfLabel(k){var o=window._CF_OPTS||[];for(var i=0;i<o.length;i++)if(o[i].k===k)return String(o[i].l).replace(/\s*\([^)]*\)$/,'');return k;}
 function _pfRuleSummary(r){
@@ -4811,6 +5194,7 @@ function onSearchInput(){
   if(_imeComposing)return;
   clearTimeout(_searchTimer);
   _searchTimer=setTimeout(applyFilters,150);
+  qrRender();
 }
 /* Relevance score per row, summed over query tokens: ticker matches
    outrank company-name matches outrank field-only (sector/industry/
@@ -5018,12 +5402,6 @@ function toggleFiltMenu(e){
     btn.setAttribute('aria-expanded','true');
     _positionFpop(panel,btn);
   }
-  /* Land ready to type — but not on touch devices, where autofocus would
-     pop the keyboard over the panel on every open. */
-  if(!('ontouchstart' in window)){
-    var fs=document.getElementById('f-search');
-    if(fs)fs.focus({preventScroll:true});
-  }
 }
 function closeFiltMenu(){
   var panel=document.getElementById('filt-panel');
@@ -5044,13 +5422,11 @@ document.addEventListener('click',function(e){
      would slam the whole panel shut. */
   var cp=document.getElementById('cfsel-panel');
   if(cp&&cp.contains(e.target))return;
-  /* Both menus close through their close functions (not a bare
-     classList.remove) so the buttons' pressed state and aria-expanded
-     reset with them. */
+  /* Closes through closeFiltMenu (not a bare classList.remove) so the
+     button's pressed state and aria-expanded reset with it. */
   var fw=document.getElementById('filt-wrap');
   if(fw&&!fw.contains(e.target))closeFiltMenu();
-  var nw=document.getElementById('nav-wrap');
-  if(nw&&!nw.contains(e.target))closeNavMenu();
+
 });
 var _cfRowId=0;
 var _cfOptHtml='';
@@ -8592,8 +8968,10 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){
     var pfp=document.getElementById('pf-pop');
     if(pfp&&pfp.classList.contains('open')){e.preventDefault();pfPopClose();return;}
-    var np=document.getElementById('nav-panel');
-    if(np&&np.classList.contains('open')){e.preventDefault();closeNavMenu();return;}
+    var tm=document.getElementById('theme-menu');
+    if(tm&&tm.classList.contains('open')){e.preventDefault();themeMenuClose();return;}
+    var rc=document.documentElement.classList;
+    if(rc.contains('sb-drawer')||rc.contains('sb-over')){e.preventDefault();sbClose();return;}
     var fp=document.getElementById('filt-panel');
     if(fp&&fp.classList.contains('open')){
       /* The column picker stacks above the panel; the first Escape closes
@@ -8738,15 +9116,19 @@ function _syncWideTable(){
   var sx=window.scrollX,sy=window.scrollY;
   document.body.style.minWidth='';
   if(cont)cont.style.minWidth='';
-  var w='';
+  var w='',bw='';
   if(wide){
     var tbl=document.getElementById(curView==='matrix'?'mtx':'dtbl');
-    if(tbl&&cont&&tbl.offsetWidth>document.documentElement.clientWidth){
+    /* body carries the sidebar's width as padding-left (border-box), so the
+       body's min-width is the container's plus that padding. */
+    var bpl=parseFloat(getComputedStyle(document.body).paddingLeft)||0;
+    if(tbl&&cont&&tbl.offsetWidth+bpl>document.documentElement.clientWidth){
       var cs=getComputedStyle(cont);
-      w=(tbl.offsetWidth+parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight))+'px';
+      var cw=tbl.offsetWidth+parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight);
+      w=cw+'px';bw=(cw+bpl)+'px';
     }
   }
-  document.body.style.minWidth=w;
+  document.body.style.minWidth=bw;
   if(cont)cont.style.minWidth=w;
   if(window.scrollX!==sx||window.scrollY!==sy)window.scrollTo(sx,sy);
 }
@@ -8810,43 +9192,127 @@ function _navGroups(){
   if(_MACRO_AVAILABLE)groups.unshift({v:'macro',l:'Macro Outlook',cur:curMacSub||'overview',items:MACRO_TABS});
   return groups;
 }
+/* One stroke icon per view, drawn inline (not <use>) so the icons take
+   the chrome's --sac colour in both themes. */
+var _SB_IC={
+  macro:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
+  pool:'<circle cx="12" cy="12" r="9"/><path d="M12 3v9h9"/>',
+  matrix:'<path d="M4 7h9M19 7h1M4 17h3M13 17h7"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/>',
+  table:'<path d="M4 20h16M7 16V10M12 16V5M17 16v-4"/>',
+  pf:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 12h18"/>',
+  trend:'<path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/>'
+};
+var _SB_SHORT={macro:'Macro',pool:'Sectors',matrix:'Model',table:'Data',pf:'Portfolios'};
+function _sbIc(k,cls){return'<svg class="'+(cls||'sb-ic')+'" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(_SB_IC[k]||'')+'</g></svg>';}
+/* One-day move of a published portfolio: the last two points of its NAV
+   ledger. null for a portfolio with no ledger yet (created in this browser,
+   or a first run) — the sidebar then shows no pill rather than a 0.00%. */
+function _pfDayChg(id){
+  var n=_pfNavRaw(id);
+  if(!n||n.length<2)return null;
+  var a=+n[n.length-2][1],b=+n[n.length-1][1];
+  if(!(a>0)||!isFinite(b))return null;
+  return b/a-1;
+}
+/* Action + Watch alerts across every portfolio, one per event — the same
+   de-duplication the Portfolios overview uses for its Alerts count. */
+function _sbAlertCount(){
+  var seen={},n=0;
+  try{
+    _pfDefs().forEach(function(p){_pfAlertsFor(p.id).forEach(function(a){
+      if(a.level!=='action'&&a.level!=='watch')return;
+      var k=a.kind+'|'+a.ticker+'|'+(a.portfolio||'');
+      if(!seen[k]){seen[k]=1;n++;}
+    });});
+  }catch(e){return 0;}
+  return n;
+}
+var _SB_PF_SHOW=6,_sbPfAll=false;
+/* Renders every navigation surface from _navGroups(): the sidebar rows, the
+   portfolio list, the view heading + sub-tab chips, and the phone tab bar.
+   Called wherever the current view or sub-tab changes (renderCur and the
+   per-view sub-tab switchers), so the active marks are always current. */
 function renderNavMenu(){
-  var cols=document.getElementById('nav-cols');
-  if(!cols)return;
-  var h='';
-  /* The badge is the group's index+1 — the same number _hkDispatch maps the
-     digit keys onto, read from this same list, so the menu can never advertise
-     a shortcut that doesn't work. */
-  _navGroups().forEach(function(g,gi){
-    h+='<div class="navmenu-col">'
-      +'<button class="navmenu-grp'+(curView===g.v?' cur':'')+'" data-v="'+g.v+'"'
-      +' title="Shortcut: '+(gi+1)+'">'+esc(g.l)+'<kbd class="navmenu-key">'+(gi+1)+'</kbd></button>';
-    g.items.forEach(function(it){
-      /* Sector names carry apostrophes ("Consumer Staples" is tame, but the
-         list is data-driven), so the key rides a data attribute and a single
-         delegated listener dispatches — no inline-onclick quote escaping. */
-      h+='<button class="navmenu-item'+(curView===g.v&&g.cur===it.k?' active':'')+'"'
-        +' data-v="'+g.v+'" data-k="'+_attr(it.k)+'">'+esc(it.l)+'</button>';
+  var groups=_navGroups(),al=_sbAlertCount(),isNew=_pfIsNew();
+  var sv=document.getElementById('sb-views');
+  if(sv){
+    var h='';
+    /* The shortcut is the group's index+1 — the same number _hkDispatch maps
+       the digit keys onto, read from this same list, so a row can never
+       advertise a shortcut that doesn't work. */
+    _navGroups().forEach(function(g,gi){
+      var cur=curView===g.v,badge='',dot='';
+      if(g.v==='pf'&&al){
+        badge='<span class="sb-badge">'+al+(isNew?' NEW':'')+'</span>';
+        dot='<span class="sb-dot" aria-hidden="true"></span>';
+      }
+      h+='<button type="button" class="sb-row'+(cur?' cur':'')+'" data-v="'+g.v+'"'
+        +(cur?' aria-current="page"':'')+' title="'+_attr(g.l)+' ('+(gi+1)+')">'
+        +_sbIc(g.v)+'<span class="sb-lbl">'+esc(g.l)+'</span>'+badge+'<kbd class="navmenu-key">'+(gi+1)+'</kbd>'+dot+'</button>';
     });
-    h+='</div>';
-  });
-  cols.innerHTML=h;
+    sv.innerHTML=h;
+  }
+  var sp=document.getElementById('sb-pf');
+  if(sp){
+    var defs=_pfDefs(),ph='';
+    ph+='<button type="button" class="sb-head" data-v="pf" data-k="overview" title="Portfolios">'+_sbIc('trend')+'<span>Portfolios</span></button>';
+    ph+='<button type="button" class="sb-row sb-pf'+(curView==='pf'&&curPfSub==='overview'?' cur':'')+'" data-v="pf" data-k="overview"><span class="sb-lbl">All Portfolios</span></button>';
+    defs.forEach(function(p,i){
+      if(!_sbPfAll&&i>=_SB_PF_SHOW)return;
+      var c=_pfDayChg(p.id),pill='';
+      if(c!=null)pill='<span class="sb-pill '+(c>=0?'pos':'neg')+'">'+(c>=0?'+':'−')+Math.abs(c*100).toFixed(2)+'%</span>';
+      ph+='<button type="button" class="sb-row sb-pf'+(curView==='pf'&&curPfSub===p.id?' cur':'')+'" data-v="pf" data-k="'+_attr(p.id)+'" title="'+_attr(p.name)+'">'
+        +'<span class="sb-pfdot" style="background:'+_attr(_pfCol(p.color))+'"></span><span class="sb-lbl">'+esc(p.name)+'</span>'+pill+'</button>';
+    });
+    if(defs.length>_SB_PF_SHOW)ph+='<button type="button" class="sb-more" onclick="_sbPfAll=!_sbPfAll;renderNavMenu()">'+(_sbPfAll?'Show fewer':'Show more ('+(defs.length-_SB_PF_SHOW)+')')+'</button>';
+    ph+='<button type="button" class="sb-row sb-pf" onclick="sbClose();pfManageOpen()"><span class="sb-lbl">Create Portfolio</span><span class="sb-sq" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></span></button>';
+    sp.innerHTML=ph;
+  }
+  var g=null;
+  groups.forEach(function(x){if(x.v===curView)g=x;});
+  var st=document.getElementById('sn-title'),sc=document.getElementById('sn-crumb'),ch=document.getElementById('sn-chips');
+  if(g){
+    var sub='';
+    g.items.forEach(function(it){if(it.k===g.cur)sub=it.l;});
+    if(st)st.textContent=g.l;
+    if(sc)sc.textContent=sub?g.l+' › '+sub:'';
+    if(ch){
+      var c='';
+      g.items.forEach(function(it){
+        var on=g.cur===it.k;
+        c+='<button type="button" class="sn-chip'+(on?' cur':'')+'" role="tab" aria-selected="'+(on?'true':'false')+'" data-v="'+g.v+'" data-k="'+_attr(it.k)+'">'+esc(it.l)+'</button>';
+      });
+      ch.innerHTML=c;
+      var on=ch.querySelector('.sn-chip.cur');
+      if(on&&on.scrollIntoView&&ch.scrollWidth>ch.clientWidth){
+        var l=on.offsetLeft-ch.offsetLeft,r=l+on.offsetWidth;
+        if(l<ch.scrollLeft||r>ch.scrollLeft+ch.clientWidth)ch.scrollLeft=Math.max(0,l-24);
+      }
+    }
+  }
+  var tb=document.getElementById('tabbar');
+  if(tb){
+    var t='';
+    groups.forEach(function(x){
+      var cur=curView===x.v;
+      t+='<button type="button" class="'+(cur?'cur':'')+'" data-v="'+x.v+'"'+(cur?' aria-current="page"':'')+'>'+_sbIc(x.v,'tb-ic')
+        +'<span>'+esc(_SB_SHORT[x.v]||x.l)+'</span>'+(x.v==='pf'&&al?'<span class="tb-n">'+al+'</span>':'')+'</button>';
+    });
+    tb.innerHTML=t;
+    tb.style.setProperty('--tb-n',groups.length);
+  }
   _syncNavCrumb();
 }
-/* Names the current view + sub-tab. Three consumers: the icon-side crumb
-   (CSS-hidden, kept for the tooltip), the banner subtitle under the title —
-   which is the on-screen "where am I" — and the nav button's title. */
+/* Names the current view + sub-tab in the (visually hidden) header crumb
+   and the browser tab title. The on-screen heading is #subnav's. */
 function _syncNavCrumb(){
   var g=null,sub='';
   _navGroups().forEach(function(x){if(x.v===curView)g=x;});
   if(!g)return;
   g.items.forEach(function(it){if(it.k===g.cur)sub=it.l;});
-  var el=document.getElementById('nav-crumb');
-  if(el)el.innerHTML=esc(g.l)+(sub?'<span class="navmenu-crumb-sub">'+esc(sub)+'</span>':'');
   var hv=document.getElementById('hdr-view');
   if(hv)hv.textContent=g.l+(sub?' - '+sub:'');
-  var btn=document.getElementById('nav-btn');
-  if(btn)btn.title=g.l+(sub?' › '+sub:'');
+  document.title=g.l+(sub?' › '+sub:'')+' — Securities Analysis';
 }
 /* k omitted (the group header was clicked) = go to the view, keeping
    whichever sub-tab it was last on. */
@@ -8876,9 +9342,138 @@ function navGo(v,k){
   }
 }
 document.addEventListener('click',function(e){
-  var b=e.target.closest?e.target.closest('#nav-cols [data-v]'):null;
+  var b=e.target.closest?e.target.closest('#sidebar [data-v],#tabbar [data-v],#subnav [data-v]'):null;
   if(!b)return;
+  /* Sector names carry apostrophes, so the key rides a data attribute and
+     this one delegated listener dispatches — no inline-onclick escaping. */
+  sbClose();
   navGo(b.getAttribute('data-v'),b.hasAttribute('data-k')?b.getAttribute('data-k'):null);
+});
+/* === SIDEBAR STATE ===
+   desk (>=1024px): expanded or rail, remembered in stock_sidebar_v1.
+   tablet (769-1023px): always the rail; opening lays the full sidebar over
+   the content (html.sb-over) so the table underneath never reflows.
+   phone / phone landscape: an off-canvas drawer (html.sb-drawer). */
+var _SB_KEY='stock_sidebar_v1';
+function _sbMode(){
+  if(window.matchMedia&&window.matchMedia('(orientation:landscape) and (max-height:500px)').matches)return'lphone';
+  var w=window.innerWidth||1280;
+  return w<=768?'phone':(w<1024?'tablet':'desk');
+}
+function _sbStoredRail(){try{return localStorage.getItem(_SB_KEY)==='rail';}catch(e){return false;}}
+function _sbApply(){
+  var r=document.documentElement.classList,m=_sbMode();
+  if(m!=='phone'&&m!=='lphone')r.remove('sb-drawer');
+  if(m!=='tablet')r.remove('sb-over');
+  r.toggle('sb-rail',m==='desk'?_sbStoredRail():(m==='tablet'&&!r.contains('sb-over')));
+  var col=document.querySelector('#sidebar .sb-collapse');
+  if(col){var rail=r.contains('sb-rail');col.setAttribute('aria-label',rail?'Expand sidebar':'Collapse sidebar');col.title=(rail?'Expand':'Collapse')+' sidebar (v)';col.setAttribute('aria-expanded',rail?'false':'true');}
+  var mb=document.querySelector('.hdr-menu');
+  if(mb)mb.setAttribute('aria-expanded',r.contains('sb-drawer')?'true':'false');
+  /* The page-wide table math reads --sb-cur, which just changed. */
+  if(typeof _syncWideTable==='function')_syncWideTable();
+}
+function sbOpen(){
+  var m=_sbMode(),r=document.documentElement.classList;
+  if(m==='phone'||m==='lphone')r.add('sb-drawer');
+  else if(m==='tablet')r.add('sb-over');
+  else{try{localStorage.setItem(_SB_KEY,'open');}catch(e){}}
+  _sbApply();
+  if(r.contains('sb-drawer')||r.contains('sb-over')){
+    var f=document.querySelector('#sidebar .sb-row.cur')||document.querySelector('#sidebar .sb-row');
+    if(f)f.focus({preventScroll:true});
+  }
+}
+function sbClose(){
+  var r=document.documentElement.classList;
+  if(!r.contains('sb-drawer')&&!r.contains('sb-over'))return;
+  r.remove('sb-drawer');r.remove('sb-over');
+  _sbApply();
+}
+function sbToggle(){
+  var m=_sbMode(),r=document.documentElement.classList;
+  if(m==='desk'){
+    try{localStorage.setItem(_SB_KEY,r.contains('sb-rail')?'open':'rail');}catch(e){}
+    _sbApply();
+  }else if(r.contains('sb-drawer')||r.contains('sb-over'))sbClose();
+  else sbOpen();
+}
+window.addEventListener('resize',_sbApply);
+/* === APPEARANCE MENU === one floating menu for the top-bar and rail icons. */
+function themeMenuClose(){
+  var m=document.getElementById('theme-menu');if(!m||!m.classList.contains('open'))return;
+  m.classList.remove('open');
+  document.querySelectorAll('[data-theme-icon][aria-expanded="true"]').forEach(function(b){b.setAttribute('aria-expanded','false');});
+}
+function themeMenuToggle(e,btn){
+  if(e)e.stopPropagation();
+  var m=document.getElementById('theme-menu');if(!m)return;
+  if(m.classList.contains('open')){themeMenuClose();return;}
+  ['light','auto','dark'].forEach(function(k){
+    var b=m.querySelector('[data-theme-ctl="'+k+'"]');
+    if(b)b.innerHTML=_THEME_ICON[k]+'<span>'+_THEME_LABEL[k]+'</span>'+(k==='auto'?'<span class="tm-sub">device</span>':'');
+  });
+  _syncThemeCtl();
+  m.classList.add('open');
+  var r=btn.getBoundingClientRect(),w=m.offsetWidth,h=m.offsetHeight;
+  var left=r.left>window.innerWidth/2?r.right-w:r.right+8;
+  var top=r.left>window.innerWidth/2?r.bottom+8:Math.min(r.top,window.innerHeight-h-8);
+  m.style.left=Math.max(8,Math.min(left,window.innerWidth-w-8))+'px';
+  m.style.top=Math.max(8,top)+'px';
+  btn.setAttribute('aria-expanded','true');
+  var cur=m.querySelector('[aria-checked="true"]');if(cur)cur.focus({preventScroll:true});
+}
+document.addEventListener('click',function(e){
+  var m=document.getElementById('theme-menu');
+  if(m&&m.classList.contains('open')&&!m.contains(e.target))themeMenuClose();
+  var q=document.getElementById('hdr-qr'),hs=document.querySelector('.hdr-search');
+  if(q&&q.classList.contains('open')&&hs&&!hs.contains(e.target))q.classList.remove('open');
+});
+/* === QUICK RESULTS === Sector Analysis, Macro Outlook and Portfolios have
+   no table for the search to filter, so there the top-bar search lists the
+   best matches (same relevance as the table's best-match order) and opens
+   the ticker page. The table views keep filtering as they always have. */
+function _qrActive(){return curView==='pool'||curView==='macro'||curView==='pf';}
+function qrRender(){
+  var box=document.getElementById('hdr-qr'),inp=document.getElementById('f-search');
+  if(!box||!inp)return;
+  var q=(inp.value||'').toUpperCase().trim();
+  if(!_qrActive()||!q){box.classList.remove('open');box.innerHTML='';return;}
+  var toks=q.split(/\s+/).filter(function(t){return t;}),hits=[];
+  DATA.forEach(function(d){
+    if(d._sTk==null)_buildSearchMemo(d);
+    var sc=_relScore(d,toks);
+    if(sc>0)hits.push([sc,d]);
+  });
+  hits.sort(function(a,b){return b[0]-a[0]||(a[1].ticker<b[1].ticker?-1:1);});
+  hits=hits.slice(0,8);
+  box.innerHTML=hits.length?hits.map(function(h,i){
+    return'<button type="button" role="option" data-qr="'+_attr(h[1].ticker)+'"'+(i===0?' class="hi" aria-selected="true"':' aria-selected="false"')+'>'
+      +'<span class="qr-tk">'+esc(h[1].ticker)+'</span><span class="qr-nm">'+esc(h[1].company_name||'')+'</span></button>';
+  }).join(''):'<div class="qr-empty">No ticker or company matches “'+esc(inp.value.trim())+'”.</div>';
+  box.classList.add('open');
+}
+function _qrOpen(tk){
+  var box=document.getElementById('hdr-qr');if(box)box.classList.remove('open');
+  var inp=document.getElementById('f-search');if(inp)inp.blur();
+  openDet(tk);
+}
+function qrKey(e){
+  var box=document.getElementById('hdr-qr');
+  if(e.key==='Escape'){if(box&&box.classList.contains('open')){e.preventDefault();e.stopPropagation();box.classList.remove('open');}return;}
+  if(!box||!box.classList.contains('open'))return;
+  var items=[].slice.call(box.querySelectorAll('[data-qr]'));if(!items.length)return;
+  var i=items.findIndex(function(b){return b.classList.contains('hi');});
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    e.preventDefault();
+    if(i>=0){items[i].classList.remove('hi');items[i].setAttribute('aria-selected','false');}
+    i=((i<0?0:i)+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;
+    items[i].classList.add('hi');items[i].setAttribute('aria-selected','true');
+  }else if(e.key==='Enter'){e.preventDefault();_qrOpen(items[Math.max(0,i)].getAttribute('data-qr'));}
+}
+document.addEventListener('click',function(e){
+  var b=e.target.closest?e.target.closest('#hdr-qr [data-qr]'):null;
+  if(b)_qrOpen(b.getAttribute('data-qr'));
 });
 /* === KEYBOARD SHORTCUTS ===
    One table drives both the dispatcher and the ? overlay, so a binding cannot
@@ -8893,9 +9488,9 @@ var HOTKEYS=[
    l:'Jump straight to a view'},
   {g:'Navigation',k:[']','['],l:'Next / previous tab in this view'},
   {g:'Navigation',k:['}','{'],l:'Next / previous view'},
-  {g:'Search & panels',k:['/'],l:'Search tickers (views with a table)'},
+  {g:'Search & panels',k:['/'],l:'Search tickers'},
   {g:'Search & panels',k:['f'],l:'Filters menu (views with a table)'},
-  {g:'Search & panels',k:['v'],l:'Views menu'},
+  {g:'Search & panels',k:['v'],l:'Collapse / expand the sidebar'},
   {g:'Search & panels',k:['?'],l:'This cheat sheet'},
   {g:'Search & panels',k:['Esc'],l:'Close the open overlay, menu or popup'},
   {g:'Ticker popup',k:['←','→'],l:'Previous / next ticker'},
@@ -8963,16 +9558,12 @@ function _hkDispatch(e){
   else if(k==='}'){e.preventDefault();_hkStepView(1);}
   else if(k==='{'){e.preventDefault();_hkStepView(-1);}
   else if(k==='/'){
-    /* preventDefault or Firefox's quick-find swallows the slash. Opening the
-       panel already focuses #f-search on non-touch devices, so only the
-       already-open case has to place the caret itself. */
+    /* preventDefault or Firefox's quick-find swallows the slash. The search
+       lives in the top bar on every view now (views without a table list
+       quick results instead of filtering), so it always just takes focus. */
     e.preventDefault();
-    if(!_hkFiltersUsable())return;
-    var fp=document.getElementById('filt-panel');
-    if(fp&&fp.classList.contains('open')){
-      var fs=document.getElementById('f-search');
-      if(fs)fs.focus({preventScroll:true});
-    }else toggleFiltMenu(null);
+    var fs=document.getElementById('f-search');
+    if(fs){fs.focus({preventScroll:true});fs.select();}
   }
   /* f/v open their menus; Escape is the way back out, because opening Filters
      drops the caret in the search box where a second 'f' is just a letter. */
@@ -9017,29 +9608,9 @@ function hkOverlayOpen(){
   o.classList.add('open');
   _lockBody();
 }
-function toggleNavMenu(e){
-  if(e)e.stopPropagation();
-  var panel=document.getElementById('nav-panel');
-  if(!panel)return;
-  var wasOpen=panel.classList.contains('open');
-  /* Only one dropdown in the filter bar at a time. */
-  closeFiltMenu();
-  if(wasOpen){closeNavMenu();return;}
-  renderNavMenu();
-  panel.classList.add('open');
-  var btn=document.getElementById('nav-btn');
-  if(btn){
-    btn.classList.add('active');
-    btn.setAttribute('aria-expanded','true');
-    _positionFpop(panel,btn);
-  }
-}
-function closeNavMenu(){
-  var panel=document.getElementById('nav-panel');
-  if(panel)panel.classList.remove('open');
-  var btn=document.getElementById('nav-btn');
-  if(btn){btn.classList.remove('active');btn.setAttribute('aria-expanded','false');}
-}
+/* The 'v' hotkey and every old caller: the sidebar is the views menu now. */
+function toggleNavMenu(e){if(e)e.stopPropagation();closeFiltMenu();sbToggle();}
+function closeNavMenu(){sbClose();themeMenuClose();}
 function renderCur(){
   if(curView==='matrix'){renderMSubs();var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view');if(curMSub==='dashboard'){if(mw)mw.style.display='none';if(ov)ov.style.display='';renderOverview();}else{if(mw)mw.style.display='';if(ov)ov.style.display='none';renderMatrix();}}
   else if(curView==='table'){renderTSubs();if(curTSub==='prices'){var tw=document.querySelector('.table-wrap'),phv=document.getElementById('ph-view');if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_phResync();}}else{renderTable();}}
@@ -11318,6 +11889,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   /* Every render path above ends in renderCur, which repaints the menu — but
      seed it once unconditionally so the icon is never a dead button if an
      odd dataset short-circuits one of those paths. */
+  _sbApply();_syncThemeCtl();_syncThemeColor();
   renderNavMenu();
   setTimeout(_setTableH,0);
 })();
