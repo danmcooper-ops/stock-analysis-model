@@ -11,9 +11,9 @@ to undo by accident:
     back to last place;
   * its Overview is a story beside a rail of glance tiles and nothing else —
     the full histories are drawn once, on the section sub-tabs, never
-    repeated here, and the eleven per-sector outlooks render on their own
-    Sector Analysis tabs (renderPoolMacroOutlook), not in a grid trailing
-    the tiles;
+    repeated here, and the per-sector read is the narrative's Key sector
+    influences — not a grid trailing the tiles, and not repeated on the
+    Sector Analysis tabs;
   * its charts are `<svg viewBox>` with no fixed height, so their height is a
     function of the CARD's width. That makes the card/tile grid floors, not
     any height rule, what decides whether a chart fits on an iPhone screen.
@@ -143,13 +143,9 @@ def test_macro_narrative_escapes_every_model_string():
     interpolation of them must pass through _esc(), and the stance value may
     only reach a class attribute through the whitelist lookup."""
     css = _css()
-    body = ''
-    for fn, arg in (('_macNarrativeHTML', ''), ('renderPoolMacroOutlook',
-                                                'sec')):
-        m = re.search(r'function ' + fn + r'\(' + arg + r'\).*?\n\}\n',
-                      css, re.S)
-        assert m, 'could not find %s' % fn
-        body += m.group(0)
+    m = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
+    assert m, 'could not find _macNarrativeHTML'
+    body = m.group(0)
     # every read of a narrative field that lands in HTML is wrapped in _esc(
     for field in ('row.headline', 'row.outlook', 'row.influence',
                   'nar.model'):
@@ -163,47 +159,6 @@ def test_macro_narrative_escapes_every_model_string():
     assert "STANCE={tailwind:'up',headwind:'down'}" in body, \
         'stance must map to CSS classes only through the whitelist'
     assert "STANCE[row.stance]||''" in body
-    # the stance LABEL is repo-authored text picked by the same key, never
-    # the model's own stance string echoed into the page
-    assert "LABEL[row.stance]||" in body
-    # the per-sector bullets are model strings too, and they are the newest
-    # path into the page — the loop above cannot reach them (the item is a
-    # bare loop variable), so pin the interpolation itself
-    assert '_linkifyTickers(_esc(b))' in body, \
-        'sector bullets must be escaped before they reach HTML'
-    # trend reaches HTML only through the glyph whitelist in _macSecFigs
-    figs = re.search(r'function _macSecFigs\(.*?\n\}\n', css, re.S)
-    assert figs and 'TRENDG={improving:' in figs.group(0), \
-        'trend must map to glyphs only through the whitelist'
-
-
-def test_macro_narrative_sector_rows_carry_metric_figs():
-    """The sector's outlook carries the sector's hard ETF numbers from
-    sector_data, sourced inline (MACRO_SUM) so they paint at first render,
-    and degrading to prose-only when a sector has no metrics or the
-    snapshot predates sector_data. They are set muted and tabular so they
-    read as a footnote to the sentence, not a second column."""
-    css = _css()
-    figs = re.search(r'function _macSecFigs\(d\)\{.*?\n\}\n', css, re.S)
-    assert figs, 'could not find _macSecFigs'
-    figs = figs.group(0)
-    assert "if(!d)return ''" in figs, 'figs must degrade to nothing'
-    # local parquet RS is fresher than the yfinance fallback — keep the order
-    assert figs.find('d.rs_3m!=null') < figs.find('rel_strength_3m'), \
-        'rs_3m must be preferred over rel_strength_3m'
-    sec = re.search(r'function renderPoolMacroOutlook\(sec\).*?\n\}\n',
-                    css, re.S)
-    assert sec, 'could not find renderPoolMacroOutlook'
-    sec = sec.group(0)
-    assert '(MACRO_SUM&&MACRO_SUM.sector_data)||(MACRO&&MACRO.sector_data)' \
-        in sec, 'sector_data must come from the inline summary first'
-    assert '_macSecFigs(sd[sec])' in sec
-    assert re.search(r'\.pp-macro-figs\{[^}]*tabular-nums', css), \
-        'metric figs need tabular numerals'
-    # the section lives in #view-pool, where the --mac-* tokens are not
-    # declared, so the figs need a literal muted colour, not a token
-    assert re.search(r'\.pp-macro-figs\{[^}]*color:#', css), \
-        'the figs need an explicit muted colour'
     assert '[data-theme="dark"] #macro-view{' in css, \
         'the macro tokens need a dark-mode redefinition'
 
@@ -224,7 +179,7 @@ def test_macro_narrative_is_lead_paragraphs_with_bullets():
     assert "ss.slice(1).forEach" in nar and 'mac-nar-ul' in nar, \
         'the rest of the section renders as bullets'
     assert 's.outlook' not in nar and 'row.outlook' not in nar, \
-        'the full sector outlooks live on their own sector tabs'
+        'the Overview prints the influence, not the one-line outlook'
     assert re.search(r'\.mac-narrative\{[^}]*max-width:\d+ch', css), \
         'prose needs a reading measure'
     assert re.search(r'\.mac-nar-p\{[^}]*line-height:1\.[6-9]', css), \
@@ -246,7 +201,7 @@ def test_macro_narrative_lists_key_sector_influences():
     """The Overview narrative ends with the sectors the macro backdrop is
     helping or hurting, grouped by stance through the whitelist and linked
     by index (never by a model string in an attribute) to each sector's own
-    tab, where the full outlook renders."""
+    tab."""
     css = _css()
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
     assert nar, 'could not find _macNarrativeHTML'
@@ -281,104 +236,30 @@ def test_macro_overview_is_the_landing_view():
     assert "classList.toggle('active',el.id==='view-'+curView)" in init
 
 
-def test_sector_outlooks_live_on_their_sector_tab():
-    """Each sector's macro outlook renders on that sector's own Sector
-    Analysis tab, in a Macro Outlook section directly above Sector
-    Headwinds & Tailwinds — top-down read, then bottom-up. It used to be an
-    eleven-sector "Sector implications" grid trailing the Macro Outlook
-    Overview, read once and left behind."""
+def test_sector_tabs_carry_no_macro_narrative():
+    """The Claude narrative's per-sector read renders once, on the Macro
+    Outlook Overview under Key sector influences. The Sector Analysis tabs
+    used to repeat it in a Macro Outlook section above Sector Headwinds &
+    Tailwinds; that block is now the sector's only headwinds/tailwinds read,
+    so the macro section, its renderer and its styles are gone, and the
+    Overview does not grow a sector grid back either."""
     css = _css()
-    assert '_macSectorsHTML' not in css, \
-        'the all-sectors grid is gone; the outlooks are per sector now'
-    for cls in ('mac-sectors', 'mac-sec-cols', 'mac-nar-sec', 'mac-stance'):
-        assert cls not in css, '%s is dead markup, drop the CSS too' % cls
+    for dead in ('renderPoolMacroOutlook', '_macSecFigs', 'pp-macro',
+                 '_macSectorsHTML', 'mac-sectors', 'mac-nar-sec'):
+        assert dead not in css, '%s is dead, drop it' % dead
+    pool = re.search(r'var primerHtml=renderPoolPrimer\(sec\);'
+                     r'.*?pp-section pp-liquidity', css, re.S)
+    assert pool, 'could not find the per-sector section assembly'
+    pool = pool.group(0)
+    assert 'Macro Outlook<' not in pool
+    assert pool.find('pp-section pp-primer') < pool.find('pp-section pp-signals') \
+        < pool.find('pp-section pp-structure'), \
+        'Sector Headwinds & Tailwinds follows the primer directly'
     ov = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S)
     assert ov, 'could not find _macOverviewHTML'
     body = re.sub(r'/\*.*?\*/', '', ov.group(0), flags=re.S)
     assert 'sector' not in body.lower(), \
         'the Overview is the story and the tiles, nothing else'
-    sec = re.search(r'function renderPoolMacroOutlook\(sec\).*?\n\}\n',
-                    css, re.S)
-    assert sec, 'could not find renderPoolMacroOutlook'
-    sec = sec.group(0)
-    assert 's.sector===sec' in sec, 'the entry is matched to this sector'
-    # a narrative that is missing (no ANTHROPIC_API_KEY) or that skips a
-    # sector is a legal state: drop the section rather than render an empty
-    assert sec.count("return ''") >= 2, \
-        'a missing narrative or sector must drop the section'
-    # prose in the pp idiom: escaped first, then linkified like every other
-    # renderPool* helper
-    assert '_linkifyTickers(_esc(row.outlook||' in sec
-    # the Overview's influence paragraph repeats here, escaped the same way,
-    # between the outlook and the bullet columns
-    assert '_linkifyTickers(_esc(row.influence||' in sec
-    assert sec.find('pp-macro-p') < sec.find('pp-macro-inf') \
-        < sec.find('pp-macro-grid')
-    assert re.search(r'\.pp-macro-inf\{[^}]*font-size:0\.82em', css)
-    # The Context arc reads primer -> macro -> the sector's own structural
-    # forces, and the whole arc sits above the Profit Pool Structure block.
-    pool = re.search(r'var primerHtml=renderPoolPrimer\(sec\);'
-                     r'.*?pp-section pp-liquidity', css, re.S)
-    assert pool, 'could not find the per-sector section assembly'
-    pool = pool.group(0)
-    assert pool.find('pp-section pp-primer') < pool.find('pp-section pp-macro') \
-        < pool.find('pp-section pp-signals'), \
-        'Macro Outlook goes below the primer and above Sector Headwinds & Tailwinds'
-    assert pool.find('pp-section pp-macro') < pool.find('pp-section pp-structure'), \
-        'the top-down macro read frames the pool, so it comes first'
-    assert 'pp-section-label">Macro Outlook<' in pool
-
-
-def test_sector_macro_bullets_mirror_the_section_below():
-    """The macro bullets render as two stance columns reusing the Sector
-    Headwinds & Tailwinds grid, so the pair reads as cyclical-then-
-    structural and the phone stack comes for free. The lede (chip,
-    headline, outlook) stays above them."""
-    css = _css()
-    sec = re.search(r'function renderPoolMacroOutlook\(sec\).*?\n\}\n',
-                    css, re.S)
-    assert sec, 'could not find renderPoolMacroOutlook'
-    sec = sec.group(0)
-    # reuse, not a second grid: .pp-signals-grid is not scoped to .pp-signals
-    assert 'pp-signals-grid pp-macro-grid' in sec
-    assert 'pp-signals-col-hdr' in sec
-    assert re.search(r'@media\(max-width:760px\)\{\.pp-signals-grid\{'
-                     r'grid-template-columns:1fr', css), \
-        'the shared grid is what gives the macro columns their phone stack'
-    # tailwinds column first, matching the block below
-    assert sec.find('Macro Tailwinds') < sec.find('Macro Headwinds')
-    # the lede precedes the columns
-    assert sec.find('pp-macro-p') < sec.find('pp-macro-grid')
-    # a bullet-less narrative (stale cache, or replayed sidecar) still
-    # draws the lede — the grid is conditional, not assumed
-    assert 'if(tw.length||hw.length)' in sec
-    assert re.search(r'\.pp-macro-ul\{[^}]*font-size:0\.82em', css), \
-        'bullets take the pp prose idiom, like the list below them'
-    assert '[data-theme="dark"] .pp-macro-ul{' in css
-
-
-def test_sector_macro_outlook_is_styled_like_its_neighbours():
-    """.pp-macro is a pp-section like the blocks around it, so it has to be
-    registered in each of the enumerated class lists — the shared surface
-    rule, the section-label colour, and the dark-mode surface list — or it
-    renders unstyled, or fine in light mode and broken in dark."""
-    css = _css()
-    surface = re.search(r'\n([^\n]*\.pp-structure,[^\n]*)\{background:#f7f9fb',
-                        css)
-    assert surface and '.pp-macro,' in surface.group(1), \
-        '.pp-macro missing from the shared pp-section surface rule'
-    assert '.pp-macro .pp-section-label,' in css, \
-        '.pp-macro missing from the section-label colour list'
-    assert '[data-theme="dark"] .pp-macro,' in css, \
-        '.pp-macro missing from the dark-mode surface list'
-    # prose set like the Profit Pool Structure block below it
-    assert re.search(r'\.pp-macro-p\{[^}]*font-size:0\.82em', css) and \
-        re.search(r'\.pp-macro-p\{[^}]*line-height:1\.55', css), \
-        'the outlook is set in the pp prose idiom'
-    # stance is carried by colour, and both stance colours swap in dark mode
-    for cls in ('.pp-macro-p.up', '.pp-macro-p.down'):
-        assert cls + '{border-left-color:' in css
-        assert '[data-theme="dark"] ' + cls + '{border-left-color:' in css
 
 
 def test_macro_overview_does_not_repeat_section_charts():
