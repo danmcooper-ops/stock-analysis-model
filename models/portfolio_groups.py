@@ -524,7 +524,8 @@ def portfolio_stats(members, by_tk, prev_by_tk=None):
     a sector: counted as "Unknown" it was the top sector (67%, concentrated)
     of a 3-stock portfolio on 2026-09-25, when 61% of the universe had no
     sector. Same rule as the report's Portfolios view (``_pfRowStats``),
-    including that one sectored member is never "concentrated".
+    including that one sectored member is never "concentrated" (kept here,
+    not in ``concentration_analysis``: one real holding or top pick is).
     """
     from models.portfolio import concentration_analysis
     rows = [by_tk[t] for t in members if t in by_tk]
@@ -532,8 +533,9 @@ def portfolio_stats(members, by_tk, prev_by_tk=None):
     for r in rows:
         if r.get('rating') in mix:
             mix[r['rating']] += 1
-    sectored = [{'ticker': r['ticker'], 'sector': r['sector']} for r in rows if r.get('sector')]
-    conc = concentration_analysis(sectored)
+    conc = concentration_analysis([{'ticker': r['ticker'], 'sector': r.get('sector')}
+                                   for r in rows])
+    n_sectored = len(rows) - conc['n_unclassified']
     up = down = 0
     for r in rows:
         prev = (prev_by_tk or {}).get(r['ticker']) or {}
@@ -555,8 +557,8 @@ def portfolio_stats(members, by_tk, prev_by_tk=None):
         'top_sector': conc['top_sector'],
         'top_sector_weight': conc['top_sector_weight'],
         'hhi': conc['hhi'],
-        'concentrated': bool(conc['concentration_flag']) and len(sectored) > 1,
-        'no_sector': len(rows) - len(sectored),
+        'concentrated': bool(conc['concentration_flag']) and n_sectored > 1,
+        'no_sector': conc['n_unclassified'],
         'upgrades': up,
         'downgrades': down,
     }

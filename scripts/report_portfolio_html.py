@@ -64,6 +64,27 @@ def _html_text(value):
     return escape(str(value), quote=True)
 
 
+NO_SECTOR_LABEL = 'No sector data'
+
+
+def _sector_chart_rows(concentration):
+    """Donut slices as shares of the whole portfolio.
+
+    ``concentration_analysis`` weights sectors over the holdings that have
+    one; holdings without a sector are real money, so the chart scales the
+    sector slices back to the whole and shows the rest as its own "No sector
+    data" slice rather than hiding it. A state saved before
+    ``unclassified_weight`` existed charts exactly as before.
+    """
+    weights = (concentration or {}).get('sector_weights') or {}
+    gap = (concentration or {}).get('unclassified_weight') or 0.0
+    rows = [{'sector': s, 'weight': w * (1.0 - gap)}
+            for s, w in sorted(weights.items(), key=lambda x: -x[1])]
+    if gap > 0:
+        rows.append({'sector': NO_SECTOR_LABEL, 'weight': gap})
+    return rows
+
+
 def build_portfolio_html(portfolio_state, filename):
     """Render the interactive portfolio HTML report via Jinja2 template.
 
@@ -83,11 +104,8 @@ def build_portfolio_html(portfolio_state, filename):
     alerts_json = dumps_for_script(alerts, default=_json_default)
 
     # Sector weights for donut chart
-    sector_weights = concentration.get('sector_weights', {})
-    sector_chart_data = dumps_for_script([
-        {'sector': s, 'weight': w}
-        for s, w in sorted(sector_weights.items(), key=lambda x: -x[1])
-    ], default=_json_default)
+    sector_chart_data = dumps_for_script(_sector_chart_rows(concentration),
+                                         default=_json_default)
 
     # Summary metrics
     total_mv = portfolio_state.get('total_market_value')

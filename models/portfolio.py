@@ -107,30 +107,53 @@ def concentration_analysis(stocks_data):
             'concentration_flag': bool (True if any sector > 40% or HHI > 0.25),
             'hhi': float (Herfindahl-Hirschman Index of sector weights),
             'n_sectors': int,
+            'n_unclassified': int (entries with no sector),
+            'unclassified_weight': float (their share of the total weight),
         }
+
+    Weights, HHI and the flag are over the entries that have a sector. A
+    missing sector is a data gap, not a sector: counted as "Unknown" it
+    became 67% of the holdings on 2026-09-25 (four of six holdings had no
+    sector that night) and raised a false concentration flag. The excluded
+    entries are reported, never silently dropped.
     """
+    empty = {
+        'sector_weights': {},
+        'top_sector': None,
+        'top_sector_weight': 0.0,
+        'concentration_flag': False,
+        'hhi': 0.0,
+        'n_sectors': 0,
+        'n_unclassified': 0,
+        'unclassified_weight': 0.0,
+    }
     if not stocks_data:
-        return {
-            'sector_weights': {},
-            'top_sector': None,
-            'top_sector_weight': 0.0,
-            'concentration_flag': False,
-            'hhi': 0.0,
-            'n_sectors': 0,
-        }
+        return empty
 
     # Use position weights if available, otherwise equal weight
     sector_totals = {}
-    total_weight = 0.0
+    total_weight = unclassified = 0.0
+    n_unclassified = 0
     for s in stocks_data:
-        sector = s.get('sector') or 'Unknown'
         weight = s.get('position_weight') or (1.0 / len(stocks_data))
-        sector_totals[sector] = sector_totals.get(sector, 0) + weight
         total_weight += weight
+        sector = s.get('sector')
+        if not sector:
+            n_unclassified += 1
+            unclassified += weight
+            continue
+        sector_totals[sector] = sector_totals.get(sector, 0) + weight
 
-    # Normalize
-    if total_weight > 0:
-        sector_weights = {s: w / total_weight for s, w in sector_totals.items()}
+    unclassified_weight = unclassified / total_weight if total_weight > 0 else 0.0
+    if not sector_totals:
+        return dict(empty, n_unclassified=n_unclassified,
+                    unclassified_weight=unclassified_weight)
+
+    # Normalize over the classified weight (summed, not total - unclassified,
+    # which leaves a float residue: 1.0 read as 0.9999999999999999)
+    classified = sum(sector_totals.values())
+    if classified > 0:
+        sector_weights = {s: w / classified for s, w in sector_totals.items()}
     else:
         sector_weights = sector_totals
 
@@ -150,4 +173,6 @@ def concentration_analysis(stocks_data):
         'concentration_flag': concentration_flag,
         'hhi': hhi,
         'n_sectors': len(sector_weights),
+        'n_unclassified': n_unclassified,
+        'unclassified_weight': unclassified_weight,
     }

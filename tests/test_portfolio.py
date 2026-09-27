@@ -137,3 +137,89 @@ class TestConcentrationAnalysis:
         assert result['top_sector'] == 'Tech'
         assert result['top_sector_weight'] == pytest.approx(0.80)
         assert result['concentration_flag'] is True
+
+    def test_missing_sector_is_not_a_sector(self):
+        """A missing or blank sector is a data gap, excluded and counted."""
+        data = [
+            {'ticker': 'A', 'sector': 'Tech'},
+            {'ticker': 'B', 'sector': 'Health'},
+            {'ticker': 'C', 'sector': None},
+            {'ticker': 'D', 'sector': ''},
+            {'ticker': 'E'},
+            {'ticker': 'F', 'sector': 'Tech'},
+        ]
+        result = concentration_analysis(data)
+        assert 'Unknown' not in result['sector_weights']
+        assert sum(result['sector_weights'].values()) == pytest.approx(1.0)
+        assert result['sector_weights']['Tech'] == pytest.approx(2 / 3)
+        assert result['top_sector'] == 'Tech'
+        assert result['n_sectors'] == 2
+        assert result['n_unclassified'] == 3
+        assert result['unclassified_weight'] == pytest.approx(0.5)
+
+    def test_missing_sector_holdings_night(self):
+        """2026-09-25: four of six holdings had no sector. Counted as
+        "Unknown" they were 67% and flagged the portfolio concentrated."""
+        data = [{'ticker': t, 'sector': None} for t in ('DECK', 'FFIV', 'CL', 'CF')]
+        data += [{'ticker': 'ADSK', 'sector': 'Technology'},
+                 {'ticker': 'ANET', 'sector': 'Communication Services'}]
+        result = concentration_analysis(data)
+        assert result['top_sector'] != 'Unknown'
+        assert result['hhi'] == pytest.approx(0.5)
+        assert result['n_unclassified'] == 4
+
+    def test_missing_sector_with_position_weights(self):
+        """Weights normalise over the classified weight; the gap is its share."""
+        data = [
+            {'ticker': 'A', 'sector': 'Tech', 'position_weight': 0.30},
+            {'ticker': 'B', 'sector': 'Health', 'position_weight': 0.10},
+            {'ticker': 'C', 'sector': None, 'position_weight': 0.60},
+        ]
+        result = concentration_analysis(data)
+        assert result['sector_weights']['Tech'] == pytest.approx(0.75)
+        assert result['sector_weights']['Health'] == pytest.approx(0.25)
+        assert result['unclassified_weight'] == pytest.approx(0.60)
+        assert result['concentration_flag'] is True
+
+    def test_all_missing_sector(self):
+        """No sector anywhere: nothing to be concentrated in."""
+        result = concentration_analysis([{'ticker': 'A'}, {'ticker': 'B', 'sector': ''}])
+        assert result['top_sector'] is None
+        assert result['concentration_flag'] is False
+        assert result['hhi'] == 0.0 and result['sector_weights'] == {}
+        assert result['n_unclassified'] == 2
+        assert result['unclassified_weight'] == pytest.approx(1.0)
+
+    def test_empty_input_reports_no_gap(self):
+        result = concentration_analysis([])
+        assert result['n_unclassified'] == 0 and result['unclassified_weight'] == 0.0
+
+
+class TestSectorChartRows:
+    """Holdings donut: sector slices plus a slice for holdings with no sector."""
+
+    def test_gap_slice_and_total(self):
+        from scripts.report_portfolio_html import NO_SECTOR_LABEL, _sector_chart_rows
+        conc = concentration_analysis([
+            {'ticker': 'A', 'sector': 'Tech', 'position_weight': 0.30},
+            {'ticker': 'B', 'sector': 'Health', 'position_weight': 0.10},
+            {'ticker': 'C', 'sector': None, 'position_weight': 0.60},
+        ])
+        rows = _sector_chart_rows(conc)
+        assert [r['sector'] for r in rows] == ['Tech', 'Health', NO_SECTOR_LABEL]
+        assert [r['weight'] for r in rows] == pytest.approx([0.30, 0.10, 0.60])
+        assert sum(r['weight'] for r in rows) == pytest.approx(1.0)
+
+    def test_no_gap_slice_when_all_sectored(self):
+        from scripts.report_portfolio_html import NO_SECTOR_LABEL, _sector_chart_rows
+        rows = _sector_chart_rows(concentration_analysis(
+            [{'ticker': 'A', 'sector': 'Tech'}, {'ticker': 'B', 'sector': 'Health'}]))
+        assert NO_SECTOR_LABEL not in [r['sector'] for r in rows]
+        assert sum(r['weight'] for r in rows) == pytest.approx(1.0)
+
+    def test_legacy_state(self):
+        """A state saved before unclassified_weight existed charts as before."""
+        from scripts.report_portfolio_html import _sector_chart_rows
+        rows = _sector_chart_rows({'sector_weights': {'Tech': 0.4, 'Unknown': 0.6}})
+        assert rows == [{'sector': 'Unknown', 'weight': 0.6}, {'sector': 'Tech', 'weight': 0.4}]
+        assert _sector_chart_rows({}) == [] and _sector_chart_rows(None) == []
