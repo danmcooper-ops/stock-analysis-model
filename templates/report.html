@@ -3373,7 +3373,8 @@ function _pfPubUnchanged(id){
   _pfLocal.portfolios.forEach(function(p){if(p.id===id)b=p;});
   return !!(a&&b&&_pfCanon([a])===_pfCanon([b]));
 }
-function _pfAlertsFor(id){
+function _pfAlertsFor(id){return _pfMemoGet('a|'+id,function(){return _pfAlertsCalc(id);});}
+function _pfAlertsCalc(id){
   var p=_pfById[id],mode=(p&&p.alerts)||'buy_line';
   if(mode==='off')return[];
   var out=[];
@@ -3393,13 +3394,20 @@ function _pfSystemicHtml(){
   return'<div class="pfv-banner pfv-banner-'+_pfEsc(s.cause||'model')+'"><b>'+(s.cause==='data'?'Data problem':'Model-wide shift')+'.</b> '
     +_pfEsc(String(s.message).replace(/^[^:]*:\s*/,''))+'</div>';
 }
-/* Alerts grouped Action, Watch, then FYI collapsed. */
-function _pfAlertsHtml(al,showPf,emptyMsg){
+/* Alerts grouped Action, Watch, then FYI collapsed. With `cap`, Watch rows
+   past the first `cap` alerts sit behind an expander (Action rows never do). */
+function _pfAlertsHtml(al,showPf,emptyMsg,cap){
   var act=al.filter(function(a){return a.level!=='fyi';}),fyi=al.filter(function(a){return a.level==='fyi';});
-  var h='';
+  var h='',more=[];
+  if(cap&&act.length>cap){
+    var keep=Math.max(cap,act.filter(function(a){return a.level==='action';}).length);
+    more=act.slice(keep);act=act.slice(0,keep);
+  }
   if(act.length)h+='<div class="pfv-alerts">'+act.map(function(a){return _pfAlertRow(a,showPf);}).join('')+'</div>';
   else h+='<div class="pf-empty">'+emptyMsg+'</div>';
-  if(fyi.length)h+='<details class="pfv-fyi"><summary>'+fyi.length+' quieter change'+(fyi.length===1?'':'s')
+  if(more.length)h+='<details class="pfv-fyi" data-pfk="more"><summary>'+more.length+' more watch alert'+(more.length===1?'':'s')+'</summary><div class="pfv-alerts">'
+    +more.map(function(a){return _pfAlertRow(a,showPf);}).join('')+'</div></details>';
+  if(fyi.length)h+='<details class="pfv-fyi" data-pfk="fyi"><summary>'+fyi.length+' quieter change'+(fyi.length===1?'':'s')
     +' <span class="pf-muted">(moves within a side, or on missing data)</span></summary><div class="pfv-alerts">'
     +fyi.map(function(a){return _pfAlertRow(a,showPf);}).join('')+'</div></details>';
   return h;
@@ -3457,7 +3465,12 @@ function _pfRowStats(rows){
     bins:bins.map(function(c){return nMos?c/nMos:0;}),binN:bins,nMos:nMos,
     mos:med('mos'),score:med('_composite_score'),spread:med('spread'),pe:med('pe'),dy:med('div_yield')};
 }
-function _pfStats(id){return _pfRowStats(_pfMembers(id).map(function(t){return _pfRow[t];}).filter(Boolean));}
+function _pfStats(id){return _pfMemoGet('s|'+id,function(){return _pfRowStats(_pfMembers(id).map(function(t){return _pfRow[t];}).filter(Boolean));});}
+/* Per-render memo: one render asks for the same portfolio's stats, alerts
+   and NAV series several times (cards, the merged alert list, table mode).
+   Live only for the duration of renderPfView, so nothing can go stale. */
+var _pfMemo=null;
+function _pfMemoGet(k,f){if(!_pfMemo)return f();if(!(k in _pfMemo))_pfMemo[k]=f();return _pfMemo[k];}
 /* The whole universe, once per page (DATA does not change after load). */
 var _pfUniMemo=null;
 function _pfUni(){
@@ -3542,7 +3555,7 @@ function _pfAlertRow(a,showPf){
     +(_pfIsNew()&&a.level!=='fyi'?'<span class="pfv-new">NEW</span>':'')+dir
     +_pfTkLink(a.ticker)
     +'<span class="pfv-alert-msg">'+_pfEsc(msg)+'</span>'+(pfs?'<span class="pfv-alert-pf">'+pfs+'</span>':'');
-  if(why&&why.length)return'<details class="pfv-alert-x"><summary class="pfv-alert">'+row+'<span class="pfv-why-tog" title="Why the rating changed">why</span></summary>'
+  if(why&&why.length)return'<details class="pfv-alert-x" data-pfk="why|'+_pfEsc(a.kind+'|'+a.ticker+'|'+(a.portfolio||''))+'"><summary class="pfv-alert">'+row+'<span class="pfv-why-tog" title="Why the rating changed">why</span></summary>'
     +'<ul class="pfv-why">'+why.map(function(w){return'<li>'+_pfEsc(w)+'</li>';}).join('')+'</ul></details>';
   return'<div class="pfv-alert">'+row+'</div>';
 }
@@ -3552,11 +3565,33 @@ function _pfSyncNote(){
   return'<div class="pf-sync pf-sync-'+st+'">'+(st==='stale'?'The published portfolio file changed after you started editing here.':'Showing this browser’s unpublished edits.')
     +' <button class="pf-link" onclick="pfManageOpen()">Manage / export…</button></div>';
 }
+/* A re-render of the page already on screen (an edit, a theme switch)
+   keeps what the reader had open: <details> by data-pfk, the window's
+   scroll, and the scroll of the side rail and members table. Navigating to
+   another page starts fresh. */
+var _pfLastSub=null;
+function _pfUiState(el){
+  var st={open:{},y:window.scrollY,sc:{}};
+  el.querySelectorAll('details[open][data-pfk]').forEach(function(d){st.open[d.getAttribute('data-pfk')]=1;});
+  ['.pfv-rail','.pfm-wrap'].forEach(function(q){var n=el.querySelector(q);if(n)st.sc[q]=[n.scrollTop,n.scrollLeft];});
+  return st;
+}
+function _pfUiRestore(el,st){
+  el.querySelectorAll('details[data-pfk]').forEach(function(d){if(st.open[d.getAttribute('data-pfk')])d.open=true;});
+  Object.keys(st.sc).forEach(function(q){var n=el.querySelector(q);if(n){n.scrollTop=st.sc[q][0];n.scrollLeft=st.sc[q][1];}});
+  if(Math.abs(window.scrollY-st.y)>1)window.scrollTo(window.scrollX,st.y);
+}
 function renderPfView(){
   var el=document.getElementById('pf-view');if(!el)return;
   if(curPfSub!=='overview'&&!_pfById[curPfSub])curPfSub='overview';
-  el.innerHTML=curPfSub==='overview'?_pfOverviewHtml():_pfDetailHtml(curPfSub);
-  if(curPfSub!=='overview'){_pfDrawChart();_pfmNeedPx();_pfContribDraw();}
+  var same=_pfLastSub===curPfSub&&el.firstChild,ui=same?_pfUiState(el):null;
+  _pfMemo={};
+  try{
+    el.innerHTML=curPfSub==='overview'?_pfOverviewHtml():_pfDetailHtml(curPfSub);
+    if(ui)_pfUiRestore(el,ui);
+    if(curPfSub!=='overview'){_pfDrawChart();_pfmNeedPx();_pfContribDraw();}
+  }finally{_pfMemo=null;}
+  _pfLastSub=curPfSub;
   _pfMarkSeen();
 }
 /* Keyboard: Enter/Space on a ticker link or a sortable header acts as a click. */
@@ -3568,11 +3603,77 @@ function renderPfView(){
     if(t.classList.contains('tk-link')||t.classList.contains('pfm-th')){e.preventDefault();t.click();}
   });
 })();
-var _pfResizeT=null;
-window.addEventListener('resize',function(){
+/* Redraw the chart when its container's width changes. A ResizeObserver
+   also catches layout changes a window resize does not fire for (the side
+   rail appearing, a scrollbar); the window listener is the fallback. */
+var _pfResizeT=null,_pfChartW=0;
+function _pfOnResize(){
   if(curView!=='pf'||curPfSub==='overview')return;
-  clearTimeout(_pfResizeT);_pfResizeT=setTimeout(_pfDrawChart,150);
-});
+  var w=document.getElementById('pfc-wrap');if(!w||w.clientWidth===_pfChartW)return;
+  clearTimeout(_pfResizeT);_pfResizeT=setTimeout(function(){var w2=document.getElementById('pfc-wrap');if(w2){_pfChartW=w2.clientWidth;_pfDrawChart();}},120);
+}
+(function(){
+  var el=document.getElementById('pf-view');
+  if(el&&typeof ResizeObserver==='function')new ResizeObserver(_pfOnResize).observe(el);
+  else window.addEventListener('resize',_pfOnResize);
+})();
+/* Overview layout (cards | table) and sort, remembered per browser. */
+var _PF_OV_KEY='stock_pf_overview_v1';
+var _PF_OV_COLS=[
+  {k:'name',l:'Portfolio',card:'Name',asc:1},{k:'n',l:'Stocks',card:'Size'},{k:'mix',l:'Rating mix'},
+  {k:'mos',l:'Med. MoS',card:'Median MoS',pct:1},{k:'score',l:'Med. score'},{k:'spread',l:'ROIC−WACC',pct:1},
+  {k:'r1m',l:'1M',ret:1,card:'1M return'},{k:'r3m',l:'3M',ret:1},{k:'since',l:'Since start',ret:1,card:'Since start'},
+  {k:'vs',l:'vs SPY',ret:1,tip:'Since-start return minus SPY over the same dates'},{k:'aw',l:'Alerts',card:'Alerts'}];
+var _pfOv=(function(){
+  var d={mode:'cards',k:'name',asc:true};
+  try{var v=JSON.parse(localStorage.getItem(_PF_OV_KEY));if(v&&typeof v==='object'){d.mode=v.mode==='table'?'table':'cards';if(v.k)d.k=String(v.k);d.asc=!!v.asc;}}catch(e){}
+  return d;
+})();
+function _pfOvSave(){try{localStorage.setItem(_PF_OV_KEY,JSON.stringify(_pfOv));}catch(e){}}
+function _pfSummary(p){
+  var st=_pfStats(p.id),al=_pfAlertsFor(p.id),c=_pfCount(al),perf=_pfPerf(p.id);
+  var since=perf?_pfWin(perf,'pf',null):null,spy=perf?_pfWin(perf,'spy',null):null;
+  return{p:p,st:st,al:al,cnt:c,aw:c.action+c.watch,awKey:c.action*1e4+c.watch,perf:perf,
+    name:String(p.name||'').toLowerCase(),n:st.n,mos:st.mos,score:st.score,spread:st.spread,
+    r1m:perf?_pfWin(perf,'pf',30):null,r3m:perf?_pfWin(perf,'pf',91):null,since:since,
+    vs:since==null||spy==null?null:since-spy};
+}
+function _pfOvSorted(sums){
+  var k=_pfOv.k==='aw'?'awKey':_pfOv.k==='mix'?'mixKey':_pfOv.k,asc=_pfOv.asc;
+  sums.forEach(function(x){x.mixKey=x.st.buy;});
+  return sums.slice().sort(function(a,b){
+    var va=a[k],vb=b[k],nm=a.name<b.name?-1:a.name>b.name?1:0;
+    if(va==null||vb==null)return va==null&&vb==null?nm:va==null?1:-1;
+    var c=va<vb?-1:va>vb?1:0;return(asc?c:-c)||nm;
+  });
+}
+function pfOvMode(m){_pfOv.mode=m==='table'?'table':'cards';_pfOvSave();renderPfView();}
+function pfOvSort(k){
+  var col=_PF_OV_COLS.filter(function(c){return c.k===k;})[0];if(!col)return;
+  if(_pfOv.k===k&&_pfOv.mode==='table')_pfOv.asc=!_pfOv.asc;
+  else{_pfOv.k=k;_pfOv.asc=!!col.asc;}
+  _pfOvSave();renderPfView();
+}
+function _pfOvTable(sums){
+  function tone(v){return v==null?'':v>0?' pos':v<0?' neg':'';}
+  var h='<div class="pfv-tbl-wrap pfo-wrap"><table class="pfv-tbl pfm-tbl pfo-tbl"><thead><tr>'+_PF_OV_COLS.map(function(c){
+    var on=_pfOv.k===c.k;
+    return'<th class="pfm-th'+(c.k==='name'||c.k==='mix'?'':' r')+(on?' on':'')+'" tabindex="0" aria-sort="'+(on?(_pfOv.asc?'ascending':'descending'):'none')+'"'
+      +(c.tip?' title="'+_pfEsc(c.tip)+'"':'')+' onclick="pfOvSort(\''+c.k+'\')">'+c.l+'<span class="pfm-ar">'+(on?(_pfOv.asc?'▲':'▼'):'')+'</span></th>';
+  }).join('')+'</tr></thead><tbody>';
+  sums.forEach(function(x){
+    var id=_pfJsArg(x.p.id),go='navGo(\'pf\',\''+id+'\')';
+    h+='<tr class="pfo-row" tabindex="0" onclick="'+go+'" onkeydown="if(event.key===\'Enter\')'+go+'" style="--pf:'+_pfEsc(_pfCol(x.p.color))+'">'
+      +'<td class="pfm-stk"><span class="pfo-name"><i></i>'+_pfEsc(x.p.name)+'</span></td>'
+      +'<td class="r">'+x.n+'</td><td class="pfo-mix">'+_pfMixBar(x.st)+'</td>'
+      +'<td class="r'+tone(x.mos)+'">'+_pfPct(x.mos,true)+'</td>'
+      +'<td class="r">'+(x.score==null?'—':Math.round(x.score))+'</td>'
+      +'<td class="r'+tone(x.spread)+'">'+_pfPct(x.spread,true)+'</td>'
+      +['r1m','r3m','since','vs'].map(function(k){return'<td class="r'+tone(x[k])+'">'+_pfFmtRet(x[k])+'</td>';}).join('')
+      +'<td class="r">'+(x.aw?'<span class="pfv-badge'+(x.cnt.action?' hot':'')+'" title="'+x.cnt.action+' action, '+x.cnt.watch+' watch">'+x.aw+'</span>':'<span class="pf-muted">—</span>')+'</td></tr>';
+  });
+  return h+'</tbody></table></div>';
+}
 function _pfOverviewHtml(){
   var defs=_pfDefs();
   var h='<div class="pfv"><div class="pfv-head"><h2>Portfolios</h2>'
@@ -3583,10 +3684,17 @@ function _pfOverviewHtml(){
       +'<p>Filter the Financial Data table and choose <b>Save filter as portfolio</b> in the Filters panel, add a stock from its popup (the folder button), or start one here.</p>'
       +'<button class="pf-btn pf-primary" onclick="pfNewEmpty()">+ New portfolio</button></div></div>';
   }
-  h+='<div class="pfv-grid">';
-  defs.forEach(function(p){
-    var st=_pfStats(p.id),al=_pfAlertsFor(p.id),id=_pfJsArg(p.id);
-    var cnt=_pfCount(al),nAW=cnt.action+cnt.watch;
+  var sums=_pfOvSorted(defs.map(_pfSummary));
+  h+='<div class="pfv-ov-bar"><div class="pfm-seg" role="group" aria-label="Layout">'
+    +[['cards','Cards'],['table','Table']].map(function(m){var on=_pfOv.mode===m[0];return'<button type="button" class="pfm-seg-b'+(on?' on':'')+'" aria-pressed="'+on+'" onclick="pfOvMode(\''+m[0]+'\')">'+m[1]+'</button>';}).join('')+'</div>'
+    +(_pfOv.mode==='cards'?'<label class="pfv-ov-sort">Sort <select class="pf-btn" onchange="pfOvSort(this.value)">'
+      +_PF_OV_COLS.filter(function(c){return c.card;}).map(function(c){return'<option value="'+c.k+'"'+(c.k===_pfOv.k?' selected':'')+'>'+c.card+'</option>';}).join('')+'</select></label>':'')
+    +'</div>';
+  if(_pfOv.mode==='table')h+=_pfOvTable(sums);
+  else h+='<div class="pfv-grid">';
+  if(_pfOv.mode!=='table')sums.forEach(function(sm){
+    var p=sm.p,st=sm.st,al=sm.al,id=_pfJsArg(p.id);
+    var cnt=sm.cnt,nAW=sm.aw;
     var joined=al.filter(function(a){return a.kind==='joined';}).length,
         left=al.filter(function(a){return a.kind==='left'||a.kind==='dropped_out'||a.kind==='stopped_trading';}).length;
     var kind=p.rule?((p.tickers||[]).length?'Rule + '+p.tickers.length+' picked':'Rule'):'Hand-picked';
@@ -3600,7 +3708,7 @@ function _pfOverviewHtml(){
       +'<div class="pfv-foot">'+(PF_PUB.prev_date?'Today: <span class="pos">▲'+st.up+'</span> <span class="neg">▼'+st.down+'</span>'
         +(joined?' · +'+joined+' joined':'')+(left?' · −'+left+' left':''):'No prior run to compare')+'</div></div>';
   });
-  h+='</div>';
+  if(_pfOv.mode!=='table')h+='</div>';
   var all={},list=[];
   defs.forEach(function(p){_pfAlertsFor(p.id).forEach(function(a){
     var key=a.kind+'|'+a.ticker+'|'+(a.portfolio||'');
@@ -3611,7 +3719,7 @@ function _pfOverviewHtml(){
   _pfSortAlerts(list);
   var oc=_pfCount(list);
   h+='<h3 class="pfv-h3">Alerts'+(oc.action+oc.watch?' <span class="pfv-count">'+(oc.action+oc.watch)+'</span>':'')+'</h3>';
-  h+=_pfAlertsHtml(list,true,PF_PUB.prev_date?'Nothing crossed the buy line, reversed, or needs watching in your portfolios today.':'No prior run to compare against.');
+  h+=_pfAlertsHtml(list,true,PF_PUB.prev_date?'Nothing crossed the buy line, reversed, or needs watching in your portfolios today.':'No prior run to compare against.',15);
   return h+'</div>';
 }
 function _pfDetailHtml(id){
@@ -3800,7 +3908,7 @@ function _pfmTable(id){
 function _pfmHtml(id){
   _pfmLoad(id);
   var t=_pfmTable(id);
-  return'<div class="pfm-top"><div class="pfm-seg" role="group" aria-label="Column set">'
+  return'<div class="pfm-top"><div class="pfm-seg pfm-cols" role="group" aria-label="Column set">'
     +_PFM_PRESETS.map(function(pr){var on=pr.id===_pfm.preset;return'<button type="button" class="pfm-seg-b'+(on?' on':'')+'" aria-pressed="'+on+'" onclick="pfmPreset(\''+pr.id+'\')">'+pr.l+'</button>';}).join('')
     +'</div><input type="search" class="pfm-q" placeholder="Filter by ticker or name" aria-label="Filter members" value="'+_pfEsc(_pfm.q)+'" oninput="pfmQuery(this.value)">'
     +'<span class="pf-muted pfm-n" id="pfm-n">'+(t.shown<t.total?t.shown+' of '+t.total:'')+'</span></div>'
@@ -3810,7 +3918,7 @@ function _pfmRedraw(){
   var tb=document.getElementById('pfm-tbl');if(!tb||!_pfm.id||!_pfById[_pfm.id])return;
   var t=_pfmTable(_pfm.id);tb.innerHTML=t.html;
   var n=document.getElementById('pfm-n');if(n)n.textContent=t.shown<t.total?t.shown+' of '+t.total:'';
-  var bs=document.querySelectorAll('.pfm-seg-b');
+  var bs=document.querySelectorAll('.pfm-cols .pfm-seg-b');
   for(var i=0;i<bs.length;i++){var on=_PFM_PRESETS[i].id===_pfm.preset;bs[i].classList.toggle('on',on);bs[i].setAttribute('aria-pressed',on);}
 }
 /* Momentum needs closes: fetch the members' px/ shards once, then redraw. */
@@ -3835,7 +3943,8 @@ function pfmAll(){_pfm.all=true;_pfmRedraw();}
    point: 1 backfilled (hypothetical replay), 2 definition changed,
    4 under 80% of members priced. --- */
 function _pfNavRaw(id){return(PF_PUB.nav&&PF_PUB.nav.pf&&PF_PUB.nav.pf[id])||null;}
-function _pfPerf(id){
+function _pfPerf(id){return _pfMemoGet('p|'+id,function(){return _pfPerfCalc(id);});}
+function _pfPerfCalc(id){
   var s=_pfNavRaw(id);if(!s||s.length<2)return null;
   function mapOf(a){var m={};(a||[]).forEach(function(p){m[p[0]]=p[1];});return m;}
   var spy=mapOf(PF_PUB.nav.spy),ew=mapOf(PF_PUB.nav.universe);
@@ -3891,9 +4000,10 @@ function _pfSpark(id,color){
 function _pfPerfLine(id){
   var pf=_pfPerf(id);
   if(!pf)return'<div class="pfv-perf-line pf-muted">Performance starts with the next run after this portfolio is published.</div>';
-  var r=_pfWin(pf,'pf',null),s=_pfWin(pf,'spy',null);
+  var r=_pfWin(pf,'pf',null),s=_pfWin(pf,'spy',null),m1=_pfWin(pf,'pf',30);
   return'<div class="pfv-perf-line">Since '+_pfEsc(pf.dates[0])+(pf.bfEnd>=0?'<span class="pfv-bf-tag" title="Includes a backfilled (hypothetical) replay of today’s definition">*</span>':'')
-    +': <b class="'+(r>0?'pos':r<0?'neg':'')+'">'+_pfFmtRet(r)+'</b> <span class="pf-muted">vs SPY '+_pfFmtRet(s)+'</span></div>';
+    +': <b class="'+(r>0?'pos':r<0?'neg':'')+'">'+_pfFmtRet(r)+'</b> <span class="pf-muted">vs SPY '+_pfFmtRet(s)+'</span>'
+    +(m1!=null?' <span class="pf-muted">· 1M</span> <span class="'+(m1>0?'pos':m1<0?'neg':'')+'">'+_pfFmtRet(m1)+'</span>':'')+'</div>';
 }
 var _PF_SERIES=[{k:'pf',l:null,cls:'pfc-pf'},{k:'spy',l:'S&P 500 (SPY)',cls:'pfc-spy'},{k:'ew',l:'Equal-weight universe',cls:'pfc-ew'}];
 /* Chart range per portfolio (page-lifetime). 'all' | '1m' | '3m' | 'ytd'. */
@@ -4012,6 +4122,7 @@ function _pfDrawChart(){
   var id=wrap.getAttribute('data-id'),p=_pfById[id],full=_pfPerf(id);if(!p||!full)return;
   var pf=_pfSlice(full,_pfRangeOf(id));
   if(pf.dates.length<2){wrap.innerHTML='<div class="pf-empty">Not enough points in this range.</div>';return;}
+  _pfChartW=wrap.clientWidth;
   var W=Math.max(280,wrap.clientWidth||600),H=W<500?200:260,L=46,R=12,T=10,B=24;
   var t=pf.dates.map(function(d){return Date.parse(d+'T00:00:00Z');});
   var t0=t[0],t1=t[t.length-1]||t0+1;
@@ -11684,6 +11795,17 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfm-bar i{position:absolute;top:0;bottom:0;border-radius:3px;}
 .pfm-bar i.pos{background:var(--pf-pos);}.pfm-bar i.neg{background:var(--pf-neg);}
 .pfm-more-row td{text-align:center;}
+/* Overview: layout toggle, sort, and the comparison table. */
+.pfv-ov-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;}
+.pfv-ov-sort{font-size:12.5px;color:var(--text-muted);display:inline-flex;align-items:center;gap:6px;}
+.pfv-ov-sort select{padding:4px 6px;}
+.pfo-row{cursor:pointer;}
+.pfo-row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+.pfo-name{display:inline-flex;align-items:center;gap:8px;font-weight:600;}
+.pfo-name i{width:10px;height:10px;border-radius:3px;background:var(--pf);flex:0 0 auto;}
+.pfo-mix{min-width:90px;}
+.pfo-mix .pfv-mix{width:100%;min-width:80px;}
+.pfo-wrap{max-height:none;}
 @media (prefers-reduced-motion:reduce){
   .pfv-card{transition:none;}
   .pfv-card:hover,.pfv-card:focus-visible{transform:none;}
