@@ -259,10 +259,10 @@ class TestNarrativeAttachment:
     def _narrative(self):
         return {'paragraphs': ['The economy is fine.'],
                 'headwinds': [], 'tailwinds': [],
-                'sectors': [{'sector': 'Technology', 'stance': 'neutral',
-                             'headline': 'Flat is fine', 'outlook': 'Flat.',
-                             'tailwinds': ['Core PCE at 2.8%'],
-                             'headwinds': ['10Y at 4.3%']}]}
+                'sectors': [{'sector': 'Technology',
+                             'influence': 'Rates and credit offset.',
+                             'headline': 'Flat is fine',
+                             'stance': 'neutral'}]}
 
     def test_attached_to_sidecar_and_summary(self):
         fred, as_of = full_stub()
