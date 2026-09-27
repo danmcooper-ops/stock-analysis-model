@@ -342,6 +342,49 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
     6. **Retiring GitHub Pages later:** after some green nights on both, make 08b blocking and drop the `pages-live` push and live check from step 08. Keep the `docs/` build. Then disable Pages in the repository settings and delete `.github/workflows/deploy-pages.yml` and the `pages-live` branch.
 - **P5: Scale tests.**
   - *Passes when:* every scalability target is met.
+  - **Run 2026-09-27, scaled down locally** (decision: build the tooling, measure what fits, extrapolate). The plan's 20M rows need about 75 GB; the container had 21 GB. So the run used the full ticker count, 8,000, over fewer days. Per-night costs depend on the tickers; history-dependent costs were measured at two sizes to get their slope:
+    - half: 188 days, 1.5M rows;
+    - full: 375 days, 3.06M rows, crossing two yearly partitions.
+    - Everything ran against the local Supabase stack (Postgres 17, PostgREST, Kong), with 4 cores. For a cold cache, Postgres was restarted and the OS page cache dropped before each benchmark.
+  - **Tooling** (`tests/load/`, see its README):
+    - `scale.py` clones real snapshot rows into synthetic tickers and days (templates from 2026-09-25). Each ticker's rating walks through runs of 20–80 days, which gives about 2% changes a night, as the real data does. It then runs the checks: publish, EXPLAIN pruning, size, cold-cache latency, publish under load, and anon refusal. `compare` prints the growth table.
+    - `k6_public.js` is the CDN load test.
+    - `tests/test_db_scale.py` pins the generator's rating walk and change points against publish_run's rule, and runs the whole harness at 12 tickers × 30 days in CI's `db` job.
+  - **Found and fixed:**
+    1. **The Data API cancelled the nightly publish.** Supabase gives `authenticator` an 8 s `statement_timeout`, and `service_role` inherits it. publish_run is one transaction by design; at 2.5k rows it fit inside 8 s, and at 8k it took about 13 s and was cancelled (SQLSTATE 57014). Migration `*_service_role_timeout.sql` gives `service_role` 10 minutes. anon and authenticated keep 3 s and 8 s.
+    2. **publish_run's cost grew with history.** The rating recompute's "one index probe" anchor joined `core.runs` inside its `ORDER BY … LIMIT 1`. The planner turned that into a scan of each ticker's whole history (about 3M heap blocks), which was 23.5 s of a 33 s publish, linear in days: about 160 s at 10 years.
+       - Migration `*_publish_run_anchor_probe.sql` excludes the few non-complete runs by date, so the ordered Append stops at the first row: 85 ms for 8k tickers. The fallback for a ticker that left a republished day gets the same fix.
+       - A new pg test covers a failed day in the history.
+       - At 3M rows, publish_run now takes about 6 s and the whole publish 16–18 s. The old function took 38 s at 3M rows.
+    3. **A committed publish could be reported as failed.** Under load at 3M rows, Kong's 60 s proxy timeout returned 504 while Postgres went on and committed the day, so run.sh 06a would have failed a good night. Fix 2 removes the long publish, and the lost response is also handled:
+       - The new RPC `pipeline.publish_outcome(load_id, run_date)` (migration `*_publish_outcome_rpc.sql`) answers `published`, `running` (publisher lock held), `failed` (chunks still staged, lock free) or `unknown`.
+       - `RestTransport` marks a 502/503/504 or a dropped connection as `PublishOutcomeUnknown`, and `publish()` polls `publish_outcome` for up to 15 minutes before deciding.
+    4. **"Rating changes since a date" scanned every change point.** It was 10 ms at 46k change points, linear, and heading past 50 ms at 20M rows. Migration `*_rating_changes_date_idx.sql` adds an index on `(run_date)` covering `(ticker_id, rating, prev_rating)`, so the read is an index-only scan.
+    5. **Ticker history was one cold heap page per day.** p95 was 12.7 ms at 189 rows and 25.5 ms at 380, which failed the 20 ms target at full scale and projected about 85 ms at the 1,260 rows of 5 real years.
+       - Migration `*_ticker_history.sql` replaces the `(ticker_id, run_date DESC)` index with one that also carries rating, mos, price, dcf_fv and `_composite_score`, about 32 bytes more per row. It adds `pipeline.ticker_history(ticker, from, to)`, which requires both bounds.
+       - Now 6.0 ms p95 at 382 rows. Measured cold across window sizes, it costs 3.4 ms plus 0.0065 ms per row, about 11 ms at 1,260 rows.
+       - The same index makes publish_run's anchor probe index-only.
+    6. **An open-ended history range touched the empty future partitions.** `run_date >= x` cannot prune the partitions created ahead of time. That is harmless while they are empty, but every history read is now bounded on both sides, which `ticker_history` enforces.
+  - **Results at 3.06M rows, after the fixes:**
+
+    | check | target | measured | at 20M rows (projected) |
+    |---|---|---|---|
+    | publish 8k rows, Data API, with change points | < 5 min | 16.4 s (20.4 s under load) | about the same: the anchor probe reads the newest partition only |
+    | partition pruning, every reader query | yes | yes, with history index-only | same |
+    | ticker history 5y, p95 cold | < 20 ms | 6.0 ms (382 rows) | about 11 ms (1,260 rows) |
+    | `last_known_rows`, 8k tickers, 20 columns | < 2 s | 431 ms | same: reads 7 days |
+    | rating changes since a date | < 50 ms | 6.9 ms | same for a fixed window |
+    | export (read the day back and write Parquet) | < 60 s | 15.7 s | same: one day |
+    | publish during load: no partial day | none | none; counts seen were only 0 and 8,000, raw and through `read_rows`, over a publish and a republish | same |
+    | readers' p95 during a publish | within target | history 10.3 ms, changes 9.5 ms, `last_known_rows` 567 ms | same |
+    | unauthenticated Data API calls | refused | 401/404 for `core` tables and the pipeline RPCs | same |
+
+  - **Growth** (half to full, same reader schema; `scale.py compare`): rows ×2.02, bytes per row ×1.00, `last_known_rows` ×1.02, export ×0.96, rating changes since ×1.39 (5.9 to 8.1 ms, both with its index). Ticker history grew with the rows returned (×2.0), which is what fix 5 addresses. `rating_history()` over all change points is the one read that grows with history by design: 208 ms at 82k change points, about 1.3 s at 20M rows. The nightly render calls it once.
+  - **Size:** 3.79 KB per row with indexes. That is 7.1 GiB/yr at 8,000 tickers and about 71 GiB at 20M rows. **A3 (≤ 4 GiB/yr) holds only at today's universe** (2.5k tickers, about 2.2 GiB/yr). At 8k tickers it needs either the retention step (move partitions older than N years to Parquet in Storage, which the plan already describes) or rows about 45% narrower. This is a decision for before P6, if the universe grows.
+  - **Not measured here:**
+    - **The 20M-row run on a hosted project.** It needs a staging project with about 80 GB of disk; the free tier caps the database at 500 MB. The command is in `tests/load/README.md`.
+    - **k6 through Cloudflare** (check 3). It needs the P4c deploy. The script ran against `wrangler pages dev`: 2,502 requests, 0 errors, and its latency and cache thresholds fire correctly (the emulator has no CDN cache). Nothing in that path reaches Postgres, because the site is static files; the plan's `pg_stat_statements` confirmation belongs to the hosted run.
+    - **Hosted gateway timeouts.** They may differ from the local stack's 60 s, and fix 3 covers either way.
 - **P6: Cutover.**
   - `06a` becomes blocking, and `RECOVERY.md` and `CLAUDE.md` are updated.
   - *Passes when:* 20 nightly runs in a row publish green with rating-history parity, and the restore drill passes.
@@ -397,7 +440,7 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
   - `supabase/config.toml` and the migrations: `0001_core.sql`, `0002_roles.sql`, `0003_publish_run.sql`
   - `data/db/columns.py`, `data/db/codec.py`, `data/db/reader.py`
   - `scripts/db_publish.py`, `scripts/export_public.py`
-  - `tests/load/` (the k6 scripts and the data generator)
+  - `tests/load/` (`scale.py`, the data generator and checks; `k6_public.js`)
 - **Changed:**
   - `data/snapshot_store.py` (backend selection, `sync_snapshot_file` defer and publish)
   - `data/screen_skip_cache.py`

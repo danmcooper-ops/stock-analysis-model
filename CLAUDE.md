@@ -41,7 +41,8 @@ scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    archive_snapshot.py (gzip a run onto the
                    data/snapshots branch, with a size guard), plus
                    enrichment/maintenance scripts
-tests/           - pytest suite (~1,300 tests) incl. hypothesis property tests
+tests/           - pytest suite (~1,300 tests) incl. hypothesis property tests;
+                   tests/load/ holds the P5 database scale harness and k6 script
 templates/       - jinja2 report templates
 supabase/        - Supabase project (config.toml, migrations/) for the planned
                    primary database; see design/supabase-migration.md
@@ -538,6 +539,13 @@ by analyze_stock and gitignored):
   over the Data API (design/supabase-migration.md). The same pair also carries
   the price-parquet cache in Storage (`scripts/price_cache.py`, steps 02b and
   05e2; `PRICE_CACHE_BUCKET` names the bucket). Unset: both skipped.
+  `publish_run` is one transaction, so it must fit the Data API's timeouts:
+  `service_role` has a 10-minute `statement_timeout` (Supabase's
+  `authenticator` default of 8 s cancelled an 8k-row publish), and a lost
+  response (502/503/504, dropped connection) is resolved by polling
+  `pipeline.publish_outcome` rather than reported as a failure. Scale
+  numbers and the harness that measures them: design/supabase-migration.md
+  (P5) and `tests/load/`.
 - `SNAPSHOT_STORE_BACKEND=postgres` — opt-in; the snapshot-store readers
   (`SnapshotStore.for_results_dir`) read the Supabase database instead of
   `snapshots.duckdb` (`data/db/reader.py`), over the Data API or
