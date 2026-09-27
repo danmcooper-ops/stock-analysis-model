@@ -54,7 +54,8 @@ REQUEST_TIMEOUT_S = 900
 # without this a run on the day of a shape change replays yesterday's shape
 # — bullet-less sector sections — until the date rolls over.
 # v3: per-sector `influence` paragraph; tighter paragraph rules.
-SCHEMA_VERSION = 3
+# v4: the Overview cut to a ~750-word budget.
+SCHEMA_VERSION = 4
 
 # Advisory bullet band per sector; the ceiling is enforced in
 # _clamp_sector_bullets, the floor is only ever counted (never padded).
@@ -64,7 +65,13 @@ MAX_SECTOR_BULLETS = 5
 # Advisory floor for a sector's influence paragraph, only ever counted:
 # under it the Overview is back to reading like a kicker, which is what
 # the paragraph replaced.
-MIN_INFLUENCE_WORDS = 50
+MIN_INFLUENCE_WORDS = 20
+
+# Target length of the Overview read (paragraphs + economy-wide winds +
+# sector headlines and influences), ~3 minutes. The per-field ceilings in
+# the prompt sum to it: 3 x (20 + 3 x 20) + 8 x 12 + 11 x (4 + 40) ~= 820
+# at the ceilings, ~750 as drawn. Counted post-parse, never enforced.
+OVERVIEW_WORD_BUDGET = 750
 
 # The 11 GICS sectors under the yfinance naming this repo uses everywhere
 # (rows, SECTOR_CONFIG, sector ETF maps). The narrative must cover all 11.
@@ -163,22 +170,27 @@ SYSTEM_PROMPT = (
     "series the way a reader knows it ('the 10-year Treasury yield', not "
     "'DGS10'). Give a percentile its window once ('71st percentile of 10 "
     "years') rather than on every mention.\n"
+    '- Length: the Overview prints the paragraphs, the economy-wide '
+    'headwinds/tailwinds, and every sector headline and influence, and '
+    f'that read must total about {OVERVIEW_WORD_BUDGET} words. The word '
+    'limits below add up to that budget; treat each as a ceiling and '
+    'spend the words on meaning, not on more figures.\n'
     '- paragraphs: three named sections — growth_labor, inflation_rates, '
     'credit_conditions — each a lead and its points. The page sets the '
     'lead as a paragraph and each point as a bullet under it.\n'
-    '  lead: ONE sentence, the verdict on that part of the economy, 25 '
+    '  lead: ONE sentence, the verdict on that part of the economy, 20 '
     'words maximum, stated plainly with at most one figure.\n'
-    '  points: 4 to 6 supporting sentences — never fewer than 4 — each '
-    'ONE complete sentence ending in a full stop, one point in 30 words or '
-    'fewer, carrying at most two figures, and each saying what its figure '
+    '  points: exactly 3 supporting sentences, each ONE complete sentence '
+    'ending in a full stop, one point in 20 words or fewer, carrying at '
+    'most two figures, and each saying what its figure '
     "means — 'claims of 197,000, the 2nd percentile of a decade, show "
     "employers still hoarding workers' — rather than listing more numbers. "
     'No semicolon chains, no parenthetical asides, no dashes stacking a '
     'second clause of figures onto the first, no mixed metaphors.\n'
     '  Each sentence must stand alone as a bullet: no sentence that opens '
     "with 'This', 'That' or 'It' pointing back at the one before.\n"
-    '- headwinds / tailwinds: AT MOST 5 of each — only the sharpest '
-    'economy-wide risks and supports. Each one clause, 15 words maximum, '
+    '- headwinds / tailwinds: AT MOST 4 of each — only the sharpest '
+    'economy-wide risks and supports. Each one clause, 12 words maximum, '
     "in the form indicator, figure, consequence: 'initial claims at "
     "197,000, the tightest in a decade, keep incomes growing'. No two "
     'items on the same indicator.\n'
@@ -220,14 +232,13 @@ SYSTEM_PROMPT = (
     'headwind.\n'
     '  influence: the long-form read the Overview prints under "Key sector '
     'influences", where it is the only thing a reader sees about the '
-    'sector. 3 to 5 complete sentences, 70 to 110 words, plain declarative '
-    'prose rather than wordplay. Explain the MECHANISM: which two or three '
-    'macro forces matter most for this sector now, the channel each works '
-    'through (financing costs, consumer or business demand, input and '
-    'commodity prices, pricing power and margins, or the discount rate on '
-    'long-dated earnings), and how the sector ETF has priced it so far. '
-    'Close with the net effect on the sector and the one indicator whose '
-    'move would change that call. Cite figures as the outlook does, but '
+    'sector. 2 or 3 complete sentences, 30 to 40 words, plain declarative '
+    'prose rather than wordplay. Explain the MECHANISM: the one or two '
+    'macro forces that matter most for this sector now and the channel '
+    'each works through (financing costs, consumer or business demand, '
+    'input and commodity prices, pricing power and margins, or the '
+    'discount rate on long-dated earnings), then the net effect as the '
+    'sector ETF has priced it. Cite figures as the outlook does, but '
     'explain them — do not re-list the bullets, and do not repeat the '
     'headline or the outlook sentence. The hedging ban above applies.'
 )
@@ -312,6 +323,21 @@ def _clamp_sector_bullets(sectors):
     if short:
         logger.warning('macro narrative: %d sectors under %d bullets',
                        short, MIN_SECTOR_BULLETS)
+
+
+def overview_word_count(narrative):
+    """Words the Overview prints — the same fields the page's reading-time
+    footer counts. Pure."""
+    n = narrative or {}
+
+    def wc(x):
+        return len(str(x).split()) if x else 0
+    total = sum(wc(x) for k in ('paragraphs', 'tailwinds', 'headwinds')
+                for x in (n.get(k) or []))
+    for e in n.get('sectors') or []:
+        if isinstance(e, dict):
+            total += wc(e.get('headline')) + wc(e.get('influence'))
+    return total
 
 
 def _flatten_paragraph(p):
@@ -485,6 +511,11 @@ class ClaudeNarrativeClient:
         if thin:
             logger.warning('macro narrative: %d sector influences under %d '
                            'words', thin, MIN_INFLUENCE_WORDS)
+        words = overview_word_count(narrative)
+        log = logger.warning if words > 1.25 * OVERVIEW_WORD_BUDGET \
+            else logger.info
+        log('macro narrative: overview is %d words (budget %d)', words,
+            OVERVIEW_WORD_BUDGET)
 
         narrative['model'] = self.model
         narrative['generated_at'] = datetime.now(timezone.utc).isoformat()

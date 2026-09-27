@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from data.claude_narrative import (
     GICS_SECTORS, MAX_SECTOR_BULLETS, NARRATIVE_SCHEMA, SCHEMA_VERSION,
     SYSTEM_PROMPT, ClaudeNarrativeClient, build_macro_facts,
+    overview_word_count,
 )
 
 
@@ -138,17 +139,26 @@ class TestBuildMacroFacts:
         # per-sector bullets must not be confused with the economy-wide ones
         assert 'not the economy-wide headwinds/tailwinds above' in p
 
+    def test_overview_word_count_counts_what_the_page_prints(self):
+        n = {'paragraphs': ['One two three.', 'Four.'],
+             'tailwinds': ['five six'], 'headwinds': [],
+             'sectors': [{'headline': 'Seven eight', 'influence': 'Nine.',
+                          'outlook': 'not printed on the Overview'}]}
+        assert overview_word_count(n) == 9
+        assert overview_word_count(None) == 0
+
     def test_prompt_states_the_overview_prose_rules(self):
         """The Overview's length and readability live only in the prompt:
         the influence band that makes the page a several-minute read, the
         lead-plus-bullets layout the paragraphs are split into, and the
         rounding rule that keeps '1.5th percentile' off the page."""
         p = SYSTEM_PROMPT
-        assert 'influence:' in p and '70 to 110 words' in p
+        assert 'influence:' in p and '30 to 40 words' in p
+        assert 'total about 750 words' in p
         assert 'MECHANISM' in p, 'influence explains channels, not bullets'
         assert 'do not re-list the bullets' in p
         assert 'lead: ONE sentence' in p and 'points:' in p
-        assert '4 to 6 supporting sentences' in p and 'never fewer' in p
+        assert 'exactly 3 supporting sentences' in p
         assert 'whole-number ordinal percentiles' in p
 
 
