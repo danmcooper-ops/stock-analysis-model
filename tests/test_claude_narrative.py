@@ -57,8 +57,8 @@ class TestBuildMacroFacts:
         """'good' and 'sec' are what make a per-sector headwind/tailwind
         split writable: 'good' states which direction the report treats as
         favourable instead of leaving the model to infer it from the label,
-        and 'sec' is the indicator family, which is how a sector's bullets
-        get spread across families rather than restating one rate."""
+        and 'sec' is the indicator family, which is how a sector's forces
+        get drawn from different families rather than restating one rate."""
         s = build_macro_facts(_sidecar())['series']['UNRATE']
         assert s['good'] == 'down'
         assert s['sec'] == 'growth'
@@ -73,6 +73,25 @@ class TestBuildMacroFacts:
         # 'Financial Services' resolves the drivers table's legacy key
         assert facts['sectors']['Financial Services'].get(
             'macro_sensitivities'), 'Financials drivers must map to XLF sector'
+
+    def test_every_sector_carries_its_structural_forces(self):
+        """Each influence weighs today's macro against the sector's standing
+        forces, so the facts carry the same lists the Sector Analysis tab
+        shows under Sector Headwinds & Tailwinds — for all 11 sectors, and
+        whether or not the sidecar has ETF metrics for them."""
+        from models.narrative import (
+            _SECTOR_THESIS_RISKS, _SECTOR_THESIS_TAILWINDS,
+        )
+        for sidecar in (_sidecar(), None):
+            sectors = build_macro_facts(sidecar)['sectors']
+            for name in GICS_SECTORS:
+                st = sectors[name].get('structural')
+                assert st, '%s is missing its structural forces' % name
+                assert st['headwinds'] == _SECTOR_THESIS_RISKS[name]
+                assert st['tailwinds'] == _SECTOR_THESIS_TAILWINDS[name]
+                # a copy: the facts are serialised into the prompt, and must
+                # never alias the module-level tables
+                assert st['headwinds'] is not _SECTOR_THESIS_RISKS[name]
 
     def test_empty_sidecar_is_harmless(self):
         facts = build_macro_facts(None)
@@ -125,6 +144,11 @@ class TestBuildMacroFacts:
         assert "judge each force by THIS sector's exposure" in p
         # the ban once scoped to the outlook now binds all prose
         assert '"may", "could", "likely"' in p and '"bears watching"' in p
+        # the influence blends in the sector's standing forces and says
+        # which dominates, without quoting the Sector Analysis tab's list
+        assert "its 'structural' headwinds and tailwinds" in p
+        assert 'ONE structural force' in p and 'which dominates now' in p
+        assert 'never quote it' in p
         for gone in ('outlook:', 'tailwinds / headwinds: the macro forces',
                      '3 to 5 bullets in TOTAL'):
             assert gone not in p, '%r is a dropped field' % gone
@@ -143,7 +167,7 @@ class TestBuildMacroFacts:
         lead-plus-bullets layout the paragraphs are split into, and the
         rounding rule that keeps '1.5th percentile' off the page."""
         p = SYSTEM_PROMPT
-        assert 'influence:' in p and '30 to 40 words' in p
+        assert 'influence:' in p and '30 to 40 words in all' in p
         assert 'total about 750 words' in p
         assert 'MECHANISM' in p, 'influence explains channels, not bullets'
         assert 'explain it rather than list it' in p
