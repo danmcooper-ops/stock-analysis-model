@@ -18,6 +18,11 @@ except Exception:
     generate_sector_profit_pool_narrative = None
 from models.data_tab_narrative import generate_data_tab_summaries
 from scripts.scoring import gate_metadata
+from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
+                            CARRY_FORWARD_STOPPED_GUARD_FLOOR,
+                            CARRY_FORWARD_STOPPED_MAX_SHARE,
+                            PHASE1_LOCAL_PRICE_MAX_AGE_DAYS)
+from data.price_store import mass_stop, stopped_trading
 from scripts.safe_json import dumps_for_script
 
 logger = logging.getLogger('report_html')
@@ -296,7 +301,14 @@ def _rating_history_from_store(out_dir, cur, file_dates):
         return None
     try:
         with store:
-            if store.dates(before=cur) != sorted(file_dates):
+            have = store.dates(before=cur)
+            if getattr(store, 'authoritative', False):
+                # The database holds the whole published history, while the
+                # cloud stages only the newest few files: it must cover them,
+                # not equal them (plan item R3).
+                if not set(file_dates) <= set(have):
+                    return None
+            elif have != sorted(file_dates):
                 return None
             hist = store.rating_history(before=cur)
     except Exception as e:
@@ -460,6 +472,12 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     are appended, so a late-backfilled older snapshot can't corrupt ordering
     (delete the cache to force a full rebuild that includes it). A missing or
     corrupt cache also triggers a full rebuild.
+
+    The cache advances even when a store answers: with the database backend
+    it is the independent record the nightly parity check compares the
+    database against (scripts/db_night_check.py), and the fallback when the
+    database misses a day. Left frozen, that check would compare the same
+    day forever, and a fallback would lose every change point in the gap.
     """
     from data.snapshot_store import list_snapshot_files, read_snapshot
     try:
@@ -469,10 +487,6 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     dated = list_snapshot_files(out_dir)
     if not dated:
         return {}
-    from_store = _rating_history_from_store(
-        out_dir, cur, [d for d, _ in dated if cur is None or d < cur])
-    if from_store is not None:
-        return from_store
     cache_path = os.path.join(out_dir, cache_name)
     hist, last_scanned = {}, None
     try:
@@ -516,6 +530,10 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
                   f"{len(hist)} tickers, through {last_scanned}")
         except Exception as e:
             print(f"[warn] rating-history cache write failed: {e}")
+    from_store = _rating_history_from_store(
+        out_dir, cur, [d for d, _ in dated if cur is None or d < cur])
+    if from_store is not None:
+        return from_store
     if cur is None:
         return hist
     # Exclude entries on/after the render date (rescoring an older snapshot).
@@ -541,6 +559,101 @@ def _load_russell2000():
         print("[report_html] russell2000_tickers.txt not found — "
               "Russell 2000 quick filter will match nothing")
         return set()
+
+
+def _load_portfolio_payload(rows, out_dir=None, run_date=None, prices_dir=None,
+                            rating_hist=None):
+    """Portfolio groupings for the report: ``(payload, {ticker: [ids]})``.
+
+    The payload (inline ``PORTFOLIOS``) carries the definitions with colors
+    filled in and their revision hash, which the report's local-edit sync
+    compares against. Membership is resolved here against the raw rows so
+    the unedited published set never depends on the browser's evaluator.
+    ``PORTFOLIOS_FILE`` overrides the path (tests, alternate books). A
+    missing or invalid file degrades to no portfolios; it never fails a
+    render.
+    """
+    from models import portfolio_groups as pg
+    path = os.environ.get('PORTFOLIOS_FILE') or pg.DEFAULT_PORTFOLIOS_PATH
+    try:
+        doc = pg.load_portfolios(path)
+    except (OSError, ValueError) as e:
+        logger.warning("portfolios: %s unusable (%s); rendering without portfolios",
+                       path, e)
+        return {'rev': None, 'portfolios': [], 'error': str(e)}, {}
+    pfs = pg.with_colors(doc['portfolios'])
+    resolved = pg.resolve_all(pfs, rows)
+    index = {}
+    for p in pfs:
+        for t in resolved[p['id']]['members']:
+            index.setdefault(t, []).append(p['id'])
+        p['missing'] = resolved[p['id']]['missing']
+    payload = {'rev': pg.revision(doc), 'portfolios': pfs,
+               'prev_date': None, 'changes': [], 'events': [], 'systemic': None}
+    # Change alerts vs the prior run, classified Action / Watch / FYI by
+    # models.portfolio_groups.classify_changes. Per-ticker entries cover the
+    # whole universe so portfolios edited in the browser get them too (the
+    # client applies each portfolio's alert mode and adds earnings dates);
+    # joined/left events need the prior rows' rule columns and so exist only
+    # for the published definitions. "Why" bullets are not shipped: the
+    # client already has them as DATA.rating_chg_why. Best-effort: a failure
+    # here costs the alerts, never the render.
+    prev_day, prev = None, []
+    if out_dir and pfs:
+        try:
+            from scripts.portfolios import drop_stopped, prior_rows
+            day = (run_date or date.today()).isoformat()
+            prev_day, prev = prior_rows(out_dir, day, pg.rule_columns(pfs))
+            if prev_day:
+                # Same rows the nightly alerts classify: neither day's
+                # stopped names, so a frozen quote never reads as a signal.
+                cur, prev_live, stopped = drop_stopped(
+                    rows, prev, day if run_date else None, prev_day, prices_dir)
+                by_tk, prev_by_tk = pg.rows_by_ticker(cur), pg.rows_by_ticker(prev_live)
+                payload['prev_date'] = prev_day
+                entries, stats = pg.classify_changes(by_tk, prev_by_tk, day,
+                                                     history=rating_hist or {})
+                payload['changes'] = entries
+                payload['systemic'] = dict(stats, message=pg.systemic_message(stats))
+                payload['events'] = pg.membership_events(pfs, by_tk, prev_by_tk, day,
+                                                         stopped)
+        except Exception as e:
+            logger.warning("portfolios: change alerts unavailable (%s)", e)
+    if out_dir and pfs:
+        payload['nav'] = _portfolio_nav(pfs, rows, prev, out_dir, run_date, prices_dir)
+    if pfs:
+        print(f"[report_html] portfolios: {len(pfs)} "
+              f"({sum(len(v) for v in index.values())} memberships, "
+              f"{len(payload['changes'])} change entries, {len(payload['events'])} membership "
+              f"events vs {payload['prev_date']}"
+              f"{'; SYSTEMIC ' + payload['systemic']['cause'] if (payload['systemic'] or {}).get('flood') else ''})")
+    return payload, index
+
+
+def _portfolio_nav(pfs, rows, prev, out_dir, run_date, prices_dir):
+    """Advance the NAV ledger (output/portfolio_nav.json) to this run and
+    return the report's compact series.
+
+    Like the rating-history cache, the render keeps the ledger current. It
+    only writes when *run_date* is explicit, prices are available, and
+    ``results_<run_date>`` sits in *out_dir* — so re-rendering someone
+    else's rows (backfill_edgar_hist, a test) can never plant a point, and
+    re-rendering the same day replaces that day's point.
+    """
+    from data import portfolio_nav as pn
+    from data.snapshot_store import list_snapshot_files
+    path = pn.ledger_path(out_dir)
+    try:
+        led = pn.load_ledger(path)
+        day = run_date.isoformat() if run_date else None
+        if day and prices_dir and os.path.isdir(prices_dir) and \
+                any(d == day for d, _ in list_snapshot_files(out_dir)):
+            if pn.update(led, pfs, day, rows, pn.prices_closes_fn(prices_dir), prev_rows=prev):
+                pn.save_ledger(path, led)
+        return pn.payload(led, [p['id'] for p in pfs])
+    except Exception as e:
+        logger.warning("portfolios: NAV ledger not updated (%s)", e)
+        return None
 
 
 # Every sidecar is written compact. json.dump's default separators put a
@@ -931,7 +1044,7 @@ def _attach_data_summaries(chart_records):
 
 def _extract_details_payload(chart_records):
     # Heavy text fields only consumed inside the detail panel. Strip them
-    # from the inline DATA blob into a details.json sidecar the template
+    # from the inline DATA blob into the details/ parts the template
     # lazy-loads after first paint. Cuts the HTML by ~25 MB at 2k tickers.
     _DETAIL_HEAVY_KEYS = (
         'description_full', 'ceo_bio', 'culture_narrative',
@@ -977,17 +1090,54 @@ def _build_sector_pool_data(rows):
     return sector_pool_data
 
 
-def _write_details_sidecar(details_path, details_payload):
-    # Write details.json sidecar (or remove a stale one)
+_DETAILS_PART_BYTES = 8 * 1024 * 1024
+
+
+def _write_details_parts(details_dir, index_path, details_payload, legacy_path=None,
+                         part_bytes=_DETAILS_PART_BYTES):
+    """Write the details payload as ``details/<n>.json`` parts of about
+    *part_bytes* each, plus ``details_index.json`` (``{"parts": [...]}``);
+    return the part names.
+
+    details.json reached ~30 MiB, over Cloudflare Pages' 25 MiB per-file
+    limit (design/supabase-migration.md, P4c). The page still loads every
+    part after first paint and merges it into DATA exactly as it merged the
+    single file, so nothing downstream changes; the parts only keep each
+    file small. Tickers are split in sorted order, so a part only ever holds
+    whole tickers. Rebuilt wholesale each run; the legacy details.json is
+    removed so a stale copy cannot be published.
+    """
+    parts = []
     try:
-        if details_payload:
-            with open(details_path, 'w', encoding='utf-8') as _df:
-                json.dump(details_payload, _df, default=_json_default,
-                          separators=_COMPACT)
-        elif os.path.exists(details_path):
-            os.remove(details_path)
+        if legacy_path and os.path.exists(legacy_path):
+            os.remove(legacy_path)
+        if os.path.isdir(details_dir):
+            shutil.rmtree(details_dir)
+        chunks, cur, size = [], {}, 0
+        for _tk in sorted(details_payload or {}):
+            _n = len(json.dumps(details_payload[_tk], default=_json_default, separators=_COMPACT))
+            if cur and size + _n > part_bytes:
+                chunks.append(cur)
+                cur, size = {}, 0
+            cur[_tk] = details_payload[_tk]
+            size += _n + len(_tk) + 4
+        if cur:
+            chunks.append(cur)
+        if chunks:
+            os.makedirs(details_dir, exist_ok=True)
+        for _i, _chunk in enumerate(chunks):
+            with open(os.path.join(details_dir, f'{_i}.json'), 'w', encoding='utf-8') as _df:
+                json.dump(_chunk, _df, default=_json_default, separators=_COMPACT)
+            parts.append(str(_i))
+        if parts:
+            with open(index_path, 'w', encoding='utf-8') as _xf:
+                json.dump({'parts': parts}, _xf, separators=_COMPACT)
+        elif os.path.exists(index_path):
+            os.remove(index_path)
     except Exception as _e:
-        print(f"[warn] details.json write failed: {_e}")
+        print(f"[warn] details/ part write failed: {_e}")
+        parts = []
+    return parts
 
 
 def _write_macro_sidecar(macro_path, macro_sidecar):
@@ -1117,17 +1267,42 @@ def _build_hist_payload(rows):
     return hist_payload
 
 
-def _write_hist_sidecar(hist_path, hist_payload):
-    # Write hist.json sidecar (or remove a stale one so old data doesn't linger)
+_SHARD_TICKER = re.compile(r'[A-Za-z0-9._-]{1,15}')
+
+
+def _write_hist_shards(hist_dir, index_path, hist_payload, legacy_path=None):
+    """Write the hist/ shards (one ``<TICKER>.json`` per ticker) and
+    ``hist_index.json`` (``{"tickers": [...]}``); return the tickers written.
+
+    hist.json was one ~29 MB file, over Cloudflare Pages' 25 MiB per-file
+    limit (design/supabase-migration.md, P4c), and every consumer read a
+    single ticker out of it. Rebuilt wholesale each run, like vol/, so a
+    ticker that leaves the universe cannot leave a shard behind; the legacy
+    hist.json is removed so a stale copy cannot be published.
+    """
+    written = []
     try:
-        if hist_payload is not None:
-            with open(hist_path, 'w', encoding='utf-8') as _hf:
-                json.dump(hist_payload, _hf, default=_json_default,
-                          separators=_COMPACT)
-        elif os.path.exists(hist_path):
-            os.remove(hist_path)
+        if legacy_path and os.path.exists(legacy_path):
+            os.remove(legacy_path)
+        if os.path.isdir(hist_dir):
+            shutil.rmtree(hist_dir)
+        if hist_payload:
+            os.makedirs(hist_dir, exist_ok=True)
+            for _tk in sorted(hist_payload):
+                if not _SHARD_TICKER.fullmatch(str(_tk)):
+                    continue
+                with open(os.path.join(hist_dir, f'{_tk}.json'), 'w', encoding='utf-8') as _hf:
+                    json.dump(hist_payload[_tk], _hf, default=_json_default, separators=_COMPACT)
+                written.append(_tk)
+        if written:
+            with open(index_path, 'w', encoding='utf-8') as _xf:
+                json.dump({'tickers': written}, _xf, separators=_COMPACT)
+        elif os.path.exists(index_path):
+            os.remove(index_path)
     except Exception as _e:
-        print(f"[warn] hist.json write failed: {_e}")
+        print(f"[warn] hist/ shard write failed: {_e}")
+        written = []
+    return written
 
 
 def _load_price_payloads(rows, prices_dir):
@@ -1473,10 +1648,69 @@ def _write_vol_shards(vol_dir, vol_payload):
         print(f"[warn] vol/ shard write failed: {_e}")
 
 
+def stopped_map(tickers, prices_dir, as_of, what='row'):
+    """``{ticker: (last_bar, lag_bars)}`` for *tickers* whose price data shows
+    they stopped trading as of *as_of* (``data.price_store.stopped_trading``
+    with the run's thresholds), or {} when the rule cannot judge.
+
+    {} without *prices_dir* or an explicit *as_of* — judging an old snapshot
+    against today's parquets would flag names that were live on its date —
+    when the check fails, or when so many read as stopped that it is a failed
+    price refresh (``mass_stop``), which is logged. Shared by the render and
+    the portfolio alerts so both leave out the same names.
+    """
+    tickers = {str(t) for t in tickers if t}
+    if not prices_dir or as_of is None or not tickers:
+        return {}
+    try:
+        stopped = stopped_trading(prices_dir, tickers, as_of,
+                                  max_lag_bars=CARRY_FORWARD_MAX_PRICE_LAG_BARS,
+                                  spy_max_age_days=PHASE1_LOCAL_PRICE_MAX_AGE_DAYS)
+    except Exception as e:
+        logger.warning("stopped-trading check failed (%s); keeping every %s", e, what)
+        return {}
+    if stopped and mass_stop(len(stopped), len(tickers), CARRY_FORWARD_STOPPED_MAX_SHARE,
+                             CARRY_FORWARD_STOPPED_GUARD_FLOOR):
+        logger.warning("%d of %d %s(s) read as stopped trading as of %s — treating it "
+                       "as a failed price refresh and keeping every %s",
+                       len(stopped), len(tickers), what, as_of, what)
+        return {}
+    return stopped
+
+
+def _drop_stopped_rows(rows, prices_dir, run_date):
+    """*rows* without the tickers whose price data shows they stopped trading.
+
+    Phase 1 now drops such carry-forwards before they are analysed, but the
+    snapshots written before that rule — and any row that reached Phase 2
+    another way — still hold acquired companies at their frozen last quote
+    (JHG at $51.95 for weeks after its last bar). The render applies the same
+    rule (``stopped_map``) so the table, portfolio stats and sidecars never
+    show them. run.sh step 05e refreshes every row's parquet just before the
+    re-render, which is what makes a lagging file evidence.
+
+    Needs an explicit *run_date* (see ``stopped_map``). The snapshot JSON is
+    left as it is — it stays the canonical record of what the run saw.
+    """
+    if not rows:
+        return rows
+    stopped = stopped_map((r.get('ticker') for r in rows if isinstance(r, dict)),
+                          prices_dir, run_date)
+    if not stopped:
+        return rows
+    for tk, (last_bar, lag) in sorted(stopped.items()):
+        logger.warning("%s: left out of the report — last price bar %s is %d SPY "
+                       "trading days old (stopped trading)", tk, last_bar, lag)
+    print(f"[report_html] left out {len(stopped)} row(s) whose price data "
+          f"stopped: {', '.join(sorted(stopped))}")
+    return [r for r in rows
+            if not (isinstance(r, dict) and str(r.get('ticker')) in stopped)]
+
+
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None,
                macro_payload=None):
     """Render the interactive HTML report via Jinja2 template."""
-    rows = _sanitize(rows)
+    rows = _drop_stopped_rows(_sanitize(rows), prices_dir, run_date)
     _r2000 = _load_russell2000()
     # Prior-run ratings for the "Δ vs prior" column. Sourced from the most
     # recent earlier results_*.json sitting next to this HTML output.
@@ -1505,6 +1739,12 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
 
     chart_records = [_row_context(r, gate_meta_obj, _r2000, _prev_ratings,
                                   _rating_hist) for r in rows]
+    portfolios_payload, _pf_index = _load_portfolio_payload(rows, _out_dir_early, run_date,
+                                                            prices_dir, _rating_hist)
+    for _rec in chart_records:
+        # Portfolio ids this ticker belongs to (resolved server-side; the
+        # client re-resolves only portfolios edited in the browser).
+        _rec['pf'] = _pf_index.get(str(_rec['ticker']).upper(), [])
     _attach_data_summaries(chart_records)
 
     details_payload = _extract_details_payload(chart_records)
@@ -1519,27 +1759,33 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
 
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
     # template lazy-fetches them on first chart open, so the embedded HTML
-    # stays small enough to publish via GitHub Pages (<100 MB hard cap).
+    # stays small enough to publish via GitHub Pages (<100 MB hard cap) and
+    # every file under Cloudflare Pages' 25 MiB per-file limit.
     try:
         out_dir = os.path.dirname(os.path.abspath(filename)) or '.'
     except OSError:
         # Same getcwd()/EPERM guard as _out_dir_early above.
         out_dir = os.path.dirname(filename) or '.'
-    hist_path = os.path.join(out_dir, 'hist.json')
+    hist_path = os.path.join(out_dir, 'hist.json')   # legacy monolith; now only removed
+    hist_dir = os.path.join(out_dir, 'hist')
+    hist_index_path = os.path.join(out_dir, 'hist_index.json')
     prices_path = os.path.join(out_dir, 'prices.json')  # legacy monolith; now only removed
     prices_meta_path = os.path.join(out_dir, 'prices_meta.json')
-    details_path = os.path.join(out_dir, 'details.json')
+    details_path = os.path.join(out_dir, 'details.json')   # legacy monolith; now only removed
+    details_dir = os.path.join(out_dir, 'details')
+    details_index_path = os.path.join(out_dir, 'details_index.json')
     macro_path = os.path.join(out_dir, 'macro.json')
     vol_dir = os.path.join(out_dir, 'vol')
     px_dir = os.path.join(out_dir, 'px')
 
-    _write_details_sidecar(details_path, details_payload)
+    details_parts = _write_details_parts(details_dir, details_index_path, details_payload,
+                                         legacy_path=details_path)
 
     macro_sidecar = (macro_payload or {}).get('sidecar')
     _write_macro_sidecar(macro_path, macro_sidecar)
 
     hist_payload = _build_hist_payload(rows)
-    _write_hist_sidecar(hist_path, hist_payload)
+    hist_tickers = _write_hist_shards(hist_dir, hist_index_path, hist_payload, legacy_path=hist_path)
 
     prices_payload, px_payload, vol_payload = \
         _load_price_payloads(rows, prices_dir)
@@ -1562,11 +1808,14 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         lean_buy_count=lean_buy_count,
         chart_data=chart_data,
         gate_meta=gate_meta,
+        portfolios_json=dumps_for_script(portfolios_payload, default=_json_default),
         sector_pool_json=sector_pool_json,
         prices_available=('true' if prices_payload is not None else 'false'),
         prices_size_mb=prices_size_mb,
-        hist_available=('true' if hist_payload is not None else 'false'),
-        details_available=('true' if details_payload else 'false'),
+        hist_available=('true' if hist_tickers else 'false'),
+        hist_tickers=dumps_for_script(hist_tickers),
+        details_available=('true' if details_parts else 'false'),
+        details_parts=dumps_for_script(details_parts),
         macro_available=('true' if macro_sidecar else 'false'),
         macro_summary=dumps_for_script(
             _sanitize((macro_payload or {}).get('summary')) or None,

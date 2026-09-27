@@ -18,8 +18,15 @@ Usage:
     python scripts/db_publish.py --run-date 2026-09-25 --dry-run  # build and report, send nothing
     python scripts/db_publish.py --run-date 2026-09-25 --force --reason "methodology change"
 
-Exit code: 0 published (or dry run), 1 refused or failed, 2 bad arguments or
-missing configuration.
+After a successful publish, the run is exported to Parquet
+(``<snapshot dir>/parquet/results_<date>.parquet``, the backtest's corpus) and,
+when SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set, the canonical
+``.json.gz`` and the Parquet file are uploaded to the private ``snapshots``
+Storage bucket, verified by SHA-256 and recorded in ``core.snapshot_objects``
+(data/db/storage.py). ``--no-upload`` skips the upload.
+
+Exit code: 0 published (or dry run), 1 refused or failed (including a failed
+upload after a good publish), 2 bad arguments or missing configuration.
 """
 import argparse
 import json
@@ -74,6 +81,8 @@ def main(argv=None):
     ap.add_argument('--reason', help='recorded in core.runs.meta with --force')
     ap.add_argument('--chunk-kb', type=int, default=DEFAULT_CHUNK_BYTES // 1000)
     ap.add_argument('--dry-run', action='store_true', help='build the payload and report; send nothing')
+    ap.add_argument('--no-upload', action='store_true', help='skip the Storage upload (the Parquet export is still written)')
+    ap.add_argument('--parquet-dir', help='where the Parquet export goes (default: <snapshot dir>/parquet)')
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
     if not a.snapshot and not a.run_date:
@@ -82,33 +91,61 @@ def main(argv=None):
         ap.error('--force needs --reason')
 
     path, run_date = _resolve(a)
-    load = build_load(read_snapshot(path), run_date)
+    data = read_snapshot(path)
+    load = build_load(data, run_date)
     chunks = load.chunks(a.chunk_kb * 1000)
     print(f"{run_date}: {load.stats['rows']} rows, {load.stats['blobs']} edgar blobs, "
           f"{load.stats['cast_failures']} cast failures, {len(chunks)} chunks")
     if a.dry_run:
         return 0
 
+    con = None
     try:
         if a.dsn:
             from data.db.connect import connect
-            with connect(a.dsn, autocommit=True) as con:
-                result = publish(load, DirectTransport(con), force=a.force, reason=a.reason,
-                                 chunk_bytes=a.chunk_kb * 1000, pipeline_version=_git_version())
+            con = connect(a.dsn, autocommit=True)
+            transport = DirectTransport(con)
         else:
             url, key = os.environ.get('SUPABASE_URL'), os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
             if not url or not key:
                 print('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set (or pass --dsn)', file=sys.stderr)
                 return 2
             transport = RestTransport(url, key, throttle=Throttle(0.2))
+        try:
             result = publish(load, transport, force=a.force, reason=a.reason,
                              chunk_bytes=a.chunk_kb * 1000, pipeline_version=_git_version())
-    except PublishError as e:
-        print(f'publish refused: {e}', file=sys.stderr)
-        return 1
-    print(json.dumps(result, indent=2, default=str))
-    return 0
+        except PublishError as e:
+            print(f'publish refused: {e}', file=sys.stderr)
+            return 1
+        print(json.dumps(result, indent=2, default=str))
+        return _export_and_upload(a, data, run_date, path, transport, load.stats['rows'])
+    finally:
+        if con is not None:
+            con.close()
 
+
+def _export_and_upload(a, data, run_date, path, transport, n_rows):
+    """After the publish: the Parquet export, and the Storage upload when
+    SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY are set. A failure here leaves the
+    database consistent (the manifest row is simply missing) and re-running
+    this script repairs it; it still exits 1 so the step is marked failed."""
+    from data.db.parquet import export_snapshot, parquet_path
+    from data.db.storage import StorageError, storage_from_env, upload_run
+    parquet_dir = a.parquet_dir or os.path.join(os.path.dirname(path) or '.', 'parquet')
+    storage = None if a.no_upload else storage_from_env()
+    try:
+        if storage is None:
+            n, _ = export_snapshot(data, run_date, parquet_path(parquet_dir, run_date))
+            print(f'parquet export: {parquet_path(parquet_dir, run_date)} ({n} rows); not uploaded '
+                  '(--no-upload, or no SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY)')
+            return 0
+        manifest = upload_run(data, run_date, storage, transport, parquet_dir, n_rows=n_rows)
+    except (StorageError, PublishError, OSError) as e:
+        print(f'published, but the Storage upload failed: {e}', file=sys.stderr)
+        return 1
+    print(f"uploaded and verified: {manifest['json_path']} ({manifest['json_bytes']:,} bytes), "
+          f"{manifest['parquet_path']}")
+    return 0
 
 if __name__ == '__main__':
     sys.exit(main())

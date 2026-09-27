@@ -60,7 +60,10 @@ logger = logging.getLogger(__name__)
 
 # v4: text no longer widens a numeric column (the v3 store had pe and
 # rpe_cagr stuck at VARCHAR); a rebuild re-derives every column type.
-SCHEMA_VERSION = 4
+# v5: the edgar_history projection gained the seven series the debt-free
+# Int Coverage rule reads (see DEFAULT_PROJECTIONS); v4 rows re-score
+# differently from their JSON for snapshots that need that rule.
+SCHEMA_VERSION = 5
 DB_FILENAME = 'snapshots.duckdb'
 DEFAULT_RESULTS_DIR = 'output'
 
@@ -99,14 +102,22 @@ DEFAULT_EXCLUDE_KEYS = (
 # Nested blocks stored as a slim projection rather than whole.
 # ``edgar_history`` carries 54 fundamentals series per ticker and is what
 # makes a snapshot ~66 MB; storing it intact would grow the store faster
-# than the JSON files it indexes.  But the re-scoring path reads two things
-# out of it — ``years_available`` (the thin-history rating cap in
-# scripts/scoring._rating_cap_for_row) and ``operating_income_history`` (the
-# pool-share CAGR signal) — so keeping exactly those makes a store row a
-# drop-in for re-scoring while costing a few values per ticker.  The
-# snapshot JSON remains the source for the other 52 series.
+# than the JSON files it indexes.  The re-scoring path reads a few of them —
+# ``years_available`` (the thin-history rating cap in
+# scripts/scoring._rating_cap_for_row), ``operating_income_history`` (the
+# pool-share CAGR signal) and, since 2026-09-16, the debt, assets and
+# annual-flow series the debt-free Int Coverage rule dates its evidence with
+# (scripts/scoring._is_debt_free) — so keeping exactly those makes a store row
+# a drop-in for re-scoring while costing a few series per ticker. The
+# snapshot JSON remains the source for the rest. The Parquet exports
+# (data/db/parquet.py) use the same projection, and
+# tests/test_snapshot_store.py records what scoring actually reads, so a new
+# read cannot silently make these rows re-score differently again.
 DEFAULT_PROJECTIONS = {
-    'edgar_history': ('years_available', 'operating_income_history'),
+    'edgar_history': ('years_available', 'operating_income_history',
+                      'total_debt_history', 'debt_current_history', 'debt_noncurrent_history',
+                      'total_assets_history', 'revenue_history', 'earnings_history',
+                      'operating_cf_history'),
 }
 
 
@@ -735,7 +746,16 @@ class SnapshotStore:
         return store
 
     @classmethod
-    def for_results_dir(cls, results_dir, read_only=True):
+    def for_results_dir(cls, results_dir, read_only=True, allow_db=True):
+        """The store for *results_dir*: the Supabase database when it is
+        selected (``SNAPSHOT_STORE_BACKEND=postgres``, see data/db/reader.py)
+        and reachable, else the DuckDB file there, else None. *allow_db* False
+        keeps a caller on DuckDB (raw SQL, full-corpus reads)."""
+        if allow_db and read_only:
+            from data.db.reader import open_db_store
+            store = open_db_store(results_dir)
+            if store is not None:
+                return store
         return cls.open_existing(db_path_for(results_dir), read_only=read_only)
 
     def __enter__(self):
@@ -1181,6 +1201,7 @@ def sync_snapshot_file(path, data=None, db_path=None):
         logger.debug("snapshot store: not syncing non-canonical %s", path)
         return False
     db_path = db_path or db_path_for(os.path.dirname(path) or DEFAULT_RESULTS_DIR)
+    _republish_to_database(path, data)
     try:
         meta, rows = split_snapshot(data) if data is not None else load_snapshot_file(path)
         with SnapshotStore(db_path) as store:
@@ -1190,6 +1211,25 @@ def sync_snapshot_file(path, data=None, db_path=None):
     except Exception as e:
         logger.warning("snapshot store sync failed for %s (%s): %s", run_date, db_path, e)
         return False
+
+
+def _republish_to_database(path, data):
+    """With the database backend selected, publish a rewritten snapshot so
+    the database never serves rows older than the file (plan item R2).
+
+    The nightly run sets ``DB_DEFER_PUBLISH=1``: it rewrites the snapshot
+    several times (enrich steps, rescore) and publishes once, at step 06a.
+    A manual rescore or repair publishes here. Never raises; readers already
+    fall back to the file when its hash no longer matches the database."""
+    from data.db.reader import db_backend_requested
+    if not db_backend_requested() or os.environ.get('DB_DEFER_PUBLISH') == '1':
+        return
+    try:
+        from data.db.publish import publish_file
+        result = publish_file(path, data)
+        logger.info("published %s to the database (%s rows)", path, result.get('rows'))
+    except Exception as e:
+        logger.warning("database publish failed for %s (readers fall back to the file): %s", path, e)
 
 
 def compact_store(db_path=None):

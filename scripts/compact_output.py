@@ -50,8 +50,8 @@ RETIRED_DIR = 'retired'
 _CHUNK = 1 << 20
 
 _SIDECAR_RE = re.compile(
-    r'^(?:events|stock_analysis_results|portfolio_report|run)_'
-    r'(\d{4}-\d{2}-\d{2})[^/]*\.(?:json|html|txt|log)$')
+    r'^(?:events|stock_analysis_results|portfolio_report|portfolio_alerts|run)_'
+    r'(\d{4}-\d{2}-\d{2})[^/]*\.(?:json|html|txt|log|md)$')
 
 
 def _sha256_and_size(fh):

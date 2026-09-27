@@ -21,8 +21,7 @@ and both force-push `pages-live`.
   Make reasonable choices for anything ambiguous and note them in the summary.
 - The only outward actions permitted are the ones `run.sh` performs: a commit
   on `data/snapshots` (today's `results_<date>.json.gz` plus
-  `rating_history.json`), and the report publish: an upload to the R2 bucket
-  or, until R2 is configured, a force-push of the single-commit `pages-live`
+  `rating_history.json`) and a force-push of the single-commit `pages-live`
   branch. Never push to `main` or any other branch, never open a PR, never
   edit scoring/config files.
 
@@ -34,14 +33,16 @@ and both force-push `pages-live`.
 | preflight | `00-preflight.log` | — | `scripts/market_open.py`; exit 10 = market closed → the script exits 0 immediately and `status.txt` says `SKIPPED market closed`. **That is a successful run**; report the one-line reason and stop. |
 | 01-venv | | yes | `.venv` + `pip install -e ".[dev]"` (~1 min) |
 | 02-stage-snapshots | | yes | blob-less, checkout-less clone of `data/snapshots`; materialises the newest `SNAPSHOT_HISTORY` (10) snapshots and `rating_history.json` into `output/` so carry-forward, Yesterday's Rating, the rate-change look-back, rating history and gate N/A deltas all work exactly as they did locally; also stages `screen_skip.json` into `data/cache/` (absent = the screen runs cold and rebuilds it) |
-| 03-prices | | no | full price history for every ticker in the newest prior snapshot + benchmarks (~2,300 tickers, 25–45 min) |
+| 02b-restore-prices | | no | restores `output/prices/` from the Supabase Storage bucket, so step 03 has a warm cache instead of re-fetching the universe (design/cache-persistence.md). Skipped without the Supabase secrets and for SMOKE. A failure only costs the cold-cache time: step 03's freshness check re-downloads anything the restore missed or left behind |
+| 03-prices | | no | full price history for every ticker in the newest prior snapshot + benchmarks (~2,300 tickers; 25–45 min cold, minutes on a warm restore) |
 | 04-analyze | | **yes** | `analyze_stock.py --macro --universe us --min-spread 0 --mcap-min 300e6 --run-date $RUNDATE` — **10–16 hours** before the 2026-09-13 speedups (Phase 1 ~5h at ~30 tickers/min, then Phase 2 over ~2,300 qualifiers). SEC companyfacts are re-downloaded every run (the on-disk cache does not survive the container). Progress is checkpointed under `output/.checkpoint/$RUNDATE`, so an interrupted analysis resumes (see 3b) |
 | 05a–05d enrich | | no | FDIC, REIT, XBRL, FDA pipeline — same as the Mac runbook 1b–1e |
 | 05e-prices-topup | | no | full history for Phase-2 entrants that only got a Close-only stub during the run |
+| 05e2-save-prices | | no | uploads the refreshed parquets back to the Storage bucket (only those whose size changed). Skipped for SMOKE/DRY_RUN; the store also refuses a local set under 80% of what it holds, so a half-failed run cannot clobber the cache |
 | 05f-rerender | | yes | `rescore_and_render.py` so the HTML carries every enrichment |
 | 06-archive | | **yes** | `archive_snapshot.py` (gzip + SHA-256 round-trip + 80 MiB guard), commit `Snapshot: <date>` (with `rating_history.json` and, unless `SMOKE=1` or the file is under 10 KB, `screen_skip.json`) on top of the remote tip, push with retries. rc 2 = over the hard guard, not pushed |
-| 07a–07c reports | | no | portfolio concentration/drawdown, gate N/A coverage + deltas, trailing-momentum sanity check — **their logs are the body of your summary** |
-| 08-publish | | no* | stages the site (index.html, prices_meta/hist/details/macro sidecars, `px/` and `vol/` shards by manifest), then with `R2_*` set syncs it to the R2 bucket behind the Cloudflare Access login (`scripts/publish_report.py`, `cloudflare/README.md`) and checks the live URL with the Access service token; with `R2_*` unset it falls back to rebuilding and force-pushing the legacy public `pages-live` branch. *A publish failure does not fail the analysis (the snapshot is safe); report it and note that re-running only step 8 is possible by hand |
+| 05g + 07a–07d reports | | no | portfolio concentration/drawdown, gate N/A coverage + deltas, trailing-momentum sanity check — **their logs are the body of your summary** |
+| 08-publish | | no* | rebuilds `pages-live` (index.html, prices_meta/hist/details/macro sidecars, `px/` and `vol/` shards by manifest) as one fresh commit, force-pushes it, then polls the live URL for today's date. *A publish failure does not fail the analysis (the snapshot is safe); report it and note that re-running only step 8 is possible by hand |
 
 Everything lands under `$REPO/.cloud-run/`: `status.txt` (one `step rc=N seconds=S`
 line per step, then `RUNDATE`, `SOFT_FAILURES`, `RESULT ...`) and `logs/<step>.log`.
@@ -161,6 +162,14 @@ Lead with the result line and the run date, then, in this order:
 5. **Snapshot store** — if `07d-store-check` failed, quote its `PROBLEM:`
    lines from `logs/07d-store-check.log`. Store syncs never fail a step, so
    this is the only place a store that stopped updating shows up.
+5a. **Your portfolios** — from `logs/05g-portfolio-alerts.log`. If it opens
+   with a `!!` banner (a data problem or a model-wide shift), lead with that
+   line verbatim. Then one line per portfolio (size, rating mix, median MoS)
+   and every ACTION and WATCH line verbatim, with its `·` why-bullets for
+   ACTION. Report the FYI count only as a number. Say "no portfolio alerts"
+   when there are no ACTION/WATCH lines; skip the section when it reports
+   "No portfolios defined." The GitHub-issue digest is posted separately by
+   the `portfolio-alerts` workflow from the archived `portfolio_alerts.json`.
 6. **Publish** — the live URL and whether it served today's date; the deploy
    workflow otherwise.
 7. **Run quality** — the analysis log's closing run-quality summary
@@ -209,4 +218,5 @@ runs eight tickers end to end and pushes nothing.
   every install with `ReadTimeoutError`. `pip_no_proxy()` drops just those two
   hosts from `no_proxy`; the localhost/link-local/internal entries stay, and
   when no proxy is configured the list is left alone.
-- The weekly backtest is a separate routine and is **not** covered here.
+- The weekly backtest is a separate routine (`../cloud-weekly-backtest/`,
+  Sundays) and is **not** covered here.

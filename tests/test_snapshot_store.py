@@ -27,6 +27,7 @@ def _row(ticker, rating='BUY', **kw):
         '_rating_cap_reasons': [], 'dcf_sens_range': (90.0, 130.0),
         'edgar_history': {'revenue_history': {'2024-12-31': 1.0e9},
                           'operating_income_history': {'2024-12-31': 2.0e8},
+                          'capex_history': {'2024-12-31': 5.0e7},   # no scoring path reads it
                           'years_available': 11},
         'beta': None, '_gate_roic': 0.2, '_gate_mos': None,
     }
@@ -167,6 +168,7 @@ def test_ingest_rows_normalises_numpy_and_dedupes_tickers(tmp_path):
         # reads, not the whole 54-series block.
         assert got[0]['edgar_history'] == {
             'operating_income_history': {'2024-12-31': 2.0e8},
+            'revenue_history': {'2024-12-31': 1.0e9},
             'years_available': 11}
         # projections={} keeps the block whole; exclude drops it entirely.
         store.ingest_rows({}, rows, run_date='2026-02-02', projections={})
@@ -332,8 +334,10 @@ def test_report_html_readers_match_json_path(results_dir, capsys):
     assert store_prev[1]['BBB']['rating'] == 'BUY'
     assert store_prev[1]['BBB']['_rating_cap_reasons'] == []
     assert store_hist['BBB'] == [['2026-01-01', 'PASS'], ['2026-01-02', 'BUY']]
-    # The store path writes no rating_history cache file.
-    assert not (results_dir / 'rh_store.json').exists()
+    # The cache still advances when the store answers (P6: it is the parity
+    # check's independent record), identical to the JSON path's.
+    assert json.loads((results_dir / 'rh_store.json').read_text(encoding='utf-8')) == \
+        json.loads((results_dir / 'rh_json.json').read_text(encoding='utf-8'))
     # No run_date: the JSON path is used (store needs a cut-off).
     assert _load_prev_ratings(out_dir, None, extra_keys=extra)[0] == '2026-01-03'
 
@@ -440,6 +444,52 @@ class TestExclusionsAndTypes:
         # Fields that look like report payload but that scoring does read.
         assert not excluded & {'roic_by_year', '_nopat_by_year', '_ic_by_year',
                                '_trap_components', 'edgar_history'}
+
+    def test_projection_covers_every_edgar_history_key_scoring_reads(self):
+        """Guard on DEFAULT_PROJECTIONS: the store and the Parquet exports keep
+        only these edgar_history series, so a series scoring reads but the
+        projection drops makes those rows re-score differently from their
+        JSON. That happened: the debt-free Int Coverage rule (2026-09-16)
+        reads seven series the old projection dropped. Scoring runs here on
+        rows that reach that rule, and every key it reads is recorded."""
+        import data.snapshot_store as ss
+        from scripts.scoring import GATES, score_and_rate
+
+        read = set()
+
+        class Tracking(dict):
+            def get(self, key, default=None):
+                read.add(key)
+                return super().get(key, default)
+
+            def __getitem__(self, key):
+                read.add(key)
+                return super().__getitem__(key)
+
+        years = {str(y): 1e8 + y for y in range(2016, 2026)}
+        rows = []
+        for i in range(12):
+            r = {'ticker': f'T{i:02d}', 'sector': ['Technology', 'Industrials', 'Financial Services'][i % 3],
+                 'rating': 'HOLD', 'price': 100.0, 'dcf_fv': 120.0, 'mos': 0.1 * (i % 5),
+                 'shares_out': 1e8, 'mcap': 1e10, 'revenue': 1e9, 'fcf': 1e8,
+                 'altman_z_zone': 'safe', 'beneish_flag': False, 'edgar_quality_score': 80,
+                 '_data_coverage_score': 70, 'avg_dollar_volume_3m': 5e6, 'tangible_book_ps': 10.0}
+            for f in sorted({g.field for g in GATES}):
+                r.setdefault(f, 0.1 * (i % 7))
+            r['int_cov'] = None                  # reach the debt-free rule
+            r['int_cov_edgar'] = None
+            r['edgar_history'] = Tracking({
+                'years_available': 10, 'operating_income_history': dict(years),
+                'total_debt_history': {'2025': 0.0} if i % 2 else {'2025': 5e8},
+                'debt_current_history': {}, 'debt_noncurrent_history': {},
+                'total_assets_history': {'2025': 1e10}, 'revenue_history': dict(years),
+                'earnings_history': dict(years), 'operating_cf_history': dict(years),
+                'capex_history': dict(years),   # a series no scoring path reads
+            })
+            rows.append(r)
+        score_and_rate(rows)
+        assert 'total_debt_history' in read, 'the rows no longer reach the debt-free rule; fix the guard'
+        assert read <= set(ss.DEFAULT_PROJECTIONS['edgar_history']), sorted(read)
 
     def test_excluded_columns_are_absent_but_the_row_is_otherwise_whole(self, tmp_path):
         import data.snapshot_store as ss

@@ -9,9 +9,12 @@ either transport:
 * :class:`DirectTransport`: a psycopg connection (dev machines, CI, admin).
 
 ``stage_chunk`` is idempotent per ``(load_id, chunk_no)``, so a chunk is
-retried on network errors. ``publish_run`` is not retried: when its outcome is
-unknown, the whole publish is re-run under a new ``load_id``. That is safe
-because the database replaces the date in one transaction.
+retried on network errors. ``publish_run`` is not retried. When its response
+is lost (a gateway timeout, a dropped connection), Postgres may still commit:
+the P5 load test saw a 504 for a day that was published. :func:`publish` then
+asks ``pipeline.publish_outcome`` by load id until the answer is definite.
+Re-running the whole publish under a new ``load_id`` is still safe, because
+the database replaces the date in one transaction.
 """
 import hashlib
 import json
@@ -39,6 +42,17 @@ _NONFINITE_JSON = {math.inf: 'Infinity', -math.inf: '-Infinity'}
 
 class PublishError(RuntimeError):
     """The snapshot was refused before or by ``publish_run``."""
+
+
+class PublishOutcomeUnknown(PublishError):
+    """The call may or may not have run: its response was lost (a gateway
+    timeout, a 502/503, a dropped connection)."""
+
+
+# The gateway's own errors: the request may have reached Postgres and run.
+_LOST_RESPONSE = frozenset({502, 503, 504})
+OUTCOME_WAIT_S = 900     # past service_role's 10-minute statement_timeout
+OUTCOME_POLL_S = 10
 
 
 def canonical_sha256(data):
@@ -168,7 +182,7 @@ class RestTransport:
                 resp = self.session.post(self.base + fn, data=body, headers=self.headers, timeout=self.timeout)
             except requests.RequestException as e:
                 if attempt + 1 >= attempts:
-                    raise PublishError(f'{fn}: {e}') from e
+                    raise PublishOutcomeUnknown(f'{fn}: {e}') from e
                 logger.warning('%s: %s; retrying (%d/%d)', fn, e, attempt + 1, attempts - 1)
                 time.sleep(2 ** attempt)
                 continue
@@ -176,6 +190,8 @@ class RestTransport:
                 logger.warning('%s: HTTP %s; retrying (%d/%d)', fn, resp.status_code, attempt + 1, attempts - 1)
                 time.sleep(2 ** attempt)
                 continue
+            if resp.status_code in _LOST_RESPONSE:
+                raise PublishOutcomeUnknown(f'{fn}: HTTP {resp.status_code}: {resp.text[:500]}')
             if resp.status_code >= 400:
                 raise PublishError(f'{fn}: HTTP {resp.status_code}: {resp.text[:500]}')
             return resp.json()
@@ -185,13 +201,18 @@ class RestTransport:
 class DirectTransport:
     """The same RPCs over a psycopg connection, one transaction per call."""
 
+    # RPC parameters declared text[]: psycopg adapts a list to an array. Every
+    # other list or dict goes as jsonb.
+    ARRAY_PARAMS = frozenset({'p_columns'})
+
     def __init__(self, con):
         self.con = con
 
     def call(self, fn, args, idempotent=False):
         from psycopg.types.json import Jsonb
         names = ', '.join(f'{k} => %s' for k in args)
-        values = [Jsonb(v) if isinstance(v, (dict, list)) else v for v in args.values()]
+        values = [v if k in self.ARRAY_PARAMS else Jsonb(v) if isinstance(v, (dict, list)) else v
+                  for k, v in args.items()]
         try:
             with self.con.transaction():
                 return self.con.execute(f'SELECT pipeline.{fn}({names})', values).fetchone()[0]
@@ -200,7 +221,8 @@ class DirectTransport:
 
 
 def publish(load, transport, force=False, reason=None, chunk_bytes=DEFAULT_CHUNK_BYTES,
-            max_cast_failure_rate=MAX_CAST_FAILURE_RATE, min_row_ratio=MIN_ROW_RATIO, pipeline_version=None):
+            max_cast_failure_rate=MAX_CAST_FAILURE_RATE, min_row_ratio=MIN_ROW_RATIO, pipeline_version=None,
+            outcome_wait_s=OUTCOME_WAIT_S, outcome_poll_s=OUTCOME_POLL_S):
     """Stage *load* chunk by chunk, then publish it; returns publish_run's result.
 
     *min_row_ratio*: refuse (without *force*) a run with fewer rows than this
@@ -223,8 +245,79 @@ def publish(load, transport, force=False, reason=None, chunk_bytes=DEFAULT_CHUNK
     run = dict(load.run, pipeline_version=pipeline_version)
     expect = {'n_rows': len(load.rows), 'n_chunks': len(chunks), 'force': bool(force), 'reason': reason,
               'min_row_ratio': min_row_ratio, 'client_stats': load.stats}
-    result = transport.call('publish_run', {'p_load_id': load_id, 'p_run_date': load.run_date,
-                                            'p_run': run, 'p_expect': expect})
+    try:
+        result = transport.call('publish_run', {'p_load_id': load_id, 'p_run_date': load.run_date,
+                                                'p_run': run, 'p_expect': expect})
+    except PublishOutcomeUnknown as e:
+        result = await_outcome(transport, load_id, load.run_date, e, outcome_wait_s, outcome_poll_s)
     result = dict(result or {}, chunks=len(chunks), staged_s=round(staged_s, 1),
                   total_s=round(time.time() - t0, 1), load_id=load_id)
     return result
+
+
+def await_outcome(transport, load_id, run_date, cause, wait_s=OUTCOME_WAIT_S, poll_s=OUTCOME_POLL_S):
+    """After publish_run's response was lost (*cause*), poll
+    ``pipeline.publish_outcome`` until it says published (return a result
+    like publish_run's) or failed/unknown (raise), for at most *wait_s*."""
+    logger.warning('publish_run %s for %s: response lost (%s); waiting for its outcome', load_id, run_date, cause)
+    deadline = time.time() + wait_s
+    state = None
+    while time.time() < deadline:
+        time.sleep(poll_s)
+        try:
+            out = transport.call('publish_outcome', {'p_load_id': load_id, 'p_run_date': run_date},
+                                 idempotent=True) or {}
+        except PublishError as e:
+            logger.warning('publish_outcome: %s; asking again', e)
+            continue
+        state = out.get('state')
+        if state == 'published':
+            pub_meta = out.get('publish') or {}
+            logger.warning('publish_run %s for %s committed after all', load_id, run_date)
+            return {'run_date': run_date, 'rows': out.get('rows'), 'warnings': pub_meta.get('warnings', []),
+                    'confirmed_after_lost_response': str(cause)}
+        if state in ('failed', 'unknown'):
+            raise PublishError(f'publish_run {state} after a lost response ({cause})') from cause
+    raise PublishError(f'publish_run outcome still {state or "unknown"} after {wait_s}s ({cause})') from cause
+
+
+def transport_from_env(dsn_vars=('SUPABASE_DB_URL',)):
+    """``(transport, closer, where)`` from the environment.
+
+    The Data API (``SUPABASE_URL`` + ``SUPABASE_SERVICE_ROLE_KEY``) wins, since
+    it is the cloud container's only path (A1). Otherwise the first DSN
+    variable in *dsn_vars* that is set gives a direct connection. Under pytest,
+    only a local database is accepted (R12).
+    """
+    import os
+    from urllib.parse import urlparse
+    url, key = os.environ.get('SUPABASE_URL'), os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
+    dsn = None if (url and key) else next((os.environ[v] for v in dsn_vars if os.environ.get(v)), None)
+    where = url if (url and key) else dsn
+    if not where:
+        raise PublishError('no database configured: set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY, '
+                           f'or {" / ".join(dsn_vars)}')
+    # Checked before anything connects: a test must never reach a real database.
+    host = urlparse(where).hostname or ''
+    if 'PYTEST_CURRENT_TEST' in os.environ and host not in ('localhost', '127.0.0.1', '::1'):
+        raise PublishError(f'refusing a non-local database ({host}) under pytest')
+    if dsn is None:
+        return RestTransport(url, key, timeout=(5, 120), retries=2), None, url
+    from data.db.connect import connect
+    con = connect(dsn, autocommit=True)
+    return DirectTransport(con), con, dsn
+
+
+def publish_file(path, data=None, **kwargs):
+    """Publish the snapshot at *path* (already-loaded *data* skips a re-read)
+    with the transport from the environment. Raises :class:`PublishError`."""
+    from data.snapshot_store import read_snapshot, snapshot_date_from_path
+    run_date = snapshot_date_from_path(path)
+    if run_date is None:
+        raise PublishError(f'{path} is not a canonical results_<date> snapshot')
+    transport, closer, _ = transport_from_env()
+    try:
+        return publish(build_load(data if data is not None else read_snapshot(path), run_date), transport, **kwargs)
+    finally:
+        if closer is not None:
+            closer.close()

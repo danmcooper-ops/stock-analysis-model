@@ -78,12 +78,16 @@ from data.sec_xbrl_client import SECXBRLClient
 from data.fx_client import get_spot_fx_rate, apply_fx_to_statement_df
 from data.sec_insider_client import SECInsiderClient
 from data.provenance import ProvenanceRecorder
+from data.price_store import mass_stop, stopped_trading
 from data.snapshot_store import (SnapshotStore, prior_snapshot_file, read_snapshot,
                                  sync_snapshot_file, write_snapshot_file)
 from data.culture_client import CultureClient
 
 from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             PHASE1_LOCAL_PRICE_MAX_AGE_DAYS, SEC_CIK_PREDECESSORS,
+                            CARRY_FORWARD_MAX_PRICE_LAG_BARS,
+                            CARRY_FORWARD_STOPPED_MAX_SHARE,
+                            CARRY_FORWARD_STOPPED_GUARD_FLOOR,
                             PHASE1_IO_WORKERS, PHASE1_PREFETCH_WINDOW_MULT,
                             PHASE1_EMPTY_RATE_ALARM, PHASE1_EMPTY_ALARM_MIN_CALLS,
                             YF_REQUEST_DELAY, YF_REQUEST_DELAY_MAX,
@@ -631,6 +635,70 @@ def _fresh_local_prices(ticker, prices_dir, as_of,
     cutoff = pd.Timestamp(last) - pd.DateOffset(years=5)
     window = series[series.index >= cutoff]
     return window if len(window) > min_obs else None
+
+
+def stopped_trading_carry_forwards(tickers, prices_dir, as_of,
+                                   max_lag_bars=CARRY_FORWARD_MAX_PRICE_LAG_BARS,
+                                   spy_max_age_days=PHASE1_LOCAL_PRICE_MAX_AGE_DAYS):
+    """Carry-forward tickers whose local price history shows they stopped
+    trading: ``{ticker: (last_bar_iso, lag_bars)}``.
+
+    Yahoo keeps answering ``.info`` for a delisted symbol with its last quote,
+    and carry-forward bypasses the mcap/spread filters, so nothing else in
+    Phase 1 notices an acquired company — it was re-rated on a frozen price
+    for weeks (JHG at $51.95 from 2026-07-02 to 08-04). The run's parquets
+    are the evidence: run.sh step 03 re-fetches every prior-snapshot ticker
+    right before the analysis, so a file still more than *max_lag_bars* SPY
+    trading days behind SPY's own last bar means Yahoo has no bars for it.
+
+    Lag is counted in SPY bars, not calendar days, and against SPY's last bar
+    rather than the run date, so a night whose download failed wholesale
+    (every file one day behind, SPY included) drops nothing. Everything is as
+    of *as_of*: a ``--run-date`` re-run ignores later bars. Returns {} — the
+    rule is off — when SPY's parquet is missing or older than
+    *spy_max_age_days*, or the price store cannot answer; a ticker with no
+    parquet is never dropped, since absence says nothing about trading.
+    """
+    return stopped_trading(prices_dir, tickers, as_of,
+                           max_lag_bars=max_lag_bars,
+                           spy_max_age_days=spy_max_age_days)
+
+
+def _drop_stopped_carry_forwards(carry_set, prices_dir, as_of, prov=None,
+                                 max_share=CARRY_FORWARD_STOPPED_MAX_SHARE,
+                                 guard_floor=CARRY_FORWARD_STOPPED_GUARD_FLOOR):
+    """The carry-forward tickers to drop from this run as no longer trading.
+
+    Wraps :func:`stopped_trading_carry_forwards` with the run's side effects:
+    one WARNING per dropped ticker (last bar, lag) and a provenance event, so
+    a drop is visible in the log and the snapshot. When more than
+    ``max(guard_floor, max_share * carry-forwards)`` read as stopped, that is
+    a failed price refresh, not a wave of delistings — nothing is dropped.
+    Never raises: a failure keeps every carry-forward, as before the rule.
+    """
+    try:
+        stopped = stopped_trading_carry_forwards(carry_set, prices_dir, as_of)
+    except Exception as e:
+        logger.warning("carry-forward stopped-trading check failed (%s); "
+                       "keeping every carry-forward ticker", e)
+        return set()
+    if not stopped:
+        return set()
+    if mass_stop(len(stopped), len(carry_set), max_share, guard_floor):
+        logger.warning("carry-forward: %d of %d ticker(s) read as stopped trading "
+                       "— treating it as a failed price refresh and dropping none",
+                       len(stopped), len(carry_set))
+        return set()
+    for tk, (last_bar, lag) in sorted(stopped.items()):
+        logger.warning("%s: dropped from carry-forward — last price bar %s is "
+                       "%d SPY trading days old (stopped trading)",
+                       tk, last_bar, lag)
+        if prov is not None:
+            prov.record_event('carry_forward_stopped', tk, 'prices',
+                              {'last_bar': last_bar, 'lag_bars': lag})
+    print(f"Carry-forward: dropped {len(stopped)} ticker(s) whose price data "
+          f"stopped: {', '.join(sorted(stopped))}")
+    return set(stopped)
 
 
 def _load_local_ohlcv(ticker, prices_dir):
@@ -2962,6 +3030,11 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                 # --tickers is a smoke test: never let carry-forward re-grow
                 # the universe to yesterday's ~2,300 names.
                 _carry_set &= set(all_tickers)
+            _stopped = _drop_stopped_carry_forwards(
+                _carry_set, prices_dir, yf_client.run_date or date.today(), _prov)
+            if _stopped:
+                _carry_set -= _stopped
+                all_tickers = [t for t in all_tickers if t not in _stopped]
             print(f"Carry-forward: {len(_carry_set)} ticker(s) from {os.path.basename(_prior_path)} "
                   f"will bypass Phase-1 filters")
             # Also ensure carry-forward tickers are in the universe (they may
@@ -5116,6 +5189,14 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
     os.makedirs("output", exist_ok=True)
     today_str = run_start_date.isoformat()  # pin to run-start so a midnight-spanning run stays single-dated
     _run_prov = _prov.run_block(results)
+    # Which scoring model rated these rows: the backtest measures each model
+    # on its own snapshots (backtest.build_measure_summary), so a weight
+    # change never silently pools two models.
+    try:
+        from scripts.param_set import scoring_fingerprint
+        _run_prov['scoring'] = scoring_fingerprint()
+    except Exception as e:
+        logger.warning('provenance: scoring fingerprint failed (%s)', e)
 
     # Save results as JSON for backtesting pipeline. Written BEFORE the
     # HTML/Excel renders so the Phase-2 snapshot survives a render crash.

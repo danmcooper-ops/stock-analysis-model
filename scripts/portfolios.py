@@ -1,0 +1,614 @@
+# scripts/portfolios.py
+"""Manage portfolio groupings (portfolio/portfolios.json).
+
+A portfolio is a named set of tickers — hand-picked, rule-driven, or both —
+and a ticker may belong to any number of them. See models/portfolio_groups.py
+for the file format and the rule semantics.
+
+    python scripts/portfolios.py list
+    python scripts/portfolios.py create semis --name Semiconductors --tickers NVDA,AMD,TSM
+    python scripts/portfolios.py create energy-buys --name "Energy BUYs" \\
+        --sector Energy --rating "BUY,LEAN BUY" --min mcap=2e9
+    python scripts/portfolios.py add semis AVGO MU
+    python scripts/portfolios.py remove energy-buys XOM      # rule member -> exclude
+    python scripts/portfolios.py show energy-buys            # against the latest snapshot
+    python scripts/portfolios.py import ~/Downloads/portfolios.json --dry-run
+    python scripts/portfolios.py import 'https://…/#pf=eyJpZCI6…'
+
+Rule min/max on percent columns are fractions (--min mos=0.2 means MoS >= 20%).
+"""
+import argparse
+import json
+import logging
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from data.snapshot_store import SnapshotStore, list_snapshot_files, load_snapshot_file  # noqa: E402
+from models import portfolio_groups as pg  # noqa: E402
+
+logger = logging.getLogger('portfolios')
+
+
+def _split_csv(s):
+    return [x.strip() for x in s.split(',') if x.strip()] if s else []
+
+
+def _parse_kv(items, what):
+    out = {}
+    for it in items or ():
+        k, sep, v = it.partition('=')
+        if not sep or not k:
+            raise SystemExit(f"--{what} expects KEY=VALUE, got {it!r}")
+        out[k.strip()] = v.strip()
+    return out
+
+
+def _rule_from_args(a):
+    """Build a rule from the create/set-rule flags; None when none given."""
+    if a.rule_json:
+        return json.loads(a.rule_json)
+    mins = {k: float(v) for k, v in _parse_kv(a.min, 'min').items()}
+    maxs = {k: float(v) for k, v in _parse_kv(a.max, 'max').items()}
+    txts = _parse_kv(a.contains, 'contains')
+    cf = [{'key': k, 'min': mins.get(k), 'max': maxs.get(k)}
+          for k in sorted(set(mins) | set(maxs))]
+    cf += [{'key': k, 'txt': v} for k, v in sorted(txts.items())]
+    rule = {'ratings': _split_csv(a.rating) or None,
+            'sectors': a.sector or None,
+            'countries': a.country or None,
+            'cf': cf}
+    if rule['ratings'] is None and rule['sectors'] is None \
+            and rule['countries'] is None and not cf:
+        return None
+    return rule
+
+
+def _add_rule_flags(sp):
+    sp.add_argument('--rating', help='comma list, e.g. "BUY,LEAN BUY"')
+    sp.add_argument('--sector', action='append',
+                    help='sector name (repeat for several)')
+    sp.add_argument('--country', action='append',
+                    help='country name (repeat for several)')
+    sp.add_argument('--min', action='append', metavar='KEY=V',
+                    help='column lower bound (fractions for %% columns)')
+    sp.add_argument('--max', action='append', metavar='KEY=V',
+                    help='column upper bound')
+    sp.add_argument('--contains', action='append', metavar='KEY=TEXT',
+                    help='case-insensitive text match on a column')
+    sp.add_argument('--rule-json', help='the whole rule as JSON')
+
+
+def _find(doc, pid):
+    for p in doc['portfolios']:
+        if p['id'] == pid:
+            return p
+    raise SystemExit(f"no portfolio {pid!r} (have: "
+                     f"{', '.join(p['id'] for p in doc['portfolios']) or 'none'})")
+
+
+def _latest_rows(results_dir, day=None):
+    files = list_snapshot_files(results_dir)
+    if day:
+        files = [f for f in files if f[0] == day]
+    if not files:
+        raise SystemExit(f"no results snapshot{' for ' + day if day else ''} in {results_dir}")
+    d, path = files[-1]
+    _, rows = load_snapshot_file(path)
+    return d, rows
+
+
+def prior_rows(results_dir, before, columns):
+    """``(date, rows)`` of the newest snapshot strictly before *before*
+    (``YYYY-MM-DD``), or ``(None, [])``.
+
+    Served from the DuckDB snapshot store when it holds that date — only
+    *columns* are read — else by parsing the JSON. The store answers an
+    unknown column with NULL, which a rule would read as a present-but-N/A
+    ``_gate_<key>`` and so drop every row; gate columns the store lacks are
+    therefore never requested.
+    """
+    files = [(d, p) for d, p in list_snapshot_files(results_dir) if d < before]
+    if not files:
+        return None, []
+    day, path = files[-1]
+    try:
+        store = SnapshotStore.for_results_dir(results_dir)
+        if store is not None:
+            with store:
+                if store.has_date(day):
+                    have = {c.lower() for c in store.columns()}
+                    cols = [c for c in columns
+                            if not c.startswith('_gate_') or c.lower() in have]
+                    return day, store.rows(day, cols)
+    except Exception as e:  # the JSON is canonical; the store is a shortcut
+        logger.warning("portfolios: snapshot store read for %s failed (%s); "
+                       "parsing the JSON", day, e)
+    _, rows = load_snapshot_file(path)
+    return day, rows
+
+
+def drop_stopped(rows, prev_rows, day, prev_day, prices_dir):
+    """``(rows, prev_rows, stopped)`` with each day's stopped-trading names
+    removed, for the alerts.
+
+    Yahoo keeps serving a delisted symbol's frozen last quote, so a snapshot
+    row for an acquired company looks healthy and its rating moves on stale
+    inputs read as signals. Each day is judged as of its own date
+    (``report_html.stopped_map``, the rule the render uses): a name already
+    stopped on *prev_day* is gone from both days and raises nothing, while
+    one that stopped since leaves yesterday's members — *stopped* (today's
+    map) lets ``membership_events`` report that as ``stopped_trading``, once.
+    Rows are returned unchanged without *day* or *prices_dir*.
+    """
+    if not day or not prices_dir:
+        return rows, prev_rows, {}
+    from scripts.report_html import stopped_map
+
+    def _tk(rs):
+        return {str(r['ticker']) for r in rs if isinstance(r, dict) and r.get('ticker')}
+
+    stopped = stopped_map(_tk(rows) | _tk(prev_rows), prices_dir, day, what='alert row')
+    before = (stopped_map(_tk(prev_rows), prices_dir, prev_day, what='alert row')
+              if prev_day and stopped else {})
+    if not stopped:
+        return rows, prev_rows, {}
+    newly = sorted(t for t in stopped if t not in before and t in _tk(prev_rows))
+    if newly:
+        logger.warning("portfolios: stopped trading since %s: %s", prev_day, ', '.join(newly))
+    return ([r for r in rows if str(r.get('ticker')) not in stopped],
+            [r for r in prev_rows if str(r.get('ticker')) not in before],
+            stopped)
+
+
+def _fmt_pct(v):
+    return '—' if not isinstance(v, (int, float)) else f"{v:+.0%}"
+
+
+def _fmt_num(v, spec='.0f'):
+    return '—' if not isinstance(v, (int, float)) else format(v, spec)
+
+
+# ---------------------------------------------------------------- commands
+
+def cmd_list(doc, a):
+    if not doc['portfolios']:
+        print("No portfolios yet. Create one with: portfolios.py create <id> --name ...")
+        return
+    for p in pg.with_colors(doc['portfolios']):
+        kind = ('rule + ' if p['rule'] else '') + f"{len(p['tickers'])} picked"
+        excl = f", {len(p['exclude'])} excluded" if p['exclude'] else ''
+        print(f"{p['id']:<24} {p['name']:<28} {kind}{excl}  {p['color']}")
+        if p['rule']:
+            print(f"{'':<24} rule: {pg._rule_summary(p['rule'])}")
+
+
+def cmd_create(doc, a):
+    pid = a.id or pg.slugify(a.name)
+    if any(p['id'] == pid for p in doc['portfolios']):
+        raise SystemExit(f"portfolio {pid!r} already exists")
+    doc['portfolios'].append({
+        'id': pid, 'name': a.name or pid, 'color': a.color,
+        'description': a.description or '',
+        'tickers': _split_csv(a.tickers), 'exclude': [],
+        'rule': _rule_from_args(a)})
+    return f"created {pid}"
+
+
+def cmd_set_rule(doc, a):
+    p = _find(doc, a.id)
+    p['rule'] = None if a.clear else _rule_from_args(a)
+    return f"{a.id}: rule {'cleared' if p['rule'] is None else 'set'}"
+
+
+def cmd_edit(doc, a):
+    p = _find(doc, a.id)
+    if a.name:
+        p['name'] = a.name
+    if a.color:
+        p['color'] = a.color
+    if a.description is not None:
+        p['description'] = a.description
+    if a.alerts:
+        p['alerts'] = a.alerts
+    return f"updated {a.id}"
+
+
+def cmd_delete(doc, a):
+    _find(doc, a.id)
+    doc['portfolios'] = [p for p in doc['portfolios'] if p['id'] != a.id]
+    return f"deleted {a.id}"
+
+
+def cmd_add(doc, a):
+    p = _find(doc, a.id)
+    tks = [t.upper() for t in a.tickers]
+    p['exclude'] = [t for t in p['exclude'] if t not in tks]
+    p['tickers'] = sorted(set(p['tickers']) | set(tks))
+    return f"{a.id}: added {' '.join(tks)}"
+
+
+def cmd_remove(doc, a):
+    p = _find(doc, a.id)
+    msgs = []
+    for t in (x.upper() for x in a.tickers):
+        hit = t in p['tickers']
+        if hit:
+            p['tickers'] = [x for x in p['tickers'] if x != t]
+            msgs.append(f"removed {t}")
+        # A rule could (re)admit it, so pin it out explicitly.
+        if p['rule'] and t not in p['exclude']:
+            p['exclude'] = sorted(set(p['exclude']) | {t})
+            msgs.append(f"excluded {t} from the rule")
+        elif not hit and not p['rule']:
+            msgs.append(f"{t} was not in {a.id}")
+    return f"{a.id}: " + ', '.join(msgs)
+
+
+def cmd_show(doc, a):
+    targets = [_find(doc, a.id)] if a.id else doc['portfolios']
+    day, rows = _latest_rows(a.results_dir, a.date)
+    by_tk = pg.rows_by_ticker(rows)
+    print(f"Snapshot {day} ({len(by_tk)} tickers)")
+    for p in targets:
+        res = pg.resolve_members(p, by_tk)
+        print(f"\n{p['name']} [{p['id']}] — {len(res['members'])} members"
+              + (f", {len(res['missing'])} not in universe" if res['missing'] else ''))
+        if p['rule']:
+            print(f"  rule: {pg._rule_summary(p['rule'])}")
+            for c in p['rule']['cf']:
+                if not any(c['key'] in r for r in rows):
+                    print(f"  warning: no row has a {c['key']!r} field, so this rule matches nothing")
+        from scripts.portfolio_digest import stats_line
+        print('  ' + stats_line(pg.portfolio_stats(res['members'], by_tk)))
+        manual, ruled = set(res['manual']), set(res['ruled'])
+        print(f"  {'Ticker':<8} {'Rating':<9} {'MoS':>6} {'Score':>6}  {'Src':<5} Sector")
+        for t in res['members']:
+            r = by_tk[t]
+            src = 'both' if t in manual and t in ruled else ('rule' if t in ruled else 'pick')
+            print(f"  {t:<8} {str(r.get('rating') or '—'):<9} {_fmt_pct(r.get('mos')):>6} "
+                  f"{_fmt_num(r.get('_composite_score')):>6}  {src:<5} {r.get('sector') or '—'}")
+        if res['missing']:
+            print(f"  not in universe: {' '.join(res['missing'])}")
+
+
+def alert_columns(portfolios):
+    """Prior-run columns the alerts read: the rule columns plus the drivers
+    ``report_html._explain_rating_change`` compares (composite, category
+    scores, rating cap, and every gate value/score)."""
+    from scripts.report_html import _PREV_DRIVER_KEYS, gate_metadata
+    gates = [k for g in gate_metadata()['gates'] for k in (g['key'], g['scoreKey'])]
+    return sorted(set(pg.rule_columns(portfolios)) | set(_PREV_DRIVER_KEYS) | set(gates))
+
+
+def rating_explainer():
+    """``explain(prev_row, row)`` → the popup's "why the rating changed"
+    bullets, or None when the report module can't load."""
+    try:
+        from scripts.report_html import _explain_rating_change, gate_metadata
+        gm = gate_metadata()
+    except Exception as e:  # the alerts still work without the bullets
+        logger.warning("portfolios: rating explanations unavailable (%s)", e)
+        return None
+    return lambda prev, cur: _explain_rating_change(prev, cur, gm)
+
+
+def rating_history(results_dir, day):
+    """Rating change-points before *day* (the report's cache/store reader)."""
+    try:
+        from datetime import date as _date
+        from scripts.report_html import _load_rating_history
+        return _load_rating_history(results_dir, _date.fromisoformat(day))
+    except Exception as e:
+        logger.warning("portfolios: rating history unavailable (%s); no reversal detection", e)
+        return {}
+
+
+def build_digest(portfolios, rows, prev_rows, day, prev_day, history=None, explain=None,
+                 prices_dir=None):
+    """The machine-readable alerts digest (output/portfolio_alerts.json) that
+    the nightly text, the GitHub issue and tests all render from. With
+    *prices_dir*, stopped-trading names are left out first (``drop_stopped``)."""
+    rows, prev_rows, stopped = drop_stopped(rows, prev_rows, day, prev_day, prices_dir)
+    by_tk, prev_by_tk = pg.rows_by_ticker(rows), pg.rows_by_ticker(prev_rows)
+    by_id, stats = ({p['id']: [] for p in portfolios},
+                    pg.universe_stats(by_tk, prev_by_tk)) if not prev_day else \
+        pg.portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=day,
+                            history=history, explain=explain, stopped=stopped)
+    systemic = dict(stats, message=pg.systemic_message(stats)) if prev_day else None
+    out = []
+    for p in portfolios:
+        res = pg.resolve_members(p, by_tk)
+        out.append({'id': p['id'], 'name': p['name'], 'color': p.get('color'),
+                    'mode': p.get('alerts') or 'buy_line', 'missing': res['missing'],
+                    'stats': pg.portfolio_stats(res['members'], by_tk, prev_by_tk),
+                    'alerts': by_id.get(p['id'], [])})
+    return {'version': 1, 'date': day, 'prev_date': prev_day, 'systemic': systemic,
+            'portfolios': out}
+
+
+def _write(path, text):
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(text)
+    print(f"wrote {path}")
+
+
+def cmd_alerts(doc, a):
+    from scripts import portfolio_digest as pdg
+    if a.replay:
+        return cmd_alerts_replay(doc, a)
+    pfs = doc['portfolios']
+    day, rows = _latest_rows(a.results_dir, a.date)
+    prev_day, prev = prior_rows(a.results_dir, day, alert_columns(pfs))
+    digest = build_digest(pfs, rows, prev, day, prev_day,
+                          history=rating_history(a.results_dir, day) if prev_day else None,
+                          explain=rating_explainer() if prev_day else None,
+                          prices_dir=(a.prices_dir if a.prices_dir is not None
+                                      else os.path.join(a.results_dir, 'prices')))
+    text = pdg.render_text(digest)
+    print(text, end='')
+    if a.out:
+        _write(a.out.replace('{date}', day), text)
+    if a.json:
+        _write(a.json.replace('{date}', day),
+               json.dumps(digest, ensure_ascii=False, indent=1, default=str) + '\n')
+    if a.markdown:
+        _write(a.markdown.replace('{date}', day), pdg.render_markdown(digest, a.pages_url))
+
+
+def cmd_alerts_replay(doc, a):
+    """Run the classifier over consecutive archived snapshots and print the
+    per-day level mix — to tune thresholds and to check a change against
+    history. Reversals use change-points rebuilt from the replayed days."""
+    import statistics
+    cols = ['ticker', 'rating', 'price', 'company_name', 'sector',
+            '_composite_score', '_fv_effective']
+    snaps = load_snapshots(a.results_dir, cols, since=a.since)
+    hist, prev = {}, None
+    rows_out = []
+    print(f"{'date':<11} {'n':>5} {'rerated':>8} {'no-data':>8} {'ACTION':>7} {'reversal':>9} "
+          f"{'same-side':>10} {'data-gap':>9} {'score':>6} {'fv':>5}  flood")
+    for day, rows in snaps:
+        by_tk = pg.rows_by_ticker(rows)
+        if prev is not None:
+            entries, st = pg.classify_changes(by_tk, prev, day, history=hist)
+            c = {}
+            for e in entries:
+                c[e['kind']] = c.get(e['kind'], 0) + 1
+            action = c.get('entered_buy', 0) + c.get('exited_buy', 0)
+            rows_out.append((action, c.get('reversal', 0), c.get('same_side', 0), st['flood']))
+            print(f"{day:<11} {st['n']:>5} {st['changed_share']:>8.1%} {st['missing_share']:>8.1%} "
+                  f"{action:>7} {c.get('reversal', 0):>9} {c.get('same_side', 0):>10} "
+                  f"{c.get('data_gap', 0):>9} {c.get('score_drop', 0):>6} {c.get('fv_jump', 0):>5}  "
+                  f"{(st['cause'] or '').upper() if st['flood'] else ''}")
+        for t, r in by_tk.items():
+            pts = hist.setdefault(t, [])
+            if r.get('rating') and (not pts or pts[-1][1] != r['rating']):
+                pts.append([day, r['rating']])
+        prev = by_tk
+    if rows_out:
+        acts = [r[0] for r in rows_out]
+        crossings = sum(r[0] + r[1] for r in rows_out)
+        print(f"\n{len(rows_out)} run(s): ACTION median {statistics.median(acts):g}/run, "
+              f"max {max(acts)}; reversals {sum(r[1] for r in rows_out)} of {crossings} crossings "
+              f"({sum(r[1] for r in rows_out) / max(1, crossings):.0%}); "
+              f"same-side median {statistics.median(r[2] for r in rows_out):g}/run; "
+              f"flood runs {sum(1 for r in rows_out if r[3])}")
+
+
+def load_snapshots(results_dir, columns, since=None):
+    """``[(date, rows)]`` ascending for every snapshot (optionally from
+    *since*), reading only *columns* from the snapshot store for the dates it
+    holds and parsing the JSON for the rest."""
+    files = [(d, p) for d, p in list_snapshot_files(results_dir) if not since or d >= since]
+    out, store = [], None
+    try:
+        store = SnapshotStore.for_results_dir(results_dir)
+    except Exception as e:
+        logger.warning("portfolios: snapshot store unavailable (%s); parsing JSON", e)
+    try:
+        have = {c.lower() for c in store.columns()} if store is not None else set()
+        cols = [c for c in columns if not c.startswith('_gate_') or c.lower() in have]
+        for d, path in files:
+            if store is not None and store.has_date(d):
+                out.append((d, store.rows(d, cols)))
+            else:
+                out.append((d, load_snapshot_file(path)[1]))
+    finally:
+        if store is not None:
+            store.close()
+    return out
+
+
+def _nav_table(led, portfolios):
+    from data import portfolio_nav as pn
+    spy, uni = led['bench']['spy'], led['bench']['universe']
+    lines = [f"{'Portfolio':<26} {'Since':<11} {'Total':>7} {'vs SPY':>7} {'vs EW':>7} "
+             f"{'1M':>6} {'3M':>6}  Notes"]
+    for p in portfolios:
+        s = led['portfolios'].get(p['id']) or []
+        if not s:
+            lines.append(f"{p['name'][:26]:<26} (no history yet)")
+            continue
+        start = s[0]['d']
+        tot = pn.window_return(s, None)
+        rs, ru = pn.rebased(spy, start), pn.rebased(uni, start)
+        last = s[-1]['d']
+        vs_spy = (tot - (rs[last] - 1)) if tot is not None and last in rs else None
+        vs_ew = (tot - (ru[last] - 1)) if tot is not None and last in ru else None
+        notes = []
+        bf = sum(1 for e in s if e.get('bf'))
+        if bf:
+            notes.append(f"{bf} backfilled day(s)")
+        low = sum(1 for e in s if e.get('cov') is not None and e['cov'] < pn.LOW_COVERAGE)
+        if low:
+            notes.append(f"{low} low-coverage day(s)")
+        if len({e.get('h') for e in s}) > 1:
+            notes.append('definition changed')
+        lines.append(f"{p['name'][:26]:<26} {start:<11} {_fmt_pct(tot):>7} {_fmt_pct(vs_spy):>7} "
+                     f"{_fmt_pct(vs_ew):>7} {_fmt_pct(pn.window_return(s, 30)):>6} "
+                     f"{_fmt_pct(pn.window_return(s, 91)):>6}  {', '.join(notes)}")
+    return '\n'.join(lines)
+
+
+def cmd_nav(doc, a):
+    from data import portfolio_nav as pn
+    path = pn.ledger_path(a.results_dir)
+    led = pn.load_ledger(path)
+    pfs = doc['portfolios']
+    if a.id:
+        pfs = [_find(doc, i) for i in a.id]
+    if a.rebuild:
+        snaps = load_snapshots(a.results_dir, pg.rule_columns(pfs), since=a.since)
+        print(f"replaying {len(pfs)} portfolio(s) over {len(snaps)} snapshot(s)"
+              + (f" ({snaps[0][0]} .. {snaps[-1][0]})" if snaps else ''))
+        rebuilt = pn.rebuild(pfs, snaps, a.prices_dir)
+        pn.merge_rebuild(led, rebuilt, ids={p['id'] for p in pfs})
+        pn.save_ledger(path, led)
+        print(f"wrote {path}")
+    print(_nav_table(led, pfs))
+
+
+def cmd_import(doc, a):
+    """Bring in a report export or share link.
+
+    An export whose ``base_rev`` is the file's current revision holds the
+    browser's edits on top of exactly this file, so it is taken whole —
+    deletions included ("fast-forward"). Anything else (a share link, an
+    export from an older file) merges: new ids are added, and ids that
+    differ from the file are refused unless --overwrite.
+    """
+    src = a.source
+    text = open(src, encoding='utf-8').read() if os.path.exists(src) else src
+    try:
+        inc_doc, base_rev = pg.decode_share(text)
+    except (ValueError, json.JSONDecodeError) as e:
+        raise SystemExit(f"cannot read {src!r}: {e}") from None
+    incoming = inc_doc['portfolios']
+    cur_rev = pg.revision(doc)
+    if a.replace or (base_rev == cur_rev and not a.merge):
+        if not a.replace:
+            print(f"fast-forward: the export was made from this file (rev {cur_rev})")
+        new = incoming
+    else:
+        if base_rev:
+            print(f"merge: the export was made from rev {base_rev}; the file is now {cur_rev}")
+        try:
+            new = pg.merge_portfolios(doc['portfolios'], incoming, overwrite=a.overwrite)
+        except ValueError as e:
+            raise SystemExit(str(e)) from None
+    new = pg.with_colors(pg.normalize({'version': pg.SCHEMA_VERSION,
+                                       'portfolios': new})['portfolios'])
+    lines = pg.diff_portfolios(pg.with_colors(doc['portfolios']), new)
+    print('\n'.join(lines) if lines else 'no changes')
+    if a.dry_run or not lines:
+        return None
+    doc['portfolios'] = new
+    return f"imported ({len(lines)} change line(s))"
+
+
+def build_parser():
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('--file', default=pg.DEFAULT_PORTFOLIOS_PATH,
+                    help='definitions file (default: portfolio/portfolios.json)')
+    sub = ap.add_subparsers(dest='cmd', required=True)
+
+    sub.add_parser('list', help='list portfolios')
+
+    sp = sub.add_parser('create', help='create a portfolio')
+    sp.add_argument('id', nargs='?', help='slug id (default: from --name)')
+    sp.add_argument('--name', required=True)
+    sp.add_argument('--color', help='#rrggbb (default: palette)')
+    sp.add_argument('--description')
+    sp.add_argument('--tickers', help='comma list of hand-picked tickers')
+    _add_rule_flags(sp)
+
+    sp = sub.add_parser('set-rule', help='replace (or --clear) a portfolio rule')
+    sp.add_argument('id')
+    sp.add_argument('--clear', action='store_true')
+    _add_rule_flags(sp)
+
+    sp = sub.add_parser('edit', help='rename / recolor / describe / alert mode')
+    sp.add_argument('id')
+    sp.add_argument('--name')
+    sp.add_argument('--color')
+    sp.add_argument('--description')
+    sp.add_argument('--alerts', choices=pg.ALERT_MODES,
+                    help='buy_line (default): Action on buy-line crossings; '
+                         'all: also moves within a side; off: mute')
+
+    sp = sub.add_parser('delete', help='delete a portfolio')
+    sp.add_argument('id')
+
+    for name, hlp in (('add', 'add hand-picked tickers'),
+                      ('remove', 'remove tickers (rule members are excluded)')):
+        sp = sub.add_parser(name, help=hlp)
+        sp.add_argument('id')
+        sp.add_argument('tickers', nargs='+')
+
+    sp = sub.add_parser('show', help='resolve members against a snapshot')
+    sp.add_argument('id', nargs='?')
+    sp.add_argument('--results-dir', default='output')
+    sp.add_argument('--date', help='snapshot date (default: latest)')
+
+    sp = sub.add_parser('alerts', help='per-portfolio stats and change alerts vs the prior run')
+    sp.add_argument('--results-dir', default='output')
+    sp.add_argument('--date', help='snapshot date (default: latest)')
+    sp.add_argument('--out', help='also write the text here ({date} is substituted)')
+    sp.add_argument('--json', help='also write the digest JSON here ({date} is substituted)')
+    sp.add_argument('--markdown', help='also write the GitHub-issue markdown here')
+    sp.add_argument('--pages-url', help='report URL linked from the markdown')
+    sp.add_argument('--replay', action='store_true',
+                    help='classify every archived run pair and print the per-day mix')
+    sp.add_argument('--since', help='first snapshot date for --replay')
+    sp.add_argument('--prices-dir',
+                    help="price parquets used to leave out stopped-trading names "
+                         "(default: <results-dir>/prices; '' keeps every row)")
+
+    sp = sub.add_parser('nav', help='NAV history per portfolio; --rebuild backfills it')
+    sp.add_argument('--id', action='append', help='portfolio id (repeat; default: all)')
+    sp.add_argument('--rebuild', action='store_true',
+                    help='replay the current definitions over archived snapshots '
+                         '(marked backfilled) in front of the live history')
+    sp.add_argument('--since', help='first snapshot date for --rebuild')
+    sp.add_argument('--results-dir', default='output')
+    sp.add_argument('--prices-dir', default='output/prices')
+
+    sp = sub.add_parser('import', help="merge a report export or share link")
+    sp.add_argument('source', help='exported JSON file, JSON text, or a #pf= share link')
+    sp.add_argument('--overwrite', action='store_true',
+                    help='imported versions win on id collisions')
+    sp.add_argument('--merge', action='store_true',
+                    help='merge even when the export is a fast-forward of the file')
+    sp.add_argument('--replace', action='store_true',
+                    help='the import becomes the whole file')
+    sp.add_argument('--dry-run', action='store_true', help='show the diff only')
+    return ap
+
+
+COMMANDS = {'list': cmd_list, 'create': cmd_create, 'set-rule': cmd_set_rule,
+            'edit': cmd_edit, 'delete': cmd_delete, 'add': cmd_add,
+            'remove': cmd_remove, 'show': cmd_show, 'alerts': cmd_alerts, 'nav': cmd_nav,
+            'import': cmd_import}
+
+
+def main(argv=None):
+    a = build_parser().parse_args(argv)
+    try:
+        doc = pg.load_portfolios(a.file)
+    except ValueError as e:
+        raise SystemExit(f"{a.file}: {e}") from None
+    msg = COMMANDS[a.cmd](doc, a)
+    if msg:
+        try:
+            pg.save_portfolios(doc, a.file)
+        except ValueError as e:
+            raise SystemExit(f"not saved: {e}") from None
+        print(msg)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

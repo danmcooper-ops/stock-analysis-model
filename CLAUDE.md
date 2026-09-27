@@ -30,7 +30,8 @@ models/          - Pure model functions: capm, dcf, ddm, epv, rim, nav,
                    ratios (WACC/ROIC), quality (Altman/Beneish/Piotroski),
                    market, macro, narrative, portfolio, valuation_types,
                    data_tab_narrative (popup Data sub-tab summaries, built
-                   at render time by report_html and shipped in details.json)
+                   at render time by report_html and shipped in the
+                   details/ parts)
 scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    report_html.py / report_excel.py, scoring.py, config.py,
                    param_set.py, replay.py, ingest_snapshots.py (backfill the
@@ -40,16 +41,17 @@ scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    archive_snapshot.py (gzip a run onto the
                    data/snapshots branch, with a size guard), plus
                    enrichment/maintenance scripts
-tests/           - pytest suite (~1,300 tests) incl. hypothesis property tests
+tests/           - pytest suite (~1,300 tests) incl. hypothesis property tests;
+                   tests/load/ holds the P5 database scale harness and k6 script
 templates/       - jinja2 report templates
-cloudflare/      - Worker + setup runbook for the login-protected report
-                   (Cloudflare Access in front of an R2 bucket)
 supabase/        - Supabase project (config.toml, migrations/) for the planned
                    primary database; see design/supabase-migration.md
 design/          - design docs and spikes (Supabase migration plan, P0 findings)
 scheduled-tasks/ - Operational runbooks for the nightly analysis + publish;
                    cloud-daily-stock-analysis/run.sh is the live (cloud
-                   Routine) pipeline, the rest are the dormant Mac runbooks
+                   Routine) pipeline, cloud-weekly-backtest/run.sh the live
+                   Sunday backtest (helpers in scripts/backtest_cloud.py),
+                   the rest are the dormant Mac runbooks
 output/          - (gitignored) run artifacts: results JSON, HTML, prices,
                    snapshots.duckdb (derived index over the results JSONs)
 ```
@@ -68,6 +70,7 @@ pre-commit install   # runs ruff + the offline test suite before each commit
 python scripts/analyze_stock.py                 # S&P 500 + Dow universe
 python scripts/analyze_stock.py --universe us   # all US-listed (~7-8k tickers)
 scripts/run_daily.sh --dry-run                  # nightly pipeline end to end (see script header)
+python scripts/portfolios.py list               # portfolio groupings (create/add/remove/show/import)
 pytest -m "not network and not slow"            # offline suite (CI-equivalent)
 ruff check .
 ```
@@ -105,6 +108,17 @@ ruff check .
   `SEC_FACTS_CACHE_MAX_AGE_DAYS`, default 30) is only a backstop for when the
   sweep cannot run; entries past it are pruned. Requests send
   `Accept-Encoding: gzip`, which urllib omits by default.
+  The backstop is measured **two** ways, because mtime stopped being
+  trustworthy once the cache began travelling between runs (below): a
+  restored file is written now, so its mtime claims "fetched today" whatever
+  the blob's real age, and the backstop it feeds would never fire again.
+  `sweep_is_lagging()` reads the watermark instead, which does survive the
+  trip and measures the thing the backstop cares about — whether
+  filing-driven eviction kept up. `refresh_stale_facts()` never advances the
+  watermark over a day it could not read, so a current watermark means every
+  filing day since has been walked; when it lags past `max_age_days` the
+  whole cache reads as missing. A cache that never swept (a dev box) has no
+  watermark and falls back to mtime, which is honest there.
 - **yfinance request interval (`--yf-delay`, `YF_REQUEST_DELAY`=0.4):** Yahoo
   publishes no rate limit, so the interval is a guess that has to be justified
   and able to back off. It sat at an unexamined 1.0 s. Measured on 2026-09-21:
@@ -158,6 +172,72 @@ ruff check .
   Measured against live fetches on 10 large caps the shrunk beta moves by
   <0.001 (the local window carries one extra weekly observation), which is
   ~0.3bp on the ROIC−WACC spread.
+- **Bulk price download pool (`--price-workers`, `PRICE_IO_WORKERS`=4):**
+  `scripts/download_prices.py` fetches one `period="max"` history per ticker.
+  It ran sequentially with an inline `time.sleep(--delay)`, which only showed
+  up once the run went stateless: `output/prices/` does not survive the cloud
+  container, so `run.sh` step 03 starts cold every night and nothing
+  short-circuits — ~2,300 tickers each pay the interval plus a full request.
+  The loop is now a `ThreadPoolExecutor` over one shared `data/throttle.py`
+  `Throttle`, so the interval stays a per-process budget and the workers only
+  decide how fully it is used; the pool does network only, while tallying and
+  printing stay in the main thread in submission order, so stdout is
+  unchanged. Measured synthetically (60 tickers, 0.2 s request, 0.05 s
+  interval): 12.2 s -> 3.2 s at 4 workers, and 8 workers gives nothing more
+  because the throttle ceiling (60/20 calls/s = 3.0 s) is then binding —
+  raise `--delay` headroom, not the worker count. Empty responses feed
+  `Throttle.penalize()` only in a **streak** of 3 (`_EmptyStreakGovernor`):
+  a soft throttle arrives as a run of empties, a delisted ticker as an
+  isolated one, and penalising the latter would ratchet the interval up on a
+  healthy run — the same reason a 404 does not penalise. Writes go through
+  `os.replace` because the freshness check reads a parquet's index, so a
+  half-written file could read as current.
+- **Price-parquet cache (`data/price_cache_store.py`, `scripts/price_cache.py`):**
+  `output/prices/` dies with the stateless container, which is what made the
+  cold step 03 above cost an hour. The parquets are now carried in a Supabase
+  Storage bucket (`PRICE_CACHE_BUCKET`, default `price-cache`), one object per
+  ticker via the shared `data/supabase_storage.py` bucket client, replaced in
+  place — the same host, service-role key and HTTPS egress
+  step `06a-db-publish` already uses, so it is unaffected by P0's finding that
+  the container cannot open raw TCP to Postgres. `run.sh` restores in step
+  `02b` (before the download) and saves in `05e2` (after the top-up, so new
+  entrants ride along). Both are non-blocking and skipped without the Supabase
+  secrets, so a dev box and a `SMOKE` run behave exactly as before.
+  The safety argument is the same one that lets the restore be non-blocking:
+  freshness is read from parquet **content** (`_parquet_max_date` reads the
+  index), never mtime, so a restored file that is behind fails the check and
+  is re-downloaded. An old, partial or corrupt cache degrades to today's cold
+  behaviour and can never serve a stale price. Consequently the save's
+  change-detection may be a heuristic — a parquet is uploaded when its size
+  differs from the stored object's, since a re-downloaded history has gained
+  bars; being wrong costs one wasted fetch next run (`--all` forces a full
+  upload). A restore never overwrites a local file (a resumed run may hold
+  something fresher), one bad object never ends the sweep, and the store
+  refuses to save a local set under 80% of what it already holds, so a
+  half-failed run cannot clobber a good cache. A save calls `ensure_bucket()`
+  first, so the first run of all creates the bucket instead of failing every
+  upload against one nobody made.
+- **Companyfacts cache transport (`data/sec_facts_cache_store.py`,
+  `scripts/sec_cache.py`):** `data/cache/` is gitignored and the container is
+  stateless, so SEC served the whole corpus again every night. The blobs now
+  ride the same Supabase Storage plumbing as the parquets
+  (`data/supabase_storage.py`, which wraps P4b's `data/db/storage.StorageClient`
+  rather than opening a second Storage client, adding only what a cache needs
+  and a publish does not: a paginated prefix listing, deletes and a worker
+  pool; bucket `SEC_CACHE_BUCKET`), restored in
+  `run.sh` step `02c` and saved in `04b` — straight after the analysis, the
+  only step that fetches facts or evicts them. The Phase-1 prefetch pool
+  already hides this leg's latency, so the win is fewer SEC requests and a
+  smaller failure surface, not wall clock; `facts_stats` in
+  `provenance.timings` is where to see it.
+  Two things make it sound. `_state.json` travels **with** the blobs and is
+  always uploaded: the watermark is part of the cache, and blobs restored
+  without it would be vouched for by nothing (see the sweep-lag guard above).
+  And evictions are deleted from the bucket, because a blob dropped locally
+  but left stored would return on the next restore, and the sweep would not
+  evict it again — the watermark has already moved past the day its filer
+  filed. That delete is gated on the same 80% floor as the price cache, so a
+  half-failed run cannot gut the bucket.
 - **Run timings:** `_PhaseClock` in `analyze_stock.py` records wall clock per
   `_run_*` phase and prints an "Elapsed by phase" table at the end;
   `_run_phase1_screen` additionally times each leg (yf_fetch, xbrl, fx, roic,
@@ -182,6 +262,33 @@ ruff check .
   it every 500 tickers, not just at the end, so a container restart mid-phase
   keeps the night's learning. `--no-screen-cache` bypasses it, and
   carry-forward tickers are never skipped.
+- **Carry-forward drops tickers that stopped trading
+  (`data/price_store.stopped_trading`):** carry-forward re-enters every
+  prior-snapshot ticker past the mcap/spread filters and the skip cache, and
+  Yahoo keeps answering `.info` for a delisted symbol with its frozen last
+  quote, so an acquired company used to be re-rated nightly on a dead price
+  (JHG/SEM/BLD/STEL for weeks after their last bar on 2026-07-01, HONAV to
+  08-26; 311 30-day backtest rows). Its parquet is what gives it away:
+  step 03 re-fetches every prior-snapshot ticker just before the analysis, and
+  `period="max"` for a dead symbol returns only its last 1-6 bars — which is
+  also why `price_data_stale` (needs >60 bars) never fired. Phase 1 now
+  drops, before any fetch, a carry-forward whose last bar as of the run date
+  is more than `CARRY_FORWARD_MAX_PRICE_LAG_BARS` (10) SPY trading days
+  behind SPY's last bar (one `price_store.asof_closes` scan). Each drop logs a
+  WARNING and a `carry_forward_stopped` provenance event. The rule is off
+  when SPY's parquet is missing or >5 days old, a ticker with no parquet is
+  kept, lag is measured against SPY (so a wholesale failed download drops
+  nothing), and if more than max(10, 5%) of the carry set reads as stopped
+  it is treated as a failed refresh and nothing is dropped. Replayed over
+  07-01..09-14 it dropped 7-21 names a night, every one a 1-6 bar file.
+  The render applies the same rule to every row (`report_html.
+  _drop_stopped_rows`, after step 05e's top-up refreshed each row's
+  parquet), so a snapshot written before the rule — or a row that reached
+  Phase 2 another way — renders without its stopped names, and the table,
+  portfolio stats and sidecars follow. It needs an explicit `run_date`
+  (judging an old snapshot against today's parquets would drop names live on
+  its date) and never edits the snapshot JSON, which stays the canonical
+  record; the backtest's `gone_before_snapshot` covers the archived rows.
 - **Snapshot archive:** `output/results_<date>.json` is the canonical run
   artifact. Locally only the newest 5 stay plain JSON: the last `run_daily.sh`
   step (and the weekly job, as a backstop) runs `scripts/compact_output.py`,
@@ -230,9 +337,11 @@ ruff check .
   history, gate N/A deltas, portfolio alerts) query for a few columns
   instead of re-parsing whole files. Every reader falls back to the JSON
   when the store is absent or does not hold the dates it needs.
-  `edgar_history` is kept as a slim projection (`years_available` and
-  `operating_income_history` — the only sub-keys any scoring path reads), so
-  a store row is a drop-in for re-scoring while the other 52 series stay in
+  `edgar_history` is kept as a slim projection (`DEFAULT_PROJECTIONS`: the
+  nine sub-keys scoring reads — `years_available`, `operating_income_history`
+  and the debt/assets/annual-flow series the debt-free Int Coverage rule
+  dates its evidence with; a test records what scoring actually reads), so
+  a store row is a drop-in for re-scoring while the other series stay in
   the JSON. The report-only narrative blocks (`news_headlines`,
   `legal_filings`, `insider_transactions`, descriptions, sector head/tailwinds
   …) are dropped entirely via `DEFAULT_EXCLUDE_KEYS`: measured over 84 real
@@ -268,6 +377,138 @@ ruff check .
   columns, no full-scan penalty) and offers `--sql` for raw queries, falling
   back to its older `.query_index_v1/` parquet index when the store is absent
   or incomplete.
+- **Forward-return sidecars (`output/returns/<date>_h<h>.json`):** matured
+  returns are immutable, so `annotate_snapshot_returns` freezes them, and the
+  cloud weekly routine persists them under `returns/` on `data/snapshots`.
+  Because a frozen value is reused forever, a sidecar records `coverage`
+  (priced / requested tickers). One below `MIN_RETURN_COVERAGE` (0.90) keeps
+  what it holds and has only its missing tickers re-fetched each run. A
+  (date, horizon) with no SPY return is left unmeasured and uncached, never
+  measured against 0%. `measure` writes per-pair coverage, delisted and
+  unpriced names by rating, skipped snapshots and the git SHA into
+  `backtest_summary_<stamp>.json`, and `scripts/backtest_cloud.py compare`
+  diffs it against the prior week's.
+  **Delistings (survivorship):** Yahoo drops a delisted symbol's history, so
+  the names that left the market — overwhelmingly acquisitions (EA, TMHC,
+  NFBK, LEG... on the 2026-07..09 corpus) — used to vanish from the backtest.
+  `backtest_cloud.py backfill-prices` (weekly step 04b) fetches what Yahoo
+  lacks from Tiingo, at most `TIINGO_MAX_CALLS` per run. Each series is cached
+  under `price_backfill/` on `data/snapshots`, so it is fetched once. The step
+  writes `<prices>/_backfill.json`, listing confirmed delistings (Tiingo's
+  series stopped more than 7 days before it was fetched). `terminal_returns`
+  measures those to the last close, with the proceeds reinvested in SPY to
+  the eval date. A last close below half the start price or below $1 is a
+  performance delisting and takes Shumway's −30% on top. A row for a ticker
+  already delisted before the snapshot is a stale row: excluded and counted
+  as `gone_before_snapshot`. Sidecars carry `method` (`SIDECAR_METHOD` = 2).
+  An older one, or one missing a ticker the manifest has since resolved, is
+  topped up once, and its frozen returns stay.
+  **Scoring model changes:** `measure` scores the rating each snapshot
+  *recorded*, so after a weight or gate change the headline pools two models,
+  and nothing used to say so. The corpus already mixes several: gate N/A
+  masking on 09-16, the debt-free Int Coverage rule on 09-22. Each snapshot now
+  carries `provenance.scoring = {params_hash, git_sha}`, stamped by
+  `analyze_stock` and restamped by `rescore_and_render`.
+  `param_set.scoring_params_hash()` hashes `default_params()` plus every gate's
+  field, weight, direction and test/score source, so any change to what rates
+  a row changes it, while an unrelated commit does not. `measure` adds:
+  - `regimes`: the as-recorded IC and buckets per hash; unstamped snapshots
+    form `pre-fingerprint`, itself a blend of those models;
+  - `rescored_current`: today's model re-applied to every snapshot's stored
+    fields (the calibrate path, `_evaluate_params_on_snapshots`), one model
+    across the whole corpus. It is in-sample if its weights were calibrated
+    on that corpus; walk-forward calibrate stays the out-of-sample test.
+
+  `backtest_cloud.compare` prints a `NOTICE` (not a failure) when the model
+  changed since last week or the headline pools more than one model.
+- **Report sidecars and the Pages size limits:** the HTML lazy-loads
+  everything heavy from files beside it, through `_loadSidecar` (relative
+  paths). Per-ticker shards: `vol/`, `px/` (manifested in `prices_meta.json`)
+  and `hist/<T>.json` (annual EDGAR fundamentals, manifested in
+  `hist_index.json` and inlined as `_HIST_TICKERS`, loaded per view by
+  `_ensureHist`). The popup's heavy text fields are split into ~8 MiB
+  `details/<n>.json` parts (`details_index.json`), which all load after first
+  paint and merge into `DATA` as the single `details.json` once did. Both
+  monoliths were split because Cloudflare Pages refuses files of 25 MiB or
+  more (and more than 20,000 files); `scripts/check_pages_limits.py` enforces
+  that before a deploy and warns at 80%. `index.html` itself is at ~97%, so
+  the inline `DATA` blob is the next thing to split.
+  `scripts/publish_vol_shards.py` copies all four families into `docs/` by
+  manifest. `run.sh` step 08 pushes `docs/` to GitHub Pages (`pages-live`);
+  step `08b-publish-cloudflare` (non-blocking) deploys the same directory
+  with a pinned wrangler once the Cloudflare secrets exist (setup runbook in
+  design/supabase-migration.md, P4c). Cache headers stay at Pages' default
+  revalidation, because a `px/` shard is an offset into `prices_meta.json`'s
+  dates axis and must never be mixed across deploys.
+- **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
+  named sets of tickers — hand-picked, rule-driven, or both — and a ticker may
+  sit in any number of them (membership only; `portfolio/holdings.json` stays
+  the P&L tracker). Members = (`tickers` ∪ rule matches) − `exclude`. A rule
+  *is* the report's Filters-panel state (`ratings`/`sectors`/`countries`/`cf`),
+  so "Save filter as portfolio" and "Edit rule" round-trip through the panel;
+  min/max on % columns are stored as fractions. `rule_matches()` mirrors the
+  report's `passOther` clause for clause (`_num` N/A semantics, the
+  `_gate_<key>` null drop) and so does `_pfRuleMatch` in the template —
+  `tests/fixtures/portfolio_rule_cases.json` pins both, so change all three
+  together. `report_html` resolves membership into each row's `pf` and ships
+  the definitions plus a content `revision()` as `PF_PUB`; browser edits live
+  in localStorage (`stock_portfolios_v1`, `{base_rev, portfolios}`) until
+  exported. `scripts/portfolios.py import` fast-forwards an export whose
+  `base_rev` is the file's current revision (deletions included) and
+  otherwise merges, refusing changed ids without `--overwrite`. `#pf=` share
+  links carry one portfolio as base64url JSON. `PORTFOLIOS_FILE` overrides
+  the path; an unreadable file renders with no portfolios and says why in the
+  Manage dialog. The report's Portfolios view (cards, then a page per
+  portfolio) computes stats in the browser from `DATA`, so it follows local
+  edits. **Alerts** (`classify_changes`) have three levels, set by what is
+  actionable for a buy-oriented model: **Action** = the rating crossed the
+  buy line (into/out of BUY/LEAN BUY); **Watch** = a crossing that reverses
+  one within 7 days (rating-history cache), composite drop ≥10 pts, fair
+  value ±50%, portfolio join/leave (judged on both days with today's
+  definition, naming the clause that flipped), earnings within 7 days;
+  **FYI** = moves within a side, and anything on a row with no price or
+  identity (`data_missing` — the 2026-09-25 `.info` throttle produced 751
+  such "downgrades"). Stopped-trading names (the carry-forward rule's
+  `stopped_trading`, via `report_html.stopped_map`) are left out of both
+  days before classifying, each judged as of its own date
+  (`portfolios.drop_stopped`; `alerts --prices-dir`, default
+  `<results-dir>/prices`): a frozen quote's rating move is never a signal,
+  and a member that stopped since the prior run gets one Watch,
+  `stopped_trading`, naming its last bar. The report's alert payload uses
+  the same rows. Measured over 82 run pairs: rating changes median
+  53/run, Action median 5.5; 36% of crossings are reversals. A run that
+  re-rates or loses data for ≥10% of the universe is a **systemic day**
+  (7 of 82): a banner leads, cause `model` or `data`. Each portfolio's
+  `alerts` mode (`buy_line` default / `all` / `off`) sets final levels.
+  `detect_alerts` (holdings tracker) is separate and unchanged. Nightly:
+  `portfolios.py alerts` (run_daily `portfolio_alerts`, cloud
+  `05g-portfolio-alerts`, BEFORE the archive) writes `.txt`/`.md` and
+  `output/portfolio_alerts.json`, which the cloud archives to
+  `data/snapshots`; `.github/workflows/portfolio-alerts.yml` (Tue–Sat
+  07:00/13:00 UTC) reads it via the contents API and
+  `scripts/portfolio_digest.py post` opens one idempotent
+  `Portfolio alerts — <date>` issue when there is an Action/Watch alert or
+  a systemic banner (stdlib-only, `GITHUB_TOKEN`, no secrets).
+  `portfolios.py alerts --replay` re-classifies archived runs for tuning.
+  **Performance** is a point-in-time NAV ledger, `output/portfolio_nav.json`
+  (`data/portfolio_nav.py`): each run records every portfolio's members as
+  resolved that day and compounds the equal-weighted return of the previous
+  entry's members (plus SPY and the equal-weighted universe). The render
+  advances it, like the rating-history cache, but only for an explicit
+  `run_date` whose `results_<date>` sits beside the HTML, and a same-day
+  re-render replaces that day's point. Both ends of every step come from the
+  *current* parquets as of recorded market dates (SPY's last bar ≤ the
+  snapshot date, via `price_store.asof_closes`) — never a remembered close,
+  since re-adjusted history would turn a split into a crash — so lagging data
+  only defers a move to the next step. A single member's move outside
+  0.25–4× (or from below $0.01) is bad data and left unpriced (GRKZF's
+  $0.001→$15.52 print once moved the universe +672%); `cov` records the
+  priced share. `portfolios.py nav --rebuild` replays today's definitions over
+  archived snapshots (entries flagged `bf`, hypothetical) and splices them in
+  front of the live history, rescaling it. The cloud routine stages the
+  ledger from, and writes it back to, `data/snapshots` (SMOKE-guarded).
+  Portfolio colors use the dataviz reference categorical palette (validated
+  both themes; dark mode swaps in each hue's dark step).
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`
@@ -318,16 +559,44 @@ by analyze_stock and gitignored):
   shape is versioned (`SCHEMA_VERSION` in `data/claude_narrative.py`): the
   day cache is keyed by date alone and a hit skips every post-parse check,
   so a shape change must bump it or the cache replays the old shape.
-- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (+ optional
-  `R2_BUCKET`), `REPORT_URL`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`
-  — the report is served behind a login: a Cloudflare Worker
-  (`cloudflare/worker/`) serves an R2 bucket with Cloudflare Access in front
-  (allowlisted emails, one-time-code login), and the Worker re-verifies the
-  Access JWT so it fails closed. Nightly step 08 syncs the site with
-  `scripts/publish_report.py` and checks it via the Access service token.
-  With `R2_*` unset, step 08 falls back to the legacy public `pages-live`
-  GitHub Pages branch. Setup and retirement runbook: `cloudflare/README.md`.
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — optional; `scripts/db_publish.py`
   (nightly step 06a, non-blocking) publishes the run to the Supabase database
-  over the Data API (design/supabase-migration.md). Unset: skipped.
+  over the Data API (design/supabase-migration.md). The same pair also carries
+  the price-parquet cache in Storage (`scripts/price_cache.py`, steps 02b and
+  05e2; `PRICE_CACHE_BUCKET` names the bucket). Unset: both skipped.
+  `publish_run` is one transaction, so it must fit the Data API's timeouts:
+  `service_role` has a 10-minute `statement_timeout` (Supabase's
+  `authenticator` default of 8 s cancelled an 8k-row publish), and a lost
+  response (502/503/504, dropped connection) is resolved by polling
+  `pipeline.publish_outcome` rather than reported as a failure. Scale
+  numbers and the harness that measures them: design/supabase-migration.md
+  (P5) and `tests/load/`.
+- `DB_PRIMARY=1` — the P6 cutover: step 06a becomes blocking (the git archive
+  still runs after it). Set it by hand once step 07e's
+  `DB_CUTOVER_STREAK` reads 20/20. 07e (`scripts/db_night_check.py record`)
+  records each night in `core.night_checks`: published, row count and SHA,
+  and rating-history parity with `output/rating_history.json`.
+  `scripts/db_restore_drill.py` rebuilds into a scratch database from
+  Storage or the git archive and compares; `scheduled-tasks/RECOVERY.md`
+  has the database runbook.
+- `SNAPSHOT_STORE_BACKEND=postgres` — the snapshot-store readers
+  (`SnapshotStore.for_results_dir`) read the Supabase database instead of
+  `snapshots.duckdb` (`data/db/reader.py`), over the Data API or
+  `SUPABASE_READER_URL`/`SUPABASE_DB_URL`; any failure falls back to the JSON.
+  The nightly `run.sh` selects it whenever the Supabase secrets are set (an
+  explicit value, e.g. `duckdb`, wins). `rating_history.json` keeps advancing
+  from the files even when the database serves the render: it is the
+  independent record 07e's parity check compares against, and 07e reads a
+  cache more than 5 trading days behind as "not checked".
+  `DB_DEFER_PUBLISH=1` (set by run.sh) stops `sync_snapshot_file` republishing
+  each rewrite during the nightly run. The same switch backs the Phase-1
+  screen-skip cache with `core.screen_skip`. `db_publish.py` also writes
+  `output/parquet/results_<date>.parquet` (the backtest's preferred corpus,
+  `data/db/parquet.py`) and uploads it plus the canonical `.json.gz` to the
+  private `snapshots` Storage bucket (`data/db/storage.py`).
+- `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT` —
+  optional; the nightly step 08b deploys the report to Cloudflare Pages
+  (token scoped to Account → Cloudflare Pages → Edit). `CF_PAGES_URL`
+  overrides the live-check URL, `WRANGLER_VERSION` the pinned wrangler.
+  Unset: skipped.
 - yfinance requires no authentication

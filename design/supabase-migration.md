@@ -177,7 +177,7 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
   - `latest.json`: all ~8k rows, so the PostgREST 1,000-row cap never comes into play;
   - `changes_<window>.json`;
   - per-ticker history shards, the same shard pattern as the existing `vol/` and `px/` folders.
-- The files go to **Cloudflare** (A4): Pages for the site and R2 for the data shards, behind cache rules set in P4. Neither has a soft bandwidth cap like GitHub Pages' 100 GB/month, and R2 has no egress fees. The P5 load test targets that host.
+- The files go to **Cloudflare Pages** (A4), which has no soft bandwidth cap like GitHub Pages' 100 GB/month. P4c chose Pages alone, with no R2: once the two oversized sidecars were split, every file fits Pages' 25 MiB limit. R2 stays the option if a file ever outgrows it. The P5 load test targets that host.
 - The site fetches only those files.
 - There is no anon access to PostgREST and no Edge Function in the hot path. If a live query is ever needed, it will be a fixed-parameter RPC behind a CDN that I've confirmed caches it. P0 checks that with the `cf-cache-status` and `Age` headers.
 
@@ -198,7 +198,7 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
   - `daily-eod.yml` alerts if `runs.status` isn't `complete` by 07:00 ET.
 - **Secrets** go in the cloud environment:
   - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`: the pipeline RPCs and Storage over HTTPS (A1);
-  - the Cloudflare R2 credentials, for the public payloads (A4).
+  - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `CF_PAGES_PROJECT` (plus an optional `CF_PAGES_URL`), for the Cloudflare Pages deploy (A4, P4c).
 
   `SUPABASE_DB_URL`, the session-pooler DSN for a `pipeline_writer` login, is used only on dev machines and in admin work.
 - **Dependencies.** `psycopg[binary]~=3.3` is in `pyproject.toml` and `requirements.txt`. `duckdb` stays.
@@ -243,13 +243,187 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
     - the `core.screen_skip` upsert.
 - **P3: Backfill the whole archive.**
   - *Passes when:* fidelity and decision parity (stability checks 1–2) hold for every date.
+  - **Built 2026-09-26:**
+    - **`scripts/db_backfill.py`** publishes the archive in date order through the nightly path. It is resumable: `pipeline.list_runs()` (a new RPC) lets it skip dates that are already published and unchanged, which also works over HTTPS. It stops at a refusal unless `--keep-going` is given, and `--force-reason` is audited for each date.
+    - **`scripts/db_parity_check.py`** runs stability checks 1–2 for each date, against a direct connection.
+  - **Local run** against the Supabase Postgres 17 image:
+    - All 92 archived dates (2026-04-20 → 2026-09-25), 195,132 rows. None were refused and none needed `--force`.
+    - **Parity: passed.**
+      - 0 fidelity mismatches: every row rebuilds exactly, and each run's status, `source_sha256`, risk-free rate and meta match.
+      - 0 decision mismatches: re-scoring the rebuilt rows and the file rows with today's `score_and_rate` gives the same rating, raw rating, cap and composite score for every ticker.
+      - The rating change points match exactly: 13,943 from the files and 13,943 in the database.
+      - A deliberately corrupted input (one ticker's `mos`) was caught as a composite-score mismatch, so the check is not vacuous.
+    - **Size:** 885 MB in the database, of which `core.results` is 730 MB (3.9 KB per row with indexes) and edgar blobs are 58 MB (19,931 distinct). That projects to about 2.6 GiB/yr at ~2.5k rows/day, inside the A3 limit.
+  - **Performance fix** (migration `*_publish_run_perf.sql`): during the backfill, one day's publish grew from 4.5 s to 15.8 s.
+    - ANALYZE of all ~370 columns took 8.5 s. It now analyzes only `run_date`, `ticker_id` and `rating`, and autoanalyze covers the rest.
+    - The rating recompute anchored on each ticker's last change point, so a stable ticker rescanned every day since then. It now anchors on the previous rated day, with one index probe.
+    - A republish of the newest date now takes 4.6 s in total, with the same change points. The P5 volume test re-checks this at 20M rows.
+  - **Hosted backfill runbook** (sandbox first, then prod once it exists):
+    1. Apply the migrations. Merging applies them to the sandbox through the GitHub integration; `supabase db push` applies them elsewhere.
+    2. Make a blob-less clone of the archive, like `run.sh` step 02:
+       `git clone --filter=blob:none --depth 1 --no-checkout --single-branch -b data/snapshots <repo> /tmp/snaparch`
+    3. From any machine with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set (HTTPS only, so the cloud container works):
+       `python scripts/db_backfill.py --archive-git /tmp/snaparch --keep-files --work output/archive`
+       It takes about 25 s a date, mostly git fetching each day's blobs. Re-running it is safe.
+    4. From a machine that can reach Postgres directly (the session pooler DSN of a `pipeline_reader` login):
+       `python scripts/db_parity_check.py --results-dir output/archive --dsn "$DSN"`
+       It must report 0 mismatches before P4 switches any reader to the database.
 - **P4: Switch readers, Parquet backtest, public export.**
   - *Passes when:* the parity checks pass and the site renders from the exported files.
+  - P4 is split into three PRs so each can be reviewed and verified on its own:
+    - **P4a:** the reader switch (below).
+    - **P4b:** Parquet exports and Storage uploads, `core.snapshot_objects`, backtests on Parquet, and the `core.screen_skip` upsert.
+    - **P4c:** the public export to Cloudflare, which needs Cloudflare credentials.
+  - **P4a built 2026-09-27:**
+    - **Migration `*_read_rpcs.sql`:** read RPCs `pipeline.read_rows`, `last_known_rows`, `rating_history` and `run_meta`, callable by service_role and the pipeline roles.
+      - They build jsonb only from the requested columns. The first version rendered all ~370 columns and filtered afterwards; that took 1.5 s for a 3-column read and 15 s for `last_known_rows`, now about 0.05 s and 0.8 s on a real day.
+      - They set `extra_float_digits = 3`, because jsonb renders float8 through its output function and the Supabase default of 0 truncates the last two digits.
+    - **`data/db/reader.DbStore`** provides the reader half of `SnapshotStore`. `SnapshotStore.for_results_dir()` returns it when `SNAPSHOT_STORE_BACKEND=postgres` is set and the database is reachable, so every existing call site switches unchanged:
+      - carry-forward and lost-SEC-tickers in `analyze_stock`;
+      - previous ratings and rating history in `report_html`;
+      - `track_portfolio`, `gate_na_report` and `portfolios`.
+    - **Still on DuckDB:** `query_results` (raw SQL) and `backtest` (moving to Parquet in P4b) pass `allow_db=False`.
+    - **Transport:** the Data API when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set, otherwise `SUPABASE_READER_URL`/`SUPABASE_DB_URL` direct.
+    - **Failure handling:** the first failure disables the backend for the process (R10). Under pytest only a local host is accepted, and that is checked before connecting (R12).
+    - **Staleness (R2):** a date is served only if its run is complete and any local plain `results_<date>.json` hashes to the published `source_sha256`. `sync_snapshot_file()` republishes a rewritten snapshot when the backend is selected; the nightly run sets `DB_DEFER_PUBLISH=1` and publishes once, at 06a.
+    - **R3:** `report_html`'s rating-history check accepts a database whose dates cover the staged files, rather than requiring an exact match.
+    - **Post-publish check:** `check_snapshot_store.py --database` confirms the run is complete, the row count, and `source_sha256`. It runs as `run.sh` step `07e-db-check`, non-blocking.
+  - **P4a results:**
+    - The 10 newest real snapshots (25k rows) were read through DuckDB and the database, both direct and over the local Data API, and every reader matched: dates, `rows` for five column sets (including unknown and nested keys), `last_known_rows` over three windows including the fallback look-back, `rating_history` (4,538 points), and `run_meta`.
+    - `tests/test_db_reader_pg.py` (16 tests) repeats this on synthetic data with NaN, ±Inf, NUL, gaps and a ticker that drops out, and runs the real call sites with the backend selected.
+    - One deliberate difference: the database keeps a NaN nested inside a dict or list as the file has it, where the DuckDB store's JSON columns turn it into null.
+  - **P4b built 2026-09-27:**
+    - **Parquet exports** (`data/db/parquet.py`): one `results_<date>.parquet` per run, with the registry's typed columns, `extra` as codec JSON text, the projected `edgar_history`, and the snapshot metadata in the file's key-value metadata. A day is about 4–5 MB, against about 90 MB of JSON.
+      - `backtest.load_corpus` prefers a date's Parquet export, then the DuckDB store, then the JSON, deciding per date. The database is never read for a backtest.
+      - `db_publish.py` writes the export after every publish, and `export_dir()` backfills it from an archive.
+    - **Storage** (`data/db/storage.py`): after a publish, `db_publish.py` uploads `json/results_<date>.json.gz` and `parquet/results_<date>.parquet` to the private `snapshots` bucket.
+      - The `.json.gz` is the canonical snapshot, gzipped deterministically, so it is the full row including the report-only keys.
+      - Each upload is verified by downloading it back and comparing SHA-256, then recorded through `pipeline.record_snapshot_objects` (migration `*_objects_screen_skip_rpcs.sql`).
+      - The bucket is created on first use. `--no-upload` skips the upload.
+    - **Screen-skip cache:** with the database backend selected, `data/screen_skip_cache.py` merges `core.screen_skip` into what it loads (the newer observation of a ticker wins) and replaces the database copy on every save, through `pipeline.screen_skip_load/replace`. The file and its git write-back stay as the fallback.
+    - **A pre-existing bug found and fixed:** the `edgar_history` projection shared by the DuckDB store and the Parquet exports (`DEFAULT_PROJECTIONS`) kept only `years_available` and `operating_income_history`.
+      - Since 2026-09-16, the debt-free Int Coverage rule (`scoring._is_debt_free`) also reads seven more series: `total_debt_history`, `debt_current_history`, `debt_noncurrent_history`, `total_assets_history`, `revenue_history`, `earnings_history` and `operating_cf_history`.
+      - So re-scoring through the store differed from the JSON for snapshots that need that rule. On 2026-09-14 to 16 there were 78–82 differing decision values per day.
+      - The projection now keeps those series. The store's `SCHEMA_VERSION` goes to 5, so stale stores are ignored and rebuilt. A new test records every `edgar_history` key scoring reads and fails if the projection drops one.
+  - **P4b results:**
+    - The 10 newest real snapshots exported and read back from Parquet: 0 rows differ from the JSON, and 0 re-scored decisions differ (rating, raw rating, cap, composite) on every date.
+    - Publishing 2026-09-24 and 09-25 through the local Data API and Storage uploaded 29 MB and 22 MB `.json.gz` objects. Each decompresses to exactly the published `source_sha256`, and `core.snapshot_objects` holds both.
+    - The anon key cannot download from the private bucket.
+  - **P4c built 2026-09-27: the site on Cloudflare Pages.**
+    - **Why files had to change.** Cloudflare Pages (free plan) refuses any file of 25 MiB or more, and more than 20,000 files per deploy. Two sidecars were over the per-file limit on the 2026-09-25 report:
+      - `hist.json`, 28.8 MB. All five consumers loaded the whole file to read one ticker.
+      - `details.json`, 30.4 MiB. This one was not in the plan; the new size check caught it on the first real render.
+    - **`hist/` shards.** `report_html` now writes `hist/<TICKER>.json`, one per ticker (~2.2k files, ~13 KB each), and `hist_index.json` (`{"tickers": [...]}`). The ticker list is also inlined in the page, so it knows which shards exist without an extra request.
+      - The template's `_ensureHist(tickers, onDone)` is modelled on `_ensurePx`. It fetches only the shards a view needs, shares in-flight loads, and records a failed load as `null` so nothing retries in a loop.
+      - The five consumers use it: the price-history chart (for its charted tickers), the popup chart, Track Record, the statements tabs and the PDF export.
+      - The page no longer downloads 29 MB to show one company's fundamentals.
+    - **`details/` parts.** The popup's heavy text fields are merged into every row after first paint, and some views may read them across rows. So the behaviour is kept and only the file is split: numbered parts of about 8 MiB each (4 on 2026-09-25), listed in `details_index.json`. All parts load in parallel and are merged exactly as the single file was.
+    - **Publishing.** `publish_vol_shards.py` copies `hist/` and `details/` by manifest, like `vol/` and `px/`, and prunes and verifies each destination. `run.sh` step 08 and `run_daily.sh` copy `hist_index.json` and `details_index.json` in place of the two monoliths.
+    - **`scripts/check_pages_limits.py`** fails a deploy directory with a file of 25 MiB or more, or more than 20,000 files. It warns at 80% of either limit. `index.html` is at 97% (24.2 MiB on 2026-09-25), so the warning is already firing: splitting the inline `DATA` blob is the next file to plan.
+    - **Step `08b-publish-cloudflare`** (non-blocking) runs after the GitHub Pages push, on the same `docs/`. GitHub Pages stays live during the switch.
+      - It skips cleanly unless `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `CF_PAGES_PROJECT` are set, and under SMOKE or DRY_RUN.
+      - Otherwise it runs the size check, then `npx wrangler@4.141.0 pages deploy` (pinned, overridable with `WRANGLER_VERSION`), then polls the live URL (`CF_PAGES_URL`, default `https://$CF_PAGES_PROJECT.pages.dev/`) until it shows the run date.
+    - **Headers.** `pages_headers` becomes `docs/_headers` and adds `nosniff` and a referrer policy. Cache rules are deliberately left at Pages' default (`max-age=0, must-revalidate` with an ETag). A `px/` shard is an offset into `prices_meta.json`'s dates axis, so yesterday's shard cached next to today's axis would draw a series shifted by a day. Revalidating is a 304 from the edge.
+  - **P4c results:**
+    - The 2026-09-25 snapshot (2,531 rows) rendered and built into `docs/` the way step 08 does: 2,280 files, 83.7 MiB, largest file `index.html` at 24.2 MiB. The size check passes, with the `index.html` warning.
+    - That `docs/` was served by `wrangler pages dev` (the local Cloudflare Pages emulator) and driven in headless Chromium. The test opened a popup's Track Record, statements tab and fundamentals chart, a company with no shard, and the price-history chart with two tickers on Revenue.
+      - Only `hist/A.json`, `hist/AAMI.json` and `hist/AAON.json` were fetched, never `hist.json`.
+      - Each loaded value equals the old `hist.json` payload.
+      - All four `details/` parts loaded and merged into every row.
+      - There were no console errors.
+      - The emulator served the `_headers` rules.
+    - **Not yet done:** a real deploy. Nothing in Cloudflare exists yet; the setup runbook below lists what's needed.
+  - **Cloudflare Pages setup runbook** (one time):
+    1. In the Cloudflare dashboard, go to Workers & Pages → Create → Pages → **Direct Upload**. Name the project (for example `stock-analysis`); the name becomes `CF_PAGES_PROJECT`. Don't connect Git: the routine uploads the built `docs/`.
+    2. Create an API token (My Profile → API Tokens → Create Token → Custom) with the single permission **Account → Cloudflare Pages → Edit**, scoped to that account. Note the account ID from the dashboard sidebar.
+    3. Add `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `CF_PAGES_PROJECT` to the cloud environment that runs the nightly routine. Add `CF_PAGES_URL` if a custom domain is attached.
+    4. The next nightly run deploys. Check `logs/08b-publish-cloudflare.log` and the `status.txt` line for step 08b, then open the `*.pages.dev` URL.
+    5. Optional: attach a custom domain under the project's Custom domains tab, then set `CF_PAGES_URL` to it.
+    6. **Retiring GitHub Pages later:** after some green nights on both, make 08b blocking and drop the `pages-live` push and live check from step 08. Keep the `docs/` build. Then disable Pages in the repository settings and delete `.github/workflows/deploy-pages.yml` and the `pages-live` branch.
 - **P5: Scale tests.**
   - *Passes when:* every scalability target is met.
+  - **Run 2026-09-27, scaled down locally** (decision: build the tooling, measure what fits, extrapolate). The plan's 20M rows need about 75 GB; the container had 21 GB. So the run used the full ticker count, 8,000, over fewer days. Per-night costs depend on the tickers; history-dependent costs were measured at two sizes to get their slope:
+    - half: 188 days, 1.5M rows;
+    - full: 375 days, 3.06M rows, crossing two yearly partitions.
+    - Everything ran against the local Supabase stack (Postgres 17, PostgREST, Kong), with 4 cores. For a cold cache, Postgres was restarted and the OS page cache dropped before each benchmark.
+  - **Tooling** (`tests/load/`, see its README):
+    - `scale.py` clones real snapshot rows into synthetic tickers and days (templates from 2026-09-25). Each ticker's rating walks through runs of 20–80 days, which gives about 2% changes a night, as the real data does. It then runs the checks: publish, EXPLAIN pruning, size, cold-cache latency, publish under load, and anon refusal. `compare` prints the growth table.
+    - `k6_public.js` is the CDN load test.
+    - `tests/test_db_scale.py` pins the generator's rating walk and change points against publish_run's rule, and runs the whole harness at 12 tickers × 30 days in CI's `db` job.
+  - **Found and fixed:**
+    1. **The Data API cancelled the nightly publish.** Supabase gives `authenticator` an 8 s `statement_timeout`, and `service_role` inherits it. publish_run is one transaction by design; at 2.5k rows it fit inside 8 s, and at 8k it took about 13 s and was cancelled (SQLSTATE 57014). Migration `*_service_role_timeout.sql` gives `service_role` 10 minutes. anon and authenticated keep 3 s and 8 s.
+    2. **publish_run's cost grew with history.** The rating recompute's "one index probe" anchor joined `core.runs` inside its `ORDER BY … LIMIT 1`. The planner turned that into a scan of each ticker's whole history (about 3M heap blocks), which was 23.5 s of a 33 s publish, linear in days: about 160 s at 10 years.
+       - Migration `*_publish_run_anchor_probe.sql` excludes the few non-complete runs by date, so the ordered Append stops at the first row: 85 ms for 8k tickers. The fallback for a ticker that left a republished day gets the same fix.
+       - A new pg test covers a failed day in the history.
+       - At 3M rows, publish_run now takes about 6 s and the whole publish 16–18 s. The old function took 38 s at 3M rows.
+    3. **A committed publish could be reported as failed.** Under load at 3M rows, Kong's 60 s proxy timeout returned 504 while Postgres went on and committed the day, so run.sh 06a would have failed a good night. Fix 2 removes the long publish, and the lost response is also handled:
+       - The new RPC `pipeline.publish_outcome(load_id, run_date)` (migration `*_publish_outcome_rpc.sql`) answers `published`, `running` (publisher lock held), `failed` (chunks still staged, lock free) or `unknown`.
+       - `RestTransport` marks a 502/503/504 or a dropped connection as `PublishOutcomeUnknown`, and `publish()` polls `publish_outcome` for up to 15 minutes before deciding.
+    4. **"Rating changes since a date" scanned every change point.** It was 10 ms at 46k change points, linear, and heading past 50 ms at 20M rows. Migration `*_rating_changes_date_idx.sql` adds an index on `(run_date)` covering `(ticker_id, rating, prev_rating)`, so the read is an index-only scan.
+    5. **Ticker history was one cold heap page per day.** p95 was 12.7 ms at 189 rows and 25.5 ms at 380, which failed the 20 ms target at full scale and projected about 85 ms at the 1,260 rows of 5 real years.
+       - Migration `*_ticker_history.sql` replaces the `(ticker_id, run_date DESC)` index with one that also carries rating, mos, price, dcf_fv and `_composite_score`, about 32 bytes more per row. It adds `pipeline.ticker_history(ticker, from, to)`, which requires both bounds.
+       - Now 6.0 ms p95 at 382 rows. Measured cold across window sizes, it costs 3.4 ms plus 0.0065 ms per row, about 11 ms at 1,260 rows.
+       - The same index makes publish_run's anchor probe index-only.
+    6. **An open-ended history range touched the empty future partitions.** `run_date >= x` cannot prune the partitions created ahead of time. That is harmless while they are empty, but every history read is now bounded on both sides, which `ticker_history` enforces.
+  - **Results at 3.06M rows, after the fixes:**
+
+    | check | target | measured | at 20M rows (projected) |
+    |---|---|---|---|
+    | publish 8k rows, Data API, with change points | < 5 min | 16.4 s (20.4 s under load) | about the same: the anchor probe reads the newest partition only |
+    | partition pruning, every reader query | yes | yes, with history index-only | same |
+    | ticker history 5y, p95 cold | < 20 ms | 6.0 ms (382 rows) | about 11 ms (1,260 rows) |
+    | `last_known_rows`, 8k tickers, 20 columns | < 2 s | 431 ms | same: reads 7 days |
+    | rating changes since a date | < 50 ms | 6.9 ms | same for a fixed window |
+    | export (read the day back and write Parquet) | < 60 s | 15.7 s | same: one day |
+    | publish during load: no partial day | none | none; counts seen were only 0 and 8,000, raw and through `read_rows`, over a publish and a republish | same |
+    | readers' p95 during a publish | within target | history 10.3 ms, changes 9.5 ms, `last_known_rows` 567 ms | same |
+    | unauthenticated Data API calls | refused | 401/404 for `core` tables and the pipeline RPCs | same |
+
+  - **Growth** (half to full, same reader schema; `scale.py compare`): rows ×2.02, bytes per row ×1.00, `last_known_rows` ×1.02, export ×0.96, rating changes since ×1.39 (5.9 to 8.1 ms, both with its index). Ticker history grew with the rows returned (×2.0), which is what fix 5 addresses. `rating_history()` over all change points is the one read that grows with history by design: 208 ms at 82k change points, about 1.3 s at 20M rows. The nightly render calls it once.
+  - **Size:** 3.79 KB per row with indexes. That is 7.1 GiB/yr at 8,000 tickers and about 71 GiB at 20M rows. **A3 (≤ 4 GiB/yr) holds only at today's universe** (2.5k tickers, about 2.2 GiB/yr). At 8k tickers it needs either the retention step (move partitions older than N years to Parquet in Storage, which the plan already describes) or rows about 45% narrower. This is a decision for before P6, if the universe grows.
+  - **Not measured here:**
+    - **The 20M-row run on a hosted project.** It needs a staging project with about 80 GB of disk; the free tier caps the database at 500 MB. The command is in `tests/load/README.md`.
+    - **k6 through Cloudflare** (check 3). It needs the P4c deploy. The script ran against `wrangler pages dev`: 2,502 requests, 0 errors, and its latency and cache thresholds fire correctly (the emulator has no CDN cache). Nothing in that path reaches Postgres, because the site is static files; the plan's `pg_stat_statements` confirmation belongs to the hosted run.
+    - **Hosted gateway timeouts.** They may differ from the local stack's 60 s, and fix 3 covers either way.
 - **P6: Cutover.**
   - `06a` becomes blocking, and `RECOVERY.md` and `CLAUDE.md` are updated.
   - *Passes when:* 20 nightly runs in a row publish green with rating-history parity, and the restore drill passes.
+  - **Built 2026-09-27 as a gated cutover** (decision: the hosted project had not yet received a nightly publish, so the 20 nights had not started). Everything the cutover needs is in place; the flip is one environment variable, set by hand once the gate reads 20/20.
+    - **The nightly check** (`scripts/db_night_check.py record`) replaces step 07e's store check. It checks three things:
+      - the run is complete, with the right row count and source SHA;
+      - rating-history parity, against the JSON cache the report keeps (`output/rating_history.json`), as the "BUY since …" line consumes it. Each ticker's rating and since-date must match as of the cache's last day. The two sources are compared from the later of their first days, and a ticker only one source knows, and only from before that day, is allowed: that is what the cache deliberately ignores.
+      - 06a's exit code.
+    - **The night log.** Each night's verdict goes to `core.night_checks` (migration `*_night_checks.sql`, RLS on, reachable only through `pipeline.record_night_check` and `pipeline.night_checks`).
+    - **The readiness gate** (`db_night_check.py status`) counts consecutive NYSE trading days with a green record. A night with no record breaks the streak, so an unreachable database or a dead run cannot pass silently. 07e appends `DB_CUTOVER_STREAK n/20` to the run's status file.
+    - **`DB_PRIMARY=1`** (`run.sh`) makes 06a blocking, and missing secrets become a failure rather than a skip. The git archive (06) still runs after it, so a failed publish never loses the day. The run ends `RESULT FAILED at db-publish (DB_PRIMARY=1; archived)` and exits 1.
+    - **The restore drill** (`scripts/db_restore_drill.py`) rebuilds into a scratch database from Storage (SHA-checked against `core.snapshot_objects`) or from the git archive. It compares every run, row digest, change point and latest pointer with the live database, and refuses the live database's name. A pg test checks that it catches a tampered row.
+    - **Runbooks.** `scheduled-tasks/RECOVERY.md` gains the database section: when to set `DB_PRIMARY`, stepping back, a failed 06a, and restore by PITR, from the archive, or by rehearsal.
+  - **Results:**
+    - Nightly check, on the 10 newest real runs published through the local Data API: parity over 2,538 tickers from 2026-09-14 to 2026-09-25 with 0 mismatches. The night recorded green, and the gate read 1/20, broken by the day before, which had no record.
+    - Restore drill on the same 10 runs (25,052 rows): identical from both sources.
+
+      | source | fetch | publish | total |
+      |---|---|---|---|
+      | Storage `.json.gz` | 16 s | 75 s | 112 s |
+      | git archive | 87 s | 70 s | 178 s |
+
+      That projects to 17–27 minutes for the 92-day archive. Every run, row and change point after the first restored day matched, and so did the latest pointers.
+  - **Readers on the database (2026-09-27).**
+    - `run.sh` exports `SNAPSHOT_STORE_BACKEND=postgres` whenever the Supabase secrets are set, so these read the database and fall back to the files:
+      - carry-forward and the lost-SEC check;
+      - the render's previous ratings and rating history;
+      - portfolio alerts;
+      - the gate N/A report;
+      - the screen-skip cache.
+    - Three fixes came with it:
+      - `rating_history.json` keeps advancing from the files even when the database answers the render. Otherwise the cache freezes: 07e's parity check would compare the same day every night and count a vacuous green toward the cutover, and a fallback night would lose every change point older than the 10 staged days.
+      - 07e treats a cache more than 5 trading days behind as "not checked".
+      - A failed screen-skip save stops further database saves for the run, instead of paying the timeout at every 500-ticker flush.
+  - **Still open, and yours:**
+    1. Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to the cloud environment, and backfill the hosted project (the P3 runbook).
+    2. Let 20 trading nights accumulate.
+    3. Set `DB_PRIMARY=1`.
+    4. Time a PITR restore once the project is on Pro, which is the third part of stability check 8.
 
 ## Verification: stability
 
@@ -302,7 +476,7 @@ The rating-history check in `report_html.py:297` changes for Postgres **[R3]**. 
   - `supabase/config.toml` and the migrations: `0001_core.sql`, `0002_roles.sql`, `0003_publish_run.sql`
   - `data/db/columns.py`, `data/db/codec.py`, `data/db/reader.py`
   - `scripts/db_publish.py`, `scripts/export_public.py`
-  - `tests/load/` (the k6 scripts and the data generator)
+  - `tests/load/` (`scale.py`, the data generator and checks; `k6_public.js`)
 - **Changed:**
   - `data/snapshot_store.py` (backend selection, `sync_snapshot_file` defer and publish)
   - `data/screen_skip_cache.py`

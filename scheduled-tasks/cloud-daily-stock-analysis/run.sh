@@ -5,8 +5,8 @@
 # Code cloud Routine fires a fresh session each weekday, that session runs this
 # script, and the only state that survives between runs is what lives on
 # GitHub — the `data/snapshots` archive (every day's results gzipped, plus the
-# rating-history and Phase-1 screen-skip caches) and the published report
-# (the R2 bucket behind the Cloudflare Access login; see step 08).
+# rating-history and Phase-1 screen-skip caches) and the single-commit
+# `pages-live` branch the report is served from.
 #
 # It is the cloud counterpart of ../daily-stock-analysis/SKILL.md (the Mac
 # runbook, which assumed a persistent checkout, a venv, a price cache and
@@ -18,10 +18,8 @@
 #     checkout; only the newest SNAPSHOT_HISTORY files are materialised, and
 #     the new day's archive is committed on top of the remote tip with the
 #     rest of the tree untouched.
-#   * The report is staged into a docs/ directory and synced to the R2 bucket
-#     the Cloudflare Worker serves behind an Access login. Until R2 is
-#     configured, the legacy public `pages-live` branch is rebuilt as a fresh
-#     single commit and force-pushed instead.
+#   * `pages-live` is rebuilt as a fresh single commit from today's artifacts
+#     and force-pushed — the branch's history is intentionally one commit.
 #
 # Every step logs to $WORK/logs/<step>.log and records `step rc seconds` in
 # $WORK/status.txt; the agent running the routine reads those to write the
@@ -54,15 +52,28 @@
 #   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 #                        publish the run to the Supabase database over HTTPS
 #                        (step 06a, design/supabase-migration.md). Unset: the
-#                        step is skipped. Non-blocking until the P6 cutover
-#   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
-#                        publish the report to the R2 bucket behind the
-#                        Cloudflare Access login (step 08, cloudflare/README.md).
-#                        Unset: step 08 falls back to the public pages-live
-#   REPORT_URL, CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET
-#                        the protected site and the Access service token step
-#                        08 uses to check it serves today's report
-#   DRY_RUN=1            do everything except push (R2: plan the sync only)
+#                        step is skipped. Non-blocking until the P6 cutover.
+#                        The same pair carries the price-parquet cache in
+#                        Storage (steps 02b/05e2, design/cache-persistence.md);
+#                        unset skips those too and the run pays a cold cache
+#   PRICE_CACHE_BUCKET   bucket for that cache (default price-cache)
+#   SEC_CACHE_BUCKET     bucket for the companyfacts cache (steps 02c/04b,
+#                        default sec-facts-cache)
+#   SNAPSHOT_STORE_BACKEND
+#                        defaults to postgres when the Supabase secrets are
+#                        set: the readers use the database, falling back to
+#                        the files. Set duckdb to keep them off it
+#   DB_PRIMARY=1         the database is the primary store (P6 cutover): step 06a
+#                        becomes blocking, and missing Supabase secrets fail it
+#                        instead of skipping it. Set it only once step 07e's
+#                        DB_CUTOVER_STREAK line reads 20/20 (scheduled-tasks/
+#                        RECOVERY.md). The git archive (06) still runs first-class.
+#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CF_PAGES_PROJECT
+#                        deploy the same docs/ to Cloudflare Pages (step 08b,
+#                        design/supabase-migration.md P4c). Unset: skipped.
+#                        CF_PAGES_URL overrides the live-check URL (default
+#                        https://$CF_PAGES_PROJECT.pages.dev/)
+#   DRY_RUN=1            do everything except push
 #   SMOKE=1              tiny universe (SMOKE_TICKERS), for testing this script
 set -uo pipefail
 
@@ -75,11 +86,24 @@ CLONE_REMOTE="${CLONE_REMOTE:-$GITHUB_URL}"
 PUSH_REMOTE="${PUSH_REMOTE:-$GITHUB_URL}"
 SNAP_BRANCH="${SNAP_BRANCH:-data/snapshots}"
 PAGES_BRANCH="${PAGES_BRANCH:-pages-live}"
-PAGES_URL="${PAGES_URL:-https://danmcooper-ops.github.io/stock-analysis-model/}"   # legacy public site
+PAGES_URL="${PAGES_URL:-https://danmcooper-ops.github.io/stock-analysis-model/}"
 SNAPSHOT_HISTORY="${SNAPSHOT_HISTORY:-10}"
 SMOKE="${SMOKE:-0}"
 SMOKE_TICKERS="${SMOKE_TICKERS:-AAPL MSFT JPM XOM PLD AMGN CAT PG}"
 DRY_RUN="${DRY_RUN:-0}"
+DB_PRIMARY="${DB_PRIMARY:-0}"
+# The snapshot is rewritten several times tonight (enrich steps, rescore);
+# with the database backend selected, sync_snapshot_file would republish each
+# time. Step 06a publishes once instead.
+export DB_DEFER_PUBLISH=1
+# Readers (carry-forward, previous ratings, rating history, alerts, the gate
+# N/A report, the screen-skip cache) use the database whenever the secrets
+# exist; each falls back to the files on any failure. Set only with the
+# secrets, so a run without them doesn't pay a failed probe in every step. An
+# explicit SNAPSHOT_STORE_BACKEND (e.g. duckdb, to step back) wins.
+if [ -n "${SUPABASE_URL:-}" ] && [ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+  export SNAPSHOT_STORE_BACKEND="${SNAPSHOT_STORE_BACKEND:-postgres}"
+fi
 FORCE="${FORCE:-0}"
 BENCHMARKS="SPY QQQ IWM DIA XLK XLV XLF XLY XLP XLE XLI XLB XLU XLRE XLC"
 
@@ -268,6 +292,15 @@ print(f"rating history rebuilt over {len(older) + len(staged)} snapshots, "
 PY
     [ $? -eq 0 ] || return 1
   fi
+  # The portfolio NAV ledger (data/portfolio_nav.py): the render appends
+  # tonight's point to it, so without staging every night would start the
+  # performance history over. Absent on the first run after portfolios exist.
+  if git -C "$SNAP" cat-file -e HEAD:portfolio_nav.json 2>/dev/null; then
+    git -C "$SNAP" show HEAD:portfolio_nav.json > "$REPO/output/portfolio_nav.json" || return 1
+    echo "staged portfolio_nav.json ($(wc -c < "$REPO/output/portfolio_nav.json") bytes)"
+  else
+    echo "no portfolio_nav.json in the archive — portfolio performance starts tonight"
+  fi
   # The Phase-1 screen skip list. data/cache/ is gitignored, so it dies with
   # the container: without staging it, every night re-fetches the ~4.5k
   # tickers the last run already proved are far below the mcap floor or dead.
@@ -286,6 +319,38 @@ run_step 02-stage-snapshots 1 stage_snapshots || exit 1
 
 PRIOR_DATE=$(ls "$REPO/output" | grep -E '^results_[0-9-]+\.json(\.gz)?$' | sed 's/results_//;s/\.json.*//' | sort | tail -1)
 say "   newest prior snapshot: ${PRIOR_DATE:-none}"
+
+# ---------------------------------------------------------------------------
+# 2b. Restore the price parquets from Supabase Storage. output/prices/ dies
+#     with the container, so without this step 03 re-fetches the whole
+#     universe from Yahoo every night (design/cache-persistence.md, Phase B).
+#     Non-blocking and skipped without the Supabase secrets: a failed restore
+#     costs the cold-cache hour, not the run. Nothing here can serve a stale
+#     price — step 03's freshness check reads each parquet's own last bar and
+#     re-downloads anything behind, exactly as it does for a cold cache.
+#     Skipped for SMOKE, whose tiny universe would otherwise pull ~2,300
+#     objects it will not use.
+# ---------------------------------------------------------------------------
+restore_price_cache() {
+  if [ "$SMOKE" = 1 ]; then echo "SMOKE; not restoring the price cache"; return 0; fi
+  "$PYTHON" scripts/price_cache.py restore --prices-dir output/prices
+}
+run_step 02b-restore-prices 0 restore_price_cache
+
+# ---------------------------------------------------------------------------
+# 2c. Restore the SEC companyfacts cache. data/cache/ is gitignored and the
+#     container is stateless, so without this SEC serves the whole corpus
+#     again every night (design/cache-persistence.md, Phase C). The sweep
+#     watermark travels with the blobs and the age backstop reads it, so a
+#     cache whose sweep fell behind reads as entirely missing rather than
+#     serving stale fundamentals — the restore cannot smuggle old facts in.
+#     Non-blocking, and skipped without the Supabase secrets or for SMOKE.
+# ---------------------------------------------------------------------------
+restore_sec_cache() {
+  if [ "$SMOKE" = 1 ]; then echo "SMOKE; not restoring the sec cache"; return 0; fi
+  "$PYTHON" scripts/sec_cache.py restore
+}
+run_step 02c-restore-sec-facts 0 restore_sec_cache
 
 # ---------------------------------------------------------------------------
 # 3. Price cache: full history for every ticker in the newest snapshot
@@ -325,6 +390,20 @@ ANALYZE_ARGS=(--macro --prices-dir output/prices --universe us --min-spread 0 --
 ANALYZE_ARGS+=(--run-date "$RUNDATE")
 [ "${RESUME:-1}" = 0 ] && ANALYZE_ARGS+=(--no-resume)
 run_step 04-analyze 1 "$PYTHON" scripts/analyze_stock.py "${ANALYZE_ARGS[@]}"
+
+# Save the companyfacts cache back. Straight after the analysis, which is the
+# only step that fetches facts or evicts them, and before the enrichment that
+# could still fail. Evicted blobs are deleted from the bucket too, or they
+# would return on the next restore and the sweep would not evict them again.
+# Never on a SMOKE or DRY_RUN pass, and the store refuses a local set far
+# smaller than what it holds, so a half-failed run cannot gut the cache.
+save_sec_cache() {
+  if [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
+    echo "SMOKE/DRY_RUN; not saving the sec cache"; return 0
+  fi
+  "$PYTHON" scripts/sec_cache.py save
+}
+run_step 04b-save-sec-facts 0 save_sec_cache
 RESULTS="output/results_$RUNDATE.json"
 HTML="output/stock_analysis_results_$RUNDATE.html"
 if [ "$FAILED" = 1 ] || [ ! -s "$RESULTS" ] || [ ! -s "$HTML" ]; then
@@ -354,17 +433,39 @@ PY
   "$PYTHON" scripts/download_prices.py --output-dir output/prices --max-age-days 2 --tickers $tickers
 }
 run_step 05e-prices-topup 0 topup_prices
+# Save the refreshed parquets back. After the top-up, so new entrants ride
+# along; only objects whose size changed are uploaded. Never on a SMOKE or
+# DRY_RUN pass, and the store itself refuses a local set far smaller than
+# what it already holds, so a half-failed run cannot clobber a good cache.
+save_price_cache() {
+  if [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
+    echo "SMOKE/DRY_RUN; not saving the price cache"; return 0
+  fi
+  "$PYTHON" scripts/price_cache.py save --prices-dir output/prices
+}
+run_step 05e2-save-prices 0 save_price_cache
 run_step 05f-rerender 1 "$PYTHON" scripts/rescore_and_render.py "$RESULTS"
+# Your portfolio groupings (portfolio/portfolios.json): Action / Watch / FYI
+# alerts vs the prior run. Runs BEFORE the archive so portfolio_alerts.json
+# rides into data/snapshots with the snapshot, where the digest workflow
+# (.github/workflows/portfolio-alerts.yml) picks it up for the GitHub issue.
+run_step 05g-portfolio-alerts 0 "$PYTHON" scripts/portfolios.py alerts --results-dir output --date "$RUNDATE" \
+  --out "output/portfolio_alerts_$RUNDATE.txt" --json output/portfolio_alerts.json \
+  --markdown "output/portfolio_alerts_$RUNDATE.md" --pages-url "$PAGES_URL"
 if [ "$FAILED" = 1 ]; then echo "RESULT FAILED at rerender" >> "$STATUS"; exit 1; fi
 
 # ---------------------------------------------------------------------------
 # 6a. Publish to the Supabase database (Data API over HTTPS: the container
 #     cannot reach Postgres over TCP). Skipped without the Supabase secrets and
-#     for SMOKE/DRY_RUN runs; non-blocking until the P6 cutover makes it the
-#     primary store (design/supabase-migration.md).
+#     for SMOKE/DRY_RUN runs. Non-blocking until DB_PRIMARY=1 (the P6 cutover,
+#     design/supabase-migration.md); even then a failure does not stop the git
+#     archive below, so the day is never lost, but the run ends FAILED.
 # ---------------------------------------------------------------------------
 db_publish() {
   if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+    if [ "$DB_PRIMARY" = 1 ]; then
+      echo "DB_PRIMARY=1 but SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY are not set"; return 1
+    fi
     echo "SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY not set; skipping"; return 0
   fi
   if [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
@@ -373,7 +474,9 @@ db_publish() {
   fi
   "$PYTHON" scripts/db_publish.py "$RESULTS"
 }
-run_step 06a-db-publish 0 db_publish
+DB_BLOCKING=0; [ "$DB_PRIMARY" = 1 ] && DB_BLOCKING=1
+run_step 06a-db-publish "$DB_BLOCKING" db_publish
+DB_RC=$?
 
 # ---------------------------------------------------------------------------
 # 6. Archive today's snapshot (+ the rating-history and screen-skip caches)
@@ -389,6 +492,16 @@ archive_snapshot() {
     *) echo "archive failed (rc=$rc) — not pushed"; return 1 ;;
   esac
   cp "$REPO/output/rating_history.json" "$SNAP/rating_history.json" 2>/dev/null
+  # The NAV ledger, guarded on SMOKE: a smoke run renders a handful of
+  # tickers and would plant a point whose universe benchmark is meaningless.
+  if [ "$SMOKE" != 1 ] && [ -s "$REPO/output/portfolio_nav.json" ]; then
+    cp "$REPO/output/portfolio_nav.json" "$SNAP/portfolio_nav.json"
+  fi
+  # Tonight's alerts digest, for the GitHub-issue workflow. Same SMOKE guard:
+  # a smoke run's universe would read as a flood day.
+  if [ "$SMOKE" != 1 ] && [ -s "$REPO/output/portfolio_alerts.json" ]; then
+    cp "$REPO/output/portfolio_alerts.json" "$SNAP/portfolio_alerts.json"
+  fi
   # Write the screen skip list back for tomorrow. Guarded on size and SMOKE:
   # a smoke run screens a handful of tickers and would otherwise replace
   # ~4.5k learned rejections with a near-empty file.
@@ -396,7 +509,7 @@ archive_snapshot() {
      [ "$(wc -c < "$REPO/data/cache/screen_skip.json" 2>/dev/null || echo 0)" -gt 10000 ]; then
     cp "$REPO/data/cache/screen_skip.json" "$SNAP/screen_skip.json"
   fi
-  # Re-render already refreshed hist.json/rating_history.json for today; the
+  # Re-render already refreshed hist/ and rating_history.json for today; the
   # cache's last_scanned is the newest PRIOR day, so tomorrow's run only
   # parses today's file on top of it.
   #
@@ -412,7 +525,7 @@ archive_snapshot() {
   # become new objects.
   local tree commit
   : > "$paths"
-  for f in "results_$RUNDATE.json.gz" rating_history.json screen_skip.json; do
+  for f in "results_$RUNDATE.json.gz" rating_history.json screen_skip.json portfolio_nav.json portfolio_alerts.json; do
     [ -s "$SNAP/$f" ] && echo "$f" >> "$paths"
   done
   cat "$WORK/archive-blobs.txt" >> "$paths" || return 1
@@ -443,37 +556,36 @@ run_step 07b-gate-na-report   0 "$PYTHON" scripts/gate_na_report.py "$RESULTS"
 run_step 07c-validate-ratings 0 "$PYTHON" scripts/validate_ratings.py --snapshot "$RESULTS" --prices-dir output/prices
 # Store syncs never fail a step; this surfaces a store that stopped keeping up.
 run_step 07d-store-check      0 "$PYTHON" scripts/check_snapshot_store.py --results-dir output --date "$RUNDATE"
+# The night's verdict (published, row count and SHA, rating-history parity
+# against output/rating_history.json) is recorded in core.night_checks, and
+# the cutover streak is appended to the status file (P6).
+db_check() {
+  if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
+    echo "database check skipped (no Supabase secrets, or SMOKE/DRY_RUN)"; return 0
+  fi
+  "$PYTHON" scripts/db_night_check.py record --date "$RUNDATE" --publish-rc "$DB_RC" \
+    --results-dir output --status-file "$STATUS"
+}
+run_step 07e-db-check         0 db_check
 
 # ---------------------------------------------------------------------------
-# 8. Publish: stage the site, then sync it to R2 (behind Cloudflare Access)
+# 8. Publish: rebuild pages-live as one fresh commit and force-push it
 # ---------------------------------------------------------------------------
-# With R2 credentials set, the staged docs/ is synced to the bucket the
-# login-protected Worker serves (scripts/publish_report.py, cloudflare/).
-# Without them it falls back to the legacy public GitHub Pages branch, so the
-# nightly run keeps publishing until the Cloudflare setup is finished; that
-# fallback is removed when pages-live is retired (cloudflare/README.md).
 PAGES="$WORK/pages"
-stage_site() {
-  rm -rf "$PAGES"; mkdir -p "$PAGES/docs"
+publish_pages() {
+  rm -rf "$PAGES"; mkdir -p "$PAGES/docs" "$PAGES/.github/workflows"
   cp "$HTML" "$PAGES/docs/index.html" || return 1
-  for f in prices_meta.json hist.json details.json; do
+  for f in prices_meta.json hist_index.json details_index.json; do
     cp "$REPO/output/$f" "$PAGES/docs/$f" || { echo "missing sidecar $f"; return 1; }
   done
+  # Cloudflare Pages response headers (inert on GitHub Pages).
+  cp "$REPO/scheduled-tasks/cloud-daily-stock-analysis/pages_headers" "$PAGES/docs/_headers" || return 1
   if [ -s "$REPO/output/macro.json" ]; then cp "$REPO/output/macro.json" "$PAGES/docs/macro.json"
   else echo "no macro.json this run — the Macro Outlook tab is absent, by design"; fi
   STOCK_MODEL_REPO="$REPO" PAGES_DOCS="$PAGES/docs" "$PYTHON" scripts/publish_vol_shards.py || return 1
-}
-publish_r2() {
-  local dry=()
-  [ "$DRY_RUN" = 1 ] && dry=(--dry-run)
-  "$PYTHON" scripts/publish_report.py "$PAGES/docs" --rundate "$RUNDATE" "${dry[@]}"
-}
-publish_pages_legacy() {
-  echo "R2 not configured — publishing to the legacy public GitHub Pages branch"
-  mkdir -p "$PAGES/.github/workflows"
   # The deploy workflow must live on the branch itself for the push trigger.
   cp "$REPO/.github/workflows/deploy-pages.yml" "$PAGES/.github/workflows/deploy-pages.yml" || return 1
-  printf 'docs/vol/* *.json\ndocs/px/* *.json\n' > "$PAGES/.gitignore"
+  printf 'docs/vol/* *.json\ndocs/px/* *.json\ndocs/hist/* *.json\ndocs/details/* *.json\n' > "$PAGES/.gitignore"
   git -C "$PAGES" init -q -b "$PAGES_BRANCH" || return 1
   git -C "$PAGES" add -A && git -C "$PAGES" commit -q -m "Pages: $RUNDATE" || return 1
   echo "pages commit: $(git -C "$PAGES" rev-parse --short HEAD), $(git -C "$PAGES" ls-files | wc -l) files"
@@ -492,16 +604,37 @@ publish_pages_legacy() {
   echo "WARNING: $PAGES_URL did not show $RUNDATE within 10 minutes — check the deploy-pages workflow"
   return 1
 }
-publish_pages() {
-  stage_site || return 1
-  if [ -n "${R2_ACCOUNT_ID:-}" ] && [ -n "${R2_ACCESS_KEY_ID:-}" ] && [ -n "${R2_SECRET_ACCESS_KEY:-}" ]; then
-    publish_r2
-  else
-    publish_pages_legacy
-  fi
-}
 run_step 08-publish 0 publish_pages
 PUBLISH_RC=$?
+
+# ---------------------------------------------------------------------------
+# 8b. Publish the same docs/ to Cloudflare Pages (non-blocking while GitHub
+#     Pages stays the primary site; design/supabase-migration.md, P4c)
+# ---------------------------------------------------------------------------
+WRANGLER_VERSION="${WRANGLER_VERSION:-4.141.0}"
+publish_cloudflare() {
+  if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ] || \
+     [ -z "${CF_PAGES_PROJECT:-}" ] || [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
+    echo "Cloudflare publish skipped (no CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID/CF_PAGES_PROJECT, or SMOKE/DRY_RUN)"
+    return 0
+  fi
+  [ -s "$PAGES/docs/index.html" ] || { echo "no $PAGES/docs/index.html — step 08 did not build the site"; return 1; }
+  "$PYTHON" "$REPO/scripts/check_pages_limits.py" "$PAGES/docs" || return 1
+  command -v npx >/dev/null || { echo "npx not found — Node.js is needed for wrangler"; return 1; }
+  npx -y "wrangler@$WRANGLER_VERSION" pages deploy "$PAGES/docs" --project-name "$CF_PAGES_PROJECT" \
+    --branch main --commit-dirty=true --commit-message "Pages: $RUNDATE" || return 1
+  local url="${CF_PAGES_URL:-https://$CF_PAGES_PROJECT.pages.dev/}"
+  for i in $(seq 1 10); do
+    curl -sSL --max-time 30 -o "$WORK/live-cf.html" "$url" 2>/dev/null || true
+    if grep -q "$RUNDATE" "$WORK/live-cf.html" 2>/dev/null; then
+      echo "live: $url serves the $RUNDATE report"; return 0
+    fi
+    sleep 30
+  done
+  echo "WARNING: $url did not show $RUNDATE within 5 minutes of the deploy"
+  return 1
+}
+run_step 08b-publish-cloudflare 0 publish_cloudflare
 
 # ---------------------------------------------------------------------------
 # Wrap up
@@ -512,10 +645,12 @@ ELAPSED=$(( $(date +%s) - RUN_T0 ))
   echo "PRIOR_SNAPSHOT ${PRIOR_DATE:-none}"
   echo "ELAPSED_SECONDS $ELAPSED"
   echo "SOFT_FAILURES ${SOFT_FAILED[*]:-none}"
-  if [ "$ARCHIVE_RC" = 0 ] && [ "$PUBLISH_RC" = 0 ]; then echo "RESULT OK"
-  elif [ "$ARCHIVE_RC" = 0 ]; then echo "RESULT OK-BUT-PUBLISH-FAILED"
-  else echo "RESULT FAILED at archive (publish rc=$PUBLISH_RC)"; fi
+  if [ "$ARCHIVE_RC" != 0 ]; then echo "RESULT FAILED at archive (publish rc=$PUBLISH_RC)"
+  elif [ "$DB_PRIMARY" = 1 ] && [ "$DB_RC" != 0 ]; then echo "RESULT FAILED at db-publish (DB_PRIMARY=1; archived)"
+  elif [ "$PUBLISH_RC" = 0 ]; then echo "RESULT OK"
+  else echo "RESULT OK-BUT-PUBLISH-FAILED"; fi
 } >> "$STATUS"
 say "done in ${ELAPSED}s"; cat "$STATUS"
 [ "$ARCHIVE_RC" = 0 ] || exit 1
+if [ "$DB_PRIMARY" = 1 ] && [ "$DB_RC" != 0 ]; then exit 1; fi
 exit 0

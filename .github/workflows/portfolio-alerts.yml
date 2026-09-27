@@ -1,0 +1,72 @@
+name: Portfolio alerts digest
+
+# Posts the nightly portfolio-alerts digest as a GitHub issue, so it reaches
+# you through GitHub's own notifications (email / mobile) without any secret.
+#
+# The cloud routine writes portfolio_alerts.json (scripts/portfolios.py alerts
+# --json, step 05g) and archives it on the data/snapshots branch with the
+# snapshot. This job reads that one file through the contents API — a fetch
+# of data/snapshots would pull hundreds of MB of snapshots — and hands it to
+# scripts/portfolio_digest.py, which is stdlib-only, so no install is needed.
+#
+# `post` is idempotent per run date: it creates "Portfolio alerts — <date>"
+# only when that issue does not exist yet and the digest has an Action/Watch
+# alert or a systemic-day banner, then closes older open digests. Two
+# schedules catch runs that finish late; the second is a no-op normally.
+on:
+  schedule:
+    - cron: '0 7 * * 2-6'
+    - cron: '0 13 * * 2-6'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what would be posted without creating an issue'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: portfolio-alerts
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/portfolio_digest.py
+          sparse-checkout-cone-mode: false
+
+      - name: Fetch the latest digest from data/snapshots
+        id: fetch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api -H 'Accept: application/vnd.github.raw' \
+               "repos/${{ github.repository }}/contents/portfolio_alerts.json?ref=data/snapshots" \
+               > "$RUNNER_TEMP/alerts.json" 2>/dev/null && [ -s "$RUNNER_TEMP/alerts.json" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No portfolio_alerts.json on data/snapshots yet: nothing to post."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.fetch.outputs.found == 'true'
+        with:
+          python-version: '3.11'
+
+      - name: Post the digest issue
+        if: steps.fetch.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/portfolio_digest.py post "$RUNNER_TEMP/alerts.json" \
+            --repo "${{ github.repository }}" \
+            --pages-url "https://danmcooper-ops.github.io/stock-analysis-model/" \
+            ${{ inputs.dry_run && '--dry-run' || '' }}

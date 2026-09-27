@@ -23,6 +23,7 @@ Exit code 1 when any row differs.
 """
 import argparse
 import collections
+import json
 import os
 import sys
 import time
@@ -30,7 +31,8 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from data.db.publish import canonical_sha256  # noqa: E402
-from data.db.codec import blob_sha, dumps, join_row, rows_equivalent, split_row  # noqa: E402
+from data.db.codec import (blob_sha, decode, dumps, encode, join_row, rows_equivalent, split_row,  # noqa: E402
+                           values_equal)
 from data.db.columns import COLUMNS  # noqa: E402
 from data.db.connect import connect  # noqa: E402
 from data.db.schema import quote_ident  # noqa: E402
@@ -91,7 +93,7 @@ def _compare(got, by_ticker, max_report=5):
         if ticker not in by_ticker:
             mismatches.append((ticker, ['<not in the file>']))
             continue
-        diff = rows_equivalent(by_ticker[ticker], join_row(ticker, COLS, rec[1:1 + len(COLS)], rec[-2], rec[-1]))
+        diff = rows_equivalent(by_ticker[ticker], rebuild(rec))
         if diff:
             mismatches.append((ticker, diff))
     for ticker, diff in mismatches[:max_report]:
@@ -99,25 +101,50 @@ def _compare(got, by_ticker, max_report=5):
     return mismatches
 
 
+def fetch_published(con, run_date):
+    """Raw ``(ticker, *typed, extra, blob)`` records published for *run_date*."""
+    return con.execute(
+        f'SELECT {_SELECT} FROM core.results r JOIN core.tickers t USING (ticker_id) '
+        'LEFT JOIN core.edgar_blobs b ON b.sha = r.edgar_history_sha WHERE r.run_date = %s',
+        (run_date,)).fetchall()
+
+
+def rebuild(rec):
+    """The row a published record stands for."""
+    return join_row(rec[0], COLS, rec[1:1 + len(COLS)], rec[-2], rec[-1])
+
+
+def _run_mismatches(con, run_date, data):
+    meta = split_snapshot(data)[0]
+    run = con.execute('SELECT status::text, source_sha256, risk_free_rate, risk_free_rate_source, meta '
+                      'FROM core.runs WHERE run_date = %s', (run_date,)).fetchone()
+    if run is None:
+        return [('<run>', ['not published'])]
+    out = []
+    if run[0] != 'complete':
+        out.append(('<run>', [f'status {run[0]}']))
+    if run[1] != canonical_sha256(data):
+        out.append(('<run>', ['source_sha256 differs from the file (rewritten since publishing?)']))
+    if not values_equal(run[2], meta.get('risk_free_rate')) or run[3] != meta.get('risk_free_rate_source'):
+        out.append(('<run>', ['risk_free_rate / source differ']))
+    stored = decode({k: v for k, v in (run[4] or {}).items() if k != '_publish'})
+    want = {k: v for k, v in meta.items() if k not in ('date', 'risk_free_rate', 'risk_free_rate_source')}
+    want = decode(json.loads(json.dumps(encode(want), allow_nan=False)))   # as JSON would carry it
+    if not values_equal(stored, want):
+        out.append(('<run>', ['meta differs: ' + ', '.join(sorted(
+            k for k in set(stored) | set(want) if not values_equal(stored.get(k), want.get(k))))[:200]]))
+    return out
+
+
 def check_published(con, path):
     """``(n_rows, mismatches, {})`` comparing a published date with its file."""
     run_date = snapshot_date_from_path(path)
     data = read_snapshot(path)
     by_ticker = {r['ticker']: r for r in split_snapshot(data)[1] if r.get('ticker')}
-    run = con.execute('SELECT status::text, source_sha256, n_rows FROM core.runs WHERE run_date = %s',
-                      (run_date,)).fetchone()
-    if run is None:
-        return len(by_ticker), [('<run>', ['not published'])], {}
-    mismatches = []
-    if run[0] != 'complete':
-        mismatches.append(('<run>', [f'status {run[0]}']))
-    if run[1] != canonical_sha256(data):
-        mismatches.append(('<run>', ['source_sha256 differs from the file (rewritten since publishing?)']))
-    got = con.execute(
-        f'SELECT {_SELECT} FROM core.results r JOIN core.tickers t USING (ticker_id) '
-        'LEFT JOIN core.edgar_blobs b ON b.sha = r.edgar_history_sha WHERE r.run_date = %s',
-        (run_date,)).fetchall()
-    return len(by_ticker), mismatches + _compare(got, by_ticker), {}
+    mismatches = _run_mismatches(con, run_date, data)
+    if mismatches and mismatches[0][1] == ['not published']:
+        return len(by_ticker), mismatches, {}
+    return len(by_ticker), mismatches + _compare(fetch_published(con, run_date), by_ticker), {}
 
 
 def main(argv=None):

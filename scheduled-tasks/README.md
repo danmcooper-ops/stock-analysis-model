@@ -5,12 +5,13 @@ daily pipeline.
 
 | Task | What it does |
 |---|---|
-| `cloud-daily-stock-analysis/` | **The live daily routine since 2026-09-10.** A Claude Code cloud Routine ("Daily stock analysis (cloud)", `0 21 * * 1-5` UTC) starts a fresh session each weekday that runs `run.sh`: stage the newest days of the `data/snapshots` archive → price cache → analysis → enrichment → re-render → snapshot commit to `data/snapshots` → portfolio/gate/momentum reports → publish the report to the login-protected R2 site (`../cloudflare/README.md`; falls back to force-pushing the legacy public `pages-live` until R2 is configured). `SKILL.md` is what the Routine's session follows |
+| `cloud-daily-stock-analysis/` | **The live daily routine since 2026-09-10.** A Claude Code cloud Routine ("Daily stock analysis (cloud)", `0 21 * * 1-5` UTC) starts a fresh session each weekday that runs `run.sh`: stage the newest days of the `data/snapshots` archive → price cache → analysis → enrichment → re-render → snapshot commit to `data/snapshots` → portfolio/gate/momentum reports → rebuild + force-push `pages-live`. `SKILL.md` is what the Routine's session follows |
 | `daily-stock-analysis/SKILL.md` | **Dormant** (Mac). Launches `scripts/run_daily.sh` (preflight → prices → analysis → enrichment → re-render → snapshot archive → reports → publish), then summarizes `output/run_summary_<date>.json`. Must stay off while the cloud routine is live |
-| `publish-stock-report/SKILL.md` | Copies the five report artifacts into the `pages-live` worktree, amends its single commit, force-pushes to GitHub Pages. Legacy: superseded by the R2 publish in `scripts/publish_report.py` |
-| `weekly-backtest/SKILL.md` | Weekly: refresh prices → forward-return backtest over the snapshot corpus → readiness census → commit the summary to `data/snapshots`. Measurement only; calibration stays off until `readiness` clears it |
+| `publish-stock-report/SKILL.md` | Copies the five report artifacts into the `pages-live` worktree, amends its single commit, force-pushes to GitHub Pages |
+| `cloud-weekly-backtest/` | **The live weekly backtest.** A cloud Routine each Sunday runs `run.sh`: stage every snapshot since 2026-07-06 (+ the persisted `returns/` sidecars) out of `data/snapshots` → cold price download with a coverage gate → `measure` offline → week-over-week regression check → commit the summary, xlsx and sidecars to `data/snapshots`. Measurement only; calibration stays off until `readiness` clears it |
+| `weekly-backtest/` | **Dormant** (Mac launchd job + runbook). The steps the cloud routine replaced; must stay off while it is live |
 
-The three Mac runbooks below assumed a persistent local checkout; that
+The Mac runbooks (and the weekly launchd job) assumed a persistent local checkout; that
 checkout was deleted on 2026-09-09 and the daily run moved to the cloud
 routine the next day. They stay here as the reference for the steps and for a
 future Mac rebuild — but the cloud routine and a rebuilt Mac routine must not

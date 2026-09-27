@@ -3,6 +3,12 @@ name: weekly-backtest
 description: Weekly forward-return backtest over the snapshot corpus, readiness census, and a versioned summary on the data/snapshots branch
 ---
 
+> **Dormant since 2026-09-09.** The weekly backtest now runs as a cloud
+> Routine: `../cloud-weekly-backtest/` (`run.sh` + `SKILL.md`). This runbook
+> and its launchd job are kept for a future Mac rebuild, and must not run
+> alongside the cloud routine: both commit to `data/snapshots`. Note that no
+> summary from this runbook reached that branch after 2026-07-13.
+
 You are running the weekly backtest routine. It MEASURES whether the model's
 ratings and composite score predict forward returns; it does NOT recalibrate
 anything. Execute the steps in order. Stop and report an error if any step

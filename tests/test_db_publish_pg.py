@@ -147,6 +147,65 @@ def test_ticker_dropped_on_republish_falls_back(con):
     assert 'ZZTC' not in _latest(con)
 
 
+def test_runs_that_are_not_complete_are_skipped_by_the_probes(con):
+    """The anchor and fallback probes exclude non-complete runs by date
+    rather than by joining core.runs (P5); a failed day must still be
+    invisible to both."""
+    _publish(con, D1, [_row('ZZTA', 'BUY'), _row('ZZTB', 'PASS')])
+    _publish(con, D2, [_row('ZZTA', 'HOLD'), _row('ZZTB', 'PASS')])
+    with con.transaction():                                 # retire D2 as an admin would
+        con.execute("UPDATE core.runs SET status = 'failed' WHERE run_date = %s", (D2,))
+        con.execute('DELETE FROM core.rating_changes WHERE run_date = %s', (D2,))
+    _publish(con, D3, [_row('ZZTA', 'BUY'), _row('ZZTB', 'PASS')])
+    assert _changes(con) == _full_recompute(con)
+    assert ('ZZTA', D3, 'BUY', 'HOLD') not in _changes(con)         # D2's HOLD is not the anchor
+    _publish(con, D3, [_row('ZZTA', 'BUY')])                            # ZZTB leaves D3
+    assert _latest(con)['ZZTB'] == D1                                   # not the failed D2
+    assert _changes(con) == _full_recompute(con)
+
+
+def test_publish_outcome_states(con):
+    """After a lost response the client asks publish_outcome (P5)."""
+    t = pub.DirectTransport(con)
+
+    def outcome(load_id, day=D1):
+        return t.call('publish_outcome', {'p_load_id': load_id, 'p_run_date': day})['state']
+    res = _publish(con, D1, [_row('ZZTA', 'BUY')])
+    assert outcome(res['load_id']) == 'published'
+    assert outcome(str(uuid.uuid4())) == 'unknown'                      # another load wrote D1
+    load = pub.build_load({'date': D2, 'results': [_row('ZZTA', 'HOLD')]}, D2)
+    staged = str(uuid.uuid4())
+    for i, (rows, blobs) in enumerate(load.chunks(2000)):                # staged, never published
+        t.call('stage_chunk', {'p_load_id': staged, 'p_chunk_no': i, 'p_rows': rows, 'p_blobs': blobs})
+    assert outcome(staged, D2) == 'failed'
+    other = connect(DSN, autocommit=True)
+    try:
+        with other.transaction():                                       # a publish_run in flight
+            other.execute("SELECT pg_advisory_xact_lock(hashtext('core.publish_run'))")
+            assert outcome(staged, D2) == 'running'
+    finally:
+        other.close()
+    assert outcome(staged, D2) == 'failed'
+    con.execute('DELETE FROM internal.load_rows WHERE load_id = %s', (staged,))
+    con.execute('DELETE FROM internal.load_blobs WHERE load_id = %s', (staged,))
+    con.execute('DELETE FROM internal.load_chunks WHERE load_id = %s', (staged,))
+
+
+def test_ticker_history_rpc(con):
+    t = pub.DirectTransport(con)
+    _publish(con, D1, [_row('ZZTA', 'BUY', price=10.5), _row('ZZTB', 'PASS')])
+    _publish(con, D2, [_row('ZZTA', 'HOLD', price=11.0)])
+    _publish(con, D3, [_row('ZZTA', 'HOLD', price=12.0)])
+    con.execute("UPDATE core.runs SET status = 'failed' WHERE run_date = %s", (D2,))
+
+    def hist(tk, lo=D1, hi=D3):
+        return t.call('ticker_history', {'p_ticker': tk, 'p_from': lo, 'p_to': hi})
+    got = hist('ZZTA')
+    assert [(d, r, p) for d, r, _, p, _, _ in got] == [(D1, 'BUY', 10.5), (D3, 'HOLD', 12.0)]   # D2 failed
+    assert got[0][2] == 0.03932028370017462                                  # mos, full precision
+    assert hist('ZZTA', D2, D2) == [] and hist('ZZTNONE') == []
+
+
 def test_row_drop_is_refused_unless_forced_and_audited(con):
     """Stability check 5."""
     _publish(con, D1, [_row(f'ZZT{i:02d}', 'BUY') for i in range(10)])
@@ -282,3 +341,10 @@ def test_public_roles_cannot_call_the_rpcs(con, role):
 def test_service_role_can_call_the_rpcs(con):
     for fn in ('pipeline.stage_chunk(uuid, integer, jsonb, jsonb)', 'pipeline.publish_run(uuid, date, jsonb, jsonb)'):
         assert con.execute("SELECT has_function_privilege('service_role', %s, 'EXECUTE')", (fn,)).fetchone()[0]
+
+
+def test_list_runs_reports_published_dates(con):
+    _publish(con, D1, [_row('ZZTA', 'BUY')])
+    runs = {r['run_date']: r for r in pub.DirectTransport(con).call('list_runs', {})}
+    assert runs[D1]['status'] == 'complete' and runs[D1]['n_rows'] == 1
+    assert len(runs[D1]['source_sha256']) == 64

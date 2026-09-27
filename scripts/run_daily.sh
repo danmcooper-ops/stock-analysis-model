@@ -28,8 +28,7 @@
 #   enrich     FDIC, REIT, XBRL, FDA enrichment + re-render (non-blocking each)
 #   archive    gzip snapshot to data/snapshots, commit, push (BLOCKING for publish)
 #   reports    portfolio, gate N/A, momentum, store sync check (non-blocking)
-#   publish    sync the report to R2 behind the Cloudflare Access login and
-#              verify (legacy: pages-live force-push when R2 is unset) (non-blocking)
+#   publish    copy artifacts to pages-live, amend, force-push, verify (non-blocking)
 #   compact    gzip aged output/ artifacts, keeping the newest 5 snapshots plain
 #              (non-blocking; scripts/compact_output.py)
 #
@@ -288,6 +287,10 @@ fi
 # ---------------------------------------------------------------- reports
 if wants reports; then
   run portfolio_report soft "$VPY" scripts/portfolio_report.py --results-dir output/ --prices-dir output/prices
+  # Your portfolio groupings (portfolio/portfolios.json): stats + change alerts.
+  run portfolio_alerts soft "$VPY" scripts/portfolios.py alerts --results-dir output --date "$RUNDATE" \
+    --out "output/portfolio_alerts_$RUNDATE.txt" --json output/portfolio_alerts.json \
+    --markdown "output/portfolio_alerts_$RUNDATE.md"
   run gate_na_report   soft "$VPY" scripts/gate_na_report.py "$SNAPSHOT"
   run validate_ratings soft "$VPY" scripts/validate_ratings.py --snapshot "$SNAPSHOT" --prices-dir output/prices
   # The store's syncs never fail a step; this is where a store that stopped
@@ -297,41 +300,20 @@ if wants reports; then
 fi
 
 # ---------------------------------------------------------------- publish
-# With R2 credentials set (see cloudflare/README.md) the site is staged in a
-# temp dir and synced to the bucket behind the Cloudflare Access login;
-# otherwise it goes to the legacy public pages-live worktree as before.
-publish_r2() {
-  local docs f rc
-  [ -f "$HTML" ] || { echo "publish: $HTML missing"; return 1; }
-  docs="$(mktemp -d "${TMPDIR:-/tmp}/stock-report.XXXXXX")" || return 1
-  cp "$HTML" "$docs/index.html" || { rm -rf "$docs"; return 1; }
-  for f in prices_meta.json hist.json details.json; do
-    cp "output/$f" "$docs/$f" || { echo "publish: required sidecar output/$f missing"; rm -rf "$docs"; return 1; }
-  done
-  [ -f output/macro.json ] && cp output/macro.json "$docs/macro.json"
-  PAGES_DOCS="$docs" "$VPY" scripts/publish_vol_shards.py || { echo "publish: shard sync failed"; rm -rf "$docs"; return 1; }
-  "$VPY" scripts/publish_report.py "$docs" --rundate "$RUNDATE"; rc=$?
-  rm -rf "$docs"
-  return $rc
-}
-
 publish() {
-  if [ -n "${R2_ACCOUNT_ID:-}" ] && [ -n "${R2_ACCESS_KEY_ID:-}" ] && [ -n "${R2_SECRET_ACCESS_KEY:-}" ]; then
-    publish_r2; return
-  fi
-  echo "publish: R2 not configured — publishing to the legacy public pages-live branch"
   local docs="$PAGES_WT/docs" f
   [ -f "$HTML" ] || { echo "publish: $HTML missing"; return 1; }
   [ -d "$docs" ] || { echo "publish: $docs missing (git worktree add .claude/worktrees/pages-live pages-live)"; return 1; }
   [ -f "$PAGES_WT/.gitignore" ] || { echo "publish: pages-live .gitignore missing — refusing to stage iCloud conflict copies"; return 1; }
   cp "$HTML" "$docs/index.html" || return 1
-  for f in prices_meta.json hist.json details.json; do
+  for f in prices_meta.json hist_index.json details_index.json; do
     cp "output/$f" "$docs/$f" || { echo "publish: required sidecar output/$f missing"; return 1; }
   done
   # macro.json is optional; never publish yesterday's under today's HTML.
   if [ -f output/macro.json ]; then cp output/macro.json "$docs/macro.json" || return 1
   else rm -f "$docs/macro.json"; fi
   rm -f "$docs/prices.json"   # retired 2026-08-11
+  rm -f "$docs/hist.json" "$docs/details.json"   # split into hist/ and details/ (P4c)
   "$VPY" scripts/publish_vol_shards.py || { echo "publish: shard sync failed"; return 1; }
   git -C "$PAGES_WT" add -A || return 1
   if git -C "$PAGES_WT" rev-parse -q --verify HEAD >/dev/null; then

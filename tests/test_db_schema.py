@@ -22,7 +22,7 @@ from data.db.codec import dumps, blob_sha, join_row, rows_equivalent, split_row 
 from data.db.columns import COLUMNS  # noqa: E402
 from data.db.connect import connect  # noqa: E402
 
-CORE_TABLES = {'tickers', 'runs', 'edgar_blobs', 'results', 'rating_changes', 'latest_results',
+CORE_TABLES = {'tickers', 'runs', 'edgar_blobs', 'results', 'rating_changes', 'latest_results', 'night_checks',
                'screen_skip', 'snapshot_objects'}
 PARTITIONS = {f'results_{y}' for y in range(2026, 2032)}
 
@@ -159,3 +159,12 @@ def test_codec_round_trip_through_postgres(con):
     for src, rec in zip(rows, got, strict=True):
         rebuilt = join_row(rec[0], cols, rec[1:1 + len(cols)], rec[-2], rec[-1])
         assert rows_equivalent(src, rebuilt) == [], json.dumps(src, default=str)
+
+
+def test_service_role_outlives_the_api_statement_timeout(con):
+    """publish_run is one transaction and takes ~13 s at 8k tickers; the Data
+    API's authenticator default of 8 s would cancel it (P5)."""
+    cfg = con.execute("SELECT rolconfig FROM pg_roles WHERE rolname = 'service_role'").fetchone()[0] or []
+    assert 'statement_timeout=10min' in cfg
+    anon = con.execute("SELECT rolconfig FROM pg_roles WHERE rolname = 'anon'").fetchone()[0] or []
+    assert 'statement_timeout=3s' in anon                  # the public roles keep their short limits

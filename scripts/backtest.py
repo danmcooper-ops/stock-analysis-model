@@ -44,7 +44,8 @@ from data.price_store import parquet_paths, window_closes
 from data.snapshot_store import (SnapshotStore, list_snapshot_files,
                                  read_snapshot)
 from models.utils import rank
-from scripts.param_set import default_params, merge_params, validate_params
+from scripts.param_set import (default_params, merge_params, scoring_params_hash,
+                               validate_params)
 
 logger = logging.getLogger(__name__)
 
@@ -121,15 +122,18 @@ def _load_snapshot_json(path):
     return read_snapshot(path)
 
 
-def load_corpus(results_dir='output', dates=None, use_store=None):
+def load_corpus(results_dir='output', dates=None, use_store=None, parquet_dir=None):
     """Load canonical snapshots as ``[{'date':..., 'results':[...]}, ...]``.
 
     Non-canonical names (results_<date>_replay.json) are re-scored copies of
     an earlier observation and are always skipped.
 
-    Each snapshot comes from ``output/snapshots.duckdb`` when that store holds
-    its date, and from the JSON file otherwise — decided per date, so a
-    partially backfilled store still helps.  The store drops the 52
+    Each snapshot comes, per date, from its Parquet export when one exists
+    (``<results_dir>/parquet/results_<date>.parquet`` or *parquet_dir*, see
+    data/db/parquet.py), else from ``output/snapshots.duckdb`` when that
+    store holds its date, else from the JSON file, so a partially backfilled
+    corpus still helps. The Parquet path carries the same slim
+    ``edgar_history`` as the store; the database is never read here.  The store drops the 52
     ``edgar_history`` series no scoring path reads (see
     data/snapshot_store.DEFAULT_PROJECTIONS), which is most of a ~66 MB
     snapshot, so a corpus of N snapshots costs a fraction of the RSS that
@@ -147,12 +151,22 @@ def load_corpus(results_dir='output', dates=None, use_store=None):
                   for d in dates]
         by_date = {d: p for d, p in by_date.items() if d in wanted}
 
-    store = SnapshotStore.for_results_dir(results_dir) if use_store else None
-    snapshots, n_store = [], 0
+    store = SnapshotStore.for_results_dir(results_dir, allow_db=False) if use_store else None
+    pq_dir = parquet_dir or os.path.join(results_dir, 'parquet')
+    snapshots, n_store, n_parquet = [], 0, 0
     try:
         for d in sorted(by_date):
             snap = None
-            if store is not None and store.has_date(d):
+            pq_file = os.path.join(pq_dir, f'results_{d}.parquet')
+            if use_store and os.path.exists(pq_file):
+                try:
+                    from data.db.parquet import read_snapshot_parquet
+                    snap = read_snapshot_parquet(pq_file)
+                    n_parquet += 1
+                except Exception as e:
+                    logger.warning("parquet export %s unreadable (%s); trying the store/JSON", pq_file, e)
+                    snap = None
+            if snap is None and store is not None and store.has_date(d):
                 try:
                     snap = dict(store.run_meta(d) or {})
                     snap['results'] = store.rows(d)
@@ -166,6 +180,9 @@ def load_corpus(results_dir='output', dates=None, use_store=None):
     finally:
         if store is not None:
             store.close()
+    if n_parquet:
+        print(f"[backtest] {n_parquet}/{len(snapshots)} snapshot(s) read from "
+              f"Parquet exports")
     if n_store:
         print(f"[backtest] {n_store}/{len(snapshots)} snapshot(s) read from "
               f"the snapshot store")
@@ -202,6 +219,37 @@ START_PRICE_MAX_RATIO = 5.0
 BIAS_WINSOR_PCT = 1
 RET_IMPLAUSIBLE_HIGH = 1.0
 RET_IMPLAUSIBLE_LOW = -0.9
+
+# A return sidecar is reused as-is only when it priced at least this share of
+# the snapshot's tickers. Below it, the missing tickers are re-fetched and
+# merged in on every run (the priced ones stay frozen). Matured returns are
+# immutable, so a sidecar written on a night when a third of the price
+# downloads failed would otherwise measure that date on two thirds of the
+# universe forever. Delistings keep a sidecar a little short of 1.0 for good,
+# so the floor sits below the ~5% a 90-day window loses to them.
+MIN_RETURN_COVERAGE = 0.90
+
+# Sidecar format. 2 = delisted names measured to their last close (see
+# terminal_returns). A sidecar written by an older method is topped up once:
+# only its missing tickers are fetched, its frozen returns stay.
+SIDECAR_METHOD = 2
+
+# Delistings (survivorship). A ticker Yahoo dropped is measured from Tiingo's
+# history (scripts/backtest_cloud.py backfill-prices), and one whose series
+# ends inside the window is a confirmed delisting listed in
+# <prices_dir>/_backfill.json. Its return runs to the last close, and the
+# proceeds are reinvested in the benchmark until the eval date (CRSP style),
+# so a take-out counts as its deal price rather than vanishing. On the
+# 2026-07..09 corpus the dropped names were overwhelmingly acquisitions
+# (EA, TMHC, NFBK, LEG, TWO, NSA, AVB...). A last close that collapsed —
+# below DELIST_PERF_RATIO of the start price or below DELIST_PERF_MIN_PRICE —
+# is treated as a performance delisting and takes Shumway's (1997) -30%
+# delisting return on top, since the last print of a failing stock overstates
+# what holders recovered.
+BACKFILL_MANIFEST = '_backfill.json'
+DELIST_PERF_RATIO = 0.5
+DELIST_PERF_MIN_PRICE = 1.0
+DELIST_PERF_RETURN = -0.30
 
 
 def implausible_forward_return(snapshot_price, fwd):
@@ -283,6 +331,17 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
                 if math.isfinite(ret):
                     returns[ticker] = {'ret': ret, 'start': start_price,
                                        'end': end_price}
+            # Confirmed delistings inside the window: measured to the last
+            # close instead of dropped (survivorship, see terminal_returns).
+            delisted = load_backfill_manifest(prices_dir)['delisted']
+            gone = [t for t in all_tickers if t not in returns and t in delisted]
+            if gone:
+                try:
+                    returns.update(terminal_returns(prices_dir, gone, run_dt,
+                                                    eval_dt, delisted))
+                except Exception as e:
+                    logger.warning("delisting returns failed for %s +%dd (%s)",
+                                   run_date_str, horizon_days, e)
             # A ticker with a parquet on disk is settled by the scan, answered
             # or not — the per-ticker path would re-read the same file and
             # reach the same verdict. Only tickers with no local file fall
@@ -304,8 +363,12 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
                     df.index = pd.to_datetime(df.index).tz_localize(None)
                     hist = df['Close']
 
-            # --- Live yfinance fallback ---
+            # --- Live yfinance fallback (skipped with no client: the
+            # cloud backtest downloads every price first and measures
+            # offline, so a delisted name is not re-fetched every week) ---
             if hist is None:
+                if yf_client is None:
+                    continue
                 hist = yf_client.fetch_history(
                     ticker, period=_fallback_period(run_dt))
                 if hist is None or len(hist) < 10:
@@ -336,7 +399,9 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
                         'start': start_price,
                         'end':   end_price,
                     }
-        except Exception:
+        except Exception as e:
+            logger.debug('%s: forward return %s +%dd failed (%s)',
+                         ticker, run_date_str, horizon_days, e)
             continue
 
     return returns
@@ -359,8 +424,133 @@ def is_matured(run_date_str, horizon_days, today=None):
     return run_dt + timedelta(days=horizon_days) <= today
 
 
+_MANIFEST_CACHE = {}
+
+
+def load_backfill_manifest(prices_dir):
+    """``{'delisted': {ticker: {last_date, last_close, source}}, 'backfilled': [..]}``
+    from ``<prices_dir>/_backfill.json``; empty when absent or unreadable."""
+    empty = {'delisted': {}, 'backfilled': []}
+    if not prices_dir:
+        return empty
+    path = os.path.join(prices_dir, BACKFILL_MANIFEST)
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return empty
+    hit = _MANIFEST_CACHE.get(path)
+    if hit and hit[0] == mtime:
+        return hit[1]
+    try:
+        with open(path, encoding='utf-8') as f:
+            body = json.load(f)
+        man = {'delisted': dict(body.get('delisted') or {}),
+               'backfilled': list(body.get('backfilled') or [])}
+    except (OSError, ValueError) as e:
+        logger.warning('unreadable backfill manifest %s (%s); ignoring it', path, e)
+        man = empty
+    _MANIFEST_CACHE[path] = (mtime, man)
+    return man
+
+
+def delisting_kind(start, last_close):
+    """'performance' for a collapsed last print, else 'merger'."""
+    if last_close < DELIST_PERF_MIN_PRICE or last_close < DELIST_PERF_RATIO * start:
+        return 'performance'
+    return 'merger'
+
+
+def terminal_returns(prices_dir, tickers, run_dt, eval_dt, delisted):
+    """Forward returns for confirmed delistings inside ``(run_dt, eval_dt)``.
+
+    For each ticker in *delisted* whose last trading day falls on/after the
+    snapshot and more than MAX_SNAP_GAP_DAYS before the eval date (so the
+    bulk path found no end bar): start = the bar nearest the snapshot, end =
+    the last close (Shumway haircut for a performance delisting), and the
+    proceeds ride the benchmark from the delisting to the eval date.
+
+    Returns ``{ticker: {'ret', 'start', 'end', 'delisted': {'date', 'kind'}}}``.
+    """
+    out = {}
+    run_d, eval_d = run_dt.date(), eval_dt.date()
+    groups = defaultdict(list)          # last_date -> tickers
+    for t in tickers:
+        info = delisted.get(t)
+        if not info or not info.get('last_date'):
+            continue
+        last = date.fromisoformat(str(info['last_date'])[:10])
+        if run_d <= last < eval_d - timedelta(days=MAX_SNAP_GAP_DAYS):
+            groups[last].append(t)
+    if not groups:
+        return out
+    for last, group in sorted(groups.items()):
+        px = window_closes(prices_dir, run_d, last, tickers=group,
+                           max_gap_days=MAX_SNAP_GAP_DAYS) or {}
+        bench = window_closes(prices_dir, last, eval_d, tickers=[BENCHMARK],
+                              max_gap_days=MAX_SNAP_GAP_DAYS) or {}
+        b = bench.get(BENCHMARK)
+        if not b:
+            logger.warning('%s: no %s bars around %s — delisted %s left unmeasured',
+                           run_d, BENCHMARK, last, ', '.join(sorted(group)))
+            continue
+        carry = b['end'] / b['start']
+        for t in group:
+            p = px.get(t)
+            if not p:
+                continue
+            start, last_close = p['start'], p['end']
+            kind = delisting_kind(start, last_close)
+            end_value = last_close * (1 + DELIST_PERF_RETURN) if kind == 'performance' else last_close
+            ret = end_value / start * carry - 1
+            if math.isfinite(ret):
+                out[t] = {'ret': ret, 'start': start, 'end': end_value,
+                          'delisted': {'date': last.isoformat(), 'kind': kind}}
+    return out
+
+
 def _returns_sidecar_path(cache_dir, run_date_str, horizon_days):
     return os.path.join(cache_dir, f"{run_date_str}_h{horizon_days}.json")
+
+
+def _read_sidecar(path, run_date, h, today):
+    """A matured sidecar's parsed body, or None (absent, unreadable, immature)."""
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding='utf-8') as f:
+            cached = json.load(f)
+    except (OSError, ValueError) as e:
+        logger.warning('%s +%dd: unreadable return sidecar %s (%s); recomputing',
+                       run_date, h, path, e)
+        return None
+    if not is_matured(cached.get('run_date', run_date),
+                      cached.get('horizon_days', h), today):
+        return None
+    return cached
+
+
+def sidecar_is_complete(cached, tickers=(), manifest=None):
+    """True when a sidecar may be reused without re-fetching anything.
+
+    It must carry a benchmark return, a recorded coverage at or above
+    MIN_RETURN_COVERAGE, and the current SIDECAR_METHOD. A sidecar written
+    before coverage was recorded, or by an older method (before delisted
+    names were measured), is incomplete: its missing tickers are filled in
+    once and the file is rewritten. So is one missing a ticker that the price
+    backfill has since resolved (*manifest*, see load_backfill_manifest):
+    a delisting confirmed after the sidecar was frozen must still count.
+    """
+    cov = cached.get('coverage')
+    if not (isinstance(cached.get('spy_return'), (int, float))
+            and isinstance(cov, (int, float)) and cov >= MIN_RETURN_COVERAGE
+            and cached.get('method', 1) >= SIDECAR_METHOD):
+        return False
+    if manifest:
+        have = cached.get('tickers') or {}
+        resolved = set(manifest.get('delisted') or ()) | set(manifest.get('backfilled') or ())
+        if any(t not in have and t in resolved for t in tickers):
+            return False
+    return True
 
 
 def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
@@ -379,12 +569,22 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
 
     Cache-aware: reads/writes a per-(date, horizon) sidecar JSON at
     ``cache_dir/{date}_h{horizon}.json``.  Matured historical returns are
-    immutable, so a present sidecar is reused without refetching.  Only matured
-    pairs are ever written, and any sidecar is re-validated against is_matured
-    on read (a stale immature file is ignored).
+    immutable, so a complete sidecar (see :func:`sidecar_is_complete`) is
+    reused without refetching.  An incomplete one keeps every return it holds
+    and only its missing tickers are fetched and merged in.  Only matured
+    pairs are ever written, and any sidecar is re-validated against
+    is_matured on read (a stale immature file is ignored).
+
+    Excess returns need the benchmark: a (date, horizon) whose SPY return
+    cannot be computed is left unannotated and uncached (``None`` in the
+    result), never measured against an assumed 0%.
+
+    Per-horizon counts land in ``snapshot['_fwd_stats'][h]`` (requested,
+    priced, implausible, coverage, cached) for the measure summary.
 
     Returns:
-        dict {horizon: n_rows_annotated}, with ``None`` for immature horizons.
+        dict {horizon: n_rows_annotated}, with ``None`` for immature horizons
+        and for horizons with no benchmark return.
     """
     today = today or date.today()
     run_date = snapshot.get('date')
@@ -392,35 +592,43 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
     out = {}
     if not run_date or not rows:
         return {h: None for h in horizons}
+    tickers = sorted({r['ticker'] for r in rows if r.get('ticker')})
+    stats_by_h = snapshot.setdefault('_fwd_stats', {})
 
     for h in horizons:
         if not is_matured(run_date, h, today):
             out[h] = None
             continue
 
-        ticker_returns = None  # {ticker: {excess_return, ret, end_price, spy_return}}
+        path = _returns_sidecar_path(cache_dir, run_date, h) if cache_dir else None
+        cached = _read_sidecar(path, run_date, h, today) if path else None
+        from_cache = cached is not None and sidecar_is_complete(
+            cached, tickers, load_backfill_manifest(prices_dir))
 
-        # 1. Reuse sidecar cache when present and genuinely matured.
-        if cache_dir:
-            path = _returns_sidecar_path(cache_dir, run_date, h)
-            if os.path.exists(path):
-                try:
-                    with open(path, encoding='utf-8') as f:
-                        cached = json.load(f)
-                    if is_matured(cached.get('run_date', run_date),
-                                  cached.get('horizon_days', h), today):
-                        ticker_returns = cached.get('tickers', {})
-                except Exception:
-                    ticker_returns = None
-
-        # 2. Otherwise compute fresh via the shared fetch helper and cache it.
-        if ticker_returns is None:
-            tickers = [r['ticker'] for r in rows if r.get('ticker')]
-            raw = fetch_forward_returns(tickers, run_date, h, yf_client,
+        if from_cache:
+            ticker_returns = cached.get('tickers', {})
+            spy_ret = cached['spy_return']
+        else:
+            # Keep every return an earlier run froze; fetch only the rest.
+            known = dict((cached or {}).get('tickers') or {})
+            wanted = [t for t in tickers if t not in known]
+            raw = fetch_forward_returns(wanted, run_date, h, yf_client,
                                         prices_dir=prices_dir)
             spy = raw.get(BENCHMARK)
-            spy_ret = spy['ret'] if spy else 0.0
-            ticker_returns = {}
+            if spy is not None:
+                spy_ret = spy['ret']
+            elif cached is not None and isinstance(cached.get('spy_return'), (int, float)):
+                spy_ret = cached['spy_return']
+            else:
+                logger.warning('%s +%dd: no %s return (price data missing or '
+                               'short) — horizon left unmeasured, nothing cached',
+                               run_date, h, BENCHMARK)
+                stats_by_h[h] = {'requested': len(tickers), 'priced': 0,
+                                 'implausible': 0, 'coverage': 0.0,
+                                 'cached': False, 'no_benchmark': True}
+                out[h] = None
+                continue
+            ticker_returns = known
             for t, v in raw.items():
                 if t == BENCHMARK:
                     continue
@@ -431,23 +639,44 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
                     'end_price': v['end'],
                     'spy_return': spy_ret,
                 }
-            # Only persist a non-empty result. An empty set means the price
-            # data didn't reach the eval date (stale parquet) — caching it would
-            # poison future runs after prices are refreshed, since sidecars are
-            # re-validated only against is_matured, not against data coverage.
-            if cache_dir and ticker_returns:
-                try:
-                    os.makedirs(cache_dir, exist_ok=True)
-                    with open(_returns_sidecar_path(cache_dir, run_date, h), 'w', encoding='utf-8') as f:
-                        json.dump({
-                            'run_date': run_date,
-                            'horizon_days': h,
-                            'computed_at': today.isoformat(),
-                            'spy_return': spy_ret,
-                            'tickers': ticker_returns,
-                        }, f)
-                except Exception:
-                    pass
+                if v.get('delisted'):
+                    ticker_returns[t]['delisted'] = v['delisted']
+
+        n_priced = sum(1 for t in tickers if t in ticker_returns)
+        coverage = n_priced / len(tickers) if tickers else 0.0
+
+        # Persist anything non-empty, with its coverage: the priced returns
+        # are frozen from now on, and a sidecar below MIN_RETURN_COVERAGE is
+        # topped up on the next run rather than reused as-is. An empty set
+        # means the price data didn't reach the eval date — nothing to freeze.
+        # A top-up that found nothing new leaves the file alone, so a pair
+        # held below the floor by delistings does not churn the archive weekly.
+        changed = (cached is None or 'coverage' not in cached
+                   or n_priced != cached.get('n_priced')
+                   or cached.get('method', 1) != SIDECAR_METHOD)
+        if path and ticker_returns and not from_cache and changed:
+            try:
+                os.makedirs(cache_dir, exist_ok=True)
+                with open(path, 'w', encoding='utf-8') as f:
+                    json.dump({
+                        'run_date': run_date,
+                        'horizon_days': h,
+                        'computed_at': (cached or {}).get('computed_at', today.isoformat()),
+                        'updated_at': today.isoformat(),
+                        'method': SIDECAR_METHOD,
+                        'spy_return': spy_ret,
+                        'n_requested': len(tickers),
+                        'n_priced': n_priced,
+                        'coverage': round(coverage, 6),
+                        'tickers': ticker_returns,
+                    }, f, sort_keys=True)
+            except OSError as e:
+                logger.warning('%s +%dd: could not write return sidecar %s (%s)',
+                               run_date, h, path, e)
+        if coverage < MIN_RETURN_COVERAGE:
+            logger.warning('%s +%dd: forward returns for %d of %d ticker(s) '
+                           '(%.1f%%, floor %.0f%%)', run_date, h, n_priced,
+                           len(tickers), 100 * coverage, 100 * MIN_RETURN_COVERAGE)
 
         # 3. Annotate rows in place (horizon-keyed). Applied here rather than
         # when computing, so returns cached before the guard existed are
@@ -468,6 +697,9 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
             logger.warning('%s +%dd: dropped %d forward return(s) with a start bar >%gx off '
                            'the snapshot price and an extreme return: %s', run_date, h,
                            len(dropped), START_PRICE_MAX_RATIO, ', '.join(sorted(dropped)))
+        stats_by_h[h] = {'requested': len(tickers), 'priced': n_priced,
+                         'implausible': len(dropped), 'coverage': round(coverage, 4),
+                         'cached': from_cache}
         out[h] = n
 
     return out
@@ -775,6 +1007,7 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
             'return': ret,
             'spy_return': spy_ret,
             'excess_return': excess,
+            'delisted': (fwd.get('delisted') or {}).get('kind'),
         }
         details.append(detail)
 
@@ -792,6 +1025,43 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
 
     if not details:
         return None
+
+    # --- Attrition. Delisted names are measured to their last close
+    # (terminal_returns) and counted here by rating and kind, so the share of
+    # each bucket that left the market stays visible. What is still unpriced
+    # is a data gap (no price anywhere), or a row for a ticker that had
+    # already delisted before the snapshot (a stale row, not a holding).
+    delisted_man = load_backfill_manifest(prices_dir)['delisted']
+    unpriced = defaultdict(int)
+    delisted_by = defaultdict(lambda: defaultdict(int))
+    gone_before = 0
+    for s in stocks:
+        t = s.get('ticker')
+        if not t:
+            continue
+        fwd = (s.get('_fwd') or {}).get(horizon_days)
+        if fwd:
+            if fwd.get('delisted'):
+                delisted_by[s.get('rating', 'UNKNOWN')][fwd['delisted'].get('kind', '?')] += 1
+            continue
+        info = delisted_man.get(t)
+        if info and str(info.get('last_date', ''))[:10] < str(run_date)[:10]:
+            gone_before += 1
+        else:
+            unpriced[s.get('rating', 'UNKNOWN')] += 1
+    fwd_stats = (run.get('_fwd_stats') or {}).get(horizon_days) or {}
+    coverage = {
+        'rows': sum(1 for s in stocks if s.get('ticker')),
+        'measured': len(details),
+        'priced': fwd_stats.get('priced'),
+        'implausible': fwd_stats.get('implausible'),
+        'coverage': fwd_stats.get('coverage'),
+        'from_cache': fwd_stats.get('cached'),
+        'delisted_by_rating': {r: dict(sorted(k.items()))
+                               for r, k in sorted(delisted_by.items())},
+        'gone_before_snapshot': gone_before,
+        'unpriced_by_rating': dict(sorted(unpriced.items())),
+    }
 
     # --- Rating bucket stats ---
     buckets = {}
@@ -865,6 +1135,7 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
         'gates_corr': gates_corr,
         'fv_metrics': fv_metrics,
         'details': details,
+        'coverage': coverage,
         '_source_stocks': source_stocks,
     }
 
@@ -873,19 +1144,46 @@ def analyze_run(run, horizon_days, yf_client, prices_dir=None,
 # Full backtest across all snapshots and horizons
 # ---------------------------------------------------------------------------
 
+# Snapshots written before provenance.scoring existed (2026-09-27). The
+# scoring model changed inside that span more than once (gate N/A masking on
+# 2026-09-16, the debt-free Int Coverage rule on 2026-09-22), so this regime is
+# itself a blend; the re-scored view (build_measure_summary) is the one that
+# holds a single model across the whole corpus.
+UNFINGERPRINTED = 'pre-fingerprint'
+
+
+def snapshot_params_hash(snapshot):
+    """The scoring model that rated *snapshot* (``provenance.scoring``)."""
+    prov = snapshot.get('provenance') if isinstance(snapshot, dict) else None
+    scoring = prov.get('scoring') if isinstance(prov, dict) else None
+    h = scoring.get('params_hash') if isinstance(scoring, dict) else None
+    return h or UNFINGERPRINTED
+
+
 def run_backtest(results_dir, horizons, yf_client, prices_dir=None,
-                 since=MIN_CONSISTENT_DATE):
+                 since=MIN_CONSISTENT_DATE, cache_dir='output/returns',
+                 report=None):
     """Run backtest for all snapshots × horizons. Returns list of result dicts.
 
     Snapshots dated before *since* (None = no floor) or missing any current
     gate field are skipped and listed, so the measured corpus is one model.
+    Pass a dict as *report* to receive that bookkeeping (``loaded``,
+    ``usable``, ``skipped`` as [date, reason] pairs, and ``unmeasured`` —
+    matured (date, horizon) pairs that produced no metrics) for the summary.
     """
+    report = report if report is not None else {}
     all_results = load_results(results_dir)
     if not all_results:
         print("No results files found in", results_dir)
+        report.update(loaded=0, usable=0, skipped=[], unmeasured=[])
         return []
 
     kept, skipped_snaps = _filter_consistent_snapshots(all_results, since)
+    report.update(loaded=len(all_results), usable=len(kept),
+                  skipped=[[d, why] for d, why in skipped_snaps], unmeasured=[])
+    # The annotated snapshots themselves, for the re-scored view. Private: not
+    # serialized into the summary.
+    report['_kept'] = kept
     print(f"Loaded {len(all_results)} snapshot(s): {len(kept)} usable, "
           f"{len(skipped_snaps)} skipped (dated before {since} or missing "
           f"current gate fields).")
@@ -911,9 +1209,17 @@ def run_backtest(results_dir, horizons, yf_client, prices_dir=None,
                 continue
 
             print(f"\n  Analyzing {run_date_str} + {h}d → {eval_dt.date()} ...")
-            result = analyze_run(run, h, yf_client, prices_dir=prices_dir)
+            result = analyze_run(run, h, yf_client, prices_dir=prices_dir,
+                                 cache_dir=cache_dir)
             if result:
+                result['params_hash'] = snapshot_params_hash(run)
                 metrics.append(result)
+            else:
+                stats = (run.get('_fwd_stats') or {}).get(h) or {}
+                report['unmeasured'].append({
+                    'run_date': run_date_str, 'horizon': h,
+                    'reason': ('no benchmark return' if stats.get('no_benchmark')
+                               else 'no forward returns')})
 
     if skipped and not metrics:
         print(f"\nAll {skipped} snapshot-horizon pairs have evaluation dates in the future.")
@@ -1355,7 +1661,7 @@ def sector_accuracy(all_metrics):
         for d in m['details']:
             ticker = d['ticker']
             stock_info = stocks.get(ticker, {})
-            sector = stock_info.get('sector', 'Unknown')
+            sector = stock_info.get('sector') or 'Unknown'
             sector_data[sector]['returns'].append(d['return'])
             sector_data[sector]['alphas'].append(d['excess_return'])
 
@@ -2569,15 +2875,16 @@ def _cli_measure(args):
     horizons = [int(h.strip()) for h in args.horizons.split(',')]
     since = parse_since(args.since)
 
-    from data.yfinance_client import YFinanceClient
-    yf_client = YFinanceClient()
+    yf_client = _cli_yf_client(args)
 
     prices_dir = args.prices_dir if os.path.isdir(args.prices_dir) else None
     if prices_dir:
         print(f"Using local price files from: {prices_dir}")
 
+    report = {}
     all_metrics = run_backtest(args.results_dir, horizons, yf_client,
-                               prices_dir=prices_dir, since=since)
+                               prices_dir=prices_dir, since=since,
+                               cache_dir=args.cache_dir, report=report)
 
     if all_metrics:
         print_summary(all_metrics)
@@ -2606,34 +2913,178 @@ def _cli_measure(args):
                     'EXCL. beneish/altman-capped',
                     min_per_snapshot=10)
 
-        os.makedirs('output', exist_ok=True)
-        stamp = date.today().isoformat()
-        xlsx = os.path.join('output', f'backtest_{stamp}.xlsx')
+        out_dir = args.output_dir
+        os.makedirs(out_dir, exist_ok=True)
+        # --stamp names the files after the run date, so a run that crosses
+        # midnight still files under the day it started.
+        stamp = args.stamp or date.today().isoformat()
+        xlsx = os.path.join(out_dir, f'backtest_{stamp}.xlsx')
         build_backtest_excel(all_metrics, xlsx)
         print(f"\nExcel: {xlsx}")
 
         # Compact machine-readable summary (committed alongside the snapshots
-        # by the weekly runbook so the evidence trail is versioned).
-        summary_path = os.path.join('output', f'backtest_summary_{stamp}.json')
-        summary = {
-            'date': stamp,
-            'horizons': horizons,
-            'since': since.isoformat() if since else None,
-            'snapshots': sorted({m['run_date'] for m in all_metrics}),
-            'readiness': {str(h): {k: (v.isoformat() if isinstance(v, date) else v)
-                                   for k, v in r.items()}
-                          for h, r in readiness.items()},
-            'composite_ic': {str(h): v for h, v in
-                             composite_ic_summary(all_metrics).items()},
-            'rating_buckets': {str(h): v for h, v in
-                               aggregate_buckets(all_metrics).items()},
-        }
+        # by the weekly routine so the evidence trail is versioned).
+        summary_path = os.path.join(out_dir, f'backtest_summary_{stamp}.json')
+        # Last, because re-scoring rewrites the rows' ratings in place.
+        rescored = None
+        try:
+            rescored = rescored_current_view(report.get('_kept') or [], horizons)
+        except Exception as e:
+            logger.warning('re-scored view failed (%s); summary carries as-recorded only', e)
+        summary = build_measure_summary(all_metrics, horizons, since, stamp,
+                                        readiness, report, rescored=rescored)
+        print_regimes_and_rescored(summary['regimes'], rescored)
         with open(summary_path, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=2, default=str)
         print(f"Summary: {summary_path}")
+        low = [c for c in summary['coverage']
+               if c['coverage'] is not None and c['coverage'] < MIN_RETURN_COVERAGE]
+        if low:
+            print(f"\n  WARNING: {len(low)} (date, horizon) pair(s) priced below "
+                  f"{MIN_RETURN_COVERAGE:.0%} of their tickers: "
+                  + ', '.join(f"{c['run_date']}+{c['horizon']}d "
+                              f"{c['coverage']:.1%}" for c in low))
     else:
         print("\nNo backtest results to report yet.")
         print("As you accumulate snapshots over time, the backtest will activate.")
+
+
+def _git_head():
+    """The commit the backtest ran from, or None outside a git checkout."""
+    import subprocess
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        return subprocess.check_output(
+            ['git', '-C', repo, 'rev-parse', 'HEAD'], text=True,
+            stderr=subprocess.DEVNULL, timeout=10).strip() or None
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.debug('git rev-parse failed (%s)', e)
+        return None
+
+
+def model_regimes(all_metrics):
+    """As-recorded metrics grouped by the scoring model that rated them.
+
+    ``[{params_hash, first, last, snapshots, composite_ic, rating_buckets}]``,
+    oldest regime first. More than one entry means the weekly headline pools
+    ratings from different models.
+    """
+    by_hash = defaultdict(list)
+    for m in all_metrics:
+        by_hash[m.get('params_hash') or UNFINGERPRINTED].append(m)
+    out = []
+    for h, ms in by_hash.items():
+        dates = sorted({m['run_date'] for m in ms})
+        out.append({
+            'params_hash': h, 'first': dates[0], 'last': dates[-1],
+            'snapshots': len(dates),
+            'composite_ic': {str(k): v for k, v in composite_ic_summary(ms).items()},
+            'rating_buckets': {str(k): v for k, v in aggregate_buckets(ms).items()},
+        })
+    return sorted(out, key=lambda r: (r['first'], r['params_hash']))
+
+
+def rescored_current_view(snapshots, horizons):
+    """Today's scoring model re-applied to every usable snapshot.
+
+    The as-recorded headline measures whatever model rated each day, so after
+    a weight change it pools two models. This view re-scores every snapshot's
+    stored fields with ``default_params()`` (the calibrate path, so ratings
+    match what the live pipeline would emit) and measures one model across
+    the whole corpus. Caveat: if the current weights were chosen by
+    calibrating on this corpus, the view is in-sample — walk-forward
+    calibrate is the out-of-sample test.
+
+    Mutates the rows' rating/_composite_score in place (like calibrate), so
+    call it only after the as-recorded metrics have been computed.
+    """
+    metrics = _evaluate_params_on_snapshots(snapshots, default_params(), horizons)
+    metrics = [m for m in metrics
+               if any(d.get('excess_return') is not None for d in m['details'])]
+    return {
+        'params_hash': scoring_params_hash(),
+        'snapshots': len({m['run_date'] for m in metrics}),
+        'composite_ic': {str(h): v for h, v in composite_ic_summary(metrics).items()},
+        'rating_buckets': {str(h): v for h, v in aggregate_buckets(metrics).items()},
+        'note': ('current weights and gates re-applied to every snapshot; '
+                 'in-sample if those weights were calibrated on this corpus'),
+    }
+
+
+def build_measure_summary(all_metrics, horizons, since, stamp, readiness,
+                          report=None, rescored=None):
+    """The versioned ``backtest_summary_<stamp>.json`` body.
+
+    Beyond the headline IC and rating buckets it carries what is needed to
+    compare one week with the next without reading stdout: the code it ran
+    from, the snapshots skipped (and why), the matured (date, horizon) pairs
+    that produced nothing, and per pair how much of the snapshot was priced
+    and which ratings the unpriced names held.
+    """
+    report = report or {}
+    coverage = [dict({'run_date': m['run_date'], 'horizon': m['horizon']},
+                     **(m.get('coverage') or {}))
+                for m in sorted(all_metrics,
+                                key=lambda m: (m['horizon'], m['run_date']))]
+    return {
+        'date': stamp,
+        'horizons': horizons,
+        'since': since.isoformat() if since else None,
+        'provenance': {
+            'git_sha': _git_head(),
+            'current_params_hash': scoring_params_hash(),
+            'min_return_coverage': MIN_RETURN_COVERAGE,
+            'snapshots_loaded': report.get('loaded'),
+            'snapshots_usable': report.get('usable'),
+        },
+        'snapshots': sorted({m['run_date'] for m in all_metrics}),
+        'skipped_snapshots': report.get('skipped', []),
+        'unmeasured': report.get('unmeasured', []),
+        'coverage': coverage,
+        'readiness': {str(h): {k: (v.isoformat() if isinstance(v, date) else v)
+                               for k, v in r.items()}
+                      for h, r in readiness.items()},
+        'composite_ic': {str(h): v for h, v in
+                         composite_ic_summary(all_metrics).items()},
+        'rating_buckets': {str(h): v for h, v in
+                           aggregate_buckets(all_metrics).items()},
+        'regimes': model_regimes(all_metrics),
+        'rescored_current': rescored,
+    }
+
+
+def print_regimes_and_rescored(regimes, rescored):
+    """stdout: the as-recorded IC per scoring model, then the re-scored view."""
+    print(f"\n  {'-'*60}\n  SCORING MODELS IN THE CORPUS (as-recorded ratings)\n  {'-'*60}")
+    for r in regimes:
+        ics = ', '.join(f"{h}d IC {v['mean_ic']:+.3f} (t_eff {v['t_stat_effective']:.2f})"
+                        if v.get('t_stat_effective') is not None
+                        else f"{h}d IC {v['mean_ic']:+.3f}"
+                        for h, v in sorted(r['composite_ic'].items(), key=lambda kv: int(kv[0])))
+        print(f"  {r['params_hash']:<16s} {r['first']} .. {r['last']}  "
+              f"{r['snapshots']:>3d} snapshot(s)  {ics or 'no matured pairs'}")
+    if len(regimes) > 1:
+        print("  NOTE: the headline above pools ratings from these models.")
+    if not rescored:
+        return
+    print(f"\n  {'-'*60}\n  CURRENT MODEL ({rescored['params_hash']}) RE-SCORED OVER "
+          f"{rescored['snapshots']} SNAPSHOT(S)\n  {'-'*60}")
+    print(f"  ({rescored['note']})")
+    print_composite_ic({int(h): v for h, v in rescored['composite_ic'].items()})
+    for h, by_rating in sorted(rescored['rating_buckets'].items(), key=lambda kv: int(kv[0])):
+        print(f"\n  {h}d  {'Rating':<10s} {'n':>7s} {'Mean ex':>9s} {'Median ex':>10s} {'Beat SPY':>9s}")
+        for rating, v in by_rating.items():
+            print(f"       {rating:<10s} {v['n']:>7d} {v['mean_excess']:>+9.2%} "
+                  f"{v['median_excess']:>+10.2%} {v['hit_rate']:>9.0%}")
+
+
+def _cli_yf_client(args):
+    """The live-price fallback client, or None under --local-prices-only."""
+    if getattr(args, 'local_prices_only', False):
+        print("Local prices only: tickers without a parquet go unmeasured.")
+        return None
+    from data.yfinance_client import YFinanceClient
+    return YFinanceClient()
 
 
 def _cli_readiness(args):
@@ -2731,9 +3182,8 @@ def _cli_calibrate(args):
 
 def _cli_annotate(args):
     """Warm the forward-return sidecar cache for all snapshots x horizons."""
-    from data.yfinance_client import YFinanceClient
     horizons = [int(h) for h in args.horizons.split(',')]
-    yf_client = YFinanceClient()
+    yf_client = _cli_yf_client(args)
     pdir = args.prices_dir if os.path.isdir(args.prices_dir) else None
     if pdir:
         print(f"Using local price files from: {pdir}")
@@ -2864,6 +3314,17 @@ if __name__ == '__main__':
                            help='With --cohort: drop rows already vetoed by the '
                                 'beneish/altman-distress rating caps.')
     p_measure.add_argument('--since', default=None, help=_since_help)
+    p_measure.add_argument('--cache-dir', default='output/returns',
+                           help='Forward-return sidecar cache (default: output/returns)')
+    p_measure.add_argument('--output-dir', default='output',
+                           help='Where backtest_<stamp>.xlsx and backtest_summary_<stamp>.json go')
+    p_measure.add_argument('--stamp', default=None, metavar='YYYY-MM-DD',
+                           type=lambda v: date.fromisoformat(v).isoformat(),
+                           help='Date in the output file names (default: today)')
+    p_measure.add_argument('--local-prices-only', action='store_true',
+                           help='Measure from --prices-dir only; never fetch a missing ticker '
+                                'from yfinance (the cloud routine downloads every '
+                                'price first).')
     p_measure.set_defaults(func=_cli_measure)
 
     # ---- calibrate ----
@@ -2923,6 +3384,9 @@ if __name__ == '__main__':
                        help='Directory of per-ticker Parquet price files')
     p_ann.add_argument('--cache-dir', default='output/returns',
                        help='Sidecar cache directory (default: output/returns)')
+    p_ann.add_argument('--local-prices-only', action='store_true',
+                       help='Read --prices-dir only; never fetch a missing ticker '
+                            'from yfinance.')
     p_ann.set_defaults(func=_cli_annotate)
 
 

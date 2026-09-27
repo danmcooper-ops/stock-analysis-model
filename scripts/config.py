@@ -236,6 +236,22 @@ PHASE2_IO_WORKERS = 4
 # admitting the months-old drift a stale checkout can carry.
 PHASE1_LOCAL_PRICE_MAX_AGE_DAYS = 5
 
+# Carry-forward tickers whose price data has stopped (analyze_stock
+# stopped_trading_carry_forwards). Yahoo keeps serving a delisted symbol's
+# last quote in .info, and carry-forward bypasses the mcap/spread filters, so
+# without this an acquired company is re-rated on a frozen price every night
+# (JHG/SEM/BLD/STEL stayed in snapshots for weeks after their last bar on
+# 2026-07-01). run.sh step 03 re-fetches every prior-snapshot ticker's parquet
+# right before the analysis, so a parquet that is still behind SPY's by more
+# than this many SPY trading days means Yahoo has no bars for it — 10 is two
+# weeks, far longer than any single-night download failure.
+CARRY_FORWARD_MAX_PRICE_LAG_BARS = 10
+# If more than this share of the priced carry-forward set (and more than the
+# floor in absolute terms) reads as stopped, the price refresh failed rather
+# than that many companies delisting at once: drop nothing and warn.
+CARRY_FORWARD_STOPPED_MAX_SHARE = 0.05
+CARRY_FORWARD_STOPPED_GUARD_FLOOR = 10
+
 # Phase-1 network prefetch threads (analyze_stock --phase1-workers).
 #
 # Measured on the 2026-09-17 cloud run: Phase 1 took 3.48 h, of which the
@@ -251,6 +267,17 @@ PHASE1_LOCAL_PRICE_MAX_AGE_DAYS = 5
 # cloud run at 13.3 GiB. A window of 3x the workers keeps every thread fed
 # while capping the in-flight set at ~12 tickers (~370 MB worst case).
 PHASE1_IO_WORKERS = 4
+
+# Workers for the bulk price download (scripts/download_prices.py
+# --price-workers, env PRICE_IO_WORKERS). That script fetches one
+# period="max" history per ticker in a plain sequential loop, so on a cold
+# cache — which is every night in the stateless cloud container, where
+# output/prices/ does not survive the run — ~2,300 tickers each pay the
+# throttle interval plus a full request. Four workers against the shared
+# Throttle lift the same per-process ceiling the Phase-1 pool works under
+# (see YF_REQUEST_DELAY below); the throttle, not the worker count, is what
+# bounds the request rate. 1 restores the sequential path exactly.
+PRICE_IO_WORKERS = int(os.environ.get('PRICE_IO_WORKERS', 4))
 
 # Minimum interval between yfinance requests (analyze_stock --yf-delay, env
 # YF_REQUEST_DELAY). Yahoo publishes no rate limit, so this is a guess that

@@ -160,6 +160,69 @@ def test_rest_retries_only_idempotent_calls(monkeypatch):
     assert len(s.posts) == 1                                  # a 4xx is never retried
 
 
+def test_rest_marks_lost_responses():
+    import requests
+    for resp in (FakeResponse(504, {'message': 'The upstream server is timing out'}),
+                 requests.ReadTimeout('read timed out')):
+        t, _ = _rest([resp])
+        with pytest.raises(pub.PublishOutcomeUnknown):
+            t.call('publish_run', {})
+    t, _ = _rest([FakeResponse(500, {'code': '57014', 'message': 'canceling statement due to statement timeout'})])
+    with pytest.raises(pub.PublishError) as e:               # Postgres answered: a definite failure
+        t.call('publish_run', {})
+    assert not isinstance(e.value, pub.PublishOutcomeUnknown)
+
+
+class LostResponseTransport(FakeTransport):
+    """publish_run's response is lost; publish_outcome answers from *states*."""
+
+    def __init__(self, states):
+        super().__init__()
+        self.states = list(states)
+
+    def call(self, fn, args, idempotent=False):
+        self.calls.append((fn, args, idempotent))
+        if fn == 'publish_run':
+            raise pub.PublishOutcomeUnknown('publish_run: HTTP 504: upstream timing out')
+        if fn == 'publish_outcome':
+            st = self.states.pop(0)
+            if isinstance(st, Exception):
+                raise st
+            return st
+        return {'staged': True}
+
+
+def _lost(states, **kw):
+    load = pub.build_load(_snapshot([{'ticker': f'T{i}', 'rating': 'BUY'} for i in range(5)]), '2031-11-03')
+    t = LostResponseTransport(states)
+    return t, pub.publish(load, t, outcome_poll_s=0, **kw)
+
+
+def test_a_lost_response_that_committed_is_a_success(monkeypatch):
+    monkeypatch.setattr(pub.time, 'sleep', lambda s: None)
+    t, result = _lost([{'state': 'running'}, pub.PublishError('publish_outcome: HTTP 502'),
+                       {'state': 'published', 'rows': 5, 'publish': {'warnings': ['w']}}])
+    assert result['rows'] == 5 and result['warnings'] == ['w'] and 'HTTP 504' in result['confirmed_after_lost_response']
+    asks = [c for c in t.calls if c[0] == 'publish_outcome']
+    assert len(asks) == 3 and all(c[2] for c in asks)                   # asking is idempotent
+    assert asks[0][1] == {'p_load_id': result['load_id'], 'p_run_date': '2031-11-03'}
+
+
+@pytest.mark.parametrize('state', ['failed', 'unknown'])
+def test_a_lost_response_that_rolled_back_fails(monkeypatch, state):
+    monkeypatch.setattr(pub.time, 'sleep', lambda s: None)
+    with pytest.raises(pub.PublishError, match=f'publish_run {state} after a lost response'):
+        _lost([{'state': 'running'}, {'state': state}])
+
+
+def test_a_lost_response_gives_up_at_the_deadline(monkeypatch):
+    monkeypatch.setattr(pub.time, 'sleep', lambda s: None)
+    clock = iter(range(1000))
+    monkeypatch.setattr(pub.time, 'time', lambda: next(clock))
+    with pytest.raises(pub.PublishError, match='still running after 3s'):
+        _lost([{'state': 'running'}] * 50, outcome_wait_s=3)
+
+
 def test_connect_times_out_on_a_silent_server():
     """Plan R10: an unresponsive database costs seconds, not minutes."""
     pytest.importorskip('psycopg')
