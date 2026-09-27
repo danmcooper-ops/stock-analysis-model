@@ -503,6 +503,56 @@ def db_path_for(results_dir=DEFAULT_RESULTS_DIR):
     return os.path.join(results_dir, DB_FILENAME)
 
 
+# Per-run Parquet exports (data/db/parquet.py). Like the DuckDB store they are
+# a DERIVED copy of a snapshot, so they go stale the moment a re-score or an
+# enrich step rewrites the file — but unlike the store nothing used to rebuild
+# them, and scripts/backtest.py prefers them over both the store and the JSON.
+# A stale export therefore served the ratings the snapshot held BEFORE the
+# re-score together with its old provenance.scoring.params_hash, so the model
+# mix was invisible to model_regimes, the check that exists to catch it.
+PARQUET_DIRNAME = 'parquet'
+
+
+def parquet_export_path(results_dir, run_date):
+    """Where the Parquet export for *run_date* lives beside a results dir."""
+    return os.path.join(results_dir, PARQUET_DIRNAME, f'results_{run_date}.parquet')
+
+
+def parquet_export_is_stale(parquet_file, snapshot_path):
+    """True when *parquet_file* is missing or older than the snapshot it derives
+    from — i.e. it must be rebuilt before use, or ignored.
+
+    mtime, not a content hash: verifying an 87 MB gzipped snapshot per date on
+    every corpus load would cost more than the export saves. Kept here rather
+    than in data/db/parquet.py so a caller can ask without importing pyarrow.
+    """
+    try:
+        return os.path.getmtime(parquet_file) < os.path.getmtime(snapshot_path)
+    except OSError:
+        return True
+
+
+def invalidate_parquet_export(snapshot_path):
+    """Drop the Parquet export of a just-rewritten snapshot. Returns its path
+    when one was removed, else None.
+
+    Removing rather than re-exporting: the caller has just re-mirrored the
+    store, which every reader falls back to, and a rebuild needs pyarrow and
+    the column registry — neither of which may fail a pipeline step. The
+    export is rebuilt by data.db.parquet.export_dir or the next publish.
+    """
+    run_date = snapshot_date_from_path(snapshot_path)
+    if run_date is None:
+        return None
+    path = parquet_export_path(os.path.dirname(snapshot_path) or DEFAULT_RESULTS_DIR,
+                              run_date)
+    try:
+        os.remove(path)
+    except OSError:
+        return None
+    return path
+
+
 def _iso(d):
     if d is None:
         return None
@@ -1202,6 +1252,11 @@ def sync_snapshot_file(path, data=None, db_path=None):
         return False
     db_path = db_path or db_path_for(os.path.dirname(path) or DEFAULT_RESULTS_DIR)
     _republish_to_database(path, data)
+    dropped = invalidate_parquet_export(path)
+    if dropped:
+        logger.info("dropped the stale Parquet export %s (the snapshot was "
+                    "rewritten); rebuild it with data.db.parquet.export_dir",
+                    dropped)
     try:
         meta, rows = split_snapshot(data) if data is not None else load_snapshot_file(path)
         with SnapshotStore(db_path) as store:

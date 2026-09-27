@@ -41,7 +41,7 @@ in `output/`.
 | 04-prices | yes | cold download for every ticker of every matured snapshot (two passes), then a **gate**: SPY must end within 5 days of today and ≥ 90% of the tickers must have a price file. Failing it stops the run, so that a throttled download night never shrinks the sample. |
 | 04b-backfill | no | `backtest_cloud.py backfill-prices`: Tiingo for tickers Yahoo lacks, mostly delisted (acquired) names whose history Yahoo drops. At most `TIINGO_MAX_CALLS` (40) fetches; each series is cached in `price_backfill/` on the branch. Writes the list of confirmed delistings that `measure` measures to their last close. rc 1 = key unset or rate limited |
 | 05-readiness | no | evidence census, dates only |
-| 06-measure | yes | `backtest.py measure --local-prices-only --stamp <RUNDATE>`: reuses sidecars at ≥ 90% coverage, tops up the rest, never measures against a missing SPY |
+| 06-measure | yes | `backtest.py measure --local-prices-only --stamp <RUNDATE>`: reuses sidecars at ≥ 90% coverage whose window is settled, tops up the rest, never measures against a missing SPY. **Expect one `DEFERRED:` line most weeks** — the newest matured snapshot's eval date is the run day itself, so SPY has no bar there yet and the pair is measured next week rather than frozen on a short window |
 | 07-compare | no | `backtest_cloud.py compare`: `REGRESSION:` lines vs last week's summary; rc 1 = at least one |
 | 08-archive | yes | plumbing commit + push to `data/snapshots` |
 
@@ -111,12 +111,19 @@ and the summary JSON:
 
    If 04b failed or TIINGO_API_KEY is absent, say that delisted names were
    dropped this week.
-6. **Week over week** (`logs/07-compare.log`): list every `REGRESSION:` line
+6. **Deferred (date, horizon) pairs** from `deferred` in the summary JSON —
+   not to be confused with the backfill's deferred *fetches* above. One or two
+   per week is normal and expected: the newest matured snapshot's eval date is
+   the run day itself, so SPY has no bar there yet and the pair is measured
+   next week instead of being frozen on a short window. The same pair deferred
+   two weeks running is a `REGRESSION:` — the price download has stopped
+   advancing, so check `logs/04-prices.log` and SPY's last bar.
+7. **Week over week** (`logs/07-compare.log`): list every `REGRESSION:` line
    verbatim, or say "no regressions". Quote `NOTICE:` lines too: a scoring
    model change is expected after a weight PR, not a failure. A newly skipped snapshot ("missing gate
    fields") means a nightly run wrote a snapshot without current gate
    fields — flag it prominently.
-7. **Archive**: the `Weekly backtest: <date>` commit from `logs/08-archive.log`
+8. **Archive**: the `Weekly backtest: <date>` commit from `logs/08-archive.log`
    and how many `returns/` sidecars it added or changed.
 
 "FV accuracy" is not measured below a 365d horizon by design.
