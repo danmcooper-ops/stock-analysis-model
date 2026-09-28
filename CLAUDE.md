@@ -31,7 +31,8 @@ models/          - Pure model functions: capm, dcf, ddm, epv, rim, nav,
                    market, macro, narrative, portfolio, valuation_types,
                    data_tab_narrative (popup Data sub-tab summaries, built
                    at render time by report_html and shipped in the
-                   details/ parts)
+                   details/ parts), profile_verdict (the ticker
+                   page's INVEST/WATCH/AVOID verdict, same render-time path)
 scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    report_html.py / report_excel.py, scoring.py, config.py,
                    param_set.py, replay.py, ingest_snapshots.py (backfill the
@@ -514,17 +515,35 @@ ruff check .
   - **Ticker page:** the `#det-modal` popup is now a page beside the sidebar,
     with section tabs (`#d-tabs`). It shows a one-day change taken from the
     `px/` shard. The three filed statements share one Finances tab, right
-    after Summary (`DT_FIN`; a `.d-stmt-tabs` switch in its pane, the pick
+    after Summary and Profile (`DT_FIN`; a `.d-stmt-tabs` switch in its pane, the pick
     kept in `_detStmt`). On phones its × is the top bar's `#hdr-close`
     (shown only under `html.det-open`), and the band collapses on scroll to
     the ticker, one price line and the tabs.
+  - **Profile tab:** second on the ticker page (`DT_PROFILE`, `#d-pane-profile`,
+    `_renderDetProfile`): one dense page of every decision-relevant number
+    (valuation + fair-value range chart, multiples vs sector median, returns,
+    growth, balance sheet, owners, market, a ten-year strip from `hist/`, the
+    gate scorecard, risks), led by a rule-based **INVEST / WATCH / AVOID /
+    INSUFFICIENT DATA** verdict. The verdict is `models/profile_verdict.py`,
+    built at render time by `report_html._attach_profiles` (as the Data-tab
+    summaries are) and shipped as `profile` in the `details/` parts, ~0.5 KB a
+    row. AVOID = any red flag (PASS rating, MoS <= -20%, Beneish, Altman
+    distress on an unhealthy non-utility/non-REIT, cash burn below the cost of
+    capital, interest cover < 1.5x); INVEST = BUY/LEAN BUY, MoS >= 15%, not a
+    low-confidence fair value, positive spread, conviction >= 55; everything
+    else is WATCH, with `need` naming what blocks an INVEST and `buy_below`
+    the price that would clear the MoS bar. Missing inputs are N/A, never a
+    failure. "Print / Save PDF" (`exportProfilePdf`) writes the same markup
+    into a hidden iframe with the `#pro-css` sheet, a 3-column masonry and a
+    `zoom` shrink-to-fit, so it prints on one letter page.
   - **Appearance:** follows the device's Light/Dark setting only; there is
     no in-page switch. A pre-paint script reads `prefers-color-scheme` and a
     `matchMedia` listener follows the device live. `data-theme="dark"` is
     still the only thing CSS and JS read. The old switch's `stock_theme_v1`
     key is cleared on load.
-  - **Tests:** `tests/test_report_sidebar.py` and
-    `tests/test_report_appearance.py`. The latter includes a WCAG contrast
+  - **Tests:** `tests/test_report_sidebar.py`,
+    `tests/test_report_appearance.py`, `tests/test_report_profile.py` and
+    `tests/test_profile_verdict.py`. The appearance test includes a WCAG contrast
     check of the chrome tokens in both themes.
 - **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
   named sets of tickers — hand-picked, rule-driven, or both — and a ticker may
