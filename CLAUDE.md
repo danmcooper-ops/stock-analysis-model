@@ -480,8 +480,13 @@ ruff check .
   paint and merge into `DATA` as the single `details.json` once did. Both
   monoliths were split because Cloudflare Pages refuses files of 25 MiB or
   more (and more than 20,000 files); `scripts/check_pages_limits.py` enforces
-  that before a deploy and warns at 80%. `index.html` itself is at ~97%, so
-  the inline `DATA` blob is the next thing to split.
+  that before a deploy and warns at 80%. `index.html` itself had reached
+  ~97% (23.3 MiB of inline `DATA`), so the rows now ship column-wise
+  (`report_html.pack_rows`: each key once, absent/present row lists, floats
+  to 10 significant digits, compact separators), rebuilt by the template's
+  `_unpackRows` before anything reads `DATA` — ~7.8 MiB on 2026-09-25, a
+  ~9 MiB page. Splitting `DATA` into sidecars is the next step only if the
+  universe grows ~3x (e.g. `--universe us` unscreened).
   `scripts/publish_vol_shards.py` copies all four families into `docs/` by
   manifest. `run.sh` step 08 pushes `docs/` to GitHub Pages (`pages-live`);
   step `08b-publish-cloudflare` (non-blocking) deploys the same directory
