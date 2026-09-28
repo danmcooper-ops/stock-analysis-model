@@ -162,6 +162,19 @@ def test_review_feature_is_gone():
     assert '#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 200px);}' in src
 
 
+def test_ticker_page_chart_controls_are_underline_tabs():
+    """The ticker page's chart Metric / Range / Compare controls use the
+    same underline-tab style as the section tabs and #subnav sub-tabs; a
+    Compare benchmark that is on carries its bar in its own line colour."""
+    src = _tpl()
+    assert '<div class="cm-panel sa-chrome" id="dtc-cm-panel">' in src
+    assert ('#det-modal #dtc-cm-panel .ph-metric-btn.active,#det-modal #dtc-cm-panel .ph-range-btn.active,'
+            '#det-modal #dtc-cm-panel .ph-index-btn.active{--sac:var(--chrome-heading);font-weight:700;'
+            'box-shadow:inset 0 -3px 0 var(--chrome-accent);}') in src
+    assert '#det-modal #dtc-cm-panel .ph-index-btn.active{box-shadow:inset 0 -3px 0 var(--ix,var(--chrome-accent));}' in src
+    assert """style="--ix:'+col+'">'""" in src
+
+
 def test_portfolio_day_change_from_nav_ledger(tmp_path):
     src = _tpl()
     js = ('var NAV={};function _pfNavRaw(id){return NAV[id]||null;}\n'
