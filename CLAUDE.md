@@ -513,7 +513,9 @@ ruff check .
     with no table it lists quick results (`#hdr-qr`) that open the ticker page.
   - **Ticker page:** the `#det-modal` popup is now a page beside the sidebar,
     with section tabs (`#d-tabs`). It shows a one-day change taken from the
-    `px/` shard.
+    `px/` shard. The three filed statements share one Finances tab, right
+    after Summary (`DT_FIN`; a `.d-stmt-tabs` switch in its pane, the pick
+    kept in `_detStmt`).
   - **Appearance:** follows the device's Light/Dark setting only; there is
     no in-page switch. A pre-paint script reads `prefers-color-scheme` and a
     `matchMedia` listener follows the device live. `data-theme="dark"` is

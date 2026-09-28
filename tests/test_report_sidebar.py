@@ -101,6 +101,21 @@ def test_sub_tabs_are_underline_tabs():
     assert 'chip-on-bg' not in rule('.sn-chip.cur')
 
 
+def test_statements_share_one_finances_tab_after_summary():
+    """Balance Sheet, Income Statement and Cash Flow Statement live under one
+    Finances tab, second in the ticker page's tab bar, with a switch inside
+    its pane; a statement key passed to swDetTab still lands there."""
+    src = _tpl()
+    assert "var DT_FIN={k:'fin',l:'Finances'};" in src
+    assert "return [{k:'overview',l:'Overview'},DT_FIN].concat(_detDataItems());" in src
+    assert '.concat(DT_STMTS)' not in src
+    sw = _fn(src, 'swDetTab')
+    assert 'if(DT_STMTS[si].k===k){_detStmt=k;k=DT_FIN.k;}' in sw
+    assert '_renderDetStmtTab(_detStmt)' in sw
+    assert 'data-dstmt' in _fn(src, '_stmtSwitchHtml')
+    assert "closest('#d-pane-stmt [data-dstmt]')" in src
+
+
 def test_portfolio_day_change_from_nav_ledger(tmp_path):
     src = _tpl()
     js = ('var NAV={};function _pfNavRaw(id){return NAV[id]||null;}\n'
