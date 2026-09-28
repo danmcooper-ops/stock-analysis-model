@@ -2804,7 +2804,27 @@ window.addEventListener('resize',_syncThemeColor);
   window.addEventListener('pageshow',setVvSoon);
 })();
 /* === DATA === */
-var DATA={{ chart_data }};
+/* The rows ship column-wise (report_html.pack_rows) to keep index.html under
+   Cloudflare Pages' 25 MiB file cap: k = every key once, c[i] = key i's
+   values for the rows that have it, p[i]/a[i] = those rows' indices
+   (present/absent, whichever was shorter; neither = all rows). Rebuilt here,
+   before anything reads DATA, into the same array of row objects. */
+function _unpackRows(p){
+  if(Array.isArray(p))return p;
+  var n=p.n,k=p.k,c=p.c,pr=p.p||{},ab=p.a||{},rows=new Array(n),i,j;
+  for(j=0;j<n;j++)rows[j]={};
+  for(i=0;i<k.length;i++){
+    var key=k[i],col=c[i],idx=pr[i];
+    if(idx){for(j=0;j<idx.length;j++)rows[idx[j]][key]=col[j];continue;}
+    var miss=ab[i],m=0,v=0;
+    for(j=0;j<n;j++){
+      if(miss&&miss[m]===j){m++;continue;}
+      rows[j][key]=col[v++];
+    }
+  }
+  return rows;
+}
+var DATA=_unpackRows({{ chart_data }});
 var GM={{ gate_meta }};
 /* FD (the filtered dataset every table/matrix render reads) must exist from
    the first script tick. It was previously created only by applyFilters(),

@@ -3,6 +3,7 @@
 import os
 import json
 import logging
+import math
 import re
 import shutil
 import jinja2
@@ -54,6 +55,67 @@ def _json_default(obj):
                        "(upstream growth-rate guard missing)", obj)
         return None
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+# The row payload is inlined into index.html, which Cloudflare Pages caps at
+# 25 MiB. Written row by row it was 23.3 MiB on 2026-09-25 (2,531 rows x ~320
+# keys): each key name repeated per row, padded separators and 17-digit float
+# reprs. Packed column-wise it is ~7.8 MiB, with no change to what the page
+# sees once templates/report.html's _unpackRows rebuilds the rows.
+_PACK_SIG_DIGITS = 10   # far beyond any displayed precision
+
+
+def _trim_floats(v):
+    """Round finite floats to _PACK_SIG_DIGITS significant digits, recursively.
+    Ten digits leave every displayed figure (at most ~4 significant decimals)
+    unchanged; NaN/inf pass through untouched, as json.dumps writes them."""
+    if isinstance(v, float):
+        return float(f'{v:.{_PACK_SIG_DIGITS}g}') if math.isfinite(v) else v
+    if isinstance(v, dict):
+        return {k: _trim_floats(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_trim_floats(x) for x in v]
+    return v
+
+
+
+def pack_rows(records):
+    """Column-wise encoding of a list of dicts, decoded by _unpackRows.
+
+    ``k`` lists every key once (first-appearance order); ``c[i]`` holds key
+    i's values for the rows that have it, in row order. Which rows those are
+    is ``p[i]`` (present row indices) or ``a[i]`` (absent ones), whichever
+    is shorter, or all rows when neither is given — so an absent key stays
+    absent and an explicit null stays null.
+    """
+    keys = list(dict.fromkeys(k for r in records for k in r))
+    n = len(records)
+    cols, present, absent = [], {}, {}
+    for i, k in enumerate(keys):
+        have = [j for j, r in enumerate(records) if k in r]
+        cols.append([_trim_floats(records[j][k]) for j in have])
+        if len(have) < n:
+            if len(have) <= n - len(have):
+                present[str(i)] = have
+            else:
+                hs = set(have)
+                absent[str(i)] = [j for j in range(n) if j not in hs]
+    return {'n': n, 'k': keys, 'c': cols, 'p': present, 'a': absent}
+
+
+def unpack_rows(packed):
+    """Python mirror of the template's _unpackRows (tests, tooling)."""
+    n, rows = packed['n'], [dict() for _ in range(packed['n'])]
+    for i, k in enumerate(packed['k']):
+        col = packed['c'][i]
+        if str(i) in packed['p']:
+            idx = packed['p'][str(i)]
+        else:
+            miss = set(packed['a'].get(str(i), ()))
+            idx = [j for j in range(n) if j not in miss]
+        for j, v in zip(idx, col, strict=True):
+            rows[j][k] = v
+    return rows
 
 
 _COMPLEX_REPR = re.compile(r'^\(-?\d[\d.eE+-]*[+-]\d[\d.eE+-]*j\)$')
@@ -1749,7 +1811,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
 
     details_payload = _extract_details_payload(chart_records)
 
-    chart_data = dumps_for_script(chart_records, default=_json_default)
+    chart_data = dumps_for_script(pack_rows(chart_records), default=_json_default,
+                                  separators=(',', ':'))
 
     # Gate metadata for Matrix view rendering in JavaScript
     gate_meta = dumps_for_script(gate_meta_obj, default=_json_default)
