@@ -2360,9 +2360,22 @@ html body .detail-content{max-width:none !important;width:100% !important;border
 #det-modal .d-mini-nav-btn{background:var(--chip-bg);border:1px solid var(--chip-border);color:var(--chrome-heading);width:28px;height:28px;border-radius:6px;font-size:15px;}
 #det-modal .d-mini-nav-btn:hover:not(:disabled){background:var(--menu-hover);}
 #det-modal .d-mini-nav-arrows{gap:6px;}
-#det-modal .d-mini-nav-actions{top:calc(46px + env(safe-area-inset-top));bottom:auto;right:24px;gap:10px;}
+/* The three actions sit on the same grid as the ‹ › × row above: each is a
+   28px square (the button size) 6px apart (the arrows' gap), right-aligned
+   with ×, so folder / check / flag stand under ‹ / › / ×. Every glyph is an
+   18px SVG, so none reads bigger or heavier than its neighbours. */
+#det-modal .d-mini-nav-actions{top:calc(46px + env(safe-area-inset-top));bottom:auto;right:24px;gap:6px;}
+#det-modal .d-mini-nav-actions>*{position:relative;box-sizing:border-box;width:28px;height:28px;padding:0;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1;filter:none;transform:none;transition:background .15s;}
+#det-modal .d-mini-nav-actions>*:hover{background:var(--menu-hover);transform:none;}
+#det-modal .d-mini-nav-actions svg{width:18px !important;height:18px !important;display:block;}
+/* currentColor must come from the icon's own button: the blanket dark rule
+   (body *{color:#fff !important}) would otherwise paint the SVG parts white
+   and the flagged flag would lose its orange. */
+html body #det-modal .d-mini-nav-actions svg,html body #det-modal .d-mini-nav-actions svg *{color:inherit !important;}
 #det-modal .d-mini-nav-actions .flag-star:not(.flagged){color:var(--chrome-muted);}
-#det-modal .d-mini-nav-actions>*{font-size:1.1em;}
+#det-modal .d-mini-nav-actions .flag-star:not(.flagged):hover{color:var(--chrome-heading);}
+/* The membership count rides the folder's corner instead of widening its square. */
+#det-modal .d-pf-btn .pf-det-n{position:absolute;top:1px;right:0;font-size:10px;line-height:1;}
 /* The action icons were white-on-navy; on the light page header they take
    the heading colour (the portfolio folder is later in the file, so it is
    restated with the id to win). */
@@ -2421,6 +2434,7 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
   #det-modal .detail-close{right:12px;top:calc(10px + env(safe-area-inset-top));}
   #det-modal .d-mini-nav{right:48px;top:calc(10px + env(safe-area-inset-top));}
   #det-modal .d-mini-nav-actions{right:12px;top:calc(46px + env(safe-area-inset-top));}
+  #det-modal .d-mini-nav-actions>*{width:30px;height:30px;}
   .d-tabs{margin:12px -16px 0;padding:0 8px;}
   .d-tab{font-size:15px;padding:0 10px;height:42px;}
   #det-modal.hdr-min .d-tabs{margin-top:6px;}
@@ -3230,7 +3244,11 @@ var _flagOnly=false;
 function _saveFlags(){try{localStorage.setItem(_FLAG_KEY,JSON.stringify(_flags));}catch(e){}}
 function isFlagged(tk){return !!_flags[tk];}
 function toggleFlag(tk,e){if(e)e.stopPropagation();_flags[tk]?delete _flags[tk]:_flags[tk]=1;_saveFlags();_updateFlagCount();applyFilters();}
-function _syncFlagDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;var f=isFlagged(tk);var cls='flag-star'+(f?' flagged':'');var txt=f?'\u2691':'\u2690';['d-flag','d-flag2'].forEach(function(id){var el=document.getElementById(id);if(el){el.textContent=txt;el.className=cls;}});}
+/* The ticker page draws its flag as an SVG (outline / filled) rather than the
+   U+2690/2691 glyphs, whose size and weight vary by font, so it matches the
+   folder and check icons beside it. */
+function _flagSvg(f){return '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 17.5V2.75" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M5 3.25h10.25l-2.25 3.5 2.25 3.5H5z" fill="'+(f?'currentColor':'none')+'" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';}
+function _syncFlagDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;var f=isFlagged(tk);var cls='flag-star'+(f?' flagged':'');['d-flag','d-flag2'].forEach(function(id){var el=document.getElementById(id);if(el){el.innerHTML=_flagSvg(f);el.className=cls;el.title=f?'Flagged — click to unflag':'Flag this stock';}});}
 function toggleFlagDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;toggleFlag(tk);_syncFlagDet();}
 function toggleFlagFilter(){_flagOnly=!_flagOnly;document.getElementById('f-flagged').classList.toggle('active',_flagOnly);applyFilters();}
 var _founderOnly=false;
