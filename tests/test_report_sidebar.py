@@ -116,6 +116,19 @@ def test_statements_share_one_finances_tab_after_summary():
     assert "closest('#d-pane-stmt [data-dstmt]')" in src
 
 
+def test_ticker_page_actions_share_the_button_grid():
+    """Folder / check / flag sit in squares the size of the ‹ › × buttons,
+    spaced by the arrows' gap and right-aligned with ×, each an 18px SVG —
+    the flag no longer a font glyph whose size varies."""
+    src = _tpl()
+    assert '#det-modal .d-mini-nav-arrows{gap:6px;}' in src
+    assert 'top:calc(46px + env(safe-area-inset-top));bottom:auto;right:24px;gap:6px;' in src
+    assert '#det-modal .d-mini-nav-actions>*{position:relative;box-sizing:border-box;width:28px;height:28px;' in src
+    assert '#det-modal .d-mini-nav-actions svg{width:18px !important;height:18px !important;' in src
+    sync = _fn(src, '_syncFlagDet')
+    assert 'el.innerHTML=_flagSvg(f)' in sync and '\\u2691' not in sync
+
+
 def test_portfolio_day_change_from_nav_ledger(tmp_path):
     src = _tpl()
     js = ('var NAV={};function _pfNavRaw(id){return NAV[id]||null;}\n'
