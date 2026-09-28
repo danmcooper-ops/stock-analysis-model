@@ -2069,13 +2069,14 @@ body.wide-table .container{padding-left:0;padding-right:0;}
      of section cards on screen beneath it. */
   #macro-view>.mac-card{max-width:560px;}
 }
-/* === SA CHROME: sidebar · top bar · view chips · tab bar ===============
+/* === SA CHROME: sidebar · top bar · view chips ===========================
    Seeking Alpha-style navigation. One DOM serves every layout:
      - desktop >=1024px: fixed 240px black sidebar (html.sb-rail = 72px rail)
      - 769-1023px (iPad portrait): rail by default; opening it lays the full
        sidebar OVER the content (html.sb-over) so tables never reflow
-     - phones <=768px: off-canvas drawer (html.sb-drawer) + bottom tab bar
-     - phone landscape: rail, no tab bar (vertical space is scarce)
+     - phones <=768px: off-canvas drawer (html.sb-drawer) opened from the
+       top bar's menu button
+     - phone landscape: rail
    --sb-cur is the width the page must clear; body padding, the sticky
    header/subnav and the frozen table columns all offset by it.
 
@@ -2088,7 +2089,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
    Tokens are declared on bare :root and only redefined for dark. */
 :root{
   color-scheme:light;
-  --sb-w:196px;--sb-w-rail:52px;--sb-cur:var(--sb-w);--tabbar-h:0px;
+  --sb-w:196px;--sb-w-rail:52px;--sb-cur:var(--sb-w);
   --sb-bg:#0b0b0b;--sb-text:#f5f5f4;--sb-muted:#a9a8a5;--sb-kbd:#8a8a88;--sb-div:#2b2b2b;
   --sb-hover:#1c1c1c;--sb-active-bg:#171717;--sb-btn:#3a3a3a;--sb-edge:transparent;
   --chrome-accent:#f47b20;--chrome-pos:#137333;--chrome-neg:#b3261e;
@@ -2101,7 +2102,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   --link:#1d4ed8;
   --rt-buy-bg:#137333;--rt-buy-fg:#fff;--rt-lean-bg:#e3f1e6;--rt-lean-fg:#0d5a26;
   --rt-hold-bg:#ecebe8;--rt-hold-fg:#46443f;--rt-sell-bg:#fbe4e2;--rt-sell-fg:#9c1f18;
-  --tabbar-bg:#f7f7f6;--tabbar-fg:#5f5d59;--tabbar-border:#e0ded9;
   --chrome-heading:#1b1a19;--chrome-muted:#5f5d59;
 }
 [data-theme="dark"]{
@@ -2117,7 +2117,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   --link:#58a6ff;
   --rt-buy-bg:#238636;--rt-buy-fg:#fff;--rt-lean-bg:#12361f;--rt-lean-fg:#56d364;
   --rt-hold-bg:#262c36;--rt-hold-fg:#c9d1d9;--rt-sell-bg:#3d1418;--rt-sell-fg:#ff7b72;
-  --tabbar-bg:#0b0b0b;--tabbar-fg:#8b949e;--tabbar-border:#21262d;
   --chrome-heading:#e6edf3;--chrome-muted:#8b949e;
 }
 html body .sa-chrome,html body .sa-chrome *{color:var(--sac) !important;}
@@ -2125,7 +2124,7 @@ html body .sa-chrome,html body .sa-chrome *{color:var(--sac) !important;}
 
 /* ---- page offset ---- */
 html.sb-rail{--sb-cur:var(--sb-w-rail);}
-body{padding-left:var(--sb-cur);padding-bottom:var(--tabbar-h);}
+body{padding-left:var(--sb-cur);}
 /* The two page-panning tables pin their frozen columns to the viewport's
    left edge — which is now under the sidebar. Shift every frozen offset by
    --sb-cur (scoped to #dtbl/#mtx: the heatmap and pool tables scroll inside
@@ -2234,7 +2233,7 @@ html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
 [data-theme="dark"] .header #filter-bar .fpop-btn.active{background:var(--chip-on-bg);border-color:var(--chip-on-bg);}
 .header #filter-bar .fpop-btn svg{width:14px;height:14px;}
 .header .filt-btn-label{display:inline;}
-.hdr-qr button:focus-visible,.hdr-menu:focus-visible,#tabbar button:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
+.hdr-qr button:focus-visible,.hdr-menu:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 
 /* ---- view heading + sub-tab chips ---- */
 #subnav{--sac:var(--chrome-heading);position:sticky;box-sizing:border-box;max-width:100%;padding:10px 0 8px;display:flex;flex-direction:column;gap:8px;}
@@ -2251,14 +2250,6 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
 .sn-chip:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:2px;}
 .sn-chips:empty{display:none;}
 
-/* ---- bottom tab bar (phones) ---- */
-#tabbar{--sac:var(--tabbar-fg);display:none;position:fixed;left:0;right:0;bottom:0;z-index:940;background:var(--tabbar-bg);
-  border-top:1px solid var(--tabbar-border);padding:3px 4px env(safe-area-inset-bottom);grid-template-columns:repeat(var(--tb-n,5),minmax(0,1fr));}
-#tabbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:44px;border:0;background:none;font:inherit;font-size:11px;cursor:pointer;position:relative;}
-#tabbar button svg{width:20px;height:20px;}
-#tabbar button.cur{--sac:var(--chrome-accent);font-weight:700;}
-#tabbar .tb-n{--sac:#fff;position:absolute;top:2px;left:50%;margin-left:6px;min-width:18px;height:18px;border-radius:9px;background:var(--chrome-accent);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;box-sizing:border-box;}
-
 /* ---- iPad portrait / narrow desktop: rail; the full sidebar overlays ---- */
 @media(min-width:769px) and (max-width:1023px){
   html:root{--sb-cur:var(--sb-w-rail);}
@@ -2271,20 +2262,18 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
 }
 /* ---- phones: drawer + bottom tabs ---- */
 @media(max-width:768px){
-  html:root{--sb-cur:0px;--tabbar-h:calc(48px + env(safe-area-inset-bottom));}
+  html:root{--sb-cur:0px;}
   #sidebar{width:250px;max-width:80vw;transform:translateX(-102%);z-index:1300;box-shadow:none;}
   html.sb-drawer #sidebar{transform:none;box-shadow:8px 0 24px rgba(0,0,0,.4);}
   html.sb-drawer .sb-scrim{display:block;position:fixed;inset:0;z-index:1290;background:rgba(0,0,0,.55);}
   #sidebar .sb-collapse{display:none;}
   #sidebar .sb-close{display:flex;}
   #sidebar .navmenu-key{display:none;}
-  #tabbar{display:grid;}
   #subnav{padding:8px 0 6px;gap:6px;}
   .sn-title{font-size:17px;}
   .sn-crumb{display:none;}
   .sn-chips{margin-right:-6px;}
   .sn-chip{height:28px;padding:0 11px;}
-  #ai-fab{bottom:calc(var(--tabbar-h) + 14px) !important;}
 }
 /* ---- phones, both orientations: the dark Seeking Alpha iOS top bar ---- */
 @media(max-width:768px),(orientation:landscape) and (max-height:500px){
@@ -2300,16 +2289,10 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
 @media(max-width:768px){
   .hdr-menu{--sac:#fff;display:flex;width:36px;height:36px;align-items:center;justify-content:center;background:none;border:0;cursor:pointer;flex-shrink:0;padding:0;}
   .hdr-menu svg{width:22px;height:22px;}
-  /* Pinned to the VISIBLE bottom edge (--vvh, the visual-viewport bridge),
-     not the layout viewport's: an in-app or emulated browser widens the
-     layout viewport to the panning table's width, where bottom:0 would
-     sit off-screen. */
-  #tabbar{bottom:auto;right:auto;top:calc(var(--vvh,100dvh) - var(--tabbar-h));width:var(--vvw,100vw);height:var(--tabbar-h);box-sizing:border-box;}
 }
-/* ---- phone landscape: rail, no tab bar ---- */
+/* ---- phone landscape: rail ---- */
 @media(orientation:landscape) and (max-height:500px){
-  html:root{--sb-cur:calc(48px + env(safe-area-inset-left));--tabbar-h:0px;}
-  #tabbar{display:none !important;}
+  html:root{--sb-cur:calc(48px + env(safe-area-inset-left));}
   #sidebar{width:var(--sb-cur);transform:none;}
   #sidebar .sb-lbl,#sidebar .navmenu-key,#sidebar .sb-brand,#sidebar .sb-pf,#sidebar .sb-more,#sidebar .sb-foot,
   #sidebar .sb-head span,#sidebar .sb-badge,#sidebar .sb-div{display:none;}
@@ -2392,7 +2375,7 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 .d-tab.cur{--sac:var(--chrome-heading);font-weight:700;box-shadow:inset 0 -3px 0 var(--chrome-heading);}
 .d-tab:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 .d-tab-sep{flex-shrink:0;width:1px;margin:12px 6px;background:var(--chip-border);}
-#det-modal .d-body{padding:14px 24px calc(24px + var(--tabbar-h) + env(safe-area-inset-bottom)) !important;background:var(--bg);}
+#det-modal .d-body{padding:14px 24px calc(24px + env(safe-area-inset-bottom)) !important;background:var(--bg);}
 /* Cards: plain uppercase headings in place of the gradient title bars. */
 #det-modal .dgroup{border-radius:14px;box-shadow:none;border:1px solid var(--border);background:var(--surface);}
 #det-modal .dgroup-title{background:none !important;color:var(--chrome-heading);text-shadow:none;font-size:.9em;letter-spacing:.06em;padding:16px 20px 6px;}
@@ -2415,7 +2398,7 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 }
 @media(max-width:768px),(orientation:landscape) and (max-height:500px){
   #det-modal .d-header-band{padding:calc(10px + env(safe-area-inset-top)) 16px 0 !important;}
-  #det-modal .d-body{padding:12px 12px calc(12px + var(--tabbar-h) + env(safe-area-inset-bottom)) !important;}
+  #det-modal .d-body{padding:12px 12px calc(12px + env(safe-area-inset-bottom)) !important;}
   #det-modal .dh,#det-modal .dmeta{padding-right:96px;}
   #det-modal .dh .dtk{font-size:1.4em;}
   #det-modal .dpx{font-size:1.35em;}
@@ -2485,9 +2468,6 @@ html body .d-side-card .rb{color:#fff !important;}
 @media(orientation:landscape) and (max-height:500px){
   html.det-open .header{width:calc(var(--vvw,100vw) - var(--sb-cur));}
 }
-/* Phones keep the tab bar over the ticker page (it closes the page and
-   navigates); landscape phones keep the rail. */
-@media(max-width:768px){ #tabbar{z-index:1010;}}
 html.sb-over #sidebar,html.sb-drawer #sidebar{z-index:1310;}
 html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 </style>
@@ -2642,7 +2622,6 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   <div class="sb-foot">Data as of {{ generated_at }}</div>
 </nav>
 <div class="sb-scrim" id="sb-scrim" onclick="sbClose()"></div>
-<nav id="tabbar" class="sa-chrome" aria-label="Views"></nav>
 </div>
 <div class="container">
   <!-- The view's name and its sub-tabs as Seeking Alpha-style chips —
@@ -9398,7 +9377,6 @@ var _SB_IC={
   pf:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 12h18"/>',
   trend:'<path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/>'
 };
-var _SB_SHORT={macro:'Macro',pool:'Sectors',matrix:'Model',table:'Data',pf:'Portfolios'};
 function _sbIc(k,cls){return'<svg class="'+(cls||'sb-ic')+'" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(_SB_IC[k]||'')+'</g></svg>';}
 /* One-day move of a published portfolio: the last two points of its NAV
    ledger. null for a portfolio with no ledger yet (created in this browser,
@@ -9425,7 +9403,7 @@ function _sbAlertCount(){
 }
 var _SB_PF_SHOW=6,_sbPfAll=false;
 /* Renders every navigation surface from _navGroups(): the sidebar rows, the
-   portfolio list, the view heading + sub-tab chips, and the phone tab bar.
+   portfolio list, and the view heading + sub-tab chips.
    Called wherever the current view or sub-tab changes (renderCur and the
    per-view sub-tab switchers), so the active marks are always current. */
 function renderNavMenu(){
@@ -9486,17 +9464,6 @@ function renderNavMenu(){
       }
     }
   }
-  var tb=document.getElementById('tabbar');
-  if(tb){
-    var t='';
-    groups.forEach(function(x){
-      var cur=curView===x.v;
-      t+='<button type="button" class="'+(cur?'cur':'')+'" data-v="'+x.v+'"'+(cur?' aria-current="page"':'')+'>'+_sbIc(x.v,'tb-ic')
-        +'<span>'+esc(_SB_SHORT[x.v]||x.l)+'</span>'+(x.v==='pf'&&al?'<span class="tb-n">'+al+'</span>':'')+'</button>';
-    });
-    tb.innerHTML=t;
-    tb.style.setProperty('--tb-n',groups.length);
-  }
   _syncNavCrumb();
 }
 /* Names the current view + sub-tab in the (visually hidden) header crumb
@@ -9538,12 +9505,12 @@ function navGo(v,k){
   }
 }
 document.addEventListener('click',function(e){
-  var b=e.target.closest?e.target.closest('#sidebar [data-v],#tabbar [data-v],#subnav [data-v]'):null;
+  var b=e.target.closest?e.target.closest('#sidebar [data-v],#subnav [data-v]'):null;
   if(!b)return;
   /* Sector names carry apostrophes, so the key rides a data attribute and
      this one delegated listener dispatches — no inline-onclick escaping.
-     Navigating away from a ticker page closes it (the phone tab bar and the
-     sidebar stay usable over it). */
+     Navigating away from a ticker page closes it (the sidebar, and on
+     phones its drawer, stay usable over it). */
   sbClose();
   var dm=document.getElementById('det-modal');
   if(dm&&dm.classList.contains('open'))closeDetail();

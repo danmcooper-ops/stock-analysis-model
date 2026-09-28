@@ -71,8 +71,7 @@ def test_chrome_colour_survives_the_blanket_dark_rule():
     rescue = src.index('html body .sa-chrome,html body .sa-chrome *{color:var(--sac) !important;}')
     # Same !important, higher specificity ((0,1,2) vs (0,1,1)) and later.
     assert rescue > blanket
-    for chrome in ('id="sidebar" class="sa-chrome"', 'id="tabbar" class="sa-chrome"',
-                   'id="subnav" class="sa-chrome"'):
+    for chrome in ('id="sidebar" class="sa-chrome"', 'id="subnav" class="sa-chrome"'):
         assert chrome in src, chrome
 
 
@@ -119,7 +118,6 @@ PAIRS = [
     ('--chrome-heading', '--chip-bg'), ('--chrome-muted', '--chip-bg'),
     ('--rt-buy-fg', '--rt-buy-bg'), ('--rt-lean-fg', '--rt-lean-bg'),
     ('--rt-hold-fg', '--rt-hold-bg'), ('--rt-sell-fg', '--rt-sell-bg'),
-    ('--tabbar-fg', '--tabbar-bg'),
 ]
 
 
