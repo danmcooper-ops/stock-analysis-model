@@ -163,17 +163,25 @@ def test_review_feature_is_gone():
     assert '#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 200px);}' in src
 
 
-def test_ticker_page_chart_controls_are_underline_tabs():
-    """The ticker page's chart Metric / Range / Compare controls use the
-    same underline-tab style as the section tabs and #subnav sub-tabs; a
-    Compare benchmark that is on carries its bar in its own line colour."""
+def test_chart_controls_are_underline_tabs():
+    """The ticker page's chart and the Financial Data Charts view share one
+    inline control style (.cm-inline): Metric / Range / Compare / index rows
+    as underline tabs like the section tabs and #subnav sub-tabs, out in the
+    open rather than behind the ☰ menu; an index that is on carries its bar
+    in its own line colour."""
     src = _tpl()
-    assert '<div class="cm-panel sa-chrome" id="dtc-cm-panel">' in src
-    assert ('#det-modal #dtc-cm-panel .ph-metric-btn.active,#det-modal #dtc-cm-panel .ph-range-btn.active,'
-            '#det-modal #dtc-cm-panel .ph-index-btn.active{--sac:var(--chrome-heading);font-weight:700;'
-            'box-shadow:inset 0 -3px 0 var(--chrome-accent);}') in src
-    assert '#det-modal #dtc-cm-panel .ph-index-btn.active{box-shadow:inset 0 -3px 0 var(--ix,var(--chrome-accent));}' in src
-    assert """style="--ix:'+col+'">'""" in src
+    p = 'html body .cm-panel.cm-inline'
+    assert '<div class="cm-panel cm-inline" id="dtc-cm-panel">' in src
+    assert """'<div class="cm-panel cm-inline" id="ph-cm-panel">'""" in src
+    for tabs in ('dtc-metric-btns', 'dtc-ranges', 'dtc-bench-btns',
+                 'ph-metric-btns', 'ph-ranges', 'ph-index-btns'):
+        assert f'<div class="cm-tabs" id="{tabs}"></div>' in src, tabs
+    assert '.cm-wrap:has(.cm-inline)>.cm-btn,.cm-wrap:has(.cm-inline)>.cm-sum{display:none;}' in src
+    assert (f'{p} .ph-metric-btn.active,{p} .ph-range-btn.active,{p} .ph-index-btn.active'
+            '{--sac:var(--chrome-heading);font-weight:700;box-shadow:inset 0 -3px 0 var(--chrome-accent);}') in src
+    assert f'{p} .ph-index-btn.active{{box-shadow:inset 0 -3px 0 var(--ix,var(--chrome-accent));}}' in src
+    assert src.count("""style="--ix:'+col+'">""") == 2
+    assert '#det-modal #dtc-cm-panel' not in src
 
 
 def test_portfolio_day_change_from_nav_ledger(tmp_path):
