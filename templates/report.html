@@ -9663,10 +9663,10 @@ document.addEventListener('keydown',function(e){
       e.preventDefault();closeDetMenus();return;
     }
     if(e.key==='Escape')closeDetail();
-    else if(e.key==='ArrowLeft'){e.preventDefault();navDet(-1);}
-    else if(e.key==='ArrowRight'){e.preventDefault();navDet(1);}
-    else if(e.key==='ArrowUp'){e.preventDefault();var m=_detScroller();if(m)_startGlide(m,-1);}
-    else if(e.key==='ArrowDown'){e.preventDefault();var m=_detScroller();if(m)_startGlide(m,1);}
+    /* Everything else is a hotkey, so it stands aside for typing and browser
+       chords exactly as the page-level ones do (the membership menu's
+       new-portfolio field sits inside the popup). */
+    else if(!_hkBlocked(e))_hkDetDispatch(e);
     /* The popup owns the keyboard while it is open — an unhandled key must not
        fall through and navigate the page out from under it. */
     return;
@@ -10160,7 +10160,17 @@ var HOTKEYS=[
   {g:'Search & panels',k:['?'],l:'This cheat sheet'},
   {g:'Search & panels',k:['Esc'],l:'Close the open overlay, menu or popup'},
   {g:'Ticker popup',k:['←','→'],l:'Previous / next ticker'},
-  {g:'Ticker popup',k:['↑','↓'],l:'Scroll the popup'}
+  {g:'Ticker popup',k:['↑','↓'],l:'Scroll the popup'},
+  {g:'Ticker popup',k:['Home','End'],l:'Jump to the top / bottom of the popup'},
+  /* The same digits and brackets as the view keys, one level down: the
+     popup's section tabs stand in for views, so the muscle memory carries. */
+  {g:'Ticker popup',k:function(){var n=Math.min(9,_detMenuItems().length),a=[];for(var i=1;i<=n;i++)a.push(String(i));return a;},
+   l:'Jump straight to a section tab'},
+  {g:'Ticker popup',k:[']','['],l:'Next / previous section tab'},
+  {g:'Ticker popup',k:['t'],l:'Finances: next statement (balance / income / cash flow)'},
+  {g:'Ticker popup',k:['s'],l:'Summary PDF for this ticker'},
+  {g:'Ticker popup',k:['x'],l:'Flag / unflag this ticker'},
+  {g:'Ticker popup',k:['p'],l:'Portfolio membership menu'}
 ];
 /* Hotkeys stay out of the way of typing and of the browser's own chords.
    One target test covers every text field on the page at once — the ticker
@@ -10236,8 +10246,50 @@ function _hkDispatch(e){
   else if(k==='v'){e.preventDefault();toggleNavMenu(null);}
   else if(k==='?'){e.preventDefault();hkOverlayOpen();}
 }
+/* The popup's counterpart to _hkDispatch. Sections are addressed by position
+   in _detMenuItems(), the list the tab bar renders, so a digit always lands on
+   the tab it counts to; ] and [ wrap like their view-level twins. */
+function _hkDetTab(i){
+  var its=_detMenuItems(),n=its.length;
+  if(n)swDetTab(its[((i%n)+n)%n].k);
+}
+function _hkDetDispatch(e){
+  var k=e.key;
+  if(k==='ArrowLeft'){e.preventDefault();navDet(-1);}
+  else if(k==='ArrowRight'){e.preventDefault();navDet(1);}
+  else if(k==='ArrowUp'){e.preventDefault();var m=_detScroller();if(m)_startGlide(m,-1);}
+  else if(k==='ArrowDown'){e.preventDefault();var m=_detScroller();if(m)_startGlide(m,1);}
+  else if(k==='Home'||k==='End'){
+    e.preventDefault();
+    var sc=_detScroller();if(sc)_easeScroll(sc,k==='Home'?0:sc.scrollHeight-sc.clientHeight,320);
+  }
+  else if(k>='1'&&k<='9'){
+    var i=+k-1;
+    if(i<_detMenuItems().length){e.preventDefault();_hkDetTab(i);}
+  }
+  else if(k===']'||k==='['){
+    e.preventDefault();
+    var its=_detMenuItems(),cur=0;
+    its.forEach(function(it,j){if(it.k===_detTab)cur=j;});
+    _hkDetTab(cur+(k===']'?1:-1));
+  }
+  /* t walks the three statements, landing on Finances from any tab; the first
+     press from elsewhere just shows the statement last picked. */
+  else if(k==='t'){
+    e.preventDefault();
+    if(_detTab!==DT_FIN.k){swDetTab(DT_FIN.k);return;}
+    var si=0;DT_STMTS.forEach(function(x,j){if(x.k===_detStmt)si=j;});
+    swDetTab(DT_STMTS[(si+1)%DT_STMTS.length].k);
+  }
+  else if(k==='s'){e.preventDefault();exportProfilePdf();}
+  else if(k==='x'){e.preventDefault();toggleFlagDet();}
+  else if(k==='p'){e.preventDefault();pfDetMenu(null);}
+  else if(k==='?'){e.preventDefault();pfPopClose();hkOverlayOpen();}
+}
 function _hkOverlayOpen(){var o=document.getElementById('hk-overlay');return!!(o&&o.classList.contains('open'));}
-function hkOverlayClose(){var o=document.getElementById('hk-overlay');if(o){o.classList.remove('open');_unlockBody();}}
+/* Opened from the ticker popup, the overlay closes back onto it, so the body
+   lock the popup took has to survive. */
+function hkOverlayClose(){var o=document.getElementById('hk-overlay');if(o){o.classList.remove('open');if(!document.getElementById('det-modal').classList.contains('open'))_unlockBody();}}
 function hkOverlayOpen(){
   var o=document.getElementById('hk-overlay'),body=document.getElementById('hk-body');
   if(!o)return;
@@ -12696,7 +12748,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   <div class="hk-card">
     <div class="hk-head"><h3>Keyboard shortcuts</h3><button class="hk-close" onclick="hkOverlayClose()" aria-label="Close">&#215;</button></div>
     <div id="hk-body"></div>
-    <div class="hk-foot">Views are numbered in the order the Views menu lists them. Keys are ignored while you are typing in a search or filter box.</div>
+    <div class="hk-foot">Views are numbered in the order the Views menu lists them, and a ticker popup's sections in the order of its tabs. Keys are ignored while you are typing in a search or filter box.</div>
   </div>
 </div>
 <!-- Portfolios: the Manage / Save-filter dialog and the detail popup's
