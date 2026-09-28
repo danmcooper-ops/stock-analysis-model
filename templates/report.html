@@ -2103,6 +2103,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   --rt-buy-bg:#137333;--rt-buy-fg:#fff;--rt-lean-bg:#e3f1e6;--rt-lean-fg:#0d5a26;
   --rt-hold-bg:#ecebe8;--rt-hold-fg:#46443f;--rt-sell-bg:#fbe4e2;--rt-sell-fg:#9c1f18;
   --chrome-heading:#1b1a19;--chrome-muted:#5f5d59;
+  --tab-line:#d9d7d2;--tab-hover-line:#b9b6af;
 }
 [data-theme="dark"]{
   color-scheme:dark;
@@ -2118,6 +2119,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   --rt-buy-bg:#238636;--rt-buy-fg:#fff;--rt-lean-bg:#12361f;--rt-lean-fg:#56d364;
   --rt-hold-bg:#262c36;--rt-hold-fg:#c9d1d9;--rt-sell-bg:#3d1418;--rt-sell-fg:#ff7b72;
   --chrome-heading:#e6edf3;--chrome-muted:#8b949e;
+  --tab-line:#30363d;--tab-hover-line:#484f58;
 }
 html body .sa-chrome,html body .sa-chrome *{color:var(--sac) !important;}
 .sa-chrome svg{flex-shrink:0;}
@@ -2235,19 +2237,20 @@ html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
 .header .filt-btn-label{display:inline;}
 .hdr-qr button:focus-visible,.hdr-menu:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 
-/* ---- view heading + sub-tab chips ---- */
-#subnav{--sac:var(--chrome-heading);position:sticky;box-sizing:border-box;max-width:100%;padding:10px 0 8px;display:flex;flex-direction:column;gap:8px;}
+/* ---- view heading + sub-tabs (underline tabs: text on a hairline, the
+   current one marked by an accent bar, like the ticker page's #d-tabs) ---- */
+#subnav{--sac:var(--chrome-heading);position:sticky;box-sizing:border-box;max-width:100%;padding:10px 0 8px;display:flex;flex-direction:column;gap:6px;}
 body.wide-table #subnav{padding-left:20px;padding-right:20px;}
 .sn-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
 .sn-title{font-size:20px;font-weight:800;letter-spacing:-.5px;text-transform:uppercase;line-height:1.05;margin:0;}
 .sn-crumb{--sac:var(--chrome-muted);font-size:12.5px;}
 .sn-date{--sac:var(--chrome-muted);font-size:12px;margin-left:auto;white-space:nowrap;}
-.sn-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:1px 0;}
+.sn-chips{display:flex;gap:22px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;border-bottom:1px solid var(--tab-line);}
 .sn-chips::-webkit-scrollbar{display:none;}
-.sn-chip{--sac:var(--chip-fg);flex-shrink:0;height:26px;padding:0 11px;border-radius:13px;border:1px solid var(--chip-border);background:var(--chip-bg);font:inherit;font-size:12.5px;white-space:nowrap;cursor:pointer;}
-.sn-chip:hover{border-color:var(--chip-on-bg);}
-.sn-chip.cur{--sac:var(--chip-on-fg);background:var(--chip-on-bg);border-color:var(--chip-on-bg);font-weight:700;}
-.sn-chip:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:2px;}
+.sn-chip{--sac:var(--chrome-muted);flex-shrink:0;height:34px;padding:0 2px;border:0;border-radius:0;background:none;font:inherit;font-size:13px;font-weight:500;white-space:nowrap;cursor:pointer;}
+.sn-chip:hover{--sac:var(--chrome-heading);box-shadow:inset 0 -2px 0 var(--tab-hover-line);}
+.sn-chip.cur{--sac:var(--chrome-heading);font-weight:700;box-shadow:inset 0 -3px 0 var(--chrome-accent);}
+.sn-chip:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 .sn-chips:empty{display:none;}
 
 /* ---- iPad portrait / narrow desktop: rail; the full sidebar overlays ---- */
@@ -2272,8 +2275,8 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
   #subnav{padding:8px 0 6px;gap:6px;}
   .sn-title{font-size:17px;}
   .sn-crumb{display:none;}
-  .sn-chips{margin-right:-6px;}
-  .sn-chip{height:28px;padding:0 11px;}
+  .sn-chips{margin-right:-6px;gap:18px;}
+  .sn-chip{height:38px;}
 }
 /* ---- phones, both orientations: the dark Seeking Alpha iOS top bar ---- */
 @media(max-width:768px),(orientation:landscape) and (max-height:500px){
@@ -2313,7 +2316,7 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
   .header{padding:calc(4px + env(safe-area-inset-top)) 12px 4px 6px;}
   #subnav{padding:6px 0;gap:6px;}
   .sn-head{display:none;}
-  .sn-chip{height:26px;font-size:12.5px;}
+  .sn-chip{height:32px;}
 }
 @media(hover:none) and (pointer:coarse){ #sidebar .navmenu-key{display:none;}.hdr-kbd{display:none;}}
 @media(prefers-reduced-motion:reduce){ #sidebar{transition:none;}}
