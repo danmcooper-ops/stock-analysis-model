@@ -2378,10 +2378,22 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 .d-tab.cur{--sac:var(--chrome-heading);font-weight:700;box-shadow:inset 0 -3px 0 var(--chrome-heading);}
 .d-tab:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 .d-tab-sep{flex-shrink:0;width:1px;margin:12px 6px;background:var(--chip-border);}
+/* Finances: the statement switch at the top of #d-pane-stmt, in the same
+   underline style as the #subnav sub-tabs, one size down. */
+.d-stmt-tabs{--sac:var(--chrome-muted);display:flex;gap:20px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--tab-line);}
+.d-stmt-tabs::-webkit-scrollbar{display:none;}
+.d-stmt-tab{flex-shrink:0;height:32px;padding:0 2px;border:0;border-radius:0;background:none;font:inherit;font-size:13px;font-weight:500;white-space:nowrap;cursor:pointer;}
+.d-stmt-tab:hover{--sac:var(--chrome-heading);box-shadow:inset 0 -2px 0 var(--tab-hover-line);}
+.d-stmt-tab.cur{--sac:var(--chrome-heading);font-weight:700;box-shadow:inset 0 -3px 0 var(--chrome-accent);}
+.d-stmt-tab:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 #det-modal .d-body{padding:14px 24px calc(24px + env(safe-area-inset-bottom)) !important;background:var(--bg);}
 /* Cards: plain uppercase headings in place of the gradient title bars. */
 #det-modal .dgroup{border-radius:14px;box-shadow:none;border:1px solid var(--border);background:var(--surface);}
 #det-modal .dgroup-title{background:none !important;color:var(--chrome-heading);text-shadow:none;font-size:.9em;letter-spacing:.06em;padding:16px 20px 6px;}
+/* The title band lost its dark gradient above, so the statements' PDF button
+   (white-on-band by default) takes the chrome colours or it vanishes in light. */
+#det-modal .stmt-pdf-btn{color:var(--chrome-heading);background:var(--chip-bg);border-color:var(--chip-border);}
+#det-modal .stmt-pdf-btn:hover{border-color:var(--chrome-heading);}
 #det-modal .dgroup-title .dg-icon{display:none;}
 /* Chart controls sit in the open, Seeking Alpha's 1D…MAX row, instead of
    behind the ☰ chart menu (the ticker page has the width for them). */
@@ -7778,6 +7790,12 @@ var DT_STMTS=[
   {k:'inc',l:'Income Statement'},
   {k:'cf', l:'Cash Flow Statement'}
 ];
+/* The three statements share ONE tab, Finances, right after Summary; a
+   switch at the top of its pane picks the statement. _detStmt remembers the
+   pick across tickers and tab changes. swDetTab still accepts a statement
+   key ('bal'/'inc'/'cf') and lands on Finances showing that statement. */
+var DT_FIN={k:'fin',l:'Finances'};
+var _detStmt=DT_STMTS[0].k;
 function _detDataItems(){
   var t=[];
   /* Peers and News are not DT_TABS data tabs — their panes (#d-pane-peers /
@@ -7792,6 +7810,7 @@ function _detDataItems(){
    left to answer "where am I". */
 function _detGroupOf(k){
   if(k==='overview')return null;
+  if(k===DT_FIN.k)return 'stmt';
   for(var i=0;i<DT_STMTS.length;i++)if(DT_STMTS[i].k===k)return 'stmt';
   return 'data';
 }
@@ -7799,8 +7818,7 @@ function _detMenuItems(){
   /* The Charts tab is retired — its Fundamental Charts block now sits at the
      top of Overview (and the duplicate Price History chart it sat above is
      gone; the price series is the block's default metric). */
-  return [{k:'overview',l:'Overview'}]
-    .concat(_detDataItems()).concat(DT_STMTS);
+  return [{k:'overview',l:'Overview'},DT_FIN].concat(_detDataItems());
 }
 function _renderDetTabBar(){
   /* The underlined section tabs, plus the back link naming where the page
@@ -7810,7 +7828,6 @@ function _renderDetTabBar(){
   if(tb){
     var h='';
     _detMenuItems().forEach(function(it){
-      if(it.k===DT_STMTS[0].k)h+='<span class="d-tab-sep" aria-hidden="true"></span>';
       var on=it.k===_detTab;
       h+='<button type="button" class="d-tab'+(on?' cur':'')+'" role="tab" aria-selected="'+(on?'true':'false')+'" data-dtab="'+_attr(it.k)+'">'+esc(it.k==='overview'?'Summary':it.l)+'</button>';
     });
@@ -7834,13 +7851,11 @@ function _renderDetTabBar(){
 function _renderDetMenu(){
   var el=document.getElementById('d-menu-all');if(!el)return;
   el.innerHTML=_detMenuItems().map(function(it){
-    /* Seams: group heads before the metric tabs and the filed statements; a
-       plain rule above Peers, which with News is a different kind of thing
-       from the metric tabs. */
+    /* Seams: a group head before the metric tabs; a plain rule above Peers,
+       which with News is a different kind of thing from the metric tabs. */
     var pre='';
     if(it.k==='sect')pre='<div class="dtb-head">Data</div>';
     else if(it.k==='peers')pre='<div class="dtb-sep"></div>';
-    else if(it.k===DT_STMTS[0].k)pre='<div class="dtb-head">Statements</div>';
     return pre+'<button class="dtb-item'+(it.k===_detTab?' active':'')+'" role="menuitem"'
       +' data-dtab="'+_attr(it.k)+'">'+esc(it.l)+'</button>';
   }).join('');
@@ -7883,6 +7898,8 @@ function toggleDetMenu(e){
 document.addEventListener('click',function(e){
   var it=e.target.closest?e.target.closest('.dtb-menu [data-dtab],#d-tabs [data-dtab]'):null;
   if(it){swDetTab(it.getAttribute('data-dtab'));return;}
+  var sw=e.target.closest?e.target.closest('#d-pane-stmt [data-dstmt]'):null;
+  if(sw){_detStmt=sw.getAttribute('data-dstmt');_renderDetStmtTab(_detStmt);return;}
   /* Any click that isn't on the hamburger or inside the menu closes it. */
   if(e.target.closest&&e.target.closest('.detail-menu-btn'))return;
   closeDetMenus();
@@ -7890,6 +7907,7 @@ document.addEventListener('click',function(e){
 window.addEventListener('resize',function(){closeDetMenus();});
 function swDetTab(k){
   closeDetMenus();
+  for(var si=0;si<DT_STMTS.length;si++)if(DT_STMTS[si].k===k){_detStmt=k;k=DT_FIN.k;}
   _detTab=k;
   _renderDetTabBar();
   document.querySelectorAll('#det-modal .d-pane').forEach(function(p){p.classList.remove('active');});
@@ -7905,7 +7923,7 @@ function swDetTab(k){
     var ns=document.getElementById(k==='peers'?'d-section-network':'d-section-news');
     if(ne&&ns)ne.style.display=(ns.style.display==='none')?'':'none';
   }
-  else if(_detGroupOf(k)==='stmt')_renderDetStmtTab(k);
+  else if(_detGroupOf(k)==='stmt')_renderDetStmtTab(_detStmt);
   else if(k!=='overview')_renderDetDataTab(k);
   var sc=_detScroller();if(sc)sc.scrollTop=0;
 }
@@ -8474,8 +8492,17 @@ function _stmtSpec(key,h,d){
     {l:'Shares outstanding (period end)',drv:1,get:function(k){var best=null,bd=1e9,t=Date.parse(k);Object.keys(sh).forEach(function(kk){var dd=Math.abs(Date.parse(kk)-t)/864e5;if(dd<bd){bd=dd;best=sh[kk];}});return bd<=220?best:null;},fmt:_fmtShr}
   ],note:'Presented in ASC 210 / Reg S-X Rule 5-02 classified order. Total assets and total liabilities and shareholders’ equity are both taken from the filing and should agree. Noncontrolling interests, where the filer reports them, sit beneath total shareholders’ equity with a total-equity line following, per ASC 810. Rows marked † are derived where the filer did not tag the caption. Filers presenting an UNCLASSIFIED balance sheet — banks and most insurers — tag no current assets or liabilities, so those captions and the ratios built on them are absent by design. Period-end share count is as filed and therefore not restated for stock splits; use the per-share figures on the income statement, which are.'};
 }
+function _stmtSwitchHtml(key){
+  return '<div class="d-stmt-tabs sa-chrome" role="tablist" aria-label="Statement">'+DT_STMTS.map(function(m){
+    var on=m.k===key;
+    return '<button type="button" class="d-stmt-tab'+(on?' cur':'')+'" role="tab" aria-selected="'+(on?'true':'false')+'" data-dstmt="'+_attr(m.k)+'">'+esc(m.l)+'</button>';
+  }).join('')+'</div>';
+}
 function _renderDetStmtTab(key){
-  var el=document.getElementById('d-pane-stmt');if(!el)return;
+  var pane=document.getElementById('d-pane-stmt');if(!pane)return;
+  /* Every state (loading, empty, the statement) sits under the Finances
+     switch, so the other two statements are always one tap away. */
+  var el={set innerHTML(h){pane.innerHTML=_stmtSwitchHtml(key)+h;}};
   var d=DATA.find(function(x){return x.ticker===_dpTicker;});
   var meta=null;for(var i=0;i<DT_STMTS.length;i++)if(DT_STMTS[i].k===key)meta=DT_STMTS[i];
   if(!d||!meta){el.innerHTML='';return;}
@@ -8486,7 +8513,7 @@ function _renderDetStmtTab(key){
   if(_histPending(_dpTicker)){
     el.innerHTML=empty('Loading filed financials&hellip;');
     var tk=_dpTicker;
-    _ensureHist([tk],function(){if(_dpTicker===tk&&_detTab===key)_renderDetStmtTab(key);});
+    _ensureHist([tk],function(){if(_dpTicker===tk&&_detTab===DT_FIN.k&&_detStmt===key)_renderDetStmtTab(key);});
     return;
   }
   var h=HIST[_dpTicker];
