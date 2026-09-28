@@ -2483,6 +2483,105 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 html.sb-over #sidebar,html.sb-drawer #sidebar{z-index:1310;}
 html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 </style>
+<style id="pro-css">
+/* === PROFILE tab (ticker page) — the one-page company profile ============
+   Dense on purpose: every decision-relevant number for one company, led by
+   the verdict. Kept in its own <style> element because exportProfilePdf()
+   copies this sheet verbatim into the print frame, so paper and screen are
+   one layout. Semantic colours go through --pro-pos/--pro-neg/--pro-warn so
+   the dark overrides at the end restore them past the blanket
+   `[data-theme="dark"] body *{color:#fff !important}` rule. */
+.pro{--pro-pos:#1a7f37;--pro-neg:#c62828;--pro-warn:#9a6700;--pro-line:var(--border);--pro-bar:#2f6fb3;--pro-bar-soft:#9dbfe3;
+  font-size:12px;line-height:1.35;color:var(--text);background:var(--surface);padding:14px 16px;border-radius:8px;}
+.pro-tools{display:flex;justify-content:flex-end;margin:-4px 0 6px;}
+.pro-print-btn{font:inherit;font-size:11.5px;font-weight:600;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;}
+.pro-print-btn:hover{border-color:var(--accent);}
+.pro-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px;border-bottom:2px solid var(--text);padding-bottom:5px;margin-bottom:8px;}
+.pro-head h2{font-size:17px;margin:0;font-weight:800;}
+.pro-meta{color:var(--text-muted);}
+.pro-facts{display:flex;flex-wrap:wrap;gap:2px 14px;font-variant-numeric:tabular-nums;width:100%;}
+.pro-facts span{white-space:nowrap;color:var(--text-muted);}
+.pro-facts b{color:var(--text);font-weight:700;}
+.pro-rng{display:inline-block;position:relative;width:70px;height:6px;border-radius:3px;background:var(--pro-line);vertical-align:middle;margin:0 4px;}
+.pro-rng i{position:absolute;top:-2px;width:3px;height:10px;margin-left:-1.5px;border-radius:1px;background:var(--text);}
+.pro-verdict{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 16px;border:1.5px solid var(--pro-vc);border-left-width:6px;border-radius:6px;padding:9px 12px;margin-bottom:10px;}
+.pro-v-inv{--pro-vc:var(--pro-pos);}
+.pro-v-wat{--pro-vc:var(--pro-warn);}
+.pro-v-avo{--pro-vc:var(--pro-neg);}
+.pro-v-na{--pro-vc:var(--text-muted);}
+.pro-vcol{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:110px;}
+.pro-vlabel{font-size:22px;font-weight:900;letter-spacing:.02em;line-height:1.1;color:var(--pro-vc);}
+.pro-conv{font-size:10.5px;color:var(--text-muted);}
+.pro-meter{display:block;width:100px;height:5px;border-radius:3px;background:var(--pro-line);overflow:hidden;}
+.pro-meter i{display:block;height:100%;background:var(--pro-vc);}
+.pro-headline{font-size:13.5px;font-weight:700;align-self:center;}
+.pro-keys{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:2px 16px;font-variant-numeric:tabular-nums;color:var(--text-muted);}
+.pro-keys b{color:var(--text);}
+.pro-pc{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 18px;margin-top:2px;}
+.pro-pc h5{margin:2px 0 1px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);}
+.pro-pc ul{margin:0;padding:0;list-style:none;}
+.pro-pc li{padding-left:15px;position:relative;margin:1px 0;}
+.pro-pc li::before{position:absolute;left:0;font-weight:800;}
+.pro-pros li::before{content:'\2713';color:var(--pro-pos);}
+.pro-cons li::before{content:'\2717';color:var(--pro-neg);}
+.pro-flags{grid-column:1/-1;}
+.pro-need{grid-column:1/-1;font-size:11px;color:var(--text-muted);}
+.pro-flags li::before{content:'\26A0';color:var(--pro-neg);}
+.pro-flags li{font-weight:700;}
+.pro-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 16px;}
+.pro-b{min-width:0;break-inside:avoid;page-break-inside:avoid;}
+.pro-wides{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+.pro-b h4{margin:0 0 2px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);border-bottom:1px solid var(--text-muted);padding-bottom:1px;}
+.pro-kv{display:flex;align-items:baseline;gap:6px;padding:1px 0;border-bottom:1px dotted var(--pro-line);}
+.pro-k{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-muted);}
+.pro-val{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.pro-sub{font-size:10px;color:var(--text-muted);white-space:nowrap;min-width:62px;text-align:right;font-variant-numeric:tabular-nums;}
+.pro .pos{color:var(--pro-pos);}
+.pro .neg{color:var(--pro-neg);}
+.pro-ff{display:block;width:100%;max-width:420px;height:auto;margin-top:4px;}
+.pro-ff text{fill:var(--text-muted);font-size:10.5px;font-family:inherit;}
+.pro-ff .ff-bar{fill:var(--pro-bar-soft);}
+.pro-ff .ff-mid{fill:var(--pro-bar);}
+.pro-ff .ff-px{stroke:var(--text);stroke-width:1.5;}
+.pro-ff .ff-fv{stroke:var(--pro-pos);stroke-width:1.5;stroke-dasharray:3 2;}
+.pro-ff .ff-grid{stroke:var(--pro-line);stroke-width:1;}
+.pro-ff text.ff-lbl{fill:var(--text);}
+.pro-ff text.ff-pxl{fill:var(--text);font-weight:700;}
+.pro-ff text.ff-fvl{fill:var(--pro-pos);font-weight:700;}
+.pro-ff g:hover .ff-bar{fill:var(--pro-bar);}
+.pro-hwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.pro-hist{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:11px;}
+.pro-hist th{font-size:10px;font-weight:600;color:var(--text-muted);text-align:right;padding:1px 4px;border-bottom:1px solid var(--text-muted);}
+.pro-hist th:first-child,.pro-hist td:first-child{text-align:left;color:var(--text-muted);white-space:nowrap;}
+.pro-hist td{text-align:right;padding:1px 4px;border-bottom:1px dotted var(--pro-line);white-space:nowrap;}
+.pro-hist td.pro-tr{font-weight:700;}
+.pro-spark{display:block;width:44px;height:12px;margin-left:auto;}
+.pro-spark polyline{fill:none;stroke:var(--pro-bar);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round;}
+.pro-sc{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:4px 12px;}
+.pro-sc-cat{font-size:10.5px;font-weight:700;margin-bottom:1px;}
+.pro-sc-cat span{font-weight:400;color:var(--text-muted);}
+.pro-g{display:inline-block;font-size:10px;line-height:1.3;padding:0 4px;margin:0 2px 2px 0;border-radius:3px;border:1px solid var(--pro-line);color:var(--text-muted);}
+.pro-g.pass{border-color:var(--pro-pos);color:var(--pro-pos);}
+.pro-g.fail{border-color:var(--pro-neg);color:var(--pro-neg);}
+.pro-g.pass::before{content:'\2713 ';}
+.pro-g.fail::before{content:'\2717 ';}
+.pro-g.na::before{content:'\2013 ';}
+.pro-list{margin:0;padding-left:14px;}
+.pro-list li{margin:1px 0;}
+.pro-foot{margin-top:8px;padding-top:4px;border-top:1px solid var(--pro-line);font-size:9.5px;color:var(--text-muted);}
+.pro-empty{color:var(--text-muted);padding:18px;text-align:center;}
+[data-theme="dark"] .pro{--pro-pos:#7ee787;--pro-neg:#ff7b72;--pro-warn:#ffd33d;--pro-bar:#79b8ff;--pro-bar-soft:#2c4f78;}
+[data-theme="dark"] #d-profile :where(.pro-need,.pro-meta,.pro-facts span,.pro-conv,.pro-keys,.pro-pc h5,.pro-b h4,.pro-k,.pro-sub,.pro-hist th,.pro-hist td:first-child,.pro-sc-cat span,.pro-g,.pro-foot,.pro-empty){color:var(--text-muted) !important;}
+[data-theme="dark"] #d-profile :where(.pro-facts b,.pro-keys b,.pro-val,.pro-headline,.pro-hist td,.pro-sc-cat,.pro-list li,.pro-flags li,.pro-print-btn){color:var(--text) !important;}
+[data-theme="dark"] #d-profile .pro-vlabel{color:var(--pro-vc) !important;}
+[data-theme="dark"] #d-profile .pos,[data-theme="dark"] #d-profile .pro-g.pass,[data-theme="dark"] #d-profile .pro-pros li::before{color:var(--pro-pos) !important;}
+[data-theme="dark"] #d-profile .neg,[data-theme="dark"] #d-profile .pro-g.fail,[data-theme="dark"] #d-profile .pro-cons li::before,[data-theme="dark"] #d-profile .pro-flags li::before{color:var(--pro-neg) !important;}
+@media (max-width:768px){
+  .pro{padding:10px 10px;}
+  .pro-verdict{grid-template-columns:minmax(0,1fr);}
+  .pro-pc{grid-template-columns:minmax(0,1fr);}
+}
+</style>
 </head>
 <body>
 <div class="header">
@@ -2709,6 +2808,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
       <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
       </div><!-- /d-pane-overview -->
+      <div id="d-pane-profile" class="d-pane"><div id="d-profile"></div></div>
       <div id="d-pane-peers" class="d-pane">
         <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
         <div id="d-peers-empty" style="display:none;color:#888;padding:24px;text-align:center;font-size:0.88em">No peers or supply-chain data for this company.</div>
@@ -7693,6 +7793,391 @@ function _renderTrackRecord(d){
   el.innerHTML=html;
   sec.style.display='';
 }
+/* === PROFILE (ticker page) — the one-page company profile ================
+   Every decision-relevant number for one company on one dense page, led by
+   the rule-based verdict models/profile_verdict.py computes at render time
+   (d.profile, shipped in the details/ parts, so it lands with them). The
+   numbers are the row's own; nothing here re-derives a model. Colour marks
+   good/bad at the thresholds the Data-tab summaries and gates already use,
+   and always sits beside the number, never alone. exportProfilePdf() prints
+   the same markup on one sheet. */
+var DT_PROFILE={k:'profile',l:'Profile'};
+var _PRO_VCLS={'INVEST':'pro-v-inv','WATCH':'pro-v-wat','AVOID':'pro-v-avo','INSUFFICIENT DATA':'pro-v-na'};
+function _proFmt(v,f){
+  if(f==='raw')return v==null||v===''?null:String(v);
+  var n=_num(v);if(n==null)return null;
+  switch(f){
+    case 'pct':return (n*100).toFixed(1)+'%';
+    case 'pct0':return (n*100).toFixed(0)+'%';
+    case 'spct':return (n>=0?'+':'')+(n*100).toFixed(1)+'%';
+    case 'x':return Math.abs(n)>=1000?(n<0?'<-999×':'>999×'):n.toFixed(1)+'×';
+    case 'usd':return (n<0?'-$':'$')+(Math.abs(n)>=100?Math.round(Math.abs(n)).toLocaleString():Math.abs(n).toFixed(2));
+    case 'big':return fds(n);
+    case 'n2':return n.toFixed(2);
+    case 'n1':return n.toFixed(1);
+    case 'int':return Math.round(n).toLocaleString();
+  }
+  return String(n);
+}
+/* One label/value line; '' when the value is absent, so a block whose every
+   line is absent disappears. tone: 1 good, -1 bad. sub: a muted note (the
+   sector median, a range). Label and note are escaped; the value is ours. */
+function _proKv(l,v,f,tone,sub){
+  var s=_proFmt(v,f);if(s==null)return'';
+  return '<div class="pro-kv"><span class="pro-k" title="'+_attr(l)+'">'+esc(l)+'</span><span class="pro-val'+(tone>0?' pos':tone<0?' neg':'')+'">'+esc(s)+'</span>'+(sub?'<span class="pro-sub">'+esc(sub)+'</span>':'')+'</div>';
+}
+/* Tone from two thresholds: hi = good at/above, lo = bad below (inv flips). */
+function _proT(v,good,bad,inv){
+  var n=_num(v);if(n==null)return 0;
+  if(inv)return n<=good?1:n>bad?-1:0;
+  return n>=good?1:n<bad?-1:0;
+}
+function _proBlock(t,inner,cls){return inner?'<section class="pro-b'+(cls?' '+cls:'')+'"><h4>'+esc(t)+'</h4>'+inner+'</section>':'';}
+function _proMed(p,k,f){var m=p&&p.med?p.med[k]:null;var s=_proFmt(m,f);return s?'sector '+s:'';}
+/* A multiple against its sector median: cheap (<=80%) good, rich (>=125%) bad. */
+function _proRel(v,p,k){var n=_num(v),m=p&&p.med?_num(p.med[k]):null;if(n==null||m==null||n<=0||m<=0)return 0;var r=n/m;return r<=0.8?1:r>=1.25?-1:0;}
+/* Fair-value range ("football field"): one row per model, a bar from its low
+   to its high case and a dot at its point estimate, against the price (solid
+   line) and the effective fair value (dashed). One hue: the rows are one
+   measure, identified by their labels. Values past 4x the price are clipped
+   (marked with an arrow) so one wild model cannot flatten the rest. */
+function _proFootball(d){
+  var px=_num(d.price);if(!px||px<=0)return'';
+  var rows=[];
+  var add=function(l,lo,hi,mid){
+    lo=_num(lo);hi=_num(hi);mid=_num(mid);
+    if(lo==null&&hi==null&&mid==null)return;
+    if(lo==null)lo=mid!=null?mid:hi;
+    if(hi==null)hi=mid!=null?mid:lo;
+    if(lo>hi){var t=lo;lo=hi;hi=t;}
+    if(hi<=0)return;
+    rows.push({l:l,lo:Math.max(lo,0),hi:hi,mid:mid!=null&&mid>0?mid:null});
+  };
+  var sr=Array.isArray(d.dcf_sens_range)?d.dcf_sens_range:[];
+  add('DCF',sr[0],sr[1],d.dcf_fv);
+  add('Monte Carlo',d.mc_p10_fv,d.mc_p90_fv,null);
+  if(d.ddm_eligible)add('DDM',d.ddm_mc_p10,d.ddm_mc_p90,d.ddm_fv);
+  add('EPV',d.epv_fv,d.epv_growth_fv,d.epv_fv);
+  add('RIM',null,null,d.rim_fv);
+  add('NAV',null,null,d.nav_fv);
+  add('Analysts',d.target_low,d.target_high,d.target_mean);
+  add('52 weeks',d.low_52w,d.high_52w,null);
+  if(!rows.length)return'';
+  var cap=px*4,fv=_num(d._fv_effective),lo=px,hi=px;
+  rows.forEach(function(r){lo=Math.min(lo,r.lo);hi=Math.max(hi,Math.min(r.hi,cap));});
+  if(fv&&fv>0){lo=Math.min(lo,fv);hi=Math.max(hi,Math.min(fv,cap));}
+  var pad=(hi-lo)*0.04||px*0.1;lo=Math.max(0,lo-pad);hi=hi+pad;
+  var W=280,LW=66,RW=8,rh=17,top=2,H=top+rows.length*rh+16;
+  var x=function(v){return (LW+(Math.min(Math.max(v,lo),hi)-lo)/(hi-lo)*(W-LW-RW)).toFixed(1);};
+  var money=function(v){return _proFmt(v,'usd');};
+  var s='<svg class="pro-ff" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Fair value range by model against the price">';
+  [0.25,0.5,0.75].forEach(function(f){var gx=(LW+f*(W-LW-RW)).toFixed(1);s+='<line class="ff-grid" x1="'+gx+'" x2="'+gx+'" y1="'+top+'" y2="'+(H-12)+'"/>';});
+  rows.forEach(function(r,i){
+    var y=top+i*rh,cy=y+rh/2,x0=+x(r.lo),x1=+x(Math.min(r.hi,cap));
+    var w=Math.max(x1-x0,4);
+    var tip=r.l+': '+(r.lo===r.hi?money(r.lo):money(r.lo)+' – '+money(r.hi))+(r.mid!=null&&r.lo!==r.hi?' (point '+money(r.mid)+')':'');
+    s+='<g><title>'+esc(tip)+'</title><rect x="0" y="'+y+'" width="'+W+'" height="'+rh+'" fill="transparent"/>';
+    s+='<text class="ff-lbl" x="0" y="'+(cy+3)+'">'+esc(r.l)+'</text>';
+    s+='<rect class="ff-bar" x="'+(x0-(w-(x1-x0))/2).toFixed(1)+'" y="'+(cy-4)+'" width="'+w.toFixed(1)+'" height="8" rx="4"/>';
+    if(r.mid!=null)s+='<circle class="ff-mid" cx="'+x(r.mid)+'" cy="'+cy+'" r="4"/>';
+    if(r.hi>cap)s+='<text x="'+(W-RW+1)+'" y="'+(cy+3)+'">›</text>';
+    s+='</g>';
+  });
+  var yb=H-12;
+  s+='<line class="ff-px" x1="'+x(px)+'" x2="'+x(px)+'" y1="'+top+'" y2="'+yb+'"/>';
+  if(fv&&fv>0&&fv<=cap)s+='<line class="ff-fv" x1="'+x(fv)+'" x2="'+x(fv)+'" y1="'+top+'" y2="'+yb+'"/>';
+  var pxX=+x(px),fvX=fv&&fv>0&&fv<=cap?+x(fv):null;
+  /* Labels under the axis; nudge apart when price and fair value sit close. */
+  var pxA=pxX>W-40?'end':pxX<LW+30?'start':'middle',fvA=fvX!=null?(fvX>W-40?'end':fvX<LW+30?'start':'middle'):null;
+  if(fvX!=null&&Math.abs(fvX-pxX)<70){if(fvX>=pxX){pxA='end';fvA='start';}else{pxA='start';fvA='end';}}
+  s+='<text class="ff-pxl" x="'+pxX+'" y="'+(H-2)+'" text-anchor="'+pxA+'">Price '+esc(money(px))+'</text>';
+  if(fvX!=null)s+='<text class="ff-fvl" x="'+fvX+'" y="'+(H-2)+'" text-anchor="'+fvA+'">FV '+esc(money(fv))+'</text>';
+  return s+'</svg>';
+}
+/* Ten-year strip from the hist/<T>.json shard (SEC EDGAR annual filings):
+   the last 8 fiscal years, a trend column and a sparkline per line. Same
+   series and fiscal-year dedupe as the Track Record table. */
+function _proSpark(vals){
+  var p=[],n=0;vals.forEach(function(v){if(v!=null)n++;});
+  if(n<3)return'';
+  var mn=Infinity,mx=-Infinity;vals.forEach(function(v){if(v!=null){mn=Math.min(mn,v);mx=Math.max(mx,v);}});
+  var rg=mx-mn||1;
+  vals.forEach(function(v,i){if(v!=null)p.push((i*(44-2)/(vals.length-1)+1).toFixed(1)+','+(11-(v-mn)/rg*10).toFixed(1));});
+  return '<svg class="pro-spark" viewBox="0 0 44 12" aria-hidden="true"><polyline points="'+p.join(' ')+'"/></svg>';
+}
+function _proHistHtml(d){
+  var h=HIST[d.ticker];if(!h)return'';
+  var rev=h.rev||{},ni=h.ni||{},ocf=h.ocf||{},capex=h.capex||{},sh=h.shares||{},db=h.debt||{},csh=h.cash||{},op=h.op||{};
+  var roicY=d.roic_by_year||{},fin=d.sector==='Financial Services';
+  var ks={};[rev,ni,ocf].forEach(function(s){Object.keys(s).forEach(function(k){ks[k]=1;});});
+  var by={};Object.keys(ks).sort().forEach(function(k){by[k.slice(0,4)]=k;});
+  var cols=Object.keys(by).sort().map(function(y){return by[y];}).slice(-8);
+  if(cols.length<2)return'';
+  var byYr=function(s,k){if(s[k]!=null)return s[k];var y=k.slice(0,4);for(var kk in s){if(kk.slice(0,4)===y)return s[kk];}return null;};
+  var near=function(s,ds,tol){var best=null,bd=1e9,t=Date.parse(ds);Object.keys(s).forEach(function(k){var dd=Math.abs(Date.parse(k)-t)/864e5;if(dd<bd){bd=dd;best=s[k];}});return bd<=tol?best:null;};
+  var pct=function(v){return (v*100).toFixed(1)+'%';};
+  var rows=[
+    {l:'Revenue',g:function(k){return rev[k];},f:fds,t:'cagr'},
+    {l:'Operating income',g:function(k){return byYr(op,k);},f:fds,t:'cagr'},
+    {l:'Op margin',g:function(k){var o=byYr(op,k);return o!=null&&rev[k]?o/rev[k]:null;},f:pct,t:'pp'},
+    {l:'Net income',g:function(k){return ni[k];},f:fds,t:'cagr'},
+    {l:'Free cash flow',g:function(k){var o=ocf[k],c=capex[k];return o!=null&&c!=null?o-Math.abs(c):null;},f:fds,t:'cagr'},
+    {l:'ROIC',g:function(k){return roicY[k.slice(0,4)];},f:pct,t:'pp'},
+    {l:'Shares out',g:function(k){return near(sh,k,220);},f:_trFmtSh,t:'chg',inv:true},
+    {l:'Net debt',g:function(k){return db[k]!=null&&csh[k]!=null?db[k]-csh[k]:null;},f:fds,t:'delta',inv:true,neut:fin}
+  ];
+  var html='<div class="pro-hwrap"><table class="pro-hist"><tr><th></th>';
+  cols.forEach(function(k){html+='<th>FY'+k.slice(2,4)+'</th>';});
+  html+='<th>Trend</th><th></th></tr>';
+  var shown=0;
+  rows.forEach(function(r){
+    var vals=cols.map(function(k){var v=_num(r.g(k));return v;});
+    var nn=vals.filter(function(v){return v!=null;});
+    if(nn.length<2)return;
+    shown++;
+    var f=nn[0],l=nn[nn.length-1],tr='—',tone=0,span=0;
+    for(var i=0,a=-1,b=-1;i<vals.length;i++){if(vals[i]!=null){if(a<0)a=i;b=i;}}span=b-a;
+    if(r.t==='pp'){var pp=(l-f)*100;tr=(pp>0?'+':'')+pp.toFixed(1)+'pp';tone=pp>0?1:pp<0?-1:0;}
+    else if(r.t==='delta'){var dl=l-f;tr=(dl>0?'+':'')+fds(dl);tone=dl<0?1:dl>0?-1:0;}
+    else if(r.t==='chg'){if(f!==0){var ch=l/f-1;tr=(ch>0?'+':'')+(ch*100).toFixed(1)+'%';tone=r.inv?(ch<0?1:ch>0.02?-1:0):(ch>0?1:-1);}}
+    else if(f>0&&l>0&&span>0){var cg=Math.pow(l/f,1/span)-1;tr=(cg>0?'+':'')+(cg*100).toFixed(1)+'%/yr';tone=cg>0?1:-1;}
+    if(r.neut)tone=0;
+    html+='<tr><td>'+esc(r.l)+'</td>';
+    vals.forEach(function(v){html+='<td'+(v!=null&&v<0&&r.t!=='delta'?' class="neg"':'')+'>'+(v!=null?esc(r.f(v)):'—')+'</td>';});
+    html+='<td class="pro-tr'+(tone>0?' pos':tone<0?' neg':'')+'">'+esc(tr)+'</td><td>'+_proSpark(vals)+'</td></tr>';
+  });
+  return shown?html+'</table></div>':'';
+}
+function _proScorecard(d){
+  if(typeof GM==='undefined'||!GM||!GM.categories)return'';
+  var h='';
+  GM.categories.forEach(function(c){
+    var gates=GM.gates.filter(function(g){return g.category===c.name;});
+    if(!gates.length)return;
+    var cs=_num(d[c.scoreKey]);
+    h+='<div><div class="pro-sc-cat">'+esc(c.name)+' <span>'+(cs!=null?Math.round(cs)+'%':'—')+' · '+Math.round(c.weight*100)+'% wt</span></div>';
+    gates.forEach(function(g){
+      var pass=d[g.gpKey],raw=_num(d[g.key]);
+      var cls=pass===true?'pass':pass===false?'fail':'na';
+      var val=raw==null?'n/a':g.fmt==='pct1'?(raw*100).toFixed(1)+'%':g.fmt==='ratio'?raw.toFixed(2)+'×':g.fmt==='int'?Math.round(raw)+'':raw.toFixed(2);
+      h+='<span class="pro-g '+cls+'" title="'+_attr(g.label+': '+val+(g.threshold?' · '+g.threshold:''))+'">'+esc(g.label)+'</span>';
+    });
+    h+='</div>';
+  });
+  return h?'<div class="pro-sc">'+h+'</div>':'';
+}
+function _proRisks(d,p){
+  var li=[];
+  var txt=function(x){return typeof x==='string'?x:(x&&x.text)||'';};
+  (d.trap_reasons||[]).forEach(function(r){if(r)li.push('Value trap: '+txt(r));});
+  (d._rating_cap_reasons||[]).forEach(function(r){if(r)li.push('Rating cap: '+txt(r));});
+  var ef=d.edgar_fields_flagged;
+  if(Array.isArray(ef)&&ef.length)li.push('EDGAR data flagged: '+ef.slice(0,4).map(txt).join(', '));
+  if(_num(d.legal_count))li.push(d.legal_count+' legal filing'+(d.legal_count==1?'':'s')+(d.legal_latest?' (latest '+txt(d.legal_latest)+')':''));
+  if(d.employment_legal_flag)li.push('Employment-related legal flag');
+  if(d.layoff_news_signal)li.push('Layoff news in recent headlines');
+  (d.sector_headwinds||[]).slice(0,2).forEach(function(h){var t=txt(h);if(t)li.push('Headwind: '+t);});
+  var tw=(d.sector_tailwinds||[]).slice(0,2).map(txt).filter(Boolean);
+  var h=li.length?'<ul class="pro-list">'+li.map(function(t){return'<li>'+esc(t)+'</li>';}).join('')+'</ul>':'';
+  if(tw.length)h+='<ul class="pro-list">'+tw.map(function(t){return'<li>Tailwind: '+esc(t)+'</li>';}).join('')+'</ul>';
+  return h;
+}
+function _proHtml(d){
+  var p=d.profile||null,fin=d.sector==='Financial Services';
+  var h='<div class="pro">';
+  /* --- Header: identity and the facts a reader orients by --- */
+  var meta=[d.sector,d.industry,d.country].filter(Boolean).map(esc).join(' · ');
+  var facts=[];
+  var fact=function(l,v){if(v)facts.push('<span>'+esc(l)+' <b>'+v+'</b></span>');};
+  fact('Price',_proFmt(d.price,'usd')?esc(_proFmt(d.price,'usd')):'');
+  fact('Mkt cap',_num(d.mcap)!=null?esc(fds(d.mcap)):'');
+  var lo=_num(d.low_52w),hi=_num(d.high_52w),px=_num(d.price);
+  if(lo!=null&&hi!=null&&px!=null&&hi>lo){var pos=Math.max(0,Math.min(1,(px-lo)/(hi-lo)));facts.push('<span>52w '+esc(_proFmt(lo,'usd'))+'<span class="pro-rng" title="'+Math.round(pos*100)+'% of the 52-week range"><i style="left:'+(pos*100).toFixed(0)+'%"></i></span>'+esc(_proFmt(hi,'usd'))+'</span>');}
+  fact('Rating',d.rating?esc(d.rating)+(isCapped(d)?' (capped from '+esc(d.rating_raw)+')':''):'');
+  fact('Composite',_num(d._composite_score)!=null?Math.round(d._composite_score)+'':'');
+  fact('Gates',d._gates_passed?esc(d._gates_passed):'');
+  fact('Next earnings',d.earnings_next_date?esc(d.earnings_next_date)+(d.earnings_date_est?' (est.)':''):'');
+  h+='<div class="pro-head"><h2>'+esc(d.company_name||d.ticker)+' ('+esc(d.ticker)+')</h2><span class="pro-meta">'+meta+'</span>'
+    +(facts.length?'<div class="pro-facts">'+facts.join('')+'</div>':'')+'</div>';
+  /* --- Verdict --- */
+  if(p&&p.v){
+    var conv=_num(p.conv);
+    h+='<div class="pro-verdict '+(_PRO_VCLS[p.v]||'pro-v-na')+'"><div class="pro-vcol"><span class="pro-vlabel">'+esc(p.v)+'</span>'
+      +(conv!=null?'<span class="pro-conv">Conviction '+Math.round(conv)+'/100</span><span class="pro-meter"><i style="width:'+Math.max(0,Math.min(100,conv))+'%"></i></span>':'')
+      +'</div><div class="pro-headline">'+esc(p.head||'')+'</div>';
+    var keys=[];
+    var key=function(l,v){if(v)keys.push('<span>'+esc(l)+' <b>'+esc(v)+'</b></span>');};
+    key('Fair value',_proFmt(d._fv_effective,'usd'));
+    key('Margin of safety',_proFmt(d.mos,'pct'));
+    var up=_num(d._fv_effective)&&px?d._fv_effective/px-1:null;
+    key('Upside to FV',_proFmt(up,'spct'));
+    key('Buy below',_proFmt(p.buy_below,'usd'));
+    key('Analyst target',_proFmt(d.target_mean,'usd'));
+    if(keys.length)h+='<div class="pro-keys">'+keys.join('')+'</div>';
+    if(p.need&&p.need.length)h+='<div class="pro-need">Not an INVEST because '+esc(p.need.join('; '))+'.</div>';
+    if(p.flags&&p.flags.length)h+='<div class="pro-pc pro-flags"><ul>'+p.flags.map(function(t){return'<li>'+esc(t)+'</li>';}).join('')+'</ul></div>';
+    var pros=p.pros||[],cons=p.cons||[];
+    if(pros.length||cons.length){
+      h+='<div class="pro-pc"><div class="pro-pros"><h5>For</h5><ul>'+(pros.length?pros.map(function(t){return'<li>'+esc(t)+'</li>';}).join(''):'<li>Nothing stands out</li>')+'</ul></div>'
+        +'<div class="pro-cons"><h5>Against</h5><ul>'+(cons.length?cons.map(function(t){return'<li>'+esc(t)+'</li>';}).join(''):'<li>Nothing stands out</li>')+'</ul></div></div>';
+    }
+    h+='</div>';
+  }else{
+    h+='<div class="pro-verdict pro-v-na"><div class="pro-vcol"><span class="pro-vlabel">…</span></div><div class="pro-headline">'
+      +(_DETAILS_AVAILABLE&&!_DETAILS_LOADED?'Loading the verdict…':'No verdict in this report (re-render to add it).')+'</div></div>';
+  }
+  /* --- Blocks --- */
+  var g='';
+  var mcr=(_num(d.mc_p10_fv)!=null&&_num(d.mc_p90_fv)!=null)?_proFmt(d.mc_p10_fv,'usd')+' – '+_proFmt(d.mc_p90_fv,'usd'):null;
+  var src={dcf:'DCF',blend:'blend',consensus:'multi-model'}[d._fv_source]||d._fv_source||'';
+  g+=_proBlock('Valuation',
+    _proKv('Fair value (effective)',d._fv_effective,'usd',0,src)
+    +_proKv('Margin of safety',d.mos,'pct',_proT(d.mos,0.15,0))
+    +_proKv('DCF fair value',d.dcf_fv,'usd',0,Array.isArray(d.dcf_sens_range)&&d.dcf_sens_range.length===2&&_num(d.dcf_sens_range[0])!=null?_proFmt(d.dcf_sens_range[0],'usd')+'–'+_proFmt(d.dcf_sens_range[1],'usd'):'')
+    +_proKv('Monte Carlo P10–P90',mcr,'raw',0,d.mc_confidence?String(d.mc_confidence).split(' ')[0]:'')
+    +(d.ddm_eligible?_proKv('DDM fair value',d.ddm_fv,'usd'):'')
+    +_proKv('EPV fair value',d.epv_fv,'usd',0,_num(d.epv_mos)!=null?'MoS '+_proFmt(d.epv_mos,'pct0'):'')
+    +_proKv('RIM fair value',d.rim_fv,'usd',0,_num(d.rim_mos)!=null?'MoS '+_proFmt(d.rim_mos,'pct0'):'')
+    +_proKv('NAV (tangible book)',d.nav_fv,'usd',0,_num(d.nav_mos)!=null?'MoS '+_proFmt(d.nav_mos,'pct0'):'')
+    +_proKv('Implied growth (reverse DCF)',d.implied_growth,'pct',0,_num(d.implied_vs_estimated)!=null?'vs est. '+_proFmt(d.implied_vs_estimated,'spct'):'')
+    +_proKv('WACC',d.wacc,'pct',0,_num(d.terminal_growth)!=null?'term. g '+_proFmt(d.terminal_growth,'pct'):'')
+    +_proKv('Cost of equity',d.er,'pct',0,_num(d.beta_adjusted)!=null?'beta '+_proFmt(d.beta_adjusted,'n2'):''));
+  g+=_proBlock('Fair value range',_proFootball(d));
+  g+=_proBlock('Multiples & yield',
+    _proKv('P/E',d.pe,'x',_proRel(d.pe,p,'pe'),_proMed(p,'pe','x'))
+    +_proKv('EV/EBITDA',d.ev_ebitda,'x',_proRel(d.ev_ebitda,p,'ev_ebitda'),_proMed(p,'ev_ebitda','x'))
+    +_proKv('P/FCF',d.pfcf,'x',_proRel(d.pfcf,p,'pfcf'),_proMed(p,'pfcf','x'))
+    +_proKv('P/B',d.pb,'x',_proRel(d.pb,p,'pb'),_proMed(p,'pb','x'))
+    +_proKv('P/TBV',d.p_tbv,'x')
+    +_proKv('FCF yield',_num(d.pfcf)>0?1/d.pfcf:null,'pct')
+    +_proKv('Dividend yield',d.div_yield,'pct',0,_proMed(p,'div_yield','pct'))
+    +_proKv('Shareholder yield',d.shareholder_yield,'pct',_proT(d.shareholder_yield,0.03,0))
+    +_proKv('Payout ratio',d.payout_ratio,'pct0',_num(d.payout_ratio)!=null&&d.payout_ratio>1?-1:0));
+  /* Banks and insurers: ROIC and net debt are not the lens (borrowings are
+     raw material), so they print uncoloured or not at all, as on Health. */
+  g+=_proBlock('Returns & margins',
+    _proKv('ROIC',d.roic,'pct',fin?0:_proT(d.spread,0.07,0),_proMed(p,'roic','pct'))
+    +_proKv('ROIC − WACC',d.spread,'spct',fin?0:_proT(d.spread,0.07,0))
+    +_proKv('ROIC variability (CV)',d.roic_cv,'n2',_proT(d.roic_cv,0.3,0.6,true))
+    +_proKv('ROE',d.roe,'pct',fin?_proT(_num(d.roe)!=null&&_num(d.er)!=null?d.roe-d.er:null,0.03,0):0)
+    +_proKv('ROA',d.roa,'pct')
+    +_proKv('Gross margin',d.gross_margin,'pct',0,_proMed(p,'gross_margin','pct'))
+    +_proKv('Operating margin',d.operating_margin,'pct',_proT(d.operating_margin,0.15,0),_num(d._sector_median_opm)!=null?'sector '+_proFmt(d._sector_median_opm,'pct'):'')
+    +_proKv('FCF margin',d.fcf_margin,'pct',_proT(d.fcf_margin,0.10,0),_proMed(p,'fcf_margin','pct'))
+    +_proKv('FCF margin ex-SBC',d.fcf_margin_ex_sbc,'pct',_proT(d.fcf_margin_ex_sbc,0.10,0))
+    +_proKv('Margin trend',d.margin_trend,'spct',_proT(d.margin_trend,0.01,-0.01))
+    +_proKv('DuPont: margin · turns · lev.',[d.dupont_margin,d.dupont_turnover,d.dupont_leverage].every(function(v){return _num(v)!=null;})?_proFmt(d.dupont_margin,'pct')+' · '+_proFmt(d.dupont_turnover,'n2')+' · '+_proFmt(d.dupont_leverage,'n1'):null,'raw')
+    +_proKv('Net interest margin',d.nim,'pct')+_proKv('Efficiency ratio',d.efficiency_ratio,'pct',_proT(d.efficiency_ratio,0.55,0.7,true))
+    +_proKv('Combined ratio',d.combined_ratio,'pct',_proT(d.combined_ratio,0.95,1.0,true))+_proKv('AFFO margin',d.affo_margin,'pct'));
+  g+=_proBlock('Growth',
+    _proKv('Revenue CAGR 3y',d.rev_cagr,'pct',_proT(d.rev_cagr,0.07,0))
+    +_proKv('Revenue CAGR 5y',d.rev_cagr_5y,'pct',_proT(d.rev_cagr_5y,0.07,0))
+    +_proKv('Revenue CAGR 10y',d.rev_cagr_10y,'pct',_proT(d.rev_cagr_10y,0.07,0))
+    +_proKv('FCF growth',d.fcf_growth,'pct',_proT(d.fcf_growth,0.07,0))
+    +_proKv('Fundamental growth',d.fundamental_growth,'pct',_proT(d.fundamental_growth,0.03,0))
+    +_proKv('Reinvestment rate',d.reinvestment_rate,'pct')
+    +_proKv('Analyst long-term growth',d.analyst_ltg,'pct')
+    +_proKv('Earnings surprise (avg)',d.surprise_avg,'spct',_proT(d.surprise_avg,0.02,-0.02))
+    +_proKv('Capex / D&A',d.capex_to_dd_ratio,'n2')
+    +_proKv('R&D intensity',d.rd_intensity_xbrl,'pct')
+    +_proKv('Rule of 40',d.rule_of_40,'n1',d.sector==='Technology'?_proT(d.rule_of_40,40,20):0)
+    +_proKv('FFO growth 5y',d.ffo_growth_5y,'pct')+_proKv('Backlog / revenue',d.backlog_to_revenue,'n2'));
+  var nd=_num(d.net_debt);
+  /* Altman's Z does not fit utilities or REITs (profile_verdict._ALTMAN_SKIP). */
+  var altOk=['Utilities','Real Estate'].indexOf(d.sector)<0;
+  g+=_proBlock('Balance sheet & quality',
+    _proKv('Cash',d.cash,'big')
+    +_proKv('Total debt',d.total_debt,'big')
+    +(fin?'':_proKv(nd!=null&&nd<0?'Net cash':'Net debt',nd!=null?Math.abs(nd):null,'big',nd!=null&&nd<0?1:0))
+    +(fin?'':_proKv('Net debt / EBITDA',d.nd_ebitda,'x',nd!=null&&nd<0?1:_proT(d.nd_ebitda,1.5,3,true)))
+    +(fin?'':_proKv('Interest coverage',d.int_cov,'x',_proT(d.int_cov,8,3)))
+    +(fin?'':_proKv('Debt / equity',d.de,'n2'))
+    +(fin?'':_proKv('Current ratio',d.cr,'n2',_proT(d.cr,1.5,1)))
+    +_proKv('CET1 ratio',d.cet1_ratio,'pct',_proT(d.cet1_ratio,0.10,0.08))
+    +_proKv('Non-performing loans',d.npl_ratio,'pct',_proT(d.npl_ratio,0.01,0.03,true))
+    +(fin?'':_proKv('Altman Z',d.altman_z,'n2',altOk?(d.altman_z_zone==='safe'?1:d.altman_z_zone==='distress'?-1:0):0,d.altman_z_zone?(d.altman_z_zone+(altOk?'':' (n/m for sector)')):''))
+    +_proKv('Beneish M',d.beneish_m,'n2',_proT(d.beneish_m,-2.22,-1.78,true),_num(d.beneish_m)!=null&&d.beneish_m>-1.78?'flag':'')
+    +_proKv('Piotroski F-score',d.piotroski,'int',_proT(d.piotroski,7,4),'of 9')
+    +_proKv('Cash conversion',d.cash_conv,'n2',_proT(d.cash_conv,1,0.7))
+    +_proKv('Accruals',d.accruals,'pct',_num(d.accruals)!=null&&Math.abs(d.accruals)>0.08?-1:0)
+    +_proKv('Goodwill / assets',d.goodwill_pct,'pct',_proT(d.goodwill_pct,0.2,0.35,true))
+    +_proKv('Debt wall (years)',d.debt_maturity_wall_yrs,'n1'));
+  var insN=_num(d.insider_net_value);
+  var insTxt=(_num(d.insider_buy_count_365d)!=null||_num(d.insider_sell_count_365d)!=null)?(d.insider_buy_count_365d||0)+' buys / '+(d.insider_sell_count_365d||0)+' sells':'';
+  g+=_proBlock('Owners & insiders',
+    _proKv('Insider net (12m)',insN,'big',insN!=null?(insN>0?1:0):0,insTxt)
+    +_proKv('Insider ownership',d.insider_pct,'pct',_proT(d.insider_pct,0.05,-1))
+    +_proKv('Institutional ownership',d.inst_pct,'pct0')
+    +_proKv('Short interest (% float)',d.short_pct_float,'pct',_proT(d.short_pct_float,0.03,0.10,true),_num(d.short_ratio)!=null?_proFmt(d.short_ratio,'n1')+' days':'')
+    +_proKv('Buyback rate',d.share_buyback_rate,'spct',_proT(d.share_buyback_rate,0.01,-0.02))
+    +_proKv('Dividend streak (yrs)',d.ddm_consecutive_years,'int')
+    +_proKv('Dividend CAGR 5y',d.dividend_cagr_5y,'pct')
+    +_proKv('Founder-led',d.founder_led?'Yes':null,'raw')
+    +_proKv('CEO pay ratio',d.ceo_pay_ratio,'n1'));
+  g+=_proBlock('Market & risk',
+    _proKv('Momentum 12-1',d.momentum_12_1,'spct',_proT(d.momentum_12_1,0.10,-0.20))
+    +_proKv('Momentum 3m',d.momentum_3m,'spct')
+    +_proKv('From 52w high',d.pct_from_52w_high,'spct')
+    +_proKv('Beta (adjusted)',d.beta_adjusted,'n2')
+    +_proKv('Realized volatility',d.realized_vol,'pct')
+    +_proKv('Drawdown 2022',d.drawdown_2022,'pct')
+    +_proKv('Drawdown 2020',d.drawdown_2020,'pct')
+    +_proKv('Avg $ volume (3m)',d.avg_dollar_volume_3m,'big',_num(d.avg_dollar_volume_3m)!=null&&d.avg_dollar_volume_3m<1e6?-1:0)
+    +_proKv('Analysts',d.num_analysts,'int',0,d.analyst_rec?String(d.analyst_rec).replace(/_/g,' ').toLowerCase():'')
+    +_proKv('Analyst target range',_num(d.target_low)!=null&&_num(d.target_high)!=null?_proFmt(d.target_low,'usd')+' – '+_proFmt(d.target_high,'usd'):null,'raw'));
+  h+='<div class="pro-grid">'+g+'</div><div class="pro-wides">';
+  h+=_proBlock('Ten-year record (SEC filings)',_histHas(d.ticker)?_proHistHtml(d):'','pro-wide');
+  h+=_proBlock('Gate scorecard',_proScorecard(d),'pro-wide');
+  h+=_proBlock('Risks & context',_proRisks(d,p),'pro-wide');
+  h+='</div>';
+  h+='<div class="pro-foot">Report of '+esc(RUN_DATE)+' · fundamentals from SEC EDGAR XBRL and Yahoo Finance · verdict rules: models/profile_verdict.py (rating, margin of safety, red flags, weighted checks) · not investment advice.</div>';
+  return h+'</div>';
+}
+function _renderDetProfile(d){
+  var el=document.getElementById('d-profile');if(!el||!d)return;
+  var tk=d.ticker;
+  if(_histPending(tk))_ensureHist([tk],function(){if(_dpTicker===tk&&_detTab===DT_PROFILE.k){var dd=DATA.find(function(x){return x.ticker===tk;});if(dd)_renderDetProfile(dd);}});
+  try{
+    el.innerHTML='<div class="pro-tools"><button type="button" class="pro-print-btn" onclick="exportProfilePdf()" title="Print this profile on one page, or save it as a PDF">Print / Save PDF</button></div>'+_proHtml(d);
+  }catch(e){console.error('profile error:',e);el.innerHTML='<div class="pro-empty">Profile unavailable.</div>';}
+}
+/* Print on ONE sheet, through a hidden iframe like exportStmtPdf (no popup
+   permission needed; the dialog shows only the frame's document). The frame
+   gets the Profile stylesheet verbatim plus light-theme tokens at a fixed
+   page width, and scales itself down with `zoom` if a dense company still
+   runs past one letter page. */
+function _proPrintDoc(d){
+  var sheet=document.getElementById('pro-css');
+  var css=(sheet?sheet.textContent:'')
+    +':root{--text:#111;--text-muted:#555;--surface:#fff;--border:#d0d5dc;--accent:#2980b9;}'
+    +'@page{size:letter portrait;margin:8mm}'
+    +'html,body{margin:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    +'body{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;width:754px}'
+    +'.pro{font-size:9.5px;padding:0;border-radius:0}.pro-head h2{font-size:14px}.pro-vlabel{font-size:18px}.pro-headline{font-size:11px}'
+    +'.pro-b h4,.pro-pc h5{font-size:8.5px}.pro-sub,.pro-g,.pro-hist th,.pro-foot{font-size:8px}.pro-hist{font-size:9px}'
+    +'.pro-grid{display:block;column-count:3;column-gap:12px}.pro-grid .pro-b{display:inline-block;width:100%;margin-bottom:6px}'
+    +'.pro-wides{gap:6px;margin-top:0}.pro-tools{display:none}.pro-need{font-size:8.5px}';
+  var fit='(function(){var H=980,b=document.body,h=b.scrollHeight;if(h>H)b.style.zoom=(H/h).toFixed(3);})();';
+  var ttl=d.ticker+' company profile '+RUN_DATE;
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(ttl)+'</title><style>'+css+'</style></head><body>'
+    +_proHtml(d)+'<script>'+fit+'<\/script></body></html>';
+}
+function exportProfilePdf(){
+  var d=DATA.find(function(x){return x.ticker===_dpTicker;});
+  if(!d)return;
+  if(_histPending(_dpTicker)){_ensureHist([_dpTicker],exportProfilePdf);return;}
+  var fr=document.getElementById('pro-print-frame');
+  if(!fr){
+    fr=document.createElement('iframe');
+    fr.id='pro-print-frame';
+    fr.setAttribute('aria-hidden','true');
+    fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+    document.body.appendChild(fr);
+  }
+  var doc=fr.contentDocument||fr.contentWindow.document;
+  doc.open();doc.write(_proPrintDoc(d));doc.close();
+  setTimeout(function(){try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){}},250);
+}
 /* === DETAIL === */
 /* Popup tab bar: Overview (all the classic sections) + Charts (single-company
    _dtc chart) + the DT_TABS data tabs below. Unlike the Financial Data tables
@@ -7781,6 +8266,7 @@ function _detDataItems(){
    left to answer "where am I". */
 function _detGroupOf(k){
   if(k==='overview')return null;
+  if(k===DT_PROFILE.k)return 'profile';
   if(k===DT_FIN.k)return 'stmt';
   for(var i=0;i<DT_STMTS.length;i++)if(DT_STMTS[i].k===k)return 'stmt';
   return 'data';
@@ -7789,7 +8275,7 @@ function _detMenuItems(){
   /* The Charts tab is retired — its Fundamental Charts block now sits at the
      top of Overview (and the duplicate Price History chart it sat above is
      gone; the price series is the block's default metric). */
-  return [{k:'overview',l:'Overview'},DT_FIN].concat(_detDataItems());
+  return [{k:'overview',l:'Overview'},DT_PROFILE,DT_FIN].concat(_detDataItems());
 }
 function _renderDetTabBar(){
   /* The underlined section tabs, plus the back link naming where the page
@@ -7882,7 +8368,7 @@ function swDetTab(k){
   _detTab=k;
   _renderDetTabBar();
   document.querySelectorAll('#det-modal .d-pane').forEach(function(p){p.classList.remove('active');});
-  var id=k==='overview'?'d-pane-overview':k==='peers'?'d-pane-peers':k==='news'?'d-pane-news':_detGroupOf(k)==='stmt'?'d-pane-stmt':'d-pane-data';
+  var id=k==='overview'?'d-pane-overview':k===DT_PROFILE.k?'d-pane-profile':k==='peers'?'d-pane-peers':k==='news'?'d-pane-news':_detGroupOf(k)==='stmt'?'d-pane-stmt':'d-pane-data';
   var pane=document.getElementById(id);if(pane)pane.classList.add('active');
   /* Overview now carries the Charts block; re-render it on return to the tab
      so a metric/range picked earlier still draws after switching away. */
@@ -7894,6 +8380,7 @@ function swDetTab(k){
     var ns=document.getElementById(k==='peers'?'d-section-network':'d-section-news');
     if(ne&&ns)ne.style.display=(ns.style.display==='none')?'':'none';
   }
+  else if(k===DT_PROFILE.k){var _pd=DATA.find(function(x){return x.ticker===_dpTicker;});if(_pd)_renderDetProfile(_pd);}
   else if(_detGroupOf(k)==='stmt')_renderDetStmtTab(_detStmt);
   else if(k!=='overview')_renderDetDataTab(k);
   var sc=_detScroller();if(sc)sc.scrollTop=0;

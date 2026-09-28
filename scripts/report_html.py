@@ -18,6 +18,7 @@ try:
 except Exception:
     generate_sector_profit_pool_narrative = None
 from models.data_tab_narrative import generate_data_tab_summaries
+from models.profile_verdict import profile_verdict
 from scripts.scoring import gate_metadata
 from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
                             CARRY_FORWARD_STOPPED_GUARD_FLOOR,
@@ -1064,11 +1065,19 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
 # Fields the Data-tab summaries compare against a sector median. A median
 # needs at least _SECTOR_STAT_MIN_N finite, positive values to be quoted.
 _SECTOR_STAT_FIELDS = ('pe', 'ev_ebitda', 'pfcf', 'revenue_per_emp')
+# The Profile tab adds P/B to the multiples, and quotes returns, margins and
+# yield signed: a median of only the positive FCF margins would flatter the
+# sector, and a zero dividend is a real observation.
+_PROFILE_MULTIPLE_FIELDS = ('pe', 'ev_ebitda', 'pfcf', 'pb')
+_PROFILE_SIGNED_FIELDS = ('roic', 'gross_margin', 'fcf_margin', 'div_yield')
 _SECTOR_STAT_MIN_N = 5
 
 
-def _sector_stats(chart_records):
-    """Return {sector: {field: median}} over the rendered rows."""
+def _sector_stats(chart_records, fields=_SECTOR_STAT_FIELDS, positive_only=True):
+    """Return {sector: {field: median}} over the rendered rows.
+
+    ``positive_only`` drops values <= 0 (a negative P/E is not a multiple).
+    """
     import math
     import statistics
     pools = {}
@@ -1076,14 +1085,14 @@ def _sector_stats(chart_records):
         sector = rec.get('sector')
         if not sector:
             continue
-        for f in _SECTOR_STAT_FIELDS:
+        for f in fields:
             v = rec.get(f)
             if (isinstance(v, (int, float)) and not isinstance(v, bool)
-                    and math.isfinite(v) and v > 0):
+                    and math.isfinite(v) and (v > 0 or not positive_only)):
                 pools.setdefault(sector, {}).setdefault(f, []).append(float(v))
-    return {sector: {f: statistics.median(vs) for f, vs in fields.items()
+    return {sector: {f: statistics.median(vs) for f, vs in by_field.items()
                      if len(vs) >= _SECTOR_STAT_MIN_N}
-            for sector, fields in pools.items()}
+            for sector, by_field in pools.items()}
 
 
 def _attach_data_summaries(chart_records):
@@ -1104,6 +1113,25 @@ def _attach_data_summaries(chart_records):
             rec['data_summaries'] = {}
 
 
+def _attach_profiles(chart_records):
+    """Add the Profile tab's verdict (``profile``) to each record.
+
+    Like the Data-tab summaries it is built at render time from the payload,
+    so a rescore or re-render picks up a rule change without a live run, and
+    a failure on one row drops only that row's verdict.
+    """
+    stats = _sector_stats(chart_records, _PROFILE_MULTIPLE_FIELDS)
+    signed = _sector_stats(chart_records, _PROFILE_SIGNED_FIELDS, positive_only=False)
+    for sector, meds in signed.items():
+        stats.setdefault(sector, {}).update(meds)
+    for rec in chart_records:
+        try:
+            rec['profile'] = profile_verdict(rec, stats.get(rec.get('sector')))
+        except Exception:
+            logger.warning('profile verdict failed for %s', rec.get('ticker'),
+                           exc_info=True)
+
+
 def _extract_details_payload(chart_records):
     # Heavy text fields only consumed inside the detail panel. Strip them
     # from the inline DATA blob into the details/ parts the template
@@ -1115,6 +1143,7 @@ def _extract_details_payload(chart_records):
         'legal_filings', 'insider_transactions',
         '_trap_components',  # per-axis trap sub-scores; popup-only detail
         'data_summaries',    # Data sub-tab narratives (_attach_data_summaries)
+        'profile',           # Profile tab verdict (_attach_profiles)
     )
     details_payload = {}
     for _rec in chart_records:
@@ -1808,6 +1837,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         # client re-resolves only portfolios edited in the browser).
         _rec['pf'] = _pf_index.get(str(_rec['ticker']).upper(), [])
     _attach_data_summaries(chart_records)
+    _attach_profiles(chart_records)
 
     details_payload = _extract_details_payload(chart_records)
 
