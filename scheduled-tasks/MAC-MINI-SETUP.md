@@ -1,8 +1,10 @@
-# Moving the daily run to a Mac mini
+# Moving the daily run and the weekly backtest to a Mac mini
 
-A checklist for taking the nightly analysis off the cloud Routine
-(`cloud-daily-stock-analysis/`) and running it on an always-on Mac mini with
-`scripts/run_daily.sh`. It builds on `RECOVERY.md` (the rebuild steps) and
+A checklist for taking both cloud Routines off the cloud and running them on
+an always-on Mac mini. The nightly analysis (`cloud-daily-stock-analysis/`)
+moves to `scripts/run_daily.sh`. The Sunday backtest
+(`cloud-weekly-backtest/`) moves to the same `run.sh` it runs today, run
+from the Mac. It builds on `RECOVERY.md` (the rebuild steps) and
 `daily-stock-analysis/SKILL.md` (the Mac runbook). It does not repeat them.
 
 The gain is that the machine keeps its state. `output/prices/`,
@@ -12,9 +14,11 @@ Yahoo profile doesn't need pinning, and there's no proxy. The run will not
 get much faster. Most of the 12–20 hours is spent waiting on Yahoo's and SEC's
 rate limits, not on computing.
 
-**Never run both.** The cloud Routine and the Mac routine each commit to
-`data/snapshots` and force-push `pages-live`. The cloud Routine gets paused in
-section 6, and not before the Mac has done a clean dry run.
+**Never run both copies of the same job.** The daily jobs each commit to
+`data/snapshots` and force-push `pages-live`. The weekly jobs each commit a
+`Weekly backtest: <date>` summary and rewrite the `returns/` sidecars. Each
+cloud Routine gets paused in section 7, and not before its Mac replacement has
+done a clean dry run. The two jobs can move on different weekends.
 
 ---
 
@@ -163,15 +167,80 @@ takes over, port these steps or decide to drop them:
       Alternative: a launchd agent that runs `scripts/run_daily.sh` directly.
       It's more robust, but produces no written summary. The summary is still
       in `output/run_summary_<date>.json`.
-- [ ] **Weekly backtest: leave it on the cloud Routine.**
-      `cloud-weekly-backtest` reads only `data/snapshots` and commits only a
-      summary on Sundays, so it doesn't compete with the Mac's weekday run. The
-      Mac's `weekly-backtest/` job is older: it runs calibration and assumes
-      the iCloud-era `output/` symlink. Don't load its plist.
-- [ ] Remove the `.env` values and secrets you no longer need from the cloud
-      environment only **after** section 6.
+- [ ] **Weekly:** see section 6.
+- [ ] Remove the secrets from the cloud environment only **after** both
+      Routines are paused (section 7). The weekly Routine still needs
+      `TIINGO_API_KEY` until then.
 
-## 6. Cut over
+## 6. The weekly backtest
+
+**Use `cloud-weekly-backtest/run.sh`, not the old Mac job.** The Mac's
+`weekly-backtest/weekly_backtest.sh` and its plist are older than the cloud
+routine, and they:
+- run `calibrate` every week, which the current runbook forbids below
+  `MIN_EFFECTIVE_N`;
+- skip the readiness census, the Tiingo delisting backfill, the
+  week-over-week `compare`, and the commit to `data/snapshots` (no summary
+  from it reached the branch after 2026-07-13);
+- assume the iCloud-era `output/` symlink.
+
+Retire them: don't load the plist, and mark them superseded in this
+directory's `README.md`.
+
+`run.sh` is already mostly portable. It takes its checkout from
+`STOCK_MODEL_REPO`, its scratch directory from `STOCK_MODEL_WORK`, stages
+its own corpus from a blob-less clone, and pushes with plumbing that retries
+on a moved branch tip. On the Mac it needs:
+
+- [ ] **A Python ≥ 3.11 first on `PATH`.** Its `01-venv` step runs
+      `python3 -m venv "$REPO/.venv"`. Under launchd or a bare shell,
+      `python3` can be macOS's `/usr/bin/python3`, which is too old for the
+      pinned dependencies. Put the python.org or Homebrew build first on
+      `PATH`. The script builds its own `.venv` in the repo, separate from the
+      daily's `~/.venvs/stock-model`, and that's fine.
+- [ ] **A CA bundle.** The script only sets `SSL_CERT_FILE` when it finds the
+      cloud's `/root/.ccr/ca-bundle.crt`. On the Mac, export it from `certifi`
+      as `run_daily.sh` does. The python.org build fails HTTPS verification
+      without it.
+- [ ] **`YF_IMPERSONATE=chrome`.** The script defaults to `chrome116`, which
+      was only needed for the cloud proxy.
+- [ ] **`TIINGO_API_KEY` in the environment.** `run.sh` does not read `.env`.
+      Without the key, step 04b is skipped and delisted names go unmeasured.
+      Source `.env` in the wrapper below.
+- [ ] **Keep the price cache between Sundays.** `stage_corpus` runs
+      `rm -rf "$SNAP" "$OUT"`, and the prices live in `$OUT/prices`. The
+      container never noticed, but on the Mac it means a cold 1–2 hour
+      download every week. Change the script to keep `$OUT/prices` and clear
+      everything else. `returns/` and `price_backfill/` are re-staged from the
+      branch, which stays their record. Download
+      freshness is judged from parquet content, so a kept file that is
+      behind is re-fetched, never trusted. Do the same in the cloud copy so
+      the two stay one script.
+- [ ] **A small wrapper**, e.g. `scheduled-tasks/weekly-backtest/mac_run.sh`:
+      source `.env`, set the three variables above, set
+      `STOCK_MODEL_WORK="$HOME/Library/Application Support/StockModel/backtest"`
+      (outside the repo, off iCloud), then `exec` `run.sh`. Commit it here.
+- [ ] **Git push access** to `data/snapshots` from that user. This is the
+      same credential as the daily. `run.sh` pushes to the HTTPS URL in
+      `PUSH_REMOTE`, so a token in the macOS keychain credential helper works.
+      For SSH, set `PUSH_REMOTE`/`CLONE_REMOTE` to the `git@github.com:` form.
+- [ ] **Schedule:** Sundays, as now. Friday's daily run can last into
+      Saturday afternoon, so any time Sunday is clear. Use the same mechanism
+      you chose for the daily. A Claude Code scheduled task gets you the written
+      summary described in `cloud-weekly-backtest/SKILL.md` §3–4 (point it at
+      the Mac paths). A launchd agent can reuse `com.stockmodel.weekly.plist`
+      with its program switched to the wrapper and `PATH` set in an
+      `EnvironmentVariables` dict, since launchd doesn't source your shell
+      profile.
+- [ ] **Disk:** the scratch directory holds the staged corpus (~1.5 GB, from
+      2026-07-06 on and growing about 17 MB a night) plus the price parquets.
+      The clone is re-fetched from GitHub each Sunday, about 1.5 GB of
+      download.
+- [ ] **Smoke test** before the cut-over. It pushes nothing:
+      `SMOKE=1 bash scheduled-tasks/weekly-backtest/mac_run.sh`, then
+      `cat "$STOCK_MODEL_WORK/status.txt"`.
+
+## 7. Cut over
 
 - [ ] Dry run on the Mac while the cloud Routine is still live:
       `scripts/run_daily.sh --dry-run`. It prints the plan and runs nothing.
@@ -179,19 +248,34 @@ takes over, port these steps or decide to drop them:
       `RECOVERY.md` → **Check it worked**, a few hundred tickers.
 - [ ] **Pause the cloud Routine** ("Daily stock analysis (cloud)") in the
       claude.ai Routines UI. Check that it shows as disabled.
-- [ ] Enable the Mac's scheduled task.
+- [ ] Enable the Mac's daily task.
+- [ ] Before a Sunday, **pause the weekly cloud Routine** too, then enable the
+      Mac's weekly task. Swap the DORMANT banners between
+      `cloud-weekly-backtest/SKILL.md` and `weekly-backtest/SKILL.md`, and
+      point the latter at the wrapper.
 - [ ] After the first night, check:
   - [ ] `output/run_summary_<date>.json` has `status: ok`
   - [ ] `results_<date>.json.gz` is on `data/snapshots`, with no second
         `Snapshot: <date>` commit from the cloud
   - [ ] the Pages site shows the new date
   - [ ] a `Portfolio alerts — <date>` issue appears when there are alerts
-  - [ ] the next Sunday's cloud backtest picks up the Mac's snapshots
+  - [ ] the next Sunday's backtest picks up the Mac's snapshots
   - [ ] Phase 1's `facts_stats` show mostly disk hits (the SEC cache is doing
         its job) and the `prices` step takes minutes, not an hour
+- [ ] After the first Mac Sunday, check:
+  - [ ] `status.txt` ends `RESULT OK`, with exactly one
+        `Weekly backtest: <date>` commit on `data/snapshots` (none from the
+        cloud)
+  - [ ] `07-compare` found last week's cloud summary and reports no new
+        `REGRESSION:` lines. A different machine is not a model change, so a
+        `NOTICE` about the scoring model means something else changed.
+  - [ ] `04b-backfill` ran (the Tiingo key reached it)
+  - [ ] on the second Mac Sunday, `04-prices` takes minutes, which shows the
+        cache survived
 
 ## Going back to the cloud
 
-Pause the Mac task first, then resume the cloud Routine. If section 4's
+Pause the Mac task first, then resume the matching cloud Routine. Do this
+per job. If section 4's
 branch commits and the Supabase cache saves were kept up, the cloud run
 starts warm without further work.
