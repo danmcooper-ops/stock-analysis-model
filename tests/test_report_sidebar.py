@@ -87,6 +87,20 @@ def test_frozen_table_columns_clear_the_sidebar():
 
 
 @pytest.mark.skipif(shutil.which('node') is None, reason='node not installed')
+def test_sub_tabs_are_underline_tabs():
+    """Sub-tabs are text on a hairline with an accent bar under the current
+    one (not filled pills), matching the ticker page's #d-tabs."""
+    src = _tpl()
+
+    def rule(sel):
+        return re.search(re.escape(sel) + r'\{([^}]*)\}', src).group(1)
+    assert 'border-bottom:1px solid var(--tab-line)' in rule('.sn-chips')
+    base = rule('.sn-chip')
+    assert 'background:none' in base and 'border:0' in base and 'border-radius:0' in base
+    assert 'box-shadow:inset 0 -3px 0 var(--chrome-accent)' in rule('.sn-chip.cur')
+    assert 'chip-on-bg' not in rule('.sn-chip.cur')
+
+
 def test_portfolio_day_change_from_nav_ledger(tmp_path):
     src = _tpl()
     js = ('var NAV={};function _pfNavRaw(id){return NAV[id]||null;}\n'

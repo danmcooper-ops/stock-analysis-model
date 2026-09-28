@@ -499,7 +499,8 @@ ruff check .
   Seeking Alpha-style chrome replaced the header's Views dropdown. There is a
   fixed black `#sidebar` (desktop, or a 72px rail via `html.sb-rail`, stored in
   `stock_sidebar_v1`), a rail with an overlay sidebar at 769-1023px, and a
-  drawer on phones, opened from the top bar's ☰ (there is no bottom tab bar). Sub-tabs are the `#subnav` chips.
+  drawer on phones, opened from the top bar's ☰ (there is no bottom tab bar). Sub-tabs are the `#subnav` underline tabs (`.sn-chip`: text on a
+  `--tab-line` hairline, the current one marked by an accent bar).
   `renderNavMenu()` renders every one of these surfaces from `_navGroups()`,
   and one delegated `[data-v]` listener calls `navGo`.
   - **Page offset:** `--sb-cur` is the width the page must clear. It drives body

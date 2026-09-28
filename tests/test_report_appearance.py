@@ -135,3 +135,17 @@ def test_chrome_tokens_clear_wcag_aa(theme):
     bad = [(t, b, round(_ratio(val(t), val(b)), 2)) for t, b in PAIRS
            if _ratio(val(t), val(b)) < 4.5]
     assert not bad, bad
+
+
+@pytest.mark.parametrize('theme,page_bg', [('light', '#f0f2f5'), ('dark', '#0e1117')])
+def test_sub_tab_labels_clear_wcag_aa_on_the_page(theme, page_bg):
+    """The sub-tabs have no fill of their own: their labels sit on the page
+    background (--bg), which is declared outside the chrome block."""
+    src = _tpl()
+    assert f'--bg:{page_bg};' in src
+    light, dark = _chrome_tokens()
+    toks = dict(light)
+    if theme == 'dark':
+        toks.update(dark)
+    for tok in ('--chrome-muted', '--chrome-heading'):
+        assert _ratio(toks[tok].strip(), page_bg) >= 4.5, (tok, theme)
