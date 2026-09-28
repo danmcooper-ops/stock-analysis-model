@@ -144,6 +144,24 @@ def test_phone_ticker_page_closes_from_the_top_bar():
     assert 'html.det-open #det-modal.hdr-min .d-rating-row{margin-top:6px;gap:8px;flex-wrap:nowrap;' in src
 
 
+def test_review_feature_is_gone():
+    """The Reviewed marks were unused and are removed everywhere: the table
+    and matrix column, the Reviewed/Unreviewed filters and their hash key,
+    the ticker page's check icon, the Enter "mark reviewed" hotkey. The
+    frozen columns close up to # · flag · ticker (· rating · Δ)."""
+    src = _tpl()
+    for gone in ('isReviewed', 'toggleReviewed', '_revHtml', '_revFilter', 'rev-chk',
+                 'f-reviewed', 'f-unreviewed', 'id="d-rev"', "(\\'_reviewed\\')", '_reviewed:', '_CHK_SVG',
+                 'Mark reviewed', 'p.rv'):
+        assert gone not in src, gone
+    # The old stored marks are cleared rather than left behind.
+    assert "localStorage.removeItem('stock_reviewed_v1')" in src
+    # Ticker is now the 3rd frozen column, 32px further left.
+    assert '#dtbl th:nth-child(3),#dtbl td.tk2{left:calc(var(--sb-cur) + 68px);}' in src
+    assert '#dtbl th:nth-child(4),#dtbl tbody td:nth-child(4){left:calc(var(--sb-cur) + 136px);}' in src
+    assert '#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 200px);}' in src
+
+
 def test_portfolio_day_change_from_nav_ledger(tmp_path):
     src = _tpl()
     js = ('var NAV={};function _pfNavRaw(id){return NAV[id]||null;}\n'
@@ -173,12 +191,15 @@ def test_rendered_report_ships_the_chrome(tmp_path):
     assert html.index('id="f-search"') < html.index('id="filt-panel"')
 
 
-def test_peers_pane_and_card_share_one_peer_list():
+def test_summary_has_no_value_range_or_peers_cards():
+    """The Summary's side column (Value Range and Peers cards) was removed;
+    peers live on the Peers tab only, still fed by _detPeerList."""
     src = _tpl()
-    assert '_detPeerList(d)' in _fn(src, '_detPeersCardHtml')
+    for gone in ('d-range-card', 'd-peers-card', 'd-sum-side', 'd-sum-grid', 'd-side-card',
+                 'function _detRangeHtml(', 'function _detPeersCardHtml(', 'function _detFillSide('):
+        assert gone not in src, gone
     open_det = src[src.index('function openDet(tk){'):src.index('function closeDetail(){')]
     assert 'var _allPeers=_detPeerList(d);' in open_det
-    assert '_detFillSide(d);' in open_det
 
 
 def test_ticker_page_search_and_phone_back_button():
@@ -189,38 +210,3 @@ def test_ticker_page_search_and_phone_back_button():
     tap = _fn(src, 'hdrMenuTap')
     assert tap.index('closeDetail()') < tap.index('sbOpen()')
     assert '_detOpenState(false)' in src[src.index('function closeDetail(){'):][:300]
-
-
-def _range_js(tmp_path, rows):
-    src = _tpl()
-    js = ('function esc(s){return String(s);}\n'
-          + re.search(r'^function _num\(v\)\{.*?\}$', src, re.M).group(0) + '\n'
-          + re.search(r'^function fd\(v\)\{.*?\}$', src, re.M).group(0) + '\n'
-          + _fn(src, 'fd2') + _fn(src, '_rngPct') + _fn(src, '_detRangeHtml')
-          + 'var rows=' + json.dumps(rows) + ';\n'
-          + 'console.log(JSON.stringify(rows.map(_detRangeHtml)));\n')
-    script = tmp_path / 'range.js'
-    script.write_text(js, encoding='utf-8')
-    r = subprocess.run(['node', str(script)], capture_output=True, text=True, check=False)
-    assert r.returncode == 0, r.stderr
-    return json.loads(r.stdout)
-
-
-@pytest.mark.skipif(shutil.which('node') is None, reason='node not installed')
-def test_value_range_card(tmp_path):
-    mc, sens, none = _range_js(tmp_path, [
-        {'price': 100, 'mc_p10_fv': 80, 'mc_p90_fv': 160, '_fv_effective': 120,
-         'low_52w': 70, 'high_52w': 110},
-        {'price': 100, 'dcf_sens_range': [90, 140], 'dcf_fv': 115},
-        {'price': 100},
-    ])
-    assert 'Monte Carlo P10' in mc and '52-week range' in mc
-
-    def left(html, cls):
-        return float(re.search(r'class="' + cls + r'" style="left:([\d.]+)%', html).group(1))
-    band = re.search(r'class="rg-band" style="left:([\d.]+)%;width:([\d.]+)%', mc)
-    b0, bw = float(band.group(1)), float(band.group(2))
-    assert 0 <= b0 and b0 + bw <= 100.0001
-    assert b0 <= left(mc, 'rg-tick') <= b0 + bw   # base inside bear..bull
-    assert 'DCF sensitivity' in sens and '52-week' not in sens
-    assert none == ''
