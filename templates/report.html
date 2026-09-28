@@ -24,16 +24,14 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Stock Analysis — Interactive Report</title>
-<!-- Toolbar tint for Safari / iOS. setTheme() keeps it in step with the
-     resolved theme; the phone top bar is dark in both themes. -->
+<!-- Toolbar tint for Safari / iOS. _applyTheme() keeps it in step with the
+     theme; the phone top bar is dark in both themes. -->
 <meta name="theme-color" id="meta-theme-color" content="#0b0b0b">
-<!-- Appearance, resolved BEFORE first paint so a dark page never flashes
-     light. stock_theme_v1 holds the viewer's choice: 'light' | 'dark' |
-     'auto'; missing means auto (follow the device). data-theme="dark" is
-     still the ONLY thing the CSS and JS read — Auto just decides it here
-     from prefers-color-scheme. data-theme-pref carries the choice for the
-     appearance controls. -->
-<script>(function(){var p='auto';try{var s=localStorage.getItem('stock_theme_v1');if(s==='light'||s==='dark'||s==='auto')p=s;}catch(e){}var d=p==='dark'||(p==='auto'&&!!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches));var r=document.documentElement;r.setAttribute('data-theme-pref',p);if(d)r.setAttribute('data-theme','dark');})();</script>
+<!-- Appearance follows the device's Light/Dark setting (prefers-color-scheme)
+     and nothing else — there is no in-page switch. Resolved BEFORE first
+     paint so a dark page never flashes light; data-theme="dark" is still the
+     ONLY thing the CSS and JS read. -->
+<script>(function(){if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark');})();</script>
 <!-- Sidebar state before first paint too, so the page does not jump from the
      240px sidebar to the rail on load. stock_sidebar_v1 = 'rail' | 'open'
      (desktop only); 769-1023px is always the rail (its full sidebar opens
@@ -2183,20 +2181,12 @@ body{padding-left:var(--sb-cur);padding-bottom:var(--tabbar-h);}
 .sb-pill.pos{background:var(--chrome-pill-pos);}
 .sb-pill.neg{background:var(--chrome-pill-neg);}
 .sb-more{--sac:#c9c8c5;font-size:11px;letter-spacing:.5px;text-decoration:underline;padding:4px 16px 0;text-transform:uppercase;align-self:flex-start;}
-.sb-appear{display:flex;flex-direction:column;gap:6px;padding:4px 12px 0 16px;}
-.sb-seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;padding:3px;background:#1c1c1c;border:1px solid var(--sb-div);border-radius:8px;}
-#sidebar .sb-seg button{--sac:var(--sb-text);text-align:center;height:24px;border-radius:5px;font-size:12px;}
-#sidebar .sb-seg button[aria-checked="true"]{--sac:var(--chrome-accent);background:var(--sb-btn);font-weight:700;}
-#sidebar .sb-seg button:focus-visible,#sidebar .sb-row:focus-visible,#sidebar .sb-sq:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
-.sb-now{--sac:var(--sb-kbd);font-size:11px;}
-.sb-now:empty{display:none;}
-.sb-appear-ic{display:none;}
-.sb-appear-ic svg{width:17px;height:17px;flex-shrink:0;}
+#sidebar .sb-row:focus-visible,#sidebar .sb-sq:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 .sb-foot{--sac:var(--sb-kbd);font-size:11px;line-height:1.4;padding:8px 16px 0;margin-top:auto;}
 /* Rail: icons only. Labels move to the title tooltip (set in JS). */
 html.sb-rail #sidebar .sb-lbl,html.sb-rail #sidebar .navmenu-key,html.sb-rail #sidebar .sb-brand,
 html.sb-rail #sidebar .sb-pf,html.sb-rail #sidebar .sb-more,html.sb-rail #sidebar .sb-foot,
-html.sb-rail #sidebar .sb-head span,html.sb-rail #sidebar .sb-appear,html.sb-rail #sidebar .sb-badge{display:none;}
+html.sb-rail #sidebar .sb-head span,html.sb-rail #sidebar .sb-badge{display:none;}
 html.sb-rail .sb-top{justify-content:center;padding:0;}
 html.sb-rail .sb-row,html.sb-rail .sb-head{justify-content:center;padding:0;gap:0;}
 html.sb-rail .sb-head{min-height:34px;cursor:pointer;}
@@ -2204,7 +2194,6 @@ html.sb-rail .sb-row{min-height:38px;}
 html.sb-rail .sb-row .sb-ic{width:18px;height:18px;}
 html.sb-rail .sb-div{margin:8px 12px;}
 html.sb-rail .sb-dot{display:block;position:absolute;top:7px;right:12px;width:9px;height:9px;border-radius:50%;background:var(--chrome-accent);border:2px solid var(--sb-bg);}
-html.sb-rail .sb-appear-ic{display:flex;}
 html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
 /* The rail's portfolio heading doubles as the way into All Portfolios. */
 .sb-scrim{display:none;}
@@ -2245,22 +2234,7 @@ html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
 [data-theme="dark"] .header #filter-bar .fpop-btn.active{background:var(--chip-on-bg);border-color:var(--chip-on-bg);}
 .header #filter-bar .fpop-btn svg{width:14px;height:14px;}
 .header .filt-btn-label{display:inline;}
-.hdr-ic{--sac:var(--topbar-fg);width:32px;height:32px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
-  background:var(--topbtn-bg);border:1px solid var(--topbtn-soft);border-radius:6px;cursor:pointer;padding:0;}
-.hdr-ic svg{width:16px;height:16px;}
-.hdr-ic:hover{background:var(--menu-hover);}
-/* Appearance menu — one floating menu shared by the top-bar and rail icons. */
-#theme-menu{--sac:var(--chrome-heading);position:fixed;z-index:1600;width:180px;background:var(--menu-bg);border:1px solid var(--menu-border);
-  border-radius:10px;box-shadow:var(--menu-shadow);padding:6px;display:none;flex-direction:column;}
-#theme-menu.open{display:flex;}
-#theme-menu button{display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border:0;background:none;border-radius:5px;font:inherit;font-size:13px;cursor:pointer;text-align:left;}
-#theme-menu button:hover{background:var(--menu-hover);}
-#theme-menu button[aria-checked="true"]{--sac:var(--chrome-accent);font-weight:600;background:var(--menu-hover);}
-#theme-menu svg{width:15px;height:15px;}
-#theme-menu button:focus-visible,.hdr-qr button:focus-visible,.hdr-ic:focus-visible,.hdr-menu:focus-visible,#tabbar button:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
-#theme-menu .tm-sub{--sac:var(--chrome-muted);margin-left:auto;font-size:12px;font-weight:400;}
-#theme-menu .tm-now{--sac:var(--chrome-muted);font-size:12px;padding:6px 12px 4px;border-top:1px solid var(--menu-border);margin-top:4px;}
-#theme-menu .tm-now:empty{display:none;}
+.hdr-qr button:focus-visible,.hdr-menu:focus-visible,#tabbar button:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 
 /* ---- view heading + sub-tab chips ---- */
 #subnav{--sac:var(--chrome-heading);position:sticky;box-sizing:border-box;max-width:100%;padding:10px 0 8px;display:flex;flex-direction:column;gap:8px;}
@@ -2318,7 +2292,7 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
   .hdr-search{flex:1 1 auto;height:34px;background:#2a2a2a;border-color:#2a2a2a;--sac:#b8b7b4;}
   .header .hdr-search #f-search{--sac:#fff;font-size:16px;height:30px;}
   .header .hdr-search #f-search::placeholder{color:#b8b7b4 !important;}
-  .hdr-kbd,.header .hdr-center,.header .hdr-theme,.header .filt-btn-label{display:none !important;}
+  .hdr-kbd,.header .hdr-center,.header .filt-btn-label{display:none !important;}
   .header #filter-bar .fpop-btn,[data-theme="dark"] .header #filter-bar .fpop-btn{width:36px;height:36px;padding:0;justify-content:center;background:transparent;border:0;}
   .header #filter-bar .fpop-btn,.header #filter-bar .fpop-btn *{color:#fff !important;}
   .header #filter-bar .fpop-btn.active,[data-theme="dark"] .header #filter-bar .fpop-btn.active{background:#2a2a2a;}
@@ -2338,10 +2312,9 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
   #tabbar{display:none !important;}
   #sidebar{width:var(--sb-cur);transform:none;}
   #sidebar .sb-lbl,#sidebar .navmenu-key,#sidebar .sb-brand,#sidebar .sb-pf,#sidebar .sb-more,#sidebar .sb-foot,
-  #sidebar .sb-head span,#sidebar .sb-appear,#sidebar .sb-badge,#sidebar .sb-div{display:none;}
+  #sidebar .sb-head span,#sidebar .sb-badge,#sidebar .sb-div{display:none;}
   #sidebar .sb-row,#sidebar .sb-head{justify-content:center;padding:0;min-height:36px;}
   #sidebar .sb-top{justify-content:center;padding:0;}
-  #sidebar .sb-appear-ic{display:flex;}
   /* The rail's top square opens the full drawer here; inside the drawer it
      becomes the close button. */
   #sidebar .sb-chev-l{display:none;}
@@ -2351,7 +2324,7 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
   html.sb-drawer #sidebar .sb-close{display:flex;}
   #sidebar .sb-dot{display:block;position:absolute;top:6px;right:10px;width:9px;height:9px;border-radius:50%;background:var(--chrome-accent);border:2px solid var(--sb-bg);}
   html.sb-drawer #sidebar{width:250px;box-shadow:8px 0 24px rgba(0,0,0,.4);}
-  html.sb-drawer #sidebar .sb-lbl,html.sb-drawer #sidebar .sb-brand,html.sb-drawer #sidebar .sb-pf,html.sb-drawer #sidebar .sb-head span,html.sb-drawer #sidebar .sb-appear,html.sb-drawer #sidebar .sb-div,html.sb-drawer #sidebar .sb-badge{display:revert;}
+  html.sb-drawer #sidebar .sb-lbl,html.sb-drawer #sidebar .sb-brand,html.sb-drawer #sidebar .sb-pf,html.sb-drawer #sidebar .sb-head span,html.sb-drawer #sidebar .sb-div,html.sb-drawer #sidebar .sb-badge{display:revert;}
   html.sb-drawer #sidebar .sb-row,html.sb-drawer #sidebar .sb-head{justify-content:flex-start;padding:0 12px 0 16px;}
   html.sb-drawer .sb-scrim{display:block;position:fixed;inset:0;z-index:1290;background:rgba(0,0,0,.55);}
   .header{padding:calc(4px + env(safe-area-inset-top)) 12px 4px 6px;}
@@ -2642,7 +2615,6 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       </div>
     </div>
   </div>
-  <button type="button" class="hdr-ic hdr-theme sa-chrome" data-theme-icon onclick="themeMenuToggle(event,this)" aria-haspopup="menu" aria-expanded="false" aria-label="Appearance"></button>
 </div>
 <!-- Seeking Alpha-style navigation (see SA CHROME in the stylesheet). The
      views and portfolio rows are rendered by renderNavMenu() from
@@ -2667,25 +2639,10 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   <div class="sb-div"></div>
   <button type="button" class="sb-row" onclick="sbClose();toggleFiltMenu(event)" title="Filters"><svg class="sb-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5h16l-6 7v6l-4 2v-8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span class="sb-lbl">Filters</span><kbd class="navmenu-key">F</kbd></button>
   <button type="button" class="sb-row" onclick="sbClose();hkOverlayOpen()" title="Keyboard shortcuts"><svg class="sb-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></g></svg><span class="sb-lbl">Shortcuts</span><kbd class="navmenu-key">?</kbd></button>
-  <button type="button" class="sb-row sb-appear-ic" data-theme-icon onclick="themeMenuToggle(event,this)" aria-haspopup="menu" aria-label="Appearance"></button>
-  <div class="sb-appear">
-    <span class="sb-head" style="padding:0;min-height:0"><span>Appearance</span></span>
-    <div class="sb-seg" role="radiogroup" aria-label="Appearance">
-      <button type="button" role="radio" data-theme-ctl="light" onclick="setTheme('light')">Light</button>
-      <button type="button" role="radio" data-theme-ctl="auto" onclick="setTheme('auto')">Auto</button>
-      <button type="button" role="radio" data-theme-ctl="dark" onclick="setTheme('dark')">Dark</button>
-    </div>
-    <span class="sb-now" data-theme-now></span>
-  </div>
   <div class="sb-foot">Data as of {{ generated_at }}</div>
 </nav>
 <div class="sb-scrim" id="sb-scrim" onclick="sbClose()"></div>
 <nav id="tabbar" class="sa-chrome" aria-label="Views"></nav>
-<div id="theme-menu" class="sa-chrome" role="menu" aria-label="Appearance">
-  <button type="button" role="menuitemradio" data-theme-ctl="light" onclick="setTheme('light');themeMenuClose()"></button>
-  <button type="button" role="menuitemradio" data-theme-ctl="auto" onclick="setTheme('auto');themeMenuClose()"></button>
-  <button type="button" role="menuitemradio" data-theme-ctl="dark" onclick="setTheme('dark');themeMenuClose()"></button>
-  <div class="tm-now" data-theme-now></div>
 </div>
 <div class="container">
   <!-- The view's name and its sub-tabs as Seeking Alpha-style chips —
@@ -2797,40 +2754,14 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 <div id="chart-tip"></div>
 <script>
 /* === THEME ===
-   Three choices — Light, Auto, Dark — stored in stock_theme_v1 (missing =
-   auto). The pre-paint script in <head> applies the same resolution before
-   first paint; this block keeps it live: every appearance control
-   ([data-theme-ctl]) calls setTheme(pref), and while the choice is Auto a
-   prefers-color-scheme listener follows the device (iOS/macOS flipping at
-   sunset repaints the open report). Only data-theme="dark" on <html> is
-   ever read by the CSS and the colour-picking JS (_pfCol, ppQuadTip), so
-   the resolution lives here and nowhere else. */
-var _THEME_KEY='stock_theme_v1';
+   The report follows the device's Light/Dark setting and nothing else. The
+   pre-paint script in <head> sets data-theme before first paint; this keeps
+   it live, so when iOS/macOS switches at sunset the open report follows.
+   Only data-theme="dark" on <html> is ever read by the CSS and the
+   colour-picking JS (_pfCol, ppQuadTip). */
 var _THEME_MQ=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
-function _themePref(){var p=document.documentElement.getAttribute('data-theme-pref');return(p==='light'||p==='dark')?p:'auto';}
-function _themeResolved(p){return(p==='dark'||(p==='auto'&&!!(_THEME_MQ&&_THEME_MQ.matches)))?'dark':'light';}
-var _THEME_ICON={
-  light:'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></g></svg>',
-  auto:'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>',
-  dark:'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>'
-};
-var _THEME_LABEL={light:'Light',auto:'Auto',dark:'Dark'};
-/* Paint every control from the current choice: radios get aria-checked,
-   icon buttons ([data-theme-icon]) show the choice's glyph and name both
-   the choice and, under Auto, what it resolved to. */
-function _syncThemeCtl(){
-  var p=_themePref(),t=_themeResolved(p);
-  var desc='Appearance: '+_THEME_LABEL[p]+(p==='auto'?' ('+t+' now)':'');
-  document.querySelectorAll('[data-theme-ctl]').forEach(function(el){
-    el.setAttribute('aria-checked',el.getAttribute('data-theme-ctl')===p?'true':'false');
-  });
-  document.querySelectorAll('[data-theme-icon]').forEach(function(el){
-    el.innerHTML=_THEME_ICON[p];el.setAttribute('aria-label',desc);el.title=desc;
-  });
-  document.querySelectorAll('[data-theme-now]').forEach(function(el){
-    el.textContent=p==='auto'?'Follows your device · now '+t:'';
-  });
-}
+/* The switch this replaced saved a choice here; a stale one must not linger. */
+try{localStorage.removeItem('stock_theme_v1');}catch(e){}
 /* Safari's toolbar tint: the phone top bar is dark in both themes; wider
    screens show the page ground under the toolbar. */
 function _syncThemeColor(){
@@ -2839,29 +2770,18 @@ function _syncThemeColor(){
   var dark=document.documentElement.getAttribute('data-theme')==='dark';
   m.setAttribute('content',phone?'#0b0b0b':(dark?'#0d1117':'#f0f2f5'));
 }
-/* Resolve and apply; repaint the colour-bearing JS output only when the
-   resolved theme actually changed (Light -> Auto on a light device is a
-   no-op for the page). */
+/* Apply the device setting; repaint the colour-bearing JS output only when
+   the theme actually changed. */
 function _applyTheme(){
-  var r=document.documentElement,was=r.getAttribute('data-theme')==='dark'?'dark':'light';
-  var t=_themeResolved(_themePref());
-  if(t==='dark')r.setAttribute('data-theme','dark');else r.removeAttribute('data-theme');
-  _syncThemeCtl();_syncThemeColor();
-  if(t!==was&&typeof _pfOnTheme==='function')_pfOnTheme();
+  var r=document.documentElement,was=r.getAttribute('data-theme')==='dark';
+  var dark=!!(_THEME_MQ&&_THEME_MQ.matches);
+  if(dark)r.setAttribute('data-theme','dark');else r.removeAttribute('data-theme');
+  _syncThemeColor();
+  if(dark!==was&&typeof _pfOnTheme==='function')_pfOnTheme();
 }
-function setTheme(p){
-  if(p!=='light'&&p!=='dark')p='auto';
-  document.documentElement.setAttribute('data-theme-pref',p);
-  try{localStorage.setItem(_THEME_KEY,p);}catch(e){}
-  _applyTheme();
-}
-/* Kept for any caller that just wants the other theme: flips the resolved
-   theme and pins it (leaves Auto). */
-function toggleTheme(){setTheme(_themeResolved(_themePref())==='dark'?'light':'dark');}
 if(_THEME_MQ){
-  var _themeMqChange=function(){if(_themePref()==='auto')_applyTheme();};
-  if(_THEME_MQ.addEventListener)_THEME_MQ.addEventListener('change',_themeMqChange);
-  else if(_THEME_MQ.addListener)_THEME_MQ.addListener(_themeMqChange);
+  if(_THEME_MQ.addEventListener)_THEME_MQ.addEventListener('change',_applyTheme);
+  else if(_THEME_MQ.addListener)_THEME_MQ.addListener(_applyTheme);
 }
 window.addEventListener('resize',_syncThemeColor);
 /* Visual-viewport bridge — the CSS viewport units alone can't describe what is
@@ -9246,8 +9166,6 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){
     var pfp=document.getElementById('pf-pop');
     if(pfp&&pfp.classList.contains('open')){e.preventDefault();pfPopClose();return;}
-    var tm=document.getElementById('theme-menu');
-    if(tm&&tm.classList.contains('open')){e.preventDefault();themeMenuClose();return;}
     var rc=document.documentElement.classList;
     if(rc.contains('sb-drawer')||rc.contains('sb-over')){e.preventDefault();sbClose();return;}
     var fp=document.getElementById('filt-panel');
@@ -9681,33 +9599,7 @@ function sbToggle(){
   else sbOpen();
 }
 window.addEventListener('resize',_sbApply);
-/* === APPEARANCE MENU === one floating menu for the top-bar and rail icons. */
-function themeMenuClose(){
-  var m=document.getElementById('theme-menu');if(!m||!m.classList.contains('open'))return;
-  m.classList.remove('open');
-  document.querySelectorAll('[data-theme-icon][aria-expanded="true"]').forEach(function(b){b.setAttribute('aria-expanded','false');});
-}
-function themeMenuToggle(e,btn){
-  if(e)e.stopPropagation();
-  var m=document.getElementById('theme-menu');if(!m)return;
-  if(m.classList.contains('open')){themeMenuClose();return;}
-  ['light','auto','dark'].forEach(function(k){
-    var b=m.querySelector('[data-theme-ctl="'+k+'"]');
-    if(b)b.innerHTML=_THEME_ICON[k]+'<span>'+_THEME_LABEL[k]+'</span>'+(k==='auto'?'<span class="tm-sub">device</span>':'');
-  });
-  _syncThemeCtl();
-  m.classList.add('open');
-  var r=btn.getBoundingClientRect(),w=m.offsetWidth,h=m.offsetHeight;
-  var left=r.left>window.innerWidth/2?r.right-w:r.right+8;
-  var top=r.left>window.innerWidth/2?r.bottom+8:Math.min(r.top,window.innerHeight-h-8);
-  m.style.left=Math.max(8,Math.min(left,window.innerWidth-w-8))+'px';
-  m.style.top=Math.max(8,top)+'px';
-  btn.setAttribute('aria-expanded','true');
-  var cur=m.querySelector('[aria-checked="true"]');if(cur)cur.focus({preventScroll:true});
-}
 document.addEventListener('click',function(e){
-  var m=document.getElementById('theme-menu');
-  if(m&&m.classList.contains('open')&&!m.contains(e.target))themeMenuClose();
   var q=document.getElementById('hdr-qr'),hs=document.querySelector('.hdr-search');
   if(q&&q.classList.contains('open')&&hs&&!hs.contains(e.target))q.classList.remove('open');
 });
@@ -9919,7 +9811,7 @@ function hkOverlayOpen(){
 }
 /* The 'v' hotkey and every old caller: the sidebar is the views menu now. */
 function toggleNavMenu(e){if(e)e.stopPropagation();closeFiltMenu();sbToggle();}
-function closeNavMenu(){sbClose();themeMenuClose();}
+function closeNavMenu(){sbClose();}
 function renderCur(){
   if(curView==='matrix'){renderMSubs();var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view');if(curMSub==='dashboard'){if(mw)mw.style.display='none';if(ov)ov.style.display='';renderOverview();}else{if(mw)mw.style.display='';if(ov)ov.style.display='none';renderMatrix();}}
   else if(curView==='table'){renderTSubs();if(curTSub==='prices'){var tw=document.querySelector('.table-wrap'),phv=document.getElementById('ph-view');if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_phResync();}}else{renderTable();}}
@@ -12198,7 +12090,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   /* Every render path above ends in renderCur, which repaints the menu — but
      seed it once unconditionally so the icon is never a dead button if an
      odd dataset short-circuits one of those paths. */
-  _sbApply();_syncThemeCtl();_syncThemeColor();
+  _sbApply();_syncThemeColor();
   renderNavMenu();
   setTimeout(_setTableH,0);
 })();

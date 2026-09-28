@@ -1,12 +1,13 @@
 # tests/test_report_appearance.py
-"""Appearance: Light / Auto / Dark.
+"""Appearance follows the device's Light/Dark setting — there is no in-page
+switch.
 
-stock_theme_v1 holds the viewer's choice ('light' | 'dark' | 'auto',
-missing = auto). A pre-paint script resolves it before first paint, and
-data-theme="dark" on <html> stays the only thing the CSS and JS read. The
-new chrome survives the blanket `[data-theme="dark"] body *{color:#fff
-!important}` rule through its --sac colour variable, and every chrome token
-pair clears WCAG AA in both themes.
+A pre-paint script reads prefers-color-scheme before first paint, a
+matchMedia listener follows the device live, and data-theme="dark" on
+<html> stays the only thing the CSS and JS read. The new chrome survives the
+blanket `[data-theme="dark"] body *{color:#fff !important}` rule through its
+--sac colour variable, and every chrome token pair clears WCAG AA in both
+themes.
 """
 import json
 import re
@@ -23,63 +24,44 @@ def _tpl():
     return TEMPLATE.read_text(encoding='utf-8')
 
 
-def _fn(src, name):
-    start = src.index('function ' + name + '(')
-    return src[start:src.index('\n}\n', start) + 2]
-
-
 def _prepaint(src):
-    m = re.search(r"<script>(\(function\(\)\{var p='auto';.*?\}\)\(\);)</script>", src)
+    m = re.search(r"<script>(\(function\(\)\{if\(window\.matchMedia.*?\}\)\(\);)</script>", src)
     assert m, 'pre-paint appearance script not found'
     return m.group(1)
 
 
 @pytest.mark.skipif(shutil.which('node') is None, reason='node not installed')
-@pytest.mark.parametrize('stored,os_dark,want_dark,want_pref', [
-    ('light', False, False, 'light'),
-    ('light', True, False, 'light'),
-    ('dark', False, True, 'dark'),
-    ('dark', True, True, 'dark'),
-    ('auto', False, False, 'auto'),
-    ('auto', True, True, 'auto'),
-    (None, True, True, 'auto'),       # first visit follows the device
-    (None, False, False, 'auto'),
-    ('bogus', True, True, 'auto'),    # unknown value = auto
-    ('THROW', True, True, 'auto'),    # blocked storage still resolves
+@pytest.mark.parametrize('stored,os_dark', [
+    (None, True), (None, False),
+    # A choice saved by the old in-page switch is ignored: the device wins.
+    ('dark', False), ('light', True),
 ])
-def test_prepaint_resolves_the_choice(tmp_path, stored, os_dark, want_dark, want_pref):
+def test_prepaint_follows_the_device(tmp_path, stored, os_dark):
     stub = (
         'var attrs={};var document={documentElement:{setAttribute:function(k,v){attrs[k]=v;}}};\n'
-        'var localStorage={getItem:function(k){if(%s==="THROW")throw new Error("x");return %s;}};\n'
+        'var localStorage={getItem:function(k){return %s;}};\n'
         'var window={matchMedia:function(q){return{matches:%s&&q.indexOf("dark")>=0};}};\n'
-    ) % (json.dumps(stored), json.dumps(stored), 'true' if os_dark else 'false')
+    ) % (json.dumps(stored), 'true' if os_dark else 'false')
     js = stub + _prepaint(_tpl()) + '\nconsole.log(JSON.stringify(attrs));\n'
     script = tmp_path / 'prepaint.js'
     script.write_text(js, encoding='utf-8')
     r = subprocess.run(['node', str(script)], capture_output=True, text=True, check=False)
     assert r.returncode == 0, r.stderr
     attrs = json.loads(r.stdout)
-    assert attrs.get('data-theme-pref') == want_pref
-    assert (attrs.get('data-theme') == 'dark') is want_dark
+    assert (attrs.get('data-theme') == 'dark') is os_dark
 
 
-def test_set_theme_takes_three_choices_and_follows_the_device_live():
+def test_follows_the_device_live_with_no_switch():
     src = _tpl()
-    body = _fn(src, 'setTheme')
-    assert "p!=='light'&&p!=='dark'" in body and "p='auto'" in body
-    assert "localStorage.setItem(_THEME_KEY,p)" in body
     assert "matchMedia('(prefers-color-scheme: dark)')" in src
-    assert "_THEME_MQ.addEventListener('change'" in src
-    # Only Auto follows the device; an explicit choice ignores it.
-    assert "_themePref()==='auto'" in src
-
-
-def test_every_control_is_a_data_theme_ctl():
-    src = _tpl()
-    for pref in ('light', 'auto', 'dark'):
-        # sidebar radiogroup + the floating menu
-        assert src.count(f'data-theme-ctl="{pref}"') >= 2, pref
-    assert 'tt-knob' not in src and 'id="theme-toggle"' not in src
+    assert "_THEME_MQ.addEventListener('change',_applyTheme)" in src
+    # No in-page switch, in any of the places it used to live.
+    for gone in ('data-theme-ctl', 'data-theme-icon', 'id="theme-menu"', 'function setTheme(',
+                 'function toggleTheme(', 'data-theme-pref', 'tt-knob', 'id="theme-toggle"',
+                 'sb-appear', 'hdr-theme'):
+        assert gone not in src, gone
+    # The old saved choice is cleared rather than left to confuse.
+    assert "localStorage.removeItem('stock_theme_v1')" in src
     assert '<meta name="theme-color" id="meta-theme-color"' in src
 
 
@@ -90,7 +72,7 @@ def test_chrome_colour_survives_the_blanket_dark_rule():
     # Same !important, higher specificity ((0,1,2) vs (0,1,1)) and later.
     assert rescue > blanket
     for chrome in ('id="sidebar" class="sa-chrome"', 'id="tabbar" class="sa-chrome"',
-                   'id="subnav" class="sa-chrome"', 'id="theme-menu" class="sa-chrome"'):
+                   'id="subnav" class="sa-chrome"'):
         assert chrome in src, chrome
 
 
