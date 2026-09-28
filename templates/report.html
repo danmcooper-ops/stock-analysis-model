@@ -813,7 +813,10 @@ td.ct{font-weight:700;}
      full width. Zero-width flex-item ghosts (gates/rsince at max-width:0)
      leave only trailing gap px at the line's END — invisible. */
   #det-modal.hdr-min .dcname,#det-modal.hdr-min .dmeta{max-height:0;opacity:0;margin:0;}
-  #det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .det-nav-pos{max-width:0;opacity:0;margin:0;}
+  /* display:none, not just max-width:0 — a zero-width item still takes part
+     in the rating row's wrap, and after the row's 12px gap it could drop to
+     a line of its own: a blank row under the price. */
+  #det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .det-nav-pos{max-width:0;opacity:0;margin:0;display:none;}
   #det-modal.hdr-min .d-mini-nav,#det-modal.hdr-min .d-mini-nav-actions{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .18s ease,visibility 0s linear .18s;}
   #det-modal.hdr-min .d-header-band{padding:calc(8px + env(safe-area-inset-top)) 16px 8px!important;gap:5px;}
   #det-modal.hdr-min .d-rating-row{margin:0;padding-right:0;}
@@ -2205,6 +2208,10 @@ html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
 [data-theme="dark"] .header{background:var(--topbar-bg) !important;}
 .header .hdr-title{display:none;}
 .hdr-menu{display:none;}
+.hdr-close{display:none;--sac:#fff;position:absolute;right:8px;top:calc(env(safe-area-inset-top) + 6px);width:36px;height:36px;align-items:center;justify-content:center;background:none;border:0;border-radius:8px;cursor:pointer;padding:0;}
+.hdr-close svg{width:22px;height:22px;}
+.hdr-close:hover{background:rgba(255,255,255,.12);}
+.hdr-close:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 .hdr-search{--sac:var(--search-muted);position:relative;flex:0 1 380px;min-width:0;height:32px;display:flex;align-items:center;gap:7px;
   padding:0 6px 0 10px;background:var(--search-bg);border:1px solid var(--search-border);border-radius:7px;box-sizing:border-box;}
 .hdr-search:focus-within{border-color:var(--chrome-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--chrome-accent) 22%,transparent);}
@@ -2487,6 +2494,26 @@ html body .d-side-card .rb{color:#fff !important;}
   html.det-open #det-modal .d-mini-nav{top:10px;}
   html.det-open #det-modal .d-mini-nav-actions{top:46px;}
   html.det-open .header .filter-bar{display:none;}
+  /* × moves up into the top bar, at its right end opposite the back arrow
+     (the bar's Filters button is hidden here, so that end is free). It is
+     the bar's own #hdr-close: the bar stacks above the whole modal, so the
+     band's × could never be lifted over it. The band's copy hides. */
+  html.det-open #det-modal .detail-close{display:none;}
+  html.det-open .hdr-close{display:flex;}
+  /* The ‹ › pair takes the band corner × left. */
+  html.det-open #det-modal .d-mini-nav{right:12px;}
+  /* Collapsed: nothing sits beside the ticker any more (arrows hidden, ×
+     in the bar), and the band keeps no gap it does not need — the name and
+     meta lines are gone, so only the ticker, the rating row and the tabs
+     remain, 6px apart, the tabs' rule the band's bottom edge. */
+  html.det-open #det-modal.hdr-min .dh{padding-right:0!important;}
+  html.det-open #det-modal.hdr-min .d-header-band{padding-bottom:0!important;gap:0;}
+  /* One line when collapsed: price, change, rating and score, tightened so
+     a long price does not wrap the score chip onto a second row. */
+  html.det-open #det-modal.hdr-min .d-rating-row{margin-top:6px;gap:8px;flex-wrap:nowrap;white-space:nowrap;overflow:hidden;}
+  html.det-open #det-modal.hdr-min .dpx{font-size:1.15em;}
+  html.det-open #det-modal.hdr-min .d-chg{font-size:.9em;}
+  html.det-open #det-modal.hdr-min .d-tabs{margin-top:6px;}
 }
 @media(max-width:768px){
   html.det-open #det-modal .d-back{display:none;}
@@ -2518,6 +2545,9 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
     <span class="f-suggest" id="f-suggest"></span>
     <div class="hdr-qr" id="hdr-qr" role="listbox" aria-label="Matching tickers"></div>
   </div>
+  <!-- Phones: the ticker page's close button, shown in the top bar only while
+       a ticker page is open (html.det-open). -->
+  <button type="button" class="hdr-close sa-chrome" id="hdr-close" onclick="closeDetail()" aria-label="Close ticker page"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
   <!-- Title stacks over the current view name ("Sector Analysis" /
        "Financial Model" / "Financial Data"), filled by _syncNavCrumb from
        the same nav group it uses for the button tooltip. The column is
