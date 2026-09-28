@@ -2389,6 +2389,18 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
    (white-on-band by default) takes the chrome colours or it vanishes in light. */
 #det-modal .stmt-pdf-btn{color:var(--chrome-heading);background:var(--chip-bg);border-color:var(--chip-border);}
 #det-modal .stmt-pdf-btn:hover{border-color:var(--chrome-heading);}
+/* "Summary" beside the ticker symbol: prints the one-page company summary
+   (exportProfilePdf). Same chip colours and download glyph as the
+   statements' PDF button, so the two exports read as one family; text goes
+   through --sac, which .sa-chrome carries past the blanket dark
+   `body *{color:#fff !important}`. */
+#det-modal .d-sum-btn{--sac:var(--chrome-heading);flex-shrink:0;display:inline-flex;align-items:center;gap:5px;
+  font:inherit;font-size:13px;font-weight:600;line-height:1;padding:5px 9px;
+  background:var(--chip-bg);border:1px solid var(--chip-border);border-radius:6px;cursor:pointer;text-shadow:none;}
+#det-modal .d-sum-btn:hover{border-color:var(--chrome-heading);}
+#det-modal .d-sum-btn:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:1px;}
+#det-modal .d-sum-btn svg{width:12px;height:12px;display:block;}
+#det-modal.hdr-min .d-sum-btn{font-size:11.5px;padding:3px 7px;}
 #det-modal .dgroup-title .dg-icon{display:none;}
 /* Chart controls (.cm-uline: the ticker page's Summary chart and the
    Financial Data Charts view) open from the chart's ☰ button, like the other
@@ -2488,18 +2500,14 @@ html.sb-over #sidebar,html.sb-drawer #sidebar{z-index:1310;}
 html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 </style>
 <style id="pro-css">
-/* === PROFILE tab (ticker page) — the one-page company profile ============
+/* === SUMMARY PDF — the one-page company summary ==========================
    Dense on purpose: every decision-relevant number for one company, led by
-   the verdict. Kept in its own <style> element because exportProfilePdf()
-   copies this sheet verbatim into the print frame, so paper and screen are
-   one layout. Semantic colours go through --pro-pos/--pro-neg/--pro-warn so
-   the dark overrides at the end restore them past the blanket
-   `[data-theme="dark"] body *{color:#fff !important}` rule. */
+   the verdict. Only the print frame uses these rules: exportProfilePdf()
+   (the ticker page's "Summary" button beside the symbol) copies this sheet
+   verbatim into a hidden iframe, which is always light, so the page itself
+   never renders a .pro block. */
 .pro{--pro-pos:#1a7f37;--pro-neg:#c62828;--pro-warn:#9a6700;--pro-line:var(--border);--pro-bar:#2f6fb3;--pro-bar-soft:#9dbfe3;
   font-size:12px;line-height:1.35;color:var(--text);background:var(--surface);padding:14px 16px;border-radius:8px;}
-.pro-tools{display:flex;justify-content:flex-end;margin:-4px 0 6px;}
-.pro-print-btn{font:inherit;font-size:11.5px;font-weight:600;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;}
-.pro-print-btn:hover{border-color:var(--accent);}
 .pro-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px;border-bottom:2px solid var(--text);padding-bottom:5px;margin-bottom:8px;}
 .pro-head h2{font-size:17px;margin:0;font-weight:800;}
 .pro-meta{color:var(--text-muted);}
@@ -2573,18 +2581,6 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 .pro-list{margin:0;padding-left:14px;}
 .pro-list li{margin:1px 0;}
 .pro-foot{margin-top:8px;padding-top:4px;border-top:1px solid var(--pro-line);font-size:9.5px;color:var(--text-muted);}
-.pro-empty{color:var(--text-muted);padding:18px;text-align:center;}
-[data-theme="dark"] .pro{--pro-pos:#7ee787;--pro-neg:#ff7b72;--pro-warn:#ffd33d;--pro-bar:#79b8ff;--pro-bar-soft:#2c4f78;}
-[data-theme="dark"] #d-profile :where(.pro-need,.pro-meta,.pro-facts span,.pro-conv,.pro-keys,.pro-pc h5,.pro-b h4,.pro-k,.pro-sub,.pro-hist th,.pro-hist td:first-child,.pro-sc-cat span,.pro-g,.pro-foot,.pro-empty){color:var(--text-muted) !important;}
-[data-theme="dark"] #d-profile :where(.pro-facts b,.pro-keys b,.pro-val,.pro-headline,.pro-hist td,.pro-sc-cat,.pro-list li,.pro-flags li,.pro-print-btn){color:var(--text) !important;}
-[data-theme="dark"] #d-profile .pro-vlabel{color:var(--pro-vc) !important;}
-[data-theme="dark"] #d-profile .pos,[data-theme="dark"] #d-profile .pro-g.pass,[data-theme="dark"] #d-profile .pro-pros li::before{color:var(--pro-pos) !important;}
-[data-theme="dark"] #d-profile .neg,[data-theme="dark"] #d-profile .pro-g.fail,[data-theme="dark"] #d-profile .pro-cons li::before,[data-theme="dark"] #d-profile .pro-flags li::before{color:var(--pro-neg) !important;}
-@media (max-width:768px){
-  .pro{padding:10px 10px;}
-  .pro-verdict{grid-template-columns:minmax(0,1fr);}
-  .pro-pc{grid-template-columns:minmax(0,1fr);}
-}
 </style>
 </head>
 <body>
@@ -2775,7 +2771,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       <button type="button" class="d-back sa-chrome" id="d-back" onclick="closeDetail()"></button>
       <button class="detail-close" onclick="closeDetail()" aria-label="Close ticker page">&times;</button>
       <button class="detail-menu-btn" id="d-tbtn-all" aria-haspopup="menu" aria-expanded="false" title="Sections" onclick="toggleDetMenu(event)">&#9776;</button>
-      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span class="det-nav-pos"></span></div></div>
+      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><button type="button" class="d-sum-btn sa-chrome" id="d-sum" onclick="exportProfilePdf()" aria-label="Summary PDF: one page on this company" title="One-page summary of this company with an invest / watch / avoid verdict. Opens the print dialog; choose “Save as PDF”."><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>Summary</button><span class="det-nav-pos"></span></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
       <!-- Rating row is the band's BOTTOM line (below the CEO meta line),
@@ -2812,7 +2808,6 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
       <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
       </div><!-- /d-pane-overview -->
-      <div id="d-pane-profile" class="d-pane"><div id="d-profile"></div></div>
       <div id="d-pane-peers" class="d-pane">
         <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
         <div id="d-peers-empty" style="display:none;color:#888;padding:24px;text-align:center;font-size:0.88em">No peers or supply-chain data for this company.</div>
@@ -7798,15 +7793,15 @@ function _renderTrackRecord(d){
   el.innerHTML=html;
   sec.style.display='';
 }
-/* === PROFILE (ticker page) — the one-page company profile ================
+/* === SUMMARY PDF (ticker page) — the one-page company summary ============
    Every decision-relevant number for one company on one dense page, led by
    the rule-based verdict models/profile_verdict.py computes at render time
    (d.profile, shipped in the details/ parts, so it lands with them). The
    numbers are the row's own; nothing here re-derives a model. Colour marks
    good/bad at the thresholds the Data-tab summaries and gates already use,
-   and always sits beside the number, never alone. exportProfilePdf() prints
-   the same markup on one sheet. */
-var DT_PROFILE={k:'profile',l:'Profile'};
+   and always sits beside the number, never alone. There is no on-screen
+   view: the "Summary" button beside the ticker symbol (#d-sum) calls
+   exportProfilePdf(), which prints _proHtml on one sheet. */
 var _PRO_VCLS={'INVEST':'pro-v-inv','WATCH':'pro-v-wat','AVOID':'pro-v-avo','INSUFFICIENT DATA':'pro-v-na'};
 function _proFmt(v,f){
   if(f==='raw')return v==null||v===''?null:String(v);
@@ -8138,14 +8133,6 @@ function _proHtml(d){
   h+='<div class="pro-foot">Report of '+esc(RUN_DATE)+' · fundamentals from SEC EDGAR XBRL and Yahoo Finance · verdict rules: models/profile_verdict.py (rating, margin of safety, red flags, weighted checks) · not investment advice.</div>';
   return h+'</div>';
 }
-function _renderDetProfile(d){
-  var el=document.getElementById('d-profile');if(!el||!d)return;
-  var tk=d.ticker;
-  if(_histPending(tk))_ensureHist([tk],function(){if(_dpTicker===tk&&_detTab===DT_PROFILE.k){var dd=DATA.find(function(x){return x.ticker===tk;});if(dd)_renderDetProfile(dd);}});
-  try{
-    el.innerHTML='<div class="pro-tools"><button type="button" class="pro-print-btn" onclick="exportProfilePdf()" title="Print this profile on one page, or save it as a PDF">Print / Save PDF</button></div>'+_proHtml(d);
-  }catch(e){console.error('profile error:',e);el.innerHTML='<div class="pro-empty">Profile unavailable.</div>';}
-}
 /* Print on ONE sheet, through a hidden iframe like exportStmtPdf (no popup
    permission needed; the dialog shows only the frame's document). The frame
    gets the Profile stylesheet verbatim plus light-theme tokens at a fixed
@@ -8161,7 +8148,7 @@ function _proPrintDoc(d){
     +'.pro{font-size:9.5px;padding:0;border-radius:0}.pro-head h2{font-size:14px}.pro-vlabel{font-size:18px}.pro-headline{font-size:11px}'
     +'.pro-b h4,.pro-pc h5{font-size:8.5px}.pro-sub,.pro-g,.pro-hist th,.pro-foot{font-size:8px}.pro-hist{font-size:9px}'
     +'.pro-grid{display:block;column-count:3;column-gap:12px}.pro-grid .pro-b{display:inline-block;width:100%;margin-bottom:6px}'
-    +'.pro-wides{gap:6px;margin-top:0}.pro-tools{display:none}.pro-need{font-size:8.5px}';
+    +'.pro-wides{gap:6px;margin-top:0}.pro-need{font-size:8.5px}';
   var fit='(function(){var H=980,b=document.body,h=b.scrollHeight;if(h>H)b.style.zoom=(H/h).toFixed(3);})();';
   var ttl=d.ticker+' company profile '+RUN_DATE;
   return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(ttl)+'</title><style>'+css+'</style></head><body>'
@@ -8170,6 +8157,9 @@ function _proPrintDoc(d){
 function exportProfilePdf(){
   var d=DATA.find(function(x){return x.ticker===_dpTicker;});
   if(!d)return;
+  /* The verdict rides the details/ parts: an early click waits for them
+     rather than printing a verdict-less page. */
+  if(_DETAILS_AVAILABLE&&!_DETAILS_LOADED){_loadDetails(exportProfilePdf);return;}
   if(_histPending(_dpTicker)){_ensureHist([_dpTicker],exportProfilePdf);return;}
   var fr=document.getElementById('pro-print-frame');
   if(!fr){
@@ -8271,7 +8261,6 @@ function _detDataItems(){
    left to answer "where am I". */
 function _detGroupOf(k){
   if(k==='overview')return null;
-  if(k===DT_PROFILE.k)return 'profile';
   if(k===DT_FIN.k)return 'stmt';
   for(var i=0;i<DT_STMTS.length;i++)if(DT_STMTS[i].k===k)return 'stmt';
   return 'data';
@@ -8280,7 +8269,7 @@ function _detMenuItems(){
   /* The Charts tab is retired — its Fundamental Charts block now sits at the
      top of Overview (and the duplicate Price History chart it sat above is
      gone; the price series is the block's default metric). */
-  return [{k:'overview',l:'Overview'},DT_PROFILE,DT_FIN].concat(_detDataItems());
+  return [{k:'overview',l:'Overview'},DT_FIN].concat(_detDataItems());
 }
 function _renderDetTabBar(){
   /* The underlined section tabs, plus the back link naming where the page
@@ -8373,7 +8362,7 @@ function swDetTab(k){
   _detTab=k;
   _renderDetTabBar();
   document.querySelectorAll('#det-modal .d-pane').forEach(function(p){p.classList.remove('active');});
-  var id=k==='overview'?'d-pane-overview':k===DT_PROFILE.k?'d-pane-profile':k==='peers'?'d-pane-peers':k==='news'?'d-pane-news':_detGroupOf(k)==='stmt'?'d-pane-stmt':'d-pane-data';
+  var id=k==='overview'?'d-pane-overview':k==='peers'?'d-pane-peers':k==='news'?'d-pane-news':_detGroupOf(k)==='stmt'?'d-pane-stmt':'d-pane-data';
   var pane=document.getElementById(id);if(pane)pane.classList.add('active');
   /* Overview now carries the Charts block; re-render it on return to the tab
      so a metric/range picked earlier still draws after switching away. */
@@ -8385,7 +8374,6 @@ function swDetTab(k){
     var ns=document.getElementById(k==='peers'?'d-section-network':'d-section-news');
     if(ne&&ns)ne.style.display=(ns.style.display==='none')?'':'none';
   }
-  else if(k===DT_PROFILE.k){var _pd=DATA.find(function(x){return x.ticker===_dpTicker;});if(_pd)_renderDetProfile(_pd);}
   else if(_detGroupOf(k)==='stmt')_renderDetStmtTab(_detStmt);
   else if(k!=='overview')_renderDetDataTab(k);
   var sc=_detScroller();if(sc)sc.scrollTop=0;
