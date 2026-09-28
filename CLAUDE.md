@@ -508,10 +508,11 @@ ruff check .
   - **Ticker page:** the `#det-modal` popup is now a page beside the sidebar,
     with section tabs (`#d-tabs`). It shows a one-day change taken from the
     `px/` shard.
-  - **Appearance:** `stock_theme_v1` is `light | dark | auto`, where missing
-    means auto. A pre-paint script resolves Auto via `prefers-color-scheme`,
-    and a `matchMedia` listener follows the device live. `data-theme="dark"`
-    is still the only thing CSS and JS read.
+  - **Appearance:** follows the device's Light/Dark setting only; there is
+    no in-page switch. A pre-paint script reads `prefers-color-scheme` and a
+    `matchMedia` listener follows the device live. `data-theme="dark"` is
+    still the only thing CSS and JS read. The old switch's `stock_theme_v1`
+    key is cleared on load.
   - **Tests:** `tests/test_report_sidebar.py` and
     `tests/test_report_appearance.py`. The latter includes a WCAG contrast
     check of the chrome tokens in both themes.
