@@ -34,27 +34,27 @@ def _fn(src, name):
 
 def test_navigation_surfaces_exist_and_the_views_dropdown_is_gone():
     src = _tpl()
-    for needle in ('<nav id="sidebar"', '<nav id="tabbar"', '<div id="subnav"',
+    for needle in ('<nav id="sidebar"', '<div id="subnav"',
                    'id="sn-chips"', 'id="sb-views"', 'id="sb-pf"'):
         assert needle in src, needle
-    for gone in ('id="nav-panel"', 'id="nav-cols"', 'id="nav-btn"', 'id="theme-toggle"'):
+    for gone in ('id="nav-panel"', 'id="nav-cols"', 'id="nav-btn"', 'id="theme-toggle"', 'id="tabbar"'):
         assert gone not in src, gone
 
 
 def test_one_renderer_feeds_every_navigation_surface():
-    """Sidebar rows, chips and tab bar all come from _navGroups() in
+    """Sidebar rows and chips all come from _navGroups() in
     renderNavMenu, so they can never disagree with each other or with the
     digit hotkeys."""
     body = _fn(_tpl(), 'renderNavMenu')
     assert '_navGroups()' in body
-    for target in ("'sb-views'", "'sb-pf'", "'sn-chips'", "'tabbar'"):
+    for target in ("'sb-views'", "'sb-pf'", "'sn-chips'"):
         assert target in body, target
 
 
 def test_one_delegated_listener_dispatches_navigation():
     src = _tpl()
-    assert src.count("closest('#sidebar [data-v],#tabbar [data-v],#subnav [data-v]')") == 1
-    listener = src.split("closest('#sidebar [data-v],#tabbar [data-v],#subnav [data-v]')")[1][:700]
+    assert src.count("closest('#sidebar [data-v],#subnav [data-v]')") == 1
+    listener = src.split("closest('#sidebar [data-v],#subnav [data-v]')")[1][:700]
     assert 'navGo(' in listener
     # Navigating from over an open ticker page closes it.
     assert 'closeDetail()' in listener
