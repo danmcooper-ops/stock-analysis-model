@@ -20,6 +20,75 @@ rate limits, not on computing.
 cloud Routine gets paused in section 7, and not before its Mac replacement has
 done a clean dry run. The two jobs can move on different weekends.
 
+**Two scripts do most of this** (`mac-mini/`):
+- `pack_old_mac.sh` runs on the old Mac. It inventories it and packs what
+  has to move (section 0).
+- `bootstrap_mini.sh` runs on the new one. It does sections 2 and 3 and can
+  be re-run. `--check` reports what is left without changing anything.
+
+---
+
+## 0. Moving from the old Mac (the MacBook Air)
+
+Almost nothing needs to move. The code, every archived snapshot and the
+state files are on GitHub. The price and companyfacts caches the cloud
+Routine has saved every night since 2026-09-10 are in Supabase Storage, and
+they are newer than anything the Air holds. Only three things can exist
+nowhere else:
+- **`.env`**, the API keys;
+- **work not on GitHub**: uncommitted changes, unpushed commits, stashes;
+- **portfolio edits made in the report**, which stay in that browser's
+  localStorage until exported.
+
+Don't use Migration Assistant for this. It would copy the Air's whole
+account, including the old venv, stale caches, the Claude scheduled tasks
+and launchd jobs, onto a machine meant to run one job cleanly.
+
+On the **Air**, in Terminal, from any checkout of the repo that has this
+branch, or by downloading the script alone:
+- [ ] `bash scheduled-tasks/mac-mini/pack_old_mac.sh --inventory-only` and read
+      the report. It lists every checkout it finds, the Trash included, with
+      its git state, `.env` key names (never values), caches, and the Air's
+      scheduled tasks and launchd jobs. macOS may ask to let Terminal read
+      Desktop/Documents: allow it, or the search misses checkouts there.
+- [ ] Push anything it flags as **not on GitHub**.
+- [ ] Export portfolio edits: open the report in the browser you use,
+      Portfolios → Manage → Export. Bring the file across.
+- [ ] If `.env` isn't found (the checkout was deleted on 2026-09-09), check
+      `~/.Trash` and your password manager. The cloud Routine's environment
+      settings (claude.ai, the environment menu → Edit) at least list which
+      keys it uses. Re-issue any key you can't recover.
+- [ ] Pack: `bash scheduled-tasks/mac-mini/pack_old_mac.sh`. It writes
+      `~/StockModelTransfer`, holding `.env` (mode 600) and the inventory.
+      Add `--with-sec-cache` / `--with-prices` only if you won't give the
+      mini the Supabase keys. Even then the Air's prices are weeks old and get
+      re-downloaded in full; they only carry the ticker list.
+- [ ] Move it. The simplest way is over the network: on the mini, System
+      Settings → General → Sharing → **Remote Login** on, then on the Air
+      re-run with `--to <you>@<mini-name>.local`. Or use AirDrop or a USB
+      drive. Never put the folder in iCloud Drive; the script refuses to
+      write there.
+- [ ] Nothing to disable yet. The Air's scheduled tasks and launchd job point
+      at the checkout deleted on 2026-09-09, and the runbooks are DORMANT
+      anyway. Remove them before you retire the Air; the script prints the
+      commands.
+
+On the **mini**:
+- [ ] Sign in with your Apple ID, set the time zone, energy settings and
+      FileVault choice (section 1). Install the Xcode command-line tools
+      (`xcode-select --install`), a Python ≥ 3.11 (python.org or
+      `brew install python@3.13`), and log git in to GitHub
+      (`brew install gh && gh auth login`).
+- [ ] Get `bootstrap_mini.sh` onto the mini. It's in the pack's repo, or
+      clone first: `git clone https://github.com/danmcooper-ops/stock-analysis-model.git "$HOME/Projects/Workspace Folder"`.
+      Then run
+      `bash "$HOME/Projects/Workspace Folder/scheduled-tasks/mac-mini/bootstrap_mini.sh" --transfer ~/StockModelTransfer`.
+      It works through sections 2 and 3. Fix what it reports and re-run until
+      the summary reads `0 to fix`.
+- [ ] Import the portfolio export:
+      `~/.venvs/stock-model/bin/python scripts/portfolios.py import <file>`.
+- [ ] Delete `~/StockModelTransfer` on both Macs once `.env` is installed.
+
 ---
 
 ## 1. Hardware and macOS
@@ -116,7 +185,7 @@ the repo root, with the venv's Python as `$PYTHON`.
       Without `screen_skip.json` the first Phase-1 screen runs cold, which adds
       about 1h20m (4h15m instead of 2h54m).
 - [ ] **DuckDB index:** `RECOVERY.md` step 7
-      (`ingest_snapshots.py --results-dir .claude/worktrees/snapshots-data`).
+      (`ingest_snapshots.py --results-dir .claude/worktrees/snapshots-data --db output/snapshots.duckdb`).
 - [ ] Run `RECOVERY.md` → **Check it worked**. The parquet count should be
       in the thousands, not 4.
 
