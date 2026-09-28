@@ -17,6 +17,10 @@ routine the next day. They stay here as the reference for the steps and for a
 future Mac rebuild — but the cloud routine and a rebuilt Mac routine must not
 both run: each appends to `data/snapshots` and force-pushes `pages-live`.
 
+To move the daily run onto a dedicated Mac (a Mac mini), follow
+`MAC-MINI-SETUP.md`: it lists what `run_daily.sh` still lacks compared with
+the cloud script, and the cut-over order.
+
 If the repo directory itself is gone — deleted, moved or restored from a
 backup — see `RECOVERY.md` in this directory for the full rebuild.
 
