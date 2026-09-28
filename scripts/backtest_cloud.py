@@ -18,6 +18,8 @@ cold. These subcommands keep that logic out of shell heredocs:
   check-prices   Fail (exit 1) when the downloaded prices cannot support a
                  measurement: the benchmark's parquet must be current, and
                  at least --min-share of the tickers must have a parquet.
+                 With --fresh-since (a kept price cache), a parquet counts
+                 only if this run wrote it or it is already current.
   backfill-prices
                  Fill what Yahoo lacks from Tiingo: tickers with no price
                  file, a history that starts after their first snapshot
@@ -211,13 +213,23 @@ def _last_bar(path):
 
 
 def check_prices(tickers, prices_dir, today=None, min_share=0.90,
-                 benchmark='SPY', max_benchmark_age_days=5):
+                 benchmark='SPY', max_benchmark_age_days=5,
+                 fresh_since=None, max_age_days=2):
     """``(ok, lines)``: can these prices support this week's measurement?
 
     The benchmark must be current: every excess return subtracts it, and a
     stale SPY leaves the newest matured pairs unmeasured. And at least
     *min_share* of the tickers must have a parquet at all — below that, a
     throttled download night, not the model, would decide the sample.
+
+    *fresh_since* (a unix time, the download's start) is for a price
+    directory kept from earlier runs, as on a Mac. In the cloud the directory
+    starts empty, so a file exists only if this run wrote it. A kept
+    directory would let last week's file stand in for a download that failed
+    tonight. So with *fresh_since* a parquet counts only if it was written at
+    or after that time, or if its last bar is within *max_age_days*, which
+    `download_prices.py --max-age-days` skips as already current. That is
+    exactly the set a cold directory would hold after the same download.
     """
     today = today or date.today()
     lines, ok = [], True
@@ -229,7 +241,18 @@ def check_prices(tickers, prices_dir, today=None, min_share=0.90,
                      f'than {max_benchmark_age_days} days before {today}')
     else:
         lines.append(f'{benchmark} prices end {last}')
-    have = [t for t in tickers if os.path.exists(os.path.join(prices_dir, f'{t}.parquet'))]
+    have, kept = [], 0
+    cutoff = today - timedelta(days=max_age_days)
+    for t in tickers:
+        path = os.path.join(prices_dir, f'{t}.parquet')
+        if not os.path.exists(path):
+            continue
+        if fresh_since is not None and os.path.getmtime(path) < fresh_since:
+            last = _last_bar(path)
+            if last is None or last < cutoff:
+                kept += 1                   # an earlier run's file, not refreshed
+                continue
+        have.append(t)
     share = len(have) / len(tickers) if tickers else 0.0
     line = (f'{len(have)} of {len(tickers)} ticker(s) have a price file '
             f'({share:.1%}, floor {min_share:.0%})')
@@ -237,6 +260,9 @@ def check_prices(tickers, prices_dir, today=None, min_share=0.90,
         ok = False
         line = 'PROBLEM: ' + line
     lines.append(line)
+    if kept:
+        lines.append(f'{kept} stale file(s) from an earlier run were not refreshed '
+                     f'this run and are not counted')
     return ok, lines
 
 
@@ -524,6 +550,11 @@ def main(argv=None):
                    help='the list `tickers` wrote (whitespace-separated)')
     p.add_argument('--prices-dir', default='output/prices')
     p.add_argument('--min-share', type=float, default=0.90)
+    p.add_argument('--fresh-since', type=float, default=None,
+                   help='unix time the download started: with a kept price '
+                        'directory, count only files written since or already current')
+    p.add_argument('--max-age-days', type=int, default=2,
+                   help="the download's --max-age-days (what it treats as current)")
 
     p = sub.add_parser('backfill-prices')
     p.add_argument('--results-dir', default='output')
@@ -559,7 +590,9 @@ def main(argv=None):
     if args.cmd == 'check-prices':
         with open(args.tickers_file, encoding='utf-8') as f:
             tickers = f.read().split()
-        ok, lines = check_prices(tickers, args.prices_dir, min_share=args.min_share)
+        ok, lines = check_prices(tickers, args.prices_dir, min_share=args.min_share,
+                                 fresh_since=args.fresh_since,
+                                 max_age_days=args.max_age_days)
         print('\n'.join(lines))
         return 0 if ok else 1
 

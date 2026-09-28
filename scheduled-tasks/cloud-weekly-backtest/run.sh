@@ -14,9 +14,12 @@
 #                 blob-less, checkout-less clone, in batched fetches
 #   03 store      output/snapshots.duckdb, so the backtest reads a slim
 #                 projection instead of parsing every file
-#   04 prices     cold download for every ticker of every matured snapshot,
-#                 a second pass for what the first missed, then a gate: SPY
-#                 must be current and >= 90% of the tickers must have prices
+#   04 prices     download for every ticker of every matured snapshot (cold
+#                 in the cloud; on a Mac $OUT/prices is kept between runs,
+#                 so only stale files are re-fetched), a second pass for what
+#                 the first missed, then a gate: SPY must be current and
+#                 >= 90% of the tickers must have prices written this run or
+#                 already current
 #   04b backfill  Tiingo for what Yahoo lacks — mostly delisted (acquired)
 #                 names, whose history Yahoo drops. Fetched series are cached
 #                 in price_backfill/ (persisted, fetched once); confirmed
@@ -37,6 +40,10 @@
 # The shell helpers below (TZ/CA bundle, run_step, pip_no_proxy,
 # bootstrap_venv) are copies of ../cloud-daily-stock-analysis/run.sh's; a fix
 # to either copy belongs in both.
+#
+# Outside the cloud (a Mac mini: ../MAC-MINI-SETUP.md) it runs unchanged
+# through ../weekly-backtest/mac_run.sh, which supplies the environment the
+# container used to provide.
 #
 # Knobs (environment):
 #   STOCK_MODEL_REPO     checkout to run from (default: this file's repo)
@@ -153,7 +160,14 @@ run_step 01-venv 1 bootstrap_venv || fail 01-venv
 # ---------------------------------------------------------------------------
 SNAP="$WORK/snapshots-data"
 stage_corpus() {
-  rm -rf "$SNAP" "$OUT"; mkdir -p "$OUT"
+  # Everything but the price cache is re-staged each run. The prices stay:
+  # the cloud starts empty anyway, and on a machine that persists (a Mac)
+  # keeping them turns a 1-2 h cold download into a refresh of stale files.
+  # Freshness is judged from parquet content, and the step-04 gate counts
+  # only files this run wrote or found current, so a kept file never stands
+  # in for a failed download.
+  rm -rf "$SNAP"; mkdir -p "$OUT"
+  find "$OUT" -mindepth 1 -maxdepth 1 ! -name prices -exec rm -rf {} + || return 1
   git clone -q --filter=blob:none --depth 1 --no-checkout --single-branch \
       -b "$SNAP_BRANCH" "$CLONE_REMOTE" "$SNAP" || return 1
   # Index from HEAD's tree (no blobs), so the archive commit keeps the rest.
@@ -182,6 +196,7 @@ download_prices() {
   else "$PYTHON" scripts/backtest_cloud.py tickers --results-dir "$OUT" > "$TICKERS_FILE" || return 1
   fi
   echo "$(wc -w < "$TICKERS_FILE") tickers to fetch"
+  local t0; t0=$(date +%s)
   # Two passes: the second only re-requests what the first did not write
   # (fresh files are skipped), which is where Yahoo's soft throttle lands.
   "$PYTHON" scripts/download_prices.py --output-dir "$OUT/prices" --max-age-days 2 \
@@ -190,7 +205,8 @@ download_prices() {
   "$PYTHON" scripts/download_prices.py --output-dir "$OUT/prices" --max-age-days 2 \
       --tickers $(cat "$TICKERS_FILE") | tail -40
   "$PYTHON" scripts/backtest_cloud.py check-prices --tickers-file "$TICKERS_FILE" \
-      --prices-dir "$OUT/prices" --min-share "$MIN_PRICE_SHARE"
+      --prices-dir "$OUT/prices" --min-share "$MIN_PRICE_SHARE" \
+      --fresh-since "$t0" --max-age-days 2
 }
 run_step 04-prices 1 download_prices || fail 04-prices
 

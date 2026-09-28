@@ -44,6 +44,29 @@ def test_check_prices_requires_current_benchmark_and_coverage(tmp_path):
     assert not ok and lines[0].startswith('PROBLEM: SPY')
 
 
+def test_check_prices_with_a_kept_cache_ignores_stale_unrefreshed_files(tmp_path):
+    # A Mac keeps the price directory between Sundays. A file left from last
+    # week that tonight's download failed to refresh must not count towards
+    # the coverage floor, or a throttled night would pass the gate.
+    _parquet(tmp_path / 'SPY.parquet', '2026-09-25')
+    _parquet(tmp_path / 'CUR.parquet', '2026-09-25')     # current: skipped by the download
+    _parquet(tmp_path / 'NEW.parquet', '2026-08-14')     # rewritten tonight (a delisted name)
+    _parquet(tmp_path / 'OLD.parquet', '2026-09-18')     # last week's, not refreshed
+    start = 1_000_000.0
+    for t in ['SPY', 'CUR', 'OLD']:
+        os.utime(tmp_path / f'{t}.parquet', (start - 3600, start - 3600))
+    os.utime(tmp_path / 'NEW.parquet', (start + 60, start + 60))
+    tickers = ['SPY', 'CUR', 'NEW', 'OLD']
+    ok, lines = bc.check_prices(tickers, str(tmp_path), today=date(2026, 9, 27),
+                                min_share=0.9, fresh_since=start)
+    assert not ok
+    assert any(ln.startswith('PROBLEM: 3 of 4') for ln in lines), lines
+    assert any('1 stale file(s)' in ln for ln in lines), lines
+    # Without fresh_since (the cloud's cold directory) every file counts.
+    ok, _ = bc.check_prices(tickers, str(tmp_path), today=date(2026, 9, 27), min_share=0.9)
+    assert ok
+
+
 def test_matured_tickers_reads_only_matured_snapshots(tmp_path):
     for d, tickers in [('2026-08-01', ['OLD']), ('2026-09-20', ['NEW'])]:
         (tmp_path / f'results_{d}.json').write_text(json.dumps(

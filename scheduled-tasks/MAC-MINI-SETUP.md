@@ -30,9 +30,8 @@ done a clean dry run. The two jobs can move on different weekends.
       `data/snapshots` worktree for years.
 - [ ] Wired Ethernet, not Wi-Fi.
 - [ ] **Time zone America/New_York** (System Settings → General → Date & Time).
-      `run_daily.sh` takes RUNDATE from local `date +%F`, and the snapshot name
-      and the market-open gate both depend on it. The cloud script had to force
-      `TZ=America/New_York` for the same reason.
+      Both scripts now force `TZ=America/New_York` for the run date, but the
+      schedulers fire in the machine's zone, so keep them the same.
 - [ ] Energy settings for an unattended machine:
       ```bash
       sudo pmset -a sleep 0 disksleep 0 autorestart 1 womp 1
@@ -59,9 +58,10 @@ done a clean dry run. The two jobs can move on different weekends.
 
 Follow `RECOVERY.md` → **Rebuild**, steps 1–5, as written:
 
-- [ ] Clone to `~/Projects/Workspace Folder`. `scripts/run_daily.sh` hardcodes
-      `REPO="/Users/danmcooper/Projects/Workspace Folder"`, so a different
-      user name or path means editing that line and the three runbooks.
+- [ ] Clone to `~/Projects/Workspace Folder`. The scripts find the repo from
+      their own path. The runbooks (`daily-stock-analysis/SKILL.md`,
+      `weekly-backtest/SKILL.md`) and the weekly plist use that path, so a
+      different one means editing them.
 - [ ] Create both worktrees, `pages-live` and `data/snapshots`
       (`.claude/worktrees/…`).
 - [ ] Build the venv at `~/.venvs/stock-model`, outside the repo. Any Python
@@ -120,41 +120,43 @@ the repo root, with the venv's Python as `$PYTHON`.
 - [ ] Run `RECOVERY.md` → **Check it worked**. The parquet count should be
       in the thousands, not 4.
 
-## 4. Bring `run_daily.sh` up to date with the cloud script
+## 4. `run_daily.sh` is up to date with the cloud script (done)
 
-`run_daily.sh` went dormant on 2026-09-10. Everything added to the pipeline
-since then went into `cloud-daily-stock-analysis/run.sh` only. Before the Mac
-takes over, port these steps or decide to drop them:
+`run_daily.sh` went dormant on 2026-09-10. It now carries every step the
+cloud `run.sh` gained since then, so there is nothing to port. What it does
+beyond the old runbook:
 
-- [ ] **Price top-up after the analysis** (cloud `05e-prices-topup`): full
-      history for tickers that entered Phase 2 with only a Close-only stub.
-      Without it their charts and the stopped-trading rule stay thin until
-      the next night's `prices` step.
-- [ ] **Portfolio alerts digest to `data/snapshots`.** The GitHub workflow
-      `.github/workflows/portfolio-alerts.yml` reads `portfolio_alerts.json`
-      from that branch. `run_daily.sh` writes the file to `output/` but never
-      commits it, so the alert issues would stop.
-- [ ] **`rating_history.json`, `portfolio_nav.json` and `screen_skip.json` on
-      `data/snapshots`.** They're no longer needed to carry state (the Mac
-      keeps them locally), but committing them keeps the branch complete for
-      the weekly backtest, `RECOVERY.md` and a later move back to the cloud.
-      Keep the cloud script's guards: skipped on smoke runs, and
-      `screen_skip.json` only when it's over 10 KB.
-- [ ] **Supabase steps**, if you use them: `06a-db-publish`
-      (`scripts/db_publish.py`, set `DB_DEFER_PUBLISH=1` for the run),
-      `07e-db-check` (`scripts/db_night_check.py record`, which the
-      `DB_CUTOVER_STREAK` needs every night), and `SNAPSHOT_STORE_BACKEND`
-      (the Mac can simply stay on the local `duckdb` store). The Mac can reach
-      Postgres directly over TCP, which the cloud container couldn't.
-- [ ] **Cloudflare deploy** (`08b-publish-cloudflare`), if the Cloudflare
-      Pages site is live. It needs the `CLOUDFLARE_*` / `CF_ACCESS_*` variables
-      in `.env` and wrangler (Node) installed.
-- [ ] **Optional:** keep saving caches to Supabase (`price_cache.py save`,
-      `sec_cache.py save`) as an off-site backup, so a dead Mac or a move back
-      to the cloud starts warm.
-- [ ] Remove the **DORMANT** banner from `daily-stock-analysis/SKILL.md` and add
-      one to `cloud-daily-stock-analysis/SKILL.md`. Update the task table in
-      this directory's `README.md` in the same commit.
+- **Reads `.env`** with `analyze_stock.py`'s rules (the environment wins), so
+  the Supabase, Cloudflare and Tiingo keys reach every step. It also forces
+  `TZ=America/New_York` and finds the repo from its own path, with no
+  hard-coded `/Users/...`.
+- **Price top-up** after the enrichment (cloud `05e`), for the Phase-2
+  entrants that only got a Close-only stub.
+- **Portfolio alerts before the archive**, and `portfolio_alerts.json`,
+  `rating_history.json`, `portfolio_nav.json` and `screen_skip.json` (only
+  when it's over 10 KB) committed with the snapshot. The GitHub alert issues
+  keep working, and the branch stays complete for the backtest and a move
+  back.
+- **Branch sharing:** it fast-forwards the `data/snapshots` worktree before
+  archiving, and rebases and retries if the weekly backtest's commit lands
+  first.
+- **Supabase**, only when the keys are set:
+  - `db_publish` before the archive (non-blocking until `DB_PRIMARY=1`)
+    and `db_check` after the reports, for the `DB_CUTOVER_STREAK`;
+  - the price and companyfacts caches saved to Storage as an off-site backup.
+
+  Readers stay on the local DuckDB store. Set `SNAPSHOT_STORE_BACKEND=postgres`
+  only if you want the database to serve them.
+- **Cloudflare Pages deploy** after the GitHub publish, only when
+  `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`/`CF_PAGES_PROJECT` are set.
+  It needs Node (`npx`) and the `CF_ACCESS_*` keys, and refuses to deploy
+  without the login. `_worker.js` is deployed but never committed to
+  `pages-live`.
+
+Still to do at cut-over (section 7): remove the **DORMANT** banner from
+`daily-stock-analysis/SKILL.md` and add one to
+`cloud-daily-stock-analysis/SKILL.md`, and update this directory's
+`README.md` table in the same commit.
 
 ## 5. Schedule it
 
@@ -174,71 +176,53 @@ takes over, port these steps or decide to drop them:
 
 ## 6. The weekly backtest
 
-**Use `cloud-weekly-backtest/run.sh`, not the old Mac job.** The Mac's
-`weekly-backtest/weekly_backtest.sh` and its plist are older than the cloud
-routine, and they:
-- run `calibrate` every week, which the current runbook forbids below
-  `MIN_EFFECTIVE_N`;
-- skip the readiness census, the Tiingo delisting backfill, the
-  week-over-week `compare`, and the commit to `data/snapshots` (no summary
-  from it reached the branch after 2026-07-13);
-- assume the iCloud-era `output/` symlink.
+The Mac runs **the same `cloud-weekly-backtest/run.sh` as the cloud**,
+through `weekly-backtest/mac_run.sh`. The old `weekly_backtest.sh` is
+deleted: it ran `calibrate` every week, skipped the readiness census, the
+Tiingo backfill and the week-over-week `compare`, and published nothing to
+`data/snapshots` after 2026-07-13. The runbook is `weekly-backtest/SKILL.md`.
 
-Retire them: don't load the plist, and mark them superseded in this
-directory's `README.md`.
+Already done in the repo:
+- `mac_run.sh` supplies what the container used to:
+  - a python3 ≥ 3.11 first on `PATH` (python.org, then Homebrew; override
+    with `PYTHON3=`);
+  - certifi's CA bundle;
+  - `YF_IMPERSONATE=chrome`;
+  - the keys in `.env`, including `TIINGO_API_KEY`;
+  - `STOCK_MODEL_WORK=~/Library/Application Support/StockModel/backtest`.
 
-`run.sh` is already mostly portable. It takes its checkout from
-`STOCK_MODEL_REPO`, its scratch directory from `STOCK_MODEL_WORK`, stages
-its own corpus from a blob-less clone, and pushes with plumbing that retries
-on a moved branch tip. On the Mac it needs:
+  Every `run.sh` knob (`SMOKE`, `DRY_RUN`, `RUNDATE`, …) passes through. The
+  log goes to `~/Library/Logs/StockModel/weekly_<date>.log`.
+- `run.sh` now **keeps `$OUT/prices` between runs** and re-stages everything
+  else. `returns/` and `price_backfill/` come back from the branch, which
+  stays their record. The step-04 gate counts a kept file only if this run
+  wrote it or it is already current, so a throttled Sunday cannot pass on
+  last week's files. That makes no difference in the cloud, whose directory
+  starts empty. Tested with two smoke runs: the second found all 12 files
+  current and downloaded nothing.
+- `com.stockmodel.weekly.plist` runs `mac_run.sh` in place (Sundays 20:00),
+  with install steps in its header.
 
-- [ ] **A Python ≥ 3.11 first on `PATH`.** Its `01-venv` step runs
-      `python3 -m venv "$REPO/.venv"`. Under launchd or a bare shell,
-      `python3` can be macOS's `/usr/bin/python3`, which is too old for the
-      pinned dependencies. Put the python.org or Homebrew build first on
-      `PATH`. The script builds its own `.venv` in the repo, separate from the
-      daily's `~/.venvs/stock-model`, and that's fine.
-- [ ] **A CA bundle.** The script only sets `SSL_CERT_FILE` when it finds the
-      cloud's `/root/.ccr/ca-bundle.crt`. On the Mac, export it from `certifi`
-      as `run_daily.sh` does. The python.org build fails HTTPS verification
-      without it.
-- [ ] **`YF_IMPERSONATE=chrome`.** The script defaults to `chrome116`, which
-      was only needed for the cloud proxy.
-- [ ] **`TIINGO_API_KEY` in the environment.** `run.sh` does not read `.env`.
-      Without the key, step 04b is skipped and delisted names go unmeasured.
-      Source `.env` in the wrapper below.
-- [ ] **Keep the price cache between Sundays.** `stage_corpus` runs
-      `rm -rf "$SNAP" "$OUT"`, and the prices live in `$OUT/prices`. The
-      container never noticed, but on the Mac it means a cold 1–2 hour
-      download every week. Change the script to keep `$OUT/prices` and clear
-      everything else. `returns/` and `price_backfill/` are re-staged from the
-      branch, which stays their record. Download
-      freshness is judged from parquet content, so a kept file that is
-      behind is re-fetched, never trusted. Do the same in the cloud copy so
-      the two stay one script.
-- [ ] **A small wrapper**, e.g. `scheduled-tasks/weekly-backtest/mac_run.sh`:
-      source `.env`, set the three variables above, set
-      `STOCK_MODEL_WORK="$HOME/Library/Application Support/StockModel/backtest"`
-      (outside the repo, off iCloud), then `exec` `run.sh`. Commit it here.
-- [ ] **Git push access** to `data/snapshots` from that user. This is the
-      same credential as the daily. `run.sh` pushes to the HTTPS URL in
-      `PUSH_REMOTE`, so a token in the macOS keychain credential helper works.
-      For SSH, set `PUSH_REMOTE`/`CLONE_REMOTE` to the `git@github.com:` form.
-- [ ] **Schedule:** Sundays, as now. Friday's daily run can last into
-      Saturday afternoon, so any time Sunday is clear. Use the same mechanism
-      you chose for the daily. A Claude Code scheduled task gets you the written
-      summary described in `cloud-weekly-backtest/SKILL.md` §3–4 (point it at
-      the Mac paths). A launchd agent can reuse `com.stockmodel.weekly.plist`
-      with its program switched to the wrapper and `PATH` set in an
-      `EnvironmentVariables` dict, since launchd doesn't source your shell
-      profile.
-- [ ] **Disk:** the scratch directory holds the staged corpus (~1.5 GB, from
-      2026-07-06 on and growing about 17 MB a night) plus the price parquets.
-      The clone is re-fetched from GitHub each Sunday, about 1.5 GB of
-      download.
+On the Mac:
+- [ ] **Git push access** to `data/snapshots`. This is the same credential as
+      the daily. `run.sh` pushes to the HTTPS URL in `PUSH_REMOTE`, so a token
+      in the macOS keychain credential helper works. For SSH, set
+      `PUSH_REMOTE`/`CLONE_REMOTE` to the `git@github.com:` form.
+- [ ] **Schedule:** Sundays. Friday's daily run can last into Saturday
+      afternoon, and the two now rebase over each other if they meet. Either a
+      Claude Code scheduled task following `weekly-backtest/SKILL.md` (with a
+      written summary), or the plist (without one; edit its two paths if the
+      repo isn't at `~/Projects/Workspace Folder`).
+- [ ] **Disk:** the work directory holds the staged corpus (~1.5 GB, from
+      2026-07-06 on and growing about 17 MB a night) and the price parquets.
+      The corpus is re-cloned from GitHub each Sunday, about 1.5 GB of
+      download. The repo also gets its own `.venv` (gitignored), separate
+      from the daily's `~/.venvs/stock-model`.
 - [ ] **Smoke test** before the cut-over. It pushes nothing:
-      `SMOKE=1 bash scheduled-tasks/weekly-backtest/mac_run.sh`, then
-      `cat "$STOCK_MODEL_WORK/status.txt"`.
+      `SMOKE=1 scheduled-tasks/weekly-backtest/mac_run.sh`, then
+      `cat ~/Library/Application\ Support/StockModel/backtest/status.txt`.
+      `RESULT OK` is the pass. A `07-compare` soft failure is expected on the
+      8-ticker smoke corpus.
 
 ## 7. Cut over
 
@@ -251,8 +235,7 @@ on a moved branch tip. On the Mac it needs:
 - [ ] Enable the Mac's daily task.
 - [ ] Before a Sunday, **pause the weekly cloud Routine** too, then enable the
       Mac's weekly task. Swap the DORMANT banners between
-      `cloud-weekly-backtest/SKILL.md` and `weekly-backtest/SKILL.md`, and
-      point the latter at the wrapper.
+      `cloud-weekly-backtest/SKILL.md` and `weekly-backtest/SKILL.md`.
 - [ ] After the first night, check:
   - [ ] `output/run_summary_<date>.json` has `status: ok`
   - [ ] `results_<date>.json.gz` is on `data/snapshots`, with no second
