@@ -1,12 +1,13 @@
 # tests/test_report_profile.py
-"""The ticker page's one-page Profile tab (templates/report.html).
+"""The ticker page's one-page Summary PDF (templates/report.html).
 
-Source-level assertions for the wiring (tab order, pane routing, print
-path), a render check that the verdict rides the details/ parts, and a
-Node-evaluated run of the renderer on a full row and an empty one, since a
-throw there blanks the whole tab.
+Source-level assertions for the wiring (the "Summary" button beside the
+ticker, the print path), a render check that the verdict rides the details/
+parts, and a Node-evaluated run of the renderer on a full row and an empty
+one, since a throw there prints a blank page.
 """
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -29,21 +30,32 @@ def _fn(src, name):
     return src[start:src.index('\n}\n', start) + 2]
 
 
-def test_profile_tab_sits_after_summary_and_routes_to_its_pane():
+def test_there_is_no_profile_tab():
+    """The one-pager is a PDF only: no tab, no pane, no on-screen renderer."""
     src = _tpl()
-    assert "var DT_PROFILE={k:'profile',l:'Profile'};" in src
-    assert "return [{k:'overview',l:'Overview'},DT_PROFILE,DT_FIN].concat(_detDataItems());" in src
-    assert '<div id="d-pane-profile" class="d-pane"><div id="d-profile"></div></div>' in src
-    sw = _fn(src, 'swDetTab')
-    assert "k===DT_PROFILE.k?'d-pane-profile'" in sw
-    assert '_renderDetProfile(_pd)' in sw
-    assert "if(k===DT_PROFILE.k)return 'profile';" in _fn(src, '_detGroupOf')
+    for gone in ('DT_PROFILE', 'd-pane-profile', 'id="d-profile"', '_renderDetProfile',
+                 'pro-print-btn', 'pro-tools'):
+        assert gone not in src, gone
 
 
-def test_profile_rerenders_when_its_history_shard_lands():
-    body = _fn(_tpl(), '_renderDetProfile')
-    assert '_ensureHist([tk]' in body
-    assert '_dpTicker===tk&&_detTab===DT_PROFILE.k' in body
+def test_summary_button_sits_right_of_the_ticker_and_prints_the_pdf():
+    src = _tpl()
+    band = re.search(r'<div class="dh-left">(.*?)</div></div>', src).group(1)
+    tk, btn = band.index('id="d-tk"'), band.index('id="d-sum"')
+    assert tk < btn < band.index('class="det-nav-pos"')
+    button = band[band.rindex('<button', 0, btn):band.index('</button>', btn)]
+    assert 'onclick="exportProfilePdf()"' in button
+    assert button.endswith('Summary')      # text label after the download glyph
+    assert '<svg' in button and 'aria-hidden="true"' in button
+    assert 'sa-chrome' in button           # chrome colours survive dark mode
+    assert '#det-modal .d-sum-btn{--sac:var(--chrome-heading);' in src
+
+
+def test_pdf_waits_for_the_verdict_and_the_history_shard():
+    exp = _fn(_tpl(), 'exportProfilePdf')
+    details = exp.index('if(_DETAILS_AVAILABLE&&!_DETAILS_LOADED){_loadDetails(exportProfilePdf);return;}')
+    hist = exp.index('_ensureHist([_dpTicker],exportProfilePdf)')
+    assert details < hist < exp.index('print()')
 
 
 def test_print_goes_through_a_hidden_frame_on_one_letter_page():
@@ -58,13 +70,6 @@ def test_print_goes_through_a_hidden_frame_on_one_letter_page():
     assert '@page{size:letter portrait;margin:8mm}' in doc
     assert 'b.style.zoom=' in doc          # shrink-to-fit fallback
     assert '<style id="pro-css">' in src
-
-
-def test_dark_mode_restores_semantic_colours_past_the_blanket_rule():
-    src = _tpl()
-    assert '[data-theme="dark"] .pro{--pro-pos:' in src
-    assert '[data-theme="dark"] #d-profile .pos,' in src
-    assert '[data-theme="dark"] #d-profile .neg,' in src
 
 
 def _row(**over):
