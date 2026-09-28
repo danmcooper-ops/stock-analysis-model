@@ -62,3 +62,20 @@ test_tickers.xlsx
 node_modules/
 .wrangler/
 .dev.vars
+
+# Scratch repro pages (flag-rendering debug output)
+_flagrepro*.html
+
+# Evicted-iCloud copy of `output` (~7 GB of backtest xlsx); see `output` above
+output_icloud_evicted/
+
+# Nested sibling checkouts — each is its own git repo cloned inside this one.
+# Untracked-but-unignored they are one `git add -A` away from being swept in
+# (as happened twice with the stray root artifacts above).
+city-to-summit/
+horse-ranch/
+real-estate-model-v1/
+stock-analysis-model-v1/
+
+# Conductor local tooling state
+stock-analysis-model/
