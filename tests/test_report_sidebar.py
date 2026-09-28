@@ -129,6 +129,21 @@ def test_ticker_page_actions_share_the_button_grid():
     assert 'el.innerHTML=_flagSvg(f)' in sync and '\\u2691' not in sync
 
 
+def test_phone_ticker_page_closes_from_the_top_bar():
+    """On phones the ticker page's × is the top bar's own button (the bar
+    stacks above the modal, so the band's × could not be lifted into it),
+    and the collapsed band keeps no blank row: the zero-width rating-row
+    tails are display:none so they cannot wrap onto a line of their own."""
+    src = _tpl()
+    assert '<button type="button" class="hdr-close sa-chrome" id="hdr-close" onclick="closeDetail()"' in src
+    assert '.hdr-close{display:none;' in src
+    assert 'html.det-open .hdr-close{display:flex;}' in src
+    assert 'html.det-open #det-modal .detail-close{display:none;}' in src
+    assert ('#det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .det-nav-pos'
+            '{max-width:0;opacity:0;margin:0;display:none;}') in src
+    assert 'html.det-open #det-modal.hdr-min .d-rating-row{margin-top:6px;gap:8px;flex-wrap:nowrap;' in src
+
+
 def test_portfolio_day_change_from_nav_ledger(tmp_path):
     src = _tpl()
     js = ('var NAV={};function _pfNavRaw(id){return NAV[id]||null;}\n'

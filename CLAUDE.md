@@ -515,7 +515,9 @@ ruff check .
     with section tabs (`#d-tabs`). It shows a one-day change taken from the
     `px/` shard. The three filed statements share one Finances tab, right
     after Summary (`DT_FIN`; a `.d-stmt-tabs` switch in its pane, the pick
-    kept in `_detStmt`).
+    kept in `_detStmt`). On phones its × is the top bar's `#hdr-close`
+    (shown only under `html.det-open`), and the band collapses on scroll to
+    the ticker, one price line and the tabs.
   - **Appearance:** follows the device's Light/Dark setting only; there is
     no in-page switch. A pre-paint script reads `prefers-color-scheme` and a
     `matchMedia` listener follows the device live. `data-theme="dark"` is
