@@ -146,8 +146,12 @@ so it is safe to interrupt and re-run until it completes.
 ### 7. Rebuild the DuckDB index from the archive
 
 ```bash
-PYTHON="$HOME/.venvs/stock-model/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/ingest_snapshots.py --results-dir .claude/worktrees/snapshots-data
+PYTHON="$HOME/.venvs/stock-model/bin/python"; cd "$HOME/Projects/Workspace Folder"; "$PYTHON" scripts/ingest_snapshots.py --results-dir .claude/worktrees/snapshots-data --db output/snapshots.duckdb
 ```
+
+`--db` matters: without it the store is written beside the snapshots, inside
+the worktree, and the nightly readers (which open `output/snapshots.duckdb`)
+never see it.
 
 Idempotent. Until this runs, cross-run readers (rating history, yesterday's
 rating, gate N/A deltas) fall back to parsing the JSON snapshots — correct,

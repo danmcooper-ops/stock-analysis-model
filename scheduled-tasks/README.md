@@ -9,13 +9,20 @@ daily pipeline.
 | `daily-stock-analysis/SKILL.md` | **Dormant** (Mac). Launches `scripts/run_daily.sh` (preflight → prices → analysis → enrichment → re-render → snapshot archive → reports → publish), then summarizes `output/run_summary_<date>.json`. Must stay off while the cloud routine is live |
 | `publish-stock-report/SKILL.md` | Copies the five report artifacts into the `pages-live` worktree, amends its single commit, force-pushes to GitHub Pages |
 | `cloud-weekly-backtest/` | **The live weekly backtest.** A cloud Routine each Sunday runs `run.sh`: stage every snapshot since 2026-07-06 (+ the persisted `returns/` sidecars) out of `data/snapshots` → cold price download with a coverage gate → `measure` offline → week-over-week regression check → commit the summary, xlsx and sidecars to `data/snapshots`. Measurement only; calibration stays off until `readiness` clears it |
-| `weekly-backtest/` | **Dormant** (Mac launchd job + runbook). The steps the cloud routine replaced; must stay off while it is live |
+| `weekly-backtest/` | **Dormant** (Mac). `mac_run.sh` runs the cloud routine's `run.sh` on a Mac (launchd plist or the `SKILL.md` task); the old `weekly_backtest.sh` is retired. Must stay off while the cloud routine is live |
+| `mac-mini/` | Moving to a Mac mini (`MAC-MINI-SETUP.md`): `pack_old_mac.sh` inventories the old Mac and packs `.env` (plus caches on request); `bootstrap_mini.sh` sets up the new Mac, re-runnable, `--check` to report only. Neither schedules anything |
 
 The Mac runbooks (and the weekly launchd job) assumed a persistent local checkout; that
 checkout was deleted on 2026-09-09 and the daily run moved to the cloud
 routine the next day. They stay here as the reference for the steps and for a
 future Mac rebuild — but the cloud routine and a rebuilt Mac routine must not
 both run: each appends to `data/snapshots` and force-pushes `pages-live`.
+
+To move the daily run and the weekly backtest onto a dedicated Mac (a Mac
+mini), follow `MAC-MINI-SETUP.md`. It covers machine setup, seeding the
+local state, and the cut-over order. The scripts are ready: `run_daily.sh`
+carries the cloud steps, and `weekly-backtest/mac_run.sh` runs the weekly
+`run.sh` outside the container.
 
 If the repo directory itself is gone — deleted, moved or restored from a
 backup — see `RECOVERY.md` in this directory for the full rebuild.
