@@ -98,3 +98,55 @@ def test_overlay_ships_in_an_empty_report(tmp_path):
     html = out.read_text(encoding='utf-8')
     assert 'id="hk-overlay"' in html
     assert 'var HOTKEYS=[' in html
+
+
+def _det_dispatch():
+    return _tpl().split('function _hkDetDispatch(e){')[1].split('\n}\n')[0]
+
+
+def test_popup_hotkeys_stand_aside_for_typing():
+    """The popup branch hands every key but Escape to _hkDetDispatch, and only
+    past the same _hkBlocked guard the page-level keys use — the membership
+    menu's new-portfolio field lives inside the popup."""
+    modal_block = _tpl().split(
+        "if(document.getElementById('det-modal').classList.contains('open')){")[1].split('\n  }\n')[0]
+    assert 'else if(!_hkBlocked(e))_hkDetDispatch(e);' in modal_block
+    assert '_hkDispatch(e)' not in modal_block
+
+
+def test_every_popup_hotkey_is_on_the_cheat_sheet():
+    """Each key _hkDetDispatch matches must appear in a 'Ticker popup' row of
+    HOTKEYS, and vice versa, so the ? sheet stays a complete map."""
+    src = _tpl()
+    table = src.split('var HOTKEYS=[')[1].split('\n];')[0]
+    popup_rows = [ln for ln in table.splitlines() if "g:'Ticker popup'" in ln]
+    listed = set(re.findall(r"'([^']+)'", ''.join(r.split(",l:")[0] for r in popup_rows)))
+    dispatch = _det_dispatch()
+    matched = set(re.findall(r"k===('([^']+)')", dispatch))
+    matched = {m[1] for m in matched}
+    names = {'ArrowLeft': '←', 'ArrowRight': '→', 'ArrowUp': '↑', 'ArrowDown': '↓'}
+    shown = {names.get(k, k) for k in matched}
+    listed.discard('Ticker popup')
+    # '?' is listed once, under Search & panels, and works in the popup too.
+    shown.discard('?')
+    assert shown <= listed, shown - listed
+    # Everything listed (digits aside, which come from a function) is dispatched.
+    assert listed <= shown, listed - shown
+    assert "k>='1'&&k<='9'" in dispatch
+    assert '_detMenuItems().length' in dispatch
+
+
+def test_popup_section_keys_index_the_rendered_tab_list():
+    """Digits and brackets address _detMenuItems(), the list _renderDetTabBar
+    draws, so '3' always lands on the third tab shown."""
+    src = _tpl()
+    assert '_detMenuItems().forEach(function(it){' in src.split('function _renderDetTabBar(){')[1]
+    assert 'var its=_detMenuItems()' in src.split('function _hkDetTab(i){')[1].split('\n}')[0]
+
+
+def test_cheat_sheet_from_the_popup_keeps_its_scroll_lock():
+    """Closing the overlay opened over the popup must not release the body
+    lock the popup still holds."""
+    close = _tpl().split('function hkOverlayClose(){')[1].split('\n')[0]
+    assert "det-modal').classList.contains('open')" in close
+    assert '_unlockBody()' in close

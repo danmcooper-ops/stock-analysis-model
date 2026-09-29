@@ -8,6 +8,7 @@ safety shrinks.
 """
 import math
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -166,7 +167,8 @@ _FIELDS = ('price', '_fv_effective', 'mos', 'spread', 'roic', 'wacc', 'fcf_margi
            'target_mean', 'num_analysts', 'insider_net_value', 'mcap',
            'insider_buy_count_365d', 'momentum_12_1', 'margin_trend',
            'shareholder_yield', 'avg_dollar_volume_3m', 'roe', 'er', 'cet1_ratio',
-           'npl_ratio', '_composite_score')
+           'npl_ratio', '_composite_score', 'mc_p10_fv', 'mc_p90_fv', 'epv_growth_fv',
+           'rim_fv', 'ddm_fv', 'dcf_fv', '_dcf_fv_preblend', '_gate_fv_dispersion')
 
 
 @settings(max_examples=300, deadline=None)
@@ -186,6 +188,9 @@ def test_never_raises_on_arbitrary_rows(row, rating, sector, reasons, zone, mc):
     assert isinstance(v['head'], str) and v['head']
     assert all(isinstance(t, str) for t in v['pros'] + v['cons'] + v['flags'] + v['need'])
     assert all(math.isfinite(x) for x in v['med'].values())
+    vc = v['vc']
+    assert vc is None or vc['level'] in (None, 'HIGH', 'MEDIUM', 'LOW')
+    assert vc is None or all(isinstance(t, str) for t in vc['why'])
 
 
 @settings(max_examples=200, deadline=None)
@@ -199,3 +204,58 @@ def test_verdict_never_improves_as_the_margin_of_safety_shrinks(m1, m2, rating, 
         return profile_verdict(_good(mos=mos, price=fv * (1 - mos), _fv_effective=fv,
                                      rating=rating, spread=spread, fcf_margin=fcfm))['v']
     assert _RANK[at(lo)] <= _RANK[at(hi)]
+
+
+# --- Valuation confidence (the Summary PDF's range line) -------------------
+
+def _zts(**over):
+    """Shaped on ChatGPT's Zoetis review: a $148 DCF against ~$51-60 from the
+    other models, and a $70-$258 Monte Carlo range."""
+    base = dict(_fv_effective=148.0, dcf_fv=148.0, _dcf_fv_preblend=148.0,
+                epv_growth_fv=59.87, rim_fv=57.86, ddm_fv=51.0,
+                mc_p10_fv=70.41, mc_p90_fv=258.0, mc_confidence='LOW (CV 45%)',
+                _gate_fv_dispersion=0.35, price=100.0, mos=0.32)
+    base.update(over)
+    return _good(**base)
+
+
+def test_valuation_confidence_is_low_when_the_dcf_stands_alone():
+    vc = profile_verdict(_zts())['vc']
+    assert (vc['base'], vc['bear'], vc['bull']) == (148.0, 70.41, 258.0)
+    assert vc['alt_median'] == 57.86 and vc['n_alt'] == 3
+    assert vc['gap'] == pytest.approx(148 / 57.86 - 1, abs=1e-4)
+    assert vc['level'] == 'LOW'
+    assert "DCF is 156% above the other models' median ($57.86)" in vc['why']
+    assert 'bull case is 3.7x the bear case' in vc['why']
+
+
+def test_each_warning_alone_makes_confidence_low():
+    tight = dict(epv_growth_fv=140.0, rim_fv=150.0, ddm_fv=None, mc_p10_fv=120.0,
+                 mc_p90_fv=175.0, mc_confidence='HIGH (CV 12%)', _gate_fv_dispersion=0.05)
+    assert profile_verdict(_zts(**tight))['vc']['level'] == 'HIGH'
+    for over in (dict(mc_confidence='LOW (CV 60%)'), dict(_gate_fv_dispersion=0.4),
+                 dict(epv_growth_fv=60.0, rim_fv=70.0), dict(mc_p10_fv=40.0)):
+        vc = profile_verdict(_zts(**dict(tight, **over)))['vc']
+        assert vc['level'] == 'LOW', over
+        assert vc['why'], over
+
+
+def test_medium_between_the_two():
+    vc = profile_verdict(_zts(epv_growth_fv=110.0, rim_fv=115.0, ddm_fv=None,
+                              mc_p10_fv=110.0, mc_p90_fv=190.0,
+                              mc_confidence='MEDIUM (CV 25%)', _gate_fv_dispersion=0.2))['vc']
+    assert vc['level'] == 'MEDIUM' and vc['why'] == []
+
+
+def test_gap_uses_the_pre_blend_dcf():
+    vc = profile_verdict(_zts(dcf_fv=100.0, _dcf_fv_preblend=148.0))['vc']
+    assert vc['gap'] == pytest.approx(148 / 57.86 - 1, abs=1e-4)
+    vc = profile_verdict(_zts(_dcf_fv_preblend=None, dcf_fv=60.0))['vc']
+    assert vc['gap'] == pytest.approx(60 / 57.86 - 1, abs=1e-4)
+
+
+def test_missing_inputs_are_skipped_not_counted_against():
+    sparse = {'price': 100.0, '_fv_effective': 130.0, 'mos': 0.23, 'rating': 'BUY'}
+    vc = profile_verdict(sparse)['vc']
+    assert vc['level'] is None and vc['why'] == [] and vc['bear'] is None
+    assert profile_verdict({})['vc'] is None
