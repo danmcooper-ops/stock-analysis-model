@@ -532,9 +532,13 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     (``out_dir/rating_history.json``)
     stores the accumulated change-points plus the last snapshot date scanned;
     each render only parses snapshots newer than that. Only strictly-newer dates
-    are appended, so a late-backfilled older snapshot can't corrupt ordering
-    (delete the cache to force a full rebuild that includes it). A missing or
-    corrupt cache also triggers a full rebuild.
+    are appended, so a late-backfilled older snapshot can't corrupt ordering;
+    folding one in takes a full rebuild. A missing or corrupt cache rebuilds
+    over the snapshots in *out_dir* only, which in the cloud routine is just
+    the staged days: rebuild over the whole archive with
+    scripts/rebuild_rating_history.py (what run.sh does when the archive has
+    no cache) — see _advance_rating_history_cache for why scanning stops at an
+    unreadable day.
 
     The cache advances even when a store answers: with the database backend
     it is the independent record the nightly parity check compares the
@@ -542,7 +546,7 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     database misses a day. Left frozen, that check would compare the same
     day forever, and a fallback would lose every change point in the gap.
     """
-    from data.snapshot_store import list_snapshot_files, read_snapshot
+    from data.snapshot_store import list_snapshot_files
     try:
         cur = run_date.isoformat() if run_date is not None else None
     except Exception:
@@ -550,6 +554,31 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     dated = list_snapshot_files(out_dir)
     if not dated:
         return {}
+    hist = _advance_rating_history_cache(out_dir, dated, cur, cache_name)
+    from_store = _rating_history_from_store(
+        out_dir, cur, [d for d, _ in dated if cur is None or d < cur])
+    if from_store is not None:
+        return from_store
+    if cur is None:
+        return hist
+    # Exclude entries on/after the render date (rescoring an older snapshot).
+    return {tk: [cp for cp in seq if cp[0] < cur]
+            for tk, seq in hist.items()}
+
+
+def _advance_rating_history_cache(out_dir, dated, cur, cache_name='rating_history.json'):
+    """Fold every snapshot in *dated* newer than the cache's ``last_scanned``
+    (and before *cur*) into ``out_dir/cache_name``; returns the history.
+
+    Scanning is strictly in date order and **stops at the first snapshot that
+    cannot be read**. Only strictly-newer dates are ever folded in, so
+    skipping an unreadable day and scanning a later one would move
+    ``last_scanned`` past it for good: the day would be missing from the
+    history forever, with nothing to say so. Stopping leaves it first in line
+    for the next render instead, and a day that never becomes readable holds
+    the cache still, which the nightly parity check (07e) reports as stale.
+    """
+    from data.snapshot_store import read_snapshot
     cache_path = os.path.join(out_dir, cache_name)
     hist, last_scanned = {}, None
     try:
@@ -566,15 +595,19 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     todo = [(d, p) for d, p in dated
             if (last_scanned is None or d > last_scanned)
             and (cur is None or d < cur)]
+    scanned = 0
     for d, p in todo:
         try:
             snap = read_snapshot(p)
         except Exception as e:
-            print(f"[report_html] rating-history load failed ({p}): {e}")
-            continue
+            print(f"[report_html] rating-history load failed ({p}): {e}; "
+                  f"cache stops at {last_scanned} until it can be read")
+            break
         recs = snap.get('results') if (isinstance(snap, dict) and 'results' in snap) else snap
         if not isinstance(recs, list):
-            continue
+            print(f"[report_html] rating-history load failed ({p}): no results list; "
+                  f"cache stops at {last_scanned} until it can be read")
+            break
         for rec in recs:
             if not isinstance(rec, dict):
                 continue
@@ -585,23 +618,16 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
             if not seq or seq[-1][1] != rt:
                 seq.append([d, rt])
         last_scanned = d
-    if todo:
+        scanned += 1
+    if scanned:
         try:
             with open(cache_path, 'w', encoding='utf-8') as f:
                 json.dump({'last_scanned': last_scanned, 'hist': hist}, f)
-            print(f"[report_html] rating-history cache: +{len(todo)} snapshot(s), "
+            print(f"[report_html] rating-history cache: +{scanned} snapshot(s), "
                   f"{len(hist)} tickers, through {last_scanned}")
         except Exception as e:
             print(f"[warn] rating-history cache write failed: {e}")
-    from_store = _rating_history_from_store(
-        out_dir, cur, [d for d, _ in dated if cur is None or d < cur])
-    if from_store is not None:
-        return from_store
-    if cur is None:
-        return hist
-    # Exclude entries on/after the render date (rescoring an older snapshot).
-    return {tk: [cp for cp in seq if cp[0] < cur]
-            for tk, seq in hist.items()}
+    return hist
 
 
 def _load_russell2000():
