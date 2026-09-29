@@ -262,41 +262,14 @@ PY
     echo "staged rating_history.json ($(wc -c < "$REPO/output/rating_history.json") bytes)"
   else
     # First cloud run (or the cache was dropped): build the report's
-    # rating-history cache over the WHOLE archive, one snapshot at a time,
-    # so the rating history is not truncated to the staged days. ~5 s per
+    # rating-history cache over the WHOLE archive, not just the staged days.
+    # The script scans one snapshot at a time in a scratch directory — never
+    # output/, where the newest days are already staged and would be scanned
+    # first, skipping every older day (the 2026-04-21..08-25 hole) — and fails
+    # the step rather than write a cache that misses a day. ~4 s per
     # snapshot; the result is committed back with today's snapshot.
     echo "no rating_history.json in the archive — building it from every archived snapshot"
-    "$PYTHON" - "$SNAP" "$REPO/output" <<'PY'
-import os, re, subprocess, sys, time
-sys.path.insert(0, '.')
-from scripts.report_html import _load_rating_history
-from scripts.stage_snapshot_blobs import stage_blobs
-snap, out = sys.argv[1], sys.argv[2]
-staged = {nm for nm in os.listdir(out) if nm.startswith('results_')}
-names = subprocess.check_output(['git', '-C', snap, 'ls-tree', '--name-only', 'HEAD'], text=True).split()
-by_date = {}
-for nm in sorted(names):
-    if re.fullmatch(r'results_\d{4}-\d{2}-\d{2}\.json(\.gz)?', nm):
-        d = nm[8:18]
-        if d not in by_date or not nm.endswith('.gz'):
-            by_date[d] = nm
-older = [by_date[d] for d in sorted(by_date) if by_date[d] not in staged]
-t0 = time.time()
-for nm in older:
-    dest = os.path.join(out, nm)
-    with open(dest, 'wb') as fh:
-        subprocess.check_call(['git', '-C', snap, 'show', f'HEAD:{nm}'], stdout=fh)
-    try:
-        # Only the histories that changed since the previous day are fetched;
-        # the rest are already in output/blobs from earlier iterations.
-        stage_blobs(snap, out, [dest], log=lambda *_: None)
-        _load_rating_history(out, None)      # appends this day's change-points to the cache
-    finally:
-        os.remove(dest)
-hist = _load_rating_history(out, None)       # fold the staged days in as well
-print(f"rating history rebuilt over {len(older) + len(staged)} snapshots, "
-      f"{len(hist)} tickers, {time.time() - t0:.0f}s")
-PY
+    "$PYTHON" "$REPO/scripts/rebuild_rating_history.py" "$SNAP" "$REPO/output"
     [ $? -eq 0 ] || return 1
   fi
   # The portfolio NAV ledger (data/portfolio_nav.py): the render appends
