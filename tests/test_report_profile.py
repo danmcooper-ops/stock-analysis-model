@@ -38,23 +38,20 @@ def test_there_is_no_profile_tab():
         assert gone not in src, gone
 
 
-def test_summary_button_sits_at_the_right_of_the_sub_tab_row():
-    """The button sits at the right end of the sub-tab row, under the
-    portfolio and flag icons, not beside the ticker symbol."""
+def test_summary_button_sits_right_of_the_ticker_symbol():
+    """The button sits directly after the ticker symbol in the header band,
+    not on the sub-tab row."""
     src = _tpl()
     band = re.search(r'<div class="dh-left">(.*?)</div></div>', src).group(1)
-    assert 'id="d-sum"' not in band
-    row = re.search(r'<div class="d-tabs-row">(.*?)</button></div>', src, re.S).group(1)
-    assert row.index('id="d-tabs"') < row.index('id="d-sum"')
-    button = row[row.rindex('<button'):]
+    tk, btn = band.index('id="d-tk"'), band.index('id="d-sum"')
+    assert tk < btn < band.index('class="det-nav-pos"')
+    button = band[band.rindex('<button', 0, btn):band.index('</button>', btn)]
     assert 'onclick="exportProfilePdf()"' in button
     assert button.endswith('Summary')      # text label after the download glyph
     assert '<svg' in button and 'aria-hidden="true"' in button
     assert 'sa-chrome' in button           # chrome colours survive dark mode
     assert '#det-modal .d-sum-btn{--sac:var(--chrome-heading);' in src
-    # Pinned right, with room reserved so the last tab never runs under it.
-    assert '#det-modal .d-tabs-row .d-sum-btn{position:absolute;right:0;' in src
-    assert '#det-modal .d-tabs-row .d-tabs{padding-right:112px;}' in src
+    assert 'd-tabs-row' not in src
 
 
 def test_pdf_waits_for_the_verdict_history_and_prices():
