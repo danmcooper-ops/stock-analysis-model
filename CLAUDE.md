@@ -519,9 +519,8 @@ ruff check .
     kept in `_detStmt`). On phones its × is the top bar's `#hdr-close`
     (shown only under `html.det-open`), and the band collapses on scroll to
     the ticker, one price line and the tabs.
-  - **Summary PDF:** a "Summary" button at the right end of the sub-tab row
-    (`#d-sum` in `.d-tabs-row`), under the portfolio and flag icons, prints a
-    one-page company summary. The `s` hotkey does the same. There is no
+  - **Summary PDF:** a "Summary" button right of the ticker symbol
+    (`#d-sum`, in `.dh-left`) prints a one-page company summary. The `s` hotkey does the same. There is no
     on-screen tab; the #279 Profile tab was removed in favour of this button.
     The page (`_proHtml`) is a dense one-pager that leads with a rule-based
     **INVEST / WATCH / AVOID / INSUFFICIENT DATA** verdict. Top to bottom:
