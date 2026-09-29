@@ -38,38 +38,51 @@ def test_there_is_no_profile_tab():
         assert gone not in src, gone
 
 
-def test_summary_button_sits_right_of_the_ticker_and_prints_the_pdf():
+def test_summary_button_sits_at_the_right_of_the_sub_tab_row():
+    """The button sits at the right end of the sub-tab row, under the
+    portfolio and flag icons, not beside the ticker symbol."""
     src = _tpl()
     band = re.search(r'<div class="dh-left">(.*?)</div></div>', src).group(1)
-    tk, btn = band.index('id="d-tk"'), band.index('id="d-sum"')
-    assert tk < btn < band.index('class="det-nav-pos"')
-    button = band[band.rindex('<button', 0, btn):band.index('</button>', btn)]
+    assert 'id="d-sum"' not in band
+    row = re.search(r'<div class="d-tabs-row">(.*?)</button></div>', src, re.S).group(1)
+    assert row.index('id="d-tabs"') < row.index('id="d-sum"')
+    button = row[row.rindex('<button'):]
     assert 'onclick="exportProfilePdf()"' in button
     assert button.endswith('Summary')      # text label after the download glyph
     assert '<svg' in button and 'aria-hidden="true"' in button
     assert 'sa-chrome' in button           # chrome colours survive dark mode
     assert '#det-modal .d-sum-btn{--sac:var(--chrome-heading);' in src
+    # Pinned right, with room reserved so the last tab never runs under it.
+    assert '#det-modal .d-tabs-row .d-sum-btn{position:absolute;right:0;' in src
+    assert '#det-modal .d-tabs-row .d-tabs{padding-right:112px;}' in src
 
 
-def test_pdf_waits_for_the_verdict_and_the_history_shard():
+def test_pdf_waits_for_the_verdict_history_and_prices():
     exp = _fn(_tpl(), 'exportProfilePdf')
     details = exp.index('if(_DETAILS_AVAILABLE&&!_DETAILS_LOADED){_loadDetails(exportProfilePdf);return;}')
-    hist = exp.index('_ensureHist([_dpTicker],exportProfilePdf)')
-    assert details < hist < exp.index('print()')
+    hist = exp.index('_ensureHist([tk],exportProfilePdf)')
+    px = exp.index('_pfWithPx([tk]')
+    assert details < hist < px < exp.index('print()')
 
 
 def test_print_goes_through_a_hidden_frame_on_one_letter_page():
     src = _tpl()
-    assert 'onclick="exportProfilePdf()"' in src
     exp = _fn(src, 'exportProfilePdf')
     assert "fr.id='pro-print-frame';" in exp
     assert 'fr.contentWindow.print()' in exp
+    assert 'width:8.5in;height:11in' in exp   # measured at real page size
     doc = _fn(src, '_proPrintDoc')
-    # The frame reuses the tab's own stylesheet, so paper and screen agree.
     assert "document.getElementById('pro-css')" in doc
     assert '@page{size:letter portrait;margin:8mm}' in doc
-    assert 'b.style.zoom=' in doc          # shrink-to-fit fallback
-    assert '<style id="pro-css">' in src
+    # Shrink-to-fit steps the root font size; everything is sized in em.
+    assert 'r.style.fontSize=s+"px"' in doc and 'b.scrollHeight>H' in doc
+    sheet = src[src.index('<style id="pro-css">'):]
+    sheet = sheet[:sheet.index('</style>')]
+    # Neither prints the same everywhere: Safari left a multi-column page
+    # half empty and dropped blocks, so the layout uses neither.
+    for text in (sheet, doc):
+        assert 'zoom:' not in text and 'column-count' not in text
+        assert not re.search(r'(?<![-\w])columns\s*:', text)
 
 
 def _row(**over):
@@ -122,7 +135,8 @@ def test_renderer_handles_a_full_row_and_an_empty_one(tmp_path):
     src = _tpl()
     fns = ''.join(_fn(src, n) + '\n' for n in (
         '_proFmt', '_proKv', '_proT', '_proBlock', '_proMed', '_proRel', '_proFootball',
-        '_proSpark', '_proHistHtml', '_proScorecard', '_proRisks', '_proHtml'))
+        '_proPxAt', '_proPriceChart', '_proSpark', '_proHistHtml', '_proPeers',
+        '_proScorecard', '_proRisks', '_proBalance', '_proHtml'))
     consts = ("var _PRO_VCLS={'INVEST':'pro-v-inv','WATCH':'pro-v-wat','AVOID':'pro-v-avo',"
               "'INSUFFICIENT DATA':'pro-v-na'};\n")
     assert consts.strip() in src
@@ -135,8 +149,15 @@ def test_renderer_handles_a_full_row_and_an_empty_one(tmp_path):
     hist = {'rev': {'2023-12-31': 8e9, '2024-12-31': 9e9, '2025-12-31': 10e9},
             'op': {'2023-12-31': 2e9, '2024-12-31': 2.4e9, '2025-12-31': 3e9},
             'ni': {'2023-12-31': 1e9, '2024-12-31': 1.5e9, '2025-12-31': 2e9}}
+    peer = _row(ticker='PEER', company_name='Peer Co', mcap=4e10, pe=18.0)
+    n = 300
+    prices = {'dates': [f'{2025 + i // 252}-01-{1 + i % 28:02d}' for i in range(n)],
+              'prices': {'PRO': [50 + i * 0.2 for i in range(n)],
+                         'SPY': [400 + i * 0.5 for i in range(n)]}}
     js = (_JS_PRELUDE + consts + fns
           + f'HIST.PRO={json.dumps(hist)};\n'
+          + f'var DATA={json.dumps([full, peer])};\n'
+          + f'var PRICES={json.dumps(prices)};\n'
           + f'var a=_proHtml({json.dumps(full)});\n'
           + "var b=_proHtml({ticker:'EMPTY'});\n"
           + "var c=_proHtml({ticker:'NAN',price:NaN,mos:'x',pe:Infinity,_fv_effective:null,"
@@ -153,6 +174,13 @@ def test_renderer_handles_a_full_row_and_an_empty_one(tmp_path):
     assert 'pro-g pass' in a                  # scorecard chip
     assert '<script>x' not in a and '&lt;script&gt;x' in a   # reasons are escaped
     assert 'Tailwind: AI demand' in a
+    assert 'class="pro-px"' in a              # price history vs S&P 500
+    assert 'Price return vs S&amp;P 500' in a
+    assert '<td>PEER</td>' in a and 'pro-self' in a   # peers, company first
+    cols = a[a.index('class="pro-cols"'):]
+    assert cols.count('<section class="pro-b"') >= 5
     for empty in (b, c):
         assert 'class="pro"' in empty
-        assert 'Valuation' not in empty      # blocks with no data disappear
+        # Blocks with no data disappear.
+        for gone in ('Valuation models', 'Ten-year', 'class="pro-px"', 'Peers'):
+            assert gone not in empty, gone
