@@ -2530,7 +2530,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 .pro-v-wat{--pro-vc:var(--pro-warn);}
 .pro-v-avo{--pro-vc:var(--pro-neg);}
 .pro-v-na{--pro-vc:var(--pro-mut);}
-.pro-vcol{grid-row:1/span 3;display:flex;flex-direction:column;gap:.15em;}
+.pro-vcol{grid-row:1/span 5;display:flex;flex-direction:column;gap:.15em;}
 .pro-vlabel{font-size:1.9em;font-weight:900;line-height:1;color:var(--pro-vc);letter-spacing:.01em;}
 .pro-conv{font-size:.8em;color:var(--pro-mut);}
 .pro-meter{display:block;width:100%;height:.35em;border-radius:.2em;background:var(--pro-line);overflow:hidden;}
@@ -2538,10 +2538,24 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 .pro-vsub{font-size:.78em;color:var(--pro-mut);line-height:1.3;}
 .pro-headline{grid-column:2/-1;font-weight:700;font-size:1.12em;}
 .pro-need{grid-column:2/-1;color:var(--pro-mut);font-size:.88em;}
+/* Valuation range line: bear/base/bull and how far to trust the fair value */
+.pro-range{grid-column:2/-1;font-size:.95em;line-height:1.35;}
+.pro-range b{font-weight:800;}
+.pro-range .mut{font-size:.9em;}
+.pro-conf{font-weight:800;}
+.pro-conf-LOW{color:var(--pro-neg);}
+.pro-conf-MEDIUM{color:var(--pro-warn);}
+.pro-conf-HIGH{color:var(--pro-pos);}
+.pro-bridge{margin:.15em 0 0;font-size:.82em;color:#333;}
+.pro-bridge b{font-weight:700;}
 .pro-pc h5{margin:.15em 0 .05em;font-size:.72em;text-transform:uppercase;letter-spacing:.07em;color:var(--pro-mut);}
 .pro-pc ul{margin:0;padding:0;list-style:none;}
 .pro-pc li{padding-left:1.1em;position:relative;margin:.05em 0;font-size:.92em;}
 .pro-pc li::before{position:absolute;left:0;font-weight:800;}
+/* For/Against sit in fixed columns, so rows added above them (the range
+   line, the need line) never push them into the verdict column. */
+.pro-pros{grid-column:2;}
+.pro-cons{grid-column:3;}
 .pro-pros li::before{content:'\2713';color:var(--pro-pos);}
 .pro-cons li::before{content:'\2717';color:var(--pro-neg);}
 .pro-flags{grid-column:2/-1;}
@@ -2558,7 +2572,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 .pro-chart svg{display:block;width:100%;height:auto;}
 /* Charts are sized in em, so the fit script shrinks them with the text. */
 .pro-chart svg.pro-px{max-width:46em;}
-.pro-chart svg.pro-ff{max-width:34em;}
+.pro-chart svg.pro-ff{max-width:30em;}
 .pro-chart text{font-family:inherit;font-size:9px;fill:var(--pro-mut);}
 .pro-chart .c-grid{stroke:var(--pro-line);stroke-width:.8;}
 .pro-chart .c-stk{fill:none;stroke:var(--pro-bar);stroke-width:1.6;stroke-linejoin:round;}
@@ -7968,7 +7982,7 @@ function _proPriceChart(d){
   if(fvIn){lo=Math.min(lo,fv);hi=Math.max(hi,fv);}
   if(bbIn){lo=Math.min(lo,bb);hi=Math.max(hi,bb);}
   var pad=(hi-lo)*0.06||hi*0.05;lo=Math.max(0,lo-pad);hi+=pad;
-  var W=460,H=130,L=4,R=40,T=14,B=14;
+  var W=460,H=112,L=4,R=40,T=14,B=14;
   var X=function(k){return (L+k/(pts.length-1)*(W-L-R)).toFixed(1);},Y=function(v){return (T+(hi-v)/(hi-lo)*(H-T-B)).toFixed(1);};
   var s='<svg class="pro-px" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Price history against the S&amp;P 500">';
   for(var g=0;g<=3;g++){var gv=lo+(hi-lo)*g/3,gy=Y(gv);s+='<line class="c-grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+gy+'" y2="'+gy+'"/><text x="'+(W-R+3)+'" y="'+(+gy+3)+'">'+esc(_proFmt(gv,'usd'))+'</text>';}
@@ -8009,7 +8023,7 @@ function _proSpark(vals){
    series and fiscal-year dedupe as the Track Record table. */
 function _proHistHtml(d){
   var h=HIST[d.ticker];if(!h)return'';
-  var rev=h.rev||{},ni=h.ni||{},ocf=h.ocf||{},capex=h.capex||{},sh=h.shares||{},db=h.debt||{},csh=h.cash||{},op=h.op||{},gp=h.gp||{},dv=h.div||{},ie=h.intexp||{};
+  var rev=h.rev||{},ni=h.ni||{},ocf=h.ocf||{},capex=h.capex||{},sh=h.shares||{},db=h.debt||{},csh=h.cash||{},op=h.op||{},gp=h.gp||{},dv=h.div||{},dna=h.dna||{};
   var roicY=d.roic_by_year||{},fin=d.sector==='Financial Services';
   var ks={};[rev,ni,ocf].forEach(function(s){Object.keys(s).forEach(function(k){ks[k]=1;});});
   var by={};Object.keys(ks).sort().forEach(function(k){by[k.slice(0,4)]=k;});
@@ -8019,6 +8033,7 @@ function _proHistHtml(d){
   var near=function(s,dt,tol){var best=null,bd=1e9,t=Date.parse(dt);Object.keys(s).forEach(function(k){var dd=Math.abs(Date.parse(k)-t)/864e5;if(dd<bd){bd=dd;best=s[k];}});return bd<=tol?best:null;};
   var pct=function(v){return (v*100).toFixed(1)+'%';};
   var fcf=function(k){var o=ocf[k],c=capex[k];return o!=null&&c!=null?o-Math.abs(c):null;};
+  var fps=function(k){var f=fcf(k),n=near(sh,k,220);return f!=null&&n>0?f/n:null;};
   var rows=[
     {l:'Revenue',g:function(k){return rev[k];},f:fds,t:'cagr'},
     {l:'Gross margin',g:function(k){var x=byYr(gp,k);return x!=null&&rev[k]?x/rev[k]:null;},f:pct,t:'pp'},
@@ -8028,15 +8043,15 @@ function _proHistHtml(d){
     {l:'Net margin',g:function(k){return ni[k]!=null&&rev[k]?ni[k]/rev[k]:null;},f:pct,t:'pp'},
     {l:'EPS',g:function(k){var s=near(sh,k,220);return ni[k]!=null&&s>0?ni[k]/s:null;},f:function(v){return (v<0?'-$':'$')+Math.abs(v).toFixed(2);},t:'cagr'},
     {l:'Operating cash flow',g:function(k){return ocf[k];},f:fds,t:'cagr'},
-    {l:'Capex',g:function(k){return capex[k]!=null?Math.abs(capex[k]):null;},f:fds,t:'cagr',neut:true},
     {l:'Free cash flow',g:fcf,f:fds,t:'cagr'},
     {l:'FCF margin',g:function(k){var f=fcf(k);return f!=null&&rev[k]?f/rev[k]:null;},f:pct,t:'pp'},
+    {l:'FCF per share',g:fps,f:function(v){return (v<0?'-$':'$')+Math.abs(v).toFixed(2);},t:'cagr'},
+    {l:'FCF / net income',g:function(k){var f=fcf(k);return f!=null&&ni[k]>0?f/ni[k]:null;},f:function(v){return v.toFixed(2)+'\u00d7';},t:'chg',neut:true},
+    {l:'CFO / EBITDA',g:function(k){var o=byYr(op,k),a=byYr(dna,k);return ocf[k]!=null&&o!=null&&a!=null&&o+a>0?ocf[k]/(o+a):null;},f:pct,t:'pp',neut:true},
     {l:'ROIC',g:function(k){return roicY[k.slice(0,4)];},f:pct,t:'pp'},
     {l:'Dividends paid',g:function(k){return dv[k]!=null?Math.abs(dv[k]):null;},f:fds,t:'cagr'},
     {l:'Shares out',g:function(k){return near(sh,k,220);},f:_trFmtSh,t:'chg',inv:true},
-    {l:'Total debt',g:function(k){return db[k];},f:fds,t:'chg',inv:true,neut:fin},
-    {l:'Net debt',g:function(k){return db[k]!=null&&csh[k]!=null?db[k]-csh[k]:null;},f:fds,t:'delta',inv:true,neut:fin},
-    {l:'Interest coverage',g:function(k){var o=byYr(op,k),x=byYr(ie,k);return o!=null&&x?o/Math.abs(x):null;},f:function(v){return v>=100?'>100×':v.toFixed(1)+'×';},t:'chg',neut:true}
+    {l:'Net debt',g:function(k){return db[k]!=null&&csh[k]!=null?db[k]-csh[k]:null;},f:fds,t:'delta',inv:true,neut:fin}
   ];
   var html='<table class="pro-tbl"><tr><th></th>';
   cols.forEach(function(k){html+='<th>FY'+k.slice(2,4)+'</th>';});
@@ -8059,7 +8074,23 @@ function _proHistHtml(d){
     vals.forEach(function(v){html+='<td'+(v!=null&&v<0&&r.t!=='delta'?' class="neg"':'')+'>'+(v!=null?esc(r.f(v)):'—')+'</td>';});
     html+='<td class="pro-tr'+(tone>0?' pos':tone<0?' neg':'')+'">'+esc(tr)+'</td><td>'+_proSpark(vals)+'</td></tr>';
   });
-  return shown?html+'</table>':'';
+  if(!shown)return'';
+  html+='</table>';
+  /* FCF-per-share bridge: why FCF/share grew faster or slower than revenue,
+     as an exact multiplicative split over the widest span where all four
+     series exist: (1+g_fps) = (1+g_rev)(1+g_margin)/(1+g_shares). Omitted
+     when FCF is not positive at both ends (a CAGR is meaningless there). */
+  var ok=cols.filter(function(k){var f=fcf(k),n=near(sh,k,220);return f!=null&&rev[k]>0&&n>0;});
+  if(ok.length>=3){
+    var k0=ok[0],k1=ok[ok.length-1],yrs=(+k1.slice(0,4))-(+k0.slice(0,4)),f0=fcf(k0),f1=fcf(k1);
+    if(yrs>0&&f0>0&&f1>0){
+      var cg=function(a,b){return Math.pow(b/a,1/yrs)-1;},s0=near(sh,k0,220),s1=near(sh,k1,220);
+      var gf=cg(f0/s0,f1/s1),gr=cg(rev[k0],rev[k1]),gm=cg(f0/rev[k0],f1/rev[k1]),gs=cg(s0,s1);
+      var pc=function(v){return (v>=0?'+':'')+(v*100).toFixed(1)+'%/yr';};
+      html+='<p class="pro-bridge">FY'+k0.slice(2,4)+'\u2013FY'+k1.slice(2,4)+': <b>FCF per share '+pc(gf)+'</b> = revenue '+pc(gr)+' \u00d7 FCF margin '+pc(gm)+' \u00f7 share count '+pc(gs)+'</p>';
+    }
+  }
+  return html;
 }
 /* Peers side by side: the company first (shaded), then up to seven peers,
    taken from the Finnhub/industry peer list (_detPeerList) and topped up with
@@ -8132,6 +8163,25 @@ function _proBalance(blocks,n){
     .forEach(function(x){var j=0;for(var k=1;k<n;k++)if(hts[k]<hts[j])j=k;cols[j].push(x);hts[j]+=x.w;});
   return cols.map(function(c){return '<div>'+c.sort(function(p,q){return p.i-q.i;}).map(function(x){return x.h;}).join('')+'</div>';}).join('');
 }
+/* The verdict band's valuation line: the fair value as a range, not one
+   number. Bear/bull are the Monte Carlo P10/P90. The other models' median
+   (growth EPV, RIM, DDM) is shown with the DCF's gap to it, and a
+   HIGH/MEDIUM/LOW confidence with its reasons (profile_verdict.
+   _valuation_confidence). The level is a word, so its colour is never the
+   only cue. */
+function _proRangeLine(vc){
+  if(!vc||!_num(vc.base))return'';
+  var u=function(v){return esc(_proFmt(v,'usd'));},parts=[];
+  if(_num(vc.bear)!=null&&_num(vc.bull)!=null)parts.push('Intrinsic value <b>'+u(vc.bear)+' \u2013 '+u(vc.bull)+'</b>');
+  var src={dcf:'DCF',blend:'blend',consensus:'multi-model'}[vc.base_src]||vc.base_src||'';
+  parts.push('Base <b>'+u(vc.base)+'</b>'+(src?' ('+esc(src)+')':''));
+  if(_num(vc.bear)!=null)parts.push('Bear <b>'+u(vc.bear)+'</b>');
+  if(_num(vc.bull)!=null)parts.push('Bull <b>'+u(vc.bull)+'</b>');
+  if(_num(vc.alt_median)!=null)parts.push('Other models\u2019 median <b>'+u(vc.alt_median)+'</b>'+(_num(vc.gap)!=null?' (DCF '+esc(_proFmt(vc.gap,'spct0'))+')':''));
+  if(vc.level)parts.push('Confidence <span class="pro-conf pro-conf-'+esc(vc.level)+'">'+esc(vc.level)+'</span>');
+  var why=(vc.why||[]).length?' <span class="mut">\u2014 '+esc(vc.why.join('; '))+'</span>':'';
+  return '<div class="pro-range">'+parts.join(' \u00b7 ')+why+'</div>';
+}
 function _proHtml(d){
   var p=d.profile||null,fin=d.sector==='Financial Services';
   var px=_num(d.price),fv=_num(d._fv_effective),nd=_num(d.net_debt),mcap=_num(d.mcap);
@@ -8150,6 +8200,7 @@ function _proHtml(d){
       +(conv!=null?'<span class="pro-conv">Conviction '+Math.round(conv)+'/100</span><span class="pro-meter"><i style="width:'+Math.max(0,Math.min(100,conv))+'%"></i></span>':'')
       +'<span class="pro-vsub">Model: <b>'+esc(d.rating||'—')+'</b>'+(isCapped(d)?' (capped from '+esc(d.rating_raw)+')':'')+'<br>Composite '+(_num(d._composite_score)!=null?Math.round(d._composite_score):'—')+' · gates '+esc(d._gates_passed||'—')+'</span>'
       +'</div><div class="pro-headline">'+esc(p.head||'')+'</div>';
+    h+=_proRangeLine(p.vc);
     if(p.need&&p.need.length)h+='<div class="pro-need">Not an INVEST because '+esc(p.need.join('; '))+'.</div>';
     if(p.flags&&p.flags.length)h+='<div class="pro-pc pro-flags"><ul>'+p.flags.map(function(t){return'<li>'+esc(t)+'</li>';}).join('')+'</ul></div>';
     var pros=p.pros||[],cons=p.cons||[];
@@ -8166,7 +8217,8 @@ function _proHtml(d){
   var tc=function(t){return t>0?'pos':t<0?'neg':'';};
   var lo52=_num(d.low_52w),hi52=_num(d.high_52w);
   tile('Price',_proFmt(px,'usd'),'',lo52!=null&&hi52!=null?'52w '+_proFmt(lo52,'usd')+'–'+_proFmt(hi52,'usd'):'');
-  tile('Fair value',_proFmt(fv,'usd'),'',d._fv_source?({dcf:'DCF',blend:'blend',consensus:'multi-model'}[d._fv_source]||d._fv_source):'');
+  var vc=p&&p.vc;
+  tile('Fair value',_proFmt(fv,'usd'),'',vc&&_num(vc.bear)!=null&&_num(vc.bull)!=null?'range '+_proFmt(vc.bear,'usd')+'\u2013'+_proFmt(vc.bull,'usd'):(d._fv_source?({dcf:'DCF',blend:'blend',consensus:'multi-model'}[d._fv_source]||d._fv_source):''));
   tile('Margin of safety',_proFmt(d.mos,'pct'),tc(_proT(d.mos,0.15,0)),fv&&px?'upside '+_proFmt(fv/px-1,'spct0'):'');
   tile('Buy below',p?_proFmt(p.buy_below,'usd'):null,'','15% under fair value');
   tile('Market cap',_proFmt(mcap,'big'),'',d.shares_out?_trFmtSh(d.shares_out)+' shares':'');
@@ -8201,6 +8253,9 @@ function _proHtml(d){
     +_proKv('EPV fair value',d.epv_fv,'usd',0,_num(d.epv_mos)!=null?'MoS '+_proFmt(d.epv_mos,'pct0'):'')
     +_proKv('RIM fair value',d.rim_fv,'usd',0,_num(d.rim_mos)!=null?'MoS '+_proFmt(d.rim_mos,'pct0'):'')
     +_proKv('NAV (tangible book)',d.nav_fv,'usd',0,_num(d.nav_mos)!=null?'MoS '+_proFmt(d.nav_mos,'pct0'):'')
+    +(vc?_proKv('Other models\u2019 median',vc.alt_median,'usd',0,vc.n_alt?vc.n_alt+' of EPV/RIM/DDM':'')
+      +_proKv('DCF vs other models',vc.gap,'spct0',_num(vc.gap)!=null?(Math.abs(vc.gap)>0.5?-1:Math.abs(vc.gap)<=0.25?1:0):0)
+      +_proKv('Model dispersion (MAD)',vc.dispersion,'pct',_proT(vc.dispersion,0.15,0.30,true),'gate \u2264 15%'):'')
     +_proKv('Implied growth (reverse DCF)',d.implied_growth,'pct',0,_num(d.implied_vs_estimated)!=null?'vs est. '+_proFmt(d.implied_vs_estimated,'spct'):'')
     +_proKv('WACC',d.wacc,'pct',0,_num(d.terminal_growth)!=null?'term. g '+_proFmt(d.terminal_growth,'pct'):'')
     +_proKv('Cost of equity',d.er,'pct',0,_num(d.beta_adjusted)!=null?'beta '+_proFmt(d.beta_adjusted,'n2'):'')));

@@ -25,6 +25,8 @@ at render time (``scripts/report_html._attach_profiles``), so a change here
 needs no live run.
 """
 
+import statistics
+
 from models.data_tab_narrative import (
     BENEISH_THRESHOLD,
     INT_COV_MIN,
@@ -66,6 +68,15 @@ INSIDER_SELL_HEAVY = 0.005  # net insider selling above 0.5% of market cap
 CET1_STRONG = 0.10         # bank capital: 10%+ CET1 is comfortably above minimums
 NPL_HIGH = 0.03
 MAX_REASONS = 5
+
+# Valuation confidence (the Summary PDF's range line). Sheet-only: it never
+# feeds the verdict or the rating.
+FV_DISPERSION_MAX = 0.15   # scoring fv_dispersion gate: model MAD <= 15%
+FV_DISPERSION_WIDE = 0.30  # twice the gate: the models no longer corroborate
+DCF_GAP_WIDE = 0.50        # pre-blend DCF this far from the other models' median
+DCF_GAP_TIGHT = 0.25
+MC_SPREAD_WIDE = 3.0       # Monte Carlo P90 / P10 above 3x: a 3-fold range
+CONFIDENCE_LEVELS = ('HIGH', 'MEDIUM', 'LOW')
 
 # Sector-median fields the Profile tab compares against (report_html feeds
 # them through _sector_stats); only the multiples feed a check here.
@@ -346,6 +357,74 @@ def _headline(verdict, row, pros, cons, flags, buy_below, blockers):
     return 'Watch: no strong case either way.'
 
 
+def _valuation_confidence(row):
+    """How far to trust the fair value: a bear/base/bull range plus a level.
+
+    The base is the effective fair value; bear and bull are the Monte Carlo
+    P10/P90. The pre-blend DCF is compared with the median of the other
+    intrinsic models (growth EPV, RIM, DDM; NAV is an asset floor and
+    excluded), which is the same model set scoring's fv_dispersion uses.
+    - LOW: any warning sign (low Monte Carlo confidence, wide model
+      dispersion, a DCF far from the other models, a 3-fold Monte Carlo
+      range).
+    - HIGH: every available test is tight.
+    - MEDIUM otherwise.
+    Missing inputs are skipped; with nothing to judge by, the level is None.
+    """
+    base = _fv(row)
+    if not base:
+        return None
+    bear, bull = _num(row, 'mc_p10_fv', lo=0.0), _num(row, 'mc_p90_fv', lo=0.0)
+    if bear is not None and bull is not None and bear > bull:
+        bear, bull = bull, bear
+    alts = [v for v in (_num(row, 'epv_growth_fv', lo=0.0), _num(row, 'rim_fv', lo=0.0),
+                        _num(row, 'ddm_fv', lo=0.0)) if v]
+    alt_median = statistics.median(alts) if alts else None
+    dcf = _num(row, '_dcf_fv_preblend', lo=0.0) or _num(row, 'dcf_fv', lo=0.0)
+    gap = dcf / alt_median - 1 if dcf and alt_median else None
+    disp = _num(row, '_gate_fv_dispersion', lo=0.0)
+    mc = row.get('mc_confidence')
+    mc = mc.split()[0].upper() if isinstance(mc, str) and mc.strip() else None
+
+    low, tight, judged = [], [], 0
+    if mc in CONFIDENCE_LEVELS:
+        judged += 1
+        if mc == 'LOW':
+            low.append('Monte Carlo spread is wide')
+        tight.append(mc == 'HIGH')
+    if disp is not None:
+        judged += 1
+        if disp > FV_DISPERSION_WIDE:
+            low.append(f'models disagree ({_pct(disp)} dispersion)')
+        tight.append(disp <= FV_DISPERSION_MAX)
+    if gap is not None:
+        judged += 1
+        if abs(gap) > DCF_GAP_WIDE:
+            low.append(f'DCF is {_pct(abs(gap))} {"above" if gap > 0 else "below"} '
+                       f'the other models\' median ({_price(alt_median)})')
+        tight.append(abs(gap) <= DCF_GAP_TIGHT)
+    if bear and bull:
+        judged += 1
+        if bull / bear > MC_SPREAD_WIDE:
+            low.append(f'bull case is {bull / bear:.1f}x the bear case')
+    if not judged:
+        level = None
+    elif low:
+        level = 'LOW'
+    elif tight and all(tight) and mc == 'HIGH':
+        level = 'HIGH'
+    else:
+        level = 'MEDIUM'
+    return {
+        'base': round(base, 2), 'base_src': row.get('_fv_source'),
+        'bear': round(bear, 2) if bear else None, 'bull': round(bull, 2) if bull else None,
+        'alt_median': round(alt_median, 2) if alt_median else None, 'n_alt': len(alts),
+        'gap': round(gap, 4) if gap is not None else None,
+        'dispersion': round(disp, 4) if disp is not None else None,
+        'level': level, 'why': low,
+    }
+
+
 def profile_verdict(row, sector_medians=None):
     """Return the Profile tab's verdict for one report row.
 
@@ -380,6 +459,8 @@ def profile_verdict(row, sector_medians=None):
         # What stands between a WATCH and an INVEST.
         'need': blockers if verdict == WATCH else [],
         'buy_below': buy_below,
+        # Bear/base/bull range and how far to trust it (sheet-only).
+        'vc': _valuation_confidence(row) if px and fv else None,
         'med': {k: round(v, 4) for k in SECTOR_FIELDS
                 if (v := _num(med, k)) is not None},
     }
