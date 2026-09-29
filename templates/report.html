@@ -2389,7 +2389,7 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
    (white-on-band by default) takes the chrome colours or it vanishes in light. */
 #det-modal .stmt-pdf-btn{color:var(--chrome-heading);background:var(--chip-bg);border-color:var(--chip-border);}
 #det-modal .stmt-pdf-btn:hover{border-color:var(--chrome-heading);}
-/* "Summary" beside the ticker symbol: prints the one-page company summary
+/* "Summary" on the sub-tab row: prints the one-page company summary
    (exportProfilePdf). Same chip colours and download glyph as the
    statements' PDF button, so the two exports read as one family; text goes
    through --sac, which .sa-chrome carries past the blanket dark
@@ -2401,6 +2401,17 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 #det-modal .d-sum-btn:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:1px;}
 #det-modal .d-sum-btn svg{width:12px;height:12px;display:block;}
 #det-modal.hdr-min .d-sum-btn{font-size:11.5px;padding:3px 7px;}
+/* It sits at the right end of the sub-tab row, under the portfolio and flag
+   icons. The tab bar keeps its own rules; the row only positions the button
+   and reserves room so the last tab never runs under it (the chip background
+   covers tabs scrolled beneath it on a narrow screen). */
+#det-modal .d-tabs-row{position:relative;}
+#det-modal .d-tabs-row .d-tabs{padding-right:112px;}
+#det-modal .d-tabs-row .d-sum-btn{position:absolute;right:0;bottom:5px;z-index:2;}
+/* On a narrow screen the tabs scroll under the button: fade them out behind
+   it, and cover the tab bar's bleed past the band's padding. The fade stops
+   2px short of the bottom, so the bar's underline stays whole. */
+#det-modal .d-tabs-row::after{content:'';position:absolute;top:0;bottom:2px;right:-24px;width:150px;background:linear-gradient(90deg,transparent,var(--bg) 30px);pointer-events:none;z-index:1;}
 #det-modal .dgroup-title .dg-icon{display:none;}
 /* Chart controls (.cm-uline: the ticker page's Summary chart and the
    Financial Data Charts view) open from the chart's ☰ button, like the other
@@ -2501,86 +2512,119 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
 </style>
 <style id="pro-css">
 /* === SUMMARY PDF — the one-page company summary ==========================
-   Dense on purpose: every decision-relevant number for one company, led by
-   the verdict. Only the print frame uses these rules: exportProfilePdf()
-   (the ticker page's "Summary" button beside the symbol) copies this sheet
-   verbatim into a hidden iframe, which is always light, so the page itself
-   never renders a .pro block. */
-.pro{--pro-pos:#1a7f37;--pro-neg:#c62828;--pro-warn:#9a6700;--pro-line:var(--border);--pro-bar:#2f6fb3;--pro-bar-soft:#9dbfe3;
-  font-size:12px;line-height:1.35;color:var(--text);background:var(--surface);padding:14px 16px;border-radius:8px;}
-.pro-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px;border-bottom:2px solid var(--text);padding-bottom:5px;margin-bottom:8px;}
-.pro-head h2{font-size:17px;margin:0;font-weight:800;}
-.pro-meta{color:var(--text-muted);}
-.pro-facts{display:flex;flex-wrap:wrap;gap:2px 14px;font-variant-numeric:tabular-nums;width:100%;}
-.pro-facts span{white-space:nowrap;color:var(--text-muted);}
-.pro-facts b{color:var(--text);font-weight:700;}
-.pro-rng{display:inline-block;position:relative;width:70px;height:6px;border-radius:3px;background:var(--pro-line);vertical-align:middle;margin:0 4px;}
-.pro-rng i{position:absolute;top:-2px;width:3px;height:10px;margin-left:-1.5px;border-radius:1px;background:var(--text);}
-.pro-verdict{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 16px;border:1.5px solid var(--pro-vc);border-left-width:6px;border-radius:6px;padding:9px 12px;margin-bottom:10px;}
+   A dense, print-only financial one-pager. Only the print frame uses these
+   rules: exportProfilePdf() (the ticker page's "Summary" button on the
+   sub-tab row, or the `s` hotkey) copies this sheet verbatim into a hidden iframe,
+   which is always light.
+   Layout rules that keep every browser's print identical:
+   - Every size is in em off one root font-size, and the frame's fit script
+     steps that root size down until the page is one sheet tall. There is no
+     `zoom` (Safari prints it differently).
+   - Columns are explicit grid tracks filled in JS (_proBalance). There is no
+     CSS multi-column, which Safari's print path left half empty. */
+.pro{--pro-pos:#1a7f37;--pro-neg:#c62828;--pro-warn:#9a6700;--pro-ink:#111;--pro-mut:#555;--pro-line:#d3d8de;--pro-bar:#2f6fb3;--pro-bar-soft:#a9c6e8;--pro-fill:#f3f5f7;
+  font-size:1rem;line-height:1.25;color:var(--pro-ink);font-variant-numeric:tabular-nums;}
+.pro *{box-sizing:border-box;}
+.pro .pos{color:var(--pro-pos);}
+.pro .neg{color:var(--pro-neg);}
+.pro .mut{color:var(--pro-mut);}
+/* Masthead */
+.pro-mast{display:flex;justify-content:space-between;align-items:flex-end;gap:1em;border-bottom:2px solid var(--pro-ink);padding-bottom:.2em;}
+.pro-mast h1{font-size:1.85em;line-height:1.05;margin:0;font-weight:800;letter-spacing:-.01em;}
+.pro-mast h1 small{font-size:.5em;font-weight:600;color:var(--pro-mut);margin-left:.35em;letter-spacing:0;}
+.pro-mast-r{text-align:right;color:var(--pro-mut);font-size:.9em;white-space:nowrap;line-height:1.35;}
+.pro-mast-r b{color:var(--pro-ink);}
+.pro-desc{margin:.3em 0 .4em;color:#333;font-size:.92em;line-height:1.3;}
+/* Verdict band */
+.pro-verdict{display:grid;grid-template-columns:8.2em minmax(0,1fr) minmax(0,1fr);gap:.15em 1.2em;border:1.5px solid var(--pro-vc);border-left-width:.55em;border-radius:.3em;padding:.4em .65em;margin-bottom:.4em;}
 .pro-v-inv{--pro-vc:var(--pro-pos);}
 .pro-v-wat{--pro-vc:var(--pro-warn);}
 .pro-v-avo{--pro-vc:var(--pro-neg);}
-.pro-v-na{--pro-vc:var(--text-muted);}
-.pro-vcol{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:110px;}
-.pro-vlabel{font-size:22px;font-weight:900;letter-spacing:.02em;line-height:1.1;color:var(--pro-vc);}
-.pro-conv{font-size:10.5px;color:var(--text-muted);}
-.pro-meter{display:block;width:100px;height:5px;border-radius:3px;background:var(--pro-line);overflow:hidden;}
+.pro-v-na{--pro-vc:var(--pro-mut);}
+.pro-vcol{grid-row:1/span 3;display:flex;flex-direction:column;gap:.15em;}
+.pro-vlabel{font-size:1.9em;font-weight:900;line-height:1;color:var(--pro-vc);letter-spacing:.01em;}
+.pro-conv{font-size:.8em;color:var(--pro-mut);}
+.pro-meter{display:block;width:100%;height:.35em;border-radius:.2em;background:var(--pro-line);overflow:hidden;}
 .pro-meter i{display:block;height:100%;background:var(--pro-vc);}
-.pro-headline{font-size:13.5px;font-weight:700;align-self:center;}
-.pro-keys{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:2px 16px;font-variant-numeric:tabular-nums;color:var(--text-muted);}
-.pro-keys b{color:var(--text);}
-.pro-pc{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 18px;margin-top:2px;}
-.pro-pc h5{margin:2px 0 1px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);}
+.pro-vsub{font-size:.78em;color:var(--pro-mut);line-height:1.3;}
+.pro-headline{grid-column:2/-1;font-weight:700;font-size:1.12em;}
+.pro-need{grid-column:2/-1;color:var(--pro-mut);font-size:.88em;}
+.pro-pc h5{margin:.15em 0 .05em;font-size:.72em;text-transform:uppercase;letter-spacing:.07em;color:var(--pro-mut);}
 .pro-pc ul{margin:0;padding:0;list-style:none;}
-.pro-pc li{padding-left:15px;position:relative;margin:1px 0;}
+.pro-pc li{padding-left:1.1em;position:relative;margin:.05em 0;font-size:.92em;}
 .pro-pc li::before{position:absolute;left:0;font-weight:800;}
 .pro-pros li::before{content:'\2713';color:var(--pro-pos);}
 .pro-cons li::before{content:'\2717';color:var(--pro-neg);}
-.pro-flags{grid-column:1/-1;}
-.pro-need{grid-column:1/-1;font-size:11px;color:var(--text-muted);}
-.pro-flags li::before{content:'\26A0';color:var(--pro-neg);}
+.pro-flags{grid-column:2/-1;}
 .pro-flags li{font-weight:700;}
-.pro-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 16px;}
-.pro-b{min-width:0;break-inside:avoid;page-break-inside:avoid;}
-.pro-wides{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
-.pro-b h4{margin:0 0 2px;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);border-bottom:1px solid var(--text-muted);padding-bottom:1px;}
-.pro-kv{display:flex;align-items:baseline;gap:6px;padding:1px 0;border-bottom:1px dotted var(--pro-line);}
-.pro-k{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-muted);}
-.pro-val{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
-.pro-sub{font-size:10px;color:var(--text-muted);white-space:nowrap;min-width:62px;text-align:right;font-variant-numeric:tabular-nums;}
-.pro .pos{color:var(--pro-pos);}
-.pro .neg{color:var(--pro-neg);}
-.pro-ff{display:block;width:100%;max-width:420px;height:auto;margin-top:4px;}
-.pro-ff text{fill:var(--text-muted);font-size:10.5px;font-family:inherit;}
+.pro-flags li::before{content:'\26A0';color:var(--pro-neg);}
+/* Key-stat tiles: two rows of eight, hairlines from the gap */
+.pro-tiles{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:1px;background:var(--pro-line);border:1px solid var(--pro-line);margin-bottom:.4em;}
+.pro-tile{background:#fff;padding:.2em .4em .25em;min-width:0;}
+.pro-tile i{display:block;font-style:normal;font-size:.66em;text-transform:uppercase;letter-spacing:.06em;color:var(--pro-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pro-tile b{display:block;font-size:1.12em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pro-tile s{display:block;text-decoration:none;font-size:.7em;color:var(--pro-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* Charts row */
+.pro-charts{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:0 1.2em;margin-bottom:.1em;}
+.pro-chart svg{display:block;width:100%;height:auto;}
+/* Charts are sized in em, so the fit script shrinks them with the text. */
+.pro-chart svg.pro-px{max-width:46em;}
+.pro-chart svg.pro-ff{max-width:34em;}
+.pro-chart text{font-family:inherit;font-size:9px;fill:var(--pro-mut);}
+.pro-chart .c-grid{stroke:var(--pro-line);stroke-width:.8;}
+.pro-chart .c-stk{fill:none;stroke:var(--pro-bar);stroke-width:1.6;stroke-linejoin:round;}
+.pro-chart .c-spy{fill:none;stroke:#8a8f96;stroke-width:1;stroke-dasharray:3 2;}
+.pro-chart .c-fv{stroke:var(--pro-pos);stroke-width:1.2;stroke-dasharray:4 2;}
+.pro-chart .c-bb{stroke:var(--pro-warn);stroke-width:1;stroke-dasharray:1.5 2;}
+.pro-chart text.c-lg{fill:var(--pro-ink);font-weight:600;}
+.pro-chart text.c-legend{font-size:8px;}
+.pro-chart text.c-fvl{fill:var(--pro-pos);font-weight:700;}
+.pro-chart text.c-bbl{fill:var(--pro-warn);font-weight:700;}
 .pro-ff .ff-bar{fill:var(--pro-bar-soft);}
 .pro-ff .ff-mid{fill:var(--pro-bar);}
-.pro-ff .ff-px{stroke:var(--text);stroke-width:1.5;}
-.pro-ff .ff-fv{stroke:var(--pro-pos);stroke-width:1.5;stroke-dasharray:3 2;}
-.pro-ff .ff-grid{stroke:var(--pro-line);stroke-width:1;}
-.pro-ff text.ff-lbl{fill:var(--text);}
-.pro-ff text.ff-pxl{fill:var(--text);font-weight:700;}
+.pro-ff .ff-px{stroke:var(--pro-ink);stroke-width:1.4;}
+.pro-ff .ff-fv{stroke:var(--pro-pos);stroke-width:1.4;stroke-dasharray:3 2;}
+.pro-ff .ff-grid{stroke:var(--pro-line);stroke-width:.8;}
+.pro-ff text.ff-lbl{fill:var(--pro-ink);}
+.pro-ff text.ff-pxl{fill:var(--pro-ink);font-weight:700;}
 .pro-ff text.ff-fvl{fill:var(--pro-pos);font-weight:700;}
-.pro-ff g:hover .ff-bar{fill:var(--pro-bar);}
-.pro-hwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-.pro-hist{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:11px;}
-.pro-hist th{font-size:10px;font-weight:600;color:var(--text-muted);text-align:right;padding:1px 4px;border-bottom:1px solid var(--text-muted);}
-.pro-hist th:first-child,.pro-hist td:first-child{text-align:left;color:var(--text-muted);white-space:nowrap;}
-.pro-hist td{text-align:right;padding:1px 4px;border-bottom:1px dotted var(--pro-line);white-space:nowrap;}
-.pro-hist td.pro-tr{font-weight:700;}
-.pro-spark{display:block;width:44px;height:12px;margin-left:auto;}
-.pro-spark polyline{fill:none;stroke:var(--pro-bar);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round;}
-.pro-sc{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:4px 12px;}
-.pro-sc-cat{font-size:10.5px;font-weight:700;margin-bottom:1px;}
-.pro-sc-cat span{font-weight:400;color:var(--text-muted);}
-.pro-g{display:inline-block;font-size:10px;line-height:1.3;padding:0 4px;margin:0 2px 2px 0;border-radius:3px;border:1px solid var(--pro-line);color:var(--text-muted);}
+.pro-rets{width:100%;border-collapse:collapse;font-size:.85em;margin-top:.1em;}
+.pro-rets th,.pro-rets td{padding:.05em .3em;text-align:right;border-bottom:1px dotted var(--pro-line);white-space:nowrap;}
+.pro-rets th{font-weight:600;color:var(--pro-mut);font-size:.9em;}
+.pro-rets th:first-child,.pro-rets td:first-child{text-align:left;}
+/* Blocks and label/value lines */
+.pro-cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 1em;align-items:start;}
+.pro-b{min-width:0;break-inside:avoid;page-break-inside:avoid;}
+.pro-b h4{margin:.35em 0 .1em;font-size:.74em;text-transform:uppercase;letter-spacing:.08em;color:var(--pro-ink);border-bottom:1.2px solid var(--pro-ink);padding-bottom:.05em;}
+.pro-kv{display:flex;align-items:baseline;gap:.4em;padding:.03em 0;border-bottom:1px dotted var(--pro-line);font-size:.92em;}
+.pro-k{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#333;}
+.pro-val{font-weight:700;white-space:nowrap;}
+.pro-sub{font-size:.8em;color:var(--pro-mut);white-space:nowrap;min-width:5.6em;text-align:right;}
+/* Tables: ten-year record and peers */
+.pro-tbl{width:100%;border-collapse:collapse;font-size:.86em;}
+.pro-tbl th{font-size:.9em;font-weight:600;color:var(--pro-mut);text-align:right;padding:.05em .3em;border-bottom:1.2px solid var(--pro-ink);white-space:nowrap;}
+.pro-tbl td{text-align:right;padding:.04em .3em;border-bottom:1px dotted var(--pro-line);white-space:nowrap;}
+.pro-tbl th:first-child,.pro-tbl td:first-child{text-align:left;}
+.pro-tbl td:first-child{color:#333;}
+.pro-tbl tr.pro-self td{background:var(--pro-fill);font-weight:700;}
+.pro-tbl td.pro-tr{font-weight:700;}
+.pro-tbl td.pro-name{text-align:left;max-width:11em;overflow:hidden;text-overflow:ellipsis;color:var(--pro-mut);}
+.pro-spark{display:block;width:3.6em;height:1em;margin-left:auto;}
+.pro-spark polyline{fill:none;stroke:var(--pro-bar);stroke-width:1.4;stroke-linejoin:round;stroke-linecap:round;}
+/* Bottom pair: scorecard and risks */
+.pro-duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 1.2em;align-items:start;}
+.pro-sc{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.1em .8em;}
+.pro-sc-cat{font-size:.8em;font-weight:700;margin:.15em 0 .05em;}
+.pro-sc-cat span{font-weight:400;color:var(--pro-mut);}
+.pro-g{display:inline-block;font-size:.7em;line-height:1.3;padding:0 .3em;margin:0 .15em .15em 0;border-radius:.2em;border:1px solid var(--pro-line);color:var(--pro-mut);white-space:nowrap;}
 .pro-g.pass{border-color:var(--pro-pos);color:var(--pro-pos);}
 .pro-g.fail{border-color:var(--pro-neg);color:var(--pro-neg);}
 .pro-g.pass::before{content:'\2713 ';}
 .pro-g.fail::before{content:'\2717 ';}
 .pro-g.na::before{content:'\2013 ';}
-.pro-list{margin:0;padding-left:14px;}
-.pro-list li{margin:1px 0;}
-.pro-foot{margin-top:8px;padding-top:4px;border-top:1px solid var(--pro-line);font-size:9.5px;color:var(--text-muted);}
+.pro-list{margin:0;padding-left:1em;font-size:.86em;}
+.pro-list li{margin:.03em 0;}
+.pro-foot{margin-top:.35em;padding-top:.2em;border-top:1px solid var(--pro-line);font-size:.72em;color:var(--pro-mut);}
 </style>
 </head>
 <body>
@@ -2771,7 +2815,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       <button type="button" class="d-back sa-chrome" id="d-back" onclick="closeDetail()"></button>
       <button class="detail-close" onclick="closeDetail()" aria-label="Close ticker page">&times;</button>
       <button class="detail-menu-btn" id="d-tbtn-all" aria-haspopup="menu" aria-expanded="false" title="Sections" onclick="toggleDetMenu(event)">&#9776;</button>
-      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><button type="button" class="d-sum-btn sa-chrome" id="d-sum" onclick="exportProfilePdf()" aria-label="Summary PDF: one page on this company" title="One-page summary of this company with an invest / watch / avoid verdict. Opens the print dialog; choose “Save as PDF”."><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>Summary</button><span class="det-nav-pos"></span></div></div>
+      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><span class="det-nav-pos"></span></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
       <!-- Rating row is the band's BOTTOM line (below the CEO meta line),
@@ -2782,7 +2826,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       <div class="d-mini-nav-actions"><span id="d-pf" class="d-pf-btn" onclick="pfDetMenu(event)" role="button" tabindex="0" title="Portfolios"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
       <!-- Section tabs (Seeking Alpha's Summary · Ratings · … row). Rendered by
            _renderDetTabBar from _detMenuItems(); clicks go to swDetTab. -->
-      <div class="d-tabs sa-chrome" id="d-tabs" role="tablist" aria-label="Sections"></div>
+      <div class="d-tabs-row"><div class="d-tabs sa-chrome" id="d-tabs" role="tablist" aria-label="Sections"></div><button type="button" class="d-sum-btn sa-chrome" id="d-sum" onclick="exportProfilePdf()" aria-label="Summary PDF: one page on this company" title="One-page summary of this company with an invest / watch / avoid verdict. Opens the print dialog; choose “Save as PDF”."><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>Summary</button></div>
     </div>
     <div class="d-body">
       <div id="d-pane-overview" class="d-pane active">
@@ -7794,14 +7838,27 @@ function _renderTrackRecord(d){
   sec.style.display='';
 }
 /* === SUMMARY PDF (ticker page) — the one-page company summary ============
-   Every decision-relevant number for one company on one dense page, led by
-   the rule-based verdict models/profile_verdict.py computes at render time
-   (d.profile, shipped in the details/ parts, so it lands with them). The
-   numbers are the row's own; nothing here re-derives a model. Colour marks
-   good/bad at the thresholds the Data-tab summaries and gates already use,
-   and always sits beside the number, never alone. There is no on-screen
-   view: the "Summary" button beside the ticker symbol (#d-sum) calls
-   exportProfilePdf(), which prints _proHtml on one sheet. */
+   Every decision-relevant number for one company on one dense letter page,
+   led by the rule-based verdict models/profile_verdict.py computes at render
+   time (d.profile, shipped in the details/ parts, so it lands with them).
+
+   Page order:
+   - masthead and business line;
+   - verdict band;
+   - 16 key-stat tiles;
+   - price history vs the S&P 500, beside the fair-value range;
+   - four balanced columns of label/value blocks;
+   - the ten-year record from SEC filings;
+   - peers side by side;
+   - scorecard and risks.
+
+   The numbers are the row's own; nothing here re-derives a model. Colour
+   marks good/bad at the thresholds the Data-tab summaries and gates already
+   use, and always sits beside the number, never alone.
+
+   There is no on-screen view: the "Summary" button at the right end of the
+   sub-tab row (#d-sum) calls exportProfilePdf(), which waits for the details parts, the
+   hist/ shard and the px/ shards, then prints _proHtml. */
 var _PRO_VCLS={'INVEST':'pro-v-inv','WATCH':'pro-v-wat','AVOID':'pro-v-avo','INSUFFICIENT DATA':'pro-v-na'};
 function _proFmt(v,f){
   if(f==='raw')return v==null||v===''?null:String(v);
@@ -7810,6 +7867,7 @@ function _proFmt(v,f){
     case 'pct':return (n*100).toFixed(1)+'%';
     case 'pct0':return (n*100).toFixed(0)+'%';
     case 'spct':return (n>=0?'+':'')+(n*100).toFixed(1)+'%';
+    case 'spct0':return (n>=0?'+':'')+(n*100).toFixed(0)+'%';
     case 'x':return Math.abs(n)>=1000?(n<0?'<-999×':'>999×'):n.toFixed(1)+'×';
     case 'usd':return (n<0?'-$':'$')+(Math.abs(n)>=100?Math.round(Math.abs(n)).toLocaleString():Math.abs(n).toFixed(2));
     case 'big':return fds(n);
@@ -7824,9 +7882,9 @@ function _proFmt(v,f){
    sector median, a range). Label and note are escaped; the value is ours. */
 function _proKv(l,v,f,tone,sub){
   var s=_proFmt(v,f);if(s==null)return'';
-  return '<div class="pro-kv"><span class="pro-k" title="'+_attr(l)+'">'+esc(l)+'</span><span class="pro-val'+(tone>0?' pos':tone<0?' neg':'')+'">'+esc(s)+'</span>'+(sub?'<span class="pro-sub">'+esc(sub)+'</span>':'')+'</div>';
+  return '<div class="pro-kv"><span class="pro-k">'+esc(l)+'</span><span class="pro-val'+(tone>0?' pos':tone<0?' neg':'')+'">'+esc(s)+'</span>'+(sub?'<span class="pro-sub">'+esc(sub)+'</span>':'')+'</div>';
 }
-/* Tone from two thresholds: hi = good at/above, lo = bad below (inv flips). */
+/* Tone from two thresholds: good at/above `good`, bad below `bad` (inv flips). */
 function _proT(v,good,bad,inv){
   var n=_num(v);if(n==null)return 0;
   if(inv)return n<=good?1:n>bad?-1:0;
@@ -7867,7 +7925,7 @@ function _proFootball(d){
   rows.forEach(function(r){lo=Math.min(lo,r.lo);hi=Math.max(hi,Math.min(r.hi,cap));});
   if(fv&&fv>0){lo=Math.min(lo,fv);hi=Math.max(hi,Math.min(fv,cap));}
   var pad=(hi-lo)*0.04||px*0.1;lo=Math.max(0,lo-pad);hi=hi+pad;
-  var W=280,LW=66,RW=8,rh=17,top=2,H=top+rows.length*rh+16;
+  var W=300,LW=60,RW=8,rh=15,top=2,H=top+rows.length*rh+14;
   var x=function(v){return (LW+(Math.min(Math.max(v,lo),hi)-lo)/(hi-lo)*(W-LW-RW)).toFixed(1);};
   var money=function(v){return _proFmt(v,'usd');};
   var s='<svg class="pro-ff" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Fair value range by model against the price">';
@@ -7875,68 +7933,134 @@ function _proFootball(d){
   rows.forEach(function(r,i){
     var y=top+i*rh,cy=y+rh/2,x0=+x(r.lo),x1=+x(Math.min(r.hi,cap));
     var w=Math.max(x1-x0,4);
-    var tip=r.l+': '+(r.lo===r.hi?money(r.lo):money(r.lo)+' – '+money(r.hi))+(r.mid!=null&&r.lo!==r.hi?' (point '+money(r.mid)+')':'');
-    s+='<g><title>'+esc(tip)+'</title><rect x="0" y="'+y+'" width="'+W+'" height="'+rh+'" fill="transparent"/>';
     s+='<text class="ff-lbl" x="0" y="'+(cy+3)+'">'+esc(r.l)+'</text>';
-    s+='<rect class="ff-bar" x="'+(x0-(w-(x1-x0))/2).toFixed(1)+'" y="'+(cy-4)+'" width="'+w.toFixed(1)+'" height="8" rx="4"/>';
-    if(r.mid!=null)s+='<circle class="ff-mid" cx="'+x(r.mid)+'" cy="'+cy+'" r="4"/>';
+    s+='<rect class="ff-bar" x="'+(x0-(w-(x1-x0))/2).toFixed(1)+'" y="'+(cy-3.5)+'" width="'+w.toFixed(1)+'" height="7" rx="3.5"/>';
+    if(r.mid!=null)s+='<circle class="ff-mid" cx="'+x(r.mid)+'" cy="'+cy+'" r="3.5"/>';
     if(r.hi>cap)s+='<text x="'+(W-RW+1)+'" y="'+(cy+3)+'">›</text>';
-    s+='</g>';
   });
   var yb=H-12;
   s+='<line class="ff-px" x1="'+x(px)+'" x2="'+x(px)+'" y1="'+top+'" y2="'+yb+'"/>';
   if(fv&&fv>0&&fv<=cap)s+='<line class="ff-fv" x1="'+x(fv)+'" x2="'+x(fv)+'" y1="'+top+'" y2="'+yb+'"/>';
   var pxX=+x(px),fvX=fv&&fv>0&&fv<=cap?+x(fv):null;
-  /* Labels under the axis; nudge apart when price and fair value sit close. */
+  /* Labels under the axis; nudged apart when price and fair value sit close. */
   var pxA=pxX>W-40?'end':pxX<LW+30?'start':'middle',fvA=fvX!=null?(fvX>W-40?'end':fvX<LW+30?'start':'middle'):null;
   if(fvX!=null&&Math.abs(fvX-pxX)<70){if(fvX>=pxX){pxA='end';fvA='start';}else{pxA='start';fvA='end';}}
   s+='<text class="ff-pxl" x="'+pxX+'" y="'+(H-2)+'" text-anchor="'+pxA+'">Price '+esc(money(px))+'</text>';
   if(fvX!=null)s+='<text class="ff-fvl" x="'+fvX+'" y="'+(H-2)+'" text-anchor="'+fvA+'">FV '+esc(money(fv))+'</text>';
   return s+'</svg>';
 }
-/* Ten-year strip from the hist/<T>.json shard (SEC EDGAR annual filings):
-   the last 8 fiscal years, a trend column and a sparkline per line. Same
-   series and fiscal-year dedupe as the Track Record table. */
+/* Last non-null index at or before i in a full-length px row. */
+function _proPxAt(a,i){while(i>=0&&a[i]==null)i--;return i;}
+/* Price history: up to five years of closes from the ticker's px/ shard,
+   with the S&P 500 (SPY) rebased to the stock's first close in the window,
+   and the fair value and buy-below price as reference lines. A small table
+   below gives 1/3/5-year price returns against SPY. The px/ shard is loaded
+   by exportProfilePdf before this runs; without it the block is omitted. */
+function _proPriceChart(d){
+  _proPriceChart.rets='';
+  if(typeof PRICES==='undefined'||!PRICES||!PRICES.prices||!PRICES.dates)return'';
+  var a=PRICES.prices[d.ticker],spy=PRICES.prices.SPY,ds=PRICES.dates;
+  if(!a)return'';
+  var end=_proPxAt(a,a.length-1);if(end<20)return'';
+  var i0=Math.max(0,end-5*252);while(i0<end&&a[i0]==null)i0++;
+  var idx=[];for(var i=i0;i<=end;i++)if(a[i]!=null)idx.push(i);
+  if(idx.length<20)return'';
+  var step=Math.max(1,Math.ceil(idx.length/300)),pts=[];
+  idx.forEach(function(ix,k){if(k%step===0||k===idx.length-1)pts.push(ix);});
+  var base=a[idx[0]],sb=spy?spy[_proPxAt(spy,idx[0])]:null;
+  var sval=function(ix){if(!spy||!sb)return null;var j=_proPxAt(spy,ix);return j>=0?spy[j]/sb*base:null;};
+  var fv=_num(d._fv_effective),bb=d.profile&&_num(d.profile.buy_below);
+  var lo=Infinity,hi=-Infinity;
+  pts.forEach(function(ix){var v=a[ix],s=sval(ix);lo=Math.min(lo,v);hi=Math.max(hi,v);if(s!=null){lo=Math.min(lo,s);hi=Math.max(hi,s);}});
+  /* Reference lines only when they fall near the traded range; otherwise
+     their level is stated in the legend so the price path keeps its scale. */
+  var span=hi-lo||hi*0.1||1,near=function(v){return v!=null&&v>0&&v>=lo-span*0.6&&v<=hi+span*0.6;};
+  var fvIn=near(fv),bbIn=near(bb);
+  if(fvIn){lo=Math.min(lo,fv);hi=Math.max(hi,fv);}
+  if(bbIn){lo=Math.min(lo,bb);hi=Math.max(hi,bb);}
+  var pad=(hi-lo)*0.06||hi*0.05;lo=Math.max(0,lo-pad);hi+=pad;
+  var W=460,H=130,L=4,R=40,T=14,B=14;
+  var X=function(k){return (L+k/(pts.length-1)*(W-L-R)).toFixed(1);},Y=function(v){return (T+(hi-v)/(hi-lo)*(H-T-B)).toFixed(1);};
+  var s='<svg class="pro-px" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Price history against the S&amp;P 500">';
+  for(var g=0;g<=3;g++){var gv=lo+(hi-lo)*g/3,gy=Y(gv);s+='<line class="c-grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+gy+'" y2="'+gy+'"/><text x="'+(W-R+3)+'" y="'+(+gy+3)+'">'+esc(_proFmt(gv,'usd'))+'</text>';}
+  var yr='';pts.forEach(function(ix,k){var y=String(ds[ix]).slice(0,4);if(y!==yr){if(yr&&k>0)s+='<text x="'+X(k)+'" y="'+(H-3)+'" text-anchor="middle">'+y+'</text>';yr=y;}});
+  var sp=pts.map(function(ix,k){var v=sval(ix);return v==null?null:X(k)+','+Y(v);}).filter(Boolean);
+  if(sp.length>1)s+='<polyline class="c-spy" points="'+sp.join(' ')+'"/>';
+  if(fvIn)s+='<line class="c-fv" x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(fv)+'" y2="'+Y(fv)+'"/>';
+  if(bbIn)s+='<line class="c-bb" x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(bb)+'" y2="'+Y(bb)+'"/>';
+  s+='<polyline class="c-stk" points="'+pts.map(function(ix,k){return X(k)+','+Y(a[ix]);}).join(' ')+'"/>';
+  var lg='<tspan class="c-lg">— '+esc(d.ticker)+'</tspan>  <tspan>- - S&amp;P 500 (rebased)</tspan>';
+  if(fv)lg+='  <tspan class="c-fvl">FV '+esc(_proFmt(fv,'usd'))+(fvIn?'':' (off scale)')+'</tspan>';
+  if(bb)lg+='  <tspan class="c-bbl">Buy below '+esc(_proFmt(bb,'usd'))+(bbIn?'':' (off scale)')+'</tspan>';
+  s+='<text class="c-legend" x="'+L+'" y="9">'+lg+'</text></svg>';
+  /* Price returns over trailing windows, stock vs SPY. */
+  var ret=function(arr,n){if(!arr)return null;var j1=_proPxAt(arr,end),j0=_proPxAt(arr,end-n);return j1>=0&&j0>=0&&j0<j1&&arr[j0]>0?arr[j1]/arr[j0]-1:null;};
+  var cols=[['1y',252],['3y',756],['5y',1260]],tr='<table class="pro-rets"><tr><th></th>',r1='<tr><td>'+esc(d.ticker)+'</td>',r2='<tr><td>S&amp;P 500</td>',r3='<tr><td>Difference</td>';
+  cols.forEach(function(c){
+    var st=end-c[1]>=idx[0]?ret(a,c[1]):null,sr=st!=null?ret(spy,c[1]):null;
+    tr+='<th>'+c[0]+'</th>';
+    r1+='<td class="'+(st==null?'':st>=0?'pos':'neg')+'">'+(st==null?'—':esc(_proFmt(st,'spct0')))+'</td>';
+    r2+='<td>'+(sr==null?'—':esc(_proFmt(sr,'spct0')))+'</td>';
+    var df=st!=null&&sr!=null?st-sr:null;
+    r3+='<td class="'+(df==null?'':df>=0?'pos':'neg')+'">'+(df==null?'—':esc(_proFmt(df,'spct0')))+'</td>';
+  });
+  _proPriceChart.rets=tr+'</tr>'+r1+'</tr>'+r2+'</tr>'+r3+'</tr></table>';
+  return s;
+}
 function _proSpark(vals){
   var p=[],n=0;vals.forEach(function(v){if(v!=null)n++;});
   if(n<3)return'';
   var mn=Infinity,mx=-Infinity;vals.forEach(function(v){if(v!=null){mn=Math.min(mn,v);mx=Math.max(mx,v);}});
   var rg=mx-mn||1;
   vals.forEach(function(v,i){if(v!=null)p.push((i*(44-2)/(vals.length-1)+1).toFixed(1)+','+(11-(v-mn)/rg*10).toFixed(1));});
-  return '<svg class="pro-spark" viewBox="0 0 44 12" aria-hidden="true"><polyline points="'+p.join(' ')+'"/></svg>';
+  return '<svg class="pro-spark" viewBox="0 0 44 12" preserveAspectRatio="none" aria-hidden="true"><polyline points="'+p.join(' ')+'"/></svg>';
 }
+/* Ten-year record from the hist/<T>.json shard (SEC EDGAR annual filings):
+   up to 10 fiscal years, a trend column and a sparkline per line. Same
+   series and fiscal-year dedupe as the Track Record table. */
 function _proHistHtml(d){
   var h=HIST[d.ticker];if(!h)return'';
-  var rev=h.rev||{},ni=h.ni||{},ocf=h.ocf||{},capex=h.capex||{},sh=h.shares||{},db=h.debt||{},csh=h.cash||{},op=h.op||{};
+  var rev=h.rev||{},ni=h.ni||{},ocf=h.ocf||{},capex=h.capex||{},sh=h.shares||{},db=h.debt||{},csh=h.cash||{},op=h.op||{},gp=h.gp||{},dv=h.div||{},ie=h.intexp||{};
   var roicY=d.roic_by_year||{},fin=d.sector==='Financial Services';
   var ks={};[rev,ni,ocf].forEach(function(s){Object.keys(s).forEach(function(k){ks[k]=1;});});
   var by={};Object.keys(ks).sort().forEach(function(k){by[k.slice(0,4)]=k;});
-  var cols=Object.keys(by).sort().map(function(y){return by[y];}).slice(-8);
+  var cols=Object.keys(by).sort().map(function(y){return by[y];}).slice(-10);
   if(cols.length<2)return'';
   var byYr=function(s,k){if(s[k]!=null)return s[k];var y=k.slice(0,4);for(var kk in s){if(kk.slice(0,4)===y)return s[kk];}return null;};
-  var near=function(s,ds,tol){var best=null,bd=1e9,t=Date.parse(ds);Object.keys(s).forEach(function(k){var dd=Math.abs(Date.parse(k)-t)/864e5;if(dd<bd){bd=dd;best=s[k];}});return bd<=tol?best:null;};
+  var near=function(s,dt,tol){var best=null,bd=1e9,t=Date.parse(dt);Object.keys(s).forEach(function(k){var dd=Math.abs(Date.parse(k)-t)/864e5;if(dd<bd){bd=dd;best=s[k];}});return bd<=tol?best:null;};
   var pct=function(v){return (v*100).toFixed(1)+'%';};
+  var fcf=function(k){var o=ocf[k],c=capex[k];return o!=null&&c!=null?o-Math.abs(c):null;};
   var rows=[
     {l:'Revenue',g:function(k){return rev[k];},f:fds,t:'cagr'},
+    {l:'Gross margin',g:function(k){var x=byYr(gp,k);return x!=null&&rev[k]?x/rev[k]:null;},f:pct,t:'pp'},
     {l:'Operating income',g:function(k){return byYr(op,k);},f:fds,t:'cagr'},
-    {l:'Op margin',g:function(k){var o=byYr(op,k);return o!=null&&rev[k]?o/rev[k]:null;},f:pct,t:'pp'},
+    {l:'Operating margin',g:function(k){var o=byYr(op,k);return o!=null&&rev[k]?o/rev[k]:null;},f:pct,t:'pp'},
     {l:'Net income',g:function(k){return ni[k];},f:fds,t:'cagr'},
-    {l:'Free cash flow',g:function(k){var o=ocf[k],c=capex[k];return o!=null&&c!=null?o-Math.abs(c):null;},f:fds,t:'cagr'},
+    {l:'Net margin',g:function(k){return ni[k]!=null&&rev[k]?ni[k]/rev[k]:null;},f:pct,t:'pp'},
+    {l:'EPS',g:function(k){var s=near(sh,k,220);return ni[k]!=null&&s>0?ni[k]/s:null;},f:function(v){return (v<0?'-$':'$')+Math.abs(v).toFixed(2);},t:'cagr'},
+    {l:'Operating cash flow',g:function(k){return ocf[k];},f:fds,t:'cagr'},
+    {l:'Capex',g:function(k){return capex[k]!=null?Math.abs(capex[k]):null;},f:fds,t:'cagr',neut:true},
+    {l:'Free cash flow',g:fcf,f:fds,t:'cagr'},
+    {l:'FCF margin',g:function(k){var f=fcf(k);return f!=null&&rev[k]?f/rev[k]:null;},f:pct,t:'pp'},
     {l:'ROIC',g:function(k){return roicY[k.slice(0,4)];},f:pct,t:'pp'},
+    {l:'Dividends paid',g:function(k){return dv[k]!=null?Math.abs(dv[k]):null;},f:fds,t:'cagr'},
     {l:'Shares out',g:function(k){return near(sh,k,220);},f:_trFmtSh,t:'chg',inv:true},
-    {l:'Net debt',g:function(k){return db[k]!=null&&csh[k]!=null?db[k]-csh[k]:null;},f:fds,t:'delta',inv:true,neut:fin}
+    {l:'Total debt',g:function(k){return db[k];},f:fds,t:'chg',inv:true,neut:fin},
+    {l:'Net debt',g:function(k){return db[k]!=null&&csh[k]!=null?db[k]-csh[k]:null;},f:fds,t:'delta',inv:true,neut:fin},
+    {l:'Interest coverage',g:function(k){var o=byYr(op,k),x=byYr(ie,k);return o!=null&&x?o/Math.abs(x):null;},f:function(v){return v>=100?'>100×':v.toFixed(1)+'×';},t:'chg',neut:true}
   ];
-  var html='<div class="pro-hwrap"><table class="pro-hist"><tr><th></th>';
+  var html='<table class="pro-tbl"><tr><th></th>';
   cols.forEach(function(k){html+='<th>FY'+k.slice(2,4)+'</th>';});
   html+='<th>Trend</th><th></th></tr>';
   var shown=0;
   rows.forEach(function(r){
-    var vals=cols.map(function(k){var v=_num(r.g(k));return v;});
+    var vals=cols.map(function(k){return _num(r.g(k));});
     var nn=vals.filter(function(v){return v!=null;});
     if(nn.length<2)return;
     shown++;
-    var f=nn[0],l=nn[nn.length-1],tr='—',tone=0,span=0;
-    for(var i=0,a=-1,b=-1;i<vals.length;i++){if(vals[i]!=null){if(a<0)a=i;b=i;}}span=b-a;
+    var f=nn[0],l=nn[nn.length-1],tr='—',tone=0,a=-1,b=-1;
+    for(var i=0;i<vals.length;i++){if(vals[i]!=null){if(a<0)a=i;b=i;}}
+    var span=b-a;
     if(r.t==='pp'){var pp=(l-f)*100;tr=(pp>0?'+':'')+pp.toFixed(1)+'pp';tone=pp>0?1:pp<0?-1:0;}
     else if(r.t==='delta'){var dl=l-f;tr=(dl>0?'+':'')+fds(dl);tone=dl<0?1:dl>0?-1:0;}
     else if(r.t==='chg'){if(f!==0){var ch=l/f-1;tr=(ch>0?'+':'')+(ch*100).toFixed(1)+'%';tone=r.inv?(ch<0?1:ch>0.02?-1:0):(ch>0?1:-1);}}
@@ -7946,7 +8070,34 @@ function _proHistHtml(d){
     vals.forEach(function(v){html+='<td'+(v!=null&&v<0&&r.t!=='delta'?' class="neg"':'')+'>'+(v!=null?esc(r.f(v)):'—')+'</td>';});
     html+='<td class="pro-tr'+(tone>0?' pos':tone<0?' neg':'')+'">'+esc(tr)+'</td><td>'+_proSpark(vals)+'</td></tr>';
   });
-  return shown?html+'</table></div>':'';
+  return shown?html+'</table>':'';
+}
+/* Peers side by side: the company first (shaded), then up to seven peers,
+   taken from the Finnhub/industry peer list (_detPeerList) and topped up with
+   the nearest-in-size names from the same industry in this report. */
+function _proPeers(d){
+  var byTk={};DATA.forEach(function(x){byTk[x.ticker]=x;});
+  var out=[],seen={};seen[d.ticker]=1;
+  var take=function(t){var r=byTk[t];if(r&&!seen[t]){seen[t]=1;out.push(r);}};
+  (typeof _detPeerList==='function'?_detPeerList(d):[]).forEach(take);
+  if(out.length<7&&d.industry){
+    var m=_num(d.mcap)||1;
+    DATA.filter(function(x){return x.industry===d.industry&&!seen[x.ticker]&&_num(x.mcap)>0;})
+      .sort(function(p,q){return Math.abs(Math.log(p.mcap/m))-Math.abs(Math.log(q.mcap/m));})
+      .forEach(function(x){if(out.length<7)take(x.ticker);});
+  }
+  out=out.slice(0,7);
+  if(!out.length)return'';
+  var cell=function(v,f,tone){var s=_proFmt(v,f);return '<td'+(tone>0?' class="pos"':tone<0?' class="neg"':'')+'>'+(s==null?'—':esc(s))+'</td>';};
+  var h='<table class="pro-tbl"><tr><th>Ticker</th><th style="text-align:left">Company</th><th>Rating</th><th>Verdict</th><th>Mkt cap</th><th>P/E</th><th>EV/EBITDA</th><th>P/FCF</th><th>ROIC</th><th>Op margin</th><th>FCF margin</th><th>Rev 5y</th><th>Div yld</th><th>MoS</th></tr>';
+  [d].concat(out).forEach(function(r,i){
+    var v=r.profile&&r.profile.v;
+    h+='<tr'+(i===0?' class="pro-self"':'')+'><td>'+esc(r.ticker)+'</td><td class="pro-name">'+esc(String(r.company_name||'').slice(0,26))+'</td><td>'+esc(r.rating||'—')+'</td><td>'+esc(v?(v==='INSUFFICIENT DATA'?'n/a':v):'—')+'</td>'
+      +cell(r.mcap,'big')+cell(_num(r.pe)>0?r.pe:null,'x')+cell(_num(r.ev_ebitda)>0?r.ev_ebitda:null,'x')+cell(_num(r.pfcf)>0?r.pfcf:null,'x')
+      +cell(r.roic,'pct',_proT(r.spread,0.07,0))+cell(r.operating_margin,'pct')+cell(r.fcf_margin,'pct',_proT(r.fcf_margin,0.10,0))
+      +cell(r.rev_cagr_5y!=null?r.rev_cagr_5y:r.rev_cagr,'pct')+cell(r.div_yield,'pct')+cell(r.mos,'pct0',_proT(r.mos,0.15,0))+'</tr>';
+  });
+  return h+'</table>';
 }
 function _proScorecard(d){
   if(typeof GM==='undefined'||!GM||!GM.categories)return'';
@@ -7977,85 +8128,106 @@ function _proRisks(d,p){
   if(d.employment_legal_flag)li.push('Employment-related legal flag');
   if(d.layoff_news_signal)li.push('Layoff news in recent headlines');
   (d.sector_headwinds||[]).slice(0,2).forEach(function(h){var t=txt(h);if(t)li.push('Headwind: '+t);});
-  var tw=(d.sector_tailwinds||[]).slice(0,2).map(txt).filter(Boolean);
-  var h=li.length?'<ul class="pro-list">'+li.map(function(t){return'<li>'+esc(t)+'</li>';}).join('')+'</ul>':'';
-  if(tw.length)h+='<ul class="pro-list">'+tw.map(function(t){return'<li>Tailwind: '+esc(t)+'</li>';}).join('')+'</ul>';
-  return h;
+  (d.sector_tailwinds||[]).slice(0,2).forEach(function(h){var t=txt(h);if(t)li.push('Tailwind: '+t);});
+  li=li.slice(0,7);
+  return li.length?'<ul class="pro-list">'+li.map(function(t){return'<li>'+esc(t)+'</li>';}).join('')+'</ul>':'';
+}
+/* Deal the label/value blocks into the four columns, longest first onto
+   the shortest column, weighing each by its line count, so the columns end
+   level and the page has no hole under a short one. */
+function _proBalance(blocks,n){
+  var cols=[],hts=[];for(var i=0;i<n;i++){cols.push([]);hts.push(0);}
+  blocks.map(function(b,i){return{h:b,i:i,w:(b.match(/class="pro-kv"/g)||[]).length+1.6};})
+    .filter(function(x){return x.h;})
+    .sort(function(p,q){return q.w-p.w||p.i-q.i;})
+    .forEach(function(x){var j=0;for(var k=1;k<n;k++)if(hts[k]<hts[j])j=k;cols[j].push(x);hts[j]+=x.w;});
+  return cols.map(function(c){return '<div>'+c.sort(function(p,q){return p.i-q.i;}).map(function(x){return x.h;}).join('')+'</div>';}).join('');
 }
 function _proHtml(d){
   var p=d.profile||null,fin=d.sector==='Financial Services';
+  var px=_num(d.price),fv=_num(d._fv_effective),nd=_num(d.net_debt),mcap=_num(d.mcap);
   var h='<div class="pro">';
-  /* --- Header: identity and the facts a reader orients by --- */
+  /* --- Masthead: identity, then one line on what the business does --- */
   var meta=[d.sector,d.industry,d.country].filter(Boolean).map(esc).join(' · ');
-  var facts=[];
-  var fact=function(l,v){if(v)facts.push('<span>'+esc(l)+' <b>'+v+'</b></span>');};
-  fact('Price',_proFmt(d.price,'usd')?esc(_proFmt(d.price,'usd')):'');
-  fact('Mkt cap',_num(d.mcap)!=null?esc(fds(d.mcap)):'');
-  var lo=_num(d.low_52w),hi=_num(d.high_52w),px=_num(d.price);
-  if(lo!=null&&hi!=null&&px!=null&&hi>lo){var pos=Math.max(0,Math.min(1,(px-lo)/(hi-lo)));facts.push('<span>52w '+esc(_proFmt(lo,'usd'))+'<span class="pro-rng" title="'+Math.round(pos*100)+'% of the 52-week range"><i style="left:'+(pos*100).toFixed(0)+'%"></i></span>'+esc(_proFmt(hi,'usd'))+'</span>');}
-  fact('Rating',d.rating?esc(d.rating)+(isCapped(d)?' (capped from '+esc(d.rating_raw)+')':''):'');
-  fact('Composite',_num(d._composite_score)!=null?Math.round(d._composite_score)+'':'');
-  fact('Gates',d._gates_passed?esc(d._gates_passed):'');
-  fact('Next earnings',d.earnings_next_date?esc(d.earnings_next_date)+(d.earnings_date_est?' (est.)':''):'');
-  h+='<div class="pro-head"><h2>'+esc(d.company_name||d.ticker)+' ('+esc(d.ticker)+')</h2><span class="pro-meta">'+meta+'</span>'
-    +(facts.length?'<div class="pro-facts">'+facts.join('')+'</div>':'')+'</div>';
-  /* --- Verdict --- */
+  var earn=d.earnings_next_date&&String(d.earnings_next_date)>=RUN_DATE?esc(d.earnings_next_date)+(d.earnings_date_est?' (est.)':''):'';
+  h+='<div class="pro-mast"><div><h1>'+esc(d.company_name||d.ticker)+'<small>'+esc(d.ticker)+'</small></h1><div class="mut">'+meta+(d.ceo?' · CEO '+esc(d.ceo):'')+'</div></div>'
+    +'<div class="pro-mast-r">Company summary · report of <b>'+esc(RUN_DATE)+'</b>'+(earn?'<br>Next earnings <b>'+earn+'</b>':'')+'</div></div>';
+  var desc=String(d.description||'').replace(/\s+/g,' ').trim();
+  if(desc){if(desc.length>330){desc=desc.slice(0,330);desc=desc.slice(0,desc.lastIndexOf(' '))+'…';}h+='<p class="pro-desc">'+esc(desc)+'</p>';}
+  /* --- Verdict band --- */
   if(p&&p.v){
     var conv=_num(p.conv);
     h+='<div class="pro-verdict '+(_PRO_VCLS[p.v]||'pro-v-na')+'"><div class="pro-vcol"><span class="pro-vlabel">'+esc(p.v)+'</span>'
       +(conv!=null?'<span class="pro-conv">Conviction '+Math.round(conv)+'/100</span><span class="pro-meter"><i style="width:'+Math.max(0,Math.min(100,conv))+'%"></i></span>':'')
+      +'<span class="pro-vsub">Model: <b>'+esc(d.rating||'—')+'</b>'+(isCapped(d)?' (capped from '+esc(d.rating_raw)+')':'')+'<br>Composite '+(_num(d._composite_score)!=null?Math.round(d._composite_score):'—')+' · gates '+esc(d._gates_passed||'—')+'</span>'
       +'</div><div class="pro-headline">'+esc(p.head||'')+'</div>';
-    var keys=[];
-    var key=function(l,v){if(v)keys.push('<span>'+esc(l)+' <b>'+esc(v)+'</b></span>');};
-    key('Fair value',_proFmt(d._fv_effective,'usd'));
-    key('Margin of safety',_proFmt(d.mos,'pct'));
-    var up=_num(d._fv_effective)&&px?d._fv_effective/px-1:null;
-    key('Upside to FV',_proFmt(up,'spct'));
-    key('Buy below',_proFmt(p.buy_below,'usd'));
-    key('Analyst target',_proFmt(d.target_mean,'usd'));
-    if(keys.length)h+='<div class="pro-keys">'+keys.join('')+'</div>';
     if(p.need&&p.need.length)h+='<div class="pro-need">Not an INVEST because '+esc(p.need.join('; '))+'.</div>';
     if(p.flags&&p.flags.length)h+='<div class="pro-pc pro-flags"><ul>'+p.flags.map(function(t){return'<li>'+esc(t)+'</li>';}).join('')+'</ul></div>';
     var pros=p.pros||[],cons=p.cons||[];
-    if(pros.length||cons.length){
-      h+='<div class="pro-pc"><div class="pro-pros"><h5>For</h5><ul>'+(pros.length?pros.map(function(t){return'<li>'+esc(t)+'</li>';}).join(''):'<li>Nothing stands out</li>')+'</ul></div>'
-        +'<div class="pro-cons"><h5>Against</h5><ul>'+(cons.length?cons.map(function(t){return'<li>'+esc(t)+'</li>';}).join(''):'<li>Nothing stands out</li>')+'</ul></div></div>';
-    }
+    h+='<div class="pro-pc pro-pros"><h5>For</h5><ul>'+(pros.length?pros.map(function(t){return'<li>'+esc(t)+'</li>';}).join(''):'<li>Nothing stands out</li>')+'</ul></div>'
+      +'<div class="pro-pc pro-cons"><h5>Against</h5><ul>'+(cons.length?cons.map(function(t){return'<li>'+esc(t)+'</li>';}).join(''):'<li>Nothing stands out</li>')+'</ul></div>';
     h+='</div>';
   }else{
-    h+='<div class="pro-verdict pro-v-na"><div class="pro-vcol"><span class="pro-vlabel">…</span></div><div class="pro-headline">'
+    h+='<div class="pro-verdict pro-v-na"><div class="pro-vcol"><span class="pro-vlabel">—</span></div><div class="pro-headline">'
       +(_DETAILS_AVAILABLE&&!_DETAILS_LOADED?'Loading the verdict…':'No verdict in this report (re-render to add it).')+'</div></div>';
   }
-  /* --- Blocks --- */
-  var g='';
+  /* --- Key-stat tiles --- */
+  var tiles=[];
+  var tile=function(l,v,cls,sub){tiles.push('<div class="pro-tile"><i>'+esc(l)+'</i><b'+(cls?' class="'+cls+'"':'')+'>'+(v==null?'—':esc(v))+'</b><s>'+(sub?esc(sub):'&nbsp;')+'</s></div>');};
+  var tc=function(t){return t>0?'pos':t<0?'neg':'';};
+  var lo52=_num(d.low_52w),hi52=_num(d.high_52w);
+  tile('Price',_proFmt(px,'usd'),'',lo52!=null&&hi52!=null?'52w '+_proFmt(lo52,'usd')+'–'+_proFmt(hi52,'usd'):'');
+  tile('Fair value',_proFmt(fv,'usd'),'',d._fv_source?({dcf:'DCF',blend:'blend',consensus:'multi-model'}[d._fv_source]||d._fv_source):'');
+  tile('Margin of safety',_proFmt(d.mos,'pct'),tc(_proT(d.mos,0.15,0)),fv&&px?'upside '+_proFmt(fv/px-1,'spct0'):'');
+  tile('Buy below',p?_proFmt(p.buy_below,'usd'):null,'','15% under fair value');
+  tile('Market cap',_proFmt(mcap,'big'),'',d.shares_out?_trFmtSh(d.shares_out)+' shares':'');
+  tile('Enterprise value',mcap!=null&&nd!=null?_proFmt(mcap+nd,'big'):null,'',nd!=null?(nd<0?'net cash '+_proFmt(-nd,'big'):'net debt '+_proFmt(nd,'big')):'');
+  tile('P/E',_num(d.pe)>0?_proFmt(d.pe,'x'):null,tc(_proRel(d.pe,p,'pe')),_proMed(p,'pe','x'));
+  tile('EV/EBITDA',_num(d.ev_ebitda)>0?_proFmt(d.ev_ebitda,'x'):null,tc(_proRel(d.ev_ebitda,p,'ev_ebitda')),_proMed(p,'ev_ebitda','x'));
+  tile('FCF yield',_num(d.pfcf)>0?_proFmt(1/d.pfcf,'pct'):null,'',_num(d.pfcf)>0?'P/FCF '+_proFmt(d.pfcf,'x'):'');
+  tile('Dividend yield',_proFmt(d.div_yield,'pct'),'',_num(d.payout_ratio)!=null?'payout '+_proFmt(d.payout_ratio,'pct0'):'');
+  tile('ROIC',_proFmt(d.roic,'pct'),fin?'':tc(_proT(d.spread,0.07,0)),_num(d.wacc)!=null?'WACC '+_proFmt(d.wacc,'pct'):'');
+  tile('ROIC − WACC',_proFmt(d.spread,'spct'),fin?'':tc(_proT(d.spread,0.07,0)),'');
+  tile(fin?'CET1 ratio':'Net debt/EBITDA',fin?_proFmt(d.cet1_ratio,'pct'):(nd!=null&&nd<0?'net cash':_proFmt(d.nd_ebitda,'x')),fin?tc(_proT(d.cet1_ratio,0.10,0.08)):(nd!=null&&nd<0?'pos':tc(_proT(d.nd_ebitda,1.5,3,true))),fin?'':(_num(d.int_cov)!=null?'int. cover '+_proFmt(d.int_cov,'x'):''));
+  tile('Revenue growth',_proFmt(d.rev_cagr_5y!=null?d.rev_cagr_5y:d.rev_cagr,'pct'),tc(_proT(d.rev_cagr_5y!=null?d.rev_cagr_5y:d.rev_cagr,0.07,0)),d.rev_cagr_5y!=null?'5y CAGR':'3y CAGR');
+  tile('FCF margin',_proFmt(d.fcf_margin,'pct'),tc(_proT(d.fcf_margin,0.10,0)),_proMed(p,'fcf_margin','pct'));
+  tile('Beta',_proFmt(d.beta_adjusted,'n2'),'',_num(d.realized_vol)!=null?'vol '+_proFmt(d.realized_vol,'pct0'):'');
+  h+='<div class="pro-tiles">'+tiles.join('')+'</div>';
+  /* --- Charts: price history beside the fair-value range --- */
+  var pc=_proPriceChart(d),ff=_proFootball(d);
+  /* The returns table sits under the fair-value range, beside the taller
+     price chart, so the row ends level. */
+  var rets=pc?_proPriceChart.rets:'';
+  if(pc||ff)h+='<div class="pro-charts">'+(pc?_proBlock('Price history, 5 years',pc,'pro-chart'):'<div></div>')+'<div>'+(ff?_proBlock('Fair value range by model',ff,'pro-chart'):'')+(rets?_proBlock('Price return vs S&P 500',rets):'')+'</div></div>';
+  /* --- Label/value blocks, dealt into three level columns --- */
   var mcr=(_num(d.mc_p10_fv)!=null&&_num(d.mc_p90_fv)!=null)?_proFmt(d.mc_p10_fv,'usd')+' – '+_proFmt(d.mc_p90_fv,'usd'):null;
   var src={dcf:'DCF',blend:'blend',consensus:'multi-model'}[d._fv_source]||d._fv_source||'';
-  g+=_proBlock('Valuation',
-    _proKv('Fair value (effective)',d._fv_effective,'usd',0,src)
-    +_proKv('Margin of safety',d.mos,'pct',_proT(d.mos,0.15,0))
+  var altOk=['Utilities','Real Estate'].indexOf(d.sector)<0;
+  var blocks=[];
+  blocks.push(_proBlock('Valuation models',
+    _proKv('Fair value (effective)',fv,'usd',0,src)
     +_proKv('DCF fair value',d.dcf_fv,'usd',0,Array.isArray(d.dcf_sens_range)&&d.dcf_sens_range.length===2&&_num(d.dcf_sens_range[0])!=null?_proFmt(d.dcf_sens_range[0],'usd')+'–'+_proFmt(d.dcf_sens_range[1],'usd'):'')
-    +_proKv('Monte Carlo P10–P90',mcr,'raw',0,d.mc_confidence?String(d.mc_confidence).split(' ')[0]:'')
-    +(d.ddm_eligible?_proKv('DDM fair value',d.ddm_fv,'usd'):'')
+    +_proKv('Monte Carlo P10–P90',mcr,'raw',0,d.mc_confidence?String(d.mc_confidence).split(' ')[0].toLowerCase()+' conf.':'')
+    +(d.ddm_eligible?_proKv('DDM fair value',d.ddm_fv,'usd',0,_num(d.ddm_growth)!=null?'g '+_proFmt(d.ddm_growth,'pct'):''):'')
     +_proKv('EPV fair value',d.epv_fv,'usd',0,_num(d.epv_mos)!=null?'MoS '+_proFmt(d.epv_mos,'pct0'):'')
     +_proKv('RIM fair value',d.rim_fv,'usd',0,_num(d.rim_mos)!=null?'MoS '+_proFmt(d.rim_mos,'pct0'):'')
     +_proKv('NAV (tangible book)',d.nav_fv,'usd',0,_num(d.nav_mos)!=null?'MoS '+_proFmt(d.nav_mos,'pct0'):'')
     +_proKv('Implied growth (reverse DCF)',d.implied_growth,'pct',0,_num(d.implied_vs_estimated)!=null?'vs est. '+_proFmt(d.implied_vs_estimated,'spct'):'')
     +_proKv('WACC',d.wacc,'pct',0,_num(d.terminal_growth)!=null?'term. g '+_proFmt(d.terminal_growth,'pct'):'')
-    +_proKv('Cost of equity',d.er,'pct',0,_num(d.beta_adjusted)!=null?'beta '+_proFmt(d.beta_adjusted,'n2'):''));
-  g+=_proBlock('Fair value range',_proFootball(d));
-  g+=_proBlock('Multiples & yield',
-    _proKv('P/E',d.pe,'x',_proRel(d.pe,p,'pe'),_proMed(p,'pe','x'))
-    +_proKv('EV/EBITDA',d.ev_ebitda,'x',_proRel(d.ev_ebitda,p,'ev_ebitda'),_proMed(p,'ev_ebitda','x'))
-    +_proKv('P/FCF',d.pfcf,'x',_proRel(d.pfcf,p,'pfcf'),_proMed(p,'pfcf','x'))
+    +_proKv('Cost of equity',d.er,'pct',0,_num(d.beta_adjusted)!=null?'beta '+_proFmt(d.beta_adjusted,'n2'):'')));
+  blocks.push(_proBlock('Multiples & yield',
+    _proKv('P/E',_num(d.pe)>0?d.pe:null,'x',_proRel(d.pe,p,'pe'),_proMed(p,'pe','x'))
+    +_proKv('EV/EBITDA',_num(d.ev_ebitda)>0?d.ev_ebitda:null,'x',_proRel(d.ev_ebitda,p,'ev_ebitda'),_proMed(p,'ev_ebitda','x'))
+    +_proKv('P/FCF',_num(d.pfcf)>0?d.pfcf:null,'x',_proRel(d.pfcf,p,'pfcf'),_proMed(p,'pfcf','x'))
     +_proKv('P/B',d.pb,'x',_proRel(d.pb,p,'pb'),_proMed(p,'pb','x'))
     +_proKv('P/TBV',d.p_tbv,'x')
-    +_proKv('FCF yield',_num(d.pfcf)>0?1/d.pfcf:null,'pct')
+    +_proKv('EPV price/FV',d.epv_pfv,'n2')
     +_proKv('Dividend yield',d.div_yield,'pct',0,_proMed(p,'div_yield','pct'))
     +_proKv('Shareholder yield',d.shareholder_yield,'pct',_proT(d.shareholder_yield,0.03,0))
-    +_proKv('Payout ratio',d.payout_ratio,'pct0',_num(d.payout_ratio)!=null&&d.payout_ratio>1?-1:0));
-  /* Banks and insurers: ROIC and net debt are not the lens (borrowings are
-     raw material), so they print uncoloured or not at all, as on Health. */
-  g+=_proBlock('Returns & margins',
+    +_proKv('Buyback rate',d.share_buyback_rate,'spct',_proT(d.share_buyback_rate,0.01,-0.02))
+    +_proKv('Payout ratio',d.payout_ratio,'pct0',_num(d.payout_ratio)!=null&&d.payout_ratio>1?-1:0)
+    +_proKv('Dividend streak / 5y CAGR',_num(d.ddm_consecutive_years)!=null?d.ddm_consecutive_years+' yrs':null,'raw',0,_num(d.dividend_cagr_5y)!=null?_proFmt(d.dividend_cagr_5y,'pct'):'')));
+  blocks.push(_proBlock('Returns & margins',
     _proKv('ROIC',d.roic,'pct',fin?0:_proT(d.spread,0.07,0),_proMed(p,'roic','pct'))
     +_proKv('ROIC − WACC',d.spread,'spct',fin?0:_proT(d.spread,0.07,0))
     +_proKv('ROIC variability (CV)',d.roic_cv,'n2',_proT(d.roic_cv,0.3,0.6,true))
@@ -8066,107 +8238,125 @@ function _proHtml(d){
     +_proKv('FCF margin',d.fcf_margin,'pct',_proT(d.fcf_margin,0.10,0),_proMed(p,'fcf_margin','pct'))
     +_proKv('FCF margin ex-SBC',d.fcf_margin_ex_sbc,'pct',_proT(d.fcf_margin_ex_sbc,0.10,0))
     +_proKv('Margin trend',d.margin_trend,'spct',_proT(d.margin_trend,0.01,-0.01))
+    +_proKv('R&D / revenue',d.rd_intensity_xbrl,'pct')
+    +_proKv('SBC / revenue',d.sbc_pct_rev_xbrl,'pct',_proT(d.sbc_pct_rev_xbrl,0.02,0.05,true))
     +_proKv('DuPont: margin · turns · lev.',[d.dupont_margin,d.dupont_turnover,d.dupont_leverage].every(function(v){return _num(v)!=null;})?_proFmt(d.dupont_margin,'pct')+' · '+_proFmt(d.dupont_turnover,'n2')+' · '+_proFmt(d.dupont_leverage,'n1'):null,'raw')
     +_proKv('Net interest margin',d.nim,'pct')+_proKv('Efficiency ratio',d.efficiency_ratio,'pct',_proT(d.efficiency_ratio,0.55,0.7,true))
-    +_proKv('Combined ratio',d.combined_ratio,'pct',_proT(d.combined_ratio,0.95,1.0,true))+_proKv('AFFO margin',d.affo_margin,'pct'));
-  g+=_proBlock('Growth',
+    +_proKv('Combined ratio',d.combined_ratio,'pct',_proT(d.combined_ratio,0.95,1.0,true))+_proKv('AFFO margin',d.affo_margin,'pct')));
+  blocks.push(_proBlock('Growth',
     _proKv('Revenue CAGR 3y',d.rev_cagr,'pct',_proT(d.rev_cagr,0.07,0))
     +_proKv('Revenue CAGR 5y',d.rev_cagr_5y,'pct',_proT(d.rev_cagr_5y,0.07,0))
     +_proKv('Revenue CAGR 10y',d.rev_cagr_10y,'pct',_proT(d.rev_cagr_10y,0.07,0))
     +_proKv('FCF growth',d.fcf_growth,'pct',_proT(d.fcf_growth,0.07,0))
     +_proKv('Fundamental growth',d.fundamental_growth,'pct',_proT(d.fundamental_growth,0.03,0))
     +_proKv('Reinvestment rate',d.reinvestment_rate,'pct')
-    +_proKv('Analyst long-term growth',d.analyst_ltg,'pct')
-    +_proKv('Earnings surprise (avg)',d.surprise_avg,'spct',_proT(d.surprise_avg,0.02,-0.02))
+    +_proKv('Capex / revenue',d.capex_intensity,'pct')
     +_proKv('Capex / D&A',d.capex_to_dd_ratio,'n2')
-    +_proKv('R&D intensity',d.rd_intensity_xbrl,'pct')
     +_proKv('Rule of 40',d.rule_of_40,'n1',d.sector==='Technology'?_proT(d.rule_of_40,40,20):0)
-    +_proKv('FFO growth 5y',d.ffo_growth_5y,'pct')+_proKv('Backlog / revenue',d.backlog_to_revenue,'n2'));
-  var nd=_num(d.net_debt);
-  /* Altman's Z does not fit utilities or REITs (profile_verdict._ALTMAN_SKIP). */
-  var altOk=['Utilities','Real Estate'].indexOf(d.sector)<0;
-  g+=_proBlock('Balance sheet & quality',
+    +_proKv('FFO growth 5y',d.ffo_growth_5y,'pct')+_proKv('Backlog / revenue',d.backlog_to_revenue,'n2')
+    +_proKv('Deferred revenue growth',d.deferred_rev_growth,'pct')));
+  blocks.push(_proBlock('Balance sheet & quality',
     _proKv('Cash',d.cash,'big')
     +_proKv('Total debt',d.total_debt,'big')
-    +(fin?'':_proKv(nd!=null&&nd<0?'Net cash':'Net debt',nd!=null?Math.abs(nd):null,'big',nd!=null&&nd<0?1:0))
-    +(fin?'':_proKv('Net debt / EBITDA',d.nd_ebitda,'x',nd!=null&&nd<0?1:_proT(d.nd_ebitda,1.5,3,true)))
+    +(fin?'':_proKv(nd!=null&&nd<0?'Net cash':'Net debt',nd!=null?Math.abs(nd):null,'big',nd!=null&&nd<0?1:0,_num(d.net_cash_to_mcap)!=null?_proFmt(d.net_cash_to_mcap,'pct')+' of mkt cap':''))
+    +(fin?'':_proKv('Net debt / EBITDA',nd!=null&&nd<0?null:d.nd_ebitda,'x',_proT(d.nd_ebitda,1.5,3,true)))
     +(fin?'':_proKv('Interest coverage',d.int_cov,'x',_proT(d.int_cov,8,3)))
     +(fin?'':_proKv('Debt / equity',d.de,'n2'))
     +(fin?'':_proKv('Current ratio',d.cr,'n2',_proT(d.cr,1.5,1)))
     +_proKv('CET1 ratio',d.cet1_ratio,'pct',_proT(d.cet1_ratio,0.10,0.08))
     +_proKv('Non-performing loans',d.npl_ratio,'pct',_proT(d.npl_ratio,0.01,0.03,true))
-    +(fin?'':_proKv('Altman Z',d.altman_z,'n2',altOk?(d.altman_z_zone==='safe'?1:d.altman_z_zone==='distress'?-1:0):0,d.altman_z_zone?(d.altman_z_zone+(altOk?'':' (n/m for sector)')):''))
+    +(fin?'':_proKv('Altman Z',d.altman_z,'n2',altOk?(d.altman_z_zone==='safe'?1:d.altman_z_zone==='distress'?-1:0):0,d.altman_z_zone?(d.altman_z_zone+(altOk?'':' (n/m)')):''))
     +_proKv('Beneish M',d.beneish_m,'n2',_proT(d.beneish_m,-2.22,-1.78,true),_num(d.beneish_m)!=null&&d.beneish_m>-1.78?'flag':'')
     +_proKv('Piotroski F-score',d.piotroski,'int',_proT(d.piotroski,7,4),'of 9')
     +_proKv('Cash conversion',d.cash_conv,'n2',_proT(d.cash_conv,1,0.7))
     +_proKv('Accruals',d.accruals,'pct',_num(d.accruals)!=null&&Math.abs(d.accruals)>0.08?-1:0)
     +_proKv('Goodwill / assets',d.goodwill_pct,'pct',_proT(d.goodwill_pct,0.2,0.35,true))
-    +_proKv('Debt wall (years)',d.debt_maturity_wall_yrs,'n1'));
+    +_proKv('Working capital days',d.working_capital_days,'n1')
+    +_proKv('Debt wall (years)',d.debt_maturity_wall_yrs,'n1')));
   var insN=_num(d.insider_net_value);
   var insTxt=(_num(d.insider_buy_count_365d)!=null||_num(d.insider_sell_count_365d)!=null)?(d.insider_buy_count_365d||0)+' buys / '+(d.insider_sell_count_365d||0)+' sells':'';
-  g+=_proBlock('Owners & insiders',
+  blocks.push(_proBlock('Owners & insiders',
     _proKv('Insider net (12m)',insN,'big',insN!=null?(insN>0?1:0):0,insTxt)
     +_proKv('Insider ownership',d.insider_pct,'pct',_proT(d.insider_pct,0.05,-1))
     +_proKv('Institutional ownership',d.inst_pct,'pct0')
     +_proKv('Short interest (% float)',d.short_pct_float,'pct',_proT(d.short_pct_float,0.03,0.10,true),_num(d.short_ratio)!=null?_proFmt(d.short_ratio,'n1')+' days':'')
-    +_proKv('Buyback rate',d.share_buyback_rate,'spct',_proT(d.share_buyback_rate,0.01,-0.02))
-    +_proKv('Dividend streak (yrs)',d.ddm_consecutive_years,'int')
-    +_proKv('Dividend CAGR 5y',d.dividend_cagr_5y,'pct')
     +_proKv('Founder-led',d.founder_led?'Yes':null,'raw')
-    +_proKv('CEO pay ratio',d.ceo_pay_ratio,'n1'));
-  g+=_proBlock('Market & risk',
+    +_proKv('CEO total pay',d.ceo_total_pay,'big',0,_num(d.ceo_pay_ratio)!=null?'ratio '+_proFmt(d.ceo_pay_ratio,'n1'):'')
+    +_proKv('Employees',d.employees,'int',0,_num(d.revenue_per_emp)!=null?_proFmt(d.revenue_per_emp,'big')+' rev/emp':'')));
+  blocks.push(_proBlock('Market & risk',
     _proKv('Momentum 12-1',d.momentum_12_1,'spct',_proT(d.momentum_12_1,0.10,-0.20))
-    +_proKv('Momentum 3m',d.momentum_3m,'spct')
+    +_proKv('Momentum 6-1 / 3m',_num(d.momentum_6_1)!=null?_proFmt(d.momentum_6_1,'spct'):null,'raw',0,_num(d.momentum_3m)!=null?'3m '+_proFmt(d.momentum_3m,'spct'):'')
     +_proKv('From 52w high',d.pct_from_52w_high,'spct')
-    +_proKv('Beta (adjusted)',d.beta_adjusted,'n2')
+    +_proKv('Beta (adjusted)',d.beta_adjusted,'n2',0,_num(d.beta_r2)!=null?'R² '+_proFmt(d.beta_r2,'n2'):'')
     +_proKv('Realized volatility',d.realized_vol,'pct')
-    +_proKv('Drawdown 2022',d.drawdown_2022,'pct')
-    +_proKv('Drawdown 2020',d.drawdown_2020,'pct')
-    +_proKv('Avg $ volume (3m)',d.avg_dollar_volume_3m,'big',_num(d.avg_dollar_volume_3m)!=null&&d.avg_dollar_volume_3m<1e6?-1:0)
-    +_proKv('Analysts',d.num_analysts,'int',0,d.analyst_rec?String(d.analyst_rec).replace(/_/g,' ').toLowerCase():'')
-    +_proKv('Analyst target range',_num(d.target_low)!=null&&_num(d.target_high)!=null?_proFmt(d.target_low,'usd')+' – '+_proFmt(d.target_high,'usd'):null,'raw'));
-  h+='<div class="pro-grid">'+g+'</div><div class="pro-wides">';
-  h+=_proBlock('Ten-year record (SEC filings)',_histHas(d.ticker)?_proHistHtml(d):'','pro-wide');
-  h+=_proBlock('Gate scorecard',_proScorecard(d),'pro-wide');
-  h+=_proBlock('Risks & context',_proRisks(d,p),'pro-wide');
-  h+='</div>';
-  h+='<div class="pro-foot">Report of '+esc(RUN_DATE)+' · fundamentals from SEC EDGAR XBRL and Yahoo Finance · verdict rules: models/profile_verdict.py (rating, margin of safety, red flags, weighted checks) · not investment advice.</div>';
+    +_proKv('Drawdown 2022 / 2020',_num(d.drawdown_2022)!=null?_proFmt(d.drawdown_2022,'pct0'):null,'raw',0,_num(d.drawdown_2020)!=null?'2020 '+_proFmt(d.drawdown_2020,'pct0'):'')
+    +_proKv('Avg $ volume (3m)',d.avg_dollar_volume_3m,'big',_num(d.avg_dollar_volume_3m)!=null&&d.avg_dollar_volume_3m<1e6?-1:0)));
+  var tgtU=_num(d.target_mean)&&px?d.target_mean/px-1:null;
+  var hist=Array.isArray(d.rating_hist)?d.rating_hist:[],since='';
+  if(hist.length){var lastH=hist[hist.length-1];if(Array.isArray(lastH)&&lastH[1]===d.rating)since='since '+lastH[0];}
+  blocks.push(_proBlock('Street & model',
+    _proKv('Analyst consensus',d.analyst_rec?String(d.analyst_rec).replace(/_/g,' ').toLowerCase():null,'raw',0,_num(d.num_analysts)!=null?d.num_analysts+' analysts':'')
+    +_proKv('Mean target',d.target_mean,'usd',_proT(tgtU,0.15,-0.05),tgtU!=null?_proFmt(tgtU,'spct0')+' vs price':'')
+    +_proKv('Target range',_num(d.target_low)!=null&&_num(d.target_high)!=null?_proFmt(d.target_low,'usd')+' – '+_proFmt(d.target_high,'usd'):null,'raw')
+    +_proKv('Analyst long-term growth',d.analyst_ltg,'pct')
+    +_proKv('Earnings surprise (avg)',d.surprise_avg,'spct',_proT(d.surprise_avg,0.02,-0.02))
+    +_proKv('Model rating',d.rating?d.rating+(isCapped(d)?' (capped)':''):null,'raw',0,since)
+    +_proKv('Composite score',d._composite_score,'int',0,_num(d.rating_chg)?(d.rating_chg>0?'upgraded from ':'downgraded from ')+(d.rating_prev||'?'):'')
+    +_proKv('Valuation · quality · moat',[d._score_valuation,d._score_quality,d._score_moat].every(function(v){return _num(v)!=null;})?Math.round(d._score_valuation)+' · '+Math.round(d._score_quality)+' · '+Math.round(d._score_moat):null,'raw')
+    +_proKv('Growth · ownership',[d._score_growth,d._score_ownership].every(function(v){return _num(v)!=null;})?Math.round(d._score_growth)+' · '+Math.round(d._score_ownership):null,'raw')
+    +_proKv('Value-trap score',d.trap_score,'int',_proT(d.trap_score,30,50,true),'of 100')));
+  h+='<div class="pro-cols">'+_proBalance(blocks,4)+'</div>';
+  /* --- Wide sections --- */
+  h+=_proBlock('Ten-year record (SEC filings)',_histHas(d.ticker)?_proHistHtml(d):'');
+  h+=_proBlock('Peers',_proPeers(d));
+  var sc=_proBlock('Gate scorecard',_proScorecard(d)),rk=_proBlock('Risks & context',_proRisks(d,p));
+  if(sc||rk)h+='<div class="pro-duo">'+(sc||'<div></div>')+(rk||'<div></div>')+'</div>';
+  h+='<div class="pro-foot">Report of '+esc(RUN_DATE)+' · fundamentals from SEC EDGAR XBRL and Yahoo Finance · prices to the report date · verdict rules: models/profile_verdict.py (rating, margin of safety, red flags, weighted checks) · not investment advice.</div>';
   return h+'</div>';
 }
-/* Print on ONE sheet, through a hidden iframe like exportStmtPdf (no popup
-   permission needed; the dialog shows only the frame's document). The frame
-   gets the Profile stylesheet verbatim plus light-theme tokens at a fixed
-   page width, and scales itself down with `zoom` if a dense company still
-   runs past one letter page. */
+/* The print document. The page is a fixed 7.5in column (it fits letter and
+   A4 inside any browser's default margins), sized in em off one root
+   font-size. The fit script steps that root size down from 11px until the
+   page is at most _PRO_PAGE_PX tall. The budget is 9.8in, which leaves room
+   for the browser's own header and footer lines. Nothing relies on `zoom` or
+   CSS columns, which browsers print differently. */
+var _PRO_PAGE_PX=941;
 function _proPrintDoc(d){
   var sheet=document.getElementById('pro-css');
   var css=(sheet?sheet.textContent:'')
-    +':root{--text:#111;--text-muted:#555;--surface:#fff;--border:#d0d5dc;--accent:#2980b9;}'
     +'@page{size:letter portrait;margin:8mm}'
+    +'html{font-size:11px}'
     +'html,body{margin:0;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-    +'body{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;width:754px}'
-    +'.pro{font-size:9.5px;padding:0;border-radius:0}.pro-head h2{font-size:14px}.pro-vlabel{font-size:18px}.pro-headline{font-size:11px}'
-    +'.pro-b h4,.pro-pc h5{font-size:8.5px}.pro-sub,.pro-g,.pro-hist th,.pro-foot{font-size:8px}.pro-hist{font-size:9px}'
-    +'.pro-grid{display:block;column-count:3;column-gap:12px}.pro-grid .pro-b{display:inline-block;width:100%;margin-bottom:6px}'
-    +'.pro-wides{gap:6px;margin-top:0}.pro-need{font-size:8.5px}';
-  var fit='(function(){var H=980,b=document.body,h=b.scrollHeight;if(h>H)b.style.zoom=(H/h).toFixed(3);})();';
-  var ttl=d.ticker+' company profile '+RUN_DATE;
+    +'body{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;width:7.5in;margin:0 auto}';
+  var fit='(function(){var r=document.documentElement,b=document.body,s=11,H='+_PRO_PAGE_PX+';'
+    +'r.style.fontSize=s+"px";while(b.scrollHeight>H&&s>6){s-=0.25;r.style.fontSize=s+"px";}})();';
+  var ttl=d.ticker+' company summary '+RUN_DATE;
   return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(ttl)+'</title><style>'+css+'</style></head><body>'
     +_proHtml(d)+'<script>'+fit+'<\/script></body></html>';
 }
 function exportProfilePdf(){
   var d=DATA.find(function(x){return x.ticker===_dpTicker;});
   if(!d)return;
-  /* The verdict rides the details/ parts: an early click waits for them
-     rather than printing a verdict-less page. */
+  var tk=d.ticker;
+  /* Everything the page draws is lazy: the verdict rides the details/ parts,
+     the ten-year record the hist/ shard, the price chart the px/ shards
+     (_pfWithPx fetches prices_meta.json first when no view has). An early
+     click waits for each rather than printing a thinner page. */
   if(_DETAILS_AVAILABLE&&!_DETAILS_LOADED){_loadDetails(exportProfilePdf);return;}
-  if(_histPending(_dpTicker)){_ensureHist([_dpTicker],exportProfilePdf);return;}
+  if(_histPending(tk)){_ensureHist([tk],exportProfilePdf);return;}
+  if(typeof _pfWithPx==='function'&&!exportProfilePdf._px){
+    exportProfilePdf._px=true;
+    _pfWithPx([tk],function(){try{exportProfilePdf();}finally{exportProfilePdf._px=false;}});
+    return;
+  }
   var fr=document.getElementById('pro-print-frame');
   if(!fr){
     fr=document.createElement('iframe');
     fr.id='pro-print-frame';
     fr.setAttribute('aria-hidden','true');
-    fr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+    /* Off-screen but full letter size, so the fit script measures the page
+       at its real width (a 0x0 frame lays out, but some engines skip it). */
+    fr.style.cssText='position:fixed;left:-10000px;top:0;width:8.5in;height:11in;border:0;visibility:hidden;';
     document.body.appendChild(fr);
   }
   var doc=fr.contentDocument||fr.contentWindow.document;
