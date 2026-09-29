@@ -133,7 +133,7 @@ def test_renderer_handles_a_full_row_and_an_empty_one(tmp_path):
     fns = ''.join(_fn(src, n) + '\n' for n in (
         '_proFmt', '_proKv', '_proT', '_proBlock', '_proMed', '_proRel', '_proFootball',
         '_proPxAt', '_proPriceChart', '_proSpark', '_proHistHtml', '_proPeers',
-        '_proScorecard', '_proRisks', '_proBalance', '_proHtml'))
+        '_proScorecard', '_proRisks', '_proBalance', '_proRangeLine', '_proHtml'))
     consts = ("var _PRO_VCLS={'INVEST':'pro-v-inv','WATCH':'pro-v-wat','AVOID':'pro-v-avo',"
               "'INSUFFICIENT DATA':'pro-v-na'};\n")
     assert consts.strip() in src
@@ -141,11 +141,17 @@ def test_renderer_handles_a_full_row_and_an_empty_one(tmp_path):
                 target_high=160, target_mean=125, low_52w=70, high_52w=120, epv_fv=60,
                 _gate_spread=0.16, _gp_spread=True, _score_moat=72,
                 trap_reasons=['<script>x</script>'], sector_tailwinds=[{'text': 'AI demand'}],
-                roic_by_year={'2023': 0.2, '2024': 0.22, '2025': 0.25})
+                roic_by_year={'2023': 0.2, '2024': 0.22, '2025': 0.25},
+                epv_growth_fv=60.0, rim_fv=58.0, ddm_fv=51.0, _dcf_fv_preblend=130.0,
+                _gate_fv_dispersion=0.35)
     full['profile'] = profile_verdict(full)
     hist = {'rev': {'2023-12-31': 8e9, '2024-12-31': 9e9, '2025-12-31': 10e9},
             'op': {'2023-12-31': 2e9, '2024-12-31': 2.4e9, '2025-12-31': 3e9},
-            'ni': {'2023-12-31': 1e9, '2024-12-31': 1.5e9, '2025-12-31': 2e9}}
+            'ni': {'2023-12-31': 1e9, '2024-12-31': 1.5e9, '2025-12-31': 2e9},
+            'ocf': {'2023-12-31': 1.5e9, '2024-12-31': 2e9, '2025-12-31': 2.6e9},
+            'capex': {'2023-12-31': -3e8, '2024-12-31': -3.5e8, '2025-12-31': -4e8},
+            'dna': {'2023-12-31': 2e8, '2024-12-31': 2.2e8, '2025-12-31': 2.4e8},
+            'shares': {'2023-12-31': 5e8, '2024-12-31': 4.9e8, '2025-12-31': 4.8e8}}
     peer = _row(ticker='PEER', company_name='Peer Co', mcap=4e10, pe=18.0)
     n = 300
     prices = {'dates': [f'{2025 + i // 252}-01-{1 + i % 28:02d}' for i in range(n)],
@@ -174,10 +180,23 @@ def test_renderer_handles_a_full_row_and_an_empty_one(tmp_path):
     assert 'class="pro-px"' in a              # price history vs S&P 500
     assert 'Price return vs S&amp;P 500' in a
     assert '<td>PEER</td>' in a and 'pro-self' in a   # peers, company first
+    # Valuation confidence: the fair value as a range, with the DCF's gap to
+    # the other models and a level that is a word, not just a colour.
+    assert 'Intrinsic value <b>$90.00 \u2013 $170</b>' in a
+    assert 'Base <b>$130</b> (DCF)' in a and 'Bear <b>$90.00</b>' in a and 'Bull <b>$170</b>' in a
+    assert 'Other models\u2019 median <b>$58.00</b> (DCF +124%)' in a
+    assert 'pro-conf-LOW">LOW<' in a
+    assert 'DCF vs other models' in a and 'Model dispersion (MAD)' in a
+    assert 'range $90.00\u2013$170' in a                 # fair-value tile
+    # Per-share and cash quality in the ten-year record, and the bridge.
+    for row in ('FCF per share', 'FCF / net income', 'CFO / EBITDA'):
+        assert f'<td>{row}</td>' in a, row
+    assert 'class="pro-bridge"' in a and 'FCF per share' in a and '\u00f7 share count' in a
     cols = a[a.index('class="pro-cols"'):]
     assert cols.count('<section class="pro-b"') >= 5
     for empty in (b, c):
         assert 'class="pro"' in empty
         # Blocks with no data disappear.
-        for gone in ('Valuation models', 'Ten-year', 'class="pro-px"', 'Peers'):
+        for gone in ('Valuation models', 'Ten-year', 'class="pro-px"', 'Peers',
+                     'pro-range', 'pro-bridge', 'DCF vs other models'):
             assert gone not in empty, gone

@@ -524,13 +524,28 @@ ruff check .
     on-screen tab; the #279 Profile tab was removed in favour of this button.
     The page (`_proHtml`) is a dense one-pager that leads with a rule-based
     **INVEST / WATCH / AVOID / INSUFFICIENT DATA** verdict. Top to bottom:
-    - masthead and business line, then the verdict band;
+    - masthead and business line, then the verdict band. Under its headline
+      is a **valuation-confidence line** (`_proRangeLine`, from
+      `profile_verdict._valuation_confidence`, shipped as `profile.vc`). It
+      shows the fair value as a range: Monte Carlo P10–P90 as bear/bull, the
+      effective value as base, and the median of growth EPV/RIM/DDM with the
+      pre-blend DCF's gap to it. It adds a confidence level with its reasons:
+      - LOW on any of these: Monte Carlo LOW, dispersion > 30%, a DCF gap
+        > 50%, a P90/P10 ratio > 3;
+      - HIGH when Monte Carlo is HIGH, dispersion ≤ 15% and the gap ≤ 25%;
+      - otherwise MEDIUM.
+      This is sheet-only: it never feeds the verdict, the rating or the
+      effective fair value;
     - 16 key-stat tiles;
     - 5-year price history vs the S&P 500, with fair value and buy-below
       lines (from the `px/` shards), beside the fair-value range and a
       1/3/5-year return table;
     - four level columns of label/value blocks (`_proBalance`);
-    - a 17-line ten-year record from `hist/`;
+    - a 17-line ten-year record from `hist/`, with FCF per share, FCF / net
+      income and CFO / EBITDA, and an FCF-per-share bridge underneath:
+      (1+g_fps) = (1+g_rev)(1+g_margin)/(1+g_shares) over the widest span
+      with positive FCF at both ends, so the page shows *why* FCF outgrew
+      revenue;
     - peers side by side, then the gate scorecard and risks.
     - **Verdict source:** `models/profile_verdict.py`, built at render time by
       `report_html._attach_profiles` (as the Data-tab summaries are) and

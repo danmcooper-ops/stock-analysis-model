@@ -741,6 +741,9 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
         'ticker': r['ticker'],
         'roic': r.get('roic'), 'wacc': r.get('wacc'), 'spread': r.get('spread'),
         'dcf_fv': r.get('dcf_fv'), 'price': r.get('price'), 'mos': r.get('mos'),
+        # Pre-blend DCF: the Summary PDF's model-convergence check compares it
+        # with EPV/RIM/DDM, as scoring's fv_dispersion does.
+        '_dcf_fv_preblend': r.get('_dcf_fv_preblend'),
         # The FV the MoS was actually computed against (may be a blend of
         # models) — the popup banner shows this so FV and MoS never disagree.
         '_fv_effective': r.get('_fv_effective'),
