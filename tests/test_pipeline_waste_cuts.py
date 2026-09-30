@@ -151,3 +151,48 @@ def test_save_is_idempotent_while_not_dirty(tmp_path):
     c.record_dead('GONE')
     c.save()
     assert 'GONE' in path.read_text(encoding='utf-8')
+
+
+# ---------------------------------------------------------------------------
+# Tiingo News is a separately licensed product: the key that serves prices can
+# answer 403 for it. Because 403 was neither cached nor disabling, every
+# ticker re-requested it twice (~4,978 calls, ~41.5 min of Throttle(0.5)
+# sleep) for an endpoint that would never answer.
+# ---------------------------------------------------------------------------
+import urllib.error  # noqa: E402
+
+from data.tiingo_client import TiingoClient  # noqa: E402
+
+
+def _forbidden(*_a, **_k):
+    raise urllib.error.HTTPError('u', 403, 'Forbidden', {}, None)
+
+
+def test_tiingo_news_403_disables_news_after_one_request():
+    client = TiingoClient(api_key='k', request_delay=0)
+    with mock.patch('urllib.request.urlopen', side_effect=_forbidden) as u:
+        for t in ('AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOG'):
+            assert client.fetch_ticker_news(t) == []
+    assert u.call_count == 1
+
+
+def test_tiingo_news_403_does_not_disable_the_price_path():
+    """403 on news is a licensing fact, not an auth failure — prices work."""
+    client = TiingoClient(api_key='k', request_delay=0)
+    with mock.patch('urllib.request.urlopen', side_effect=_forbidden):
+        client.fetch_ticker_news('AAPL')
+    assert client.available is True
+    with mock.patch('urllib.request.urlopen', side_effect=_forbidden) as u:
+        client.fetch_closes('AAPL', '2026-09-01')
+    assert u.call_count == 1, 'price endpoint must still be attempted'
+
+
+def test_tiingo_401_still_disables_everything():
+    client = TiingoClient(api_key='k', request_delay=0)
+
+    def unauthorized(*_a, **_k):
+        raise urllib.error.HTTPError('u', 401, 'Unauthorized', {}, None)
+
+    with mock.patch('urllib.request.urlopen', side_effect=unauthorized):
+        client.fetch_ticker_news('AAPL')
+    assert client.available is False

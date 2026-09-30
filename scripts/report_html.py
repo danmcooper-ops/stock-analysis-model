@@ -23,6 +23,7 @@ from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
                             CARRY_FORWARD_STOPPED_MAX_SHARE,
                             PHASE1_LOCAL_PRICE_MAX_AGE_DAYS)
 from data.price_store import mass_stop, stopped_trading
+from data.news_tags import TAG_LABELS
 from scripts.safe_json import dumps_for_script
 
 logger = logging.getLogger('report_html')
@@ -1814,6 +1815,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         prices_size_mb=prices_size_mb,
         hist_available=('true' if hist_tickers else 'false'),
         hist_tickers=dumps_for_script(hist_tickers),
+        news_tag_labels=dumps_for_script(TAG_LABELS),
         details_available=('true' if details_parts else 'false'),
         details_parts=dumps_for_script(details_parts),
         macro_available=('true' if macro_sidecar else 'false'),

@@ -70,6 +70,8 @@ from models.macro import (assess_macro_regime, compute_macro_adjustments,
                           compute_sector_rs_from_local)
 from models.narrative import generate_stock_narrative, generate_financial_summary
 from data.news_client import NewsClient
+from data.news_relevance import order_headlines
+from data.news_tags import tag_headline
 from data.tiingo_client import TiingoClient
 from data.sec_legal_client import SECLegalClient
 from data.finnhub_supply_client import FinnhubSupplyClient
@@ -92,6 +94,10 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             PHASE1_EMPTY_RATE_ALARM, PHASE1_EMPTY_ALARM_MIN_CALLS,
                             YF_REQUEST_DELAY, YF_REQUEST_DELAY_MAX,
                             YF_THROTTLE_PENALTY, YF_THROTTLE_RELAX,
+                            NEWS_REQUEST_DELAY, NEWS_REQUEST_DELAY_MAX,
+                            NEWS_THROTTLE_PENALTY, NEWS_THROTTLE_RELAX,
+                            NEWS_RATE_LIMIT_BREAKER, NEWS_MAX_SECTOR_ITEMS,
+                            NEWS_MAX_TOTAL,
                             RIM_SPREAD_PERSISTENCE, RIM_MAX_BOOK_GROWTH,
                             GROWTH_WEIGHT_FCF, GROWTH_WEIGHT_REV,
                             GROWTH_WEIGHT_ANALYST_ST, GROWTH_WEIGHT_ANALYST_LT,
@@ -3673,7 +3679,11 @@ def _run_build_phase2_clients(sec_client, qualifying, screen_cache):
     # -----------------------------------------------------------------------
     # News pipeline: Tiingo (primary) + yfinance/Google RSS (fallback)
     # -----------------------------------------------------------------------
-    news_client = NewsClient(request_delay=1.0, max_age_days=30)
+    news_client = NewsClient(request_delay=NEWS_REQUEST_DELAY, max_age_days=30,
+                             delay_max=NEWS_REQUEST_DELAY_MAX,
+                             penalty=NEWS_THROTTLE_PENALTY,
+                             relax_step=NEWS_THROTTLE_RELAX,
+                             breaker_after=NEWS_RATE_LIMIT_BREAKER)
     _sectors_for_news = set(
         (screen_cache[t]['yf_data'].get('info') or {}).get('sector', '')
         for t in qualifying
@@ -3753,7 +3763,10 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             news = (tiingo_client.fetch_ticker_news(ticker, max_age_days=30, max_items=12)
                     if tiingo_client.available else [])
             if not news:
-                news_client.get_combined_news(ticker, info.get('sector') or '', max_total=12)
+                news_client.get_combined_news(
+                    ticker, info.get('sector') or '',
+                    company_name=info.get('shortName') or info.get('longName') or '',
+                    max_total=NEWS_MAX_TOTAL, max_sector=NEWS_MAX_SECTOR_ITEMS)
             sec_client.fetch_legal_filings(ticker, days_back=730)
             if not supply_client.fetch_supply_chain(ticker).get('available'):
                 sec_supply_client.fetch_supply_chain(ticker)
@@ -3917,10 +3930,17 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             else:
                 tiingo_news = []
             if tiingo_news:
-                ticker_news = tiingo_news
+                # Tiingo items are per-ticker, but still go through the
+                # ordering pass so every source lands with the same
+                # tier/scope/tags the report renders.
+                ticker_news = order_headlines(
+                    tiingo_news, ticker, company_name,
+                    max_total=NEWS_MAX_TOTAL, max_sector=NEWS_MAX_SECTOR_ITEMS)
                 news_sentiment = tiingo_client.fetch_ticker_sentiment(ticker, max_age_days=30, max_items=12)
             else:
-                ticker_news = news_client.get_combined_news(ticker, sector, max_total=12)
+                ticker_news = news_client.get_combined_news(
+                    ticker, sector, company_name=company_name,
+                    max_total=NEWS_MAX_TOTAL, max_sector=NEWS_MAX_SECTOR_ITEMS)
                 news_sentiment = None
             legal_data = sec_client.fetch_legal_filings(ticker, days_back=730)
             supply_data = supply_client.fetch_supply_chain(ticker)
@@ -4956,27 +4976,21 @@ def _run_narratives(results, args, sector_etf_data, macro_regime_result,
                 break
         r['employment_legal_flag'] = flag
 
-    # Step 5 — layoff / culture news signal
-    _LAYOFF_KEYWORDS = {
-        'layoff', 'lay off', 'laid off', 'job cut', 'workforce reduction',
-        'redundan', 'downsiz', 'restructur', 'reorg',
-    }
-    _CULTURE_POS_KEYWORDS = {
-        'best place', 'top employer', 'great place to work',
-        'best company', 'culture award',
-    }
+    # Step 5 — layoff / culture news signal.
+    # The keyword sets these two booleans come from now live in
+    # data/news_tags.py, which tags every headline at fetch time for the
+    # report's event chips; the `layoffs` and `culture_award` entries there
+    # are the verbatim sets that used to sit here, and
+    # tests/test_news_tags.py pins them against a real-headline corpus
+    # because layoff_news_signal is a published column that
+    # models/narrative.py turns into a headwind. The tag_headline() fallback
+    # covers rows restored from a checkpoint written before tagging.
     for r in results:
-        headlines = r.get('news_headlines') or []
-        layoff_signal = False
-        culture_award = False
-        for h in headlines:
-            text = (h.get('title') or '').lower()
-            if any(kw in text for kw in _LAYOFF_KEYWORDS):
-                layoff_signal = True
-            if any(kw in text for kw in _CULTURE_POS_KEYWORDS):
-                culture_award = True
-        r['layoff_news_signal'] = layoff_signal
-        r['culture_award_signal'] = culture_award
+        tags = set()
+        for h in (r.get('news_headlines') or []):
+            tags.update(h.get('tags') or tag_headline(h.get('title') or ''))
+        r['layoff_news_signal'] = 'layoffs' in tags
+        r['culture_award_signal'] = 'culture_award' in tags
 
     # Step 6 — plain-English narrative
     def _fmt_emp(n):
