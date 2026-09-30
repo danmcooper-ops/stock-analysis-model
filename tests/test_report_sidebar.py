@@ -233,3 +233,20 @@ def test_ticker_page_search_and_phone_back_button():
     tap = _fn(src, 'hdrMenuTap')
     assert tap.index('closeDetail()') < tap.index('sbOpen()')
     assert '_detOpenState(false)' in src[src.index('function closeDetail(){'):][:300]
+
+
+def test_ticker_key_metrics_wrap_to_two_columns_on_phones():
+    """The five key-metric cells (Mkt cap, Price, Fair value, MoS, Next
+    earnings) used to share one row on a phone, truncating every label and
+    running the fair-value band into the MoS badge. The #det-modal rules
+    outrank the old <=480px shrink rules, so the phone layout is scoped the
+    same way: a two-column grid whose odd last cell spans the row, with
+    labels and sub-lines wrapping instead of clipping."""
+    src = _tpl()
+    m = re.search(r'@media \(max-width:600px\)\{\n  #det-modal \.d-kmetrics\{([^}]*)\}', src)
+    assert m, 'phone grid for #det-modal .d-kmetrics'
+    assert 'display:grid' in m.group(1)
+    assert 'grid-template-columns:repeat(2,minmax(0,1fr))' in m.group(1)
+    assert '#det-modal .d-kmetrics .km-cell:last-child:nth-child(odd){grid-column:1/-1;}' in src
+    assert '#det-modal .d-kmetrics .km-k{font-size:.66em;white-space:normal;' in src
+    assert '#det-modal .d-kmetrics .km-sub{font-size:.64em;white-space:normal;}' in src

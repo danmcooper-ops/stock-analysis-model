@@ -2471,6 +2471,19 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
 #det-modal .d-kmetrics .km-k{color:var(--chrome-muted);font-size:.62em;}
 #det-modal .d-kmetrics .km-v{color:var(--chrome-heading);font-size:1em;}
 #det-modal .d-kmetrics .km-sub{color:var(--chrome-muted);}
+/* Phones: five cells on one row truncated every label ("FAIR VAL…") and
+   let the fair-value band run into the MoS badge, and the <=480px shrink
+   rules above lose to the #det-modal ones. So the bar becomes a two-column
+   grid (hairlines from the 1px gap), and an odd last cell (Next earnings)
+   spans the row. Labels and sub-lines wrap instead of clipping. */
+@media (max-width:600px){
+  #det-modal .d-kmetrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--border);}
+  #det-modal .d-kmetrics .km-cell{background:var(--surface);border-right:0;padding:10px 14px;min-width:0;}
+  #det-modal .d-kmetrics .km-cell:last-child:nth-child(odd){grid-column:1/-1;}
+  #det-modal .d-kmetrics .km-k{font-size:.66em;white-space:normal;overflow:visible;text-overflow:clip;}
+  #det-modal .d-kmetrics .km-v{font-size:1.05em;white-space:normal;}
+  #det-modal .d-kmetrics .km-sub{font-size:.64em;white-space:normal;}
+}
 @media(min-width:769px) and (max-width:1023px){
   #det-modal .d-header-band{padding-left:16px !important;padding-right:16px !important;}
   #det-modal .d-body{padding-left:16px !important;padding-right:16px !important;}
