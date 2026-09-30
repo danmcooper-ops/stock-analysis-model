@@ -299,7 +299,7 @@ class TestCli:
 
 class TestReport:
     def test_rows_carry_membership_and_payload(self, tmp_path, monkeypatch):
-        from scripts.report_html import build_html
+        from scripts.report_html import build_html, unpack_rows
         pf = tmp_path / 'pf.json'
         pg.save_portfolios({'version': 1, 'portfolios': [
             {'id': 'mine', 'name': 'Mine', 'tickers': ['AAA', 'NOPE']},
@@ -313,7 +313,7 @@ class TestReport:
         assert payload['rev'] == pg.revision(pg.load_portfolios(str(pf)))
         assert [p['id'] for p in payload['portfolios']] == ['mine', 'buys']
         assert payload['portfolios'][0]['missing'] == ['NOPE']
-        data = json.loads(re.search(r'var DATA=(\[.*?\]);\n', html).group(1))
+        data = unpack_rows(json.loads(re.search(r'var DATA=_unpackRows\((\{.*?\})\);\n', html).group(1)))
         assert {d['ticker']: d['pf'] for d in data} == {'AAA': ['mine', 'buys'], 'BBB': [], 'CCC': ['buys']}
 
     def test_bad_file_renders_without_portfolios(self, tmp_path, monkeypatch):

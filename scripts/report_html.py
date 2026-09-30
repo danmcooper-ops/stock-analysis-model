@@ -3,6 +3,7 @@
 import os
 import json
 import logging
+import math
 import re
 import shutil
 import jinja2
@@ -17,6 +18,7 @@ try:
 except Exception:
     generate_sector_profit_pool_narrative = None
 from models.data_tab_narrative import generate_data_tab_summaries
+from models.profile_verdict import profile_verdict
 from scripts.scoring import gate_metadata
 from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
                             CARRY_FORWARD_STOPPED_GUARD_FLOOR,
@@ -55,6 +57,67 @@ def _json_default(obj):
                        "(upstream growth-rate guard missing)", obj)
         return None
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+# The row payload is inlined into index.html, which Cloudflare Pages caps at
+# 25 MiB. Written row by row it was 23.3 MiB on 2026-09-25 (2,531 rows x ~320
+# keys): each key name repeated per row, padded separators and 17-digit float
+# reprs. Packed column-wise it is ~7.8 MiB, with no change to what the page
+# sees once templates/report.html's _unpackRows rebuilds the rows.
+_PACK_SIG_DIGITS = 10   # far beyond any displayed precision
+
+
+def _trim_floats(v):
+    """Round finite floats to _PACK_SIG_DIGITS significant digits, recursively.
+    Ten digits leave every displayed figure (at most ~4 significant decimals)
+    unchanged; NaN/inf pass through untouched, as json.dumps writes them."""
+    if isinstance(v, float):
+        return float(f'{v:.{_PACK_SIG_DIGITS}g}') if math.isfinite(v) else v
+    if isinstance(v, dict):
+        return {k: _trim_floats(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_trim_floats(x) for x in v]
+    return v
+
+
+
+def pack_rows(records):
+    """Column-wise encoding of a list of dicts, decoded by _unpackRows.
+
+    ``k`` lists every key once (first-appearance order); ``c[i]`` holds key
+    i's values for the rows that have it, in row order. Which rows those are
+    is ``p[i]`` (present row indices) or ``a[i]`` (absent ones), whichever
+    is shorter, or all rows when neither is given — so an absent key stays
+    absent and an explicit null stays null.
+    """
+    keys = list(dict.fromkeys(k for r in records for k in r))
+    n = len(records)
+    cols, present, absent = [], {}, {}
+    for i, k in enumerate(keys):
+        have = [j for j, r in enumerate(records) if k in r]
+        cols.append([_trim_floats(records[j][k]) for j in have])
+        if len(have) < n:
+            if len(have) <= n - len(have):
+                present[str(i)] = have
+            else:
+                hs = set(have)
+                absent[str(i)] = [j for j in range(n) if j not in hs]
+    return {'n': n, 'k': keys, 'c': cols, 'p': present, 'a': absent}
+
+
+def unpack_rows(packed):
+    """Python mirror of the template's _unpackRows (tests, tooling)."""
+    n, rows = packed['n'], [dict() for _ in range(packed['n'])]
+    for i, k in enumerate(packed['k']):
+        col = packed['c'][i]
+        if str(i) in packed['p']:
+            idx = packed['p'][str(i)]
+        else:
+            miss = set(packed['a'].get(str(i), ()))
+            idx = [j for j in range(n) if j not in miss]
+        for j, v in zip(idx, col, strict=True):
+            rows[j][k] = v
+    return rows
 
 
 _COMPLEX_REPR = re.compile(r'^\(-?\d[\d.eE+-]*[+-]\d[\d.eE+-]*j\)$')
@@ -470,9 +533,13 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     (``out_dir/rating_history.json``)
     stores the accumulated change-points plus the last snapshot date scanned;
     each render only parses snapshots newer than that. Only strictly-newer dates
-    are appended, so a late-backfilled older snapshot can't corrupt ordering
-    (delete the cache to force a full rebuild that includes it). A missing or
-    corrupt cache also triggers a full rebuild.
+    are appended, so a late-backfilled older snapshot can't corrupt ordering;
+    folding one in takes a full rebuild. A missing or corrupt cache rebuilds
+    over the snapshots in *out_dir* only, which in the cloud routine is just
+    the staged days: rebuild over the whole archive with
+    scripts/rebuild_rating_history.py (what run.sh does when the archive has
+    no cache) — see _advance_rating_history_cache for why scanning stops at an
+    unreadable day.
 
     The cache advances even when a store answers: with the database backend
     it is the independent record the nightly parity check compares the
@@ -480,7 +547,7 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     database misses a day. Left frozen, that check would compare the same
     day forever, and a fallback would lose every change point in the gap.
     """
-    from data.snapshot_store import list_snapshot_files, read_snapshot
+    from data.snapshot_store import list_snapshot_files
     try:
         cur = run_date.isoformat() if run_date is not None else None
     except Exception:
@@ -488,6 +555,31 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     dated = list_snapshot_files(out_dir)
     if not dated:
         return {}
+    hist = _advance_rating_history_cache(out_dir, dated, cur, cache_name)
+    from_store = _rating_history_from_store(
+        out_dir, cur, [d for d, _ in dated if cur is None or d < cur])
+    if from_store is not None:
+        return from_store
+    if cur is None:
+        return hist
+    # Exclude entries on/after the render date (rescoring an older snapshot).
+    return {tk: [cp for cp in seq if cp[0] < cur]
+            for tk, seq in hist.items()}
+
+
+def _advance_rating_history_cache(out_dir, dated, cur, cache_name='rating_history.json'):
+    """Fold every snapshot in *dated* newer than the cache's ``last_scanned``
+    (and before *cur*) into ``out_dir/cache_name``; returns the history.
+
+    Scanning is strictly in date order and **stops at the first snapshot that
+    cannot be read**. Only strictly-newer dates are ever folded in, so
+    skipping an unreadable day and scanning a later one would move
+    ``last_scanned`` past it for good: the day would be missing from the
+    history forever, with nothing to say so. Stopping leaves it first in line
+    for the next render instead, and a day that never becomes readable holds
+    the cache still, which the nightly parity check (07e) reports as stale.
+    """
+    from data.snapshot_store import read_snapshot
     cache_path = os.path.join(out_dir, cache_name)
     hist, last_scanned = {}, None
     try:
@@ -504,15 +596,19 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
     todo = [(d, p) for d, p in dated
             if (last_scanned is None or d > last_scanned)
             and (cur is None or d < cur)]
+    scanned = 0
     for d, p in todo:
         try:
             snap = read_snapshot(p)
         except Exception as e:
-            print(f"[report_html] rating-history load failed ({p}): {e}")
-            continue
+            print(f"[report_html] rating-history load failed ({p}): {e}; "
+                  f"cache stops at {last_scanned} until it can be read")
+            break
         recs = snap.get('results') if (isinstance(snap, dict) and 'results' in snap) else snap
         if not isinstance(recs, list):
-            continue
+            print(f"[report_html] rating-history load failed ({p}): no results list; "
+                  f"cache stops at {last_scanned} until it can be read")
+            break
         for rec in recs:
             if not isinstance(rec, dict):
                 continue
@@ -523,23 +619,16 @@ def _load_rating_history(out_dir, run_date, cache_name='rating_history.json'):
             if not seq or seq[-1][1] != rt:
                 seq.append([d, rt])
         last_scanned = d
-    if todo:
+        scanned += 1
+    if scanned:
         try:
             with open(cache_path, 'w', encoding='utf-8') as f:
                 json.dump({'last_scanned': last_scanned, 'hist': hist}, f)
-            print(f"[report_html] rating-history cache: +{len(todo)} snapshot(s), "
+            print(f"[report_html] rating-history cache: +{scanned} snapshot(s), "
                   f"{len(hist)} tickers, through {last_scanned}")
         except Exception as e:
             print(f"[warn] rating-history cache write failed: {e}")
-    from_store = _rating_history_from_store(
-        out_dir, cur, [d for d, _ in dated if cur is None or d < cur])
-    if from_store is not None:
-        return from_store
-    if cur is None:
-        return hist
-    # Exclude entries on/after the render date (rescoring an older snapshot).
-    return {tk: [cp for cp in seq if cp[0] < cur]
-            for tk, seq in hist.items()}
+    return hist
 
 
 def _load_russell2000():
@@ -679,6 +768,9 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
         'ticker': r['ticker'],
         'roic': r.get('roic'), 'wacc': r.get('wacc'), 'spread': r.get('spread'),
         'dcf_fv': r.get('dcf_fv'), 'price': r.get('price'), 'mos': r.get('mos'),
+        # Pre-blend DCF: the Summary PDF's model-convergence check compares it
+        # with EPV/RIM/DDM, as scoring's fv_dispersion does.
+        '_dcf_fv_preblend': r.get('_dcf_fv_preblend'),
         # The FV the MoS was actually computed against (may be a blend of
         # models) — the popup banner shows this so FV and MoS never disagree.
         '_fv_effective': r.get('_fv_effective'),
@@ -1003,11 +1095,19 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
 # Fields the Data-tab summaries compare against a sector median. A median
 # needs at least _SECTOR_STAT_MIN_N finite, positive values to be quoted.
 _SECTOR_STAT_FIELDS = ('pe', 'ev_ebitda', 'pfcf', 'revenue_per_emp')
+# The Profile tab adds P/B to the multiples, and quotes returns, margins and
+# yield signed: a median of only the positive FCF margins would flatter the
+# sector, and a zero dividend is a real observation.
+_PROFILE_MULTIPLE_FIELDS = ('pe', 'ev_ebitda', 'pfcf', 'pb')
+_PROFILE_SIGNED_FIELDS = ('roic', 'gross_margin', 'fcf_margin', 'div_yield')
 _SECTOR_STAT_MIN_N = 5
 
 
-def _sector_stats(chart_records):
-    """Return {sector: {field: median}} over the rendered rows."""
+def _sector_stats(chart_records, fields=_SECTOR_STAT_FIELDS, positive_only=True):
+    """Return {sector: {field: median}} over the rendered rows.
+
+    ``positive_only`` drops values <= 0 (a negative P/E is not a multiple).
+    """
     import math
     import statistics
     pools = {}
@@ -1015,14 +1115,14 @@ def _sector_stats(chart_records):
         sector = rec.get('sector')
         if not sector:
             continue
-        for f in _SECTOR_STAT_FIELDS:
+        for f in fields:
             v = rec.get(f)
             if (isinstance(v, (int, float)) and not isinstance(v, bool)
-                    and math.isfinite(v) and v > 0):
+                    and math.isfinite(v) and (v > 0 or not positive_only)):
                 pools.setdefault(sector, {}).setdefault(f, []).append(float(v))
-    return {sector: {f: statistics.median(vs) for f, vs in fields.items()
+    return {sector: {f: statistics.median(vs) for f, vs in by_field.items()
                      if len(vs) >= _SECTOR_STAT_MIN_N}
-            for sector, fields in pools.items()}
+            for sector, by_field in pools.items()}
 
 
 def _attach_data_summaries(chart_records):
@@ -1043,6 +1143,25 @@ def _attach_data_summaries(chart_records):
             rec['data_summaries'] = {}
 
 
+def _attach_profiles(chart_records):
+    """Add the Profile tab's verdict (``profile``) to each record.
+
+    Like the Data-tab summaries it is built at render time from the payload,
+    so a rescore or re-render picks up a rule change without a live run, and
+    a failure on one row drops only that row's verdict.
+    """
+    stats = _sector_stats(chart_records, _PROFILE_MULTIPLE_FIELDS)
+    signed = _sector_stats(chart_records, _PROFILE_SIGNED_FIELDS, positive_only=False)
+    for sector, meds in signed.items():
+        stats.setdefault(sector, {}).update(meds)
+    for rec in chart_records:
+        try:
+            rec['profile'] = profile_verdict(rec, stats.get(rec.get('sector')))
+        except Exception:
+            logger.warning('profile verdict failed for %s', rec.get('ticker'),
+                           exc_info=True)
+
+
 def _extract_details_payload(chart_records):
     # Heavy text fields only consumed inside the detail panel. Strip them
     # from the inline DATA blob into the details/ parts the template
@@ -1054,6 +1173,7 @@ def _extract_details_payload(chart_records):
         'legal_filings', 'insider_transactions',
         '_trap_components',  # per-axis trap sub-scores; popup-only detail
         'data_summaries',    # Data sub-tab narratives (_attach_data_summaries)
+        'profile',           # Profile tab verdict (_attach_profiles)
     )
     details_payload = {}
     for _rec in chart_records:
@@ -1747,10 +1867,12 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         # client re-resolves only portfolios edited in the browser).
         _rec['pf'] = _pf_index.get(str(_rec['ticker']).upper(), [])
     _attach_data_summaries(chart_records)
+    _attach_profiles(chart_records)
 
     details_payload = _extract_details_payload(chart_records)
 
-    chart_data = dumps_for_script(chart_records, default=_json_default)
+    chart_data = dumps_for_script(pack_rows(chart_records), default=_json_default,
+                                  separators=(',', ':'))
 
     # Gate metadata for Matrix view rendering in JavaScript
     gate_meta = dumps_for_script(gate_meta_obj, default=_json_default)

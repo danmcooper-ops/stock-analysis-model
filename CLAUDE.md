@@ -31,7 +31,8 @@ models/          - Pure model functions: capm, dcf, ddm, epv, rim, nav,
                    market, macro, narrative, portfolio, valuation_types,
                    data_tab_narrative (popup Data sub-tab summaries, built
                    at render time by report_html and shipped in the
-                   details/ parts)
+                   details/ parts), profile_verdict (the Summary PDF's
+                   INVEST/WATCH/AVOID verdict, same render-time path)
 scripts/         - Entry points: analyze_stock.py (main pipeline), backtest.py,
                    report_html.py / report_excel.py, scoring.py, config.py,
                    param_set.py, replay.py, ingest_snapshots.py (backfill the
@@ -494,9 +495,13 @@ ruff check .
   paint and merge into `DATA` as the single `details.json` once did. Both
   monoliths were split because Cloudflare Pages refuses files of 25 MiB or
   more (and more than 20,000 files); `scripts/check_pages_limits.py` enforces
-  that before a deploy and warns at 80%. `index.html` itself was the next file
-  at risk at 25.0 MiB, and `pack_rows` shipping the inline `DATA` blob
-  column-wise (2026-09-28) brought it to 9.5 MiB, about 38% of the limit.
+  that before a deploy and warns at 80%. `index.html` itself had reached
+  ~97% (23.3 MiB of inline `DATA`), so the rows now ship column-wise
+  (`report_html.pack_rows`: each key once, absent/present row lists, floats
+  to 10 significant digits, compact separators), rebuilt by the template's
+  `_unpackRows` before anything reads `DATA` — ~7.8 MiB on 2026-09-25, a
+  ~9 MiB page. Splitting `DATA` into sidecars is the next step only if the
+  universe grows ~3x (e.g. `--universe us` unscreened).
   `scripts/publish_vol_shards.py` copies all four families into `docs/` by
   manifest. `run.sh` step 08 pushes `docs/` to GitHub Pages (`pages-live`);
   step `08b-publish-cloudflare` (non-blocking) deploys the same directory
@@ -505,6 +510,87 @@ ruff check .
   `cloudflare/README.md`. Cache headers stay at Pages' default
   revalidation, because a `px/` shard is an offset into `prices_meta.json`'s
   dates axis and must never be mixed across deploys.
+- **Report navigation and appearance (`templates/report.html`, "SA CHROME"):**
+  Seeking Alpha-style chrome replaced the header's Views dropdown. There is a
+  fixed black `#sidebar` (desktop, or a 72px rail via `html.sb-rail`, stored in
+  `stock_sidebar_v1`), a rail with an overlay sidebar at 769-1023px, and a
+  drawer on phones, opened from the top bar's ☰ (there is no bottom tab bar). Sub-tabs are the `#subnav` underline tabs (`.sn-chip`: text on a
+  `--tab-line` hairline, the current one marked by an accent bar).
+  `renderNavMenu()` renders every one of these surfaces from `_navGroups()`,
+  and one delegated `[data-v]` listener calls `navGo`.
+  - **Page offset:** `--sb-cur` is the width the page must clear. It drives body
+    padding, the sticky header/subnav, every frozen `#dtbl`/`#mtx` column, and
+    `_syncWideTable`'s width math.
+  - **Chrome colours:** chrome text colours are set through `--sac`, because one
+    `.sa-chrome` rule outranks the blanket dark
+    `body *{color:#fff !important}`.
+  - **Search:** the ticker search (`#f-search`) lives in the top bar. On views
+    with no table it lists quick results (`#hdr-qr`) that open the ticker page.
+  - **Ticker page:** the `#det-modal` popup is now a page beside the sidebar,
+    with section tabs (`#d-tabs`). It shows a one-day change taken from the
+    `px/` shard. The three filed statements share one Finances tab, right
+    after Summary (`DT_FIN`; a `.d-stmt-tabs` switch in its pane, the pick
+    kept in `_detStmt`). On phones its × is the top bar's `#hdr-close`
+    (shown only under `html.det-open`), and the band collapses on scroll to
+    the ticker, one price line and the tabs.
+  - **Summary PDF:** a "Summary" button right of the ticker symbol
+    (`#d-sum`, in `.dh-left`) prints a one-page company summary. The `s` hotkey does the same. There is no
+    on-screen tab; the #279 Profile tab was removed in favour of this button.
+    The page (`_proHtml`) is a dense one-pager that leads with a rule-based
+    **INVEST / WATCH / AVOID / INSUFFICIENT DATA** verdict. Top to bottom:
+    - masthead and business line, then the verdict band. Under its headline
+      is a **valuation-confidence line** (`_proRangeLine`, from
+      `profile_verdict._valuation_confidence`, shipped as `profile.vc`). It
+      shows the fair value as a range: Monte Carlo P10–P90 as bear/bull, the
+      effective value as base, and the median of growth EPV/RIM/DDM with the
+      pre-blend DCF's gap to it. It adds a confidence level with its reasons:
+      - LOW on any of these: Monte Carlo LOW, dispersion > 30%, a DCF gap
+        > 50%, a P90/P10 ratio > 3;
+      - HIGH when Monte Carlo is HIGH, dispersion ≤ 15% and the gap ≤ 25%;
+      - otherwise MEDIUM.
+      This is sheet-only: it never feeds the verdict, the rating or the
+      effective fair value;
+    - 16 key-stat tiles;
+    - 5-year price history vs the S&P 500, with fair value and buy-below
+      lines (from the `px/` shards), beside the fair-value range and a
+      1/3/5-year return table;
+    - four level columns of label/value blocks (`_proBalance`);
+    - a 17-line ten-year record from `hist/`, with FCF per share, FCF / net
+      income and CFO / EBITDA, and an FCF-per-share bridge underneath:
+      (1+g_fps) = (1+g_rev)(1+g_margin)/(1+g_shares) over the widest span
+      with positive FCF at both ends, so the page shows *why* FCF outgrew
+      revenue;
+    - peers side by side, then the gate scorecard and risks.
+    - **Verdict source:** `models/profile_verdict.py`, built at render time by
+      `report_html._attach_profiles` (as the Data-tab summaries are) and
+      shipped as `profile` in the `details/` parts, ~0.5 KB a row.
+    - **AVOID** = any red flag: PASS rating, MoS <= -20%, Beneish, Altman
+      distress on an unhealthy non-utility/non-REIT, cash burn below the cost
+      of capital, or interest cover < 1.5x.
+    - **INVEST** = BUY/LEAN BUY, MoS >= 15%, not a low-confidence fair value,
+      a positive spread, and conviction >= 55.
+    - **WATCH** = everything else. `need` names what blocks an INVEST and
+      `buy_below` is the price that would clear the MoS bar.
+    - Missing inputs are N/A, never a failure.
+    - **Printing:** `exportProfilePdf` waits for the details parts, the
+      `hist/` shard and the `px/` shards. It then writes the markup into a
+      hidden, full-letter-size iframe with the `#pro-css` sheet (print-only,
+      always light).
+    - **One sheet in every browser:** the page is a fixed 7.5in column sized
+      in em. A fit script steps the root font-size down from 11px until the
+      page is at most 9.8in tall (`_PRO_PAGE_PX`), leaving room for the
+      browser's own header and footer. It deliberately uses no `zoom` and no
+      CSS multi-column: Safari's print path left a multi-column page half
+      empty and dropped whole blocks.
+  - **Appearance:** follows the device's Light/Dark setting only; there is
+    no in-page switch. A pre-paint script reads `prefers-color-scheme` and a
+    `matchMedia` listener follows the device live. `data-theme="dark"` is
+    still the only thing CSS and JS read. The old switch's `stock_theme_v1`
+    key is cleared on load.
+  - **Tests:** `tests/test_report_sidebar.py`,
+    `tests/test_report_appearance.py`, `tests/test_report_profile.py` and
+    `tests/test_profile_verdict.py`. The appearance test includes a WCAG contrast
+    check of the chrome tokens in both themes.
 - **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
   named sets of tickers — hand-picked, rule-driven, or both — and a ticker may
   sit in any number of them (membership only; `portfolio/holdings.json` stays
