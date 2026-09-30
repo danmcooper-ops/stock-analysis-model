@@ -2,11 +2,13 @@
 """Check a site directory against Cloudflare Pages' deploy limits.
 
 Cloudflare Pages (free plan) refuses a deploy with any file of 25 MiB or more,
-or with more than 20,000 files. The report is close to the first limit
-(``index.html`` is ~25.7 MB, ~98% of it) and its per-ticker shard folders
-(``vol/``, ``px/``, ``hist/``) grow with the universe, so this runs before
-every deploy (run.sh step 08b) and warns at 80% of either limit, when there
-is still time to split a file, instead of letting the deploy fail.
+or with more than 20,000 files. ``index.html`` came within 0.5 MiB of the first
+limit before ``report_html.pack_rows`` started shipping the inline ``DATA`` rows
+column-wise (2026-09-28), which took it to ~9.5 MiB, ~38% of it. Its per-ticker
+shard folders (``vol/``, ``px/``, ``hist/``) still grow with the universe, so
+this runs before every deploy (run.sh step 08b) and warns at 80% of either
+limit, when there is still time to split a file, instead of letting the deploy
+fail.
 
 Usage:
     python scripts/check_pages_limits.py docs/

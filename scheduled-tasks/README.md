@@ -20,6 +20,11 @@ both run: each appends to `data/snapshots` and force-pushes `pages-live`.
 If the repo directory itself is gone — deleted, moved or restored from a
 backup — see `RECOVERY.md` in this directory for the full rebuild.
 
+To bring the hosted Supabase project up for the first time — pushing the
+migrations, exposing the `pipeline` schema, backfilling the archive and
+wiring 06a — see `HOSTED-SETUP.md`. Once it is live, `RECOVERY.md` covers
+`DB_PRIMARY`, the cutover streak and restoring.
+
 ## The Mac routines (symlinked since 2026-08-10; dormant since 2026-09-09)
 
 This section describes the arrangement the Mac routines used, for when they
