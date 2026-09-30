@@ -1,0 +1,301 @@
+{
+ "version": 1,
+ "date": "2026-11-13",
+ "prev_date": "2026-11-12",
+ "systemic": {
+  "n": 3889,
+  "prev_n": 3883,
+  "changed": 33,
+  "changed_share": 0.0085,
+  "missing_data": 6,
+  "missing_share": 0.0015,
+  "shrink_share": 0.0,
+  "flood": false,
+  "cause": null,
+  "message": null,
+  "display": null
+ },
+ "portfolios": [
+  {
+   "id": "semis",
+   "name": "Semiconductors",
+   "color": "#2a78d6",
+   "mode": "buy_line",
+   "missing": [],
+   "stats": {
+    "n": 4,
+    "ratings": {
+     "BUY": 1,
+     "LEAN BUY": 3,
+     "HOLD": 0,
+     "PASS": 0
+    },
+    "median_mos": -0.5958715310811667,
+    "median_score": 49.25,
+    "median_spread": 0.22483551256687961,
+    "sector_weights": {
+     "Technology": 1.0
+    },
+    "top_sector": "Technology",
+    "top_sector_weight": 1.0,
+    "hhi": 1.0,
+    "concentrated": true,
+    "no_sector": 0,
+    "upgrades": 0,
+    "downgrades": 0
+   },
+   "alerts": [
+    {
+     "ticker": "NVDA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NVDA reports earnings on 2026-11-17"
+    }
+   ]
+  },
+  {
+   "id": "flagged",
+   "name": "Flagged",
+   "color": "#eb6834",
+   "mode": "buy_line",
+   "missing": [],
+   "stats": {
+    "n": 53,
+    "ratings": {
+     "BUY": 11,
+     "LEAN BUY": 31,
+     "HOLD": 6,
+     "PASS": 5
+    },
+    "median_mos": -0.19595225829618607,
+    "median_score": 50.3,
+    "median_spread": 0.25471400186222365,
+    "sector_weights": {
+     "Technology": 0.2641509433962264,
+     "Financial Services": 0.11320754716981131,
+     "Industrials": 0.1509433962264151,
+     "Consumer Cyclical": 0.18867924528301885,
+     "Consumer Defensive": 0.16981132075471697,
+     "Communication Services": 0.09433962264150943,
+     "Energy": 0.018867924528301886
+    },
+    "top_sector": "Technology",
+    "top_sector_weight": 0.2641509433962264,
+    "hhi": 0.17906728373086506,
+    "concentrated": false,
+    "no_sector": 0,
+    "upgrades": 1,
+    "downgrades": 0
+   },
+   "alerts": [
+    {
+     "ticker": "HD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HD reports earnings on 2026-11-17"
+    },
+    {
+     "ticker": "LOW",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "LOW reports earnings on 2026-11-18"
+    },
+    {
+     "ticker": "NVDA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NVDA reports earnings on 2026-11-17"
+    },
+    {
+     "ticker": "SNEX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "SNEX reports earnings on 2026-11-18"
+    },
+    {
+     "ticker": "TGT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TGT reports earnings on 2026-11-18"
+    },
+    {
+     "ticker": "UL",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "score_from": 38.1,
+     "score_to": 39.3,
+     "kind": "reversal",
+     "level": "watch",
+     "reversal_of": "2026-11-06",
+     "message": "UL moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-11-06 move)",
+     "display": "UL crossed above 39 (38.1 → 39.3) (reverses the 2026-11-06 move)",
+     "why": [
+      "Composite score moved 38 → 39, crossing above the LEAN BUY (39) threshold.",
+      "Biggest category moves: Valuation 31 → 37 (+6).",
+      "Largest metric swings: MoS -8.5% → 2.4% (score 3 → 25)."
+     ]
+    },
+    {
+     "ticker": "WMT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "WMT reports earnings on 2026-11-19"
+    },
+    {
+     "ticker": "BKNG",
+     "kind": "buy_below",
+     "mos0": 0.1572,
+     "mos1": 0.1497,
+     "level": "fyi",
+     "into": false,
+     "message": "BKNG rose back above its buy-below price $159.52 (MoS 15% at $159.58)"
+    }
+   ]
+  },
+  {
+   "id": "paper",
+   "name": "Paper book",
+   "color": "#2a78d6",
+   "mode": "buy_line",
+   "missing": [],
+   "stats": {
+    "n": 131,
+    "ratings": {
+     "BUY": 131,
+     "LEAN BUY": 0,
+     "HOLD": 0,
+     "PASS": 0
+    },
+    "median_mos": 0.26839948119298124,
+    "median_score": 60.6,
+    "median_spread": 0.19455843671704756,
+    "sector_weights": {
+     "Technology": 0.2671755725190841,
+     "Consumer Defensive": 0.14503816793893126,
+     "Healthcare": 0.1374045801526717,
+     "Industrials": 0.17557251908396945,
+     "Consumer Cyclical": 0.1679389312977099,
+     "Communication Services": 0.061068702290076306,
+     "Basic Materials": 0.04580152671755723
+    },
+    "top_sector": "Technology",
+    "top_sector_weight": 0.2671755725190841,
+    "hhi": 0.17615523570887479,
+    "concentrated": false,
+    "no_sector": 0,
+    "upgrades": 0,
+    "downgrades": 0
+   },
+   "alerts": [
+    {
+     "ticker": "BRBR",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BRBR reports earnings on 2026-11-18"
+    },
+    {
+     "ticker": "CPRT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CPRT reports earnings on 2026-11-19"
+    },
+    {
+     "ticker": "IESC",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "IESC reports earnings on 2026-11-20"
+    },
+    {
+     "ticker": "INTU",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "INTU reports earnings on 2026-11-19"
+    },
+    {
+     "ticker": "JBSS",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "JBSS left Paper book (rating BUY → LEAN BUY)",
+     "display": "JBSS left Paper book (score 57.2 → 56.9 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "JJSF",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "JJSF reports earnings on 2026-11-18"
+    },
+    {
+     "ticker": "MMS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "MMS reports earnings on 2026-11-20"
+    },
+    {
+     "ticker": "NTES",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NTES reports earnings on 2026-11-19"
+    },
+    {
+     "ticker": "ROST",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ROST reports earnings on 2026-11-19"
+    },
+    {
+     "ticker": "TPR",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "TPR left Paper book (rating BUY → LEAN BUY)",
+     "display": "TPR left Paper book (score 57 → 56.9 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "VIPS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "VIPS reports earnings on 2026-11-19"
+    },
+    {
+     "ticker": "YALA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "YALA reports earnings on 2026-11-16"
+    },
+    {
+     "ticker": "ZTO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ZTO reports earnings on 2026-11-17"
+    },
+    {
+     "ticker": "ISRG",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "fyi",
+     "message": "ISRG left Paper book (rating BUY → LEAN BUY)",
+     "display": "ISRG left Paper book (score 62.7 → 49.4 (rule: score ≥ 57))"
+    },
+    {
+     "ticker": "PAYX",
+     "kind": "buy_below",
+     "mos0": 0.1574,
+     "mos1": 0.1478,
+     "level": "fyi",
+     "into": false,
+     "message": "PAYX rose back above its buy-below price $115.38 (MoS 15% at $115.68)"
+    },
+    {
+     "ticker": "PCTY",
+     "kind": "buy_below",
+     "mos0": 0.0194,
+     "mos1": 0.1528,
+     "level": "fyi",
+     "into": true,
+     "message": "PCTY crossed below its buy-below price $178.81 (MoS 15% at $178.22); a Watch follows if it holds"
+    }
+   ]
+  }
+ ]
+}
