@@ -1,0 +1,316 @@
+{
+ "version": 1,
+ "date": "2026-11-06",
+ "prev_date": "2026-11-05",
+ "systemic": {
+  "n": 3861,
+  "prev_n": 3859,
+  "changed": 53,
+  "changed_share": 0.0137,
+  "missing_data": 9,
+  "missing_share": 0.0023,
+  "shrink_share": 0.0,
+  "flood": false,
+  "cause": null,
+  "message": null
+ },
+ "portfolios": [
+  {
+   "id": "semis",
+   "name": "Semiconductors",
+   "color": "#2a78d6",
+   "mode": "buy_line",
+   "missing": [],
+   "stats": {
+    "n": 4,
+    "ratings": {
+     "BUY": 1,
+     "LEAN BUY": 3,
+     "HOLD": 0,
+     "PASS": 0
+    },
+    "median_mos": -0.5985169927982699,
+    "median_score": 49.65,
+    "median_spread": 0.22240590610946886,
+    "sector_weights": {
+     "Technology": 1.0
+    },
+    "top_sector": "Technology",
+    "top_sector_weight": 1.0,
+    "hhi": 1.0,
+    "concentrated": true,
+    "no_sector": 0,
+    "upgrades": 0,
+    "downgrades": 0
+   },
+   "alerts": []
+  },
+  {
+   "id": "flagged",
+   "name": "Flagged",
+   "color": "#eb6834",
+   "mode": "buy_line",
+   "missing": [],
+   "stats": {
+    "n": 53,
+    "ratings": {
+     "BUY": 12,
+     "LEAN BUY": 29,
+     "HOLD": 7,
+     "PASS": 5
+    },
+    "median_mos": -0.37602950884138536,
+    "median_score": 48.4,
+    "median_spread": 0.2524791403746992,
+    "sector_weights": {
+     "Technology": 0.2692307692307692,
+     "Financial Services": 0.11538461538461538,
+     "Industrials": 0.15384615384615383,
+     "Consumer Cyclical": 0.17307692307692307,
+     "Consumer Defensive": 0.17307692307692307,
+     "Communication Services": 0.09615384615384615,
+     "Energy": 0.01923076923076923
+    },
+    "top_sector": "Technology",
+    "top_sector_weight": 0.2692307692307692,
+    "hhi": 0.17899408284023666,
+    "concentrated": false,
+    "no_sector": 1,
+    "upgrades": 0,
+    "downgrades": 1
+   },
+   "alerts": [
+    {
+     "ticker": "AMAT",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AMAT reports earnings on 2026-11-12"
+    },
+    {
+     "ticker": "BRK-B",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BRK-B reports earnings on 2026-11-07"
+    },
+    {
+     "ticker": "DDS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "DDS reports earnings on 2026-11-12"
+    },
+    {
+     "ticker": "TDG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TDG reports earnings on 2026-11-10"
+    },
+    {
+     "ticker": "UL",
+     "from": "LEAN BUY",
+     "to": "HOLD",
+     "kind": "reversal",
+     "level": "watch",
+     "reversal_of": "2026-11-05",
+     "message": "UL fell out of the buy zone: LEAN BUY → HOLD (reverses the 2026-11-05 move)",
+     "why": [
+      "Composite score moved 39 → 38, crossing below the LEAN BUY (39) threshold.",
+      "Biggest category moves: Valuation 36 → 30 (-7).",
+      "Largest metric swings: MoS 1.7% → -10.0% (score 24 → 0)."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "paper",
+   "name": "Paper book",
+   "color": "#2a78d6",
+   "mode": "buy_line",
+   "missing": [],
+   "stats": {
+    "n": 134,
+    "ratings": {
+     "BUY": 134,
+     "LEAN BUY": 0,
+     "HOLD": 0,
+     "PASS": 0
+    },
+    "median_mos": 0.23691915970605998,
+    "median_score": 60.45,
+    "median_spread": 0.19411155109415654,
+    "sector_weights": {
+     "Technology": 0.27611940298507465,
+     "Consumer Defensive": 0.1417910447761194,
+     "Healthcare": 0.1417910447761194,
+     "Industrials": 0.17164179104477612,
+     "Consumer Cyclical": 0.16417910447761194,
+     "Communication Services": 0.05970149253731346,
+     "Basic Materials": 0.04477611940298509
+    },
+    "top_sector": "Technology",
+    "top_sector_weight": 0.27611940298507465,
+    "hhi": 0.17843617732234351,
+    "concentrated": false,
+    "no_sector": 0,
+    "upgrades": 3,
+    "downgrades": 0
+   },
+   "alerts": [
+    {
+     "ticker": "AFYA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AFYA reports earnings on 2026-11-12"
+    },
+    {
+     "ticker": "CARG",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "CARG joined Paper book (rating LEAN BUY → BUY)"
+    },
+    {
+     "ticker": "ELMD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ELMD reports earnings on 2026-11-10"
+    },
+    {
+     "ticker": "ELTP",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "ELTP reports earnings on 2026-11-12"
+    },
+    {
+     "ticker": "EW",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "EW joined Paper book (rating LEAN BUY → BUY)"
+    },
+    {
+     "ticker": "GMED",
+     "portfolio": "paper",
+     "kind": "joined",
+     "level": "watch",
+     "message": "GMED joined Paper book (rating LEAN BUY → BUY)"
+    },
+    {
+     "ticker": "GSL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GSL reports earnings on 2026-11-09"
+    },
+    {
+     "ticker": "HRB",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HRB reports earnings on 2026-11-09"
+    },
+    {
+     "ticker": "NATR",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "NATR left Paper book (rating BUY → LEAN BUY)"
+    },
+    {
+     "ticker": "PLNT",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "PLNT left Paper book (rating BUY → LEAN BUY)"
+    },
+    {
+     "ticker": "POWL",
+     "portfolio": "paper",
+     "kind": "left",
+     "level": "watch",
+     "message": "POWL left Paper book (rating BUY → LEAN BUY)"
+    },
+    {
+     "ticker": "QLYS",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "QLYS reports earnings on 2026-11-09"
+    },
+    {
+     "ticker": "TTD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TTD reports earnings on 2026-11-09"
+    },
+    {
+     "ticker": "UI",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "UI reports earnings on 2026-11-06"
+    },
+    {
+     "ticker": "CARG",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "CARG LEAN BUY → BUY",
+     "why": [
+      "Composite score moved 56 → 57, crossing above the BUY (57) threshold.",
+      "Biggest category moves: Valuation 52 → 56 (+4)."
+     ]
+    },
+    {
+     "ticker": "EW",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "EW LEAN BUY → BUY",
+     "why": [
+      "Composite score moved 56 → 58, crossing above the BUY (57) threshold.",
+      "Biggest category moves: Valuation 13 → 19 (+5).",
+      "Largest metric swings: FV Dispersion 53.0% → 26.3% (score 24 → 62)."
+     ]
+    },
+    {
+     "ticker": "GMED",
+     "kind": "buy_below",
+     "mos0": -0.1254,
+     "mos1": 0.2562,
+     "level": "fyi",
+     "into": true,
+     "message": "GMED crossed below its buy-below price $81.19 (MoS 26% at $71.05); a Watch follows if it holds"
+    },
+    {
+     "ticker": "GMED",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "GMED LEAN BUY → BUY",
+     "why": [
+      "Composite score moved 54 → 59, crossing above the BUY (57) threshold.",
+      "Biggest category moves: Valuation 41 → 64 (+24).",
+      "Largest metric swings: MoS -12.5% → 25.6% (score 0 → 71)."
+     ]
+    },
+    {
+     "ticker": "JKHY",
+     "kind": "buy_below",
+     "mos0": 0.2563,
+     "mos1": 0.1148,
+     "level": "fyi",
+     "into": false,
+     "message": "JKHY rose back above its buy-below price $166.34 (MoS 11% at $173.23)"
+    },
+    {
+     "ticker": "PCTY",
+     "kind": "buy_below",
+     "mos0": 0.1539,
+     "mos1": 0.1062,
+     "level": "fyi",
+     "into": false,
+     "message": "PCTY rose back above its buy-below price $164.67 (MoS 11% at $173.15)"
+    }
+   ]
+  }
+ ]
+}
