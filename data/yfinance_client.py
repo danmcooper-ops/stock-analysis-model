@@ -1,6 +1,7 @@
 # data/yfinance_client.py
 import logging
 import os
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import date
@@ -9,7 +10,7 @@ import yfinance as yf
 import pandas as pd
 
 from data.throttle import Throttle
-from data.yf_session import install_default_session
+from data.yf_session import auth_errors_this_thread, install_default_session, reset_crumb
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,23 @@ class EmptyYahooResponseError(Exception):
     """Yahoo returned an HTTP-200 response with empty payload — almost
     always a soft rate-limit / throttle. Treated as a retryable failure
     so the caller can either retry or fall back to another data source."""
+
+
+class YahooAuthError(EmptyYahooResponseError):
+    """Yahoo answered HTTP 401 ("Invalid Crumb") while fetching `.info`.
+    yfinance swallows it and returns an info dict with no price, sector or
+    EV, so without this check the ticker went on through the screen with
+    those fields missing. It is the auth-token form of a soft throttle
+    (see data/yf_session.py), so it subclasses EmptyYahooResponseError: every
+    caller that already retries or falls back on a throttle handles it.
+
+    ``data`` carries the fetch's result (statements, but no quote fields) so
+    fetch_financials can still keep it once retries are exhausted — the
+    worst case is then exactly the pre-check behaviour, never less data."""
+
+    def __init__(self, msg, data=None):
+        super().__init__(msg)
+        self.data = data
 
 
 # Market caps above this are corruption, not data: the largest real market
@@ -329,7 +347,8 @@ def _is_not_found(exc):
 class YFinanceClient:
     def __init__(self, request_delay=1.0, snapshot_cache=None,
                  fetch_timeout=20, prices_dir="output/prices", run_date=None,
-                 delay_max=None, penalty=1.5, relax_step=0.98):
+                 delay_max=None, penalty=1.5, relax_step=0.98,
+                 auth_pause=10.0, auth_pause_max=120.0, auth_pause_budget=1800.0):
         self._financials_cache = {}
         self._history_cache = {}
         self._throttle = Throttle(request_delay)
@@ -339,13 +358,28 @@ class YFinanceClient:
         self._delay_max = delay_max if delay_max is not None else max(request_delay * 7.5, 3.0)
         self._penalty = penalty
         self._relax_step = relax_step
+        # Shared pause after a 401. yfinance's recovery re-mints the crumb
+        # on every 401, so while getcrumb is rate-limited each throttled
+        # ticker is one more getcrumb call keeping it rate-limited. Stopping
+        # every thread for a while is what breaks that loop; the pause
+        # doubles per consecutive failure (10s -> 120s) and resets on the
+        # first healthy fetch. The budget caps the run's total pausing at
+        # 30 min: past it an all-night auth outage is not retried at all, so
+        # it costs no more time than it did before this check existed.
+        self._auth_lock = threading.Lock()
+        self._auth_pause_budget = auth_pause_budget
+        self._auth_pause_base = auth_pause
+        self._auth_pause_max = auth_pause_max
+        self._auth_pause_next = auth_pause
+        self._auth_pause_until = 0.0
         # Per-run call accounting (see stats()). `empty` counts Yahoo's soft
         # throttle, which _is_not_found deliberately does NOT match, so a
         # throttled ticker costs 3 throttle ticks + 3s of backoff before the
         # caller's retry queue even sees it. That amplification is the thing
         # to watch before raising concurrency or cutting the delay.
         self.stats = {'calls': 0, 'seconds': 0.0, 'retries': 0, 'timeouts': 0,
-                      'not_found': 0, 'empty_attempts': 0, 'errors': 0}
+                      'not_found': 0, 'empty_attempts': 0, 'errors': 0,
+                      'auth_failures': 0}
         # Bare yf.Ticker() calls below use yfinance's own session; honour a
         # YF_IMPERSONATE override for them too (no-op on the default profile).
         install_default_session()
@@ -390,6 +424,37 @@ class YFinanceClient:
         for key in [k for k in list(self._history_cache) if k[0] == ticker]:
             self._history_cache.pop(key, None)
 
+    def _wait_auth_pause(self):
+        with self._auth_lock:
+            wait = self._auth_pause_until - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+
+    def _note_auth_failure(self):
+        """Record a 401 and start (or join) the shared pause. Returns False
+        once the pause budget is spent: the caller then stops retrying."""
+        with self._auth_lock:
+            self.stats['auth_failures'] += 1
+            now = time.monotonic()
+            # Threads failing inside the same pause share it rather than
+            # each doubling it.
+            if now < self._auth_pause_until:
+                return True
+            if self._auth_pause_budget <= 0:
+                return False
+            pause = min(self._auth_pause_next, self._auth_pause_budget)
+            self._auth_pause_budget -= pause
+            self._auth_pause_until = now + pause
+            self._auth_pause_next = min(self._auth_pause_next * 2, self._auth_pause_max)
+            if self._auth_pause_budget <= 0:
+                logger.warning("yfinance: HTTP 401 (bad crumb) — pausing Yahoo requests "
+                               "%.0fs; pause budget now spent, further 401s are not retried",
+                               pause)
+            else:
+                logger.warning("yfinance: HTTP 401 (bad crumb) — pausing Yahoo requests "
+                               "%.0fs", pause)
+            return True
+
     def _retry(self, func, max_retries=2):
         """Run *func* with retries for transient failures.
 
@@ -406,6 +471,7 @@ class YFinanceClient:
                 if attempt:
                     self.stats['retries'] += 1
                 try:
+                    self._wait_auth_pause()
                     self._throttle()
                     if self._fetch_timeout is not None:
                         _out = _run_with_timeout(func, self._fetch_timeout)
@@ -414,6 +480,9 @@ class YFinanceClient:
                     # Healthy response: walk a penalised interval back down.
                     # Never below the configured base (relax() floors there).
                     self._throttle.relax(self._relax_step)
+                    if self._auth_pause_next != self._auth_pause_base:
+                        with self._auth_lock:
+                            self._auth_pause_next = self._auth_pause_base
                     return _out
                 except TimeoutError:
                     # Don't retry — Yahoo is unresponsive for this ticker.
@@ -429,6 +498,9 @@ class YFinanceClient:
                         # sharing this client (the pool's workers included)
                         # before the next attempt goes out.
                         self._throttle.penalize(self._penalty, cap=self._delay_max)
+                    if isinstance(e, YahooAuthError) and not self._note_auth_failure():
+                        self.stats['errors'] += 1
+                        raise
                     if attempt == max_retries or _is_not_found(e):
                         if _is_not_found(e):
                             self.stats['not_found'] += 1
@@ -473,15 +545,24 @@ class YFinanceClient:
         # used (re-pointed by install_default_session() when YF_IMPERSONATE
         # is set).  Connection pool hygiene is handled by the 20s timeout +
         # no-retry-on-timeout policy instead.
-        stock = yf.Ticker(ticker)
 
         def _fetch():
+            # A fresh Ticker per attempt: yfinance marks `.info` fetched
+            # before requesting it and caches the (empty) result of a failed
+            # request, so a retry on the same object never asked Yahoo again.
+            stock = yf.Ticker(ticker)
+            # Runs on _run_with_timeout's worker thread, which is also where
+            # yfinance logs, so the per-thread 401 count is this fetch's own.
+            _auth0 = auth_errors_this_thread()
             data = {
                 'balance_sheet': stock.balance_sheet,
                 'income_statement': stock.financials,
                 'cash_flow': stock.cashflow,
                 'info': stock.info,
             }
+            _auth_failed = auth_errors_this_thread() > _auth0
+            if _auth_failed:
+                reset_crumb()
             # Detect Yahoo soft-throttle: HTTP 200 with an info dict missing
             # all the standard identifying fields. A real response always
             # carries at least one of symbol/shortName/longName in info, even
@@ -505,8 +586,18 @@ class YFinanceClient:
             info_empty = not (info.get('symbol') or info.get('shortName')
                               or info.get('longName'))
             if info_empty:
-                what = ('empty payload' if bs_empty and inc_empty and cf_empty
-                        else 'statements but an empty .info')
+                _all_empty = bs_empty and inc_empty and cf_empty
+                what = 'empty payload' if _all_empty else 'statements but an empty .info'
+                if _auth_failed:
+                    # A poisoned crumb empties .info while the timeseries
+                    # endpoints keep answering, so this check fires before the
+                    # 401 handler at the end of the fetch. Carry the
+                    # statements on the exception (as that handler does) or a
+                    # spent retry budget would drop data the fetch did get.
+                    data['_info_auth_failed'] = True
+                    raise YahooAuthError(
+                        f"yfinance returned {what} for {ticker} (HTTP 401, bad crumb)",
+                        data=None if _all_empty else data)
                 raise EmptyYahooResponseError(
                     f"yfinance returned {what} for {ticker} (likely throttled)")
             # Cross-contamination guard: preferred / secondary OTC lines carry
@@ -560,9 +651,21 @@ class YFinanceClient:
             data['currency_quote'] = info.get('currency')
             data['currency_financial'] = (info.get('financialCurrency')
                                           or info.get('currency'))
+            if _auth_failed:
+                data['_info_auth_failed'] = True
+                raise YahooAuthError(
+                    f"yfinance got HTTP 401 for {ticker} (bad crumb)", data=data)
             return data
 
-        financials = self._retry(_fetch)
+        try:
+            financials = self._retry(_fetch)
+        except YahooAuthError as e:
+            if e.data is None:
+                raise
+            # Retries (or the pause budget) ran out: keep the statements the
+            # last attempt did get, as this client did before the 401 check.
+            logger.warning("yfinance: %s — keeping statements without quote data", e)
+            financials = e.data
         self._financials_cache[ticker] = financials
 
         # Auto-save to disk cache if configured
