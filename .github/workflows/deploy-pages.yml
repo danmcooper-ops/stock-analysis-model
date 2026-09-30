@@ -1,0 +1,50 @@
+name: Deploy report to GitHub Pages
+
+# Publishes from the single-commit `pages-live` branch: the daily publish
+# routine copies the report artifacts into that branch's docs/, amends its
+# one commit, and force-pushes — so git history never accumulates the large
+# HTML/JSON artifacts (which previously grew the repo ~90 MB per day and
+# tripped repo size limits). This file must exist on `pages-live` for the
+# push trigger to fire there; the copy on main is kept in sync for
+# workflow_dispatch and documentation.
+on:
+  push:
+    branches: [pages-live]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (shallow)
+        uses: actions/checkout@v4
+        with:
+          # Always deploy the pages-live content, even when dispatched
+          # manually from main (where docs/ is no longer tracked).
+          ref: pages-live
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        # enablement: true re-enables Pages automatically if it ever gets
+        # disabled/unpublished (e.g. after a repo size-limit trip), so a
+        # green deploy can't silently serve nothing.
+        with:
+          enablement: true
+      - name: Upload docs/ artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
