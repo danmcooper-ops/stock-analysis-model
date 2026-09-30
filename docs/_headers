@@ -1,0 +1,11 @@
+# Cloudflare Pages _headers for the published report (copied to docs/_headers
+# by run.sh step 08; GitHub Pages serves it as an inert file).
+#
+# No Cache-Control rules on purpose: Pages' default (max-age=0,
+# must-revalidate, with an ETag) keeps index.html and its sidecars from the
+# same deploy. The px/ shards are offsets into prices_meta.json's dates axis,
+# so a shard cached from yesterday's deploy next to today's axis would draw a
+# series shifted by a day. Revalidation is a cheap 304 from the edge.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
