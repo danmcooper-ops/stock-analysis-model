@@ -62,6 +62,11 @@ class TiingoClient:
         # caller can tell "Tiingo has no such ticker" (404) from a failure.
         self.last_status = None
         self.rate_limited = False
+        # News is a separately licensed Tiingo product: the same key that
+        # serves prices can answer 403 for it. One 403 disables news for the
+        # process (prices are untouched) — otherwise every ticker re-requests
+        # an endpoint that will never answer, twice.
+        self._news_enabled = True
 
     @property
     def available(self):
@@ -89,6 +94,15 @@ class TiingoClient:
             if e.code == 401:
                 logger.warning('Tiingo: invalid API key (401) — disabling.')
                 self._api_key = ''
+            elif e.code == 403 and path.startswith('/tiingo/news'):
+                # Not an auth failure: the key is valid, the News add-on is
+                # not licensed. Never clear _api_key here — fetch_closes and
+                # fetch_history share this method and early-return without it.
+                if self._news_enabled:
+                    logger.warning(
+                        'Tiingo: News API not licensed (403) — skipping Tiingo news '
+                        'for this run; yfinance and Google News still serve headlines.')
+                self._news_enabled = False
             elif e.code == 429:
                 if not self.rate_limited:
                     logger.warning('Tiingo: rate limited (429) on %s', path)
@@ -119,7 +133,7 @@ class TiingoClient:
         if ticker in self._news_cache:
             return self._news_cache[ticker]
 
-        if not self._api_key:
+        if not self._api_key or not self._news_enabled:
             self._news_cache[ticker] = []
             return []
 
@@ -132,6 +146,9 @@ class TiingoClient:
         })
 
         if data is None:
+            if not self._news_enabled:
+                # Licensing, not weather: cache so nothing retries it.
+                self._news_cache[ticker] = []
             return []  # request failed — don't cache as "no news"
         if not data or not isinstance(data, list):
             self._news_cache[ticker] = []

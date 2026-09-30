@@ -160,6 +160,20 @@ ruff check .
   Note the crossover: once latency is hidden, the yfinance `Throttle(1.0)`
   becomes the binding constraint (91% of the phase asleep in that test), so
   `request_delay` is the next lever, not the first one.
+- **Yahoo `.info` throttle (2026-09-25 dropout):** Yahoo can throttle the
+  quoteSummary endpoint behind `.info` while the statement endpoints keep
+  answering; that night 1,548 rows (a contiguous BIPH..MYRG window) arrived
+  with no price, sector, industry or name and 751 changed rating. Three
+  layers now: `fetch_financials` treats an `.info` with no
+  symbol/shortName/longName as `EmptyYahooResponseError` even when statements
+  came back (retried, penalizes the throttle); Phase 1 re-queues ANY Yahoo
+  failure to the end of the pass before spending the SEC fetch (it used to
+  only when SEC had nothing too — never for a US filer); a ticker still empty
+  on the retry keeps its SEC statements plus the prior snapshot's
+  company_name/sector/industry/country (`fill_identity_from_prior`, never
+  price; `source_fallback` event `identity`). A throttled ticker is never
+  recorded dead in the skip cache. The run-quality summary warns when ≥10%
+  of rows lack a price or identity.
 - **Phase-1 beta from local prices:** the nightly run downloads every prior
   snapshot ticker's closes into `output/prices` immediately before the
   analysis (`run.sh` step 03), so Phase 1 reads that parquet for the beta

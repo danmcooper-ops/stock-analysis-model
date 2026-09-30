@@ -35,18 +35,28 @@ Do this before the Pages secrets (`CLOUDFLARE_API_TOKEN`,
 environment, or at the same time. Everything is in the Cloudflare dashboard.
 
 1. **Pages project.** Follow the P4c runbook in design/supabase-migration.md,
-   steps 1–2. That covers the Direct Upload project (say `stock-analysis`) and
-   an API token with *Cloudflare Pages → Edit*.
+   steps 1–2. That covers the Direct Upload project (`stock-analysis-model`)
+   and an API token with *Cloudflare Pages → Edit*.
+
+   A `pages.dev` subdomain is globally unique, not per-account: plain
+   `stock-analysis` and `stock-analysis-report` are already taken by unrelated
+   projects, which is why the name here matches the repository instead. Check a
+   name is free before you take it — `dig +short <name>.pages.dev` answers
+   nothing for a name nobody holds. If Cloudflare hands you a different name
+   than you typed, use the one it gives you everywhere below.
 2. **Zero Trust team.** Open Zero Trust from the dashboard sidebar. The first
    time, choose a team name, which gives `<team>.cloudflareaccess.com`, and
    the Free plan.
 3. **Access application.** Go to Zero Trust → Access → Applications → Add an
    application → *Self-hosted*.
    * **Name:** `Stock report`.
-   * **Public hostnames:** add both `stock-analysis.pages.dev` and
-     `*.stock-analysis.pages.dev`, using your project name. The wildcard
-     covers the per-deploy preview URLs; the Worker would refuse them anyway,
-     but this way people get the login page instead of a bare 403.
+   * **Public hostnames:** add both `stock-analysis-model.pages.dev` and
+     `*.stock-analysis-model.pages.dev`, substituting your project name if it
+     differs. The wildcard covers the per-deploy preview URLs; the Worker would
+     refuse them anyway, but this way people get the login page instead of a
+     bare 403. A hostname that belongs to someone else's project is not an
+     opening — the Worker checks the audience tag, so it can only ever 403 —
+     but it does leave *your* site ungated, so get this one right.
    * **Session duration:** 30 days, or whatever you prefer.
    * **Login methods:** *One-time PIN* only.
    * **Policy 1, "Invited":** Action *Allow*, Include → *Emails* → you and each
@@ -74,7 +84,7 @@ environment, or at the same time. Everything is in the Cloudflare dashboard.
 ## Checks by hand
 
 ```bash
-URL=https://stock-analysis.pages.dev/
+URL=https://stock-analysis-model.pages.dev/
 curl -sI $URL | head -1                       # 302 → <team>.cloudflareaccess.com
 curl -sI ${URL}details_index.json | head -1   # 302 as well, never data
 printf 'header = "CF-Access-Client-Id: %s"\nheader = "CF-Access-Client-Secret: %s"\n' \

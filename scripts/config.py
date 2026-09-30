@@ -303,6 +303,48 @@ YF_REQUEST_DELAY = float(os.environ.get('YF_REQUEST_DELAY', 0.4))
 YF_REQUEST_DELAY_MAX = 3.0
 YF_THROTTLE_PENALTY = 1.5
 YF_THROTTLE_RELAX = 0.98
+
+# --- News -------------------------------------------------------------------
+# Minimum interval between Google News RSS requests (env NEWS_REQUEST_DELAY).
+# The per-stock news list used to pair per-ticker headlines with one shared
+# "{sector} stocks" search, so the client made 11 RSS calls a run and the
+# interval never mattered. Binding each stock's feed to its own company means
+# one query per ticker (~2,500), which puts this constant on the critical
+# path for the first time. Throttle is per-process, so the Phase-2 pool raises
+# utilisation but the floor is tickers x delay regardless of worker count:
+# 1.0 -> 41 min, 0.5 -> 21 min, 0.35 -> 14.5 min.
+#
+# Measured 2026-09-28 over 100 real universe tickers: 0.54 s per query end to
+# end, of which the throttle slept 0.008 s — the request itself dominates, not
+# the interval, so sequentially this leg would cost 22.6 min. It only reaches
+# 14.5 min because PHASE2_IO_WORKERS overlaps the latency (4 / 0.54 = 7.4
+# calls/s available against the throttle's 2.86/s, so the interval binds).
+# The main loop's own get_combined_news is a pure cache hit -- the prefetch
+# pool has already paid -- so none of it lands on the sequential path. Same
+# run: 98/100 queries returned articles, zero 429s, zero penalties.
+#
+# 0.35 is chosen so the leg sits *under* the two that already bind the same
+# pool — yfinance dividends (2,500 x YF_REQUEST_DELAY = 16.6 min) and the SEC
+# leg (up to ~95 min on SEC_MIN_INTERVAL) — so it is hidden rather than added.
+# It is also funded: TiingoClient runs at Throttle(0.5) and its unlicensed
+# News endpoint was being re-requested twice per ticker (~4,978 calls,
+# ~41.5 min of sleep, ~21 min of it on the sequential loop) because a 403 was
+# neither cached nor disabling. Caching that reclaims more than this spends.
+NEWS_REQUEST_DELAY = float(os.environ.get('NEWS_REQUEST_DELAY', 0.35))
+# Google publishes no rate limit either, so the same back-off shape as
+# yfinance applies. Unlike Yahoo's soft throttle a 429 here is unambiguous,
+# so there is no streak governor — one 429 penalises immediately.
+NEWS_REQUEST_DELAY_MAX = 2.0
+NEWS_THROTTLE_PENALTY = 1.5
+NEWS_THROTTLE_RELAX = 0.98
+# Consecutive 429s after which per-ticker queries stop for the rest of the
+# run. Sector news and yfinance news keep working, so the report degrades to
+# roughly its previous content instead of failing.
+NEWS_RATE_LIMIT_BREAKER = 5
+# Sector items are context, not content: they were 70% of all headlines and
+# 0.1% of them mentioned the company they were shown against.
+NEWS_MAX_SECTOR_ITEMS = 3
+NEWS_MAX_TOTAL = 12
 PHASE1_PREFETCH_WINDOW_MULT = 3
 # Stop prefetching for the rest of the phase when Yahoo's soft throttle
 # (EmptyYahooResponseError) exceeds this share of recent attempts. A throttled
