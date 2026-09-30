@@ -3173,6 +3173,13 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
         return False
 
     _prefetch_empty = set()     # tickers Yahoo soft-throttled in the pool
+    # Tickers whose 5y history the pool pulled over the network. fetch_history
+    # write-throughs land a parquet, so by the time the loop reaches such a
+    # ticker _fresh_local_prices() finds a file and the beta would be counted
+    # as local — overstating parquet coverage (4,412 vs a true ~2,470 on
+    # 2026-09-22). The data is the same either way; only the attribution was
+    # wrong, so record provenance here rather than inferring it from disk.
+    _prefetched_history = set()
     _throttle_alarm = threading.Event()
 
     def _prefetch(t):
@@ -3199,6 +3206,7 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
         if _spy_local is None or _fresh_local_prices(t, prices_dir, _run_day) is None:
             try:
                 yf_client.fetch_history(t, period='5y')
+                _prefetched_history.add(t)
             except Exception:
                 pass
 
@@ -3457,7 +3465,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
             # beta regression) unless the local parquet can serve it.
             _px_local = (_fresh_local_prices(ticker, prices_dir, _run_day)
                          if _spy_local is not None else None)
-            _leg_counts['beta_from_local' if _px_local is not None
+            # Attribute by where the data came from THIS run, not by whether
+            # a parquet happens to exist now (the pool may have just written
+            # one). Reading it from that file is still correct and identical.
+            _leg_counts['beta_from_local'
+                        if (_px_local is not None
+                            and ticker not in _prefetched_history)
                         else 'beta_from_network'] += 1
             _t = time.perf_counter()
             cost_of_equity, re_method, beta_diag = select_cost_of_equity(

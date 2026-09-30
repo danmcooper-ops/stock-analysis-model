@@ -290,19 +290,31 @@ PRICE_IO_WORKERS = int(os.environ.get('PRICE_IO_WORKERS', 4))
 # the Phase-1 pool could not beat it however many workers it had; the pool
 # collapsed the SEC leg and left this one untouched.
 #
-# 0.4 lifts the ceiling to 2.5 calls/s, which 4 workers can actually feed
-# (4 / 1.03 s = 3.9 calls/s of capacity). One fetch_financials is a single
-# tick but ~6 HTTP requests (statements, info, growth, earnings all sit
-# inside one _retry), so this moves Yahoo's burst rate from ~6/s to ~15/s.
-# Headroom for that: the 2026-09-21 run saw 72 empty responses in 7,319 calls
-# (0.98%). If that assumption is wrong the valve below corrects it in-run.
-YF_REQUEST_DELAY = float(os.environ.get('YF_REQUEST_DELAY', 0.4))
+# 0.4 was too much. Four nights at that setting (2026-09-22..25) ran an empty
+# response rate of 4.66 / 5.30 / 5.15 / 5.23%, against 0.98% at 1.0 s, and
+# Phase 1 drifted 1.97 h -> 2.69 h as the valve below fought it.
+#
+# 0.7 lifts the admission ceiling to ~1.4 calls/s (from ~1.0 at the old 1.0 s)
+# while keeping the empty rate under the valve's stability point — see the
+# break-even note there. One fetch_financials is a single tick but ~6 HTTP
+# requests (statements, info, growth, earnings all inside one _retry), so
+# Yahoo sees roughly 8/s rather than the ~15/s that 0.4 asked for.
+YF_REQUEST_DELAY = float(os.environ.get('YF_REQUEST_DELAY', 0.7))
 # Ceiling for the adaptive back-off, and how hard it reacts. A soft-throttled
 # ticker is not matched by _is_not_found, so it burns all three attempts plus
 # 3 s of sleep — pushing harder into a throttle costs more than it saves.
 YF_REQUEST_DELAY_MAX = 3.0
-YF_THROTTLE_PENALTY = 1.5
-YF_THROTTLE_RELAX = 0.98
+# Penalty and relax are a control loop, and they cancel at
+#   penalty * relax**(n-1) == 1   =>   one empty per n calls.
+# At 1.5 / 0.98 that break-even was one empty per 21.1 calls — a 4.75% empty
+# rate. The 09-22..25 runs sat at 4.66-5.30%, i.e. straddling it, so the delay
+# ratcheted to YF_REQUEST_DELAY_MAX and stayed pinned (357 penalties on
+# 09-25, mean sleep 0.97 s — back to the old rate with thrash on top).
+# 1.25 / 0.97 moves break-even to one empty per ~8.3 calls (~12%), so ordinary
+# pushback is absorbed instead of ratcheting, and a genuine rate problem still
+# reaches the cap.
+YF_THROTTLE_PENALTY = 1.25
+YF_THROTTLE_RELAX = 0.97
 
 # --- News -------------------------------------------------------------------
 # Minimum interval between Google News RSS requests (env NEWS_REQUEST_DELAY).
