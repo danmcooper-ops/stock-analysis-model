@@ -1,0 +1,7 @@
+docs/vol/* *.json
+docs/px/* *.json
+docs/hist/* *.json
+docs/details/* *.json
+docs/app/detail/* *.json
+docs/app/bond_px/* *.json
+docs/_worker.js
