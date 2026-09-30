@@ -1,16 +1,16 @@
 {
  "version": 1,
- "date": "2026-09-28",
- "prev_date": "2026-09-25",
+ "date": "2026-09-29",
+ "prev_date": "2026-09-28",
  "systemic": {
-  "n": 2525,
-  "changed": 714,
-  "changed_share": 0.2828,
-  "missing_data": 568,
-  "missing_share": 0.225,
+  "n": 2511,
+  "changed": 361,
+  "changed_share": 0.1438,
+  "missing_data": 95,
+  "missing_share": 0.0378,
   "flood": true,
-  "cause": "data",
-  "message": "Data problem: 568 of 2,525 rows are missing a price or identity, and 28% of the universe changed rating. Rating moves on affected rows are shown as data gaps, not signals."
+  "cause": "model",
+  "message": "Model-wide shift: 14% of the universe (361 stocks) changed rating in one run — usually a scoring change rather than news about individual stocks."
  },
  "portfolios": [
   {
@@ -29,9 +29,9 @@
      "HOLD": 0,
      "PASS": 3
     },
-    "median_mos": -0.5725662765423717,
-    "median_score": 39.5,
-    "median_spread": 0.37578251475148816,
+    "median_mos": -0.5569443159277191,
+    "median_score": 39.6,
+    "median_spread": 0.37568261594915575,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -43,24 +43,7 @@
     "upgrades": 0,
     "downgrades": 0
    },
-   "alerts": [
-    {
-     "ticker": "AVGO",
-     "kind": "data_gap",
-     "level": "fyi",
-     "from": "HOLD",
-     "to": "PASS",
-     "message": "AVGO HOLD → PASS, but the prior run's row is missing its price or identity (likely a data outage), so this is not a signal"
-    },
-    {
-     "ticker": "TSM",
-     "kind": "data_gap",
-     "level": "fyi",
-     "from": "HOLD",
-     "to": "PASS",
-     "message": "TSM HOLD → PASS, but the prior run's row is missing its price or identity (likely a data outage), so this is not a signal"
-    }
-   ]
+   "alerts": []
   }
  ]
 }
