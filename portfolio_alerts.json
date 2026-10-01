@@ -1,16 +1,16 @@
 {
  "version": 1,
- "date": "2026-09-29",
- "prev_date": "2026-09-28",
+ "date": "2026-09-30",
+ "prev_date": "2026-09-29",
  "systemic": {
-  "n": 2511,
-  "changed": 361,
-  "changed_share": 0.1438,
-  "missing_data": 95,
-  "missing_share": 0.0378,
+  "n": 738,
+  "changed": 90,
+  "changed_share": 0.122,
+  "missing_data": 0,
+  "missing_share": 0.0,
   "flood": true,
   "cause": "model",
-  "message": "Model-wide shift: 14% of the universe (361 stocks) changed rating in one run — usually a scoring change rather than news about individual stocks."
+  "message": "Model-wide shift: 12% of the universe (90 stocks) changed rating in one run — usually a scoring change rather than news about individual stocks."
  },
  "portfolios": [
   {
@@ -19,31 +19,48 @@
    "color": "#2a78d6",
    "mode": "buy_line",
    "missing": [
-    "AMD"
+    "AMD",
+    "NVDA",
+    "TSM"
    ],
    "stats": {
-    "n": 3,
+    "n": 1,
     "ratings": {
      "BUY": 0,
      "LEAN BUY": 0,
      "HOLD": 0,
-     "PASS": 3
+     "PASS": 1
     },
-    "median_mos": -0.5569443159277191,
-    "median_score": 39.6,
-    "median_spread": 0.37568261594915575,
+    "median_mos": -0.75364683124855,
+    "median_score": 35.9,
+    "median_spread": 0.0906082282179019,
     "sector_weights": {
      "Technology": 1.0
     },
     "top_sector": "Technology",
     "top_sector_weight": 1.0,
     "hhi": 1.0,
-    "concentrated": true,
+    "concentrated": false,
     "no_sector": 0,
     "upgrades": 0,
     "downgrades": 0
    },
-   "alerts": []
+   "alerts": [
+    {
+     "ticker": "NVDA",
+     "portfolio": "semis",
+     "kind": "dropped_out",
+     "level": "watch",
+     "message": "NVDA left Semiconductors (dropped out of today's universe)"
+    },
+    {
+     "ticker": "TSM",
+     "portfolio": "semis",
+     "kind": "dropped_out",
+     "level": "watch",
+     "message": "TSM left Semiconductors (dropped out of today's universe)"
+    }
+   ]
   }
  ]
 }
