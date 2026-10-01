@@ -331,6 +331,18 @@ YF_RATE_LIMIT_PAUSE = 60.0
 YF_RATE_LIMIT_PAUSE_MAX = 900.0
 YF_RATE_LIMIT_BUDGET = float(os.environ.get('YF_RATE_LIMIT_BUDGET', 3600.0))
 YF_RATE_LIMIT_PROBE_INTERVAL = 600.0
+# Startup gate: before the risk-free rate and the macro overlay are fetched,
+# analyze_stock asks Yahoo for one .info (data.yfinance_client.probe_yahoo).
+# While the answer is a 429 or an empty payload it waits
+# YF_STARTUP_PROBE_INTERVAL_SEC between probes, for at most
+# YF_STARTUP_COOLDOWN_SEC; then it exits 3 with the checkpoint untouched.
+# The 2026-09-30 resume started two minutes after the killed attempt, from
+# the same egress, into an active rate limit: its first ten calls all 429'd,
+# the risk-free rate fell to the hardcoded 4.00% and the run went on for
+# seven hours. A re-run an hour later is cheap; that night was not.
+# YF_STARTUP_GATE=0 disables it (offline/dev runs).
+YF_STARTUP_COOLDOWN_SEC = float(os.environ.get('YF_STARTUP_COOLDOWN_SEC', 1200.0))
+YF_STARTUP_PROBE_INTERVAL_SEC = 60.0
 
 # --- News -------------------------------------------------------------------
 # Minimum interval between Google News RSS requests (env NEWS_REQUEST_DELAY).

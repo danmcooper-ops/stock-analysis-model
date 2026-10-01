@@ -370,6 +370,7 @@ ANALYZE_ARGS=(--macro --prices-dir output/prices --universe us --min-spread 0 --
 ANALYZE_ARGS+=(--run-date "$RUNDATE")
 [ "${RESUME:-1}" = 0 ] && ANALYZE_ARGS+=(--no-resume)
 run_step 04-analyze 1 "$PYTHON" scripts/analyze_stock.py "${ANALYZE_ARGS[@]}"
+ANALYZE_RC=$?
 
 # Save the companyfacts cache back. Straight after the analysis, which is the
 # only step that fetches facts or evicts them, and before the enrichment that
@@ -386,6 +387,15 @@ save_sec_cache() {
 run_step 04b-save-sec-facts 0 save_sec_cache
 RESULTS="output/results_$RUNDATE.json"
 HTML="output/stock_analysis_results_$RUNDATE.html"
+# exit 3 = the startup gate: Yahoo was rate-limiting this host and did not
+# recover within the cool-down, so the analysis refused to start. Nothing was
+# fetched and the checkpoint is untouched; the same command re-run later
+# resumes. It is the one analyze failure the runbook says to re-run.
+if [ "${ANALYZE_RC:-0}" = 3 ]; then
+  say "Yahoo rate-limited this host at startup — the analysis refused to start (checkpoint kept)"
+  echo "RESULT FAILED at analyze (yahoo rate-limited at startup; re-run after a cool-down)" >> "$STATUS"
+  exit 1
+fi
 if [ "$FAILED" = 1 ] || [ ! -s "$RESULTS" ] || [ ! -s "$HTML" ]; then
   say "analysis did not produce $RESULTS and $HTML — stopping"
   echo "RESULT FAILED at analyze" >> "$STATUS"; exit 1

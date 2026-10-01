@@ -35,6 +35,7 @@ if os.path.exists(_env_path):
 from data.screen_skip_cache import ScreenSkipCache
 from data.throttle import SEC_MIN_INTERVAL, Throttle
 from data.yfinance_client import (YFinanceClient, EmptyYahooResponseError,
+                                  YahooRateLimitError, probe_yahoo,
                                   MCAP_MAX_PLAUSIBLE)
 from data.treasury_rate import fetch_risk_free_rate
 from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re,
@@ -96,6 +97,7 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             YF_THROTTLE_PENALTY, YF_THROTTLE_RELAX,
                             YF_RATE_LIMIT_PAUSE, YF_RATE_LIMIT_PAUSE_MAX,
                             YF_RATE_LIMIT_BUDGET, YF_RATE_LIMIT_PROBE_INTERVAL,
+                            YF_STARTUP_COOLDOWN_SEC, YF_STARTUP_PROBE_INTERVAL_SEC,
                             NEWS_REQUEST_DELAY, NEWS_REQUEST_DELAY_MAX,
                             NEWS_THROTTLE_PENALTY, NEWS_THROTTLE_RELAX,
                             NEWS_RATE_LIMIT_BREAKER, NEWS_MAX_SECTOR_ITEMS,
@@ -2736,6 +2738,56 @@ def _run_setup():
             '_model_warning_counter': _model_warning_counter}
 
 
+def _yahoo_startup_gate(probe=probe_yahoo, max_wait_s=None, interval_s=None,
+                        sleep=time.sleep, clock=time.monotonic):
+    """Wait, bounded, until Yahoo answers one `.info` — True when it does.
+
+    A run that starts into an active rate limit does not recover: the
+    2026-09-30 resume began two minutes after the killed attempt, from the
+    same egress, and its first ten calls all 429'd — the risk-free rate fell
+    to the hardcoded 4.00%, the macro overlay went blank and Phase 1 lost
+    every ticker after 2655. Checking once before committing to the night
+    costs one request; waiting out a short limit costs minutes.
+    """
+    max_wait_s = YF_STARTUP_COOLDOWN_SEC if max_wait_s is None else max_wait_s
+    interval_s = YF_STARTUP_PROBE_INTERVAL_SEC if interval_s is None else interval_s
+    t0 = clock()
+    n = 0
+    while True:
+        n += 1
+        try:
+            state = probe()
+        except Exception as e:
+            logger.warning('yahoo startup probe failed: %s', e)
+            state = 'error'
+        if state == 'ok':
+            if n > 1:
+                print(f"Yahoo answered after {clock() - t0:.0f}s ({n} probes)")
+            return True
+        waited = clock() - t0
+        if waited + interval_s > max_wait_s:
+            return False
+        print(f"Yahoo quoteSummary is {state} at startup — waiting {interval_s:.0f}s "
+              f"before probe {n + 1} ({max_wait_s - waited:.0f}s of cool-down left)")
+        sys.stdout.flush()
+        sleep(interval_s)
+
+
+def _require_yahoo_or_exit():
+    """Exit 3 (checkpoint kept) rather than start a run Yahoo will starve.
+    run.sh names that exit in status.txt; YF_STARTUP_GATE=0 skips the gate."""
+    if os.environ.get('YF_STARTUP_GATE', '1') == '0':
+        return
+    if _yahoo_startup_gate():
+        return
+    print("Yahoo is rate-limiting this host and did not recover within "
+          f"{YF_STARTUP_COOLDOWN_SEC / 60:.0f} min — not starting a run that would "
+          "fabricate its risk-free rate and lose most of the universe. The "
+          "checkpoint is kept; re-run after a cool-down. (exit 3)")
+    sys.stdout.flush()
+    sys.exit(3)
+
+
 def _run_macro_setup(args, prices_dir):
     """Risk-free rate fetch plus the opt-in macro-economic overlay."""
     # Fetch live risk-free rate (10-yr Treasury yield)
@@ -3130,6 +3182,7 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     _fetch_retry_queued = set()
     _fetch_retry_failed = set()
     _yf_throttled = set()          # raised EmptyYahooResponseError at least once
+    _yf_rate_limited = set()       # ... and it was the explicit HTTP 429 form
     _yf_still_empty = set()        # yfinance empty on the end-of-pass retry too
     _identity_filled = set()       # SEC-only rows given the prior snapshot's identity
     _prior_identity = {r.get('ticker'): r for r in (_carry_prior_rows or []) if r.get('ticker')}
@@ -3195,10 +3248,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
         """Warm the caches the loop is about to read. Never raises."""
         try:
             data = yf_client.fetch_financials(t)
-        except EmptyYahooResponseError:
+        except EmptyYahooResponseError as _e:
             # Record it: without this the loop re-fetches and pays a second
             # round trip in exactly the window Yahoo is already unhappy.
             _prefetch_empty.add(t)
+            if isinstance(_e, YahooRateLimitError):
+                _yf_rate_limited.add(t)
             return
         except Exception:
             return          # the loop retries for real
@@ -3222,6 +3277,14 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     def _check_throttle_alarm():
         """Trip once Yahoo's soft-throttle rate gets dangerous."""
         if _throttle_alarm.is_set():
+            return
+        if getattr(yf_client, 'rate_limited_out', False):
+            # The breaker is open: every fetch fails without a request, so
+            # the pool would only queue up short-circuits ahead of the loop.
+            _throttle_alarm.set()
+            print("  [!] Phase 1: yfinance rate-limit breaker is open — "
+                  "prefetch disabled for the rest of the phase")
+            sys.stdout.flush()
             return
         st = getattr(yf_client, 'stats', None) or {}
         calls = st.get('calls', 0)
@@ -3319,9 +3382,11 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                     _yf_throttled.add(ticker)
                 else:
                     yf_data = yf_client.fetch_financials(ticker)
-            except EmptyYahooResponseError:
+            except EmptyYahooResponseError as _e:
                 yf_data = None
                 _yf_throttled.add(ticker)
+                if isinstance(_e, YahooRateLimitError):
+                    _yf_rate_limited.add(ticker)
             finally:
                 _legs['yf_fetch'] += time.perf_counter() - _t
                 _leg_counts['yf_fetch'] += 1
@@ -3341,8 +3406,10 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                 _ckpt_outcome = 'requeued'
                 all_tickers.append(ticker)
                 screen_outcomes[_grp]['total'] -= 1
+                _why = ('rate-limited (HTTP 429)' if ticker in _yf_rate_limited
+                        else 'empty (likely throttled)')
                 print(f"  [{i}/{len(all_tickers)}] {ticker} - "
-                      "yfinance empty (likely throttled) — re-queued for retry")
+                      f"yfinance {_why} — re-queued for retry")
                 sys.stdout.flush()
                 continue
 
@@ -3610,6 +3677,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
               f"{len(_fetch_retry_failed)} dropped)")
         if _fetch_retry_failed:
             print(f"  Failed twice: {', '.join(sorted(_fetch_retry_failed))}")
+    if _yf_rate_limited:
+        _st = getattr(yf_client, 'stats', None) or {}
+        print(f"  Rate-limited (HTTP 429): {len(_yf_rate_limited)} ticker(s); "
+              f"{_st.get('rate_limit_pauses', 0)} pause(s), breaker opened "
+              f"{_st.get('breaker_opened', 0)}x, {_st.get('breaker_short_circuits', 0)} "
+              f"fetch(es) skipped while open")
     if args.validation:
         for grp in ('quality', 'poor'):
             o = screen_outcomes[grp]
@@ -5491,6 +5564,7 @@ def _main():
     _prov = setup['_prov']
     _model_warning_counter = setup['_model_warning_counter']
 
+    _require_yahoo_or_exit()
     macro = _run_macro_setup(args, prices_dir)
     _clock.tick('macro_setup')
     risk_free_rate = macro['risk_free_rate']

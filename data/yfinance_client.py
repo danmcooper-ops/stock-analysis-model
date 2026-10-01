@@ -362,6 +362,33 @@ def _run_with_timeout(func, timeout_seconds):
         ) from None
 
 
+def probe_yahoo(symbol='SPY', timeout=20):
+    """One quoteSummary request, classified: 'ok', 'rate_limited' or 'empty'.
+
+    The startup gate's question is the one Phase 1 asks 9,000 times — can
+    this host get an `.info` with an identity in it right now — so the
+    probe is exactly that call, crumb included. Attempt 2 on 2026-09-30
+    could not (its first log line was the crumb 429) and went on to a
+    seven-hour run with a fabricated risk-free rate and 29% of the
+    universe. An empty answer clears a poisoned crumb so the next probe
+    re-mints one. Anything that is not a rate limit propagates.
+    """
+    def _fetch():
+        info = yf.Ticker(symbol).info or {}
+        return bool(info.get('symbol') or info.get('shortName') or info.get('longName'))
+
+    try:
+        ok = _run_with_timeout(_fetch, timeout) if timeout else _fetch()
+    except Exception as e:
+        if _is_rate_limited(e):
+            return 'rate_limited'
+        raise
+    if ok:
+        return 'ok'
+    reset_crumb()
+    return 'empty'
+
+
 def _is_not_found(exc):
     """True for a definitive "symbol does not exist" answer from Yahoo.
 

@@ -297,6 +297,33 @@ def test_breaker_lets_one_info_probe_through_and_closes_on_success(monkeypatch):
     assert client._retry(lambda: 'ok') == 'ok'          # ordinary fetches resume
 
 
+def test_probe_yahoo_classifies_the_answer(monkeypatch):
+    from yfinance.exceptions import YFRateLimitError
+
+    class _T:
+        answer = None
+
+        def __init__(self, symbol):
+            pass
+
+        @property
+        def info(self):
+            if isinstance(_T.answer, Exception):
+                raise _T.answer
+            return _T.answer
+
+    monkeypatch.setattr(yc.yf, 'Ticker', _T)
+    _T.answer = dict(_GOOD_INFO)
+    assert yc.probe_yahoo(timeout=None) == 'ok'
+    _T.answer = YFRateLimitError()
+    assert yc.probe_yahoo(timeout=None) == 'rate_limited'
+    _T.answer = {'trailingPegRatio': None}
+    assert yc.probe_yahoo(timeout=None) == 'empty'
+    _T.answer = ConnectionError('reset')
+    with pytest.raises(ConnectionError):
+        yc.probe_yahoo(timeout=None)
+
+
 def test_fetch_financials_surfaces_a_429_as_an_empty_response(monkeypatch):
     """End to end: a 429 from yfinance reaches the Phase-1 caller as the
     throttle exception, is never cached, and widens the interval."""
