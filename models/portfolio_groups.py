@@ -488,6 +488,12 @@ EARNINGS_DAYS = 7
 # universe is a systemic day — a model change or a data outage — not news
 # about individual stocks. 7 of 82 runs cleared it between 04-20 and 09-14.
 FLOOD_SHARE = 0.10
+# A universe that lost at least this share of the prior run's rows is a data
+# outage too. On 2026-09-30 Yahoo rate-limited the host and 739 of 2,514
+# rows came through; the rows that failed were absent, not priceless, so
+# missing_share read 0, the day was called a "Model-wide shift … usually a
+# scoring change", and NVDA and TSM "left" their portfolio as Watch alerts.
+SHRINK_SHARE = 0.30
 
 
 def rule_columns(portfolios):
@@ -589,12 +595,17 @@ def universe_stats(by_tk, prev_by_tk):
                   and r['rating'] != prev_by_tk[t]['rating'])
     missing = sum(1 for r in by_tk.values() if data_missing(r))
     changed_share, missing_share = changed / n, missing / n
-    flood = changed_share >= FLOOD_SHARE or missing_share >= FLOOD_SHARE
+    prev_n = len(prev_by_tk)
+    shrink_share = max(0.0, 1.0 - len(by_tk) / prev_n) if prev_n else 0.0
+    data_flood = missing_share >= FLOOD_SHARE or shrink_share >= SHRINK_SHARE
+    flood = changed_share >= FLOOD_SHARE or data_flood
     cause = None
     if flood:
-        cause = 'data' if missing_share >= FLOOD_SHARE else 'model'
-    return {'n': len(by_tk), 'changed': changed, 'changed_share': round(changed_share, 4),
+        cause = 'data' if data_flood else 'model'
+    return {'n': len(by_tk), 'prev_n': prev_n, 'changed': changed,
+            'changed_share': round(changed_share, 4),
             'missing_data': missing, 'missing_share': round(missing_share, 4),
+            'shrink_share': round(shrink_share, 4),
             'flood': flood, 'cause': cause}
 
 
@@ -602,6 +613,11 @@ def systemic_message(st):
     if not st or not st.get('flood'):
         return None
     if st['cause'] == 'data':
+        if st.get('shrink_share', 0) >= SHRINK_SHARE:
+            return (f"Data problem: today's universe has {st['n']:,} rows against "
+                    f"{st['prev_n']:,} on the prior run ({st['shrink_share']:.0%} missing), "
+                    f"and {st['changed_share']:.0%} of the rest changed rating. Rating moves "
+                    "and departures on affected rows are shown as data gaps, not signals.")
         return (f"Data problem: {st['missing_data']:,} of {st['n']:,} rows are missing a price "
                 f"or identity, and {st['changed_share']:.0%} of the universe changed rating. "
                 "Rating moves on affected rows are shown as data gaps, not signals.")
@@ -747,7 +763,8 @@ def explain_rule_change(rule, prev_row, row):
     return out
 
 
-def membership_events(portfolios, by_tk, prev_by_tk, run_date=None, stopped=None):
+def membership_events(portfolios, by_tk, prev_by_tk, run_date=None, stopped=None,
+                      systemic=None):
     """Joined / left / dropped-out events per portfolio (Watch level).
 
     Today's definition is evaluated against both days' rows, so an edit to
@@ -757,7 +774,10 @@ def membership_events(portfolios, by_tk, prev_by_tk, run_date=None, stopped=None
     ``stopped_trading`` when *stopped* (``{ticker: (last_bar, lag_bars)}``,
     see ``scripts.portfolios.drop_stopped``) says its prices ended, which
     names the last bar instead of leaving a delisting unexplained. A move
-    that rests on missing data (see ``data_missing``) is FYI, not Watch.
+    that rests on missing data (see ``data_missing``) is FYI, not Watch —
+    and so is a ``dropped_out`` on a data-flood day (*systemic* is
+    ``universe_stats``' dict): when a third of the universe is missing, a
+    member's absence is the outage, not a signal.
     """
     stopped = stopped or {}
     out = []
@@ -786,7 +806,10 @@ def membership_events(portfolios, by_tk, prev_by_tk, run_date=None, stopped=None
                 kind, gap = 'stopped_trading', False
             else:
                 why = "dropped out of today's universe"
-                kind, gap = 'dropped_out', False
+                kind = 'dropped_out'
+                gap = bool(systemic and systemic.get('flood') and systemic.get('cause') == 'data')
+                if gap:
+                    why += ' (data outage: most of the universe is missing today)'
             out.append({'ticker': t, 'portfolio': p['id'], 'kind': kind,
                         'level': 'fyi' if gap else 'watch',
                         'message': f"{t} left {p['name']} ({why})"})
@@ -823,7 +846,7 @@ def portfolio_alerts(portfolios, by_tk, prev_by_tk, run_date=None, history=None,
     for e in entries:
         by_ticker.setdefault(e['ticker'], []).append(e)
     events = {}
-    for e in membership_events(portfolios, by_tk, prev_by_tk, run_date, stopped):
+    for e in membership_events(portfolios, by_tk, prev_by_tk, run_date, stopped, systemic=stats):
         events.setdefault(e['portfolio'], []).append(e)
     out = {}
     for p in portfolios:
