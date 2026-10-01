@@ -315,6 +315,22 @@ YF_REQUEST_DELAY_MAX = 3.0
 # reaches the cap.
 YF_THROTTLE_PENALTY = 1.25
 YF_THROTTLE_RELAX = 0.97
+# Circuit breaker for Yahoo's hard rate limit (HTTP 429, yfinance's
+# YFRateLimitError). The valve above handles the soft throttle (an empty
+# 200); a 429 is Yahoo saying "try after a while", and on 2026-09-30 it said
+# so 8,030 times in one run while every defence looked for the soft form:
+# the interval never widened, the Phase-1 alarm counted 46 empties, and six
+# hours went on ~24,000 doomed requests at the base rate. Consecutive 429s
+# now pause every Yahoo request (all threads) for YF_RATE_LIMIT_PAUSE,
+# doubling to YF_RATE_LIMIT_PAUSE_MAX; a successful .info fetch resets. Once
+# YF_RATE_LIMIT_BUDGET of pausing is spent the breaker opens: fetches fail
+# instantly (Phase 1 goes on with SEC data) and one .info probe per
+# YF_RATE_LIMIT_PROBE_INTERVAL is let through; the first success closes it.
+# All in seconds; the budget is env-overridable for a known-hot night.
+YF_RATE_LIMIT_PAUSE = 60.0
+YF_RATE_LIMIT_PAUSE_MAX = 900.0
+YF_RATE_LIMIT_BUDGET = float(os.environ.get('YF_RATE_LIMIT_BUDGET', 3600.0))
+YF_RATE_LIMIT_PROBE_INTERVAL = 600.0
 
 # --- News -------------------------------------------------------------------
 # Minimum interval between Google News RSS requests (env NEWS_REQUEST_DELAY).

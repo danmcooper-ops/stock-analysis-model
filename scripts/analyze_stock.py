@@ -94,6 +94,8 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             PHASE1_EMPTY_RATE_ALARM, PHASE1_EMPTY_ALARM_MIN_CALLS,
                             YF_REQUEST_DELAY, YF_REQUEST_DELAY_MAX,
                             YF_THROTTLE_PENALTY, YF_THROTTLE_RELAX,
+                            YF_RATE_LIMIT_PAUSE, YF_RATE_LIMIT_PAUSE_MAX,
+                            YF_RATE_LIMIT_BUDGET, YF_RATE_LIMIT_PROBE_INTERVAL,
                             NEWS_REQUEST_DELAY, NEWS_REQUEST_DELAY_MAX,
                             NEWS_THROTTLE_PENALTY, NEWS_THROTTLE_RELAX,
                             NEWS_RATE_LIMIT_BREAKER, NEWS_MAX_SECTOR_ITEMS,
@@ -2900,9 +2902,16 @@ def _run_build_clients(run_start_date, yf_delay=YF_REQUEST_DELAY,
                                delay_max=YF_REQUEST_DELAY_MAX,
                                penalty=YF_THROTTLE_PENALTY,
                                relax_step=YF_THROTTLE_RELAX,
+                               rate_limit_pause=YF_RATE_LIMIT_PAUSE,
+                               rate_limit_pause_max=YF_RATE_LIMIT_PAUSE_MAX,
+                               rate_limit_budget=YF_RATE_LIMIT_BUDGET,
+                               rate_limit_probe_interval=YF_RATE_LIMIT_PROBE_INTERVAL,
                                **({'prices_dir': prices_dir} if prices_dir else {}))
     print(f"yfinance throttle: {yf_delay}s minimum interval "
-          f"(backs off to {YF_REQUEST_DELAY_MAX}s on soft throttles)")
+          f"(backs off to {YF_REQUEST_DELAY_MAX}s on soft throttles; "
+          f"HTTP 429 pauses {YF_RATE_LIMIT_PAUSE:.0f}s doubling to "
+          f"{YF_RATE_LIMIT_PAUSE_MAX:.0f}s, breaker opens after "
+          f"{YF_RATE_LIMIT_BUDGET / 60:.0f} min of pausing)")
 
     # Tiingo client initialized here so it's available for Phase 1 beta calculation
     tiingo_client = TiingoClient(request_delay=0.5)

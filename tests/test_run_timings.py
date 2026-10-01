@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from data.provenance import ProvenanceRecorder  # noqa: E402
 from data.throttle import Throttle  # noqa: E402
-from data.yfinance_client import (EmptyYahooResponseError,  # noqa: E402
+from data.yfinance_client import (EmptyYahooResponseError, YahooRateLimitError,  # noqa: E402
                                   YFinanceClient)
 from scripts.analyze_stock import _PhaseClock, _phase1_timings  # noqa: E402
 
@@ -108,6 +108,44 @@ def test_retry_counts_empty_attempts_per_attempt(monkeypatch):
     assert c.stats['calls'] == 1
     assert c.stats['empty_attempts'] == 3
     assert c.stats['retries'] == 2
+
+
+def test_rate_limit_is_a_throttle_signal(monkeypatch):
+    """yfinance's YFRateLimitError (HTTP 429) must take the soft-throttle
+    path: penalise the interval, count as an empty attempt, and reach the
+    caller as an EmptyYahooResponseError so it is re-queued and falls back.
+
+    On 2026-09-30 it was a plain Exception to all of that: 8,030 of 9,186
+    fetches raised it, the interval never widened and nothing fell back.
+    """
+    monkeypatch.setattr(time, 'sleep', lambda s: None)
+    c = YFinanceClient(request_delay=0.2, fetch_timeout=None, delay_max=3.0,
+                       rate_limit_pause=0, rate_limit_budget=1e9)
+    from yfinance.exceptions import YFRateLimitError
+
+    def limited():
+        raise YFRateLimitError()
+
+    with pytest.raises(EmptyYahooResponseError) as ei:
+        c._retry(limited)
+    assert isinstance(ei.value, YahooRateLimitError)
+    assert isinstance(ei.value.__cause__, YFRateLimitError)
+    assert c.stats['rate_limited'] == 3
+    assert c.stats['empty_attempts'] == 3            # a 429 is a throttle
+    assert c._throttle.delay > 0.2                   # the interval widened
+
+
+def test_rate_limit_text_is_recognised_when_wrapped(monkeypatch):
+    monkeypatch.setattr(time, 'sleep', lambda s: None)
+    c = YFinanceClient(request_delay=0, fetch_timeout=None,
+                       rate_limit_pause=0, rate_limit_budget=1e9)
+
+    def wrapped():
+        raise RuntimeError('Too Many Requests. Rate limited. Try after a while.')
+
+    with pytest.raises(YahooRateLimitError):
+        c._retry(wrapped)
+    assert c.stats['rate_limited'] == 3
 
 
 def test_retry_counts_a_recovered_transient(monkeypatch):
