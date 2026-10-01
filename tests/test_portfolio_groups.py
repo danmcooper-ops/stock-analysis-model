@@ -532,3 +532,62 @@ class TestPriorRowsAndCliAlerts:
             ('AAA', 'joined'), ('BBB', 'left'), ('CCC', 'joined'), ('GONE', 'dropped_out')}
         assert payload['systemic']['flood'] is True and payload['systemic']['cause'] == 'model'
         assert payload['portfolios'][0]['alerts'] == 'buy_line'
+
+
+# --- a shrunken universe is a data day (2026-09-30) ---------------------------
+
+def _universe(n, rating='HOLD'):
+    return pg.rows_by_ticker([
+        {'ticker': f'T{i:04d}', 'price': 10.0, 'company_name': f'T{i} Corp', 'rating': rating,
+         'sector': 'Energy', 'mos': 0.1, '_gate_mos': 0.1, '_composite_score': 40.0}
+        for i in range(n)])
+
+
+def test_a_shrunken_universe_is_a_data_flood_not_a_model_shift():
+    """739 rows against 2,514: every missing row was absent, not priceless,
+    so missing_share read 0 and the night was called a scoring change."""
+    today, prev = _universe(739), _universe(2514)
+    st = pg.universe_stats(today, prev)
+    assert st['prev_n'] == 2514 and st['shrink_share'] == pytest.approx(0.706, abs=1e-3)
+    assert st['missing_share'] == 0 and st['changed'] == 0
+    assert st['flood'] is True and st['cause'] == 'data'
+    msg = pg.systemic_message(st)
+    assert msg.startswith("Data problem: today's universe has 739 rows against 2,514")
+    assert '71% missing' in msg and 'departures' in msg
+
+
+def test_an_ordinary_churn_is_not_a_shrink():
+    st = pg.universe_stats(_universe(2400), _universe(2514))     # 4.5% fewer rows
+    assert st['shrink_share'] == pytest.approx(0.0453, abs=1e-3)
+    assert st['flood'] is False and st['cause'] is None
+    assert pg.universe_stats(_universe(10), {})['shrink_share'] == 0.0
+
+
+def test_dropped_out_on_a_data_day_is_fyi_and_says_why():
+    p = _pf(id='semis', name='Semiconductors', tickers=['NVDA', 'TSM'])
+    prev = _universe(100)
+    prev.update(pg.rows_by_ticker([
+        {'ticker': 'NVDA', 'price': 100.0, 'company_name': 'NVIDIA', 'rating': 'HOLD', 'sector': 'Technology'},
+        {'ticker': 'TSM', 'price': 100.0, 'company_name': 'TSMC', 'rating': 'HOLD', 'sector': 'Technology'}]))
+    today = _universe(30)                                           # NVDA and TSM gone with 70% of the universe
+    data_day = pg.universe_stats(today, prev)
+    assert data_day['cause'] == 'data'
+    ev = pg.membership_events([p], today, prev, '2026-09-30', systemic=data_day)
+    assert {(e['ticker'], e['kind'], e['level']) for e in ev} == {
+        ('NVDA', 'dropped_out', 'fyi'), ('TSM', 'dropped_out', 'fyi')}
+    assert all('data outage' in e['message'] for e in ev)
+    # Without the systemic context (or on a model day) a departure stays Watch.
+    ev = pg.membership_events([p], today, prev, '2026-09-30')
+    assert {e['level'] for e in ev} == {'watch'}
+    ev = pg.membership_events([p], today, prev, '2026-09-30', systemic={'flood': True, 'cause': 'model'})
+    assert {e['level'] for e in ev} == {'watch'}
+
+
+def test_portfolio_alerts_pass_the_systemic_context_through():
+    p = _pf(id='semis', name='Semiconductors', tickers=['NVDA'])
+    prev = _universe(100)
+    prev['NVDA'] = {'ticker': 'NVDA', 'price': 100.0, 'company_name': 'NVIDIA', 'rating': 'HOLD', 'sector': 'Technology'}
+    by_id, stats = pg.portfolio_alerts([p], _universe(30), prev, run_date='2026-09-30')
+    assert stats['cause'] == 'data'
+    kinds = [(e['kind'], e['level']) for e in by_id['semis']]
+    assert ('dropped_out', 'fyi') in kinds and ('dropped_out', 'watch') not in kinds
