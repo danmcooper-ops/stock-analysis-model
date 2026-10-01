@@ -234,10 +234,26 @@ def test_429_pauses_double_and_only_an_info_success_resets(monkeypatch):
         now[0] = client._auth_pause_until
     assert pauses == [60, 120, 240, 240]
     assert client.stats['rate_limit_pauses'] == 4
+    assert client._rl_budget == 1000 - 660
     client._retry(lambda: 'ok')                        # history: no reset
-    assert client._rl_pause_next == 240
-    client._retry(lambda: 'ok', resets_backoff=True)   # .info: reset
-    assert client._rl_pause_next == 60
+    assert client._rl_pause_next == 240 and client._rl_budget == 340
+    client._retry(lambda: 'ok', resets_backoff=True)   # .info: reset, budget too
+    assert client._rl_pause_next == 60 and client._rl_budget == 1000
+
+
+def test_sporadic_429s_on_a_healthy_yahoo_never_open_the_breaker(monkeypatch):
+    """The 2026-09-30 re-run: 36 single 429s in two hours, each followed by
+    successes, drained a budget that was only refilled on close and opened
+    the breaker on a Yahoo answering 98% of requests. The budget measures
+    consecutive pausing: a healthy .info refills it."""
+    now = [1000.0]
+    client = _rl_client(monkeypatch, now, rate_limit_budget=150)
+    for _ in range(100):
+        assert client._note_rate_limit()
+        now[0] = client._auth_pause_until
+        client._retry(lambda: 'ok', resets_backoff=True)
+    assert not client.rate_limited_out and client.stats['breaker_opened'] == 0
+    assert client.stats['rate_limit_pauses'] == 100 and client._rl_budget == 150
 
 
 def test_429s_inside_one_pause_share_it(monkeypatch):
@@ -270,7 +286,10 @@ def test_breaker_opens_when_the_budget_is_spent_and_short_circuits(monkeypatch):
     assert client.stats['retries'] == 0                # no attempts burned
 
 
-def test_breaker_lets_one_info_probe_through_and_closes_on_success(monkeypatch):
+def test_breaker_lets_one_probe_per_interval_and_any_success_closes(monkeypatch):
+    """Phase 2 fetches dividends only; when only .info could probe, a breaker
+    that opened at the end of Phase 1 stayed open for all of Phase 2 on
+    2026-09-30 (4,819 dividends fetches failed). Any fetch may probe now."""
     now = [1000.0]
     client = _rl_client(monkeypatch, now, rate_limit_budget=60)
     client._note_rate_limit()
@@ -278,23 +297,40 @@ def test_breaker_lets_one_info_probe_through_and_closes_on_success(monkeypatch):
     assert client._note_rate_limit() is False
     opened_at = now[0]
 
-    # Before the probe interval: even an .info fetch is refused.
+    # Before the probe interval: every fetch is refused, .info included.
     with pytest.raises(yc.YahooRateLimitError):
         client._retry(lambda: 'ok', resets_backoff=True)
-    # A history call never probes, however long it waits.
-    now[0] = opened_at + 1000
     with pytest.raises(yc.YahooRateLimitError):
         client._retry(lambda: 'ok')
-    # The probe goes out, fails, and the breaker stays open ...
+    assert client.stats['breaker_short_circuits'] == 2
+    # The window opens: a history call is the probe; it fails, breaker stays open.
+    now[0] = opened_at + 100
     with pytest.raises(yc.YahooRateLimitError):
-        client._retry(_limited, resets_backoff=True)
+        client._retry(_limited)
     assert client.stats['breaker_probes'] == 1 and client.rate_limited_out
-    # ... until one succeeds: closed, budget and escalation restored.
-    now[0] += 1000
-    assert client._retry(lambda: 'ok', resets_backoff=True) == 'ok'
+    with pytest.raises(yc.YahooRateLimitError):      # the window is spent
+        client._retry(lambda: 'ok')
+    # Next window: a dividends-style call succeeds and closes it.
+    now[0] += 100
+    assert client._retry(lambda: 'ok') == 'ok'
     assert not client.rate_limited_out
     assert client._rl_budget == 60 and client._rl_pause_next == 60
     assert client._retry(lambda: 'ok') == 'ok'          # ordinary fetches resume
+
+
+def test_wait_for_probe_sleeps_until_the_window(monkeypatch):
+    now = [1000.0]
+    client = _rl_client(monkeypatch, now, rate_limit_budget=60)
+    slept = []
+    assert client.wait_for_probe(sleep=slept.append) == 0.0   # closed: no wait
+    client._note_rate_limit()
+    now[0] = client._auth_pause_until
+    client._note_rate_limit()                                 # opens; probe at +100
+    now[0] += 30
+    assert client.wait_for_probe(sleep=slept.append) == 70.0
+    assert slept == [70.0]
+    now[0] += 70
+    assert client.wait_for_probe(sleep=slept.append) == 0.0   # window is open now
 
 
 def test_probe_yahoo_classifies_the_answer(monkeypatch):
