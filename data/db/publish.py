@@ -35,7 +35,9 @@ DEFAULT_CHUNK_BYTES = 1_000_000
 MAX_CAST_FAILURE_RATE = 0.01
 # A run with fewer rows than this share of the previous complete run is
 # refused without --force: more likely a broken night than a real change.
-MIN_ROW_RATIO = 0.7
+# One floor for the database, the archive step and the publish:
+# data/coverage.py.
+from data.coverage import MIN_ROW_RATIO  # noqa: E402
 _COMPACT = (',', ':')
 _NONFINITE_JSON = {math.inf: 'Infinity', -math.inf: '-Infinity'}
 

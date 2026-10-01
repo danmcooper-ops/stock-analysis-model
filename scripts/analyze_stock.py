@@ -38,6 +38,7 @@ from data.yfinance_client import (YFinanceClient, EmptyYahooResponseError,
                                   YahooRateLimitError, probe_yahoo,
                                   MCAP_MAX_PLAUSIBLE)
 from data.treasury_rate import fetch_risk_free_rate
+from data.coverage import coverage_check, format_coverage
 from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re,
                          weekly_returns, rolling_betas, ROLLING_BETA_WINDOWS)
 from models.dcf import (two_stage_ev_valuation, fair_value_per_share, dcf_sensitivity,
@@ -5374,7 +5375,7 @@ def _make_json_safe(val, _depth=0):
 
 def _write_outputs(results, run_start_date, _prov, risk_free_rate,
                    risk_free_rate_source, macro_regime_result, macro_adj,
-                   local_rs, prices_dir, sector_etf_data=None):
+                   local_rs, prices_dir, sector_etf_data=None, coverage=None):
     """Write the JSON snapshot, provenance events, HTML and Excel reports."""
     os.makedirs("output", exist_ok=True)
     today_str = run_start_date.isoformat()  # pin to run-start so a midnight-spanning run stays single-dated
@@ -5387,6 +5388,10 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
         _run_prov['scoring'] = scoring_fingerprint()
     except Exception as e:
         logger.warning('provenance: scoring fingerprint failed (%s)', e)
+    # How much of the universe this run kept (data/coverage.py): run.sh reads
+    # it back to decide whether the night may be published.
+    if coverage is not None:
+        _run_prov['coverage'] = dict(coverage)
 
     # Save results as JSON for backtesting pipeline. Written BEFORE the
     # HTML/Excel renders so the Phase-2 snapshot survives a render crash.
@@ -5459,11 +5464,19 @@ INFO_MISSING_ALERT_SHARE = 0.10
 
 def _run_quality_summary(risk_free_rate, risk_free_rate_source,
                          _model_warning_counter, _prov=None, lost_sec=None,
-                         results=None):
+                         results=None, coverage=None):
     """End-of-run quality gate: surface substituted/fabricated inputs."""
     # Run-quality gate: surface, in one place, every way this run's numbers
     # rest on substituted rather than observed inputs.
     _log = logging.getLogger('analyze_stock')
+    if coverage and coverage.get('degraded'):
+        _log.warning(
+            'RUN QUALITY: coverage %s — the snapshot holds %d rows against %d on %s '
+            '(%.0f%% of the floor\'s %.0f%%): a data source failed for most of the '
+            'universe. The archive keeps this run; run.sh does not publish it',
+            'DEGRADED', coverage.get('rows', 0), coverage.get('prior_rows', 0),
+            coverage.get('prior_date'), (coverage.get('ratio') or 0) * 100,
+            coverage.get('min_ratio', 0) * 100)
     if risk_free_rate_source == 'fallback':
         _log.warning(
             'RUN QUALITY: risk-free rate was a hardcoded fallback — every '
@@ -5616,6 +5629,22 @@ def _main():
     screen_outcomes = phase1['screen_outcomes']
     _carry_prior_rows = phase1['_carry_prior_rows']
 
+    # Coverage against the prior snapshot (data/coverage.py). Warned here,
+    # hours before the outputs, because a Phase 1 that kept a third of the
+    # universe is the night's headline and nothing printed it until the
+    # run-quality summary on 2026-09-30.
+    _prior_meta = prior_snapshot_file('output', run_start_date)
+    _prior_rows_n = len(_carry_prior_rows or [])
+    _early_cov = coverage_check(len(qualifying), _prior_rows_n,
+                                _prior_meta[0] if _prior_meta else None,
+                                applicable=not args.tickers)
+    if _early_cov['degraded']:
+        logger.warning('RUN QUALITY (early): Phase 1 qualified %d tickers against %d rows '
+                       'in the prior snapshot %s — %.0f%%, under the %.0f%% floor; '
+                       'tonight will not be published unless Phase 2 recovers',
+                       len(qualifying), _prior_rows_n, _early_cov['prior_date'],
+                       _early_cov['ratio'] * 100, _early_cov['min_ratio'] * 100)
+
     exit_mults = _run_sector_exit_multiples(qualifying, screen_cache,
                                             effective_exit_mult_adj)
     _clock.tick('sector_exit_multiples')
@@ -5660,10 +5689,15 @@ def _main():
     _timings = _clock.as_dict()
     _timings['phase1'] = phase1.get('timings')
     _prov.record_timings(_timings)
+    coverage = coverage_check(len(results), _prior_rows_n,
+                              _prior_meta[0] if _prior_meta else None,
+                              applicable=not args.tickers)
+    print(format_coverage(coverage))
 
     _write_outputs(results, run_start_date, _prov, risk_free_rate,
                    risk_free_rate_source, macro_regime_result, macro_adj,
-                   local_rs, prices_dir, sector_etf_data=sector_etf_data)
+                   local_rs, prices_dir, sector_etf_data=sector_etf_data,
+                   coverage=coverage)
     if checkpoint is not None:
         # The outputs exist now; saved progress for this date is spent.
         checkpoint.clear()
@@ -5671,7 +5705,7 @@ def _main():
     _clock.tick('write_outputs')
     _run_quality_summary(risk_free_rate, risk_free_rate_source,
                          _model_warning_counter, _prov, lost_sec=lost_sec,
-                         results=results)
+                         results=results, coverage=coverage)
     print(_clock.table())
 
 

@@ -82,6 +82,9 @@
 #                        Access service token step 08b's live check signs in with
 #   DRY_RUN=1            do everything except push
 #   SMOKE=1              tiny universe (SMOKE_TICKERS), for testing this script
+#   FORCE=1              also publishes a run under the coverage floor (step
+#                        05h): by default such a run is archived but the site
+#                        keeps the last good report
 set -uo pipefail
 
 REPO="${STOCK_MODEL_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
@@ -445,6 +448,31 @@ run_step 05g-portfolio-alerts 0 "$PYTHON" scripts/portfolios.py alerts --results
 if [ "$FAILED" = 1 ]; then echo "RESULT FAILED at rerender" >> "$STATUS"; exit 1; fi
 
 # ---------------------------------------------------------------------------
+# 5h. Coverage floor (data/coverage.py). The analysis stamps how many rows it
+#     kept against the prior snapshot; under 70% the night is a data failure,
+#     not a market event (2026-09-30: 739 of 2,514 after Yahoo rate-limited
+#     the host). Such a run is still archived — the record is kept and a
+#     re-run of the same date supersedes it — but steps 08/08b are skipped so
+#     the live report stays at the last good run. The database publish (06a)
+#     applies the same floor on its own. FORCE=1 publishes anyway.
+# ---------------------------------------------------------------------------
+say "== 05h-coverage"
+t0=$(date +%s)
+"$PYTHON" scripts/check_coverage.py "$RESULTS" > "$LOG/05h-coverage.log" 2>&1
+COVERAGE_RC=$?
+record 05h-coverage "$COVERAGE_RC" $(( $(date +%s) - t0 ))
+COVERAGE_LINE=$(grep '^COVERAGE ' "$LOG/05h-coverage.log" | tail -1)
+echo "${COVERAGE_LINE:-COVERAGE unknown (check_coverage rc=$COVERAGE_RC)}" >> "$STATUS"
+DEGRADED=0
+if [ "$COVERAGE_RC" = 4 ]; then
+  DEGRADED=1
+  if [ "$FORCE" = 1 ]; then say "   $COVERAGE_LINE — FORCE=1, publishing anyway"
+  else say "   $COVERAGE_LINE — archiving, but the site keeps the last good report"; fi
+elif [ "$COVERAGE_RC" != 0 ]; then
+  say "   coverage check exited $COVERAGE_RC (see logs/05h-coverage.log); treating as not degraded"
+fi
+
+# ---------------------------------------------------------------------------
 # 6a. Publish to the Supabase database (Data API over HTTPS: the container
 #     cannot reach Postgres over TCP). Skipped without the Supabase secrets and
 #     for SMOKE/DRY_RUN runs. Non-blocking until DB_PRIMARY=1 (the P6 cutover,
@@ -563,6 +591,10 @@ run_step 07e-db-check         0 db_check
 # ---------------------------------------------------------------------------
 PAGES="$WORK/pages"
 publish_pages() {
+  if [ "${DEGRADED:-0}" = 1 ] && [ "${FORCE:-0}" != 1 ]; then
+    echo "publish skipped: ${COVERAGE_LINE:-coverage under the floor} — pages-live keeps the last good report (FORCE=1 overrides)"
+    return 0
+  fi
   rm -rf "$PAGES"; mkdir -p "$PAGES/docs" "$PAGES/.github/workflows"
   cp "$HTML" "$PAGES/docs/index.html" || return 1
   for f in prices_meta.json hist_index.json details_index.json; do
@@ -608,6 +640,10 @@ PUBLISH_RC=$?
 # service token, and also asserts that an anonymous request is refused.
 WRANGLER_VERSION="${WRANGLER_VERSION:-4.141.0}"
 publish_cloudflare() {
+  if [ "${DEGRADED:-0}" = 1 ] && [ "${FORCE:-0}" != 1 ]; then
+    echo "Cloudflare publish skipped: ${COVERAGE_LINE:-coverage under the floor} — the site keeps the last good report (FORCE=1 overrides)"
+    return 0
+  fi
   if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ] || \
      [ -z "${CF_PAGES_PROJECT:-}" ] || [ "$SMOKE" = 1 ] || [ "$DRY_RUN" = 1 ]; then
     echo "Cloudflare publish skipped (no CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID/CF_PAGES_PROJECT, or SMOKE/DRY_RUN)"
@@ -661,6 +697,7 @@ ELAPSED=$(( $(date +%s) - RUN_T0 ))
   echo "SOFT_FAILURES ${SOFT_FAILED[*]:-none}"
   if [ "$ARCHIVE_RC" != 0 ]; then echo "RESULT FAILED at archive (publish rc=$PUBLISH_RC)"
   elif [ "$DB_PRIMARY" = 1 ] && [ "$DB_RC" != 0 ]; then echo "RESULT FAILED at db-publish (DB_PRIMARY=1; archived)"
+  elif [ "${DEGRADED:-0}" = 1 ] && [ "$FORCE" != 1 ]; then echo "RESULT OK-DEGRADED (${COVERAGE_LINE#COVERAGE }; snapshot archived, publish skipped)"
   elif [ "$PUBLISH_RC" = 0 ]; then echo "RESULT OK"
   else echo "RESULT OK-BUT-PUBLISH-FAILED"; fi
 } >> "$STATUS"

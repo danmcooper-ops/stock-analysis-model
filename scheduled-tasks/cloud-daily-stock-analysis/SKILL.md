@@ -98,6 +98,22 @@ When the background command finishes, read `.cloud-run/status.txt` first.
 - `RESULT OK` → full summary (below).
 - `RESULT OK-BUT-PUBLISH-FAILED` → full summary, publish failure called out
   with the tail of `logs/08-publish.log`.
+- `RESULT OK-DEGRADED (...)` → the run completed and the snapshot was
+  archived, but it holds fewer than 70% of the prior run's rows (the
+  `COVERAGE` line in `status.txt` has the counts; `logs/05h-coverage.log`
+  too). A data source failed for most of the universe — on 2026-09-30 Yahoo
+  rate-limited the host and 739 of ~2,500 rows came through. The site was
+  deliberately **not** republished: `pages-live` and Cloudflare keep the last
+  good report (`FORCE=1` overrides). Write the full summary, lead with the
+  coverage line, and say the ratings are unreliable. The fix is a re-run of
+  the same `RUNDATE` once the source recovers (section 3b's command); the
+  archive and the site take the later run.
+- `RESULT FAILED at analyze (yahoo rate-limited at startup; ...)` → the
+  startup gate: Yahoo answered the first probe with HTTP 429 for 20 minutes,
+  so the analysis refused to start rather than run the night on a fabricated
+  risk-free rate. Nothing was fetched and the checkpoint is untouched. This
+  is the **one** pipeline failure to re-run: wait at least 30 minutes, then
+  re-run the same command (3b), as long as the next firing is not due.
 - `RESULT FAILED at ...` → say which step, quote the last ~30 lines of that
   step's log, and state plainly what did **not** happen (no snapshot archived
   / nothing published). Do not retry a failure that came from the pipeline
