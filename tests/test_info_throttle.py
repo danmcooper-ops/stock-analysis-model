@@ -198,6 +198,29 @@ def test_still_rate_limited_us_filer_keeps_sec_data_and_identity(phase1, workers
     assert cache.skip_reason('AVGO', 1e9) is None          # rate-limited is not dead
 
 
+def test_retry_pass_waits_for_a_probe_when_the_breaker_is_open(phase1):
+    """2026-09-30 re-run: the breaker opened at the end of the pass and the
+    retry pass ran straight into it — 1,130 re-queued, 0 recovered. The
+    pass now waits one probe window; the first retry probes and recovers."""
+    class _YF(_RateLimitedYF):
+        def __init__(self, **kw):
+            super().__init__(**kw)
+            self.rate_limited_out = True
+            self.waits = 0
+
+        def wait_for_probe(self):
+            self.waits += 1
+            self.rate_limited_out = False          # Yahoo answers again
+            return 123.0
+
+    yf = _YF(flaky={'AVGO'}, fails=1)
+    out, text, _, _ = phase1(yf, ['AVGO', 'NVDA'])
+    assert yf.waits == 1
+    assert 'Retry pass: rate-limit breaker is open — waited 123s for a probe window' in text
+    assert out['screen_cache']['AVGO']['data_source'] == 'sec_xbrl+yfinance'
+    assert 'Fetch-failure retry: 1 re-queued, 1 recovered' in text
+
+
 def test_open_breaker_disables_the_prefetch_pool(phase1):
     yf = _FakeYF()
     yf.rate_limited_out = True

@@ -322,12 +322,17 @@ YF_THROTTLE_RELAX = 0.97
 # the interval never widened, the Phase-1 alarm counted 46 empties, and six
 # hours went on ~24,000 doomed requests at the base rate. Consecutive 429s
 # now pause every Yahoo request (all threads) for YF_RATE_LIMIT_PAUSE,
-# doubling to YF_RATE_LIMIT_PAUSE_MAX; a successful .info fetch resets. Once
-# YF_RATE_LIMIT_BUDGET of pausing is spent the breaker opens: fetches fail
-# instantly (Phase 1 goes on with SEC data) and one .info probe per
+# doubling to YF_RATE_LIMIT_PAUSE_MAX; a successful .info fetch resets the
+# escalation AND the budget, so the budget measures *consecutive* pausing.
+# Once YF_RATE_LIMIT_BUDGET of it is spent the breaker opens: fetches fail
+# instantly (Phase 1 goes on with SEC data) and one probe — any fetch — per
 # YF_RATE_LIMIT_PROBE_INTERVAL is let through; the first success closes it.
-# All in seconds; the budget is env-overridable for a known-hot night.
-YF_RATE_LIMIT_PAUSE = 60.0
+# The 2026-09-30 re-run tuned both: at 60s a pause, 36 sporadic 429s on a
+# Yahoo answering 98% of requests cost 48 of Phase 1's first 118 minutes
+# and, with the budget refilled only on close, opened the breaker on a
+# healthy Yahoo; and with only .info allowed to probe, Phase 2 (dividends
+# only) could never close it. All in seconds; the budget is env-overridable.
+YF_RATE_LIMIT_PAUSE = 20.0
 YF_RATE_LIMIT_PAUSE_MAX = 900.0
 YF_RATE_LIMIT_BUDGET = float(os.environ.get('YF_RATE_LIMIT_BUDGET', 3600.0))
 YF_RATE_LIMIT_PROBE_INTERVAL = 600.0

@@ -3312,6 +3312,16 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
               f"worker thread(s), look-ahead window {_window}")
 
     for i, ticker in enumerate(all_tickers, 1):
+        if i == _universe_n + 1 and getattr(yf_client, 'rate_limited_out', False):
+            # The retry pass starts here: every ticker from this point is one
+            # Yahoo already failed. Running it while the breaker is open
+            # spends the second chance on short-circuits (the 2026-09-30
+            # re-run: 1,130 re-queued, 0 recovered, in under a minute), so
+            # wait for the next probe window once; the first retry is then
+            # the probe, and a success closes the breaker for the rest.
+            _w = yf_client.wait_for_probe() if hasattr(yf_client, 'wait_for_probe') else 0.0
+            print(f"  Retry pass: rate-limit breaker is open — waited {_w:.0f}s for a probe window")
+            sys.stdout.flush()
         # Keep the window full. Runs before the skip checks so skipped
         # tickers do not stall the pipeline, and re-reads len(all_tickers)
         # each pass so the fetch-failure requeue is picked up naturally.

@@ -215,11 +215,19 @@ ruff check .
   penalizes the throttle, counts as an empty attempt and reaches Phase 1 as
   the exception it already re-queues and falls back on. A **circuit breaker**
   (`YF_RATE_LIMIT_*` in `scripts/config.py`) pauses every Yahoo request on
-  consecutive 429s, 60s doubling to 15 min on the 401 path's shared pause;
-  after an hour of pausing it opens: fetches raise without a request (Phase 1
-  finishes on SEC data in minutes, the prefetch alarm trips), one `.info`
-  probe per 10 min is let through, and the first success closes it. Stats:
-  `rate_limited`, `rate_limit_pauses`, `breaker_*` in `provenance.timings`.
+  consecutive 429s, 20s doubling to 15 min on the 401 path's shared pause; a
+  healthy `.info` resets the escalation **and the budget**, so the hour of
+  pausing that opens it is an hour of *consecutive* pausing. Open, fetches
+  raise without a request (Phase 1 finishes on SEC data in minutes, the
+  prefetch alarm trips), one probe — any fetch — per 10 min is let through,
+  the first success closes it, and Phase 1's retry pass waits for a probe
+  window before it starts. The 2026-09-30 re-run set those three rules: at
+  60s a pause with the budget refilled only on close, 36 sporadic 429s on a
+  Yahoo answering 98% of requests opened the breaker on a healthy source,
+  the retry pass ran into it (1,130 re-queued, 0 recovered) and Phase 2 —
+  dividends only, and only `.info` could probe — never closed it (4,819
+  dividends fetches failed). Stats: `rate_limited`, `rate_limit_pauses`,
+  `breaker_*` in `provenance.timings`.
   **Startup gate:** before the risk-free rate and the macro overlay,
   `analyze_stock` asks Yahoo for one `.info` (`probe_yahoo`); while it is a
   429 or empty it waits 60s between probes for up to 20 min
