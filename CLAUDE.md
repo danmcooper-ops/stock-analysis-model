@@ -196,7 +196,61 @@ ruff check .
   `yf.Ticker` (yfinance caches a failed `.info` on the object), and every
   thread pauses 10s doubling to 120s, 30 min per run at most. When retries
   or the budget run out it keeps the statements it got, flagged
-  `_info_auth_failed`, so the worst case equals the old behaviour.
+  `_info_auth_failed`, so the worst case equals the old behaviour. The
+  escalation resets only on a successful `.info` fetch: a history or
+  dividends call can succeed while quoteSummary is blocked, and letting
+  those reset it kept every one of 2026-09-30's 28 pauses at 10s.
+- **Yahoo HTTP 429 and the rate-limit breaker (`YahooRateLimitError`,
+  2026-09-30):** the hard form of the throttle is yfinance's
+  `YFRateLimitError` ("Too Many Requests. Rate limited. Try after a while."),
+  raised when getcrumb or the request itself answers 429. It was a plain
+  `Exception` to every defence above: that night 8,030 of 9,186 Phase-1
+  fetches raised it, the interval never widened (`empty_attempts` read 46),
+  the prefetch alarm never tripped, nothing was re-queued and no US filer
+  fell back to its cached SEC statements — Phase 1 spent six hours on
+  ~24,000 doomed requests at the base interval, which is what keeps an IP
+  rate-limited, and the snapshot landed with 739 rows against 2,514. The
+  client now maps it (class or message text) onto
+  `YahooRateLimitError(EmptyYahooResponseError)` inside `_retry`, so a 429
+  penalizes the throttle, counts as an empty attempt and reaches Phase 1 as
+  the exception it already re-queues and falls back on. A **circuit breaker**
+  (`YF_RATE_LIMIT_*` in `scripts/config.py`) pauses every Yahoo request on
+  consecutive 429s, 60s doubling to 15 min on the 401 path's shared pause;
+  after an hour of pausing it opens: fetches raise without a request (Phase 1
+  finishes on SEC data in minutes, the prefetch alarm trips), one `.info`
+  probe per 10 min is let through, and the first success closes it. Stats:
+  `rate_limited`, `rate_limit_pauses`, `breaker_*` in `provenance.timings`.
+  **Startup gate:** before the risk-free rate and the macro overlay,
+  `analyze_stock` asks Yahoo for one `.info` (`probe_yahoo`); while it is a
+  429 or empty it waits 60s between probes for up to 20 min
+  (`YF_STARTUP_COOLDOWN_SEC`), then exits 3 with the checkpoint untouched,
+  which `run.sh` records as the one analyze failure to re-run. The resume
+  that night started two minutes after the killed attempt, from the same
+  egress, and its first ten calls all 429'd. `YF_STARTUP_GATE=0` disables it.
+- **Risk-free rate chain (`data/treasury_rate.py`):** `^TNX` via yfinance,
+  then FRED `DGS10` (newest observation within 10 days), then the newest
+  prior snapshot's meta rate — only when that run measured it (`live` or
+  `fred`, never a borrowed or fabricated one) and it is ≤ 7 days old — then
+  the hardcoded 4.00% the run-quality summary flags. `last_rate_source` /
+  `last_rate_detail` carry the rung into the run banner and the snapshot
+  meta. On 2026-09-30 only the first and last rungs existed: every discount
+  rate in a seven-hour run was built on 4.00% while the 10-year printed
+  5.29%, with `FRED_API_KEY` set and the prior day's 5.25% in `output/`.
+- **Snapshot coverage floor (`data/coverage.py`, `MIN_ROW_RATIO`=0.7):** one
+  floor for the database publish (`publish_run` refused that night's 739
+  rows — the only guard that asked), the archive and the site. `analyze_stock`
+  compares the row count with the prior snapshot's, warns right after Phase 1
+  when the qualifiers are already under it, and stamps `provenance.coverage`;
+  `scripts/check_coverage.py` reads it back (exit 4 = degraded) for `run.sh`
+  step `05h`. A degraded run is still archived — the record is kept and a
+  re-run of the same date supersedes it — but steps 08/08b are skipped so
+  `pages-live` and Cloudflare keep the last good report, and the verdict is
+  `RESULT OK-DEGRADED` (`FORCE=1` publishes anyway). A run with no prior, or
+  on an explicit `--tickers` list, is never degraded. The portfolio alerts'
+  systemic-day classifier reads the same shrink (`SHRINK_SHARE`=0.30 in
+  `models/portfolio_groups.py`): a universe that lost a third of its rows is
+  a `data` flood, and a member that dropped out of the universe on such a
+  day is FYI with the outage named, not a Watch "left the portfolio".
 - **Phase-1 beta from local prices:** the nightly run downloads every prior
   snapshot ticker's closes into `output/prices` immediately before the
   analysis (`run.sh` step 03), so Phase 1 reads that parquet for the beta
@@ -725,7 +779,8 @@ by analyze_stock and gitignored):
 - `SEC_EMAIL` — contact email for SEC EDGAR User-Agent
 - `FMP_API_KEY`, `TIINGO_API_KEY`, `FINNHUB_API_KEY` — optional data sources
 - `FRED_API_KEY` — optional; selects FRED's keyed JSON API for the macro
-  series (unset falls back to the keyless `fredgraph.csv` endpoint)
+  series and the risk-free rate's `DGS10` fallback (unset falls back to the
+  keyless `fredgraph.csv` endpoint)
 - `MACRO_ANTHROPIC_API_KEY` — optional; enables the Claude-generated macro
   narrative — the story on the Macro Outlook tab's Overview, ending in a
   paragraph per sector under "Key sector influences" (skipped cleanly when

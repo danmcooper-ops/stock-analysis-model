@@ -62,17 +62,27 @@ old UI (the Mac runbook's Step 0.5):
 cd /home/user/stock-analysis-model && git fetch origin main && git checkout -q main && git reset -q --hard origin/main && git log --oneline -1
 ```
 
-### 2. Start the script in the background and wait for it
-Run it as a **background** Bash command (the Bash tool's `run_in_background`),
-so the session is woken when it exits; the run takes **12–20 hours** (the
-Mac's 2026-09-08 `analyze_stock` alone ran 13h37m by its own provenance
-timestamps; the Routine prompt's "4–8 hours" predates that measurement):
+### 2. Start the script detached, then wait for it
+The run takes **7–20 hours** (the Mac's 2026-09-08 `analyze_stock` alone ran
+13h37m by its own provenance timestamps; 2026-09-30 took 7h26m). **The Bash
+tool's `run_in_background` is capped at 2 hours**: on 2026-09-30 it killed
+the pipeline at that mark, mid-Phase-1, and the resume two minutes later
+started into Yahoo's rate limit. So the script must not be the background
+task itself. Start it in its own session, detached from the tool:
 ```
-cd /home/user/stock-analysis-model && bash scheduled-tasks/cloud-daily-stock-analysis/run.sh > .cloud-run.log 2>&1
+cd /home/user/stock-analysis-model && setsid nohup bash -c 'cd /home/user/stock-analysis-model && RUNDATE=<session date> bash scheduled-tasks/cloud-daily-stock-analysis/run.sh > .cloud-run.log 2>&1' < /dev/null > /dev/null 2>&1 &
 ```
-Do not poll with `sleep` loops. While waiting you may `tail` `.cloud-run/status.txt`
-occasionally to confirm progress, but do nothing else to the repo. Never start
-a second copy.
+then confirm it is running (`pgrep -af run.sh`) and arm a **waiter** as the
+background task — a command that exits when the run ends *or* when the
+pipeline process disappears, so a killed container is noticed too:
+```
+cd /home/user/stock-analysis-model && until grep -qE '^(RESULT|SKIPPED)' .cloud-run/status.txt 2>/dev/null || ! pgrep -f 'bash scheduled-tasks/cloud-daily-stock-analysis/run.sh' >/dev/null; do sleep 30; done; tail -3 .cloud-run/status.txt
+```
+with the maximum timeout (2h). When the waiter expires, the pipeline is
+still running: check `status.txt`, then **re-arm the same waiter**. Only when
+it exits on its own has the run ended. Do not poll with `sleep` loops in the
+foreground, and do nothing else to the repo while waiting. Never start a
+second copy of `run.sh`.
 
 API keys come from the environment (`SEC_EMAIL`, `FMP_API_KEY`, `TIINGO_API_KEY`,
 `FINNHUB_API_KEY`, `MACRO_ANTHROPIC_API_KEY`, `FRED_API_KEY`). They are configured on
@@ -137,10 +147,18 @@ up to a killed run (no `RESULT` line in `status.txt`, no `run.sh` process):
   the next weekday's firing. Re-run it with the **original session date**
   pinned, so a run that crosses midnight is not refiled under the next day:
   `cd /home/user/stock-analysis-model && RUNDATE=<session date> bash scheduled-tasks/cloud-daily-stock-analysis/run.sh > .cloud-run.log 2>&1`
-  in the background, as in step 2. The date is on the `RUNDATE` line of
+  detached, as in step 2. The date is on the `RUNDATE` line of
   the killed run's log, or is the date the run was fired, New York time.
   The script's market gate checks that date, so no `FORCE` is needed for a
   past weekday.
+- **Cool down first.** The killed run was hammering Yahoo until the moment
+  it died, from this same egress. Before resuming, read the tail of
+  `.cloud-run/logs/04-analyze.log`: if it shows `Too Many Requests`,
+  `HTTP 429` or `Crumb fetch rate-limited`, wait at least 15 minutes. The
+  analysis's own startup gate then probes Yahoo and waits up to 20 more
+  minutes on its own; if it still exits 3 (`RESULT FAILED at analyze (yahoo
+  rate-limited at startup …)`), wait another 30 and try again, as long as
+  the next firing is not due.
 - The analysis log then prints `Resuming: N ticker(s) already screened out`
   and `Phase 2: resuming — N of M ticker(s) already analysed`. Report both.
 - **Do not resume across a code change.** The checkpoint is discarded
@@ -188,10 +206,16 @@ Lead with the result line and the run date, then, in this order:
    the `portfolio-alerts` workflow from the archived `portfolio_alerts.json`.
 6. **Publish** — the live URL and whether it served today's date; the deploy
    workflow otherwise.
-7. **Run quality** — the analysis log's closing run-quality summary
-   (fabricated/fallback input counts), the number of tickers screened /
-   qualifying, any step in `SOFT_FAILURES` with one line on why, missing API
-   keys, and total elapsed time.
+7. **Run quality** — the `COVERAGE` line from `status.txt` (rows vs the
+   prior snapshot; anything under the floor is the headline, see
+   `OK-DEGRADED` above), the analysis log's closing run-quality summary
+   (fabricated/fallback input counts), the risk-free rate's source from the
+   `Risk-free rate:` banner (`live` is the norm; `fred` or `prior_snapshot`
+   means Yahoo was unreachable at startup; `fallback` means every discount
+   rate is fabricated), the number of tickers screened / qualifying, the
+   Phase-1 `Rate-limited (HTTP 429)` line if present (how many tickers,
+   pauses and whether the breaker opened), any step in `SOFT_FAILURES` with
+   one line on why, missing API keys, and total elapsed time.
 
 Keep it factual; the summary is the only record of the run.
 
