@@ -2788,14 +2788,17 @@ def _require_yahoo_or_exit():
     sys.exit(3)
 
 
-def _run_macro_setup(args, prices_dir):
+def _run_macro_setup(args, prices_dir, run_date=None):
     """Risk-free rate fetch plus the opt-in macro-economic overlay."""
-    # Fetch live risk-free rate (10-yr Treasury yield)
-    risk_free_rate = fetch_risk_free_rate()
+    # Fetch the risk-free rate (10-yr Treasury yield): ^TNX, then FRED DGS10,
+    # then the newest prior snapshot's measured rate, then the hardcoded
+    # fallback the run-quality summary flags.
+    risk_free_rate = fetch_risk_free_rate(run_date=run_date)
     from data import treasury_rate as _treasury
     risk_free_rate_source = _treasury.last_rate_source or 'live'
+    _detail = f", {_treasury.last_rate_detail}" if _treasury.last_rate_detail else ''
     print(f"Risk-free rate: {risk_free_rate:.2%} (10-yr Treasury, "
-          f"source={risk_free_rate_source})")
+          f"source={risk_free_rate_source}{_detail})")
 
     # --- Macro-economic overlay (opt-in via --macro) ---
     macro_regime_result = None
@@ -5565,7 +5568,7 @@ def _main():
     _model_warning_counter = setup['_model_warning_counter']
 
     _require_yahoo_or_exit()
-    macro = _run_macro_setup(args, prices_dir)
+    macro = _run_macro_setup(args, prices_dir, run_date=run_start_date)
     _clock.tick('macro_setup')
     risk_free_rate = macro['risk_free_rate']
     risk_free_rate_source = macro['risk_free_rate_source']
