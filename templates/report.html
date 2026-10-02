@@ -10503,7 +10503,10 @@ var HOTKEYS=[
   {g:'Ticker popup',k:['t'],l:'Finances: next statement (balance / income / cash flow)'},
   {g:'Ticker popup',k:['s'],l:'Summary PDF for this ticker'},
   {g:'Ticker popup',k:['x'],l:'Flag / unflag this ticker'},
-  {g:'Ticker popup',k:['p'],l:'Portfolio membership menu'}
+  {g:'Ticker popup',k:['p'],l:'Portfolio membership menu'},
+  /* Esc closes it too (listed above); these are for keyboards where Esc is
+     out of reach, and Backspace reads as the page's "back" link. */
+  {g:'Ticker popup',k:['q','Backspace'],l:'Close the popup and go back'}
 ];
 /* Hotkeys stay out of the way of typing and of the browser's own chords.
    One target test covers every text field on the page at once — the ticker
@@ -10617,6 +10620,7 @@ function _hkDetDispatch(e){
   else if(k==='s'){e.preventDefault();exportProfilePdf();}
   else if(k==='x'){e.preventDefault();toggleFlagDet();}
   else if(k==='p'){e.preventDefault();pfDetMenu(null);}
+  else if(k==='q'||k==='Backspace'){e.preventDefault();pfPopClose();closeDetail();}
   else if(k==='?'){e.preventDefault();pfPopClose();hkOverlayOpen();}
 }
 function _hkOverlayOpen(){var o=document.getElementById('hk-overlay');return!!(o&&o.classList.contains('open'));}

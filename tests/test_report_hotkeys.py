@@ -150,3 +150,12 @@ def test_cheat_sheet_from_the_popup_keeps_its_scroll_lock():
     close = _tpl().split('function hkOverlayClose(){')[1].split('\n')[0]
     assert "det-modal').classList.contains('open')" in close
     assert '_unlockBody()' in close
+
+
+def test_popup_close_keys():
+    """q and Backspace close the popup (Esc already does); Backspace only
+    reaches the dispatcher past _hkBlocked, so it still deletes text in the
+    membership menu's field."""
+    dispatch = _det_dispatch()
+    line = next(ln for ln in dispatch.splitlines() if "k==='Backspace'" in ln)
+    assert "k==='q'" in line and 'closeDetail()' in line
