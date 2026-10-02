@@ -1,18 +1,18 @@
 {
  "version": 1,
- "date": "2026-09-30",
- "prev_date": "2026-09-29",
+ "date": "2026-10-01",
+ "prev_date": "2026-09-30",
  "systemic": {
-  "n": 2427,
-  "prev_n": 2510,
-  "changed": 361,
-  "changed_share": 0.1487,
-  "missing_data": 428,
-  "missing_share": 0.1763,
-  "shrink_share": 0.0331,
+  "n": 2492,
+  "prev_n": 2427,
+  "changed": 325,
+  "changed_share": 0.1304,
+  "missing_data": 0,
+  "missing_share": 0.0,
+  "shrink_share": 0.0,
   "flood": true,
-  "cause": "data",
-  "message": "Data problem: 428 of 2,427 rows are missing a price or identity, and 15% of the universe changed rating. Rating moves on affected rows are shown as data gaps, not signals."
+  "cause": "model",
+  "message": "Model-wide shift: 13% of the universe (325 stocks) changed rating in one run — usually a scoring change rather than news about individual stocks."
  },
  "portfolios": [
   {
@@ -28,12 +28,12 @@
     "ratings": {
      "BUY": 0,
      "LEAN BUY": 0,
-     "HOLD": 1,
-     "PASS": 2
+     "HOLD": 0,
+     "PASS": 3
     },
-    "median_mos": -0.7935422474862237,
-    "median_score": 42.1,
-    "median_spread": 0.375065735332603,
+    "median_mos": -0.578874540891059,
+    "median_score": 39.5,
+    "median_spread": 0.3757473325424541,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -50,9 +50,9 @@
      "ticker": "TSM",
      "kind": "data_gap",
      "level": "fyi",
-     "from": "PASS",
-     "to": "HOLD",
-     "message": "TSM PASS → HOLD, but today's row is missing its price or identity (likely a data outage), so this is not a signal"
+     "from": "HOLD",
+     "to": "PASS",
+     "message": "TSM HOLD → PASS, but the prior run's row is missing its price or identity (likely a data outage), so this is not a signal"
     }
    ]
   }
