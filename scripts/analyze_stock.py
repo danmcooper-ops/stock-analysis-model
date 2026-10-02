@@ -86,6 +86,8 @@ from data.snapshot_store import (SnapshotStore, prior_snapshot_file, read_snapsh
 from data.culture_client import CultureClient
 
 from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
+                            PP_MAX_SANE_OP_MARGIN,
+                            PP_MARGIN_INCOMPARABLE_SECTORS,
                             PHASE1_LOCAL_PRICE_MAX_AGE_DAYS, SEC_CIK_PREDECESSORS,
                             CARRY_FORWARD_MAX_PRICE_LAG_BARS,
                             CARRY_FORWARD_STOPPED_MAX_SHARE,
@@ -4693,6 +4695,157 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
     return results
 
 
+# ---------------------------------------------------------------------------
+# Profit-pool membership
+# ---------------------------------------------------------------------------
+# Tokens that carry no company identity: corporate form, share class, and
+# depositary-receipt wrappers. Stripping them makes the parent name the join
+# key across every listing of one issuer, which is what lets the pool count
+# Freddie Mac once instead of twenty-two times ("Freddie Mac" is the
+# company_name on FMCC and on all 21 of its preferred series).
+_PP_NAME_NOISE = frozenset((
+    'inc', 'incorporated', 'corp', 'corporation', 'co', 'company', 'companies',
+    'ltd', 'limited', 'plc', 'sa', 'nv', 'bv', 'ag', 'ab', 'as', 'asa', 'oyj',
+    'spa', 'se', 'kgaa', 'llc', 'lp', 'lllp', 'sarl', 'oao', 'pjsc', 'jsc',
+    'aktiengesellschaft', 'holding', 'holdings', 'group', 'groupe', 'trust',
+    'the', 'new', 'class', 'cl', 'series', 'a', 'b', 'c', 'and', 'of',
+    'adr', 'ads', 'ordinary', 'shares', 'share', 'sponsored', 'unsponsored',
+    'pref', 'preferred',
+))
+
+
+def _pp_norm_name(name):
+    """Company name reduced to its identity tokens, lowercased.
+
+    Case and punctuation differ between a company's own listings ('Nomura
+    Holdings Inc' on NMR vs 'NOMURA HOLDINGS INC.' on NRSCF), so normalise
+    both away before joining.
+    """
+    if not name:
+        return ''
+    cleaned = re.sub(r'[^a-z0-9 ]+', ' ', str(name).lower())
+    return ' '.join(t for t in cleaned.split() if t and t not in _PP_NAME_NOISE)
+
+
+def _pp_primary_key(r):
+    """Sort key picking which listing of an issuer represents it in the pool.
+
+    Most liquid first: Amihud illiquidity is the one identity-free measure of
+    which line the market actually trades, and — unlike mcap — it is not
+    shared across a poisoned share-count cluster, where every Freddie
+    preferred reports the parent's 3.22B shares and so an identical cap.
+    It picks FMCC over its preferreds, GOOGL over GOOG, BRK-B over BRK-A and
+    NMR over NRSCF. Market cap, then ticker length, break the remaining ties
+    so the choice is deterministic across runs.
+    """
+    amihud = r.get('amihud_illiquidity')
+    ticker = r.get('ticker') or ''
+    return (amihud is None, amihud if amihud is not None else 0.0,
+            -(r.get('mcap') or 0.0), len(ticker), ticker)
+
+
+def assign_pool_membership(results):
+    """Mark which rows count ONCE toward sector profit-pool totals.
+
+    Two different rows can carry the same income statement, and two different
+    numbers can both be called an operating margin. Both break a pool that
+    sums rows blindly, and on the 2026-09-14 run both landed on one sector:
+
+      * MULTIPLE LISTINGS. The totals summed one row per *ticker*, so Freddie
+        Mac was counted 22 times (FMCC plus 21 preferred series, each row
+        carrying the parent's full $23.3B revenue and $121.8B operating
+        income), Fannie Mae 14 times, Alphabet twice via GOOGL/GOOG, and ~40
+        ADR/foreign-ordinary pairs twice each. That manufactured $3,249B of
+        operating income out of a $8,237B universe — 39% of the whole pool,
+        nearly all of it inside Financial Services, which read 52.5% of US
+        operating profit on 16.5% of revenue.
+      * MARGIN ARTIFACTS. yfinance's Operating Income and Total Revenue lines
+        disagree about what they measure for some financials, giving FMCC a
+        523% operating margin and GS 152%. models.narrative already kept
+        those out of its margin RANKINGS but deliberately left them in the
+        totals, where a single row can set a whole sector bar's height.
+
+    Stamps four fields on every row and returns a summary dict:
+
+      ``pp_pool_member``      — True when this row is counted in the totals.
+      ``pp_excluded_reason``  — why not: ``duplicate_listing``, ``om_artifact``
+                                or ``no_financials``.
+      ``pp_duplicate_of``     — the primary listing's ticker, when duplicate.
+      ``pp_margin_comparable``— False where the sector's operating margin is
+                                not comparable across the cross-section
+                                (PP_MARGIN_INCOMPARABLE_SECTORS).
+
+    Membership governs DENOMINATORS only. A duplicate listing is still a real
+    security with the primary's economics, so the caller keeps computing its
+    own pp_* shares — BRK-A and BRK-B must not score differently — they are
+    simply not added to the sector totals twice. An artifact row has no usable
+    operating income at all, so the caller nulls its shares instead.
+
+    Must run BEFORE the pool aggregation and before ``score_and_rate``, whose
+    pool-share trajectory reads the same flags.
+    """
+    for r in results:
+        r['pp_pool_member'] = False
+        r['pp_excluded_reason'] = 'no_financials'
+        r['pp_duplicate_of'] = None
+        r['pp_margin_comparable'] = (
+            r.get('sector') not in PP_MARGIN_INCOMPARABLE_SECTORS)
+
+    eligible = [r for r in results
+                if r.get('sector') and r.get('revenue') and r['revenue'] > 0
+                and r.get('operating_income') is not None]
+
+    # One group per issuer. Sector and the two statement lines join alongside
+    # the name so a name collision alone can never merge two companies: an
+    # identical revenue AND operating income to the cent is the same income
+    # statement, not a coincidence.
+    groups = {}
+    for r in eligible:
+        # A name that normalises to nothing is no evidence of identity, so the
+        # ticker stands in and the row can only ever group with itself.
+        name = _pp_norm_name(r.get('company_name')) or r['ticker']
+        key = (r['sector'], name,
+               round(float(r['revenue']), 2),
+               round(float(r['operating_income']), 2))
+        groups.setdefault(key, []).append(r)
+
+    n_dupes = n_artifacts = 0
+    for rows in groups.values():
+        primary = min(rows, key=_pp_primary_key) if len(rows) > 1 else rows[0]
+        for r in rows:
+            if r is not primary:
+                r['pp_duplicate_of'] = primary['ticker']
+            # The artifact test comes first and runs on every row, primary or
+            # not. Every listing of an issuer carries the same income
+            # statement, so a duplicate of an artifact is just as unusable:
+            # FMCCL inheriting FMCC's $121.8B put 12.7% of the sector pool
+            # back on a 523% margin while FMCC itself was correctly excluded.
+            # The reason records the stronger fact — there is no usable
+            # operating income here at all — and pp_duplicate_of still says
+            # which listing it shadows.
+            if abs(r['operating_income'] / r['revenue']) > PP_MAX_SANE_OP_MARGIN:
+                r['pp_excluded_reason'] = 'om_artifact'
+                n_artifacts += 1
+            elif r is not primary:
+                r['pp_excluded_reason'] = 'duplicate_listing'
+                n_dupes += 1
+            else:
+                r['pp_pool_member'] = True
+                r['pp_excluded_reason'] = None
+
+    summary = {'members': sum(1 for r in results if r['pp_pool_member']),
+               'issuers': len(groups),
+               'duplicates': n_dupes,
+               'artifacts': n_artifacts,
+               'no_financials': len(results) - len(eligible)}
+    if n_dupes or n_artifacts:
+        print(f"\n  Profit pool: {summary['members']} companies counted "
+              f"({n_dupes} duplicate listing(s) collapsed into their primary, "
+              f"{n_artifacts} excluded for an operating margin outside "
+              f"\u00b1{PP_MAX_SANE_OP_MARGIN*100:.0f}%)")
+    return summary
+
+
 def _run_postprocess(results, ms_pfv_data, _carry_prior_rows):
     """Sector comparisons, valuation blends, profit pools, scoring, sizing."""
     # -----------------------------------------------------------------------
@@ -4805,44 +4958,71 @@ def _run_postprocess(results, ms_pfv_data, _carry_prior_rows):
     # Profit pool analysis (sector-level revenue/profit concentration)
     # Must run BEFORE screening matrix so pp_multiple is available for gates
     # -----------------------------------------------------------------------
-    # 1. Aggregate sector totals
+    # 0. Decide which rows count ONCE toward the totals. Every sector TOTAL
+    #    below is summed over members only; the per-row numerators in step 3
+    #    still cover every row, so a second listing keeps its primary's
+    #    shares instead of going N/A. See assign_pool_membership.
+    assign_pool_membership(results)
+
+    # 1. Aggregate sector totals (members only — one row per issuer, sane
+    #    margins; a member always has revenue > 0 and an operating income)
     _sector_rev = {}     # sector → total revenue
     _sector_opinc = {}   # sector → total operating income (clamped ≥0)
     _sector_tickers = {} # sector → [(ticker, revenue, operating_income)]
+    _sector_excl = {}    # sector → {exclusion reason → count}
     for r in results:
         s = r.get('sector')
-        rev = r.get('revenue')
-        opinc = r.get('operating_income')
-        if s and rev and rev > 0:
-            _sector_rev[s] = _sector_rev.get(s, 0) + rev
-            if opinc is not None:
-                _sector_opinc[s] = _sector_opinc.get(s, 0) + max(opinc, 0)
-            _sector_tickers.setdefault(s, []).append((r['ticker'], rev, opinc or 0))
+        if not s:
+            continue
+        reason = r.get('pp_excluded_reason')
+        if reason in ('duplicate_listing', 'om_artifact'):
+            _sector_excl.setdefault(s, {})
+            _sector_excl[s][reason] = _sector_excl[s].get(reason, 0) + 1
+        if not r.get('pp_pool_member'):
+            continue
+        rev, opinc = r['revenue'], r['operating_income']
+        _sector_rev[s] = _sector_rev.get(s, 0) + rev
+        _sector_opinc[s] = _sector_opinc.get(s, 0) + max(opinc, 0)
+        _sector_tickers.setdefault(s, []).append((r['ticker'], rev, opinc))
 
-    # 2. Sector-level operating margin median
+    # 2. Sector-level operating margin median — members only, so one company
+    #    listed five times stops getting five votes and a 523% artifact stops
+    #    pulling the median that Moat: Margin Advantage is measured against.
     _sector_opm = {}
     for r in results:
         s = r.get('sector')
         opm = r.get('operating_margin')
-        if s and opm is not None:
+        if s and opm is not None and r.get('pp_pool_member'):
             _sector_opm.setdefault(s, []).append(opm)
     sector_median_opm = {s: _median(v) for s, v in _sector_opm.items()
                          if len(v) >= MIN_SECTOR_STOCKS}
 
-    # 3. Per-ticker profit pool metrics
+    # 3. Per-ticker profit pool metrics.
+    #    Numerators cover every row, members and duplicates alike: a second
+    #    listing carries the same income statement as its primary, so it gets
+    #    the same shares and rates the same (BRK-A must not diverge from
+    #    BRK-B). Only the DENOMINATORS above were deduped. An om_artifact row
+    #    is the exception — its operating income is not a usable number and
+    #    its revenue is not in the pool base, so its shares are nulled with
+    #    pp_excluded_reason carrying the why. Nulling pp_revenue_share also
+    #    drops it from every downstream consumer for free: the client's three
+    #    pool predicates and models.narrative all require a revenue share.
     for r in results:
         s = r.get('sector')
         rev = r.get('revenue')
         opinc = r.get('operating_income')
+        artifact = r.get('pp_excluded_reason') == 'om_artifact'
 
         # Revenue share (fraction of sector total revenue in analysis universe)
         sec_rev = _sector_rev.get(s, 0)
-        r['pp_revenue_share'] = (rev / sec_rev) if (rev and sec_rev > 0) else None
+        r['pp_revenue_share'] = (rev / sec_rev) if (
+            rev and sec_rev > 0 and not artifact) else None
 
         # Profit share (fraction of sector total operating income)
         sec_opinc = _sector_opinc.get(s, 0)
         r['pp_profit_share'] = (max(opinc, 0) / sec_opinc
-                                if (opinc is not None and sec_opinc > 0) else None)
+                                if (opinc is not None and sec_opinc > 0
+                                    and not artifact) else None)
 
         # Profit pool multiple = profit_share / revenue_share
         # > 1 means disproportionate profit capture; < 1 means under-earning
@@ -4860,7 +5040,11 @@ def _run_postprocess(results, ms_pfv_data, _carry_prior_rows):
                                     if (opm is not None and med_opm is not None) else None)
         r['_sector_median_opm'] = med_opm
 
-        # Sector-level concentration metrics (same for all tickers in sector)
+        # Sector-level concentration metrics (same for all tickers in sector).
+        # Over members, so concentration is measured across companies rather
+        # than listings: 22 Freddie lines at 0.4% of revenue each used to read
+        # as fragmentation, understating the sector's HHI and CR4 and putting
+        # 547 "companies" in Financial Services' header band.
         tickers_in_sector = _sector_tickers.get(s, [])
         if len(tickers_in_sector) >= 3 and sec_rev > 0:
             shares = [(t_rev / sec_rev) for _, t_rev, _ in tickers_in_sector]
@@ -4872,6 +5056,11 @@ def _run_postprocess(results, ms_pfv_data, _carry_prior_rows):
             r['pp_sector_hhi'] = None
             r['pp_sector_cr4'] = None
             r['pp_sector_count'] = len(tickers_in_sector) if tickers_in_sector else 0
+        # What the pool left out, so the page can say so instead of quietly
+        # reporting a smaller sector than the universe holds.
+        _excl = _sector_excl.get(s) or {}
+        r['pp_sector_excluded_dupes'] = _excl.get('duplicate_listing', 0)
+        r['pp_sector_excluded_artifacts'] = _excl.get('om_artifact', 0)
 
     apply_mcap_integrity_guard(results, _carry_prior_rows)
 

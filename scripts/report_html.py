@@ -947,6 +947,16 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
         'pp_sector_hhi': r.get('pp_sector_hhi'),
         'pp_sector_cr4': r.get('pp_sector_cr4'),
         'pp_sector_count': r.get('pp_sector_count'),
+        # Pool membership. The client's _ppMember() reads pp_pool_member, so
+        # these have to be ON the payload: without them every aggregation on
+        # the page silently falls back to one row per ticker, which is the
+        # double-count this field exists to stop.
+        'pp_pool_member': r.get('pp_pool_member'),
+        'pp_excluded_reason': r.get('pp_excluded_reason'),
+        'pp_duplicate_of': r.get('pp_duplicate_of'),
+        'pp_margin_comparable': r.get('pp_margin_comparable'),
+        'pp_sector_excluded_dupes': r.get('pp_sector_excluded_dupes'),
+        'pp_sector_excluded_artifacts': r.get('pp_sector_excluded_artifacts'),
         '_sector_median_opm': r.get('_sector_median_opm'),
         # Per-gate _gate_*/_gp_*/_score_* keys are emitted dynamically from
         # the active gate definitions further down (see the gate_meta_obj

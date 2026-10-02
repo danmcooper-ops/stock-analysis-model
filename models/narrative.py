@@ -1524,14 +1524,20 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
         or None if the sector has no usable profit pool data.
     """
     # Filter to rows that have revenue & operating income so we can reason
-    # about the pool numerically. Keep this predicate in sync with the client
-    # (renderPool / renderCrossSectorProfitPool in templates/report.html) so
-    # the sector header, chart, and prose all quote the same company count.
+    # about the pool numerically, and that count ONCE: pp_pool_member is False
+    # on a second listing of a company already in the pool (Freddie Mac traded
+    # on 22 lines, each carrying the parent's full income statement) and on a
+    # row whose operating margin is an accounting artifact. Both are stamped by
+    # analyze_stock.assign_pool_membership, which is the single definition of
+    # pool membership this page and the client's three predicates share; rows
+    # from a snapshot taken before that field existed have None here and stay
+    # in, preserving the old reading rather than emptying the sector.
     cos = [r for r in (rows_in_sector or [])
            if r.get('pp_revenue_share') is not None
            and r.get('operating_income') is not None
            and isinstance(r.get('revenue'), (int, float))
-           and r.get('revenue') > 0]
+           and r.get('revenue') > 0
+           and r.get('pp_pool_member') is not False]
     if not cos:
         return None
 
@@ -1548,6 +1554,21 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
     n = len(cos)
     if total_rev <= 0:
         return None
+    # What membership left out, counted upstream over the whole sector (the
+    # artifact rows never reach this function — nulling their revenue share is
+    # what drops them). Stated in the overview so a reader can tell a deduped
+    # company count from a short universe.
+    n_dupes = next((r.get('pp_sector_excluded_dupes') for r in cos
+                    if r.get('pp_sector_excluded_dupes') is not None), 0) or 0
+    n_artifacts = next((r.get('pp_sector_excluded_artifacts') for r in cos
+                        if r.get('pp_sector_excluded_artifacts') is not None), 0) or 0
+    # Is an operating margin in this sector comparable to the rest of the
+    # cross-section? Stamped per row from PP_MARGIN_INCOMPARABLE_SECTORS: a
+    # bank's revenue line is already net of interest expense, its cost of
+    # goods, so the ratio is not a margin. The dollars are still real, so the
+    # pool keeps them and the prose carries the caveat.
+    margin_comparable = next((bool(r.get('pp_margin_comparable')) for r in cos
+                              if r.get('pp_margin_comparable') is not None), True)
 
     # Sector-wide blended margin (net: losses included)
     wtd_margin = total_oi_net / total_rev
@@ -1569,9 +1590,12 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
     # +12,069% or -22,602% (one-off gains, denominator artifacts) that would
     # otherwise win the Margin Leader/Laggard slots, blow up the dispersion
     # insight ("spread exceeds 29,890 points"), and crown 900x efficiency
-    # leaders. |OM| > 100% is an accounting artifact, not operating
-    # economics — those rows stay in the pool totals above but are excluded
-    # from margin-ranked storylines.
+    # leaders. |OM| > 100% is an accounting artifact, not operating economics.
+    # Such rows are now excluded from the pool TOTALS too, upstream in
+    # analyze_stock (they used to be kept there, where one of them could set a
+    # whole sector bar's height — FMCC's 523% put 52.5% of the universe's
+    # operating profit in Financial Services). This stays as the local
+    # defence, so prose built on a pre-membership snapshot cannot regress.
     margin_sane = [r for r in cos
                    if r.get('operating_margin') is not None
                    and abs(r['operating_margin']) <= 1.0]
@@ -1616,6 +1640,35 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
         + f', a blended operating margin of {wtd_margin*100:.1f}%'
         + (' net of losses.' if n_loss else '.')
     )
+    # Say what the pool left out, so "companies" reads as issuers rather than
+    # as a short universe.
+    if n_dupes or n_artifacts:
+        _left_out = []
+        if n_dupes:
+            _left_out.append(
+                f'{n_dupes} second listing{"s" if n_dupes != 1 else ""} of a '
+                f'company already in it'
+            )
+        if n_artifacts:
+            _left_out.append(
+                f'{n_artifacts} row{"s" if n_artifacts != 1 else ""} whose '
+                f'operating margin falls outside \u00b1100% (a reporting artifact, '
+                f'not operating economics)'
+            )
+        overview_parts.append(
+            'Companies are counted once however many lines they trade on; '
+            + ' and '.join(_left_out)
+            + (' sits' if n_dupes + n_artifacts == 1 else ' sit')
+            + ' outside these totals.'
+        )
+    if not margin_comparable:
+        overview_parts.append(
+            f'Read the margin, not the ranking: {sector} revenue is already '
+            f'net of interest expense \u2014 the sector\u2019s cost of goods \u2014 so '
+            f'there is no cost line left in the denominator and this margin is '
+            f'not comparable to a manufacturer\u2019s. The profit dollars are real; '
+            f'the ratio is not a like-for-like.'
+        )
     if top1 is not None and top1.get('pp_profit_share') is not None:
         overview_parts.append(
             f"{top1['ticker']} alone captures {top1['pp_profit_share']*100:.0f}% "
@@ -1928,8 +1981,14 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
             'total_op_income': total_oi,           # positive-only pool (pp_profit_share base)
             'total_op_income_net': total_oi_net,   # net of losses (blended-margin base)
             'weighted_margin': wtd_margin,
-            'company_count': n,
+            'company_count': n,                    # issuers, not listings
             'hhi': hhi,
             'cr4': cr4,
+            # Is weighted_margin comparable across sectors? False for banks
+            # and insurers (see margin_comparable above) — the client marks
+            # the bar instead of dropping it.
+            'margin_comparable': margin_comparable,
+            'excluded_duplicates': n_dupes,
+            'excluded_artifacts': n_artifacts,
         },
     }

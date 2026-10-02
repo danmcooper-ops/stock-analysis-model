@@ -142,6 +142,24 @@ MIN_SECTOR_STOCKS = 3          # Min stocks per sector for median calculation
 DATA_QUALITY_MIN = 40          # Skip tickers with quality score below this
 MIN_MORNINGSTAR_SAMPLE = 5     # Min stocks for Morningstar comparison stats
 
+# --- Profit-pool hygiene ---------------------------------------------------
+# An |operating margin| above this is an accounting artifact, not operating
+# economics: FMCC read 523% (yfinance's Operating Income line, $121.8B, against
+# a $23.3B net-revenue line and $10.7B of net income) and GS read 152% on the
+# 2026-09-14 run. Such a row is excluded from the sector pool TOTALS, not just
+# from the margin rankings, because one of them can carry a whole sector bar.
+PP_MAX_SANE_OP_MARGIN = 1.0
+
+# Sectors whose operating margin is not comparable to the rest of the
+# cross-section. A bank's revenue line is already net of interest expense —
+# its cost of goods — so there is no COGS in the denominator and the ratio is
+# not a margin (61 financial rows on 2026-09-14 reported operating income at
+# more than 3x net income). scoring._appl_non_financial already masks the
+# Moat: Margin Advantage gate for exactly this reason; this constant carries
+# the same fact to the profit-pool pages, which label the bar rather than
+# drop it — the profit is real even when the ratio is not.
+PP_MARGIN_INCOMPARABLE_SECTORS = ('Financial Services',)
+
 # Minimum median daily dollar volume (3-month) for a name to stay BUY-rated.
 # Below this a position can't be built or exited at a sane price, so the rating
 # is capped at HOLD — the business may still be excellent, it just isn't

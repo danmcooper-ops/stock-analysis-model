@@ -126,3 +126,65 @@ def test_the_materiality_floor_is_a_named_constant():
     assert hasattr(narrative, '_MIN_MATERIAL_REV_SHARE')
     # low enough to keep genuine mid-caps, high enough to drop the noise tail
     assert 0 < narrative._MIN_MATERIAL_REV_SHARE <= 0.005
+
+
+# --- Pool membership (see tests/test_profit_pool_membership.py for the rules
+# --- themselves; these pin what the PROSE does with them) -------------------
+
+def test_a_second_listing_is_not_counted_twice():
+    """pp_pool_member is False on a duplicate listing, so the sector's company
+    count and its totals must ignore it. Freddie Mac traded on 22 lines, each
+    carrying the parent's whole income statement, and the pool summed all 22."""
+    base = _sector()
+    twin = _row('BIGA2', 30_000, 11_000, 0.30, 0.55, pp_pool_member=False,
+                pp_duplicate_of='BIGA')
+    n_one = gen('Technology', base)
+    n_two = gen('Technology', base + [twin])
+    assert n_two['stats']['company_count'] == n_one['stats']['company_count']
+    assert n_two['stats']['total_revenue'] == n_one['stats']['total_revenue']
+    assert n_two['stats']['total_op_income'] == n_one['stats']['total_op_income']
+
+
+def test_rows_from_a_snapshot_without_the_flag_still_count():
+    """An old snapshot has no pp_pool_member at all. Treat that as "in" — the
+    old reading, not an empty sector."""
+    rows = _sector()
+    assert all('pp_pool_member' not in r for r in rows)
+    assert gen('Technology', rows)['stats']['company_count'] == len(rows)
+
+
+def test_the_overview_says_what_the_pool_left_out():
+    rows = _sector()
+    for r in rows:
+        r['pp_sector_excluded_dupes'] = 22
+        r['pp_sector_excluded_artifacts'] = 1
+    n = gen('Technology', rows)
+    assert '22 second listings' in n['overview']
+    assert '1 row whose operating margin falls outside' in n['overview']
+    assert n['stats']['excluded_duplicates'] == 22
+    assert n['stats']['excluded_artifacts'] == 1
+
+
+def test_no_exclusion_sentence_when_nothing_was_excluded():
+    n = gen('Technology', _sector())
+    assert 'second listing' not in n['overview']
+    assert n['stats']['excluded_duplicates'] == 0
+
+
+def test_a_bank_margin_carries_its_caveat():
+    """Financial Services revenue is already net of interest expense, so the
+    blended margin is not comparable to a manufacturer's. Say so where the
+    number is quoted; scoring._appl_non_financial masks the Margin Advantage
+    gate on the same fact."""
+    rows = [dict(r, pp_margin_comparable=False) for r in _sector()]
+    n = gen('Financial Services', rows)
+    assert n['stats']['margin_comparable'] is False
+    assert 'net of interest expense' in n['overview']
+    # the dollars are still reported — only the ratio is caveated
+    assert n['stats']['total_op_income'] > 0
+
+
+def test_a_comparable_sector_gets_no_caveat():
+    n = gen('Technology', _sector())
+    assert n['stats']['margin_comparable'] is True
+    assert 'net of interest expense' not in n['overview']
