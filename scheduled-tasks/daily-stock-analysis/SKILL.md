@@ -65,6 +65,7 @@ Include, from the log:
 - **Your portfolios** (`portfolio_alerts` section): lead with any `!!` banner line verbatim (data problem / model-wide shift). Then one line per portfolio (size, rating mix, median MoS) and every ACTION and WATCH line verbatim; give the FYI count as a number only. Say "no portfolio alerts" when there are no ACTION/WATCH lines; skip it when it reports "No portfolios defined."
 - **Snapshot store** (`store_check` section): if it failed, quote its `PROBLEM:` lines. Store syncs never fail a step, so this is the only place a store that stopped updating shows up.
 - **Run quality:** the analysis's closing `RUN QUALITY:` lines, and the `Screen skip cache:` line from Phase 1.
+- **Coverage** (`coverage` section): if `notes` holds a `COVERAGE … — archived, but not published` line, the run kept fewer than 70% of the prior run's rows. A data source failed for most of the universe (on 2026-09-30 Yahoo rate-limited the host and 739 of ~2,500 rows came through). The snapshot was archived, but neither site was republished, so both keep the last good report. **Lead the summary with that coverage line** and say tonight's ratings are unreliable. Do not re-run or override it yourself. Recommend a re-run of the same date once the source recovers, `scripts/run_daily.sh --from analyze --date RUNDATE`, which supersedes the archive and publishes. `--from publish --date RUNDATE --force` publishes the degraded report anyway.
 - **Publish:** the result, with the live URL's HTTP code.
 
 ## Step 4 — Recover a failed step (only when the summary shows one)
@@ -88,7 +89,7 @@ A market-closed skip is a success, and the criteria below don't apply to it.
 - `output/stock_analysis_results_RUNDATE.html` was created this run.
 - `results_RUNDATE.json.gz` was archived and pushed to `data/snapshots`. That means the `archive_*` steps are all rc=0, or the note says it was unchanged.
 - The run summary includes the gate N/A table (with JUMP flags called out) and the momentum check.
-- Publish succeeded, or its failure was reported clearly with the retry command.
+- Publish succeeded, or its failure was reported clearly with the retry command, or it was skipped under the coverage floor and the summary leads with the `COVERAGE` line.
 
 ## Reference
 - **Paths:**
@@ -97,7 +98,7 @@ A market-closed skip is a success, and the criteria below don't apply to it.
   - Pages worktree: `.claude/worktrees/pages-live` (branch `pages-live`)
   - Python: `~/.venvs/stock-model/bin/python`, outside the repo so worktree changes cannot delete it (rebuild: `scheduled-tasks/RECOVERY.md` step 3).
   - If a worktree is missing, recreate it: `git worktree add .claude/worktrees/pages-live pages-live` or `git worktree add .claude/worktrees/snapshots-data data/snapshots`.
-- **Branch:** the script fast-forwards `main` only when the checkout is on `main`. A feature branch left checked out renders with that branch's templates, and the summary notes it. These task files are symlinked from `~/.claude/scheduled-tasks`, so the checked-out branch also decides which version of this file runs.
+- **Branch:** the script fast-forwards `main` only when the checkout is on `main`. A feature branch left checked out renders with that branch's templates, and the summary notes it. The desktop app's task (`~/.claude/scheduled-tasks/the-stock-analysis-model/`, a copy, never a symlink) reads this runbook by absolute path, so the checked-out branch also decides which version of this file runs.
 - **Market-open gate:** `scripts/market_open.py` computes the NYSE calendar offline and fails open. Unscheduled closures go in its `AD_HOC_CLOSURES`.
 - **Screen skip cache:** `data/cache/screen_skip.json` makes Phase 1 skip tickers that were recently far below the $300M floor, or had no data from any source. It is disposable. `analyze_stock.py --no-screen-cache` ignores it for one run.
 - **Phase 2 prefetch:** Phase 2 fetches network data on 4 threads (`--workers`). The analysis itself stays single-threaded.

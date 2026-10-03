@@ -63,7 +63,8 @@ def test_plan_without_secrets_matches_the_old_pipeline_plus_topup(tmp_path):
     # db_publish always runs (and skips itself), as step 06a does in the cloud.
     order = ['analyze', 'enrich_pipeline', 'prices_topup', 'render', 'portfolio_alerts',
              'db_publish', 'archive_sync', 'archive_snapshot', 'archive_add',
-             'archive_commit', 'archive_push', 'store_check', 'publish', 'compact_output']
+             'archive_commit', 'archive_push', 'store_check', 'coverage', 'publish',
+             'compact_output']
     assert [s for s in steps if s in order] == order
 
 
@@ -190,3 +191,57 @@ def test_archive_sync_fast_forwards_a_behind_worktree(tmp_path):
     assert 'rebasing' not in r.stdout             # the sync already caught up
     _, log = _remote_tree(seed, remote)
     assert log[:2] == ['Snapshot: 2026-09-25', 'Weekly backtest: 2026-09-27']
+
+
+def _publish_gate(tmp_path, coverage_rc, force=0):
+    """Run the publish section with check_coverage.py exiting coverage_rc;
+    publish/publish_cloudflare only record that they were called."""
+    m = re.search(r'^if wants publish; then\n.*?^fi\n', _src(), re.S | re.M)
+    assert m
+    fake = tmp_path / 'fake_python'
+    fake.write_text(f'#!/bin/bash\necho "COVERAGE 739/2514 rows (29%) DEGRADED"\nexit {coverage_rc}\n',
+                    encoding='utf-8')
+    fake.chmod(0o755)
+    script = ('set -uo pipefail\n'
+              f'VPY={fake}; SNAPSHOT=x.json; RUNDATE=2026-09-30; FORCE={force}\n'
+              f'DRY_RUN=0; BLOCKED=0; SOFT_FAIL=0; STEPLOG={tmp_path}/steps; NOTES={tmp_path}/notes\n'
+              ': > "$STEPLOG"; : > "$NOTES"\n'
+              'CLOUDFLARE_API_TOKEN=t; CLOUDFLARE_ACCOUNT_ID=a; CF_PAGES_PROJECT=p\n'
+              'wants() { true; }\n'
+              'note() { printf \'%s\\n\' "$*" >>"$NOTES"; }\n'
+              'publish() { echo CALLED publish; }\n'
+              'publish_cloudflare() { echo CALLED cloudflare; }\n'
+              + _fn('run')
+              + re.search(r'^coverage_check\(\) \{\n.*?^\}\n', _src(), re.S | re.M).group(0)
+              + m.group(0)
+              + 'echo "SOFT_FAIL=$SOFT_FAIL"\n')
+    r = subprocess.run(['bash', '-c', script], cwd=tmp_path, capture_output=True,
+                       text=True, timeout=30)
+    assert r.returncode == 0, r.stdout + r.stderr
+    return r.stdout, (tmp_path / 'notes').read_text(encoding='utf-8')
+
+
+def test_coverage_under_the_floor_archives_but_does_not_publish(tmp_path):
+    out, notes = _publish_gate(tmp_path, 4)
+    assert 'CALLED' not in out
+    assert 'SOFT_FAIL=1' in out                      # the run ends "degraded"
+    assert 'COVERAGE 739/2514' in notes and 'not published' in notes
+    assert '--from publish --date 2026-09-30 --force' in notes
+
+
+def test_force_publishes_a_run_under_the_floor(tmp_path):
+    out, notes = _publish_gate(tmp_path, 4, force=1)
+    assert 'CALLED publish' in out and 'CALLED cloudflare' in out
+    assert 'publishing anyway' in notes
+
+
+def test_coverage_ok_publishes_both_sites(tmp_path):
+    out, notes = _publish_gate(tmp_path, 0)
+    assert 'CALLED publish' in out and 'CALLED cloudflare' in out
+    assert 'SOFT_FAIL=0' in out and notes == ''
+
+
+def test_a_broken_coverage_check_does_not_block_the_publish(tmp_path):
+    out, notes = _publish_gate(tmp_path, 1)
+    assert 'CALLED publish' in out
+    assert 'treated as not degraded' in notes

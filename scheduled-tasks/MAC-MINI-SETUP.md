@@ -216,22 +216,32 @@ beyond the old runbook:
 
   Readers stay on the local DuckDB store. Set `SNAPSHOT_STORE_BACKEND=postgres`
   only if you want the database to serve them.
+- **Coverage floor** (cloud `05h`, added to `run_daily.sh` on 2026-10-03):
+  `scripts/check_coverage.py` runs as the `coverage` step just before the
+  publish. A run with fewer than 70% of the prior run's rows is archived but
+  not published to either site, and ends `degraded` with the `COVERAGE` line
+  in `notes`. `--force` publishes it anyway. Being part of the publish step,
+  it also gates a `--from publish` resume.
 - **Cloudflare Pages deploy** after the GitHub publish, only when
   `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`/`CF_PAGES_PROJECT` are set.
   It needs Node (`npx`) and the `CF_ACCESS_*` keys, and refuses to deploy
   without the login. `_worker.js` is deployed but never committed to
   `pages-live`.
 
-Still to do at cut-over (section 7): remove the **DORMANT** banner from
-`daily-stock-analysis/SKILL.md` and add one to
-`cloud-daily-stock-analysis/SKILL.md`, and update this directory's
-`README.md` table in the same commit.
+The cut-over banners were swapped in PR #304 (2026-10-03): the
+**DORMANT** banner moved from `daily-stock-analysis/SKILL.md` to
+`cloud-daily-stock-analysis/SKILL.md`, with this directory's `README.md`
+table updated in the same commit.
 
 ## 5. Schedule it
 
-- [ ] **Daily:** the existing arrangement is a Claude Code scheduled task,
-      symlinked into this directory (`RECOVERY.md` step 4), so Claude writes
-      the run summary. This needs the Claude app running and signed in under
+- [ ] **Daily:** a Claude desktop app scheduled task,
+      `the-stock-analysis-model`, so Claude writes the run summary. Its
+      `~/.claude/scheduled-tasks/the-stock-analysis-model/` folder must be a
+      real folder holding a **copy** of the tracked
+      `the-stock-analysis-model/SKILL.md`. The app refuses a symlinked task
+      file ("symlink detected before open; refusing to open"); see
+      `RECOVERY.md` step 4. This needs the Claude app running and signed in under
       the logged-in user. Schedule it for **weekdays 17:00 New York**, the same
       slot as the cloud Routine (21:00 UTC in summer). A run that goes past
       midnight keeps its start date.
