@@ -3,18 +3,18 @@
 What to do when `~/Projects/Workspace Folder` has been deleted, moved, renamed
 or restored from a backup — the routines stop working because every path in
 `daily-stock-analysis`, `publish-stock-report` and `weekly-backtest` is
-absolute, and `~/.claude/scheduled-tasks/*` are symlinks into that directory
-(see this directory's `README.md`).
+absolute, and the desktop app's task points at that directory by absolute
+path (see this directory's `README.md`).
 
 Deleted **2026-09-09**; this file is the record of what that costs and how to
 get back.
 
-**Since 2026-09-10 the daily run no longer depends on the Mac at all**: it is
-the cloud Routine in `cloud-daily-stock-analysis/` (see this directory's
-`README.md`). Rebuilding the local copy is optional — do it for local
-development, backtests, or to run the report by hand — and if you re-arm the
-Mac scheduled task, disable the cloud Routine first: two daily runs would both
-append to `data/snapshots` and both force-push `pages-live`.
+**Since 2026-10-05 the daily run is the Mac mini again** (it ran as the
+cloud Routine in `cloud-daily-stock-analysis/` from 2026-09-10; see this
+directory's `README.md`). Rebuilding the local copy is what restores the
+nightly run. If the Mac cannot be rebuilt quickly, re-enable the cloud
+Routine instead, but only after pausing the Mac task: two daily runs would
+both append to `data/snapshots` and both force-push `pages-live`.
 
 ## Before anything else: check the Trash
 
@@ -90,21 +90,21 @@ cd "$HOME/Projects/Workspace Folder"
 `certifi` is required — every runbook step sets `SSL_CERT_FILE` from
 `python -m certifi` to work around macOS certificate verification.
 
-### 4. Restore the scheduled-task symlinks
+### 4. Restore the scheduled task
 
-**This is why a manual run fails after a delete**: the symlinks dangle, so
-Claude Code has no task definition to read.
+The desktop app's task, `~/.claude/scheduled-tasks/the-stock-analysis-model/`,
+is a thin entry point that reads `daily-stock-analysis/SKILL.md` by absolute
+path, so after a delete it finds no runbook and reports the run as skipped.
+It must be a real folder holding a **copy**: the app refuses a symlinked task
+file ("symlink detected before open; refusing to open").
 
 ```bash
-mkdir -p ~/.claude/scheduled-tasks
-ln -sfn "$HOME/Projects/Workspace Folder/scheduled-tasks/daily-stock-analysis" \
-   ~/.claude/scheduled-tasks/daily-stock-analysis
-ln -sfn "$HOME/Projects/Workspace Folder/scheduled-tasks/publish-stock-report" \
-   ~/.claude/scheduled-tasks/publish-stock-report
-
-readlink ~/.claude/scheduled-tasks/daily-stock-analysis   # verify: no error
-readlink ~/.claude/scheduled-tasks/publish-stock-report
+mkdir -p ~/.claude/scheduled-tasks/the-stock-analysis-model
+cp "$HOME/Projects/Workspace Folder/scheduled-tasks/the-stock-analysis-model/SKILL.md" \
+   ~/.claude/scheduled-tasks/the-stock-analysis-model/SKILL.md
 ```
+
+Then check in the app that the task is enabled for weekdays 17:00.
 
 ### 5. Recreate `.env`
 
@@ -161,7 +161,8 @@ just slower.
 
 ```bash
 cd "$HOME/Projects/Workspace Folder"
-readlink ~/.claude/scheduled-tasks/daily-stock-analysis    # symlink resolves
+diff -q ~/.claude/scheduled-tasks/the-stock-analysis-model/SKILL.md \
+  scheduled-tasks/the-stock-analysis-model/SKILL.md          # task copy current
 git worktree list                                          # three worktrees
 "$HOME/.venvs/stock-model/bin/python" -c "import yfinance, pandas, duckdb, certifi; print('deps ok')"
 test -s .env && echo ".env present"
@@ -188,7 +189,7 @@ routine is back.
 - `output/prices/` is the expensive rebuild. It is pure cache, but it is
   *hours* of cache — worth including in whatever backs up the Mac, or worth
   keeping outside the repo directory so a repo delete does not take it.
-- The absolute paths and the `~/.claude` symlinks are what turn "deleted a
+- The absolute paths in the task and the runbooks are what turn "deleted a
   folder" into "the routine is gone". Moving the repo has the same effect as
   deleting it; see this directory's `README.md`.
 

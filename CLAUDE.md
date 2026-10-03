@@ -51,10 +51,11 @@ supabase/        - Supabase project (config.toml, migrations/) for the planned
                    primary database; see design/supabase-migration.md
 design/          - design docs and spikes (Supabase migration plan, P0 findings)
 scheduled-tasks/ - Operational runbooks for the nightly analysis + publish;
-                   cloud-daily-stock-analysis/run.sh is the live (cloud
-                   Routine) pipeline, cloud-weekly-backtest/run.sh the live
-                   Sunday backtest (helpers in scripts/backtest_cloud.py),
-                   the rest are the dormant Mac runbooks
+                   since 2026-10-05 the live daily pipeline is
+                   scripts/run_daily.sh on the Mac mini
+                   (daily-stock-analysis/), cloud-weekly-backtest/run.sh the
+                   live Sunday backtest (helpers in scripts/backtest_cloud.py);
+                   cloud-daily-stock-analysis/ is dormant
 output/          - (gitignored) run artifacts: results JSON, HTML, prices,
                    snapshots.duckdb (derived index over the results JSONs)
 ```
@@ -250,7 +251,9 @@ ruff check .
   compares the row count with the prior snapshot's, warns right after Phase 1
   when the qualifiers are already under it, and stamps `provenance.coverage`;
   `scripts/check_coverage.py` reads it back (exit 4 = degraded) for `run.sh`
-  step `05h`. A degraded run is still archived — the record is kept and a
+  step `05h` and `run_daily.sh`'s `coverage` step (just before its publish,
+  so a `--from publish` resume is gated too; `--force` overrides, and the
+  run ends `degraded`). A degraded run is still archived — the record is kept and a
   re-run of the same date supersedes it — but steps 08/08b are skipped so
   `pages-live` and Cloudflare keep the last good report, and the verdict is
   `RESULT OK-DEGRADED` (`FORCE=1` publishes anyway). A run with no prior, or
