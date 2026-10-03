@@ -1,18 +1,18 @@
 {
  "version": 1,
- "date": "2026-10-01",
- "prev_date": "2026-09-30",
+ "date": "2026-10-02",
+ "prev_date": "2026-10-01",
  "systemic": {
-  "n": 2492,
-  "prev_n": 2427,
-  "changed": 325,
-  "changed_share": 0.1304,
+  "n": 2503,
+  "prev_n": 2495,
+  "changed": 36,
+  "changed_share": 0.0144,
   "missing_data": 0,
   "missing_share": 0.0,
   "shrink_share": 0.0,
-  "flood": true,
-  "cause": "model",
-  "message": "Model-wide shift: 13% of the universe (325 stocks) changed rating in one run — usually a scoring change rather than news about individual stocks."
+  "flood": false,
+  "cause": null,
+  "message": null
  },
  "portfolios": [
   {
@@ -31,9 +31,9 @@
      "HOLD": 0,
      "PASS": 3
     },
-    "median_mos": -0.578874540891059,
+    "median_mos": -0.6139206925724124,
     "median_score": 39.5,
-    "median_spread": 0.3757473325424541,
+    "median_spread": 0.3753476588492921,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -45,16 +45,7 @@
     "upgrades": 0,
     "downgrades": 0
    },
-   "alerts": [
-    {
-     "ticker": "TSM",
-     "kind": "data_gap",
-     "level": "fyi",
-     "from": "HOLD",
-     "to": "PASS",
-     "message": "TSM HOLD → PASS, but the prior run's row is missing its price or identity (likely a data outage), so this is not a signal"
-    }
-   ]
+   "alerts": []
   }
  ]
 }
