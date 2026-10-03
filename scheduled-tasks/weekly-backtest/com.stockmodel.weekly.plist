@@ -15,7 +15,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/danmcooper/Projects/Workspace Folder/scheduled-tasks/weekly-backtest/mac_run.sh</string>
+        <string>/Users/dmcooper/Projects/Workspace Folder/scheduled-tasks/weekly-backtest/mac_run.sh</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
@@ -24,9 +24,9 @@
         <key>Minute</key><integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>/Users/danmcooper/Library/Logs/StockModel/launchd_weekly.out</string>
+    <string>/Users/dmcooper/Library/Logs/StockModel/launchd_weekly.out</string>
     <key>StandardErrorPath</key>
-    <string>/Users/danmcooper/Library/Logs/StockModel/launchd_weekly.err</string>
+    <string>/Users/dmcooper/Library/Logs/StockModel/launchd_weekly.err</string>
     <key>ProcessType</key>
     <string>Background</string>
 </dict>
