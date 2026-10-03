@@ -34,11 +34,12 @@ VENV="$HOME/.venvs/stock-model"
 TRANSFER=""; CHECK=0; SKIP_SEED=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --transfer) TRANSFER="$2"; shift 2 ;;
-    --repo) REPO="$2"; shift 2 ;;
+    --transfer|--repo)
+      [ $# -ge 2 ] || { echo "$1 needs a path" >&2; exit 2; }
+      if [ "$1" = --transfer ]; then TRANSFER="$2"; else REPO="$2"; fi; shift 2 ;;
     --check) CHECK=1; shift ;;
     --skip-seed) SKIP_SEED=1; shift ;;
-    -h|--help) sed -n '2,31p' "$0"; exit 0 ;;
+    -h|--help) awk 'NR > 1 && /^#/ {print; next} NR > 1 {exit}' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -159,7 +160,8 @@ else
   warn "no .env and none in a transfer pack: write it from your password manager (RECOVERY.md step 5)"
 fi
 if [ -f "$ENV_FILE" ]; then
-  chmod 600 "$ENV_FILE"
+  if [ "$CHECK" = 0 ]; then chmod 600 "$ENV_FILE"
+  else case "$(ls -l "$ENV_FILE" | cut -c1-10)" in -rw-------) ;; *) warn "not done: chmod 600 .env" ;; esac; fi
   keys=" $(grep -E '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*[^[:space:]]' "$ENV_FILE" | sed 's/=.*//; s/[[:space:]]//g' | tr '\n' ' ')"
   case "$keys" in *" SEC_EMAIL "*) ok "SEC_EMAIL set" ;; *) warn ".env has no SEC_EMAIL (required)" ;; esac
   missing=""
@@ -195,7 +197,9 @@ for t in daily-stock-analysis publish-stock-report weekly-backtest; do
   link="$HOME/.claude/scheduled-tasks/$t"
   if [ ! -d "$REPO/scheduled-tasks/$t" ]; then warn "~/.claude/scheduled-tasks/$t not linked (needs the checkout)"
   elif [ "$(readlink "$link" 2>/dev/null)" = "$REPO/scheduled-tasks/$t" ]; then ok "~/.claude/scheduled-tasks/$t"
-  elif [ -d "$REPO/scheduled-tasks/$t" ] && doing "link ~/.claude/scheduled-tasks/$t"; then
+  elif [ -e "$link" ] && [ ! -L "$link" ]; then
+    warn "~/.claude/scheduled-tasks/$t is a real folder, not a link: move it aside, then re-run"
+  elif doing "link ~/.claude/scheduled-tasks/$t"; then
     mkdir -p "$HOME/.claude/scheduled-tasks" && ln -sfn "$REPO/scheduled-tasks/$t" "$link" && ok "linked $t"
   fi
 done
@@ -209,7 +213,8 @@ elif [ ! -x "$VPY" ] || [ ! -d "$SNAP_WT" ]; then
 else
   cd "$REPO" || exit 1
   export SSL_CERT_FILE="${SSL_CERT_FILE:-$("$VPY" -m certifi)}" REQUESTS_CA_BUNDLE="${REQUESTS_CA_BUNDLE:-${SSL_CERT_FILE:-}}"
-  mkdir -p output/prices data/cache
+  # --check changes nothing, so the folders are made only for a real run.
+  [ "$CHECK" = 1 ] || mkdir -p output/prices data/cache
   count() { find "$1" -maxdepth 1 -name "$2" 2>/dev/null | wc -l | tr -d ' '; }
 
   # Prices. Supabase holds what the cloud saved last night; a transfer pack's

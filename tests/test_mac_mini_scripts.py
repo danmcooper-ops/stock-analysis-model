@@ -129,3 +129,30 @@ def test_bootstrap_stops_without_repo_access(tmp_path):
     r = _run(BOOT, tmp_path, '--check', REPO_URL=str(tmp_path / 'nope.git'),
              PYTHON3=sys.executable)
     assert r.returncode == 1 and 'cannot read' in r.stdout
+
+
+def test_bootstrap_check_changes_nothing_in_an_existing_checkout(tmp_path):
+    """With a checkout, venv and snapshots worktree in place, --check reaches the
+    seeding step; it must still create no folder and leave .env's mode alone."""
+    home = tmp_path / 'mini'
+    repo = home / 'Projects' / 'Workspace Folder'
+    _git('init', '-q', '-b', 'main', str(repo), cwd=tmp_path)
+    (repo / '.env').write_text('SEC_EMAIL=a@b.c\n', encoding='utf-8')
+    os.chmod(repo / '.env', 0o644)
+    (repo / '.claude' / 'worktrees' / 'snapshots-data').mkdir(parents=True)
+    (repo / '.claude' / 'worktrees' / 'snapshots-data' / 'results_2026-09-29.json.gz').write_bytes(b'x')
+    vbin = home / '.venvs' / 'stock-model' / 'bin'
+    vbin.mkdir(parents=True)
+    os.symlink(sys.executable, vbin / 'python')
+    before = sorted(p.relative_to(home) for p in home.rglob('*'))
+    r = _run(BOOT, home, '--check', REPO_URL=str(repo), PYTHON3=sys.executable)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert 'not done: chmod 600 .env' in r.stdout
+    assert 'not done: copy the newest' in r.stdout
+    assert sorted(p.relative_to(home) for p in home.rglob('*')) == before
+    assert oct((repo / '.env').stat().st_mode & 0o777) == '0o644'
+
+
+def test_bootstrap_rejects_a_missing_option_value(tmp_path):
+    r = _run(BOOT, tmp_path, '--transfer')
+    assert r.returncode == 2 and '--transfer needs a path' in r.stderr
