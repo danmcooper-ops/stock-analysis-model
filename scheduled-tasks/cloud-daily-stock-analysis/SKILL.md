@@ -3,6 +3,14 @@ name: cloud-daily-stock-analysis
 description: End-of-day stock analysis as a Claude Code cloud Routine — a fresh container each weekday runs run.sh, archives the snapshot to data/snapshots and publishes the report to GitHub Pages
 ---
 
+> **DORMANT — do not run.** The live daily run moved to the Mac mini
+> (`../daily-stock-analysis/SKILL.md`); this Routine is paused. Both pipelines
+> archive to `data/snapshots` and force-push `pages-live`, so they must never
+> both run. **If this Routine fires while the Mac task is live, run nothing:
+> report "cloud daily routine is dormant (Mac routine is live) — skipped" as
+> the entire summary and stop.** Bringing it back: `../MAC-MINI-SETUP.md` →
+> "Going back to the cloud".
+
 You are running the end-of-day stock analysis routine **in a Claude Code cloud
 session**. Nothing persists between runs except what is on GitHub, so the
 whole pipeline is packaged in `scheduled-tasks/cloud-daily-stock-analysis/run.sh`

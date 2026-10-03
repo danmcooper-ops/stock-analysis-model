@@ -222,10 +222,13 @@ beyond the old runbook:
   without the login. `_worker.js` is deployed but never committed to
   `pages-live`.
 
-Still to do at cut-over (section 7): remove the **DORMANT** banner from
-`daily-stock-analysis/SKILL.md` and add one to
-`cloud-daily-stock-analysis/SKILL.md`, and update this directory's
-`README.md` table in the same commit.
+The daily half of that banner swap is **done**: `daily-stock-analysis/SKILL.md`
+is marked LIVE, `cloud-daily-stock-analysis/SKILL.md` DORMANT, and the
+`README.md` table matches. Merge this only as the daily cut-over happens — the
+Mac task reads these files at runtime, so an early merge arms the Mac runbook
+while the cloud Routine is still firing. The weekly pair
+(`weekly-backtest/` ↔ `cloud-weekly-backtest/`) is still to swap, at its own
+cut-over in section 7.
 
 ## 5. Schedule it
 
