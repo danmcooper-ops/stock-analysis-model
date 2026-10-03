@@ -706,7 +706,7 @@ def _load_portfolio_payload(rows, out_dir=None, run_date=None, prices_dir=None,
                 payload['changes'] = entries
                 payload['systemic'] = dict(stats, message=pg.systemic_message(stats))
                 payload['events'] = pg.membership_events(pfs, by_tk, prev_by_tk, day,
-                                                         stopped)
+                                                         stopped, systemic=stats)
         except Exception as e:
             logger.warning("portfolios: change alerts unavailable (%s)", e)
     if out_dir and pfs:

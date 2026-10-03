@@ -188,6 +188,35 @@ def test_cloudflare_step_skips_cleanly(tmp_path, env):
     assert 'Cloudflare publish skipped' in r.stdout
 
 
+def _run_sh_fn(name):
+    src = open(RUN_SH, encoding='utf-8').read()
+    m = re.search(rf'^{name}\(\) \{{\n.*?^\}}\n', src, re.S | re.M)
+    assert m, f'{name}() not found in run.sh'
+    return m.group(0)
+
+
+@pytest.mark.skipif(shutil.which('bash') is None, reason='needs bash')
+@pytest.mark.parametrize('fn,skip_text', [('publish_pages', 'publish skipped:'),
+                                          ('publish_cloudflare', 'Cloudflare publish skipped:')])
+def test_a_degraded_run_is_not_published_unless_forced(tmp_path, fn, skip_text):
+    """2026-09-30: 739 of 2,514 rows were force-pushed over a good report."""
+    line = 'COVERAGE degraded rows=739 prior_rows=2514 (2026-09-29) ratio=0.294 min=0.70'
+    head = ('set -uo pipefail\nSMOKE=0; DRY_RUN=0\n'
+            f'PAGES={tmp_path}/pages; HTML={tmp_path}/none.html; PYTHON=false; REPO={REPO}; '
+            f'WORK={tmp_path}; RUNDATE=2031-11-03\nCOVERAGE_LINE="{line}"\n')
+    env = {k: v for k, v in os.environ.items() if not k.startswith(('CLOUDFLARE_', 'CF_'))}
+    r = subprocess.run(['bash', '-c', head + 'DEGRADED=1\n' + _run_sh_fn(fn) + f'{fn}\n'],
+                       env=env, capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stderr
+    assert skip_text in r.stdout and 'last good report' in r.stdout and line in r.stdout
+    assert not (tmp_path / 'pages').exists()            # nothing was built
+    # FORCE=1 goes on to the real step (which fails here on the missing HTML
+    # / secrets — the point is that it was not skipped).
+    r = subprocess.run(['bash', '-c', head + 'DEGRADED=1; FORCE=1\n' + _run_sh_fn(fn) + f'{fn}\n'],
+                       env=env, capture_output=True, text=True, timeout=30)
+    assert skip_text not in r.stdout
+
+
 @pytest.mark.skipif(shutil.which('bash') is None, reason='needs bash')
 def test_cloudflare_step_refuses_a_missing_site(tmp_path):
     script = ('set -uo pipefail\nSMOKE=0; DRY_RUN=0\n'

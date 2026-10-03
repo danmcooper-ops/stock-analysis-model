@@ -35,8 +35,10 @@ if os.path.exists(_env_path):
 from data.screen_skip_cache import ScreenSkipCache
 from data.throttle import SEC_MIN_INTERVAL, Throttle
 from data.yfinance_client import (YFinanceClient, EmptyYahooResponseError,
+                                  YahooRateLimitError, probe_yahoo,
                                   MCAP_MAX_PLAUSIBLE)
 from data.treasury_rate import fetch_risk_free_rate
+from data.coverage import coverage_check, format_coverage
 from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re,
                          weekly_returns, rolling_betas, ROLLING_BETA_WINDOWS)
 from models.dcf import (two_stage_ev_valuation, fair_value_per_share, dcf_sensitivity,
@@ -94,6 +96,9 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             PHASE1_EMPTY_RATE_ALARM, PHASE1_EMPTY_ALARM_MIN_CALLS,
                             YF_REQUEST_DELAY, YF_REQUEST_DELAY_MAX,
                             YF_THROTTLE_PENALTY, YF_THROTTLE_RELAX,
+                            YF_RATE_LIMIT_PAUSE, YF_RATE_LIMIT_PAUSE_MAX,
+                            YF_RATE_LIMIT_BUDGET, YF_RATE_LIMIT_PROBE_INTERVAL,
+                            YF_STARTUP_COOLDOWN_SEC, YF_STARTUP_PROBE_INTERVAL_SEC,
                             NEWS_REQUEST_DELAY, NEWS_REQUEST_DELAY_MAX,
                             NEWS_THROTTLE_PENALTY, NEWS_THROTTLE_RELAX,
                             NEWS_RATE_LIMIT_BREAKER, NEWS_MAX_SECTOR_ITEMS,
@@ -2734,14 +2739,67 @@ def _run_setup():
             '_model_warning_counter': _model_warning_counter}
 
 
-def _run_macro_setup(args, prices_dir):
+def _yahoo_startup_gate(probe=probe_yahoo, max_wait_s=None, interval_s=None,
+                        sleep=time.sleep, clock=time.monotonic):
+    """Wait, bounded, until Yahoo answers one `.info` — True when it does.
+
+    A run that starts into an active rate limit does not recover: the
+    2026-09-30 resume began two minutes after the killed attempt, from the
+    same egress, and its first ten calls all 429'd — the risk-free rate fell
+    to the hardcoded 4.00%, the macro overlay went blank and Phase 1 lost
+    every ticker after 2655. Checking once before committing to the night
+    costs one request; waiting out a short limit costs minutes.
+    """
+    max_wait_s = YF_STARTUP_COOLDOWN_SEC if max_wait_s is None else max_wait_s
+    interval_s = YF_STARTUP_PROBE_INTERVAL_SEC if interval_s is None else interval_s
+    t0 = clock()
+    n = 0
+    while True:
+        n += 1
+        try:
+            state = probe()
+        except Exception as e:
+            logger.warning('yahoo startup probe failed: %s', e)
+            state = 'error'
+        if state == 'ok':
+            if n > 1:
+                print(f"Yahoo answered after {clock() - t0:.0f}s ({n} probes)")
+            return True
+        waited = clock() - t0
+        if waited + interval_s > max_wait_s:
+            return False
+        print(f"Yahoo quoteSummary is {state} at startup — waiting {interval_s:.0f}s "
+              f"before probe {n + 1} ({max_wait_s - waited:.0f}s of cool-down left)")
+        sys.stdout.flush()
+        sleep(interval_s)
+
+
+def _require_yahoo_or_exit():
+    """Exit 3 (checkpoint kept) rather than start a run Yahoo will starve.
+    run.sh names that exit in status.txt; YF_STARTUP_GATE=0 skips the gate."""
+    if os.environ.get('YF_STARTUP_GATE', '1') == '0':
+        return
+    if _yahoo_startup_gate():
+        return
+    print("Yahoo is rate-limiting this host and did not recover within "
+          f"{YF_STARTUP_COOLDOWN_SEC / 60:.0f} min — not starting a run that would "
+          "fabricate its risk-free rate and lose most of the universe. The "
+          "checkpoint is kept; re-run after a cool-down. (exit 3)")
+    sys.stdout.flush()
+    sys.exit(3)
+
+
+def _run_macro_setup(args, prices_dir, run_date=None):
     """Risk-free rate fetch plus the opt-in macro-economic overlay."""
-    # Fetch live risk-free rate (10-yr Treasury yield)
-    risk_free_rate = fetch_risk_free_rate()
+    # Fetch the risk-free rate (10-yr Treasury yield): ^TNX, then FRED DGS10,
+    # then the newest prior snapshot's measured rate, then the hardcoded
+    # fallback the run-quality summary flags.
+    risk_free_rate = fetch_risk_free_rate(run_date=run_date)
     from data import treasury_rate as _treasury
     risk_free_rate_source = _treasury.last_rate_source or 'live'
+    _detail = f", {_treasury.last_rate_detail}" if _treasury.last_rate_detail else ''
     print(f"Risk-free rate: {risk_free_rate:.2%} (10-yr Treasury, "
-          f"source={risk_free_rate_source})")
+          f"source={risk_free_rate_source}{_detail})")
 
     # --- Macro-economic overlay (opt-in via --macro) ---
     macro_regime_result = None
@@ -2900,9 +2958,16 @@ def _run_build_clients(run_start_date, yf_delay=YF_REQUEST_DELAY,
                                delay_max=YF_REQUEST_DELAY_MAX,
                                penalty=YF_THROTTLE_PENALTY,
                                relax_step=YF_THROTTLE_RELAX,
+                               rate_limit_pause=YF_RATE_LIMIT_PAUSE,
+                               rate_limit_pause_max=YF_RATE_LIMIT_PAUSE_MAX,
+                               rate_limit_budget=YF_RATE_LIMIT_BUDGET,
+                               rate_limit_probe_interval=YF_RATE_LIMIT_PROBE_INTERVAL,
                                **({'prices_dir': prices_dir} if prices_dir else {}))
     print(f"yfinance throttle: {yf_delay}s minimum interval "
-          f"(backs off to {YF_REQUEST_DELAY_MAX}s on soft throttles)")
+          f"(backs off to {YF_REQUEST_DELAY_MAX}s on soft throttles; "
+          f"HTTP 429 pauses {YF_RATE_LIMIT_PAUSE:.0f}s doubling to "
+          f"{YF_RATE_LIMIT_PAUSE_MAX:.0f}s, breaker opens after "
+          f"{YF_RATE_LIMIT_BUDGET / 60:.0f} min of pausing)")
 
     # Tiingo client initialized here so it's available for Phase 1 beta calculation
     tiingo_client = TiingoClient(request_delay=0.5)
@@ -3121,6 +3186,7 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
     _fetch_retry_queued = set()
     _fetch_retry_failed = set()
     _yf_throttled = set()          # raised EmptyYahooResponseError at least once
+    _yf_rate_limited = set()       # ... and it was the explicit HTTP 429 form
     _yf_still_empty = set()        # yfinance empty on the end-of-pass retry too
     _identity_filled = set()       # SEC-only rows given the prior snapshot's identity
     _prior_identity = {r.get('ticker'): r for r in (_carry_prior_rows or []) if r.get('ticker')}
@@ -3186,10 +3252,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
         """Warm the caches the loop is about to read. Never raises."""
         try:
             data = yf_client.fetch_financials(t)
-        except EmptyYahooResponseError:
+        except EmptyYahooResponseError as _e:
             # Record it: without this the loop re-fetches and pays a second
             # round trip in exactly the window Yahoo is already unhappy.
             _prefetch_empty.add(t)
+            if isinstance(_e, YahooRateLimitError):
+                _yf_rate_limited.add(t)
             return
         except Exception:
             return          # the loop retries for real
@@ -3214,6 +3282,14 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
         """Trip once Yahoo's soft-throttle rate gets dangerous."""
         if _throttle_alarm.is_set():
             return
+        if getattr(yf_client, 'rate_limited_out', False):
+            # The breaker is open: every fetch fails without a request, so
+            # the pool would only queue up short-circuits ahead of the loop.
+            _throttle_alarm.set()
+            print("  [!] Phase 1: yfinance rate-limit breaker is open — "
+                  "prefetch disabled for the rest of the phase")
+            sys.stdout.flush()
+            return
         st = getattr(yf_client, 'stats', None) or {}
         calls = st.get('calls', 0)
         if calls < PHASE1_EMPTY_ALARM_MIN_CALLS:
@@ -3236,6 +3312,16 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
               f"worker thread(s), look-ahead window {_window}")
 
     for i, ticker in enumerate(all_tickers, 1):
+        if i == _universe_n + 1 and getattr(yf_client, 'rate_limited_out', False):
+            # The retry pass starts here: every ticker from this point is one
+            # Yahoo already failed. Running it while the breaker is open
+            # spends the second chance on short-circuits (the 2026-09-30
+            # re-run: 1,130 re-queued, 0 recovered, in under a minute), so
+            # wait for the next probe window once; the first retry is then
+            # the probe, and a success closes the breaker for the rest.
+            _w = yf_client.wait_for_probe() if hasattr(yf_client, 'wait_for_probe') else 0.0
+            print(f"  Retry pass: rate-limit breaker is open — waited {_w:.0f}s for a probe window")
+            sys.stdout.flush()
         # Keep the window full. Runs before the skip checks so skipped
         # tickers do not stall the pipeline, and re-reads len(all_tickers)
         # each pass so the fetch-failure requeue is picked up naturally.
@@ -3310,9 +3396,11 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                     _yf_throttled.add(ticker)
                 else:
                     yf_data = yf_client.fetch_financials(ticker)
-            except EmptyYahooResponseError:
+            except EmptyYahooResponseError as _e:
                 yf_data = None
                 _yf_throttled.add(ticker)
+                if isinstance(_e, YahooRateLimitError):
+                    _yf_rate_limited.add(ticker)
             finally:
                 _legs['yf_fetch'] += time.perf_counter() - _t
                 _leg_counts['yf_fetch'] += 1
@@ -3332,8 +3420,10 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
                 _ckpt_outcome = 'requeued'
                 all_tickers.append(ticker)
                 screen_outcomes[_grp]['total'] -= 1
+                _why = ('rate-limited (HTTP 429)' if ticker in _yf_rate_limited
+                        else 'empty (likely throttled)')
                 print(f"  [{i}/{len(all_tickers)}] {ticker} - "
-                      "yfinance empty (likely throttled) — re-queued for retry")
+                      f"yfinance {_why} — re-queued for retry")
                 sys.stdout.flush()
                 continue
 
@@ -3601,6 +3691,12 @@ def _run_phase1_screen(args, _prov, all_tickers, ticker_source, yf_client,
               f"{len(_fetch_retry_failed)} dropped)")
         if _fetch_retry_failed:
             print(f"  Failed twice: {', '.join(sorted(_fetch_retry_failed))}")
+    if _yf_rate_limited:
+        _st = getattr(yf_client, 'stats', None) or {}
+        print(f"  Rate-limited (HTTP 429): {len(_yf_rate_limited)} ticker(s); "
+              f"{_st.get('rate_limit_pauses', 0)} pause(s), breaker opened "
+              f"{_st.get('breaker_opened', 0)}x, {_st.get('breaker_short_circuits', 0)} "
+              f"fetch(es) skipped while open")
     if args.validation:
         for grp in ('quality', 'poor'):
             o = screen_outcomes[grp]
@@ -5289,7 +5385,7 @@ def _make_json_safe(val, _depth=0):
 
 def _write_outputs(results, run_start_date, _prov, risk_free_rate,
                    risk_free_rate_source, macro_regime_result, macro_adj,
-                   local_rs, prices_dir, sector_etf_data=None):
+                   local_rs, prices_dir, sector_etf_data=None, coverage=None):
     """Write the JSON snapshot, provenance events, HTML and Excel reports."""
     os.makedirs("output", exist_ok=True)
     today_str = run_start_date.isoformat()  # pin to run-start so a midnight-spanning run stays single-dated
@@ -5302,6 +5398,10 @@ def _write_outputs(results, run_start_date, _prov, risk_free_rate,
         _run_prov['scoring'] = scoring_fingerprint()
     except Exception as e:
         logger.warning('provenance: scoring fingerprint failed (%s)', e)
+    # How much of the universe this run kept (data/coverage.py): run.sh reads
+    # it back to decide whether the night may be published.
+    if coverage is not None:
+        _run_prov['coverage'] = dict(coverage)
 
     # Save results as JSON for backtesting pipeline. Written BEFORE the
     # HTML/Excel renders so the Phase-2 snapshot survives a render crash.
@@ -5374,11 +5474,19 @@ INFO_MISSING_ALERT_SHARE = 0.10
 
 def _run_quality_summary(risk_free_rate, risk_free_rate_source,
                          _model_warning_counter, _prov=None, lost_sec=None,
-                         results=None):
+                         results=None, coverage=None):
     """End-of-run quality gate: surface substituted/fabricated inputs."""
     # Run-quality gate: surface, in one place, every way this run's numbers
     # rest on substituted rather than observed inputs.
     _log = logging.getLogger('analyze_stock')
+    if coverage and coverage.get('degraded'):
+        _log.warning(
+            'RUN QUALITY: coverage %s — the snapshot holds %d rows against %d on %s '
+            '(%.0f%% of the floor\'s %.0f%%): a data source failed for most of the '
+            'universe. The archive keeps this run; run.sh does not publish it',
+            'DEGRADED', coverage.get('rows', 0), coverage.get('prior_rows', 0),
+            coverage.get('prior_date'), (coverage.get('ratio') or 0) * 100,
+            coverage.get('min_ratio', 0) * 100)
     if risk_free_rate_source == 'fallback':
         _log.warning(
             'RUN QUALITY: risk-free rate was a hardcoded fallback — every '
@@ -5482,7 +5590,8 @@ def _main():
     _prov = setup['_prov']
     _model_warning_counter = setup['_model_warning_counter']
 
-    macro = _run_macro_setup(args, prices_dir)
+    _require_yahoo_or_exit()
+    macro = _run_macro_setup(args, prices_dir, run_date=run_start_date)
     _clock.tick('macro_setup')
     risk_free_rate = macro['risk_free_rate']
     risk_free_rate_source = macro['risk_free_rate_source']
@@ -5530,6 +5639,22 @@ def _main():
     screen_outcomes = phase1['screen_outcomes']
     _carry_prior_rows = phase1['_carry_prior_rows']
 
+    # Coverage against the prior snapshot (data/coverage.py). Warned here,
+    # hours before the outputs, because a Phase 1 that kept a third of the
+    # universe is the night's headline and nothing printed it until the
+    # run-quality summary on 2026-09-30.
+    _prior_meta = prior_snapshot_file('output', run_start_date)
+    _prior_rows_n = len(_carry_prior_rows or [])
+    _early_cov = coverage_check(len(qualifying), _prior_rows_n,
+                                _prior_meta[0] if _prior_meta else None,
+                                applicable=not args.tickers)
+    if _early_cov['degraded']:
+        logger.warning('RUN QUALITY (early): Phase 1 qualified %d tickers against %d rows '
+                       'in the prior snapshot %s — %.0f%%, under the %.0f%% floor; '
+                       'tonight will not be published unless Phase 2 recovers',
+                       len(qualifying), _prior_rows_n, _early_cov['prior_date'],
+                       _early_cov['ratio'] * 100, _early_cov['min_ratio'] * 100)
+
     exit_mults = _run_sector_exit_multiples(qualifying, screen_cache,
                                             effective_exit_mult_adj)
     _clock.tick('sector_exit_multiples')
@@ -5574,10 +5699,15 @@ def _main():
     _timings = _clock.as_dict()
     _timings['phase1'] = phase1.get('timings')
     _prov.record_timings(_timings)
+    coverage = coverage_check(len(results), _prior_rows_n,
+                              _prior_meta[0] if _prior_meta else None,
+                              applicable=not args.tickers)
+    print(format_coverage(coverage))
 
     _write_outputs(results, run_start_date, _prov, risk_free_rate,
                    risk_free_rate_source, macro_regime_result, macro_adj,
-                   local_rs, prices_dir, sector_etf_data=sector_etf_data)
+                   local_rs, prices_dir, sector_etf_data=sector_etf_data,
+                   coverage=coverage)
     if checkpoint is not None:
         # The outputs exist now; saved progress for this date is spent.
         checkpoint.clear()
@@ -5585,7 +5715,7 @@ def _main():
     _clock.tick('write_outputs')
     _run_quality_summary(risk_free_rate, risk_free_rate_source,
                          _model_warning_counter, _prov, lost_sec=lost_sec,
-                         results=results)
+                         results=results, coverage=coverage)
     print(_clock.table())
 
 

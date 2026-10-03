@@ -203,8 +203,183 @@ def test_pause_doubles_to_the_cap_and_resets_on_success(monkeypatch):
         now[0] = client._auth_pause_until  # let the pause lapse
     assert pauses == [10, 20, 40, 40]
 
-    client._retry(lambda: 'ok')
+    client._retry(lambda: 'ok')                        # a history call ...
+    assert client._auth_pause_next == 40               # ... does not reset it
+    client._retry(lambda: 'ok', resets_backoff=True)   # a healthy .info does
     assert client._auth_pause_next == 10
+
+
+# --- HTTP 429 circuit breaker (2026-09-30 night) -----------------------------
+
+def _rl_client(monkeypatch, now, **kw):
+    monkeypatch.setattr(yc.time, 'monotonic', lambda: now[0])
+    kw.setdefault('rate_limit_pause', 60)
+    kw.setdefault('rate_limit_pause_max', 240)
+    kw.setdefault('rate_limit_budget', 1000)
+    kw.setdefault('rate_limit_probe_interval', 100)
+    return _client(**kw)
+
+
+def _limited():
+    raise RuntimeError('Too Many Requests. Rate limited. Try after a while.')
+
+
+def test_429_pauses_double_and_only_an_info_success_resets(monkeypatch):
+    now = [1000.0]
+    client = _rl_client(monkeypatch, now)
+    pauses = []
+    for _ in range(4):
+        assert client._note_rate_limit()
+        pauses.append(client._auth_pause_until - now[0])
+        now[0] = client._auth_pause_until
+    assert pauses == [60, 120, 240, 240]
+    assert client.stats['rate_limit_pauses'] == 4
+    assert client._rl_budget == 1000 - 660
+    client._retry(lambda: 'ok')                        # history: no reset
+    assert client._rl_pause_next == 240 and client._rl_budget == 340
+    client._retry(lambda: 'ok', resets_backoff=True)   # .info: reset, budget too
+    assert client._rl_pause_next == 60 and client._rl_budget == 1000
+
+
+def test_sporadic_429s_on_a_healthy_yahoo_never_open_the_breaker(monkeypatch):
+    """The 2026-09-30 re-run: 36 single 429s in two hours, each followed by
+    successes, drained a budget that was only refilled on close and opened
+    the breaker on a Yahoo answering 98% of requests. The budget measures
+    consecutive pausing: a healthy .info refills it."""
+    now = [1000.0]
+    client = _rl_client(monkeypatch, now, rate_limit_budget=150)
+    for _ in range(100):
+        assert client._note_rate_limit()
+        now[0] = client._auth_pause_until
+        client._retry(lambda: 'ok', resets_backoff=True)
+    assert not client.rate_limited_out and client.stats['breaker_opened'] == 0
+    assert client.stats['rate_limit_pauses'] == 100 and client._rl_budget == 150
+
+
+def test_429s_inside_one_pause_share_it(monkeypatch):
+    now = [1000.0]
+    client = _rl_client(monkeypatch, now)
+    client._note_rate_limit()
+    until = client._auth_pause_until
+    client._note_rate_limit()                          # another worker
+    assert client._auth_pause_until == until
+    assert client._rl_pause_next == 120                # doubled once
+    assert client.stats['rate_limited'] == 2 and client.stats['rate_limit_pauses'] == 1
+
+
+def test_breaker_opens_when_the_budget_is_spent_and_short_circuits(monkeypatch):
+    now = [1000.0]
+    client = _rl_client(monkeypatch, now, rate_limit_budget=150)
+    assert client._note_rate_limit()                   # 60s, 90 left
+    now[0] = client._auth_pause_until
+    assert client._note_rate_limit()                   # 90s (capped), 0 left
+    now[0] = client._auth_pause_until
+    assert client._note_rate_limit() is False          # breaker opens
+    assert client.rate_limited_out and client.stats['breaker_opened'] == 1
+
+    # Open: every fetch fails without a request — and as the throttle's
+    # exception, so Phase 1 re-queues and falls back to SEC data.
+    calls = []
+    with pytest.raises(yc.YahooRateLimitError, match='breaker open'):
+        client._retry(lambda: calls.append(1))
+    assert calls == [] and client.stats['breaker_short_circuits'] == 1
+    assert client.stats['retries'] == 0                # no attempts burned
+
+
+def test_breaker_lets_one_probe_per_interval_and_any_success_closes(monkeypatch):
+    """Phase 2 fetches dividends only; when only .info could probe, a breaker
+    that opened at the end of Phase 1 stayed open for all of Phase 2 on
+    2026-09-30 (4,819 dividends fetches failed). Any fetch may probe now."""
+    now = [1000.0]
+    client = _rl_client(monkeypatch, now, rate_limit_budget=60)
+    client._note_rate_limit()
+    now[0] = client._auth_pause_until
+    assert client._note_rate_limit() is False
+    opened_at = now[0]
+
+    # Before the probe interval: every fetch is refused, .info included.
+    with pytest.raises(yc.YahooRateLimitError):
+        client._retry(lambda: 'ok', resets_backoff=True)
+    with pytest.raises(yc.YahooRateLimitError):
+        client._retry(lambda: 'ok')
+    assert client.stats['breaker_short_circuits'] == 2
+    # The window opens: a history call is the probe; it fails, breaker stays open.
+    now[0] = opened_at + 100
+    with pytest.raises(yc.YahooRateLimitError):
+        client._retry(_limited)
+    assert client.stats['breaker_probes'] == 1 and client.rate_limited_out
+    with pytest.raises(yc.YahooRateLimitError):      # the window is spent
+        client._retry(lambda: 'ok')
+    # Next window: a dividends-style call succeeds and closes it.
+    now[0] += 100
+    assert client._retry(lambda: 'ok') == 'ok'
+    assert not client.rate_limited_out
+    assert client._rl_budget == 60 and client._rl_pause_next == 60
+    assert client._retry(lambda: 'ok') == 'ok'          # ordinary fetches resume
+
+
+def test_wait_for_probe_sleeps_until_the_window(monkeypatch):
+    now = [1000.0]
+    client = _rl_client(monkeypatch, now, rate_limit_budget=60)
+    slept = []
+    assert client.wait_for_probe(sleep=slept.append) == 0.0   # closed: no wait
+    client._note_rate_limit()
+    now[0] = client._auth_pause_until
+    client._note_rate_limit()                                 # opens; probe at +100
+    now[0] += 30
+    assert client.wait_for_probe(sleep=slept.append) == 70.0
+    assert slept == [70.0]
+    now[0] += 70
+    assert client.wait_for_probe(sleep=slept.append) == 0.0   # window is open now
+
+
+def test_probe_yahoo_classifies_the_answer(monkeypatch):
+    from yfinance.exceptions import YFRateLimitError
+
+    class _T:
+        answer = None
+
+        def __init__(self, symbol):
+            pass
+
+        @property
+        def info(self):
+            if isinstance(_T.answer, Exception):
+                raise _T.answer
+            return _T.answer
+
+    monkeypatch.setattr(yc.yf, 'Ticker', _T)
+    _T.answer = dict(_GOOD_INFO)
+    assert yc.probe_yahoo(timeout=None) == 'ok'
+    _T.answer = YFRateLimitError()
+    assert yc.probe_yahoo(timeout=None) == 'rate_limited'
+    _T.answer = {'trailingPegRatio': None}
+    assert yc.probe_yahoo(timeout=None) == 'empty'
+    _T.answer = ConnectionError('reset')
+    with pytest.raises(ConnectionError):
+        yc.probe_yahoo(timeout=None)
+
+
+def test_fetch_financials_surfaces_a_429_as_an_empty_response(monkeypatch):
+    """End to end: a 429 from yfinance reaches the Phase-1 caller as the
+    throttle exception, is never cached, and widens the interval."""
+    from yfinance.exceptions import YFRateLimitError
+
+    class _Limited:
+        def __init__(self, ticker):
+            self.ticker = ticker
+
+        @property
+        def balance_sheet(self):
+            raise YFRateLimitError()
+
+    monkeypatch.setattr(yc.yf, 'Ticker', _Limited)
+    client = YFinanceClient(request_delay=0.1, prices_dir=None, fetch_timeout=None,
+                            rate_limit_pause=0, rate_limit_budget=1e9)
+    with pytest.raises(yc.EmptyYahooResponseError):
+        client.fetch_financials('LIM')
+    assert 'LIM' not in client._financials_cache
+    assert client.stats['rate_limited'] == 3 and client._throttle.delay > 0.1
 
 
 def test_failures_inside_one_pause_share_it(monkeypatch):

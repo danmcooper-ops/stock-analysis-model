@@ -162,6 +162,124 @@ def test_still_empty_keeps_sec_data_and_prior_identity(phase1, workers):
     assert cache.skip_reason('AVGO', 1e9) is None          # throttled is not dead
 
 
+# ------------------------------------------------- HTTP 429 (2026-09-30)
+
+class _RateLimitedYF(_FlakyYF):
+    """Like _FlakyYF, but Yahoo's answer is the explicit HTTP 429."""
+    def fetch_financials(self, ticker):
+        with self._lock:
+            if self._left.get(ticker, 0) > 0:
+                self._left[ticker] -= 1
+                self.fetched.append(ticker)
+                raise Y.YahooRateLimitError('Too Many Requests. Rate limited.')
+        return _FakeYF.fetch_financials(self, ticker)
+
+
+def test_rate_limited_us_filer_is_requeued_with_the_cause(phase1):
+    """The 2026-09-30 failure: 3,655 tickers raised the 429 and only the 10
+    soft-throttle empties were re-queued. A 429 must take the same path."""
+    yf = _RateLimitedYF(flaky={'AVGO'}, fails=1)
+    out, text, prov, _ = phase1(yf, ['AVGO', 'NVDA'])
+    assert 'AVGO - yfinance rate-limited (HTTP 429) — re-queued for retry' in text
+    assert 'AVGO - error:' not in text
+    assert yf.fetched.count('AVGO') == 2
+    assert out['screen_cache']['AVGO']['data_source'] == 'sec_xbrl+yfinance'
+    assert 'Rate-limited (HTTP 429): 1 ticker(s)' in text
+
+
+@pytest.mark.parametrize('workers', [1, 4])
+def test_still_rate_limited_us_filer_keeps_sec_data_and_identity(phase1, workers):
+    yf = _RateLimitedYF(flaky={'AVGO'}, fails=99)
+    out, text, prov, cache = phase1(yf, ['AVGO', 'NVDA'], workers=workers)
+    entry = out['screen_cache']['AVGO']
+    assert entry['data_source'] == 'sec_xbrl'
+    assert entry['yf_data']['info']['shortName'] == 'Broadcom Inc.'
+    assert [e for e in prov.events if e[2] == 'identity'][0][1] == 'AVGO'
+    assert cache.skip_reason('AVGO', 1e9) is None          # rate-limited is not dead
+
+
+def test_retry_pass_waits_for_a_probe_when_the_breaker_is_open(phase1):
+    """2026-09-30 re-run: the breaker opened at the end of the pass and the
+    retry pass ran straight into it — 1,130 re-queued, 0 recovered. The
+    pass now waits one probe window; the first retry probes and recovers."""
+    class _YF(_RateLimitedYF):
+        def __init__(self, **kw):
+            super().__init__(**kw)
+            self.rate_limited_out = True
+            self.waits = 0
+
+        def wait_for_probe(self):
+            self.waits += 1
+            self.rate_limited_out = False          # Yahoo answers again
+            return 123.0
+
+    yf = _YF(flaky={'AVGO'}, fails=1)
+    out, text, _, _ = phase1(yf, ['AVGO', 'NVDA'])
+    assert yf.waits == 1
+    assert 'Retry pass: rate-limit breaker is open — waited 123s for a probe window' in text
+    assert out['screen_cache']['AVGO']['data_source'] == 'sec_xbrl+yfinance'
+    assert 'Fetch-failure retry: 1 re-queued, 1 recovered' in text
+
+
+def test_open_breaker_disables_the_prefetch_pool(phase1):
+    yf = _FakeYF()
+    yf.rate_limited_out = True
+    _, text, _, _ = phase1(yf, ['AVGO', 'NVDA'], workers=4)
+    assert '[!] Phase 1: yfinance rate-limit breaker is open — prefetch disabled' in text
+
+
+# ------------------------------------------------- startup gate
+
+class TestStartupGate:
+    def _run(self, answers, max_wait=300, interval=60):
+        seq = list(answers)
+        slept = []
+        now = [0.0]
+
+        def probe():
+            a = seq.pop(0)
+            if isinstance(a, Exception):
+                raise a
+            return a
+
+        def sleep(s):
+            slept.append(s)
+            now[0] += s
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            ok = A._yahoo_startup_gate(probe=probe, max_wait_s=max_wait, interval_s=interval,
+                                       sleep=sleep, clock=lambda: now[0])
+        return ok, slept, buf.getvalue()
+
+    def test_passes_at_once_when_yahoo_answers(self):
+        ok, slept, text = self._run(['ok'])
+        assert ok and slept == [] and text == ''
+
+    def test_waits_out_a_short_limit(self):
+        ok, slept, text = self._run(['rate_limited', 'empty', ConnectionError('x'), 'ok'])
+        assert ok and slept == [60, 60, 60]
+        assert 'rate_limited at startup — waiting 60s before probe 2' in text
+        assert 'Yahoo answered after 180s (4 probes)' in text
+
+    def test_gives_up_after_the_cooldown(self):
+        ok, slept, _ = self._run(['rate_limited'] * 10, max_wait=300, interval=60)
+        assert ok is False and slept == [60] * 5     # probes at 0..300s, then stop
+
+    def test_require_exits_3_when_the_gate_fails(self, monkeypatch, capsys):
+        monkeypatch.delenv('YF_STARTUP_GATE', raising=False)
+        monkeypatch.setattr(A, '_yahoo_startup_gate', lambda: False)
+        with pytest.raises(SystemExit) as ei:
+            A._require_yahoo_or_exit()
+        assert ei.value.code == 3
+        assert 'checkpoint is kept' in capsys.readouterr().out
+
+    def test_require_can_be_disabled(self, monkeypatch):
+        monkeypatch.setenv('YF_STARTUP_GATE', '0')
+        monkeypatch.setattr(A, '_yahoo_startup_gate', lambda: pytest.fail('probed'))
+        A._require_yahoo_or_exit()
+
+
 def test_throttled_non_filer_is_not_remembered_as_dead(phase1):
     yf = _FlakyYF(flaky={'FRGN'}, fails=99)
     _, text, _, cache = phase1(yf, ['FRGN', 'NVDA'], sec=_FakeSEC(ciks=['NVDA']))

@@ -38,6 +38,35 @@ class YahooAuthError(EmptyYahooResponseError):
         self.data = data
 
 
+class YahooRateLimitError(EmptyYahooResponseError):
+    """Yahoo answered HTTP 429 (yfinance's ``YFRateLimitError``, "Too Many
+    Requests. Rate limited. Try after a while.").
+
+    The 2026-09-30 run: 8,030 of 9,186 fetches raised this, and because it was
+    a plain Exception to every defence built for the soft throttle it
+    penalised nothing, tripped no valve, was never re-queued and never fell
+    back to SEC data — Phase 1 spent six hours sending ~24,000 doomed
+    requests at the base interval, which is what keeps an IP rate-limited.
+    It is the explicit form of the throttle, so it subclasses
+    EmptyYahooResponseError: the throttle widens, the Phase-1 alarm counts
+    it, and every caller that retries or falls back on a throttle handles it.
+    The breaker below is what stops a sustained block from costing the night.
+    """
+
+
+def _is_rate_limited(exc):
+    """True for Yahoo's HTTP 429, however it reaches us: yfinance's own
+    exception class, or its message text when wrapped by a caller."""
+    try:
+        from yfinance.exceptions import YFRateLimitError
+        if isinstance(exc, YFRateLimitError):
+            return True
+    except ImportError:  # older yfinance: fall through to the text check
+        pass
+    msg = str(exc)
+    return 'Too Many Requests' in msg or 'Rate limited' in msg or 'HTTP Error 429' in msg
+
+
 # Market caps above this are corruption, not data: the largest real market
 # cap is ~$5.4T (NVDA, 2026-08), so $20T leaves ~4x headroom while still
 # catching Yahoo's preferred-line blowups two orders of magnitude out.
@@ -333,6 +362,33 @@ def _run_with_timeout(func, timeout_seconds):
         ) from None
 
 
+def probe_yahoo(symbol='SPY', timeout=20):
+    """One quoteSummary request, classified: 'ok', 'rate_limited' or 'empty'.
+
+    The startup gate's question is the one Phase 1 asks 9,000 times — can
+    this host get an `.info` with an identity in it right now — so the
+    probe is exactly that call, crumb included. Attempt 2 on 2026-09-30
+    could not (its first log line was the crumb 429) and went on to a
+    seven-hour run with a fabricated risk-free rate and 29% of the
+    universe. An empty answer clears a poisoned crumb so the next probe
+    re-mints one. Anything that is not a rate limit propagates.
+    """
+    def _fetch():
+        info = yf.Ticker(symbol).info or {}
+        return bool(info.get('symbol') or info.get('shortName') or info.get('longName'))
+
+    try:
+        ok = _run_with_timeout(_fetch, timeout) if timeout else _fetch()
+    except Exception as e:
+        if _is_rate_limited(e):
+            return 'rate_limited'
+        raise
+    if ok:
+        return 'ok'
+    reset_crumb()
+    return 'empty'
+
+
 def _is_not_found(exc):
     """True for a definitive "symbol does not exist" answer from Yahoo.
 
@@ -348,7 +404,9 @@ class YFinanceClient:
     def __init__(self, request_delay=1.0, snapshot_cache=None,
                  fetch_timeout=20, prices_dir="output/prices", run_date=None,
                  delay_max=None, penalty=1.5, relax_step=0.98,
-                 auth_pause=10.0, auth_pause_max=120.0, auth_pause_budget=1800.0):
+                 auth_pause=10.0, auth_pause_max=120.0, auth_pause_budget=1800.0,
+                 rate_limit_pause=20.0, rate_limit_pause_max=900.0,
+                 rate_limit_budget=3600.0, rate_limit_probe_interval=600.0):
         self._financials_cache = {}
         self._history_cache = {}
         self._throttle = Throttle(request_delay)
@@ -372,14 +430,45 @@ class YFinanceClient:
         self._auth_pause_max = auth_pause_max
         self._auth_pause_next = auth_pause
         self._auth_pause_until = 0.0
+        # Circuit breaker for a hard rate limit (HTTP 429). Same shared pause
+        # as the 401 path — one more request from any thread is one more
+        # reason for Yahoo to keep the IP limited — but on a longer scale:
+        # 20s doubling to 15 min, since a 429 says "try after a while" and a
+        # 1-2s retry is just another hit. Consecutive 429s escalate; a
+        # successful `.info` fetch (not a history call: the chart endpoint
+        # can answer while quoteSummary is blocked, which is what kept the
+        # 401 back-off from ever doubling) resets the escalation AND the
+        # budget, so the budget (an hour) measures consecutive pausing. The
+        # 2026-09-30 re-run is why: refilled only on close, 36 sporadic 429s
+        # on a Yahoo answering 98% of requests spent it 60-120s at a time and
+        # opened the breaker on a healthy source. When it is spent the
+        # breaker OPENS: every fetch raises YahooRateLimitError without a
+        # request, so Phase 1 finishes on SEC data in minutes instead of
+        # burning 3.7s of doomed retries per ticker for the rest of the
+        # night. One probe — any fetch, since Phase 2 only fetches dividends
+        # and could never close a breaker that only `.info` might probe — per
+        # `rate_limit_probe_interval` is let through; the first success
+        # closes the breaker and restores the budget.
+        self._rl_pause_base = rate_limit_pause
+        self._rl_pause_max = rate_limit_pause_max
+        self._rl_pause_next = rate_limit_pause
+        self._rl_budget_initial = rate_limit_budget
+        self._rl_budget = rate_limit_budget
+        self._rl_probe_interval = rate_limit_probe_interval
+        self._rl_next_probe = 0.0
+        self.rate_limited_out = False   # the breaker is open
         # Per-run call accounting (see stats()). `empty` counts Yahoo's soft
         # throttle, which _is_not_found deliberately does NOT match, so a
         # throttled ticker costs 3 throttle ticks + 3s of backoff before the
         # caller's retry queue even sees it. That amplification is the thing
         # to watch before raising concurrency or cutting the delay.
+        # `rate_limited` counts 429 attempts (also in empty_attempts, since a
+        # 429 is a throttle); `breaker_*` is the circuit breaker above.
         self.stats = {'calls': 0, 'seconds': 0.0, 'retries': 0, 'timeouts': 0,
                       'not_found': 0, 'empty_attempts': 0, 'errors': 0,
-                      'auth_failures': 0}
+                      'auth_failures': 0, 'rate_limited': 0,
+                      'rate_limit_pauses': 0, 'breaker_short_circuits': 0,
+                      'breaker_probes': 0, 'breaker_opened': 0}
         # Bare yf.Ticker() calls below use yfinance's own session; honour a
         # YF_IMPERSONATE override for them too (no-op on the default profile).
         install_default_session()
@@ -455,7 +544,79 @@ class YFinanceClient:
                                "%.0fs", pause)
             return True
 
-    def _retry(self, func, max_retries=2):
+    def _note_rate_limit(self):
+        """Record a 429 and start (or join) the shared pause. Returns False
+        once the budget is spent — the breaker is then open and the caller
+        stops retrying."""
+        with self._auth_lock:
+            self.stats['rate_limited'] += 1
+            now = time.monotonic()
+            if self.rate_limited_out:
+                return False
+            if now < self._auth_pause_until:
+                return True
+            if self._rl_budget <= 0:
+                self._open_breaker(now)
+                return False
+            pause = min(self._rl_pause_next, self._rl_budget)
+            self._rl_budget -= pause
+            self._auth_pause_until = now + pause
+            self._rl_pause_next = min(self._rl_pause_next * 2, self._rl_pause_max)
+            self.stats['rate_limit_pauses'] += 1
+            logger.warning("yfinance: HTTP 429 (rate limited) — pausing Yahoo requests "
+                           "%.0fs (%.0fs of pause budget left)", pause, self._rl_budget)
+            return True
+
+    def _open_breaker(self, now):
+        # Caller holds _auth_lock.
+        self.rate_limited_out = True
+        self.stats['breaker_opened'] += 1
+        self._rl_next_probe = now + self._rl_probe_interval
+        logger.warning("yfinance: rate-limit pause budget spent — breaker OPEN: Yahoo "
+                       "fetches now fail without a request; one probe every %.0fs",
+                       self._rl_probe_interval)
+
+    def _close_breaker(self):
+        with self._auth_lock:
+            if not self.rate_limited_out:
+                return
+            self.rate_limited_out = False
+            self._rl_budget = self._rl_budget_initial
+            self._rl_pause_next = self._rl_pause_base
+        logger.warning("yfinance: a probe succeeded — breaker CLOSED, Yahoo fetches resume")
+
+    def _breaker_admits(self):
+        """While the breaker is open, one fetch per probe interval may go out
+        — whichever call comes first, so a phase that only fetches dividends
+        can still close it. Returns True when this call may proceed."""
+        with self._auth_lock:
+            if not self.rate_limited_out:
+                return True
+            now = time.monotonic()
+            if now >= self._rl_next_probe:
+                self._rl_next_probe = now + self._rl_probe_interval
+                self.stats['breaker_probes'] += 1
+                return True
+            self.stats['breaker_short_circuits'] += 1
+            return False
+
+    def wait_for_probe(self, sleep=time.sleep):
+        """Block until the open breaker will admit a probe (at most one probe
+        interval). Returns the seconds waited, 0 when the breaker is closed.
+
+        Phase 1 calls it before its retry pass: the pass re-fetches every
+        ticker Yahoo failed, and running it the moment the breaker opens — as
+        the 2026-09-30 re-run did, 1,130 re-queued and 0 recovered in under
+        a minute — spends the second chance on short-circuits."""
+        with self._auth_lock:
+            if not self.rate_limited_out:
+                return 0.0
+            wait = max(0.0, self._rl_next_probe - time.monotonic())
+        if wait > 0:
+            sleep(wait)
+        return wait
+
+    def _retry(self, func, max_retries=2, resets_backoff=False):
         """Run *func* with retries for transient failures.
 
         Timeouts are NOT retried — if a call hits the wall-clock limit, we
@@ -463,10 +624,20 @@ class YFinanceClient:
         only piles up orphaned threads and leaks sockets into CLOSE_WAIT,
         which poisons yfinance's internal connection pool for subsequent
         tickers.  Other exceptions (HTTP errors, parse errors) still retry.
+
+        *resets_backoff*: a success resets the 401/429 escalation and may
+        close the breaker. Only the `.info` fetch passes it: a history or
+        dividends call can succeed while quoteSummary is still blocked, and
+        letting those reset the back-off is why it never doubled on
+        2026-09-30 (28 pauses, every one 10s).
         """
         t0 = time.perf_counter()
         self.stats['calls'] += 1
         try:
+            if not self._breaker_admits():
+                self.stats['errors'] += 1
+                raise YahooRateLimitError(
+                    'yfinance rate-limit breaker open — not requested')
             for attempt in range(max_retries + 1):
                 if attempt:
                     self.stats['retries'] += 1
@@ -480,15 +651,32 @@ class YFinanceClient:
                     # Healthy response: walk a penalised interval back down.
                     # Never below the configured base (relax() floors there).
                     self._throttle.relax(self._relax_step)
-                    if self._auth_pause_next != self._auth_pause_base:
-                        with self._auth_lock:
-                            self._auth_pause_next = self._auth_pause_base
+                    # Any success proves Yahoo is answering again: close an
+                    # open breaker. Only a healthy .info resets the 401/429
+                    # escalation and the pause budget, which therefore
+                    # measure consecutive pushback, not pushback per night.
+                    if self.rate_limited_out:
+                        self._close_breaker()
+                    if resets_backoff:
+                        if self._auth_pause_next != self._auth_pause_base \
+                                or self._rl_pause_next != self._rl_pause_base \
+                                or self._rl_budget != self._rl_budget_initial:
+                            with self._auth_lock:
+                                self._auth_pause_next = self._auth_pause_base
+                                self._rl_pause_next = self._rl_pause_base
+                                self._rl_budget = self._rl_budget_initial
                     return _out
                 except TimeoutError:
                     # Don't retry — Yahoo is unresponsive for this ticker.
                     self.stats['timeouts'] += 1
                     raise
-                except Exception as e:
+                except Exception as exc:
+                    e = exc
+                    if not isinstance(exc, EmptyYahooResponseError) and _is_rate_limited(exc):
+                        # yfinance's own YFRateLimitError: the explicit form
+                        # of the throttle, so it takes the throttle's path.
+                        e = YahooRateLimitError(str(exc))
+                        e.__cause__ = exc
                     if isinstance(e, EmptyYahooResponseError):
                         # Per ATTEMPT, not per call: a soft-throttled ticker
                         # raises on all three, and that 3x is the cost worth
@@ -498,15 +686,23 @@ class YFinanceClient:
                         # sharing this client (the pool's workers included)
                         # before the next attempt goes out.
                         self._throttle.penalize(self._penalty, cap=self._delay_max)
-                    if isinstance(e, YahooAuthError) and not self._note_auth_failure():
+                    fatal = False
+                    if isinstance(e, YahooRateLimitError) and not self._note_rate_limit():
                         self.stats['errors'] += 1
-                        raise
-                    if attempt == max_retries or _is_not_found(e):
+                        fatal = True
+                    elif isinstance(e, YahooAuthError) and not self._note_auth_failure():
+                        self.stats['errors'] += 1
+                        fatal = True
+                    elif attempt == max_retries or _is_not_found(e):
                         if _is_not_found(e):
                             self.stats['not_found'] += 1
                         else:
                             self.stats['errors'] += 1
-                        raise
+                        fatal = True
+                    if fatal:
+                        if e is exc:
+                            raise
+                        raise e from exc
                     time.sleep(1.0 * (attempt + 1))
         finally:
             self.stats['seconds'] += time.perf_counter() - t0
@@ -658,7 +854,7 @@ class YFinanceClient:
             return data
 
         try:
-            financials = self._retry(_fetch)
+            financials = self._retry(_fetch, resets_backoff=True)
         except YahooAuthError as e:
             if e.data is None:
                 raise

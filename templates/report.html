@@ -2266,6 +2266,11 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
 .sn-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
 .sn-title{font-size:20px;font-weight:800;letter-spacing:-.5px;text-transform:uppercase;line-height:1.05;margin:0;}
 .sn-crumb{--sac:var(--chrome-muted);font-size:12.5px;}
+/* Phones only (see the both-orientations block below): the top bar has no
+   room for the centred #f-count there, so the count rides beside the view
+   title instead, small and in parentheses. Hidden on the no-table views,
+   as #f-count is (moveFilterBar mirrors .nav-only onto #subnav). */
+.sn-count{display:none;}
 .sn-date{--sac:var(--chrome-muted);font-size:12px;margin-left:auto;white-space:nowrap;}
 .sn-chips{display:flex;gap:22px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;border-bottom:1px solid var(--tab-line);}
 .sn-chips::-webkit-scrollbar{display:none;}
@@ -2307,6 +2312,8 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
   .header .hdr-search #f-search{--sac:#fff;font-size:16px;height:30px;}
   .header .hdr-search #f-search::placeholder{color:#b8b7b4 !important;}
   .hdr-kbd,.header .hdr-center,.header .filt-btn-label{display:none !important;}
+  .sn-count{--sac:var(--chrome-muted);display:inline;font-size:12.5px;font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  #subnav.nav-only .sn-count{display:none;}
   .header #filter-bar .fpop-btn,[data-theme="dark"] .header #filter-bar .fpop-btn{width:36px;height:36px;padding:0;justify-content:center;background:transparent;border:0;}
   .header #filter-bar .fpop-btn,.header #filter-bar .fpop-btn *{color:#fff !important;}
   .header #filter-bar .fpop-btn.active,[data-theme="dark"] .header #filter-bar .fpop-btn.active{background:#2a2a2a;}
@@ -2336,8 +2343,13 @@ body.wide-table #subnav{padding-left:20px;padding-right:20px;}
   html.sb-drawer #sidebar .sb-row,html.sb-drawer #sidebar .sb-head{justify-content:flex-start;padding:0 12px 0 16px;}
   html.sb-drawer .sb-scrim{display:block;position:fixed;inset:0;z-index:1290;background:rgba(0,0,0,.55);}
   .header{padding:calc(4px + env(safe-area-inset-top)) 12px 4px 6px;}
-  #subnav{padding:6px 0;gap:6px;}
-  .sn-head{display:none;}
+  /* No room for a second line, so the title (with its count) leads the
+     chip row rather than being dropped — the row keeps its height. */
+  #subnav{padding:6px 0;gap:14px;flex-direction:row;align-items:center;}
+  .sn-head{flex-shrink:0;flex-wrap:nowrap;gap:6px;}
+  .sn-title{font-size:15px;}
+  .sn-crumb,.sn-date{display:none;}
+  .sn-chips{flex:1 1 auto;min-width:0;}
   .sn-chip{height:32px;}
 }
 @media(hover:none) and (pointer:coarse){ #sidebar .navmenu-key{display:none;}.hdr-kbd{display:none;}}
@@ -2744,9 +2756,9 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       <div class="fpop-panel filt-panel" id="filt-panel">
         <div class="fpop-header">
           <!-- Count rides beside the title: phones hide the header's centred
-               #f-count, so this is the only place the result count is
-               visible on iOS. Fed by _updateCountLabel alongside #f-count
-               (plain "N of M" — the drill-down chip stays header-only). -->
+               #f-count (they show #sn-count beside the view title instead).
+               Fed by _updateCountLabel alongside #f-count (plain "N of M" —
+               the drill-down chip stays header-only). -->
           <span class="fpop-title-wrap"><span class="fpop-title">Filters</span><span class="filter-count" id="filt-count"></span></span>
           <span class="filt-header-actions"><button class="filter-clear" onclick="clearFilters()">Clear</button><button class="fpop-close" onclick="toggleFiltMenu(event)">&#215;</button></span>
         </div>
@@ -2835,7 +2847,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   <!-- The view's name and its sub-tabs as Seeking Alpha-style chips —
        the only route to a sub-tab now that the Views dropdown is gone. -->
   <div id="subnav" class="sa-chrome">
-    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span></div>
+    <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-count" id="sn-count"></span><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span></div>
     <div class="sn-chips" id="sn-chips" role="tablist"></div>
   </div>
   <div id="view-pool" class="view active">
@@ -5590,11 +5602,13 @@ function _updateCountLabel(){
   }
   if(chip)h+=' <span onclick="'+fn+'" title="Clear this filter" style="cursor:pointer;background:#3b6fd4;color:#fff;font-weight:600;padding:2px 9px;border-radius:10px;margin-left:6px;white-space:nowrap">'+esc(chip)+' &times;</span>';
   el.innerHTML=h;
-  /* Twin count beside the Filters panel's title — the only visible count on
-     phones. Plain text: no chip, no "best match" (that suffix describes
-     ordering, not the count). */
+  /* Twin count beside the Filters panel's title. Plain text: no chip, no
+     "best match" (that suffix describes ordering, not the count). */
   var fc=document.getElementById('filt-count');
   if(fc)fc.textContent=FD.length+' of '+DATA.length;
+  /* And beside the view title on phones, where #f-count is hidden. */
+  var sn=document.getElementById('sn-count');
+  if(sn)sn.textContent='('+FD.length+' of '+DATA.length+')';
 }
 /* Is relevance ordering in effect for the CURRENT view? Active query +
    the user hasn't clicked a column header on that view this session. */
@@ -10033,6 +10047,8 @@ function moveFilterBar(v){
      hiding it on the views that have no table to count. */
   var hd=document.querySelector('.header');
   if(hd)hd.classList.toggle('nav-only',navOnly);
+  var sn=document.getElementById('subnav');
+  if(sn)sn.classList.toggle('nav-only',navOnly);
 }
 /* Page-scroll mode (now universal): keep the wraps' inline max-height cleared
    so they grow to full content height, the document scrolls, and the sticky
