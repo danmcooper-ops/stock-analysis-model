@@ -13,7 +13,7 @@ import json
 import os
 import time
 import urllib.error
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -252,17 +252,24 @@ class TestFilingIndexSweep:
         assert c._daily_index_ciks(date(2026, 9, 2)) is None
 
     def test_sweep_evicts_the_filers_that_filed(self, tmp_path):
-        c = self._client_with_index(tmp_path, {'20260902': INDEX})
+        # Dated from today, not pinned: this is the only test here that reads
+        # back through get(), and get()'s backstop asks sweep_lag_days(), which
+        # measures the watermark against the real clock rather than the
+        # injected `today`. A fixed watermark therefore crosses max_age_days
+        # once enough real time passes and turns every get() into a miss.
+        today = date.today()
+        filed = today - timedelta(days=1)
+        c = self._client_with_index(tmp_path, {filed.strftime('%Y%m%d'): INDEX})
         c._facts_cache.put(AAPL_CIK, FACTS)          # filed a 10-Q
         c._facts_cache.put('0000021344', FACTS)      # filed an 8-K
         c._facts_cache.put('0000000999', FACTS)      # filed nothing
-        c._facts_cache.record_sweep(date(2026, 9, 1))
-        out = c.refresh_stale_facts(today=date(2026, 9, 3))
+        c._facts_cache.record_sweep(filed - timedelta(days=1))
+        out = c.refresh_stale_facts(today=today)
         assert out['invalidated'] == 2
         assert c._facts_cache.get(AAPL_CIK) is None
         assert c._facts_cache.get('0000021344') is None
         assert c._facts_cache.get('0000000999') == FACTS
-        assert c._facts_cache.last_sweep() == date(2026, 9, 2)
+        assert c._facts_cache.last_sweep() == filed
 
     def test_first_sweep_only_starts_the_clock(self, tmp_path):
         c = self._client_with_index(tmp_path, {'20260902': INDEX})
