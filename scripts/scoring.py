@@ -435,6 +435,13 @@ def _compute_pool_share_trajectory(results):
     cfo_cagr in scripts/enrich_reit.py with a 3y floor. Negative operating
     income clamps to 0 in numerator and pool, matching the single-year
     pp_profit_share pass in analyze_stock.py.
+
+    DEDUPED POOL: only rows flagged ``pp_pool_member`` by
+    analyze_stock.assign_pool_membership are summed into the endpoint pools,
+    so one issuer contributes one income statement however many lines it
+    trades on. Freddie Mac's 22 listings used to enter both endpoint pools 22
+    times. Every row still gets its own share OUT of that pool, duplicates
+    included, so a second listing scores the same as its primary.
     """
     sector_rows = {}                      # sector -> [(row, {int_year: oi})]
     for r in results:
@@ -458,6 +465,12 @@ def _compute_pool_share_trajectory(results):
             sector_rows.setdefault(s, []).append((r, h))
 
     for _sector, rows in sector_rows.items():
+        # The panel that FORMS the pool: one row per issuer. Rows outside it
+        # still draw a share from it below. Duplicate listings are the only
+        # exclusion here — om_artifact is a verdict on the snapshot's
+        # yfinance operating-income line, and this pool is built from EDGAR
+        # history, a different and usually sound number for the same company.
+        panel = [(r, h) for r, h in rows if not r.get('pp_duplicate_of')]
         pools = {}                        # (y0, y1) -> (pool0, pool1, n_panel)
         for r, h in rows:
             ys = sorted(h)
@@ -472,7 +485,7 @@ def _compute_pool_share_trajectory(results):
             if key not in pools:          # one sector pass per endpoint pair
                 p0 = p1 = 0.0
                 n = 0
-                for _, h2 in rows:
+                for _, h2 in panel:
                     if y0 in h2 and y1 in h2:
                         p0 += max(h2[y0], 0.0)
                         p1 += max(h2[y1], 0.0)

@@ -576,6 +576,10 @@ def build_excel(rows, filename):
         ('Mkt Structure',   '_hhi_label',               '@',           14),
         ('CR4',             'pp_sector_cr4',            '0.0%',        10),
         ('# in Sector',     'pp_sector_count',          '0',           11),
+        # Blank for a row the pool counts; otherwise why it does not
+        # (duplicate_listing / om_artifact). Without it a second listing's
+        # shares look like the sector holding one company twice.
+        ('Pool Status',     'pp_excluded_reason',       '@',           16),
     ]
     n_pp_frozen = 4
 

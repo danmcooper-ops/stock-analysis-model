@@ -167,6 +167,19 @@ def _summ_sector(row, stats):
         else:
             out.append(f'Its {_pct(opm)} operating margin is roughly in line with the {sector} '
                        f'median{med_txt}.')
+    # Pool membership, said in words before any share is quoted: a second
+    # listing reports its primary's shares (one income statement, two
+    # securities) and an artifact row reports none, which otherwise reads as
+    # missing data rather than as a deliberate exclusion.
+    dup_of = row.get('pp_duplicate_of')
+    if row.get('pp_excluded_reason') == 'om_artifact':
+        out.append('Its reported operating margin falls outside \u00b1100%, a reporting '
+                   'artifact rather than operating economics, so it is left out of the '
+                   'sector profit pool'
+                   + (f' (as is {dup_of}, the listing it shadows).' if dup_of else '.'))
+    elif dup_of:
+        out.append(f'This is a second listing of {dup_of}; the profit-pool shares below '
+                   f'are that company\u2019s, counted once in the sector totals.')
     ppm = _num(row, 'pp_multiple')
     if ppm is not None:
         if ppm >= PP_MULT_STRONG:
