@@ -1,0 +1,4 @@
+docs/vol/* *.json
+docs/px/* *.json
+docs/hist/* *.json
+docs/details/* *.json
