@@ -7,15 +7,13 @@ You are running the end-of-day stock analysis routine. The whole pipeline is
 one script, `scripts/run_daily.sh`; your job is to launch it, wait for it, and
 write the run summary from what it produced.
 
-> **DORMANT — do not run.** Since 2026-09-10 the live daily run is the cloud
-> Routine in `../cloud-daily-stock-analysis/` (`run.sh`). Both pipelines
-> archive to `data/snapshots` and force-push `pages-live`, so they must never
-> both run. **If this task fires while the cloud routine is live, run nothing:
-> report "Mac daily routine is dormant (cloud routine is live) — skipped" as
-> the entire summary and stop.** Only follow the steps below when the user has
-> explicitly switched the daily run back to this Mac (and paused the cloud
-> Routine). The steps stay here as the Mac reference; `scripts/run_daily.sh`
-> is also the manual backfill tool (`--from enrich --date YYYY-MM-DD`).
+> **LIVE since 2026-10-05** on the Mac mini. The cloud Routine
+> ("Daily Stock Analysis", `../cloud-daily-stock-analysis/`) was paused on
+> 2026-10-03 and is now dormant. Both pipelines archive to `data/snapshots`
+> and force-push `pages-live`, so they must never both run: to go back to the
+> cloud, pause this task first (`../MAC-MINI-SETUP.md`, "Going back to the
+> cloud"). `scripts/run_daily.sh` is also the manual backfill tool
+> (`--from enrich --date YYYY-MM-DD`).
 
 ## Execution mode
 - **Always run fully autonomously (auto mode).** Do not pause for confirmation or ask clarifying questions — this is an unattended scheduled run. The only write actions permitted are the ones the script performs itself (snapshot commit/push to `data/snapshots`, force-push of `pages-live`) and the retry commands listed below. Do not take other outward-facing or destructive actions.
