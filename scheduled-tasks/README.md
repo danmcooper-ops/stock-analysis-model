@@ -5,8 +5,8 @@ daily pipeline.
 
 | Task | What it does |
 |---|---|
-| `cloud-daily-stock-analysis/` | **The live daily routine since 2026-09-10.** A Claude Code cloud Routine ("Daily stock analysis (cloud)", `0 21 * * 1-5` UTC) starts a fresh session each weekday that runs `run.sh`: stage the newest days of the `data/snapshots` archive → price cache → analysis → enrichment → re-render → snapshot commit to `data/snapshots` → portfolio/gate/momentum reports → rebuild + force-push `pages-live`. `SKILL.md` is what the Routine's session follows |
-| `daily-stock-analysis/SKILL.md` | **Dormant** (Mac). Launches `scripts/run_daily.sh` (preflight → prices → analysis → enrichment → re-render → snapshot archive → reports → publish), then summarizes `output/run_summary_<date>.json`. Must stay off while the cloud routine is live |
+| `cloud-daily-stock-analysis/` | **Dormant since 2026-10-03** (paused at the Mac mini cut-over; live 2026-09-10 to 2026-10-02). A Claude Code cloud Routine ("Daily stock analysis (cloud)", `0 21 * * 1-5` UTC) starts a fresh session each weekday that runs `run.sh`: stage the newest days of the `data/snapshots` archive → price cache → analysis → enrichment → re-render → snapshot commit to `data/snapshots` → portfolio/gate/momentum reports → rebuild + force-push `pages-live`. `SKILL.md` is what the Routine's session follows |
+| `daily-stock-analysis/SKILL.md` | **The live daily routine since 2026-10-05** (Mac mini, weekdays 17:00 New York). Launches `scripts/run_daily.sh` (preflight → prices → analysis → enrichment → re-render → snapshot archive → reports → publish), then summarizes `output/run_summary_<date>.json`. The cloud routine must stay paused while this is on |
 | `publish-stock-report/SKILL.md` | Copies the five report artifacts into the `pages-live` worktree, amends its single commit, force-pushes to GitHub Pages |
 | `cloud-weekly-backtest/` | **The live weekly backtest.** A cloud Routine each Sunday runs `run.sh`: stage every snapshot since 2026-07-06 (+ the persisted `returns/` sidecars) out of `data/snapshots` → cold price download with a coverage gate → `measure` offline → week-over-week regression check → commit the summary, xlsx and sidecars to `data/snapshots`. Measurement only; calibration stays off until `readiness` clears it |
 | `weekly-backtest/` | **Dormant** (Mac). `mac_run.sh` runs the cloud routine's `run.sh` on a Mac (launchd plist or the `SKILL.md` task); the old `weekly_backtest.sh` is retired. Must stay off while the cloud routine is live |
@@ -32,7 +32,7 @@ migrations, exposing the `pipeline` schema, backfilling the archive and
 wiring 06a — see `HOSTED-SETUP.md`. Once it is live, `RECOVERY.md` covers
 `DB_PRIMARY`, the cutover streak and restoring.
 
-## The Mac routines (symlinked since 2026-08-10; dormant since 2026-09-09)
+## The Mac routines (symlinked since 2026-08-10; dormant 2026-09-09 to 2026-10-04; live again on the Mac mini)
 
 This section describes the arrangement the Mac routines used, for when they
 are rebuilt. Nothing in it applies to the cloud routine, which reads
