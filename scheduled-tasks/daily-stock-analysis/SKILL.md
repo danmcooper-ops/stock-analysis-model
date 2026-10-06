@@ -28,18 +28,41 @@ once at start, runs every step in order, keeps the Mac awake (`caffeinate`),
 holds a lock so two runs never overlap, and records each step's exit code and
 duration in `output/run_summary_<RUNDATE>.json`.
 
-## Step 1 — Launch the pipeline
-Run as a **single Bash call, in the background** (it takes hours; the Bash tool
-would time out in the foreground):
-```
-cd "$HOME/Projects/Workspace Folder"; scripts/run_daily.sh
-```
-You will be notified when it exits. Do not start a second copy while waiting;
-the lock file makes a second copy exit immediately anyway.
+## Step 1 — Launch the pipeline, detached
+The run takes 4-6 h, but the Bash tool stops any background command after
+**2 h**, killing whatever it launched. On 2026-10-05 that killed the
+analysis at ticker 4,528 of 9,182, and nothing was archived or published. So
+the pipeline must **not** be a child of a Bash tool call. Launch it detached
+in its own session, then wait for its PID in a separate, disposable loop.
 
-Exit codes: `0` success **or** market-closed skip · `1` a blocking step
-failed (analysis, or the snapshot archive) · `3` finished, but a non-blocking
-step failed.
+**1a. Launch:** run this as one ordinary **foreground** Bash call. It returns at once:
+```
+cd "$HOME/Projects/Workspace Folder"; L="output/.run_daily.lock"; if [ -f "$L" ] && kill -0 "$(cat "$L")" 2>/dev/null; then echo "ALREADY RUNNING pid $(cat "$L")"; else perl -MPOSIX=setsid -e 'setsid() or die "setsid: $!"; exec @ARGV or die "exec: $!"' nohup scripts/run_daily.sh </dev/null >>"$HOME/Library/Logs/StockModel/run_daily_launch.out" 2>&1 & echo "LAUNCHED pid $! at $(date '+%F %T')"; fi
+```
+- `setsid` gives the run its own session and process group, and the launching shell exits right away, so the run is reparented to launchd. Nothing the Bash tool stops can reach it.
+- `$!` stays the pipeline's PID for the whole run: perl, `nohup` and the script's `caffeinate` re-exec all `exec` in place.
+- The script tees its own log to `~/Library/Logs/StockModel/daily_<RUNDATE>.log`. `run_daily_launch.out` only catches anything printed before that tee starts.
+- If it prints `ALREADY RUNNING`, do not launch. Wait on that PID instead.
+
+**1b. Wait:** run this as a Bash call **in the background**, with the longest timeout allowed, substituting the PID:
+```
+pid=PID; while kill -0 "$pid" 2>/dev/null; do sleep 60; done; echo "run_daily pid $pid exited at $(date '+%F %T')"
+```
+- You are notified when it exits.
+- If it is instead stopped at the 2 h limit, the pipeline is unaffected. Check with `kill -0 PID` and start the same wait loop again. Repeat until it reports the exit.
+- Never relaunch the pipeline to "resume" it while its PID is alive.
+
+A detached run has no exit code to hand back; `status` in
+`output/run_summary_<RUNDATE>.json` carries it:
+
+| `status` | Meaning | Old exit code |
+|---|---|---|
+| `ok` | success | `0` |
+| `skipped` | market closed | `0` |
+| `failed` | a blocking step failed (analysis, or the snapshot archive) | `1` |
+| `degraded` | finished, but a non-blocking step failed | `3` |
+
+If the summary is missing, or its `finished_at` is older than the launch, the script died before it could write one. That covers a crash, a kill, or the lock refusing a second copy. Report the tail of the daily log and `run_daily_launch.out`.
 
 ## Step 2 — Read the results
 RUNDATE is the date in the script's first log line (`RUNDATE=YYYY-MM-DD`).
@@ -68,7 +91,11 @@ Include, from the log:
 - **Publish:** the result, with the live URL's HTTP code.
 
 ## Step 4 — Recover a failed step (only when the summary shows one)
-Each step can be resumed without re-running the analysis. Run the command in the background, with RUNDATE substituted literally:
+Each step can be resumed without re-running the analysis.
+- Launch the retry **detached**, exactly as in Step 1a: put the arguments after `scripts/run_daily.sh` in the launch command and substitute RUNDATE literally. Then wait on its PID as in 1b.
+- A publish retry is short. A retry `--from enrich` can still outlast the 2 h limit, so never run any of these as a plain background Bash call.
+
+The retries:
 
 | Symptom | Command |
 |---|---|
