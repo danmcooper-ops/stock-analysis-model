@@ -144,22 +144,27 @@ def test_phone_ticker_page_closes_from_the_top_bar():
     assert 'html.det-open #det-modal.hdr-min .d-rating-row{margin-top:6px;gap:8px;flex-wrap:nowrap;' in src
 
 
-def test_review_feature_is_gone():
-    """The Reviewed marks were unused and are removed everywhere: the table
-    and matrix column, the Reviewed/Unreviewed filters and their hash key,
-    the ticker page's check icon, the Enter "mark reviewed" hotkey. The
-    frozen columns close up to # · flag · ticker (· rating · Δ)."""
+def test_review_feature_is_back():
+    """The Reviewed marks are restored (without the Summary side cards that
+    left with them): the table and matrix column, the Reviewed/Unreviewed
+    filters and their hash key, the ticker page's check icon, the Enter "mark
+    reviewed" hotkey. The frozen columns are # · flag · reviewed · ticker
+    (· rating · Δ) again."""
     src = _tpl()
-    for gone in ('isReviewed', 'toggleReviewed', '_revHtml', '_revFilter', 'rev-chk',
-                 'f-reviewed', 'f-unreviewed', 'id="d-rev"', "(\\'_reviewed\\')", '_reviewed:', '_CHK_SVG',
-                 'Mark reviewed', 'p.rv'):
-        assert gone not in src, gone
-    # The old stored marks are cleared rather than left behind.
-    assert "localStorage.removeItem('stock_reviewed_v1')" in src
-    # Ticker is now the 3rd frozen column, 32px further left.
-    assert '#dtbl th:nth-child(3),#dtbl td.tk2{left:calc(var(--sb-cur) + 68px);}' in src
-    assert '#dtbl th:nth-child(4),#dtbl tbody td:nth-child(4){left:calc(var(--sb-cur) + 136px);}' in src
-    assert '#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 200px);}' in src
+    for back in ('function isReviewed(', 'function toggleReviewed(', 'function _revHtml(',
+                 'var _revFilter=', 'rev-chk', 'id="f-reviewed"', 'id="f-unreviewed"',
+                 'id="d-rev"', '_reviewed:', 'var _CHK_SVG=', 'p.rv=st.revFilter',
+                 "var _REV_KEY='stock_reviewed_v1';"):
+        assert back in src, back
+    # The 28 Sep removal wiped the stored marks on every load; that must not
+    # survive the restore or each new mark would be lost on reload.
+    assert "localStorage.removeItem('stock_reviewed_v1')" not in src
+    # Ticker is the 4th frozen column again, 32px further right.
+    assert '#dtbl th:nth-child(4),#dtbl td.tk2{left:calc(var(--sb-cur) + 100px);}' in src
+    assert '#dtbl th:nth-child(5),#dtbl tbody td:nth-child(5){left:calc(var(--sb-cur) + 168px);}' in src
+    assert '#dtbl th:nth-child(6),#dtbl tbody td:nth-child(6){left:calc(var(--sb-cur) + 240px);}' in src
+    assert '#mtx thead tr:first-child th:nth-child(4),#mtx td.tk{left:calc(var(--sb-cur) + 100px);}' in src
+    assert '#mtx thead tr:first-child th:nth-child(6),#mtx tbody td:nth-child(6){left:calc(var(--sb-cur) + 232px);}' in src
 
 
 def test_chart_controls_are_underline_tabs_behind_the_menu():

@@ -150,3 +150,13 @@ def test_cheat_sheet_from_the_popup_keeps_its_scroll_lock():
     close = _tpl().split('function hkOverlayClose(){')[1].split('\n')[0]
     assert "det-modal').classList.contains('open')" in close
     assert '_unlockBody()' in close
+
+
+def test_enter_marks_reviewed_then_next_ticker():
+    """Enter in the ticker popup marks the stock reviewed (never unmarks it)
+    and steps to the next ticker; the cheat sheet lists it."""
+    src = _tpl()
+    assert "{g:'Ticker popup',k:['Enter'],l:'Mark reviewed, then next ticker'}" in src
+    disp = src.split('function _hkDetDispatch(e){')[1].split('\n}')[0]
+    enter = disp.split("k==='Enter'")[1].split('\n')[0]
+    assert 'if(tk&&!isReviewed(tk)){toggleReviewed(tk);_syncRevDet();}navDet(1);' in enter

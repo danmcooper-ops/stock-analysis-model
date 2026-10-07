@@ -669,84 +669,92 @@ td.ct{font-weight:700;}
 /* Freeze top header row */
 .dt thead{position:-webkit-sticky;position:sticky;top:0;z-index:10;}
 .matrix-table thead{position:-webkit-sticky;position:sticky;top:0;z-index:10;}
-/* Lock the leftmost column widths (# · flag) so the sticky `left:` offsets
-   of the columns frozen after them stay accurate. */
+/* Lock the four leftmost column widths so sticky `left:` offsets stay accurate
+   (the reviewed column has a 16px SVG + padding that naturally pushes it past
+   its declared width, which created a 5px overlap with the ticker column and
+   a 1px gap between the flag and reviewed columns where scrolled data showed
+   through the headers). */
 .dt th:nth-child(1),.dt td:nth-child(1),.matrix-table thead tr:first-child th:nth-child(1),.matrix-table tbody td:nth-child(1){width:40px;min-width:40px;max-width:40px;}
 .dt th:nth-child(2),.dt td:nth-child(2),.matrix-table thead tr:first-child th:nth-child(2),.matrix-table tbody td:nth-child(2){width:28px;min-width:28px;max-width:28px;}
+.dt th:nth-child(3),.dt td:nth-child(3),.matrix-table thead tr:first-child th:nth-child(3),.matrix-table tbody td:nth-child(3){width:32px;min-width:32px;max-width:32px;}
 /* Uniform metric-column widths for the main financial-data table. Under the
    base .dt `table-layout:auto`, each metric column sized to its widest cell,
    so widths were ragged and differed per tab. Fixed layout makes the browser
-   honor declared widths instead. Ticker (col 3) and Rating (col 4) keep their
-   own label-sized widths; every metric column (5th onward) shares ONE uniform
+   honor declared widths instead. Ticker (col 4) and Rating (col 5) keep their
+   own label-sized widths; every metric column (6th onward) shares ONE uniform
    width so the data grid lines up. Scoped to #dtbl so the matrix / heatmap /
-   summary tables (also .dt) are untouched. Cols 1-2 keep the locked widths
+   summary tables (also .dt) are untouched. Cols 1-3 keep the locked widths
    above (sticky `left:` offsets depend on them). */
 #dtbl{table-layout:fixed;}
-#dtbl th:nth-child(3),#dtbl td:nth-child(3){width:68px;min-width:68px;max-width:68px;}
-#dtbl th:nth-child(4),#dtbl td:nth-child(4){width:72px;min-width:72px;max-width:72px;}
-#dtbl th:nth-child(n+5),#dtbl td:nth-child(n+5){width:82px;min-width:82px;max-width:82px;}
+#dtbl th:nth-child(4),#dtbl td:nth-child(4){width:68px;min-width:68px;max-width:68px;}
+#dtbl th:nth-child(5),#dtbl td:nth-child(5){width:72px;min-width:72px;max-width:72px;}
+#dtbl th:nth-child(n+6),#dtbl td:nth-child(n+6){width:82px;min-width:82px;max-width:82px;}
 #dtbl th{white-space:normal;vertical-align:bottom;line-height:1.15;}
-#dtbl td:nth-child(n+5){overflow:hidden;text-overflow:ellipsis;}
-/* Freeze left 3 cols in DT header (# · flag · ticker) */
+#dtbl td:nth-child(n+6){overflow:hidden;text-overflow:ellipsis;}
+/* Freeze left 4 cols in DT header (# · flag · reviewed · ticker) */
 .dt th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:12;background:#1a252f;}
 .dt th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:12;background:#1a252f;}
-.dt th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
-/* Freeze left 3 cols in DT body */
+.dt th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:12;background:#1a252f;}
+.dt th:nth-child(4){position:-webkit-sticky;position:sticky;left:100px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+/* Freeze left 4 cols in DT body */
 .dt tbody td:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:3;background:#fff;color:#7f8c9a;font-size:0.78em;font-weight:600;text-align:right;padding-right:6px;}
 .dt tbody td:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:3;background:#fff;}
-.dt td.tk2{position:-webkit-sticky;position:sticky;left:68px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-.dt tr:nth-child(even) td:nth-child(1),.dt tr:nth-child(even) td:nth-child(2),.dt tr:nth-child(even) td.tk2{background:#f8f9fa;}
-.dt tr:hover td:nth-child(1),.dt tr:hover td:nth-child(2),.dt tr:hover td.tk2{background:#eaf4fd!important;}
-/* Extend the frozen zone through Rating (col 4) and Δ-change (col 5) so BOTH
+.dt tbody td:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:3;background:#fff;}
+.dt td.tk2{position:-webkit-sticky;position:sticky;left:100px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.dt tr:nth-child(even) td:nth-child(1),.dt tr:nth-child(even) td:nth-child(2),.dt tr:nth-child(even) td:nth-child(3),.dt tr:nth-child(even) td.tk2{background:#f8f9fa;}
+.dt tr:hover td:nth-child(1),.dt tr:hover td:nth-child(2),.dt tr:hover td:nth-child(3),.dt tr:hover td.tk2{background:#eaf4fd!important;}
+/* Extend the frozen zone through Rating (col 5) and Δ-change (col 6) so BOTH
    rating columns stay pinned when the metric grid scrolls horizontally — on
    every Financial Data sub-tab, since all of them lead with ticker/rating/Δ.
-   Offsets follow the locked #dtbl widths (ticker at 68px, 68px wide → rating
-   at 136px; rating 72px → Δ at 208px). Scoped to #dtbl so the matrix / heatmap tables
+   Offsets follow the locked #dtbl widths (ticker 68px → rating at 168px;
+   rating 72px → Δ at 240px). Scoped to #dtbl so the matrix / heatmap tables
    (also .dt, with their own frozen-column setup) are untouched. The header
    hue comes from the higher-specificity #dtbl.hdr-* th rules below; these only
    add position+offset and an opaque body background so scrolled cells don't
    bleed through. */
-#dtbl th:nth-child(4){position:-webkit-sticky;position:sticky;left:136px;z-index:12;background:#1a252f;}
-#dtbl th:nth-child(5){position:-webkit-sticky;position:sticky;left:208px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
-#dtbl tbody td:nth-child(4){position:-webkit-sticky;position:sticky;left:136px;z-index:3;background:#fff;}
-#dtbl tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:208px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-#dtbl tr:nth-child(even) td:nth-child(4),#dtbl tr:nth-child(even) td:nth-child(5){background:#f8f9fa;}
-#dtbl tr:hover td:nth-child(4),#dtbl tr:hover td:nth-child(5){background:#eaf4fd!important;}
+#dtbl th:nth-child(5){position:-webkit-sticky;position:sticky;left:168px;z-index:12;background:#1a252f;}
+#dtbl th:nth-child(6){position:-webkit-sticky;position:sticky;left:240px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+#dtbl tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:168px;z-index:3;background:#fff;}
+#dtbl tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:240px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+#dtbl tr:nth-child(even) td:nth-child(5),#dtbl tr:nth-child(even) td:nth-child(6){background:#f8f9fa;}
+#dtbl tr:hover td:nth-child(5),#dtbl tr:hover td:nth-child(6){background:#eaf4fd!important;}
 /* Frozen-zone shadow now belongs on the Δ column (the new right edge), not Ticker. */
-#dtbl th:nth-child(3){box-shadow:none;}
+#dtbl th:nth-child(4){box-shadow:none;}
 #dtbl td.tk2{box-shadow:none;}
 /* Dark-mode opaque backgrounds for the two newly-frozen columns (mirrors the
    col 1-3 / tk2 dark rules). */
-[data-theme="dark"] #dtbl tbody td:nth-child(4),[data-theme="dark"] #dtbl tbody td:nth-child(5){background:#161b22;}
-[data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(4),[data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(5){background:#1c2128;}
-[data-theme="dark"] #dtbl tr:hover td:nth-child(4),[data-theme="dark"] #dtbl tr:hover td:nth-child(5){background:#1f3a5c !important;}
-/* Freeze left 3 cols in matrix header (# · flag · ticker — first row only since second row has gate sub-headers) */
+[data-theme="dark"] #dtbl tbody td:nth-child(5),[data-theme="dark"] #dtbl tbody td:nth-child(6){background:#161b22;}
+[data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(5),[data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(6){background:#1c2128;}
+[data-theme="dark"] #dtbl tr:hover td:nth-child(5),[data-theme="dark"] #dtbl tr:hover td:nth-child(6){background:#1f3a5c !important;}
+/* Freeze left 4 cols in matrix header (# · flag · reviewed · ticker — first row only since second row has gate sub-headers) */
 .matrix-table thead tr:first-child th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:15;background:#1a252f;}
 .matrix-table thead tr:first-child th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:15;background:#1a252f;}
 .matrix-table thead tr:first-child th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:15;background:#1a252f;}
-/* Freeze left 3 cols in matrix body */
+.matrix-table thead tr:first-child th:nth-child(4){position:-webkit-sticky;position:sticky;left:100px;z-index:15;background:#1a252f;}
+/* Freeze left 4 cols in matrix body */
 .matrix-table tbody td:nth-child(1){position:sticky;left:0;z-index:3;background:#fff;color:#7f8c9a;font-size:0.78em;font-weight:600;text-align:right;padding-right:6px;}
 .matrix-table tbody td:nth-child(2){position:sticky;left:40px;z-index:3;background:#fff;}
-.matrix-table td.tk{position:sticky;left:68px;z-index:3;background:#fff;}
+.matrix-table tbody td:nth-child(3){position:sticky;left:68px;z-index:3;background:#fff;}
+.matrix-table td.tk{position:sticky;left:100px;z-index:3;background:#fff;}
 /* Lock ticker width so the rating columns' sticky `left` stays exact, then
-   freeze BOTH Today's Rating (4th col) and Yesterday's Rating (5th col) —
-   fixed-width so col 5's offset is deterministic (ticker at 68px, 60px wide →
-   Today at 128px; Today 72px → Yesterday at 200px). Everything from Sector rightward scrolls
+   freeze BOTH Today's Rating (5th col) and Yesterday's Rating (6th col) —
+   fixed-width so col 6's offset is deterministic (ticker 60px → Today at 160px;
+   Today 72px → Yesterday at 232px). Everything from Sector rightward scrolls
    past them; the frozen-zone shadow sits on Yesterday, the new right edge. */
-.matrix-table thead tr:first-child th:nth-child(3),.matrix-table tbody td.tk{width:60px;min-width:60px;max-width:60px;}
-.matrix-table thead tr:first-child th:nth-child(4),.matrix-table thead tr:first-child th:nth-child(5),.matrix-table tbody td:nth-child(4),.matrix-table tbody td:nth-child(5){width:72px;min-width:72px;max-width:72px;}
+.matrix-table thead tr:first-child th:nth-child(4),.matrix-table tbody td.tk{width:60px;min-width:60px;max-width:60px;}
+.matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6),.matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){width:72px;min-width:72px;max-width:72px;}
 /* Headers may wrap ("Today's Rating" on two lines); body cells keep the table's
    nowrap so the rating pills render single-line, identical to Financial Data. */
-.matrix-table thead tr:first-child th:nth-child(4),.matrix-table thead tr:first-child th:nth-child(5){white-space:normal;}
-.matrix-table thead tr:first-child th:nth-child(4){position:-webkit-sticky;position:sticky;left:128px;z-index:15;background:#1a252f;}
-.matrix-table tbody td:nth-child(4){position:-webkit-sticky;position:sticky;left:128px;z-index:3;background:#fff;}
-.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:200px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
-.matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:200px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-.matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(4),.matrix-table tr:nth-child(even) td:nth-child(5){background:rgba(255,255,255,0.97);}
-.matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(4),.matrix-table tr:hover td:nth-child(5){background:#eaf4fd!important;}
+.matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6){white-space:normal;}
+.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:15;background:#1a252f;}
+.matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:3;background:#fff;}
+.matrix-table thead tr:first-child th:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+.matrix-table tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(5),.matrix-table tr:nth-child(even) td:nth-child(6){background:rgba(255,255,255,0.97);}
+.matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(5),.matrix-table tr:hover td:nth-child(6){background:#eaf4fd!important;}
 /* Touch devices (iPhone and iPad, both orientations): the full frozen
-   zone — # · flag · ticker · Today's Rating · Yesterday's
-   Rating — is 272-280px, a sliver-leaving share of a 390px phone and
+   zone — # · flag · reviewed · ticker · Today's Rating · Yesterday's
+   Rating — is 304-312px, a sliver-leaving share of a 390px phone and
    still a third of an iPad portrait. Only the TICKER stays sticky: it
    pins at left:0 once the leading utility columns scroll under it, and
    both rating columns scroll with the data. The frozen-edge shadow moves
@@ -757,17 +765,17 @@ td.ct{font-weight:700;}
    #dtbl / .matrix-table — the heatmap (also .dt) keeps its own
    Sector-only freeze. */
 @media (hover:none) and (pointer:coarse){
-  #dtbl th:nth-child(1),#dtbl th:nth-child(2),
-  #dtbl tbody td:nth-child(1),#dtbl tbody td:nth-child(2),
-  #dtbl th:nth-child(4),#dtbl th:nth-child(5),
-  #dtbl tbody td:nth-child(4),#dtbl tbody td:nth-child(5){position:static;box-shadow:none;}
-  #dtbl th:nth-child(3){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+  #dtbl th:nth-child(1),#dtbl th:nth-child(2),#dtbl th:nth-child(3),
+  #dtbl tbody td:nth-child(1),#dtbl tbody td:nth-child(2),#dtbl tbody td:nth-child(3),
+  #dtbl th:nth-child(5),#dtbl th:nth-child(6),
+  #dtbl tbody td:nth-child(5),#dtbl tbody td:nth-child(6){position:static;box-shadow:none;}
+  #dtbl th:nth-child(4){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
   #dtbl td.tk2{left:0;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-  .matrix-table thead tr:first-child th:nth-child(1),.matrix-table thead tr:first-child th:nth-child(2),
-  .matrix-table tbody td:nth-child(1),.matrix-table tbody td:nth-child(2),
-  .matrix-table thead tr:first-child th:nth-child(4),.matrix-table thead tr:first-child th:nth-child(5),
-  .matrix-table tbody td:nth-child(4),.matrix-table tbody td:nth-child(5){position:static;box-shadow:none;}
-  .matrix-table thead tr:first-child th:nth-child(3){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+  .matrix-table thead tr:first-child th:nth-child(1),.matrix-table thead tr:first-child th:nth-child(2),.matrix-table thead tr:first-child th:nth-child(3),
+  .matrix-table tbody td:nth-child(1),.matrix-table tbody td:nth-child(2),.matrix-table tbody td:nth-child(3),
+  .matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6),
+  .matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){position:static;box-shadow:none;}
+  .matrix-table thead tr:first-child th:nth-child(4){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
   .matrix-table td.tk{left:0;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
   /* Collapsing popup banner: scrolling INTO the data (finger up) shrinks
      the header band to two lines — the TICKER on top, then price · rating
@@ -789,7 +797,7 @@ td.ct{font-weight:700;}
      position) — so the rating row visibly pushes the banner closed
      instead of snapping. The max caps are animation ceilings only,
      comfortably above real content (meta can wrap to 3-4 lines on an SE).
-     Absolutes (arrows, portfolio/flag) fade — they never affect flow. */
+     Absolutes (arrows, flag/reviewed) fade — they never affect flow. */
   .d-header-band{display:flex;flex-direction:column;gap:0;transition:padding .28s ease,gap .28s ease;}
   .dcname,.dmeta{overflow:hidden;max-height:88px;transition:max-height .28s ease,opacity .18s ease,margin .28s ease;}
   .d-rating-row{transition:margin .28s ease,padding .28s ease;}
@@ -825,7 +833,7 @@ td.ct{font-weight:700;}
 .dt th:first-child{text-align:left;}
 .dt th .arrow{margin-left:3px;font-size:0.7em;}
 /* Per-tab header colors. Each Financial Data sub-tab paints its ENTIRE header
-   row (including #, flag, Ticker and Rating) a single cheerful hue,
+   row (including #, flag, reviewed, Ticker and Rating) a single cheerful hue,
    so headers read uniform within a tab but distinct across tabs. The table
    carries a hdr-<tab> class set in renderTable(); these rules override the
    default .dt th and any per-column group class uniformly. Deep, saturated
@@ -986,7 +994,7 @@ td.ct{font-weight:700;}
 /* Hamburger section-menu button — same chip treatment as .detail-close,
    sitting immediately to its left (14+24 close, 8 gap, 24 burger = 70px,
    inside .d-rating-row's 84px right padding). Both buttons run at 24px so
-   the full right-edge column (buttons, arrows, counter, portfolio/flag)
+   the full right-edge column (buttons, arrows, counter, reviewed/flag)
    fits the compact desktop band with all five rows optically level. */
 .detail-menu-btn{position:absolute;top:calc(12px + env(safe-area-inset-top));right:46px;border:none;background:rgba(255,255,255,0.18);width:24px;height:24px;border-radius:50%;font-size:0.85em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;padding:0;}
 .detail-menu-btn:hover,.detail-menu-btn[aria-expanded="true"]{background:rgba(255,255,255,0.35);}
@@ -1014,7 +1022,7 @@ td.ct{font-weight:700;}
 .dh-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
 /* Bottom line of the band since 2026-08: margin-top separates it from the
-   meta line above; right padding still clears the absolute portfolio/flag
+   meta line above; right padding still clears the absolute flag/reviewed
    actions pinned at the band's bottom-right. */
 .d-rating-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:84px;margin-top:5px;}
 .d-rating-row .d-gp{font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.02em;white-space:nowrap;margin-left:2px;}
@@ -1026,13 +1034,16 @@ td.ct{font-weight:700;}
 .rb-cap{margin-left:3px;cursor:help;font-size:0.85em;}
 /* The band's right edge is three separately-anchored zones, all sharing
    right:14px — close/hamburger chips at the top, prev/next arrows
-   vertically centered, portfolio/flag icons at the bottom. */
+   vertically centered, reviewed/flag icons at the bottom. */
 .d-mini-nav{position:absolute;top:50%;transform:translateY(-50%);right:14px;display:flex;flex-direction:column;align-items:flex-end;}
 .d-mini-nav-actions{position:absolute;bottom:12px;right:14px;z-index:6;display:flex;align-items:center;gap:10px;}
-/* Flag glyph (⚐/⚑) has more internal whitespace than an SVG icon, so at
-   equal font-size it looks visually smaller; bump it to match. */
+/* Flag glyph (⚐/⚑) has more internal whitespace than the reviewed SVG
+   circle, so at equal font-size it looks visually smaller. Bump it
+   enough to match (or slightly exceed) the reviewed icon's optical
+   size. */
 .d-mini-nav-actions .flag-star{font-size:1.35em;line-height:1;}
 .d-mini-nav-actions .flag-star:not(.flagged){color:rgba(255,255,255,0.4);}
+.d-mini-nav-actions .rev-chk-det{font-size:0.85em;}
 .d-mini-nav-arrows{display:flex;align-items:center;gap:3px;}
 .d-mini-nav-btn{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.2);border-radius:5px;width:26px;height:19px;font-size:12px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
 .d-mini-nav-btn:hover:not(:disabled){background:rgba(255,255,255,0.32);}
@@ -1146,8 +1157,15 @@ td.ct{font-weight:700;}
 .flag-star{cursor:pointer;touch-action:manipulation;font-size:1.7em;user-select:none;transition:transform 0.15s;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3));}
 .flag-star:hover{transform:scale(1.3);}
 .flag-star.flagged{color:#ff8c00;}.flag-star:not(.flagged){color:rgba(0,0,0,0.2);}.det-nav-bar .flag-star:not(.flagged),.d-header-band .flag-star:not(.flagged){color:rgba(255,255,255,0.35);}
-.det-nav-bar .flag-star{font-size:1.1em;}
+.det-nav-bar .flag-star{font-size:1.1em;}.det-nav-bar .rev-chk-det{font-size:0.65em;}
 .flag-count{font-size:0.72em;margin-left:2px;opacity:0.8;}
+.rev-chk{cursor:pointer;touch-action:manipulation;font-size:1em;user-select:none;transition:all 0.12s;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;line-height:1;vertical-align:middle;color:rgba(0,0,0,0.3);--chk-bg:none;--chk-border:rgba(0,0,0,0.3);--chk-mark:rgba(0,0,0,0.3);}
+.rev-chk:hover{transform:scale(1.12);--chk-border:rgba(0,0,0,0.55);--chk-mark:rgba(0,0,0,0.55);}
+.rev-chk.checked{--chk-bg:#27ae60;--chk-border:#27ae60;--chk-mark:white;}
+.rev-chk-det{cursor:pointer;touch-action:manipulation;font-size:0.75em;padding:0;user-select:none;transition:all 0.15s;border:none;background:transparent;display:inline-flex;align-items:center;justify-content:center;line-height:1;}
+.rev-chk-det:not(.checked){--chk-bg:none;--chk-border:rgba(255,255,255,0.4);--chk-mark:rgba(255,255,255,0.4);}
+.rev-chk-det:not(.checked):hover{--chk-border:rgba(255,255,255,0.75);--chk-mark:rgba(255,255,255,0.75);}
+.rev-chk-det.checked{--chk-bg:#27ae60;--chk-border:#27ae60;--chk-mark:white;}
 .rev-overlay{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;border-radius:5px;}
 .rev-overlay.checked{background:rgba(39,174,96,0.04);}
 /* Peers / Suppliers / Customers stack vertically — three side-by-side
@@ -1623,11 +1641,11 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .matrix-table tr:hover td{background-color:#1f3a5c !important;}
 [data-theme="dark"] .matrix-table td.tk{background:#161b22;color:#58a6ff;}
 [data-theme="dark"] .dt td.tk2{color:#58a6ff;}
-[data-theme="dark"] .dt tbody td:nth-child(1),[data-theme="dark"] .dt tbody td:nth-child(2),[data-theme="dark"] .dt td.tk2,[data-theme="dark"] .matrix-table tbody td:nth-child(1),[data-theme="dark"] .matrix-table tbody td:nth-child(2),[data-theme="dark"] .matrix-table tbody td:nth-child(4),[data-theme="dark"] .matrix-table tbody td:nth-child(5){background:#161b22;}
-[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .dt tr:nth-child(even) td.tk2{background:#1c2128;}
-[data-theme="dark"] .dt tr:hover td:nth-child(1),[data-theme="dark"] .dt tr:hover td:nth-child(2),[data-theme="dark"] .dt tr:hover td.tk2{background:#1f3a5c !important;}
-[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .matrix-table tr:nth-child(even) td.tk,[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(4),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(5){background:#1c2128;}
-[data-theme="dark"] .matrix-table tr:hover td:nth-child(1),[data-theme="dark"] .matrix-table tr:hover td:nth-child(2),[data-theme="dark"] .matrix-table tr:hover td.tk,[data-theme="dark"] .matrix-table tr:hover td:nth-child(4),[data-theme="dark"] .matrix-table tr:hover td:nth-child(5){background:#1f3a5c !important;}
+[data-theme="dark"] .dt tbody td:nth-child(1),[data-theme="dark"] .dt tbody td:nth-child(2),[data-theme="dark"] .dt tbody td:nth-child(3),[data-theme="dark"] .dt td.tk2,[data-theme="dark"] .matrix-table tbody td:nth-child(1),[data-theme="dark"] .matrix-table tbody td:nth-child(2),[data-theme="dark"] .matrix-table tbody td:nth-child(3),[data-theme="dark"] .matrix-table tbody td:nth-child(5),[data-theme="dark"] .matrix-table tbody td:nth-child(6){background:#161b22;}
+[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(3),[data-theme="dark"] .dt tr:nth-child(even) td.tk2{background:#1c2128;}
+[data-theme="dark"] .dt tr:hover td:nth-child(1),[data-theme="dark"] .dt tr:hover td:nth-child(2),[data-theme="dark"] .dt tr:hover td:nth-child(3),[data-theme="dark"] .dt tr:hover td.tk2{background:#1f3a5c !important;}
+[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(3),[data-theme="dark"] .matrix-table tr:nth-child(even) td.tk,[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(5),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(6){background:#1c2128;}
+[data-theme="dark"] .matrix-table tr:hover td:nth-child(1),[data-theme="dark"] .matrix-table tr:hover td:nth-child(2),[data-theme="dark"] .matrix-table tr:hover td:nth-child(3),[data-theme="dark"] .matrix-table tr:hover td.tk,[data-theme="dark"] .matrix-table tr:hover td:nth-child(5),[data-theme="dark"] .matrix-table tr:hover td:nth-child(6){background:#1f3a5c !important;}
 [data-theme="dark"] td.gp{background-color:var(--gate-pass) !important;color:#7ee787 !important;}
 [data-theme="dark"] td.gf{background-color:var(--gate-fail) !important;color:#ff7b72 !important;}
 [data-theme="dark"] td.gn{background-color:var(--gate-na) !important;color:#c9d1d9 !important;}
@@ -1775,6 +1793,9 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .flag-star.flagged{color:#ff8c00 !important;}
 [data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:rgba(255,255,255,0.72) !important;opacity:1;}
 [data-theme="dark"] select option{background:#0d1117 !important;color:#fff !important;}
+[data-theme="dark"] .rev-chk:not(.checked),[data-theme="dark"] .rev-chk-det:not(.checked),[data-theme="dark"] #f-reviewed,[data-theme="dark"] #f-unreviewed{color:#fff !important;--chk-border:#fff;--chk-mark:#fff;}
+[data-theme="dark"] .rev-chk:not(.checked):hover,[data-theme="dark"] .rev-chk-det:not(.checked):hover{--chk-border:#fff;--chk-mark:#fff;}
+[data-theme="dark"] #f-reviewed svg,[data-theme="dark"] #f-reviewed span,[data-theme="dark"] #f-unreviewed svg,[data-theme="dark"] #f-unreviewed span{color:#fff !important;}
 [data-theme="dark"] td.gp,[data-theme="dark"] td.sg,[data-theme="dark"] .gv-v.pass,[data-theme="dark"] [style*="color:#1a9850"],[data-theme="dark"] [style*="color:#27ae60"],[data-theme="dark"] [style*="color:#2e7d48"]{color:#7ee787 !important;}
 [data-theme="dark"] td.gf,[data-theme="dark"] td.sp,[data-theme="dark"] .gv-v.fail,[data-theme="dark"] [style*="color:#de2d26"],[data-theme="dark"] [style*="color:#e74c3c"],[data-theme="dark"] [style*="color:#c0392b"]{color:#ff7b72 !important;}
 [data-theme="dark"] td.sm,[data-theme="dark"] [style*="color:#fd8d3c"],[data-theme="dark"] [style*="color:#e67e22"]{color:#ffd33d !important;}
@@ -2153,19 +2174,21 @@ body{padding-left:var(--sb-cur);}
    their own wraps and must keep left:0). */
 #dtbl th:nth-child(1),#dtbl tbody td:nth-child(1){left:var(--sb-cur);}
 #dtbl th:nth-child(2),#dtbl tbody td:nth-child(2){left:calc(var(--sb-cur) + 40px);}
-#dtbl th:nth-child(3),#dtbl td.tk2{left:calc(var(--sb-cur) + 68px);}
-#dtbl th:nth-child(4),#dtbl tbody td:nth-child(4){left:calc(var(--sb-cur) + 136px);}
-#dtbl th:nth-child(5),#dtbl tbody td:nth-child(5){left:calc(var(--sb-cur) + 208px);}
+#dtbl th:nth-child(3),#dtbl tbody td:nth-child(3){left:calc(var(--sb-cur) + 68px);}
+#dtbl th:nth-child(4),#dtbl td.tk2{left:calc(var(--sb-cur) + 100px);}
+#dtbl th:nth-child(5),#dtbl tbody td:nth-child(5){left:calc(var(--sb-cur) + 168px);}
+#dtbl th:nth-child(6),#dtbl tbody td:nth-child(6){left:calc(var(--sb-cur) + 240px);}
 #mtx thead tr:first-child th:nth-child(1),#mtx tbody td:nth-child(1){left:var(--sb-cur);}
 #mtx thead tr:first-child th:nth-child(2),#mtx tbody td:nth-child(2){left:calc(var(--sb-cur) + 40px);}
-#mtx thead tr:first-child th:nth-child(3),#mtx td.tk{left:calc(var(--sb-cur) + 68px);}
-#mtx thead tr:first-child th:nth-child(4),#mtx tbody td:nth-child(4){left:calc(var(--sb-cur) + 128px);}
-#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 200px);}
+#mtx thead tr:first-child th:nth-child(3),#mtx tbody td:nth-child(3){left:calc(var(--sb-cur) + 68px);}
+#mtx thead tr:first-child th:nth-child(4),#mtx td.tk{left:calc(var(--sb-cur) + 100px);}
+#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 160px);}
+#mtx thead tr:first-child th:nth-child(6),#mtx tbody td:nth-child(6){left:calc(var(--sb-cur) + 232px);}
 .header,.secondary-nav,#subnav{left:var(--sb-cur);width:calc(var(--vvw,100vw) - var(--sb-cur));}
 /* Touch devices freeze only the ticker, at the left edge (see the
    (hover:none) block by the column widths) — which is now --sb-cur. */
 @media (hover:none) and (pointer:coarse){
-  #dtbl th:nth-child(3),#dtbl td.tk2,#mtx thead tr:first-child th:nth-child(3),#mtx td.tk{left:var(--sb-cur);}
+  #dtbl th:nth-child(4),#dtbl td.tk2,#mtx thead tr:first-child th:nth-child(4),#mtx td.tk{left:var(--sb-cur);}
 }
 
 /* ---- sidebar ---- */
@@ -2413,6 +2436,8 @@ html body #det-modal .d-mini-nav-actions svg,html body #det-modal .d-mini-nav-ac
 /* The action icons were white-on-navy; on the light page header they take
    the heading colour (the portfolio folder is later in the file, so it is
    restated with the id to win). */
+#det-modal .rev-chk-det:not(.checked){--chk-border:var(--chrome-muted);--chk-mark:var(--chrome-muted);}
+#det-modal .rev-chk-det:not(.checked):hover{--chk-border:var(--chrome-heading);--chk-mark:var(--chrome-heading);}
 html body #det-modal .d-pf-btn{color:var(--chrome-muted);}
 html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 /* Underlined tab bar — Seeking Alpha's Summary · Ratings · … row. */
@@ -2791,8 +2816,12 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
                    (pointer-events:none, synced by _syncQfChecks from the
                    real state vars) — the whole row stays the click target
                    and the existing toggle handlers stay the state owners.
-                   All unchecked by default. -->
+                   All unchecked by default. Reviewed/Unreviewed are a
+                   mutually-exclusive pair over one state var, the same shape
+                   as Upgrades/Downgrades below. -->
               <div class="qf-menu">
+                <button class="fpop-toggle-btn" id="f-reviewed" onclick="setRevFilter(2)" title="Only stocks you have marked reviewed (&check;). Marks are saved in this browser's local storage."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Reviewed<span id="rev-count-label"></span></button>
+                <button class="fpop-toggle-btn" id="f-unreviewed" onclick="setRevFilter(1)" title="Only stocks you have not marked reviewed — what is still left to work through."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Unreviewed</button>
                 <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Flagged<span class="flag-count" id="flag-count-label"></span></button>
                 <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Founder-Led</button>
                 <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3)."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Blue Chip</button>
@@ -2889,7 +2918,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
            on top, then price·rating·composite. -->
       <div class="d-rating-row"><div class="dpx" id="d-px"></div><span class="d-chg sa-chrome" id="d-chg"></span><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
       <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div></div>
-      <div class="d-mini-nav-actions"><span id="d-pf" class="d-pf-btn" onclick="pfDetMenu(event)" role="button" tabindex="0" title="Portfolios"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
+      <div class="d-mini-nav-actions"><span id="d-pf" class="d-pf-btn" onclick="pfDetMenu(event)" role="button" tabindex="0" title="Portfolios"></span><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
       <!-- Section tabs (Seeking Alpha's Summary · Ratings · … row). Rendered by
            _renderDetTabBar from _detMenuItems(); clicks go to swDetTab. -->
       <div class="d-tabs sa-chrome" id="d-tabs" role="tablist" aria-label="Sections"></div>
@@ -3480,7 +3509,8 @@ function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.get
    which every toggle / clear / preset / hash-restore path funnels through,
    so the boxes can never drift from the state. All off by default. */
 function _syncQfChecks(){
-  var m={'f-flagged':_flagOnly,'f-founder':_founderOnly,
+  var m={'f-reviewed':_revFilter===2,'f-unreviewed':_revFilter===1,
+         'f-flagged':_flagOnly,'f-founder':_founderOnly,
          'f-bluechip':_blueChipOnly,'f-r2000':_r2000Only,
          'f-upgrades':_rcFilter===1,'f-downgrades':_rcFilter===2};
   Object.keys(m).forEach(function(id){
@@ -3492,8 +3522,33 @@ function _syncQfChecks(){
 function _starHtml(tk){return '<span class="flag-star'+(isFlagged(tk)?' flagged':'')+'" onclick="toggleFlag(\''+tk.replace(/'/g,"\\'")+'\',event)" title="Flag">'+(isFlagged(tk)?'\u2691':'\u2690')+'</span>';}
 _updateFlagCount();
 
-/* The retired Reviewed marks: drop the stored set so it does not linger. */
-try{localStorage.removeItem('stock_reviewed_v1');}catch(e){}
+/* === REVIEWED (localStorage) === */
+var _CHK_SVG='<svg viewBox="0 0 22 22" style="width:1.4em;height:1.4em;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="var(--chk-bg,none)" stroke="var(--chk-border,currentColor)" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="var(--chk-mark,currentColor)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+var _REV_KEY='stock_reviewed_v1';
+var _revd=(function(){try{return JSON.parse(localStorage.getItem(_REV_KEY))||{};}catch(e){return{};}})();
+var _revFilter=0; /* 0=show all, 1=unreviewed only, 2=reviewed only.
+                     Two mutually-exclusive buttons drive it (same shape as
+                     Upgrades/Downgrades); clicking the active one turns the
+                     filter off. The numbering predates the split and is kept
+                     so filter-hash URLs shared from older reports still
+                     restore to the mode they were saved in. */
+function _saveRevd(){try{localStorage.setItem(_REV_KEY,JSON.stringify(_revd));}catch(e){}}
+function isReviewed(tk){return !!_revd[tk];}
+function toggleReviewed(tk,e){if(e)e.stopPropagation();_revd[tk]?delete _revd[tk]:_revd[tk]=1;_saveRevd();_updateRevCount();applyFilters();}
+function _syncRevDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;var c=isReviewed(tk)?'rev-chk-det checked':'rev-chk-det';['d-rev','d-rev2'].forEach(function(id){var el=document.getElementById(id);if(el){el.className=c;el.innerHTML=_CHK_SVG;el.title=isReviewed(tk)?'Reviewed — click to unmark':'Mark as reviewed';}});}
+function toggleReviewedDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;toggleReviewed(tk);_syncRevDet();}
+/* Light both buttons off the one state var. Kept separate from setRevFilter
+   because the restore and clear paths set _revFilter directly. */
+function _syncRevBtns(){
+  var r=document.getElementById('f-reviewed'),u=document.getElementById('f-unreviewed');
+  if(r)r.classList.toggle('active',_revFilter===2);
+  if(u)u.classList.toggle('active',_revFilter===1);
+}
+function setRevFilter(v){_revFilter=(_revFilter===v)?0:v;_syncRevBtns();applyFilters();}
+function _updateRevCount(){var n=Object.keys(_revd).length;var el=document.getElementById('rev-count-label');if(el)el.textContent=n>0?' ('+n+')':'';}
+function clearAllReviewed(){if(!Object.keys(_revd).length)return;if(!confirm('Clear all '+Object.keys(_revd).length+' reviewed checkmarks?'))return;_revd={};_saveRevd();_updateRevCount();_syncRevDet();applyFilters();}
+function _revHtml(tk){var c=isReviewed(tk);return '<span class="rev-chk'+(c?' checked':'')+'" onclick="toggleReviewed(\''+tk.replace(/'/g,"\\'")+'\',event)" title="'+(c?'Reviewed — click to unmark':'Mark as reviewed')+'">'+_CHK_SVG+'</span>';}
+_updateRevCount();
 
 /* === PORTFOLIOS ===
    Named groupings of tickers — hand-picked, rule-driven, or both; a ticker
@@ -3750,7 +3805,7 @@ function _pfRuleFromFilters(){
   if(st.search)ignored.push('search');
   if(st.flagOnly)ignored.push('Flagged');if(st.founderOnly)ignored.push('Founder-Led');
   if(st.blueChipOnly)ignored.push('Blue Chip');if(st.r2000Only)ignored.push('Russell 2000');
-  if(st.rcFilter)ignored.push('Upgrades/Downgrades');
+  if(st.revFilter)ignored.push('Reviewed');if(st.rcFilter)ignored.push('Upgrades/Downgrades');
   if(st.dashFilter)ignored.push('dashboard drill-down');if(_pfSel.length)ignored.push('Portfolios');
   var empty=r.ratings==null&&r.sectors==null&&r.countries==null&&!r.cf.length;
   return{rule:empty?null:r,ignored:ignored};
@@ -4880,7 +4935,7 @@ function _getCurrentFilterState(){
     cf.push({key:key,min:minR!==''?parseFloat(minR):null,max:maxR!==''?parseFloat(maxR):null});
   });
   st.colFilters=cf;
-  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.r2000Only=_r2000Only;st.rcFilter=_rcFilter;
+  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.r2000Only=_r2000Only;st.revFilter=_revFilter;st.rcFilter=_rcFilter;
   if(_dashFilter)st.dashFilter=_dashFilter;
   if(_pfSel.length)st.portfolios=_pfSel.slice();
   return st;
@@ -4927,6 +4982,7 @@ function _applyFilterState(st){
   _founderOnly=!!st.founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);
   _blueChipOnly=!!st.blueChipOnly;document.getElementById('f-bluechip').classList.toggle('active',_blueChipOnly);
   _r2000Only=!!st.r2000Only;document.getElementById('f-r2000').classList.toggle('active',_r2000Only);
+  _revFilter=st.revFilter|0;
   _syncRevBtns();
   _rcFilter=st.rcFilter|0;
   document.getElementById('f-upgrades').classList.toggle('active',_rcFilter===1);
@@ -4940,10 +4996,11 @@ function _applyFilterState(st){
    The active filters + view live in the hash fragment (#s=<json>), so a
    filtered view can be copied/bookmarked and restored in any browser.
    Hash only — works on GitHub Pages and file://, never triggers a
-   refetch, and leaves the localStorage persistence (presets, flags)
-   untouched. Note: the Flagged toggle filters against a per-device
-   localStorage set, so a recipient may see different rows for it. Compact keys keep typical URLs short:
-   q=search r/s/c=rating/sector/country cf=[key,min,max] fl/fo/bc/r2=
+   refetch, and leaves the localStorage persistence (presets, flags,
+   reviewed, theme) untouched. Note: the Reviewed/Flagged toggles filter
+   against per-device localStorage sets, so a recipient may see different
+   rows for those two toggles. Compact keys keep typical URLs short:
+   q=search r/s/c=rating/sector/country cf=[key,min,max] fl/fo/bc/r2/rv=
    toggles v/ms/ts=view + sub-tabs. The detail popup's active tab (_detTab)
    is deliberately NOT encoded: the popup's ticker isn't hash state either,
    so a persisted tab key could never restore anything on its own —
@@ -4960,6 +5017,7 @@ function _stateToParam(){
   if(st.founderOnly)p.fo=1;
   if(st.blueChipOnly)p.bc=1;
   if(st.r2000Only)p.r2=1;
+  if(st.revFilter)p.rv=st.revFilter;
   if(st.rcFilter)p.rc=st.rcFilter;
   if(st.dashFilter)p.df=st.dashFilter;
   if(st.portfolios)p.pf=st.portfolios;
@@ -5003,7 +5061,7 @@ function _restoreFromHash(){
     if(p.v==='macro'&&!_MACRO_AVAILABLE){}
     else if(p.v&&document.getElementById('view-'+p.v))showView(p.v);
     var st={search:p.q||'',ratings:p.r,sectors:p.s,countries:p.c,
-            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,r2000Only:!!p.r2,rcFilter:p.rc|0,
+            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,r2000Only:!!p.r2,revFilter:p.rv|0,rcFilter:p.rc|0,
             dashFilter:(p.df&&typeof p.df==='object'&&typeof p.df.type==='string')?p.df:null,
             portfolios:Array.isArray(p.pf)?p.pf:null};
     st.colFilters=(p.cf||[]).filter(function(c){
@@ -5017,7 +5075,7 @@ function _restoreFromHash(){
        the classic trap is r:[] (every rating box unchecked) immortalized in
        the auto-synced hash, which then survives every reload. Fall back to
        the default state — via _applyFilterState({}), NOT clearFilters(),
-       which also resets the portfolio picker — and drop the stale hash so
+       which also wipes the reviewed-marks store — and drop the stale hash so
        the next reload starts clean. Deliberate zero-row states created live
        in-session are untouched; this guards only the load path. */
     if(DATA.length&&FD&&FD.length===0){
@@ -5342,6 +5400,7 @@ target_range:'Lowest to highest analyst price target. A wide spread says the Str
 target_upside:'Distance from today’s price to the average analyst target.',
 street_vs_model:'Gap between the Street’s average target and this model’s fair value. A large gap is worth understanding before trusting either number.',
 analyst_ltg:'Consensus long-term growth estimate. Cross-check it against the growth today’s price already implies.',
+_reviewed:'Mark a stock reviewed once your own due diligence is complete. Click ✓ to toggle — it tracks what you have evaluated against what remains on the list. Saved in browser local storage.'
 };
 function tt(k){return TT[k]||'';}
 /* Gate-matrix category headers. Not TT keys: the handler picks these up via
@@ -5450,6 +5509,8 @@ function applyFilters(){
     if(_blueChipOnly&&!_isBlueChip(d))return false;
     if(_r2000Only&&!d.r2000)return false;
     if(!_pfPass(d))return false;
+    if(_revFilter===1&&isReviewed(d.ticker))return false;
+    if(_revFilter===2&&!isReviewed(d.ticker))return false;
     /* Rating-change filter: null rating_chg (new ticker or no prior
        snapshot) matches neither direction. */
     if(_rcFilter===1&&!(d.rating_chg>0))return false;
@@ -5511,12 +5572,13 @@ function applyFilters(){
      filter, and each multi-select with anything deselected. The search
      counts because it lives INSIDE the panel — without a badge slot, a
      filtering search would be invisible while the panel is closed.
-     Upgrades/Downgrades share one state var, so an engaged pair counts
-     once. */
+     Reviewed/Unreviewed share one state var, so an engaged pair counts
+     once: state 0 shows all and doesn't count; states 1 (Unreviewed) and
+     2 (Reviewed) are active filters. */
   var fn=(toks.length?1:0)
         +(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)
         +(_pfSel.length?1:0)
-        +(_rcFilter>0?1:0)
+        +(_revFilter>0?1:0)+(_rcFilter>0?1:0)
         +(_dashFilter?1:0)
         +colFilters.length
         +(allRatings?0:1)+(allSectors?0:1)+(allCountries?0:1);
@@ -5704,7 +5766,9 @@ function clearFilters(){
   _blueChipOnly=false;document.getElementById('f-bluechip').classList.remove('active');
   _r2000Only=false;document.getElementById('f-r2000').classList.remove('active');
   _pfSel=[];_pfEditingId=null;_pfRenderFilter();
+  _revFilter=0;_syncRevBtns();
   _rcFilter=0;document.getElementById('f-upgrades').classList.remove('active');document.getElementById('f-downgrades').classList.remove('active');
+  _revd={};_saveRevd();_updateRevCount();
   applyFilters();
 }
 function _positionFpop(panel,btn){
@@ -5983,6 +6047,7 @@ function renderMatrix(){
   var h1='<tr>';
   h1+='<th class="fixed-header" rowspan="2" style="width:40px;color:#7f8c9a;font-weight:600" title="Row number in current sort order">#</th>';
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.3em" onclick="mSort(\'_flagged\')" title="Flagged">\u2691'+(mSC==='_flagged'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;color:white" onclick="mSort(\'_reviewed\')" title="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'+(mSC==='_reviewed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'ticker\')" data-col-tip="ticker" data-col-label="Ticker">Ticker'+(mSC==='ticker'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" data-col-tip="rating" data-col-label="Today\u2019s Rating">Today\u2019s Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating_prev\')" data-col-tip="rating_prev" data-col-label="Yesterday\u2019s Rating">Yesterday\u2019s Rating'+(mSC==='rating_prev'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
@@ -5997,10 +6062,10 @@ function renderMatrix(){
   var RO={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
   var _relOn=_SEARCH_ACTIVE&&!_mUserSorted;
   if(_relOn){sd.sort(_relCmp);}
-  else if(mSC){sd.sort(function(a,b){var va,vb;if(mSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else{va=a[mSC];vb=b[mSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(mSC==='_gates_passed'){var na=parseInt(va),nb=parseInt(vb);if(!isNaN(na)&&!isNaN(nb))return mSA?na-nb:nb-na;}if(mSC==='rating'||mSC==='rating_prev'){var ra=RO[va]||99,rb2=RO[vb]||99;return mSA?ra-rb2:rb2-ra;}if(typeof va==='boolean'){va=va?1:0;vb=vb?1:0;return mSA?va-vb:vb-va;}if(typeof va==='string')return mSA?va.localeCompare(vb):vb.localeCompare(va);return mSA?va-vb:vb-va;});}
+  else if(mSC){sd.sort(function(a,b){var va,vb;if(mSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(mSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[mSC];vb=b[mSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(mSC==='_gates_passed'){var na=parseInt(va),nb=parseInt(vb);if(!isNaN(na)&&!isNaN(nb))return mSA?na-nb:nb-na;}if(mSC==='rating'||mSC==='rating_prev'){var ra=RO[va]||99,rb2=RO[vb]||99;return mSA?ra-rb2:rb2-ra;}if(typeof va==='boolean'){va=va?1:0;vb=vb?1:0;return mSA?va-vb:vb-va;}if(typeof va==='string')return mSA?va.localeCompare(vb):vb.localeCompare(va);return mSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
   _mtxData=sd;_mtxCg2=cg2;
-  /* Detect whether the dataset or sort actually changed — if only a flag
+  /* Detect whether the dataset or sort actually changed — if only a flag/reviewed
      toggle triggered the re-render, preserve scrollTop so the user doesn't lose
      their place. Otherwise reset to the top. */
   var newSig=sd.length+'|'+mSC+'|'+(mSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'')+(_relOn?'|R'+_SEARCH_Q:'');
@@ -6026,6 +6091,7 @@ function _mtxBuildRow(d,_i){
   var html='<tr>';
   html+='<td>'+(_i+1)+'</td>';
   html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
+  html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
   html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+_pfDots(d.ticker)+'</td>';
   html+='<td>'+rb(d.rating,d)+'</td>';
   html+='<td>'+rb(d.rating_prev)+'</td>';
@@ -6384,17 +6450,17 @@ function renderTable(){
   var _dtbl=document.getElementById('dtbl');
   if(_dtbl)_dtbl.className='dt hdr-'+curTSub; /* paints the whole header row one per-tab hue */
   var th=document.getElementById('dt-h');
-  var hh='<tr>';hh+='<th style="width:40px;color:#7f8c9a;font-weight:600" title="Row number in current sort order">#</th>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
+  var hh='<tr>';hh+='<th style="width:40px;color:#7f8c9a;font-weight:600" title="Row number in current sort order">#</th>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';hh+='<th style="width:28px;cursor:pointer" onclick="tSort(\'_reviewed\')" data-col-tip="_reviewed" data-col-label="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="arrow">'+(tSC==='_reviewed'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
   th.innerHTML=hh;
   var sd=FD.slice();
   var RO2={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
   var _relOn=_SEARCH_ACTIVE&&!_tUserSorted;
   if(_relOn){sd.sort(_relCmp);}
-  else if(tSC){sd.sort(function(a,b){var va,vb;if(tSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else{va=a[tSC];vb=b[tSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(tSC==='rating'||tSC==='rating_prev'){var ra=RO2[va]||99,rb2=RO2[vb]||99;return tSA?ra-rb2:rb2-ra;}if(typeof va==='string')return tSA?va.localeCompare(vb):vb.localeCompare(va);return tSA?va-vb:vb-va;});}
+  else if(tSC){sd.sort(function(a,b){var va,vb;if(tSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(tSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[tSC];vb=b[tSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(tSC==='rating'||tSC==='rating_prev'){var ra=RO2[va]||99,rb2=RO2[vb]||99;return tSA?ra-rb2:rb2-ra;}if(typeof va==='string')return tSA?va.localeCompare(vb):vb.localeCompare(va);return tSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
   _dtData=sd;_dtCols=cols;
   /* Preserve scrollTop only when neither the dataset nor the sort changed
-     (e.g. flag toggles). On any real change, jump to the top. */
+     (e.g. flag/reviewed toggles). On any real change, jump to the top. */
   var newSig=curTSub+'|'+sd.length+'|'+tSC+'|'+(tSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'')+(_relOn?'|R'+_SEARCH_Q:'');
   if(!_dtScrollEl)_dtScrollEl=document.querySelector('#view-table .table-wrap');
   if(_dtScrollEl&&!_dtScrollAttached){
@@ -6417,6 +6483,7 @@ function _dtBuildRow(d,_i){
   var html='<tr>';
   html+='<td>'+(_i+1)+'</td>';
   html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
+  html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
   _dtCols.forEach(function(c){
     var r=ftc(d[c.k],c.f);
     var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';
@@ -7721,7 +7788,7 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
   dm.addEventListener('mouseout',function(e){if(_isTouchDeviceP||_pinEl)return;var el=e.target.closest(_SEL);if(el)_pt.style.display='none';});
   /* Tap/click — iOS requires touchend; e.preventDefault() suppresses ghost click */
   function _onTap(e){
-    if(e.target.closest('.detail-close,.det-nav-btn,.flag-star'))return;
+    if(e.target.closest('.detail-close,.det-nav-btn,.flag-star,.rev-chk-det'))return;
     var t=e.changedTouches?e.changedTouches[0]:null;
     var target=t?document.elementFromPoint(t.clientX,t.clientY):e.target;
     if(!target)return;
@@ -9504,6 +9571,7 @@ function openDet(tk){
   document.getElementById('d-tk').textContent=d.ticker;
   var _cn=document.getElementById('d-cname');if(_cn)_cn.textContent=d.company_name||'';
   _syncFlagDet();
+  _syncRevDet();
   pfPopClose();_pfSyncDet();
   var pxEl=document.getElementById('d-px');if(pxEl)pxEl.textContent=d.price!=null?'$'+(d.price<1?d.price.toFixed(4):d.price.toFixed(2)):'N/A';
   var rEl=document.getElementById('d-rt');rEl.textContent=(d.rating||'N/A')+(isCapped(d)?' ⚠':'');rEl.title=isCapped(d)?capTip(d):'';rEl.style.background=RC[d.rating]||'#888';
@@ -10481,8 +10549,8 @@ function qrKey(e){
     i=((i<0?0:i)+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;
     items[i].classList.add('hi');items[i].setAttribute('aria-selected','true');
   }else if(e.key==='Enter'){
-    /* stopPropagation: the popup's own key handler must not see the
-       keystroke that just opened it. */
+    /* stopPropagation: the popup's own Enter (mark reviewed, next ticker)
+       must not see the keystroke that just opened it. */
     e.preventDefault();e.stopPropagation();_qrOpen(items[Math.max(0,i)].getAttribute('data-qr'));
   }
 }
@@ -10519,6 +10587,7 @@ var HOTKEYS=[
   {g:'Ticker popup',k:['t'],l:'Finances: next statement (balance / income / cash flow)'},
   {g:'Ticker popup',k:['s'],l:'Summary PDF for this ticker'},
   {g:'Ticker popup',k:['x'],l:'Flag / unflag this ticker'},
+  {g:'Ticker popup',k:['Enter'],l:'Mark reviewed, then next ticker'},
   {g:'Ticker popup',k:['p'],l:'Portfolio membership menu'}
 ];
 /* Hotkeys stay out of the way of typing and of the browser's own chords.
@@ -10632,6 +10701,7 @@ function _hkDetDispatch(e){
   }
   else if(k==='s'){e.preventDefault();exportProfilePdf();}
   else if(k==='x'){e.preventDefault();toggleFlagDet();}
+  else if(k==='Enter'){e.preventDefault();var tk=document.getElementById('d-tk').textContent;if(tk&&!isReviewed(tk)){toggleReviewed(tk);_syncRevDet();}navDet(1);}
   else if(k==='p'){e.preventDefault();pfDetMenu(null);}
   else if(k==='?'){e.preventDefault();pfPopClose();hkOverlayOpen();}
 }
@@ -11457,7 +11527,7 @@ function renderPoolCompanies(sec,cos){
     var tk=e.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     out+='<div class="pp-co" style="border-left-color:'+col+'" onclick="openDet(\''+tk+'\')">';
     out+='<div class="pp-co-hdr"><span class="pp-co-id"><span class="pp-co-tk">'+_esc(e.ticker)+'</span>'
-      +_starHtml(e.ticker)
+      +_revHtml(e.ticker)+_starHtml(e.ticker)
       +(e.name?'<span class="pp-co-nm">'+_esc(e.name).slice(0,24)+'</span>':'')+'</span></div>';
     if(e.badges.length){
       out+='<div class="pp-co-badges">';
