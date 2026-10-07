@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
+  NOT LOADED. Since 2026-10-11 the weekly backtest runs from the Claude
+  desktop app's task the-weekly-backtest (weekly-backtest/SKILL.md), which
+  also writes the summary. This plist is the app-free alternative (no
+  summary); never load it while that task is enabled.
   Weekly backtest on a Mac (../MAC-MINI-SETUP.md section 6). Install:
     cp scheduled-tasks/weekly-backtest/com.stockmodel.weekly.plist ~/Library/LaunchAgents/
     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.stockmodel.weekly.plist

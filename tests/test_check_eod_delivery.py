@@ -143,3 +143,53 @@ class TestFetchFailureIsNotSuccess:
         monkeypatch.setattr('sys.argv', ['x', '--repo', 'owner/name'])
         assert mod.main() == 0
         assert 'OK' in capsys.readouterr().out
+
+
+class TestWeeklyKind:
+    """--kind weekly: the Sunday backtest's `backtest_summary_<date>.json`."""
+
+    def test_reads_only_backtest_summaries(self):
+        from scripts.check_eod_delivery import KINDS
+        names = ['backtest_summary_2026-10-04.json', 'backtest_2026-10-04.xlsx',
+                 'results_2026-10-05.json.gz', 'backtest_summary_2026-09-26.json.gz']
+        assert snapshot_dates(names, KINDS['weekly'][0]) == [D(2026, 10, 4)]
+
+    def test_snapshot_kind_ignores_summaries(self):
+        assert snapshot_dates(['backtest_summary_2026-10-04.json']) == []
+
+    def test_next_monday_is_fresh(self):
+        ok, age, _ = verdict([D(2026, 10, 4)], D(2026, 10, 5), 8, 'weekly')
+        assert ok and age == 1
+
+    def test_a_missed_sunday_goes_red_the_monday_after(self):
+        # 10-04 landed, 10-11 did not: Monday 10-12 sees an 8-day-old summary
+        # (allowed), Tuesday 10-13 a 9-day-old one.
+        assert verdict([D(2026, 10, 4)], D(2026, 10, 12), 8, 'weekly')[0]
+        ok, _, reason = verdict([D(2026, 10, 4)], D(2026, 10, 13), 8, 'weekly')
+        assert not ok
+        assert 'weekly backtest' in reason
+
+    def _run(self, monkeypatch, names, *extra):
+        import scripts.check_eod_delivery as mod
+        monkeypatch.setattr(mod, 'fetch_branch_filenames', lambda *a, **k: names)
+        monkeypatch.setattr('sys.argv', ['x', '--repo', 'owner/name', '--kind', 'weekly', *extra])
+        return mod.main()
+
+    def test_default_max_age_is_eight_days(self, monkeypatch, capsys):
+        import datetime as _dt
+        eight = _dt.date.today() - _dt.timedelta(days=8)
+        nine = _dt.date.today() - _dt.timedelta(days=9)
+        assert self._run(monkeypatch, [f'backtest_summary_{eight:%Y-%m-%d}.json']) == 0
+        assert self._run(monkeypatch, [f'backtest_summary_{nine:%Y-%m-%d}.json']) == 1
+        assert 'STALE' in capsys.readouterr().out
+
+    def test_fresh_snapshots_do_not_satisfy_weekly(self, monkeypatch, capsys):
+        import datetime as _dt
+        today = _dt.date.today()
+        assert self._run(monkeypatch, [f'results_{today:%Y-%m-%d}.json.gz']) == 1
+
+    def test_no_weekday_table_for_weekly(self, monkeypatch, capsys):
+        import datetime as _dt
+        today = _dt.date.today()
+        assert self._run(monkeypatch, [f'backtest_summary_{today:%Y-%m-%d}.json']) == 0
+        assert 'weekdays with no snapshot' not in capsys.readouterr().out

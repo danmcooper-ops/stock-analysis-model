@@ -9,11 +9,12 @@ daily pipeline.
 | `daily-stock-analysis/SKILL.md` | **The live daily routine since 2026-10-05** (Mac mini, weekdays 17:00 New York). Launches `scripts/run_daily.sh` (preflight → prices → analysis → enrichment → re-render → snapshot archive → reports → publish), then summarizes `output/run_summary_<date>.json`. The cloud routine must stay paused while this is on |
 | `the-stock-analysis-model/SKILL.md` | **The Claude desktop app's scheduled task** for the daily run (weekdays 17:00 New York, Mac mini). A thin entry point: it tells the session to follow `daily-stock-analysis/SKILL.md`, so the runbook keeps a single copy. The app refuses symlinks, so `~/.claude/scheduled-tasks/` holds a **copy** of this file (see below) |
 | `publish-stock-report/SKILL.md` | Copies the five report artifacts into the `pages-live` worktree, amends its single commit, force-pushes to GitHub Pages |
-| `cloud-weekly-backtest/` | **The live weekly backtest.** A cloud Routine each Sunday runs `run.sh`: stage every snapshot since 2026-07-06 (+ the persisted `returns/` sidecars) out of `data/snapshots` → cold price download with a coverage gate → `measure` offline → week-over-week regression check → commit the summary, xlsx and sidecars to `data/snapshots`. Measurement only; calibration stays off until `readiness` clears it |
-| `weekly-backtest/` | **Dormant** (Mac). `mac_run.sh` runs the cloud routine's `run.sh` on a Mac (launchd plist or the `SKILL.md` task); the old `weekly_backtest.sh` is retired. Must stay off while the cloud routine is live |
+| `cloud-weekly-backtest/` | **Dormant since 2026-10-11** (paused at the Mac mini cut-over; on 2026-09-27 the cloud egress proxy blocked Yahoo and the run measured nothing). `run.sh` is still the weekly pipeline: the Mac runs it unchanged through `weekly-backtest/mac_run.sh`, and `SKILL.md` §3–4 stay the summary instructions for both. As a cloud Routine each Sunday it runs `run.sh`: stage every snapshot since 2026-07-06 (+ the persisted `returns/` sidecars) out of `data/snapshots` → cold price download with a coverage gate → `measure` offline → week-over-week regression check → commit the summary, xlsx and sidecars to `data/snapshots`. Measurement only; calibration stays off until `readiness` clears it |
+| `weekly-backtest/` | **The live weekly backtest since 2026-10-11** (Mac mini, Sundays 09:45 New York). `SKILL.md` launches `mac_run.sh` detached, which runs `../cloud-weekly-backtest/run.sh` with the Mac's environment and a lock, waits for it, and writes the summary. `scripts/check_eod_delivery.py --kind weekly` (the Monday `weekly-backtest-check.yml`) goes red if no summary landed. `com.stockmodel.weekly.plist` is an app-free alternative and is not loaded. The cloud routine must stay paused while this is on |
+| `the-weekly-backtest/SKILL.md` | **The Claude desktop app's scheduled task** for the weekly backtest (Sundays 09:45 New York, Mac mini). A thin entry point to `weekly-backtest/SKILL.md`, kept as a **copy** in `~/.claude/scheduled-tasks/` like the daily one (see below) |
 | `mac-mini/` | Moving to a Mac mini (`MAC-MINI-SETUP.md`): `pack_old_mac.sh` inventories the old Mac and packs `.env` (plus caches on request); `bootstrap_mini.sh` sets up the new Mac, re-runnable, `--check` to report only. Neither schedules anything |
 
-The Mac runbooks (and the weekly launchd job) assumed a persistent local checkout; that
+The Mac runbooks assumed a persistent local checkout; that
 checkout was deleted on 2026-09-09 and the daily run moved to the cloud
 routine the next day. They stay here as the reference for the steps and for a
 future Mac rebuild — but the cloud routine and a rebuilt Mac routine must not
@@ -39,9 +40,10 @@ This section describes the arrangement the Mac routines used, for when they
 are rebuilt. Nothing in it applies to the cloud routine, which reads
 `cloud-daily-stock-analysis/run.sh` straight from a fresh clone of `main`.
 
-**The desktop app's task is a copy, not a symlink.** The Claude desktop app
+**The desktop app's tasks are copies, not symlinks.** The Claude desktop app
 runs `~/.claude/scheduled-tasks/the-stock-analysis-model/SKILL.md` (since
-2026-10-03) and refuses to open a task file reached through a symlink
+2026-10-03) and `~/.claude/scheduled-tasks/the-weekly-backtest/SKILL.md`
+(since 2026-10-11), and refuses to open a task file reached through a symlink
 ("symlink detected before open; refusing to open"). That folder must be a real
 folder holding a copy of `the-stock-analysis-model/SKILL.md` from here. After
 changing the tracked copy, copy it over:
@@ -50,6 +52,9 @@ changing the tracked copy, copy it over:
 mkdir -p ~/.claude/scheduled-tasks/the-stock-analysis-model
 cp "$HOME/Projects/Workspace Folder/scheduled-tasks/the-stock-analysis-model/SKILL.md" \
    ~/.claude/scheduled-tasks/the-stock-analysis-model/SKILL.md
+mkdir -p ~/.claude/scheduled-tasks/the-weekly-backtest
+cp "$HOME/Projects/Workspace Folder/scheduled-tasks/the-weekly-backtest/SKILL.md" \
+   ~/.claude/scheduled-tasks/the-weekly-backtest/SKILL.md
 ```
 
 The copy is a thin entry point: it sends the session to
@@ -59,7 +64,8 @@ routine at runtime; committing gives the change history.
 
 `~/.claude/scheduled-tasks/daily-stock-analysis` and
 `~/.claude/scheduled-tasks/publish-stock-report` are older symlinks into this
-directory, from before the desktop app task. The app does not run them.
+directory, from before the desktop app task. The app does not run them. (The
+old `weekly-backtest` symlink was removed at the 2026-10-11 cut-over.)
 
 Consequences of the arrangement:
 
@@ -86,6 +92,8 @@ are intact:
 ```bash
 diff "$HOME/Projects/Workspace Folder/scheduled-tasks/the-stock-analysis-model/SKILL.md" \
      ~/.claude/scheduled-tasks/the-stock-analysis-model/SKILL.md
+diff "$HOME/Projects/Workspace Folder/scheduled-tasks/the-weekly-backtest/SKILL.md" \
+     ~/.claude/scheduled-tasks/the-weekly-backtest/SKILL.md
 readlink ~/.claude/scheduled-tasks/daily-stock-analysis
 readlink ~/.claude/scheduled-tasks/publish-stock-report
 ```

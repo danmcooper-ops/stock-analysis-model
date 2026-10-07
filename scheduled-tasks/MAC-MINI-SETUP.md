@@ -269,29 +269,49 @@ Already done in the repo:
   last week's files. That makes no difference in the cloud, whose directory
   starts empty. Tested with two smoke runs: the second found all 12 files
   current and downloaded nothing.
-- `com.stockmodel.weekly.plist` runs `mac_run.sh` in place (Sundays 20:00),
-  with install steps in its header.
+- `mac_run.sh` holds a lock (`$STOCK_MODEL_WORK/.weekly.lock`, the PID), so a
+  manual run or a retry can never overlap the scheduled one.
+- **The arrangement (live 2026-10-11): the Claude desktop app runs it**, like
+  the daily. The app task `the-weekly-backtest` (a thin pointer to
+  `weekly-backtest/SKILL.md`, Sundays 09:45, the slot the cloud Routine used)
+  launches `mac_run.sh` detached, waits on its PID, and writes the summary.
+  The app must be running and signed in, as for the daily. Like the daily
+  task, `~/.claude/scheduled-tasks/the-weekly-backtest/` must be a **real
+  folder holding a copy** of the tracked file; the app refuses symlinks
+  (`README.md`).
+- `com.stockmodel.weekly.plist` is the app-free alternative (no summary). It
+  is not loaded; never load it while the app task is enabled.
+- `.github/workflows/weekly-backtest-check.yml` (Mondays) goes red when the
+  newest `backtest_summary_<date>.json` on `data/snapshots` is more than 8
+  days old (`scripts/check_eod_delivery.py --kind weekly`).
 
 On the Mac:
-- [ ] **Git push access** to `data/snapshots`. This is the same credential as
+- [x] **Git push access** to `data/snapshots`. This is the same credential as
       the daily. `run.sh` pushes to the HTTPS URL in `PUSH_REMOTE`, so a token
       in the macOS keychain credential helper works. For SSH, set
       `PUSH_REMOTE`/`CLONE_REMOTE` to the `git@github.com:` form.
 - [ ] **Schedule:** Sundays. Friday's daily run can last into Saturday
-      afternoon, and the two now rebase over each other if they meet. Either a
-      Claude Code scheduled task following `weekly-backtest/SKILL.md` (with a
-      written summary), or the plist (without one; edit its two paths if the
-      repo isn't at `~/Projects/Workspace Folder`).
+      afternoon, and the two now rebase over each other if they meet.
+      The task: a real folder `~/.claude/scheduled-tasks/the-weekly-backtest/`
+      holding a copy of `the-weekly-backtest/SKILL.md`, scheduled in the
+      Claude app for Sundays 09:45 New York.
 - [ ] **Disk:** the work directory holds the staged corpus (~1.5 GB, from
       2026-07-06 on and growing about 17 MB a night) and the price parquets.
       The corpus is re-cloned from GitHub each Sunday, about 1.5 GB of
       download. The repo also gets its own `.venv` (gitignored), separate
       from the daily's `~/.venvs/stock-model`.
-- [ ] **Smoke test** before the cut-over. It pushes nothing:
+- [x] **Smoke test** before the cut-over (passed 2026-10-03). It pushes nothing:
       `SMOKE=1 scheduled-tasks/weekly-backtest/mac_run.sh`, then
       `cat ~/Library/Application\ Support/StockModel/backtest/status.txt`.
       `RESULT OK` is the pass. A `07-compare` soft failure is expected on the
       8-ticker smoke corpus.
+- [ ] **Full dry run** before the cut-over, outside the daily's window
+      (weekdays 17:00 to about 00:30), so the two don't compete for Yahoo:
+      `DRY_RUN=1 scheduled-tasks/weekly-backtest/mac_run.sh`. It warms the
+      price cache (1–2 h cold), so the first real Sunday takes minutes, and
+      it pushes nothing. Pass: `RESULT OK`, `04-prices` clears its gate,
+      `04b-backfill` ran, and `07-compare` against the last cloud summary has
+      no new `REGRESSION:` lines.
 
 ## 7. Cut over
 
@@ -302,9 +322,11 @@ On the Mac:
 - [ ] **Pause the cloud Routine** ("Daily stock analysis (cloud)") in the
       claude.ai Routines UI. Check that it shows as disabled.
 - [ ] Enable the Mac's daily task.
-- [ ] Before a Sunday, **pause the weekly cloud Routine** too, then enable the
-      Mac's weekly task. Swap the DORMANT banners between
-      `cloud-weekly-backtest/SKILL.md` and `weekly-backtest/SKILL.md`.
+- [ ] Before a Sunday, **pause the weekly cloud Routine** ("Weekly
+      Backtest") too, then enable the app's `the-weekly-backtest` task
+      (section 6). The DORMANT banners were
+      swapped between `cloud-weekly-backtest/SKILL.md` and
+      `weekly-backtest/SKILL.md` for the 2026-10-11 cut-over.
 - [ ] After the first night, check:
   - [ ] `output/run_summary_<date>.json` has `status: ok`
   - [ ] `results_<date>.json.gz` is on `data/snapshots`, with no second
@@ -328,6 +350,13 @@ On the Mac:
 ## Going back to the cloud
 
 Pause the Mac task first, then resume the matching cloud Routine. Do this
-per job. If section 4's
+per job. For the weekly backtest:
+
+1. disable the `the-weekly-backtest` task in the Claude app;
+2. swap the DORMANT banners back (`weekly-backtest/SKILL.md` dormant,
+   `cloud-weekly-backtest/SKILL.md` live) and merge that to `main`;
+3. resume the "Weekly Backtest" Routine.
+
+`weekly-backtest-check.yml` keeps working whichever machine runs the job. If section 4's
 branch commits and the Supabase cache saves were kept up, the cloud run
 starts warm without further work.
