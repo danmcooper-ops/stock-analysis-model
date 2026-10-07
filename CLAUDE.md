@@ -51,10 +51,12 @@ supabase/        - Supabase project (config.toml, migrations/) for the planned
                    primary database; see design/supabase-migration.md
 design/          - design docs and spikes (Supabase migration plan, P0 findings)
 scheduled-tasks/ - Operational runbooks for the nightly analysis + publish;
-                   cloud-daily-stock-analysis/run.sh is the live (cloud
-                   Routine) pipeline, cloud-weekly-backtest/run.sh the live
-                   Sunday backtest (helpers in scripts/backtest_cloud.py),
-                   the rest are the dormant Mac runbooks
+                   both jobs run on the Mac mini: scripts/run_daily.sh is
+                   the live nightly pipeline (daily-stock-analysis/), and
+                   launchd runs cloud-weekly-backtest/run.sh through
+                   weekly-backtest/mac_run.sh as the Sunday backtest
+                   (helpers in scripts/backtest_cloud.py); the cloud-*
+                   Routines are dormant
 output/          - (gitignored) run artifacts: results JSON, HTML, prices,
                    snapshots.duckdb (derived index over the results JSONs)
 ```

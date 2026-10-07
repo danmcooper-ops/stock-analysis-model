@@ -14,9 +14,15 @@ instead of "every weekday must be present": market holidays would otherwise
 raise a false alarm every few weeks, and a run that skips one day but keeps
 going is a different (smaller) problem than a run that has stopped.
 
+`--kind weekly` applies the same check to the Sunday backtest: it reads
+`backtest_summary_<date>.json` instead and allows 8 days, so one Sunday that
+produced nothing goes red on the Monday after it. The missing-weekday table
+does not apply to a weekly job and is skipped.
+
 Usage:
     python scripts/check_eod_delivery.py --repo owner/name
     python scripts/check_eod_delivery.py --repo owner/name --max-age-days 4
+    python scripts/check_eod_delivery.py --repo owner/name --kind weekly
 
 A GitHub token is read from $GITHUB_TOKEN when present; the endpoint is
 public, so a token only raises the rate limit. Exit status is 0 when the
@@ -42,12 +48,25 @@ _SNAPSHOT_RE = re.compile(r'^results_(\d{4}-\d{2}-\d{2})\.json(\.gz)?$')
 # healthy. Anything past that means at least one ordinary weekday vanished.
 _DEFAULT_MAX_AGE_DAYS = 4
 
+# The weekly backtest commits `backtest_summary_<date>.json` each Sunday.
+_WEEKLY_RE = re.compile(r'^backtest_summary_(\d{4}-\d{2}-\d{2})\.json$')
 
-def snapshot_dates(names):
-    """Parse `results_<date>.json[.gz]` filenames into a sorted date list."""
+# kind -> (filename pattern, default max age, what a file is, its plural, what stale means)
+KINDS = {
+    'snapshot': (_SNAPSHOT_RE, _DEFAULT_MAX_AGE_DAYS, 'snapshot', 'snapshots',
+                 'the nightly run has stopped landing snapshots'),
+    # A Sunday summary seen on the Monday after the NEXT Sunday is 8 days old:
+    # that Sunday has produced nothing, which is what this is meant to catch.
+    'weekly': (_WEEKLY_RE, 8, 'backtest summary', 'backtest summaries',
+               'the weekly backtest has stopped landing summaries'),
+}
+
+
+def snapshot_dates(names, pattern=_SNAPSHOT_RE):
+    """Parse `results_<date>.json[.gz]` filenames (or *pattern*'s) into a sorted date list."""
     dates = set()
     for name in names:
-        m = _SNAPSHOT_RE.match(name)
+        m = pattern.match(name)
         if m:
             try:
                 dates.add(datetime.date.fromisoformat(m.group(1)))
@@ -71,16 +90,17 @@ def missing_weekdays(dates, today, lookback_days):
     return out
 
 
-def verdict(dates, today, max_age_days=_DEFAULT_MAX_AGE_DAYS):
+def verdict(dates, today, max_age_days=_DEFAULT_MAX_AGE_DAYS, kind='snapshot'):
     """Return (ok, age_days, reason) for the archive's freshness."""
+    _, _, noun, nouns, stopped = KINDS[kind]
     if not dates:
-        return False, None, 'no snapshots found on the branch at all'
+        return False, None, f'no {nouns} found on the branch at all'
     newest = dates[-1]
     age = (today - newest).days
     if age > max_age_days:
-        return False, age, (f'newest snapshot is {newest} ({age} days old, limit {max_age_days}) '
-                            f'-- the nightly run has stopped landing snapshots')
-    return True, age, f'newest snapshot is {newest} ({age} days old)'
+        return False, age, (f'newest {noun} is {newest} ({age} days old, limit {max_age_days}) '
+                            f'-- {stopped}')
+    return True, age, f'newest {noun} is {newest} ({age} days old)'
 
 
 def fetch_branch_filenames(repo, branch, token=None, timeout=30):
@@ -103,8 +123,11 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('--repo', required=True, help='owner/name of the GitHub repository')
     ap.add_argument('--branch', default='data/snapshots', help='branch holding the archive')
-    ap.add_argument('--max-age-days', type=int, default=_DEFAULT_MAX_AGE_DAYS,
-                    help=f'fail when the newest snapshot is older than this (default {_DEFAULT_MAX_AGE_DAYS})')
+    ap.add_argument('--kind', choices=sorted(KINDS), default='snapshot',
+                    help='nightly snapshots (default) or weekly backtest summaries')
+    ap.add_argument('--max-age-days', type=int, default=None,
+                    help=f'fail when the newest file is older than this (default {_DEFAULT_MAX_AGE_DAYS} '
+                         f'for snapshot, {KINDS["weekly"][1]} for weekly)')
     ap.add_argument('--lookback-days', type=int, default=21,
                     help='window for the informational missing-weekday table (default 21)')
     args = ap.parse_args(argv)
@@ -117,14 +140,16 @@ def main(argv=None):
         print(f'check_eod_delivery: could not read {args.repo}@{args.branch}: {e}', file=sys.stderr)
         return 2
 
+    pattern, default_age, _, nouns, _ = KINDS[args.kind]
+    max_age = default_age if args.max_age_days is None else args.max_age_days
     today = datetime.date.today()
-    dates = snapshot_dates(names)
-    ok, _, reason = verdict(dates, today, args.max_age_days)
+    dates = snapshot_dates(names, pattern)
+    ok, _, reason = verdict(dates, today, max_age, args.kind)
 
     print(f'{"OK" if ok else "STALE"}: {reason}')
-    print(f'archive holds {len(dates)} snapshots')
+    print(f'archive holds {len(dates)} {nouns}')
 
-    gaps = missing_weekdays(dates, today, args.lookback_days)
+    gaps = missing_weekdays(dates, today, args.lookback_days) if args.kind == 'snapshot' else []
     if gaps:
         print(f'\nweekdays with no snapshot in the last {args.lookback_days} days '
               f'({len(gaps)}, market holidays included):')
