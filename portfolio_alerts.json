@@ -1,12 +1,12 @@
 {
  "version": 1,
- "date": "2026-10-05",
- "prev_date": "2026-10-02",
+ "date": "2026-10-06",
+ "prev_date": "2026-10-05",
  "systemic": {
   "n": 2504,
   "prev_n": 2503,
-  "changed": 45,
-  "changed_share": 0.018,
+  "changed": 29,
+  "changed_share": 0.0116,
   "missing_data": 0,
   "missing_share": 0.0,
   "shrink_share": 0.0,
@@ -31,9 +31,9 @@
      "HOLD": 0,
      "PASS": 3
     },
-    "median_mos": -0.6490149475971978,
+    "median_mos": -0.6453799016348511,
     "median_score": 39.5,
-    "median_spread": 0.3751117367853425,
+    "median_spread": 0.3755116417620554,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -63,9 +63,9 @@
      "HOLD": 15,
      "PASS": 29
     },
-    "median_mos": -0.28848580100577426,
-    "median_score": 42.4,
-    "median_spread": 0.2708969784495913,
+    "median_mos": -0.3759294221237217,
+    "median_score": 42.3,
+    "median_spread": 0.27125860727309714,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -80,35 +80,42 @@
     "hhi": 0.17764328942684227,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 0,
-    "downgrades": 2
+    "upgrades": 1,
+    "downgrades": 1
    },
    "alerts": [
     {
-     "ticker": "DDS",
+     "ticker": "AGX",
      "from": "LEAN BUY",
      "to": "HOLD",
-     "kind": "reversal",
-     "level": "watch",
-     "reversal_of": "2026-09-28",
-     "message": "DDS fell out of the buy zone: LEAN BUY → HOLD (reverses the 2026-09-28 move)",
+     "kind": "exited_buy",
+     "level": "action",
+     "message": "AGX fell out of the buy zone: LEAN BUY → HOLD",
      "why": [
       "A rating cap fired this run: non-positive margin of safety. On the composite alone it would rate LEAN BUY.",
       "Composite score moved 41 → 40 (the composite-only rating band did not change).",
-      "Biggest category moves: Valuation 30 → 26 (-4)."
+      "Biggest category moves: Valuation 23 → 19 (-3)."
      ]
     },
     {
-     "ticker": "MA",
+     "ticker": "DDS",
      "from": "HOLD",
-     "to": "PASS",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "MA HOLD → PASS",
+     "to": "LEAN BUY",
+     "kind": "reversal",
+     "level": "watch",
+     "reversal_of": "2026-10-05",
+     "message": "DDS moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-10-05 move)",
      "why": [
-      "A rating cap fired this run: margin of safety <= -20%. On the composite alone it would rate HOLD.",
-      "Composite score moved 36 → 35 (the composite-only rating band did not change)."
+      "The prior run's rating cap no longer applies (non-positive margin of safety).",
+      "Composite score moved 40 → 41 (the composite-only rating band did not change).",
+      "Biggest category moves: Valuation 26 → 30 (+4)."
      ]
+    },
+    {
+     "ticker": "JPM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "JPM reports earnings on 2026-10-13"
     }
    ]
   }
