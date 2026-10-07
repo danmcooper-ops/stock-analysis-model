@@ -1,26 +1,25 @@
 ---
 name: the-weekly-backtest
-description: Summarize the weekly backtest that launchd ran on the Mac mini this morning.
+description: Run the weekly forward-return backtest on the Mac mini.
 ---
 
-You are writing the summary of the weekly forward-return backtest on the Mac
-mini. This is an unattended scheduled run: work fully autonomously and never
-pause for confirmation.
+You are running the weekly backtest on the Mac mini. This is an unattended
+scheduled run: work fully autonomously and never pause for confirmation.
 
-launchd has already started the backtest itself (Sundays 09:45 New York,
-`com.stockmodel.weekly`). Your job is to read what it produced. The runbook
-lives in the repo, version-controlled, so that it changes with the code it
-drives. Read it now and follow it exactly, from Step 1 to the end:
+The runbook lives in the repo, version-controlled, so that it changes with the
+code it drives. Read it now and follow it exactly, from Step 1 to the end:
 
     /Users/dmcooper/Projects/Workspace Folder/scheduled-tasks/weekly-backtest/SKILL.md
 
 In short, it has you:
-1. Check whether the job is still running (`.weekly.lock` in the work
-   directory) and, if so, wait on its PID with a background loop, restarting
-   the loop if it hits the 2 h limit.
-2. Confirm `status.txt` is from today; if the job never ran, report why.
-3. Write the summary that `cloud-weekly-backtest/SKILL.md` §3–4 describes.
-4. Retry once, detached, only where the runbook allows it.
+1. Launch `scheduled-tasks/weekly-backtest/mac_run.sh` **detached** (its own
+   session via `setsid`, so the Bash tool's 2 h background limit cannot kill
+   a cold run), then wait on its PID with a background loop, restarting the
+   loop if it hits the limit. Use the exact commands in the runbook's Step 1.
+   Never start a second copy.
+2. Read `~/Library/Application Support/StockModel/backtest/status.txt` and
+   the step logs.
+3. Write the summary the runbook describes.
 
 If the runbook cannot be read (the repo moved or was deleted), run nothing:
 report "weekly-backtest runbook not found at the path above — skipped; see

@@ -53,8 +53,9 @@ design/          - design docs and spikes (Supabase migration plan, P0 findings)
 scheduled-tasks/ - Operational runbooks for the nightly analysis + publish;
                    both jobs run on the Mac mini: scripts/run_daily.sh is
                    the live nightly pipeline (daily-stock-analysis/), and
-                   launchd runs cloud-weekly-backtest/run.sh through
-                   weekly-backtest/mac_run.sh as the Sunday backtest
+                   cloud-weekly-backtest/run.sh, run through
+                   weekly-backtest/mac_run.sh, the Sunday backtest; the
+                   Claude desktop app's scheduled tasks launch both
                    (helpers in scripts/backtest_cloud.py); the cloud-*
                    Routines are dormant
 output/          - (gitignored) run artifacts: results JSON, HTML, prices,

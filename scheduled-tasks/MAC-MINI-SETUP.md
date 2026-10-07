@@ -269,19 +269,18 @@ Already done in the repo:
   last week's files. That makes no difference in the cloud, whose directory
   starts empty. Tested with two smoke runs: the second found all 12 files
   current and downloaded nothing.
-- `com.stockmodel.weekly.plist` runs `mac_run.sh` in place (Sundays 09:45,
-  the slot the cloud Routine used), with install steps in its header.
 - `mac_run.sh` holds a lock (`$STOCK_MODEL_WORK/.weekly.lock`, the PID), so a
-  manual run or a retry can never overlap the launchd run.
-- **The arrangement (live 2026-10-11): launchd runs the job, the desktop app
-  writes the summary.** launchd starts the backtest whether or not the Claude
-  app is open. The desktop-app task `the-weekly-backtest` (a thin pointer to
-  `weekly-backtest/SKILL.md`, Sundays 12:30) waits for the job if it is still
-  running, checks that today's `status.txt` exists, and writes the summary.
-  It starts the job only for its one allowed retry, detached. Like the daily
+  manual run or a retry can never overlap the scheduled one.
+- **The arrangement (live 2026-10-11): the Claude desktop app runs it**, like
+  the daily. The app task `the-weekly-backtest` (a thin pointer to
+  `weekly-backtest/SKILL.md`, Sundays 09:45, the slot the cloud Routine used)
+  launches `mac_run.sh` detached, waits on its PID, and writes the summary.
+  The app must be running and signed in, as for the daily. Like the daily
   task, `~/.claude/scheduled-tasks/the-weekly-backtest/` must be a **real
   folder holding a copy** of the tracked file; the app refuses symlinks
   (`README.md`).
+- `com.stockmodel.weekly.plist` is the app-free alternative (no summary). It
+  is not loaded; never load it while the app task is enabled.
 - `.github/workflows/weekly-backtest-check.yml` (Mondays) goes red when the
   newest `backtest_summary_<date>.json` on `data/snapshots` is more than 8
   days old (`scripts/check_eod_delivery.py --kind weekly`).
@@ -293,17 +292,9 @@ On the Mac:
       `PUSH_REMOTE`/`CLONE_REMOTE` to the `git@github.com:` form.
 - [ ] **Schedule:** Sundays. Friday's daily run can last into Saturday
       afternoon, and the two now rebase over each other if they meet.
-      - launchd runs the job (edit the plist's two paths if the repo isn't at
-        `~/Projects/Workspace Folder`):
-        ```bash
-        mkdir -p ~/Library/LaunchAgents
-        cp scheduled-tasks/weekly-backtest/com.stockmodel.weekly.plist ~/Library/LaunchAgents/
-        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.stockmodel.weekly.plist
-        launchctl print gui/$(id -u)/com.stockmodel.weekly | head -20
-        ```
-      - The summary task: a real folder `~/.claude/scheduled-tasks/the-weekly-backtest/`
-        holding a copy of `the-weekly-backtest/SKILL.md`, scheduled in the
-        Claude app for Sundays 12:30 New York.
+      The task: a real folder `~/.claude/scheduled-tasks/the-weekly-backtest/`
+      holding a copy of `the-weekly-backtest/SKILL.md`, scheduled in the
+      Claude app for Sundays 09:45 New York.
 - [ ] **Disk:** the work directory holds the staged corpus (~1.5 GB, from
       2026-07-06 on and growing about 17 MB a night) and the price parquets.
       The corpus is re-cloned from GitHub each Sunday, about 1.5 GB of
@@ -332,8 +323,8 @@ On the Mac:
       claude.ai Routines UI. Check that it shows as disabled.
 - [ ] Enable the Mac's daily task.
 - [ ] Before a Sunday, **pause the weekly cloud Routine** ("Weekly
-      Backtest") too, then load the launchd job and enable the
-      `the-weekly-backtest` summary task (section 6). The DORMANT banners were
+      Backtest") too, then enable the app's `the-weekly-backtest` task
+      (section 6). The DORMANT banners were
       swapped between `cloud-weekly-backtest/SKILL.md` and
       `weekly-backtest/SKILL.md` for the 2026-10-11 cut-over.
 - [ ] After the first night, check:
@@ -359,14 +350,12 @@ On the Mac:
 ## Going back to the cloud
 
 Pause the Mac task first, then resume the matching cloud Routine. Do this
-per job. For the weekly backtest the Mac side is two pieces:
+per job. For the weekly backtest:
 
-1. `launchctl bootout gui/$(id -u)/com.stockmodel.weekly` (and remove the
-   plist from `~/Library/LaunchAgents/`, or it loads again at the next login);
-2. disable the `the-weekly-backtest` task in the Claude app;
-3. swap the DORMANT banners back (`weekly-backtest/SKILL.md` dormant,
+1. disable the `the-weekly-backtest` task in the Claude app;
+2. swap the DORMANT banners back (`weekly-backtest/SKILL.md` dormant,
    `cloud-weekly-backtest/SKILL.md` live) and merge that to `main`;
-4. resume the "Weekly Backtest" Routine.
+3. resume the "Weekly Backtest" Routine.
 
 `weekly-backtest-check.yml` keeps working whichever machine runs the job. If section 4's
 branch commits and the Supabase cache saves were kept up, the cloud run

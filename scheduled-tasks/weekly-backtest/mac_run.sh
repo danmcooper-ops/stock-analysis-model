@@ -72,9 +72,9 @@ fi
 export YF_IMPERSONATE="${YF_IMPERSONATE:-chrome}"
 export TZ="${TZ:-America/New_York}"
 
-# One run at a time: launchd, a manual run and the summary task's retry must
+# One run at a time: the app task, its retry and a manual run must
 # never overlap (they would share $STOCK_MODEL_WORK and both push). The lock
-# holds this shell's PID, which the summary task waits on.
+# holds this shell's PID, which the app task waits on.
 LOCK="$STOCK_MODEL_WORK/.weekly.lock"
 if [ -f "$LOCK" ] && kill -0 "$(cat "$LOCK" 2>/dev/null)" 2>/dev/null; then
   echo "mac_run: ALREADY RUNNING pid $(cat "$LOCK")" >&2

@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Weekly backtest on a Mac (../MAC-MINI-SETUP.md section 6): Sundays 09:45
-  in the Mac's time zone (New York), the slot the cloud Routine used. The
-  desktop-app task the-weekly-backtest writes the summary later that day
-  (weekly-backtest/SKILL.md). Install:
+  NOT LOADED. Since 2026-10-11 the weekly backtest runs from the Claude
+  desktop app's task the-weekly-backtest (weekly-backtest/SKILL.md), which
+  also writes the summary. This plist is the app-free alternative (no
+  summary); never load it while that task is enabled.
+  Weekly backtest on a Mac (../MAC-MINI-SETUP.md section 6). Install:
     cp scheduled-tasks/weekly-backtest/com.stockmodel.weekly.plist ~/Library/LaunchAgents/
     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.stockmodel.weekly.plist
   Runs the repo's mac_run.sh in place (no copy to edit separately). The path
@@ -23,8 +24,8 @@
     <key>StartCalendarInterval</key>
     <dict>
         <key>Weekday</key><integer>0</integer>
-        <key>Hour</key><integer>9</integer>
-        <key>Minute</key><integer>45</integer>
+        <key>Hour</key><integer>20</integer>
+        <key>Minute</key><integer>0</integer>
     </dict>
     <key>StandardOutPath</key>
     <string>/Users/dmcooper/Library/Logs/StockModel/launchd_weekly.out</string>
