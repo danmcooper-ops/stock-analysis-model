@@ -619,9 +619,15 @@ ruff check .
     with section tabs (`#d-tabs`). It shows a one-day change taken from the
     `px/` shard. The three filed statements share one Finances tab, right
     after Summary (`DT_FIN`; a `.d-stmt-tabs` switch in its pane, the pick
-    kept in `_detStmt`). On phones its × is the top bar's `#hdr-close`
+    kept in `_detStmt`). The header band is all in flow, top to bottom:
+    `.d-toprow` (portfolio / reviewed / flag on the left, `‹ n / N ›` and
+    × on the right), ticker + Summary button, name, meta, then the rating
+    row — below 1024px split into price · change / rating · score · gates /
+    rating-since by `.d-rr-br` and a full-width `.d-rsince`, one line from
+    1024px. Nothing floats over the text lines, so long names and meta wrap
+    at full width. On phones its × is the top bar's `#hdr-close`
     (shown only under `html.det-open`), and the band collapses on scroll to
-    the ticker, one price line and the tabs.
+    the ticker, one price line and the tabs (the top row collapses too).
   - **Summary PDF:** a "Summary" button right of the ticker symbol
     (`#d-sum`, in `.dh-left`) prints a one-page company summary. The `s` hotkey does the same. There is no
     on-screen tab; the #279 Profile tab was removed in favour of this button.
