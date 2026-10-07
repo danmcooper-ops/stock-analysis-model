@@ -209,7 +209,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
      on !important. */
   .detail-content{max-width:100%!important;border-radius:0!important;height:max(100dvh,var(--vvh,0px))!important;}
   @supports not (height:100dvh){.detail-content{height:var(--vvh,100vh)!important;}}
-  .dh{padding-right:44px!important;}
   .d-header-band{border-radius:0!important;padding:calc(10px + env(safe-area-inset-top)) 16px 10px!important;}
   .d-body{padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px!important;display:block!important;}
   .d-body>*{margin-bottom:10px;}
@@ -230,7 +229,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .last-updated{display:none!important;}
   .hdr-date{display:none!important;}
   .container{padding:2px 6px;}
-  .dh{padding-right:44px!important;}
   .detail-modal.open{padding:0!important;}
   /* Full-bleed height override, same as the portrait phone block above. */
   .detail-content{max-width:100%!important;width:100%!important;border-radius:0!important;height:max(100dvh,var(--vvh,0px))!important;}
@@ -792,42 +790,38 @@ td.ct{font-weight:700;}
      touch even when expanded, so padding and row gap interpolate instead
      of jumping between block and flex layouts. The lines that leave the
      collapsed banner animate to nothing rather than display:none-ing —
-     max-height→0 for the block lines (name, meta), max-width→0 for the
-     inline tails on surviving lines (gates x/N, rating-since, nav
-     position) — so the rating row visibly pushes the banner closed
+     max-height→0 for the block lines (the action/pager top row, name,
+     meta), max-width→0 for the inline tails on surviving lines (gates x/N,
+     rating-since) — so the rating row visibly pushes the banner closed
      instead of snapping. The max caps are animation ceilings only,
-     comfortably above real content (meta can wrap to 3-4 lines on an SE).
-     Absolutes (arrows, flag/reviewed) fade — they never affect flow. */
+     comfortably above real content (a long name or meta can wrap to 4-5
+     lines on an SE). */
   .d-header-band{display:flex;flex-direction:column;gap:0;transition:padding .28s ease,gap .28s ease;}
-  .dcname,.dmeta{overflow:hidden;max-height:88px;transition:max-height .28s ease,opacity .18s ease,margin .28s ease;}
+  .dcname,.dmeta,.d-toprow{overflow:hidden;max-height:140px;transition:max-height .28s ease,opacity .18s ease,margin .28s ease;}
   .d-rating-row{transition:margin .28s ease,padding .28s ease;}
   .dh{transition:padding .28s ease;}
   .dh .dtk{transition:font-size .28s ease;}
-  .d-gp,.d-rsince,.det-nav-pos{overflow:hidden;max-width:340px;transition:max-width .28s ease,opacity .18s ease;}
-  .d-mini-nav,.d-mini-nav-actions{transition:opacity .18s ease;}
+  .d-gp,.d-rsince{overflow:hidden;max-width:340px;transition:max-width .28s ease,opacity .18s ease;}
   /* Collapsed: natural DOM order already reads ticker → rating row once
      the name/meta lines collapse. Breathing room: 8px top/bottom padding
-     and a 5px row gap. The TICKER line shares height with the ☰/× pair
-     (top:12px+safe), so .dh carries the 76px right clearance
-     (right:46px + 24px + margin); the rating row below the buttons runs
-     full width. Zero-width flex-item ghosts (gates/rsince at max-width:0)
+     and a 5px row gap. The top row (actions, pager, ×) collapses with the
+     name and meta, so the ticker and rating lines run full width. Zero-width flex-item ghosts (gates/rsince at max-width:0)
      leave only trailing gap px at the line's END — invisible. */
-  #det-modal.hdr-min .dcname,#det-modal.hdr-min .dmeta{max-height:0;opacity:0;margin:0;}
+  #det-modal.hdr-min .dcname,#det-modal.hdr-min .dmeta,#det-modal.hdr-min .d-toprow{max-height:0;opacity:0;margin:0;}
+  #det-modal.hdr-min .d-toprow{visibility:hidden;pointer-events:none;transition:max-height .28s ease,opacity .18s ease,margin .28s ease,visibility 0s linear .28s;}
   /* display:none, not just max-width:0 — a zero-width item still takes part
      in the rating row's wrap, and after the row's 12px gap it could drop to
      a line of its own: a blank row under the price. */
-  #det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .det-nav-pos{max-width:0;opacity:0;margin:0;display:none;}
-  #det-modal.hdr-min .d-mini-nav,#det-modal.hdr-min .d-mini-nav-actions{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .18s ease,visibility 0s linear .18s;}
+  #det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .d-rr-br{max-width:0;opacity:0;margin:0;display:none;}
   #det-modal.hdr-min .d-header-band{padding:calc(8px + env(safe-area-inset-top)) 16px 8px!important;gap:5px;}
   #det-modal.hdr-min .d-rating-row{margin:0;padding-right:0;}
-  #det-modal.hdr-min .dh{margin:0;padding-right:76px!important;}
+  #det-modal.hdr-min .dh{margin:0;}
   #det-modal.hdr-min .dh .dtk{font-size:1.05em;}
 }
 /* Users who ask iOS for reduced motion get the old instant collapse. */
 @media (hover:none) and (pointer:coarse) and (prefers-reduced-motion:reduce){
-  .d-header-band,.dcname,.dmeta,.d-rating-row,.dh,.dh .dtk,
-  .d-gp,.d-rsince,.det-nav-pos,.d-mini-nav,.d-mini-nav-actions,
-  #det-modal.hdr-min .d-mini-nav,#det-modal.hdr-min .d-mini-nav-actions{transition:none;}
+  .d-header-band,.dcname,.dmeta,.d-toprow,.d-rating-row,.dh,.dh .dtk,
+  .d-gp,.d-rsince,#det-modal.hdr-min .d-toprow{transition:none;}
 }
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
 .dt th:first-child{text-align:left;}
@@ -1018,13 +1012,21 @@ td.ct{font-weight:700;}
    + track record; data dgroup + intrinsic dgroup) — space them like the
    overview flex gap. Scoped: overview's flex gap must not double up. */
 #d-pane-data.active>*+*,#d-pane-stmt.active>*+*{margin-top:14px;}
-.dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:84px;justify-content:space-between;}
+.dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;}
 .dh-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
 /* Bottom line of the band since 2026-08: margin-top separates it from the
-   meta line above; right padding still clears the absolute flag/reviewed
-   actions pinned at the band's bottom-right. */
-.d-rating-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:84px;margin-top:5px;}
+   meta line above. */
+.d-rating-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px;}
+/* Line break inside the rating row (after price · change) and the
+   rating-since line under it, below 1024px; one line from there up. */
+.d-rr-br{flex-basis:100%;height:0;}
+.d-rating-row .d-rsince{flex-basis:100%;}
+.d-rating-row .d-rsince:empty{display:none;}
+@media(min-width:1024px){
+  .d-rr-br{display:none;}
+  .d-rating-row .d-rsince{flex-basis:auto;}
+}
 .d-rating-row .d-gp{font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.02em;white-space:nowrap;margin-left:2px;}
 .d-rsince{display:inline-flex;align-items:center;gap:7px;font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.02em;white-space:nowrap;cursor:default;}
 .d-rsince .rs-up{color:#7ee2a8;}
@@ -1032,11 +1034,13 @@ td.ct{font-weight:700;}
 .d-rhist-bar{display:inline-flex;width:84px;height:8px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,0.15);}
 .d-rhist-bar span{display:block;height:100%;}
 .rb-cap{margin-left:3px;cursor:help;font-size:0.85em;}
-/* The band's right edge is three separately-anchored zones, all sharing
-   right:14px — close/hamburger chips at the top, prev/next arrows
-   vertically centered, reviewed/flag icons at the bottom. */
-.d-mini-nav{position:absolute;top:50%;transform:translateY(-50%);right:14px;display:flex;flex-direction:column;align-items:flex-end;}
-.d-mini-nav-actions{position:absolute;bottom:12px;right:14px;z-index:6;display:flex;align-items:center;gap:10px;}
+/* The band's first line (.d-toprow): portfolio / reviewed / flag at the
+   left, the ‹ n / N › pager and × at the right. All in flow, so no line
+   below them reserves room for them. */
+.d-toprow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;}
+.d-mini-nav{display:flex;align-items:center;gap:6px;}
+.d-toprow .detail-close{position:static;flex-shrink:0;}
+.d-mini-nav-actions{display:flex;align-items:center;gap:10px;}
 /* Flag glyph (⚐/⚑) has more internal whitespace than the reviewed SVG
    circle, so at equal font-size it looks visually smaller. Bump it
    enough to match (or slightly exceed) the reviewed icon's optical
@@ -1044,13 +1048,12 @@ td.ct{font-weight:700;}
 .d-mini-nav-actions .flag-star{font-size:1.35em;line-height:1;}
 .d-mini-nav-actions .flag-star:not(.flagged){color:rgba(255,255,255,0.4);}
 .d-mini-nav-actions .rev-chk-det{font-size:0.85em;}
-.d-mini-nav-arrows{display:flex;align-items:center;gap:3px;}
+.d-mini-nav-arrows{display:flex;align-items:center;gap:6px;}
 .d-mini-nav-btn{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.2);border-radius:5px;width:26px;height:19px;font-size:12px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
 .d-mini-nav-btn:hover:not(:disabled){background:rgba(255,255,255,0.32);}
 .d-mini-nav-btn:disabled{opacity:0.3;cursor:default;}
-.dmeta{padding-right:70px;}
-/* Stock-count nav indicator (e.g. "1 / 2033") — sits inline just right of
-   the big ticker symbol in .dh-left, muted so the ticker keeps the weight. */
+/* Stock-count nav indicator (e.g. "1 / 2033") — between the ‹ › buttons,
+   muted so it reads as navigation, not data. */
 .det-nav-pos{font-size:0.66em;color:rgba(255,255,255,0.65);white-space:nowrap;letter-spacing:0.03em;font-variant-numeric:tabular-nums;}
 .dh .dtk{font-size:1.55em;font-weight:900;color:#fff;letter-spacing:-0.5px;text-shadow:0 2px 12px rgba(0,0,0,0.4);}
 .drt{font-size:0.9em;font-weight:700;padding:4px 14px;border-radius:18px;color:white;box-shadow:0 1px 4px rgba(0,0,0,0.18);letter-spacing:0.03em;}
@@ -2398,30 +2401,29 @@ html body .detail-content{max-width:none !important;width:100% !important;border
 .d-chg.pos{--sac:var(--chrome-pos);}
 .d-chg.neg{--sac:var(--chrome-neg);}
 .d-chg:empty{display:none;}
-#det-modal .dh{padding-right:130px;}
 #det-modal .dh .dtk{font-size:1.6em;color:var(--chrome-heading);text-shadow:none;letter-spacing:-.5px;}
 #det-modal .det-nav-pos{color:var(--chrome-muted);font-size:.85em;}
-#det-modal .dcname{font-size:1.15em;font-weight:700;color:var(--chrome-heading);margin-top:2px;}
-#det-modal .dmeta{font-size:.82em;color:var(--chrome-muted);padding-right:130px;}
-#det-modal .d-rating-row{margin-top:10px;gap:12px;padding-right:0;}
+#det-modal .dcname{font-size:1.15em;font-weight:700;color:var(--chrome-heading);margin-top:2px;overflow-wrap:anywhere;}
+#det-modal .dmeta{font-size:.82em;color:var(--chrome-muted);overflow-wrap:anywhere;}
+#det-modal .d-rating-row{margin-top:10px;gap:8px 12px;}
 #det-modal .dpx{background:none;box-shadow:none;padding:0;font-size:1.6em;font-weight:800;color:var(--chrome-heading);letter-spacing:-.6px;}
 #det-modal .drt{font-size:.82em;padding:4px 11px;border-radius:5px;box-shadow:none;letter-spacing:.05em;}
 #det-modal .dcs{font-size:.82em;padding:4px 9px;border-radius:5px;box-shadow:none;}
 #det-modal .d-rating-row .d-gp,#det-modal .d-rsince{color:var(--chrome-muted);font-size:.8em;}
 #det-modal .d-rsince .rs-up{color:var(--chrome-pos);}
 #det-modal .d-rsince .rs-dn{color:var(--chrome-neg);}
-#det-modal .detail-close,#det-modal .detail-menu-btn{background:var(--chip-bg);border:1px solid var(--chip-border);color:var(--chrome-heading);width:28px;height:28px;border-radius:6px;font-size:1em;top:calc(10px + env(safe-area-inset-top));right:24px;}
+#det-modal .detail-close,#det-modal .detail-menu-btn{background:var(--chip-bg);border:1px solid var(--chip-border);color:var(--chrome-heading);width:28px;height:28px;border-radius:6px;font-size:1em;}
 #det-modal .detail-close:hover{background:var(--menu-hover);}
 #det-modal .detail-menu-btn{display:none;}
-#det-modal .d-mini-nav{top:calc(10px + env(safe-area-inset-top));right:58px;transform:none;}
 #det-modal .d-mini-nav-btn{background:var(--chip-bg);border:1px solid var(--chip-border);color:var(--chrome-heading);width:28px;height:28px;border-radius:6px;font-size:15px;}
 #det-modal .d-mini-nav-btn:hover:not(:disabled){background:var(--menu-hover);}
 #det-modal .d-mini-nav-arrows{gap:6px;}
-/* The three actions sit on the same grid as the ‹ › × row above: each is a
-   28px square (the button size) 6px apart (the arrows' gap), right-aligned
-   with ×, so folder / check / flag stand under ‹ / › / ×. Every glyph is an
-   18px SVG, so none reads bigger or heavier than its neighbours. */
-#det-modal .d-mini-nav-actions{top:calc(46px + env(safe-area-inset-top));bottom:auto;right:24px;gap:6px;}
+/* The three actions use the ‹ › buttons' grid: each a 28px square (the
+   button size) 6px apart (the arrows' gap). The first square's glyph is
+   pulled back to the band's left edge so it lines up with the ticker.
+   Every glyph is an 18px SVG, so none reads bigger or heavier than its
+   neighbours. */
+#det-modal .d-mini-nav-actions{gap:6px;margin-left:-5px;}
 #det-modal .d-mini-nav-actions>*{position:relative;box-sizing:border-box;width:28px;height:28px;padding:0;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1;filter:none;transform:none;transition:background .15s;}
 #det-modal .d-mini-nav-actions>*:hover{background:var(--menu-hover);transform:none;}
 #det-modal .d-mini-nav-actions svg{width:18px !important;height:18px !important;display:block;}
@@ -2524,19 +2526,13 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
 @media(min-width:769px) and (max-width:1023px){
   #det-modal .d-header-band{padding-left:16px !important;padding-right:16px !important;}
   #det-modal .d-body{padding-left:16px !important;padding-right:16px !important;}
-  #det-modal .detail-close,#det-modal .d-mini-nav-actions{right:16px;}
-  #det-modal .d-mini-nav{right:50px;}
 }
 @media(max-width:768px),(orientation:landscape) and (max-height:500px){
   #det-modal .d-header-band{padding:calc(10px + env(safe-area-inset-top)) 16px 0 !important;}
   #det-modal .d-body{padding:12px 12px calc(12px + env(safe-area-inset-bottom)) !important;}
-  #det-modal .dh,#det-modal .dmeta{padding-right:96px;}
   #det-modal .dh .dtk{font-size:1.4em;}
   #det-modal .dpx{font-size:1.35em;}
   #det-modal .detail-close,#det-modal .d-mini-nav-btn{width:30px;height:30px;}
-  #det-modal .detail-close{right:12px;top:calc(10px + env(safe-area-inset-top));}
-  #det-modal .d-mini-nav{right:48px;top:calc(10px + env(safe-area-inset-top));}
-  #det-modal .d-mini-nav-actions{right:12px;top:calc(46px + env(safe-area-inset-top));}
   #det-modal .d-mini-nav-actions>*{width:30px;height:30px;}
   .d-tabs{margin:12px -16px 0;padding:0 8px;}
   .d-tab{font-size:15px;padding:0 10px;height:42px;}
@@ -2550,9 +2546,6 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
   html.det-open body .detail-modal{top:var(--hdr-h,64px);}
   html.det-open body .detail-content{height:calc(max(100dvh,var(--vvh,0px)) - var(--hdr-h,64px)) !important;}
   html.det-open #det-modal .d-header-band{padding-top:10px !important;}
-  html.det-open #det-modal .detail-close{top:10px;}
-  html.det-open #det-modal .d-mini-nav{top:10px;}
-  html.det-open #det-modal .d-mini-nav-actions{top:46px;}
   html.det-open .header .filter-bar{display:none;}
   /* × moves up into the top bar, at its right end opposite the back arrow
      (the bar's Filters button is hidden here, so that end is free). It is
@@ -2560,8 +2553,6 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
      band's × could never be lifted over it. The band's copy hides. */
   html.det-open #det-modal .detail-close{display:none;}
   html.det-open .hdr-close{display:flex;}
-  /* The ‹ › pair takes the band corner × left. */
-  html.det-open #det-modal .d-mini-nav{right:12px;}
   /* Collapsed: nothing sits beside the ticker any more (arrows hidden, ×
      in the bar), and the band keeps no gap it does not need — the name and
      meta lines are gone, so only the ticker, the rating row and the tabs
@@ -2908,17 +2899,21 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   <div class="detail-content">
     <div class="d-header-band">
       <button type="button" class="d-back sa-chrome" id="d-back" onclick="closeDetail()"></button>
-      <button class="detail-close" onclick="closeDetail()" aria-label="Close ticker page">&times;</button>
       <button class="detail-menu-btn" id="d-tbtn-all" aria-haspopup="menu" aria-expanded="false" title="Sections" onclick="toggleDetMenu(event)">&#9776;</button>
-      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><button type="button" class="d-sum-btn sa-chrome" id="d-sum" onclick="exportProfilePdf()" aria-label="Summary PDF: one page on this company" title="One-page summary of this company with an invest / watch / avoid verdict. Opens the print dialog; choose “Save as PDF”."><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>Summary</button><span class="det-nav-pos"></span></div></div>
+      <!-- First line of the band: portfolio / reviewed / flag on the left,
+           ‹ n / N › and × on the right (× moves to the top bar on phones).
+           In flow, so nothing beside the ticker, name or meta has to clear
+           it, and gone when the band collapses. -->
+      <div class="d-toprow"><div class="d-mini-nav-actions"><span id="d-pf" class="d-pf-btn" onclick="pfDetMenu(event)" role="button" tabindex="0" title="Portfolios"></span><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><span class="det-nav-pos"></span><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div><button class="detail-close" onclick="closeDetail()" aria-label="Close ticker page">&times;</button></div></div>
+      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><button type="button" class="d-sum-btn sa-chrome" id="d-sum" onclick="exportProfilePdf()" aria-label="Summary PDF: one page on this company" title="One-page summary of this company with an invest / watch / avoid verdict. Opens the print dialog; choose “Save as PDF”."><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>Summary</button></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
       <!-- Rating row is the band's BOTTOM line (below the CEO meta line),
-           in the expanded AND collapsed states — collapsed shows ticker
-           on top, then price·rating·composite. -->
-      <div class="d-rating-row"><div class="dpx" id="d-px"></div><span class="d-chg sa-chrome" id="d-chg"></span><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
-      <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div></div>
-      <div class="d-mini-nav-actions"><span id="d-pf" class="d-pf-btn" onclick="pfDetMenu(event)" role="button" tabindex="0" title="Portfolios"></span><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
+           in the expanded AND collapsed states. Expanded on narrow screens
+           it reads price · change / rating · score · gates / rating-since,
+           split by the .d-rr-br break and the full-width .d-rsince; from
+           1024px, and collapsed, it is one line. -->
+      <div class="d-rating-row"><div class="dpx" id="d-px"></div><span class="d-chg sa-chrome" id="d-chg"></span><span class="d-rr-br" aria-hidden="true"></span><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
       <!-- Section tabs (Seeking Alpha's Summary · Ratings · … row). Rendered by
            _renderDetTabBar from _detMenuItems(); clicks go to swDetTab. -->
       <div class="d-tabs sa-chrome" id="d-tabs" role="tablist" aria-label="Sections"></div>

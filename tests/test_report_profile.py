@@ -44,7 +44,7 @@ def test_summary_button_sits_right_of_the_ticker_symbol():
     src = _tpl()
     band = re.search(r'<div class="dh-left">(.*?)</div></div>', src).group(1)
     tk, btn = band.index('id="d-tk"'), band.index('id="d-sum"')
-    assert tk < btn < band.index('class="det-nav-pos"')
+    assert tk < btn
     button = band[band.rindex('<button', 0, btn):band.index('</button>', btn)]
     assert 'onclick="exportProfilePdf()"' in button
     assert button.endswith('Summary')      # text label after the download glyph

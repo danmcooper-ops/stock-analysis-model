@@ -118,15 +118,38 @@ def test_statements_share_one_finances_tab_after_summary():
 
 def test_ticker_page_actions_share_the_button_grid():
     """Folder / check / flag sit in squares the size of the ‹ › × buttons,
-    spaced by the arrows' gap and right-aligned with ×, each an 18px SVG —
-    the flag no longer a font glyph whose size varies."""
+    spaced by the arrows' gap, each an 18px SVG — the flag no longer a font
+    glyph whose size varies."""
     src = _tpl()
     assert '#det-modal .d-mini-nav-arrows{gap:6px;}' in src
-    assert 'top:calc(46px + env(safe-area-inset-top));bottom:auto;right:24px;gap:6px;' in src
+    assert '#det-modal .d-mini-nav-actions{gap:6px;margin-left:-5px;}' in src
     assert '#det-modal .d-mini-nav-actions>*{position:relative;box-sizing:border-box;width:28px;height:28px;' in src
     assert '#det-modal .d-mini-nav-actions svg{width:18px !important;height:18px !important;' in src
     sync = _fn(src, '_syncFlagDet')
     assert 'el.innerHTML=_flagSvg(f)' in sync and '\\u2691' not in sync
+
+
+def test_ticker_page_top_row_holds_actions_and_pager():
+    """The band's first line is the portfolio / reviewed / flag icons on the
+    left and ‹ n / N › with × on the right, all in flow — so the ticker, name
+    and meta lines reserve no right padding for floating controls — and it
+    collapses away with the name and meta."""
+    src = _tpl()
+    band = src[src.index('<div class="d-header-band">'):src.index('<div class="d-tabs sa-chrome"')]
+    top = band[band.index('<div class="d-toprow">'):band.index('<div class="dh">')]
+    order = [top.index(k) for k in ('id="d-pf"', 'id="d-rev"', 'id="d-flag"', 'det-nav-prev',
+                                    'class="det-nav-pos"', 'det-nav-next', 'class="detail-close"')]
+    assert order == sorted(order)
+    assert band.index('<div class="d-toprow">') < band.index('id="d-tk"')
+    assert band.count('detail-close') == 1
+    for gone in ('.d-mini-nav{position:absolute', '.d-mini-nav-actions{position:absolute',
+                 'padding-right:84px', 'padding-right:130px', '.dh{padding-right:44px'):
+        assert gone not in src, gone
+    assert '.d-toprow .detail-close{position:static;' in src
+    assert ('#det-modal.hdr-min .dcname,#det-modal.hdr-min .dmeta,#det-modal.hdr-min .d-toprow'
+            '{max-height:0;opacity:0;margin:0;}') in src
+    # Long names and meta wrap rather than overflow.
+    assert 'overflow-wrap:anywhere;' in src[src.index('#det-modal .dcname{'):][:200]
 
 
 def test_phone_ticker_page_closes_from_the_top_bar():
@@ -139,7 +162,7 @@ def test_phone_ticker_page_closes_from_the_top_bar():
     assert '.hdr-close{display:none;' in src
     assert 'html.det-open .hdr-close{display:flex;}' in src
     assert 'html.det-open #det-modal .detail-close{display:none;}' in src
-    assert ('#det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .det-nav-pos'
+    assert ('#det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .d-rr-br'
             '{max-width:0;opacity:0;margin:0;display:none;}') in src
     assert 'html.det-open #det-modal.hdr-min .d-rating-row{margin-top:6px;gap:8px;flex-wrap:nowrap;' in src
 
