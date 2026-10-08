@@ -12552,12 +12552,25 @@ function renderCrossSectorDashboard(){
    sector's drill-down. Follows the same static-control + redraw-target pattern
    as the Sector Price Comparison chart on the Charts sub-tab. */
 function _ppColM(m){return m>=0.25?'#1a9850':m>=0.15?'#4caf50':m>=0.10?'#ff9800':m>=0?'#fdae61':'#e53935';}
+/* One company, one contribution. The universe lists some issuers several
+   times — share classes (BRK-A/BRK-B), ordinary shares beside their ADR
+   (MUFG/MBFJF), and preferred series that carry the parent's statements
+   (FNMA plus 14 preferreds, FMCC plus 21). Each copy holds the identical
+   revenue and operating income, so summing rows counted Fannie Mae's
+   figures 15 times and handed Financial Services a 124% "margin" and 63%
+   of all profit (2026-10-06, with bank operating income also overstated).
+   Two different companies sharing a sector and both figures to the dollar
+   does not happen, so that triple is the key. */
+function _ppIssuerKey(d,rev,oi){return d.sector+'|'+rev+'|'+oi;}
 function renderCrossSectorProfitPool(){
-  var agg={};
+  var agg={},seen={};
   DATA.forEach(function(d){
     if(!d.sector)return;
     var rev=_num(d.revenue),oi=_num(d.operating_income);
     if(rev==null||oi==null||rev<=0)return;
+    var key=_ppIssuerKey(d,rev,oi);
+    if(seen[key])return;
+    seen[key]=1;
     var a=agg[d.sector]||(agg[d.sector]={name:d.sector,rev:0,oi:0,n:0});
     a.rev+=rev;a.oi+=oi;a.n++;
   });
