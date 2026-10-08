@@ -1,12 +1,12 @@
 {
  "version": 1,
- "date": "2026-10-06",
- "prev_date": "2026-10-05",
+ "date": "2026-10-07",
+ "prev_date": "2026-10-06",
  "systemic": {
   "n": 2504,
-  "prev_n": 2503,
-  "changed": 29,
-  "changed_share": 0.0116,
+  "prev_n": 2504,
+  "changed": 38,
+  "changed_share": 0.0152,
   "missing_data": 0,
   "missing_share": 0.0,
   "shrink_share": 0.0,
@@ -31,9 +31,9 @@
      "HOLD": 0,
      "PASS": 3
     },
-    "median_mos": -0.6453799016348511,
+    "median_mos": -0.6312476664484932,
     "median_score": 39.5,
-    "median_spread": 0.3755116417620554,
+    "median_spread": 0.37541143250392717,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -63,9 +63,9 @@
      "HOLD": 15,
      "PASS": 29
     },
-    "median_mos": -0.3759294221237217,
+    "median_mos": -0.3589899555123949,
     "median_score": 42.3,
-    "median_spread": 0.27125860727309714,
+    "median_spread": 0.2712133110818709,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -80,36 +80,15 @@
     "hhi": 0.17764328942684227,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 1,
-    "downgrades": 1
+    "upgrades": 0,
+    "downgrades": 0
    },
    "alerts": [
     {
-     "ticker": "AGX",
-     "from": "LEAN BUY",
-     "to": "HOLD",
-     "kind": "exited_buy",
-     "level": "action",
-     "message": "AGX fell out of the buy zone: LEAN BUY → HOLD",
-     "why": [
-      "A rating cap fired this run: non-positive margin of safety. On the composite alone it would rate LEAN BUY.",
-      "Composite score moved 41 → 40 (the composite-only rating band did not change).",
-      "Biggest category moves: Valuation 23 → 19 (-3)."
-     ]
-    },
-    {
-     "ticker": "DDS",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "reversal",
+     "ticker": "ASML",
+     "kind": "earnings_soon",
      "level": "watch",
-     "reversal_of": "2026-10-05",
-     "message": "DDS moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-10-05 move)",
-     "why": [
-      "The prior run's rating cap no longer applies (non-positive margin of safety).",
-      "Composite score moved 40 → 41 (the composite-only rating band did not change).",
-      "Biggest category moves: Valuation 26 → 30 (+4)."
-     ]
+     "message": "ASML reports earnings on 2026-10-14"
     },
     {
      "ticker": "JPM",
