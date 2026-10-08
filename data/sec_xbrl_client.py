@@ -1445,6 +1445,22 @@ class SECXBRLClient:
                 out[fy] = bank_rev
         return dict(sorted(out.items())), (ccy if rev else nii_ccy)
 
+    # Net interest income — the line that marks a lender, whose interest
+    # expense is a cost of revenue rather than a financing cost. US-GAAP
+    # banks, the GSEs and card lenders tag the first; IFRS banks (SAN, HSBC,
+    # AVAL) the second. Insurers, brokers and asset managers tag neither.
+    _NET_INTEREST_INCOME_TAGS = (
+        ('us-gaap', 'InterestIncomeExpenseNet'),
+        ('ifrs-full', 'InterestRevenueExpense'),
+    )
+
+    @classmethod
+    def _reports_net_interest_income(cls, facts_json):
+        """True when the filer tags net interest income (see above)."""
+        facts = (facts_json or {}).get('facts') or {}
+        return any(tag in (facts.get(taxonomy) or {})
+                   for taxonomy, tag in cls._NET_INTEREST_INCOME_TAGS)
+
     def _resolve_equity_annual(self, facts_json, units_key=None):
         """Parent-attributable equity per fiscal year, (values, currency).
 
@@ -1787,6 +1803,7 @@ class SECXBRLClient:
         # builder, never overwriting a tagged value:
         #   pretax    = net income + tax provision           (last resort)
         #   operating = pretax + interest expense            (other income ~ 0)
+        #               (pretax alone for a lender: see build_yfinance_shape)
         #   gross     = revenue - cost of revenue
         # Every operand is in the reporting currency, so this sits before the
         # FX pass; the derived years are re-sorted so the series stay
@@ -1795,9 +1812,11 @@ class SECXBRLClient:
             if (pretax.get(_y) is None and ni.get(_y) is not None
                     and taxprov.get(_y) is not None):
                 pretax[_y] = ni[_y] + taxprov[_y]
+        _lender = self._reports_net_interest_income(facts)
         for _y in set(pretax):
             if opinc.get(_y) is None and pretax.get(_y) is not None:
-                opinc[_y] = pretax[_y] + (intexp.get(_y) or 0)
+                opinc[_y] = pretax[_y] + (
+                    0 if _lender else (intexp.get(_y) or 0))
         for _y in set(rev) & set(cogs_h):
             if (gp.get(_y) is None and rev.get(_y) is not None
                     and cogs_h.get(_y) is not None):
@@ -2241,10 +2260,23 @@ class SECXBRLClient:
         # (treating other_income/expense as ≈ 0). Use it to fill missing entries
         # so calculate_roic / calculate_wacc can derive a real tax rate instead
         # of the 21% default. Never overwrite a value that XBRL already provided.
+        #
+        # Except for a lender. A bank's interest expense is its cost of
+        # revenue (deposits and wholesale funding), and its revenue is already
+        # net of it, so pretax + interest is not an operating income but
+        # roughly gross interest income: JPM 2025 read 72.6B + 97.9B = 169B
+        # against 182B of revenue, BAC and 101 of 547 Financial Services rows
+        # read more operating income than revenue (2026-10-06), and the
+        # figure swung with the rate cycle rather than the business. For a
+        # filer that reports net interest income, pretax IS the operating
+        # line. The add-back also moved with the tag: DB tags no interest
+        # expense after 2023, so its history jumped 39.2B -> 7.0B between
+        # two definitions.
+        lender = self._reports_net_interest_income(facts)
         for y in years:
             op = op_income.get(y)
             pti = pretax_income.get(y)
-            intexp = interest_exp.get(y) or 0
+            intexp = 0 if lender else (interest_exp.get(y) or 0)
             if op is None and pti is not None:
                 op_income[y] = pti + intexp
             elif pti is None and op is not None:

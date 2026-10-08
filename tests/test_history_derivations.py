@@ -122,6 +122,49 @@ class TestOperatingIncomeDerivation:
         assert h['years_available'] == 4  # the tagged pretax span, not more
 
 
+class TestLenderOperatingIncome:
+    """A lender's interest expense is its cost of revenue, and its revenue is
+    already net of it, so pretax + interest is roughly gross interest income,
+    not an operating income (JPM 2025: 72.6B + 97.9B = 169B against 182B of
+    revenue). A filer that tags net interest income takes pretax as its
+    operating line, in both the history and the row-level statement."""
+
+    BANK = {
+        'InterestIncomeExpenseNet': {y: 600.0 for y in YEARS},
+        'NoninterestIncome':        {y: 400.0 for y in YEARS},
+        'NetIncomeLoss':            {y: 150.0 for y in YEARS},
+        PRETAX_TAG:                 {y: 190.0 for y in YEARS},
+        'InterestExpense':          {y: 900.0 for y in YEARS},
+    }
+
+    def test_history_uses_pretax(self):
+        h = _history(self.BANK)
+        assert h['operating_income_history'] == {y: 190.0 for y in YEARS}
+
+    def test_statement_uses_pretax_and_stays_below_revenue(self):
+        c = _make_client()
+        c._cache['TEST'] = _company_facts(self.BANK)
+        latest = c.build_yfinance_shape('TEST')['income_statement'].iloc[:, 0]
+        assert latest['Operating Income'] == 190.0
+        assert latest['Total Revenue'] == 1000.0
+        assert latest['Interest Expense'] == 900.0    # still reported as-is
+
+    def test_tagged_operating_income_still_wins(self):
+        h = _history({**self.BANK, 'OperatingIncomeLoss': {y: 250.0 for y in YEARS}})
+        assert h['operating_income_history'] == {y: 250.0 for y in YEARS}
+
+    @pytest.mark.parametrize('taxonomy,tag,lender', [
+        ('us-gaap', 'InterestIncomeExpenseNet', True),
+        ('ifrs-full', 'InterestRevenueExpense', True),
+        ('us-gaap', 'InterestExpense', False),
+        ('us-gaap', 'NoninterestIncome', False),
+    ])
+    def test_lender_marker(self, taxonomy, tag, lender):
+        facts = {'facts': {taxonomy: {tag: {'units': {}}}}}
+        assert SECXBRLClient._reports_net_interest_income(facts) is lender
+        assert SECXBRLClient._reports_net_interest_income(None) is False
+
+
 class TestGrossProfitDerivation:
     def test_revenue_minus_cost_of_revenue(self):
         h = _history({
