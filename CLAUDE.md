@@ -262,6 +262,30 @@ ruff check .
   `models/portfolio_groups.py`): a universe that lost a third of its rows is
   a `data` flood, and a member that dropped out of the universe on such a
   day is FYI with the outage named, not a Watch "left the portfolio".
+- **One row per issuer (`data/issuers.py`, `ISSUER_COLLAPSE`=1):** SEC's
+  ticker list names every ticker registered to a filer, so `--universe us`
+  carried one company several times: an OTC ordinary line beside its ADR
+  (NONOF/NVO), dash-less preferreds and notes (FNMA plus 14 preferreds, FMCC
+  plus 21, AT&T's TBB), a filer's ETNs (BRZL/FNGD under BMO), second share
+  classes (BRK-A, GOOG). On 2026-10-07 that was 226 of 2,508 rows across 181
+  issuers; each copy voted again in sector medians, peer percentiles, Pool
+  Share and the profit pools, and 54 issuers carried different ratings on
+  different lines. `data/us_listings.fetch_issuer_map` caches SEC's
+  `company_tickers_exchange.json` (CIK, exchange, SEC order) under
+  `data/cache/sec_issuers.csv`; a failed fetch with no cache collapses
+  nothing. `_run_postprocess` starts by keeping one row per CIK — NYSE /
+  Nasdaq / CBOE before OTC, then the higher `avg_dollar_volume_3m`, then SEC
+  order (SEC's first ticker alone picked BIPH over BIP and dormant ADRs over
+  traded OTC lines in 24 of 181 groups) — before anything cross-sectional
+  runs; each fold is a `listing_folded` provenance event and the kept row
+  carries `listing_aliases`. The sector exit multiples, computed before
+  Phase 2, count each issuer once (`one_listing_per_issuer`). Portfolio
+  definitions resolve a folded ticker to its kept row
+  (`portfolio_groups.resolve_members`, and `_pfRecompute` in the template),
+  and `membership_events` maps yesterday's members through today's folds,
+  so the fold night raises no leave/join pair. Not covered: an issuer whose
+  only lines are preferreds (Ameren Illinois) stays, since names cannot
+  flag them reliably (BNS, Scotiabank's common, reads "Pfd 3" on Yahoo).
 - **Phase-1 beta from local prices:** the nightly run downloads every prior
   snapshot ticker's closes into `output/prices` immediately before the
   analysis (`run.sh` step 03), so Phase 1 reads that parquet for the beta

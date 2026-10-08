@@ -3612,11 +3612,15 @@ function _pfRecompute(){
   if(!_pfLocal){
     DATA.forEach(function(d){if(d.pf&&d.pf.length)_pfMem[d.ticker]=d.pf.filter(function(id){return _pfById[id];});});
   }else{
-    var byTk={};DATA.forEach(function(d){byTk[d.ticker]=d;});
+    /* A definition may name a ticker the run folded into another listing of
+       the same issuer (BRK-A into BRK-B): resolve it through the kept row's
+       listing_aliases, as models/portfolio_groups.resolve_members does. */
+    var byTk={},alias={};DATA.forEach(function(d){byTk[d.ticker]=d;(d.listing_aliases||[]).forEach(function(a){alias[a]=d.ticker;});});
+    var canon=function(t){return byTk[t]?t:(alias[t]||t);};
     defs.forEach(function(p){
       var ex={},set={};
-      (p.exclude||[]).forEach(function(t){ex[t]=1;});
-      (p.tickers||[]).forEach(function(t){if(byTk[t]&&!ex[t])set[t]=1;});
+      (p.exclude||[]).forEach(function(t){ex[canon(t)]=1;});
+      (p.tickers||[]).forEach(function(t){t=canon(t);if(byTk[t]&&!ex[t])set[t]=1;});
       if(p.rule)DATA.forEach(function(d){if(!ex[d.ticker]&&_pfRuleMatch(p.rule,d))set[d.ticker]=1;});
       Object.keys(set).forEach(function(t){(_pfMem[t]=_pfMem[t]||[]).push(p.id);});
     });

@@ -39,6 +39,7 @@ from data.yfinance_client import (YFinanceClient, EmptyYahooResponseError,
                                   MCAP_MAX_PLAUSIBLE)
 from data.treasury_rate import fetch_risk_free_rate
 from data.coverage import coverage_check, format_coverage
+from data.issuers import collapse_duplicate_listings, one_listing_per_issuer
 from models.capm import (calculate_beta, r2_diagnostic, ggm_implied_re, buildup_re,
                          weekly_returns, rolling_betas, ROLLING_BETA_WINDOWS)
 from models.dcf import (two_stage_ev_valuation, fair_value_per_share, dcf_sensitivity,
@@ -2940,6 +2941,23 @@ def _run_build_universe(args):
             'all_tickers': all_tickers}
 
 
+def _load_issuer_map():
+    """SEC's ticker -> CIK/exchange map (data/us_listings.fetch_issuer_map).
+
+    ``ISSUER_COLLAPSE=0`` turns the one-row-per-issuer step off; any failure
+    leaves the universe as it was rather than failing the run.
+    """
+    if os.environ.get('ISSUER_COLLAPSE', '1') == '0':
+        return {}
+    try:
+        from data.us_listings import fetch_issuer_map
+        return fetch_issuer_map(email=_sec_email())
+    except Exception as e:
+        logger.warning("issuer map unavailable (%s); duplicate listings "
+                       "will not be collapsed", e)
+        return {}
+
+
 def _sec_email():
     """Contact address for SEC EDGAR's required User-Agent."""
     return os.environ.get('SEC_EMAIL', 'stockanalysis@example.com')
@@ -3765,11 +3783,15 @@ def _print_phase1_timings(t):
 
 
 def _run_sector_exit_multiples(qualifying, screen_cache,
-                               effective_exit_mult_adj):
+                               effective_exit_mult_adj, issuer_map=None):
     """Pre-compute sector median EV/EBITDA exit multiples (macro-adjusted)."""
-    # Pre-compute sector median EV/EBITDA for exit multiple cross-check
+    # Pre-compute sector median EV/EBITDA for exit multiple cross-check.
+    # One vote per issuer (data/issuers.py): this runs before Phase 2, so the
+    # duplicate listings are still in *qualifying*, and on 2026-10-07 they
+    # moved sector medians by up to 0.6x (Consumer Defensive 10.30 vs 9.71)
+    # — the multiple every DCF's terminal value is checked against.
     _pre_sector_ee = {}
-    for ticker in qualifying:
+    for ticker in one_listing_per_issuer(qualifying, issuer_map):
         cached_pre = screen_cache[ticker]
         info_pre = (cached_pre['yf_data'].get('info') or {})
         ee_pre = info_pre.get('enterpriseToEbitda')
@@ -4789,8 +4811,32 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
     return results
 
 
-def _run_postprocess(results, ms_pfv_data, _carry_prior_rows):
+def _collapse_listings(results, issuer_map, prov=None):
+    """Keep one row per issuer (data/issuers.py), in place; ``{folded: kept}``.
+
+    Runs first in post-processing: every row has its dollar volume by now,
+    which picks the line to keep, and nothing cross-sectional — sector
+    medians, peer percentiles, profit pools, scoring — has run yet.
+    """
+    if not issuer_map:
+        return {}
+    kept, folded = collapse_duplicate_listings(results, issuer_map)
+    if not folded:
+        return {}
+    results[:] = kept
+    for gone, keep in sorted(folded.items()):
+        logger.info("%s: folded into %s (same issuer)", gone, keep)
+        if prov is not None:
+            prov.record_event('listing_folded', gone, 'sec_issuers', {'kept': keep})
+    print(f"Listings: kept one line per issuer — folded {len(folded)} duplicate "
+          f"listing(s) into {len(set(folded.values()))} issuer(s)")
+    return folded
+
+
+def _run_postprocess(results, ms_pfv_data, _carry_prior_rows,
+                     issuer_map=None, prov=None):
     """Sector comparisons, valuation blends, profit pools, scoring, sizing."""
+    _collapse_listings(results, issuer_map, prov)
     # -----------------------------------------------------------------------
     # Post-processing: sector-median EV/EBITDA comparison + DCF cross-check
     # -----------------------------------------------------------------------
@@ -5627,6 +5673,7 @@ def _main():
     sec_client = clients['sec_client']
     sec_xbrl_client = clients['sec_xbrl_client']
     lost_sec = _check_lost_sec_tickers(run_start_date, sec_client._cik_map)
+    issuer_map = _load_issuer_map()
 
     phase1 = _run_phase1_screen(args, _prov, all_tickers, ticker_source,
                                 yf_client, tiingo_client, sec_xbrl_client,
@@ -5656,7 +5703,8 @@ def _main():
                        _early_cov['ratio'] * 100, _early_cov['min_ratio'] * 100)
 
     exit_mults = _run_sector_exit_multiples(qualifying, screen_cache,
-                                            effective_exit_mult_adj)
+                                            effective_exit_mult_adj,
+                                            issuer_map=issuer_map)
     _clock.tick('sector_exit_multiples')
     sector_exit_multiples = exit_mults['sector_exit_multiples']
     effective_exit_mult_default = exit_mults['effective_exit_mult_default']
@@ -5681,7 +5729,8 @@ def _main():
         io_workers=args.workers, checkpoint=checkpoint)
     _clock.tick('phase2_analysis')
 
-    post = _run_postprocess(results, ms_pfv_data, _carry_prior_rows)
+    post = _run_postprocess(results, ms_pfv_data, _carry_prior_rows,
+                            issuer_map=issuer_map, prov=_prov)
     _clock.tick('postprocess')
     sector_median_ee = post['sector_median_ee']
     sector_median_opm = post['sector_median_opm']
