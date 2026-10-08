@@ -793,6 +793,9 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
         '_rating_cap_reasons': r.get('_rating_cap_reasons', []),
         'analyst_rec': r.get('analyst_rec'),
         'company_name': r.get('company_name', ''),
+        # Other tickers of this issuer folded into this row (data/issuers.py):
+        # the portfolio evaluator resolves a definition naming one of them.
+        'listing_aliases': r.get('listing_aliases'),
         'description': (r.get('description') or '')[:200],
         'sector': r.get('sector'),
         'industry': r.get('industry'),
