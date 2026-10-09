@@ -679,6 +679,26 @@ ruff check .
   - **industry:** the named industry's pool CAGR against the sector's.
   - **margin_cycle:** the sector's margin within its own range.
 
+  Each force also carries `exposure`, which says who feels it. A force
+  evidenced by an industry is felt by that industry's companies. Otherwise
+  the type picks a metric (`EXPOSURE_METRICS`: leverage for rates and
+  credit, thin margins for commodities and input costs, ROIC variability
+  for demand cycles), and the most-exposed third is the exposed set. A
+  sector of balance-sheet financials is the exception for rates and credit
+  forces: its lenders count as one exposed group, because their net debt /
+  EBITDA is funding and scoring masks it. Reach is the exposed set's share
+  of sector *revenue*. Its pool share is shown but not weighted: ranked on
+  margin, the thin-margin third holds almost none of the pool by
+  construction, which tilted every balance toward pricing tailwinds. The
+  lists name only companies holding at least 0.5% of the pool, and
+  exposure counts each issuer once (`pool_rows`). `balance` weighs live
+  tailwinds against headwinds by reach: a building force counts half, and
+  a force with no measured reach counts as a third of the sector. Macro
+  levels use the series' own `pctile`, and 1-year moves rank both ends on
+  an even weekly grid, because `hist` is denser in its last year. Industries are compared with their sector
+  over the same years (`industry_pools(rows, window)`, `growth_over`).
+  Left free, Software - Infrastructure's window ended FY2026, a year only
+  early filers had reported.
   Forces that no series measures read "qualitative". Without `macro.json`,
   macro forces read "no_data" and the rest still render. The
   `DCOILWTICO` / `PCOPPUSDM` Commodities family exists for Energy's and

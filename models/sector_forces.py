@@ -30,7 +30,8 @@ import logging
 from datetime import date, timedelta
 
 from models.narrative import _SECTOR_THESIS_RISKS, _SECTOR_THESIS_TAILWINDS
-from models.sector_pool import pctile_rank
+from models.sector_pool import (_num, growth_over, is_balance_sheet_financial, pctile_rank,
+                                 pool_rows)
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,36 @@ INDUSTRY_ACTIVE = 0.03
 INDUSTRY_BUILDING = 0.01
 SPARK_DAYS = 730
 SPARK_POINTS = 48
+EXPOSURE_LIST_N = 3
+# Companies named on an exposure list hold at least this share of the
+# sector's pool: ranked on leverage or margin alone, the most exposed were
+# micro-caps nobody reads the sector page for (ABR, TRTX in Real Estate).
+# The reach still counts every company.
+MIN_LIST_POOL_SHARE = 0.005
+MIN_EXPOSURE_ROWS = 6
+# Balance weights: an active force counts fully, a building one half.
+STATUS_WEIGHT = {'active': 1.0, 'building': 0.5}
+# A live force whose exposure is not measured is weighted as if it reached
+# a third of the sector, what a measured force's exposed third reaches when
+# companies are of even size.
+DEFAULT_EXPOSED_SHARE = 1 / 3
+
+# Who feels a force most, by type: (row field, label, higher_is_more_exposed).
+# A rate or credit force acts through the balance sheet; a commodity or
+# input-cost force hits the thinnest margins first; a demand or capex cycle
+# hits the companies whose returns already swing; pricing power is held by
+# the widest margins. Forces whose evidence is an industry are felt by that
+# industry's companies instead (see exposure()).
+EXPOSURE_METRICS = {
+    'rates': ('nd_ebitda', 'net debt / EBITDA', True),
+    'credit': ('nd_ebitda', 'net debt / EBITDA', True),
+    'commodity': ('operating_margin', 'operating margin', False),
+    'input_costs': ('operating_margin', 'operating margin', False),
+    'trade': ('operating_margin', 'operating margin', False),
+    'pricing': ('operating_margin', 'operating margin', True),
+    'consumer': ('roic_cv', 'ROIC variability', True),
+    'capex_cycle': ('roic_cv', 'ROIC variability', True),
+}
 
 
 def _m(series, sign):
@@ -95,7 +126,7 @@ FORCE_META = {
         'Input cost inflation from agricultural commodities': ('input_costs', 'cyclical', _c(-1)),
         'GLP-1 and health-trend demand destruction': ('disruption', 'secular', _i('Packaged Foods', -1)),
         'Pricing power durability': ('pricing', 'secular', _c(1)),
-        'Defensive flows in late-cycle markets': ('credit', 'cyclical', _m('BAMLH0A0HYM2', 1)),
+        'Defensive flows in late-cycle markets': ('flows', 'cyclical', _m('BAMLH0A0HYM2', 1)),
         'Emerging-market demographic and category penetration': ('demographics', 'secular', None),
     },
     'Energy': {
@@ -151,7 +182,7 @@ FORCE_META = {
             ('demand', 'secular', _i('Utilities - Independent Power Producers', 1)),
         'Grid modernisation and electrification capex':
             ('capex_cycle', 'secular', _i('Utilities - Regulated Electric', 1)),
-        'Defensive yield bid in down markets': ('credit', 'cyclical', _m('BAMLH0A0HYM2', 1)),
+        'Defensive yield bid in down markets': ('flows', 'cyclical', _m('BAMLH0A0HYM2', 1)),
     },
     'Real Estate': {
         'Interest-rate sensitivity and tenant-credit risk': ('rates', 'cyclical', _m('DGS10', 1)),
@@ -288,7 +319,11 @@ def _macro_evidence(ind, sidecar):
     }
 
 
-def _industry_evidence(ind, entry):
+def _industry_evidence(ind, entry, rows=None):
+    """The industry's pool growth against the sector's over the SAME years.
+    An industry can fall back to its own window (a late spin-off, a filer's
+    gap), so the sector's growth is re-measured over the industry's window
+    from *rows* rather than quoted from the sector's own window."""
     history = (entry or {}).get('history') or {}
     dec = history.get('decomposition')
     inds = {d['industry']: d for d in ((entry or {}).get('industries') or [])}
@@ -296,9 +331,15 @@ def _industry_evidence(ind, entry):
     if d is None:
         return 'no_data', {'source': 'industry', 'industry': ind['industry'],
                            'note': 'fewer than three companies in this industry'}
-    if d.get('pool_cagr') is None or not dec:
+    if d.get('pool_cagr') is None:
         return 'no_data', {'source': 'industry', 'industry': ind['industry'],
                            'note': 'too few of its companies reported throughout'}
+    window = d.get('window')
+    if window and (not dec or window != [dec['y0'], dec['y1'], dec['block']]):
+        dec = growth_over(rows, window) if rows else None
+    if not dec:
+        return 'no_data', {'source': 'industry', 'industry': ind['industry'],
+                           'note': 'no sector growth over the same years to compare with'}
     diff = d['pool_cagr'] - dec['pool_cagr']
     v = ind['sign'] * diff
     status = ('active' if v >= INDUSTRY_ACTIVE
@@ -333,9 +374,9 @@ def _margin_evidence(ind, entry):
     }
 
 
-_EVIDENCE = {'macro': lambda ind, sc, en: _macro_evidence(ind, sc),
-             'industry': lambda ind, sc, en: _industry_evidence(ind, en),
-             'margin_cycle': lambda ind, sc, en: _margin_evidence(ind, en)}
+_EVIDENCE = {'macro': lambda ind, sc, en, rows: _macro_evidence(ind, sc),
+             'industry': lambda ind, sc, en, rows: _industry_evidence(ind, en, rows),
+             'margin_cycle': lambda ind, sc, en, rows: _margin_evidence(ind, en)}
 
 
 def market_confirmation(sector, sidecar):
@@ -350,13 +391,122 @@ def market_confirmation(sector, sidecar):
             'trend': sd.get('trend'), 'as_of': (sidecar or {}).get('as_of')}
 
 
-def evaluate_forces(sector, sidecar, entry):
+def _pool_of(rows):
+    """``(rows, {ticker: (revenue, positive operating income)})`` over the
+    pool's own rows (sector_pool.pool_rows: revenue and operating income
+    present, one row per issuer), so exposure counts the same companies as
+    the industries table."""
+    prow = pool_rows(rows or [])
+    return prow, {r.get('ticker'): (_num(r['revenue']), max(_num(r['operating_income']), 0.0))
+                  for r in prow}
+
+
+def _brief(r, value=None):
+    return {'ticker': r.get('ticker'), 'company_name': r.get('company_name'),
+            'rating': r.get('rating'), 'value': value}
+
+
+def _shares(members, sizes, rev_tot, pool_tot):
+    rev = sum(sizes[r['ticker']][0] for r in members)
+    pool = sum(sizes[r['ticker']][1] for r in members)
+    return rev / rev_tot, (pool / pool_tot) if pool_tot > 0 else None
+
+
+def exposure(force, indicator, rows):
+    """Which of the sector's companies feel *force* most, and how much of
+    the sector they are.
+
+    Reach is the exposed companies' share of the sector's REVENUE: the
+    business the force acts on. Their share of the profit pool is shown
+    beside it but not used for weight, because for a margin-acting force the
+    ranking and the pool are the same ordering: the thin-margin third that a
+    commodity downturn hits holds almost none of the pool by construction,
+    and the wide-margin third holds most of it, so pool-weighted reach
+    tilted every balance toward pricing tailwinds.
+
+    - An industry-evidenced force is felt by that industry's companies.
+    - A rate or credit force in a sector of balance-sheet financials is felt
+      by them as a group: their net debt / EBITDA is deposit or repo funding
+      (scoring masks it), so ranking them on it named banks by a garbage
+      ratio. Other companies there are ranked on it as usual.
+    - Otherwise the force's type picks a row metric (EXPOSURE_METRICS), and
+      the most-exposed third by that metric is the exposed set.
+
+    Returns None when none applies or too few companies carry the metric."""
+    prow, sizes = _pool_of(rows)
+    rev_tot = sum(v[0] for v in sizes.values())
+    pool_tot = sum(v[1] for v in sizes.values())
+    if rev_tot <= 0:
+        return None
+
+    def _group(members, **kw):
+        members = sorted(members, key=lambda r: -sizes[r['ticker']][1])
+        reach, pool_share = _shares(members, sizes, rev_tot, pool_tot)
+        return dict(kw, n=len(members), reach=reach, pool_share=pool_share,
+                    most=[_brief(r, sizes[r['ticker']][1] / pool_tot if pool_tot > 0 else None)
+                          for r in members[:EXPOSURE_LIST_N]],
+                    least=[])
+
+    if indicator and indicator.get('kind') == 'industry':
+        members = [r for r in prow if r.get('industry') == indicator['industry']]
+        return _group(members, basis='industry', industry=indicator['industry']) if members else None
+    spec = EXPOSURE_METRICS.get(force.get('type'))
+    if not spec:
+        return None
+    field, label, higher = spec
+    candidates = prow
+    if field == 'nd_ebitda':
+        lenders = [r for r in prow if is_balance_sheet_financial(r)]
+        if lenders and _shares(lenders, sizes, rev_tot, pool_tot)[0] >= 1 / 3:
+            return _group(lenders, basis='group', label='lenders and broker-dealers')
+        candidates = [r for r in prow if not is_balance_sheet_financial(r)]
+    ranked = [(r, _num(r.get(field))) for r in candidates]
+    ranked = [(r, v) for r, v in ranked if v is not None]
+    if len(ranked) < MIN_EXPOSURE_ROWS:
+        return None
+    ranked.sort(key=lambda x: -x[1] if higher else x[1])
+    top = [r for r, _ in ranked[:max(1, len(ranked) // 3)]]
+    reach, pool_share = _shares(top, sizes, rev_tot, pool_tot)
+    named = [(r, v) for r, v in ranked
+             if pool_tot > 0 and sizes[r['ticker']][1] / pool_tot >= MIN_LIST_POOL_SHARE]
+    if len(named) < 2 * EXPOSURE_LIST_N:
+        named = ranked
+    return {'basis': 'metric', 'metric': field, 'label': label,
+            'higher_is_exposed': higher, 'n': len(ranked),
+            'reach': reach, 'pool_share': pool_share,
+            'most': [_brief(r, v) for r, v in named[:EXPOSURE_LIST_N]],
+            'least': [_brief(r, v) for r, v in named[::-1][:EXPOSURE_LIST_N]]}
+
+
+def force_balance(forces):
+    """Tailwinds against headwinds, each live force (active, or building at
+    half weight) weighted by its reach, the share of the sector's revenue
+    it acts on (see exposure). Returns the
+    two sums and their difference; a measured reach is used where there is
+    one, DEFAULT_EXPOSED_SHARE where there is not."""
+    sums = {'tailwind': 0.0, 'headwind': 0.0}
+    estimated = 0
+    for f in forces:
+        w = STATUS_WEIGHT.get(f.get('status'))
+        if not w:
+            continue
+        reach = (f.get('exposure') or {}).get('reach')
+        if reach is None:
+            reach = DEFAULT_EXPOSED_SHARE
+            estimated += 1
+        sums[f['kind']] += w * reach
+    return {'tailwind': sums['tailwind'], 'headwind': sums['headwind'],
+            'net': sums['tailwind'] - sums['headwind'], 'estimated': estimated}
+
+
+def evaluate_forces(sector, sidecar, entry, rows=None):
     """Each of the sector's forces with its status and evidence.
 
     *sidecar* is the macro.json payload (may be None: macro forces then read
     no_data and the rest still render); *entry* is the sector's
-    SECTOR_POOL entry, already carrying ``history`` and ``industries``.
-    Returns ``{'forces': [...], 'market': {...} | None, 'as_of'}``."""
+    SECTOR_POOL entry, already carrying ``history`` and ``industries``;
+    *rows* the sector's result rows, for each force's exposure.
+    Returns ``{'forces': [...], 'market': {...} | None, 'balance', 'as_of'}``."""
     out = []
     for f in sector_forces(sector):
         ind = f.pop('indicator')
@@ -364,13 +514,18 @@ def evaluate_forces(sector, sidecar, entry):
             status, evidence = 'qualitative', None
         else:
             try:
-                status, evidence = _EVIDENCE[ind['kind']](ind, sidecar, entry)
+                status, evidence = _EVIDENCE[ind['kind']](ind, sidecar, entry, rows)
             except Exception as e:      # one bad reading must not cost the section
                 logger.warning('force evidence failed for %s / %s: %s', sector, f['theme'], e)
                 status, evidence = 'no_data', {'source': ind['kind'], 'note': 'could not be read'}
             if evidence is not None:
                 evidence['sign'] = ind['sign']
-        f.update(status=status, evidence=evidence)
+        try:
+            exp = exposure(f, ind, rows or [])
+        except Exception as e:
+            logger.warning('force exposure failed for %s / %s: %s', sector, f['theme'], e)
+            exp = None
+        f.update(status=status, evidence=evidence, exposure=exp)
         out.append(f)
     return {'forces': out, 'market': market_confirmation(sector, sidecar),
-            'as_of': (sidecar or {}).get('as_of')}
+            'balance': force_balance(out), 'as_of': (sidecar or {}).get('as_of')}

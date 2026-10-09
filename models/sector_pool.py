@@ -225,17 +225,21 @@ def _growth_windows(points):
     a sixth of its neighbours', so the pool "grew" 71% a year and a pipeline
     lost 26 points of pool share from a trough base. Averaging each end over
     ENDPOINT_BLOCK years (2018-20 vs 2023-25) keeps one bad year from
-    setting the answer. Then single years over the same span, then shorter
-    spans down to MIN_GROWTH_SPAN. The caller takes the first whose panel is
-    big enough, so a group whose companies mostly arrived late (Independent
-    Power Producers: Constellation spun off in 2022) gets a shorter window
-    instead of none."""
+    setting the answer. Then single years over the same span, then longer
+    spans (a gap in the middle years: REIT - Industrial's 2018-22, where one
+    filer's history is missing), then shorter ones down to MIN_GROWTH_SPAN.
+    The caller takes the first whose panel is big enough, so a group whose
+    companies mostly arrived late (Independent Power Producers:
+    Constellation spun off in 2022) gets a shorter window instead of none."""
     complete = {p['year'] for p in points if p['complete']}
     if not complete:
         return []
     y1 = max(complete)
     out = []
-    for span in range(GROWTH_WINDOW_YEARS, MIN_GROWTH_SPAN - 1, -1):
+    spans = ([GROWTH_WINDOW_YEARS]
+             + list(range(GROWTH_WINDOW_YEARS + 1, HISTORY_YEARS))
+             + list(range(GROWTH_WINDOW_YEARS - 1, MIN_GROWTH_SPAN - 1, -1)))
+    for span in spans:
         y0 = y1 - span
         for block in ((ENDPOINT_BLOCK, 1) if span == GROWTH_WINDOW_YEARS else (1,)):
             if all((y - k) in complete for y in (y0, y1) for k in range(block)):
@@ -326,6 +330,16 @@ def _window_analysis(hist, window, n=SHIFT_LIST_N):
     return decomposition, hhi_trend, shifts
 
 
+def growth_over(rows, window):
+    """The consistent-panel growth decomposition of *rows* over a given
+    ``(y0, y1, block)`` window, or None when its panel is too thin. Lets
+    one group's growth be compared with another's over the same years."""
+    hist, _ = _split_stale(_histories(pool_rows(rows)))
+    if not hist or not window:
+        return None
+    return _window_analysis(hist, tuple(window))[0]
+
+
 def sector_pool_history(rows):
     """Everything time-based for one sector's rows, or None when no row
     carries EDGAR history.
@@ -403,14 +417,34 @@ def _quantile(vals, q):
     return vals[lo] + (vals[hi] - vals[lo]) * (pos - lo)
 
 
-def industry_pools(rows):
+def _industry_growth(rs, window):
+    """An industry's pool growth: over the sector's *window* when its own
+    panel there is big enough, so industries and their sector are compared
+    over the same years; else over the industry's own best window, ending
+    no later than the sector's. Left free, Software - Infrastructure took a
+    window ending FY2026 because Microsoft and Oracle had filed it, and
+    against the sector re-measured over those years (in effect NVIDIA, the
+    other early filer) a 16.6%/yr pool read as lagging a 21.4% sector."""
+    if window:
+        dec = growth_over(rs, window)
+        if dec:
+            return dec, False
+    dec = (sector_pool_history(rs) or {}).get('decomposition')
+    if dec and window and dec['y1'] > window[1]:
+        return None, False
+    return dec, bool(dec and window)
+
+
+def industry_pools(rows, window=None):
     """The sector's pool by industry: where in the sector the money is.
 
     Industries with fewer than MIN_INDUSTRY_COS companies fold into one
     "Other" group (a two-company industry's margin is two companies, not an
     industry). Each entry carries revenue and pool shares of the sector, net
-    weighted margin, median ROIC-WACC spread and its own consistent-panel
-    pool CAGR from the history machinery; ordered by pool share."""
+    weighted margin, median ROIC-WACC spread and its consistent-panel pool
+    CAGR, over the sector's growth *window* where it can be
+    (``own_window`` marks one that could not, see _industry_growth);
+    ordered by pool share."""
     prow = pool_rows(rows)
     groups = {}
     for r in prow:
@@ -437,11 +471,10 @@ def industry_pools(rows):
                    if not is_balance_sheet_financial(r)]
         top = max(rs, key=lambda r: _num(r['operating_income']))
         try:
-            hist = sector_pool_history(rs)
+            dec, own = _industry_growth(rs, window)
         except Exception as e:            # one odd industry must not cost the rest
             logger.warning('industry pool history failed for %s: %s', name, e)
-            hist = None
-        dec = (hist or {}).get('decomposition')
+            dec, own = None, False
         out.append({
             'industry': name, 'n': len(rs),
             'revenue_share': rev / rev_tot,
@@ -449,6 +482,8 @@ def industry_pools(rows):
             'margin': net / rev if rev > 0 else None,
             'median_spread': _median([s for s in spreads if s is not None]),
             'pool_cagr': dec['pool_cagr'] if dec else None,
+            'window': [dec['y0'], dec['y1'], dec['block']] if dec else None,
+            'own_window': own,
             'top': {'ticker': top.get('ticker'),
                     'pool_share_in_industry': (max(_num(top['operating_income']), 0.0) / pos
                                                if pos > 0 else None)},

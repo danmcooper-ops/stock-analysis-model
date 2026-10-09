@@ -144,10 +144,13 @@ def test_structure_stats_render_the_four_tiles(tmp_path):
 def _render_signals(entry, tmp_path):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
-             '_ppfEvidence', '_ppfCard', 'renderPoolSectorSignals']
+             '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
+             '_ppfCard', 'renderPoolSectorSignals']
     consts = re.search(r'^var _PPF_ST=.*$', src, re.M).group(0) + '\n' + \
         re.search(r'^var _PPF_TYPE=.*$', src, re.M).group(0)
-    js = '\n'.join(['function _esc(s){return String(s);}function _linkifyTickers(s){return s;}',
+    js = '\n'.join(["var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
+                    'function _esc(s){return String(s);}function _attr(s){return String(s);}'
+                    'function _linkifyTickers(s){return s;}',
                     consts] + [_fn(src, n) for n in names]
                    + ['var SECTOR_POOL=' + json.dumps({'Real Estate': entry}) + ';',
                       "process.stdout.write(renderPoolSectorSignals('Real Estate'));"])
@@ -182,3 +185,24 @@ def test_market_check_names_the_unit_without_the_3_month_reading(tmp_path):
     side = {'as_of': '2026-10-08', 'sector_data': {'Real Estate': {'etf': 'XLRE', 'rs_6m': 0.251}}}
     html = _render_signals({'forces': evaluate_forces('Real Estate', side, {})}, tmp_path)
     assert 'XLRE has beaten the market by 25.1% over 6 months.' in html
+
+def test_force_cards_show_reach_and_who_feels_it(tmp_path):
+    from models.sector_forces import evaluate_forces
+    from tests.test_sector_forces import _sidecar, _re_rows
+    side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
+    res = evaluate_forces('Real Estate', side, {}, _re_rows())
+    html = _render_signals({'forces': res}, tmp_path)
+    assert 'Headwinds outweigh tailwinds' in html
+    card = html.split('Interest-rate sensitivity')[1].split('class="ppf ppf-')[0]
+    assert 'Reaches <b>' in card and 'Most exposed' in card and 'Best insulated' in card
+    assert 'data-tk="LEV0"' in card and '\u00d7' in card
+
+
+def test_own_window_label_names_both_blocks(tmp_path):
+    inds = [{'industry': 'A', 'n': 5, 'revenue_share': 0.6, 'pool_share': 0.6, 'margin': 0.2,
+             'median_spread': 0.05, 'pool_cagr': 0.1, 'window': [2020, 2025, 3], 'own_window': False},
+            {'industry': 'B', 'n': 4, 'revenue_share': 0.4, 'pool_share': 0.4, 'margin': 0.1,
+             'median_spread': 0.01, 'pool_cagr': 0.2, 'window': [2018, 2023, 3], 'own_window': True}]
+    html = _render(None, "renderPoolIndustries('Tech')", tmp_path, {'industries': inds})
+    assert '(FY2016\u201318 to FY2021\u201323)' in html
+    assert html.count('ppi-dim" title') == 1
