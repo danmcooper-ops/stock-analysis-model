@@ -623,7 +623,10 @@ ruff check .
     not weighted by revenue, so the stale giants cannot hide themselves.
   - **3-year endpoints:** growth compares 3-year averages (FY2018–20 vs
     FY2023–25) over one consistent panel. With single-year ends, Energy's
-    FY2020 trough read as 71%/yr pool growth.
+    FY2020 trough read as 71%/yr pool growth. When that panel has fewer
+    than 3 companies, growth falls back to shorter windows (down to 3
+    years). Independent Power Producers needs this: Constellation was
+    spun off in 2022.
 
   `year_series` and `panel_pools` are shared with the Pool Share gate.
   The same module also builds three more blocks:

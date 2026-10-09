@@ -32,7 +32,7 @@ HISTORY_YEARS = 10
 # a fall. See _year_points for what "could have reported" means.
 COMPLETE_COVERAGE_RATIO = 0.8
 GROWTH_WINDOW_YEARS = 5
-# Years averaged at each end of the growth window (see _growth_window).
+# Years averaged at each end of the growth window (see _growth_windows).
 ENDPOINT_BLOCK = 3
 MIN_GROWTH_SPAN = 3
 MIN_PANEL = 3
@@ -216,28 +216,31 @@ def _year_points(hist, today_rev):
     return points
 
 
-def _growth_window(points):
-    """``(y0, y1, block)``: growth is measured between two blocks of
-    *block* complete years ending at *y0* and *y1*.
+def _growth_windows(points):
+    """Candidate ``(y0, y1, block)`` windows, best first: growth is measured
+    between two blocks of *block* complete years ending at *y0* and *y1*.
 
     Single-year endpoints were the first design and failed on the first
     cyclical sector tried: Energy's window started in FY2020, whose pool was
     a sixth of its neighbours', so the pool "grew" 71% a year and a pipeline
     lost 26 points of pool share from a trough base. Averaging each end over
     ENDPOINT_BLOCK years (2018-20 vs 2023-25) keeps one bad year from
-    setting the answer. Falls back to single years when the history is too
-    short for blocks, then to the oldest complete year at least
-    MIN_GROWTH_SPAN back. None when no such pair exists."""
+    setting the answer. Then single years over the same span, then shorter
+    spans down to MIN_GROWTH_SPAN. The caller takes the first whose panel is
+    big enough, so a group whose companies mostly arrived late (Independent
+    Power Producers: Constellation spun off in 2022) gets a shorter window
+    instead of none."""
     complete = {p['year'] for p in points if p['complete']}
     if not complete:
-        return None
+        return []
     y1 = max(complete)
-    y0 = y1 - GROWTH_WINDOW_YEARS
-    for block in (ENDPOINT_BLOCK, 1):
-        if all((y - k) in complete for y in (y0, y1) for k in range(block)):
-            return y0, y1, block
-    older = sorted(y for y in complete if y1 - y >= MIN_GROWTH_SPAN)
-    return (older[0], y1, 1) if older else None
+    out = []
+    for span in range(GROWTH_WINDOW_YEARS, MIN_GROWTH_SPAN - 1, -1):
+        y0 = y1 - span
+        for block in ((ENDPOINT_BLOCK, 1) if span == GROWTH_WINDOW_YEARS else (1,)):
+            if all((y - k) in complete for y in (y0, y1) for k in range(block)):
+                out.append((y0, y1, block))
+    return out
 
 
 def _block_years(y, block):
@@ -339,9 +342,12 @@ def sector_pool_history(rows):
     points = _year_points(hist, today_rev)
     if not points:
         return None
-    window = _growth_window(points)
-    decomposition, hhi_trend, shifts = (_window_analysis(hist, window)
-                                        if window else (None, None, None))
+    window, (decomposition, hhi_trend, shifts) = None, (None, None, None)
+    for cand in _growth_windows(points):
+        found = _window_analysis(hist, cand)
+        if found[0] is not None or found[2] is not None:
+            window, (decomposition, hhi_trend, shifts) = cand, found
+            break
     return {
         'points': points,
         'window': list(window) if window else None,

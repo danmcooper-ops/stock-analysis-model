@@ -319,3 +319,13 @@ def test_one_malformed_row_costs_a_block_not_the_render(monkeypatch):
     out = report_html._build_sector_pool_data(rows)
     assert 'Tech' in out and out['Tech']['economic']['share_of_us_oi'] is None
     assert sp.economic_pool(rows, None)['n'] == 3
+
+def test_a_late_arriving_group_gets_a_shorter_window_not_none():
+    """Independent Power Producers: Constellation spun off in 2022, so the
+    2018-2025 panel held two companies and the industry had no growth."""
+    yrs = list(range(2022, 2026))
+    rows = [_flat('NRG', YEARS, 100, 0.1, 0.05), _flat('HNRG', YEARS, 50, 0.1),
+            _flat('CEG', yrs, 300, 0.1, 0.10)]
+    h = sector_pool_history(rows)
+    assert h['window'] == [2022, 2025, 1]
+    assert h['decomposition']['n'] == 3
