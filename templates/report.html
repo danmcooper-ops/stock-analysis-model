@@ -11967,7 +11967,7 @@ function renderPoolSectorSignals(sec){
       /* "has beaten the market by 3.8% over 3 months and by 25.1% over 6";
          the verb repeats only when the direction changes. */
       var parts=[],prev=null;
-      [[m.rs_3m,'3 months'],[m.rs_6m,'6']].forEach(function(x){
+      [[m.rs_3m,'3 months'],[m.rs_6m,m.rs_3m!=null?'6':'6 months']].forEach(function(x){
         if(x[0]==null)return;
         var vb=x[0]>=0?'beaten':'trailed';
         parts.push((vb===prev?'by ':vb+' the market by ')+Math.abs(x[0]*100).toFixed(1)+'% over '+x[1]);prev=vb;

@@ -74,7 +74,7 @@ def test_rising_rates_activate_a_rate_headwind_and_silence_the_rate_cut_tailwind
     tw = _force(res, 'Rate-cut re-rating of cap rates')
     assert hw['status'] == 'active' and tw['status'] == 'dormant'
     assert hw['evidence']['reading'] == '5.38%'
-    assert hw['evidence']['pctile'] == pytest.approx(1.0)
+    assert hw['evidence']['pctile'] == 0.99      # the series' own, as the Macro tab quotes
     assert 0 < len(hw['evidence']['spark']) <= 48
 
 
@@ -140,3 +140,17 @@ def test_market_confirmation_reads_the_sector_etf():
     m = market_confirmation('Technology', side)
     assert m['etf'] == 'XLK' and m['rs_6m'] == 0.25
     assert market_confirmation('Energy', side) is None
+
+
+def test_move_is_ranked_on_an_even_weekly_grid():
+    """hist is daily for its last year and weekly before; ranked as shipped,
+    the last year counted ~3.5x. A flat-high final year sat at the top of
+    the even grid but well inside the dense one."""
+    from models.sector_forces import _even_weekly
+    start = date(2016, 10, 1)
+    weekly = [(start + timedelta(days=7 * k), 3.0 + 0.004 * k) for k in range(470)]
+    last = weekly[-1][0]
+    daily = [(last + timedelta(days=k), 5.0) for k in range(1, 366)]
+    even = _even_weekly(weekly + daily)
+    assert len(even) == 470 + 52 or len(even) == 470 + 53
+    assert sum(1 for d, _ in even if d > last) <= 53

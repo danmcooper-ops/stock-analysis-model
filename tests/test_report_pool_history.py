@@ -175,3 +175,10 @@ def test_force_cards_carry_status_and_evidence(tmp_path):
 def test_signals_fall_back_to_the_plain_lists(tmp_path):
     html = _render_signals({'headwinds': ['A — x'], 'tailwinds': ['B — y']}, tmp_path)
     assert '<li' in html and 'ppf' not in html
+
+
+def test_market_check_names_the_unit_without_the_3_month_reading(tmp_path):
+    from models.sector_forces import evaluate_forces
+    side = {'as_of': '2026-10-08', 'sector_data': {'Real Estate': {'etf': 'XLRE', 'rs_6m': 0.251}}}
+    html = _render_signals({'forces': evaluate_forces('Real Estate', side, {})}, tmp_path)
+    assert 'XLRE has beaten the market by 25.1% over 6 months.' in html

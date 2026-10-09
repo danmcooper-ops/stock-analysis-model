@@ -30,6 +30,7 @@ import logging
 from datetime import date, timedelta
 
 from models.narrative import _SECTOR_THESIS_RISKS, _SECTOR_THESIS_TAILWINDS
+from models.sector_pool import pctile_rank
 
 logger = logging.getLogger(__name__)
 
@@ -200,13 +201,19 @@ def _status(pressure, move):
     return 'dormant'
 
 
-def _rank(values, v):
-    """Share of *values* below *v*, ties counted half (0..1)."""
-    if len(values) < 2:
-        return None
-    below = sum(1 for x in values if x < v)
-    equal = sum(1 for x in values if x == v)
-    return (below + 0.5 * max(equal - 1, 0)) / (len(values) - 1)
+def _even_weekly(pts):
+    """At most one point per week, the last in it. The sidecar's ``hist`` is
+    downsampled to daily for its trailing year and weekly before it
+    (macro_dashboard.downsample), so ranking against it as shipped weighted
+    the last year ~3.5x; on a weekly grid every week counts once. A monthly
+    series is unchanged."""
+    if not pts:
+        return []
+    d0 = pts[0][0]
+    by_week = {}
+    for d, v in pts:
+        by_week[(d - d0).days // 7] = (d, v)
+    return [by_week[k] for k in sorted(by_week)]
 
 
 def _fmt_reading(v, fmt, suffix=''):
@@ -254,13 +261,19 @@ def _macro_evidence(ind, sidecar):
     if lv is None or ld is None or len(pts) < 12:
         return 'no_data', {'source': 'macro', 'series': ind['series'],
                            'note': 'too little history to judge'}
-    values = [v for _, v in pts]
-    prior = [v for d, v in pts if d <= ld - timedelta(days=365)]
-    p_now = _rank(values, lv)
-    p_then = _rank(values, prior[-1]) if prior else None
+    # Level: the series' own percentile, which the builder took over the full
+    # undownsampled history and the Macro tab quotes. Move: both ends ranked
+    # on one evenly weighted weekly grid, so the year-ago reading and today's
+    # are measured against the same history.
+    even = _even_weekly(pts)
+    values = [v for _, v in even]
+    prior = [v for d, v in even if d <= ld - timedelta(days=365)]
+    pctile = series.get('pctile')
+    p_now = pctile if isinstance(pctile, (int, float)) else pctile_rank(values, lv)
+    p_then = pctile_rank(values, prior[-1]) if prior else None
     sign = ind['sign']
     pressure = p_now if sign > 0 else 1 - p_now
-    move = (sign * (p_now - p_then)) if p_then is not None else 0.0
+    move = (sign * (pctile_rank(values, lv) - p_then)) if p_then is not None else 0.0
     fmt, suffix = series.get('fmt'), series.get('suffix', '')
     cut = ld - timedelta(days=SPARK_DAYS)
     spark = [v for d, v in pts if d >= cut]
@@ -307,8 +320,8 @@ def _margin_evidence(ind, entry):
         return 'no_data', {'source': 'margin_cycle',
                            'note': 'too few complete years of sector margins'}
     margins = [p['margin'] for p in pts]
-    p_now = _rank(margins, pts[-1]['margin'])
-    p_prev = _rank(margins, pts[-2]['margin'])
+    p_now = pctile_rank(margins, pts[-1]['margin'])
+    p_prev = pctile_rank(margins, pts[-2]['margin'])
     sign = ind['sign']
     pressure = p_now if sign > 0 else 1 - p_now
     move = sign * (p_now - p_prev)
