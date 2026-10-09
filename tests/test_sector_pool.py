@@ -304,3 +304,18 @@ def test_banks_show_no_median_spread_beside_the_economic_pool():
     rows = [_co('B%d' % i, 'Banks - Regional', 100 + i, 30, sector='Financial Services',
                 spread=-0.05) for i in range(3)]
     assert industry_pools(rows)[0]['median_spread'] is None
+
+
+def test_one_malformed_row_costs_a_block_not_the_render(monkeypatch):
+    """universe_totals ran outside the guards the per-sector blocks have."""
+    import models.sector_pool as sp
+    from scripts import report_html
+
+    def boom(rows):
+        raise TypeError('bad _ic_by_year')
+    monkeypatch.setattr(report_html, 'universe_totals', boom)
+    rows = [dict(_flat(t, YEARS, 100, 0.1), pp_revenue_share=0.3, industry='X', spread=0.05,
+                 _ic_by_year={'2025': 50.0}) for t in 'ABC']
+    out = report_html._build_sector_pool_data(rows)
+    assert 'Tech' in out and out['Tech']['economic']['share_of_us_oi'] is None
+    assert sp.economic_pool(rows, None)['n'] == 3

@@ -1206,7 +1206,13 @@ def _build_sector_pool_data(rows):
             if not s or r.get('pp_revenue_share') is None:
                 continue
             _by_sector.setdefault(s, []).append(r)
-        universe = universe_totals([r for v in _by_sector.values() for r in v])
+        # Guarded like every block below: one malformed row must cost the
+        # universe shares (economic pool, price of the pool), not the render.
+        try:
+            universe = universe_totals([r for v in _by_sector.values() for r in v])
+        except Exception as e:
+            logger.warning('sector pool universe totals failed: %s', e)
+            universe = None
         for s, srows in _by_sector.items():
             try:
                 narr = generate_sector_profit_pool_narrative(s, srows)
