@@ -1317,7 +1317,7 @@ td.ct{font-weight:700;}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
-.pp-primer,.pp-structure,.pp-liquidity,.pp-signals,.pp-companies,.pp-chart,.pp-history,.pp-shifts{background:#f7f9fb;border-left:5px solid #1a252f;}
+.pp-primer,.pp-structure,.pp-liquidity,.pp-signals,.pp-companies,.pp-chart,.pp-history,.pp-shifts,.pp-econ{background:#f7f9fb;border-left:5px solid #1a252f;}
 .pp-primer .pp-section-label,
 .pp-structure .pp-section-label,
 .pp-liquidity .pp-section-label,
@@ -1325,7 +1325,8 @@ td.ct{font-weight:700;}
 .pp-companies .pp-section-label,
 .pp-chart .pp-section-label,
 .pp-history .pp-section-label,
-.pp-shifts .pp-section-label{background:#1a252f;}
+.pp-shifts .pp-section-label,
+.pp-econ .pp-section-label{background:#1a252f;}
 /* Combined sector-level Headwinds + Tailwinds block — two columns on
    desktop, stacked on mobile. Closes the Context arc, directly under the
    primer. */
@@ -1339,7 +1340,8 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-companies,
 [data-theme="dark"] .pp-chart,
 [data-theme="dark"] .pp-history,
-[data-theme="dark"] .pp-shifts{background:#161b22;border-left-color:#c9d1d9;}
+[data-theme="dark"] .pp-shifts,
+[data-theme="dark"] .pp-econ{background:#161b22;border-left-color:#c9d1d9;}
 [data-theme="dark"] .pp-section-label{background:#30363d !important;}
 /* Pool history (pp-history) and share shifts (pp-shifts): the sector's pool
    over the last decade, from models/sector_pool.py. Marks are classed so dark
@@ -1385,6 +1387,36 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pps-track{background:#21262d;}
 [data-theme="dark"] .pps-up .pps-fill{background:#3fb950;}
 [data-theme="dark"] .pps-dn .pps-fill{background:#f85149;}
+/* Industries view (pp-chart toggle) and the economic pool (pp-econ). */
+.ppc-tabs{display:flex;gap:6px;margin:0 0 6px;}
+.ppc-tab.active{background:#1a252f;color:#fff;border-color:#1a252f;}
+.ppi-bar{stroke:rgba(255,255,255,0.6);stroke-width:0.5;}
+.ppi-pos{fill:#2e8b57;background:#2e8b57;}
+.ppi-mid{fill:#8fbf9f;background:#8fbf9f;}
+.ppi-neg{fill:#c0392b;background:#c0392b;}
+.ppi-na{fill:#90a4ae;background:#90a4ae;}
+.ppi-wrap{overflow-x:auto;margin:10px 0 0;}
+.ppi-tbl{width:100%;border-collapse:collapse;font-size:0.78em;font-variant-numeric:tabular-nums;color:#37474f;}
+.ppi-tbl th{text-align:right;font-weight:700;font-size:0.9em;color:#78909c;border-bottom:1px solid #dfe5ea;padding:4px 6px;white-space:nowrap;}
+.ppi-tbl td{text-align:right;padding:4px 6px;border-bottom:1px solid #eef1f4;white-space:nowrap;}
+.ppi-tbl th:first-child,.ppi-tbl td:first-child{text-align:left;white-space:normal;}
+.ppi-dim{color:#90a4ae;font-size:0.9em;}
+.ppi-hi{color:#2e7d32;font-weight:700;}
+.ppi-lo{color:#c62828;font-weight:700;}
+.ppe-bars{display:grid;gap:6px;margin:4px 0 0;max-width:560px;}
+.ppe-row{display:grid;grid-template-columns:118px 1fr 56px;align-items:center;gap:8px;font-size:0.8em;color:#37474f;}
+.ppe-oi{background:#4f7cac;}
+.ppe-ep{background:#2e8b57;}
+[data-theme="dark"] .ppc-tab.active{background:#58a6ff;border-color:#58a6ff;color:#0d1117;}
+[data-theme="dark"] .ppi-pos{fill:#3fb950;background:#3fb950;}
+[data-theme="dark"] .ppi-mid{fill:#7ab88c;background:#7ab88c;}
+[data-theme="dark"] .ppi-neg{fill:#f85149;background:#f85149;}
+[data-theme="dark"] .ppi-tbl th{border-color:#30363d;color:#8b949e;}
+[data-theme="dark"] .ppi-tbl td{border-color:#21262d;}
+[data-theme="dark"] .ppi-hi{color:#3fb950;}
+[data-theme="dark"] .ppi-lo{color:#f85149;}
+[data-theme="dark"] .ppe-oi{background:#6e9bd1;}
+[data-theme="dark"] .ppe-ep{background:#3fb950;}
 .pp-range-btn{padding:3px 11px;font-size:0.74em;font-weight:600;border:1px solid #d0d8e4;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
 .pp-range-btn:hover{background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
 .pp-range-btn.active{background:#7030a0;color:#fff;border-color:#7030a0;}
@@ -11468,7 +11500,35 @@ function renderPoolStructure(sec){
     n.insights.forEach(function(t){out+='<li style="margin:4px 0">'+_linkifyTickers(_esc(t))+'</li>';});
     out+='</ul>';
   }
-  return out;
+  return out+_ppStructureStats(n.structure_stats);
+}
+/* The pool's shape in four numbers (models/sector_pool.pool_structure):
+   concentration measured on PROFIT (the header's HHI/CR4 are on revenue),
+   the spread of margins, the loss-makers' drag, and what the market pays
+   for each dollar of the pool against the whole universe. */
+function _ppStructureStats(st){
+  if(!st)return '';
+  var tiles=[];
+  if(st.profit_cr4!=null){
+    var lz=st.lorenz;
+    tiles.push('<div class="pph-fact"><b>Profit concentration</b>Top 4 earn '+_ppPct(st.profit_cr4,0)+' of the pool (profit HHI '+st.profit_hhi.toFixed(3)+')'
+      +(lz?'; '+lz.companies+' of '+st.n+' companies ('+_ppPct(lz.company_share,0)+') earn '+_ppPct(lz.pool_share,0)+' of it':'')+'.</div>');
+  }
+  if(st.margins){
+    var m=st.margins;
+    tiles.push('<div class="pph-fact"><b>Margin spread</b>Operating margin '+_ppPct(m.p10)+' / '+_ppPct(m.p50)+' / '+_ppPct(m.p90)+' at the 10th / 50th / 90th percentile \u2014 a '+(m.spread*100).toFixed(0)+'-point gap'
+      +(m.spread>=0.3?': stock selection matters more than the sector call.':m.spread<=0.15?': companies earn alike, so the sector call dominates.':'.')+'</div>');
+  }
+  if(st.pool>0){
+    var drag=(st.pool-st.net)/st.pool;
+    tiles.push('<div class="pph-fact"><b>Loss-makers</b>'+(st.loss_makers?st.loss_makers+' of '+st.n+' companies lose money, taking '+_ppPct(drag)+' off the pool ('+_ppBn(st.pool)+' positive, '+_ppBn(st.net)+' net).':'No company in the pool loses money.')+'</div>');
+  }
+  if(st.pool_multiple!=null){
+    var u=st.universe_pool_multiple,rel=u?st.pool_multiple/u:null;
+    tiles.push('<div class="pph-fact"><b>Price of the pool</b>Market value '+st.pool_multiple.toFixed(1)+'\u00d7 its operating-profit pool'
+      +(u?' against '+u.toFixed(1)+'\u00d7 for the universe \u2014 '+(rel>1.15?'a premium: each dollar of this pool is priced above the market\u2019s, for growth or durability':rel<0.85?'a discount: each dollar of this pool is priced below the market\u2019s':'in line with the market'):'')+'.</div>');
+  }
+  return tiles.length?'<div class="pph-facts">'+tiles.join('')+'</div>':'';
 }
 /* Pool History (pp-history): the sector's operating-profit pool over the
    last decade, built server-side by models/sector_pool.py from each company's
@@ -11580,6 +11640,95 @@ function renderPoolShifts(sec){
     +'<div><div class="pps-hdr" style="color:#c62828">▼ Lost share</div>'+(_ppShiftRows(sh.losers,'pps-dn',maxD)||'<p class="pph-note">None</p>')+'</div></div>';
   return out;
 }
+/* Industries view of the pool chart (pp-chart, "Industries" toggle): the
+   same Bain picture one level down, from SECTOR_POOL[sec].industries
+   (models/sector_pool.industry_pools) — width = revenue share (linear: a
+   sector has at most ~24 industries), height = net margin, colour = the
+   industry's median ROIC-WACC spread — then the table behind it with each
+   industry's own pool growth. Industries under three companies are folded
+   into "Other". */
+function _ppIndCls(spr){return spr==null?'ppi-na':spr>=0.05?'ppi-pos':spr>=0?'ppi-mid':'ppi-neg';}
+function renderPoolIndustries(sec){
+  var n=SECTOR_POOL&&SECTOR_POOL[sec],inds=n&&n.industries;
+  if(!inds||inds.length<2)return '';
+  var items=inds.filter(function(d){return d.margin!=null&&d.revenue_share>0;}).slice().sort(function(a,b){return b.margin-a.margin;});
+  var W=800,H=200,pL=48,pR=10,pT=14,pB=26,cW=W-pL-pR,cH=H-pT-pB;
+  var maxM=Math.max.apply(null,items.map(function(d){return d.margin;}).concat([0.05]));
+  var minM=Math.min.apply(null,items.map(function(d){return d.margin;}).concat([0]));
+  var yR=(maxM-minM)||0.05,zeroY=pT+cH*maxM/yR,tot=items.reduce(function(a,d){return a+d.revenue_share;},0);
+  var svg='',x=pL;
+  for(var t=0;t<=4;t++){var tv=minM+yR*t/4,ty=pT+cH*(maxM-tv)/yR;svg+='<line class="pph-grid" x1="'+pL+'" y1="'+ty.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+ty.toFixed(1)+'"/><text class="pph-tx" x="'+(pL-6)+'" y="'+(ty+3).toFixed(1)+'" text-anchor="end">'+(tv*100).toFixed(0)+'%</text>';}
+  svg+='<line class="pph-axis" stroke-dasharray="4,3" x1="'+pL+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+zeroY.toFixed(1)+'"/>';
+  items.forEach(function(d){
+    var w=Math.max(1.5,d.revenue_share/tot*cW),h=Math.max(1,Math.abs(d.margin)/yR*cH),y=d.margin>=0?zeroY-h:zeroY;
+    var tip=d.industry+': '+d.n+' companies · revenue '+_ppPct(d.revenue_share)+' · pool '+_ppPct(d.pool_share)+' · margin '+_ppPct(d.margin)+' · median spread '+_ppSgnPct(d.median_spread);
+    svg+='<rect class="ppi-bar '+_ppIndCls(d.median_spread)+'" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(w-1).toFixed(1)+'" height="'+h.toFixed(1)+'"><title>'+_esc(tip)+'</title></rect>';
+    var chars=Math.floor((w-4)/5.2);
+    if(chars>=5){var nm=d.industry.length>chars?d.industry.slice(0,chars-1)+'…':d.industry;svg+='<text class="pph-val" x="'+(x+w/2).toFixed(1)+'" y="'+(d.margin>=0?y-3:y+h+9).toFixed(1)+'" text-anchor="middle" pointer-events="none">'+_esc(nm)+'</text>';}
+    x+=w;
+  });
+  svg+='<text class="pph-tx" x="'+(pL+cW/2)+'" y="'+(H-6)+'" text-anchor="middle">Revenue share → (by industry, ordered by margin)</text>';
+  var out='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%;height:auto;margin:4px 0 0">'+svg+'</svg>';
+  out+='<div class="pph-key"><span><i class="ppi-pos"></i>Median spread ≥ 5 pts</span><span><i class="ppi-mid"></i>0–5 pts</span><span><i class="ppi-neg"></i>Below cost of capital</span></div>';
+  out+='<div class="ppi-wrap"><table class="ppi-tbl"><thead><tr><th>Industry</th><th>Cos</th><th>Revenue</th><th>Pool</th><th>Margin</th><th>Median spread</th><th>Pool CAGR</th></tr></thead><tbody>';
+  inds.forEach(function(d){
+    var skew=(d.pool_share!=null&&d.revenue_share>0)?d.pool_share/d.revenue_share:null;
+    out+='<tr><td>'+_esc(d.industry)+(d.folded?' <span class="ppi-dim">(industries under 3 companies)</span>':'')+'</td><td>'+d.n+'</td><td>'+_ppPct(d.revenue_share)+'</td>'
+      +'<td'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(d.pool_share)+'</td>'
+      +'<td>'+_ppPct(d.margin)+'</td><td>'+(d.median_spread==null?'\u2014':_ppSgnPct(d.median_spread))+'</td><td>'+(d.pool_cagr==null?'—':_ppSgnPct(d.pool_cagr)+'/yr')+'</td></tr>';
+  });
+  out+='</tbody></table></div><p class="pph-note">Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is the industry’s own consistent-panel growth over the history window; — where too few of its companies reported throughout.</p>';
+  return out;
+}
+function _ppChartView(btn,v){
+  var box=btn.closest('.pp-chart');if(!box)return;
+  box.querySelectorAll('.ppc-tab').forEach(function(b){b.classList.toggle('active',b===btn);});
+  box.querySelectorAll('.ppc-view').forEach(function(el){el.hidden=el.getAttribute('data-view')!==v;});
+}
+/* Accounting vs Economic Pool (pp-econ): operating profit says how much a
+   sector earns; economic profit — (ROIC − WACC) × invested capital — says
+   how much of it is above what its capital costs. From
+   SECTOR_POOL[sec].economic (models/sector_pool.economic_pool). Both market
+   shares are taken over the companies where EP is measurable, and the
+   exclusions (lenders and broker-dealers, missing capital or spread) are
+   counted, never zero-filled. */
+function _ppEpRows(list,cls,maxV){
+  return list.map(function(m){
+    var col=RC[m.rating]||'#aaa',wd=maxV>0?Math.abs(m.ep)/maxV*100:0;
+    return '<div class="pps-row '+cls+'" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr((m.company_name||m.ticker)+(m.rating?' · '+m.rating:''))+'">'
+      +'<span class="pps-tk" style="border-left-color:'+col+'">'+_esc(m.ticker)+'</span>'
+      +'<span class="pps-track"><span class="pps-fill" style="width:'+wd.toFixed(1)+'%"></span></span>'
+      +'<span class="pps-num">'+(m.ep>=0?'+':'−')+_ppBn(Math.abs(m.ep))+'/yr</span>'
+      +'<span class="pps-sub">'+_esc(m.company_name||'')+' · spread '+_ppSgnPct(m.spread)+' on '+_ppBn(m.ic)+' capital</span>'
+      +'</div>';
+  }).join('');
+}
+function renderPoolEcon(sec){
+  var n=SECTOR_POOL&&SECTOR_POOL[sec],e=n&&n.economic;
+  if(!e)return '';
+  var out='';
+  if(e.share_of_us_oi!=null&&e.share_of_us_ep!=null){
+    var a=e.share_of_us_oi,b=e.share_of_us_ep,mx=Math.max(a,b)||1,r=b/(a||1);
+    var verdict=r>=1.2?'it earns more above its cost of capital than its profits alone suggest — high-return capital':r<=0.8?'much of its profit only pays for the capital behind it':'its economic weight matches its accounting weight';
+    out+='<p class="pph-lead">'+_esc(sec)+' earns <b>'+_ppPct(a)+'</b> of US operating profit but <b>'+_ppPct(b)+'</b> of US economic profit: '+verdict+'.</p>';
+    out+='<div class="ppe-bars"><div class="ppe-row"><span>Operating profit</span><span class="pps-track"><span class="pps-fill ppe-oi" style="width:'+(a/mx*100).toFixed(1)+'%"></span></span><span class="pps-num">'+_ppPct(a)+'</span></div>'
+      +'<div class="ppe-row"><span>Economic profit</span><span class="pps-track"><span class="pps-fill ppe-ep" style="width:'+(b/mx*100).toFixed(1)+'%"></span></span><span class="pps-num">'+_ppPct(b)+'</span></div></div>';
+  }
+  out+='<div class="pph-facts"><div class="pph-fact"><b>Economic profit</b>'+(e.total>=0?'+':'−')+_ppBn(Math.abs(e.total))+' a year: '+_ppBn(e.created)+' created, '+_ppBn(Math.abs(e.destroyed))+' destroyed.</div>'
+    +'<div class="pph-fact"><b>Return over cost</b>'+_ppSgnPct(e.ep_on_ic)+' on the sector’s invested capital.</div>'
+    +'<div class="pph-fact"><b>Value creators</b>'+_ppPct(e.share_creating,0)+' of '+e.n+' companies earn above their cost of capital.</div></div>';
+  var maxV=Math.max.apply(null,e.creators.concat(e.destroyers).map(function(m){return Math.abs(m.ep);}).concat([0]));
+  if(e.creators.length||e.destroyers.length){
+    out+='<div class="pps-grid" style="margin-top:12px"><div><div class="pps-hdr" style="color:#2e7d32">▲ Largest value creators</div>'+(_ppEpRows(e.creators,'pps-up',maxV)||'<p class="pph-note">None</p>')+'</div>'
+      +'<div><div class="pps-hdr" style="color:#c62828">▼ Largest value destroyers</div>'+(_ppEpRows(e.destroyers,'pps-dn',maxV)||'<p class="pph-note">None</p>')+'</div></div>';
+  }
+  var ex=e.excluded||{},parts=[];
+  if(ex.balance_sheet)parts.push(ex.balance_sheet+' lenders and broker-dealers, whose capital funds a loan book or trading inventory');
+  if(ex.no_capital)parts.push(ex.no_capital+' without invested capital');
+  if(ex.no_spread)parts.push(ex.no_spread+' without a ROIC−WACC spread');
+  out+='<p class="pph-note">Economic profit = (5-year median ROIC − WACC) × latest invested capital.'+(parts.length?' Not measured: '+parts.join('; ')+'.':'')+'</p>';
+  return out;
+}
 /* The sector page's single company grid. It used to be three separate
    sections — Company Highlights (pool roles), CR4 Companies (top 4 by
    revenue) and Top 5 by Model Score — whose membership overlapped so
@@ -11618,8 +11767,8 @@ function _ppModelNote(d){
 }
 function renderPoolCompanies(sec,cos){
   var n=(SECTOR_POOL&&SECTOR_POOL[sec])||{};
-  var rowByTk={};
-  (cos||[]).forEach(function(d){rowByTk[d.ticker]=d;});
+  var rowByTk={},secMcap=0;
+  (cos||[]).forEach(function(d){rowByTk[d.ticker]=d;if(d.mcap>0)secMcap+=d.mcap;});
 
   var byTk={},order=[];
   function _entry(tk,name){
@@ -11707,6 +11856,13 @@ function renderPoolCompanies(sec,cos){
     if(ps!=null)chips.push('<span class="pp-co-chip">Profit '+(ps*100).toFixed(0)+'%</span>');
     if(om!=null)chips.push('<span class="pp-co-chip">OM '+(om*100).toFixed(1)+'%</span>');
     if(mu!=null)chips.push('<span class="pp-co-chip">'+mu.toFixed(2)+'x</span>');
+    /* Price of its pool: share of the sector's market value over share of
+       its profit pool. Above 1 the market pays more than the company's
+       slice of today's profit (growth or quality priced in); below 1, less. */
+    if(ps>0&&d.mcap>0&&secMcap>0){
+      var vp=(d.mcap/secMcap)/ps;
+      chips.push('<span class="pp-co-chip" title="Share of the sector\u2019s market value \u00f7 share of its profit pool">Value/Pool '+vp.toFixed(2)+'x</span>');
+    }
     if(chips.length)out+='<div class="pp-co-chips">'+chips.join('')+'</div>';
     if(e.poolNote)out+='<div class="pp-co-note">'+_linkifyTickers(_esc(e.poolNote))+'</div>';
     var mn=e.row?_ppModelNote(e.row):'';
@@ -13007,6 +13163,7 @@ function renderPool(){
     var structureHtml=renderPoolStructure(sec);
     var historyHtml=renderPoolHistory(sec);
     var shiftsHtml=renderPoolShifts(sec);
+    var econHtml=renderPoolEcon(sec);
     var companiesHtml=renderPoolCompanies(sec,cos);
     var liquidityHtml=renderPoolLiquidityInsights(sec);
 
@@ -13027,7 +13184,13 @@ function renderPool(){
     if(structureHtml){
       chartHtml+='<div class="pp-section pp-structure"><span class="pp-section-label">Profit Pool Structure</span>'+structureHtml+'</div>';
     }
-    chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Analysis</span><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#90a4ae"></span>Others (pooled tail)</span></div><span style="font-size:0.7em;color:#aaa">Bar width &prop; &radic;revenue share (top 25 by revenue shown; remainder pooled as Others) &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>';
+    /* Companies | Industries: the same pool one level down. The toggle
+       only shows when the sector has an industry breakdown to show. */
+    var industriesHtml=renderPoolIndustries(sec);
+    chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Analysis</span>'
+      +(industriesHtml?'<div class="ppc-tabs"><button type="button" class="pp-range-btn ppc-tab active" onclick="_ppChartView(this,\'co\')">Companies</button><button type="button" class="pp-range-btn ppc-tab" onclick="_ppChartView(this,\'ind\')">Industries</button></div>':'')
+      +'<div class="ppc-view" data-view="co"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#90a4ae"></span>Others (pooled tail)</span></div><span style="font-size:0.7em;color:#aaa">Bar width &prop; &radic;revenue share (top 25 by revenue shown; remainder pooled as Others) &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>'
+      +(industriesHtml?'<div class="ppc-view" data-view="ind" hidden>'+industriesHtml+'</div>':'')+'</div>';
 
     /* Then the pool over time: how it got to the shape drawn above, and
        which companies won and lost share on the way. */
@@ -13036,6 +13199,10 @@ function renderPool(){
     }
     if(shiftsHtml){
       chartHtml+='<div class="pp-section pp-shifts"><span class="pp-section-label">Share Shifts</span>'+shiftsHtml+'</div>';
+    }
+    /* And what the pool is worth after paying for its capital. */
+    if(econHtml){
+      chartHtml+='<div class="pp-section pp-econ"><span class="pp-section-label">Accounting vs Economic Pool</span>'+econHtml+'</div>';
     }
 
     /* --- C. Who Owns the Pool --------------------------------------- */

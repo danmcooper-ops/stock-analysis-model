@@ -198,3 +198,124 @@ def test_year_series_drops_non_finite_values_and_non_dicts():
     rows[0]['edgar_history']['operating_income_history']['2020'] = nan
     h = sector_pool_history(rows)
     assert all(p['pool'] == p['pool'] for p in h['points'])     # no NaN pools
+
+# --- Step 2: industries, the economic pool, structure and price ------------
+
+from models.sector_pool import (  # noqa: E402
+    economic_pool, industry_pools, is_balance_sheet_financial, pool_structure,
+    universe_totals)
+
+
+def _co(t, industry, rev, oi, sector='Tech', **kw):
+    return dict({'ticker': t, 'company_name': t, 'sector': sector,
+                 'industry': industry, 'revenue': rev, 'operating_income': oi}, **kw)
+
+
+def test_industries_fold_small_ones_into_other_and_share_the_sector():
+    rows = ([_co('S%d' % i, 'Semis', 100 + i, 40) for i in range(3)]
+            + [_co('W%d' % i, 'Software', 50 + i, 10) for i in range(4)]
+            + [_co('H1', 'Hardware', 70, 7), _co('H2', 'Hardware', 71, -7),
+               _co('X1', 'Odd', 10, 1)])
+    inds = industry_pools(rows)
+    names = [d['industry'] for d in inds]
+    assert names == ['Semis', 'Software', 'Other']          # by pool share
+    other = inds[-1]
+    assert other['n'] == 3 and other['folded'] is True
+    assert sum(d['revenue_share'] for d in inds) == pytest.approx(1)
+    assert sum(d['pool_share'] for d in inds) == pytest.approx(1)
+    assert other['margin'] == pytest.approx(1 / 151)       # net: 7 - 7 + 1
+
+
+def test_industry_carries_median_spread_and_own_growth():
+    rows = [_flat('A', YEARS, 100, 0.1, 0.05), _flat('B', YEARS, 90, 0.1, 0.05),
+            _flat('C', YEARS, 80, 0.1, 0.05)]
+    for r, s in zip(rows, (0.02, 0.04, 0.10), strict=True):
+        r.update(industry='Semis', spread=s)
+    d = industry_pools(rows)[0]
+    assert d['median_spread'] == pytest.approx(0.04)
+    assert d['pool_cagr'] == pytest.approx(0.05)
+
+
+def test_balance_sheet_financials_use_the_row_flag_before_the_industry():
+    bank = _co('JPM', 'Banks - Diversified', 1, 1, sector='Financial Services')
+    assert is_balance_sheet_financial(bank)
+    assert not is_balance_sheet_financial(dict(bank, epv_bridge='enterprise'))
+    v = _co('V', 'Credit Services', 1, 1, sector='Financial Services')
+    assert is_balance_sheet_financial(v)                      # fallback: whole industry
+    assert not is_balance_sheet_financial(dict(v, epv_bridge='enterprise'))
+    assert not is_balance_sheet_financial(_co('MSFT', 'Credit Services', 1, 1))
+
+
+def test_economic_pool_counts_exclusions_and_never_zero_fills():
+    ic = {'2024': 100.0, '2025': 200.0}
+    rows = [_co('A', 'Semis', 100, 30, spread=0.20, _ic_by_year=ic),
+            _co('B', 'Semis', 100, 20, spread=-0.05, _ic_by_year=ic),
+            _co('C', 'Semis', 100, 11, spread=None, _ic_by_year=ic),
+            _co('D', 'Semis', 100, 12, spread=0.10),
+            _co('E', 'Banks - Regional', 100, 13, sector='Tech', spread=0.1,
+                _ic_by_year=ic, epv_bridge='equity')]
+    e = economic_pool(rows)
+    assert e['n'] == 2
+    assert e['excluded'] == {'balance_sheet': 1, 'no_capital': 1, 'no_spread': 1}
+    assert e['total'] == pytest.approx(0.20 * 200 - 0.05 * 200)   # latest IC
+    assert e['ep_on_ic'] == pytest.approx(30 / 400)
+    assert e['share_creating'] == 0.5
+    assert [c['ticker'] for c in e['creators']] == ['A']
+    assert [c['ticker'] for c in e['destroyers']] == ['B']
+
+
+def test_market_shares_compare_the_same_companies():
+    """Financial Services: banks hold profit but no measurable EP. Both
+    shares are taken over the measurable companies, or the headline sets a
+    whole-sector numerator against a banks-excluded one."""
+    ic = {'2025': 100.0}
+    fin = [_co('JPM', 'Banks - Diversified', 100, 50, sector='Financial Services',
+               spread=0.05, _ic_by_year=ic),
+           _co('BRK', 'Insurance', 100, 10, sector='Financial Services',
+               spread=0.10, _ic_by_year=ic)]
+    tech = [_co('MSFT', 'Software', 100, 40, spread=0.30, _ic_by_year=ic)]
+    uni = universe_totals(fin + tech)
+    assert uni['oi_pos'] == 100 and uni['oi_pos_measured'] == 50
+    e = economic_pool(fin, uni)
+    assert e['share_of_us_oi'] == pytest.approx(10 / 50)
+    assert e['share_of_us_ep'] == pytest.approx(10 / 40)
+
+
+def test_structure_measures_profit_concentration_spread_drag_and_price():
+    rows = ([_co('BIG', 'X', 100, 80, mcap=2000)]
+            + [_co('S%d' % i, 'X', 100 + i, 5, mcap=100) for i in range(4)]
+            + [_co('L', 'X', 100, -20, mcap=50)])
+    st = pool_structure(rows, {'pool_multiple': 10.0})
+    assert st['pool'] == 100 and st['net'] == 80 and st['loss_makers'] == 1
+    assert st['profit_cr4'] == pytest.approx(0.95)
+    assert st['lorenz']['companies'] == 1                     # BIG alone earns 80%
+    assert st['margins']['p50'] == pytest.approx(0.05, abs=1e-3)
+    assert st['pool_multiple'] == pytest.approx(2450 / 100)
+    assert st['universe_pool_multiple'] == 10.0
+
+
+def test_structure_ignores_margins_on_a_meaningless_base():
+    rows = [_co('A', 'X', 100, 10), _co('B', 'X', 100, 20), _co('C', 'X', 100, 30),
+            _co('Z', 'X', 1, 50)]                                # 5000% margin
+    assert pool_structure(rows)['margins']['p90'] <= 0.3
+
+
+def test_banks_show_no_median_spread_beside_the_economic_pool():
+    rows = [_co('B%d' % i, 'Banks - Regional', 100 + i, 30, sector='Financial Services',
+                spread=-0.05) for i in range(3)]
+    assert industry_pools(rows)[0]['median_spread'] is None
+
+
+def test_one_malformed_row_costs_a_block_not_the_render(monkeypatch):
+    """universe_totals ran outside the guards the per-sector blocks have."""
+    import models.sector_pool as sp
+    from scripts import report_html
+
+    def boom(rows):
+        raise TypeError('bad _ic_by_year')
+    monkeypatch.setattr(report_html, 'universe_totals', boom)
+    rows = [dict(_flat(t, YEARS, 100, 0.1), pp_revenue_share=0.3, industry='X', spread=0.05,
+                 _ic_by_year={'2025': 50.0}) for t in 'ABC']
+    out = report_html._build_sector_pool_data(rows)
+    assert 'Tech' in out and out['Tech']['economic']['share_of_us_oi'] is None
+    assert sp.economic_pool(rows, None)['n'] == 3

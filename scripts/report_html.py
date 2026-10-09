@@ -19,7 +19,8 @@ except Exception:
     generate_sector_profit_pool_narrative = None
 from models.data_tab_narrative import generate_data_tab_summaries
 from models.profile_verdict import profile_verdict
-from models.sector_pool import sector_pool_history
+from models.sector_pool import (economic_pool, industry_pools, pool_structure,
+                                 sector_pool_history, universe_totals)
 from scripts.scoring import gate_metadata
 from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
                             CARRY_FORWARD_STOPPED_GUARD_FLOOR,
@@ -1205,6 +1206,13 @@ def _build_sector_pool_data(rows):
             if not s or r.get('pp_revenue_share') is None:
                 continue
             _by_sector.setdefault(s, []).append(r)
+        # Guarded like every block below: one malformed row must cost the
+        # universe shares (economic pool, price of the pool), not the render.
+        try:
+            universe = universe_totals([r for v in _by_sector.values() for r in v])
+        except Exception as e:
+            logger.warning('sector pool universe totals failed: %s', e)
+            universe = None
         for s, srows in _by_sector.items():
             try:
                 narr = generate_sector_profit_pool_narrative(s, srows)
@@ -1215,11 +1223,18 @@ def _build_sector_pool_data(rows):
                 continue
             if not narr:
                 continue
-            # The pool over time (pp-history / pp-shifts on the sector page)
-            try:
-                narr['history'] = sector_pool_history(srows)
-            except Exception as e:
-                logger.warning('sector pool history failed for %s: %s', s, e)
+            # The pool over time (pp-history / pp-shifts), by industry
+            # (pp-chart), against its cost of capital (pp-econ) and its
+            # concentration and price (pp-structure).
+            for key, build, args in (
+                    ('history', sector_pool_history, (srows,)),
+                    ('industries', industry_pools, (srows,)),
+                    ('economic', economic_pool, (srows, universe)),
+                    ('structure_stats', pool_structure, (srows, universe))):
+                try:
+                    narr[key] = build(*args)
+                except Exception as e:
+                    logger.warning('sector pool %s failed for %s: %s', key, s, e)
     return sector_pool_data
 
 
