@@ -610,9 +610,12 @@ ruff check .
 
   It works on today's companies only, and rests on three rules, each
   forced by real data on 2026-10-08:
-  - **Incomplete years:** a year whose coverage is under 80% of the best
-    year's is drawn hollow and never used as an endpoint. This catches
-    January–March year-ends that have not filed yet.
+  - **Incomplete years:** a year is incomplete when its reporters hold
+    under 80% of the revenue of the companies that could have reported it
+    (those whose history had begun). It is drawn hollow and never used as
+    an endpoint. This catches January–March year-ends that have not filed
+    yet, without letting a large recent listing (Packaged Foods, 2025) mark
+    every earlier year incomplete.
   - **Stale histories:** a history ending more than one year before the
     median company's last year leaves the series and is named in the
     footnote. Sinopec and PetroChina stopped filing in 2022 and otherwise

@@ -20,10 +20,11 @@ are translated at one FX rate and so show local-currency growth.
 """
 
 HISTORY_YEARS = 10
-# A year whose reporters hold less than this share of the best year's
-# coverage is incomplete: the latest fiscal year usually is, because
-# January-March year-end filers have not reported it yet. It is drawn but
-# never used as a growth endpoint, so a filing lag cannot read as a fall.
+# A year whose reporters hold less than this share of the revenue that
+# could have reported it is incomplete: the latest fiscal year usually is,
+# because January-March year-end filers have not reported it yet. It is
+# drawn but never used as a growth endpoint, so a filing lag cannot read as
+# a fall. See _year_points for what "could have reported" means.
 COMPLETE_COVERAGE_RATIO = 0.8
 GROWTH_WINDOW_YEARS = 5
 # Years averaged at each end of the growth window (see _growth_window).
@@ -158,17 +159,28 @@ def _pctile_rank(values, v):
 
 def _year_points(hist, today_rev):
     """Per-year aggregates over every row that reported both revenue and
-    operating income that year."""
+    operating income that year.
+
+    ``coverage`` is the reporters' share of today's sector revenue: what the
+    chart's footnote quotes. ``complete`` asks a different question: did the
+    companies that could have reported the year do so? A company whose
+    history begins later (a recent listing or spin-off) could not, so it
+    does not count against the years before it. Measured against today's
+    revenue instead, one large 2025 entrant made every earlier Packaged
+    Foods year read 43% complete, and the industry had no growth window."""
     years = sorted({y for _, oi, rev in hist for y in oi if y in rev})
     if not years:
         return []
+    first = [min((y for y in oi if y in rev), default=None) for _, oi, rev in hist]
     years = [y for y in years if y > years[-1] - HISTORY_YEARS]
     points = []
     for y in years:
-        rev = pos = net = cov = 0.0
+        rev = pos = net = cov = eligible = 0.0
         n = 0
         oi_vals = []
-        for r, oi_h, rev_h in hist:
+        for (r, oi_h, rev_h), y0 in zip(hist, first, strict=True):
+            if y0 is not None and y0 <= y:
+                eligible += _num(r.get('revenue')) or 0.0
             if y not in oi_h or y not in rev_h or rev_h[y] <= 0:
                 continue
             n += 1
@@ -182,11 +194,9 @@ def _year_points(hist, today_rev):
             'margin': (net / rev) if rev > 0 else None,
             'hhi': _hhi(oi_vals) if n >= MIN_PANEL else None,
             'coverage': (cov / today_rev) if today_rev > 0 else None,
+            'complete': bool(eligible > 0
+                             and cov >= COMPLETE_COVERAGE_RATIO * eligible),
         })
-    best = max((p['coverage'] or 0.0) for p in points)
-    for p in points:
-        p['complete'] = bool(best > 0 and (p['coverage'] or 0.0)
-                             >= COMPLETE_COVERAGE_RATIO * best)
     return points
 
 

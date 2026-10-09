@@ -176,3 +176,15 @@ def test_rows_without_history_give_none():
     r['edgar_history'] = {}
     assert sector_pool_history([r]) is None
     assert sector_pool_history([]) is None
+
+
+def test_a_large_new_entrant_does_not_make_earlier_years_incomplete():
+    """Packaged Foods, 2026-10-08: a company whose history starts in 2025
+    held a third of today's revenue, and judged against today's revenue
+    every earlier year read 43% complete — no growth window at all."""
+    rows = [_flat(t, YEARS, 100, 0.1) for t in 'ABC']
+    rows.append(_flat('NEW', [2025], 400, 0.1))
+    h = sector_pool_history(rows)
+    assert all(p['complete'] for p in h['points'])
+    assert h['points'][0]['coverage'] < 0.5             # the footnote still says so
+    assert h['window'] == [2020, 2025, ENDPOINT_BLOCK]
