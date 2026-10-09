@@ -19,6 +19,8 @@ that left the market is absent from every year). Foreign filers' histories
 are translated at one FX rate and so show local-currency growth.
 """
 
+import math
+
 HISTORY_YEARS = 10
 # A year whose reporters hold less than this share of the revenue that
 # could have reported it is incomplete: the latest fiscal year usually is,
@@ -42,15 +44,23 @@ def year_series(d):
 
     Keys are ints in a live run and strings after a JSON round trip, and a
     fiscal-year key may carry a suffix; the first four characters are the
-    year. None values and unparseable keys are dropped."""
+    year. None, NaN and infinite values, unparseable keys and a payload
+    that is not a dict at all are dropped: one NaN year (the snapshot store
+    keeps NaN as is) would otherwise turn every pool sum it joins into NaN,
+    which then passes a ``pool <= 0`` guard."""
     out = {}
-    for k, v in (d or {}).items():
+    if not isinstance(d, dict):
+        return out
+    for k, v in d.items():
         if v is None or isinstance(v, bool):
             continue
         try:
-            out[int(str(k)[:4])] = float(v)
+            x = float(v)
+            y = int(str(k)[:4])
         except (TypeError, ValueError):
             continue
+        if math.isfinite(x):
+            out[y] = x
     return out
 
 
@@ -148,13 +158,16 @@ def _cagr(a, b, span):
     return (b / a) ** (1.0 / span) - 1
 
 
-def _pctile_rank(values, v):
-    """Share of *values* strictly below *v*, ties counted half."""
+def pctile_rank(values, v):
+    """Where *v* sits among *values*, 0 (lowest) to 1 (highest): the share
+    of the other values below it, ties counted half. The one rank both the
+    Cycle Position fact and the sector forces' margin evidence use, so the
+    two quote the same percentile for the same margin."""
     if not values:
         return None
     below = sum(1 for x in values if x < v)
     equal = sum(1 for x in values if x == v)
-    return (below + 0.5 * (equal - 1)) / max(len(values) - 1, 1)
+    return (below + 0.5 * max(equal - 1, 0)) / max(len(values) - 1, 1)
 
 
 def _year_points(hist, today_rev):
@@ -236,7 +249,7 @@ def _cycle(points):
         return None
     margins = [p['margin'] for p in pts]
     cur = pts[-1]
-    pct = _pctile_rank(margins, cur['margin'])
+    pct = pctile_rank(margins, cur['margin'])
     if pct >= 0.8:
         label = 'top'
     elif pct <= 0.2:

@@ -188,3 +188,13 @@ def test_a_large_new_entrant_does_not_make_earlier_years_incomplete():
     assert all(p['complete'] for p in h['points'])
     assert h['points'][0]['coverage'] < 0.5             # the footnote still says so
     assert h['window'] == [2020, 2025, ENDPOINT_BLOCK]
+
+
+def test_year_series_drops_non_finite_values_and_non_dicts():
+    nan, inf = float('nan'), float('inf')
+    assert year_series({'2024': nan, '2023': inf, '2022': 5}) == {2022: 5.0}
+    assert year_series(['2024', 1]) == {}
+    rows = [_flat(t, YEARS, 100, 0.1) for t in 'ABC']
+    rows[0]['edgar_history']['operating_income_history']['2020'] = nan
+    h = sector_pool_history(rows)
+    assert all(p['pool'] == p['pool'] for p in h['points'])     # no NaN pools
