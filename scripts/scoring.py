@@ -7,7 +7,7 @@ from collections import namedtuple
 from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH,
                              SCORE_WEIGHT_OWNERSHIP, MIN_SECTOR_STOCKS,
-                             MIN_ADV_FOR_BUY,
+                             MIN_ADV_FOR_BUY, BLEND_CONFLICT_RATIO,
                             MC_CLIP_RATE_DOWNGRADE, MC_INVALID_RATE_DOWNGRADE)
 
 # Unified gate spec — ONE entry per metric drives both the pass/fail Gate
@@ -812,7 +812,15 @@ def prepare_scoring_fields(results):
             alt = [r.get(k) for k in ('epv_growth_fv', 'rim_fv', 'ddm_fv')]
             alt = [v for v in alt
                    if isinstance(v, (int, float)) and 0 < v < float('inf')]
-            if len(alt) >= 2:
+            # Two models are a median of two — their average — so one broken
+            # leg sets the fair value. More than BLEND_CONFLICT_RATIO apart,
+            # neither is trusted (either could be the broken one: WNC EPV 18
+            # vs RIM 154 at $13, APD 44 vs 0.07, MFG 12,018 vs 6.9 before the
+            # FX fix; 17 rows on 2026-10-08), so no effective fair value.
+            if (len(alt) == 2
+                    and max(alt) / min(alt) > BLEND_CONFLICT_RATIO):
+                fv_eff, fv_src = None, 'conflict'
+            elif len(alt) >= 2:
                 fv_eff, fv_src = statistics.median(alt), 'blend'
             else:
                 fv_eff, fv_src = None, None

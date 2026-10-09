@@ -30,6 +30,29 @@ from collections import defaultdict
 
 MAJOR_EXCHANGES = frozenset({'NYSE', 'Nasdaq', 'CBOE'})
 
+# FINRA's fifth-letter identifiers on five-letter OTC symbols: G/H/I mark
+# convertible bonds, L "miscellaneous", M/N/O/P the 4th..1st preferred
+# series. An issuer whose only public lines are preferreds (Ameren Illinois:
+# AILIH..AILLO; Wisconsin Electric: WELPP) otherwise kept one of them as its
+# row, rated as common stock (AILIN: HOLD at MoS +79% on 2026-10-08) —
+# Yahoo reports every preferred as EQUITY with the issuer's name and common
+# share count, and SEC cover tags are absent or ambiguous. Over SEC's whole
+# list the rule matches 103 tickers, every one a preferred, convertible,
+# depositary/CDI line or trust certificate; wherever the issuer has common
+# stock it trades under another ticker. J/K (voting classes) and S/T are
+# left alone: ambiguous, and the issuer collapse folds them when a common
+# line exists. OTC only — exchange-listed five-letter symbols are classes
+# (GOOGL, BELFB).
+PREFERRED_FIFTH_LETTERS = frozenset('GHILMNOP')
+
+
+def is_otc_preferred_symbol(ticker, issuer_map):
+    """True for an OTC five-letter symbol carrying a preferred/convertible
+    fifth letter (see above); False for anything the map does not know."""
+    t = str(ticker or '').upper()
+    return (len(t) == 5 and t.isalpha() and t[-1] in PREFERRED_FIFTH_LETTERS
+            and _issuer(issuer_map, t).get('exchange') == 'OTC')
+
 
 def _issuer(issuer_map, ticker):
     return (issuer_map or {}).get(str(ticker or '').upper()) or {}
@@ -46,19 +69,25 @@ def _listing_rank(issuer_map, ticker, dollar_volume=None):
 def collapse_duplicate_listings(rows, issuer_map):
     """Keep one row per CIK; return ``(rows, folded)``.
 
-    *rows* keeps its order. Each kept row that absorbed others carries
-    ``listing_aliases`` (the folded tickers, sorted), so anything reading
-    the snapshot can resolve an old ticker to the row that now stands for
-    it; *folded* is ``{folded ticker: kept ticker}``. A ``listing_aliases``
-    left over from an earlier pass (a carried-forward row) is replaced.
+    *rows* keeps its order. OTC preferred symbols (``is_otc_preferred_symbol``)
+    are removed first and appear in *folded* mapped to ``None``. Each kept
+    row that absorbed others carries ``listing_aliases`` (the folded tickers,
+    sorted), so anything reading the snapshot can resolve an old ticker to
+    the row that now stands for it; *folded* is ``{folded ticker: kept
+    ticker}``. A ``listing_aliases`` left over from an earlier pass (a
+    carried-forward row) is replaced.
     """
     groups = defaultdict(list)
+    drop, folded = set(), {}
     for r in rows:
         r.pop('listing_aliases', None)
+        if is_otc_preferred_symbol(r.get('ticker'), issuer_map):
+            drop.add(id(r))
+            folded[r['ticker']] = None
+            continue
         cik = _issuer(issuer_map, r.get('ticker')).get('cik')
         if cik:
             groups[cik].append(r)
-    drop, folded = set(), {}
     for members in groups.values():
         if len(members) < 2:
             continue
@@ -74,12 +103,14 @@ def collapse_duplicate_listings(rows, issuer_map):
 
 
 def one_listing_per_issuer(tickers, issuer_map):
-    """*tickers* with every issuer's extra lines removed, order kept.
+    """*tickers* with every issuer's extra lines and OTC preferred symbols
+    removed, order kept.
 
     For passes that run before dollar volume is known (the sector exit
     multiples): any one line stands for the issuer there, since the lines
     share its statements, so the choice uses exchange and SEC order only.
     """
+    tickers = [t for t in tickers if not is_otc_preferred_symbol(t, issuer_map)]
     best = {}
     for t in tickers:
         cik = _issuer(issuer_map, t).get('cik')

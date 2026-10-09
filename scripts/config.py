@@ -137,6 +137,10 @@ CLAUDE_NARRATIVE_MAX_TOKENS = 16000
 BLEND_TRIGGER = 1.5            # DCF > 1.5× multiples-FV triggers blending
 BLEND_DCF_WEIGHT = 0.60        # Blend: 60% DCF
 BLEND_MULT_WEIGHT = 0.40       # Blend: 40% multiples
+# DCF-less effective fair value (scoring.py): with exactly two alternative
+# models (EPV-growth / RIM / DDM) more than this far apart, neither is
+# trusted and the row gets no effective fair value (_fv_source 'conflict').
+BLEND_CONFLICT_RATIO = 5.0
 EV_EBITDA_OUTLIER_MAX = 200    # Filter EV/EBITDA outliers above 200×
 MIN_SECTOR_STOCKS = 3          # Min stocks per sector for median calculation
 DATA_QUALITY_MIN = 40          # Skip tickers with quality score below this
