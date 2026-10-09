@@ -1227,9 +1227,15 @@ def _build_sector_pool_data(rows, macro_sidecar=None):
             # The pool over time (pp-history / pp-shifts), by industry
             # (pp-chart), against its cost of capital (pp-econ) and its
             # concentration and price (pp-structure).
+            try:
+                narr['history'] = sector_pool_history(srows)
+            except Exception as e:
+                logger.warning('sector pool history failed for %s: %s', s, e)
+            # Industries grow over the sector's window where they can, so
+            # the table and the industry-evidenced forces compare like years.
+            window = (narr.get('history') or {}).get('window')
             for key, build, args in (
-                    ('history', sector_pool_history, (srows,)),
-                    ('industries', industry_pools, (srows,)),
+                    ('industries', industry_pools, (srows, window)),
                     ('economic', economic_pool, (srows, universe)),
                     ('structure_stats', pool_structure, (srows, universe))):
                 try:
@@ -1239,7 +1245,7 @@ def _build_sector_pool_data(rows, macro_sidecar=None):
             # The headwinds and tailwinds with their evidence (pp-signals);
             # reads the history and industries just built.
             try:
-                narr['forces'] = evaluate_forces(s, macro_sidecar, narr)
+                narr['forces'] = evaluate_forces(s, macro_sidecar, narr, srows)
             except Exception as e:
                 logger.warning('sector forces failed for %s: %s', s, e)
     return sector_pool_data

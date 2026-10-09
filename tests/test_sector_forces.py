@@ -154,3 +154,91 @@ def test_move_is_ranked_on_an_even_weekly_grid():
     even = _even_weekly(weekly + daily)
     assert len(even) == 470 + 52 or len(even) == 470 + 53
     assert sum(1 for d, _ in even if d > last) <= 53
+
+# --- exposure and balance (step 4) ------------------------------------------
+
+from models.sector_forces import exposure, force_balance  # noqa: E402
+
+
+def _re_rows():
+    """Real Estate rows: six levered, six not, plus an industry."""
+    rows = []
+    for k in range(6):
+        rows.append({'ticker': 'LEV%d' % k, 'sector': 'Real Estate', 'industry': 'REIT - Office',
+                     'revenue': 100 + k, 'operating_income': 30 + k, 'nd_ebitda': 9.0 - k * 0.1,
+                     'rating': 'PASS'})
+        rows.append({'ticker': 'CASH%d' % k, 'sector': 'Real Estate', 'industry': 'REIT - Specialty',
+                     'revenue': 200 + k, 'operating_income': 60 + k, 'nd_ebitda': -1.0 - k,
+                     'rating': 'BUY'})
+    return rows
+
+
+def test_metric_exposure_ranks_and_measures_reach():
+    rows = _re_rows()
+    e = exposure({'type': 'rates'}, None, rows)
+    assert e['basis'] == 'metric' and e['metric'] == 'nd_ebitda'
+    assert [m['ticker'] for m in e['most']] == ['LEV0', 'LEV1', 'LEV2']
+    assert e['least'][0]['ticker'] == 'CASH5'
+    pool = sum(r['operating_income'] for r in rows)
+    assert e['pool_share'] == pytest.approx(sum(30 + k for k in range(4)) / pool)
+
+
+def test_industry_exposure_is_the_industrys_companies():
+    e = exposure({'type': 'demand'}, {'kind': 'industry', 'industry': 'REIT - Specialty'}, _re_rows())
+    assert e['basis'] == 'industry' and e['n'] == 6
+    assert e['most'][0]['ticker'] == 'CASH5' and e['least'] == []
+    assert e['pool_share'] == pytest.approx(sum(60 + k for k in range(6)) / (
+        sum(30 + k for k in range(6)) + sum(60 + k for k in range(6))))
+
+
+def test_exposure_lists_name_material_companies_only():
+    rows = _re_rows() + [{'ticker': 'TINY', 'sector': 'Real Estate', 'revenue': 1,
+                          'operating_income': 0.01, 'nd_ebitda': 50.0}]
+    e = exposure({'type': 'rates'}, None, rows)
+    assert e['most'][0]['ticker'] == 'LEV0'          # TINY ranks first, holds ~0%
+
+
+def test_exposure_needs_a_metric_or_an_industry():
+    assert exposure({'type': 'regulation'}, None, _re_rows()) is None
+    assert exposure({'type': 'rates'}, None, _re_rows()[:4]) is None   # too few rows
+
+
+def test_balance_weights_live_forces_by_reach():
+    forces = [{'kind': 'tailwind', 'status': 'active', 'exposure': {'pool_share': 0.4}},
+              {'kind': 'tailwind', 'status': 'building', 'exposure': {'pool_share': 0.2}},
+              {'kind': 'tailwind', 'status': 'dormant', 'exposure': {'pool_share': 0.9}},
+              {'kind': 'headwind', 'status': 'active', 'exposure': None}]
+    b = force_balance(forces)
+    assert b['tailwind'] == pytest.approx(0.5)
+    assert b['headwind'] == pytest.approx(1 / 3) and b['estimated'] == 1
+    assert b['net'] == pytest.approx(0.5 - 1 / 3)
+
+
+def test_evaluate_forces_carries_exposure_and_balance():
+    side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
+    res = evaluate_forces('Real Estate', side, {}, _re_rows())
+    hw = _force(res, 'Interest-rate sensitivity and tenant-credit risk')
+    assert hw['exposure']['most'][0]['ticker'] == 'LEV0'
+    assert res['balance']['headwind'] == pytest.approx(hw['exposure']['pool_share'])
+    assert res['balance']['tailwind'] == 0
+
+
+def test_industry_and_sector_growth_compare_the_same_years():
+    """Independent Power Producers falls back to FY2022-25 (Constellation
+    spun off in 2022); the sector's growth must be measured over those years
+    too, not quoted from its own 2018-20 -> 2023-25 window."""
+    from models.sector_pool import growth_over, industry_pools, sector_pool_history
+    from tests.test_sector_pool import YEARS, _flat
+    rows = [dict(_flat(t, YEARS, 100 + i, 0.2, 0.02), industry='Utilities - Regulated Electric')
+            for i, t in enumerate(('DUK', 'SO', 'NEE'))]
+    rows += [dict(_flat('NRG', YEARS, 50, 0.1, 0.10), industry='Utilities - Independent Power Producers'),
+             dict(_flat('HNRG', YEARS, 20, 0.1, 0.10), industry='Utilities - Independent Power Producers'),
+             dict(_flat('CEG', list(range(2022, 2026)), 80, 0.1, 0.30),
+                  industry='Utilities - Independent Power Producers')]
+    entry = {'history': sector_pool_history(rows), 'industries': industry_pools(rows)}
+    assert entry['history']['window'] == [2020, 2025, 3]
+    f = _force(evaluate_forces('Utilities', None, entry, rows), 'AI data-centre electricity demand')
+    ev = f['evidence']
+    assert ev['window'] == [2022, 2025, 1]
+    assert ev['sector_cagr'] == pytest.approx(growth_over(rows, [2022, 2025, 1])['pool_cagr'])
+    assert f['status'] == 'active'

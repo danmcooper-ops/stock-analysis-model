@@ -329,3 +329,34 @@ def test_a_late_arriving_group_gets_a_shorter_window_not_none():
     h = sector_pool_history(rows)
     assert h['window'] == [2022, 2025, 1]
     assert h['decomposition']['n'] == 3
+
+
+def test_a_gap_in_the_middle_years_reaches_back_past_it():
+    """REIT - Industrial: one filer's 2018-22 history is missing, so those
+    years are incomplete and no start year lay 3-5 years back."""
+    rows = [_flat(t, YEARS, 100, 0.1, 0.05) for t in 'ABC']
+    gap = _flat('GAP', YEARS, 400, 0.1)
+    for key in ('revenue_history', 'operating_income_history'):
+        for y in range(2018, 2023):
+            del gap['edgar_history'][key][str(y)]
+    h = sector_pool_history(rows + [gap])
+    assert h['window'] == [2017, 2025, 1]
+    assert h['decomposition']['n'] == 4
+
+
+def test_industries_grow_over_the_sectors_window_where_they_can():
+    """Software - Infrastructure: Microsoft and Oracle had filed FY2026, so
+    left free the industry took a window ending FY2026 and was compared with
+    a sector re-measured over years only the early filers had reported."""
+    rows = [dict(_flat(t, YEARS, 100 + i, 0.2, 0.05), industry='Semis')
+            for i, t in enumerate('ABC')]
+    infra = [dict(_flat(t, YEARS + [2026], 200 + i, 0.3, 0.10), industry='Infra')
+             for i, t in enumerate(('MSFT', 'ORCL', 'X'))]
+    late = [dict(_flat('NRG', YEARS, 50, 0.1), industry='Power'),
+            dict(_flat('HNRG', YEARS, 20, 0.1), industry='Power'),
+            dict(_flat('CEG', list(range(2022, 2026)), 80, 0.1), industry='Power')]
+    window = [2020, 2025, 3]
+    inds = {d['industry']: d for d in industry_pools(rows + infra + late, window)}
+    assert inds['Infra']['window'] == window and not inds['Infra']['own_window']
+    assert inds['Infra']['pool_cagr'] == pytest.approx(0.10)
+    assert inds['Power']['window'] == [2022, 2025, 1] and inds['Power']['own_window']
