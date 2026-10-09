@@ -166,7 +166,7 @@ class TestBuildMacroPayload:
         assert sc['keyed'] is True
         assert sc['recessions'] == [['2020-02-01', '2020-04-01']]
         assert {s['k'] for s in sc['sections']} == \
-            {'rates', 'inflation', 'growth', 'credit', 'housing'}
+            {'rates', 'inflation', 'growth', 'credit', 'housing', 'commodities'}
         # every declared series made it in with the stub's full data
         assert set(sc['series']) == {m['id'] for m in MACRO_SERIES}
         entry = sc['series']['UNRATE']
