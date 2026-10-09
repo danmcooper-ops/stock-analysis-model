@@ -1333,6 +1333,35 @@ td.ct{font-weight:700;}
 .pp-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
 .pp-signals-col-hdr{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
 @media(max-width:760px){.pp-signals-grid{grid-template-columns:1fr;gap:14px;}}
+/* Force cards (renderPoolSectorSignals): status pill, evidence, sparkline. */
+.ppf{background:#fff;border:1px solid #e3e8ee;border-radius:5px;padding:8px 10px;margin:0 0 8px;font-size:0.8em;line-height:1.45;color:#37474f;}
+.ppf-hdr{display:flex;align-items:flex-start;gap:8px;}
+.ppf-th{font-weight:700;}
+.ppf-st{flex:none;font-size:0.78em;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;padding:1px 7px;border-radius:9px;border:1px solid transparent;white-space:nowrap;margin-top:1px;}
+.ppf-tw .ppf-st.ppf-active{background:#1b5e20;color:#fff;}
+.ppf-hw .ppf-st.ppf-active{background:#b71c1c;color:#fff;}
+.ppf-tw .ppf-st.ppf-building{background:#e8f5e9;color:#1b5e20;border-color:#a5d6a7;}
+.ppf-hw .ppf-st.ppf-building{background:#ffebee;color:#b71c1c;border-color:#ef9a9a;}
+.ppf-st.ppf-easing{background:#eceff1;color:#37474f;border-color:#b0bec5;}
+.ppf-st.ppf-dormant{background:#f5f7f9;color:#546e7a;border-color:#dfe5ea;}
+.ppf-st.ppf-qualitative,.ppf-st.ppf-no_data{background:transparent;color:#546e7a;border-color:#b0bec5;border-style:dashed;}
+.ppf-meta{font-size:0.88em;color:#78909c;margin:2px 0 0;}
+.ppf-ev{display:flex;align-items:center;gap:8px;margin:5px 0 0;}
+.ppf-dim{color:#78909c;font-style:italic;}
+.ppf-spark{flex:none;}
+.ppf-spark polyline{fill:none;stroke:#4f7cac;stroke-width:1.5;}
+.ppf-why{margin:5px 0 0;color:#546e7a;}
+.ppf-why summary{cursor:pointer;color:#4f7cac;font-size:0.92em;}
+[data-theme="dark"] .ppf{background:#1c2128;border-color:#30363d;color:#c9d1d9;}
+[data-theme="dark"] .ppf-tw .ppf-st.ppf-active{background:#238636;}
+[data-theme="dark"] .ppf-hw .ppf-st.ppf-active{background:#da3633;}
+[data-theme="dark"] .ppf-tw .ppf-st.ppf-building{background:rgba(63,185,80,0.15);color:#3fb950;border-color:#2ea043;}
+[data-theme="dark"] .ppf-hw .ppf-st.ppf-building{background:rgba(248,81,73,0.15);color:#f85149;border-color:#da3633;}
+[data-theme="dark"] .ppf-st.ppf-easing{background:#21262d;color:#c9d1d9;border-color:#484f58;}
+[data-theme="dark"] .ppf-st.ppf-dormant{background:#161b22;color:#8b949e;border-color:#30363d;}
+[data-theme="dark"] .ppf-st.ppf-qualitative,[data-theme="dark"] .ppf-st.ppf-no_data{color:#8b949e;border-color:#484f58;}
+[data-theme="dark"] .ppf-spark polyline{stroke:#6e9bd1;}
+[data-theme="dark"] .ppf-why summary{color:#58a6ff;}
 [data-theme="dark"] .pp-primer,
 [data-theme="dark"] .pp-structure,
 [data-theme="dark"] .pp-liquidity,
@@ -10843,7 +10872,8 @@ var MACRO_TABS=[
   {k:'inflation',l:'Inflation'},
   {k:'growth',l:'Growth & Labor'},
   {k:'credit',l:'Credit & Conditions'},
-  {k:'housing',l:'Housing & Consumer'}
+  {k:'housing',l:'Housing & Consumer'},
+  {k:'commodities',l:'Commodities'}
 ];
 /* Formatting is macro-local rather than ftc(): the builder ships values
    already scaled for display (WALCL in $T, ICSA in K), so codes here are
@@ -10932,7 +10962,8 @@ var _MAC_SEC_INTRO={
   inflation:'The four price indices track year-over-year inflation from two angles: CPI is what consumers pay, PCE is the gauge the Fed targets, and the core versions strip out food and energy to expose the underlying trend. The 10-year breakeven and the 5y5y forward are what the bond market expects inflation to average, read from the gap between nominal and inflation-protected Treasuries; when they hold near 2% the market still believes the Fed is in control, whatever the latest prints say. The percentile bar under each chart shows how today\u2019s reading ranks against the series\u2019 own history.',
   growth:'Real GDP, industrial production and retail sales gauge output and demand, and a reading below the dashed zero line means contraction. The labor charts read the jobs market from both ends: the unemployment rate and the monthly change in payrolls lag the cycle, while weekly jobless claims and job openings turn first. The Sahm Rule is a recession trigger: once the three-month average unemployment rate rises half a point above its twelve-month low (the red dashed line), a downturn has historically already begun.',
   credit:'Investment-grade and high-yield option-adjusted spreads are the extra yield investors demand over Treasuries to hold corporate debt: they widen when default risk is being priced in and tighten when credit is easy. The Chicago Fed NFCI folds more than a hundred money-market, debt and equity measures into one index, where a reading above zero means conditions are tighter than average. The Fed balance sheet and M2 growth track how much liquidity is in the system, and the broad dollar index shows the currency\u2019s weight on exporters and on multinationals\u2019 overseas earnings. The rating table at the bottom breaks the spreads out from AAA to CCC, where the lowest tiers move first when stress builds.',
-  housing:'Housing starts count the homes builders are breaking ground on, the most rate-sensitive corner of the economy, and the 30-year mortgage rate is the cost that governs them. Case\u2013Shiller home prices, year over year, track the largest asset most households own. Consumer sentiment gauges how households feel about their finances and the year ahead, and the personal savings rate shows whether they are building a cushion or spending it down to keep consumption going; sliding sentiment alongside a shrinking savings rate is the classic late-cycle squeeze.'
+  housing:'Housing starts count the homes builders are breaking ground on, the most rate-sensitive corner of the economy, and the 30-year mortgage rate is the cost that governs them. Case\u2013Shiller home prices, year over year, track the largest asset most households own. Consumer sentiment gauges how households feel about their finances and the year ahead, and the personal savings rate shows whether they are building a cushion or spending it down to keep consumption going; sliding sentiment alongside a shrinking savings rate is the classic late-cycle squeeze.',
+  commodities:'West Texas Intermediate crude is the oil price US producers sell into, and copper is the industrial metal whose price tracks construction, grid and electrification demand worldwide. They are the price decks Energy and Basic Materials earn on: a producer does not set them, so a move here flows almost straight to revenue and margins. Read each against its own ten-year range rather than its last move, because both swing far more than the economy beneath them.'
 };
 function _macIntroHTML(k){
   var t=_MAC_SEC_INTRO[k];
@@ -11876,19 +11907,88 @@ function renderPoolCompanies(sec,cos){
    detail modal. Source data is hardcoded prose from the narrative model
    (SECTOR_POOL[sec].headwinds, .tailwinds) — sector-wide structural
    forces, not company-specific signals. */
+/* Sector Headwinds & Tailwinds (pp-signals). Each curated force carries
+   its evidence from SECTOR_POOL[sec].forces (models/sector_forces.py): a
+   FRED series, the profit growth of the industry it names, or the
+   sector's margin cycle, read into a status (Active / Building / Easing /
+   Dormant). Forces nothing measures say so (Qualitative) rather than borrow
+   a gauge. Falls back to the plain lists for a snapshot without forces. */
+var _PPF_ST={active:'Active',building:'Building',easing:'Easing',dormant:'Dormant',qualitative:'Qualitative',no_data:'No data'};
+var _PPF_TYPE={rates:'Rates',credit:'Credit',commodity:'Commodity',consumer:'Consumer',demand:'Demand',input_costs:'Input costs',pricing:'Pricing power',regulation:'Regulation',disruption:'Disruption',capex_cycle:'Capex cycle',trade:'Trade',fx:'Currency',demographics:'Demographics',geopolitics:'Geopolitics'};
+function _ppfSpark(v){
+  if(!v||v.length<3)return '';
+  var mn=Math.min.apply(null,v),mx=Math.max.apply(null,v),r=(mx-mn)||1,W=90,H=20;
+  var pts=v.map(function(x,i){return (i/(v.length-1)*W).toFixed(1)+','+(H-1-(x-mn)/r*(H-2)).toFixed(1);}).join(' ');
+  return '<svg class="ppf-spark" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" aria-hidden="true"><polyline points="'+pts+'"/></svg>';
+}
+/* "the top of" / "the bottom of" / "the 62nd percentile of": a rank at
+   either end reads as a place, not as "100th percentile". */
+function _ppRankOf(p){return p>=0.995?'the top of':p<=0.005?'the bottom of':'the '+_ord(Math.round(p*100))+' percentile of';}
+function _ppWin(w){var m=/^(\d+)y$/.exec(w||'');return m?m[1]+'-year':'';}
+function _ppfEvidence(f){
+  var e=f.evidence;
+  if(f.status==='qualitative')return '<div class="ppf-ev ppf-dim">No series measures this force; it is a judgement call.</div>';
+  if(!e)return '';
+  if(f.status==='no_data')return '<div class="ppf-ev ppf-dim">Evidence unavailable: '+_esc(e.note||'no data')+'.</div>';
+  if(e.source==='macro'){
+    return '<div class="ppf-ev">'+_ppfSpark(e.spark)+'<span><b>'+_esc(e.label)+'</b> '+_esc(e.reading)
+      +' · '+_ppRankOf(e.pctile)+' its '+(_ppWin(e.window)?_ppWin(e.window)+' ':'')+'history'
+      +(e.change_1y?' · '+_esc(e.change_1y)+' over a year':'')+'</span></div>';
+  }
+  if(e.source==='industry'){
+    var w=e.window;
+    return '<div class="ppf-ev"><span><b>'+_esc(e.industry)+'</b> profit pool '+_ppSgnPct(e.industry_cagr)+'/yr against the sector’s '+_ppSgnPct(e.sector_cagr)+'/yr'
+      +(w?' ('+_ppFy({y0:w[0],block:w[2]})+' to '+_ppFy1({y1:w[1],block:w[2]})+')':'')+'</span></div>';
+  }
+  if(e.source==='margin_cycle'){
+    return '<div class="ppf-ev"><span><b>Sector margin</b> '+_ppPct(e.margin)+' in FY'+e.year+' (from '+_ppPct(e.prev_margin)+'), '+_ppRankOf(e.pctile)+' its '+e.years+'-year range ('+_ppPct(e.low)+' to '+_ppPct(e.high)+')</span></div>';
+  }
+  return '';
+}
+function _ppfCard(f){
+  var meta=[_PPF_TYPE[f.type]||'',f.horizon==='secular'?'Secular':f.horizon==='cyclical'?'Cyclical':''].filter(Boolean).join(' · ');
+  return '<div class="ppf ppf-'+(f.kind==='tailwind'?'tw':'hw')+'">'
+    +'<div class="ppf-hdr"><span class="ppf-st ppf-'+f.status+'">'+(_PPF_ST[f.status]||f.status)+'</span><span class="ppf-th">'+_esc(f.theme)+'</span></div>'
+    +(meta?'<div class="ppf-meta">'+meta+'</div>':'')
+    +_ppfEvidence(f)
+    +(f.detail?'<details class="ppf-why"><summary>Why it matters</summary>'+_esc(f.detail)+'</details>':'')
+    +'</div>';
+}
 function renderPoolSectorSignals(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
   if(!n)return '';
-  var hw=n.headwinds||[],tw=n.tailwinds||[];
-  if(!hw.length&&!tw.length)return '';
+  var fz=n.forces;
+  if(fz&&fz.forces&&fz.forces.length){
+    var tw=fz.forces.filter(function(f){return f.kind==='tailwind';}),hw=fz.forces.filter(function(f){return f.kind==='headwind';});
+    function _live(list){return list.filter(function(f){return f.status==='active'||f.status==='building';}).length;}
+    var lead='<p class="pph-lead">Acting now (active or building): <b>'+_live(tw)+' of '+tw.length+'</b> tailwinds and <b>'+_live(hw)+' of '+hw.length+'</b> headwinds.';
+    var m=fz.market;
+    if(m&&(m.rs_3m!=null||m.rs_6m!=null)){
+      /* "has beaten the market by 3.8% over 3 months and by 25.1% over 6";
+         the verb repeats only when the direction changes. */
+      var parts=[],prev=null;
+      [[m.rs_3m,'3 months'],[m.rs_6m,m.rs_3m!=null?'6':'6 months']].forEach(function(x){
+        if(x[0]==null)return;
+        var vb=x[0]>=0?'beaten':'trailed';
+        parts.push((vb===prev?'by ':vb+' the market by ')+Math.abs(x[0]*100).toFixed(1)+'% over '+x[1]);prev=vb;
+      });
+      lead+=' Market check: '+_esc(m.etf||'the sector ETF')+' has '+parts.join(' and ')+'.';
+    }
+    lead+='</p>';
+    var col=function(list,cls,label){return '<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:'+cls+'">'+label+'</div>'+list.map(_ppfCard).join('')+'</div>';};
+    return lead+'<div class="pp-signals-grid">'+col(tw,'#1a7a45','▲ Structural Tailwinds')+col(hw,'#c0392b','▼ Structural Headwinds')+'</div>'
+      +'<p class="pph-note">Status reads each force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range.'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'</p>';
+  }
+  var hw0=n.headwinds||[],tw0=n.tailwinds||[];
+  if(!hw0.length&&!tw0.length)return '';
   function _list(items,kind){
     if(!items.length)return '<p style="margin:0;color:#94a3b8;font-size:0.82em;font-style:italic">No '+kind+' identified for this sector.</p>';
     var ul='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55">';
     items.forEach(function(s){ul+='<li style="margin:5px 0">'+_linkifyTickers(_esc(s))+'</li>';});
     return ul+'</ul>';
   }
-  var twHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#1a7a45">▲ Structural Tailwinds</div>'+_list(tw,'tailwinds')+'</div>';
-  var hwHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#c0392b">▼ Structural Headwinds</div>'+_list(hw,'headwinds')+'</div>';
+  var twHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#1a7a45">▲ Structural Tailwinds</div>'+_list(tw0,'tailwinds')+'</div>';
+  var hwHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#c0392b">▼ Structural Headwinds</div>'+_list(hw0,'headwinds')+'</div>';
   return '<div class="pp-signals-grid">'+twHtml+hwHtml+'</div>';
 }
 /* === Aggregate Performance chart ================================

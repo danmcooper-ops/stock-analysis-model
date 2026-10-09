@@ -91,6 +91,13 @@ MACRO_SERIES = [
          tr='level', fmt='n1', suffix='', good='up', scale=1),
     dict(id='PSAVERT', l='Personal Savings Rate', sec='housing', freq='m',
          tr='level', fmt='pct1', suffix='', good='none', scale=1),
+    # --- Commodities ---
+    # The price decks Energy and Basic Materials live on; the sector page's
+    # commodity headwinds and tailwinds read their status from these.
+    dict(id='DCOILWTICO', l='WTI Crude ($/bbl)', sec='commodities', freq='d',
+         tr='level', fmt='n1', suffix='', good='none', scale=1),
+    dict(id='PCOPPUSDM', l='Copper ($/t)', sec='commodities', freq='m',
+         tr='level', fmt='int', suffix='', good='none', scale=1),
 ]
 
 SECTIONS = [
@@ -99,6 +106,7 @@ SECTIONS = [
     {'k': 'growth', 'l': 'Growth & Labor'},
     {'k': 'credit', 'l': 'Credit & Conditions'},
     {'k': 'housing', 'l': 'Housing & Consumer'},
+    {'k': 'commodities', 'l': 'Commodities'},
 ]
 
 # Headline tiles on the Overview sub-tab, in display order.

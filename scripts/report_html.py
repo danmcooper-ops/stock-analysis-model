@@ -19,6 +19,7 @@ except Exception:
     generate_sector_profit_pool_narrative = None
 from models.data_tab_narrative import generate_data_tab_summaries
 from models.profile_verdict import profile_verdict
+from models.sector_forces import evaluate_forces
 from models.sector_pool import (economic_pool, industry_pools, pool_structure,
                                  sector_pool_history, universe_totals)
 from scripts.scoring import gate_metadata
@@ -1196,7 +1197,7 @@ def _extract_details_payload(chart_records):
     return details_payload
 
 
-def _build_sector_pool_data(rows):
+def _build_sector_pool_data(rows, macro_sidecar=None):
     # Per-sector profit pool narratives (top-level Profit Pool tab)
     sector_pool_data = {}
     if generate_sector_profit_pool_narrative is not None:
@@ -1235,6 +1236,12 @@ def _build_sector_pool_data(rows):
                     narr[key] = build(*args)
                 except Exception as e:
                     logger.warning('sector pool %s failed for %s: %s', key, s, e)
+            # The headwinds and tailwinds with their evidence (pp-signals);
+            # reads the history and industries just built.
+            try:
+                narr['forces'] = evaluate_forces(s, macro_sidecar, narr)
+            except Exception as e:
+                logger.warning('sector forces failed for %s: %s', s, e)
     return sector_pool_data
 
 
@@ -1904,7 +1911,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     # Gate metadata for Matrix view rendering in JavaScript
     gate_meta = dumps_for_script(gate_meta_obj, default=_json_default)
 
-    sector_pool_data = _build_sector_pool_data(rows)
+    sector_pool_data = _build_sector_pool_data(
+        rows, (macro_payload or {}).get('sidecar'))
     sector_pool_json = dumps_for_script(sector_pool_data, default=_json_default)
 
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The

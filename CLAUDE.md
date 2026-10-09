@@ -644,7 +644,10 @@ ruff check .
     not weighted by revenue, so the stale giants cannot hide themselves.
   - **3-year endpoints:** growth compares 3-year averages (FY2018–20 vs
     FY2023–25) over one consistent panel. With single-year ends, Energy's
-    FY2020 trough read as 71%/yr pool growth.
+    FY2020 trough read as 71%/yr pool growth. When that panel has fewer
+    than 3 companies, growth falls back to shorter windows (down to 3
+    years). Independent Power Producers needs this: Constellation was
+    spun off in 2022.
 
   `year_series` and `panel_pools` are shared with the Pool Share gate.
   The same module also builds three more blocks:
@@ -662,6 +665,27 @@ ruff check .
   Mortgage Finance, Credit Services and Capital Markets are left out,
   since industry alone cannot tell V from COF. Exclusions are counted,
   never zero-filled.
+- **Sector headwinds and tailwinds with evidence (`models/sector_forces.py`):**
+  the 66 curated forces stay in `models/narrative.py`, word for word, and
+  the Claude macro narrative still reads them. `FORCE_META` adds each
+  force's type, horizon and indicator. It is keyed by the force's theme
+  (the text before " — "), and a test pins that the two stay in step.
+  `evaluate_forces` reads the evidence at render time and returns
+  `SECTOR_POOL[sec].forces`. There are three kinds of indicator:
+  - **macro:** a macro.json series. The status (active / building /
+    easing / dormant) comes from the reading's percentile in its own
+    history and its 1-year move, taken in the direction that strengthens
+    the force.
+  - **industry:** the named industry's pool CAGR against the sector's.
+  - **margin_cycle:** the sector's margin within its own range.
+
+  Forces that no series measures read "qualitative". Without `macro.json`,
+  macro forces read "no_data" and the rest still render. The
+  `DCOILWTICO` / `PCOPPUSDM` Commodities family exists for Energy's and
+  Basic Materials' commodity forces, and adds a Commodities sub-tab to the
+  Macro tab. `data/fred_client`'s cache is keyed by series id alone, so a
+  fetch with a later `start` (an ad hoc probe) poisons it for the
+  dashboard until the 1-day TTL runs out.
 - **Report sidecars and the Pages size limits:** the HTML lazy-loads
   everything heavy from files beside it, through `_loadSidecar` (relative
   paths). Per-ticker shards: `vol/`, `px/` (manifested in `prices_meta.json`)

@@ -139,3 +139,46 @@ def test_structure_stats_render_the_four_tiles(tmp_path):
     for title in ('Profit concentration', 'Margin spread', 'Loss-makers',
                   'Price of the pool'):
         assert title in html
+
+
+def _render_signals(entry, tmp_path):
+    src = TEMPLATE.read_text(encoding='utf-8')
+    names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
+             '_ppfEvidence', '_ppfCard', 'renderPoolSectorSignals']
+    consts = re.search(r'^var _PPF_ST=.*$', src, re.M).group(0) + '\n' + \
+        re.search(r'^var _PPF_TYPE=.*$', src, re.M).group(0)
+    js = '\n'.join(['function _esc(s){return String(s);}function _linkifyTickers(s){return s;}',
+                    consts] + [_fn(src, n) for n in names]
+                   + ['var SECTOR_POOL=' + json.dumps({'Real Estate': entry}) + ';',
+                      "process.stdout.write(renderPoolSectorSignals('Real Estate'));"])
+    script = tmp_path / 's.js'
+    script.write_text(js, encoding='utf-8')
+    return subprocess.run(['node', str(script)], capture_output=True, text=True,
+                          check=True).stdout
+
+
+def test_force_cards_carry_status_and_evidence(tmp_path):
+    from models.sector_forces import evaluate_forces
+    from tests.test_sector_forces import _sidecar
+    side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
+    side['sector_data'] = {'Real Estate': {'etf': 'XLRE', 'rs_3m': -0.10, 'rs_6m': -0.17}}
+    html = _render_signals({'forces': evaluate_forces('Real Estate', side, {})}, tmp_path)
+    tw, hw = html.split('Structural Headwinds')
+    assert html.count('class="ppf ppf-') == 6
+    assert 'ppf-st ppf-active">Active' in hw and 'ppf-st ppf-dormant">Dormant' in tw
+    assert 'ppf-qualitative">Qualitative' in html
+    assert '<polyline' in html and '5.38%' in html
+    assert 'XLRE has trailed the market by 10.0% over 3 months' in html
+    assert 'Acting now (active or building): <b>0 of 3</b> tailwinds' in html
+
+
+def test_signals_fall_back_to_the_plain_lists(tmp_path):
+    html = _render_signals({'headwinds': ['A — x'], 'tailwinds': ['B — y']}, tmp_path)
+    assert '<li' in html and 'ppf' not in html
+
+
+def test_market_check_names_the_unit_without_the_3_month_reading(tmp_path):
+    from models.sector_forces import evaluate_forces
+    side = {'as_of': '2026-10-08', 'sector_data': {'Real Estate': {'etf': 'XLRE', 'rs_6m': 0.251}}}
+    html = _render_signals({'forces': evaluate_forces('Real Estate', side, {})}, tmp_path)
+    assert 'XLRE has beaten the market by 25.1% over 6 months.' in html
