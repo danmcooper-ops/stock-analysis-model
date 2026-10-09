@@ -34,7 +34,9 @@ _SECTOR_MACRO_DRIVERS = {
         'driver_label': 'oil prices',
         'cyclical': True,
     },
-    'Financials': {
+    # Keyed by the sector name rows carry. As 'Financials' it matched no
+    # row, so Financial Services stocks never got the yield-curve signals.
+    'Financial Services': {
         'rate_sensitive': True,
         'benefits_from_higher_rates': True,
         'driver_label': 'yield curve & credit spreads',
