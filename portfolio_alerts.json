@@ -1,15 +1,15 @@
 {
  "version": 1,
- "date": "2026-10-07",
- "prev_date": "2026-10-06",
+ "date": "2026-10-08",
+ "prev_date": "2026-10-07",
  "systemic": {
-  "n": 2504,
+  "n": 2280,
   "prev_n": 2504,
-  "changed": 38,
-  "changed_share": 0.0152,
+  "changed": 72,
+  "changed_share": 0.0316,
   "missing_data": 0,
   "missing_share": 0.0,
-  "shrink_share": 0.0,
+  "shrink_share": 0.0895,
   "flood": false,
   "cause": null,
   "message": null
@@ -31,9 +31,9 @@
      "HOLD": 0,
      "PASS": 3
     },
-    "median_mos": -0.6312476664484932,
+    "median_mos": -0.5871817745735626,
     "median_score": 39.5,
-    "median_spread": 0.37541143250392717,
+    "median_spread": 0.3756676109722873,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -45,7 +45,14 @@
     "upgrades": 0,
     "downgrades": 0
    },
-   "alerts": []
+   "alerts": [
+    {
+     "ticker": "TSM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TSM reports earnings on 2026-10-15"
+    }
+   ]
   },
   {
    "id": "flagged",
@@ -56,28 +63,28 @@
     "AXON"
    ],
    "stats": {
-    "n": 53,
+    "n": 52,
     "ratings": {
      "BUY": 2,
      "LEAN BUY": 7,
      "HOLD": 15,
-     "PASS": 29
+     "PASS": 28
     },
-    "median_mos": -0.3589899555123949,
-    "median_score": 42.3,
-    "median_spread": 0.2712133110818709,
+    "median_mos": -0.33704793564844865,
+    "median_score": 42.25,
+    "median_spread": 0.2632222752298373,
     "sector_weights": {
-     "Technology": 0.2641509433962264,
-     "Financial Services": 0.11320754716981131,
-     "Industrials": 0.1320754716981132,
-     "Consumer Cyclical": 0.18867924528301885,
-     "Consumer Defensive": 0.16981132075471697,
-     "Communication Services": 0.11320754716981131,
-     "Energy": 0.018867924528301886
+     "Technology": 0.26923076923076916,
+     "Financial Services": 0.11538461538461539,
+     "Industrials": 0.13461538461538464,
+     "Consumer Cyclical": 0.1923076923076923,
+     "Consumer Defensive": 0.17307692307692307,
+     "Communication Services": 0.09615384615384616,
+     "Energy": 0.019230769230769232
     },
     "top_sector": "Technology",
-    "top_sector_weight": 0.2641509433962264,
-    "hhi": 0.17764328942684227,
+    "top_sector_weight": 0.26923076923076916,
+    "hhi": 0.18047337278106507,
     "concentrated": false,
     "no_sector": 0,
     "upgrades": 0,
@@ -95,6 +102,12 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "JPM reports earnings on 2026-10-13"
+    },
+    {
+     "ticker": "TSM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TSM reports earnings on 2026-10-15"
     }
    ]
   }
