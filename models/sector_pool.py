@@ -19,7 +19,10 @@ that left the market is absent from every year). Foreign filers' histories
 are translated at one FX rate and so show local-currency growth.
 """
 
+import logging
 import math
+
+logger = logging.getLogger(__name__)
 
 HISTORY_YEARS = 10
 # A year whose reporters hold less than this share of the revenue that
@@ -354,3 +357,240 @@ def sector_pool_history(rows):
                   for r, oi, _ in sorted(
                       stale, key=lambda h: -(_num(h[0].get('revenue')) or 0.0))],
     }
+
+
+# ---------------------------------------------------------------------------
+# Below the sector, beside it and behind it: industry sub-pools, the economic
+# pool, and the pool's structure and price (Sector Analysis step 2).
+# ---------------------------------------------------------------------------
+
+MIN_INDUSTRY_COS = 3
+OTHER_INDUSTRY = 'Other'
+EP_LIST_N = 3
+LORENZ_SHARE = 0.80
+# Financials whose balance sheets are funded by deposits or repo, so that
+# "invested capital" is the funding of a loan book or trading inventory and
+# (ROIC - WACC) x it measures nothing: GS and MS read as the sector's two
+# largest value destroyers (-$14B, -$19B) on 2026-10-08, COF -$11B. Used
+# when a row has no epv_bridge flag; the flag cannot tell V from COF by
+# industry, so the fallback leaves out the whole industry and says so.
+BALANCE_SHEET_INDUSTRIES = frozenset({
+    'Banks - Regional', 'Banks - Diversified', 'Mortgage Finance',
+    'Credit Services', 'Capital Markets'})
+
+
+def _median(vals):
+    vals = sorted(vals)
+    if not vals:
+        return None
+    m = len(vals) // 2
+    return vals[m] if len(vals) % 2 else (vals[m - 1] + vals[m]) / 2
+
+
+def _quantile(vals, q):
+    """Linear-interpolated quantile of a non-empty sorted list."""
+    if not vals:
+        return None
+    pos = (len(vals) - 1) * q
+    lo = int(pos)
+    hi = min(lo + 1, len(vals) - 1)
+    return vals[lo] + (vals[hi] - vals[lo]) * (pos - lo)
+
+
+def industry_pools(rows):
+    """The sector's pool by industry: where in the sector the money is.
+
+    Industries with fewer than MIN_INDUSTRY_COS companies fold into one
+    "Other" group (a two-company industry's margin is two companies, not an
+    industry). Each entry carries revenue and pool shares of the sector, net
+    weighted margin, median ROIC-WACC spread and its own consistent-panel
+    pool CAGR from the history machinery; ordered by pool share."""
+    prow = pool_rows(rows)
+    groups = {}
+    for r in prow:
+        groups.setdefault(r.get('industry') or OTHER_INDUSTRY, []).append(r)
+    small = [k for k, v in groups.items()
+             if len(v) < MIN_INDUSTRY_COS and k != OTHER_INDUSTRY]
+    if small:
+        other = groups.setdefault(OTHER_INDUSTRY, [])
+        for k in small:
+            other.extend(groups.pop(k))
+    rev_tot = sum(_num(r['revenue']) for r in prow)
+    pool_tot = sum(max(_num(r['operating_income']), 0.0) for r in prow)
+    if rev_tot <= 0:
+        return []
+    out = []
+    for name, rs in groups.items():
+        rev = sum(_num(r['revenue']) for r in rs)
+        net = sum(_num(r['operating_income']) for r in rs)
+        pos = sum(max(_num(r['operating_income']), 0.0) for r in rs)
+        # A balance-sheet financial's spread measures nothing (see
+        # economic_profit), so banks show no median rather than one the
+        # economic pool beside it refuses to use.
+        spreads = [_num(r.get('spread')) for r in rs
+                   if not is_balance_sheet_financial(r)]
+        top = max(rs, key=lambda r: _num(r['operating_income']))
+        try:
+            hist = sector_pool_history(rs)
+        except Exception as e:            # one odd industry must not cost the rest
+            logger.warning('industry pool history failed for %s: %s', name, e)
+            hist = None
+        dec = (hist or {}).get('decomposition')
+        out.append({
+            'industry': name, 'n': len(rs),
+            'revenue_share': rev / rev_tot,
+            'pool_share': (pos / pool_tot) if pool_tot > 0 else None,
+            'margin': net / rev if rev > 0 else None,
+            'median_spread': _median([s for s in spreads if s is not None]),
+            'pool_cagr': dec['pool_cagr'] if dec else None,
+            'top': {'ticker': top.get('ticker'),
+                    'pool_share_in_industry': (max(_num(top['operating_income']), 0.0) / pos
+                                               if pos > 0 else None)},
+            'folded': name == OTHER_INDUSTRY and bool(small),
+        })
+    out.sort(key=lambda d: -(d['pool_share'] or 0.0))
+    return out
+
+
+def is_balance_sheet_financial(r):
+    """Whether invested capital means nothing for *r* (see
+    BALANCE_SHEET_INDUSTRIES). The row's own lender flag when it carries one
+    (``epv_bridge``, decided from the companyfacts: a filer tagging net
+    interest income), else its industry."""
+    bridge = r.get('epv_bridge')
+    if bridge is not None:
+        return bridge == 'equity'
+    return (r.get('sector') == 'Financial Services'
+            and r.get('industry') in BALANCE_SHEET_INDUSTRIES)
+
+
+def _latest_ic(r):
+    ic = year_series(r.get('_ic_by_year'))
+    if not ic:
+        return None
+    v = ic[max(ic)]
+    return v if v > 0 else None
+
+
+def economic_profit(r):
+    """``(ep, ic, reason)``: economic profit = (ROIC - WACC) x latest
+    invested capital, or None with the reason it is not measurable
+    ('balance_sheet', 'no_capital', 'no_spread'). ROIC is the row's 5-year median,
+    so this is today's capital earning a normalised spread."""
+    if is_balance_sheet_financial(r):
+        return None, None, 'balance_sheet'
+    ic = _latest_ic(r)
+    if ic is None:
+        return None, None, 'no_capital'
+    spread = _num(r.get('spread'))
+    if spread is None:
+        return None, ic, 'no_spread'
+    return spread * ic, ic, None
+
+
+def universe_totals(all_rows):
+    """Universe-wide denominators for the per-sector shares: positive
+    operating income, positive economic profit, and market cap over the
+    rows that carry one (the pool's price)."""
+    prow = pool_rows(all_rows)
+    oi_pos = sum(max(_num(r['operating_income']), 0.0) for r in prow)
+    ep_pos = oi_pos_measured = 0.0
+    for r in prow:
+        ep, _, _ = economic_profit(r)
+        if ep is None:
+            continue
+        ep_pos += max(ep, 0.0)
+        oi_pos_measured += max(_num(r['operating_income']), 0.0)
+    priced = [r for r in prow if (_num(r.get('mcap')) or 0) > 0]
+    mcap = sum(_num(r['mcap']) for r in priced)
+    pool_priced = sum(max(_num(r['operating_income']), 0.0) for r in priced)
+    return {'oi_pos': oi_pos, 'ep_pos': ep_pos, 'oi_pos_measured': oi_pos_measured,
+            'pool_multiple': (mcap / pool_priced) if pool_priced > 0 else None}
+
+
+def economic_pool(rows, universe=None, n=EP_LIST_N):
+    """The sector's economic-profit pool beside its accounting pool.
+
+    A sector can hold a large share of the market's operating profit and a
+    small share of its economic profit, when the capital behind the profit
+    earns little over its cost. Balance-sheet financials and rows without invested capital
+    or a spread are left out and counted, never zero-filled. Returns None
+    when no row is measurable."""
+    prow = pool_rows(rows)
+    measured, excluded = [], {'balance_sheet': 0, 'no_capital': 0, 'no_spread': 0}
+    for r in prow:
+        ep, ic, why = economic_profit(r)
+        if why:
+            excluded[why] += 1
+        else:
+            measured.append((r, ep, ic))
+    if not measured:
+        return None
+
+    def _entry(r, ep, ic):
+        return {'ticker': r.get('ticker'), 'company_name': r.get('company_name'),
+                'rating': r.get('rating'), 'ep': ep, 'ic': ic,
+                'spread': _num(r.get('spread'))}
+
+    total = sum(ep for _, ep, _ in measured)
+    ic_tot = sum(ic for _, _, ic in measured)
+    pos = sum(ep for _, ep, _ in measured if ep > 0)
+    neg = sum(ep for _, ep, _ in measured if ep < 0)
+    # The headline pairs two shares of the market, so both are taken over
+    # the companies whose economic profit is measurable: Financial Services
+    # held 22.7% of all US operating profit, but its banks are not in the
+    # economic pool, and setting one against the other compared two sets.
+    oi_pos = sum(max(_num(r['operating_income']), 0.0) for r, _, _ in measured)
+    uni = universe or {}
+    ranked = sorted(measured, key=lambda m: -m[1])
+    return {
+        'n': len(measured), 'excluded': excluded,
+        'total': total, 'created': pos, 'destroyed': neg,
+        'ep_on_ic': (total / ic_tot) if ic_tot > 0 else None,
+        'share_creating': sum(1 for _, ep, _ in measured if ep > 0) / len(measured),
+        'creators': [_entry(*m) for m in ranked[:n] if m[1] > 0],
+        'destroyers': [_entry(*m) for m in reversed(ranked[-n:]) if m[1] < 0],
+        'share_of_us_oi': ((oi_pos / uni['oi_pos_measured'])
+                           if uni.get('oi_pos_measured') else None),
+        'share_of_us_ep': (pos / uni['ep_pos']) if uni.get('ep_pos') else None,
+    }
+
+
+def pool_structure(rows, universe=None):
+    """Concentration of profit (not revenue), the spread of margins, the
+    drag of loss-makers, and what the market pays for the pool."""
+    prow = pool_rows(rows)
+    if not prow:
+        return None
+    ois = sorted((max(_num(r['operating_income']), 0.0) for r in prow), reverse=True)
+    pool = sum(ois)
+    net = sum(_num(r['operating_income']) for r in prow)
+    out = {'n': len(prow), 'pool': pool, 'net': net,
+           'loss_makers': sum(1 for r in prow if _num(r['operating_income']) < 0)}
+    if pool > 0:
+        shares = [v / pool for v in ois]
+        out['profit_hhi'] = sum(s * s for s in shares)
+        out['profit_cr4'] = sum(shares[:4])
+        acc, k = 0.0, 0
+        for s in shares:
+            acc += s
+            k += 1
+            if acc >= LORENZ_SHARE:
+                break
+        out['lorenz'] = {'pool_share': LORENZ_SHARE, 'companies': k,
+                         'company_share': k / len(prow)}
+    # Margins outside +/-100% are a revenue base too small to mean anything
+    # (the narrative drops them the same way).
+    # Taken from the pool's own figures, so the spread describes exactly the
+    # revenue and operating income the pool sums.
+    margins = sorted(m for m in (_num(r['operating_income']) / _num(r['revenue'])
+                                 for r in prow) if abs(m) <= 1.0)
+    if len(margins) >= MIN_PANEL:
+        p10, p50, p90 = (_quantile(margins, q) for q in (0.1, 0.5, 0.9))
+        out['margins'] = {'p10': p10, 'p50': p50, 'p90': p90, 'spread': p90 - p10}
+    priced = [r for r in prow if (_num(r.get('mcap')) or 0) > 0]
+    pool_priced = sum(max(_num(r['operating_income']), 0.0) for r in priced)
+    if pool_priced > 0:
+        out['pool_multiple'] = sum(_num(r['mcap']) for r in priced) / pool_priced
+        out['universe_pool_multiple'] = (universe or {}).get('pool_multiple')
+    return out

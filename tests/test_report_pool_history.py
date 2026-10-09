@@ -10,7 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from models.sector_pool import sector_pool_history
+from models.sector_pool import (economic_pool, industry_pools, pool_structure,
+                                 sector_pool_history, universe_totals)
 
 TEMPLATE = Path(__file__).resolve().parents[1] / 'templates' / 'report.html'
 YEARS = list(range(2016, 2026))
@@ -34,15 +35,18 @@ def _row(t, rev, margin, growth, rating='BUY'):
                               'operating_income_history': oi_by}}
 
 
-def _render(history, call, tmp_path):
+def _render(history, call, tmp_path, entry=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ppBn', '_ord',
-             'renderPoolHistory', '_ppShiftRows', 'renderPoolShifts']
+             'renderPoolHistory', '_ppShiftRows', 'renderPoolShifts',
+             '_ppIndCls', 'renderPoolIndustries', '_ppEpRows', 'renderPoolEcon',
+             '_ppStructureStats']
+    sp = dict(entry or {}, history=history)
     js = '\n'.join(
         ["var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
          'function _esc(s){return String(s);}function _attr(s){return String(s);}']
         + [_fn(src, n) for n in names]
-        + ['var SECTOR_POOL=' + json.dumps({'Tech': {'history': history}}) + ';',
+        + ['var SECTOR_POOL=' + json.dumps({'Tech': sp}) + ';',
            'process.stdout.write(' + call + ');'])
     script = tmp_path / 'h.js'
     script.write_text(js, encoding='utf-8')
@@ -89,3 +93,49 @@ def test_shifts_list_gainers_and_losers_with_click_through(tmp_path):
 def test_no_history_renders_nothing(tmp_path):
     assert _render(None, "renderPoolHistory('Tech')+'|'+renderPoolShifts('Tech')",
                    tmp_path) == '|'
+
+
+def _step2_rows():
+    ic = {'2025': 400.0}
+    return [dict(_row('AAA', 100, 0.30, 0.12), industry='Semis', spread=0.25,
+                 _ic_by_year=ic, mcap=5000),
+            dict(_row('AAB', 90, 0.25, 0.10), industry='Semis', spread=0.15,
+                 _ic_by_year=ic, mcap=3000),
+            dict(_row('AAC', 85, 0.20, 0.08), industry='Semis', spread=0.08,
+                 _ic_by_year=ic, mcap=2000),
+            dict(_row('BBA', 80, 0.05, 0.0, 'PASS'), industry='Services', spread=-0.04,
+                 _ic_by_year=ic, mcap=300),
+            dict(_row('BBB', 70, 0.06, 0.01), industry='Services', spread=-0.02,
+                 _ic_by_year=ic, mcap=350),
+            dict(_row('BBC', 60, 0.04, 0.02), industry='Services', spread=0.01,
+                 _ic_by_year=ic, mcap=250)]
+
+
+def test_industries_view_draws_and_tabulates_each_industry(tmp_path):
+    rows = _step2_rows()
+    html = _render(None, "renderPoolIndustries('Tech')", tmp_path,
+                   {'industries': industry_pools(rows)})
+    assert html.count('class="ppi-bar') == 2
+    assert 'ppi-pos' in html and 'ppi-neg' in html          # spread colours
+    assert html.count('<tr><td>') == 2 and 'Pool CAGR' in html
+
+
+def test_econ_states_both_market_shares_and_the_exclusions(tmp_path):
+    rows = _step2_rows()
+    uni = universe_totals(rows)
+    e = economic_pool(rows, uni)
+    html = _render(None, "renderPoolEcon('Tech')", tmp_path, {'economic': e})
+    assert 'of US operating profit but' in html
+    assert 'Largest value creators' in html and 'data-tk="AAA"' in html
+    assert 'data-tk="BBA"' in html.split('Largest value destroyers')[1]
+    assert 'Not measured' not in html                       # nothing excluded
+
+
+def test_structure_stats_render_the_four_tiles(tmp_path):
+    rows = _step2_rows()
+    st = pool_structure(rows, universe_totals(rows))
+    html = _render(None, "_ppStructureStats(SECTOR_POOL.Tech.structure_stats)",
+                   tmp_path, {'structure_stats': st})
+    for title in ('Profit concentration', 'Margin spread', 'Loss-makers',
+                  'Price of the pool'):
+        assert title in html

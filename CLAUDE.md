@@ -626,6 +626,21 @@ ruff check .
     FY2020 trough read as 71%/yr pool growth.
 
   `year_series` and `panel_pools` are shared with the Pool Share gate.
+  The same module also builds three more blocks:
+  - `industries`: the Industries toggle on the pool chart. Industries
+    with fewer than 3 companies fold into "Other".
+  - `economic`: the Accounting vs Economic Pool section. EP = (5-year
+    median ROIC − WACC) × latest `_ic_by_year`. Both of a sector's US
+    shares are taken over the companies whose EP is measurable.
+  - `structure_stats`: profit-based concentration, margin spread,
+    loss-maker drag, and market value ÷ pool against the universe.
+
+  Balance-sheet financials have no EP (`is_balance_sheet_financial`):
+  GS, MS and COF otherwise read as the largest value destroyers. The row's
+  `epv_bridge` lender flag decides when present. Without it, all of Banks,
+  Mortgage Finance, Credit Services and Capital Markets are left out,
+  since industry alone cannot tell V from COF. Exclusions are counted,
+  never zero-filled.
 - **Report sidecars and the Pages size limits:** the HTML lazy-loads
   everything heavy from files beside it, through `_loadSidecar` (relative
   paths). Per-ticker shards: `vol/`, `px/` (manifested in `prices_meta.json`)
