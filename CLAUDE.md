@@ -283,9 +283,30 @@ ruff check .
   definitions resolve a folded ticker to its kept row
   (`portfolio_groups.resolve_members`, and `_pfRecompute` in the template),
   and `membership_events` maps yesterday's members through today's folds,
-  so the fold night raises no leave/join pair. Not covered: an issuer whose
-  only lines are preferreds (Ameren Illinois) stays, since names cannot
-  flag them reliably (BNS, Scotiabank's common, reads "Pfd 3" on Yahoo).
+  so the fold night raises no leave/join pair. OTC preferred symbols go
+  first (`is_otc_preferred_symbol`: FINRA's fifth letter G/H/I/L/M/N/O/P on a
+  five-letter OTC symbol; `listing_dropped_preferred` events), so an issuer
+  whose only lines are preferreds (Ameren Illinois, Wisconsin Electric) has
+  no row — Yahoo reports every preferred as EQUITY with the common's share
+  count and names cannot flag them (BNS, Scotiabank's common, reads "Pfd 3").
+  Over SEC's whole list the rule matches 103 symbols, every one a preferred,
+  convertible, depositary/CDI line or trust certificate.
+- **EPV inputs on foreign filers and lenders:** yfinance `info` totals
+  (`totalDebt`, `totalCash`, … — `_FX_INFO_STATEMENT_FIELDS`) are in the
+  statement currency, so `_convert_financials_to_usd` scales them by that
+  rate on every path, including SEC-USD statements (blanked when no rate):
+  `_debt_levels` falls back to them, and unconverted they handed EPV a yen
+  net debt against a USD enterprise value (MFG EPV 9,862/share at $10.67,
+  SHG 606,801; ~60 rows on 2026-10-08). A lender — Financial Services that
+  tags net interest income, or has no SEC facts — takes EPV at the equity
+  level (`earnings_power_value_valuation(basis='equity')`: pretax × (1 − t)
+  / cost of equity, no debt/cash bridge; row `epv_bridge`), because its cash
+  is deposit-funded (C read $526 at $128 with cash 5.1x market cap); its
+  lender EPVs now land beside RIM (JPM 212/202, C 97/85, PNC 164/161).
+  Insurers, brokers and asset managers keep the enterprise bridge. Without a
+  DCF, two alternative models more than `BLEND_CONFLICT_RATIO` (5x) apart
+  give no effective fair value (`_fv_source` `'conflict'`, 17 rows on 10-08)
+  rather than their average.
 - **Phase-1 beta from local prices:** the nightly run downloads every prior
   snapshot ticker's closes into `output/prices` immediately before the
   analysis (`run.sh` step 03), so Phase 1 reads that parquet for the beta

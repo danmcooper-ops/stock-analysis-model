@@ -31,7 +31,7 @@ from scripts.config import (
     MC_HIGH_DIVERGENCE_SIGMA_MULT, MC_WACC_TG_CORRELATION,
     DDM_HIGH_GROWTH_YEARS, DDM_BLEND_WEIGHT,
     DCF_BLEND_WEIGHT_WITH_DDM, DDM_DIVERGENCE_THRESHOLD,
-    BLEND_TRIGGER, BLEND_DCF_WEIGHT, BLEND_MULT_WEIGHT,
+    BLEND_TRIGGER, BLEND_DCF_WEIGHT, BLEND_MULT_WEIGHT, BLEND_CONFLICT_RATIO,
     SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
     SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH, SCORE_WEIGHT_OWNERSHIP,
 )
@@ -98,6 +98,9 @@ def default_params():
 
         # Post-processing blending
         'blend_trigger': BLEND_TRIGGER,
+        # Two-model fair-value conflict (scoring.py); in the params so a
+        # change to it moves the scoring fingerprint.
+        'fv_blend_conflict_ratio': BLEND_CONFLICT_RATIO,
         'blend_dcf_weight': BLEND_DCF_WEIGHT,
         'blend_mult_weight': BLEND_MULT_WEIGHT,
 

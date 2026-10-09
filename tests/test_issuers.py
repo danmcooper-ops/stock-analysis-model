@@ -13,7 +13,7 @@ import pytest
 
 from data import us_listings
 from data.issuers import (alias_map, collapse_duplicate_listings,
-                          one_listing_per_issuer)
+                          is_otc_preferred_symbol, one_listing_per_issuer)
 from models import portfolio_groups as pg
 from scripts.analyze_stock import _collapse_listings, _run_sector_exit_multiples
 
@@ -73,6 +73,64 @@ class TestCollapse:
         assert one_listing_per_issuer(['NONOF', 'AAPL', 'NVO', 'ZZZZ', 'BRK-A'], ISSUERS) \
             == ['AAPL', 'NVO', 'ZZZZ', 'BRK-A']
         assert one_listing_per_issuer(['A', 'B'], None) == ['A', 'B']
+
+
+class TestOtcPreferredSymbols:
+    MAP = {
+        # Ameren Illinois: every public line is a preferred.
+        'AILIH': {'cik': '18654', 'exchange': 'OTC', 'rank': 1},
+        'AILLM': {'cik': '18654', 'exchange': 'OTC', 'rank': 2},
+        # Fannie Mae: common plus preferreds, all OTC.
+        'FNMA':  {'cik': '310522', 'exchange': 'OTC', 'rank': 3},
+        'FNMAO': {'cik': '310522', 'exchange': 'OTC', 'rank': 4},
+        'FNMAS': {'cik': '310522', 'exchange': 'OTC', 'rank': 5},
+        # OTC common, foreign ordinary and ADR lines.
+        'FMCB':  {'cik': '7', 'exchange': 'OTC', 'rank': 6},
+        'DLMAF': {'cik': '8', 'exchange': 'OTC', 'rank': 7},
+        'DLMAY': {'cik': '8', 'exchange': 'OTC', 'rank': 8},
+        # Exchange-listed five-letter classes.
+        'GOOGL': {'cik': '9', 'exchange': 'Nasdaq', 'rank': 9},
+        'BELFB': {'cik': '10', 'exchange': 'Nasdaq', 'rank': 10},
+    }
+
+    @pytest.mark.parametrize('ticker,expected', [
+        ('AILIH', True), ('AILLM', True), ('FNMAO', True),
+        ('FNMAS', False),          # S is ambiguous: left to the issuer fold
+        ('FNMA', False), ('FMCB', False), ('DLMAF', False), ('DLMAY', False),
+        ('GOOGL', False), ('BELFB', False), ('ZZZZP', False),  # unknown
+    ])
+    def test_symbol_rule(self, ticker, expected):
+        assert is_otc_preferred_symbol(ticker, self.MAP) is expected
+
+    def test_preferred_only_issuer_has_no_row(self):
+        rows = [_row(t, 1.0) for t in ('AILIH', 'AILLM', 'FMCB')]
+        kept, folded = collapse_duplicate_listings(rows, self.MAP)
+        assert [r['ticker'] for r in kept] == ['FMCB']
+        assert folded == {'AILIH': None, 'AILLM': None}
+
+    def test_common_survives_its_preferreds(self):
+        rows = [_row('FNMAO', 9e9), _row('FNMA', 16e6), _row('FNMAS', 1e4)]
+        kept, folded = collapse_duplicate_listings(rows, self.MAP)
+        assert [r['ticker'] for r in kept] == ['FNMA']
+        assert kept[0]['listing_aliases'] == ['FNMAS']      # never a dropped preferred
+        assert folded == {'FNMAO': None, 'FNMAS': 'FNMA'}
+
+    def test_exit_multiples_skip_them_too(self):
+        assert one_listing_per_issuer(['AILIH', 'AILLM', 'FMCB', 'GOOGL'], self.MAP) \
+            == ['FMCB', 'GOOGL']
+
+    def test_pipeline_records_the_drop(self):
+        class Prov:
+            def __init__(self):
+                self.events = []
+
+            def record_event(self, *a):
+                self.events.append(a)
+        rows = [_row('AILIH'), _row('FMCB')]
+        prov = Prov()
+        _collapse_listings(rows, self.MAP, prov)
+        assert [r['ticker'] for r in rows] == ['FMCB']
+        assert prov.events == [('listing_dropped_preferred', 'AILIH', 'sec_issuers')]
 
 
 class TestPipeline:

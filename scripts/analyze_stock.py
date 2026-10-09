@@ -1428,6 +1428,22 @@ _FX_INFO_DOLLAR_FIELDS = (
 )
 
 
+# Total-dollar fields in yfinance ``info`` that are denominated in the
+# STATEMENT currency (financialCurrency), not the quote currency: a
+# USD-quoted ADR of a Japanese bank reports totalCash in yen. They are
+# scaled by the statement-currency rate whenever that currency is not USD —
+# including when the statements themselves came from SEC XBRL in USD, which
+# is exactly the case that left them unconverted: _debt_levels fell back to
+# them for missing balance-sheet lines and handed EPV a yen net debt against
+# a USD enterprise value (MFG EPV 9,862/share at a $10.67 price, SHG
+# 606,801; 40 rows on 2026-10-08, 22 more with EPV suppressed by an
+# inflated local-currency debt instead).
+_FX_INFO_STATEMENT_FIELDS = (
+    'totalDebt', 'totalCash', 'totalRevenue', 'ebitda', 'freeCashflow',
+    'operatingCashflow', 'grossProfits', 'netIncomeToCommon',
+)
+
+
 def _convert_financials_to_usd(yf_data, statements_are_usd=False):
     """Convert ``yf_data`` financials + dollar-denominated info fields to USD.
 
@@ -1451,6 +1467,11 @@ def _convert_financials_to_usd(yf_data, statements_are_usd=False):
         fx_rate_quote       — rate applied to info dollar fields (None when no conversion)
         fx_converted        — True iff any conversion was applied
         fx_fetch_failed     — True iff at least one rate lookup returned None for a non-USD currency
+        fx_rate_info_statement — rate applied to ``_FX_INFO_STATEMENT_FIELDS``
+                              (None when the statement currency is USD; when
+                              the rate is unavailable those fields are blanked
+                              rather than left in local currency, so this does
+                              not set fx_fetch_failed — nothing is mixed)
     """
     info = yf_data.get('info') or {}
     ccy_fin = yf_data.get('currency_financial') or info.get('financialCurrency') or info.get('currency')
@@ -1462,15 +1483,17 @@ def _convert_financials_to_usd(yf_data, statements_are_usd=False):
         'fx_rate_quote': None,
         'fx_converted': False,
         'fx_fetch_failed': False,
+        'fx_rate_info_statement': None,
     }
-    needs_fin = ccy_fin and ccy_fin != 'USD' and not statements_are_usd
+    needs_info_stmt = bool(ccy_fin and ccy_fin != 'USD')
+    needs_fin = needs_info_stmt and not statements_are_usd
     needs_quote = ccy_quote and ccy_quote != 'USD'
-    if not needs_fin and not needs_quote:
+    if not needs_info_stmt and not needs_quote:
         return yf_data, fx_meta
     # Shallow-copy the outer dict so we don't mutate the cached payload.
     out = dict(yf_data)
+    rate_fin = get_spot_fx_rate(ccy_fin) if needs_info_stmt else None
     if needs_fin:
-        rate_fin = get_spot_fx_rate(ccy_fin)
         if rate_fin is None:
             fx_meta['fx_fetch_failed'] = True
         else:
@@ -1492,7 +1515,7 @@ def _convert_financials_to_usd(yf_data, statements_are_usd=False):
         else:
             fx_meta['fx_rate_quote'] = rate_quote
             fx_meta['fx_converted'] = True
-            new_info = dict(info)
+            new_info = dict(out.get('info') or info)
             for f in _FX_INFO_DOLLAR_FIELDS:
                 v = new_info.get(f)
                 if v is None:
@@ -1503,6 +1526,18 @@ def _convert_financials_to_usd(yf_data, statements_are_usd=False):
                     continue
                 new_info[f] = fv * rate_quote
             out['info'] = new_info
+    if needs_info_stmt:
+        new_info = dict(out.get('info') or info)
+        for f in _FX_INFO_STATEMENT_FIELDS:
+            v = new_info.get(f)
+            if v is None:
+                continue
+            try:
+                new_info[f] = float(v) * rate_fin if rate_fin is not None else None
+            except (TypeError, ValueError):
+                new_info[f] = None
+        out['info'] = new_info
+        fx_meta['fx_rate_info_statement'] = rate_fin
     return out, fx_meta
 
 
@@ -1746,9 +1781,10 @@ def _rim_retention_ratio(sy_result, net_income, payout_ratio):
 # ---------------------------------------------------------------------------
 
 def _debt_levels(yf_data):
-    """Point-in-time debt levels for the row (USD — statement frames are
-    FX-normalized upstream). Statements first; yfinance .info as fallback
-    only, per field (its totalDebt/totalCash are MRQ figures — fine as
+    """Point-in-time debt levels for the row, in USD: statement frames are
+    FX-normalized upstream, and so are the .info fallbacks
+    (``_FX_INFO_STATEMENT_FIELDS``; blanked when no rate was available).
+    Statements first; yfinance .info as fallback only, per field (its totalDebt/totalCash are MRQ figures — fine as
     point-in-time levels, never injected into annual frames). None stays
     None: unknown ≠ 0.
 
@@ -4103,6 +4139,16 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                          'edgar_quality_score': xbrl_validation.get('edgar_quality_score')})
             # SEC EDGAR: long-duration revenue/earnings history
             edgar_history = sec_xbrl_client.fetch_historical_financials(ticker, min_years=10)
+            # A lender's EPV is taken at the equity level (models/epv.py,
+            # basis='equity'): decided here, while the companyfacts blob is
+            # still cached. Financial Services that tags net interest income
+            # (banks, GSEs, card lenders) — or has no SEC facts to say
+            # otherwise; insurers, brokers and asset managers keep the
+            # enterprise bridge.
+            _facts_blob = sec_xbrl_client._cache.get(ticker)
+            _epv_lender = (sector == 'Financial Services' and (
+                not _facts_blob
+                or SECXBRLClient._reports_net_interest_income(_facts_blob)))
             # Evict the raw XBRL JSON blob (~1-10 MB) now that both
             # validate_against_yfinance and fetch_historical_financials are done.
             sec_xbrl_client._cache.pop(ticker, None)
@@ -4302,7 +4348,12 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             # leg of the consensus fallback.
             _epv_net_debt = (net_debt_val if net_debt_val is not None
                              else get_net_debt(yf_data))
-            if _epv_net_debt is None:
+            if _epv_lender:
+                epv_valuation = earnings_power_value_valuation(
+                    _epv_ebit_used, _epv_eff_tax, re_for_models, shares,
+                    ebit_source=_epv_ebit_source, basis='equity')
+                epv_fv = epv_valuation.value
+            elif _epv_net_debt is None:
                 epv_fv = None
                 epv_valuation = None
             else:
@@ -4735,6 +4786,9 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 # 'normalized' (10y-avg margin × current revenue) or 'point'
                 'epv_ebit_source': _epv_ebit_source,
                 'epv_tax_source': _epv_tax_source,
+                # 'equity' for a lender (earnings / cost of equity, no
+                # debt-cash bridge), else 'enterprise'.
+                'epv_bridge': 'equity' if _epv_lender else 'enterprise',
                 'epv_growth_basis': (_epv_growth_basis
                     if epv_growth_fv is not None else None),
                 'epv_confidence': (epv_valuation.confidence
@@ -4824,12 +4878,19 @@ def _collapse_listings(results, issuer_map, prov=None):
     if not folded:
         return {}
     results[:] = kept
-    for gone, keep in sorted(folded.items()):
+    preferred = sorted(t for t, k in folded.items() if k is None)
+    merged = {t: k for t, k in folded.items() if k is not None}
+    for gone, keep in sorted(merged.items()):
         logger.info("%s: folded into %s (same issuer)", gone, keep)
         if prov is not None:
             prov.record_event('listing_folded', gone, 'sec_issuers', {'kept': keep})
-    print(f"Listings: kept one line per issuer — folded {len(folded)} duplicate "
-          f"listing(s) into {len(set(folded.values()))} issuer(s)")
+    for gone in preferred:
+        logger.info("%s: dropped (OTC preferred/convertible symbol)", gone)
+        if prov is not None:
+            prov.record_event('listing_dropped_preferred', gone, 'sec_issuers')
+    print(f"Listings: kept one line per issuer — folded {len(merged)} duplicate "
+          f"listing(s) into {len(set(merged.values()))} issuer(s); dropped "
+          f"{len(preferred)} OTC preferred symbol(s)")
     return folded
 
 
