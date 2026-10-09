@@ -9,6 +9,7 @@ from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_OWNERSHIP, MIN_SECTOR_STOCKS,
                              MIN_ADV_FOR_BUY,
                             MC_CLIP_RATE_DOWNGRADE, MC_INVALID_RATE_DOWNGRADE)
+from models.sector_pool import panel_pools, year_series
 
 # Unified gate spec — ONE entry per metric drives both the pass/fail Gate
 # Matrix cell and the continuous 0-100 score, so a gate's threshold and its
@@ -443,16 +444,10 @@ def _compute_pool_share_trajectory(results):
         # _incr_roic_undefined — not scrubbed by _purge_stale_gate_fields).
         r['pool_share_cagr'] = None
         r['_pool_share_undefined'] = True
-        oi = ((r.get('edgar_history') or {})
-              .get('operating_income_history')) or {}
-        h = {}
-        for k, v in oi.items():           # int keys live, str after JSON round-trip
-            if v is None:
-                continue
-            try:
-                h[int(str(k)[:4])] = v
-            except (TypeError, ValueError):
-                continue
+        # int keys live, str after a JSON round trip (shared with the
+        # Sector Analysis page's pool history, models/sector_pool.py)
+        h = year_series((r.get('edgar_history') or {})
+                        .get('operating_income_history'))
         s = r.get('sector')
         if s and h:
             sector_rows.setdefault(s, []).append((r, h))
@@ -470,14 +465,7 @@ def _compute_pool_share_trajectory(results):
                 continue
             key = (y0, y1)
             if key not in pools:          # one sector pass per endpoint pair
-                p0 = p1 = 0.0
-                n = 0
-                for _, h2 in rows:
-                    if y0 in h2 and y1 in h2:
-                        p0 += max(h2[y0], 0.0)
-                        p1 += max(h2[y1], 0.0)
-                        n += 1
-                pools[key] = (p0, p1, n)
+                pools[key] = panel_pools((h2 for _, h2 in rows), y0, y1)
             p0, p1, n = pools[key]
             if n < MIN_SECTOR_STOCKS or p0 <= 0 or p1 <= 0:
                 continue

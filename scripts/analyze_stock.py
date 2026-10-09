@@ -4951,15 +4951,17 @@ def _run_postprocess(results, ms_pfv_data, _carry_prior_rows,
     _sector_rev = {}     # sector → total revenue
     _sector_opinc = {}   # sector → total operating income (clamped ≥0)
     _sector_tickers = {} # sector → [(ticker, revenue, operating_income)]
+    # A row joins the pool only with both revenue and operating income, so
+    # revenue shares and profit shares are measured over the same companies
+    # (a revenue-only row used to widen the revenue denominator alone).
     for r in results:
         s = r.get('sector')
         rev = r.get('revenue')
         opinc = r.get('operating_income')
-        if s and rev and rev > 0:
+        if s and rev and rev > 0 and opinc is not None:
             _sector_rev[s] = _sector_rev.get(s, 0) + rev
-            if opinc is not None:
-                _sector_opinc[s] = _sector_opinc.get(s, 0) + max(opinc, 0)
-            _sector_tickers.setdefault(s, []).append((r['ticker'], rev, opinc or 0))
+            _sector_opinc[s] = _sector_opinc.get(s, 0) + max(opinc, 0)
+            _sector_tickers.setdefault(s, []).append((r['ticker'], rev, opinc))
 
     # 2. Sector-level operating margin median
     _sector_opm = {}
@@ -4979,7 +4981,9 @@ def _run_postprocess(results, ms_pfv_data, _carry_prior_rows,
 
         # Revenue share (fraction of sector total revenue in analysis universe)
         sec_rev = _sector_rev.get(s, 0)
-        r['pp_revenue_share'] = (rev / sec_rev) if (rev and sec_rev > 0) else None
+        r['pp_revenue_share'] = ((rev / sec_rev)
+                                 if (rev and sec_rev > 0 and opinc is not None)
+                                 else None)
 
         # Profit share (fraction of sector total operating income)
         sec_opinc = _sector_opinc.get(s, 0)

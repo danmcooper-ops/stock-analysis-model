@@ -1317,13 +1317,15 @@ td.ct{font-weight:700;}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
-.pp-primer,.pp-structure,.pp-liquidity,.pp-signals,.pp-companies,.pp-chart{background:#f7f9fb;border-left:5px solid #1a252f;}
+.pp-primer,.pp-structure,.pp-liquidity,.pp-signals,.pp-companies,.pp-chart,.pp-history,.pp-shifts{background:#f7f9fb;border-left:5px solid #1a252f;}
 .pp-primer .pp-section-label,
 .pp-structure .pp-section-label,
 .pp-liquidity .pp-section-label,
 .pp-signals .pp-section-label,
 .pp-companies .pp-section-label,
-.pp-chart .pp-section-label{background:#1a252f;}
+.pp-chart .pp-section-label,
+.pp-history .pp-section-label,
+.pp-shifts .pp-section-label{background:#1a252f;}
 /* Combined sector-level Headwinds + Tailwinds block — two columns on
    desktop, stacked on mobile. Closes the Context arc, directly under the
    primer. */
@@ -1335,8 +1337,54 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-liquidity,
 [data-theme="dark"] .pp-signals,
 [data-theme="dark"] .pp-companies,
-[data-theme="dark"] .pp-chart{background:#161b22;border-left-color:#c9d1d9;}
+[data-theme="dark"] .pp-chart,
+[data-theme="dark"] .pp-history,
+[data-theme="dark"] .pp-shifts{background:#161b22;border-left-color:#c9d1d9;}
 [data-theme="dark"] .pp-section-label{background:#30363d !important;}
+/* Pool history (pp-history) and share shifts (pp-shifts): the sector's pool
+   over the last decade, from models/sector_pool.py. Marks are classed so dark
+   mode swaps them without touching the SVG markup. */
+.pph-bar{fill:#4f7cac;}
+.pph-bar.inc{fill:none;stroke:#4f7cac;stroke-width:1.2;stroke-dasharray:3,2;}
+.pph-line{fill:none;stroke:#d9822b;stroke-width:2;}
+.pph-dot{fill:#d9822b;}
+.pph-dot.inc{fill:#fff;stroke:#d9822b;stroke-width:1.5;}
+.pph-axis{stroke:#cfd8dc;stroke-width:1;}
+.pph-grid{stroke:#eef1f4;stroke-width:1;}
+.pph-tx{fill:#78909c;font-size:9px;}
+.pph-val{fill:#455a64;font-size:8.5px;}
+.pph-key{display:flex;flex-wrap:wrap;gap:14px;font-size:0.72em;color:#78909c;margin:4px 0 0;}
+.pph-key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
+.pph-facts{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0;}
+.pph-fact{background:#fff;border:1px solid #e3e8ee;border-radius:5px;padding:7px 10px;font-size:0.78em;line-height:1.45;color:#37474f;flex:1 1 220px;}
+.pph-fact b{display:block;font-size:0.82em;text-transform:uppercase;letter-spacing:0.05em;color:#78909c;margin-bottom:2px;}
+.pph-lead{margin:0 0 8px;font-size:0.82em;line-height:1.55;color:#37474f;}
+.pph-note{margin:8px 0 0;font-size:0.72em;line-height:1.5;color:#90a4ae;}
+.pps-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.pps-hdr{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
+.pps-row{display:grid;grid-template-columns:62px 1fr 88px;align-items:center;gap:8px;padding:4px 0;font-size:0.8em;cursor:pointer;color:#37474f;}
+.pps-row:hover .pps-tk{text-decoration:underline;}
+.pps-tk{font-weight:700;border-left:3px solid #aaa;padding-left:6px;white-space:nowrap;}
+.pps-track{position:relative;height:10px;background:#eef1f4;border-radius:2px;}
+.pps-fill{position:absolute;top:0;bottom:0;left:0;border-radius:2px;}
+.pps-up .pps-fill{background:#2e8b57;}
+.pps-dn .pps-fill{background:#c0392b;}
+.pps-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.pps-sub{grid-column:2 / 4;font-size:0.86em;color:#78909c;margin-top:-3px;}
+@media(max-width:760px){.pps-grid{grid-template-columns:1fr;gap:14px;}}
+[data-theme="dark"] .pph-bar{fill:#6e9bd1;}
+[data-theme="dark"] .pph-bar.inc{fill:none;stroke:#6e9bd1;}
+[data-theme="dark"] .pph-line{stroke:#f0a35e;}
+[data-theme="dark"] .pph-dot{fill:#f0a35e;}
+[data-theme="dark"] .pph-dot.inc{fill:#161b22;stroke:#f0a35e;}
+[data-theme="dark"] .pph-axis{stroke:#30363d;}
+[data-theme="dark"] .pph-grid{stroke:#21262d;}
+[data-theme="dark"] .pph-tx{fill:#8b949e;}
+[data-theme="dark"] .pph-val{fill:#c9d1d9;}
+[data-theme="dark"] .pph-fact{background:#1c2128;border-color:#30363d;color:#c9d1d9;}
+[data-theme="dark"] .pps-track{background:#21262d;}
+[data-theme="dark"] .pps-up .pps-fill{background:#3fb950;}
+[data-theme="dark"] .pps-dn .pps-fill{background:#f85149;}
 .pp-range-btn{padding:3px 11px;font-size:0.74em;font-weight:600;border:1px solid #d0d8e4;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
 .pp-range-btn:hover{background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
 .pp-range-btn.active{background:#7030a0;color:#fff;border-color:#7030a0;}
@@ -11422,6 +11470,116 @@ function renderPoolStructure(sec){
   }
   return out;
 }
+/* Pool History (pp-history): the sector's operating-profit pool over the
+   last decade, built server-side by models/sector_pool.py from each company's
+   EDGAR annual history and shipped as SECTOR_POOL[sec].history. Bars are the
+   positive pool, the line its net weighted margin; an incomplete year (most
+   filers not yet reported) is drawn hollow and never used as an endpoint.
+   Below the chart: growth split into volume and margin over a consistent
+   panel, today's margin within the sector's own range, and the concentration
+   trend. Everything here is measured on today's companies, which the
+   footnote says. */
+function _ppFy(w){return w.block>1?'FY'+(w.y0-w.block+1)+'–'+String(w.y0).slice(2):'FY'+w.y0;}
+function _ppFy1(w){return w.block>1?'FY'+(w.y1-w.block+1)+'–'+String(w.y1).slice(2):'FY'+w.y1;}
+function _ppPct(v,dp){return v==null?'N/A':(v*100).toFixed(dp==null?1:dp)+'%';}
+function _ppSgnPct(v){return v==null?'N/A':(v>=0?'+':'−')+Math.abs(v*100).toFixed(1)+'%';}
+function _ppBn(v){var a=Math.abs(v);return a>=1e12?'$'+(v/1e12).toFixed(2)+'T':a>=1e9?'$'+(v/1e9).toFixed(0)+'B':'$'+(v/1e6).toFixed(0)+'M';}
+function renderPoolHistory(sec){
+  var n=SECTOR_POOL&&SECTOR_POOL[sec],h=n&&n.history;
+  if(!h||!h.points||h.points.length<3)return '';
+  var pts=h.points;
+  var W=800,H=200,pL=52,pR=46,pT=16,pB=24,cW=W-pL-pR,cH=H-pT-pB;
+  var maxP=Math.max.apply(null,pts.map(function(p){return p.pool;}).concat([1]));
+  var ms=pts.filter(function(p){return p.margin!=null;}).map(function(p){return p.margin;});
+  var mMax=Math.max.apply(null,ms.concat([0.05])),mMin=Math.min.apply(null,ms.concat([0]));
+  var mR=(mMax-mMin)||0.05;mMax+=mR*0.08;mR=mMax-mMin;
+  var slot=cW/pts.length,bw=Math.min(46,slot*0.62);
+  var svg='',line='',dots='';
+  for(var t=0;t<=4;t++){
+    var gy=pT+cH*t/4;
+    svg+='<line class="pph-grid" x1="'+pL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+gy.toFixed(1)+'"/>';
+    svg+='<text class="pph-tx" x="'+(pL-6)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end">'+_ppBn(maxP*(1-t/4))+'</text>';
+    svg+='<text class="pph-tx" x="'+(W-pR+6)+'" y="'+(gy+3).toFixed(1)+'">'+((mMax-mR*t/4)*100).toFixed(0)+'%</text>';
+  }
+  svg+='<line class="pph-axis" x1="'+pL+'" y1="'+(pT+cH)+'" x2="'+(W-pR)+'" y2="'+(pT+cH)+'"/>';
+  pts.forEach(function(p,i){
+    var cx=pL+slot*(i+0.5),bh=p.pool/maxP*cH,by=pT+cH-bh;
+    var tip='FY'+p.year+': pool '+_ppBn(p.pool)+' · net margin '+_ppPct(p.margin)+' · '+p.n+' companies · '+_ppPct(p.coverage,0)+' of today’s sector revenue'+(p.complete?'':' · incomplete');
+    svg+='<rect class="pph-bar'+(p.complete?'':' inc')+'" x="'+(cx-bw/2).toFixed(1)+'" y="'+by.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(bh,0.5).toFixed(1)+'"><title>'+_esc(tip)+'</title></rect>';
+    if(bw>=24)svg+='<text class="pph-val" x="'+cx.toFixed(1)+'" y="'+(by-3).toFixed(1)+'" text-anchor="middle">'+_ppBn(p.pool)+'</text>';
+    svg+='<text class="pph-tx" x="'+cx.toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle">'+(slot<40?"'"+String(p.year).slice(2):p.year)+'</text>';
+    if(p.margin!=null){
+      var my=pT+cH*(mMax-p.margin)/mR;
+      line+=(line?'L':'M')+cx.toFixed(1)+','+my.toFixed(1);
+      dots+='<circle class="pph-dot'+(p.complete?'':' inc')+'" cx="'+cx.toFixed(1)+'" cy="'+my.toFixed(1)+'" r="3"><title>'+_esc(tip)+'</title></circle>';
+    }
+  });
+  if(mMin<0){var zy=pT+cH*mMax/mR;svg+='<line class="pph-axis" stroke-dasharray="4,3" x1="'+pL+'" y1="'+zy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+zy.toFixed(1)+'"/>';}
+  svg+='<path class="pph-line" d="'+line+'"/>'+dots;
+  var out='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%;height:auto">'+svg+'</svg>';
+  out+='<div class="pph-key"><span><i style="background:#4f7cac"></i>Operating-profit pool (left)</span><span><i style="background:#d9822b"></i>Net weighted operating margin (right)</span><span><i style="border:1px dashed #4f7cac"></i>Incomplete year</span></div>';
+
+  var facts='';
+  var d=h.decomposition;
+  if(d){
+    /* A margin moving under 1%/yr is "barely moved"; past that, say which
+       of volume and margin led, in the direction each actually went. */
+    var vol=d.revenue_cagr,mar=d.margin_cagr,why;
+    if(mar<=-0.01)why=d.pool_cagr>0?'volume carried it while margins thinned':'margins shrank faster than revenue could make up';
+    else if(mar<0.01)why=vol>=0?'almost all volume \u2014 margins barely moved':'revenue shrank and margins barely moved';
+    else if(vol<0)why='margin carried it while revenue shrank';
+    else if(mar>vol)why='more from margin than from volume \u2014 the sector earns more on each dollar it sells';
+    else why='volume led, with margins widening too';
+    facts+='<div class="pph-fact"><b>Where the growth came from</b>Pool '+_ppSgnPct(d.pool_cagr)+'/yr = revenue '+_ppSgnPct(vol)+'/yr × margin '+_ppSgnPct(mar)+'/yr: '+why+'. Pool margin '+_ppPct(d.margin0)+' → '+_ppPct(d.margin1)+'.</div>';
+  }
+  var c=h.cycle;
+  if(c){
+    var pos=c.position==='top'?'at the top of its range — more room to fall than to rise if the cycle turns':c.position==='bottom'?'near the bottom of its range — depressed rather than structural, if the past range holds':'mid-range';
+    var where=c.margin>=c.high?'is the highest of its '+c.years+' complete years':c.margin<=c.low?'is the lowest of its '+c.years+' complete years':'sits in the '+_ord(Math.round(c.pctile*100))+' percentile of its '+c.years+' complete years';
+    facts+='<div class="pph-fact"><b>Cycle position</b>FY'+c.year+' margin '+_ppPct(c.margin)+' '+where+' ('+_ppPct(c.low)+' to '+_ppPct(c.high)+'): '+pos+'.</div>';
+  }
+  var ht=h.hhi_trend;
+  if(ht){
+    var tw=ht.trend==='concentrating'?'Concentrating — the leaders are taking a larger share of the profit':ht.trend==='fragmenting'?'Fragmenting — profit is spreading across more companies':'Stable — the profit split has barely moved';
+    facts+='<div class="pph-fact"><b>Profit concentration</b>'+tw+'. Profit HHI '+ht.hhi0.toFixed(3)+' → '+ht.hhi1.toFixed(3)+'.</div>';
+  }
+  if(facts)out+='<div class="pph-facts">'+facts+'</div>';
+
+  var w=d||ht||(h.shifts||null);
+  var note='Built from EDGAR annual filings of the '+h.n_with_history+' of '+h.n_rows+' companies with history';
+  if(w)note+='; growth compares '+(w.block>1?w.block+'-year averages, ':'')+_ppFy(w)+' with '+_ppFy1(w)+' over the '+w.n+' companies reporting throughout';
+  note+='. Today’s companies only, so the series shows how today’s sector got here; foreign filers are translated at one FX rate.';
+  if(h.stale&&h.stale.length){
+    var st=h.stale.slice(0,4).map(function(x){return _esc(x.ticker)+' (to FY'+x.last_year+')';}).join(', ');
+    note+=' Left out because their SEC filings stopped: '+st+(h.stale.length>4?' and '+(h.stale.length-4)+' more':'')+'.';
+  }
+  out+='<p class="pph-note">'+note+'</p>';
+  return out;
+}
+/* Share Shifts (pp-shifts): who took the pool. Each company's share of the
+   positive operating-profit pool at the two ends of the history window,
+   over the same consistent panel as the growth split above, so the shifts
+   net to zero. The sector-level view of the per-company Pool Share gate. */
+function _ppShiftRows(list,cls,maxD){
+  return list.map(function(m){
+    var col=RC[m.rating]||'#aaa',wd=maxD>0?Math.abs(m.delta)/maxD*100:0;
+    return '<div class="pps-row '+cls+'" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr((m.company_name||m.ticker)+(m.rating?' · '+m.rating:''))+'">'
+      +'<span class="pps-tk" style="border-left-color:'+col+'">'+_esc(m.ticker)+'</span>'
+      +'<span class="pps-track"><span class="pps-fill" style="width:'+wd.toFixed(1)+'%"></span></span>'
+      +'<span class="pps-num">'+(m.delta>=0?'+':'−')+Math.abs(m.delta*100).toFixed(1)+' pp</span>'
+      +'<span class="pps-sub">'+_esc(m.company_name||'')+' · '+_ppPct(m.share0)+' → '+_ppPct(m.share1)+'</span>'
+      +'</div>';
+  }).join('');
+}
+function renderPoolShifts(sec){
+  var n=SECTOR_POOL&&SECTOR_POOL[sec],sh=n&&n.history&&n.history.shifts;
+  if(!sh||(!sh.gainers.length&&!sh.losers.length))return '';
+  var maxD=Math.max.apply(null,sh.gainers.concat(sh.losers).map(function(m){return Math.abs(m.delta);}));
+  var out='<p class="pph-lead">Share of the sector’s operating-profit pool, '+_ppFy(sh)+' vs '+_ppFy1(sh)+(sh.block>1?' ('+sh.block+'-year averages)':'')+', among the '+sh.n+' companies reporting throughout. Gains and losses net to zero.</p>';
+  out+='<div class="pps-grid"><div><div class="pps-hdr" style="color:#2e7d32">▲ Took share</div>'+(_ppShiftRows(sh.gainers,'pps-up',maxD)||'<p class="pph-note">None</p>')+'</div>'
+    +'<div><div class="pps-hdr" style="color:#c62828">▼ Lost share</div>'+(_ppShiftRows(sh.losers,'pps-dn',maxD)||'<p class="pph-note">None</p>')+'</div></div>';
+  return out;
+}
 /* The sector page's single company grid. It used to be three separate
    sections — Company Highlights (pool roles), CR4 Companies (top 4 by
    revenue) and Top 5 by Model Score — whose membership overlapped so
@@ -12024,10 +12182,13 @@ function _ppLiquidityCache(){
     if(_rev==null||_oi==null||_rev<=0)return;
     var sec=d.sector;
     var mc=d.mcap||0,tor=d.share_turnover_rate;
-    if(!bySec[sec])bySec[sec]={dv:0,shr:0,n:0,oi:0,rev:0,cr4Rev:null,
+    if(!bySec[sec])bySec[sec]={dv:0,shr:0,n:0,oi:0,oiPos:0,rev:0,cr4Rev:null,
       byTier:{small:{dv:0,shr:0,n:0,tors:[]},mid:{dv:0,shr:0,n:0,tors:[]},large:{dv:0,shr:0,n:0,tors:[]}},
       stocks:[]};
-    if(d.operating_income){bySec[sec].oi+=d.operating_income;if(d.operating_income>0)allOIPos+=d.operating_income;}
+    /* The pool share below divides by allOIPos (positive-only), so its
+       numerator must be positive-only too: a net figure mixed loss-makers
+       into the sector side only. */
+    if(d.operating_income){bySec[sec].oi+=d.operating_income;if(d.operating_income>0){bySec[sec].oiPos+=d.operating_income;allOIPos+=d.operating_income;}}
     if(d.revenue)bySec[sec].rev+=d.revenue;
     if(bySec[sec].cr4Rev==null&&d.pp_sector_cr4!=null)bySec[sec].cr4Rev=d.pp_sector_cr4;
     bySec[sec].stocks.push({ticker:d.ticker,name:d.company_name,dv:(mc>0&&tor!=null)?tor*mc:0,tor:tor,mcap:mc,oi:d.operating_income,rev:d.revenue,rating:d.rating,pp_multiple:d.pp_multiple,operating_margin:d.operating_margin});
@@ -12136,8 +12297,8 @@ function renderPoolLiquidityInsights(sec){
 
   /* 5. Flow share vs profit-pool share — whether the sector is over- or
         under-traded relative to its economic weight. */
-  if(cache.allOIPos>0&&s.oi>0){
-    var poolShare=s.oi/cache.allOIPos*100;
+  if(cache.allOIPos>0&&s.oiPos>0){
+    var poolShare=s.oiPos/cache.allOIPos*100;
     var diff2=dvShare-poolShare;
     var verdict2;
     if(Math.abs(diff2)<2)verdict2='trades roughly in line with its share of US operating income';
@@ -12844,6 +13005,8 @@ function renderPool(){
     var primerHtml=renderPoolPrimer(sec);
     var signalsHtml=renderPoolSectorSignals(sec);
     var structureHtml=renderPoolStructure(sec);
+    var historyHtml=renderPoolHistory(sec);
+    var shiftsHtml=renderPoolShifts(sec);
     var companiesHtml=renderPoolCompanies(sec,cos);
     var liquidityHtml=renderPoolLiquidityInsights(sec);
 
@@ -12865,6 +13028,15 @@ function renderPool(){
       chartHtml+='<div class="pp-section pp-structure"><span class="pp-section-label">Profit Pool Structure</span>'+structureHtml+'</div>';
     }
     chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Analysis</span><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#90a4ae"></span>Others (pooled tail)</span></div><span style="font-size:0.7em;color:#aaa">Bar width &prop; &radic;revenue share (top 25 by revenue shown; remainder pooled as Others) &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>';
+
+    /* Then the pool over time: how it got to the shape drawn above, and
+       which companies won and lost share on the way. */
+    if(historyHtml){
+      chartHtml+='<div class="pp-section pp-history"><span class="pp-section-label">Pool History</span>'+historyHtml+'</div>';
+    }
+    if(shiftsHtml){
+      chartHtml+='<div class="pp-section pp-shifts"><span class="pp-section-label">Share Shifts</span>'+shiftsHtml+'</div>';
+    }
 
     /* --- C. Who Owns the Pool --------------------------------------- */
     if(companiesHtml){

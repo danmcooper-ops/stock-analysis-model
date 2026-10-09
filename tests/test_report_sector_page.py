@@ -40,7 +40,8 @@ def test_sections_render_in_arc_order():
              re.finditer(r'pp-section (pp-[a-z]+)"><span class="pp-section-label"',
                          body)]
     assert order == ['pp-primer', 'pp-signals', 'pp-structure',
-                     'pp-chart', 'pp-companies', 'pp-liquidity'], order
+                     'pp-chart', 'pp-history', 'pp-shifts',
+                     'pp-companies', 'pp-liquidity'], order
 
 
 def test_chart_sits_under_the_prose_that_describes_it():
@@ -126,3 +127,27 @@ def test_retired_sector_code_stays_retired():
                  'xsect-scatter-wrap', 'pool-stat-banner', '.pp-kpis',
                  '_allSecStats', 'pool-sector-table'):
         assert dead not in css, '%s came back' % dead
+
+
+def test_flow_vs_profit_bullet_compares_positive_pools():
+    """The flow-vs-economic-weight bullet divided the sector's NET operating
+    income by the universe's POSITIVE-only pool, so a sector with loss-makers
+    read as a smaller share of US profit than it is."""
+    css = _tpl()
+    fn = re.search(r'function _ppLiquidityCache\(\).*?\n\}\n', css, re.S).group(0)
+    assert 'bySec[sec].oiPos+=d.operating_income;allOIPos+=d.operating_income;' in fn
+    liq = re.search(r'function renderPoolLiquidityInsights\(sec\).*?\n\}\n',
+                    css, re.S).group(0)
+    assert 'var poolShare=s.oiPos/cache.allOIPos*100;' in liq
+    assert 's.oi/cache.allOIPos' not in liq
+
+
+def test_history_and_shifts_render_from_sector_pool_only():
+    """Both sections read SECTOR_POOL[sec].history (built server-side by
+    models/sector_pool.py); neither recomputes the pool from DATA."""
+    css = _tpl()
+    for name in ('renderPoolHistory', 'renderPoolShifts'):
+        fn = re.search(r'function ' + name + r'\(sec\).*?\n\}\n', css, re.S)
+        assert fn, name
+        assert 'DATA' not in fn.group(0), '%s reads DATA' % name
+        assert 'SECTOR_POOL' in fn.group(0)
