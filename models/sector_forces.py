@@ -30,7 +30,8 @@ import logging
 from datetime import date, timedelta
 
 from models.narrative import _SECTOR_THESIS_RISKS, _SECTOR_THESIS_TAILWINDS
-from models.sector_pool import growth_over, pctile_rank
+from models.sector_pool import (_num, growth_over, is_balance_sheet_financial, pctile_rank,
+                                 pool_rows)
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +54,9 @@ MIN_LIST_POOL_SHARE = 0.005
 MIN_EXPOSURE_ROWS = 6
 # Balance weights: an active force counts fully, a building one half.
 STATUS_WEIGHT = {'active': 1.0, 'building': 0.5}
-# A live force whose exposure is not measured is weighted as if it touched
-# a third of the pool, the share a measured force's exposed tercile holds
-# on an even pool.
+# A live force whose exposure is not measured is weighted as if it reached
+# a third of the sector, what a measured force's exposed third reaches when
+# companies are of even size.
 DEFAULT_EXPOSED_SHARE = 1 / 3
 
 # Who feels a force most, by type: (row field, label, higher_is_more_exposed).
@@ -334,10 +335,8 @@ def _industry_evidence(ind, entry, rows=None):
         return 'no_data', {'source': 'industry', 'industry': ind['industry'],
                            'note': 'too few of its companies reported throughout'}
     window = d.get('window')
-    if rows and window:
-        dec = growth_over(rows, window)
-    elif not dec or (window and window != [dec['y0'], dec['y1'], dec['block']]):
-        dec = None
+    if window and (not dec or window != [dec['y0'], dec['y1'], dec['block']]):
+        dec = growth_over(rows, window) if rows else None
     if not dec:
         return 'no_data', {'source': 'industry', 'industry': ind['industry'],
                            'note': 'no sector growth over the same years to compare with'}
@@ -392,20 +391,14 @@ def market_confirmation(sector, sidecar):
             'trend': sd.get('trend'), 'as_of': (sidecar or {}).get('as_of')}
 
 
-def _f(v):
-    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v:
-        return None
-    return float(v)
-
-
 def _pool_of(rows):
-    """``{ticker: positive operating income}`` over the pool's rows."""
-    out = {}
-    for r in rows or []:
-        rev, oi = _f(r.get('revenue')), _f(r.get('operating_income'))
-        if rev is not None and rev > 0 and oi is not None:
-            out[r.get('ticker')] = max(oi, 0.0)
-    return out
+    """``(rows, {ticker: (revenue, positive operating income)})`` over the
+    pool's own rows (sector_pool.pool_rows: revenue and operating income
+    present, one row per issuer), so exposure counts the same companies as
+    the industries table."""
+    prow = pool_rows(rows or [])
+    return prow, {r.get('ticker'): (_num(r['revenue']), max(_num(r['operating_income']), 0.0))
+                  for r in prow}
 
 
 def _brief(r, value=None):
@@ -413,55 +406,82 @@ def _brief(r, value=None):
             'rating': r.get('rating'), 'value': value}
 
 
+def _shares(members, sizes, rev_tot, pool_tot):
+    rev = sum(sizes[r['ticker']][0] for r in members)
+    pool = sum(sizes[r['ticker']][1] for r in members)
+    return rev / rev_tot, (pool / pool_tot) if pool_tot > 0 else None
+
+
 def exposure(force, indicator, rows):
     """Which of the sector's companies feel *force* most, and how much of
-    the sector's profit pool they hold.
+    the sector they are.
 
-    An industry-evidenced force is felt by that industry: its members,
-    largest pool first, and their pool share. Otherwise the force's type
-    picks a row metric (EXPOSURE_METRICS); companies are ranked on it, rows
-    without it dropped, and the most-exposed third's pool share is the
-    force's reach. Returns None when neither applies or too few companies
-    carry the metric."""
-    pool = _pool_of(rows)
-    total = sum(pool.values())
-    if total <= 0:
+    Reach is the exposed companies' share of the sector's REVENUE: the
+    business the force acts on. Their share of the profit pool is shown
+    beside it but not used for weight, because for a margin-acting force the
+    ranking and the pool are the same ordering: the thin-margin third that a
+    commodity downturn hits holds almost none of the pool by construction,
+    and the wide-margin third holds most of it, so pool-weighted reach
+    tilted every balance toward pricing tailwinds.
+
+    - An industry-evidenced force is felt by that industry's companies.
+    - A rate or credit force in a sector of balance-sheet financials is felt
+      by them as a group: their net debt / EBITDA is deposit or repo funding
+      (scoring masks it), so ranking them on it named banks by a garbage
+      ratio. Other companies there are ranked on it as usual.
+    - Otherwise the force's type picks a row metric (EXPOSURE_METRICS), and
+      the most-exposed third by that metric is the exposed set.
+
+    Returns None when none applies or too few companies carry the metric."""
+    prow, sizes = _pool_of(rows)
+    rev_tot = sum(v[0] for v in sizes.values())
+    pool_tot = sum(v[1] for v in sizes.values())
+    if rev_tot <= 0:
         return None
+
+    def _group(members, **kw):
+        members = sorted(members, key=lambda r: -sizes[r['ticker']][1])
+        reach, pool_share = _shares(members, sizes, rev_tot, pool_tot)
+        return dict(kw, n=len(members), reach=reach, pool_share=pool_share,
+                    most=[_brief(r, sizes[r['ticker']][1] / pool_tot if pool_tot > 0 else None)
+                          for r in members[:EXPOSURE_LIST_N]],
+                    least=[])
+
     if indicator and indicator.get('kind') == 'industry':
-        members = [r for r in rows if r.get('industry') == indicator['industry']
-                   and r.get('ticker') in pool]
-        if not members:
-            return None
-        members.sort(key=lambda r: -pool[r['ticker']])
-        return {'basis': 'industry', 'industry': indicator['industry'],
-                'n': len(members),
-                'pool_share': sum(pool[r['ticker']] for r in members) / total,
-                'most': [_brief(r, pool[r['ticker']] / total)
-                         for r in members[:EXPOSURE_LIST_N]],
-                'least': []}
+        members = [r for r in prow if r.get('industry') == indicator['industry']]
+        return _group(members, basis='industry', industry=indicator['industry']) if members else None
     spec = EXPOSURE_METRICS.get(force.get('type'))
     if not spec:
         return None
     field, label, higher = spec
-    ranked = [(r, _f(r.get(field))) for r in rows if r.get('ticker') in pool]
+    candidates = prow
+    if field == 'nd_ebitda':
+        lenders = [r for r in prow if is_balance_sheet_financial(r)]
+        if lenders and _shares(lenders, sizes, rev_tot, pool_tot)[0] >= 1 / 3:
+            return _group(lenders, basis='group', label='lenders and broker-dealers')
+        candidates = [r for r in prow if not is_balance_sheet_financial(r)]
+    ranked = [(r, _num(r.get(field))) for r in candidates]
     ranked = [(r, v) for r, v in ranked if v is not None]
     if len(ranked) < MIN_EXPOSURE_ROWS:
         return None
     ranked.sort(key=lambda x: -x[1] if higher else x[1])
-    top = ranked[:max(1, len(ranked) // 3)]
-    named = [(r, v) for r, v in ranked if pool[r['ticker']] / total >= MIN_LIST_POOL_SHARE]
+    top = [r for r, _ in ranked[:max(1, len(ranked) // 3)]]
+    reach, pool_share = _shares(top, sizes, rev_tot, pool_tot)
+    named = [(r, v) for r, v in ranked
+             if pool_tot > 0 and sizes[r['ticker']][1] / pool_tot >= MIN_LIST_POOL_SHARE]
     if len(named) < 2 * EXPOSURE_LIST_N:
         named = ranked
     return {'basis': 'metric', 'metric': field, 'label': label,
             'higher_is_exposed': higher, 'n': len(ranked),
-            'pool_share': sum(pool[r['ticker']] for r, _ in top) / total,
+            'reach': reach, 'pool_share': pool_share,
             'most': [_brief(r, v) for r, v in named[:EXPOSURE_LIST_N]],
             'least': [_brief(r, v) for r, v in named[::-1][:EXPOSURE_LIST_N]]}
 
 
 def force_balance(forces):
     """Tailwinds against headwinds, each live force (active, or building at
-    half weight) weighted by the share of the pool it reaches. Returns the
+    half weight) weighted by its reach, the share of the sector's revenue
+    it acts on (see exposure). Returns the
     two sums and their difference; a measured reach is used where there is
     one, DEFAULT_EXPOSED_SHARE where there is not."""
     sums = {'tailwind': 0.0, 'headwind': 0.0}
@@ -470,7 +490,7 @@ def force_balance(forces):
         w = STATUS_WEIGHT.get(f.get('status'))
         if not w:
             continue
-        reach = (f.get('exposure') or {}).get('pool_share')
+        reach = (f.get('exposure') or {}).get('reach')
         if reach is None:
             reach = DEFAULT_EXPOSED_SHARE
             estimated += 1

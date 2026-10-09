@@ -196,3 +196,13 @@ def test_force_cards_show_reach_and_who_feels_it(tmp_path):
     card = html.split('Interest-rate sensitivity')[1].split('class="ppf ppf-')[0]
     assert 'Reaches <b>' in card and 'Most exposed' in card and 'Best insulated' in card
     assert 'data-tk="LEV0"' in card and '\u00d7' in card
+
+
+def test_own_window_label_names_both_blocks(tmp_path):
+    inds = [{'industry': 'A', 'n': 5, 'revenue_share': 0.6, 'pool_share': 0.6, 'margin': 0.2,
+             'median_spread': 0.05, 'pool_cagr': 0.1, 'window': [2020, 2025, 3], 'own_window': False},
+            {'industry': 'B', 'n': 4, 'revenue_share': 0.4, 'pool_share': 0.4, 'margin': 0.1,
+             'median_spread': 0.01, 'pool_cagr': 0.2, 'window': [2018, 2023, 3], 'own_window': True}]
+    html = _render(None, "renderPoolIndustries('Tech')", tmp_path, {'industries': inds})
+    assert '(FY2016\u201318 to FY2021\u201323)' in html
+    assert html.count('ppi-dim" title') == 1

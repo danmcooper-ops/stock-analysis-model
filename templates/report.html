@@ -11722,7 +11722,7 @@ function renderPoolIndustries(sec){
     var skew=(d.pool_share!=null&&d.revenue_share>0)?d.pool_share/d.revenue_share:null;
     out+='<tr><td>'+_esc(d.industry)+(d.folded?' <span class="ppi-dim">(industries under 3 companies)</span>':'')+'</td><td>'+d.n+'</td><td>'+_ppPct(d.revenue_share)+'</td>'
       +'<td'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(d.pool_share)+'</td>'
-      +'<td>'+_ppPct(d.margin)+'</td><td>'+(d.median_spread==null?'\u2014':_ppSgnPct(d.median_spread))+'</td><td>'+(d.pool_cagr==null?'—':_ppSgnPct(d.pool_cagr)+'/yr'+(d.own_window&&d.window?' <span class="ppi-dim" title="Too few of its companies reported over the sector\u2019s window; measured over its own years">('+_ppFy({y0:d.window[0],block:d.window[2]})+' to FY'+d.window[1]+')</span>':''))+'</td></tr>';
+      +'<td>'+_ppPct(d.margin)+'</td><td>'+(d.median_spread==null?'\u2014':_ppSgnPct(d.median_spread))+'</td><td>'+(d.pool_cagr==null?'—':_ppSgnPct(d.pool_cagr)+'/yr'+(d.own_window&&d.window?' <span class="ppi-dim" title="Too few of its companies reported over the sector\u2019s window; measured over its own years">('+_ppFy({y0:d.window[0],block:d.window[2]})+' to '+_ppFy1({y1:d.window[1],block:d.window[2]})+')</span>':''))+'</td></tr>';
   });
   out+='</tbody></table></div><p class="pph-note">Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is each industry’s consistent-panel growth over the sector’s history window, or over its own years where shown in brackets; — where too few of its companies reported throughout.</p>';
   return out;
@@ -11968,7 +11968,7 @@ function _ppfEvidence(f){
    sector's pool those companies hold. */
 function _ppfExpVal(e,v){
   if(v==null)return '';
-  if(e.basis==='industry'||e.metric==='operating_margin')return _ppPct(v);
+  if(e.basis!=='metric'||e.metric==='operating_margin')return _ppPct(v);
   if(e.metric==='nd_ebitda')return v.toFixed(1)+'\u00d7';
   return v.toFixed(2);
 }
@@ -11981,8 +11981,8 @@ function _ppfChips(e,list){
 function _ppfExposure(f){
   var e=f.exposure;
   if(!e||!e.most||!e.most.length)return '';
-  var who=e.basis==='industry'?_esc(e.industry)+' ('+e.n+' companies)':'the third of companies with the '+(e.higher_is_exposed?'highest':'lowest')+' '+_esc(e.label);
-  var out='<div class="ppf-exp"><div class="ppf-reach">Reaches <b>'+_ppPct(e.pool_share,0)+'</b> of the pool: '+who+'.</div>'
+  var who=e.basis==='industry'?_esc(e.industry)+' ('+e.n+' companies)':e.basis==='group'?_esc(e.label)+' ('+e.n+' companies)':'the third of companies with the '+(e.higher_is_exposed?'highest':'lowest')+' '+_esc(e.label);
+  var out='<div class="ppf-exp"><div class="ppf-reach">Reaches <b>'+_ppPct(e.reach,0)+'</b> of the sector\u2019s revenue'+(e.pool_share!=null?' ('+_ppPct(e.pool_share,0)+' of its profit pool)':'')+': '+who+'.</div>'
     +'<div class="ppf-row"><span class="ppf-lab">'+(f.kind==='tailwind'?'Most to gain':'Most exposed')+'</span>'+_ppfChips(e,e.most)+'</div>';
   if(e.least&&e.least.length)out+='<div class="ppf-row"><span class="ppf-lab">'+(f.kind==='tailwind'?'Least to gain':'Best insulated')+'</span>'+_ppfChips(e,e.least)+'</div>';
   return out+'</div>';
@@ -11999,7 +11999,7 @@ function _ppfBalance(b){
   return '<div class="ppf-bal"><div class="ppf-bal-v">'+verdict+'</div>'
     +'<div class="ppe-row"><span>Live tailwinds</span><span class="pps-track"><span class="pps-fill ppf-bal-tw" style="width:'+(b.tailwind/mx*100).toFixed(1)+'%"></span></span><span class="pps-num">'+(b.tailwind*100).toFixed(0)+'</span></div>'
     +'<div class="ppe-row"><span>Live headwinds</span><span class="pps-track"><span class="pps-fill ppf-bal-hw" style="width:'+(b.headwind/mx*100).toFixed(1)+'%"></span></span><span class="pps-num">'+(b.headwind*100).toFixed(0)+'</span></div>'
-    +'<div class="pph-note" style="margin-top:4px">Each active force counts the share of the pool it reaches, a building one half of it; overlapping forces can sum past 100.'+(b.estimated?' '+b.estimated+' live force'+(b.estimated>1?'s':'')+' with no measured reach count'+(b.estimated>1?'':'s')+' as a third of the pool.':'')+'</div></div>';
+    +'<div class="pph-note" style="margin-top:4px">Each active force counts the share of the sector\u2019s revenue it reaches, a building one half of it; overlapping forces can sum past 100.'+(b.estimated?' '+b.estimated+' live force'+(b.estimated>1?'s':'')+' with no measured reach count'+(b.estimated>1?'':'s')+' as a third of the sector.':'')+'</div></div>';
 }
 function _ppfCard(f){
   var meta=[_PPF_TYPE[f.type]||'',f.horizon==='secular'?'Secular':f.horizon==='cyclical'?'Cyclical':''].filter(Boolean).join(' · ');
