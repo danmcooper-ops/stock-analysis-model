@@ -19,6 +19,7 @@ except Exception:
     generate_sector_profit_pool_narrative = None
 from models.data_tab_narrative import generate_data_tab_summaries
 from models.profile_verdict import profile_verdict
+from models.sector_pool import sector_pool_history
 from scripts.scoring import gate_metadata
 from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
                             CARRY_FORWARD_STOPPED_GUARD_FLOOR,
@@ -1211,6 +1212,14 @@ def _build_sector_pool_data(rows):
                     sector_pool_data[s] = narr
             except Exception as e:
                 print(f"[warn] sector pool narrative failed for {s}: {e}")
+                continue
+            if not narr:
+                continue
+            # The pool over time (pp-history / pp-shifts on the sector page)
+            try:
+                narr['history'] = sector_pool_history(srows)
+            except Exception as e:
+                logger.warning('sector pool history failed for %s: %s', s, e)
     return sector_pool_data
 
 

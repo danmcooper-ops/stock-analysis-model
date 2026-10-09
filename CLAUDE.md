@@ -619,6 +619,34 @@ ruff check .
 
   `backtest_cloud.compare` prints a `NOTICE` (not a failure) when the model
   changed since last week or the headline pools more than one model.
+- **Sector page pool history (`models/sector_pool.py`):** the sector page's
+  Pool History and Share Shifts sections (`renderPoolHistory`,
+  `renderPoolShifts`) read `SECTOR_POOL[sec].history`, built at render time
+  from each row's EDGAR operating-income and revenue history. It contains:
+  - the per-year pool, net margin, HHI and coverage (the share of today's
+    sector revenue that reported that year);
+  - growth split as (1+g_pool) = (1+g_rev)(1+g_margin);
+  - today's margin within the sector's own range;
+  - share shifts that net to zero.
+
+  It works on today's companies only, and rests on three rules, each
+  forced by real data on 2026-10-08:
+  - **Incomplete years:** a year is incomplete when its reporters hold
+    under 80% of the revenue of the companies that could have reported it
+    (those whose history had begun). It is drawn hollow and never used as
+    an endpoint. This catches January–March year-ends that have not filed
+    yet, without letting a large recent listing (Packaged Foods, 2025) mark
+    every earlier year incomplete.
+  - **Stale histories:** a history ending more than one year before the
+    median company's last year leaves the series and is named in the
+    footnote. Sinopec and PetroChina stopped filing in 2022 and otherwise
+    made a third of Energy look missing. The median is counted by company,
+    not weighted by revenue, so the stale giants cannot hide themselves.
+  - **3-year endpoints:** growth compares 3-year averages (FY2018–20 vs
+    FY2023–25) over one consistent panel. With single-year ends, Energy's
+    FY2020 trough read as 71%/yr pool growth.
+
+  `year_series` and `panel_pools` are shared with the Pool Share gate.
 - **Report sidecars and the Pages size limits:** the HTML lazy-loads
   everything heavy from files beside it, through `_loadSidecar` (relative
   paths). Per-ticker shards: `vol/`, `px/` (manifested in `prices_meta.json`)
