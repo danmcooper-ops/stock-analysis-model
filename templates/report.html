@@ -1333,51 +1333,62 @@ td.ct{font-weight:700;}
 .pp-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
 .pp-signals-col-hdr{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
 @media(max-width:760px){.pp-signals-grid{grid-template-columns:1fr;gap:14px;}}
-/* Force cards (renderPoolSectorSignals): status pill, evidence, sparkline. */
-.ppf{background:#fff;border:1px solid #e3e8ee;border-radius:5px;padding:8px 10px;margin:0 0 8px;font-size:0.8em;line-height:1.45;color:#37474f;}
-.ppf-hdr{display:flex;align-items:flex-start;gap:8px;}
-.ppf-th{font-weight:700;}
-.ppf-st{flex:none;font-size:0.78em;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;padding:1px 7px;border-radius:9px;border:1px solid transparent;white-space:nowrap;margin-top:1px;}
-.ppf-tw .ppf-st.ppf-active{background:#1b5e20;color:#fff;}
-.ppf-hw .ppf-st.ppf-active{background:#b71c1c;color:#fff;}
-.ppf-tw .ppf-st.ppf-building{background:#e8f5e9;color:#1b5e20;border-color:#a5d6a7;}
-.ppf-hw .ppf-st.ppf-building{background:#ffebee;color:#b71c1c;border-color:#ef9a9a;}
-.ppf-st.ppf-easing{background:#eceff1;color:#37474f;border-color:#b0bec5;}
-.ppf-st.ppf-dormant{background:#f5f7f9;color:#546e7a;border-color:#dfe5ea;}
-.ppf-st.ppf-qualitative,.ppf-st.ppf-no_data{background:transparent;color:#546e7a;border-color:#b0bec5;border-style:dashed;}
-.ppf-meta{font-size:0.88em;color:#78909c;margin:2px 0 0;}
-.ppf-ev{display:flex;align-items:center;gap:8px;margin:5px 0 0;}
-.ppf-dim{color:#78909c;font-style:italic;}
+:root{--ppf-tw:#1e7d45;--ppf-hw:#c0392b;--ppf-q:#90a4ae;--ppf-line:#e3e8ee;--ppf-sub:#607d8b;--ppf-bg:#fff;--ppf-txt:#263238;}
+[data-theme="dark"]{--ppf-tw:#3fb950;--ppf-hw:#f85149;--ppf-q:#6e7681;--ppf-line:#30363d;--ppf-sub:#8b949e;--ppf-bg:#1c2128;--ppf-txt:#e6edf3;}
+/* Sector forces (renderPoolSectorSignals): one row per force, a plain-word
+   status, a one-line reading and its reach; the rest opens on click. */
+.ppf-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:0 0 6px;}
+.ppf-verdict{font-weight:700;font-size:0.95em;color:var(--ppf-txt);}
+.ppf-split{display:flex;height:8px;width:220px;max-width:100%;border-radius:4px;overflow:hidden;background:var(--ppf-line);}
+.ppf-split i{display:block;height:100%;}
+.ppf-split .tw{background:var(--ppf-tw);}.ppf-split .hw{background:var(--ppf-hw);}
+.ppf-mkt{font-size:0.78em;color:var(--ppf-sub);margin:0 0 10px;}
+.ppf-key{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:0.74em;color:var(--ppf-sub);margin:0 0 12px;padding:6px 0;border-top:1px solid var(--ppf-line);border-bottom:1px solid var(--ppf-line);}
+.ppf-key span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+.ppf-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;}
+@media(max-width:760px){.ppf-cols{grid-template-columns:minmax(0,1fr);gap:16px;}}
+.ppf-colh{display:flex;align-items:baseline;justify-content:space-between;font-size:0.86em;font-weight:700;margin:0 0 4px;padding-bottom:4px;border-bottom:2px solid currentColor;}
+.ppf-colh small{font-weight:400;color:var(--ppf-sub);font-size:0.9em;}
+.ppf-colh.tw{color:var(--ppf-tw);}.ppf-colh.hw{color:var(--ppf-hw);}
+.ppf{border-bottom:1px solid var(--ppf-line);font-size:0.82em;line-height:1.45;color:var(--ppf-txt);}
+.ppf>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:2px 10px;align-items:baseline;padding:8px 2px;}
+.ppf>summary::-webkit-details-marker{display:none;}
+.ppf>summary:hover{background:rgba(127,127,127,0.06);}
+.ppf-st{display:inline-flex;align-items:center;gap:6px;font-size:0.9em;font-weight:600;white-space:nowrap;color:var(--ppf-sub);}
+.ppf-dot{flex:none;width:9px;height:9px;border-radius:50%;border:2px solid var(--ppf-q);box-sizing:border-box;}
+.ppf-tw .ppf-active .ppf-dot{background:var(--ppf-tw);border-color:var(--ppf-tw);}
+.ppf-hw .ppf-active .ppf-dot{background:var(--ppf-hw);border-color:var(--ppf-hw);}
+.ppf-tw .ppf-active,.ppf-tw .ppf-building{color:var(--ppf-tw);}
+.ppf-hw .ppf-active,.ppf-hw .ppf-building{color:var(--ppf-hw);}
+.ppf-tw .ppf-building .ppf-dot{border-color:var(--ppf-tw);background:linear-gradient(90deg,var(--ppf-tw) 50%,transparent 50%);}
+.ppf-hw .ppf-building .ppf-dot{border-color:var(--ppf-hw);background:linear-gradient(90deg,var(--ppf-hw) 50%,transparent 50%);}
+.ppf-easing .ppf-dot{background:var(--ppf-q);}
+.ppf-qualitative .ppf-dot,.ppf-no_data .ppf-dot{border-style:dashed;}
+.ppf-th{font-weight:600;}
+.ppf-rch{font-size:0.9em;color:var(--ppf-sub);white-space:nowrap;text-align:right;}
+.ppf-ev{grid-column:2 / 4;color:var(--ppf-sub);}
+.ppf-body{padding:2px 2px 10px 108px;color:var(--ppf-txt);}
+@media(max-width:520px){.ppf>summary{grid-template-columns:minmax(0,1fr) auto;}.ppf>summary .ppf-st{grid-column:1 / 3;}.ppf-ev{grid-column:1 / 3;}.ppf-body{padding-left:2px;}}
+.ppf-body p{margin:0 0 6px;}
+.ppf-meta{color:var(--ppf-sub);font-size:0.92em;}
+.ppf-evl{display:flex;align-items:center;gap:8px;margin:0 0 6px;}
 .ppf-spark{flex:none;}
 .ppf-spark polyline{fill:none;stroke:#4f7cac;stroke-width:1.5;}
-.ppf-exp{margin:6px 0 0;padding:6px 0 0;border-top:1px dashed #e3e8ee;}
-.ppf-reach{color:#546e7a;}
-.ppf-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:4px 0 0;}
-.ppf-lab{font-size:0.86em;color:#78909c;min-width:84px;}
-.ppf-chip{cursor:pointer;background:#eef2f7;border-left:3px solid #aaa;border-radius:3px;padding:1px 6px;font-weight:700;font-size:0.92em;white-space:nowrap;}
-.ppf-chip i{font-style:normal;font-weight:400;color:#607d8b;margin-left:2px;}
-.ppf-chip:hover{text-decoration:underline;}
-.ppf-bal{margin:0 0 12px;max-width:560px;}
-.ppf-bal-v{font-weight:700;font-size:0.84em;margin:0 0 4px;color:#37474f;}
-.ppf-bal-tw{background:#2e8b57;}
-.ppf-bal-hw{background:#c0392b;}
-.ppf-why{margin:5px 0 0;color:#546e7a;}
-.ppf-why summary{cursor:pointer;color:#4f7cac;font-size:0.92em;}
-[data-theme="dark"] .ppf{background:#1c2128;border-color:#30363d;color:#c9d1d9;}
-[data-theme="dark"] .ppf-tw .ppf-st.ppf-active{background:#238636;}
-[data-theme="dark"] .ppf-hw .ppf-st.ppf-active{background:#da3633;}
-[data-theme="dark"] .ppf-tw .ppf-st.ppf-building{background:rgba(63,185,80,0.15);color:#3fb950;border-color:#2ea043;}
-[data-theme="dark"] .ppf-hw .ppf-st.ppf-building{background:rgba(248,81,73,0.15);color:#f85149;border-color:#da3633;}
-[data-theme="dark"] .ppf-st.ppf-easing{background:#21262d;color:#c9d1d9;border-color:#484f58;}
-[data-theme="dark"] .ppf-st.ppf-dormant{background:#161b22;color:#8b949e;border-color:#30363d;}
-[data-theme="dark"] .ppf-st.ppf-qualitative,[data-theme="dark"] .ppf-st.ppf-no_data{color:#8b949e;border-color:#484f58;}
 [data-theme="dark"] .ppf-spark polyline{stroke:#6e9bd1;}
-[data-theme="dark"] .ppf-why summary{color:#58a6ff;}
-[data-theme="dark"] .ppf-exp{border-color:#30363d;}
-[data-theme="dark"] .ppf-chip{background:#21262d;}
-[data-theme="dark"] .ppf-chip i{color:#8b949e;}
-[data-theme="dark"] .ppf-bal-tw{background:#3fb950;}
-[data-theme="dark"] .ppf-bal-hw{background:#f85149;}
+.ppf-who{margin:0 0 4px;}
+.ppf-who b{font-weight:600;}
+.ppf-chip{cursor:pointer;display:inline-block;margin:2px 4px 2px 0;padding:1px 7px;border:1px solid var(--ppf-line);border-radius:10px;white-space:nowrap;font-size:0.94em;}
+.ppf-chip i{font-style:normal;color:var(--ppf-sub);margin-left:3px;}
+.ppf-chip:hover{border-color:var(--ppf-sub);}
+.ppf-more{margin:6px 0 0;}
+.ppf-more>summary{cursor:pointer;font-size:0.8em;color:#4f7cac;padding:6px 2px;}
+.ppf-note{font-size:0.74em;color:var(--ppf-sub);margin:12px 0 0;line-height:1.5;}
+/* !important beats the blanket dark `body *{color:#fff !important}` rule,
+   which would otherwise flatten the status colours and the muted lines. */
+[data-theme="dark"] .ppf-tw .ppf-active,[data-theme="dark"] .ppf-tw .ppf-building,[data-theme="dark"] .ppf-colh.tw{color:var(--ppf-tw) !important;}
+[data-theme="dark"] .ppf-hw .ppf-active,[data-theme="dark"] .ppf-hw .ppf-building,[data-theme="dark"] .ppf-colh.hw{color:var(--ppf-hw) !important;}
+[data-theme="dark"] .ppf-st,[data-theme="dark"] .ppf-ev,[data-theme="dark"] .ppf-rch,[data-theme="dark"] .ppf-meta,[data-theme="dark"] .ppf-mkt,[data-theme="dark"] .ppf-key,[data-theme="dark"] .ppf-key span,[data-theme="dark"] .ppf-note,[data-theme="dark"] .ppf-colh small,[data-theme="dark"] .ppf-chip i{color:var(--ppf-sub) !important;}
+[data-theme="dark"] .ppf-more>summary{color:#58a6ff !important;}
 [data-theme="dark"] .pp-primer,
 [data-theme="dark"] .pp-structure,
 [data-theme="dark"] .pp-liquidity,
@@ -11925,11 +11936,14 @@ function renderPoolCompanies(sec,cos){
    forces, not company-specific signals. */
 /* Sector Headwinds & Tailwinds (pp-signals). Each curated force carries
    its evidence from SECTOR_POOL[sec].forces (models/sector_forces.py): a
-   FRED series, the profit growth of the industry it names, or the
-   sector's margin cycle, read into a status (Active / Building / Easing /
-   Dormant). Forces nothing measures say so (Qualitative) rather than borrow
-   a gauge. Falls back to the plain lists for a snapshot without forces. */
-var _PPF_ST={active:'Active',building:'Building',easing:'Easing',dormant:'Dormant',qualitative:'Qualitative',no_data:'No data'};
+   FRED series, the profit growth of the industry it names, or the sector's
+   margin cycle, read into a status. The section reads as a list: one row
+   per force with a plain-word status, a one-line reading and the share of
+   the sector it reaches; the chart, the companies and the rationale open
+   on click, and forces that are not acting fold under one reveal. Falls
+   back to the plain lists for a snapshot without forces. */
+var _PPF_ST={active:'Acting now',building:'Building',easing:'Fading',dormant:'Not acting',qualitative:'Not measured',no_data:'No data'};
+var _PPF_ORDER={active:0,building:1,easing:2,dormant:3,no_data:4,qualitative:5};
 var _PPF_TYPE={rates:'Rates',credit:'Credit',commodity:'Commodity',consumer:'Consumer',demand:'Demand',input_costs:'Input costs',pricing:'Pricing power',regulation:'Regulation',disruption:'Disruption',capex_cycle:'Capex cycle',trade:'Trade',fx:'Currency',demographics:'Demographics',geopolitics:'Geopolitics',flows:'Fund flows'};
 function _ppfSpark(v){
   if(!v||v.length<3)return '';
@@ -11941,75 +11955,112 @@ function _ppfSpark(v){
    either end reads as a place, not as "100th percentile". */
 function _ppRankOf(p){return p>=0.995?'the top of':p<=0.005?'the bottom of':'the '+_ord(Math.round(p*100))+' percentile of';}
 function _ppWin(w){var m=/^(\d+)y$/.exec(w||'');return m?m[1]+'-year':'';}
+/* The row's one-line reading: the number that set the status. */
+function _ppfShort(f){
+  var e=f.evidence;
+  if(f.status==='qualitative')return 'No data series tracks this; a judgement call.';
+  if(!e)return '';
+  if(f.status==='no_data')return 'No reading: '+_esc(e.note||'no data')+'.';
+  var yrs=function(w){var m=/^(\d+)y$/.exec(w||'');return m?m[1]:'';};
+  if(e.source==='macro'){
+    var y=yrs(e.window),where=e.pctile>=0.995?'highest in '+(y?y+' years':'its history'):e.pctile<=0.005?'lowest in '+(y?y+' years':'its history'):_ord(Math.round(e.pctile*100))+' percentile'+(y?' of '+y+' years':'');
+    return _esc(e.label)+' '+_esc(e.reading)+', '+where+(e.change_1y?'; '+_esc(e.change_1y)+' in a year':'');
+  }
+  if(e.source==='industry')return _esc(e.industry)+' profits '+_ppSgnPct(e.industry_cagr)+'/yr vs the sector’s '+_ppSgnPct(e.sector_cagr);
+  if(e.source==='margin_cycle'){
+    var w2=e.pctile>=0.995?'highest':e.pctile<=0.005?'lowest':_ord(Math.round(e.pctile*100))+' percentile';
+    return 'Sector margin '+_ppPct(e.margin)+', '+w2+' of '+e.years+' years';
+  }
+  return '';
+}
+/* The full reading, inside the opened row. */
 function _ppfEvidence(f){
   var e=f.evidence;
-  if(f.status==='qualitative')return '<div class="ppf-ev ppf-dim">No series measures this force; it is a judgement call.</div>';
-  if(!e)return '';
-  if(f.status==='no_data')return '<div class="ppf-ev ppf-dim">Evidence unavailable: '+_esc(e.note||'no data')+'.</div>';
+  if(!e||f.status==='qualitative'||f.status==='no_data')return '';
   if(e.source==='macro'){
-    return '<div class="ppf-ev">'+_ppfSpark(e.spark)+'<span><b>'+_esc(e.label)+'</b> '+_esc(e.reading)
-      +' · '+_ppRankOf(e.pctile)+' its '+(_ppWin(e.window)?_ppWin(e.window)+' ':'')+'history'
-      +(e.change_1y?' · '+_esc(e.change_1y)+' over a year':'')+'</span></div>';
+    return '<div class="ppf-evl">'+_ppfSpark(e.spark)+'<span>'+_esc(e.label)+' '+_esc(e.reading)
+      +', '+_ppRankOf(e.pctile)+' its '+(_ppWin(e.window)?_ppWin(e.window)+' ':'')+'history'
+      +(e.change_1y?'; '+_esc(e.change_1y)+' over a year':'')+(e.as_of?' (as of '+_esc(e.as_of)+')':'')+'.</span></div>';
   }
   if(e.source==='industry'){
     var w=e.window;
-    return '<div class="ppf-ev"><span><b>'+_esc(e.industry)+'</b> profit pool '+_ppSgnPct(e.industry_cagr)+'/yr against the sector’s '+_ppSgnPct(e.sector_cagr)+'/yr'
-      +(w?' ('+_ppFy({y0:w[0],block:w[2]})+' to '+_ppFy1({y1:w[1],block:w[2]})+')':'')+'</span></div>';
+    return '<p>'+_esc(e.industry)+' profit pool '+_ppSgnPct(e.industry_cagr)+'/yr against the sector’s '+_ppSgnPct(e.sector_cagr)+'/yr'
+      +(w?', '+_ppFy({y0:w[0],block:w[2]})+' to '+_ppFy1({y1:w[1],block:w[2]}):'')+'.</p>';
   }
   if(e.source==='margin_cycle'){
-    return '<div class="ppf-ev"><span><b>Sector margin</b> '+_ppPct(e.margin)+' in FY'+e.year+' (from '+_ppPct(e.prev_margin)+'), '+_ppRankOf(e.pctile)+' its '+e.years+'-year range ('+_ppPct(e.low)+' to '+_ppPct(e.high)+')</span></div>';
+    return '<p>Sector margin '+_ppPct(e.margin)+' in FY'+e.year+' (from '+_ppPct(e.prev_margin)+'), '+_ppRankOf(e.pctile)+' its '+e.years+'-year range ('+_ppPct(e.low)+' to '+_ppPct(e.high)+').</p>';
   }
   return '';
 }
 /* Who feels the force (SECTOR_POOL[sec].forces[].exposure): the industry
-   it names, or the companies ranked on the metric its type acts through
-   (leverage for rates and credit, thin margins for commodities and input
-   costs, swinging returns for demand cycles). Its reach is the share of the
-   sector's pool those companies hold. */
+   it names, a group (lenders), or the companies ranked on the metric its
+   type acts through. Reach is their share of the sector's revenue. */
 function _ppfExpVal(e,v){
   if(v==null)return '';
   if(e.basis!=='metric'||e.metric==='operating_margin')return _ppPct(v);
-  if(e.metric==='nd_ebitda')return v.toFixed(1)+'\u00d7';
+  if(e.metric==='nd_ebitda')return v.toFixed(1)+'×';
   return v.toFixed(2);
 }
 function _ppfChips(e,list){
   return list.map(function(m){
-    var col=RC[m.rating]||'#aaa';
-    return '<span class="ppf-chip" style="border-left-color:'+col+'" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr(m.company_name||m.ticker)+'">'+_esc(m.ticker)+(m.value!=null?' <i>'+_ppfExpVal(e,m.value)+'</i>':'')+'</span>';
+    return '<span class="ppf-chip" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr((m.company_name||m.ticker)+(m.rating?' · '+m.rating:''))+'">'+_esc(m.ticker)+(m.value!=null?'<i>'+_ppfExpVal(e,m.value)+'</i>':'')+'</span>';
   }).join('');
 }
 function _ppfExposure(f){
   var e=f.exposure;
   if(!e||!e.most||!e.most.length)return '';
-  var who=e.basis==='industry'?_esc(e.industry)+' ('+e.n+' companies)':e.basis==='group'?_esc(e.label)+' ('+e.n+' companies)':'the third of companies with the '+(e.higher_is_exposed?'highest':'lowest')+' '+_esc(e.label);
-  var out='<div class="ppf-exp"><div class="ppf-reach">Reaches <b>'+_ppPct(e.reach,0)+'</b> of the sector\u2019s revenue'+(e.pool_share!=null?' ('+_ppPct(e.pool_share,0)+' of its profit pool)':'')+': '+who+'.</div>'
-    +'<div class="ppf-row"><span class="ppf-lab">'+(f.kind==='tailwind'?'Most to gain':'Most exposed')+'</span>'+_ppfChips(e,e.most)+'</div>';
-  if(e.least&&e.least.length)out+='<div class="ppf-row"><span class="ppf-lab">'+(f.kind==='tailwind'?'Least to gain':'Best insulated')+'</span>'+_ppfChips(e,e.least)+'</div>';
-  return out+'</div>';
+  var tw=f.kind==='tailwind',out='';
+  if(e.basis==='metric'){
+    var by=(e.higher_is_exposed?'highest ':'lowest ')+_esc(e.label);
+    out+='<div class="ppf-who"><b>'+(tw?'Most to gain':'Most exposed')+'</b> (the '+by+'): '+_ppfChips(e,e.most)+'</div>';
+    if(e.least&&e.least.length)out+='<div class="ppf-who"><b>'+(tw?'Least to gain':'Least exposed')+'</b>: '+_ppfChips(e,e.least)+'</div>';
+  }else{
+    var grp=e.basis==='industry'?_esc(e.industry):_esc(e.label);
+    out+='<div class="ppf-who"><b>'+(tw?'Who gains':'Who is exposed')+'</b>: '+grp+', '+e.n+' companies, largest share of profit first: '+_ppfChips(e,e.most)+'</div>';
+  }
+  return out;
 }
-/* Tailwinds against headwinds, each live force (active, or building at
-   half weight) weighted by the share of the pool it reaches
-   (sector_forces.force_balance). */
+/* Tailwinds against headwinds, each live force (acting now, or building
+   at half weight) weighted by the share of the sector's revenue it
+   reaches (sector_forces.force_balance). */
 function _ppfBalance(b){
-  if(!b||(!b.tailwind&&!b.headwind))return '';
-  var mx=Math.max(b.tailwind,b.headwind)||1,verdict;
+  if(!b||(!b.tailwind&&!b.headwind))return '<span class="ppf-verdict">No force is acting now</span>';
+  var tot=b.tailwind+b.headwind,verdict;
   if(b.net>0.1)verdict='Tailwinds outweigh headwinds';
   else if(b.net<-0.1)verdict='Headwinds outweigh tailwinds';
   else verdict='Tailwinds and headwinds roughly balance';
-  return '<div class="ppf-bal"><div class="ppf-bal-v">'+verdict+'</div>'
-    +'<div class="ppe-row"><span>Live tailwinds</span><span class="pps-track"><span class="pps-fill ppf-bal-tw" style="width:'+(b.tailwind/mx*100).toFixed(1)+'%"></span></span><span class="pps-num">'+(b.tailwind*100).toFixed(0)+'</span></div>'
-    +'<div class="ppe-row"><span>Live headwinds</span><span class="pps-track"><span class="pps-fill ppf-bal-hw" style="width:'+(b.headwind/mx*100).toFixed(1)+'%"></span></span><span class="pps-num">'+(b.headwind*100).toFixed(0)+'</span></div>'
-    +'<div class="pph-note" style="margin-top:4px">Each active force counts the share of the sector\u2019s revenue it reaches, a building one half of it; overlapping forces can sum past 100.'+(b.estimated?' '+b.estimated+' live force'+(b.estimated>1?'s':'')+' with no measured reach count'+(b.estimated>1?'':'s')+' as a third of the sector.':'')+'</div></div>';
+  return '<span class="ppf-verdict">'+verdict+'</span>'
+    +'<span class="ppf-split" title="Live tailwinds '+(b.tailwind*100).toFixed(0)+' vs headwinds '+(b.headwind*100).toFixed(0)+', each weighted by the share of sector revenue it reaches"><i class="tw" style="width:'+(b.tailwind/tot*100).toFixed(1)+'%"></i><i class="hw" style="width:'+(b.headwind/tot*100).toFixed(1)+'%"></i></span>';
 }
 function _ppfCard(f){
-  var meta=[_PPF_TYPE[f.type]||'',f.horizon==='secular'?'Secular':f.horizon==='cyclical'?'Cyclical':''].filter(Boolean).join(' · ');
-  return '<div class="ppf ppf-'+(f.kind==='tailwind'?'tw':'hw')+'">'
-    +'<div class="ppf-hdr"><span class="ppf-st ppf-'+f.status+'">'+(_PPF_ST[f.status]||f.status)+'</span><span class="ppf-th">'+_esc(f.theme)+'</span></div>'
-    +(meta?'<div class="ppf-meta">'+meta+'</div>':'')
-    +_ppfEvidence(f)
+  var meta=[_PPF_TYPE[f.type]||'',f.horizon==='secular'?'secular':f.horizon==='cyclical'?'cyclical':''].filter(Boolean).join(', ');
+  /* Reach sits in the row only for a force that is moving; on a quiet or
+     unmeasured one it would read as a measurement, so it waits inside. */
+  var hasReach=f.exposure&&f.exposure.reach!=null,rowReach=hasReach&&_ppfLive(f);
+  var reach='<span class="ppf-rch"'+(rowReach?' title="Share of the sector’s revenue this force reaches">'+_ppPct(f.exposure.reach,0)+' of sector':'>')+'</span>';
+  var body=_ppfEvidence(f)
+    +(hasReach?'<p>Reaches '+_ppPct(f.exposure.reach,0)+' of the sector’s revenue'+(f.exposure.pool_share!=null?' and '+_ppPct(f.exposure.pool_share,0)+' of its profit pool':'')+'.</p>':'')
     +_ppfExposure(f)
-    +(f.detail?'<details class="ppf-why"><summary>Why it matters</summary>'+_esc(f.detail)+'</details>':'')
-    +'</div>';
+    +(f.detail?'<p>'+_esc(f.detail.charAt(0).toUpperCase()+f.detail.slice(1))+'</p>':'')
+    +(meta?'<div class="ppf-meta">'+meta+'</div>':'');
+  return '<details class="ppf ppf-'+(f.kind==='tailwind'?'tw':'hw')+'">'
+    +'<summary><span class="ppf-st ppf-'+f.status+'"><i class="ppf-dot"></i>'+(_PPF_ST[f.status]||f.status)+'</span>'
+    +'<span class="ppf-th">'+_esc(f.theme)+'</span>'+reach
+    +'<span class="ppf-ev">'+_ppfShort(f)+'</span></summary>'
+    +'<div class="ppf-body">'+body+'</div></details>';
+}
+function _ppfLive(f){return f.status==='active'||f.status==='building'||f.status==='easing';}
+function _ppfCol(list,kind){
+  var sorted=list.slice().sort(function(a,b){return _PPF_ORDER[a.status]-_PPF_ORDER[b.status];});
+  var live=sorted.filter(_ppfLive),quiet=sorted.filter(function(f){return !_ppfLive(f);});
+  var acting=list.filter(function(f){return f.status==='active'||f.status==='building';}).length;
+  var out='<div><div class="ppf-colh '+(kind==='tailwind'?'tw':'hw')+'">'+(kind==='tailwind'?'Tailwinds':'Headwinds')+'<small>'+acting+' of '+list.length+' acting</small></div>'
+    +live.map(_ppfCard).join('');
+  if(quiet.length){
+    var q=quiet.map(_ppfCard).join('');
+    out+=live.length?'<details class="ppf-more"><summary>'+quiet.length+' not acting or not measured</summary>'+q+'</details>':q;
+  }
+  return out+'</div>';
 }
 function renderPoolSectorSignals(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
@@ -12017,8 +12068,7 @@ function renderPoolSectorSignals(sec){
   var fz=n.forces;
   if(fz&&fz.forces&&fz.forces.length){
     var tw=fz.forces.filter(function(f){return f.kind==='tailwind';}),hw=fz.forces.filter(function(f){return f.kind==='headwind';});
-    function _live(list){return list.filter(function(f){return f.status==='active'||f.status==='building';}).length;}
-    var lead='<p class="pph-lead">Acting now (active or building): <b>'+_live(tw)+' of '+tw.length+'</b> tailwinds and <b>'+_live(hw)+' of '+hw.length+'</b> headwinds.';
+    var out='<div class="ppf-top">'+_ppfBalance(fz.balance)+'</div>';
     var m=fz.market;
     if(m&&(m.rs_3m!=null||m.rs_6m!=null)){
       /* "has beaten the market by 3.8% over 3 months and by 25.1% over 6";
@@ -12029,12 +12079,17 @@ function renderPoolSectorSignals(sec){
         var vb=x[0]>=0?'beaten':'trailed';
         parts.push((vb===prev?'by ':vb+' the market by ')+Math.abs(x[0]*100).toFixed(1)+'% over '+x[1]);prev=vb;
       });
-      lead+=' Market check: '+_esc(m.etf||'the sector ETF')+' has '+parts.join(' and ')+'.';
+      out+='<div class="ppf-mkt">Market check: '+_esc(m.etf||'the sector ETF')+' has '+parts.join(' and ')+'.</div>';
     }
-    lead+='</p>'+_ppfBalance(fz.balance);
-    var col=function(list,cls,label){return '<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:'+cls+'">'+label+'</div>'+list.map(_ppfCard).join('')+'</div>';};
-    return lead+'<div class="pp-signals-grid">'+col(tw,'#1a7a45','▲ Structural Tailwinds')+col(hw,'#c0392b','▼ Structural Headwinds')+'</div>'
-      +'<p class="pph-note">Status reads each force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range.'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'</p>';
+    out+='<div class="ppf-key">'
+      +'<span><i class="ppf-dot" style="background:var(--ppf-sub);border-color:var(--ppf-sub)"></i>Acting now: the evidence is strong and holding</span>'
+      +'<span><i class="ppf-dot" style="border-color:var(--ppf-sub);background:linear-gradient(90deg,var(--ppf-sub) 50%,transparent 50%)"></i>Building: moving toward strong</span>'
+      +'<span><i class="ppf-dot" style="background:var(--ppf-q)"></i>Fading: was strong, weakening</span>'
+      +'<span><i class="ppf-dot"></i>Not acting</span>'
+      +'<span><i class="ppf-dot" style="border-style:dashed"></i>Not measured: no series tracks it</span></div>';
+    out+='<div class="ppf-cols">'+_ppfCol(tw,'tailwind')+_ppfCol(hw,'headwind')+'</div>';
+    out+='<p class="ppf-note">Click a force for its chart, the companies it reaches and why it matters. Each status reads the force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range. The balance weighs forces acting now by the share of sector revenue they reach (building ones at half).'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'</p>';
+    return out;
   }
   var hw0=n.headwinds||[],tw0=n.tailwinds||[];
   if(!hw0.length&&!tw0.length)return '';
