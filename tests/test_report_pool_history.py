@@ -378,3 +378,32 @@ def test_sub_tabs_skip_empty_groups_and_fall_back(tmp_path):
     # a remembered tab is used when the sector has it, else the first one
     assert 'data-tab="value"' in _subtabs('', has, tmp_path, stored='value')
     assert 'data-tab="overview"' in _subtabs('', has, tmp_path, stored='flow')
+
+
+def test_who_owns_the_pool_is_a_list_with_bullets(tmp_path):
+    src = TEMPLATE.read_text(encoding='utf-8')
+    entry = {'key_players': [{'ticker': 'GOOGL', 'company_name': 'Alphabet Inc.', 'rating': 'PASS',
+                              'profit_share': 0.29, 'revenue_share': 0.21, 'op_margin': 0.32,
+                              'pp_multiple': 1.38,
+                              'roles': [{'role': 'leader', 'role_label': 'Profit Leader',
+                                         'note': 'The center of gravity.'}]}],
+             'cr4_companies': [{'ticker': 'GOOGL', 'company_name': 'Alphabet Inc.', 'rank': 1}]}
+    cos = [{'ticker': 'GOOGL', 'company_name': 'Alphabet Inc.', 'rating': 'PASS', 'mcap': 100.0,
+            'pp_revenue_share': 0.21, 'pp_profit_share': 0.29, '_composite_score': 40}]
+    js = '\n'.join([
+        "var RC={'PASS':'#de2d26'};function _esc(s){return String(s);}function _attr(s){return String(s);}",
+        'function _linkifyTickers(s){return s;}function _revHtml(){return "";}function _starHtml(){return "";}',
+        'function _roleColor(){return "#000";}function cc(){return "#000";}function _ppModelNote(){return "Trades above DCF.";}',
+        _fn(src, '_ppPct'), _fn(src, 'renderPoolCompanies'),
+        'var SECTOR_POOL=' + json.dumps({'Tech': entry}) + ';',
+        "process.stdout.write(renderPoolCompanies('Tech'," + json.dumps(cos) + '));'])
+    script = tmp_path / 'co.js'
+    script.write_text(js, encoding='utf-8')
+    html = subprocess.run(['node', str(script)], capture_output=True, text=True, check=True).stdout
+    assert html.startswith('<div class="pp-co-list">') and html.count('class="pp-co"') == 1
+    assert '<span class="pp-co-tags">Profit Leader \u00b7 #1 by revenue \u00b7 Model 40</span>' in html
+    assert ('<li><b>Share:</b> 21.0% of revenue; 29.0% of profit (1.38\u00d7 its revenue share); '
+            'operating margin 32.0%; value/pool 3.45\u00d7.</li>') in html
+    assert '<li><b>Role:</b> The center of gravity.</li>' in html
+    assert '<li><b>Model:</b> Trades above DCF.</li>' in html
+    assert 'onclick="openDet(this.dataset.tk)"' in html

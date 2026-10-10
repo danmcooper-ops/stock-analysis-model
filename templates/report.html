@@ -1287,27 +1287,23 @@ td.ct{font-weight:700;}
    accumulates a badge per reason it earned a place. Real classes (rather
    than the old inline styles) let dark mode be a normal override instead
    of an `[style*="background:white"]` attribute match. */
-.pp-co-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:10px;}
-.pp-co{cursor:pointer;background:#fff;border:1px solid #eef1f4;border-left:4px solid #aaa;border-radius:5px;padding:9px 12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);font-size:0.82em;line-height:1.55;color:#37474f;transition:transform 0.1s,box-shadow 0.1s;}
-.pp-co:hover{transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,0.1);}
-.pp-co-hdr{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:5px;}
-.pp-co-id{display:flex;align-items:center;gap:6px;min-width:0;}
+.pp-co-list{display:flex;flex-direction:column;}
+.pp-co{cursor:pointer;border-bottom:1px solid #e3e8ee;padding:10px 2px;font-size:0.82em;line-height:1.5;color:#263238;}
+.pp-co:hover{background:rgba(127,127,127,0.06);}
+.pp-co-hdr{display:grid;grid-template-columns:96px minmax(0,1fr);gap:2px 10px;align-items:baseline;}
+.pp-co-rt{display:inline-flex;align-items:center;gap:6px;font-size:0.9em;font-weight:600;white-space:nowrap;color:#607d8b;}
+.pp-co-rt i{flex:none;width:9px;height:9px;border-radius:50%;}
+.pp-co-id{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;min-width:0;}
 .pp-co-tk{font-weight:700;color:#1a252f;}
-.pp-co-nm{font-weight:400;color:#888;font-size:0.9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.pp-co-badges{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px;}
-.pp-co-badge{font-size:0.7em;font-weight:700;color:#fff;padding:2px 7px;border-radius:10px;letter-spacing:0.03em;white-space:nowrap;}
-.pp-co-chips{font-size:0.72em;margin-bottom:5px;display:flex;gap:4px;flex-wrap:wrap;}
-.pp-co-chip{background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f;font-variant-numeric:tabular-nums;}
-.pp-co-chip.rating{color:#fff;font-weight:700;}
-.pp-co-note{color:#455a64;}
-.pp-co-note + .pp-co-note{margin-top:4px;color:#5b6b76;}
-[data-theme="dark"] .pp-co{background:#1c2128;border-color:#30363d;box-shadow:0 1px 4px rgba(0,0,0,0.3);color:#c9d1d9;}
-[data-theme="dark"] .pp-co:hover{box-shadow:0 3px 8px rgba(0,0,0,0.45);}
-[data-theme="dark"] .pp-co-tk{color:#e6edf3;}
-[data-theme="dark"] .pp-co-nm{color:#8b949e;}
-[data-theme="dark"] .pp-co-chip{background:#21262d;color:#c9d1d9;}
-[data-theme="dark"] .pp-co-note{color:#a9b4be;}
-[data-theme="dark"] .pp-co-note + .pp-co-note{color:#8b949e;}
+.pp-co-nm{color:#607d8b;}
+.pp-co-tags{flex-basis:100%;font-size:0.9em;color:#607d8b;}
+.pp-co-ul{margin:6px 0 0 106px;padding-left:16px;list-style:disc;}
+.pp-co-ul li{margin:3px 0;}
+.pp-co-ul b{font-weight:600;}
+@media(max-width:520px){.pp-co-hdr{grid-template-columns:minmax(0,1fr);}.pp-co-ul{margin-left:0;}}
+[data-theme="dark"] .pp-co{border-color:#30363d;color:#c9d1d9;}
+[data-theme="dark"] .pp-co-tk{color:#e6edf3 !important;}
+[data-theme="dark"] .pp-co-rt,[data-theme="dark"] .pp-co-nm,[data-theme="dark"] .pp-co-tags{color:#8b949e !important;}
 /* Clickable ticker mentions — anywhere a ticker is listed it opens the
    company popup. Underline matches the main-table ticker affordance. */
 .tk-link{cursor:pointer;font-weight:700;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.35);text-underline-offset:2px;}
@@ -11958,49 +11954,37 @@ function renderPoolCompanies(sec,cos){
     return br-ar;
   });
 
-  var out='<div class="pp-co-grid">';
+  /* A list, one company per entry, laid out like the forces list: the
+     rating, the name and why it is here on one line, then bullets. */
+  var out='<div class="pp-co-list">';
   order.forEach(function(e){
     var d=e.row||{};
     var rating=e.rating||d.rating;
-    var col=RC[rating]||'#aaa';
-    var tk=e.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    out+='<div class="pp-co" style="border-left-color:'+col+'" onclick="openDet(\''+tk+'\')">';
-    out+='<div class="pp-co-hdr"><span class="pp-co-id"><span class="pp-co-tk">'+_esc(e.ticker)+'</span>'
-      +_revHtml(e.ticker)+_starHtml(e.ticker)
-      +(e.name?'<span class="pp-co-nm">'+_esc(e.name).slice(0,24)+'</span>':'')+'</span></div>';
-    if(e.badges.length){
-      out+='<div class="pp-co-badges">';
-      e.badges.forEach(function(b){
-        out+='<span class="pp-co-badge" style="background:'+b.color+'">'+_esc(b.label)+'</span>';
-      });
-      out+='</div>';
-    }
-    /* One chip row for every card. The model metrics (MoS, ROIC, spread)
-       are deliberately left to the prose line below rather than repeated
-       here as chips — the same number twice on one card is the drift this
-       page is being cleaned of. */
-    var chips=[];
-    if(rating)chips.push('<span class="pp-co-chip rating" style="background:'+col+'">'+_esc(rating)+'</span>');
+    var col=RC[rating]||'#90a4ae';
     var rs=e.revenue_share!=null?e.revenue_share:d.pp_revenue_share;
     var ps=e.profit_share!=null?e.profit_share:d.pp_profit_share;
     var om=e.op_margin!=null?e.op_margin:d.operating_margin;
     var mu=e.pp_multiple!=null?e.pp_multiple:d.pp_multiple;
-    if(rs!=null)chips.push('<span class="pp-co-chip">Rev '+(rs*100).toFixed(0)+'%</span>');
-    if(ps!=null)chips.push('<span class="pp-co-chip">Profit '+(ps*100).toFixed(0)+'%</span>');
-    if(om!=null)chips.push('<span class="pp-co-chip">OM '+(om*100).toFixed(1)+'%</span>');
-    if(mu!=null)chips.push('<span class="pp-co-chip">'+mu.toFixed(2)+'x</span>');
     /* Price of its pool: share of the sector's market value over share of
        its profit pool. Above 1 the market pays more than the company's
        slice of today's profit (growth or quality priced in); below 1, less. */
-    if(ps>0&&d.mcap>0&&secMcap>0){
-      var vp=(d.mcap/secMcap)/ps;
-      chips.push('<span class="pp-co-chip" title="Share of the sector\u2019s market value \u00f7 share of its profit pool">Value/Pool '+vp.toFixed(2)+'x</span>');
-    }
-    if(chips.length)out+='<div class="pp-co-chips">'+chips.join('')+'</div>';
-    if(e.poolNote)out+='<div class="pp-co-note">'+_linkifyTickers(_esc(e.poolNote))+'</div>';
+    var vp=(ps>0&&d.mcap>0&&secMcap>0)?(d.mcap/secMcap)/ps:null;
+    var share=[];
+    if(rs!=null)share.push(_ppPct(rs)+' of revenue');
+    if(ps!=null)share.push(_ppPct(ps)+' of profit'+(mu!=null?' ('+mu.toFixed(2)+'× its revenue share)':''));
+    if(om!=null)share.push('operating margin '+_ppPct(om));
+    if(vp!=null)share.push('value/pool '+vp.toFixed(2)+'×');
     var mn=e.row?_ppModelNote(e.row):'';
-    if(mn)out+='<div class="pp-co-note">'+_esc(mn)+'</div>';
-    out+='</div>';
+    out+='<div class="pp-co" data-tk="'+_attr(e.ticker)+'" onclick="openDet(this.dataset.tk)">'
+      +'<div class="pp-co-hdr"><span class="pp-co-rt"><i style="background:'+col+'"></i>'+_esc(rating||'—')+'</span>'
+      +'<span class="pp-co-id"><span class="pp-co-tk">'+_esc(e.ticker)+'</span>'+_revHtml(e.ticker)+_starHtml(e.ticker)
+      +(e.name?'<span class="pp-co-nm">'+_esc(e.name)+'</span>':'')
+      +(e.badges.length?'<span class="pp-co-tags">'+e.badges.map(function(b){return _esc(b.label);}).join(' · ')+'</span>':'')
+      +'</span></div><ul class="pp-co-ul">'
+      +(share.length?'<li><b>Share:</b> '+share.join('; ')+'.</li>':'')
+      +(e.poolNote?'<li><b>Role:</b> '+_linkifyTickers(_esc(e.poolNote))+'</li>':'')
+      +(mn?'<li><b>Model:</b> '+_esc(mn)+'</li>':'')
+      +'</ul></div>';
   });
   return out+'</div>';
 }
