@@ -144,10 +144,10 @@ def test_structure_stats_render_the_four_tiles(tmp_path):
 def _render_signals(entry, tmp_path):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
-             '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
-             '_ppfCard', 'renderPoolSectorSignals']
-    consts = re.search(r'^var _PPF_ST=.*$', src, re.M).group(0) + '\n' + \
-        re.search(r'^var _PPF_TYPE=.*$', src, re.M).group(0)
+             '_ppfShort', '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
+             '_ppfCard', '_ppfLive', '_ppfCol', 'renderPoolSectorSignals']
+    consts = '\n'.join(re.search(r'^var %s=.*$' % v, src, re.M).group(0)
+                       for v in ('_PPF_ST', '_PPF_ORDER', '_PPF_TYPE'))
     js = '\n'.join(["var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
                     'function _esc(s){return String(s);}function _attr(s){return String(s);}'
                     'function _linkifyTickers(s){return s;}',
@@ -160,19 +160,38 @@ def _render_signals(entry, tmp_path):
                           check=True).stdout
 
 
-def test_force_cards_carry_status_and_evidence(tmp_path):
+def test_forces_read_as_rows_with_plain_word_statuses(tmp_path):
     from models.sector_forces import evaluate_forces
     from tests.test_sector_forces import _sidecar
     side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
     side['sector_data'] = {'Real Estate': {'etf': 'XLRE', 'rs_3m': -0.10, 'rs_6m': -0.17}}
     html = _render_signals({'forces': evaluate_forces('Real Estate', side, {})}, tmp_path)
-    tw, hw = html.split('Structural Headwinds')
-    assert html.count('class="ppf ppf-') == 6
-    assert 'ppf-st ppf-active">Active' in hw and 'ppf-st ppf-dormant">Dormant' in tw
-    assert 'ppf-qualitative">Qualitative' in html
-    assert '<polyline' in html and '5.38%' in html
+    tw, hw = html.split('>Headwinds<')
+    assert html.count('<details class="ppf ppf-') == 6
+    assert 'ppf-st ppf-active"><i class="ppf-dot"></i>Acting now' in hw
+    assert 'ppf-st ppf-dormant"><i class="ppf-dot"></i>Not acting' in tw
+    assert 'Not measured' in html and 'Qualitative' not in html
+    # one-line reading in the row; the chart only once it is opened
+    row = hw.split('Interest-rate sensitivity')[1].split('</summary>')[0]
+    assert 'Test series 5.38%, 99th percentile; +1.00 pts in a year' in row and '<polyline' not in row
+    assert '<polyline' in hw.split('</summary>', 1)[1]
     assert 'XLRE has trailed the market by 10.0% over 3 months' in html
-    assert 'Acting now (active or building): <b>0 of 3</b> tailwinds' in html
+    assert '0 of 3 acting</small>' in tw and '1 of 3 acting</small>' in hw
+    assert 'Acting now: the evidence is strong and holding' in html       # the key
+
+
+def test_quiet_forces_fold_under_one_reveal(tmp_path):
+    from models.sector_forces import evaluate_forces
+    from tests.test_sector_forces import _sidecar
+    side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
+    html = _render_signals({'forces': evaluate_forces('Real Estate', side, {})}, tmp_path)
+    hw = html.split('>Headwinds<')[1]
+    # the acting rate headwind is listed; the two unmeasured ones fold
+    assert hw.index('Interest-rate sensitivity') < hw.index('class="ppf-more"')
+    assert '2 not acting or not measured' in hw
+    # a column with nothing acting lists its forces without a reveal
+    tw = html.split('>Headwinds<')[0]
+    assert 'ppf-more' not in tw
 
 
 def test_signals_fall_back_to_the_plain_lists(tmp_path):
@@ -194,7 +213,8 @@ def test_force_cards_show_reach_and_who_feels_it(tmp_path):
     html = _render_signals({'forces': res}, tmp_path)
     assert 'Headwinds outweigh tailwinds' in html
     card = html.split('Interest-rate sensitivity')[1].split('class="ppf ppf-')[0]
-    assert 'Reaches <b>' in card and 'Most exposed' in card and 'Best insulated' in card
+    assert 'of sector</span>' in card.split('</summary>')[0]              # reach in the row
+    assert 'Most exposed</b> (the highest net debt / EBITDA)' in card and 'Least exposed' in card
     assert 'data-tk="LEV0"' in card and '\u00d7' in card
 
 

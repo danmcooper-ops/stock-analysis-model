@@ -699,6 +699,13 @@ ruff check .
   over the same years (`industry_pools(rows, window)`, `growth_over`).
   Left free, Software - Infrastructure's window ended FY2026, a year only
   early filers had reported.
+  On the page, `renderPoolSectorSignals` shows one row per force. The
+  status is a plain word (Acting now / Building / Fading / Not acting /
+  Not measured / No data, mapped from active … no_data), followed by a
+  one-line reading, and reach for moving forces only. The chart,
+  companies and rationale open on click, and quiet forces fold under one
+  reveal per column. The colour overrides carry `!important` against the
+  blanket dark `body *` text rule.
   Forces that no series measures read "qualitative". Without `macro.json`,
   macro forces read "no_data" and the rest still render. The
   `DCOILWTICO` / `PCOPPUSDM` Commodities family exists for Energy's and
