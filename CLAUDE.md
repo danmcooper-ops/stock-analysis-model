@@ -668,7 +668,9 @@ ruff check .
 - **Sector page sub-tabs (`_ppSubTabs` in `templates/report.html`):** below
   each sector's header band, the body is split into sub-tabs: Overview,
   Headwinds & tailwinds, Profit pool, History, Economic profit, Companies,
-  Liquidity. Each `pp-section` carries a `data-pane`, and the
+  Liquidity. The row sits directly under the sector tabs, above the
+  sector card, styled with the ticker page's `d-stmt-tabs` classes. Each
+  `pp-section` carries a `data-pane`, and the
   `.pp-tabbed[data-tab]` CSS shows one group at a time. A tab with no
   content is left out. The choice carries across sectors and visits
   (`stock_pp_subtab_v1`). Both pool tables (Industries and Companies) sort

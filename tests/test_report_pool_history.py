@@ -355,7 +355,8 @@ def _subtabs(body, has, tmp_path, stored=None):
     js = '\n'.join([store + 'var window={};function _esc(s){return String(s);}',
                     re.search(r'^var _PP_SUBTABS=.*$', src, re.M).group(0),
                     _fn(src, '_ppSubTabCur'), _fn(src, '_ppSubTabs'),
-                    'process.stdout.write(_ppSubTabs(%s,%s));' % (json.dumps(body), json.dumps(has))])
+                    'var t=_ppSubTabs(%s,%s);process.stdout.write(t.bar+"|BODY|"+t.body);'
+                    % (json.dumps(body), json.dumps(has))])
     script = tmp_path / 'tabs.js'
     script.write_text(js, encoding='utf-8')
     return subprocess.run(['node', str(script)], capture_output=True, text=True,
@@ -369,7 +370,11 @@ def test_sub_tabs_skip_empty_groups_and_fall_back(tmp_path):
     assert html.count('role="tab"') == 5
     assert 'data-k="history"' not in html and 'data-k="flow"' not in html
     assert '<div class="pp-tabbed" data-tab="overview">' in html             # default tab
-    assert 'class="pp-subtab active" aria-selected="true" data-k="overview"' in html
+    assert 'class="d-stmt-tab cur" aria-selected="true" data-k="overview"' in html
+    bar, body = html.split('|BODY|')
+    # the row reuses the ticker page's statement tabs, and sits apart from the body
+    assert bar.startswith('<div class="d-stmt-tabs sa-chrome pp-subtabs" role="tablist"')
+    assert body.startswith('<div class="pp-tabbed"') and 'role="tab"' not in body
     # a remembered tab is used when the sector has it, else the first one
     assert 'data-tab="value"' in _subtabs('', has, tmp_path, stored='value')
     assert 'data-tab="overview"' in _subtabs('', has, tmp_path, stored='flow')

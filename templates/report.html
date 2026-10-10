@@ -1271,11 +1271,7 @@ td.ct{font-weight:700;}
 .gv-k[data-gv-tip]{cursor:default;}
 .km-k[data-km-tip]{cursor:default;}
 .legend{font-size:0.75em;color:#888;margin:6px 0 10px;padding:6px 0;}
-.pp-subtabs{display:flex;gap:4px 20px;overflow-x:auto;padding:0 18px;border-bottom:1px solid #e0e5eb;background:#fff;scrollbar-width:none;}
-.pp-subtabs::-webkit-scrollbar{display:none;}
-.pp-subtab{flex:none;background:none;border:0;border-bottom:3px solid transparent;padding:12px 2px 9px;font:inherit;font-size:0.86em;font-weight:600;color:#607d8b;cursor:pointer;white-space:nowrap;}
-.pp-subtab:hover{color:#263238;}
-.pp-subtab.active{color:#263238;border-bottom-color:#7030a0;}
+.pp-subtabs{margin:0 0 14px;}
 .pp-tabbed:not([data-tab="overview"])>[data-pane="overview"]{display:none;}
 .pp-tabbed:not([data-tab="forces"])>[data-pane="forces"]{display:none;}
 .pp-tabbed:not([data-tab="pool"])>[data-pane="pool"]{display:none;}
@@ -1283,10 +1279,6 @@ td.ct{font-weight:700;}
 .pp-tabbed:not([data-tab="value"])>[data-pane="value"]{display:none;}
 .pp-tabbed:not([data-tab="companies"])>[data-pane="companies"]{display:none;}
 .pp-tabbed:not([data-tab="flow"])>[data-pane="flow"]{display:none;}
-[data-theme="dark"] .pp-subtabs{background:#161b22;border-color:#30363d;}
-[data-theme="dark"] .pp-subtab{color:#8b949e !important;}
-[data-theme="dark"] .pp-subtab.active,[data-theme="dark"] .pp-subtab:hover{color:#e6edf3 !important;}
-[data-theme="dark"] .pp-subtab.active{border-bottom-color:#a371f7;}
 .pool-sector{margin-bottom:20px;background:white;border-radius:10px;padding:0;box-shadow:0 3px 12px rgba(0,0,0,0.08);overflow:hidden;border:1px solid #e8ecef;}
 .pool-sec-hdr{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 18px;background:linear-gradient(135deg,#1a252f 0%,#2c3e50 100%);color:white;border-bottom:3px solid var(--accent,#3498db);}
 .pool-sec-name{font-weight:700;font-size:1.05em;color:white;letter-spacing:0.01em;}
@@ -13349,27 +13341,28 @@ function _ppSubTabCur(){
 }
 function _ppSubTabs(body,has){
   var tabs=_PP_SUBTABS.filter(function(t){return has[t[0]];});
-  if(!tabs.length)return body;
+  if(!tabs.length)return {bar:'',body:body};
   var cur=_ppSubTabCur();
   if(!has[cur])cur=tabs[0][0];
-  var bar='<div class="pp-subtabs" role="tablist">'+tabs.map(function(t){
+  /* The ticker page's statement-tab classes (d-stmt-tabs), so the two
+     sub-tab rows look and behave alike. */
+  var bar='<div class="d-stmt-tabs sa-chrome pp-subtabs" role="tablist" aria-label="Sector sections">'+tabs.map(function(t){
     var on=t[0]===cur;
-    return '<button type="button" role="tab" class="pp-subtab'+(on?' active':'')+'" aria-selected="'+on+'" data-k="'+t[0]+'" onclick="_ppSubTab(this)">'+_esc(t[1])+'</button>';
+    return '<button type="button" role="tab" class="d-stmt-tab'+(on?' cur':'')+'" aria-selected="'+on+'" data-k="'+t[0]+'" onclick="_ppSubTab(this)">'+_esc(t[1])+'</button>';
   }).join('')+'</div>';
-  return bar+'<div class="pp-tabbed" data-tab="'+cur+'">'+body+'</div>';
+  return {bar:bar,body:'<div class="pp-tabbed" data-tab="'+cur+'">'+body+'</div>'};
 }
 function _ppSubTab(btn){
-  var k=btn.getAttribute('data-k'),sec=btn.closest('.pool-sector');
-  if(!sec)return;
-  var wrap=sec.querySelector('.pp-tabbed');
+  var k=btn.getAttribute('data-k'),area=document.getElementById('pool-chart-area');
+  if(!area)return;
+  var wrap=area.querySelector('.pp-tabbed');
   if(wrap)wrap.setAttribute('data-tab',k);
-  [].forEach.call(sec.querySelectorAll('.pp-subtab'),function(b){
-    var on=b===btn;b.classList.toggle('active',on);b.setAttribute('aria-selected',on?'true':'false');
+  [].forEach.call(btn.parentNode.querySelectorAll('.d-stmt-tab'),function(b){
+    var on=b===btn;b.classList.toggle('cur',on);b.setAttribute('aria-selected',on?'true':'false');
   });
   window._ppSubTabCur=k;
   try{localStorage.setItem('stock_pp_subtab_v1',k);}catch(e){}
-  var bar=btn.parentNode;
-  if(bar&&bar.getBoundingClientRect().top<0)bar.scrollIntoView({block:'start'});
+  if(btn.parentNode.getBoundingClientRect().top<0)btn.parentNode.scrollIntoView({block:'start'});
 }
 function renderPool(){
   /* Hide any hover tooltip before the re-render: clicking a chart bar
@@ -13470,6 +13463,7 @@ function renderPool(){
     });
     var hhi=byRev[0].pp_sector_hhi,cr4=byRev[0].pp_sector_cr4;
     var conc=hhi!=null?(hhi>0.25?'Concentrated':hhi>0.15?'Moderate':'Competitive'):'';
+    var _secStart=chartHtml.length;
     chartHtml+='<div class="pool-sector" id="pool-sec-'+sec.replace(/\s+/g,'-')+'"><div class="pool-sec-hdr"><span class="pool-sec-name">'+sec+'</span><span class="pool-sec-stats">'+byRev.length+' companies';
     if(hhi!=null)chartHtml+=' &nbsp;&middot;&nbsp; HHI: '+hhi.toFixed(3)+' ('+conc+')';
     if(cr4!=null)chartHtml+=' &nbsp;&middot;&nbsp; CR4: '+(cr4*100).toFixed(0)+'%';
@@ -13543,9 +13537,13 @@ function renderPool(){
     if(liquidityHtml){
       chartHtml+='<div data-pane="flow" class="pp-section pp-liquidity"><span class="pp-section-label">Liquidity &amp; Flow</span>'+liquidityHtml+'</div>';
     }
-    chartHtml=chartHtml.slice(0,_bodyStart)+_ppSubTabs(chartHtml.slice(_bodyStart),{
+    /* The sub-tab row sits directly under the sector tabs, above the
+       sector's card, as the ticker page's statement tabs sit under its
+       section tabs; the card keeps the stats band and the chosen pane. */
+    var _tabs=_ppSubTabs(chartHtml.slice(_bodyStart),{
       overview:!!primerHtml,forces:!!signalsHtml,pool:true,history:!!(historyHtml||shiftsHtml),
       value:!!econHtml,companies:!!companiesHtml,flow:!!liquidityHtml});
+    chartHtml=chartHtml.slice(0,_secStart)+_tabs.bar+chartHtml.slice(_secStart,_bodyStart)+_tabs.body;
     chartHtml+='</div>';
     /* Per-sector summary tableRows removed: rows were only built when a
        single sector tab was chosen, but the table only rendered on the
