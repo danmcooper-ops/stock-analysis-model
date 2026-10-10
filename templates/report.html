@@ -1347,7 +1347,11 @@ td.ct{font-weight:700;}
 .ppf-key span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
 .ppf-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;}
 @media(max-width:760px){.ppf-cols{grid-template-columns:minmax(0,1fr);gap:16px;}}
-.ppf-colh{display:flex;align-items:baseline;justify-content:space-between;font-size:0.86em;font-weight:700;margin:0 0 4px;padding-bottom:4px;border-bottom:2px solid currentColor;}
+.ppf-colh{display:flex;width:100%;align-items:baseline;justify-content:space-between;font:inherit;font-size:0.86em;font-weight:700;margin:0 0 4px;padding:0 0 4px;background:none;border:0;border-bottom:2px solid currentColor;cursor:pointer;text-align:left;}
+.ppf-chev{display:inline-block;width:0;height:0;margin:0 7px 1px 1px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid currentColor;transition:transform 0.15s;}
+.ppf-collapsed .ppf-chev{transform:rotate(-90deg);}
+.ppf-collapsed .ppf-ul,.ppf-collapsed .ppf-meta{display:none;}
+.ppf-collapsed .ppf{padding:6px 2px;}
 .ppf-colh small{font-weight:400;color:var(--ppf-sub);font-size:0.9em;}
 .ppf-colh.tw{color:var(--ppf-tw);}.ppf-colh.hw{color:var(--ppf-hw);}
 .ppf{border-bottom:1px solid var(--ppf-line);font-size:0.82em;line-height:1.5;color:var(--ppf-txt);padding:10px 2px;}
@@ -1379,6 +1383,9 @@ td.ct{font-weight:700;}
    which would otherwise flatten the status colours and the muted lines. */
 [data-theme="dark"] .ppf-tw .ppf-active,[data-theme="dark"] .ppf-tw .ppf-building,[data-theme="dark"] .ppf-colh.tw{color:var(--ppf-tw) !important;}
 [data-theme="dark"] .ppf-hw .ppf-active,[data-theme="dark"] .ppf-hw .ppf-building,[data-theme="dark"] .ppf-colh.hw{color:var(--ppf-hw) !important;}
+[data-theme="dark"] .ppf-colh.tw *{color:var(--ppf-tw) !important;}
+[data-theme="dark"] .ppf-colh.hw *{color:var(--ppf-hw) !important;}
+[data-theme="dark"] .ppf-colh.tw small,[data-theme="dark"] .ppf-colh.hw small{color:var(--ppf-sub) !important;}
 [data-theme="dark"] .ppf-st,[data-theme="dark"] .ppf-meta,[data-theme="dark"] .ppf-mkt,[data-theme="dark"] .ppf-key,[data-theme="dark"] .ppf-key span,[data-theme="dark"] .ppf-note,[data-theme="dark"] .ppf-colh small,[data-theme="dark"] .ppf-chip i{color:var(--ppf-sub) !important;}
 [data-theme="dark"] .pp-primer,
 [data-theme="dark"] .pp-structure,
@@ -12066,10 +12073,25 @@ function _ppfCard(f){
 function _ppfLive(f){return f.status==='active'||f.status==='building'||f.status==='easing';}
 /* One column, every force listed in full: moving forces first, then the
    ones not acting, then the unmeasured. */
+/* Each column's header is a toggle: collapsed, a column keeps one line per
+   force (its status and name) and drops the bullets. The choice is kept per
+   browser in stock_ppf_collapsed_v1 ({tailwind,headwind}). */
+function _ppfCollapsedState(){
+  try{return JSON.parse(localStorage.getItem('stock_ppf_collapsed_v1'))||{};}catch(e){return {};}
+}
+function _ppfToggleCol(btn){
+  var col=btn.parentNode,kind=col.getAttribute('data-kind');
+  var shut=col.classList.toggle('ppf-collapsed');
+  btn.setAttribute('aria-expanded',shut?'false':'true');
+  try{var st=_ppfCollapsedState();st[kind]=shut;localStorage.setItem('stock_ppf_collapsed_v1',JSON.stringify(st));}catch(e){}
+}
 function _ppfCol(list,kind){
   var sorted=list.slice().sort(function(a,b){return _PPF_ORDER[a.status]-_PPF_ORDER[b.status];});
   var acting=list.filter(function(f){return f.status==='active'||f.status==='building';}).length;
-  return '<div><div class="ppf-colh '+(kind==='tailwind'?'tw':'hw')+'">'+(kind==='tailwind'?'Tailwinds':'Headwinds')+'<small>'+acting+' of '+list.length+' acting</small></div>'
+  var shut=!!_ppfCollapsedState()[kind];
+  return '<div class="ppf-colwrap'+(shut?' ppf-collapsed':'')+'" data-kind="'+kind+'">'
+    +'<button type="button" class="ppf-colh '+(kind==='tailwind'?'tw':'hw')+'" aria-expanded="'+(shut?'false':'true')+'" onclick="_ppfToggleCol(this)">'
+    +'<span><i class="ppf-chev" aria-hidden="true"></i>'+(kind==='tailwind'?'Tailwinds':'Headwinds')+'</span><small>'+acting+' of '+list.length+' acting</small></button>'
     +sorted.map(_ppfCard).join('')+'</div>';
 }
 function renderPoolSectorSignals(sec){

@@ -141,14 +141,16 @@ def test_structure_stats_render_the_four_tiles(tmp_path):
         assert title in html
 
 
-def _render_signals(entry, tmp_path):
+def _render_signals(entry, tmp_path, stored=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
              '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
-             '_ppfCard', '_ppfLive', '_ppfCol', 'renderPoolSectorSignals']
+             '_ppfCard', '_ppfLive', '_ppfCollapsedState', '_ppfCol', 'renderPoolSectorSignals']
     consts = '\n'.join(re.search(r'^var %s=.*$' % v, src, re.M).group(0)
                        for v in ('_PPF_ST', '_PPF_ORDER', '_PPF_TYPE'))
-    js = '\n'.join(["var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
+    store = ('var localStorage={getItem:function(){return %s;}};' % json.dumps(json.dumps(stored))
+             if stored is not None else '')
+    js = '\n'.join([store + "var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
                     'function _esc(s){return String(s);}function _attr(s){return String(s);}'
                     'function _linkifyTickers(s){return s;}',
                     consts] + [_fn(src, n) for n in names]
@@ -283,3 +285,24 @@ def test_company_table_highlights_and_blanks(tmp_path):
     assert row('JPM').count('<td>—</td>') == 1                # spread only
     assert row('NEW').endswith('<td>—</td>')
     assert '<td>Others' not in html and 'pooled as Others' not in html
+
+
+def test_each_column_header_toggles_its_bullets(tmp_path):
+    """Collapsed, a column keeps one line per force: status and name."""
+    from models.sector_forces import evaluate_forces
+    from tests.test_sector_forces import _sidecar
+    side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
+    forces = {'forces': evaluate_forces('Real Estate', side, {})}
+    html = _render_signals(forces, tmp_path)
+    assert html.count('onclick="_ppfToggleCol(this)"') == 2
+    assert html.count('aria-expanded="true"') == 2 and 'ppf-collapsed' not in html
+    shut = _render_signals(forces, tmp_path, stored={'headwind': True})
+    assert '<div class="ppf-colwrap ppf-collapsed" data-kind="headwind">' in shut
+    assert '<div class="ppf-colwrap" data-kind="tailwind">' in shut
+    # the bullets are still in the page (CSS hides them), so expanding is instant
+    assert shut.split('data-kind="headwind"')[1].count('<ul class="ppf-ul">') == 3
+
+
+def test_collapsed_columns_hide_only_bullets_and_type():
+    css = TEMPLATE.read_text(encoding='utf-8')
+    assert '.ppf-collapsed .ppf-ul,.ppf-collapsed .ppf-meta{display:none;}' in css
