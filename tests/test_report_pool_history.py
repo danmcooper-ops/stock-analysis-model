@@ -39,7 +39,7 @@ def _render(history, call, tmp_path, entry=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ppBn', '_ord',
              'renderPoolHistory', '_ppShiftRows', 'renderPoolShifts',
-             '_ppIndCls', 'renderPoolIndustries', '_ppEpRows', 'renderPoolEcon',
+             '_ppIndCls', '_ppiV', '_ppiTh', 'renderPoolIndustries', '_ppEpRows', 'renderPoolEcon',
              '_ppStructureStats']
     sp = dict(entry or {}, history=history)
     js = '\n'.join(
@@ -117,7 +117,7 @@ def test_industries_view_draws_and_tabulates_each_industry(tmp_path):
                    {'industries': industry_pools(rows)})
     assert html.count('class="ppi-bar') == 2
     assert 'ppi-pos' in html and 'ppi-neg' in html          # spread colours
-    assert html.count('<tr><td>') == 2 and 'Pool CAGR' in html
+    assert html.count('<tr><td data-v=') == 2 and 'Pool CAGR' in html
 
 
 def test_econ_states_both_market_shares_and_the_exclusions(tmp_path):
@@ -244,10 +244,11 @@ def test_an_industry_force_names_its_industry_once(tmp_path):
 
 def _render_co_table(shown, tail, tmp_path):
     src = TEMPLATE.read_text(encoding='utf-8')
-    names = ['_ppPct', '_ppSgnPct', '_ppSkewTd', 'renderPoolCompanyTable']
+    names = ['_ppPct', '_ppSgnPct', '_ppiV', '_ppiTh', '_ppSkewTd', 'renderPoolCompanyTable']
     js = '\n'.join(["var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
                     'function _esc(s){return String(s);}function _attr(s){return String(s);}',
-                    re.search(r'^var _PP_BS_INDUSTRIES=.*$', src, re.M).group(0)]
+                    re.search(r'^var _PP_BS_INDUSTRIES=.*$', src, re.M).group(0),
+                    re.search(r'^var _PPI_RANK=.*$', src, re.M).group(0)]
                    + [_fn(src, n) for n in names]
                    + ['process.stdout.write(renderPoolCompanyTable(%s,%s));'
                       % (json.dumps(shown), json.dumps(tail))])
@@ -270,9 +271,9 @@ def test_company_table_mirrors_the_industries_table(tmp_path):
     assert html.count('<tr class="ppi-co"') == 25
     assert '<td>Others <span class="ppi-dim">(10 companies)</span>' in html
     assert html.index('A24') < html.index('A00')                  # by pool share
-    assert '<th>Pool share trend</th>' in html and '+3.0%/yr' in html
+    assert '>Pool share trend</th>' in html and '+3.0%/yr' in html
     assert 'data-tk="A00" onclick="openDet(this.dataset.tk)"' in html
-    assert 'class="ppi-tbl"' in html
+    assert 'class="ppi-tbl ppi-sort"' in html
 
 
 def test_company_table_highlights_and_blanks(tmp_path):
@@ -282,8 +283,8 @@ def test_company_table_highlights_and_blanks(tmp_path):
     html = _render_co_table(shown, [], tmp_path)
     row = lambda t: html.split('data-tk="%s"' % t)[1].split('</tr>')[0]   # noqa: E731
     assert 'ppi-hi' in row('HI') and 'ppi-lo' in row('LO') and 'ppi-' not in row('MID').replace('ppi-dim', '').replace('ppi-rt', '')
-    assert row('JPM').count('<td>—</td>') == 1                # spread only
-    assert row('NEW').endswith('<td>—</td>')
+    assert row('JPM').count('<td data-v="">—</td>') == 1                # spread only
+    assert row('NEW').endswith('<td data-v="">—</td>')
     assert '<td>Others' not in html and 'pooled as Others' not in html
 
 
@@ -306,3 +307,42 @@ def test_each_column_header_toggles_its_bullets(tmp_path):
 def test_collapsed_columns_hide_only_bullets_and_type():
     css = TEMPLATE.read_text(encoding='utf-8')
     assert '.ppf-collapsed .ppf-ul,.ppf-collapsed .ppf-meta{display:none;}' in css
+
+
+def _sort_rows(html, col, desc=True, numeric=True):
+    """Apply _ppiSort's ordering rule to a rendered table (Node has no DOM):
+    rows by the column's data-v, blanks last, pinned rows at the bottom."""
+    body = html.split('<tbody>')[1].split('</tbody>')[0]
+    rows = re.findall(r'<tr[^>]*>.*?</tr>', body, re.S)
+    pin = [r for r in rows if 'ppi-pin' in r.split('>')[0]]
+    rest = [r for r in rows if r not in pin]
+    def key(r):
+        v = re.findall(r'<td[^>]*?data-v="([^"]*)"', r)
+        return v[col] if col < len(v) else ''
+    have = [r for r in rest if key(r) != '']
+    blank = [r for r in rest if key(r) == '']
+    have.sort(key=lambda r: float(key(r)) if numeric else key(r), reverse=desc)
+    return have + blank + pin
+
+
+def test_company_table_headers_sort_and_pin_others(tmp_path):
+    shown = [_co('A', 0.10, 0.20, rating='PASS', _gate_pool_share=None),
+             _co('B', 0.20, 0.10, rating='BUY', _gate_pool_share=0.05),
+             _co('C', 0.05, 0.05, rating='HOLD', _gate_pool_share=-0.02)]
+    html = _render_co_table(shown, [_co('T', 0.01, 0.01)], tmp_path)
+    assert html.count('onclick="_ppiSort(this)"') == 7
+    assert '<th data-t="n" aria-sort="descending" onclick' in html            # Pool, as rendered
+    assert '<th data-t="s" onclick' in html                                    # Company sorts as text
+    assert '<tr class="ppi-pin"><td>Others' in html
+    rows = _sort_rows(html, 6)                                                 # trend, high to low
+    order = [re.search(r'data-tk="(\w+)"', r).group(1) if 'data-tk' in r else 'Others' for r in rows]
+    assert order == ['B', 'C', 'A', 'Others']                                  # blank last, Others pinned
+    rows = _sort_rows(html, 1)                                                 # rating rank
+    assert [re.search(r'data-tk="(\w+)"', r).group(1) for r in rows[:3]] == ['B', 'C', 'A']
+
+
+def test_sorter_keeps_blanks_last_and_pinned_rows_at_the_bottom():
+    src = TEMPLATE.read_text(encoding='utf-8')
+    fn = _fn(src, '_ppiSort')
+    assert "classList.contains('ppi-pin')" in fn and 'body.concat(pin)' in fn
+    assert "if(x===''||x==null)return (y===''||y==null)?0:1;" in fn
