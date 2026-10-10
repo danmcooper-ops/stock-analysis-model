@@ -1280,9 +1280,6 @@ td.ct{font-weight:700;}
 .pp-tabbed:not([data-tab="companies"])>[data-pane="companies"]{display:none;}
 .pp-tabbed:not([data-tab="flow"])>[data-pane="flow"]{display:none;}
 .pool-sector{margin-bottom:20px;background:white;border-radius:10px;padding:0;box-shadow:0 3px 12px rgba(0,0,0,0.08);overflow:hidden;border:1px solid #e8ecef;}
-.pool-sec-hdr{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 18px;background:linear-gradient(135deg,#1a252f 0%,#2c3e50 100%);color:white;border-bottom:3px solid var(--accent,#3498db);}
-.pool-sec-name{font-weight:700;font-size:1.05em;color:white;letter-spacing:0.01em;}
-.pool-sec-stats{font-size:0.78em;color:#b0bec5;}
 /* One company grid for the whole sector page. Company Highlights, CR4
    Companies and Top 5 by Model Score used to be three sections, each with
    its own copy of this card markup inlined; the same mega-cap therefore
@@ -1863,7 +1860,6 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-liquidity{background:#0d2528;}
 [data-theme="dark"] .pp-chart{background:#161b22;}
 [data-theme="dark"] .pool-legend{color:#8b949e;}
-[data-theme="dark"] .pool-sec-stats{color:#c9d1d9;}
 [data-theme="dark"] .xsect-dashboard{background:#161b22;border-top-color:#58a6ff;box-shadow:0 3px 14px rgba(0,0,0,0.4);}
 [data-theme="dark"] .xsect-title{color:#e6edf3;}
 [data-theme="dark"] .xsect-sub{color:#8b949e;}
@@ -13461,13 +13457,10 @@ function renderPool(){
       }
       cumX+=barW;
     });
-    var hhi=byRev[0].pp_sector_hhi,cr4=byRev[0].pp_sector_cr4;
-    var conc=hhi!=null?(hhi>0.25?'Concentrated':hhi>0.15?'Moderate':'Competitive'):'';
+    /* No banner: the sector tab above names the sector, and its company
+       count, HHI and CR4 are quoted in the Profit pool tab's structure. */
     var _secStart=chartHtml.length;
-    chartHtml+='<div class="pool-sector" id="pool-sec-'+sec.replace(/\s+/g,'-')+'"><div class="pool-sec-hdr"><span class="pool-sec-name">'+sec+'</span><span class="pool-sec-stats">'+byRev.length+' companies';
-    if(hhi!=null)chartHtml+=' &nbsp;&middot;&nbsp; HHI: '+hhi.toFixed(3)+' ('+conc+')';
-    if(cr4!=null)chartHtml+=' &nbsp;&middot;&nbsp; CR4: '+(cr4*100).toFixed(0)+'%';
-    chartHtml+='</span></div>';
+    chartHtml+='<div class="pool-sector" id="pool-sec-'+sec.replace(/\s+/g,'-')+'">';
     /* === The sector page reads as four arcs ==========================
        A. Context      — what this sector is, and what is acting on it now
        B. The Pool     — its structure, then the chart of that structure
