@@ -144,7 +144,7 @@ def test_structure_stats_render_the_four_tiles(tmp_path):
 def _render_signals(entry, tmp_path):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
-             '_ppfShort', '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
+             '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
              '_ppfCard', '_ppfLive', '_ppfCol', 'renderPoolSectorSignals']
     consts = '\n'.join(re.search(r'^var %s=.*$' % v, src, re.M).group(0)
                        for v in ('_PPF_ST', '_PPF_ORDER', '_PPF_TYPE'))
@@ -160,38 +160,36 @@ def _render_signals(entry, tmp_path):
                           check=True).stdout
 
 
-def test_forces_read_as_rows_with_plain_word_statuses(tmp_path):
+def test_forces_read_as_bulleted_rows_with_plain_word_statuses(tmp_path):
     from models.sector_forces import evaluate_forces
     from tests.test_sector_forces import _sidecar
     side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
     side['sector_data'] = {'Real Estate': {'etf': 'XLRE', 'rs_3m': -0.10, 'rs_6m': -0.17}}
     html = _render_signals({'forces': evaluate_forces('Real Estate', side, {})}, tmp_path)
     tw, hw = html.split('>Headwinds<')
-    assert html.count('<details class="ppf ppf-') == 6
+    assert html.count('<div class="ppf ppf-') == 6
     assert 'ppf-st ppf-active"><i class="ppf-dot"></i>Acting now' in hw
     assert 'ppf-st ppf-dormant"><i class="ppf-dot"></i>Not acting' in tw
     assert 'Not measured' in html and 'Qualitative' not in html
-    # one-line reading in the row; the chart only once it is opened
-    row = hw.split('Interest-rate sensitivity')[1].split('</summary>')[0]
-    assert 'Test series 5.38%, 99th percentile; +1.00 pts in a year' in row and '<polyline' not in row
-    assert '<polyline' in hw.split('</summary>', 1)[1]
+    card = hw.split('Interest-rate sensitivity')[1].split('<div class="ppf ppf-')[0]
+    assert '<ul class="ppf-ul"><li><b>Evidence:</b> Test series 5.38%' in card
+    assert '<polyline' in card and '<b>Why it matters:</b> Cap rates' in card
     assert 'XLRE has trailed the market by 10.0% over 3 months' in html
     assert '0 of 3 acting</small>' in tw and '1 of 3 acting</small>' in hw
     assert 'Acting now: the evidence is strong and holding' in html       # the key
 
 
-def test_quiet_forces_fold_under_one_reveal(tmp_path):
+def test_nothing_is_hidden_behind_expand_or_collapse(tmp_path):
     from models.sector_forces import evaluate_forces
     from tests.test_sector_forces import _sidecar
     side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
     html = _render_signals({'forces': evaluate_forces('Real Estate', side, {})}, tmp_path)
+    assert '<details' not in html and '<summary' not in html
     hw = html.split('>Headwinds<')[1]
-    # the acting rate headwind is listed; the two unmeasured ones fold
-    assert hw.index('Interest-rate sensitivity') < hw.index('class="ppf-more"')
-    assert '2 not acting or not measured' in hw
-    # a column with nothing acting lists its forces without a reveal
-    tw = html.split('>Headwinds<')[0]
-    assert 'ppf-more' not in tw
+    # moving forces first, then not acting, then not measured
+    assert (hw.index('Interest-rate sensitivity') < hw.index('Remote work')
+            and hw.index('ppf-active') < hw.index('ppf-qualitative'))
+    assert hw.count('<b>Evidence:</b> No data series tracks this') == 2
 
 
 def test_signals_fall_back_to_the_plain_lists(tmp_path):
@@ -213,8 +211,10 @@ def test_force_cards_show_reach_and_who_feels_it(tmp_path):
     html = _render_signals({'forces': res}, tmp_path)
     assert 'Headwinds outweigh tailwinds' in html
     card = html.split('Interest-rate sensitivity')[1].split('class="ppf ppf-')[0]
-    assert 'of sector</span>' in card.split('</summary>')[0]              # reach in the row
-    assert 'Most exposed</b> (the highest net debt / EBITDA)' in card and 'Least exposed' in card
+    assert 'of sector' not in card                                         # reach only once
+    assert card.count('<b>Reach:</b>') == 1
+    assert '<li><b>Most exposed</b> (the highest net debt / EBITDA)' in card
+    assert '<li><b>Least exposed:</b>' in card and '<li><b>Reach:</b>' in card
     assert 'data-tk="LEV0"' in card and '\u00d7' in card
 
 
@@ -226,3 +226,15 @@ def test_own_window_label_names_both_blocks(tmp_path):
     html = _render(None, "renderPoolIndustries('Tech')", tmp_path, {'industries': inds})
     assert '(FY2016\u201318 to FY2021\u201323)' in html
     assert html.count('ppi-dim" title') == 1
+
+
+def test_an_industry_force_names_its_industry_once(tmp_path):
+    from models.sector_forces import evaluate_forces
+    from tests.test_sector_forces import _entry
+    from tests.test_sector_pool import YEARS, _flat
+    rows = [dict(_flat(t, YEARS, 100 + i, 0.2, 0.08), industry='Software - Infrastructure', sector='Technology')
+            for i, t in enumerate(('MSFT', 'ORCL', 'X'))]
+    html = _render_signals({'forces': evaluate_forces('Technology', None, _entry(0.14), rows)}, tmp_path)
+    card = html.split('Software dollar share keeps rising')[1].split('<div class="ppf ppf-')[0]
+    assert card.count('Software - Infrastructure') == 1
+    assert '<b>Who gains:</b> 3 companies' in card
