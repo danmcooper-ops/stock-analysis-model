@@ -63,7 +63,7 @@ def test_the_three_company_grids_stayed_merged():
                  'pp-section pp-top'):
         assert gone not in css, '%s came back as a separate grid' % gone
     assert css.count('function renderPoolCompanies(') == 1
-    assert css.count('class="pp-co-grid"') == 1, 'one grid, one card builder'
+    assert css.count('class="pp-co-list"') == 1, 'one list, one entry builder'
 
 
 def test_company_cards_are_classed_not_inline_styled():
@@ -78,7 +78,7 @@ def test_company_cards_are_classed_not_inline_styled():
     assert 'background:white' not in fn.group(0), \
         'company cards are .pp-co, styled by class'
     assert '[data-theme="dark"] .pp-co{' in css
-    for cls in ('.pp-co{', '.pp-co-badge{', '.pp-co-chip{', '.pp-co-note{'):
+    for cls in ('.pp-co{', '.pp-co-hdr{', '.pp-co-ul{', '.pp-co-tags{'):
         assert cls in css, '%s missing' % cls
 
 
