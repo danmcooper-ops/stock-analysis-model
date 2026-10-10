@@ -11791,8 +11791,9 @@ function renderPoolCompanyTable(shown,tail){
   rows.forEach(function(d){
     var bs=d.sector==='Financial Services'&&_PP_BS_INDUSTRIES[d.industry];
     var tr=d._gate_pool_share;
-    out+='<tr class="ppi-co" data-tk="'+_attr(d.ticker)+'" onclick="openDet(this.dataset.tk)">'
-      +'<td data-v="'+_attr(d.ticker)+'">'+_esc(d.ticker)+(d.company_name?' <span class="ppi-dim">'+_esc(String(d.company_name).slice(0,28))+'</span>':'')+'</td>'
+    /* Ticker only; the company's name is the row's tooltip. */
+    out+='<tr class="ppi-co" data-tk="'+_attr(d.ticker)+'" onclick="openDet(this.dataset.tk)"'+(d.company_name?' title="'+_attr(d.company_name)+'"':'')+'>'
+      +'<td data-v="'+_attr(d.ticker)+'">'+_esc(d.ticker)+'</td>'
       +'<td data-v="'+(_PPI_RANK[d.rating]||'')+'"><span class="ppi-rt" style="background:'+(RC[d.rating]||'#90a4ae')+'"></span>'+_esc(d.rating||'—')+'</td>'
       +'<td data-v="'+_ppiV(d.pp_revenue_share)+'">'+_ppPct(d.pp_revenue_share)+'</td>'
       +_ppSkewTd(d.pp_profit_share,d.pp_revenue_share)
