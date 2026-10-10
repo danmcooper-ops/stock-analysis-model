@@ -1271,6 +1271,22 @@ td.ct{font-weight:700;}
 .gv-k[data-gv-tip]{cursor:default;}
 .km-k[data-km-tip]{cursor:default;}
 .legend{font-size:0.75em;color:#888;margin:6px 0 10px;padding:6px 0;}
+.pp-subtabs{display:flex;gap:4px 20px;overflow-x:auto;padding:0 18px;border-bottom:1px solid #e0e5eb;background:#fff;scrollbar-width:none;}
+.pp-subtabs::-webkit-scrollbar{display:none;}
+.pp-subtab{flex:none;background:none;border:0;border-bottom:3px solid transparent;padding:12px 2px 9px;font:inherit;font-size:0.86em;font-weight:600;color:#607d8b;cursor:pointer;white-space:nowrap;}
+.pp-subtab:hover{color:#263238;}
+.pp-subtab.active{color:#263238;border-bottom-color:#7030a0;}
+.pp-tabbed:not([data-tab="overview"])>[data-pane="overview"]{display:none;}
+.pp-tabbed:not([data-tab="forces"])>[data-pane="forces"]{display:none;}
+.pp-tabbed:not([data-tab="pool"])>[data-pane="pool"]{display:none;}
+.pp-tabbed:not([data-tab="history"])>[data-pane="history"]{display:none;}
+.pp-tabbed:not([data-tab="value"])>[data-pane="value"]{display:none;}
+.pp-tabbed:not([data-tab="companies"])>[data-pane="companies"]{display:none;}
+.pp-tabbed:not([data-tab="flow"])>[data-pane="flow"]{display:none;}
+[data-theme="dark"] .pp-subtabs{background:#161b22;border-color:#30363d;}
+[data-theme="dark"] .pp-subtab{color:#8b949e !important;}
+[data-theme="dark"] .pp-subtab.active,[data-theme="dark"] .pp-subtab:hover{color:#e6edf3 !important;}
+[data-theme="dark"] .pp-subtab.active{border-bottom-color:#a371f7;}
 .pool-sector{margin-bottom:20px;background:white;border-radius:10px;padding:0;box-shadow:0 3px 12px rgba(0,0,0,0.08);overflow:hidden;border:1px solid #e8ecef;}
 .pool-sec-hdr{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 18px;background:linear-gradient(135deg,#1a252f 0%,#2c3e50 100%);color:white;border-bottom:3px solid var(--accent,#3498db);}
 .pool-sec-name{font-weight:700;font-size:1.05em;color:white;letter-spacing:0.01em;}
@@ -13321,6 +13337,40 @@ function ppPoolTip(e,name){
    at top level for the nav and detail-tab buttons, which build markup outside
    that closure and so cannot depend on the heatmap having run. */
 function _attr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+/* Sector page sub-tabs: one section group at a time. The body's sections
+   carry data-pane; the wrapper's data-tab picks the visible one through
+   the .pp-tabbed CSS rules. A tab whose sections are all empty is left
+   out. The choice carries across sectors (window._ppSubTabCur) and visits
+   (localStorage stock_pp_subtab_v1). */
+var _PP_SUBTABS=[['overview','Overview'],['forces','Headwinds & tailwinds'],['pool','Profit pool'],['history','History'],['value','Economic profit'],['companies','Companies'],['flow','Liquidity']];
+function _ppSubTabCur(){
+  if(window._ppSubTabCur)return window._ppSubTabCur;
+  try{return localStorage.getItem('stock_pp_subtab_v1')||'overview';}catch(e){return 'overview';}
+}
+function _ppSubTabs(body,has){
+  var tabs=_PP_SUBTABS.filter(function(t){return has[t[0]];});
+  if(!tabs.length)return body;
+  var cur=_ppSubTabCur();
+  if(!has[cur])cur=tabs[0][0];
+  var bar='<div class="pp-subtabs" role="tablist">'+tabs.map(function(t){
+    var on=t[0]===cur;
+    return '<button type="button" role="tab" class="pp-subtab'+(on?' active':'')+'" aria-selected="'+on+'" data-k="'+t[0]+'" onclick="_ppSubTab(this)">'+_esc(t[1])+'</button>';
+  }).join('')+'</div>';
+  return bar+'<div class="pp-tabbed" data-tab="'+cur+'">'+body+'</div>';
+}
+function _ppSubTab(btn){
+  var k=btn.getAttribute('data-k'),sec=btn.closest('.pool-sector');
+  if(!sec)return;
+  var wrap=sec.querySelector('.pp-tabbed');
+  if(wrap)wrap.setAttribute('data-tab',k);
+  [].forEach.call(sec.querySelectorAll('.pp-subtab'),function(b){
+    var on=b===btn;b.classList.toggle('active',on);b.setAttribute('aria-selected',on?'true':'false');
+  });
+  window._ppSubTabCur=k;
+  try{localStorage.setItem('stock_pp_subtab_v1',k);}catch(e){}
+  var bar=btn.parentNode;
+  if(bar&&bar.getBoundingClientRect().top<0)bar.scrollIntoView({block:'start'});
+}
 function renderPool(){
   /* Hide any hover tooltip before the re-render: clicking a chart bar
      (showPoolTab) destroys the hovered element, so its onmouseleave never
@@ -13434,6 +13484,9 @@ function renderPool(){
        blended margin in three, and three separate card grids listed
        largely the same companies. Every section stays conditional, so a
        sector with thin data drops blocks rather than rendering empties. */
+    /* Everything appended after this point is the sector's body; it is
+       wrapped in sub-tabs (_ppSubTabs) once all sections are built. */
+    var _bodyStart=chartHtml.length;
     var primerHtml=renderPoolPrimer(sec);
     var signalsHtml=renderPoolSectorSignals(sec);
     var structureHtml=renderPoolStructure(sec);
@@ -13445,25 +13498,25 @@ function renderPool(){
 
     /* --- A. Context ------------------------------------------------- */
     if(primerHtml){
-      chartHtml+='<div class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
+      chartHtml+='<div data-pane="overview" class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
     }
     /* The Claude macro narrative's read on this sector lives on the
        Macro Outlook Overview (Key sector influences); the sector tab keeps
        only its own structural headwinds and tailwinds. */
     if(signalsHtml){
-      chartHtml+='<div class="pp-section pp-signals"><span class="pp-section-label">Sector Headwinds &amp; Tailwinds</span>'+signalsHtml+'</div>';
+      chartHtml+='<div data-pane="forces" class="pp-section pp-signals"><span class="pp-section-label">Sector Headwinds &amp; Tailwinds</span>'+signalsHtml+'</div>';
     }
 
     /* --- B. The Pool ------------------------------------------------
        The chart follows the prose that describes it; they used to sit
        four sections apart. */
     if(structureHtml){
-      chartHtml+='<div class="pp-section pp-structure"><span class="pp-section-label">Profit Pool Structure</span>'+structureHtml+'</div>';
+      chartHtml+='<div data-pane="pool" class="pp-section pp-structure"><span class="pp-section-label">Profit Pool Structure</span>'+structureHtml+'</div>';
     }
     /* Companies | Industries: the same pool one level down. The toggle
        only shows when the sector has an industry breakdown to show. */
     var industriesHtml=renderPoolIndustries(sec);
-    chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Analysis</span>'
+    chartHtml+='<div data-pane="pool" class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Analysis</span>'
       +(industriesHtml?'<div class="ppc-tabs"><button type="button" class="pp-range-btn ppc-tab active" onclick="_ppChartView(this,\'co\')">Companies</button><button type="button" class="pp-range-btn ppc-tab" onclick="_ppChartView(this,\'ind\')">Industries</button></div>':'')
       +'<div class="ppc-view" data-view="co"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div class="pph-key"><span><i style="background:#1a9850"></i>BUY</span><span><i style="background:#74c476"></i>LEAN BUY</span><span><i style="background:#fd8d3c"></i>HOLD</span><span><i style="background:#de2d26"></i>PASS</span><span><i style="background:#90a4ae"></i>Others (pooled tail)</span></div>'+renderPoolCompanyTable(shownCos,tailCos)+'</div>'
       +(industriesHtml?'<div class="ppc-view" data-view="ind" hidden>'+industriesHtml+'</div>':'')+'</div>';
@@ -13471,25 +13524,28 @@ function renderPool(){
     /* Then the pool over time: how it got to the shape drawn above, and
        which companies won and lost share on the way. */
     if(historyHtml){
-      chartHtml+='<div class="pp-section pp-history"><span class="pp-section-label">Pool History</span>'+historyHtml+'</div>';
+      chartHtml+='<div data-pane="history" class="pp-section pp-history"><span class="pp-section-label">Pool History</span>'+historyHtml+'</div>';
     }
     if(shiftsHtml){
-      chartHtml+='<div class="pp-section pp-shifts"><span class="pp-section-label">Share Shifts</span>'+shiftsHtml+'</div>';
+      chartHtml+='<div data-pane="history" class="pp-section pp-shifts"><span class="pp-section-label">Share Shifts</span>'+shiftsHtml+'</div>';
     }
     /* And what the pool is worth after paying for its capital. */
     if(econHtml){
-      chartHtml+='<div class="pp-section pp-econ"><span class="pp-section-label">Accounting vs Economic Pool</span>'+econHtml+'</div>';
+      chartHtml+='<div data-pane="value" class="pp-section pp-econ"><span class="pp-section-label">Accounting vs Economic Pool</span>'+econHtml+'</div>';
     }
 
     /* --- C. Who Owns the Pool --------------------------------------- */
     if(companiesHtml){
-      chartHtml+='<div class="pp-section pp-companies"><span class="pp-section-label">Who Owns the Pool</span>'+companiesHtml+'</div>';
+      chartHtml+='<div data-pane="companies" class="pp-section pp-companies"><span class="pp-section-label">Who Owns the Pool</span>'+companiesHtml+'</div>';
     }
 
     /* --- D. Flow ---------------------------------------------------- */
     if(liquidityHtml){
-      chartHtml+='<div class="pp-section pp-liquidity"><span class="pp-section-label">Liquidity &amp; Flow</span>'+liquidityHtml+'</div>';
+      chartHtml+='<div data-pane="flow" class="pp-section pp-liquidity"><span class="pp-section-label">Liquidity &amp; Flow</span>'+liquidityHtml+'</div>';
     }
+    chartHtml=chartHtml.slice(0,_bodyStart)+_ppSubTabs(chartHtml.slice(_bodyStart),{
+      overview:!!primerHtml,forces:!!signalsHtml,pool:true,history:!!(historyHtml||shiftsHtml),
+      value:!!econHtml,companies:!!companiesHtml,flow:!!liquidityHtml});
     chartHtml+='</div>';
     /* Per-sector summary tableRows removed: rows were only built when a
        single sector tab was chosen, but the table only rendered on the
