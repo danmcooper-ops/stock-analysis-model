@@ -203,3 +203,14 @@ def test_pool_table_sort_arrow_matches_the_gate_matrix():
     css = _tpl()
     assert "content:'\\2195'" not in css
     assert '.ppi-sort th[aria-sort="descending"]::after{content:\' \\25BC\\FE0E\';}' in css
+
+
+def test_sector_sections_share_one_neutral_dark_surface():
+    """The Companies pane was dark green (and others navy, blue, teal),
+    which read as a status colour."""
+    css = _tpl()
+    for sec in ('primer', 'structure', 'companies', 'liquidity'):
+        assert not re.search(r'\[data-theme="dark"\] \.pp-%s\{background:#(?!161b22)' % sec, css), sec
+    assert ('[data-theme="dark"] .pp-primer,[data-theme="dark"] .pp-structure,'
+            '[data-theme="dark"] .pp-companies,[data-theme="dark"] .pp-liquidity,'
+            '[data-theme="dark"] .pp-chart{background:#161b22;}') in css
