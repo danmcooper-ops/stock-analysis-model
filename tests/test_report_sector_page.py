@@ -187,3 +187,11 @@ def test_sub_tabs_sit_above_the_sector_card():
     assert ("chartHtml=chartHtml.slice(0,_secStart)+_tabs.bar+chartHtml.slice(_secStart,_bodyStart)+_tabs.body;"
             in css)
     assert css.index("var _secStart=chartHtml.length;") < css.index("<div class=\"pool-sector\" id=\"pool-sec-")
+
+
+def test_the_sector_banner_is_gone():
+    """The sector tab names the sector and the structure section quotes its
+    count, HHI and CR4; the banner repeated them."""
+    css = _tpl()
+    for gone in ('pool-sec-hdr', 'pool-sec-stats', 'pool-sec-name'):
+        assert gone not in css, gone
