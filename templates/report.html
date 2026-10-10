@@ -1464,9 +1464,11 @@ td.ct{font-weight:700;}
 .ppi-co{cursor:pointer;}
 .ppi-sort th{cursor:pointer;user-select:none;}
 .ppi-sort th:hover{color:#37474f;}
-.ppi-sort th::after{content:'\2195';margin-left:4px;opacity:0.3;font-weight:400;}
-.ppi-sort th[aria-sort="descending"]::after{content:'\25BC';opacity:0.9;font-size:0.8em;}
-.ppi-sort th[aria-sort="ascending"]::after{content:'\25B2';opacity:0.9;font-size:0.8em;}
+/* Like the Gate Matrix: only the sorted column carries an arrow, a plain
+   triangle after its label. (An unsorted \2195 hint drew as a grey emoji
+   box on iOS.) The \FE0E selector keeps the triangle a text glyph. */
+.ppi-sort th[aria-sort="descending"]::after{content:' \25BC\FE0E';}
+.ppi-sort th[aria-sort="ascending"]::after{content:' \25B2\FE0E';}
 .ppi-co:hover td{background:rgba(127,127,127,0.06);}
 .ppi-rt{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0;}
 .ppi-tbl td:nth-child(2){white-space:nowrap;}
