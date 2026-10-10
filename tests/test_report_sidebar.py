@@ -278,3 +278,42 @@ def test_ticker_key_metrics_wrap_to_two_columns_on_phones():
     assert '#det-modal .d-kmetrics .km-cell:last-child:nth-child(odd){grid-column:1/-1;}' in src
     assert '#det-modal .d-kmetrics .km-k{font-size:.66em;white-space:normal;' in src
     assert '#det-modal .d-kmetrics .km-sub{font-size:.64em;white-space:normal;}' in src
+
+
+def _node_eval(src_fns, setup, expr, tmp_path):
+    import json
+    import shutil
+    import subprocess
+    if shutil.which('node') is None:
+        import pytest
+        pytest.skip('node not installed')
+    js = setup + '\n' + '\n'.join(src_fns) + '\nprocess.stdout.write(JSON.stringify(' + expr + '));'
+    p = tmp_path / 'sb.js'
+    p.write_text(js, encoding='utf-8')
+    return json.loads(subprocess.run(['node', str(p)], capture_output=True, text=True,
+                                     check=True).stdout)
+
+
+def _fn_src(name):
+    import re
+    src = open(TEMPLATE, encoding='utf-8').read()
+    return re.search(r'^function ' + name + r'\(.*?^\}', src, re.S | re.M).group(0)
+
+
+def test_sidebar_mode_follows_the_css_media_queries_not_zoom(tmp_path):
+    """Zoomed out on an iPad mini, window.innerWidth read ~1,500px and the
+    menu button decided it was on a desktop; the CSS (media queries) still
+    showed the phone bar. The mode now asks the same media queries."""
+    setup = ('var window={innerWidth:1500,matchMedia:function(q){return {matches:'
+             '/max-width:768px/.test(q)||/max-width:1023px/.test(q)};}};'
+             'var document={documentElement:{clientWidth:744}};')
+    assert _node_eval([_fn_src('_sbMode')], setup, '_sbMode()', tmp_path) == 'phone'
+
+
+def test_wide_views_reset_ios_zoom_once_on_entry():
+    src = open(TEMPLATE, encoding='utf-8').read()
+    fn = _fn_src('_syncWideTable')
+    assert 'if(wide&&!_wasWide)setTimeout(_resetIosZoom,0);' in fn
+    reset = _fn_src('_resetIosZoom')
+    assert "maximum-scale=1.0" in reset and "m.setAttribute('content',orig)" in reset
+    assert 'minimum-scale=0.5' in src.split('<meta name="viewport"')[1].split('>')[0]

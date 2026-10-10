@@ -10333,8 +10333,25 @@ function _pageScroll(){return true;}
    see the PAGE-WIDE CHROME CSS block. Only the two virtualized table views
    pan the page; everywhere else the class stays off and layout is
    untouched. Called from showView/swMSub/swTSub after their state updates. */
+/* iOS/iPadOS Safari zooms a page out to fit when the document is wider
+   than the screen, and in the table views it is as wide as the table, so
+   the Gate Matrix opened at the 0.5 zoom floor (iPadOS's desktop-class
+   browsing ignores shrink-to-fit=no). Entering a wide view snaps the zoom
+   back to 1 by briefly capping maximum-scale, then restores the viewport so
+   pinching out still works. */
+var _wasWide=false;
+function _resetIosZoom(){
+  var ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+  var m=ios&&document.querySelector('meta[name="viewport"]');
+  if(!m)return;
+  var orig=m.getAttribute('content');
+  m.setAttribute('content',orig.replace(/minimum-scale=[\d.]+/,'minimum-scale=1.0')+', maximum-scale=1.0');
+  setTimeout(function(){m.setAttribute('content',orig);},350);
+}
 function _syncWideTable(){
   var wide=(curView==='matrix'&&curMSub!=='dashboard')||(curView==='table'&&curTSub!=='prices');
+  if(wide&&!_wasWide)setTimeout(_resetIosZoom,0);
+  _wasWide=wide;
   document.body.classList.toggle('wide-table',wide);
   var cont=document.querySelector('.container');
   /* Measure with the widening CLEARED: the table's width:100% resolves
@@ -10580,8 +10597,16 @@ document.addEventListener('click',function(e){
    phone / phone landscape: an off-canvas drawer (html.sb-drawer). */
 var _SB_KEY='stock_sidebar_v1';
 function _sbMode(){
-  if(window.matchMedia&&window.matchMedia('(orientation:landscape) and (max-height:500px)').matches)return'lphone';
-  var w=window.innerWidth||1280;
+  /* Ask the same media queries the CSS uses. window.innerWidth is the
+     VISUAL viewport on iOS: zoomed out over the Gate Matrix on an iPad mini
+     it read ~1,500px, so the menu decided it was on a desktop and the top
+     bar's menu button did nothing while the CSS still showed the phone bar. */
+  var mm=window.matchMedia&&function(q){return window.matchMedia(q).matches;};
+  if(mm){
+    if(mm('(orientation:landscape) and (max-height:500px)'))return'lphone';
+    return mm('(max-width:768px)')?'phone':(mm('(max-width:1023px)')?'tablet':'desk');
+  }
+  var w=document.documentElement.clientWidth||window.innerWidth||1280;
   return w<=768?'phone':(w<1024?'tablet':'desk');
 }
 function _sbStoredRail(){try{return localStorage.getItem(_SB_KEY)==='rail';}catch(e){return false;}}
