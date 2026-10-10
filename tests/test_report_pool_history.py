@@ -238,3 +238,48 @@ def test_an_industry_force_names_its_industry_once(tmp_path):
     card = html.split('Software dollar share keeps rising')[1].split('<div class="ppf ppf-')[0]
     assert card.count('Software - Infrastructure') == 1
     assert '<b>Who gains:</b> 3 companies' in card
+
+
+def _render_co_table(shown, tail, tmp_path):
+    src = TEMPLATE.read_text(encoding='utf-8')
+    names = ['_ppPct', '_ppSgnPct', '_ppSkewTd', 'renderPoolCompanyTable']
+    js = '\n'.join(["var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
+                    'function _esc(s){return String(s);}function _attr(s){return String(s);}',
+                    re.search(r'^var _PP_BS_INDUSTRIES=.*$', src, re.M).group(0)]
+                   + [_fn(src, n) for n in names]
+                   + ['process.stdout.write(renderPoolCompanyTable(%s,%s));'
+                      % (json.dumps(shown), json.dumps(tail))])
+    script = tmp_path / 'co.js'
+    script.write_text(js, encoding='utf-8')
+    return subprocess.run(['node', str(script)], capture_output=True, text=True,
+                          check=True).stdout
+
+
+def _co(t, rev, pool, **kw):
+    return dict({'ticker': t, 'company_name': t + ' Inc', 'rating': 'BUY', 'sector': 'Basic Materials',
+                 'industry': 'Gold', 'pp_revenue_share': rev, 'pp_profit_share': pool,
+                 'operating_margin': 0.2, 'spread': 0.05, '_gate_pool_share': 0.03}, **kw)
+
+
+def test_company_table_mirrors_the_industries_table(tmp_path):
+    shown = [_co('A%02d' % k, 0.02, 0.02 + (0.001 * k)) for k in range(25)]
+    tail = [_co('T%d' % k, 0.001, 0.0005) for k in range(10)]
+    html = _render_co_table(shown, tail, tmp_path)
+    assert html.count('<tr class="ppi-co"') == 25
+    assert '<td>Others <span class="ppi-dim">(10 companies)</span>' in html
+    assert html.index('A24') < html.index('A00')                  # by pool share
+    assert '<th>Pool share trend</th>' in html and '+3.0%/yr' in html
+    assert 'data-tk="A00" onclick="openDet(this.dataset.tk)"' in html
+    assert 'class="ppi-tbl"' in html
+
+
+def test_company_table_highlights_and_blanks(tmp_path):
+    shown = [_co('HI', 0.10, 0.125), _co('LO', 0.10, 0.075), _co('MID', 0.10, 0.1),
+             _co('JPM', 0.10, 0.1, sector='Financial Services', industry='Banks - Diversified'),
+             _co('NEW', 0.10, 0.1, _gate_pool_share=None)]
+    html = _render_co_table(shown, [], tmp_path)
+    row = lambda t: html.split('data-tk="%s"' % t)[1].split('</tr>')[0]   # noqa: E731
+    assert 'ppi-hi' in row('HI') and 'ppi-lo' in row('LO') and 'ppi-' not in row('MID').replace('ppi-dim', '').replace('ppi-rt', '')
+    assert row('JPM').count('<td>—</td>') == 1                # spread only
+    assert row('NEW').endswith('<td>—</td>')
+    assert '<td>Others' not in html and 'pooled as Others' not in html

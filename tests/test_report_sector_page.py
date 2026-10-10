@@ -152,3 +152,13 @@ def test_history_and_shifts_render_from_sector_pool_only():
         assert fn, name
         assert 'DATA' not in fn.group(0), '%s reads DATA' % name
         assert 'SECTOR_POOL' in fn.group(0)
+
+
+def test_both_pool_chart_views_carry_a_table():
+    """The Companies view had only its chart; it now has the same table as
+    the Industries view."""
+    css = _tpl()
+    assert 'renderPoolCompanyTable(shownCos,tailCos)' in css
+    for name in ('renderPoolCompanyTable', 'renderPoolIndustries'):
+        fn = re.search(r'function ' + name + r'\(.*?\n\}\n', css, re.S)
+        assert fn and 'class="ppi-tbl"' in fn.group(0), name

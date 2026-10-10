@@ -1449,6 +1449,10 @@ td.ct{font-weight:700;}
 .ppi-tbl th:first-child,.ppi-tbl td:first-child{text-align:left;white-space:normal;}
 .ppi-dim{color:#90a4ae;font-size:0.9em;}
 .ppi-hi{color:#2e7d32;font-weight:700;}
+.ppi-co{cursor:pointer;}
+.ppi-co:hover td{background:rgba(127,127,127,0.06);}
+.ppi-rt{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0;}
+.ppi-tbl td:nth-child(2){white-space:nowrap;}
 .ppi-lo{color:#c62828;font-weight:700;}
 .ppe-bars{display:grid;gap:6px;margin:4px 0 0;max-width:560px;}
 .ppe-row{display:grid;grid-template-columns:118px 1fr 56px;align-items:center;gap:8px;font-size:0.8em;color:#37474f;}
@@ -11729,6 +11733,41 @@ function renderPoolIndustries(sec){
   out+='</tbody></table></div><p class="pph-note">Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is each industry’s consistent-panel growth over the sector’s history window, or over its own years where shown in brackets; — where too few of its companies reported throughout.</p>';
   return out;
 }
+/* Companies view of the pool chart: the table behind the bars, built like
+   the Industries table so the two toggles read the same way. One row per
+   charted company (the top PP_TOP_N by revenue) ordered by pool share, then
+   the pooled Others row. Pool share trend is the Pool Share gate's value:
+   the 5-year CAGR of the company's share of the sector pool. */
+var _PP_BS_INDUSTRIES={'Banks - Regional':1,'Banks - Diversified':1,'Mortgage Finance':1,'Credit Services':1,'Capital Markets':1};
+function _ppSkewTd(pool,rev){
+  var skew=(pool!=null&&rev>0)?pool/rev:null;
+  return '<td'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(pool)+'</td>';
+}
+function renderPoolCompanyTable(shown,tail){
+  if(!shown||!shown.length)return '';
+  var rows=shown.slice().sort(function(a,b){return (b.pp_profit_share||0)-(a.pp_profit_share||0);});
+  var out='<div class="ppi-wrap"><table class="ppi-tbl"><thead><tr><th>Company</th><th>Rating</th><th>Revenue</th><th>Pool</th><th>Margin</th><th>Spread</th><th>Pool share trend</th></tr></thead><tbody>';
+  rows.forEach(function(d){
+    var bs=d.sector==='Financial Services'&&_PP_BS_INDUSTRIES[d.industry];
+    var tr=d._gate_pool_share;
+    out+='<tr class="ppi-co" data-tk="'+_attr(d.ticker)+'" onclick="openDet(this.dataset.tk)">'
+      +'<td>'+_esc(d.ticker)+(d.company_name?' <span class="ppi-dim">'+_esc(String(d.company_name).slice(0,28))+'</span>':'')+'</td>'
+      +'<td><span class="ppi-rt" style="background:'+(RC[d.rating]||'#90a4ae')+'"></span>'+_esc(d.rating||'—')+'</td>'
+      +'<td>'+_ppPct(d.pp_revenue_share)+'</td>'
+      +_ppSkewTd(d.pp_profit_share,d.pp_revenue_share)
+      +'<td>'+_ppPct(d.operating_margin)+'</td>'
+      +'<td>'+(bs||d.spread==null?'—':_ppSgnPct(d.spread))+'</td>'
+      +'<td>'+(tr==null?'—':_ppSgnPct(tr)+'/yr')+'</td></tr>';
+  });
+  if(tail&&tail.length){
+    var rev=0,pool=0,wm=0;
+    tail.forEach(function(d){var r=d.pp_revenue_share||0;rev+=r;pool+=d.pp_profit_share||0;wm+=(d.operating_margin||0)*r;});
+    out+='<tr><td>Others <span class="ppi-dim">('+tail.length+' companies)</span></td><td>—</td><td>'+_ppPct(rev)+'</td>'
+      +_ppSkewTd(pool,rev)+'<td>'+(rev>0?_ppPct(wm/rev):'—')+'</td><td>—</td><td>—</td></tr>';
+  }
+  out+='</tbody></table></div><p class="pph-note">Bar width ∝ √revenue share, height = operating margin, colour = rating'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Click a company to open it.</p>';
+  return out;
+}
 function _ppChartView(btn,v){
   var box=btn.closest('.pp-chart');if(!box)return;
   box.querySelectorAll('.ppc-tab').forEach(function(b){b.classList.toggle('active',b===btn);});
@@ -13372,7 +13411,7 @@ function renderPool(){
     var industriesHtml=renderPoolIndustries(sec);
     chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Analysis</span>'
       +(industriesHtml?'<div class="ppc-tabs"><button type="button" class="pp-range-btn ppc-tab active" onclick="_ppChartView(this,\'co\')">Companies</button><button type="button" class="pp-range-btn ppc-tab" onclick="_ppChartView(this,\'ind\')">Industries</button></div>':'')
-      +'<div class="ppc-view" data-view="co"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#90a4ae"></span>Others (pooled tail)</span></div><span style="font-size:0.7em;color:#aaa">Bar width &prop; &radic;revenue share (top 25 by revenue shown; remainder pooled as Others) &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>'
+      +'<div class="ppc-view" data-view="co"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div class="pph-key"><span><i style="background:#1a9850"></i>BUY</span><span><i style="background:#74c476"></i>LEAN BUY</span><span><i style="background:#fd8d3c"></i>HOLD</span><span><i style="background:#de2d26"></i>PASS</span><span><i style="background:#90a4ae"></i>Others (pooled tail)</span></div>'+renderPoolCompanyTable(shownCos,tailCos)+'</div>'
       +(industriesHtml?'<div class="ppc-view" data-view="ind" hidden>'+industriesHtml+'</div>':'')+'</div>';
 
     /* Then the pool over time: how it got to the shape drawn above, and
