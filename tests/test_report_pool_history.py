@@ -407,3 +407,9 @@ def test_who_owns_the_pool_is_a_list_with_bullets(tmp_path):
     assert '<li><b>Role:</b> The center of gravity.</li>' in html
     assert '<li><b>Model:</b> Trades above DCF.</li>' in html
     assert 'onclick="openDet(this.dataset.tk)"' in html
+
+
+def test_company_table_shows_tickers_only(tmp_path):
+    html = _render_co_table([_co('BHP', 0.04, 0.1, company_name='BHP Group Limited')], [], tmp_path)
+    assert '<td data-v="BHP">BHP</td>' in html
+    assert 'title="BHP Group Limited"' in html and '>BHP Group Limited<' not in html
