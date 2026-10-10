@@ -1351,7 +1351,7 @@ td.ct{font-weight:700;}
 .ppf-colh small{font-weight:400;color:var(--ppf-sub);font-size:0.9em;}
 .ppf-colh.tw{color:var(--ppf-tw);}.ppf-colh.hw{color:var(--ppf-hw);}
 .ppf{border-bottom:1px solid var(--ppf-line);font-size:0.82em;line-height:1.5;color:var(--ppf-txt);padding:10px 2px;}
-.ppf-hdr{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:2px 10px;align-items:baseline;}
+.ppf-hdr{display:grid;grid-template-columns:96px minmax(0,1fr);gap:2px 10px;align-items:baseline;}
 .ppf-st{display:inline-flex;align-items:center;gap:6px;font-size:0.9em;font-weight:600;white-space:nowrap;color:var(--ppf-sub);}
 .ppf-dot{flex:none;width:9px;height:9px;border-radius:50%;border:2px solid var(--ppf-q);box-sizing:border-box;}
 .ppf-tw .ppf-active .ppf-dot{background:var(--ppf-tw);border-color:var(--ppf-tw);}
@@ -1364,11 +1364,10 @@ td.ct{font-weight:700;}
 .ppf-qualitative .ppf-dot,.ppf-no_data .ppf-dot{border-style:dashed;}
 .ppf-th{font-weight:600;}
 .ppf-meta{display:block;font-weight:400;color:var(--ppf-sub);font-size:0.9em;}
-.ppf-rch{font-size:0.9em;color:var(--ppf-sub);white-space:nowrap;text-align:right;}
 .ppf-ul{margin:6px 0 0 106px;padding-left:16px;list-style:disc;}
 .ppf-ul li{margin:3px 0;}
 .ppf-ul b{font-weight:600;}
-@media(max-width:520px){.ppf-hdr{grid-template-columns:minmax(0,1fr) auto;}.ppf-hdr .ppf-st{grid-column:1 / 3;}.ppf-ul{margin-left:0;}}
+@media(max-width:520px){.ppf-hdr{grid-template-columns:minmax(0,1fr);}.ppf-ul{margin-left:0;}}
 .ppf-spark{display:inline-block;vertical-align:middle;margin-left:4px;}
 .ppf-spark polyline{fill:none;stroke:#4f7cac;stroke-width:1.5;}
 [data-theme="dark"] .ppf-spark polyline{stroke:#6e9bd1;}
@@ -1380,7 +1379,7 @@ td.ct{font-weight:700;}
    which would otherwise flatten the status colours and the muted lines. */
 [data-theme="dark"] .ppf-tw .ppf-active,[data-theme="dark"] .ppf-tw .ppf-building,[data-theme="dark"] .ppf-colh.tw{color:var(--ppf-tw) !important;}
 [data-theme="dark"] .ppf-hw .ppf-active,[data-theme="dark"] .ppf-hw .ppf-building,[data-theme="dark"] .ppf-colh.hw{color:var(--ppf-hw) !important;}
-[data-theme="dark"] .ppf-st,[data-theme="dark"] .ppf-rch,[data-theme="dark"] .ppf-meta,[data-theme="dark"] .ppf-mkt,[data-theme="dark"] .ppf-key,[data-theme="dark"] .ppf-key span,[data-theme="dark"] .ppf-note,[data-theme="dark"] .ppf-colh small,[data-theme="dark"] .ppf-chip i{color:var(--ppf-sub) !important;}
+[data-theme="dark"] .ppf-st,[data-theme="dark"] .ppf-meta,[data-theme="dark"] .ppf-mkt,[data-theme="dark"] .ppf-key,[data-theme="dark"] .ppf-key span,[data-theme="dark"] .ppf-note,[data-theme="dark"] .ppf-colh small,[data-theme="dark"] .ppf-chip i{color:var(--ppf-sub) !important;}
 [data-theme="dark"] .pp-primer,
 [data-theme="dark"] .pp-structure,
 [data-theme="dark"] .pp-liquidity,
@@ -11991,8 +11990,8 @@ function _ppfExposure(f){
     out+='<li><b>'+(tw?'Most to gain':'Most exposed')+'</b> (the '+by+'): '+_ppfChips(e,e.most)+'</li>';
     if(e.least&&e.least.length)out+='<li><b>'+(tw?'Least to gain':'Least exposed')+':</b> '+_ppfChips(e,e.least)+'</li>';
   }else{
-    var grp=e.basis==='industry'?_esc(e.industry):_esc(e.label);
-    out+='<li><b>'+(tw?'Who gains':'Who is exposed')+':</b> '+grp+', '+e.n+' companies, largest share of profit first: '+_ppfChips(e,e.most)+'</li>';
+    var grp=e.basis==='industry'?'':_esc(e.label)+', ';
+    out+='<li><b>'+(tw?'Who gains':'Who is exposed')+':</b> '+grp+e.n+' companies, largest share of profit first: '+_ppfChips(e,e.most)+'</li>';
   }
   return out;
 }
@@ -12010,9 +12009,10 @@ function _ppfBalance(b){
 }
 function _ppfCard(f){
   var meta=[_PPF_TYPE[f.type]||'',f.horizon==='secular'?'secular':f.horizon==='cyclical'?'cyclical':''].filter(Boolean).join(', ');
-  /* Reach sits beside the title only for a force that is moving; on a
-     quiet or unmeasured one it would read as a measurement. */
-  var hasReach=f.exposure&&f.exposure.reach!=null,rowReach=hasReach&&_ppfLive(f);
+  /* Each fact appears once: reach lives in its bullet, not also beside
+     the title, and an industry named in the evidence is not named again
+     under who gains. */
+  var hasReach=f.exposure&&f.exposure.reach!=null;
   var ev=_ppfEvidence(f);
   var items=(ev?'<li><b>Evidence:</b> '+ev+'</li>':'')
     +(hasReach?'<li><b>Reach:</b> '+_ppPct(f.exposure.reach,0)+' of the sector’s revenue'+(f.exposure.pool_share!=null?', '+_ppPct(f.exposure.pool_share,0)+' of its profit pool':'')+'.</li>':'')
@@ -12020,8 +12020,7 @@ function _ppfCard(f){
     +(f.detail?'<li><b>Why it matters:</b> '+_esc(f.detail.charAt(0).toUpperCase()+f.detail.slice(1))+'</li>':'');
   return '<div class="ppf ppf-'+(f.kind==='tailwind'?'tw':'hw')+'">'
     +'<div class="ppf-hdr"><span class="ppf-st ppf-'+f.status+'"><i class="ppf-dot"></i>'+(_PPF_ST[f.status]||f.status)+'</span>'
-    +'<span class="ppf-th">'+_esc(f.theme)+(meta?'<span class="ppf-meta">'+meta+'</span>':'')+'</span>'
-    +'<span class="ppf-rch"'+(rowReach?' title="Share of the sector’s revenue this force reaches">'+_ppPct(f.exposure.reach,0)+' of sector':'>')+'</span></div>'
+    +'<span class="ppf-th">'+_esc(f.theme)+(meta?'<span class="ppf-meta">'+meta+'</span>':'')+'</span></div>'
     +(items?'<ul class="ppf-ul">'+items+'</ul>':'')
     +'</div>';
 }

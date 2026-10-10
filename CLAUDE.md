@@ -702,7 +702,7 @@ ruff check .
   On the page, `renderPoolSectorSignals` lists every force in full, with
   nothing to expand. Each force has a header: a plain-word status (Acting
   now / Building / Fading / Not acting / Not measured / No data, mapped
-  from active … no_data), its type, and reach for moving forces only.
+  from active … no_data) and its type, with each fact stated once.
   Under it are bullets: evidence (with a sparkline), reach, who is
   exposed, and why it matters. Moving forces sort first. The colour
   overrides carry `!important` against the blanket dark `body *` text

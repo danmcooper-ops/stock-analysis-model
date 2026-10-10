@@ -211,7 +211,8 @@ def test_force_cards_show_reach_and_who_feels_it(tmp_path):
     html = _render_signals({'forces': res}, tmp_path)
     assert 'Headwinds outweigh tailwinds' in html
     card = html.split('Interest-rate sensitivity')[1].split('class="ppf ppf-')[0]
-    assert 'of sector</span>' in card.split('<ul')[0]                     # reach beside the title
+    assert 'of sector' not in card                                         # reach only once
+    assert card.count('<b>Reach:</b>') == 1
     assert '<li><b>Most exposed</b> (the highest net debt / EBITDA)' in card
     assert '<li><b>Least exposed:</b>' in card and '<li><b>Reach:</b>' in card
     assert 'data-tk="LEV0"' in card and '\u00d7' in card
@@ -225,3 +226,15 @@ def test_own_window_label_names_both_blocks(tmp_path):
     html = _render(None, "renderPoolIndustries('Tech')", tmp_path, {'industries': inds})
     assert '(FY2016\u201318 to FY2021\u201323)' in html
     assert html.count('ppi-dim" title') == 1
+
+
+def test_an_industry_force_names_its_industry_once(tmp_path):
+    from models.sector_forces import evaluate_forces
+    from tests.test_sector_forces import _entry
+    from tests.test_sector_pool import YEARS, _flat
+    rows = [dict(_flat(t, YEARS, 100 + i, 0.2, 0.08), industry='Software - Infrastructure', sector='Technology')
+            for i, t in enumerate(('MSFT', 'ORCL', 'X'))]
+    html = _render_signals({'forces': evaluate_forces('Technology', None, _entry(0.14), rows)}, tmp_path)
+    card = html.split('Software dollar share keeps rising')[1].split('<div class="ppf ppf-')[0]
+    assert card.count('Software - Infrastructure') == 1
+    assert '<b>Who gains:</b> 3 companies' in card
