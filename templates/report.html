@@ -1457,6 +1457,11 @@ td.ct{font-weight:700;}
 .ppi-dim{color:#90a4ae;font-size:0.9em;}
 .ppi-hi{color:#2e7d32;font-weight:700;}
 .ppi-co{cursor:pointer;}
+.ppi-sort th{cursor:pointer;user-select:none;}
+.ppi-sort th:hover{color:#37474f;}
+.ppi-sort th::after{content:'\2195';margin-left:4px;opacity:0.3;font-weight:400;}
+.ppi-sort th[aria-sort="descending"]::after{content:'\25BC';opacity:0.9;font-size:0.8em;}
+.ppi-sort th[aria-sort="ascending"]::after{content:'\25B2';opacity:0.9;font-size:0.8em;}
 .ppi-co:hover td{background:rgba(127,127,127,0.06);}
 .ppi-rt{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0;}
 .ppi-tbl td:nth-child(2){white-space:nowrap;}
@@ -11700,6 +11705,33 @@ function renderPoolShifts(sec){
     +'<div><div class="pps-hdr" style="color:#c62828">▼ Lost share</div>'+(_ppShiftRows(sh.losers,'pps-dn',maxD)||'<p class="pph-note">None</p>')+'</div></div>';
   return out;
 }
+/* Sortable pool tables (Industries and Companies). Click a header to sort
+   by it: numbers high to low first, names A to Z, a second click reverses.
+   Cells carry their raw value in data-v; a blank sorts last either way, and
+   pooled rows (Others, the folded small industries) stay at the bottom. */
+var _PPI_RANK={'BUY':4,'LEAN BUY':3,'HOLD':2,'PASS':1};
+function _ppiV(v){return (typeof v==='number'&&isFinite(v))?v:'';}
+function _ppiTh(label,type,initial){
+  return '<th data-t="'+(type||'n')+'"'+(initial?' aria-sort="descending"':'')+' onclick="_ppiSort(this)" tabindex="0" onkeydown="if(event.key===\'Enter\')_ppiSort(this)">'+label+'</th>';
+}
+function _ppiSort(th){
+  var row=th.parentNode,idx=[].indexOf.call(row.children,th),str=th.getAttribute('data-t')==='s';
+  var cur=th.getAttribute('aria-sort');
+  var dir=cur?(cur==='descending'?'ascending':'descending'):(str?'ascending':'descending');
+  [].forEach.call(row.children,function(h){h.removeAttribute('aria-sort');});
+  th.setAttribute('aria-sort',dir);
+  var tb=th.closest('table').tBodies[0],rows=[].slice.call(tb.rows);
+  var pin=rows.filter(function(r){return r.classList.contains('ppi-pin');});
+  var body=rows.filter(function(r){return !r.classList.contains('ppi-pin');});
+  body.sort(function(a,b){
+    var x=a.cells[idx].getAttribute('data-v'),y=b.cells[idx].getAttribute('data-v');
+    if(x===''||x==null)return (y===''||y==null)?0:1;
+    if(y===''||y==null)return -1;
+    var c=str?String(x).localeCompare(String(y)):(+x)-(+y);
+    return dir==='ascending'?c:-c;
+  });
+  body.concat(pin).forEach(function(r){tb.appendChild(r);});
+}
 /* Industries view of the pool chart (pp-chart, "Industries" toggle): the
    same Bain picture one level down, from SECTOR_POOL[sec].industries
    (models/sector_pool.industry_pools) — width = revenue share (linear: a
@@ -11730,12 +11762,12 @@ function renderPoolIndustries(sec){
   svg+='<text class="pph-tx" x="'+(pL+cW/2)+'" y="'+(H-6)+'" text-anchor="middle">Revenue share → (by industry, ordered by margin)</text>';
   var out='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%;height:auto;margin:4px 0 0">'+svg+'</svg>';
   out+='<div class="pph-key"><span><i class="ppi-pos"></i>Median spread ≥ 5 pts</span><span><i class="ppi-mid"></i>0–5 pts</span><span><i class="ppi-neg"></i>Below cost of capital</span></div>';
-  out+='<div class="ppi-wrap"><table class="ppi-tbl"><thead><tr><th>Industry</th><th>Cos</th><th>Revenue</th><th>Pool</th><th>Margin</th><th>Median spread</th><th>Pool CAGR</th></tr></thead><tbody>';
+  out+='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Industry','s')+_ppiTh('Cos')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)+_ppiTh('Margin')+_ppiTh('Median spread')+_ppiTh('Pool CAGR')+'</tr></thead><tbody>';
   inds.forEach(function(d){
     var skew=(d.pool_share!=null&&d.revenue_share>0)?d.pool_share/d.revenue_share:null;
-    out+='<tr><td>'+_esc(d.industry)+(d.folded?' <span class="ppi-dim">(industries under 3 companies)</span>':'')+'</td><td>'+d.n+'</td><td>'+_ppPct(d.revenue_share)+'</td>'
-      +'<td'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(d.pool_share)+'</td>'
-      +'<td>'+_ppPct(d.margin)+'</td><td>'+(d.median_spread==null?'\u2014':_ppSgnPct(d.median_spread))+'</td><td>'+(d.pool_cagr==null?'—':_ppSgnPct(d.pool_cagr)+'/yr'+(d.own_window&&d.window?' <span class="ppi-dim" title="Too few of its companies reported over the sector\u2019s window; measured over its own years">('+_ppFy({y0:d.window[0],block:d.window[2]})+' to '+_ppFy1({y1:d.window[1],block:d.window[2]})+')</span>':''))+'</td></tr>';
+    out+='<tr'+(d.folded?' class="ppi-pin"':'')+'><td data-v="'+_attr(d.industry)+'">'+_esc(d.industry)+(d.folded?' <span class="ppi-dim">(industries under 3 companies)</span>':'')+'</td><td data-v="'+d.n+'">'+d.n+'</td><td data-v="'+_ppiV(d.revenue_share)+'">'+_ppPct(d.revenue_share)+'</td>'
+      +'<td data-v="'+_ppiV(d.pool_share)+'"'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(d.pool_share)+'</td>'
+      +'<td data-v="'+_ppiV(d.margin)+'">'+_ppPct(d.margin)+'</td><td data-v="'+_ppiV(d.median_spread)+'">'+(d.median_spread==null?'\u2014':_ppSgnPct(d.median_spread))+'</td><td data-v="'+_ppiV(d.pool_cagr)+'">'+(d.pool_cagr==null?'—':_ppSgnPct(d.pool_cagr)+'/yr'+(d.own_window&&d.window?' <span class="ppi-dim" title="Too few of its companies reported over the sector\u2019s window; measured over its own years">('+_ppFy({y0:d.window[0],block:d.window[2]})+' to '+_ppFy1({y1:d.window[1],block:d.window[2]})+')</span>':''))+'</td></tr>';
   });
   out+='</tbody></table></div><p class="pph-note">Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is each industry’s consistent-panel growth over the sector’s history window, or over its own years where shown in brackets; — where too few of its companies reported throughout.</p>';
   return out;
@@ -11748,28 +11780,28 @@ function renderPoolIndustries(sec){
 var _PP_BS_INDUSTRIES={'Banks - Regional':1,'Banks - Diversified':1,'Mortgage Finance':1,'Credit Services':1,'Capital Markets':1};
 function _ppSkewTd(pool,rev){
   var skew=(pool!=null&&rev>0)?pool/rev:null;
-  return '<td'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(pool)+'</td>';
+  return '<td data-v="'+_ppiV(pool)+'"'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(pool)+'</td>';
 }
 function renderPoolCompanyTable(shown,tail){
   if(!shown||!shown.length)return '';
   var rows=shown.slice().sort(function(a,b){return (b.pp_profit_share||0)-(a.pp_profit_share||0);});
-  var out='<div class="ppi-wrap"><table class="ppi-tbl"><thead><tr><th>Company</th><th>Rating</th><th>Revenue</th><th>Pool</th><th>Margin</th><th>Spread</th><th>Pool share trend</th></tr></thead><tbody>';
+  var out='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Company','s')+_ppiTh('Rating')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)+_ppiTh('Margin')+_ppiTh('Spread')+_ppiTh('Pool share trend')+'</tr></thead><tbody>';
   rows.forEach(function(d){
     var bs=d.sector==='Financial Services'&&_PP_BS_INDUSTRIES[d.industry];
     var tr=d._gate_pool_share;
     out+='<tr class="ppi-co" data-tk="'+_attr(d.ticker)+'" onclick="openDet(this.dataset.tk)">'
-      +'<td>'+_esc(d.ticker)+(d.company_name?' <span class="ppi-dim">'+_esc(String(d.company_name).slice(0,28))+'</span>':'')+'</td>'
-      +'<td><span class="ppi-rt" style="background:'+(RC[d.rating]||'#90a4ae')+'"></span>'+_esc(d.rating||'—')+'</td>'
-      +'<td>'+_ppPct(d.pp_revenue_share)+'</td>'
+      +'<td data-v="'+_attr(d.ticker)+'">'+_esc(d.ticker)+(d.company_name?' <span class="ppi-dim">'+_esc(String(d.company_name).slice(0,28))+'</span>':'')+'</td>'
+      +'<td data-v="'+(_PPI_RANK[d.rating]||'')+'"><span class="ppi-rt" style="background:'+(RC[d.rating]||'#90a4ae')+'"></span>'+_esc(d.rating||'—')+'</td>'
+      +'<td data-v="'+_ppiV(d.pp_revenue_share)+'">'+_ppPct(d.pp_revenue_share)+'</td>'
       +_ppSkewTd(d.pp_profit_share,d.pp_revenue_share)
-      +'<td>'+_ppPct(d.operating_margin)+'</td>'
-      +'<td>'+(bs||d.spread==null?'—':_ppSgnPct(d.spread))+'</td>'
-      +'<td>'+(tr==null?'—':_ppSgnPct(tr)+'/yr')+'</td></tr>';
+      +'<td data-v="'+_ppiV(d.operating_margin)+'">'+_ppPct(d.operating_margin)+'</td>'
+      +'<td data-v="'+(bs?'':_ppiV(d.spread))+'">'+(bs||d.spread==null?'—':_ppSgnPct(d.spread))+'</td>'
+      +'<td data-v="'+_ppiV(tr)+'">'+(tr==null?'—':_ppSgnPct(tr)+'/yr')+'</td></tr>';
   });
   if(tail&&tail.length){
     var rev=0,pool=0,wm=0;
     tail.forEach(function(d){var r=d.pp_revenue_share||0;rev+=r;pool+=d.pp_profit_share||0;wm+=(d.operating_margin||0)*r;});
-    out+='<tr><td>Others <span class="ppi-dim">('+tail.length+' companies)</span></td><td>—</td><td>'+_ppPct(rev)+'</td>'
+    out+='<tr class="ppi-pin"><td>Others <span class="ppi-dim">('+tail.length+' companies)</span></td><td>—</td><td>'+_ppPct(rev)+'</td>'
       +_ppSkewTd(pool,rev)+'<td>'+(rev>0?_ppPct(wm/rev):'—')+'</td><td>—</td><td>—</td></tr>';
   }
   out+='</tbody></table></div><p class="pph-note">Bar width ∝ √revenue share, height = operating margin, colour = rating'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Click a company to open it.</p>';

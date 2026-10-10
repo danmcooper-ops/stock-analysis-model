@@ -161,4 +161,4 @@ def test_both_pool_chart_views_carry_a_table():
     assert 'renderPoolCompanyTable(shownCos,tailCos)' in css
     for name in ('renderPoolCompanyTable', 'renderPoolIndustries'):
         fn = re.search(r'function ' + name + r'\(.*?\n\}\n', css, re.S)
-        assert fn and 'class="ppi-tbl"' in fn.group(0), name
+        assert fn and 'class="ppi-tbl ppi-sort"' in fn.group(0), name
