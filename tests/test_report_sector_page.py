@@ -162,3 +162,19 @@ def test_both_pool_chart_views_carry_a_table():
     for name in ('renderPoolCompanyTable', 'renderPoolIndustries'):
         fn = re.search(r'function ' + name + r'\(.*?\n\}\n', css, re.S)
         assert fn and 'class="ppi-tbl ppi-sort"' in fn.group(0), name
+
+
+def test_every_section_belongs_to_a_sub_tab_with_a_hide_rule():
+    """The sector body is split into sub-tabs: each section carries a
+    data-pane, and every pane name has the CSS rule that hides it when
+    another tab is selected."""
+    css = _tpl()
+    body = _assembly(css)
+    sections = re.findall(r'<div data-pane="([a-z]+)" class="pp-section (pp-[a-z]+)"', body)
+    assert [s for _, s in sections] == ['pp-primer', 'pp-signals', 'pp-structure', 'pp-chart',
+                                        'pp-history', 'pp-shifts', 'pp-econ', 'pp-companies',
+                                        'pp-liquidity']
+    tabs = re.search(r'^var _PP_SUBTABS=(.*);$', css, re.M).group(1)
+    for pane in {p for p, _ in sections}:
+        assert "'%s'" % pane in tabs, pane
+        assert ('.pp-tabbed:not([data-tab="%s"])>[data-pane="%s"]{display:none;}' % (pane, pane)) in css

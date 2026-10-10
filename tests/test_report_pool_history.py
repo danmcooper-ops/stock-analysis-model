@@ -346,3 +346,30 @@ def test_sorter_keeps_blanks_last_and_pinned_rows_at_the_bottom():
     fn = _fn(src, '_ppiSort')
     assert "classList.contains('ppi-pin')" in fn and 'body.concat(pin)' in fn
     assert "if(x===''||x==null)return (y===''||y==null)?0:1;" in fn
+
+
+def _subtabs(body, has, tmp_path, stored=None):
+    src = TEMPLATE.read_text(encoding='utf-8')
+    store = ('var localStorage={getItem:function(){return %s;}};' % json.dumps(stored)
+             if stored is not None else '')
+    js = '\n'.join([store + 'var window={};function _esc(s){return String(s);}',
+                    re.search(r'^var _PP_SUBTABS=.*$', src, re.M).group(0),
+                    _fn(src, '_ppSubTabCur'), _fn(src, '_ppSubTabs'),
+                    'process.stdout.write(_ppSubTabs(%s,%s));' % (json.dumps(body), json.dumps(has))])
+    script = tmp_path / 'tabs.js'
+    script.write_text(js, encoding='utf-8')
+    return subprocess.run(['node', str(script)], capture_output=True, text=True,
+                          check=True).stdout
+
+
+def test_sub_tabs_skip_empty_groups_and_fall_back(tmp_path):
+    has = {'overview': True, 'forces': True, 'pool': True, 'history': False,
+           'value': True, 'companies': True, 'flow': False}
+    html = _subtabs('<div data-pane="overview">x</div>', has, tmp_path)
+    assert html.count('role="tab"') == 5
+    assert 'data-k="history"' not in html and 'data-k="flow"' not in html
+    assert '<div class="pp-tabbed" data-tab="overview">' in html             # default tab
+    assert 'class="pp-subtab active" aria-selected="true" data-k="overview"' in html
+    # a remembered tab is used when the sector has it, else the first one
+    assert 'data-tab="value"' in _subtabs('', has, tmp_path, stored='value')
+    assert 'data-tab="overview"' in _subtabs('', has, tmp_path, stored='flow')

@@ -665,6 +665,15 @@ ruff check .
   Mortgage Finance, Credit Services and Capital Markets are left out,
   since industry alone cannot tell V from COF. Exclusions are counted,
   never zero-filled.
+- **Sector page sub-tabs (`_ppSubTabs` in `templates/report.html`):** below
+  each sector's header band, the body is split into sub-tabs: Overview,
+  Headwinds & tailwinds, Profit pool, History, Economic profit, Companies,
+  Liquidity. Each `pp-section` carries a `data-pane`, and the
+  `.pp-tabbed[data-tab]` CSS shows one group at a time. A tab with no
+  content is left out. The choice carries across sectors and visits
+  (`stock_pp_subtab_v1`). Both pool tables (Industries and Companies) sort
+  by any header (`_ppiSort`): blanks sort last, and the pooled Others rows
+  stay at the bottom.
 - **Sector headwinds and tailwinds with evidence (`models/sector_forces.py`):**
   the 66 curated forces stay in `models/narrative.py`, word for word, and
   the Claude macro narrative still reads them. `FORCE_META` adds each
