@@ -665,8 +665,8 @@ ruff check .
   Mortgage Finance, Credit Services and Capital Markets are left out,
   since industry alone cannot tell V from COF. Exclusions are counted,
   never zero-filled.
-- **Sector page sub-tabs (`_ppSubTabs` in `templates/report.html`):** below
-  each sector's header band, the body is split into sub-tabs: Overview,
+- **Sector page sub-tabs (`_ppSubTabs` in `templates/report.html`):**
+  each sector's body is split into sub-tabs: Overview,
   Headwinds & tailwinds, Profit pool, History, Economic profit, Companies,
   Liquidity. The row sits directly under the sector tabs, above the
   sector card, styled with the ticker page's `d-stmt-tabs` classes. Each
