@@ -178,3 +178,12 @@ def test_every_section_belongs_to_a_sub_tab_with_a_hide_rule():
     for pane in {p for p, _ in sections}:
         assert "'%s'" % pane in tabs, pane
         assert ('.pp-tabbed:not([data-tab="%s"])>[data-pane="%s"]{display:none;}' % (pane, pane)) in css
+
+
+def test_sub_tabs_sit_above_the_sector_card():
+    """Main tabs, then sub-tabs, stacked like the ticker page's section and
+    statement tabs: the bar is spliced in before the sector's card."""
+    css = _tpl()
+    assert ("chartHtml=chartHtml.slice(0,_secStart)+_tabs.bar+chartHtml.slice(_secStart,_bodyStart)+_tabs.body;"
+            in css)
+    assert css.index("var _secStart=chartHtml.length;") < css.index("<div class=\"pool-sector\" id=\"pool-sec-")
