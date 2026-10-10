@@ -310,10 +310,17 @@ def test_sidebar_mode_follows_the_css_media_queries_not_zoom(tmp_path):
     assert _node_eval([_fn_src('_sbMode')], setup, '_sbMode()', tmp_path) == 'phone'
 
 
-def test_wide_views_reset_ios_zoom_once_on_entry():
-    src = open(TEMPLATE, encoding='utf-8').read()
+def test_wide_views_hold_a_full_size_zoom_floor_on_ios(tmp_path):
+    """A brief maximum-scale cap did not hold on an iPad: Safari re-fitted
+    the wide table to the 0.5 floor once the viewport was restored. The
+    floor itself is raised to 1.0 while a wide view is open, then restored."""
     fn = _fn_src('_syncWideTable')
-    assert 'if(wide&&!_wasWide)setTimeout(_resetIosZoom,0);' in fn
-    reset = _fn_src('_resetIosZoom')
-    assert "maximum-scale=1.0" in reset and "m.setAttribute('content',orig)" in reset
-    assert 'minimum-scale=0.5' in src.split('<meta name="viewport"')[1].split('>')[0]
+    assert 'if(wide!==_wasWide)_setIosZoomFloor(wide);' in fn
+    setup = ('var navigator={userAgent:"iPad",maxTouchPoints:5};'
+             'var meta={a:{content:"width=device-width, initial-scale=1.0, minimum-scale=0.5"},'
+             'getAttribute:function(k){return this.a[k];},setAttribute:function(k,v){this.a[k]=v;}};'
+             'var document={querySelector:function(){return meta;}};')
+    out = _node_eval([_fn_src('_isIos'), _fn_src('_setIosZoomFloor')], setup,
+                     '(function(){_setIosZoomFloor(true);var a=meta.a.content;'
+                     '_setIosZoomFloor(false);return [a,meta.a.content];})()', tmp_path)
+    assert out[0].endswith('minimum-scale=1.0') and out[1].endswith('minimum-scale=0.5')

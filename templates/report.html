@@ -10335,22 +10335,26 @@ function _pageScroll(){return true;}
    untouched. Called from showView/swMSub/swTSub after their state updates. */
 /* iOS/iPadOS Safari zooms a page out to fit when the document is wider
    than the screen, and in the table views it is as wide as the table, so
-   the Gate Matrix opened at the 0.5 zoom floor (iPadOS's desktop-class
-   browsing ignores shrink-to-fit=no). Entering a wide view snaps the zoom
-   back to 1 by briefly capping maximum-scale, then restores the viewport so
-   pinching out still works. */
+   the Gate Matrix opened at the viewport's 0.5 zoom floor (iPadOS's
+   desktop-class browsing ignores shrink-to-fit=no). Briefly capping
+   maximum-scale did not hold: Safari re-fitted to the floor as soon as the
+   viewport was restored. What Safari does honour is the floor itself, so
+   while a wide view is open on iOS the floor is 1.0 (the table pans
+   sideways at full size; pinching in still works), and it goes back to
+   the meta tag's own value when the view closes. */
 var _wasWide=false;
-function _resetIosZoom(){
-  var ios=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
-  var m=ios&&document.querySelector('meta[name="viewport"]');
+function _isIos(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+}
+function _setIosZoomFloor(wide){
+  var m=_isIos()&&document.querySelector('meta[name="viewport"]');
   if(!m)return;
-  var orig=m.getAttribute('content');
-  m.setAttribute('content',orig.replace(/minimum-scale=[\d.]+/,'minimum-scale=1.0')+', maximum-scale=1.0');
-  setTimeout(function(){m.setAttribute('content',orig);},350);
+  if(!m._origContent)m._origContent=m.getAttribute('content');
+  m.setAttribute('content',wide?m._origContent.replace(/minimum-scale=[\d.]+/,'minimum-scale=1.0'):m._origContent);
 }
 function _syncWideTable(){
   var wide=(curView==='matrix'&&curMSub!=='dashboard')||(curView==='table'&&curTSub!=='prices');
-  if(wide&&!_wasWide)setTimeout(_resetIosZoom,0);
+  if(wide!==_wasWide)_setIosZoomFloor(wide);
   _wasWide=wide;
   document.body.classList.toggle('wide-table',wide);
   var cont=document.querySelector('.container');
