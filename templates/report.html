@@ -1852,11 +1852,9 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .dkv .kv{color:#e6edf3;}
 [data-theme="dark"] .pool-sector{background:#161b22;border-color:#30363d;}
 [data-theme="dark"] .pp-section{border-color:#30363d;}
-[data-theme="dark"] .pp-primer{background:#0f1f3a;}
-[data-theme="dark"] .pp-structure{background:#0e1c30;}
-[data-theme="dark"] .pp-companies{background:#102a1b;}
-[data-theme="dark"] .pp-liquidity{background:#0d2528;}
-[data-theme="dark"] .pp-chart{background:#161b22;}
+/* One neutral surface for every sector section in dark mode; the old
+   per-section tints (navy, blue, green, teal) read as status colours. */
+[data-theme="dark"] .pp-primer,[data-theme="dark"] .pp-structure,[data-theme="dark"] .pp-companies,[data-theme="dark"] .pp-liquidity,[data-theme="dark"] .pp-chart{background:#161b22;}
 [data-theme="dark"] .pool-legend{color:#8b949e;}
 [data-theme="dark"] .xsect-dashboard{background:#161b22;border-top-color:#58a6ff;box-shadow:0 3px 14px rgba(0,0,0,0.4);}
 [data-theme="dark"] .xsect-title{color:#e6edf3;}
