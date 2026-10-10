@@ -195,3 +195,11 @@ def test_the_sector_banner_is_gone():
     css = _tpl()
     for gone in ('pool-sec-hdr', 'pool-sec-stats', 'pool-sec-name'):
         assert gone not in css, gone
+
+
+def test_pool_table_sort_arrow_matches_the_gate_matrix():
+    """Only the sorted column carries an arrow; no unsorted hint glyph,
+    which iOS drew as an emoji box."""
+    css = _tpl()
+    assert "content:'\\2195'" not in css
+    assert '.ppi-sort th[aria-sort="descending"]::after{content:\' \\25BC\\FE0E\';}' in css
