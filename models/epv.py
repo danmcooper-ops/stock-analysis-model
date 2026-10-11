@@ -19,7 +19,8 @@ _CONFIDENCE_FLOOR = 0.5
 
 def earnings_power_value_valuation(ebit, tax_rate, cost_of_capital,
                                    shares_outstanding, excess_cash=0,
-                                   total_debt=0, ebit_source=None):
+                                   total_debt=0, ebit_source=None,
+                                   basis='enterprise'):
     """Zero-growth valuation as a Valuation envelope:
     (NOPAT / cost_of_capital + cash - debt) per share.
 
@@ -41,8 +42,22 @@ def earnings_power_value_valuation(ebit, tax_rate, cost_of_capital,
 
     value is None on invalid inputs or a debt-swamped equity bridge, with
     the reason in `warnings`.
+
+    `basis='equity'` is the lender form: after-tax earnings capitalized at
+    the COST OF EQUITY (pass it as `cost_of_capital`) with no debt/cash
+    bridge — `excess_cash`/`total_debt` must be 0. A bank's "cash" is
+    deposit-funded (central-bank reserves, interbank placements) and its
+    debt is its funding, so the enterprise bridge measured the balance
+    sheet, not earnings power: C read $526 at a $128 price with cash 5.1x
+    its market cap, PNC $39 at $220 with cash 0.15x (2026-10-08). The
+    caller passes pretax income as `ebit` for a lender (its operating line;
+    see SECXBRLClient._reports_net_interest_income).
     """
-    method = 'epv_zero_growth'
+    if basis not in ('enterprise', 'equity'):
+        raise ValueError(f"basis must be 'enterprise' or 'equity', not {basis!r}")
+    if basis == 'equity' and (excess_cash or total_debt):
+        raise ValueError('equity-basis EPV takes no debt/cash bridge')
+    method = 'epv_zero_growth' if basis == 'enterprise' else 'epv_equity'
     caveats = []
     try:
         ebit = _validate_numeric('ebit', ebit, positive=True)
@@ -76,7 +91,7 @@ def earnings_power_value_valuation(ebit, tax_rate, cost_of_capital,
               'cost_of_capital': cost_of_capital,
               'shares_outstanding': shares_outstanding,
               'excess_cash': excess_cash, 'total_debt': total_debt,
-              'ebit_source': ebit_source}
+              'ebit_source': ebit_source, 'basis': basis}
     nopat = ebit * (1 - tax_rate)
     epv = nopat / cost_of_capital + excess_cash - total_debt
     if epv <= 0:

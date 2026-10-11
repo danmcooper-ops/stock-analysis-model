@@ -395,3 +395,14 @@ class TestClaudeNarrativeClient:
     def test_no_as_of_returns_none(self, tmp_path):
         assert self._client(tmp_path).generate({}) is None
         assert self._client(tmp_path).generate(None) is None
+
+
+def test_financial_services_drivers_are_keyed_by_the_row_sector():
+    """_SECTOR_MACRO_DRIVERS used 'Financials', which no row carries, so
+    Financial Services stocks never got the yield-curve signals."""
+    from models.narrative import _SECTOR_MACRO_DRIVERS, _sector_signals
+    assert 'Financials' not in _SECTOR_MACRO_DRIVERS
+    assert _SECTOR_MACRO_DRIVERS['Financial Services']['benefits_from_higher_rates']
+    regime = {'regime': 'neutral', 'raw_indicators': {'yield_curve_slope': 0.02}}
+    _, tw = _sector_signals({'sector': 'Financial Services'}, {}, regime, {})
+    assert any('net interest margins' in t for t in tw)

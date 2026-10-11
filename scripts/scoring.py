@@ -7,8 +7,9 @@ from collections import namedtuple
 from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH,
                              SCORE_WEIGHT_OWNERSHIP, MIN_SECTOR_STOCKS,
-                             MIN_ADV_FOR_BUY,
+                             MIN_ADV_FOR_BUY, BLEND_CONFLICT_RATIO,
                             MC_CLIP_RATE_DOWNGRADE, MC_INVALID_RATE_DOWNGRADE)
+from models.sector_pool import panel_pools, year_series
 
 # Unified gate spec — ONE entry per metric drives both the pass/fail Gate
 # Matrix cell and the continuous 0-100 score, so a gate's threshold and its
@@ -443,16 +444,10 @@ def _compute_pool_share_trajectory(results):
         # _incr_roic_undefined — not scrubbed by _purge_stale_gate_fields).
         r['pool_share_cagr'] = None
         r['_pool_share_undefined'] = True
-        oi = ((r.get('edgar_history') or {})
-              .get('operating_income_history')) or {}
-        h = {}
-        for k, v in oi.items():           # int keys live, str after JSON round-trip
-            if v is None:
-                continue
-            try:
-                h[int(str(k)[:4])] = v
-            except (TypeError, ValueError):
-                continue
+        # int keys live, str after a JSON round trip (shared with the
+        # Sector Analysis page's pool history, models/sector_pool.py)
+        h = year_series((r.get('edgar_history') or {})
+                        .get('operating_income_history'))
         s = r.get('sector')
         if s and h:
             sector_rows.setdefault(s, []).append((r, h))
@@ -470,14 +465,7 @@ def _compute_pool_share_trajectory(results):
                 continue
             key = (y0, y1)
             if key not in pools:          # one sector pass per endpoint pair
-                p0 = p1 = 0.0
-                n = 0
-                for _, h2 in rows:
-                    if y0 in h2 and y1 in h2:
-                        p0 += max(h2[y0], 0.0)
-                        p1 += max(h2[y1], 0.0)
-                        n += 1
-                pools[key] = (p0, p1, n)
+                pools[key] = panel_pools((h2 for _, h2 in rows), y0, y1)
             p0, p1, n = pools[key]
             if n < MIN_SECTOR_STOCKS or p0 <= 0 or p1 <= 0:
                 continue
@@ -812,7 +800,15 @@ def prepare_scoring_fields(results):
             alt = [r.get(k) for k in ('epv_growth_fv', 'rim_fv', 'ddm_fv')]
             alt = [v for v in alt
                    if isinstance(v, (int, float)) and 0 < v < float('inf')]
-            if len(alt) >= 2:
+            # Two models are a median of two — their average — so one broken
+            # leg sets the fair value. More than BLEND_CONFLICT_RATIO apart,
+            # neither is trusted (either could be the broken one: WNC EPV 18
+            # vs RIM 154 at $13, APD 44 vs 0.07, MFG 12,018 vs 6.9 before the
+            # FX fix; 17 rows on 2026-10-08), so no effective fair value.
+            if (len(alt) == 2
+                    and max(alt) / min(alt) > BLEND_CONFLICT_RATIO):
+                fv_eff, fv_src = None, 'conflict'
+            elif len(alt) >= 2:
                 fv_eff, fv_src = statistics.median(alt), 'blend'
             else:
                 fv_eff, fv_src = None, None

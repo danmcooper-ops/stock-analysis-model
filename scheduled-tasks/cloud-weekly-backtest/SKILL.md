@@ -3,6 +3,20 @@ name: cloud-weekly-backtest
 description: Weekly forward-return backtest as a Claude Code cloud Routine — a fresh container each Sunday runs run.sh, measures the snapshot corpus, and commits the versioned summary to data/snapshots
 ---
 
+> **DORMANT — do not run.** Since 2026-10-11 the live weekly backtest is the
+> Mac mini (`../weekly-backtest/`: the Claude desktop app's Sunday task runs
+> `mac_run.sh` and writes the summary); this Routine was paused before that
+> Sunday. On
+> 2026-09-27 the cloud egress proxy blocked every Yahoo request and the run
+> measured nothing. Both commit a `Weekly backtest: <date>` summary and
+> rewrite the `returns/` sidecars on `data/snapshots`, so they must never both
+> run. **If this Routine fires, run nothing: report "Cloud weekly backtest is
+> dormant (Mac routine is live) — skipped" as the entire summary and stop.**
+> Only follow the steps below when the user has disabled the Mac task and
+> switched the weekly back to the cloud (`../MAC-MINI-SETUP.md`, "Going back
+> to the cloud"). §3 (Read the outcome) and §4 (Write the summary) stay live:
+> the Mac runbook follows them.
+
 You are running the weekly backtest routine **in a Claude Code cloud session**.
 It MEASURES whether the model's ratings and composite score predict forward
 returns. It does NOT recalibrate anything. Nothing persists between runs

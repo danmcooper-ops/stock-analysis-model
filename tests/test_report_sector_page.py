@@ -40,7 +40,8 @@ def test_sections_render_in_arc_order():
              re.finditer(r'pp-section (pp-[a-z]+)"><span class="pp-section-label"',
                          body)]
     assert order == ['pp-primer', 'pp-signals', 'pp-structure',
-                     'pp-chart', 'pp-companies', 'pp-liquidity'], order
+                     'pp-chart', 'pp-history', 'pp-shifts', 'pp-econ',
+                     'pp-companies', 'pp-liquidity'], order
 
 
 def test_chart_sits_under_the_prose_that_describes_it():
@@ -62,7 +63,7 @@ def test_the_three_company_grids_stayed_merged():
                  'pp-section pp-top'):
         assert gone not in css, '%s came back as a separate grid' % gone
     assert css.count('function renderPoolCompanies(') == 1
-    assert css.count('class="pp-co-grid"') == 1, 'one grid, one card builder'
+    assert css.count('class="pp-co-list"') == 1, 'one list, one entry builder'
 
 
 def test_company_cards_are_classed_not_inline_styled():
@@ -77,7 +78,7 @@ def test_company_cards_are_classed_not_inline_styled():
     assert 'background:white' not in fn.group(0), \
         'company cards are .pp-co, styled by class'
     assert '[data-theme="dark"] .pp-co{' in css
-    for cls in ('.pp-co{', '.pp-co-badge{', '.pp-co-chip{', '.pp-co-note{'):
+    for cls in ('.pp-co{', '.pp-co-hdr{', '.pp-co-ul{', '.pp-co-tags{'):
         assert cls in css, '%s missing' % cls
 
 
@@ -126,3 +127,90 @@ def test_retired_sector_code_stays_retired():
                  'xsect-scatter-wrap', 'pool-stat-banner', '.pp-kpis',
                  '_allSecStats', 'pool-sector-table'):
         assert dead not in css, '%s came back' % dead
+
+
+def test_flow_vs_profit_bullet_compares_positive_pools():
+    """The flow-vs-economic-weight bullet divided the sector's NET operating
+    income by the universe's POSITIVE-only pool, so a sector with loss-makers
+    read as a smaller share of US profit than it is."""
+    css = _tpl()
+    fn = re.search(r'function _ppLiquidityCache\(\).*?\n\}\n', css, re.S).group(0)
+    assert 'bySec[sec].oiPos+=d.operating_income;allOIPos+=d.operating_income;' in fn
+    liq = re.search(r'function renderPoolLiquidityInsights\(sec\).*?\n\}\n',
+                    css, re.S).group(0)
+    assert 'var poolShare=s.oiPos/cache.allOIPos*100;' in liq
+    assert 's.oi/cache.allOIPos' not in liq
+
+
+def test_history_and_shifts_render_from_sector_pool_only():
+    """Both sections read SECTOR_POOL[sec].history (built server-side by
+    models/sector_pool.py); neither recomputes the pool from DATA."""
+    css = _tpl()
+    for name in ('renderPoolHistory', 'renderPoolShifts', 'renderPoolIndustries',
+                 'renderPoolEcon'):
+        fn = re.search(r'function ' + name + r'\(sec\).*?\n\}\n', css, re.S)
+        assert fn, name
+        assert 'DATA' not in fn.group(0), '%s reads DATA' % name
+        assert 'SECTOR_POOL' in fn.group(0)
+
+
+def test_both_pool_chart_views_carry_a_table():
+    """The Companies view had only its chart; it now has the same table as
+    the Industries view."""
+    css = _tpl()
+    assert 'renderPoolCompanyTable(shownCos,tailCos)' in css
+    for name in ('renderPoolCompanyTable', 'renderPoolIndustries'):
+        fn = re.search(r'function ' + name + r'\(.*?\n\}\n', css, re.S)
+        assert fn and 'class="ppi-tbl ppi-sort"' in fn.group(0), name
+
+
+def test_every_section_belongs_to_a_sub_tab_with_a_hide_rule():
+    """The sector body is split into sub-tabs: each section carries a
+    data-pane, and every pane name has the CSS rule that hides it when
+    another tab is selected."""
+    css = _tpl()
+    body = _assembly(css)
+    sections = re.findall(r'<div data-pane="([a-z]+)" class="pp-section (pp-[a-z]+)"', body)
+    assert [s for _, s in sections] == ['pp-primer', 'pp-signals', 'pp-structure', 'pp-chart',
+                                        'pp-history', 'pp-shifts', 'pp-econ', 'pp-companies',
+                                        'pp-liquidity']
+    tabs = re.search(r'^var _PP_SUBTABS=(.*);$', css, re.M).group(1)
+    for pane in {p for p, _ in sections}:
+        assert "'%s'" % pane in tabs, pane
+        assert ('.pp-tabbed:not([data-tab="%s"])>[data-pane="%s"]{display:none;}' % (pane, pane)) in css
+
+
+def test_sub_tabs_sit_above_the_sector_card():
+    """Main tabs, then sub-tabs, stacked like the ticker page's section and
+    statement tabs: the bar is spliced in before the sector's card."""
+    css = _tpl()
+    assert ("chartHtml=chartHtml.slice(0,_secStart)+_tabs.bar+chartHtml.slice(_secStart,_bodyStart)+_tabs.body;"
+            in css)
+    assert css.index("var _secStart=chartHtml.length;") < css.index("<div class=\"pool-sector\" id=\"pool-sec-")
+
+
+def test_the_sector_banner_is_gone():
+    """The sector tab names the sector and the structure section quotes its
+    count, HHI and CR4; the banner repeated them."""
+    css = _tpl()
+    for gone in ('pool-sec-hdr', 'pool-sec-stats', 'pool-sec-name'):
+        assert gone not in css, gone
+
+
+def test_pool_table_sort_arrow_matches_the_gate_matrix():
+    """Only the sorted column carries an arrow; no unsorted hint glyph,
+    which iOS drew as an emoji box."""
+    css = _tpl()
+    assert "content:'\\2195'" not in css
+    assert '.ppi-sort th[aria-sort="descending"]::after{content:\' \\25BC\\FE0E\';}' in css
+
+
+def test_sector_sections_share_one_neutral_dark_surface():
+    """The Companies pane was dark green (and others navy, blue, teal),
+    which read as a status colour."""
+    css = _tpl()
+    for sec in ('primer', 'structure', 'companies', 'liquidity'):
+        assert not re.search(r'\[data-theme="dark"\] \.pp-%s\{background:#(?!161b22)' % sec, css), sec
+    assert ('[data-theme="dark"] .pp-primer,[data-theme="dark"] .pp-structure,'
+            '[data-theme="dark"] .pp-companies,[data-theme="dark"] .pp-liquidity,'
+            '[data-theme="dark"] .pp-chart{background:#161b22;}') in css
