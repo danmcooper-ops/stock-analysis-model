@@ -18,7 +18,8 @@
 #                                             next day (an interrupted analysis resumes
 #                                             from output/.checkpoint)
 #   scripts/run_daily.sh --dry-run            print the plan, run nothing
-#   scripts/run_daily.sh --force              skip the market-open gate
+#   scripts/run_daily.sh --force              skip the market-open gate, and publish
+#                                             a run under the coverage floor
 #
 # Steps, in order (names are valid --from values):
 #   preflight  market_open.py gate (exit 10 = closed → whole run skipped)
@@ -33,8 +34,10 @@
 #              (BLOCKING for publish)
 #   reports    portfolio, gate N/A, momentum, store sync check, database
 #              night check (non-blocking)
-#   publish    copy artifacts to pages-live, amend, force-push, verify, then
-#              Cloudflare Pages when configured (non-blocking)
+#   publish    coverage floor (scripts/check_coverage.py: a run under it is
+#              archived but not published), then copy artifacts to pages-live,
+#              amend, force-push, verify, then Cloudflare Pages when
+#              configured (non-blocking)
 #   compact    gzip aged output/ artifacts, keeping the newest 5 snapshots plain
 #              (non-blocking; scripts/compact_output.py)
 #
@@ -44,7 +47,8 @@
 # the environment), so a dev box behaves as before.
 #
 # Exit codes: 0 success or market-closed skip; 1 a blocking step failed;
-# 3 finished, but at least one non-blocking step failed.
+# 3 finished, but at least one non-blocking step failed or the run was under
+# the coverage floor (archived, not published).
 set -uo pipefail
 
 # The checkout this script lives in; STOCK_MODEL_REPO overrides.
@@ -82,7 +86,7 @@ while [ $# -gt 0 ]; do
     --date)    RUNDATE="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --force)   FORCE=1; shift ;;
-    -h|--help) sed -n '2,47p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,51p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -527,11 +531,44 @@ publish_cloudflare() {
   return 1
 }
 
+# Coverage floor (cloud step 05h, data/coverage.py). The analysis stamps how
+# many rows it kept against the prior snapshot; under 70% the night is a data
+# failure, not a market event (2026-09-30: 739 of 2,514 after Yahoo
+# rate-limited the host). Such a run is still archived above, and a re-run of
+# the same date supersedes it, but neither site is published, so the live
+# report stays at the last good run. db_publish applies the same floor on its
+# own. Checked here rather than before the archive so a --from publish resume
+# is gated too; --force publishes anyway. Exit 4 = degraded, which also makes
+# the run's status "degraded".
+COVERAGE_LINE=""
+coverage_check() {
+  local out rc
+  out="$("$VPY" scripts/check_coverage.py "$SNAPSHOT" 2>&1)"; rc=$?
+  printf '%s\n' "$out"
+  COVERAGE_LINE="$(printf '%s\n' "$out" | grep '^COVERAGE ' | tail -1)"
+  return "$rc"
+}
+
 if wants publish; then
-  run publish soft publish || note "publish failed — retry with: scripts/run_daily.sh --from publish --date $RUNDATE"
-  if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] && [ -n "${CF_PAGES_PROJECT:-}" ]; then
-    run publish_cloudflare soft publish_cloudflare \
-      || note "Cloudflare publish failed — the GitHub Pages site is unaffected"
+  DEGRADED=0
+  run coverage soft coverage_check
+  case "$(tail -1 "$STEPLOG" | cut -f2)" in
+    0|dry-run) ;;
+    4)
+      if [ "$FORCE" = 1 ]; then
+        note "${COVERAGE_LINE:-coverage under the floor} — --force, publishing anyway"
+      else
+        DEGRADED=1
+        note "${COVERAGE_LINE:-coverage under the floor} — archived, but not published; the sites keep the last good report (override: scripts/run_daily.sh --from publish --date $RUNDATE --force)"
+      fi ;;
+    *) note "coverage check failed (${COVERAGE_LINE:-no COVERAGE line}) — treated as not degraded" ;;
+  esac
+  if [ "$DEGRADED" = 0 ]; then
+    run publish soft publish || note "publish failed — retry with: scripts/run_daily.sh --from publish --date $RUNDATE"
+    if [ -n "${CLOUDFLARE_API_TOKEN:-}" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] && [ -n "${CF_PAGES_PROJECT:-}" ]; then
+      run publish_cloudflare soft publish_cloudflare \
+        || note "Cloudflare publish failed — the GitHub Pages site is unaffected"
+    fi
   fi
 fi
 
