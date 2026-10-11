@@ -222,10 +222,14 @@ beyond the old runbook:
   without the login. `_worker.js` is deployed but never committed to
   `pages-live`.
 
-Still to do at cut-over (section 7): remove the **DORMANT** banner from
-`daily-stock-analysis/SKILL.md` and add one to
-`cloud-daily-stock-analysis/SKILL.md`, and update this directory's
-`README.md` table in the same commit.
+Both banner swaps are **done**. The daily one landed at its cut-over
+(2026-10-05): `daily-stock-analysis/SKILL.md` is marked LIVE and
+`cloud-daily-stock-analysis/SKILL.md` DORMANT. The weekly one landed at
+its cut-over (2026-10-11): `weekly-backtest/` is LIVE and
+`cloud-weekly-backtest/` DORMANT. This directory's `README.md` table
+matches both. The Mac tasks read these files at runtime, so a future
+switch back to the cloud must flip the banners in the same commit that
+pauses the Mac task.
 
 ## 5. Schedule it
 
