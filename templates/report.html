@@ -1459,7 +1459,7 @@ td.ct{font-weight:700;}
 .ppi-tbl th:first-child,.ppi-tbl td:first-child{text-align:left;white-space:normal;}
 .ppi-dim{color:#90a4ae;font-size:0.9em;}
 .ppi-hi{color:#2e7d32;font-weight:700;}
-.ppi-co{cursor:pointer;}
+.ppi-co,.ppi-ind,.ppi-bar{cursor:pointer;}
 .ppi-sort th{cursor:pointer;user-select:none;}
 .ppi-sort th:hover{color:#37474f;}
 /* Like the Gate Matrix: only the sorted column carries an arrow, a plain
@@ -3238,6 +3238,13 @@ function _dashPass(d){
     if(s==null)return false;
     return s>f.avg; /* strictly above the average shown on the card */
   }
+  if(f.type==='industry'){
+    /* A sector page's Industries row: its sector, and the industry names
+       behind it (several for the folded Other; a row with no industry
+       counts as Other, as models/sector_pool.industry_pools groups it). */
+    if(d.sector!==f.sector)return false;
+    return (f.members||[]).indexOf(d.industry||'Other')>=0;
+  }
   if(f.type==='score'){
     var c=_num(d._composite_score);
     if(c==null)return false;
@@ -3250,6 +3257,7 @@ function _dashLabel(){
   if(f.type==='gate'){var g=_dashGateMeta(f.key);return(g?g.label:f.key)+(f.mode===2?' — failing':' — passing');}
   if(f.type==='cat')return f.name+' — above avg ('+f.avg+'%)';
   if(f.type==='score')return'Score '+(f.idx*10)+'–'+((f.idx+1)*10);
+  if(f.type==='industry')return f.sector+' › '+f.label;
   return'';
 }
 function clearDashFilter(){if(!_dashFilter)return;_dashFilter=null;applyFilters();}
@@ -3277,6 +3285,18 @@ function dashCatJump(name,scoreKey){
   if(!scores.length)return;
   var avg=Math.round(scores.reduce(function(a,b){return a+b;},0)/scores.length);
   _dashFilter={type:'cat',name:name,scoreKey:scoreKey,avg:avg};
+  _dashJump();
+}
+/* Sector page → Gate Matrix: an Industries row (or its bar) opens the
+   matrix filtered to that industry. Stored by name, not by ticker list, so
+   the filter round-trips through the share link and survives a re-render. */
+function dashIndustryJump(sec,idx){
+  var n=SECTOR_POOL&&SECTOR_POOL[sec],d=n&&n.industries&&n.industries[idx];
+  if(!d)return;
+  ppHide();
+  var mem=d.members&&d.members.length?d.members.slice():[d.industry];
+  _dashFilter={type:'industry',sector:sec,members:mem,
+               label:mem.length===1?mem[0]:'Other industries'};
   _dashJump();
 }
 function toggleDashScore(idx){
@@ -11789,10 +11809,12 @@ function renderPoolIndustries(sec){
   var svg='',x=pL;
   for(var t=0;t<=4;t++){var tv=minM+yR*t/4,ty=pT+cH*(maxM-tv)/yR;svg+='<line class="pph-grid" x1="'+pL+'" y1="'+ty.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+ty.toFixed(1)+'"/><text class="pph-tx" x="'+(pL-6)+'" y="'+(ty+3).toFixed(1)+'" text-anchor="end">'+(tv*100).toFixed(0)+'%</text>';}
   svg+='<line class="pph-axis" stroke-dasharray="4,3" x1="'+pL+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+zeroY.toFixed(1)+'"/>';
+  var secJs=sec.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   items.forEach(function(d){
+    var ii=inds.indexOf(d);
     var w=Math.max(1.5,d.revenue_share/tot*cW),h=Math.max(1,Math.abs(d.margin)/yR*cH),y=d.margin>=0?zeroY-h:zeroY;
     var tip=d.industry+': '+d.n+' companies · revenue '+_ppPct(d.revenue_share)+' · pool '+_ppPct(d.pool_share)+' · margin '+_ppPct(d.margin)+' · median spread '+_ppSgnPct(d.median_spread);
-    svg+='<rect class="ppi-bar '+_ppIndCls(d.median_spread)+'" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(w-1).toFixed(1)+'" height="'+h.toFixed(1)+'"><title>'+_esc(tip)+'</title></rect>';
+    svg+='<rect class="ppi-bar '+_ppIndCls(d.median_spread)+'" onclick="dashIndustryJump(\''+_attr(secJs)+'\','+ii+')" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(w-1).toFixed(1)+'" height="'+h.toFixed(1)+'"><title>'+_esc(tip)+'</title></rect>';
     var chars=Math.floor((w-4)/5.2);
     if(chars>=5){var nm=d.industry.length>chars?d.industry.slice(0,chars-1)+'…':d.industry;svg+='<text class="pph-val" x="'+(x+w/2).toFixed(1)+'" y="'+(d.margin>=0?y-3:y+h+9).toFixed(1)+'" text-anchor="middle" pointer-events="none">'+_esc(nm)+'</text>';}
     x+=w;
@@ -11801,13 +11823,13 @@ function renderPoolIndustries(sec){
   var out='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%;height:auto;margin:4px 0 0">'+svg+'</svg>';
   out+='<div class="pph-key"><span><i class="ppi-pos"></i>Median spread ≥ 5 pts</span><span><i class="ppi-mid"></i>0–5 pts</span><span><i class="ppi-neg"></i>Below cost of capital</span></div>';
   out+='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Industry','s')+_ppiTh('Cos')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)+_ppiTh('Margin')+_ppiTh('Median spread')+_ppiTh('Pool CAGR')+'</tr></thead><tbody>';
-  inds.forEach(function(d){
+  inds.forEach(function(d,ii){
     var skew=(d.pool_share!=null&&d.revenue_share>0)?d.pool_share/d.revenue_share:null;
-    out+='<tr'+(d.folded?' class="ppi-pin"':'')+'><td data-v="'+_attr(d.industry)+'">'+_esc(d.industry)+(d.folded?' <span class="ppi-dim">(industries under 3 companies)</span>':'')+'</td><td data-v="'+d.n+'">'+d.n+'</td><td data-v="'+_ppiV(d.revenue_share)+'">'+_ppPct(d.revenue_share)+'</td>'
+    out+='<tr class="ppi-ind'+(d.folded?' ppi-pin':'')+'" onclick="dashIndustryJump(\''+_attr(secJs)+'\','+ii+')" title="Open the Gate Matrix for '+_attr(d.folded?'these industries':d.industry)+'"><td data-v="'+_attr(d.industry)+'">'+_esc(d.industry)+(d.folded?' <span class="ppi-dim">(industries under 3 companies)</span>':'')+'</td><td data-v="'+d.n+'">'+d.n+'</td><td data-v="'+_ppiV(d.revenue_share)+'">'+_ppPct(d.revenue_share)+'</td>'
       +'<td data-v="'+_ppiV(d.pool_share)+'"'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(d.pool_share)+'</td>'
       +'<td data-v="'+_ppiV(d.margin)+'">'+_ppPct(d.margin)+'</td><td data-v="'+_ppiV(d.median_spread)+'">'+(d.median_spread==null?'\u2014':_ppSgnPct(d.median_spread))+'</td><td data-v="'+_ppiV(d.pool_cagr)+'">'+(d.pool_cagr==null?'—':_ppSgnPct(d.pool_cagr)+'/yr'+(d.own_window&&d.window?' <span class="ppi-dim" title="Too few of its companies reported over the sector\u2019s window; measured over its own years">('+_ppFy({y0:d.window[0],block:d.window[2]})+' to '+_ppFy1({y1:d.window[1],block:d.window[2]})+')</span>':''))+'</td></tr>';
   });
-  out+='</tbody></table></div><p class="pph-note">Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is each industry’s consistent-panel growth over the sector’s history window, or over its own years where shown in brackets; — where too few of its companies reported throughout.</p>';
+  out+='</tbody></table></div><p class="pph-note">Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is each industry’s consistent-panel growth over the sector’s history window, or over its own years where shown in brackets; — where too few of its companies reported throughout. Click an industry to open the Gate Matrix filtered to it.</p>';
   return out;
 }
 /* The sector's charted companies: the PP_TOP_N largest by revenue share,

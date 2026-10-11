@@ -451,7 +451,12 @@ def industry_pools(rows, window=None):
         groups.setdefault(r.get('industry') or OTHER_INDUSTRY, []).append(r)
     small = [k for k, v in groups.items()
              if len(v) < MIN_INDUSTRY_COS and k != OTHER_INDUSTRY]
+    # The industry names behind each entry, for the client's click-through
+    # to the Gate Matrix: an entry is its own name, except the folded Other,
+    # which is every small industry plus any row with no industry at all.
+    members = {k: [k] for k in groups}
     if small:
+        members[OTHER_INDUSTRY] = sorted(set(members.get(OTHER_INDUSTRY, [])) | set(small))
         other = groups.setdefault(OTHER_INDUSTRY, [])
         for k in small:
             other.extend(groups.pop(k))
@@ -488,6 +493,7 @@ def industry_pools(rows, window=None):
                     'pool_share_in_industry': (max(_num(top['operating_income']), 0.0) / pos
                                                if pos > 0 else None)},
             'folded': name == OTHER_INDUSTRY and bool(small),
+            'members': members[name],
         })
     out.sort(key=lambda d: -(d['pool_share'] or 0.0))
     return out

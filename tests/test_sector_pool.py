@@ -224,6 +224,16 @@ def test_industries_fold_small_ones_into_other_and_share_the_sector():
     assert sum(d['revenue_share'] for d in inds) == pytest.approx(1)
     assert sum(d['pool_share'] for d in inds) == pytest.approx(1)
     assert other['margin'] == pytest.approx(1 / 151)       # net: 7 - 7 + 1
+    # the names behind each entry, for the Gate Matrix click-through
+    assert inds[0]['members'] == ['Semis']
+    assert other['members'] == ['Hardware', 'Odd']
+
+
+def test_folded_other_also_names_rows_without_an_industry():
+    rows = ([_co('S%d' % i, 'Semis', 100 + i, 40) for i in range(3)]
+            + [_co('X1', 'Odd', 10, 1), _co('N1', None, 20, 2)])
+    other = [d for d in industry_pools(rows) if d['industry'] == 'Other'][0]
+    assert other['members'] == ['Odd', 'Other']
 
 
 def test_industry_carries_median_spread_and_own_growth():
