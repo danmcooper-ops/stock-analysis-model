@@ -65,7 +65,7 @@ def test_history_draws_every_year_and_states_the_split(tmp_path):
     html = _render(h, "renderPoolHistory('Tech')", tmp_path)
     assert html.count('class="pph-bar') == len(h['points']) == 10
     assert 'Where the growth came from' in html
-    assert 'Cycle position' in html and 'Profit concentration' in html
+    assert 'Cycle position' in html and 'Concentration trend' in html
     assert 'FY2018–20 with FY2023–25' in html
     d = h['decomposition']
     assert '%+.1f%%/yr' % (d['pool_cagr'] * 100) in html
@@ -131,14 +131,37 @@ def test_econ_states_both_market_shares_and_the_exclusions(tmp_path):
     assert 'Not measured' not in html                       # nothing excluded
 
 
+_TILES = "_ppStructureStats(SECTOR_POOL.Tech.structure_stats,SECTOR_POOL.Tech.stats)"
+
+
 def test_structure_stats_render_the_four_tiles(tmp_path):
     rows = _step2_rows()
     st = pool_structure(rows, universe_totals(rows))
-    html = _render(None, "_ppStructureStats(SECTOR_POOL.Tech.structure_stats)",
-                   tmp_path, {'structure_stats': st})
-    for title in ('Profit concentration', 'Margin spread', 'Loss-makers',
-                  'Price of the pool'):
-        assert title in html
+    html = _render(None, _TILES, tmp_path,
+                   {'structure_stats': st, 'stats': {'hhi': 0.035, 'cr4': 0.306}})
+    for title in ('Concentration', 'Margin spread', 'Loss-makers', 'Price of the pool'):
+        assert '<b>%s</b>' % title in html
+    tile = html.split('<b>Concentration</b>')[1].split('</div>')[0]
+    # the two top-4 sets are named apart, and each HHI says what it is on
+    assert 'The top 4 by revenue hold 31% of sector revenue' in tile
+    assert 'the top 4 by profit earn' in tile
+    assert 'HHI 0.035 on revenue (competitive)' in tile and ' on profit.' in tile
+
+
+def test_concentration_tile_stands_on_either_half(tmp_path):
+    """structure_stats is built under a try and the revenue HHI/CR4 are null
+    under three tickers: either half alone still draws the tile, and
+    neither draws nothing at all."""
+    rows = _step2_rows()
+    st = pool_structure(rows, universe_totals(rows))
+    rev_only = _render(None, _TILES, tmp_path, {'stats': {'hhi': 0.3, 'cr4': 0.8}})
+    assert '<b>Concentration</b>The top 4 by revenue hold 80% of sector revenue. HHI 0.300 on revenue (concentrated).</div>' in rev_only
+    prof_only = _render(None, _TILES, tmp_path, {'structure_stats': st, 'stats': {'hhi': None, 'cr4': None}})
+    assert '<b>Concentration</b>The top 4 by profit earn' in prof_only and 'on revenue' not in prof_only
+    no_pool = dict(st, profit_cr4=None, profit_hhi=None, lorenz=None)
+    html = _render(None, _TILES, tmp_path, {'structure_stats': no_pool, 'stats': {'hhi': 0.2, 'cr4': 0.5}})
+    assert 'HHI 0.200 on revenue (moderately concentrated).' in html and 'on profit' not in html
+    assert _render(None, _TILES, tmp_path, {}) == ''
 
 
 def _render_signals(entry, tmp_path, stored=None):
@@ -272,6 +295,7 @@ def test_company_table_mirrors_the_industries_table(tmp_path):
     assert '<td>Others <span class="ppi-dim">(10 companies)</span>' in html
     assert html.index('A24') < html.index('A00')                  # by pool share
     assert '>Pool share trend</th>' in html and '+3.0%/yr' in html
+    assert html.index('>Pool share trend</th>') < html.index('>Value/pool</th>')   # last column
     assert 'data-tk="A00" onclick="openDet(this.dataset.tk)"' in html
     assert 'class="ppi-tbl ppi-sort"' in html
 
@@ -283,9 +307,25 @@ def test_company_table_highlights_and_blanks(tmp_path):
     html = _render_co_table(shown, [], tmp_path)
     row = lambda t: html.split('data-tk="%s"' % t)[1].split('</tr>')[0]   # noqa: E731
     assert 'ppi-hi' in row('HI') and 'ppi-lo' in row('LO') and 'ppi-' not in row('MID').replace('ppi-dim', '').replace('ppi-rt', '')
-    assert row('JPM').count('<td data-v="">—</td>') == 1                # spread only
-    assert row('NEW').endswith('<td data-v="">—</td>')
+    assert row('JPM').count('<td data-v="">—</td>') == 2                # spread, and no mcap
+    assert row('NEW').endswith('<td data-v="">—</td><td data-v="">—</td>')   # trend, value/pool
     assert '<td>Others' not in html and 'pooled as Others' not in html
+
+
+def test_company_table_value_over_pool(tmp_path):
+    """Share of the sector's market value over share of the pool, over the
+    same rows the cards count (shown + tail, mcap > 0); the Others row
+    carries the tail's combined figure."""
+    shown = [_co('A', 0.5, 0.6, mcap=60.0), _co('B', 0.3, 0.2, mcap=30.0),
+             _co('L', 0.1, 0.0, mcap=5.0)]                     # loss-maker: no pool
+    tail = [_co('T', 0.1, 0.2, mcap=5.0), _co('U', 0.0, 0.0)]  # U has no mcap
+    html = _render_co_table(shown, tail, tmp_path)
+    row = lambda t: html.split('data-tk="%s"' % t)[1].split('</tr>')[0]   # noqa: E731
+    assert row('A').endswith('<td data-v="1">1.00\u00d7</td>')      # 60% of value / 60% of pool
+    assert row('B').endswith('1.50\u00d7</td>')
+    assert row('L').endswith('<td data-v="">\u2014</td>')
+    others = html.split('<tr class="ppi-pin">')[1].split('</tr>')[0]
+    assert others.endswith('<td>0.25\u00d7</td>')                     # 5% of value / 20% of pool
 
 
 def test_each_column_header_toggles_its_bullets(tmp_path):
@@ -330,7 +370,7 @@ def test_company_table_headers_sort_and_pin_others(tmp_path):
              _co('B', 0.20, 0.10, rating='BUY', _gate_pool_share=0.05),
              _co('C', 0.05, 0.05, rating='HOLD', _gate_pool_share=-0.02)]
     html = _render_co_table(shown, [_co('T', 0.01, 0.01)], tmp_path)
-    assert html.count('onclick="_ppiSort(this)"') == 7
+    assert html.count('onclick="_ppiSort(this)"') == 8
     assert '<th data-t="n" aria-sort="descending" onclick' in html            # Pool, as rendered
     assert '<th data-t="s" onclick' in html                                    # Company sorts as text
     assert '<tr class="ppi-pin"><td>Others' in html
@@ -386,26 +426,45 @@ def test_who_owns_the_pool_is_a_list_with_bullets(tmp_path):
                               'profit_share': 0.29, 'revenue_share': 0.21, 'op_margin': 0.32,
                               'pp_multiple': 1.38,
                               'roles': [{'role': 'leader', 'role_label': 'Profit Leader',
-                                         'note': 'The center of gravity.'}]}],
+                                         'note': 'The center of gravity.'}]},
+                             {'ticker': 'NICHE', 'company_name': 'Niche Co', 'rating': 'BUY',
+                              'profit_share': 0.01, 'revenue_share': 0.005, 'op_margin': 0.40,
+                              'pp_multiple': 2.0,
+                              'roles': [{'role': 'margin_leader', 'role_label': 'Margin Leader',
+                                         'note': ''}]}],
              'cr4_companies': [{'ticker': 'GOOGL', 'company_name': 'Alphabet Inc.', 'rank': 1}]}
-    cos = [{'ticker': 'GOOGL', 'company_name': 'Alphabet Inc.', 'rating': 'PASS', 'mcap': 100.0,
-            'pp_revenue_share': 0.21, 'pp_profit_share': 0.29, '_composite_score': 40}]
+    # GOOGL is the largest of 26 companies; NICHE is the 26th, in the tail
+    filler = [{'ticker': 'F%02d' % k, 'pp_revenue_share': 0.01, 'pp_profit_share': 0.0}
+              for k in range(24)]
+    cos = ([{'ticker': 'GOOGL', 'company_name': 'Alphabet Inc.', 'rating': 'PASS', 'mcap': 100.0,
+             'pp_revenue_share': 0.21, 'pp_profit_share': 0.29, '_composite_score': 40}]
+           + filler
+           + [{'ticker': 'NICHE', 'company_name': 'Niche Co', 'rating': 'BUY', 'mcap': 1.0,
+               'pp_revenue_share': 0.005, 'pp_profit_share': 0.01}])
     js = '\n'.join([
         "var RC={'PASS':'#de2d26'};function _esc(s){return String(s);}function _attr(s){return String(s);}",
         'function _linkifyTickers(s){return s;}function _revHtml(){return "";}function _starHtml(){return "";}',
         'function _roleColor(){return "#000";}function cc(){return "#000";}function _ppModelNote(){return "Trades above DCF.";}',
-        _fn(src, '_ppPct'), _fn(src, 'renderPoolCompanies'),
+        _fn(src, '_ppPct'), _fn(src, '_ppTopN'), _fn(src, 'renderPoolCompanies'),
         'var SECTOR_POOL=' + json.dumps({'Tech': entry}) + ';',
         "process.stdout.write(renderPoolCompanies('Tech'," + json.dumps(cos) + '));'])
     script = tmp_path / 'co.js'
     script.write_text(js, encoding='utf-8')
     html = subprocess.run(['node', str(script)], capture_output=True, text=True, check=True).stdout
-    assert html.startswith('<div class="pp-co-list">') and html.count('class="pp-co"') == 1
+    assert html.startswith('<p class="pph-lead">Companies singled out by pool role')
+    assert 'For the 25 largest' in html and html.count('class="pp-co"') == 2
     assert '<span class="pp-co-tags">Profit Leader \u00b7 #1 by revenue \u00b7 Model 40</span>' in html
-    assert ('<li><b>Share:</b> 21.0% of revenue; 29.0% of profit (1.38\u00d7 its revenue share); '
-            'operating margin 32.0%; value/pool 3.45\u00d7.</li>') in html
-    assert '<li><b>Role:</b> The center of gravity.</li>' in html
-    assert '<li><b>Model:</b> Trades above DCF.</li>' in html
+    googl = html.split('data-tk="GOOGL"')[1].split('</ul>')[0]
+    # drawn in the chart, so its shares are in the table: no Share line, and
+    # the pool multiple (only a tooltip there) rides on the Role line
+    assert '<b>Share:</b>' not in googl
+    assert '<li><b>Role:</b> The center of gravity. Earns 1.38\u00d7 its revenue share in profit.</li>' in googl
+    assert '<li><b>Model:</b> Trades above DCF.</li>' in googl
+    # a margin leader from the tail is not in the table, so it keeps the line
+    tail = html.split('data-tk="NICHE"')[1].split('</ul>')[0]
+    assert ('<li><b>Share:</b> 0.5% of revenue; 1.0% of profit (2.00\u00d7 its revenue share); '
+            'operating margin 40.0%; value/pool 0.99\u00d7.</li>') in tail
+    assert 'Earns' not in tail
     assert 'onclick="openDet(this.dataset.tk)"' in html
 
 

@@ -666,9 +666,27 @@ ruff check .
   since industry alone cannot tell V from COF. Exclusions are counted,
   never zero-filled.
 - **Sector page sub-tabs (`_ppSubTabs` in `templates/report.html`):**
-  each sector's body is split into sub-tabs: Overview,
-  Headwinds & tailwinds, Profit pool, History, Economic profit, Companies,
-  Liquidity. The row sits directly under the sector tabs, above the
+  each sector's body is split into sub-tabs. Labels are listed here with
+  their ids in brackets; the ids are what is stored, so a rename keeps a
+  remembered tab. The tabs are:
+  - Overview (`overview`): the primer, then "The Sector Today", which is
+    the narrative's `overview` (pool size, blended margin plus what that
+    margin means, and the leader).
+  - Drivers (`forces`).
+  - Profit pool (`pool`): four tiles (Concentration, which holds revenue
+    HHI/CR4 from `stats` beside the profit HHI/CR4; Margin spread;
+    Loss-makers; Price of the pool), then the chart with its tables. The
+    company table ends with a Value/pool column.
+  - History (`history`).
+  - Value creation (`value`).
+  - Key companies (`companies`): a company drawn in the chart
+    (`_ppTopN`, the top 25 by revenue) has no Share line on its card,
+    because the table holds those figures.
+  - Trading (`flow`).
+
+  Each fact is stated once. The narrative no longer emits `insights` or
+  `concentration`, the strategy bullets and HHI paragraph that restated
+  the tiles. The row sits directly under the sector tabs, above the
   sector card, styled with the ticker page's `d-stmt-tabs` classes. Each
   `pp-section` carries a `data-pane`, and the
   `.pp-tabbed[data-tab]` CSS shows one group at a time. A tab with no

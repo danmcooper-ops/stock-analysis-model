@@ -39,7 +39,7 @@ def test_sections_render_in_arc_order():
     order = [m.group(1) for m in
              re.finditer(r'pp-section (pp-[a-z]+)"><span class="pp-section-label"',
                          body)]
-    assert order == ['pp-primer', 'pp-signals', 'pp-structure',
+    assert order == ['pp-primer', 'pp-today', 'pp-signals', 'pp-structure',
                      'pp-chart', 'pp-history', 'pp-shifts', 'pp-econ',
                      'pp-companies', 'pp-liquidity'], order
 
@@ -171,7 +171,7 @@ def test_every_section_belongs_to_a_sub_tab_with_a_hide_rule():
     css = _tpl()
     body = _assembly(css)
     sections = re.findall(r'<div data-pane="([a-z]+)" class="pp-section (pp-[a-z]+)"', body)
-    assert [s for _, s in sections] == ['pp-primer', 'pp-signals', 'pp-structure', 'pp-chart',
+    assert [s for _, s in sections] == ['pp-primer', 'pp-today', 'pp-signals', 'pp-structure', 'pp-chart',
                                         'pp-history', 'pp-shifts', 'pp-econ', 'pp-companies',
                                         'pp-liquidity']
     tabs = re.search(r'^var _PP_SUBTABS=(.*);$', css, re.M).group(1)
@@ -209,8 +209,20 @@ def test_sector_sections_share_one_neutral_dark_surface():
     """The Companies pane was dark green (and others navy, blue, teal),
     which read as a status colour."""
     css = _tpl()
-    for sec in ('primer', 'structure', 'companies', 'liquidity'):
+    for sec in ('primer', 'today', 'structure', 'companies', 'liquidity'):
         assert not re.search(r'\[data-theme="dark"\] \.pp-%s\{background:#(?!161b22)' % sec, css), sec
-    assert ('[data-theme="dark"] .pp-primer,[data-theme="dark"] .pp-structure,'
+    assert ('[data-theme="dark"] .pp-primer,[data-theme="dark"] .pp-today,[data-theme="dark"] .pp-structure,'
             '[data-theme="dark"] .pp-companies,[data-theme="dark"] .pp-liquidity,'
             '[data-theme="dark"] .pp-chart{background:#161b22;}') in css
+
+
+def test_no_window_state_shadows_a_top_level_function():
+    """A top-level `function f(){}` in the page script IS `window.f`, so
+    `window.f=value` replaces the function. `_ppSubTabCur` kept its state
+    under its own name: the stored sub-tab was never read (the first lookup
+    returned the function), and after one click the next sector switch threw
+    "_ppSubTabCur is not a function"."""
+    css = _tpl()
+    funcs = set(re.findall(r'^function ([A-Za-z_$][\w$]*)\(', css, re.M))
+    written = set(re.findall(r'\bwindow\.([A-Za-z_$][\w$]*)\s*=(?!=)', css))
+    assert not (funcs & written), sorted(funcs & written)
