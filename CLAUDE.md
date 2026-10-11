@@ -684,12 +684,12 @@ ruff check .
     chip and survives the share link.
   - History (`history`).
   - Value creation (`value`).
-  - Key companies (`companies`): a company drawn in the chart
-    (`_ppTopN`, the top 25 by revenue) has no Share line on its card,
-    because the table holds those figures.
   - Trading (`flow`).
 
-  Each fact is stated once. The narrative no longer emits `insights` or
+  Each fact is stated once. The Key companies card grid was removed: it
+  restated the Profit pool table, which is the page's one company view
+  (`_ppTopN`, the top 25 by revenue plus Others). The narrative no longer
+  emits `cr4_companies` (the cards' data), nor `insights` or
   `concentration`, the strategy bullets and HHI paragraph that restated
   the tiles. The row sits directly under the sector tabs, above the
   sector card, styled with the ticker page's `d-stmt-tabs` classes. Each

@@ -1,15 +1,12 @@
 # tests/test_report_sector_page.py
-"""Guard: the per-sector page reads as four arcs, and states each number once.
+"""Guard: the per-sector page states each number once.
 
 The page grew to ten stacked sections that had drifted into restating each
 other — HHI/CR4 was quoted in three of them, the blended operating margin in
 three, the top-3 profit-vs-revenue skew in two, and three separate card grids
-listed largely the same companies. It was reorganised into:
-
-    A. Context   — primer, macro read, the sector's own structural forces
-    B. The Pool  — the merged structure prose, then the chart of it
-    C. Owners    — one company grid, annotating the chart above it
-    D. Flow      — liquidity, trimmed to five bullets
+listed largely the same companies. It is now a row of sub-tabs (Overview,
+Drivers, Profit pool, History, Value creation, Trading), and the Profit pool
+table is the one company view.
 
 Each rule below is one line in a 10k-line template or a few lines of prose
 generation, and none of them fails loudly when undone: the page still renders,
@@ -41,45 +38,27 @@ def test_sections_render_in_arc_order():
                          body)]
     assert order == ['pp-primer', 'pp-today', 'pp-signals', 'pp-structure',
                      'pp-chart', 'pp-history', 'pp-shifts', 'pp-econ',
-                     'pp-companies', 'pp-liquidity'], order
+                     'pp-liquidity'], order
 
 
 def test_chart_sits_under_the_prose_that_describes_it():
     """The profit-pool chart used to sit four sections below the prose
-    describing it. Structure -> chart -> the companies in that chart."""
+    describing it. Structure, then the chart."""
     body = _assembly(_tpl())
-    assert (body.index('pp-section pp-structure')
-            < body.index('pp-section pp-chart')
-            < body.index('pp-section pp-companies'))
+    assert body.index('pp-section pp-structure') < body.index('pp-section pp-chart')
 
 
-def test_the_three_company_grids_stayed_merged():
-    """Company Highlights, CR4 Companies and Top 5 by Model Score were one
-    grid each; a sector's mega-cap appeared in all three at once. They are
-    one grid now, and a company accumulates a badge per reason it is there."""
+def test_no_company_card_grid():
+    """The sector page had a company grid three times over (Company
+    Highlights, CR4 Companies, Top 5 by Model Score), then one merged grid
+    under a Key companies tab — and that one restated the Profit pool table.
+    The table is the company view; no grid comes back."""
     css = _tpl()
-    for gone in ('renderPoolKeyPlayers', 'renderPoolCR4Companies',
-                 'pp-section pp-players', 'pp-section pp-cr4',
-                 'pp-section pp-top'):
-        assert gone not in css, '%s came back as a separate grid' % gone
-    assert css.count('function renderPoolCompanies(') == 1
-    assert css.count('class="pp-co-list"') == 1, 'one list, one entry builder'
-
-
-def test_company_cards_are_classed_not_inline_styled():
-    """Three copies of the card markup were inlined, which forced dark mode
-    to match on `[style*="background:white"]` — including the ` white` form
-    the browser rewrites to on hover. Real classes, real overrides."""
-    css = _tpl()
-    assert 'div[style*="background:white"]' not in css, \
-        'the attribute-selector dark-mode override is back'
-    fn = re.search(r'function renderPoolCompanies\(sec,cos\).*?\n\}\n', css, re.S)
-    assert fn, 'could not find renderPoolCompanies'
-    assert 'background:white' not in fn.group(0), \
-        'company cards are .pp-co, styled by class'
-    assert '[data-theme="dark"] .pp-co{' in css
-    for cls in ('.pp-co{', '.pp-co-hdr{', '.pp-co-ul{', '.pp-co-tags{'):
-        assert cls in css, '%s missing' % cls
+    for gone in ('renderPoolKeyPlayers', 'renderPoolCR4Companies', 'renderPoolCompanies',
+                 'pp-section pp-players', 'pp-section pp-cr4', 'pp-section pp-top',
+                 'pp-section pp-companies', 'pp-co-list', "['companies',"):
+        assert gone not in css, '%s came back' % gone
+    assert 'div[style*="background:white"]' not in css
 
 
 def test_liquidity_walks_the_same_rows_as_the_rest_of_the_page():
@@ -172,8 +151,7 @@ def test_every_section_belongs_to_a_sub_tab_with_a_hide_rule():
     body = _assembly(css)
     sections = re.findall(r'<div data-pane="([a-z]+)" class="pp-section (pp-[a-z]+)"', body)
     assert [s for _, s in sections] == ['pp-primer', 'pp-today', 'pp-signals', 'pp-structure', 'pp-chart',
-                                        'pp-history', 'pp-shifts', 'pp-econ', 'pp-companies',
-                                        'pp-liquidity']
+                                        'pp-history', 'pp-shifts', 'pp-econ', 'pp-liquidity']
     tabs = re.search(r'^var _PP_SUBTABS=(.*);$', css, re.M).group(1)
     for pane in {p for p, _ in sections}:
         assert "'%s'" % pane in tabs, pane
@@ -206,13 +184,13 @@ def test_pool_table_sort_arrow_matches_the_gate_matrix():
 
 
 def test_sector_sections_share_one_neutral_dark_surface():
-    """The Companies pane was dark green (and others navy, blue, teal),
+    """The old Companies pane was dark green (and others navy, blue, teal),
     which read as a status colour."""
     css = _tpl()
-    for sec in ('primer', 'today', 'structure', 'companies', 'liquidity'):
+    for sec in ('primer', 'today', 'structure', 'liquidity'):
         assert not re.search(r'\[data-theme="dark"\] \.pp-%s\{background:#(?!161b22)' % sec, css), sec
     assert ('[data-theme="dark"] .pp-primer,[data-theme="dark"] .pp-today,[data-theme="dark"] .pp-structure,'
-            '[data-theme="dark"] .pp-companies,[data-theme="dark"] .pp-liquidity,'
+            '[data-theme="dark"] .pp-liquidity,'
             '[data-theme="dark"] .pp-chart{background:#161b22;}') in css
 
 
@@ -226,3 +204,14 @@ def test_no_window_state_shadows_a_top_level_function():
     funcs = set(re.findall(r'^function ([A-Za-z_$][\w$]*)\(', css, re.M))
     written = set(re.findall(r'\bwindow\.([A-Za-z_$][\w$]*)\s*=(?!=)', css))
     assert not (funcs & written), sorted(funcs & written)
+
+
+def test_pool_tables_pin_their_first_column():
+    """Company / Industry stays put while the table scrolls sideways; the
+    sticky cell carries the section's surface in both themes, so the
+    columns sliding under it do not show through."""
+    css = _tpl()
+    assert ('.ppi-tbl th:first-child,.ppi-tbl td:first-child{position:sticky;left:0;z-index:1;'
+            'background:var(--ppi-bg);') in css
+    assert '.ppi-tbl{--ppi-bg:#f7f9fb;' in css                     # = .pp-chart, light
+    assert '[data-theme="dark"] .ppi-tbl{--ppi-bg:#161b22;' in css  # = .pp-chart, dark
