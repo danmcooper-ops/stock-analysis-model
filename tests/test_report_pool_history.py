@@ -117,7 +117,24 @@ def test_industries_view_draws_and_tabulates_each_industry(tmp_path):
                    {'industries': industry_pools(rows)})
     assert html.count('class="ppi-bar') == 2
     assert 'ppi-pos' in html and 'ppi-neg' in html          # spread colours
-    assert html.count('<tr><td data-v=') == 2 and 'Pool CAGR' in html
+    assert html.count('<tr class="ppi-ind" onclick="dashIndustryJump(') == 2 and 'Pool CAGR' in html
+    # every row and bar opens the Gate Matrix on its industry, by index
+    assert html.count("onclick=\"dashIndustryJump('Tech',") == 4
+
+
+def test_industry_drilldown_filters_by_sector_and_member_names(tmp_path):
+    src = TEMPLATE.read_text(encoding='utf-8')
+    js = '\n'.join([
+        'var _dashFilter={type:"industry",sector:"Tech",label:"Other industries",members:["Odd","Other"]};',
+        _fn(src, '_dashPass'), _fn(src, '_dashLabel'),
+        'var rows=[{sector:"Tech",industry:"Odd"},{sector:"Tech"},{sector:"Tech",industry:"Semis"},'
+        '{sector:"Energy",industry:"Odd"}];',
+        'process.stdout.write(JSON.stringify([rows.map(_dashPass),_dashLabel()]));'])
+    script = tmp_path / 'df.js'
+    script.write_text(js, encoding='utf-8')
+    out = json.loads(subprocess.run(['node', str(script)], capture_output=True, text=True,
+                                    check=True).stdout)
+    assert out == [[True, True, False, False], 'Tech \u203a Other industries']
 
 
 def test_econ_states_both_market_shares_and_the_exclusions(tmp_path):

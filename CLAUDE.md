@@ -676,7 +676,12 @@ ruff check .
   - Profit pool (`pool`): four tiles (Concentration, which holds revenue
     HHI/CR4 from `stats` beside the profit HHI/CR4; Margin spread;
     Loss-makers; Price of the pool), then the chart with its tables. The
-    company table ends with a Value/pool column.
+    company table ends with a Value/pool column. Clicking an industry,
+    either its table row or its bar, opens the Gate Matrix filtered to it
+    (`dashIndustryJump`). It sets a `_dashFilter` of type `industry`,
+    matched on sector plus the entry's `members` names. The folded Other
+    names its small industries. The filter shows as the usual clearable
+    chip and survives the share link.
   - History (`history`).
   - Value creation (`value`).
   - Key companies (`companies`): a company drawn in the chart
