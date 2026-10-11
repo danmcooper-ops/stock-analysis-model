@@ -1501,9 +1501,10 @@ _MIN_MATERIAL_REV_SHARE = 0.001
 def generate_sector_profit_pool_narrative(sector, rows_in_sector):
     """Build a rich profit pool narrative for one sector.
 
-    Analyzes the sector's profit pool structure, identifies key players,
-    and produces Buffett/Porter-style insights about where the profits
-    actually live and why.
+    Frames the sector's profit pool (size, blended margin and what it means)
+    and identifies the key players. Concentration, margin spread and the
+    loss-makers are figures the client renders from `stats` and
+    `structure_stats`, so they are not restated in prose here.
 
     Args:
         sector: str — sector name (e.g., "Technology")
@@ -1512,8 +1513,8 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
 
     Returns:
         dict with keys:
-            overview:      str — 1–2 sentence framing of the pool size & shape
-            concentration: str — HHI/CR4 interpretation sentence
+            overview:      str — 2–3 sentences: pool size, blended margin and
+                           what it means, and the profit leader
             key_players:   list[dict] — one entry per notable company, each
                            with {ticker, company_name, rating, profit_share,
                            revenue_share, op_margin, pp_multiple} plus a
@@ -1521,7 +1522,6 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
                            every role that company earns
             cr4_companies: list[dict] — top 4 by revenue share, each with a
                            `rank` that is None when the sector has no CR4
-            insights:      list[str] — up to 4 strategic bullets about the pool
 
         or None if the sector has no usable profit pool data.
     """
@@ -1605,79 +1605,47 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
     )
 
     # ----- OVERVIEW -----
+    # The sector page's "The Sector Today" paragraph: size, blended margin and
+    # what that margin means, then the leader. The loss-maker count, the
+    # concentration figures and the margin spread are the Profit pool tab's
+    # tiles and are not restated here.
     top1 = by_profit[0] if by_profit else None
-    top3_profit_share = sum((r.get('pp_profit_share') or 0) for r in by_profit[:3])
-    top3_rev_share = sum((r.get('pp_revenue_share') or 0) for r in by_profit[:3])
 
     overview_parts = []
     overview_parts.append(
         f'The {sector} profit pool in this universe totals roughly '
         f'{_fmt_dollars_compact(total_oi)} of positive operating profit on '
         f'{_fmt_dollars_compact(total_rev)} of revenue across {n} companies'
-        + (f' ({n_loss} operating at a loss)' if n_loss else '')
         + f', a blended operating margin of {wtd_margin*100:.1f}%'
         + (' net of losses.' if n_loss else '.')
     )
+    # The verdict follows the sentence that states the margin, so "That
+    # margin" has its referent. Between 8% and 20% there is nothing to add.
+    if wtd_margin >= 0.20:
+        overview_parts.append(
+            "That margin puts the sector in rarefied air — pricing power is "
+            "the default, not the exception, and the only question is whether "
+            "customer value grows fast enough to justify current multiples."
+        )
+    elif 0 < wtd_margin < 0.08:
+        overview_parts.append(
+            "Margins that thin mean the pool has no cushion: a single cycle "
+            "turn or input-cost shock can wipe out a year's earnings, so "
+            "balance-sheet strength matters more than top-line growth."
+        )
+    elif wtd_margin <= 0:
+        overview_parts.append(
+            "That margin means the pool is collectively destroying capital, "
+            "and the rational move is to own only the producer that can "
+            "outlast the others."
+        )
     if top1 is not None and top1.get('pp_profit_share') is not None:
         overview_parts.append(
             f"{top1['ticker']} alone captures {top1['pp_profit_share']*100:.0f}% "
             f"of the pool on {(top1.get('pp_revenue_share') or 0)*100:.0f}% "
             f"of the revenue, setting the pace for the group."
         )
-    # The top-3 profit-vs-revenue split is deliberately NOT restated here:
-    # the pool-skew insight below quotes both numbers together with the
-    # reading that makes them mean something. One statement, one place.
     overview = ' '.join(overview_parts)
-
-    # ----- CONCENTRATION -----
-    # This sentence is the ONLY place the HHI/CR4 reading is spelled out. The
-    # header band already prints the raw figures, so the structural insights
-    # below no longer restate the threshold — what used to be a separate
-    # "oligopoly in practice" bullet now rides here as `tell`, the half that
-    # said something the label did not.
-    concentration = ''
-    if hhi is not None:
-        tell = ''
-        if hhi > 0.25:
-            label = 'concentrated'
-            gloss = (
-                'a small number of players set price and earn most of the profits; '
-                'new entrants face a steep climb.'
-            )
-            tell = (
-                ' Rational competitors avoid price wars because everyone loses, so '
-                'watch coordinated capacity discipline and share-buyback intensity '
-                'as the signs incumbents are playing the long game.'
-            )
-        elif hhi > 0.15:
-            label = 'moderately concentrated'
-            gloss = (
-                'a recognizable pecking order, but no single firm can dictate terms — '
-                'share shifts are possible at the margin.'
-            )
-        else:
-            label = 'competitive'
-            gloss = (
-                'fragmentation keeps pricing honest and makes the pool hard to defend; '
-                'margin discipline matters more than scale.'
-            )
-            if hhi < 0.10:
-                tell = (
-                    ' At this level of fragmentation consolidation is usually the '
-                    'fastest path to value creation — an acquirer with the balance '
-                    'sheet can collapse the cost curve and re-rate the pool.'
-                )
-        concentration = (
-            f'HHI of {hhi:.3f} flags the sector as {label}'
-            + (f' with the top 4 capturing {cr4*100:.0f}% of revenue — {gloss}'
-               if cr4 is not None else f' — {gloss}')
-            + tell
-        )
-    elif cr4 is not None:
-        concentration = (
-            f'The top 4 companies capture {cr4*100:.0f}% of revenue, '
-            f'indicating a {"concentrated" if cr4 > 0.7 else "dispersed"} pool.'
-        )
 
     # ----- KEY PLAYERS -----
     # One entry per company, carrying every role it earns. The same name
@@ -1758,112 +1726,6 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
     # badges on a single company grid, so a short list simply means fewer
     # badges, not a gap to fill.
 
-    # ----- INSIGHTS -----
-    insights = []
-
-    # 1) Pool skew
-    if top3_profit_share > 0 and top3_rev_share > 0:
-        skew = top3_profit_share - top3_rev_share
-        if skew > 0.10:
-            insights.append(
-                f"The top 3 over-earn their revenue share by {skew*100:.0f} "
-                f"percentage points, a textbook sign of scale economies or "
-                f"brand-driven pricing power — the kind of moat Buffett "
-                f"describes as \"a toll bridge.\""
-            )
-        elif skew < -0.05:
-            insights.append(
-                "The top 3 under-earn relative to their revenue share — "
-                "scale has not translated into proportional profits, "
-                "which usually means commoditized output or weak pricing discipline."
-            )
-
-    # 2) Margin dispersion
-    if len(by_margin) >= 3:
-        best_m = by_margin[0].get('operating_margin') or 0
-        worst_m = by_margin[-1].get('operating_margin') or 0
-        spread = best_m - worst_m
-        if spread > 0.15:
-            insights.append(
-                f"Margin spread between the best ({by_margin[0]['ticker']} at "
-                f"{best_m*100:.1f}%) and worst ({by_margin[-1]['ticker']} at "
-                f"{worst_m*100:.1f}%) operators exceeds {spread*100:.0f} points — "
-                f"the sector rewards operational excellence, and laggards "
-                f"have real room to close the gap (or be taken out)."
-            )
-        elif spread < 0.05:
-            insights.append(
-                f"Margins are tightly clustered ({spread*100:.1f}pp spread between "
-                f"top and bottom operators), suggesting the sector has "
-                f"standardized economics — differentiation comes from growth "
-                f"and capital allocation, not cost structure."
-            )
-
-    # (The concentration-linked bullet that used to sit here was folded into
-    # the `concentration` sentence above — it restated an HHI threshold the
-    # header band and that sentence both already carry.)
-
-    # 3) Blended margin quality. The figure itself is stated once, in the
-    #    overview sentence above; these bullets carry only the verdict.
-    if wtd_margin >= 0.20:
-        insights.append(
-            "That blended margin puts the sector in rarefied air — pricing "
-            "power is the default, not the exception, and the only question is "
-            "whether customer value grows fast enough to justify current "
-            "multiples."
-        )
-    elif wtd_margin < 0.08 and wtd_margin > 0:
-        insights.append(
-            "Margins that thin mean the pool has no cushion: a single cycle "
-            "turn or input-cost shock can wipe out a year's earnings, so "
-            "balance-sheet strength matters more than top-line growth."
-        )
-    elif wtd_margin <= 0:
-        insights.append(
-            "The sector's blended margin is negative — this is a pool that "
-            "is collectively destroying capital, and the rational move is "
-            "to own only the producer that can outlast the others."
-        )
-
-    # 4) Efficiency spread (pp_multiple). This used to divide the best
-    #    multiple by the worst and quote the quotient, which was not a real
-    #    measurement. pp_profit_share clamps its numerator at max(opinc, 0),
-    #    so every loss-making company has a multiple of exactly 0 and the
-    #    bottom of this list is ALWAYS one of them; the code then divided by
-    #    max(worst, 0.01), making the printed figure best x 100 — a function
-    #    of that floor constant, not of the company it named. Technology's
-    #    "262.3x more efficiently than SYNA" was 2.621 x 100, and SYNA's own
-    #    multiple never entered the arithmetic. Even restricted to profitable
-    #    names the quotient stays unusable, because a large company can be
-    #    barely profitable and put a near-zero value in the denominator
-    #    (Industrials reached 2,064x that way). So quote the two multiples
-    #    themselves: same two companies, same point, nothing to explode.
-    if len(by_multiple) >= 2:
-        best = by_multiple[0]
-        best_mult = best.get('pp_multiple') or 0
-        # Loss-makers all sit at exactly 0, so the tail of this list is a tie
-        # and by_multiple[-1] would name whichever of them happened to sort
-        # last. Among a tie, name the one that matters most — the largest by
-        # revenue share — so the sentence is both deterministic and about a
-        # company worth mentioning.
-        worst = min(by_multiple,
-                    key=lambda r: ((r.get('pp_multiple') or 0),
-                                   -(r.get('pp_revenue_share') or 0)))
-        worst_mult = worst.get('pp_multiple') or 0
-        if best_mult > 1.5 and worst_mult < 0.7:
-            insights.append(
-                f"{best['ticker']} takes {best_mult:.2f}x its share of sector "
-                f"revenue in profit while {worst['ticker']} takes "
-                + (f"{worst_mult:.2f}x"
-                   if worst_mult > 0 else "none of it, operating at a loss")
-                + " — the pool is draining toward the efficient operator, "
-                  "and weak hands eventually exit."
-            )
-
-    # Cap insights at 4 (one of the original five was folded into the
-    # concentration sentence).
-    insights = insights[:4]
-
     _edu = _SECTOR_EDUCATION.get(sector)
     if isinstance(_edu, dict):
         education_model = _edu.get('model')
@@ -1908,7 +1770,8 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
             # Rank is only meaningful when the sector actually has a CR4.
             # analyze_stock only computes one at >=3 tickers, and the client
             # hides the "#N by revenue" badge when this is None so the cards
-            # and the header band can never disagree.
+            # and the Concentration tile (which quotes stats.cr4) can never
+            # disagree.
             'rank': (_i + 1) if cr4 is not None else None,
         })
 
@@ -1916,10 +1779,8 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
         'education': education_model,
         'education_cycle': education_cycle,
         'overview': overview,
-        'concentration': concentration,
         'key_players': key_players,
         'cr4_companies': cr4_companies,
-        'insights': insights,
         # Structural sector signals — paired prose bullets that explain what
         # could break or amplify the profit pool, sourced from the existing
         # thesis-risk dictionary and the new tailwinds dictionary above.

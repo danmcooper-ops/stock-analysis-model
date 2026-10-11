@@ -1,22 +1,18 @@
 # tests/test_sector_pool_narrative.py
-"""Guard: the sector profit-pool prose names real companies and real numbers.
+"""Guard: the sector profit-pool prose names real companies and real numbers,
+and states each figure once.
 
-Two defects motivated these, both visible on the live 2026-09-05 run:
-
-  * the efficiency bullet printed a quotient that was not a measurement.
-    `pp_profit_share` clamps its numerator at `max(opinc, 0)`, so every
-    loss-making company has a multiple of exactly 0 and the bottom of the
-    ranking is always one of them. The code divided by `max(worst, 0.01)`,
-    making the printed figure `best * 100` — a function of that floor
-    constant, not of the company it named. Technology read "262.3x more
-    efficiently than SYNA"; 262.3 is 2.621 * 100, and SYNA's own multiple
-    never entered the arithmetic.
   * `|OM| <= 100%` was the only filter on who could be named the sector's
     best or worst operator, which let a $865M company (0.02% of a $3.8T
-    pool) outrank NVDA as Technology's "Margin Leader".
+    pool) outrank NVDA as Technology's "Margin Leader" (live 2026-09-05).
+  * The `overview` paragraph is the sector page's "The Sector Today". The
+    loss-maker count, concentration and margin spread are the Profit pool
+    tab's tiles, so the prose no longer restates them; the strategy bullets
+    that did (`insights`) and the HHI paragraph (`concentration`) are gone,
+    and the one bullet that said something new — what the blended margin
+    means — now follows the sentence that states it.
 
-Neither fails loudly — the page renders either way, just with a fabricated
-number and an unrecognisable company. So pin them.
+Neither failure is loud — the page renders either way. So pin them.
 """
 import models.narrative as narrative
 from models.narrative import generate_sector_profit_pool_narrative as gen
@@ -61,39 +57,6 @@ def _sector(extra=()):
     return rows
 
 
-def test_efficiency_bullet_never_prints_a_quotient():
-    """The best/worst ratio is gone; both multiples are stated instead."""
-    src = open(narrative.__file__, encoding='utf-8').read()
-    assert 'max(worst_mult, 0.01)' not in src, \
-        'the floor-divided quotient is back'
-    n = gen('Technology', _sector())
-    eff = [b for b in n['insights'] if 'share of sector revenue in profit' in b]
-    assert eff, 'the efficiency bullet should fire on this pool'
-    assert 'x more efficiently' not in eff[0], 'no quotient in the prose'
-    # the leader's own multiple, stated directly
-    assert '1.83x' in eff[0]
-
-
-def test_a_loss_making_worst_is_described_not_divided_by():
-    """A company at 0 has no ratio to quote; say what is actually true."""
-    n = gen('Technology', _sector())
-    eff = [b for b in n['insights'] if 'share of sector revenue in profit' in b][0]
-    assert 'operating at a loss' in eff
-    assert 'takes none of it' in eff
-
-
-def test_the_loss_maker_named_is_the_largest_not_an_arbitrary_tie():
-    """Every loss-maker sits at exactly 0, so the tail of the ranking is a
-    tie. Name the biggest of them, deterministically — not whichever sorted
-    last."""
-    tiny_losers = [_row('TINY%d' % i, 200, -80, 0.002, 0.0) for i in range(4)]
-    n = gen('Technology', _sector(extra=tiny_losers))
-    eff = [b for b in n['insights'] if 'share of sector revenue in profit' in b][0]
-    assert 'LOSSY' in eff, 'the largest loss-maker should be the one named'
-    for t in ('TINY0', 'TINY1', 'TINY2', 'TINY3'):
-        assert t not in eff
-
-
 def test_immaterial_companies_cannot_be_named_sector_exemplars():
     """A rounding-error company must not be held up as the sector's best or
     worst operator while the mega-caps go unmentioned."""
@@ -105,8 +68,7 @@ def test_immaterial_companies_cannot_be_named_sector_exemplars():
              for p in n['key_players'] for r in p['roles']}
     assert roles.get('Margin Leader') != 'SPECK'
     assert roles.get('Efficiency Leader') != 'SPECK'
-    for bullet in n['insights']:
-        assert 'SPECK' not in bullet
+    assert 'SPECK' not in n['overview']
 
 
 def test_a_thin_sector_keeps_its_storyline():
@@ -126,3 +88,34 @@ def test_the_materiality_floor_is_a_named_constant():
     assert hasattr(narrative, '_MIN_MATERIAL_REV_SHARE')
     # low enough to keep genuine mid-caps, high enough to drop the noise tail
     assert 0 < narrative._MIN_MATERIAL_REV_SHARE <= 0.005
+
+
+def _margin_sector(margin):
+    """Three equal companies at one operating margin."""
+    return [_row('M%d' % i, 1_000, 1_000 * margin, 1 / 3,
+                 (1 / 3) if margin > 0 else 0.0) for i in range(3)]
+
+
+def test_overview_states_size_margin_and_leader_not_the_tiles():
+    n = gen('Technology', _sector())
+    ov = n['overview']
+    assert 'blended operating margin of' in ov
+    assert 'BIGA alone captures' in ov
+    # the Loss-makers and Concentration tiles own these
+    assert 'operating at a loss' not in ov
+    assert 'HHI' not in ov
+    for gone in ('insights', 'concentration'):
+        assert gone not in n, gone
+
+
+def test_margin_verdict_follows_the_margin_sentence():
+    """The verdict says what the blended margin means, directly after the
+    sentence that states it, and only at the ends of the range."""
+    hi = gen('Technology', _margin_sector(0.30))['overview']
+    assert 'rarefied air' in hi
+    assert hi.index('blended operating margin') < hi.index('That margin') < hi.index('alone captures')
+    assert 'no cushion' in gen('Energy', _margin_sector(0.05))['overview']
+    assert 'destroying capital' in gen('Energy', _margin_sector(-0.05))['overview']
+    mid = gen('Industrials', _margin_sector(0.12))['overview']
+    for verdict in ('rarefied air', 'no cushion', 'destroying capital'):
+        assert verdict not in mid
