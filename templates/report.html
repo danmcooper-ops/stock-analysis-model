@@ -6198,6 +6198,7 @@ function renderMatrix(){
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" data-col-tip="rating" data-col-label="Today\u2019s Rating">Today\u2019s Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating_prev\')" data-col-tip="rating_prev" data-col-label="Yesterday\u2019s Rating">Yesterday\u2019s Rating'+(mSC==='rating_prev'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'sector\')" data-col-tip="sector" data-col-label="Sector">Sector'+(mSC==='sector'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'industry\')" data-col-tip="industry" data-col-label="Industry">Industry'+(mSC==='industry'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   GM.categories.forEach(function(cat){var n=cg2[cat.name].length+1;var _cw=Math.round(cat.weight*100);var _cb=CAT_TIPS[cat.name];h1+='<th class="cat-header" colspan="'+n+'" style="background:'+cat.dark+'"'+(_cb?' data-col-tip="_cat_'+cat.name+'" data-col-label="'+cat.name+' ('+_cw+'%)" data-col-tip-body="'+_cb+' Weighted '+_cw+'% of the composite score."':'')+'>'+cat.name+' ('+_cw+'%)</th>';});
   h1+='</tr>';
   var h2='<tr>';
@@ -6242,6 +6243,7 @@ function _mtxBuildRow(d,_i){
   html+='<td>'+rb(d.rating,d)+'</td>';
   html+='<td>'+rb(d.rating_prev)+'</td>';
   html+='<td style="font-size:0.75em">'+(d.sector||'N/A')+'</td>';
+  html+='<td style="font-size:0.75em">'+esc(d.industry||'N/A')+'</td>';
   GM.categories.forEach(function(cat){
     _mtxCg2[cat.name].forEach(function(g){
       var gv=d[g.key],gp2=d[g.gpKey];
@@ -6310,7 +6312,7 @@ function _mtxOnScroll(){
   _mtxRafPending=true;
   requestAnimationFrame(function(){_mtxRafPending=false;_renderMtxWindow();});
 }
-function mSort(col){_mUserSorted=true;if(mSC===col)mSA=!mSA;else{mSC=col;mSA=col==='ticker'||col==='sector'||col==='rating'||col==='rating_prev';}renderMatrix();}
+function mSort(col){_mUserSorted=true;if(mSC===col)mSA=!mSA;else{mSC=col;mSA=col==='ticker'||col==='sector'||col==='industry'||col==='rating'||col==='rating_prev';}renderMatrix();}
 
 /* === MATRIX SUB-TABS === */
 var curMSub=null;
