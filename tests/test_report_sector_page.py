@@ -215,3 +215,12 @@ def test_pool_tables_pin_their_first_column():
             'background:var(--ppi-bg);') in css
     assert '.ppi-tbl{--ppi-bg:#f7f9fb;' in css                     # = .pp-chart, light
     assert '[data-theme="dark"] .ppi-tbl{--ppi-bg:#161b22;' in css  # = .pp-chart, dark
+
+
+def test_gate_matrix_has_an_industry_column_after_sector():
+    """Industry sits right of Sector in the Gate Matrix, sorts A-Z first like
+    Sector, and is escaped ("Oil & Gas ...")."""
+    css = _tpl()
+    assert css.index("mSort(\\'sector\\')") < css.index("mSort(\\'industry\\')")
+    assert css.index("+(d.sector||'N/A')+'</td>';\n  html+='<td style=\"font-size:0.75em\">'+esc(d.industry||'N/A')") > 0
+    assert "col==='sector'||col==='industry'" in css
