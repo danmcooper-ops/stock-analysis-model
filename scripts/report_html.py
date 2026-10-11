@@ -19,6 +19,9 @@ except Exception:
     generate_sector_profit_pool_narrative = None
 from models.data_tab_narrative import generate_data_tab_summaries
 from models.profile_verdict import profile_verdict
+from models.sector_forces import evaluate_forces
+from models.sector_pool import (economic_pool, industry_pools, pool_structure,
+                                 sector_pool_history, universe_totals)
 from scripts.scoring import gate_metadata
 from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
                             CARRY_FORWARD_STOPPED_GUARD_FLOOR,
@@ -793,6 +796,9 @@ def _row_context(r, gate_meta_obj, _r2000, _prev_ratings, _rating_hist):
         '_rating_cap_reasons': r.get('_rating_cap_reasons', []),
         'analyst_rec': r.get('analyst_rec'),
         'company_name': r.get('company_name', ''),
+        # Other tickers of this issuer folded into this row (data/issuers.py):
+        # the portfolio evaluator resolves a definition naming one of them.
+        'listing_aliases': r.get('listing_aliases'),
         'description': (r.get('description') or '')[:200],
         'sector': r.get('sector'),
         'industry': r.get('industry'),
@@ -1191,7 +1197,7 @@ def _extract_details_payload(chart_records):
     return details_payload
 
 
-def _build_sector_pool_data(rows):
+def _build_sector_pool_data(rows, macro_sidecar=None):
     # Per-sector profit pool narratives (top-level Profit Pool tab)
     sector_pool_data = {}
     if generate_sector_profit_pool_narrative is not None:
@@ -1201,6 +1207,13 @@ def _build_sector_pool_data(rows):
             if not s or r.get('pp_revenue_share') is None:
                 continue
             _by_sector.setdefault(s, []).append(r)
+        # Guarded like every block below: one malformed row must cost the
+        # universe shares (economic pool, price of the pool), not the render.
+        try:
+            universe = universe_totals([r for v in _by_sector.values() for r in v])
+        except Exception as e:
+            logger.warning('sector pool universe totals failed: %s', e)
+            universe = None
         for s, srows in _by_sector.items():
             try:
                 narr = generate_sector_profit_pool_narrative(s, srows)
@@ -1208,6 +1221,33 @@ def _build_sector_pool_data(rows):
                     sector_pool_data[s] = narr
             except Exception as e:
                 print(f"[warn] sector pool narrative failed for {s}: {e}")
+                continue
+            if not narr:
+                continue
+            # The pool over time (pp-history / pp-shifts), by industry
+            # (pp-chart), against its cost of capital (pp-econ) and its
+            # concentration and price (pp-structure).
+            try:
+                narr['history'] = sector_pool_history(srows)
+            except Exception as e:
+                logger.warning('sector pool history failed for %s: %s', s, e)
+            # Industries grow over the sector's window where they can, so
+            # the table and the industry-evidenced forces compare like years.
+            window = (narr.get('history') or {}).get('window')
+            for key, build, args in (
+                    ('industries', industry_pools, (srows, window)),
+                    ('economic', economic_pool, (srows, universe)),
+                    ('structure_stats', pool_structure, (srows, universe))):
+                try:
+                    narr[key] = build(*args)
+                except Exception as e:
+                    logger.warning('sector pool %s failed for %s: %s', key, s, e)
+            # The headwinds and tailwinds with their evidence (pp-signals);
+            # reads the history and industries just built.
+            try:
+                narr['forces'] = evaluate_forces(s, macro_sidecar, narr, srows)
+            except Exception as e:
+                logger.warning('sector forces failed for %s: %s', s, e)
     return sector_pool_data
 
 
@@ -1877,7 +1917,8 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     # Gate metadata for Matrix view rendering in JavaScript
     gate_meta = dumps_for_script(gate_meta_obj, default=_json_default)
 
-    sector_pool_data = _build_sector_pool_data(rows)
+    sector_pool_data = _build_sector_pool_data(
+        rows, (macro_payload or {}).get('sidecar'))
     sector_pool_json = dumps_for_script(sector_pool_data, default=_json_default)
 
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The

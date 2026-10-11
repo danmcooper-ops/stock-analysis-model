@@ -237,11 +237,7 @@ _SERIES_FACT_KEYS = ('l', 'sec', 'latest', 'chg_1m', 'chg_1y', 'pctile',
 
 
 def _driver_for(sector):
-    """Static macro sensitivities for a sector, tolerating the legacy
-    'Financials' key in _SECTOR_MACRO_DRIVERS."""
-    if sector == 'Financial Services':
-        return (_SECTOR_MACRO_DRIVERS.get('Financial Services')
-                or _SECTOR_MACRO_DRIVERS.get('Financials') or {})
+    """Static macro sensitivities for a sector."""
     return _SECTOR_MACRO_DRIVERS.get(sector, {})
 
 

@@ -209,7 +209,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
      on !important. */
   .detail-content{max-width:100%!important;border-radius:0!important;height:max(100dvh,var(--vvh,0px))!important;}
   @supports not (height:100dvh){.detail-content{height:var(--vvh,100vh)!important;}}
-  .dh{padding-right:44px!important;}
   .d-header-band{border-radius:0!important;padding:calc(10px + env(safe-area-inset-top)) 16px 10px!important;}
   .d-body{padding:10px 12px calc(10px + env(safe-area-inset-bottom)) 12px!important;display:block!important;}
   .d-body>*{margin-bottom:10px;}
@@ -230,7 +229,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .last-updated{display:none!important;}
   .hdr-date{display:none!important;}
   .container{padding:2px 6px;}
-  .dh{padding-right:44px!important;}
   .detail-modal.open{padding:0!important;}
   /* Full-bleed height override, same as the portrait phone block above. */
   .detail-content{max-width:100%!important;width:100%!important;border-radius:0!important;height:max(100dvh,var(--vvh,0px))!important;}
@@ -669,84 +667,92 @@ td.ct{font-weight:700;}
 /* Freeze top header row */
 .dt thead{position:-webkit-sticky;position:sticky;top:0;z-index:10;}
 .matrix-table thead{position:-webkit-sticky;position:sticky;top:0;z-index:10;}
-/* Lock the leftmost column widths (# · flag) so the sticky `left:` offsets
-   of the columns frozen after them stay accurate. */
+/* Lock the four leftmost column widths so sticky `left:` offsets stay accurate
+   (the reviewed column has a 16px SVG + padding that naturally pushes it past
+   its declared width, which created a 5px overlap with the ticker column and
+   a 1px gap between the flag and reviewed columns where scrolled data showed
+   through the headers). */
 .dt th:nth-child(1),.dt td:nth-child(1),.matrix-table thead tr:first-child th:nth-child(1),.matrix-table tbody td:nth-child(1){width:40px;min-width:40px;max-width:40px;}
 .dt th:nth-child(2),.dt td:nth-child(2),.matrix-table thead tr:first-child th:nth-child(2),.matrix-table tbody td:nth-child(2){width:28px;min-width:28px;max-width:28px;}
+.dt th:nth-child(3),.dt td:nth-child(3),.matrix-table thead tr:first-child th:nth-child(3),.matrix-table tbody td:nth-child(3){width:32px;min-width:32px;max-width:32px;}
 /* Uniform metric-column widths for the main financial-data table. Under the
    base .dt `table-layout:auto`, each metric column sized to its widest cell,
    so widths were ragged and differed per tab. Fixed layout makes the browser
-   honor declared widths instead. Ticker (col 3) and Rating (col 4) keep their
-   own label-sized widths; every metric column (5th onward) shares ONE uniform
+   honor declared widths instead. Ticker (col 4) and Rating (col 5) keep their
+   own label-sized widths; every metric column (6th onward) shares ONE uniform
    width so the data grid lines up. Scoped to #dtbl so the matrix / heatmap /
-   summary tables (also .dt) are untouched. Cols 1-2 keep the locked widths
+   summary tables (also .dt) are untouched. Cols 1-3 keep the locked widths
    above (sticky `left:` offsets depend on them). */
 #dtbl{table-layout:fixed;}
-#dtbl th:nth-child(3),#dtbl td:nth-child(3){width:68px;min-width:68px;max-width:68px;}
-#dtbl th:nth-child(4),#dtbl td:nth-child(4){width:72px;min-width:72px;max-width:72px;}
-#dtbl th:nth-child(n+5),#dtbl td:nth-child(n+5){width:82px;min-width:82px;max-width:82px;}
+#dtbl th:nth-child(4),#dtbl td:nth-child(4){width:68px;min-width:68px;max-width:68px;}
+#dtbl th:nth-child(5),#dtbl td:nth-child(5){width:72px;min-width:72px;max-width:72px;}
+#dtbl th:nth-child(n+6),#dtbl td:nth-child(n+6){width:82px;min-width:82px;max-width:82px;}
 #dtbl th{white-space:normal;vertical-align:bottom;line-height:1.15;}
-#dtbl td:nth-child(n+5){overflow:hidden;text-overflow:ellipsis;}
-/* Freeze left 3 cols in DT header (# · flag · ticker) */
+#dtbl td:nth-child(n+6){overflow:hidden;text-overflow:ellipsis;}
+/* Freeze left 4 cols in DT header (# · flag · reviewed · ticker) */
 .dt th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:12;background:#1a252f;}
 .dt th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:12;background:#1a252f;}
-.dt th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
-/* Freeze left 3 cols in DT body */
+.dt th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:12;background:#1a252f;}
+.dt th:nth-child(4){position:-webkit-sticky;position:sticky;left:100px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+/* Freeze left 4 cols in DT body */
 .dt tbody td:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:3;background:#fff;color:#7f8c9a;font-size:0.78em;font-weight:600;text-align:right;padding-right:6px;}
 .dt tbody td:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:3;background:#fff;}
-.dt td.tk2{position:-webkit-sticky;position:sticky;left:68px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-.dt tr:nth-child(even) td:nth-child(1),.dt tr:nth-child(even) td:nth-child(2),.dt tr:nth-child(even) td.tk2{background:#f8f9fa;}
-.dt tr:hover td:nth-child(1),.dt tr:hover td:nth-child(2),.dt tr:hover td.tk2{background:#eaf4fd!important;}
-/* Extend the frozen zone through Rating (col 4) and Δ-change (col 5) so BOTH
+.dt tbody td:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:3;background:#fff;}
+.dt td.tk2{position:-webkit-sticky;position:sticky;left:100px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.dt tr:nth-child(even) td:nth-child(1),.dt tr:nth-child(even) td:nth-child(2),.dt tr:nth-child(even) td:nth-child(3),.dt tr:nth-child(even) td.tk2{background:#f8f9fa;}
+.dt tr:hover td:nth-child(1),.dt tr:hover td:nth-child(2),.dt tr:hover td:nth-child(3),.dt tr:hover td.tk2{background:#eaf4fd!important;}
+/* Extend the frozen zone through Rating (col 5) and Δ-change (col 6) so BOTH
    rating columns stay pinned when the metric grid scrolls horizontally — on
    every Financial Data sub-tab, since all of them lead with ticker/rating/Δ.
-   Offsets follow the locked #dtbl widths (ticker at 68px, 68px wide → rating
-   at 136px; rating 72px → Δ at 208px). Scoped to #dtbl so the matrix / heatmap tables
+   Offsets follow the locked #dtbl widths (ticker 68px → rating at 168px;
+   rating 72px → Δ at 240px). Scoped to #dtbl so the matrix / heatmap tables
    (also .dt, with their own frozen-column setup) are untouched. The header
    hue comes from the higher-specificity #dtbl.hdr-* th rules below; these only
    add position+offset and an opaque body background so scrolled cells don't
    bleed through. */
-#dtbl th:nth-child(4){position:-webkit-sticky;position:sticky;left:136px;z-index:12;background:#1a252f;}
-#dtbl th:nth-child(5){position:-webkit-sticky;position:sticky;left:208px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
-#dtbl tbody td:nth-child(4){position:-webkit-sticky;position:sticky;left:136px;z-index:3;background:#fff;}
-#dtbl tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:208px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-#dtbl tr:nth-child(even) td:nth-child(4),#dtbl tr:nth-child(even) td:nth-child(5){background:#f8f9fa;}
-#dtbl tr:hover td:nth-child(4),#dtbl tr:hover td:nth-child(5){background:#eaf4fd!important;}
+#dtbl th:nth-child(5){position:-webkit-sticky;position:sticky;left:168px;z-index:12;background:#1a252f;}
+#dtbl th:nth-child(6){position:-webkit-sticky;position:sticky;left:240px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+#dtbl tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:168px;z-index:3;background:#fff;}
+#dtbl tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:240px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+#dtbl tr:nth-child(even) td:nth-child(5),#dtbl tr:nth-child(even) td:nth-child(6){background:#f8f9fa;}
+#dtbl tr:hover td:nth-child(5),#dtbl tr:hover td:nth-child(6){background:#eaf4fd!important;}
 /* Frozen-zone shadow now belongs on the Δ column (the new right edge), not Ticker. */
-#dtbl th:nth-child(3){box-shadow:none;}
+#dtbl th:nth-child(4){box-shadow:none;}
 #dtbl td.tk2{box-shadow:none;}
 /* Dark-mode opaque backgrounds for the two newly-frozen columns (mirrors the
    col 1-3 / tk2 dark rules). */
-[data-theme="dark"] #dtbl tbody td:nth-child(4),[data-theme="dark"] #dtbl tbody td:nth-child(5){background:#161b22;}
-[data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(4),[data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(5){background:#1c2128;}
-[data-theme="dark"] #dtbl tr:hover td:nth-child(4),[data-theme="dark"] #dtbl tr:hover td:nth-child(5){background:#1f3a5c !important;}
-/* Freeze left 3 cols in matrix header (# · flag · ticker — first row only since second row has gate sub-headers) */
+[data-theme="dark"] #dtbl tbody td:nth-child(5),[data-theme="dark"] #dtbl tbody td:nth-child(6){background:#161b22;}
+[data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(5),[data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(6){background:#1c2128;}
+[data-theme="dark"] #dtbl tr:hover td:nth-child(5),[data-theme="dark"] #dtbl tr:hover td:nth-child(6){background:#1f3a5c !important;}
+/* Freeze left 4 cols in matrix header (# · flag · reviewed · ticker — first row only since second row has gate sub-headers) */
 .matrix-table thead tr:first-child th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:15;background:#1a252f;}
 .matrix-table thead tr:first-child th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:15;background:#1a252f;}
 .matrix-table thead tr:first-child th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:15;background:#1a252f;}
-/* Freeze left 3 cols in matrix body */
+.matrix-table thead tr:first-child th:nth-child(4){position:-webkit-sticky;position:sticky;left:100px;z-index:15;background:#1a252f;}
+/* Freeze left 4 cols in matrix body */
 .matrix-table tbody td:nth-child(1){position:sticky;left:0;z-index:3;background:#fff;color:#7f8c9a;font-size:0.78em;font-weight:600;text-align:right;padding-right:6px;}
 .matrix-table tbody td:nth-child(2){position:sticky;left:40px;z-index:3;background:#fff;}
-.matrix-table td.tk{position:sticky;left:68px;z-index:3;background:#fff;}
+.matrix-table tbody td:nth-child(3){position:sticky;left:68px;z-index:3;background:#fff;}
+.matrix-table td.tk{position:sticky;left:100px;z-index:3;background:#fff;}
 /* Lock ticker width so the rating columns' sticky `left` stays exact, then
-   freeze BOTH Today's Rating (4th col) and Yesterday's Rating (5th col) —
-   fixed-width so col 5's offset is deterministic (ticker at 68px, 60px wide →
-   Today at 128px; Today 72px → Yesterday at 200px). Everything from Sector rightward scrolls
+   freeze BOTH Today's Rating (5th col) and Yesterday's Rating (6th col) —
+   fixed-width so col 6's offset is deterministic (ticker 60px → Today at 160px;
+   Today 72px → Yesterday at 232px). Everything from Sector rightward scrolls
    past them; the frozen-zone shadow sits on Yesterday, the new right edge. */
-.matrix-table thead tr:first-child th:nth-child(3),.matrix-table tbody td.tk{width:60px;min-width:60px;max-width:60px;}
-.matrix-table thead tr:first-child th:nth-child(4),.matrix-table thead tr:first-child th:nth-child(5),.matrix-table tbody td:nth-child(4),.matrix-table tbody td:nth-child(5){width:72px;min-width:72px;max-width:72px;}
+.matrix-table thead tr:first-child th:nth-child(4),.matrix-table tbody td.tk{width:60px;min-width:60px;max-width:60px;}
+.matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6),.matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){width:72px;min-width:72px;max-width:72px;}
 /* Headers may wrap ("Today's Rating" on two lines); body cells keep the table's
    nowrap so the rating pills render single-line, identical to Financial Data. */
-.matrix-table thead tr:first-child th:nth-child(4),.matrix-table thead tr:first-child th:nth-child(5){white-space:normal;}
-.matrix-table thead tr:first-child th:nth-child(4){position:-webkit-sticky;position:sticky;left:128px;z-index:15;background:#1a252f;}
-.matrix-table tbody td:nth-child(4){position:-webkit-sticky;position:sticky;left:128px;z-index:3;background:#fff;}
-.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:200px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
-.matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:200px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-.matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(4),.matrix-table tr:nth-child(even) td:nth-child(5){background:rgba(255,255,255,0.97);}
-.matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(4),.matrix-table tr:hover td:nth-child(5){background:#eaf4fd!important;}
+.matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6){white-space:normal;}
+.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:15;background:#1a252f;}
+.matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:3;background:#fff;}
+.matrix-table thead tr:first-child th:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+.matrix-table tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(5),.matrix-table tr:nth-child(even) td:nth-child(6){background:rgba(255,255,255,0.97);}
+.matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(5),.matrix-table tr:hover td:nth-child(6){background:#eaf4fd!important;}
 /* Touch devices (iPhone and iPad, both orientations): the full frozen
-   zone — # · flag · ticker · Today's Rating · Yesterday's
-   Rating — is 272-280px, a sliver-leaving share of a 390px phone and
+   zone — # · flag · reviewed · ticker · Today's Rating · Yesterday's
+   Rating — is 304-312px, a sliver-leaving share of a 390px phone and
    still a third of an iPad portrait. Only the TICKER stays sticky: it
    pins at left:0 once the leading utility columns scroll under it, and
    both rating columns scroll with the data. The frozen-edge shadow moves
@@ -757,17 +763,17 @@ td.ct{font-weight:700;}
    #dtbl / .matrix-table — the heatmap (also .dt) keeps its own
    Sector-only freeze. */
 @media (hover:none) and (pointer:coarse){
-  #dtbl th:nth-child(1),#dtbl th:nth-child(2),
-  #dtbl tbody td:nth-child(1),#dtbl tbody td:nth-child(2),
-  #dtbl th:nth-child(4),#dtbl th:nth-child(5),
-  #dtbl tbody td:nth-child(4),#dtbl tbody td:nth-child(5){position:static;box-shadow:none;}
-  #dtbl th:nth-child(3){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+  #dtbl th:nth-child(1),#dtbl th:nth-child(2),#dtbl th:nth-child(3),
+  #dtbl tbody td:nth-child(1),#dtbl tbody td:nth-child(2),#dtbl tbody td:nth-child(3),
+  #dtbl th:nth-child(5),#dtbl th:nth-child(6),
+  #dtbl tbody td:nth-child(5),#dtbl tbody td:nth-child(6){position:static;box-shadow:none;}
+  #dtbl th:nth-child(4){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
   #dtbl td.tk2{left:0;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-  .matrix-table thead tr:first-child th:nth-child(1),.matrix-table thead tr:first-child th:nth-child(2),
-  .matrix-table tbody td:nth-child(1),.matrix-table tbody td:nth-child(2),
-  .matrix-table thead tr:first-child th:nth-child(4),.matrix-table thead tr:first-child th:nth-child(5),
-  .matrix-table tbody td:nth-child(4),.matrix-table tbody td:nth-child(5){position:static;box-shadow:none;}
-  .matrix-table thead tr:first-child th:nth-child(3){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+  .matrix-table thead tr:first-child th:nth-child(1),.matrix-table thead tr:first-child th:nth-child(2),.matrix-table thead tr:first-child th:nth-child(3),
+  .matrix-table tbody td:nth-child(1),.matrix-table tbody td:nth-child(2),.matrix-table tbody td:nth-child(3),
+  .matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6),
+  .matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){position:static;box-shadow:none;}
+  .matrix-table thead tr:first-child th:nth-child(4){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
   .matrix-table td.tk{left:0;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
   /* Collapsing popup banner: scrolling INTO the data (finger up) shrinks
      the header band to two lines — the TICKER on top, then price · rating
@@ -784,48 +790,44 @@ td.ct{font-weight:700;}
      touch even when expanded, so padding and row gap interpolate instead
      of jumping between block and flex layouts. The lines that leave the
      collapsed banner animate to nothing rather than display:none-ing —
-     max-height→0 for the block lines (name, meta), max-width→0 for the
-     inline tails on surviving lines (gates x/N, rating-since, nav
-     position) — so the rating row visibly pushes the banner closed
+     max-height→0 for the block lines (the action/pager top row, name,
+     meta), max-width→0 for the inline tails on surviving lines (gates x/N,
+     rating-since) — so the rating row visibly pushes the banner closed
      instead of snapping. The max caps are animation ceilings only,
-     comfortably above real content (meta can wrap to 3-4 lines on an SE).
-     Absolutes (arrows, portfolio/flag) fade — they never affect flow. */
+     comfortably above real content (a long name or meta can wrap to 4-5
+     lines on an SE). */
   .d-header-band{display:flex;flex-direction:column;gap:0;transition:padding .28s ease,gap .28s ease;}
-  .dcname,.dmeta{overflow:hidden;max-height:88px;transition:max-height .28s ease,opacity .18s ease,margin .28s ease;}
+  .dcname,.dmeta,.d-toprow{overflow:hidden;max-height:140px;transition:max-height .28s ease,opacity .18s ease,margin .28s ease;}
   .d-rating-row{transition:margin .28s ease,padding .28s ease;}
   .dh{transition:padding .28s ease;}
   .dh .dtk{transition:font-size .28s ease;}
-  .d-gp,.d-rsince,.det-nav-pos{overflow:hidden;max-width:340px;transition:max-width .28s ease,opacity .18s ease;}
-  .d-mini-nav,.d-mini-nav-actions{transition:opacity .18s ease;}
+  .d-gp,.d-rsince{overflow:hidden;max-width:340px;transition:max-width .28s ease,opacity .18s ease;}
   /* Collapsed: natural DOM order already reads ticker → rating row once
      the name/meta lines collapse. Breathing room: 8px top/bottom padding
-     and a 5px row gap. The TICKER line shares height with the ☰/× pair
-     (top:12px+safe), so .dh carries the 76px right clearance
-     (right:46px + 24px + margin); the rating row below the buttons runs
-     full width. Zero-width flex-item ghosts (gates/rsince at max-width:0)
+     and a 5px row gap. The top row (actions, pager, ×) collapses with the
+     name and meta, so the ticker and rating lines run full width. Zero-width flex-item ghosts (gates/rsince at max-width:0)
      leave only trailing gap px at the line's END — invisible. */
-  #det-modal.hdr-min .dcname,#det-modal.hdr-min .dmeta{max-height:0;opacity:0;margin:0;}
+  #det-modal.hdr-min .dcname,#det-modal.hdr-min .dmeta,#det-modal.hdr-min .d-toprow{max-height:0;opacity:0;margin:0;}
+  #det-modal.hdr-min .d-toprow{visibility:hidden;pointer-events:none;transition:max-height .28s ease,opacity .18s ease,margin .28s ease,visibility 0s linear .28s;}
   /* display:none, not just max-width:0 — a zero-width item still takes part
      in the rating row's wrap, and after the row's 12px gap it could drop to
      a line of its own: a blank row under the price. */
-  #det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .det-nav-pos{max-width:0;opacity:0;margin:0;display:none;}
-  #det-modal.hdr-min .d-mini-nav,#det-modal.hdr-min .d-mini-nav-actions{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .18s ease,visibility 0s linear .18s;}
+  #det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .d-rr-br{max-width:0;opacity:0;margin:0;display:none;}
   #det-modal.hdr-min .d-header-band{padding:calc(8px + env(safe-area-inset-top)) 16px 8px!important;gap:5px;}
   #det-modal.hdr-min .d-rating-row{margin:0;padding-right:0;}
-  #det-modal.hdr-min .dh{margin:0;padding-right:76px!important;}
+  #det-modal.hdr-min .dh{margin:0;}
   #det-modal.hdr-min .dh .dtk{font-size:1.05em;}
 }
 /* Users who ask iOS for reduced motion get the old instant collapse. */
 @media (hover:none) and (pointer:coarse) and (prefers-reduced-motion:reduce){
-  .d-header-band,.dcname,.dmeta,.d-rating-row,.dh,.dh .dtk,
-  .d-gp,.d-rsince,.det-nav-pos,.d-mini-nav,.d-mini-nav-actions,
-  #det-modal.hdr-min .d-mini-nav,#det-modal.hdr-min .d-mini-nav-actions{transition:none;}
+  .d-header-band,.dcname,.dmeta,.d-toprow,.d-rating-row,.dh,.dh .dtk,
+  .d-gp,.d-rsince,#det-modal.hdr-min .d-toprow{transition:none;}
 }
 .dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
 .dt th:first-child{text-align:left;}
 .dt th .arrow{margin-left:3px;font-size:0.7em;}
 /* Per-tab header colors. Each Financial Data sub-tab paints its ENTIRE header
-   row (including #, flag, Ticker and Rating) a single cheerful hue,
+   row (including #, flag, reviewed, Ticker and Rating) a single cheerful hue,
    so headers read uniform within a tab but distinct across tabs. The table
    carries a hdr-<tab> class set in renderTable(); these rules override the
    default .dt th and any per-column group class uniformly. Deep, saturated
@@ -986,7 +988,7 @@ td.ct{font-weight:700;}
 /* Hamburger section-menu button — same chip treatment as .detail-close,
    sitting immediately to its left (14+24 close, 8 gap, 24 burger = 70px,
    inside .d-rating-row's 84px right padding). Both buttons run at 24px so
-   the full right-edge column (buttons, arrows, counter, portfolio/flag)
+   the full right-edge column (buttons, arrows, counter, reviewed/flag)
    fits the compact desktop band with all five rows optically level. */
 .detail-menu-btn{position:absolute;top:calc(12px + env(safe-area-inset-top));right:46px;border:none;background:rgba(255,255,255,0.18);width:24px;height:24px;border-radius:50%;font-size:0.85em;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;transition:background 0.15s;line-height:1;padding:0;}
 .detail-menu-btn:hover,.detail-menu-btn[aria-expanded="true"]{background:rgba(255,255,255,0.35);}
@@ -1010,13 +1012,21 @@ td.ct{font-weight:700;}
    + track record; data dgroup + intrinsic dgroup) — space them like the
    overview flex gap. Scoped: overview's flex gap must not double up. */
 #d-pane-data.active>*+*,#d-pane-stmt.active>*+*{margin-top:14px;}
-.dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-right:84px;justify-content:space-between;}
+.dh{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;}
 .dh-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .dh-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
 /* Bottom line of the band since 2026-08: margin-top separates it from the
-   meta line above; right padding still clears the absolute portfolio/flag
-   actions pinned at the band's bottom-right. */
-.d-rating-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:84px;margin-top:5px;}
+   meta line above. */
+.d-rating-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px;}
+/* Line break inside the rating row (after price · change) and the
+   rating-since line under it, below 1024px; one line from there up. */
+.d-rr-br{flex-basis:100%;height:0;}
+.d-rating-row .d-rsince{flex-basis:100%;}
+.d-rating-row .d-rsince:empty{display:none;}
+@media(min-width:1024px){
+  .d-rr-br{display:none;}
+  .d-rating-row .d-rsince{flex-basis:auto;}
+}
 .d-rating-row .d-gp{font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.02em;white-space:nowrap;margin-left:2px;}
 .d-rsince{display:inline-flex;align-items:center;gap:7px;font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.02em;white-space:nowrap;cursor:default;}
 .d-rsince .rs-up{color:#7ee2a8;}
@@ -1024,22 +1034,26 @@ td.ct{font-weight:700;}
 .d-rhist-bar{display:inline-flex;width:84px;height:8px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,0.15);}
 .d-rhist-bar span{display:block;height:100%;}
 .rb-cap{margin-left:3px;cursor:help;font-size:0.85em;}
-/* The band's right edge is three separately-anchored zones, all sharing
-   right:14px — close/hamburger chips at the top, prev/next arrows
-   vertically centered, portfolio/flag icons at the bottom. */
-.d-mini-nav{position:absolute;top:50%;transform:translateY(-50%);right:14px;display:flex;flex-direction:column;align-items:flex-end;}
-.d-mini-nav-actions{position:absolute;bottom:12px;right:14px;z-index:6;display:flex;align-items:center;gap:10px;}
-/* Flag glyph (⚐/⚑) has more internal whitespace than an SVG icon, so at
-   equal font-size it looks visually smaller; bump it to match. */
+/* The band's first line (.d-toprow): portfolio / reviewed / flag at the
+   left, the ‹ n / N › pager and × at the right. All in flow, so no line
+   below them reserves room for them. */
+.d-toprow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;}
+.d-mini-nav{display:flex;align-items:center;gap:6px;}
+.d-toprow .detail-close{position:static;flex-shrink:0;}
+.d-mini-nav-actions{display:flex;align-items:center;gap:10px;}
+/* Flag glyph (⚐/⚑) has more internal whitespace than the reviewed SVG
+   circle, so at equal font-size it looks visually smaller. Bump it
+   enough to match (or slightly exceed) the reviewed icon's optical
+   size. */
 .d-mini-nav-actions .flag-star{font-size:1.35em;line-height:1;}
 .d-mini-nav-actions .flag-star:not(.flagged){color:rgba(255,255,255,0.4);}
-.d-mini-nav-arrows{display:flex;align-items:center;gap:3px;}
+.d-mini-nav-actions .rev-chk-det{font-size:0.85em;}
+.d-mini-nav-arrows{display:flex;align-items:center;gap:6px;}
 .d-mini-nav-btn{background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.2);border-radius:5px;width:26px;height:19px;font-size:12px;cursor:pointer;color:#fff;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
 .d-mini-nav-btn:hover:not(:disabled){background:rgba(255,255,255,0.32);}
 .d-mini-nav-btn:disabled{opacity:0.3;cursor:default;}
-.dmeta{padding-right:70px;}
-/* Stock-count nav indicator (e.g. "1 / 2033") — sits inline just right of
-   the big ticker symbol in .dh-left, muted so the ticker keeps the weight. */
+/* Stock-count nav indicator (e.g. "1 / 2033") — between the ‹ › buttons,
+   muted so it reads as navigation, not data. */
 .det-nav-pos{font-size:0.66em;color:rgba(255,255,255,0.65);white-space:nowrap;letter-spacing:0.03em;font-variant-numeric:tabular-nums;}
 .dh .dtk{font-size:1.55em;font-weight:900;color:#fff;letter-spacing:-0.5px;text-shadow:0 2px 12px rgba(0,0,0,0.4);}
 .drt{font-size:0.9em;font-weight:700;padding:4px 14px;border-radius:18px;color:white;box-shadow:0 1px 4px rgba(0,0,0,0.18);letter-spacing:0.03em;}
@@ -1146,8 +1160,15 @@ td.ct{font-weight:700;}
 .flag-star{cursor:pointer;touch-action:manipulation;font-size:1.7em;user-select:none;transition:transform 0.15s;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.3));}
 .flag-star:hover{transform:scale(1.3);}
 .flag-star.flagged{color:#ff8c00;}.flag-star:not(.flagged){color:rgba(0,0,0,0.2);}.det-nav-bar .flag-star:not(.flagged),.d-header-band .flag-star:not(.flagged){color:rgba(255,255,255,0.35);}
-.det-nav-bar .flag-star{font-size:1.1em;}
+.det-nav-bar .flag-star{font-size:1.1em;}.det-nav-bar .rev-chk-det{font-size:0.65em;}
 .flag-count{font-size:0.72em;margin-left:2px;opacity:0.8;}
+.rev-chk{cursor:pointer;touch-action:manipulation;font-size:1em;user-select:none;transition:all 0.12s;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;line-height:1;vertical-align:middle;color:rgba(0,0,0,0.3);--chk-bg:none;--chk-border:rgba(0,0,0,0.3);--chk-mark:rgba(0,0,0,0.3);}
+.rev-chk:hover{transform:scale(1.12);--chk-border:rgba(0,0,0,0.55);--chk-mark:rgba(0,0,0,0.55);}
+.rev-chk.checked{--chk-bg:#27ae60;--chk-border:#27ae60;--chk-mark:white;}
+.rev-chk-det{cursor:pointer;touch-action:manipulation;font-size:0.75em;padding:0;user-select:none;transition:all 0.15s;border:none;background:transparent;display:inline-flex;align-items:center;justify-content:center;line-height:1;}
+.rev-chk-det:not(.checked){--chk-bg:none;--chk-border:rgba(255,255,255,0.4);--chk-mark:rgba(255,255,255,0.4);}
+.rev-chk-det:not(.checked):hover{--chk-border:rgba(255,255,255,0.75);--chk-mark:rgba(255,255,255,0.75);}
+.rev-chk-det.checked{--chk-bg:#27ae60;--chk-border:#27ae60;--chk-mark:white;}
 .rev-overlay{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;border-radius:5px;}
 .rev-overlay.checked{background:rgba(39,174,96,0.04);}
 /* Peers / Suppliers / Customers stack vertically — three side-by-side
@@ -1250,10 +1271,15 @@ td.ct{font-weight:700;}
 .gv-k[data-gv-tip]{cursor:default;}
 .km-k[data-km-tip]{cursor:default;}
 .legend{font-size:0.75em;color:#888;margin:6px 0 10px;padding:6px 0;}
+.pp-subtabs{margin:0 0 14px;}
+.pp-tabbed:not([data-tab="overview"])>[data-pane="overview"]{display:none;}
+.pp-tabbed:not([data-tab="forces"])>[data-pane="forces"]{display:none;}
+.pp-tabbed:not([data-tab="pool"])>[data-pane="pool"]{display:none;}
+.pp-tabbed:not([data-tab="history"])>[data-pane="history"]{display:none;}
+.pp-tabbed:not([data-tab="value"])>[data-pane="value"]{display:none;}
+.pp-tabbed:not([data-tab="companies"])>[data-pane="companies"]{display:none;}
+.pp-tabbed:not([data-tab="flow"])>[data-pane="flow"]{display:none;}
 .pool-sector{margin-bottom:20px;background:white;border-radius:10px;padding:0;box-shadow:0 3px 12px rgba(0,0,0,0.08);overflow:hidden;border:1px solid #e8ecef;}
-.pool-sec-hdr{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 18px;background:linear-gradient(135deg,#1a252f 0%,#2c3e50 100%);color:white;border-bottom:3px solid var(--accent,#3498db);}
-.pool-sec-name{font-weight:700;font-size:1.05em;color:white;letter-spacing:0.01em;}
-.pool-sec-stats{font-size:0.78em;color:#b0bec5;}
 /* One company grid for the whole sector page. Company Highlights, CR4
    Companies and Top 5 by Model Score used to be three sections, each with
    its own copy of this card markup inlined; the same mega-cap therefore
@@ -1261,27 +1287,23 @@ td.ct{font-weight:700;}
    accumulates a badge per reason it earned a place. Real classes (rather
    than the old inline styles) let dark mode be a normal override instead
    of an `[style*="background:white"]` attribute match. */
-.pp-co-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:10px;}
-.pp-co{cursor:pointer;background:#fff;border:1px solid #eef1f4;border-left:4px solid #aaa;border-radius:5px;padding:9px 12px;box-shadow:0 1px 4px rgba(0,0,0,0.06);font-size:0.82em;line-height:1.55;color:#37474f;transition:transform 0.1s,box-shadow 0.1s;}
-.pp-co:hover{transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,0.1);}
-.pp-co-hdr{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:5px;}
-.pp-co-id{display:flex;align-items:center;gap:6px;min-width:0;}
+.pp-co-list{display:flex;flex-direction:column;}
+.pp-co{cursor:pointer;border-bottom:1px solid #e3e8ee;padding:10px 2px;font-size:0.82em;line-height:1.5;color:#263238;}
+.pp-co:hover{background:rgba(127,127,127,0.06);}
+.pp-co-hdr{display:grid;grid-template-columns:96px minmax(0,1fr);gap:2px 10px;align-items:baseline;}
+.pp-co-rt{display:inline-flex;align-items:center;gap:6px;font-size:0.9em;font-weight:600;white-space:nowrap;color:#607d8b;}
+.pp-co-rt i{flex:none;width:9px;height:9px;border-radius:50%;}
+.pp-co-id{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;min-width:0;}
 .pp-co-tk{font-weight:700;color:#1a252f;}
-.pp-co-nm{font-weight:400;color:#888;font-size:0.9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.pp-co-badges{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px;}
-.pp-co-badge{font-size:0.7em;font-weight:700;color:#fff;padding:2px 7px;border-radius:10px;letter-spacing:0.03em;white-space:nowrap;}
-.pp-co-chips{font-size:0.72em;margin-bottom:5px;display:flex;gap:4px;flex-wrap:wrap;}
-.pp-co-chip{background:#eef2f7;padding:1px 6px;border-radius:3px;color:#37474f;font-variant-numeric:tabular-nums;}
-.pp-co-chip.rating{color:#fff;font-weight:700;}
-.pp-co-note{color:#455a64;}
-.pp-co-note + .pp-co-note{margin-top:4px;color:#5b6b76;}
-[data-theme="dark"] .pp-co{background:#1c2128;border-color:#30363d;box-shadow:0 1px 4px rgba(0,0,0,0.3);color:#c9d1d9;}
-[data-theme="dark"] .pp-co:hover{box-shadow:0 3px 8px rgba(0,0,0,0.45);}
-[data-theme="dark"] .pp-co-tk{color:#e6edf3;}
-[data-theme="dark"] .pp-co-nm{color:#8b949e;}
-[data-theme="dark"] .pp-co-chip{background:#21262d;color:#c9d1d9;}
-[data-theme="dark"] .pp-co-note{color:#a9b4be;}
-[data-theme="dark"] .pp-co-note + .pp-co-note{color:#8b949e;}
+.pp-co-nm{color:#607d8b;}
+.pp-co-tags{flex-basis:100%;font-size:0.9em;color:#607d8b;}
+.pp-co-ul{margin:6px 0 0 106px;padding-left:16px;list-style:disc;}
+.pp-co-ul li{margin:3px 0;}
+.pp-co-ul b{font-weight:600;}
+@media(max-width:520px){.pp-co-hdr{grid-template-columns:minmax(0,1fr);}.pp-co-ul{margin-left:0;}}
+[data-theme="dark"] .pp-co{border-color:#30363d;color:#c9d1d9;}
+[data-theme="dark"] .pp-co-tk{color:#e6edf3 !important;}
+[data-theme="dark"] .pp-co-rt,[data-theme="dark"] .pp-co-nm,[data-theme="dark"] .pp-co-tags{color:#8b949e !important;}
 /* Clickable ticker mentions — anywhere a ticker is listed it opens the
    company popup. Underline matches the main-table ticker affordance. */
 .tk-link{cursor:pointer;font-weight:700;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.35);text-underline-offset:2px;}
@@ -1296,26 +1318,171 @@ td.ct{font-weight:700;}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
-.pp-primer,.pp-structure,.pp-liquidity,.pp-signals,.pp-companies,.pp-chart{background:#f7f9fb;border-left:5px solid #1a252f;}
+.pp-primer,.pp-structure,.pp-liquidity,.pp-signals,.pp-companies,.pp-chart,.pp-history,.pp-shifts,.pp-econ{background:#f7f9fb;border-left:5px solid #1a252f;}
 .pp-primer .pp-section-label,
 .pp-structure .pp-section-label,
 .pp-liquidity .pp-section-label,
 .pp-signals .pp-section-label,
 .pp-companies .pp-section-label,
-.pp-chart .pp-section-label{background:#1a252f;}
+.pp-chart .pp-section-label,
+.pp-history .pp-section-label,
+.pp-shifts .pp-section-label,
+.pp-econ .pp-section-label{background:#1a252f;}
 /* Combined sector-level Headwinds + Tailwinds block — two columns on
    desktop, stacked on mobile. Closes the Context arc, directly under the
    primer. */
 .pp-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
 .pp-signals-col-hdr{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
 @media(max-width:760px){.pp-signals-grid{grid-template-columns:1fr;gap:14px;}}
+:root{--ppf-tw:#1e7d45;--ppf-hw:#c0392b;--ppf-q:#90a4ae;--ppf-line:#e3e8ee;--ppf-sub:#607d8b;--ppf-bg:#fff;--ppf-txt:#263238;}
+[data-theme="dark"]{--ppf-tw:#3fb950;--ppf-hw:#f85149;--ppf-q:#6e7681;--ppf-line:#30363d;--ppf-sub:#8b949e;--ppf-bg:#1c2128;--ppf-txt:#e6edf3;}
+/* Sector forces (renderPoolSectorSignals): one row per force, a plain-word
+   status, a one-line reading and its reach; the rest opens on click. */
+.ppf-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:0 0 6px;}
+.ppf-verdict{font-weight:700;font-size:0.95em;color:var(--ppf-txt);}
+.ppf-split{display:flex;height:8px;width:220px;max-width:100%;border-radius:4px;overflow:hidden;background:var(--ppf-line);}
+.ppf-split i{display:block;height:100%;}
+.ppf-split .tw{background:var(--ppf-tw);}.ppf-split .hw{background:var(--ppf-hw);}
+.ppf-mkt{font-size:0.78em;color:var(--ppf-sub);margin:0 0 10px;}
+.ppf-key{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:0.74em;color:var(--ppf-sub);margin:0 0 12px;padding:6px 0;border-top:1px solid var(--ppf-line);border-bottom:1px solid var(--ppf-line);}
+.ppf-key span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+.ppf-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;}
+@media(max-width:760px){.ppf-cols{grid-template-columns:minmax(0,1fr);gap:16px;}}
+.ppf-colh{display:flex;width:100%;align-items:baseline;justify-content:space-between;font:inherit;font-size:0.86em;font-weight:700;margin:0 0 4px;padding:0 0 4px;background:none;border:0;border-bottom:2px solid currentColor;cursor:pointer;text-align:left;}
+.ppf-chev{display:inline-block;width:0;height:0;margin:0 7px 1px 1px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid currentColor;transition:transform 0.15s;}
+.ppf-collapsed .ppf-chev{transform:rotate(-90deg);}
+.ppf-collapsed .ppf-ul,.ppf-collapsed .ppf-meta{display:none;}
+.ppf-collapsed .ppf{padding:6px 2px;}
+.ppf-colh small{font-weight:400;color:var(--ppf-sub);font-size:0.9em;}
+.ppf-colh.tw{color:var(--ppf-tw);}.ppf-colh.hw{color:var(--ppf-hw);}
+.ppf{border-bottom:1px solid var(--ppf-line);font-size:0.82em;line-height:1.5;color:var(--ppf-txt);padding:10px 2px;}
+.ppf-hdr{display:grid;grid-template-columns:96px minmax(0,1fr);gap:2px 10px;align-items:baseline;}
+.ppf-st{display:inline-flex;align-items:center;gap:6px;font-size:0.9em;font-weight:600;white-space:nowrap;color:var(--ppf-sub);}
+.ppf-dot{flex:none;width:9px;height:9px;border-radius:50%;border:2px solid var(--ppf-q);box-sizing:border-box;}
+.ppf-tw .ppf-active .ppf-dot{background:var(--ppf-tw);border-color:var(--ppf-tw);}
+.ppf-hw .ppf-active .ppf-dot{background:var(--ppf-hw);border-color:var(--ppf-hw);}
+.ppf-tw .ppf-active,.ppf-tw .ppf-building{color:var(--ppf-tw);}
+.ppf-hw .ppf-active,.ppf-hw .ppf-building{color:var(--ppf-hw);}
+.ppf-tw .ppf-building .ppf-dot{border-color:var(--ppf-tw);background:linear-gradient(90deg,var(--ppf-tw) 50%,transparent 50%);}
+.ppf-hw .ppf-building .ppf-dot{border-color:var(--ppf-hw);background:linear-gradient(90deg,var(--ppf-hw) 50%,transparent 50%);}
+.ppf-easing .ppf-dot{background:var(--ppf-q);}
+.ppf-qualitative .ppf-dot,.ppf-no_data .ppf-dot{border-style:dashed;}
+.ppf-th{font-weight:600;}
+.ppf-meta{display:block;font-weight:400;color:var(--ppf-sub);font-size:0.9em;}
+.ppf-ul{margin:6px 0 0 106px;padding-left:16px;list-style:disc;}
+.ppf-ul li{margin:3px 0;}
+.ppf-ul b{font-weight:600;}
+@media(max-width:520px){.ppf-hdr{grid-template-columns:minmax(0,1fr);}.ppf-ul{margin-left:0;}}
+.ppf-spark{display:inline-block;vertical-align:middle;margin-left:4px;}
+.ppf-spark polyline{fill:none;stroke:#4f7cac;stroke-width:1.5;}
+[data-theme="dark"] .ppf-spark polyline{stroke:#6e9bd1;}
+.ppf-chip{cursor:pointer;display:inline-block;margin:2px 4px 2px 0;padding:1px 7px;border:1px solid var(--ppf-line);border-radius:10px;white-space:nowrap;font-size:0.94em;}
+.ppf-chip i{font-style:normal;color:var(--ppf-sub);margin-left:3px;}
+.ppf-chip:hover{border-color:var(--ppf-sub);}
+.ppf-note{font-size:0.74em;color:var(--ppf-sub);margin:12px 0 0;line-height:1.5;}
+/* !important beats the blanket dark `body *{color:#fff !important}` rule,
+   which would otherwise flatten the status colours and the muted lines. */
+[data-theme="dark"] .ppf-tw .ppf-active,[data-theme="dark"] .ppf-tw .ppf-building,[data-theme="dark"] .ppf-colh.tw{color:var(--ppf-tw) !important;}
+[data-theme="dark"] .ppf-hw .ppf-active,[data-theme="dark"] .ppf-hw .ppf-building,[data-theme="dark"] .ppf-colh.hw{color:var(--ppf-hw) !important;}
+[data-theme="dark"] .ppf-colh.tw *{color:var(--ppf-tw) !important;}
+[data-theme="dark"] .ppf-colh.hw *{color:var(--ppf-hw) !important;}
+[data-theme="dark"] .ppf-colh.tw small,[data-theme="dark"] .ppf-colh.hw small{color:var(--ppf-sub) !important;}
+[data-theme="dark"] .ppf-st,[data-theme="dark"] .ppf-meta,[data-theme="dark"] .ppf-mkt,[data-theme="dark"] .ppf-key,[data-theme="dark"] .ppf-key span,[data-theme="dark"] .ppf-note,[data-theme="dark"] .ppf-colh small,[data-theme="dark"] .ppf-chip i{color:var(--ppf-sub) !important;}
 [data-theme="dark"] .pp-primer,
 [data-theme="dark"] .pp-structure,
 [data-theme="dark"] .pp-liquidity,
 [data-theme="dark"] .pp-signals,
 [data-theme="dark"] .pp-companies,
-[data-theme="dark"] .pp-chart{background:#161b22;border-left-color:#c9d1d9;}
+[data-theme="dark"] .pp-chart,
+[data-theme="dark"] .pp-history,
+[data-theme="dark"] .pp-shifts,
+[data-theme="dark"] .pp-econ{background:#161b22;border-left-color:#c9d1d9;}
 [data-theme="dark"] .pp-section-label{background:#30363d !important;}
+/* Pool history (pp-history) and share shifts (pp-shifts): the sector's pool
+   over the last decade, from models/sector_pool.py. Marks are classed so dark
+   mode swaps them without touching the SVG markup. */
+.pph-bar{fill:#4f7cac;}
+.pph-bar.inc{fill:none;stroke:#4f7cac;stroke-width:1.2;stroke-dasharray:3,2;}
+.pph-line{fill:none;stroke:#d9822b;stroke-width:2;}
+.pph-dot{fill:#d9822b;}
+.pph-dot.inc{fill:#fff;stroke:#d9822b;stroke-width:1.5;}
+.pph-axis{stroke:#cfd8dc;stroke-width:1;}
+.pph-grid{stroke:#eef1f4;stroke-width:1;}
+.pph-tx{fill:#78909c;font-size:9px;}
+.pph-val{fill:#455a64;font-size:8.5px;}
+.pph-key{display:flex;flex-wrap:wrap;gap:14px;font-size:0.72em;color:#78909c;margin:4px 0 0;}
+.pph-key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
+.pph-facts{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0;}
+.pph-fact{background:#fff;border:1px solid #e3e8ee;border-radius:5px;padding:7px 10px;font-size:0.78em;line-height:1.45;color:#37474f;flex:1 1 220px;}
+.pph-fact b{display:block;font-size:0.82em;text-transform:uppercase;letter-spacing:0.05em;color:#78909c;margin-bottom:2px;}
+.pph-lead{margin:0 0 8px;font-size:0.82em;line-height:1.55;color:#37474f;}
+.pph-note{margin:8px 0 0;font-size:0.72em;line-height:1.5;color:#90a4ae;}
+.pps-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.pps-hdr{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
+.pps-row{display:grid;grid-template-columns:62px 1fr 88px;align-items:center;gap:8px;padding:4px 0;font-size:0.8em;cursor:pointer;color:#37474f;}
+.pps-row:hover .pps-tk{text-decoration:underline;}
+.pps-tk{font-weight:700;border-left:3px solid #aaa;padding-left:6px;white-space:nowrap;}
+.pps-track{position:relative;height:10px;background:#eef1f4;border-radius:2px;}
+.pps-fill{position:absolute;top:0;bottom:0;left:0;border-radius:2px;}
+.pps-up .pps-fill{background:#2e8b57;}
+.pps-dn .pps-fill{background:#c0392b;}
+.pps-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.pps-sub{grid-column:2 / 4;font-size:0.86em;color:#78909c;margin-top:-3px;}
+@media(max-width:760px){.pps-grid{grid-template-columns:1fr;gap:14px;}}
+[data-theme="dark"] .pph-bar{fill:#6e9bd1;}
+[data-theme="dark"] .pph-bar.inc{fill:none;stroke:#6e9bd1;}
+[data-theme="dark"] .pph-line{stroke:#f0a35e;}
+[data-theme="dark"] .pph-dot{fill:#f0a35e;}
+[data-theme="dark"] .pph-dot.inc{fill:#161b22;stroke:#f0a35e;}
+[data-theme="dark"] .pph-axis{stroke:#30363d;}
+[data-theme="dark"] .pph-grid{stroke:#21262d;}
+[data-theme="dark"] .pph-tx{fill:#8b949e;}
+[data-theme="dark"] .pph-val{fill:#c9d1d9;}
+[data-theme="dark"] .pph-fact{background:#1c2128;border-color:#30363d;color:#c9d1d9;}
+[data-theme="dark"] .pps-track{background:#21262d;}
+[data-theme="dark"] .pps-up .pps-fill{background:#3fb950;}
+[data-theme="dark"] .pps-dn .pps-fill{background:#f85149;}
+/* Industries view (pp-chart toggle) and the economic pool (pp-econ). */
+.ppc-tabs{display:flex;gap:6px;margin:0 0 6px;}
+.ppc-tab.active{background:#1a252f;color:#fff;border-color:#1a252f;}
+.ppi-bar{stroke:rgba(255,255,255,0.6);stroke-width:0.5;}
+.ppi-pos{fill:#2e8b57;background:#2e8b57;}
+.ppi-mid{fill:#8fbf9f;background:#8fbf9f;}
+.ppi-neg{fill:#c0392b;background:#c0392b;}
+.ppi-na{fill:#90a4ae;background:#90a4ae;}
+.ppi-wrap{overflow-x:auto;margin:10px 0 0;}
+.ppi-tbl{width:100%;border-collapse:collapse;font-size:0.78em;font-variant-numeric:tabular-nums;color:#37474f;}
+.ppi-tbl th{text-align:right;font-weight:700;font-size:0.9em;color:#78909c;border-bottom:1px solid #dfe5ea;padding:4px 6px;white-space:nowrap;}
+.ppi-tbl td{text-align:right;padding:4px 6px;border-bottom:1px solid #eef1f4;white-space:nowrap;}
+.ppi-tbl th:first-child,.ppi-tbl td:first-child{text-align:left;white-space:normal;}
+.ppi-dim{color:#90a4ae;font-size:0.9em;}
+.ppi-hi{color:#2e7d32;font-weight:700;}
+.ppi-co{cursor:pointer;}
+.ppi-sort th{cursor:pointer;user-select:none;}
+.ppi-sort th:hover{color:#37474f;}
+/* Like the Gate Matrix: only the sorted column carries an arrow, a plain
+   triangle after its label. (An unsorted \2195 hint drew as a grey emoji
+   box on iOS.) The \FE0E selector keeps the triangle a text glyph. */
+.ppi-sort th[aria-sort="descending"]::after{content:' \25BC\FE0E';}
+.ppi-sort th[aria-sort="ascending"]::after{content:' \25B2\FE0E';}
+.ppi-co:hover td{background:rgba(127,127,127,0.06);}
+.ppi-rt{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0;}
+.ppi-tbl td:nth-child(2){white-space:nowrap;}
+.ppi-lo{color:#c62828;font-weight:700;}
+.ppe-bars{display:grid;gap:6px;margin:4px 0 0;max-width:560px;}
+.ppe-row{display:grid;grid-template-columns:118px 1fr 56px;align-items:center;gap:8px;font-size:0.8em;color:#37474f;}
+.ppe-oi{background:#4f7cac;}
+.ppe-ep{background:#2e8b57;}
+[data-theme="dark"] .ppc-tab.active{background:#58a6ff;border-color:#58a6ff;color:#0d1117;}
+[data-theme="dark"] .ppi-pos{fill:#3fb950;background:#3fb950;}
+[data-theme="dark"] .ppi-mid{fill:#7ab88c;background:#7ab88c;}
+[data-theme="dark"] .ppi-neg{fill:#f85149;background:#f85149;}
+[data-theme="dark"] .ppi-tbl th{border-color:#30363d;color:#8b949e;}
+[data-theme="dark"] .ppi-tbl td{border-color:#21262d;}
+[data-theme="dark"] .ppi-hi{color:#3fb950;}
+[data-theme="dark"] .ppi-lo{color:#f85149;}
+[data-theme="dark"] .ppe-oi{background:#6e9bd1;}
+[data-theme="dark"] .ppe-ep{background:#3fb950;}
 .pp-range-btn{padding:3px 11px;font-size:0.74em;font-weight:600;border:1px solid #d0d8e4;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
 .pp-range-btn:hover{background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
 .pp-range-btn.active{background:#7030a0;color:#fff;border-color:#7030a0;}
@@ -1623,11 +1790,11 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .matrix-table tr:hover td{background-color:#1f3a5c !important;}
 [data-theme="dark"] .matrix-table td.tk{background:#161b22;color:#58a6ff;}
 [data-theme="dark"] .dt td.tk2{color:#58a6ff;}
-[data-theme="dark"] .dt tbody td:nth-child(1),[data-theme="dark"] .dt tbody td:nth-child(2),[data-theme="dark"] .dt td.tk2,[data-theme="dark"] .matrix-table tbody td:nth-child(1),[data-theme="dark"] .matrix-table tbody td:nth-child(2),[data-theme="dark"] .matrix-table tbody td:nth-child(4),[data-theme="dark"] .matrix-table tbody td:nth-child(5){background:#161b22;}
-[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .dt tr:nth-child(even) td.tk2{background:#1c2128;}
-[data-theme="dark"] .dt tr:hover td:nth-child(1),[data-theme="dark"] .dt tr:hover td:nth-child(2),[data-theme="dark"] .dt tr:hover td.tk2{background:#1f3a5c !important;}
-[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .matrix-table tr:nth-child(even) td.tk,[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(4),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(5){background:#1c2128;}
-[data-theme="dark"] .matrix-table tr:hover td:nth-child(1),[data-theme="dark"] .matrix-table tr:hover td:nth-child(2),[data-theme="dark"] .matrix-table tr:hover td.tk,[data-theme="dark"] .matrix-table tr:hover td:nth-child(4),[data-theme="dark"] .matrix-table tr:hover td:nth-child(5){background:#1f3a5c !important;}
+[data-theme="dark"] .dt tbody td:nth-child(1),[data-theme="dark"] .dt tbody td:nth-child(2),[data-theme="dark"] .dt tbody td:nth-child(3),[data-theme="dark"] .dt td.tk2,[data-theme="dark"] .matrix-table tbody td:nth-child(1),[data-theme="dark"] .matrix-table tbody td:nth-child(2),[data-theme="dark"] .matrix-table tbody td:nth-child(3),[data-theme="dark"] .matrix-table tbody td:nth-child(5),[data-theme="dark"] .matrix-table tbody td:nth-child(6){background:#161b22;}
+[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(3),[data-theme="dark"] .dt tr:nth-child(even) td.tk2{background:#1c2128;}
+[data-theme="dark"] .dt tr:hover td:nth-child(1),[data-theme="dark"] .dt tr:hover td:nth-child(2),[data-theme="dark"] .dt tr:hover td:nth-child(3),[data-theme="dark"] .dt tr:hover td.tk2{background:#1f3a5c !important;}
+[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(3),[data-theme="dark"] .matrix-table tr:nth-child(even) td.tk,[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(5),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(6){background:#1c2128;}
+[data-theme="dark"] .matrix-table tr:hover td:nth-child(1),[data-theme="dark"] .matrix-table tr:hover td:nth-child(2),[data-theme="dark"] .matrix-table tr:hover td:nth-child(3),[data-theme="dark"] .matrix-table tr:hover td.tk,[data-theme="dark"] .matrix-table tr:hover td:nth-child(5),[data-theme="dark"] .matrix-table tr:hover td:nth-child(6){background:#1f3a5c !important;}
 [data-theme="dark"] td.gp{background-color:var(--gate-pass) !important;color:#7ee787 !important;}
 [data-theme="dark"] td.gf{background-color:var(--gate-fail) !important;color:#ff7b72 !important;}
 [data-theme="dark"] td.gn{background-color:var(--gate-na) !important;color:#c9d1d9 !important;}
@@ -1685,13 +1852,10 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .dkv .kv{color:#e6edf3;}
 [data-theme="dark"] .pool-sector{background:#161b22;border-color:#30363d;}
 [data-theme="dark"] .pp-section{border-color:#30363d;}
-[data-theme="dark"] .pp-primer{background:#0f1f3a;}
-[data-theme="dark"] .pp-structure{background:#0e1c30;}
-[data-theme="dark"] .pp-companies{background:#102a1b;}
-[data-theme="dark"] .pp-liquidity{background:#0d2528;}
-[data-theme="dark"] .pp-chart{background:#161b22;}
+/* One neutral surface for every sector section in dark mode; the old
+   per-section tints (navy, blue, green, teal) read as status colours. */
+[data-theme="dark"] .pp-primer,[data-theme="dark"] .pp-structure,[data-theme="dark"] .pp-companies,[data-theme="dark"] .pp-liquidity,[data-theme="dark"] .pp-chart{background:#161b22;}
 [data-theme="dark"] .pool-legend{color:#8b949e;}
-[data-theme="dark"] .pool-sec-stats{color:#c9d1d9;}
 [data-theme="dark"] .xsect-dashboard{background:#161b22;border-top-color:#58a6ff;box-shadow:0 3px 14px rgba(0,0,0,0.4);}
 [data-theme="dark"] .xsect-title{color:#e6edf3;}
 [data-theme="dark"] .xsect-sub{color:#8b949e;}
@@ -1775,6 +1939,9 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .flag-star.flagged{color:#ff8c00 !important;}
 [data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder{color:rgba(255,255,255,0.72) !important;opacity:1;}
 [data-theme="dark"] select option{background:#0d1117 !important;color:#fff !important;}
+[data-theme="dark"] .rev-chk:not(.checked),[data-theme="dark"] .rev-chk-det:not(.checked),[data-theme="dark"] #f-reviewed,[data-theme="dark"] #f-unreviewed{color:#fff !important;--chk-border:#fff;--chk-mark:#fff;}
+[data-theme="dark"] .rev-chk:not(.checked):hover,[data-theme="dark"] .rev-chk-det:not(.checked):hover{--chk-border:#fff;--chk-mark:#fff;}
+[data-theme="dark"] #f-reviewed svg,[data-theme="dark"] #f-reviewed span,[data-theme="dark"] #f-unreviewed svg,[data-theme="dark"] #f-unreviewed span{color:#fff !important;}
 [data-theme="dark"] td.gp,[data-theme="dark"] td.sg,[data-theme="dark"] .gv-v.pass,[data-theme="dark"] [style*="color:#1a9850"],[data-theme="dark"] [style*="color:#27ae60"],[data-theme="dark"] [style*="color:#2e7d48"]{color:#7ee787 !important;}
 [data-theme="dark"] td.gf,[data-theme="dark"] td.sp,[data-theme="dark"] .gv-v.fail,[data-theme="dark"] [style*="color:#de2d26"],[data-theme="dark"] [style*="color:#e74c3c"],[data-theme="dark"] [style*="color:#c0392b"]{color:#ff7b72 !important;}
 [data-theme="dark"] td.sm,[data-theme="dark"] [style*="color:#fd8d3c"],[data-theme="dark"] [style*="color:#e67e22"]{color:#ffd33d !important;}
@@ -2153,19 +2320,21 @@ body{padding-left:var(--sb-cur);}
    their own wraps and must keep left:0). */
 #dtbl th:nth-child(1),#dtbl tbody td:nth-child(1){left:var(--sb-cur);}
 #dtbl th:nth-child(2),#dtbl tbody td:nth-child(2){left:calc(var(--sb-cur) + 40px);}
-#dtbl th:nth-child(3),#dtbl td.tk2{left:calc(var(--sb-cur) + 68px);}
-#dtbl th:nth-child(4),#dtbl tbody td:nth-child(4){left:calc(var(--sb-cur) + 136px);}
-#dtbl th:nth-child(5),#dtbl tbody td:nth-child(5){left:calc(var(--sb-cur) + 208px);}
+#dtbl th:nth-child(3),#dtbl tbody td:nth-child(3){left:calc(var(--sb-cur) + 68px);}
+#dtbl th:nth-child(4),#dtbl td.tk2{left:calc(var(--sb-cur) + 100px);}
+#dtbl th:nth-child(5),#dtbl tbody td:nth-child(5){left:calc(var(--sb-cur) + 168px);}
+#dtbl th:nth-child(6),#dtbl tbody td:nth-child(6){left:calc(var(--sb-cur) + 240px);}
 #mtx thead tr:first-child th:nth-child(1),#mtx tbody td:nth-child(1){left:var(--sb-cur);}
 #mtx thead tr:first-child th:nth-child(2),#mtx tbody td:nth-child(2){left:calc(var(--sb-cur) + 40px);}
-#mtx thead tr:first-child th:nth-child(3),#mtx td.tk{left:calc(var(--sb-cur) + 68px);}
-#mtx thead tr:first-child th:nth-child(4),#mtx tbody td:nth-child(4){left:calc(var(--sb-cur) + 128px);}
-#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 200px);}
+#mtx thead tr:first-child th:nth-child(3),#mtx tbody td:nth-child(3){left:calc(var(--sb-cur) + 68px);}
+#mtx thead tr:first-child th:nth-child(4),#mtx td.tk{left:calc(var(--sb-cur) + 100px);}
+#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 160px);}
+#mtx thead tr:first-child th:nth-child(6),#mtx tbody td:nth-child(6){left:calc(var(--sb-cur) + 232px);}
 .header,.secondary-nav,#subnav{left:var(--sb-cur);width:calc(var(--vvw,100vw) - var(--sb-cur));}
 /* Touch devices freeze only the ticker, at the left edge (see the
    (hover:none) block by the column widths) — which is now --sb-cur. */
 @media (hover:none) and (pointer:coarse){
-  #dtbl th:nth-child(3),#dtbl td.tk2,#mtx thead tr:first-child th:nth-child(3),#mtx td.tk{left:var(--sb-cur);}
+  #dtbl th:nth-child(4),#dtbl td.tk2,#mtx thead tr:first-child th:nth-child(4),#mtx td.tk{left:var(--sb-cur);}
 }
 
 /* ---- sidebar ---- */
@@ -2375,30 +2544,29 @@ html body .detail-content{max-width:none !important;width:100% !important;border
 .d-chg.pos{--sac:var(--chrome-pos);}
 .d-chg.neg{--sac:var(--chrome-neg);}
 .d-chg:empty{display:none;}
-#det-modal .dh{padding-right:130px;}
 #det-modal .dh .dtk{font-size:1.6em;color:var(--chrome-heading);text-shadow:none;letter-spacing:-.5px;}
 #det-modal .det-nav-pos{color:var(--chrome-muted);font-size:.85em;}
-#det-modal .dcname{font-size:1.15em;font-weight:700;color:var(--chrome-heading);margin-top:2px;}
-#det-modal .dmeta{font-size:.82em;color:var(--chrome-muted);padding-right:130px;}
-#det-modal .d-rating-row{margin-top:10px;gap:12px;padding-right:0;}
+#det-modal .dcname{font-size:1.15em;font-weight:700;color:var(--chrome-heading);margin-top:2px;overflow-wrap:anywhere;}
+#det-modal .dmeta{font-size:.82em;color:var(--chrome-muted);overflow-wrap:anywhere;}
+#det-modal .d-rating-row{margin-top:10px;gap:8px 12px;}
 #det-modal .dpx{background:none;box-shadow:none;padding:0;font-size:1.6em;font-weight:800;color:var(--chrome-heading);letter-spacing:-.6px;}
 #det-modal .drt{font-size:.82em;padding:4px 11px;border-radius:5px;box-shadow:none;letter-spacing:.05em;}
 #det-modal .dcs{font-size:.82em;padding:4px 9px;border-radius:5px;box-shadow:none;}
 #det-modal .d-rating-row .d-gp,#det-modal .d-rsince{color:var(--chrome-muted);font-size:.8em;}
 #det-modal .d-rsince .rs-up{color:var(--chrome-pos);}
 #det-modal .d-rsince .rs-dn{color:var(--chrome-neg);}
-#det-modal .detail-close,#det-modal .detail-menu-btn{background:var(--chip-bg);border:1px solid var(--chip-border);color:var(--chrome-heading);width:28px;height:28px;border-radius:6px;font-size:1em;top:calc(10px + env(safe-area-inset-top));right:24px;}
+#det-modal .detail-close,#det-modal .detail-menu-btn{background:var(--chip-bg);border:1px solid var(--chip-border);color:var(--chrome-heading);width:28px;height:28px;border-radius:6px;font-size:1em;}
 #det-modal .detail-close:hover{background:var(--menu-hover);}
 #det-modal .detail-menu-btn{display:none;}
-#det-modal .d-mini-nav{top:calc(10px + env(safe-area-inset-top));right:58px;transform:none;}
 #det-modal .d-mini-nav-btn{background:var(--chip-bg);border:1px solid var(--chip-border);color:var(--chrome-heading);width:28px;height:28px;border-radius:6px;font-size:15px;}
 #det-modal .d-mini-nav-btn:hover:not(:disabled){background:var(--menu-hover);}
 #det-modal .d-mini-nav-arrows{gap:6px;}
-/* The three actions sit on the same grid as the ‹ › × row above: each is a
-   28px square (the button size) 6px apart (the arrows' gap), right-aligned
-   with ×, so folder / check / flag stand under ‹ / › / ×. Every glyph is an
-   18px SVG, so none reads bigger or heavier than its neighbours. */
-#det-modal .d-mini-nav-actions{top:calc(46px + env(safe-area-inset-top));bottom:auto;right:24px;gap:6px;}
+/* The three actions use the ‹ › buttons' grid: each a 28px square (the
+   button size) 6px apart (the arrows' gap). The first square's glyph is
+   pulled back to the band's left edge so it lines up with the ticker.
+   Every glyph is an 18px SVG, so none reads bigger or heavier than its
+   neighbours. */
+#det-modal .d-mini-nav-actions{gap:6px;margin-left:-5px;}
 #det-modal .d-mini-nav-actions>*{position:relative;box-sizing:border-box;width:28px;height:28px;padding:0;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1;filter:none;transform:none;transition:background .15s;}
 #det-modal .d-mini-nav-actions>*:hover{background:var(--menu-hover);transform:none;}
 #det-modal .d-mini-nav-actions svg{width:18px !important;height:18px !important;display:block;}
@@ -2413,6 +2581,8 @@ html body #det-modal .d-mini-nav-actions svg,html body #det-modal .d-mini-nav-ac
 /* The action icons were white-on-navy; on the light page header they take
    the heading colour (the portfolio folder is later in the file, so it is
    restated with the id to win). */
+#det-modal .rev-chk-det:not(.checked){--chk-border:var(--chrome-muted);--chk-mark:var(--chrome-muted);}
+#det-modal .rev-chk-det:not(.checked):hover{--chk-border:var(--chrome-heading);--chk-mark:var(--chrome-heading);}
 html body #det-modal .d-pf-btn{color:var(--chrome-muted);}
 html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 /* Underlined tab bar — Seeking Alpha's Summary · Ratings · … row. */
@@ -2499,19 +2669,13 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
 @media(min-width:769px) and (max-width:1023px){
   #det-modal .d-header-band{padding-left:16px !important;padding-right:16px !important;}
   #det-modal .d-body{padding-left:16px !important;padding-right:16px !important;}
-  #det-modal .detail-close,#det-modal .d-mini-nav-actions{right:16px;}
-  #det-modal .d-mini-nav{right:50px;}
 }
 @media(max-width:768px),(orientation:landscape) and (max-height:500px){
   #det-modal .d-header-band{padding:calc(10px + env(safe-area-inset-top)) 16px 0 !important;}
   #det-modal .d-body{padding:12px 12px calc(12px + env(safe-area-inset-bottom)) !important;}
-  #det-modal .dh,#det-modal .dmeta{padding-right:96px;}
   #det-modal .dh .dtk{font-size:1.4em;}
   #det-modal .dpx{font-size:1.35em;}
   #det-modal .detail-close,#det-modal .d-mini-nav-btn{width:30px;height:30px;}
-  #det-modal .detail-close{right:12px;top:calc(10px + env(safe-area-inset-top));}
-  #det-modal .d-mini-nav{right:48px;top:calc(10px + env(safe-area-inset-top));}
-  #det-modal .d-mini-nav-actions{right:12px;top:calc(46px + env(safe-area-inset-top));}
   #det-modal .d-mini-nav-actions>*{width:30px;height:30px;}
   .d-tabs{margin:12px -16px 0;padding:0 8px;}
   .d-tab{font-size:15px;padding:0 10px;height:42px;}
@@ -2525,9 +2689,6 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
   html.det-open body .detail-modal{top:var(--hdr-h,64px);}
   html.det-open body .detail-content{height:calc(max(100dvh,var(--vvh,0px)) - var(--hdr-h,64px)) !important;}
   html.det-open #det-modal .d-header-band{padding-top:10px !important;}
-  html.det-open #det-modal .detail-close{top:10px;}
-  html.det-open #det-modal .d-mini-nav{top:10px;}
-  html.det-open #det-modal .d-mini-nav-actions{top:46px;}
   html.det-open .header .filter-bar{display:none;}
   /* × moves up into the top bar, at its right end opposite the back arrow
      (the bar's Filters button is hidden here, so that end is free). It is
@@ -2535,8 +2696,6 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
      band's × could never be lifted over it. The band's copy hides. */
   html.det-open #det-modal .detail-close{display:none;}
   html.det-open .hdr-close{display:flex;}
-  /* The ‹ › pair takes the band corner × left. */
-  html.det-open #det-modal .d-mini-nav{right:12px;}
   /* Collapsed: nothing sits beside the ticker any more (arrows hidden, ×
      in the bar), and the band keeps no gap it does not need — the name and
      meta lines are gone, so only the ticker, the rating row and the tabs
@@ -2791,8 +2950,12 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
                    (pointer-events:none, synced by _syncQfChecks from the
                    real state vars) — the whole row stays the click target
                    and the existing toggle handlers stay the state owners.
-                   All unchecked by default. -->
+                   All unchecked by default. Reviewed/Unreviewed are a
+                   mutually-exclusive pair over one state var, the same shape
+                   as Upgrades/Downgrades below. -->
               <div class="qf-menu">
+                <button class="fpop-toggle-btn" id="f-reviewed" onclick="setRevFilter(2)" title="Only stocks you have marked reviewed (&check;). Marks are saved in this browser's local storage."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Reviewed<span id="rev-count-label"></span></button>
+                <button class="fpop-toggle-btn" id="f-unreviewed" onclick="setRevFilter(1)" title="Only stocks you have not marked reviewed — what is still left to work through."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Unreviewed</button>
                 <button class="fpop-toggle-btn" id="f-flagged" onclick="toggleFlagFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Flagged<span class="flag-count" id="flag-count-label"></span></button>
                 <button class="fpop-toggle-btn" id="f-founder" onclick="toggleFounderFilter()"><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Founder-Led</button>
                 <button class="fpop-toggle-btn" id="f-bluechip" onclick="toggleBlueChipFilter()" title="Large, established market leaders: market cap &ge; $50B, positive operating income, ROE &ge; 10%, and a sound balance sheet (Net Debt/EBITDA &le; 4, interest coverage &ge; 6x, or Altman Z &ge; 3)."><input type="checkbox" class="qf-chk" tabindex="-1" aria-hidden="true">Blue Chip</button>
@@ -2879,17 +3042,21 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   <div class="detail-content">
     <div class="d-header-band">
       <button type="button" class="d-back sa-chrome" id="d-back" onclick="closeDetail()"></button>
-      <button class="detail-close" onclick="closeDetail()" aria-label="Close ticker page">&times;</button>
       <button class="detail-menu-btn" id="d-tbtn-all" aria-haspopup="menu" aria-expanded="false" title="Sections" onclick="toggleDetMenu(event)">&#9776;</button>
-      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><button type="button" class="d-sum-btn sa-chrome" id="d-sum" onclick="exportProfilePdf()" aria-label="Summary PDF: one page on this company" title="One-page summary of this company with an invest / watch / avoid verdict. Opens the print dialog; choose “Save as PDF”."><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>Summary</button><span class="det-nav-pos"></span></div></div>
+      <!-- First line of the band: portfolio / reviewed / flag on the left,
+           ‹ n / N › and × on the right (× moves to the top bar on phones).
+           In flow, so nothing beside the ticker, name or meta has to clear
+           it, and gone when the band collapses. -->
+      <div class="d-toprow"><div class="d-mini-nav-actions"><span id="d-pf" class="d-pf-btn" onclick="pfDetMenu(event)" role="button" tabindex="0" title="Portfolios"></span><span id="d-rev" class="rev-chk-det" onclick="toggleReviewedDet()"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div><div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><span class="det-nav-pos"></span><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div><button class="detail-close" onclick="closeDetail()" aria-label="Close ticker page">&times;</button></div></div>
+      <div class="dh"><div class="dh-left"><div class="dtk" id="d-tk"></div><button type="button" class="d-sum-btn sa-chrome" id="d-sum" onclick="exportProfilePdf()" aria-label="Summary PDF: one page on this company" title="One-page summary of this company with an invest / watch / avoid verdict. Opens the print dialog; choose “Save as PDF”."><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>Summary</button></div></div>
       <div class="dcname" id="d-cname"></div>
       <div class="dmeta" id="d-meta"></div>
       <!-- Rating row is the band's BOTTOM line (below the CEO meta line),
-           in the expanded AND collapsed states — collapsed shows ticker
-           on top, then price·rating·composite. -->
-      <div class="d-rating-row"><div class="dpx" id="d-px"></div><span class="d-chg sa-chrome" id="d-chg"></span><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
-      <div class="d-mini-nav"><div class="d-mini-nav-arrows"><button class="det-nav-prev d-mini-nav-btn" onclick="navDet(-1)" title="Previous (← ↑)">&#8249;</button><button class="det-nav-next d-mini-nav-btn" onclick="navDet(1)" title="Next (→ ↓)">&#8250;</button></div></div>
-      <div class="d-mini-nav-actions"><span id="d-pf" class="d-pf-btn" onclick="pfDetMenu(event)" role="button" tabindex="0" title="Portfolios"></span><span id="d-flag" class="flag-star" onclick="toggleFlagDet()" title="Flag this stock"></span></div>
+           in the expanded AND collapsed states. Expanded on narrow screens
+           it reads price · change / rating · score · gates / rating-since,
+           split by the .d-rr-br break and the full-width .d-rsince; from
+           1024px, and collapsed, it is one line. -->
+      <div class="d-rating-row"><div class="dpx" id="d-px"></div><span class="d-chg sa-chrome" id="d-chg"></span><span class="d-rr-br" aria-hidden="true"></span><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
       <!-- Section tabs (Seeking Alpha's Summary · Ratings · … row). Rendered by
            _renderDetTabBar from _detMenuItems(); clicks go to swDetTab. -->
       <div class="d-tabs sa-chrome" id="d-tabs" role="tablist" aria-label="Sections"></div>
@@ -3480,7 +3647,8 @@ function _updateFlagCount(){var n=Object.keys(_flags).length;var el=document.get
    which every toggle / clear / preset / hash-restore path funnels through,
    so the boxes can never drift from the state. All off by default. */
 function _syncQfChecks(){
-  var m={'f-flagged':_flagOnly,'f-founder':_founderOnly,
+  var m={'f-reviewed':_revFilter===2,'f-unreviewed':_revFilter===1,
+         'f-flagged':_flagOnly,'f-founder':_founderOnly,
          'f-bluechip':_blueChipOnly,'f-r2000':_r2000Only,
          'f-upgrades':_rcFilter===1,'f-downgrades':_rcFilter===2};
   Object.keys(m).forEach(function(id){
@@ -3492,8 +3660,33 @@ function _syncQfChecks(){
 function _starHtml(tk){return '<span class="flag-star'+(isFlagged(tk)?' flagged':'')+'" onclick="toggleFlag(\''+tk.replace(/'/g,"\\'")+'\',event)" title="Flag">'+(isFlagged(tk)?'\u2691':'\u2690')+'</span>';}
 _updateFlagCount();
 
-/* The retired Reviewed marks: drop the stored set so it does not linger. */
-try{localStorage.removeItem('stock_reviewed_v1');}catch(e){}
+/* === REVIEWED (localStorage) === */
+var _CHK_SVG='<svg viewBox="0 0 22 22" style="width:1.4em;height:1.4em;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="var(--chk-bg,none)" stroke="var(--chk-border,currentColor)" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="var(--chk-mark,currentColor)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+var _REV_KEY='stock_reviewed_v1';
+var _revd=(function(){try{return JSON.parse(localStorage.getItem(_REV_KEY))||{};}catch(e){return{};}})();
+var _revFilter=0; /* 0=show all, 1=unreviewed only, 2=reviewed only.
+                     Two mutually-exclusive buttons drive it (same shape as
+                     Upgrades/Downgrades); clicking the active one turns the
+                     filter off. The numbering predates the split and is kept
+                     so filter-hash URLs shared from older reports still
+                     restore to the mode they were saved in. */
+function _saveRevd(){try{localStorage.setItem(_REV_KEY,JSON.stringify(_revd));}catch(e){}}
+function isReviewed(tk){return !!_revd[tk];}
+function toggleReviewed(tk,e){if(e)e.stopPropagation();_revd[tk]?delete _revd[tk]:_revd[tk]=1;_saveRevd();_updateRevCount();applyFilters();}
+function _syncRevDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;var c=isReviewed(tk)?'rev-chk-det checked':'rev-chk-det';['d-rev','d-rev2'].forEach(function(id){var el=document.getElementById(id);if(el){el.className=c;el.innerHTML=_CHK_SVG;el.title=isReviewed(tk)?'Reviewed — click to unmark':'Mark as reviewed';}});}
+function toggleReviewedDet(){var tk=document.getElementById('d-tk').textContent;if(!tk)return;toggleReviewed(tk);_syncRevDet();}
+/* Light both buttons off the one state var. Kept separate from setRevFilter
+   because the restore and clear paths set _revFilter directly. */
+function _syncRevBtns(){
+  var r=document.getElementById('f-reviewed'),u=document.getElementById('f-unreviewed');
+  if(r)r.classList.toggle('active',_revFilter===2);
+  if(u)u.classList.toggle('active',_revFilter===1);
+}
+function setRevFilter(v){_revFilter=(_revFilter===v)?0:v;_syncRevBtns();applyFilters();}
+function _updateRevCount(){var n=Object.keys(_revd).length;var el=document.getElementById('rev-count-label');if(el)el.textContent=n>0?' ('+n+')':'';}
+function clearAllReviewed(){if(!Object.keys(_revd).length)return;if(!confirm('Clear all '+Object.keys(_revd).length+' reviewed checkmarks?'))return;_revd={};_saveRevd();_updateRevCount();_syncRevDet();applyFilters();}
+function _revHtml(tk){var c=isReviewed(tk);return '<span class="rev-chk'+(c?' checked':'')+'" onclick="toggleReviewed(\''+tk.replace(/'/g,"\\'")+'\',event)" title="'+(c?'Reviewed — click to unmark':'Mark as reviewed')+'">'+_CHK_SVG+'</span>';}
+_updateRevCount();
 
 /* === PORTFOLIOS ===
    Named groupings of tickers — hand-picked, rule-driven, or both; a ticker
@@ -3562,11 +3755,15 @@ function _pfRecompute(){
   if(!_pfLocal){
     DATA.forEach(function(d){if(d.pf&&d.pf.length)_pfMem[d.ticker]=d.pf.filter(function(id){return _pfById[id];});});
   }else{
-    var byTk={};DATA.forEach(function(d){byTk[d.ticker]=d;});
+    /* A definition may name a ticker the run folded into another listing of
+       the same issuer (BRK-A into BRK-B): resolve it through the kept row's
+       listing_aliases, as models/portfolio_groups.resolve_members does. */
+    var byTk={},alias={};DATA.forEach(function(d){byTk[d.ticker]=d;(d.listing_aliases||[]).forEach(function(a){alias[a]=d.ticker;});});
+    var canon=function(t){return byTk[t]?t:(alias[t]||t);};
     defs.forEach(function(p){
       var ex={},set={};
-      (p.exclude||[]).forEach(function(t){ex[t]=1;});
-      (p.tickers||[]).forEach(function(t){if(byTk[t]&&!ex[t])set[t]=1;});
+      (p.exclude||[]).forEach(function(t){ex[canon(t)]=1;});
+      (p.tickers||[]).forEach(function(t){t=canon(t);if(byTk[t]&&!ex[t])set[t]=1;});
       if(p.rule)DATA.forEach(function(d){if(!ex[d.ticker]&&_pfRuleMatch(p.rule,d))set[d.ticker]=1;});
       Object.keys(set).forEach(function(t){(_pfMem[t]=_pfMem[t]||[]).push(p.id);});
     });
@@ -3750,7 +3947,7 @@ function _pfRuleFromFilters(){
   if(st.search)ignored.push('search');
   if(st.flagOnly)ignored.push('Flagged');if(st.founderOnly)ignored.push('Founder-Led');
   if(st.blueChipOnly)ignored.push('Blue Chip');if(st.r2000Only)ignored.push('Russell 2000');
-  if(st.rcFilter)ignored.push('Upgrades/Downgrades');
+  if(st.revFilter)ignored.push('Reviewed');if(st.rcFilter)ignored.push('Upgrades/Downgrades');
   if(st.dashFilter)ignored.push('dashboard drill-down');if(_pfSel.length)ignored.push('Portfolios');
   var empty=r.ratings==null&&r.sectors==null&&r.countries==null&&!r.cf.length;
   return{rule:empty?null:r,ignored:ignored};
@@ -4880,7 +5077,7 @@ function _getCurrentFilterState(){
     cf.push({key:key,min:minR!==''?parseFloat(minR):null,max:maxR!==''?parseFloat(maxR):null});
   });
   st.colFilters=cf;
-  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.r2000Only=_r2000Only;st.rcFilter=_rcFilter;
+  st.flagOnly=_flagOnly;st.founderOnly=_founderOnly;st.blueChipOnly=_blueChipOnly;st.r2000Only=_r2000Only;st.revFilter=_revFilter;st.rcFilter=_rcFilter;
   if(_dashFilter)st.dashFilter=_dashFilter;
   if(_pfSel.length)st.portfolios=_pfSel.slice();
   return st;
@@ -4927,6 +5124,7 @@ function _applyFilterState(st){
   _founderOnly=!!st.founderOnly;document.getElementById('f-founder').classList.toggle('active',_founderOnly);
   _blueChipOnly=!!st.blueChipOnly;document.getElementById('f-bluechip').classList.toggle('active',_blueChipOnly);
   _r2000Only=!!st.r2000Only;document.getElementById('f-r2000').classList.toggle('active',_r2000Only);
+  _revFilter=st.revFilter|0;
   _syncRevBtns();
   _rcFilter=st.rcFilter|0;
   document.getElementById('f-upgrades').classList.toggle('active',_rcFilter===1);
@@ -4940,10 +5138,11 @@ function _applyFilterState(st){
    The active filters + view live in the hash fragment (#s=<json>), so a
    filtered view can be copied/bookmarked and restored in any browser.
    Hash only — works on GitHub Pages and file://, never triggers a
-   refetch, and leaves the localStorage persistence (presets, flags)
-   untouched. Note: the Flagged toggle filters against a per-device
-   localStorage set, so a recipient may see different rows for it. Compact keys keep typical URLs short:
-   q=search r/s/c=rating/sector/country cf=[key,min,max] fl/fo/bc/r2=
+   refetch, and leaves the localStorage persistence (presets, flags,
+   reviewed, theme) untouched. Note: the Reviewed/Flagged toggles filter
+   against per-device localStorage sets, so a recipient may see different
+   rows for those two toggles. Compact keys keep typical URLs short:
+   q=search r/s/c=rating/sector/country cf=[key,min,max] fl/fo/bc/r2/rv=
    toggles v/ms/ts=view + sub-tabs. The detail popup's active tab (_detTab)
    is deliberately NOT encoded: the popup's ticker isn't hash state either,
    so a persisted tab key could never restore anything on its own —
@@ -4960,6 +5159,7 @@ function _stateToParam(){
   if(st.founderOnly)p.fo=1;
   if(st.blueChipOnly)p.bc=1;
   if(st.r2000Only)p.r2=1;
+  if(st.revFilter)p.rv=st.revFilter;
   if(st.rcFilter)p.rc=st.rcFilter;
   if(st.dashFilter)p.df=st.dashFilter;
   if(st.portfolios)p.pf=st.portfolios;
@@ -5003,7 +5203,7 @@ function _restoreFromHash(){
     if(p.v==='macro'&&!_MACRO_AVAILABLE){}
     else if(p.v&&document.getElementById('view-'+p.v))showView(p.v);
     var st={search:p.q||'',ratings:p.r,sectors:p.s,countries:p.c,
-            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,r2000Only:!!p.r2,rcFilter:p.rc|0,
+            flagOnly:!!p.fl,founderOnly:!!p.fo,blueChipOnly:!!p.bc,r2000Only:!!p.r2,revFilter:p.rv|0,rcFilter:p.rc|0,
             dashFilter:(p.df&&typeof p.df==='object'&&typeof p.df.type==='string')?p.df:null,
             portfolios:Array.isArray(p.pf)?p.pf:null};
     st.colFilters=(p.cf||[]).filter(function(c){
@@ -5017,7 +5217,7 @@ function _restoreFromHash(){
        the classic trap is r:[] (every rating box unchecked) immortalized in
        the auto-synced hash, which then survives every reload. Fall back to
        the default state — via _applyFilterState({}), NOT clearFilters(),
-       which also resets the portfolio picker — and drop the stale hash so
+       which also wipes the reviewed-marks store — and drop the stale hash so
        the next reload starts clean. Deliberate zero-row states created live
        in-session are untouched; this guards only the load path. */
     if(DATA.length&&FD&&FD.length===0){
@@ -5342,6 +5542,7 @@ target_range:'Lowest to highest analyst price target. A wide spread says the Str
 target_upside:'Distance from today’s price to the average analyst target.',
 street_vs_model:'Gap between the Street’s average target and this model’s fair value. A large gap is worth understanding before trusting either number.',
 analyst_ltg:'Consensus long-term growth estimate. Cross-check it against the growth today’s price already implies.',
+_reviewed:'Mark a stock reviewed once your own due diligence is complete. Click ✓ to toggle — it tracks what you have evaluated against what remains on the list. Saved in browser local storage.'
 };
 function tt(k){return TT[k]||'';}
 /* Gate-matrix category headers. Not TT keys: the handler picks these up via
@@ -5450,6 +5651,8 @@ function applyFilters(){
     if(_blueChipOnly&&!_isBlueChip(d))return false;
     if(_r2000Only&&!d.r2000)return false;
     if(!_pfPass(d))return false;
+    if(_revFilter===1&&isReviewed(d.ticker))return false;
+    if(_revFilter===2&&!isReviewed(d.ticker))return false;
     /* Rating-change filter: null rating_chg (new ticker or no prior
        snapshot) matches neither direction. */
     if(_rcFilter===1&&!(d.rating_chg>0))return false;
@@ -5511,12 +5714,13 @@ function applyFilters(){
      filter, and each multi-select with anything deselected. The search
      counts because it lives INSIDE the panel — without a badge slot, a
      filtering search would be invisible while the panel is closed.
-     Upgrades/Downgrades share one state var, so an engaged pair counts
-     once. */
+     Reviewed/Unreviewed share one state var, so an engaged pair counts
+     once: state 0 shows all and doesn't count; states 1 (Unreviewed) and
+     2 (Reviewed) are active filters. */
   var fn=(toks.length?1:0)
         +(_flagOnly?1:0)+(_founderOnly?1:0)+(_blueChipOnly?1:0)+(_r2000Only?1:0)
         +(_pfSel.length?1:0)
-        +(_rcFilter>0?1:0)
+        +(_revFilter>0?1:0)+(_rcFilter>0?1:0)
         +(_dashFilter?1:0)
         +colFilters.length
         +(allRatings?0:1)+(allSectors?0:1)+(allCountries?0:1);
@@ -5704,7 +5908,9 @@ function clearFilters(){
   _blueChipOnly=false;document.getElementById('f-bluechip').classList.remove('active');
   _r2000Only=false;document.getElementById('f-r2000').classList.remove('active');
   _pfSel=[];_pfEditingId=null;_pfRenderFilter();
+  _revFilter=0;_syncRevBtns();
   _rcFilter=0;document.getElementById('f-upgrades').classList.remove('active');document.getElementById('f-downgrades').classList.remove('active');
+  _revd={};_saveRevd();_updateRevCount();
   applyFilters();
 }
 function _positionFpop(panel,btn){
@@ -5983,6 +6189,7 @@ function renderMatrix(){
   var h1='<tr>';
   h1+='<th class="fixed-header" rowspan="2" style="width:40px;color:#7f8c9a;font-weight:600" title="Row number in current sort order">#</th>';
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.3em" onclick="mSort(\'_flagged\')" title="Flagged">\u2691'+(mSC==='_flagged'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;color:white" onclick="mSort(\'_reviewed\')" title="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'+(mSC==='_reviewed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'ticker\')" data-col-tip="ticker" data-col-label="Ticker">Ticker'+(mSC==='ticker'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" data-col-tip="rating" data-col-label="Today\u2019s Rating">Today\u2019s Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating_prev\')" data-col-tip="rating_prev" data-col-label="Yesterday\u2019s Rating">Yesterday\u2019s Rating'+(mSC==='rating_prev'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
@@ -5997,10 +6204,10 @@ function renderMatrix(){
   var RO={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
   var _relOn=_SEARCH_ACTIVE&&!_mUserSorted;
   if(_relOn){sd.sort(_relCmp);}
-  else if(mSC){sd.sort(function(a,b){var va,vb;if(mSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else{va=a[mSC];vb=b[mSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(mSC==='_gates_passed'){var na=parseInt(va),nb=parseInt(vb);if(!isNaN(na)&&!isNaN(nb))return mSA?na-nb:nb-na;}if(mSC==='rating'||mSC==='rating_prev'){var ra=RO[va]||99,rb2=RO[vb]||99;return mSA?ra-rb2:rb2-ra;}if(typeof va==='boolean'){va=va?1:0;vb=vb?1:0;return mSA?va-vb:vb-va;}if(typeof va==='string')return mSA?va.localeCompare(vb):vb.localeCompare(va);return mSA?va-vb:vb-va;});}
+  else if(mSC){sd.sort(function(a,b){var va,vb;if(mSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(mSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[mSC];vb=b[mSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(mSC==='_gates_passed'){var na=parseInt(va),nb=parseInt(vb);if(!isNaN(na)&&!isNaN(nb))return mSA?na-nb:nb-na;}if(mSC==='rating'||mSC==='rating_prev'){var ra=RO[va]||99,rb2=RO[vb]||99;return mSA?ra-rb2:rb2-ra;}if(typeof va==='boolean'){va=va?1:0;vb=vb?1:0;return mSA?va-vb:vb-va;}if(typeof va==='string')return mSA?va.localeCompare(vb):vb.localeCompare(va);return mSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
   _mtxData=sd;_mtxCg2=cg2;
-  /* Detect whether the dataset or sort actually changed — if only a flag
+  /* Detect whether the dataset or sort actually changed — if only a flag/reviewed
      toggle triggered the re-render, preserve scrollTop so the user doesn't lose
      their place. Otherwise reset to the top. */
   var newSig=sd.length+'|'+mSC+'|'+(mSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'')+(_relOn?'|R'+_SEARCH_Q:'');
@@ -6026,6 +6233,7 @@ function _mtxBuildRow(d,_i){
   var html='<tr>';
   html+='<td>'+(_i+1)+'</td>';
   html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
+  html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
   html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+_pfDots(d.ticker)+'</td>';
   html+='<td>'+rb(d.rating,d)+'</td>';
   html+='<td>'+rb(d.rating_prev)+'</td>';
@@ -6384,17 +6592,17 @@ function renderTable(){
   var _dtbl=document.getElementById('dtbl');
   if(_dtbl)_dtbl.className='dt hdr-'+curTSub; /* paints the whole header row one per-tab hue */
   var th=document.getElementById('dt-h');
-  var hh='<tr>';hh+='<th style="width:40px;color:#7f8c9a;font-weight:600" title="Row number in current sort order">#</th>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
+  var hh='<tr>';hh+='<th style="width:40px;color:#7f8c9a;font-weight:600" title="Row number in current sort order">#</th>';hh+='<th style="width:28px;cursor:pointer;font-size:1.3em" onclick="tSort(\'_flagged\')" data-col-tip="_flagged" data-col-label="Flagged">\u2691 <span class="arrow">'+(tSC==='_flagged'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';hh+='<th style="width:28px;cursor:pointer" onclick="tSort(\'_reviewed\')" data-col-tip="_reviewed" data-col-label="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="arrow">'+(tSC==='_reviewed'?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';cols.forEach(function(c){hh+='<th class="'+(c.g||'')+'" onclick="tSort(\''+c.k+'\')" data-col="'+c.k+'" data-col-tip="'+c.k+'" data-col-label="'+c.l+'">'+c.l+' <span class="arrow">'+(tSC===c.k?(tSA?'\u25B2':'\u25BC'):'')+'</span></th>';});hh+='</tr>';
   th.innerHTML=hh;
   var sd=FD.slice();
   var RO2={'BUY':1,'LEAN BUY':2,'HOLD':3,'PASS':4};
   var _relOn=_SEARCH_ACTIVE&&!_tUserSorted;
   if(_relOn){sd.sort(_relCmp);}
-  else if(tSC){sd.sort(function(a,b){var va,vb;if(tSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else{va=a[tSC];vb=b[tSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(tSC==='rating'||tSC==='rating_prev'){var ra=RO2[va]||99,rb2=RO2[vb]||99;return tSA?ra-rb2:rb2-ra;}if(typeof va==='string')return tSA?va.localeCompare(vb):vb.localeCompare(va);return tSA?va-vb:vb-va;});}
+  else if(tSC){sd.sort(function(a,b){var va,vb;if(tSC==='_flagged'){va=isFlagged(a.ticker)?1:0;vb=isFlagged(b.ticker)?1:0;}else if(tSC==='_reviewed'){va=isReviewed(a.ticker)?1:0;vb=isReviewed(b.ticker)?1:0;}else{va=a[tSC];vb=b[tSC];}if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return-1;if(tSC==='rating'||tSC==='rating_prev'){var ra=RO2[va]||99,rb2=RO2[vb]||99;return tSA?ra-rb2:rb2-ra;}if(typeof va==='string')return tSA?va.localeCompare(vb):vb.localeCompare(va);return tSA?va-vb:vb-va;});}
   _detNav=sd.map(function(d){return d.ticker;});
   _dtData=sd;_dtCols=cols;
   /* Preserve scrollTop only when neither the dataset nor the sort changed
-     (e.g. flag toggles). On any real change, jump to the top. */
+     (e.g. flag/reviewed toggles). On any real change, jump to the top. */
   var newSig=curTSub+'|'+sd.length+'|'+tSC+'|'+(tSA?'a':'d')+'|'+(sd[0]?sd[0].ticker:'')+'|'+(sd[sd.length-1]?sd[sd.length-1].ticker:'')+(_relOn?'|R'+_SEARCH_Q:'');
   if(!_dtScrollEl)_dtScrollEl=document.querySelector('#view-table .table-wrap');
   if(_dtScrollEl&&!_dtScrollAttached){
@@ -6417,6 +6625,7 @@ function _dtBuildRow(d,_i){
   var html='<tr>';
   html+='<td>'+(_i+1)+'</td>';
   html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
+  html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
   _dtCols.forEach(function(c){
     var r=ftc(d[c.k],c.f);
     var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';
@@ -7721,7 +7930,7 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
   dm.addEventListener('mouseout',function(e){if(_isTouchDeviceP||_pinEl)return;var el=e.target.closest(_SEL);if(el)_pt.style.display='none';});
   /* Tap/click — iOS requires touchend; e.preventDefault() suppresses ghost click */
   function _onTap(e){
-    if(e.target.closest('.detail-close,.det-nav-btn,.flag-star'))return;
+    if(e.target.closest('.detail-close,.det-nav-btn,.flag-star,.rev-chk-det'))return;
     var t=e.changedTouches?e.changedTouches[0]:null;
     var target=t?document.elementFromPoint(t.clientX,t.clientY):e.target;
     if(!target)return;
@@ -9504,6 +9713,7 @@ function openDet(tk){
   document.getElementById('d-tk').textContent=d.ticker;
   var _cn=document.getElementById('d-cname');if(_cn)_cn.textContent=d.company_name||'';
   _syncFlagDet();
+  _syncRevDet();
   pfPopClose();_pfSyncDet();
   var pxEl=document.getElementById('d-px');if(pxEl)pxEl.textContent=d.price!=null?'$'+(d.price<1?d.price.toFixed(4):d.price.toFixed(2)):'N/A';
   var rEl=document.getElementById('d-rt');rEl.textContent=(d.rating||'N/A')+(isCapped(d)?' ⚠':'');rEl.title=isCapped(d)?capTip(d):'';rEl.style.background=RC[d.rating]||'#888';
@@ -10123,8 +10333,29 @@ function _pageScroll(){return true;}
    see the PAGE-WIDE CHROME CSS block. Only the two virtualized table views
    pan the page; everywhere else the class stays off and layout is
    untouched. Called from showView/swMSub/swTSub after their state updates. */
+/* iOS/iPadOS Safari zooms a page out to fit when the document is wider
+   than the screen, and in the table views it is as wide as the table, so
+   the Gate Matrix opened at the viewport's 0.5 zoom floor (iPadOS's
+   desktop-class browsing ignores shrink-to-fit=no). Briefly capping
+   maximum-scale did not hold: Safari re-fitted to the floor as soon as the
+   viewport was restored. What Safari does honour is the floor itself, so
+   while a wide view is open on iOS the floor is 1.0 (the table pans
+   sideways at full size; pinching in still works), and it goes back to
+   the meta tag's own value when the view closes. */
+var _wasWide=false;
+function _isIos(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+}
+function _setIosZoomFloor(wide){
+  var m=_isIos()&&document.querySelector('meta[name="viewport"]');
+  if(!m)return;
+  if(!m._origContent)m._origContent=m.getAttribute('content');
+  m.setAttribute('content',wide?m._origContent.replace(/minimum-scale=[\d.]+/,'minimum-scale=1.0'):m._origContent);
+}
 function _syncWideTable(){
   var wide=(curView==='matrix'&&curMSub!=='dashboard')||(curView==='table'&&curTSub!=='prices');
+  if(wide!==_wasWide)_setIosZoomFloor(wide);
+  _wasWide=wide;
   document.body.classList.toggle('wide-table',wide);
   var cont=document.querySelector('.container');
   /* Measure with the widening CLEARED: the table's width:100% resolves
@@ -10370,8 +10601,16 @@ document.addEventListener('click',function(e){
    phone / phone landscape: an off-canvas drawer (html.sb-drawer). */
 var _SB_KEY='stock_sidebar_v1';
 function _sbMode(){
-  if(window.matchMedia&&window.matchMedia('(orientation:landscape) and (max-height:500px)').matches)return'lphone';
-  var w=window.innerWidth||1280;
+  /* Ask the same media queries the CSS uses. window.innerWidth is the
+     VISUAL viewport on iOS: zoomed out over the Gate Matrix on an iPad mini
+     it read ~1,500px, so the menu decided it was on a desktop and the top
+     bar's menu button did nothing while the CSS still showed the phone bar. */
+  var mm=window.matchMedia&&function(q){return window.matchMedia(q).matches;};
+  if(mm){
+    if(mm('(orientation:landscape) and (max-height:500px)'))return'lphone';
+    return mm('(max-width:768px)')?'phone':(mm('(max-width:1023px)')?'tablet':'desk');
+  }
+  var w=document.documentElement.clientWidth||window.innerWidth||1280;
   return w<=768?'phone':(w<1024?'tablet':'desk');
 }
 function _sbStoredRail(){try{return localStorage.getItem(_SB_KEY)==='rail';}catch(e){return false;}}
@@ -10481,8 +10720,8 @@ function qrKey(e){
     i=((i<0?0:i)+(e.key==='ArrowDown'?1:-1)+items.length)%items.length;
     items[i].classList.add('hi');items[i].setAttribute('aria-selected','true');
   }else if(e.key==='Enter'){
-    /* stopPropagation: the popup's own key handler must not see the
-       keystroke that just opened it. */
+    /* stopPropagation: the popup's own Enter (mark reviewed, next ticker)
+       must not see the keystroke that just opened it. */
     e.preventDefault();e.stopPropagation();_qrOpen(items[Math.max(0,i)].getAttribute('data-qr'));
   }
 }
@@ -10519,6 +10758,7 @@ var HOTKEYS=[
   {g:'Ticker popup',k:['t'],l:'Finances: next statement (balance / income / cash flow)'},
   {g:'Ticker popup',k:['s'],l:'Summary PDF for this ticker'},
   {g:'Ticker popup',k:['x'],l:'Flag / unflag this ticker'},
+  {g:'Ticker popup',k:['Enter'],l:'Mark reviewed, then next ticker'},
   {g:'Ticker popup',k:['p'],l:'Portfolio membership menu'}
 ];
 /* Hotkeys stay out of the way of typing and of the browser's own chords.
@@ -10632,6 +10872,7 @@ function _hkDetDispatch(e){
   }
   else if(k==='s'){e.preventDefault();exportProfilePdf();}
   else if(k==='x'){e.preventDefault();toggleFlagDet();}
+  else if(k==='Enter'){e.preventDefault();var tk=document.getElementById('d-tk').textContent;if(tk&&!isReviewed(tk)){toggleReviewed(tk);_syncRevDet();}navDet(1);}
   else if(k==='p'){e.preventDefault();pfDetMenu(null);}
   else if(k==='?'){e.preventDefault();pfPopClose();hkOverlayOpen();}
 }
@@ -10694,7 +10935,8 @@ var MACRO_TABS=[
   {k:'inflation',l:'Inflation'},
   {k:'growth',l:'Growth & Labor'},
   {k:'credit',l:'Credit & Conditions'},
-  {k:'housing',l:'Housing & Consumer'}
+  {k:'housing',l:'Housing & Consumer'},
+  {k:'commodities',l:'Commodities'}
 ];
 /* Formatting is macro-local rather than ftc(): the builder ships values
    already scaled for display (WALCL in $T, ICSA in K), so codes here are
@@ -10783,7 +11025,8 @@ var _MAC_SEC_INTRO={
   inflation:'The four price indices track year-over-year inflation from two angles: CPI is what consumers pay, PCE is the gauge the Fed targets, and the core versions strip out food and energy to expose the underlying trend. The 10-year breakeven and the 5y5y forward are what the bond market expects inflation to average, read from the gap between nominal and inflation-protected Treasuries; when they hold near 2% the market still believes the Fed is in control, whatever the latest prints say. The percentile bar under each chart shows how today\u2019s reading ranks against the series\u2019 own history.',
   growth:'Real GDP, industrial production and retail sales gauge output and demand, and a reading below the dashed zero line means contraction. The labor charts read the jobs market from both ends: the unemployment rate and the monthly change in payrolls lag the cycle, while weekly jobless claims and job openings turn first. The Sahm Rule is a recession trigger: once the three-month average unemployment rate rises half a point above its twelve-month low (the red dashed line), a downturn has historically already begun.',
   credit:'Investment-grade and high-yield option-adjusted spreads are the extra yield investors demand over Treasuries to hold corporate debt: they widen when default risk is being priced in and tighten when credit is easy. The Chicago Fed NFCI folds more than a hundred money-market, debt and equity measures into one index, where a reading above zero means conditions are tighter than average. The Fed balance sheet and M2 growth track how much liquidity is in the system, and the broad dollar index shows the currency\u2019s weight on exporters and on multinationals\u2019 overseas earnings. The rating table at the bottom breaks the spreads out from AAA to CCC, where the lowest tiers move first when stress builds.',
-  housing:'Housing starts count the homes builders are breaking ground on, the most rate-sensitive corner of the economy, and the 30-year mortgage rate is the cost that governs them. Case\u2013Shiller home prices, year over year, track the largest asset most households own. Consumer sentiment gauges how households feel about their finances and the year ahead, and the personal savings rate shows whether they are building a cushion or spending it down to keep consumption going; sliding sentiment alongside a shrinking savings rate is the classic late-cycle squeeze.'
+  housing:'Housing starts count the homes builders are breaking ground on, the most rate-sensitive corner of the economy, and the 30-year mortgage rate is the cost that governs them. Case\u2013Shiller home prices, year over year, track the largest asset most households own. Consumer sentiment gauges how households feel about their finances and the year ahead, and the personal savings rate shows whether they are building a cushion or spending it down to keep consumption going; sliding sentiment alongside a shrinking savings rate is the classic late-cycle squeeze.',
+  commodities:'West Texas Intermediate crude is the oil price US producers sell into, and copper is the industrial metal whose price tracks construction, grid and electrification demand worldwide. They are the price decks Energy and Basic Materials earn on: a producer does not set them, so a move here flows almost straight to revenue and margins. Read each against its own ten-year range rather than its last move, because both swing far more than the economy beneath them.'
 };
 function _macIntroHTML(k){
   var t=_MAC_SEC_INTRO[k];
@@ -11351,6 +11594,296 @@ function renderPoolStructure(sec){
     n.insights.forEach(function(t){out+='<li style="margin:4px 0">'+_linkifyTickers(_esc(t))+'</li>';});
     out+='</ul>';
   }
+  return out+_ppStructureStats(n.structure_stats);
+}
+/* The pool's shape in four numbers (models/sector_pool.pool_structure):
+   concentration measured on PROFIT (the header's HHI/CR4 are on revenue),
+   the spread of margins, the loss-makers' drag, and what the market pays
+   for each dollar of the pool against the whole universe. */
+function _ppStructureStats(st){
+  if(!st)return '';
+  var tiles=[];
+  if(st.profit_cr4!=null){
+    var lz=st.lorenz;
+    tiles.push('<div class="pph-fact"><b>Profit concentration</b>Top 4 earn '+_ppPct(st.profit_cr4,0)+' of the pool (profit HHI '+st.profit_hhi.toFixed(3)+')'
+      +(lz?'; '+lz.companies+' of '+st.n+' companies ('+_ppPct(lz.company_share,0)+') earn '+_ppPct(lz.pool_share,0)+' of it':'')+'.</div>');
+  }
+  if(st.margins){
+    var m=st.margins;
+    tiles.push('<div class="pph-fact"><b>Margin spread</b>Operating margin '+_ppPct(m.p10)+' / '+_ppPct(m.p50)+' / '+_ppPct(m.p90)+' at the 10th / 50th / 90th percentile \u2014 a '+(m.spread*100).toFixed(0)+'-point gap'
+      +(m.spread>=0.3?': stock selection matters more than the sector call.':m.spread<=0.15?': companies earn alike, so the sector call dominates.':'.')+'</div>');
+  }
+  if(st.pool>0){
+    var drag=(st.pool-st.net)/st.pool;
+    tiles.push('<div class="pph-fact"><b>Loss-makers</b>'+(st.loss_makers?st.loss_makers+' of '+st.n+' companies lose money, taking '+_ppPct(drag)+' off the pool ('+_ppBn(st.pool)+' positive, '+_ppBn(st.net)+' net).':'No company in the pool loses money.')+'</div>');
+  }
+  if(st.pool_multiple!=null){
+    var u=st.universe_pool_multiple,rel=u?st.pool_multiple/u:null;
+    tiles.push('<div class="pph-fact"><b>Price of the pool</b>Market value '+st.pool_multiple.toFixed(1)+'\u00d7 its operating-profit pool'
+      +(u?' against '+u.toFixed(1)+'\u00d7 for the universe \u2014 '+(rel>1.15?'a premium: each dollar of this pool is priced above the market\u2019s, for growth or durability':rel<0.85?'a discount: each dollar of this pool is priced below the market\u2019s':'in line with the market'):'')+'.</div>');
+  }
+  return tiles.length?'<div class="pph-facts">'+tiles.join('')+'</div>':'';
+}
+/* Pool History (pp-history): the sector's operating-profit pool over the
+   last decade, built server-side by models/sector_pool.py from each company's
+   EDGAR annual history and shipped as SECTOR_POOL[sec].history. Bars are the
+   positive pool, the line its net weighted margin; an incomplete year (most
+   filers not yet reported) is drawn hollow and never used as an endpoint.
+   Below the chart: growth split into volume and margin over a consistent
+   panel, today's margin within the sector's own range, and the concentration
+   trend. Everything here is measured on today's companies, which the
+   footnote says. */
+function _ppFy(w){return w.block>1?'FY'+(w.y0-w.block+1)+'–'+String(w.y0).slice(2):'FY'+w.y0;}
+function _ppFy1(w){return w.block>1?'FY'+(w.y1-w.block+1)+'–'+String(w.y1).slice(2):'FY'+w.y1;}
+function _ppPct(v,dp){return v==null?'N/A':(v*100).toFixed(dp==null?1:dp)+'%';}
+function _ppSgnPct(v){return v==null?'N/A':(v>=0?'+':'−')+Math.abs(v*100).toFixed(1)+'%';}
+function _ppBn(v){var a=Math.abs(v);return a>=1e12?'$'+(v/1e12).toFixed(2)+'T':a>=1e9?'$'+(v/1e9).toFixed(0)+'B':'$'+(v/1e6).toFixed(0)+'M';}
+function renderPoolHistory(sec){
+  var n=SECTOR_POOL&&SECTOR_POOL[sec],h=n&&n.history;
+  if(!h||!h.points||h.points.length<3)return '';
+  var pts=h.points;
+  var W=800,H=200,pL=52,pR=46,pT=16,pB=24,cW=W-pL-pR,cH=H-pT-pB;
+  var maxP=Math.max.apply(null,pts.map(function(p){return p.pool;}).concat([1]));
+  var ms=pts.filter(function(p){return p.margin!=null;}).map(function(p){return p.margin;});
+  var mMax=Math.max.apply(null,ms.concat([0.05])),mMin=Math.min.apply(null,ms.concat([0]));
+  var mR=(mMax-mMin)||0.05;mMax+=mR*0.08;mR=mMax-mMin;
+  var slot=cW/pts.length,bw=Math.min(46,slot*0.62);
+  var svg='',line='',dots='';
+  for(var t=0;t<=4;t++){
+    var gy=pT+cH*t/4;
+    svg+='<line class="pph-grid" x1="'+pL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+gy.toFixed(1)+'"/>';
+    svg+='<text class="pph-tx" x="'+(pL-6)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end">'+_ppBn(maxP*(1-t/4))+'</text>';
+    svg+='<text class="pph-tx" x="'+(W-pR+6)+'" y="'+(gy+3).toFixed(1)+'">'+((mMax-mR*t/4)*100).toFixed(0)+'%</text>';
+  }
+  svg+='<line class="pph-axis" x1="'+pL+'" y1="'+(pT+cH)+'" x2="'+(W-pR)+'" y2="'+(pT+cH)+'"/>';
+  pts.forEach(function(p,i){
+    var cx=pL+slot*(i+0.5),bh=p.pool/maxP*cH,by=pT+cH-bh;
+    var tip='FY'+p.year+': pool '+_ppBn(p.pool)+' · net margin '+_ppPct(p.margin)+' · '+p.n+' companies · '+_ppPct(p.coverage,0)+' of today’s sector revenue'+(p.complete?'':' · incomplete');
+    svg+='<rect class="pph-bar'+(p.complete?'':' inc')+'" x="'+(cx-bw/2).toFixed(1)+'" y="'+by.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(bh,0.5).toFixed(1)+'"><title>'+_esc(tip)+'</title></rect>';
+    if(bw>=24)svg+='<text class="pph-val" x="'+cx.toFixed(1)+'" y="'+(by-3).toFixed(1)+'" text-anchor="middle">'+_ppBn(p.pool)+'</text>';
+    svg+='<text class="pph-tx" x="'+cx.toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle">'+(slot<40?"'"+String(p.year).slice(2):p.year)+'</text>';
+    if(p.margin!=null){
+      var my=pT+cH*(mMax-p.margin)/mR;
+      line+=(line?'L':'M')+cx.toFixed(1)+','+my.toFixed(1);
+      dots+='<circle class="pph-dot'+(p.complete?'':' inc')+'" cx="'+cx.toFixed(1)+'" cy="'+my.toFixed(1)+'" r="3"><title>'+_esc(tip)+'</title></circle>';
+    }
+  });
+  if(mMin<0){var zy=pT+cH*mMax/mR;svg+='<line class="pph-axis" stroke-dasharray="4,3" x1="'+pL+'" y1="'+zy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+zy.toFixed(1)+'"/>';}
+  svg+='<path class="pph-line" d="'+line+'"/>'+dots;
+  var out='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%;height:auto">'+svg+'</svg>';
+  out+='<div class="pph-key"><span><i style="background:#4f7cac"></i>Operating-profit pool (left)</span><span><i style="background:#d9822b"></i>Net weighted operating margin (right)</span><span><i style="border:1px dashed #4f7cac"></i>Incomplete year</span></div>';
+
+  var facts='';
+  var d=h.decomposition;
+  if(d){
+    /* A margin moving under 1%/yr is "barely moved"; past that, say which
+       of volume and margin led, in the direction each actually went. */
+    var vol=d.revenue_cagr,mar=d.margin_cagr,why;
+    if(mar<=-0.01)why=d.pool_cagr>0?'volume carried it while margins thinned':'margins shrank faster than revenue could make up';
+    else if(mar<0.01)why=vol>=0?'almost all volume \u2014 margins barely moved':'revenue shrank and margins barely moved';
+    else if(vol<0)why='margin carried it while revenue shrank';
+    else if(mar>vol)why='more from margin than from volume \u2014 the sector earns more on each dollar it sells';
+    else why='volume led, with margins widening too';
+    facts+='<div class="pph-fact"><b>Where the growth came from</b>Pool '+_ppSgnPct(d.pool_cagr)+'/yr = revenue '+_ppSgnPct(vol)+'/yr × margin '+_ppSgnPct(mar)+'/yr: '+why+'. Pool margin '+_ppPct(d.margin0)+' → '+_ppPct(d.margin1)+'.</div>';
+  }
+  var c=h.cycle;
+  if(c){
+    var pos=c.position==='top'?'at the top of its range — more room to fall than to rise if the cycle turns':c.position==='bottom'?'near the bottom of its range — depressed rather than structural, if the past range holds':'mid-range';
+    var where=c.margin>=c.high?'is the highest of its '+c.years+' complete years':c.margin<=c.low?'is the lowest of its '+c.years+' complete years':'sits in the '+_ord(Math.round(c.pctile*100))+' percentile of its '+c.years+' complete years';
+    facts+='<div class="pph-fact"><b>Cycle position</b>FY'+c.year+' margin '+_ppPct(c.margin)+' '+where+' ('+_ppPct(c.low)+' to '+_ppPct(c.high)+'): '+pos+'.</div>';
+  }
+  var ht=h.hhi_trend;
+  if(ht){
+    var tw=ht.trend==='concentrating'?'Concentrating — the leaders are taking a larger share of the profit':ht.trend==='fragmenting'?'Fragmenting — profit is spreading across more companies':'Stable — the profit split has barely moved';
+    facts+='<div class="pph-fact"><b>Profit concentration</b>'+tw+'. Profit HHI '+ht.hhi0.toFixed(3)+' → '+ht.hhi1.toFixed(3)+'.</div>';
+  }
+  if(facts)out+='<div class="pph-facts">'+facts+'</div>';
+
+  var w=d||ht||(h.shifts||null);
+  var note='Built from EDGAR annual filings of the '+h.n_with_history+' of '+h.n_rows+' companies with history';
+  if(w)note+='; growth compares '+(w.block>1?w.block+'-year averages, ':'')+_ppFy(w)+' with '+_ppFy1(w)+' over the '+w.n+' companies reporting throughout';
+  note+='. Today’s companies only, so the series shows how today’s sector got here; foreign filers are translated at one FX rate.';
+  if(h.stale&&h.stale.length){
+    var st=h.stale.slice(0,4).map(function(x){return _esc(x.ticker)+' (to FY'+x.last_year+')';}).join(', ');
+    note+=' Left out because their SEC filings stopped: '+st+(h.stale.length>4?' and '+(h.stale.length-4)+' more':'')+'.';
+  }
+  out+='<p class="pph-note">'+note+'</p>';
+  return out;
+}
+/* Share Shifts (pp-shifts): who took the pool. Each company's share of the
+   positive operating-profit pool at the two ends of the history window,
+   over the same consistent panel as the growth split above, so the shifts
+   net to zero. The sector-level view of the per-company Pool Share gate. */
+function _ppShiftRows(list,cls,maxD){
+  return list.map(function(m){
+    var col=RC[m.rating]||'#aaa',wd=maxD>0?Math.abs(m.delta)/maxD*100:0;
+    return '<div class="pps-row '+cls+'" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr((m.company_name||m.ticker)+(m.rating?' · '+m.rating:''))+'">'
+      +'<span class="pps-tk" style="border-left-color:'+col+'">'+_esc(m.ticker)+'</span>'
+      +'<span class="pps-track"><span class="pps-fill" style="width:'+wd.toFixed(1)+'%"></span></span>'
+      +'<span class="pps-num">'+(m.delta>=0?'+':'−')+Math.abs(m.delta*100).toFixed(1)+' pp</span>'
+      +'<span class="pps-sub">'+_esc(m.company_name||'')+' · '+_ppPct(m.share0)+' → '+_ppPct(m.share1)+'</span>'
+      +'</div>';
+  }).join('');
+}
+function renderPoolShifts(sec){
+  var n=SECTOR_POOL&&SECTOR_POOL[sec],sh=n&&n.history&&n.history.shifts;
+  if(!sh||(!sh.gainers.length&&!sh.losers.length))return '';
+  var maxD=Math.max.apply(null,sh.gainers.concat(sh.losers).map(function(m){return Math.abs(m.delta);}));
+  var out='<p class="pph-lead">Share of the sector’s operating-profit pool, '+_ppFy(sh)+' vs '+_ppFy1(sh)+(sh.block>1?' ('+sh.block+'-year averages)':'')+', among the '+sh.n+' companies reporting throughout. Gains and losses net to zero.</p>';
+  out+='<div class="pps-grid"><div><div class="pps-hdr" style="color:#2e7d32">▲ Took share</div>'+(_ppShiftRows(sh.gainers,'pps-up',maxD)||'<p class="pph-note">None</p>')+'</div>'
+    +'<div><div class="pps-hdr" style="color:#c62828">▼ Lost share</div>'+(_ppShiftRows(sh.losers,'pps-dn',maxD)||'<p class="pph-note">None</p>')+'</div></div>';
+  return out;
+}
+/* Sortable pool tables (Industries and Companies). Click a header to sort
+   by it: numbers high to low first, names A to Z, a second click reverses.
+   Cells carry their raw value in data-v; a blank sorts last either way, and
+   pooled rows (Others, the folded small industries) stay at the bottom. */
+var _PPI_RANK={'BUY':4,'LEAN BUY':3,'HOLD':2,'PASS':1};
+function _ppiV(v){return (typeof v==='number'&&isFinite(v))?v:'';}
+function _ppiTh(label,type,initial){
+  return '<th data-t="'+(type||'n')+'"'+(initial?' aria-sort="descending"':'')+' onclick="_ppiSort(this)" tabindex="0" onkeydown="if(event.key===\'Enter\')_ppiSort(this)">'+label+'</th>';
+}
+function _ppiSort(th){
+  var row=th.parentNode,idx=[].indexOf.call(row.children,th),str=th.getAttribute('data-t')==='s';
+  var cur=th.getAttribute('aria-sort');
+  var dir=cur?(cur==='descending'?'ascending':'descending'):(str?'ascending':'descending');
+  [].forEach.call(row.children,function(h){h.removeAttribute('aria-sort');});
+  th.setAttribute('aria-sort',dir);
+  var tb=th.closest('table').tBodies[0],rows=[].slice.call(tb.rows);
+  var pin=rows.filter(function(r){return r.classList.contains('ppi-pin');});
+  var body=rows.filter(function(r){return !r.classList.contains('ppi-pin');});
+  body.sort(function(a,b){
+    var x=a.cells[idx].getAttribute('data-v'),y=b.cells[idx].getAttribute('data-v');
+    if(x===''||x==null)return (y===''||y==null)?0:1;
+    if(y===''||y==null)return -1;
+    var c=str?String(x).localeCompare(String(y)):(+x)-(+y);
+    return dir==='ascending'?c:-c;
+  });
+  body.concat(pin).forEach(function(r){tb.appendChild(r);});
+}
+/* Industries view of the pool chart (pp-chart, "Industries" toggle): the
+   same Bain picture one level down, from SECTOR_POOL[sec].industries
+   (models/sector_pool.industry_pools) — width = revenue share (linear: a
+   sector has at most ~24 industries), height = net margin, colour = the
+   industry's median ROIC-WACC spread — then the table behind it with each
+   industry's own pool growth. Industries under three companies are folded
+   into "Other". */
+function _ppIndCls(spr){return spr==null?'ppi-na':spr>=0.05?'ppi-pos':spr>=0?'ppi-mid':'ppi-neg';}
+function renderPoolIndustries(sec){
+  var n=SECTOR_POOL&&SECTOR_POOL[sec],inds=n&&n.industries;
+  if(!inds||inds.length<2)return '';
+  var items=inds.filter(function(d){return d.margin!=null&&d.revenue_share>0;}).slice().sort(function(a,b){return b.margin-a.margin;});
+  var W=800,H=200,pL=48,pR=10,pT=14,pB=26,cW=W-pL-pR,cH=H-pT-pB;
+  var maxM=Math.max.apply(null,items.map(function(d){return d.margin;}).concat([0.05]));
+  var minM=Math.min.apply(null,items.map(function(d){return d.margin;}).concat([0]));
+  var yR=(maxM-minM)||0.05,zeroY=pT+cH*maxM/yR,tot=items.reduce(function(a,d){return a+d.revenue_share;},0);
+  var svg='',x=pL;
+  for(var t=0;t<=4;t++){var tv=minM+yR*t/4,ty=pT+cH*(maxM-tv)/yR;svg+='<line class="pph-grid" x1="'+pL+'" y1="'+ty.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+ty.toFixed(1)+'"/><text class="pph-tx" x="'+(pL-6)+'" y="'+(ty+3).toFixed(1)+'" text-anchor="end">'+(tv*100).toFixed(0)+'%</text>';}
+  svg+='<line class="pph-axis" stroke-dasharray="4,3" x1="'+pL+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+zeroY.toFixed(1)+'"/>';
+  items.forEach(function(d){
+    var w=Math.max(1.5,d.revenue_share/tot*cW),h=Math.max(1,Math.abs(d.margin)/yR*cH),y=d.margin>=0?zeroY-h:zeroY;
+    var tip=d.industry+': '+d.n+' companies · revenue '+_ppPct(d.revenue_share)+' · pool '+_ppPct(d.pool_share)+' · margin '+_ppPct(d.margin)+' · median spread '+_ppSgnPct(d.median_spread);
+    svg+='<rect class="ppi-bar '+_ppIndCls(d.median_spread)+'" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(w-1).toFixed(1)+'" height="'+h.toFixed(1)+'"><title>'+_esc(tip)+'</title></rect>';
+    var chars=Math.floor((w-4)/5.2);
+    if(chars>=5){var nm=d.industry.length>chars?d.industry.slice(0,chars-1)+'…':d.industry;svg+='<text class="pph-val" x="'+(x+w/2).toFixed(1)+'" y="'+(d.margin>=0?y-3:y+h+9).toFixed(1)+'" text-anchor="middle" pointer-events="none">'+_esc(nm)+'</text>';}
+    x+=w;
+  });
+  svg+='<text class="pph-tx" x="'+(pL+cW/2)+'" y="'+(H-6)+'" text-anchor="middle">Revenue share → (by industry, ordered by margin)</text>';
+  var out='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%;height:auto;margin:4px 0 0">'+svg+'</svg>';
+  out+='<div class="pph-key"><span><i class="ppi-pos"></i>Median spread ≥ 5 pts</span><span><i class="ppi-mid"></i>0–5 pts</span><span><i class="ppi-neg"></i>Below cost of capital</span></div>';
+  out+='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Industry','s')+_ppiTh('Cos')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)+_ppiTh('Margin')+_ppiTh('Median spread')+_ppiTh('Pool CAGR')+'</tr></thead><tbody>';
+  inds.forEach(function(d){
+    var skew=(d.pool_share!=null&&d.revenue_share>0)?d.pool_share/d.revenue_share:null;
+    out+='<tr'+(d.folded?' class="ppi-pin"':'')+'><td data-v="'+_attr(d.industry)+'">'+_esc(d.industry)+(d.folded?' <span class="ppi-dim">(industries under 3 companies)</span>':'')+'</td><td data-v="'+d.n+'">'+d.n+'</td><td data-v="'+_ppiV(d.revenue_share)+'">'+_ppPct(d.revenue_share)+'</td>'
+      +'<td data-v="'+_ppiV(d.pool_share)+'"'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(d.pool_share)+'</td>'
+      +'<td data-v="'+_ppiV(d.margin)+'">'+_ppPct(d.margin)+'</td><td data-v="'+_ppiV(d.median_spread)+'">'+(d.median_spread==null?'\u2014':_ppSgnPct(d.median_spread))+'</td><td data-v="'+_ppiV(d.pool_cagr)+'">'+(d.pool_cagr==null?'—':_ppSgnPct(d.pool_cagr)+'/yr'+(d.own_window&&d.window?' <span class="ppi-dim" title="Too few of its companies reported over the sector\u2019s window; measured over its own years">('+_ppFy({y0:d.window[0],block:d.window[2]})+' to '+_ppFy1({y1:d.window[1],block:d.window[2]})+')</span>':''))+'</td></tr>';
+  });
+  out+='</tbody></table></div><p class="pph-note">Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is each industry’s consistent-panel growth over the sector’s history window, or over its own years where shown in brackets; — where too few of its companies reported throughout.</p>';
+  return out;
+}
+/* Companies view of the pool chart: the table behind the bars, built like
+   the Industries table so the two toggles read the same way. One row per
+   charted company (the top PP_TOP_N by revenue) ordered by pool share, then
+   the pooled Others row. Pool share trend is the Pool Share gate's value:
+   the 5-year CAGR of the company's share of the sector pool. */
+var _PP_BS_INDUSTRIES={'Banks - Regional':1,'Banks - Diversified':1,'Mortgage Finance':1,'Credit Services':1,'Capital Markets':1};
+function _ppSkewTd(pool,rev){
+  var skew=(pool!=null&&rev>0)?pool/rev:null;
+  return '<td data-v="'+_ppiV(pool)+'"'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(pool)+'</td>';
+}
+function renderPoolCompanyTable(shown,tail){
+  if(!shown||!shown.length)return '';
+  var rows=shown.slice().sort(function(a,b){return (b.pp_profit_share||0)-(a.pp_profit_share||0);});
+  var out='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Company','s')+_ppiTh('Rating')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)+_ppiTh('Margin')+_ppiTh('Spread')+_ppiTh('Pool share trend')+'</tr></thead><tbody>';
+  rows.forEach(function(d){
+    var bs=d.sector==='Financial Services'&&_PP_BS_INDUSTRIES[d.industry];
+    var tr=d._gate_pool_share;
+    /* Ticker only; the company's name is the row's tooltip. */
+    out+='<tr class="ppi-co" data-tk="'+_attr(d.ticker)+'" onclick="openDet(this.dataset.tk)"'+(d.company_name?' title="'+_attr(d.company_name)+'"':'')+'>'
+      +'<td data-v="'+_attr(d.ticker)+'">'+_esc(d.ticker)+'</td>'
+      +'<td data-v="'+(_PPI_RANK[d.rating]||'')+'"><span class="ppi-rt" style="background:'+(RC[d.rating]||'#90a4ae')+'"></span>'+_esc(d.rating||'—')+'</td>'
+      +'<td data-v="'+_ppiV(d.pp_revenue_share)+'">'+_ppPct(d.pp_revenue_share)+'</td>'
+      +_ppSkewTd(d.pp_profit_share,d.pp_revenue_share)
+      +'<td data-v="'+_ppiV(d.operating_margin)+'">'+_ppPct(d.operating_margin)+'</td>'
+      +'<td data-v="'+(bs?'':_ppiV(d.spread))+'">'+(bs||d.spread==null?'—':_ppSgnPct(d.spread))+'</td>'
+      +'<td data-v="'+_ppiV(tr)+'">'+(tr==null?'—':_ppSgnPct(tr)+'/yr')+'</td></tr>';
+  });
+  if(tail&&tail.length){
+    var rev=0,pool=0,wm=0;
+    tail.forEach(function(d){var r=d.pp_revenue_share||0;rev+=r;pool+=d.pp_profit_share||0;wm+=(d.operating_margin||0)*r;});
+    out+='<tr class="ppi-pin"><td>Others <span class="ppi-dim">('+tail.length+' companies)</span></td><td>—</td><td>'+_ppPct(rev)+'</td>'
+      +_ppSkewTd(pool,rev)+'<td>'+(rev>0?_ppPct(wm/rev):'—')+'</td><td>—</td><td>—</td></tr>';
+  }
+  out+='</tbody></table></div><p class="pph-note">Bar width ∝ √revenue share, height = operating margin, colour = rating'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Click a company to open it.</p>';
+  return out;
+}
+function _ppChartView(btn,v){
+  var box=btn.closest('.pp-chart');if(!box)return;
+  box.querySelectorAll('.ppc-tab').forEach(function(b){b.classList.toggle('active',b===btn);});
+  box.querySelectorAll('.ppc-view').forEach(function(el){el.hidden=el.getAttribute('data-view')!==v;});
+}
+/* Accounting vs Economic Pool (pp-econ): operating profit says how much a
+   sector earns; economic profit — (ROIC − WACC) × invested capital — says
+   how much of it is above what its capital costs. From
+   SECTOR_POOL[sec].economic (models/sector_pool.economic_pool). Both market
+   shares are taken over the companies where EP is measurable, and the
+   exclusions (lenders and broker-dealers, missing capital or spread) are
+   counted, never zero-filled. */
+function _ppEpRows(list,cls,maxV){
+  return list.map(function(m){
+    var col=RC[m.rating]||'#aaa',wd=maxV>0?Math.abs(m.ep)/maxV*100:0;
+    return '<div class="pps-row '+cls+'" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr((m.company_name||m.ticker)+(m.rating?' · '+m.rating:''))+'">'
+      +'<span class="pps-tk" style="border-left-color:'+col+'">'+_esc(m.ticker)+'</span>'
+      +'<span class="pps-track"><span class="pps-fill" style="width:'+wd.toFixed(1)+'%"></span></span>'
+      +'<span class="pps-num">'+(m.ep>=0?'+':'−')+_ppBn(Math.abs(m.ep))+'/yr</span>'
+      +'<span class="pps-sub">'+_esc(m.company_name||'')+' · spread '+_ppSgnPct(m.spread)+' on '+_ppBn(m.ic)+' capital</span>'
+      +'</div>';
+  }).join('');
+}
+function renderPoolEcon(sec){
+  var n=SECTOR_POOL&&SECTOR_POOL[sec],e=n&&n.economic;
+  if(!e)return '';
+  var out='';
+  if(e.share_of_us_oi!=null&&e.share_of_us_ep!=null){
+    var a=e.share_of_us_oi,b=e.share_of_us_ep,mx=Math.max(a,b)||1,r=b/(a||1);
+    var verdict=r>=1.2?'it earns more above its cost of capital than its profits alone suggest — high-return capital':r<=0.8?'much of its profit only pays for the capital behind it':'its economic weight matches its accounting weight';
+    out+='<p class="pph-lead">'+_esc(sec)+' earns <b>'+_ppPct(a)+'</b> of US operating profit but <b>'+_ppPct(b)+'</b> of US economic profit: '+verdict+'.</p>';
+    out+='<div class="ppe-bars"><div class="ppe-row"><span>Operating profit</span><span class="pps-track"><span class="pps-fill ppe-oi" style="width:'+(a/mx*100).toFixed(1)+'%"></span></span><span class="pps-num">'+_ppPct(a)+'</span></div>'
+      +'<div class="ppe-row"><span>Economic profit</span><span class="pps-track"><span class="pps-fill ppe-ep" style="width:'+(b/mx*100).toFixed(1)+'%"></span></span><span class="pps-num">'+_ppPct(b)+'</span></div></div>';
+  }
+  out+='<div class="pph-facts"><div class="pph-fact"><b>Economic profit</b>'+(e.total>=0?'+':'−')+_ppBn(Math.abs(e.total))+' a year: '+_ppBn(e.created)+' created, '+_ppBn(Math.abs(e.destroyed))+' destroyed.</div>'
+    +'<div class="pph-fact"><b>Return over cost</b>'+_ppSgnPct(e.ep_on_ic)+' on the sector’s invested capital.</div>'
+    +'<div class="pph-fact"><b>Value creators</b>'+_ppPct(e.share_creating,0)+' of '+e.n+' companies earn above their cost of capital.</div></div>';
+  var maxV=Math.max.apply(null,e.creators.concat(e.destroyers).map(function(m){return Math.abs(m.ep);}).concat([0]));
+  if(e.creators.length||e.destroyers.length){
+    out+='<div class="pps-grid" style="margin-top:12px"><div><div class="pps-hdr" style="color:#2e7d32">▲ Largest value creators</div>'+(_ppEpRows(e.creators,'pps-up',maxV)||'<p class="pph-note">None</p>')+'</div>'
+      +'<div><div class="pps-hdr" style="color:#c62828">▼ Largest value destroyers</div>'+(_ppEpRows(e.destroyers,'pps-dn',maxV)||'<p class="pph-note">None</p>')+'</div></div>';
+  }
+  var ex=e.excluded||{},parts=[];
+  if(ex.balance_sheet)parts.push(ex.balance_sheet+' lenders and broker-dealers, whose capital funds a loan book or trading inventory');
+  if(ex.no_capital)parts.push(ex.no_capital+' without invested capital');
+  if(ex.no_spread)parts.push(ex.no_spread+' without a ROIC−WACC spread');
+  out+='<p class="pph-note">Economic profit = (5-year median ROIC − WACC) × latest invested capital.'+(parts.length?' Not measured: '+parts.join('; ')+'.':'')+'</p>';
   return out;
 }
 /* The sector page's single company grid. It used to be three separate
@@ -11391,8 +11924,8 @@ function _ppModelNote(d){
 }
 function renderPoolCompanies(sec,cos){
   var n=(SECTOR_POOL&&SECTOR_POOL[sec])||{};
-  var rowByTk={};
-  (cos||[]).forEach(function(d){rowByTk[d.ticker]=d;});
+  var rowByTk={},secMcap=0;
+  (cos||[]).forEach(function(d){rowByTk[d.ticker]=d;if(d.mcap>0)secMcap+=d.mcap;});
 
   var byTk={},order=[];
   function _entry(tk,name){
@@ -11449,42 +11982,37 @@ function renderPoolCompanies(sec,cos){
     return br-ar;
   });
 
-  var out='<div class="pp-co-grid">';
+  /* A list, one company per entry, laid out like the forces list: the
+     rating, the name and why it is here on one line, then bullets. */
+  var out='<div class="pp-co-list">';
   order.forEach(function(e){
     var d=e.row||{};
     var rating=e.rating||d.rating;
-    var col=RC[rating]||'#aaa';
-    var tk=e.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    out+='<div class="pp-co" style="border-left-color:'+col+'" onclick="openDet(\''+tk+'\')">';
-    out+='<div class="pp-co-hdr"><span class="pp-co-id"><span class="pp-co-tk">'+_esc(e.ticker)+'</span>'
-      +_starHtml(e.ticker)
-      +(e.name?'<span class="pp-co-nm">'+_esc(e.name).slice(0,24)+'</span>':'')+'</span></div>';
-    if(e.badges.length){
-      out+='<div class="pp-co-badges">';
-      e.badges.forEach(function(b){
-        out+='<span class="pp-co-badge" style="background:'+b.color+'">'+_esc(b.label)+'</span>';
-      });
-      out+='</div>';
-    }
-    /* One chip row for every card. The model metrics (MoS, ROIC, spread)
-       are deliberately left to the prose line below rather than repeated
-       here as chips — the same number twice on one card is the drift this
-       page is being cleaned of. */
-    var chips=[];
-    if(rating)chips.push('<span class="pp-co-chip rating" style="background:'+col+'">'+_esc(rating)+'</span>');
+    var col=RC[rating]||'#90a4ae';
     var rs=e.revenue_share!=null?e.revenue_share:d.pp_revenue_share;
     var ps=e.profit_share!=null?e.profit_share:d.pp_profit_share;
     var om=e.op_margin!=null?e.op_margin:d.operating_margin;
     var mu=e.pp_multiple!=null?e.pp_multiple:d.pp_multiple;
-    if(rs!=null)chips.push('<span class="pp-co-chip">Rev '+(rs*100).toFixed(0)+'%</span>');
-    if(ps!=null)chips.push('<span class="pp-co-chip">Profit '+(ps*100).toFixed(0)+'%</span>');
-    if(om!=null)chips.push('<span class="pp-co-chip">OM '+(om*100).toFixed(1)+'%</span>');
-    if(mu!=null)chips.push('<span class="pp-co-chip">'+mu.toFixed(2)+'x</span>');
-    if(chips.length)out+='<div class="pp-co-chips">'+chips.join('')+'</div>';
-    if(e.poolNote)out+='<div class="pp-co-note">'+_linkifyTickers(_esc(e.poolNote))+'</div>';
+    /* Price of its pool: share of the sector's market value over share of
+       its profit pool. Above 1 the market pays more than the company's
+       slice of today's profit (growth or quality priced in); below 1, less. */
+    var vp=(ps>0&&d.mcap>0&&secMcap>0)?(d.mcap/secMcap)/ps:null;
+    var share=[];
+    if(rs!=null)share.push(_ppPct(rs)+' of revenue');
+    if(ps!=null)share.push(_ppPct(ps)+' of profit'+(mu!=null?' ('+mu.toFixed(2)+'× its revenue share)':''));
+    if(om!=null)share.push('operating margin '+_ppPct(om));
+    if(vp!=null)share.push('value/pool '+vp.toFixed(2)+'×');
     var mn=e.row?_ppModelNote(e.row):'';
-    if(mn)out+='<div class="pp-co-note">'+_esc(mn)+'</div>';
-    out+='</div>';
+    out+='<div class="pp-co" data-tk="'+_attr(e.ticker)+'" onclick="openDet(this.dataset.tk)">'
+      +'<div class="pp-co-hdr"><span class="pp-co-rt"><i style="background:'+col+'"></i>'+_esc(rating||'—')+'</span>'
+      +'<span class="pp-co-id"><span class="pp-co-tk">'+_esc(e.ticker)+'</span>'+_revHtml(e.ticker)+_starHtml(e.ticker)
+      +(e.name?'<span class="pp-co-nm">'+_esc(e.name)+'</span>':'')
+      +(e.badges.length?'<span class="pp-co-tags">'+e.badges.map(function(b){return _esc(b.label);}).join(' · ')+'</span>':'')
+      +'</span></div><ul class="pp-co-ul">'
+      +(share.length?'<li><b>Share:</b> '+share.join('; ')+'.</li>':'')
+      +(e.poolNote?'<li><b>Role:</b> '+_linkifyTickers(_esc(e.poolNote))+'</li>':'')
+      +(mn?'<li><b>Model:</b> '+_esc(mn)+'</li>':'')
+      +'</ul></div>';
   });
   return out+'</div>';
 }
@@ -11493,19 +12021,168 @@ function renderPoolCompanies(sec,cos){
    detail modal. Source data is hardcoded prose from the narrative model
    (SECTOR_POOL[sec].headwinds, .tailwinds) — sector-wide structural
    forces, not company-specific signals. */
+/* Sector Headwinds & Tailwinds (pp-signals). Each curated force carries
+   its evidence from SECTOR_POOL[sec].forces (models/sector_forces.py): a
+   FRED series, the profit growth of the industry it names, or the sector's
+   margin cycle, read into a status. The section reads as a list: one row
+   per force with a plain-word status, a one-line reading and the share of
+   the sector it reaches; the chart, the companies and the rationale open
+   on click, and forces that are not acting fold under one reveal. Falls
+   back to the plain lists for a snapshot without forces. */
+var _PPF_ST={active:'Acting now',building:'Building',easing:'Fading',dormant:'Not acting',qualitative:'Not measured',no_data:'No data'};
+var _PPF_ORDER={active:0,building:1,easing:2,dormant:3,no_data:4,qualitative:5};
+var _PPF_TYPE={rates:'Rates',credit:'Credit',commodity:'Commodity',consumer:'Consumer',demand:'Demand',input_costs:'Input costs',pricing:'Pricing power',regulation:'Regulation',disruption:'Disruption',capex_cycle:'Capex cycle',trade:'Trade',fx:'Currency',demographics:'Demographics',geopolitics:'Geopolitics',flows:'Fund flows'};
+function _ppfSpark(v){
+  if(!v||v.length<3)return '';
+  var mn=Math.min.apply(null,v),mx=Math.max.apply(null,v),r=(mx-mn)||1,W=90,H=20;
+  var pts=v.map(function(x,i){return (i/(v.length-1)*W).toFixed(1)+','+(H-1-(x-mn)/r*(H-2)).toFixed(1);}).join(' ');
+  return '<svg class="ppf-spark" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" aria-hidden="true"><polyline points="'+pts+'"/></svg>';
+}
+/* "the top of" / "the bottom of" / "the 62nd percentile of": a rank at
+   either end reads as a place, not as "100th percentile". */
+function _ppRankOf(p){return p>=0.995?'the top of':p<=0.005?'the bottom of':'the '+_ord(Math.round(p*100))+' percentile of';}
+function _ppWin(w){var m=/^(\d+)y$/.exec(w||'');return m?m[1]+'-year':'';}
+/* The force's evidence, as its first bullet's text. */
+function _ppfEvidence(f){
+  var e=f.evidence;
+  if(f.status==='qualitative')return 'No data series tracks this; a judgement call.';
+  if(!e)return '';
+  if(f.status==='no_data')return 'No reading: '+_esc(e.note||'no data')+'.';
+  if(e.source==='macro'){
+    return _esc(e.label)+' '+_esc(e.reading)
+      +', '+_ppRankOf(e.pctile)+' its '+(_ppWin(e.window)?_ppWin(e.window)+' ':'')+'history'
+      +(e.change_1y?'; '+_esc(e.change_1y)+' over a year':'')+(e.as_of?' (as of '+_esc(e.as_of)+')':'')+'. '+_ppfSpark(e.spark);
+  }
+  if(e.source==='industry'){
+    var w=e.window;
+    return _esc(e.industry)+' profit pool '+_ppSgnPct(e.industry_cagr)+'/yr against the sector’s '+_ppSgnPct(e.sector_cagr)+'/yr'
+      +(w?', '+_ppFy({y0:w[0],block:w[2]})+' to '+_ppFy1({y1:w[1],block:w[2]}):'')+'.';
+  }
+  if(e.source==='margin_cycle'){
+    return 'Sector margin '+_ppPct(e.margin)+' in FY'+e.year+' (from '+_ppPct(e.prev_margin)+'), '+_ppRankOf(e.pctile)+' its '+e.years+'-year range ('+_ppPct(e.low)+' to '+_ppPct(e.high)+').';
+  }
+  return '';
+}
+/* Who feels the force (SECTOR_POOL[sec].forces[].exposure): the industry
+   it names, a group (lenders), or the companies ranked on the metric its
+   type acts through. Reach is their share of the sector's revenue. */
+function _ppfExpVal(e,v){
+  if(v==null)return '';
+  if(e.basis!=='metric'||e.metric==='operating_margin')return _ppPct(v);
+  if(e.metric==='nd_ebitda')return v.toFixed(1)+'×';
+  return v.toFixed(2);
+}
+function _ppfChips(e,list){
+  return list.map(function(m){
+    return '<span class="ppf-chip" data-tk="'+_attr(m.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr((m.company_name||m.ticker)+(m.rating?' · '+m.rating:''))+'">'+_esc(m.ticker)+(m.value!=null?'<i>'+_ppfExpVal(e,m.value)+'</i>':'')+'</span>';
+  }).join('');
+}
+function _ppfExposure(f){
+  var e=f.exposure;
+  if(!e||!e.most||!e.most.length)return '';
+  var tw=f.kind==='tailwind',out='';
+  if(e.basis==='metric'){
+    var by=(e.higher_is_exposed?'highest ':'lowest ')+_esc(e.label);
+    out+='<li><b>'+(tw?'Most to gain':'Most exposed')+'</b> (the '+by+'): '+_ppfChips(e,e.most)+'</li>';
+    if(e.least&&e.least.length)out+='<li><b>'+(tw?'Least to gain':'Least exposed')+':</b> '+_ppfChips(e,e.least)+'</li>';
+  }else{
+    var grp=e.basis==='industry'?'':_esc(e.label)+', ';
+    out+='<li><b>'+(tw?'Who gains':'Who is exposed')+':</b> '+grp+e.n+' companies, largest share of profit first: '+_ppfChips(e,e.most)+'</li>';
+  }
+  return out;
+}
+/* Tailwinds against headwinds, each live force (acting now, or building
+   at half weight) weighted by the share of the sector's revenue it
+   reaches (sector_forces.force_balance). */
+function _ppfBalance(b){
+  if(!b||(!b.tailwind&&!b.headwind))return '<span class="ppf-verdict">No force is acting now</span>';
+  var tot=b.tailwind+b.headwind,verdict;
+  if(b.net>0.1)verdict='Tailwinds outweigh headwinds';
+  else if(b.net<-0.1)verdict='Headwinds outweigh tailwinds';
+  else verdict='Tailwinds and headwinds roughly balance';
+  return '<span class="ppf-verdict">'+verdict+'</span>'
+    +'<span class="ppf-split" title="Live tailwinds '+(b.tailwind*100).toFixed(0)+' vs headwinds '+(b.headwind*100).toFixed(0)+', each weighted by the share of sector revenue it reaches"><i class="tw" style="width:'+(b.tailwind/tot*100).toFixed(1)+'%"></i><i class="hw" style="width:'+(b.headwind/tot*100).toFixed(1)+'%"></i></span>';
+}
+function _ppfCard(f){
+  var meta=[_PPF_TYPE[f.type]||'',f.horizon==='secular'?'secular':f.horizon==='cyclical'?'cyclical':''].filter(Boolean).join(', ');
+  /* Each fact appears once: reach lives in its bullet, not also beside
+     the title, and an industry named in the evidence is not named again
+     under who gains. */
+  var hasReach=f.exposure&&f.exposure.reach!=null;
+  var ev=_ppfEvidence(f);
+  var items=(ev?'<li><b>Evidence:</b> '+ev+'</li>':'')
+    +(hasReach?'<li><b>Reach:</b> '+_ppPct(f.exposure.reach,0)+' of the sector’s revenue'+(f.exposure.pool_share!=null?', '+_ppPct(f.exposure.pool_share,0)+' of its profit pool':'')+'.</li>':'')
+    +_ppfExposure(f)
+    +(f.detail?'<li><b>Why it matters:</b> '+_esc(f.detail.charAt(0).toUpperCase()+f.detail.slice(1))+'</li>':'');
+  return '<div class="ppf ppf-'+(f.kind==='tailwind'?'tw':'hw')+'">'
+    +'<div class="ppf-hdr"><span class="ppf-st ppf-'+f.status+'"><i class="ppf-dot"></i>'+(_PPF_ST[f.status]||f.status)+'</span>'
+    +'<span class="ppf-th">'+_esc(f.theme)+(meta?'<span class="ppf-meta">'+meta+'</span>':'')+'</span></div>'
+    +(items?'<ul class="ppf-ul">'+items+'</ul>':'')
+    +'</div>';
+}
+function _ppfLive(f){return f.status==='active'||f.status==='building'||f.status==='easing';}
+/* One column, every force listed in full: moving forces first, then the
+   ones not acting, then the unmeasured. */
+/* Each column's header is a toggle: collapsed, a column keeps one line per
+   force (its status and name) and drops the bullets. The choice is kept per
+   browser in stock_ppf_collapsed_v1 ({tailwind,headwind}). */
+function _ppfCollapsedState(){
+  try{return JSON.parse(localStorage.getItem('stock_ppf_collapsed_v1'))||{};}catch(e){return {};}
+}
+function _ppfToggleCol(btn){
+  var col=btn.parentNode,kind=col.getAttribute('data-kind');
+  var shut=col.classList.toggle('ppf-collapsed');
+  btn.setAttribute('aria-expanded',shut?'false':'true');
+  try{var st=_ppfCollapsedState();st[kind]=shut;localStorage.setItem('stock_ppf_collapsed_v1',JSON.stringify(st));}catch(e){}
+}
+function _ppfCol(list,kind){
+  var sorted=list.slice().sort(function(a,b){return _PPF_ORDER[a.status]-_PPF_ORDER[b.status];});
+  var acting=list.filter(function(f){return f.status==='active'||f.status==='building';}).length;
+  var shut=!!_ppfCollapsedState()[kind];
+  return '<div class="ppf-colwrap'+(shut?' ppf-collapsed':'')+'" data-kind="'+kind+'">'
+    +'<button type="button" class="ppf-colh '+(kind==='tailwind'?'tw':'hw')+'" aria-expanded="'+(shut?'false':'true')+'" onclick="_ppfToggleCol(this)">'
+    +'<span><i class="ppf-chev" aria-hidden="true"></i>'+(kind==='tailwind'?'Tailwinds':'Headwinds')+'</span><small>'+acting+' of '+list.length+' acting</small></button>'
+    +sorted.map(_ppfCard).join('')+'</div>';
+}
 function renderPoolSectorSignals(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
   if(!n)return '';
-  var hw=n.headwinds||[],tw=n.tailwinds||[];
-  if(!hw.length&&!tw.length)return '';
+  var fz=n.forces;
+  if(fz&&fz.forces&&fz.forces.length){
+    var tw=fz.forces.filter(function(f){return f.kind==='tailwind';}),hw=fz.forces.filter(function(f){return f.kind==='headwind';});
+    var out='<div class="ppf-top">'+_ppfBalance(fz.balance)+'</div>';
+    var m=fz.market;
+    if(m&&(m.rs_3m!=null||m.rs_6m!=null)){
+      /* "has beaten the market by 3.8% over 3 months and by 25.1% over 6";
+         the verb repeats only when the direction changes. */
+      var parts=[],prev=null;
+      [[m.rs_3m,'3 months'],[m.rs_6m,m.rs_3m!=null?'6':'6 months']].forEach(function(x){
+        if(x[0]==null)return;
+        var vb=x[0]>=0?'beaten':'trailed';
+        parts.push((vb===prev?'by ':vb+' the market by ')+Math.abs(x[0]*100).toFixed(1)+'% over '+x[1]);prev=vb;
+      });
+      out+='<div class="ppf-mkt">Market check: '+_esc(m.etf||'the sector ETF')+' has '+parts.join(' and ')+'.</div>';
+    }
+    out+='<div class="ppf-key">'
+      +'<span><i class="ppf-dot" style="background:var(--ppf-sub);border-color:var(--ppf-sub)"></i>Acting now: the evidence is strong and holding</span>'
+      +'<span><i class="ppf-dot" style="border-color:var(--ppf-sub);background:linear-gradient(90deg,var(--ppf-sub) 50%,transparent 50%)"></i>Building: moving toward strong</span>'
+      +'<span><i class="ppf-dot" style="background:var(--ppf-q)"></i>Fading: was strong, weakening</span>'
+      +'<span><i class="ppf-dot"></i>Not acting</span>'
+      +'<span><i class="ppf-dot" style="border-style:dashed"></i>Not measured: no series tracks it</span></div>';
+    out+='<div class="ppf-cols">'+_ppfCol(tw,'tailwind')+_ppfCol(hw,'headwind')+'</div>';
+    out+='<p class="ppf-note">Each status reads the force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range. The balance weighs forces acting now by the share of sector revenue they reach (building ones at half).'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'</p>';
+    return out;
+  }
+  var hw0=n.headwinds||[],tw0=n.tailwinds||[];
+  if(!hw0.length&&!tw0.length)return '';
   function _list(items,kind){
     if(!items.length)return '<p style="margin:0;color:#94a3b8;font-size:0.82em;font-style:italic">No '+kind+' identified for this sector.</p>';
     var ul='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55">';
     items.forEach(function(s){ul+='<li style="margin:5px 0">'+_linkifyTickers(_esc(s))+'</li>';});
     return ul+'</ul>';
   }
-  var twHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#1a7a45">▲ Structural Tailwinds</div>'+_list(tw,'tailwinds')+'</div>';
-  var hwHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#c0392b">▼ Structural Headwinds</div>'+_list(hw,'headwinds')+'</div>';
+  var twHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#1a7a45">▲ Structural Tailwinds</div>'+_list(tw0,'tailwinds')+'</div>';
+  var hwHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#c0392b">▼ Structural Headwinds</div>'+_list(hw0,'headwinds')+'</div>';
   return '<div class="pp-signals-grid">'+twHtml+hwHtml+'</div>';
 }
 /* === Aggregate Performance chart ================================
@@ -11955,10 +12632,13 @@ function _ppLiquidityCache(){
     if(_rev==null||_oi==null||_rev<=0)return;
     var sec=d.sector;
     var mc=d.mcap||0,tor=d.share_turnover_rate;
-    if(!bySec[sec])bySec[sec]={dv:0,shr:0,n:0,oi:0,rev:0,cr4Rev:null,
+    if(!bySec[sec])bySec[sec]={dv:0,shr:0,n:0,oi:0,oiPos:0,rev:0,cr4Rev:null,
       byTier:{small:{dv:0,shr:0,n:0,tors:[]},mid:{dv:0,shr:0,n:0,tors:[]},large:{dv:0,shr:0,n:0,tors:[]}},
       stocks:[]};
-    if(d.operating_income){bySec[sec].oi+=d.operating_income;if(d.operating_income>0)allOIPos+=d.operating_income;}
+    /* The pool share below divides by allOIPos (positive-only), so its
+       numerator must be positive-only too: a net figure mixed loss-makers
+       into the sector side only. */
+    if(d.operating_income){bySec[sec].oi+=d.operating_income;if(d.operating_income>0){bySec[sec].oiPos+=d.operating_income;allOIPos+=d.operating_income;}}
     if(d.revenue)bySec[sec].rev+=d.revenue;
     if(bySec[sec].cr4Rev==null&&d.pp_sector_cr4!=null)bySec[sec].cr4Rev=d.pp_sector_cr4;
     bySec[sec].stocks.push({ticker:d.ticker,name:d.company_name,dv:(mc>0&&tor!=null)?tor*mc:0,tor:tor,mcap:mc,oi:d.operating_income,rev:d.revenue,rating:d.rating,pp_multiple:d.pp_multiple,operating_margin:d.operating_margin});
@@ -12067,8 +12747,8 @@ function renderPoolLiquidityInsights(sec){
 
   /* 5. Flow share vs profit-pool share — whether the sector is over- or
         under-traded relative to its economic weight. */
-  if(cache.allOIPos>0&&s.oi>0){
-    var poolShare=s.oi/cache.allOIPos*100;
+  if(cache.allOIPos>0&&s.oiPos>0){
+    var poolShare=s.oiPos/cache.allOIPos*100;
     var diff2=dvShare-poolShare;
     var verdict2;
     if(Math.abs(diff2)<2)verdict2='trades roughly in line with its share of US operating income';
@@ -12487,12 +13167,25 @@ function renderCrossSectorDashboard(){
    sector's drill-down. Follows the same static-control + redraw-target pattern
    as the Sector Price Comparison chart on the Charts sub-tab. */
 function _ppColM(m){return m>=0.25?'#1a9850':m>=0.15?'#4caf50':m>=0.10?'#ff9800':m>=0?'#fdae61':'#e53935';}
+/* One company, one contribution. The universe lists some issuers several
+   times — share classes (BRK-A/BRK-B), ordinary shares beside their ADR
+   (MUFG/MBFJF), and preferred series that carry the parent's statements
+   (FNMA plus 14 preferreds, FMCC plus 21). Each copy holds the identical
+   revenue and operating income, so summing rows counted Fannie Mae's
+   figures 15 times and handed Financial Services a 124% "margin" and 63%
+   of all profit (2026-10-06, with bank operating income also overstated).
+   Two different companies sharing a sector and both figures to the dollar
+   does not happen, so that triple is the key. */
+function _ppIssuerKey(d,rev,oi){return d.sector+'|'+rev+'|'+oi;}
 function renderCrossSectorProfitPool(){
-  var agg={};
+  var agg={},seen={};
   DATA.forEach(function(d){
     if(!d.sector)return;
     var rev=_num(d.revenue),oi=_num(d.operating_income);
     if(rev==null||oi==null||rev<=0)return;
+    var key=_ppIssuerKey(d,rev,oi);
+    if(seen[key])return;
+    seen[key]=1;
     var a=agg[d.sector]||(agg[d.sector]={name:d.sector,rev:0,oi:0,n:0});
     a.rev+=rev;a.oi+=oi;a.n++;
   });
@@ -12646,6 +13339,41 @@ function ppPoolTip(e,name){
    at top level for the nav and detail-tab buttons, which build markup outside
    that closure and so cannot depend on the heatmap having run. */
 function _attr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+/* Sector page sub-tabs: one section group at a time. The body's sections
+   carry data-pane; the wrapper's data-tab picks the visible one through
+   the .pp-tabbed CSS rules. A tab whose sections are all empty is left
+   out. The choice carries across sectors (window._ppSubTabCur) and visits
+   (localStorage stock_pp_subtab_v1). */
+var _PP_SUBTABS=[['overview','Overview'],['forces','Headwinds & tailwinds'],['pool','Profit pool'],['history','History'],['value','Economic profit'],['companies','Companies'],['flow','Liquidity']];
+function _ppSubTabCur(){
+  if(window._ppSubTabCur)return window._ppSubTabCur;
+  try{return localStorage.getItem('stock_pp_subtab_v1')||'overview';}catch(e){return 'overview';}
+}
+function _ppSubTabs(body,has){
+  var tabs=_PP_SUBTABS.filter(function(t){return has[t[0]];});
+  if(!tabs.length)return {bar:'',body:body};
+  var cur=_ppSubTabCur();
+  if(!has[cur])cur=tabs[0][0];
+  /* The ticker page's statement-tab classes (d-stmt-tabs), so the two
+     sub-tab rows look and behave alike. */
+  var bar='<div class="d-stmt-tabs sa-chrome pp-subtabs" role="tablist" aria-label="Sector sections">'+tabs.map(function(t){
+    var on=t[0]===cur;
+    return '<button type="button" role="tab" class="d-stmt-tab'+(on?' cur':'')+'" aria-selected="'+on+'" data-k="'+t[0]+'" onclick="_ppSubTab(this)">'+_esc(t[1])+'</button>';
+  }).join('')+'</div>';
+  return {bar:bar,body:'<div class="pp-tabbed" data-tab="'+cur+'">'+body+'</div>'};
+}
+function _ppSubTab(btn){
+  var k=btn.getAttribute('data-k'),area=document.getElementById('pool-chart-area');
+  if(!area)return;
+  var wrap=area.querySelector('.pp-tabbed');
+  if(wrap)wrap.setAttribute('data-tab',k);
+  [].forEach.call(btn.parentNode.querySelectorAll('.d-stmt-tab'),function(b){
+    var on=b===btn;b.classList.toggle('cur',on);b.setAttribute('aria-selected',on?'true':'false');
+  });
+  window._ppSubTabCur=k;
+  try{localStorage.setItem('stock_pp_subtab_v1',k);}catch(e){}
+  if(btn.parentNode.getBoundingClientRect().top<0)btn.parentNode.scrollIntoView({block:'start'});
+}
 function renderPool(){
   /* Hide any hover tooltip before the re-render: clicking a chart bar
      (showPoolTab) destroys the hovered element, so its onmouseleave never
@@ -12743,12 +13471,10 @@ function renderPool(){
       }
       cumX+=barW;
     });
-    var hhi=byRev[0].pp_sector_hhi,cr4=byRev[0].pp_sector_cr4;
-    var conc=hhi!=null?(hhi>0.25?'Concentrated':hhi>0.15?'Moderate':'Competitive'):'';
-    chartHtml+='<div class="pool-sector" id="pool-sec-'+sec.replace(/\s+/g,'-')+'"><div class="pool-sec-hdr"><span class="pool-sec-name">'+sec+'</span><span class="pool-sec-stats">'+byRev.length+' companies';
-    if(hhi!=null)chartHtml+=' &nbsp;&middot;&nbsp; HHI: '+hhi.toFixed(3)+' ('+conc+')';
-    if(cr4!=null)chartHtml+=' &nbsp;&middot;&nbsp; CR4: '+(cr4*100).toFixed(0)+'%';
-    chartHtml+='</span></div>';
+    /* No banner: the sector tab above names the sector, and its company
+       count, HHI and CR4 are quoted in the Profit pool tab's structure. */
+    var _secStart=chartHtml.length;
+    chartHtml+='<div class="pool-sector" id="pool-sec-'+sec.replace(/\s+/g,'-')+'">';
     /* === The sector page reads as four arcs ==========================
        A. Context      — what this sector is, and what is acting on it now
        B. The Pool     — its structure, then the chart of that structure
@@ -12759,40 +13485,72 @@ function renderPool(){
        blended margin in three, and three separate card grids listed
        largely the same companies. Every section stays conditional, so a
        sector with thin data drops blocks rather than rendering empties. */
+    /* Everything appended after this point is the sector's body; it is
+       wrapped in sub-tabs (_ppSubTabs) once all sections are built. */
+    var _bodyStart=chartHtml.length;
     var primerHtml=renderPoolPrimer(sec);
     var signalsHtml=renderPoolSectorSignals(sec);
     var structureHtml=renderPoolStructure(sec);
+    var historyHtml=renderPoolHistory(sec);
+    var shiftsHtml=renderPoolShifts(sec);
+    var econHtml=renderPoolEcon(sec);
     var companiesHtml=renderPoolCompanies(sec,cos);
     var liquidityHtml=renderPoolLiquidityInsights(sec);
 
     /* --- A. Context ------------------------------------------------- */
     if(primerHtml){
-      chartHtml+='<div class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
+      chartHtml+='<div data-pane="overview" class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
     }
     /* The Claude macro narrative's read on this sector lives on the
        Macro Outlook Overview (Key sector influences); the sector tab keeps
        only its own structural headwinds and tailwinds. */
     if(signalsHtml){
-      chartHtml+='<div class="pp-section pp-signals"><span class="pp-section-label">Sector Headwinds &amp; Tailwinds</span>'+signalsHtml+'</div>';
+      chartHtml+='<div data-pane="forces" class="pp-section pp-signals"><span class="pp-section-label">Sector Headwinds &amp; Tailwinds</span>'+signalsHtml+'</div>';
     }
 
     /* --- B. The Pool ------------------------------------------------
        The chart follows the prose that describes it; they used to sit
        four sections apart. */
     if(structureHtml){
-      chartHtml+='<div class="pp-section pp-structure"><span class="pp-section-label">Profit Pool Structure</span>'+structureHtml+'</div>';
+      chartHtml+='<div data-pane="pool" class="pp-section pp-structure"><span class="pp-section-label">Profit Pool Structure</span>'+structureHtml+'</div>';
     }
-    chartHtml+='<div class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Analysis</span><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #e8ecef"><div class="pool-legend" style="margin:0"><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#1a9850"></span>BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#74c476"></span>LEAN BUY</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#fd8d3c"></span>HOLD</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#de2d26"></span>PASS</span><span class="pool-legend-item"><span class="pool-legend-dot" style="background:#90a4ae"></span>Others (pooled tail)</span></div><span style="font-size:0.7em;color:#aaa">Bar width &prop; &radic;revenue share (top 25 by revenue shown; remainder pooled as Others) &middot; Bar height = operating margin &middot; Click to open detail</span></div></div>';
+    /* Companies | Industries: the same pool one level down. The toggle
+       only shows when the sector has an industry breakdown to show. */
+    var industriesHtml=renderPoolIndustries(sec);
+    chartHtml+='<div data-pane="pool" class="pp-section pp-chart"><span class="pp-section-label">Profit Pool Analysis</span>'
+      +(industriesHtml?'<div class="ppc-tabs"><button type="button" class="pp-range-btn ppc-tab active" onclick="_ppChartView(this,\'co\')">Companies</button><button type="button" class="pp-range-btn ppc-tab" onclick="_ppChartView(this,\'ind\')">Industries</button></div>':'')
+      +'<div class="ppc-view" data-view="co"><svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;margin:4px 0 0">'+ticks+axes+bars+labels+'</svg><div class="pph-key"><span><i style="background:#1a9850"></i>BUY</span><span><i style="background:#74c476"></i>LEAN BUY</span><span><i style="background:#fd8d3c"></i>HOLD</span><span><i style="background:#de2d26"></i>PASS</span><span><i style="background:#90a4ae"></i>Others (pooled tail)</span></div>'+renderPoolCompanyTable(shownCos,tailCos)+'</div>'
+      +(industriesHtml?'<div class="ppc-view" data-view="ind" hidden>'+industriesHtml+'</div>':'')+'</div>';
+
+    /* Then the pool over time: how it got to the shape drawn above, and
+       which companies won and lost share on the way. */
+    if(historyHtml){
+      chartHtml+='<div data-pane="history" class="pp-section pp-history"><span class="pp-section-label">Pool History</span>'+historyHtml+'</div>';
+    }
+    if(shiftsHtml){
+      chartHtml+='<div data-pane="history" class="pp-section pp-shifts"><span class="pp-section-label">Share Shifts</span>'+shiftsHtml+'</div>';
+    }
+    /* And what the pool is worth after paying for its capital. */
+    if(econHtml){
+      chartHtml+='<div data-pane="value" class="pp-section pp-econ"><span class="pp-section-label">Accounting vs Economic Pool</span>'+econHtml+'</div>';
+    }
 
     /* --- C. Who Owns the Pool --------------------------------------- */
     if(companiesHtml){
-      chartHtml+='<div class="pp-section pp-companies"><span class="pp-section-label">Who Owns the Pool</span>'+companiesHtml+'</div>';
+      chartHtml+='<div data-pane="companies" class="pp-section pp-companies"><span class="pp-section-label">Who Owns the Pool</span>'+companiesHtml+'</div>';
     }
 
     /* --- D. Flow ---------------------------------------------------- */
     if(liquidityHtml){
-      chartHtml+='<div class="pp-section pp-liquidity"><span class="pp-section-label">Liquidity &amp; Flow</span>'+liquidityHtml+'</div>';
+      chartHtml+='<div data-pane="flow" class="pp-section pp-liquidity"><span class="pp-section-label">Liquidity &amp; Flow</span>'+liquidityHtml+'</div>';
     }
+    /* The sub-tab row sits directly under the sector tabs, above the
+       sector's card, as the ticker page's statement tabs sit under its
+       section tabs; the card keeps the stats band and the chosen pane. */
+    var _tabs=_ppSubTabs(chartHtml.slice(_bodyStart),{
+      overview:!!primerHtml,forces:!!signalsHtml,pool:true,history:!!(historyHtml||shiftsHtml),
+      value:!!econHtml,companies:!!companiesHtml,flow:!!liquidityHtml});
+    chartHtml=chartHtml.slice(0,_secStart)+_tabs.bar+chartHtml.slice(_secStart,_bodyStart)+_tabs.body;
     chartHtml+='</div>';
     /* Per-sector summary tableRows removed: rows were only built when a
        single sector tab was chosen, but the table only rendered on the

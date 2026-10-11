@@ -324,6 +324,24 @@ def rule_matches(rule, row):
     return True
 
 
+def listing_aliases(rows_by_ticker):
+    """``{folded ticker: kept ticker}`` from the rows' ``listing_aliases``.
+
+    The run keeps one row per issuer (data/issuers.py) and records the
+    tickers it folded into each kept row, so a definition naming BRK-A or
+    GOOG resolves to the BRK-B or GOOGL row that now stands for it.
+    """
+    out = {}
+    for r in rows_by_ticker.values():
+        for a in r.get('listing_aliases') or ():
+            out[str(a).upper()] = r['ticker']
+    return out
+
+
+def _canonical(t, rows_by_ticker, aliases):
+    return t if t in rows_by_ticker else aliases.get(t, t)
+
+
 def resolve_members(portfolio, rows_by_ticker):
     """Resolve one portfolio against a universe.
 
@@ -331,9 +349,15 @@ def resolve_members(portfolio, rows_by_ticker):
     'ruled': [...]}``, each sorted. ``members`` are tickers present in
     *rows_by_ticker*; hand-picked tickers that are not are listed in
     ``missing`` (kept in the definition — they may come back tomorrow).
+    A hand-picked or excluded ticker that was folded into another listing
+    of the same issuer resolves to that listing (``listing_aliases``).
     """
-    excl = set(portfolio.get('exclude') or ())
-    manual = [t for t in portfolio.get('tickers') or () if t not in excl]
+    aliases = listing_aliases(rows_by_ticker)
+    excl = {_canonical(t, rows_by_ticker, aliases)
+            for t in portfolio.get('exclude') or ()}
+    manual = [t for t in dict.fromkeys(_canonical(t, rows_by_ticker, aliases)
+                                       for t in portfolio.get('tickers') or ())
+              if t not in excl]
     rule = portfolio.get('rule')
     ruled = []
     if rule:
@@ -780,11 +804,15 @@ def membership_events(portfolios, by_tk, prev_by_tk, run_date=None, stopped=None
     member's absence is the outage, not a signal.
     """
     stopped = stopped or {}
+    aliases = listing_aliases(by_tk)
     out = []
     for p in portfolios:
         now = set(resolve_members(p, by_tk)['members'])
-        before = set(resolve_members(p, prev_by_tk)['members'])
-        picked = set(p.get('tickers') or ())
+        # Yesterday's members through today's folds: the night a duplicate
+        # listing is folded away (BRK-A into BRK-B) is not a leave + join.
+        before = {aliases.get(t, t)
+                  for t in resolve_members(p, prev_by_tk)['members']}
+        picked = {_canonical(t, by_tk, aliases) for t in p.get('tickers') or ()}
         for t in sorted(now - before):
             if t not in prev_by_tk:
                 why = 'back in the universe' if t in picked else 'new to the universe'

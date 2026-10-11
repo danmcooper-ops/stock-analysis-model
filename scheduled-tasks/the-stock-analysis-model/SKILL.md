@@ -13,9 +13,11 @@ code it drives. Read it now and follow it exactly, from Step 1 to the end:
     /Users/dmcooper/Projects/Workspace Folder/scheduled-tasks/daily-stock-analysis/SKILL.md
 
 In short, it has you:
-1. Launch `cd "$HOME/Projects/Workspace Folder"; scripts/run_daily.sh` as a
-   single **background** Bash call (it takes hours), and wait to be notified
-   when it exits. Never start a second copy.
+1. Launch `scripts/run_daily.sh` **detached** (its own session via `setsid`,
+   so the Bash tool's 2 h background limit cannot kill a 4-6 h run), then
+   wait on its PID with a background loop, restarting the loop if it hits
+   the limit. Use the exact commands in the runbook's Step 1. Never start
+   a second copy.
 2. Read `output/run_summary_<RUNDATE>.json` and
    `~/Library/Logs/StockModel/daily_<RUNDATE>.log`.
 3. Write the run summary the runbook describes.

@@ -118,15 +118,38 @@ def test_statements_share_one_finances_tab_after_summary():
 
 def test_ticker_page_actions_share_the_button_grid():
     """Folder / check / flag sit in squares the size of the ‹ › × buttons,
-    spaced by the arrows' gap and right-aligned with ×, each an 18px SVG —
-    the flag no longer a font glyph whose size varies."""
+    spaced by the arrows' gap, each an 18px SVG — the flag no longer a font
+    glyph whose size varies."""
     src = _tpl()
     assert '#det-modal .d-mini-nav-arrows{gap:6px;}' in src
-    assert 'top:calc(46px + env(safe-area-inset-top));bottom:auto;right:24px;gap:6px;' in src
+    assert '#det-modal .d-mini-nav-actions{gap:6px;margin-left:-5px;}' in src
     assert '#det-modal .d-mini-nav-actions>*{position:relative;box-sizing:border-box;width:28px;height:28px;' in src
     assert '#det-modal .d-mini-nav-actions svg{width:18px !important;height:18px !important;' in src
     sync = _fn(src, '_syncFlagDet')
     assert 'el.innerHTML=_flagSvg(f)' in sync and '\\u2691' not in sync
+
+
+def test_ticker_page_top_row_holds_actions_and_pager():
+    """The band's first line is the portfolio / reviewed / flag icons on the
+    left and ‹ n / N › with × on the right, all in flow — so the ticker, name
+    and meta lines reserve no right padding for floating controls — and it
+    collapses away with the name and meta."""
+    src = _tpl()
+    band = src[src.index('<div class="d-header-band">'):src.index('<div class="d-tabs sa-chrome"')]
+    top = band[band.index('<div class="d-toprow">'):band.index('<div class="dh">')]
+    order = [top.index(k) for k in ('id="d-pf"', 'id="d-rev"', 'id="d-flag"', 'det-nav-prev',
+                                    'class="det-nav-pos"', 'det-nav-next', 'class="detail-close"')]
+    assert order == sorted(order)
+    assert band.index('<div class="d-toprow">') < band.index('id="d-tk"')
+    assert band.count('detail-close') == 1
+    for gone in ('.d-mini-nav{position:absolute', '.d-mini-nav-actions{position:absolute',
+                 'padding-right:84px', 'padding-right:130px', '.dh{padding-right:44px'):
+        assert gone not in src, gone
+    assert '.d-toprow .detail-close{position:static;' in src
+    assert ('#det-modal.hdr-min .dcname,#det-modal.hdr-min .dmeta,#det-modal.hdr-min .d-toprow'
+            '{max-height:0;opacity:0;margin:0;}') in src
+    # Long names and meta wrap rather than overflow.
+    assert 'overflow-wrap:anywhere;' in src[src.index('#det-modal .dcname{'):][:200]
 
 
 def test_phone_ticker_page_closes_from_the_top_bar():
@@ -139,27 +162,32 @@ def test_phone_ticker_page_closes_from_the_top_bar():
     assert '.hdr-close{display:none;' in src
     assert 'html.det-open .hdr-close{display:flex;}' in src
     assert 'html.det-open #det-modal .detail-close{display:none;}' in src
-    assert ('#det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .det-nav-pos'
+    assert ('#det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .d-rr-br'
             '{max-width:0;opacity:0;margin:0;display:none;}') in src
     assert 'html.det-open #det-modal.hdr-min .d-rating-row{margin-top:6px;gap:8px;flex-wrap:nowrap;' in src
 
 
-def test_review_feature_is_gone():
-    """The Reviewed marks were unused and are removed everywhere: the table
-    and matrix column, the Reviewed/Unreviewed filters and their hash key,
-    the ticker page's check icon, the Enter "mark reviewed" hotkey. The
-    frozen columns close up to # · flag · ticker (· rating · Δ)."""
+def test_review_feature_is_back():
+    """The Reviewed marks are restored (without the Summary side cards that
+    left with them): the table and matrix column, the Reviewed/Unreviewed
+    filters and their hash key, the ticker page's check icon, the Enter "mark
+    reviewed" hotkey. The frozen columns are # · flag · reviewed · ticker
+    (· rating · Δ) again."""
     src = _tpl()
-    for gone in ('isReviewed', 'toggleReviewed', '_revHtml', '_revFilter', 'rev-chk',
-                 'f-reviewed', 'f-unreviewed', 'id="d-rev"', "(\\'_reviewed\\')", '_reviewed:', '_CHK_SVG',
-                 'Mark reviewed', 'p.rv'):
-        assert gone not in src, gone
-    # The old stored marks are cleared rather than left behind.
-    assert "localStorage.removeItem('stock_reviewed_v1')" in src
-    # Ticker is now the 3rd frozen column, 32px further left.
-    assert '#dtbl th:nth-child(3),#dtbl td.tk2{left:calc(var(--sb-cur) + 68px);}' in src
-    assert '#dtbl th:nth-child(4),#dtbl tbody td:nth-child(4){left:calc(var(--sb-cur) + 136px);}' in src
-    assert '#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 200px);}' in src
+    for back in ('function isReviewed(', 'function toggleReviewed(', 'function _revHtml(',
+                 'var _revFilter=', 'rev-chk', 'id="f-reviewed"', 'id="f-unreviewed"',
+                 'id="d-rev"', '_reviewed:', 'var _CHK_SVG=', 'p.rv=st.revFilter',
+                 "var _REV_KEY='stock_reviewed_v1';"):
+        assert back in src, back
+    # The 28 Sep removal wiped the stored marks on every load; that must not
+    # survive the restore or each new mark would be lost on reload.
+    assert "localStorage.removeItem('stock_reviewed_v1')" not in src
+    # Ticker is the 4th frozen column again, 32px further right.
+    assert '#dtbl th:nth-child(4),#dtbl td.tk2{left:calc(var(--sb-cur) + 100px);}' in src
+    assert '#dtbl th:nth-child(5),#dtbl tbody td:nth-child(5){left:calc(var(--sb-cur) + 168px);}' in src
+    assert '#dtbl th:nth-child(6),#dtbl tbody td:nth-child(6){left:calc(var(--sb-cur) + 240px);}' in src
+    assert '#mtx thead tr:first-child th:nth-child(4),#mtx td.tk{left:calc(var(--sb-cur) + 100px);}' in src
+    assert '#mtx thead tr:first-child th:nth-child(6),#mtx tbody td:nth-child(6){left:calc(var(--sb-cur) + 232px);}' in src
 
 
 def test_chart_controls_are_underline_tabs_behind_the_menu():
@@ -250,3 +278,49 @@ def test_ticker_key_metrics_wrap_to_two_columns_on_phones():
     assert '#det-modal .d-kmetrics .km-cell:last-child:nth-child(odd){grid-column:1/-1;}' in src
     assert '#det-modal .d-kmetrics .km-k{font-size:.66em;white-space:normal;' in src
     assert '#det-modal .d-kmetrics .km-sub{font-size:.64em;white-space:normal;}' in src
+
+
+def _node_eval(src_fns, setup, expr, tmp_path):
+    import json
+    import shutil
+    import subprocess
+    if shutil.which('node') is None:
+        import pytest
+        pytest.skip('node not installed')
+    js = setup + '\n' + '\n'.join(src_fns) + '\nprocess.stdout.write(JSON.stringify(' + expr + '));'
+    p = tmp_path / 'sb.js'
+    p.write_text(js, encoding='utf-8')
+    return json.loads(subprocess.run(['node', str(p)], capture_output=True, text=True,
+                                     check=True).stdout)
+
+
+def _fn_src(name):
+    import re
+    src = open(TEMPLATE, encoding='utf-8').read()
+    return re.search(r'^function ' + name + r'\(.*?^\}', src, re.S | re.M).group(0)
+
+
+def test_sidebar_mode_follows_the_css_media_queries_not_zoom(tmp_path):
+    """Zoomed out on an iPad mini, window.innerWidth read ~1,500px and the
+    menu button decided it was on a desktop; the CSS (media queries) still
+    showed the phone bar. The mode now asks the same media queries."""
+    setup = ('var window={innerWidth:1500,matchMedia:function(q){return {matches:'
+             '/max-width:768px/.test(q)||/max-width:1023px/.test(q)};}};'
+             'var document={documentElement:{clientWidth:744}};')
+    assert _node_eval([_fn_src('_sbMode')], setup, '_sbMode()', tmp_path) == 'phone'
+
+
+def test_wide_views_hold_a_full_size_zoom_floor_on_ios(tmp_path):
+    """A brief maximum-scale cap did not hold on an iPad: Safari re-fitted
+    the wide table to the 0.5 floor once the viewport was restored. The
+    floor itself is raised to 1.0 while a wide view is open, then restored."""
+    fn = _fn_src('_syncWideTable')
+    assert 'if(wide!==_wasWide)_setIosZoomFloor(wide);' in fn
+    setup = ('var navigator={userAgent:"iPad",maxTouchPoints:5};'
+             'var meta={a:{content:"width=device-width, initial-scale=1.0, minimum-scale=0.5"},'
+             'getAttribute:function(k){return this.a[k];},setAttribute:function(k,v){this.a[k]=v;}};'
+             'var document={querySelector:function(){return meta;}};')
+    out = _node_eval([_fn_src('_isIos'), _fn_src('_setIosZoomFloor')], setup,
+                     '(function(){_setIosZoomFloor(true);var a=meta.a.content;'
+                     '_setIosZoomFloor(false);return [a,meta.a.content];})()', tmp_path)
+    assert out[0].endswith('minimum-scale=1.0') and out[1].endswith('minimum-scale=0.5')

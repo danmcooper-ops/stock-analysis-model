@@ -118,3 +118,73 @@ def fetch_us_listed_tickers(email='stockanalysis@example.com',
         w.writerows(rows)
 
     return [r['ticker'] for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Issuer map: which listings belong to one company
+# ---------------------------------------------------------------------------
+# company_tickers.json names every ticker registered to a filer, so the
+# universe carries one company several times: an OTC line of a foreign
+# ordinary share beside its NYSE ADR (NONOF/NVO), an OTC ADR beside the
+# ordinary line, preferred series and notes with no dash in the symbol
+# (FNMAO, FMCKP, TBB), a filer's exchange-traded notes (BRZL and FNGD under
+# BMO), and second share classes (BRK-A, GOOG). On 2026-10-07 that was 226
+# of 2,508 rows across 181 companies, and 54 of those companies carried
+# different ratings on different lines (MUFG HOLD at +98% MoS, MBFJF PASS
+# at -88%). The exchange-tagged list gives each ticker its CIK, its
+# exchange and SEC's order, which lists a filer's primary ticker first.
+_SEC_TICKERS_EXCHANGE_URL = 'https://www.sec.gov/files/company_tickers_exchange.json'
+_DEFAULT_ISSUER_CACHE = 'data/cache/sec_issuers.csv'
+
+
+def fetch_issuer_map(email='stockanalysis@example.com',
+                     cache_path=_DEFAULT_ISSUER_CACHE,
+                     max_age_days=_DEFAULT_MAX_AGE_DAYS,
+                     force=False):
+    """``{ticker: {'cik': str, 'exchange': str|None, 'rank': int}}``.
+
+    ``rank`` is the ticker's position in SEC's list (lower = listed first).
+    A failed fetch with no usable cache returns ``{}`` — the caller then
+    leaves the universe as it is, never fails a run over it.
+    """
+    if not force and os.path.exists(cache_path) and \
+            _cache_age_days(cache_path) < max_age_days:
+        return _read_issuer_cache(cache_path)
+    try:
+        ua = f'StockAnalyzer/1.0 ({email})'
+        req = urllib.request.Request(_SEC_TICKERS_EXCHANGE_URL,
+                                     headers={'User-Agent': ua})
+        with urllib.request.urlopen(req, context=_SSL_CTX, timeout=30) as resp:
+            raw = json.loads(resp.read().decode('utf-8'))
+        fields = raw['fields']
+        records = [dict(zip(fields, rec, strict=False)) for rec in raw['data']]
+    except Exception as e:
+        logger.warning("us_listings: SEC issuer list unavailable (%s); %s", e,
+                       'using the stale cache' if os.path.exists(cache_path)
+                       else 'listings will not be collapsed')
+        return _read_issuer_cache(cache_path) if os.path.exists(cache_path) else {}
+    rows, seen = [], set()
+    for i, rec in enumerate(records):
+        t = (rec.get('ticker') or '').upper().strip()
+        if not t or t in seen or rec.get('cik') is None:
+            continue
+        seen.add(t)
+        rows.append({'ticker': t, 'cik': str(rec['cik']),
+                     'exchange': rec.get('exchange') or '', 'rank': i})
+    os.makedirs(os.path.dirname(cache_path) or '.', exist_ok=True)
+    tmp = cache_path + '.tmp'
+    with open(tmp, 'w', encoding='utf-8', newline='') as f:
+        w = csv.DictWriter(f, fieldnames=['ticker', 'cik', 'exchange', 'rank'])
+        w.writeheader()
+        w.writerows(rows)
+    os.replace(tmp, cache_path)
+    return {r['ticker']: {'cik': r['cik'], 'exchange': r['exchange'] or None,
+                          'rank': r['rank']} for r in rows}
+
+
+def _read_issuer_cache(cache_path):
+    with open(cache_path, encoding='utf-8') as f:
+        return {row['ticker']: {'cik': row['cik'],
+                                'exchange': row.get('exchange') or None,
+                                'rank': int(row.get('rank') or 0)}
+                for row in csv.DictReader(f) if row.get('ticker')}

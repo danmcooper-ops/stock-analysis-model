@@ -51,11 +51,13 @@ supabase/        - Supabase project (config.toml, migrations/) for the planned
                    primary database; see design/supabase-migration.md
 design/          - design docs and spikes (Supabase migration plan, P0 findings)
 scheduled-tasks/ - Operational runbooks for the nightly analysis + publish;
-                   since 2026-10-05 the live daily pipeline is
-                   scripts/run_daily.sh on the Mac mini
-                   (daily-stock-analysis/), cloud-weekly-backtest/run.sh the
-                   live Sunday backtest (helpers in scripts/backtest_cloud.py);
-                   cloud-daily-stock-analysis/ is dormant
+                   both jobs run on the Mac mini: scripts/run_daily.sh is
+                   the live nightly pipeline (daily-stock-analysis/), and
+                   cloud-weekly-backtest/run.sh, run through
+                   weekly-backtest/mac_run.sh, the Sunday backtest; the
+                   Claude desktop app's scheduled tasks launch both
+                   (helpers in scripts/backtest_cloud.py); the cloud-*
+                   Routines are dormant
 output/          - (gitignored) run artifacts: results JSON, HTML, prices,
                    snapshots.duckdb (derived index over the results JSONs)
 ```
@@ -251,9 +253,7 @@ ruff check .
   compares the row count with the prior snapshot's, warns right after Phase 1
   when the qualifiers are already under it, and stamps `provenance.coverage`;
   `scripts/check_coverage.py` reads it back (exit 4 = degraded) for `run.sh`
-  step `05h` and `run_daily.sh`'s `coverage` step (just before its publish,
-  so a `--from publish` resume is gated too; `--force` overrides, and the
-  run ends `degraded`). A degraded run is still archived — the record is kept and a
+  step `05h`. A degraded run is still archived — the record is kept and a
   re-run of the same date supersedes it — but steps 08/08b are skipped so
   `pages-live` and Cloudflare keep the last good report, and the verdict is
   `RESULT OK-DEGRADED` (`FORCE=1` publishes anyway). A run with no prior, or
@@ -262,6 +262,51 @@ ruff check .
   `models/portfolio_groups.py`): a universe that lost a third of its rows is
   a `data` flood, and a member that dropped out of the universe on such a
   day is FYI with the outage named, not a Watch "left the portfolio".
+- **One row per issuer (`data/issuers.py`, `ISSUER_COLLAPSE`=1):** SEC's
+  ticker list names every ticker registered to a filer, so `--universe us`
+  carried one company several times: an OTC ordinary line beside its ADR
+  (NONOF/NVO), dash-less preferreds and notes (FNMA plus 14 preferreds, FMCC
+  plus 21, AT&T's TBB), a filer's ETNs (BRZL/FNGD under BMO), second share
+  classes (BRK-A, GOOG). On 2026-10-07 that was 226 of 2,508 rows across 181
+  issuers; each copy voted again in sector medians, peer percentiles, Pool
+  Share and the profit pools, and 54 issuers carried different ratings on
+  different lines. `data/us_listings.fetch_issuer_map` caches SEC's
+  `company_tickers_exchange.json` (CIK, exchange, SEC order) under
+  `data/cache/sec_issuers.csv`; a failed fetch with no cache collapses
+  nothing. `_run_postprocess` starts by keeping one row per CIK — NYSE /
+  Nasdaq / CBOE before OTC, then the higher `avg_dollar_volume_3m`, then SEC
+  order (SEC's first ticker alone picked BIPH over BIP and dormant ADRs over
+  traded OTC lines in 24 of 181 groups) — before anything cross-sectional
+  runs; each fold is a `listing_folded` provenance event and the kept row
+  carries `listing_aliases`. The sector exit multiples, computed before
+  Phase 2, count each issuer once (`one_listing_per_issuer`). Portfolio
+  definitions resolve a folded ticker to its kept row
+  (`portfolio_groups.resolve_members`, and `_pfRecompute` in the template),
+  and `membership_events` maps yesterday's members through today's folds,
+  so the fold night raises no leave/join pair. OTC preferred symbols go
+  first (`is_otc_preferred_symbol`: FINRA's fifth letter G/H/I/L/M/N/O/P on a
+  five-letter OTC symbol; `listing_dropped_preferred` events), so an issuer
+  whose only lines are preferreds (Ameren Illinois, Wisconsin Electric) has
+  no row — Yahoo reports every preferred as EQUITY with the common's share
+  count and names cannot flag them (BNS, Scotiabank's common, reads "Pfd 3").
+  Over SEC's whole list the rule matches 103 symbols, every one a preferred,
+  convertible, depositary/CDI line or trust certificate.
+- **EPV inputs on foreign filers and lenders:** yfinance `info` totals
+  (`totalDebt`, `totalCash`, … — `_FX_INFO_STATEMENT_FIELDS`) are in the
+  statement currency, so `_convert_financials_to_usd` scales them by that
+  rate on every path, including SEC-USD statements (blanked when no rate):
+  `_debt_levels` falls back to them, and unconverted they handed EPV a yen
+  net debt against a USD enterprise value (MFG EPV 9,862/share at $10.67,
+  SHG 606,801; ~60 rows on 2026-10-08). A lender — Financial Services that
+  tags net interest income, or has no SEC facts — takes EPV at the equity
+  level (`earnings_power_value_valuation(basis='equity')`: pretax × (1 − t)
+  / cost of equity, no debt/cash bridge; row `epv_bridge`), because its cash
+  is deposit-funded (C read $526 at $128 with cash 5.1x market cap); its
+  lender EPVs now land beside RIM (JPM 212/202, C 97/85, PNC 164/161).
+  Insurers, brokers and asset managers keep the enterprise bridge. Without a
+  DCF, two alternative models more than `BLEND_CONFLICT_RATIO` (5x) apart
+  give no effective fair value (`_fv_source` `'conflict'`, 17 rows on 10-08)
+  rather than their average.
 - **Phase-1 beta from local prices:** the nightly run downloads every prior
   snapshot ticker's closes into `output/prices` immediately before the
   analysis (`run.sh` step 03), so Phase 1 reads that parquet for the beta
@@ -574,6 +619,114 @@ ruff check .
 
   `backtest_cloud.compare` prints a `NOTICE` (not a failure) when the model
   changed since last week or the headline pools more than one model.
+- **Sector page pool history (`models/sector_pool.py`):** the sector page's
+  Pool History and Share Shifts sections (`renderPoolHistory`,
+  `renderPoolShifts`) read `SECTOR_POOL[sec].history`, built at render time
+  from each row's EDGAR operating-income and revenue history. It contains:
+  - the per-year pool, net margin, HHI and coverage (the share of today's
+    sector revenue that reported that year);
+  - growth split as (1+g_pool) = (1+g_rev)(1+g_margin);
+  - today's margin within the sector's own range;
+  - share shifts that net to zero.
+
+  It works on today's companies only, and rests on three rules, each
+  forced by real data on 2026-10-08:
+  - **Incomplete years:** a year is incomplete when its reporters hold
+    under 80% of the revenue of the companies that could have reported it
+    (those whose history had begun). It is drawn hollow and never used as
+    an endpoint. This catches January–March year-ends that have not filed
+    yet, without letting a large recent listing (Packaged Foods, 2025) mark
+    every earlier year incomplete.
+  - **Stale histories:** a history ending more than one year before the
+    median company's last year leaves the series and is named in the
+    footnote. Sinopec and PetroChina stopped filing in 2022 and otherwise
+    made a third of Energy look missing. The median is counted by company,
+    not weighted by revenue, so the stale giants cannot hide themselves.
+  - **3-year endpoints:** growth compares 3-year averages (FY2018–20 vs
+    FY2023–25) over one consistent panel. With single-year ends, Energy's
+    FY2020 trough read as 71%/yr pool growth. When that panel has fewer
+    than 3 companies, growth falls back to shorter windows (down to 3
+    years). Independent Power Producers needs this: Constellation was
+    spun off in 2022.
+
+  `year_series` and `panel_pools` are shared with the Pool Share gate.
+  The same module also builds three more blocks:
+  - `industries`: the Industries toggle on the pool chart. Industries
+    with fewer than 3 companies fold into "Other".
+  - `economic`: the Accounting vs Economic Pool section. EP = (5-year
+    median ROIC − WACC) × latest `_ic_by_year`. Both of a sector's US
+    shares are taken over the companies whose EP is measurable.
+  - `structure_stats`: profit-based concentration, margin spread,
+    loss-maker drag, and market value ÷ pool against the universe.
+
+  Balance-sheet financials have no EP (`is_balance_sheet_financial`):
+  GS, MS and COF otherwise read as the largest value destroyers. The row's
+  `epv_bridge` lender flag decides when present. Without it, all of Banks,
+  Mortgage Finance, Credit Services and Capital Markets are left out,
+  since industry alone cannot tell V from COF. Exclusions are counted,
+  never zero-filled.
+- **Sector page sub-tabs (`_ppSubTabs` in `templates/report.html`):**
+  each sector's body is split into sub-tabs: Overview,
+  Headwinds & tailwinds, Profit pool, History, Economic profit, Companies,
+  Liquidity. The row sits directly under the sector tabs, above the
+  sector card, styled with the ticker page's `d-stmt-tabs` classes. Each
+  `pp-section` carries a `data-pane`, and the
+  `.pp-tabbed[data-tab]` CSS shows one group at a time. A tab with no
+  content is left out. The choice carries across sectors and visits
+  (`stock_pp_subtab_v1`). Both pool tables (Industries and Companies) sort
+  by any header (`_ppiSort`): blanks sort last, and the pooled Others rows
+  stay at the bottom.
+- **Sector headwinds and tailwinds with evidence (`models/sector_forces.py`):**
+  the 66 curated forces stay in `models/narrative.py`, word for word, and
+  the Claude macro narrative still reads them. `FORCE_META` adds each
+  force's type, horizon and indicator. It is keyed by the force's theme
+  (the text before " — "), and a test pins that the two stay in step.
+  `evaluate_forces` reads the evidence at render time and returns
+  `SECTOR_POOL[sec].forces`. There are three kinds of indicator:
+  - **macro:** a macro.json series. The status (active / building /
+    easing / dormant) comes from the reading's percentile in its own
+    history and its 1-year move, taken in the direction that strengthens
+    the force.
+  - **industry:** the named industry's pool CAGR against the sector's.
+  - **margin_cycle:** the sector's margin within its own range.
+
+  Each force also carries `exposure`, which says who feels it. A force
+  evidenced by an industry is felt by that industry's companies. Otherwise
+  the type picks a metric (`EXPOSURE_METRICS`: leverage for rates and
+  credit, thin margins for commodities and input costs, ROIC variability
+  for demand cycles), and the most-exposed third is the exposed set. A
+  sector of balance-sheet financials is the exception for rates and credit
+  forces: its lenders count as one exposed group, because their net debt /
+  EBITDA is funding and scoring masks it. Reach is the exposed set's share
+  of sector *revenue*. Its pool share is shown but not weighted: ranked on
+  margin, the thin-margin third holds almost none of the pool by
+  construction, which tilted every balance toward pricing tailwinds. The
+  lists name only companies holding at least 0.5% of the pool, and
+  exposure counts each issuer once (`pool_rows`). `balance` weighs live
+  tailwinds against headwinds by reach: a building force counts half, and
+  a force with no measured reach counts as a third of the sector. Macro
+  levels use the series' own `pctile`, and 1-year moves rank both ends on
+  an even weekly grid, because `hist` is denser in its last year. Industries are compared with their sector
+  over the same years (`industry_pools(rows, window)`, `growth_over`).
+  Left free, Software - Infrastructure's window ended FY2026, a year only
+  early filers had reported.
+  On the page, `renderPoolSectorSignals` lists every force in full, with
+  nothing to expand. Each force has a header: a plain-word status (Acting
+  now / Building / Fading / Not acting / Not measured / No data, mapped
+  from active … no_data) and its type, with each fact stated once.
+  Under it are bullets: evidence (with a sparkline), reach, who is
+  exposed, and why it matters. Moving forces sort first. Each column header
+  (Tailwinds / Headwinds) toggles its bullets, kept per browser in
+  `stock_ppf_collapsed_v1`. The colour
+  overrides carry `!important` against the blanket dark `body *` text
+  rule.
+  Forces that no series measures read "qualitative". Without `macro.json`,
+  macro forces read "no_data" and the rest still render. The
+  `DCOILWTICO` / `PCOPPUSDM` Commodities family exists for Energy's and
+  Basic Materials' commodity forces, and adds a Commodities sub-tab to the
+  Macro tab. `data/fred_client`'s cache is keyed by series id alone, so a
+  fetch with a later `start` (an ad hoc probe) poisons it for the
+  dashboard until the 1-day TTL runs out.
 - **Report sidecars and the Pages size limits:** the HTML lazy-loads
   everything heavy from files beside it, through `_loadSidecar` (relative
   paths). Per-ticker shards: `vol/`, `px/` (manifested in `prices_meta.json`)
@@ -619,9 +772,15 @@ ruff check .
     with section tabs (`#d-tabs`). It shows a one-day change taken from the
     `px/` shard. The three filed statements share one Finances tab, right
     after Summary (`DT_FIN`; a `.d-stmt-tabs` switch in its pane, the pick
-    kept in `_detStmt`). On phones its × is the top bar's `#hdr-close`
+    kept in `_detStmt`). The header band is all in flow, top to bottom:
+    `.d-toprow` (portfolio / reviewed / flag on the left, `‹ n / N ›` and
+    × on the right), ticker + Summary button, name, meta, then the rating
+    row — below 1024px split into price · change / rating · score · gates /
+    rating-since by `.d-rr-br` and a full-width `.d-rsince`, one line from
+    1024px. Nothing floats over the text lines, so long names and meta wrap
+    at full width. On phones its × is the top bar's `#hdr-close`
     (shown only under `html.det-open`), and the band collapses on scroll to
-    the ticker, one price line and the tabs.
+    the ticker, one price line and the tabs (the top row collapses too).
   - **Summary PDF:** a "Summary" button right of the ticker symbol
     (`#d-sum`, in `.dh-left`) prints a one-page company summary. The `s` hotkey does the same. There is no
     on-screen tab; the #279 Profile tab was removed in favour of this button.
