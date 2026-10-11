@@ -1277,33 +1277,8 @@ td.ct{font-weight:700;}
 .pp-tabbed:not([data-tab="pool"])>[data-pane="pool"]{display:none;}
 .pp-tabbed:not([data-tab="history"])>[data-pane="history"]{display:none;}
 .pp-tabbed:not([data-tab="value"])>[data-pane="value"]{display:none;}
-.pp-tabbed:not([data-tab="companies"])>[data-pane="companies"]{display:none;}
 .pp-tabbed:not([data-tab="flow"])>[data-pane="flow"]{display:none;}
 .pool-sector{margin-bottom:20px;background:white;border-radius:10px;padding:0;box-shadow:0 3px 12px rgba(0,0,0,0.08);overflow:hidden;border:1px solid #e8ecef;}
-/* One company grid for the whole sector page. Company Highlights, CR4
-   Companies and Top 5 by Model Score used to be three sections, each with
-   its own copy of this card markup inlined; the same mega-cap therefore
-   appeared three times, once per grid. Now a company gets one card and
-   accumulates a badge per reason it earned a place. Real classes (rather
-   than the old inline styles) let dark mode be a normal override instead
-   of an `[style*="background:white"]` attribute match. */
-.pp-co-list{display:flex;flex-direction:column;}
-.pp-co{cursor:pointer;border-bottom:1px solid #e3e8ee;padding:10px 2px;font-size:0.82em;line-height:1.5;color:#263238;}
-.pp-co:hover{background:rgba(127,127,127,0.06);}
-.pp-co-hdr{display:grid;grid-template-columns:96px minmax(0,1fr);gap:2px 10px;align-items:baseline;}
-.pp-co-rt{display:inline-flex;align-items:center;gap:6px;font-size:0.9em;font-weight:600;white-space:nowrap;color:#607d8b;}
-.pp-co-rt i{flex:none;width:9px;height:9px;border-radius:50%;}
-.pp-co-id{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;min-width:0;}
-.pp-co-tk{font-weight:700;color:#1a252f;}
-.pp-co-nm{color:#607d8b;}
-.pp-co-tags{flex-basis:100%;font-size:0.9em;color:#607d8b;}
-.pp-co-ul{margin:6px 0 0 106px;padding-left:16px;list-style:disc;}
-.pp-co-ul li{margin:3px 0;}
-.pp-co-ul b{font-weight:600;}
-@media(max-width:520px){.pp-co-hdr{grid-template-columns:minmax(0,1fr);}.pp-co-ul{margin-left:0;}}
-[data-theme="dark"] .pp-co{border-color:#30363d;color:#c9d1d9;}
-[data-theme="dark"] .pp-co-tk{color:#e6edf3 !important;}
-[data-theme="dark"] .pp-co-rt,[data-theme="dark"] .pp-co-nm,[data-theme="dark"] .pp-co-tags{color:#8b949e !important;}
 /* Clickable ticker mentions — anywhere a ticker is listed it opens the
    company popup. Underline matches the main-table ticker affordance. */
 .tk-link{cursor:pointer;font-weight:700;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.35);text-underline-offset:2px;}
@@ -1318,13 +1293,12 @@ td.ct{font-weight:700;}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
-.pp-primer,.pp-today,.pp-structure,.pp-liquidity,.pp-signals,.pp-companies,.pp-chart,.pp-history,.pp-shifts,.pp-econ{background:#f7f9fb;border-left:5px solid #1a252f;}
+.pp-primer,.pp-today,.pp-structure,.pp-liquidity,.pp-signals,.pp-chart,.pp-history,.pp-shifts,.pp-econ{background:#f7f9fb;border-left:5px solid #1a252f;}
 .pp-primer .pp-section-label,
 .pp-today .pp-section-label,
 .pp-structure .pp-section-label,
 .pp-liquidity .pp-section-label,
 .pp-signals .pp-section-label,
-.pp-companies .pp-section-label,
 .pp-chart .pp-section-label,
 .pp-history .pp-section-label,
 .pp-shifts .pp-section-label,
@@ -1394,7 +1368,6 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-structure,
 [data-theme="dark"] .pp-liquidity,
 [data-theme="dark"] .pp-signals,
-[data-theme="dark"] .pp-companies,
 [data-theme="dark"] .pp-chart,
 [data-theme="dark"] .pp-history,
 [data-theme="dark"] .pp-shifts,
@@ -1457,6 +1430,14 @@ td.ct{font-weight:700;}
 .ppi-tbl th{text-align:right;font-weight:700;font-size:0.9em;color:#78909c;border-bottom:1px solid #dfe5ea;padding:4px 6px;white-space:nowrap;}
 .ppi-tbl td{text-align:right;padding:4px 6px;border-bottom:1px solid #eef1f4;white-space:nowrap;}
 .ppi-tbl th:first-child,.ppi-tbl td:first-child{text-align:left;white-space:normal;}
+/* The Company / Industry column stays put while the rest of the table
+   scrolls sideways (on a phone most columns sit off screen). A sticky cell
+   needs an opaque background, so it takes the section's own surface
+   (--ppi-bg, redefined for dark) plus a hairline edge, and the row hover is
+   layered on top of it rather than replacing it. */
+.ppi-tbl{--ppi-bg:#f7f9fb;--ppi-edge:#dfe5ea;}
+.ppi-tbl th:first-child,.ppi-tbl td:first-child{position:sticky;left:0;z-index:1;background:var(--ppi-bg);box-shadow:inset -1px 0 0 var(--ppi-edge);max-width:11em;}
+.ppi-co:hover td:first-child,.ppi-ind:hover td:first-child{background:linear-gradient(rgba(127,127,127,0.06),rgba(127,127,127,0.06)),var(--ppi-bg);}
 .ppi-dim{color:#90a4ae;font-size:0.9em;}
 .ppi-hi{color:#2e7d32;font-weight:700;}
 .ppi-co,.ppi-ind,.ppi-bar{cursor:pointer;}
@@ -1467,7 +1448,7 @@ td.ct{font-weight:700;}
    box on iOS.) The \FE0E selector keeps the triangle a text glyph. */
 .ppi-sort th[aria-sort="descending"]::after{content:' \25BC\FE0E';}
 .ppi-sort th[aria-sort="ascending"]::after{content:' \25B2\FE0E';}
-.ppi-co:hover td{background:rgba(127,127,127,0.06);}
+.ppi-co:hover td,.ppi-ind:hover td{background:rgba(127,127,127,0.06);}
 .ppi-rt{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0;}
 .ppi-tbl td:nth-child(2){white-space:nowrap;}
 .ppi-lo{color:#c62828;font-weight:700;}
@@ -1479,6 +1460,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .ppi-pos{fill:#3fb950;background:#3fb950;}
 [data-theme="dark"] .ppi-mid{fill:#7ab88c;background:#7ab88c;}
 [data-theme="dark"] .ppi-neg{fill:#f85149;background:#f85149;}
+[data-theme="dark"] .ppi-tbl{--ppi-bg:#161b22;--ppi-edge:#30363d;}
 [data-theme="dark"] .ppi-tbl th{border-color:#30363d;color:#8b949e;}
 [data-theme="dark"] .ppi-tbl td{border-color:#21262d;}
 [data-theme="dark"] .ppi-hi{color:#3fb950;}
@@ -1856,7 +1838,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-section{border-color:#30363d;}
 /* One neutral surface for every sector section in dark mode; the old
    per-section tints (navy, blue, green, teal) read as status colours. */
-[data-theme="dark"] .pp-primer,[data-theme="dark"] .pp-today,[data-theme="dark"] .pp-structure,[data-theme="dark"] .pp-companies,[data-theme="dark"] .pp-liquidity,[data-theme="dark"] .pp-chart{background:#161b22;}
+[data-theme="dark"] .pp-primer,[data-theme="dark"] .pp-today,[data-theme="dark"] .pp-structure,[data-theme="dark"] .pp-liquidity,[data-theme="dark"] .pp-chart{background:#161b22;}
 [data-theme="dark"] .pool-legend{color:#8b949e;}
 [data-theme="dark"] .xsect-dashboard{background:#161b22;border-top-color:#58a6ff;box-shadow:0 3px 14px rgba(0,0,0,0.4);}
 [data-theme="dark"] .xsect-title{color:#e6edf3;}
@@ -11580,10 +11562,6 @@ function _linkifyTickers(escHtml){
     return tkLink(m);
   });
 }
-function _roleColor(role){
-  return {leader:'#1a9850',runnerup:'#2e7d32',margin_leader:'#0277bd',
-          efficiency:'#6a1b9a',laggard:'#c62828'}[role]||'#555';
-}
 function renderPoolPrimer(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
   if(!n||(!n.education&&!n.education_cycle))return '';
@@ -11833,9 +11811,8 @@ function renderPoolIndustries(sec){
   return out;
 }
 /* The sector's charted companies: the PP_TOP_N largest by revenue share,
-   the rest pooled as Others. One helper so the chart, its table and the
-   company cards (which drop the figures the table already shows) can never
-   disagree about who is in it. Stable sort, as the chart always used. */
+   the rest pooled as Others, for the chart and the table under it. Stable
+   sort, as the chart always used. */
 function _ppTopN(cos){
   var N=25,byRev=(cos||[]).slice().sort(function(a,b){return(b.pp_revenue_share||0)-(a.pp_revenue_share||0);});
   return {n:N,all:byRev,shown:byRev.slice(0,N),tail:byRev.slice(N)};
@@ -11854,8 +11831,9 @@ function renderPoolCompanyTable(shown,tail){
   if(!shown||!shown.length)return '';
   var rows=shown.slice().sort(function(a,b){return (b.pp_profit_share||0)-(a.pp_profit_share||0);});
   /* Value/pool: the company's share of the sector's market value over its
-     share of the profit pool — the same figure, over the same rows (shown +
-     tail = the sector's gated set, mcap>0), the company cards used to carry. */
+     share of the profit pool, over the sector's gated set (shown + tail,
+     mcap>0). Above 1× the market pays more than its slice of today's
+     profit. */
   var secMcap=0;
   shown.concat(tail||[]).forEach(function(d){if(d.mcap>0)secMcap+=d.mcap;});
   function vp(mc,ps){return (ps>0&&mc>0&&secMcap>0)?(mc/secMcap)/ps:null;}
@@ -11933,147 +11911,6 @@ function renderPoolEcon(sec){
   if(ex.no_spread)parts.push(ex.no_spread+' without a ROIC−WACC spread');
   out+='<p class="pph-note">Economic profit = (5-year median ROIC − WACC) × latest invested capital. Both US shares above count only companies whose economic profit is measurable, so the operating-profit share can differ from the one on the Trading tab.'+(parts.length?' Not measured: '+parts.join('; ')+'.':'')+'</p>';
   return out;
-}
-/* The sector page's single company grid. It used to be three separate
-   sections — Company Highlights (pool roles), CR4 Companies (top 4 by
-   revenue) and Top 5 by Model Score — whose membership overlapped so
-   heavily that a sector's mega-cap normally appeared in all three, and
-   again as a labelled bar in the profit-pool chart directly above. Each
-   company now gets exactly one card carrying a badge per reason it is
-   here, so the reasons accumulate instead of the cards.
-
-   Ordered by revenue share so the grid reads as an annotated legend for
-   the chart it sits under. `cos` is the sector's gated row set, which is
-   also where the live model metrics (score, MoS, ROIC, spread) come from —
-   SECTOR_POOL only carries the pool figures and the prose. */
-function _ppModelNote(d){
-  /* Metric-driven blurb framing valuation (MoS) and quality (ROIC x
-     economic spread) in one sentence, so a card reads as analysis rather
-     than raw chips. Previously inlined in the Top 5 by Model Score block. */
-  var parts=[];
-  if(d.mos!=null){
-    var m=d.mos;
-    if(m>0.30)parts.push('Deeply discounted to DCF fair value ('+(m*100).toFixed(0)+'% MoS)');
-    else if(m>0.15)parts.push('Trades '+(m*100).toFixed(0)+'% below fair value');
-    else if(m>0)parts.push('Slight discount to fair value ('+(m*100).toFixed(0)+'% MoS)');
-    else parts.push('Trades above DCF fair value');
-  }
-  if(d.roic!=null && d.spread!=null){
-    if(d.roic>0.20 && d.spread>0.10)parts.push('high-quality compounder earning '+(d.roic*100).toFixed(0)+'% ROIC on '+(d.spread*100).toFixed(0)+'pp of economic spread');
-    else if(d.spread>0)parts.push('positive '+(d.spread*100).toFixed(0)+'pp economic spread on '+(d.roic*100).toFixed(0)+'% ROIC');
-    else parts.push((d.roic*100).toFixed(0)+'% ROIC but returns trail cost of capital');
-  } else if(d.roic!=null){
-    if(d.roic>0.20)parts.push('strong '+(d.roic*100).toFixed(0)+'% returns on invested capital');
-    else parts.push((d.roic*100).toFixed(0)+'% ROIC');
-  }
-  if(!parts.length)return '';
-  var t=parts.join('; ');
-  return t.charAt(0).toUpperCase()+t.slice(1)+'.';
-}
-function renderPoolCompanies(sec,cos){
-  var n=(SECTOR_POOL&&SECTOR_POOL[sec])||{};
-  var rowByTk={},secMcap=0;
-  (cos||[]).forEach(function(d){rowByTk[d.ticker]=d;if(d.mcap>0)secMcap+=d.mcap;});
-
-  var byTk={},order=[];
-  function _entry(tk,name){
-    if(!tk)return null;
-    if(!byTk[tk]){
-      byTk[tk]={ticker:tk,name:name||'',badges:[],poolNote:'',row:rowByTk[tk]||null,
-                revenue_share:null,profit_share:null,op_margin:null,pp_multiple:null,rating:null};
-      order.push(byTk[tk]);
-    }
-    var e=byTk[tk];
-    if(!e.name&&name)e.name=name;
-    return e;
-  }
-  function _fill(e,src){
-    ['revenue_share','profit_share','op_margin','pp_multiple','rating'].forEach(function(k){
-      if(e[k]==null&&src[k]!=null)e[k]=src[k];
-    });
-  }
-
-  /* 1. Pool roles. One entry can hold several — a name that leads on
-        profit AND margin AND efficiency now shows three badges. */
-  (n.key_players||[]).forEach(function(p){
-    var e=_entry(p.ticker,p.company_name);if(!e)return;
-    _fill(e,p);
-    (p.roles||[]).forEach(function(r){
-      e.badges.push({label:r.role_label,color:_roleColor(r.role)});
-      if(r.note)e.poolNote+=(e.poolNote?' ':'')+r.note;
-    });
-  });
-
-  /* 2. Revenue rank. `rank` is null when the sector has no CR4 (fewer
-        than three tickers), in which case the Concentration tile shows no
-        revenue CR4 either and a "#2 by revenue" badge would contradict it. */
-  (n.cr4_companies||[]).forEach(function(p){
-    var e=_entry(p.ticker,p.company_name);if(!e)return;
-    _fill(e,p);
-    if(p.rank!=null)e.badges.push({label:'#'+p.rank+' by revenue',color:'#5e35b1'});
-    if(!e.poolNote&&p.note)e.poolNote=p.note;
-  });
-
-  /* 3. Model conviction — the sector's best-scoring names. */
-  (cos||[]).slice().filter(function(d){return d._composite_score!=null;})
-    .sort(function(a,b){return(b._composite_score||0)-(a._composite_score||0);})
-    .slice(0,5).forEach(function(d){
-      var e=_entry(d.ticker,d.company_name);if(!e)return;
-      e.badges.push({label:'Model '+Math.round(d._composite_score),color:cc(d._composite_score)});
-    });
-
-  if(!order.length)return '';
-
-  order.sort(function(a,b){
-    var ar=(a.revenue_share!=null?a.revenue_share:(a.row&&a.row.pp_revenue_share))||0;
-    var br=(b.revenue_share!=null?b.revenue_share:(b.row&&b.row.pp_revenue_share))||0;
-    return br-ar;
-  });
-
-  /* A list, one company per entry, laid out like the forces list: the
-     rating, the name and why it is here on one line, then bullets. A
-     company drawn in the Profit pool chart has its revenue, profit, margin
-     and value/pool in the table under it, so its card drops the Share line
-     and keeps only the pool multiple (a tooltip there). Pool-role and
-     model-score picks from the tail keep the full line — the table does not
-     list them. */
-  var top=_ppTopN(cos),inTable={};
-  top.shown.forEach(function(d){inTable[d.ticker]=1;});
-  var out='<p class="pph-lead">Companies singled out by pool role, revenue rank or model score. For the '+top.n+' largest, revenue, profit and margin are in the Profit pool table.</p><div class="pp-co-list">';
-  order.forEach(function(e){
-    var d=e.row||{};
-    var rating=e.rating||d.rating;
-    var col=RC[rating]||'#90a4ae';
-    var rs=e.revenue_share!=null?e.revenue_share:d.pp_revenue_share;
-    var ps=e.profit_share!=null?e.profit_share:d.pp_profit_share;
-    var om=e.op_margin!=null?e.op_margin:d.operating_margin;
-    var mu=e.pp_multiple!=null?e.pp_multiple:d.pp_multiple;
-    /* Price of its pool: share of the sector's market value over share of
-       its profit pool. Above 1 the market pays more than the company's
-       slice of today's profit (growth or quality priced in); below 1, less. */
-    var vp=(ps>0&&d.mcap>0&&secMcap>0)?(d.mcap/secMcap)/ps:null;
-    var listed=!!inTable[e.ticker],share=[];
-    if(!listed){
-      if(rs!=null)share.push(_ppPct(rs)+' of revenue');
-      if(ps!=null)share.push(_ppPct(ps)+' of profit'+(mu!=null?' ('+mu.toFixed(2)+'× its revenue share)':''));
-      if(om!=null)share.push('operating margin '+_ppPct(om));
-      if(vp!=null)share.push('value/pool '+vp.toFixed(2)+'×');
-    }
-    var role=e.poolNote?_linkifyTickers(_esc(e.poolNote)):'';
-    if(listed&&mu!=null)role+=(role?' ':'')+'Earns '+mu.toFixed(2)+'× its revenue share in profit.';
-    var mn=e.row?_ppModelNote(e.row):'';
-    out+='<div class="pp-co" data-tk="'+_attr(e.ticker)+'" onclick="openDet(this.dataset.tk)">'
-      +'<div class="pp-co-hdr"><span class="pp-co-rt"><i style="background:'+col+'"></i>'+_esc(rating||'—')+'</span>'
-      +'<span class="pp-co-id"><span class="pp-co-tk">'+_esc(e.ticker)+'</span>'+_revHtml(e.ticker)+_starHtml(e.ticker)
-      +(e.name?'<span class="pp-co-nm">'+_esc(e.name)+'</span>':'')
-      +(e.badges.length?'<span class="pp-co-tags">'+e.badges.map(function(b){return _esc(b.label);}).join(' · ')+'</span>':'')
-      +'</span></div><ul class="pp-co-ul">'
-      +(share.length?'<li><b>Share:</b> '+share.join('; ')+'.</li>':'')
-      +(role?'<li><b>Role:</b> '+role+'</li>':'')
-      +(mn?'<li><b>Model:</b> '+_esc(mn)+'</li>':'')
-      +'</ul></div>';
-  });
-  return out+'</div>';
 }
 /* Sector-level structural headwinds + tailwinds, rendered as a two-column
    block that mirrors the per-stock Headwinds & Tailwinds card on the
@@ -13403,7 +13240,7 @@ function _attr(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g
    the .pp-tabbed CSS rules. A tab whose sections are all empty is left
    out. The choice carries across sectors (window._ppSubTabSel) and visits
    (localStorage stock_pp_subtab_v1). */
-var _PP_SUBTABS=[['overview','Overview'],['forces','Drivers'],['pool','Profit pool'],['history','History'],['value','Value creation'],['companies','Key companies'],['flow','Trading']];
+var _PP_SUBTABS=[['overview','Overview'],['forces','Drivers'],['pool','Profit pool'],['history','History'],['value','Value creation'],['flow','Trading']];
 function _ppSubTabCur(){
   /* Not window._ppSubTabCur: a top-level function declaration IS that
      window property, so the state used to overwrite this function — the
@@ -13545,12 +13382,11 @@ function renderPool(){
                         and tables of who earns it
        History        — how the pool got here, and who took share
        Value creation — what the pool earns above its cost of capital
-       Key companies  — the names singled out by role, rank or score
        Trading        — how the sector actually trades
        Each fact is stated once: these sections had drifted into restating
        each other (HHI/CR4 in three, the margin spread and loss-maker count
-       twice, the same companies' shares in the table and the cards). Every
-       section stays conditional, so a sector with thin data drops blocks,
+       twice, the same companies in the table and a card grid, which was
+       dropped). Every section stays conditional, so a sector with thin data drops blocks,
        and a tab with none, rather than rendering empties. */
     /* Everything appended after this point is the sector's body; it is
        wrapped in sub-tabs (_ppSubTabs) once all sections are built. */
@@ -13562,7 +13398,6 @@ function renderPool(){
     var historyHtml=renderPoolHistory(sec);
     var shiftsHtml=renderPoolShifts(sec);
     var econHtml=renderPoolEcon(sec);
-    var companiesHtml=renderPoolCompanies(sec,cos);
     var liquidityHtml=renderPoolLiquidityInsights(sec);
 
     /* --- A. Context ------------------------------------------------- */
@@ -13606,12 +13441,7 @@ function renderPool(){
       chartHtml+='<div data-pane="value" class="pp-section pp-econ"><span class="pp-section-label">Accounting vs Economic Pool</span>'+econHtml+'</div>';
     }
 
-    /* --- C. Who Owns the Pool --------------------------------------- */
-    if(companiesHtml){
-      chartHtml+='<div data-pane="companies" class="pp-section pp-companies"><span class="pp-section-label">Who Stands Out</span>'+companiesHtml+'</div>';
-    }
-
-    /* --- D. Flow ---------------------------------------------------- */
+    /* --- Flow ------------------------------------------------------- */
     if(liquidityHtml){
       chartHtml+='<div data-pane="flow" class="pp-section pp-liquidity"><span class="pp-section-label">Liquidity &amp; Flow</span>'+liquidityHtml+'</div>';
     }
@@ -13620,7 +13450,7 @@ function renderPool(){
        section tabs; the card holds the chosen pane. */
     var _tabs=_ppSubTabs(chartHtml.slice(_bodyStart),{
       overview:!!(primerHtml||todayHtml),forces:!!signalsHtml,pool:true,history:!!(historyHtml||shiftsHtml),
-      value:!!econHtml,companies:!!companiesHtml,flow:!!liquidityHtml});
+      value:!!econHtml,flow:!!liquidityHtml});
     chartHtml=chartHtml.slice(0,_secStart)+_tabs.bar+chartHtml.slice(_secStart,_bodyStart)+_tabs.body;
     chartHtml+='</div>';
     /* Per-sector summary tableRows removed: rows were only built when a

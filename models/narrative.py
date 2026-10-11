@@ -1520,8 +1520,6 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
                            revenue_share, op_margin, pp_multiple} plus a
                            `roles` list of {role, role_label, note} holding
                            every role that company earns
-            cr4_companies: list[dict] — top 4 by revenue share, each with a
-                           `rank` that is None when the sector has no CR4
 
         or None if the sector has no usable profit pool data.
     """
@@ -1651,8 +1649,8 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
     # One entry per company, carrying every role it earns. The same name
     # routinely leads on profit AND margin AND efficiency; the list used to
     # drop the second and third of those on the floor (first role wins,
-    # later ones skipped), which lost real signal. The client renders each
-    # entry as one card with a badge per role.
+    # later ones skipped), which lost real signal. The client reads the
+    # first entry (the profit leader) for the cross-sector dashboard.
     key_players = []
     _by_ticker = {}
 
@@ -1679,9 +1677,7 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
             'note': note,
         })
 
-    # The profit share, operating margin and profit-pool multiple quoted in
-    # these notes used to sit right next to chips showing the same figures on
-    # the same card. The chips keep the numbers; the notes say what they mean.
+    # The notes say what each role means; the figures live in the row.
     # Profit leader
     if by_profit:
         _add_player(
@@ -1722,9 +1718,7 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
     # No padding and no truncation. The list used to be forced to exactly
     # four, which both invented 'Notable Player' filler cards for thin
     # sectors and — because the Margin Laggard is appended fifth — dropped
-    # the one downside role almost every time. The client renders these as
-    # badges on a single company grid, so a short list simply means fewer
-    # badges, not a gap to fill.
+    # the one downside role almost every time. A short list is fine.
 
     _edu = _SECTOR_EDUCATION.get(sector)
     if isinstance(_edu, dict):
@@ -1736,51 +1730,12 @@ def generate_sector_profit_pool_narrative(sector, rows_in_sector):
     else:
         education_model = None
         education_cycle = None
-    # Top 4 by revenue share
-    by_rev = sorted(cos, key=lambda r: r.get('pp_revenue_share') or 0, reverse=True)
-    cr4_companies = []
-    for _i, r in enumerate(by_rev[:4]):
-        _rev_share = r.get('pp_revenue_share')
-        _opm = r.get('operating_margin')
-        _mult = r.get('pp_multiple')
-        _ma = r.get('pp_margin_advantage')
-        # The rank itself is the card's badge and the revenue share and
-        # multiple are its chips, so this note carries only the margin
-        # comparison — the one reading nothing else on the card shows.
-        _parts = []
-        if _ma is not None:
-            if _ma > 0.03:
-                _parts.append(f'Margin runs {_ma*100:.1f}pp above the sector median')
-            elif _ma < -0.03:
-                _parts.append(f'Margin trails the sector median by {abs(_ma)*100:.1f}pp')
-            else:
-                _parts.append('Margin sits near the sector median')
-        if _mult is not None:
-            if _mult >= 1.2:
-                _parts.append('captures profit disproportionately for its size')
-            elif _mult <= 0.8:
-                _parts.append('under-earns its size')
-        cr4_companies.append({
-            'ticker': r['ticker'],
-            'company_name': r.get('company_name', ''),
-            'revenue_share': _rev_share,
-            'op_margin': _opm,
-            'rating': r.get('rating'),
-            'note': ('; '.join(_parts) + '.') if _parts else '',
-            # Rank is only meaningful when the sector actually has a CR4.
-            # analyze_stock only computes one at >=3 tickers, and the client
-            # hides the "#N by revenue" badge when this is None so the cards
-            # and the Concentration tile (which quotes stats.cr4) can never
-            # disagree.
-            'rank': (_i + 1) if cr4 is not None else None,
-        })
 
     return {
         'education': education_model,
         'education_cycle': education_cycle,
         'overview': overview,
         'key_players': key_players,
-        'cr4_companies': cr4_companies,
         # Structural sector signals — paired prose bullets that explain what
         # could break or amplify the profit pool, sourced from the existing
         # thesis-risk dictionary and the new tailwinds dictionary above.

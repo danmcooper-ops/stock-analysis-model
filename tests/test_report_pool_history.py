@@ -422,9 +422,9 @@ def _subtabs(body, has, tmp_path, stored=None):
 
 def test_sub_tabs_skip_empty_groups_and_fall_back(tmp_path):
     has = {'overview': True, 'forces': True, 'pool': True, 'history': False,
-           'value': True, 'companies': True, 'flow': False}
+           'value': True, 'flow': False}
     html = _subtabs('<div data-pane="overview">x</div>', has, tmp_path)
-    assert html.count('role="tab"') == 5
+    assert html.count('role="tab"') == 4
     assert 'data-k="history"' not in html and 'data-k="flow"' not in html
     assert '<div class="pp-tabbed" data-tab="overview">' in html             # default tab
     assert 'class="d-stmt-tab cur" aria-selected="true" data-k="overview"' in html
@@ -435,54 +435,6 @@ def test_sub_tabs_skip_empty_groups_and_fall_back(tmp_path):
     # a remembered tab is used when the sector has it, else the first one
     assert 'data-tab="value"' in _subtabs('', has, tmp_path, stored='value')
     assert 'data-tab="overview"' in _subtabs('', has, tmp_path, stored='flow')
-
-
-def test_who_owns_the_pool_is_a_list_with_bullets(tmp_path):
-    src = TEMPLATE.read_text(encoding='utf-8')
-    entry = {'key_players': [{'ticker': 'GOOGL', 'company_name': 'Alphabet Inc.', 'rating': 'PASS',
-                              'profit_share': 0.29, 'revenue_share': 0.21, 'op_margin': 0.32,
-                              'pp_multiple': 1.38,
-                              'roles': [{'role': 'leader', 'role_label': 'Profit Leader',
-                                         'note': 'The center of gravity.'}]},
-                             {'ticker': 'NICHE', 'company_name': 'Niche Co', 'rating': 'BUY',
-                              'profit_share': 0.01, 'revenue_share': 0.005, 'op_margin': 0.40,
-                              'pp_multiple': 2.0,
-                              'roles': [{'role': 'margin_leader', 'role_label': 'Margin Leader',
-                                         'note': ''}]}],
-             'cr4_companies': [{'ticker': 'GOOGL', 'company_name': 'Alphabet Inc.', 'rank': 1}]}
-    # GOOGL is the largest of 26 companies; NICHE is the 26th, in the tail
-    filler = [{'ticker': 'F%02d' % k, 'pp_revenue_share': 0.01, 'pp_profit_share': 0.0}
-              for k in range(24)]
-    cos = ([{'ticker': 'GOOGL', 'company_name': 'Alphabet Inc.', 'rating': 'PASS', 'mcap': 100.0,
-             'pp_revenue_share': 0.21, 'pp_profit_share': 0.29, '_composite_score': 40}]
-           + filler
-           + [{'ticker': 'NICHE', 'company_name': 'Niche Co', 'rating': 'BUY', 'mcap': 1.0,
-               'pp_revenue_share': 0.005, 'pp_profit_share': 0.01}])
-    js = '\n'.join([
-        "var RC={'PASS':'#de2d26'};function _esc(s){return String(s);}function _attr(s){return String(s);}",
-        'function _linkifyTickers(s){return s;}function _revHtml(){return "";}function _starHtml(){return "";}',
-        'function _roleColor(){return "#000";}function cc(){return "#000";}function _ppModelNote(){return "Trades above DCF.";}',
-        _fn(src, '_ppPct'), _fn(src, '_ppTopN'), _fn(src, 'renderPoolCompanies'),
-        'var SECTOR_POOL=' + json.dumps({'Tech': entry}) + ';',
-        "process.stdout.write(renderPoolCompanies('Tech'," + json.dumps(cos) + '));'])
-    script = tmp_path / 'co.js'
-    script.write_text(js, encoding='utf-8')
-    html = subprocess.run(['node', str(script)], capture_output=True, text=True, check=True).stdout
-    assert html.startswith('<p class="pph-lead">Companies singled out by pool role')
-    assert 'For the 25 largest' in html and html.count('class="pp-co"') == 2
-    assert '<span class="pp-co-tags">Profit Leader \u00b7 #1 by revenue \u00b7 Model 40</span>' in html
-    googl = html.split('data-tk="GOOGL"')[1].split('</ul>')[0]
-    # drawn in the chart, so its shares are in the table: no Share line, and
-    # the pool multiple (only a tooltip there) rides on the Role line
-    assert '<b>Share:</b>' not in googl
-    assert '<li><b>Role:</b> The center of gravity. Earns 1.38\u00d7 its revenue share in profit.</li>' in googl
-    assert '<li><b>Model:</b> Trades above DCF.</li>' in googl
-    # a margin leader from the tail is not in the table, so it keeps the line
-    tail = html.split('data-tk="NICHE"')[1].split('</ul>')[0]
-    assert ('<li><b>Share:</b> 0.5% of revenue; 1.0% of profit (2.00\u00d7 its revenue share); '
-            'operating margin 40.0%; value/pool 0.99\u00d7.</li>') in tail
-    assert 'Earns' not in tail
-    assert 'onclick="openDet(this.dataset.tk)"' in html
 
 
 def test_company_table_shows_tickers_only(tmp_path):
