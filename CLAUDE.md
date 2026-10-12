@@ -791,6 +791,13 @@ ruff check .
   - **Chrome colours:** chrome text colours are set through `--sac`, because one
     `.sa-chrome` rule outranks the blanket dark
     `body *{color:#fff !important}`.
+  - **Swipe (touch):** a flick on a view moves to the next/previous sub-tab
+    of the innermost row (`_swipeTab`): a sector page's Overview … Trading
+    row, else `#subnav`. It stops at either end. It ignores screen edges,
+    charts (svg), the drawer, open menus and a pinch-zoomed page. It also
+    lets a scroll wrap, or a page wider than the screen (Gate Matrix, data
+    tables), pan first. The ticker page keeps its own swipe, which steps
+    to the previous/next ticker (`navDet`).
   - **Search:** the ticker search (`#f-search`) lives in the top bar. On views
     with no table it lists quick results (`#hdr-qr`) that open the ticker page.
   - **Ticker page:** the `#det-modal` popup is now a page beside the sidebar,

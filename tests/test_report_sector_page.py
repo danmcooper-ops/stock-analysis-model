@@ -271,3 +271,19 @@ def test_drilldowns_write_column_filters_not_a_chip():
     assert "_dashFilter={type:'industry'" in ind          # the folded Other only
     # the scores are filterable columns
     assert "var _CF_SCORES=[['_composite_score','Composite Score']]" in css
+
+
+def test_touch_swipe_moves_between_sub_tabs():
+    """A flick on a view moves along the innermost tab row (a sector's
+    Overview..Trading row, else #subnav), never over the ticker page, a
+    chart, the drawer or a pinch-zoomed page, and lets a wide page or
+    scroll wrap pan first."""
+    css = _tpl()
+    fn = re.search(r'^function _swipeTab\(dir\)\{.*?^\}', css, re.S | re.M).group(0)
+    assert ".pp-subtabs" in fn and "_ppSubTab(nb)" in fn and "navGo(g.v,nx.k)" in fn
+    block = css[css.index('function _swipeTab(dir)'):css.index('/* Velocity-based glide scroll')]
+    for guard in ("#det-modal,#sidebar,.fpop-panel,svg,canvas,input,select,textarea,[ontouchstart]",
+                  "vv.scale>1.01", "sx<28||sx>vw-28", "x+vw<se.scrollWidth-1",
+                  "Math.abs(dx)<70", "performance.now()-st>650"):
+        assert guard in block, guard
+    assert "{passive:true}" in block
