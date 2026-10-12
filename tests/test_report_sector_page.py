@@ -242,3 +242,12 @@ def test_drilldown_chip_shows_on_phones_too():
     assert "el.innerHTML=h+chipHtml;" in fn
     assert "sn.innerHTML=esc('('+FD.length+' of '+DATA.length+')')+chipHtml;" in fn
     assert '.dd-chip{--sac:#fff;}' in css
+
+
+def test_top_level_navigation_opens_the_first_sub_tab():
+    """A sidebar row (or its number hotkey) carries no sub-tab key; it opens
+    the section's first sub-tab, not wherever the section was last left."""
+    css = _tpl()
+    fn = re.search(r'^function navGo\(v,k\)\{.*?^\}', css, re.S | re.M).group(0)
+    assert "if(k==null){" in fn and "k=g.items[0].k;" in fn
+    assert fn.index('k=g.items[0].k;') < fn.index("if(v==='pool')")

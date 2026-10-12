@@ -10579,6 +10579,14 @@ function _syncNavCrumb(){
    whichever sub-tab it was last on. */
 function navGo(v,k){
   closeNavMenu();
+  /* A top-level entry (a sidebar row, or its number hotkey) carries no
+     sub-tab: it opens the section on its FIRST sub-tab — Macro Overview,
+     Sector Charts, the Financial Model Dashboard, Financial Data Charts,
+     the Portfolios overview — rather than wherever it was last left. */
+  if(k==null){
+    var g=_navGroups().filter(function(x){return x.v===v;})[0];
+    if(g&&g.items.length)k=g.items[0].k;
+  }
   if(v==='pool'){
     if(k!=null)_poolTab=k;
     if(curView!=='pool')showView('pool');
@@ -10800,8 +10808,8 @@ function _hkBlocked(e){
    list drops Macro Outlook on snapshots without macro data, and a fixed
    name mapping would leave '1' dead there. renderNavMenu prints the same
    index as a badge, so the digits always match what the menu shows.
-   ki omitted = keep whichever sub-tab the view was last on, matching a click
-   on the menu's group header. Both indices wrap. */
+   ki omitted = the view's first sub-tab, matching a click on its sidebar
+   row (navGo). Both indices wrap. */
 function _hkGo(gi,ki){
   var gs=_navGroups();
   if(!gs.length)return;
