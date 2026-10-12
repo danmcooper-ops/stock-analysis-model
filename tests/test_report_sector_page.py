@@ -224,3 +224,21 @@ def test_gate_matrix_has_an_industry_column_after_sector():
     assert css.index("mSort(\\'sector\\')") < css.index("mSort(\\'industry\\')")
     assert css.index("+(d.sector||'N/A')+'</td>';\n  html+='<td style=\"font-size:0.75em\">'+esc(d.industry||'N/A')") > 0
     assert "col==='sector'||col==='industry'" in css
+
+
+def test_clear_resets_the_dashboard_drilldown():
+    """The drill-down counts in the Filters badge, so the panel's Clear must
+    reset it; it used to survive, stranding the matrix on one industry."""
+    css = _tpl()
+    fn = re.search(r'^function clearFilters\(\)\{.*?^\}', css, re.S | re.M).group(0)
+    assert '_dashFilter=null;' in fn and fn.index('_dashFilter=null;') < fn.index('applyFilters();')
+
+
+def test_drilldown_chip_shows_on_phones_too():
+    """Phones hide #f-count, so the chip also rides #sn-count beside the view
+    title, in white on blue despite the chrome's --sac text colour."""
+    css = _tpl()
+    fn = re.search(r'^function _updateCountLabel\(\)\{.*?^\}', css, re.S | re.M).group(0)
+    assert "el.innerHTML=h+chipHtml;" in fn
+    assert "sn.innerHTML=esc('('+FD.length+' of '+DATA.length+')')+chipHtml;" in fn
+    assert '.dd-chip{--sac:#fff;}' in css
