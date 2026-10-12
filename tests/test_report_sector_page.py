@@ -287,3 +287,14 @@ def test_touch_swipe_moves_between_sub_tabs():
                   "Math.abs(dx)<70", "performance.now()-st>650"):
         assert guard in block, guard
     assert "{passive:true}" in block
+
+
+def test_summary_key_tiles_show_the_52_week_range_not_next_earnings():
+    """The ticker page's Summary grid carries the 52-week low – high (two
+    decimals, like Price) with where the price sits in it; Next Earnings
+    stays in Street View and the table, not in this grid."""
+    css = _tpl()
+    assert "_krows.push(['Next Earnings'" not in css
+    assert "_krows.push(['52-Wk Range',_px(d.low_52w)+' – '+_px(d.high_52w)" in css
+    assert "'52-Wk Range':'range_52w_position'" in css
+    assert "['Next Earnings',_svEarn]" in css     # Street View keeps it
