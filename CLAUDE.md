@@ -678,10 +678,12 @@ ruff check .
     Loss-makers; Price of the pool), then the chart with its tables. The
     company table ends with a Value/pool column. Clicking an industry,
     either its table row or its bar, opens the Gate Matrix filtered to it
-    (`dashIndustryJump`). It sets a `_dashFilter` of type `industry`,
-    matched on sector plus the entry's `members` names. The folded Other
-    names its small industries. The filter shows as the usual clearable
-    chip and survives the share link.
+    (`dashIndustryJump`). One industry becomes an Industry column filter
+    in the Filters menu (`_cfPut`), as the dashboard's category cards
+    (category score ≥ the card's average) and score histogram (Composite
+    Score bracket) do. The folded Other spans several industries (its
+    `members`), which a single filter cannot express, so like the gate
+    pass/fail drill-down it keeps the clearable chip (`_dashFilter`).
   - History (`history`).
   - Value creation (`value`).
   - Trading (`flow`).
