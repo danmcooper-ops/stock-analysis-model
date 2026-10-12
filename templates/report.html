@@ -3274,7 +3274,10 @@ function dashCatJump(name,scoreKey){
   var scores=FD.map(function(d){return _num(d[scoreKey]);}).filter(function(v){return v!=null;});
   if(!scores.length)return;
   var avg=Math.round(scores.reduce(function(a,b){return a+b;},0)/scores.length);
-  _dashFilter={type:'cat',name:name,scoreKey:scoreKey,avg:avg};
+  /* A column filter on the category score (min = the card's average),
+     shown and editable in the Filters menu. */
+  if(_dashFilter&&_dashFilter.type!=='gate')_dashFilter=null;
+  _cfPut(scoreKey,avg,null,null);
   _dashJump();
 }
 /* Sector page → Gate Matrix: an Industries row (or its bar) opens the
@@ -3285,14 +3288,25 @@ function dashIndustryJump(sec,idx){
   if(!d)return;
   ppHide();
   var mem=d.members&&d.members.length?d.members.slice():[d.industry];
-  _dashFilter={type:'industry',sector:sec,members:mem,
-               label:mem.length===1?mem[0]:'Other industries'};
+  if(mem.length===1){
+    /* One industry: an Industry column filter in the Filters menu. */
+    if(_dashFilter&&_dashFilter.type!=='gate')_dashFilter=null;
+    _cfPut('industry',null,null,mem[0]);
+  }else{
+    /* The folded Other spans several industries, which one "contains"
+       filter cannot express, so it keeps the drill-down chip. */
+    _dashFilter={type:'industry',sector:sec,members:mem,label:'Other industries'};
+  }
   _dashJump();
 }
 function toggleDashScore(idx){
-  var f=_dashFilter;
-  if(f&&f.type==='score'&&f.idx===idx)_dashFilter=null;
-  else _dashFilter={type:'score',idx:idx};
+  /* A composite-score column filter for the bracket [10i, 10i+9.9]
+     (scores carry one decimal, and the top bracket runs to 100); a second
+     click on the same bar removes it. */
+  var lo=idx*10,hi=idx>=9?100:idx*10+9.9,cur=_cfGet('_composite_score');
+  if(_dashFilter&&_dashFilter.type!=='gate')_dashFilter=null;
+  if(cur&&cur.min===lo&&cur.max===hi)_cfPut('_composite_score',null,null,null);
+  else _cfPut('_composite_score',lo,hi,null);
   applyFilters();
 }
 function dashRatingJump(r){
@@ -6056,6 +6070,43 @@ function removeColFilter(btn){
   if(!document.querySelector('.col-filter-row'))addColFilter();
   applyFilters();
 }
+/* Dashboard and sector-page drill-downs write ordinary column-filter rows
+   (rather than a hidden filter shown as a blue chip), so they appear — and
+   are edited or removed — in the Filters menu like any other filter.
+   _cfGet reads the row on `key`; _cfPut replaces it (and drops empty
+   rows), or removes it when min, max and txt are all null. Neither
+   re-filters: the caller does. */
+function _cfDropRow(row){
+  var prev=row.previousElementSibling,next=row.nextElementSibling;
+  if(prev&&prev.classList.contains('col-filters-and-label'))prev.remove();
+  else if(next&&next.classList.contains('col-filters-and-label'))next.remove();
+  row.remove();
+}
+function _cfGet(key){
+  var rows=document.querySelectorAll('.col-filter-row');
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];if(r.querySelector('.cfr-col').value!==key)continue;
+    var mn=r.querySelector('.cfr-min').value,mx=r.querySelector('.cfr-max').value,tx=r.querySelector('.cfr-text').value;
+    return {min:mn!==''?parseFloat(mn):null,max:mx!==''?parseFloat(mx):null,txt:tx||null};
+  }
+  return null;
+}
+function _cfPut(key,min,max,txt){
+  [].slice.call(document.querySelectorAll('.col-filter-row')).forEach(function(r){
+    var k=r.querySelector('.cfr-col').value;
+    if(!k||k===key)_cfDropRow(r);
+  });
+  if(min!=null||max!=null||txt!=null){
+    addColFilter();
+    var rows=document.querySelectorAll('.col-filter-row'),row=rows[rows.length-1];
+    row.querySelector('.cfr-col').value=key;
+    _cfSyncRowMode(row,key);
+    if(txt!=null)row.querySelector('.cfr-text').value=txt;
+    if(min!=null)row.querySelector('.cfr-min').value=min;
+    if(max!=null)row.querySelector('.cfr-max').value=max;
+  }
+  if(!document.querySelector('.col-filter-row'))addColFilter();
+}
 /* Switch a filter row between numeric (min–max) and text (contains)
    input modes based on the selected column's format. Shared by the
    dropdown onchange and by _applyFilterState when rebuilding rows. */
@@ -6387,7 +6438,7 @@ function renderOverview(){
     var scores=FD.map(function(d){return d[cat.scoreKey];}).filter(function(v){return v!=null;});
     var avg=scores.length?Math.round(scores.reduce(function(a,b){return a+b;},0)/scores.length):0;
     var gates=GM.gates.filter(function(g){return g.category===cat.name&&!g.hideMatrix;});
-    var catAct=!!(_dashFilter&&_dashFilter.type==='cat'&&_dashFilter.name===cat.name);
+    var _cc=_cfGet(cat.scoreKey),catAct=!!(_cc&&_cc.min!=null);
     html+='<div onclick="dashCatJump(\''+cat.name+'\',\''+cat.scoreKey+'\')" '
       +'title="Open the Gate Matrix with the stocks scoring above this average" '
       +'style="flex:1;min-width:130px;background:#fff;border-radius:10px;border-top:4px solid '+cat.dark+';padding:14px 16px;cursor:pointer;'
@@ -6438,7 +6489,7 @@ function renderOverview(){
       (b['LEAN BUY']?' | LEAN BUY: '+b['LEAN BUY']:'')+
       (b.HOLD?' | HOLD: '+b.HOLD:'')+
       (b.PASS?' | PASS: '+b.PASS:'');
-    var sAct=_dashFilter&&_dashFilter.type==='score'&&_dashFilter.idx===i;
+    var _sc=_cfGet('_composite_score'),sAct=!!(_sc&&_sc.min===i*10&&_sc.max===(i>=9?100:i*10+9.9));
     html+='<div onclick="toggleDashScore('+i+')" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer'
       +(sAct?';background:rgba(59,111,212,0.14);border-radius:4px 4px 0 0':'')+'" title="'+tip+' — click to filter to this bracket">';
     html+='<div style="font-size:0.68em;font-weight:600;color:#555;min-height:14px;line-height:14px">'+(n?n:'')+'</div>';
@@ -13605,6 +13656,13 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
   _CF_NUM.forEach(function(p){_CF_FMT[p[0]]=p[2];var unit=p[2]==='ds'?' ($)':'';numHtml+='<option value="'+p[0]+'">'+p[1]+unit+'</option>';
     if(!_cfSeen[p[0]]){_cfSeen[p[0]]=1;_CF_OPTS.push({g:'Debt',k:p[0],l:p[1]+unit});}});
   optHtml+='<optgroup label="Debt">'+numHtml+'</optgroup>';
+  /* The model's scores (0–100), which the dashboard's category cards and
+     score histogram filter on. */
+  var _CF_SCORES=[['_composite_score','Composite Score']].concat(GM.categories.map(function(c){return [c.scoreKey,c.name+' Score'];}));
+  var scHtml='';
+  _CF_SCORES.forEach(function(p){_CF_FMT[p[0]]='n1';scHtml+='<option value="'+p[0]+'">'+p[1]+'</option>';
+    if(!_cfSeen[p[0]]){_cfSeen[p[0]]=1;_CF_OPTS.push({g:'Scores',k:p[0],l:p[1]});}});
+  optHtml+='<optgroup label="Scores">'+scHtml+'</optgroup>';
   /* Text (contains) filters on row fields that aren't table columns.
      Matched case-insensitively as substrings. (mc_confidence moved to
      its home tab group above; the key is unchanged, so saved presets
