@@ -441,3 +441,20 @@ def test_company_table_shows_tickers_only(tmp_path):
     html = _render_co_table([_co('BHP', 0.04, 0.1, company_name='BHP Group Limited')], [], tmp_path)
     assert '<td data-v="BHP">BHP</td>' in html
     assert 'title="BHP Group Limited"' in html and '>BHP Group Limited<' not in html
+
+
+def test_margin_line_and_scale_stop_at_the_last_complete_year(tmp_path):
+    """An incomplete year's margin (a few early filers) is a lone hollow dot:
+    the line joins complete years only, and the % scale ignores it, so one
+    outlier cannot flatten the decade. The dot stays inside the plot."""
+    hist = {'n_rows': 3, 'n_with_history': 3, 'points': [
+        {'year': 2022 + i, 'pool': 100e9, 'margin': m, 'n': 3, 'coverage': 1.0, 'complete': c}
+        for i, (m, c) in enumerate([(0.10, True), (0.12, True), (0.11, True), (0.45, False)])]}
+    html = _render(hist, "renderPoolHistory('Tech')", tmp_path)
+    d = re.search(r'<path class="pph-line" d="([^"]*)"', html).group(1)
+    assert d.count('M') == 1 and d.count('L') == 2            # three complete years, one segment
+    assert html.count('class="pph-dot inc"') == 1
+    pct = [int(t) for t in re.findall(r'class="pph-tx pph-ax-r"[^>]*>(-?\d+)%<', html)]
+    assert max(pct) < 45                                     # scale from complete years only
+    cy = float(re.search(r'class="pph-dot inc" cx="[^"]*" cy="([^"]*)"', html).group(1))
+    assert 16 <= cy <= 200                                   # pinned inside the plot (pT..pT+cH)
