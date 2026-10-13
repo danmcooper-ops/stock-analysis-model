@@ -327,3 +327,18 @@ def test_pool_history_is_two_single_scale_charts():
     assert "_pphDrawAll(document.getElementById('pool-chart-area'));" in css
     assert "  window._ppSubTabSel=k;\n  _pphDrawAll(area);" in css
 
+
+
+def test_trading_tab_draws_figures_and_judges_by_ratio():
+    """Each Trading point is a figure plus a caption, and its verdicts
+    compare ratios: 83% of $ from 36% of names is concentrated (2.3x), 0 of
+    4 shared leaders is none, and 2.2% of flow on 4.0% of profit is thin."""
+    css = _tpl()
+    liq = re.search(r'function renderPoolLiquidityInsights\(sec\).*?\n\}\n', css, re.S).group(0)
+    assert liq.count('bullets.push({fig:') == 5
+    assert "'<div class=\"lq-item\">'+b.fig+'<p class=\"lq-cap\">'+b.cap" in liq
+    assert "if(rL>=1.5)" in liq and "pd.large/pn.large" in liq
+    assert "'none of them the same companies'" in liq
+    assert "if(r>=0.8&&r<=1.25)v5='it trades about in line" in liq
+    assert "roughly tracks the cap-count distribution" not in liq
+    assert 'partial alignment between business size' not in liq
