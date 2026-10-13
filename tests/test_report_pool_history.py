@@ -353,27 +353,37 @@ def test_company_table_value_over_pool(tmp_path):
     assert others.endswith('<td>0.25\u00d7</td>')                     # 5% of value / 20% of pool
 
 
-def test_each_column_header_toggles_its_bullets(tmp_path):
-    """Collapsed, a column keeps one line per force: status and name."""
+def test_columns_start_collapsed_and_each_heading_toggles_its_force(tmp_path):
+    """The Drivers columns open collapsed — one line per force, status and
+    name — unless this browser expanded one; every force's heading is a
+    button for its own bullets; a column header still toggles the column."""
     from models.sector_forces import evaluate_forces
     from tests.test_sector_forces import _sidecar
     side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
     forces = {'forces': evaluate_forces('Real Estate', side, {})}
     html = _render_signals(forces, tmp_path)
     assert html.count('onclick="_ppfToggleCol(this)"') == 2
-    assert html.count('aria-expanded="true"') == 2 and 'ppf-collapsed' not in html
-    shut = _render_signals(forces, tmp_path, stored={'headwind': True})
-    assert '<div class="ppf-colwrap ppf-collapsed" data-kind="headwind">' in shut
-    assert '<div class="ppf-colwrap" data-kind="tailwind">' in shut
-    # the bullets are still in the page (CSS hides them), so expanding is instant
-    assert shut.split('data-kind="headwind"')[1].count('<ul class="ppf-ul">') == 3
+    assert '<div class="ppf-colwrap ppf-collapsed" data-kind="tailwind">' in html
+    assert '<div class="ppf-colwrap ppf-collapsed" data-kind="headwind">' in html
+    heads = html.count('class="ppf-hdr" role="button"')
+    assert heads == html.count('<ul class="ppf-ul">') == 6
+    assert html.count('aria-expanded="false" onclick="_ppfToggleOne(this)"') == 6
+    # the bullets are still in the page (CSS hides them), so opening is instant
+    opened = _render_signals(forces, tmp_path, stored={'headwind': False})
+    assert '<div class="ppf-colwrap" data-kind="headwind">' in opened
+    assert '<div class="ppf-colwrap ppf-collapsed" data-kind="tailwind">' in opened
+    assert opened.split('data-kind="headwind"')[1].count('aria-expanded="true" onclick="_ppfToggleOne') == 3
 
 
-def test_collapsed_columns_hide_only_bullets_and_type():
+def test_force_heading_and_column_toggles_cooperate():
     css = TEMPLATE.read_text(encoding='utf-8')
-    assert '.ppf-collapsed .ppf-ul,.ppf-collapsed .ppf-meta{display:none;}' in css
-
-
+    assert ('.ppf-collapsed .ppf:not(.ppf-open) .ppf-ul,.ppf-collapsed .ppf:not(.ppf-open) .ppf-meta,'
+            '.ppf.ppf-shut .ppf-ul,.ppf.ppf-shut .ppf-meta{display:none;}') in css
+    one = _fn(css, '_ppfToggleOne')
+    assert "card.classList.toggle('ppf-open')" in one and "card.classList.toggle('ppf-shut')" in one
+    col = _fn(css, '_ppfToggleCol')
+    assert "c.classList.remove('ppf-open','ppf-shut')" in col
+    assert "var shut=_ppfCollapsedState()[kind]!==false;" in css
 def _sort_rows(html, col, desc=True, numeric=True):
     """Apply _ppiSort's ordering rule to a rendered table (Node has no DOM):
     rows by the column's data-v, blanks last, pinned rows at the bottom."""
