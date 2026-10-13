@@ -1384,6 +1384,8 @@ td.ct{font-weight:700;}
 .pph-axis{stroke:#cfd8dc;stroke-width:1;}
 .pph-grid{stroke:#eef1f4;stroke-width:1;}
 .pph-tx{fill:#78909c;font-size:9px;}
+.pph-ax-l{fill:#4f7cac;}
+.pph-ax-r{fill:#b86a1e;}
 .pph-val{fill:#455a64;font-size:8.5px;}
 .pph-key{display:flex;flex-wrap:wrap;gap:14px;font-size:0.72em;color:#78909c;margin:4px 0 0;}
 .pph-key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
@@ -1412,6 +1414,8 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pph-axis{stroke:#30363d;}
 [data-theme="dark"] .pph-grid{stroke:#21262d;}
 [data-theme="dark"] .pph-tx{fill:#8b949e;}
+[data-theme="dark"] .pph-ax-l{fill:#6e9bd1;}
+[data-theme="dark"] .pph-ax-r{fill:#f0a35e;}
 [data-theme="dark"] .pph-val{fill:#c9d1d9;}
 [data-theme="dark"] .pph-fact{background:#1c2128;border-color:#30363d;color:#c9d1d9;}
 [data-theme="dark"] .pps-track{background:#21262d;}
@@ -11829,16 +11833,24 @@ function renderPoolHistory(sec){
   var pts=h.points;
   var W=800,H=200,pL=52,pR=46,pT=16,pB=24,cW=W-pL-pR,cH=H-pT-pB;
   var maxP=Math.max.apply(null,pts.map(function(p){return p.pool;}).concat([1]));
-  var ms=pts.filter(function(p){return p.margin!=null;}).map(function(p){return p.margin;});
+  /* The margin scale and line cover complete years only: an incomplete
+     year's margin rests on whoever has filed so far (Energy's FY2026 read
+     +43% on a handful of early filers), and drawn into the scale it
+     flattened the real decade. Its dot stays, hollow and pinned inside the
+     plot, with the true value in its tooltip. */
+  var ms=pts.filter(function(p){return p.margin!=null&&p.complete;}).map(function(p){return p.margin;});
+  if(!ms.length)ms=pts.filter(function(p){return p.margin!=null;}).map(function(p){return p.margin;});
   var mMax=Math.max.apply(null,ms.concat([0.05])),mMin=Math.min.apply(null,ms.concat([0]));
   var mR=(mMax-mMin)||0.05;mMax+=mR*0.08;mR=mMax-mMin;
   var slot=cW/pts.length,bw=Math.min(46,slot*0.62);
-  var svg='',line='',dots='';
+  var svg='',line='',dots='',lastDone=false;
   for(var t=0;t<=4;t++){
     var gy=pT+cH*t/4;
     svg+='<line class="pph-grid" x1="'+pL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+gy.toFixed(1)+'"/>';
-    svg+='<text class="pph-tx" x="'+(pL-6)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end">'+_ppBn(maxP*(1-t/4))+'</text>';
-    svg+='<text class="pph-tx" x="'+(W-pR+6)+'" y="'+(gy+3).toFixed(1)+'">'+((mMax-mR*t/4)*100).toFixed(0)+'%</text>';
+    /* Each axis's labels take its series' colour (blue $ = the pool bars,
+       orange % = the margin line), so the two scales read without a key. */
+    svg+='<text class="pph-tx pph-ax-l" x="'+(pL-6)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end">'+_ppBn(maxP*(1-t/4))+'</text>';
+    svg+='<text class="pph-tx pph-ax-r" x="'+(W-pR+6)+'" y="'+(gy+3).toFixed(1)+'">'+((mMax-mR*t/4)*100).toFixed(0)+'%</text>';
   }
   svg+='<line class="pph-axis" x1="'+pL+'" y1="'+(pT+cH)+'" x2="'+(W-pR)+'" y2="'+(pT+cH)+'"/>';
   pts.forEach(function(p,i){
@@ -11848,15 +11860,16 @@ function renderPoolHistory(sec){
     if(bw>=24)svg+='<text class="pph-val" x="'+cx.toFixed(1)+'" y="'+(by-3).toFixed(1)+'" text-anchor="middle">'+_ppBn(p.pool)+'</text>';
     svg+='<text class="pph-tx" x="'+cx.toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle">'+(slot<40?"'"+String(p.year).slice(2):p.year)+'</text>';
     if(p.margin!=null){
-      var my=pT+cH*(mMax-p.margin)/mR;
-      line+=(line?'L':'M')+cx.toFixed(1)+','+my.toFixed(1);
+      var my=Math.min(pT+cH,Math.max(pT,pT+cH*(mMax-p.margin)/mR));
+      if(p.complete)line+=(line&&lastDone?'L':'M')+cx.toFixed(1)+','+my.toFixed(1);
       dots+='<circle class="pph-dot'+(p.complete?'':' inc')+'" cx="'+cx.toFixed(1)+'" cy="'+my.toFixed(1)+'" r="3"><title>'+_esc(tip)+'</title></circle>';
     }
+    lastDone=p.margin!=null&&p.complete;
   });
   if(mMin<0){var zy=pT+cH*mMax/mR;svg+='<line class="pph-axis" stroke-dasharray="4,3" x1="'+pL+'" y1="'+zy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+zy.toFixed(1)+'"/>';}
   svg+='<path class="pph-line" d="'+line+'"/>'+dots;
   var out='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%;height:auto">'+svg+'</svg>';
-  out+='<div class="pph-key"><span><i style="background:#4f7cac"></i>Operating-profit pool (left)</span><span><i style="background:#d9822b"></i>Net weighted operating margin (right)</span><span><i style="border:1px dashed #4f7cac"></i>Incomplete year</span></div>';
+  out+='<div class="pph-key"><span><i style="background:#4f7cac"></i>Operating-profit pool ($, bars)</span><span><i style="background:#d9822b"></i>Net weighted operating margin (%, line)</span><span><i style="border:1px dashed #4f7cac"></i>Incomplete year</span></div>';
 
   var facts='';
   var d=h.decomposition;
