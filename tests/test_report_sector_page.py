@@ -282,7 +282,11 @@ def test_touch_swipe_moves_between_sub_tabs():
     fn = re.search(r'^function _swipeTab\(dir\)\{.*?^\}', css, re.S | re.M).group(0)
     assert ".pp-subtabs" in fn and "_ppSubTab(nb)" in fn and "navGo(g.v,nx.k)" in fn
     block = css[css.index('function _swipeTab(dir)'):css.index('/* Velocity-based glide scroll')]
-    for guard in ("#det-modal,#sidebar,.fpop-panel,svg,canvas,input,select,textarea,[ontouchstart]",
+    # anywhere on the page, not just inside a .view (blank space, margins,
+    # the title rows) — only the chrome, dialogs and drag-owning marks opt out
+    assert "tg.closest('.view')" not in block
+    for guard in (".header,#det-modal,#sidebar,.sb-scrim,.fpop-panel,#cfsel-panel,#ai-panel,#hk-overlay,#pf-overlay,svg,canvas,input,select,textarea,[ontouchstart]",
+                  "['ai-panel','hk-overlay','pf-overlay'].some(",
                   "vv.scale>1.01", "sx<28||sx>vw-28", "x+vw<se.scrollWidth-1",
                   "Math.abs(dx)<70", "performance.now()-st>650"):
         assert guard in block, guard
