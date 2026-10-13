@@ -316,13 +316,14 @@ def test_macro_tab_intros_clamp_with_read_more():
     assert "'Show less':'Read more'" in tog and 'aria-expanded' in tog
 
 
-def test_pool_history_axes_wear_their_series_colours():
-    """The $ axis labels are the bars' blue and the % axis labels the line's
-    orange, so the legend names the series by unit and mark, not 'left' and
-    'right', which read as nonsense without an axis tie."""
+def test_pool_history_is_two_single_scale_charts():
+    """No dual-axis chart: the $ pool and the % margin each get their own
+    chart and title (so no left/right legend), drawn at the container's real
+    width and redrawn when its pane shows or the window resizes."""
     css = _tpl()
-    assert 'Operating-profit pool (left)' not in css and 'operating margin (right)' not in css
-    assert 'Operating-profit pool ($, bars)' in css and 'Net weighted operating margin (%, line)' in css
-    assert '<text class="pph-tx pph-ax-l"' in css and '<text class="pph-tx pph-ax-r"' in css
-    assert '[data-theme="dark"] .pph-ax-l{fill:#6e9bd1;}' in css      # = dark .pph-bar
-    assert '[data-theme="dark"] .pph-ax-r{fill:#f0a35e;}' in css      # = dark .pph-line
+    assert 'Operating-profit pool ($, bars)' not in css and 'pph-ax-l' not in css
+    fn = re.search(r'^function _pphSvgs\(h,W\)\{.*?^\}', css, re.S | re.M).group(0)
+    assert fn.count('<svg class="pph-svg"') == 2
+    assert "_pphDrawAll(document.getElementById('pool-chart-area'));" in css
+    assert "  window._ppSubTabSel=k;\n  _pphDrawAll(area);" in css
+
