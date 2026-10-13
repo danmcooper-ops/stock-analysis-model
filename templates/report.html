@@ -1398,6 +1398,35 @@ td.ct{font-weight:700;}
 .pph-grid.pph-zero{stroke:#b0bec5;stroke-dasharray:4,3;}
 .pph-val{fill:#455a64;font-size:8.5px;}
 .pph-key{display:flex;flex-wrap:wrap;gap:14px;font-size:0.72em;color:#78909c;margin:4px 0 0;}
+/* Trading tab figures (renderPoolLiquidityInsights): HTML bars, the sector
+   in focus blue and the rest gray; size tiers in one blue ramp. */
+.lq-item{margin:0 0 18px;}
+.lq-item:last-child{margin-bottom:0;}
+.lq-rows{display:grid;gap:4px;}
+.lq-row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) auto;align-items:center;gap:8px;font-size:0.78em;color:#546e7a;}
+.lq-lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lq-val{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;min-width:3.5em;}
+.lq-track{display:block;height:10px;background:#eceff1;border-radius:2px;overflow:hidden;}
+.lq-fill{display:block;height:100%;background:#b0bec5;border-radius:2px;}
+.lq-on .lq-fill,.lq-tk .lq-fill{background:#4f7cac;}
+.lq-on{color:#1a252f;font-weight:600;}
+.lq-tk{cursor:pointer;}.lq-tk .lq-lbl{font-weight:600;color:#1a252f;}
+.lq-cmp .lq-row:first-child .lq-fill{background:#4f7cac;}
+.lq-stack{display:grid;gap:5px;}
+.lq-stk-row{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr);align-items:center;gap:8px;font-size:0.78em;color:#546e7a;}
+.lq-stk{display:flex;height:18px;border-radius:3px;overflow:hidden;gap:2px;}
+.lq-seg{display:flex;align-items:center;justify-content:center;font-size:0.85em;font-weight:600;color:#fff;white-space:nowrap;}
+.lq-large{background:#2f5d8a;}.lq-mid{background:#4f7cac;}.lq-small{background:#7fa3cc;}
+.lq-key{display:flex;flex-wrap:wrap;gap:12px;font-size:0.72em;color:#78909c;margin-top:2px;}
+.lq-key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
+.lq-cap{margin:8px 0 0;font-size:0.82em;line-height:1.55;color:#37474f;}
+[data-theme="dark"] .lq-row,[data-theme="dark"] .lq-stk-row,[data-theme="dark"] .lq-key{color:#8b949e !important;}
+[data-theme="dark"] .lq-on,[data-theme="dark"] .lq-tk .lq-lbl{color:#e6edf3 !important;}
+[data-theme="dark"] .lq-track{background:#21262d;}
+[data-theme="dark"] .lq-fill{background:#484f58;}
+[data-theme="dark"] .lq-on .lq-fill,[data-theme="dark"] .lq-tk .lq-fill,[data-theme="dark"] .lq-cmp .lq-row:first-child .lq-fill{background:#6e9bd1;}
+[data-theme="dark"] .lq-seg{color:#fff !important;}
+[data-theme="dark"] .lq-cap{color:#c9d1d9 !important;}
 .pph-key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
 .pph-facts{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0;}
 .pph-fact{background:#fff;border:1px solid #e3e8ee;border-radius:5px;padding:7px 10px;font-size:0.78em;line-height:1.45;color:#37474f;flex:1 1 220px;}
@@ -12828,100 +12857,94 @@ function _ord(n){var v=n%100;if(v>=11&&v<=13)return n+'th';var s=['th','st','nd'
    pre-computed structural insights miss — flow concentration, cap-tier
    turnover anomalies, divergence between trading volume and economic
    weight, and which names actually drive the sector's liquidity. */
+/* Trading tab: five figures, each with a one-line caption — the sector's
+   daily $ volume against every other sector, where that flow sits by size
+   tier, its most-traded names, flow vs revenue concentration, and flow vs
+   economic weight. Bars are HTML (crisp at any width, no scaled SVG text);
+   the sector in focus is blue and the rest gray, so the point reads first.
+   The captions' verdicts compare RATIOS: the old fixed-gap rules called
+   "83% of $ from 36% of names" roughly even, 0 of 4 shared leaders "partial
+   alignment", and 2.2% of flow on 4.0% of profit "in line". */
 function renderPoolLiquidityInsights(sec){
   var cache=_ppLiquidityCache();
   var s=cache.bySec[sec];
   if(!s||!s.dv)return '';
   var bullets=[];
+  function row(label,frac,val,cls,attrs){
+    return '<div class="lq-row'+(cls?' '+cls:'')+'"'+(attrs||'')+'><span class="lq-lbl">'+label+'</span><span class="lq-track"><span class="lq-fill" style="width:'+Math.max(0,Math.min(100,frac*100)).toFixed(1)+'%"></span></span><span class="lq-val">'+val+'</span></div>';
+  }
+  function pct(v,d){return (v==null||!isFinite(v))?'—':v.toFixed(d==null?0:d)+'%';}
 
-  /* Five bullets, not nine. The four that were dropped restated numbers the
-     rest of the page already carries: profit-extraction-vs-flow re-named the
-     Efficiency Leader from the company grid, model-conviction-vs-flow
-     re-stated the model badges on those same cards, margin-quartile-vs-flow
-     was a second cut of bullet 2, and turnover-by-size is folded into
-     bullet 2 as the sentence it always belonged to. */
-
-  /* 1. Liquidity rank + share of universe flow. */
+  /* 1. Where the sector ranks by daily $ volume. */
   var dvShare=cache.allDV?(s.dv/cache.allDV*100):0;
-  bullets.push('<strong>Liquidity profile — '+fds(s.dv)+'/day:</strong> '+sec+' ranks '+_ord(s.dvRank)+' of '+cache.nSectors+' sectors by trading flow, capturing '+dvShare.toFixed(1)+'% of universe $-volume across '+s.n+' tickers.');
+  var secs=Object.keys(cache.bySec).map(function(k){return {k:k,dv:cache.bySec[k].dv};}).sort(function(x,y){return y.dv-x.dv;});
+  var top=secs.length?secs[0].dv:1;
+  bullets.push({fig:'<div class="lq-rows">'+secs.map(function(x){return row(_esc(x.k),x.dv/top,fds(x.dv),x.k===sec?'lq-on':'');}).join('')+'</div>',
+    cap:'<strong>'+fds(s.dv)+' a day</strong>, '+_ord(s.dvRank)+' of '+cache.nSectors+' sectors — '+dvShare.toFixed(1)+'% of the universe’s $ volume across '+s.n+' tickers.'});
 
-  /* 2. Where the dollars concentrate by cap tier, and how fast each tier
-        churns — the two size cuts read as one thought. */
-  var dvT=s.dv,nT=s.n;
-  var pctL_dv=dvT?s.byTier.large.dv/dvT*100:0,pctM_dv=dvT?s.byTier.mid.dv/dvT*100:0,pctS_dv=dvT?s.byTier.small.dv/dvT*100:0;
-  var pctL_n=nT?s.byTier.large.n/nT*100:0,pctM_n=nT?s.byTier.mid.n/nT*100:0,pctS_n=nT?s.byTier.small.n/nT*100:0;
-  var flowBullet='<strong>Where the flow lives:</strong> Large caps generate '+pctL_dv.toFixed(0)+'% of $ volume from '+pctL_n.toFixed(0)+'% of names; mid caps '+pctM_dv.toFixed(0)+'%/'+pctM_n.toFixed(0)+'%; small caps '+pctS_dv.toFixed(0)+'%/'+pctS_n.toFixed(0)+'%. '
-    +(pctL_dv>2.5*pctL_n?'Liquidity is heavily skewed to mega-caps relative to count — a few large names dominate.':
-      pctS_dv>0.6*pctS_n?'Smaller names contribute notably more flow than their headcount alone would imply.':
-      'Flow distribution roughly tracks the cap-count distribution — no single tier is disproportionately liquid.');
-  var tiers=[{name:'small caps',v:s.byTier.small.medTor,n:s.byTier.small.n},
-             {name:'mid caps',v:s.byTier.mid.medTor,n:s.byTier.mid.n},
-             {name:'large caps',v:s.byTier.large.medTor,n:s.byTier.large.n}].filter(function(t){return t.n>0&&t.v>0;});
+  /* 2. Names vs $ volume by size tier. */
+  var dvT=s.dv,nT=s.n,T=['large','mid','small'],TL={large:'Large',mid:'Mid',small:'Small'};
+  var pn={},pd={};
+  T.forEach(function(t){pn[t]=nT?s.byTier[t].n/nT*100:0;pd[t]=dvT?s.byTier[t].dv/dvT*100:0;});
+  function stack(label,m){
+    return '<div class="lq-stk-row"><span class="lq-lbl">'+label+'</span><span class="lq-stk">'+T.map(function(t){
+      return m[t]>0?'<span class="lq-seg lq-'+t+'" style="width:'+m[t].toFixed(1)+'%" title="'+TL[t]+' caps: '+m[t].toFixed(0)+'%">'+(m[t]>=12?m[t].toFixed(0)+'%':'')+'</span>':'';}).join('')+'</span></div>';
+  }
+  var rL=pn.large?pd.large/pn.large:0,rS=pn.small?pd.small/pn.small:0,flowVerdict;
+  if(rL>=1.5)flowVerdict='large caps trade '+rL.toFixed(1)+'× their share of names — flow is concentrated in the biggest companies.';
+  else if(rS>=1.5)flowVerdict='small caps trade '+rS.toFixed(1)+'× their share of names — unusually active smaller names.';
+  else flowVerdict='each size tier trades roughly in proportion to its number of names.';
+  var tiers=T.map(function(t){return {name:TL[t].toLowerCase()+' caps',v:s.byTier[t].medTor,n:s.byTier[t].n};}).filter(function(t){return t.n>0&&t.v>0;});
+  var torTxt='';
   if(tiers.length>=2){
     tiers.sort(function(a,b){return b.v-a.v;});
     var fast=tiers[0],slow=tiers[tiers.length-1];
-    var ratio=slow.v?fast.v/slow.v:0;
-    flowBullet+=' The typical '+fast.name.replace(/s$/,'')+' turns over '+(fast.v*100).toFixed(2)+'% of float/day against '+(slow.v*100).toFixed(2)+'% for '+slow.name+' — '
-      +(ratio>=1.5?'swing and momentum activity is concentrated in '+fast.name+'.':
-        ratio>=1.2?'modestly higher churn in '+fast.name+', the usual pattern where less float is institutionally locked up.':
-        'turnover is fairly uniform across cap sizes, with no clear momentum tilt by size.');
+    torTxt=' The typical '+fast.name.replace(/s$/,'')+' turns over '+(fast.v*100).toFixed(2)+'% of its float a day, against '+(slow.v*100).toFixed(2)+'% for '+slow.name+'.';
   }
-  bullets.push(flowBullet);
+  bullets.push({fig:'<div class="lq-stack">'+stack('Names',pn)+stack('$ volume',pd)
+      +'<div class="lq-key">'+T.map(function(t){return '<span><i class="lq-'+t+'"></i>'+TL[t]+' cap</span>';}).join('')+'</div></div>',
+    cap:'<strong>Where the flow lives:</strong> '+flowVerdict.charAt(0).toUpperCase()+flowVerdict.slice(1)+torTxt});
 
-  /* 3. Top-3 names by $ volume + concentration check. */
+  /* 3. Most-traded names. */
   if(s.stocks.length>=3){
-    var top3=s.stocks.slice(0,3);
-    var top3Sum=top3.reduce(function(a,x){return a+x.dv;},0);
-    var top3Pct=dvT?top3Sum/dvT*100:0;
-    var top5=s.stocks.slice(0,Math.min(5,s.stocks.length)),top5Sum=top5.reduce(function(a,x){return a+x.dv;},0);
-    var top5Pct=dvT?top5Sum/dvT*100:0;
-    bullets.push('<strong>Most-traded names:</strong> '+top3.map(function(x){return tkLink(x.ticker)+' ('+fds(x.dv)+')';}).join(', ')+' '
-      +'— the top 3 capture '+top3Pct.toFixed(0)+'% of sector flow'+(s.stocks.length>=5?', the top 5 capture '+top5Pct.toFixed(0)+'%':'')+'. '
-      +(top3Pct>=60?'Trading is highly concentrated in a handful of mega-caps; sector exposure outside these names is a different liquidity reality.':
-        top3Pct>=40?'Reasonable concentration in the leaders — they drive sector flow but plenty of secondary liquidity exists.':
-        'Flow is broadly distributed; no single mega-cap dominates the sector\'s daily volume.'));
+    var top5=s.stocks.slice(0,Math.min(5,s.stocks.length)),lead=top5[0].dv||1;
+    var t3=s.stocks.slice(0,3).reduce(function(a,x){return a+x.dv;},0)/dvT*100;
+    var t5=top5.reduce(function(a,x){return a+x.dv;},0)/dvT*100;
+    bullets.push({fig:'<div class="lq-rows">'+top5.map(function(x){
+        return row(_esc(x.ticker),x.dv/lead,fds(x.dv)+' · '+pct(x.dv/dvT*100),'lq-tk',' data-tk="'+_attr(x.ticker)+'" onclick="openDet(this.dataset.tk)" title="'+_attr(x.name||x.ticker)+'"');}).join('')+'</div>',
+      cap:'<strong>Most traded:</strong> the top 3 carry '+t3.toFixed(0)+'% of the sector’s flow, the top 5 '+t5.toFixed(0)+'% — '
+        +(t3>=60?'trading is concentrated in a handful of names.':t3>=40?'the leaders drive the flow, with real liquidity beyond them.':'flow is broadly spread; no single name dominates.')});
   }
 
-  /* 4. Liquidity concentration vs revenue concentration. Divergence reveals
-        whether the market trades the *biggest* names or the *most exciting*
-        ones. The revenue side is the sector's canonical CR4 (pp_sector_cr4,
-        the same figure the Concentration tile prints) rather than a second one
-        derived here — those two used to be able to disagree. */
+  /* 4. Trading concentration vs business concentration. The revenue side is
+        the sector's canonical CR4 (pp_sector_cr4) — the figure the
+        Concentration tile prints — never a second one derived here. */
   if(s.stocks.length>=4&&s.cr4Rev!=null){
     var byRev=s.stocks.slice().filter(function(x){return x.rev;}).sort(function(a,b){return(b.rev||0)-(a.rev||0);});
     if(byRev.length>=4){
       var cr4Rev=s.cr4Rev*100;
       var cr4Liq=s.stocks.slice(0,4).reduce(function(a,x){return a+x.dv;},0)/dvT*100;
-      var revLeaders=byRev.slice(0,4).map(function(x){return x.ticker;});
-      var liqLeaders=s.stocks.slice(0,4).map(function(x){return x.ticker;});
-      var overlap=revLeaders.filter(function(t){return liqLeaders.indexOf(t)>=0;}).length;
-      var diff=cr4Liq-cr4Rev;
-      var verdict;
-      if(overlap>=3&&Math.abs(diff)<8)verdict='liquidity concentration mirrors business concentration — the biggest revenue producers are the most-traded names';
-      else if(diff>=10)verdict='trading is more concentrated than revenue ('+diff.toFixed(0)+' pp gap) — flow chases a narrower subset than the underlying business would suggest';
-      else if(diff<=-10)verdict='trading is more diffuse than revenue ('+(-diff).toFixed(0)+' pp gap) — secondary names attract more flow than their revenue weight implies';
-      else verdict=overlap+'/4 of the revenue leaders are also liquidity leaders — partial alignment between business size and trading interest';
-      bullets.push('<strong>Liquidity vs business concentration:</strong> Top-4 by trading flow capture '+cr4Liq.toFixed(0)+'% of $-volume; top-4 by revenue capture '+cr4Rev.toFixed(0)+'% of revenue — '+verdict+'.');
+      var revL=byRev.slice(0,4).map(function(x){return x.ticker;}),liqL=s.stocks.slice(0,4).map(function(x){return x.ticker;});
+      var overlap=revL.filter(function(t){return liqL.indexOf(t)>=0;}).length;
+      var al=overlap>=3?'mostly the same companies':overlap===2?'two of them the same companies':overlap===1?'only one of them the same company':'none of them the same companies';
+      bullets.push({fig:'<div class="lq-rows lq-cmp">'+row('Top 4 by $ traded',cr4Liq/100,pct(cr4Liq))+row('Top 4 by revenue',cr4Rev/100,pct(cr4Rev))+'</div>',
+        cap:'<strong>Trading vs business concentration:</strong> the four most-traded names carry '+pct(cr4Liq)+' of the $ volume and the four largest by revenue '+pct(cr4Rev)+' of revenue — '+al+'.'});
     }
   }
 
-  /* 5. Flow share vs profit-pool share — whether the sector is over- or
-        under-traded relative to its economic weight. */
+  /* 5. Flow share vs profit-pool share, judged as a ratio. */
   if(cache.allOIPos>0&&s.oiPos>0){
     var poolShare=s.oiPos/cache.allOIPos*100;
-    var diff2=dvShare-poolShare;
-    var verdict2;
-    if(Math.abs(diff2)<2)verdict2='trades roughly in line with its share of US operating income';
-    else if(diff2>0)verdict2='attracts disproportionate trading interest — +'+diff2.toFixed(1)+' pp more flow than its share of profits would suggest, often a sign of momentum or thematic bid';
-    else verdict2='trades thinly relative to its profit contribution — '+(-diff2).toFixed(1)+' pp under-traded vs its economic weight, often the case for income-oriented sectors with sticky long-term holders';
-    bullets.push('<strong>Flow vs economic weight:</strong> '+sec+' is '+dvShare.toFixed(1)+'% of trading volume but '+poolShare.toFixed(1)+'% of US operating income — the sector '+verdict2+'.');
+    var r=poolShare?dvShare/poolShare:0,mx=Math.max(dvShare,poolShare)||1,v5;
+    if(r>=0.8&&r<=1.25)v5='it trades about in line with its share of the profit.';
+    else if(r<0.8)v5='it trades thinly for its economic weight ('+r.toFixed(2)+'× its profit share), typical of income sectors with long-term holders.';
+    else v5='it draws more trading than its profit share ('+r.toFixed(2)+'×), often a sign of momentum or a thematic bid.';
+    bullets.push({fig:'<div class="lq-rows lq-cmp">'+row('Share of $ volume',dvShare/mx,pct(dvShare,1),'lq-on')+row('Share of op. income',poolShare/mx,pct(poolShare,1))+'</div>',
+      cap:'<strong>Flow vs economic weight:</strong> '+_esc(sec)+' is '+pct(dvShare,1)+' of the universe’s trading but '+pct(poolShare,1)+' of its positive operating income — '+v5});
   }
 
   if(!bullets.length)return '';
-  var html='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55;color:#37474f">';
-  bullets.forEach(function(b){html+='<li style="margin:6px 0">'+b+'</li>';});
-  html+='</ul>';
-  return html;
+  return '<div class="lq">'+bullets.map(function(b){return '<div class="lq-item">'+b.fig+'<p class="lq-cap">'+b.cap+'</p></div>';}).join('')+'</div>';
 }
 
 /* Hoisted to module scope so renderWorldMosMap (Financial Model -> Dashboard)
