@@ -2156,6 +2156,14 @@ body.wide-table .container{padding-left:0;padding-right:0;}
    rather than stopping short of the right rail on a wide window. */
 .mac-sec-intro{font-size:0.92em;line-height:1.65;color:var(--mac-muted);margin:0 0 14px;
   text-align:justify;text-justify:inter-word;hyphens:auto;}
+/* Read more: the opening paragraph shows three lines and a toggle; the
+   toggle only appears when the text overflows them (_rmSync). */
+.rm{margin:0 0 14px;}
+.rm .mac-sec-intro{margin:0;}
+.rm:not(.open) .rm-txt{display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.rm-btn{display:none;margin:4px 0 0;padding:2px 0;border:0;background:none;font:inherit;font-size:0.82em;font-weight:600;cursor:pointer;color:var(--mac-accent,#2f6fb4);}
+[data-theme="dark"] .rm-btn{color:var(--mac-accent,#5b9cf0) !important;}
+.rm.clip .rm-btn{display:inline-block;}
 .mac-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:14px;}
 @media(max-width:560px){.mac-cards{grid-template-columns:1fr;}
   /* Justifying a phone-width column opens word-spacing rivers; the full-bleed
@@ -2226,6 +2234,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   .mac-regime-chips{margin-top:4px;}
   .mac-sec-note{margin:0 0 6px;}
   .mac-sec-intro{font-size:0.82em;margin:0 0 8px;}
+  .rm{margin:0 0 8px;}
   .mac-tiles{grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:8px;margin:5px 0 10px;}
   .mac-tile{padding:7px 9px;}
   .mac-tile-v{font-size:1.25em;}
@@ -11171,7 +11180,25 @@ function renderMacro(){
   if(curMacSub==='overview')h+=_macOverviewHTML();
   else h+=_macSectionHTML(curMacSub);
   el.innerHTML=h;
+  _rmSync(el);
 }
+/* Read more / Show less for an opening paragraph (.rm). _rmSync marks the
+   blocks whose clamped text actually overflows (.clip), so a paragraph that
+   already fits shows no toggle; it re-runs on resize, since a rotation or a
+   wider window can make the paragraph fit. */
+function _rmSync(root){
+  [].forEach.call((root||document).querySelectorAll('.rm'),function(b){
+    var t=b.querySelector('.rm-txt');if(!t)return;
+    if(b.classList.contains('open')){b.classList.add('clip');return;}
+    b.classList.toggle('clip',t.scrollHeight>t.clientHeight+1);
+  });
+}
+function _rmToggle(btn){
+  var b=btn.closest('.rm'),open=b.classList.toggle('open');
+  btn.textContent=open?'Show less':'Read more';
+  btn.setAttribute('aria-expanded',open?'true':'false');
+}
+window.addEventListener('resize',function(){_rmSync(document.getElementById('macro-view'));});
 /* One paragraph per section sub-tab explaining what its graphs show and how
    to read them; the Overview's narrative speaks for itself. Repo-authored
    plain text, so it is not escaped. */
@@ -11185,7 +11212,7 @@ var _MAC_SEC_INTRO={
 };
 function _macIntroHTML(k){
   var t=_MAC_SEC_INTRO[k];
-  return t?'<p class="mac-sec-intro">'+t+'</p>':'';
+  return t?'<div class="rm"><p class="mac-sec-intro rm-txt">'+t+'</p><button type="button" class="rm-btn" aria-expanded="false" onclick="_rmToggle(this)">Read more</button></div>':'';
 }
 var _MAC_REGIME_STYLE={expansion:'#1a9850',mid_cycle:'#2e8b8b',neutral:'#64748b',late_cycle:'#e67e22',contraction:'#de2d26'};
 /* One plain-English line per regime, so the strip reads without knowing the
