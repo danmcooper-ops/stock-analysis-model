@@ -10247,14 +10247,17 @@ function navDet(dir){var idx=_detIdx+dir;if(idx<0||idx>=_detNav.length)return;op
     navDet(dx<0?1:-1);
   },{passive:true});
 })();
-/* Swipe between sub-tabs (touch: iPhone, iPad). A single-finger flick on a
-   view moves to the next (swipe left) or previous (swipe right) sub-tab of
+/* Swipe between sub-tabs (touch: iPhone, iPad). A single-finger flick
+   anywhere on the page (content, blank space, margins, the title and tab
+   rows) moves to the next (swipe left) or previous (swipe right) sub-tab of
    the innermost tab row: on a sector page its Overview … Trading row
    (.pp-subtabs), everywhere else the #subnav row under the view title
    (sectors, Dashboard / Gate Matrix, the Financial Data tabs, the Macro
    tabs, portfolios). It stops at either end rather than wrapping. The
    gesture rules are the ticker page's (above), plus:
-   - not over the ticker page, the sidebar drawer or an open Filters menu;
+   - not over the top bar, the ticker page, the sidebar drawer, or an open
+     menu or dialog (Filters, column picker, AI panel, shortcuts,
+     portfolios);
    - not while the page is pinch-zoomed in (that drag is a pan);
    - not when the PAGE itself could still pan that way — the Gate Matrix
      and the data tables are wider than a phone, so a sideways drag there
@@ -10287,10 +10290,18 @@ function _swipeTab(dir){
     if(e.touches.length>1){multi=true;return;}
     multi=false;canL=false;canR=false;skip=true;
     var tg=e.target,vv=window.visualViewport;
-    if(!tg||!tg.closest||!tg.closest('.view'))return;
-    if(tg.closest('#det-modal,#sidebar,.fpop-panel,svg,canvas,input,select,textarea,[ontouchstart]'))return;
+    /* Anywhere on the page counts — the view's content, the blank space
+       below a short page, its margins, the title and sub-tab rows — except
+       the top bar, the sidebar, menus and dialogs, and the marks that own a
+       sideways drag themselves (charts, inputs). */
+    if(!tg)return;
+    if(tg.nodeType!==1)tg=tg.parentElement||document.body;
+    if(!tg.closest)return;
+    if(tg.closest('.header,#det-modal,#sidebar,.sb-scrim,.fpop-panel,#cfsel-panel,#ai-panel,#hk-overlay,#pf-overlay,svg,canvas,input,select,textarea,[ontouchstart]'))return;
     var dm=document.getElementById('det-modal');
     if(dm&&dm.classList.contains('open'))return;
+    var open=['ai-panel','hk-overlay','pf-overlay'].some(function(id){var o=document.getElementById(id);if(!o||!o.getClientRects().length)return false;var cs=getComputedStyle(o);return cs.visibility!=='hidden'&&cs.display!=='none'&&+cs.opacity>0;});
+    if(open)return;
     var rc=document.documentElement.classList;
     if(rc.contains('sb-drawer')||rc.contains('sb-over'))return;
     if(vv&&vv.scale>1.01)return;
@@ -10298,7 +10309,7 @@ function _swipeTab(dir){
     var vw=vv?vv.width:window.innerWidth;
     if(sx<28||sx>vw-28)return;                       /* iOS back/forward edge gesture */
     skip=false;
-    for(var n=tg;n&&n!==document.body;n=n.parentElement){
+    for(var n=tg;n&&n!==document.body&&n!==document.documentElement;n=n.parentElement){
       if(n.nodeType!==1)continue;
       var sw=n.scrollWidth,cw=n.clientWidth;
       if(sw>cw+1){

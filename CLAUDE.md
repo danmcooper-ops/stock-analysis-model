@@ -791,10 +791,13 @@ ruff check .
   - **Chrome colours:** chrome text colours are set through `--sac`, because one
     `.sa-chrome` rule outranks the blanket dark
     `body *{color:#fff !important}`.
-  - **Swipe (touch):** a flick on a view moves to the next/previous sub-tab
+  - **Swipe (touch):** a flick anywhere on the page (content, blank space,
+    margins, the title and tab rows) moves to the next/previous sub-tab
     of the innermost row (`_swipeTab`): a sector page's Overview … Trading
     row, else `#subnav`. It stops at either end. It ignores screen edges,
-    charts (svg), the drawer, open menus and a pinch-zoomed page. It also
+    the top bar, charts (svg), inputs, the drawer, open menus and dialogs
+    (Filters, column picker, AI panel, shortcuts, portfolios) and a
+    pinch-zoomed page. It also
     lets a scroll wrap, or a page wider than the screen (Gate Matrix, data
     tables), pan first. The ticker page keeps its own swipe, which steps
     to the previous/next ticker (`navDet`).
