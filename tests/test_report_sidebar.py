@@ -324,3 +324,11 @@ def test_wide_views_hold_a_full_size_zoom_floor_on_ios(tmp_path):
                      '(function(){_setIosZoomFloor(true);var a=meta.a.content;'
                      '_setIosZoomFloor(false);return [a,meta.a.content];})()', tmp_path)
     assert out[0].endswith('minimum-scale=1.0') and out[1].endswith('minimum-scale=0.5')
+
+
+def test_no_all_portfolios_row():
+    """The sidebar's portfolio heading opens the overview, so an "All
+    Portfolios" row under it is redundant."""
+    tpl = _tpl()
+    assert 'All Portfolios</span>' not in tpl
+    assert 'class="sb-head" data-v="pf" data-k="overview"' in tpl

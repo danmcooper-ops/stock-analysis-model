@@ -2383,7 +2383,7 @@ html.sb-rail .sb-row .sb-ic{width:18px;height:18px;}
 html.sb-rail .sb-div{margin:8px 12px;}
 html.sb-rail .sb-dot{display:block;position:absolute;top:7px;right:12px;width:9px;height:9px;border-radius:50%;background:var(--chrome-accent);border:2px solid var(--sb-bg);}
 html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
-/* The rail's portfolio heading doubles as the way into All Portfolios. */
+/* The portfolio heading doubles as the way into the portfolios overview. */
 .sb-scrim{display:none;}
 
 /* ---- top bar (the existing .header, restyled) ---- */
@@ -10667,8 +10667,10 @@ function renderNavMenu(){
   var sp=document.getElementById('sb-pf');
   if(sp){
     var defs=_pfDefs(),ph='';
+    /* The heading is the way into the portfolios overview; an "All
+       Portfolios" row under it repeated that, as did the main Portfolios
+       entry above. */
     ph+='<button type="button" class="sb-head" data-v="pf" data-k="overview" title="Portfolios">'+_sbIc('trend')+'<span>Portfolios</span></button>';
-    ph+='<button type="button" class="sb-row sb-pf'+(curView==='pf'&&curPfSub==='overview'?' cur':'')+'" data-v="pf" data-k="overview"><span class="sb-lbl">All Portfolios</span></button>';
     defs.forEach(function(p,i){
       if(!_sbPfAll&&i>=_SB_PF_SHOW)return;
       var c=_pfDayChg(p.id),pill='';
