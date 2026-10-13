@@ -1,15 +1,15 @@
 {
  "version": 1,
- "date": "2026-10-09",
- "prev_date": "2026-10-08",
+ "date": "2026-10-12",
+ "prev_date": "2026-10-09",
  "systemic": {
-  "n": 2277,
-  "prev_n": 2280,
-  "changed": 42,
-  "changed_share": 0.0184,
+  "n": 2279,
+  "prev_n": 2277,
+  "changed": 36,
+  "changed_share": 0.0158,
   "missing_data": 0,
   "missing_share": 0.0,
-  "shrink_share": 0.0013,
+  "shrink_share": 0.0,
   "flood": false,
   "cause": null,
   "message": null
@@ -31,9 +31,9 @@
      "HOLD": 0,
      "PASS": 3
     },
-    "median_mos": -0.5685143441439385,
-    "median_score": 39.5,
-    "median_spread": 0.37601071812302234,
+    "median_mos": -0.5672988944329849,
+    "median_score": 39.6,
+    "median_spread": 0.37567879691990974,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -70,9 +70,9 @@
      "HOLD": 14,
      "PASS": 28
     },
-    "median_mos": -0.31015793873386444,
-    "median_score": 42.25,
-    "median_spread": 0.26347416843587323,
+    "median_mos": -0.3165118984811537,
+    "median_score": 42.4,
+    "median_spread": 0.2630600113260525,
     "sector_weights": {
      "Technology": 0.26923076923076916,
      "Financial Services": 0.11538461538461539,
@@ -87,23 +87,10 @@
     "hhi": 0.18047337278106507,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 1,
+    "upgrades": 0,
     "downgrades": 0
    },
    "alerts": [
-    {
-     "ticker": "AGX",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "reversal",
-     "level": "watch",
-     "reversal_of": "2026-10-06",
-     "message": "AGX moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-10-06 move)",
-     "why": [
-      "The prior run's rating cap no longer applies (non-positive margin of safety).",
-      "Composite score moved 40.7 → 41.0 (the composite-only rating band did not change)."
-     ]
-    },
     {
      "ticker": "ASML",
      "kind": "earnings_soon",
