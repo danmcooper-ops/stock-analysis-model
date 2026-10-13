@@ -298,3 +298,15 @@ def test_summary_key_tiles_show_the_52_week_range_not_next_earnings():
     assert "_krows.push(['52-Wk Range',_px(d.low_52w)+' – '+_px(d.high_52w)" in css
     assert "'52-Wk Range':'range_52w_position'" in css
     assert "['Next Earnings',_svEarn]" in css     # Street View keeps it
+
+
+def test_macro_tab_intros_clamp_with_read_more():
+    """Each Macro tab's opening paragraph shows three lines and a Read more /
+    Show less toggle, which only appears when the text overflows."""
+    css = _tpl()
+    assert '<div class="rm"><p class="mac-sec-intro rm-txt">' in css
+    assert ".rm:not(.open) .rm-txt{display:-webkit-box;-webkit-line-clamp:3;" in css
+    assert ".rm.clip .rm-btn{display:inline-block;}" in css
+    assert "  el.innerHTML=h;\n  _rmSync(el);" in css
+    tog = re.search(r'^function _rmToggle\(btn\)\{.*?^\}', css, re.S | re.M).group(0)
+    assert "'Show less':'Read more'" in tog and 'aria-expanded' in tog
