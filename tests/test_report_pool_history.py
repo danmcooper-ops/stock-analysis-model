@@ -38,7 +38,7 @@ def _row(t, rev, margin, growth, rating='BUY'):
 def _render(history, call, tmp_path, entry=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ppBn', '_ord',
-             'renderPoolHistory', '_ppShiftRows', 'renderPoolShifts',
+             '_pphNice', '_pphSvgs', 'renderPoolHistory', '_ppShiftRows', 'renderPoolShifts',
              '_ppIndCls', '_ppiV', '_ppiTh', 'renderPoolIndustries', '_ppEpRows', 'renderPoolEcon',
              '_ppStructureStats']
     sp = dict(entry or {}, history=history)
@@ -64,6 +64,9 @@ def test_history_draws_every_year_and_states_the_split(tmp_path):
     h = sector_pool_history(rows)
     html = _render(h, "renderPoolHistory('Tech')", tmp_path)
     assert html.count('class="pph-bar') == len(h['points']) == 10
+    # two aligned charts, each with one scale and its own title — no legend
+    assert html.count('<svg class="pph-svg"') == 2 and 'pph-key' not in html
+    assert 'Operating-profit pool</div>' in html and 'Net operating margin</div>' in html
     assert 'Where the growth came from' in html
     assert 'Cycle position' in html and 'Concentration trend' in html
     assert 'FY2018–20 with FY2023–25' in html
@@ -71,13 +74,18 @@ def test_history_draws_every_year_and_states_the_split(tmp_path):
     assert '%+.1f%%/yr' % (d['pool_cagr'] * 100) in html
 
 
-def test_incomplete_year_is_hollow(tmp_path):
+def test_incomplete_year_is_a_footnote_not_a_bar(tmp_path):
+    """A year most filers have not reported yet drew as a stub bar that read
+    as a collapse; it is left out of both charts and named in a footnote."""
     rows = [_row('AAA', 100, 0.10, 0.12), _row('BBB', 80, 0.15, 0.0),
             _row('CCC', 60, 0.08, 0.03)]
     rows[0]['edgar_history']['revenue_history'][2026] = 200
     rows[0]['edgar_history']['operating_income_history'][2026] = 30
-    html = _render(sector_pool_history(rows), "renderPoolHistory('Tech')", tmp_path)
-    assert html.count('class="pph-bar inc"') == 1
+    h = sector_pool_history(rows)
+    html = _render(h, "renderPoolHistory('Tech')", tmp_path)
+    assert html.count('class="pph-bar') == sum(p['complete'] for p in h['points'])
+    assert '>2026<' not in html and 'inc"' not in html
+    assert 'FY2026 left out: only part of the sector has reported it' in html
 
 
 def test_shifts_list_gainers_and_losers_with_click_through(tmp_path):
@@ -443,18 +451,22 @@ def test_company_table_shows_tickers_only(tmp_path):
     assert 'title="BHP Group Limited"' in html and '>BHP Group Limited<' not in html
 
 
-def test_margin_line_and_scale_stop_at_the_last_complete_year(tmp_path):
-    """An incomplete year's margin (a few early filers) is a lone hollow dot:
-    the line joins complete years only, and the % scale ignores it, so one
-    outlier cannot flatten the decade. The dot stays inside the plot."""
+def test_both_charts_use_round_ticks_and_label_their_latest_value(tmp_path):
+    """Ticks step 1/2/2.5/5 x 10^k from the complete years only, so one
+    early-filer outlier cannot stretch the margin scale; the latest value is
+    written at the end of each series instead of a legend."""
     hist = {'n_rows': 3, 'n_with_history': 3, 'points': [
-        {'year': 2022 + i, 'pool': 100e9, 'margin': m, 'n': 3, 'coverage': 1.0, 'complete': c}
-        for i, (m, c) in enumerate([(0.10, True), (0.12, True), (0.11, True), (0.45, False)])]}
-    html = _render(hist, "renderPoolHistory('Tech')", tmp_path)
-    d = re.search(r'<path class="pph-line" d="([^"]*)"', html).group(1)
-    assert d.count('M') == 1 and d.count('L') == 2            # three complete years, one segment
-    assert html.count('class="pph-dot inc"') == 1
-    pct = [int(t) for t in re.findall(r'class="pph-tx pph-ax-r"[^>]*>(-?\d+)%<', html)]
-    assert max(pct) < 45                                     # scale from complete years only
-    cy = float(re.search(r'class="pph-dot inc" cx="[^"]*" cy="([^"]*)"', html).group(1))
-    assert 16 <= cy <= 200                                   # pinned inside the plot (pT..pT+cH)
+        {'year': 2022 + i, 'pool': pool, 'margin': m, 'n': 3, 'coverage': 1.0, 'complete': c}
+        for i, (pool, m, c) in enumerate([(47e9, 0.145, True), (99e9, 0.204, True),
+                                          (127e9, 0.157, True), (2e9, 0.45, False)])]}
+    html = _render(hist, "_pphSvgs(SECTOR_POOL.Tech.history,375)", tmp_path)
+    pool_svg, margin_svg = re.findall(r'<svg class="pph-svg".*?</svg>', html, re.S)
+    assert 'width="375"' in pool_svg                        # drawn at the real width
+    ticks = re.findall(r'class="pph-tx"[^>]*>([^<]+)<', pool_svg)
+    assert ticks == ['0', '$50B', '$100B', '$150B']
+    pct = [float(t) for t in re.findall(r'class="pph-tx"[^>]*>(-?[\d.]+)%<', margin_svg)]
+    assert pct == [14.0, 16.0, 18.0, 20.0, 22.0]             # even steps; 45% outlier ignored
+    assert '>$127B</text>' in pool_svg and '>15.7%</text>' in margin_svg
+    d = re.search(r'<path class="pph-line" d="([^"]*)"', margin_svg).group(1)
+    assert d.count('M') == 1 and d.count('L') == 2
+

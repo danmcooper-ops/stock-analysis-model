@@ -1384,8 +1384,13 @@ td.ct{font-weight:700;}
 .pph-axis{stroke:#cfd8dc;stroke-width:1;}
 .pph-grid{stroke:#eef1f4;stroke-width:1;}
 .pph-tx{fill:#78909c;font-size:9px;}
-.pph-ax-l{fill:#4f7cac;}
-.pph-ax-r{fill:#b86a1e;}
+/* Pool History: two aligned charts drawn at real pixel size (_pphSvgs). */
+.pph-svg{display:block;width:100%;height:auto;overflow:visible;}
+.pph-svg .pph-tx{font-size:11px;}
+.pph-ctitle{font-size:0.74em;font-weight:600;color:#546e7a;margin:8px 0 2px;}
+.pph-ctitle:first-child{margin-top:4px;}
+.pph-end{font-size:11px;font-weight:600;fill:#37474f;}
+.pph-grid.pph-zero{stroke:#b0bec5;stroke-dasharray:4,3;}
 .pph-val{fill:#455a64;font-size:8.5px;}
 .pph-key{display:flex;flex-wrap:wrap;gap:14px;font-size:0.72em;color:#78909c;margin:4px 0 0;}
 .pph-key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
@@ -1414,8 +1419,9 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pph-axis{stroke:#30363d;}
 [data-theme="dark"] .pph-grid{stroke:#21262d;}
 [data-theme="dark"] .pph-tx{fill:#8b949e;}
-[data-theme="dark"] .pph-ax-l{fill:#6e9bd1;}
-[data-theme="dark"] .pph-ax-r{fill:#f0a35e;}
+[data-theme="dark"] .pph-ctitle{color:#8b949e !important;}
+[data-theme="dark"] .pph-end{fill:#e6edf3;}
+[data-theme="dark"] .pph-grid.pph-zero{stroke:#6e7681;}
 [data-theme="dark"] .pph-val{fill:#c9d1d9;}
 [data-theme="dark"] .pph-fact{background:#1c2128;border-color:#30363d;color:#c9d1d9;}
 [data-theme="dark"] .pps-track{background:#21262d;}
@@ -11840,49 +11846,83 @@ function _ppFy1(w){return w.block>1?'FY'+(w.y1-w.block+1)+'–'+String(w.y1).sli
 function _ppPct(v,dp){return v==null?'N/A':(v*100).toFixed(dp==null?1:dp)+'%';}
 function _ppSgnPct(v){return v==null?'N/A':(v>=0?'+':'−')+Math.abs(v*100).toFixed(1)+'%';}
 function _ppBn(v){var a=Math.abs(v);return a>=1e12?'$'+(v/1e12).toFixed(2)+'T':a>=1e9?'$'+(v/1e9).toFixed(0)+'B':'$'+(v/1e6).toFixed(0)+'M';}
+/* Round axis steps (1, 2, 2.5, 5 x 10^k), so ticks read $50B / $100B and
+   10% / 15% rather than quarters of the maximum. */
+function _pphNice(lo,hi,n){
+  if(!(hi>lo)){hi=lo+1;}
+  var raw=(hi-lo)/(n||4),mag=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/mag;
+  var step=(f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*mag;
+  var a=Math.floor(lo/step)*step,b=Math.ceil(hi/step)*step,t=[];
+  for(var v=a;v<=b+step*1e-9;v+=step)t.push(+v.toFixed(10));
+  return t;
+}
+/* Pool History as two aligned charts on one year axis — the operating-
+   profit pool (bars, $) above and the net margin (line, %) below — rather
+   than one frame with a $ axis and a % axis, where the line's crossings of
+   the bars meant nothing. Each has one scale and its own title, so no legend.
+   Drawn at the container's real pixel width (W), so labels are true 11px on
+   a phone instead of a shrunk 800-wide drawing; _pphDrawAll redraws once the
+   pane is visible and on resize. Incomplete years (most filers not in yet)
+   are left out and named in a footnote: a stub bar read as a collapse. */
+function _pphSvgs(h,W){
+  var all=h.points||[],pts=all.filter(function(p){return p.complete;});
+  if(pts.length<2)pts=all;
+  var skipped=all.filter(function(p){return pts.indexOf(p)<0;});
+  W=Math.max(280,Math.round(W||640));
+  var pL=50,pR=56,cW=W-pL-pR,slot=cW/pts.length,bw=Math.min(28,slot*0.6);
+  function cx(i){return pL+slot*(i+0.5);}
+  function tip(p){return 'FY'+p.year+': pool '+_ppBn(p.pool)+' · net margin '+_ppPct(p.margin)+' · '+p.n+' companies · '+_ppPct(p.coverage,0)+' of today’s sector revenue';}
+  /* pool bars */
+  var H1=150,t1=8,b1=6,cH1=H1-t1-b1;
+  var pTicks=_pphNice(0,Math.max.apply(null,pts.map(function(p){return p.pool;}).concat([1])),4),pMax=pTicks[pTicks.length-1];
+  var s1='';
+  pTicks.forEach(function(v){var y=t1+cH1*(1-v/pMax);
+    s1+='<line class="pph-grid" x1="'+pL+'" y1="'+y.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+y.toFixed(1)+'"/>'
+      +'<text class="pph-tx" x="'+(pL-6)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end">'+(v?_ppBn(v):'0')+'</text>';});
+  pts.forEach(function(p,i){var bh=Math.max(p.pool,0)/pMax*cH1,y=t1+cH1-bh;
+    s1+='<rect class="pph-bar" rx="2" x="'+(cx(i)-bw/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(bh,0.5).toFixed(1)+'"><title>'+_esc(tip(p))+'</title></rect>';});
+  var lp=pts[pts.length-1],ly=t1+cH1-Math.max(lp.pool,0)/pMax*cH1;
+  s1+='<text class="pph-end" x="'+(cx(pts.length-1)+bw/2+5).toFixed(1)+'" y="'+(ly+4).toFixed(1)+'">'+_ppBn(lp.pool)+'</text>';
+  /* margin line */
+  var ms=pts.filter(function(p){return p.margin!=null;});
+  var s2='',H2=128,t2=8,b2=24,cH2=H2-t2-b2;
+  if(ms.length>=2){
+    var mv=ms.map(function(p){return p.margin*100;});
+    var mTicks=_pphNice(Math.min.apply(null,mv),Math.max.apply(null,mv),3),mLo=mTicks[0],mHi=mTicks[mTicks.length-1];
+    function my(m){return t2+cH2*(mHi-m*100)/(mHi-mLo);}
+    mTicks.forEach(function(v){var y=t2+cH2*(mHi-v)/(mHi-mLo);
+      s2+='<line class="pph-grid'+(v===0&&mLo<0?' pph-zero':'')+'" x1="'+pL+'" y1="'+y.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+y.toFixed(1)+'"/>'
+        +'<text class="pph-tx" x="'+(pL-6)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end">'+(+v.toFixed(1))+'%</text>';});
+    var d='',prev=false;
+    pts.forEach(function(p,i){if(p.margin==null){prev=false;return;}d+=(prev?'L':'M')+cx(i).toFixed(1)+','+my(p.margin).toFixed(1);prev=true;});
+    s2+='<path class="pph-line" d="'+d+'"/>';
+    pts.forEach(function(p,i){if(p.margin!=null)s2+='<circle class="pph-dot" cx="'+cx(i).toFixed(1)+'" cy="'+my(p.margin).toFixed(1)+'" r="3.5"><title>'+_esc(tip(p))+'</title></circle>';});
+    var lm=ms[ms.length-1];
+    s2+='<text class="pph-end" x="'+(cx(pts.indexOf(lm))+8).toFixed(1)+'" y="'+(my(lm.margin)+4).toFixed(1)+'">'+_ppPct(lm.margin)+'</text>';
+  }
+  pts.forEach(function(p,i){s2+='<text class="pph-tx" x="'+cx(i).toFixed(1)+'" y="'+(H2-6)+'" text-anchor="middle">'+(slot<38?"’"+String(p.year).slice(2):p.year)+'</text>';});
+  var out='<div class="pph-ctitle">Operating-profit pool</div>'
+    +'<svg class="pph-svg" width="'+W+'" height="'+H1+'" viewBox="0 0 '+W+' '+H1+'">'+s1+'</svg>'
+    +'<div class="pph-ctitle">Net operating margin</div>'
+    +'<svg class="pph-svg" width="'+W+'" height="'+H2+'" viewBox="0 0 '+W+' '+H2+'">'+s2+'</svg>';
+  if(skipped.length)out+='<p class="pph-note pph-skip">'+skipped.map(function(p){return 'FY'+p.year;}).join(', ')+' left out: only part of the sector has reported '+(skipped.length>1?'them':'it')+' so far ('+skipped.map(function(p){return _ppPct(p.coverage,0);}).join(', ')+' of today’s revenue).</p>';
+  return out;
+}
+function _pphDrawAll(root){
+  [].forEach.call((root||document).querySelectorAll('.pph-charts[data-sec]'),function(el){
+    var w=el.clientWidth;if(w<50||+el.getAttribute('data-w')===w)return;
+    var n=SECTOR_POOL&&SECTOR_POOL[el.getAttribute('data-sec')],h=n&&n.history;if(!h)return;
+    el.innerHTML=_pphSvgs(h,w);el.setAttribute('data-w',w);
+  });
+}
+var _pphRT=null;
+window.addEventListener('resize',function(){clearTimeout(_pphRT);_pphRT=setTimeout(function(){_pphDrawAll();},120);});
 function renderPoolHistory(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec],h=n&&n.history;
   if(!h||!h.points||h.points.length<3)return '';
-  var pts=h.points;
-  var W=800,H=200,pL=52,pR=46,pT=16,pB=24,cW=W-pL-pR,cH=H-pT-pB;
-  var maxP=Math.max.apply(null,pts.map(function(p){return p.pool;}).concat([1]));
-  /* The margin scale and line cover complete years only: an incomplete
-     year's margin rests on whoever has filed so far (Energy's FY2026 read
-     +43% on a handful of early filers), and drawn into the scale it
-     flattened the real decade. Its dot stays, hollow and pinned inside the
-     plot, with the true value in its tooltip. */
-  var ms=pts.filter(function(p){return p.margin!=null&&p.complete;}).map(function(p){return p.margin;});
-  if(!ms.length)ms=pts.filter(function(p){return p.margin!=null;}).map(function(p){return p.margin;});
-  var mMax=Math.max.apply(null,ms.concat([0.05])),mMin=Math.min.apply(null,ms.concat([0]));
-  var mR=(mMax-mMin)||0.05;mMax+=mR*0.08;mR=mMax-mMin;
-  var slot=cW/pts.length,bw=Math.min(46,slot*0.62);
-  var svg='',line='',dots='',lastDone=false;
-  for(var t=0;t<=4;t++){
-    var gy=pT+cH*t/4;
-    svg+='<line class="pph-grid" x1="'+pL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+gy.toFixed(1)+'"/>';
-    /* Each axis's labels take its series' colour (blue $ = the pool bars,
-       orange % = the margin line), so the two scales read without a key. */
-    svg+='<text class="pph-tx pph-ax-l" x="'+(pL-6)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end">'+_ppBn(maxP*(1-t/4))+'</text>';
-    svg+='<text class="pph-tx pph-ax-r" x="'+(W-pR+6)+'" y="'+(gy+3).toFixed(1)+'">'+((mMax-mR*t/4)*100).toFixed(0)+'%</text>';
-  }
-  svg+='<line class="pph-axis" x1="'+pL+'" y1="'+(pT+cH)+'" x2="'+(W-pR)+'" y2="'+(pT+cH)+'"/>';
-  pts.forEach(function(p,i){
-    var cx=pL+slot*(i+0.5),bh=p.pool/maxP*cH,by=pT+cH-bh;
-    var tip='FY'+p.year+': pool '+_ppBn(p.pool)+' · net margin '+_ppPct(p.margin)+' · '+p.n+' companies · '+_ppPct(p.coverage,0)+' of today’s sector revenue'+(p.complete?'':' · incomplete');
-    svg+='<rect class="pph-bar'+(p.complete?'':' inc')+'" x="'+(cx-bw/2).toFixed(1)+'" y="'+by.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(bh,0.5).toFixed(1)+'"><title>'+_esc(tip)+'</title></rect>';
-    if(bw>=24)svg+='<text class="pph-val" x="'+cx.toFixed(1)+'" y="'+(by-3).toFixed(1)+'" text-anchor="middle">'+_ppBn(p.pool)+'</text>';
-    svg+='<text class="pph-tx" x="'+cx.toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle">'+(slot<40?"'"+String(p.year).slice(2):p.year)+'</text>';
-    if(p.margin!=null){
-      var my=Math.min(pT+cH,Math.max(pT,pT+cH*(mMax-p.margin)/mR));
-      if(p.complete)line+=(line&&lastDone?'L':'M')+cx.toFixed(1)+','+my.toFixed(1);
-      dots+='<circle class="pph-dot'+(p.complete?'':' inc')+'" cx="'+cx.toFixed(1)+'" cy="'+my.toFixed(1)+'" r="3"><title>'+_esc(tip)+'</title></circle>';
-    }
-    lastDone=p.margin!=null&&p.complete;
-  });
-  if(mMin<0){var zy=pT+cH*mMax/mR;svg+='<line class="pph-axis" stroke-dasharray="4,3" x1="'+pL+'" y1="'+zy.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+zy.toFixed(1)+'"/>';}
-  svg+='<path class="pph-line" d="'+line+'"/>'+dots;
-  var out='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%;height:auto">'+svg+'</svg>';
-  out+='<div class="pph-key"><span><i style="background:#4f7cac"></i>Operating-profit pool ($, bars)</span><span><i style="background:#d9822b"></i>Net weighted operating margin (%, line)</span><span><i style="border:1px dashed #4f7cac"></i>Incomplete year</span></div>';
+  /* Drawn at a nominal 640px here (Node tests and first paint); redrawn at
+     the measured width once in the page. */
+  var out='<div class="pph-charts" data-sec="'+_attr(sec)+'">'+_pphSvgs(h,640)+'</div>';
 
   var facts='';
   var d=h.decomposition;
@@ -13475,6 +13515,7 @@ function _ppSubTab(btn){
     var on=b===btn;b.classList.toggle('cur',on);b.setAttribute('aria-selected',on?'true':'false');
   });
   window._ppSubTabSel=k;
+  _pphDrawAll(area);
   try{localStorage.setItem('stock_pp_subtab_v1',k);}catch(e){}
   if(btn.parentNode.getBoundingClientRect().top<0)btn.parentNode.scrollIntoView({block:'start'});
 }
@@ -13664,6 +13705,7 @@ function renderPool(){
        summary is rendered by renderCrossSectorDashboard on the Overview. */
   });
   document.getElementById('pool-chart-area').innerHTML=chartHtml||'<p style="color:#999;padding:20px;font-size:0.9em">No profit pool data available.</p>';
+  _pphDrawAll(document.getElementById('pool-chart-area'));
 }
 function ppTip(e,ticker){
   if(_isTouchDevice)return;
