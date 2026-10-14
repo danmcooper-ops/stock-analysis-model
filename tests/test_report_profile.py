@@ -82,6 +82,26 @@ def test_print_goes_through_a_hidden_frame_on_one_letter_page():
         assert not re.search(r'(?<![-\w])columns\s*:', text)
 
 
+def test_print_borrows_the_sheet_title_and_gives_it_back():
+    # The browser's print header and saved file name come from the top
+    # document: a sheet printed from a sector page read "Sector Analysis".
+    src = _tpl()
+    exp = _fn(src, 'exportProfilePdf')
+    assert 'document.title=sheetTitle;' in exp
+    assert exp.index('document.title=sheetTitle;') < exp.index('fr.contentWindow.print()')
+    assert "addEventListener('afterprint',restore" in exp
+    assert 'if(document.title===sheetTitle)document.title=prevTitle;' in exp
+    assert 'var ttl=_proTitle(d);' in _fn(src, '_proPrintDoc')
+    assert "' — Summary '+RUN_DATE" in _fn(src, '_proTitle')
+
+
+def test_sheet_prints_the_full_business_description():
+    # `description` is report_html's 200-character cut ("…Google Clou").
+    pro = _fn(_tpl(), '_proHtml')
+    assert 'String(d.description_full||d.description||' in pro
+    assert "desc.slice(0,desc.lastIndexOf(' '))" in pro
+
+
 def _row(**over):
     row = {
         'ticker': 'PRO', 'company_name': 'Profile Co', 'sector': 'Technology',

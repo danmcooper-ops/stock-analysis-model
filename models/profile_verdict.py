@@ -11,7 +11,10 @@ It adds no new model. It reads what the pipeline already computed:
   already quotes, so the verdict never contradicts a Data-tab summary.
 
 Verdicts:
-- ``AVOID``: any hard red flag (see ``_red_flags``).
+- ``AVOID``: any hard red flag (see ``_red_flags``). Trading 20%+ above
+  fair value is one only when that fair value can be trusted: with a LOW
+  valuation confidence and the price still inside the Monte Carlo range,
+  it is a reason to wait, not to rule the stock out (``_mos_tempered``).
 - ``INVEST``: the model rates it BUY/LEAN BUY, it trades at least ``MIN_MOS``
   below fair value, the valuation is not low-confidence, it earns more than
   its cost of capital, and the weighted checks mostly pass (``MIN_CONVICTION``).
@@ -69,8 +72,9 @@ CET1_STRONG = 0.10         # bank capital: 10%+ CET1 is comfortably above minimu
 NPL_HIGH = 0.03
 MAX_REASONS = 5
 
-# Valuation confidence (the Summary PDF's range line). Sheet-only: it never
-# feeds the verdict or the rating.
+# Valuation confidence (the Summary PDF's range line). It never feeds the
+# rating; the verdict reads it only to temper the margin-of-safety red flag
+# (_mos_tempered).
 FV_DISPERSION_MAX = 0.15   # scoring fv_dispersion gate: model MAD <= 15%
 FV_DISPERSION_WIDE = 0.30  # twice the gate: the models no longer corroborate
 DCF_GAP_WIDE = 0.50        # pre-blend DCF this far from the other models' median
@@ -118,12 +122,39 @@ def _altman_txt(row):
     return 'Altman Z in the distress zone' + (f' ({z:.2f})' if z is not None else '')
 
 
-def _red_flags(row):
+_MOS_CAP_REASONS = ('margin of safety <= -20%', 'non-positive margin of safety')
+
+
+def _mos_tempered(row, vc):
+    """True when "priced 20%+ above fair value" should not rule a stock out.
+
+    That flag trusts the fair value. When the valuation confidence is LOW
+    and the price still sits at or below the Monte Carlo P90, the model's
+    own range admits the price: GOOGL on 2026-10-12 traded at $353 against
+    a $240 DCF whose P10-P90 ran $131-$507. It stays a con and blocks an
+    INVEST; it just is not a veto. Above P90 the flag stands.
+    """
+    mos = _num(row, 'mos')
+    if mos is None or mos > MOS_AVOID or not vc or vc.get('level') != 'LOW':
+        return False
+    px, bull = _num(row, 'price', lo=0.0), vc.get('bull')
+    return bool(px and bull and px <= bull)
+
+
+def _pass_only_from_mos(row):
+    """The PASS is the margin-of-safety cap, not the model's own rating."""
+    reasons = row.get('_rating_cap_reasons') or []
+    return (row.get('rating') == 'PASS' and row.get('rating_raw') not in (None, 'PASS')
+            and bool(reasons) and all(r in _MOS_CAP_REASONS for r in reasons))
+
+
+def _red_flags(row, vc=None):
     """Reasons that alone rule a stock out, whatever else it scores."""
     flags = []
     fin = _is_financial(row)
     mos, fv = _num(row, 'mos'), _fv(row)
-    if mos is not None and mos <= MOS_AVOID:
+    tempered = _mos_tempered(row, vc)
+    if mos is not None and mos <= MOS_AVOID and not tempered:
         flags.append(f'Priced {_pct(-mos)} above its fair value'
                      + (f' of {_price(fv)}' if fv else ''))
     # A distress reading on a business that plainly earns its keep is a
@@ -143,7 +174,7 @@ def _red_flags(row):
         flags.append(f'Operating income covers interest only {_x(ic)}')
     # Last: the specific reasons above make a better headline than the label,
     # which usually just restates one of them.
-    if row.get('rating') == 'PASS':
+    if row.get('rating') == 'PASS' and not (tempered and _pass_only_from_mos(row)):
         flags.append('The model rates it PASS')
     return flags
 
@@ -335,12 +366,18 @@ def _invest_blockers(row, checks, conv):
     return out
 
 
-def _headline(verdict, row, pros, cons, flags, buy_below, blockers):
+def _headline(verdict, row, pros, cons, flags, buy_below, blockers, vc=None):
     """One sentence answering "should I buy it?"."""
     if verdict == NO_DATA:
         return 'Not enough data to value it: missing price or fair value.'
     if verdict == AVOID:
         return f'Avoid: {_lc(flags[0])}.'
+    if _mos_tempered(row, vc):
+        mos, bear, bull = _num(row, 'mos'), vc.get('bear'), vc['bull']
+        rng = (f'inside its {_price(bear)}–{_price(bull)} range' if bear
+               else f'below its {_price(bull)} bull case')
+        return (f'Watch: priced {_pct(-mos)} above its {_price(_fv(row))} fair value, '
+                f'but that value is low-confidence and the price is {rng}.')
     # The rating is already on the page's header; the headline says why.
     reasons = [t for k, t in pros if k != 'rating']
     if verdict == INVEST:
@@ -438,7 +475,8 @@ def profile_verdict(row, sector_medians=None):
     checks = _checks(row, med) if px and fv else []
     pros, cons = _ranked(checks, 1), _ranked(checks, -1)
     conv = _conviction(checks)
-    flags = _red_flags(row) if px and fv else []
+    vc = _valuation_confidence(row) if px and fv else None
+    flags = _red_flags(row, vc) if px and fv else []
     blockers = _invest_blockers(row, checks, conv) if px and fv else []
 
     if not px or not fv:
@@ -452,15 +490,15 @@ def profile_verdict(row, sector_medians=None):
     return {
         'v': verdict,
         'conv': conv,
-        'head': _headline(verdict, row, pros, cons, flags, buy_below, blockers),
+        'head': _headline(verdict, row, pros, cons, flags, buy_below, blockers, vc),
         'pros': [t for _, t in pros[:MAX_REASONS]],
         'cons': [t for _, t in cons[:MAX_REASONS]],
         'flags': flags,
         # What stands between a WATCH and an INVEST.
         'need': blockers if verdict == WATCH else [],
         'buy_below': buy_below,
-        # Bear/base/bull range and how far to trust it (sheet-only).
-        'vc': _valuation_confidence(row) if px and fv else None,
+        # Bear/base/bull range and how far to trust it.
+        'vc': vc,
         'med': {k: round(v, 4) for k in SECTOR_FIELDS
                 if (v := _num(med, k)) is not None},
     }

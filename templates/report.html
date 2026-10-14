@@ -48,6 +48,10 @@
   --score-good:#C6EFCE;--score-mid:#FFEB9C;--score-poor:#FFC7CE;
   --bg:#f0f2f5;--surface:#fff;--text:#333;--text-muted:#666;
   --border:#e0e4ea;--header-bg:#1a252f;--accent:#2980b9;
+  /* One matte dark blue for every header row and banner (tables, Gate
+     Matrix, heatmap, sector-page section labels, active segment buttons).
+     Flat: no gradient, no per-tab hue. */
+  --hdr-bg:#1e2c45;--hdr-bg-hover:#283a5a;--hdr-fg:#eef2f8;--hdr-line:rgba(255,255,255,0.12);
   /* Portfolios view: signed values, warnings and the solid chips (alert
      level, badges). Text colours hold >=4.5:1 on --surface in both themes;
      --pf-on-chip is the text colour on a solid chip. */
@@ -286,7 +290,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .secondary-nav{display:flex;gap:6px;padding:9px 0;flex-wrap:nowrap;overflow-x:auto;align-items:center;scrollbar-width:none;}
 .secondary-nav::-webkit-scrollbar{display:none;}
 .sub-btn{padding:8px 16px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.8em;font-weight:600;background:white;color:#546e7a;transition:all 0.15s;white-space:nowrap;line-height:1;flex-shrink:0;}
-.sub-btn.active{background:#1a252f;color:white;border-color:#1a252f;}
+.sub-btn.active{background:var(--hdr-bg);color:white;border-color:var(--hdr-bg);}
 .sub-btn:hover:not(.active){background:#f0f4f8;border-color:#b0bec5;color:#1a252f;}
 /* Detail-popup section nav — a single hamburger button (.detail-menu-btn,
    styled next to .detail-close near line ~790) in the band's top-right opens
@@ -638,7 +642,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .matrix-table th{padding:6px 8px;text-align:center;font-size:0.82em;border:1px solid #ccc;cursor:pointer;user-select:none;}
 .matrix-table th.cat-header{color:white;font-weight:700;font-size:0.85em;}
 .matrix-table th.col-header{font-weight:600;font-size:0.75em;min-width:65px;}
-.matrix-table th.fixed-header{background:#1a252f;color:white;}
+.matrix-table th.fixed-header{background:var(--hdr-bg);color:white;}
 .matrix-table td{padding:5px 7px;text-align:center;border:1px solid #e8e8e8;font-size:0.82em;}
 .matrix-table td.tk{text-align:left;font-weight:700;color:#1a252f;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.3);}
 .matrix-table td.tk:hover{color:var(--accent);}
@@ -690,10 +694,10 @@ td.ct{font-weight:700;}
 #dtbl th{white-space:normal;vertical-align:bottom;line-height:1.15;}
 #dtbl td:nth-child(n+6){overflow:hidden;text-overflow:ellipsis;}
 /* Freeze left 4 cols in DT header (# · flag · reviewed · ticker) */
-.dt th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:12;background:#1a252f;}
-.dt th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:12;background:#1a252f;}
-.dt th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:12;background:#1a252f;}
-.dt th:nth-child(4){position:-webkit-sticky;position:sticky;left:100px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+.dt th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:12;background:var(--hdr-bg);}
+.dt th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:12;background:var(--hdr-bg);}
+.dt th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:12;background:var(--hdr-bg);}
+.dt th:nth-child(4){position:-webkit-sticky;position:sticky;left:100px;z-index:12;background:var(--hdr-bg);box-shadow:2px 0 6px rgba(0,0,0,0.14);}
 /* Freeze left 4 cols in DT body */
 .dt tbody td:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:3;background:#fff;color:#7f8c9a;font-size:0.78em;font-weight:600;text-align:right;padding-right:6px;}
 .dt tbody td:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:3;background:#fff;}
@@ -710,8 +714,8 @@ td.ct{font-weight:700;}
    hue comes from the higher-specificity #dtbl.hdr-* th rules below; these only
    add position+offset and an opaque body background so scrolled cells don't
    bleed through. */
-#dtbl th:nth-child(5){position:-webkit-sticky;position:sticky;left:168px;z-index:12;background:#1a252f;}
-#dtbl th:nth-child(6){position:-webkit-sticky;position:sticky;left:240px;z-index:12;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+#dtbl th:nth-child(5){position:-webkit-sticky;position:sticky;left:168px;z-index:12;background:var(--hdr-bg);}
+#dtbl th:nth-child(6){position:-webkit-sticky;position:sticky;left:240px;z-index:12;background:var(--hdr-bg);box-shadow:2px 0 6px rgba(0,0,0,0.14);}
 #dtbl tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:168px;z-index:3;background:#fff;}
 #dtbl tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:240px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
 #dtbl tr:nth-child(even) td:nth-child(5),#dtbl tr:nth-child(even) td:nth-child(6){background:#f8f9fa;}
@@ -725,10 +729,10 @@ td.ct{font-weight:700;}
 [data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(5),[data-theme="dark"] #dtbl tr:nth-child(even) td:nth-child(6){background:#1c2128;}
 [data-theme="dark"] #dtbl tr:hover td:nth-child(5),[data-theme="dark"] #dtbl tr:hover td:nth-child(6){background:#1f3a5c !important;}
 /* Freeze left 4 cols in matrix header (# · flag · reviewed · ticker — first row only since second row has gate sub-headers) */
-.matrix-table thead tr:first-child th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:15;background:#1a252f;}
-.matrix-table thead tr:first-child th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:15;background:#1a252f;}
-.matrix-table thead tr:first-child th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:15;background:#1a252f;}
-.matrix-table thead tr:first-child th:nth-child(4){position:-webkit-sticky;position:sticky;left:100px;z-index:15;background:#1a252f;}
+.matrix-table thead tr:first-child th:nth-child(1){position:-webkit-sticky;position:sticky;left:0;z-index:15;background:var(--hdr-bg);}
+.matrix-table thead tr:first-child th:nth-child(2){position:-webkit-sticky;position:sticky;left:40px;z-index:15;background:var(--hdr-bg);}
+.matrix-table thead tr:first-child th:nth-child(3){position:-webkit-sticky;position:sticky;left:68px;z-index:15;background:var(--hdr-bg);}
+.matrix-table thead tr:first-child th:nth-child(4){position:-webkit-sticky;position:sticky;left:100px;z-index:15;background:var(--hdr-bg);}
 /* Freeze left 4 cols in matrix body */
 .matrix-table tbody td:nth-child(1){position:sticky;left:0;z-index:3;background:#fff;color:#7f8c9a;font-size:0.78em;font-weight:600;text-align:right;padding-right:6px;}
 .matrix-table tbody td:nth-child(2){position:sticky;left:40px;z-index:3;background:#fff;}
@@ -744,9 +748,9 @@ td.ct{font-weight:700;}
 /* Headers may wrap ("Today's Rating" on two lines); body cells keep the table's
    nowrap so the rating pills render single-line, identical to Financial Data. */
 .matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6){white-space:normal;}
-.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:15;background:#1a252f;}
+.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:15;background:var(--hdr-bg);}
 .matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:3;background:#fff;}
-.matrix-table thead tr:first-child th:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:15;background:#1a252f;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+.matrix-table thead tr:first-child th:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:15;background:var(--hdr-bg);box-shadow:2px 0 6px rgba(0,0,0,0.14);}
 .matrix-table tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
 .matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(5),.matrix-table tr:nth-child(even) td:nth-child(6){background:rgba(255,255,255,0.97);}
 .matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(5),.matrix-table tr:hover td:nth-child(6){background:#eaf4fd!important;}
@@ -823,23 +827,13 @@ td.ct{font-weight:700;}
   .d-header-band,.dcname,.dmeta,.d-toprow,.d-rating-row,.dh,.dh .dtk,
   .d-gp,.d-rsince,#det-modal.hdr-min .d-toprow{transition:none;}
 }
-.dt th{background:#1a252f;color:white;padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid #2c3e50;}
+.dt th{background:var(--hdr-bg);color:var(--hdr-fg);padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid var(--hdr-line);}
 .dt th:first-child{text-align:left;}
 .dt th .arrow{margin-left:3px;font-size:0.7em;}
-/* Per-tab header colors. Each Financial Data sub-tab paints its ENTIRE header
-   row (including #, flag, reviewed, Ticker and Rating) a single cheerful hue,
-   so headers read uniform within a tab but distinct across tabs. The table
-   carries a hdr-<tab> class set in renderTable(); these rules override the
-   default .dt th and any per-column group class uniformly. Deep, saturated
-   tones chosen for AA contrast with the white header text. */
-#dtbl.hdr-val   th{background:#1d4ed8;border-right-color:rgba(255,255,255,0.16);}
-#dtbl.hdr-prof  th{background:#15803d;border-right-color:rgba(255,255,255,0.16);}
-#dtbl.hdr-hlth  th{background:#0e7490;border-right-color:rgba(255,255,255,0.16);}
-#dtbl.hdr-growth th{background:#6d28d9;border-right-color:rgba(255,255,255,0.16);}
-#dtbl.hdr-proj  th{background:#c2410c;border-right-color:rgba(255,255,255,0.16);}
-#dtbl.hdr-own   th{background:#be185d;border-right-color:rgba(255,255,255,0.16);}
-#dtbl.hdr-div   th{background:#a16207;border-right-color:rgba(255,255,255,0.16);}
-#dtbl.hdr-mkt   th{background:#0f766e;border-right-color:rgba(255,255,255,0.16);}
+/* Every Financial Data sub-tab shares the one header colour (--hdr-bg).
+   renderTable() still tags the table hdr-<tab>; the class no longer picks a
+   hue, which used to make each tab a different saturated colour. */
+#dtbl[class*="hdr-"] th{background:var(--hdr-bg);border-right-color:var(--hdr-line);}
 .dt td{padding:5px 7px;text-align:right;font-size:0.82em;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;}
 .dt td.tk2{text-align:left;font-weight:600;color:#1a252f;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(41,128,185,0.3);}
 .dt td.tk2:hover{color:var(--accent);}
@@ -861,14 +855,14 @@ td.ct{font-weight:700;}
 .heatmap-table .th-inner{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;white-space:nowrap;}
 .heatmap-table th:first-child .th-inner{align-items:flex-start;}
 .heatmap-table .heat-arrow{display:inline-block;margin-left:3px;font-size:0.72em;color:#8aa6c8;min-width:8px;}
-.heatmap-table th:hover{background:#243140;}
+.heatmap-table th:hover{background:var(--hdr-bg-hover);}
 /* Override .dt freezing on cols 2-4 (correct for Financial Data table,
    wrong for the heatmap which has only Sector as the identity column).
    .dt th:nth-child(4) sticky-freezes the 4th header at left:100px; without
    this reset the CR4 header stays pinned while its data cells scroll. */
 .heatmap-table thead th:nth-child(2),
 .heatmap-table thead th:nth-child(3),
-.heatmap-table thead th:nth-child(4){position:static;left:auto;z-index:auto;box-shadow:none;background:#1a252f;}
+.heatmap-table thead th:nth-child(4){position:static;left:auto;z-index:auto;box-shadow:none;background:var(--hdr-bg);}
 .heatmap-table tbody td:nth-child(2),
 .heatmap-table tbody td:nth-child(3),
 .heatmap-table tbody td:nth-child(4){position:static;left:auto;z-index:auto;box-shadow:none;background:transparent;}
@@ -886,7 +880,7 @@ td.ct{font-weight:700;}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   position:sticky;left:0;z-index:3;box-shadow:2px 0 5px rgba(0,0,0,0.04);
 }
-.heatmap-table thead th:nth-child(1){background:#1a252f;}
+.heatmap-table thead th:nth-child(1){background:var(--hdr-bg);}
 .heatmap-table tbody td:nth-child(1){background:#fff;}
 .heatmap-table tbody tr:nth-child(even) td:nth-child(1){background:#fafbfc;}
 [data-theme="dark"] .heatmap-table tbody td:nth-child(1){background:#1c2128 !important;}
@@ -896,7 +890,7 @@ td.ct{font-weight:700;}
 .heatmap-table td.heat-sector:hover{color:#1f6feb;text-decoration-color:#1f6feb;}
 [data-theme="dark"] .heatmap-table td.heat-sector{color:#e6edf3;text-decoration-color:rgba(230,237,243,0.3);}
 [data-theme="dark"] .heatmap-table td.heat-sector:hover{color:#58a6ff;text-decoration-color:#58a6ff;}
-[data-theme="dark"] .heatmap-table th:hover{background:#30363d;}
+[data-theme="dark"] .heatmap-table th:hover{background:var(--hdr-bg-hover);}
 /* Row hover highlight that survives the per-cell heat colors. The .dt
    tr:hover bg only worked on cells without their own background, so the
    colored heatmap cells skipped the highlight. inset box-shadow as a
@@ -1287,13 +1281,13 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .tk-link:hover{color:#58a6ff;}
 .pp-section{padding:16px 20px;border-bottom:1px solid #e0e5eb;position:relative;}
 .pp-section:last-child{border-bottom:none;}
-.pp-section-label{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:0.8em;letter-spacing:0.14em;text-transform:uppercase;padding:8px 16px 8px 14px;border-radius:4px;margin:0 0 14px;box-shadow:0 2px 5px rgba(0,0,0,0.12);color:white;position:relative;}
+.pp-section-label{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:0.8em;letter-spacing:0.14em;text-transform:uppercase;padding:8px 16px 8px 14px;border-radius:4px;margin:0 0 14px;color:var(--hdr-fg);position:relative;}
 .pp-section-label::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.85);box-shadow:0 0 0 2px rgba(255,255,255,0.25);}
 .pp-section-label::after{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:4px 0 0 4px;background:rgba(0,0,0,0.22);}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
-.pp-primer,.pp-today,.pp-structure,.pp-liquidity,.pp-signals,.pp-chart,.pp-history,.pp-shifts,.pp-econ{background:#f7f9fb;border-left:5px solid #1a252f;}
+.pp-primer,.pp-today,.pp-structure,.pp-liquidity,.pp-signals,.pp-chart,.pp-history,.pp-shifts,.pp-econ{background:#f7f9fb;border-left:5px solid var(--hdr-bg);}
 .pp-primer .pp-section-label,
 .pp-today .pp-section-label,
 .pp-structure .pp-section-label,
@@ -1302,7 +1296,7 @@ td.ct{font-weight:700;}
 .pp-chart .pp-section-label,
 .pp-history .pp-section-label,
 .pp-shifts .pp-section-label,
-.pp-econ .pp-section-label{background:#1a252f;}
+.pp-econ .pp-section-label{background:var(--hdr-bg);}
 /* Combined sector-level Headwinds + Tailwinds block — two columns on
    desktop, stacked on mobile. Closes the Context arc, directly under the
    primer. */
@@ -1377,7 +1371,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-history,
 [data-theme="dark"] .pp-shifts,
 [data-theme="dark"] .pp-econ{background:#161b22;border-left-color:#c9d1d9;}
-[data-theme="dark"] .pp-section-label{background:#30363d !important;}
+[data-theme="dark"] .pp-section-label{background:var(--hdr-bg) !important;}
 /* Pool history (pp-history) and share shifts (pp-shifts): the sector's pool
    over the last decade, from models/sector_pool.py. Marks are classed so dark
    mode swaps them without touching the SVG markup. */
@@ -1463,7 +1457,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pps-dn .pps-fill{background:#f85149;}
 /* Industries view (pp-chart toggle) and the economic pool (pp-econ). */
 .ppc-tabs{display:flex;gap:6px;margin:0 0 6px;}
-.ppc-tab.active{background:#1a252f;color:#fff;border-color:#1a252f;}
+.ppc-tab.active{background:var(--hdr-bg);color:#fff;border-color:var(--hdr-bg);}
 .ppi-bar{stroke:rgba(255,255,255,0.6);stroke-width:0.5;}
 .ppi-pos{fill:#2e8b57;background:#2e8b57;}
 .ppi-mid{fill:#8fbf9f;background:#8fbf9f;}
@@ -1500,7 +1494,7 @@ td.ct{font-weight:700;}
 .ppe-row{display:grid;grid-template-columns:118px 1fr 56px;align-items:center;gap:8px;font-size:0.8em;color:#37474f;}
 .ppe-oi{background:#4f7cac;}
 .ppe-ep{background:#2e8b57;}
-[data-theme="dark"] .ppc-tab.active{background:#58a6ff;border-color:#58a6ff;color:#0d1117;}
+[data-theme="dark"] .ppc-tab.active{background:var(--hdr-bg-hover);border-color:#3b5584;color:var(--hdr-fg);}
 [data-theme="dark"] .ppi-pos{fill:#3fb950;background:#3fb950;}
 [data-theme="dark"] .ppi-mid{fill:#7ab88c;background:#7ab88c;}
 [data-theme="dark"] .ppi-neg{fill:#f85149;background:#f85149;}
@@ -1574,14 +1568,14 @@ td.ct{font-weight:700;}
    green/red percentage spans keep their own colour. */
 [data-theme="dark"] #ph-tip-bar span[style*="#1a252f"],
 [data-theme="dark"] #dtc-tip-bar span[style*="#1a252f"]{color:#c9d1d9;}
-.pp-chart{background:#f7f9fb;padding:18px 20px 22px;border-left:5px solid #1a252f;}
+.pp-chart{background:#f7f9fb;padding:18px 20px 22px;border-left:5px solid var(--hdr-bg);}
 .pool-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:0.78em;color:#555;align-items:center;}
 .pool-legend-item{display:flex;align-items:center;gap:4px;}
 .pool-legend-dot{width:11px;height:11px;border-radius:2px;flex-shrink:0;}
 /* .pool-tt declared above in the shared chip rule (line ~414). */
 /* Quadrant taxonomy tip — keeps its color-coded left border (background set inline per-quadrant). */
 .pp-quad-tip{display:none;position:fixed;z-index:9999;border-left:4px solid #ccc;border-radius:var(--tip-radius);padding:12px 16px;font-size:var(--tip-font);line-height:var(--tip-line);pointer-events:none;max-width:300px;box-shadow:var(--tip-shadow);}
-.xsect-dashboard{background:white;border-radius:10px;padding:22px 24px 20px;box-shadow:0 3px 14px rgba(0,0,0,0.09);margin-bottom:22px;border-top:4px solid #1a252f;}
+.xsect-dashboard{background:white;border-radius:10px;padding:22px 24px 20px;box-shadow:0 3px 14px rgba(0,0,0,0.09);margin-bottom:22px;border-top:4px solid var(--hdr-bg);}
 .xsect-title{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:3px;}
 .xsect-sub{font-size:0.78em;color:#8a9bb0;margin-bottom:16px;}
 .xsect-kpi-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
@@ -1696,7 +1690,7 @@ td.ct{font-weight:700;}
 /* Price History */
 #ph-view{padding:6px 0;}
 .ph-metric-btn{padding:4px 11px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.78em;font-weight:700;background:white;color:#546e7a;transition:background 0.12s,color 0.12s;}
-.ph-metric-btn.active{background:#1a252f;color:#fff;border-color:#1a252f;}
+.ph-metric-btn.active{background:var(--hdr-bg);color:#fff;border-color:var(--hdr-bg);}
 .ph-metric-btn:hover:not(.active){background:#f0f4f8;color:#1a252f;}
 .ph-metric-btn[disabled]{opacity:0.4;cursor:not-allowed;}
 #ph-select{max-width:440px;width:100%;padding:7px 11px;border:1px solid #d0d8e4;border-radius:5px;font-size:0.88em;font-weight:600;color:#1a252f;background:white;cursor:pointer;}
@@ -1726,11 +1720,11 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .cm-panel{border-color:#30363d;box-shadow:0 12px 34px rgba(0,0,0,0.55);}
 .ph-ranges{display:flex;gap:5px;margin:10px 0 6px;flex-wrap:wrap;align-items:center;}
 .ph-range-btn{padding:4px 13px;border:1px solid #d0d8e4;border-radius:4px;cursor:pointer;font-size:0.78em;font-weight:700;background:white;color:#546e7a;transition:background 0.12s,color 0.12s;}
-.ph-range-btn.active{background:#1a252f;color:#fff;border-color:#1a252f;}
+.ph-range-btn.active{background:var(--hdr-bg);color:#fff;border-color:var(--hdr-bg);}
 .ph-range-btn:hover:not(.active){background:#f0f4f8;color:#1a252f;}
 .ph-sw{position:relative;display:inline-flex;align-items:center;}
 .ph-sinp{padding:6px 28px 6px 10px;border:1px solid #d0d5dd;border-radius:6px;font-size:0.84em;width:230px;outline:none;background:#fff;color:#1a252f;}
-.ph-sinp:focus{border-color:#1a252f;box-shadow:0 0 0 2px rgba(26,37,47,0.08);}
+.ph-sinp:focus{border-color:var(--hdr-bg);box-shadow:0 0 0 2px rgba(26,37,47,0.08);}
 .ph-sdrop{position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,0.13);z-index:9999;min-width:320px;max-height:260px;overflow-y:auto;display:none;}
 .ph-sdrop.open{display:block;}
 .ph-sitem{padding:8px 12px;cursor:pointer;font-size:0.82em;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f5f7fa;}
@@ -1757,12 +1751,13 @@ td.ct{font-weight:700;}
   --score-good:#1e4d2b;--score-mid:#5a4a14;--score-poor:#5a1f25;
   --bg:#0e1117;--surface:#161b22;--text:#e6edf3;--text-muted:#8b949e;
   --border:#30363d;--header-bg:#0d1117;--accent:#58a6ff;
+  --hdr-bg:#1b2840;--hdr-bg-hover:#253757;--hdr-fg:#e6edf3;--hdr-line:rgba(255,255,255,0.10);
   --pf-pos:#3fb950;--pf-neg:#f85149;--pf-warn:#e3a13b;
   --pf-chip-action:#58a6ff;--pf-chip-warn:#e3a13b;--pf-chip-muted:#8b949e;--pf-on-chip:#0d1117;
 }
 [data-theme="dark"] body{background:var(--bg);color:var(--text);}
 [data-theme="dark"] .sub-btn{background:#161b22;color:#c9d1d9;border-color:#30363d;}
-[data-theme="dark"] .sub-btn.active{background:#1f6feb;color:#fff;border-color:#1f6feb;}
+[data-theme="dark"] .sub-btn.active{background:var(--hdr-bg-hover);color:var(--hdr-fg);border-color:#3b5584;}
 [data-theme="dark"] .sub-btn:hover:not(.active){background:#21262d;border-color:#58a6ff;color:#e6edf3;}
 /* Popup tab bar in dark mode: the "body *" catch-all forces all text white,
    so the light-mode white-pill active state (navy text) is unreadable here.
@@ -1906,7 +1901,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .xs-narcard-toggle{background:#21262d;color:#8b949e;}
 [data-theme="dark"] .xs-narcard-detail{border-top-color:#30363d;}
 [data-theme="dark"] .ph-metric-btn,[data-theme="dark"] .ph-range-btn,[data-theme="dark"] #ph-select,[data-theme="dark"] .ph-sinp{background:#21262d;color:#c9d1d9;border-color:#30363d;}
-[data-theme="dark"] .ph-metric-btn.active,[data-theme="dark"] .ph-range-btn.active{background:#1f6feb;color:#fff;border-color:#1f6feb;}
+[data-theme="dark"] .ph-metric-btn.active,[data-theme="dark"] .ph-range-btn.active{background:var(--hdr-bg-hover);color:var(--hdr-fg);border-color:#3b5584;}
 [data-theme="dark"] .ph-metric-btn:hover:not(.active),[data-theme="dark"] .ph-range-btn:hover:not(.active){background:#30363d;color:#e6edf3;}
 [data-theme="dark"] .ph-sdrop{background:#161b22;border-color:#30363d;}
 [data-theme="dark"] .ph-sitem{border-color:#21262d;}
@@ -2021,16 +2016,10 @@ td.ct{font-weight:700;}
 [data-theme="dark"] #pool-chart-area [style*="color:#0e3a40"]{color:#7adde7 !important;}
 [data-theme="dark"] #pool-chart-area tr[style*="border-bottom:1px solid #e8edf2"]{border-bottom-color:#30363d !important;}
 [data-theme="dark"] #pool-chart-area tr:hover{background:#21262d !important;}
-/* Gate Matrix sub-headers (gate labels and Score columns under each category).
-   JS sets inline background:#D6E4F0/etc. (cat.light pastels) with color:#333.
-   In dark mode the body * white-text rule turns labels white but leaves the
-   pastel backgrounds, so labels become illegible. Override per cat.light hex
-   to dark-tinted equivalents that pair with white text. */
-[data-theme="dark"] .matrix-table th[style*="background:#D6E4F0"]{background:#1a3358 !important;}
-[data-theme="dark"] .matrix-table th[style*="background:#E2EFDA"]{background:#2a4a2c !important;}
-[data-theme="dark"] .matrix-table th[style*="background:#FCE4CC"]{background:#5a3015 !important;}
-[data-theme="dark"] .matrix-table th[style*="background:#E4CCEF"]{background:#3a2154 !important;}
-[data-theme="dark"] .matrix-table th[style*="background:#FFF2CC"]{background:#5a4310 !important;}
+/* Gate Matrix header rows: the category banners and the gate-label row
+   under them are inline-styled per category by JS (cat.dark / cat.light);
+   both take the one header colour, category still named in the banner. */
+.matrix-table thead th,.matrix-table thead th[style]{background:var(--hdr-bg) !important;color:var(--hdr-fg) !important;border-color:var(--hdr-line) !important;}
 /* ============================================================
    PORTRAIT REAL-ESTATE MAXIMIZATION.
    The phone @media blocks near the top of this sheet set compact
@@ -8592,8 +8581,13 @@ function _proHtml(d){
   var earn=d.earnings_next_date&&String(d.earnings_next_date)>=RUN_DATE?esc(d.earnings_next_date)+(d.earnings_date_est?' (est.)':''):'';
   h+='<div class="pro-mast"><div><h1>'+esc(d.company_name||d.ticker)+'<small>'+esc(d.ticker)+'</small></h1><div class="mut">'+meta+(d.ceo?' · CEO '+esc(d.ceo):'')+'</div></div>'
     +'<div class="pro-mast-r">Company summary · report of <b>'+esc(RUN_DATE)+'</b>'+(earn?'<br>Next earnings <b>'+earn+'</b>':'')+'</div></div>';
-  var desc=String(d.description||'').replace(/\s+/g,' ').trim();
-  if(desc){if(desc.length>330){desc=desc.slice(0,330);desc=desc.slice(0,desc.lastIndexOf(' '))+'…';}h+='<p class="pro-desc">'+esc(desc)+'</p>';}
+  /* description is report_html's 200-character cut ("…Google Clou"); the
+     full text rides the details/ parts, which the export waits for. */
+  var desc=String(d.description_full||d.description||'').replace(/\s+/g,' ').trim();
+  var cut=!d.description_full&&desc.length>=200;
+  if(desc.length>330){desc=desc.slice(0,330);cut=true;}
+  if(cut&&desc.lastIndexOf(' ')>0)desc=desc.slice(0,desc.lastIndexOf(' ')).replace(/[,;:]$/,'')+'…';
+  if(desc)h+='<p class="pro-desc">'+esc(desc)+'</p>';
   /* --- Verdict band --- */
   if(p&&p.v){
     var conv=_num(p.conv);
@@ -8766,6 +8760,9 @@ function _proHtml(d){
    for the browser's own header and footer lines. Nothing relies on `zoom` or
    CSS columns, which browsers print differently. */
 var _PRO_PAGE_PX=941;
+function _proTitle(d){
+  return d.ticker+(d.company_name?' — '+d.company_name:'')+' — Summary '+RUN_DATE;
+}
 function _proPrintDoc(d){
   var sheet=document.getElementById('pro-css');
   var css=(sheet?sheet.textContent:'')
@@ -8775,7 +8772,7 @@ function _proPrintDoc(d){
     +'body{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;width:7.5in;margin:0 auto}';
   var fit='(function(){var r=document.documentElement,b=document.body,s=11,H='+_PRO_PAGE_PX+';'
     +'r.style.fontSize=s+"px";while(b.scrollHeight>H&&s>6){s-=0.25;r.style.fontSize=s+"px";}})();';
-  var ttl=d.ticker+' company summary '+RUN_DATE;
+  var ttl=_proTitle(d);
   return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(ttl)+'</title><style>'+css+'</style></head><body>'
     +_proHtml(d)+'<script>'+fit+'<\/script></body></html>';
 }
@@ -8806,7 +8803,21 @@ function exportProfilePdf(){
   }
   var doc=fr.contentDocument||fr.contentWindow.document;
   doc.open();doc.write(_proPrintDoc(d));doc.close();
-  setTimeout(function(){try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){}},250);
+  /* Browsers take the print header and the saved PDF's name from the TOP
+     document's title, not the frame's, so a sheet printed from a sector page
+     read "Sector Analysis · Communication Services". Borrow the sheet's
+     title for the print and put the page's back on afterprint. Safari's
+     print() returns while its dialog is still open, so the fallback waits a
+     minute; restore() leaves a title some navigation has since changed. */
+  var prevTitle=document.title,sheetTitle=_proTitle(d);
+  function restore(){if(document.title===sheetTitle)document.title=prevTitle;}
+  setTimeout(function(){
+    document.title=sheetTitle;
+    try{fr.contentWindow.addEventListener('afterprint',restore,{once:true});}catch(e){}
+    window.addEventListener('afterprint',restore,{once:true});
+    try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){restore();}
+    setTimeout(restore,60000);
+  },250);
 }
 /* === DETAIL === */
 /* Popup tab bar: Overview (all the classic sections) + Charts (single-company
@@ -9356,7 +9367,7 @@ function _stmtSpec(key,h,d){
       {l:'Operating margin',drv:1,get:function(k){return op[k]!=null&&rev[k]?op[k]/rev[k]:null;},fmt:pct},
       {l:'Net margin',drv:1,get:function(k){return ni[k]!=null&&rev[k]?ni[k]/rev[k]:null;},fmt:pct},
       {l:'Effective tax rate',drv:1,get:function(k){return tx[k]!=null&&px[k]&&px[k]>0?tx[k]/px[k]:null;},fmt:pct}
-    ],note:'Presented in Reg S-X Rule 5-03 order. Expense captions carry positive magnitudes beneath the subtotal they reduce, matching the face of the filing; a tax provision in parentheses is a benefit. Earnings per share are the filer’s own basic and diluted figures, so they are restated for stock splits. Rows marked † are derived because the filer did not tag that caption: cost of revenue falls back to revenue less gross profit, and total operating expenses to gross profit less operating income.'};
+    ],note:'Presented in Reg S-X Rule 5-03 order. Expense captions carry positive magnitudes beneath the subtotal they reduce, matching the face of the filing; a tax provision in parentheses is a benefit. Earnings per share and weighted-average share counts are the filer’s own figures, restated to today’s share basis for any stock split since they were filed. Rows marked † are derived because the filer did not tag that caption: cost of revenue falls back to revenue less gross profit, and total operating expenses to gross profit less operating income.'};
   }
 
   if(key==='cf'){
@@ -9576,7 +9587,7 @@ function _stmtSpec(key,h,d){
     {l:'Current ratio',drv:1,get:function(k){return ca[k]!=null&&cl[k]?ca[k]/cl[k]:null;},fmt:rat},
     {l:'Debt / equity',drv:1,get:function(k){var e=stEq(k);return db[k]!=null&&e&&e>0?db[k]/e:null;},fmt:rat},
     {l:'Shares outstanding (period end)',drv:1,get:function(k){var best=null,bd=1e9,t=Date.parse(k);Object.keys(sh).forEach(function(kk){var dd=Math.abs(Date.parse(kk)-t)/864e5;if(dd<bd){bd=dd;best=sh[kk];}});return bd<=220?best:null;},fmt:_fmtShr}
-  ],note:'Presented in ASC 210 / Reg S-X Rule 5-02 classified order. Total assets and total liabilities and shareholders’ equity are both taken from the filing and should agree. Noncontrolling interests, where the filer reports them, sit beneath total shareholders’ equity with a total-equity line following, per ASC 810. Rows marked † are derived where the filer did not tag the caption. Filers presenting an UNCLASSIFIED balance sheet — banks and most insurers — tag no current assets or liabilities, so those captions and the ratios built on them are absent by design. Period-end share count is as filed and therefore not restated for stock splits; use the per-share figures on the income statement, which are.'};
+  ],note:'Presented in ASC 210 / Reg S-X Rule 5-02 classified order. Total assets and total liabilities and shareholders’ equity are both taken from the filing and should agree. Noncontrolling interests, where the filer reports them, sit beneath total shareholders’ equity with a total-equity line following, per ASC 810. Rows marked † are derived where the filer did not tag the caption. Filers presenting an UNCLASSIFIED balance sheet — banks and most insurers — tag no current assets or liabilities, so those captions and the ratios built on them are absent by design. Period-end share count is restated to today’s share basis for any stock split since it was filed.'};
 }
 function _stmtSwitchHtml(key){
   return '<div class="d-stmt-tabs sa-chrome" role="tablist" aria-label="Statement">'+DT_STMTS.map(function(m){

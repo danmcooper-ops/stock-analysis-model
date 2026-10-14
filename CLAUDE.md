@@ -307,6 +307,24 @@ ruff check .
   DCF, two alternative models more than `BLEND_CONFLICT_RATIO` (5x) apart
   give no effective fair value (`_fv_source` `'conflict'`, 17 rows on 10-08)
   rather than their average.
+- **Split restatement (`data/splits.py`):** companyfacts keep each share
+  count and EPS as filed, so a series mixes pre- and post-split bases
+  (GOOGL's period-end shares read 691M to FY20, 13.24B from FY21), which
+  broke the Summary sheet's per-share record and `shares_cagr_5y` — the
+  Ownership: Share Shrink gate read CMG +114%/yr, AVGO +63%, NVDA +58%.
+  Split events come from the price parquet's `Stock Splits` column (exact
+  date and ratio), filtered to true split ratios (`is_split_ratio`: yfinance
+  also logs spin-off price factors there, GE 1.281, DHR 1.319). Each point
+  of shares / weighted shares / EPS (via net income ÷ EPS) is then assigned
+  a basis by a Viterbi pass that minimises point-to-point moves, because a
+  value's basis follows the filing that last reported it and bases
+  interleave; isolated unit-scale spikes are set aside, steps are capped,
+  and points more than 5 years before a split lean toward the old basis.
+  The restated history records `split_adjusted` and is never restated
+  twice. Applied in Phase 2 after `fetch_historical_financials`, in
+  `rescore_and_render`, and in `report_html._build_hist_payload` (so older
+  snapshots render restated). Over 2026-10-12, split-sized jumps fell from
+  1,688 to 247; most of the rest are real (WCN's 2016 merger).
 - **Phase-1 beta from local prices:** the nightly run downloads every prior
   snapshot ticker's closes into `output/prices` immediately before the
   analysis (`run.sh` step 03), so Phase 1 reads that parquet for the beta
@@ -831,8 +849,8 @@ ruff check .
         > 50%, a P90/P10 ratio > 3;
       - HIGH when Monte Carlo is HIGH, dispersion ≤ 15% and the gap ≤ 25%;
       - otherwise MEDIUM.
-      This is sheet-only: it never feeds the verdict, the rating or the
-      effective fair value;
+      It never feeds the rating or the effective fair value; the verdict
+      reads it only to temper the MoS red flag (below);
     - 16 key-stat tiles;
     - 5-year price history vs the S&P 500, with fair value and buy-below
       lines (from the `px/` shards), beside the fair-value range and a
@@ -849,7 +867,11 @@ ruff check .
       shipped as `profile` in the `details/` parts, ~0.5 KB a row.
     - **AVOID** = any red flag: PASS rating, MoS <= -20%, Beneish, Altman
       distress on an unhealthy non-utility/non-REIT, cash burn below the cost
-      of capital, or interest cover < 1.5x.
+      of capital, or interest cover < 1.5x. MoS <= -20% (and a PASS that is
+      only that MoS cap) is no veto when valuation confidence is LOW and the
+      price is at or below the Monte Carlo P90: the model's own range admits
+      the price, so it reads WATCH and names the range (`_mos_tempered`;
+      179 of 926 AVOIDs on 2026-10-12, GOOGL and META among them).
     - **INVEST** = BUY/LEAN BUY, MoS >= 15%, not a low-confidence fair value,
       a positive spread, and conviction >= 55.
     - **WATCH** = everything else. `need` names what blocks an INVEST and
