@@ -146,8 +146,8 @@ def test_ticker_page_top_row_holds_actions_and_pager():
                  'padding-right:84px', 'padding-right:130px', '.dh{padding-right:44px'):
         assert gone not in src, gone
     assert '.d-toprow .detail-close{position:static;' in src
-    assert ('#det-modal.hdr-min .dcname,#det-modal.hdr-min .dmeta,#det-modal.hdr-min .d-toprow'
-            '{max-height:0;opacity:0;margin:0;}') in src
+    # The top row is one of the band lines that slide out as it collapses.
+    assert '#det-modal .d-header-band>:not(.d-tabs):not(.d-compact){opacity:' in src
     # Long names and meta wrap rather than overflow.
     assert 'overflow-wrap:anywhere;' in src[src.index('#det-modal .dcname{'):][:200]
 
@@ -155,16 +155,17 @@ def test_ticker_page_top_row_holds_actions_and_pager():
 def test_phone_ticker_page_closes_from_the_top_bar():
     """On phones the ticker page's × is the top bar's own button (the bar
     stacks above the modal, so the band's × could not be lifted into it),
-    and the collapsed band keeps no blank row: the zero-width rating-row
-    tails are display:none so they cannot wrap onto a line of their own."""
+    and the collapsed band keeps no blank row: it shows the compact row,
+    whose lines cannot wrap."""
     src = _tpl()
     assert '<button type="button" class="hdr-close sa-chrome" id="hdr-close" onclick="closeDetail()"' in src
     assert '.hdr-close{display:none;' in src
     assert 'html.det-open .hdr-close{display:flex;}' in src
     assert 'html.det-open #det-modal .detail-close{display:none;}' in src
-    assert ('#det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .d-rr-br'
-            '{max-width:0;opacity:0;margin:0;display:none;}') in src
-    assert 'html.det-open #det-modal.hdr-min .d-rating-row{margin-top:6px;gap:8px;flex-wrap:nowrap;' in src
+    # Collapsed, price · change · rating · score sit on the compact row's
+    # second line, one line that cannot wrap.
+    assert ('#det-modal .d-compact .dc-l1,#det-modal .d-compact .dc-l2'
+            '{display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;}') in src
 
 
 def test_review_feature_is_back():
@@ -332,3 +333,28 @@ def test_no_all_portfolios_row():
     tpl = _tpl()
     assert 'All Portfolios</span>' not in tpl
     assert 'class="sb-head" data-v="pf" data-k="overview"' in tpl
+
+
+def test_ticker_band_collapse_follows_the_scroll():
+    """The band collapses with the finger, not on a timer: its height is set
+    from the scroll position each frame, a spacer at the top of .d-body
+    takes up what the band gives back (so content moves 1:1), and nothing
+    animates on its own clock. Scroll anchoring would cancel the spacer."""
+    src = _tpl()
+    apply = _fn(src, '_detHdrApply')
+    assert "e.band.style.height=c>0?(_hdr.hExp-c)+'px':'';" in apply
+    assert "e.hc.style.height=(_hdr.src==='body'?c:0)+'px';" in apply
+    assert "e.dm.style.setProperty('--hp',p.toFixed(4));" in apply
+    on = _fn(src, '_detHdrOnScroll')
+    assert 'requestAnimationFrame(_detHdrApply)' in on
+    assert '<div class="d-hc" aria-hidden="true"></div>' in src
+    assert '#det-modal .d-body{overflow-anchor:none;}' in src
+    assert '#det-modal .d-header-band>*{flex-shrink:0;}' in src
+    assert 'justify-content:flex-end;' in src[src.index('#det-modal .d-header-band{display:flex;'):][:120]
+    # The old threshold class and its .28s transitions are gone.
+    for gone in ('_hdrHoldUntil', 'st>40&&st>last+2', 'transition:max-height .28s',
+                 '#det-modal.hdr-min .dcname'):
+        assert gone not in src, gone
+    # The compact row mirrors the band and never re-triggers its own sync.
+    assert 'if(!(e.cp&&e.cp.contains(t))){later();return;}' in src
+    assert "closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_detHdrReset();" in src
