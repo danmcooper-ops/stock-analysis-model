@@ -1,12 +1,12 @@
 {
  "version": 1,
- "date": "2026-10-12",
- "prev_date": "2026-10-09",
+ "date": "2026-10-13",
+ "prev_date": "2026-10-12",
  "systemic": {
   "n": 2279,
-  "prev_n": 2277,
-  "changed": 36,
-  "changed_share": 0.0158,
+  "prev_n": 2279,
+  "changed": 37,
+  "changed_share": 0.0162,
   "missing_data": 0,
   "missing_share": 0.0,
   "shrink_share": 0.0,
@@ -31,9 +31,9 @@
      "HOLD": 0,
      "PASS": 3
     },
-    "median_mos": -0.5672988944329849,
-    "median_score": 39.6,
-    "median_spread": 0.37567879691990974,
+    "median_mos": -0.5865368258315715,
+    "median_score": 40.5,
+    "median_spread": 0.37587880341291596,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -70,9 +70,9 @@
      "HOLD": 14,
      "PASS": 28
     },
-    "median_mos": -0.3165118984811537,
-    "median_score": 42.4,
-    "median_spread": 0.2630600113260525,
+    "median_mos": -0.32490330924113214,
+    "median_score": 42.8,
+    "median_spread": 0.2632441595496288,
     "sector_weights": {
      "Technology": 0.26923076923076916,
      "Financial Services": 0.11538461538461539,
@@ -105,10 +105,22 @@
      "message": "BRK-B joined Flagged (now matches the rule)"
     },
     {
+     "ticker": "GM",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GM reports earnings on 2026-10-20"
+    },
+    {
      "ticker": "JPM",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "JPM reports earnings on 2026-10-13"
+    },
+    {
+     "ticker": "NFLX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "NFLX reports earnings on 2026-10-20"
     },
     {
      "ticker": "TSM",
