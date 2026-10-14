@@ -832,8 +832,14 @@ ruff check .
     rating-since by `.d-rr-br` and a full-width `.d-rsince`, one line from
     1024px. Nothing floats over the text lines, so long names and meta wrap
     at full width. On phones its × is the top bar's `#hdr-close`
-    (shown only under `html.det-open`), and the band collapses on scroll to
-    the ticker, one price line and the tabs (the top row collapses too).
+    (shown only under `html.det-open`). On touch the band collapses with the
+    finger, not on a timer (`_detHdrApply`): over the first D px of scroll
+    (expanded − collapsed height) its height falls pixel for pixel, its
+    lines slide out of the top and fade while `.d-compact` (ticker +
+    Summary, then price · change · rating · score) fades in, and the
+    `.d-hc` spacer atop `.d-body` grows by what the band gives back so the
+    content moves 1:1 (`overflow-anchor:none`, or Chrome's scroll anchoring
+    cancels it). It replaced a class flipped at 40px with .28s transitions.
   - **Summary PDF:** a "Summary" button right of the ticker symbol
     (`#d-sum`, in `.dh-left`) prints a one-page company summary. The `s` hotkey does the same. There is no
     on-screen tab; the #279 Profile tab was removed in favour of this button.

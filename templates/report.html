@@ -779,54 +779,46 @@ td.ct{font-weight:700;}
   .matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){position:static;box-shadow:none;}
   .matrix-table thead tr:first-child th:nth-child(4){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
   .matrix-table td.tk{left:0;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-  /* Collapsing popup banner: scrolling INTO the data (finger up) shrinks
-     the header band to two lines — the TICKER on top, then price · rating
-     · composite — plus the ☰/× pair, which stay pinned top-right so
-     Sections and Close never need a scroll-up to reach. It stays
-     collapsed until the scroll is back at the very top, which restores
-     the full band (arrows/flag/name return there). The band is a
-     non-scrolling flex sibling above .d-body, so every reclaimed pixel
-     goes to the data. Class toggled by the .d-body
-     scroll listener; rules live here so desktop (mouse) never collapses.
-     Paddings carry !important to beat the width-media band rules that
-     also use it. */
-  /* Transition scaffolding, EXPANDED state: the band is a flex column on
-     touch even when expanded, so padding and row gap interpolate instead
-     of jumping between block and flex layouts. The lines that leave the
-     collapsed banner animate to nothing rather than display:none-ing —
-     max-height→0 for the block lines (the action/pager top row, name,
-     meta), max-width→0 for the inline tails on surviving lines (gates x/N,
-     rating-since) — so the rating row visibly pushes the banner closed
-     instead of snapping. The max caps are animation ceilings only,
-     comfortably above real content (a long name or meta can wrap to 4-5
-     lines on an SE). */
-  .d-header-band{display:flex;flex-direction:column;gap:0;transition:padding .28s ease,gap .28s ease;}
-  .dcname,.dmeta,.d-toprow{overflow:hidden;max-height:140px;transition:max-height .28s ease,opacity .18s ease,margin .28s ease;}
-  .d-rating-row{transition:margin .28s ease,padding .28s ease;}
-  .dh{transition:padding .28s ease;}
-  .dh .dtk{transition:font-size .28s ease;}
-  .d-gp,.d-rsince{overflow:hidden;max-width:340px;transition:max-width .28s ease,opacity .18s ease;}
-  /* Collapsed: natural DOM order already reads ticker → rating row once
-     the name/meta lines collapse. Breathing room: 8px top/bottom padding
-     and a 5px row gap. The top row (actions, pager, ×) collapses with the
-     name and meta, so the ticker and rating lines run full width. Zero-width flex-item ghosts (gates/rsince at max-width:0)
-     leave only trailing gap px at the line's END — invisible. */
-  #det-modal.hdr-min .dcname,#det-modal.hdr-min .dmeta,#det-modal.hdr-min .d-toprow{max-height:0;opacity:0;margin:0;}
-  #det-modal.hdr-min .d-toprow{visibility:hidden;pointer-events:none;transition:max-height .28s ease,opacity .18s ease,margin .28s ease,visibility 0s linear .28s;}
-  /* display:none, not just max-width:0 — a zero-width item still takes part
-     in the rating row's wrap, and after the row's 12px gap it could drop to
-     a line of its own: a blank row under the price. */
-  #det-modal.hdr-min .d-gp,#det-modal.hdr-min .d-rsince,#det-modal.hdr-min .d-rr-br{max-width:0;opacity:0;margin:0;display:none;}
-  #det-modal.hdr-min .d-header-band{padding:calc(8px + env(safe-area-inset-top)) 16px 8px!important;gap:5px;}
-  #det-modal.hdr-min .d-rating-row{margin:0;padding-right:0;}
-  #det-modal.hdr-min .dh{margin:0;}
-  #det-modal.hdr-min .dh .dtk{font-size:1.05em;}
+  /* Collapsing ticker-page banner, driven by the scroll position itself
+     (_detHdrApply), not by a class flipped at a threshold. Over the first
+     D px of scroll (D = expanded − collapsed band height) the band's height
+     falls pixel for pixel with the finger: the full lines slide up under
+     the top edge (justify-content:flex-end clips the overflow there, so the
+     tabs stay put at the bottom) and fade, while the compact two-line row
+     (.d-compact: ticker + Summary, then price · change · rating · score)
+     fades in over them. A spacer at the top of .d-body (.d-hc) grows by
+     exactly what the band loses, so the content moves 1:1 with the finger
+     instead of the band's shrink being added on top of the scroll.
+     Scrolling back up within the first D px re-opens it the same way. It
+     replaced a .28s transition triggered at 40px, which ran on its own
+     clock whatever the finger did and resized the scroller mid-flight.
+     --hp is the 0..1 progress; .hdr-live marks a band that is partly
+     collapsed (clipped), .hdr-min one at least half collapsed, which hands
+     taps to the compact row. Desktop (mouse) never
+     collapses: these rules are touch-only and the JS checks the same. */
+  #det-modal .d-header-band{display:flex;flex-direction:column;gap:0;justify-content:flex-end;}
+  /* Rows keep their height and slide out of the top; without this the ones
+     that clip their overflow (the tabs' scroller) would squash first. */
+  #det-modal .d-header-band>*{flex-shrink:0;}
+  /* Scroll anchoring would undo the spacer: Chrome bumps scrollTop by
+     whatever .d-hc grows, so the content would never move. */
+  #det-modal .d-body{overflow-anchor:none;}
+  #det-modal.hdr-live .d-header-band{overflow:hidden !important;}
+  #det-modal .d-header-band>:not(.d-tabs):not(.d-compact){opacity:calc(1 - var(--hp,0) * 1.6);}
+  #det-modal.hdr-min .d-header-band>:not(.d-tabs):not(.d-compact){pointer-events:none;}
+  #det-modal .d-compact{display:flex;position:absolute;left:0;right:0;top:0;z-index:2;flex-direction:column;gap:5px;
+    padding:inherit;padding-bottom:0 !important;background:var(--bg);
+    opacity:clamp(0, calc((var(--hp,0) - 0.35) / 0.65), 1);pointer-events:none;}
+  #det-modal.hdr-min .d-compact{pointer-events:auto;}
+  #det-modal .d-compact .dc-l1,#det-modal .d-compact .dc-l2{display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;}
+  #det-modal .d-compact .dc-tk{font-size:1.05em;font-weight:900;color:var(--chrome-heading);letter-spacing:-.3px;}
+  #det-modal .d-compact .d-sum-btn{font-size:11.5px;padding:3px 7px;}
+  #det-modal .d-compact .dc-px{font-size:1.15em;font-weight:800;color:var(--chrome-heading);font-variant-numeric:tabular-nums;}
+  #det-modal .d-compact .d-chg{font-size:.9em;}
+  #det-modal .d-compact .drt,#det-modal .d-compact .dcs{font-size:.78em;padding:3px 9px;}
+  .d-hc{height:var(--hc,0px);flex:0 0 auto;}
 }
-/* Users who ask iOS for reduced motion get the old instant collapse. */
-@media (hover:none) and (pointer:coarse) and (prefers-reduced-motion:reduce){
-  .d-header-band,.dcname,.dmeta,.d-toprow,.d-rating-row,.dh,.dh .dtk,
-  .d-gp,.d-rsince,#det-modal.hdr-min .d-toprow{transition:none;}
-}
+.d-compact{display:none;}
 .dt th{background:var(--hdr-bg);color:var(--hdr-fg);padding:6px 8px;text-align:right;cursor:pointer;touch-action:manipulation;user-select:none;font-size:0.82em;border-right:1px solid var(--hdr-line);}
 .dt th:first-child{text-align:left;}
 .dt th .arrow{margin-left:3px;font-size:0.7em;}
@@ -2653,7 +2645,6 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 #det-modal .d-sum-btn:hover{border-color:var(--chrome-heading);}
 #det-modal .d-sum-btn:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:1px;}
 #det-modal .d-sum-btn svg{width:12px;height:12px;display:block;}
-#det-modal.hdr-min .d-sum-btn{font-size:11.5px;padding:3px 7px;}
 #det-modal .dgroup-title .dg-icon{display:none;}
 /* Chart controls (.cm-uline: the ticker page's Summary chart and the
    Financial Data Charts view) open from the chart's ☰ button, like the other
@@ -2712,7 +2703,6 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
   #det-modal .d-mini-nav-actions>*{width:30px;height:30px;}
   .d-tabs{margin:12px -16px 0;padding:0 8px;}
   .d-tab{font-size:15px;padding:0 10px;height:42px;}
-  #det-modal.hdr-min .d-tabs{margin-top:6px;}
 }
 /* Phone top bar over the ticker page: the bar stays visible (above the
    modal), its ☰ becomes the back arrow, and the page starts below it. */
@@ -2729,18 +2719,6 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
      band's × could never be lifted over it. The band's copy hides. */
   html.det-open #det-modal .detail-close{display:none;}
   html.det-open .hdr-close{display:flex;}
-  /* Collapsed: nothing sits beside the ticker any more (arrows hidden, ×
-     in the bar), and the band keeps no gap it does not need — the name and
-     meta lines are gone, so only the ticker, the rating row and the tabs
-     remain, 6px apart, the tabs' rule the band's bottom edge. */
-  html.det-open #det-modal.hdr-min .dh{padding-right:0!important;}
-  html.det-open #det-modal.hdr-min .d-header-band{padding-bottom:0!important;gap:0;}
-  /* One line when collapsed: price, change, rating and score, tightened so
-     a long price does not wrap the score chip onto a second row. */
-  html.det-open #det-modal.hdr-min .d-rating-row{margin-top:6px;gap:8px;flex-wrap:nowrap;white-space:nowrap;overflow:hidden;}
-  html.det-open #det-modal.hdr-min .dpx{font-size:1.15em;}
-  html.det-open #det-modal.hdr-min .d-chg{font-size:.9em;}
-  html.det-open #det-modal.hdr-min .d-tabs{margin-top:6px;}
 }
 @media(max-width:768px){
   html.det-open #det-modal .d-back{display:none;}
@@ -3094,8 +3072,12 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
       <!-- Section tabs (Seeking Alpha's Summary · Ratings · … row). Rendered by
            _renderDetTabBar from _detMenuItems(); clicks go to swDetTab. -->
       <div class="d-tabs sa-chrome" id="d-tabs" role="tablist" aria-label="Sections"></div>
+      <!-- Collapsed banner (touch): filled from the lines above by
+           _detCompactSync, faded in by scroll position (_detHdrApply). -->
+      <div class="d-compact" id="d-compact" aria-hidden="true"><div class="dc-l1"><span class="dc-tk"></span></div><div class="dc-l2"><span class="dc-px"></span><span class="dc-chg"></span><span class="dc-rt"></span><span class="dc-cs"></span></div></div>
     </div>
     <div class="d-body">
+      <div class="d-hc" aria-hidden="true"></div>
       <div id="d-pane-overview" class="d-pane active">
       <div id="d-kmetrics" class="d-kmetrics"></div>
       <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
@@ -7647,13 +7629,10 @@ document.addEventListener('click',function(e){
 (function(){
   var b=document.querySelector('#det-modal .d-body');
   if(!b)return;
-  /* Banner collapse state: see _detHdrOnScroll below. */
-  var _lastSt=0;
+  /* Banner collapse: see _detHdrApply below. */
   b.addEventListener('scroll',function(){
     document.querySelectorAll('.cm-panel.open.cm-fixed').forEach(_cmClose);
-    var st=b.scrollTop;
-    _detHdrOnScroll(st,_lastSt);
-    _lastSt=st;
+    _detHdrOnScroll(b.scrollTop,'body');
   },{passive:true});
   /* On phones the statement tabs scroll inside .dtr-wrap, not .d-body (see
      _stmtFitWrap), so the wrap's VERTICAL scroll drives the banner too.
@@ -7668,7 +7647,7 @@ document.addEventListener('click',function(e){
       if(!w.classList||!w.classList.contains('dtr-wrap'))return;
       if(w!==_wEl){_wEl=w;_wSt=0;}
       var st=w.scrollTop;if(st===_wSt)return;
-      _detHdrOnScroll(st,_wSt);
+      _detHdrOnScroll(st,'wrap');
       _wSt=st;
     },{capture:true,passive:true});
   }
@@ -7677,28 +7656,97 @@ document.addEventListener('click',function(e){
      banner does not leave the page something to scroll). */
   if(window.ResizeObserver)new ResizeObserver(function(){_stmtFitWrap();}).observe(b);
 })();
-/* Banner collapse state (touch only — the hdr-min rules live inside the
-   (hover:none)+(pointer:coarse) block, so the class is inert on desktop).
-   Scrolling into the data (past 40px, +2px of forward travel so iOS
-   momentum jitter does not trip it) collapses; only a return to the very
-   top expands. Scrolling back up mid-content leaves it collapsed — it
-   used to expand on 6px of reverse scroll, which popped the full band
-   back over the data while the user was still reading it. <1 rather than
-   ===0 absorbs sub-pixel offsets and the negative scrollTop of an iOS
-   rubber-band bounce, and also catches the programmatic scroll-to-top on
-   tab switches and stock navigation. A collapse holds for the band's .28s
-   transition: it grows the scroller under it, and on content barely taller
-   than the popup that clamps scrollTop to the top — which expands the band
-   again, and it must not re-collapse at once and flicker. */
-var _hdrHoldUntil=0;
-function _detHdrOnScroll(st,last){
-  var dm=document.getElementById('det-modal');if(!dm)return;
-  var min=dm.classList.contains('hdr-min');
-  if(st<1){if(min)dm.classList.remove('hdr-min');return;}
-  if(min)return;
-  var now=Date.now();if(now<_hdrHoldUntil)return;
-  if(st>40&&st>last+2){dm.classList.add('hdr-min');_hdrHoldUntil=now+350;}
+/* Banner collapse, linked to the scroll position (CSS beside the touch
+   rules: "Collapsing ticker-page banner"). p = scrollTop / D, D being the
+   expanded band height minus the collapsed one, both measured here; every
+   frame sets the band's height to H_exp − p·D, the .d-hc spacer at the top
+   of .d-body to p·D (so the content tracks the finger 1:1) and --hp for the
+   fades. Measurements are refreshed when the band's content changes (a new
+   ticker, the day change landing), on resize, and on open. Touch only:
+   with a mouse the band stays as rendered. */
+var _hdr={on:false,hExp:0,hMin:0,st:0,raf:0};
+var _HDR_TOUCH=window.matchMedia?window.matchMedia('(hover:none) and (pointer:coarse)'):null;
+function _detHdrEls(){
+  var dm=document.getElementById('det-modal');
+  return dm?{dm:dm,band:dm.querySelector('.d-header-band'),body:dm.querySelector('.d-body'),
+             hc:dm.querySelector('.d-hc'),cp:document.getElementById('d-compact'),
+             tabs:document.getElementById('d-tabs')}:null;
 }
+function _detHdrReset(){
+  var e=_detHdrEls();if(!e)return;
+  _hdr.on=false;_hdr.st=0;
+  e.dm.classList.remove('hdr-live','hdr-min');e.dm.style.removeProperty('--hp');
+  e.band.style.height='';if(e.hc)e.hc.style.height='0px';
+}
+function _detHdrMeasure(){
+  var e=_detHdrEls();
+  if(!e||!e.band||!e.cp||!e.tabs||!(_HDR_TOUCH&&_HDR_TOUCH.matches)||!e.dm.classList.contains('open')){
+    if(_hdr.on)_detHdrReset();return;
+  }
+  var h=e.band.style.height;
+  e.band.style.height='';
+  _hdr.hExp=e.band.offsetHeight;
+  var cs=getComputedStyle(e.band);
+  _hdr.hMin=e.cp.offsetHeight+6+e.tabs.offsetHeight+(parseFloat(cs.paddingBottom)||0);
+  e.band.style.height=h;
+  _hdr.on=_hdr.hExp-_hdr.hMin>8;
+  if(!_hdr.on){_detHdrReset();return;}
+  _detHdrApply();
+}
+function _detHdrApply(){
+  _hdr.raf=0;
+  var e=_detHdrEls();if(!e||!_hdr.on)return;
+  var d=_hdr.hExp-_hdr.hMin;
+  var c=Math.max(0,Math.min(d,_hdr.st)),p=c/d;
+  /* Untouched at the top: natural height and no clipping, so the band can
+     reflow and its top-row popovers can overhang it. */
+  e.band.style.height=c>0?(_hdr.hExp-c)+'px':'';
+  e.dm.classList.toggle('hdr-live',c>0);
+  /* Only .d-body's own scroll is compensated; a statement table scrolling
+     inside its .dtr-wrap is sized to the space left, so it just gains it. */
+  if(e.hc)e.hc.style.height=(_hdr.src==='body'?c:0)+'px';
+  e.dm.style.setProperty('--hp',p.toFixed(4));
+  e.dm.classList.toggle('hdr-min',p>=0.5);
+}
+function _detHdrOnScroll(st,src){
+  _hdr.st=st;_hdr.src=src||'body';
+  if(_hdr.on&&!_hdr.raf)_hdr.raf=requestAnimationFrame(_detHdrApply);
+}
+/* The compact row repeats the band's ticker, price, change and chips. */
+function _detCompactSync(){
+  var cp=document.getElementById('d-compact');if(!cp)return;
+  var q=function(sel){return cp.querySelector(sel);};
+  var tk=document.getElementById('d-tk'),px=document.getElementById('d-px'),
+      chg=document.getElementById('d-chg'),rt=document.getElementById('d-rt'),cs=document.getElementById('d-cs');
+  q('.dc-tk').textContent=tk?tk.textContent:'';
+  var l1=q('.dc-l1'),sum=document.getElementById('d-sum');
+  if(sum&&!l1.querySelector('.d-sum-btn')){var b=sum.cloneNode(true);b.removeAttribute('id');l1.appendChild(b);}
+  q('.dc-px').textContent=px?px.textContent:'';
+  var c=q('.dc-chg');c.textContent=chg?chg.textContent:'';c.className='dc-chg '+(chg?chg.className:'');
+  [[q('.dc-rt'),rt,'drt'],[q('.dc-cs'),cs,'dcs']].forEach(function(x){
+    var dst=x[0],src=x[1];dst.className='dc-'+x[2].slice(1)+' '+x[2];
+    dst.textContent=src?src.textContent:'';dst.style.background=src?src.style.background:'';
+  });
+}
+(function(){
+  var e=_detHdrEls();if(!e||!e.band)return;
+  var pend=0;
+  function refresh(){pend=0;_detCompactSync();_detHdrMeasure();}
+  function later(){if(!pend)pend=requestAnimationFrame(refresh);}
+  /* A new ticker rewrites the band's text; the day change lands later. */
+  /* Writes into the compact row itself (it lives in the band) are ignored,
+     or the sync would re-trigger itself every frame. */
+  if(window.MutationObserver)new MutationObserver(function(recs){
+    for(var i=0;i<recs.length;i++){var t=recs[i].target;if(!(e.cp&&e.cp.contains(t))){later();return;}}
+  }).observe(e.band,{childList:true,subtree:true,characterData:true});
+  /* Opening the page (class "open" on #det-modal). */
+  if(window.MutationObserver)new MutationObserver(function(){
+    if(e.dm.classList.contains('open'))later();else _detHdrReset();
+  }).observe(e.dm,{attributes:true,attributeFilter:['class']});
+  window.addEventListener('resize',later);
+  if(_HDR_TOUCH&&_HDR_TOUCH.addEventListener)_HDR_TOUCH.addEventListener('change',later);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(later);
+})();
 function _cmSum(k,txt){var s=document.getElementById(k+'-cm-sum');if(s)s.textContent=txt;}
 
 /* === DETAIL POPUP CHARTS BLOCK === */
@@ -10210,7 +10258,7 @@ function openDet(tk){
   _dm.scrollTop=0;
   _lockBody();
 }
-function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_dm.classList.remove('hdr-min');_unlockBody();_detOpenState(false);}
+function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_detHdrReset();_unlockBody();_detOpenState(false);}
 /* Pin the page while the popup is open. body{overflow:hidden} — the old
    lock — is ignored by iOS Safari: the table kept scrolling under the
    popup, and that scroll collapsed/expanded the browser toolbars, thrashing
