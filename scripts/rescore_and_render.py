@@ -24,6 +24,7 @@ if _REPO_ROOT not in sys.path:
 from data.sec_xbrl_client import edgar_years_available
 from data.snapshot_store import (read_snapshot, sync_snapshot_file,
                                  write_snapshot_file)
+from data.splits import adjust_for_ticker
 from scripts.param_set import scoring_fingerprint
 from scripts.scoring import score_and_rate
 from scripts.report_html import build_html
@@ -32,7 +33,7 @@ from scripts.analyze_stock import (derive_edgar_metrics, _load_local_prices,
                                    compute_price_metrics, _round_price_metrics)
 
 
-def _refresh_edgar_derived_metrics(results):
+def _refresh_edgar_derived_metrics(results, prices_dir=None):
     """Re-derive multi-year CAGRs from edgar_history on each row.
 
     Necessary after backfill_edgar_hist populates new history into a
@@ -51,6 +52,11 @@ def _refresh_edgar_derived_metrics(results):
         eh = r.get('edgar_history')
         if not eh:
             continue
+        # A snapshot written before split restatement (data/splits.py) holds
+        # share counts and EPS on mixed bases; a restated one carries the
+        # marker and is left alone.
+        eh = adjust_for_ticker(eh, r.get('ticker'), prices_dir)
+        r['edgar_history'] = eh
         m = derive_edgar_metrics(eh)
         for k, v in m.items():
             r[k] = v
@@ -175,7 +181,7 @@ def rescore_and_render(json_path, prices_dir='output/prices'):
         results = snap
         snap_date = date.today().isoformat()
 
-    _refresh_edgar_derived_metrics(results)
+    _refresh_edgar_derived_metrics(results, prices_dir)
     _refresh_multiple_vs_history(results, prices_dir)
     try:
         _price_as_of = pd.Timestamp(snap_date).normalize()

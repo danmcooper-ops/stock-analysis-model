@@ -80,6 +80,7 @@ from data.sec_legal_client import SECLegalClient
 from data.finnhub_supply_client import FinnhubSupplyClient
 from data.sec_supply_client import SECSupplyClient
 from data.sec_xbrl_client import SECXBRLClient
+from data.splits import adjust_for_ticker
 from data.fx_client import get_spot_fx_rate, apply_fx_to_statement_df
 from data.sec_insider_client import SECInsiderClient
 from data.provenance import ProvenanceRecorder
@@ -4139,6 +4140,11 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                          'edgar_quality_score': xbrl_validation.get('edgar_quality_score')})
             # SEC EDGAR: long-duration revenue/earnings history
             edgar_history = sec_xbrl_client.fetch_historical_financials(ticker, min_years=10)
+            # Share counts and EPS as filed mix pre- and post-split bases
+            # (GOOGL's 691M before FY21, 13.24B after); restate them from
+            # the split events in the ticker's price parquet before anything
+            # reads them (shares_cagr_5y -> Ownership: Share Shrink).
+            edgar_history = adjust_for_ticker(edgar_history, ticker, prices_dir)
             # A lender's EPV is taken at the equity level (models/epv.py,
             # basis='equity'): decided here, while the companyfacts blob is
             # still cached. Financial Services that tags net interest income

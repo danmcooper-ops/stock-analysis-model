@@ -8592,8 +8592,13 @@ function _proHtml(d){
   var earn=d.earnings_next_date&&String(d.earnings_next_date)>=RUN_DATE?esc(d.earnings_next_date)+(d.earnings_date_est?' (est.)':''):'';
   h+='<div class="pro-mast"><div><h1>'+esc(d.company_name||d.ticker)+'<small>'+esc(d.ticker)+'</small></h1><div class="mut">'+meta+(d.ceo?' · CEO '+esc(d.ceo):'')+'</div></div>'
     +'<div class="pro-mast-r">Company summary · report of <b>'+esc(RUN_DATE)+'</b>'+(earn?'<br>Next earnings <b>'+earn+'</b>':'')+'</div></div>';
-  var desc=String(d.description||'').replace(/\s+/g,' ').trim();
-  if(desc){if(desc.length>330){desc=desc.slice(0,330);desc=desc.slice(0,desc.lastIndexOf(' '))+'…';}h+='<p class="pro-desc">'+esc(desc)+'</p>';}
+  /* description is report_html's 200-character cut ("…Google Clou"); the
+     full text rides the details/ parts, which the export waits for. */
+  var desc=String(d.description_full||d.description||'').replace(/\s+/g,' ').trim();
+  var cut=!d.description_full&&desc.length>=200;
+  if(desc.length>330){desc=desc.slice(0,330);cut=true;}
+  if(cut&&desc.lastIndexOf(' ')>0)desc=desc.slice(0,desc.lastIndexOf(' ')).replace(/[,;:]$/,'')+'…';
+  if(desc)h+='<p class="pro-desc">'+esc(desc)+'</p>';
   /* --- Verdict band --- */
   if(p&&p.v){
     var conv=_num(p.conv);
@@ -8755,6 +8760,9 @@ function _proHtml(d){
   h+=_proBlock('Ten-year record (SEC filings)',_histHas(d.ticker)?_proHistHtml(d):'');
   h+=_proBlock('Peers',_proPeers(d));
   var sc=_proBlock('Gate scorecard',_proScorecard(d)),rk=_proBlock('Risks & context',_proRisks(d,p));
+function _proTitle(d){
+  return d.ticker+(d.company_name?' — '+d.company_name:'')+' — Summary '+RUN_DATE;
+}
   if(sc||rk)h+='<div class="pro-duo">'+(sc||'<div></div>')+(rk||'<div></div>')+'</div>';
   h+='<div class="pro-foot">Report of '+esc(RUN_DATE)+' · fundamentals from SEC EDGAR XBRL and Yahoo Finance · prices to the report date · verdict rules: models/profile_verdict.py (rating, margin of safety, red flags, weighted checks) · not investment advice.</div>';
   return h+'</div>';
@@ -8775,7 +8783,7 @@ function _proPrintDoc(d){
     +'body{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;width:7.5in;margin:0 auto}';
   var fit='(function(){var r=document.documentElement,b=document.body,s=11,H='+_PRO_PAGE_PX+';'
     +'r.style.fontSize=s+"px";while(b.scrollHeight>H&&s>6){s-=0.25;r.style.fontSize=s+"px";}})();';
-  var ttl=d.ticker+' company summary '+RUN_DATE;
+  var ttl=_proTitle(d);
   return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(ttl)+'</title><style>'+css+'</style></head><body>'
     +_proHtml(d)+'<script>'+fit+'<\/script></body></html>';
 }
@@ -8806,7 +8814,21 @@ function exportProfilePdf(){
   }
   var doc=fr.contentDocument||fr.contentWindow.document;
   doc.open();doc.write(_proPrintDoc(d));doc.close();
-  setTimeout(function(){try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){}},250);
+  /* Browsers take the print header and the saved PDF's name from the TOP
+     document's title, not the frame's, so a sheet printed from a sector page
+     read "Sector Analysis · Communication Services". Borrow the sheet's
+     title for the print and put the page's back on afterprint. Safari's
+     print() returns while its dialog is still open, so the fallback waits a
+     minute; restore() leaves a title some navigation has since changed. */
+  var prevTitle=document.title,sheetTitle=_proTitle(d);
+  function restore(){if(document.title===sheetTitle)document.title=prevTitle;}
+  setTimeout(function(){
+    document.title=sheetTitle;
+    try{fr.contentWindow.addEventListener('afterprint',restore,{once:true});}catch(e){}
+    window.addEventListener('afterprint',restore,{once:true});
+    try{fr.contentWindow.focus();fr.contentWindow.print();}catch(e){restore();}
+    setTimeout(restore,60000);
+  },250);
 }
 /* === DETAIL === */
 /* Popup tab bar: Overview (all the classic sections) + Charts (single-company
@@ -9356,7 +9378,7 @@ function _stmtSpec(key,h,d){
       {l:'Operating margin',drv:1,get:function(k){return op[k]!=null&&rev[k]?op[k]/rev[k]:null;},fmt:pct},
       {l:'Net margin',drv:1,get:function(k){return ni[k]!=null&&rev[k]?ni[k]/rev[k]:null;},fmt:pct},
       {l:'Effective tax rate',drv:1,get:function(k){return tx[k]!=null&&px[k]&&px[k]>0?tx[k]/px[k]:null;},fmt:pct}
-    ],note:'Presented in Reg S-X Rule 5-03 order. Expense captions carry positive magnitudes beneath the subtotal they reduce, matching the face of the filing; a tax provision in parentheses is a benefit. Earnings per share are the filer’s own basic and diluted figures, so they are restated for stock splits. Rows marked † are derived because the filer did not tag that caption: cost of revenue falls back to revenue less gross profit, and total operating expenses to gross profit less operating income.'};
+    ],note:'Presented in Reg S-X Rule 5-03 order. Expense captions carry positive magnitudes beneath the subtotal they reduce, matching the face of the filing; a tax provision in parentheses is a benefit. Earnings per share and weighted-average share counts are the filer’s own figures, restated to today’s share basis for any stock split since they were filed. Rows marked † are derived because the filer did not tag that caption: cost of revenue falls back to revenue less gross profit, and total operating expenses to gross profit less operating income.'};
   }
 
   if(key==='cf'){
@@ -9576,7 +9598,7 @@ function _stmtSpec(key,h,d){
     {l:'Current ratio',drv:1,get:function(k){return ca[k]!=null&&cl[k]?ca[k]/cl[k]:null;},fmt:rat},
     {l:'Debt / equity',drv:1,get:function(k){var e=stEq(k);return db[k]!=null&&e&&e>0?db[k]/e:null;},fmt:rat},
     {l:'Shares outstanding (period end)',drv:1,get:function(k){var best=null,bd=1e9,t=Date.parse(k);Object.keys(sh).forEach(function(kk){var dd=Math.abs(Date.parse(kk)-t)/864e5;if(dd<bd){bd=dd;best=sh[kk];}});return bd<=220?best:null;},fmt:_fmtShr}
-  ],note:'Presented in ASC 210 / Reg S-X Rule 5-02 classified order. Total assets and total liabilities and shareholders’ equity are both taken from the filing and should agree. Noncontrolling interests, where the filer reports them, sit beneath total shareholders’ equity with a total-equity line following, per ASC 810. Rows marked † are derived where the filer did not tag the caption. Filers presenting an UNCLASSIFIED balance sheet — banks and most insurers — tag no current assets or liabilities, so those captions and the ratios built on them are absent by design. Period-end share count is as filed and therefore not restated for stock splits; use the per-share figures on the income statement, which are.'};
+  ],note:'Presented in ASC 210 / Reg S-X Rule 5-02 classified order. Total assets and total liabilities and shareholders’ equity are both taken from the filing and should agree. Noncontrolling interests, where the filer reports them, sit beneath total shareholders’ equity with a total-equity line following, per ASC 810. Rows marked † are derived where the filer did not tag the caption. Filers presenting an UNCLASSIFIED balance sheet — banks and most insurers — tag no current assets or liabilities, so those captions and the ratios built on them are absent by design. Period-end share count is restated to today’s share basis for any stock split since it was filed.'};
 }
 function _stmtSwitchHtml(key){
   return '<div class="d-stmt-tabs sa-chrome" role="tablist" aria-label="Statement">'+DT_STMTS.map(function(m){

@@ -259,3 +259,50 @@ def test_missing_inputs_are_skipped_not_counted_against():
     vc = profile_verdict(sparse)['vc']
     assert vc['level'] is None and vc['why'] == [] and vc['bear'] is None
     assert profile_verdict({})['vc'] is None
+
+
+# --- Margin-of-safety veto on a low-confidence fair value -------------------
+
+def _googl(**over):
+    """Shaped on GOOGL 2026-10-12: $353 against a $240 DCF whose Monte Carlo
+    P10-P90 ran $131-$507, rated PASS only by the margin-of-safety cap."""
+    base = dict(price=352.72, _fv_effective=239.70, dcf_fv=239.70, mos=-0.4715,
+                mc_p10_fv=130.61, mc_p90_fv=506.53, mc_confidence='LOW (59%)',
+                rating='PASS', rating_raw='LEAN BUY',
+                _rating_cap_reasons=['margin of safety <= -20%'])
+    base.update(over)
+    return _good(**base)
+
+
+def test_low_confidence_value_inside_its_range_is_watch_not_avoid():
+    v = profile_verdict(_googl())
+    assert v['vc']['level'] == 'LOW'
+    assert v['v'] == WATCH and v['flags'] == []
+    assert v['head'] == ('Watch: priced 47% above its $240 fair value, but that value '
+                         'is low-confidence and the price is inside its $131–$507 range.')
+    # Still a con and still in the way of an INVEST.
+    assert 'no margin of safety' in v['need']
+    assert 'the model rates it PASS' in v['need']
+
+
+def test_price_above_the_bull_case_keeps_the_veto():
+    v = profile_verdict(_googl(price=520.0, mos=-1.17))
+    assert v['v'] == AVOID
+    assert v['flags'][0].startswith('Priced 117% above its fair value')
+
+
+def test_a_trusted_fair_value_keeps_the_veto():
+    # Tight Monte Carlo: confidence is not LOW, so 47% over is a red flag.
+    v = profile_verdict(_googl(mc_p10_fv=220.0, mc_p90_fv=380.0,
+                               mc_confidence='HIGH (CV 9%)'))
+    assert v['vc']['level'] != 'LOW'
+    assert v['v'] == AVOID
+
+
+def test_a_pass_with_another_cap_reason_still_vetoes():
+    v = profile_verdict(_googl(_rating_cap_reasons=['margin of safety <= -20%',
+                                                    'Altman Z distress zone']))
+    assert v['v'] == AVOID
+    assert v['flags'] == ['The model rates it PASS']
+    # And a PASS the model gave on its own merits.
+    assert profile_verdict(_googl(rating_raw='PASS'))['v'] == AVOID

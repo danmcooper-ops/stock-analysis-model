@@ -28,6 +28,7 @@ from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
                             CARRY_FORWARD_STOPPED_MAX_SHARE,
                             PHASE1_LOCAL_PRICE_MAX_AGE_DAYS)
 from data.price_store import mass_stop, stopped_trading
+from data.splits import adjust_for_ticker
 from data.news_tags import TAG_LABELS
 from scripts.safe_json import dumps_for_script
 
@@ -1315,8 +1316,11 @@ def _write_macro_sidecar(macro_path, macro_sidecar):
         print(f"[warn] macro.json write failed: {_e}")
 
 
-def _build_hist_payload(rows):
-    # Historical fundamentals (EDGAR annual) per ticker
+def _build_hist_payload(rows, prices_dir=None):
+    # Historical fundamentals (EDGAR annual) per ticker. Share counts and EPS
+    # are restated for stock splits here too (data/splits.py), for snapshots
+    # written before the live run did it; a restated history carries a marker
+    # and passes through unchanged.
     hist_payload = None
     try:
         _hist_out = {}
@@ -1388,7 +1392,7 @@ def _build_hist_payload(rows):
             tk = r.get('ticker')
             if not tk:
                 continue
-            eh = r.get('edgar_history') or {}
+            eh = adjust_for_ticker(r.get('edgar_history') or {}, tk, prices_dir)
             tick_hist = {}
             has_any = False
             for src_key, out_key in _hist_fields:
@@ -1948,7 +1952,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     macro_sidecar = (macro_payload or {}).get('sidecar')
     _write_macro_sidecar(macro_path, macro_sidecar)
 
-    hist_payload = _build_hist_payload(rows)
+    hist_payload = _build_hist_payload(rows, prices_dir)
     hist_tickers = _write_hist_shards(hist_dir, hist_index_path, hist_payload, legacy_path=hist_path)
 
     prices_payload, px_payload, vol_payload = \
