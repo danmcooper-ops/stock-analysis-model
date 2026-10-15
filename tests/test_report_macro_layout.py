@@ -322,23 +322,26 @@ def test_every_macro_subtab_opens_with_an_explainer():
 
 
 def test_macro_narrative_sections_carry_figures():
-    """Each kickered narrative section is followed by a dot plot of the
-    indicators it argues from (rank in own history, now vs a year ago), and
-    the sector influences open with a stance strip. The figures read only
-    repo-authored series ids from the sidecar, never model text."""
+    """Each kickered narrative section is followed by a figure of the
+    indicators its paragraph cites (found by repo-authored patterns, in the
+    order cited), and the sector influences open with a stance strip. The
+    model text is searched, never echoed into the figure."""
     css = _css()
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
     assert nar, 'could not find _macNarrativeHTML'
     nar = nar.group(0)
-    assert 'h+=_macNarFigure(i,i===0)' in nar, \
+    assert 'h+=_macNarFigure(i,p)' in nar, \
         'each narrative section needs its figure'
     assert '_macStanceStrip(grp,secLink)' in nar, \
         'the sector influences open with the stance strip'
-    fig = re.search(r'function _macNarFigure\(i,legend\)\{.*?\n\}\n', css,
+    fig = re.search(r'function _macNarFigure\(i,text\)\{.*?\n\}\n', css,
                     re.S)
     assert fig, 'could not find _macNarFigure'
-    assert 'nar.' not in fig.group(0), \
-        'figures draw from MACRO.series, not the narrative'
-    ids = re.search(r'var _MAC_NAR_IDS=\[(.*?)\];', css, re.S)
-    assert ids and ids.group(1).count('[') == 3, \
-        'one id list per narrative paragraph'
+    body = fig.group(0)
+    assert 'text' not in body.replace('_macNarIds(i,text)', '') \
+        .replace('function _macNarFigure(i,text)', ''), \
+        'the paragraph only selects series; it is never written out'
+    assert '_macRankWords(' in body, 'the rank is stated in words'
+    defaults = re.search(r'var _MAC_NAR_DEFAULT=\[(.*?)\];', css, re.S)
+    assert defaults and defaults.group(1).count('[') == 3, \
+        'one default list per narrative paragraph'
