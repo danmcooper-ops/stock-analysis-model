@@ -1,12 +1,12 @@
 {
  "version": 1,
- "date": "2026-10-13",
- "prev_date": "2026-10-12",
+ "date": "2026-10-14",
+ "prev_date": "2026-10-13",
  "systemic": {
-  "n": 2279,
+  "n": 2280,
   "prev_n": 2279,
-  "changed": 37,
-  "changed_share": 0.0162,
+  "changed": 134,
+  "changed_share": 0.0588,
   "missing_data": 0,
   "missing_share": 0.0,
   "shrink_share": 0.0,
@@ -31,9 +31,9 @@
      "HOLD": 0,
      "PASS": 3
     },
-    "median_mos": -0.5865368258315715,
-    "median_score": 40.5,
-    "median_spread": 0.37587880341291596,
+    "median_mos": -0.5215989624700248,
+    "median_score": 43.1,
+    "median_spread": 0.3761784020862259,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -65,32 +65,44 @@
    "stats": {
     "n": 52,
     "ratings": {
-     "BUY": 2,
+     "BUY": 3,
      "LEAN BUY": 8,
      "HOLD": 14,
-     "PASS": 28
+     "PASS": 27
     },
-    "median_mos": -0.32490330924113214,
-    "median_score": 42.8,
-    "median_spread": 0.2632441595496288,
+    "median_mos": -0.25013488618009616,
+    "median_score": 43.0,
+    "median_spread": 0.2635959662486025,
     "sector_weights": {
-     "Technology": 0.26923076923076916,
-     "Financial Services": 0.11538461538461539,
-     "Industrials": 0.13461538461538464,
-     "Consumer Cyclical": 0.1923076923076923,
-     "Consumer Defensive": 0.17307692307692307,
-     "Communication Services": 0.09615384615384616,
-     "Energy": 0.019230769230769232
+     "Technology": 0.2745098039215686,
+     "Financial Services": 0.11764705882352942,
+     "Industrials": 0.13725490196078435,
+     "Consumer Cyclical": 0.17647058823529413,
+     "Consumer Defensive": 0.17647058823529413,
+     "Communication Services": 0.09803921568627452,
+     "Energy": 0.019607843137254905
     },
     "top_sector": "Technology",
-    "top_sector_weight": 0.26923076923076916,
-    "hhi": 0.18047337278106507,
+    "top_sector_weight": 0.2745098039215686,
+    "hhi": 0.18031526336024606,
     "concentrated": false,
-    "no_sector": 0,
-    "upgrades": 0,
+    "no_sector": 1,
+    "upgrades": 3,
     "downgrades": 0
    },
    "alerts": [
+    {
+     "ticker": "KR",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "KR moved into the buy zone: HOLD → LEAN BUY",
+     "why": [
+      "Composite score moved 38 → 39, crossing above the LEAN BUY (39) threshold.",
+      "Largest metric swings: FV Dispersion 55.6% → 41.8% (score 21 → 40)."
+     ]
+    },
     {
      "ticker": "ASML",
      "kind": "earnings_soon",
@@ -111,10 +123,16 @@
      "message": "GM reports earnings on 2026-10-20"
     },
     {
-     "ticker": "JPM",
+     "ticker": "LRCX",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "JPM reports earnings on 2026-10-13"
+     "message": "LRCX reports earnings on 2026-10-21"
+    },
+    {
+     "ticker": "META",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "META reports earnings on 2026-10-21"
     },
     {
      "ticker": "NFLX",
@@ -123,10 +141,43 @@
      "message": "NFLX reports earnings on 2026-10-20"
     },
     {
+     "ticker": "T",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "T reports earnings on 2026-10-21"
+    },
+    {
      "ticker": "TSM",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "TSM reports earnings on 2026-10-15"
+    },
+    {
+     "ticker": "ACT",
+     "from": "LEAN BUY",
+     "to": "BUY",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "ACT LEAN BUY → BUY",
+     "why": [
+      "Composite score moved 56 → 62, crossing above the BUY (57) threshold.",
+      "Biggest category moves: Valuation 54 → 75 (+21).",
+      "Largest metric swings: FV Dispersion 68.5% → 29.8% (score 2 → 57); MoS 28.0% → 49.4% (score 76 → 100)."
+     ]
+    },
+    {
+     "ticker": "ORCL",
+     "from": "PASS",
+     "to": "HOLD",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "ORCL PASS → HOLD",
+     "why": [
+      "The prior run's rating cap no longer applies (margin of safety <= -20%).",
+      "Composite score moved 41 → 38, crossing above the LEAN BUY (39) threshold.",
+      "Biggest category moves: Valuation 21 → 12 (-9).",
+      "Largest metric swings: FV Dispersion 34.1% → 77.0% (score 51 → 0)."
+     ]
     }
    ]
   }
