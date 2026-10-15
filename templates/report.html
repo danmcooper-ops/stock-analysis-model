@@ -2158,6 +2158,47 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-nar-neutral b{font-weight:700;}
 .mac-nar-wind.up b{color:var(--mac-up);}.mac-nar-wind.down b{color:var(--mac-down);}
 .mac-nar-foot{font-size:0.72em;color:var(--mac-faint);margin-top:16px;}
+/* --- narrative figures: each section's indicators ranked in their own history --- */
+.mac-fig{margin:10px 0 4px;padding:10px 12px 8px;border-radius:10px;background:var(--mac-chip);font-size:0.8em;}
+.mac-fig-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--mac-muted);font-size:0.92em;margin-bottom:4px;}
+.mac-fig-key{display:inline-flex;align-items:center;gap:5px;}
+.mac-fig-key i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:4px;}
+.mac-fig-k-now{background:var(--mac-accent);}
+.mac-fig-k-ago{border:1.5px solid var(--mac-faint);box-sizing:border-box;}
+.mac-fig-row,.mac-fig-scale{display:grid;grid-template-columns:minmax(118px,1.1fr) 64px minmax(110px,2fr) 34px;gap:12px;align-items:center;}
+.mac-fig-row{padding:5px 0;border-top:1px solid var(--mac-line);}
+.mac-fig-scale{color:var(--mac-faint);font-size:0.85em;}
+.mac-fig-lh{display:flex;justify-content:space-between;}
+.mac-fig-scale>span:last-child{text-align:right;}
+.mac-fig-l{display:flex;flex-direction:column;line-height:1.25;min-width:0;}
+.mac-fig-l span{color:var(--mac-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mac-fig-l b{font-size:1.15em;font-variant-numeric:tabular-nums;color:var(--text);}
+.mac-fig-spark{width:64px;height:22px;display:block;}
+.mac-fig-track{position:relative;height:14px;}
+.mac-fig-track::before{content:"";position:absolute;left:0;right:0;top:6px;height:2px;border-radius:1px;background:var(--mac-border);}
+.mac-fig-track::after{content:"";position:absolute;left:50%;top:3px;width:1px;height:8px;background:var(--mac-faint);opacity:0.6;}
+.mac-fig-move{position:absolute;top:5px;height:4px;border-radius:2px;background:var(--mac-faint);opacity:0.55;}
+.mac-fig-now,.mac-fig-ago{position:absolute;border-radius:50%;box-sizing:border-box;}
+.mac-fig-now{top:1px;width:12px;height:12px;margin-left:-6px;background:var(--mac-accent);border:1.5px solid var(--mac-chip);z-index:2;}
+.mac-fig-ago{top:3px;width:8px;height:8px;margin-left:-4px;border:1.5px solid var(--mac-faint);background:var(--mac-chip);z-index:1;}
+.mac-fig-move.up,.mac-fig-now.up{background:var(--mac-up);}.mac-fig-ago.up{border-color:var(--mac-up);}
+.mac-fig-move.down,.mac-fig-now.down{background:var(--mac-down);}.mac-fig-ago.down{border-color:var(--mac-down);}
+.mac-fig-pc{text-align:right;font-variant-numeric:tabular-nums;color:var(--mac-muted);}
+@media(max-width:560px){.mac-fig-row,.mac-fig-scale{grid-template-columns:minmax(96px,1fr) minmax(90px,1.4fr) 30px;gap:8px;}
+  .mac-fig-spark,.mac-fig-sp{display:none;}
+  .mac-fig-l span{white-space:normal;}}
+/* --- sector stance strip, above the influence paragraphs --- */
+.mac-stance{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:6px 0 10px;font-size:0.82em;}
+.mac-stance-col{border-radius:10px;padding:8px 10px;background:var(--mac-chip);border-top:3px solid var(--mac-faint);}
+.mac-stance-col.up{border-top-color:var(--mac-up);}.mac-stance-col.down{border-top-color:var(--mac-down);}
+.mac-stance-h{font-weight:700;margin-bottom:6px;color:var(--mac-muted);}
+.mac-stance-col.up .mac-stance-h{color:var(--mac-up);}.mac-stance-col.down .mac-stance-h{color:var(--mac-down);}
+.mac-stance-h span{font-weight:600;font-variant-numeric:tabular-nums;opacity:0.8;}
+.mac-stance-chips{display:flex;flex-wrap:wrap;gap:5px;}
+.mac-stance-chips a{display:inline-block;padding:2px 8px;border-radius:9px;background:var(--mac-card);border:1px solid var(--mac-border);color:var(--mac-accent);font-weight:600;text-decoration:none;white-space:nowrap;}
+.mac-stance-chips a:hover{text-decoration:underline;}
+.mac-stance-chips em{color:var(--mac-faint);}
+@media(max-width:560px){.mac-stance{grid-template-columns:1fr;}}
 /* --- glance tiles --- */
 .mac-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:0 0 18px;}
 .mac-tile{padding:14px 16px;}
@@ -11399,6 +11440,92 @@ function _macGoSector(i){
   if(row&&row.sector){navGo('pool',row.sector);window.scrollTo({top:0,behavior:'auto'});}
   return false;
 }
+/* === NARRATIVE FIGURES ===
+   Each narrative section is followed by the indicators it argues from, drawn
+   as one dot plot: the track is the series' own history ranked low → high
+   (the same percentile the prose quotes, "2nd percentile of ten years"),
+   the filled dot is today, the hollow one a year ago, and the segment
+   between them is the year's move — green when it went the way the series
+   counts as good (s.good), red when not, neutral for series with no good
+   direction. A three-year sparkline beside it carries the trend. Drawn from
+   the macro.json sidecar, so the prose paints first and the figures follow
+   when it lands (renderMacro re-renders on load). Ids are repo-authored. */
+var _MAC_NAR_IDS=[
+  ['A191RL1Q225SBEA','PAYEMS','ICSA','UNRATE','JTSJOL','RSAFS','UMCSENT'],
+  ['PCEPILFE','CPIAUCSL','CPILFESL','T10YIE','DFF','DGS10','T10Y2Y'],
+  ['BAMLC0A0CM','BAMLH0A0HYM2','NFCI','MORTGAGE30US','DTWEXBGS']
+];
+/* Rank of v among the history the sidecar ships, matching the builder's
+   percentile_rank (share at or below). Daily series arrive downsampled, so
+   the year-ago rank is a close reading, not the builder's exact one. */
+function _macRankIn(s,v){
+  var hv=(s.hist&&s.hist.v)||[],n=0,c=0;
+  for(var i=0;i<hv.length;i++){if(hv[i]==null)continue;n++;if(hv[i]<=v)c++;}
+  return n?c/n:null;
+}
+function _macNarSpark(s){
+  var hd=(s.hist&&s.hist.d)||[],hv=(s.hist&&s.hist.v)||[];
+  if(hd.length<3||!s.latest)return '';
+  var end=new Date(s.latest.d),from=new Date(end.getTime()-3*365.25*864e5),xs=[],ys=[];
+  for(var i=0;i<hd.length;i++){
+    if(hv[i]==null)continue;
+    var t=new Date(hd[i]);if(t<from||t>end)continue;
+    xs.push(t.getTime());ys.push(hv[i]);
+  }
+  if(ys.length<3)return '';
+  var W=64,H=22,x0=xs[0],xr=(xs[xs.length-1]-x0)||1;
+  var mn=Math.min.apply(null,ys),mx=Math.max.apply(null,ys),r=(mx-mn)||1;
+  var X=function(x){return ((x-x0)/xr*(W-4)+1).toFixed(1);},Y=function(y){return (H-3-(y-mn)/r*(H-6)).toFixed(1);};
+  var pts=ys.map(function(y,j){return X(xs[j])+','+Y(y);}).join(' ');
+  var z='';
+  if(s.zero_line&&mn<0&&mx>0)z='<line x1="0" x2="'+W+'" y1="'+Y(0)+'" y2="'+Y(0)+'" class="mac-zero" stroke-width="0.6" stroke-dasharray="2,2"/>';
+  return '<svg class="mac-fig-spark" viewBox="0 0 '+W+' '+H+'" aria-hidden="true">'+z
+    +'<polyline points="'+pts+'" class="mac-ln" fill="none" stroke-width="1.2" stroke-linejoin="round"/>'
+    +'<circle cx="'+X(xs[xs.length-1])+'" cy="'+Y(ys[ys.length-1])+'" r="2" class="mac-pt"/></svg>';
+}
+function _macNarFigure(i,legend){
+  if(!MACRO||!MACRO.series)return '';
+  var ids=_MAC_NAR_IDS[i]||[],rows='';
+  ids.forEach(function(id){
+    var s=MACRO.series[id];
+    if(!s||!s.latest||s.pctile==null)return;
+    var now=Math.max(0,Math.min(1,s.pctile)),ago=null;
+    if(s.chg_1y!=null)ago=_macRankIn(s,s.latest.v-s.chg_1y);
+    var good=s.good||'none',cls='';
+    if(ago!=null&&good!=='none'&&s.chg_1y)cls=((s.chg_1y>0)===(good==='up'))?' up':' down';
+    var pc=Math.round(now*100),L=function(p){return (p*100).toFixed(1)+'%';};
+    var tr='<div class="mac-fig-track" role="img" aria-label="'+s.l+': '+_ord(pc)+' percentile of '+(s.pct_win||'its history')
+      +(ago!=null?', '+_ord(Math.round(ago*100))+' a year ago':'')+'">';
+    if(ago!=null){
+      var a=Math.min(ago,now),b=Math.max(ago,now);
+      tr+='<div class="mac-fig-move'+cls+'" style="left:'+L(a)+';width:'+L(b-a)+'"></div>'
+        +'<div class="mac-fig-ago'+cls+'" style="left:'+L(ago)+'"></div>';
+    }
+    tr+='<div class="mac-fig-now'+cls+'" style="left:'+L(now)+'"></div></div>';
+    rows+='<div class="mac-fig-row" title="'+s.l+' · '+_ord(pc)+' percentile of '+(s.pct_win||'history')+'">'
+      +'<div class="mac-fig-l"><span>'+s.l+'</span><b>'+_mfmt(s.latest.v,s.fmt,s.suffix)+'</b></div>'
+      +_macNarSpark(s)+tr
+      +'<div class="mac-fig-pc">'+_ord(pc)+'</div></div>';
+  });
+  if(!rows)return '';
+  return '<div class="mac-fig">'
+    +(legend?'<div class="mac-fig-head"><span class="mac-fig-sp">Last 3 years</span><span class="mac-fig-key">'
+      +'Rank in own history <i class="mac-fig-k-ago"></i> a year ago <i class="mac-fig-k-now"></i> now</span></div>':'')
+    +'<div class="mac-fig-scale"><span></span><span class="mac-fig-sp"></span><span class="mac-fig-lh"><span>Low</span><span>High</span></span><span>pctile</span></div>'
+    +rows+'</div>';
+}
+/* Every sector on one line per stance, so the shape of the read — how many
+   sectors macro is helping, how many it is hurting — shows before the
+   paragraphs. Chips link to the sector's tab like the names below. */
+function _macStanceStrip(grp,secLink){
+  var o='<div class="mac-stance">';
+  [['up','▲ Tailwind'],['','● Neutral'],['down','▼ Headwind']].forEach(function(g){
+    var items=grp[g[0]];
+    o+='<div class="mac-stance-col '+(g[0]||'flat')+'"><div class="mac-stance-h">'+g[1]+' <span>'+items.length+'</span></div>'
+      +'<div class="mac-stance-chips">'+(items.length?items.map(secLink).join(''):'<em>none</em>')+'</div></div>';
+  });
+  return o+'</div>';
+}
 function _macNarrativeHTML(){
   /* Claude-written narrative from the builder (data/claude_narrative.py),
      set part paragraph, part bullets: each kickered section opens with its
@@ -11431,6 +11558,7 @@ function _macNarrativeHTML(){
       ss.slice(1).forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
       h+='</ul>';
     }
+    if(KICK[i])h+=_macNarFigure(i,i===0);
   });
   var tw=(nar.tailwinds||[]).filter(Boolean),hw=(nar.headwinds||[]).filter(Boolean);
   if(tw.length||hw.length){
@@ -11460,6 +11588,7 @@ function _macNarrativeHTML(){
     var secLink=function(it){
       return '<a href="#" onclick="return _macGoSector('+it.i+')">'+_esc(it.row.sector)+'</a>';
     };
+    h+=_macStanceStrip(grp,secLink);
     var hasInf=function(it){var row=it.row;return !!(row.influence);};
     var secList=function(items,cls,label){
       if(!items.length)return '';

@@ -319,3 +319,26 @@ def test_every_macro_subtab_opens_with_an_explainer():
     # the explainer precedes the data note, so it is the first thing read
     body = sec.group(0)
     assert body.find('_macIntroHTML(k)') < body.find('mac-sec-note')
+
+
+def test_macro_narrative_sections_carry_figures():
+    """Each kickered narrative section is followed by a dot plot of the
+    indicators it argues from (rank in own history, now vs a year ago), and
+    the sector influences open with a stance strip. The figures read only
+    repo-authored series ids from the sidecar, never model text."""
+    css = _css()
+    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
+    assert nar, 'could not find _macNarrativeHTML'
+    nar = nar.group(0)
+    assert 'h+=_macNarFigure(i,i===0)' in nar, \
+        'each narrative section needs its figure'
+    assert '_macStanceStrip(grp,secLink)' in nar, \
+        'the sector influences open with the stance strip'
+    fig = re.search(r'function _macNarFigure\(i,legend\)\{.*?\n\}\n', css,
+                    re.S)
+    assert fig, 'could not find _macNarFigure'
+    assert 'nar.' not in fig.group(0), \
+        'figures draw from MACRO.series, not the narrative'
+    ids = re.search(r'var _MAC_NAR_IDS=\[(.*?)\];', css, re.S)
+    assert ids and ids.group(1).count('[') == 3, \
+        'one id list per narrative paragraph'
