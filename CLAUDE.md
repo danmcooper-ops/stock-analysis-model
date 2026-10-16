@@ -729,8 +729,11 @@ ruff check .
     first pushes its origin onto `_drillStack`: `#sn-back` in the subnav
     reads `‹ <origin>`, and it, the `b` key and the browser's Back
     (`pushState`, one entry per drill) restore the origin's view, sub-tab,
-    sector section, scroll and filters. Navigating by hand or Clear empties
-    the stack; share links do not carry it.
+    sector section and scroll. Any other way out goes through `navGo`
+    (`_drillLeave`) and drops every pending drill. Either way the filter a
+    drill engaged is undone, field by field against the state sealed right
+    after the drill (`_drillSeal`), so a filter the user added or retuned
+    afterwards stays. Clear empties the stack; share links do not carry it.
   - History (`history`).
   - Value creation (`value`).
   - Trading (`flow`).

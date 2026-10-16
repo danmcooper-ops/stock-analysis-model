@@ -3447,11 +3447,13 @@ function clearDashFilter(){if(!_dashFilter)return;_dashFilter=null;applyFilters(
    A chart that drills somewhere else (a Profit Pool industry, a Dashboard
    card, rating box or map country into the Gate Matrix; the Sector Heatmap
    or the Cross-Sector Profit Pool into a sector page) first pushes where it
-   was: view, sub-tab, sector-page section, scroll and the whole filter state.
-   #sn-back then reads "‹ <origin>", and it, the b key and the browser's Back
-   (one history entry per drill) pop the stack and restore all of it, so the
-   industry filter the drill set does not outlive the trip. Navigating by
-   hand (sidebar, chips, hotkeys, swipe) or Clear empties the stack. */
+   was: view, sub-tab, sector-page section, scroll, and the filter state
+   before and after the drill. #sn-back then reads "‹ <origin>", and it, the
+   b key and the browser's Back (one history entry per drill) pop one hop.
+   Any other way out (navGo: sidebar, chips, hotkeys, swipe, in-page links)
+   leaves every pending drill. Either way the filter a drill engaged is
+   undone — only that one: a filter the user changed afterwards is theirs and
+   stays. Clear empties the stack along with everything else. */
 var _drillStack=[],_DRILL_MAX=5,_drillRestoring=false;
 function _drillSub(){
   if(curView==='pool')return _poolTab||'__performance__';
@@ -3463,7 +3465,7 @@ function _drillSub(){
 function _drillPush(label){
   if(_drillRestoring)return;
   var e={label:label,view:curView,sub:_drillSub(),ppTab:_ppSubTabCur(),
-         scrollY:window.scrollY||0,filters:_getCurrentFilterState(),pushed:false};
+         scrollY:window.scrollY||0,before:_getCurrentFilterState(),after:null,pushed:false};
   _drillStack.push(e);
   if(_drillStack.length>_DRILL_MAX)_drillStack.shift();
   /* Flush the pending hash first so the entry left behind carries the
@@ -3472,9 +3474,55 @@ function _drillPush(label){
   try{history.pushState({drill:_drillStack.length},'',location.href);e.pushed=true;}catch(err){}
   _drillSyncBack();
 }
+/* The state the drill left behind, taken once its filter is applied (every
+   launcher ends in _dashJump or drillPoolTab, which seal it). */
+function _drillSeal(){
+  var e=_drillStack[_drillStack.length-1];
+  if(e&&!e.after)e.after=_getCurrentFilterState();
+}
+/* Undo what entry e's drill changed in the filters, field by field (column
+   filters key by key), where the field still holds what the drill set. */
+function _drillUndoState(e,cur){
+  var b=e.before||{},a=e.after,J=JSON.stringify,st={},k;
+  if(!a)return cur;
+  for(k in cur)st[k]=cur[k];
+  var keys={};
+  [b,a,cur].forEach(function(o){for(var x in o)if(x!=='colFilters')keys[x]=1;});
+  for(k in keys){
+    if(J(b[k])!==J(a[k])&&J(cur[k])===J(a[k])){
+      if(b[k]===undefined)delete st[k];else st[k]=b[k];
+    }
+  }
+  var byKey=function(l){var m={};(l||[]).forEach(function(c){m[c.key]=c;});return m;};
+  var bm=byKey(b.colFilters),am=byKey(a.colFilters),cm=byKey(cur.colFilters),rev={};
+  for(k in am)if(!(k in bm))bm[k]=undefined;
+  for(k in bm){if(J(bm[k])!==J(am[k])&&J(cm[k])===J(am[k]))rev[k]=1;}
+  var cf=[];
+  (cur.colFilters||[]).forEach(function(c){
+    if(!rev[c.key])cf.push(c);
+    else if(bm[c.key])cf.push(bm[c.key]);
+  });
+  for(k in rev)if(bm[k]&&!cm[k])cf.push(bm[k]);
+  st.colFilters=cf;
+  return st;
+}
+function _drillUndoFilters(entries){
+  var cur=_getCurrentFilterState(),st=cur;
+  entries.forEach(function(e){st=_drillUndoState(e,st);});
+  if(JSON.stringify(st)!==JSON.stringify(cur))_applyFilterState(st);
+}
 function _drillClear(){
   if(!_drillStack.length)return;
   _drillStack=[];
+  _drillSyncBack();
+}
+/* Navigating away by hand: undo every pending drill's filter, newest first. */
+function _drillLeave(){
+  if(_drillRestoring||!_drillStack.length)return;
+  var es=_drillStack.slice().reverse();
+  _drillStack=[];
+  _drillRestoring=true;
+  try{_drillUndoFilters(es);}finally{_drillRestoring=false;}
   _drillSyncBack();
 }
 function _drillSyncBack(){
@@ -3491,7 +3539,7 @@ function _drillRestore(){
     if(dm&&dm.classList.contains('open'))closeDetail();
     ppHide();
     if(e.view==='pool')window._ppSubTabSel=e.ppTab;
-    _applyFilterState(e.filters);
+    _drillUndoFilters([e]);
     navGo(e.view,e.sub);
   }finally{_drillRestoring=false;}
   _drillSyncBack();
@@ -3507,7 +3555,7 @@ function drillBack(){
   setTimeout(function(){if(_drillStack[_drillStack.length-1]===e)_drillRestore();},400);
 }
 window.addEventListener('popstate',function(){if(_drillStack.length)_drillRestore();});
-function drillPoolTab(sec,label){_drillPush(label);showPoolTab(sec);}
+function drillPoolTab(sec,label){_drillPush(label);showPoolTab(sec);_drillSeal();}
 /* Land on Financial Model -> Gate Matrix with whatever filter state the
    caller just set, then re-run the filter pass so the matrix renders the
    drilled-down set. The category cards, rating boxes, and world-map
@@ -3516,6 +3564,7 @@ function _dashJump(){
   if(curView!=='matrix')showView('matrix');
   if(curMSub!=='matrix')swMSub('matrix');
   applyFilters();
+  _drillSeal();
 }
 function cycleDashGate(key){
   var f=_dashFilter;
@@ -11080,7 +11129,6 @@ function _swipeTab(dir){
   var ki=-1;g.items.forEach(function(it,i){if(String(it.k)===String(g.cur))ki=i;});
   var nx=g.items[ki+dir];
   if(ki<0||!nx)return false;
-  _drillClear();
   navGo(g.v,nx.k);
   var chip=document.querySelector('#subnav .sn-chip.cur');
   if(chip)chip.scrollIntoView({block:'nearest',inline:'nearest'});
@@ -11535,6 +11583,7 @@ function _syncNavCrumb(){
    whichever sub-tab it was last on. */
 function navGo(v,k){
   closeNavMenu();
+  _drillLeave();
   /* A top-level entry (a sidebar row, or its number hotkey) carries no
      sub-tab: it opens the section on its FIRST sub-tab — Macro Overview,
      Sector Charts, the Financial Model Dashboard, Financial Data Charts,
@@ -11576,7 +11625,6 @@ document.addEventListener('click',function(e){
   sbClose();
   var dm=document.getElementById('det-modal');
   if(dm&&dm.classList.contains('open'))closeDetail();
-  _drillClear();
   navGo(b.getAttribute('data-v'),b.hasAttribute('data-k')?b.getAttribute('data-k'):null);
 });
 /* === SIDEBAR STATE ===
@@ -11771,7 +11819,6 @@ function _hkBlocked(e){
 function _hkGo(gi,ki){
   var gs=_navGroups();
   if(!gs.length)return;
-  _drillClear();
   var g=gs[((gi%gs.length)+gs.length)%gs.length];
   var n=g.items.length;
   if(ki==null||!n){navGo(g.v,null);return;}
