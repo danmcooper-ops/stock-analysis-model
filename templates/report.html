@@ -2693,6 +2693,121 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 #det-modal .d-sum-btn:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:1px;}
 #det-modal .d-sum-btn svg{width:12px;height:12px;display:block;}
 #det-modal .dgroup-title .dg-icon{display:none;}
+/* Popup data tabs (Market … People): each metric row ranks the company
+   against the run's universe (bar + dot, tick = sector median), and a band
+   of chart cards (.dv-hero) leads the tab. Text colours go through --sac
+   (.sa-chrome) so they survive the blanket dark `body *` colour rule;
+   bars/zones use backgrounds, which that rule leaves alone. */
+#det-modal{--dv-pos:var(--chrome-pos);--dv-neg:var(--chrome-neg);--dv-mid:#b7791f;--dv-neu:#4f6fa8;
+  --dv-track:#ecebe8;--dv-zone-g:#d9eedd;--dv-zone-m:#f5e8cc;--dv-zone-b:#f7d9d6;--dv-tick:#1b1a19;}
+[data-theme="dark"] #det-modal{--dv-mid:#d29922;--dv-neu:#79a6f2;--dv-track:#262c36;
+  --dv-zone-g:#163823;--dv-zone-m:#3a2f14;--dv-zone-b:#40191c;--dv-tick:#e6edf3;}
+#det-modal .dv-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:0 0 12px;}
+#det-modal .dvc{--sac:var(--chrome-heading);background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px 12px;display:flex;flex-direction:column;gap:10px;min-width:0;}
+#det-modal .dvc.wide{grid-column:1/-1;}
+#det-modal .dvc-h{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+#det-modal .dvc-h small{--sac:var(--chrome-muted);font-weight:500;letter-spacing:0;text-transform:none;font-size:11.5px;}
+#det-modal .dvc-f{--sac:var(--chrome-muted);font-size:12px;line-height:1.45;margin-top:auto;}
+#det-modal .dv-big{font-size:26px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;}
+#det-modal .dv-mut{--sac:var(--chrome-muted);}
+#det-modal .dv-tk{display:inline-block;width:2px;height:10px;margin:0 2px -1px;background:var(--dv-tick);vertical-align:baseline;}
+#det-modal .dv-pos{--sac:var(--dv-pos);}#det-modal .dv-neg{--sac:var(--dv-neg);}#det-modal .dv-midc{--sac:var(--dv-mid);}
+/* 52-week range */
+#det-modal .dv-rng{position:relative;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--dv-zone-b),var(--dv-track) 50%,var(--dv-zone-g));margin:14px 0 4px;}
+#det-modal .dv-rng b{position:absolute;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--chrome-heading);border:3px solid var(--surface);box-shadow:0 0 0 1px var(--chrome-heading);}
+#det-modal .dv-rng i{position:absolute;bottom:14px;transform:translateX(-50%);font-style:normal;font-size:11.5px;font-weight:700;white-space:nowrap;}
+#det-modal .dv-rng-l{display:flex;justify-content:space-between;font-size:12px;font-variant-numeric:tabular-nums;}
+/* Labelled horizontal bars: label | track | value. */
+#det-modal .dv-bars{display:grid;grid-template-columns:auto 1fr auto;gap:7px 10px;align-items:center;font-size:12.5px;}
+#det-modal .dv-bars>.l{--sac:var(--chrome-muted);white-space:nowrap;}
+#det-modal .dv-bars>.v{font-weight:700;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+#det-modal .dv-trk{position:relative;height:12px;border-radius:3px;background:var(--dv-track);}
+#det-modal .dv-trk>span{position:absolute;top:0;bottom:0;border-radius:3px;}
+#det-modal .dv-trk>.ax{position:absolute;top:-3px;bottom:-3px;width:1.5px;margin-left:-.75px;background:var(--dv-tick);opacity:.55;}
+#det-modal .dv-trk>.rf{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--dv-tick);}
+#det-modal .dv-trk>.dot{position:absolute;top:50%;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;border:2px solid var(--surface);}
+#det-modal .bg-pos{background:var(--dv-pos);}#det-modal .bg-neg{background:var(--dv-neg);}#det-modal .bg-mid{background:var(--dv-mid);}#det-modal .bg-neu{background:var(--dv-neu);}#det-modal .bg-ink{background:var(--chrome-heading);}
+#det-modal .dv-scale{display:flex;justify-content:space-between;font-size:11px;--sac:var(--chrome-muted);font-variant-numeric:tabular-nums;}
+/* Zoned gauge */
+#det-modal .dv-gauge{position:relative;height:12px;border-radius:6px;overflow:visible;display:flex;margin-top:18px;}
+#det-modal .dv-gauge>.z{height:100%;}
+#det-modal .dv-gauge>.z:first-child{border-radius:6px 0 0 6px;}#det-modal .dv-gauge>.z:last-of-type{border-radius:0 6px 6px 0;}
+#det-modal .z-g{background:var(--dv-zone-g);}#det-modal .z-m{background:var(--dv-zone-m);}#det-modal .z-b{background:var(--dv-zone-b);}
+#det-modal .dv-gauge>b{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--chrome-heading);}
+#det-modal .dv-gauge>i{position:absolute;bottom:17px;transform:translateX(-50%);font-style:normal;font-size:12px;font-weight:700;white-space:nowrap;}
+#det-modal .dv-gauge-l{position:relative;height:14px;font-size:10.5px;--sac:var(--chrome-muted);font-variant-numeric:tabular-nums;}
+#det-modal .dv-gauge-l>span{position:absolute;transform:translateX(-50%);white-space:nowrap;}
+/* Equation tiles (DuPont, growth engine) */
+#det-modal .dv-eq{display:flex;align-items:stretch;gap:6px;}
+#det-modal .dv-eq>.t{flex:1 1 0;border:1px solid var(--border);border-radius:10px;padding:8px 10px;min-width:0;}
+#det-modal .dv-eq>.t.res{background:var(--dv-track);border-color:transparent;}
+#det-modal .dv-eq>.t>div:first-child{--sac:var(--chrome-muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#det-modal .dv-eq>.t>div:last-child{font-size:17px;white-space:nowrap;font-weight:700;font-variant-numeric:tabular-nums;}
+#det-modal .dv-eq>.op{--sac:var(--chrome-muted);align-self:center;font-size:16px;font-weight:600;}
+/* Column chart (growth ladder) */
+#det-modal .dv-cols{display:flex;gap:10px;align-items:stretch;height:130px;}
+#det-modal .dv-col{flex:1;display:flex;flex-direction:column;min-width:0;}
+#det-modal .dv-col .pl{position:relative;flex:1;}
+#det-modal .dv-col .pl>span{position:absolute;left:18%;right:18%;border-radius:3px;}
+#det-modal .dv-col .pl>em{position:absolute;left:0;right:0;text-align:center;font-style:normal;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;}
+#det-modal .dv-col .pl>.base{position:absolute;left:0;right:0;height:1px;background:var(--border);}
+#det-modal .dv-col .cl{--sac:var(--chrome-muted);font-size:11px;text-align:center;white-space:nowrap;margin-top:4px;}
+/* Stacked share bar */
+#det-modal .dv-stack{display:flex;height:16px;border-radius:5px;overflow:hidden;background:var(--dv-track);}
+#det-modal .dv-stack>span{height:100%;}
+#det-modal .dv-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;}
+#det-modal .dv-leg>span{display:inline-flex;align-items:center;gap:5px;}
+#det-modal .dv-leg i{width:9px;height:9px;border-radius:2px;display:inline-block;}
+#det-modal .dv-leg b{font-variant-numeric:tabular-nums;}
+/* Stat tiles */
+#det-modal .dv-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;}
+#det-modal .dv-stat>div:first-child{--sac:var(--chrome-muted);font-size:11.5px;}
+#det-modal .dv-stat>div:nth-child(2){font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;}
+#det-modal .dv-stat>div:nth-child(3){--sac:var(--chrome-muted);font-size:11.5px;}
+/* Football field: the price line is drawn in each row's plot cell at the
+   same left%, so it reads as one vertical line through the chart. */
+#det-modal .dv-ff{display:grid;grid-template-columns:minmax(90px,auto) 1fr minmax(96px,auto);column-gap:12px;font-size:12.5px;align-items:center;}
+#det-modal .dv-ff>.l{--sac:var(--chrome-muted);padding:5px 0;white-space:nowrap;}
+#det-modal .dv-ff>.l.em{--sac:var(--chrome-heading);font-weight:700;}
+#det-modal .dv-ff>.p{position:relative;align-self:stretch;min-height:26px;}
+#det-modal .dv-ff>.p>.rg{position:absolute;top:8px;bottom:8px;border-radius:3px;background:var(--dv-neu);opacity:.28;}
+#det-modal .dv-ff>.p>.pt{position:absolute;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--dv-neu);}
+#det-modal .dv-ff>.p>.pt.em{width:13px;height:13px;margin:-6.5px 0 0 -6.5px;background:var(--chrome-heading);}
+#det-modal .dv-ff>.p>.px{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed var(--chrome-accent);}
+#det-modal .dv-ff>.v{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+#det-modal .dv-ff>.v b{font-weight:700;}
+#det-modal .dv-ff>.ax{grid-column:2;display:flex;justify-content:space-between;--sac:var(--chrome-muted);font-size:11px;padding-top:4px;border-top:1px solid var(--border);font-variant-numeric:tabular-nums;position:relative;}
+@media(max-width:600px){ #det-modal .dv-ff{grid-template-columns:auto 1fr auto;column-gap:8px;} #det-modal .dv-ff>.ax>span:not(.pxl){visibility:hidden;} #det-modal .dv-key{padding:0 16px 2px;} }
+#det-modal .dv-ff>.ax>.pxl{position:absolute;top:4px;transform:translateX(-50%);--sac:var(--chrome-accent);font-weight:700;background:var(--surface);padding:0 3px;}
+/* Ranked metric rows */
+#det-modal .dv-sec{--sac:var(--chrome-heading);}
+#det-modal .dv-rows{display:grid;grid-template-columns:1fr 1fr;gap:4px 22px;}
+@media(max-width:700px){ #det-modal .dv-rows{grid-template-columns:1fr;}}
+#det-modal .dvr{padding:6px 2px 7px;border-bottom:1px solid var(--border);min-width:0;}
+#det-modal .dvr-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px;}
+#det-modal .dvr-h .kl{--sac:var(--chrome-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#det-modal .dvr-h .kv{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;}
+#det-modal .dvr-h .kv.na{--sac:var(--chrome-muted);font-weight:400;}
+#det-modal .dvr-b{display:flex;align-items:center;gap:8px;margin-top:5px;}
+#det-modal .dvr-t{position:relative;flex:1;height:5px;border-radius:3px;background:var(--dv-track);}
+#det-modal .dvr-t>span{position:absolute;left:0;top:0;bottom:0;border-radius:3px;opacity:.38;}
+#det-modal .dvr-t>b{position:absolute;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;}
+#det-modal .dvr-t>i{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--dv-tick);opacity:.7;border-radius:1px;}
+#det-modal .dvr-p{--sac:var(--chrome-muted);font-size:11px;width:34px;text-align:right;font-variant-numeric:tabular-nums;}
+#det-modal .dv-key{--sac:var(--chrome-muted);display:flex;flex-wrap:wrap;gap:4px 16px;font-size:11.5px;padding:0 20px 2px;}
+#det-modal .dv-key span{display:inline-flex;align-items:center;gap:6px;}
+#det-modal .dv-key .sw{width:22px;height:5px;border-radius:3px;background:var(--dv-track);position:relative;display:inline-block;}
+#det-modal .dv-key .sw>b{position:absolute;top:50%;left:65%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;}
+#det-modal .dv-key .sw>i{position:absolute;top:-3px;bottom:-3px;left:40%;width:2px;background:var(--dv-tick);opacity:.7;}
+#d-pane-data .dsec{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px 8px;}
+#d-pane-data .dsec h3{color:var(--chrome-heading);font-size:11px;letter-spacing:.07em;border-bottom:0;padding-bottom:0;margin-bottom:4px;}
+#d-pane-data .dkvg{gap:0 22px;}
+#d-pane-data .dkv{background:none;border-radius:0;border-bottom:1px solid var(--border);padding:7px 2px;font-size:13px;}
+#d-pane-data .dkv:nth-child(odd){background:none;}
+#d-pane-data .dkv .kl{color:var(--chrome-muted);}
+#d-pane-data .dkv .kv{color:var(--chrome-heading);font-weight:700;font-variant-numeric:tabular-nums;}
+#det-modal .dsec.dv-sec{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px 8px;}
+#det-modal .dsec.dv-sec h3{--sac:var(--chrome-heading);font-size:11px;letter-spacing:.07em;border-bottom:0;padding-bottom:0;margin-bottom:4px;}
 /* Chart controls (.cm-uline: the ticker page's Summary chart and the
    Financial Data Charts view) open from the chart's ☰ button, like the other
    chart menus, and inside it are drawn as underline tabs like the section
@@ -8947,7 +9062,7 @@ var DT_TABS=[
   {t:'Liquidity',cols:[{k:'avg_dollar_volume_3m'},{k:'volume_trend'},{k:'amihud_illiquidity'},{k:'share_turnover_rate'}]},
   {t:'52-Week Range',cols:[{k:'high_52w',l:'52W High',f:'dollar'},{k:'low_52w',l:'52W Low',f:'dollar'},{k:'range_52w_position'},{k:'pct_from_52w_high'},{k:'pct_from_52w_low',l:'% from Low',f:'pct'}]},
   {t:'Risk & Beta',cols:[{k:'realized_vol'},{k:'beta_adjusted'},{k:'beta_raw',l:'Beta (raw)',f:'n2'},{k:'beta_shrink_weight',l:'Beta Shrink Wt',f:'n2'},{k:'beta_se',l:'Beta SE',f:'n2'},{k:'beta_r2',l:'Beta R²',f:'n2'},{k:'beta_n_obs',l:'Beta Obs (wk)',f:'int'},{k:'drawdown_2020'},{k:'drawdown_2022'},{k:'drawdown_2008'}]}
- ],extra:_detRollingBetaHtml},
+ ]},
  {k:'val',l:'Valuation',groups:[
   /* The full Intrinsic Value block (DCF, Monte Carlo, DDM, EPV/RIM/NAV,
      assumptions strip) renders via the `after` hook — this group carries
@@ -9158,20 +9273,6 @@ function _detIntrinsicHtml(d){
   +'</div>';
   return ivH;
 }
-function _detRollingBetaHtml(d){
-  var rbV=d.rolling_betas;
-  if(!rbV)return '';
-  var _rbNum=function(v){if(v==null)return null;if(typeof v==='number')return v;if(typeof v==='object'&&typeof v.beta==='number')return v.beta;return null;};
-  var _rb1n=_rbNum(rbV['1y']),_rb3n=_rbNum(rbV['3y']),_rb5n=_rbNum(rbV['5y']);
-  var rb1=_rb1n!=null?_rb1n.toFixed(2):'N/A';
-  var rb3=_rb3n!=null?_rb3n.toFixed(2):'N/A';
-  var rb5=_rb5n!=null?_rb5n.toFixed(2):'N/A';
-  var stab=_rbNum(rbV['stability']);
-  if(stab==null&&_rb1n!=null&&_rb5n!=null)stab=Math.abs(_rb1n-_rb5n);
-  var stabLbl=stab!=null?(stab<0.1?'Stable':stab<0.2?'Moderate':'Volatile'):'N/A';
-  var stabC=stab!=null?(stab<0.1?'color:#1a9850':stab>=0.2?'color:#de2d26':''):'';
-  return '<div class="dsec"><h3>Rolling Beta (raw, weekly)</h3><div class="dkvg">'+bkv([['1yr Beta (raw)',rb1],['3yr Beta (raw)',rb3],['5yr Beta (raw)',rb5],['Stability',stabLbl,stabC]])+'</div></div>';
-}
 function _detStreetHtml(d){
   if(d.target_mean==null&&!d.analyst_rec&&d.num_analysts==null)return '';
   var _fvEff=d._fv_effective!=null?d._fv_effective:d.dcf_fv;
@@ -9255,7 +9356,6 @@ function _detSectorAnalysisHtml(d){
   var _rs=d.pp_revenue_share;
   var _ps=d.pp_profit_share;
   ppH+='<div class="dsec"><h3>Company Position</h3><div class="dkvg">'+bkv([['Revenue',fds(d.revenue)],['Operating Income',fds(d.operating_income)],['Operating Margin',fp(d.operating_margin),_opmC],['Profit Pool Multiple',_ppm!=null?_ppm.toFixed(2)+'×':'N/A',_ppmC],['Revenue Share',_rs!=null?(_rs*100).toFixed(1)+'%':'N/A'],['Profit Share',_ps!=null?(_ps*100).toFixed(1)+'%':'N/A']])+'</div>';
-  if(_rs!=null||_ps!=null){ppH+='<div style="margin-top:6px">';if(_rs!=null){ppH+='<div style="font-size:0.75em;color:#888;margin-bottom:2px">Rev Share</div><div class="pp-bar"><div class="pp-bar-fill" style="width:'+Math.min(_rs*100/30*100,100)+'%;background:#5b6abf"></div></div>';}if(_ps!=null){ppH+='<div style="font-size:0.75em;color:#888;margin:4px 0 2px">Profit Share</div><div class="pp-bar"><div class="pp-bar-fill" style="width:'+Math.min(_ps*100/30*100,100)+'%;background:#7030a0"></div></div>';}ppH+='</div>';}
   ppH+='</div>';
   /* Right column: sector context */
   var _hhi=d.pp_sector_hhi;
@@ -9266,6 +9366,432 @@ function _detSectorAnalysisHtml(d){
   ppH+='<div class="dsec"><h3>Sector Context</h3><div class="dkvg">'+bkv([['Sector',esc(d.sector||'')],['Companies in Universe',d.pp_sector_count!=null?''+d.pp_sector_count:'N/A'],['Sector HHI',_hhi!=null?_hhi.toFixed(4)+_hhiLbl:'N/A',_hhiC],['CR4 (Top-4 Share)',d.pp_sector_cr4!=null?(d.pp_sector_cr4*100).toFixed(1)+'%':'N/A'],['Sector Median Op Margin',fp(d._sector_median_opm)],['Margin Advantage',_ma!=null?((_ma>0?'+':'')+(_ma*100).toFixed(1)+' pp'):'N/A',_maC]])+'</div></div>';
   ppH+='</div></div>';
   return ppH;
+}
+/* === Popup data-tab visuals ==================================================
+   A bare "label … value" list says nothing about whether 0.13 is good. Every
+   numeric row now carries its rank in this run's universe (bar to the
+   percentile, dot coloured by whether that end is favourable, tick at the
+   sector median), and each tab opens with a band of chart cards (DV_HERO)
+   that draw the relationships the rows can't: where price sits in its range,
+   price against every fair value, ROE as margin × turnover × leverage, and so
+   on. Display-only: nothing here feeds the rating. */
+/* +1 higher is better, -1 lower is better, 0 ranked without a verdict
+   (neutral colour). Keys not listed rank neutrally. */
+var DV_DIR={
+  momentum_12_1:1,momentum_6_1:1,momentum_3m:1,vol_adj_momentum:1,avg_dollar_volume_3m:1,amihud_illiquidity:-1,
+  realized_vol:-1,drawdown_2020:1,drawdown_2022:1,drawdown_2008:1,
+  pe:-1,ev_ebitda:-1,pfcf:-1,pb:-1,p_tbv:-1,epv_pfv:-1,
+  roic:1,roic_cv:-1,spread:1,roe:1,roa:1,dupont_margin:1,dupont_turnover:1,gross_margin:1,fcf_margin:1,
+  fcf_margin_ex_sbc:1,cash_conv:1,accruals:-1,piotroski:1,sbc_pct_rev_xbrl:-1,nim:1,efficiency_ratio:-1,
+  deposit_beta:-1,combined_ratio:-1,float_cost:-1,affo_margin:1,
+  int_cov:1,nd_ebitda:-1,de:-1,net_cash_to_mcap:1,debt_maturity_wall_yrs:1,cr:1,inventory_days:-1,
+  working_capital_days:-1,altman_z:1,beneish_m:-1,goodwill_pct:-1,cet1_ratio:1,npl_ratio:-1,
+  fundamental_growth:1,margin_trend:1,rule_of_40:1,rev_cagr:1,rev_cagr_5y:1,rev_cagr_10y:1,fcf_growth:1,
+  surprise_avg:1,ffo_growth_5y:1,deferred_rev_growth:1,backlog_to_revenue:1,book_to_bill_proxy:1,
+  insider_pct:1,short_ratio:-1,short_pct_float:-1,share_buyback_rate:1,shareholder_yield:1,
+  ddm_consecutive_years:1,dividend_cagr_5y:1,ddm_div_cagr:1,ddm_sustainable_growth:1,
+  revenue_per_emp:1,fcf_per_emp:1,rpe_cagr:1,sbc_per_emp:-1,ceo_pay_ratio:-1,compensation_risk:-1,
+  glassdoor_rating:1,glassdoor_ceo_pct:1,glassdoor_rec_pct:1
+};
+/* Multiples are meaningless at or below zero (a loss-maker's P/E): those
+   values are left out of the ranking and the row shows no bar. */
+var DV_POS={pe:1,ev_ebitda:1,pfcf:1,pb:1,p_tbv:1,epv_pfv:1};
+/* Price levels and estimation diagnostics: a rank across companies means nothing. */
+var DV_NORANK={price:1,high_52w:1,low_52w:1,tangible_book_per_share:1,beta_shrink_weight:1,beta_se:1,beta_r2:1,beta_n_obs:1,position_weight:1};
+var DV_MIN_N=20,DV_MIN_SECTOR_N=5;
+var _dvCache={},_dvFor=null,_dvLen=-1;
+function _dvVals(key,sector){
+  if(_dvFor!==DATA||_dvLen!==DATA.length){_dvCache={};_dvFor=DATA;_dvLen=DATA.length;}
+  var ck=key+'\u0001'+(sector==null?'':sector);
+  if(_dvCache[ck])return _dvCache[ck];
+  var pos=DV_POS[key],a=[];
+  for(var i=0;i<DATA.length;i++){
+    var r=DATA[i];if(sector!=null&&r.sector!==sector)continue;
+    var v=r[key];if(typeof v!=='number'||!isFinite(v)||(pos&&v<=0))continue;
+    a.push(v);
+  }
+  a.sort(function(x,y){return x-y;});
+  return(_dvCache[ck]=a);
+}
+/* Mid-rank percentile in [0,1]: ties split evenly, so a value shared by the
+   whole universe sits at 50, not 0 or 100. */
+function _dvRank(a,v){
+  var lo=0,hi=a.length;while(lo<hi){var m=(lo+hi)>>1;if(a[m]<v)lo=m+1;else hi=m;}
+  var b=lo;hi=a.length;while(lo<hi){var m2=(lo+hi)>>1;if(a[m2]<=v)lo=m2+1;else hi=m2;}
+  return(b+(lo-b)/2)/a.length;
+}
+function _dvMedian(a){if(!a||!a.length)return null;var m=a.length>>1;return a.length%2?a[m]:(a[m-1]+a[m])/2;}
+function _dvOrd(n){var s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+function _dvNum(v){return typeof v==='number'&&isFinite(v)?v:null;}
+function _dvClamp(x,a,b){return Math.max(a,Math.min(b,x));}
+/* Tone of a value from its percentile and direction: 'pos'/'neg' in the
+   favourable/unfavourable third, 'mid' between, 'neu' with no verdict. */
+function _dvTone(p,dir){
+  if(!dir)return 'neu';
+  var g=dir>0?p:1-p;
+  return g>=2/3?'pos':g<1/3?'neg':'mid';
+}
+function _dvPx(v){var n=_dvNum(v);return n==null?'N/A':'$'+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
+function _dvPct(v,d){var n=_dvNum(v);return n==null?'N/A':(n>0?'+':'')+(n*100).toFixed(d==null?1:d)+'%';}
+function _dvTipAttr(k){return k&&tt(k)?' data-dkv-tip="'+_attr(k)+'"':'';}
+/* One metric row: label + value, then the rank track. */
+function _dvRow(c,d){
+  var def=_DT_LOOKUP[c.k]||{};
+  var l=c.l||def.l||c.k,f=c.f||def.f||'text';
+  var v=d[c.k];
+  if(c.sec&&v==null)return '';
+  var ft=ftc(v,f),n=_dvNum(v);
+  var h='<div class="dvr"><div class="dvr-h"><span class="kl"'+_dvTipAttr(c.k)+'>'+esc(l)+'</span>';
+  var bar='',tone='neu';
+  if(n!=null&&f!=='text'&&f!=='bool'&&f!=='dollar'&&!DV_NORANK[c.k]&&!(DV_POS[c.k]&&n<=0)){
+    var a=_dvVals(c.k);
+    if(a.length>=DV_MIN_N){
+      var p=_dvRank(a,n),dir=DV_DIR[c.k]||0;tone=_dvTone(p,dir);
+      var pc=Math.round(p*100),sa=d.sector?_dvVals(c.k,d.sector):[],med=sa.length>=DV_MIN_SECTOR_N?_dvMedian(sa):null;
+      var tip='Higher than '+pc+'% of '+a.length+' stocks in this run'
+        +(med!=null?' · '+(d.sector)+' median '+ftc(med,f).t+' (n='+sa.length+')':'')
+        +(dir?' · '+(dir>0?'higher':'lower')+' is better':'');
+      bar='<div class="dvr-b" title="'+_attr(tip)+'"><div class="dvr-t"><span class="bg-'+tone+'" style="width:'+pc+'%"></span>'
+        +(med!=null?'<i style="left:'+(_dvRank(a,med)*100).toFixed(1)+'%"></i>':'')
+        +'<b class="bg-'+tone+'" style="left:'+pc+'%"></b></div><span class="dvr-p">'+_dvOrd(pc)+'</span></div>';
+    }
+  }
+  /* The value takes the tone only at the extremes, so colour stays a signal. */
+  var vc=v==null?' na':'';
+  if(bar&&tone!=='neu'){var p2=_dvRank(_dvVals(c.k),n),g=(DV_DIR[c.k]>0?p2:1-p2);if(g>=0.8)vc=' dv-pos';else if(g<0.2)vc=' dv-neg';}
+  h+='<span class="kv'+vc+'">'+esc(ft.t)+'</span></div>'+bar+'</div>';
+  return h;
+}
+function _dvCard(title,body,foot,cls,tipKey,aside){
+  if(!body)return '';
+  return '<div class="dvc sa-chrome'+(cls?' '+cls:'')+'"><div class="dvc-h"><span'+_dvTipAttr(tipKey)+(tipKey&&tt(tipKey)?' class="kl"':'')+'>'+esc(title)+'</span>'
+    +(aside?'<small>'+aside+'</small>':'')+'</div>'+body+(foot?'<div class="dvc-f">'+foot+'</div>':'')+'</div>';
+}
+/* Labelled bars on a shared axis. items: {l, v, t (text), tone, tip, ref}.
+   Diverging around zero when any value is negative (or opts.div). */
+function _dvBars(items,opts){
+  opts=opts||{};
+  items=items.filter(function(x){return _dvNum(x.v)!=null;});
+  if(!items.length)return '';
+  var lo=opts.min!=null?opts.min:0,hi=opts.max!=null?opts.max:0;
+  items.forEach(function(x){lo=Math.min(lo,x.v,x.ref!=null?x.ref:0);hi=Math.max(hi,x.v,x.ref!=null?x.ref:0);});
+  if(hi===lo)hi=lo+1;
+  var span=hi-lo,z=(0-lo)/span*100;
+  var h='<div class="dv-bars">';
+  items.forEach(function(x){
+    var a=(Math.min(0,x.v)-lo)/span*100,b=(Math.max(0,x.v)-lo)/span*100;
+    var tone=x.tone||(x.v>=0?'pos':'neg');
+    h+='<span class="l'+(x.tip&&tt(x.tip)?' kl':'')+'"'+_dvTipAttr(x.tip)+'>'+esc(x.l)+'</span><div class="dv-trk"><span class="bg-'+tone+'" style="left:'+a.toFixed(2)+'%;width:'+Math.max(b-a,0.6).toFixed(2)+'%"></span>'
+      +(lo<0?'<i class="ax" style="left:'+z.toFixed(2)+'%"></i>':'')
+      +(x.ref!=null?'<i class="rf" style="left:'+((x.ref-lo)/span*100).toFixed(2)+'%" title="'+_attr(x.refT||'')+'"></i>':'')
+      +'</div><span class="v dv-'+(tone==='neu'?'x':tone==='mid'?'midc':tone)+'">'+esc(x.t)+'</span>';
+  });
+  return h+'</div>';
+}
+/* Zoned gauge. zones: [[from,to,'g'|'m'|'b'],...] spanning [lo,hi]. */
+function _dvGauge(v,lo,hi,zones,txt,ticks){
+  var n=_dvNum(v);if(n==null)return '';
+  var span=hi-lo,h='<div class="dv-gauge">';
+  zones.forEach(function(z){h+='<span class="z z-'+z[2]+'" style="width:'+((z[1]-z[0])/span*100).toFixed(2)+'%"></span>';});
+  var x=_dvClamp((n-lo)/span,0,1)*100;
+  h+='<b style="left:'+x.toFixed(2)+'%"></b><i style="left:'+_dvClamp(x,6,94).toFixed(2)+'%">'+esc(txt)+(n<lo||n>hi?(n<lo?' ◂':' ▸'):'')+'</i></div>';
+  h+='<div class="dv-gauge-l">';
+  (ticks||zones.slice(1).map(function(z){return z[0];})).forEach(function(t){h+='<span style="left:'+((t-lo)/span*100).toFixed(2)+'%">'+t+'</span>';});
+  return h+'</div>';
+}
+function _dvZoneOf(v,zones){for(var i=0;i<zones.length;i++)if(v<zones[i][1]||i===zones.length-1)return zones[i][2];return 'm';}
+var _DV_ZT={g:'pos',m:'midc',b:'neg'};
+function _dvGaugeCard(title,tip,v,lo,hi,zones,fmt,words,foot){
+  var n=_dvNum(v);if(n==null)return '';
+  var z=_dvZoneOf(n,zones);
+  return _dvCard(title,_dvGauge(n,lo,hi,zones,fmt(n)),
+    '<span class="dv-'+_DV_ZT[z]+'"><b>'+esc(words[z])+'</b></span>'+(foot?' · '+foot:''),null,tip);
+}
+function _dvEq(parts){
+  /* parts: [{l,t,res}] with ops between: '×','=' etc. given as strings */
+  var h='<div class="dv-eq">';
+  parts.forEach(function(p){
+    if(typeof p==='string'){h+='<span class="op">'+p+'</span>';return;}
+    h+='<div class="t'+(p.res?' res':'')+'"><div'+_dvTipAttr(p.tip)+(p.tip&&tt(p.tip)?' class="kl"':'')+'>'+esc(p.l)+'</div><div'+(p.c?' class="'+p.c+'"':'')+'>'+esc(p.t)+'</div></div>';
+  });
+  return h+'</div>';
+}
+function _dvCols(items){
+  items=items.filter(function(x){return _dvNum(x.v)!=null;});
+  if(items.length<2)return '';
+  var hi=0,lo=0;items.forEach(function(x){hi=Math.max(hi,x.v);lo=Math.min(lo,x.v);});
+  if(hi===lo)hi=1;
+  /* 18% headroom on each side that has bars, for the value labels. */
+  var top=hi>0?hi*1.25:0,bot=lo<0?lo*1.25:0,span=top-bot,base=(top/span)*100;
+  var h='<div class="dv-cols">';
+  items.forEach(function(x){
+    var tone=x.v>=0?'pos':'neg',hgt=Math.abs(x.v)/span*100;
+    var pos=x.v>=0?'top:'+(base-hgt).toFixed(2)+'%;height:'+Math.max(hgt,0.8).toFixed(2)+'%':'top:'+base.toFixed(2)+'%;height:'+Math.max(hgt,0.8).toFixed(2)+'%';
+    var lbl=x.v>=0?'top:calc('+(base-hgt).toFixed(2)+'% - 17px)':'top:calc('+(base+hgt).toFixed(2)+'% + 2px)';
+    h+='<div class="dv-col"><div class="pl"><div class="base" style="top:'+base.toFixed(2)+'%"></div><span class="bg-'+tone+'" style="'+pos+'"></span><em class="dv-'+tone+'" style="'+lbl+'">'+esc(x.t)+'</em></div><div class="cl"'+_dvTipAttr(x.tip)+'>'+esc(x.l)+'</div></div>';
+  });
+  return h+'</div>';
+}
+function _dvStack(parts){
+  parts=parts.filter(function(p){return p.v>0;});
+  if(!parts.length)return '';
+  var tot=parts.reduce(function(s,p){return s+p.v;},0),h='<div class="dv-stack">';
+  parts.forEach(function(p){h+='<span style="width:'+(p.v/Math.max(tot,1)*100).toFixed(2)+'%;background:'+p.c+'" title="'+_attr(p.l+' '+(p.v*100).toFixed(1)+'%')+'"></span>';});
+  h+='</div><div class="dv-leg">';
+  parts.forEach(function(p){h+='<span><i style="background:'+p.c+'"></i><span class="dv-mut">'+esc(p.l)+'</span><b>'+(p.v*100).toFixed(1)+'%</b></span>';});
+  return h+'</div>';
+}
+function _dvStats(items){
+  items=items.filter(function(x){return x.t!=null&&x.t!=='N/A';});
+  if(!items.length)return '';
+  return '<div class="dv-stats">'+items.map(function(x){
+    return '<div class="dv-stat"><div'+_dvTipAttr(x.tip)+(x.tip&&tt(x.tip)?' class="kl"':'')+'>'+esc(x.l)+'</div><div'+(x.c?' class="'+x.c+'"':'')+'>'+esc(x.t)+'</div><div>'+(x.s||'&nbsp;')+'</div></div>';
+  }).join('')+'</div>';
+}
+/* "1.8× the sector median" style comparison line, or ''. */
+function _dvVsSector(d,key,fmt){
+  var n=_dvNum(d[key]);if(n==null||!d.sector)return '';
+  var sa=_dvVals(key,d.sector),med=sa.length>=DV_MIN_SECTOR_N?_dvMedian(sa):null;
+  if(med==null)return '';
+  return 'sector median '+fmt(med);
+}
+/* --- Per-tab hero bands ---------------------------------------------------- */
+function _dvHeroMarket(d){
+  var out='';
+  /* 52-week range */
+  var px=_dvNum(d.price),lo=_dvNum(d.low_52w),hi=_dvNum(d.high_52w);
+  if(px!=null&&lo!=null&&hi!=null&&hi>lo){
+    var x=_dvClamp((px-lo)/(hi-lo),0,1)*100;
+    out+=_dvCard('52-Week Range',
+      '<div><span class="dv-big">'+_dvPx(px)+'</span></div>'
+      +'<div class="dv-rng"><b style="left:'+x.toFixed(1)+'%"></b></div>'
+      +'<div class="dv-rng-l"><span><span class="dv-mut">Low </span><b>'+_dvPx(lo)+'</b></span><span><span class="dv-mut">High </span><b>'+_dvPx(hi)+'</b></span></div>',
+      '<b class="dv-neg">'+(px<hi?((1-px/hi)*100).toFixed(1)+'% below high':'At the high')+'</b> · <b class="dv-pos">'+((px/lo-1)*100).toFixed(1)+'% above low</b>',
+      null,'range_52w_position',Math.round(x)+'% of range');
+  }
+  /* Momentum */
+  var mom=[{l:'3M',v:d.momentum_3m,tip:'momentum_3m'},{l:'6–1M',v:d.momentum_6_1,tip:'momentum_6_1'},{l:'12–1M',v:d.momentum_12_1,tip:'momentum_12_1'}]
+    .map(function(m){m.t=_dvPct(m.v);var a=_dvVals(m.tip),med=_dvMedian(a);if(med!=null&&a.length>=DV_MIN_N){m.ref=med;m.refT='Median stock '+_dvPct(med);}return m;});
+  var mh=_dvBars(mom);
+  if(mh)out+=_dvCard('Momentum',mh,
+    (d.vol_adj_momentum!=null?'Vol-adjusted <b>'+d.vol_adj_momentum.toFixed(2)+'</b> · ':'')+'<i class="dv-tk"></i> median stock',null,'momentum_12_1');
+  /* Crisis drawdowns vs the median stock that lived through each */
+  var dds=[{l:'2008 GFC',v:d.drawdown_2008,tip:'drawdown_2008'},{l:'2020 COVID',v:d.drawdown_2020,tip:'drawdown_2020'},{l:'2022 Bear',v:d.drawdown_2022,tip:'drawdown_2022'}]
+    .map(function(m){m.t=_dvPct(m.v);var a=_dvVals(m.tip),med=_dvMedian(a);
+      if(med!=null&&a.length>=DV_MIN_N){m.ref=med;m.refT='Median stock '+_dvPct(med);
+        if(_dvNum(m.v)!=null)m.tone=m.v<med-0.05?'neg':m.v>med+0.05?'pos':'mid';}
+      else m.tone='neg';return m;});
+  var dh=_dvBars(dds,{max:0});
+  if(dh)out+=_dvCard('Crisis Drawdowns',dh,'Peak-to-trough · <i class="dv-tk"></i> median stock · green fell less, red fell more',null,'drawdown_2008');
+  /* Beta: every estimate on one axis around the market's 1.0 */
+  var rb=d.rolling_betas||{},bn=function(v){return v==null?null:typeof v==='number'?v:(typeof v==='object'&&typeof v.beta==='number'?v.beta:null);};
+  var bs=[{l:'1Y raw',v:bn(rb['1y'])},{l:'3Y raw',v:bn(rb['3y'])},{l:'5Y raw',v:bn(rb['5y'])||_dvNum(d.beta_raw)},{l:'Adjusted',v:_dvNum(d.beta_adjusted),em:1}]
+    .filter(function(b){return b.v!=null;});
+  if(bs.length){
+    var bmax=Math.max(2,Math.ceil(Math.max.apply(null,bs.map(function(b){return b.v;}))*2)/2),bmin=Math.min(0,Math.floor(Math.min.apply(null,bs.map(function(b){return b.v;}))*2)/2);
+    var bh='<div class="dv-bars">';
+    bs.forEach(function(b){
+      var x=(b.v-bmin)/(bmax-bmin)*100,one=(1-bmin)/(bmax-bmin)*100;
+      bh+='<span class="l">'+esc(b.l)+'</span><div class="dv-trk" style="height:4px"><i class="rf" style="left:'+one.toFixed(1)+'%" title="Market = 1.0"></i><b class="dot '+(b.em?'bg-ink':'bg-neu')+'" style="left:'+x.toFixed(1)+'%;'+(b.em?'width:13px;height:13px;margin:-6.5px 0 0 -6.5px':'')+'"></b></div><span class="v">'+b.v.toFixed(2)+'</span>';
+    });
+    bh+='</div><div class="dv-scale" style="margin-left:0"><span>'+bmin.toFixed(1)+'</span><span><i class="dv-tk"></i> market 1.0</span><span>'+bmax.toFixed(1)+'</span></div>';
+    var st=_dvNum(rb.stability);var b1=bn(rb['1y']),b5=bn(rb['5y']);if(st==null&&b1!=null&&b5!=null)st=Math.abs(b1-b5);
+    var sw=st==null?'':(st<0.1?'<b class="dv-pos">Stable</b>':st<0.2?'<b class="dv-midc">Moderate drift</b>':'<b class="dv-neg">Volatile</b>');
+    var vol=_dvNum(d.realized_vol);
+    out+=_dvCard('Beta',bh,[sw,vol!=null?'Realized vol <b>'+(vol*100).toFixed(1)+'%</b>':'',d.beta_r2!=null?'R² '+d.beta_r2.toFixed(2):''].filter(Boolean).join(' · '),null,'beta_adjusted');
+  }
+  return out;
+}
+function _dvHeroValuation(d){
+  var px=_dvNum(d.price);if(px==null||px<=0)return '';
+  var R=[],pos=function(v){v=_dvNum(v);return v!=null&&v>0?v:null;};
+  var sr=d.dcf_sens_range||[];
+  var fe=pos(d._fv_effective);
+  if(fe!=null)R.push({l:'Model fair value',pt:fe,em:1,tip:'_fv_effective'});
+  if(pos(d.dcf_fv)!=null)R.push({l:'DCF',pt:pos(d.dcf_fv),lo:pos(sr[0]),hi:pos(sr[1]),tip:'dcf_fv'});
+  if(pos(d.mc_p10_fv)!=null&&pos(d.mc_p90_fv)!=null)R.push({l:'Monte Carlo P10–P90',lo:pos(d.mc_p10_fv),hi:pos(d.mc_p90_fv),pt:null,tip:'mc_p10_fv'});
+  if(d.ddm_eligible){
+    if(pos(d.ddm_fv)!=null)R.push({l:'DDM',pt:pos(d.ddm_fv),lo:pos(d.ddm_mc_p10),hi:pos(d.ddm_mc_p90),tip:'ddm_fv'});
+    if(pos(d.ddm_h_fv)!=null)R.push({l:'DDM H-Model',pt:pos(d.ddm_h_fv),tip:'ddm_h_fv'});
+  }
+  if(pos(d.epv_fv)!=null)R.push({l:'EPV',pt:pos(d.epv_fv),lo:pos(d.epv_fv),hi:pos(d.epv_growth_fv),tip:'epv_fv'});
+  if(pos(d.rim_fv)!=null)R.push({l:'RIM',pt:pos(d.rim_fv),tip:'rim_fv'});
+  if(pos(d.nav_fv)!=null)R.push({l:'NAV (tangible book)',pt:pos(d.nav_fv),tip:'nav_fv'});
+  if(pos(d.target_mean)!=null)R.push({l:'Street target',pt:pos(d.target_mean),lo:pos(d.target_low),hi:pos(d.target_high),tip:'target_mean'});
+  if(!R.length)return '';
+  var vals=[px];R.forEach(function(r){[r.pt,r.lo,r.hi].forEach(function(v){if(v!=null)vals.push(v);});});
+  var mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals);
+  /* A NAV at a tenth of price would squash every other bar: cap the axis at
+     4× either side of price and let the outlier pin to the edge. */
+  mn=Math.max(mn,px/4);mx=Math.min(mx,px*4);
+  var pad=(mx-mn)*0.06||px*0.1;mn=Math.max(0,mn-pad);mx=mx+pad;
+  var X=function(v){return(_dvClamp((v-mn)/(mx-mn),0,1)*100).toFixed(2);};
+  var h='<div class="dv-ff">';
+  R.forEach(function(r){
+    var ref=r.pt!=null?r.pt:(r.lo+r.hi)/2,up=ref/px-1;
+    var tone=up>0.15?'pos':up<0?'neg':'midc';
+    h+='<span class="l'+(r.em?' em':'')+(r.tip&&tt(r.tip)?' kl':'')+'"'+_dvTipAttr(r.tip)+'>'+esc(r.l)+'</span><div class="p">'
+      +(r.lo!=null&&r.hi!=null&&r.hi>r.lo?'<span class="rg" style="left:'+X(r.lo)+'%;width:'+(X(r.hi)-X(r.lo)).toFixed(2)+'%"></span>':'')
+      +'<span class="px" style="left:'+X(px)+'%"></span>'
+      +(r.pt!=null?'<span class="pt'+(r.em?' em':'')+'" style="left:'+X(r.pt)+'%"></span>':'')
+      +'</div><span class="v">'
+      +(r.pt!=null?'<b>'+fd(r.pt)+'</b>':'<b>'+fd(r.lo)+'–'+fd(r.hi)+'</b>')
+      +' <span class="dv-'+tone+'">'+_dvPct(up,0)+'</span></span>';
+  });
+  h+='<div class="ax"><span>'+fd(mn)+'</span><span class="pxl" style="left:'+X(px)+'%">Price '+_dvPx(px)+'</span><span>'+fd(mx)+'</span></div></div>';
+  var mos=_dvNum(d.mos);
+  return _dvCard('Fair Value vs Price',h,
+    'Dots are point estimates, bands the model’s own range; the dashed line is today’s price. Percent = upside from price.',
+    'wide','mos',mos!=null?'Margin of safety <b class="dv-'+(mos>0.15?'pos':mos<0?'neg':'midc')+'">'+_dvPct(mos)+'</b>':'');
+}
+function _dvHeroProfit(d){
+  var out='';
+  var m=_dvNum(d.dupont_margin),t=_dvNum(d.dupont_turnover),lv=_dvNum(d.dupont_leverage);
+  if(m!=null&&t!=null&&lv!=null){
+    var roe=m*t*lv;
+    out+=_dvCard('DuPont: where ROE comes from',_dvEq([
+      {l:'Net margin',t:(m*100).toFixed(1)+'%',tip:'dupont_margin'},'×',
+      {l:'Asset turnover',t:t.toFixed(2)+'×',tip:'dupont_turnover'},'×',
+      {l:'Leverage',t:lv.toFixed(2)+'×',tip:'dupont_leverage'},'=',
+      {l:'ROE (product)',t:(roe*100).toFixed(1)+'%',res:1,c:roe>=0.15?'dv-pos':roe<0?'dv-neg':''}]),
+      lv>3?'Over half of that return is borrowed: leverage above 3×.':'Margin and turnover, not leverage, carry the return.',null,'roe');
+  }
+  var roic=_dvNum(d.roic),w=_dvNum(d.wacc);
+  if(roic!=null&&w!=null){
+    var sp=_dvNum(d.spread)!=null?d.spread:roic-w;
+    out+=_dvCard('Return vs Cost of Capital',_dvBars([
+      {l:'ROIC',v:roic,t:(roic*100).toFixed(1)+'%',tone:roic>=w?'pos':'neg',tip:'roic'},
+      {l:'WACC',v:w,t:(w*100).toFixed(1)+'%',tone:'neu',tip:'wacc'}]),
+      'Spread <b class="dv-'+(sp>0.07?'pos':sp<0?'neg':'midc')+'">'+(sp>0?'+':'')+(sp*100).toFixed(1)+' pp</b> · '+(sp>0?'creates value on each reinvested dollar':'destroys value on each reinvested dollar'),null,'spread');
+  }
+  var mg=[{l:'Gross',v:d.gross_margin,tip:'gross_margin'},{l:'Operating',v:d.operating_margin,tip:'operating_margin'},{l:'FCF',v:d.fcf_margin,tip:'fcf_margin'},{l:'FCF ex-SBC',v:d.fcf_margin_ex_sbc,tip:'fcf_margin_ex_sbc'}]
+    .map(function(x){x.t=x.v==null?'':(x.v*100).toFixed(1)+'%';x.tone=x.v!=null&&x.v<0?'neg':'neu';
+      var a=_dvVals(x.tip),med=_dvMedian(a);if(med!=null&&a.length>=DV_MIN_N){x.ref=med;x.refT='Median stock '+(med*100).toFixed(1)+'%';}return x;});
+  var mh=_dvBars(mg,{max:1});
+  if(mh)out+=_dvCard('Margin Cascade',mh,'From each revenue dollar down to free cash · <i class="dv-tk"></i> median stock',null,'gross_margin');
+  return out;
+}
+function _dvHeroHealth(d){
+  var out='';
+  out+=_dvGaugeCard('Altman Z','altman_z',d.altman_z,-1,6,[[-1,1.81,'b'],[1.81,2.99,'m'],[2.99,6,'g']],
+    function(v){return v.toFixed(2);},{b:'Distress zone',m:'Grey zone',g:'Safe zone'},'bankruptcy-risk score');
+  out+=_dvGaugeCard('Beneish M','beneish_m',d.beneish_m,-4,0,[[-4,-2.22,'g'],[-2.22,-1.78,'m'],[-1.78,0,'b']],
+    function(v){return v.toFixed(2);},{g:'Unlikely manipulator',m:'Borderline',b:'Possible earnings manipulation'},'above −1.78 flags manipulation risk',[-3,-1.78,-1]);
+  var nd=_dvNum(d.nd_ebitda);
+  if(nd!=null)out+=_dvGaugeCard('Net Debt / EBITDA','nd_ebitda',nd,-2,6,[[-2,0,'g'],[0,2,'g'],[2,4,'m'],[4,6,'b']],
+    function(v){return v<0?'net cash':v.toFixed(2)+'×';},{g:nd<0?'Net cash':'Conservative',m:'Moderate leverage',b:'Heavy leverage'},'',[0,2,4]);
+  var ic=_dvNum(d.int_cov);
+  if(ic!=null)out+=_dvGaugeCard('Interest Coverage','int_cov',ic,0,20,[[0,1.5,'b'],[1.5,5,'m'],[5,20,'g']],
+    function(v){return v>=100?'100×+':v.toFixed(1)+'×';},{b:'Barely covers interest',m:'Adequate',g:'Comfortable'},'EBIT ÷ interest');
+  var td=_dvNum(d.total_debt),cs=_dvNum(d.cash);
+  if(td!=null&&cs!=null&&(td>0||cs>0)){
+    out+=_dvCard('Debt vs Cash',_dvBars([{l:'Debt',v:td,t:fds(td),tone:'neg'},{l:'Cash',v:cs,t:fds(cs),tone:'pos'}]),
+      'Net '+(td>cs?'debt <b class="dv-neg">'+fds(td-cs)+'</b>':'cash <b class="dv-pos">'+fds(cs-td)+'</b>'),null,'net_debt');
+  }
+  return out;
+}
+function _dvHeroGrowth(d){
+  var out='';
+  var ch=_dvCols([{l:'Rev 3Y',v:d.rev_cagr,tip:'rev_cagr'},{l:'Rev 5Y',v:d.rev_cagr_5y,tip:'rev_cagr_5y'},{l:'Rev 10Y',v:d.rev_cagr_10y,tip:'rev_cagr_10y'},{l:'FCF',v:d.fcf_growth,tip:'fcf_growth'}]
+    .map(function(x){x.t=_dvPct(x.v);return x;}));
+  if(ch){
+    var r3=_dvNum(d.rev_cagr),r10=_dvNum(d.rev_cagr_10y)!=null?_dvNum(d.rev_cagr_10y):_dvNum(d.rev_cagr_5y);
+    out+=_dvCard('Growth Track Record',ch,(r3!=null&&r10!=null)?(r3>r10+0.01?'<b class="dv-pos">Accelerating</b>: recent growth beats the long run':r3<r10-0.01?'<b class="dv-neg">Decelerating</b>: recent growth trails the long run':'<b>Steady</b>: recent growth matches the long run')+' · compound annual rates':'Compound annual rates',null,'rev_cagr');
+  }
+  var rr=_dvNum(d.reinvestment_rate),ro=_dvNum(d.roic),fg=_dvNum(d.fundamental_growth);
+  if(rr!=null&&ro!=null){
+    /* The model clamps reinvestment to 0–100% and g to 0–30%, and may use a
+       different ROIC year than the headline one — hence ≈, not =. */
+    var g=fg!=null?fg:_dvClamp(_dvClamp(rr,0,1)*ro,0,0.3);
+    out+=_dvCard('Self-Funded Growth',_dvEq([
+      {l:'Reinvestment',t:(rr*100).toFixed(0)+'%',tip:'reinvestment_rate'},'×',
+      {l:'ROIC',t:(ro*100).toFixed(1)+'%',tip:'roic'},'≈',
+      {l:'Fundamental g',t:_dvPct(g),res:1,c:g>0.05?'dv-pos':g<0?'dv-neg':'',tip:'fundamental_growth'}]),
+      'The growth the business can fund from its own returns'+(_dvNum(d.implied_growth)!=null?' · price implies <b>'+_dvPct(d.implied_growth)+'</b>':''),null,'fundamental_growth');
+  }
+  var mt=_dvNum(d.margin_trend),r40=_dvNum(d.rule_of_40),sa=_dvNum(d.surprise_avg);
+  var stats=_dvStats([
+    {l:'Margin trend',t:mt==null?null:_dvPct(mt),c:mt==null?'':mt>0?'dv-pos':mt<0?'dv-neg':'',tip:'margin_trend',s:'per year'},
+    {l:'Earnings surprise',t:sa==null?null:_dvPct(sa),c:sa==null?'':sa>0?'dv-pos':'dv-neg',tip:'surprise_avg',s:'avg vs consensus'},
+    {l:'Rule of 40',t:r40==null?null:r40.toFixed(0),c:r40==null?'':r40>=40?'dv-pos':'dv-neg',tip:'rule_of_40',s:'growth % + margin %'},
+    {l:'Capex / D&A',t:_dvNum(d.capex_to_dd_ratio)==null?null:d.capex_to_dd_ratio.toFixed(2)+'×',tip:'capex_to_dd_ratio',s:d.capex_to_dd_ratio>1?'expanding the asset base':'maintaining the asset base'}]);
+  if(stats)out+=_dvCard('Growth Signals',stats,'',null,null);
+  return out;
+}
+function _dvHeroOwnership(d){
+  var out='';
+  var ins=_dvNum(d.insider_pct),inst=_dvNum(d.inst_pct);
+  if(ins!=null||inst!=null){
+    var a=_dvClamp(ins||0,0,1),b=_dvClamp(inst||0,0,1-a);
+    out+=_dvCard('Who Owns It',_dvStack([{l:'Insiders',v:a,c:'var(--chrome-accent)'},{l:'Institutions',v:b,c:'var(--dv-neu)'},{l:'Other public',v:Math.max(0,1-a-b),c:'var(--dv-track)'}]),
+      d.shares_out!=null?'Shares out <b>'+fds(d.shares_out).replace('$','')+'</b>'+(d.float_shares!=null?' · float <b>'+fds(d.float_shares).replace('$','')+'</b>':''):'',null,'insider_pct');
+  }
+  var sp=_dvNum(d.short_pct_float);
+  if(sp!=null)out+=_dvGaugeCard('Short Interest','short_pct_float',sp*100,0,25,[[0,5,'g'],[5,10,'m'],[10,25,'b']],
+    function(v){return v.toFixed(1)+'%';},{g:'Low short interest',m:'Elevated',b:'Heavily shorted'},d.short_ratio!=null?d.short_ratio.toFixed(1)+' days to cover':'',[5,10,15,20]);
+  var dy=_dvNum(d.div_yield),bb=_dvNum(d.share_buyback_rate),sy=_dvNum(d.shareholder_yield);
+  var cr=_dvBars([{l:'Dividends',v:dy,t:_dvPct(dy),tip:'div_yield'},{l:'Buybacks',v:bb,t:_dvPct(bb),tip:'share_buyback_rate'},{l:'Total',v:sy,t:_dvPct(sy),tip:'shareholder_yield',tone:sy!=null&&sy<0?'neg':'pos'}]);
+  if(cr)out+=_dvCard('Cash Returned to Owners',cr,bb!=null&&bb<0?'Negative buybacks mean the share count grew: dilution.':'Yield on today’s market cap'+(d.payout_ratio!=null?' · payout ratio <b>'+(d.payout_ratio*100).toFixed(0)+'%</b>':''),null,'shareholder_yield');
+  var bc=_dvNum(d.insider_buy_count_365d),sc=_dvNum(d.insider_sell_count_365d);
+  if(bc!=null||sc!=null){
+    var nv=_dvNum(d.insider_net_value);
+    out+=_dvCard('Insider Trades (1Y)',_dvBars([{l:'Buys',v:bc||0,t:String(bc||0),tone:'pos'},{l:'Sells',v:sc||0,t:String(sc||0),tone:'neg'}]),
+      nv!=null?'Net <b class="dv-'+(nv>=0?'pos':'neg')+'">'+(nv>=0?'+':'')+fds(nv)+'</b>':'',null,'insider_buy_ratio');
+  }
+  return out;
+}
+function _dvHeroPeople(d){
+  var vs=function(k,f){var s=_dvVsSector(d,k,f);return s?esc(s):'';};
+  var st=_dvStats([
+    {l:'Employees',t:_dvNum(d.employees)==null?null:Math.round(d.employees).toLocaleString(),tip:'employees'},
+    {l:'Revenue / employee',t:_dvNum(d.revenue_per_emp)==null?null:fds(d.revenue_per_emp),tip:'revenue_per_emp',s:vs('revenue_per_emp',fds)},
+    {l:'FCF / employee',t:_dvNum(d.fcf_per_emp)==null?null:fds(d.fcf_per_emp),tip:'fcf_per_emp',s:vs('fcf_per_emp',fds)},
+    {l:'CEO pay ratio',t:_dvNum(d.ceo_pay_ratio)==null?null:Math.round(d.ceo_pay_ratio)+':1',tip:'ceo_pay_ratio',s:(function(){var a=_dvVals('ceo_pay_ratio'),m=_dvMedian(a);return m!=null&&a.length>=DV_MIN_N?'median stock '+Math.round(m)+':1':'';})()}]);
+  var out=st?_dvCard('Workforce at a Glance',st,'',  'wide',null):'';
+  var gr=_dvNum(d.glassdoor_rating);
+  if(gr!=null)out+=_dvGaugeCard('Glassdoor Rating','glassdoor_rating',gr,1,5,[[1,3,'b'],[3,3.8,'m'],[3.8,5,'g']],
+    function(v){return v.toFixed(1)+' / 5';},{b:'Poorly rated',m:'Average',g:'Well rated'},
+    [d.glassdoor_ceo_pct!=null?'CEO approval '+(d.glassdoor_ceo_pct*100).toFixed(0)+'%':'',d.glassdoor_rec_pct!=null?'recommend '+(d.glassdoor_rec_pct*100).toFixed(0)+'%':''].filter(Boolean).join(' · '),[2,3,4]);
+  var cr=_dvNum(d.compensation_risk);
+  if(cr!=null)out+=_dvGaugeCard('Compensation Risk','compensation_risk',cr,1,10,[[1,4,'g'],[4,7,'m'],[7,10,'b']],
+    function(v){return Math.round(v)+' / 10';},{g:'Pay tied to performance',m:'Mixed',b:'Pay loosely tied to performance'},'',[4,7]);
+  return out;
+}
+function _dvHeroSector(d){
+  if(!(d.revenue!=null&&d.revenue>0))return '';
+  var out='';
+  var om=_dvNum(d.operating_margin),sm=_dvNum(d._sector_median_opm);
+  if(om!=null&&sm!=null){
+    var adv=om-sm;
+    out+=_dvCard('Margin vs Sector',_dvBars([{l:d.ticker||'Company',v:om,t:(om*100).toFixed(1)+'%',tone:adv>=0?'pos':'neg'},{l:'Sector median',v:sm,t:(sm*100).toFixed(1)+'%',tone:'neu'}]),
+      'Operating margin <b class="dv-'+(adv>=0?'pos':'neg')+'">'+(adv>=0?'+':'')+(adv*100).toFixed(1)+' pp</b> '+(adv>=0?'above':'below')+' the sector median',null,'operating_margin');
+  }
+  var rs=_dvNum(d.pp_revenue_share),ps=_dvNum(d.pp_profit_share),pm=_dvNum(d.pp_multiple);
+  if(rs!=null||ps!=null){
+    out+=_dvCard('Share of the Sector Profit Pool',_dvBars([{l:'Revenue share',v:rs,t:rs==null?'':(rs*100).toFixed(1)+'%',tone:'neu'},{l:'Profit share',v:ps,t:ps==null?'':(ps*100).toFixed(1)+'%',tone:pm!=null&&pm<1?'neg':'pos'}]),
+      pm!=null?'Profit-pool multiple <b class="dv-'+(pm>=1?'pos':'neg')+'">'+pm.toFixed(2)+'×</b> · '+(pm>=1?'captures more than its share of sector profit':'earns less than its share of sector profit'):'',null,'profit_pool');
+  }
+  if(d.sector){
+    var rk=function(k){var v=_dvNum(d[k]);if(v==null)return null;var a=_dvVals(k,d.sector);if(a.length<DV_MIN_SECTOR_N)return null;
+      var above=0;for(var i=0;i<a.length;i++)if(a[i]>v)above++;return{r:above+1,n:a.length};};
+    var cells=[['Revenue','revenue'],['Market cap','mcap'],['Operating margin','operating_margin'],['ROIC','roic'],['Revenue growth (3Y)','rev_cagr']].map(function(x){
+      var q=rk(x[1]);if(!q)return {l:x[0],t:null};
+      var top=q.r/q.n;return {l:x[0],t:'#'+q.r,s:'of '+q.n+(top<=0.1?' · top 10%':top>0.9?' · bottom 10%':''),c:top<=0.25?'dv-pos':top>0.75?'dv-neg':'',tip:x[1]};});
+    var rs2=_dvStats(cells);
+    if(rs2)out=_dvCard('Rank Within '+d.sector,rs2,'#1 = largest / highest among the '+esc(d.sector)+' companies in this run','wide',null)+out;
+  }
+  var hhi=_dvNum(d.pp_sector_hhi);
+  if(hhi!=null)out+=_dvGaugeCard('Sector Concentration','sector_hhi',hhi,0,0.5,[[0,0.15,'g'],[0.15,0.25,'m'],[0.25,0.5,'b']],
+    function(v){return v.toFixed(3);},{g:'Competitive',m:'Moderately concentrated',b:'Concentrated'},
+    d.pp_sector_cr4!=null?'top four hold <b>'+(d.pp_sector_cr4*100).toFixed(0)+'%</b>':'',[0.15,0.25]);
+  return out;
+}
+var DV_HERO={sect:_dvHeroSector,mkt:_dvHeroMarket,val:_dvHeroValuation,prof:_dvHeroProfit,hlth:_dvHeroHealth,growth:_dvHeroGrowth,own:_dvHeroOwnership,people:_dvHeroPeople};
+function _dvKey(){
+  var n=DATA?DATA.length:0;
+  return '<div class="dv-key sa-chrome"><span><span class="sw"><i></i><b class="bg-pos"></b></span>Rank among '+n.toLocaleString()+' stocks in this run (0–100)</span>'
+    +'<span><span class="sw"><i></i></span>sector median</span>'
+    +'<span><b class="dv-pos">green</b>&nbsp;favourable · <b class="dv-neg">red</b>&nbsp;unfavourable · <b style="--sac:var(--dv-neu)">blue</b>&nbsp;no better/worse</span></div>';
 }
 function _renderDetDataTab(key){
   var el=document.getElementById('d-pane-data');if(!el)return;
@@ -9278,22 +9804,16 @@ function _renderDetDataTab(key){
      then) and on reports built before it existed — render nothing either way. */
   var _sm=d.data_summaries&&d.data_summaries[key];
   if(_sm&&_sm.length)h+='<div class="dsummary"><div class="dsummary-h">Summary</div><p>'+_sm.map(function(x){return esc(x);}).join(' ')+'</p></div>';
+  /* Chart band first: the picture, then the ranked rows behind it. */
+  var hero=DV_HERO[key]?DV_HERO[key](d):'';
+  if(hero)h+='<div class="dv-hero">'+hero+'</div>';
   if(tab.groups.length||tab.extra){
   h+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>'+esc(tab.l)
-    +'</div><div class="dgrid-inner">';
+    +'</div>'+(tab.groups.length?_dvKey():'')+'<div class="dgrid-inner">';
   tab.groups.forEach(function(g){
-    var rows='';
-    g.cols.forEach(function(c){
-      var def=_DT_LOOKUP[c.k]||{};
-      var l=c.l||def.l||c.k,f=c.f||def.f||'text';
-      var v=d[c.k];
-      if(c.sec&&v==null)return;      /* sector/policy-specific: hide when absent */
-      var ft=ftc(v,f);
-      var tipAttr=tt(c.k)?' data-dkv-tip="'+c.k+'"':'';
-      var na=v==null?' style="color:#9aa5b1;font-weight:400"':'';
-      rows+='<div class="dkv"><span class="kl"'+tipAttr+'>'+esc(l)+'</span><span class="kv"'+na+'>'+esc(ft.t)+'</span></div>';
-    });
-    if(rows)h+='<div class="dsec"><h3>'+esc(g.t)+'</h3><div class="dkvg">'+rows+'</div></div>';
+    /* _dvRow drops a sector/policy-specific (sec:1) row whose value is absent. */
+    var rows=g.cols.map(function(c){return _dvRow(c,d);}).join('');
+    if(rows)h+='<div class="dsec dv-sec sa-chrome"><h3>'+esc(g.t)+'</h3><div class="dv-rows">'+rows+'</div></div>';
   });
   if(tab.extra)h+=tab.extra(d)||'';   /* bespoke dsec cells inside the grid */
   h+='</div></div>';
