@@ -123,7 +123,8 @@ FORCE_META = {
     },
     'Consumer Defensive': {
         'Slow-motion taste and channel shifts': ('disruption', 'secular', None),
-        'Input cost inflation from agricultural commodities': ('input_costs', 'cyclical', _c(-1)),
+        'Input cost inflation from agricultural commodities':
+            ('input_costs', 'cyclical', _m('PFOODINDEXM', 1)),
         'GLP-1 and health-trend demand destruction': ('disruption', 'secular', _i('Packaged Foods', -1)),
         'Pricing power durability': ('pricing', 'secular', _c(1)),
         'Defensive flows in late-cycle markets': ('flows', 'cyclical', _m('BAMLH0A0HYM2', 1)),

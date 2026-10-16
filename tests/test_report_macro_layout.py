@@ -319,3 +319,52 @@ def test_every_macro_subtab_opens_with_an_explainer():
     # the explainer precedes the data note, so it is the first thing read
     body = sec.group(0)
     assert body.find('_macIntroHTML(k)') < body.find('mac-sec-note')
+
+
+def test_macro_narrative_sections_carry_figures():
+    """Each kickered narrative section is followed by a figure of the
+    indicators its paragraph cites (found by repo-authored patterns, in the
+    order cited), and the sector influences open with a stance strip. The
+    model text is searched, never echoed into the figure."""
+    css = _css()
+    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
+    assert nar, 'could not find _macNarrativeHTML'
+    nar = nar.group(0)
+    assert 'h+=_macNarFigure(i,p)' in nar, \
+        'each narrative section needs its figure'
+    assert '_macStanceStrip(grp,secLink)' in nar, \
+        'the sector influences open with the stance strip'
+    fig = re.search(r'function _macNarFigure\(i,text\)\{.*?\n\}\n', css,
+                    re.S)
+    assert fig, 'could not find _macNarFigure'
+    body = fig.group(0)
+    assert 'text' not in body.replace('_macNarIds(i,text)', '') \
+        .replace('function _macNarFigure(i,text)', ''), \
+        'the paragraph only selects series; it is never written out'
+    assert '_macRankWords(' in body, 'the rank is stated in words'
+    defaults = re.search(r'var _MAC_NAR_DEFAULT=\[(.*?)\];', css, re.S)
+    assert defaults and defaults.group(1).count('[') == 3, \
+        'one default list per narrative paragraph'
+
+
+def test_regime_note_matches_the_model_weights_and_cutoffs():
+    """The Market Regime box explains its meters in words, quoting the
+    composite's weights and regime cut-offs; keep them in step with
+    models/macro.py so the explanation never describes another model."""
+    from models.macro import MACRO_WEIGHTS, assess_macro_regime
+    src = _css()
+    m = re.search(r"var _MAC_REGIME_NOTE='([^']*)'", src)
+    assert m, 'regime explainer missing'
+    note = m.group(1)
+    assert MACRO_WEIGHTS == {'vix': 0.25, 'yield_curve': 0.25,
+                             'credit_spread': 0.20, 'spy_momentum': 0.15,
+                             'industrial_rs': 0.15}
+    assert '25% each' in note and '20%' in note and '15% each' in note
+    for phrase in ('+0.40 Expansion', '+0.10 Mid Cycle', '−0.10 Neutral',
+                   '−0.40 Late Cycle'):
+        assert phrase in note
+    import inspect
+    body = inspect.getsource(assess_macro_regime)
+    for cut in ('> 0.40', '> 0.10', '> -0.10', '> -0.40'):
+        assert cut in body
+    assert '_MAC_REGIME_NOTE' in src.split('function _macRegimeHTML', 1)[1]

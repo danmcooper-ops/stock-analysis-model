@@ -128,10 +128,25 @@ def test_margin_cycle_evidence():
            for k, m in enumerate([0.10, 0.11, 0.12, 0.13, 0.14, 0.09])]
     entry = {'history': {'points': pts, 'cycle': {'low': 0.09, 'high': 0.14, 'years': 6}}}
     res = evaluate_forces('Consumer Defensive', None, entry)
-    # Margins just fell to the bottom of their range: input-cost pressure is
-    # on, pricing power is not.
-    assert _force(res, 'Input cost inflation from agricultural commodities')['status'] == 'active'
+    # Margins just fell to the bottom of their range: pricing power is not
+    # holding.
     assert _force(res, 'Pricing power durability')['status'] == 'dormant'
+    res = evaluate_forces('Technology', None, entry)
+    assert _force(res, 'Cybersecurity liability and talent cost inflation')['status'] == 'active'
+
+
+def test_food_prices_evidence_the_agricultural_input_cost_headwind():
+    """Dearer food is a cost to the companies that buy it, so a high and
+    rising IMF food index strengthens the headwind (sign +1)."""
+    side = _sidecar('PFOODINDEXM', [100 + 0.3 * k for k in range(120)], fmt='n1')
+    f = _force(evaluate_forces('Consumer Defensive', side, {}),
+               'Input cost inflation from agricultural commodities')
+    assert f['status'] == 'active' and f['evidence']['reading'] == '135.7'
+    side = _sidecar('PFOODINDEXM', [140 - 0.3 * k for k in range(120)], fmt='n1')
+    f = _force(evaluate_forces('Consumer Defensive', side, {}),
+               'Input cost inflation from agricultural commodities')
+    # Still high in its range (the fixture's pctile), but falling: fading.
+    assert f['status'] == 'easing'
 
 
 def test_market_confirmation_reads_the_sector_etf():

@@ -126,17 +126,45 @@ def _macro_payload_for_render(html_path, run_date, snap):
     Step 1f of the daily routine re-renders the HTML after the enrichment
     passes. Rendering with no payload would drop the Macro Outlook tab AND
     delete the macro.json the main run wrote, so the re-render has to supply
-    one of its own. Two sources, in order:
+    one of its own. Three sources, in order:
 
-      1. A fresh FRED build, as_of the snapshot's own date so the macro
+      1. The sidecar already next to the HTML, when it was built for this
+         same run date and carries a narrative. `as_of` pins observation
+         dates, not FRED vintages: a re-render the next morning picks up
+         prints released overnight (2026-10-15: September CPI read 3.72%
+         under a narrative written from August's 3.35%), while the
+         narrative's day cache replays last night's text. The Overview now
+         charts each number beside the sentence quoting it, so the two must
+         come from the same build.
+      2. A fresh FRED build, as_of the snapshot's own date so the macro
          numbers match the run the HTML is pinned to.
-      2. Failing that, the sidecar already sitting next to the HTML — a FRED
-         outage during a re-render must not remove a tab that worked minutes
-         ago.
+      3. Failing that, the sidecar next to the HTML whatever its date — a
+         FRED outage during a re-render must not remove a tab that worked
+         minutes ago.
 
-    Returns None only when neither is available, which correctly renders the
+    Returns None only when none is available, which correctly renders the
     report without the tab.
     """
+    macro_path = os.path.join(os.path.dirname(html_path) or '.', 'macro.json')
+    existing = None
+    try:
+        with open(macro_path, encoding='utf-8') as fh:
+            existing = json.load(fh)
+    except (OSError, ValueError):
+        existing = None
+    if (run_date is not None and isinstance(existing, dict)
+            and str(existing.get('as_of') or '')[:10] == str(run_date)[:10]
+            and (existing.get('narrative') or {}).get('paragraphs')):
+        try:
+            from scripts.macro_dashboard import summary_from_sidecar
+            summary = summary_from_sidecar(existing)
+            if summary:
+                print('Macro dashboard: reused macro.json built for '
+                      f'{str(run_date)[:10]} (numbers match its narrative)')
+                return {'summary': summary, 'sidecar': existing}
+        except ImportError:
+            pass
+
     regime = snap.get('macro_regime') if isinstance(snap, dict) else None
     adj = snap.get('macro_adjustments') if isinstance(snap, dict) else None
     local_rs = snap.get('sector_local_rs') if isinstance(snap, dict) else None
@@ -155,12 +183,10 @@ def _macro_payload_for_render(html_path, run_date, snap):
     except Exception as e:
         print(f'  Macro dashboard rebuild failed ({e}).')
 
-    macro_path = os.path.join(os.path.dirname(html_path) or '.', 'macro.json')
     try:
         from scripts.macro_dashboard import summary_from_sidecar
-        with open(macro_path, encoding='utf-8') as fh:
-            sidecar = json.load(fh)
-        summary = summary_from_sidecar(sidecar)
+        sidecar = existing
+        summary = summary_from_sidecar(sidecar) if sidecar else None
         if summary:
             print('Macro dashboard: reused existing macro.json')
             return {'summary': summary, 'sidecar': sidecar}

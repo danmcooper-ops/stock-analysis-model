@@ -403,6 +403,49 @@ class TestRerenderKeepsMacroTab:
         assert payload['sidecar'] == good['sidecar']
         assert payload['summary']['tiles']
 
+    def test_same_day_narrated_sidecar_wins_over_fresh_fred(self, tmp_path,
+                                                            monkeypatch):
+        """A re-render of a past run must not pair last night's narrative
+        with prints FRED released since: the sidecar built for that run date,
+        narrative included, is reused and FRED is never asked."""
+        import json as _json
+
+        import data.fred_client as fc
+        import scripts.rescore_and_render as rr
+        fred, as_of = full_stub()
+        good = build_macro_payload(fred, as_of=as_of)['sidecar']
+        good['narrative'] = {'paragraphs': ['Growth held up.'],
+                             'tailwinds': [], 'headwinds': [], 'sectors': []}
+        (tmp_path / 'macro.json').write_text(_json.dumps(good),
+                                             encoding='utf-8')
+
+        def boom(*a, **k):
+            raise AssertionError('FRED must not be rebuilt')
+
+        monkeypatch.setattr(fc, 'FREDClient', boom)
+        payload = rr._macro_payload_for_render(
+            str(tmp_path / 'r.html'), as_of, self._snap())
+        assert payload['sidecar'] == good
+        assert payload['summary']['narrative']['paragraphs']
+
+    def test_other_day_sidecar_is_rebuilt(self, tmp_path, monkeypatch):
+        import json as _json
+        from datetime import timedelta
+
+        import data.fred_client as fc
+        import scripts.macro_dashboard as md
+        import scripts.rescore_and_render as rr
+        fred, as_of = full_stub()
+        old = build_macro_payload(fred, as_of=as_of - timedelta(days=1))
+        old['sidecar']['narrative'] = {'paragraphs': ['Yesterday.']}
+        (tmp_path / 'macro.json').write_text(_json.dumps(old['sidecar']),
+                                             encoding='utf-8')
+        monkeypatch.setattr(fc, 'FREDClient', lambda *a, **k: fred)
+        monkeypatch.setattr(md, 'make_narrative_client', lambda: None)
+        payload = rr._macro_payload_for_render(
+            str(tmp_path / 'r.html'), as_of, self._snap())
+        assert payload['sidecar']['as_of'] == as_of.isoformat()
+
     def test_none_when_no_fred_and_no_sidecar(self, tmp_path, monkeypatch):
         import data.fred_client as fc
         import scripts.rescore_and_render as rr

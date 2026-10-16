@@ -2131,6 +2131,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-meter-track::after{content:"";position:absolute;left:50%;top:-2px;width:1px;height:8px;background:var(--mac-faint);}
 .mac-meter-fill{position:absolute;top:0;height:4px;border-radius:2px;background:var(--mac-faint);}
 .mac-meter-fill.up{background:var(--mac-up);}.mac-meter-fill.down{background:var(--mac-down);}
+.mac-regime-note{flex:1 1 100%;margin:0;color:var(--mac-muted);font-size:0.76em;line-height:1.45;}
 /* --- overview: story on the left, glance numbers in a rail on the right --- */
 /* Two columns only where the rail has room; below that the tiles follow
    the story and keep the phone floors set further down (those rules are
@@ -2158,6 +2159,52 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-nar-neutral b{font-weight:700;}
 .mac-nar-wind.up b{color:var(--mac-up);}.mac-nar-wind.down b{color:var(--mac-down);}
 .mac-nar-foot{font-size:0.72em;color:var(--mac-faint);margin-top:16px;}
+/* --- narrative figures: the indicators each section cites, placed in their own history --- */
+.mac-fig{margin:12px 0 6px;padding:12px 14px 10px;border-radius:10px;background:var(--mac-chip);font-size:0.82em;}
+.mac-fig-head{display:flex;justify-content:space-between;align-items:baseline;gap:4px 12px;flex-wrap:wrap;color:var(--mac-muted);margin-bottom:6px;}
+.mac-fig-key{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+.mac-fig-k-norm{display:inline-block;width:18px;height:10px;border-radius:3px;background:var(--mac-faint);opacity:0.4;}
+.mac-fig-row,.mac-fig-scale{display:grid;grid-template-columns:minmax(130px,1fr) minmax(0,2.4fr);gap:16px;align-items:center;}
+.mac-fig-row{padding:7px 0;border-top:1px solid var(--mac-line);}
+.mac-fig-scale{color:var(--mac-faint);font-size:0.88em;}
+.mac-fig-lh{display:flex;justify-content:space-between;}
+.mac-fig-viz{display:grid;grid-template-columns:minmax(0,1fr) 168px;gap:14px;align-items:center;}
+.mac-fig-l{display:flex;flex-direction:column;line-height:1.3;min-width:0;}
+.mac-fig-l span{color:var(--mac-muted);}
+.mac-fig-l b{font-size:1.2em;font-variant-numeric:tabular-nums;color:var(--text);}
+.mac-fig-track{position:relative;height:16px;}
+.mac-fig-track::before{content:"";position:absolute;left:0;right:0;top:7px;height:2px;border-radius:1px;background:var(--mac-faint);opacity:0.45;}
+.mac-fig-norm{position:absolute;left:25%;width:50%;top:3px;height:10px;border-radius:3px;background:var(--mac-faint);opacity:0.28;}
+/* The tail fades toward where the reading was a year ago, so it reads as motion. */
+.mac-fig-tail{position:absolute;top:5px;height:6px;border-radius:3px;--c:var(--mac-accent);background:linear-gradient(to right,transparent,var(--c));opacity:0.9;}
+.mac-fig-tail.rev{background:linear-gradient(to left,transparent,var(--c));}
+.mac-fig-ago{position:absolute;top:5px;width:6px;height:6px;margin-left:-3px;border-radius:50%;box-sizing:border-box;border:1.5px solid var(--mac-accent);opacity:0.8;}
+.mac-fig-ago.up{border-color:var(--mac-up);}.mac-fig-ago.down{border-color:var(--mac-down);}
+.mac-fig-now{position:absolute;top:2px;width:12px;height:12px;margin-left:-6px;border-radius:50%;box-sizing:border-box;background:var(--mac-accent);border:2px solid var(--mac-chip);z-index:1;}
+.mac-fig-tail.up{--c:var(--mac-up);}.mac-fig-tail.down{--c:var(--mac-down);}
+.mac-fig-now.up{background:var(--mac-up);}.mac-fig-now.down{background:var(--mac-down);}
+.mac-fig-cap{display:flex;flex-direction:column;align-items:flex-start;gap:3px;line-height:1.25;}
+.mac-fig-cap>span{color:var(--text);font-weight:600;}
+.mac-fig-cap .mac-delta{margin:0;}
+.mac-fig-more{display:inline-block;margin-top:6px;color:var(--mac-accent);font-weight:600;text-decoration:none;}
+.mac-fig-more:hover{text-decoration:underline;}
+@media(max-width:700px){
+  .mac-fig-row,.mac-fig-scale{grid-template-columns:minmax(92px,0.8fr) minmax(0,1.6fr);gap:10px;}
+  .mac-fig-viz{grid-template-columns:1fr;gap:4px;}
+  .mac-fig-scale .mac-fig-viz>span:last-child{display:none;}
+  .mac-fig-cap{flex-direction:row;flex-wrap:wrap;align-items:center;gap:2px 8px;}}
+/* --- sector stance strip, above the influence paragraphs --- */
+.mac-stance{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:6px 0 10px;font-size:0.82em;}
+.mac-stance-col{border-radius:10px;padding:8px 10px;background:var(--mac-chip);border-top:3px solid var(--mac-faint);}
+.mac-stance-col.up{border-top-color:var(--mac-up);}.mac-stance-col.down{border-top-color:var(--mac-down);}
+.mac-stance-h{font-weight:700;margin-bottom:6px;color:var(--mac-muted);}
+.mac-stance-col.up .mac-stance-h{color:var(--mac-up);}.mac-stance-col.down .mac-stance-h{color:var(--mac-down);}
+.mac-stance-h span{font-weight:600;font-variant-numeric:tabular-nums;opacity:0.8;}
+.mac-stance-chips{display:flex;flex-wrap:wrap;gap:5px;}
+.mac-stance-chips a{display:inline-block;padding:2px 8px;border-radius:9px;background:var(--mac-card);border:1px solid var(--mac-border);color:var(--mac-accent);font-weight:600;text-decoration:none;white-space:nowrap;}
+.mac-stance-chips a:hover{text-decoration:underline;}
+.mac-stance-chips em{color:var(--mac-faint);}
+@media(max-width:560px){.mac-stance{grid-template-columns:1fr;}}
 /* --- glance tiles --- */
 .mac-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:0 0 18px;}
 .mac-tile{padding:14px 16px;}
@@ -11324,7 +11371,7 @@ var _MAC_SEC_INTRO={
   growth:'Real GDP, industrial production and retail sales gauge output and demand, and a reading below the dashed zero line means contraction. The labor charts read the jobs market from both ends: the unemployment rate and the monthly change in payrolls lag the cycle, while weekly jobless claims and job openings turn first. The Sahm Rule is a recession trigger: once the three-month average unemployment rate rises half a point above its twelve-month low (the red dashed line), a downturn has historically already begun.',
   credit:'Investment-grade and high-yield option-adjusted spreads are the extra yield investors demand over Treasuries to hold corporate debt: they widen when default risk is being priced in and tighten when credit is easy. The Chicago Fed NFCI folds more than a hundred money-market, debt and equity measures into one index, where a reading above zero means conditions are tighter than average. The Fed balance sheet and M2 growth track how much liquidity is in the system, and the broad dollar index shows the currency\u2019s weight on exporters and on multinationals\u2019 overseas earnings. The rating table at the bottom breaks the spreads out from AAA to CCC, where the lowest tiers move first when stress builds.',
   housing:'Housing starts count the homes builders are breaking ground on, the most rate-sensitive corner of the economy, and the 30-year mortgage rate is the cost that governs them. Case\u2013Shiller home prices, year over year, track the largest asset most households own. Consumer sentiment gauges how households feel about their finances and the year ahead, and the personal savings rate shows whether they are building a cushion or spending it down to keep consumption going; sliding sentiment alongside a shrinking savings rate is the classic late-cycle squeeze.',
-  commodities:'West Texas Intermediate crude is the oil price US producers sell into, and copper is the industrial metal whose price tracks construction, grid and electrification demand worldwide. They are the price decks Energy and Basic Materials earn on: a producer does not set them, so a move here flows almost straight to revenue and margins. Read each against its own ten-year range rather than its last move, because both swing far more than the economy beneath them.'
+  commodities:'West Texas Intermediate crude is the oil price US producers sell into, and copper is the industrial metal whose price tracks construction, grid and electrification demand worldwide. They are the price decks Energy and Basic Materials earn on: a producer does not set them, so a move here flows almost straight to revenue and margins. Henry Hub natural gas runs the other way for most of the market: it is the fuel cost of gas-fired power and the feedstock of fertilizer and chemicals makers, as well as the price gas-weighted producers sell at. The IMF food price index (monthly, a few months behind) tracks the grains, oils, meat and sugar that food and beverage companies buy, and is the evidence for Consumer Defensive\'s input-cost headwind. Read each against its own ten-year range rather than its last move, because all four swing far more than the economy beneath them. There is no gold card: the dashboard reads FRED only, and FRED stopped carrying the London gold price in 2022.'
 };
 function _macIntroHTML(k){
   var t=_MAC_SEC_INTRO[k];
@@ -11336,6 +11383,15 @@ var _MAC_REGIME_STYLE={expansion:'#1a9850',mid_cycle:'#2e8b8b',neutral:'#64748b'
 var _MAC_REGIME_GLOSS={expansion:'Broad growth, easy conditions',mid_cycle:'Growth intact, momentum moderating',
   neutral:'Mixed signals, no clear lean',late_cycle:'Growth slowing, conditions tightening',contraction:'Growth contracting, stress rising'};
 var _MAC_IND_LABEL={vix:'Volatility (VIX)',yield_curve:'Yield curve',credit_spread:'Credit spreads',spy_momentum:'S&P momentum',industrial_rs:'Industrials vs market'};
+/* What each meter reads, as a hover tip; thresholds are models/macro.py's. */
+var _MAC_IND_TIP={vix:'VIX level: under 15 scores +1, 20–25 is 0, over 30 is −1.',
+  yield_curve:'10-year minus 3-month Treasury yield: steeper than +1.5pt scores +1, inverted past −1.5pt is −1.',
+  credit_spread:'Junk bonds (HYG) vs investment grade (LQD) over 3 months: junk outperforming scores +, lagging (credit stress) scores −.',
+  spy_momentum:'S&P 500 vs its 200-day average: 5%+ above scores +1, 5%+ below is −1.',
+  industrial_rs:'Industrials (XLI) vs the S&P 500 over 3 months: cyclicals leading by 3pt+ scores +1, lagging by 3pt+ is −1.'};
+/* The weights and cut-offs are MACRO_WEIGHTS and assess_macro_regime's
+   thresholds in models/macro.py; tests/test_report_macro_layout.py pins them. */
+var _MAC_REGIME_NOTE='Five market signals, each scored from −1 (warning) to +1 (supportive). A bar runs right of the centre line when the signal supports growth and left when it warns. The composite is their weighted average — VIX and yield curve 25% each, credit spreads 20%, S&amp;P momentum and industrials 15% each — and sets the regime: above +0.40 Expansion, +0.10 Mid Cycle, −0.10 Neutral, −0.40 Late Cycle, below that Contraction.';
 function _macRegimeHTML(full){
   var src=(MACRO&&MACRO.regime)||(MACRO_SUM&&MACRO_SUM.regime);
   if(!src)return '';
@@ -11357,11 +11413,11 @@ function _macRegimeHTML(full){
       var n=(v==null||isNaN(v))?0:Math.max(-1,Math.min(1,v));
       var cls=n>0.05?' up':(n<-0.05?' down':'');
       var w=(Math.abs(n)*50).toFixed(1),left=n>=0?'50%':(50-Math.abs(n)*50).toFixed(1)+'%';
-      h+='<div class="mac-meter"><div class="mac-meter-top"><span>'+lbl+'</span>'
+      h+='<div class="mac-meter"'+(_MAC_IND_TIP[k]?' title="'+_MAC_IND_TIP[k]+'"':'')+'><div class="mac-meter-top"><span>'+lbl+'</span>'
         +'<span class="mac-meter-v'+cls+'">'+(v==null?'?':(v>=0?'+':'')+v.toFixed(2))+'</span></div>'
         +'<div class="mac-meter-track"><div class="mac-meter-fill'+cls+'" style="left:'+left+';width:'+w+'%"></div></div></div>';
     });
-    h+='</div>';
+    h+='</div><p class="mac-regime-note">'+_MAC_REGIME_NOTE+'</p>';
   }
   h+='</div>';
   return h;
@@ -11399,6 +11455,130 @@ function _macGoSector(i){
   if(row&&row.sector){navGo('pool',row.sector);window.scrollTo({top:0,behavior:'auto'});}
   return false;
 }
+/* === NARRATIVE FIGURES ===
+   Each narrative section is followed by the indicators its paragraph
+   actually cites, in the order it cites them, so the reader finds the
+   number they just read. One row answers three questions at a glance:
+     - where it sits: a dot on a track running from the series' lowest to
+       its highest reading in its own history (the percentile the prose
+       quotes), with the middle half of history shaded as "normal";
+     - which way it went: a tail drawn from where it sat a year ago, so the
+       motion reads without a legend;
+     - whether that is good: the tail, dot and 1Y chip are green when the
+       year's move helps the economy (s.good), red when it hurts, blue for
+       series with no good direction (yields, the dollar).
+   The caption says the same in words ("Top 1% of 10 yrs"), because a
+   passing reader trusts words before positions. Drawn from the macro.json
+   sidecar, so the prose paints first and the figures follow when it lands
+   (renderMacro re-renders on load). Ids and patterns are repo-authored; the
+   model text is only searched, never echoed. */
+var _MAC_NAR_SEC=['growth','inflation','credit'];
+var _MAC_NAR_DEFAULT=[
+  ['PAYEMS','ICSA','A191RL1Q225SBEA','UNRATE','RSAFS','UMCSENT'],
+  ['PCEPILFE','CPIAUCSL','CPILFESL','DGS10','DFF'],
+  ['BAMLC0A0CM','BAMLH0A0HYM2','NFCI','MORTGAGE30US']
+];
+/* How the prose names each series. `not` is tested on the few characters
+   before a match, so "CPI" does not also claim "core CPI". */
+var _MAC_NAR_CITE={
+  A191RL1Q225SBEA:{re:/\bGDP\b/},PAYEMS:{re:/payroll/i},ICSA:{re:/\bclaims\b/i},
+  UNRATE:{re:/unemployment/i},JTSJOL:{re:/job openings/i},RSAFS:{re:/retail sales/i},
+  UMCSENT:{re:/sentiment/i},INDPRO:{re:/industrial production/i},SAHMREALTIME:{re:/\bSahm\b/i},
+  PCEPILFE:{re:/core PCE/i},PCEPI:{re:/\bPCE\b/,not:/core\s*$/i},
+  CPILFESL:{re:/core CPI/i},CPIAUCSL:{re:/\bCPI\b/,not:/core\s*$/i},
+  T10YIE:{re:/breakeven/i},T5YIFR:{re:/5y5y/i},DFF:{re:/fed funds|policy rate/i},
+  DGS10:{re:/10-year (?:Treasury|yield)|ten-year (?:Treasury|yield)/i},
+  T10Y2Y:{re:/2-year|10Y.2Y|yield curve/i},T10Y3M:{re:/3-month/i},
+  BAMLC0A0CM:{re:/investment-grade|\bIG\b/i},BAMLH0A0HYM2:{re:/high-yield|\bjunk\b|\bHY\b/i},
+  NFCI:{re:/Chicago Fed|\bNFCI\b|financial conditions/i},WALCL:{re:/balance sheet/i},
+  M2SL:{re:/\bM2\b|money supply/i},DTWEXBGS:{re:/dollar/i},HOUST:{re:/housing starts/i},
+  MORTGAGE30US:{re:/mortgage/i},CSUSHPINSA:{re:/home prices|Case.Shiller/i},
+  PSAVERT:{re:/savings rate/i},DCOILWTICO:{re:/crude|\boil\b|\bWTI\b/i},PCOPPUSDM:{re:/copper/i},
+  DHHNGSP:{re:/natural gas|Henry Hub/i},PFOODINDEXM:{re:/food (?:price|cost|inflation)|agricultural|grain/i}
+};
+/* The series a paragraph cites, in the order it first cites them, padded
+   from the section's defaults to at least four rows and capped at six. */
+function _macNarIds(i,text){
+  var t=String(text||''),hits=[];
+  Object.keys(_MAC_NAR_CITE).forEach(function(id){
+    var c=_MAC_NAR_CITE[id],re=new RegExp(c.re.source,c.re.flags.replace('g','')+'g'),m;
+    while((m=re.exec(t))){
+      if(c.not&&c.not.test(t.slice(Math.max(0,m.index-6),m.index)))continue;
+      hits.push({id:id,at:m.index});break;
+    }
+  });
+  hits.sort(function(a,b){return a.at-b.at;});
+  var ids=hits.map(function(h){return h.id;});
+  (_MAC_NAR_DEFAULT[i]||[]).forEach(function(id){if(ids.length<4&&ids.indexOf(id)<0)ids.push(id);});
+  return ids.slice(0,6);
+}
+/* Rank of v among the history the sidecar ships, matching the builder's
+   percentile_rank (share at or below). Daily series arrive downsampled, so
+   the year-ago rank is a close reading, not the builder's exact one. */
+function _macRankIn(s,v){
+  var hv=(s.hist&&s.hist.v)||[],n=0,c=0;
+  for(var i=0;i<hv.length;i++){if(hv[i]==null)continue;n++;if(hv[i]<=v)c++;}
+  return n?c/n:null;
+}
+/* "Top 1% of 10 yrs", "Bottom 2% of 74 yrs", "Mid-range, 54th pctile". */
+function _macRankWords(p,win){
+  var m=/^(\d+)y$/.exec(win||''),w=m?' of '+m[1]+' yrs':'';
+  if(p>=0.995)return 'Highest'+(m?' in '+m[1]+' yrs':'');
+  if(p<=0.005)return 'Lowest'+(m?' in '+m[1]+' yrs':'');
+  if(p>=0.9)return 'Top '+Math.max(1,Math.round((1-p)*100))+'%'+w;
+  if(p<=0.1)return 'Bottom '+Math.max(1,Math.round(p*100))+'%'+w;
+  var pc=_ord(Math.round(p*100));
+  if(p>0.75)return 'High end, '+pc+' pctile';
+  if(p<0.25)return 'Low end, '+pc+' pctile';
+  return 'Mid-range, '+pc+' pctile';
+}
+function _macNarFigure(i,text){
+  if(!MACRO||!MACRO.series)return '';
+  var rows='';
+  _macNarIds(i,text).forEach(function(id){
+    var s=MACRO.series[id];
+    if(!s||!s.latest||s.pctile==null)return;
+    var now=Math.max(0,Math.min(1,s.pctile)),ago=null;
+    if(s.chg_1y!=null)ago=_macRankIn(s,s.latest.v-s.chg_1y);
+    var good=s.good||'none',cls='';
+    if(good!=='none'&&s.chg_1y)cls=((s.chg_1y>0)===(good==='up'))?' up':' down';
+    var L=function(p){return (p*100).toFixed(1)+'%';},words=_macRankWords(now,s.pct_win);
+    var tr='<div class="mac-fig-track" role="img" aria-label="'+s.l+': '+words
+      +(ago!=null?'; '+_macRankWords(ago,s.pct_win).toLowerCase()+' a year ago':'')+'">'
+      +'<div class="mac-fig-norm"></div>';
+    if(ago!=null&&Math.abs(ago-now)>0.004){
+      var a=Math.min(ago,now),b=Math.max(ago,now);
+      tr+='<div class="mac-fig-tail'+cls+(now<ago?' rev':'')+'" style="left:'+L(a)+';width:'+L(b-a)+'"></div>'
+        +'<div class="mac-fig-ago'+cls+'" style="left:'+L(ago)+'"></div>';
+    }
+    tr+='<div class="mac-fig-now'+cls+'" style="left:'+L(now)+'"></div></div>';
+    rows+='<div class="mac-fig-row">'
+      +'<div class="mac-fig-l"><span>'+s.l+'</span><b>'+_mfmt(s.latest.v,s.fmt,s.suffix)+'</b></div>'
+      +'<div class="mac-fig-viz">'+tr+'<div class="mac-fig-cap"><span>'+words+'</span>'+_mdelta(s.chg_1y,s,'1Y')+'</div></div>'
+      +'</div>';
+  });
+  if(!rows)return '';
+  var sec=_MAC_NAR_SEC[i];
+  return '<div class="mac-fig">'
+    +'<div class="mac-fig-head"><span>Where each sits in its own history, and its path over the past year</span>'
+    +'<span class="mac-fig-key"><i class="mac-fig-k-norm"></i>middle half of history</span></div>'
+    +'<div class="mac-fig-scale"><span></span><div class="mac-fig-viz"><span class="mac-fig-lh"><span>◂ Lowest</span><span>Highest ▸</span></span><span></span></div></div>'
+    +rows
+    +(sec?'<a class="mac-fig-more" href="#" onclick="navGo(\'macro\',\''+sec+'\');return false">Full charts ›</a>':'')
+    +'</div>';
+}
+/* Every sector on one line per stance, so the shape of the read — how many
+   sectors macro is helping, how many it is hurting — shows before the
+   paragraphs. Chips link to the sector's tab like the names below. */
+function _macStanceStrip(grp,secLink){
+  var o='<div class="mac-stance">';
+  [['up','▲ Tailwind'],['','● Neutral'],['down','▼ Headwind']].forEach(function(g){
+    var items=grp[g[0]];
+    o+='<div class="mac-stance-col '+(g[0]||'flat')+'"><div class="mac-stance-h">'+g[1]+' <span>'+items.length+'</span></div>'
+      +'<div class="mac-stance-chips">'+(items.length?items.map(secLink).join(''):'<em>none</em>')+'</div></div>';
+  });
+  return o+'</div>';
+}
 function _macNarrativeHTML(){
   /* Claude-written narrative from the builder (data/claude_narrative.py),
      set part paragraph, part bullets: each kickered section opens with its
@@ -11431,6 +11611,7 @@ function _macNarrativeHTML(){
       ss.slice(1).forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
       h+='</ul>';
     }
+    if(KICK[i])h+=_macNarFigure(i,p);
   });
   var tw=(nar.tailwinds||[]).filter(Boolean),hw=(nar.headwinds||[]).filter(Boolean);
   if(tw.length||hw.length){
@@ -11460,6 +11641,7 @@ function _macNarrativeHTML(){
     var secLink=function(it){
       return '<a href="#" onclick="return _macGoSector('+it.i+')">'+_esc(it.row.sector)+'</a>';
     };
+    h+=_macStanceStrip(grp,secLink);
     var hasInf=function(it){var row=it.row;return !!(row.influence);};
     var secList=function(items,cls,label){
       if(!items.length)return '';
