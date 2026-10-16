@@ -1,12 +1,12 @@
 {
  "version": 1,
- "date": "2026-10-14",
- "prev_date": "2026-10-13",
+ "date": "2026-10-15",
+ "prev_date": "2026-10-14",
  "systemic": {
-  "n": 2280,
-  "prev_n": 2279,
-  "changed": 134,
-  "changed_share": 0.0588,
+  "n": 2281,
+  "prev_n": 2280,
+  "changed": 42,
+  "changed_share": 0.0184,
   "missing_data": 0,
   "missing_share": 0.0,
   "shrink_share": 0.0,
@@ -31,9 +31,9 @@
      "HOLD": 0,
      "PASS": 3
     },
-    "median_mos": -0.5215989624700248,
-    "median_score": 43.1,
-    "median_spread": 0.3761784020862259,
+    "median_mos": -0.49592159254758533,
+    "median_score": 43.2,
+    "median_spread": 0.37691246337370476,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -67,48 +67,30 @@
     "ratings": {
      "BUY": 3,
      "LEAN BUY": 8,
-     "HOLD": 14,
-     "PASS": 27
+     "HOLD": 15,
+     "PASS": 26
     },
-    "median_mos": -0.25013488618009616,
-    "median_score": 43.0,
-    "median_spread": 0.2635959662486025,
+    "median_mos": -0.27094095828991727,
+    "median_score": 43.05,
+    "median_spread": 0.2645974452733909,
     "sector_weights": {
-     "Technology": 0.2745098039215686,
-     "Financial Services": 0.11764705882352942,
-     "Industrials": 0.13725490196078435,
-     "Consumer Cyclical": 0.17647058823529413,
-     "Consumer Defensive": 0.17647058823529413,
-     "Communication Services": 0.09803921568627452,
-     "Energy": 0.019607843137254905
+     "Technology": 0.26923076923076916,
+     "Financial Services": 0.11538461538461539,
+     "Industrials": 0.13461538461538464,
+     "Consumer Cyclical": 0.1923076923076923,
+     "Consumer Defensive": 0.17307692307692307,
+     "Communication Services": 0.09615384615384616,
+     "Energy": 0.019230769230769232
     },
     "top_sector": "Technology",
-    "top_sector_weight": 0.2745098039215686,
-    "hhi": 0.18031526336024606,
+    "top_sector_weight": 0.26923076923076916,
+    "hhi": 0.18047337278106507,
     "concentrated": false,
-    "no_sector": 1,
-    "upgrades": 3,
+    "no_sector": 0,
+    "upgrades": 1,
     "downgrades": 0
    },
    "alerts": [
-    {
-     "ticker": "KR",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "KR moved into the buy zone: HOLD → LEAN BUY",
-     "why": [
-      "Composite score moved 38 → 39, crossing above the LEAN BUY (39) threshold.",
-      "Largest metric swings: FV Dispersion 55.6% → 41.8% (score 21 → 40)."
-     ]
-    },
-    {
-     "ticker": "ASML",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "ASML reports earnings on 2026-10-14"
-    },
     {
      "ticker": "BRK-B",
      "portfolio": "flagged",
@@ -117,10 +99,28 @@
      "message": "BRK-B joined Flagged (now matches the rule)"
     },
     {
+     "ticker": "CMCSA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "CMCSA reports earnings on 2026-10-22"
+    },
+    {
+     "ticker": "FIX",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "FIX reports earnings on 2026-10-22"
+    },
+    {
      "ticker": "GM",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "GM reports earnings on 2026-10-20"
+    },
+    {
+     "ticker": "HON",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "HON reports earnings on 2026-10-22"
     },
     {
      "ticker": "LRCX",
@@ -141,10 +141,22 @@
      "message": "NFLX reports earnings on 2026-10-20"
     },
     {
+     "ticker": "PG",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "PG reports earnings on 2026-10-22"
+    },
+    {
      "ticker": "T",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "T reports earnings on 2026-10-21"
+    },
+    {
+     "ticker": "TSCO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "TSCO reports earnings on 2026-10-22"
     },
     {
      "ticker": "TSM",
@@ -153,30 +165,20 @@
      "message": "TSM reports earnings on 2026-10-15"
     },
     {
-     "ticker": "ACT",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "ACT LEAN BUY → BUY",
-     "why": [
-      "Composite score moved 56 → 62, crossing above the BUY (57) threshold.",
-      "Biggest category moves: Valuation 54 → 75 (+21).",
-      "Largest metric swings: FV Dispersion 68.5% → 29.8% (score 2 → 57); MoS 28.0% → 49.4% (score 76 → 100)."
-     ]
+     "ticker": "UVE",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "UVE reports earnings on 2026-10-22"
     },
     {
-     "ticker": "ORCL",
+     "ticker": "JPM",
      "from": "PASS",
      "to": "HOLD",
      "kind": "same_side",
      "level": "fyi",
-     "message": "ORCL PASS → HOLD",
+     "message": "JPM PASS → HOLD",
      "why": [
-      "The prior run's rating cap no longer applies (margin of safety <= -20%).",
-      "Composite score moved 41 → 38, crossing above the LEAN BUY (39) threshold.",
-      "Biggest category moves: Valuation 21 → 12 (-9).",
-      "Largest metric swings: FV Dispersion 34.1% → 77.0% (score 51 → 0)."
+      "Composite score moved 46.1 → 46.0 (the composite-only rating band did not change)."
      ]
     }
    ]
