@@ -92,12 +92,20 @@ MACRO_SERIES = [
     dict(id='PSAVERT', l='Personal Savings Rate', sec='housing', freq='m',
          tr='level', fmt='pct1', suffix='', good='none', scale=1),
     # --- Commodities ---
-    # The price decks Energy and Basic Materials live on; the sector page's
-    # commodity headwinds and tailwinds read their status from these.
+    # The price decks Energy and Basic Materials live on, plus the fuel and
+    # food input costs of Utilities, chemicals and Consumer Defensive; the
+    # sector page's commodity headwinds and tailwinds read their status from
+    # these. FRED only: the dashboard fetches every series through
+    # FREDClient, and FRED dropped the LBMA gold fix in 2022, so there is no
+    # gold card.
     dict(id='DCOILWTICO', l='WTI Crude ($/bbl)', sec='commodities', freq='d',
          tr='level', fmt='n1', suffix='', good='none', scale=1),
     dict(id='PCOPPUSDM', l='Copper ($/t)', sec='commodities', freq='m',
          tr='level', fmt='int', suffix='', good='none', scale=1),
+    dict(id='DHHNGSP', l='Henry Hub Natural Gas ($/MMBtu)', sec='commodities',
+         freq='d', tr='level', fmt='n2', suffix='', good='none', scale=1),
+    dict(id='PFOODINDEXM', l='IMF Global Food Price Index', sec='commodities',
+         freq='m', tr='level', fmt='n1', suffix='', good='none', scale=1),
 ]
 
 SECTIONS = [
