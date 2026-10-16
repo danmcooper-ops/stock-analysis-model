@@ -1224,6 +1224,11 @@ td.ct{font-weight:700;}
 .dsummary{background:#f5f8ff;border:1px solid #dde5f5;border-left:4px solid #2c5a94;border-radius:9px;padding:10px 14px;}
 .dsummary-h{font-size:0.66em;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;color:#1a3a6b;margin-bottom:4px;}
 .dsummary p{margin:0;font-size:0.84em;line-height:1.55;color:#37474f;}
+.ds-tog{display:none;--sac:var(--link);background:none;border:0;padding:6px 0 0;font:inherit;font-size:0.84em;font-weight:600;cursor:pointer;}
+@media(max-width:768px),(orientation:landscape) and (max-height:500px){
+  .dsummary.ds-clip:not(.open) .ds-more{display:none;}
+  .ds-tog{display:inline-block;}
+}
 /* Track Record annual-fundamentals table */
 .dtr-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .dtr-tbl{border-collapse:collapse;width:100%;font-size:0.78em;}
@@ -9807,6 +9812,12 @@ function _dvKey(){
     +'<span><span class="sw"><i></i></span>sector median</span>'
     +'<span><b class="dv-pos">green</b>&nbsp;favourable · <b class="dv-neg">red</b>&nbsp;unfavourable · <b style="--sac:var(--dv-neu)">blue</b>&nbsp;no better/worse</span></div>';
 }
+function _dsToggle(b){
+  var box=b.closest('.dsummary');if(!box)return;
+  var open=box.classList.toggle('open');
+  b.setAttribute('aria-expanded',open?'true':'false');
+  b.textContent=open?'Show less':'Read more';
+}
 function _renderDetDataTab(key){
   var el=document.getElementById('d-pane-data');if(!el)return;
   var d=DATA.find(function(x){return x.ticker===_dpTicker;});
@@ -9817,7 +9828,15 @@ function _renderDetDataTab(key){
      details.json, so it is absent until that sidecar lands (openDet re-renders
      then) and on reports built before it existed — render nothing either way. */
   var _sm=d.data_summaries&&d.data_summaries[key];
-  if(_sm&&_sm.length)h+='<div class="dsummary"><div class="dsummary-h">Summary</div><p>'+_sm.map(function(x){return esc(x);}).join(' ')+'</p></div>';
+  /* Phones show the first two sentences and a Read more toggle (CSS
+     below): the full lead filled most of the first screen on iOS. Desktop
+     shows it all and never sees the button. */
+  if(_sm&&_sm.length){
+    var _smE=_sm.map(function(x){return esc(x);}),_smMore=_smE.slice(2);
+    h+='<div class="dsummary'+(_smMore.length?' ds-clip':'')+'"><div class="dsummary-h">Summary</div><p>'+_smE.slice(0,2).join(' ')
+      +(_smMore.length?'<span class="ds-more"> '+_smMore.join(' ')+'</span>':'')+'</p>'
+      +(_smMore.length?'<button type="button" class="ds-tog sa-chrome" aria-expanded="false" onclick="_dsToggle(this)">Read more</button>':'')+'</div>';
+  }
   /* Chart band first: the picture, then the ranked rows behind it. */
   var hero=DV_HERO[key]?DV_HERO[key](d):'';
   if(hero)h+='<div class="dv-hero">'+hero+'</div>';
