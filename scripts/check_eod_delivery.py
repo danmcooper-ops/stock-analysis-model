@@ -15,8 +15,9 @@ raise a false alarm every few weeks, and a run that skips one day but keeps
 going is a different (smaller) problem than a run that has stopped.
 
 `--kind weekly` applies the same check to the Sunday backtest: it reads
-`backtest_summary_<date>.json` instead and allows 8 days, so one Sunday that
-produced nothing goes red on the Monday after it. The missing-weekday table
+`backtest_summary_<date>.json` instead and allows 7 days, so one Sunday that
+produced nothing goes red on the Monday after it (the Monday
+`.github/workflows/weekly-backtest-check.yml` runs it). The missing-weekday table
 does not apply to a weekly job and is skipped.
 
 Usage:
@@ -56,8 +57,9 @@ KINDS = {
     'snapshot': (_SNAPSHOT_RE, _DEFAULT_MAX_AGE_DAYS, 'snapshot', 'snapshots',
                  'the nightly run has stopped landing snapshots'),
     # A Sunday summary seen on the Monday after the NEXT Sunday is 8 days old:
-    # that Sunday has produced nothing, which is what this is meant to catch.
-    'weekly': (_WEEKLY_RE, 8, 'backtest summary', 'backtest summaries',
+    # that Sunday has produced nothing, which is what this is meant to catch,
+    # so the limit is 7 (a limit of 8 left 10-11's miss green until Tuesday).
+    'weekly': (_WEEKLY_RE, 7, 'backtest summary', 'backtest summaries',
                'the weekly backtest has stopped landing summaries'),
 }
 

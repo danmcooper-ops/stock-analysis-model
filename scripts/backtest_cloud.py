@@ -129,9 +129,26 @@ def _write_atomic(path, data):
     os.replace(tmp, path)
 
 
+def prior_summary_name(names, before=None):
+    """The newest ``backtest_summary_<date>.json`` in *names* dated before
+    *before* (``YYYY-MM-DD``), or None.
+
+    Without *before* this is the newest one, which is wrong for any re-run:
+    a second run of a date that already published would stage its own
+    summary, measure would overwrite it, and compare would find no earlier
+    one and report "no regressions" against nothing.
+    """
+    dated = sorted((m.group(1), nm) for nm in names
+                   if (m := SUMMARY_RE.fullmatch(nm)))
+    if before:
+        dated = [(d, nm) for d, nm in dated if d < before]
+    return dated[-1][1] if dated else None
+
+
 def stage(repo, dest, since=None, newest=None, matured_days=None, remote='origin',
-          today=None, log=print):
-    """Stage snapshots (+ blobs), return sidecars and the prior summary."""
+          today=None, before=None, log=print):
+    """Stage snapshots (+ blobs), return sidecars and the prior summary
+    (the newest one dated before *before*, see prior_summary_name)."""
     top = _tree(repo)
     picked = pick_snapshots(top, since=since, newest=newest, today=today,
                             matured_days=matured_days)
@@ -140,8 +157,8 @@ def stage(repo, dest, since=None, newest=None, matured_days=None, remote='origin
                       f'newest={newest} matured_days={matured_days}')
     persisted = {d: _tree(repo, path=d) for d in PERSISTED_DIRS}
     returns = persisted[RETURNS_DIR]
-    summaries = sorted(nm for nm in top if SUMMARY_RE.fullmatch(nm))
-    prior = summaries[-1:]
+    prior_name = prior_summary_name(top, before)
+    prior = [prior_name] if prior_name else []
 
     wanted = {nm: top[nm] for nm in picked}
     for tree in persisted.values():
@@ -563,6 +580,8 @@ def main(argv=None):
     p.add_argument('--matured-days', type=int, default=None,
                    help='keep only snapshots at least this many days old')
     p.add_argument('--remote', default='origin')
+    p.add_argument('--before', default=None,
+                   help='stage the newest summary dated before this (the run date)')
 
     p = sub.add_parser('tickers')
     p.add_argument('--results-dir', default='output')
@@ -600,7 +619,8 @@ def main(argv=None):
     if args.cmd == 'stage':
         try:
             stage(args.repo, args.dest, since=args.since, newest=args.newest,
-                  matured_days=args.matured_days, remote=args.remote)
+                  matured_days=args.matured_days, remote=args.remote,
+                  before=args.before)
         except (OSError, subprocess.CalledProcessError) as e:
             print(f'[stage] failed: {e}')
             return 1

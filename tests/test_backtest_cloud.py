@@ -163,6 +163,22 @@ def test_stage_materializes_corpus_returns_and_prior_summary(archive, tmp_path):
     assert json.loads((dest / 'results_2026-08-03.json').read_text(encoding='utf-8'))['date'] == '2026-08-03'
 
 
+def test_prior_summary_is_dated_before_the_run():
+    names = ['backtest_summary_2026-10-04.json', 'backtest_summary_2026-10-11.json',
+             'backtest_2026-10-11.xlsx', 'results_2026-10-12.json.gz']
+    assert bc.prior_summary_name(names) == 'backtest_summary_2026-10-11.json'
+    # a re-run of 10-11 compares against 10-04, never against itself
+    assert bc.prior_summary_name(names, '2026-10-11') == 'backtest_summary_2026-10-04.json'
+    assert bc.prior_summary_name(names, '2026-10-04') is None
+
+
+def test_stage_skips_a_summary_dated_on_or_after_the_run(archive, tmp_path):
+    dest = tmp_path / 'out'
+    bc.stage(str(archive), str(dest), since='2026-07-06', before='2026-09-20',
+             log=lambda *_: None)
+    assert not list(dest.glob('backtest_summary_*.json'))
+
+
 def test_stage_refuses_an_empty_selection(archive, tmp_path):
     with pytest.raises(OSError):
         bc.stage(str(archive), str(tmp_path / 'out'), since='2027-01-01', log=lambda *_: None)
