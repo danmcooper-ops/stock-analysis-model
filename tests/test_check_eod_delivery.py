@@ -158,16 +158,16 @@ class TestWeeklyKind:
         assert snapshot_dates(['backtest_summary_2026-10-04.json']) == []
 
     def test_next_monday_is_fresh(self):
-        ok, age, _ = verdict([D(2026, 10, 4)], D(2026, 10, 5), 8, 'weekly')
+        ok, age, _ = verdict([D(2026, 10, 4)], D(2026, 10, 5), 7, 'weekly')
         assert ok and age == 1
 
     def test_a_missed_sunday_goes_red_the_monday_after(self):
-        # 10-04 landed, 10-11 did not: Monday 10-12 sees an 8-day-old summary
-        # (allowed), Tuesday 10-13 a 9-day-old one.
-        assert verdict([D(2026, 10, 4)], D(2026, 10, 12), 8, 'weekly')[0]
-        ok, _, reason = verdict([D(2026, 10, 4)], D(2026, 10, 13), 8, 'weekly')
+        # 10-04 landed, 10-11 did not: Monday 10-12 sees an 8-day-old summary.
+        ok, _, reason = verdict([D(2026, 10, 4)], D(2026, 10, 12), 7, 'weekly')
         assert not ok
         assert 'weekly backtest' in reason
+        # A catch-up that landed on the Saturday keeps that Monday green.
+        assert verdict([D(2026, 10, 10)], D(2026, 10, 12), 7, 'weekly')[0]
 
     def _run(self, monkeypatch, names, *extra):
         import scripts.check_eod_delivery as mod
@@ -175,12 +175,12 @@ class TestWeeklyKind:
         monkeypatch.setattr('sys.argv', ['x', '--repo', 'owner/name', '--kind', 'weekly', *extra])
         return mod.main()
 
-    def test_default_max_age_is_eight_days(self, monkeypatch, capsys):
+    def test_default_max_age_is_seven_days(self, monkeypatch, capsys):
         import datetime as _dt
+        seven = _dt.date.today() - _dt.timedelta(days=7)
         eight = _dt.date.today() - _dt.timedelta(days=8)
-        nine = _dt.date.today() - _dt.timedelta(days=9)
-        assert self._run(monkeypatch, [f'backtest_summary_{eight:%Y-%m-%d}.json']) == 0
-        assert self._run(monkeypatch, [f'backtest_summary_{nine:%Y-%m-%d}.json']) == 1
+        assert self._run(monkeypatch, [f'backtest_summary_{seven:%Y-%m-%d}.json']) == 0
+        assert self._run(monkeypatch, [f'backtest_summary_{eight:%Y-%m-%d}.json']) == 1
         assert 'STALE' in capsys.readouterr().out
 
     def test_fresh_snapshots_do_not_satisfy_weekly(self, monkeypatch, capsys):

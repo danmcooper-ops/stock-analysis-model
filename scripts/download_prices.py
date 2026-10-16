@@ -35,7 +35,8 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, timedelta
+from datetime import date, datetime, time as dtime, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
@@ -76,6 +77,26 @@ def _parquet_max_date(path):
     except Exception as e:
         logger.debug(f"prices: parquet read failed for {path}: {e}")
         return None
+
+
+# A bar dated today is final only once the session has closed and Yahoo has
+# settled the print. Before then Yahoo returns today's row with a LIVE close,
+# which is finite, so trim_trailing_invalid keeps it: a weekday catch-up of the
+# weekly backtest would freeze that intraday price as an eval-date close. The
+# nightly run starts at 17:05 New York, after this cutoff, so it is unaffected.
+MARKET_TZ = ZoneInfo('America/New_York')
+SESSION_FINAL = dtime(16, 30)
+
+
+def trim_unfinished_session(df, now=None):
+    """*df* without a bar dated today (New York) while the session is open."""
+    now = now or datetime.now(MARKET_TZ)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=MARKET_TZ)
+    now = now.astimezone(MARKET_TZ)
+    if now.time() >= SESSION_FINAL or df.empty:
+        return df
+    return df[df.index < pd.Timestamp(now.date())]
 
 
 def _parquet_is_stub(path):
@@ -141,7 +162,7 @@ def download_ticker(ticker: str, output_dir: str, delay: float,
         df.index = pd.to_datetime(df.index).tz_localize(None)
         # An unfinished session arrives as a trailing row with no close; it is
         # not a bar, and a later run re-fetches the day once it has one.
-        df = trim_trailing_invalid(df)
+        df = trim_trailing_invalid(trim_unfinished_session(df))
         if df.empty:
             return "empty"
         # Write through a temp file: workers write concurrently and the cloud

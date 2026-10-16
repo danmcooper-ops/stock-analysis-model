@@ -193,3 +193,19 @@ def test_an_older_sidecar_kept_without_prices_keeps_its_method(tmp_path):
                                  cache_dir=str(cache), today=date(2026, 9, 30))
     body = json.loads(path.read_text(encoding='utf-8'))
     assert 'BBB' in body['tickers'] and body['method'] == 3
+
+
+def test_an_open_session_bar_is_not_written():
+    """During market hours Yahoo's row for today carries a live, finite close;
+    it must not be written as that day's bar (a weekday catch-up would freeze
+    it as an eval-date close)."""
+    from datetime import datetime
+    idx = pd.date_range('2026-10-14', '2026-10-16', freq='B')
+    df = pd.DataFrame({'Close': [10.0, 11.0, 11.4]}, index=idx)
+    open_ = datetime(2026, 10, 16, 11, 0, tzinfo=dp.MARKET_TZ)
+    closed = datetime(2026, 10, 16, 17, 5, tzinfo=dp.MARKET_TZ)
+    assert dp.trim_unfinished_session(df, open_).index.max() == pd.Timestamp('2026-10-15')
+    assert dp.trim_unfinished_session(df, closed).index.max() == pd.Timestamp('2026-10-16')
+    # 07:00 the next morning: yesterday's bar is final
+    morning = datetime(2026, 10, 17, 7, 0, tzinfo=dp.MARKET_TZ)
+    assert dp.trim_unfinished_session(df, morning).index.max() == pd.Timestamp('2026-10-16')

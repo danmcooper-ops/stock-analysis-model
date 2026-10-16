@@ -27,7 +27,8 @@
 #   05 readiness  evidence census (dates only)
 #   06 measure    measure, offline (--local-prices-only), files stamped
 #                 with RUNDATE; tops up and re-freezes the return sidecars
-#   07 compare    week-over-week regression check against last week's summary
+#   07 compare    week-over-week regression check against the newest summary
+#                 dated before RUNDATE (never this run's own, on a re-run)
 #   08 archive    commit summary + xlsx + new/changed returns/ sidecars and
 #                 price_backfill/ series to
 #                 data/snapshots (plumbing — the blob-less clone never
@@ -56,7 +57,9 @@
 #   TIINGO_API_KEY       step 04b's source (unset: delisted names stay unmeasured)
 #   TIINGO_MAX_CALLS     Tiingo requests per run (default 40; the rest wait a week)
 #   RUNDATE=YYYY-MM-DD   the date the outputs are named after (default today, New York)
-#   DRY_RUN=1            do everything except push
+#   DRY_RUN=1            do everything except push; status.txt then ends
+#                        RESULT OK-DRYRUN and PUBLISHED no (DRY_RUN), never
+#                        a bare RESULT OK
 #   SMOKE=1              the newest SMOKE_SNAPSHOTS matured snapshots and
 #                        SMOKE_TICKERS only; never pushes
 set -uo pipefail
@@ -174,10 +177,11 @@ stage_corpus() {
   git -C "$SNAP" reset -q || return 1
   if [ "$SMOKE" = 1 ]; then
     "$PYTHON" scripts/backtest_cloud.py stage --repo "$SNAP" --dest "$OUT" \
-        --since "$BACKTEST_SINCE" --matured-days 30 --newest "$SMOKE_SNAPSHOTS"
+        --since "$BACKTEST_SINCE" --matured-days 30 --newest "$SMOKE_SNAPSHOTS" \
+        --before "$RUNDATE"
   else
     "$PYTHON" scripts/backtest_cloud.py stage --repo "$SNAP" --dest "$OUT" \
-        --since "$BACKTEST_SINCE"
+        --since "$BACKTEST_SINCE" --before "$RUNDATE"
   fi
 }
 run_step 02-stage-corpus 1 stage_corpus || fail 02-stage-corpus
@@ -263,18 +267,29 @@ build_commit() {
   fi
   commit=$(git -C "$SNAP" commit-tree "$tree" -p HEAD -m "Weekly backtest: $RUNDATE") || return 1
   git -C "$SNAP" update-ref "refs/heads/$SNAP_BRANCH" "$commit" || return 1
-  echo "archive commit: $(git -C "$SNAP" log --oneline -1 "$commit")"
+  # "built", not "archived": it exists only in this clone until the push.
+  echo "commit built (not yet pushed): $(git -C "$SNAP" log --oneline -1 "$commit")"
   git -C "$SNAP" diff-tree --name-status -r HEAD~1 HEAD   # (--stat would fetch blobs)
 }
 
+# PUBLISHED records what step 08 actually did, so status.txt can never read as
+# a publish when nothing reached the branch (a DRY_RUN used to end RESULT OK
+# beside an "archive commit:" line, and was reported as pushed).
+PUBLISHED="no (archive did not run)"
 archive() {
   local attempt rc delay=2
   for attempt in 1 2 3 4 5; do
     build_commit; rc=$?
-    [ "$rc" = 3 ] && return 0
-    [ "$rc" = 0 ] || return 1
-    if [ "$DRY_RUN" = 1 ]; then say "   DRY_RUN: not pushing"; return 0; fi
-    git -C "$SNAP" push "$PUSH_REMOTE" "refs/heads/$SNAP_BRANCH:refs/heads/$SNAP_BRANCH" && return 0
+    if [ "$rc" = 3 ]; then PUBLISHED="already (the archive held this backtest)"; return 0; fi
+    [ "$rc" = 0 ] || { PUBLISHED="no (commit could not be built)"; return 1; }
+    if [ "$DRY_RUN" = 1 ]; then
+      say "   DRY_RUN: not pushing"; PUBLISHED="no (DRY_RUN)"; return 0
+    fi
+    if git -C "$SNAP" push "$PUSH_REMOTE" "refs/heads/$SNAP_BRANCH:refs/heads/$SNAP_BRANCH"; then
+      PUBLISHED="pushed $(git -C "$SNAP" rev-parse --short "refs/heads/$SNAP_BRANCH")"
+      echo "pushed: $PUBLISHED"
+      return 0
+    fi
     [ "$attempt" = 5 ] && break
     # Rejected: most likely the branch moved (a daily snapshot landed). Drop
     # our commit, take the new tip, and rebuild on top of it.
@@ -283,6 +298,7 @@ archive() {
     git -C "$SNAP" fetch -q --depth 1 --filter=blob:none "$CLONE_REMOTE" "$SNAP_BRANCH" || continue
     git -C "$SNAP" update-ref "refs/heads/$SNAP_BRANCH" FETCH_HEAD || return 1
   done
+  PUBLISHED="no (push rejected)"
   return 1
 }
 run_step 08-archive 1 archive
@@ -297,8 +313,11 @@ ELAPSED=$(( $(date +%s) - RUN_T0 ))
   echo "SUMMARY $SUMMARY"
   echo "ELAPSED_SECONDS $ELAPSED"
   echo "SOFT_FAILURES ${SOFT_FAILED[*]:-none}"
-  if [ "$ARCHIVE_RC" = 0 ]; then echo "RESULT OK"
-  else echo "RESULT FAILED at archive (the measurement itself is in $SUMMARY)"; fi
+  echo "PUBLISHED $PUBLISHED"
+  if [ "$ARCHIVE_RC" != 0 ]; then
+    echo "RESULT FAILED at archive (the measurement itself is in $SUMMARY)"
+  elif [ "$DRY_RUN" = 1 ]; then echo "RESULT OK-DRYRUN"
+  else echo "RESULT OK"; fi
 } >> "$STATUS"
 say "done in ${ELAPSED}s"; cat "$STATUS"
 [ "$ARCHIVE_RC" = 0 ] || exit 1

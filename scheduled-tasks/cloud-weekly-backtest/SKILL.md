@@ -77,8 +77,13 @@ cd /home/user/stock-analysis-model && bash scheduled-tasks/cloud-weekly-backtest
 Do not poll with `sleep` loops, and never start a second copy.
 
 ### 3. Read the outcome
-Read `.cloud-backtest/status.txt` first.
+Read `.cloud-backtest/status.txt` first. Its `PUBLISHED` line says what
+step 08 actually did: `pushed <sha>`, `already (the archive held this
+backtest)`, or `no (<why>)`.
 - `RESULT OK` → full summary (below).
+- `RESULT OK-DRYRUN` → a `DRY_RUN` (or `SMOKE`): measured, nothing pushed.
+  Write the summary, but lead with "dry run — not published"; never report
+  its commit as archived.
 - `RESULT FAILED at 04-prices` → quote the `PROBLEM:` lines and the download
   tally from `logs/04-prices.log`. Nothing was measured or pushed. One retry
   of the whole script is allowed if the log shows Yahoo throttling (many
@@ -137,8 +142,10 @@ and the summary JSON:
    model change is expected after a weight PR, not a failure. A newly skipped snapshot ("missing gate
    fields") means a nightly run wrote a snapshot without current gate
    fields — flag it prominently.
-8. **Archive**: the `Weekly backtest: <date>` commit from `logs/08-archive.log`
-   and how many `returns/` sidecars it added or changed.
+8. **Archive**: the `PUBLISHED` line, and, when it says `pushed`, the
+   `Weekly backtest: <date>` commit from `logs/08-archive.log` and how many
+   `returns/` sidecars it added or changed. The log's "commit built (not yet
+   pushed)" line alone proves nothing: a dry run prints it too.
 
 "FV accuracy" is not measured below a 365d horizon by design.
 
@@ -159,7 +166,7 @@ and the summary JSON:
 - `SMOKE=1 bash scheduled-tasks/cloud-weekly-backtest/run.sh` measures the
   newest 3 matured snapshots on 8 tickers in under a minute and never pushes
   (SMOKE implies DRY_RUN). Its compare step always reports low coverage.
-- `DRY_RUN=1` runs the full job without pushing.
+- `DRY_RUN=1` runs the full job without pushing (`RESULT OK-DRYRUN`).
 - `RUNDATE=YYYY-MM-DD` names the outputs after another day (e.g. a Sunday
   that failed, re-run on Monday).
 
