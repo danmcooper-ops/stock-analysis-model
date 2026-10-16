@@ -724,6 +724,16 @@ ruff check .
     Score bracket) do. The folded Other spans several industries (its
     `members`), which a single filter cannot express, so like the gate
     pass/fail drill-down it keeps the clearable chip (`_dashFilter`).
+    Every such drill (this one, the Dashboard cards, rating boxes and map,
+    the Sector Heatmap and Cross-Sector Profit Pool into a sector page)
+    first pushes its origin onto `_drillStack`: `#sn-back` in the subnav
+    reads `‹ <origin>`, and it, the `b` key and the browser's Back
+    (`pushState`, one entry per drill) restore the origin's view, sub-tab,
+    sector section and scroll. Any other way out goes through `navGo`
+    (`_drillLeave`) and drops every pending drill. Either way the filter a
+    drill engaged is undone, field by field against the state sealed right
+    after the drill (`_drillSeal`), so a filter the user added or retuned
+    afterwards stays. Clear empties the stack; share links do not carry it.
   - History (`history`).
   - Value creation (`value`).
   - Trading (`flow`).
