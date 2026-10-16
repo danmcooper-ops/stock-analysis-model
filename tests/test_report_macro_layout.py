@@ -345,3 +345,26 @@ def test_macro_narrative_sections_carry_figures():
     defaults = re.search(r'var _MAC_NAR_DEFAULT=\[(.*?)\];', css, re.S)
     assert defaults and defaults.group(1).count('[') == 3, \
         'one default list per narrative paragraph'
+
+
+def test_regime_note_matches_the_model_weights_and_cutoffs():
+    """The Market Regime box explains its meters in words, quoting the
+    composite's weights and regime cut-offs; keep them in step with
+    models/macro.py so the explanation never describes another model."""
+    from models.macro import MACRO_WEIGHTS, assess_macro_regime
+    src = _css()
+    m = re.search(r"var _MAC_REGIME_NOTE='([^']*)'", src)
+    assert m, 'regime explainer missing'
+    note = m.group(1)
+    assert MACRO_WEIGHTS == {'vix': 0.25, 'yield_curve': 0.25,
+                             'credit_spread': 0.20, 'spy_momentum': 0.15,
+                             'industrial_rs': 0.15}
+    assert '25% each' in note and '20%' in note and '15% each' in note
+    for phrase in ('+0.40 Expansion', '+0.10 Mid Cycle', '−0.10 Neutral',
+                   '−0.40 Late Cycle'):
+        assert phrase in note
+    import inspect
+    body = inspect.getsource(assess_macro_regime)
+    for cut in ('> 0.40', '> 0.10', '> -0.10', '> -0.40'):
+        assert cut in body
+    assert '_MAC_REGIME_NOTE' in src.split('function _macRegimeHTML', 1)[1]
