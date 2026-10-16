@@ -7722,7 +7722,13 @@ function _detHdrEls(){
 function _detHdrReset(){
   var e=_detHdrEls();if(!e)return;
   _hdr.on=false;_hdr.st=0;
-  e.dm.classList.remove('hdr-live','hdr-min');e.dm.style.removeProperty('--hp');
+  /* classList.remove rewrites the class attribute even when neither class is
+     there, and that is a mutation the open/close observer below hears: it
+     answered a closed page with another reset, so closing the ticker page
+     looped in microtasks forever and froze the tab. Touch only what is set. */
+  if(e.dm.classList.contains('hdr-live'))e.dm.classList.remove('hdr-live');
+  if(e.dm.classList.contains('hdr-min'))e.dm.classList.remove('hdr-min');
+  e.dm.style.removeProperty('--hp');
   e.band.style.height='';if(e.hc)e.hc.style.height='0px';
 }
 function _detHdrMeasure(){
@@ -7786,9 +7792,14 @@ function _detCompactSync(){
   if(window.MutationObserver)new MutationObserver(function(recs){
     for(var i=0;i<recs.length;i++){var t=recs[i].target;if(!(e.cp&&e.cp.contains(t))){later();return;}}
   }).observe(e.band,{childList:true,subtree:true,characterData:true});
-  /* Opening the page (class "open" on #det-modal). */
+  /* Opening and closing the page (class "open" on #det-modal). Only a
+     change of "open" counts: the hdr-* classes live on the same attribute. */
+  var wasOpen=e.dm.classList.contains('open');
   if(window.MutationObserver)new MutationObserver(function(){
-    if(e.dm.classList.contains('open'))later();else _detHdrReset();
+    var isOpen=e.dm.classList.contains('open');
+    if(isOpen===wasOpen)return;
+    wasOpen=isOpen;
+    if(isOpen)later();else _detHdrReset();
   }).observe(e.dm,{attributes:true,attributeFilter:['class']});
   window.addEventListener('resize',later);
   if(_HDR_TOUCH&&_HDR_TOUCH.addEventListener)_HDR_TOUCH.addEventListener('change',later);

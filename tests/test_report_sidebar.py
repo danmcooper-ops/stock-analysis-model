@@ -358,3 +358,22 @@ def test_ticker_band_collapse_follows_the_scroll():
     # The compact row mirrors the band and never re-triggers its own sync.
     assert 'if(!(e.cp&&e.cp.contains(t))){later();return;}' in src
     assert "closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_detHdrReset();" in src
+
+
+def test_closing_the_ticker_page_cannot_loop_its_class_observer():
+    """A MutationObserver on #det-modal's class resets the band when the page
+    closes, and the reset itself edits that class. classList.remove rewrites
+    the attribute even when the class is absent, so an unguarded remove was a
+    fresh mutation each time: closing the page re-entered the observer in
+    microtasks forever and froze the tab (× and Escape looked dead). The
+    reset only removes what is set, and the observer acts only on a change
+    of "open"."""
+    src = _tpl()
+    reset = _fn(src, '_detHdrReset')
+    for m in re.finditer(r"e\.dm\.classList\.remove\('([\w-]+)'\)", reset):
+        guard = "if(e.dm.classList.contains('%s'))" % m.group(1)
+        assert reset[:m.start()].endswith(guard), m.group(0)
+    assert "classList.remove('hdr-live','hdr-min')" not in reset
+    obs = src[src.index('var wasOpen=e.dm.classList.contains'):][:400]
+    assert 'if(isOpen===wasOpen)return;' in obs
+    assert "attributeFilter:['class']" in obs
