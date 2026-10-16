@@ -3189,6 +3189,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   <!-- The view's name and its sub-tabs as Seeking Alpha-style chips —
        the only route to a sub-tab now that the Views dropdown is gone. -->
   <div id="subnav" class="sa-chrome">
+    <button type="button" class="d-back sa-chrome" id="sn-back" onclick="drillBack()"></button>
     <div class="sn-head"><h2 class="sn-title" id="sn-title"></h2><span class="sn-count" id="sn-count"></span><span class="sn-crumb" id="sn-crumb"></span><span class="sn-date">{{ generated_at }}</span></div>
     <div class="sn-chips" id="sn-chips" role="tablist"></div>
   </div>
@@ -3442,6 +3443,71 @@ function _dashLabel(){
   return'';
 }
 function clearDashFilter(){if(!_dashFilter)return;_dashFilter=null;applyFilters();}
+/* === DRILL-DOWN RETURN ===
+   A chart that drills somewhere else (a Profit Pool industry, a Dashboard
+   card, rating box or map country into the Gate Matrix; the Sector Heatmap
+   or the Cross-Sector Profit Pool into a sector page) first pushes where it
+   was: view, sub-tab, sector-page section, scroll and the whole filter state.
+   #sn-back then reads "‹ <origin>", and it, the b key and the browser's Back
+   (one history entry per drill) pop the stack and restore all of it, so the
+   industry filter the drill set does not outlive the trip. Navigating by
+   hand (sidebar, chips, hotkeys, swipe) or Clear empties the stack. */
+var _drillStack=[],_DRILL_MAX=5,_drillRestoring=false;
+function _drillSub(){
+  if(curView==='pool')return _poolTab||'__performance__';
+  if(curView==='matrix')return curMSub||'matrix';
+  if(curView==='macro')return curMacSub;
+  if(curView==='pf')return curPfSub;
+  return curTSub;
+}
+function _drillPush(label){
+  if(_drillRestoring)return;
+  var e={label:label,view:curView,sub:_drillSub(),ppTab:_ppSubTabCur(),
+         scrollY:window.scrollY||0,filters:_getCurrentFilterState(),pushed:false};
+  _drillStack.push(e);
+  if(_drillStack.length>_DRILL_MAX)_drillStack.shift();
+  /* Flush the pending hash first so the entry left behind carries the
+     origin's URL; the drilled view then rewrites only the new one. */
+  clearTimeout(_hashTimer);_syncHashNow();
+  try{history.pushState({drill:_drillStack.length},'',location.href);e.pushed=true;}catch(err){}
+  _drillSyncBack();
+}
+function _drillClear(){
+  if(!_drillStack.length)return;
+  _drillStack=[];
+  _drillSyncBack();
+}
+function _drillSyncBack(){
+  var b=document.getElementById('sn-back');if(!b)return;
+  var e=_drillStack[_drillStack.length-1];
+  b.textContent=e?'\u2039 '+e.label:'';
+  b.title=e?'Back to '+e.label+' (b)':'';
+}
+function _drillRestore(){
+  var e=_drillStack.pop();if(!e)return;
+  _drillRestoring=true;
+  try{
+    var dm=document.getElementById('det-modal');
+    if(dm&&dm.classList.contains('open'))closeDetail();
+    ppHide();
+    if(e.view==='pool')window._ppSubTabSel=e.ppTab;
+    _applyFilterState(e.filters);
+    navGo(e.view,e.sub);
+  }finally{_drillRestoring=false;}
+  _drillSyncBack();
+  setTimeout(function(){window.scrollTo(0,e.scrollY);},30);
+}
+/* The link and the b key spend the drill's history entry, so the browser's
+   Back does not then replay a trip already undone; popstate restores. */
+function drillBack(){
+  var e=_drillStack[_drillStack.length-1];if(!e)return;
+  if(!e.pushed){_drillRestore();return;}
+  history.back();
+  /* A browser that ignores back() (some embedded viewers) still returns. */
+  setTimeout(function(){if(_drillStack[_drillStack.length-1]===e)_drillRestore();},400);
+}
+window.addEventListener('popstate',function(){if(_drillStack.length)_drillRestore();});
+function drillPoolTab(sec,label){_drillPush(label);showPoolTab(sec);}
 /* Land on Financial Model -> Gate Matrix with whatever filter state the
    caller just set, then re-run the filter pass so the matrix renders the
    drilled-down set. The category cards, rating boxes, and world-map
@@ -3465,6 +3531,7 @@ function dashCatJump(name,scoreKey){
   var scores=FD.map(function(d){return _num(d[scoreKey]);}).filter(function(v){return v!=null;});
   if(!scores.length)return;
   var avg=Math.round(scores.reduce(function(a,b){return a+b;},0)/scores.length);
+  _drillPush('Dashboard \u00b7 '+name);
   /* A column filter on the category score (min = the card's average),
      shown and editable in the Filters menu. */
   if(_dashFilter&&_dashFilter.type!=='gate')_dashFilter=null;
@@ -3478,6 +3545,7 @@ function dashIndustryJump(sec,idx){
   var n=SECTOR_POOL&&SECTOR_POOL[sec],d=n&&n.industries&&n.industries[idx];
   if(!d)return;
   ppHide();
+  _drillPush(sec+' \u00b7 Profit Pool');
   var mem=d.members&&d.members.length?d.members.slice():[d.industry];
   if(mem.length===1){
     /* One industry: an Industry column filter in the Filters menu. */
@@ -3502,6 +3570,7 @@ function toggleDashScore(idx){
 }
 function dashRatingJump(r){
   var wrap=document.getElementById('ms-rating');if(!wrap)return;
+  _drillPush('Dashboard \u00b7 '+r);
   wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]').forEach(function(cb){cb.checked=cb.value===r;});
   var allBox=wrap.querySelector('.ms-all input');
   if(allBox){allBox.checked=false;allBox.indeterminate=true;}
@@ -6134,6 +6203,7 @@ function clearFilters(){
      reset it too — it used to survive, leaving the matrix stuck on one
      industry with no visible way out on a phone. */
   _dashFilter=null;
+  _drillClear();
   applyFilters();
 }
 function _positionFpop(panel,btn){
@@ -11010,6 +11080,7 @@ function _swipeTab(dir){
   var ki=-1;g.items.forEach(function(it,i){if(String(it.k)===String(g.cur))ki=i;});
   var nx=g.items[ki+dir];
   if(ki<0||!nx)return false;
+  _drillClear();
   navGo(g.v,nx.k);
   var chip=document.querySelector('#subnav .sn-chip.cur');
   if(chip)chip.scrollIntoView({block:'nearest',inline:'nearest'});
@@ -11451,6 +11522,7 @@ function renderNavMenu(){
 /* Names the current view + sub-tab in the (visually hidden) header crumb
    and the browser tab title. The on-screen heading is #subnav's. */
 function _syncNavCrumb(){
+  _drillSyncBack();
   var g=null,sub='';
   _navGroups().forEach(function(x){if(x.v===curView)g=x;});
   if(!g)return;
@@ -11504,6 +11576,7 @@ document.addEventListener('click',function(e){
   sbClose();
   var dm=document.getElementById('det-modal');
   if(dm&&dm.classList.contains('open'))closeDetail();
+  _drillClear();
   navGo(b.getAttribute('data-v'),b.hasAttribute('data-k')?b.getAttribute('data-k'):null);
 });
 /* === SIDEBAR STATE ===
@@ -11654,6 +11727,7 @@ var HOTKEYS=[
    l:'Jump straight to a view'},
   {g:'Navigation',k:[']','['],l:'Next / previous tab in this view'},
   {g:'Navigation',k:['}','{'],l:'Next / previous view'},
+  {g:'Navigation',k:['b'],l:'Back to the chart a drill-down started from'},
   {g:'Search & panels',k:['/'],l:'Search tickers'},
   {g:'Search & panels',k:['f'],l:'Filters menu (views with a table)'},
   {g:'Search & panels',k:['v'],l:'Collapse / expand the sidebar'},
@@ -11697,6 +11771,7 @@ function _hkBlocked(e){
 function _hkGo(gi,ki){
   var gs=_navGroups();
   if(!gs.length)return;
+  _drillClear();
   var g=gs[((gi%gs.length)+gs.length)%gs.length];
   var n=g.items.length;
   if(ki==null||!n){navGo(g.v,null);return;}
@@ -11745,6 +11820,7 @@ function _hkDispatch(e){
      drops the caret in the search box where a second 'f' is just a letter. */
   else if(k==='f'){e.preventDefault();if(_hkFiltersUsable())toggleFiltMenu(null);}
   else if(k==='v'){e.preventDefault();toggleNavMenu(null);}
+  else if(k==='b'){if(_drillStack.length){e.preventDefault();drillBack();}}
   else if(k==='?'){e.preventDefault();hkOverlayOpen();}
 }
 /* The popup's counterpart to _hkDispatch. Sections are addressed by position
@@ -13890,6 +13966,7 @@ function renderWorldMosMap(){
            clears back to all. Without this the map is a one-way trip — once
            you drill into a country the only way out is the filter bar. */
         var isSoleSelection=_restricted&&_selCount===1&&_selCountries[agg.name];
+        if(!isSoleSelection)_drillPush('Dashboard \u00b7 World map');
         boxes.forEach(function(cb){cb.checked=isSoleSelection?true:(cb.value===agg.name);});
         var allBox=document.getElementById('ms-country').querySelector('.ms-all input');
         if(allBox){allBox.checked=isSoleSelection;allBox.indeterminate=!isSoleSelection;}
@@ -14060,7 +14137,7 @@ function renderCrossSectorDashboard(){
     /* Column order: Identity → Concentration (HHI/CR4, next to Cos) →
        Valuation (MoS/P-TBV/EV-EBITDA) → Profitability/Quality → Leverage → Action. */
     return'<tr>'
-      +'<td class="heat-sector" onclick="showPoolTab(\''+s.sector.replace(/\'/g,"\\\\'")+'\')" title="Open '+_attr(s.sector)+' sector page">'+s.sector+'</td>'
+      +'<td class="heat-sector" onclick="drillPoolTab(\''+s.sector.replace(/\'/g,"\\\\'")+'\',\'Sector Heatmap\')" title="Open '+_attr(s.sector)+' sector page">'+s.sector+'</td>'
       +'<td>'+s.n+'</td>'
       +cell(s.hhi,hhiDisp,C.hhi,false)
       +cell(s.cr4,cr4Disp,C.cr4,false)
@@ -14288,7 +14365,7 @@ function _ppDraw(){
     var barY=a.margin>=0?zeroY-barH:zeroY;
     var bx=pL+cumX;var col=_ppColM(a.margin);
     var nm=a.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    bars+='<rect x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="'+col+'" opacity="0.86" stroke="rgba(255,255,255,0.7)" stroke-width="0.6" onmouseenter="ppPoolTip(event,\''+nm+'\')" onmouseleave="ppHide()" onclick="showPoolTab(\''+nm+'\')" style="cursor:pointer"/>';
+    bars+='<rect x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="'+col+'" opacity="0.86" stroke="rgba(255,255,255,0.7)" stroke-width="0.6" onmouseenter="ppPoolTip(event,\''+nm+'\')" onmouseleave="ppHide()" onclick="drillPoolTab(\''+nm+'\',\'Cross-Sector Profit Pool\')" style="cursor:pointer"/>';
     if(barW>=8){
       var ny=a.margin>=0?(barY-4):(barY+barH+11);
       bars+='<text x="'+(bx+barW/2).toFixed(1)+'" y="'+ny.toFixed(1)+'" text-anchor="middle" font-size="9" fill="#444" font-weight="600" pointer-events="none">'+(i+1)+'</text>';
