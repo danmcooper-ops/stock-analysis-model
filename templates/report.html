@@ -2702,7 +2702,7 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
   --dv-track:#ecebe8;--dv-zone-g:#d9eedd;--dv-zone-m:#f5e8cc;--dv-zone-b:#f7d9d6;--dv-tick:#1b1a19;}
 [data-theme="dark"] #det-modal{--dv-mid:#d29922;--dv-neu:#79a6f2;--dv-track:#262c36;
   --dv-zone-g:#163823;--dv-zone-m:#3a2f14;--dv-zone-b:#40191c;--dv-tick:#e6edf3;}
-#det-modal .dv-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:0 0 12px;}
+#det-modal .dv-hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:12px 0;}
 #det-modal .dvc{--sac:var(--chrome-heading);background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px 12px;display:flex;flex-direction:column;gap:10px;min-width:0;}
 #det-modal .dvc.wide{grid-column:1/-1;}
 #det-modal .dvc-h{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
@@ -2739,11 +2739,11 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 #det-modal .dv-gauge-l>span{position:absolute;transform:translateX(-50%);white-space:nowrap;}
 /* Equation tiles (DuPont, growth engine) */
 #det-modal .dv-eq{display:flex;align-items:stretch;gap:6px;}
-#det-modal .dv-eq>.t{flex:1 1 0;border:1px solid var(--border);border-radius:10px;padding:8px 10px;min-width:0;}
+#det-modal .dv-eq>.t{flex:1 1 0;border:1px solid var(--border);border-radius:10px;padding:7px 8px;min-width:0;}
 #det-modal .dv-eq>.t.res{background:var(--dv-track);border-color:transparent;}
-#det-modal .dv-eq>.t>div:first-child{--sac:var(--chrome-muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#det-modal .dv-eq>.t>div:first-child{--sac:var(--chrome-muted);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #det-modal .dv-eq>.t>div:last-child{font-size:17px;white-space:nowrap;font-weight:700;font-variant-numeric:tabular-nums;}
-#det-modal .dv-eq>.op{--sac:var(--chrome-muted);align-self:center;font-size:16px;font-weight:600;}
+#det-modal .dv-eq>.op{--sac:var(--chrome-muted);align-self:center;font-size:14px;font-weight:600;}
 /* Column chart (growth ladder) */
 #det-modal .dv-cols{display:flex;gap:10px;align-items:stretch;height:130px;}
 #det-modal .dv-col{flex:1;display:flex;flex-direction:column;min-width:0;}
@@ -9650,11 +9650,11 @@ function _dvHeroProfit(d){
   if(m!=null&&t!=null&&lv!=null){
     var roe=m*t*lv;
     out+=_dvCard('DuPont: where ROE comes from',_dvEq([
-      {l:'Net margin',t:(m*100).toFixed(1)+'%',tip:'dupont_margin'},'×',
-      {l:'Asset turnover',t:t.toFixed(2)+'×',tip:'dupont_turnover'},'×',
-      {l:'Leverage',t:lv.toFixed(2)+'×',tip:'dupont_leverage'},'=',
-      {l:'ROE (product)',t:(roe*100).toFixed(1)+'%',res:1,c:roe>=0.15?'dv-pos':roe<0?'dv-neg':''}]),
-      lv>3?'Over half of that return is borrowed: leverage above 3×.':'Margin and turnover, not leverage, carry the return.',null,'roe');
+      {l:'Margin',t:(m*100).toFixed(1)+'%',tip:'dupont_margin'},'×',
+      {l:'Turnover',t:t.toFixed(2)+'×',tip:'dupont_turnover'},'×',
+      {l:'Leverage',t:lv.toFixed(1)+'×',tip:'dupont_leverage'},'=',
+      {l:'ROE',t:(roe*100).toFixed(1)+'%',res:1,c:roe>=0.15?'dv-pos':roe<0?'dv-neg':''}]),
+      'Net margin × asset turnover × equity multiplier · '+(lv>3?'leverage above 3× carries much of the return':'margin and turnover, not leverage, carry the return'),null,'roe');
   }
   var roic=_dvNum(d.roic),w=_dvNum(d.wacc);
   if(roic!=null&&w!=null){
@@ -9673,6 +9673,20 @@ function _dvHeroProfit(d){
 }
 function _dvHeroHealth(d){
   var out='';
+  /* Altman Z, ND/EBITDA, interest cover and debt-vs-cash are industrial
+     tests: a lender's deposits are its debt and its interest expense its
+     cost of goods, so for financials they read as distress when nothing is
+     wrong (JPM: Z 0.36, cover 0.8×). Show the bank capital gauges instead. */
+  if(d.sector==='Financial Services'){
+    var c1=_dvNum(d.cet1_ratio),np=_dvNum(d.npl_ratio);
+    if(c1!=null)out+=_dvGaugeCard('CET1 Capital','cet1_ratio',c1*100,0,25,[[0,7,'b'],[7,10.5,'m'],[10.5,25,'g']],
+      function(v){return v.toFixed(1)+'%';},{b:'Below the 7% regulatory minimum',m:'Thin buffer',g:'Well capitalised'},'common equity ÷ risk-weighted assets',[7,10.5]);
+    if(np!=null)out+=_dvGaugeCard('Non-Performing Loans','npl_ratio',np*100,0,6,[[0,1,'g'],[1,3,'m'],[3,6,'b']],
+      function(v){return v.toFixed(2)+'%';},{g:'Clean loan book',m:'Elevated',b:'Stressed loan book'},'share of loans',[1,3]);
+    out+=_dvGaugeCard('Beneish M','beneish_m',d.beneish_m,-4,0,[[-4,-2.22,'g'],[-2.22,-1.78,'m'],[-1.78,0,'b']],
+      function(v){return v.toFixed(2);},{g:'Unlikely manipulator',m:'Borderline',b:'Possible earnings manipulation'},'above −1.78 flags manipulation risk',[-3,-1.78,-1]);
+    return out;
+  }
   out+=_dvGaugeCard('Altman Z','altman_z',d.altman_z,-1,6,[[-1,1.81,'b'],[1.81,2.99,'m'],[2.99,6,'g']],
     function(v){return v.toFixed(2);},{b:'Distress zone',m:'Grey zone',g:'Safe zone'},'bankruptcy-risk score');
   out+=_dvGaugeCard('Beneish M','beneish_m',d.beneish_m,-4,0,[[-4,-2.22,'g'],[-2.22,-1.78,'m'],[-1.78,0,'b']],

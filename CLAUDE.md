@@ -876,7 +876,9 @@ ruff check .
     `DV_HERO` (52-week range, momentum, crisis drawdowns vs the median stock,
     beta; a fair-value football field against price; DuPont; ROIC vs WACC;
     Altman/Beneish/leverage gauges; growth columns; holder mix; rank within
-    sector). Display only: none of it feeds the rating. The gauge zone
+    sector). Financial-sector stocks get CET1 / NPL gauges in place of
+    Altman Z, leverage, coverage and debt-vs-cash, which misread lenders.
+    Display only: none of it feeds the rating. The gauge zone
     cut-offs (Altman 1.81/2.99, Beneish -2.22/-1.78, ND/EBITDA 2/4,
     coverage 1.5/5, short interest 5%/10%, HHI 0.15/0.25) are textbook
     rules of thumb, not calibrated.
