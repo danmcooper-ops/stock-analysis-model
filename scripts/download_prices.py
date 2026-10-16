@@ -42,6 +42,7 @@ import yfinance as yf
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.analyze_stock import get_sp500_tickers
+from data.price_store import trim_trailing_invalid, valid_span
 from data.throttle import Throttle
 from data.us_listings import fetch_us_listed_tickers
 from data.yf_session import make_yf_session
@@ -62,20 +63,19 @@ def _yf_session():
 
 
 def _parquet_max_date(path):
-    """Return the latest bar date in an existing parquet, or None on error."""
+    """Date of the latest valid close in an existing parquet, or None.
+
+    Not the index's last row: Yahoo can return a row for a session it has not
+    finished with a NaN close, and judging freshness by that row kept such a
+    file as current (SPY's 2026-10-06 row left a backtest pair with no
+    benchmark close). None on any error, so the file is re-downloaded.
+    """
     try:
-        df = pd.read_parquet(path, columns=[])  # index only — cheap
-        idx = pd.to_datetime(df.index)
-        return idx.max().date() if len(idx) else None
+        span = valid_span(path)
+        return span[1] if span else None
     except Exception as e:
-        logger.debug(f"prices: index-only parquet read failed for {path}: {e}")
-        try:
-            df = pd.read_parquet(path)
-            idx = pd.to_datetime(df.index)
-            return idx.max().date() if len(idx) else None
-        except Exception as e:
-            logger.debug(f"prices: parquet read failed for {path}: {e}")
-            return None
+        logger.debug(f"prices: parquet read failed for {path}: {e}")
+        return None
 
 
 def _parquet_is_stub(path):
@@ -139,6 +139,11 @@ def download_ticker(ticker: str, output_dir: str, delay: float,
         if df.empty:
             return "empty"
         df.index = pd.to_datetime(df.index).tz_localize(None)
+        # An unfinished session arrives as a trailing row with no close; it is
+        # not a bar, and a later run re-fetches the day once it has one.
+        df = trim_trailing_invalid(df)
+        if df.empty:
+            return "empty"
         # Write through a temp file: workers write concurrently and the cloud
         # container can be restarted mid-step, and a half-written parquet is
         # worse than a missing one — the freshness check reads its index, so a

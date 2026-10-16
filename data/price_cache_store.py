@@ -14,7 +14,7 @@ One object per ticker, ``<prefix>/<TICKER>.parquet``, replaced in place. There
 is no history to accumulate and no per-object size cap to shard around.
 
 **Why a stale or partial cache is safe.** Price freshness is read from parquet
-*content* (``download_prices._parquet_max_date`` reads the index), never from
+*content* (``download_prices._parquet_max_date`` reads the last valid close), never from
 file mtime, so a restored file that is behind simply fails the freshness check
 and is re-downloaded. A cache that is old, incomplete or corrupt therefore
 degrades to today's cold behaviour; it cannot make the run serve stale prices.

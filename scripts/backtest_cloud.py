@@ -201,10 +201,13 @@ def matured_tickers(results_dir, horizon=30, today=None):
 
 
 def _bar_span(path):
-    """``(first, last)`` bar dates of a price parquet, or None."""
-    import pandas as pd
-    idx = pd.to_datetime(pd.read_parquet(path, columns=[]).index)
-    return (idx.min().date(), idx.max().date()) if len(idx) else None
+    """``(first, last)`` dates of a price parquet's valid closes, or None.
+
+    A NaN-close row is not a bar (data.price_store.valid_span): the step-04
+    gate used to report SPY current on an unfinished session's row.
+    """
+    from data.price_store import valid_span
+    return valid_span(path)
 
 
 def _last_bar(path):
@@ -273,6 +276,17 @@ def check_prices(tickers, prices_dir, today=None, min_share=0.90,
 GAP_DAYS = 7                 # = backtest.MAX_SNAP_GAP_DAYS
 CACHE_FRESH_DAYS = 7         # a still-trading series is refetched after this
 UNKNOWN_RETRY_DAYS = 28      # a ticker Tiingo does not know is retried after this
+# A series whose last DEAD_QUOTE_BARS closes are one value is a dead quote, not
+# a price history: Tiingo forward-fills some symbols (LendingClub flat at 19.21
+# for 69 bars, Sinovac, Azul's ADR), and written as a price file each one read
+# as a 0% return.
+DEAD_QUOTE_BARS = 20
+
+
+def dead_quote_series(series):
+    """True when *series*' last DEAD_QUOTE_BARS valid closes never change."""
+    tail = series[series > 0].dropna().iloc[-DEAD_QUOTE_BARS:]
+    return len(tail) >= DEAD_QUOTE_BARS and tail.nunique() == 1
 
 
 def price_problems(ticker_dates, prices_dir, today=None, gap=GAP_DAYS):
@@ -358,7 +372,9 @@ def backfill_prices(problems, prices_dir, cache_dir, client, since, today=None,
     os.makedirs(cache_dir, exist_ok=True)
     calls = 0
     stats = {'problems': len(problems), 'fetched': 0, 'cached': 0,
-             'unknown': 0, 'deferred': 0, 'written': 0, 'delisted': 0}
+             'unknown': 0, 'deferred': 0, 'written': 0, 'delisted': 0,
+             'dead_quote': 0}
+    dead = []
     backfilled, deferred = [], []
     order = sorted(problems.items(), key=lambda kv: (-kv[1]['rows'], kv[0]))
     for t, _info in order:
@@ -389,6 +405,10 @@ def backfill_prices(problems, prices_dir, cache_dir, client, since, today=None,
         if not len(series):
             stats['unknown'] += 1
             continue
+        if dead_quote_series(series):
+            stats['dead_quote'] += 1
+            dead.append(t)
+            continue
         path = os.path.join(prices_dir, f'{t}.parquet')
         span = None
         if os.path.exists(path):
@@ -417,7 +437,7 @@ def backfill_prices(problems, prices_dir, cache_dir, client, since, today=None,
             continue
         entry = _load_cached(cache_dir, t)
         closes = (entry or {}).get('closes') or {}
-        if not closes:
+        if not closes or dead_quote_series(_series_from_entry(entry)):
             continue
         fetched = date.fromisoformat(entry['fetched'])
         last = max(closes)
@@ -436,7 +456,10 @@ def backfill_prices(problems, prices_dir, cache_dir, client, since, today=None,
     log(f'[backfill] {stats["problems"]} ticker(s) without usable prices: '
         f'{stats["fetched"]} fetched, {stats["cached"]} from cache, '
         f'{stats["deferred"]} deferred, {stats["unknown"]} unknown to Tiingo; '
-        f'{stats["written"]} price file(s) written, {stats["delisted"]} confirmed delisting(s)')
+        f'{stats["written"]} price file(s) written, {stats["delisted"]} confirmed delisting(s), '
+        f'{stats["dead_quote"]} dead quote(s) rejected')
+    if dead:
+        log(f'  dead quotes (not used): {", ".join(sorted(dead))}')
     for t in sorted(delisted):
         log(f'  delisted {t}: last close {delisted[t]["last_close"]} on {delisted[t]["last_date"]}')
     return stats
