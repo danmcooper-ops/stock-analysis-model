@@ -40,7 +40,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 
-from data.price_store import parquet_paths, window_closes
+from data.price_store import (last_valid_dates, parquet_paths, select_window,
+                               valid_span, window_closes)
 from data.snapshot_store import (SnapshotStore, list_snapshot_files,
                                  parquet_export_is_stale, read_snapshot)
 from models.utils import rank
@@ -251,7 +252,15 @@ MIN_RETURN_COVERAGE = 0.90
 # missing tickers are fetched, its frozen returns stay — EXCEPT that a sidecar
 # which cannot prove its eval date had traded is recomputed outright, since its
 # frozen returns may cover a short window (see sidecar_window_settled).
-SIDECAR_METHOD = 3
+# 4 = the bar rules in data.price_store.select_window: valid closes only (a
+# NaN-close row is not a bar), an as-of start, an end each ticker's own series
+# reaches, and no spike or dead-quote window. Method-3 files froze all four
+# faults (VSCO measured to a bar two days short, GRKZF's $0.001 print as
+# -99.99%, LendingClub's forward-filled Tiingo series as 0%), so a settled
+# older sidecar is recomputed outright, once, rather than topped up. A ticker
+# that was trading at the snapshot but whose series has not reached the eval
+# date yet is listed in ``pending`` and keeps the sidecar open until it does.
+SIDECAR_METHOD = 4
 
 # Delistings (survivorship). A ticker Yahoo dropped is measured from Tiingo's
 # history (scripts/backtest_cloud.py backfill-prices), and one whose series
@@ -285,16 +294,6 @@ def implausible_forward_return(snapshot_price, fwd):
             and (ret > RET_IMPLAUSIBLE_HIGH or ret < RET_IMPLAUSIBLE_LOW))
 
 
-def _nearest_bar(index, target, max_gap_days=MAX_SNAP_GAP_DAYS):
-    """Index position of the bar nearest *target*, or None if too far away."""
-    pos = index.get_indexer([target], method='nearest')[0]
-    if pos < 0:
-        return None
-    if abs((index[pos] - target).days) > max_gap_days:
-        return None
-    return pos
-
-
 def _fallback_period(run_dt):
     """Smallest yfinance period string that reaches back to run_dt."""
     import pandas as pd
@@ -318,9 +317,10 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
     The local parquets are read in ONE DuckDB scan
     (``data.price_store.window_closes``) rather than one open per ticker;
     only tickers it could not answer for fall through to the per-ticker
-    pandas/yfinance path below.  Both paths select the same bar (nearest to
-    the target, ties to the later bar, nothing beyond MAX_SNAP_GAP_DAYS) and
-    apply the same finiteness rejection.
+    pandas/yfinance path below.  Both paths select the same bars and
+    apply the same rules (``data.price_store.select_window``): valid closes
+    only, an as-of start, an end the series itself reaches, and no spike or
+    dead-quote window.
 
     Returns:
         dict: {ticker: {'ret': float, 'start': float, 'end': float}}
@@ -397,27 +397,22 @@ def fetch_forward_returns(tickers, run_date_str, horizon_days, yf_client,
             if hasattr(hist.index, 'tz') and hist.index.tz is not None:
                 hist.index = hist.index.tz_localize(None)
 
-            # Coverage guard: drop the observation when no bar lies within
-            # MAX_SNAP_GAP_DAYS of either end (stale parquet / immature
-            # horizon would otherwise be silently measured over the wrong span).
-            start_idx = _nearest_bar(hist.index, run_dt)
-            end_idx   = _nearest_bar(hist.index, eval_dt)
-            if start_idx is None or end_idx is None:
+            # The same bar rules as the bulk scan (data.price_store
+            # .select_window): valid closes only, an as-of start, the end
+            # within MAX_SNAP_GAP_DAYS and reached by the series itself, no
+            # spike or dead-quote window.
+            px = select_window(hist, run_dt, eval_dt,
+                               max_gap_days=MAX_SNAP_GAP_DAYS)
+            if px is None:
                 continue
-
-            start_price = float(hist.iloc[start_idx])
-            end_price   = float(hist.iloc[end_idx])
-
-            # Reject non-finite prices (NaN/inf bars exist in some parquets);
-            # an unguarded NaN return poisons the rank-IC objective.
-            if start_price > 0 and math.isfinite(start_price) and math.isfinite(end_price):
-                ret = (end_price - start_price) / start_price
-                if math.isfinite(ret):
-                    returns[ticker] = {
-                        'ret':   ret,
-                        'start': start_price,
-                        'end':   end_price,
-                    }
+            start_price, end_price = px['start'], px['end']
+            ret = (end_price - start_price) / start_price
+            if math.isfinite(ret):
+                returns[ticker] = {
+                    'ret':   ret,
+                    'start': start_price,
+                    'end':   end_price,
+                }
         except Exception as e:
             logger.debug('%s: forward return %s +%dd failed (%s)',
                          ticker, run_date_str, horizon_days, e)
@@ -458,9 +453,11 @@ _BAR_CACHE = {}
 
 
 def _last_bar_date(prices_dir, ticker):
-    """Last bar date in ``<prices_dir>/<ticker>.parquet``, or None.
+    """Last valid-close date in ``<prices_dir>/<ticker>.parquet``, or None.
 
-    Reads the index only (no columns), and caches on the file's mtime: the
+    A trailing NaN-close row (an unfinished session) is not a bar: counting
+    it once declared 2026-07-08 +90d settled with no benchmark close to
+    measure it by. Caches on the file's mtime: the
     benchmark is asked for once per (snapshot, horizon) across a whole corpus.
     """
     if not prices_dir:
@@ -475,12 +472,9 @@ def _last_bar_date(prices_dir, ticker):
         return hit[1]
     last = None
     try:
-        import pandas as pd
-        idx = pd.to_datetime(pd.read_parquet(path, columns=[]).index)
-        if getattr(idx, 'tz', None) is not None:
-            idx = idx.tz_localize(None)
-        if len(idx):
-            last = idx.max().date()
+        span = valid_span(path)
+        if span:
+            last = span[1]
     except Exception as e:
         logger.warning('unreadable price index %s (%s)', path, e)
     _BAR_CACHE[path] = (mtime, last)
@@ -580,8 +574,9 @@ def terminal_returns(prices_dir, tickers, run_dt, eval_dt, delisted):
     """Forward returns for confirmed delistings inside ``(run_dt, eval_dt)``.
 
     For each ticker in *delisted* whose last trading day falls on/after the
-    snapshot and more than MAX_SNAP_GAP_DAYS before the eval date (so the
-    bulk path found no end bar): start = the bar nearest the snapshot, end =
+    snapshot and before the eval date (the bulk path, which requires a series
+    to reach the eval date, answers none of them): start = the snapshot's
+    as-of bar, end =
     the last close (Shumway haircut for a performance delisting), and the
     proceeds ride the benchmark from the delisting to the eval date.
 
@@ -595,7 +590,7 @@ def terminal_returns(prices_dir, tickers, run_dt, eval_dt, delisted):
         if not info or not info.get('last_date'):
             continue
         last = date.fromisoformat(str(info['last_date'])[:10])
-        if run_d <= last < eval_d - timedelta(days=MAX_SNAP_GAP_DAYS):
+        if run_d <= last < eval_d:
             groups[last].append(t)
     if not groups:
         return out
@@ -658,13 +653,16 @@ def sidecar_is_complete(cached, tickers=(), manifest=None):
 
     It must also record that its eval date had actually traded
     (:func:`sidecar_window_settled`); one that cannot prove it may hold a
-    window truncated back to whatever bar existed when it was written.
+    window truncated back to whatever bar existed when it was written. And
+    it must have no ``pending`` tickers: names trading at the snapshot whose
+    series had not reached the eval date when it was written.
     """
     cov = cached.get('coverage')
     if not (isinstance(cached.get('spy_return'), (int, float))
             and isinstance(cov, (int, float)) and cov >= MIN_RETURN_COVERAGE
             and cached.get('method', 1) >= SIDECAR_METHOD
-            and sidecar_window_ok(cached)):
+            and sidecar_window_ok(cached)
+            and not cached.get('pending')):
         return False
     if manifest:
         have = cached.get('tickers') or {}
@@ -672,6 +670,23 @@ def sidecar_is_complete(cached, tickers=(), manifest=None):
         if any(t not in have and t in resolved for t in tickers):
             return False
     return True
+
+
+def pending_tickers(prices_dir, unpriced, run_date_str, horizon_days):
+    """The *unpriced* tickers still worth retrying, sorted.
+
+    A ticker counts when its series held a valid close on or after the
+    snapshot date (it was trading) but stops before the eval date: the
+    window is not yet measurable, and freezing the sidecar without it would
+    leave it out for good. A file that ended before the snapshot, or has no
+    valid close at all, is final and not pending.
+    """
+    if not prices_dir or not unpriced:
+        return []
+    last = last_valid_dates(prices_dir, unpriced) or {}
+    run_d = date.fromisoformat(str(run_date_str)[:10])
+    eval_d = eval_date_for(run_date_str, horizon_days)
+    return sorted(t for t, d in last.items() if run_d <= d < eval_d)
 
 
 def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
@@ -740,6 +755,10 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
         from_cache = cached is not None and sidecar_is_complete(
             cached, tickers, load_backfill_manifest(prices_dir))
 
+        # The method a rewritten file may claim: one carried over from an older
+        # method without a recompute (nothing to judge settlement by) keeps
+        # its old number, so a later run with local prices still recomputes it.
+        write_method = SIDECAR_METHOD
         if from_cache:
             ticker_returns = cached.get('tickers', {})
             spy_ret = cached['spy_return']
@@ -750,17 +769,26 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
             # is recomputed outright. Only done when the benchmark says the
             # window is now settled, so a repair never trades a frozen
             # measurement for a worse one.
+            stale_method = (cached is not None
+                            and cached.get('method', 1) < SIDECAR_METHOD)
             if cached is None:
                 reuse = False
-            elif sidecar_window_ok(cached):
+            elif sidecar_window_ok(cached) and not stale_method:
                 reuse = True
             elif settlement == SETTLED:
                 reuse = False
-                logger.warning('%s +%dd: sidecar records no settled eval date; '
-                               'recomputing it rather than topping it up (%s)',
-                               run_date, h, path)
+                if stale_method:
+                    logger.info('%s +%dd: sidecar written by method %s; '
+                                'recomputing it under method %d (%s)', run_date, h,
+                                cached.get('method', 1), SIDECAR_METHOD, path)
+                else:
+                    logger.warning('%s +%dd: sidecar records no settled eval date; '
+                                   'recomputing it rather than topping it up (%s)',
+                                   run_date, h, path)
             else:
                 reuse = True        # nothing to judge by; keep what we have
+                if stale_method:
+                    write_method = cached.get('method', 1)
             known = dict((cached or {}).get('tickers') or {}) if reuse else {}
             wanted = [t for t in tickers if t not in known]
             raw = fetch_forward_returns(wanted, run_date, h, yf_client,
@@ -810,6 +838,9 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
 
         n_priced = sum(1 for t in tickers if t in ticker_returns)
         coverage = n_priced / len(tickers) if tickers else 0.0
+        pending = pending_tickers(prices_dir, [t for t in tickers
+                                               if t not in ticker_returns],
+                                  run_date, h)
 
         # Persist anything non-empty, with its coverage: the priced returns
         # are frozen from now on, and a sidecar below MIN_RETURN_COVERAGE is
@@ -819,10 +850,11 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
         # held below the floor by delistings does not churn the archive weekly.
         changed = (cached is None or 'coverage' not in cached
                    or n_priced != cached.get('n_priced')
-                   or cached.get('method', 1) != SIDECAR_METHOD
+                   or cached.get('method', 1) != write_method
                    # a file with no window record gets one, once
                    or (bench_last is not None
-                       and not sidecar_window_settled(cached)))
+                       and not sidecar_window_settled(cached))
+                   or pending != sorted(cached.get('pending') or []))
         if path and ticker_returns and not from_cache and changed:
             try:
                 os.makedirs(cache_dir, exist_ok=True)
@@ -840,11 +872,12 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
                         'window_unverified': bench_last is None,
                         'computed_at': (cached or {}).get('computed_at', today.isoformat()),
                         'updated_at': today.isoformat(),
-                        'method': SIDECAR_METHOD,
+                        'method': write_method,
                         'spy_return': spy_ret,
                         'n_requested': len(tickers),
                         'n_priced': n_priced,
                         'coverage': round(coverage, 6),
+                        'pending': pending,
                         'tickers': ticker_returns,
                     }, f, sort_keys=True)
             except OSError as e:
@@ -876,7 +909,9 @@ def annotate_snapshot_returns(snapshot, horizons, yf_client, prices_dir=None,
                            len(dropped), START_PRICE_MAX_RATIO, ', '.join(sorted(dropped)))
         stats_by_h[h] = {'requested': len(tickers), 'priced': n_priced,
                          'implausible': len(dropped), 'coverage': round(coverage, 4),
-                         'cached': from_cache}
+                         'cached': from_cache,
+                         'pending': len(cached.get('pending') or []) if from_cache
+                         else len(pending)}
         out[h] = n
 
     return out

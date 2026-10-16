@@ -35,13 +35,15 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, timedelta
+from datetime import date, datetime, time as dtime, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.analyze_stock import get_sp500_tickers
+from data.price_store import trim_trailing_invalid, valid_span
 from data.throttle import Throttle
 from data.us_listings import fetch_us_listed_tickers
 from data.yf_session import make_yf_session
@@ -62,20 +64,39 @@ def _yf_session():
 
 
 def _parquet_max_date(path):
-    """Return the latest bar date in an existing parquet, or None on error."""
+    """Date of the latest valid close in an existing parquet, or None.
+
+    Not the index's last row: Yahoo can return a row for a session it has not
+    finished with a NaN close, and judging freshness by that row kept such a
+    file as current (SPY's 2026-10-06 row left a backtest pair with no
+    benchmark close). None on any error, so the file is re-downloaded.
+    """
     try:
-        df = pd.read_parquet(path, columns=[])  # index only — cheap
-        idx = pd.to_datetime(df.index)
-        return idx.max().date() if len(idx) else None
+        span = valid_span(path)
+        return span[1] if span else None
     except Exception as e:
-        logger.debug(f"prices: index-only parquet read failed for {path}: {e}")
-        try:
-            df = pd.read_parquet(path)
-            idx = pd.to_datetime(df.index)
-            return idx.max().date() if len(idx) else None
-        except Exception as e:
-            logger.debug(f"prices: parquet read failed for {path}: {e}")
-            return None
+        logger.debug(f"prices: parquet read failed for {path}: {e}")
+        return None
+
+
+# A bar dated today is final only once the session has closed and Yahoo has
+# settled the print. Before then Yahoo returns today's row with a LIVE close,
+# which is finite, so trim_trailing_invalid keeps it: a weekday catch-up of the
+# weekly backtest would freeze that intraday price as an eval-date close. The
+# nightly run starts at 17:05 New York, after this cutoff, so it is unaffected.
+MARKET_TZ = ZoneInfo('America/New_York')
+SESSION_FINAL = dtime(16, 30)
+
+
+def trim_unfinished_session(df, now=None):
+    """*df* without a bar dated today (New York) while the session is open."""
+    now = now or datetime.now(MARKET_TZ)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=MARKET_TZ)
+    now = now.astimezone(MARKET_TZ)
+    if now.time() >= SESSION_FINAL or df.empty:
+        return df
+    return df[df.index < pd.Timestamp(now.date())]
 
 
 def _parquet_is_stub(path):
@@ -139,6 +160,11 @@ def download_ticker(ticker: str, output_dir: str, delay: float,
         if df.empty:
             return "empty"
         df.index = pd.to_datetime(df.index).tz_localize(None)
+        # An unfinished session arrives as a trailing row with no close; it is
+        # not a bar, and a later run re-fetches the day once it has one.
+        df = trim_trailing_invalid(trim_unfinished_session(df))
+        if df.empty:
+            return "empty"
         # Write through a temp file: workers write concurrently and the cloud
         # container can be restarted mid-step, and a half-written parquet is
         # worse than a missing one — the freshness check reads its index, so a

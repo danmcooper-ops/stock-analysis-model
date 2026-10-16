@@ -296,7 +296,7 @@ Already done in the repo:
 - `com.stockmodel.weekly.plist` is the app-free alternative (no summary). It
   is not loaded; never load it while the app task is enabled.
 - `.github/workflows/weekly-backtest-check.yml` (Mondays) goes red when the
-  newest `backtest_summary_<date>.json` on `data/snapshots` is more than 8
+  newest `backtest_summary_<date>.json` on `data/snapshots` is more than 7
   days old (`scripts/check_eod_delivery.py --kind weekly`).
 
 On the Mac:

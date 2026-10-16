@@ -86,7 +86,7 @@ def test_fresh_computation_records_coverage(tmp_path):
     assert body['coverage'] == pytest.approx(0.8)
     assert body['spy_return'] == pytest.approx(snap['results'][0]['_fwd'][30]['spy_return'])
     assert snap['_fwd_stats'][30] == {'requested': 10, 'priced': 8, 'implausible': 0,
-                                      'coverage': 0.8, 'cached': False}
+                                      'coverage': 0.8, 'cached': False, 'pending': 0}
 
 
 def test_complete_sidecar_is_reused_without_fetching(tmp_path):
@@ -203,7 +203,7 @@ def test_measure_cli_names_outputs_by_stamp(tmp_path, monkeypatch):
     prices = tmp_path / 'prices'
     prices.mkdir()
     for i, t in enumerate(TICKERS + ['SPY']):
-        s = _series(drift=0.0005 * (i % 4))
+        s = _series(drift=0.0005 * (i % 4 + 1))     # drift 0 would be a dead quote
         pd.DataFrame({'Close': s.values}, index=s.index.rename('Date')).to_parquet(
             prices / f'{t}.parquet')
     monkeypatch.setattr(bt, 'USE_SNAPSHOT_STORE', False)
@@ -285,15 +285,15 @@ def test_unsettled_eval_date_is_deferred_and_nothing_is_frozen(unsettled_corpus)
 def test_the_full_window_is_measured_once_the_benchmark_settles(unsettled_corpus):
     prices, cache = unsettled_corpus
     _px(prices, 'SPY', '2026-09-30')              # now reaches past the eval date
-    _px(prices, 'AAA', '2026-09-30', before=50.0, after=50.0)
+    _px(prices, 'AAA', '2026-09-30', step='2026-08-20', before=50.0, after=51.0)
     snap = _snap_one()
     bt.annotate_snapshot_returns(snap, [30], None, prices_dir=str(prices),
                                  cache_dir=str(cache), today=date(2026, 9, 20))
     fwd = snap['results'][0]['_fwd'][30]
-    # AAA flat; SPY 100 -> 110 across the 09-11/09-14 step the short window missed
-    assert fwd['ret'] == pytest.approx(0.0)
+    # AAA +2%; SPY 100 -> 110 across the 09-11/09-14 step the short window missed
+    assert fwd['ret'] == pytest.approx(0.02)
     assert fwd['spy_return'] == pytest.approx(0.10)
-    assert fwd['excess_return'] == pytest.approx(-0.10)
+    assert fwd['excess_return'] == pytest.approx(-0.08)
     body = json.loads((cache / '2026-08-14_h30.json').read_text(encoding='utf-8'))
     assert body['eval_date'] == '2026-09-13' and body['bench_last_bar'] == '2026-09-30'
     assert bt.sidecar_window_settled(body) and bt.sidecar_is_complete(body, ['AAA'])
@@ -311,12 +311,12 @@ def test_a_short_window_sidecar_does_not_survive_as_complete(unsettled_corpus):
     assert not bt.sidecar_is_complete(short, ['AAA'])
     (cache / '2026-08-14_h30.json').write_text(json.dumps(short), encoding='utf-8')
     _px(prices, 'SPY', '2026-09-30')
-    _px(prices, 'AAA', '2026-09-30', before=50.0, after=50.0)
+    _px(prices, 'AAA', '2026-09-30', step='2026-08-20', before=50.0, after=51.0)
     snap = _snap_one()
     bt.annotate_snapshot_returns(snap, [30], None, prices_dir=str(prices),
                                  cache_dir=str(cache), today=date(2026, 9, 20))
     # repaired, not carried forward
-    assert snap['results'][0]['_fwd'][30]['excess_return'] == pytest.approx(-0.10)
+    assert snap['results'][0]['_fwd'][30]['excess_return'] == pytest.approx(-0.08)
 
 
 # ---------------------------------------------------------------------------

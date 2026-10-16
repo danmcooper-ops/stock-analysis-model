@@ -373,7 +373,7 @@ ruff check .
   secrets, so a dev box and a `SMOKE` run behave exactly as before.
   The safety argument is the same one that lets the restore be non-blocking:
   freshness is read from parquet **content** (`_parquet_max_date` reads the
-  index), never mtime, so a restored file that is behind fails the check and
+  last valid close), never mtime, so a restored file that is behind fails the check and
   is re-downloaded. An old, partial or corrupt cache degrades to today's cold
   behaviour and can never serve a stale price. Consequently the save's
   change-detection may be a heuristic — a parquet is uploaded when its size
@@ -619,6 +619,28 @@ ruff check .
   as `gone_before_snapshot`. Sidecars carry `method` (`SIDECAR_METHOD` = 2).
   An older one, or one missing a ticker the manifest has since resolved, is
   topped up once, and its frozen returns stay.
+  **Bar rules (`SIDECAR_METHOD` 4, `data/price_store.select_window`):** the
+  2026-10-16 adversarial review found four faults the sidecars froze for good,
+  so both selection paths (the DuckDB scan and the per-ticker pandas path) now
+  share one rule set. Only a finite, positive close is a bar: SPY's 2026-10-06
+  row had a NaN close, yet the index-only freshness check, the step-04 gate and
+  `benchmark_settlement` all read it as a bar, so 07-08 +90d went
+  "unmeasured" instead of deferred (`download_prices` now also trims such a
+  trailing row before writing). The start is **as of** the snapshot date (72
+  sparse-OTC starts had snapped to a later bar). Each ticker's own series must
+  reach the eval date, since SPY reaching it says nothing about a Tiingo file
+  a week behind (VSCO was frozen at its 10-02 close for a 10-04 eval); a
+  ticker trading at the snapshot whose series falls short is listed in the
+  sidecar's `pending` and keeps it open until it arrives. A selected bar more
+  than `SPIKE_RATIO` (3x) from both neighbours is a bad print (GRKZF's $0.001,
+  frozen as -99.99%), and a window whose closes never change over
+  `STALE_MIN_BARS` (5) bars is a dead quote, not 0% (152 tickers, ~3,100
+  entries, mostly zero-volume OTC lines and forward-filled Tiingo series;
+  `backfill-prices` now rejects a series whose last 20 closes are one value).
+  A delisting anywhere inside the window goes through `terminal_returns`, so
+  one in the last week gets its SPY carry. A settled sidecar from an older
+  method is recomputed outright, once. Replayed over the 42 local sidecars:
+  coverage 0.986 -> 0.953 (all above the floor), 30d IC 0.0284 -> 0.0296.
   **Scoring model changes:** `measure` scores the rating each snapshot
   *recorded*, so after a weight or gate change the headline pools two models,
   and nothing used to say so. The corpus already mixes several: gate N/A

@@ -41,7 +41,9 @@ def prices(tmp_path):
     # SPY: 100 until the deal closes on 07-20, then 110 to the eval date.
     _write_px(p, 'SPY', '2026-06-01', '2026-09-25',
               lambda idx: [100.0 if d <= pd.Timestamp('2026-07-20') else 110.0 for d in idx])
-    _write_px(p, 'LIVE', '2026-06-01', '2026-09-25', 50.0)
+    # LIVE trades: 50 to 07-10, then 51 (a flat series would be a dead quote)
+    _write_px(p, 'LIVE', '2026-06-01', '2026-09-25',
+              lambda idx: [50.0 if d <= pd.Timestamp('2026-07-10') else 51.0 for d in idx])
     _write_px(p, 'DEAL', '2026-06-01', '2026-07-20',          # take-out at 60
               lambda idx: [40.0 if d <= pd.Timestamp('2026-07-06') else 60.0 for d in idx])
     _write_px(p, 'BUST', '2026-06-01', '2026-07-20',          # collapsed to 5
@@ -136,7 +138,7 @@ def test_sidecar_with_no_window_record_is_recomputed_not_topped_up(prices, tmp_p
     assert body['method'] == bt.SIDECAR_METHOD
     assert body['eval_date'] == '2026-08-05'         # RUN + 30d
     assert body['bench_last_bar'] == '2026-09-25'    # settled: bar >= eval date
-    assert body['tickers']['LIVE']['ret'] == pytest.approx(0.0)   # LIVE is flat
+    assert body['tickers']['LIVE']['ret'] == pytest.approx(0.02)  # 50 -> 51
     assert body['tickers']['DEAL']['delisted']['kind'] == 'merger'
     assert snap['_fwd_stats'][30]['cached'] is False
     # ...and from now on it is complete
@@ -199,8 +201,25 @@ class _FakeTiingo:
 
 
 def _closes(start, end, value):
+    """A traded series around *value* (a constant one is a dead quote)."""
     idx = pd.date_range(start, end, freq='B')
-    return pd.Series([float(value)] * len(idx), index=idx)
+    return pd.Series([float(value) + 0.01 * (i % 2) for i in range(len(idx))],
+                     index=idx)
+
+
+def test_backfill_rejects_a_dead_quote_series(tmp_path):
+    """Tiingo forward-fills some symbols with one close (LendingClub at 19.21
+    for 69 bars); written as a price file, each read as a 0% return."""
+    p, cache = tmp_path / 'prices', tmp_path / 'cache'
+    p.mkdir()
+    idx = pd.date_range('2026-06-26', '2026-09-25', freq='B')
+    client = _FakeTiingo({'FLAT': pd.Series([19.21] * len(idx), index=idx)})
+    problems = {'FLAT': {'first': date(2026, 7, 6), 'rows': 3, 'reason': 'missing'}}
+    stats = bc.backfill_prices(problems, str(p), str(cache), client, '2026-06-26',
+                               today=TODAY, log=lambda *_: None)
+    assert stats['dead_quote'] == 1 and stats['written'] == 0
+    assert not (p / 'FLAT.parquet').exists()
+    assert bc.dead_quote_series(pd.Series([1.0] * 19 + [2.0] + [3.0] * 19)) is False
 
 
 def test_price_problems_classification(tmp_path):
