@@ -867,6 +867,21 @@ ruff check .
     `.d-hc` spacer atop `.d-body` grows by what the band gives back so the
     content moves 1:1 (`overflow-anchor:none`, or Chrome's scroll anchoring
     cancels it). It replaced a class flipped at 40px with .28s transitions.
+  - **Data tabs (Sector … People, not Finances/Summary):** every numeric
+    row (`_dvRow`) shows its percentile rank across the run's `DATA`, with a
+    tick at the sector median and a colour from `DV_DIR` (+1 higher is
+    better, -1 lower is better, unlisted ranks neutral blue). Multiples in
+    `DV_POS` rank only positive values; `DV_NORANK` keys (price levels,
+    beta diagnostics) get no bar. Each tab opens with chart cards from
+    `DV_HERO` (52-week range, momentum, crisis drawdowns vs the median stock,
+    beta; a fair-value football field against price; DuPont; ROIC vs WACC;
+    Altman/Beneish/leverage gauges; growth columns; holder mix; rank within
+    sector). Financial-sector stocks get CET1 / NPL gauges in place of
+    Altman Z, leverage, coverage and debt-vs-cash, which misread lenders.
+    Display only: none of it feeds the rating. The gauge zone
+    cut-offs (Altman 1.81/2.99, Beneish -2.22/-1.78, ND/EBITDA 2/4,
+    coverage 1.5/5, short interest 5%/10%, HHI 0.15/0.25) are textbook
+    rules of thumb, not calibrated.
   - **Summary PDF:** a "Summary" button right of the ticker symbol
     (`#d-sum`, in `.dh-left`) prints a one-page company summary. The `s` hotkey does the same. There is no
     on-screen tab; the #279 Profile tab was removed in favour of this button.
