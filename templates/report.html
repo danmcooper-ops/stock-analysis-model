@@ -1226,7 +1226,7 @@ td.ct{font-weight:700;}
 .dsummary p{margin:0;font-size:0.84em;line-height:1.55;color:#37474f;}
 .ds-tog{display:none;--sac:var(--link);background:none;border:0;padding:6px 0 0;font:inherit;font-size:0.84em;font-weight:600;cursor:pointer;}
 @media(max-width:768px),(orientation:landscape) and (max-height:500px){
-  .dsummary.ds-clip:not(.open) .ds-more{display:none;}
+  .ds-clip:not(.open) .ds-more{display:none;}
   .ds-tog{display:inline-block;}
 }
 /* Track Record annual-fundamentals table */
@@ -9812,11 +9812,29 @@ function _dvKey(){
     +'<span><span class="sw"><i></i></span>sector median</span>'
     +'<span><b class="dv-pos">green</b>&nbsp;favourable · <b class="dv-neg">red</b>&nbsp;unfavourable · <b style="--sac:var(--dv-neu)">blue</b>&nbsp;no better/worse</span></div>';
 }
+/* Phone collapse shared by the data-tab summaries and the Summary tab's
+   The Business / The Finances blocks: a .ds-clip box hides its .ds-more
+   parts at phone widths until the toggle opens it. */
 function _dsToggle(b){
-  var box=b.closest('.dsummary');if(!box)return;
+  var box=b.closest('.ds-clip');if(!box)return;
   var open=box.classList.toggle('open');
   b.setAttribute('aria-expanded',open?'true':'false');
   b.textContent=open?'Show less':'Read more';
+}
+var _DS_TOG='<button type="button" class="ds-tog sa-chrome" aria-expanded="false" onclick="_dsToggle(this)">Read more</button>';
+/* Split prose into [first n sentences, the rest]. A boundary is end
+   punctuation, whitespace, then a capital or digit, so "Booking.com"
+   arriving as "internationally. com" stays whole; corporate suffixes
+   ("Inc.", "Co.") and initials ("W. R. Berkley") never end a sentence. */
+function _dsSplit(s,n){
+  var sfx=/\b([A-Z]|Inc|Corp|Ltd|Co|LLC|L\.P|plc|PLC|N\.V|S\.A|AG|SE|Mr|Ms|Dr|St|No|vs)\.$/;
+  var re=/[.!?]["')\]]*\s+(?=["'(]?[A-Z0-9])/g,m,count=0;
+  while((m=re.exec(s))){
+    var end=m.index+m[0].length;
+    if(sfx.test(s.slice(0,m.index+1)))continue;
+    if(++count===n)return[s.slice(0,end).trim(),s.slice(end).trim()];
+  }
+  return[s,''];
 }
 function _renderDetDataTab(key){
   var el=document.getElementById('d-pane-data');if(!el)return;
@@ -10629,7 +10647,9 @@ function openDet(tk){
         }else{
           bizDesc=bizDesc.charAt(0).toUpperCase()+bizDesc.slice(1);
         }
-        html+=P+esc(bizDesc)+'</p>';
+        var _bz=_dsSplit(bizDesc,2);
+        html+=_bz[1]?'<div class="ds-clip">'+P+esc(_bz[0])+'<span class="ds-more"> '+esc(_bz[1])+'</span></p>'+_DS_TOG+'</div>'
+          :P+esc(bizDesc)+'</p>';
       }
     }
     if(!html){
@@ -10710,7 +10730,8 @@ function openDet(tk){
   _dtcBenchSeeded=null;   /* re-seed the S&P overlay for this company */
   try{_dtcRender();}catch(e){console.error('detail chart error:',e);}
   var fsEl=document.getElementById('d-fin-summary'),fsSec=document.getElementById('d-section-finsummary');var _fs=d.financial_summary;var _fsItems=Array.isArray(_fs)?_fs:(_fs?[_fs]:[]);
-  var _fsHtml=_fsItems.length?'<ul class="fin-list">'+_fsItems.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul>':'';
+  /* Phones: the first two bullets, the rest behind Read more (_dsToggle). */
+  var _fsHtml=_fsItems.length?'<div class="'+(_fsItems.length>2?'ds-clip':'')+'"><ul class="fin-list">'+_fsItems.map(function(s,i){return '<li'+(i>=2?' class="ds-more"':'')+'>'+esc(s)+'</li>';}).join('')+'</ul>'+(_fsItems.length>2?_DS_TOG:'')+'</div>':'';
   /* --- "Why the rating changed" — rendered after the financial summary
        whenever this run's rating differs from the prior run's (rating_chg
        nonzero). Bullets are computed server-side from the prior snapshot's
