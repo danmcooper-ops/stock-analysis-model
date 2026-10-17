@@ -1546,6 +1546,17 @@ td.ct{font-weight:700;}
 .agg-helper-btn{padding:4px 11px;font-size:0.72em;font-weight:600;border:1px solid #d8dee5;border-radius:4px;background:#fff;color:#546e7a;cursor:pointer;line-height:1.2;}
 .agg-helper-btn:hover{border-color:#7030a0;color:#1a252f;}
 [data-theme="dark"] .agg-grid-section{background:#161b22;border-color:#30363d;}
+/* Sector lists folded into a ☰ menu (Sector Price Comparison and the
+   Cross-Sector Profit Pool): the eleven rows used to sit open below each
+   chart, a full phone screen apiece. In the panel they lose the card
+   chrome, run one or two columns, and scroll when taller than the screen. */
+.cm-panel.cm-list{max-height:min(72vh,620px);overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;min-width:360px;}
+.cm-panel .agg-grid-section{margin:0;padding:0;background:none;border:0;}
+.cm-panel .agg-grid{grid-template-columns:1fr;}
+@media(min-width:700px){.cm-panel .agg-grid{grid-template-columns:repeat(2,minmax(240px,1fr));}}
+.cm-panel .cm-row.cm-sec{flex-direction:column;gap:6px;align-items:stretch;}
+.cm-sec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+[data-theme="dark"] .cm-panel .agg-grid-section{background:none;}
 [data-theme="dark"] .agg-grid-title{color:#e6edf3;}
 [data-theme="dark"] .agg-grid-item{color:#c9d1d9;}
 [data-theme="dark"] .agg-grid-item:hover{background:#21262d;}
@@ -8022,6 +8033,16 @@ function cmToggle(k,e){
   document.querySelectorAll('.cm-panel.open').forEach(_cmClose);
   if(willOpen){
     p.classList.add('open');
+    /* A sector list needs the full phone width (name + two figures); its
+       ☰ sits ~35px in, inside two cards' padding, so on a narrow screen the
+       panel spans the viewport less an 8px gutter instead of hanging off
+       the right edge. */
+    if(p.classList.contains('cm-list')){
+      var _w=p.parentNode,_vw=(window.visualViewport&&window.visualViewport.width)||document.documentElement.clientWidth||window.innerWidth||0;
+      if(_vw&&_vw<600&&_w&&_w.getBoundingClientRect){
+        p.style.left=(8-_w.getBoundingClientRect().left)+'px';p.style.width=(_vw-16)+'px';p.style.minWidth='0';p.style.maxWidth='none';p.style.boxSizing='border-box';
+      }else{p.style.left=p.style.width=p.style.minWidth=p.style.maxWidth=p.style.boxSizing='';}
+    }
     if(p.closest&&p.closest('#det-modal')){
       var btn=e&&e.target&&e.target.closest?e.target.closest('.cm-btn'):null;
       if(!btn){var w=p.closest('.cm-wrap');btn=w?w.querySelector('.cm-btn'):null;}
@@ -13715,7 +13736,8 @@ function _sectorBenchBtns(){
      below used to skip it, leaving the collapsed hamburger permanently
      blank — no way to see which range was active. */
   _cmSum('sector',_sectorPriceRange.replace('YR','Y')
-    +(_sectorBench.length?' · vs '+_sectorBench.map(_dtcIndexLabel).join(', '):''));
+    +(_sectorBench.length?' · vs '+_sectorBench.map(_dtcIndexLabel).join(', '):'')
+    +(document.getElementById('agg-grid')?' · '+_secListSum('agg-grid'):''));
   if(!ixs.length){if(wrap)wrap.style.display='none';return;}
   if(wrap)wrap.style.display='flex';
   el.innerHTML=ixs.map(function(ix){
@@ -13777,22 +13799,18 @@ function renderUniversePriceChart(){
   var out='<div class="cm-wrap">'
     +'<button type="button" class="cm-btn" onclick="cmToggle(\'sector\',event)" title="Chart options — range, benchmarks">&#9776;</button>'
     +'<span class="cm-sum" id="sector-cm-sum"></span>'
-    +'<div class="cm-panel" id="sector-cm-panel">'
+    +'<div class="cm-panel cm-list" id="sector-cm-panel">'
     +  '<div class="cm-row"><div class="cm-lbl">Range</div><div style="display:flex;gap:4px;flex-wrap:wrap">'+rangeBtns+'</div></div>'
     +  '<div class="cm-row" id="sector-bench-wrap" style="display:none"><div class="cm-lbl">vs</div>'
     +    '<span id="sector-bench-btns" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"></span></div>'
+    +  '<div class="cm-row cm-sec"><div class="cm-sec-head"><div class="cm-lbl" title="Ranked by price appreciation over the selected range">Sectors</div>'
+    +    '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+helperBtns+'</div></div>'
+    +    '<div class="agg-grid-section"><div class="agg-grid" id="agg-grid">'+gridItems+'</div></div></div>'
     +'</div>'
     +'</div>'
     +'<div id="sector-price-tip" class="pp-sectorprice-tip" style="margin:6px 0 4px;min-height:20px"></div>'
     +'<div id="sector-price-chart" style="min-height:260px"></div>'
-    +'<div id="sector-price-legend" style="margin-top:8px"></div>'
-    +'<div class="agg-grid-section">'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'
-    +'<div class="agg-grid-title">Compare sectors <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(ranked by price appreciation over the selected range)</span></div>'
-    +'<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+helperBtns+'</div>'
-    +'</div>'
-    +'<div class="agg-grid" id="agg-grid">'+gridItems+'</div>'
-    +'</div>';
+    +'<div id="sector-price-legend" style="margin-top:8px"></div>';
   /* Defer the actual draw until after innerHTML mounts the
      container. */
   setTimeout(_priceChartDraw,0);
@@ -13806,6 +13824,14 @@ function setSectorPriceRange(r,btn){
   }
   _priceChartDraw();
 }
+/* ' · 9 of 11 sectors' for a ☰ summary, read off the menu's checkboxes. */
+function _secListSum(gridId){
+  var b=document.querySelectorAll('#'+gridId+' input[type="checkbox"]');if(!b.length)return '';
+  var on=0;b.forEach(function(cb){if(cb.checked)on++;});
+  return _secListSumN(on,b.length);
+}
+function _cap1(t){return t?t.charAt(0).toUpperCase()+t.slice(1):t;}
+function _secListSumN(on,n){return (on===n?'all '+n:on+' of '+n)+' sectors';}
 function aggsChanged(){
   var boxes=document.querySelectorAll('#agg-grid input[type="checkbox"]');
   _selectedAggs={};
@@ -13892,7 +13918,7 @@ function _priceChartDraw(){
   /* Benchmarks alone are a legitimate view (compare the indices to each
      other), so only the truly empty selection gets the placeholder. */
   if(!keys.length&&!_sectorBench.length){
-    el.innerHTML='<p style="color:#888;padding:30px 20px;text-align:center;font-size:0.85em">Pick one or more sectors below to plot performance.</p>';
+    el.innerHTML='<p style="color:#888;padding:30px 20px;text-align:center;font-size:0.85em">Pick one or more sectors from the \u2630 menu to plot performance.</p>';
     if(legendEl)legendEl.innerHTML='';
     if(tipEl)tipEl.innerHTML='';
     _aggHoverState=null;
@@ -14052,7 +14078,7 @@ function _renderPolylineSVG(el,dates,aggs){
   });
   var svg='<svg id="agg-svg" viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:'+VH+'px;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y" onmousemove="aggChartMove(event)" onmouseleave="aggChartLeave()" ontouchstart="aggChartTouch(event)" ontouchmove="aggChartTouch(event)" ontouchend="aggChartLeave()" ontouchcancel="aggChartLeave()">'+grid+lines+hoverOverlay+'</svg>';
   /* The per-sector color/return legend was removed by request; the sector
-     selector grid below already shows each sector's color + name, and hover
+     list in the ☰ menu shows each sector's color + name, and hover
      surfaces the values. Only the summary caption is kept. */
   var totalConstituents=aggs.reduce(function(s,a){return s+(a.nc||0);},0);
   /* Benchmarks are counted separately: they are lines on the chart but not
@@ -14748,14 +14774,16 @@ function renderCrossSectorProfitPool(){
     +'<button type="button" class="agg-helper-btn" onclick="_ppClearAll()">Clear</button>';
   setTimeout(_ppDraw,0);
   return '<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
+    +'<div class="cm-wrap">'
+    +'<button type="button" class="cm-btn" onclick="cmToggle(\'ppsec\',event)" title="Show / hide sectors">&#9776;</button>'
+    +'<span class="cm-sum" id="ppsec-cm-sum">'+_cap1(_secListSumN(secs.length,secs.length))+'</span>'
+    +'<div class="cm-panel cm-list" id="ppsec-cm-panel">'
+    +  '<div class="cm-row cm-sec"><div class="cm-sec-head"><div class="cm-lbl" title="Numbered by position in the chart (operating margin, left to right)">Sectors</div>'
+    +    '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+helperBtns+'</div></div>'
+    +    '<div class="agg-grid-section"><div class="agg-grid" id="pp-grid">'+gridItems+'</div></div></div>'
+    +'</div>'
+    +'</div>'
     +'<div id="xsect-pp-wrap" style="min-height:200px"></div>'
-    +'<div class="agg-grid-section">'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
-    +'<div class="agg-grid-title" style="margin:0">Show / hide sectors</div>'
-    +'<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+helperBtns+'</div>'
-    +'</div>'
-    +'<div class="agg-grid" id="pp-grid">'+gridItems+'</div>'
-    +'</div>'
   +'</div>';
 }
 /* Redraw the SVG + numbered legend from the current selection (window._ppSel).
@@ -14766,7 +14794,7 @@ function _ppDraw(){
   var all=window._xsPoolAll||[];
   var sel=all.filter(function(a){return window._ppSel&&window._ppSel[a.name];});
   if(!sel.length){
-    wrap.innerHTML='<p style="color:#888;padding:40px 20px;text-align:center;font-size:0.85em">Select one or more sectors below to plot the profit pool.</p>';
+    wrap.innerHTML='<p style="color:#888;padding:40px 20px;text-align:center;font-size:0.85em">Select one or more sectors from the \u2630 menu to plot the profit pool.</p>';
     window._xsPoolAgg={};
     _ppSetGridRev(null);
     return;
@@ -14869,6 +14897,7 @@ function _ppChanged(){
   var boxes=document.querySelectorAll('#pp-grid input[type="checkbox"]');
   window._ppSel={};
   boxes.forEach(function(cb){if(cb.checked)window._ppSel[cb.value]=true;});
+  _cmSum('ppsec',_cap1(_secListSum('pp-grid')));
   _ppDraw();
 }
 function _ppSelectAll(){
