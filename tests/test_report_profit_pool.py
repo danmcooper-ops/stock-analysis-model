@@ -36,7 +36,7 @@ def _pool(rows, tmp_path):
         'var window={};function setTimeout(){}function _ppDraw(){}',
         'function _num(v){return typeof v==="number"&&isFinite(v)?v:null;}',
         'function _esc(s){return s;}function _attr(s){return s;}',
-        _fn(src, '_ppColM'), _fn(src, '_ppIssuerKey'),
+        _fn(src, '_ppColM'), _fn(src, '_ppIssuerKey'), _fn(src, '_secListSumN'), _fn(src, '_cap1'),
         _fn(src, 'renderCrossSectorProfitPool'),
         'var DATA=' + json.dumps(rows) + ';',
         'renderCrossSectorProfitPool();',
