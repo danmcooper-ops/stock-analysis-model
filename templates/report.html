@@ -7566,9 +7566,17 @@ function _phRenderSVG(allRaw,refs,ctx){
      series has no daily volume to pair with. */
   var volMax=(!cmpMode&&!annual)?_volMaxOf(series[0].raw):0;
   var hasVol=volMax>0;
-  var VW=900,PL=72,PR=20,PT=20,PB=42;
-  var VOL_GAP=12,VOL_H=hasVol?44:0;
-  var iW=VW-PL-PR,iH=(hasVol?200:218);
+  /* On a narrow screen the viewBox is the container's width in CSS pixels,
+     so one unit is one pixel, as in _renderPolylineSVG. A fixed 900-wide
+     box scaled down to a phone shrank the 11px axis labels to ~4px and the
+     plot to ~90px tall. Wider containers keep the 900 box (and the desktop
+     look) unchanged. A container not laid out yet (hidden pane) measures 0;
+     the window width stands in, and the resize hook redraws once it shows. */
+  var _cw=Math.round(el.clientWidth||0)||Math.max(0,(window.innerWidth||900)-40);
+  var narrow=_cw>0&&_cw<600;
+  var VW=narrow?Math.max(280,_cw):900,PL=narrow?50:72,PR=narrow?8:20,PT=narrow?14:20,PB=narrow?30:42;
+  var VOL_GAP=12,VOL_H=hasVol?(narrow?36:44):0;
+  var iW=VW-PL-PR,iH=narrow?Math.round(Math.max(180,Math.min(300,VW*0.62))):(hasVol?200:218);
   var volTop=PT+iH+VOL_GAP,volBase=volTop+VOL_H;
   var xBase=hasVol?volBase:PT+iH;
   var VH=xBase+PB;
@@ -7644,18 +7652,45 @@ function _phRenderSVG(allRaw,refs,ctx){
      percentages no price can reach (a MAX-range mega-winner was padding the
      floor to -1093%). Clamp instead of letting the pad run past the floor. */
   if(rebase&&minP<0)minP=0;
-  maxP+=pad;var pRange=maxP-minP;
+  maxP+=pad;
+  /* Log scale for a rebased comparison spanning more than ~6x (the Sector
+     Price Comparison's rule): over MAX a +5,000% line otherwise flattens its
+     first two decades, and the benchmark with them, onto the floor. Rebased
+     values are positive, so the log is defined; equal growth rates then
+     read as equal slopes. */
+  var _dMin=Infinity,_dMax=-Infinity;
+  if(rebase)series.forEach(function(s){s.pts.forEach(function(p){if(p.c>0&&p.c<_dMin)_dMin=p.c;if(p.c>_dMax)_dMax=p.c;});});
+  var useLog=rebase&&_dMin>0&&_dMax/_dMin>6;
+  var tf=useLog?function(v){return Math.log(Math.max(v,1e-9));}:function(v){return v;};
+  if(useLog){var _lp=(Math.log(_dMax)-Math.log(_dMin))*0.04;minP=Math.log(_dMin)-_lp;maxP=Math.log(_dMax)+_lp;}
+  var pRange=maxP-minP;
   /* xOf takes a UNION index; the len argument is legacy (_volStripSVG still
      passes its own indices — in the only mode that draws the strip,
      single-stock, the union IS that series, so the indices coincide). */
   var xOf=function(i,len){return PL+(uLen<=1?iW/2:(i/(uLen-1))*iW);};
-  var yOf=function(v){return PT+iH-((v-minP)/pRange)*iH;};
+  var yOf=function(v){return PT+iH-((tf(v)-minP)/pRange)*iH;};
   /* y-axis */
   var yH='';
-  for(var gi=0;gi<=5;gi++){var gv=minP+(gi/5)*pRange;var gy=yOf(gv).toFixed(1);
+  var _pctLbl=function(gv){var r=gv-100;return (r>=0?'+':'\u2212')+(Math.abs(r)>=1000?(narrow?(Math.abs(r)/1000).toFixed(Math.abs(r)>=10000?0:1).replace(/\.0$/,'')+'k':Math.round(Math.abs(r)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',')):Math.abs(r).toFixed(0))+'%';};
+  if(useLog){
+    /* Round % changes (-90/-80/-50/0, then +100/+200/+500 per decade) so
+       the labels read +5k%, not +4,900%; thinned until they sit >=24px
+       apart (in viewBox units). */
+    var _cand=[],_lastY=Infinity;
+    [-99,-95,-90,-80,-50,0].forEach(function(r){var v=100+r;if(tf(v)>=minP&&tf(v)<=maxP)_cand.push(v);});
+    for(var _e=2;_e<=Math.ceil(Math.log10(Math.exp(maxP)));_e++){
+      [1,2,5].forEach(function(m){var v=100+m*Math.pow(10,_e-2)*100;if(tf(v)>=minP&&tf(v)<=maxP)_cand.push(v);});
+    }
+    _cand.forEach(function(gv){var y=yOf(gv);if(_lastY-y<24*(VW/Math.max(_cw||VW,1)))return;_lastY=y;var gy=y.toFixed(1);
+      yH+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" class="mac-grid" stroke-width="1"/>';
+      yH+='<text x="'+(PL-7)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end" font-size="11" fill="#9aaab8">'+_pctLbl(gv)+'</text>';});
+  }else{
+  var _nY=narrow?4:5;
+  for(var gi=0;gi<=_nY;gi++){var gv=minP+(gi/_nY)*pRange;var gy=yOf(gv).toFixed(1);
     if(gi>0)yH+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" class="mac-grid" stroke-width="1"/>';
-    var gl=rebase?((gv-100>=0?'+':'')+(gv-100).toFixed(0)+'%'):_phFmtAxis(gv,def.fmt);
+    var gl=rebase?_pctLbl(gv):_phFmtAxis(gv,def.fmt);
     yH+='<text x="'+(PL-7)+'" y="'+(parseFloat(gy)+4)+'" text-anchor="end" font-size="11" fill="#9aaab8">'+gl+'</text>';}
+  }
   /* x-axis from the union axis, so the labels describe every line, not just
      the first one. uSpan hands _phFmtDate the window endpoints for its
      year-vs-day format choice. A closing label marks the true last date when
@@ -7680,9 +7715,10 @@ function _phRenderSVG(allRaw,refs,ctx){
         +_noteTxt+'</text>';
     }
   }
-  var xH='';var nX=Math.min(annual?Math.min(uLen,10):7,uLen);var xstep=Math.max(1,Math.floor((uLen-1)/Math.max(1,nX-1)));
-  for(var xi=0;xi<uLen;xi+=xstep){xH+='<text x="'+xOf(xi).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+_phFmtDate(uDates[xi],uSpan,false)+'</text>';}
-  if(uLen>1&&(uLen-1)%xstep>=xstep/2){xH+='<text x="'+xOf(uLen-1).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+_phFmtDate(uDates[uLen-1],uSpan,false)+'</text>';}
+  var xH='';var nX=Math.min(narrow?(annual?Math.min(uLen,5):4):(annual?Math.min(uLen,10):7),uLen);var xstep=Math.max(1,Math.floor((uLen-1)/Math.max(1,nX-1)));
+  var _xa=function(i){if(!narrow)return 'middle';var x=xOf(i);return x<PL+24?'start':x>VW-PR-24?'end':'middle';};
+  for(var xi=0;xi<uLen;xi+=xstep){xH+='<text x="'+xOf(xi).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="'+_xa(xi)+'" font-size="'+(narrow?11:10)+'" fill="#9aaab8">'+_phFmtDate(uDates[xi],uSpan,false)+'</text>';}
+  if(uLen>1&&(uLen-1)%xstep>=xstep/2){xH+='<text x="'+xOf(uLen-1).toFixed(1)+'" y="'+(xBase+17)+'" text-anchor="'+(narrow?'end':'middle')+'" font-size="'+(narrow?11:10)+'" fill="#9aaab8">'+_phFmtDate(uDates[uLen-1],uSpan,false)+'</text>';}
   var volSVG=hasVol?_volStripSVG(ref0,{PL:PL,PR:PR,VW:VW,iW:iW,volTop:volTop,
     volBase:volBase,VOL_H:VOL_H,volMax:volMax,xOf:xOf}):'';
   /* reference lines (single stock only) */
@@ -7700,7 +7736,7 @@ function _phRenderSVG(allRaw,refs,ctx){
   /* The 0% line (index 100) is the "flat since the window opened" datum every
      rebased line starts on, so it earns a solid rule rather than a gridline. */
   var zeroSVG='';
-  if(rebase&&minP<100&&maxP>100){
+  if(rebase&&minP<tf(100)&&maxP>tf(100)){
     var y100=yOf(100).toFixed(1);
     zeroSVG+='<line x1="'+PL+'" y1="'+y100+'" x2="'+(VW-PR)+'" y2="'+y100+'" stroke="#94a3b8" stroke-width="1.25" stroke-dasharray="5,3" opacity="0.8"/>';
   }
@@ -7725,7 +7761,7 @@ function _phRenderSVG(allRaw,refs,ctx){
     +'<line id="ph-vl'+K+'" x1="0" y1="'+PT+'" x2="0" y2="'+xBase+'" class="mac-zero" stroke-width="1" stroke-dasharray="3,2" opacity="0"/>'
     +'</svg>';
   el.innerHTML=svg;
-  _phStates[K]={series:series,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,minP:minP,pRange:pRange,cmpMode:cmpMode,def:def,annual:annual,ctx:ctx,
+  _phStates[K]={series:series,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,minP:minP,pRange:pRange,tf:tf,cw:_cw,cmpMode:cmpMode,def:def,annual:annual,ctx:ctx,
                 volMax:volMax,xBase:xBase,uLen:uLen,uDates:uDates};
 }
 function _phTipHtml(series,cmpMode,relX,def,annual,uDates){
@@ -7776,7 +7812,7 @@ function _phTipHtml(series,cmpMode,relX,def,annual,uDates){
     var vp=series[0].pts[refIdx!=null?refIdx:series[0].pts.length-1];
     tip+=_volTipHtml(vp);
   }
-  tip+='<span style="color:#aab;font-size:0.82em;margin-left:4px">'+dateStr+'</span>';
+  tip+='<span style="color:#aab;font-size:0.82em;margin-left:4px;white-space:nowrap">'+dateStr+'</span>';
   return tip;
 }
 function phMove(e,key){
@@ -7799,7 +7835,7 @@ function phMove(e,key){
   s.series.forEach(function(sr,si){
     var idx=sr.u2p?sr.u2p[uc]:Math.max(0,Math.min(sr.pts.length-1,uc));
     var ux=sr.ux?sr.ux[idx]:idx;
-    var x=(s.PL+(ux/((s.uLen-1)||1))*s.iW).toFixed(1),y=(s.PT+s.iH-((sr.pts[idx].c-s.minP)/s.pRange)*s.iH).toFixed(1);
+    var x=(s.PL+(ux/((s.uLen-1)||1))*s.iW).toFixed(1),y=(s.PT+s.iH-(((s.tf?s.tf(sr.pts[idx].c):sr.pts[idx].c)-s.minP)/s.pRange)*s.iH).toFixed(1);
     var dc=document.getElementById('ph-dc'+key+si);if(dc){dc.setAttribute('cx',x);dc.setAttribute('cy',y);dc.setAttribute('opacity','1');}
   });
   var tb=document.getElementById(s.ctx.tipId);if(tb)tb.innerHTML=_phTipHtml(s.series,s.cmpMode,uc,s.def,s.annual,s.uDates);
@@ -7818,6 +7854,23 @@ function phTouch(e,key){
   if(e.cancelable)e.preventDefault();
   phMove({clientX:t.clientX,clientY:t.clientY},key);
 }
+/* Narrow charts are drawn at the container's pixel width, so redraw when
+   that width changes (rotation, a pane that was hidden when it drew). */
+(function(){
+  var pend=0;
+  function check(){
+    pend=0;
+    [['-dtc','dtc-chart',function(){_dtcRender();}],['','ph-chart',function(){renderPHChart();}]].forEach(function(c){
+      var st=_phStates[c[0]],el=document.getElementById(c[1]);
+      if(!st||!el)return;
+      var w=Math.round(el.clientWidth||0);
+      if(!w||w===st.cw)return;
+      if(w>=600&&st.VW===900&&(st.cw>=600||!st.cw))return;
+      c[2]();
+    });
+  }
+  window.addEventListener('resize',function(){if(!pend)pend=setTimeout(check,150);});
+})();
 /* _dpTicker = the company the detail popup currently shows. Every lazy
    re-render guard in the popup keys off it (Track Record, statements, data
    tabs, details.json merge, the Charts block). It used to be declared with
