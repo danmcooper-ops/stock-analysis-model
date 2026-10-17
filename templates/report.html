@@ -13438,44 +13438,82 @@ function _priceChartDraw(){
   _sectorPriceState={range:_sectorPriceRange,n:dates.length,k:aggs.length};
 }
 function _renderPolylineSVG(el,dates,aggs){
-  var VW=900,VH=280,PL=52,PR=14,PT=14,PB=34;
+  /* Size the viewBox to the container in CSS pixels and draw at that exact
+     height, so one unit is one pixel. A fixed 900x280 box scaled to width
+     shrank a phone's chart to ~115px tall with ~4px axis labels; on a narrow
+     screen the plot is now near-square instead. */
+  var cw=Math.round(el.clientWidth||(el.getBoundingClientRect&&el.getBoundingClientRect().width)||900);
+  var narrow=cw<600;
+  var VW=Math.max(280,cw);
+  var VH=narrow?Math.round(Math.max(260,Math.min(400,VW*0.9))):Math.round(Math.max(260,Math.min(360,VW*0.32)));
+  var PL=narrow?46:56,PR=narrow?8:14,PT=12,PB=30;
   var iW=VW-PL-PR,iH=VH-PT-PB;
   /* Reduce loop, not Math.min.apply: 15 series over a full 20Y window
      spreads ~75k arguments onto the call stack, past JavaScriptCore's ~65k
      ceiling — Safari threw RangeError and left the loading spinner up. */
   var minP=Infinity,maxP=-Infinity;
   aggs.forEach(function(a){for(var vi=0;vi<a.vals.length;vi++){var v=a.vals[vi];if(v<minP)minP=v;if(v>maxP)maxP=v;}});
-  var pad=(maxP-minP)*0.06||1;minP-=pad;maxP+=pad;
-  var pRange=maxP-minP||1;
-  function xOf(idx){return PL+(dates.length<=1?iW/2:(idx/(dates.length-1))*iW);}
-  function yOf(v){return PT+iH-((v-minP)/pRange)*iH;}
-  var grid='';
-  for(var gi=0;gi<=5;gi++){
-    var gv=minP+(gi/5)*pRange;var gy=yOf(gv).toFixed(1);
-    if(gi>0)grid+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" class="mac-grid" stroke-width="1"/>';
-    grid+='<text x="'+(PL-7)+'" y="'+(parseFloat(gy)+4)+'" text-anchor="end" font-size="11" fill="#9aaab8">'+Math.round(gv)+'</text>';
+  /* Log scale once the lines span more than ~6x: over 10-20 years one
+     compounding sector otherwise flattens every other line onto the axis
+     (20Y Technology at ~13,000 left Utilities' +650% as a hairline), and a
+     log axis shows equal growth rates as equal slopes. Indexed values are
+     always positive, so the log is defined. */
+  var useLog=minP>0&&maxP/minP>6;
+  var tf=useLog?function(v){return Math.log(v);}:function(v){return v;};
+  var tMin,tMax;
+  if(useLog){var lp=(Math.log(maxP)-Math.log(minP))*0.04;tMin=Math.log(minP)-lp;tMax=Math.log(maxP)+lp;}
+  else{
+    var pad=(maxP-minP)*0.06||1;
+    /* Never pad an all-positive index below zero (the axis read -793). */
+    tMin=minP>=0?Math.max(0,minP-pad):minP-pad;tMax=maxP+pad;
   }
-  if(100>=minP&&100<=maxP){
+  var pRange=tMax-tMin||1;
+  function xOf(idx){return PL+(dates.length<=1?iW/2:(idx/(dates.length-1))*iW);}
+  function yOf(v){return PT+iH-((tf(v)-tMin)/pRange)*iH;}
+  function fmtV(v){return v>=10000?Math.round(v/1000)+'k':Math.round(v).toLocaleString('en-US');}
+  var ticks=[];
+  if(useLog){
+    /* 1-2-5 steps per decade, thinned until labels sit >=24px apart. */
+    var cand=[];
+    for(var e10=Math.floor(Math.log10(Math.exp(tMin)));e10<=Math.ceil(Math.log10(Math.exp(tMax)));e10++){
+      [1,2,5].forEach(function(m){var v=m*Math.pow(10,e10);if(tf(v)>=tMin&&tf(v)<=tMax)cand.push(v);});
+    }
+    var lastY=Infinity;
+    cand.forEach(function(v){var y=yOf(v);if(lastY-y>=24){ticks.push(v);lastY=y;}});
+  }else{
+    var nT=narrow?4:5,raw=(tMax-tMin)/nT,mag=Math.pow(10,Math.floor(Math.log10(raw))),step=mag;
+    [1,2,2.5,5,10].some(function(m){step=m*mag;return step>=raw;});
+    for(var tv=Math.ceil(tMin/step)*step;tv<=tMax;tv+=step)ticks.push(tv);
+  }
+  var grid='';
+  ticks.forEach(function(gv){
+    var gy=yOf(gv).toFixed(1);
+    grid+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" class="mac-grid" stroke-width="1"/>';
+    grid+='<text x="'+(PL-7)+'" y="'+(parseFloat(gy)+4)+'" text-anchor="end" font-size="11" fill="#9aaab8">'+fmtV(gv)+'</text>';
+  });
+  if(tf(100)>=tMin&&tf(100)<=tMax){
     var y100=yOf(100).toFixed(1);
     grid+='<line x1="'+PL+'" y1="'+y100+'" x2="'+(VW-PR)+'" y2="'+y100+'" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="4,3" opacity="0.7"/>';
     grid+='<text x="'+(VW-PR-4)+'" y="'+(parseFloat(y100)-4)+'" text-anchor="end" font-size="9" fill="#94a3b8">baseline 100</text>';
   }
-  var nX=Math.min(7,dates.length);
+  var nX=Math.min(narrow?4:7,dates.length);
   var xstep=Math.max(1,Math.floor((dates.length-1)/Math.max(1,nX-1)));
   var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  /* Edge labels anchor inward so the last date isn't clipped at the right. */
+  function xAnchor(x){return x>VW-PR-24?'end':'middle';}
   for(var xi=0;xi<dates.length;xi+=xstep){
     var dx=new Date(dates[xi]+'T00:00:00');
     var lbl=mo[dx.getMonth()]+'\''+String(dx.getFullYear()).slice(2);
-    grid+='<text x="'+xOf(xi).toFixed(1)+'" y="'+(PT+iH+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+lbl+'</text>';
+    grid+='<text x="'+xOf(xi).toFixed(1)+'" y="'+(PT+iH+17)+'" text-anchor="'+xAnchor(xOf(xi))+'" font-size="11" fill="#9aaab8">'+lbl+'</text>';
   }
   /* Close the axis at the true last date when the stride stops short of it
      (and there's at least half a stride of room, so labels don't collide) —
      otherwise the chart reads as ending earlier than the lines do. */
   if(dates.length>1&&(dates.length-1)%xstep>=xstep/2){
     var dxL=new Date(dates[dates.length-1]+'T00:00:00');
-    grid+='<text x="'+xOf(dates.length-1).toFixed(1)+'" y="'+(PT+iH+17)+'" text-anchor="middle" font-size="10" fill="#9aaab8">'+mo[dxL.getMonth()]+'\''+String(dxL.getFullYear()).slice(2)+'</text>';
+    grid+='<text x="'+xOf(dates.length-1).toFixed(1)+'" y="'+(PT+iH+17)+'" text-anchor="end" font-size="11" fill="#9aaab8">'+mo[dxL.getMonth()]+'\''+String(dxL.getFullYear()).slice(2)+'</text>';
   }
-  var aggStroke=aggs.length>=4?1.4:1.9;
+  var aggStroke=narrow?(aggs.length>=4?1.3:1.8):(aggs.length>=4?1.4:1.9);
   var lines='';
   aggs.forEach(function(a,si){
     var pts=a.vals.map(function(v,i){return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);}).join(' ');
@@ -13491,7 +13529,7 @@ function _renderPolylineSVG(el,dates,aggs){
   aggs.forEach(function(a,si){
     hoverOverlay+='<circle id="agg-dot'+si+'" cx="0" cy="0" r="4" fill="#fff" stroke="'+a.color+'" stroke-width="2" opacity="0" pointer-events="none"/>';
   });
-  var svg='<svg id="agg-svg" viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:auto;max-height:360px;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y" onmousemove="aggChartMove(event)" onmouseleave="aggChartLeave()" ontouchstart="aggChartTouch(event)" ontouchmove="aggChartTouch(event)" ontouchend="aggChartLeave()" ontouchcancel="aggChartLeave()">'+grid+lines+hoverOverlay+'</svg>';
+  var svg='<svg id="agg-svg" viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none" style="display:block;width:100%;height:'+VH+'px;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y" onmousemove="aggChartMove(event)" onmouseleave="aggChartLeave()" ontouchstart="aggChartTouch(event)" ontouchmove="aggChartTouch(event)" ontouchend="aggChartLeave()" ontouchcancel="aggChartLeave()">'+grid+lines+hoverOverlay+'</svg>';
   /* The per-sector color/return legend was removed by request; the sector
      selector grid below already shows each sector's color + name, and hover
      surfaces the values. Only the summary caption is kept. */
@@ -13503,13 +13541,14 @@ function _renderPolylineSVG(el,dates,aggs){
   var meta='<div style="font-size:0.7em;color:#94a3b8;margin-top:6px">Indexed to 100 at '+dates[0]+' · '+dates.length+' obs · '
     +nSec+' sector'+(nSec===1?'':'s')
     +(nBench?' · '+nBench+' benchmark'+(nBench===1?'':'s')+' (dashed)':'')
-    +' · '+totalConstituents+' total constituents</div>';
+    +' · '+totalConstituents+' total constituents'
+    +(useLog?' · log scale':'')+'</div>';
   el.innerHTML=svg;
   var legendEl=document.getElementById('sector-price-legend');
   if(legendEl)legendEl.innerHTML=meta;
   /* Default tip: summary verdict line. Replaced by hover values
      when the cursor is over the chart. */
-  _aggHoverState={dates:dates,aggs:aggs,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,minP:minP,pRange:pRange};
+  _aggHoverState={dates:dates,aggs:aggs,VW:VW,VH:VH,PL:PL,PR:PR,PT:PT,PB:PB,iW:iW,iH:iH,yOf:yOf,cw:cw};
   _aggHoverState.summaryHtml=_buildAggSummaryTip(aggs);
   var tipEl=document.getElementById('sector-price-tip');
   if(tipEl)tipEl.innerHTML=_aggHoverState.summaryHtml;
@@ -13552,7 +13591,7 @@ function aggChartMove(e){
   if(vl){vl.setAttribute('x1',x);vl.setAttribute('x2',x);vl.setAttribute('opacity','1');}
   s.aggs.forEach(function(a,si){
     var v=a.vals[idx];
-    var y=(s.PT+s.iH-((v-s.minP)/s.pRange)*s.iH).toFixed(1);
+    var y=s.yOf(v).toFixed(1);
     var dc=document.getElementById('agg-dot'+si);
     if(dc){dc.setAttribute('cx',x);dc.setAttribute('cy',y);dc.setAttribute('opacity','1');}
   });
@@ -13567,6 +13606,16 @@ function aggChartMove(e){
   var tipEl=document.getElementById('sector-price-tip');
   if(tipEl)tipEl.innerHTML='<span style="color:#94a3b8;margin-right:10px;font-size:0.92em">'+d+'</span>'+parts.join('');
 }
+/* The chart is drawn at the container's pixel width, so redraw when that
+   width changes (rotation, window resize) — debounced, and only when the
+   chart is mounted and its width actually moved. */
+window.addEventListener('resize',function(){
+  clearTimeout(window._aggResizeT);
+  window._aggResizeT=setTimeout(function(){
+    var el=document.getElementById('sector-price-chart');
+    if(el&&_aggHoverState&&el.clientWidth&&Math.abs(el.clientWidth-_aggHoverState.cw)>2)_priceChartDraw();
+  },150);
+});
 function aggChartLeave(){
   var vl=document.getElementById('agg-vl');
   if(vl)vl.setAttribute('opacity','0');
@@ -14217,7 +14266,16 @@ function _ppDraw(){
     _posByName[a.name]=i+1;
   });
   _ppSetGridRev(_revByName,_posByName);
-  var W=860,H=330,pL=54,pR=16,pT=18,pB=40,cW=W-pL-pR,cH=H-pT-pB;
+  /* Drawn at the container's pixel width (one unit = one pixel), like the
+     Sector Price Comparison above: a fixed 860x330 box scaled down to a
+     phone left ~4px labels and a squat plot. Narrow screens get a taller,
+     near-square plot. */
+  var cw=Math.round(wrap.clientWidth||860);
+  var narrow=cw<600;
+  var W=Math.max(280,cw);
+  var H=narrow?Math.round(Math.max(260,Math.min(420,W*0.95))):330;
+  var pL=narrow?36:54,pR=narrow?8:16,pT=18,pB=40,cW=W-pL-pR,cH=H-pT-pB;
+  window._ppDrawnW=cw;
   var maxM=Math.max.apply(null,sel.map(function(a){return a.margin;}));
   var minM=Math.min.apply(null,sel.map(function(a){return a.margin;}));
   maxM=Math.max(maxM,0.05);minM=Math.min(minM,0);
@@ -14227,7 +14285,7 @@ function _ppDraw(){
   for(var ti=0;ti<=4;ti++){
     var tv=minM+(yRange/4)*ti;var ty=pT+cH*(maxM-tv)/yRange;
     ticks+='<line x1="'+pL+'" y1="'+ty.toFixed(1)+'" x2="'+(pL-4)+'" y2="'+ty.toFixed(1)+'" stroke="#ccc" stroke-width="1"/>';
-    ticks+='<text x="'+(pL-7)+'" y="'+(ty+3.5).toFixed(1)+'" text-anchor="end" font-size="10" fill="#999">'+(tv*100).toFixed(0)+'%</text>';
+    ticks+='<text x="'+(pL-7)+'" y="'+(ty+3.5).toFixed(1)+'" text-anchor="end" font-size="11" fill="#999">'+(tv*100).toFixed(0)+'%</text>';
     ticks+='<line x1="'+pL+'" y1="'+ty.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+ty.toFixed(1)+'" stroke="#f5f5f5" stroke-width="1"/>';
   }
   var axes='';
@@ -14236,11 +14294,13 @@ function _ppDraw(){
   [0,0.25,0.5,0.75,1].forEach(function(f){
     var xx=pL+f*cW;
     axes+='<line x1="'+xx.toFixed(1)+'" y1="'+(pT+cH)+'" x2="'+xx.toFixed(1)+'" y2="'+(pT+cH+4)+'" stroke="#ccc" stroke-width="1"/>';
-    axes+='<text x="'+xx.toFixed(1)+'" y="'+(pT+cH+15)+'" text-anchor="middle" font-size="10" fill="#999">'+(f*100).toFixed(0)+'%</text>';
+    axes+='<text x="'+xx.toFixed(1)+'" y="'+(pT+cH+15)+'" text-anchor="'+(f===1?'end':'middle')+'" font-size="11" fill="#999">'+(f*100).toFixed(0)+'%</text>';
   });
   axes+='<text x="'+(pL+cW/2)+'" y="'+(H-6)+'" text-anchor="middle" font-size="11" fill="#444" font-weight="600">Cumulative Share of Operating Revenue →</text>';
   var yCtr=pT+cH/2;
-  axes+='<text x="13" y="'+yCtr.toFixed(1)+'" text-anchor="middle" font-size="11" fill="#444" font-weight="600" transform="rotate(-90,13,'+yCtr.toFixed(1)+')">Operating Margin →</text>';
+  /* On a phone the rotated title collides with the tick labels; the
+     subtitle above the chart already says height = operating margin. */
+  if(!narrow)axes+='<text x="13" y="'+yCtr.toFixed(1)+'" text-anchor="middle" font-size="11" fill="#444" font-weight="600" transform="rotate(-90,13,'+yCtr.toFixed(1)+')">Operating Margin →</text>';
   var bars='',cumX=0;
   sel.forEach(function(a,i){
     var barW=Math.max(2,a.revShare*cW);
@@ -14251,12 +14311,19 @@ function _ppDraw(){
     bars+='<rect x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="'+col+'" opacity="0.86" stroke="rgba(255,255,255,0.7)" stroke-width="0.6" onmouseenter="ppPoolTip(event,\''+nm+'\')" onmouseleave="ppHide()" onclick="showPoolTab(\''+nm+'\')" style="cursor:pointer"/>';
     if(barW>=8){
       var ny=a.margin>=0?(barY-4):(barY+barH+11);
-      bars+='<text x="'+(bx+barW/2).toFixed(1)+'" y="'+ny.toFixed(1)+'" text-anchor="middle" font-size="9" fill="#444" font-weight="600" pointer-events="none">'+(i+1)+'</text>';
+      bars+='<text x="'+(bx+barW/2).toFixed(1)+'" y="'+ny.toFixed(1)+'" text-anchor="middle" font-size="10" fill="#444" font-weight="600" pointer-events="none">'+(i+1)+'</text>';
     }
     cumX+=barW;
   });
-  wrap.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-width:'+W+'px;margin:2px auto 0">'+ticks+axes+bars+'</svg>';
+  wrap.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="display:block;width:100%;height:'+H+'px;margin:2px auto 0">'+ticks+axes+bars+'</svg>';
 }
+window.addEventListener('resize',function(){
+  clearTimeout(window._ppResizeT);
+  window._ppResizeT=setTimeout(function(){
+    var wrap=document.getElementById('xsect-pp-wrap');
+    if(wrap&&wrap.querySelector('svg')&&wrap.clientWidth&&Math.abs(wrap.clientWidth-(window._ppDrawnW||0))>2)_ppDraw();
+  },150);
+});
 /* Write each sector's share of operating revenue into its selector-grid
    row's .pp-grid-rev span, and its chart position (1-based index of its bar,
    left to right — the same number drawn above the bar) into the row's
