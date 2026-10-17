@@ -188,7 +188,7 @@ def test_review_feature_is_back():
     assert '#dtbl th:nth-child(5),#dtbl tbody td:nth-child(5){left:calc(var(--sb-cur) + 168px);}' in src
     assert '#dtbl th:nth-child(6),#dtbl tbody td:nth-child(6){left:calc(var(--sb-cur) + 240px);}' in src
     assert '#mtx thead tr:first-child th:nth-child(4),#mtx td.tk{left:calc(var(--sb-cur) + 100px);}' in src
-    assert '#mtx thead tr:first-child th:nth-child(6),#mtx tbody td:nth-child(6){left:calc(var(--sb-cur) + 264px);}' in src
+    assert '#mtx thead tr:first-child th:nth-child(7),#mtx tbody td:nth-child(7){left:calc(var(--sb-cur) + 280px);}' in src
 
 
 def test_chart_controls_are_underline_tabs_behind_the_menu():
