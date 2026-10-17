@@ -2121,12 +2121,13 @@ body.wide-table .container{padding-left:0;padding-right:0;}
    the tables: hairline borders, one accent, muted axis chrome, prose set
    at a book measure. Everything is a token on #macro-view; dark mode swaps
    the tokens instead of chasing hex values through the SVGs. */
-#macro-view{--mac-card:#fff;--mac-border:#e4e8ee;--mac-muted:#6b7784;--mac-faint:#9aa5b1;
+/* The tokens also serve the tile zoom dialog (.mz-box), which sits in body. */
+#macro-view,.mz-box{--mac-card:#fff;--mac-border:#e4e8ee;--mac-muted:#6b7784;--mac-faint:#9aa5b1;
   --mac-line:#edf0f4;--mac-accent:#2f6fb4;--mac-up:#1f8a4c;--mac-up-bg:#e8f5ee;
   --mac-down:#c2402f;--mac-down-bg:#fbeae7;--mac-chip:#f2f4f7;
-  --mac-shadow:0 1px 2px rgba(16,24,40,0.04);
-  max-width:1120px;margin:0 auto;padding:12px 8px 48px;font-size:15px;line-height:1.5;}
-[data-theme="dark"] #macro-view{--mac-card:#161b22;--mac-border:#2a313a;--mac-muted:#8b949e;
+  --mac-shadow:0 1px 2px rgba(16,24,40,0.04);}
+#macro-view{max-width:1120px;margin:0 auto;padding:12px 8px 48px;font-size:15px;line-height:1.5;}
+[data-theme="dark"] .mz-box,[data-theme="dark"] #macro-view{--mac-card:#161b22;--mac-border:#2a313a;--mac-muted:#8b949e;
   --mac-faint:#6e7681;--mac-line:#242b34;--mac-accent:#5b9cf0;--mac-up:#6fd08c;--mac-up-bg:#10261a;
   --mac-down:#ff8a80;--mac-down-bg:#2c1518;--mac-chip:#21262d;--mac-shadow:none;}
 .mac-card,.mac-tile,.mac-regime{border:1px solid var(--mac-border);border-radius:12px;background:var(--mac-card);box-shadow:var(--mac-shadow);}
@@ -2235,6 +2236,37 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 /* --- glance tiles --- */
 .mac-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:0 0 18px;}
 .mac-tile{padding:14px 16px;}
+/* Narrative folds (_macFold): phones only; desktop shows it all and no chevron. */
+.mac-fold-btn{display:none;}
+@media(max-width:768px){
+  .mac-fold-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin:-6px -6px -6px 2px;
+    padding:0;border:0;background:none;color:var(--mac-muted);cursor:pointer;vertical-align:middle;}
+  /* .ppf-chev points down; folded it points right. */
+  .mac-fold-btn .ppf-chev{margin:0;transform:rotate(-90deg);}
+  .mac-fold.open .mac-fold-btn .ppf-chev{transform:none;}
+  .mac-fold-h{cursor:pointer;}
+  .mac-nar-k.mac-fold-h{display:flex;align-items:center;justify-content:space-between;}
+  .mac-fold:not(.open) .mac-fold-b{display:none;}
+}
+.mac-tile-zoom{cursor:pointer;}
+.mac-tile-zoom:hover{border-color:var(--mac-accent);}
+.mac-tile-zoom:focus-visible{outline:2px solid var(--mac-accent);outline-offset:2px;}
+/* Tile zoom dialog (_macZoom). Sits in body, outside #macro-view, so it
+   restates the tokens it reads. */
+.mac-zoom{display:none;position:fixed;inset:0;z-index:1600;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:16px;}
+.mac-zoom.open{display:flex;}
+html.mz-open,html.mz-open body{overflow:hidden;}
+.mz-box{position:relative;width:min(760px,100%);max-height:calc(100dvh - 32px);overflow-y:auto;background:#fff;color:#1f2328;
+  border-radius:14px;padding:16px 16px 12px;box-shadow:0 12px 40px rgba(0,0,0,0.35);font-size:15px;line-height:1.5;}
+[data-theme="dark"] .mz-box{background:#161b22;color:#e6edf3;}
+.mz-x{position:absolute;top:8px;right:8px;width:34px;height:34px;border:0;border-radius:8px;background:transparent;color:inherit;font-size:24px;line-height:1;cursor:pointer;}
+.mz-x:hover{background:rgba(127,127,127,0.15);}
+.mz-head{padding-right:36px;}
+.mz-t{font-size:0.95em;font-weight:600;color:var(--mac-muted);}
+.mz-v{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:2px 0 8px;}
+.mz-v .mac-tile-v{margin:0;}
+.mz-rng{display:flex;gap:4px;margin:0 0 8px;}
+.mz-foot{font-size:0.72em;color:var(--mac-faint);margin-top:6px;}
 .mac-tile-l{font-size:0.76em;font-weight:600;color:var(--mac-muted);}
 .mac-tile-v{font-size:1.55em;font-weight:700;letter-spacing:-0.01em;line-height:1.15;font-variant-numeric:tabular-nums;margin:3px 0 5px;}
 .mac-delta{display:inline-block;border-radius:9px;padding:1px 8px;font-size:0.74em;font-weight:600;font-variant-numeric:tabular-nums;background:var(--mac-chip);color:var(--mac-muted);margin-right:5px;}
@@ -11286,7 +11318,7 @@ document.addEventListener('keydown',function(e){
     return;
   }
   /* An open Market Regime explainer takes the first Escape. */
-  if(e.key==='Escape'&&_macRegimeHelpClose()){e.preventDefault();return;}
+  if(e.key==='Escape'&&(_macZoomClose()||_macRegimeHelpClose())){e.preventDefault();return;}
   if(_hkBlocked(e))return;
   _hkDispatch(e);
 });
@@ -12092,6 +12124,78 @@ function _mSparkSVG(vals,dates,hid,fmt,suffix){
     +' ontouchstart="macHovTouch(event,\''+hid+'\')" ontouchmove="macHovTouch(event,\''+hid+'\')"'
     +' ontouchend="macHovLeave(\''+hid+'\')" ontouchcancel="macHovLeave(\''+hid+'\')">'+g+'</svg>';
 }
+/* === MACRO TILE ZOOM ===
+   An Overview tile opens its series' full history in a dialog: the same
+   card the section sub-tabs draw (recession bands, scrub readout), drawn at
+   the dialog's pixel width, with a range switch. The history rides
+   macro.json, so a tap before that sidecar lands waits for it. */
+var _MZ={id:null,rng:'10Y'};
+function _macZoom(id){
+  _MZ.id=id;
+  var o=document.getElementById('mac-zoom');
+  if(!o){
+    o=document.createElement('div');o.id='mac-zoom';o.className='mac-zoom';
+    o.setAttribute('role','dialog');o.setAttribute('aria-modal','true');
+    o.onclick=function(e){if(e.target===o)_macZoomClose();};
+    document.body.appendChild(o);
+  }
+  o.classList.add('open');
+  document.documentElement.classList.add('mz-open');
+  _macZoomDraw();
+}
+function _macZoomClose(){
+  var o=document.getElementById('mac-zoom');
+  if(!o||!o.classList.contains('open'))return false;
+  o.classList.remove('open');o.innerHTML='';
+  document.documentElement.classList.remove('mz-open');
+  _MZ.id=null;
+  return true;
+}
+function _macZoomRange(r){_MZ.rng=r;_macZoomDraw();}
+function _macZoomDraw(){
+  var o=document.getElementById('mac-zoom');if(!o||!_MZ.id)return;
+  var box='<div class="mz-box"><button type="button" class="mz-x" aria-label="Close" onclick="_macZoomClose()">&times;</button>';
+  if(!MACRO){
+    if(_MACRO_FAILED){o.innerHTML=box+'<p class="mac-note">The chart data could not be loaded.</p></div>';return;}
+    if(!_MACRO_LOADING)_loadMacro();
+    o.innerHTML=box+'<p class="mac-note">Loading chart…</p></div>';
+    var poll=setInterval(function(){if(!_MACRO_LOADING||!_MZ.id){clearInterval(poll);_macZoomDraw();}},150);
+    return;
+  }
+  var s=(MACRO.series||{})[_MZ.id];
+  if(!s){o.innerHTML=box+'<p class="mac-note">No history for this series.</p></div>';return;}
+  var d=(s.hist&&s.hist.d)||[],v=(s.hist&&s.hist.v)||[];
+  var yrs={'1Y':1,'5Y':5,'10Y':10}[_MZ.rng],cut=0;
+  if(yrs&&d.length){
+    var lim=Date.parse(d[d.length-1])-yrs*365.25*864e5;
+    while(cut<d.length-2&&Date.parse(d[cut])<lim)cut++;
+  }
+  var sv={};for(var k in s)sv[k]=s[k];
+  sv.hist={d:d.slice(cut),v:v.slice(cut)};
+  var spanY=d.length?(Date.parse(d[d.length-1])-Date.parse(d[0]))/(365.25*864e5):0;
+  var btns=['1Y','5Y','10Y','Max'].filter(function(r){return r==='Max'||spanY>({'1Y':1,'5Y':5,'10Y':10}[r])*1.1||r==='1Y';})
+    .map(function(r){return '<button type="button" class="pp-range-btn'+(r===_MZ.rng?' active':'')+'" onclick="_macZoomRange(\''+r+'\')">'+r+'</button>';}).join('');
+  /* Measure the box empty first: the chart is drawn at its pixel width. */
+  o.innerHTML=box+'<div class="mz-body"></div></div>';
+  var body=o.querySelector('.mz-body');
+  var w=Math.max(260,Math.round(body.clientWidth||600));
+  var h=Math.round(Math.max(220,Math.min(w*0.7,window.innerHeight*0.55,420)));
+  var hid=_macHid();
+  var vHTML=_mfmt(s.latest?s.latest.v:null,s.fmt,s.suffix);
+  var dHTML='as of '+(s.latest?s.latest.d:'?')+(s.prior?' · prior '+_mfmt(s.prior.v,s.fmt,s.suffix):'');
+  body.innerHTML='<div class="mz-head"><div class="mz-t">'+s.l+'</div>'
+    +'<div class="mz-v"><span class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</span>'+_mdelta(s.chg_1m,s,'1M')+_mdelta(s.chg_1y,s,'1Y')+'</div></div>'
+    +'<div class="mz-rng">'+btns+'</div>'
+    +_macChartSVG(sv,hid,{w:w,h:h})
+    +_mpctRow(s)
+    +'<div class="mac-tile-date" id="'+hid+'-d">'+dHTML+'</div>'
+    +'<div class="mz-foot">FRED · shaded bands mark NBER recessions · drag across the chart to read a date</div>';
+  _macRegisterReadout(hid,vHTML,dHTML);
+}
+window.addEventListener('resize',function(){
+  if(!_MZ.id)return;
+  clearTimeout(window._mzT);window._mzT=setTimeout(_macZoomDraw,150);
+});
 function _loadMacro(){
   _MACRO_LOADING=true;
   _loadSidecar('macro.json',function(d){
@@ -12401,6 +12505,13 @@ function _macStanceStrip(grp,secLink){
   });
   return o+'</div>';
 }
+function _macFold(el,e){
+  if(e)e.stopPropagation();
+  var f=el.closest('.mac-fold');if(!f)return;
+  var open=f.classList.toggle('open');
+  var b=f.querySelector('.mac-fold-btn');
+  if(b){b.setAttribute('aria-expanded',open?'true':'false');b.setAttribute('aria-label',open?'Show less':'Show more');}
+}
 function _macNarrativeHTML(){
   /* Claude-written narrative from the builder (data/claude_narrative.py),
      set part paragraph, part bullets: each kickered section opens with its
@@ -12423,21 +12534,27 @@ function _macNarrativeHTML(){
      a different count simply runs unkickered. */
   var KICK=ps.length===3?['Growth & labor','Inflation & rates','Credit & conditions']:[];
   var h='<div class="mac-card mac-narrative">';
+  /* Phones fold each section to its kicker and lead sentence, and each
+     sector influence to its name and kicker; the chevron (or a tap on the
+     kicker) opens the rest (_macFold). Desktop shows everything. */
+  var FOLD='<button type="button" class="mac-fold-btn" aria-expanded="false" aria-label="Show more" onclick="_macFold(this,event)"><i class="ppf-chev" aria-hidden="true"></i></button>';
   ps.forEach(function(p,i){
-    if(KICK[i])h+='<div class="mac-nar-k">'+KICK[i]+'</div>';
     var ss=_macSentences(p);
     if(!ss.length)return;
-    h+='<p class="mac-nar-p">'+_esc(ss[0])+'</p>';
+    h+='<div class="mac-fold">';
+    if(KICK[i])h+='<div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">'+KICK[i]+FOLD+'</div>';
+    h+='<p class="mac-nar-p">'+_esc(ss[0])+'</p><div class="mac-fold-b">';
     if(ss.length>1){
       h+='<ul class="mac-nar-ul">';
       ss.slice(1).forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
       h+='</ul>';
     }
     if(KICK[i])h+=_macNarFigure(i,p);
+    h+='</div></div>';
   });
   var tw=(nar.tailwinds||[]).filter(Boolean),hw=(nar.headwinds||[]).filter(Boolean);
   if(tw.length||hw.length){
-    h+='<div class="mac-nar-k">The balance</div>';
+    h+='<div class="mac-fold"><div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">The balance'+FOLD+'</div><div class="mac-fold-b">';
     if(tw.length){
       h+='<div class="mac-nar-wind up"><b>Working for the economy</b><ul class="mac-nar-ul">';
       tw.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
@@ -12448,6 +12565,7 @@ function _macNarrativeHTML(){
       hw.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
       h+='</ul></div>';
     }
+    h+='</div></div>';
   }
   /* Key sector influences: tailwinds, then headwinds, then the neutral
      sectors folded into one line. Stance picks the group only through the
@@ -12472,9 +12590,9 @@ function _macNarrativeHTML(){
       var rest=items.filter(function(it){return !hasInf(it);});
       prose.forEach(function(it){
         var row=it.row;
-        o+='<p class="mac-nar-inf mac-nar-infp">'+secLink(it)
-          +(row.headline?' <span class="mac-nar-kick">'+_esc(row.headline)+'</span>':'')
-          +'<br>'+_esc(row.influence)+'</p>';
+        o+='<div class="mac-fold"><p class="mac-nar-inf mac-nar-infp">'+secLink(it)
+          +(row.headline?' <span class="mac-nar-kick mac-fold-h" onclick="_macFold(this,event)">'+_esc(row.headline)+'</span>':'')
+          +FOLD+'<span class="mac-fold-b"><br>'+_esc(row.influence)+'</span></p></div>';
       });
       if(rest.length){
         o+='<ul class="mac-nar-ul mac-nar-inf">';
@@ -12524,7 +12642,8 @@ function _macOverviewHTML(){
       var hid=_macHid();
       var vHTML=_mfmt(t.latest?t.latest.v:null,t.fmt,t.suffix);
       var dHTML='as of '+(t.latest?t.latest.d:'?');
-      h+='<div class="mac-tile"><div class="mac-tile-l">'+t.l+'</div>'
+      /* Tap (or Enter) opens the series' full chart in a dialog (_macZoom). */
+      h+='<div class="mac-tile mac-tile-zoom" role="button" tabindex="0" aria-label="'+_attr(t.l)+': open a larger chart" onclick="_macZoom(\''+_attr(t.id)+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_macZoom(\''+_attr(t.id)+'\');}"><div class="mac-tile-l">'+t.l+'</div>'
         +'<div class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</div>'
         +'<div>'+_mdelta(t.chg_1m,t,'1M')+'</div>'
         +_mSparkSVG(t.spark,t.spark_d,hid,t.fmt,t.suffix)
@@ -12697,10 +12816,12 @@ function macHovTouch(e,hid){
   if(!e.touches||!e.touches.length)return;
   macHovMove({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY},hid);
 }
-function _macChartSVG(s,hid){
+function _macChartSVG(s,hid,px){
   var d=(s.hist&&s.hist.d)||[],v=(s.hist&&s.hist.v)||[];
   if(d.length<2)return '<p class="mac-note">Not enough history.</p>';
-  var VW=460,VH=170,PL=46,PR=10,PT=10,PB=22;
+  /* px {w,h}: draw at that pixel size, one unit = one pixel (the tile zoom);
+     otherwise the 460x170 box scaled to its card, as before. */
+  var VW=px?px.w:460,VH=px?px.h:170,PL=px?50:46,PR=px?12:10,PT=10,PB=px?26:22,FS=px?11:9.5;
   var iW=VW-PL-PR,iH=VH-PT-PB;
   var xs=[],ys=[],ds=[],mn=Infinity,mx=-Infinity;
   for(var i=0;i<d.length;i++){
@@ -12726,15 +12847,15 @@ function _macChartSVG(s,hid){
   for(var gi=0;gi<=4;gi++){
     var gv=mn+(gi/4)*yr,gy=Y(gv).toFixed(1);
     if(gi>0&&gi<4)g+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" class="mac-grid" stroke-width="1"/>';
-    g+='<text x="'+(PL-6)+'" y="'+(parseFloat(gy)+3.5)+'" text-anchor="end" class="mac-ax" font-size="9.5">'+_mfmt(gv,s.fmt==='int'?'int':(s.fmt==='pct2'?'pct1':s.fmt),'')+'</text>';
+    g+='<text x="'+(PL-6)+'" y="'+(parseFloat(gy)+3.5)+'" text-anchor="end" class="mac-ax" font-size="'+FS+'">'+_mfmt(gv,s.fmt==='int'?'int':(s.fmt==='pct2'?'pct1':s.fmt),'')+'</text>';
   }
   if(s.zero_line&&0>=mn&&0<=mx)g+='<line x1="'+PL+'" y1="'+Y(0).toFixed(1)+'" x2="'+(VW-PR)+'" y2="'+Y(0).toFixed(1)+'" class="mac-zero" stroke-width="1.1" stroke-dasharray="4,3"/>';
   if(s.threshold!=null)g+='<line x1="'+PL+'" y1="'+Y(s.threshold).toFixed(1)+'" x2="'+(VW-PR)+'" y2="'+Y(s.threshold).toFixed(1)+'" stroke="#de2d26" stroke-width="1" stroke-dasharray="4,3" opacity="0.7"/>';
   var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  var nX=5;
+  var nX=px&&px.w<420?4:5;
   for(var xi=0;xi<nX;xi++){
     var t=x0+(xi/(nX-1))*xr,dt=new Date(t);
-    g+='<text x="'+X(t).toFixed(1)+'" y="'+(PT+iH+14)+'" text-anchor="'+(xi===0?'start':(xi===nX-1?'end':'middle'))+'" class="mac-ax" font-size="9.5">'+mo[dt.getMonth()]+'\''+String(dt.getFullYear()).slice(2)+'</text>';
+    g+='<text x="'+X(t).toFixed(1)+'" y="'+(PT+iH+14)+'" text-anchor="'+(xi===0?'start':(xi===nX-1?'end':'middle'))+'" class="mac-ax" font-size="'+FS+'">'+mo[dt.getMonth()]+'\''+String(dt.getFullYear()).slice(2)+'</text>';
   }
   var pts=[];
   for(var pi=0;pi<xs.length;pi++)pts.push(X(xs[pi]).toFixed(1)+','+Y(ys[pi]).toFixed(1));
@@ -12749,7 +12870,7 @@ function _macChartSVG(s,hid){
     +'<circle id="'+hid+'-dot" cx="0" cy="0" r="3.6" class="mac-dot" stroke-width="2" opacity="0" pointer-events="none"/>';
   _MAC_HOV[hid]={kind:'line',xs:xs,ys:ys,ds:ds,PL:PL,PT:PT,iW:iW,iH:iH,
                  x0:x0,xr:xr,mn:mn,yr:yr,fmt:s.fmt,suffix:s.suffix};
-  return '<svg id="'+hid+'" viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:auto;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
+  return '<svg id="'+hid+'" viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:'+(px?VH+'px':'auto')+';cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
     +' onmousemove="macHovMove(event,\''+hid+'\')" onmouseleave="macHovLeave(\''+hid+'\')"'
     +' ontouchstart="macHovTouch(event,\''+hid+'\')" ontouchmove="macHovTouch(event,\''+hid+'\')"'
     +' ontouchend="macHovLeave(\''+hid+'\')" ontouchcancel="macHovLeave(\''+hid+'\')">'+g+'</svg>';
