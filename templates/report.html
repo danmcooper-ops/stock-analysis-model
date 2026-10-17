@@ -14633,8 +14633,8 @@ function renderCrossSectorDashboard(){
   /* Mount: fill tbody after the dashboard return string is injected. */
   setTimeout(function(){if(window._heatRender)window._heatRender();},0);
   /* Sector Heatmap. (The World MoS Map moved to Financial Model → Dashboard,
-     above the Gates Summary; this heatmap renders at the top of the Charts
-     sub-tab, above the Sector Price Comparison and Cross-Sector Profit Pool.) */
+     above the Gates Summary; on the Charts sub-tab this heatmap sits between
+     the Sector Price Comparison and the Cross-Sector Profit Pool.) */
   return'<div class="xsect-dashboard" style="margin-bottom:16px">'
     +_heatTableHtml
     +'</div>';
@@ -14911,20 +14911,21 @@ function renderPool(){
   var toRender=(chosen&&chosen!=='__performance__'&&sectors[chosen])?[chosen]:[];
   var chartHtml='',tableRows='';
   if(chosen==='__performance__'){
-    /* Sector Heatmap leads the Charts sub-tab (moved here from the retired
-       Overview sub-tab), followed by the price and profit-pool charts. */
+    /* Sector Price Comparison leads the Charts sub-tab, then the Sector
+       Heatmap (moved here from the retired Overview sub-tab), then the
+       profit-pool chart. */
     var perfBody=renderUniversePriceChart();
     var poolBody=renderCrossSectorProfitPool();
-    chartHtml=renderCrossSectorDashboard()
-      +'<div class="xsect-dashboard">'
+    chartHtml='<div class="xsect-dashboard">'
       +'<div class="xsect-title">Sector Price Comparison</div>'
       +'<div class="xsect-sub">Indexed price performance across sectors. Pick any subset to compare.</div>'
       +(perfBody||'<p style="color:#888;padding:20px">No sector data available.</p>')
-      +(poolBody?'<div style="height:22px"></div>'
+      +'</div>'
+      +renderCrossSectorDashboard()
+      +(poolBody?'<div class="xsect-dashboard">'
         +'<div class="xsect-title">Cross-Sector Profit Pool</div>'
         +'<div class="xsect-sub">Operating profit by sector; tap a bar to open it. '+_qHelp('<span class="note-q-t">Bar width is revenue share, height is operating margin, so area is roughly operating profit. Bars run in order of margin, and shares recompute among the sectors shown below.</span>','How to read the chart','l')+'</div>'
-        +poolBody:'')
-      +'</div>';
+        +poolBody+'</div>':'');
   }
   toRender.forEach(function(sec){
     var cos=sectors[sec];if(!cos||!cos.length)return;
