@@ -798,10 +798,13 @@ ruff check .
   Forces that no series measures read "qualitative". Without `macro.json`,
   macro forces read "no_data" and the rest still render. The
   Commodities family (`DCOILWTICO` WTI, `PCOPPUSDM` copper, `DHHNGSP`
-  Henry Hub gas, `PFOODINDEXM` IMF food index) exists for Energy's and
-  Basic Materials' commodity forces and Consumer Defensive's
-  agricultural input-cost headwind, and adds a Commodities sub-tab to the
-  Macro tab. No force reads gas yet (none in Utilities or Basic Materials
+  Henry Hub gas, `PFOODINDEXM` IMF food index, `DCOILBRENTEU` Brent,
+  `PALUMUSDM` aluminum, `PIORECRUSDM` iron ore, `GASREGW` US retail
+  gasoline) exists for Energy's and Basic Materials' commodity forces and
+  Consumer Defensive's agricultural input-cost headwind, and adds a
+  Commodities sub-tab to the Macro tab. Brent, aluminum, iron ore and
+  gasoline are display and narrative-citation only so far: no force reads
+  them. No force reads gas yet (none in Utilities or Basic Materials
   is themed on fuel or feedstock cost), and there is no gold card: the
   dashboard fetches only through FREDClient, and FRED dropped the LBMA
   gold fix in 2022. `data/fred_client`'s cache is keyed by series id alone, so a

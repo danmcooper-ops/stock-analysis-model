@@ -106,6 +106,19 @@ MACRO_SERIES = [
          freq='d', tr='level', fmt='n2', suffix='', good='none', scale=1),
     dict(id='PFOODINDEXM', l='IMF Global Food Price Index', sec='commodities',
          freq='m', tr='level', fmt='n1', suffix='', good='none', scale=1),
+    # Brent is the seaborne oil benchmark most of the world's crude prices
+    # off (WTI is the inland US one); aluminium and iron ore are the other
+    # two metals decks Basic Materials earns on (iron ore is steel's main
+    # input); retail gasoline is the fuel price households pay, a direct
+    # squeeze on discretionary spending.
+    dict(id='DCOILBRENTEU', l='Brent Crude ($/bbl)', sec='commodities',
+         freq='d', tr='level', fmt='n1', suffix='', good='none', scale=1),
+    dict(id='PALUMUSDM', l='Aluminum ($/t)', sec='commodities', freq='m',
+         tr='level', fmt='int', suffix='', good='none', scale=1),
+    dict(id='PIORECRUSDM', l='Iron Ore ($/t)', sec='commodities', freq='m',
+         tr='level', fmt='n1', suffix='', good='none', scale=1),
+    dict(id='GASREGW', l='US Regular Gasoline ($/gal)', sec='commodities',
+         freq='w', tr='level', fmt='n2', suffix='', good='none', scale=1),
 ]
 
 SECTIONS = [

@@ -169,6 +169,9 @@ class TestBuildMacroPayload:
             {'rates', 'inflation', 'growth', 'credit', 'housing', 'commodities'}
         # every declared series made it in with the stub's full data
         assert set(sc['series']) == {m['id'] for m in MACRO_SERIES}
+        commodities = {m['id'] for m in MACRO_SERIES if m['sec'] == 'commodities'}
+        assert commodities == {'DCOILWTICO', 'PCOPPUSDM', 'DHHNGSP', 'PFOODINDEXM',
+                               'DCOILBRENTEU', 'PALUMUSDM', 'PIORECRUSDM', 'GASREGW'}
         entry = sc['series']['UNRATE']
         for key in ('l', 'latest', 'prior', 'chg_1m', 'chg_1y', 'pctile',
                     'pct_win', 'hist'):
