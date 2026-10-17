@@ -1067,9 +1067,13 @@ by analyze_stock and gitignored):
   series and the risk-free rate's `DGS10` fallback (unset falls back to the
   keyless `fredgraph.csv` endpoint)
 - `MACRO_ANTHROPIC_API_KEY` — optional; enables the Claude-generated macro
-  narrative — the story on the Macro Outlook tab's Overview, ending in a
-  paragraph per sector under "Key sector influences" (skipped cleanly when
-  unset: the tab renders without it). The Sector Analysis tabs carry no
+  narrative — the story on the Macro Outlook tab's Overview (skipped
+  cleanly when unset: the tab renders without it). The Overview reads top
+  down: the regime card with the narrative's `bottom_line`, the key-number
+  tiles (each opens its full chart), the three economy sections, `watch`
+  (what would change the call), then the Sectors stance chips, each opening
+  that sector's influence paragraph in place. A pre-v7 cache has no
+  `bottom_line`/`watch` and shows its headwinds/tailwinds as The balance. The Sector Analysis tabs carry no
   macro narrative; their Sector Headwinds & Tailwinds block is the
   sector's own structural read, and each influence paragraph weighs
   today's macro forces against that same list (`build_macro_facts` passes

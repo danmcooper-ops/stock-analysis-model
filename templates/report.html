@@ -2169,9 +2169,24 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 /* Two columns only where the rail has room; below that the tiles follow
    the story and keep the phone floors set further down (those rules are
    single-class, so nothing here may outrank them). */
-.mac-overview{display:grid;grid-template-columns:1fr;gap:18px;align-items:start;}
-.mac-overview .mac-tiles{margin:0;}
-@media(min-width:1001px){.mac-overview{grid-template-columns:minmax(0,1fr) 400px;}.mac-overview .mac-tiles{grid-template-columns:1fr 1fr;}}
+.mac-overview{display:block;}
+.mac-overview .mac-tiles{margin:0 0 18px;}
+@media(min-width:1001px){.mac-overview .mac-tiles{grid-template-columns:repeat(4,minmax(0,1fr));}}
+/* Overview section headings: one level, the same everywhere. */
+.mac-h{font-size:1.05em;font-weight:700;margin:22px 0 8px;padding-top:14px;border-top:1px solid var(--mac-line);color:inherit;}
+.mac-narrative>.mac-h:first-child{margin-top:0;padding-top:0;border-top:0;}
+.mac-h-out{margin:4px 0 10px;padding-top:0;border-top:0;}
+.mac-read{flex:1 1 100%;margin:8px 0 0;font-size:0.98em;line-height:1.55;color:inherit;}
+.mac-regime-main{flex:1 1 300px;}
+.mac-watch li{margin:4px 0;}
+.mac-stale{color:#b7791f !important;}
+.mac-sec-chip{display:inline-block;padding:2px 8px;border-radius:9px;background:var(--mac-card);border:1px solid var(--mac-border);color:var(--mac-accent);font:inherit;font-weight:600;white-space:nowrap;cursor:pointer;}
+.mac-sec-chip[aria-expanded="true"]{background:var(--mac-accent);border-color:var(--mac-accent);color:#fff;}
+[data-theme="dark"] .mac-sec-chip[aria-expanded="true"]{color:#0d1117 !important;}
+.mac-sec-read{margin-top:8px;padding-top:8px;border-top:1px solid var(--mac-border);font-size:1.05em;line-height:1.5;}
+.mac-sec-read p{margin:2px 0 6px;}
+.mac-sec-read .mac-nar-kick{font-style:italic;font-weight:600;}
+.mac-sec-open{font-weight:600;color:var(--mac-accent);text-decoration:none;}
 /* --- narrative: a lead sentence per section, evidence as bullets, at a reading measure --- */
 .mac-narrative{max-width:78ch;padding:22px 28px 18px;}
 .mac-nar-k{font-size:0.72em;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--mac-muted);margin:18px 0 4px;}
@@ -12285,7 +12300,12 @@ function _macRegimeHTML(full){
   var h='<div class="mac-regime"><div class="mac-regime-main"><div class="mac-regime-k">Market regime</div>'
     +'<div class="mac-regime-name"><span class="mac-regime-dot" style="background:'+col+'"></span>'+_esc(name)+'</div>'
     +'<div class="mac-regime-gloss">'+(_MAC_REGIME_GLOSS[src.regime]||'')
-    +(comp!=null?' · composite <span>'+(comp>=0?'+':'')+comp.toFixed(2)+'</span>':'')+'</div></div>';
+    +(comp!=null?' · composite <span>'+(comp>=0?'+':'')+comp.toFixed(2)+'</span>':'')+'</div>';
+  /* The bottom line (narrative schema v7): where the economy is, the tension
+     that matters, and why the signals read as they do. Overview only. */
+  var _nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
+  if(full&&_nar&&_nar.bottom_line)h+='<p class="mac-read">'+_esc(_nar.bottom_line)+'</p>';
+  h+='</div>';
   /* Each input scored −1…+1 draws as a bar from the centre line: the
      direction is the read, the number is there for the curious. Only the
      Overview carries the meters; the chart sub-tabs get the one-liner. */
@@ -12511,9 +12531,23 @@ function _macStanceStrip(grp,secLink){
   [['up','▲ Tailwind'],['','● Neutral'],['down','▼ Headwind']].forEach(function(g){
     var items=grp[g[0]];
     o+='<div class="mac-stance-col '+(g[0]||'flat')+'"><div class="mac-stance-h">'+g[1]+' <span>'+items.length+'</span></div>'
-      +'<div class="mac-stance-chips">'+(items.length?items.map(secLink).join(''):'<em>none</em>')+'</div></div>';
+      +'<div class="mac-stance-chips">'+(items.length?items.map(secLink).join(''):'<em>none</em>')+'</div>'
+      +'<div class="mac-sec-read" hidden></div></div>';
   });
   return o+'</div>';
+}
+function _macSecPick(btn,i){
+  var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
+  var row=nar&&(nar.sectors||[])[i];if(!row)return;
+  var col=btn.closest('.mac-stance-col'),rd=col&&col.querySelector('.mac-sec-read');if(!rd)return;
+  var was=btn.getAttribute('aria-expanded')==='true';
+  col.querySelectorAll('.mac-sec-chip').forEach(function(b){b.setAttribute('aria-expanded','false');});
+  if(was){rd.hidden=true;rd.innerHTML='';return;}
+  btn.setAttribute('aria-expanded','true');
+  rd.innerHTML=(row.headline?'<div class="mac-nar-kick">'+_esc(row.headline)+'</div>':'')
+    +'<p>'+_esc(row.influence)+'</p>'
+    +'<a href="#" class="mac-sec-open" onclick="return _macGoSector('+i+')">Open '+_esc(row.sector)+' ›</a>';
+  rd.hidden=false;
 }
 function _macFold(el,e){
   if(e)e.stopPropagation();
@@ -12543,7 +12577,7 @@ function _macNarrativeHTML(){
      growth_labor, inflation_rates, credit_conditions); an older cache with
      a different count simply runs unkickered. */
   var KICK=ps.length===3?['Growth & labor','Inflation & rates','Credit & conditions']:[];
-  var h='<div class="mac-card mac-narrative">';
+  var h='<div class="mac-card mac-narrative"><h3 class="mac-h">The economy</h3>';
   /* Phones fold each section to its kicker and lead sentence, and each
      sector influence to its name and kicker; the chevron (or a tap on the
      kicker) opens the rest (_macFold). Desktop shows everything. */
@@ -12562,8 +12596,16 @@ function _macNarrativeHTML(){
     if(KICK[i])h+=_macNarFigure(i,p);
     h+='</div></div>';
   });
+  /* What to watch (schema v7): the readings that would change the call.
+     An older narrative has no watch list and keeps The balance, its
+     economy-wide tailwinds and headwinds. */
+  var watch=(nar.watch||[]).filter(Boolean);
   var tw=(nar.tailwinds||[]).filter(Boolean),hw=(nar.headwinds||[]).filter(Boolean);
-  if(tw.length||hw.length){
+  if(watch.length){
+    h+='<h3 class="mac-h">What to watch</h3><ul class="mac-nar-ul mac-watch">';
+    watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
+    h+='</ul>';
+  }else if(tw.length||hw.length){
     h+='<div class="mac-fold"><div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">The balance'+FOLD+'</div><div class="mac-fold-b">';
     if(tw.length){
       h+='<div class="mac-nar-wind up"><b>Working for the economy</b><ul class="mac-nar-ul">';
@@ -12577,9 +12619,11 @@ function _macNarrativeHTML(){
     }
     h+='</div></div>';
   }
-  /* Key sector influences: tailwinds, then headwinds, then the neutral
-     sectors folded into one line. Stance picks the group only through the
-     whitelist, never echoed from the model. */
+  /* Sectors: the stance chips are the index. A chip opens that sector's
+     kicker and influence in place, under its own stance column, with the
+     way into the sector page; the stance whitelist picks the column, never
+     the model's text. A pre-v3 narrative has no influence, so its chips
+     link straight to the sector page as before. */
   var STANCE={tailwind:'up',headwind:'down'};
   var grp={up:[],down:[],'':[]};
   (nar.sectors||[]).forEach(function(row,i){
@@ -12587,46 +12631,18 @@ function _macNarrativeHTML(){
     grp[STANCE[row.stance]||''].push({row:row,i:i});
   });
   if(grp.up.length||grp.down.length){
-    h+='<div class="mac-nar-k">Key sector influences</div>';
+    h+='<h3 class="mac-h">Sectors</h3>';
     var secLink=function(it){
+      var row=it.row;
+      if((row.influence))return '<button type="button" class="mac-sec-chip" aria-expanded="false" onclick="_macSecPick(this,'+it.i+')">'+_esc(it.row.sector)+'</button>';
       return '<a href="#" onclick="return _macGoSector('+it.i+')">'+_esc(it.row.sector)+'</a>';
     };
     h+=_macStanceStrip(grp,secLink);
-    var hasInf=function(it){var row=it.row;return !!(row.influence);};
-    var secList=function(items,cls,label){
-      if(!items.length)return '';
-      var o='<div class="mac-nar-wind '+cls+'"><b>'+label+'</b>';
-      var prose=items.filter(hasInf);
-      var rest=items.filter(function(it){return !hasInf(it);});
-      prose.forEach(function(it){
-        var row=it.row;
-        o+='<div class="mac-fold"><p class="mac-nar-inf mac-nar-infp">'+secLink(it)
-          +(row.headline?' <span class="mac-nar-kick mac-fold-h" onclick="_macFold(this,event)">'+_esc(row.headline)+'</span>':'')
-          +FOLD+'<span class="mac-fold-b"><br>'+_esc(row.influence)+'</span></p></div>';
-      });
-      if(rest.length){
-        o+='<ul class="mac-nar-ul mac-nar-inf">';
-        rest.forEach(function(it){
-          var row=it.row;
-          o+='<li>'+secLink(it)+(row.headline?' — '+_esc(row.headline):'')+'</li>';
-        });
-        o+='</ul>';
-      }
-      return o+'</div>';
-    };
-    h+=secList(grp.up,'up','▲ Macro tailwind');
-    h+=secList(grp.down,'down','▼ Macro headwind');
-    /* Neutral sectors carry an influence paragraph too, and get it in
-       full; a pre-v3 narrative folds them into one line as before. */
-    if(grp[''].some(hasInf)){
-      h+=secList(grp[''],'flat','● Neutral');
-    }else if(grp[''].length){
-      h+='<p class="mac-nar-neutral"><b>Neutral:</b> '+grp[''].map(secLink).join(', ')+'</p>';
-    }
   }
   /* Reading time for the whole card, at 230 words a minute. */
   var words=0,wc=function(x){if(x)words+=String(x).split(/\s+/).filter(Boolean).length;};
-  ps.forEach(wc);tw.forEach(wc);hw.forEach(wc);
+  wc(nar.bottom_line);ps.forEach(wc);
+  if(watch.length)watch.forEach(wc);else{tw.forEach(wc);hw.forEach(wc);}
   (nar.sectors||[]).forEach(function(r){if(r){wc(r.headline);wc(r.influence);}});
   var mins=Math.max(1,Math.round(words/230));
   h+='<div class="mac-nar-foot">Written by Claude ('+_esc(nar.model||'')+') from the indicator data · '
@@ -12634,46 +12650,58 @@ function _macNarrativeHTML(){
   return h;
 }
 function _macOverviewHTML(){
-  /* Story first, glance numbers beside it, and nothing else. The full
-     histories live on the five section sub-tabs (menu), so nothing charted
-     there is repeated here — the Overview used to re-draw the yield curve
-     and the 10Y–2Y history under the tiles. The per-sector read is the
-     narrative's Key sector influences; it no longer repeats on each Sector
-     Analysis tab. */
-  var h='<div class="mac-overview">'+_macNarrativeHTML();
+  /* Read top to bottom: the regime card above carries the bottom line, then
+     the key numbers, then the economy (each section ends in its figures and
+     a Full charts link), what to watch, and the sectors. The section sub-
+     tabs hold the full histories. */
+  var h='<div class="mac-overview">';
   var tiles=(MACRO_SUM&&MACRO_SUM.tiles)||[];
-  h+='<div>';
   if(tiles.length){
-    h+='<div class="mac-tiles">';
+    h+='<h3 class="mac-h mac-h-out">Key numbers</h3><div class="mac-tiles">';
     tiles.forEach(function(t){
       /* spark_d rides alongside spark from the builder. A snapshot rendered
          before it existed still scrubs — the readout just shows the value
          with the tile's own date left alone. */
       var hid=_macHid();
       var vHTML=_mfmt(t.latest?t.latest.v:null,t.fmt,t.suffix);
-      var dHTML='as of '+(t.latest?t.latest.d:'?');
+      var asOf=_macAsOf(t);
+      var dHTML=asOf.txt;
       /* Tap (or Enter) opens the series' full chart in a dialog (_macZoom). */
       h+='<div class="mac-tile mac-tile-zoom" role="button" tabindex="0" aria-label="'+_attr(t.l)+': open a larger chart" onclick="_macZoom(\''+_attr(t.id)+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_macZoom(\''+_attr(t.id)+'\');}"><div class="mac-tile-l">'+t.l+'</div>'
         +'<div class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</div>'
         +'<div>'+_mdelta(t.chg_1m,t,'1M')+'</div>'
         +_mSparkSVG(t.spark,t.spark_d,hid,t.fmt,t.suffix)
         +_mpctRow(t)
-        +'<div class="mac-tile-date" id="'+hid+'-d">'+dHTML+'</div></div>';
+        +'<div class="mac-tile-date'+(asOf.stale?' mac-stale':'')+'" id="'+hid+'-d">'+dHTML+'</div></div>';
       _macRegisterReadout(hid,vHTML,dHTML);
     });
     h+='</div>';
   }
+  h+=_macNarrativeHTML();
   if(!MACRO)h+=_macStatusNote();
-  else{
-    var links=[];
-    MACRO_TABS.forEach(function(t){
-      if(t.k==='overview')return;
-      links.push('<a href="#" onclick="navGo(\'macro\',\''+t.k+'\');return false">'+t.l+'</a>');
-    });
-    h+='<p class="mac-explore">Full histories: '+links.join(' · ')+'</p>';
-  }
-  h+='</div></div>';
+  h+='</div>';
   return h;
+}
+/* A tile's date, said the way its series is published: a day for daily and
+   weekly series, the month for monthly, the quarter for quarterly (the
+   tile's freq, else read from the sparkline's own spacing). Marked overdue when the latest
+   reading is older than two of its periods plus a typical release lag. */
+function _macAsOf(t){
+  var d=t.latest&&t.latest.d;if(!d)return {txt:'as of ?',stale:false};
+  var sd=t.spark_d||[],gaps=[];
+  for(var i=1;i<sd.length;i++)gaps.push((Date.parse(sd[i])-Date.parse(sd[i-1]))/864e5);
+  gaps.sort(function(a,b){return a-b;});
+  var gap=gaps.length?gaps[Math.floor(gaps.length/2)]:1;
+  /* The builder's own cadence when the tile carries it (d/w/m/q). */
+  var FQ={d:1,w:7,m:30,q:91};if(t.freq&&FQ[t.freq])gap=FQ[t.freq];
+  var dt=new Date(d+'T00:00:00'),mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var ref=Date.parse((MACRO_SUM&&MACRO_SUM.as_of)||RUN_DATE);
+  var age=isNaN(ref)?0:(ref-dt.getTime())/864e5;
+  var txt=gap<=8?'as of '+mo[dt.getMonth()]+' '+dt.getDate()
+    :gap<=45?mo[dt.getMonth()]+' '+dt.getFullYear()+' reading'
+    :'Q'+(Math.floor(dt.getMonth()/3)+1)+' '+dt.getFullYear()+' reading';
+  var stale=age>2*Math.max(gap,1)+45;
+  return {txt:txt+(stale?' · overdue':''),stale:stale};
 }
 function _macSectionHTML(k){
   if(!MACRO)return _macStatusNote();

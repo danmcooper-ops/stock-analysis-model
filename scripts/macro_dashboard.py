@@ -476,6 +476,7 @@ def _tile_of(sid, s):
             'suffix': s.get('suffix', ''), 'good': s['good'],
             'latest': s['latest'], 'chg_1m': s['chg_1m'],
             'pctile': s['pctile'], 'pct_win': s['pct_win'],
+            'freq': s.get('freq'),
             'spark': (hist.get('v') or [])[-SPARK_POINTS:],
             'spark_d': (hist.get('d') or [])[-SPARK_POINTS:]}
 

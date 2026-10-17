@@ -125,17 +125,23 @@ def test_out_of_grid_macro_cards_are_capped_in_landscape():
     assert rules and any('max-width' in r for r in rules)
 
 
-def test_macro_narrative_leads_the_overview_subtab():
-    """The Claude narrative is the tab's headline read; it must render before
-    the tile grid, and only from the narrative renderer so the block cannot
-    silently drift below the tiles."""
-    body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', _css(), re.S)
-    assert body, 'could not find _macOverviewHTML'
-    body = body.group(0)
-    nar_at = body.find('_macNarrativeHTML()')
-    tiles_at = body.find('mac-tiles')
-    assert nar_at >= 0, '_macOverviewHTML no longer renders the narrative'
-    assert tiles_at > nar_at, 'the narrative must precede the tile grid'
+def test_macro_overview_reads_top_down():
+    """The Overview reads as one document: the regime card carries the
+    bottom line, then the key numbers, then the narrative (the economy, what
+    to watch, the sectors). The tiles come first so the story's figures are
+    seen before they are argued, and the bottom line renders only on the
+    Overview, inside the regime card."""
+    css = _css()
+    body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S).group(0)
+    tiles_at, nar_at = body.find('mac-tiles'), body.find('_macNarrativeHTML()')
+    assert 0 <= tiles_at < nar_at, 'key numbers lead, the narrative follows'
+    assert 'Key numbers' in body
+    reg = re.search(r'function _macRegimeHTML\(full\).*?\n\}\n', css, re.S).group(0)
+    assert "if(full&&_nar&&_nar.bottom_line)" in reg
+    assert '_esc(_nar.bottom_line)' in reg
+    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
+    order = [nar.find(x) for x in ('>The economy<', '>What to watch<', '>Sectors<', 'min read')]
+    assert all(i >= 0 for i in order) and order == sorted(order)
 
 
 def test_macro_narrative_escapes_every_model_string():
@@ -197,26 +203,24 @@ def test_macro_sentence_split_keeps_decimals_and_abbreviations():
     assert r'\bvs' in fn and r'\b[A-Za-z]' in fn
 
 
-def test_macro_narrative_lists_key_sector_influences():
-    """The Overview narrative ends with the sectors the macro backdrop is
-    helping or hurting, grouped by stance through the whitelist and linked
-    by index (never by a model string in an attribute) to each sector's own
-    tab."""
+def test_macro_narrative_sectors_open_in_place():
+    """The stance chips are the sector index: grouped through the whitelist,
+    addressed by index (never by a model string in an attribute), and a chip
+    opens that sector's kicker and influence in place with the way into its
+    page. A pre-v3 narrative (no influence) links straight to the page. An
+    older narrative without `watch` keeps The balance."""
     css = _css()
-    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
-    assert nar, 'could not find _macNarrativeHTML'
-    nar = nar.group(0)
-    assert 'Key sector influences' in nar
+    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
     assert "STANCE={tailwind:'up',headwind:'down'}" in nar
     assert "grp[STANCE[row.stance]||'']" in nar
-    assert '_macGoSector(\'+it.i+\')' in nar, 'links address sectors by index'
-    assert '_esc(it.row.sector)' in nar and '_esc(row.headline)' in nar
-    # schema v3: each sector reads as a full paragraph, neutral ones too,
-    # and a pre-v3 cache without influence keeps the one-line kicker list
-    assert '_esc(row.influence)' in nar
-    assert "secList(grp[''],'flat'" in nar
-    assert 'mac-nar-neutral' in nar, 'pre-v3 neutral fallback is kept'
-    assert 'min read' in nar
+    assert "_macSecPick(this,'+it.i+')" in nar, 'chips address sectors by index'
+    assert "_macGoSector('+it.i+')" in nar, 'pre-v3 chips link to the page'
+    assert '_esc(it.row.sector)' in nar
+    assert "watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});" in nar
+    assert 'The balance' in nar, 'a pre-v7 narrative keeps its winds'
+    pick = re.search(r'function _macSecPick\(btn,i\)\{.*?\n\}\n', css, re.S).group(0)
+    assert '_esc(row.influence)' in pick and '_esc(row.headline)' in pick
+    assert "_macGoSector('+i+')" in pick
     go = re.search(r'function _macGoSector\(i\)\{.*?\n\}\n', css, re.S)
     # A drill like the chart drill-downs, so the way back returns to the
     # Macro sub-tab and scroll position (tests/test_report_drill_back.py).
@@ -267,32 +271,28 @@ def test_sector_tabs_carry_no_macro_narrative():
 
 
 def test_macro_overview_does_not_repeat_section_charts():
-    """Every full history is drawn on one of the five section sub-tabs; the
-    Overview used to redraw the yield curve and the 10Y–2Y history under
-    the tiles. It keeps the sparkline tiles and links to the sections."""
+    """Every full history is drawn on one of the section sub-tabs; the
+    Overview keeps the sparkline tiles, each section's figures end in a Full
+    charts link, and a tile opens its series' full chart in a dialog."""
     css = _css()
-    body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S)
-    assert body, 'could not find _macOverviewHTML'
-    body = body.group(0)
+    body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S).group(0)
     assert '_macCurveCard' not in body, 'the yield curve lives on Rates & Curve'
     assert '_macCardHTML' not in body, 'full histories live on the section tabs'
     assert '_mSparkSVG' in body, 'the glance tiles keep their sparklines'
-    assert "navGo('macro'" in body.replace('\\', ''), \
-        'the overview must point at the section sub-tabs'
-    # the curve is still drawn where it belongs
+    assert '_macZoom(' in body, 'a tile opens its larger chart'
+    fig = re.search(r'function _macNarFigure\(.*?\n\}\n', css, re.S).group(0)
+    assert 'Full charts' in fig and "navGo(\\'macro\\'" in fig
     sec = re.search(r'function _macSectionHTML\(k\).*?\n\}\n', css, re.S)
     assert sec and "k==='rates'&&MACRO.curve" in sec.group(0)
 
 
-def test_macro_overview_rail_collapses_below_desktop():
-    """Story left, tiles right on a desktop; one column below ~1000px. The
-    two-column rule must be the one behind a min-width query so the phone
-    tile floors (single-class rules further down) are not outranked."""
+def test_macro_overview_tile_band_spans_the_page():
+    """The key numbers are a band across the page (four columns on a
+    desktop) rather than a rail beside the story. No max-width rule may set
+    the band's columns, or it would outrank the phone tile floors."""
     css = _css()
-    assert re.search(r'\.mac-overview\{[^}]*grid-template-columns:1fr;', css)
     wide = _media_block('@media(min-width:1001px){')
-    assert re.search(r'\.mac-overview\{[^}]*grid-template-columns:minmax', wide)
-    assert re.search(r'\.mac-overview \.mac-tiles\{[^}]*1fr 1fr', wide)
+    assert re.search(r'\.mac-overview \.mac-tiles\{[^}]*repeat\(4', wide)
     assert not re.search(r'@media\(max-width:\d+px\)\{[^@]*\.mac-overview \.mac-tiles\{[^}]*grid-template-columns', css), \
         'a max-width rule on .mac-overview .mac-tiles would beat the phone floors'
 
