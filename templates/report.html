@@ -2131,6 +2131,12 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-meter-track::after{content:"";position:absolute;left:50%;top:-2px;width:1px;height:8px;background:var(--mac-faint);}
 .mac-meter-fill{position:absolute;top:0;height:4px;border-radius:2px;background:var(--mac-faint);}
 .mac-meter-fill.up{background:var(--mac-up);}.mac-meter-fill.down{background:var(--mac-down);}
+/* Back to the Macro Outlook after jumping from Key sector influences. */
+.nav-return{display:inline-flex;align-items:center;gap:4px;margin:0 0 10px;padding:6px 12px 6px 9px;
+  border:1px solid var(--border,#d0d7de);border-radius:999px;background:transparent;color:var(--accent,#2563eb);
+  font:inherit;font-size:0.88em;font-weight:600;cursor:pointer;}
+.nav-return:hover{background:rgba(37,99,235,0.08);}
+[data-theme="dark"] .nav-return{border-color:#30363d;color:#5b9cf0 !important;}
 /* The explainer: a ? in the bottom-right corner opens a plain note below it
    (below, so the sticky tab bar can never cover it). */
 .mac-regime{position:relative;}
@@ -11435,6 +11441,8 @@ function _syncNavCrumb(){
    whichever sub-tab it was last on. */
 function navGo(v,k){
   closeNavMenu();
+  /* Going anywhere but the sector the Macro jump led to drops the way back. */
+  if(_navReturn&&!(v==='pool'&&k===_navReturn.sec))_navReturn=null;
   /* A top-level entry (a sidebar row, or its number hotkey) carries no
      sub-tab: it opens the section on its FIRST sub-tab — Macro Overview,
      Sector Charts, the Financial Model Dashboard, Financial Data Charts,
@@ -12031,9 +12039,40 @@ function _macSentences(text){
 function _macGoSector(i){
   var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
   var row=nar&&(nar.sectors||[])[i];
-  if(row&&row.sector){navGo('pool',row.sector);window.scrollTo({top:0,behavior:'auto'});}
+  if(row&&row.sector){
+    /* Remember where the jump came from, so the sector page can offer a way
+       back to the same Macro sub-tab and scroll position. The page's own
+       state is kept with replaceState, so without the pushed entry the
+       phone's back swipe would leave the site instead. */
+    _navReturn={sec:row.sector,k:curMacSub,y:window.scrollY||0};
+    try{history.pushState({navReturn:1},'',location.href);}catch(e){}
+    navGo('pool',row.sector);window.scrollTo({top:0,behavior:'auto'});
+  }
   return false;
 }
+/* === RETURN TO MACRO ===
+   Set only by _macGoSector; cleared by any other navigation. While set, the
+   sector page it led to shows a back button (renderPool), and the browser's
+   back (or the iOS edge swipe) does the same thing. */
+var _navReturn=null;
+function _navReturnBar(){
+  if(!_navReturn||curView!=='pool'||_poolTab!==_navReturn.sec)return '';
+  return '<button type="button" class="nav-return" onclick="_navBackBtn()">&#8249; Back to Macro Outlook</button>';
+}
+/* The button pops the entry _macGoSector pushed, so the button and the
+   browser's back are one path and no dead entry is left behind. */
+function _navBackBtn(){
+  if(history.state&&history.state.navReturn){history.back();return;}
+  _navGoBack();
+}
+function _navGoBack(){
+  var r=_navReturn;if(!r)return;
+  _navReturn=null;
+  navGo('macro',r.k);
+  /* After the Macro view has laid out, so the offset lands on the same card. */
+  setTimeout(function(){window.scrollTo({top:r.y,behavior:'auto'});},0);
+}
+window.addEventListener('popstate',function(){if(_navReturn)_navGoBack();});
 /* === NARRATIVE FIGURES ===
    Each narrative section is followed by the indicators its paragraph
    actually cites, in the order it cites them, so the reader finds the
@@ -14634,7 +14673,7 @@ function renderPool(){
        cells no longer matched the 10-column header). The live sector
        summary is rendered by renderCrossSectorDashboard on the Overview. */
   });
-  document.getElementById('pool-chart-area').innerHTML=chartHtml||'<p style="color:#999;padding:20px;font-size:0.9em">No profit pool data available.</p>';
+  document.getElementById('pool-chart-area').innerHTML=_navReturnBar()+chartHtml||'<p style="color:#999;padding:20px;font-size:0.9em">No profit pool data available.</p>';
   _pphDrawAll(document.getElementById('pool-chart-area'));
 }
 function ppTip(e,ticker){
