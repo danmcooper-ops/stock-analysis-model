@@ -1320,6 +1320,11 @@ td.ct{font-weight:700;}
 .qhelp-pop{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:max-content;max-width:min(300px,80vw);
   padding:10px 12px;border:1px solid var(--ppf-line);border-radius:8px;background:var(--ppf-bg);box-shadow:0 6px 20px rgba(0,0,0,.25);}
 .qhelp.open .qhelp-pop{display:block;}
+.qhelp-l .qhelp-pop{right:auto;left:0;}
+.qhelp{display:inline-block;vertical-align:middle;text-transform:none;letter-spacing:0;}
+.note-q{display:flex;justify-content:flex-end;margin:6px 0 0;}
+.note-q-t{display:block;font-size:13px;font-weight:400;line-height:1.45;color:var(--ppf-sub);text-align:left;white-space:normal;}
+.qhelp-pop{max-height:60vh;overflow-y:auto;}
 .qhelp-pop .ppf-key{flex-direction:column;align-items:flex-start;gap:6px;margin:0;padding:0;border:0;font-size:13px;}
 .qhelp-pop .ppf-key span{white-space:normal;}
 .ppf-key{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:0.74em;color:var(--ppf-sub);margin:0 0 12px;padding:6px 0;border-top:1px solid var(--ppf-line);border-bottom:1px solid var(--ppf-line);}
@@ -12312,9 +12317,14 @@ function _macRegimeHelp(btn,e){
 }
 /* A ? button that opens its content in a small popover (the sector forces'
    status key). Same open/close rules as the regime explainer. */
-function _qHelp(content,label){
-  return '<span class="qhelp"><button type="button" class="qhelp-btn" aria-label="'+_attr(label||'Help')+'" aria-expanded="false" onclick="_qHelpToggle(this,event)">?</button>'
+function _qHelp(content,label,align){
+  return '<span class="qhelp'+(align==='l'?' qhelp-l':'')+'"><button type="button" class="qhelp-btn" aria-label="'+_attr(label||'Help')+'" aria-expanded="false" onclick="_qHelpToggle(this,event)">?</button>'
     +'<span class="qhelp-pop" role="tooltip">'+content+'</span></span>';
+}
+/* A methodology footnote, kept out of the reading flow: a ? at the right
+   end of a slim row opens it (the same popover as _qHelp). */
+function _noteQ(html,label){
+  return '<div class="note-q">'+_qHelp('<span class="note-q-t">'+html+'</span>',label||'How this is built')+'</div>';
 }
 function _qHelpToggle(btn,e){
   if(e)e.stopPropagation();
@@ -13176,7 +13186,7 @@ function renderPoolHistory(sec){
     var st=h.stale.slice(0,4).map(function(x){return _esc(x.ticker)+' (to FY'+x.last_year+')';}).join(', ');
     note+=' Left out because their SEC filings stopped: '+st+(h.stale.length>4?' and '+(h.stale.length-4)+' more':'')+'.';
   }
-  out+='<p class="pph-note">'+note+'</p>';
+  out+=_noteQ(note);
   return out;
 }
 /* Share Shifts (pp-shifts): who took the pool. Each company's share of the
@@ -13269,7 +13279,7 @@ function renderPoolIndustries(sec){
       +'<td data-v="'+_ppiV(d.pool_share)+'"'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(d.pool_share)+'</td>'
       +'<td data-v="'+_ppiV(d.margin)+'">'+_ppPct(d.margin)+'</td><td data-v="'+_ppiV(d.median_spread)+'">'+(d.median_spread==null?'\u2014':_ppSgnPct(d.median_spread))+'</td><td data-v="'+_ppiV(d.pool_cagr)+'">'+(d.pool_cagr==null?'—':_ppSgnPct(d.pool_cagr)+'/yr'+(d.own_window&&d.window?' <span class="ppi-dim" title="Too few of its companies reported over the sector\u2019s window; measured over its own years">('+_ppFy({y0:d.window[0],block:d.window[2]})+' to '+_ppFy1({y1:d.window[1],block:d.window[2]})+')</span>':''))+'</td></tr>';
   });
-  out+='</tbody></table></div><p class="pph-note">Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is each industry’s consistent-panel growth over the sector’s history window, or over its own years where shown in brackets; — where too few of its companies reported throughout. Click an industry to open the Gate Matrix filtered to it.</p>';
+  out+='</tbody></table></div>'+_noteQ('Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is each industry’s consistent-panel growth over the sector’s history window, or over its own years where shown in brackets; — where too few of its companies reported throughout. Click an industry to open the Gate Matrix filtered to it.');
   return out;
 }
 /* The sector's charted companies: the PP_TOP_N largest by revenue share,
@@ -13322,7 +13332,7 @@ function renderPoolCompanyTable(shown,tail){
     out+='<tr class="ppi-pin"><td>Others <span class="ppi-dim">('+tail.length+' companies)</span></td><td>—</td><td>'+_ppPct(rev)+'</td>'
       +_ppSkewTd(pool,rev)+'<td>'+(rev>0?_ppPct(wm/rev):'—')+'</td><td>—</td><td>—</td><td>'+(vo==null?'\u2014':vo.toFixed(2)+'\u00d7')+'</td></tr>';
   }
-  out+='</tbody></table></div><p class="pph-note">Bar width ∝ √revenue share, height = operating margin, colour = rating'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Value/pool is the company’s share of the sector’s market value over its share of the pool: above 1× the market pays more than its slice of today’s profit (the Price of the pool tile compares the whole sector with the universe). Click a company to open it.</p>';
+  out+='</tbody></table></div>'+_noteQ('Bar width ∝ √revenue share, height = operating margin, colour = rating'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Value/pool is the company’s share of the sector’s market value over its share of the pool: above 1× the market pays more than its slice of today’s profit (the Price of the pool tile compares the whole sector with the universe). Click a company to open it.');
   return out;
 }
 function _ppChartView(btn,v){
@@ -13371,7 +13381,7 @@ function renderPoolEcon(sec){
   if(ex.balance_sheet)parts.push(ex.balance_sheet+' lenders and broker-dealers, whose capital funds a loan book or trading inventory');
   if(ex.no_capital)parts.push(ex.no_capital+' without invested capital');
   if(ex.no_spread)parts.push(ex.no_spread+' without a ROIC−WACC spread');
-  out+='<p class="pph-note">Economic profit = (5-year median ROIC − WACC) × latest invested capital. Both US shares above count only companies whose economic profit is measurable, so the operating-profit share can differ from the one on the Trading tab.'+(parts.length?' Not measured: '+parts.join('; ')+'.':'')+'</p>';
+  out+=_noteQ('Economic profit = (5-year median ROIC − WACC) × latest invested capital. Both US shares above count only companies whose economic profit is measurable, so the operating-profit share can differ from the one on the Trading tab.'+(parts.length?' Not measured: '+parts.join('; ')+'.':'')+'');
   return out;
 }
 /* Sector-level structural headwinds + tailwinds, rendered as a two-column
@@ -13545,7 +13555,7 @@ function renderPoolSectorSignals(sec){
       +'<span><i class="ppf-dot"></i>Not acting</span>'
       +'<span><i class="ppf-dot" style="border-style:dashed"></i>Not measured: no series tracks it</span></div>','What the statuses mean')+'</div>';
     out+='<div class="ppf-cols">'+_ppfCol(tw,'tailwind')+_ppfCol(hw,'headwind')+'</div>';
-    out+='<p class="ppf-note">Each status reads the force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range. The balance weighs forces acting now by the share of sector revenue they reach (building ones at half).'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'</p>';
+    out+=_noteQ('Each status reads the force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range. The balance weighs forces acting now by the share of sector revenue they reach (building ones at half).'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'');
     return out;
   }
   var hw0=n.headwinds||[],tw0=n.tailwinds||[];
@@ -14537,7 +14547,7 @@ function renderCrossSectorDashboard(){
   }
   var _heatTableHtml=_sumStats.length
     ?'<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
-      +'<div class="xsect-chart-title" style="margin-bottom:4px">Sector Heatmap <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(values are sector medians · green = best, red = worst within column · click any header to sort)</span></div>'
+      +'<div class="xsect-chart-title" style="margin-bottom:4px">Sector Heatmap '+_qHelp('<span class="note-q-t">Values are sector medians; green is best and red worst within each column. Tap a header to sort, a sector to open its page.</span>','How to read the heatmap','l')+'</div>'
       /* Compact column widths so the full 16-column heatmap fits within a
          standard laptop viewport without horizontal scrolling. Sector column
          is wide enough for "Communication Services"; all metric columns
@@ -14854,7 +14864,7 @@ function renderPool(){
       +(perfBody||'<p style="color:#888;padding:20px">No sector data available.</p>')
       +(poolBody?'<div style="height:22px"></div>'
         +'<div class="xsect-title">Cross-Sector Profit Pool</div>'
-        +'<div class="xsect-sub">Bar width = revenue share · height = operating margin · area ≈ operating profit · ordered by margin · shares recompute among shown sectors. Show or hide any subset to compare; click a bar to drill in.</div>'
+        +'<div class="xsect-sub">Operating profit by sector; tap a bar to open it. '+_qHelp('<span class="note-q-t">Bar width is revenue share, height is operating margin, so area is roughly operating profit. Bars run in order of margin, and shares recompute among the sectors shown below.</span>','How to read the chart','l')+'</div>'
         +poolBody:'')
       +'</div>';
   }
