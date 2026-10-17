@@ -24,7 +24,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # (d/w/m/q), tr (transform: level|yoy|mom_diff), fmt (pct1|pct2|n1|n2|int),
 # suffix (display unit appended after the number), good (which direction
 # colors green: up|down|none), scale (multiply raw FRED value before
-# anything else — FRED units vary per series).
+# anything else — FRED units vary per series), yf (optional: a Yahoo symbol
+# fetched through the builder's ``yahoo`` client instead of FRED, for the
+# few series FRED does not carry).
 MACRO_SERIES = [
     # --- Rates & Curve ---
     dict(id='DGS10', l='10Y Treasury', sec='rates', freq='d', tr='level',
@@ -95,9 +97,7 @@ MACRO_SERIES = [
     # The price decks Energy and Basic Materials live on, plus the fuel and
     # food input costs of Utilities, chemicals and Consumer Defensive; the
     # sector page's commodity headwinds and tailwinds read their status from
-    # these. FRED only: the dashboard fetches every series through
-    # FREDClient, and FRED dropped the LBMA gold fix in 2022, so there is no
-    # gold card.
+    # these.
     dict(id='DCOILWTICO', l='WTI Crude ($/bbl)', sec='commodities', freq='d',
          tr='level', fmt='n1', suffix='', good='none', scale=1),
     dict(id='PCOPPUSDM', l='Copper ($/t)', sec='commodities', freq='m',
@@ -119,6 +119,28 @@ MACRO_SERIES = [
          tr='level', fmt='n1', suffix='', good='none', scale=1),
     dict(id='GASREGW', l='US Regular Gasoline ($/gal)', sec='commodities',
          freq='w', tr='level', fmt='n2', suffix='', good='none', scale=1),
+    # Wheat and corn are the two grains behind the food index, broken out
+    # because corn is also feed and ethanol feedstock; nickel is the battery
+    # and stainless-steel metal; uranium is the fuel cost of nuclear power,
+    # and the price deck its miners earn on.
+    dict(id='PWHEAMTUSDM', l='Wheat ($/t)', sec='commodities', freq='m',
+         tr='level', fmt='n1', suffix='', good='none', scale=1),
+    dict(id='PMAIZMTUSDM', l='Corn ($/t)', sec='commodities', freq='m',
+         tr='level', fmt='n1', suffix='', good='none', scale=1),
+    dict(id='PNICKUSDM', l='Nickel ($/t)', sec='commodities', freq='m',
+         tr='level', fmt='int', suffix='', good='none', scale=1),
+    dict(id='PURANUSDM', l='Uranium ($/lb)', sec='commodities', freq='m',
+         tr='level', fmt='n1', suffix='', good='none', scale=1),
+    # FRED dropped the LBMA gold fix in 2022 and carries no other dollar gold
+    # price (its NASDAQ gold FLOWS index is a decaying futures strategy, not
+    # the price), so gold is the front COMEX future from Yahoo.
+    dict(id='GOLD', yf='GC=F', l='Gold ($/oz)', sec='commodities', freq='d',
+         tr='level', fmt='int', suffix='', good='none', scale=1),
+    # BLS average retail price of a kilowatt-hour, US city average: what
+    # households and small businesses pay, and the revenue line of
+    # regulated utilities. Shown in cents (BLS publishes dollars).
+    dict(id='APU000072610', l='Electricity (avg ¢/kWh)', sec='commodities',
+         freq='m', tr='level', fmt='n1', suffix='', good='none', scale=100),
 ]
 
 SECTIONS = [
@@ -389,7 +411,7 @@ def make_narrative_client():
 
 def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
                         sector_data=None, local_rs=None,
-                        narrative_client=None):
+                        narrative_client=None, yahoo=None):
     """Fetch, transform and package everything the Macro Outlook tab needs.
 
     Returns {'summary': small-inline-dict, 'sidecar': macro.json-dict}, or
@@ -400,6 +422,11 @@ def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
     Claude-written narrative of the economy and its per-sector implications
     is attached to the sidecar and summary; any failure there degrades to a
     dashboard without prose, never to no dashboard.
+
+    ``yahoo`` (``fn(symbol, start) -> {date: value}``, e.g.
+    data.macro_client.fetch_yahoo_closes) serves the series that carry a
+    ``yf`` symbol; without it they are skipped, as a FRED series that
+    returns nothing is.
     """
     as_of = as_of or date.today()
     daily_start = as_of - timedelta(days=int(DAILY_HISTORY_YEARS * 365.25))
@@ -408,7 +435,10 @@ def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
     for meta in MACRO_SERIES:
         try:
             start = daily_start if meta['freq'] in ('d', 'w') else None
-            raw = fred.fetch_series(meta['id'], start=start)
+            if meta.get('yf'):
+                raw = yahoo(meta['yf'], start) if yahoo else {}
+            else:
+                raw = fred.fetch_series(meta['id'], start=start)
             if not raw:
                 continue
             entry = _build_series_entry(meta, raw, as_of)

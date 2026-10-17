@@ -800,14 +800,20 @@ ruff check .
   Commodities family (`DCOILWTICO` WTI, `PCOPPUSDM` copper, `DHHNGSP`
   Henry Hub gas, `PFOODINDEXM` IMF food index, `DCOILBRENTEU` Brent,
   `PALUMUSDM` aluminum, `PIORECRUSDM` iron ore, `GASREGW` US retail
-  gasoline) exists for Energy's and Basic Materials' commodity forces and
+  gasoline, `PWHEAMTUSDM` wheat, `PMAIZMTUSDM` corn, `PNICKUSDM` nickel,
+  `PURANUSDM` uranium, `GOLD` COMEX gold, `APU000072610` BLS average
+  retail electricity price in ¢/kWh) exists for Energy's and Basic Materials' commodity forces and
   Consumer Defensive's agricultural input-cost headwind, and adds a
-  Commodities sub-tab to the Macro tab. Brent, aluminum, iron ore and
-  gasoline are display and narrative-citation only so far: no force reads
-  them. No force reads gas yet (none in Utilities or Basic Materials
-  is themed on fuel or feedstock cost), and there is no gold card: the
-  dashboard fetches only through FREDClient, and FRED dropped the LBMA
-  gold fix in 2022. `data/fred_client`'s cache is keyed by series id alone, so a
+  Commodities sub-tab to the Macro tab. The ten added after the first
+  four (Brent through electricity) are display and narrative-citation
+  only so far: no force reads them. No force reads gas yet (none in
+  Utilities or Basic Materials is themed on fuel or feedstock cost).
+  Gold is the one series not from FRED, which dropped the LBMA gold fix
+  in 2022 and has no other dollar gold price: a `MACRO_SERIES` entry with
+  a `yf` symbol (`GC=F`) is fetched through `build_macro_payload`'s
+  injected `yahoo` client (`data/macro_client.fetch_yahoo_closes`, one
+  call a run), and skipped like an empty FRED series when that is absent
+  or fails. `data/fred_client`'s cache is keyed by series id alone, so a
   fetch with a later `start` (an ad hoc probe) poisons it for the
   dashboard until the 1-day TTL runs out.
 - **Report sidecars and the Pages size limits:** the HTML lazy-loads

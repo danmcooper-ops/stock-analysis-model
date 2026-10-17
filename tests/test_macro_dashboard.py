@@ -156,10 +156,28 @@ def full_stub():
     return StubFRED(table), as_of
 
 
+def _stub_yahoo(fred):
+    """Yahoo client serving each ``yf`` series from the FRED stub's table."""
+    by_symbol = {m['yf']: m['id'] for m in MACRO_SERIES if m.get('yf')}
+    return lambda symbol, start: fred.fetch_series(by_symbol[symbol])
+
+
 class TestBuildMacroPayload:
+    def test_yahoo_series_skipped_without_a_yahoo_client(self):
+        fred, as_of = full_stub()
+        asked = []
+        orig = fred.fetch_series
+        fred.fetch_series = lambda sid, **kw: asked.append(sid) or orig(sid, **kw)
+        sc = build_macro_payload(fred, as_of=as_of)['sidecar']
+        yf_ids = {m['id'] for m in MACRO_SERIES if m.get('yf')}
+        assert yf_ids == {'GOLD'}
+        assert not yf_ids & set(sc['series'])
+        # A Yahoo series is never asked of FRED, which has no such id.
+        assert not yf_ids & set(asked)
+
     def test_schema_and_summary(self):
         fred, as_of = full_stub()
-        p = build_macro_payload(fred, as_of=as_of)
+        p = build_macro_payload(fred, as_of=as_of, yahoo=_stub_yahoo(fred))
         assert p is not None
         sc = p['sidecar']
         assert sc['as_of'] == '2026-08-22'
@@ -171,7 +189,9 @@ class TestBuildMacroPayload:
         assert set(sc['series']) == {m['id'] for m in MACRO_SERIES}
         commodities = {m['id'] for m in MACRO_SERIES if m['sec'] == 'commodities'}
         assert commodities == {'DCOILWTICO', 'PCOPPUSDM', 'DHHNGSP', 'PFOODINDEXM',
-                               'DCOILBRENTEU', 'PALUMUSDM', 'PIORECRUSDM', 'GASREGW'}
+                               'DCOILBRENTEU', 'PALUMUSDM', 'PIORECRUSDM', 'GASREGW',
+                               'PWHEAMTUSDM', 'PMAIZMTUSDM', 'PNICKUSDM', 'PURANUSDM',
+                               'GOLD', 'APU000072610'}
         entry = sc['series']['UNRATE']
         for key in ('l', 'latest', 'prior', 'chg_1m', 'chg_1y', 'pctile',
                     'pct_win', 'hist'):
