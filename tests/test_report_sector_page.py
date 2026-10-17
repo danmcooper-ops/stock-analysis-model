@@ -234,14 +234,20 @@ def test_clear_resets_the_dashboard_drilldown():
     assert '_dashFilter=null;' in fn and fn.index('_dashFilter=null;') < fn.index('applyFilters();')
 
 
-def test_drilldown_chip_shows_on_phones_too():
-    """Phones hide #f-count, so the chip also rides #sn-count beside the view
-    title, in white on blue despite the chrome's --sac text colour."""
+def test_filters_live_in_the_filters_panel_not_a_chip():
+    """Every filter, drill-downs included, is shown and cleared in the
+    Filters panel, whose badge counts it; nothing rides the count as a chip.
+    A drill-down the column filters cannot express gets a removable row at
+    the top of the panel."""
     css = _tpl()
     fn = re.search(r'^function _updateCountLabel\(\)\{.*?^\}', css, re.S | re.M).group(0)
-    assert "el.innerHTML=h+chipHtml;" in fn
-    assert "sn.innerHTML=esc('('+FD.length+' of '+DATA.length+')')+chipHtml;" in fn
-    assert '.dd-chip{--sac:#fff;}' in css
+    assert 'chipHtml' not in fn and 'dd-chip' not in fn
+    assert "el.innerHTML=h;" in fn
+    assert "sn.textContent='('+FD.length+' of '+DATA.length+')';" in fn
+    assert "getElementById('dash-filt-row')" in fn and 'clearDashFilter()' in fn
+    assert '<div id="dash-filt-row"' in css
+    assert 'Filtering: ' not in css and 'dashRatingClear' not in css
+    assert '+(_dashFilter?1:0)' in css, 'the badge counts the drill-down'
 
 
 def test_top_level_navigation_opens_the_first_sub_tab():

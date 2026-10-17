@@ -279,7 +279,9 @@ def test_macro_overview_does_not_repeat_section_charts():
     assert '_macCurveCard' not in body, 'the yield curve lives on Rates & Curve'
     assert '_macCardHTML' not in body, 'full histories live on the section tabs'
     assert '_mSparkSVG' in body, 'the glance tiles keep their sparklines'
-    assert '_macZoom(' in body, 'a tile opens its larger chart'
+    assert '_macZoomAttrs(' in body, 'a tile opens its larger chart'
+    card = re.search(r'function _macCardHTML\(id,s\).*?\n\}\n', css, re.S).group(0)
+    assert '_macZoomAttrs(id,s.l)' in card and '_MAC_EXP' in card, 'so does every section card'
     fig = re.search(r'function _macNarFigure\(.*?\n\}\n', css, re.S).group(0)
     assert 'Full charts' in fig and "navGo(\\'macro\\'" in fig
     sec = re.search(r'function _macSectionHTML\(k\).*?\n\}\n', css, re.S)
