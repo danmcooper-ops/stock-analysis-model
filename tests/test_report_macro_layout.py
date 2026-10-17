@@ -218,7 +218,11 @@ def test_macro_narrative_lists_key_sector_influences():
     assert 'mac-nar-neutral' in nar, 'pre-v3 neutral fallback is kept'
     assert 'min read' in nar
     go = re.search(r'function _macGoSector\(i\)\{.*?\n\}\n', css, re.S)
-    assert go and "navGo('pool',row.sector)" in go.group(0)
+    # A drill like the chart drill-downs, so the way back returns to the
+    # Macro sub-tab and scroll position (tests/test_report_drill_back.py).
+    assert go and "_drillPush('Macro Outlook')" in go.group(0)
+    assert '_poolTab=row.sector' in go.group(0) and '_drillSeal();' in go.group(0)
+    assert "navGo('pool'" not in go.group(0), 'navGo would spend the drill at once'
 
 
 def test_macro_overview_is_the_landing_view():

@@ -193,7 +193,8 @@ def _render_signals(entry, tmp_path, stored=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
              '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
-             '_ppfCard', '_ppfLive', '_ppfCollapsedState', '_ppfCol', 'renderPoolSectorSignals']
+             '_ppfCard', '_ppfLive', '_ppfCollapsedState', '_ppfCol', '_qHelp',
+             'renderPoolSectorSignals']
     consts = '\n'.join(re.search(r'^var %s=.*$' % v, src, re.M).group(0)
                        for v in ('_PPF_ST', '_PPF_ORDER', '_PPF_TYPE'))
     store = ('var localStorage={getItem:function(){return %s;}};' % json.dumps(json.dumps(stored))
@@ -227,6 +228,9 @@ def test_forces_read_as_bulleted_rows_with_plain_word_statuses(tmp_path):
     assert 'XLRE has trailed the market by 10.0% over 3 months' in html
     assert '0 of 3 acting</small>' in tw and '1 of 3 acting</small>' in hw
     assert 'Acting now: the evidence is strong and holding' in html       # the key
+    # ...behind a ? on the market-check line, not a band above the lists
+    key = html.split('<div class="ppf-keyrow">')[1].split('<div class="ppf-cols">')[0]
+    assert 'class="qhelp-btn"' in key and 'class="qhelp-pop"' in key and 'Acting now' in key
 
 
 def test_nothing_is_hidden_behind_expand_or_collapse(tmp_path):
