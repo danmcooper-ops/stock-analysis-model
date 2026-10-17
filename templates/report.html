@@ -740,25 +740,27 @@ td.ct{font-weight:700;}
 .matrix-table tbody td:nth-child(2){position:sticky;left:40px;z-index:3;background:#fff;}
 .matrix-table tbody td:nth-child(3){position:sticky;left:68px;z-index:3;background:#fff;}
 .matrix-table td.tk{position:sticky;left:100px;z-index:3;background:#fff;}
-/* Lock ticker width so the rating columns' sticky `left` stays exact, then
-   freeze BOTH Today's Rating (5th col) and Yesterday's Rating (6th col) —
-   fixed-width so col 6's offset is deterministic (ticker 92px, wide enough for
-   the symbol plus its composite score → Today at 192px; Today 72px →
-   Yesterday at 264px). Everything from Sector rightward scrolls
+/* Lock ticker width so the columns after it keep an exact sticky `left`, then
+   freeze Score (5th col), Today's Rating (6th) and Yesterday's Rating (7th) —
+   fixed-width so their offsets are deterministic (ticker 60px → Score at
+   160px; Score 48px → Today at 208px; Today 72px → Yesterday at 280px).
+   Everything from Sector rightward scrolls
    past them; the frozen-zone shadow sits on Yesterday, the new right edge. */
-.matrix-table thead tr:first-child th:nth-child(4),.matrix-table tbody td.tk{width:92px;min-width:92px;max-width:92px;}
-.matrix-table td.tk .tk-sc{display:inline-block;margin-left:5px;font-weight:600;font-size:0.9em;color:#6b7785;text-decoration:none;font-variant-numeric:tabular-nums;}
-[data-theme="dark"] .matrix-table td.tk .tk-sc{color:#8b949e;}
-.matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6),.matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){width:72px;min-width:72px;max-width:72px;}
+.matrix-table thead tr:first-child th:nth-child(4),.matrix-table tbody td.tk{width:60px;min-width:60px;max-width:60px;}
+.matrix-table thead tr:first-child th:nth-child(5),.matrix-table tbody td:nth-child(5){width:48px;min-width:48px;max-width:48px;white-space:normal;}
+.matrix-table td.mtx-sc{font-weight:700;font-variant-numeric:tabular-nums;}
+.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:15;background:var(--hdr-bg);}
+.matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:3;background:#fff;}
+.matrix-table thead tr:first-child th:nth-child(6),.matrix-table thead tr:first-child th:nth-child(7),.matrix-table tbody td:nth-child(6),.matrix-table tbody td:nth-child(7){width:72px;min-width:72px;max-width:72px;}
 /* Headers may wrap ("Today's Rating" on two lines); body cells keep the table's
    nowrap so the rating pills render single-line, identical to Financial Data. */
-.matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6){white-space:normal;}
-.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:192px;z-index:15;background:var(--hdr-bg);}
-.matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:192px;z-index:3;background:#fff;}
-.matrix-table thead tr:first-child th:nth-child(6){position:-webkit-sticky;position:sticky;left:264px;z-index:15;background:var(--hdr-bg);box-shadow:2px 0 6px rgba(0,0,0,0.14);}
-.matrix-table tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:264px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
-.matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(5),.matrix-table tr:nth-child(even) td:nth-child(6){background:rgba(255,255,255,0.97);}
-.matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(5),.matrix-table tr:hover td:nth-child(6){background:#eaf4fd!important;}
+.matrix-table thead tr:first-child th:nth-child(6),.matrix-table thead tr:first-child th:nth-child(7){white-space:normal;}
+.matrix-table thead tr:first-child th:nth-child(6){position:-webkit-sticky;position:sticky;left:208px;z-index:15;background:var(--hdr-bg);}
+.matrix-table tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:208px;z-index:3;background:#fff;}
+.matrix-table thead tr:first-child th:nth-child(7){position:-webkit-sticky;position:sticky;left:280px;z-index:15;background:var(--hdr-bg);box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+.matrix-table tbody td:nth-child(7){position:-webkit-sticky;position:sticky;left:280px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(5),.matrix-table tr:nth-child(even) td:nth-child(6),.matrix-table tr:nth-child(even) td:nth-child(7){background:rgba(255,255,255,0.97);}
+.matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(5),.matrix-table tr:hover td:nth-child(6),.matrix-table tr:hover td:nth-child(7){background:#eaf4fd!important;}
 /* Touch devices (iPhone and iPad, both orientations): the full frozen
    zone — # · flag · reviewed · ticker · Today's Rating · Yesterday's
    Rating — is 304-312px, a sliver-leaving share of a 390px phone and
@@ -780,8 +782,8 @@ td.ct{font-weight:700;}
   #dtbl td.tk2{left:0;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
   .matrix-table thead tr:first-child th:nth-child(1),.matrix-table thead tr:first-child th:nth-child(2),.matrix-table thead tr:first-child th:nth-child(3),
   .matrix-table tbody td:nth-child(1),.matrix-table tbody td:nth-child(2),.matrix-table tbody td:nth-child(3),
-  .matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6),
-  .matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){position:static;box-shadow:none;}
+  .matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6),.matrix-table thead tr:first-child th:nth-child(7),
+  .matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6),.matrix-table tbody td:nth-child(7){position:static;box-shadow:none;}
   .matrix-table thead tr:first-child th:nth-child(4){left:0;box-shadow:2px 0 6px rgba(0,0,0,0.14);}
   .matrix-table td.tk{left:0;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
   /* Collapsing ticker-page banner, driven by the scroll position itself
@@ -1832,11 +1834,11 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .matrix-table tr:hover td{background-color:#1f3a5c !important;}
 [data-theme="dark"] .matrix-table td.tk{background:#161b22;color:#58a6ff;}
 [data-theme="dark"] .dt td.tk2{color:#58a6ff;}
-[data-theme="dark"] .dt tbody td:nth-child(1),[data-theme="dark"] .dt tbody td:nth-child(2),[data-theme="dark"] .dt tbody td:nth-child(3),[data-theme="dark"] .dt td.tk2,[data-theme="dark"] .matrix-table tbody td:nth-child(1),[data-theme="dark"] .matrix-table tbody td:nth-child(2),[data-theme="dark"] .matrix-table tbody td:nth-child(3),[data-theme="dark"] .matrix-table tbody td:nth-child(5),[data-theme="dark"] .matrix-table tbody td:nth-child(6){background:#161b22;}
+[data-theme="dark"] .dt tbody td:nth-child(1),[data-theme="dark"] .dt tbody td:nth-child(2),[data-theme="dark"] .dt tbody td:nth-child(3),[data-theme="dark"] .dt td.tk2,[data-theme="dark"] .matrix-table tbody td:nth-child(1),[data-theme="dark"] .matrix-table tbody td:nth-child(2),[data-theme="dark"] .matrix-table tbody td:nth-child(3),[data-theme="dark"] .matrix-table tbody td:nth-child(5),[data-theme="dark"] .matrix-table tbody td:nth-child(6),[data-theme="dark"] .matrix-table tbody td:nth-child(7){background:#161b22;}
 [data-theme="dark"] .dt tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .dt tr:nth-child(even) td:nth-child(3),[data-theme="dark"] .dt tr:nth-child(even) td.tk2{background:#1c2128;}
 [data-theme="dark"] .dt tr:hover td:nth-child(1),[data-theme="dark"] .dt tr:hover td:nth-child(2),[data-theme="dark"] .dt tr:hover td:nth-child(3),[data-theme="dark"] .dt tr:hover td.tk2{background:#1f3a5c !important;}
-[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(3),[data-theme="dark"] .matrix-table tr:nth-child(even) td.tk,[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(5),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(6){background:#1c2128;}
-[data-theme="dark"] .matrix-table tr:hover td:nth-child(1),[data-theme="dark"] .matrix-table tr:hover td:nth-child(2),[data-theme="dark"] .matrix-table tr:hover td:nth-child(3),[data-theme="dark"] .matrix-table tr:hover td.tk,[data-theme="dark"] .matrix-table tr:hover td:nth-child(5),[data-theme="dark"] .matrix-table tr:hover td:nth-child(6){background:#1f3a5c !important;}
+[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(1),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(2),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(3),[data-theme="dark"] .matrix-table tr:nth-child(even) td.tk,[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(5),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(6),[data-theme="dark"] .matrix-table tr:nth-child(even) td:nth-child(7){background:#1c2128;}
+[data-theme="dark"] .matrix-table tr:hover td:nth-child(1),[data-theme="dark"] .matrix-table tr:hover td:nth-child(2),[data-theme="dark"] .matrix-table tr:hover td:nth-child(3),[data-theme="dark"] .matrix-table tr:hover td.tk,[data-theme="dark"] .matrix-table tr:hover td:nth-child(5),[data-theme="dark"] .matrix-table tr:hover td:nth-child(6),[data-theme="dark"] .matrix-table tr:hover td:nth-child(7){background:#1f3a5c !important;}
 [data-theme="dark"] td.gp{background-color:var(--gate-pass) !important;color:#7ee787 !important;}
 [data-theme="dark"] td.gf{background-color:var(--gate-fail) !important;color:#ff7b72 !important;}
 [data-theme="dark"] td.gn{background-color:var(--gate-na) !important;color:#c9d1d9 !important;}
@@ -2483,8 +2485,9 @@ body{padding-left:var(--sb-cur);}
 #mtx thead tr:first-child th:nth-child(2),#mtx tbody td:nth-child(2){left:calc(var(--sb-cur) + 40px);}
 #mtx thead tr:first-child th:nth-child(3),#mtx tbody td:nth-child(3){left:calc(var(--sb-cur) + 68px);}
 #mtx thead tr:first-child th:nth-child(4),#mtx td.tk{left:calc(var(--sb-cur) + 100px);}
-#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 192px);}
-#mtx thead tr:first-child th:nth-child(6),#mtx tbody td:nth-child(6){left:calc(var(--sb-cur) + 264px);}
+#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 160px);}
+#mtx thead tr:first-child th:nth-child(6),#mtx tbody td:nth-child(6){left:calc(var(--sb-cur) + 208px);}
+#mtx thead tr:first-child th:nth-child(7),#mtx tbody td:nth-child(7){left:calc(var(--sb-cur) + 280px);}
 .header,.secondary-nav,#subnav{left:var(--sb-cur);width:calc(var(--vvw,100vw) - var(--sb-cur));}
 /* Touch devices freeze only the ticker, at the left edge (see the
    (hover:none) block by the column widths) — which is now --sb-cur. */
@@ -6654,6 +6657,7 @@ function renderMatrix(){
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;font-size:1.3em" onclick="mSort(\'_flagged\')" title="Flagged">\u2691'+(mSC==='_flagged'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header" rowspan="2" style="width:28px;cursor:pointer;color:white" onclick="mSort(\'_reviewed\')" title="Reviewed"><svg viewBox="0 0 22 22" style="width:16px;height:16px;vertical-align:middle;display:inline-block"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="6,11 9.5,15 16,7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'+(mSC==='_reviewed'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'ticker\')" data-col-tip="ticker" data-col-label="Ticker">Ticker'+(mSC==='ticker'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
+  h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'_composite_score\')" data-col-tip="_composite_score" data-col-label="Composite Score">Score'+(mSC==='_composite_score'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating\')" data-col-tip="rating" data-col-label="Today\u2019s Rating">Today\u2019s Rating'+(mSC==='rating'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'rating_prev\')" data-col-tip="rating_prev" data-col-label="Yesterday\u2019s Rating">Yesterday\u2019s Rating'+(mSC==='rating_prev'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
   h1+='<th class="fixed-header sortable" rowspan="2" style="cursor:pointer" onclick="mSort(\'sector\')" data-col-tip="sector" data-col-label="Sector">Sector'+(mSC==='sector'?(mSA?' \u25B2':' \u25BC'):'')+'</th>';
@@ -6698,8 +6702,9 @@ function _mtxBuildRow(d,_i){
   html+='<td>'+(_i+1)+'</td>';
   html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
   html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
+  html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+_pfDots(d.ticker)+'</td>';
   var sc=_num(d._composite_score);
-  html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+(sc!=null?'<span class="tk-sc" title="Composite score">'+Math.round(sc)+'</span>':'')+_pfDots(d.ticker)+'</td>';
+  html+='<td class="mtx-sc">'+(sc!=null?Math.round(sc):'N/A')+'</td>';
   html+='<td>'+rb(d.rating,d)+'</td>';
   html+='<td>'+rb(d.rating_prev)+'</td>';
   html+='<td style="font-size:0.75em">'+(d.sector||'N/A')+'</td>';
