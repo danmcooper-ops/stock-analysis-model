@@ -1305,6 +1305,18 @@ td.ct{font-weight:700;}
 .ppf-split i{display:block;height:100%;}
 .ppf-split .tw{background:var(--ppf-tw);}.ppf-split .hw{background:var(--ppf-hw);}
 .ppf-mkt{font-size:0.78em;color:var(--ppf-sub);margin:0 0 10px;}
+/* The status key lives in a ? popover at the end of the market-check line. */
+.ppf-keyrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:0 0 10px;}
+.ppf-keyrow .ppf-mkt{margin:0;}
+.qhelp{position:relative;flex-shrink:0;}
+.qhelp-btn{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--ppf-line);background:transparent;
+  color:var(--ppf-sub);font-family:inherit;font-size:12px;font-weight:600;line-height:20px;text-align:center;cursor:pointer;}
+.qhelp-btn:hover,.qhelp.open .qhelp-btn{color:var(--accent,#2563eb);border-color:var(--accent,#2563eb);}
+.qhelp-pop{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:max-content;max-width:min(300px,80vw);
+  padding:10px 12px;border:1px solid var(--ppf-line);border-radius:8px;background:var(--ppf-bg);box-shadow:0 6px 20px rgba(0,0,0,.25);}
+.qhelp.open .qhelp-pop{display:block;}
+.qhelp-pop .ppf-key{flex-direction:column;align-items:flex-start;gap:6px;margin:0;padding:0;border:0;font-size:13px;}
+.qhelp-pop .ppf-key span{white-space:normal;}
 .ppf-key{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:0.74em;color:var(--ppf-sub);margin:0 0 12px;padding:6px 0;border-top:1px solid var(--ppf-line);border-bottom:1px solid var(--ppf-line);}
 .ppf-key span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
 .ppf-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;}
@@ -11996,13 +12008,29 @@ function _macRegimeHelp(btn,e){
   var open=box.classList.toggle('help-open');
   btn.setAttribute('aria-expanded',open?'true':'false');
 }
+/* A ? button that opens its content in a small popover (the sector forces'
+   status key). Same open/close rules as the regime explainer. */
+function _qHelp(content,label){
+  return '<span class="qhelp"><button type="button" class="qhelp-btn" aria-label="'+_attr(label||'Help')+'" aria-expanded="false" onclick="_qHelpToggle(this,event)">?</button>'
+    +'<span class="qhelp-pop" role="tooltip">'+content+'</span></span>';
+}
+function _qHelpToggle(btn,e){
+  if(e)e.stopPropagation();
+  var w=btn.parentNode,open=!w.classList.contains('open');
+  _macRegimeHelpClose();
+  if(open){w.classList.add('open');btn.setAttribute('aria-expanded','true');}
+}
 /* Any click outside an open explainer, or Escape, closes it. */
 document.addEventListener('click',function(e){
-  if(!e.target.closest||!e.target.closest('.mac-regime-note'))_macRegimeHelpClose();
+  if(!e.target.closest||!e.target.closest('.mac-regime-note,.qhelp-pop'))_macRegimeHelpClose();
 });
 /* Escape closes it from the page's one global keydown handler. */
 function _macRegimeHelpClose(){
   var any=false;
+  document.querySelectorAll('.qhelp.open').forEach(function(w){
+    any=true;w.classList.remove('open');
+    var q=w.querySelector('.qhelp-btn');if(q)q.setAttribute('aria-expanded','false');
+  });
   document.querySelectorAll('.mac-regime.help-open').forEach(function(b){
     any=true;b.classList.remove('help-open');
     var q=b.querySelector('.mac-regime-help');if(q)q.setAttribute('aria-expanded','false');
@@ -13199,7 +13227,7 @@ function renderPoolSectorSignals(sec){
   if(fz&&fz.forces&&fz.forces.length){
     var tw=fz.forces.filter(function(f){return f.kind==='tailwind';}),hw=fz.forces.filter(function(f){return f.kind==='headwind';});
     var out='<div class="ppf-top">'+_ppfBalance(fz.balance)+'</div>';
-    var m=fz.market;
+    var m=fz.market,mkt='';
     if(m&&(m.rs_3m!=null||m.rs_6m!=null)){
       /* "has beaten the market by 3.8% over 3 months and by 25.1% over 6";
          the verb repeats only when the direction changes. */
@@ -13209,14 +13237,16 @@ function renderPoolSectorSignals(sec){
         var vb=x[0]>=0?'beaten':'trailed';
         parts.push((vb===prev?'by ':vb+' the market by ')+Math.abs(x[0]*100).toFixed(1)+'% over '+x[1]);prev=vb;
       });
-      out+='<div class="ppf-mkt">Market check: '+_esc(m.etf||'the sector ETF')+' has '+parts.join(' and ')+'.</div>';
+      mkt='<div class="ppf-mkt">Market check: '+_esc(m.etf||'the sector ETF')+' has '+parts.join(' and ')+'.</div>';
     }
-    out+='<div class="ppf-key">'
+    /* The status key sits behind a ? at the end of the market-check line, so
+       it is there when needed without a five-line band above every list. */
+    out+='<div class="ppf-keyrow">'+(mkt||'<span></span>')+_qHelp('<div class="ppf-key">'
       +'<span><i class="ppf-dot" style="background:var(--ppf-sub);border-color:var(--ppf-sub)"></i>Acting now: the evidence is strong and holding</span>'
       +'<span><i class="ppf-dot" style="border-color:var(--ppf-sub);background:linear-gradient(90deg,var(--ppf-sub) 50%,transparent 50%)"></i>Building: moving toward strong</span>'
       +'<span><i class="ppf-dot" style="background:var(--ppf-q)"></i>Fading: was strong, weakening</span>'
       +'<span><i class="ppf-dot"></i>Not acting</span>'
-      +'<span><i class="ppf-dot" style="border-style:dashed"></i>Not measured: no series tracks it</span></div>';
+      +'<span><i class="ppf-dot" style="border-style:dashed"></i>Not measured: no series tracks it</span></div>','What the statuses mean')+'</div>';
     out+='<div class="ppf-cols">'+_ppfCol(tw,'tailwind')+_ppfCol(hw,'headwind')+'</div>';
     out+='<p class="ppf-note">Each status reads the force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range. The balance weighs forces acting now by the share of sector revenue they reach (building ones at half).'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'</p>';
     return out;
