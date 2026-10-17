@@ -2131,7 +2131,17 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-meter-track::after{content:"";position:absolute;left:50%;top:-2px;width:1px;height:8px;background:var(--mac-faint);}
 .mac-meter-fill{position:absolute;top:0;height:4px;border-radius:2px;background:var(--mac-faint);}
 .mac-meter-fill.up{background:var(--mac-up);}.mac-meter-fill.down{background:var(--mac-down);}
-.mac-regime-note{flex:1 1 100%;margin:0;color:var(--mac-muted);font-size:0.76em;line-height:1.45;}
+/* The explainer: a ? in the bottom-right corner opens a plain note below it
+   (below, so the sticky tab bar can never cover it). */
+.mac-regime{position:relative;}
+.mac-regime-help{position:absolute;right:10px;bottom:8px;width:22px;height:22px;padding:0;border-radius:50%;
+  border:1px solid var(--mac-border);background:transparent;color:var(--mac-muted);font-family:inherit;font-size:12px;font-weight:600;line-height:20px;
+  cursor:pointer;text-align:center;}
+.mac-regime-help:hover,.mac-regime.help-open .mac-regime-help{color:var(--mac-accent);border-color:var(--mac-accent);}
+.mac-regime-note{display:none;position:absolute;right:10px;top:calc(100% - 4px);z-index:20;width:min(320px,calc(100% - 20px));
+  margin:0;padding:10px 12px;border:1px solid var(--mac-border);border-radius:8px;background:var(--mac-card);
+  box-shadow:0 6px 20px rgba(0,0,0,.25);color:var(--mac-muted);font-size:13px;font-weight:400;line-height:1.45;}
+.mac-regime.help-open .mac-regime-note{display:block;}
 /* --- overview: story on the left, glance numbers in a rail on the right --- */
 /* Two columns only where the rail has room; below that the tiles follow
    the story and keep the phone floors set further down (those rules are
@@ -11936,7 +11946,7 @@ var _MAC_IND_TIP={vix:'VIX level: under 15 scores +1, 20–25 is 0, over 30 is �
   industrial_rs:'Industrials (XLI) vs the S&P 500 over 3 months: cyclicals leading by 3pt+ scores +1, lagging by 3pt+ is −1.'};
 /* The weights and cut-offs are MACRO_WEIGHTS and assess_macro_regime's
    thresholds in models/macro.py; tests/test_report_macro_layout.py pins them. */
-var _MAC_REGIME_NOTE='Five market signals, each scored from −1 (warning) to +1 (supportive). A bar runs right of the centre line when the signal supports growth and left when it warns. The composite is their weighted average — VIX and yield curve 25% each, credit spreads 20%, S&amp;P momentum and industrials 15% each — and sets the regime: above +0.40 Expansion, +0.10 Mid Cycle, −0.10 Neutral, −0.40 Late Cycle, below that Contraction.';
+var _MAC_REGIME_NOTE='Each signal scores −1 (warning) to +1 (supportive); its bar runs right of centre when supportive. The composite weights VIX and yield curve 25% each, credit spreads 20%, S&amp;P momentum and industrials 15% each. Regime: above +0.40 Expansion, +0.10 Mid Cycle, −0.10 Neutral, −0.40 Late Cycle, else Contraction.';
 function _macRegimeHTML(full){
   var src=(MACRO&&MACRO.regime)||(MACRO_SUM&&MACRO_SUM.regime);
   if(!src)return '';
@@ -11962,11 +11972,36 @@ function _macRegimeHTML(full){
         +'<span class="mac-meter-v'+cls+'">'+(v==null?'?':(v>=0?'+':'')+v.toFixed(2))+'</span></div>'
         +'<div class="mac-meter-track"><div class="mac-meter-fill'+cls+'" style="left:'+left+';width:'+w+'%"></div></div></div>';
     });
-    h+='</div><p class="mac-regime-note">'+_MAC_REGIME_NOTE+'</p>';
+    /* The explainer sits behind a ? in the card's bottom-right corner; the
+       meters are the read, the method is there on request. */
+    h+='</div><button type="button" class="mac-regime-help" aria-label="How the regime is scored" aria-expanded="false" onclick="_macRegimeHelp(this,event)">?</button>'
+      +'<p class="mac-regime-note" role="tooltip">'+_MAC_REGIME_NOTE+'</p>';
   }
   h+='</div>';
   return h;
 }
+function _macRegimeHelp(btn,e){
+  if(e)e.stopPropagation();
+  var box=btn.closest('.mac-regime');if(!box)return;
+  var open=box.classList.toggle('help-open');
+  btn.setAttribute('aria-expanded',open?'true':'false');
+}
+/* Any click outside an open explainer, or Escape, closes it. */
+document.addEventListener('click',function(e){
+  document.querySelectorAll('.mac-regime.help-open').forEach(function(b){
+    if(!b.querySelector('.mac-regime-note').contains(e.target)){
+      b.classList.remove('help-open');
+      var q=b.querySelector('.mac-regime-help');if(q)q.setAttribute('aria-expanded','false');
+    }
+  });
+});
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  document.querySelectorAll('.mac-regime.help-open').forEach(function(b){
+    b.classList.remove('help-open');
+    var q=b.querySelector('.mac-regime-help');if(q)q.setAttribute('aria-expanded','false');
+  });
+});
 function _macStatusNote(){
   if(_MACRO_FAILED)return '<p class="mac-note">Macro history failed to load. <a href="#" style="color:var(--mac-accent)" onclick="return macroRetry()">Retry</a></p>';
   return '<p class="mac-note">Loading macro history…</p>';
