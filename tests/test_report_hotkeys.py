@@ -160,3 +160,19 @@ def test_enter_marks_reviewed_then_next_ticker():
     disp = src.split('function _hkDetDispatch(e){')[1].split('\n}')[0]
     enter = disp.split("k==='Enter'")[1].split('\n')[0]
     assert 'if(tk&&!isReviewed(tk)){toggleReviewed(tk);_syncRevDet();}navDet(1);' in enter
+
+
+def test_shift_brackets_step_the_lower_tab_row_when_there_are_two():
+    """A sector page has two tab rows (sectors in #subnav, Overview … Trading
+    below). } and { walk the lower one there and fall back to stepping the
+    view only when there is none; ] and [ keep the upper row."""
+    src = _tpl()
+    dispatch = src.split('function _hkDispatch(e){')[1].split('\n}\n')[0]
+    assert "if(!_hkStepInner(1))_hkStepView(1);" in dispatch
+    assert "if(!_hkStepInner(-1))_hkStepView(-1);" in dispatch
+    inner = src.split('function _hkStepInner(d){')[1].split('\n}\n')[0]
+    assert '.pp-subtabs' in inner and '_ppSubTab(' in inner
+    # The popup's second row is the Finances statement switch.
+    det = src.split('function _hkDetDispatch(e){')[1].split('\n}\n')[0]
+    shift = det.split("k==='}'||k==='{'")[1].split("k==='s'")[0]
+    assert '_detTab!==DT_FIN.k' in shift and 'DT_STMTS' in shift

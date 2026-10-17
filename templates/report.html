@@ -11774,7 +11774,7 @@ var HOTKEYS=[
   {g:'Navigation',k:function(){return _navGroups().map(function(_,i){return String(i+1);});},
    l:'Jump straight to a view'},
   {g:'Navigation',k:[']','['],l:'Next / previous tab in this view'},
-  {g:'Navigation',k:['}','{'],l:'Next / previous view'},
+  {g:'Navigation',k:['}','{'],l:'Next / previous view, or the lower row where there are two rows of tabs'},
   {g:'Navigation',k:['b'],l:'Back to the chart a drill-down started from'},
   {g:'Search & panels',k:['/'],l:'Search tickers'},
   {g:'Search & panels',k:['f'],l:'Filters menu (views with a table)'},
@@ -11790,6 +11790,7 @@ var HOTKEYS=[
    l:'Jump straight to a section tab'},
   {g:'Ticker popup',k:[']','['],l:'Next / previous section tab'},
   {g:'Ticker popup',k:['t'],l:'Finances: next statement (balance / income / cash flow)'},
+  {g:'Ticker popup',k:['}','{'],l:'Finances: next / previous statement'},
   {g:'Ticker popup',k:['s'],l:'Summary PDF for this ticker'},
   {g:'Ticker popup',k:['x'],l:'Flag / unflag this ticker'},
   {g:'Ticker popup',k:['Enter'],l:'Mark reviewed, then next ticker'},
@@ -11835,6 +11836,22 @@ function _hkCurIdx(){
 }
 function _hkStepSub(d){var c=_hkCurIdx();if(c)_hkGo(c.gi,c.ki+d);}
 function _hkStepView(d){var c=_hkCurIdx();if(c)_hkGo(c.gi+d,null);}
+/* Shift-brackets go one row down where a page has a second tab row: a
+   sector page's Overview … Trading row (.pp-subtabs) under the sectors in
+   #subnav. ] and [ keep the upper row, so both rows are a key away; the
+   digits still reach every view. Wraps like ] and [. Returns false when
+   there is no such row, and the caller steps the view instead. */
+function _hkStepInner(d){
+  if(curView!=='pool')return false;
+  var bar=document.querySelector('#pool-chart-area .pp-subtabs');
+  if(!bar)return false;
+  var bs=[].slice.call(bar.querySelectorAll('.d-stmt-tab')),n=bs.length,ci=0;
+  if(!n)return false;
+  bs.forEach(function(b,i){if(b.classList.contains('cur'))ci=i;});
+  var nb=bs[(((ci+d)%n)+n)%n];
+  _ppSubTab(nb);nb.scrollIntoView({block:'nearest',inline:'nearest'});
+  return true;
+}
 /* Sector Analysis and Macro Outlook have no table to filter, so moveFilterBar
    gives the bar .nav-only and CSS hides everything but the nav icon. Opening
    the panel there would anchor _positionFpop to an invisible button and put
@@ -11853,8 +11870,8 @@ function _hkDispatch(e){
   }
   if(k===']'){e.preventDefault();_hkStepSub(1);}
   else if(k==='['){e.preventDefault();_hkStepSub(-1);}
-  else if(k==='}'){e.preventDefault();_hkStepView(1);}
-  else if(k==='{'){e.preventDefault();_hkStepView(-1);}
+  else if(k==='}'){e.preventDefault();if(!_hkStepInner(1))_hkStepView(1);}
+  else if(k==='{'){e.preventDefault();if(!_hkStepInner(-1))_hkStepView(-1);}
   else if(k==='/'){
     /* preventDefault or Firefox's quick-find swallows the slash. The search
        lives in the top bar on every view now (views without a table list
@@ -11904,6 +11921,15 @@ function _hkDetDispatch(e){
     if(_detTab!==DT_FIN.k){swDetTab(DT_FIN.k);return;}
     var si=0;DT_STMTS.forEach(function(x,j){if(x.k===_detStmt)si=j;});
     swDetTab(DT_STMTS[(si+1)%DT_STMTS.length].k);
+  }
+  /* The statement switch is the popup's second tab row, so the shift-
+     brackets walk it, as they walk a sector page's lower row. Only on
+     Finances: elsewhere there is no second row to step. */
+  else if(k==='}'||k==='{'){
+    if(_detTab!==DT_FIN.k)return;
+    e.preventDefault();
+    var sj=0,ns=DT_STMTS.length;DT_STMTS.forEach(function(x,j){if(x.k===_detStmt)sj=j;});
+    swDetTab(DT_STMTS[(((sj+(k==='}'?1:-1))%ns)+ns)%ns].k);
   }
   else if(k==='s'){e.preventDefault();exportProfilePdf();}
   else if(k==='x'){e.preventDefault();toggleFlagDet();}
