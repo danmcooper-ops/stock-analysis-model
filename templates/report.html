@@ -470,6 +470,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .f-num::-webkit-inner-spin-button,.f-num::-webkit-outer-spin-button{opacity:0.5;}
 .score-sep{font-size:0.85em;color:#888;}
 .col-unit{font-size:0.78em;color:#888;min-width:8px;}
+#dash-filt-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;margin:0 0 8px;border:1px solid var(--border,#d0d7de);border-radius:8px;}
+.dash-filt-l{font-weight:600;font-size:0.9em;}
 .cfr-remove{border:none;background:none;cursor:pointer;color:#ccc;font-size:1em;padding:0 3px;line-height:1;flex-shrink:0;}
 .cfr-remove:hover{color:#de2d26;}
 .add-filter-btn{align-self:flex-start;padding:5px 12px;font-size:0.85em;border:1px dashed #b0b8c8;border-radius:5px;background:transparent;cursor:pointer;color:#667;white-space:nowrap;}
@@ -2259,16 +2261,20 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 /* Narrative folds (_macFold): phones only; desktop shows it all and no chevron. */
 .mac-fold-btn{display:none;}
 @media(max-width:768px){
-  .mac-fold-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin:-6px -6px -6px 2px;
+  .mac-fold-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin:-6px 0 -6px -8px;
     padding:0;border:0;background:none;color:var(--mac-muted);cursor:pointer;vertical-align:middle;}
   /* .ppf-chev points down; folded it points right. */
   .mac-fold-btn .ppf-chev{margin:0;transform:rotate(-90deg);}
   .mac-fold.open .mac-fold-btn .ppf-chev{transform:none;}
   .mac-fold-h{cursor:pointer;}
-  .mac-nar-k.mac-fold-h{display:flex;align-items:center;justify-content:space-between;}
+  /* Chevron first, then the kicker, left-aligned. */
+  .mac-nar-k.mac-fold-h{display:flex;align-items:center;gap:2px;}
   .mac-fold:not(.open) .mac-fold-b{display:none;}
 }
-.mac-tile-zoom{cursor:pointer;}
+.mac-tile-zoom{cursor:pointer;position:relative;}
+.mac-tile-zoom .mac-tile-l,.mac-tile-zoom .mac-card-head{padding-right:22px;}
+.mac-tile-exp{position:absolute;top:10px;right:10px;width:15px;height:15px;color:var(--mac-faint);pointer-events:none;}
+.mac-tile-zoom:hover .mac-tile-exp{color:var(--mac-accent);}
 .mac-tile-zoom:hover{border-color:var(--mac-accent);}
 .mac-tile-zoom:focus-visible{outline:2px solid var(--mac-accent);outline-offset:2px;}
 /* Tile zoom dialog (_macZoom). Sits in body, outside #macro-view, so it
@@ -2455,7 +2461,6 @@ html.mz-open,html.mz-open body{overflow:hidden;}
 html body .sa-chrome,html body .sa-chrome *{color:var(--sac) !important;}
 /* The drill-down chip is white on blue wherever it sits, including inside
    the chrome (#sn-count beside the view title on phones). */
-.dd-chip{--sac:#fff;}
 .sa-chrome svg{flex-shrink:0;}
 
 /* ---- page offset ---- */
@@ -3231,6 +3236,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
           </div>
           <div class="fpop-divider"></div>
           <div class="fpop-section-label">Column Filters</div>
+          <div id="dash-filt-row" style="display:none"></div>
           <div id="col-filters" class="col-filters-wrap"></div>
           <button class="add-filter-btn" onclick="addColFilter()">&#65291; Add Filter</button>
         </div>
@@ -3710,14 +3716,6 @@ function dashRatingJump(r){
   if(allBox){allBox.checked=false;allBox.indeterminate=true;}
   msUpdateLabel('ms-rating');
   _dashJump();
-}
-function dashRatingClear(){
-  var wrap=document.getElementById('ms-rating');if(!wrap)return;
-  wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]').forEach(function(cb){cb.checked=true;});
-  var allBox=wrap.querySelector('.ms-all input');
-  if(allBox){allBox.checked=true;allBox.indeterminate=false;}
-  msUpdateLabel('ms-rating');
-  applyFilters();
 }
 /* Prior run date backing the "Δ vs prior" rating-change column (empty if this
    is the first snapshot in the output dir). Set in report_html.build_html. */
@@ -6211,21 +6209,19 @@ function _updateCountLabel(){
   var el=document.getElementById('f-count');
   if(!el)return;
   var h=esc(FD.length+' of '+DATA.length+(FD.length&&_relActive()?' · best match':''));
-  /* Dashboard drill-down chip rides next to the count so it is visible (and
-     clearable) from EVERY view — the boxes that set it live only on the
-     dashboard, but the jump lands on the Gate Matrix. A sole-rating
-     selection gets the same treatment: the rating boxes route through
-     ms-rating, so surface that here too rather than leaving the drill-down
-     invisible outside the Filters panel. */
-  var chip=null,fn='';
-  if(_dashFilter){chip=_dashLabel();fn='clearDashFilter()';}
-  else{
-    var rTot=document.querySelectorAll('#ms-rating .ms-drop input[type="checkbox"][value]').length;
-    var rs=msGetSelected('ms-rating');
-    if(rTot&&rs.length===1){chip=rs[0]+' only';fn='dashRatingClear()';}
+  /* Every filter is shown and cleared in the Filters panel (its badge
+     counts them); no chip beside the count. A dashboard drill-down the
+     column filters cannot express (a gate passing/failing, the folded
+     Other industries) gets its own removable row at the top of the panel. */
+  el.innerHTML=h;
+  var dr=document.getElementById('dash-filt-row');
+  if(dr){
+    if(_dashFilter){
+      dr.innerHTML='<span class="dash-filt-l">'+esc(_dashLabel())+'</span>'
+        +'<button class="cfr-remove" onclick="clearDashFilter()" title="Remove">\u00d7</button>';
+      dr.style.display='';
+    }else{dr.innerHTML='';dr.style.display='none';}
   }
-  var chipHtml=chip?' <span class="dd-chip" onclick="'+fn+'" title="Clear this filter" style="cursor:pointer;background:#3b6fd4;color:#fff;font-weight:600;padding:2px 9px;border-radius:10px;margin-left:6px;white-space:nowrap">'+esc(chip)+' &times;</span>':'';
-  el.innerHTML=h+chipHtml;
   /* Twin count beside the Filters panel's title. Plain text: no chip, no
      "best match" (that suffix describes ordering, not the count). */
   var fc=document.getElementById('filt-count');
@@ -6233,7 +6229,7 @@ function _updateCountLabel(){
   /* And beside the view title on phones, where #f-count is hidden — chip
      included, or a drill-down could be set there but never cleared. */
   var sn=document.getElementById('sn-count');
-  if(sn)sn.innerHTML=esc('('+FD.length+' of '+DATA.length+')')+chipHtml;
+  if(sn)sn.textContent='('+FD.length+' of '+DATA.length+')';
 }
 /* Is relevance ordering in effect for the CURRENT view? Active query +
    the user hasn't clicked a column header on that view this session. */
@@ -6819,13 +6815,7 @@ function renderOverview(){
   html+='<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid #e8edf2">'
     +'<div style="font-size:1.15em;font-weight:700;color:#1a252f;letter-spacing:0.01em;margin-bottom:5px">Gates Summary</div>'
     +'<div style="font-size:0.78em;color:#64748b;line-height:1.5">'+_subtitle
-    +' &middot; <span style="color:#94a3b8">click a category card, rating box, or map country to open those stocks in the Gate Matrix &middot; gate rows &amp; histogram bars filter in place</span></div>';
-  if(_dashFilter){
-    html+='<div style="margin-top:8px"><span onclick="clearDashFilter()" title="Clear this filter" '
-      +'style="display:inline-flex;align-items:center;gap:7px;cursor:pointer;background:#3b6fd4;color:#fff;'
-      +'font-size:0.74em;font-weight:600;padding:4px 11px;border-radius:12px">Filtering: '
-      +esc(_dashLabel())+' <span style="font-weight:700;font-size:1.15em;line-height:1">&times;</span></span></div>';
-  }
+    +' '+_qHelp('<span class="note-q-t">Tap a category card, rating box or map country to open those stocks in the Gate Matrix. Gate rows and histogram bars filter in place.</span>','How to use the dashboard')+'</div>';
   html+='</div>';
   /* Category score cards */
   html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">';
@@ -10853,8 +10843,10 @@ function openDet(tk){
         }else{
           bizDesc=bizDesc.charAt(0).toUpperCase()+bizDesc.slice(1);
         }
-        /* Three sentences, the rest behind Read more (phones; _dsToggle). */
-        var _bz=_dsSplit(bizDesc,3);
+        /* What the company does, the rest behind Read more (phones;
+           _dsToggle): one sentence, or two when the first is short. */
+        var _bz=_dsSplit(bizDesc,1);
+        if(_bz[1]&&_bz[0].length<110)_bz=_dsSplit(bizDesc,2);
         html+=_bz[1]?'<div class="ds-clip">'+P+esc(_bz[0])+'<span class="ds-more"> '+esc(_bz[1])+'</span></p>'+_DS_TOG+'</div>'
           :P+esc(bizDesc)+'</p>';
       }
@@ -12163,6 +12155,12 @@ function _macZoom(id){
   document.documentElement.classList.add('mz-open');
   _macZoomDraw();
 }
+/* Expand mark + the attributes that make a card open its larger chart. */
+var _MAC_EXP='<svg class="mac-tile-exp" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function _macZoomAttrs(id,label){
+  return ' role="button" tabindex="0" aria-label="'+_attr(label)+': open a larger chart" onclick="_macZoom(\''+_attr(id)+'\')"'
+    +' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_macZoom(\''+_attr(id)+'\');}"';
+}
 function _macZoomClose(){
   var o=document.getElementById('mac-zoom');
   if(!o||!o.classList.contains('open'))return false;
@@ -12180,6 +12178,15 @@ function _macZoomDraw(){
     if(!_MACRO_LOADING)_loadMacro();
     o.innerHTML=box+'<p class="mac-note">Loading chart…</p></div>';
     var poll=setInterval(function(){if(!_MACRO_LOADING||!_MZ.id){clearInterval(poll);_macZoomDraw();}},150);
+    return;
+  }
+  if(_MZ.id==='__curve__'){
+    o.innerHTML=box+'<div class="mz-body"></div></div>';
+    var cb=o.querySelector('.mz-body');
+    var cw=Math.max(260,Math.round(cb.clientWidth||600));
+    cb.innerHTML='<div class="mz-head"><div class="mz-t">Treasury Yield Curve</div></div>'
+      +_macCurveCard({w:cw,h:Math.round(Math.max(220,Math.min(cw*0.7,window.innerHeight*0.55,420)))})
+      +'<div class="mz-foot">Now, a month ago and a year ago · drag across the chart to read a maturity</div>';
     return;
   }
   var s=(MACRO.series||{})[_MZ.id];
@@ -12350,7 +12357,18 @@ function _qHelpToggle(btn,e){
   if(e)e.stopPropagation();
   var w=btn.parentNode,open=!w.classList.contains('open');
   _macRegimeHelpClose();
-  if(open){w.classList.add('open');btn.setAttribute('aria-expanded','true');}
+  if(open){
+    w.classList.add('open');btn.setAttribute('aria-expanded','true');
+    /* Keep the popover on screen: anchored right by default (or left for
+       qhelp-l), nudged back inside the viewport when it would spill. */
+    var pop=w.querySelector('.qhelp-pop');
+    if(pop){
+      pop.style.transform='';
+      var r=pop.getBoundingClientRect(),vw=document.documentElement.clientWidth,dx=0;
+      if(r.left<8)dx=8-r.left;else if(r.right>vw-8)dx=vw-8-r.right;
+      if(dx)pop.style.transform='translateX('+Math.round(dx)+'px)';
+    }
+  }
 }
 /* Any click outside an open explainer, or Escape, closes it. */
 document.addEventListener('click',function(e){
@@ -12586,7 +12604,7 @@ function _macNarrativeHTML(){
     var ss=_macSentences(p);
     if(!ss.length)return;
     h+='<div class="mac-fold">';
-    if(KICK[i])h+='<div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">'+KICK[i]+FOLD+'</div>';
+    if(KICK[i])h+='<div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">'+FOLD+KICK[i]+'</div>';
     h+='<p class="mac-nar-p">'+_esc(ss[0])+'</p><div class="mac-fold-b">';
     if(ss.length>1){
       h+='<ul class="mac-nar-ul">';
@@ -12606,7 +12624,7 @@ function _macNarrativeHTML(){
     watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
     h+='</ul>';
   }else if(tw.length||hw.length){
-    h+='<div class="mac-fold"><div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">The balance'+FOLD+'</div><div class="mac-fold-b">';
+    h+='<div class="mac-fold"><div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">'+FOLD+'The balance</div><div class="mac-fold-b">';
     if(tw.length){
       h+='<div class="mac-nar-wind up"><b>Working for the economy</b><ul class="mac-nar-ul">';
       tw.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
@@ -12667,7 +12685,8 @@ function _macOverviewHTML(){
       var asOf=_macAsOf(t);
       var dHTML=asOf.txt;
       /* Tap (or Enter) opens the series' full chart in a dialog (_macZoom). */
-      h+='<div class="mac-tile mac-tile-zoom" role="button" tabindex="0" aria-label="'+_attr(t.l)+': open a larger chart" onclick="_macZoom(\''+_attr(t.id)+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_macZoom(\''+_attr(t.id)+'\');}"><div class="mac-tile-l">'+t.l+'</div>'
+      h+='<div class="mac-tile mac-tile-zoom"'+_macZoomAttrs(t.id,t.l)+'>'+_MAC_EXP
+        +'<div class="mac-tile-l">'+t.l+'</div>'
         +'<div class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</div>'
         +'<div>'+_mdelta(t.chg_1m,t,'1M')+'</div>'
         +_mSparkSVG(t.spark,t.spark_d,hid,t.fmt,t.suffix)
@@ -12726,7 +12745,7 @@ function _macCardHTML(id,s){
   var hid=_macHid();
   var vHTML=_mfmt(s.latest?s.latest.v:null,s.fmt,s.suffix);
   var dHTML='as of '+(s.latest?s.latest.d:'?')+(s.prior?' · prior '+_mfmt(s.prior.v,s.fmt,s.suffix):'');
-  var h='<div class="mac-card"><div class="mac-card-head">'
+  var h='<div class="mac-card mac-tile-zoom"'+_macZoomAttrs(id,s.l)+'>'+_MAC_EXP+'<div class="mac-card-head">'
     +'<span class="mac-card-title">'+s.l+'</span>'
     +'<span class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</span>'
     +'<span>'+_mdelta(s.chg_1m,s,'1M')+_mdelta(s.chg_1y,s,'1Y')+'</span>'
@@ -12913,10 +12932,11 @@ function _macChartSVG(s,hid,px){
     +' ontouchstart="macHovTouch(event,\''+hid+'\')" ontouchmove="macHovTouch(event,\''+hid+'\')"'
     +' ontouchend="macHovLeave(\''+hid+'\')" ontouchcancel="macHovLeave(\''+hid+'\')">'+g+'</svg>';
 }
-function _macCurveCard(){
+function _macCurveCard(px){
   var c=MACRO.curve;
   if(!c||!c.now)return '';
-  var VW=560,VH=200,PL=46,PR=12,PT=12,PB=24;
+  /* px {w,h}: the zoom dialog's pixel size; otherwise the 560x200 box. */
+  var VW=px?px.w:560,VH=px?px.h:200,PL=46,PR=12,PT=12,PB=24,FS=px?11:9.5;
   var iW=VW-PL-PR,iH=VH-PT-PB;
   /* sqrt-scaled x, so the 1M–2Y front end doesn't collapse into a sliver. */
   var sx=c.yrs.map(function(y){return Math.sqrt(y);});
@@ -12935,10 +12955,10 @@ function _macCurveCard(){
   for(var gi=0;gi<=4;gi++){
     var gv=mn+(gi/4)*yr,gy=Y(gv).toFixed(1);
     if(gi>0&&gi<4)g+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" class="mac-grid" stroke-width="1"/>';
-    g+='<text x="'+(PL-6)+'" y="'+(parseFloat(gy)+3.5)+'" text-anchor="end" class="mac-ax" font-size="9.5">'+gv.toFixed(1)+'%</text>';
+    g+='<text x="'+(PL-6)+'" y="'+(parseFloat(gy)+3.5)+'" text-anchor="end" class="mac-ax" font-size="'+FS+'">'+gv.toFixed(1)+'%</text>';
   }
   c.tenors.forEach(function(t,i){
-    g+='<text x="'+X(i).toFixed(1)+'" y="'+(PT+iH+15)+'" text-anchor="middle" class="mac-ax" font-size="9">'+t+'</text>';
+    g+='<text x="'+X(i).toFixed(1)+'" y="'+(PT+iH+15)+'" text-anchor="middle" class="mac-ax" font-size="'+(px?11:9)+'">'+t+'</text>';
   });
   var styles={now:['#2f6fb4','',2],m1:['#e67e22','6,4',1.5],y1:['#8b949e','2,3',1.5]};
   ['y1','m1','now'].forEach(function(k){
@@ -12964,8 +12984,10 @@ function _macCurveCard(){
   });
   _MAC_HOV[hid]={kind:'curve',c:c,sx:sx,sxMax:sxMax,PL:PL,PT:PT,iW:iW,iH:iH,
                  mn:mn,yr:yr,styles:styles,legend:legInner};
-  return '<div class="mac-card"><div class="mac-card-head"><span class="mac-card-title">Treasury Yield Curve</span></div>'
-    +'<svg id="'+hid+'" viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:auto;max-height:280px;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
+  var svgSt=px?'height:'+VH+'px':'height:auto;max-height:280px';
+  return (px?'<div>':'<div class="mac-card mac-tile-zoom"'+_macZoomAttrs('__curve__','Treasury Yield Curve')+'>'+_MAC_EXP)
+    +(px?'':'<div class="mac-card-head"><span class="mac-card-title">Treasury Yield Curve</span></div>')
+    +'<svg id="'+hid+'" viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;'+svgSt+';cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
     +' onmousemove="macHovMove(event,\''+hid+'\')" onmouseleave="macHovLeave(\''+hid+'\')"'
     +' ontouchstart="macHovTouch(event,\''+hid+'\')" ontouchmove="macHovTouch(event,\''+hid+'\')"'
     +' ontouchend="macHovLeave(\''+hid+'\')" ontouchcancel="macHovLeave(\''+hid+'\')">'+g+'</svg>'+leg+'</div>';
