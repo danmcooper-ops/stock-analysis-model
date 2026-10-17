@@ -40,7 +40,7 @@ def _render(history, call, tmp_path, entry=None):
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ppBn', '_ord',
              '_pphNice', '_pphSvgs', 'renderPoolHistory', '_ppShiftRows', 'renderPoolShifts',
              '_ppIndCls', '_ppiV', '_ppiTh', 'renderPoolIndustries', '_ppEpRows', 'renderPoolEcon',
-             '_ppStructureStats']
+             '_ppStructureStats', '_qHelp', '_noteQ']
     sp = dict(entry or {}, history=history)
     js = '\n'.join(
         ["var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
@@ -194,7 +194,7 @@ def _render_signals(entry, tmp_path, stored=None):
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
              '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
              '_ppfCard', '_ppfLive', '_ppfCollapsedState', '_ppfCol', '_qHelp',
-             'renderPoolSectorSignals']
+             '_noteQ', 'renderPoolSectorSignals']
     consts = '\n'.join(re.search(r'^var %s=.*$' % v, src, re.M).group(0)
                        for v in ('_PPF_ST', '_PPF_ORDER', '_PPF_TYPE'))
     store = ('var localStorage={getItem:function(){return %s;}};' % json.dumps(json.dumps(stored))
@@ -296,7 +296,8 @@ def test_an_industry_force_names_its_industry_once(tmp_path):
 
 def _render_co_table(shown, tail, tmp_path):
     src = TEMPLATE.read_text(encoding='utf-8')
-    names = ['_ppPct', '_ppSgnPct', '_ppiV', '_ppiTh', '_ppSkewTd', 'renderPoolCompanyTable']
+    names = ['_ppPct', '_ppSgnPct', '_ppiV', '_ppiTh', '_ppSkewTd', '_qHelp', '_noteQ',
+             'renderPoolCompanyTable']
     js = '\n'.join(["var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
                     'function _esc(s){return String(s);}function _attr(s){return String(s);}',
                     re.search(r'^var _PP_BS_INDUSTRIES=.*$', src, re.M).group(0),

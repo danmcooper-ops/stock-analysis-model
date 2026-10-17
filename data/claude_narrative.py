@@ -3,9 +3,9 @@
 Serializes the macro.json sidecar's numeric facts (regime model output,
 FRED series with changes/percentiles, the Treasury curve, credit spreads,
 and per-sector ETF momentum) into a prompt for the Claude API and returns
-a structured narrative: economy-wide paragraphs, headwind/tailwind bullets,
-and one entry per GICS sector — an `influence` paragraph, a kicker and a
-stance — which the Overview's "Key sector influences" section sets as
+a structured narrative: a bottom line, economy-wide paragraphs, what to
+watch, and one entry per GICS sector — an `influence` paragraph, a kicker and a
+stance — which the Overview's "Sectors" chips open as
 full prose. The LLM call is network I/O, so this lives in data/ rather
 than models/.
 
@@ -64,17 +64,25 @@ REQUEST_TIMEOUT_S = 900
 # v6: each influence blends the sector's structural headwinds/tailwinds
 #     (the Sector Analysis tab's list) with today's macro forces. Same
 #     shape; bumped so a same-day v5 cache is not replayed.
-SCHEMA_VERSION = 6
+# v7: the Overview reorganised — a `bottom_line` that leads (and reconciles
+#     the regime model's label with the data), `watch` (what would change
+#     the call) in place of the economy-wide headwinds/tailwinds, which
+#     restated the sections' bullets, and a rule against repeating figures.
+SCHEMA_VERSION = 7
+
+# Ceilings for the v7 fields, in words; counted post-parse, never enforced.
+BOTTOM_LINE_MAX_WORDS = 60
+WATCH_ITEMS = 3
 
 # Advisory floor for a sector's influence paragraph, only ever counted:
 # under it the Overview is back to reading like a kicker, which is what
 # the paragraph replaced.
 MIN_INFLUENCE_WORDS = 20
 
-# Target length of the Overview read (paragraphs + economy-wide winds +
-# sector headlines and influences), ~3 minutes. The per-field ceilings in
-# the prompt sum to it: 3 x (20 + 3 x 20) + 8 x 12 + 11 x (4 + 40) ~= 820
-# at the ceilings, ~750 as drawn. Influences are drawn at their ceiling:
+# Target length of the Overview read (bottom line + paragraphs + what to
+# watch + sector headlines and influences), ~3 minutes. The per-field
+# ceilings in the prompt sum to it: 60 + 3 x (20 + 3 x 20) + 3 x 20 +
+# 11 x (4 + 40) ~= 844 at the ceilings, ~750 as drawn. Influences are drawn at their ceiling:
 # a 45-word one put the v6 Overview at 820 words. Counted post-parse, never enforced.
 OVERVIEW_WORD_BUDGET = 750
 
@@ -105,6 +113,7 @@ PARAGRAPH_KEYS = ('growth_labor', 'inflation_rates', 'credit_conditions')
 NARRATIVE_SCHEMA = {
     'type': 'object',
     'properties': {
+        'bottom_line': {'type': 'string'},
         # Three named paragraphs rather than an array: the grammar CAN pin a
         # fixed set of required object keys, which is how "exactly 3" is
         # actually enforced (the prompt alone was ignored — a live run
@@ -123,8 +132,7 @@ NARRATIVE_SCHEMA = {
                          'credit_conditions'],
             'additionalProperties': False,
         },
-        'headwinds': {'type': 'array', 'items': {'type': 'string'}},
-        'tailwinds': {'type': 'array', 'items': {'type': 'string'}},
+        'watch': {'type': 'array', 'items': {'type': 'string'}},
         'sectors': {
             'type': 'array',
             'items': {
@@ -144,7 +152,7 @@ NARRATIVE_SCHEMA = {
             },
         },
     },
-    'required': ['paragraphs', 'headwinds', 'tailwinds', 'sectors'],
+    'required': ['bottom_line', 'paragraphs', 'watch', 'sectors'],
     'additionalProperties': False,
 }
 
@@ -167,11 +175,23 @@ SYSTEM_PROMPT = (
     "series the way a reader knows it ('the 10-year Treasury yield', not "
     "'DGS10'). Give a percentile its window once ('71st percentile of 10 "
     "years') rather than on every mention.\n"
-    '- Length: the Overview prints the paragraphs, the economy-wide '
-    'headwinds/tailwinds, and every sector headline and influence, and '
+    '- Length: the Overview prints the bottom line, the paragraphs, what '
+    'to watch, and every sector headline and influence, and '
     f'that read must total about {OVERVIEW_WORD_BUDGET} words. The word '
     'limits below add up to that budget; treat each as a ceiling and '
     'spend the words on meaning, not on more figures.\n'
+    '- Say each figure once. Across the bottom line, the paragraphs and '
+    'what to watch, cite each indicator\'s number at most once; later '
+    'mentions name the indicator without restating the figure. A sector '
+    'influence may repeat a number only for the force that drives that '
+    'sector.\n'
+    f'- bottom_line: 2 or 3 sentences, {BOTTOM_LINE_MAX_WORDS} words '
+    'maximum, read first and alone: where the economy stands, the one '
+    'tension that matters most, and what that means for equity investors. '
+    "It must square with the regime model's label and composite in the "
+    'data: when the indicators read weaker or stronger than the label, say '
+    'so and why the market signals still read as they do. At most two '
+    'figures.\n'
     '- paragraphs: three named sections — growth_labor, inflation_rates, '
     'credit_conditions — each a lead and its points. The page sets the '
     'lead as a paragraph and each point as a bullet under it.\n'
@@ -186,15 +206,16 @@ SYSTEM_PROMPT = (
     'second clause of figures onto the first, no mixed metaphors.\n'
     '  Each sentence must stand alone as a bullet: no sentence that opens '
     "with 'This', 'That' or 'It' pointing back at the one before.\n"
-    '- headwinds / tailwinds: AT MOST 4 of each — only the sharpest '
-    'economy-wide risks and supports. Each one clause, 12 words maximum, '
-    "in the form indicator, figure, consequence: 'initial claims at "
-    "197,000, the tightest in a decade, keep incomes growing'. No two "
-    'items on the same indicator.\n'
+    f'- watch: exactly {WATCH_ITEMS} items, what would change the call — '
+    'each the indicator, the level or move that would matter, and what it '
+    "would signal, one sentence of 20 words or fewer: 'Initial claims "
+    "above 250,000 would say layoffs have started, ending the labor "
+    "story.' Each on a different indicator family; thresholds may be new "
+    'numbers, but never restate a current reading already given.\n'
     '- sectors: one entry for EVERY GICS sector listed in the data (all '
     '11, including any without ETF metrics), each written in this order:\n'
-    '  influence: the read the Overview prints under "Key sector '
-    'influences", where it is the only thing a reader sees about the '
+    '  influence: the read a sector\'s chip opens under the Overview\'s '
+    '"Sectors", where it is the only thing a reader sees about the '
     'sector. 3 short complete sentences, 30 to 40 words in all, plain '
     'declarative '
     'prose rather than wordplay. Explain the MECHANISM: the one or two '
@@ -290,8 +311,10 @@ def overview_word_count(narrative):
 
     def wc(x):
         return len(str(x).split()) if x else 0
-    total = sum(wc(x) for k in ('paragraphs', 'tailwinds', 'headwinds')
-                for x in (n.get(k) or []))
+    total = wc(n.get('bottom_line'))
+    total += sum(wc(x) for k in ('paragraphs', 'watch', 'tailwinds',
+                                 'headwinds')
+                 for x in (n.get(k) or []))
     for e in n.get('sectors') or []:
         if isinstance(e, dict):
             total += wc(e.get('headline')) + wc(e.get('influence'))
@@ -468,6 +491,13 @@ class ClaudeNarrativeClient:
         if thin:
             logger.warning('macro narrative: %d sector influences under %d '
                            'words', thin, MIN_INFLUENCE_WORDS)
+        if len(narrative.get('watch') or []) != WATCH_ITEMS:
+            logger.warning('macro narrative: %d watch items (expected %d)',
+                           len(narrative.get('watch') or []), WATCH_ITEMS)
+        if len(str(narrative.get('bottom_line') or '').split()) > \
+                1.25 * BOTTOM_LINE_MAX_WORDS:
+            logger.warning('macro narrative: bottom line runs %d words',
+                           len(str(narrative.get('bottom_line')).split()))
         words = overview_word_count(narrative)
         log = logger.warning if words > 1.25 * OVERVIEW_WORD_BUDGET \
             else logger.info

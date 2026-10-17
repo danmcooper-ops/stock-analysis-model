@@ -153,6 +153,20 @@ class TestBuildMacroFacts:
                      '3 to 5 bullets in TOTAL'):
             assert gone not in p, '%r is a dropped field' % gone
 
+    def test_v7_leads_with_a_bottom_line_and_watches_instead_of_winds(self):
+        props = NARRATIVE_SCHEMA['properties']
+        assert SCHEMA_VERSION >= 7
+        assert list(props)[0] == 'bottom_line', 'written before the argument'
+        assert set(NARRATIVE_SCHEMA['required']) == {
+            'bottom_line', 'paragraphs', 'watch', 'sectors'}
+        assert 'headwinds' not in props and 'tailwinds' not in props
+        p = SYSTEM_PROMPT
+        assert "square with the regime model's label" in p
+        assert 'what would change the call' in p
+        assert 'Say each figure once' in p
+        assert overview_word_count({'bottom_line': 'a b c',
+                                    'watch': ['d e']}) == 5
+
     def test_overview_word_count_counts_what_the_page_prints(self):
         n = {'paragraphs': ['One two three.', 'Four.'],
              'tailwinds': ['five six'], 'headwinds': [],

@@ -1320,6 +1320,11 @@ td.ct{font-weight:700;}
 .qhelp-pop{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:max-content;max-width:min(300px,80vw);
   padding:10px 12px;border:1px solid var(--ppf-line);border-radius:8px;background:var(--ppf-bg);box-shadow:0 6px 20px rgba(0,0,0,.25);}
 .qhelp.open .qhelp-pop{display:block;}
+.qhelp-l .qhelp-pop{right:auto;left:0;}
+.qhelp{display:inline-block;vertical-align:middle;text-transform:none;letter-spacing:0;}
+.note-q{display:flex;justify-content:flex-end;margin:6px 0 0;}
+.note-q-t{display:block;font-size:13px;font-weight:400;line-height:1.45;color:var(--ppf-sub);text-align:left;white-space:normal;}
+.qhelp-pop{max-height:60vh;overflow-y:auto;}
 .qhelp-pop .ppf-key{flex-direction:column;align-items:flex-start;gap:6px;margin:0;padding:0;border:0;font-size:13px;}
 .qhelp-pop .ppf-key span{white-space:normal;}
 .ppf-key{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:0.74em;color:var(--ppf-sub);margin:0 0 12px;padding:6px 0;border-top:1px solid var(--ppf-line);border-bottom:1px solid var(--ppf-line);}
@@ -2121,12 +2126,13 @@ body.wide-table .container{padding-left:0;padding-right:0;}
    the tables: hairline borders, one accent, muted axis chrome, prose set
    at a book measure. Everything is a token on #macro-view; dark mode swaps
    the tokens instead of chasing hex values through the SVGs. */
-#macro-view{--mac-card:#fff;--mac-border:#e4e8ee;--mac-muted:#6b7784;--mac-faint:#9aa5b1;
+/* The tokens also serve the tile zoom dialog (.mz-box), which sits in body. */
+#macro-view,.mz-box{--mac-card:#fff;--mac-border:#e4e8ee;--mac-muted:#6b7784;--mac-faint:#9aa5b1;
   --mac-line:#edf0f4;--mac-accent:#2f6fb4;--mac-up:#1f8a4c;--mac-up-bg:#e8f5ee;
   --mac-down:#c2402f;--mac-down-bg:#fbeae7;--mac-chip:#f2f4f7;
-  --mac-shadow:0 1px 2px rgba(16,24,40,0.04);
-  max-width:1120px;margin:0 auto;padding:12px 8px 48px;font-size:15px;line-height:1.5;}
-[data-theme="dark"] #macro-view{--mac-card:#161b22;--mac-border:#2a313a;--mac-muted:#8b949e;
+  --mac-shadow:0 1px 2px rgba(16,24,40,0.04);}
+#macro-view{max-width:1120px;margin:0 auto;padding:12px 8px 48px;font-size:15px;line-height:1.5;}
+[data-theme="dark"] .mz-box,[data-theme="dark"] #macro-view{--mac-card:#161b22;--mac-border:#2a313a;--mac-muted:#8b949e;
   --mac-faint:#6e7681;--mac-line:#242b34;--mac-accent:#5b9cf0;--mac-up:#6fd08c;--mac-up-bg:#10261a;
   --mac-down:#ff8a80;--mac-down-bg:#2c1518;--mac-chip:#21262d;--mac-shadow:none;}
 .mac-card,.mac-tile,.mac-regime{border:1px solid var(--mac-border);border-radius:12px;background:var(--mac-card);box-shadow:var(--mac-shadow);}
@@ -2163,9 +2169,24 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 /* Two columns only where the rail has room; below that the tiles follow
    the story and keep the phone floors set further down (those rules are
    single-class, so nothing here may outrank them). */
-.mac-overview{display:grid;grid-template-columns:1fr;gap:18px;align-items:start;}
-.mac-overview .mac-tiles{margin:0;}
-@media(min-width:1001px){.mac-overview{grid-template-columns:minmax(0,1fr) 400px;}.mac-overview .mac-tiles{grid-template-columns:1fr 1fr;}}
+.mac-overview{display:block;}
+.mac-overview .mac-tiles{margin:0 0 18px;}
+@media(min-width:1001px){.mac-overview .mac-tiles{grid-template-columns:repeat(4,minmax(0,1fr));}}
+/* Overview section headings: one level, the same everywhere. */
+.mac-h{font-size:1.05em;font-weight:700;margin:22px 0 8px;padding-top:14px;border-top:1px solid var(--mac-line);color:inherit;}
+.mac-narrative>.mac-h:first-child{margin-top:0;padding-top:0;border-top:0;}
+.mac-h-out{margin:4px 0 10px;padding-top:0;border-top:0;}
+.mac-read{flex:1 1 100%;margin:8px 0 0;font-size:0.98em;line-height:1.55;color:inherit;}
+.mac-regime-main{flex:1 1 300px;}
+.mac-watch li{margin:4px 0;}
+.mac-stale{color:#b7791f !important;}
+.mac-sec-chip{display:inline-block;padding:2px 8px;border-radius:9px;background:var(--mac-card);border:1px solid var(--mac-border);color:var(--mac-accent);font:inherit;font-weight:600;white-space:nowrap;cursor:pointer;}
+.mac-sec-chip[aria-expanded="true"]{background:var(--mac-accent);border-color:var(--mac-accent);color:#fff;}
+[data-theme="dark"] .mac-sec-chip[aria-expanded="true"]{color:#0d1117 !important;}
+.mac-sec-read{margin-top:8px;padding-top:8px;border-top:1px solid var(--mac-border);font-size:1.05em;line-height:1.5;}
+.mac-sec-read p{margin:2px 0 6px;}
+.mac-sec-read .mac-nar-kick{font-style:italic;font-weight:600;}
+.mac-sec-open{font-weight:600;color:var(--mac-accent);text-decoration:none;}
 /* --- narrative: a lead sentence per section, evidence as bullets, at a reading measure --- */
 .mac-narrative{max-width:78ch;padding:22px 28px 18px;}
 .mac-nar-k{font-size:0.72em;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--mac-muted);margin:18px 0 4px;}
@@ -2235,6 +2256,37 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 /* --- glance tiles --- */
 .mac-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:0 0 18px;}
 .mac-tile{padding:14px 16px;}
+/* Narrative folds (_macFold): phones only; desktop shows it all and no chevron. */
+.mac-fold-btn{display:none;}
+@media(max-width:768px){
+  .mac-fold-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin:-6px -6px -6px 2px;
+    padding:0;border:0;background:none;color:var(--mac-muted);cursor:pointer;vertical-align:middle;}
+  /* .ppf-chev points down; folded it points right. */
+  .mac-fold-btn .ppf-chev{margin:0;transform:rotate(-90deg);}
+  .mac-fold.open .mac-fold-btn .ppf-chev{transform:none;}
+  .mac-fold-h{cursor:pointer;}
+  .mac-nar-k.mac-fold-h{display:flex;align-items:center;justify-content:space-between;}
+  .mac-fold:not(.open) .mac-fold-b{display:none;}
+}
+.mac-tile-zoom{cursor:pointer;}
+.mac-tile-zoom:hover{border-color:var(--mac-accent);}
+.mac-tile-zoom:focus-visible{outline:2px solid var(--mac-accent);outline-offset:2px;}
+/* Tile zoom dialog (_macZoom). Sits in body, outside #macro-view, so it
+   restates the tokens it reads. */
+.mac-zoom{display:none;position:fixed;inset:0;z-index:1600;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;padding:16px;}
+.mac-zoom.open{display:flex;}
+html.mz-open,html.mz-open body{overflow:hidden;}
+.mz-box{position:relative;width:min(760px,100%);max-height:calc(100dvh - 32px);overflow-y:auto;background:#fff;color:#1f2328;
+  border-radius:14px;padding:16px 16px 12px;box-shadow:0 12px 40px rgba(0,0,0,0.35);font-size:15px;line-height:1.5;}
+[data-theme="dark"] .mz-box{background:#161b22;color:#e6edf3;}
+.mz-x{position:absolute;top:8px;right:8px;width:34px;height:34px;border:0;border-radius:8px;background:transparent;color:inherit;font-size:24px;line-height:1;cursor:pointer;}
+.mz-x:hover{background:rgba(127,127,127,0.15);}
+.mz-head{padding-right:36px;}
+.mz-t{font-size:0.95em;font-weight:600;color:var(--mac-muted);}
+.mz-v{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:2px 0 8px;}
+.mz-v .mac-tile-v{margin:0;}
+.mz-rng{display:flex;gap:4px;margin:0 0 8px;}
+.mz-foot{font-size:0.72em;color:var(--mac-faint);margin-top:6px;}
 .mac-tile-l{font-size:0.76em;font-weight:600;color:var(--mac-muted);}
 .mac-tile-v{font-size:1.55em;font-weight:700;letter-spacing:-0.01em;line-height:1.15;font-variant-numeric:tabular-nums;margin:3px 0 5px;}
 .mac-delta{display:inline-block;border-radius:9px;padding:1px 8px;font-size:0.74em;font-weight:600;font-variant-numeric:tabular-nums;background:var(--mac-chip);color:var(--mac-muted);margin-right:5px;}
@@ -11286,7 +11338,7 @@ document.addEventListener('keydown',function(e){
     return;
   }
   /* An open Market Regime explainer takes the first Escape. */
-  if(e.key==='Escape'&&_macRegimeHelpClose()){e.preventDefault();return;}
+  if(e.key==='Escape'&&(_macZoomClose()||_macRegimeHelpClose())){e.preventDefault();return;}
   if(_hkBlocked(e))return;
   _hkDispatch(e);
 });
@@ -12092,6 +12144,78 @@ function _mSparkSVG(vals,dates,hid,fmt,suffix){
     +' ontouchstart="macHovTouch(event,\''+hid+'\')" ontouchmove="macHovTouch(event,\''+hid+'\')"'
     +' ontouchend="macHovLeave(\''+hid+'\')" ontouchcancel="macHovLeave(\''+hid+'\')">'+g+'</svg>';
 }
+/* === MACRO TILE ZOOM ===
+   An Overview tile opens its series' full history in a dialog: the same
+   card the section sub-tabs draw (recession bands, scrub readout), drawn at
+   the dialog's pixel width, with a range switch. The history rides
+   macro.json, so a tap before that sidecar lands waits for it. */
+var _MZ={id:null,rng:'10Y'};
+function _macZoom(id){
+  _MZ.id=id;
+  var o=document.getElementById('mac-zoom');
+  if(!o){
+    o=document.createElement('div');o.id='mac-zoom';o.className='mac-zoom';
+    o.setAttribute('role','dialog');o.setAttribute('aria-modal','true');
+    o.onclick=function(e){if(e.target===o)_macZoomClose();};
+    document.body.appendChild(o);
+  }
+  o.classList.add('open');
+  document.documentElement.classList.add('mz-open');
+  _macZoomDraw();
+}
+function _macZoomClose(){
+  var o=document.getElementById('mac-zoom');
+  if(!o||!o.classList.contains('open'))return false;
+  o.classList.remove('open');o.innerHTML='';
+  document.documentElement.classList.remove('mz-open');
+  _MZ.id=null;
+  return true;
+}
+function _macZoomRange(r){_MZ.rng=r;_macZoomDraw();}
+function _macZoomDraw(){
+  var o=document.getElementById('mac-zoom');if(!o||!_MZ.id)return;
+  var box='<div class="mz-box"><button type="button" class="mz-x" aria-label="Close" onclick="_macZoomClose()">&times;</button>';
+  if(!MACRO){
+    if(_MACRO_FAILED){o.innerHTML=box+'<p class="mac-note">The chart data could not be loaded.</p></div>';return;}
+    if(!_MACRO_LOADING)_loadMacro();
+    o.innerHTML=box+'<p class="mac-note">Loading chart…</p></div>';
+    var poll=setInterval(function(){if(!_MACRO_LOADING||!_MZ.id){clearInterval(poll);_macZoomDraw();}},150);
+    return;
+  }
+  var s=(MACRO.series||{})[_MZ.id];
+  if(!s){o.innerHTML=box+'<p class="mac-note">No history for this series.</p></div>';return;}
+  var d=(s.hist&&s.hist.d)||[],v=(s.hist&&s.hist.v)||[];
+  var yrs={'1Y':1,'5Y':5,'10Y':10}[_MZ.rng],cut=0;
+  if(yrs&&d.length){
+    var lim=Date.parse(d[d.length-1])-yrs*365.25*864e5;
+    while(cut<d.length-2&&Date.parse(d[cut])<lim)cut++;
+  }
+  var sv={};for(var k in s)sv[k]=s[k];
+  sv.hist={d:d.slice(cut),v:v.slice(cut)};
+  var spanY=d.length?(Date.parse(d[d.length-1])-Date.parse(d[0]))/(365.25*864e5):0;
+  var btns=['1Y','5Y','10Y','Max'].filter(function(r){return r==='Max'||spanY>({'1Y':1,'5Y':5,'10Y':10}[r])*1.1||r==='1Y';})
+    .map(function(r){return '<button type="button" class="pp-range-btn'+(r===_MZ.rng?' active':'')+'" onclick="_macZoomRange(\''+r+'\')">'+r+'</button>';}).join('');
+  /* Measure the box empty first: the chart is drawn at its pixel width. */
+  o.innerHTML=box+'<div class="mz-body"></div></div>';
+  var body=o.querySelector('.mz-body');
+  var w=Math.max(260,Math.round(body.clientWidth||600));
+  var h=Math.round(Math.max(220,Math.min(w*0.7,window.innerHeight*0.55,420)));
+  var hid=_macHid();
+  var vHTML=_mfmt(s.latest?s.latest.v:null,s.fmt,s.suffix);
+  var dHTML='as of '+(s.latest?s.latest.d:'?')+(s.prior?' · prior '+_mfmt(s.prior.v,s.fmt,s.suffix):'');
+  body.innerHTML='<div class="mz-head"><div class="mz-t">'+s.l+'</div>'
+    +'<div class="mz-v"><span class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</span>'+_mdelta(s.chg_1m,s,'1M')+_mdelta(s.chg_1y,s,'1Y')+'</div></div>'
+    +'<div class="mz-rng">'+btns+'</div>'
+    +_macChartSVG(sv,hid,{w:w,h:h})
+    +_mpctRow(s)
+    +'<div class="mac-tile-date" id="'+hid+'-d">'+dHTML+'</div>'
+    +'<div class="mz-foot">FRED · shaded bands mark NBER recessions · drag across the chart to read a date</div>';
+  _macRegisterReadout(hid,vHTML,dHTML);
+}
+window.addEventListener('resize',function(){
+  if(!_MZ.id)return;
+  clearTimeout(window._mzT);window._mzT=setTimeout(_macZoomDraw,150);
+});
 function _loadMacro(){
   _MACRO_LOADING=true;
   _loadSidecar('macro.json',function(d){
@@ -12176,7 +12300,12 @@ function _macRegimeHTML(full){
   var h='<div class="mac-regime"><div class="mac-regime-main"><div class="mac-regime-k">Market regime</div>'
     +'<div class="mac-regime-name"><span class="mac-regime-dot" style="background:'+col+'"></span>'+_esc(name)+'</div>'
     +'<div class="mac-regime-gloss">'+(_MAC_REGIME_GLOSS[src.regime]||'')
-    +(comp!=null?' · composite <span>'+(comp>=0?'+':'')+comp.toFixed(2)+'</span>':'')+'</div></div>';
+    +(comp!=null?' · composite <span>'+(comp>=0?'+':'')+comp.toFixed(2)+'</span>':'')+'</div>';
+  /* The bottom line (narrative schema v7): where the economy is, the tension
+     that matters, and why the signals read as they do. Overview only. */
+  var _nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
+  if(full&&_nar&&_nar.bottom_line)h+='<p class="mac-read">'+_esc(_nar.bottom_line)+'</p>';
+  h+='</div>';
   /* Each input scored −1…+1 draws as a bar from the centre line: the
      direction is the read, the number is there for the curious. Only the
      Overview carries the meters; the chart sub-tabs get the one-liner. */
@@ -12208,9 +12337,14 @@ function _macRegimeHelp(btn,e){
 }
 /* A ? button that opens its content in a small popover (the sector forces'
    status key). Same open/close rules as the regime explainer. */
-function _qHelp(content,label){
-  return '<span class="qhelp"><button type="button" class="qhelp-btn" aria-label="'+_attr(label||'Help')+'" aria-expanded="false" onclick="_qHelpToggle(this,event)">?</button>'
+function _qHelp(content,label,align){
+  return '<span class="qhelp'+(align==='l'?' qhelp-l':'')+'"><button type="button" class="qhelp-btn" aria-label="'+_attr(label||'Help')+'" aria-expanded="false" onclick="_qHelpToggle(this,event)">?</button>'
     +'<span class="qhelp-pop" role="tooltip">'+content+'</span></span>';
+}
+/* A methodology footnote, kept out of the reading flow: a ? at the right
+   end of a slim row opens it (the same popover as _qHelp). */
+function _noteQ(html,label){
+  return '<div class="note-q">'+_qHelp('<span class="note-q-t">'+html+'</span>',label||'How this is built')+'</div>';
 }
 function _qHelpToggle(btn,e){
   if(e)e.stopPropagation();
@@ -12397,9 +12531,30 @@ function _macStanceStrip(grp,secLink){
   [['up','▲ Tailwind'],['','● Neutral'],['down','▼ Headwind']].forEach(function(g){
     var items=grp[g[0]];
     o+='<div class="mac-stance-col '+(g[0]||'flat')+'"><div class="mac-stance-h">'+g[1]+' <span>'+items.length+'</span></div>'
-      +'<div class="mac-stance-chips">'+(items.length?items.map(secLink).join(''):'<em>none</em>')+'</div></div>';
+      +'<div class="mac-stance-chips">'+(items.length?items.map(secLink).join(''):'<em>none</em>')+'</div>'
+      +'<div class="mac-sec-read" hidden></div></div>';
   });
   return o+'</div>';
+}
+function _macSecPick(btn,i){
+  var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
+  var row=nar&&(nar.sectors||[])[i];if(!row)return;
+  var col=btn.closest('.mac-stance-col'),rd=col&&col.querySelector('.mac-sec-read');if(!rd)return;
+  var was=btn.getAttribute('aria-expanded')==='true';
+  col.querySelectorAll('.mac-sec-chip').forEach(function(b){b.setAttribute('aria-expanded','false');});
+  if(was){rd.hidden=true;rd.innerHTML='';return;}
+  btn.setAttribute('aria-expanded','true');
+  rd.innerHTML=(row.headline?'<div class="mac-nar-kick">'+_esc(row.headline)+'</div>':'')
+    +'<p>'+_esc(row.influence)+'</p>'
+    +'<a href="#" class="mac-sec-open" onclick="return _macGoSector('+i+')">Open '+_esc(row.sector)+' ›</a>';
+  rd.hidden=false;
+}
+function _macFold(el,e){
+  if(e)e.stopPropagation();
+  var f=el.closest('.mac-fold');if(!f)return;
+  var open=f.classList.toggle('open');
+  var b=f.querySelector('.mac-fold-btn');
+  if(b){b.setAttribute('aria-expanded',open?'true':'false');b.setAttribute('aria-label',open?'Show less':'Show more');}
 }
 function _macNarrativeHTML(){
   /* Claude-written narrative from the builder (data/claude_narrative.py),
@@ -12422,22 +12577,36 @@ function _macNarrativeHTML(){
      growth_labor, inflation_rates, credit_conditions); an older cache with
      a different count simply runs unkickered. */
   var KICK=ps.length===3?['Growth & labor','Inflation & rates','Credit & conditions']:[];
-  var h='<div class="mac-card mac-narrative">';
+  var h='<div class="mac-card mac-narrative"><h3 class="mac-h">The economy</h3>';
+  /* Phones fold each section to its kicker and lead sentence, and each
+     sector influence to its name and kicker; the chevron (or a tap on the
+     kicker) opens the rest (_macFold). Desktop shows everything. */
+  var FOLD='<button type="button" class="mac-fold-btn" aria-expanded="false" aria-label="Show more" onclick="_macFold(this,event)"><i class="ppf-chev" aria-hidden="true"></i></button>';
   ps.forEach(function(p,i){
-    if(KICK[i])h+='<div class="mac-nar-k">'+KICK[i]+'</div>';
     var ss=_macSentences(p);
     if(!ss.length)return;
-    h+='<p class="mac-nar-p">'+_esc(ss[0])+'</p>';
+    h+='<div class="mac-fold">';
+    if(KICK[i])h+='<div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">'+KICK[i]+FOLD+'</div>';
+    h+='<p class="mac-nar-p">'+_esc(ss[0])+'</p><div class="mac-fold-b">';
     if(ss.length>1){
       h+='<ul class="mac-nar-ul">';
       ss.slice(1).forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
       h+='</ul>';
     }
     if(KICK[i])h+=_macNarFigure(i,p);
+    h+='</div></div>';
   });
+  /* What to watch (schema v7): the readings that would change the call.
+     An older narrative has no watch list and keeps The balance, its
+     economy-wide tailwinds and headwinds. */
+  var watch=(nar.watch||[]).filter(Boolean);
   var tw=(nar.tailwinds||[]).filter(Boolean),hw=(nar.headwinds||[]).filter(Boolean);
-  if(tw.length||hw.length){
-    h+='<div class="mac-nar-k">The balance</div>';
+  if(watch.length){
+    h+='<h3 class="mac-h">What to watch</h3><ul class="mac-nar-ul mac-watch">';
+    watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
+    h+='</ul>';
+  }else if(tw.length||hw.length){
+    h+='<div class="mac-fold"><div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">The balance'+FOLD+'</div><div class="mac-fold-b">';
     if(tw.length){
       h+='<div class="mac-nar-wind up"><b>Working for the economy</b><ul class="mac-nar-ul">';
       tw.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
@@ -12448,10 +12617,13 @@ function _macNarrativeHTML(){
       hw.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
       h+='</ul></div>';
     }
+    h+='</div></div>';
   }
-  /* Key sector influences: tailwinds, then headwinds, then the neutral
-     sectors folded into one line. Stance picks the group only through the
-     whitelist, never echoed from the model. */
+  /* Sectors: the stance chips are the index. A chip opens that sector's
+     kicker and influence in place, under its own stance column, with the
+     way into the sector page; the stance whitelist picks the column, never
+     the model's text. A pre-v3 narrative has no influence, so its chips
+     link straight to the sector page as before. */
   var STANCE={tailwind:'up',headwind:'down'};
   var grp={up:[],down:[],'':[]};
   (nar.sectors||[]).forEach(function(row,i){
@@ -12459,46 +12631,18 @@ function _macNarrativeHTML(){
     grp[STANCE[row.stance]||''].push({row:row,i:i});
   });
   if(grp.up.length||grp.down.length){
-    h+='<div class="mac-nar-k">Key sector influences</div>';
+    h+='<h3 class="mac-h">Sectors</h3>';
     var secLink=function(it){
+      var row=it.row;
+      if((row.influence))return '<button type="button" class="mac-sec-chip" aria-expanded="false" onclick="_macSecPick(this,'+it.i+')">'+_esc(it.row.sector)+'</button>';
       return '<a href="#" onclick="return _macGoSector('+it.i+')">'+_esc(it.row.sector)+'</a>';
     };
     h+=_macStanceStrip(grp,secLink);
-    var hasInf=function(it){var row=it.row;return !!(row.influence);};
-    var secList=function(items,cls,label){
-      if(!items.length)return '';
-      var o='<div class="mac-nar-wind '+cls+'"><b>'+label+'</b>';
-      var prose=items.filter(hasInf);
-      var rest=items.filter(function(it){return !hasInf(it);});
-      prose.forEach(function(it){
-        var row=it.row;
-        o+='<p class="mac-nar-inf mac-nar-infp">'+secLink(it)
-          +(row.headline?' <span class="mac-nar-kick">'+_esc(row.headline)+'</span>':'')
-          +'<br>'+_esc(row.influence)+'</p>';
-      });
-      if(rest.length){
-        o+='<ul class="mac-nar-ul mac-nar-inf">';
-        rest.forEach(function(it){
-          var row=it.row;
-          o+='<li>'+secLink(it)+(row.headline?' — '+_esc(row.headline):'')+'</li>';
-        });
-        o+='</ul>';
-      }
-      return o+'</div>';
-    };
-    h+=secList(grp.up,'up','▲ Macro tailwind');
-    h+=secList(grp.down,'down','▼ Macro headwind');
-    /* Neutral sectors carry an influence paragraph too, and get it in
-       full; a pre-v3 narrative folds them into one line as before. */
-    if(grp[''].some(hasInf)){
-      h+=secList(grp[''],'flat','● Neutral');
-    }else if(grp[''].length){
-      h+='<p class="mac-nar-neutral"><b>Neutral:</b> '+grp[''].map(secLink).join(', ')+'</p>';
-    }
   }
   /* Reading time for the whole card, at 230 words a minute. */
   var words=0,wc=function(x){if(x)words+=String(x).split(/\s+/).filter(Boolean).length;};
-  ps.forEach(wc);tw.forEach(wc);hw.forEach(wc);
+  wc(nar.bottom_line);ps.forEach(wc);
+  if(watch.length)watch.forEach(wc);else{tw.forEach(wc);hw.forEach(wc);}
   (nar.sectors||[]).forEach(function(r){if(r){wc(r.headline);wc(r.influence);}});
   var mins=Math.max(1,Math.round(words/230));
   h+='<div class="mac-nar-foot">Written by Claude ('+_esc(nar.model||'')+') from the indicator data · '
@@ -12506,45 +12650,58 @@ function _macNarrativeHTML(){
   return h;
 }
 function _macOverviewHTML(){
-  /* Story first, glance numbers beside it, and nothing else. The full
-     histories live on the five section sub-tabs (menu), so nothing charted
-     there is repeated here — the Overview used to re-draw the yield curve
-     and the 10Y–2Y history under the tiles. The per-sector read is the
-     narrative's Key sector influences; it no longer repeats on each Sector
-     Analysis tab. */
-  var h='<div class="mac-overview">'+_macNarrativeHTML();
+  /* Read top to bottom: the regime card above carries the bottom line, then
+     the key numbers, then the economy (each section ends in its figures and
+     a Full charts link), what to watch, and the sectors. The section sub-
+     tabs hold the full histories. */
+  var h='<div class="mac-overview">';
   var tiles=(MACRO_SUM&&MACRO_SUM.tiles)||[];
-  h+='<div>';
   if(tiles.length){
-    h+='<div class="mac-tiles">';
+    h+='<h3 class="mac-h mac-h-out">Key numbers</h3><div class="mac-tiles">';
     tiles.forEach(function(t){
       /* spark_d rides alongside spark from the builder. A snapshot rendered
          before it existed still scrubs — the readout just shows the value
          with the tile's own date left alone. */
       var hid=_macHid();
       var vHTML=_mfmt(t.latest?t.latest.v:null,t.fmt,t.suffix);
-      var dHTML='as of '+(t.latest?t.latest.d:'?');
-      h+='<div class="mac-tile"><div class="mac-tile-l">'+t.l+'</div>'
+      var asOf=_macAsOf(t);
+      var dHTML=asOf.txt;
+      /* Tap (or Enter) opens the series' full chart in a dialog (_macZoom). */
+      h+='<div class="mac-tile mac-tile-zoom" role="button" tabindex="0" aria-label="'+_attr(t.l)+': open a larger chart" onclick="_macZoom(\''+_attr(t.id)+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_macZoom(\''+_attr(t.id)+'\');}"><div class="mac-tile-l">'+t.l+'</div>'
         +'<div class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</div>'
         +'<div>'+_mdelta(t.chg_1m,t,'1M')+'</div>'
         +_mSparkSVG(t.spark,t.spark_d,hid,t.fmt,t.suffix)
         +_mpctRow(t)
-        +'<div class="mac-tile-date" id="'+hid+'-d">'+dHTML+'</div></div>';
+        +'<div class="mac-tile-date'+(asOf.stale?' mac-stale':'')+'" id="'+hid+'-d">'+dHTML+'</div></div>';
       _macRegisterReadout(hid,vHTML,dHTML);
     });
     h+='</div>';
   }
+  h+=_macNarrativeHTML();
   if(!MACRO)h+=_macStatusNote();
-  else{
-    var links=[];
-    MACRO_TABS.forEach(function(t){
-      if(t.k==='overview')return;
-      links.push('<a href="#" onclick="navGo(\'macro\',\''+t.k+'\');return false">'+t.l+'</a>');
-    });
-    h+='<p class="mac-explore">Full histories: '+links.join(' · ')+'</p>';
-  }
-  h+='</div></div>';
+  h+='</div>';
   return h;
+}
+/* A tile's date, said the way its series is published: a day for daily and
+   weekly series, the month for monthly, the quarter for quarterly (the
+   tile's freq, else read from the sparkline's own spacing). Marked overdue when the latest
+   reading is older than two of its periods plus a typical release lag. */
+function _macAsOf(t){
+  var d=t.latest&&t.latest.d;if(!d)return {txt:'as of ?',stale:false};
+  var sd=t.spark_d||[],gaps=[];
+  for(var i=1;i<sd.length;i++)gaps.push((Date.parse(sd[i])-Date.parse(sd[i-1]))/864e5);
+  gaps.sort(function(a,b){return a-b;});
+  var gap=gaps.length?gaps[Math.floor(gaps.length/2)]:1;
+  /* The builder's own cadence when the tile carries it (d/w/m/q). */
+  var FQ={d:1,w:7,m:30,q:91};if(t.freq&&FQ[t.freq])gap=FQ[t.freq];
+  var dt=new Date(d+'T00:00:00'),mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var ref=Date.parse((MACRO_SUM&&MACRO_SUM.as_of)||RUN_DATE);
+  var age=isNaN(ref)?0:(ref-dt.getTime())/864e5;
+  var txt=gap<=8?'as of '+mo[dt.getMonth()]+' '+dt.getDate()
+    :gap<=45?mo[dt.getMonth()]+' '+dt.getFullYear()+' reading'
+    :'Q'+(Math.floor(dt.getMonth()/3)+1)+' '+dt.getFullYear()+' reading';
+  var stale=age>2*Math.max(gap,1)+45;
+  return {txt:txt+(stale?' · overdue':''),stale:stale};
 }
 function _macSectionHTML(k){
   if(!MACRO)return _macStatusNote();
@@ -12697,10 +12854,12 @@ function macHovTouch(e,hid){
   if(!e.touches||!e.touches.length)return;
   macHovMove({clientX:e.touches[0].clientX,clientY:e.touches[0].clientY},hid);
 }
-function _macChartSVG(s,hid){
+function _macChartSVG(s,hid,px){
   var d=(s.hist&&s.hist.d)||[],v=(s.hist&&s.hist.v)||[];
   if(d.length<2)return '<p class="mac-note">Not enough history.</p>';
-  var VW=460,VH=170,PL=46,PR=10,PT=10,PB=22;
+  /* px {w,h}: draw at that pixel size, one unit = one pixel (the tile zoom);
+     otherwise the 460x170 box scaled to its card, as before. */
+  var VW=px?px.w:460,VH=px?px.h:170,PL=px?50:46,PR=px?12:10,PT=10,PB=px?26:22,FS=px?11:9.5;
   var iW=VW-PL-PR,iH=VH-PT-PB;
   var xs=[],ys=[],ds=[],mn=Infinity,mx=-Infinity;
   for(var i=0;i<d.length;i++){
@@ -12726,15 +12885,15 @@ function _macChartSVG(s,hid){
   for(var gi=0;gi<=4;gi++){
     var gv=mn+(gi/4)*yr,gy=Y(gv).toFixed(1);
     if(gi>0&&gi<4)g+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(VW-PR)+'" y2="'+gy+'" class="mac-grid" stroke-width="1"/>';
-    g+='<text x="'+(PL-6)+'" y="'+(parseFloat(gy)+3.5)+'" text-anchor="end" class="mac-ax" font-size="9.5">'+_mfmt(gv,s.fmt==='int'?'int':(s.fmt==='pct2'?'pct1':s.fmt),'')+'</text>';
+    g+='<text x="'+(PL-6)+'" y="'+(parseFloat(gy)+3.5)+'" text-anchor="end" class="mac-ax" font-size="'+FS+'">'+_mfmt(gv,s.fmt==='int'?'int':(s.fmt==='pct2'?'pct1':s.fmt),'')+'</text>';
   }
   if(s.zero_line&&0>=mn&&0<=mx)g+='<line x1="'+PL+'" y1="'+Y(0).toFixed(1)+'" x2="'+(VW-PR)+'" y2="'+Y(0).toFixed(1)+'" class="mac-zero" stroke-width="1.1" stroke-dasharray="4,3"/>';
   if(s.threshold!=null)g+='<line x1="'+PL+'" y1="'+Y(s.threshold).toFixed(1)+'" x2="'+(VW-PR)+'" y2="'+Y(s.threshold).toFixed(1)+'" stroke="#de2d26" stroke-width="1" stroke-dasharray="4,3" opacity="0.7"/>';
   var mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  var nX=5;
+  var nX=px&&px.w<420?4:5;
   for(var xi=0;xi<nX;xi++){
     var t=x0+(xi/(nX-1))*xr,dt=new Date(t);
-    g+='<text x="'+X(t).toFixed(1)+'" y="'+(PT+iH+14)+'" text-anchor="'+(xi===0?'start':(xi===nX-1?'end':'middle'))+'" class="mac-ax" font-size="9.5">'+mo[dt.getMonth()]+'\''+String(dt.getFullYear()).slice(2)+'</text>';
+    g+='<text x="'+X(t).toFixed(1)+'" y="'+(PT+iH+14)+'" text-anchor="'+(xi===0?'start':(xi===nX-1?'end':'middle'))+'" class="mac-ax" font-size="'+FS+'">'+mo[dt.getMonth()]+'\''+String(dt.getFullYear()).slice(2)+'</text>';
   }
   var pts=[];
   for(var pi=0;pi<xs.length;pi++)pts.push(X(xs[pi]).toFixed(1)+','+Y(ys[pi]).toFixed(1));
@@ -12749,7 +12908,7 @@ function _macChartSVG(s,hid){
     +'<circle id="'+hid+'-dot" cx="0" cy="0" r="3.6" class="mac-dot" stroke-width="2" opacity="0" pointer-events="none"/>';
   _MAC_HOV[hid]={kind:'line',xs:xs,ys:ys,ds:ds,PL:PL,PT:PT,iW:iW,iH:iH,
                  x0:x0,xr:xr,mn:mn,yr:yr,fmt:s.fmt,suffix:s.suffix};
-  return '<svg id="'+hid+'" viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:auto;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
+  return '<svg id="'+hid+'" viewBox="0 0 '+VW+' '+VH+'" style="display:block;width:100%;height:'+(px?VH+'px':'auto')+';cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
     +' onmousemove="macHovMove(event,\''+hid+'\')" onmouseleave="macHovLeave(\''+hid+'\')"'
     +' ontouchstart="macHovTouch(event,\''+hid+'\')" ontouchmove="macHovTouch(event,\''+hid+'\')"'
     +' ontouchend="macHovLeave(\''+hid+'\')" ontouchcancel="macHovLeave(\''+hid+'\')">'+g+'</svg>';
@@ -13055,7 +13214,7 @@ function renderPoolHistory(sec){
     var st=h.stale.slice(0,4).map(function(x){return _esc(x.ticker)+' (to FY'+x.last_year+')';}).join(', ');
     note+=' Left out because their SEC filings stopped: '+st+(h.stale.length>4?' and '+(h.stale.length-4)+' more':'')+'.';
   }
-  out+='<p class="pph-note">'+note+'</p>';
+  out+=_noteQ(note);
   return out;
 }
 /* Share Shifts (pp-shifts): who took the pool. Each company's share of the
@@ -13148,7 +13307,7 @@ function renderPoolIndustries(sec){
       +'<td data-v="'+_ppiV(d.pool_share)+'"'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(d.pool_share)+'</td>'
       +'<td data-v="'+_ppiV(d.margin)+'">'+_ppPct(d.margin)+'</td><td data-v="'+_ppiV(d.median_spread)+'">'+(d.median_spread==null?'\u2014':_ppSgnPct(d.median_spread))+'</td><td data-v="'+_ppiV(d.pool_cagr)+'">'+(d.pool_cagr==null?'—':_ppSgnPct(d.pool_cagr)+'/yr'+(d.own_window&&d.window?' <span class="ppi-dim" title="Too few of its companies reported over the sector\u2019s window; measured over its own years">('+_ppFy({y0:d.window[0],block:d.window[2]})+' to '+_ppFy1({y1:d.window[1],block:d.window[2]})+')</span>':''))+'</td></tr>';
   });
-  out+='</tbody></table></div><p class="pph-note">Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is each industry’s consistent-panel growth over the sector’s history window, or over its own years where shown in brackets; — where too few of its companies reported throughout. Click an industry to open the Gate Matrix filtered to it.</p>';
+  out+='</tbody></table></div>'+_noteQ('Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is each industry’s consistent-panel growth over the sector’s history window, or over its own years where shown in brackets; — where too few of its companies reported throughout. Click an industry to open the Gate Matrix filtered to it.');
   return out;
 }
 /* The sector's charted companies: the PP_TOP_N largest by revenue share,
@@ -13201,7 +13360,7 @@ function renderPoolCompanyTable(shown,tail){
     out+='<tr class="ppi-pin"><td>Others <span class="ppi-dim">('+tail.length+' companies)</span></td><td>—</td><td>'+_ppPct(rev)+'</td>'
       +_ppSkewTd(pool,rev)+'<td>'+(rev>0?_ppPct(wm/rev):'—')+'</td><td>—</td><td>—</td><td>'+(vo==null?'\u2014':vo.toFixed(2)+'\u00d7')+'</td></tr>';
   }
-  out+='</tbody></table></div><p class="pph-note">Bar width ∝ √revenue share, height = operating margin, colour = rating'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Value/pool is the company’s share of the sector’s market value over its share of the pool: above 1× the market pays more than its slice of today’s profit (the Price of the pool tile compares the whole sector with the universe). Click a company to open it.</p>';
+  out+='</tbody></table></div>'+_noteQ('Bar width ∝ √revenue share, height = operating margin, colour = rating'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Value/pool is the company’s share of the sector’s market value over its share of the pool: above 1× the market pays more than its slice of today’s profit (the Price of the pool tile compares the whole sector with the universe). Click a company to open it.');
   return out;
 }
 function _ppChartView(btn,v){
@@ -13250,7 +13409,7 @@ function renderPoolEcon(sec){
   if(ex.balance_sheet)parts.push(ex.balance_sheet+' lenders and broker-dealers, whose capital funds a loan book or trading inventory');
   if(ex.no_capital)parts.push(ex.no_capital+' without invested capital');
   if(ex.no_spread)parts.push(ex.no_spread+' without a ROIC−WACC spread');
-  out+='<p class="pph-note">Economic profit = (5-year median ROIC − WACC) × latest invested capital. Both US shares above count only companies whose economic profit is measurable, so the operating-profit share can differ from the one on the Trading tab.'+(parts.length?' Not measured: '+parts.join('; ')+'.':'')+'</p>';
+  out+=_noteQ('Economic profit = (5-year median ROIC − WACC) × latest invested capital. Both US shares above count only companies whose economic profit is measurable, so the operating-profit share can differ from the one on the Trading tab.'+(parts.length?' Not measured: '+parts.join('; ')+'.':'')+'');
   return out;
 }
 /* Sector-level structural headwinds + tailwinds, rendered as a two-column
@@ -13424,7 +13583,7 @@ function renderPoolSectorSignals(sec){
       +'<span><i class="ppf-dot"></i>Not acting</span>'
       +'<span><i class="ppf-dot" style="border-style:dashed"></i>Not measured: no series tracks it</span></div>','What the statuses mean')+'</div>';
     out+='<div class="ppf-cols">'+_ppfCol(tw,'tailwind')+_ppfCol(hw,'headwind')+'</div>';
-    out+='<p class="ppf-note">Each status reads the force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range. The balance weighs forces acting now by the share of sector revenue they reach (building ones at half).'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'</p>';
+    out+=_noteQ('Each status reads the force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range. The balance weighs forces acting now by the share of sector revenue they reach (building ones at half).'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'');
     return out;
   }
   var hw0=n.headwinds||[],tw0=n.tailwinds||[];
@@ -14416,7 +14575,7 @@ function renderCrossSectorDashboard(){
   }
   var _heatTableHtml=_sumStats.length
     ?'<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
-      +'<div class="xsect-chart-title" style="margin-bottom:4px">Sector Heatmap <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(values are sector medians · green = best, red = worst within column · click any header to sort)</span></div>'
+      +'<div class="xsect-chart-title" style="margin-bottom:4px">Sector Heatmap '+_qHelp('<span class="note-q-t">Values are sector medians; green is best and red worst within each column. Tap a header to sort, a sector to open its page.</span>','How to read the heatmap','l')+'</div>'
       /* Compact column widths so the full 16-column heatmap fits within a
          standard laptop viewport without horizontal scrolling. Sector column
          is wide enough for "Communication Services"; all metric columns
@@ -14733,7 +14892,7 @@ function renderPool(){
       +(perfBody||'<p style="color:#888;padding:20px">No sector data available.</p>')
       +(poolBody?'<div style="height:22px"></div>'
         +'<div class="xsect-title">Cross-Sector Profit Pool</div>'
-        +'<div class="xsect-sub">Bar width = revenue share · height = operating margin · area ≈ operating profit · ordered by margin · shares recompute among shown sectors. Show or hide any subset to compare; click a bar to drill in.</div>'
+        +'<div class="xsect-sub">Operating profit by sector; tap a bar to open it. '+_qHelp('<span class="note-q-t">Bar width is revenue share, height is operating margin, so area is roughly operating profit. Bars run in order of margin, and shares recompute among the sectors shown below.</span>','How to read the chart','l')+'</div>'
         +poolBody:'')
       +'</div>';
   }
