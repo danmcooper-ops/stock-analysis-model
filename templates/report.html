@@ -11100,6 +11100,8 @@ document.addEventListener('keydown',function(e){
        fall through and navigate the page out from under it. */
     return;
   }
+  /* An open Market Regime explainer takes the first Escape. */
+  if(e.key==='Escape'&&_macRegimeHelpClose()){e.preventDefault();return;}
   if(_hkBlocked(e))return;
   _hkDispatch(e);
 });
@@ -11988,20 +11990,17 @@ function _macRegimeHelp(btn,e){
 }
 /* Any click outside an open explainer, or Escape, closes it. */
 document.addEventListener('click',function(e){
-  document.querySelectorAll('.mac-regime.help-open').forEach(function(b){
-    if(!b.querySelector('.mac-regime-note').contains(e.target)){
-      b.classList.remove('help-open');
-      var q=b.querySelector('.mac-regime-help');if(q)q.setAttribute('aria-expanded','false');
-    }
-  });
+  if(!e.target.closest||!e.target.closest('.mac-regime-note'))_macRegimeHelpClose();
 });
-document.addEventListener('keydown',function(e){
-  if(e.key!=='Escape')return;
+/* Escape closes it from the page's one global keydown handler. */
+function _macRegimeHelpClose(){
+  var any=false;
   document.querySelectorAll('.mac-regime.help-open').forEach(function(b){
-    b.classList.remove('help-open');
+    any=true;b.classList.remove('help-open');
     var q=b.querySelector('.mac-regime-help');if(q)q.setAttribute('aria-expanded','false');
   });
-});
+  return any;
+}
 function _macStatusNote(){
   if(_MACRO_FAILED)return '<p class="mac-note">Macro history failed to load. <a href="#" style="color:var(--mac-accent)" onclick="return macroRetry()">Retry</a></p>';
   return '<p class="mac-note">Loading macro history…</p>';
