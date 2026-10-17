@@ -742,18 +742,21 @@ td.ct{font-weight:700;}
 .matrix-table td.tk{position:sticky;left:100px;z-index:3;background:#fff;}
 /* Lock ticker width so the rating columns' sticky `left` stays exact, then
    freeze BOTH Today's Rating (5th col) and Yesterday's Rating (6th col) —
-   fixed-width so col 6's offset is deterministic (ticker 60px → Today at 160px;
-   Today 72px → Yesterday at 232px). Everything from Sector rightward scrolls
+   fixed-width so col 6's offset is deterministic (ticker 92px, wide enough for
+   the symbol plus its composite score → Today at 192px; Today 72px →
+   Yesterday at 264px). Everything from Sector rightward scrolls
    past them; the frozen-zone shadow sits on Yesterday, the new right edge. */
-.matrix-table thead tr:first-child th:nth-child(4),.matrix-table tbody td.tk{width:60px;min-width:60px;max-width:60px;}
+.matrix-table thead tr:first-child th:nth-child(4),.matrix-table tbody td.tk{width:92px;min-width:92px;max-width:92px;}
+.matrix-table td.tk .tk-sc{display:inline-block;margin-left:5px;font-weight:600;font-size:0.9em;color:#6b7785;text-decoration:none;font-variant-numeric:tabular-nums;}
+[data-theme="dark"] .matrix-table td.tk .tk-sc{color:#8b949e;}
 .matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6),.matrix-table tbody td:nth-child(5),.matrix-table tbody td:nth-child(6){width:72px;min-width:72px;max-width:72px;}
 /* Headers may wrap ("Today's Rating" on two lines); body cells keep the table's
    nowrap so the rating pills render single-line, identical to Financial Data. */
 .matrix-table thead tr:first-child th:nth-child(5),.matrix-table thead tr:first-child th:nth-child(6){white-space:normal;}
-.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:15;background:var(--hdr-bg);}
-.matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:160px;z-index:3;background:#fff;}
-.matrix-table thead tr:first-child th:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:15;background:var(--hdr-bg);box-shadow:2px 0 6px rgba(0,0,0,0.14);}
-.matrix-table tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:232px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
+.matrix-table thead tr:first-child th:nth-child(5){position:-webkit-sticky;position:sticky;left:192px;z-index:15;background:var(--hdr-bg);}
+.matrix-table tbody td:nth-child(5){position:-webkit-sticky;position:sticky;left:192px;z-index:3;background:#fff;}
+.matrix-table thead tr:first-child th:nth-child(6){position:-webkit-sticky;position:sticky;left:264px;z-index:15;background:var(--hdr-bg);box-shadow:2px 0 6px rgba(0,0,0,0.14);}
+.matrix-table tbody td:nth-child(6){position:-webkit-sticky;position:sticky;left:264px;z-index:3;background:#fff;box-shadow:2px 0 5px rgba(0,0,0,0.06);}
 .matrix-table tr:nth-child(even) td:nth-child(1),.matrix-table tr:nth-child(even) td:nth-child(2),.matrix-table tr:nth-child(even) td.tk,.matrix-table tr:nth-child(even) td:nth-child(5),.matrix-table tr:nth-child(even) td:nth-child(6){background:rgba(255,255,255,0.97);}
 .matrix-table tr:hover td:nth-child(1),.matrix-table tr:hover td:nth-child(2),.matrix-table tr:hover td.tk,.matrix-table tr:hover td:nth-child(5),.matrix-table tr:hover td:nth-child(6){background:#eaf4fd!important;}
 /* Touch devices (iPhone and iPad, both orientations): the full frozen
@@ -2480,8 +2483,8 @@ body{padding-left:var(--sb-cur);}
 #mtx thead tr:first-child th:nth-child(2),#mtx tbody td:nth-child(2){left:calc(var(--sb-cur) + 40px);}
 #mtx thead tr:first-child th:nth-child(3),#mtx tbody td:nth-child(3){left:calc(var(--sb-cur) + 68px);}
 #mtx thead tr:first-child th:nth-child(4),#mtx td.tk{left:calc(var(--sb-cur) + 100px);}
-#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 160px);}
-#mtx thead tr:first-child th:nth-child(6),#mtx tbody td:nth-child(6){left:calc(var(--sb-cur) + 232px);}
+#mtx thead tr:first-child th:nth-child(5),#mtx tbody td:nth-child(5){left:calc(var(--sb-cur) + 192px);}
+#mtx thead tr:first-child th:nth-child(6),#mtx tbody td:nth-child(6){left:calc(var(--sb-cur) + 264px);}
 .header,.secondary-nav,#subnav{left:var(--sb-cur);width:calc(var(--vvw,100vw) - var(--sb-cur));}
 /* Touch devices freeze only the ticker, at the left edge (see the
    (hover:none) block by the column widths) — which is now --sb-cur. */
@@ -6695,7 +6698,8 @@ function _mtxBuildRow(d,_i){
   html+='<td>'+(_i+1)+'</td>';
   html+='<td style="text-align:center">'+_starHtml(d.ticker)+'</td>';
   html+='<td style="text-align:center">'+_revHtml(d.ticker)+'</td>';
-  html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+_pfDots(d.ticker)+'</td>';
+  var sc=_num(d._composite_score);
+  html+='<td class="tk" onclick="openDet(\''+t+'\')">'+d.ticker+(sc!=null?'<span class="tk-sc" title="Composite score">'+Math.round(sc)+'</span>':'')+_pfDots(d.ticker)+'</td>';
   html+='<td>'+rb(d.rating,d)+'</td>';
   html+='<td>'+rb(d.rating_prev)+'</td>';
   html+='<td style="font-size:0.75em">'+(d.sector||'N/A')+'</td>';
