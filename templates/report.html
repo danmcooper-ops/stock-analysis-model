@@ -2145,12 +2145,12 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-meter-track::after{content:"";position:absolute;left:50%;top:-2px;width:1px;height:8px;background:var(--mac-faint);}
 .mac-meter-fill{position:absolute;top:0;height:4px;border-radius:2px;background:var(--mac-faint);}
 .mac-meter-fill.up{background:var(--mac-up);}.mac-meter-fill.down{background:var(--mac-down);}
-/* Back to the Macro Outlook after jumping from Key sector influences. */
-.nav-return{display:inline-flex;align-items:center;gap:4px;margin:0 0 10px;padding:6px 12px 6px 9px;
-  border:1px solid var(--border,#d0d7de);border-radius:999px;background:transparent;color:var(--accent,#2563eb);
-  font:inherit;font-size:0.88em;font-weight:600;cursor:pointer;}
-.nav-return:hover{background:rgba(37,99,235,0.08);}
-[data-theme="dark"] .nav-return{border-color:#30363d;color:#5b9cf0 !important;}
+/* Back to the Macro Outlook after jumping from Key sector influences: a
+   plain arrow, like the top bar's on phones (where this one hides). */
+.nav-return{display:flex;align-items:center;justify-content:center;width:32px;height:32px;margin:0 0 6px -6px;padding:0;
+  border:0;border-radius:8px;background:transparent;color:var(--text,#1a252f);cursor:pointer;}
+.nav-return svg{width:22px;height:22px;}
+.nav-return:hover{background:rgba(127,127,127,0.12);}
 /* The explainer: a ? in the bottom-right corner opens a plain note below it
    (below, so the sticky tab bar can never cover it). */
 .mac-regime{position:relative;}
@@ -2916,6 +2916,10 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
   html.det-open #det-modal .d-back{display:none;}
   html.det-open .hdr-menu .hm-menu{display:none;}
   html.det-open .hdr-menu .hm-back{display:block;}
+  /* Arrived from the Macro Outlook: the ☰ is the way back (see _navReturnSync). */
+  html.nav-ret .hdr-menu .hm-menu{display:none;}
+  html.nav-ret .hdr-menu .hm-back{display:block;}
+  html.nav-ret .nav-return{display:none;}
   html.det-open .header{width:var(--vvw,100vw);}
 }
 @media(orientation:landscape) and (max-height:500px){
@@ -11479,7 +11483,7 @@ function _syncNavCrumb(){
 function navGo(v,k){
   closeNavMenu();
   /* Going anywhere but the sector the Macro jump led to drops the way back. */
-  if(_navReturn&&!(v==='pool'&&k===_navReturn.sec))_navReturn=null;
+  if(_navReturn&&!(v==='pool'&&k===_navReturn.sec)){_navReturn=null;_navReturnSync();}
   /* A top-level entry (a sidebar row, or its number hotkey) carries no
      sub-tab: it opens the section on its FIRST sub-tab — Macro Overview,
      Sector Charts, the Financial Model Dashboard, Financial Data Charts,
@@ -11600,6 +11604,7 @@ function _qrActive(){
 function hdrMenuTap(){
   var dm=document.getElementById('det-modal');
   if(dm&&dm.classList.contains('open')){closeDetail();return;}
+  if(document.documentElement.classList.contains('nav-ret')){_navBackBtn();return;}
   sbOpen();
 }
 /* html.det-open + the top bar's measured height, so on phones the ticker
@@ -11611,6 +11616,7 @@ function _detOpenState(on){
   if(hd)r.style.setProperty('--hdr-h',hd.offsetHeight+'px');
   var b=document.getElementById('hdr-menu');
   if(b)b.setAttribute('aria-label',on?'Back':'Open menu');
+  if(!on&&typeof _navReturnSync==='function')_navReturnSync();
   var q=document.getElementById('hdr-qr');if(q)q.classList.remove('open');
 }
 function qrRender(){
@@ -12115,9 +12121,21 @@ function _macGoSector(i){
    sector page it led to shows a back button (renderPool), and the browser's
    back (or the iOS edge swipe) does the same thing. */
 var _navReturn=null;
+/* On phones the way back is the top bar's ☰ turned into a back arrow, as on
+   the ticker page (html.nav-ret); wider screens have no top-bar button, so
+   the sector page gets the same arrow inline instead. */
+function _navReturnSync(){
+  var on=!!(_navReturn&&curView==='pool'&&_poolTab===_navReturn.sec);
+  document.documentElement.classList.toggle('nav-ret',on);
+  var b=document.getElementById('hdr-menu');
+  var dm=document.getElementById('det-modal');
+  if(b&&!(dm&&dm.classList.contains('open')))b.setAttribute('aria-label',on?'Back to Macro Outlook':'Open menu');
+  return on;
+}
 function _navReturnBar(){
-  if(!_navReturn||curView!=='pool'||_poolTab!==_navReturn.sec)return '';
-  return '<button type="button" class="nav-return" onclick="_navBackBtn()">&#8249; Back to Macro Outlook</button>';
+  if(!_navReturnSync())return '';
+  return '<button type="button" class="nav-return" onclick="_navBackBtn()" aria-label="Back to Macro Outlook" title="Back to Macro Outlook">'
+    +'<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
 }
 /* The button pops the entry _macGoSector pushed, so the button and the
    browser's back are one path and no dead entry is left behind. */
@@ -12129,6 +12147,7 @@ function _navGoBack(){
   var r=_navReturn;if(!r)return;
   _navReturn=null;
   navGo('macro',r.k);
+  _navReturnSync();
   /* After the Macro view has laid out, so the offset lands on the same card. */
   setTimeout(function(){window.scrollTo({top:r.y,behavior:'auto'});},0);
 }
