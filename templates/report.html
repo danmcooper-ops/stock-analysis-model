@@ -14721,8 +14721,8 @@ function renderCrossSectorDashboard(){
     return'<th data-sort="'+key+'" onclick="_heatSort(\''+key+'\')" style="width:'+width+'px'+(leftAlign?';text-align:left':'')+'" data-col-tip="heat_'+key+'" data-col-label="'+_attr(label)+'" data-col-tip-body="'+_attr(title)+'"><span class="th-inner"><span>'+label+'<span class="heat-arrow"></span></span></span></th>';
   }
   var _heatTableHtml=_sumStats.length
-    ?'<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
-      +'<div class="xsect-chart-title" style="margin-bottom:4px">Sector Heatmap '+_qHelp('<span class="note-q-t">Values are sector medians; green is best and red worst within each column. Tap a header to sort, a sector to open its page.</span>','How to read the heatmap','l')+'</div>'
+    ?'<div class="xsect-title">Sector Heatmap</div>'
+      +'<div class="xsect-sub">Sector medians; green is best and red worst in each column. '+_qHelp('<span class="note-q-t">Values are sector medians; green is best and red worst within each column. Tap a header to sort, a sector to open its page.</span>','How to read the heatmap','l')+'</div>'
       /* Compact column widths so the full 16-column heatmap fits within a
          standard laptop viewport without horizontal scrolling. Sector column
          is wide enough for "Communication Services"; all metric columns
@@ -14745,14 +14745,16 @@ function renderCrossSectorDashboard(){
         +_th('medShrYld','Shr Yld',60,'Median (Dividends + Net Buybacks) / Mkt Cap. Buffett: “The best thing a company can do when the stock is cheap is buy it back.” 4%+ cohort-wide = disciplined capital allocation.')
         +_th('pctBuy','BUY %',60,'Share of sector rated BUY or LEAN BUY. High concentration = clusters of margin of safety. Buffett: “Most committee opinions are mediocre” — focus signal, not a substitute for analysis.')
       +'</tr></thead><tbody id="heat-tbody"></tbody></table></div>'
-    +'</div>'
     :'';
   /* Mount: fill tbody after the dashboard return string is injected. */
   setTimeout(function(){if(window._heatRender)window._heatRender();},0);
   /* Sector Heatmap. (The World MoS Map moved to Financial Model → Dashboard,
      above the Gates Summary; on the Charts sub-tab this heatmap sits between
      the Sector Price Comparison and the Cross-Sector Profit Pool.) */
-  return'<div class="xsect-dashboard" style="margin-bottom:16px">'
+  /* Same card as the price and profit-pool charts around it: title and
+     subtitle straight in .xsect-dashboard, no inner box (which indented
+     this card's content past its neighbours'). */
+  return'<div class="xsect-dashboard">'
     +_heatTableHtml
     +'</div>';
 }
@@ -14811,7 +14813,7 @@ function renderCrossSectorProfitPool(){
   var helperBtns='<button type="button" class="agg-helper-btn" onclick="_ppSelectAll()">All</button>'
     +'<button type="button" class="agg-helper-btn" onclick="_ppClearAll()">Clear</button>';
   setTimeout(_ppDraw,0);
-  return '<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">'
+  return '<div>'
     +'<div class="cm-wrap">'
     +'<button type="button" class="cm-btn" onclick="cmToggle(\'ppsec\',event)" title="Show / hide sectors">&#9776;</button>'
     +'<span class="cm-sum" id="ppsec-cm-sum">'+_cap1(_secListSumN(secs.length,secs.length))+'</span>'
