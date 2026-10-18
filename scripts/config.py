@@ -146,12 +146,23 @@ MIN_SECTOR_STOCKS = 3          # Min stocks per sector for median calculation
 DATA_QUALITY_MIN = 40          # Skip tickers with quality score below this
 MIN_MORNINGSTAR_SAMPLE = 5     # Min stocks for Morningstar comparison stats
 
-# Minimum median daily dollar volume (3-month) for a name to stay BUY-rated.
-# Below this a position can't be built or exited at a sane price, so the rating
-# is capped at HOLD — the business may still be excellent, it just isn't
-# actionable. Applied in scoring._rating_cap_for_row, and only when the metric
-# is actually present, so missing volume data never demotes a stock.
+# Minimum median daily dollar volume (3-month) below which a position can't be
+# built or exited at a sane price. Flagged by scoring._rating_cap_for_row (and
+# the Summary PDF verdict), only when the metric is actually present, so
+# missing volume data never raises the flag. It lowers the rating only when
+# RATING_CAPS_ENABLED is on.
 MIN_ADV_FOR_BUY = 1_000_000
+
+# Whether the critical-condition caps in scoring._rating_cap_for_row (MoS,
+# Altman distress, Beneish, thin EDGAR history, liquidity, FX failure, missing
+# fair value, low coverage) lower the composite-derived rating. Off since
+# 2026-10-18: the rating is the composite bucket alone, and the cap reasons are
+# kept as warning flags. On the 2026-10-16 universe the caps held BUY at 39
+# against 127 uncapped and LEAN BUY at 326 against 969, and the Altman cap
+# fired on banks and insurers, where the Z-score does not apply. A ParamSet
+# can turn it back on (`rating_caps_enabled`) so the backtest can measure the
+# two models side by side; it is part of scoring_params_hash.
+RATING_CAPS_ENABLED = False
 
 # ---------------------------------------------------------------------------
 # Sector-specific DCF parameters (Fixes C/D/E/F)

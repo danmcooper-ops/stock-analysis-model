@@ -8,6 +8,7 @@ from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH,
                              SCORE_WEIGHT_OWNERSHIP, MIN_SECTOR_STOCKS,
                              MIN_ADV_FOR_BUY, BLEND_CONFLICT_RATIO,
+                             RATING_CAPS_ENABLED,
                             MC_CLIP_RATE_DOWNGRADE, MC_INVALID_RATE_DOWNGRADE)
 from models.sector_pool import panel_pools, year_series
 
@@ -1327,7 +1328,11 @@ def gate_metadata(params=None):
 
 
 def _rating_cap_for_row(row, params=None):
-    """Return (cap, reasons) for critical investability failures only."""
+    """Return (cap, reasons) for critical investability failures only.
+
+    The reasons are always reported as flags; the cap lowers the rating only
+    when `rating_caps_enabled` is on (see apply_rating_caps).
+    """
     reasons = []
     cap = None
 
@@ -1385,19 +1390,24 @@ def _rating_cap_for_row(row, params=None):
 
 
 def apply_rating_caps(results, params=None):
-    """Apply critical-only rating caps and expose raw/final rating diagnostics.
+    """Set the final rating and record the critical-condition flags.
 
-    rating_raw is the uncapped composite-derived rating; rating is the final
-    (possibly capped) one. rating != rating_raw ⇔ a cap fired — the reports
-    key their ⚠ badge off that comparison plus _rating_cap_reasons.
+    rating_raw is the composite-derived rating. The caps from
+    _rating_cap_for_row are always evaluated and stored (_rating_cap,
+    _rating_cap_reasons) as warning flags, but they lower the rating only when
+    `rating_caps_enabled` is on (config.RATING_CAPS_ENABLED, off by default):
+    otherwise rating == rating_raw. rating != rating_raw ⇔ a cap fired — the
+    reports key their ⚠ badge off that comparison, which is how snapshots
+    rated under the capped model still render.
     """
+    caps_on = (params or {}).get('rating_caps_enabled', RATING_CAPS_ENABLED)
     for r in results:
         raw = rating_from_composite(r.get('_composite_score'), params)
         r['rating_raw'] = raw
         cap, reasons = _rating_cap_for_row(r, params=params)
         r['_rating_cap'] = cap
         r['_rating_cap_reasons'] = reasons
-        r['rating'] = _cap_rating(raw, cap) if cap and raw else raw
+        r['rating'] = _cap_rating(raw, cap) if caps_on and cap and raw else raw
         # Retired duplicate of rating_raw; scrub from round-tripped snapshots.
         r.pop('_rating_from_score', None)
 

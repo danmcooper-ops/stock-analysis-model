@@ -314,9 +314,13 @@ def _checks(row, med):
     if adv is not None and adv < MIN_ADV_FOR_BUY:
         add('liquidity', 1, -1, f'Thinly traded ({_money(adv)} a day)')
 
+    # The cap reasons are flags; they lowered the rating only on snapshots
+    # rated while config.RATING_CAPS_ENABLED was on (rating != rating_raw).
+    raw = row.get('rating_raw')
+    capped = raw is not None and row.get('rating') not in (None, raw)
     for reason in row.get('_rating_cap_reasons') or []:
         if isinstance(reason, str) and not any(d in reason for d in _CAP_DUPLICATES):
-            add('cap', 1, -1, f'Rating capped: {reason}')
+            add('cap', 1, -1, f'{"Rating capped" if capped else "Flag"}: {reason}')
     return out
 
 

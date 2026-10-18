@@ -34,6 +34,7 @@ from scripts.config import (
     BLEND_TRIGGER, BLEND_DCF_WEIGHT, BLEND_MULT_WEIGHT, BLEND_CONFLICT_RATIO,
     SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
     SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH, SCORE_WEIGHT_OWNERSHIP,
+    RATING_CAPS_ENABLED,
 )
 
 
@@ -115,6 +116,10 @@ def default_params():
         'rating_threshold_buy': 57,
         'rating_threshold_lean': 39,
         'rating_threshold_pass': 25,
+
+        # Whether the critical-condition caps lower the rating (see
+        # config.RATING_CAPS_ENABLED); off = rating is the composite bucket.
+        'rating_caps_enabled': RATING_CAPS_ENABLED,
     }
 
 
@@ -181,6 +186,9 @@ def validate_params(params):
     if not (rb > rl > rp):
         errors.append(
             "Rating thresholds must satisfy buy > lean > pass")
+    rce = params.get('rating_caps_enabled', RATING_CAPS_ENABLED)
+    if not isinstance(rce, bool):
+        errors.append(f"rating_caps_enabled = {rce!r} must be true or false")
 
     # Blend weights
     bw = params.get('blend_dcf_weight', 0) + params.get('blend_mult_weight', 0)

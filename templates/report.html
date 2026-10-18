@@ -5703,7 +5703,8 @@ function sc(v){if(v==null)return'';return v>=60?'sg':v>=30?'sm':'sp';}
 function gc(g){return g===true?'gp':g===false?'gf':'gn';}
 function rb(r,d){var h='<span class="rb" style="background:'+(RC[r]||'#888')+'">'+(r||'N/A')+'</span>';if(d&&isCapped(d))h+='<span class="rb-cap" title="'+capTipAttr(d)+'">⚠</span>';return h;}
 /* Rating-cap helpers: a cap fired iff the final rating differs from the
-   uncapped composite-derived one (rating_raw). */
+   uncapped composite-derived one (rating_raw). Caps are off by default
+   (config.RATING_CAPS_ENABLED), so this fires only on older snapshots. */
 function isCapped(d){return!!(d&&d.rating_raw&&d.rating&&d.rating!==d.rating_raw);}
 function capTip(d){var rs=d._rating_cap_reasons||[];return'Capped from '+d.rating_raw+(rs.length?': '+rs.join('; '):'');}
 function capTipAttr(d){return esc(capTip(d)).replace(/"/g,'&quot;');}
@@ -7034,7 +7035,8 @@ TC.prices=[];
    in the last three drawdowns, then beta. Momentum is DELIBERATELY not scored —
    this is a value model and a momentum gate would invert the composite-vs-
    trailing-return check the daily routine relies on. Only avg_dollar_volume_3m
-   touches ratings, and only as a HOLD cap (see _rating_cap_for_row). */
+   touches ratings, and only as a HOLD cap when the rating caps are enabled
+   (config.RATING_CAPS_ENABLED, off by default; otherwise a flag). */
 TC.mkt=[{k:'ticker',l:'Ticker',f:'text'},{k:'rating',l:'Rating',f:'rating'},{k:'momentum_12_1',l:'Mom 12-1M',f:'pct'},{k:'momentum_6_1',l:'Mom 6-1M',f:'pct'},{k:'momentum_3m',l:'Mom 3M',f:'pct'},{k:'vol_adj_momentum',l:'Vol-Adj Mom',f:'n2'},{k:'realized_vol',l:'Realized Vol',f:'pct'},{k:'avg_dollar_volume_3m',l:'Avg $ Vol (3M)',f:'ds'},{k:'volume_trend',l:'Vol Trend',f:'n2'},{k:'amihud_illiquidity',l:'Price Impact',f:'n2'},{k:'share_turnover_rate',l:'Turnover',f:'pct'},{k:'range_52w_position',l:'52W Range Pos',f:'int'},{k:'pct_from_52w_high',l:'% from High',f:'pct'},{k:'drawdown_2020',l:'2020 COVID DD',f:'pct'},{k:'drawdown_2022',l:'2022 Bear DD',f:'pct'},{k:'drawdown_2008',l:'2008 GFC DD',f:'pct'},{k:'beta_adjusted',l:'Beta (adj)',f:'n2'}];
 /* Key order here IS the display order — renderTSubs and the column-filter
    optgroup builder both iterate Object.keys(TL) and label from TL[key], so a
@@ -9056,7 +9058,8 @@ function _proRisks(d,p){
   var li=[];
   var txt=function(x){return typeof x==='string'?x:(x&&x.text)||'';};
   (d.trap_reasons||[]).forEach(function(r){if(r)li.push('Value trap: '+txt(r));});
-  (d._rating_cap_reasons||[]).forEach(function(r){if(r)li.push('Rating cap: '+txt(r));});
+  var capLbl=isCapped(d)?'Rating cap: ':'Flag: ';
+  (d._rating_cap_reasons||[]).forEach(function(r){if(r)li.push(capLbl+txt(r));});
   var ef=d.edgar_fields_flagged;
   if(Array.isArray(ef)&&ef.length)li.push('EDGAR data flagged: '+ef.slice(0,4).map(txt).join(', '));
   if(_num(d.legal_count))li.push(d.legal_count+' legal filing'+(d.legal_count==1?'':'s')+(d.legal_latest?' (latest '+txt(d.legal_latest)+')':''));

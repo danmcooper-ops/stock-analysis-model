@@ -79,10 +79,16 @@ def test_mos_wording_flips_at_thresholds():
     thin = _text(generate_data_tab_summaries(_row(mos=0.05)), 'val')
     over = _text(generate_data_tab_summaries(_row(mos=-0.05)), 'val')
     deep = _text(generate_data_tab_summaries(_row(mos=-0.25)), 'val')
+    capped = _text(generate_data_tab_summaries(_row(
+        mos=-0.25, rating='PASS', rating_raw='LEAN BUY',
+        _rating_cap_reasons=['margin of safety <= -20%'])), 'val')
     assert 'meaningful margin of safety' in wide
     assert 'thin margin of safety' in thin
     assert 'no valuation cushion' in over and 'PASS' not in over
-    assert 'cap the rating at PASS' in deep
+    # Caps off by default: a deep negative MoS no longer claims a PASS cap,
+    # but an older snapshot whose rating the cap did lower still says so.
+    assert 'no valuation cushion' in deep and 'PASS' not in deep
+    assert 'cap the rating at PASS' in capped
 
 
 def test_fair_value_is_a_per_share_price():
@@ -162,9 +168,13 @@ def test_zero_shareholder_yield_is_not_called_dilution():
     assert 'dilut' not in txt
 
 
-def test_thin_liquidity_mentions_buy_floor():
+def test_thin_liquidity_mentions_the_floor():
     txt = _text(generate_data_tab_summaries(_row(avg_dollar_volume_3m=400_000)), 'mkt')
-    assert '$400K a day' in txt and 'BUY' in txt
+    assert '$400K a day' in txt and 'liquidity floor flagged' in txt and 'BUY' not in txt
+    capped = _text(generate_data_tab_summaries(_row(
+        avg_dollar_volume_3m=400_000, rating='HOLD', rating_raw='BUY',
+        _rating_cap_reasons=['insufficient liquidity ($0.40M avg daily volume)'])), 'mkt')
+    assert 'held its rating below BUY' in capped
 
 
 def test_market_reversal_and_drawdowns():

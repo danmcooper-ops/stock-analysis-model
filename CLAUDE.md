@@ -936,8 +936,9 @@ ruff check .
       shipped as `profile` in the `details/` parts, ~0.5 KB a row.
     - **AVOID** = any red flag: PASS rating, MoS <= -20%, Beneish, Altman
       distress on an unhealthy non-utility/non-REIT, cash burn below the cost
-      of capital, or interest cover < 1.5x. MoS <= -20% (and a PASS that is
-      only that MoS cap) is no veto when valuation confidence is LOW and the
+      of capital, or interest cover < 1.5x. MoS <= -20% (and, on a snapshot
+      rated with caps on, a PASS that is only that MoS cap) is no veto when
+      valuation confidence is LOW and the
       price is at or below the Monte Carlo P90: the model's own range admits
       the price, so it reads WATCH and names the range (`_mos_tempered`;
       179 of 926 AVOIDs on 2026-10-12, GOOGL and META among them).
@@ -1034,6 +1035,20 @@ ruff check .
   ledger from, and writes it back to, `data/snapshots` (SMOKE-guarded).
   Portfolio colors use the dataviz reference categorical palette (validated
   both themes; dark mode swaps in each hue's dark step).
+- **Rating = composite bucket (`scripts/scoring.py`, `RATING_CAPS_ENABLED`):**
+  the rating is the composite score's bucket alone (BUY ≥ 57, LEAN BUY ≥ 39,
+  HOLD ≥ 25, else PASS). The critical-condition caps
+  (`_rating_cap_for_row`: MoS ≤ −20% → PASS; MoS ≤ 0, missing fair value,
+  Beneish, Altman distress, FX failure, low coverage or EDGAR quality,
+  < 5 years of history, ADV < $1M → HOLD) are still evaluated every run and
+  stored as `_rating_cap` / `_rating_cap_reasons`. Since 2026-10-18 they are
+  warning flags: the report, Summary PDF and Data-tab text say "Flag", not
+  "capped", and the ⚠ badge fires only where `rating != rating_raw` (older
+  snapshots). On 2026-10-16 the caps had held BUY at 39 (127 uncapped) and
+  LEAN BUY at 326 (969), and Altman fired on banks and insurers. The ParamSet
+  key `rating_caps_enabled` turns them back on (the backtest can measure both
+  models); it is part of `scoring_params_hash`, so the change splits the
+  backtest's regimes.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`

@@ -148,10 +148,19 @@ def test_missing_inputs_are_na_not_failures():
 
 
 def test_rating_cap_reasons_already_covered_are_not_repeated():
-    v = profile_verdict(_good(rating='HOLD', _rating_cap_reasons=[
+    v = profile_verdict(_good(rating='HOLD', rating_raw='BUY', _rating_cap_reasons=[
         'non-positive margin of safety', 'Altman Z distress zone', 'thin EDGAR history (3y)']))
     caps = [t for t in v['cons'] if t.startswith('Rating capped')]
     assert caps == ['Rating capped: thin EDGAR history (3y)']
+
+
+def test_uncapped_rating_names_cap_reasons_as_flags():
+    # Caps off (config.RATING_CAPS_ENABLED): the reason is still a con, but
+    # the rating is the composite's own, so it must not claim a cap.
+    v = profile_verdict(_good(rating='BUY', rating_raw='BUY',
+                              _rating_cap_reasons=['thin EDGAR history (3y)']))
+    assert 'Flag: thin EDGAR history (3y)' in v['cons']
+    assert not any(t.startswith('Rating capped') for t in v['cons'])
 
 
 def test_acronyms_keep_their_case_mid_sentence():
