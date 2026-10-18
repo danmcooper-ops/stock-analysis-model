@@ -64,9 +64,9 @@ def test_history_draws_every_year_and_states_the_split(tmp_path):
     h = sector_pool_history(rows)
     html = _render(h, "renderPoolHistory('Tech')", tmp_path)
     assert html.count('class="pph-bar') == len(h['points']) == 10
-    # two aligned charts, each with one scale and its own title — no legend
-    assert html.count('<svg class="pph-svg"') == 2 and 'pph-key' not in html
-    assert 'Operating-profit pool</div>' in html and 'Net operating margin</div>' in html
+    # one chart: bars on the $ axis, the margin line on the % axis, with a key
+    assert html.count('<svg class="pph-svg"') == 1
+    assert 'Operating-profit pool <b>' in html and 'Net operating margin <b>' in html
     assert 'Where the growth came from' in html
     assert 'Cycle position' in html and 'Concentration trend' in html
     assert 'FY2018–20 with FY2023–25' in html
@@ -467,21 +467,23 @@ def test_company_table_shows_tickers_only(tmp_path):
 
 
 def test_both_charts_use_round_ticks_and_label_their_latest_value(tmp_path):
-    """Ticks step 1/2/2.5/5 x 10^k from the complete years only, so one
-    early-filer outlier cannot stretch the margin scale; the latest value is
-    written at the end of each series instead of a legend."""
+    """One chart, two axes on shared gridlines: the $ pool ticks step
+    1/2/2.5/5 x 10^k, and the % margin axis takes the same number of round
+    steps, from the complete years only (one early-filer outlier cannot
+    stretch it). The latest values sit in the key."""
     hist = {'n_rows': 3, 'n_with_history': 3, 'points': [
         {'year': 2022 + i, 'pool': pool, 'margin': m, 'n': 3, 'coverage': 1.0, 'complete': c}
         for i, (pool, m, c) in enumerate([(47e9, 0.145, True), (99e9, 0.204, True),
                                           (127e9, 0.157, True), (2e9, 0.45, False)])]}
     html = _render(hist, "_pphSvgs(SECTOR_POOL.Tech.history,375)", tmp_path)
-    pool_svg, margin_svg = re.findall(r'<svg class="pph-svg".*?</svg>', html, re.S)
-    assert 'width="375"' in pool_svg                        # drawn at the real width
-    ticks = re.findall(r'class="pph-tx"[^>]*>([^<]+)<', pool_svg)
+    (svg,) = re.findall(r'<svg class="pph-svg".*?</svg>', html, re.S)
+    assert 'width="375"' in svg                              # drawn at the real width
+    ticks = re.findall(r'class="pph-tx pph-ax-pool"[^>]*>([^<]+)<', svg)
     assert ticks == ['0', '$50B', '$100B', '$150B']
-    pct = [float(t) for t in re.findall(r'class="pph-tx"[^>]*>(-?[\d.]+)%<', margin_svg)]
-    assert pct == [14.0, 16.0, 18.0, 20.0, 22.0]             # even steps; 45% outlier ignored
-    assert '>$127B</text>' in pool_svg and '>15.7%</text>' in margin_svg
-    d = re.search(r'<path class="pph-line" d="([^"]*)"', margin_svg).group(1)
+    pct = [float(t) for t in re.findall(r'class="pph-tx pph-ax-m"[^>]*>(-?[\d.]+)%<', svg)]
+    assert len(pct) == len(ticks)                            # one % label per gridline
+    steps = {round(b - a, 6) for a, b in zip(pct, pct[1:])}
+    assert len(steps) == 1 and pct[0] <= 14.5 and pct[-1] >= 20.4 and pct[-1] < 45
+    assert '<b>$127B</b>' in html and '<b>15.7%</b>' in html
+    d = re.search(r'<path class="pph-line" d="([^"]*)"', svg).group(1)
     assert d.count('M') == 1 and d.count('L') == 2
-

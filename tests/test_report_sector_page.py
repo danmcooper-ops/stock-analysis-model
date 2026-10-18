@@ -322,14 +322,15 @@ def test_macro_tab_intros_clamp_with_read_more():
     assert "'Show less':'Read more'" in tog and 'aria-expanded' in tog
 
 
-def test_pool_history_is_two_single_scale_charts():
-    """No dual-axis chart: the $ pool and the % margin each get their own
-    chart and title (so no left/right legend), drawn at the container's real
-    width and redrawn when its pane shows or the window resizes."""
+def test_pool_history_is_one_dual_axis_chart():
+    """The $ pool (bars, left axis) and the % margin (line, right axis) share
+    one frame and its gridlines, each axis coloured as its series, the line
+    haloed over the bars; drawn at the container's real width and redrawn
+    when its pane shows or the window resizes."""
     css = _tpl()
-    assert 'Operating-profit pool ($, bars)' not in css and 'pph-ax-l' not in css
     fn = re.search(r'^function _pphSvgs\(h,W\)\{.*?^\}', css, re.S | re.M).group(0)
-    assert fn.count('<svg class="pph-svg"') == 2
+    assert fn.count('<svg class="pph-svg"') == 1
+    assert 'pph-ax-pool' in fn and 'pph-ax-m' in fn and 'pph-halo' in fn
     assert "_pphDrawAll(document.getElementById('pool-chart-area'));" in css
     assert "  window._ppSubTabSel=k;\n  _pphDrawAll(area);" in css
 
