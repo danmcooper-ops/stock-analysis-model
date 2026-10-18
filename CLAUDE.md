@@ -420,6 +420,17 @@ ruff check .
   instead of diffing stdout timestamps. The instrumentation is defensive —
   a client without counters degrades to empty dicts rather than failing a
   5-hour run.
+- **No ROIC − WACC screen (2026-10):** the nightly run no longer passes
+  `--min-spread 0`. Phase 1 now filters only on the $300M `--mcap-min`
+  floor, the skip cache and dead symbols (carry-forward is unchanged). On
+  2026-10-16 the spread screen dropped 1,524 non-financial tickers (1,310
+  negative, 214 not computable), so qualifiers grow from ~2,860 to ~4,380
+  and Phase 2 from ~83 to ~125 min. Phase 1 costs the same, since a
+  ticker is fully fetched before that check. Value-destroying companies
+  now count in sector medians, peer percentiles and Pool Share, so
+  relative ranks shifted for every row on the switch night. The flag
+  still exists for ad-hoc runs. Turning it back on nightly would cut rows
+  by ~35%, which trips the `MIN_ROW_RATIO` coverage floor (`FORCE=1`).
 - **Phase-1 screen skip cache (`data/screen_skip_cache.py`):** remembers the
   ~4.5k tickers a run rejected as far below `--mcap-min` or dead, with a
   staggered 7-14 / 14-28 day TTL, so the next screen skips them without a
