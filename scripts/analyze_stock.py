@@ -2721,7 +2721,8 @@ def _run_setup():
                         help='Phase-1 filter: skip tickers where ROIC - WACC < FRAC. '
                              'Use 0 to keep only value-creating businesses (ROIC > WACC). '
                              'Tickers where spread cannot be computed are also skipped. '
-                             'Recommended with --universe us to keep Phase-2 manageable.')
+                             'Off by default; the nightly run no longer passes it, so '
+                             'value-destroying businesses are analysed too.')
     parser.add_argument('--tickers', nargs='+', metavar='TICKER',
                         help='Restrict the universe to exactly these tickers (skips the '
                              'S&P/NYSE/Dow/SEC universe fetch and limits carry-forward to '

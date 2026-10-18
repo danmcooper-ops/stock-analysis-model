@@ -482,7 +482,7 @@ def test_both_charts_use_round_ticks_and_label_their_latest_value(tmp_path):
     assert ticks == ['0', '$50B', '$100B', '$150B']
     pct = [float(t) for t in re.findall(r'class="pph-tx pph-ax-m"[^>]*>(-?[\d.]+)%<', svg)]
     assert len(pct) == len(ticks)                            # one % label per gridline
-    steps = {round(b - a, 6) for a, b in zip(pct, pct[1:])}
+    steps = {round(b - a, 6) for a, b in zip(pct, pct[1:], strict=False)}
     assert len(steps) == 1 and pct[0] <= 14.5 and pct[-1] >= 20.4 and pct[-1] < 45
     assert '<b>$127B</b>' in html and '<b>15.7%</b>' in html
     d = re.search(r'<path class="pph-line" d="([^"]*)"', svg).group(1)

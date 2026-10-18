@@ -276,7 +276,7 @@ fi
 # ---------------------------------------------------------------- analyze
 if wants analyze; then
   run analyze blocking bash -c "set -o pipefail; \"$VPY\" scripts/analyze_stock.py --run-date $RUNDATE --macro --prices-dir output/prices \
-      --universe us --min-spread 0 --mcap-min 300e6 2>&1 | tee output/run_$RUNDATE.log"
+      --universe us --mcap-min 300e6 2>&1 | tee output/run_$RUNDATE.log"
   if [ "$BLOCKED" = 1 ]; then
     note "analyze_stock.py failed — nothing downstream was run"
     finish failed 1

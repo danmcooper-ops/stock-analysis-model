@@ -365,7 +365,7 @@ run_step 03-prices 0 download_prices
 # ---------------------------------------------------------------------------
 # 4. The analysis (blocking)
 # ---------------------------------------------------------------------------
-ANALYZE_ARGS=(--macro --prices-dir output/prices --universe us --min-spread 0 --mcap-min 300e6)
+ANALYZE_ARGS=(--macro --prices-dir output/prices --universe us --mcap-min 300e6)
 [ "$SMOKE" = 1 ] && ANALYZE_ARGS=(--macro --prices-dir output/prices --tickers $SMOKE_TICKERS)
 # --run-date names the outputs; progress is checkpointed under
 # output/.checkpoint/$RUNDATE, so re-running this script after a container
