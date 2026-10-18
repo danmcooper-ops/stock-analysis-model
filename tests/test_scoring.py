@@ -580,9 +580,19 @@ class TestCanonicalScoreAndRate:
         row.update(kwargs)
         return row
 
-    def test_preserves_score_rating_and_applies_critical_cap(self):
+    def test_caps_are_flags_by_default(self):
+        # config.RATING_CAPS_ENABLED is off: the rating is the composite
+        # bucket, and the cap that would have fired is still recorded.
         rows = [self._row()]
         score_and_rate(rows)
+        assert rows[0]['rating_raw'] == 'BUY'
+        assert rows[0]['_rating_cap'] == 'PASS'
+        assert rows[0]['rating'] == 'BUY'
+        assert any('margin of safety' in r for r in rows[0]['_rating_cap_reasons'])
+
+    def test_applies_critical_cap_when_enabled(self):
+        rows = [self._row()]
+        score_and_rate(rows, params={'rating_caps_enabled': True})
         assert rows[0]['rating_raw'] == 'BUY'
         assert rows[0]['_rating_cap'] == 'PASS'
         assert rows[0]['rating'] == 'PASS'
@@ -826,10 +836,22 @@ class TestThinEdgarHistoryCap:
             '_composite_score': 60.5,
             'edgar_history': {'years_available': 0},
         }]
-        apply_rating_caps(rows)
+        apply_rating_caps(rows, params={'rating_caps_enabled': True})
         assert rows[0]['rating_raw'] == 'BUY'
         assert rows[0]['rating'] == 'HOLD'
         assert 'thin EDGAR history (0y)' in rows[0]['_rating_cap_reasons']
+
+    def test_default_keeps_buy_and_records_flag(self):
+        rows = [{
+            **self._BASE, 'ticker': 'TSMWF',
+            '_composite_score': 60.5,
+            'edgar_history': {'years_available': 0},
+            'altman_z_zone': 'distress',
+        }]
+        apply_rating_caps(rows)
+        assert rows[0]['rating'] == rows[0]['rating_raw'] == 'BUY'
+        assert rows[0]['_rating_cap'] == 'HOLD'
+        assert 'Altman Z distress zone' in rows[0]['_rating_cap_reasons']
 
     def test_apply_caps_leaves_us_filer_buy(self):
         rows = [{

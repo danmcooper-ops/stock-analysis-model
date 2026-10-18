@@ -3054,12 +3054,14 @@ def _evaluate_params_on_snapshots(snapshots, params, horizons):
 
         # Re-score with candidate params (only changes composite weights),
         # then derive the rating exactly as the live pipeline does: composite
-        # thresholds AND the investability caps (Beneish, Altman distress,
-        # liquidity, thin EDGAR history, ...). apply_rating_caps recomputes
+        # thresholds, plus the investability caps (Beneish, Altman distress,
+        # liquidity, thin EDGAR history, ...) when the params enable them
+        # (`rating_caps_enabled`, off by default since 2026-10-18 — pass it
+        # True to measure the capped model). apply_rating_caps recomputes
         # the rating from scratch on every call, so no reset between
         # candidates is needed. Rating-bucket objectives (hit_rate / alpha /
         # information_ratio / composite) must see the rating the pipeline
-        # actually emits — the uncapped one has ~2x the BUY count.
+        # actually emits.
         compute_continuous_scores(results, params=params)
         apply_rating_caps(results, params=params)
 

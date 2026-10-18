@@ -28,7 +28,7 @@ MAX_SENTENCES = 6
 
 # --- Thresholds (source in brackets) ---------------------------------------
 MOS_WIDE = 0.15            # popup MoS cue: green above 15%, red below 0
-MOS_PASS_CAP = -0.20       # scoring._rating_cap_for_row: MoS <= -20% caps at PASS
+MOS_PASS_CAP = -0.20       # scoring._rating_cap_for_row: MoS <= -20% (caps at PASS when caps are on)
 FV_DISPERSION_MAX = 0.15   # fv_dispersion gate: model MAD <= 15%
 SPREAD_MOAT = 0.07         # spread gate: ROIC - WACC > 7%
 ROIC_CV_MAX = 0.30         # roic_consistency gate: CV < 30%
@@ -57,7 +57,7 @@ EBIT_EV_MIN = 0.08         # ebit_ev gate: EBIT/EV > 8%
 P_TBV_MAX = 2.5            # p_tbv gate: P/TBV <= 2.5x
 BENEISH_THRESHOLD = -1.78  # models/quality.py manipulation flag: M > -1.78
 BENEISH_NEAR = -2.22       # Beneish's original 5-variable cutoff: the grey zone below the flag
-MIN_ADV_FOR_BUY = 1_000_000  # mirrors scripts/config.MIN_ADV_FOR_BUY (HOLD cap)
+MIN_ADV_FOR_BUY = 1_000_000  # mirrors scripts/config.MIN_ADV_FOR_BUY (liquidity flag)
 GOODWILL_HIGH = 0.35       # narrative._risk_flag_signals amber goodwill line
 # No existing home — chosen for this module:
 MULT_CHEAP = 0.8           # multiple <= 80% of the sector median reads cheap
@@ -105,6 +105,19 @@ def _num(row, key, lo=None, hi=None):
     if (lo is not None and v < lo) or (hi is not None and v > hi):
         return None
     return v
+
+
+def _capped_by(row, reason):
+    """True when a rating cap containing *reason* actually lowered the rating.
+
+    Caps are off by default (config.RATING_CAPS_ENABLED), so this holds only
+    on snapshots rated while they were on; otherwise the reason is a flag.
+    """
+    raw = row.get('rating_raw')
+    if raw is None or row.get('rating') in (None, raw):
+        return False
+    return any(isinstance(r, str) and reason in r
+               for r in row.get('_rating_cap_reasons') or [])
 
 
 def _money(v):
@@ -281,8 +294,10 @@ def _summ_market(row, stats):
     hot = (f', and interest is running hot at {vt:.1f}x its yearly average volume'
            if vt is not None and vt >= 1.5 else '')
     if adv is not None and adv < MIN_ADV_FOR_BUY:
+        floor = 'that held its rating below BUY' if _capped_by(row, 'liquidity') else 'flagged'
         out.append(f'Trading is thin (about {_money(adv)} a day), below the '
-                   f'liquidity floor for a BUY rating; building a position would move the price.')
+                   f'{_money(MIN_ADV_FOR_BUY)} liquidity floor {floor}; building a '
+                   f'position would move the price.')
     elif adv is not None and adv >= ADV_DEEP:
         out.append(f'Liquidity is deep, with about {_money(adv)} traded a day{hot}.')
     elif adv is not None:
@@ -314,7 +329,8 @@ def _summ_valuation(row, stats):
             out.append(f'The stock trades only {_pct(mos)} below its {src} fair value{fv_txt}, '
                        f'a thin margin of safety.')
         else:
-            cap = ' That is deep enough to cap the rating at PASS.' if mos <= MOS_PASS_CAP else ''
+            cap = (' That is deep enough to cap the rating at PASS.'
+                   if mos <= MOS_PASS_CAP and _capped_by(row, 'margin of safety') else '')
             out.append(f'The price sits above its {src} fair value{fv_txt} (margin of safety '
                        f'{_pct(mos, signed=True)}), so there is no valuation cushion.{cap}')
     disp = _num(row, '_gate_fv_dispersion')

@@ -123,6 +123,13 @@ class TestValidateParams:
         })
         assert validate_params(p) == []
 
+    def test_rating_caps_enabled_is_a_bool_defaulting_off(self):
+        assert default_params()['rating_caps_enabled'] is False
+        assert validate_params(merge_params({'rating_caps_enabled': True})) == []
+        p = default_params()
+        p['rating_caps_enabled'] = 'yes'
+        assert any('rating_caps_enabled' in e for e in validate_params(p))
+
     def test_bad_blend_weight_sum(self):
         p = default_params()
         p['blend_dcf_weight'] = 0.80

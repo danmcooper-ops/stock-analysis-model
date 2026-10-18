@@ -661,9 +661,7 @@ class TestFVAccuracyHorizon:
 
 class TestEvaluateUsesLiveRatingPath:
 
-    def test_caps_apply_to_rescored_rating(self):
-        # Two rows with identical (BUY-level) scores; one carries a Beneish
-        # flag. The live pipeline caps it at HOLD, so the evaluator must too.
+    def _snap(self):
         base = _full_gate_row(price=100.0, _fv_effective=200.0, mos=0.5,
                               edgar_history={'years_available': 10},
                               avg_dollar_volume_3m=5e7,
@@ -675,11 +673,28 @@ class TestEvaluateUsesLiveRatingPath:
         params['rating_threshold_buy'] = 0   # any composite -> BUY
         params['rating_threshold_lean'] = -1
         params['rating_threshold_pass'] = -2
+        return snap, params, clean, flagged
+
+    def test_caps_apply_to_rescored_rating_when_enabled(self):
+        # Two rows with identical (BUY-level) scores; one carries a Beneish
+        # flag. With caps on, the pipeline caps it at HOLD, so the evaluator
+        # must too.
+        snap, params, clean, flagged = self._snap()
+        params['rating_caps_enabled'] = True
         metrics = _evaluate_params_on_snapshots([snap], params, [30])
         by_t = {d['ticker']: d for d in metrics[0]['details']}
         assert by_t['CLEAN']['rating'] == 'BUY'
         assert by_t['FLAG']['rating'] == 'HOLD'
         assert clean['rating_raw'] == 'BUY' and flagged['_rating_cap'] == 'HOLD'
+
+    def test_default_params_leave_rating_uncapped(self):
+        # Caps off by default (config.RATING_CAPS_ENABLED): the evaluator
+        # rates as the live pipeline now does, on the composite alone.
+        snap, params, _clean, flagged = self._snap()
+        metrics = _evaluate_params_on_snapshots([snap], params, [30])
+        by_t = {d['ticker']: d for d in metrics[0]['details']}
+        assert by_t['FLAG']['rating'] == 'BUY'
+        assert flagged['_rating_cap'] == 'HOLD'
 
 
 class TestCalibrateEvidenceFloor:
