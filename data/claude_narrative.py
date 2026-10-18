@@ -157,7 +157,7 @@ NARRATIVE_SCHEMA = {
 }
 
 SYSTEM_PROMPT = (
-    'You are the macro strategist for a value-investing equity research '
+    'You are the macro strategist for a fundamental equity research '
     'report. Write a narrative assessment of the US economy from the '
     'indicator data provided: regime model output, FRED series with recent '
     'changes and historical percentiles, the Treasury yield curve, credit '
@@ -165,7 +165,7 @@ SYSTEM_PROMPT = (
     'Rules:\n'
     '- Use ONLY the numbers provided, and cite specific figures inline '
     "(e.g. 'core PCE at 2.8%'). Never invent a data point.\n"
-    '- Declarative plain-English prose for a long-horizon value investor; '
+    '- Declarative plain-English prose for a long-horizon investor; '
     'no hedging boilerplate, no first person, no investment advice. Never '
     'write "may", "could", "likely", "remains to be seen", or "bears '
     'watching".\n'

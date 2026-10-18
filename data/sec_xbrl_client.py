@@ -2070,7 +2070,7 @@ class SECXBRLClient:
             ticker: Stock ticker symbol.
             year_limit: Optional cap on the number of year columns kept
                 (latest first). Defaults to None — return all available
-                history (typically 10-16 years). For a value-investor /
+                history (typically 10-16 years). For a long-horizon
                 DCF pipeline this is preferable: through-cycle ROIC and
                 tax rates smooth out one-off years and are a more defensible
                 input to long-horizon terminal-value calculations.

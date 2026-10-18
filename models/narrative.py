@@ -343,7 +343,7 @@ def _stock_signals(row, sector_medians):
 
     if pp_hhi is not None:
         if pp_hhi > 0.25 and pp_rev_share and pp_rev_share > 0.10:
-            tw.append('Operates in a concentrated industry where incumbents keep the profit pool — Buffett\u2019s favourite industry structure')
+            tw.append('Operates in a concentrated industry where incumbents keep the profit pool — the most favourable industry structure for owners')
         elif pp_hhi < 0.10 and pp_mult is not None and pp_mult < 0.8:
             HW('Fragmented industry with below-average profit capture — no moat to protect margins', sev='amber', cat='moat')
 
@@ -355,11 +355,11 @@ def _stock_signals(row, sector_medians):
 
     if mos is not None:
         if mos > 0.30:
-            tw.append(f'Trading at a {_pct(mos)} margin of safety to estimated fair value — exactly the cushion Graham demanded before buying')
+            tw.append(f'Trading at a {_pct(mos)} margin of safety to estimated fair value — a real cushion against errors in the estimate')
         elif mos > 0.15:
             tw.append(f'Shares offer a {_pct(mos)} margin of safety against estimated fair value')
         elif mos < -0.30:
-            HW(f'Price sits {_pct(mos)} above estimated fair value — no margin of safety left, and the cushion Graham demanded has been bid away', sev='red', cat='valuation', magnitude=abs(mos))
+            HW(f'Price sits {_pct(mos)} above estimated fair value — no margin of safety left, and the cushion against estimate error has been bid away', sev='red', cat='valuation', magnitude=abs(mos))
         elif mos < -0.15:
             HW(f'Price sits {_pct(mos)} above estimated fair value — no margin of safety left', sev='amber', cat='valuation', magnitude=abs(mos))
         elif mos < 0:
@@ -373,9 +373,9 @@ def _stock_signals(row, sector_medians):
 
     if range_pos is not None:
         if range_pos < 20:
-            tw.append('Trading near the bottom of its 52-week range — Mr. Market is offering a discount')
+            tw.append('Trading near the bottom of its 52-week range — the market is offering a discount')
         elif range_pos > 85:
-            HW('Trading near 52-week highs — Mr. Market has already recognised the story', sev='amber', cat='valuation', magnitude=(range_pos - 85) / 15.0)
+            HW('Trading near 52-week highs — the market has already recognised the story', sev='amber', cat='valuation', magnitude=(range_pos - 85) / 15.0)
 
     if ee_vs_sector is not None:
         if ee_vs_sector < -0.20:
@@ -387,7 +387,7 @@ def _stock_signals(row, sector_medians):
     roic_cv = row.get('roic_cv')
     if roic_cv is not None:
         if roic_cv < 0.15:
-            tw.append('Returns on capital have been remarkably steady for 5 years — the durability Munger calls the real test of a moat')
+            tw.append('Returns on capital have been remarkably steady for 5 years — durability is the real test of a moat')
         elif roic_cv > 0.40:
             HW('Volatile returns on capital suggest the moat is narrower than a snapshot ROIC implies', sev='amber', cat='moat')
 
@@ -413,21 +413,21 @@ def _stock_signals(row, sector_medians):
             HW(f'Piotroski score {piotroski}/9 — below the median for a healthy business', sev='amber', cat='quality')
 
     if altman_zone == 'distress':
-        HW(f'Altman Z in the distress zone ({altman_z:.1f}) — the kind of balance-sheet risk Graham told investors to avoid entirely', sev='red', cat='quality')
+        HW(f'Altman Z in the distress zone ({altman_z:.1f}) — the kind of balance-sheet risk that can make a loss permanent', sev='red', cat='quality')
     elif altman_zone == 'grey':
         HW('Altman Z in the grey zone — financial health warrants monitoring', sev='amber', cat='quality')
     elif altman_zone == 'safe' and altman_z and altman_z > 4.0:
-        tw.append('Altman Z comfortably in the safe zone — a fortress balance sheet by Graham\u2019s test')
+        tw.append('Altman Z comfortably in the safe zone — a fortress balance sheet on this measure')
 
     if beneish_flag:
-        HW('Beneish M-Score flags potential earnings manipulation — Graham\u2019s question about whether the numbers are facts or opinions', sev='red', cat='quality')
+        HW('Beneish M-Score flags potential earnings manipulation — a question of whether the reported numbers can be trusted', sev='red', cat='quality')
 
     # --- Ownership & alignment ---
     short_pct = row.get('short_pct_float')
     founder_led = row.get('founder_led')
 
     if founder_led:
-        tw.append('Founder-led — the alignment Buffett and Munger repeatedly say matters more than any incentive plan')
+        tw.append('Founder-led — owner alignment that often matters more than any incentive plan')
 
     if short_pct is not None:
         if short_pct > 0.15:
@@ -446,7 +446,7 @@ def _stock_signals(row, sector_medians):
 
     if insider_buy_ratio is not None and insider_txn_total >= 2:
         if insider_buy_ratio > 0.60:
-            tw.append(f'Insiders are net buyers ({_pct(insider_buy_ratio)} buy ratio) — the one signal Peter Lynch said there was only one reason for')
+            tw.append(f'Insiders are net buyers ({_pct(insider_buy_ratio)} buy ratio) — insiders sell for many reasons but buy for only one')
         elif insider_buy_ratio < 0.15:
             HW(f'Insiders are overwhelmingly selling ({_pct(1 - insider_buy_ratio)} sell ratio) — the people who know the business want less of it', sev='amber', cat='insider', ratio=insider_buy_ratio)
         elif insider_buy_ratio < 0.30:
@@ -466,7 +466,7 @@ def _stock_signals(row, sector_medians):
     ddm_payout_flag = row.get('ddm_payout_flag')
 
     if ddm_consecutive is not None and ddm_consecutive >= 10:
-        tw.append(f'{ddm_consecutive} consecutive years of dividend payments — the operating record Graham looked for before any dividend claim could be trusted')
+        tw.append(f'{ddm_consecutive} consecutive years of dividend payments — an operating record that makes the dividend claim credible')
     if ddm_payout_flag:
         HW('Payout ratio looks stretched — the dividend\u2019s own margin of safety is thin', sev='red', cat='dividend')
     elif payout_ratio is not None:
@@ -478,8 +478,8 @@ def _stock_signals(row, sector_medians):
             HW(f'Payout ratio of {_pct(payout_ratio)} leaves thin coverage if earnings wobble', sev='amber', cat='dividend')
 
     # Analyst-consensus signals (target-price upside, recommendation) were
-    # removed: they're sell-side sentiment, not a fundamental signal Buffett /
-    # Munger would use. MoS vs DCF / RIM / EPV / NAV in the Valuation block
+    # removed: they're sell-side sentiment, not a fundamental signal.
+    # MoS vs DCF / RIM / EPV / NAV in the Valuation block
     # carries the same upside/downside framing from independent valuation.
 
     return hw, tw
@@ -514,7 +514,7 @@ def _peer_signals(row):
     gm_pctile = row.get('_peer_pctile_gross_margin')
     if gm_pctile is not None:
         if gm_pctile >= 0.85:
-            tw.append(f'Gross margin tops the {sector} peer set — the pricing power Buffett prizes is actually present here')
+            tw.append(f'Gross margin tops the {sector} peer set — genuine pricing power is present here')
         elif gm_pctile <= 0.15:
             HW(f'Gross margin trails most {sector} peers — competitors appear to have the pricing hand', sev='amber', cat='moat')
 
@@ -532,7 +532,7 @@ def _peer_signals(row):
     lev_pctile = row.get('_peer_pctile_nd_ebitda')
     if lev_pctile is not None:
         if lev_pctile >= 0.85:
-            HW(f'Carries more leverage than most {sector} peers — a smaller cushion for the bad year Buffett always plans for', sev='amber', cat='balance_sheet')
+            HW(f'Carries more leverage than most {sector} peers — a smaller cushion for the inevitable bad year', sev='amber', cat='balance_sheet')
         elif lev_pctile <= 0.15:
             tw.append(f'Among the least levered in {sector} — the fortress balance sheet in its peer set')
 
@@ -568,7 +568,7 @@ def _risk_flag_signals(row):
         if gw_pct > 0.50:
             HW(f'Goodwill represents {_pct(gw_pct)} of total assets — a large impairment risk hanging over book value', sev='red', cat='balance_sheet')
         elif gw_pct > 0.35:
-            HW(f'Significant goodwill ({_pct(gw_pct)} of assets) from past acquisitions — the kind of soft asset Graham discounted to zero', sev='amber', cat='balance_sheet')
+            HW(f'Significant goodwill ({_pct(gw_pct)} of assets) from past acquisitions — a soft asset a conservative appraisal discounts to zero', sev='amber', cat='balance_sheet')
         elif gw_pct == 0 or gw_pct < 0.05:
             tw.append('Minimal goodwill on the balance sheet — low impairment risk')
 
@@ -642,8 +642,8 @@ def _news_signals(row):
 # ---------------------------------------------------------------------------
 
 # Map sector → the single structural risk that most plausibly breaks the
-# long-run thesis for companies in that sector. Sourced from Buffett/Graham
-# commentary on what actually kills a moat over a decade-plus horizon.
+# long-run thesis for companies in that sector. Drawn from what
+# actually kills a moat over a decade-plus horizon.
 # Educational primer on how each sector actually makes money, plus a
 # "business cycle" line describing where in the macro cycle the sector
 # tends to outperform and where it struggles. Used to give the reader a
@@ -890,7 +890,7 @@ _SECTOR_THESIS_RISKS = {
     ],
     'Financial Services': [
         'Credit cycles and regulatory capital — losses accumulate invisibly in good years '
-        'and appear all at once, and Buffett warns the time to worry is when underwriting standards are loosest.',
+        'and appear all at once, and the time to worry is when underwriting standards are loosest.',
         'Fintech disintermediation — neobanks, embedded finance, and blockchain rails are unbundling '
         'the fee streams that traditional banks took for granted.',
         'Interest rate regime shifts — a rapid move in rates can invert the yield curve, '
@@ -1105,11 +1105,11 @@ def _thesis_breaker_signal(row):
 # ---------------------------------------------------------------------------
 
 def generate_financial_summary(row):
-    """Build a Graham/Buffett/Munger-style analytical summary of the business.
+    """Build an owner's-eye analytical summary of the business.
 
     Walks through scale, revenue durability, moat & profitability, owner earnings,
     balance sheet conservatism, and capital return discipline — framed as a
-    value investor's verdict rather than a recitation of metrics.
+    verdict rather than a recitation of metrics.
     Returns a list of bullet strings (one per dimension), suitable for
     rendering as a <ul> in the report. Empty dimensions are skipped.
     """
@@ -1179,15 +1179,15 @@ def generate_financial_summary(row):
         growth_sent = 'The top line has compounded at ' + ' and '.join(growth_pieces)
         if rev_cagr is not None:
             if rev_cagr > 0.12:
-                growth_sent += ', the kind of sustained demand persistence Buffett looks for in a compounder'
+                growth_sent += ', the kind of sustained demand persistence that marks a compounder'
             elif rev_cagr > 0.05:
                 growth_sent += ', a respectable pace for a business of this size'
             elif rev_cagr > 0:
                 growth_sent += ', which puts it in mature, slow-growth territory'
             elif rev_cagr > -0.02:
-                growth_sent += ' \u2014 essentially flat, and Buffett would note that a business treading water is rarely a path to compounding'
+                growth_sent += ' \u2014 essentially flat, and a business treading water is rarely a path to compounding'
             else:
-                growth_sent += ', and Buffett warns that a shrinking top line is the hardest headwind any business can overcome'
+                growth_sent += ', and a shrinking top line is the hardest headwind any business can overcome'
         growth_sent += '.'
         if margin_trend is not None and abs(margin_trend) > 0.02:
             if margin_trend > 0:
@@ -1200,16 +1200,16 @@ def generate_financial_summary(row):
     if roic is not None and spread is not None and wacc is not None:
         moat_sent = f'Returns on capital run at {roic * 100:.0f}% against a {wacc * 100:.0f}% cost of capital'
         if spread > 0.08 and roic > 0.18:
-            moat_sent += f' \u2014 a {spread * 100:.0f}-point spread that is the clearest signature of an economic moat Buffett teaches us to look for'
+            moat_sent += f' \u2014 a {spread * 100:.0f}-point spread that is the clearest signature of an economic moat'
         elif spread > 0.03:
             moat_sent += f', a {spread * 100:.0f}-point spread that creates value, though narrow enough that competitive pressure could close it'
         elif spread > 0:
             moat_sent += ', which means the business barely earns its keep economically'
         else:
-            moat_sent += ', which in Buffett\u2019s language means the business is destroying value with every dollar it reinvests'
+            moat_sent += ', which means the business is destroying value with every dollar it reinvests'
         if gross_margin is not None:
             if gross_margin > 0.50:
-                moat_sent += f'. Gross margins of {gross_margin * 100:.0f}% confirm the genuine pricing power Buffett prizes above all else'
+                moat_sent += f'. Gross margins of {gross_margin * 100:.0f}% confirm genuine pricing power'
             elif gross_margin < 0.25:
                 moat_sent += f', and {gross_margin * 100:.0f}% gross margins are typical of commodity economics where competitors can replicate the product cheaply'
             else:
@@ -1231,10 +1231,10 @@ def generate_financial_summary(row):
                 elif cash_conv >= 0.7:
                     fcf_sent += f', with adequate {cash_conv:.2f}\u00d7 cash conversion'
                 elif cash_conv >= 0:
-                    fcf_sent += f'. Cash conversion is thin at {cash_conv:.2f}\u00d7, however, which raises Graham\u2019s oldest question: are these earnings opinions or facts?'
+                    fcf_sent += f'. Cash conversion is thin at {cash_conv:.2f}\u00d7, however, which raises the oldest question in analysis: are these earnings backed by cash?'
             parts.append(fcf_sent + '.')
         else:
-            parts.append(f'The company is burning through {_ds(abs(fcf))} of cash, and Graham insisted on positive owner earnings before any valuation conversation begins.')
+            parts.append(f'The company is burning through {_ds(abs(fcf))} of cash, and without positive owner earnings any valuation rests on hope rather than evidence.')
 
     if accruals is not None and abs(accruals) > 0.08:
         parts.append(f'Accruals are elevated at {accruals * 100:+.1f}% of assets, and Sloan showed firms building earnings through accruals rather than cash systematically underperform.')
@@ -1244,13 +1244,13 @@ def generate_financial_summary(row):
         bs_pieces = []
         if nd_ebitda is not None:
             if nd_ebitda < 0:
-                bs_pieces.append('the balance sheet carries net cash, which is the gold standard Buffett demands so the business never has to make desperate decisions in a bad year')
+                bs_pieces.append('the balance sheet carries net cash, which is the gold standard: the business never has to make desperate decisions in a bad year')
             elif nd_ebitda < 2.0:
-                bs_pieces.append(f'leverage is comfortably within Buffett\u2019s tolerance at {nd_ebitda:.1f}\u00d7 net debt/EBITDA')
+                bs_pieces.append(f'leverage is comfortably conservative at {nd_ebitda:.1f}\u00d7 net debt/EBITDA')
             elif nd_ebitda < 4.0:
                 bs_pieces.append(f'debt is moderate at {nd_ebitda:.1f}\u00d7 net debt/EBITDA, serviceable in normal conditions but worth watching through a downturn')
             else:
-                bs_pieces.append(f'debt is heavy at {nd_ebitda:.1f}\u00d7 net debt/EBITDA, and Munger reminds us that liquor, ladies, and leverage are the three things that ruin people')
+                bs_pieces.append(f'debt is heavy at {nd_ebitda:.1f}\u00d7 net debt/EBITDA, and leverage like that is what turns a bad year into a permanent loss')
         if int_cov is not None:
             if int_cov >= 100:
                 pass  # effectively unlimited; don't bother
@@ -1267,18 +1267,18 @@ def generate_financial_summary(row):
     cap_pieces = []
     if shareholder_yield is not None:
         if shareholder_yield > 0.05:
-            cap_pieces.append(f'management returns a meaningful {shareholder_yield * 100:.1f}% of market cap to owners through dividends and buybacks, which is Buffett\u2019s favourite signal of disciplined capital allocation')
+            cap_pieces.append(f'management returns a meaningful {shareholder_yield * 100:.1f}% of market cap to owners through dividends and buybacks, a strong signal of disciplined capital allocation')
         elif shareholder_yield > 0.02:
             cap_pieces.append(f'shareholder yield of {shareholder_yield * 100:.1f}% reflects a genuine commitment to returning capital rather than empire-building')
         elif shareholder_yield >= 0:
             cap_pieces.append(f'shareholder yield is only {shareholder_yield * 100:.1f}%, a thin return of capital')
         elif shareholder_yield > -0.50:
-            cap_pieces.append(f'net dilution runs at {abs(shareholder_yield) * 100:.1f}% annually, transferring value from owners to stock-based comp in the way Buffett has repeatedly criticised')
+            cap_pieces.append(f'net dilution runs at {abs(shareholder_yield) * 100:.1f}% annually, transferring value from owners to stock-based comp')
     if sbc_pct_rev is not None and sbc_pct_rev > 0.10:
-        cap_pieces.append(f'stock-based comp at {sbc_pct_rev * 100:.0f}% of revenue is silent dilution the value investor has to account for')
+        cap_pieces.append(f'stock-based comp at {sbc_pct_rev * 100:.0f}% of revenue is silent dilution an owner has to account for')
     if insider_pct is not None:
         if insider_pct > 0.10:
-            cap_pieces.append(f'insiders hold {insider_pct * 100:.0f}% of the shares, so management thinks like owners because it is one \u2014 exactly the alignment Munger looks for')
+            cap_pieces.append(f'insiders hold {insider_pct * 100:.0f}% of the shares, so management thinks like owners because it is one \u2014 the strongest alignment there is')
         elif insider_pct >= 0.02:
             cap_pieces.append(f'insiders hold {insider_pct * 100:.1f}% of the shares')
         elif insider_pct >= 0:
