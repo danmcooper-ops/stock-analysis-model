@@ -5786,36 +5786,36 @@ function bkv(pairs){return pairs.map(function(p){
   return'<div class="dkv"><span class="kl"'+klAttr+'>'+p[0]+'</span><span class="kv"'+(p[2]?' style="'+p[2]+'"':'')+'>'+p[1]+'</span></div>';
 }).join('');}
 var TT={
-ticker:'The symbol stands for a business, not a lottery ticket. Buffett’s rule: invest only in what you understand well enough to own for a decade.',
+ticker:'The symbol stands for a business, not a lottery ticket. The rule: invest only in what you understand well enough to own for a decade.',
 rating:'The model’s verdict, blending the DCF fair value, 26 quality gates and the composite score. Treat it as a starting point for your own work, not a substitute for it.',
 rating_prev:'The stock’s rating in the most recent earlier run that rated it — same colour pill as today’s, so upgrades and downgrades read side by side. Falls back through a fortnight of snapshots; N/A means it was in none of them.',
 _composite_score:'Score = 0.30·Valuation + 0.30·Moat + 0.20·Quality + 0.10·Growth + 0.10·Ownership — five pillars, each scored 0–100 and weighted by how much it matters to long-run returns. Ratings: ≥57 BUY; 39–56 LEAN BUY; 25–38 HOLD; below 25 PASS. Thresholds are provisional pending the next live run.',
 _gates_passed:'Gates passed, out of those that apply. Gates that cannot describe the business — free-cash-flow tests for a bank, say — are excluded from the denominator, not failed. Diagnostic only: the composite score, not this count, drives the rating; but every failure deserves an explanation.',
-sector:'GICS sector. Buffett’s circle of competence begins here: benchmark a business only against peers with genuinely similar economics.',
+sector:'GICS sector. Benchmark a business only against peers with genuinely similar economics.',
 industry:'GICS industry sub-group — the peer set for margin and ROIC comparisons. Compare within the industry, never across it.',
-mcap:'Market Cap = Price × Shares Outstanding — what the whole company sells for today. Graham’s game is the gap between this figure and intrinsic value; that gap is where fortunes are made.',
-roic:'ROIC = NOPAT / average Invested Capital (equity + debt − cash & short-term investments), shown as the trailing five-year median of the per-year figures — the after-tax operating profit earned on every dollar tied up in the business. Buffett’s single most important metric: a five-year median above 15% is the hallmark of a compounder.',
+mcap:'Market Cap = Price × Shares Outstanding — what the whole company sells for today. The gap between this figure and intrinsic value is where returns are made.',
+roic:'ROIC = NOPAT / average Invested Capital (equity + debt − cash & short-term investments), shown as the trailing five-year median of the per-year figures — the after-tax operating profit earned on every dollar tied up in the business. The single most important metric: a five-year median above 15% is the hallmark of a compounder.',
 wacc:'WACC = (E/V)·Re + (D/V)·Rd·(1−t) — the blended, after-tax cost of the equity and debt that fund the business, and the hurdle every project must clear. Small swings move the DCF a great deal; err on the conservative side.',
 spread:'Spread = ROIC − WACC — the gap between what capital earns and what it costs: economic profit in one number. The gate passes above 7%; near zero, a business barely earning its keep.',
-roic_cv:'CV = σ(ROIC) / μ(ROIC) — the volatility of returns relative to their level. Munger prizes consistent, predictable economics: high ROIC with a low CV is a compounding machine.',
+roic_cv:'CV = σ(ROIC) / μ(ROIC) — the volatility of returns relative to their level. Consistent, predictable economics matter: high ROIC with a low CV is a compounding machine.',
 margin_advantage:'Margin Advantage = operating margin − sector median. A company-specific reading of competitive position, orthogonal to ROIC: a durable premium over peers signals pricing power or a cost edge. The gate passes above +5pp.',
-incr_roic:'Incremental ROIC = ΔNOPAT / ΔInvested Capital — the return on each new dollar reinvested, not the blended average of old ones. Buffett’s test of a franchise: a fat average ROIC beside a thin incremental one is a fading moat. Passes above 10%; N/A when the capital base shrank, which leaves the ratio undefined, not poor.',
+incr_roic:'Incremental ROIC = ΔNOPAT / ΔInvested Capital — the return on each new dollar reinvested, not the blended average of old ones. The test of a franchise: a fat average ROIC beside a thin incremental one is a fading moat. Passes above 10%; N/A when the capital base shrank, which leaves the ratio undefined, not poor.',
 pool_share:'Pool Share Δ = 5-yr growth of the company’s slice of its sector’s operating-profit pool, same peer set at both endpoints. A steadily bigger slice is the moat observed, not asserted — the trajectory to Margin Advantage’s level. Passes when the share is growing; N/A on short history, thin peer sets or loss-making endpoints.',
 rev_volatility:'Rev Volatility = σ of year-over-year revenue growth — how steady the top line is, regardless of how fast it grows. Growth-neutral by construction: it measures the variability of growth, not its level. It replaced ROE, which leverage and buybacks can flatter. The gate passes below 12%.',
 fcf_yield:'FCF Yield = Free Cash Flow / Market Cap, judged against the risk-free rate. An absolute, model-independent floor on value — does the cash the business throws off beat a Treasury? — that holds whether or not the fair-value models agree.',
-dcf_fv:'FV = Σ FCFₜ/(1+WACC)ᵗ + terminal value — every future free cash flow, discounted back to today. Buffett: “the value of any asset is its discounted future cash flows.” Treat the figure as a range; the assumptions, not the arithmetic, drive it.',
-price:'Mr. Market’s offer for today — one you are never obliged to accept. Buffett: “Price is what you pay; value is what you get.”',
-mos:'MoS = (Fair Value − Price) / Fair Value — the discount the market hands you, and the room your analysis has to be wrong. Graham called margin of safety the three most important words in investing. Demand 20–30% at minimum; 40%+ is compelling.',
-pe:'P/E = Price / Earnings per Share — Graham’s first-pass screen. A low P/E means little by itself; a low P/E with high ROIC and cash-backed earnings is one of the most reliable combinations in value investing.',
+dcf_fv:'FV = Σ FCFₜ/(1+WACC)ᵗ + terminal value — every future free cash flow, discounted back to today. Treat the figure as a range; the assumptions, not the arithmetic, drive it.',
+price:'The market’s offer for today — one you are never obliged to accept. Price is what you pay; value is what you get.',
+mos:'MoS = (Fair Value − Price) / Fair Value — the discount the market hands you, and the room your analysis has to be wrong. Demand 20–30% at minimum; 40%+ is compelling.',
+pe:'P/E = Price / Earnings per Share — a first-pass screen. A low P/E means little by itself; a low P/E with high ROIC and cash-backed earnings is one of the most reliable combinations in fundamental analysis.',
 ev_ebitda:'EV/EBITDA = (Market Cap + Net Debt) / EBITDA — a multiple the capital structure cannot flatter, since it prices the whole enterprise. But it flatters capex-heavy businesses, where EBITDA ignores the reinvestment needed just to stand still.',
-pfcf:'P/FCF = Price / Free Cash Flow — the multiple paid on Buffett’s owner earnings, the cash left after the business has paid its way. Below 20× is reasonable; below 15×, attractive.',
+pfcf:'P/FCF = Price / Free Cash Flow — the multiple paid on owner earnings, the cash left after the business has paid its way. Below 20× is reasonable; below 15×, attractive.',
 ebit_ev:'EBIT/EV = Operating Income / Enterprise Value — Greenblatt’s earnings yield, the return on the whole business. Because EV counts net debt, leverage cannot flatter it as it can an equity-only yield. Passes above 8% (≈ ≤ 12.5× EV/EBITDA); not scored for financials, where enterprise value is meaningless.',
-pb:'P/B = Price / Book Value — Graham’s original asset anchor. A high multiple is justified only by durably high ROIC; without it, the stock is a value trap.',
+pb:'P/B = Price / Book Value — the original asset anchor. A high multiple is justified only by durably high ROIC; without it, the stock is a value trap.',
 epv_fv:'EPV = (NOPAT / WACC − Net Debt) / Shares — operating income after a through-cycle tax rate, capitalised at WACC as if it never grows again, then bridged from enterprise to equity value. When the price sits below EPV, the market is charging nothing for growth; whatever comes is free.',
 epv_growth_fv:'EPV Growth-Adj = EPV × (ROIC / WACC), capped at 2×. When the return on capital exceeds its cost, growth creates value and the zero-growth floor is scaled up by the spread; below it, the floor stands. ROE / cost of equity is used when ROIC is unavailable. This is the EPV leg of the fair-value consensus.',
 rim_fv:'RIM FV = Book Value + Σ (NI − r·BV)/(1+r)ᵗ — book value plus the present value of earnings above the cost of equity, with that excess fading by half over ten years. When RIM and DCF agree by different routes, conviction rises.',
-ddm_fv:'DDM FV = D₁ / (r − g) — next year’s dividend, capitalised at the cost of equity less growth. Buffett prizes a growing dividend as proof of disciplined capital allocation. Blank means the stock is ineligible.',
-div_yield:'Dividend Yield = Dividends per Share / Price — cash in hand today. Graham’s warning: a fat yield on a shrinking business is bait, not income. Judge it alongside payout and growth.',
+ddm_fv:'DDM FV = D₁ / (r − g) — next year’s dividend, capitalised at the cost of equity less growth. A growing dividend is proof of disciplined capital allocation. Blank means the stock is ineligible.',
+div_yield:'Dividend Yield = Dividends per Share / Price — cash in hand today. A fat yield on a shrinking business is bait, not income. Judge it alongside payout and growth.',
 payout_ratio:'Payout = Dividends / Net Income. Below about 60% leaves room to grow the dividend and reinvest; above 100%, the dividend is funded by debt or asset sales, not earnings.',
 dividend_cagr_5y:'Compound annual dividend growth over five years. A steadily rising dividend is management committing itself in public — cuts are rare and painful, so growth here signals confidence.',
 ddm_div_cagr:'Historical dividend CAGR from the full payment record, capped at the extremes. One of three growth signals blended into the DDM, at 30% weight.',
@@ -5827,109 +5827,109 @@ ddm_mc_p10:'The 10th-percentile DDM fair value from Monte Carlo simulation over 
 ddm_mc_median:'The median Monte Carlo DDM fair value — more robust than the point estimate when the inputs are noisy.',
 ddm_mc_p90:'The 90th-percentile Monte Carlo DDM fair value — the optimistic tail. A wide P10–P90 band means the dividend valuation hinges on its assumptions.',
 ddm_mc_cv:'MC CV = σ / μ across the Monte Carlo DDM runs. Low means the dividend valuation holds up across assumptions; high means the DDM fair value is a sketch, not a figure.',
-ddm_payout_flag:'Yes means the payout exceeds 100% of earnings — the dividend is not earnings-funded. Munger: a dividend paid from the balance sheet is a return of capital, not a return on it.',
+ddm_payout_flag:'Yes means the payout exceeds 100% of earnings — the dividend is not earnings-funded. A dividend paid from the balance sheet is a return of capital, not a return on it.',
 ddm_eligible:'Whether the stock qualifies for DDM valuation: a current dividend, positive earnings and a sufficient payment streak. The DDM Note gives the reason.',
 ddm_reason:'Why the stock is or is not DDM-eligible — no current dividend, too short a streak, or a payout above 100%.',
 implied_growth:'Implied g — the growth rate that, fed through the DCF, reproduces today’s price. If it exceeds anything the business has ever delivered, the market is pricing for perfection.',
-roe:'ROE = Net Income / Equity. Buffett looks for 15%+ earned without leverage; the DuPont decomposition tells you whether it comes durably from margin and turnover, or fragilely from debt.',
+roe:'ROE = Net Income / Equity. Look for 15%+ earned without leverage; the DuPont decomposition tells you whether it comes durably from margin and turnover, or fragilely from debt.',
 roa:'ROA = Net Income / Assets — profitability with the leverage stripped out. A high ROA is structural efficiency, the kind that compounds.',
-cash_conv:'Cash Conversion = Operating Cash Flow / Net Income. Graham’s dictum: earnings are opinions; cash is fact. Persistently below 0.8 points to accounting or working-capital trouble.',
-gross_margin:'Gross Margin = (Revenue − COGS) / Revenue — the first test of a moat. Buffett calls pricing power the single most important decision in evaluating a business; above 40% is a premium competitors cannot replicate.',
+cash_conv:'Cash Conversion = Operating Cash Flow / Net Income. Earnings are opinions; cash is fact. Persistently below 0.8 points to accounting or working-capital trouble.',
+gross_margin:'Gross Margin = (Revenue − COGS) / Revenue — the first test of a moat. Pricing power is the single most important trait in evaluating a business; above 40% is a premium competitors cannot replicate.',
 accruals:'Accruals = (Net Income − Operating Cash Flow) / Average Assets — the slice of profit not backed by cash. Sloan (1996) showed high-accrual firms systematically underperform; above 5%, scrutinise revenue recognition.',
 rev_cagr:'CAGR = (Revₙ/Rev₀)^(1/3) − 1 over the past three years. Growth with stable margins signals pricing power and durable demand; growth without them is bought, not earned.',
 dupont_margin:'Net Margin = Net Income / Revenue — the first DuPont pillar. The best businesses pair pricing power with cost discipline and keep more of every revenue dollar.',
-dupont_turnover:'Asset Turnover = Revenue / Assets — the second DuPont pillar. Asset-light businesses, software and brands above all, generate more revenue per dollar deployed: Buffett’s preferred structure.',
-dupont_leverage:'Equity Multiplier = Assets / Equity — the third DuPont pillar. Munger’s warning about “liquor, ladies, and leverage” applies: check that margin and turnover stand on their own without it.',
-piotroski:'F-Score: nine binary tests of profitability, leverage and efficiency, summed 0–9. Seven or better signals improving health; three or worse, deterioration. A Graham-style check, quantified.',
-int_cov:'Interest Coverage = EBIT / Interest Expense. Below 3×, one bad year becomes a crisis; above 10× is a fortress. Munger: avoid leverage that forces selling at the worst time.',
-nd_ebitda:'Net Debt/EBITDA = (Debt − Cash) / EBITDA — the years of earnings needed to retire the debt. Buffett wants no debt or very modest debt; a negative figure means net cash, the gold standard.',
-de:'D/E = Total Debt / Equity — Graham’s direct leverage test. Below 1.0, owners fund more of the business than creditors do. Munger: leverage turns temporary undervaluation into permanent loss.',
+dupont_turnover:'Asset Turnover = Revenue / Assets — the second DuPont pillar. Asset-light businesses, software and brands above all, generate more revenue per dollar deployed: the preferred structure.',
+dupont_leverage:'Equity Multiplier = Assets / Equity — the third DuPont pillar. Leverage can flatter ROE: check that margin and turnover stand on their own without it.',
+piotroski:'F-Score: nine binary tests of profitability, leverage and efficiency, summed 0–9. Seven or better signals improving health; three or worse, deterioration. A classic balance-sheet check, quantified.',
+int_cov:'Interest Coverage = EBIT / Interest Expense. Below 3×, one bad year becomes a crisis; above 10× is a fortress. Avoid leverage that forces selling at the worst time.',
+nd_ebitda:'Net Debt/EBITDA = (Debt − Cash) / EBITDA — the years of earnings needed to retire the debt. No debt or very modest debt is ideal; a negative figure means net cash, the gold standard.',
+de:'D/E = Total Debt / Equity — the direct leverage test. Below 1.0, owners fund more of the business than creditors do. Leverage turns temporary undervaluation into permanent loss.',
 total_debt:'All interest-bearing borrowings — long-term debt plus the short-term and current portions — from the latest annual balance sheet (SEC XBRL where available). The absolute claim creditors hold ahead of shareholders; judge it against cash flow, not in isolation.',
-net_debt:'Net Debt = Total Debt − Cash & Equivalents — what would remain owed if the cash pile paid down borrowings today. Negative means net cash: Buffett’s fortress posture, freedom to act when others must sell.',
-cash:'Cash and equivalents on the latest annual balance sheet — the buffer that buys time in a downturn and optionality in a panic. Buffett keeps billions idle on purpose; cash is a call option on future bargains.',
-cr:'Current Ratio = Current Assets / Current Liabilities. Graham required at least 2.0 for defensive stocks; below 1.0, the business depends on rolling its credit.',
-altman_z:'Z = 1.2·WC/A + 1.4·RE/A + 3.3·EBIT/A + 0.6·MktEq/Liab + 1.0·Sales/A — five balance-sheet ratios weighted into one distress score. Above 2.99 is safe; below 1.81, distress. The point is Graham’s: avoid permanent loss of capital.',
-beneish_m:'M-Score — an eight-variable index of earnings manipulation. Above −1.78, the risk is elevated. Buffett on management: “integrity, intelligence, energy — if they lack the first, the other two will kill you.”',
+net_debt:'Net Debt = Total Debt − Cash & Equivalents — what would remain owed if the cash pile paid down borrowings today. Negative means net cash: a fortress posture, freedom to act when others must sell.',
+cash:'Cash and equivalents on the latest annual balance sheet — the buffer that buys time in a downturn and optionality in a panic. Idle cash is not wasted; it is a call option on future bargains.',
+cr:'Current Ratio = Current Assets / Current Liabilities. At least 2.0 is the classic bar for defensive stocks; below 1.0, the business depends on rolling its credit.',
+altman_z:'Z = 1.2·WC/A + 1.4·RE/A + 3.3·EBIT/A + 0.6·MktEq/Liab + 1.0·Sales/A — five balance-sheet ratios weighted into one distress score. Above 2.99 is safe; below 1.81, distress. The point: avoid permanent loss of capital.',
+beneish_m:'M-Score — an eight-variable index of earnings manipulation. Above −1.78, the risk is elevated. Management integrity comes first; without it, nothing else in the numbers can be trusted.',
 trap_score:'Value-trap score (0–100, experimental): how much this stock looks cheap-for-a-reason, across six axes — structural decline, balance-sheet pressure, ROIC below WACC, durable derating, uncovered payout, deep drawdown or crowded short. Display-only. A wide margin of safety WITH a high trap score is the classic trap signature.',
-fundamental_growth:'g = ROIC × Reinvestment Rate — the growth a business funds from its own returns. A 20% ROIC with half of profits reinvested compounds at 10% a year with no outside financing: internally consistent, as Buffett insists growth claims should be.',
-reinvestment_rate:'Reinvestment Rate = (CapEx + ΔWC − D&A) / NOPAT — the share of after-tax operating profit ploughed back into the business. Buffett’s ideal grows substantially while retaining little; reinvestment creates value only when ROIC is high.',
-terminal_growth:'The perpetual growth rate beyond year 10, anchored near long-run GDP of 2–3%. Small changes here swing the fair value a great deal — Buffett avoids heroic terminal assumptions, and so does this model.',
+fundamental_growth:'g = ROIC × Reinvestment Rate — the growth a business funds from its own returns. A 20% ROIC with half of profits reinvested compounds at 10% a year with no outside financing: internally consistent, as growth claims should be.',
+reinvestment_rate:'Reinvestment Rate = (CapEx + ΔWC − D&A) / NOPAT — the share of after-tax operating profit ploughed back into the business. The ideal grows substantially while retaining little; reinvestment creates value only when ROIC is high.',
+terminal_growth:'The perpetual growth rate beyond year 10, anchored near long-run GDP of 2–3%. Small changes here swing the fair value a great deal — this model avoids heroic terminal assumptions.',
 margin_trend:'The year-over-year change in operating margin. An expanding margin is a moat deepening; a contracting one is the first warning that the competitive advantage is under pressure.',
-margin_vs_hist:'Margin vs Hist = current operating margin − the company’s own ~10-year average. An over-earning guard: peak-cycle earnings inflate every fair-value model just when caution is due — Graham normalised earnings across the cycle for this reason. Fails only 5pp+ above its own history; N/A under five years of record.',
-fcf_growth:'The free-cash-flow growth used in Stage 1 of the DCF. Buffett’s test is that growth be organic — check it is supported by revenue growth and stable margins, not by deferred capex.',
+margin_vs_hist:'Margin vs Hist = current operating margin − the company’s own ~10-year average. An over-earning guard: peak-cycle earnings inflate every fair-value model just when caution is due — which is why earnings are best normalised across the cycle. Fails only 5pp+ above its own history; N/A under five years of record.',
+fcf_growth:'The free-cash-flow growth used in Stage 1 of the DCF. The test is that growth be organic — check it is supported by revenue growth and stable margins, not by deferred capex.',
 shareholder_yield:'Shareholder Yield = (Dividends + Net Buybacks) / Market Cap — all cash returned to owners, by either route. The gate passes above 2%; above 5% is a genuine, consistent commitment.',
-er:'The annual return implied by buying at today’s price and receiving the DCF’s cash flows. Buffett thinks in compounding rates: above 12–15% on a quality business deserves serious attention. Always compare it with your opportunity cost.',
-_sens_low:'The bear-case fair value from the DCF sensitivity grid. Graham’s question: what is it worth under adverse conditions? A price below this figure means a margin of safety even in the pessimistic scenario.',
-_sens_high:'The bull-case fair value from the DCF sensitivity grid. A price above it is priced for perfection. Munger’s test: would you stake permanent capital on these assumptions?',
-mc_p10_fv:'The 10th-percentile Monte Carlo fair value: 90% of simulations came out higher. A price below it means undervaluation in nearly every scenario — Graham’s strongest entry signal.',
+er:'The annual return implied by buying at today’s price and receiving the DCF’s cash flows. Think in compounding rates: above 12–15% on a quality business deserves serious attention. Always compare it with your opportunity cost.',
+_sens_low:'The bear-case fair value from the DCF sensitivity grid. The question: what is it worth under adverse conditions? A price below this figure means a margin of safety even in the pessimistic scenario.',
+_sens_high:'The bull-case fair value from the DCF sensitivity grid. A price above it is priced for perfection. The test: would you stake permanent capital on these assumptions?',
+mc_p10_fv:'The 10th-percentile Monte Carlo fair value: 90% of simulations came out higher. A price below it means undervaluation in nearly every scenario — the strongest entry signal.',
 mc_p90_fv:'The 90th-percentile Monte Carlo fair value: only 10% of simulations exceeded it. A wide P10–P90 band is irreducible uncertainty — demand proportionally more margin of safety.',
 mc_confidence:'MC Confidence = the coefficient of variation (σ / μ) of simulated fair values. Below 20% is reliable; 20–40%, moderate; above 40%, treat the point estimate with real caution. "constrained" means the band was downgraded a notch because too many scenarios hit a constraint wall or wiped out equity.',
 mc_clip_rate:'Share of Monte Carlo scenarios the most binding constraint had to force: the discount-rate floor, the minimum terminal spread, or the exit-multiple floor. Above ~20% the median and P10–P90 are shaped by the guard-rails, not just by the inputs.',
 mc_invalid_rate:'Share of Monte Carlo scenarios in which enterprise value fell below net debt — equity wiped out. These count as $0 in the percentiles, so a high wipeout rate is what pulls P10 to zero for levered names.',
 ddm_mc_clip_rate:'Share of DDM Monte Carlo scenarios forced by a constraint wall (cost-of-equity floor or minimum terminal spread). High values mean the dividend band is shaped by the guard-rails rather than the inputs.',
-shares_out:'Total shares outstanding. Buffett counts a shrinking share count among the most valuable management signals — buying back stock below intrinsic value is capital allocation at its best.',
+shares_out:'Total shares outstanding. A shrinking share count is among the most valuable management signals — buying back stock below intrinsic value is capital allocation at its best.',
 float_shares:'Float = Shares Outstanding − insider and restricted holdings. A small float amplifies volatility, which matters for position sizing in a concentrated portfolio.',
-insider_pct:'Insider ownership as a share of the company. Munger: “show me the incentive and I will show you the outcome.” Above 10% is the strongest alignment signal available.',
+insider_pct:'Insider ownership as a share of the company. Incentives drive outcomes. Above 10% is the strongest alignment signal available.',
 inst_pct:'The institutional share of ownership. It validates quality but concentrates risk: sophisticated sellers tend to act in unison when sentiment turns.',
-shares_short:'Shares sold short. Buffett ignores short interest — but prominent shorts are often the best fundamental analysts on a name. Read their thesis before dismissing it.',
-short_ratio:'Days to Cover = Shares Short / Average Daily Volume. Trader arithmetic — value investors are indifferent to short-squeeze dynamics.',
+shares_short:'Shares sold short. Short interest is not a fundamental signal — but prominent shorts are often the best fundamental analysts on a name. Read their thesis before dismissing it.',
+short_ratio:'Days to Cover = Shares Short / Average Daily Volume. Trader arithmetic — long-term owners are indifferent to short-squeeze dynamics.',
 short_pct_float:'Short Interest / Float. Above 10% is significant bearish positioning. Take a prominent short thesis seriously before concluding the market is wrong.',
-share_turnover_rate:'Turnover = Average Daily Volume / Shares Outstanding. Low turnover means a patient shareholder base. Munger: “the big money is not in the buying and selling, but in the waiting.”',
-share_buyback_rate:'Buyback Rate = Net Buybacks / Market Cap. Buffett’s condition: repurchases benefit shareholders only when made below intrinsic value. Above 3% signals real conviction.',
+share_turnover_rate:'Turnover = Average Daily Volume / Shares Outstanding. Low turnover means a patient shareholder base. Returns come from holding, not trading.',
+share_buyback_rate:'Buyback Rate = Net Buybacks / Market Cap. The condition: repurchases benefit shareholders only when made below intrinsic value. Above 3% signals real conviction.',
 high_52w:'The 52-week high. Anchoring to recent prices mistakes momentum for value — only an independent estimate of intrinsic value says whether the high is cheap or dear.',
-low_52w:'The 52-week low. Disfavour, or deterioration? Graham: price alone is never sufficient. A low is interesting only if intrinsic value remains intact.',
+low_52w:'The 52-week low. Disfavour, or deterioration? Price alone is never sufficient. A low is interesting only if intrinsic value remains intact.',
 pct_from_52w_high:'The discount to the 52-week high. A drop of 40% or more means distress, sector rotation or mispricing — compelling only if the business remains intact.',
-range_52w_position:'Position = (Price − Low) / (High − Low) within the 52-week range. Context, never signal: value investors buy businesses, not price positions.',
+range_52w_position:'Position = (Price − Low) / (High − Low) within the 52-week range. Context, never signal: own businesses, not price positions.',
 fv_dispersion:'FV Dispersion = median absolute deviation ÷ median across the fair-value models (DCF, EPV-growth, RIM, DDM). Low means the models corroborate one another; high means the estimate is noisy and a large MoS may be a value trap. Uses the pre-blend DCF so the DDM leg is not double-counted. Passes at or below 15%.',
 epv_pfv:'P/EPV = Price / Earnings Power Value. Below 1.0×, the market charges nothing for growth. Context only — the Valuation gates key off MoS and Mult vs Hist, not this ratio.',
-int_coverage:'Interest-coverage gate: EBIT / Interest Expense. Passes above 3×; above 10× is a fortress balance sheet. Munger: avoid leverage that forces selling at the worst time.',
-shrhldr_yield:'Shareholder-yield gate: (Dividends + Net Buybacks) / Market Cap. Passes above 2%. Buffett: the best thing a company can do with a cheap stock is buy it back.',
+int_coverage:'Interest-coverage gate: EBIT / Interest Expense. Passes above 3×; above 10× is a fortress balance sheet. Avoid leverage that forces selling at the worst time.',
+shrhldr_yield:'Shareholder-yield gate: (Dividends + Net Buybacks) / Market Cap. Passes above 2%. The best thing a company can do with a cheap stock is buy it back.',
 fund_growth:'Fundamental-growth gate: g = ROIC × Reinvestment Rate. A 20% ROIC with half reinvested compounds at 10% a year internally. Passes above 3%.',
 margins:'Operating-margin trend gate. Passes when the trend is flat or rising — contraction is the first warning that the moat is under pressure.',
 surprise:'EPS-surprise gate: (actual − estimated) / estimated earnings, averaged across recent quarters. Consistent beats suggest honest, conservative guidance. Passes above 0%.',
-roic_consistency:'ROIC-consistency gate: CV = σ(ROIC) / μ(ROIC). Passes below 30% — stable returns are the proof that a moat is real. Munger: what matters most is the durability of the advantage.',
+roic_consistency:'ROIC-consistency gate: CV = σ(ROIC) / μ(ROIC). Passes below 30% — stable returns are the proof that a moat is real. What matters most is the durability of the advantage.',
 'spread_>_5%':'Spread gate: ROIC − WACC. Passes above 7% — the business earns meaningfully more than its capital costs, year after year.',
-gross_margin_gate:'Gross-margin gate: (Revenue − COGS) / Revenue. Passes above 25%, or in the sector’s top quartile. Buffett: pricing power is the single most important decision.',
-insider_own:'Insider-ownership gate. Passes at 5% or more. Buffett and Munger invest with managers who think like owners because they are owners.',
-turnover:'Share-turnover gate: Average Daily Volume / Shares Outstanding. Passes below 2% — Buffett prefers businesses held by patient partners who never intend to sell.',
+gross_margin_gate:'Gross-margin gate: (Revenue − COGS) / Revenue. Passes above 25%, or in the sector’s top quartile. Pricing power is the single most important trait.',
+insider_own:'Insider-ownership gate. Passes at 5% or more. Managers who are owners think like owners.',
+turnover:'Share-turnover gate: Average Daily Volume / Shares Outstanding. Passes below 2% — favours businesses held by patient partners who never intend to sell.',
 buyback_rate:'Buyback gate: Net Buybacks / Market Cap. Passes above 0%. Consistent repurchases shrink the share count and lift owner earnings per share.',
-insider_buying:'Insider Buying = open-market buys ÷ (buys + sells) from SEC Form 4 filings over the trailing year. Lynch: insiders sell for many reasons, but buy for only one — they think the stock is cheap. Grants and option exercises are excluded; they cost the insider nothing. Passes at 50%+; N/A below four transactions.',
+insider_buying:'Insider Buying = open-market buys ÷ (buys + sells) from SEC Form 4 filings over the trailing year. Insiders sell for many reasons, but buy for only one — they think the stock is cheap. Grants and option exercises are excluded; they cost the insider nothing. Passes at 50%+; N/A below four transactions.',
 edgar_quality_score:'EDGAR Data Quality Score, 0–100: cross-validation of yfinance figures against SEC XBRL filings. 100 is a perfect match; a low score demands verification against the 10-K before valuing anything.',
 profit_pool:'Profit Pool Multiple = profit share ÷ revenue share within the sector. Above 1×, the company captures more than its proportionate share of sector profit — Porter’s moat, in one number. Passes at 1× or better.',
-net_debt_ebitda:'Net-debt gate: (Debt − Cash) / EBITDA. Passes at 1.5× or below — debt retirable from under two years of earnings. Buffett: “we want no debt or very modest debt.”',
+net_debt_ebitda:'Net-debt gate: (Debt − Cash) / EBITDA. Passes at 1.5× or below — debt retirable from under two years of earnings. No debt or very modest debt is ideal.',
 rev_durability:'Revenue-durability gate: the 10-year revenue CAGR. Persistent growth through two recessions means demand does not depend on a single cycle or macro tailwind. Passes above 2%.',
-sbc_dilution:'Stock-compensation gate: SBC / Revenue — the silent-dilution test. Buffett: stock compensation is a real cost, not a footnote. Passes at 2% or below; above 10%, shareholders are subsidising management pay.',
-p_tbv:'P/TBV = Price / Tangible Book Value — Graham’s strictest asset floor, stripping goodwill and intangibles down to what could actually be liquidated. Cheap only when ROIC justifies it; otherwise a value trap.',
-nav_fv:'NAV FV: net tangible assets per share, at book value — Graham’s asset-based intrinsic value for capital-heavy or asset-rich businesses such as REITs and financials. Best read beside the DCF, not instead of it.',
+sbc_dilution:'Stock-compensation gate: SBC / Revenue — the silent-dilution test. Stock compensation is a real cost, not a footnote. Passes at 2% or below; above 10%, shareholders are subsidising management pay.',
+p_tbv:'P/TBV = Price / Tangible Book Value — the strictest asset floor, stripping goodwill and intangibles down to what could actually be liquidated. Cheap only when ROIC justifies it; otherwise a value trap.',
+nav_fv:'NAV FV: net tangible assets per share, at book value — an asset-based intrinsic value for capital-heavy or asset-rich businesses such as REITs and financials. Best read beside the DCF, not instead of it.',
 nav_mos:'NAV MoS = (NAV − Price) / NAV — the margin of safety against the asset floor. Above 20% on a quality asset-rich business is an unusual setup; verify the assets are real and the marks are current.',
 fcf_margin:'FCF Margin = Free Cash Flow / Revenue — owner earnings, expressed as a margin. Above 10% is strong; above 15% means pricing power, light capex, or both.',
 p_fcf:'P/FCF gate: Price / Free Cash Flow. Below 25× (a cash yield above 4%) is reasonable for quality. Scored from 50× (priced for perfection) down to 10× (compelling); negative FCF scores zero.',
 rev_cagr_5y:'Revenue CAGR over five years. Read it with the 10-year figure: a high 5-year rate atop a low 10-year one usually marks recovery from a trough, not durable growth.',
-roic_trend:'ROIC Trend = ROIC now − ROIC at the start of the window. Improving means the moat is strengthening; declining is the first warning it is eroding. Munger: durability of the advantage is what matters most.',
-mult_vs_hist:'Mult vs Hist = today’s price/EBIT multiple vs the company’s own ~10-year median, on one split-adjusted series (negative = below its own history). The one gate asking whether Mr. Market now sells the same business cheaper than he himself used to. Passes at 10%+ below the median; N/A without five positive-EBIT years.',
+roic_trend:'ROIC Trend = ROIC now − ROIC at the start of the window. Improving means the moat is strengthening; declining is the first warning it is eroding. Durability of the advantage is what matters most.',
+mult_vs_hist:'Mult vs Hist = today’s price/EBIT multiple vs the company’s own ~10-year median, on one split-adjusted series (negative = below its own history). The one gate asking whether the market now prices the same business cheaper than it used to. Passes at 10%+ below the median; N/A without five positive-EBIT years.',
 rim_mos:'RIM MoS = (RIM FV − Price) / RIM FV. Agreement between RIM and DCF raises conviction in the intrinsic value. Above 10% is confirmation; below −20%, an overpayment warning.',
-fcf_durability:'FCF-durability gate: the 5-year free-cash-flow CAGR — growth in cash-generating capacity, not accounting earnings. Passes above 5%; sustained owner-earnings growth is Buffett’s preferred compounding signal.',
-share_shrink:'Share-count gate: the 5-year CAGR of shares outstanding. Passes when the count is shrinking. Buffett: when the stock is cheap and the cash is there, repurchases benefit shareholders — shrinkage plus high ROIC compounds value per share.',
-sbc_pct_rev:'SBC / Revenue. Buffett’s question: “if options aren’t a form of compensation, what are they?” A cost paid in dilution rather than cash. Below 2% is restrained; above 10%, shareholders quietly subsidise management pay.',
+fcf_durability:'FCF-durability gate: the 5-year free-cash-flow CAGR — growth in cash-generating capacity, not accounting earnings. Passes above 5%; sustained owner-earnings growth is the clearest compounding signal.',
+share_shrink:'Share-count gate: the 5-year CAGR of shares outstanding. Passes when the count is shrinking. When the stock is cheap and the cash is there, repurchases benefit shareholders — shrinkage plus high ROIC compounds value per share.',
+sbc_pct_rev:'SBC / Revenue. Stock compensation is compensation: a cost paid in dilution rather than cash. Below 2% is restrained; above 10%, shareholders quietly subsidise management pay.',
 rev_cagr_10y:'Revenue CAGR over ten years. Growth sustained through multiple cycles is the cleanest evidence of durable demand; above 5% with stable margins is the hallmark of a compounder.',
 /* Enriched sector-specific KPIs (FDIC call reports / SEC XBRL / REIT proxies).
    Framed through the same value lens — moat, owner earnings, balance-sheet
    safety — as the core columns, not as raw definitions. */
-nim:'NIM = Net Interest Income / Avg Earning Assets (FDIC call report). A bank’s core spread between what it earns on assets and pays for funding — Buffett’s first test of a lending franchise. 2.5–4% typical; durable NIM signals a deposit-funding advantage, not reach-for-yield risk.',
+nim:'NIM = Net Interest Income / Avg Earning Assets (FDIC call report). A bank’s core spread between what it earns on assets and pays for funding — the first test of a lending franchise. 2.5–4% typical; durable NIM signals a deposit-funding advantage, not reach-for-yield risk.',
 efficiency_ratio:'Efficiency Ratio = Noninterest Expense / Revenue (FDIC). The cost to produce a dollar of bank revenue — lower is better, the inverse of operating leverage. < 55% = a disciplined low-cost operator; > 65% = a bloated cost base that quietly erodes ROE.',
-rd_intensity_xbrl:'R&D / Revenue (SEC XBRL — cleaner than the income-statement figure). Reinvestment in the future moat. Munger: durable advantage often comes from relentless reinvestment — but R&D creates value only when it converts to ROIC, not just spend. Read with revenue growth.',
-sbc_pct_rev_xbrl:'Stock-Based Comp / Revenue (SEC XBRL). Buffett: “If options aren’t compensation, what are they?” A real cost paid in dilution rather than cash. < 2% = restrained; > 10% = shareholders quietly subsidising management pay.',
+rd_intensity_xbrl:'R&D / Revenue (SEC XBRL — cleaner than the income-statement figure). Reinvestment in the future moat. Durable advantage often comes from relentless reinvestment — but R&D creates value only when it converts to ROIC, not just spend. Read with revenue growth.',
+sbc_pct_rev_xbrl:'Stock-Based Comp / Revenue (SEC XBRL). Stock compensation is a real cost, paid in dilution rather than cash. < 2% = restrained; > 10% = shareholders quietly subsidising management pay.',
 fcf_margin_ex_sbc:'FCF ex-SBC = (Operating CF − Capex − SBC) / Revenue. Owner earnings after charging stock comp as the cash cost it really is — the honest free-cash margin. > 15% = genuine pricing power; a wide gap vs. reported FCF margin flags SBC-inflated cash flow.',
 affo_margin:'AFFO Margin = (Operating CF − Capex) / Revenue (REIT proxy for AFFO). The cash a REIT can actually distribute after maintaining its properties — the REIT analogue of owner earnings. Storage / data-center REITs 50%+; healthcare / hotels 15–25%.',
-brand_spend_pct_rev:'Advertising / Revenue (SEC XBRL). The toll paid to defend a consumer moat. Buffett prizes brands that hold pricing power on modest ad spend; rising brand spend just to keep share is the first sign the moat is renting demand, not owning it.',
-cet1_ratio:'CET1 = Common Equity Tier 1 / Risk-Weighted Assets (FDIC). A bank’s loss-absorbing capital cushion. ≥ 10% = well-capitalised, able to survive a credit cycle without diluting owners. Buffett: “Only when the tide goes out do you discover who’s been swimming naked.”',
+brand_spend_pct_rev:'Advertising / Revenue (SEC XBRL). The toll paid to defend a consumer moat. The best brands hold pricing power on modest ad spend; rising brand spend just to keep share is the first sign the moat is renting demand, not owning it.',
+cet1_ratio:'CET1 = Common Equity Tier 1 / Risk-Weighted Assets (FDIC). A bank’s loss-absorbing capital cushion. ≥ 10% = well-capitalised, able to survive a credit cycle without diluting owners. Thin capital only shows in a downturn, when it is too late to raise more.',
 npl_ratio:'NPL = Nonperforming Loans / Total Loans (FDIC). Underwriting quality made visible. < 1% = disciplined lending; a rising NPL ratio is the earliest warning that loan growth was bought with loose credit standards — where bank value quietly goes to die.',
 net_cash_to_mcap:'Net Cash / Market Cap = (Cash + ST Investments − Total Debt) / Mkt Cap (SEC XBRL). How much of the price is pre-funded by balance-sheet cash. Positive = downside cushion and optionality; a large figure means you pay less for the operating business than the headline multiple implies.',
 inventory_days:'Inventory Days = Inventory / (COGS / 365). How long capital sits as unsold goods. Lower = a tighter, demand-pulled operation; rising inventory days often precede markdowns and are an early read on fading pricing power.',
-working_capital_days:'Cash Conversion Cycle = Inventory Days + Receivable Days − Payable Days. Days of capital tied up funding operations. Low or negative = the business runs on suppliers’ and customers’ money — Buffett’s float-like ideal; rising = working capital quietly consuming owner cash.',
+working_capital_days:'Cash Conversion Cycle = Inventory Days + Receivable Days − Payable Days. Days of capital tied up funding operations. Low or negative = the business runs on suppliers’ and customers’ money — a float-like ideal; rising = working capital quietly consuming owner cash.',
 ffo_growth_5y:'FFO Growth = 5-yr CAGR of operating cash flow (REIT proxy for Funds From Operations). A REIT’s underlying compounding rate. Mid-single-digit = stable; > 10% = a genuinely compounding REIT — provided the growth isn’t bought with dilutive share issuance.',
-deferred_rev_growth:'YoY change in contract-with-customer liability (SEC XBRL). Cash collected before revenue is earned — a leading demand indicator and a Buffett-style float. Accelerating deferred revenue is among the cleanest early signals of durable, prepaid demand.',
-capex_intensity:'Capex / Revenue (SEC XBRL). How much reinvestment each sales dollar demands. Buffett prizes asset-light businesses that grow without heavy capex; persistently high intensity caps free cash flow and the ROIC a business can sustain.',
+deferred_rev_growth:'YoY change in contract-with-customer liability (SEC XBRL). Cash collected before revenue is earned — a leading demand indicator and a form of float. Accelerating deferred revenue is among the cleanest early signals of durable, prepaid demand.',
+capex_intensity:'Capex / Revenue (SEC XBRL). How much reinvestment each sales dollar demands. Asset-light businesses grow without heavy capex; persistently high intensity caps free cash flow and the ROIC a business can sustain.',
 backlog_to_revenue:'Backlog/Rev = Remaining Performance Obligations / Revenue (SEC XBRL). Years of contracted revenue already in hand — forward demand visibility. > 1× = more than a year of work booked, a cushion against the cycle and a sign of durable customer commitment.',
 capex_to_dd_ratio:'Capex / D&A. Capital-reinvestment discipline: > 1× = investing faster than assets wear out (growth or replacement); < 1× sustained = under-investing and harvesting the asset base. For E&P filers, D&A includes depletion of reserves.',
 momentum_12_1:'Price return from 12 months ago to 1 month ago. The last month is deliberately skipped — short-horizon moves tend to mean-revert and would otherwise drown the signal. Shown for context only: this is a value model and momentum is NOT scored, so a laggard here is often the point rather than a problem.',
@@ -5944,7 +5944,7 @@ drawdown_2020:'Worst peak-to-trough fall during the COVID crash (Jan–Sep 2020)
 drawdown_2022:'Worst peak-to-trough fall during the 2022 bear market. The rate-shock test: long-duration, no-earnings stories fell hardest here.',
 drawdown_2008:'Worst peak-to-trough fall during the GFC (Jan 2008–Mar 2009). Blank for anything that listed later — absence here means no history, not resilience.',
 beta_adjusted:'Precision-weighted beta: the 5-year weekly regression beta shrunk toward 1.0 by prior variance ÷ (prior variance + SE²). A precise estimate keeps its own value; a noisy one is pulled to the market. It feeds the cost of equity, so it moves fair value directly.',
-_flagged:'Your personal flag for stocks that deserve a closer look — Buffett’s “definitely interesting” pile, the opposite of his “too hard” pile. Click ⚑ to toggle; saved in browser local storage.',
+_flagged:'Your personal flag for stocks that deserve a closer look. Click ⚑ to toggle; saved in browser local storage.',
 /* People tab — workforce, pay and culture. Not gates: read them as
    corroboration of the moat and of whose side management is on. */
 employees:'Reported headcount, and the denominator for every per-employee figure below. A rough read on how labour-intensive the business model is.',
@@ -5955,7 +5955,7 @@ sbc_per_emp:'Stock compensation ÷ employees — the average equity grant per he
 ceo_total_pay:'Total reported CEO compensation for the latest proxy year: salary, bonus, equity grants and perquisites.',
 ceo_pay_ratio:'CEO pay ÷ revenue per employee — the package measured in units of what one employee produces. Context for whether pay is proportionate to the business.',
 compensation_risk:'Compensation-governance score, 1–10, lower is better: how far pay is tied to long-run performance rather than to share-price noise.',
-sbc:'Total stock-based compensation for the year (SEC XBRL). Buffett: “If options aren’t compensation, what are they?”',
+sbc:'Total stock-based compensation for the year (SEC XBRL). A real cost, paid in dilution rather than cash.',
 glassdoor_rating:'Average employee rating out of 5 on Glassdoor. Culture is not a gate, but a workforce that dislikes the place rarely defends a moat for long.',
 glassdoor_ceo_pct:'Share of reviewing employees who approve of the CEO. Read it beside the overall rating and as a trend, never on its own.',
 glassdoor_rec_pct:'Share of reviewing employees who would recommend the company to a friend — the most predictive single Glassdoor item.',
@@ -5971,7 +5971,7 @@ beta_n_obs:'Weekly observations behind the beta regression. Under 60 the estimat
 beta_stability:'Gap between the 1-year and 5-year raw betas. A drift of 0.2 or more marks a stock whose sensitivity to the market is changing.',
 /* Remaining table and popup metrics. */
 pct_from_52w_low:'How far the price sits above its 52-week low. A high reading means the market has already re-rated the story.',
-tangible_book_per_share:'Tangible book value ÷ shares — equity after goodwill and intangibles are stripped out. The floor Graham’s asset tests measure against.',
+tangible_book_per_share:'Tangible book value ÷ shares — equity after goodwill and intangibles are stripped out. The floor asset-based valuation tests measure against.',
 epv_mos:'EPV MoS = (EPV Fair Value − Price) / EPV Fair Value — the margin of safety against earnings power alone, assuming no growth at all. The most conservative of the safety margins.',
 ddm_low_confidence:'Flags a DDM built on a short or erratic dividend record. The fair value still renders; weight it less.',
 debt_maturity_wall_yrs:'Weighted average years until the reported debt matures (SEC XBRL). A short wall turns a shut refinancing market into a going-concern question.',
@@ -5980,7 +5980,7 @@ sga_pct_rev:'SG&A ÷ revenue — the overhead carried to sell the product. Falli
 sga_yoy_change:'Year-over-year change in SG&A spend. Compare it with revenue growth: overhead outrunning sales is often the first crack in a moat.',
 deposit_beta:'Share of the 2021–23 rate rise a bank passed on to its depositors (FDIC). A low beta means sticky, cheap funding — the deposit franchise working.',
 combined_ratio:'Insurance losses plus expenses ÷ premiums earned. Below 100% the underwriting itself made money, before a cent of investment income.',
-float_cost:'Combined ratio − 100% — what the insurer pays to hold its float. Negative is Buffett’s ideal: other people’s money, better than free.',
+float_cost:'Combined ratio − 100% — what the insurer pays to hold its float. Negative is the ideal: other people’s money, better than free.',
 rule_of_40:'Revenue growth + FCF margin, in percentage points. Above 40 the business is balancing growth against cash generation well.',
 surprise_avg:'Average earnings surprise versus consensus over recent quarters. Consistent beats feed a small uplift to the growth estimate; misses, a penalty.',
 book_to_bill_proxy:'Orders booked ÷ revenue billed, proxied from the change in backlog. Above 1× the order book is growing faster than the company can ship.',
@@ -14738,22 +14738,22 @@ function renderCrossSectorDashboard(){
          is wide enough for "Communication Services"; all metric columns
          share one width so the eye scans across a uniform grid. */
       +'<div class="table-wrap"><table class="dt heatmap-table"><thead><tr>'
-        +_th('sector','Sector',130,'GICS sector. Buffett: stay inside your circle of competence — only compare businesses against genuinely similar economics.',true)
-        +_th('n','Cos',60,'Sector pool size. Munger: “Structure matters more than effort.” Crowded sectors compete margins to zero; lean ones favor incumbents.')
-        +_th('hhi','HHI',60,'HHI = Σ(market share)². > 0.25 = oligopoly with pricing power; < 0.15 = fragmented. Buffett: “In a commodity business, you can only be as smart as your dumbest competitor.”')
-        +_th('cr4','CR4',60,'CR4 = Top-4 Revenue / Total Sector Revenue. > 80% = true oligopoly; < 50% = fragmented. Munger: “The single biggest predictor of high returns is industry structure, not management.”')
-        +_th('medMos','MoS',56,'Median (FV − Price) / FV vs. DCF. Graham’s “three most important words in investing are margin of safety.” 20%+ across a sector — verify the discount is real, not deserved.')
-        +_th('medPTBV','P/TBV',60,'Median Price / Tangible Book Value. Graham’s strictest asset floor — strips goodwill/intangibles to what the business could actually liquidate. Cheap P/TBV only attractive when ROIC justifies it; otherwise a value trap.')
-        +_th('medEV','EV/EBITDA',64,'Median (Mkt Cap + Net Debt) / EBITDA. Capital-structure-neutral; misleading at cyclical troughs. Buffett trusts owner earnings over EBITDA.')
-        +_th('wtdM','Op Margin',64,'Op Margin = Σ(Op Margin × Revenue Share). Buffett: “The single most important decision is pricing power.” Sustained 20%+ = where moats live.')
-        +_th('medGrowth','Rev CAGR',64,'Median 5Y Revenue CAGR. Growth + stable margins = pricing power. Munger: “Avoid growth for growth’s sake” — growth without margins is destruction at scale.')
-        +_th('medFCFM','FCF Margin',64,'Median FCF / Revenue. Graham: “Earnings are opinions; cash is a fact.” High FCF margin → genuine owner earnings.')
-        +_th('medROIC','ROIC',60,'Median NOPAT / Invested Capital. The single most important metric in the Buffett framework. > 15% across a sector = compounder territory.')
-        +_th('medSpread','ROIC–WACC',68,'Median (ROIC − WACC) — the sector’s economic profit. > 5% = capital genuinely productive. Buffett invests where the gap is wide and durable.')
-        +_th('medNDEB','ND/EBITDA',68,'Median (Debt − Cash) / EBITDA. Buffett: “we want no debt or very modest debt.” < 2× = strength; > 4× = rolling-credit dependence when markets sour.')
-        +_th('medAltZ','Altman Z',60,'Median Altman Z. > 3.0 = sector-wide health; < 1.8 = distress across the cohort. Graham: avoid permanent capital loss — Z flags the line before the market does.')
-        +_th('medShrYld','Shr Yld',60,'Median (Dividends + Net Buybacks) / Mkt Cap. Buffett: “The best thing a company can do when the stock is cheap is buy it back.” 4%+ cohort-wide = disciplined capital allocation.')
-        +_th('pctBuy','BUY %',60,'Share of sector rated BUY or LEAN BUY. High concentration = clusters of margin of safety. Buffett: “Most committee opinions are mediocre” — focus signal, not a substitute for analysis.')
+        +_th('sector','Sector',130,'GICS sector. Only compare businesses against genuinely similar economics.',true)
+        +_th('n','Cos',60,'Sector pool size. Structure matters more than effort: crowded sectors compete margins to zero; lean ones favor incumbents.')
+        +_th('hhi','HHI',60,'HHI = Σ(market share)². > 0.25 = oligopoly with pricing power; < 0.15 = fragmented. In a commodity business, pricing is set by the least disciplined competitor.')
+        +_th('cr4','CR4',60,'CR4 = Top-4 Revenue / Total Sector Revenue. > 80% = true oligopoly; < 50% = fragmented. Industry structure is a bigger predictor of high returns than management.')
+        +_th('medMos','MoS',56,'Median (FV − Price) / FV vs. DCF. 20%+ across a sector — verify the discount is real, not deserved.')
+        +_th('medPTBV','P/TBV',60,'Median Price / Tangible Book Value. The strictest asset floor — strips goodwill/intangibles to what the business could actually liquidate. Cheap P/TBV only attractive when ROIC justifies it; otherwise a value trap.')
+        +_th('medEV','EV/EBITDA',64,'Median (Mkt Cap + Net Debt) / EBITDA. Capital-structure-neutral; misleading at cyclical troughs. Owner earnings are more trustworthy than EBITDA.')
+        +_th('wtdM','Op Margin',64,'Op Margin = Σ(Op Margin × Revenue Share). Pricing power is the single most important trait. Sustained 20%+ = where moats live.')
+        +_th('medGrowth','Rev CAGR',64,'Median 5Y Revenue CAGR. Growth + stable margins = pricing power. Avoid growth for growth’s sake — growth without margins is destruction at scale.')
+        +_th('medFCFM','FCF Margin',64,'Median FCF / Revenue. Earnings are opinions; cash is a fact. High FCF margin → genuine owner earnings.')
+        +_th('medROIC','ROIC',60,'Median NOPAT / Invested Capital. The single most important quality metric. > 15% across a sector = compounder territory.')
+        +_th('medSpread','ROIC–WACC',68,'Median (ROIC − WACC) — the sector’s economic profit. > 5% = capital genuinely productive. The best investments sit where the gap is wide and durable.')
+        +_th('medNDEB','ND/EBITDA',68,'Median (Debt − Cash) / EBITDA. < 2× = strength; > 4× = rolling-credit dependence when markets sour.')
+        +_th('medAltZ','Altman Z',60,'Median Altman Z. > 3.0 = sector-wide health; < 1.8 = distress across the cohort. Avoid permanent capital loss — Z flags the line before the market does.')
+        +_th('medShrYld','Shr Yld',60,'Median (Dividends + Net Buybacks) / Mkt Cap. The best use of cash when the stock is cheap is to buy it back. 4%+ cohort-wide = disciplined capital allocation.')
+        +_th('pctBuy','BUY %',60,'Share of sector rated BUY or LEAN BUY. High concentration = clusters of margin of safety. A focus signal, not a substitute for analysis.')
       +'</tr></thead><tbody id="heat-tbody"></tbody></table></div>'
     :'';
   /* Mount: fill tbody after the dashboard return string is injected. */
@@ -15997,7 +15997,7 @@ function aiSystemPrompt(){
   });
   var rc=Object.keys(counts).map(function(k){return k+': '+counts[k];}).join(', ');
   return 'You are an equity-analysis assistant embedded in a daily stock analysis report ('+AI_GEN+'). '
-    +'The report comes from a value-oriented screening model covering '+DATA.length+' US-listed stocks (market cap >= $300M, positive ROIC-WACC spread at screening). '
+    +'The report comes from a fundamental screening model covering '+DATA.length+' US-listed stocks (market cap >= $300M at screening). '
     +'Each stock carries a composite score (field _composite_score, 0-100, higher = better value/quality blend) and a rating. Current distribution: '+rc+'. '
     +'Sectors: '+Object.keys(sectors).sort().join(', ')+'. '
     +'Valuations come from DCF, EPV, RIM and NAV models (fields dcf_fv, epv_fv, rim_fv, nav_fv; mos = margin of safety vs price). '

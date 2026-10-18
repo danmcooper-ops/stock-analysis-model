@@ -2042,7 +2042,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
 
     # --- Owner earnings: deduct stock-based compensation (all sectors) ---
     # OCF adds SBC back as a non-cash charge, but it is a real cost to
-    # shareholders (dilution). Buffett's owner earnings subtracts it. Pairs
+    # shareholders (dilution). Owner earnings subtracts it. Pairs
     # with the SBC-dilution GATE (which scores the behavior) — this corrects
     # the VALUATION. Monotone: heavier SBC always means a bigger haircut,
     # floored at 25% of pre-SBC FCF so an extreme SBC year haircuts rather
