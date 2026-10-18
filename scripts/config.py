@@ -108,10 +108,11 @@ DDM_DIVERGENCE_THRESHOLD = 0.50       # Flag low confidence if DDM/DCF diverge >
 # tilt toward a value orientation: Moat 40->30 (it was ~24% of the composite
 # resting on ROIC counted three ways) and Valuation 20->30 so the "cheapness"
 # side carries real weight rather than being outvoted 2:1 by quality/moat.
-SCORE_WEIGHT_VALUATION = 0.30
+# 2026-10-18: Valuation 30->20 and Growth 10->20, so the two weigh equally.
+SCORE_WEIGHT_VALUATION = 0.20
 SCORE_WEIGHT_QUALITY = 0.20
 SCORE_WEIGHT_MOAT = 0.30
-SCORE_WEIGHT_GROWTH = 0.10
+SCORE_WEIGHT_GROWTH = 0.20
 SCORE_WEIGHT_OWNERSHIP = 0.10
 
 # Macro narrative (Claude API). Generated at report-build time for the Macro
