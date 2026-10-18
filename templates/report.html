@@ -1392,20 +1392,31 @@ td.ct{font-weight:700;}
 /* Pool history (pp-history) and share shifts (pp-shifts): the sector's pool
    over the last decade, from models/sector_pool.py. Marks are classed so dark
    mode swaps them without touching the SVG markup. */
-.pph-bar{fill:#4f7cac;}
+.pph-bar{fill:#4f7cac;fill-opacity:0.55;}
 .pph-bar.inc{fill:none;stroke:#4f7cac;stroke-width:1.2;stroke-dasharray:3,2;}
-.pph-line{fill:none;stroke:#d9822b;stroke-width:2;}
+.pph-line{fill:none;stroke:#d9822b;stroke-width:2.25;stroke-linejoin:round;}
+.pph-halo{fill:none;stroke:#f5f7fa;stroke-width:5.5;stroke-linejoin:round;}
+.pph-dot{stroke:#f5f7fa;stroke-width:1.5;}
 .pph-dot{fill:#d9822b;}
 .pph-dot.inc{fill:#fff;stroke:#d9822b;stroke-width:1.5;}
 .pph-axis{stroke:#cfd8dc;stroke-width:1;}
 .pph-grid{stroke:#eef1f4;stroke-width:1;}
 .pph-tx{fill:#78909c;font-size:9px;}
-/* Pool History: two aligned charts drawn at real pixel size (_pphSvgs). */
+/* Pool History: one dual-axis chart drawn at real pixel size (_pphSvgs). */
 .pph-svg{display:block;width:100%;height:auto;overflow:visible;}
 .pph-svg .pph-tx{font-size:11px;}
 .pph-ctitle{font-size:0.74em;font-weight:600;color:#546e7a;margin:8px 0 2px;}
 .pph-ctitle:first-child{margin-top:4px;}
 .pph-end{font-size:11px;font-weight:600;fill:#37474f;}
+/* Pool History: one chart, two colour-coded axes (_pphSvgs). */
+.pph-svg .pph-ax-pool{fill:#4f7cac;}
+.pph-svg .pph-ax-m{fill:#c0701f;}
+.pph-ckey{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:0.76em;color:#546e7a;margin:4px 0 6px;}
+.pph-ckey i{display:inline-block;vertical-align:middle;margin-right:5px;}
+.pph-k-pool i{width:10px;height:10px;border-radius:2px;background:#4f7cac;opacity:0.7;}
+.pph-k-m i{width:14px;height:3px;border-radius:2px;background:#d9822b;}
+.pph-ckey b{color:#263238;font-weight:700;}
+.pph-ckey em{font-style:normal;color:#90a4ae;}
 .pph-grid.pph-zero{stroke:#b0bec5;stroke-dasharray:4,3;}
 .pph-val{fill:#455a64;font-size:8.5px;}
 .pph-key{display:flex;flex-wrap:wrap;gap:14px;font-size:0.72em;color:#78909c;margin:4px 0 0;}
@@ -1459,6 +1470,13 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pph-bar{fill:#6e9bd1;}
 [data-theme="dark"] .pph-bar.inc{fill:none;stroke:#6e9bd1;}
 [data-theme="dark"] .pph-line{stroke:#f0a35e;}
+[data-theme="dark"] .pph-halo,[data-theme="dark"] .pph-dot{stroke:#161b22;}
+[data-theme="dark"] .pph-svg .pph-ax-pool{fill:#8fb4e0;}
+[data-theme="dark"] .pph-svg .pph-ax-m{fill:#f0a35e;}
+[data-theme="dark"] .pph-ckey{color:#8b949e;}
+[data-theme="dark"] .pph-ckey b{color:#e6edf3;}
+[data-theme="dark"] .pph-k-pool i{background:#6e9bd1;}
+[data-theme="dark"] .pph-k-m i{background:#f0a35e;}
 [data-theme="dark"] .pph-dot{fill:#f0a35e;}
 [data-theme="dark"] .pph-dot.inc{fill:#161b22;stroke:#f0a35e;}
 [data-theme="dark"] .pph-axis{stroke:#30363d;}
@@ -13216,55 +13234,75 @@ function _pphNice(lo,hi,n){
   for(var v=a;v<=b+step*1e-9;v+=step)t.push(+v.toFixed(10));
   return t;
 }
-/* Pool History as two aligned charts on one year axis — the operating-
-   profit pool (bars, $) above and the net margin (line, %) below — rather
-   than one frame with a $ axis and a % axis, where the line's crossings of
-   the bars meant nothing. Each has one scale and its own title, so no legend.
+/* Pool History as ONE chart: the operating-profit pool as bars on a $ axis
+   (left) and the net margin as a line on a % axis (right), over one year
+   axis. Kept readable as a dual-axis chart by:
+   - shared gridlines: the margin scale gets the pool scale's tick count, so
+     every gridline carries a $ label on the left and a % label on the
+     right and neither axis invents its own lines;
+   - colour-coding: each axis's labels, and the key above the chart, are in
+     its series' colour, so a reader never pairs the line with the $ axis;
+   - layering: the bars are lighter and the line, haloed in the background
+     colour, is drawn over them, so it stays visible where it crosses a bar;
+   - the latest values sit in the key, not at the line ends, where they
+     would collide with the right axis.
    Drawn at the container's real pixel width (W), so labels are true 11px on
-   a phone instead of a shrunk 800-wide drawing; _pphDrawAll redraws once the
-   pane is visible and on resize. Incomplete years (most filers not in yet)
-   are left out and named in a footnote: a stub bar read as a collapse. */
+   a phone; _pphDrawAll redraws once the pane is visible and on resize.
+   Incomplete years (most filers not in yet) are left out and named in a
+   footnote: a stub bar read as a collapse. */
 function _pphSvgs(h,W){
   var all=h.points||[],pts=all.filter(function(p){return p.complete;});
   if(pts.length<2)pts=all;
   var skipped=all.filter(function(p){return pts.indexOf(p)<0;});
   W=Math.max(280,Math.round(W||640));
-  var pL=50,pR=56,cW=W-pL-pR,slot=cW/pts.length,bw=Math.min(28,slot*0.6);
+  var pL=50,pR=42,cW=W-pL-pR,slot=cW/pts.length,bw=Math.min(28,slot*0.6);
   function cx(i){return pL+slot*(i+0.5);}
   function tip(p){return 'FY'+p.year+': pool '+_ppBn(p.pool)+' · net margin '+_ppPct(p.margin)+' · '+p.n+' companies · '+_ppPct(p.coverage,0)+' of today’s sector revenue';}
-  /* pool bars */
-  var H1=150,t1=8,b1=6,cH1=H1-t1-b1;
+  var H=W<480?230:250,pT=10,pB=24,cH=H-pT-pB;
+  /* left: pool ($) */
   var pTicks=_pphNice(0,Math.max.apply(null,pts.map(function(p){return p.pool;}).concat([1])),4),pMax=pTicks[pTicks.length-1];
-  var s1='';
-  pTicks.forEach(function(v){var y=t1+cH1*(1-v/pMax);
-    s1+='<line class="pph-grid" x1="'+pL+'" y1="'+y.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+y.toFixed(1)+'"/>'
-      +'<text class="pph-tx" x="'+(pL-6)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end">'+(v?_ppBn(v):'0')+'</text>';});
-  pts.forEach(function(p,i){var bh=Math.max(p.pool,0)/pMax*cH1,y=t1+cH1-bh;
-    s1+='<rect class="pph-bar" rx="2" x="'+(cx(i)-bw/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(bh,0.5).toFixed(1)+'"><title>'+_esc(tip(p))+'</title></rect>';});
-  var lp=pts[pts.length-1],ly=t1+cH1-Math.max(lp.pool,0)/pMax*cH1;
-  s1+='<text class="pph-end" x="'+(cx(pts.length-1)+bw/2+5).toFixed(1)+'" y="'+(ly+4).toFixed(1)+'">'+_ppBn(lp.pool)+'</text>';
-  /* margin line */
+  var k=pTicks.length-1;
+  function py(v){return pT+cH*(1-v/pMax);}
+  /* right: margin (%), the same k intervals, on the smallest round step that
+     covers the range; one early-filer outlier is already out with its year. */
   var ms=pts.filter(function(p){return p.margin!=null;});
-  var s2='',H2=128,t2=8,b2=24,cH2=H2-t2-b2;
-  if(ms.length>=2){
+  var mLo=0,mStep=1,hasM=ms.length>=2;
+  if(hasM){
     var mv=ms.map(function(p){return p.margin*100;});
-    var mTicks=_pphNice(Math.min.apply(null,mv),Math.max.apply(null,mv),3),mLo=mTicks[0],mHi=mTicks[mTicks.length-1];
-    function my(m){return t2+cH2*(mHi-m*100)/(mHi-mLo);}
-    mTicks.forEach(function(v){var y=t2+cH2*(mHi-v)/(mHi-mLo);
-      s2+='<line class="pph-grid'+(v===0&&mLo<0?' pph-zero':'')+'" x1="'+pL+'" y1="'+y.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+y.toFixed(1)+'"/>'
-        +'<text class="pph-tx" x="'+(pL-6)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end">'+(+v.toFixed(1))+'%</text>';});
+    var lo=Math.min.apply(null,mv),hi=Math.max.apply(null,mv);
+    if(!(hi>lo))hi=lo+1;
+    var raw=(hi-lo)/k,mag=Math.pow(10,Math.floor(Math.log10(raw)));
+    var steps=[1,2,2.5,5,10,20,25,50].map(function(f){return f*mag;});
+    for(var si=0;si<steps.length;si++){
+      mStep=steps[si];mLo=Math.floor(lo/mStep)*mStep;
+      if(mLo+k*mStep>=hi-1e-9)break;
+    }
+  }
+  function my(m){return pT+cH*(1-(m*100-mLo)/(k*mStep));}
+  var s='';
+  pTicks.forEach(function(v,i){var y=py(v);
+    s+='<line class="pph-grid" x1="'+pL+'" y1="'+y.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+y.toFixed(1)+'"/>'
+      +'<text class="pph-tx pph-ax-pool" x="'+(pL-6)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end">'+(v?_ppBn(v):'0')+'</text>';
+    if(hasM){var mt=+(mLo+i*mStep).toFixed(6);
+      s+='<text class="pph-tx pph-ax-m" x="'+(W-pR+6)+'" y="'+(y+4).toFixed(1)+'" text-anchor="start">'+(+mt.toFixed(1))+'%</text>';}
+  });
+  if(hasM&&mLo<0&&mLo+k*mStep>0){var yz=my(0);
+    s+='<line class="pph-grid pph-zero" x1="'+pL+'" y1="'+yz.toFixed(1)+'" x2="'+(W-pR)+'" y2="'+yz.toFixed(1)+'"/>';}
+  pts.forEach(function(p,i){var bh=Math.max(p.pool,0)/pMax*cH,y=pT+cH-bh;
+    s+='<rect class="pph-bar" rx="2" x="'+(cx(i)-bw/2).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(bh,0.5).toFixed(1)+'"><title>'+_esc(tip(p))+'</title></rect>';});
+  if(hasM){
     var d='',prev=false;
     pts.forEach(function(p,i){if(p.margin==null){prev=false;return;}d+=(prev?'L':'M')+cx(i).toFixed(1)+','+my(p.margin).toFixed(1);prev=true;});
-    s2+='<path class="pph-line" d="'+d+'"/>';
-    pts.forEach(function(p,i){if(p.margin!=null)s2+='<circle class="pph-dot" cx="'+cx(i).toFixed(1)+'" cy="'+my(p.margin).toFixed(1)+'" r="3.5"><title>'+_esc(tip(p))+'</title></circle>';});
-    var lm=ms[ms.length-1];
-    s2+='<text class="pph-end" x="'+(cx(pts.indexOf(lm))+8).toFixed(1)+'" y="'+(my(lm.margin)+4).toFixed(1)+'">'+_ppPct(lm.margin)+'</text>';
+    s+='<path class="pph-halo" d="'+d+'"/><path class="pph-line" d="'+d+'"/>';
+    pts.forEach(function(p,i){if(p.margin!=null)s+='<circle class="pph-dot" cx="'+cx(i).toFixed(1)+'" cy="'+my(p.margin).toFixed(1)+'" r="3.5"><title>'+_esc(tip(p))+'</title></circle>';});
   }
-  pts.forEach(function(p,i){s2+='<text class="pph-tx" x="'+cx(i).toFixed(1)+'" y="'+(H2-6)+'" text-anchor="middle">'+(slot<38?"’"+String(p.year).slice(2):p.year)+'</text>';});
-  var out='<div class="pph-ctitle">Operating-profit pool</div>'
-    +'<svg class="pph-svg" width="'+W+'" height="'+H1+'" viewBox="0 0 '+W+' '+H1+'">'+s1+'</svg>'
-    +'<div class="pph-ctitle">Net operating margin</div>'
-    +'<svg class="pph-svg" width="'+W+'" height="'+H2+'" viewBox="0 0 '+W+' '+H2+'">'+s2+'</svg>';
+  pts.forEach(function(p,i){s+='<text class="pph-tx" x="'+cx(i).toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle">'+(slot<38?"’"+String(p.year).slice(2):p.year)+'</text>';});
+  var lp=pts[pts.length-1],lm=ms.length?ms[ms.length-1]:null;
+  var out='<div class="pph-ckey">'
+    +'<span class="pph-k-pool"><i></i>Operating-profit pool <b>'+_ppBn(lp.pool)+'</b> <em>left axis</em></span>'
+    +(hasM?'<span class="pph-k-m"><i></i>Net operating margin <b>'+_ppPct(lm.margin)+'</b> <em>right axis</em></span>':'')
+    +'</div>'
+    +'<svg class="pph-svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'+s+'</svg>';
   if(skipped.length)out+='<p class="pph-note pph-skip">'+skipped.map(function(p){return 'FY'+p.year;}).join(', ')+' left out: only part of the sector has reported '+(skipped.length>1?'them':'it')+' so far ('+skipped.map(function(p){return _ppPct(p.coverage,0);}).join(', ')+' of today’s revenue).</p>';
   return out;
 }
