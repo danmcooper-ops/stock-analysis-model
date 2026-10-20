@@ -1,18 +1,18 @@
 {
  "version": 1,
- "date": "2026-10-16",
- "prev_date": "2026-10-15",
+ "date": "2026-10-19",
+ "prev_date": "2026-10-16",
  "systemic": {
-  "n": 2282,
-  "prev_n": 2281,
-  "changed": 127,
-  "changed_share": 0.0557,
-  "missing_data": 2,
-  "missing_share": 0.0009,
+  "n": 3483,
+  "prev_n": 2282,
+  "changed": 1126,
+  "changed_share": 0.3233,
+  "missing_data": 0,
+  "missing_share": 0.0,
   "shrink_share": 0.0,
-  "flood": false,
-  "cause": null,
-  "message": null
+  "flood": true,
+  "cause": "model",
+  "message": "Model-wide shift: 32% of the universe (1,126 stocks) changed rating in one run — usually a scoring change rather than news about individual stocks."
  },
  "portfolios": [
   {
@@ -20,20 +20,18 @@
    "name": "Semiconductors",
    "color": "#2a78d6",
    "mode": "buy_line",
-   "missing": [
-    "AMD"
-   ],
+   "missing": [],
    "stats": {
-    "n": 3,
+    "n": 4,
     "ratings": {
      "BUY": 0,
-     "LEAN BUY": 0,
-     "HOLD": 0,
-     "PASS": 3
+     "LEAN BUY": 3,
+     "HOLD": 1,
+     "PASS": 0
     },
-    "median_mos": -0.46749879752099077,
-    "median_score": 40.6,
-    "median_spread": 0.37681220311280317,
+    "median_mos": -0.6424378380121014,
+    "median_score": 42.1,
+    "median_spread": 0.22855934074357404,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -42,48 +40,542 @@
     "hhi": 1.0,
     "concentrated": true,
     "no_sector": 0,
-    "upgrades": 0,
+    "upgrades": 3,
     "downgrades": 0
    },
-   "alerts": []
+   "alerts": [
+    {
+     "ticker": "AVGO",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "AVGO moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 36 → 39, crossing above the LEAN BUY (39) threshold."
+     ]
+    },
+    {
+     "ticker": "NVDA",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "NVDA moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 41 → 45 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "TSM",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "TSM moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 47 → 52 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "AMD",
+     "portfolio": "semis",
+     "kind": "joined",
+     "level": "watch",
+     "message": "AMD joined Semiconductors (back in the universe)"
+    }
+   ]
   },
   {
    "id": "flagged",
    "name": "Flagged",
    "color": "#eb6834",
    "mode": "buy_line",
-   "missing": [
-    "AXON"
-   ],
+   "missing": [],
    "stats": {
-    "n": 52,
+    "n": 53,
     "ratings": {
-     "BUY": 2,
-     "LEAN BUY": 8,
-     "HOLD": 14,
-     "PASS": 28
+     "BUY": 3,
+     "LEAN BUY": 38,
+     "HOLD": 9,
+     "PASS": 3
     },
-    "median_mos": -0.2785549773370836,
-    "median_score": 42.55,
-    "median_spread": 0.2645103923465396,
+    "median_mos": -0.3182944974197948,
+    "median_score": 44.9,
+    "median_spread": 0.25645814792129545,
     "sector_weights": {
-     "Technology": 0.26923076923076916,
-     "Financial Services": 0.11538461538461539,
-     "Industrials": 0.13461538461538464,
-     "Consumer Cyclical": 0.1923076923076923,
-     "Consumer Defensive": 0.17307692307692307,
-     "Communication Services": 0.09615384615384616,
-     "Energy": 0.019230769230769232
+     "Technology": 0.2641509433962264,
+     "Financial Services": 0.11320754716981131,
+     "Industrials": 0.1509433962264151,
+     "Consumer Cyclical": 0.18867924528301885,
+     "Consumer Defensive": 0.16981132075471697,
+     "Communication Services": 0.09433962264150943,
+     "Energy": 0.018867924528301886
     },
     "top_sector": "Technology",
-    "top_sector_weight": 0.26923076923076916,
-    "hhi": 0.18047337278106507,
+    "top_sector_weight": 0.2641509433962264,
+    "hhi": 0.17906728373086506,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 0,
-    "downgrades": 4
+    "upgrades": 36,
+    "downgrades": 2
    },
    "alerts": [
+    {
+     "ticker": "AAPL",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "AAPL moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 39 → 43 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "AMAT",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "AMAT moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 40 → 46 (the composite-only rating band did not change).",
+      "Biggest category moves: Moat 63 → 66 (+4).",
+      "Largest metric swings: Margin Adv 14.7% → 22.0% (score 82 → 100)."
+     ]
+    },
+    {
+     "ticker": "AMZN",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "AMZN moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 42 → 45 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "ASML",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "ASML moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 43 → 47 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "AVGO",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "AVGO moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 36 → 39, crossing above the LEAN BUY (39) threshold."
+     ]
+    },
+    {
+     "ticker": "BUD",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "BUD moved into the buy zone: HOLD → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 42 → 40 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "CMCSA",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "CMCSA moved into the buy zone: HOLD → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 49 → 46 (the composite-only rating band did not change).",
+      "Biggest category moves: Moat 30 → 35 (+5).",
+      "Largest metric swings: Margin Adv 0.0% → 7.8% (score 33 → 59)."
+     ]
+    },
+    {
+     "ticker": "COST",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "COST moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 47 → 52 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "F",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "F moved into the buy zone: HOLD → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 44 → 40 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "FIX",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "FIX moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 41 → 49 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "FTNT",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "FTNT moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 45 → 50 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "GM",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "GM moved into the buy zone: HOLD → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 45 → 44 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "GOOGL",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "GOOGL moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 48 → 54 (the composite-only rating band did not change).",
+      "Biggest category moves: Moat 84 → 88 (+4).",
+      "Largest metric swings: Margin Adv 15.3% → 23.1% (score 84 → 100)."
+     ]
+    },
+    {
+     "ticker": "ITW",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "ITW moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 43.5 → 44.2 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "JPM",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "JPM moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 44 → 48 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "KLAC",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "KLAC moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 41 → 47 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "LRCX",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "LRCX moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 39 → 45 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "MCD",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "MCD moved into the buy zone: HOLD → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 44.7 → 44.7 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "META",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "META moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 49 → 54 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "MPWR",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "MPWR moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 46 → 53 (the composite-only rating band did not change).",
+      "Biggest category moves: Moat 83 → 88 (+5).",
+      "Largest metric swings: Margin Adv 11.5% → 18.9% (score 72 → 96)."
+     ]
+    },
+    {
+     "ticker": "MSFT",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "MSFT moved into the buy zone: HOLD → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 44 → 48 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "NFLX",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "NFLX moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 44 → 48 (the composite-only rating band did not change).",
+      "Biggest category moves: Moat 62 → 68 (+6).",
+      "Largest metric swings: Margin Adv 12.8% → 20.6% (score 76 → 100)."
+     ]
+    },
+    {
+     "ticker": "NVDA",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "NVDA moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 41 → 45 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "NVMI",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "NVMI moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 43 → 50 (the composite-only rating band did not change).",
+      "Biggest category moves: Moat 76 → 80 (+4).",
+      "Largest metric swings: Margin Adv 14.2% → 21.6% (score 81 → 100)."
+     ]
+    },
+    {
+     "ticker": "ORCL",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "ORCL moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 41 → 44 (the composite-only rating band did not change).",
+      "Biggest category moves: Moat 47 → 50 (+3)."
+     ]
+    },
+    {
+     "ticker": "RYAAY",
+     "from": "LEAN BUY",
+     "to": "HOLD",
+     "kind": "exited_buy",
+     "level": "action",
+     "message": "RYAAY fell out of the buy zone: LEAN BUY → HOLD",
+     "flood": true,
+     "why": [
+      "Composite score moved 42 → 38, crossing below the LEAN BUY (39) threshold."
+     ]
+    },
+    {
+     "ticker": "STX",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "STX moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 35 → 41, crossing above the LEAN BUY (39) threshold."
+     ]
+    },
+    {
+     "ticker": "T",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "T moved into the buy zone: HOLD → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 41 → 39 (the composite-only rating band did not change).",
+      "Biggest category moves: Moat 40 → 46 (+6).",
+      "Largest metric swings: Margin Adv 2.5% → 10.3% (score 42 → 68)."
+     ]
+    },
+    {
+     "ticker": "TDG",
+     "from": "HOLD",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "TDG moved into the buy zone: HOLD → LEAN BUY",
+     "flood": true,
+     "why": [
+      "Composite score moved 37 → 41, crossing above the LEAN BUY (39) threshold."
+     ]
+    },
+    {
+     "ticker": "TPL",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "TPL moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 43 → 42 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "TSCO",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "TSCO moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 48 → 50 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "TSM",
+     "from": "PASS",
+     "to": "LEAN BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "TSM moved into the buy zone: PASS → LEAN BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 47 → 52 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "UVE",
+     "from": "HOLD",
+     "to": "BUY",
+     "kind": "entered_buy",
+     "level": "action",
+     "message": "UVE moved into the buy zone: HOLD → BUY",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 75 → 76 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "AXON",
+     "portfolio": "flagged",
+     "kind": "joined",
+     "level": "watch",
+     "message": "AXON joined Flagged (back in the universe)"
+    },
     {
      "ticker": "BRK-B",
      "portfolio": "flagged",
@@ -114,19 +606,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "HON reports earnings on 2026-10-22"
-    },
-    {
-     "ticker": "KR",
-     "from": "LEAN BUY",
-     "to": "HOLD",
-     "kind": "reversal",
-     "level": "watch",
-     "reversal_of": "2026-10-14",
-     "message": "KR fell out of the buy zone: LEAN BUY → HOLD (reverses the 2026-10-14 move)",
-     "why": [
-      "Composite score moved 39 → 38, crossing below the LEAN BUY (39) threshold.",
-      "Largest metric swings: FV Dispersion 42.7% → 54.9% (score 39 → 22)."
-     ]
     },
     {
      "ticker": "LRCX",
@@ -171,44 +650,67 @@
      "message": "UVE reports earnings on 2026-10-22"
     },
     {
-     "ticker": "ACT",
-     "from": "BUY",
-     "to": "LEAN BUY",
+     "ticker": "HD",
+     "from": "PASS",
+     "to": "HOLD",
      "kind": "same_side",
      "level": "fyi",
-     "message": "ACT BUY → LEAN BUY",
+     "message": "HD PASS → HOLD",
+     "flood": true,
      "why": [
-      "Composite score moved 62 → 55, crossing below the BUY (57) threshold.",
-      "Biggest category moves: Valuation 74 → 54 (-21).",
-      "Largest metric swings: FV Dispersion 30.4% → 68.2% (score 56 → 3); MoS 50.2% → 27.4% (score 100 → 75)."
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 37.7 → 37.5 (the composite-only rating band did not change)."
      ]
     },
     {
-     "ticker": "JPM",
+     "ticker": "MA",
+     "from": "PASS",
+     "to": "HOLD",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "MA PASS → HOLD",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 38 → 36 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "PG",
+     "from": "PASS",
+     "to": "HOLD",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "PG PASS → HOLD",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 38.9 → 38.7 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "STLA",
      "from": "HOLD",
      "to": "PASS",
      "kind": "same_side",
      "level": "fyi",
-     "message": "JPM HOLD → PASS",
+     "message": "STLA HOLD → PASS",
+     "flood": true,
      "why": [
-      "A rating cap fired this run: margin of safety <= -20%. On the composite alone it would rate LEAN BUY.",
-      "Composite score moved 46 → 44 (the composite-only rating band did not change).",
-      "Biggest category moves: Valuation 26 → 21 (-5).",
-      "Largest metric swings: FV Dispersion 27.1% → 43.6% (score 61 → 38)."
+      "Composite score moved 26 → 24, crossing below the HOLD (25) threshold."
      ]
     },
     {
-     "ticker": "ORCL",
-     "from": "HOLD",
-     "to": "PASS",
+     "ticker": "WMT",
+     "from": "PASS",
+     "to": "HOLD",
      "kind": "same_side",
      "level": "fyi",
-     "message": "ORCL HOLD → PASS",
+     "message": "WMT PASS → HOLD",
+     "flood": true,
      "why": [
-      "A rating cap fired this run: margin of safety <= -20%. On the composite alone it would rate LEAN BUY.",
-      "Composite score moved 38 → 41, crossing below the LEAN BUY (39) threshold.",
-      "Biggest category moves: Valuation 13 → 22 (+9).",
-      "Largest metric swings: FV Dispersion 76.5% → 32.0% (score 0 → 54)."
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 34 → 37 (the composite-only rating band did not change)."
      ]
     }
    ]
