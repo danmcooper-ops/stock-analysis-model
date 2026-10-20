@@ -175,6 +175,15 @@ RATING_CAPS_ENABLED = False
 # `na_gates_score_zero` is part of scoring_params_hash.
 NA_GATES_SCORE_ZERO = True
 
+# Whether the DCF Monte Carlo spread (mc_cv) discounts the composite score
+# (x0.93 above 0.30, x0.85 above 0.40). Off since 2026-10-20: the simulation
+# is a guide (MC Confidence, P10/P90 on the Valuation tab and the Summary
+# PDF's range), not a rating input. It only ever reached rows with a DCF, so
+# the ~1,000 without one were never discounted however uncertain their fair
+# value; FV Dispersion carries valuation uncertainty for every row. ParamSet
+# key `mc_penalty_enabled`, part of scoring_params_hash.
+MC_PENALTY_ENABLED = False
+
 # ---------------------------------------------------------------------------
 # Sector-specific DCF parameters (Fixes C/D/E/F)
 # ---------------------------------------------------------------------------

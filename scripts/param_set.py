@@ -34,7 +34,7 @@ from scripts.config import (
     BLEND_TRIGGER, BLEND_DCF_WEIGHT, BLEND_MULT_WEIGHT, BLEND_CONFLICT_RATIO,
     SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
     SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH, SCORE_WEIGHT_OWNERSHIP,
-    RATING_CAPS_ENABLED, NA_GATES_SCORE_ZERO,
+    RATING_CAPS_ENABLED, NA_GATES_SCORE_ZERO, MC_PENALTY_ENABLED,
 )
 
 
@@ -125,6 +125,10 @@ def default_params():
         # config.NA_GATES_SCORE_ZERO); off = category averages over the
         # gates that apply.
         'na_gates_score_zero': NA_GATES_SCORE_ZERO,
+
+        # Whether the DCF Monte Carlo spread discounts the composite (see
+        # config.MC_PENALTY_ENABLED); off = the simulation is display only.
+        'mc_penalty_enabled': MC_PENALTY_ENABLED,
     }
 
 
@@ -197,6 +201,9 @@ def validate_params(params):
     nz = params.get('na_gates_score_zero', NA_GATES_SCORE_ZERO)
     if not isinstance(nz, bool):
         errors.append(f"na_gates_score_zero = {nz!r} must be true or false")
+    mp = params.get('mc_penalty_enabled', MC_PENALTY_ENABLED)
+    if not isinstance(mp, bool):
+        errors.append(f"mc_penalty_enabled = {mp!r} must be true or false")
 
     # Blend weights
     bw = params.get('blend_dcf_weight', 0) + params.get('blend_mult_weight', 0)

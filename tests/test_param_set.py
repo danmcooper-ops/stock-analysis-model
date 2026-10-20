@@ -137,6 +137,13 @@ class TestValidateParams:
         p['na_gates_score_zero'] = 1
         assert any('na_gates_score_zero' in e for e in validate_params(p))
 
+    def test_mc_penalty_enabled_is_a_bool_defaulting_off(self):
+        assert default_params()['mc_penalty_enabled'] is False
+        assert validate_params(merge_params({'mc_penalty_enabled': True})) == []
+        p = default_params()
+        p['mc_penalty_enabled'] = 'on'
+        assert any('mc_penalty_enabled' in e for e in validate_params(p))
+
     def test_bad_blend_weight_sum(self):
         p = default_params()
         p['blend_dcf_weight'] = 0.80

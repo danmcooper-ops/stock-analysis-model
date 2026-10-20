@@ -1063,6 +1063,16 @@ ruff check .
   BUY. ParamSet key `na_gates_score_zero` (False restores the renormalised
   average); part of `scoring_params_hash`. `_data_coverage_score` and
   `_gates_passed` still count applicable gates only.
+- **DCF Monte Carlo is a guide, not a rating input (`MC_PENALTY_ENABLED`,
+  2026-10-20):** the composite used to be multiplied by 0.93 when the DCF
+  simulation's `mc_cv` exceeded 0.30 and 0.85 above 0.40. That reached only
+  rows with a DCF (2,450 of 3,487 on 2026-10-19), so the ~1,000 without one
+  were never discounted however uncertain their fair value. The simulation
+  still runs and shows as MC Confidence, P10/P90 and the Summary PDF's
+  range; `_composite_score` now equals `_composite_score_raw`. Re-scored,
+  10-19 goes from 21/586/1210/1670 to 130/811/1186/1360 (BUY/LEAN/HOLD/PASS).
+  The DDM simulation never fed the rating. ParamSet key `mc_penalty_enabled`,
+  part of `scoring_params_hash`.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`
