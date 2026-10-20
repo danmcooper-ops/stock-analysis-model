@@ -9,6 +9,7 @@ from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_OWNERSHIP, MIN_SECTOR_STOCKS,
                              MIN_ADV_FOR_BUY, BLEND_CONFLICT_RATIO,
                              RATING_CAPS_ENABLED, NA_GATES_SCORE_ZERO,
+                             MC_PENALTY_ENABLED,
                             MC_CLIP_RATE_DOWNGRADE, MC_INVALID_RATE_DOWNGRADE)
 from models.sector_pool import panel_pools, year_series
 
@@ -1064,7 +1065,8 @@ def compute_continuous_scores(results, params=None):
     """Score each stock on all gates using continuous 0-100 scoring.
 
     Computes per-gate scores, category averages, and weighted composite score.
-    Integrates MC confidence as a penalty.
+    The DCF Monte Carlo penalty applies only when `mc_penalty_enabled` is on
+    (config.MC_PENALTY_ENABLED, off by default).
     Supports three scoring modes: absolute, global percentile, and sector percentile.
 
     Args:
@@ -1125,6 +1127,7 @@ def compute_continuous_scores(results, params=None):
             all_categories.append(gate.category)
 
     na_zero = p.get('na_gates_score_zero', NA_GATES_SCORE_ZERO)
+    mc_penalty = p.get('mc_penalty_enabled', MC_PENALTY_ENABLED)
     for r in results:
         # Per-row weighted category averages:
         #   • Structurally inapplicable gates (gate.applicable(row) False)
@@ -1190,9 +1193,11 @@ def compute_continuous_scores(results, params=None):
         # Store raw composite before MC penalty
         r['_composite_score_raw'] = round(composite, 1) if composite is not None else None
 
-        # MC confidence penalty
+        # MC confidence penalty — off by default (config.MC_PENALTY_ENABLED):
+        # the DCF simulation is a guide on the page, not a rating input, so
+        # _composite_score == _composite_score_raw.
         mc_cv = r.get('mc_cv')
-        if composite is not None and mc_cv is not None:
+        if mc_penalty and composite is not None and mc_cv is not None:
             if mc_cv > 0.40:
                 composite *= 0.85
             elif mc_cv > 0.30:

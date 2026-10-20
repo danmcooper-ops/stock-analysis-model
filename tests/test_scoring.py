@@ -419,7 +419,7 @@ class TestContinuousScoring:
         assert rows[0]['_composite_score'] > rows[1]['_composite_score']
 
     def test_mc_cv_penalty_applied(self):
-        """High MC CV should penalize the composite score."""
+        """With mc_penalty_enabled on, high MC CV penalizes the composite."""
         # Use 3+ rows with varied spread/analyst_ltg so percentile-ranking
         # doesn't create asymmetry between the two target rows
         low_cv = self._make_row(ticker='STABLE', mc_cv=0.15,
@@ -430,7 +430,7 @@ class TestContinuousScoring:
         filler = self._make_row(ticker='FILLER', mc_cv=0.20,
                                 spread=0.05, analyst_ltg=0.05)
         rows = [low_cv, high_cv, filler]
-        compute_continuous_scores(rows)
+        compute_continuous_scores(rows, params={'mc_penalty_enabled': True})
         # STABLE and VOLATILE have same absolute metrics but different CV
         # The high-CV row should be penalized
         stable_score = rows[0]['_composite_score']
@@ -1106,6 +1106,22 @@ def _full_row(**overrides):
     }
     row.update(overrides)
     return row
+
+
+class TestMcPenalty:
+    """The DCF Monte Carlo spread is a guide, not a rating input, unless
+    mc_penalty_enabled is on (config.MC_PENALTY_ENABLED)."""
+
+    def test_wide_mc_spread_leaves_composite_alone_by_default(self):
+        row = _full_row(mc_cv=0.55)
+        compute_continuous_scores([row])
+        assert row['_composite_score'] == row['_composite_score_raw']
+
+    def test_penalty_applies_when_enabled(self):
+        row = _full_row(mc_cv=0.55)
+        compute_continuous_scores([row], params={'mc_penalty_enabled': True})
+        assert row['_composite_score'] == pytest.approx(
+            row['_composite_score_raw'] * 0.85, abs=0.1)
 
 
 class TestApplicabilityMask:
