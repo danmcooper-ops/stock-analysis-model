@@ -165,6 +165,16 @@ MIN_ADV_FOR_BUY = 1_000_000
 # two models side by side; it is part of scoring_params_hash.
 RATING_CAPS_ENABLED = False
 
+# Whether a gate that cannot apply to a business (applicable=False: a bank's
+# ROIC, FCF and EV gates, P/TBV on negative tangible book, quiet insiders,
+# short histories) scores 0 against its full weight in its category. On since
+# 2026-10-20: leaving such gates out averaged a category over whatever
+# applied, so a bank's Moat was its Pool Share gate alone (DCOM read 82%), and
+# on 2026-10-19 82 of 113 BUYs were Financial Services. The gate cell still
+# shows N/A. Off restores the renormalised average; the ParamSet key
+# `na_gates_score_zero` is part of scoring_params_hash.
+NA_GATES_SCORE_ZERO = True
+
 # ---------------------------------------------------------------------------
 # Sector-specific DCF parameters (Fixes C/D/E/F)
 # ---------------------------------------------------------------------------

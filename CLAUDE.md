@@ -1049,6 +1049,20 @@ ruff check .
   key `rating_caps_enabled` turns them back on (the backtest can measure both
   models); it is part of `scoring_params_hash`, so the change splits the
   backtest's regimes.
+- **Gates that cannot apply score 0 (`NA_GATES_SCORE_ZERO`, 2026-10-20):** a
+  gate whose `applicable` predicate fails (a bank's ROIC, FCF, EV, margin and
+  leverage gates; P/TBV on negative tangible book; < 4 insider trades; short
+  margin or multiple histories; undefined Pool Share or Incr ROIC) still shows
+  N/A, but counts 0 against its full weight, so each category is scored out of
+  every gate in it. Before, the category averaged over the gates that applied:
+  a bank's Moat was Pool Share alone (DCOM 82%), and on 2026-10-19 82 of 113
+  BUYs were Financial Services. Re-scored, that run goes from 113/974/1233/1167
+  to 21/586/1210/1670 (BUY/LEAN/HOLD/PASS), financials 82/232/129/97 to
+  0/0/138/402. A Financial Services row can now reach a composite of about
+  48.6 at most (11 of 26 gates masked), so it can be LEAN BUY at best, never
+  BUY. ParamSet key `na_gates_score_zero` (False restores the renormalised
+  average); part of `scoring_params_hash`. `_data_coverage_score` and
+  `_gates_passed` still count applicable gates only.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`

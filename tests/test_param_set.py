@@ -130,6 +130,13 @@ class TestValidateParams:
         p['rating_caps_enabled'] = 'yes'
         assert any('rating_caps_enabled' in e for e in validate_params(p))
 
+    def test_na_gates_score_zero_is_a_bool_defaulting_on(self):
+        assert default_params()['na_gates_score_zero'] is True
+        assert validate_params(merge_params({'na_gates_score_zero': False})) == []
+        p = default_params()
+        p['na_gates_score_zero'] = 1
+        assert any('na_gates_score_zero' in e for e in validate_params(p))
+
     def test_bad_blend_weight_sum(self):
         p = default_params()
         p['blend_dcf_weight'] = 0.80

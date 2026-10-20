@@ -34,7 +34,7 @@ from scripts.config import (
     BLEND_TRIGGER, BLEND_DCF_WEIGHT, BLEND_MULT_WEIGHT, BLEND_CONFLICT_RATIO,
     SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
     SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH, SCORE_WEIGHT_OWNERSHIP,
-    RATING_CAPS_ENABLED,
+    RATING_CAPS_ENABLED, NA_GATES_SCORE_ZERO,
 )
 
 
@@ -120,6 +120,11 @@ def default_params():
         # Whether the critical-condition caps lower the rating (see
         # config.RATING_CAPS_ENABLED); off = rating is the composite bucket.
         'rating_caps_enabled': RATING_CAPS_ENABLED,
+
+        # Whether a gate that cannot apply scores 0 in its category (see
+        # config.NA_GATES_SCORE_ZERO); off = category averages over the
+        # gates that apply.
+        'na_gates_score_zero': NA_GATES_SCORE_ZERO,
     }
 
 
@@ -189,6 +194,9 @@ def validate_params(params):
     rce = params.get('rating_caps_enabled', RATING_CAPS_ENABLED)
     if not isinstance(rce, bool):
         errors.append(f"rating_caps_enabled = {rce!r} must be true or false")
+    nz = params.get('na_gates_score_zero', NA_GATES_SCORE_ZERO)
+    if not isinstance(nz, bool):
+        errors.append(f"na_gates_score_zero = {nz!r} must be true or false")
 
     # Blend weights
     bw = params.get('blend_dcf_weight', 0) + params.get('blend_mult_weight', 0)
