@@ -7,7 +7,7 @@ from scripts.scoring import (
     rating_from_composite, _mc_confidence_label, GATES,
     gate_metadata, score_and_rate,
     apply_screening_matrix, _rating_cap_for_row, apply_rating_caps,
-    prepare_scoring_fields,
+    prepare_scoring_fields, _score_key,
 )
 
 
@@ -1146,12 +1146,36 @@ class TestApplicabilityMask:
         assert bank['_gp_margins'] is None
         assert bank['_gate_margins'] is None
 
+    def test_inapplicable_gates_score_zero_by_default(self):
+        """Inapplicable gates still render N/A (None), but by default
+        (config.NA_GATES_SCORE_ZERO) the category is scored out of every
+        gate in it: a bank's Moat is its applicable gates' points over the
+        whole category's weight, not their average."""
+        # DCOM on 2026-10-19: Pool Share is the only Moat gate a bank has.
+        bank = _full_row(ticker='BANK', sector='Financial Services',
+                         pool_share_cagr=0.10, _pool_share_undefined=False)
+        compute_continuous_scores([bank])
+        assert bank['_score_spread'] is None
+        assert bank['_score_pool_share'] == pytest.approx(80.0)
+        assert bank['_score_moat'] == pytest.approx(16.0)  # 80 / 5 gates
+        moat = [g for g in GATES if g.category == 'Moat']
+        earned = sum((bank[_score_key(g.name)] or 0) * g.weight for g in moat)
+        assert bank['_score_moat'] == pytest.approx(
+            earned / sum(g.weight for g in moat), abs=0.1)
+        renorm = _full_row(ticker='BANK', sector='Financial Services',
+                           pool_share_cagr=0.10, _pool_share_undefined=False)
+        compute_continuous_scores([renorm], params={'na_gates_score_zero': False})
+        assert renorm['_score_moat'] == pytest.approx(80.0)
+        assert bank['_score_valuation'] < renorm['_score_valuation']
+
     def test_inapplicable_scores_are_none_and_category_renormalizes(self):
-        """Scores render N/A (None) for inapplicable gates, and the category
-        average is taken over applicable weight only."""
+        """With na_gates_score_zero off, scores render N/A (None) for
+        inapplicable gates and the category average is taken over
+        applicable weight only."""
         bank = _full_row(ticker='BANK', sector='Financial Services')
         generic = _full_row(ticker='TECH')
-        compute_continuous_scores([bank, generic])
+        compute_continuous_scores([bank, generic],
+                                  params={'na_gates_score_zero': False})
         assert bank['_score_ebit_ev'] is None
         assert bank['_score_fcf_yield'] is None
         assert bank['_score_int_coverage'] is None

@@ -8,7 +8,7 @@ from scripts.config import (SCORE_WEIGHT_VALUATION, SCORE_WEIGHT_QUALITY,
                              SCORE_WEIGHT_MOAT, SCORE_WEIGHT_GROWTH,
                              SCORE_WEIGHT_OWNERSHIP, MIN_SECTOR_STOCKS,
                              MIN_ADV_FOR_BUY, BLEND_CONFLICT_RATIO,
-                             RATING_CAPS_ENABLED,
+                             RATING_CAPS_ENABLED, NA_GATES_SCORE_ZERO,
                             MC_CLIP_RATE_DOWNGRADE, MC_INVALID_RATE_DOWNGRADE)
 from models.sector_pool import panel_pools, year_series
 
@@ -1124,13 +1124,19 @@ def compute_continuous_scores(results, params=None):
         if gate.category not in all_categories:
             all_categories.append(gate.category)
 
+    na_zero = p.get('na_gates_score_zero', NA_GATES_SCORE_ZERO)
     for r in results:
-        # Per-row weighted category averages over APPLICABLE gates:
+        # Per-row weighted category averages:
         #   • Structurally inapplicable gates (gate.applicable(row) False)
-        #     are excluded from numerator AND denominator — the category
-        #     renormalizes over the gates that can describe this business.
-        #   • Missing data still scores 0 (worst) against its full weight,
-        #     so sparse-data tickers stay penalized.
+        #     keep a None gate score, so matrix cells render N/A. With
+        #     na_gates_score_zero on (config.NA_GATES_SCORE_ZERO, the
+        #     default) they still count 0 against their full weight, so a
+        #     category is scored out of every gate in it: a bank with only
+        #     Pool Share in Moat earns at most a fifth of Moat. Off, they
+        #     leave numerator AND denominator and the category renormalizes
+        #     over the gates that apply.
+        #   • Missing data scores 0 (worst) against its full weight either
+        #     way, so sparse-data tickers stay penalized.
         cat_score_sums = {cat: 0.0 for cat in all_categories}
         cat_weight_sums = {cat: 0.0 for cat in all_categories}
         applicable_gates = 0
@@ -1140,6 +1146,8 @@ def compute_continuous_scores(results, params=None):
                 # Inapplicable → score stays None so matrix cells render
                 # N/A rather than a misleading 0.0.
                 r[_score_key(gate.name)] = None
+                if na_zero:
+                    cat_weight_sums[gate.category] += gate.weight
                 continue
             applicable_gates += 1
             val = r.get(gate.field)
@@ -1156,9 +1164,9 @@ def compute_continuous_scores(results, params=None):
             cat_score_sums[gate.category] += score * gate.weight
             cat_weight_sums[gate.category] += gate.weight
 
-        # Category averages over the applicable weight mass. A category with
-        # zero applicable weight scores None and drops out of the composite
-        # (unreachable with current masks — defensive only).
+        # Category averages over the counted weight mass (see above). A
+        # category with no counted weight scores None and drops out of the
+        # composite (unreachable with current gates — defensive only).
         cat_avgs = {
             cat: (cat_score_sums[cat] / cat_weight_sums[cat]
                   if cat_weight_sums[cat] > 0 else None)
