@@ -3222,7 +3222,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
                the drill-down chip rides #f-count and #sn-count, and Clear
                below resets it). -->
           <span class="fpop-title-wrap"><span class="fpop-title">Filters</span><span class="filter-count" id="filt-count"></span></span>
-          <span class="filt-header-actions"><button class="filter-clear" onclick="clearFilters()">Clear</button><button class="fpop-close" onclick="toggleFiltMenu(event)">&#215;</button></span>
+          <span class="filt-header-actions"><button class="filter-clear" onclick="clearFilters();closeFiltMenu()" title="Clear every filter and close this panel">Clear</button><button class="fpop-close" onclick="toggleFiltMenu(event)">&#215;</button></span>
         </div>
         <div class="fpop-body">
           <div class="filt-cols">

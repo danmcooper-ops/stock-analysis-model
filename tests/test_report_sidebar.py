@@ -377,3 +377,14 @@ def test_closing_the_ticker_page_cannot_loop_its_class_observer():
     obs = src[src.index('var wasOpen=e.dm.classList.contains'):][:400]
     assert 'if(isOpen===wasOpen)return;' in obs
     assert "attributeFilter:['class']" in obs
+
+
+def test_filters_clear_button_closes_the_panel():
+    # Clear resets every filter AND closes the Filters panel. The close lives
+    # on the button, not in clearFilters(), which the empty-table "No stocks
+    # match" link also calls with the panel already shut.
+    src = _tpl()
+    m = re.search(r'<button class="filter-clear" onclick="([^"]*)"[^>]*>Clear</button>', src)
+    assert m, 'Filters panel Clear button not found'
+    assert m.group(1) == 'clearFilters();closeFiltMenu()'
+    assert 'closeFiltMenu' not in _fn(src, 'clearFilters')
