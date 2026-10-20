@@ -5,14 +5,14 @@
  "systemic": {
   "n": 3483,
   "prev_n": 2282,
-  "changed": 1126,
-  "changed_share": 0.3233,
+  "changed": 1032,
+  "changed_share": 0.2963,
   "missing_data": 0,
   "missing_share": 0.0,
   "shrink_share": 0.0,
   "flood": true,
   "cause": "model",
-  "message": "Model-wide shift: 32% of the universe (1,126 stocks) changed rating in one run — usually a scoring change rather than news about individual stocks."
+  "message": "Model-wide shift: 30% of the universe (1,032 stocks) changed rating in one run — usually a scoring change rather than news about individual stocks."
  },
  "portfolios": [
   {
@@ -25,12 +25,12 @@
     "n": 4,
     "ratings": {
      "BUY": 0,
-     "LEAN BUY": 3,
-     "HOLD": 1,
+     "LEAN BUY": 2,
+     "HOLD": 2,
      "PASS": 0
     },
     "median_mos": -0.6424378380121014,
-    "median_score": 42.1,
+    "median_score": 41.9,
     "median_spread": 0.22855934074357404,
     "sector_weights": {
      "Technology": 1.0
@@ -44,19 +44,6 @@
     "downgrades": 0
    },
    "alerts": [
-    {
-     "ticker": "AVGO",
-     "from": "PASS",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "AVGO moved into the buy zone: PASS → LEAN BUY",
-     "flood": true,
-     "why": [
-      "The prior run's rating cap no longer applies.",
-      "Composite score moved 36 → 39, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
     {
      "ticker": "NVDA",
      "from": "PASS",
@@ -89,6 +76,19 @@
      "kind": "joined",
      "level": "watch",
      "message": "AMD joined Semiconductors (back in the universe)"
+    },
+    {
+     "ticker": "AVGO",
+     "from": "PASS",
+     "to": "HOLD",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "AVGO PASS → HOLD",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 36 → 39 (the composite-only rating band did not change)."
+     ]
     }
    ]
   },
@@ -101,13 +101,13 @@
    "stats": {
     "n": 53,
     "ratings": {
-     "BUY": 3,
-     "LEAN BUY": 38,
-     "HOLD": 9,
-     "PASS": 3
+     "BUY": 1,
+     "LEAN BUY": 30,
+     "HOLD": 16,
+     "PASS": 6
     },
     "median_mos": -0.3182944974197948,
-    "median_score": 44.9,
+    "median_score": 43.2,
     "median_spread": 0.25645814792129545,
     "sector_weights": {
      "Technology": 0.2641509433962264,
@@ -123,8 +123,8 @@
     "hhi": 0.17906728373086506,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 36,
-    "downgrades": 2
+    "upgrades": 30,
+    "downgrades": 7
    },
    "alerts": [
     {
@@ -138,6 +138,19 @@
      "why": [
       "The prior run's rating cap no longer applies.",
       "Composite score moved 39 → 43 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "ACT",
+     "from": "LEAN BUY",
+     "to": "HOLD",
+     "kind": "exited_buy",
+     "level": "action",
+     "message": "ACT fell out of the buy zone: LEAN BUY → HOLD",
+     "flood": true,
+     "why": [
+      "Composite score moved 55 → 29, crossing below the LEAN BUY (39) threshold.",
+      "Biggest category moves: Moat 54 → 11 (-43), Quality 79 → 53 (-26), Valuation 54 → 38 (-16)."
      ]
     },
     {
@@ -178,33 +191,8 @@
      "flood": true,
      "why": [
       "The prior run's rating cap no longer applies.",
-      "Composite score moved 43 → 47 (the composite-only rating band did not change)."
-     ]
-    },
-    {
-     "ticker": "AVGO",
-     "from": "PASS",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "AVGO moved into the buy zone: PASS → LEAN BUY",
-     "flood": true,
-     "why": [
-      "The prior run's rating cap no longer applies.",
-      "Composite score moved 36 → 39, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
-    {
-     "ticker": "BUD",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "BUD moved into the buy zone: HOLD → LEAN BUY",
-     "flood": true,
-     "why": [
-      "The prior run's rating cap no longer applies.",
-      "Composite score moved 42 → 40 (the composite-only rating band did not change)."
+      "Composite score moved 43 → 46 (the composite-only rating band did not change).",
+      "Biggest category moves: Ownership 47 → 38 (-9)."
      ]
     },
     {
@@ -217,8 +205,8 @@
      "flood": true,
      "why": [
       "The prior run's rating cap no longer applies.",
-      "Composite score moved 49 → 46 (the composite-only rating band did not change).",
-      "Biggest category moves: Moat 30 → 35 (+5).",
+      "Composite score moved 49 → 44 (the composite-only rating band did not change).",
+      "Biggest category moves: Moat 30 → 35 (+5), Ownership 72 → 58 (-14).",
       "Largest metric swings: Margin Adv 0.0% → 7.8% (score 33 → 59)."
      ]
     },
@@ -236,16 +224,16 @@
      ]
     },
     {
-     "ticker": "F",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
+     "ticker": "DDS",
+     "from": "LEAN BUY",
+     "to": "HOLD",
+     "kind": "exited_buy",
      "level": "action",
-     "message": "F moved into the buy zone: HOLD → LEAN BUY",
+     "message": "DDS fell out of the buy zone: LEAN BUY → HOLD",
      "flood": true,
      "why": [
-      "The prior run's rating cap no longer applies.",
-      "Composite score moved 44 → 40 (the composite-only rating band did not change)."
+      "Composite score moved 40 → 36, crossing below the LEAN BUY (39) threshold.",
+      "Biggest category moves: Moat 46 → 29 (-17), Ownership 69 → 55 (-14)."
      ]
     },
     {
@@ -284,7 +272,7 @@
      "flood": true,
      "why": [
       "The prior run's rating cap no longer applies.",
-      "Composite score moved 45 → 44 (the composite-only rating band did not change)."
+      "Composite score moved 45 → 43 (the composite-only rating band did not change)."
      ]
     },
     {
@@ -298,7 +286,7 @@
      "why": [
       "The prior run's rating cap no longer applies.",
       "Composite score moved 48 → 54 (the composite-only rating band did not change).",
-      "Biggest category moves: Moat 84 → 88 (+4).",
+      "Biggest category moves: Moat 84 → 88 (+4), Ownership 27 → 21 (-5).",
       "Largest metric swings: Margin Adv 15.3% → 23.1% (score 84 → 100)."
      ]
     },
@@ -312,20 +300,8 @@
      "flood": true,
      "why": [
       "The prior run's rating cap no longer applies.",
-      "Composite score moved 43.5 → 44.2 (the composite-only rating band did not change)."
-     ]
-    },
-    {
-     "ticker": "JPM",
-     "from": "PASS",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "JPM moved into the buy zone: PASS → LEAN BUY",
-     "flood": true,
-     "why": [
-      "The prior run's rating cap no longer applies.",
-      "Composite score moved 44 → 48 (the composite-only rating band did not change)."
+      "Composite score moved 44 → 43 (the composite-only rating band did not change).",
+      "Biggest category moves: Valuation 32 → 28 (-5)."
      ]
     },
     {
@@ -339,6 +315,19 @@
      "why": [
       "The prior run's rating cap no longer applies.",
       "Composite score moved 41 → 47 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "LOW",
+     "from": "LEAN BUY",
+     "to": "HOLD",
+     "kind": "exited_buy",
+     "level": "action",
+     "message": "LOW fell out of the buy zone: LEAN BUY → HOLD",
+     "flood": true,
+     "why": [
+      "Composite score moved 43 → 38, crossing below the LEAN BUY (39) threshold.",
+      "Biggest category moves: Valuation 54 → 46 (-7), Ownership 59 → 47 (-12)."
      ]
     },
     {
@@ -364,7 +353,8 @@
      "flood": true,
      "why": [
       "The prior run's rating cap no longer applies.",
-      "Composite score moved 44.7 → 44.7 (the composite-only rating band did not change)."
+      "Composite score moved 45 → 44 (the composite-only rating band did not change).",
+      "Biggest category moves: Valuation 39 → 34 (-6)."
      ]
     },
     {
@@ -418,8 +408,8 @@
      "flood": true,
      "why": [
       "The prior run's rating cap no longer applies.",
-      "Composite score moved 44 → 48 (the composite-only rating band did not change).",
-      "Biggest category moves: Moat 62 → 68 (+6).",
+      "Composite score moved 44 → 47 (the composite-only rating band did not change).",
+      "Biggest category moves: Moat 62 → 68 (+6), Valuation 40 → 35 (-6).",
       "Largest metric swings: Margin Adv 12.8% → 20.6% (score 76 → 100)."
      ]
     },
@@ -461,8 +451,8 @@
      "flood": true,
      "why": [
       "The prior run's rating cap no longer applies.",
-      "Composite score moved 41 → 44 (the composite-only rating band did not change).",
-      "Biggest category moves: Moat 47 → 50 (+3)."
+      "Composite score moved 41 → 40 (the composite-only rating band did not change).",
+      "Biggest category moves: Moat 47 → 40 (-7)."
      ]
     },
     {
@@ -474,7 +464,21 @@
      "message": "RYAAY fell out of the buy zone: LEAN BUY → HOLD",
      "flood": true,
      "why": [
-      "Composite score moved 42 → 38, crossing below the LEAN BUY (39) threshold."
+      "Composite score moved 42 → 36, crossing below the LEAN BUY (39) threshold.",
+      "Biggest category moves: Moat 31 → 26 (-5), Ownership 25 → 20 (-5)."
+     ]
+    },
+    {
+     "ticker": "SNEX",
+     "from": "BUY",
+     "to": "HOLD",
+     "kind": "exited_buy",
+     "level": "action",
+     "message": "SNEX fell out of the buy zone: BUY → HOLD",
+     "flood": true,
+     "why": [
+      "Composite score moved 61 → 26, crossing below the BUY (57) and LEAN BUY (39) thresholds.",
+      "Biggest category moves: Moat 100 → 20 (-80), Growth 97 → 24 (-72), Quality 54 → 36 (-18)."
      ]
     },
     {
@@ -491,21 +495,6 @@
      ]
     },
     {
-     "ticker": "T",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "T moved into the buy zone: HOLD → LEAN BUY",
-     "flood": true,
-     "why": [
-      "The prior run's rating cap no longer applies.",
-      "Composite score moved 41 → 39 (the composite-only rating band did not change).",
-      "Biggest category moves: Moat 40 → 46 (+6).",
-      "Largest metric swings: Margin Adv 2.5% → 10.3% (score 42 → 68)."
-     ]
-    },
-    {
      "ticker": "TDG",
      "from": "HOLD",
      "to": "LEAN BUY",
@@ -514,7 +503,8 @@
      "message": "TDG moved into the buy zone: HOLD → LEAN BUY",
      "flood": true,
      "why": [
-      "Composite score moved 37 → 41, crossing above the LEAN BUY (39) threshold."
+      "Composite score moved 37 → 40, crossing above the LEAN BUY (39) threshold.",
+      "Biggest category moves: Valuation 21 → 18 (-3)."
      ]
     },
     {
@@ -557,17 +547,10 @@
      ]
     },
     {
-     "ticker": "UVE",
-     "from": "HOLD",
-     "to": "BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "UVE moved into the buy zone: HOLD → BUY",
-     "flood": true,
-     "why": [
-      "The prior run's rating cap no longer applies.",
-      "Composite score moved 75 → 76 (the composite-only rating band did not change)."
-     ]
+     "ticker": "ACT",
+     "kind": "score_drop",
+     "level": "watch",
+     "message": "ACT composite score dropped 26.7 pts (55.4 → 28.7)"
     },
     {
      "ticker": "AXON",
@@ -582,6 +565,12 @@
      "kind": "joined",
      "level": "watch",
      "message": "BRK-B joined Flagged (now matches the rule)"
+    },
+    {
+     "ticker": "BRK-B",
+     "kind": "score_drop",
+     "level": "watch",
+     "message": "BRK-B composite score dropped 17.5 pts (35.6 → 18.1)"
     },
     {
      "ticker": "CMCSA",
@@ -608,10 +597,22 @@
      "message": "HON reports earnings on 2026-10-22"
     },
     {
+     "ticker": "JPM",
+     "kind": "score_drop",
+     "level": "watch",
+     "message": "JPM composite score dropped 23.9 pts (44.5 → 20.6)"
+    },
+    {
      "ticker": "LRCX",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "LRCX reports earnings on 2026-10-21"
+    },
+    {
+     "ticker": "MA",
+     "kind": "score_drop",
+     "level": "watch",
+     "message": "MA composite score dropped 20.9 pts (38.0 → 17.1)"
     },
     {
      "ticker": "META",
@@ -632,6 +633,12 @@
      "message": "PG reports earnings on 2026-10-22"
     },
     {
+     "ticker": "SNEX",
+     "kind": "score_drop",
+     "level": "watch",
+     "message": "SNEX composite score dropped 35.5 pts (61.4 → 25.9)"
+    },
+    {
      "ticker": "T",
      "kind": "earnings_soon",
      "level": "watch",
@@ -650,6 +657,38 @@
      "message": "UVE reports earnings on 2026-10-22"
     },
     {
+     "ticker": "UVE",
+     "kind": "score_drop",
+     "level": "watch",
+     "message": "UVE composite score dropped 41.6 pts (75.3 → 33.7)"
+    },
+    {
+     "ticker": "AVGO",
+     "from": "PASS",
+     "to": "HOLD",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "AVGO PASS → HOLD",
+     "flood": true,
+     "why": [
+      "The prior run's rating cap no longer applies.",
+      "Composite score moved 36 → 39 (the composite-only rating band did not change)."
+     ]
+    },
+    {
+     "ticker": "BRK-B",
+     "from": "HOLD",
+     "to": "PASS",
+     "kind": "same_side",
+     "level": "fyi",
+     "message": "BRK-B HOLD → PASS",
+     "flood": true,
+     "why": [
+      "Composite score moved 36 → 18, crossing below the HOLD (25) threshold.",
+      "Biggest category moves: Growth 54 → 14 (-41), Moat 28 → 6 (-22), Quality 53 → 35 (-18)."
+     ]
+    },
+    {
      "ticker": "HD",
      "from": "PASS",
      "to": "HOLD",
@@ -659,20 +698,8 @@
      "flood": true,
      "why": [
       "The prior run's rating cap no longer applies.",
-      "Composite score moved 37.7 → 37.5 (the composite-only rating band did not change)."
-     ]
-    },
-    {
-     "ticker": "MA",
-     "from": "PASS",
-     "to": "HOLD",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "MA PASS → HOLD",
-     "flood": true,
-     "why": [
-      "The prior run's rating cap no longer applies.",
-      "Composite score moved 38 → 36 (the composite-only rating band did not change)."
+      "Composite score moved 38 → 37 (the composite-only rating band did not change).",
+      "Biggest category moves: Valuation 32 → 27 (-5)."
      ]
     },
     {
@@ -685,7 +712,8 @@
      "flood": true,
      "why": [
       "The prior run's rating cap no longer applies.",
-      "Composite score moved 38.9 → 38.7 (the composite-only rating band did not change)."
+      "Composite score moved 39 → 34 (the composite-only rating band did not change).",
+      "Biggest category moves: Moat 56 → 46 (-10), Ownership 51 → 41 (-10), Valuation 34 → 29 (-5)."
      ]
     },
     {
@@ -697,7 +725,8 @@
      "message": "STLA HOLD → PASS",
      "flood": true,
      "why": [
-      "Composite score moved 26 → 24, crossing below the HOLD (25) threshold."
+      "Composite score moved 26 → 21, crossing below the HOLD (25) threshold.",
+      "Biggest category moves: Moat 25 → 20 (-5), Ownership 50 → 40 (-10)."
      ]
     },
     {
