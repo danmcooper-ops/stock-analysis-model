@@ -13424,8 +13424,16 @@ function renderPoolIndustries(sec){
   svg+='<text class="pph-tx" x="'+(pL+cW/2)+'" y="'+(H-6)+'" text-anchor="middle">Revenue share → (by industry, ordered by margin)</text>';
   var out='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%;height:auto;margin:4px 0 0">'+svg+'</svg>';
   out+='<div class="pph-key"><span><i class="ppi-pos"></i>Median spread ≥ 5 pts</span><span><i class="ppi-mid"></i>0–5 pts</span><span><i class="ppi-neg"></i>Below cost of capital</span></div>';
-  out+='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Industry','s')+_ppiTh('Cos')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)+_ppiTh('Margin')+_ppiTh('Median spread')+_ppiTh('Pool CAGR')+'</tr></thead><tbody>';
-  inds.forEach(function(d,ii){
+  out+='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Industry','s')+_ppiTh('Cos')+_ppiTh('Revenue')+_ppiTh('Pool')+_ppiTh('Margin','n',1)+_ppiTh('Median spread')+_ppiTh('Pool CAGR')+'</tr></thead><tbody>';
+  /* Ranked by margin, as the chart is; a blank margin sorts last and the
+     folded Other stays at the bottom. ii is the industry's index into
+     SECTOR_POOL, which dashIndustryJump addresses it by. */
+  inds.map(function(d,ii){return [d,ii];}).sort(function(a,b){
+    var pa=a[0].folded?1:0,pb=b[0].folded?1:0;if(pa!==pb)return pa-pb;
+    var x=a[0].margin,y=b[0].margin;
+    return (x==null)-(y==null)||(y==null||x==null?0:y-x);
+  }).forEach(function(p){
+    var d=p[0],ii=p[1];
     var skew=(d.pool_share!=null&&d.revenue_share>0)?d.pool_share/d.revenue_share:null;
     out+='<tr class="ppi-ind'+(d.folded?' ppi-pin':'')+'" onclick="dashIndustryJump(\''+_attr(secJs)+'\','+ii+')" title="Open the Gate Matrix for '+_attr(d.folded?'these industries':d.industry)+'"><td data-v="'+_attr(d.industry)+'">'+_esc(d.industry)+(d.folded?' <span class="ppi-dim">(industries under 3 companies)</span>':'')+'</td><td data-v="'+d.n+'">'+d.n+'</td><td data-v="'+_ppiV(d.revenue_share)+'">'+_ppPct(d.revenue_share)+'</td>'
       +'<td data-v="'+_ppiV(d.pool_share)+'"'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(d.pool_share)+'</td>'
@@ -13443,8 +13451,9 @@ function _ppTopN(cos){
 }
 /* Companies view of the pool chart: the table behind the bars, built like
    the Industries table so the two toggles read the same way. One row per
-   charted company (the top PP_TOP_N by revenue) ordered by pool share, then
-   the pooled Others row. Pool share trend is the Pool Share gate's value:
+   charted company (the top PP_TOP_N by revenue), leading with the rating as
+   the chart does (best first, pool share within a rating), then the pooled
+   Others row. Pool share trend is the Pool Share gate's value:
    the 5-year CAGR of the company's share of the sector pool. */
 var _PP_BS_INDUSTRIES={'Banks - Regional':1,'Banks - Diversified':1,'Mortgage Finance':1,'Credit Services':1,'Capital Markets':1};
 function _ppSkewTd(pool,rev){
@@ -13453,7 +13462,7 @@ function _ppSkewTd(pool,rev){
 }
 function renderPoolCompanyTable(shown,tail){
   if(!shown||!shown.length)return '';
-  var rows=shown.slice().sort(function(a,b){return (b.pp_profit_share||0)-(a.pp_profit_share||0);});
+  var rows=shown.slice().sort(function(a,b){return (_PPI_RANK[b.rating]||0)-(_PPI_RANK[a.rating]||0)||(b.pp_profit_share||0)-(a.pp_profit_share||0);});
   /* Value/pool: the company's share of the sector's market value over its
      share of the profit pool, over the sector's gated set (shown + tail,
      mcap>0). Above 1× the market pays more than its slice of today's
@@ -13462,7 +13471,7 @@ function renderPoolCompanyTable(shown,tail){
   shown.concat(tail||[]).forEach(function(d){if(d.mcap>0)secMcap+=d.mcap;});
   function vp(mc,ps){return (ps>0&&mc>0&&secMcap>0)?(mc/secMcap)/ps:null;}
   function vpTd(v){return '<td data-v="'+_ppiV(v)+'">'+(v==null?'\u2014':v.toFixed(2)+'\u00d7')+'</td>';}
-  var out='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Company','s')+_ppiTh('Rating')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)+_ppiTh('Margin')+_ppiTh('Spread')+_ppiTh('Pool share trend')+_ppiTh('Value/pool')+'</tr></thead><tbody>';
+  var out='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Company','s')+_ppiTh('Rating','n',1)+_ppiTh('Revenue')+_ppiTh('Pool')+_ppiTh('Margin')+_ppiTh('Spread')+_ppiTh('Pool share trend')+_ppiTh('Value/pool')+'</tr></thead><tbody>';
   rows.forEach(function(d){
     var bs=d.sector==='Financial Services'&&_PP_BS_INDUSTRIES[d.industry];
     var tr=d._gate_pool_share;
@@ -13484,7 +13493,7 @@ function renderPoolCompanyTable(shown,tail){
     out+='<tr class="ppi-pin"><td>Others <span class="ppi-dim">('+tail.length+' companies)</span></td><td>—</td><td>'+_ppPct(rev)+'</td>'
       +_ppSkewTd(pool,rev)+'<td>'+(rev>0?_ppPct(wm/rev):'—')+'</td><td>—</td><td>—</td><td>'+(vo==null?'\u2014':vo.toFixed(2)+'\u00d7')+'</td></tr>';
   }
-  out+='</tbody></table></div>'+_noteQ('Bar width ∝ √revenue share, height = operating margin, colour = rating'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Value/pool is the company’s share of the sector’s market value over its share of the pool: above 1× the market pays more than its slice of today’s profit (the Price of the pool tile compares the whole sector with the universe). Click a company to open it.');
+  out+='</tbody></table></div>'+_noteQ('Bars run by rating, best first, and by operating margin within one. Bar width ∝ √revenue share, height = operating margin, colour = rating'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Value/pool is the company’s share of the sector’s market value over its share of the pool: above 1× the market pays more than its slice of today’s profit (the Price of the pool tile compares the whole sector with the universe). Click a company to open it.');
   return out;
 }
 function _ppChartView(btn,v){
@@ -15160,8 +15169,9 @@ function renderPool(){
        pool the remainder into one gray "Others" bar, and \u221a-scale every
        width (renormalized to fill the axis) so mid-size names stay legible
        next to the giants. Tooltips keep the true linear shares \u2014 \u221a applies
-       to geometry only. Bars stay ordered by operating margin (the classic
-       profit-pool curve). */
+       to geometry only. Bars lead with the rating, best first (BUY, LEAN
+       BUY, HOLD, PASS), each rating's bars by operating margin; Others
+       closes the axis. */
     var _top=_ppTopN(cos),PP_TOP_N=_top.n,byRev=_top.all;
     var totalRev=byRev.reduce(function(s,d){return s+(d.pp_revenue_share||0);},0);if(!totalRev)return;
     var shownCos=_top.shown,tailCos=_top.tail;
@@ -15174,7 +15184,10 @@ function renderPool(){
         profit:tailCos.reduce(function(s,d){return s+(d.pp_profit_share||0);},0)};
       items.push({others:true,share:tRev/totalRev,margin:tMargin});
     }
-    items.sort(function(a,b){return b.margin-a.margin;});
+    items.sort(function(a,b){
+      var ra=a.others?-1:(_PPI_RANK[a.d.rating]||0),rb=b.others?-1:(_PPI_RANK[b.d.rating]||0);
+      return rb-ra||b.margin-a.margin;
+    });
     var margins=items.map(function(it){return it.margin;});
     var maxM=Math.max.apply(null,margins.concat([0.05]));
     var minM=Math.min.apply(null,margins.concat([-0.02,0]));
