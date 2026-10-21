@@ -1633,6 +1633,30 @@ td.ct{font-weight:700;}
 .xsect-dashboard{background:white;border-radius:10px;padding:22px 24px 20px;box-shadow:0 3px 14px rgba(0,0,0,0.09);margin-bottom:22px;border-top:4px solid var(--hdr-bg);}
 .xsect-title{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:3px;}
 .xsect-sub{font-size:0.78em;color:#8a9bb0;margin-bottom:16px;}
+.so-list{list-style:none;margin:0;padding:0;font-size:0.86em;line-height:1.5;}
+.so-list li{position:relative;padding:5px 0 5px 16px;border-top:1px solid rgba(127,127,127,0.15);}
+.so-list li:first-child{border-top:none;}
+.so-list li::before{content:'';position:absolute;left:2px;top:12px;width:8px;height:8px;border-radius:50%;background:#94a3b8;}
+.so-list li.so-up::before{background:#1a7a45;}
+.so-list li.so-down::before{background:#c0392b;}
+.so-grp{margin-top:10px;padding-top:2px;border-top:3px solid #94a3b8;}
+.so-grp.so-g-up{border-top-color:#1a7a45;}.so-grp.so-g-down{border-top-color:#c0392b;}
+.so-gh{font-weight:700;font-size:0.84em;margin:6px 0 2px;color:#64748b;}
+.so-g-up .so-gh{color:#1a7a45;}.so-g-down .so-gh{color:#c0392b;}
+.so-gh span{font-weight:600;opacity:0.8;font-variant-numeric:tabular-nums;}
+.so-name{font:inherit;font-weight:700;background:none;border:none;padding:0;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;}
+.so-name[aria-expanded="true"]{text-decoration-style:solid;}
+.so-read{margin:6px 0 2px;padding:6px 0 0 10px;border-left:2px solid rgba(127,127,127,0.35);}
+.so-read p{margin:2px 0;}
+.so-kick{font-style:italic;font-weight:600;}
+.so-link{white-space:nowrap;color:#0b6bcb;text-decoration:none;font-weight:600;}
+.so-link:hover{text-decoration:underline;}
+[data-theme="dark"] .so-link{color:#58a6ff !important;}
+[data-theme="dark"] .so-list li.so-up::before{background:#3fb950;}
+[data-theme="dark"] .so-list li.so-down::before{background:#f85149;}
+[data-theme="dark"] .so-g-up .so-gh{color:#3fb950 !important;}[data-theme="dark"] .so-grp.so-g-up{border-top-color:#3fb950;}
+[data-theme="dark"] .so-g-down .so-gh{color:#f85149 !important;}[data-theme="dark"] .so-grp.so-g-down{border-top-color:#f85149;}
+[data-theme="dark"] .so-gh{color:#8b949e;}
 .xsect-kpi-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
 .xsect-kpi{flex:1;min-width:140px;background:#f8fafd;border-radius:7px;padding:9px 12px;}
 .xsect-kpi-val{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:1px;}
@@ -2221,13 +2245,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-regime-main{flex:1 1 300px;}
 .mac-watch li{margin:4px 0;}
 .mac-stale{color:#b7791f !important;}
-.mac-sec-chip{display:inline-block;padding:2px 8px;border-radius:9px;background:var(--mac-card);border:1px solid var(--mac-border);color:var(--mac-accent);font:inherit;font-weight:600;white-space:nowrap;cursor:pointer;}
-.mac-sec-chip[aria-expanded="true"]{background:var(--mac-accent);border-color:var(--mac-accent);color:#fff;}
-[data-theme="dark"] .mac-sec-chip[aria-expanded="true"]{color:#0d1117 !important;}
-.mac-sec-read{margin-top:8px;padding-top:8px;border-top:1px solid var(--mac-border);font-size:1.05em;line-height:1.5;}
-.mac-sec-read p{margin:2px 0 6px;}
-.mac-sec-read .mac-nar-kick{font-style:italic;font-weight:600;}
-.mac-sec-open{font-weight:600;color:var(--mac-accent);text-decoration:none;}
 /* --- narrative: a lead sentence per section, evidence as bullets, at a reading measure --- */
 .mac-narrative{max-width:78ch;padding:22px 28px 18px;}
 .mac-nar-k{font-size:0.72em;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--mac-muted);margin:18px 0 4px;}
@@ -2282,18 +2299,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   .mac-fig-viz{grid-template-columns:1fr;gap:4px;}
   .mac-fig-scale .mac-fig-viz>span:last-child{display:none;}
   .mac-fig-cap{flex-direction:row;flex-wrap:wrap;align-items:center;gap:2px 8px;}}
-/* --- sector stance strip, above the influence paragraphs --- */
-.mac-stance{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:6px 0 10px;font-size:0.82em;}
-.mac-stance-col{border-radius:10px;padding:8px 10px;background:var(--mac-chip);border-top:3px solid var(--mac-faint);}
-.mac-stance-col.up{border-top-color:var(--mac-up);}.mac-stance-col.down{border-top-color:var(--mac-down);}
-.mac-stance-h{font-weight:700;margin-bottom:6px;color:var(--mac-muted);}
-.mac-stance-col.up .mac-stance-h{color:var(--mac-up);}.mac-stance-col.down .mac-stance-h{color:var(--mac-down);}
-.mac-stance-h span{font-weight:600;font-variant-numeric:tabular-nums;opacity:0.8;}
-.mac-stance-chips{display:flex;flex-wrap:wrap;gap:5px;}
-.mac-stance-chips a{display:inline-block;padding:2px 8px;border-radius:9px;background:var(--mac-card);border:1px solid var(--mac-border);color:var(--mac-accent);font-weight:600;text-decoration:none;white-space:nowrap;}
-.mac-stance-chips a:hover{text-decoration:underline;}
-.mac-stance-chips em{color:var(--mac-faint);}
-@media(max-width:560px){.mac-stance{grid-template-columns:1fr;}}
 /* --- glance tiles --- */
 .mac-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:0 0 18px;}
 .mac-tile{padding:14px 16px;}
@@ -6856,9 +6861,9 @@ function renderOverview(){
      it stays stable while the rest of this view follows FD. */
   var html=renderWorldMosMap();
   html+='<div class="qh-card qh-flush" style="margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid #e8edf2">'
-    +_qHelp('<span class="note-q-t">Tap a category card, rating box or map country to open those stocks in the Gate Matrix. Gate rows and histogram bars filter in place.</span>','How to use the dashboard','corner')
-    +'<div style="font-size:1.15em;font-weight:700;color:#1a252f;letter-spacing:0.01em;margin-bottom:5px">Gates Summary</div>'
-    +'<div style="font-size:0.78em;color:#64748b;line-height:1.5">'+_subtitle+'</div>';
+    /* The run summary sits behind the ? with the how-to, so the cards lead. */
+    +_qHelp('<span class="note-q-t">'+_subtitle+'.</span><span class="note-q-t" style="display:block;margin-top:6px">Tap a category card, rating box or map country to open those stocks in the Gate Matrix. Gate rows and histogram bars filter in place.</span>','About the Gates Summary','corner')
+    +'<div style="font-size:1.15em;font-weight:700;color:#1a252f;letter-spacing:0.01em">Gates Summary</div>';
   html+='</div>';
   /* Category score cards */
   html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">';
@@ -12523,24 +12528,6 @@ function _macSentences(text){
   if(cur)out.push(cur);
   return out;
 }
-/* Jump from the narrative's sector list to that sector's Sector Analysis
-   tab. Addressed by index into the narrative, so no model string is ever
-   written into an onclick attribute. */
-function _macGoSector(i){
-  var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
-  var row=nar&&(nar.sectors||[])[i];
-  if(row&&row.sector){
-    /* A drill like any other (_drillPush): the way back returns to this
-       Macro sub-tab and scroll position. showView, not navGo, because navGo
-       is "navigating away by hand" and would spend the entry at once. */
-    _drillPush('Macro Outlook');
-    _poolTab=row.sector;
-    if(curView!=='pool')showView('pool');else showPoolTab(row.sector);
-    _drillSeal();
-    window.scrollTo({top:0,behavior:'auto'});
-  }
-  return false;
-}
 /* === NARRATIVE FIGURES ===
    Each narrative section is followed by the indicators its paragraph
    actually cites, in the order it cites them, so the reader finds the
@@ -12653,32 +12640,6 @@ function _macNarFigure(i,text){
     +(sec?'<a class="mac-fig-more" href="#" onclick="navGo(\'macro\',\''+sec+'\');return false">Full charts ›</a>':'')
     +'</div>';
 }
-/* Every sector on one line per stance, so the shape of the read — how many
-   sectors macro is helping, how many it is hurting — shows before the
-   paragraphs. Chips link to the sector's tab like the names below. */
-function _macStanceStrip(grp,secLink){
-  var o='<div class="mac-stance">';
-  [['up','▲ Tailwind'],['','● Neutral'],['down','▼ Headwind']].forEach(function(g){
-    var items=grp[g[0]];
-    o+='<div class="mac-stance-col '+(g[0]||'flat')+'"><div class="mac-stance-h">'+g[1]+' <span>'+items.length+'</span></div>'
-      +'<div class="mac-stance-chips">'+(items.length?items.map(secLink).join(''):'<em>none</em>')+'</div>'
-      +'<div class="mac-sec-read" hidden></div></div>';
-  });
-  return o+'</div>';
-}
-function _macSecPick(btn,i){
-  var nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
-  var row=nar&&(nar.sectors||[])[i];if(!row)return;
-  var col=btn.closest('.mac-stance-col'),rd=col&&col.querySelector('.mac-sec-read');if(!rd)return;
-  var was=btn.getAttribute('aria-expanded')==='true';
-  col.querySelectorAll('.mac-sec-chip').forEach(function(b){b.setAttribute('aria-expanded','false');});
-  if(was){rd.hidden=true;rd.innerHTML='';return;}
-  btn.setAttribute('aria-expanded','true');
-  rd.innerHTML=(row.headline?'<div class="mac-nar-kick">'+_esc(row.headline)+'</div>':'')
-    +'<p>'+_esc(row.influence)+'</p>'
-    +'<a href="#" class="mac-sec-open" onclick="return _macGoSector('+i+')">Open '+_esc(row.sector)+' ›</a>';
-  rd.hidden=false;
-}
 function _macFold(el,e){
   if(e)e.stopPropagation();
   var f=el.closest('.mac-fold');if(!f)return;
@@ -12749,26 +12710,12 @@ function _macNarrativeHTML(){
     }
     h+='</div></div>';
   }
-  /* Sectors: the stance chips are the index. A chip opens that sector's
-     kicker and influence in place, under its own stance column, with the
-     way into the sector page; the stance whitelist picks the column, never
-     the model's text. A pre-v3 narrative has no influence, so its chips
-     link straight to the sector page as before. */
-  var STANCE={tailwind:'up',headwind:'down'};
-  var grp={up:[],down:[],'':[]};
-  (nar.sectors||[]).forEach(function(row,i){
-    if(!row||!row.sector)return;
-    grp[STANCE[row.stance]||''].push({row:row,i:i});
-  });
-  if(grp.up.length||grp.down.length){
-    h+='<h3 class="mac-h">Sectors</h3>';
-    var secLink=function(it){
-      var row=it.row;
-      if((row.influence))return '<button type="button" class="mac-sec-chip" aria-expanded="false" onclick="_macSecPick(this,'+it.i+')">'+_esc(it.row.sector)+'</button>';
-      return '<a href="#" onclick="return _macGoSector('+it.i+')">'+_esc(it.row.sector)+'</a>';
-    };
-    h+=_macStanceStrip(grp,secLink);
-  }
+  /* Sectors: the Sector Outlook (renderSectorOutlook), the same section
+     the Sector Analysis Charts sub-tab leads with — grouped by this
+     narrative's stance, one sentence of structural forces per sector, the
+     name opening its macro influence in place. */
+  var so=renderSectorOutlook(true,'Macro Outlook');
+  if(so)h+='<h3 class="mac-h">Sectors</h3>'+so;
   /* Reading time for the whole card, at 230 words a minute. */
   var words=0,wc=function(x){if(x)words+=String(x).split(/\s+/).filter(Boolean).length;};
   wc(nar.bottom_line);ps.forEach(wc);
@@ -13751,6 +13698,90 @@ function renderPoolSectorSignals(sec){
   var twHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#1a7a45">▲ Structural Tailwinds</div>'+_list(tw0,'tailwinds')+'</div>';
   var hwHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#c0392b">▼ Structural Headwinds</div>'+_list(hw0,'headwinds')+'</div>';
   return '<div class="pp-signals-grid">'+twHtml+hwHtml+'</div>';
+}
+/* Sector Outlook: the one sector read, on the Charts sub-tab above the
+   Sector Price Comparison and as the Sectors section of the Macro
+   Overview. Sectors are grouped by the macro narrative's stance (its
+   whitelist picks the group, never the model's text; no narrative, one
+   ungrouped list). Each bullet is one sentence: the sector's structural
+   health (the force balance, sector_forces.force_balance) and its dominant
+   tailwind and headwind. Dominant = the live force with the largest
+   weight x reach, the terms the balance sums (building at half, an
+   unmeasured reach as a third of the sector), so the named force is the
+   one that moved the verdict. The sector's name opens the narrative's
+   macro influence in place (addressed by index, never by a model string
+   in an attribute); Read more opens the sector's Drivers sub-tab. */
+var _SO_W={active:1,building:0.5};
+function _soDominant(list,kind){
+  var best=null,bw=0;
+  list.forEach(function(f){
+    if(f.kind!==kind)return;
+    var w=_SO_W[f.status];if(!w)return;
+    var r=f.exposure&&f.exposure.reach!=null?f.exposure.reach:1/3;
+    if(w*r>bw){bw=w*r;best=f;}
+  });
+  return best;
+}
+function _soHealth(b){
+  if(!b||(!b.tailwind&&!b.headwind))return ['flat','No force acting'];
+  if(b.net>0.1)return ['up','Tailwinds lead'];
+  if(b.net<-0.1)return ['down','Headwinds lead'];
+  return ['flat','Balanced'];
+}
+function _soForce(f){
+  return '<i>'+_esc(f.theme)+'</i>'+(f.status==='building'?' (building)':'');
+}
+function _soNarr(){
+  var nar=(typeof MACRO_SUM!=='undefined'&&MACRO_SUM&&MACRO_SUM.narrative)||(typeof MACRO!=='undefined'&&MACRO&&MACRO.narrative);
+  return nar&&(nar.sectors||[]).length?nar:null;
+}
+function goSectorDrivers(sec,from){
+  _drillPush(from||'Sector Outlook');window._ppSubTabSel='forces';_poolTab=sec;
+  if(curView!=='pool')showView('pool');else showPoolTab(sec);
+  _drillSeal();window.scrollTo({top:0,behavior:'auto'});
+}
+function _soToggle(btn){
+  var li=btn.closest('li'),rd=li&&li.querySelector('.so-read');if(!rd)return;
+  var nar=_soNarr(),row=nar&&nar.sectors[+btn.getAttribute('data-i')];if(!row)return;
+  var open=btn.getAttribute('aria-expanded')!=='true';
+  btn.setAttribute('aria-expanded',open?'true':'false');
+  rd.innerHTML=open?(row.headline?'<div class="so-kick">'+_esc(row.headline)+'</div>':'')+'<p>'+_esc(row.influence)+'</p>':'';
+  rd.hidden=!open;
+}
+function renderSectorOutlook(bare,from){
+  if(typeof SECTOR_POOL==='undefined'||!SECTOR_POOL)return '';
+  var nar=_soNarr(),byName={};
+  if(nar)nar.sectors.forEach(function(r,i){if(r&&r.sector)byName[r.sector]={row:r,i:i};});
+  var STANCE={tailwind:'up',headwind:'down'},grp={up:[],'':[],down:[]};
+  var origin=_attr(from||'Sector Outlook');
+  Object.keys(SECTOR_POOL).sort().forEach(function(sec){
+    var fz=SECTOR_POOL[sec]&&SECTOR_POOL[sec].forces;
+    if(!fz||!fz.forces||!fz.forces.length)return;
+    var h=_soHealth(fz.balance),tw=_soDominant(fz.forces,'tailwind'),hw=_soDominant(fz.forces,'headwind');
+    var m=byName[sec],name=m&&m.row.influence
+      ?'<button type="button" class="so-name" aria-expanded="false" data-i="'+m.i+'" onclick="_soToggle(this)" title="Macro read">'+_esc(sec)+'</button>'
+      :'<b>'+_esc(sec)+'</b>';
+    grp[m?STANCE[m.row.stance]||'':''].push('<li class="so-'+h[0]+'">'+name+' — '+h[1]+': '
+      +(tw?'tailwind '+_soForce(tw):'no tailwind acting')
+      +(hw?', headwind '+_soForce(hw):', no headwind acting')+'.'
+      +' <a href="#" class="so-link" data-sec="'+_attr(sec)+'" data-from="'+origin+'" onclick="goSectorDrivers(this.dataset.sec,this.dataset.from);return false;">Read more ›</a>'
+      +'<div class="so-read" hidden></div></li>');
+  });
+  var body='';
+  if(nar){
+    [['up','▲ Macro tailwind'],['','● Macro neutral'],['down','▼ Macro headwind']].forEach(function(g){
+      if(!grp[g[0]].length)return;
+      body+='<div class="so-grp so-g-'+(g[0]||'flat')+'"><div class="so-gh">'+g[1]+' <span>'+grp[g[0]].length+'</span></div><ul class="so-list">'+grp[g[0]].join('')+'</ul></div>';
+    });
+  }else if(grp[''].length)body='<ul class="so-list">'+grp[''].join('')+'</ul>';
+  if(!body)return '';
+  /* The explainer folds behind a ?, so the bullets lead. */
+  var q=_qHelp('<span class="note-q-t">Each bullet weighs the sector’s structural forces (acting now, or building at half weight) by the share of its revenue they reach, and names the strongest tailwind and headwind. '
+    +(nar?'Groups are today’s macro stance from the Macro Outlook; tap a sector’s name for the macro read. ':'')
+    +'Read more opens the sector’s Drivers tab.</span>','How to read the Sector Outlook','corner');
+  if(bare)return '<div class="so-wrap qh-card qh-flush">'+q+body+'</div>';
+  return '<div class="xsect-dashboard so-wrap qh-card">'+q
+    +'<div class="xsect-title">Sector Outlook</div>'+body+'</div>';
 }
 /* === Aggregate Performance chart ================================
    Lives only on the Sector Analysis "Charts" tab. Sectors are
@@ -15051,7 +15082,8 @@ function renderPool(){
        profit-pool chart. */
     var perfBody=renderUniversePriceChart();
     var poolBody=renderCrossSectorProfitPool();
-    chartHtml='<div class="xsect-dashboard">'
+    chartHtml=renderSectorOutlook()
+      +'<div class="xsect-dashboard">'
       +'<div class="xsect-title">Sector Price Comparison</div>'
       +'<div class="xsect-sub">Indexed price performance across sectors. Pick any subset to compare.</div>'
       +(perfBody||'<p style="color:#888;padding:20px">No sector data available.</p>')
