@@ -1655,9 +1655,14 @@ td.ct{font-weight:700;}
 .so-read p{margin:2px 0;}
 .so-kick{font-style:italic;font-weight:600;}
 .so-grp+.so-grp{margin-top:14px;}
-.so-gh{display:flex;align-items:center;gap:6px;font-size:0.7em;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#64748b;padding-bottom:5px;margin-bottom:2px;border-bottom:2px solid #cbd5e1;}
+.so-gh{width:100%;background:none;border:none;border-radius:0;cursor:pointer;font-family:inherit;text-align:left;padding:0;display:flex;align-items:center;gap:6px;font-size:0.7em;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#64748b;padding-bottom:5px;margin-bottom:2px;border-bottom:2px solid #cbd5e1;}
 .so-g-up .so-gh{color:#1a7a45;border-bottom-color:#1a7a45;}.so-g-down .so-gh{color:#c0392b;border-bottom-color:#c0392b;}
 .so-gh span{font-weight:600;opacity:0.75;}
+.so-gh .ppf-chev{margin:0 2px 1px auto;}
+.so-gh .ppf-chev{flex:none;}
+.so-shut .so-gh .ppf-chev{transform:rotate(-90deg);}
+.so-shut .so-list{display:none;}
+.so-shut .so-gh{margin-bottom:0;}
 [data-theme="dark"] .so-sec{color:#e6edf3 !important;}
 [data-theme="dark"] .so-sec i{color:#58a6ff !important;}
 [data-theme="dark"] .so-pill{background:#21262d;color:#8b949e !important;}
@@ -13767,6 +13772,17 @@ function _soToggle(btn){
   rd.innerHTML=open?(row.headline?'<div class="so-kick">'+_esc(row.headline)+'</div>':'')+'<p>'+_esc(row.influence)+'</p>':'';
   rd.hidden=!open;
 }
+/* Each macro group's header folds its sectors away; the choice is kept per
+   browser (stock_so_collapsed_v1 {up,flat,down}: true = folded) and shared
+   by both places the outlook renders. Groups start open. */
+function _soShutState(){
+  try{return JSON.parse(localStorage.getItem('stock_so_collapsed_v1'))||{};}catch(e){return {};}
+}
+function _soGrpToggle(btn){
+  var g=btn.parentNode,shut=g.classList.toggle('so-shut');
+  btn.setAttribute('aria-expanded',shut?'false':'true');
+  try{var st=_soShutState();st[g.getAttribute('data-k')]=shut;localStorage.setItem('stock_so_collapsed_v1',JSON.stringify(st));}catch(e){}
+}
 function renderSectorOutlook(bare,from){
   if(typeof SECTOR_POOL==='undefined'||!SECTOR_POOL)return '';
   var nar=_soNarr(),byName={};
@@ -13786,9 +13802,11 @@ function renderSectorOutlook(bare,from){
   });
   var body='';
   if(nar){
+    var st=_soShutState();
     [['up','▲ Macro tailwind'],['','● Macro neutral'],['down','▼ Macro headwind']].forEach(function(g){
       if(!grp[g[0]].length)return;
-      body+='<div class="so-grp so-g-'+(g[0]||'flat')+'"><div class="so-gh">'+g[1]+'<span>· '+grp[g[0]].length+'</span></div><ul class="so-list">'+grp[g[0]].join('')+'</ul></div>';
+      var k=g[0]||'flat',shut=!!st[k];
+      body+='<div class="so-grp so-g-'+k+(shut?' so-shut':'')+'" data-k="'+k+'"><button type="button" class="so-gh" aria-expanded="'+(shut?'false':'true')+'" onclick="_soGrpToggle(this)">'+g[1]+'<span>· '+grp[g[0]].length+'</span><i class="ppf-chev" aria-hidden="true"></i></button><ul class="so-list">'+grp[g[0]].join('')+'</ul></div>';
     });
   }else if(grp[''].length)body='<ul class="so-list">'+grp[''].join('')+'</ul>';
   if(!body)return '';
