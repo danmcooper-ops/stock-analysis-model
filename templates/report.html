@@ -1225,7 +1225,7 @@ td.ct{font-weight:700;}
 .dsummary{background:#f5f8ff;border:1px solid #dde5f5;border-left:4px solid #2c5a94;border-radius:9px;padding:10px 14px;}
 .dsummary-h{font-size:0.66em;text-transform:uppercase;letter-spacing:0.08em;font-weight:700;color:#1a3a6b;margin-bottom:4px;}
 .dsummary p{margin:0;font-size:0.84em;line-height:1.55;color:#37474f;}
-.ds-tog{display:none;--sac:var(--link);background:none;border:0;padding:6px 0 0;font:inherit;font-size:0.84em;font-weight:600;cursor:pointer;}
+.ds-tog{display:none;--sac:var(--link);background:none;border:0;padding:0;margin-left:6px;font:inherit;font-size:0.92em;font-weight:600;cursor:pointer;white-space:nowrap;}
 @media(max-width:768px),(orientation:landscape) and (max-height:500px){
   .ds-clip:not(.open) .ds-more{display:none;}
   .ds-tog{display:inline-block;}
@@ -1311,8 +1311,6 @@ td.ct{font-weight:700;}
 .ppf-split .tw{background:var(--ppf-tw);}.ppf-split .hw{background:var(--ppf-hw);}
 .ppf-mkt{font-size:0.78em;color:var(--ppf-sub);margin:0 0 10px;}
 /* The status key lives in a ? popover at the end of the market-check line. */
-.ppf-keyrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:0 0 10px;}
-.ppf-keyrow .ppf-mkt{margin:0;}
 .qhelp{position:relative;flex-shrink:0;}
 .qhelp-btn{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--ppf-line);background:transparent;
   color:var(--ppf-sub);font-family:inherit;font-size:12px;font-weight:600;line-height:20px;text-align:center;cursor:pointer;}
@@ -1322,7 +1320,12 @@ td.ct{font-weight:700;}
 .qhelp.open .qhelp-pop{display:block;}
 .qhelp-l .qhelp-pop{right:auto;left:0;}
 .qhelp{display:inline-block;vertical-align:middle;text-transform:none;letter-spacing:0;}
-.note-q{display:flex;justify-content:flex-end;margin:6px 0 0;}
+.note-q{position:absolute;top:20px;right:20px;margin:0;z-index:3;}
+/* Every ? sits in the top-right corner of its card by default: a section's
+   note (_noteQ) pins to its .pp-section level with the section label, and
+   the label keeps clear of it. */
+.pp-section:has(> .note-q) > .pp-section-label,.pp-section:has(.note-q) > .pp-section-label{margin-right:34px;}
+@media(max-width:768px){.note-q{top:14px;right:12px;}}
 /* _qHelp(...,'corner'): the ? pinned to the top-right corner of its card
    (a chart's "how to read this"), level with the title, instead of
    trailing the subtitle text. The card is the positioning context; the
@@ -2242,14 +2245,14 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-meter-track::after{content:"";position:absolute;left:50%;top:-2px;width:1px;height:8px;background:var(--mac-faint);}
 .mac-meter-fill{position:absolute;top:0;height:4px;border-radius:2px;background:var(--mac-faint);}
 .mac-meter-fill.up{background:var(--mac-up);}.mac-meter-fill.down{background:var(--mac-down);}
-/* The explainer: a ? in the bottom-right corner opens a plain note below it
-   (below, so the sticky tab bar can never cover it). */
+/* The explainer: a ? in the top-right corner, as everywhere else, opens a
+   plain note below it (below, so the sticky tab bar can never cover it). */
 .mac-regime{position:relative;}
-.mac-regime-help{position:absolute;right:10px;bottom:8px;width:22px;height:22px;padding:0;border-radius:50%;
+.mac-regime-help{position:absolute;right:10px;top:10px;width:22px;height:22px;padding:0;border-radius:50%;
   border:1px solid var(--mac-border);background:transparent;color:var(--mac-muted);font-family:inherit;font-size:12px;font-weight:600;line-height:20px;
   cursor:pointer;text-align:center;}
 .mac-regime-help:hover,.mac-regime.help-open .mac-regime-help{color:var(--mac-accent);border-color:var(--mac-accent);}
-.mac-regime-note{display:none;position:absolute;right:10px;top:calc(100% - 4px);z-index:20;width:min(320px,calc(100% - 20px));
+.mac-regime-note{display:none;position:absolute;right:10px;top:38px;z-index:20;width:min(320px,calc(100% - 20px));
   margin:0;padding:10px 12px;border:1px solid var(--mac-border);border-radius:8px;background:var(--mac-card);
   box-shadow:0 6px 20px rgba(0,0,0,.25);color:var(--mac-muted);font-size:13px;font-weight:400;line-height:1.45;}
 .mac-regime.help-open .mac-regime-note{display:block;}
@@ -2382,10 +2385,15 @@ html.mz-open,html.mz-open body{overflow:hidden;}
   text-align:justify;text-justify:inter-word;hyphens:auto;}
 /* Read more: the opening paragraph shows three lines and a toggle; the
    toggle only appears when the text overflows them (_rmSync). */
-.rm{margin:0 0 14px;}
+.rm{margin:0 0 14px;position:relative;}
 .rm .mac-sec-intro{margin:0;}
 .rm:not(.open) .rm-txt{display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
-.rm-btn{display:none;margin:4px 0 0;padding:2px 0;border:0;background:none;font:inherit;font-size:0.82em;font-weight:600;cursor:pointer;color:var(--mac-accent,#2f6fb4);}
+.rm-btn{display:none;margin:0;padding:0;border:0;background:none;font:inherit;font-size:0.92em;font-weight:600;cursor:pointer;color:var(--mac-accent,#2f6fb4);white-space:nowrap;}
+/* The toggle sits at the end of the text, never on a line of its own:
+   folded, over the end of the clamped last line behind a fade; open,
+   inline after the last sentence (_rmToggle moves it into the paragraph). */
+.rm.clip:not(.open) .rm-btn{position:absolute;right:0;bottom:0;padding-left:2.2em;line-height:1.65;background:linear-gradient(90deg,transparent,var(--bg) 1.8em);}
+.rm.open .rm-btn{margin-left:6px;}
 [data-theme="dark"] .rm-btn{color:var(--mac-accent,#5b9cf0) !important;}
 .rm.clip .rm-btn{display:inline-block;}
 .mac-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:14px;}
@@ -10150,6 +10158,24 @@ function _dsToggle(b){
   var open=box.classList.toggle('open');
   b.setAttribute('aria-expanded',open?'true':'false');
   b.textContent=open?'Show less':'Read more';
+  _dsPlace(b);
+}
+/* The toggle rides at the end of the last line showing, not on a line of
+   its own: folded, the last paragraph or bullet outside .ds-more; open, the
+   very last one. Run on each toggle and after a block renders. */
+function _dsPlace(b){
+  var box=b.closest('.ds-clip');if(!box)return;
+  var open=box.classList.contains('open');
+  var items=[].filter.call(box.querySelectorAll('p,li'),function(x){
+    return open||!(x.classList.contains('ds-more')||x.closest('.ds-more'));
+  });
+  var t=items[items.length-1];
+  if(!t){box.appendChild(b);return;}
+  var more=!open&&t.querySelector(':scope > .ds-more');
+  if(more)t.insertBefore(b,more);else t.appendChild(b);
+}
+function _dsPlaceIn(el){
+  if(el)[].forEach.call(el.querySelectorAll('.ds-clip .ds-tog'),_dsPlace);
 }
 var _DS_TOG='<button type="button" class="ds-tog sa-chrome" aria-expanded="false" onclick="_dsToggle(this)">Read more</button>';
 /* Split prose into [first n sentences, the rest]. A boundary is end
@@ -10203,7 +10229,7 @@ function _renderDetDataTab(key){
   /* A hook-only tab (Sector Analysis) can come back empty — e.g. no revenue
      data — and a silently blank pane reads as broken. */
   if(!h)h='<div style="color:#888;padding:24px;text-align:center;font-size:0.88em">No '+esc(tab.l)+' data for this company.</div>';
-  el.innerHTML=h;
+  el.innerHTML=h;_dsPlaceIn(el);
 }
 /* === STATEMENT TABS — Balance Sheet / Income Statement / Cash Flow ===
    Filed annual figures straight from the hist/<T>.json EDGAR XBRL shard: the
@@ -10991,7 +11017,7 @@ function openDet(tk){
       var fallback=(d.company_name||d.ticker||'')+(d.sector?' \u00b7 '+d.sector:'')+(d.industry?' \u00b7 '+d.industry:'');
       html=P+'<span style="opacity:0.5;font-style:italic">No business description available.'+(fallback?' ('+esc(fallback)+')':'')+'</span></p>';
     }
-    el.innerHTML=html;
+    el.innerHTML=html;_dsPlaceIn(el);
   })();
   var _km=document.getElementById('d-kmetrics');
   /* Banner fair value = the FV the MoS is actually computed against
@@ -11078,7 +11104,7 @@ function openDet(tk){
     var _rcHdr=(_rcUp?'▲ Rating upgraded':'▼ Rating downgraded')+': '+esc(d.rating_prev||'?')+' → '+esc(d.rating||'?')+(PREV_DATE?' <span style="font-weight:400;opacity:0.75">(vs '+esc(PREV_DATE)+' run)</span>':'');
     _fsHtml+='<div class="rcw '+(_rcUp?'rcw-up':'rcw-dn')+'"><div class="rcw-hdr">'+_rcHdr+'</div><ul>'+_rcwItems.map(function(s){return '<li>'+esc(s)+'</li>';}).join('')+'</ul></div>';
   }
-  if(_fsHtml){fsEl.innerHTML=_fsHtml;fsSec.style.display='';}else{fsEl.innerHTML='';fsSec.style.display='none';}
+  if(_fsHtml){fsEl.innerHTML=_fsHtml;_dsPlaceIn(fsEl);fsSec.style.display='';}else{fsEl.innerHTML='';fsSec.style.display='none';}
   try{_renderTrackRecord(d);}catch(e){console.error('track record error:',e);}
   var hw=d.sector_headwinds||[],tw=d.sector_tailwinds||[],sigEl=document.getElementById('d-sector-signals'),sigSec=document.getElementById('d-section-signals');
   if(hw.length||tw.length){
@@ -11108,7 +11134,7 @@ function openDet(tk){
     sh+='<div class="sig-tw'+(_twMore?' ds-clip':'')+'"><div class="wind-h wind-up">\u25b2 Tailwinds<span>· '+tw.length+'</span></div>'+(tw.length?'<ul>'+tw.map(function(t,i){return'<li'+(i>=_SIG_SHOW?' class="ds-more"':'')+'>'+_linkifyTickers(esc(typeof t==='string'?t:(t.text||'')))+'</li>';}).join('')+'</ul>':'<p style="margin:0;color:#999">None identified</p>')+(_twMore?_DS_TOG:'')+'</div>';
     sh+='<div class="sig-hw'+(_hwMore?' ds-clip':'')+'"><div class="wind-h wind-down">\u25bc Headwinds<span>· '+_hwNorm.length+'</span></div>'+_hwHtml+(_hwMore?_DS_TOG:'')+'</div>';
     sh+='</div></div>';
-    sigEl.innerHTML=sh;sigSec.style.display='';
+    sigEl.innerHTML=sh;_dsPlaceIn(sigEl);sigSec.style.display='';
   }else{sigEl.innerHTML='';sigSec.style.display='none';}
   /* News: the stock's own headlines first, ordered by relevance (tier) then
      recency; sector items follow once, grouped and muted as context. They
@@ -12406,6 +12432,7 @@ function _rmToggle(btn){
   var b=btn.closest('.rm'),open=b.classList.toggle('open');
   btn.textContent=open?'Show less':'Read more';
   btn.setAttribute('aria-expanded',open?'true':'false');
+  if(open)b.querySelector('.rm-txt').appendChild(btn);else b.appendChild(btn);
 }
 window.addEventListener('resize',function(){_rmSync(document.getElementById('macro-view'));});
 /* One paragraph per section sub-tab explaining what its graphs show and how
@@ -12468,7 +12495,7 @@ function _macRegimeHTML(full){
         +'<span class="mac-meter-v'+cls+'">'+(v==null?'?':(v>=0?'+':'')+v.toFixed(2))+'</span></div>'
         +'<div class="mac-meter-track"><div class="mac-meter-fill'+cls+'" style="left:'+left+';width:'+w+'%"></div></div></div>';
     });
-    /* The explainer sits behind a ? in the card's bottom-right corner; the
+    /* The explainer sits behind a ? in the card's top-right corner; the
        meters are the read, the method is there on request. */
     h+='</div><button type="button" class="mac-regime-help" aria-label="How the regime is scored" aria-expanded="false" onclick="_macRegimeHelp(this,event)">?</button>'
       +'<p class="mac-regime-note" role="tooltip">'+_MAC_REGIME_NOTE+'</p>';
@@ -13707,16 +13734,17 @@ function renderPoolSectorSignals(sec){
       });
       mkt='<div class="ppf-mkt">Market check: '+_esc(m.etf||'the sector ETF')+' has '+parts.join(' and ')+'.</div>';
     }
-    /* The status key sits behind a ? at the end of the market-check line, so
-       it is there when needed without a five-line band above every list. */
-    out+='<div class="ppf-keyrow">'+(mkt||'<span></span>')+_qHelp('<div class="ppf-key">'
+    /* The status key and the method share the section's one ?, in its
+       top-right corner. */
+    if(mkt)out+=mkt;
+    var key='<div class="ppf-key">'
       +'<span><i class="ppf-dot" style="background:var(--ppf-sub);border-color:var(--ppf-sub)"></i>Acting now: the evidence is strong and holding</span>'
       +'<span><i class="ppf-dot" style="border-color:var(--ppf-sub);background:linear-gradient(90deg,var(--ppf-sub) 50%,transparent 50%)"></i>Building: moving toward strong</span>'
       +'<span><i class="ppf-dot" style="background:var(--ppf-q)"></i>Fading: was strong, weakening</span>'
       +'<span><i class="ppf-dot"></i>Not acting</span>'
-      +'<span><i class="ppf-dot" style="border-style:dashed"></i>Not measured: no series tracks it</span></div>','What the statuses mean')+'</div>';
+      +'<span><i class="ppf-dot" style="border-style:dashed"></i>Not measured: no series tracks it</span></div>';
     out+='<div class="ppf-cols">'+_ppfCol(tw,'tailwind')+_ppfCol(hw,'headwind')+'</div>';
-    out+=_noteQ('Each status reads the force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range. The balance weighs forces acting now by the share of sector revenue they reach (building ones at half).'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'');
+    out+=_noteQ(key+'Each status reads the force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range. The balance weighs forces acting now by the share of sector revenue they reach (building ones at half).'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'');
     return out;
   }
   var hw0=n.headwinds||[],tw0=n.tailwinds||[];
