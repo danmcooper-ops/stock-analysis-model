@@ -13456,13 +13456,13 @@ function renderPoolIndustries(sec){
   svg+='<text class="pph-tx" x="'+(pL+cW/2)+'" y="'+(H-6)+'" text-anchor="middle">Revenue share → (by industry, ordered by margin)</text>';
   var out='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%;height:auto;margin:4px 0 0">'+svg+'</svg>';
   out+='<div class="pph-key"><span><i class="ppi-pos"></i>Median spread ≥ 5 pts</span><span><i class="ppi-mid"></i>0–5 pts</span><span><i class="ppi-neg"></i>Below cost of capital</span></div>';
-  out+='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Industry','s')+_ppiTh('Cos')+_ppiTh('Revenue')+_ppiTh('Pool')+_ppiTh('Margin','n',1)+_ppiTh('Median spread')+_ppiTh('Pool CAGR')+'</tr></thead><tbody>';
-  /* Ranked by margin, as the chart is; a blank margin sorts last and the
-     folded Other stays at the bottom. ii is the industry's index into
-     SECTOR_POOL, which dashIndustryJump addresses it by. */
+  out+='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Industry','s')+_ppiTh('Cos')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)+_ppiTh('Margin')+_ppiTh('Median spread')+_ppiTh('Pool CAGR')+'</tr></thead><tbody>';
+  /* Ranked by pool share; a blank sorts last and the folded Other stays at
+     the bottom. ii is the industry's index into SECTOR_POOL, which
+     dashIndustryJump addresses it by. */
   inds.map(function(d,ii){return [d,ii];}).sort(function(a,b){
     var pa=a[0].folded?1:0,pb=b[0].folded?1:0;if(pa!==pb)return pa-pb;
-    var x=a[0].margin,y=b[0].margin;
+    var x=a[0].pool_share,y=b[0].pool_share;
     return (x==null)-(y==null)||(y==null||x==null?0:y-x);
   }).forEach(function(p){
     var d=p[0],ii=p[1];
@@ -13483,9 +13483,8 @@ function _ppTopN(cos){
 }
 /* Companies view of the pool chart: the table behind the bars, built like
    the Industries table so the two toggles read the same way. One row per
-   charted company (the top PP_TOP_N by revenue), leading with the rating as
-   the chart does (best first, pool share within a rating), then the pooled
-   Others row. Pool share trend is the Pool Share gate's value:
+   charted company (the top PP_TOP_N by revenue), largest pool share first,
+   then the pooled Others row. Pool share trend is the Pool Share gate's value:
    the 5-year CAGR of the company's share of the sector pool. */
 var _PP_BS_INDUSTRIES={'Banks - Regional':1,'Banks - Diversified':1,'Mortgage Finance':1,'Credit Services':1,'Capital Markets':1};
 function _ppSkewTd(pool,rev){
@@ -13494,7 +13493,7 @@ function _ppSkewTd(pool,rev){
 }
 function renderPoolCompanyTable(shown,tail){
   if(!shown||!shown.length)return '';
-  var rows=shown.slice().sort(function(a,b){return (_PPI_RANK[b.rating]||0)-(_PPI_RANK[a.rating]||0)||(b.pp_profit_share||0)-(a.pp_profit_share||0);});
+  var rows=shown.slice().sort(function(a,b){return (b.pp_profit_share||0)-(a.pp_profit_share||0);});
   /* Value/pool: the company's share of the sector's market value over its
      share of the profit pool, over the sector's gated set (shown + tail,
      mcap>0). Above 1× the market pays more than its slice of today's
@@ -13503,7 +13502,7 @@ function renderPoolCompanyTable(shown,tail){
   shown.concat(tail||[]).forEach(function(d){if(d.mcap>0)secMcap+=d.mcap;});
   function vp(mc,ps){return (ps>0&&mc>0&&secMcap>0)?(mc/secMcap)/ps:null;}
   function vpTd(v){return '<td data-v="'+_ppiV(v)+'">'+(v==null?'\u2014':v.toFixed(2)+'\u00d7')+'</td>';}
-  var out='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Company','s')+_ppiTh('Rating','n',1)+_ppiTh('Revenue')+_ppiTh('Pool')+_ppiTh('Margin')+_ppiTh('Spread')+_ppiTh('Pool share trend')+_ppiTh('Value/pool')+'</tr></thead><tbody>';
+  var out='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Company','s')+_ppiTh('Rating')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)+_ppiTh('Margin')+_ppiTh('Spread')+_ppiTh('Pool share trend')+_ppiTh('Value/pool')+'</tr></thead><tbody>';
   rows.forEach(function(d){
     var bs=d.sector==='Financial Services'&&_PP_BS_INDUSTRIES[d.industry];
     var tr=d._gate_pool_share;
