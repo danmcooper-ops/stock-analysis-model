@@ -1350,6 +1350,7 @@ td.ct{font-weight:700;}
 .ppf-hdr[role=button]:focus-visible{outline:2px solid var(--ppf-sub);outline-offset:2px;border-radius:3px;}
 .ppf-fchev{display:inline-block;width:0;height:0;margin:0 0 1px 6px;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--ppf-sub);transition:transform 0.15s;vertical-align:middle;}
 .ppf-hdr[aria-expanded="false"] .ppf-fchev{transform:rotate(-90deg);}
+.ppf-nw{white-space:nowrap;}
 .ppf{font-size:0.82em;line-height:1.5;color:var(--ppf-txt);}
 .ppf-hdr{display:grid;grid-template-columns:96px minmax(0,1fr);gap:2px 10px;align-items:baseline;}
 .ppf-st{display:inline-flex;align-items:center;gap:6px;font-size:0.9em;font-weight:600;white-space:nowrap;color:var(--ppf-sub);}
@@ -13744,6 +13745,17 @@ function _ppfBalance(b){
   return '<span class="ppf-verdict">'+verdict+'</span>'
     +'<span class="ppf-split" title="Live tailwinds '+(b.tailwind*100).toFixed(0)+' vs headwinds '+(b.headwind*100).toFixed(0)+', each weighted by the share of sector revenue it reaches"><i class="tw" style="width:'+(b.tailwind/tot*100).toFixed(1)+'%"></i><i class="hw" style="width:'+(b.headwind/tot*100).toFixed(1)+'%"></i></span>';
 }
+/* A row heading with its open/close arrow kept on the last word's line:
+   the last plain-text word and the arrow share a no-wrap span, so a heading
+   that fills the line wraps the word with it instead of leaving the arrow
+   alone on a line. A heading whose last space sits inside markup (it ends
+   in a linked ticker) is left whole, the arrow joined to it. */
+function _ppfThChev(t,on){
+  if(!on)return t;
+  var chev='<i class="ppf-fchev" aria-hidden="true"></i>',cut=t.lastIndexOf(' ');
+  if(cut<0||cut<t.lastIndexOf('>'))return t+'\u2060'+chev;
+  return t.slice(0,cut+1)+'<span class="ppf-nw">'+t.slice(cut+1)+chev+'</span>';
+}
 function _ppfCard(f,shut,sec){
   var meta=[_PPF_TYPE[f.type]||'',f.horizon==='secular'?'secular':f.horizon==='cyclical'?'cyclical':''].filter(Boolean).join(', ');
   /* Each fact appears once: reach lives in its bullet, not also beside
@@ -13760,7 +13772,7 @@ function _ppfCard(f,shut,sec){
   return '<div class="ppf wind-row ppf-'+(f.kind==='tailwind'?'tw':'hw')+'">'
     +'<div class="ppf-hdr"'+(items?' role="button" tabindex="0" aria-expanded="'+(shut?'false':'true')+'" onclick="_ppfToggleOne(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_ppfToggleOne(this);}"':'')+'>'
     +'<span class="ppf-st ppf-'+f.status+'"><i class="ppf-dot"></i>'+(_PPF_ST[f.status]||f.status)+'</span>'
-    +'<span class="ppf-th">'+_esc(f.theme)+(items?'<i class="ppf-fchev" aria-hidden="true"></i>':'')+(meta?'<span class="ppf-meta">'+meta+'</span>':'')+'</span></div>'
+    +'<span class="ppf-th">'+_ppfThChev(_esc(f.theme),!!items)+(meta?'<span class="ppf-meta">'+meta+'</span>':'')+'</span></div>'
     +(items?'<ul class="ppf-ul">'+items+'</ul>':'')
     +'</div>';
 }
@@ -13862,7 +13874,7 @@ function _windRow(o){
   return '<div class="ppf wind-row ppf-'+o.kind+'">'
     +'<div class="ppf-hdr"'+(items?' role="button" tabindex="0" aria-expanded="false" onclick="_ppfToggleOne(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_ppfToggleOne(this);}"':'')+'>'
     +'<span class="ppf-st ppf-'+o.st+'"><i class="ppf-dot"></i>'+o.label+'</span>'
-    +'<span class="ppf-th">'+o.title+(items?'<i class="ppf-fchev" aria-hidden="true"></i>':'')+(o.meta?'<span class="ppf-meta">'+o.meta+'</span>':'')+'</span></div>'
+    +'<span class="ppf-th">'+_ppfThChev(o.title,!!items)+(o.meta?'<span class="ppf-meta">'+o.meta+'</span>':'')+'</span></div>'
     +(items?'<ul class="ppf-ul">'+items+'</ul>':'')+'</div>';
 }
 /* The verdict line and balance bar that open a wind section, then its
