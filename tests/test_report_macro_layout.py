@@ -167,7 +167,7 @@ def test_macro_narrative_escapes_every_model_string():
     assert "STANCE={tailwind:'up',headwind:'down'}" in so, \
         'stance must map to CSS classes only through the whitelist'
     assert "STANCE[m.row.stance]||''" in so
-    assert '_esc(row.influence)' in re.search(r'function _soToggle\(btn\)\{.*?\n\}\n', css, re.S).group(0)
+    assert '_esc(m.row.influence)' in so and '_esc(m.row.headline)' in so
     assert '[data-theme="dark"] #macro-view{' in css, \
         'the macro tokens need a dark-mode redefinition'
 
@@ -209,9 +209,9 @@ def test_macro_sentence_split_keeps_decimals_and_abbreviations():
 def test_macro_narrative_sectors_are_the_sector_outlook():
     """The Sectors section is the Sector Outlook, the same component the
     Sector Analysis Charts sub-tab leads with: grouped through the stance
-    whitelist, the name opening the influence in place by index (never a
-    model string in an attribute), the sector's name drilling to its page
-    with the way back to the Macro Outlook. An older narrative without
+    whitelist, each sector's row opening its influence (escaped, never in
+    an attribute) and the way to its Drivers, with the way back to the
+    Macro Outlook. An older narrative without
     `watch` keeps The balance."""
     css = _css()
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
@@ -220,9 +220,7 @@ def test_macro_narrative_sectors_are_the_sector_outlook():
     assert 'The balance' in nar, 'a pre-v7 narrative keeps its winds'
     so = re.search(r'function renderSectorOutlook\(bare,from\)\{.*?\n\}\n', css, re.S).group(0)
     assert "STANCE={tailwind:'up',headwind:'down'}" in so
-    assert 'data-i="\'+m.i+\'"' in so, 'names address sectors by index'
-    tog = re.search(r'function _soToggle\(btn\)\{.*?\n\}\n', css, re.S).group(0)
-    assert '_esc(row.influence)' in tog and '_esc(row.headline)' in tog
+    assert "_windRow({kind:" in so and '_esc(m.row.influence)' in so
     go = re.search(r'function goSectorDrivers\(sec,from\)\{.*?\n\}\n', css, re.S).group(0)
     # A drill like the chart drill-downs (tests/test_report_drill_back.py).
     assert "_drillPush(from||'Broad Sector Outlook')" in go and '_drillSeal();' in go

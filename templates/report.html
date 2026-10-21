@@ -1625,27 +1625,9 @@ td.ct{font-weight:700;}
 .xsect-dashboard{background:white;border-radius:10px;padding:22px 24px 20px;box-shadow:0 3px 14px rgba(0,0,0,0.09);margin-bottom:22px;border-top:4px solid var(--hdr-bg);}
 .xsect-title{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:3px;}
 .xsect-sub{font-size:0.78em;color:#8a9bb0;margin-bottom:16px;}
-.so-list{list-style:none;margin:0;padding:0;}
 .so-wrap>.xsect-title{margin-bottom:14px;}
-.so-row{padding:10px 0;border-top:1px solid rgba(127,127,127,0.18);}
-.so-row:first-child{border-top:none;padding-top:4px;}
-.so-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;}
-.so-sec{font-weight:700;font-size:0.98em;color:#1a252f;text-decoration:none;}
-.so-sec i{font-style:normal;font-weight:600;color:#0b6bcb;margin-left:3px;}
-.so-sec:hover{text-decoration:underline;}
-.so-pill{flex:none;font-size:0.7em;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;background:#eef1f4;color:#475569;}
-.so-pill.so-up{background:#e3f4ea;color:#1a7a45;}.so-pill.so-down{background:#fbe7e5;color:#b0362a;}
-.so-f{display:flex;gap:7px;align-items:baseline;font-size:0.84em;line-height:1.4;color:#334155;margin-top:2px;}
-.so-f b{flex:none;width:11px;font-size:0.8em;}
-.so-f.so-tw b{color:#1a7a45;}.so-f.so-hw b{color:#c0392b;}
-.so-f.so-none{color:#94a3b8;}.so-f.so-none b{color:#cbd5e1;}
-.so-f em{font-style:normal;font-size:0.85em;color:#94a3b8;margin-left:4px;}
-.so-mac{margin-top:5px;font:inherit;font-size:0.76em;font-weight:600;background:none;border:none;padding:0;color:#64748b;cursor:pointer;}
-.so-mac::after{content:' ▾';}
-.so-mac[aria-expanded="true"]::after{content:' ▴';}
-.so-read{margin:6px 0 2px;padding:2px 0 0 10px;border-left:2px solid rgba(127,127,127,0.35);font-size:0.82em;line-height:1.5;}
-.so-read p{margin:2px 0;}
-.so-kick{font-style:italic;font-weight:600;}
+.so-link{font-weight:600;color:#0b6bcb;text-decoration:none;}
+[data-theme="dark"] .so-link{color:#58a6ff !important;}
 /* One header for every tailwind/headwind section in the report (the
    Broad Sector Outlook's groups, a sector's Drivers columns, the ticker
    page's Headwinds & Tailwinds, the Macro balance): a coloured uppercase
@@ -1678,16 +1660,6 @@ button.wind-h{cursor:pointer;}
 .wind-row:first-child{border-top:none;}
 .wind-list .wind-row{font-size:13.5px;line-height:1.5;}
 [data-theme="dark"] .wind-sum{color:#8b949e !important;}
-[data-theme="dark"] .so-sec{color:#e6edf3 !important;}
-[data-theme="dark"] .so-sec i{color:#58a6ff !important;}
-[data-theme="dark"] .so-pill{background:#21262d;color:#8b949e !important;}
-[data-theme="dark"] .so-pill.so-up{background:rgba(63,185,80,0.15);color:#3fb950 !important;}
-[data-theme="dark"] .so-pill.so-down{background:rgba(248,81,73,0.15);color:#f85149 !important;}
-[data-theme="dark"] .so-f{color:#c9d1d9 !important;}
-[data-theme="dark"] .so-f.so-tw b{color:#3fb950 !important;}[data-theme="dark"] .so-f.so-hw b{color:#f85149 !important;}
-[data-theme="dark"] .so-f.so-none,[data-theme="dark"] .so-f.so-none b,[data-theme="dark"] .so-f em{color:#6e7681 !important;}
-[data-theme="dark"] .so-mac{color:#8b949e !important;}
-[data-theme="dark"] .so-read{color:#c9d1d9 !important;}
 .xsect-kpi-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
 .xsect-kpi{flex:1;min-width:140px;background:#f8fafd;border-radius:7px;padding:9px 12px;}
 .xsect-kpi-val{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:1px;}
@@ -11115,14 +11087,28 @@ function openDet(tk){
     var _hwRed=_hwNorm.filter(function(h){return h.sev==='red';});
     var _hwAmber=_hwNorm.filter(function(h){return h.sev!=='red'&&h.cat!=='thesis_risk';});
     var _hwThesis=_hwNorm.filter(function(h){return h.cat==='thesis_risk';});
-    /* The report's tailwind/headwind group (_windGroup), red flags first. */
+    /* Laid out as a sector's Drivers are (_windTop, _windGroup, _windRow):
+       the item before " — " is the heading, the rest opens under it. Red
+       flags lead the headwinds. */
+    var _SIG_CAT={moat:'Moat',quality:'Quality',growth:'Growth',insider:'Insiders',sentiment:'Sentiment',valuation:'Valuation',sector:'Sector',balance_sheet:'Balance sheet',value_trap:'Value trap',dividend:'Dividend',trend:'Trend',news:'News'};
+    function _sigRow(t,kind,st,label,cat){
+      var i=t.indexOf(' — '),head=i>0?t.slice(0,i):t,rest=i>0?t.slice(i+3):'';
+      return _windRow({kind:kind,st:st,label:label,title:_linkifyTickers(esc(head)),meta:_SIG_CAT[cat]||'',
+        items:rest?'<li><b>Why it matters:</b> '+_linkifyTickers(esc(rest.charAt(0).toUpperCase()+rest.slice(1)))+'</li>':''});
+    }
     var _twT=tw.map(function(t){return typeof t==='string'?t:(t.text||'');});
+    var _twRows=_twT.map(function(t){return _sigRow(t,'tw','active','Strength');}).join('');
+    var _hwRows=_hwRed.map(function(h){return _sigRow(h.text,'hw','active','Red flag',h.cat);}).join('')
+      +_hwAmber.map(function(h){return _sigRow(h.text,'hw','building','Watch',h.cat);}).join('')
+      +_hwThesis.map(function(h){return _sigRow(h.text,'hw','building','Thesis risk',h.cat);}).join('');
     var _hwT=_hwRed.concat(_hwAmber,_hwThesis).map(function(h){return h.text;});
-    function _sigList(items){return items.length?'<ul class="wind-list">'+items.map(function(t){return '<li class="wind-row">'+_linkifyTickers(esc(t))+'</li>';}).join('')+'</ul>':'<p style="margin:6px 0 0;color:#999">None identified</p>';}
-    var sh='<div class="sig-wrap"><div class="sig-grid">'
-      +_windGroup({scope:'ticker',k:'tailwind',dir:'up',label:'\u25b2 Tailwinds',count:_twT.length,sum:esc(_windListSum(_twT)),body:_sigList(_twT)})
-      +_windGroup({scope:'ticker',k:'headwind',dir:'down',label:'\u25bc Headwinds',count:_hwT.length,sum:esc(_windListSum(_hwT)),body:_sigList(_hwT)})
-      +'</div></div>';
+    var _n=_twT.length+_hwT.length;
+    var sh=_windTop({tailwind:_twT.length/_n,headwind:_hwT.length/_n,net:(_twT.length-_hwT.length)/_n},
+        _twT.length+' tailwind'+(_twT.length===1?'':'s')+' and '+_hwT.length+' headwind'+(_hwT.length===1?'':'s')+(_hwRed.length?', '+_hwRed.length+' of them '+(_hwRed.length===1?'a red flag':'red flags'):'')+'.')
+      +'<div class="ppf-cols">'
+      +_windGroup({scope:'ticker',k:'tailwind',dir:'up',label:'\u25b2 Tailwinds',count:_twT.length,sum:esc(_windListSum(_twT)),body:_twRows||'<p class="ppf-mkt">None identified.</p>'})
+      +_windGroup({scope:'ticker',k:'headwind',dir:'down',label:'\u25bc Headwinds',count:_hwT.length,sum:esc(_windListSum(_hwT)),body:_hwRows||'<p class="ppf-mkt">None identified.</p>'})
+      +'</div>';
     sigEl.innerHTML=sh;sigSec.style.display='';
   }else{sigEl.innerHTML='';sigSec.style.display='none';}
   /* News: the stock's own headlines first, ordered by relevance (tier) then
@@ -13776,6 +13762,24 @@ function _windToggle(btn){
 }
 /* "Reinvestment rate supports 11% growth, and 6 more.": the first item
    and how many follow. */
+/* One row of a wind group, laid out as a sector's Drivers force is: a
+   status line (dot + plain word), the heading (which opens the bullets),
+   a muted meta line, then the bullets. kind 'tw'/'hw' colours the dot;
+   st is a ppf status class (active, building, easing, dormant,
+   qualitative). */
+function _windRow(o){
+  var items=o.items||'';
+  return '<div class="ppf wind-row ppf-'+o.kind+'">'
+    +'<div class="ppf-hdr"'+(items?' role="button" tabindex="0" aria-expanded="false" onclick="_ppfToggleOne(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_ppfToggleOne(this);}"':'')+'>'
+    +'<span class="ppf-st ppf-'+o.st+'"><i class="ppf-dot"></i>'+o.label+'</span>'
+    +'<span class="ppf-th">'+o.title+(items?'<i class="ppf-fchev" aria-hidden="true"></i>':'')+(o.meta?'<span class="ppf-meta">'+o.meta+'</span>':'')+'</span></div>'
+    +(items?'<ul class="ppf-ul">'+items+'</ul>':'')+'</div>';
+}
+/* The verdict line and balance bar that open a wind section, then its
+   one-line context (the Drivers' market check). */
+function _windTop(b,line){
+  return '<div class="ppf-top">'+_ppfBalance(b)+'</div>'+(line?'<div class="ppf-mkt">'+line+'</div>':'');
+}
 function _windListSum(items){
   if(!items.length)return 'None identified.';
   var t=String(items[0]).replace(/[.\s]+$/,'');
@@ -13811,13 +13815,6 @@ function _soHealth(b){
   if(b.net<-0.1)return ['down','Headwinds lead'];
   return ['flat','Balanced'];
 }
-/* One force line: an arrow, the force, a building tag; a side with no
-   live force says so, dimmed. */
-function _soLine(f,kind){
-  var tw=kind==='tailwind';
-  return '<div class="so-f '+(tw?'so-tw':'so-hw')+(f?'':' so-none')+'"><b aria-hidden="true">'+(tw?'▲':'▼')+'</b><span>'
-    +(f?_esc(f.theme)+(f.status==='building'?'<em>building</em>':''):'No '+kind+' acting')+'</span></div>';
-}
 function _soNarr(){
   var nar=(typeof MACRO_SUM!=='undefined'&&MACRO_SUM&&MACRO_SUM.narrative)||(typeof MACRO!=='undefined'&&MACRO&&MACRO.narrative);
   return nar&&(nar.sectors||[]).length?nar:null;
@@ -13826,14 +13823,6 @@ function goSectorDrivers(sec,from){
   _drillPush(from||'Broad Sector Outlook');window._ppSubTabSel='forces';_poolTab=sec;
   if(curView!=='pool')showView('pool');else showPoolTab(sec);
   _drillSeal();window.scrollTo({top:0,behavior:'auto'});
-}
-function _soToggle(btn){
-  var li=btn.closest('li'),rd=li&&li.querySelector('.so-read');if(!rd)return;
-  var nar=_soNarr(),row=nar&&nar.sectors[+btn.getAttribute('data-i')];if(!row)return;
-  var open=btn.getAttribute('aria-expanded')!=='true';
-  btn.setAttribute('aria-expanded',open?'true':'false');
-  rd.innerHTML=open?(row.headline?'<div class="so-kick">'+_esc(row.headline)+'</div>':'')+'<p>'+_esc(row.influence)+'</p>':'';
-  rd.hidden=!open;
 }
 /* A folded group's one-sentence summary, read off its rows' pills:
    "Tailwinds lead in Energy and Basic Materials; headwinds lead in
@@ -13854,34 +13843,40 @@ function renderSectorOutlook(bare,from){
   if(typeof SECTOR_POOL==='undefined'||!SECTOR_POOL)return '';
   var nar=_soNarr(),byName={};
   if(nar)nar.sectors.forEach(function(r,i){if(r&&r.sector)byName[r.sector]={row:r,i:i};});
-  var STANCE={tailwind:'up',headwind:'down'},grp={up:[],'':[],down:[]},hl={up:[],'':[],down:[]};
+  var STANCE={tailwind:'up',headwind:'down'},grp={up:[],'':[],down:[]},hl={up:[],'':[],down:[]},cnt={up:0,down:0,n:0};
   var origin=_attr(from||'Broad Sector Outlook');
   Object.keys(SECTOR_POOL).sort().forEach(function(sec){
     var fz=SECTOR_POOL[sec]&&SECTOR_POOL[sec].forces;
     if(!fz||!fz.forces||!fz.forces.length)return;
+    cnt.n++;
     var h=_soHealth(fz.balance),tw=_soDominant(fz.forces,'tailwind'),hw=_soDominant(fz.forces,'headwind');
-    var m=byName[sec],mac=m&&m.row.influence
-      ?'<button type="button" class="so-mac" aria-expanded="false" data-i="'+m.i+'" onclick="_soToggle(this)">Macro read</button><div class="so-read" hidden></div>':'';
-    var gk=m?STANCE[m.row.stance]||'':'';
+    var m=byName[sec],gk=m?STANCE[m.row.stance]||'':'';
+    var acting=fz.forces.filter(function(f){return f.status==='active'||f.status==='building';}).length;
     hl[gk].push([h[1],sec]);
-    grp[gk].push('<li class="so-row wind-row">'
-      +'<div class="so-top"><a href="#" class="so-sec" data-sec="'+_attr(sec)+'" data-from="'+origin+'" title="Open the '+_attr(sec)+' sector page" onclick="goSectorDrivers(this.dataset.sec,this.dataset.from);return false;">'+_esc(sec)+'<i>›</i></a>'
-      +'<span class="so-pill so-'+h[0]+'">'+h[1]+'</span></div>'
-      +_soLine(tw,'tailwind')+_soLine(hw,'headwind')+mac+'</li>');
+    if(h[0]==='up')cnt.up++;else if(h[0]==='down')cnt.down++;
+    function side(f,kind){return '<li><b>'+(kind==='tailwind'?'Tailwind':'Headwind')+':</b> '+(f?_esc(f.theme)+(f.status==='building'?' (building)':''):'none acting')+'.</li>';}
+    grp[gk].push(_windRow({kind:h[0]==='down'?'hw':'tw',st:h[0]==='flat'?(h[1]==='Balanced'?'building':'dormant'):'active',label:h[1],
+      title:_esc(sec),meta:acting+' of '+fz.forces.length+' forces acting',
+      items:side(tw,'tailwind')+side(hw,'headwind')
+        +(m&&m.row.influence?'<li><b>Macro read:</b> '+(m.row.headline?'<i>'+_esc(m.row.headline)+'.</i> ':'')+_esc(m.row.influence)+'</li>':'')
+        +'<li><a href="#" class="so-link" data-sec="'+_attr(sec)+'" data-from="'+origin+'" onclick="goSectorDrivers(this.dataset.sec,this.dataset.from);return false;">Open '+_esc(sec)+'’s Drivers ›</a></li>'}));
   });
   var body='';
   if(nar){
     [['up','▲ Macro tailwind'],['','Macro neutral'],['down','▼ Macro headwind']].forEach(function(g){
       if(!grp[g[0]].length)return;
       body+=_windGroup({scope:'outlook',k:g[0]||'flat',dir:g[0],label:g[1],count:grp[g[0]].length,
-        sum:_soGroupSummary(hl[g[0]]),body:'<ul class="so-list">'+grp[g[0]].join('')+'</ul>'});
+        sum:_soGroupSummary(hl[g[0]]),body:grp[g[0]].join('')});
     });
-  }else if(grp[''].length)body='<ul class="so-list">'+grp[''].join('')+'</ul>';
+  }else if(grp[''].length)body=_windGroup({scope:'outlook',k:'all',dir:'',label:'Sectors',count:grp[''].length,sum:_soGroupSummary(hl['']),body:grp[''].join('')});
   if(!body)return '';
+  /* The verdict and bar weigh sectors, as the Drivers weigh forces. */
+  body=_windTop({tailwind:cnt.up/cnt.n,headwind:cnt.down/cnt.n,net:(cnt.up-cnt.down)/cnt.n},
+    'Across '+cnt.n+' sectors, tailwinds lead in '+cnt.up+' and headwinds in '+cnt.down+'.')+body;
   /* The explainer folds behind a ?, so the bullets lead. */
-  var q=_qHelp('<span class="note-q-t">The pill weighs each sector’s structural forces (acting now, or building at half weight) by the share of its revenue they reach; ▲ and ▼ name the strongest tailwind and headwind. '
-    +(nar?'Groups are today’s macro stance from the Macro Outlook, and Macro read opens its reasoning. ':'')
-    +'Tap a sector’s name for its Drivers tab.</span>','How to read the Broad Sector Outlook','corner');
+  var q=_qHelp('<span class="note-q-t">Each sector’s status weighs its structural forces (acting now, or building at half weight) by the share of its revenue they reach; tap a sector for its strongest tailwind and headwind'
+    +(nar?', the Macro Outlook’s read on it':'')+' and the way to its Drivers tab. '
+    +(nar?'Groups are today’s macro stance. ':'')+'The bar weighs sectors where tailwinds lead against those where headwinds do.</span>','How to read the Broad Sector Outlook','corner');
   if(bare)return '<div class="so-wrap qh-card qh-flush">'+q+body+'</div>';
   return '<div class="xsect-dashboard so-wrap qh-card">'+q
     +'<div class="xsect-title">Broad Sector Outlook</div>'+body+'</div>';
