@@ -400,3 +400,12 @@ def test_summary_tab_blocks_are_titled_cards_in_reading_order():
                       'Charts', 'The Track Record', 'Headwinds &amp; Tailwinds']
     assert 'id="d-kmetrics"' in pane.split('The Snapshot')[1].split('The Business')[0]
     assert 'id="d-gate-values"' in pane.split('The Model')[1].split('Charts')[0]
+
+
+def test_wide_table_title_row_uses_the_page_inset():
+    """The panning views drop .container's side padding; the title row puts
+    back the same inset (6px on phones, 20px otherwise), so the title and
+    date sit where they do on every other view."""
+    src = _tpl()
+    assert 'body.wide-table #subnav{padding-left:var(--pg-inset,20px);padding-right:var(--pg-inset,20px);}' in src
+    assert src.count(':root{--pg-inset:6px;}') == 2
