@@ -487,3 +487,66 @@ def test_both_charts_use_round_ticks_and_label_their_latest_value(tmp_path):
     assert '<b>$127B</b>' in html and '<b>15.7%</b>' in html
     d = re.search(r'<path class="pph-line" d="([^"]*)"', svg).group(1)
     assert d.count('M') == 1 and d.count('L') == 2
+
+def _render_outlook(pool, tmp_path, macro=None):
+    src = TEMPLATE.read_text(encoding='utf-8')
+    names = ['_soDominant', '_soHealth', '_soForce', '_soNarr', '_qHelp', 'renderSectorOutlook']
+    js = '\n'.join(['function _esc(s){return String(s);}function _attr(s){return String(s);}',
+                    'var MACRO_SUM=' + json.dumps(macro) + ';var MACRO=null;',
+                    re.search(r'^var _SO_W=.*$', src, re.M).group(0)]
+                   + [_fn(src, n) for n in names]
+                   + ['var SECTOR_POOL=' + json.dumps(pool) + ';',
+                      'process.stdout.write(renderSectorOutlook());'])
+    script = tmp_path / 'o.js'
+    script.write_text(js, encoding='utf-8')
+    return subprocess.run(['node', str(script)], capture_output=True, text=True,
+                          check=True).stdout
+
+
+def test_sector_outlook_names_the_dominant_force_each_way(tmp_path):
+    def f(kind, theme, status, reach):
+        return {'kind': kind, 'theme': theme, 'status': status,
+                'exposure': None if reach is None else {'reach': reach}}
+    pool = {
+        'Energy': {'forces': {'balance': {'tailwind': 0.48, 'headwind': 0.0, 'net': 0.48},
+                              'forces': [f('tailwind', 'Underinvestment', 'active', 0.48),
+                                         f('tailwind', 'Discipline', 'easing', 0.9),
+                                         f('headwind', 'Commodity cycle', 'dormant', 0.48)]}},
+        'Utilities': {'forces': {'balance': {'tailwind': 0.33, 'headwind': 0.29, 'net': 0.04},
+                                 'forces': [f('tailwind', 'Defensive bid', 'active', None),
+                                            f('tailwind', 'Grid capex', 'building', 0.6),
+                                            f('headwind', 'Rate cases', 'active', 0.29)]}},
+        'Healthcare': {'forces': {'balance': {'tailwind': 0, 'headwind': 0, 'net': 0},
+                                  'forces': [f('tailwind', 'Aging', 'qualitative', None)]}},
+        'Bare': {'stats': {}},
+    }
+    html = _render_outlook(pool, tmp_path)
+    assert html.count('<li ') == 3 and 'Bare' not in html
+    energy = html.split('<b>Energy</b>')[1].split('</li>')[0]
+    assert 'Tailwinds lead: tailwind <i>Underinvestment</i>, no headwind acting.' in energy
+    util = html.split('<b>Utilities</b>')[1].split('</li>')[0]
+    # building at half weight x 0.6 reach (0.30) loses to active x 1/3 (0.33)
+    assert 'Balanced: tailwind <i>Defensive bid</i>, headwind <i>Rate cases</i>.' in util
+    assert 'goSectorDrivers' in util and 'data-sec="Utilities"' in util
+    assert 'No force acting: no tailwind acting, no headwind acting.' in html
+    assert _render_outlook({'X': {}}, tmp_path) == ''
+    assert '<div class="so-grp' not in html, 'no narrative: one ungrouped list'
+
+
+def test_sector_outlook_groups_by_the_macro_stance(tmp_path):
+    forces = {'balance': {'tailwind': 0, 'headwind': 0, 'net': 0},
+              'forces': [{'kind': 'tailwind', 'theme': 'T', 'status': 'dormant'}]}
+    pool = {s: {'forces': forces} for s in ('Energy', 'Healthcare', 'Utilities', 'Technology')}
+    macro = {'narrative': {'sectors': [
+        {'sector': 'Healthcare', 'stance': 'tailwind', 'headline': 'H', 'influence': 'Inf'},
+        {'sector': 'Utilities', 'stance': 'headwind', 'influence': 'U'},
+        {'sector': 'Energy', 'stance': '<script>'}]}}
+    html = _render_outlook(pool, tmp_path, macro)
+    up, rest = html.split('▲ Macro tailwind <span>1</span>')[1].split('● Macro neutral <span>2</span>')
+    flat, down = rest.split('▼ Macro headwind <span>1</span>')
+    assert 'Healthcare' in up and 'data-i="0"' in up and 'onclick="_soToggle(this)"' in up
+    assert '<b>Energy</b>' in flat and '<b>Technology</b>' in flat   # unknown stance, absent
+    assert 'Utilities' in down and 'data-i="1"' in down
+    assert '<script>' not in html
+    assert 'class="qhelp-btn"' in html and 'tap a sector’s name' in html, \
+        'the explainer folds behind the ?'

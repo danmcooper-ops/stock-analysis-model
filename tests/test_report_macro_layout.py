@@ -162,9 +162,12 @@ def test_macro_narrative_escapes_every_model_string():
             prefix = body[max(0, at - 6):at]
             assert '_esc(' in prefix, \
                 '%s is interpolated without _esc()' % field
-    assert "STANCE={tailwind:'up',headwind:'down'}" in body, \
+    # the sector stances render through the Sector Outlook
+    so = re.search(r'function renderSectorOutlook\(bare,from\)\{.*?\n\}\n', css, re.S).group(0)
+    assert "STANCE={tailwind:'up',headwind:'down'}" in so, \
         'stance must map to CSS classes only through the whitelist'
-    assert "STANCE[row.stance]||''" in body
+    assert "STANCE[m.row.stance]||''" in so
+    assert '_esc(row.influence)' in re.search(r'function _soToggle\(btn\)\{.*?\n\}\n', css, re.S).group(0)
     assert '[data-theme="dark"] #macro-view{' in css, \
         'the macro tokens need a dark-mode redefinition'
 
@@ -203,30 +206,28 @@ def test_macro_sentence_split_keeps_decimals_and_abbreviations():
     assert r'\bvs' in fn and r'\b[A-Za-z]' in fn
 
 
-def test_macro_narrative_sectors_open_in_place():
-    """The stance chips are the sector index: grouped through the whitelist,
-    addressed by index (never by a model string in an attribute), and a chip
-    opens that sector's kicker and influence in place with the way into its
-    page. A pre-v3 narrative (no influence) links straight to the page. An
-    older narrative without `watch` keeps The balance."""
+def test_macro_narrative_sectors_are_the_sector_outlook():
+    """The Sectors section is the Sector Outlook, the same component the
+    Sector Analysis Charts sub-tab leads with: grouped through the stance
+    whitelist, the name opening the influence in place by index (never a
+    model string in an attribute), Read more drilling to the sector page
+    with the way back to the Macro Outlook. An older narrative without
+    `watch` keeps The balance."""
     css = _css()
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
-    assert "STANCE={tailwind:'up',headwind:'down'}" in nar
-    assert "grp[STANCE[row.stance]||'']" in nar
-    assert "_macSecPick(this,'+it.i+')" in nar, 'chips address sectors by index'
-    assert "_macGoSector('+it.i+')" in nar, 'pre-v3 chips link to the page'
-    assert '_esc(it.row.sector)' in nar
+    assert "renderSectorOutlook(true,'Macro Outlook')" in nar
     assert "watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});" in nar
     assert 'The balance' in nar, 'a pre-v7 narrative keeps its winds'
-    pick = re.search(r'function _macSecPick\(btn,i\)\{.*?\n\}\n', css, re.S).group(0)
-    assert '_esc(row.influence)' in pick and '_esc(row.headline)' in pick
-    assert "_macGoSector('+i+')" in pick
-    go = re.search(r'function _macGoSector\(i\)\{.*?\n\}\n', css, re.S)
-    # A drill like the chart drill-downs, so the way back returns to the
-    # Macro sub-tab and scroll position (tests/test_report_drill_back.py).
-    assert go and "_drillPush('Macro Outlook')" in go.group(0)
-    assert '_poolTab=row.sector' in go.group(0) and '_drillSeal();' in go.group(0)
-    assert "navGo('pool'" not in go.group(0), 'navGo would spend the drill at once'
+    so = re.search(r'function renderSectorOutlook\(bare,from\)\{.*?\n\}\n', css, re.S).group(0)
+    assert "STANCE={tailwind:'up',headwind:'down'}" in so
+    assert 'data-i="\'+m.i+\'"' in so, 'names address sectors by index'
+    tog = re.search(r'function _soToggle\(btn\)\{.*?\n\}\n', css, re.S).group(0)
+    assert '_esc(row.influence)' in tog and '_esc(row.headline)' in tog
+    go = re.search(r'function goSectorDrivers\(sec,from\)\{.*?\n\}\n', css, re.S).group(0)
+    # A drill like the chart drill-downs (tests/test_report_drill_back.py).
+    assert "_drillPush(from||'Sector Outlook')" in go and '_drillSeal();' in go
+    assert "window._ppSubTabSel='forces'" in go
+    assert "navGo('pool'" not in go, 'navGo would spend the drill at once'
 
 
 def test_macro_overview_is_the_landing_view():
@@ -338,8 +339,8 @@ def test_macro_narrative_sections_carry_figures():
     nar = nar.group(0)
     assert 'h+=_macNarFigure(i,p)' in nar, \
         'each narrative section needs its figure'
-    assert '_macStanceStrip(grp,secLink)' in nar, \
-        'the sector influences open with the stance strip'
+    assert "renderSectorOutlook(true,'Macro Outlook')" in nar, \
+        'the sector influences are the Sector Outlook'
     fig = re.search(r'function _macNarFigure\(i,text\)\{.*?\n\}\n', css,
                     re.S)
     assert fig, 'could not find _macNarFigure'
