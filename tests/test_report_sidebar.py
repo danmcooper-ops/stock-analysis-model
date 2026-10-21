@@ -418,3 +418,15 @@ def test_finances_sub_tabs_hang_7px_under_the_section_tabs():
     assert '#det-modal .d-body:has(> #d-pane-stmt.active){padding-top:0 !important;row-gap:0;}' in src
     assert '#det-modal .d-body:has(> #d-pane-stmt.active) > .d-hc{margin-bottom:0 !important;}' in src
     assert '#det-modal #d-pane-stmt > .d-stmt-tabs:first-child{margin-top:7px;}' in src
+
+
+def test_ticker_sub_tabs_use_the_section_tabs_type_size():
+    src = _tpl()
+    assert '#det-modal .d-stmt-tab{font-size:13.5px;}' in src           # .d-tab's size
+    assert '  .d-tab{font-size:15px;padding:0 10px;height:42px;}\n  #det-modal .d-stmt-tab{font-size:15px;}' in src
+
+
+def test_portfolio_page_way_back_sits_under_the_sub_tabs():
+    src = _tpl()
+    assert '.pfv-detail{padding-top:0;}' in src
+    assert '.pfv-back{padding-left:0;padding-top:0;margin-bottom:6px;}' in src
