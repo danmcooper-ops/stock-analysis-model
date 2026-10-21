@@ -371,16 +371,16 @@ def test_drivers_use_the_reports_wind_group_and_each_heading_toggles_its_force(t
     forces = {'forces': evaluate_forces('Real Estate', side, {})}
     html = _render_signals(forces, tmp_path)
     assert html.count('onclick="_windToggle(this)"') == 2
-    assert '<div class="wind-grp" data-wk="drivers:tailwind">' in html
-    assert '<div class="wind-grp" data-wk="drivers:headwind">' in html
+    assert '<div class="wind-grp wind-shut" data-wk="drivers:tailwind">' in html
+    assert '<div class="wind-grp wind-shut" data-wk="drivers:headwind">' in html
     assert '<div class="wind-sum">None of its 3 tailwinds is acting.</div>' in html
     assert 'Interest-rate sensitivity and tenant-credit risk is acting now.</div>' in html
     heads = html.count('class="ppf-hdr" role="button"')
     assert heads == html.count('<ul class="ppf-ul">') == 6
     assert html.count('aria-expanded="false" onclick="_ppfToggleOne(this)"') == 6
-    folded = _render_signals(forces, tmp_path, stored={'drivers:headwind': True})
-    assert '<div class="wind-grp wind-shut" data-wk="drivers:headwind">' in folded
-    assert '<div class="wind-grp" data-wk="drivers:tailwind">' in folded
+    opened = _render_signals(forces, tmp_path, stored={'drivers:tailwind': False})
+    assert '<div class="wind-grp wind-shut" data-wk="drivers:headwind">' in opened
+    assert '<div class="wind-grp" data-wk="drivers:tailwind">' in opened
 
 
 def test_wind_group_and_force_toggles():
@@ -554,15 +554,15 @@ def test_sector_outlook_groups_by_the_macro_stance(tmp_path):
         {'sector': 'Utilities', 'stance': 'headwind', 'influence': 'U'},
         {'sector': 'Energy', 'stance': '<script>'}]}}
     html = _render_outlook(pool, tmp_path, macro)
-    assert html.count('aria-expanded="true" onclick="_windToggle(this)"') == 3
+    assert html.count('aria-expanded="false" onclick="_windToggle(this)"') == 3
     assert 'class="wind-h wind-up"' in html and 'class="wind-h wind-down"' in html
     assert 'class="wind-h" ' in html
-    assert 'wind-shut' not in html, 'groups start open'
-    folded = _render_outlook(pool, tmp_path, macro, stored={'outlook:down': True})
+    assert html.count('wind-shut') == 3, 'groups start folded'
+    opened = _render_outlook(pool, tmp_path, macro, stored={'outlook:down': False})
     # each group carries its one-sentence summary (CSS shows it only folded)
     assert '<div class="wind-sum">No force is acting in Healthcare.</div>' in html
     assert '<div class="wind-sum">No force is acting in Energy and Technology.</div>' in html
-    assert folded.count('wind-shut') == 1 and '<div class="wind-grp wind-shut" data-wk="outlook:down">' in folded
+    assert opened.count('wind-shut') == 2 and '<div class="wind-grp" data-wk="outlook:down">' in opened
     up, rest = html.split('▲ Macro tailwind<span>· 1</span>')[1].split('Macro neutral<span>· 2</span>')
     flat, down = rest.split('▼ Macro headwind<span>· 1</span>')
     assert 'Healthcare' in up and 'data-i="0"' in up and 'onclick="_soToggle(this)"' in up
