@@ -645,14 +645,14 @@ def test_stacked_wind_rows_indent_the_heading_under_the_status():
 
 
 def test_sector_today_is_tiles_and_the_primer_a_lead_and_points(tmp_path):
-    entry = {'stats': {'total_op_income': 213.9e9, 'total_revenue': 1.7e12, 'weighted_margin': 0.119,
+    entry = {'stats': {'total_op_income': 213.9e9, 'total_revenue': 1.7e12, 'weighted_margin': 0.23,
                        'company_count': 210},
              'overview': 'The pool totals $213.9B. BHP alone captures 9% of the pool.',
-             'education': 'A commodity game. Cost curves decide. Moats are rare.',
-             'education_cycle': 'Deeply cyclical. China leads.'}
+             'education': 'A commodity game. Cost curves decide. Moats are rare in IP.',
+             'education_cycle': 'Early-cycle; China leads.'}
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppPct', '_macSentences', '_ppMoney', 'renderPoolToday', 'renderPoolPrimer']
-    js = '\n'.join(['function _esc(s){return String(s);}function _linkifyTickers(s){return s;}',
+    js = '\n'.join(['function _esc(s){return String(s);}function _linkifyTickers(s){return "LINKED("+s+")";}',
                     re.search(r'^var _DS_TOG=.*$', src, re.M).group(0)]
                    + [_fn(src, n) for n in names]
                    + ['var SECTOR_POOL=' + json.dumps({'S': entry}) + ';',
@@ -663,11 +663,29 @@ def test_sector_today_is_tiles_and_the_primer_a_lead_and_points(tmp_path):
                                    check=True).stdout.split('\n@@\n')
     assert '<div class="pp-tile"><span>Profit pool</span><b>$213.9B</b></div>' in today
     assert '<b>$1.7T</b>' in today and '<b>210</b>' in today
-    assert '<p class="pp-lead pp-today-note">BHP alone captures 9% of the pool.</p>' in today
-    assert 'totals $213.9B' not in today, 'the first sentence restated the tiles'
+    assert '<span>Margin</span><b>23.0%</b><i>high: pricing power</i>' in today
+    assert 'BHP' not in today, 'the leader is the Profit Pool table'
     assert '<p class="pp-lead">A commodity game.</p>' in primer
-    assert primer.count('<li') == 4 and primer.count('class="ds-more"') == 2
-    assert 'ds-clip' in primer and 'Read more' in primer
+    assert '<li><b>Cycle:</b> Early-cycle; China leads.</li>' in primer
+    assert primer.count('<li') == 3 and 'ds-clip' not in primer
+    assert 'LINKED' not in primer, 'primer prose links no tickers'
+
+
+def test_sector_primers_leave_the_forces_to_the_drivers_tab():
+    """No primer restates a claim its sector's curated forces make (the
+    Drivers tab), and each is a model plus a one-sentence cycle line."""
+    from models.narrative import _SECTOR_EDUCATION
+    from models.sector_forces import sector_forces
+    banned = {'Basic Materials': ['dollar'], 'Financial Services': ['yield curve', 'curve is steep'],
+              'Utilities': ['rate case', '10-year'], 'Real Estate': ['cap-rate', '10-year'],
+              'Healthcare': ['expire', 'policy'], 'Consumer Defensive': ['pricing power'],
+              'Consumer Cyclical': ['most cyclical'], 'Energy': ['every barrel']}
+    for sec, edu in _SECTOR_EDUCATION.items():
+        assert sector_forces(sec), sec
+        text = (edu['model'] + ' ' + edu['cycle']).lower()
+        for phrase in banned.get(sec, []):
+            assert phrase not in text, (sec, phrase)
+        assert edu['cycle'].count('. ') == 0, (sec, 'one-sentence cycle line')
 
 
 def test_brand_is_city2summit():

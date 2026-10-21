@@ -1639,9 +1639,10 @@ td.ct{font-weight:700;}
 .pp-tile{background:var(--ppf-bg);padding:10px 14px;display:flex;flex-direction:column;gap:2px;}
 .pp-tile span{font-size:0.66em;text-transform:uppercase;letter-spacing:0.05em;color:var(--ppf-sub);}
 .pp-tile b{font-size:1.05em;font-weight:700;color:var(--ppf-txt);font-variant-numeric:tabular-nums;}
-.pp-today-note{font-weight:400;}
+.pp-tile i{font-style:normal;font-size:0.7em;color:var(--ppf-sub);}
+.pp-tiles{margin-bottom:0;}
 [data-theme="dark"] .pp-lead,[data-theme="dark"] .pp-pts,[data-theme="dark"] .pp-tile b{color:var(--ppf-txt) !important;}
-[data-theme="dark"] .pp-tile span{color:var(--ppf-sub) !important;}
+[data-theme="dark"] .pp-tile span,[data-theme="dark"] .pp-tile i{color:var(--ppf-sub) !important;}
 /* A wind row's drill to the table: a small outlined button, no bullet. */
 .ppf-ul li.wind-act{list-style:none;margin:8px 0 2px -16px;}
 .wind-btn{font:inherit;font-size:0.92em;font-weight:600;padding:4px 10px;border:1px solid #0b6bcb;border-radius:6px;background:none;color:#0b6bcb;cursor:pointer;}
@@ -13196,15 +13197,18 @@ function renderPoolPrimer(sec){
   /* The "Key risks" block previously listed thesis_risk headwinds, which
      now live in the Sector Headwinds & Tailwinds section below — drop the
      duplicate so the Primer is a clean educational paragraph. */
-  /* Read as a lead and points: the first sentence leads, each later one is
-     a bullet; phones show two bullets and the rest behind Read more
-     (.ds-clip, placed by _dsPlaceIn after the render). */
-  var ss=[];
-  [n.education,n.education_cycle].forEach(function(t){if(t)ss=ss.concat(_macSentences(t));});
-  if(!ss.length)return '';
-  var more=ss.length>3;
-  return '<div class="pp-primer-b'+(more?' ds-clip':'')+'"><p class="pp-lead">'+_linkifyTickers(_esc(ss[0]))+'</p>'
-    +(ss.length>1?'<ul class="pp-pts">'+ss.slice(1).map(function(x,i){return '<li'+(i>=2?' class="ds-more"':'')+'>'+_linkifyTickers(_esc(x))+'</li>';}).join('')+'</ul>':'')
+  /* Read as a lead and points: the model's first sentence leads, its later
+     ones are bullets, and the cycle line closes them as a labelled bullet.
+     Phones show three and the rest behind Read more (.ds-clip, placed by
+     _dsPlaceIn after the render). Tickers are not linked: the primer is
+     sector prose, where "IP" is intellectual property, not a symbol. */
+  var ss=n.education?_macSentences(n.education):[];
+  var pts=ss.slice(1).map(function(x){return _esc(x);});
+  if(n.education_cycle)pts.push('<b>Cycle:</b> '+_esc(n.education_cycle));
+  if(!ss.length&&!pts.length)return '';
+  var more=pts.length>3;
+  return '<div class="pp-primer-b'+(more?' ds-clip':'')+'">'+(ss.length?'<p class="pp-lead">'+_esc(ss[0])+'</p>':'')
+    +(pts.length?'<ul class="pp-pts">'+pts.map(function(x,i){return '<li'+(i>=3?' class="ds-more"':'')+'>'+x+'</li>';}).join('')+'</ul>':'')
     +(more?_DS_TOG:'')+'</div>';
 }
 /* "The Sector Today" (pp-today, Overview tab): the pool's size, blended
@@ -13212,10 +13216,10 @@ function renderPoolPrimer(sec){
    `overview` paragraph (models/narrative.py). Its figures are not repeated
    by the Profit pool tab's tiles, which carry concentration, the margin
    spread and the loss-makers. */
-/* Shown as four tiles (pool, revenue, margin, companies) from the sector's
-   stats, then the paragraph's later sentences (the leader, and what the
-   margin means where it says) as one line; its first sentence only
-   restated the tiles. */
+/* Four tiles (pool, revenue, margin, companies) from the sector's stats,
+   the margin tile carrying what that margin means. Nothing else: the
+   server paragraph's leader sentence is the Profit Pool tab's table, and
+   its margin verdict is the tile's note. */
 function _ppMoney(v){
   var a=Math.abs(v);
   return (v<0?'−':'')+'$'+(a>=1e12?(a/1e12).toFixed(1)+'T':a>=1e9?(a/1e9).toFixed(1)+'B':(a/1e6).toFixed(0)+'M');
@@ -13226,13 +13230,11 @@ function renderPoolToday(sec){
   var st=n.stats||{},tiles=[];
   if(st.total_op_income!=null)tiles.push(['Profit pool',_ppMoney(st.total_op_income)]);
   if(st.total_revenue!=null)tiles.push(['Revenue',_ppMoney(st.total_revenue)]);
-  if(st.weighted_margin!=null)tiles.push(['Margin',_ppPct(st.weighted_margin)]);
+  var m=st.weighted_margin;
+  if(m!=null)tiles.push(['Margin',_ppPct(m),m<=0?'destroying capital':m<0.08?'thin: little cushion':m>=0.2?'high: pricing power':'']);
   if(st.company_count!=null)tiles.push(['Companies',String(st.company_count)]);
-  var rest=n.overview?_macSentences(n.overview):[];
-  if(tiles.length)rest=rest.slice(1);
-  if(!tiles.length&&!rest.length)return '';
-  return (tiles.length?'<div class="pp-tiles">'+tiles.map(function(t){return '<div class="pp-tile"><span>'+t[0]+'</span><b>'+t[1]+'</b></div>';}).join('')+'</div>':'')
-    +(rest.length?'<p class="pp-lead pp-today-note">'+_linkifyTickers(_esc(rest.join(' ')))+'</p>':'');
+  if(!tiles.length)return '';
+  return '<div class="pp-tiles">'+tiles.map(function(t){return '<div class="pp-tile"><span>'+t[0]+'</span><b>'+t[1]+'</b>'+(t[2]?'<i>'+t[2]+'</i>':'')+'</div>';}).join('')+'</div>';
 }
 /* The Profit pool tab's "Shape of the Pool": four tiles, each fact once.
    The revenue HHI/CR4 paragraph and the strategy bullets that used to sit

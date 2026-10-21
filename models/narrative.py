@@ -647,201 +647,154 @@ def _news_signals(row):
 # Educational primer on how each sector actually makes money, plus a
 # "business cycle" line describing where in the macro cycle the sector
 # tends to outperform and where it struggles. Used to give the reader a
-# framework before diving into the company-specific numbers.
+# framework before diving into the company-specific numbers. The sector
+# page renders the model's first sentence as a lead and the rest as points,
+# so each sentence should stand alone. A claim one of the sector's curated
+# forces already makes (sector_forces / _SECTOR_TAILWINDS) belongs on the
+# Drivers tab, not here: the primer says how the sector earns, the forces
+# what is acting on it.
 _SECTOR_EDUCATION = {
     'Technology': {
         'model': (
-            'Technology profit pools are built on intangible assets — software, data, '
+            'Technology profit pools are built on intangible assets — software, data '
             'and network effects — where marginal cost trends toward zero and the '
-            'winner often takes most of the pie. Gross margins above 60% and '
-            'scalable distribution are the norm, which means scale compounds faster '
-            'than in any other sector, but switching costs and platform lock-in are '
-            'what sustain the moat after growth slows.'
+            'winner often takes most of the pie. Gross margins above 60% let scale '
+            'compound faster than in any other sector. Switching costs and platform '
+            'lock-in are what sustain the moat once growth slows.'
         ),
         'cycle': (
-            'Cyclically, Technology is an early-to-mid-cycle outperformer: it leads '
-            'coming out of recessions as enterprises restart capex, then re-rates '
-            'again in the late expansion as liquidity chases long-duration growth. '
-            'It is highly sensitive to real interest rates — rising rates compress '
-            'the present value of distant cash flows, which is why mega-cap tech '
-            'can sell off even with unchanged fundamentals.'
+            'Early-to-mid-cycle, and highly sensitive to real interest rates, which '
+            'discount its distant cash flows.'
         ),
     },
     'Communication Services': {
         'model': (
-            'Communication Services covers advertising platforms, telecom carriers, '
-            'and media/content franchises. The advertising sub-sector earns a toll '
-            'on attention and is highly operating-leveraged, while telecom is a '
-            'capital-intensive utility-like business whose returns hinge on spectrum '
-            'and tower economics. The profit pool skews sharply toward whoever '
-            'controls the attention funnel or the last-mile pipe.'
+            'Communication Services covers advertising platforms, telecom carriers and '
+            'media franchises. Advertising earns a toll on attention and is highly '
+            'operating-leveraged, while telecom is a capital-intensive, utility-like '
+            'business whose returns hinge on spectrum and tower economics. The profit '
+            'pool skews toward whoever controls the attention funnel or the last-mile '
+            'pipe.'
         ),
         'cycle': (
-            'The ad-driven pieces behave cyclically — ad budgets are among the first '
-            'line items cut in a downturn and among the first restored in recovery — '
-            'while the telecom subscription businesses are defensive and late-cycle. '
-            'Investors typically see the sector rally on rate cuts and slump when '
-            'corporate marketing budgets tighten.'
+            'Mixed: the ad businesses lead out of recessions, the telecom subscriptions '
+            'are defensive and late-cycle, and the sector tends to rally on rate cuts.'
         ),
     },
     'Consumer Cyclical': {
         'model': (
-            'Consumer Cyclical businesses — autos, retail, restaurants, travel, '
-            'apparel — earn most of their profits in the late stages of an expansion '
-            'and give them back in recessions. Operating leverage cuts both ways: '
-            'high fixed costs amplify good times and wipe out margins when revenue '
-            'dips. The long-run winners are those with brand pricing power, '
-            'store-level unit economics, or low-cost operations that hold up through '
-            'the cycle.'
+            'Consumer Cyclical — autos, retail, restaurants, travel, apparel — sells '
+            'purchases households can postpone, on high fixed costs, so operating '
+            'leverage amplifies every swing in revenue. The long-run winners have brand '
+            'pricing power, store-level unit economics or the lowest costs.'
         ),
         'cycle': (
-            'This is the most cyclical sector in the market: it leads coming out of '
-            'recessions (consumers unlock pent-up demand and credit loosens), peaks '
-            'mid-cycle as confidence and wages run hot, and lags hard into downturns '
-            'as discretionary purchases collapse. Watch unemployment and real wage '
-            'growth — those are the upstream indicators for every name in the group.'
+            'Leads out of recessions as pent-up demand returns and peaks mid-cycle; '
+            'unemployment and real wage growth are the indicators to watch.'
         ),
     },
     'Consumer Defensive': {
         'model': (
-            'Consumer Defensive — packaged food, beverages, household goods, '
-            'tobacco — lives off repeat purchases and brand equity built over '
-            'decades. Volume growth is low single-digit, so returns come from '
-            'pricing power, distribution scale against retailers, and disciplined '
-            'SG&A. The profit pool is stable year-to-year, which makes the sector '
-            'a bond proxy in valuation terms and a favorite of long-duration investors.'
+            'Consumer Defensive — packaged food, beverages, household goods, tobacco — '
+            'lives off repeat purchases of brands built over decades. Volume grows in '
+            'the low single digits, so returns come from distribution scale against '
+            'retailers and disciplined overhead. A profit pool this steady lets the '
+            'sector trade like a bond.'
         ),
         'cycle': (
-            'Defensively counter-cyclical: the sector outperforms late-cycle and in '
-            'recessions when investors rotate to earnings stability, and lags in '
-            'early-cycle rallies when risk assets take the lead. It correlates '
-            'inversely with equity risk appetite and sometimes trades like a '
-            'duration proxy, rallying when rates fall.'
+            'Counter-cyclical: it lags early-cycle rallies and tends to rally when '
+            'rates fall.'
         ),
     },
     'Energy': {
         'model': (
-            'Energy profit pools are dictated by commodity prices the producer '
-            'does not set — oil, gas, refined products — and by position on the '
-            'cost curve. In an upcycle every barrel is profitable; in a downcycle '
-            'only the lowest-cost operators survive. Integrated majors smooth the '
-            'cycle across upstream, midstream, and downstream, while pure E&P '
-            'names offer leverage to the commodity with more extreme outcomes.'
+            'Energy earns on oil, gas and refined-product prices it does not set, so a '
+            "producer's position on the cost curve decides its returns. Integrated "
+            'majors smooth results across upstream, midstream and downstream; pure E&P '
+            'names are leveraged to the commodity.'
         ),
         'cycle': (
-            'Energy runs on its own commodity cycle that only loosely tracks the '
-            'broader economy: it tends to outperform late-cycle when inflation and '
-            'demand both run hot, and collapses in recessions as demand destruction '
-            'meets fixed supply. The sector is a natural inflation hedge and is '
-            'often the last to participate in early-cycle recoveries.'
+            'Runs on its own cycle, doing best late in expansions when inflation runs '
+            'hot; a natural inflation hedge that is usually last into early-cycle '
+            'recoveries.'
         ),
     },
     'Financial Services': {
         'model': (
-            'Financial Services earns a spread — between what it pays for capital '
-            'and what it charges for using it — plus fees on transactions and '
-            'advice. Banks make money when rates are rising and the yield curve '
-            'is steep; insurers earn underwriting profits plus a float they invest; '
-            'asset managers collect a percentage of AUM. Leverage is extreme '
-            'across the board, so risk management and credit underwriting are '
-            'what separate long-term compounders from cyclical traps.'
+            'Financial Services earns a spread between what it pays for money and what '
+            'it charges for it, plus fees on transactions and advice. Banks lend, '
+            'insurers earn underwriting profit and invest the float, and asset managers '
+            'take a share of the assets they run. Leverage is high across the board, so '
+            'underwriting discipline separates compounders from cyclical traps.'
         ),
         'cycle': (
-            'Banks are mid-to-late-cycle winners while the yield curve is steep and '
-            'credit losses are contained; they underperform sharply in recessions '
-            'when loan losses spike. Asset managers and exchanges track equity '
-            'market levels, so they lead in bull markets. Insurers are the most '
-            'defensive corner, protected by diversified float and slow-moving '
-            'reserve releases.'
+            'Banks do best mid-to-late cycle and worst in recessions; asset managers '
+            'and exchanges lead in bull markets; insurers are the defensive corner.'
         ),
     },
     'Healthcare': {
         'model': (
-            'Healthcare spans pharma (patent-protected monopolies that expire on '
-            'a schedule), medical devices (engineering-driven franchises with '
-            'sticky hospital relationships), managed care (premium spread businesses '
-            'regulated at the state level), and services. Profits cluster around '
-            'proprietary innovation and around the entities that sit between the '
-            'patient and the payer. The sector is defensive against GDP but exposed '
-            'to policy risk.'
+            'Healthcare spans pharma (patent-protected franchises), medical devices '
+            '(engineering-led, with sticky hospital relationships), managed care (a '
+            'premium spread regulated by the states) and services. Profits cluster '
+            'around proprietary innovation and around whoever sits between the patient '
+            'and the payer.'
         ),
         'cycle': (
-            'Healthcare is classically defensive and late-cycle: demand is '
-            'relatively inelastic to GDP, so the sector outperforms into slowdowns '
-            'and recessions. It lags in early-cycle rallies when risk-on rotation '
-            'favors cyclicals, and it can be disrupted by policy headlines more '
-            'than by the business cycle itself.'
+            'Defensive and late-cycle: demand barely moves with GDP, so it outperforms '
+            'into slowdowns and lags early-cycle rallies.'
         ),
     },
     'Industrials': {
         'model': (
-            'Industrials includes machinery, aerospace, defense, transportation, '
-            'and business services — capital-goods businesses that live on order '
-            'backlogs and installed-base service revenue. Margins are thinner than '
-            'tech but the installed base acts like an annuity: once a customer '
-            'standardizes on a supplier, switching costs are real. The best '
-            'operators earn premium returns through aftermarket services, not '
-            'equipment sales.'
+            'Industrials — machinery, aerospace, defense, transportation, business '
+            'services — live on order backlogs and installed-base service revenue. '
+            "Margins are thinner than technology's, but once a customer standardizes on "
+            'a supplier the installed base pays like an annuity. The best operators '
+            'earn premium returns from aftermarket service, not equipment sales.'
         ),
         'cycle': (
-            'Early-cycle: industrials rip out of recessions as inventory rebuilds, '
-            'capex thaws, and order books refill. The sector peaks mid-expansion '
-            'and rolls over first when PMIs weaken — the ISM manufacturing index '
-            'is the single best leading indicator for the group. Defense is the '
-            'one counter-cyclical pocket, tied to government budgets rather than '
-            'private capex.'
+            'Early-cycle: rebounds as inventories and capex recover, peaks '
+            'mid-expansion and turns first when PMIs weaken; the ISM manufacturing '
+            'index is the best leading indicator.'
         ),
     },
     'Basic Materials': {
         'model': (
-            'Basic Materials — mining, chemicals, steel, paper — is a pure '
-            'commodity game where the cost curve determines everything. Position '
-            'on the curve, orebody quality, and balance-sheet strength decide who '
-            'survives the trough. Specialty chemicals are the one corner of the '
-            'sector where formulation IP and customer-specific engineering can '
-            'produce a real moat.'
+            'Basic Materials — mining, chemicals, steel, paper — sells commodities at '
+            'prices it does not set, so profit depends on where a producer sits on the '
+            'cost curve. Orebody quality, scale and balance-sheet strength decide who '
+            'earns through the trough. Specialty chemicals are the exception, where '
+            'formulation know-how and customer-specific engineering create a real moat.'
         ),
         'cycle': (
-            'Deeply cyclical and often commodity-led: the sector outperforms '
-            'early-to-mid-cycle as industrial demand recovers and commodity prices '
-            'rebuild, and collapses fastest in recessions as inventory destocks '
-            'cascade through the supply chain. China industrial production and the '
-            'dollar are usually better indicators than domestic GDP.'
+            'Early-to-mid-cycle: outperforms as industrial demand recovers and falls '
+            'fastest in recessions as destocking cascades; China industrial production '
+            'leads the group.'
         ),
     },
     'Utilities': {
         'model': (
-            'Utilities are regulated monopolies that earn a pre-set return on '
-            'invested capital, approved by state commissions in rate cases. '
-            'Growth comes from the rate base (the physical capital deployed), '
-            'so capex discipline and regulatory relationships matter more than '
-            'unit volume. The sector trades like a long-duration bond — safe '
-            'cash flows, but highly sensitive to interest rates.'
+            'Utilities are regulated monopolies allowed a set return on the capital '
+            'they deploy, so growth comes from the rate base — the physical plant — '
+            'rather than from selling more units. Capex discipline and regulatory '
+            'relationships separate the best operators.'
         ),
         'cycle': (
-            'Defensive and late-cycle: utilities outperform when growth slows and '
-            'rates fall, and lag in early-cycle rallies and rising-rate regimes. '
-            'Because the dividend yield is the largest part of the total return, '
-            'the sector trades inversely to the 10-year Treasury — rising yields '
-            'are its biggest enemy regardless of operating results.'
+            'Defensive and late-cycle; the dividend is most of the total return.'
         ),
     },
     'Real Estate': {
         'model': (
-            'Real estate, mostly via REITs, earns a spread between property-level '
-            'cash yields (NOI) and the cost of debt used to buy the buildings. '
-            'Returns depend on property type, tenant quality, lease duration, and '
-            'refinancing terms. Because REITs distribute most of their earnings, '
-            'growth is funded externally, which makes access to capital a key '
-            'competitive weapon and refinancing risk the primary downside.'
+            "Real estate, mostly REITs, earns the spread between a property's cash "
+            'yield (NOI) and the cost of the debt that bought it. Returns depend on '
+            'property type, tenant quality and lease length. Because REITs pay out most '
+            'of their earnings, growth is funded externally, so access to capital is '
+            'the competitive edge.'
         ),
         'cycle': (
-            'Rate-sensitive and mid-to-late-cycle: REITs rally when the 10-year '
-            'falls and struggle when real rates rise, because cap-rate compression '
-            'drives most of the total return. They tend to outperform defensively '
-            'in slowdowns as long as tenant credit holds, and crack hardest in '
-            'stagflation — high rates, weak growth — which punishes both sides of '
-            'the NOI-minus-financing equation.'
+            'Mid-to-late-cycle: holds up in slowdowns while tenants stay current, and '
+            'is hit hardest by stagflation.'
         ),
     },
 }
