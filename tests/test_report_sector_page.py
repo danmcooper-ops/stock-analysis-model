@@ -37,7 +37,7 @@ def test_sections_render_in_arc_order():
              re.finditer(r'pp-section (pp-[a-z]+)"><span class="pp-section-label"',
                          body)]
     assert order == ['pp-primer', 'pp-today', 'pp-signals', 'pp-structure',
-                     'pp-chart', 'pp-history', 'pp-shifts', 'pp-econ',
+                     'pp-chart', 'pp-history', 'pp-shifts', 'pp-econ', 'pp-etf',
                      'pp-liquidity'], order
 
 
@@ -151,7 +151,7 @@ def test_every_section_belongs_to_a_sub_tab_with_a_hide_rule():
     body = _assembly(css)
     sections = re.findall(r'<div data-pane="([a-z]+)" class="pp-section (pp-[a-z]+)"', body)
     assert [s for _, s in sections] == ['pp-primer', 'pp-today', 'pp-signals', 'pp-structure', 'pp-chart',
-                                        'pp-history', 'pp-shifts', 'pp-econ', 'pp-liquidity']
+                                        'pp-history', 'pp-shifts', 'pp-econ', 'pp-etf', 'pp-liquidity']
     tabs = re.search(r'^var _PP_SUBTABS=(.*);$', css, re.M).group(1)
     for pane in {p for p, _ in sections}:
         assert "'%s'" % pane in tabs, pane

@@ -825,6 +825,31 @@ ruff check .
   gold fix in 2022. `data/fred_client`'s cache is keyed by series id alone, so a
   fetch with a later `start` (an ad hoc probe) poisons it for the
   dashboard until the 1-day TTL runs out.
+- **SPDR look-through (`data/etf_holdings.py`, `models/etf_lookthrough.py`,
+  2026-10-21):** ETFs never enter the company pipeline (no statements, and
+  Yahoo gives them no `marketCap`, so the Phase-1 mcap bail drops them).
+  Instead SPY, DIA, MDY and the 11 Select Sector SPDRs are read through the
+  rows the model already scores, at render time
+  (`report_html._build_etf_payload`, after `_drop_stopped_rows`, so it
+  follows the re-score). Holdings come from SSGA's daily files
+  (`scripts/fetch_etf_holdings.py`, `run_daily.sh` step `etf_holdings`, soft)
+  and are archived as `output/etf_holdings/<FUND>/<as_of>.json.gz`, the only
+  history issuer files have; the render takes the newest dated on or before
+  the run. A fund's value per $1 is `V = Σ w·clip(FV/P, 1/3, 3)` and its MoS
+  `1 − 1/V` (a row's definition); the headline is `V / V_SPY − 1`, because
+  the absolute read is mostly the model's market-wide bias (SPY read −30% on
+  10-20). A holding with no fair value today carries its last one from the
+  prior `ETF_FV_CARRY_SNAPSHOTS` (5) snapshots (on 10-14 EQIX/VTR/ESS, 13% of
+  XLRE, lost theirs for two days and swung XLRE 13pp); one still missing
+  counts at FV/P 1, and at 1/3 for the band's low end. Share classes fold
+  onto the kept row (`listing_aliases`), cash counts at 1, a holding with no
+  row is left out. Under 80% of weight with a fair value reads
+  INSUFFICIENT; a coverage-degraded run shows nothing. Shown on Sector
+  Analysis › Charts (all 14) and each sector's Value creation tab (its own
+  SPDR); written to `output/etfs_<date>.json`. Display only: no fund is
+  rated, and an ETF must never reach `profile_verdict` (its −20% MoS AVOID
+  flag would fire on nearly every fund). `ETF_HOLDINGS_DIR` overrides the
+  archive path. Tests: `tests/test_etf_lookthrough.py`.
 - **Report sidecars and the Pages size limits:** the HTML lazy-loads
   everything heavy from files beside it, through `_loadSidecar` (relative
   paths). Per-ticker shards: `vol/`, `px/` (manifested in `prices_meta.json`)

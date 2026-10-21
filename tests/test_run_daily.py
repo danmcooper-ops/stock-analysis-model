@@ -61,7 +61,7 @@ def test_plan_without_secrets_matches_the_old_pipeline_plus_topup(tmp_path):
     for absent in ('sec_cache_save', 'price_cache_save', 'db_check', 'publish_cloudflare'):
         assert absent not in steps
     # db_publish always runs (and skips itself), as step 06a does in the cloud.
-    order = ['analyze', 'enrich_pipeline', 'prices_topup', 'render', 'portfolio_alerts',
+    order = ['analyze', 'enrich_pipeline', 'prices_topup', 'etf_holdings', 'render', 'portfolio_alerts',
              'db_publish', 'archive_sync', 'archive_snapshot', 'archive_add',
              'archive_commit', 'archive_push', 'store_check', 'coverage', 'publish',
              'compact_output']

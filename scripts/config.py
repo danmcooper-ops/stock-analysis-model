@@ -184,6 +184,13 @@ NA_GATES_SCORE_ZERO = True
 # key `mc_penalty_enabled`, part of scoring_params_hash.
 MC_PENALTY_ENABLED = False
 
+# ETF look-through (models/etf_lookthrough.py): a holding whose fair value is
+# missing today takes its last one from this many prior snapshots. On
+# 2026-10-14 EQIX, VTR and ESS (13% of XLRE) lost theirs for two days and
+# XLRE's relative value swung 13pp and back. A week bounds how stale a
+# carried value can be. Display only: ETFs never feed a rating.
+ETF_FV_CARRY_SNAPSHOTS = 5
+
 # ---------------------------------------------------------------------------
 # Sector-specific DCF parameters (Fixes C/D/E/F)
 # ---------------------------------------------------------------------------

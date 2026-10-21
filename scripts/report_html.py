@@ -26,7 +26,10 @@ from scripts.scoring import gate_metadata
 from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
                             CARRY_FORWARD_STOPPED_GUARD_FLOOR,
                             CARRY_FORWARD_STOPPED_MAX_SHARE,
+                            ETF_FV_CARRY_SNAPSHOTS,
                             PHASE1_LOCAL_PRICE_MAX_AGE_DAYS)
+from data import etf_holdings
+from models.etf_lookthrough import lookthrough as etf_lookthrough, relative_to
 from data.price_store import mass_stop, stopped_trading
 from data.splits import adjust_for_ticker
 from data.news_tags import TAG_LABELS
@@ -1872,6 +1875,113 @@ def _drop_stopped_rows(rows, prices_dir, run_date):
             if not (isinstance(r, dict) and str(r.get('ticker')) in stopped)]
 
 
+def _load_prev_fv(out_dir, run_date, tickers, max_lookback=ETF_FV_CARRY_SNAPSHOTS):
+    """``{ticker: _fv_effective}`` — each of *tickers*' last non-null fair
+    value over the *max_lookback* snapshots before *run_date*, from the
+    snapshot store when it holds that window, else the JSON files."""
+    from data.snapshot_store import list_snapshot_files, read_snapshot
+    want = set(tickers)
+    if not want or run_date is None:
+        return {}
+    cur = run_date.isoformat()
+    dated = sorted(((d, p) for d, p in list_snapshot_files(out_dir) if d < cur),
+                   reverse=True)[:max_lookback]
+    if not dated:
+        return {}
+    store = _open_snapshot_store(out_dir)
+    if store is not None:
+        try:
+            with store:
+                have = store.dates(before=cur)[-len(dated):]
+                if have == sorted(d for d, _ in dated):
+                    _, rows, _ = store.last_known_rows(
+                        cur, ['_fv_effective'], max_lookback=len(dated),
+                        require='_fv_effective')
+                    return {t: r['_fv_effective'] for t, r in rows.items() if t in want}
+        except Exception as e:
+            print(f"[report_html] ETF prior fair values: store read failed, parsing JSON: {e}")
+    out = {}
+    for _, p in dated:
+        try:
+            recs = read_snapshot(p).get('results') or []
+        except Exception as e:
+            print(f"[report_html] ETF prior fair values: {p} unreadable: {e}")
+            continue
+        for rec in recs:
+            tk = rec.get('ticker') if isinstance(rec, dict) else None
+            if tk in want and tk not in out and rec.get('_fv_effective'):
+                out[tk] = rec['_fv_effective']
+        if len(out) == len(want):
+            break
+    return out
+
+
+def _holding_drift(prices_dir, as_of, run_date, tickers):
+    """``{ticker: Padj(run) / Padj(as_of)}`` for a holdings file older than
+    the run, so its weights move with prices as the fund's did."""
+    if not prices_dir or run_date is None or not as_of or as_of >= run_date.isoformat():
+        return {}
+    from data.price_store import asof_closes
+    closes = asof_closes(prices_dir, [as_of, run_date.isoformat()], tickers) or {}
+    a, b = closes.get(as_of) or {}, closes.get(run_date.isoformat()) or {}
+    return {t: b[t][1] / a[t][1] for t in tickers
+            if t in a and t in b and a[t][1] > 0}
+
+
+def _build_etf_payload(rows, out_dir, run_date, prices_dir=None, run_provenance=None,
+                       holdings_root=None):
+    """The SPDR look-through (models/etf_lookthrough.py) over the rendered
+    rows: ``{base, funds: {T: result}, sector_fund: {sector: T}}``, or None
+    when no holdings are archived or the run is coverage-degraded (missing
+    rows would move every fund's value). Also written to
+    ``etfs_<date>.json`` beside the report, the dated record of the read."""
+    cov = (run_provenance or {}).get('coverage') or {}
+    if cov.get('degraded'):
+        print("[report_html] ETF look-through skipped: run is coverage-degraded")
+        return None
+    root = holdings_root or os.environ.get('ETF_HOLDINGS_DIR') or os.path.join(out_dir, 'etf_holdings')
+    held = {}
+    for fund in etf_holdings.SPDR_FUNDS:
+        h = etf_holdings.load_holdings(root, fund, run_date)
+        if h:
+            held[fund] = h
+    if not held:
+        return None
+    by_tk = {r['ticker']: r for r in rows if isinstance(r, dict) and r.get('ticker')}
+    aliases = {a: r['ticker'] for r in by_tk.values() for a in (r.get('listing_aliases') or [])}
+    need = set()
+    for h in held.values():
+        for x in h['holdings']:
+            r = by_tk.get(aliases.get(x['ticker'], x['ticker']))
+            if r is not None and not r.get('_fv_effective'):
+                need.add(r['ticker'])
+    prev_fv = _load_prev_fv(out_dir, run_date, need)
+    funds = {}
+    for fund, h in held.items():
+        tks = sorted({aliases.get(x['ticker'], x['ticker']) for x in h['holdings']
+                      if x['ticker'] in by_tk or x['ticker'] in aliases})
+        funds[fund] = etf_lookthrough(h, by_tk, aliases, prev_fv,
+                                      _holding_drift(prices_dir, h['as_of'], run_date, tks))
+        funds[fund]['sector'] = etf_holdings.SPDR_FUNDS[fund]
+    relative_to(funds, base='SPY')
+    stale = sorted(f for f, h in held.items()
+                   if run_date is not None and h['as_of'] < run_date.isoformat())
+    ok = [f for f, r in funds.items() if r.get('status') == 'ok']
+    print(f"[report_html] ETF look-through: {len(ok)}/{len(funds)} funds read"
+          + (f", {len(prev_fv)} fair value(s) carried from prior snapshots" if prev_fv else '')
+          + (f"; holdings older than the run for {', '.join(stale)}" if stale else ''))
+    payload = {'base': 'SPY', 'funds': funds,
+               'sector_fund': {s: f for f, s in etf_holdings.SPDR_FUNDS.items() if s and f in funds}}
+    if run_date is not None:
+        path = os.path.join(out_dir, f'etfs_{run_date.isoformat()}.json')
+        tmp = path + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump({'date': run_date.isoformat(), **payload}, f,
+                      default=_json_default, separators=(',', ':'), sort_keys=True)
+        os.replace(tmp, path)
+    return payload
+
+
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None,
                macro_payload=None):
     """Render the interactive HTML report via Jinja2 template."""
@@ -1924,6 +2034,13 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
     sector_pool_data = _build_sector_pool_data(
         rows, (macro_payload or {}).get('sidecar'))
     sector_pool_json = dumps_for_script(sector_pool_data, default=_json_default)
+
+    try:
+        etf_payload = _build_etf_payload(rows, _out_dir_early, run_date, prices_dir,
+                                         run_provenance)
+    except Exception as e:  # display only: never fail a render over it
+        logger.warning("ETF look-through failed: %s", e, exc_info=True)
+        etf_payload = None
 
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
     # template lazy-fetches them on first chart open, so the embedded HTML
@@ -1978,6 +2095,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         gate_meta=gate_meta,
         portfolios_json=dumps_for_script(portfolios_payload, default=_json_default),
         sector_pool_json=sector_pool_json,
+        etf_json=dumps_for_script(_sanitize(etf_payload), default=_json_default),
         prices_available=('true' if prices_payload is not None else 'false'),
         prices_size_mb=prices_size_mb,
         hist_available=('true' if hist_tickers else 'false'),

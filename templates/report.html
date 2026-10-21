@@ -1285,7 +1285,7 @@ td.ct{font-weight:700;}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
-.pp-primer,.pp-today,.pp-structure,.pp-liquidity,.pp-signals,.pp-chart,.pp-history,.pp-shifts,.pp-econ{background:#f7f9fb;border-left:5px solid var(--hdr-bg);}
+.pp-primer,.pp-today,.pp-structure,.pp-liquidity,.pp-signals,.pp-chart,.pp-history,.pp-shifts,.pp-econ,.pp-etf{background:#f7f9fb;border-left:5px solid var(--hdr-bg);}
 .pp-primer .pp-section-label,
 .pp-today .pp-section-label,
 .pp-structure .pp-section-label,
@@ -1294,12 +1294,34 @@ td.ct{font-weight:700;}
 .pp-chart .pp-section-label,
 .pp-history .pp-section-label,
 .pp-shifts .pp-section-label,
-.pp-econ .pp-section-label{background:var(--hdr-bg);}
+.pp-econ .pp-section-label,
+.pp-etf .pp-section-label{background:var(--hdr-bg);}
 /* Combined sector-level Headwinds + Tailwinds block — two columns on
    desktop, stacked on mobile. Closes the Context arc, directly under the
    primer. */
 .pp-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
 @media(max-width:760px){.pp-signals-grid{grid-template-columns:1fr;gap:14px;}}
+/* Sector ETFs (renderEtfLookthrough / renderPoolEtf). */
+.etf-name{color:var(--ppf-sub);font-size:0.92em;margin-left:6px;}
+.etf-rel{display:flex;align-items:center;gap:8px;min-width:150px;}
+.etf-rel-bar{position:relative;flex:1;height:10px;min-width:80px;background:var(--ppf-line);border-radius:2px;}
+.etf-rel-bar .z{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--ppf-sub);}
+.etf-rel-bar .f{position:absolute;top:0;bottom:0;border-radius:2px;}
+.etf-rel-bar .f.pos{background:var(--ppf-tw);}.etf-rel-bar .f.neg{background:var(--ppf-hw);}
+.etf-rel-bar .bd{position:absolute;top:-3px;bottom:-3px;border:1px solid var(--ppf-txt);opacity:.45;border-radius:2px;}
+.etf-mix{display:flex;height:10px;min-width:90px;border-radius:2px;overflow:hidden;background:var(--ppf-line);}
+.etf-mix i{display:block;height:100%;}
+.etf-sel td{background:var(--ppi-bg);}
+.etf-detail{margin-top:14px;border-top:1px solid var(--ppf-line);padding-top:12px;color:var(--ppf-txt);}
+.pp-etf .etf-detail{margin-top:0;border-top:0;padding-top:0;}
+.etf-detail h4{margin:0 0 6px;font-size:0.92em;}
+.etf-detail p{margin:4px 0 8px;font-size:0.82em;line-height:1.5;}
+.etf-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+.etf-pull{font-size:0.8em;line-height:1.7;}
+.etf-pull b{font-variant-numeric:tabular-nums;}
+.etf-note{font-size:0.74em;color:var(--ppf-sub);margin-top:8px;line-height:1.5;}
+.etf-st{font-size:0.85em;color:var(--ppf-sub);}
+@media (max-width:768px){.etf-sm-hide{display:none;}.etf-rel{min-width:120px;}}
 :root{--ppf-tw:#1e7d45;--ppf-hw:#c0392b;--ppf-q:#90a4ae;--ppf-line:#e3e8ee;--ppf-sub:#607d8b;--ppf-bg:#fff;--ppf-txt:#263238;}
 [data-theme="dark"]{--ppf-tw:#3fb950;--ppf-hw:#f85149;--ppf-q:#6e7681;--ppf-line:#30363d;--ppf-sub:#8b949e;--ppf-bg:#1c2128;--ppf-txt:#e6edf3;}
 /* Sector forces (renderPoolSectorSignals): one row per force, a plain-word
@@ -1391,7 +1413,8 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-chart,
 [data-theme="dark"] .pp-history,
 [data-theme="dark"] .pp-shifts,
-[data-theme="dark"] .pp-econ{background:#161b22;border-left-color:#c9d1d9;}
+[data-theme="dark"] .pp-econ,
+[data-theme="dark"] .pp-etf{background:#161b22;border-left-color:#c9d1d9;}
 [data-theme="dark"] .pp-section-label{background:var(--hdr-bg) !important;}
 /* Pool history (pp-history) and share shifts (pp-shifts): the sector's pool
    over the last decade, from models/sector_pool.py. Marks are classed so dark
@@ -3835,6 +3858,10 @@ var RUN_DATE='{{ run_date_iso }}';
    the column matches the visual width of its peers. */
 if(GM&&GM.gates){for(var _gi=0;_gi<GM.gates.length;_gi++){if(GM.gates[_gi].label==='Price/FV')GM.gates[_gi].label='P/FV';}}
 var SECTOR_POOL={{ sector_pool_json }};
+/* SPDR look-through (models/etf_lookthrough.py, built at render time by
+   report_html._build_etf_payload): {base, funds:{T:{...}}, sector_fund}.
+   null when no holdings are archived or the run is coverage-degraded. */
+var ETF_LT={{ etf_json }};
 /* PRICES context lives in prices_meta.json (dates axis, manifests, index
    series, sector composites) with per-ticker closes sharded under px/;
    HIST is sharded per ticker under hist/ (the inline _HIST_TICKERS says
@@ -13632,6 +13659,112 @@ function _ppEpRows(list,cls,maxV){
       +'</div>';
   }).join('');
 }
+/* === SECTOR ETFs ===
+   Each SPDR read through the model: V = sum of weight x FV/P over its
+   holdings (clipped to [1/3, 3]), shown relative to SPY because the model's
+   absolute read is mostly its market-wide bias. Display only — no rating. */
+var _etfSel=null;
+/* A sector SPDR's name only repeats its Sector column; the broad funds
+   keep their index (S&P 500, Dow Jones Industrial Average, S&P MidCap 400). */
+function _etfShort(r){
+  if(r.sector)return '';
+  return String(r.fund_name||'').replace(/State Street®?\s*/i,'').replace(/®/g,'').replace(/^SPDR\s+/i,'').replace(/\s+ETF( Trust)?$/i,'').replace(/\s+Trust$/i,'').trim();
+}
+/* The bar spans the widest read across the funds (at least ±20%), so a
+   typical −8%..+40% spread is legible. */
+function _etfScale(){
+  var m=0.2;
+  Object.keys(ETF_LT.funds).forEach(function(t){var r=ETF_LT.funds[t];if(r.status==='ok')m=Math.max(m,Math.abs(r.rel_lo),Math.abs(r.rel_hi));});
+  return m;
+}
+function _etfPct(v,d){return v==null||!isFinite(v)?'—':(v>=0?'+':'−')+Math.abs(v*100).toFixed(d==null?0:d)+'%';}
+function _etfRelBar(r){
+  if(r.status!=='ok')return '<span class="etf-st">'+_esc(r.reason||'not enough data')+'</span>';
+  /* The outlined box is the missing-fair-value band. */
+  var S=_etfScale(),pos=function(v){return 50+Math.max(-1,Math.min(1,v/S))*50;};
+  var a=pos(0),b=pos(r.rel),lo=pos(r.rel_lo),hi=pos(r.rel_hi);
+  var f='<i class="f '+(r.rel>=0?'pos':'neg')+'" style="left:'+Math.min(a,b).toFixed(1)+'%;width:'+Math.abs(b-a).toFixed(1)+'%"></i>';
+  var bd=hi-lo>0.6?'<i class="bd" style="left:'+lo.toFixed(1)+'%;width:'+(hi-lo).toFixed(1)+'%"></i>':'';
+  return '<span class="etf-rel"><span class="etf-rel-bar"><i class="z"></i>'+f+bd+'</span><b>'+(r.fund===ETF_LT.base?'base':_etfPct(r.rel))+'</b></span>';
+}
+function _etfMix(m){
+  m=m||{};var h='',t='';
+  ['BUY','LEAN BUY','HOLD','PASS'].forEach(function(k){var w=m[k]||0;if(w>0){h+='<i style="width:'+(w*100).toFixed(1)+'%;background:'+RC[k]+'"></i>';t+=k+' '+(w*100).toFixed(0)+'%  ';}});
+  return '<span class="etf-mix" title="'+_attr(t.trim()+' of weight')+'">'+h+'</span>';
+}
+function _etfPullList(arr){
+  if(!arr||!arr.length)return '<div class="etf-pull">—</div>';
+  return '<div class="etf-pull">'+arr.map(function(e){
+    return '<a href="#" data-tk="'+_attr(e.t)+'" onclick="event.preventDefault();openDet(this.dataset.tk)">'+_esc(e.t)+'</a> '
+      +'<span class="etf-name">'+(e.w*100).toFixed(1)+'% at FV/P '+(e.fvp==null?'—':e.fvp.toFixed(2))+'</span> <b title="Moves the fund\u2019s value per $1 of price by this much">'+_etfPct(e.c,1)+'</b>';
+  }).join('<br>')+'</div>';
+}
+/* One fund in full: what it reads, why, and what is in it. */
+function _etfDetail(r){
+  var base=ETF_LT.funds[ETF_LT.base];
+  var h='<div class="etf-detail">';
+  if(r.status!=='ok'){
+    return h+'<p><b>'+_esc(r.fund)+'</b> is not read: '+_esc(r.reason||'not enough data')+'.</p></div>';
+  }
+  var lead=r.fund===ETF_LT.base
+    ?'<b>'+r.fund+'</b> is the base the others are measured against. On the model\'s fair values it reads <b>'+_etfPct(r.mos)+'</b> margin of safety: the model values the market as a whole below its price, so the absolute figure says more about the model than about any one fund.'
+    :'<b>'+r.fund+'</b> reads <b>'+_etfPct(r.rel)+'</b> against '+ETF_LT.base+' on the model\'s fair values'
+      +(r.rel_hi-r.rel_lo>0.005?' (<b>'+_etfPct(r.rel_lo)+'</b> to <b>'+_etfPct(r.rel_hi)+'</b> depending on how its holdings without a fair value are counted)':'')
+      +'. Its own margin of safety is '+_etfPct(r.mos)+', against '+_etfPct(base&&base.mos)+' for '+ETF_LT.base+'.';
+  h+='<p>'+lead+'</p><div class="etf-cols">'
+    +'<div><h4>Pulling value up</h4>'+_etfPullList(r.lifts)+'</div>'
+    +'<div><h4>Pulling value down</h4>'+_etfPullList(r.drags)+'</div>'
+    +'<div><h4>Rating mix by weight</h4>'+_etfMix(r.rating_mix)+'<div class="etf-pull">'
+      +['BUY','LEAN BUY','HOLD','PASS'].map(function(k){return k+' '+(((r.rating_mix||{})[k]||0)*100).toFixed(0)+'%';}).join(' · ')+'</div></div>'
+    +'</div>';
+  h+='<div class="ppi-wrap"><table class="ppi-tbl"><thead><tr><th>Top holdings</th><th>Weight</th><th>FV/P</th><th>Rating</th></tr></thead><tbody>';
+  (r.top||[]).forEach(function(e){
+    var st=e.st==='carried'?' (carried)':e.st==='missing'?' (no fair value)':e.st==='unmatched'?' (not in the model)':'';
+    h+='<tr'+(e.r?' class="ppi-co" data-tk="'+_attr(e.t)+'" onclick="openDet(this.dataset.tk)"':'')+'><td>'+_esc(e.t||'')+'<span class="etf-name">'+_esc(e.n||'')+'</span></td>'
+      +'<td>'+(e.w*100).toFixed(1)+'%</td><td>'+(e.fvp==null?'—':e.fvp.toFixed(2))+_esc(st)+'</td>'
+      +'<td>'+(e.r?'<span class="ppi-rt" style="background:'+(RC[e.r]||'#90a4ae')+'"></span>'+_esc(e.r):'—')+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+  var notes=[(r.valued_w*100).toFixed(1)+'% of weight has a fair value'];
+  if(r.carried_w>0.0005)notes.push((r.carried_w*100).toFixed(1)+'% carried from the last snapshot that had one');
+  if(r.missing_w>0.0005)notes.push((r.missing_w*100).toFixed(1)+'% has none');
+  if(r.unmatched_w>0.0005)notes.push((r.unmatched_w*100).toFixed(1)+'% is not in the model and is left out');
+  if(r.clipped_w>0.0005)notes.push((r.clipped_w*100).toFixed(1)+'% sits at the FV/P limits of ⅓ or 3');
+  h+='<div class="etf-note">'+notes.join('; ')+'. Holdings as of '+_esc(r.as_of||'?')+' ('+r.n_holdings+' lines, SSGA). Display only: no fund is rated.</div>';
+  return h+'</div>';
+}
+function _etfPick(t){_etfSel=t;var el=document.getElementById('etf-lt');if(el)el.outerHTML=renderEtfLookthrough();}
+/* Sector Analysis › Charts: every fund, best relative value first. */
+function renderEtfLookthrough(){
+  if(!ETF_LT||!ETF_LT.funds)return '';
+  var F=ETF_LT.funds,base=F[ETF_LT.base];
+  var ids=Object.keys(F).sort(function(a,b){
+    var x=F[a],y=F[b];
+    return (y.status==='ok')-(x.status==='ok')||((y.rel==null?-9:y.rel)-(x.rel==null?-9:x.rel));
+  });
+  if(!_etfSel||!F[_etfSel])_etfSel=ETF_LT.base in F?ETF_LT.base:ids[0];
+  var h='<div class="xsect-dashboard" id="etf-lt">'
+    +_qHelp('<span class="note-q-t">Each fund is valued as the sum of its holdings’ fair values per dollar of price (FV/P, each held to between ⅓ and 3). Because the model values the market as a whole below its price, the fund is compared with '+ETF_LT.base+' rather than read on its own. The outlined box is the range between counting holdings with no fair value at FV/P 1 and at ⅓. A holding that lost its fair value today keeps its last one from the previous week.</span>','How to read this','corner')
+    +'<div class="xsect-title">Sector ETFs Through the Model</div>'
+    +'<div class="xsect-sub">The SPDRs valued from the companies they hold. '+(base&&base.status==='ok'?ETF_LT.base+' itself reads '+_etfPct(base.mos)+' on the model. ':'')+'Tap a fund for its holdings.</div>'
+    +'<div class="ppi-wrap"><table class="ppi-tbl"><thead><tr><th>Fund</th><th class="etf-sm-hide">Sector</th><th>Value vs '+ETF_LT.base+'</th><th>Model MoS</th><th>Rating mix</th><th>Has fair value</th></tr></thead><tbody>';
+  ids.forEach(function(t){
+    var r=F[t];
+    h+='<tr class="ppi-co'+(t===_etfSel?' etf-sel':'')+'" data-tk="'+_attr(t)+'" onclick="_etfPick(this.dataset.tk)" title="'+_attr(r.fund_name||t)+'">'
+      +'<td><b>'+_esc(t)+'</b><span class="etf-name">'+_esc(_etfShort(r))+'</span></td>'
+      +'<td class="etf-sm-hide">'+_esc(r.sector||'Broad')+'</td><td>'+_etfRelBar(r)+'</td>'
+      +'<td>'+(r.status==='ok'?_etfPct(r.mos):'—')+'</td><td>'+_etfMix(r.rating_mix)+'</td>'
+      +'<td>'+(r.valued_w!=null?(r.valued_w*100).toFixed(0)+'%':'—')+'</td></tr>';
+  });
+  h+='</tbody></table></div>'+_etfDetail(F[_etfSel])+'</div>';
+  return h;
+}
+/* A sector page's Value creation tab: its own SPDR. */
+function renderPoolEtf(sec){
+  var t=ETF_LT&&ETF_LT.sector_fund&&ETF_LT.sector_fund[sec];
+  var r=t&&ETF_LT.funds[t];
+  return r?_etfDetail(r):'';
+}
 function renderPoolEcon(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec],e=n&&n.economic;
   if(!e)return '';
@@ -15286,7 +15419,8 @@ function renderPool(){
         +_qHelp('<span class="note-q-t">Bar width is revenue share, height is operating margin, so area is roughly operating profit. Bars run in order of margin, and shares recompute among the sectors shown in the \u2630 menu.</span>','How to read the chart','corner')
         +'<div class="xsect-title">Cross-Sector Profit Pool</div>'
         +'<div class="xsect-sub">Operating profit by sector; tap a bar to open it.</div>'
-        +poolBody+'</div>':'');
+        +poolBody+'</div>':'')
+      +renderEtfLookthrough();
   }
   toRender.forEach(function(sec){
     var cos=sectors[sec];if(!cos||!cos.length)return;
@@ -15373,6 +15507,7 @@ function renderPool(){
     var historyHtml=renderPoolHistory(sec);
     var shiftsHtml=renderPoolShifts(sec);
     var econHtml=renderPoolEcon(sec);
+    var etfHtml=renderPoolEtf(sec);
     var liquidityHtml=renderPoolLiquidityInsights(sec);
 
     /* --- A. Context ------------------------------------------------- */
@@ -15415,6 +15550,10 @@ function renderPool(){
     if(econHtml){
       chartHtml+='<div data-pane="value" class="pp-section pp-econ"><span class="pp-section-label">Accounting vs Economic Pool</span>'+econHtml+'</div>';
     }
+    /* And the sector's SPDR read through the model, beside it. */
+    if(etfHtml){
+      chartHtml+='<div data-pane="value" class="pp-section pp-etf"><span class="pp-section-label">'+_esc(ETF_LT.sector_fund[sec])+' Through the Model</span>'+etfHtml+'</div>';
+    }
 
     /* --- Flow ------------------------------------------------------- */
     if(liquidityHtml){
@@ -15425,7 +15564,7 @@ function renderPool(){
        section tabs; the card holds the chosen pane. */
     var _tabs=_ppSubTabs(chartHtml.slice(_bodyStart),{
       overview:!!(primerHtml||todayHtml),forces:!!signalsHtml,pool:true,history:!!(historyHtml||shiftsHtml),
-      value:!!econHtml,flow:!!liquidityHtml});
+      value:!!(econHtml||etfHtml),flow:!!liquidityHtml});
     chartHtml=chartHtml.slice(0,_secStart)+_tabs.bar+chartHtml.slice(_secStart,_bodyStart)+_tabs.body;
     chartHtml+='</div>';
     /* Per-sector summary tableRows removed: rows were only built when a
