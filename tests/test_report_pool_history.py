@@ -632,3 +632,12 @@ def test_wind_rows_drill_to_the_gate_matrix(tmp_path):
     out = _render_outlook({'Technology': {'forces': forces}}, tmp_path, data=data)
     assert 'See the 4 Technology companies in the Gate Matrix ›' in out
     assert 'data-from="Broad Sector Outlook" data-sec="Technology" data-ind=""' in out
+
+
+def test_stacked_wind_rows_indent_the_heading_under_the_status():
+    """On phones a wind row stacks; its heading and bullets step in to the
+    status word (after the 9px dot and 6px gap) in every section, which
+    all share the .ppf row."""
+    src = TEMPLATE.read_text(encoding='utf-8')
+    assert ('@media(max-width:520px){.ppf-hdr{grid-template-columns:minmax(0,1fr);}'
+            '.ppf-th{padding-left:15px;}.ppf-ul{margin-left:15px;}}') in src
