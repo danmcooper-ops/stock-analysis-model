@@ -193,7 +193,7 @@ def _render_signals(entry, tmp_path, stored=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
              '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
-             '_ppfCard', '_ppfLive', '_ppfCollapsedState', '_ppfCol', '_qHelp',
+             '_ppfCard', '_ppfLive', '_windState', '_windGroup', '_ppfColSum', '_ppfCol', '_qHelp',
              '_noteQ', 'renderPoolSectorSignals']
     consts = '\n'.join(re.search(r'^var %s=.*$' % v, src, re.M).group(0)
                        for v in ('_PPF_ST', '_PPF_ORDER', '_PPF_TYPE'))
@@ -218,16 +218,16 @@ def test_forces_read_as_bulleted_rows_with_plain_word_statuses(tmp_path):
     side['sector_data'] = {'Real Estate': {'etf': 'XLRE', 'rs_3m': -0.10, 'rs_6m': -0.17}}
     html = _render_signals({'forces': evaluate_forces('Real Estate', side, {})}, tmp_path)
     tw, hw = html.split('>▼ Headwinds<')
-    assert html.count('<div class="ppf ppf-') == 6
+    assert html.count('<div class="ppf wind-row ppf-') == 6
     assert 'ppf-st ppf-active"><i class="ppf-dot"></i>Acting now' in hw
     assert 'ppf-st ppf-dormant"><i class="ppf-dot"></i>Not acting' in tw
     assert 'Not measured' in html and 'Qualitative' not in html
-    card = hw.split('Interest-rate sensitivity')[1].split('<div class="ppf ppf-')[0]
+    card = hw.split('class="ppf-th">Interest-rate sensitivity')[1].split('<div class="ppf wind-row ppf-')[0]
     assert '<ul class="ppf-ul"><li><b>Evidence:</b> Test series 5.38%' in card
     assert '<polyline' in card and '<b>Why it matters:</b> Cap rates' in card
     assert 'XLRE has trailed the market by 10.0% over 3 months' in html
     assert '▲ Tailwinds<span>· 0 of 3 acting</span>' in tw and '· 1 of 3 acting</span>' in hw
-    assert 'class="ppf-colh wind-h tw wind-up"' in tw   # the report's one wind header
+    assert 'class="wind-h wind-up"' in tw   # the report's one wind header
     assert 'Acting now: the evidence is strong and holding' in html       # the key
     # ...behind the section's one ?, with the method, not a band above the lists
     assert 'ppf-keyrow' not in html and html.count('class="qhelp-btn"') == 1
@@ -267,7 +267,7 @@ def test_force_cards_show_reach_and_who_feels_it(tmp_path):
     res = evaluate_forces('Real Estate', side, {}, _re_rows())
     html = _render_signals({'forces': res}, tmp_path)
     assert 'Headwinds outweigh tailwinds' in html
-    card = html.split('Interest-rate sensitivity')[1].split('class="ppf ppf-')[0]
+    card = html.split('class="ppf-th">Interest-rate sensitivity')[1].split('class="ppf wind-row ppf-')[0]
     assert 'of sector' not in card                                         # reach only once
     assert card.count('<b>Reach:</b>') == 1
     assert '<li><b>Most exposed</b> (the highest net debt / EBITDA)' in card
@@ -292,7 +292,7 @@ def test_an_industry_force_names_its_industry_once(tmp_path):
     rows = [dict(_flat(t, YEARS, 100 + i, 0.2, 0.08), industry='Software - Infrastructure', sector='Technology')
             for i, t in enumerate(('MSFT', 'ORCL', 'X'))]
     html = _render_signals({'forces': evaluate_forces('Technology', None, _entry(0.14), rows)}, tmp_path)
-    card = html.split('Software dollar share keeps rising')[1].split('<div class="ppf ppf-')[0]
+    card = html.split('class="ppf-th">Software dollar share keeps rising')[1].split('<div class="ppf wind-row ppf-')[0]
     assert card.count('Software - Infrastructure') == 1
     assert '<b>Who gains:</b> 3 companies' in card
 
@@ -361,37 +361,40 @@ def test_company_table_value_over_pool(tmp_path):
     assert others.endswith('<td>0.25\u00d7</td>')                     # 5% of value / 20% of pool
 
 
-def test_columns_start_collapsed_and_each_heading_toggles_its_force(tmp_path):
-    """The Drivers columns open collapsed — one line per force, status and
-    name — unless this browser expanded one; every force's heading is a
-    button for its own bullets; a column header still toggles the column."""
+def test_drivers_use_the_reports_wind_group_and_each_heading_toggles_its_force(tmp_path):
+    """Each Drivers kind is the report's one wind group (_windGroup): open
+    unless this browser folded it, with a one-sentence summary for when it
+    is; every force's heading is a button for its own bullets, closed."""
     from models.sector_forces import evaluate_forces
     from tests.test_sector_forces import _sidecar
     side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
     forces = {'forces': evaluate_forces('Real Estate', side, {})}
     html = _render_signals(forces, tmp_path)
-    assert html.count('onclick="_ppfToggleCol(this)"') == 2
-    assert '<div class="ppf-colwrap ppf-collapsed" data-kind="tailwind">' in html
-    assert '<div class="ppf-colwrap ppf-collapsed" data-kind="headwind">' in html
+    assert html.count('onclick="_windToggle(this)"') == 2
+    assert '<div class="wind-grp" data-wk="drivers:tailwind">' in html
+    assert '<div class="wind-grp" data-wk="drivers:headwind">' in html
+    assert '<div class="wind-sum">None of its 3 tailwinds is acting.</div>' in html
+    assert 'Interest-rate sensitivity and tenant-credit risk is acting now.</div>' in html
     heads = html.count('class="ppf-hdr" role="button"')
     assert heads == html.count('<ul class="ppf-ul">') == 6
     assert html.count('aria-expanded="false" onclick="_ppfToggleOne(this)"') == 6
-    # the bullets are still in the page (CSS hides them), so opening is instant
-    opened = _render_signals(forces, tmp_path, stored={'headwind': False})
-    assert '<div class="ppf-colwrap" data-kind="headwind">' in opened
-    assert '<div class="ppf-colwrap ppf-collapsed" data-kind="tailwind">' in opened
-    assert opened.split('data-kind="headwind"')[1].count('aria-expanded="true" onclick="_ppfToggleOne') == 3
+    folded = _render_signals(forces, tmp_path, stored={'drivers:headwind': True})
+    assert '<div class="wind-grp wind-shut" data-wk="drivers:headwind">' in folded
+    assert '<div class="wind-grp" data-wk="drivers:tailwind">' in folded
 
 
-def test_force_heading_and_column_toggles_cooperate():
+def test_wind_group_and_force_toggles():
     css = TEMPLATE.read_text(encoding='utf-8')
-    assert ('.ppf-collapsed .ppf:not(.ppf-open) .ppf-ul,.ppf-collapsed .ppf:not(.ppf-open) .ppf-meta,'
-            '.ppf.ppf-shut .ppf-ul,.ppf.ppf-shut .ppf-meta{display:none;}') in css
+    assert '.ppf:not(.ppf-open) .ppf-ul,.ppf:not(.ppf-open) .ppf-meta{display:none;}' in css
+    assert '.wind-shut .wind-body{display:none;}' in css and '.wind-shut .wind-sum{display:block;}' in css
     one = _fn(css, '_ppfToggleOne')
-    assert "card.classList.toggle('ppf-open')" in one and "card.classList.toggle('ppf-shut')" in one
-    col = _fn(css, '_ppfToggleCol')
-    assert "c.classList.remove('ppf-open','ppf-shut')" in col
-    assert "var shut=_ppfCollapsedState()[kind]!==false;" in css
+    assert "classList.toggle('ppf-open')" in one
+    tog = _fn(css, '_windToggle')
+    assert "localStorage.setItem('stock_wind_shut_v1'" in tog
+    # the ticker page uses the same group
+    assert "_windGroup({scope:'ticker',k:'tailwind'" in css and "_windGroup({scope:'ticker',k:'headwind'" in css
+
+
 def _sort_rows(html, col, desc=True, numeric=True):
     """Apply _ppiSort's ordering rule to a rendered table (Node has no DOM):
     rows by the column's data-v, blanks last, pinned rows at the bottom."""
@@ -494,7 +497,7 @@ def test_both_charts_use_round_ticks_and_label_their_latest_value(tmp_path):
 def _render_outlook(pool, tmp_path, macro=None, stored=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     consts = re.search(r'^var _SO_SUM=.*$', src, re.M).group(0)
-    names = ['_soDominant', '_soHealth', '_soLine', '_soNarr', '_qHelp', '_soShutState', '_soGroupSummary', 'renderSectorOutlook']
+    names = ['_soDominant', '_soHealth', '_soLine', '_soNarr', '_qHelp', '_windState', '_windGroup', '_soGroupSummary', 'renderSectorOutlook']
     js = '\n'.join(['function _esc(s){return String(s);}function _attr(s){return String(s);}',
                     'var MACRO_SUM=' + json.dumps(macro) + ';var MACRO=null;',
                     'var localStorage={getItem:function(){return %s;}};' % json.dumps(json.dumps(stored)),
@@ -551,16 +554,16 @@ def test_sector_outlook_groups_by_the_macro_stance(tmp_path):
         {'sector': 'Utilities', 'stance': 'headwind', 'influence': 'U'},
         {'sector': 'Energy', 'stance': '<script>'}]}}
     html = _render_outlook(pool, tmp_path, macro)
-    assert html.count('aria-expanded="true" onclick="_soGrpToggle(this)"') == 3
-    assert 'class="so-gh wind-h wind-up"' in html and 'class="so-gh wind-h wind-down"' in html
-    assert 'class="so-gh wind-h" ' in html
-    assert 'so-shut' not in html, 'groups start open'
-    folded = _render_outlook(pool, tmp_path, macro, stored={'down': True})
+    assert html.count('aria-expanded="true" onclick="_windToggle(this)"') == 3
+    assert 'class="wind-h wind-up"' in html and 'class="wind-h wind-down"' in html
+    assert 'class="wind-h" ' in html
+    assert 'wind-shut' not in html, 'groups start open'
+    folded = _render_outlook(pool, tmp_path, macro, stored={'outlook:down': True})
     # each group carries its one-sentence summary (CSS shows it only folded)
-    assert '<div class="so-gsum">No force is acting in Healthcare.</div>' in html
-    assert '<div class="so-gsum">No force is acting in Energy and Technology.</div>' in html
-    assert folded.count('so-shut') == 1 and 'so-g-down so-shut" data-k="down"' in folded
-    up, rest = html.split('▲ Macro tailwind<span>· 1</span>')[1].split('● Macro neutral<span>· 2</span>')
+    assert '<div class="wind-sum">No force is acting in Healthcare.</div>' in html
+    assert '<div class="wind-sum">No force is acting in Energy and Technology.</div>' in html
+    assert folded.count('wind-shut') == 1 and '<div class="wind-grp wind-shut" data-wk="outlook:down">' in folded
+    up, rest = html.split('▲ Macro tailwind<span>· 1</span>')[1].split('Macro neutral<span>· 2</span>')
     flat, down = rest.split('▼ Macro headwind<span>· 1</span>')
     assert 'Healthcare' in up and 'data-i="0"' in up and 'onclick="_soToggle(this)"' in up
     assert '>Energy<i>' in flat and '>Technology<i>' in flat   # unknown stance, absent

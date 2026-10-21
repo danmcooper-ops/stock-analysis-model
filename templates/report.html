@@ -1107,10 +1107,6 @@ td.ct{font-weight:700;}
 .sig-wrap{margin:0;}
 .sig-title{font-size:0.82em;font-weight:700;color:#333;margin-bottom:8px;}
 .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
-.sig-hw,.sig-tw{font-size:0.82em;line-height:1.55;color:#37474f;}
-.sig-hw .wind-h,.sig-tw .wind-h{margin-bottom:6px;}
-.sig-hw ul,.sig-tw ul{margin:0;padding-left:16px;}
-.sig-hw li,.sig-tw li{margin-bottom:4px;}
 #d-news a:hover{text-decoration:underline;}
 /* News list. Real classes rather than more inline styles, so the dark-mode
    rules below can hook a selector instead of another [style*=] substring
@@ -1222,7 +1218,7 @@ td.ct{font-weight:700;}
 .d-titled .d-gate-values{margin:0;}
 .d-titled:has(.d-kmetrics:empty),.d-titled:has(.d-gate-values:empty){display:none;}
 .dgroup-title{font-size:0.75em;text-transform:uppercase;letter-spacing:0.09em;font-weight:700;padding:10px 16px;display:flex;align-items:center;gap:9px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.2);}
-.dgroup-title .dg-icon{width:14px;height:14px;border-radius:3px;display:inline-block;background:rgba(255,255,255,0.35);flex-shrink:0;}
+.dgroup-title .dg-icon{display:none;}  /* titles carry no bullet or icon */
 .dgrid-inner{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 16px;background:#fff;}
 @media(max-width:700px){.dgrid-inner{grid-template-columns:1fr;}}
 .dsec{background:#f5f8ff;border-radius:9px;padding:12px 14px;border:1px solid #dde5f5;}
@@ -1285,7 +1281,6 @@ td.ct{font-weight:700;}
 .pp-section{padding:16px 20px;border-bottom:1px solid #e0e5eb;position:relative;}
 .pp-section:last-child{border-bottom:none;}
 .pp-section-label{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:0.8em;letter-spacing:0.14em;text-transform:uppercase;padding:8px 16px 8px 14px;border-radius:4px;margin:0 0 14px;color:var(--hdr-fg);position:relative;}
-.pp-section-label::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.85);box-shadow:0 0 0 2px rgba(255,255,255,0.25);}
 .pp-section-label::after{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:4px 0 0 4px;background:rgba(0,0,0,0.22);}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
@@ -1349,15 +1344,13 @@ td.ct{font-weight:700;}
 .ppf-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;}
 @media(max-width:760px){.ppf-cols{grid-template-columns:minmax(0,1fr);gap:16px;}}
 .ppf-chev{display:inline-block;width:0;height:0;margin:0 7px 1px 1px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid currentColor;transition:transform 0.15s;}
-.ppf-collapsed .ppf-chev{transform:rotate(-90deg);}
-.ppf-collapsed .ppf:not(.ppf-open) .ppf-ul,.ppf-collapsed .ppf:not(.ppf-open) .ppf-meta,.ppf.ppf-shut .ppf-ul,.ppf.ppf-shut .ppf-meta{display:none;}
-.ppf-collapsed .ppf{padding:6px 2px;}
+.ppf:not(.ppf-open) .ppf-ul,.ppf:not(.ppf-open) .ppf-meta{display:none;}
 /* Each force's heading opens or closes its own bullets (_ppfToggleOne). */
 .ppf-hdr[role=button]{cursor:pointer;}
 .ppf-hdr[role=button]:focus-visible{outline:2px solid var(--ppf-sub);outline-offset:2px;border-radius:3px;}
 .ppf-fchev{display:inline-block;width:0;height:0;margin:0 0 1px 6px;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--ppf-sub);transition:transform 0.15s;vertical-align:middle;}
 .ppf-hdr[aria-expanded="false"] .ppf-fchev{transform:rotate(-90deg);}
-.ppf{border-bottom:1px solid var(--ppf-line);font-size:0.82em;line-height:1.5;color:var(--ppf-txt);padding:10px 2px;}
+.ppf{font-size:0.82em;line-height:1.5;color:var(--ppf-txt);}
 .ppf-hdr{display:grid;grid-template-columns:96px minmax(0,1fr);gap:2px 10px;align-items:baseline;}
 .ppf-st{display:inline-flex;align-items:center;gap:6px;font-size:0.9em;font-weight:600;white-space:nowrap;color:var(--ppf-sub);}
 .ppf-dot{flex:none;width:9px;height:9px;border-radius:50%;border:2px solid var(--ppf-q);box-sizing:border-box;}
@@ -1653,7 +1646,6 @@ td.ct{font-weight:700;}
 .so-read{margin:6px 0 2px;padding:2px 0 0 10px;border-left:2px solid rgba(127,127,127,0.35);font-size:0.82em;line-height:1.5;}
 .so-read p{margin:2px 0;}
 .so-kick{font-style:italic;font-weight:600;}
-.so-grp+.so-grp{margin-top:14px;}
 /* One header for every tailwind/headwind section in the report (the
    Broad Sector Outlook's groups, a sector's Drivers columns, the ticker
    page's Headwinds & Tailwinds, the Macro balance): a coloured uppercase
@@ -1669,17 +1661,23 @@ button.wind-h{cursor:pointer;}
 [data-theme="dark"] .wind-h{border-bottom-color:#30363d;}
 [data-theme="dark"] .wind-h.wind-up,[data-theme="dark"] .wind-h.wind-up *{color:#3fb950 !important;}
 [data-theme="dark"] .wind-h.wind-down,[data-theme="dark"] .wind-h.wind-down *{color:#f85149 !important;}
-/* The ticker page's headwinds column forces white text by id; its header
-   keeps the wind colour. */
-[data-theme="dark"] #d-sector-signals .sig-hw .wind-h,[data-theme="dark"] #d-sector-signals .sig-hw .wind-h *{color:#f85149 !important;}
 [data-theme="dark"] .wind-h.wind-up{border-bottom-color:#3fb950;}
 [data-theme="dark"] .wind-h.wind-down{border-bottom-color:#f85149;}
-.so-shut .wind-h .ppf-chev{transform:rotate(-90deg);}
-.so-shut .so-list{display:none;}
-.so-gsum{display:none;font-size:0.8em;line-height:1.45;color:#64748b;margin:6px 0 2px;}
-.so-shut .so-gsum{display:block;}
-[data-theme="dark"] .so-gsum{color:#8b949e !important;}
-.so-shut .wind-h{margin-bottom:0;}
+/* One tailwind/headwind group everywhere (_windGroup): the header folds
+   the group, a folded group shows its one-sentence summary instead, and
+   its rows share one layout (.wind-row). */
+.wind-grp+.wind-grp{margin-top:14px;}
+.ppf-cols>.wind-grp,.sig-grid>.wind-grp{margin-top:0;}
+.wind-sum{display:none;font-size:13px;line-height:1.45;color:#64748b;margin:6px 0 2px;}
+.wind-shut .wind-sum{display:block;}
+.wind-shut .wind-body{display:none;}
+.wind-shut .wind-h{margin-bottom:0;}
+.wind-shut .wind-h .ppf-chev{transform:rotate(-90deg);}
+.wind-list{list-style:none;margin:0;padding:0;}
+.wind-row{padding:10px 0;border-top:1px solid rgba(127,127,127,0.18);}
+.wind-row:first-child{border-top:none;}
+.wind-list .wind-row{font-size:13.5px;line-height:1.5;}
+[data-theme="dark"] .wind-sum{color:#8b949e !important;}
 [data-theme="dark"] .so-sec{color:#e6edf3 !important;}
 [data-theme="dark"] .so-sec i{color:#58a6ff !important;}
 [data-theme="dark"] .so-pill{background:#21262d;color:#8b949e !important;}
@@ -1947,7 +1945,6 @@ button.wind-h{cursor:pointer;}
 [data-theme="dark"] .rcw-up .rcw-hdr{color:#5cbf7d;}
 [data-theme="dark"] .rcw-dn .rcw-hdr{color:#e57368;}
 [data-theme="dark"] .utx,[data-theme="dark"] .sig-title{color:#c9d1d9;}
-[data-theme="dark"] .sig-hw *{color:#fff;}
 [data-theme="dark"] .ps-col{background:#1c2128;border-color:#30363d;}
 [data-theme="dark"] .ps-col h3{color:#58a6ff;border-color:#30363d;}
 [data-theme="dark"] .ps-tk{color:#e6edf3;}
@@ -2058,8 +2055,7 @@ button.wind-h{cursor:pointer;}
 [data-theme="dark"] .fpop-panel,[data-theme="dark"] .fpop-panel *,[data-theme="dark"] .ms-drop,[data-theme="dark"] .ms-drop *{color:#fff;}
 [data-theme="dark"] .fpop-panel input::placeholder{color:rgba(255,255,255,0.72);opacity:1;}
 [data-theme="dark"] .fpop-panel select option{background:#0d1117;color:#fff;}
-[data-theme="dark"] #d-section-overview .ddesc,[data-theme="dark"] #d-section-overview .ddesc *,
-[data-theme="dark"] #d-sector-signals .sig-hw,[data-theme="dark"] #d-sector-signals .sig-hw *{color:#fff !important;}
+[data-theme="dark"] #d-section-overview .ddesc,[data-theme="dark"] #d-section-overview .ddesc *{color:#fff !important;}
 [data-theme="dark"] body,[data-theme="dark"] body *{color:#fff !important;}
 /* Restore visibility of inactive Price History index toggles (SPY/QQQ/DIA).
    Inline style sets background:#fff + color:#555; the body * !important rule
@@ -11119,27 +11115,15 @@ function openDet(tk){
     var _hwRed=_hwNorm.filter(function(h){return h.sev==='red';});
     var _hwAmber=_hwNorm.filter(function(h){return h.sev!=='red'&&h.cat!=='thesis_risk';});
     var _hwThesis=_hwNorm.filter(function(h){return h.cat==='thesis_risk';});
-    /* Phones: the first _SIG_SHOW items of each column, the rest behind
-       Read more (.ds-clip / _dsToggle); desktop shows every item. */
-    var _SIG_SHOW=3,_hwN=0;
-    function _hwLi(h,clr){return '<li style="color:#000;margin:4px 0"'+(_hwN++>=_SIG_SHOW?' class="ds-more"':'')+'><span style="color:#37474f">'+_linkifyTickers(esc(h.text))+'</span></li>';}
-    var _hwHtml='';
-    if(_hwRed.length){
-      _hwHtml+='<ul style="margin:6px 0 0;padding-left:20px;list-style:disc">'+_hwRed.map(function(h){return _hwLi(h,'#c0392b');}).join('')+'</ul>';
-    }
-    if(_hwAmber.length){
-      _hwHtml+='<ul style="margin:6px 0 0;padding-left:20px;list-style:disc">'+_hwAmber.map(function(h){return _hwLi(h,'#e67e22');}).join('')+'</ul>';
-    }
-    if(_hwThesis.length){
-      _hwHtml+='<ul style="margin:6px 0 0;padding-left:20px;list-style:disc">'+_hwThesis.map(function(h){return _hwLi(h,'#7d3c98');}).join('')+'</ul>';
-    }
-    if(!_hwNorm.length) _hwHtml='<p style="margin:0;color:#999">None identified</p>';
-    var _hwMore=_hwN>_SIG_SHOW,_twMore=tw.length>_SIG_SHOW;
-    var sh='<div class="sig-wrap"><div class="sig-grid">';
-    sh+='<div class="sig-tw'+(_twMore?' ds-clip':'')+'"><div class="wind-h wind-up">\u25b2 Tailwinds<span>· '+tw.length+'</span></div>'+(tw.length?'<ul>'+tw.map(function(t,i){return'<li'+(i>=_SIG_SHOW?' class="ds-more"':'')+'>'+_linkifyTickers(esc(typeof t==='string'?t:(t.text||'')))+'</li>';}).join('')+'</ul>':'<p style="margin:0;color:#999">None identified</p>')+(_twMore?_DS_TOG:'')+'</div>';
-    sh+='<div class="sig-hw'+(_hwMore?' ds-clip':'')+'"><div class="wind-h wind-down">\u25bc Headwinds<span>· '+_hwNorm.length+'</span></div>'+_hwHtml+(_hwMore?_DS_TOG:'')+'</div>';
-    sh+='</div></div>';
-    sigEl.innerHTML=sh;_dsPlaceIn(sigEl);sigSec.style.display='';
+    /* The report's tailwind/headwind group (_windGroup), red flags first. */
+    var _twT=tw.map(function(t){return typeof t==='string'?t:(t.text||'');});
+    var _hwT=_hwRed.concat(_hwAmber,_hwThesis).map(function(h){return h.text;});
+    function _sigList(items){return items.length?'<ul class="wind-list">'+items.map(function(t){return '<li class="wind-row">'+_linkifyTickers(esc(t))+'</li>';}).join('')+'</ul>':'<p style="margin:6px 0 0;color:#999">None identified</p>';}
+    var sh='<div class="sig-wrap"><div class="sig-grid">'
+      +_windGroup({scope:'ticker',k:'tailwind',dir:'up',label:'\u25b2 Tailwinds',count:_twT.length,sum:esc(_windListSum(_twT)),body:_sigList(_twT)})
+      +_windGroup({scope:'ticker',k:'headwind',dir:'down',label:'\u25bc Headwinds',count:_hwT.length,sum:esc(_windListSum(_hwT)),body:_sigList(_hwT)})
+      +'</div></div>';
+    sigEl.innerHTML=sh;sigSec.style.display='';
   }else{sigEl.innerHTML='';sigSec.style.display='none';}
   /* News: the stock's own headlines first, ordered by relevance (tier) then
      recency; sector items follow once, grouped and muted as context. They
@@ -13674,7 +13658,7 @@ function _ppfCard(f,shut){
     +(hasReach?'<li><b>Reach:</b> '+_ppPct(f.exposure.reach,0)+' of the sector’s revenue'+(f.exposure.pool_share!=null?', '+_ppPct(f.exposure.pool_share,0)+' of its profit pool':'')+'.</li>':'')
     +_ppfExposure(f)
     +(f.detail?'<li><b>Why it matters:</b> '+_esc(f.detail.charAt(0).toUpperCase()+f.detail.slice(1))+'</li>':'');
-  return '<div class="ppf ppf-'+(f.kind==='tailwind'?'tw':'hw')+'">'
+  return '<div class="ppf wind-row ppf-'+(f.kind==='tailwind'?'tw':'hw')+'">'
     +'<div class="ppf-hdr"'+(items?' role="button" tabindex="0" aria-expanded="'+(shut?'false':'true')+'" onclick="_ppfToggleOne(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_ppfToggleOne(this);}"':'')+'>'
     +'<span class="ppf-st ppf-'+f.status+'"><i class="ppf-dot"></i>'+(_PPF_ST[f.status]||f.status)+'</span>'
     +'<span class="ppf-th">'+_esc(f.theme)+(items?'<i class="ppf-fchev" aria-hidden="true"></i>':'')+(meta?'<span class="ppf-meta">'+meta+'</span>':'')+'</span></div>'
@@ -13682,42 +13666,26 @@ function _ppfCard(f,shut){
     +'</div>';
 }
 function _ppfLive(f){return f.status==='active'||f.status==='building'||f.status==='easing';}
-/* One column, every force listed in full: moving forces first, then the
-   ones not acting, then the unmeasured. */
-/* Each column's header is a toggle: collapsed, a column keeps one line per
-   force (its status and name) and drops the bullets. Columns start
-   collapsed — the page reads as two lists of forces — unless this browser
-   expanded one (stock_ppf_collapsed_v1 {tailwind,headwind}: false = open).
-   Each force's heading opens or closes that force alone: ppf-open shows it
-   inside a collapsed column, ppf-shut hides it inside an open one; a column
-   toggle clears both, so it always means the whole column. */
-function _ppfCollapsedState(){
-  try{return JSON.parse(localStorage.getItem('stock_ppf_collapsed_v1'))||{};}catch(e){return {};}
-}
-function _ppfToggleCol(btn){
-  var col=btn.parentNode,kind=col.getAttribute('data-kind');
-  var shut=col.classList.toggle('ppf-collapsed');
-  btn.setAttribute('aria-expanded',shut?'false':'true');
-  [].forEach.call(col.querySelectorAll('.ppf'),function(c){
-    c.classList.remove('ppf-open','ppf-shut');
-    var h=c.querySelector('.ppf-hdr[role=button]');if(h)h.setAttribute('aria-expanded',shut?'false':'true');
-  });
-  try{var st=_ppfCollapsedState();st[kind]=shut;localStorage.setItem('stock_ppf_collapsed_v1',JSON.stringify(st));}catch(e){}
-}
+/* One group per kind (_windGroup): moving forces first, then the ones not
+   acting, then the unmeasured; folded, the summary names what is acting.
+   Each force is a row whose heading opens its own bullets. */
 function _ppfToggleOne(hdr){
-  var card=hdr.closest('.ppf'),col=card.closest('.ppf-colwrap'),open;
-  if(col&&col.classList.contains('ppf-collapsed'))open=card.classList.toggle('ppf-open');
-  else open=!card.classList.toggle('ppf-shut');
+  var open=hdr.closest('.ppf').classList.toggle('ppf-open');
   hdr.setAttribute('aria-expanded',open?'true':'false');
+}
+function _ppfColSum(list,kind){
+  var live=list.filter(function(f){return f.status==='active'||f.status==='building';});
+  if(!live.length)return 'None of its '+list.length+' '+kind+'s is acting.';
+  var t=live.map(function(f){return _esc(f.theme)+(f.status==='active'?' is acting now':' is building');}).join('; ')+'.';
+  return t.charAt(0).toUpperCase()+t.slice(1);
 }
 function _ppfCol(list,kind){
   var sorted=list.slice().sort(function(a,b){return _PPF_ORDER[a.status]-_PPF_ORDER[b.status];});
   var acting=list.filter(function(f){return f.status==='active'||f.status==='building';}).length;
-  var shut=_ppfCollapsedState()[kind]!==false;
-  return '<div class="ppf-colwrap'+(shut?' ppf-collapsed':'')+'" data-kind="'+kind+'">'
-    +'<button type="button" class="ppf-colh wind-h '+(kind==='tailwind'?'tw wind-up':'hw wind-down')+'" aria-expanded="'+(shut?'false':'true')+'" onclick="_ppfToggleCol(this)">'
-    +(kind==='tailwind'?'▲ Tailwinds':'▼ Headwinds')+'<span>· '+acting+' of '+list.length+' acting</span><i class="ppf-chev" aria-hidden="true"></i></button>'
-    +sorted.map(function(f){return _ppfCard(f,shut);}).join('')+'</div>';
+  var tw=kind==='tailwind';
+  return _windGroup({scope:'drivers',k:kind,dir:tw?'up':'down',label:tw?'▲ Tailwinds':'▼ Headwinds',
+    count:acting+' of '+list.length+' acting',sum:_ppfColSum(list,kind),
+    body:sorted.map(function(f){return _ppfCard(f,true);}).join('')});
 }
 function renderPoolSectorSignals(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
@@ -13762,6 +13730,33 @@ function renderPoolSectorSignals(sec){
   var twHtml='<div class="pp-signals-col"><div class="wind-h wind-up">▲ Structural Tailwinds<span>· '+tw0.length+'</span></div>'+_list(tw0,'tailwinds')+'</div>';
   var hwHtml='<div class="pp-signals-col"><div class="wind-h wind-down">▼ Structural Headwinds<span>· '+hw0.length+'</span></div>'+_list(hw0,'headwinds')+'</div>';
   return '<div class="pp-signals-grid">'+twHtml+hwHtml+'</div>';
+}
+/* The report's one tailwind/headwind group (Broad Sector Outlook, a
+   sector's Drivers, the ticker page): a .wind-h header that folds the
+   group, a one-sentence summary shown while folded, and the rows. The
+   fold is kept per browser (stock_wind_shut_v1, {"<scope>:<key>": true});
+   groups start open. */
+function _windState(){
+  try{return JSON.parse(localStorage.getItem('stock_wind_shut_v1'))||{};}catch(e){return {};}
+}
+function _windGroup(o){
+  var id=o.scope+':'+o.k,shut=!!_windState()[id];
+  return '<div class="wind-grp'+(shut?' wind-shut':'')+'" data-wk="'+_attr(id)+'">'
+    +'<button type="button" class="wind-h'+(o.dir?' wind-'+o.dir:'')+'" aria-expanded="'+(shut?'false':'true')+'" onclick="_windToggle(this)">'
+    +o.label+'<span>· '+o.count+'</span><i class="ppf-chev" aria-hidden="true"></i></button>'
+    +'<div class="wind-sum">'+(o.sum||'')+'</div><div class="wind-body">'+o.body+'</div></div>';
+}
+function _windToggle(btn){
+  var g=btn.closest('.wind-grp'),shut=g.classList.toggle('wind-shut');
+  btn.setAttribute('aria-expanded',shut?'false':'true');
+  try{var st=_windState();st[g.getAttribute('data-wk')]=shut;localStorage.setItem('stock_wind_shut_v1',JSON.stringify(st));}catch(e){}
+}
+/* "Reinvestment rate supports 11% growth, and 6 more.": the first item
+   and how many follow. */
+function _windListSum(items){
+  if(!items.length)return 'None identified.';
+  var t=String(items[0]).replace(/[.\s]+$/,'');
+  return t+(items.length>1?', and '+(items.length-1)+' more.':'.');
 }
 /* Broad Sector Outlook: the one sector read, on the Charts sub-tab above
    the Sector Price Comparison and closing the Macro Overview. Sectors are
@@ -13817,17 +13812,6 @@ function _soToggle(btn){
   rd.innerHTML=open?(row.headline?'<div class="so-kick">'+_esc(row.headline)+'</div>':'')+'<p>'+_esc(row.influence)+'</p>':'';
   rd.hidden=!open;
 }
-/* Each macro group's header folds its sectors away; the choice is kept per
-   browser (stock_so_collapsed_v1 {up,flat,down}: true = folded) and shared
-   by both places the outlook renders. Groups start open. */
-function _soShutState(){
-  try{return JSON.parse(localStorage.getItem('stock_so_collapsed_v1'))||{};}catch(e){return {};}
-}
-function _soGrpToggle(btn){
-  var g=btn.parentNode,shut=g.classList.toggle('so-shut');
-  btn.setAttribute('aria-expanded',shut?'false':'true');
-  try{var st=_soShutState();st[g.getAttribute('data-k')]=shut;localStorage.setItem('stock_so_collapsed_v1',JSON.stringify(st));}catch(e){}
-}
 /* A folded group's one-sentence summary, read off its rows' pills:
    "Tailwinds lead in Energy and Basic Materials; headwinds lead in
    Consumer Defensive." Shown only while the group is folded. */
@@ -13857,18 +13841,17 @@ function renderSectorOutlook(bare,from){
       ?'<button type="button" class="so-mac" aria-expanded="false" data-i="'+m.i+'" onclick="_soToggle(this)">Macro read</button><div class="so-read" hidden></div>':'';
     var gk=m?STANCE[m.row.stance]||'':'';
     hl[gk].push([h[1],sec]);
-    grp[gk].push('<li class="so-row">'
+    grp[gk].push('<li class="so-row wind-row">'
       +'<div class="so-top"><a href="#" class="so-sec" data-sec="'+_attr(sec)+'" data-from="'+origin+'" title="Open the '+_attr(sec)+' sector page" onclick="goSectorDrivers(this.dataset.sec,this.dataset.from);return false;">'+_esc(sec)+'<i>›</i></a>'
       +'<span class="so-pill so-'+h[0]+'">'+h[1]+'</span></div>'
       +_soLine(tw,'tailwind')+_soLine(hw,'headwind')+mac+'</li>');
   });
   var body='';
   if(nar){
-    var st=_soShutState();
-    [['up','▲ Macro tailwind'],['','● Macro neutral'],['down','▼ Macro headwind']].forEach(function(g){
+    [['up','▲ Macro tailwind'],['','Macro neutral'],['down','▼ Macro headwind']].forEach(function(g){
       if(!grp[g[0]].length)return;
-      var k=g[0]||'flat',shut=!!st[k];
-      body+='<div class="so-grp so-g-'+k+(shut?' so-shut':'')+'" data-k="'+k+'"><button type="button" class="so-gh wind-h'+(g[0]?' wind-'+g[0]:'')+'" aria-expanded="'+(shut?'false':'true')+'" onclick="_soGrpToggle(this)">'+g[1]+'<span>· '+grp[g[0]].length+'</span><i class="ppf-chev" aria-hidden="true"></i></button><div class="so-gsum">'+_soGroupSummary(hl[g[0]])+'</div><ul class="so-list">'+grp[g[0]].join('')+'</ul></div>';
+      body+=_windGroup({scope:'outlook',k:g[0]||'flat',dir:g[0],label:g[1],count:grp[g[0]].length,
+        sum:_soGroupSummary(hl[g[0]]),body:'<ul class="so-list">'+grp[g[0]].join('')+'</ul>'});
     });
   }else if(grp[''].length)body='<ul class="so-list">'+grp[''].join('')+'</ul>';
   if(!body)return '';
