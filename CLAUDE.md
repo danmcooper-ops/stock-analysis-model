@@ -801,9 +801,11 @@ ruff check .
   now / Building / Fading / Not acting / Not measured / No data, mapped
   from active … no_data) and its type, with each fact stated once.
   Under it are bullets: evidence (with a sparkline), reach, who is
-  exposed, and why it matters. Moving forces sort first. Each column header
-  (Tailwinds / Headwinds) toggles its bullets, kept per browser in
-  `stock_ppf_collapsed_v1`. The colour
+  exposed, and why it matters; each force's heading opens its own. Moving
+  forces sort first. Tailwinds and Headwinds are the report's one wind
+  group (`_windGroup`, also the Broad Sector Outlook's groups and the
+  ticker page's Headwinds & Tailwinds): the header folds the group to a
+  one-sentence summary, kept per browser in `stock_wind_shut_v1`. The colour
   overrides carry `!important` against the blanket dark `body *` text
   rule.
   Forces that no series measures read "qualitative". Without `macro.json`,
