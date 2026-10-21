@@ -567,3 +567,26 @@ def test_sector_outlook_groups_by_the_macro_stance(tmp_path):
     assert '<script>' not in html
     assert 'class="qhelp-btn"' in html and 'Macro read opens its reasoning' in html, \
         'the explainer folds behind the ?'
+
+
+def test_company_pool_chart_and_table_lead_with_the_rating():
+    """The sector profit pool's company bars and table both lead with the
+    rating, best first: bars by margin within a rating with Others last,
+    rows by pool share within a rating, and the Rating header marked as
+    the table's opening sort."""
+    src = TEMPLATE.read_text(encoding='utf-8')
+    assert ("var ra=a.others?-1:(_PPI_RANK[a.d.rating]||0),rb=b.others?-1:(_PPI_RANK[b.d.rating]||0);\n"
+            "      return rb-ra||b.margin-a.margin;") in src
+    table = _fn(src, 'renderPoolCompanyTable')
+    assert "(_PPI_RANK[b.rating]||0)-(_PPI_RANK[a.rating]||0)||(b.pp_profit_share||0)-(a.pp_profit_share||0)" in table
+    assert "_ppiTh('Rating','n',1)" in table and "_ppiTh('Pool')" in table
+
+
+def test_industry_pool_table_ranks_by_margin():
+    """The Industries table opens ranked by margin, as its chart is, with
+    the folded Other last and each row still addressed by its index."""
+    src = TEMPLATE.read_text(encoding='utf-8')
+    ind = _fn(src, 'renderPoolIndustries')
+    assert "_ppiTh('Pool')+_ppiTh('Margin','n',1)" in ind
+    assert "var pa=a[0].folded?1:0,pb=b[0].folded?1:0" in ind
+    assert "var d=p[0],ii=p[1];" in ind and "dashIndustryJump(" in ind
