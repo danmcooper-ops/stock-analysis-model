@@ -3033,16 +3033,22 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
 #det-modal .d-kmetrics .km-sub{color:var(--chrome-muted);}
 /* Phones: five cells on one row truncated every label ("FAIR VAL…") and
    let the fair-value band run into the MoS badge, and the <=480px shrink
-   rules above lose to the #det-modal ones. So the bar becomes a two-column
-   grid (hairlines from the 1px gap), and an odd last cell (Next earnings)
-   spans the row. Labels and sub-lines wrap instead of clipping. */
+   rules above lose to the #det-modal ones. So the bar becomes a compact
+   three-column grid (hairlines from the 1px gap): Mkt Cap / Price / Fair
+   value, then MoS and the 52-week range, a last cell left short of a full
+   row spanning what is left. The MoS confidence badge sits beside the
+   figure, and the card around the grid keeps a slim inset. Labels and
+   sub-lines wrap instead of clipping. */
 @media (max-width:600px){
-  #det-modal .d-kmetrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--border);}
-  #det-modal .d-kmetrics .km-cell{background:var(--surface);border-right:0;padding:10px 14px;min-width:0;}
-  #det-modal .d-kmetrics .km-cell:last-child:nth-child(odd){grid-column:1/-1;}
-  #det-modal .d-kmetrics .km-k{font-size:.66em;white-space:normal;overflow:visible;text-overflow:clip;}
-  #det-modal .d-kmetrics .km-v{font-size:1.05em;white-space:normal;}
-  #det-modal .d-kmetrics .km-sub{font-size:.64em;white-space:normal;}
+  #det-modal .d-kmetrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--border);border-radius:10px;}
+  #det-modal .d-kmetrics .km-cell{background:var(--surface);border-right:0;padding:7px 10px;min-width:0;gap:1px;}
+  #det-modal .d-kmetrics .km-cell:last-child:nth-child(3n+2){grid-column:span 2;}
+  #det-modal .d-kmetrics .km-cell:last-child:nth-child(3n+1){grid-column:1/-1;}
+  #det-modal .d-kmetrics .km-k{font-size:.58em;white-space:normal;overflow:visible;text-overflow:clip;}
+  #det-modal .d-kmetrics .km-v{font-size:.9em;white-space:normal;}
+  #det-modal .d-kmetrics .km-sub{font-size:.56em;white-space:normal;}
+  #det-modal .d-kmetrics .km-v .km-conf{display:inline-block;margin:0 0 0 5px;vertical-align:middle;font-size:.6em;}
+  #d-section-snapshot > div:last-child{padding:10px 12px !important;}
 }
 @media(min-width:769px) and (max-width:1023px){
   #det-modal .d-header-band{padding-left:16px !important;padding-right:16px !important;}
