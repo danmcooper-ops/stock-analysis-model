@@ -57,7 +57,8 @@ scheduled-tasks/ - Operational runbooks for the nightly analysis + publish;
                    weekly-backtest/mac_run.sh, the Sunday backtest; the
                    Claude desktop app's scheduled tasks launch both
                    (helpers in scripts/backtest_cloud.py); the cloud-*
-                   Routines are dormant
+                   Routines are dormant; mac-mini/ also holds the
+                   live-quotes launchd agent
 output/          - (gitignored) run artifacts: results JSON, HTML, prices,
                    snapshots.duckdb (derived index over the results JSONs)
 ```
@@ -998,6 +999,38 @@ ruff check .
     `tests/test_report_appearance.py`, `tests/test_report_profile.py` and
     `tests/test_profile_verdict.py`. The appearance test includes a WCAG contrast
     check of the chrome tokens in both themes.
+- **Live quotes on the home network (`scripts/live_quotes.py`):** the Mac
+  mini serves the published report and `api/quote` from one origin,
+  `http://<mini>.local:8765/` (launchd agent
+  `scheduled-tasks/mac-mini/com.stockmodel.livequotes.plist`,
+  MAC-MINI-SETUP.md §8). One origin because a browser will not let an
+  HTTPS page (Cloudflare, GitHub Pages) call a plain-HTTP LAN address;
+  there the page's first quote request fails, `_lqOff` is set and nothing
+  changes.
+  - **Feed:** Yahoo's pricing websocket, through our own connection loop.
+    yfinance 1.x never resets its socket after a drop (`_connect` only
+    connects when `_ws is None`), so its `listen()` retries a dead socket
+    forever, and its heartbeat dies on the first send error. The URL and
+    the `PricingData` decode are still yfinance's. Every reconnect is a
+    fresh socket sent the full subscription set.
+  - **Staying clear of the nightly run:** it streams 9:30–16:05 ET on
+    weekdays only, makes no REST calls, and disconnects while
+    `output/.run_daily.lock` names a live pid.
+  - **Stall watchdog:** SPY is always subscribed, so silence means either
+    a dead stream or a holiday. The wait before each reconnect doubles to
+    30 min. `open` is true only after SPY trades regular hours that day,
+    so pages stop polling on a holiday.
+  - **Immutable builds:** pages are served from copies of `docs/` at
+    `/b/<build>/`, taken once the publish has settled for 2 minutes, with
+    two kept. Step 08 rewrites `docs/` in place, and `px/` shards must not
+    mix across builds.
+  - **Display only:** the template's `_lq*` block is an overlay (`_LQ`)
+    and never writes `DATA`. Filters, sorting, portfolio rules, stats, the
+    verdict and the Summary PDF keep the close. A live cell (ticker page
+    price/change/MoS, table and portfolio price/MoS) has a dotted underline
+    and a tooltip naming the last trade and the close. MoS is recomputed on
+    the scoring rule. `tests/test_report_live_quote.py` pins the no-write
+    rule.
 - **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
   named sets of tickers — hand-picked, rule-driven, or both — and a ticker may
   sit in any number of them (membership only; `portfolio/holdings.json` stays

@@ -361,6 +361,53 @@ On the Mac:
   - [ ] on the second Mac Sunday, `04-prices` takes minutes, which shows the
         cache survived
 
+## 8. Live quotes on the home network (optional)
+
+`scripts/live_quotes.py` serves the published report from the mini with live
+prices: the ticker page's price, day change and MoS, and the price and MoS
+cells of the table rows and portfolio members on screen, update from Yahoo's
+streaming feed during market hours. Ratings, filters, sorting and the Summary
+PDF stay on the nightly close. It works only at
+`http://<mini-name>.local:8765/` on the home network; the Cloudflare and
+GitHub sites never go live, because a browser will not let an HTTPS page call
+a plain-HTTP address on the LAN.
+
+- [ ] Install the agent:
+      ```bash
+      cp scheduled-tasks/mac-mini/com.stockmodel.livequotes.plist ~/Library/LaunchAgents/
+      launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.stockmodel.livequotes.plist
+      ```
+      The first start may ask whether the venv's Python can accept incoming
+      connections: allow it, or other devices cannot reach the page.
+- [ ] Open `http://<mini-name>.local:8765/` from another device. It redirects
+      to `/b/<build>/`, a copy of `pages-live/docs` the service takes once the
+      nightly publish has settled for two minutes, so an open page never
+      mixes two nights' price shards. A "New report published" note appears
+      on a page whose build has been superseded.
+- [ ] On a market day, open a ticker: the price shows a dotted underline and
+      a green "Live · 10:42 ET" stamp (amber "Last trade …" when the last trade
+      is more than 15 minutes old). `http://localhost:8765/api/quote/health`
+      shows the connection counters.
+- [ ] After pulling new code: `launchctl kickstart -k gui/$(id -u)/com.stockmodel.livequotes`.
+
+Things to know:
+
+- **No login.** Anyone on the home network can open the page. The Cloudflare
+  site's Access login does not apply here.
+- **Yahoo.** It is one websocket and no REST calls. It streams only
+  9:30–16:05 ET on weekdays, which is before the 17:00 run, and it
+  disconnects while `output/.run_daily.lock` names a live process. A hand-run
+  `analyze_stock.py` in the daytime does not take that lock; stop the agent
+  first (`launchctl bootout gui/$(id -u)/com.stockmodel.livequotes`) if
+  Yahoo has been rate-limiting the mini. Set `LIVE_QUOTES` to `0` in the
+  plist to keep serving the report with streaming off.
+- **Holidays.** The window is clock-based. On a market holiday nothing
+  trades, so pages see the market as closed and the service's reconnects
+  back off to one every half hour.
+- **Disk.** Two copies of `docs/` are kept under `output/live_quotes_builds/`
+  (about 0.8 GB at today's size).
+- Log: `~/Library/Logs/StockModel/live_quotes.log`.
+
 ## Going back to the cloud
 
 Pause the Mac task first, then resume the matching cloud Routine. Do this

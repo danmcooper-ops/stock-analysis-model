@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Live quotes on the home network (../MAC-MINI-SETUP.md section 8): serves the
+  published report with live prices at http://<mini-name>.local:8765/.
+  Install:
+    cp scheduled-tasks/mac-mini/com.stockmodel.livequotes.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.stockmodel.livequotes.plist
+  After a code update:
+    launchctl kickstart -k gui/$(id -u)/com.stockmodel.livequotes
+  Runs the repo's script in place with the repo's venv; the paths assume the
+  checkout at ~/Projects/Workspace Folder. Streaming only happens 9:30-16:05
+  ET on weekdays and never while the nightly run holds its lock; the rest of
+  the time it only serves the report. LIVE_QUOTES=0 below turns streaming off.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.stockmodel.livequotes</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/dmcooper/Projects/Workspace Folder/.venv/bin/python</string>
+        <string>/Users/dmcooper/Projects/Workspace Folder/scripts/live_quotes.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/dmcooper/Projects/Workspace Folder</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>LIVE_QUOTES</key>
+        <string>1</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+    <key>StandardOutPath</key>
+    <string>/Users/dmcooper/Library/Logs/StockModel/live_quotes.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/dmcooper/Library/Logs/StockModel/live_quotes.log</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

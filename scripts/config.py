@@ -440,6 +440,42 @@ PHASE1_PREFETCH_WINDOW_MULT = 3
 PHASE1_EMPTY_RATE_ALARM = 0.10
 PHASE1_EMPTY_ALARM_MIN_CALLS = 200
 
+# --- Live quotes on the home network (scripts/live_quotes.py) ---
+# The Mac mini serves the published report plus /api/quote from one origin on
+# the LAN, streaming Yahoo's pricing websocket for the tickers being viewed.
+# Display only: nothing here feeds DATA, a rating or the snapshot.
+LIVE_QUOTES_PORT = int(os.environ.get('LIVE_QUOTES_PORT', 8765))
+# Streaming window, America/New_York, weekdays. It ends five minutes after the
+# bell so the closing-auction print lands, and an hour before the 17:00
+# nightly run, so the stream and the run's Yahoo traffic never overlap.
+LIVE_QUOTES_OPEN_ET = (9, 30)
+LIVE_QUOTES_CLOSE_ET = (16, 5)
+# A symbol nobody has asked for in this long is unsubscribed; at most this
+# many are subscribed at once (least recently requested go first).
+LIVE_QUOTES_IDLE_SEC = 600
+LIVE_QUOTES_MAX_SYMBOLS = int(os.environ.get('LIVE_QUOTES_MAX_SYMBOLS', 400))
+LIVE_QUOTES_MAX_PER_REQUEST = 100
+# yfinance's own client resends the subscription list every 15 s.
+LIVE_QUOTES_HEARTBEAT_SEC = 15
+# Stall watchdog: SPY is always subscribed, so a minute of silence in the
+# window means a dead stream -- or a market holiday / half-day afternoon,
+# when the clock says open and nothing trades. The wait before each
+# reconnect doubles up to the cap, so a holiday costs ~15 reconnects rather
+# than one a minute all day.
+LIVE_QUOTES_STALL_SEC = 60
+LIVE_QUOTES_STALL_DELAY_MAX = 1800
+# Network errors and closes: 5 s doubling to 5 min. A handshake refused with
+# 429/403 is Yahoo asking us to go away, so that waits 30 min.
+LIVE_QUOTES_ERROR_DELAY = 5
+LIVE_QUOTES_ERROR_DELAY_MAX = 300
+LIVE_QUOTES_REFUSED_WAIT = 1800
+# The published docs/ is rewritten in place by run_daily's publish step, and
+# px/ shards are offsets into prices_meta.json that must never mix across
+# builds, so pages are served from immutable copies: one is taken once the
+# tree has been unchanged this long, and this many are kept.
+LIVE_QUOTES_BUILD_SETTLE_SEC = 120
+LIVE_QUOTES_BUILDS_KEEP = 2
+
 
 def _get_sector_config(sector):
     """Look up sector-specific DCF parameters with default fallback."""

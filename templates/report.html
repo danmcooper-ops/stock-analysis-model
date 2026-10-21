@@ -2795,6 +2795,16 @@ html body .detail-content{max-width:none !important;width:100% !important;border
 .d-back:empty{display:none;}
 .d-chg{--sac:var(--chrome-muted);font-size:1.15em;font-weight:700;font-variant-numeric:tabular-nums;}
 .d-chg.pos{--sac:var(--chrome-pos);}
+/* Live quotes (LAN copy only, see _lqPoll): a dotted underline marks a value
+   that is a live trade rather than the nightly close, and the stamp's dot is
+   green while trades are fresh, amber once the last one is >15 min old. Both
+   are drawn without text colour, which the dark theme's blanket rule owns. */
+.lq-live{text-decoration:underline dotted;text-underline-offset:3px;text-decoration-thickness:1px;}
+.lq-stamp{font-size:.72em;font-weight:600;opacity:.8;white-space:nowrap;margin-left:6px;}
+.lq-stamp:empty{display:none;}
+.lq-stamp::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:#1a9850;margin-right:5px;vertical-align:1px;}
+.lq-stamp.stale::before{background:#b8860b;}
+.lq-new{position:fixed;right:16px;bottom:16px;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:.85em;box-shadow:0 4px 14px rgba(0,0,0,.18);}
 .d-chg.neg{--sac:var(--chrome-neg);}
 .d-chg:empty{display:none;}
 #det-modal .dh .dtk{font-size:1.6em;color:var(--chrome-heading);text-shadow:none;letter-spacing:-.5px;}
@@ -3437,7 +3447,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
            it reads price · change / rating · score · gates / rating-since,
            split by the .d-rr-br break and the full-width .d-rsince; from
            1024px, and collapsed, it is one line. -->
-      <div class="d-rating-row"><div class="dpx" id="d-px"></div><span class="d-chg sa-chrome" id="d-chg"></span><span class="d-rr-br" aria-hidden="true"></span><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
+      <div class="d-rating-row"><div class="dpx" id="d-px"></div><span class="d-chg sa-chrome" id="d-chg"></span><span class="lq-stamp" id="d-lq"></span><span class="d-rr-br" aria-hidden="true"></span><div class="drt" id="d-rt"></div><div class="dcs" id="d-cs"></div><span id="d-gp" class="d-gp"></span><span id="d-rsince" class="d-rsince"></span></div>
       <!-- Section tabs (Seeking Alpha's Summary · Ratings · … row). Rendered by
            _renderDetTabBar from _detMenuItems(); clicks go to swDetTab. -->
       <div class="d-tabs sa-chrome" id="d-tabs" role="tablist" aria-label="Sections"></div>
@@ -5239,7 +5249,13 @@ function _pfmVal(c,d,ctx){
   if(c.f==='text')return d[c.k]==null||d[c.k]===''?null:String(d[c.k]);
   return _num(d[c.k]);
 }
+/* A live price/MoS replaces the shown value only; the sort keeps the close. */
 function _pfmCell(c,d,v,ctx){
+  var lv=v!=null&&(c.k==='price'||c.k==='mos')?_lqView(d,c.k):undefined;
+  if(lv==null)return _pfmCellBase(c,d,v,ctx);
+  return _pfmCellBase(c,d,lv,ctx).replace('<td class="','<td title="'+_pfEsc(_lqTip(d,c.k))+'" class="lq-live ');
+}
+function _pfmCellBase(c,d,v,ctx){
   var tone=function(x){return x==null?'':x>0?' pos':x<0?' neg':'';};
   if(c.x==='rating'){
     var ch='';
@@ -5295,6 +5311,8 @@ function _pfmTable(id){
     h+='<tr><td class="pfm-stk">'+_pfTkLink(d.ticker)+'<div class="pfm-co" title="'+_pfEsc(d.company_name||'')+'">'+_pfEsc(d.company_name||'')+'</div></td>'
       +pr.cols.map(function(c){return _pfmCell(c,d,c===sc?vs[i].v:_pfmVal(c,d,ctx),ctx);}).join('')+'</tr>';
   }
+  var live=pr.cols.some(function(c){return c.k==='price'||c.k==='mos';});
+  _lqSet('pf',live?vs.slice(0,cap).map(function(x){return x.d.ticker;}):[]);
   var ncol=pr.cols.length+1;
   if(!total)h+='<tr><td colspan="'+ncol+'" class="pf-empty">No members in today’s universe.</td></tr>';
   else if(!vs.length)h+='<tr><td colspan="'+ncol+'" class="pf-empty">No members match “'+_pfEsc(_pfm.q)+'”.</td></tr>';
@@ -7233,6 +7251,9 @@ function _dtBuildRow(d,_i){
   _dtCols.forEach(function(c){
     var r=ftc(d[c.k],c.f);
     var cls=c.k==='ticker'?' class="tk2" onclick="openDet(\''+t+'\')"':'';
+    /* A live price/MoS is shown, but data-value keeps the close the sort uses. */
+    var lv=(c.k==='price'||c.k==='mos')&&d[c.k]!=null?_lqView(d,c.k):undefined;
+    if(lv!=null){cls=' class="lq-live" title="'+esc(_lqTip(d,c.k))+'"';r={t:ftc(lv,c.f).t,v:r.v};}
     html+='<td'+cls+' data-value="'+r.v+'">'+r.t+(c.k==='ticker'?_pfDots(d.ticker):'')+'</td>';
   });
   html+='</tr>';
@@ -7276,6 +7297,8 @@ function _renderDtWindow(){
   for(var i=first;i<last;i++){html+=_dtBuildRow(_dtData[i],i);}
   if(botPad>0)html+='<tr class="dt-spacer" style="height:'+botPad+'px"><td></td></tr>';
   tb.innerHTML=html;
+  var live=_dtCols.some(function(c){return c.k==='price'||c.k==='mos';});
+  _lqSet('tbl',live?_dtData.slice(first,last).map(function(d){return d.ticker;}):[]);
 }
 function _dtOnScroll(){
   /* See _mtxOnScroll — skip when the data table isn't the visible view. */
@@ -8446,8 +8469,135 @@ function _detDayChg(tk){
     el.className='d-chg sa-chrome '+(d>=0?'pos':'neg');
     el.textContent=(d>=0?'+':'\u2212')+Math.abs(d).toFixed(2)+' ('+(d>=0?'+':'\u2212')+Math.abs(pc*100).toFixed(2)+'%)';
     el.title='Close '+(PRICES.dates[b]||'')+' vs '+(PRICES.dates[a]||'');
+    _lqPaintDet(tk);
   });
 }
+/* --- Live quotes ------------------------------------------------------------
+   The Mac mini serves this page on the home network with api/quote beside it
+   (scripts/live_quotes.py), streaming Yahoo trades for what is on screen: the
+   open ticker, the table rows in view, a portfolio's members. Display only:
+   _LQ is an overlay and nothing here writes DATA, so filters, sorts,
+   portfolio rules, stats, verdicts and the Summary PDF keep the nightly
+   close, and a live cell says so. Only that service serves pages under
+   /b/<build>/, so anywhere else (Cloudflare, GitHub Pages, file://) _lqOff
+   starts set and no request is made; a /b/ page whose first request fails
+   turns it off too, and the page stays exactly as built. */
+var _LQ_BUILD=(location.pathname.match(/\/b\/(\d+)\//)||[])[1]||null;
+var _LQ={},_lqOff=location.protocol==='file:'||!_LQ_BUILD,_lqOk=false,_lqOpen=false,_lqT=null,_lqBusy=false;
+var _lqTargets={det:[],tbl:[],pf:[]},_lqKeys={det:'',tbl:'',pf:''};
+var _LQ_POLL_MS=15000,_LQ_CLOSED_MS=300000,_LQ_STALE_MS=900000,_LQ_MAX=100;
+function _lqGet(tk){return _lqOff?null:(_LQ[tk]||null);}
+function _lqMos(d,px){
+  var fv=d._fv_effective!=null?d._fv_effective:d.dcf_fv;
+  return px>0&&fv>0?(fv-px)/fv:null;
+}
+/* The live value a price or MoS cell shows, or undefined to show the close. */
+function _lqView(d,k){
+  var q=_lqGet(d.ticker);if(!q)return undefined;
+  if(k==='price')return q.c;
+  if(k==='mos')return _lqMos(d,q.c);
+  return undefined;
+}
+function _lqTime(ms){
+  return new Date(ms).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'})+' ET';
+}
+function _lqTip(d,k){
+  var q=_lqGet(d.ticker);if(!q)return'';
+  var c=k==='mos'?(d.mos!=null?(d.mos*100).toFixed(1)+'%':'N/A'):(d.price!=null?'$'+d.price:'N/A');
+  return(q.stale?'Last trade ':'Live \u00b7 last trade ')+_lqTime(q.t)+'. Close: '+c
+    +'. The rating, filters and sorting use the close.';
+}
+/* Record what a view shows. A change kicks a fetch; so does a view coming
+   back with the same rows while polling has gone idle (nothing pending). */
+function _lqSet(kind,tks){
+  var key=(tks||[]).join(','),same=_lqKeys[kind]===key;
+  _lqKeys[kind]=key;_lqTargets[kind]=tks||[];
+  if(!_lqOff&&key&&(!same||_lqT==null))_lqKick();
+}
+function _lqDetOpen(){var m=document.getElementById('det-modal');return !!(m&&m.classList.contains('open'));}
+/* Only what is on screen now: the targets of a view that was left stay put
+   but are not asked for. The open ticker goes first. */
+function _lqWant(){
+  var seen={},out=[];
+  var add=function(l){l.forEach(function(t){if(!seen[t]&&out.length<_LQ_MAX){seen[t]=1;out.push(t);}});};
+  if(_lqDetOpen())add(_lqTargets.det);
+  if(curView==='table'&&curTSub!=='prices')add(_lqTargets.tbl);
+  if(curView==='pf'&&_pfm.id)add(_lqTargets.pf);
+  return out;
+}
+function _lqKick(){
+  if(_lqOff||_lqBusy)return;
+  clearTimeout(_lqT);_lqT=setTimeout(_lqPoll,250);
+}
+function _lqPoll(){
+  clearTimeout(_lqT);_lqT=null;
+  if(_lqOff||_lqBusy||document.hidden)return;  /* visibilitychange resumes */
+  var tks=_lqWant();if(!tks.length)return;       /* _lqSet resumes */
+  _lqBusy=true;
+  fetch('api/quote?symbols='+encodeURIComponent(tks.join(',')),{cache:'no-store'})
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+    .then(function(j){
+      if(!j||typeof j!=='object'||!j.symbols)throw new Error('not a quote response');
+      _lqOk=true;_lqOpen=!!j.open;
+      for(var s in j.symbols){
+        var q=j.symbols[s];
+        if(q){q.stale=(j.asof||Date.now())-q.t>_LQ_STALE_MS;_LQ[s]=q;}else delete _LQ[s];
+      }
+      if(j.build&&_LQ_BUILD&&j.build!==_LQ_BUILD)_lqNewBuild();
+      /* Schedule before painting: the repaint re-renders views, which call
+         _lqSet, and a pending timer is what keeps that from kicking again. */
+      _lqT=setTimeout(_lqPoll,_lqOpen?_LQ_POLL_MS:_LQ_CLOSED_MS);
+      _lqBusy=false;
+      _lqPaint();
+    })
+    .catch(function(){
+      _lqBusy=false;
+      /* Never answered: this is not the LAN copy. Answered before: the mini
+         or the network blipped, so keep the last quotes and retry slowly. */
+      if(!_lqOk){_lqOff=true;_LQ={};return;}
+      _lqT=setTimeout(_lqPoll,_LQ_CLOSED_MS);
+    });
+}
+function _lqNewBuild(){
+  if(document.getElementById('lq-new'))return;
+  var el=document.createElement('div');
+  el.id='lq-new';el.className='lq-new';el.setAttribute('role','status');
+  el.innerHTML='New report published \u2014 <a href="/">reload</a>';
+  document.body.appendChild(el);
+}
+function _lqPaint(){
+  if(_lqDetOpen()&&_dpTicker)_lqPaintDet(_dpTicker);
+  var has=function(l){return l.some(function(t){return _LQ[t];});};
+  if(curView==='table'&&curTSub!=='prices'&&has(_lqTargets.tbl))_renderDtWindow();
+  if(curView==='pf'&&_pfm.id&&has(_lqTargets.pf))_pfmRedraw();
+}
+function _lqDet(tk){_lqSet('det',tk?[tk]:[]);if(tk)_lqPaintDet(tk);}
+function _lqPaintDet(tk){
+  if(_dpTicker!==tk)return;
+  var d=null;for(var i=0;i<DATA.length;i++){if(DATA[i].ticker===tk){d=DATA[i];break;}}
+  var q=_lqGet(tk),px=document.getElementById('d-px'),st=document.getElementById('d-lq');
+  if(st){st.textContent='';st.className='lq-stamp';st.removeAttribute('title');}
+  if(px)px.classList.remove('lq-live');
+  if(!q||!d)return;
+  var tip=_lqTip(d,'price');
+  if(px){px.textContent='$'+(q.c<1?q.c.toFixed(4):q.c.toFixed(2));px.classList.add('lq-live');px.title=tip;}
+  var ch=document.getElementById('d-chg');
+  if(ch){
+    ch.className='d-chg sa-chrome '+(q.d>=0?'pos':'neg');
+    ch.textContent=(q.d>=0?'+':'\u2212')+Math.abs(q.d).toFixed(2)+' ('+(q.d>=0?'+':'\u2212')+Math.abs(q.dp*100).toFixed(2)+'%)';
+    ch.title='Live, vs the previous close';
+  }
+  if(st){st.textContent=(q.stale?'Last trade ':'Live \u00b7 ')+_lqTime(q.t);st.className='lq-stamp'+(q.stale?' stale':'');st.title=tip;}
+  var kp=document.querySelector('#d-kmetrics [data-lq="price"]');
+  if(kp){kp.textContent='$'+q.c.toLocaleString(undefined,{maximumFractionDigits:2});kp.classList.add('lq-live');kp.title=tip;}
+  var km=document.querySelector('#d-kmetrics [data-lq="mos"]'),mos=_lqMos(d,q.c);
+  if(km&&mos!=null){
+    var n=km.querySelector('.lq-n');if(n)n.textContent=(mos*100).toFixed(1)+'%';
+    km.style.color=mos>0.15?'#1a9850':(mos<0?'#de2d26':'');
+    km.classList.add('lq-live');km.title=_lqTip(d,'mos');
+  }
+}
+document.addEventListener('visibilitychange',function(){if(!document.hidden)_lqKick();});
 function _dtcRender(){
   var tk=_dpTicker;if(!tk)return;
   _dtcSeedBench();
@@ -11098,7 +11248,7 @@ function openDet(tk){
   /* 80% Monte Carlo band under the FV — the honest width of the estimate. */
   var _fvSub=(d.mc_p10_fv!=null&&d.mc_p90_fv!=null)?'80% band '+fd(d.mc_p10_fv)+'–'+fd(d.mc_p90_fv):'';
   /* Confidence badge next to MoS, from the MC dispersion grade. */
-  var _mosVal=d.mos!=null?(d.mos*100).toFixed(1)+'%':'N/A';
+  var _mosVal='<span class="lq-n">'+(d.mos!=null?(d.mos*100).toFixed(1)+'%':'N/A')+'</span>';
   var _confLvl=(d.mc_confidence||'').split(' ')[0];
   if(_confLvl){
     var _confCls=_confLvl==='HIGH'?'km-conf-high':_confLvl==='MEDIUM'?'km-conf-med':'km-conf-low';
@@ -11107,9 +11257,9 @@ function openDet(tk){
   }
   var _krows=[
     ['Mkt Cap',fds(d.mcap),'',''],
-    ['Price',d.price!=null?'$'+d.price.toLocaleString(undefined,{maximumFractionDigits:2}):'N/A','',''],
+    ['Price',d.price!=null?'$'+d.price.toLocaleString(undefined,{maximumFractionDigits:2}):'N/A','','','price'],
     ['Fair Value',_fvVal,'',_fvSub],
-    ['MoS',_mosVal,d.mos!=null?(d.mos>0.15?'color:#1a9850':(d.mos<0?'color:#de2d26':'')):'',''],
+    ['MoS',_mosVal,d.mos!=null?(d.mos>0.15?'color:#1a9850':(d.mos<0?'color:#de2d26':'')):'','','mos'],
   ];
   /* The 52-week trading range: low – high, and where today's price sits in
      it. Next Earnings left this grid (it stays in the Street View block and
@@ -11121,7 +11271,7 @@ function openDet(tk){
     var _px=function(v){return '$'+(+v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});};
     _krows.push(['52-Wk Range',_px(d.low_52w)+' – '+_px(d.high_52w),'',_rs.join(' · ')]);
   }
-  _km.innerHTML=_krows.map(function(r){var _kmTipKey=DKV_TIPS[r[0]]||'';var _kmTxt=_kmTipKey?tt(_kmTipKey):'';return'<div class="km-cell">'+  '<span class="km-k"'+(_kmTxt?' data-km-tip="'+_kmTipKey+'" data-km-lbl="'+r[0]+'"':'')+'>'+r[0]+'</span><span class="km-v"'+(r[2]?' style="'+r[2]+'"':'')+'>'+r[1]+'</span>'+(r[3]?'<span class="km-sub">'+r[3]+'</span>':'')+'</div>';}).join('');
+  _km.innerHTML=_krows.map(function(r){var _kmTipKey=DKV_TIPS[r[0]]||'';var _kmTxt=_kmTipKey?tt(_kmTipKey):'';return'<div class="km-cell">'+  '<span class="km-k"'+(_kmTxt?' data-km-tip="'+_kmTipKey+'" data-km-lbl="'+r[0]+'"':'')+'>'+r[0]+'</span><span class="km-v"'+(r[4]?' data-lq="'+r[4]+'"':'')+(r[2]?' style="'+r[2]+'"':'')+'>'+r[1]+'</span>'+(r[3]?'<span class="km-sub">'+r[3]+'</span>':'')+'</div>';}).join('');
   /* --- Gate values section --- */
   try{
     var _gvEl=document.getElementById('d-gate-values');
@@ -11316,6 +11466,7 @@ function openDet(tk){
   _detOpenState(true);
   swDetTab(_detTab);
   _detDayChg(tk);
+  _lqDet(tk);
   /* Re-measure the visible viewport before the popup is sized against it, so
      the shell can never open against a reading missed while it was closed. */
   if(window._syncVv)window._syncVv();
@@ -11325,7 +11476,7 @@ function openDet(tk){
   _dm.scrollTop=0;
   _lockBody();
 }
-function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_detHdrReset();_unlockBody();_detOpenState(false);}
+function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_detHdrReset();_unlockBody();_detOpenState(false);_lqDet(null);}
 /* Pin the page while the popup is open. body{overflow:hidden} — the old
    lock — is ignored by iOS Safari: the table kept scrolling under the
    popup, and that scroll collapsed/expanded the browser toolbars, thrashing
