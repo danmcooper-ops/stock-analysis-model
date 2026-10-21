@@ -193,7 +193,7 @@ def _render_signals(entry, tmp_path, stored=None, data=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
              '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
-             '_ppfCard', '_ppfLive', '_windState', '_windGroup', '_ppfColSum', '_ppfCol', '_qHelp', '_windMatrixLi',
+             '_ppfThChev', '_ppfCard', '_ppfLive', '_windState', '_windGroup', '_ppfColSum', '_ppfCol', '_qHelp', '_windMatrixLi',
              '_noteQ', 'renderPoolSectorSignals']
     consts = '\n'.join(re.search(r'^var %s=.*$' % v, src, re.M).group(0)
                        for v in ('_PPF_ST', '_PPF_ORDER', '_PPF_TYPE'))
@@ -292,7 +292,7 @@ def test_an_industry_force_names_its_industry_once(tmp_path):
     rows = [dict(_flat(t, YEARS, 100 + i, 0.2, 0.08), industry='Software - Infrastructure', sector='Technology')
             for i, t in enumerate(('MSFT', 'ORCL', 'X'))]
     html = _render_signals({'forces': evaluate_forces('Technology', None, _entry(0.14), rows)}, tmp_path)
-    card = html.split('class="ppf-th">Software dollar share keeps rising')[1].split('<div class="ppf wind-row ppf-')[0]
+    card = html.split('class="ppf-th">Software dollar share keeps ')[1].split('<div class="ppf wind-row ppf-')[0]
     assert card.count('Software - Infrastructure') == 1
     assert '<b>Who gains:</b> 3 companies' in card
 
@@ -497,7 +497,7 @@ def test_both_charts_use_round_ticks_and_label_their_latest_value(tmp_path):
 def _render_outlook(pool, tmp_path, macro=None, stored=None, data=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     consts = re.search(r'^var _SO_SUM=.*$', src, re.M).group(0)
-    names = ['_soDominant', '_soHealth', '_soNarr', '_qHelp', '_windState', '_windGroup', '_windRow',
+    names = ['_soDominant', '_soHealth', '_soNarr', '_qHelp', '_windState', '_windGroup', '_ppfThChev', '_windRow',
              '_ppfBalance', '_windTop', '_windMatrixLi', '_soGroupSummary', 'renderSectorOutlook']
     js = '\n'.join(['function _esc(s){return String(s);}function _attr(s){return String(s);}',
                     'var MACRO_SUM=' + json.dumps(macro) + ';var MACRO=null;var DATA=' + json.dumps(data or []) + ';',
@@ -699,3 +699,18 @@ def test_research_more_is_a_quiet_text_button():
     src = TEMPLATE.read_text(encoding='utf-8')
     rule = re.search(r'^\.wind-btn\{[^}]*\}', src, re.M).group(0)
     assert 'border:0' in rule and 'padding:2px 0' in rule
+
+
+def test_row_heading_arrow_wraps_with_the_last_word(tmp_path):
+    src = TEMPLATE.read_text(encoding='utf-8')
+    js = _fn(src, '_ppfThChev') + (
+        "\nprocess.stdout.write([_ppfThChev('Input cost inflation from agricultural commodities',true),"
+        "_ppfThChev('Plain',false),_ppfThChev('Ends in <span class=\"tk\">IP</span>',true)].join('|'));")
+    script = tmp_path / 'c.js'
+    script.write_text(js, encoding='utf-8')
+    a, b, c = subprocess.run(['node', str(script)], capture_output=True, text=True, check=True).stdout.split('|')
+    assert a == ('Input cost inflation from agricultural <span class="ppf-nw">commodities'
+                 '<i class="ppf-fchev" aria-hidden="true"></i></span>')
+    assert b == 'Plain'
+    assert c.startswith('Ends in <span class="tk">IP</span>⁠<i class="ppf-fchev"')
+    assert '.ppf-nw{white-space:nowrap;}' in src
