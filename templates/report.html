@@ -1643,12 +1643,13 @@ td.ct{font-weight:700;}
 .pp-tiles{margin-bottom:0;}
 [data-theme="dark"] .pp-lead,[data-theme="dark"] .pp-pts,[data-theme="dark"] .pp-tile b{color:var(--ppf-txt) !important;}
 [data-theme="dark"] .pp-tile span,[data-theme="dark"] .pp-tile i{color:var(--ppf-sub) !important;}
-/* A wind row's drill to the table: a small outlined button, no bullet. */
-.ppf-ul li.wind-act{list-style:none;margin:8px 0 2px -16px;}
-.wind-btn{font:inherit;font-size:0.92em;font-weight:600;padding:4px 10px;border:1px solid #0b6bcb;border-radius:6px;background:none;color:#0b6bcb;cursor:pointer;}
-.wind-btn:hover{background:rgba(11,107,203,0.08);}
-[data-theme="dark"] .wind-btn{color:#58a6ff !important;border-color:#58a6ff;}
-[data-theme="dark"] .wind-btn:hover{background:rgba(88,166,255,0.12);}
+/* A wind row's drill to the table: a quiet text button, no bullet, no
+   outline, so it reads as a link rather than competing with the row. */
+.ppf-ul li.wind-act{list-style:none;margin:4px 0 0 -16px;}
+.wind-btn{font:inherit;font-size:0.92em;font-weight:600;padding:2px 0;border:0;background:none;color:#0b6bcb;cursor:pointer;}
+.wind-btn:hover{text-decoration:underline;}
+.wind-act{display:flex;gap:18px;flex-wrap:wrap;}
+[data-theme="dark"] .wind-btn{color:#58a6ff !important;}
 [data-theme="dark"] .so-link{color:#58a6ff !important;}
 /* One header for every tailwind/headwind section in the report (the
    Broad Sector Outlook's groups, a sector's Drivers columns, the ticker
@@ -3802,10 +3803,10 @@ function windMatrixJump(from,sec,ind){
 }
 /* The button that makes that drill, closing the row's bullets: "Research
    more ›", naming what it opens in its tooltip. */
-function _windMatrixLi(from,sec,ind){
+function _windMatrixLi(from,sec,ind,lead){
   var n=DATA.filter(function(d){return d.sector===sec&&(!ind||d.industry===ind);}).length;
-  if(!n)return '';
-  return '<li class="wind-act"><button type="button" class="wind-btn" data-from="'+_attr(from)+'" data-sec="'+_attr(sec)+'" data-ind="'+_attr(ind||'')+'"'
+  if(!n)return lead?'<li class="wind-act">'+lead+'</li>':'';
+  return '<li class="wind-act">'+(lead||'')+'<button type="button" class="wind-btn" data-from="'+_attr(from)+'" data-sec="'+_attr(sec)+'" data-ind="'+_attr(ind||'')+'"'
     +' title="Open the Gate Matrix filtered to the '+n+' '+_attr(ind||sec)+' compan'+(n===1?'y':'ies')+'"'
     +' onclick="windMatrixJump(this.dataset.from,this.dataset.sec,this.dataset.ind)">Research more ›</button></li>';
 }
@@ -13951,8 +13952,9 @@ function renderSectorOutlook(bare,from){
       title:_esc(sec),meta:acting+' of '+fz.forces.length+' forces acting',
       items:side(tw,'tailwind')+side(hw,'headwind')
         +(m&&m.row.influence?'<li><b>Macro read:</b> '+(m.row.headline?'<i>'+_esc(m.row.headline)+'.</i> ':'')+_esc(m.row.influence)+'</li>':'')
-        +'<li><a href="#" class="so-link" data-sec="'+_attr(sec)+'" data-from="'+origin+'" onclick="goSectorDrivers(this.dataset.sec,this.dataset.from);return false;">Open '+_esc(sec)+'’s Drivers ›</a></li>'
-        +_windMatrixLi(from||'Broad Sector Outlook',sec,'')}));
+        /* One action row: the sector's Drivers and the filtered table. */
+        +_windMatrixLi(from||'Broad Sector Outlook',sec,'',
+          '<button type="button" class="wind-btn" data-sec="'+_attr(sec)+'" data-from="'+origin+'" title="Open '+_attr(sec)+'’s Drivers tab" onclick="goSectorDrivers(this.dataset.sec,this.dataset.from)">Drivers ›</button>')}));
   });
   var body='';
   if(nar){
