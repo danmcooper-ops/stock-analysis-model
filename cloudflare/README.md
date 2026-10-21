@@ -98,6 +98,38 @@ the list gets no code.
 Tests: `cd cloudflare/pages && npm test` (Worker, Node 20+) and
 `pytest tests/test_stage_pages_worker.py`.
 
+## Live quotes (optional)
+
+The Worker can answer `api/quote` for the report's live prices: on a ticker
+page, and for the table rows and portfolio members on screen, the price, day
+change and MoS follow the market during the session (9:30–16:05 ET). Ratings,
+filters, sorting and the Summary PDF stay on the nightly close. Quotes come
+from Finnhub's free tier (personal use, 60 calls a minute). The route is
+behind the same login as everything else.
+
+It stays off until the Pages project has the key, set once by hand (the key
+never goes into the repo or the deploy):
+
+```bash
+npx wrangler pages secret put FINNHUB_API_KEY --project-name "$CF_PAGES_PROJECT"
+```
+
+Paste the key from `.env` when prompted. The next request picks it up; no
+redeploy is needed. With the key set, the Worker adds
+`<meta name="live-quotes">` to the page, which is what turns the polling on;
+GitHub Pages has no Worker, so it never asks. Removing the secret turns it off
+again.
+
+How it stays inside 60 calls a minute: Finnhub quotes one symbol per call, so
+each quote is kept 30 seconds, one request fetches at most 8 (never-fetched
+first, then the stalest, so every row on screen refreshes in turn), and a
+`429` pauses fetching for a minute. The open ticker refreshes about every 30
+seconds; a screen of ~30 table rows every minute or so. Symbols not fetched
+this time are left out of the answer, and the page keeps what it shows.
+
+Check: on a market day, sign in, open a ticker, and look for the dotted
+underline and the "Live · 10:42 ET" stamp beside the price.
+
 ## Retiring GitHub Pages, then making the repo private
 
 GitHub Pages (`pages-live`) is still the public primary site until it is
