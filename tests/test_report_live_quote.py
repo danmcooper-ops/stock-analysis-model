@@ -38,14 +38,15 @@ def _fn(name):
 
 # Minimal browser stand-ins; `ELS` holds the elements the block touches.
 STUBS = r"""
-var ELS={}, APPENDED=[], TIMERS=[];
+var ELS={}, APPENDED=[], TIMERS=[], META=LOC_META;
 function El(id){this.id=id;this.textContent='';this.className='';this.title='';this.style={};
   var cl={};this.classList={add:function(c){cl[c]=1;},remove:function(c){delete cl[c];},
   contains:function(c){return !!cl[c];}};this.removeAttribute=function(a){this[a]='';};
   this.setAttribute=function(a,v){this[a]=v;};this.querySelector=function(){return null;};}
 var document={hidden:false,addEventListener:function(){},
   getElementById:function(id){return ELS[id]||null;},
-  querySelector:function(sel){var m=sel.match(/data-lq="(\w+)"/);return m?(ELS['km-'+m[1]]||null):null;},
+  querySelector:function(sel){if(sel.indexOf('live-quotes')>=0)return META;
+    var m=sel.match(/data-lq="(\w+)"/);return m?(ELS['km-'+m[1]]||null):null;},
   createElement:function(){return new El('');},
   body:{appendChild:function(e){APPENDED.push(e.id);ELS[e.id]=e;}}};
 var location={protocol:LOC_PROTO,pathname:LOC_PATH};
@@ -70,8 +71,9 @@ async function flush(){for(var i=0;i<5;i++)await Promise.resolve();}
 """
 
 
-def _run(body, tmp_path, path='/b/100/', extra=(), proto='http:'):
-    js = (STUBS.replace('LOC_PATH', json.dumps(path)).replace('LOC_PROTO', json.dumps(proto)) + '\n'
+def _run(body, tmp_path, path='/b/100/', extra=(), proto='http:', meta=False):
+    js = (STUBS.replace('LOC_PATH', json.dumps(path)).replace('LOC_PROTO', json.dumps(proto))
+          .replace('LOC_META', '{}' if meta else 'null') + '\n'
           + '\n'.join(extra) + '\n' + _block()
           + '\n(async function(){var R=await (async function(){' + body + '})();'
           + 'process.stdout.write(JSON.stringify(R));})();')
@@ -267,3 +269,28 @@ def test_hosted_sites_never_ask(tmp_path, path):
       return [_lqOff, FETCH_URLS.length];
     """, tmp_path, path=path)
     assert out == [True, 0]
+
+
+def test_cloudflare_worker_tag_turns_quotes_on(tmp_path):
+    # The Worker adds <meta name="live-quotes"> when it can answer api/quote;
+    # its pages are not under /b/<build>/ and carry no build to compare.
+    out = _run("""
+      _lqSet('tbl',['AAA']);
+      FETCH_Q.push({status:200,body:{open:true,asof:NOW,symbols:{AAA:Q(90,NOW)}}});
+      _lqPoll();await flush();
+      return [_lqOff, FETCH_URLS[0], _lqView(DATA[0],'price'), APPENDED];
+    """, tmp_path, path='/', meta=True)
+    assert out == [False, 'api/quote?symbols=AAA', 90, []]
+
+
+def test_left_out_symbols_keep_their_quote(tmp_path):
+    # The Worker leaves out symbols it did not fetch this time.
+    out = _run("""
+      _lqSet('tbl',['AAA','BBB']);
+      FETCH_Q.push({status:200,body:{open:true,asof:NOW,symbols:{AAA:Q(90,NOW),BBB:Q(11,NOW)}}});
+      _lqPoll();await flush();
+      FETCH_Q.push({status:200,body:{open:true,asof:NOW,symbols:{AAA:Q(91,NOW)}}});
+      _lqPoll();await flush();
+      return [_lqView(DATA[0],'price'), _lqView(DATA[1],'price')];
+    """, tmp_path)
+    assert out == [91, 11]

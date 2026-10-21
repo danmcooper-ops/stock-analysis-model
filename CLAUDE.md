@@ -1004,9 +1004,20 @@ ruff check .
   `http://<mini>.local:8765/` (launchd agent
   `scheduled-tasks/mac-mini/com.stockmodel.livequotes.plist`,
   MAC-MINI-SETUP.md §8). One origin because a browser will not let an
-  HTTPS page (Cloudflare, GitHub Pages) call a plain-HTTP LAN address;
-  there the page's first quote request fails, `_lqOff` is set and nothing
-  changes.
+  HTTPS page call a plain-HTTP LAN address. The page asks for quotes only
+  under the service's `/b/<build>/` paths or when the Cloudflare Worker
+  announces its own route (below); GitHub Pages and `file://` never ask.
+  - **Cloudflare site (`cloudflare/pages/_worker.js`):** with a
+    `FINNHUB_API_KEY` secret on the Pages project, the Worker answers
+    `api/quote` from Finnhub's free tier, behind the Access login, and adds
+    `<meta name="live-quotes">` to HTML so the page polls. Free tier = 60
+    calls/min and one symbol per call, so quotes are kept 30 s per isolate,
+    a request fetches at most 8 (never-fetched first, then the stalest),
+    each isolate spends at most 50 a minute, and a 429 pauses a minute;
+    symbols not fetched are left out of the answer and the page keeps what
+    it shows. Same window and response shape as the mini; a weekday on
+    which no requested symbol traded reads as closed (holiday). Runbook:
+    `cloudflare/README.md`.
   - **Feed:** Yahoo's pricing websocket, through our own connection loop.
     yfinance 1.x never resets its socket after a drop (`_connect` only
     connects when `_ws is None`), so its `listen()` retries a dead socket
@@ -1178,6 +1189,8 @@ All via environment (never commit secrets; `.env` at repo root is parsed
 by analyze_stock and gitignored):
 - `SEC_EMAIL` — contact email for SEC EDGAR User-Agent
 - `FMP_API_KEY`, `TIINGO_API_KEY`, `FINNHUB_API_KEY` — optional data sources
+  (`FINNHUB_API_KEY` also feeds the Cloudflare site's live quotes, set
+  separately as a Pages secret — `cloudflare/README.md`)
 - `FRED_API_KEY` — optional; selects FRED's keyed JSON API for the macro
   series and the risk-free rate's `DGS10` fallback (unset falls back to the
   keyless `fredgraph.csv` endpoint)

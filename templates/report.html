@@ -8473,17 +8473,19 @@ function _detDayChg(tk){
   });
 }
 /* --- Live quotes ------------------------------------------------------------
-   The Mac mini serves this page on the home network with api/quote beside it
-   (scripts/live_quotes.py), streaming Yahoo trades for what is on screen: the
-   open ticker, the table rows in view, a portfolio's members. Display only:
+   Two hosts answer api/quote for what is on screen (the open ticker, the
+   table rows in view, a portfolio's members): the Mac mini on the home
+   network (scripts/live_quotes.py, Yahoo's stream; it serves pages under
+   /b/<build>/) and the Cloudflare site's Worker (cloudflare/pages/_worker.js,
+   Finnhub; it adds <meta name="live-quotes"> to the page). Display only:
    _LQ is an overlay and nothing here writes DATA, so filters, sorts,
    portfolio rules, stats, verdicts and the Summary PDF keep the nightly
-   close, and a live cell says so. Only that service serves pages under
-   /b/<build>/, so anywhere else (Cloudflare, GitHub Pages, file://) _lqOff
-   starts set and no request is made; a /b/ page whose first request fails
-   turns it off too, and the page stays exactly as built. */
+   close, and a live cell says so. Anywhere else (GitHub Pages, file://)
+   _lqOff starts set and no request is made; a page whose first request
+   fails turns it off too, and the page stays exactly as built. */
 var _LQ_BUILD=(location.pathname.match(/\/b\/(\d+)\//)||[])[1]||null;
-var _LQ={},_lqOff=location.protocol==='file:'||!_LQ_BUILD,_lqOk=false,_lqOpen=false,_lqT=null,_lqBusy=false;
+var _LQ_HOSTED=!!document.querySelector('meta[name="live-quotes"]');
+var _LQ={},_lqOff=location.protocol==='file:'||!(_LQ_BUILD||_LQ_HOSTED),_lqOk=false,_lqOpen=false,_lqT=null,_lqBusy=false;
 var _lqTargets={det:[],tbl:[],pf:[]},_lqKeys={det:'',tbl:'',pf:''};
 var _LQ_POLL_MS=15000,_LQ_CLOSED_MS=300000,_LQ_STALE_MS=900000,_LQ_MAX=100;
 function _lqGet(tk){return _lqOff?null:(_LQ[tk]||null);}
