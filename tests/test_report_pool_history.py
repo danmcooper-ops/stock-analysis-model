@@ -631,7 +631,7 @@ def test_wind_rows_drill_to_the_gate_matrix(tmp_path):
               'forces': [{'kind': 'tailwind', 'theme': 'T', 'status': 'active', 'exposure': {'reach': 0.5}}]}
     out = _render_outlook({'Technology': {'forces': forces}}, tmp_path, data=data)
     assert '>Research more ›</button></li>' in out
-    assert 'title="Open the Gate Matrix filtered to the 4 Technology companies"' in out
+    assert 'title="Open Stock Valuations filtered to the 4 Technology companies"' in out
     assert 'data-from="Broad Sector Outlook" data-sec="Technology" data-ind=""' in out
 
 

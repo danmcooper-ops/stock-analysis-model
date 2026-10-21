@@ -2733,6 +2733,9 @@ body.wide-table #subnav{padding-left:var(--pg-inset,20px);padding-right:var(--pg
   .header .hdr-search #f-search::placeholder{color:#b8b7b4 !important;}
   .hdr-kbd,.header .hdr-center,.header .filt-btn-label{display:none !important;}
   .sn-count{--sac:var(--chrome-muted);display:inline;font-size:12.5px;font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  /* Title, count and date fill a phone's row to within a pixel at a 10px
+     gap, which wrapped the date; 8px keeps them on one line. */
+  .sn-head{column-gap:8px;}
   #subnav.nav-only .sn-count{display:none;}
   /* At least a 36px target; with filters on, the count badge sits inside
      the button with room on both sides instead of against its edge. */
@@ -3410,6 +3413,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   </div>
   <div id="view-matrix" class="view">
     <div id="m-overview-view" style="display:none"></div>
+    <div id="m-etf-view" style="display:none"></div>
     <div class="matrix-wrap"><table class="matrix-table" id="mtx"><thead id="mtx-h"></thead><tbody id="mtx-b"></tbody></table></div>
   </div>
   <div id="view-table" class="view">
@@ -3844,7 +3848,7 @@ function _windMatrixLi(from,sec,ind){
   var n=DATA.filter(function(d){return d.sector===sec&&(!ind||d.industry===ind);}).length;
   if(!n)return '';
   return '<li class="wind-act"><button type="button" class="wind-btn" data-from="'+_attr(from)+'" data-sec="'+_attr(sec)+'" data-ind="'+_attr(ind||'')+'"'
-    +' title="Open the Gate Matrix filtered to the '+n+' '+_attr(ind||sec)+' compan'+(n===1?'y':'ies')+'"'
+    +' title="Open Stock Valuations filtered to the '+n+' '+_attr(ind||sec)+' compan'+(n===1?'y':'ies')+'"'
     +' onclick="windMatrixJump(this.dataset.from,this.dataset.sec,this.dataset.ind)">Research more ›</button></li>';
 }
 function toggleDashScore(idx){
@@ -6397,7 +6401,7 @@ function _updateCountLabel(){
    the user hasn't clicked a column header on that view this session. */
 function _relActive(){
   if(!_SEARCH_ACTIVE)return false;
-  if(curView==='matrix')return curMSub!=='dashboard'&&!_mUserSorted;
+  if(curView==='matrix')return _mIsMatrix()&&!_mUserSorted;
   if(curView==='table')return curTSub!=='prices'&&!_tUserSorted;
   return false;
 }
@@ -6928,7 +6932,7 @@ function _mtxOnScroll(){
   /* The window listener stays attached across views (page-scroll mode), so
      skip when the Gate Matrix isn't the visible view — otherwise scrolling
      the pool/dashboard pages would rebuild the hidden tbody every frame. */
-  if(curView!=='matrix'||curMSub==='dashboard')return;
+  if(curView!=='matrix'||!_mIsMatrix())return;
   if(_mtxRafPending)return;
   _mtxRafPending=true;
   requestAnimationFrame(function(){_mtxRafPending=false;_renderMtxWindow();});
@@ -6945,16 +6949,27 @@ function renderMSubs(){
 }
 function swMSub(key){
   curMSub=key;mSC='rating';mSA=true;_mUserSorted=false;_syncWideTable();renderMSubs();
-  var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view');
-  if(key==='dashboard'){
-    if(mw)mw.style.display='none';if(ov)ov.style.display='';
-    renderOverview();
-  }else{
-    if(mw)mw.style.display='';if(ov)ov.style.display='none';
-    renderMatrix();
-  }
+  _mShow();
   _syncHash();
   setTimeout(_setTableH,0);
+}
+/* Financial Model's three sub-tabs: Dashboard, Stock Valuations (the gate
+   matrix table) and ETF Valuations (the SPDRs read through the model). One
+   view shows at a time. */
+function _mIsMatrix(){return (curMSub||'matrix')==='matrix';}
+function _mShow(){
+  var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view'),ev=document.getElementById('m-etf-view');
+  var k=curMSub||'matrix';
+  if(mw)mw.style.display=k==='matrix'?'':'none';
+  if(ov)ov.style.display=k==='dashboard'?'':'none';
+  if(ev)ev.style.display=k==='etf'?'':'none';
+  if(k==='dashboard')renderOverview();
+  else if(k==='etf')renderEtfView();
+  else renderMatrix();
+}
+function renderEtfView(){
+  var ev=document.getElementById('m-etf-view');if(!ev)return;
+  ev.innerHTML=renderEtfLookthrough()||'<p style="color:#888;padding:20px;font-size:0.9em">No ETF holdings are archived for this run.</p>';
 }
 function renderOverview(){
   var ov=document.getElementById('m-overview-view');if(!ov)return;
@@ -6979,7 +6994,7 @@ function renderOverview(){
   var html=renderWorldMosMap();
   html+='<div class="qh-card qh-flush" style="margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid #e8edf2">'
     /* The run summary sits behind the ? with the how-to, so the cards lead. */
-    +_qHelp('<span class="note-q-t">'+_subtitle+'.</span><span class="note-q-t" style="display:block;margin-top:6px">Tap a category card, rating box or map country to open those stocks in the Gate Matrix. Gate rows and histogram bars filter in place.</span>','About the Gates Summary','corner')
+    +_qHelp('<span class="note-q-t">'+_subtitle+'.</span><span class="note-q-t" style="display:block;margin-top:6px">Tap a category card, rating box or map country to open those stocks in Stock Valuations. Gate rows and histogram bars filter in place.</span>','About the Gates Summary','corner')
     +'<div style="font-size:1.15em;font-weight:700;color:#1a252f;letter-spacing:0.01em">Gates Summary</div>';
   html+='</div>';
   /* Category score cards */
@@ -6990,7 +7005,7 @@ function renderOverview(){
     var gates=GM.gates.filter(function(g){return g.category===cat.name&&!g.hideMatrix;});
     var _cc=_cfGet(cat.scoreKey),catAct=!!(_cc&&_cc.min!=null);
     html+='<div onclick="dashCatJump(\''+cat.name+'\',\''+cat.scoreKey+'\')" '
-      +'title="Open the Gate Matrix with the stocks scoring above this average" '
+      +'title="Open Stock Valuations with the stocks scoring above this average" '
       +'style="flex:1;min-width:130px;background:#fff;border-radius:10px;border-top:4px solid '+cat.dark+';padding:14px 16px;cursor:pointer;'
       +(catAct?'box-shadow:0 0 0 2px '+cat.dark+',0 2px 8px rgba(0,0,0,0.07)':'box-shadow:0 2px 8px rgba(0,0,0,0.07)')+'">';
     html+='<div style="font-size:0.72em;font-weight:700;color:'+cat.dark+';text-transform:uppercase;letter-spacing:0.06em">'+cat.name
@@ -7010,7 +7025,7 @@ function renderOverview(){
   ['BUY','LEAN BUY','HOLD','PASS'].forEach(function(r){
     var n=rcounts[r],pct=FD.length?Math.round(n/FD.length*100):0;
     var rAct=_rSel.length===1&&_rSel[0]===r;
-    html+='<div onclick="dashRatingJump(\''+r+'\')" title="Open the Gate Matrix with only '+r+'-rated stocks" '
+    html+='<div onclick="dashRatingJump(\''+r+'\')" title="Open Stock Valuations with only '+r+'-rated stocks" '
       +'style="flex:1;min-width:90px;background:#fff;border-radius:8px;padding:11px 14px;cursor:pointer;border-left:4px solid '+rcols[r]+';'
       +(rAct?'box-shadow:0 0 0 2px '+rcols[r]+',0 1px 4px rgba(0,0,0,0.07)':'box-shadow:0 1px 4px rgba(0,0,0,0.07)')+'">';
     html+='<div style="font-size:1.45em;font-weight:700;color:'+rcols[r]+'">'+n+'</div>';
@@ -11845,7 +11860,7 @@ function _setIosZoomFloor(wide){
   m.setAttribute('content',wide?m._origContent.replace(/minimum-scale=[\d.]+/,'minimum-scale=1.0'):m._origContent);
 }
 function _syncWideTable(){
-  var wide=(curView==='matrix'&&curMSub!=='dashboard')||(curView==='table'&&curTSub!=='prices');
+  var wide=(curView==='matrix'&&_mIsMatrix())||(curView==='table'&&curTSub!=='prices');
   if(wide!==_wasWide)_setIosZoomFloor(wide);
   _wasWide=wide;
   document.body.classList.toggle('wide-table',wide);
@@ -11923,7 +11938,7 @@ function _navGroups(){
   var groups=[
     {v:'pool',l:'Sector Analysis',cur:_poolTab||'__performance__',items:pool},
     {v:'matrix',l:'Financial Model',cur:curMSub||'matrix',
-     items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Gate Matrix'}]},
+     items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stock Valuations'},{k:'etf',l:'ETF Valuations'}]},
     {v:'table',l:'Financial Data',cur:curTSub,
      items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})},
     {v:'pf',l:'Portfolios',cur:curPfSub,
@@ -12454,7 +12469,7 @@ function hkOverlayOpen(){
 function toggleNavMenu(e){if(e)e.stopPropagation();closeFiltMenu();sbToggle();}
 function closeNavMenu(){sbClose();}
 function renderCur(){
-  if(curView==='matrix'){renderMSubs();var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view');if(curMSub==='dashboard'){if(mw)mw.style.display='none';if(ov)ov.style.display='';renderOverview();}else{if(mw)mw.style.display='';if(ov)ov.style.display='none';renderMatrix();}}
+  if(curView==='matrix'){renderMSubs();_mShow();}
   else if(curView==='table'){renderTSubs();if(curTSub==='prices'){var tw=document.querySelector('.table-wrap'),phv=document.getElementById('ph-view');if(tw)tw.style.display='none';if(phv)phv.style.display='';if(!_phInited){_phInited=true;initPriceChart();}else{_phResync();}}else{renderTable();}}
   else if(curView==='pool')renderPool();
   else if(curView==='macro')renderMacro();
@@ -13735,11 +13750,11 @@ function renderPoolIndustries(sec){
   }).forEach(function(p){
     var d=p[0],ii=p[1];
     var skew=(d.pool_share!=null&&d.revenue_share>0)?d.pool_share/d.revenue_share:null;
-    out+='<tr class="ppi-ind'+(d.folded?' ppi-pin':'')+'" data-k="'+ii+'" onclick="dashIndustryJump(\''+_attr(secJs)+'\','+ii+')" title="Open the Gate Matrix for '+_attr(d.folded?'these industries':d.industry)+'"><td data-v="'+_attr(d.industry)+'">'+_esc(d.industry)+(d.folded?' <span class="ppi-dim">(industries under 3 companies)</span>':'')+'</td><td data-v="'+d.n+'">'+d.n+'</td><td data-v="'+_ppiV(d.revenue_share)+'">'+_ppPct(d.revenue_share)+'</td>'
+    out+='<tr class="ppi-ind'+(d.folded?' ppi-pin':'')+'" data-k="'+ii+'" onclick="dashIndustryJump(\''+_attr(secJs)+'\','+ii+')" title="Open Stock Valuations for '+_attr(d.folded?'these industries':d.industry)+'"><td data-v="'+_attr(d.industry)+'">'+_esc(d.industry)+(d.folded?' <span class="ppi-dim">(industries under 3 companies)</span>':'')+'</td><td data-v="'+d.n+'">'+d.n+'</td><td data-v="'+_ppiV(d.revenue_share)+'">'+_ppPct(d.revenue_share)+'</td>'
       +'<td data-v="'+_ppiV(d.pool_share)+'"'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(d.pool_share)+'</td>'
       +'<td data-v="'+_ppiV(d.margin)+'">'+_ppPct(d.margin)+'</td><td data-v="'+_ppiV(d.median_spread)+'">'+(d.median_spread==null?'\u2014':_ppSgnPct(d.median_spread))+'</td><td data-v="'+_ppiV(d.pool_cagr)+'">'+(d.pool_cagr==null?'—':_ppSgnPct(d.pool_cagr)+'/yr'+(d.own_window&&d.window?' <span class="ppi-dim" title="Too few of its companies reported over the sector\u2019s window; measured over its own years">('+_ppFy({y0:d.window[0],block:d.window[2]})+' to '+_ppFy1({y1:d.window[1],block:d.window[2]})+')</span>':''))+'</td></tr>';
   });
-  out+='</tbody></table></div>'+_noteQ('Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is each industry’s consistent-panel growth over the sector’s history window, or over its own years where shown in brackets; — where too few of its companies reported throughout. Click an industry to open the Gate Matrix filtered to it.');
+  out+='</tbody></table></div>'+_noteQ('Pool share in green or red where it is at least 1.25× or at most 0.75× the industry’s revenue share. Pool CAGR is each industry’s consistent-panel growth over the sector’s history window, or over its own years where shown in brackets; — where too few of its companies reported throughout. Click an industry to open Stock Valuations filtered to it.');
   return out;
 }
 /* The sector's charted companies: the PP_TOP_N largest by revenue share,
@@ -13893,7 +13908,7 @@ function _etfDetail(r){
   return h+'</div>';
 }
 function _etfPick(t){_etfSel=t;var el=document.getElementById('etf-lt');if(el)el.outerHTML=renderEtfLookthrough();}
-/* Sector Analysis › Charts: every fund, best relative value first. */
+/* Financial Model › ETF Valuations: every fund, best relative value first. */
 function renderEtfLookthrough(){
   if(!ETF_LT||!ETF_LT.funds)return '';
   var F=ETF_LT.funds,base=F[ETF_LT.base];
@@ -14262,7 +14277,7 @@ function renderSectorOutlook(bare,from){
     'Across '+cnt.n+' sectors, tailwinds lead in '+cnt.up+' and headwinds in '+cnt.down+'.')+body;
   /* The explainer folds behind a ?, so the bullets lead. */
   var q=_qHelp('<span class="note-q-t">Each sector’s status weighs its structural forces (acting now, or building at half weight) by the share of its revenue they reach; tap a sector for its strongest tailwind and headwind'
-    +(nar?' and the Macro Outlook’s read on it':'')+'; Research more opens its companies in the Gate Matrix. '
+    +(nar?' and the Macro Outlook’s read on it':'')+'; Research more opens its companies in Stock Valuations. '
     +(nar?'Groups are today’s macro stance. ':'')+'The bar weighs sectors where tailwinds lead against those where headwinds do.</span>','How to read the Broad Sector Outlook','corner');
   if(bare)return '<div class="so-wrap qh-card qh-flush">'+q+body+'</div>';
   return '<div class="xsect-dashboard so-wrap qh-card">'+q
@@ -14962,7 +14977,7 @@ function renderWorldMosMap(){
   var _universe=Object.keys(_uniN).filter(function(i){return _drawable[i];}).length;
   var _sub=_restricted
     ? _shown+' of '+_universe+' countries · filtered — click a highlighted country to clear'
-    : _shown+' of '+_universe+' countries in view · click a country to open it in the Gate Matrix';
+    : _shown+' of '+_universe+' countries in view · click a country to open it in Stock Valuations';
   var _mapHtml='<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:14px">'
     +'<div class="xsect-chart-title">World MoS Map <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(median margin of safety · '+_sub+')</span></div>'
     +'<div class="xs-map-wrap" id="xs-map-wrap">'+WORLD_SVG+'</div>'
@@ -15578,8 +15593,7 @@ function renderPool(){
         +_qHelp('<span class="note-q-t">Bar width is revenue share, height is operating margin, so area is roughly operating profit. Bars run in order of margin, and shares recompute among the sectors shown in the \u2630 menu.</span>','How to read the chart','corner')
         +'<div class="xsect-title">Cross-Sector Profit Pool</div>'
         +'<div class="xsect-sub">Operating profit by sector; tap a bar to open it.</div>'
-        +poolBody+'</div>':'')
-      +renderEtfLookthrough();
+        +poolBody+'</div>':'');
   }
   toRender.forEach(function(sec){
     var cos=sectors[sec];if(!cos||!cos.length)return;
