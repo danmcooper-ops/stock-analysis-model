@@ -1367,7 +1367,9 @@ td.ct{font-weight:700;}
 .ppf-ul{margin:6px 0 0 106px;padding-left:16px;list-style:disc;}
 .ppf-ul li{margin:3px 0;}
 .ppf-ul b{font-weight:600;}
-@media(max-width:520px){.ppf-hdr{grid-template-columns:minmax(0,1fr);}.ppf-ul{margin-left:0;}}
+/* Stacked on phones: the heading (and its bullets) step in under the
+   status, level with the status word after its dot (9px dot + 6px gap). */
+@media(max-width:520px){.ppf-hdr{grid-template-columns:minmax(0,1fr);}.ppf-th{padding-left:15px;}.ppf-ul{margin-left:15px;}}
 .ppf-spark{display:inline-block;vertical-align:middle;margin-left:4px;}
 .ppf-spark polyline{fill:none;stroke:#4f7cac;stroke-width:1.5;}
 [data-theme="dark"] .ppf-spark polyline{stroke:#6e9bd1;}
