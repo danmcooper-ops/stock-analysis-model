@@ -1106,11 +1106,9 @@ td.ct{font-weight:700;}
 .utx li{margin:4px 0;}
 .sig-wrap{margin:0;}
 .sig-title{font-size:0.82em;font-weight:700;color:#333;margin-bottom:8px;}
-.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.sig-hw,.sig-tw{font-size:0.82em;line-height:1.55;padding:12px 14px;border-radius:9px;color:#37474f;}
-.sig-hw{background:linear-gradient(135deg,#fff5f5,#fff0f0);border-left:4px solid #e53e3e;box-shadow:0 2px 8px rgba(229,62,62,0.08);}
-.sig-tw{background:linear-gradient(135deg,#f0fff4,#eafff0);border-left:4px solid #38a169;box-shadow:0 2px 8px rgba(56,161,105,0.08);}
-.sig-hw b,.sig-tw b{display:block;margin-bottom:6px;font-size:0.9em;}
+.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+.sig-hw,.sig-tw{font-size:0.82em;line-height:1.55;color:#37474f;}
+.sig-hw .wind-h,.sig-tw .wind-h{margin-bottom:6px;}
 .sig-hw ul,.sig-tw ul{margin:0;padding-left:16px;}
 .sig-hw li,.sig-tw li{margin-bottom:4px;}
 #d-news a:hover{text-decoration:underline;}
@@ -1301,7 +1299,6 @@ td.ct{font-weight:700;}
    desktop, stacked on mobile. Closes the Context arc, directly under the
    primer. */
 .pp-signals-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
-.pp-signals-col-hdr{font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
 @media(max-width:760px){.pp-signals-grid{grid-template-columns:1fr;gap:14px;}}
 :root{--ppf-tw:#1e7d45;--ppf-hw:#c0392b;--ppf-q:#90a4ae;--ppf-line:#e3e8ee;--ppf-sub:#607d8b;--ppf-bg:#fff;--ppf-txt:#263238;}
 [data-theme="dark"]{--ppf-tw:#3fb950;--ppf-hw:#f85149;--ppf-q:#6e7681;--ppf-line:#30363d;--ppf-sub:#8b949e;--ppf-bg:#1c2128;--ppf-txt:#e6edf3;}
@@ -1343,7 +1340,6 @@ td.ct{font-weight:700;}
 .ppf-key span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
 .ppf-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;}
 @media(max-width:760px){.ppf-cols{grid-template-columns:minmax(0,1fr);gap:16px;}}
-.ppf-colh{display:flex;width:100%;align-items:baseline;justify-content:space-between;font:inherit;font-size:0.86em;font-weight:700;margin:0 0 4px;padding:0 0 4px;background:none;border:0;border-bottom:2px solid currentColor;cursor:pointer;text-align:left;}
 .ppf-chev{display:inline-block;width:0;height:0;margin:0 7px 1px 1px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid currentColor;transition:transform 0.15s;}
 .ppf-collapsed .ppf-chev{transform:rotate(-90deg);}
 .ppf-collapsed .ppf:not(.ppf-open) .ppf-ul,.ppf-collapsed .ppf:not(.ppf-open) .ppf-meta,.ppf.ppf-shut .ppf-ul,.ppf.ppf-shut .ppf-meta{display:none;}
@@ -1353,8 +1349,6 @@ td.ct{font-weight:700;}
 .ppf-hdr[role=button]:focus-visible{outline:2px solid var(--ppf-sub);outline-offset:2px;border-radius:3px;}
 .ppf-fchev{display:inline-block;width:0;height:0;margin:0 0 1px 6px;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--ppf-sub);transition:transform 0.15s;vertical-align:middle;}
 .ppf-hdr[aria-expanded="false"] .ppf-fchev{transform:rotate(-90deg);}
-.ppf-colh small{font-weight:400;color:var(--ppf-sub);font-size:0.9em;}
-.ppf-colh.tw{color:var(--ppf-tw);}.ppf-colh.hw{color:var(--ppf-hw);}
 .ppf{border-bottom:1px solid var(--ppf-line);font-size:0.82em;line-height:1.5;color:var(--ppf-txt);padding:10px 2px;}
 .ppf-hdr{display:grid;grid-template-columns:96px minmax(0,1fr);gap:2px 10px;align-items:baseline;}
 .ppf-st{display:inline-flex;align-items:center;gap:6px;font-size:0.9em;font-weight:600;white-space:nowrap;color:var(--ppf-sub);}
@@ -1382,12 +1376,9 @@ td.ct{font-weight:700;}
 .ppf-note{font-size:0.74em;color:var(--ppf-sub);margin:12px 0 0;line-height:1.5;}
 /* !important beats the blanket dark `body *{color:#fff !important}` rule,
    which would otherwise flatten the status colours and the muted lines. */
-[data-theme="dark"] .ppf-tw .ppf-active,[data-theme="dark"] .ppf-tw .ppf-building,[data-theme="dark"] .ppf-colh.tw{color:var(--ppf-tw) !important;}
-[data-theme="dark"] .ppf-hw .ppf-active,[data-theme="dark"] .ppf-hw .ppf-building,[data-theme="dark"] .ppf-colh.hw{color:var(--ppf-hw) !important;}
-[data-theme="dark"] .ppf-colh.tw *{color:var(--ppf-tw) !important;}
-[data-theme="dark"] .ppf-colh.hw *{color:var(--ppf-hw) !important;}
-[data-theme="dark"] .ppf-colh.tw small,[data-theme="dark"] .ppf-colh.hw small{color:var(--ppf-sub) !important;}
-[data-theme="dark"] .ppf-st,[data-theme="dark"] .ppf-meta,[data-theme="dark"] .ppf-mkt,[data-theme="dark"] .ppf-key,[data-theme="dark"] .ppf-key span,[data-theme="dark"] .ppf-note,[data-theme="dark"] .ppf-colh small,[data-theme="dark"] .ppf-chip i{color:var(--ppf-sub) !important;}
+[data-theme="dark"] .ppf-tw .ppf-active,[data-theme="dark"] .ppf-tw .ppf-building{color:var(--ppf-tw) !important;}
+[data-theme="dark"] .ppf-hw .ppf-active,[data-theme="dark"] .ppf-hw .ppf-building{color:var(--ppf-hw) !important;}
+[data-theme="dark"] .ppf-st,[data-theme="dark"] .ppf-meta,[data-theme="dark"] .ppf-mkt,[data-theme="dark"] .ppf-key,[data-theme="dark"] .ppf-key span,[data-theme="dark"] .ppf-note,[data-theme="dark"] .ppf-chip i{color:var(--ppf-sub) !important;}
 [data-theme="dark"] .pp-primer,
 [data-theme="dark"] .pp-today,
 [data-theme="dark"] .pp-structure,
@@ -1655,17 +1646,32 @@ td.ct{font-weight:700;}
 .so-read p{margin:2px 0;}
 .so-kick{font-style:italic;font-weight:600;}
 .so-grp+.so-grp{margin-top:14px;}
-.so-gh{width:100%;background:none;border:none;border-radius:0;cursor:pointer;font-family:inherit;text-align:left;padding:0;display:flex;align-items:center;gap:6px;font-size:0.7em;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#64748b;padding-bottom:5px;margin-bottom:2px;border-bottom:2px solid #cbd5e1;}
-.so-g-up .so-gh{color:#1a7a45;border-bottom-color:#1a7a45;}.so-g-down .so-gh{color:#c0392b;border-bottom-color:#c0392b;}
-.so-gh span{font-weight:600;opacity:0.75;}
-.so-gh .ppf-chev{margin:0 2px 1px auto;}
-.so-gh .ppf-chev{flex:none;}
-.so-shut .so-gh .ppf-chev{transform:rotate(-90deg);}
+/* One header for every tailwind/headwind section in the report (the
+   Broad Sector Outlook's groups, a sector's Drivers columns, the ticker
+   page's Headwinds & Tailwinds, the Macro balance): a coloured uppercase
+   label, a muted count after a dot, a coloured rule, and a chevron at the
+   right edge when it folds. */
+.wind-h{display:flex;align-items:center;gap:6px;width:100%;box-sizing:border-box;background:none;border:0;border-radius:0;border-bottom:2px solid #cbd5e1;padding:0 0 5px;margin:0 0 4px;font-family:inherit;font-size:11.5px;line-height:1.3;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;text-align:left;color:#64748b;}
+button.wind-h{cursor:pointer;}
+.wind-h span{font-weight:600;opacity:0.75;letter-spacing:0.04em;}
+.wind-h .ppf-chev{flex:none;margin:0 2px 1px auto;}
+.wind-h.wind-up{color:#1a7a45;border-bottom-color:#1a7a45;}
+.wind-h.wind-down{color:#c0392b;border-bottom-color:#c0392b;}
+[data-theme="dark"] .wind-h,[data-theme="dark"] .wind-h *{color:#8b949e !important;}
+[data-theme="dark"] .wind-h{border-bottom-color:#30363d;}
+[data-theme="dark"] .wind-h.wind-up,[data-theme="dark"] .wind-h.wind-up *{color:#3fb950 !important;}
+[data-theme="dark"] .wind-h.wind-down,[data-theme="dark"] .wind-h.wind-down *{color:#f85149 !important;}
+/* The ticker page's headwinds column forces white text by id; its header
+   keeps the wind colour. */
+[data-theme="dark"] #d-sector-signals .sig-hw .wind-h,[data-theme="dark"] #d-sector-signals .sig-hw .wind-h *{color:#f85149 !important;}
+[data-theme="dark"] .wind-h.wind-up{border-bottom-color:#3fb950;}
+[data-theme="dark"] .wind-h.wind-down{border-bottom-color:#f85149;}
+.so-shut .wind-h .ppf-chev{transform:rotate(-90deg);}
 .so-shut .so-list{display:none;}
 .so-gsum{display:none;font-size:0.8em;line-height:1.45;color:#64748b;margin:6px 0 2px;}
 .so-shut .so-gsum{display:block;}
 [data-theme="dark"] .so-gsum{color:#8b949e !important;}
-.so-shut .so-gh{margin-bottom:0;}
+.so-shut .wind-h{margin-bottom:0;}
 [data-theme="dark"] .so-sec{color:#e6edf3 !important;}
 [data-theme="dark"] .so-sec i{color:#58a6ff !important;}
 [data-theme="dark"] .so-pill{background:#21262d;color:#8b949e !important;}
@@ -1674,10 +1680,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .so-f{color:#c9d1d9 !important;}
 [data-theme="dark"] .so-f.so-tw b{color:#3fb950 !important;}[data-theme="dark"] .so-f.so-hw b{color:#f85149 !important;}
 [data-theme="dark"] .so-f.so-none,[data-theme="dark"] .so-f.so-none b,[data-theme="dark"] .so-f em{color:#6e7681 !important;}
-[data-theme="dark"] .so-mac,[data-theme="dark"] .so-gh{color:#8b949e !important;}
-[data-theme="dark"] .so-gh{border-bottom-color:#30363d;}
-[data-theme="dark"] .so-g-up .so-gh{color:#3fb950 !important;border-bottom-color:#3fb950;}
-[data-theme="dark"] .so-g-down .so-gh{color:#f85149 !important;border-bottom-color:#f85149;}
+[data-theme="dark"] .so-mac{color:#8b949e !important;}
 [data-theme="dark"] .so-read{color:#c9d1d9 !important;}
 .xsect-kpi-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
 .xsect-kpi{flex:1;min-width:140px;background:#f8fafd;border-radius:7px;padding:9px 12px;}
@@ -1936,9 +1939,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .rcw-up .rcw-hdr{color:#5cbf7d;}
 [data-theme="dark"] .rcw-dn .rcw-hdr{color:#e57368;}
 [data-theme="dark"] .utx,[data-theme="dark"] .sig-title{color:#c9d1d9;}
-[data-theme="dark"] .sig-hw{background:linear-gradient(135deg,#2a1518,#321a1d);color:#fff;}
 [data-theme="dark"] .sig-hw *{color:#fff;}
-[data-theme="dark"] .sig-tw{background:linear-gradient(135deg,#152a1d,#1a3220);color:#c9d1d9;}
 [data-theme="dark"] .ps-col{background:#1c2128;border-color:#30363d;}
 [data-theme="dark"] .ps-col h3{color:#58a6ff;border-color:#30363d;}
 [data-theme="dark"] .ps-tk{color:#e6edf3;}
@@ -11104,8 +11105,8 @@ function openDet(tk){
     if(!_hwNorm.length) _hwHtml='<p style="margin:0;color:#999">None identified</p>';
     var _hwMore=_hwN>_SIG_SHOW,_twMore=tw.length>_SIG_SHOW;
     var sh='<div class="sig-wrap"><div class="sig-grid">';
-    sh+='<div class="sig-tw'+(_twMore?' ds-clip':'')+'"><b>\u25b2 Tailwinds</b>'+(tw.length?'<ul>'+tw.map(function(t,i){return'<li'+(i>=_SIG_SHOW?' class="ds-more"':'')+'>'+_linkifyTickers(esc(typeof t==='string'?t:(t.text||'')))+'</li>';}).join('')+'</ul>':'<p style="margin:0;color:#999">None identified</p>')+(_twMore?_DS_TOG:'')+'</div>';
-    sh+='<div class="sig-hw'+(_hwMore?' ds-clip':'')+'"><b>\u25bc Headwinds</b>'+_hwHtml+(_hwMore?_DS_TOG:'')+'</div>';
+    sh+='<div class="sig-tw'+(_twMore?' ds-clip':'')+'"><div class="wind-h wind-up">\u25b2 Tailwinds<span>· '+tw.length+'</span></div>'+(tw.length?'<ul>'+tw.map(function(t,i){return'<li'+(i>=_SIG_SHOW?' class="ds-more"':'')+'>'+_linkifyTickers(esc(typeof t==='string'?t:(t.text||'')))+'</li>';}).join('')+'</ul>':'<p style="margin:0;color:#999">None identified</p>')+(_twMore?_DS_TOG:'')+'</div>';
+    sh+='<div class="sig-hw'+(_hwMore?' ds-clip':'')+'"><div class="wind-h wind-down">\u25bc Headwinds<span>· '+_hwNorm.length+'</span></div>'+_hwHtml+(_hwMore?_DS_TOG:'')+'</div>';
     sh+='</div></div>';
     sigEl.innerHTML=sh;sigSec.style.display='';
   }else{sigEl.innerHTML='';sigSec.style.display='none';}
@@ -12721,12 +12722,12 @@ function _macNarrativeHTML(){
   }else if(tw.length||hw.length){
     h+='<div class="mac-fold"><div class="mac-nar-k mac-fold-h" onclick="_macFold(this,event)">'+FOLD+'The balance</div><div class="mac-fold-b">';
     if(tw.length){
-      h+='<div class="mac-nar-wind up"><b>Working for the economy</b><ul class="mac-nar-ul">';
+      h+='<div class="mac-nar-wind up"><div class="wind-h wind-up">▲ Working for the economy<span>· '+tw.length+'</span></div><ul class="mac-nar-ul">';
       tw.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
       h+='</ul></div>';
     }
     if(hw.length){
-      h+='<div class="mac-nar-wind down"><b>Working against it</b><ul class="mac-nar-ul">';
+      h+='<div class="mac-nar-wind down"><div class="wind-h wind-down">▼ Working against it<span>· '+hw.length+'</span></div><ul class="mac-nar-ul">';
       hw.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
       h+='</ul></div>';
     }
@@ -13674,8 +13675,8 @@ function _ppfCol(list,kind){
   var acting=list.filter(function(f){return f.status==='active'||f.status==='building';}).length;
   var shut=_ppfCollapsedState()[kind]!==false;
   return '<div class="ppf-colwrap'+(shut?' ppf-collapsed':'')+'" data-kind="'+kind+'">'
-    +'<button type="button" class="ppf-colh '+(kind==='tailwind'?'tw':'hw')+'" aria-expanded="'+(shut?'false':'true')+'" onclick="_ppfToggleCol(this)">'
-    +'<span><i class="ppf-chev" aria-hidden="true"></i>'+(kind==='tailwind'?'Tailwinds':'Headwinds')+'</span><small>'+acting+' of '+list.length+' acting</small></button>'
+    +'<button type="button" class="ppf-colh wind-h '+(kind==='tailwind'?'tw wind-up':'hw wind-down')+'" aria-expanded="'+(shut?'false':'true')+'" onclick="_ppfToggleCol(this)">'
+    +(kind==='tailwind'?'▲ Tailwinds':'▼ Headwinds')+'<span>· '+acting+' of '+list.length+' acting</span><i class="ppf-chev" aria-hidden="true"></i></button>'
     +sorted.map(function(f){return _ppfCard(f,shut);}).join('')+'</div>';
 }
 function renderPoolSectorSignals(sec){
@@ -13717,8 +13718,8 @@ function renderPoolSectorSignals(sec){
     items.forEach(function(s){ul+='<li style="margin:5px 0">'+_linkifyTickers(_esc(s))+'</li>';});
     return ul+'</ul>';
   }
-  var twHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#1a7a45">▲ Structural Tailwinds</div>'+_list(tw0,'tailwinds')+'</div>';
-  var hwHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#c0392b">▼ Structural Headwinds</div>'+_list(hw0,'headwinds')+'</div>';
+  var twHtml='<div class="pp-signals-col"><div class="wind-h wind-up">▲ Structural Tailwinds<span>· '+tw0.length+'</span></div>'+_list(tw0,'tailwinds')+'</div>';
+  var hwHtml='<div class="pp-signals-col"><div class="wind-h wind-down">▼ Structural Headwinds<span>· '+hw0.length+'</span></div>'+_list(hw0,'headwinds')+'</div>';
   return '<div class="pp-signals-grid">'+twHtml+hwHtml+'</div>';
 }
 /* Broad Sector Outlook: the one sector read, on the Charts sub-tab above
@@ -13826,7 +13827,7 @@ function renderSectorOutlook(bare,from){
     [['up','▲ Macro tailwind'],['','● Macro neutral'],['down','▼ Macro headwind']].forEach(function(g){
       if(!grp[g[0]].length)return;
       var k=g[0]||'flat',shut=!!st[k];
-      body+='<div class="so-grp so-g-'+k+(shut?' so-shut':'')+'" data-k="'+k+'"><button type="button" class="so-gh" aria-expanded="'+(shut?'false':'true')+'" onclick="_soGrpToggle(this)">'+g[1]+'<span>· '+grp[g[0]].length+'</span><i class="ppf-chev" aria-hidden="true"></i></button><div class="so-gsum">'+_soGroupSummary(hl[g[0]])+'</div><ul class="so-list">'+grp[g[0]].join('')+'</ul></div>';
+      body+='<div class="so-grp so-g-'+k+(shut?' so-shut':'')+'" data-k="'+k+'"><button type="button" class="so-gh wind-h'+(g[0]?' wind-'+g[0]:'')+'" aria-expanded="'+(shut?'false':'true')+'" onclick="_soGrpToggle(this)">'+g[1]+'<span>· '+grp[g[0]].length+'</span><i class="ppf-chev" aria-hidden="true"></i></button><div class="so-gsum">'+_soGroupSummary(hl[g[0]])+'</div><ul class="so-list">'+grp[g[0]].join('')+'</ul></div>';
     });
   }else if(grp[''].length)body='<ul class="so-list">'+grp[''].join('')+'</ul>';
   if(!body)return '';

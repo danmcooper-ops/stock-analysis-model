@@ -217,7 +217,7 @@ def test_forces_read_as_bulleted_rows_with_plain_word_statuses(tmp_path):
     side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
     side['sector_data'] = {'Real Estate': {'etf': 'XLRE', 'rs_3m': -0.10, 'rs_6m': -0.17}}
     html = _render_signals({'forces': evaluate_forces('Real Estate', side, {})}, tmp_path)
-    tw, hw = html.split('>Headwinds<')
+    tw, hw = html.split('>▼ Headwinds<')
     assert html.count('<div class="ppf ppf-') == 6
     assert 'ppf-st ppf-active"><i class="ppf-dot"></i>Acting now' in hw
     assert 'ppf-st ppf-dormant"><i class="ppf-dot"></i>Not acting' in tw
@@ -226,7 +226,8 @@ def test_forces_read_as_bulleted_rows_with_plain_word_statuses(tmp_path):
     assert '<ul class="ppf-ul"><li><b>Evidence:</b> Test series 5.38%' in card
     assert '<polyline' in card and '<b>Why it matters:</b> Cap rates' in card
     assert 'XLRE has trailed the market by 10.0% over 3 months' in html
-    assert '0 of 3 acting</small>' in tw and '1 of 3 acting</small>' in hw
+    assert '▲ Tailwinds<span>· 0 of 3 acting</span>' in tw and '· 1 of 3 acting</span>' in hw
+    assert 'class="ppf-colh wind-h tw wind-up"' in tw   # the report's one wind header
     assert 'Acting now: the evidence is strong and holding' in html       # the key
     # ...behind a ? on the market-check line, not a band above the lists
     key = html.split('<div class="ppf-keyrow">')[1].split('<div class="ppf-cols">')[0]
@@ -239,7 +240,7 @@ def test_nothing_is_hidden_behind_expand_or_collapse(tmp_path):
     side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
     html = _render_signals({'forces': evaluate_forces('Real Estate', side, {})}, tmp_path)
     assert '<details' not in html and '<summary' not in html
-    hw = html.split('>Headwinds<')[1]
+    hw = html.split('>▼ Headwinds<')[1]
     # moving forces first, then not acting, then not measured
     assert (hw.index('Interest-rate sensitivity') < hw.index('Remote work')
             and hw.index('ppf-active') < hw.index('ppf-qualitative'))
@@ -548,7 +549,9 @@ def test_sector_outlook_groups_by_the_macro_stance(tmp_path):
         {'sector': 'Utilities', 'stance': 'headwind', 'influence': 'U'},
         {'sector': 'Energy', 'stance': '<script>'}]}}
     html = _render_outlook(pool, tmp_path, macro)
-    assert html.count('class="so-gh" aria-expanded="true" onclick="_soGrpToggle(this)"') == 3
+    assert html.count('aria-expanded="true" onclick="_soGrpToggle(this)"') == 3
+    assert 'class="so-gh wind-h wind-up"' in html and 'class="so-gh wind-h wind-down"' in html
+    assert 'class="so-gh wind-h" ' in html
     assert 'so-shut' not in html, 'groups start open'
     folded = _render_outlook(pool, tmp_path, macro, stored={'down': True})
     # each group carries its one-sentence summary (CSS shows it only folded)
