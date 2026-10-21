@@ -1629,6 +1629,12 @@ td.ct{font-weight:700;}
 .xsect-sub{font-size:0.78em;color:#8a9bb0;margin-bottom:16px;}
 .so-wrap>.xsect-title{margin-bottom:14px;}
 .so-link{font-weight:600;color:#0b6bcb;text-decoration:none;}
+/* A wind row's drill to the table: a small outlined button, no bullet. */
+.ppf-ul li.wind-act{list-style:none;margin:8px 0 2px -16px;}
+.wind-btn{font:inherit;font-size:0.92em;font-weight:600;padding:4px 10px;border:1px solid #0b6bcb;border-radius:6px;background:none;color:#0b6bcb;cursor:pointer;}
+.wind-btn:hover{background:rgba(11,107,203,0.08);}
+[data-theme="dark"] .wind-btn{color:#58a6ff !important;border-color:#58a6ff;}
+[data-theme="dark"] .wind-btn:hover{background:rgba(88,166,255,0.12);}
 [data-theme="dark"] .so-link{color:#58a6ff !important;}
 /* One header for every tailwind/headwind section in the report (the
    Broad Sector Outlook's groups, a sector's Drivers columns, the ticker
@@ -3781,12 +3787,14 @@ function windMatrixJump(from,sec,ind){
   _cfPut('industry',null,null,ind||null);
   _dashJump();
 }
-/* The bullet that makes that drill: "See the 12 Steel companies in the
-   Gate Matrix ›". */
+/* The button that makes that drill, closing the row's bullets: "Research
+   more ›", naming what it opens in its tooltip. */
 function _windMatrixLi(from,sec,ind){
   var n=DATA.filter(function(d){return d.sector===sec&&(!ind||d.industry===ind);}).length;
   if(!n)return '';
-  return '<li><a href="#" class="so-link" data-from="'+_attr(from)+'" data-sec="'+_attr(sec)+'" data-ind="'+_attr(ind||'')+'" onclick="windMatrixJump(this.dataset.from,this.dataset.sec,this.dataset.ind);return false;">See the '+n+' '+_esc(ind||sec)+' compan'+(n===1?'y':'ies')+' in the Gate Matrix ›</a></li>';
+  return '<li class="wind-act"><button type="button" class="wind-btn" data-from="'+_attr(from)+'" data-sec="'+_attr(sec)+'" data-ind="'+_attr(ind||'')+'"'
+    +' title="Open the Gate Matrix filtered to the '+n+' '+_attr(ind||sec)+' compan'+(n===1?'y':'ies')+'"'
+    +' onclick="windMatrixJump(this.dataset.from,this.dataset.sec,this.dataset.ind)">Research more ›</button></li>';
 }
 function toggleDashScore(idx){
   /* A composite-score column filter for the bracket [10i, 10i+9.9]
