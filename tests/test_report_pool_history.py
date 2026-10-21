@@ -229,9 +229,11 @@ def test_forces_read_as_bulleted_rows_with_plain_word_statuses(tmp_path):
     assert '▲ Tailwinds<span>· 0 of 3 acting</span>' in tw and '· 1 of 3 acting</span>' in hw
     assert 'class="ppf-colh wind-h tw wind-up"' in tw   # the report's one wind header
     assert 'Acting now: the evidence is strong and holding' in html       # the key
-    # ...behind a ? on the market-check line, not a band above the lists
-    key = html.split('<div class="ppf-keyrow">')[1].split('<div class="ppf-cols">')[0]
-    assert 'class="qhelp-btn"' in key and 'class="qhelp-pop"' in key and 'Acting now' in key
+    # ...behind the section's one ?, with the method, not a band above the lists
+    assert 'ppf-keyrow' not in html and html.count('class="qhelp-btn"') == 1
+    note = html.split('<div class="note-q">')[1]
+    assert 'class="qhelp-pop"' in note and 'Acting now' in note and 'Each status reads' in note
+    assert html.index('Market check:') < html.index('<div class="ppf-cols">')
 
 
 def test_nothing_is_hidden_behind_expand_or_collapse(tmp_path):
