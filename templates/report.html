@@ -23,7 +23,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Stock Analysis — Interactive Report</title>
+<title>City2Summit</title>
 <!-- Toolbar tint for Safari / iOS. _applyTheme() keeps it in step with the
      theme; the phone top bar is dark in both themes. -->
 <meta name="theme-color" id="meta-theme-color" content="#0b0b0b">
@@ -1629,6 +1629,19 @@ td.ct{font-weight:700;}
 .xsect-sub{font-size:0.78em;color:#8a9bb0;margin-bottom:16px;}
 .so-wrap>.xsect-title{margin-bottom:14px;}
 .so-link{font-weight:600;color:#0b6bcb;text-decoration:none;}
+/* A sector's Overview: the primer as a lead line and points, the sector
+   today as tiles (the ticker page's Snapshot grid) and one line. */
+.pp-lead{margin:0 0 6px;font-size:0.86em;line-height:1.55;font-weight:600;color:var(--ppf-txt);}
+.pp-pts{margin:0;padding-left:18px;font-size:0.82em;line-height:1.55;color:var(--ppf-txt);}
+.pp-pts li{margin:4px 0;}
+.pp-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--ppf-line);border:1px solid var(--ppf-line);border-radius:12px;overflow:hidden;margin:0 0 10px;}
+@media(max-width:600px){.pp-tiles{grid-template-columns:repeat(2,minmax(0,1fr));}}
+.pp-tile{background:var(--ppf-bg);padding:10px 14px;display:flex;flex-direction:column;gap:2px;}
+.pp-tile span{font-size:0.66em;text-transform:uppercase;letter-spacing:0.05em;color:var(--ppf-sub);}
+.pp-tile b{font-size:1.05em;font-weight:700;color:var(--ppf-txt);font-variant-numeric:tabular-nums;}
+.pp-today-note{font-weight:400;}
+[data-theme="dark"] .pp-lead,[data-theme="dark"] .pp-pts,[data-theme="dark"] .pp-tile b{color:var(--ppf-txt) !important;}
+[data-theme="dark"] .pp-tile span{color:var(--ppf-sub) !important;}
 /* A wind row's drill to the table: a small outlined button, no bullet. */
 .ppf-ul li.wind-act{list-style:none;margin:8px 0 2px -16px;}
 .wind-btn{font:inherit;font-size:0.92em;font-weight:600;padding:4px 10px;border:1px solid #0b6bcb;border-radius:6px;background:none;color:#0b6bcb;cursor:pointer;}
@@ -2556,7 +2569,6 @@ body{padding-left:var(--sb-cur);}
 #sidebar button{font:inherit;background:none;border:0;cursor:pointer;text-align:left;}
 .sb-top{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 10px 0 14px;min-height:30px;}
 .sb-brand{--sac:#fff;font-family:Georgia,'Times New Roman',serif;font-size:16px;letter-spacing:-.2px;white-space:nowrap;}
-.sb-brand sup{--sac:var(--chrome-accent);font-size:11px;margin-left:1px;}
 .sb-sq,#sidebar .sb-sq{--sac:#fff;width:22px;height:22px;display:flex;align-items:center;justify-content:center;background:var(--sb-btn);border-radius:2px;flex-shrink:0;}
 .sb-sq svg{width:14px;height:14px;}
 #sidebar .sb-sq:hover{background:#4a4a4a;}
@@ -3216,7 +3228,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
        title simply rides higher rather than making the banner taller. -->
   <div class="hdr-title">
     <div class="hdr-title-row">
-      <h1>Securities Analysis</h1>
+      <h1>City2Summit</h1>
       <div class="last-updated"><span>{{ generated_at }}</span></div>
     </div>
     <!-- Phones hide .last-updated to fit the one-row header, which left no
@@ -3325,7 +3337,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
      listener to navGo(). -->
 <nav id="sidebar" class="sa-chrome" aria-label="Report navigation">
   <div class="sb-top">
-    <span class="sb-brand">Securities Analysis<sup>&beta;</sup></span>
+    <span class="sb-brand">City2Summit</span>
     <button type="button" class="sb-sq sb-collapse" onclick="sbToggle()" aria-label="Collapse sidebar" title="Collapse sidebar (v)">
       <svg class="sb-chev-l" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <svg class="sb-chev-r" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -11850,7 +11862,7 @@ function _syncNavCrumb(){
   g.items.forEach(function(it){if(it.k===g.cur)sub=it.l;});
   var hv=document.getElementById('hdr-view');
   if(hv)hv.textContent=g.l+(sub?' - '+sub:'');
-  document.title=g.l+(sub?' › '+sub:'')+' — Securities Analysis';
+  document.title=g.l+(sub?' › '+sub:'')+' — City2Summit';
 }
 /* k omitted (the group header was clicked) = go to the view, keeping
    whichever sub-tab it was last on. */
@@ -13184,17 +13196,43 @@ function renderPoolPrimer(sec){
   /* The "Key risks" block previously listed thesis_risk headwinds, which
      now live in the Sector Headwinds & Tailwinds section below — drop the
      duplicate so the Primer is a clean educational paragraph. */
-  return '<p style="margin:0;font-size:0.82em;line-height:1.55;color:#37474f">'+parts.join(' ')+'</p>';
+  /* Read as a lead and points: the first sentence leads, each later one is
+     a bullet; phones show two bullets and the rest behind Read more
+     (.ds-clip, placed by _dsPlaceIn after the render). */
+  var ss=[];
+  [n.education,n.education_cycle].forEach(function(t){if(t)ss=ss.concat(_macSentences(t));});
+  if(!ss.length)return '';
+  var more=ss.length>3;
+  return '<div class="pp-primer-b'+(more?' ds-clip':'')+'"><p class="pp-lead">'+_linkifyTickers(_esc(ss[0]))+'</p>'
+    +(ss.length>1?'<ul class="pp-pts">'+ss.slice(1).map(function(x,i){return '<li'+(i>=2?' class="ds-more"':'')+'>'+_linkifyTickers(_esc(x))+'</li>';}).join('')+'</ul>':'')
+    +(more?_DS_TOG:'')+'</div>';
 }
 /* "The Sector Today" (pp-today, Overview tab): the pool's size, blended
    margin and what that margin means, then its leader — the server's
    `overview` paragraph (models/narrative.py). Its figures are not repeated
    by the Profit pool tab's tiles, which carry concentration, the margin
    spread and the loss-makers. */
+/* Shown as four tiles (pool, revenue, margin, companies) from the sector's
+   stats, then the paragraph's later sentences (the leader, and what the
+   margin means where it says) as one line; its first sentence only
+   restated the tiles. */
+function _ppMoney(v){
+  var a=Math.abs(v);
+  return (v<0?'−':'')+'$'+(a>=1e12?(a/1e12).toFixed(1)+'T':a>=1e9?(a/1e9).toFixed(1)+'B':(a/1e6).toFixed(0)+'M');
+}
 function renderPoolToday(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
-  if(!n||!n.overview)return '';
-  return '<p style="margin:0;font-size:0.82em;line-height:1.55;color:#37474f">'+_linkifyTickers(_esc(n.overview))+'</p>';
+  if(!n)return '';
+  var st=n.stats||{},tiles=[];
+  if(st.total_op_income!=null)tiles.push(['Profit pool',_ppMoney(st.total_op_income)]);
+  if(st.total_revenue!=null)tiles.push(['Revenue',_ppMoney(st.total_revenue)]);
+  if(st.weighted_margin!=null)tiles.push(['Margin',_ppPct(st.weighted_margin)]);
+  if(st.company_count!=null)tiles.push(['Companies',String(st.company_count)]);
+  var rest=n.overview?_macSentences(n.overview):[];
+  if(tiles.length)rest=rest.slice(1);
+  if(!tiles.length&&!rest.length)return '';
+  return (tiles.length?'<div class="pp-tiles">'+tiles.map(function(t){return '<div class="pp-tile"><span>'+t[0]+'</span><b>'+t[1]+'</b></div>';}).join('')+'</div>':'')
+    +(rest.length?'<p class="pp-lead pp-today-note">'+_linkifyTickers(_esc(rest.join(' ')))+'</p>':'');
 }
 /* The Profit pool tab's "Shape of the Pool": four tiles, each fact once.
    The revenue HHI/CR4 paragraph and the strategy bullets that used to sit
@@ -15393,6 +15431,7 @@ function renderPool(){
        summary is rendered by renderCrossSectorDashboard on the Overview. */
   });
   document.getElementById('pool-chart-area').innerHTML=chartHtml||'<p style="color:#999;padding:20px;font-size:0.9em">No profit pool data available.</p>';
+  _dsPlaceIn(document.getElementById('pool-chart-area'));
   _pphDrawAll(document.getElementById('pool-chart-area'));
 }
 function ppTip(e,ticker){

@@ -642,3 +642,36 @@ def test_stacked_wind_rows_indent_the_heading_under_the_status():
     src = TEMPLATE.read_text(encoding='utf-8')
     assert ('@media(max-width:520px){.ppf-hdr{grid-template-columns:minmax(0,1fr);}'
             '.ppf-th{padding-left:15px;}.ppf-ul{margin-left:15px;}}') in src
+
+
+def test_sector_today_is_tiles_and_the_primer_a_lead_and_points(tmp_path):
+    entry = {'stats': {'total_op_income': 213.9e9, 'total_revenue': 1.7e12, 'weighted_margin': 0.119,
+                       'company_count': 210},
+             'overview': 'The pool totals $213.9B. BHP alone captures 9% of the pool.',
+             'education': 'A commodity game. Cost curves decide. Moats are rare.',
+             'education_cycle': 'Deeply cyclical. China leads.'}
+    src = TEMPLATE.read_text(encoding='utf-8')
+    names = ['_ppPct', '_macSentences', '_ppMoney', 'renderPoolToday', 'renderPoolPrimer']
+    js = '\n'.join(['function _esc(s){return String(s);}function _linkifyTickers(s){return s;}',
+                    re.search(r'^var _DS_TOG=.*$', src, re.M).group(0)]
+                   + [_fn(src, n) for n in names]
+                   + ['var SECTOR_POOL=' + json.dumps({'S': entry}) + ';',
+                      "process.stdout.write(renderPoolToday('S')+'\\n@@\\n'+renderPoolPrimer('S'));"])
+    script = tmp_path / 't.js'
+    script.write_text(js, encoding='utf-8')
+    today, primer = subprocess.run(['node', str(script)], capture_output=True, text=True,
+                                   check=True).stdout.split('\n@@\n')
+    assert '<div class="pp-tile"><span>Profit pool</span><b>$213.9B</b></div>' in today
+    assert '<b>$1.7T</b>' in today and '<b>210</b>' in today
+    assert '<p class="pp-lead pp-today-note">BHP alone captures 9% of the pool.</p>' in today
+    assert 'totals $213.9B' not in today, 'the first sentence restated the tiles'
+    assert '<p class="pp-lead">A commodity game.</p>' in primer
+    assert primer.count('<li') == 4 and primer.count('class="ds-more"') == 2
+    assert 'ds-clip' in primer and 'Read more' in primer
+
+
+def test_brand_is_city2summit():
+    src = TEMPLATE.read_text(encoding='utf-8')
+    assert '<span class="sb-brand">City2Summit</span>' in src and '<h1>City2Summit</h1>' in src
+    assert "+' — City2Summit';" in src and '<title>City2Summit</title>' in src
+    assert 'Securities Analysis' not in src and '&beta;' not in src

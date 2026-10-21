@@ -720,9 +720,12 @@ ruff check .
   each sector's body is split into sub-tabs. Labels are listed here with
   their ids in brackets; the ids are what is stored, so a rename keeps a
   remembered tab. The tabs are:
-  - Overview (`overview`): the primer, then "The Sector Today", which is
-    the narrative's `overview` (pool size, blended margin plus what that
-    margin means, and the leader).
+  - Overview (`overview`): the primer, split by sentence into a lead line
+    and bullets (phones show two, the rest behind Read more), then "The
+    Sector Today": four tiles from the narrative's `stats` (pool, revenue,
+    margin, companies) and the `overview` paragraph's later sentences (the
+    leader, and what the margin means), its first sentence restating the
+    tiles.
   - Drivers (`forces`).
   - Profit pool (`pool`): four tiles (Concentration, which holds revenue
     HHI/CR4 from `stats` beside the profit HHI/CR4; Margin spread;
