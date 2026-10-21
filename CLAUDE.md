@@ -845,9 +845,10 @@ ruff check .
   counts at FV/P 1, and at 1/3 for the band's low end. Share classes fold
   onto the kept row (`listing_aliases`), cash counts at 1, a holding with no
   row is left out. Under 80% of weight with a fair value reads
-  INSUFFICIENT; a coverage-degraded run shows nothing. Shown on Sector
-  Analysis › Charts (all 14) and each sector's Value creation tab (its own
-  SPDR); written to `output/etfs_<date>.json`. Display only: no fund is
+  INSUFFICIENT; a coverage-degraded run shows nothing. Shown on Financial
+  Model › ETF Valuations (all 14; the sub-tab beside Dashboard and Stock
+  Valuations, the gate matrix's tab label) and each sector's Value creation
+  tab (its own SPDR); written to `output/etfs_<date>.json`. Display only: no fund is
   rated, and an ETF must never reach `profile_verdict` (its −20% MoS AVOID
   flag would fire on nearly every fund). `ETF_HOLDINGS_DIR` overrides the
   archive path. Tests: `tests/test_etf_lookthrough.py`.
