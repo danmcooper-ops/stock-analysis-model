@@ -409,3 +409,12 @@ def test_wide_table_title_row_uses_the_page_inset():
     src = _tpl()
     assert 'body.wide-table #subnav{padding-left:var(--pg-inset,20px);padding-right:var(--pg-inset,20px);}' in src
     assert src.count(':root{--pg-inset:6px;}') == 2
+
+
+def test_finances_sub_tabs_hang_7px_under_the_section_tabs():
+    """The Finances statement sub-tabs sit as close under the ticker page's
+    section tabs as a sector page's sub-tabs sit under its tabs."""
+    src = _tpl()
+    assert '#det-modal .d-body:has(> #d-pane-stmt.active){padding-top:0 !important;row-gap:0;}' in src
+    assert '#det-modal .d-body:has(> #d-pane-stmt.active) > .d-hc{margin-bottom:0 !important;}' in src
+    assert '#det-modal #d-pane-stmt > .d-stmt-tabs:first-child{margin-top:7px;}' in src
