@@ -490,11 +490,12 @@ def test_both_charts_use_round_ticks_and_label_their_latest_value(tmp_path):
 
 def _render_outlook(pool, tmp_path, macro=None, stored=None):
     src = TEMPLATE.read_text(encoding='utf-8')
-    names = ['_soDominant', '_soHealth', '_soLine', '_soNarr', '_qHelp', '_soShutState', 'renderSectorOutlook']
+    consts = re.search(r'^var _SO_SUM=.*$', src, re.M).group(0)
+    names = ['_soDominant', '_soHealth', '_soLine', '_soNarr', '_qHelp', '_soShutState', '_soGroupSummary', 'renderSectorOutlook']
     js = '\n'.join(['function _esc(s){return String(s);}function _attr(s){return String(s);}',
                     'var MACRO_SUM=' + json.dumps(macro) + ';var MACRO=null;',
                     'var localStorage={getItem:function(){return %s;}};' % json.dumps(json.dumps(stored)),
-                    re.search(r'^var _SO_W=.*$', src, re.M).group(0)]
+                    re.search(r'^var _SO_W=.*$', src, re.M).group(0), consts]
                    + [_fn(src, n) for n in names]
                    + ['var SECTOR_POOL=' + json.dumps(pool) + ';',
                       'process.stdout.write(renderSectorOutlook());'])
@@ -550,6 +551,9 @@ def test_sector_outlook_groups_by_the_macro_stance(tmp_path):
     assert html.count('class="so-gh" aria-expanded="true" onclick="_soGrpToggle(this)"') == 3
     assert 'so-shut' not in html, 'groups start open'
     folded = _render_outlook(pool, tmp_path, macro, stored={'down': True})
+    # each group carries its one-sentence summary (CSS shows it only folded)
+    assert '<div class="so-gsum">No force is acting in Healthcare.</div>' in html
+    assert '<div class="so-gsum">No force is acting in Energy and Technology.</div>' in html
     assert folded.count('so-shut') == 1 and 'so-g-down so-shut" data-k="down"' in folded
     up, rest = html.split('▲ Macro tailwind<span>· 1</span>')[1].split('● Macro neutral<span>· 2</span>')
     flat, down = rest.split('▼ Macro headwind<span>· 1</span>')

@@ -1662,6 +1662,9 @@ td.ct{font-weight:700;}
 .so-gh .ppf-chev{flex:none;}
 .so-shut .so-gh .ppf-chev{transform:rotate(-90deg);}
 .so-shut .so-list{display:none;}
+.so-gsum{display:none;font-size:0.8em;line-height:1.45;color:#64748b;margin:6px 0 2px;}
+.so-shut .so-gsum{display:block;}
+[data-theme="dark"] .so-gsum{color:#8b949e !important;}
 .so-shut .so-gh{margin-bottom:0;}
 [data-theme="dark"] .so-sec{color:#e6edf3 !important;}
 [data-theme="dark"] .so-sec i{color:#58a6ff !important;}
@@ -13783,11 +13786,26 @@ function _soGrpToggle(btn){
   btn.setAttribute('aria-expanded',shut?'false':'true');
   try{var st=_soShutState();st[g.getAttribute('data-k')]=shut;localStorage.setItem('stock_so_collapsed_v1',JSON.stringify(st));}catch(e){}
 }
+/* A folded group's one-sentence summary, read off its rows' pills:
+   "Tailwinds lead in Energy and Basic Materials; headwinds lead in
+   Consumer Defensive." Shown only while the group is folded. */
+var _SO_SUM=[['Tailwinds lead','tailwinds lead in'],['Headwinds lead','headwinds lead in'],['Balanced','forces balance in'],['No force acting','no force is acting in']];
+function _soGroupSummary(items){
+  var parts=[];
+  _SO_SUM.forEach(function(c){
+    var n=items.filter(function(x){return x[0]===c[0];}).map(function(x){return _esc(x[1]);});
+    if(!n.length)return;
+    parts.push(c[1]+' '+(n.length<3?n.join(' and '):n.slice(0,-1).join(', ')+' and '+n[n.length-1]));
+  });
+  if(!parts.length)return '';
+  var t=parts.join('; ')+'.';
+  return t.charAt(0).toUpperCase()+t.slice(1);
+}
 function renderSectorOutlook(bare,from){
   if(typeof SECTOR_POOL==='undefined'||!SECTOR_POOL)return '';
   var nar=_soNarr(),byName={};
   if(nar)nar.sectors.forEach(function(r,i){if(r&&r.sector)byName[r.sector]={row:r,i:i};});
-  var STANCE={tailwind:'up',headwind:'down'},grp={up:[],'':[],down:[]};
+  var STANCE={tailwind:'up',headwind:'down'},grp={up:[],'':[],down:[]},hl={up:[],'':[],down:[]};
   var origin=_attr(from||'Broad Sector Outlook');
   Object.keys(SECTOR_POOL).sort().forEach(function(sec){
     var fz=SECTOR_POOL[sec]&&SECTOR_POOL[sec].forces;
@@ -13795,7 +13813,9 @@ function renderSectorOutlook(bare,from){
     var h=_soHealth(fz.balance),tw=_soDominant(fz.forces,'tailwind'),hw=_soDominant(fz.forces,'headwind');
     var m=byName[sec],mac=m&&m.row.influence
       ?'<button type="button" class="so-mac" aria-expanded="false" data-i="'+m.i+'" onclick="_soToggle(this)">Macro read</button><div class="so-read" hidden></div>':'';
-    grp[m?STANCE[m.row.stance]||'':''].push('<li class="so-row">'
+    var gk=m?STANCE[m.row.stance]||'':'';
+    hl[gk].push([h[1],sec]);
+    grp[gk].push('<li class="so-row">'
       +'<div class="so-top"><a href="#" class="so-sec" data-sec="'+_attr(sec)+'" data-from="'+origin+'" title="Open the '+_attr(sec)+' sector page" onclick="goSectorDrivers(this.dataset.sec,this.dataset.from);return false;">'+_esc(sec)+'<i>›</i></a>'
       +'<span class="so-pill so-'+h[0]+'">'+h[1]+'</span></div>'
       +_soLine(tw,'tailwind')+_soLine(hw,'headwind')+mac+'</li>');
@@ -13806,7 +13826,7 @@ function renderSectorOutlook(bare,from){
     [['up','▲ Macro tailwind'],['','● Macro neutral'],['down','▼ Macro headwind']].forEach(function(g){
       if(!grp[g[0]].length)return;
       var k=g[0]||'flat',shut=!!st[k];
-      body+='<div class="so-grp so-g-'+k+(shut?' so-shut':'')+'" data-k="'+k+'"><button type="button" class="so-gh" aria-expanded="'+(shut?'false':'true')+'" onclick="_soGrpToggle(this)">'+g[1]+'<span>· '+grp[g[0]].length+'</span><i class="ppf-chev" aria-hidden="true"></i></button><ul class="so-list">'+grp[g[0]].join('')+'</ul></div>';
+      body+='<div class="so-grp so-g-'+k+(shut?' so-shut':'')+'" data-k="'+k+'"><button type="button" class="so-gh" aria-expanded="'+(shut?'false':'true')+'" onclick="_soGrpToggle(this)">'+g[1]+'<span>· '+grp[g[0]].length+'</span><i class="ppf-chev" aria-hidden="true"></i></button><div class="so-gsum">'+_soGroupSummary(hl[g[0]])+'</div><ul class="so-list">'+grp[g[0]].join('')+'</ul></div>';
     });
   }else if(grp[''].length)body='<ul class="so-list">'+grp[''].join('')+'</ul>';
   if(!body)return '';
