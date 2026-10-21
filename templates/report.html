@@ -2112,6 +2112,7 @@ button.wind-h{cursor:pointer;}
    phones and portrait tablets (<=900px); landscape has its own tuned
    block above and is left untouched. */
 @media(max-width:900px) and (orientation:portrait){
+  :root{--pg-inset:6px;}
   .container{padding:3px 6px;}
   .secondary-nav{padding:3px 0;gap:4px;}
   .sub-btn{padding:4px 11px;font-size:0.76em;}
@@ -2126,6 +2127,7 @@ button.wind-h{cursor:pointer;}
    landscape. (The two nav bars that used to eat ~98px of a ~375px-tall
    viewport are gone entirely — the nav dropdown replaced them.) */
 @media(orientation:landscape) and (max-height:500px){
+  :root{--pg-inset:6px;}
   .container{padding:2px 6px;}
   .secondary-nav{padding:2px 0;gap:4px;}
   .sub-btn{padding:3px 11px;font-size:0.74em;}
@@ -2631,7 +2633,11 @@ html.sb-rail .sb-chev-l,html:not(.sb-rail) .sb-chev-r{display:none;}
 /* ---- view heading + sub-tabs (underline tabs: text on a hairline, the
    current one marked by an accent bar, like the ticker page's #d-tabs) ---- */
 #subnav{--sac:var(--chrome-heading);position:sticky;box-sizing:border-box;max-width:100%;padding:10px 0 8px;display:flex;flex-direction:column;gap:6px;}
-body.wide-table #subnav{padding-left:20px;padding-right:20px;}
+/* The panning views drop .container's side padding, so the title row puts
+   the same inset back itself: --pg-inset is .container's side padding
+   (20px, 6px on phones), so the title, count and date sit where they do on
+   every other view instead of 14px further in, which wrapped the date. */
+body.wide-table #subnav{padding-left:var(--pg-inset,20px);padding-right:var(--pg-inset,20px);}
 .sn-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;}
 .sn-title{font-size:20px;font-weight:800;letter-spacing:-.5px;text-transform:uppercase;line-height:1.05;margin:0;}
 .sn-crumb{--sac:var(--chrome-muted);font-size:12.5px;}
