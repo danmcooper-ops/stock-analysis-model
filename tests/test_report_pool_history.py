@@ -544,6 +544,8 @@ def test_sector_outlook_names_the_dominant_force_each_way(tmp_path):
     assert '<b>Tailwind:</b> Defensive bid.' in util and '<b>Headwind:</b> Rate cases.' in util
     assert 'Grid capex' not in util
     assert 'goSectorDrivers' in util and 'data-sec="Utilities"' in util
+    assert util.count('<li class="wind-act">') == 1, 'one action row: Drivers and Research more'
+    assert '>Drivers ›</button>' in util
     assert 'No force acting</span>' in html
     assert _render_outlook({'X': {}}, tmp_path) == ''
     assert 'data-wk="outlook:all"' in html, 'no narrative: one ungrouped group'
@@ -693,3 +695,9 @@ def test_brand_is_city2summit():
     assert '<span class="sb-brand">City2Summit</span>' in src and '<h1>City2Summit</h1>' in src
     assert "+' — City2Summit';" in src and '<title>City2Summit</title>' in src
     assert 'Securities Analysis' not in src and '&beta;' not in src
+
+
+def test_research_more_is_a_quiet_text_button():
+    src = TEMPLATE.read_text(encoding='utf-8')
+    rule = re.search(r'^\.wind-btn\{[^}]*\}', src, re.M).group(0)
+    assert 'border:0' in rule and 'padding:2px 0' in rule
