@@ -488,11 +488,12 @@ def test_both_charts_use_round_ticks_and_label_their_latest_value(tmp_path):
     d = re.search(r'<path class="pph-line" d="([^"]*)"', svg).group(1)
     assert d.count('M') == 1 and d.count('L') == 2
 
-def _render_outlook(pool, tmp_path, macro=None):
+def _render_outlook(pool, tmp_path, macro=None, stored=None):
     src = TEMPLATE.read_text(encoding='utf-8')
-    names = ['_soDominant', '_soHealth', '_soLine', '_soNarr', '_qHelp', 'renderSectorOutlook']
+    names = ['_soDominant', '_soHealth', '_soLine', '_soNarr', '_qHelp', '_soShutState', 'renderSectorOutlook']
     js = '\n'.join(['function _esc(s){return String(s);}function _attr(s){return String(s);}',
                     'var MACRO_SUM=' + json.dumps(macro) + ';var MACRO=null;',
+                    'var localStorage={getItem:function(){return %s;}};' % json.dumps(json.dumps(stored)),
                     re.search(r'^var _SO_W=.*$', src, re.M).group(0)]
                    + [_fn(src, n) for n in names]
                    + ['var SECTOR_POOL=' + json.dumps(pool) + ';',
@@ -546,6 +547,10 @@ def test_sector_outlook_groups_by_the_macro_stance(tmp_path):
         {'sector': 'Utilities', 'stance': 'headwind', 'influence': 'U'},
         {'sector': 'Energy', 'stance': '<script>'}]}}
     html = _render_outlook(pool, tmp_path, macro)
+    assert html.count('class="so-gh" aria-expanded="true" onclick="_soGrpToggle(this)"') == 3
+    assert 'so-shut' not in html, 'groups start open'
+    folded = _render_outlook(pool, tmp_path, macro, stored={'down': True})
+    assert folded.count('so-shut') == 1 and 'so-g-down so-shut" data-k="down"' in folded
     up, rest = html.split('▲ Macro tailwind<span>· 1</span>')[1].split('● Macro neutral<span>· 2</span>')
     flat, down = rest.split('▼ Macro headwind<span>· 1</span>')
     assert 'Healthcare' in up and 'data-i="0"' in up and 'onclick="_soToggle(this)"' in up
