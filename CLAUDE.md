@@ -805,7 +805,8 @@ ruff check .
   forces sort first. Tailwinds and Headwinds are the report's one wind
   group (`_windGroup`, also the Broad Sector Outlook's groups and the
   ticker page's Headwinds & Tailwinds): the header folds the group to a
-  one-sentence summary, kept per browser in `stock_wind_shut_v1`. The colour
+  one-sentence summary; groups start folded, and an opened one stays open
+  per browser (`stock_wind_shut_v1`). The colour
   overrides carry `!important` against the blanket dark `body *` text
   rule.
   Forces that no series measures read "qualitative". Without `macro.json`,

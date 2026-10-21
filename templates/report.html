@@ -13757,13 +13757,13 @@ function renderPoolSectorSignals(sec){
 /* The report's one tailwind/headwind group (Broad Sector Outlook, a
    sector's Drivers, the ticker page): a .wind-h header that folds the
    group, a one-sentence summary shown while folded, and the rows. The
-   fold is kept per browser (stock_wind_shut_v1, {"<scope>:<key>": true});
-   groups start open. */
+   fold is kept per browser (stock_wind_shut_v1, {"<scope>:<key>": false}
+   once opened); groups start folded, so each reads as its summary. */
 function _windState(){
   try{return JSON.parse(localStorage.getItem('stock_wind_shut_v1'))||{};}catch(e){return {};}
 }
 function _windGroup(o){
-  var id=o.scope+':'+o.k,shut=!!_windState()[id];
+  var id=o.scope+':'+o.k,shut=_windState()[id]!==false;
   return '<div class="wind-grp'+(shut?' wind-shut':'')+'" data-wk="'+_attr(id)+'">'
     +'<button type="button" class="wind-h'+(o.dir?' wind-'+o.dir:'')+'" aria-expanded="'+(shut?'false':'true')+'" onclick="_windToggle(this)">'
     +o.label+'<span>· '+o.count+'</span><i class="ppf-chev" aria-hidden="true"></i></button>'
