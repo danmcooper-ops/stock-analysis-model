@@ -13407,6 +13407,27 @@ function _ppiSort(th){
     return dir==='ascending'?c:-c;
   });
   body.concat(pin).forEach(function(r){tb.appendChild(r);});
+  _ppBarsFollow(th.closest('table'));
+}
+/* The pool chart above a table is always drawn in the table's row order:
+   each bar (and its label) carries its row's key (data-k, or the
+   company's data-tk) and its width (data-w), and is laid end to end in
+   row order. Bars with no row keep their place after them. */
+function _ppBarsFollow(tbl){
+  var view=tbl&&tbl.closest('.ppc-view'),svg=view&&view.querySelector('svg');if(!svg)return;
+  var rects=[].slice.call(svg.querySelectorAll('rect[data-k]'));if(!rects.length)return;
+  var byK={};rects.forEach(function(r){byK[r.getAttribute('data-k')]=r;});
+  var x=Math.min.apply(null,rects.map(function(r){return +r.getAttribute('x');})),seen={};
+  function place(r){
+    var k=r.getAttribute('data-k'),w=+r.getAttribute('data-w');if(seen[k])return;seen[k]=1;
+    r.setAttribute('x',x.toFixed(1));
+    [].forEach.call(svg.querySelectorAll('text[data-k]'),function(t){if(t.getAttribute('data-k')===k)t.setAttribute('x',(x+w/2).toFixed(1));});
+    x+=w;
+  }
+  [].forEach.call(tbl.tBodies[0].rows,function(row){
+    var r=byK[row.getAttribute('data-k')||row.getAttribute('data-tk')];if(r)place(r);
+  });
+  rects.forEach(place);
 }
 /* Industries view of the pool chart (pp-chart, "Industries" toggle): the
    same Bain picture one level down, from SECTOR_POOL[sec].industries
@@ -13419,7 +13440,9 @@ function _ppIndCls(spr){return spr==null?'ppi-na':spr>=0.05?'ppi-pos':spr>=0?'pp
 function renderPoolIndustries(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec],inds=n&&n.industries;
   if(!inds||inds.length<2)return '';
-  var items=inds.filter(function(d){return d.margin!=null&&d.revenue_share>0;}).slice().sort(function(a,b){return b.margin-a.margin;});
+  /* Bars run in the table's order (largest pool first, the folded Other
+     last) and follow it when it is re-sorted (_ppBarsFollow). */
+  var items=inds.filter(function(d){return d.margin!=null&&d.revenue_share>0;}).slice().sort(function(a,b){return (a.folded?1:0)-(b.folded?1:0)||(b.pool_share||0)-(a.pool_share||0);});
   var W=800,H=200,pL=48,pR=10,pT=14,pB=26,cW=W-pL-pR,cH=H-pT-pB;
   var maxM=Math.max.apply(null,items.map(function(d){return d.margin;}).concat([0.05]));
   var minM=Math.min.apply(null,items.map(function(d){return d.margin;}).concat([0]));
@@ -13432,12 +13455,12 @@ function renderPoolIndustries(sec){
     var ii=inds.indexOf(d);
     var w=Math.max(1.5,d.revenue_share/tot*cW),h=Math.max(1,Math.abs(d.margin)/yR*cH),y=d.margin>=0?zeroY-h:zeroY;
     var tip=d.industry+': '+d.n+' companies · revenue '+_ppPct(d.revenue_share)+' · pool '+_ppPct(d.pool_share)+' · margin '+_ppPct(d.margin)+' · median spread '+_ppSgnPct(d.median_spread);
-    svg+='<rect class="ppi-bar '+_ppIndCls(d.median_spread)+'" onclick="dashIndustryJump(\''+_attr(secJs)+'\','+ii+')" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(w-1).toFixed(1)+'" height="'+h.toFixed(1)+'"><title>'+_esc(tip)+'</title></rect>';
+    svg+='<rect class="ppi-bar '+_ppIndCls(d.median_spread)+'" data-k="'+ii+'" data-w="'+w.toFixed(2)+'" onclick="dashIndustryJump(\''+_attr(secJs)+'\','+ii+')" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(w-1).toFixed(1)+'" height="'+h.toFixed(1)+'"><title>'+_esc(tip)+'</title></rect>';
     var chars=Math.floor((w-4)/5.2);
-    if(chars>=5){var nm=d.industry.length>chars?d.industry.slice(0,chars-1)+'…':d.industry;svg+='<text class="pph-val" x="'+(x+w/2).toFixed(1)+'" y="'+(d.margin>=0?y-3:y+h+9).toFixed(1)+'" text-anchor="middle" pointer-events="none">'+_esc(nm)+'</text>';}
+    if(chars>=5){var nm=d.industry.length>chars?d.industry.slice(0,chars-1)+'…':d.industry;svg+='<text class="pph-val" data-k="'+ii+'" x="'+(x+w/2).toFixed(1)+'" y="'+(d.margin>=0?y-3:y+h+9).toFixed(1)+'" text-anchor="middle" pointer-events="none">'+_esc(nm)+'</text>';}
     x+=w;
   });
-  svg+='<text class="pph-tx" x="'+(pL+cW/2)+'" y="'+(H-6)+'" text-anchor="middle">Revenue share → (by industry, ordered by margin)</text>';
+  svg+='<text class="pph-tx" x="'+(pL+cW/2)+'" y="'+(H-6)+'" text-anchor="middle">Revenue share → (by industry, in the table’s order)</text>';
   var out='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%;height:auto;margin:4px 0 0">'+svg+'</svg>';
   out+='<div class="pph-key"><span><i class="ppi-pos"></i>Median spread ≥ 5 pts</span><span><i class="ppi-mid"></i>0–5 pts</span><span><i class="ppi-neg"></i>Below cost of capital</span></div>';
   out+='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Industry','s')+_ppiTh('Cos')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)+_ppiTh('Margin')+_ppiTh('Median spread')+_ppiTh('Pool CAGR')+'</tr></thead><tbody>';
@@ -13451,7 +13474,7 @@ function renderPoolIndustries(sec){
   }).forEach(function(p){
     var d=p[0],ii=p[1];
     var skew=(d.pool_share!=null&&d.revenue_share>0)?d.pool_share/d.revenue_share:null;
-    out+='<tr class="ppi-ind'+(d.folded?' ppi-pin':'')+'" onclick="dashIndustryJump(\''+_attr(secJs)+'\','+ii+')" title="Open the Gate Matrix for '+_attr(d.folded?'these industries':d.industry)+'"><td data-v="'+_attr(d.industry)+'">'+_esc(d.industry)+(d.folded?' <span class="ppi-dim">(industries under 3 companies)</span>':'')+'</td><td data-v="'+d.n+'">'+d.n+'</td><td data-v="'+_ppiV(d.revenue_share)+'">'+_ppPct(d.revenue_share)+'</td>'
+    out+='<tr class="ppi-ind'+(d.folded?' ppi-pin':'')+'" data-k="'+ii+'" onclick="dashIndustryJump(\''+_attr(secJs)+'\','+ii+')" title="Open the Gate Matrix for '+_attr(d.folded?'these industries':d.industry)+'"><td data-v="'+_attr(d.industry)+'">'+_esc(d.industry)+(d.folded?' <span class="ppi-dim">(industries under 3 companies)</span>':'')+'</td><td data-v="'+d.n+'">'+d.n+'</td><td data-v="'+_ppiV(d.revenue_share)+'">'+_ppPct(d.revenue_share)+'</td>'
       +'<td data-v="'+_ppiV(d.pool_share)+'"'+(skew!=null&&(skew>=1.25||skew<=0.75)?' class="'+(skew>=1.25?'ppi-hi':'ppi-lo')+'" title="'+skew.toFixed(2)+'× its revenue share"':'')+'>'+_ppPct(d.pool_share)+'</td>'
       +'<td data-v="'+_ppiV(d.margin)+'">'+_ppPct(d.margin)+'</td><td data-v="'+_ppiV(d.median_spread)+'">'+(d.median_spread==null?'\u2014':_ppSgnPct(d.median_spread))+'</td><td data-v="'+_ppiV(d.pool_cagr)+'">'+(d.pool_cagr==null?'—':_ppSgnPct(d.pool_cagr)+'/yr'+(d.own_window&&d.window?' <span class="ppi-dim" title="Too few of its companies reported over the sector\u2019s window; measured over its own years">('+_ppFy({y0:d.window[0],block:d.window[2]})+' to '+_ppFy1({y1:d.window[1],block:d.window[2]})+')</span>':''))+'</td></tr>';
   });
@@ -13505,10 +13528,10 @@ function renderPoolCompanyTable(shown,tail){
     var rev=0,pool=0,wm=0,mc=0;
     tail.forEach(function(d){var r=d.pp_revenue_share||0;rev+=r;pool+=d.pp_profit_share||0;wm+=(d.operating_margin||0)*r;if(d.mcap>0)mc+=d.mcap;});
     var vo=vp(mc,pool);
-    out+='<tr class="ppi-pin"><td>Others <span class="ppi-dim">('+tail.length+' companies)</span></td><td>—</td><td>'+_ppPct(rev)+'</td>'
+    out+='<tr class="ppi-pin" data-k="__others"><td>Others <span class="ppi-dim">('+tail.length+' companies)</span></td><td>—</td><td>'+_ppPct(rev)+'</td>'
       +_ppSkewTd(pool,rev)+'<td>'+(rev>0?_ppPct(wm/rev):'—')+'</td><td>—</td><td>—</td><td>'+(vo==null?'\u2014':vo.toFixed(2)+'\u00d7')+'</td></tr>';
   }
-  out+='</tbody></table></div>'+_noteQ('Bars run by rating, best first, and by operating margin within one. Bar width ∝ √revenue share, height = operating margin, colour = rating'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Value/pool is the company’s share of the sector’s market value over its share of the pool: above 1× the market pays more than its slice of today’s profit (the Price of the pool tile compares the whole sector with the universe). Click a company to open it.');
+  out+='</tbody></table></div>'+_noteQ('Bars run in the table’s order and follow it when you sort a column. Bar width ∝ √revenue share, height = operating margin, colour = rating'+(tail&&tail.length?'; the '+shown.length+' largest companies by revenue are drawn, the rest pooled as Others':'')+'. Pool share in green or red where it is at least 1.25× or at most 0.75× the company’s revenue share. Spread is ROIC − WACC (— for lenders and broker-dealers, whose capital is funding). Pool share trend is the 5-year growth of the company’s share of the sector’s profit pool; — where its history is too short. Value/pool is the company’s share of the sector’s market value over its share of the pool: above 1× the market pays more than its slice of today’s profit (the Price of the pool tile compares the whole sector with the universe). Click a company to open it.');
   return out;
 }
 function _ppChartView(btn,v){
@@ -15184,9 +15207,9 @@ function renderPool(){
        pool the remainder into one gray "Others" bar, and \u221a-scale every
        width (renormalized to fill the axis) so mid-size names stay legible
        next to the giants. Tooltips keep the true linear shares \u2014 \u221a applies
-       to geometry only. Bars lead with the rating, best first (BUY, LEAN
-       BUY, HOLD, PASS), each rating's bars by operating margin; Others
-       closes the axis. */
+       to geometry only. Bars run in the table's order (largest pool share
+       first, Others last) and follow it when it is re-sorted
+       (_ppBarsFollow). */
     var _top=_ppTopN(cos),PP_TOP_N=_top.n,byRev=_top.all;
     var totalRev=byRev.reduce(function(s,d){return s+(d.pp_revenue_share||0);},0);if(!totalRev)return;
     var shownCos=_top.shown,tailCos=_top.tail;
@@ -15200,8 +15223,7 @@ function renderPool(){
       items.push({others:true,share:tRev/totalRev,margin:tMargin});
     }
     items.sort(function(a,b){
-      var ra=a.others?-1:(_PPI_RANK[a.d.rating]||0),rb=b.others?-1:(_PPI_RANK[b.d.rating]||0);
-      return rb-ra||b.margin-a.margin;
+      return (a.others?1:0)-(b.others?1:0)||(b.others?0:(b.d.pp_profit_share||0))-(a.others?0:(a.d.pp_profit_share||0));
     });
     var margins=items.map(function(it){return it.margin;});
     var maxM=Math.max.apply(null,margins.concat([0.05]));
@@ -15223,13 +15245,13 @@ function renderPool(){
       var lx=bx+barW/2,ly=margin>=0?barY-3:barY+barH+9;
       if(it.others){
         var seO=sec.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        bars+='<rect x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="#90a4ae" opacity="0.82" stroke="rgba(255,255,255,0.6)" stroke-width="0.5" onmouseenter="ppOthersTip(event,\''+seO+'\')" onmouseleave="ppHide()"/>';
-        if(barW>16)labels+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="8" fill="#444" pointer-events="none">Others</text>';
+        bars+='<rect data-k="__others" data-w="'+barW.toFixed(2)+'" x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="#90a4ae" opacity="0.82" stroke="rgba(255,255,255,0.6)" stroke-width="0.5" onmouseenter="ppOthersTip(event,\''+seO+'\')" onmouseleave="ppHide()"/>';
+        if(barW>16)labels+='<text data-k="__others" x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="8" fill="#444" pointer-events="none">Others</text>';
       }else{
         var d=it.d;var col=RC[d.rating]||'#aaa';
         var tk=d.ticker.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        bars+='<rect x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="'+col+'" opacity="0.82" stroke="rgba(255,255,255,0.6)" stroke-width="0.5" onmouseenter="ppTip(event,\''+tk+'\')" onmouseleave="ppHide()" onclick="openDet(\''+tk+'\')" style="cursor:pointer"/>';
-        if(barW>16)labels+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="8" fill="#444" pointer-events="none">'+d.ticker+'</text>';
+        bars+='<rect data-k="'+_attr(d.ticker)+'" data-w="'+barW.toFixed(2)+'" x="'+bx.toFixed(1)+'" y="'+barY.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+barH.toFixed(1)+'" fill="'+col+'" opacity="0.82" stroke="rgba(255,255,255,0.6)" stroke-width="0.5" onmouseenter="ppTip(event,\''+tk+'\')" onmouseleave="ppHide()" onclick="openDet(\''+tk+'\')" style="cursor:pointer"/>';
+        if(barW>16)labels+='<text data-k="'+_attr(d.ticker)+'" x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" font-size="8" fill="#444" pointer-events="none">'+d.ticker+'</text>';
       }
       cumX+=barW;
     });
