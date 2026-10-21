@@ -189,17 +189,17 @@ def test_concentration_tile_stands_on_either_half(tmp_path):
     assert _render(None, _TILES, tmp_path, {}) == ''
 
 
-def _render_signals(entry, tmp_path, stored=None):
+def _render_signals(entry, tmp_path, stored=None, data=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
              '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
-             '_ppfCard', '_ppfLive', '_windState', '_windGroup', '_ppfColSum', '_ppfCol', '_qHelp',
+             '_ppfCard', '_ppfLive', '_windState', '_windGroup', '_ppfColSum', '_ppfCol', '_qHelp', '_windMatrixLi',
              '_noteQ', 'renderPoolSectorSignals']
     consts = '\n'.join(re.search(r'^var %s=.*$' % v, src, re.M).group(0)
                        for v in ('_PPF_ST', '_PPF_ORDER', '_PPF_TYPE'))
     store = ('var localStorage={getItem:function(){return %s;}};' % json.dumps(json.dumps(stored))
              if stored is not None else '')
-    js = '\n'.join([store + "var RC={'BUY':'#1a9850','PASS':'#de2d26'};",
+    js = '\n'.join([store + "var RC={'BUY':'#1a9850','PASS':'#de2d26'};var DATA=" + json.dumps(data or []) + ";",
                     'function _esc(s){return String(s);}function _attr(s){return String(s);}'
                     'function _linkifyTickers(s){return s;}',
                     consts] + [_fn(src, n) for n in names]
@@ -321,12 +321,12 @@ def _co(t, rev, pool, **kw):
 
 
 def test_company_table_mirrors_the_industries_table(tmp_path):
-    shown = [_co('A%02d' % k, 0.02, 0.02 + (0.001 * k)) for k in range(25)]
+    shown = [_co('A%02d' % k, 0.02, 0.02 + (0.001 * k), operating_margin=0.1 + 0.01 * k) for k in range(25)]
     tail = [_co('T%d' % k, 0.001, 0.0005) for k in range(10)]
     html = _render_co_table(shown, tail, tmp_path)
     assert html.count('<tr class="ppi-co"') == 25
     assert '<td>Others <span class="ppi-dim">(10 companies)</span>' in html
-    assert html.index('A24') < html.index('A00')                  # by pool share
+    assert html.index('A24') < html.index('A00')                  # by margin
     assert '>Pool share trend</th>' in html and '+3.0%/yr' in html
     assert html.index('>Pool share trend</th>') < html.index('>Value/pool</th>')   # last column
     assert 'data-tk="A00" onclick="openDet(this.dataset.tk)"' in html
@@ -494,13 +494,13 @@ def test_both_charts_use_round_ticks_and_label_their_latest_value(tmp_path):
     d = re.search(r'<path class="pph-line" d="([^"]*)"', svg).group(1)
     assert d.count('M') == 1 and d.count('L') == 2
 
-def _render_outlook(pool, tmp_path, macro=None, stored=None):
+def _render_outlook(pool, tmp_path, macro=None, stored=None, data=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     consts = re.search(r'^var _SO_SUM=.*$', src, re.M).group(0)
     names = ['_soDominant', '_soHealth', '_soNarr', '_qHelp', '_windState', '_windGroup', '_windRow',
-             '_ppfBalance', '_windTop', '_soGroupSummary', 'renderSectorOutlook']
+             '_ppfBalance', '_windTop', '_windMatrixLi', '_soGroupSummary', 'renderSectorOutlook']
     js = '\n'.join(['function _esc(s){return String(s);}function _attr(s){return String(s);}',
-                    'var MACRO_SUM=' + json.dumps(macro) + ';var MACRO=null;',
+                    'var MACRO_SUM=' + json.dumps(macro) + ';var MACRO=null;var DATA=' + json.dumps(data or []) + ';',
                     'var localStorage={getItem:function(){return %s;}};' % json.dumps(json.dumps(stored)),
                     re.search(r'^var _SO_W=.*$', src, re.M).group(0), consts]
                    + [_fn(src, n) for n in names]
@@ -579,29 +579,56 @@ def test_sector_outlook_groups_by_the_macro_stance(tmp_path):
 
 
 def test_pool_bars_mirror_their_table():
-    """Both pool charts are drawn in their table's order (pool share first,
+    """Both pool charts are drawn in their table's order (margin first,
     the pooled row last) and every re-sort lays the bars out again in the
     new row order: bars and rows share a key (data-k / data-tk)."""
     src = TEMPLATE.read_text(encoding='utf-8')
-    assert ("return (a.others?1:0)-(b.others?1:0)||(b.others?0:(b.d.pp_profit_share||0))"
-            "-(a.others?0:(a.d.pp_profit_share||0));") in src
+    assert "return (a.others?1:0)-(b.others?1:0)||b.margin-a.margin;" in src
     ind = _fn(src, 'renderPoolIndustries')
-    assert "(a.folded?1:0)-(b.folded?1:0)||(b.pool_share||0)-(a.pool_share||0)" in ind
+    assert "(a.folded?1:0)-(b.folded?1:0)||b.margin-a.margin" in ind
     assert 'data-k="\'+ii+\'" data-w=' in ind and '<tr class="ppi-ind\'+(d.folded?\' ppi-pin\':\'\')+\'" data-k="\'+ii+\'"' in ind
     assert "_ppBarsFollow(th.closest('table'));" in _fn(src, '_ppiSort')
     follow = _fn(src, '_ppBarsFollow')
     assert "row.getAttribute('data-k')||row.getAttribute('data-tk')" in follow
     table = _fn(src, 'renderPoolCompanyTable')
-    assert "return (b.pp_profit_share||0)-(a.pp_profit_share||0);" in table
-    assert "_ppiTh('Rating')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)" in table
+    assert "return (b.operating_margin||0)-(a.operating_margin||0);" in table
+    assert "_ppiTh('Pool')+_ppiTh('Margin','n',1)" in table
 
 
-def test_industry_pool_table_opens_on_pool():
-    """The Industries table opens ranked by pool share, with the folded
-    Other last and each row still addressed by its index."""
+def test_industry_pool_table_opens_on_margin():
+    """The Industries table opens ranked by margin, with the folded Other
+    last and each row still addressed by its index."""
     src = TEMPLATE.read_text(encoding='utf-8')
     ind = _fn(src, 'renderPoolIndustries')
-    assert "_ppiTh('Pool','n',1)+_ppiTh('Margin')" in ind
-    assert "var x=a[0].pool_share,y=b[0].pool_share;" in ind
+    assert "_ppiTh('Pool')+_ppiTh('Margin','n',1)" in ind
+    assert "var x=a[0].margin,y=b[0].margin;" in ind
     assert "var pa=a[0].folded?1:0,pb=b[0].folded?1:0" in ind
     assert "var d=p[0],ii=p[1];" in ind and "dashIndustryJump(" in ind
+
+
+def test_wind_rows_drill_to_the_gate_matrix(tmp_path):
+    """A Drivers force and an outlook sector each carry a link into the
+    Gate Matrix filtered to who it is about (the industry a force names,
+    else the sector), made as a drill so the matrix offers the way back."""
+    from models.sector_forces import evaluate_forces
+    from tests.test_sector_forces import _entry
+    from tests.test_sector_pool import YEARS, _flat
+    rows = [dict(_flat(t, YEARS, 100 + i, 0.2, 0.08), industry='Software - Infrastructure', sector='Technology')
+            for i, t in enumerate(('MSFT', 'ORCL', 'X'))]
+    data = [{'ticker': r['ticker'], 'sector': 'Technology', 'industry': r['industry']} for r in rows] \
+        + [{'ticker': 'AAPL', 'sector': 'Technology', 'industry': 'Consumer Electronics'}]
+    src = TEMPLATE.read_text(encoding='utf-8')
+    # renderPoolSectorSignals is rendered for 'Real Estate' by the harness; use the card directly
+    html = _render_signals({'forces': evaluate_forces('Technology', None, _entry(0.14), rows)}, tmp_path, data=data)
+    assert 'windMatrixJump' not in html, 'no companies in Real Estate, no link'
+    card_src = _fn(src, '_ppfCard')
+    assert "_windMatrixLi(sec+' \\u00b7 Drivers',sec,f.exposure&&f.exposure.basis==='industry'?f.exposure.industry:'')" in card_src
+    li = _fn(src, '_windMatrixLi')
+    assert "windMatrixJump(this.dataset.from,this.dataset.sec,this.dataset.ind)" in li
+    jump = _fn(src, 'windMatrixJump')
+    assert '_drillPush(from);' in jump and "_cfPut('industry',null,null,ind||null);" in jump and '_dashJump();' in jump
+    forces = {'balance': {'tailwind': 0.5, 'headwind': 0, 'net': 0.5},
+              'forces': [{'kind': 'tailwind', 'theme': 'T', 'status': 'active', 'exposure': {'reach': 0.5}}]}
+    out = _render_outlook({'Technology': {'forces': forces}}, tmp_path, data=data)
+    assert 'See the 4 Technology companies in the Gate Matrix ›' in out
+    assert 'data-from="Broad Sector Outlook" data-sec="Technology" data-ind=""' in out
