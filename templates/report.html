@@ -2812,6 +2812,13 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 .d-stmt-tab.cur{--sac:var(--chrome-heading);font-weight:700;box-shadow:inset 0 -3px 0 var(--chrome-accent);}
 .d-stmt-tab:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
 #det-modal .d-body{padding:14px 24px calc(24px + env(safe-area-inset-bottom)) !important;background:var(--bg);}
+/* A pane that opens with a sub-tab row (Finances: Balance Sheet / Income /
+   Cash Flow) hangs it the same 7px under the section tabs as a sector
+   page's sub-tabs sit under its tabs, instead of the body's top padding plus
+   its flex gap (~22px), or on phones the header spacer's 10px margin. */
+#det-modal .d-body:has(> #d-pane-stmt.active){padding-top:0 !important;row-gap:0;}
+#det-modal .d-body:has(> #d-pane-stmt.active) > .d-hc{margin-bottom:0 !important;}
+#det-modal #d-pane-stmt > .d-stmt-tabs:first-child{margin-top:7px;}
 /* Cards: plain uppercase headings in place of the gradient title bars. */
 #det-modal .dgroup{border-radius:14px;box-shadow:none;border:1px solid var(--border);background:var(--surface);}
 #det-modal .dgroup-title{background:none !important;color:var(--chrome-heading);text-shadow:none;font-size:.9em;letter-spacing:.06em;padding:16px 20px 6px;}
