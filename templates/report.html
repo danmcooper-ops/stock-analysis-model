@@ -1628,7 +1628,6 @@ td.ct{font-weight:700;}
 .xsect-title{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:3px;}
 .xsect-sub{font-size:0.78em;color:#8a9bb0;margin-bottom:16px;}
 .so-wrap>.xsect-title{margin-bottom:14px;}
-.so-link{font-weight:600;color:#0b6bcb;text-decoration:none;}
 /* A sector's Overview: the primer as a lead line and points, the sector
    today as tiles (the ticker page's Snapshot grid) and one line. */
 .pp-lead{margin:0 0 6px;font-size:0.86em;line-height:1.55;font-weight:600;color:var(--ppf-txt);}
@@ -1648,9 +1647,7 @@ td.ct{font-weight:700;}
 .ppf-ul li.wind-act{list-style:none;margin:4px 0 0 -16px;}
 .wind-btn{font:inherit;font-size:0.92em;font-weight:600;padding:2px 0;border:0;background:none;color:#0b6bcb;cursor:pointer;}
 .wind-btn:hover{text-decoration:underline;}
-.wind-act{display:flex;gap:18px;flex-wrap:wrap;}
 [data-theme="dark"] .wind-btn{color:#58a6ff !important;}
-[data-theme="dark"] .so-link{color:#58a6ff !important;}
 /* One header for every tailwind/headwind section in the report (the
    Broad Sector Outlook's groups, a sector's Drivers columns, the ticker
    page's Headwinds & Tailwinds, the Macro balance): a coloured uppercase
@@ -3803,10 +3800,10 @@ function windMatrixJump(from,sec,ind){
 }
 /* The button that makes that drill, closing the row's bullets: "Research
    more ›", naming what it opens in its tooltip. */
-function _windMatrixLi(from,sec,ind,lead){
+function _windMatrixLi(from,sec,ind){
   var n=DATA.filter(function(d){return d.sector===sec&&(!ind||d.industry===ind);}).length;
-  if(!n)return lead?'<li class="wind-act">'+lead+'</li>':'';
-  return '<li class="wind-act">'+(lead||'')+'<button type="button" class="wind-btn" data-from="'+_attr(from)+'" data-sec="'+_attr(sec)+'" data-ind="'+_attr(ind||'')+'"'
+  if(!n)return '';
+  return '<li class="wind-act"><button type="button" class="wind-btn" data-from="'+_attr(from)+'" data-sec="'+_attr(sec)+'" data-ind="'+_attr(ind||'')+'"'
     +' title="Open the Gate Matrix filtered to the '+n+' '+_attr(ind||sec)+' compan'+(n===1?'y':'ies')+'"'
     +' onclick="windMatrixJump(this.dataset.from,this.dataset.sec,this.dataset.ind)">Research more ›</button></li>';
 }
@@ -13882,8 +13879,7 @@ function _windListSum(items){
    the Sector Price Comparison and closing the Macro Overview. Sectors are
    grouped by the macro narrative's stance (its whitelist picks the group,
    never the model's text; no narrative, one ungrouped list). Each sector
-   is a short row: its name (into its Drivers sub-tab, as a drill) beside
-   a pill with its structural health (the force balance,
+   is a short row: its name beside a status with its structural health (the force balance,
    sector_forces.force_balance), then a ▲ line for its dominant tailwind
    and a ▼ line for its dominant headwind. Dominant = the live force with
    the largest weight x reach, the terms the balance sums (building at
@@ -13912,11 +13908,6 @@ function _soNarr(){
   var nar=(typeof MACRO_SUM!=='undefined'&&MACRO_SUM&&MACRO_SUM.narrative)||(typeof MACRO!=='undefined'&&MACRO&&MACRO.narrative);
   return nar&&(nar.sectors||[]).length?nar:null;
 }
-function goSectorDrivers(sec,from){
-  _drillPush(from||'Broad Sector Outlook');window._ppSubTabSel='forces';_poolTab=sec;
-  if(curView!=='pool')showView('pool');else showPoolTab(sec);
-  _drillSeal();window.scrollTo({top:0,behavior:'auto'});
-}
 /* A folded group's one-sentence summary, read off its rows' pills:
    "Tailwinds lead in Energy and Basic Materials; headwinds lead in
    Consumer Defensive." Shown only while the group is folded. */
@@ -13937,7 +13928,6 @@ function renderSectorOutlook(bare,from){
   var nar=_soNarr(),byName={};
   if(nar)nar.sectors.forEach(function(r,i){if(r&&r.sector)byName[r.sector]={row:r,i:i};});
   var STANCE={tailwind:'up',headwind:'down'},grp={up:[],'':[],down:[]},hl={up:[],'':[],down:[]},cnt={up:0,down:0,n:0};
-  var origin=_attr(from||'Broad Sector Outlook');
   Object.keys(SECTOR_POOL).sort().forEach(function(sec){
     var fz=SECTOR_POOL[sec]&&SECTOR_POOL[sec].forces;
     if(!fz||!fz.forces||!fz.forces.length)return;
@@ -13952,9 +13942,7 @@ function renderSectorOutlook(bare,from){
       title:_esc(sec),meta:acting+' of '+fz.forces.length+' forces acting',
       items:side(tw,'tailwind')+side(hw,'headwind')
         +(m&&m.row.influence?'<li><b>Macro read:</b> '+(m.row.headline?'<i>'+_esc(m.row.headline)+'.</i> ':'')+_esc(m.row.influence)+'</li>':'')
-        /* One action row: the sector's Drivers and the filtered table. */
-        +_windMatrixLi(from||'Broad Sector Outlook',sec,'',
-          '<button type="button" class="wind-btn" data-sec="'+_attr(sec)+'" data-from="'+origin+'" title="Open '+_attr(sec)+'’s Drivers tab" onclick="goSectorDrivers(this.dataset.sec,this.dataset.from)">Drivers ›</button>')}));
+        +_windMatrixLi(from||'Broad Sector Outlook',sec,'')}));
   });
   var body='';
   if(nar){
@@ -13970,7 +13958,7 @@ function renderSectorOutlook(bare,from){
     'Across '+cnt.n+' sectors, tailwinds lead in '+cnt.up+' and headwinds in '+cnt.down+'.')+body;
   /* The explainer folds behind a ?, so the bullets lead. */
   var q=_qHelp('<span class="note-q-t">Each sector’s status weighs its structural forces (acting now, or building at half weight) by the share of its revenue they reach; tap a sector for its strongest tailwind and headwind'
-    +(nar?', the Macro Outlook’s read on it':'')+' and the way to its Drivers tab. '
+    +(nar?' and the Macro Outlook’s read on it':'')+'; Research more opens its companies in the Gate Matrix. '
     +(nar?'Groups are today’s macro stance. ':'')+'The bar weighs sectors where tailwinds lead against those where headwinds do.</span>','How to read the Broad Sector Outlook','corner');
   if(bare)return '<div class="so-wrap qh-card qh-flush">'+q+body+'</div>';
   return '<div class="xsect-dashboard so-wrap qh-card">'+q

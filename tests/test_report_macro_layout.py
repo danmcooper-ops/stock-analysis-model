@@ -210,8 +210,7 @@ def test_macro_narrative_sectors_are_the_sector_outlook():
     """The Sectors section is the Sector Outlook, the same component the
     Sector Analysis Charts sub-tab leads with: grouped through the stance
     whitelist, each sector's row opening its influence (escaped, never in
-    an attribute) and the way to its Drivers, with the way back to the
-    Macro Outlook. An older narrative without
+    an attribute). An older narrative without
     `watch` keeps The balance."""
     css = _css()
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
@@ -221,11 +220,7 @@ def test_macro_narrative_sectors_are_the_sector_outlook():
     so = re.search(r'function renderSectorOutlook\(bare,from\)\{.*?\n\}\n', css, re.S).group(0)
     assert "STANCE={tailwind:'up',headwind:'down'}" in so
     assert "_windRow({kind:" in so and '_esc(m.row.influence)' in so
-    go = re.search(r'function goSectorDrivers\(sec,from\)\{.*?\n\}\n', css, re.S).group(0)
-    # A drill like the chart drill-downs (tests/test_report_drill_back.py).
-    assert "_drillPush(from||'Broad Sector Outlook')" in go and '_drillSeal();' in go
-    assert "window._ppSubTabSel='forces'" in go
-    assert "navGo('pool'" not in go, 'navGo would spend the drill at once'
+    assert 'goSectorDrivers' not in css, 'the Drivers link is gone; Research more drills to the matrix'
 
 
 def test_macro_overview_is_the_landing_view():
