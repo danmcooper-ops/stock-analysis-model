@@ -125,7 +125,7 @@ def test_industries_view_draws_and_tabulates_each_industry(tmp_path):
                    {'industries': industry_pools(rows)})
     assert html.count('class="ppi-bar') == 2
     assert 'ppi-pos' in html and 'ppi-neg' in html          # spread colours
-    assert html.count('<tr class="ppi-ind" onclick="dashIndustryJump(') == 2 and 'Pool CAGR' in html
+    assert len(re.findall(r'<tr class="ppi-ind" data-k="\d+" onclick="dashIndustryJump\(', html)) == 2 and 'Pool CAGR' in html
     # every row and bar opens the Gate Matrix on its industry, by index
     assert html.count("onclick=\"dashIndustryJump('Tech',") == 4
 
@@ -357,7 +357,7 @@ def test_company_table_value_over_pool(tmp_path):
     assert row('A').endswith('<td data-v="1">1.00\u00d7</td>')      # 60% of value / 60% of pool
     assert row('B').endswith('1.50\u00d7</td>')
     assert row('L').endswith('<td data-v="">\u2014</td>')
-    others = html.split('<tr class="ppi-pin">')[1].split('</tr>')[0]
+    others = html.split('<tr class="ppi-pin" data-k="__others">')[1].split('</tr>')[0]
     assert others.endswith('<td>0.25\u00d7</td>')                     # 5% of value / 20% of pool
 
 
@@ -419,7 +419,7 @@ def test_company_table_headers_sort_and_pin_others(tmp_path):
     assert html.count('onclick="_ppiSort(this)"') == 8
     assert '<th data-t="n" aria-sort="descending" onclick' in html            # Pool, as rendered
     assert '<th data-t="s" onclick' in html                                    # Company sorts as text
-    assert '<tr class="ppi-pin"><td>Others' in html
+    assert '<tr class="ppi-pin" data-k="__others"><td>Others' in html
     rows = _sort_rows(html, 6)                                                 # trend, high to low
     order = [re.search(r'data-tk="(\w+)"', r).group(1) if 'data-tk' in r else 'Others' for r in rows]
     assert order == ['B', 'C', 'A', 'Others']                                  # blank last, Others pinned
@@ -574,12 +574,19 @@ def test_sector_outlook_groups_by_the_macro_stance(tmp_path):
         'the explainer folds behind the ?'
 
 
-def test_company_pool_chart_leads_with_the_rating_and_its_table_with_pool():
-    """The company bars lead with the rating, best first (margin within a
-    rating, Others last); the table behind them opens on Pool."""
+def test_pool_bars_mirror_their_table():
+    """Both pool charts are drawn in their table's order (pool share first,
+    the pooled row last) and every re-sort lays the bars out again in the
+    new row order: bars and rows share a key (data-k / data-tk)."""
     src = TEMPLATE.read_text(encoding='utf-8')
-    assert ("var ra=a.others?-1:(_PPI_RANK[a.d.rating]||0),rb=b.others?-1:(_PPI_RANK[b.d.rating]||0);\n"
-            "      return rb-ra||b.margin-a.margin;") in src
+    assert ("return (a.others?1:0)-(b.others?1:0)||(b.others?0:(b.d.pp_profit_share||0))"
+            "-(a.others?0:(a.d.pp_profit_share||0));") in src
+    ind = _fn(src, 'renderPoolIndustries')
+    assert "(a.folded?1:0)-(b.folded?1:0)||(b.pool_share||0)-(a.pool_share||0)" in ind
+    assert 'data-k="\'+ii+\'" data-w=' in ind and '<tr class="ppi-ind\'+(d.folded?\' ppi-pin\':\'\')+\'" data-k="\'+ii+\'"' in ind
+    assert "_ppBarsFollow(th.closest('table'));" in _fn(src, '_ppiSort')
+    follow = _fn(src, '_ppBarsFollow')
+    assert "row.getAttribute('data-k')||row.getAttribute('data-tk')" in follow
     table = _fn(src, 'renderPoolCompanyTable')
     assert "return (b.pp_profit_share||0)-(a.pp_profit_share||0);" in table
     assert "_ppiTh('Rating')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)" in table
