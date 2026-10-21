@@ -259,7 +259,8 @@ fi
 if wants prices; then
   # shellcheck disable=SC2046
   run prices soft "$VPY" scripts/download_prices.py --output-dir output/prices --max-age-days 2 \
-      --tickers $(ls output/prices/ | sed -n 's/\.parquet$//p') SPY QQQ IWM DIA
+      --tickers $(ls output/prices/ | sed -n 's/\.parquet$//p') SPY QQQ IWM DIA \
+      MDY XLB XLC XLE XLF XLI XLK XLP XLRE XLU XLV XLY
 fi
 
 # ---------------------------------------------------------------- pull
@@ -328,6 +329,10 @@ if wants enrich; then
     # whose size changed are uploaded.
     run price_cache_save soft "$VPY" scripts/price_cache.py save --prices-dir output/prices
   fi
+  # The SPDRs' daily holdings for the render's ETF look-through
+  # (data/etf_holdings.py). Archived under output/etf_holdings/, the only
+  # history issuer files have. A failure costs the night's ETF read only.
+  run etf_holdings    soft "$VPY" scripts/fetch_etf_holdings.py
   # Must follow every enrichment so the banners pick the fields up.
   run render          soft "$VPY" scripts/rescore_and_render.py "$SNAPSHOT" --prices-dir output/prices
   # Your portfolio groupings (portfolio/portfolios.json): stats + change
