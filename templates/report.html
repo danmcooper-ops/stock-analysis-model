@@ -1633,30 +1633,44 @@ td.ct{font-weight:700;}
 .xsect-dashboard{background:white;border-radius:10px;padding:22px 24px 20px;box-shadow:0 3px 14px rgba(0,0,0,0.09);margin-bottom:22px;border-top:4px solid var(--hdr-bg);}
 .xsect-title{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:3px;}
 .xsect-sub{font-size:0.78em;color:#8a9bb0;margin-bottom:16px;}
-.so-list{list-style:none;margin:0;padding:0;font-size:0.86em;line-height:1.5;}
-.so-list li{position:relative;padding:5px 0 5px 16px;border-top:1px solid rgba(127,127,127,0.15);}
-.so-list li:first-child{border-top:none;}
-.so-list li::before{content:'';position:absolute;left:2px;top:12px;width:8px;height:8px;border-radius:50%;background:#94a3b8;}
-.so-list li.so-up::before{background:#1a7a45;}
-.so-list li.so-down::before{background:#c0392b;}
-.so-grp{margin-top:10px;padding-top:2px;border-top:3px solid #94a3b8;}
-.so-grp.so-g-up{border-top-color:#1a7a45;}.so-grp.so-g-down{border-top-color:#c0392b;}
-.so-gh{font-weight:700;font-size:0.84em;margin:6px 0 2px;color:#64748b;}
-.so-g-up .so-gh{color:#1a7a45;}.so-g-down .so-gh{color:#c0392b;}
-.so-gh span{font-weight:600;opacity:0.8;font-variant-numeric:tabular-nums;}
-.so-name{font:inherit;font-weight:700;background:none;border:none;padding:0;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;}
-.so-name[aria-expanded="true"]{text-decoration-style:solid;}
-.so-read{margin:6px 0 2px;padding:6px 0 0 10px;border-left:2px solid rgba(127,127,127,0.35);}
+.so-list{list-style:none;margin:0;padding:0;}
+.so-wrap>.xsect-title{margin-bottom:14px;}
+.so-row{padding:10px 0;border-top:1px solid rgba(127,127,127,0.18);}
+.so-row:first-child{border-top:none;padding-top:4px;}
+.so-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;}
+.so-sec{font-weight:700;font-size:0.98em;color:#1a252f;text-decoration:none;}
+.so-sec i{font-style:normal;font-weight:600;color:#0b6bcb;margin-left:3px;}
+.so-sec:hover{text-decoration:underline;}
+.so-pill{flex:none;font-size:0.7em;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;background:#eef1f4;color:#475569;}
+.so-pill.so-up{background:#e3f4ea;color:#1a7a45;}.so-pill.so-down{background:#fbe7e5;color:#b0362a;}
+.so-f{display:flex;gap:7px;align-items:baseline;font-size:0.84em;line-height:1.4;color:#334155;margin-top:2px;}
+.so-f b{flex:none;width:11px;font-size:0.8em;}
+.so-f.so-tw b{color:#1a7a45;}.so-f.so-hw b{color:#c0392b;}
+.so-f.so-none{color:#94a3b8;}.so-f.so-none b{color:#cbd5e1;}
+.so-f em{font-style:normal;font-size:0.85em;color:#94a3b8;margin-left:4px;}
+.so-mac{margin-top:5px;font:inherit;font-size:0.76em;font-weight:600;background:none;border:none;padding:0;color:#64748b;cursor:pointer;}
+.so-mac::after{content:' ▾';}
+.so-mac[aria-expanded="true"]::after{content:' ▴';}
+.so-read{margin:6px 0 2px;padding:2px 0 0 10px;border-left:2px solid rgba(127,127,127,0.35);font-size:0.82em;line-height:1.5;}
 .so-read p{margin:2px 0;}
 .so-kick{font-style:italic;font-weight:600;}
-.so-link{white-space:nowrap;color:#0b6bcb;text-decoration:none;font-weight:600;}
-.so-link:hover{text-decoration:underline;}
-[data-theme="dark"] .so-link{color:#58a6ff !important;}
-[data-theme="dark"] .so-list li.so-up::before{background:#3fb950;}
-[data-theme="dark"] .so-list li.so-down::before{background:#f85149;}
-[data-theme="dark"] .so-g-up .so-gh{color:#3fb950 !important;}[data-theme="dark"] .so-grp.so-g-up{border-top-color:#3fb950;}
-[data-theme="dark"] .so-g-down .so-gh{color:#f85149 !important;}[data-theme="dark"] .so-grp.so-g-down{border-top-color:#f85149;}
-[data-theme="dark"] .so-gh{color:#8b949e;}
+.so-grp+.so-grp{margin-top:14px;}
+.so-gh{display:flex;align-items:center;gap:6px;font-size:0.7em;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#64748b;padding-bottom:5px;margin-bottom:2px;border-bottom:2px solid #cbd5e1;}
+.so-g-up .so-gh{color:#1a7a45;border-bottom-color:#1a7a45;}.so-g-down .so-gh{color:#c0392b;border-bottom-color:#c0392b;}
+.so-gh span{font-weight:600;opacity:0.75;}
+[data-theme="dark"] .so-sec{color:#e6edf3 !important;}
+[data-theme="dark"] .so-sec i{color:#58a6ff !important;}
+[data-theme="dark"] .so-pill{background:#21262d;color:#8b949e !important;}
+[data-theme="dark"] .so-pill.so-up{background:rgba(63,185,80,0.15);color:#3fb950 !important;}
+[data-theme="dark"] .so-pill.so-down{background:rgba(248,81,73,0.15);color:#f85149 !important;}
+[data-theme="dark"] .so-f{color:#c9d1d9 !important;}
+[data-theme="dark"] .so-f.so-tw b{color:#3fb950 !important;}[data-theme="dark"] .so-f.so-hw b{color:#f85149 !important;}
+[data-theme="dark"] .so-f.so-none,[data-theme="dark"] .so-f.so-none b,[data-theme="dark"] .so-f em{color:#6e7681 !important;}
+[data-theme="dark"] .so-mac,[data-theme="dark"] .so-gh{color:#8b949e !important;}
+[data-theme="dark"] .so-gh{border-bottom-color:#30363d;}
+[data-theme="dark"] .so-g-up .so-gh{color:#3fb950 !important;border-bottom-color:#3fb950;}
+[data-theme="dark"] .so-g-down .so-gh{color:#f85149 !important;border-bottom-color:#f85149;}
+[data-theme="dark"] .so-read{color:#c9d1d9 !important;}
 .xsect-kpi-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
 .xsect-kpi{flex:1;min-width:140px;background:#f8fafd;border-radius:7px;padding:9px 12px;}
 .xsect-kpi-val{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:1px;}
@@ -12715,7 +12729,7 @@ function _macNarrativeHTML(){
      narrative's stance, one sentence of structural forces per sector, the
      name opening its macro influence in place. */
   var so=renderSectorOutlook(true,'Macro Outlook');
-  if(so)h+='<h3 class="mac-h">Sectors</h3>'+so;
+  if(so)h+='<h3 class="mac-h">Broad Sector Outlook</h3>'+so;
   /* Reading time for the whole card, at 230 words a minute. */
   var words=0,wc=function(x){if(x)words+=String(x).split(/\s+/).filter(Boolean).length;};
   wc(nar.bottom_line);ps.forEach(wc);
@@ -13699,18 +13713,19 @@ function renderPoolSectorSignals(sec){
   var hwHtml='<div class="pp-signals-col"><div class="pp-signals-col-hdr" style="color:#c0392b">▼ Structural Headwinds</div>'+_list(hw0,'headwinds')+'</div>';
   return '<div class="pp-signals-grid">'+twHtml+hwHtml+'</div>';
 }
-/* Sector Outlook: the one sector read, on the Charts sub-tab above the
-   Sector Price Comparison and as the Sectors section of the Macro
-   Overview. Sectors are grouped by the macro narrative's stance (its
-   whitelist picks the group, never the model's text; no narrative, one
-   ungrouped list). Each bullet is one sentence: the sector's structural
-   health (the force balance, sector_forces.force_balance) and its dominant
-   tailwind and headwind. Dominant = the live force with the largest
-   weight x reach, the terms the balance sums (building at half, an
-   unmeasured reach as a third of the sector), so the named force is the
-   one that moved the verdict. The sector's name opens the narrative's
-   macro influence in place (addressed by index, never by a model string
-   in an attribute); Read more opens the sector's Drivers sub-tab. */
+/* Broad Sector Outlook: the one sector read, on the Charts sub-tab above
+   the Sector Price Comparison and closing the Macro Overview. Sectors are
+   grouped by the macro narrative's stance (its whitelist picks the group,
+   never the model's text; no narrative, one ungrouped list). Each sector
+   is a short row: its name (into its Drivers sub-tab, as a drill) beside
+   a pill with its structural health (the force balance,
+   sector_forces.force_balance), then a ▲ line for its dominant tailwind
+   and a ▼ line for its dominant headwind. Dominant = the live force with
+   the largest weight x reach, the terms the balance sums (building at
+   half, an unmeasured reach as a third of the sector), so the named force
+   is the one that moved the verdict. Macro read opens the narrative's
+   influence in place (addressed by index, never by a model string in an
+   attribute). */
 var _SO_W={active:1,building:0.5};
 function _soDominant(list,kind){
   var best=null,bw=0;
@@ -13728,15 +13743,19 @@ function _soHealth(b){
   if(b.net<-0.1)return ['down','Headwinds lead'];
   return ['flat','Balanced'];
 }
-function _soForce(f){
-  return '<i>'+_esc(f.theme)+'</i>'+(f.status==='building'?' (building)':'');
+/* One force line: an arrow, the force, a building tag; a side with no
+   live force says so, dimmed. */
+function _soLine(f,kind){
+  var tw=kind==='tailwind';
+  return '<div class="so-f '+(tw?'so-tw':'so-hw')+(f?'':' so-none')+'"><b aria-hidden="true">'+(tw?'▲':'▼')+'</b><span>'
+    +(f?_esc(f.theme)+(f.status==='building'?'<em>building</em>':''):'No '+kind+' acting')+'</span></div>';
 }
 function _soNarr(){
   var nar=(typeof MACRO_SUM!=='undefined'&&MACRO_SUM&&MACRO_SUM.narrative)||(typeof MACRO!=='undefined'&&MACRO&&MACRO.narrative);
   return nar&&(nar.sectors||[]).length?nar:null;
 }
 function goSectorDrivers(sec,from){
-  _drillPush(from||'Sector Outlook');window._ppSubTabSel='forces';_poolTab=sec;
+  _drillPush(from||'Broad Sector Outlook');window._ppSubTabSel='forces';_poolTab=sec;
   if(curView!=='pool')showView('pool');else showPoolTab(sec);
   _drillSeal();window.scrollTo({top:0,behavior:'auto'});
 }
@@ -13753,35 +13772,33 @@ function renderSectorOutlook(bare,from){
   var nar=_soNarr(),byName={};
   if(nar)nar.sectors.forEach(function(r,i){if(r&&r.sector)byName[r.sector]={row:r,i:i};});
   var STANCE={tailwind:'up',headwind:'down'},grp={up:[],'':[],down:[]};
-  var origin=_attr(from||'Sector Outlook');
+  var origin=_attr(from||'Broad Sector Outlook');
   Object.keys(SECTOR_POOL).sort().forEach(function(sec){
     var fz=SECTOR_POOL[sec]&&SECTOR_POOL[sec].forces;
     if(!fz||!fz.forces||!fz.forces.length)return;
     var h=_soHealth(fz.balance),tw=_soDominant(fz.forces,'tailwind'),hw=_soDominant(fz.forces,'headwind');
-    var m=byName[sec],name=m&&m.row.influence
-      ?'<button type="button" class="so-name" aria-expanded="false" data-i="'+m.i+'" onclick="_soToggle(this)" title="Macro read">'+_esc(sec)+'</button>'
-      :'<b>'+_esc(sec)+'</b>';
-    grp[m?STANCE[m.row.stance]||'':''].push('<li class="so-'+h[0]+'">'+name+' — '+h[1]+': '
-      +(tw?'tailwind '+_soForce(tw):'no tailwind acting')
-      +(hw?', headwind '+_soForce(hw):', no headwind acting')+'.'
-      +' <a href="#" class="so-link" data-sec="'+_attr(sec)+'" data-from="'+origin+'" onclick="goSectorDrivers(this.dataset.sec,this.dataset.from);return false;">Read more ›</a>'
-      +'<div class="so-read" hidden></div></li>');
+    var m=byName[sec],mac=m&&m.row.influence
+      ?'<button type="button" class="so-mac" aria-expanded="false" data-i="'+m.i+'" onclick="_soToggle(this)">Macro read</button><div class="so-read" hidden></div>':'';
+    grp[m?STANCE[m.row.stance]||'':''].push('<li class="so-row">'
+      +'<div class="so-top"><a href="#" class="so-sec" data-sec="'+_attr(sec)+'" data-from="'+origin+'" title="Open the '+_attr(sec)+' sector page" onclick="goSectorDrivers(this.dataset.sec,this.dataset.from);return false;">'+_esc(sec)+'<i>›</i></a>'
+      +'<span class="so-pill so-'+h[0]+'">'+h[1]+'</span></div>'
+      +_soLine(tw,'tailwind')+_soLine(hw,'headwind')+mac+'</li>');
   });
   var body='';
   if(nar){
     [['up','▲ Macro tailwind'],['','● Macro neutral'],['down','▼ Macro headwind']].forEach(function(g){
       if(!grp[g[0]].length)return;
-      body+='<div class="so-grp so-g-'+(g[0]||'flat')+'"><div class="so-gh">'+g[1]+' <span>'+grp[g[0]].length+'</span></div><ul class="so-list">'+grp[g[0]].join('')+'</ul></div>';
+      body+='<div class="so-grp so-g-'+(g[0]||'flat')+'"><div class="so-gh">'+g[1]+'<span>· '+grp[g[0]].length+'</span></div><ul class="so-list">'+grp[g[0]].join('')+'</ul></div>';
     });
   }else if(grp[''].length)body='<ul class="so-list">'+grp[''].join('')+'</ul>';
   if(!body)return '';
   /* The explainer folds behind a ?, so the bullets lead. */
-  var q=_qHelp('<span class="note-q-t">Each bullet weighs the sector’s structural forces (acting now, or building at half weight) by the share of its revenue they reach, and names the strongest tailwind and headwind. '
-    +(nar?'Groups are today’s macro stance from the Macro Outlook; tap a sector’s name for the macro read. ':'')
-    +'Read more opens the sector’s Drivers tab.</span>','How to read the Sector Outlook','corner');
+  var q=_qHelp('<span class="note-q-t">The pill weighs each sector’s structural forces (acting now, or building at half weight) by the share of its revenue they reach; ▲ and ▼ name the strongest tailwind and headwind. '
+    +(nar?'Groups are today’s macro stance from the Macro Outlook, and Macro read opens its reasoning. ':'')
+    +'Tap a sector’s name for its Drivers tab.</span>','How to read the Broad Sector Outlook','corner');
   if(bare)return '<div class="so-wrap qh-card qh-flush">'+q+body+'</div>';
   return '<div class="xsect-dashboard so-wrap qh-card">'+q
-    +'<div class="xsect-title">Sector Outlook</div>'+body+'</div>';
+    +'<div class="xsect-title">Broad Sector Outlook</div>'+body+'</div>';
 }
 /* === Aggregate Performance chart ================================
    Lives only on the Sector Analysis "Charts" tab. Sectors are

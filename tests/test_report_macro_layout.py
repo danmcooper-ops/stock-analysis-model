@@ -140,7 +140,7 @@ def test_macro_overview_reads_top_down():
     assert "if(full&&_nar&&_nar.bottom_line)" in reg
     assert '_esc(_nar.bottom_line)' in reg
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
-    order = [nar.find(x) for x in ('>The economy<', '>What to watch<', '>Sectors<', 'min read')]
+    order = [nar.find(x) for x in ('>The economy<', '>What to watch<', '>Broad Sector Outlook<', 'min read')]
     assert all(i >= 0 for i in order) and order == sorted(order)
 
 
@@ -210,7 +210,7 @@ def test_macro_narrative_sectors_are_the_sector_outlook():
     """The Sectors section is the Sector Outlook, the same component the
     Sector Analysis Charts sub-tab leads with: grouped through the stance
     whitelist, the name opening the influence in place by index (never a
-    model string in an attribute), Read more drilling to the sector page
+    model string in an attribute), the sector's name drilling to its page
     with the way back to the Macro Outlook. An older narrative without
     `watch` keeps The balance."""
     css = _css()
@@ -225,7 +225,7 @@ def test_macro_narrative_sectors_are_the_sector_outlook():
     assert '_esc(row.influence)' in tog and '_esc(row.headline)' in tog
     go = re.search(r'function goSectorDrivers\(sec,from\)\{.*?\n\}\n', css, re.S).group(0)
     # A drill like the chart drill-downs (tests/test_report_drill_back.py).
-    assert "_drillPush(from||'Sector Outlook')" in go and '_drillSeal();' in go
+    assert "_drillPush(from||'Broad Sector Outlook')" in go and '_drillSeal();' in go
     assert "window._ppSubTabSel='forces'" in go
     assert "navGo('pool'" not in go, 'navGo would spend the drill at once'
 
