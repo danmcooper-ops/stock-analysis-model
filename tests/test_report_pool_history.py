@@ -543,9 +543,7 @@ def test_sector_outlook_names_the_dominant_force_each_way(tmp_path):
     # building at half weight x 0.6 reach (0.30) loses to active x 1/3 (0.33)
     assert '<b>Tailwind:</b> Defensive bid.' in util and '<b>Headwind:</b> Rate cases.' in util
     assert 'Grid capex' not in util
-    assert 'goSectorDrivers' in util and 'data-sec="Utilities"' in util
-    assert util.count('<li class="wind-act">') == 1, 'one action row: Drivers and Research more'
-    assert '>Drivers ›</button>' in util
+    assert 'Drivers ›' not in html and 'goSectorDrivers' not in html
     assert 'No force acting</span>' in html
     assert _render_outlook({'X': {}}, tmp_path) == ''
     assert 'data-wk="outlook:all"' in html, 'no narrative: one ungrouped group'
