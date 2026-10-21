@@ -490,7 +490,7 @@ def test_both_charts_use_round_ticks_and_label_their_latest_value(tmp_path):
 
 def _render_outlook(pool, tmp_path, macro=None):
     src = TEMPLATE.read_text(encoding='utf-8')
-    names = ['_soDominant', '_soHealth', '_soForce', '_soNarr', '_qHelp', 'renderSectorOutlook']
+    names = ['_soDominant', '_soHealth', '_soLine', '_soNarr', '_qHelp', 'renderSectorOutlook']
     js = '\n'.join(['function _esc(s){return String(s);}function _attr(s){return String(s);}',
                     'var MACRO_SUM=' + json.dumps(macro) + ';var MACRO=null;',
                     re.search(r'^var _SO_W=.*$', src, re.M).group(0)]
@@ -522,13 +522,17 @@ def test_sector_outlook_names_the_dominant_force_each_way(tmp_path):
     }
     html = _render_outlook(pool, tmp_path)
     assert html.count('<li ') == 3 and 'Bare' not in html
-    energy = html.split('<b>Energy</b>')[1].split('</li>')[0]
-    assert 'Tailwinds lead: tailwind <i>Underinvestment</i>, no headwind acting.' in energy
-    util = html.split('<b>Utilities</b>')[1].split('</li>')[0]
+    assert '>Broad Sector Outlook<' in html
+    energy = html.split('>Energy<i>')[1].split('</li>')[0]
+    assert '<span class="so-pill so-up">Tailwinds lead</span>' in energy
+    assert '<span>Underinvestment</span>' in energy and 'so-none' in energy
+    assert 'No headwind acting' in energy
+    util = html.split('>Utilities<i>')[1].split('</li>')[0]
     # building at half weight x 0.6 reach (0.30) loses to active x 1/3 (0.33)
-    assert 'Balanced: tailwind <i>Defensive bid</i>, headwind <i>Rate cases</i>.' in util
-    assert 'goSectorDrivers' in util and 'data-sec="Utilities"' in util
-    assert 'No force acting: no tailwind acting, no headwind acting.' in html
+    assert 'Balanced' in util and '<span>Defensive bid</span>' in util and '<span>Rate cases</span>' in util
+    assert 'Grid capex' not in util
+    assert 'goSectorDrivers' in html and 'data-sec="Utilities"' in html
+    assert 'No force acting' in html
     assert _render_outlook({'X': {}}, tmp_path) == ''
     assert '<div class="so-grp' not in html, 'no narrative: one ungrouped list'
 
@@ -542,11 +546,12 @@ def test_sector_outlook_groups_by_the_macro_stance(tmp_path):
         {'sector': 'Utilities', 'stance': 'headwind', 'influence': 'U'},
         {'sector': 'Energy', 'stance': '<script>'}]}}
     html = _render_outlook(pool, tmp_path, macro)
-    up, rest = html.split('▲ Macro tailwind <span>1</span>')[1].split('● Macro neutral <span>2</span>')
-    flat, down = rest.split('▼ Macro headwind <span>1</span>')
+    up, rest = html.split('▲ Macro tailwind<span>· 1</span>')[1].split('● Macro neutral<span>· 2</span>')
+    flat, down = rest.split('▼ Macro headwind<span>· 1</span>')
     assert 'Healthcare' in up and 'data-i="0"' in up and 'onclick="_soToggle(this)"' in up
-    assert '<b>Energy</b>' in flat and '<b>Technology</b>' in flat   # unknown stance, absent
+    assert '>Energy<i>' in flat and '>Technology<i>' in flat   # unknown stance, absent
+    assert 'so-mac' not in flat, 'no influence, no Macro read'
     assert 'Utilities' in down and 'data-i="1"' in down
     assert '<script>' not in html
-    assert 'class="qhelp-btn"' in html and 'tap a sector’s name' in html, \
+    assert 'class="qhelp-btn"' in html and 'Macro read opens its reasoning' in html, \
         'the explainer folds behind the ?'
