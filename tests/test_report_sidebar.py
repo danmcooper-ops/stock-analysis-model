@@ -388,3 +388,15 @@ def test_filters_clear_button_closes_the_panel():
     assert m, 'Filters panel Clear button not found'
     assert m.group(1) == 'clearFilters();closeFiltMenu()'
     assert 'closeFiltMenu' not in _fn(src, 'clearFilters')
+
+
+def test_summary_tab_blocks_are_titled_cards_in_reading_order():
+    """Every block on the ticker page's Summary tab is a titled card, and
+    The Finances follows The Business."""
+    src = _tpl()
+    pane = src.split('<div id="d-pane-overview" class="d-pane active">')[1].split('<!-- /d-pane-overview -->')[0]
+    titles = re.findall(r'<span class="dg-icon"></span>([^<]+)</div>', pane)
+    assert titles == ['The Snapshot', 'The Business', 'The Finances', 'The Model',
+                      'Charts', 'The Track Record', 'Headwinds &amp; Tailwinds']
+    assert 'id="d-kmetrics"' in pane.split('The Snapshot')[1].split('The Business')[0]
+    assert 'id="d-gate-values"' in pane.split('The Model')[1].split('Charts')[0]
