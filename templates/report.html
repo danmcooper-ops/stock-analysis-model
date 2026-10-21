@@ -3746,6 +3746,28 @@ function dashIndustryJump(sec,idx){
   }
   _dashJump();
 }
+/* A wind row → Gate Matrix: the sector (and the industry a force names)
+   as Filters-menu filters, pushed as a drill so the matrix shows the
+   ‹ way back to the row it came from. */
+function windMatrixJump(from,sec,ind){
+  var wrap=document.getElementById('ms-sector');if(!wrap||!sec)return;
+  ppHide();
+  _drillPush(from);
+  if(_dashFilter&&_dashFilter.type!=='gate')_dashFilter=null;
+  wrap.querySelectorAll('.ms-drop input[type="checkbox"][value]').forEach(function(cb){cb.checked=cb.value===sec;});
+  var allBox=wrap.querySelector('.ms-all input');
+  if(allBox){allBox.checked=false;allBox.indeterminate=true;}
+  msUpdateLabel('ms-sector');
+  _cfPut('industry',null,null,ind||null);
+  _dashJump();
+}
+/* The bullet that makes that drill: "See the 12 Steel companies in the
+   Gate Matrix ›". */
+function _windMatrixLi(from,sec,ind){
+  var n=DATA.filter(function(d){return d.sector===sec&&(!ind||d.industry===ind);}).length;
+  if(!n)return '';
+  return '<li><a href="#" class="so-link" data-from="'+_attr(from)+'" data-sec="'+_attr(sec)+'" data-ind="'+_attr(ind||'')+'" onclick="windMatrixJump(this.dataset.from,this.dataset.sec,this.dataset.ind);return false;">See the '+n+' '+_esc(ind||sec)+' compan'+(n===1?'y':'ies')+' in the Gate Matrix ›</a></li>';
+}
 function toggleDashScore(idx){
   /* A composite-score column filter for the bracket [10i, 10i+9.9]
      (scores carry one decimal, and the top bracket runs to 100); a second
@@ -13426,9 +13448,9 @@ function _ppIndCls(spr){return spr==null?'ppi-na':spr>=0.05?'ppi-pos':spr>=0?'pp
 function renderPoolIndustries(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec],inds=n&&n.industries;
   if(!inds||inds.length<2)return '';
-  /* Bars run in the table's order (largest pool first, the folded Other
+  /* Bars run in the table's order (highest margin first, the folded Other
      last) and follow it when it is re-sorted (_ppBarsFollow). */
-  var items=inds.filter(function(d){return d.margin!=null&&d.revenue_share>0;}).slice().sort(function(a,b){return (a.folded?1:0)-(b.folded?1:0)||(b.pool_share||0)-(a.pool_share||0);});
+  var items=inds.filter(function(d){return d.margin!=null&&d.revenue_share>0;}).slice().sort(function(a,b){return (a.folded?1:0)-(b.folded?1:0)||b.margin-a.margin;});
   var W=800,H=200,pL=48,pR=10,pT=14,pB=26,cW=W-pL-pR,cH=H-pT-pB;
   var maxM=Math.max.apply(null,items.map(function(d){return d.margin;}).concat([0.05]));
   var minM=Math.min.apply(null,items.map(function(d){return d.margin;}).concat([0]));
@@ -13449,13 +13471,13 @@ function renderPoolIndustries(sec){
   svg+='<text class="pph-tx" x="'+(pL+cW/2)+'" y="'+(H-6)+'" text-anchor="middle">Revenue share → (by industry, in the table’s order)</text>';
   var out='<svg viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%;height:auto;margin:4px 0 0">'+svg+'</svg>';
   out+='<div class="pph-key"><span><i class="ppi-pos"></i>Median spread ≥ 5 pts</span><span><i class="ppi-mid"></i>0–5 pts</span><span><i class="ppi-neg"></i>Below cost of capital</span></div>';
-  out+='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Industry','s')+_ppiTh('Cos')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)+_ppiTh('Margin')+_ppiTh('Median spread')+_ppiTh('Pool CAGR')+'</tr></thead><tbody>';
-  /* Ranked by pool share; a blank sorts last and the folded Other stays at
-     the bottom. ii is the industry's index into SECTOR_POOL, which
+  out+='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Industry','s')+_ppiTh('Cos')+_ppiTh('Revenue')+_ppiTh('Pool')+_ppiTh('Margin','n',1)+_ppiTh('Median spread')+_ppiTh('Pool CAGR')+'</tr></thead><tbody>';
+  /* Ranked by margin; a blank sorts last and the folded Other stays at the
+     bottom. ii is the industry's index into SECTOR_POOL, which
      dashIndustryJump addresses it by. */
   inds.map(function(d,ii){return [d,ii];}).sort(function(a,b){
     var pa=a[0].folded?1:0,pb=b[0].folded?1:0;if(pa!==pb)return pa-pb;
-    var x=a[0].pool_share,y=b[0].pool_share;
+    var x=a[0].margin,y=b[0].margin;
     return (x==null)-(y==null)||(y==null||x==null?0:y-x);
   }).forEach(function(p){
     var d=p[0],ii=p[1];
@@ -13476,8 +13498,8 @@ function _ppTopN(cos){
 }
 /* Companies view of the pool chart: the table behind the bars, built like
    the Industries table so the two toggles read the same way. One row per
-   charted company (the top PP_TOP_N by revenue), largest pool share first,
-   then the pooled Others row. Pool share trend is the Pool Share gate's value:
+   charted company (the top PP_TOP_N by revenue), highest operating margin
+   first, then the pooled Others row. Pool share trend is the Pool Share gate's value:
    the 5-year CAGR of the company's share of the sector pool. */
 var _PP_BS_INDUSTRIES={'Banks - Regional':1,'Banks - Diversified':1,'Mortgage Finance':1,'Credit Services':1,'Capital Markets':1};
 function _ppSkewTd(pool,rev){
@@ -13486,7 +13508,7 @@ function _ppSkewTd(pool,rev){
 }
 function renderPoolCompanyTable(shown,tail){
   if(!shown||!shown.length)return '';
-  var rows=shown.slice().sort(function(a,b){return (b.pp_profit_share||0)-(a.pp_profit_share||0);});
+  var rows=shown.slice().sort(function(a,b){return (b.operating_margin||0)-(a.operating_margin||0);});
   /* Value/pool: the company's share of the sector's market value over its
      share of the profit pool, over the sector's gated set (shown + tail,
      mcap>0). Above 1× the market pays more than its slice of today's
@@ -13495,7 +13517,7 @@ function renderPoolCompanyTable(shown,tail){
   shown.concat(tail||[]).forEach(function(d){if(d.mcap>0)secMcap+=d.mcap;});
   function vp(mc,ps){return (ps>0&&mc>0&&secMcap>0)?(mc/secMcap)/ps:null;}
   function vpTd(v){return '<td data-v="'+_ppiV(v)+'">'+(v==null?'\u2014':v.toFixed(2)+'\u00d7')+'</td>';}
-  var out='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Company','s')+_ppiTh('Rating')+_ppiTh('Revenue')+_ppiTh('Pool','n',1)+_ppiTh('Margin')+_ppiTh('Spread')+_ppiTh('Pool share trend')+_ppiTh('Value/pool')+'</tr></thead><tbody>';
+  var out='<div class="ppi-wrap"><table class="ppi-tbl ppi-sort"><thead><tr>'+_ppiTh('Company','s')+_ppiTh('Rating')+_ppiTh('Revenue')+_ppiTh('Pool')+_ppiTh('Margin','n',1)+_ppiTh('Spread')+_ppiTh('Pool share trend')+_ppiTh('Value/pool')+'</tr></thead><tbody>';
   rows.forEach(function(d){
     var bs=d.sector==='Financial Services'&&_PP_BS_INDUSTRIES[d.industry];
     var tr=d._gate_pool_share;
@@ -13656,7 +13678,7 @@ function _ppfBalance(b){
   return '<span class="ppf-verdict">'+verdict+'</span>'
     +'<span class="ppf-split" title="Live tailwinds '+(b.tailwind*100).toFixed(0)+' vs headwinds '+(b.headwind*100).toFixed(0)+', each weighted by the share of sector revenue it reaches"><i class="tw" style="width:'+(b.tailwind/tot*100).toFixed(1)+'%"></i><i class="hw" style="width:'+(b.headwind/tot*100).toFixed(1)+'%"></i></span>';
 }
-function _ppfCard(f,shut){
+function _ppfCard(f,shut,sec){
   var meta=[_PPF_TYPE[f.type]||'',f.horizon==='secular'?'secular':f.horizon==='cyclical'?'cyclical':''].filter(Boolean).join(', ');
   /* Each fact appears once: reach lives in its bullet, not also beside
      the title, and an industry named in the evidence is not named again
@@ -13666,7 +13688,9 @@ function _ppfCard(f,shut){
   var items=(ev?'<li><b>Evidence:</b> '+ev+'</li>':'')
     +(hasReach?'<li><b>Reach:</b> '+_ppPct(f.exposure.reach,0)+' of the sector’s revenue'+(f.exposure.pool_share!=null?', '+_ppPct(f.exposure.pool_share,0)+' of its profit pool':'')+'.</li>':'')
     +_ppfExposure(f)
-    +(f.detail?'<li><b>Why it matters:</b> '+_esc(f.detail.charAt(0).toUpperCase()+f.detail.slice(1))+'</li>':'');
+    +(f.detail?'<li><b>Why it matters:</b> '+_esc(f.detail.charAt(0).toUpperCase()+f.detail.slice(1))+'</li>':'')
+    /* Drill to who it acts on: the industry it names, else its sector. */
+    +(sec?_windMatrixLi(sec+' \u00b7 Drivers',sec,f.exposure&&f.exposure.basis==='industry'?f.exposure.industry:''):'');
   return '<div class="ppf wind-row ppf-'+(f.kind==='tailwind'?'tw':'hw')+'">'
     +'<div class="ppf-hdr"'+(items?' role="button" tabindex="0" aria-expanded="'+(shut?'false':'true')+'" onclick="_ppfToggleOne(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_ppfToggleOne(this);}"':'')+'>'
     +'<span class="ppf-st ppf-'+f.status+'"><i class="ppf-dot"></i>'+(_PPF_ST[f.status]||f.status)+'</span>'
@@ -13688,13 +13712,13 @@ function _ppfColSum(list,kind){
   var t=live.map(function(f){return _esc(f.theme)+(f.status==='active'?' is acting now':' is building');}).join('; ')+'.';
   return t.charAt(0).toUpperCase()+t.slice(1);
 }
-function _ppfCol(list,kind){
+function _ppfCol(list,kind,sec){
   var sorted=list.slice().sort(function(a,b){return _PPF_ORDER[a.status]-_PPF_ORDER[b.status];});
   var acting=list.filter(function(f){return f.status==='active'||f.status==='building';}).length;
   var tw=kind==='tailwind';
   return _windGroup({scope:'drivers',k:kind,dir:tw?'up':'down',label:tw?'▲ Tailwinds':'▼ Headwinds',
     count:acting+' of '+list.length+' acting',sum:_ppfColSum(list,kind),
-    body:sorted.map(function(f){return _ppfCard(f,true);}).join('')});
+    body:sorted.map(function(f){return _ppfCard(f,true,sec);}).join('')});
 }
 function renderPoolSectorSignals(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
@@ -13724,7 +13748,7 @@ function renderPoolSectorSignals(sec){
       +'<span><i class="ppf-dot" style="background:var(--ppf-q)"></i>Fading: was strong, weakening</span>'
       +'<span><i class="ppf-dot"></i>Not acting</span>'
       +'<span><i class="ppf-dot" style="border-style:dashed"></i>Not measured: no series tracks it</span></div>';
-    out+='<div class="ppf-cols">'+_ppfCol(tw,'tailwind')+_ppfCol(hw,'headwind')+'</div>';
+    out+='<div class="ppf-cols">'+_ppfCol(tw,'tailwind',sec)+_ppfCol(hw,'headwind',sec)+'</div>';
     out+=_noteQ(key+'Each status reads the force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range. The balance weighs forces acting now by the share of sector revenue they reach (building ones at half).'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'');
     return out;
   }
@@ -13859,7 +13883,8 @@ function renderSectorOutlook(bare,from){
       title:_esc(sec),meta:acting+' of '+fz.forces.length+' forces acting',
       items:side(tw,'tailwind')+side(hw,'headwind')
         +(m&&m.row.influence?'<li><b>Macro read:</b> '+(m.row.headline?'<i>'+_esc(m.row.headline)+'.</i> ':'')+_esc(m.row.influence)+'</li>':'')
-        +'<li><a href="#" class="so-link" data-sec="'+_attr(sec)+'" data-from="'+origin+'" onclick="goSectorDrivers(this.dataset.sec,this.dataset.from);return false;">Open '+_esc(sec)+'’s Drivers ›</a></li>'}));
+        +'<li><a href="#" class="so-link" data-sec="'+_attr(sec)+'" data-from="'+origin+'" onclick="goSectorDrivers(this.dataset.sec,this.dataset.from);return false;">Open '+_esc(sec)+'’s Drivers ›</a></li>'
+        +_windMatrixLi(from||'Broad Sector Outlook',sec,'')}));
   });
   var body='';
   if(nar){
@@ -15202,8 +15227,8 @@ function renderPool(){
        pool the remainder into one gray "Others" bar, and \u221a-scale every
        width (renormalized to fill the axis) so mid-size names stay legible
        next to the giants. Tooltips keep the true linear shares \u2014 \u221a applies
-       to geometry only. Bars run in the table's order (largest pool share
-       first, Others last) and follow it when it is re-sorted
+       to geometry only. Bars run in the table's order (highest operating
+       margin first, Others last) and follow it when it is re-sorted
        (_ppBarsFollow). */
     var _top=_ppTopN(cos),PP_TOP_N=_top.n,byRev=_top.all;
     var totalRev=byRev.reduce(function(s,d){return s+(d.pp_revenue_share||0);},0);if(!totalRev)return;
@@ -15218,7 +15243,7 @@ function renderPool(){
       items.push({others:true,share:tRev/totalRev,margin:tMargin});
     }
     items.sort(function(a,b){
-      return (a.others?1:0)-(b.others?1:0)||(b.others?0:(b.d.pp_profit_share||0))-(a.others?0:(a.d.pp_profit_share||0));
+      return (a.others?1:0)-(b.others?1:0)||b.margin-a.margin;
     });
     var margins=items.map(function(it){return it.margin;});
     var maxM=Math.max.apply(null,margins.concat([0.05]));
