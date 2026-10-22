@@ -140,8 +140,9 @@ def test_macro_overview_reads_top_down():
     assert "if(full&&_nar&&_nar.bottom_line)" in reg
     assert '_esc(_nar.bottom_line)' in reg
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
-    order = [nar.find(x) for x in ('>The economy<', '>What to watch<', '>Broad Sector Outlook<', 'min read')]
+    order = [nar.find(x) for x in ('>The economy<', '>What to watch<', 'min read')]
     assert all(i >= 0 for i in order) and order == sorted(order)
+    assert 'Broad Sector Outlook<' not in nar, 'the sector read lives on Sector Analysis only'
 
 
 def test_macro_narrative_escapes_every_model_string():
@@ -163,7 +164,7 @@ def test_macro_narrative_escapes_every_model_string():
             assert '_esc(' in prefix, \
                 '%s is interpolated without _esc()' % field
     # the sector stances render through the Sector Outlook
-    so = re.search(r'function renderSectorOutlook\(bare,from\)\{.*?\n\}\n', css, re.S).group(0)
+    so = re.search(r'function renderSectorOutlook\(from\)\{.*?\n\}\n', css, re.S).group(0)
     assert "STANCE={tailwind:'up',headwind:'down'}" in so, \
         'stance must map to CSS classes only through the whitelist'
     assert "STANCE[m.row.stance]||''" in so
@@ -206,18 +207,18 @@ def test_macro_sentence_split_keeps_decimals_and_abbreviations():
     assert r'\bvs' in fn and r'\b[A-Za-z]' in fn
 
 
-def test_macro_narrative_sectors_are_the_sector_outlook():
-    """The Sectors section is the Sector Outlook, the same component the
-    Sector Analysis Charts sub-tab leads with: grouped through the stance
-    whitelist, each sector's row opening its influence (escaped, never in
-    an attribute). An older narrative without
-    `watch` keeps The balance."""
+def test_macro_narrative_sectors_live_on_the_sector_overview():
+    """The narrative's per-sector stances and influences are read on Sector
+    Analysis › Overview (the Broad Sector Outlook), not repeated on the
+    Macro Overview: grouped through the stance whitelist, each sector's row
+    opening its influence (escaped, never in an attribute). An older
+    narrative without `watch` keeps The balance."""
     css = _css()
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
-    assert "renderSectorOutlook(true,'Macro Outlook')" in nar
+    assert 'renderSectorOutlook(' not in nar
     assert "watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});" in nar
     assert 'The balance' in nar, 'a pre-v7 narrative keeps its winds'
-    so = re.search(r'function renderSectorOutlook\(bare,from\)\{.*?\n\}\n', css, re.S).group(0)
+    so = re.search(r'function renderSectorOutlook\(from\)\{.*?\n\}\n', css, re.S).group(0)
     assert "STANCE={tailwind:'up',headwind:'down'}" in so
     assert "_windRow({kind:" in so and '_esc(m.row.influence)' in so
     assert 'goSectorDrivers' not in css, 'the Drivers link is gone; Research more drills to the matrix'
@@ -332,8 +333,8 @@ def test_macro_narrative_sections_carry_figures():
     nar = nar.group(0)
     assert 'h+=_macNarFigure(i,p)' in nar, \
         'each narrative section needs its figure'
-    assert "renderSectorOutlook(true,'Macro Outlook')" in nar, \
-        'the sector influences are the Sector Outlook'
+    assert 'renderSectorOutlook(' not in nar, \
+        'the sector influences are on Sector Analysis › Overview'
     fig = re.search(r'function _macNarFigure\(i,text\)\{.*?\n\}\n', css,
                     re.S)
     assert fig, 'could not find _macNarFigure'

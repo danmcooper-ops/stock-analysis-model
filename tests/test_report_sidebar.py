@@ -445,3 +445,9 @@ def test_financial_model_has_stock_and_etf_valuations_tabs():
     assert "else if(k==='etf')renderEtfView();" in show
     assert "+poolBody+'</div>':'')\n      +renderEtfLookthrough();" not in src
     assert "l:'Gate Matrix'" not in src
+
+
+def test_sector_analysis_first_sub_tab_is_overview():
+    src = _tpl()
+    assert "var pool=[{k:'__performance__',l:'Overview'}];" in src
+    assert "l:'Charts'}" not in src
