@@ -81,18 +81,12 @@ def test_macro_cards_drop_their_grid_floor_on_a_landscape_phone():
         'a floor above ~320px puts one full-width chart per landscape row'
 
 
-def test_macro_tiles_go_two_column_on_a_portrait_phone():
-    floors = _floors(_media_block(_PORTRAIT), '.mac-tiles')
-    assert floors and max(floors) <= 190, \
-        'the Overview tiles need a floor that fits two columns at 393px'
-
-
 def test_every_macro_chart_is_scrubbable():
-    """All three chart shapes — the section/overview line charts, the tile
-    sparklines and the yield curve — hand the pointer to the same handlers.
+    """Both chart shapes — the section line charts and the yield curve —
+    hand the pointer to the same handlers.
     A new chart added without them would read as broken next to the others."""
     css = _css()
-    for fn in ('_macChartSVG', '_mSparkSVG', '_macCurveCard'):
+    for fn in ('_macChartSVG', '_macCurveCard'):
         body = re.search(r'function ' + fn + r'\(.*?\n\}\n', css, re.S)
         assert body, 'could not find %s' % fn
         for handler in ('onmousemove="macHovMove', 'onmouseleave="macHovLeave',
@@ -127,15 +121,14 @@ def test_out_of_grid_macro_cards_are_capped_in_landscape():
 
 def test_macro_overview_reads_top_down():
     """The Overview reads as one document: the regime card carries the
-    bottom line, then the key numbers, then the narrative (the economy, what
-    to watch, the sectors). The tiles come first so the story's figures are
-    seen before they are argued, and the bottom line renders only on the
-    Overview, inside the regime card."""
+    bottom line, then the narrative (the economy, what to watch). Each
+    indicator's card lives once, on its section sub-tab, so the Overview has
+    no Key numbers tiles, and the bottom line renders only on the Overview,
+    inside the regime card."""
     css = _css()
     body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S).group(0)
-    tiles_at, nar_at = body.find('mac-tiles'), body.find('_macNarrativeHTML()')
-    assert 0 <= tiles_at < nar_at, 'key numbers lead, the narrative follows'
-    assert 'Key numbers' in body
+    assert '_macNarrativeHTML()' in body
+    assert 'Key numbers' not in body and 'mac-tiles' not in body
     reg = re.search(r'function _macRegimeHTML\(full\).*?\n\}\n', css, re.S).group(0)
     assert "if(full&&_nar&&_nar.bottom_line)" in reg
     assert '_esc(_nar.bottom_line)' in reg
@@ -266,32 +259,20 @@ def test_sector_tabs_carry_no_macro_narrative():
 
 
 def test_macro_overview_does_not_repeat_section_charts():
-    """Every full history is drawn on one of the section sub-tabs; the
-    Overview keeps the sparkline tiles, each section's figures end in a Full
-    charts link, and a tile opens its series' full chart in a dialog."""
+    """Every full history is drawn on one of the section sub-tabs, and the
+    Overview repeats none of it: each section's figures end in a Full charts
+    link, and a section card opens its larger chart in a dialog."""
     css = _css()
     body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S).group(0)
     assert '_macCurveCard' not in body, 'the yield curve lives on Rates & Curve'
     assert '_macCardHTML' not in body, 'full histories live on the section tabs'
-    assert '_mSparkSVG' in body, 'the glance tiles keep their sparklines'
-    assert '_macZoomAttrs(' in body, 'a tile opens its larger chart'
+    assert '_mSparkSVG' not in css and '_macZoomAttrs(' not in body, 'no headline tiles on the Overview'
     card = re.search(r'function _macCardHTML\(id,s\).*?\n\}\n', css, re.S).group(0)
     assert '_macZoomAttrs(id,s.l)' in card and '_MAC_EXP' in card, 'so does every section card'
     fig = re.search(r'function _macNarFigure\(.*?\n\}\n', css, re.S).group(0)
     assert 'Full charts' in fig and "navGo(\\'macro\\'" in fig
     sec = re.search(r'function _macSectionHTML\(k\).*?\n\}\n', css, re.S)
     assert sec and "k==='rates'&&MACRO.curve" in sec.group(0)
-
-
-def test_macro_overview_tile_band_spans_the_page():
-    """The key numbers are a band across the page (four columns on a
-    desktop) rather than a rail beside the story. No max-width rule may set
-    the band's columns, or it would outrank the phone tile floors."""
-    css = _css()
-    wide = _media_block('@media(min-width:1001px){')
-    assert re.search(r'\.mac-overview \.mac-tiles\{[^}]*repeat\(4', wide)
-    assert not re.search(r'@media\(max-width:\d+px\)\{[^@]*\.mac-overview \.mac-tiles\{[^}]*grid-template-columns', css), \
-        'a max-width rule on .mac-overview .mac-tiles would beat the phone floors'
 
 
 def test_every_macro_subtab_opens_with_an_explainer():
