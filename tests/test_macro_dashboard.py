@@ -156,6 +156,42 @@ def full_stub():
     return StubFRED(table), as_of
 
 
+class _StartRecordingFRED(StubFRED):
+    def __init__(self, table=None):
+        super().__init__(table)
+        self.starts = {}
+
+    def fetch_series(self, series_id, start=None, end=None, force=False):
+        self.starts[series_id] = start
+        return super().fetch_series(series_id, start=start, end=end)
+
+
+def test_years_window_bounds_long_monthly_histories():
+    # A PPI index runs back to 1926; its `years` window is what it is read
+    # over, while other monthly series fetch their whole history.
+    fred, as_of = full_stub()
+    rec = _StartRecordingFRED(fred.table)
+    build_macro_payload(rec, as_of=as_of)
+    windowed = [m for m in MACRO_SERIES if m.get('years')]
+    assert {m['id'] for m in windowed} >= {'WPU101', 'WPU081'}
+    for m in windowed:
+        assert rec.starts[m['id']] == as_of - timedelta(days=int(m['years'] * 365.25))
+    assert rec.starts['PCOPPUSDM'] is None
+    assert rec.starts['DCOILWTICO'] is not None
+
+
+def test_every_series_is_citable_by_the_narrative():
+    # The Overview's paragraphs link the series they name through
+    # _MAC_NAR_CITE; a series with no pattern can never be cited.
+    tpl = os.path.join(os.path.dirname(__file__), '..', 'templates', 'report.html')
+    with open(tpl, encoding='utf-8') as f:
+        src = f.read()
+    block = src[src.index('var _MAC_NAR_CITE={'):]
+    block = block[:block.index('\n};')]
+    missing = [m['id'] for m in MACRO_SERIES if m['id'] + ':{' not in block]
+    assert missing == []
+
+
 class TestBuildMacroPayload:
     def test_schema_and_summary(self):
         fred, as_of = full_stub()

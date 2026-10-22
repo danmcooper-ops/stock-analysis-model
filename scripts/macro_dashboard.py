@@ -24,7 +24,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # (d/w/m/q), tr (transform: level|yoy|mom_diff), fmt (pct1|pct2|n1|n2|int),
 # suffix (display unit appended after the number), good (which direction
 # colors green: up|down|none), scale (multiply raw FRED value before
-# anything else — FRED units vary per series).
+# anything else — FRED units vary per series), years (optional history
+# window for a monthly series whose full history is too long to rank on).
 MACRO_SERIES = [
     # --- Rates & Curve ---
     dict(id='DGS10', l='10Y Treasury', sec='rates', freq='d', tr='level',
@@ -92,20 +93,56 @@ MACRO_SERIES = [
     dict(id='PSAVERT', l='Personal Savings Rate', sec='housing', freq='m',
          tr='level', fmt='pct1', suffix='', good='none', scale=1),
     # --- Commodities ---
-    # The price decks Energy and Basic Materials live on, plus the fuel and
-    # food input costs of Utilities, chemicals and Consumer Defensive; the
-    # sector page's commodity headwinds and tailwinds read their status from
-    # these. FRED only: the dashboard fetches every series through
-    # FREDClient, and FRED dropped the LBMA gold fix in 2022, so there is no
-    # gold card.
+    # The price decks Energy and Basic Materials live on, plus the fuel,
+    # metal, timber and crop input costs of Utilities, Industrials, airlines,
+    # homebuilders, chemicals and Consumer Defensive; the sector page's
+    # commodity headwinds and tailwinds read their status from these. Grouped
+    # energy, metals, farm and forest, then the broad index. FRED only: the
+    # dashboard fetches every series through FREDClient, and FRED dropped the
+    # LBMA gold and silver fixes in 2022, so there is no precious-metals card.
     dict(id='DCOILWTICO', l='WTI Crude ($/bbl)', sec='commodities', freq='d',
+         tr='level', fmt='n1', suffix='', good='none', scale=1),
+    dict(id='DCOILBRENTEU', l='Brent Crude ($/bbl)', sec='commodities',
+         freq='d', tr='level', fmt='n1', suffix='', good='none', scale=1),
+    dict(id='GASREGW', l='US Retail Gasoline ($/gal)', sec='commodities',
+         freq='w', tr='level', fmt='n2', suffix='', good='none', scale=1),
+    dict(id='DJFUELUSGULF', l='Jet Fuel, Gulf Coast ($/gal)', sec='commodities',
+         freq='d', tr='level', fmt='n2', suffix='', good='none', scale=1),
+    dict(id='DHHNGSP', l='Henry Hub Natural Gas ($/MMBtu)', sec='commodities',
+         freq='d', tr='level', fmt='n2', suffix='', good='none', scale=1),
+    dict(id='PNGASEUUSDM', l='European Natural Gas ($/MMBtu)',
+         sec='commodities', freq='m', tr='level', fmt='n2', suffix='',
+         good='none', scale=1),
+    dict(id='PCOALAUUSDM', l='Thermal Coal, Australia ($/t)', sec='commodities',
+         freq='m', tr='level', fmt='n1', suffix='', good='none', scale=1),
+    dict(id='PURANUSDM', l='Uranium ($/lb)', sec='commodities', freq='m',
          tr='level', fmt='n1', suffix='', good='none', scale=1),
     dict(id='PCOPPUSDM', l='Copper ($/t)', sec='commodities', freq='m',
          tr='level', fmt='int', suffix='', good='none', scale=1),
-    dict(id='DHHNGSP', l='Henry Hub Natural Gas ($/MMBtu)', sec='commodities',
-         freq='d', tr='level', fmt='n2', suffix='', good='none', scale=1),
+    dict(id='PALUMUSDM', l='Aluminum ($/t)', sec='commodities', freq='m',
+         tr='level', fmt='int', suffix='', good='none', scale=1),
+    dict(id='PNICKUSDM', l='Nickel ($/t)', sec='commodities', freq='m',
+         tr='level', fmt='int', suffix='', good='none', scale=1),
+    dict(id='PIORECRUSDM', l='Iron Ore ($/t)', sec='commodities', freq='m',
+         tr='level', fmt='n1', suffix='', good='none', scale=1),
+    # PPI indexes run back to 1926; a century of nominal prices would put
+    # every reading near the top, so they are read over the same ~35 years
+    # the IMF price series cover.
+    dict(id='WPU101', l='Iron & Steel PPI', sec='commodities', freq='m',
+         tr='level', fmt='n1', suffix='', good='none', scale=1, years=35),
+    dict(id='WPU081', l='Lumber PPI', sec='commodities', freq='m',
+         tr='level', fmt='n1', suffix='', good='none', scale=1, years=35),
+    dict(id='PWHEAMTUSDM', l='Wheat ($/t)', sec='commodities', freq='m',
+         tr='level', fmt='n1', suffix='', good='none', scale=1),
+    dict(id='PMAIZMTUSDM', l='Corn ($/t)', sec='commodities', freq='m',
+         tr='level', fmt='n1', suffix='', good='none', scale=1),
+    dict(id='PSOYBUSDM', l='Soybeans ($/t)', sec='commodities', freq='m',
+         tr='level', fmt='n1', suffix='', good='none', scale=1),
     dict(id='PFOODINDEXM', l='IMF Global Food Price Index', sec='commodities',
          freq='m', tr='level', fmt='n1', suffix='', good='none', scale=1),
+    dict(id='PALLFNFINDEXM', l='IMF All-Commodity Price Index',
+         sec='commodities', freq='m', tr='level', fmt='n1', suffix='',
+         good='none', scale=1),
 ]
 
 SECTIONS = [
@@ -394,7 +431,10 @@ def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
     series_out = {}
     for meta in MACRO_SERIES:
         try:
-            start = daily_start if meta['freq'] in ('d', 'w') else None
+            if meta.get('years'):
+                start = as_of - timedelta(days=int(meta['years'] * 365.25))
+            else:
+                start = daily_start if meta['freq'] in ('d', 'w') else None
             raw = fred.fetch_series(meta['id'], start=start)
             if not raw:
                 continue
