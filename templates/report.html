@@ -11933,7 +11933,7 @@ function _navSectors(){
    and its sub-tabs. `cur` is read even when the view isn't the active one,
    so re-entering a view via the menu lands back on its last sub-tab. */
 function _navGroups(){
-  var pool=[{k:'__performance__',l:'Charts'}];
+  var pool=[{k:'__performance__',l:'Overview'}];
   _navSectors().forEach(function(s){pool.push({k:s,l:s});});
   var groups=[
     {v:'pool',l:'Sector Analysis',cur:_poolTab||'__performance__',items:pool},
@@ -12998,17 +12998,13 @@ function _macNarrativeHTML(){
     }
     h+='</div></div>';
   }
-  /* Sectors: the Sector Outlook (renderSectorOutlook), the same section
-     the Sector Analysis Charts sub-tab leads with — grouped by this
-     narrative's stance, one sentence of structural forces per sector, the
-     name opening its macro influence in place. */
-  var so=renderSectorOutlook(true,'Macro Outlook');
-  if(so)h+='<h3 class="mac-h">Broad Sector Outlook</h3>'+so;
+  /* The per-sector read (the narrative's stances and influences) is the
+     Broad Sector Outlook on Sector Analysis › Overview; it is not repeated
+     here. */
   /* Reading time for the whole card, at 230 words a minute. */
   var words=0,wc=function(x){if(x)words+=String(x).split(/\s+/).filter(Boolean).length;};
   wc(nar.bottom_line);ps.forEach(wc);
   if(watch.length)watch.forEach(wc);else{tw.forEach(wc);hw.forEach(wc);}
-  (nar.sectors||[]).forEach(function(r){if(r){wc(r.headline);wc(r.influence);}});
   var mins=Math.max(1,Math.round(words/230));
   h+='<div class="mac-nar-foot">Written by Claude ('+_esc(nar.model||'')+') from the indicator data · '
     +_esc(nar.generated_at?String(nar.generated_at).slice(0,10):'')+' · '+mins+' min read</div></div>';
@@ -14194,8 +14190,8 @@ function _windListSum(items){
   var t=String(items[0]).replace(/[.\s]+$/,'');
   return t+(items.length>1?', and '+(items.length-1)+' more.':'.');
 }
-/* Broad Sector Outlook: the one sector read, on the Charts sub-tab above
-   the Sector Price Comparison and closing the Macro Overview. Sectors are
+/* Broad Sector Outlook: the one sector read, on the Sector Analysis
+   Overview sub-tab above the Sector Price Comparison. Sectors are
    grouped by the macro narrative's stance (its whitelist picks the group,
    never the model's text; no narrative, one ungrouped list). Each sector
    is a short row: its name beside a status with its structural health (the force balance,
@@ -14242,7 +14238,7 @@ function _soGroupSummary(items){
   var t=parts.join('; ')+'.';
   return t.charAt(0).toUpperCase()+t.slice(1);
 }
-function renderSectorOutlook(bare,from){
+function renderSectorOutlook(from){
   if(typeof SECTOR_POOL==='undefined'||!SECTOR_POOL)return '';
   var nar=_soNarr(),byName={};
   if(nar)nar.sectors.forEach(function(r,i){if(r&&r.sector)byName[r.sector]={row:r,i:i};});
@@ -14279,7 +14275,6 @@ function renderSectorOutlook(bare,from){
   var q=_qHelp('<span class="note-q-t">Each sector’s status weighs its structural forces (acting now, or building at half weight) by the share of its revenue they reach; tap a sector for its strongest tailwind and headwind'
     +(nar?' and the Macro Outlook’s read on it':'')+'; Research more opens its companies in Stock Valuations. '
     +(nar?'Groups are today’s macro stance. ':'')+'The bar weighs sectors where tailwinds lead against those where headwinds do.</span>','How to read the Broad Sector Outlook','corner');
-  if(bare)return '<div class="so-wrap qh-card qh-flush">'+q+body+'</div>';
   return '<div class="xsect-dashboard so-wrap qh-card">'+q
     +'<div class="xsect-title">Broad Sector Outlook</div>'+body+'</div>';
 }

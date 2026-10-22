@@ -1200,12 +1200,14 @@ by analyze_stock and gitignored):
   cleanly when unset: the tab renders without it). The Overview reads top
   down: the regime card with the narrative's `bottom_line`, the key-number
   tiles (each opens its full chart), the three economy sections, `watch`
-  (what would change the call), then Sectors: the Sector Outlook
-  (`renderSectorOutlook`, also atop the Sector Analysis Charts sub-tab),
-  grouped by the narrative's stance, one sentence per sector naming its
-  force balance and dominant structural tailwind/headwind (largest
-  weight × reach, as `force_balance` sums them); the name opens the
-  influence paragraph in place, Read more the sector's Drivers tab. A pre-v7 cache has no
+  (what would change the call). The narrative's per-sector stances and
+  influence paragraphs are read on Sector Analysis › Overview (the first
+  sub-tab, key `__performance__`), in the Broad Sector Outlook
+  (`renderSectorOutlook`): sectors grouped by the narrative's stance, each
+  row naming its force balance and dominant structural tailwind/headwind
+  (largest weight × reach, as `force_balance` sums them), its macro read,
+  and Research more into the filtered Stock Valuations. The Macro Overview
+  does not repeat it. A pre-v7 cache has no
   `bottom_line`/`watch` and shows its headwinds/tailwinds as The balance. The Sector Analysis tabs carry no
   macro narrative; their Sector Headwinds & Tailwinds block is the
   sector's own structural read, and each influence paragraph weighs
