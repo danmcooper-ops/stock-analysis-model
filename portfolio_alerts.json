@@ -1,18 +1,18 @@
 {
  "version": 1,
- "date": "2026-10-20",
- "prev_date": "2026-10-19",
+ "date": "2026-10-21",
+ "prev_date": "2026-10-20",
  "systemic": {
   "n": 3494,
-  "prev_n": 3483,
-  "changed": 753,
-  "changed_share": 0.2155,
-  "missing_data": 1,
-  "missing_share": 0.0003,
+  "prev_n": 3494,
+  "changed": 13,
+  "changed_share": 0.0037,
+  "missing_data": 0,
+  "missing_share": 0.0,
   "shrink_share": 0.0,
-  "flood": true,
-  "cause": "model",
-  "message": "Model-wide shift: 22% of the universe (753 stocks) changed rating in one run — usually a scoring change rather than news about individual stocks."
+  "flood": false,
+  "cause": null,
+  "message": null
  },
  "portfolios": [
   {
@@ -29,9 +29,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.6342538435456178,
+    "median_mos": -0.6674344156708986,
     "median_score": 49.25,
-    "median_spread": 0.2283526477909423,
+    "median_spread": 0.2280387268106321,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -40,47 +40,10 @@
     "hhi": 1.0,
     "concentrated": true,
     "no_sector": 0,
-    "upgrades": 3,
+    "upgrades": 0,
     "downgrades": 0
    },
-   "alerts": [
-    {
-     "ticker": "AMD",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "AMD moved into the buy zone: HOLD → LEAN BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 34 → 40, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
-    {
-     "ticker": "AVGO",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "AVGO moved into the buy zone: HOLD → LEAN BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 39 → 46, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
-    {
-     "ticker": "TSM",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "TSM LEAN BUY → BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 52 → 61, crossing above the BUY (57) threshold."
-     ]
-    }
-   ]
+   "alerts": []
   },
   {
    "id": "flagged",
@@ -96,9 +59,9 @@
      "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.313924711684036,
+    "median_mos": -0.32212990856414186,
     "median_score": 48.7,
-    "median_spread": 0.25628460510945816,
+    "median_spread": 0.2559846051094582,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -113,94 +76,10 @@
     "hhi": 0.17906728373086506,
     "concentrated": false,
     "no_sector": 0,
-    "upgrades": 20,
+    "upgrades": 0,
     "downgrades": 0
    },
    "alerts": [
-    {
-     "ticker": "AVGO",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "AVGO moved into the buy zone: HOLD → LEAN BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 39 → 46, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
-    {
-     "ticker": "BUD",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "BUD moved into the buy zone: HOLD → LEAN BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 36 → 42, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
-    {
-     "ticker": "HD",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "HD moved into the buy zone: HOLD → LEAN BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 37 → 43, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
-    {
-     "ticker": "PG",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "PG moved into the buy zone: HOLD → LEAN BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 34 → 40, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
-    {
-     "ticker": "T",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "T moved into the buy zone: HOLD → LEAN BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 38 → 45, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
-    {
-     "ticker": "TGT",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "TGT moved into the buy zone: HOLD → LEAN BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 35 → 41, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
-    {
-     "ticker": "WMT",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "entered_buy",
-     "level": "action",
-     "message": "WMT moved into the buy zone: HOLD → LEAN BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 37 → 43, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
     {
      "ticker": "BRK-B",
      "portfolio": "flagged",
@@ -215,17 +94,16 @@
      "message": "CMCSA reports earnings on 2026-10-22"
     },
     {
-     "ticker": "DDS",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "reversal",
+     "ticker": "COKE",
+     "kind": "earnings_soon",
      "level": "watch",
-     "reversal_of": "2026-10-19",
-     "message": "DDS moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-10-19 move)",
-     "flood": true,
-     "why": [
-      "Composite score moved 36 → 42, crossing above the LEAN BUY (39) threshold."
-     ]
+     "message": "COKE reports earnings on 2026-10-28"
+    },
+    {
+     "ticker": "F",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "F reports earnings on 2026-10-28"
     },
     {
      "ticker": "FIX",
@@ -234,10 +112,16 @@
      "message": "FIX reports earnings on 2026-10-22"
     },
     {
-     "ticker": "GM",
+     "ticker": "FTNT",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "GM reports earnings on 2026-10-20"
+     "message": "FTNT reports earnings on 2026-10-28"
+    },
+    {
+     "ticker": "GOOGL",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "GOOGL reports earnings on 2026-10-28"
     },
     {
      "ticker": "HON",
@@ -252,30 +136,10 @@
      "message": "ITW reports earnings on 2026-10-27"
     },
     {
-     "ticker": "KR",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "reversal",
+     "ticker": "KLAC",
+     "kind": "earnings_soon",
      "level": "watch",
-     "reversal_of": "2026-10-16",
-     "message": "KR moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-10-16 move)",
-     "flood": true,
-     "why": [
-      "Composite score moved 37 → 44, crossing above the LEAN BUY (39) threshold."
-     ]
-    },
-    {
-     "ticker": "LOW",
-     "from": "HOLD",
-     "to": "LEAN BUY",
-     "kind": "reversal",
-     "level": "watch",
-     "reversal_of": "2026-10-19",
-     "message": "LOW moved into the buy zone: HOLD → LEAN BUY (reverses the 2026-10-19 move)",
-     "flood": true,
-     "why": [
-      "Composite score moved 38 → 45, crossing above the LEAN BUY (39) threshold."
-     ]
+     "message": "KLAC reports earnings on 2026-10-28"
     },
     {
      "ticker": "LRCX",
@@ -290,16 +154,22 @@
      "message": "META reports earnings on 2026-10-21"
     },
     {
-     "ticker": "NFLX",
+     "ticker": "MSFT",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "NFLX reports earnings on 2026-10-20"
+     "message": "MSFT reports earnings on 2026-10-28"
     },
     {
      "ticker": "PG",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "PG reports earnings on 2026-10-22"
+    },
+    {
+     "ticker": "STLA",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "STLA reports earnings on 2026-10-28"
     },
     {
      "ticker": "STX",
@@ -324,126 +194,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "UVE reports earnings on 2026-10-22"
-    },
-    {
-     "ticker": "COST",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "COST LEAN BUY → BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 52 → 61, crossing above the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "FIX",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "FIX LEAN BUY → BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 49 → 58, crossing above the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "FTNT",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "FTNT LEAN BUY → BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 50 → 59, crossing above the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "GOOGL",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "GOOGL LEAN BUY → BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 54 → 64, crossing above the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "META",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "META LEAN BUY → BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 54 → 64, crossing above the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "MPWR",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "MPWR LEAN BUY → BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 53 → 62, crossing above the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "NVMI",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "NVMI LEAN BUY → BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 50 → 59, crossing above the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "TSCO",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "TSCO LEAN BUY → BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 50 → 59, crossing above the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "TSM",
-     "from": "LEAN BUY",
-     "to": "BUY",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "TSM LEAN BUY → BUY",
-     "flood": true,
-     "why": [
-      "Composite score moved 52 → 61, crossing above the BUY (57) threshold."
-     ]
-    },
-    {
-     "ticker": "XPO",
-     "from": "PASS",
-     "to": "HOLD",
-     "kind": "same_side",
-     "level": "fyi",
-     "message": "XPO PASS → HOLD",
-     "flood": true,
-     "why": [
-      "Composite score moved 24 → 28, crossing above the HOLD (25) threshold."
-     ]
     }
    ]
   }
