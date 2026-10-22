@@ -1205,9 +1205,10 @@ by analyze_stock and gitignored):
 - `MACRO_ANTHROPIC_API_KEY` — optional; enables the Claude-generated macro
   narrative — the story on the Macro Outlook tab's Overview (skipped
   cleanly when unset: the tab renders without it). The Overview reads top
-  down: the regime card with the narrative's `bottom_line`, the key-number
-  tiles (each opens its full chart), the three economy sections, `watch`
-  (what would change the call). The narrative's per-sector stances and
+  down: the regime card with the narrative's `bottom_line`, the three
+  economy sections, `watch` (what would change the call). Each indicator's
+  card lives once, on its section sub-tab; the Overview has no headline
+  tiles (the eight it had repeated Rates, Inflation, Growth and Credit). The narrative's per-sector stances and
   influence paragraphs are read on Sector Analysis › Overview (the first
   sub-tab, key `__performance__`), in the Broad Sector Outlook
   (`renderSectorOutlook`): sectors grouped by the narrative's stance, each

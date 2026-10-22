@@ -2280,8 +2280,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
    the story and keep the phone floors set further down (those rules are
    single-class, so nothing here may outrank them). */
 .mac-overview{display:block;}
-.mac-overview .mac-tiles{margin:0 0 18px;}
-@media(min-width:1001px){.mac-overview .mac-tiles{grid-template-columns:repeat(4,minmax(0,1fr));}}
 /* Overview section headings: one level, the same everywhere. */
 .mac-h{font-size:1.05em;font-weight:700;margin:22px 0 8px;padding-top:14px;border-top:1px solid var(--mac-line);color:inherit;}
 .mac-narrative>.mac-h:first-child{margin-top:0;padding-top:0;border-top:0;}
@@ -2345,7 +2343,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
   .mac-fig-scale .mac-fig-viz>span:last-child{display:none;}
   .mac-fig-cap{flex-direction:row;flex-wrap:wrap;align-items:center;gap:2px 8px;}}
 /* --- glance tiles --- */
-.mac-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin:0 0 18px;}
 .mac-tile{padding:14px 16px;}
 /* Narrative folds (_macFold): phones only; desktop shows it all and no chevron. */
 .mac-fold-btn{display:none;}
@@ -2457,7 +2454,6 @@ html.mz-open,html.mz-open body{overflow:hidden;}
 @media(max-width:900px) and (orientation:portrait){
   #macro-view{padding:2px 4px 32px;}
   .mac-regime{padding:8px 11px;margin:7px 0 9px;font-size:0.85em;}
-  .mac-tiles{grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:8px;margin:6px 0 12px;}
   .mac-tile{padding:8px 10px;}
   .mac-tile-v{font-size:1.3em;}
   .mac-cards{gap:10px;}
@@ -2486,7 +2482,6 @@ html.mz-open,html.mz-open body{overflow:hidden;}
   .mac-sec-note{margin:0 0 6px;}
   .mac-sec-intro{font-size:0.82em;margin:0 0 8px;}
   .rm{margin:0 0 8px;}
-  .mac-tiles{grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:8px;margin:5px 0 10px;}
   .mac-tile{padding:7px 9px;}
   .mac-tile-v{font-size:1.25em;}
   .mac-cards{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;}
@@ -12515,31 +12510,6 @@ function _mpctRow(s){
   return '<div class="mac-pct-row"><div class="mac-pct-track"><div class="mac-pct-mark" style="left:'+Math.min(98,pc)+'%"></div></div>'
     +'<span>'+pc+'th pctile of '+(s.pct_win||'history')+'</span></div>';
 }
-function _mSparkSVG(vals,dates,hid,fmt,suffix){
-  if(!vals||vals.length<2)return '';
-  var W=120,H=30,mn=Infinity,mx=-Infinity;
-  for(var i=0;i<vals.length;i++){var v=vals[i];if(v==null)continue;if(v<mn)mn=v;if(v>mx)mx=v;}
-  if(mn===Infinity)return '';
-  var rg=(mx-mn)||1;
-  var pts=[];
-  for(var j=0;j<vals.length;j++){
-    if(vals[j]==null)continue;
-    pts.push((j/(vals.length-1)*W).toFixed(1)+','+(H-2-((vals[j]-mn)/rg)*(H-4)).toFixed(1));
-  }
-  var g='<polyline points="'+pts.join(' ')+'" class="mac-ln" fill="none" stroke-width="1.3" stroke-linejoin="round"/>';
-  if(!hid)return '<svg viewBox="0 0 '+W+' '+H+'" style="width:120px;height:30px;display:block;margin-top:4px">'+g+'</svg>';
-  /* Same scrub as the full charts, sized down: 120x30 is small for a
-     crosshair, so the marker does the work and the line is hairline. The
-     tile's own value + date are the readout. */
-  g+='<line id="'+hid+'-vl" x1="0" y1="0" x2="0" y2="'+H+'" class="mac-zero" stroke-width="0.8" stroke-dasharray="2,2" opacity="0" pointer-events="none"/>'
-    +'<circle id="'+hid+'-dot" cx="0" cy="0" r="2.6" class="mac-dot" stroke-width="1.4" opacity="0" pointer-events="none"/>';
-  _MAC_HOV[hid]={kind:'spark',vals:vals,ds:dates||[],W:W,H:H,mn:mn,rg:rg,
-                 fmt:fmt,suffix:suffix};
-  return '<svg id="'+hid+'" viewBox="0 0 '+W+' '+H+'" style="width:120px;height:30px;display:block;margin-top:4px;cursor:crosshair;-webkit-user-select:none;user-select:none;touch-action:pan-y"'
-    +' onmousemove="macHovMove(event,\''+hid+'\')" onmouseleave="macHovLeave(\''+hid+'\')"'
-    +' ontouchstart="macHovTouch(event,\''+hid+'\')" ontouchmove="macHovTouch(event,\''+hid+'\')"'
-    +' ontouchend="macHovLeave(\''+hid+'\')" ontouchcancel="macHovLeave(\''+hid+'\')">'+g+'</svg>';
-}
 /* === MACRO TILE ZOOM ===
    An Overview tile opens its series' full history in a dialog: the same
    card the section sub-tabs draw (recession bands, scrub readout), drawn at
@@ -13018,58 +12988,15 @@ function _macNarrativeHTML(){
 }
 function _macOverviewHTML(){
   /* Read top to bottom: the regime card above carries the bottom line, then
-     the key numbers, then the economy (each section ends in its figures and
-     a Full charts link), what to watch, and the sectors. The section sub-
-     tabs hold the full histories. */
+     the economy (each section ends in its figures and a Full charts link)
+     and what to watch. Every indicator's card lives once, on its section
+     sub-tab (Rates & Curve, Inflation, Growth & Labor, Credit, …); the
+     Overview does not repeat any of them as headline tiles. */
   var h='<div class="mac-overview">';
-  var tiles=(MACRO_SUM&&MACRO_SUM.tiles)||[];
-  if(tiles.length){
-    h+='<h3 class="mac-h mac-h-out">Key numbers</h3><div class="mac-tiles">';
-    tiles.forEach(function(t){
-      /* spark_d rides alongside spark from the builder. A snapshot rendered
-         before it existed still scrubs — the readout just shows the value
-         with the tile's own date left alone. */
-      var hid=_macHid();
-      var vHTML=_mfmt(t.latest?t.latest.v:null,t.fmt,t.suffix);
-      var asOf=_macAsOf(t);
-      var dHTML=asOf.txt;
-      /* Tap (or Enter) opens the series' full chart in a dialog (_macZoom). */
-      h+='<div class="mac-tile mac-tile-zoom"'+_macZoomAttrs(t.id,t.l)+'>'+_MAC_EXP
-        +'<div class="mac-tile-l">'+t.l+'</div>'
-        +'<div class="mac-tile-v" id="'+hid+'-v">'+vHTML+'</div>'
-        +'<div>'+_mdelta(t.chg_1m,t,'1M')+'</div>'
-        +_mSparkSVG(t.spark,t.spark_d,hid,t.fmt,t.suffix)
-        +_mpctRow(t)
-        +'<div class="mac-tile-date'+(asOf.stale?' mac-stale':'')+'" id="'+hid+'-d">'+dHTML+'</div></div>';
-      _macRegisterReadout(hid,vHTML,dHTML);
-    });
-    h+='</div>';
-  }
   h+=_macNarrativeHTML();
   if(!MACRO)h+=_macStatusNote();
   h+='</div>';
   return h;
-}
-/* A tile's date, said the way its series is published: a day for daily and
-   weekly series, the month for monthly, the quarter for quarterly (the
-   tile's freq, else read from the sparkline's own spacing). Marked overdue when the latest
-   reading is older than two of its periods plus a typical release lag. */
-function _macAsOf(t){
-  var d=t.latest&&t.latest.d;if(!d)return {txt:'as of ?',stale:false};
-  var sd=t.spark_d||[],gaps=[];
-  for(var i=1;i<sd.length;i++)gaps.push((Date.parse(sd[i])-Date.parse(sd[i-1]))/864e5);
-  gaps.sort(function(a,b){return a-b;});
-  var gap=gaps.length?gaps[Math.floor(gaps.length/2)]:1;
-  /* The builder's own cadence when the tile carries it (d/w/m/q). */
-  var FQ={d:1,w:7,m:30,q:91};if(t.freq&&FQ[t.freq])gap=FQ[t.freq];
-  var dt=new Date(d+'T00:00:00'),mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  var ref=Date.parse((MACRO_SUM&&MACRO_SUM.as_of)||RUN_DATE);
-  var age=isNaN(ref)?0:(ref-dt.getTime())/864e5;
-  var txt=gap<=8?'as of '+mo[dt.getMonth()]+' '+dt.getDate()
-    :gap<=45?mo[dt.getMonth()]+' '+dt.getFullYear()+' reading'
-    :'Q'+(Math.floor(dt.getMonth()/3)+1)+' '+dt.getFullYear()+' reading';
-  var stale=age>2*Math.max(gap,1)+45;
-  return {txt:txt+(stale?' · overdue':''),stale:stale};
 }
 function _macSectionHTML(k){
   if(!MACRO)return _macStatusNote();
