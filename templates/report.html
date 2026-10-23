@@ -1314,8 +1314,6 @@ td.ct{font-weight:700;}
 .etf-rel-bar .f{position:absolute;top:0;bottom:0;border-radius:2px;}
 .etf-rel-bar .f.pos{background:var(--ppf-tw);}.etf-rel-bar .f.neg{background:var(--ppf-hw);}
 .etf-rel-bar .bd{position:absolute;top:-3px;bottom:-3px;border:1px solid var(--ppf-txt);opacity:.45;border-radius:2px;}
-.etf-mix{display:flex;height:10px;min-width:90px;border-radius:2px;overflow:hidden;background:var(--ppf-line);}
-.etf-mix i{display:block;height:100%;}
 .etf-sel td{background:var(--ppi-bg);}
 .etf-detail{margin-top:14px;border-top:1px solid var(--ppf-line);padding-top:12px;color:var(--ppf-txt);}
 .pp-etf .etf-detail{margin-top:0;border-top:0;padding-top:0;}
@@ -13821,11 +13819,6 @@ function _etfRelBar(r){
   var bd=hi-lo>0.6?'<i class="bd" style="left:'+lo.toFixed(1)+'%;width:'+(hi-lo).toFixed(1)+'%"></i>':'';
   return '<span class="etf-rel"><span class="etf-rel-bar"><i class="z"></i>'+f+bd+'</span><b>'+(r.fund===ETF_LT.base?'base':_etfPct(r.rel))+'</b></span>';
 }
-function _etfMix(m){
-  m=m||{};var h='',t='';
-  ['BUY','LEAN BUY','HOLD','PASS'].forEach(function(k){var w=m[k]||0;if(w>0){h+='<i style="width:'+(w*100).toFixed(1)+'%;background:'+RC[k]+'"></i>';t+=k+' '+(w*100).toFixed(0)+'%  ';}});
-  return '<span class="etf-mix" title="'+_attr(t.trim()+' of weight')+'">'+h+'</span>';
-}
 function _etfPullList(arr){
   if(!arr||!arr.length)return '<div class="etf-pull">—</div>';
   return '<div class="etf-pull">'+arr.map(function(e){
@@ -13848,12 +13841,9 @@ function _etfDetail(r){
   h+='<p>'+lead+'</p><div class="etf-cols">'
     +'<div><h4>Pulling value up</h4>'+_etfPullList(r.lifts)+'</div>'
     +'<div><h4>Pulling value down</h4>'+_etfPullList(r.drags)+'</div>'
-    +'<div><h4>Rating mix by weight</h4>'+_etfMix(r.rating_mix)+'<div class="etf-pull">'
-      +['BUY','LEAN BUY','HOLD','PASS'].map(function(k){return k+' '+(((r.rating_mix||{})[k]||0)*100).toFixed(0)+'%';}).join(' · ')+'</div></div>'
     +'</div>';
-  /* No holdings table: the lifts and drags above name the holdings that
-     move the read, and the rating mix covers the rest. The full list stays
-     in etfs_<date>.json. */
+  /* No holdings table or rating mix: the lifts and drags above name the
+     holdings that move the read. The full list stays in etfs_<date>.json. */
   var notes=[(r.valued_w*100).toFixed(1)+'% of weight has a fair value'];
   if(r.carried_w>0.0005)notes.push((r.carried_w*100).toFixed(1)+'% carried from the last snapshot that had one');
   if(r.missing_w>0.0005)notes.push((r.missing_w*100).toFixed(1)+'% has none');
@@ -13876,13 +13866,13 @@ function renderEtfLookthrough(){
     +_qHelp('<span class="note-q-t">Each fund is valued as the sum of its holdings’ fair values per dollar of price (FV/P, each held to between ⅓ and 3). Because the model values the market as a whole below its price, the fund is compared with '+ETF_LT.base+' rather than read on its own. The outlined box is the range between counting holdings with no fair value at FV/P 1 and at ⅓. A holding that lost its fair value today keeps its last one from the previous week.</span>','How to read this','corner')
     +'<div class="sec-label">Sector ETFs Through the Model</div>'
     +'<div class="xsect-sub">The SPDRs valued from the companies they hold. '+(base&&base.status==='ok'?ETF_LT.base+' itself reads '+_etfPct(base.mos)+' on the model. ':'')+'Tap a fund to see what moves its read.</div>'
-    +'<div class="ppi-wrap"><table class="ppi-tbl"><thead><tr><th>Fund</th><th class="etf-sm-hide">Sector</th><th>Value vs '+ETF_LT.base+'</th><th>Model MoS</th><th>Rating mix</th><th>Has fair value</th></tr></thead><tbody>';
+    +'<div class="ppi-wrap"><table class="ppi-tbl"><thead><tr><th>Fund</th><th class="etf-sm-hide">Sector</th><th>Value vs '+ETF_LT.base+'</th><th>Model MoS</th><th>Has fair value</th></tr></thead><tbody>';
   ids.forEach(function(t){
     var r=F[t];
     h+='<tr class="ppi-co'+(t===_etfSel?' etf-sel':'')+'" data-tk="'+_attr(t)+'" onclick="_etfPick(this.dataset.tk)" title="'+_attr(r.fund_name||t)+'">'
       +'<td><b>'+_esc(t)+'</b><span class="etf-name">'+_esc(_etfShort(r))+'</span></td>'
       +'<td class="etf-sm-hide">'+_esc(r.sector||'Broad')+'</td><td>'+_etfRelBar(r)+'</td>'
-      +'<td>'+(r.status==='ok'?_etfPct(r.mos):'—')+'</td><td>'+_etfMix(r.rating_mix)+'</td>'
+      +'<td>'+(r.status==='ok'?_etfPct(r.mos):'—')+'</td>'
       +'<td>'+(r.valued_w!=null?(r.valued_w*100).toFixed(0)+'%':'—')+'</td></tr>';
   });
   h+='</tbody></table></div>'+_etfDetail(F[_etfSel])+'</div>';
