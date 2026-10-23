@@ -721,10 +721,11 @@ ruff check .
   each sector's body is split into sub-tabs. Labels are listed here with
   their ids in brackets; the ids are what is stored, so a rename keeps a
   remembered tab. The tabs are:
-  - Overview (`overview`): the primer (`_SECTOR_EDUCATION`) as a lead
-    line, its other sentences as bullets and the cycle line as a labelled
-    bullet, then "The Sector Today": four tiles from the narrative's `stats`
-    (pool, revenue, margin with what that margin means, companies). The
+  - Overview (`overview`): "The Sector Today" leads, four tiles from the
+    narrative's `stats` (pool, revenue, margin with what that margin means,
+    companies), then "How This Sector Makes Money": the primer
+    (`_SECTOR_EDUCATION`) as a lead line, its other sentences as bullets
+    and the cycle line as a labelled bullet. The
     primer says how the sector earns; anything a curated force says is the
     Drivers tab's, and the leader is the Profit pool table's, so neither is
     repeated here.

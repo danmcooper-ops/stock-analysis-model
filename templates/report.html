@@ -15618,11 +15618,12 @@ function renderPool(){
     var liquidityHtml=renderPoolLiquidityInsights(sec);
 
     /* --- A. Context ------------------------------------------------- */
-    if(primerHtml){
-      chartHtml+='<div data-pane="overview" class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
-    }
+    /* The Sector Today leads: the numbers first, then how the sector earns them. */
     if(todayHtml){
       chartHtml+='<div data-pane="overview" class="pp-section pp-today"><span class="pp-section-label">The Sector Today</span>'+todayHtml+'</div>';
+    }
+    if(primerHtml){
+      chartHtml+='<div data-pane="overview" class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
     }
     /* The Claude macro narrative's read on this sector lives on the
        Macro Outlook Overview (Key sector influences); the sector tab keeps
