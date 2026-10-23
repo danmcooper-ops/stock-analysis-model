@@ -1204,6 +1204,15 @@ ruff check .
   ~98% LOW to ~13/67/20% HIGH/MEDIUM/LOW. On 09-16..09-24, `mc_cv` added
   nothing over realized vol in predicting |excess return| (partial rank
   correlation 0.02); whether the band sharpens MoS is still unmeasured.
+  Over the store's 111 snapshots (04-20..10-22), CV's rank correlation with
+  the model's own fair-value revision 20 sessions later is ~0 under both
+  regimes, and the band holds that later value 89% (old) / 69% (new) of the
+  time against a nominal 80%. The MoS tempering (`_mos_tempered`) was tested
+  against ~28-day excess returns on overpriced rows: the old-band rule's
+  edge (+2.8pp/date) vanished on rows whose fair value is the DCF (−0.1pp),
+  and model-dispersion alternatives did worse (−0.7 to −4.3pp). About six
+  independent periods, so no rule is shown better; it is left as is. A band
+  ships only beside a point DCF value (`run_forward_dcf` gates on `fv`).
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`
