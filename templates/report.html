@@ -2405,12 +2405,11 @@ html.mz-open,html.mz-open body{overflow:hidden;}
 .rm .mac-sec-intro{margin:0;}
 .rm:not(.open) .rm-txt{display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
 .rm-btn{display:none;margin:0;padding:0;border:0;background:none;font:inherit;font-size:0.92em;font-weight:600;cursor:pointer;color:var(--mac-accent,#2f6fb4);white-space:nowrap;}
-/* The toggle sits at the end of the text, never on a line of its own:
-   folded, over the end of the clamped last line behind a fade; open,
-   inline after the last sentence (_rmToggle moves it into the paragraph). */
-.rm.clip:not(.open) .rm-btn{position:absolute;right:0;bottom:0;padding-left:2.2em;line-height:1.65;background:linear-gradient(90deg,transparent,var(--bg) 1.8em);}
+/* Folded, the toggle takes its own line under the clamped text, so it never
+   covers a word; open, it runs inline after the last sentence (_rmToggle
+   moves it into the paragraph). */
+.rm.clip:not(.open) .rm-btn{margin-top:4px;line-height:1.65;}
 .rm.open .rm-btn{margin-left:6px;}
-.mac-sec-head .rm.clip:not(.open) .rm-btn{background:linear-gradient(90deg,transparent,var(--mac-card) 1.8em);}
 [data-theme="dark"] .rm-btn{color:var(--mac-accent,#5b9cf0) !important;}
 .rm.clip .rm-btn{display:inline-block;}
 .mac-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:14px;}
