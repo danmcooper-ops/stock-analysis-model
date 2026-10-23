@@ -535,7 +535,7 @@ def test_sector_outlook_names_the_dominant_force_each_way(tmp_path):
     # the Drivers' verdict and bar, weighing sectors
     assert 'Across 3 sectors, tailwinds lead in 1 and headwinds in 0.' in html
     energy = html.split('class="ppf-th">Energy')[1].split('<div class="ppf wind-row')[0]
-    assert '<span class="ppf-st ppf-active"><i class="ppf-dot"></i>Tailwinds lead</span>' in html.split('class="ppf-th">Energy')[0][-200:]
+    assert '<span class="ppf-st ppf-active"><i class="ppf-dot"></i>Structural: tailwinds lead</span>' in html.split('class="ppf-th">Energy')[0][-200:]
     assert '<li><b>Tailwind:</b> Underinvestment.</li>' in energy
     assert '<li><b>Headwind:</b> none acting.</li>' in energy
     assert '1 of 3 forces acting' in energy
@@ -544,7 +544,7 @@ def test_sector_outlook_names_the_dominant_force_each_way(tmp_path):
     assert '<b>Tailwind:</b> Defensive bid.' in util and '<b>Headwind:</b> Rate cases.' in util
     assert 'Grid capex' not in util
     assert 'Drivers ›' not in html and 'goSectorDrivers' not in html
-    assert 'No force acting</span>' in html
+    assert 'Structural: none acting</span>' in html
     assert _render_outlook({'X': {}}, tmp_path) == ''
     assert 'data-wk="outlook:all"' in html, 'no narrative: one ungrouped group'
 
@@ -567,8 +567,8 @@ def test_sector_outlook_groups_by_the_macro_stance(tmp_path):
     assert '<div class="wind-sum">No force is acting in Healthcare.</div>' in html
     assert '<div class="wind-sum">No force is acting in Energy and Technology.</div>' in html
     assert opened.count('wind-shut') == 2 and '<div class="wind-grp" data-wk="outlook:down">' in opened
-    up, rest = html.split('▲ Macro tailwind<span>· 1</span>')[1].split('Macro neutral<span>· 2</span>')
-    flat, down = rest.split('▼ Macro headwind<span>· 1</span>')
+    up, rest = html.split('▲ Macro view: tailwind<span>· 1</span>')[1].split('Macro view: neutral<span>· 2</span>')
+    flat, down = rest.split('▼ Macro view: headwind<span>· 1</span>')
     assert 'Healthcare' in up and '<li><b>Macro read:</b> <i>H.</i> Inf</li>' in up
     assert 'class="ppf-th">Energy' in flat and 'class="ppf-th">Technology' in flat   # unknown stance, absent
     assert 'Macro read' not in flat, 'no influence, no Macro read'

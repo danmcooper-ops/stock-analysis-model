@@ -797,8 +797,19 @@ ruff check .
   exposure counts each issuer once (`pool_rows`). `balance` weighs live
   tailwinds against headwinds by reach: a building force counts half, and
   a force with no measured reach counts as a third of the sector. Macro
-  levels use the series' own `pctile`, and 1-year moves rank both ends on
-  an even weekly grid, because `hist` is denser in its last year. Industries are compared with their sector
+  levels and 1-year moves are both ranked over the trailing 20 years
+  (`LEVEL_WINDOW_YEARS`) on an even weekly grid, because `hist` is denser
+  in its last year (`macro_dashboard.DAILY_HISTORY_YEARS` is 20 to match).
+  Ranked over each series' full history they were not comparable
+  (2026-10-23): the High Yield OAS had 3 years (FRED keeps only ~3 of ICE's),
+  so a tight 3.33% read 82nd percentile, as stress, and made credit an active
+  headwind for Financials and "defensive flows" active tailwinds for Consumer
+  Defensive and Utilities; the 10-year had 65, so 5.12% read mid-pack. Those
+  three credit forces now read the NFCI, and Financials' yield-curve
+  tailwind reads 10Y−3M. On the Broad Sector Outlook the groups are the
+  macro narrative's view ("Macro view: …") and each row's label is the
+  structural balance ("Structural: …"), named apart because they can
+  disagree. Industries are compared with their sector
   over the same years (`industry_pools(rows, window)`, `growth_over`).
   Left free, Software - Infrastructure's window ended FY2026, a year only
   early filers had reported.
@@ -831,9 +842,10 @@ ruff check .
   only WTI, copper and food; no force reads gas or the newer series yet
   (none is themed on them), and there is no gold or silver card: the
   dashboard fetches only through FREDClient, and FRED dropped the LBMA
-  gold and silver fixes in 2022. `data/fred_client`'s cache is keyed by series id alone, so a
-  fetch with a later `start` (an ad hoc probe) poisons it for the
-  dashboard until the 1-day TTL runs out.
+  gold and silver fixes in 2022. `data/fred_client`'s cache is keyed by series id alone but records
+  the start it was fetched from, and a request for an earlier start
+  misses it, so an ad hoc probe with a later `start` no longer poisons the
+  dashboard.
 - **SPDR look-through (`data/etf_holdings.py`, `models/etf_lookthrough.py`,
   2026-10-21):** ETFs never enter the company pipeline (no statements, and
   Yahoo gives them no `marketCap`, so the Phase-1 mcap bail drops them).

@@ -74,7 +74,8 @@ def test_rising_rates_activate_a_rate_headwind_and_silence_the_rate_cut_tailwind
     tw = _force(res, 'Rate-cut re-rating of cap rates')
     assert hw['status'] == 'active' and tw['status'] == 'dormant'
     assert hw['evidence']['reading'] == '5.38%'
-    assert hw['evidence']['pctile'] == 0.99      # the series' own, as the Macro tab quotes
+    # Ranked over the trailing window, not the sidecar's own pctile (0.99).
+    assert hw['evidence']['pctile'] == 1.0 and hw['evidence']['window'] == '10y'
     assert 0 < len(hw['evidence']['spark']) <= 48
 
 
@@ -142,10 +143,11 @@ def test_food_prices_evidence_the_agricultural_input_cost_headwind():
     f = _force(evaluate_forces('Consumer Defensive', side, {}),
                'Input cost inflation from agricultural commodities')
     assert f['status'] == 'active' and f['evidence']['reading'] == '135.7'
-    side = _sidecar('PFOODINDEXM', [140 - 0.3 * k for k in range(120)], fmt='n1')
+    side = _sidecar('PFOODINDEXM', [100 + 0.3 * k for k in range(100)]
+                    + [130 - 0.3 * k for k in range(20)], fmt='n1')
     f = _force(evaluate_forces('Consumer Defensive', side, {}),
                'Input cost inflation from agricultural commodities')
-    # Still high in its range (the fixture's pctile), but falling: fading.
+    # Still high in its range, but falling: fading.
     assert f['status'] == 'easing'
 
 
@@ -305,3 +307,28 @@ def test_sector_growth_is_not_recomputed_when_the_windows_match(monkeypatch):
     res = evaluate_forces('Technology', None, entry, _re_rows())
     assert _force(res, 'Software dollar share keeps rising')['status'] == 'active'
     assert calls == []
+
+
+def test_levels_rank_over_the_trailing_window_only():
+    """A reading is judged against the last LEVEL_WINDOW_YEARS, not the
+    series' whole history: 5% after decades at 10-15% and a recent decade
+    near 2% is high for today's market."""
+    from models.sector_forces import LEVEL_WINDOW_YEARS
+    old = [12.0] * 12 * 30                      # 30 years of a high regime
+    recent = [2.0 + 0.0125 * k for k in range(12 * (LEVEL_WINDOW_YEARS + 1))]
+    side = _sidecar('DGS10', old + recent)
+    hw = _force(evaluate_forces('Real Estate', side, {}),
+                'Interest-rate sensitivity and tenant-credit risk')
+    assert hw['evidence']['window'] == f'{LEVEL_WINDOW_YEARS}y'
+    assert hw['evidence']['pctile'] == 1.0 and hw['status'] == 'active'
+
+
+def test_credit_forces_read_financial_conditions_not_the_short_hy_spread():
+    """FRED keeps only ~3 years of ICE's spreads, too short to say whether a
+    spread is wide; the credit-driven forces read the NFCI instead."""
+    from models.sector_forces import FORCE_META
+    for sec, theme in (('Financial Services', 'Credit cycles and regulatory capital'),
+                       ('Consumer Defensive', 'Defensive flows in late-cycle markets'),
+                       ('Utilities', 'Defensive yield bid in down markets')):
+        assert FORCE_META[sec][theme][2]['series'] == 'NFCI', theme
+    assert FORCE_META['Financial Services']['Yield-curve normalisation'][2]['series'] == 'T10Y3M'
