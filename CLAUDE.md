@@ -725,8 +725,8 @@ ruff check .
     narrative's `stats` (pool, revenue, margin with what that margin means,
     companies), then "How This Sector Makes Money": the primer
     (`_SECTOR_EDUCATION`) as a lead line, its other sentences as bullets
-    and the cycle line as a labelled bullet. The
-    primer says how the sector earns; anything a curated force says is the
+    and the cycle line as a labelled bullet, then the sector's SPDR
+    through the model (`pp-etf`). The primer says how the sector earns; anything a curated force says is the
     Drivers tab's, and the leader is the Profit pool table's, so neither is
     repeated here.
   - Drivers (`forces`).
@@ -855,8 +855,8 @@ ruff check .
   row is left out. Under 80% of weight with a fair value reads
   INSUFFICIENT; a coverage-degraded run shows nothing. Shown on Financial
   Model › ETF Valuations (all 14; the sub-tab beside Dashboard and Stock
-  Valuations, the gate matrix's tab label) and each sector's Value creation
-  tab (its own SPDR); written to `output/etfs_<date>.json`. Display only: no fund is
+  Valuations, the gate matrix's tab label) and each sector's Overview
+  tab (its own SPDR; lifts, drags and rating mix, no holdings table); written to `output/etfs_<date>.json`. Display only: no fund is
   rated, and an ETF must never reach `profile_verdict` (its −20% MoS AVOID
   flag would fire on nearly every fund). `ETF_HOLDINGS_DIR` overrides the
   archive path. Tests: `tests/test_etf_lookthrough.py`.

@@ -13808,7 +13808,7 @@ function _etfPullList(arr){
       +'<span class="etf-name">'+(e.w*100).toFixed(1)+'% at FV/P '+(e.fvp==null?'—':e.fvp.toFixed(2))+'</span> <b title="Moves the fund\u2019s value per $1 of price by this much">'+_etfPct(e.c,1)+'</b>';
   }).join('<br>')+'</div>';
 }
-/* One fund in full: what it reads, why, and what is in it. */
+/* One fund in full: what it reads and why. */
 function _etfDetail(r){
   var base=ETF_LT.funds[ETF_LT.base];
   var h='<div class="etf-detail">';
@@ -13826,14 +13826,9 @@ function _etfDetail(r){
     +'<div><h4>Rating mix by weight</h4>'+_etfMix(r.rating_mix)+'<div class="etf-pull">'
       +['BUY','LEAN BUY','HOLD','PASS'].map(function(k){return k+' '+(((r.rating_mix||{})[k]||0)*100).toFixed(0)+'%';}).join(' · ')+'</div></div>'
     +'</div>';
-  h+='<div class="ppi-wrap"><table class="ppi-tbl"><thead><tr><th>Top holdings</th><th>Weight</th><th>FV/P</th><th>Rating</th></tr></thead><tbody>';
-  (r.top||[]).forEach(function(e){
-    var st=e.st==='carried'?' (carried)':e.st==='missing'?' (no fair value)':e.st==='unmatched'?' (not in the model)':'';
-    h+='<tr'+(e.r?' class="ppi-co" data-tk="'+_attr(e.t)+'" onclick="openDet(this.dataset.tk)"':'')+'><td>'+_esc(e.t||'')+'<span class="etf-name">'+_esc(e.n||'')+'</span></td>'
-      +'<td>'+(e.w*100).toFixed(1)+'%</td><td>'+(e.fvp==null?'—':e.fvp.toFixed(2))+_esc(st)+'</td>'
-      +'<td>'+(e.r?'<span class="ppi-rt" style="background:'+(RC[e.r]||'#90a4ae')+'"></span>'+_esc(e.r):'—')+'</td></tr>';
-  });
-  h+='</tbody></table></div>';
+  /* No holdings table: the lifts and drags above name the holdings that
+     move the read, and the rating mix covers the rest. The full list stays
+     in etfs_<date>.json. */
   var notes=[(r.valued_w*100).toFixed(1)+'% of weight has a fair value'];
   if(r.carried_w>0.0005)notes.push((r.carried_w*100).toFixed(1)+'% carried from the last snapshot that had one');
   if(r.missing_w>0.0005)notes.push((r.missing_w*100).toFixed(1)+'% has none');
@@ -13855,7 +13850,7 @@ function renderEtfLookthrough(){
   var h='<div class="xsect-dashboard" id="etf-lt">'
     +_qHelp('<span class="note-q-t">Each fund is valued as the sum of its holdings’ fair values per dollar of price (FV/P, each held to between ⅓ and 3). Because the model values the market as a whole below its price, the fund is compared with '+ETF_LT.base+' rather than read on its own. The outlined box is the range between counting holdings with no fair value at FV/P 1 and at ⅓. A holding that lost its fair value today keeps its last one from the previous week.</span>','How to read this','corner')
     +'<div class="sec-label">Sector ETFs Through the Model</div>'
-    +'<div class="xsect-sub">The SPDRs valued from the companies they hold. '+(base&&base.status==='ok'?ETF_LT.base+' itself reads '+_etfPct(base.mos)+' on the model. ':'')+'Tap a fund for its holdings.</div>'
+    +'<div class="xsect-sub">The SPDRs valued from the companies they hold. '+(base&&base.status==='ok'?ETF_LT.base+' itself reads '+_etfPct(base.mos)+' on the model. ':'')+'Tap a fund to see what moves its read.</div>'
     +'<div class="ppi-wrap"><table class="ppi-tbl"><thead><tr><th>Fund</th><th class="etf-sm-hide">Sector</th><th>Value vs '+ETF_LT.base+'</th><th>Model MoS</th><th>Rating mix</th><th>Has fair value</th></tr></thead><tbody>';
   ids.forEach(function(t){
     var r=F[t];
@@ -15625,6 +15620,10 @@ function renderPool(){
     if(primerHtml){
       chartHtml+='<div data-pane="overview" class="pp-section pp-primer"><span class="pp-section-label">How This Sector Makes Money</span>'+primerHtml+'</div>';
     }
+    /* Then the sector's SPDR read through the model. */
+    if(etfHtml){
+      chartHtml+='<div data-pane="overview" class="pp-section pp-etf"><span class="pp-section-label">'+_esc(ETF_LT.sector_fund[sec])+' Through the Model</span>'+etfHtml+'</div>';
+    }
     /* The Claude macro narrative's read on this sector lives on the
        Macro Outlook Overview (Key sector influences); the sector tab keeps
        only its own structural headwinds and tailwinds. */
@@ -15657,10 +15656,6 @@ function renderPool(){
     /* And what the pool is worth after paying for its capital. */
     if(econHtml){
       chartHtml+='<div data-pane="value" class="pp-section pp-econ"><span class="pp-section-label">Accounting vs Economic Pool</span>'+econHtml+'</div>';
-    }
-    /* And the sector's SPDR read through the model, beside it. */
-    if(etfHtml){
-      chartHtml+='<div data-pane="value" class="pp-section pp-etf"><span class="pp-section-label">'+_esc(ETF_LT.sector_fund[sec])+' Through the Model</span>'+etfHtml+'</div>';
     }
 
     /* --- Flow ------------------------------------------------------- */
