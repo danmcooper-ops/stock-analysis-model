@@ -725,8 +725,8 @@ ruff check .
     narrative's `stats` (pool, revenue, margin with what that margin means,
     companies), then "How This Sector Makes Money": the primer
     (`_SECTOR_EDUCATION`) as a lead line, its other sentences as bullets
-    and the cycle line as a labelled bullet, then the sector's SPDR
-    through the model (`pp-etf`). The primer says how the sector earns; anything a curated force says is the
+    and the cycle line as a labelled bullet, then "Sector v. Market": the
+    sector's SPDR against SPY and through the model (`pp-etf`). The primer says how the sector earns; anything a curated force says is the
     Drivers tab's, and the leader is the Profit pool table's, so neither is
     repeated here.
   - Drivers (`forces`).
