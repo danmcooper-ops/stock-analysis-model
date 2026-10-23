@@ -13827,7 +13827,10 @@ function _etfPullList(arr){
   }).join('<br>')+'</div>';
 }
 /* One fund in full: what it reads and why. */
-function _etfDetail(r){
+/* corner: the coverage note goes behind the section's ? (_noteQ, pinned to
+   the sector page's .pp-section corner); ETF Valuations already has a corner
+   ? of its own, so there it stays a visible line. */
+function _etfDetail(r,corner){
   var base=ETF_LT.funds[ETF_LT.base];
   var h='<div class="etf-detail">';
   if(r.status!=='ok'){
@@ -13849,7 +13852,8 @@ function _etfDetail(r){
   if(r.missing_w>0.0005)notes.push((r.missing_w*100).toFixed(1)+'% has none');
   if(r.unmatched_w>0.0005)notes.push((r.unmatched_w*100).toFixed(1)+'% is not in the model and is left out');
   if(r.clipped_w>0.0005)notes.push((r.clipped_w*100).toFixed(1)+'% sits at the FV/P limits of ⅓ or 3');
-  h+='<div class="etf-note">'+notes.join('; ')+'. Holdings as of '+_esc(r.as_of||'?')+' ('+r.n_holdings+' lines, SSGA). Display only: no fund is rated.</div>';
+  var note=notes.join('; ')+'. Holdings as of '+_esc(r.as_of||'?')+' ('+r.n_holdings+' lines, SSGA). Display only: no fund is rated.';
+  h+=corner?_noteQ(note,'About this read'):'<div class="etf-note">'+note+'</div>';
   return h+'</div>';
 }
 function _etfPick(t){_etfSel=t;var el=document.getElementById('etf-lt');if(el)el.outerHTML=renderEtfLookthrough();}
@@ -13882,7 +13886,7 @@ function renderEtfLookthrough(){
 function renderPoolEtf(sec){
   var t=ETF_LT&&ETF_LT.sector_fund&&ETF_LT.sector_fund[sec];
   var r=t&&ETF_LT.funds[t];
-  return r?_etfcBox(t)+_etfDetail(r):'';
+  return r?_etfcBox(t)+_etfDetail(r,true):'';
 }
 /* The fund's price against SPY, both rebased to 0% at the range start (one
    axis: a common base, never two scales). Closes come from the px/ shards
