@@ -396,7 +396,7 @@ def test_summary_tab_blocks_are_titled_cards_in_reading_order():
     The Finances follows The Business."""
     src = _tpl()
     pane = src.split('<div id="d-pane-overview" class="d-pane active">')[1].split('<!-- /d-pane-overview -->')[0]
-    titles = re.findall(r'<span class="dg-icon"></span>([^<]+)</div>', pane)
+    titles = re.findall(r'<span class="dg-icon"></span><span class="sec-label">([^<]+)</span></div>', pane)
     assert titles == ['The Snapshot', 'The Business', 'The Finances', 'The Model',
                       'Charts', 'The Track Record', 'Headwinds &amp; Tailwinds']
     assert 'id="d-kmetrics"' in pane.split('The Snapshot')[1].split('The Business')[0]

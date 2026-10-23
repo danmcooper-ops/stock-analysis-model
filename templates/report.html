@@ -1280,8 +1280,8 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .tk-link:hover{color:#58a6ff;}
 .pp-section{padding:16px 20px;border-bottom:1px solid #e0e5eb;position:relative;}
 .pp-section:last-child{border-bottom:none;}
-.pp-section-label{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:0.8em;letter-spacing:0.14em;text-transform:uppercase;padding:8px 16px 8px 14px;border-radius:4px;margin:0 0 14px;color:var(--hdr-fg);position:relative;}
-.pp-section-label::after{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:4px 0 0 4px;background:rgba(0,0,0,0.22);}
+.pp-section-label,.sec-label{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:0.8em;letter-spacing:0.14em;text-transform:uppercase;padding:8px 16px 8px 14px;border-radius:4px;margin:0 0 14px;color:var(--hdr-fg);position:relative;}
+.pp-section-label::after,.sec-label::after{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:4px 0 0 4px;background:rgba(0,0,0,0.22);}
 /* Uniform section-label color across every per-sector pp-section block.
    Section type is still distinguished by left-border tint and subtle
    background wash, but every "title banner" reads the same color. */
@@ -1296,6 +1296,11 @@ td.ct{font-weight:700;}
 .pp-shifts .pp-section-label,
 .pp-econ .pp-section-label,
 .pp-etf .pp-section-label{background:var(--hdr-bg);}
+/* The same navy title box on every other view's sections (.sec-label):
+   Sector Overview cards, Dashboard, ETF Valuations, Charts, Macro,
+   Portfolios and the ticker page's cards. */
+.sec-label{background:var(--hdr-bg);font-size:0.8rem;line-height:1.3;text-shadow:none;}
+.sec-sub{font-size:0.82em;color:#94a3b8;margin:-8px 0 10px;}
 /* Combined sector-level Headwinds + Tailwinds block — two columns on
    desktop, stacked on mobile. Closes the Context arc, directly under the
    primer. */
@@ -1354,7 +1359,7 @@ td.ct{font-weight:700;}
    title leaves room so a long one never runs under the button. */
 .qhelp.qhelp-corner{position:absolute;top:18px;right:18px;}
 .xsect-dashboard,.qh-card{position:relative;}
-.xsect-dashboard>.qhelp-corner~.xsect-title,.qh-card>.qhelp-corner~*:first-of-type{padding-right:34px;}
+.xsect-dashboard>.qhelp-corner~.sec-label,.qh-card>.qhelp-corner~*:first-of-type{padding-right:34px;}
 @media(max-width:768px){.qhelp.qhelp-corner{top:12px;right:10px;}}
 .qh-flush>.qhelp.qhelp-corner{top:0;right:0;}
 .note-q-t{display:block;font-size:13px;font-weight:400;line-height:1.45;color:var(--ppf-sub);text-align:left;white-space:normal;}
@@ -1415,7 +1420,7 @@ td.ct{font-weight:700;}
 [data-theme="dark"] .pp-shifts,
 [data-theme="dark"] .pp-econ,
 [data-theme="dark"] .pp-etf{background:#161b22;border-left-color:#c9d1d9;}
-[data-theme="dark"] .pp-section-label{background:var(--hdr-bg) !important;}
+[data-theme="dark"] .pp-section-label,[data-theme="dark"] .sec-label{background:var(--hdr-bg) !important;}
 /* Pool history (pp-history) and share shifts (pp-shifts): the sector's pool
    over the last decade, from models/sector_pool.py. Marks are classed so dark
    mode swaps them without touching the SVG markup. */
@@ -1649,9 +1654,7 @@ td.ct{font-weight:700;}
 /* Quadrant taxonomy tip — keeps its color-coded left border (background set inline per-quadrant). */
 .pp-quad-tip{display:none;position:fixed;z-index:9999;border-left:4px solid #ccc;border-radius:var(--tip-radius);padding:12px 16px;font-size:var(--tip-font);line-height:var(--tip-line);pointer-events:none;max-width:300px;box-shadow:var(--tip-shadow);}
 .xsect-dashboard{background:white;border-radius:10px;padding:22px 24px 20px;box-shadow:0 3px 14px rgba(0,0,0,0.09);margin-bottom:22px;border-top:4px solid var(--hdr-bg);}
-.xsect-title{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:3px;}
 .xsect-sub{font-size:0.78em;color:#8a9bb0;margin-bottom:16px;}
-.so-wrap>.xsect-title{margin-bottom:14px;}
 /* A sector's Overview: the primer as a lead line and points, the sector
    today as tiles (the ticker page's Snapshot grid) and one line. */
 .pp-lead{margin:0 0 6px;font-size:0.86em;line-height:1.55;font-weight:600;color:var(--ppf-txt);}
@@ -1709,7 +1712,6 @@ button.wind-h{cursor:pointer;}
 .xsect-kpi-val{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:1px;}
 .xsect-kpi-label{font-size:0.72em;color:#7f8c9a;text-transform:uppercase;letter-spacing:0.05em;font-weight:600;}
 .xsect-kpi-sub{font-size:0.71em;color:#aab;margin-top:1px;}
-.xsect-chart-title{font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:7px;}
 /* World MoS choropleth — inline SVG with each country as a <path
    data-iso="ISO3">. Default fill is light grey ("no coverage"); JS
    tints countries we have data for and tags them .hit so only those
@@ -1775,7 +1777,6 @@ button.wind-h{cursor:pointer;}
    comparison section above with a tinted band, accent border, and larger
    title. */
 .xsect-trading-section{margin-top:34px;padding:22px 20px 18px;background:linear-gradient(180deg,#f3f8fb 0%,#fafcfd 100%);border-top:4px solid #00838f;border-radius:6px;box-shadow:inset 0 1px 0 rgba(0,0,0,0.03);}
-.xsect-trading-section .xsect-title{font-size:1.18em;color:#0e3a40;}
 .xsect-trading-section .xsect-sub{margin-bottom:18px;}
 .xsect-trade-stack{display:flex;height:100%;width:100%;}
 .xsect-trade-stack > div{height:100%;}
@@ -2003,20 +2004,17 @@ button.wind-h{cursor:pointer;}
 [data-theme="dark"] .pp-primer,[data-theme="dark"] .pp-today,[data-theme="dark"] .pp-structure,[data-theme="dark"] .pp-liquidity,[data-theme="dark"] .pp-chart{background:#161b22;}
 [data-theme="dark"] .pool-legend{color:#8b949e;}
 [data-theme="dark"] .xsect-dashboard{background:#161b22;border-top-color:#58a6ff;box-shadow:0 3px 14px rgba(0,0,0,0.4);}
-[data-theme="dark"] .xsect-title{color:#e6edf3;}
 [data-theme="dark"] .xsect-sub{color:#8b949e;}
 [data-theme="dark"] .xsect-kpi{background:#1c2128;}
 [data-theme="dark"] .xsect-kpi-val{color:#e6edf3;}
 [data-theme="dark"] .xsect-kpi-label{color:#8b949e;}
 [data-theme="dark"] .xsect-kpi-sub{color:#6e7681;}
-[data-theme="dark"] .xsect-chart-title{color:#e6edf3;}
 [data-theme="dark"] .xsect-bar-row:hover{background:#21262d;}
 [data-theme="dark"] .xsect-bar-label{color:#e6edf3;}
 [data-theme="dark"] .xsect-bar-track{background:#30363d;}
 [data-theme="dark"] .xsect-bar-pct{color:#c9d1d9;}
 [data-theme="dark"] .xsect-bar-meta{color:#8b949e;}
 [data-theme="dark"] .xsect-trading-section{background:linear-gradient(180deg,#0e1c30 0%,#161b22 100%);border-top-color:#00838f;}
-[data-theme="dark"] .xsect-trading-section .xsect-title{color:#7adde7;}
 [data-theme="dark"] .xsect-narrative{background:#1c2128;}
 [data-theme="dark"] .xsect-nar-title{color:#e6edf3;}
 [data-theme="dark"] .xs-narcard{background:#161b22;border-color:#30363d;}
@@ -2250,7 +2248,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 /* --- regime strip: the one-line read, plus its five inputs as meters --- */
 .mac-regime{display:flex;align-items:center;gap:16px 32px;flex-wrap:wrap;padding:14px 20px;margin:0 0 16px;}
 .mac-regime-main{min-width:220px;}
-.mac-regime-k{font-size:0.72em;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--mac-muted);}
 .mac-regime-name{display:flex;align-items:center;gap:9px;font-size:1.45em;font-weight:700;line-height:1.2;margin-top:2px;}
 .mac-regime-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
 .mac-regime-gloss{color:var(--mac-muted);font-size:0.86em;margin-top:3px;}
@@ -2284,6 +2281,7 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-h{font-size:1.05em;font-weight:700;margin:22px 0 8px;padding-top:14px;border-top:1px solid var(--mac-line);color:inherit;}
 .mac-narrative>.mac-h:first-child{margin-top:0;padding-top:0;border-top:0;}
 .mac-h-out{margin:4px 0 10px;padding-top:0;border-top:0;}
+.mac-h>.sec-label{margin:0;}
 .mac-read{flex:1 1 100%;margin:8px 0 0;font-size:0.98em;line-height:1.55;color:inherit;}
 .mac-regime-main{flex:1 1 300px;}
 .mac-watch li{margin:4px 0;}
@@ -2877,6 +2875,7 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 /* Cards: plain uppercase headings in place of the gradient title bars. */
 #det-modal .dgroup{border-radius:14px;box-shadow:none;border:1px solid var(--border);background:var(--surface);}
 #det-modal .dgroup-title{background:none !important;color:var(--chrome-heading);text-shadow:none;font-size:.9em;letter-spacing:.06em;padding:16px 20px 6px;}
+#det-modal .dgroup-title>.sec-label{margin:0;letter-spacing:0.14em;}
 /* The title band lost its dark gradient above, so the statements' PDF button
    (white-on-band by default) takes the chrome colours or it vanishes in light. */
 #det-modal .stmt-pdf-btn{color:var(--chrome-heading);background:var(--chip-bg);border-color:var(--chip-border);}
@@ -3457,11 +3456,11 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
     <div class="d-body">
       <div class="d-hc" aria-hidden="true"></div>
       <div id="d-pane-overview" class="d-pane active">
-      <div id="d-section-snapshot" class="dgroup d-titled"><div class="dgroup-title" style="background:linear-gradient(90deg,#0d1f42,#1f4fa0)"><span class="dg-icon"></span>The Snapshot</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-kmetrics" class="d-kmetrics"></div></div></div>
-      <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span>The Business</div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
-      <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span>The Finances</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
-      <div id="d-section-model" class="dgroup d-titled"><div class="dgroup-title" style="background:linear-gradient(90deg,#7a3e12,#b5622b)"><span class="dg-icon"></span>The Model</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-gate-values" class="d-gate-values"></div></div></div>
-        <div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>Charts</div>
+      <div id="d-section-snapshot" class="dgroup d-titled"><div class="dgroup-title" style="background:linear-gradient(90deg,#0d1f42,#1f4fa0)"><span class="dg-icon"></span><span class="sec-label">The Snapshot</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-kmetrics" class="d-kmetrics"></div></div></div>
+      <div id="d-section-overview" class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#3d4faa,#5b6abf)"><span class="dg-icon"></span><span class="sec-label">The Business</span></div><div style="padding:14px 16px;background:var(--surface)"><div class="ddesc" id="d-desc"></div></div></div>
+      <div id="d-section-finsummary" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a6fa0,#2e86c1)"><span class="dg-icon"></span><span class="sec-label">The Finances</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-fin-summary"></div></div></div>
+      <div id="d-section-model" class="dgroup d-titled"><div class="dgroup-title" style="background:linear-gradient(90deg,#7a3e12,#b5622b)"><span class="dg-icon"></span><span class="sec-label">The Model</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-gate-values" class="d-gate-values"></div></div></div>
+        <div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span><span class="sec-label">Charts</span></div>
           <div style="padding:14px 16px;background:var(--surface)">
             <div class="cm-wrap">
               <button type="button" class="cm-btn" onclick="cmToggle('dtc',event)" title="Chart options — metric, range, benchmarks">&#9776;</button>
@@ -3476,15 +3475,15 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
             <div id="dtc-chart"></div>
           </div>
         </div>
-      <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span>The Track Record</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
-      <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span>Headwinds &amp; Tailwinds</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
+      <div id="d-section-track" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)"><span class="dg-icon"></span><span class="sec-label">The Track Record</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-track"></div></div></div>
+      <div id="d-section-signals" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a7a45,#27ae60)"><span class="dg-icon"></span><span class="sec-label">Headwinds &amp; Tailwinds</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-sector-signals"></div></div></div>
       </div><!-- /d-pane-overview -->
       <div id="d-pane-peers" class="d-pane">
-        <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span>Peers &amp; Supply Chain</div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
+        <div id="d-section-network" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#4a3aaa,#6c5ce7)"><span class="dg-icon"></span><span class="sec-label">Peers &amp; Supply Chain</span></div><div style="padding:14px 16px;background:var(--surface)"><div id="d-peers-supply"></div></div></div>
         <div id="d-peers-empty" style="display:none;color:#888;padding:24px;text-align:center;font-size:0.88em">No peers or supply-chain data for this company.</div>
       </div>
       <div id="d-pane-news" class="d-pane">
-        <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span>News &amp; Filings</div><div style="padding:14px 16px;background:var(--surface)"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
+        <div id="d-section-news" class="dgroup" style="display:none"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a5276,#2471a3)"><span class="dg-icon"></span><span class="sec-label">News &amp; Filings</span></div><div style="padding:14px 16px;background:var(--surface)"><div class="nl-grid"><div id="d-news"></div><div id="d-legal"></div></div></div></div>
         <div id="d-news-empty" style="display:none;color:#888;padding:24px;text-align:center;font-size:0.88em">No news or filings for this company.</div>
       </div>
       <div id="d-pane-data" class="d-pane"></div>
@@ -5093,6 +5092,7 @@ function _pfOverviewHtml(){
     +(_pfOv.mode==='cards'?'<label class="pfv-ov-sort">Sort <select class="pf-btn" onchange="pfOvSort(this.value)">'
       +_PF_OV_COLS.filter(function(c){return c.card;}).map(function(c){return'<option value="'+c.k+'"'+(c.k===_pfOv.k?' selected':'')+'>'+c.card+'</option>';}).join('')+'</select></label>':'')
     +'</div>';
+  h+='<h3 class="pfv-h3"><span class="sec-label">Your Portfolios</span></h3>';
   if(_pfOv.mode==='table')h+=_pfOvTable(sums);
   else h+='<div class="pfv-grid">';
   if(_pfOv.mode!=='table')sums.forEach(function(sm){
@@ -5121,7 +5121,7 @@ function _pfOverviewHtml(){
   });});
   _pfSortAlerts(list);
   var oc=_pfCount(list);
-  h+='<h3 class="pfv-h3">Alerts'+(oc.action+oc.watch?' <span class="pfv-count">'+(oc.action+oc.watch)+'</span>':'')+'</h3>';
+  h+='<h3 class="pfv-h3"><span class="sec-label">Alerts</span>'+(oc.action+oc.watch?' <span class="pfv-count">'+(oc.action+oc.watch)+'</span>':'')+'</h3>';
   h+=_pfAlertsHtml(list,true,PF_PUB.prev_date?'Nothing crossed the buy line, reversed, or needs watching in your portfolios today.':'No prior run to compare against.',15);
   return h+'</div>';
 }
@@ -5150,20 +5150,21 @@ function _pfDetailHtml(id){
   /* Main column: what the portfolio is (summary, members, performance).
      Side rail (wide screens only): what changed (alerts, rating moves). */
   h+='<div class="pfv-cols"><div class="pfv-main">'
+    +'<h3 class="pfv-h3"><span class="sec-label">Summary</span></h3>'
     +'<div class="pfv-detail-grid" id="pfs-summary"><div class="pfv-panel">'+_pfMixBar(st)
     +'<div class="pfv-legend">'+Object.keys(st.mix).map(function(r){return'<span><i style="background:'+RC[r]+'"></i>'+r+' '+st.mix[r]+'</span>';}).join('')+'</div>'
     +_pfKpis(st,true)+_pfMosDist(st)+'</div>'
     +'<div class="pfv-panel"><div class="pfv-kpi-l">Sectors, equal weight <span class="pfv-dist-key"><i></i>universe</span>'
     +(st.concentrated?' — <span class="warn" title="Top sector over 40% or sector HHI over 0.25">concentrated</span>':'')+'</div>'
     +_pfSectorsHtml(st)+'</div></div>';
-  h+='<h3 class="pfv-h3" id="pfs-members">Members <span class="pfv-count">'+st.n+'</span></h3>'+_pfmHtml(id);
-  h+='<h3 class="pfv-h3" id="pfs-perf">Performance</h3><div class="pfv-panel pfc-panel">'+_pfChartHtml(id)+'</div>';
+  h+='<h3 class="pfv-h3" id="pfs-members"><span class="sec-label">Members</span> <span class="pfv-count">'+st.n+'</span></h3>'+_pfmHtml(id);
+  h+='<h3 class="pfv-h3" id="pfs-perf"><span class="sec-label">Performance</span></h3><div class="pfv-panel pfc-panel">'+_pfChartHtml(id)+'</div>';
   h+='</div><aside class="pfv-rail">';
-  h+='<h3 class="pfv-h3" id="pfs-alerts">Alerts'+(dc.action+dc.watch?' <span class="pfv-count">'+(dc.action+dc.watch)+'</span>':'')
+  h+='<h3 class="pfv-h3" id="pfs-alerts"><span class="sec-label">Alerts</span>'+(dc.action+dc.watch?' <span class="pfv-count">'+(dc.action+dc.watch)+'</span>':'')
     +(mode!=='buy_line'?' <span class="pf-tag">'+(mode==='off'?'muted':'all changes')+'</span>':'')+'</h3>'
     +_pfAlertsHtml(al,false,mode==='off'?'Alerts are muted for this portfolio (Manage → Alerts).':
       (PF_PUB.prev_date?'Nothing crossed the buy line, reversed, or needs watching since '+_pfEsc(PF_PUB.prev_date)+'.':'No prior run to compare against.'));
-  h+='<h3 class="pfv-h3" id="pfs-recent">Recent rating changes <span class="pf-muted pfv-h3-sub">last 3 weeks</span></h3>'+_pfRecentHtml(id);
+  h+='<h3 class="pfv-h3" id="pfs-recent"><span class="sec-label">Recent rating changes</span> <span class="pf-muted pfv-h3-sub">last 3 weeks</span></h3>'+_pfRecentHtml(id);
   return h+'</aside></div></div>';
 }
 function _pfJump(secId){
@@ -6990,7 +6991,7 @@ function renderOverview(){
   html+='<div class="qh-card qh-flush" style="margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid #e8edf2">'
     /* The run summary sits behind the ? with the how-to, so the cards lead. */
     +_qHelp('<span class="note-q-t">'+_subtitle+'.</span><span class="note-q-t" style="display:block;margin-top:6px">Tap a category card, rating box or map country to open those stocks in Stock Valuations. Gate rows and histogram bars filter in place.</span>','About the Gates Summary','corner')
-    +'<div style="font-size:1.15em;font-weight:700;color:#1a252f;letter-spacing:0.01em">Gates Summary</div>';
+    +'<div class="sec-label" style="margin-bottom:0">Gates Summary</div>';
   html+='</div>';
   /* Category score cards */
   html+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">';
@@ -7034,8 +7035,8 @@ function renderOverview(){
   FD.forEach(function(d){var s=d._composite_score;if(s==null)return;var i=Math.min(9,Math.floor(s/10));buckets[i].total++;if(buckets[i][d.rating]!=null)buckets[i][d.rating]++;});
   var maxB=Math.max.apply(null,buckets.map(function(b){return b.total;}))||1;
   html+='<div style="background:#fff;border-radius:10px;padding:16px 16px 10px;box-shadow:0 2px 8px rgba(0,0,0,0.07);margin-bottom:14px">';
-  html+='<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em">Composite Score Distribution</div>';
-  html+='<div style="font-size:0.71em;color:#94a3b8;margin-bottom:10px">Stocks per 10-point bracket, colored by actual rating</div>';
+  html+='<div class="sec-label">Composite Score Distribution</div>';
+  html+='<div class="sec-sub">Stocks per 10-point bracket, colored by actual rating</div>';
   html+='<div style="display:flex;align-items:flex-end;gap:3px;height:68px">';
   buckets.forEach(function(b,i){
     var n=b.total,totalH=Math.round(n/maxB*56);
@@ -7087,7 +7088,7 @@ function renderOverview(){
   gateRates.sort(function(a,b){return a.pct-b.pct;});
   var bottom3=new Set(gateRates.slice(0,3).map(function(x){return x.g.key;}));
   html+='<div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.07)">';
-  html+='<div style="font-size:0.78em;font-weight:700;color:#1a252f;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:11px">Gate Pass Rates <span style="font-size:0.78em;font-weight:400;color:#bbb;text-transform:none;letter-spacing:0">&#9650; low \u2192 high</span></div>';
+  html+='<div class="sec-label">Gate Pass Rates</div><div class="sec-sub">&#9650; low \u2192 high</div>';
   GM.categories.forEach(function(cat,ci){
     var catRates=gateRates.filter(function(x){return x.g.category===cat.name;});
     if(!catRates.length)return;
@@ -7425,7 +7426,7 @@ function initPriceChart(){
      shared with the ticker page's chart); the ticker chips stay outside it
      because they are the chart's legend (colour \u2194 line) as much as a
      control. */
-  phv.innerHTML='<div class="cm-wrap">'
+  phv.innerHTML='<div class="sec-label">Stock Price Comparison</div><div class="cm-wrap">'
     +'<button type="button" class="cm-btn" onclick="cmToggle(\'ph\',event)" title="Chart options \u2014 stocks, metric, range">&#9776;</button>'
     +'<span class="cm-sum" id="ph-cm-sum"></span>'
     +'<div class="cm-panel cm-uline" id="ph-cm-panel">'
@@ -9826,7 +9827,7 @@ function swDetTab(k){
 function _detIntrinsicHtml(d){
   var ms=d.mos!=null?(d.mos>0.15?'color:#1a9850;font-weight:700':(d.mos<0?'color:#de2d26':'')):'';
   var sr=d.dcf_sens_range?fd(d.dcf_sens_range[0])+' – '+fd(d.dcf_sens_range[1]):'N/A';
-  var ivH='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a2f5e,#2f5496)"><span class="dg-icon"></span>Intrinsic Value</div><div class="dgrid-inner">';
+  var ivH='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a2f5e,#2f5496)"><span class="dg-icon"></span><span class="sec-label">Intrinsic Value</span></div><div class="dgrid-inner">';
   ivH+='<div class="dsec"><h3>DCF Model</h3><div class="dkvg">'+bkv([['Current Price',fd(d.price)],['DCF Fair Value',fd(d.dcf_fv)],['DCF MoS',fp(d.mos),ms],['Expected Return',fp(d.er)],['Blend Method',d._blended_method||'DCF']])+'</div></div>';
   ivH+='<div class="dsec"><h3>DCF Monte Carlo</h3><div class="dkvg">'+bkv([['MC Confidence',d.mc_confidence!=null?d.mc_confidence:'N/A'],['MC CV',fp(d.mc_cv)],['MC P10 Fair Value',fd(d.mc_p10_fv)],['MC P90 Fair Value',fd(d.mc_p90_fv)],['MC Clip Rate',fp(d.mc_clip_rate)],['MC Wipeout Rate',fp(d.mc_invalid_rate)]])+'</div></div>';
   if(d.ddm_eligible){var ddmFlag=d.ddm_payout_flag?'color:#de2d26;font-weight:700':'';var ddmLcFlag=d._ddm_low_confidence?'color:#e67e22;font-weight:700':'';ivH+='<div class="dsec"><h3>Dividend Discount Model</h3><div class="dkvg">'+bkv([['DDM Fair Value',fd(d.ddm_fv)],['H-Model FV',fd(d.ddm_h_fv)],['DDM Growth',fp(d.ddm_growth)],['Div CAGR',fp(d.ddm_div_cagr)],['Sustainable Growth',fp(d.ddm_sustainable_growth)],['Consec. Years',d.ddm_consecutive_years!=null?d.ddm_consecutive_years+'':'N/A'],['Payout Flag',d.ddm_payout_flag?'Yes':'No',ddmFlag],['Low Confidence',d._ddm_low_confidence?'Yes':'No',ddmLcFlag]])+'</div></div>';ivH+='<div class="dsec"><h3>DDM Monte Carlo</h3><div class="dkvg">'+bkv([['MC Median',fd(d.ddm_mc_median)],['MC P10',fd(d.ddm_mc_p10)],['MC P90',fd(d.ddm_mc_p90)],['MC CV',fp(d.ddm_mc_cv)],['MC Clip Rate',fp(d.ddm_mc_clip_rate)]])+'</div></div>';}
@@ -9921,7 +9922,7 @@ function _detCeoBioHtml(d){
 }
 function _detSectorAnalysisHtml(d){
   if(!(d.revenue!=null&&d.revenue>0))return '';
-  var ppH='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span>Sector Analysis</div><div class="dgrid-inner">';
+  var ppH='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#5a1f80,#7030a0)"><span class="dg-icon"></span><span class="sec-label">Sector Analysis</span></div><div class="dgrid-inner">';
   /* Left column: company metrics */
   var _opmC=d.operating_margin!=null?(d.pp_margin_advantage!=null&&d.pp_margin_advantage>0?'color:#27ae60':d.pp_margin_advantage!=null&&d.pp_margin_advantage<0?'color:#c0392b':''):'';
   var _ppm=d.pp_multiple;
@@ -10445,7 +10446,7 @@ function _renderDetDataTab(key){
   var hero=DV_HERO[key]?DV_HERO[key](d):'';
   if(hero)h+='<div class="dv-hero">'+hero+'</div>';
   if(tab.groups.length||tab.extra){
-  h+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span>'+esc(tab.l)
+  h+='<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#1a3a6b,#2c5a94)"><span class="dg-icon"></span><span class="sec-label">'+esc(tab.l)+'</span>'
     +'</div>'+(tab.groups.length?_dvKey():'')+'<div class="dgrid-inner">';
   tab.groups.forEach(function(g){
     /* _dvRow drops a sector/policy-specific (sec:1) row whose value is absent. */
@@ -10480,7 +10481,7 @@ function _stmtShell(meta,inner,withPdf){
      flex), only when the tab actually rendered a statement — an empty or
      still-loading pane offers nothing to export. */
   return '<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)">'
-    +'<span class="dg-icon"></span>'+esc(meta.l)
+    +'<span class="dg-icon"></span><span class="sec-label">'+esc(meta.l)+'</span>'
     +(withPdf?'<button class="stmt-pdf-btn" onclick="exportStmtPdf()"'
       +' aria-label="Export the Balance Sheet, Income Statement and Cash Flow Statement to PDF"'
       +' title="Export this company’s Balance Sheet, Income Statement and Cash Flow Statement to PDF — opens the print dialog; choose “Save as PDF”. Only these three statements are exported.">'
@@ -12679,7 +12680,7 @@ function _macRegimeHTML(full){
   var col=_MAC_REGIME_STYLE[src.regime]||'#64748b';
   var name=String(src.regime||'').replace('_',' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
   var comp=src.composite_score;
-  var h='<div class="mac-regime"><div class="mac-regime-main"><div class="mac-regime-k">Market regime</div>'
+  var h='<div class="mac-regime"><div class="mac-regime-main"><div class="sec-label">Market regime</div>'
     +'<div class="mac-regime-name"><span class="mac-regime-dot" style="background:'+col+'"></span>'+_esc(name)+'</div>'
     +'<div class="mac-regime-gloss">'+(_MAC_REGIME_GLOSS[src.regime]||'')
     +(comp!=null?' · composite <span>'+(comp>=0?'+':'')+comp.toFixed(2)+'</span>':'')+'</div>';
@@ -12932,7 +12933,7 @@ function _macNarrativeHTML(){
      growth_labor, inflation_rates, credit_conditions); an older cache with
      a different count simply runs unkickered. */
   var KICK=ps.length===3?['Growth & labor','Inflation & rates','Credit & conditions']:[];
-  var h='<div class="mac-card mac-narrative"><h3 class="mac-h">The economy</h3>';
+  var h='<div class="mac-card mac-narrative"><h3 class="mac-h"><span class="sec-label">The economy</span></h3>';
   /* Phones fold each section to its kicker and lead sentence, and each
      sector influence to its name and kicker; the chevron (or a tap on the
      kicker) opens the rest (_macFold). Desktop shows everything. */
@@ -12957,7 +12958,7 @@ function _macNarrativeHTML(){
   var watch=(nar.watch||[]).filter(Boolean);
   var tw=(nar.tailwinds||[]).filter(Boolean),hw=(nar.headwinds||[]).filter(Boolean);
   if(watch.length){
-    h+='<h3 class="mac-h">What to watch</h3><ul class="mac-nar-ul mac-watch">';
+    h+='<h3 class="mac-h"><span class="sec-label">What to watch</span></h3><ul class="mac-nar-ul mac-watch">';
     watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
     h+='</ul>';
   }else if(tw.length||hw.length){
@@ -13003,7 +13004,8 @@ function _macSectionHTML(k){
   var sec=null;
   (MACRO.sections||[]).forEach(function(s){if(s.k===k)sec=s;});
   if(!sec||!sec.ids||!sec.ids.length)return '<p class="mac-note">No data available for this section.</p>';
-  var h=_macIntroHTML(k)+'<div class="mac-sec-note">FRED data as of '+(MACRO.as_of||'?')+' · shaded bands mark NBER recessions · hover a chart to read a date</div>';
+  var lbl=k;MACRO_TABS.forEach(function(t){if(t.k===k)lbl=t.l;});
+  var h='<div class="sec-label">'+lbl+'</div>'+_macIntroHTML(k)+'<div class="mac-sec-note">FRED data as of '+(MACRO.as_of||'?')+' · shaded bands mark NBER recessions · hover a chart to read a date</div>';
   if(k==='rates'&&MACRO.curve)h+=_macCurveCard();
   h+='<div class="mac-cards"'+(k==='rates'&&MACRO.curve?' style="margin-top:14px"':'')+'>';
   sec.ids.forEach(function(id){
@@ -13848,7 +13850,7 @@ function renderEtfLookthrough(){
   if(!_etfSel||!F[_etfSel])_etfSel=ETF_LT.base in F?ETF_LT.base:ids[0];
   var h='<div class="xsect-dashboard" id="etf-lt">'
     +_qHelp('<span class="note-q-t">Each fund is valued as the sum of its holdings’ fair values per dollar of price (FV/P, each held to between ⅓ and 3). Because the model values the market as a whole below its price, the fund is compared with '+ETF_LT.base+' rather than read on its own. The outlined box is the range between counting holdings with no fair value at FV/P 1 and at ⅓. A holding that lost its fair value today keeps its last one from the previous week.</span>','How to read this','corner')
-    +'<div class="xsect-title">Sector ETFs Through the Model</div>'
+    +'<div class="sec-label">Sector ETFs Through the Model</div>'
     +'<div class="xsect-sub">The SPDRs valued from the companies they hold. '+(base&&base.status==='ok'?ETF_LT.base+' itself reads '+_etfPct(base.mos)+' on the model. ':'')+'Tap a fund for its holdings.</div>'
     +'<div class="ppi-wrap"><table class="ppi-tbl"><thead><tr><th>Fund</th><th class="etf-sm-hide">Sector</th><th>Value vs '+ETF_LT.base+'</th><th>Model MoS</th><th>Rating mix</th><th>Has fair value</th></tr></thead><tbody>';
   ids.forEach(function(t){
@@ -14209,7 +14211,7 @@ function renderSectorOutlook(from){
     +(nar?' and the Macro Outlook’s read on it':'')+'; Research more opens its companies in Stock Valuations. '
     +(nar?'Groups are today’s macro stance. ':'')+'The bar weighs sectors where tailwinds lead against those where headwinds do.</span>','How to read the Broad Sector Outlook','corner');
   return '<div class="xsect-dashboard so-wrap qh-card">'+q
-    +'<div class="xsect-title">Broad Sector Outlook</div>'+body+'</div>';
+    +'<div class="sec-label">Broad Sector Outlook</div>'+body+'</div>';
 }
 /* === Aggregate Performance chart ================================
    Lives only on the Sector Analysis "Charts" tab. Sectors are
@@ -14907,7 +14909,7 @@ function renderWorldMosMap(){
     ? _shown+' of '+_universe+' countries · filtered — click a highlighted country to clear'
     : _shown+' of '+_universe+' countries in view · click a country to open it in Stock Valuations';
   var _mapHtml='<div style="background:#fff;border-radius:8px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:14px">'
-    +'<div class="xsect-chart-title">World MoS Map <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#94a3b8">(median margin of safety · '+_sub+')</span></div>'
+    +'<div class="sec-label">World MoS Map</div><div class="sec-sub">Median margin of safety · '+_sub+'</div>'
     +'<div class="xs-map-wrap" id="xs-map-wrap">'+WORLD_SVG+'</div>'
     +'<div class="xs-map-legend"><span>≤−80% MoS</span><span class="xs-map-legend-bar"></span><span>≥+80% MoS</span><span style="margin-left:18px">·</span><span><span style="display:inline-block;width:12px;height:10px;background:#e6eaf0;border-radius:2px;vertical-align:middle"></span> no stocks in view</span></div>'
     +'</div>';
@@ -15193,7 +15195,7 @@ function renderCrossSectorDashboard(){
   }
   var _heatTableHtml=_sumStats.length
     ?_qHelp('<span class="note-q-t">Values are sector medians; green is best and red worst within each column. Tap a header to sort, a sector to open its page.</span>','How to read the heatmap','corner')
-      +'<div class="xsect-title">Sector Heatmap</div>'
+      +'<div class="sec-label">Sector Heatmap</div>'
       +'<div class="xsect-sub">Sector medians; green is best and red worst in each column.</div>'
       /* Compact column widths so the full 16-column heatmap fits within a
          standard laptop viewport without horizontal scrolling. Sector column
@@ -15512,14 +15514,14 @@ function renderPool(){
     var poolBody=renderCrossSectorProfitPool();
     chartHtml=renderSectorOutlook()
       +'<div class="xsect-dashboard">'
-      +'<div class="xsect-title">Sector Price Comparison</div>'
+      +'<div class="sec-label">Sector Price Comparison</div>'
       +'<div class="xsect-sub">Indexed price performance across sectors. Pick any subset to compare.</div>'
       +(perfBody||'<p style="color:#888;padding:20px">No sector data available.</p>')
       +'</div>'
       +renderCrossSectorDashboard()
       +(poolBody?'<div class="xsect-dashboard">'
         +_qHelp('<span class="note-q-t">Bar width is revenue share, height is operating margin, so area is roughly operating profit. Bars run in order of margin, and shares recompute among the sectors shown in the \u2630 menu.</span>','How to read the chart','corner')
-        +'<div class="xsect-title">Cross-Sector Profit Pool</div>'
+        +'<div class="sec-label">Cross-Sector Profit Pool</div>'
         +'<div class="xsect-sub">Operating profit by sector; tap a bar to open it.</div>'
         +poolBody+'</div>':'');
   }
@@ -16111,6 +16113,7 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pfc-c-bar i.pos{background:var(--pf-pos);}.pfc-c-bar i.neg{background:var(--pf-neg);}
 .pfc-c-v{text-align:right;font-variant-numeric:tabular-nums;}
 .pfv-h3{font-size:14px;font-weight:700;margin:22px 0 8px;display:flex;align-items:center;gap:8px;}
+.pfv-h3>.sec-label{margin:0;}
 .pfv-count{font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;background:var(--bg);border:1px solid var(--border);color:var(--text-muted);}
 .pfv-alerts{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
 .pfv-alert{display:flex;align-items:center;gap:10px;padding:8px 12px;border-top:1px solid var(--border);font-size:13px;}
