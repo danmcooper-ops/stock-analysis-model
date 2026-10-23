@@ -257,7 +257,10 @@ def test_industry_and_sector_growth_compare_the_same_years():
     f = _force(evaluate_forces('Utilities', None, entry, rows), 'AI data-centre electricity demand')
     ev = f['evidence']
     assert ev['window'] == [2022, 2025, 1]
-    assert ev['sector_cagr'] == pytest.approx(growth_over(rows, [2022, 2025, 1])['pool_cagr'])
+    # ...and against the rest of the sector, without the industry itself.
+    rest = [r for r in rows if r['industry'] != 'Utilities - Independent Power Producers']
+    assert ev['basis'] == 'rest'
+    assert ev['sector_cagr'] == pytest.approx(growth_over(rest, [2022, 2025, 1])['pool_cagr'])
     assert f['status'] == 'active'
 
 
@@ -306,7 +309,9 @@ def test_sector_growth_is_not_recomputed_when_the_windows_match(monkeypatch):
     entry['industries'][0]['window'] = [2020, 2025, 3]
     res = evaluate_forces('Technology', None, entry, _re_rows())
     assert _force(res, 'Software dollar share keeps rising')['status'] == 'active'
-    assert calls == []
+    # Only the rest-of-sector comparison is measured (here it finds no
+    # panel, so the sector's own growth stands); the sector's is reused.
+    assert all(w == [2020, 2025, 3] for w in calls)
 
 
 def test_levels_rank_over_the_trailing_window_only():
@@ -327,8 +332,74 @@ def test_credit_forces_read_financial_conditions_not_the_short_hy_spread():
     """FRED keeps only ~3 years of ICE's spreads, too short to say whether a
     spread is wide; the credit-driven forces read the NFCI instead."""
     from models.sector_forces import FORCE_META
-    for sec, theme in (('Financial Services', 'Credit cycles and regulatory capital'),
-                       ('Consumer Defensive', 'Defensive flows in late-cycle markets'),
+    assert FORCE_META['Financial Services']['Credit cycles and regulatory capital'][2]['series'] == 'NFCI'
+    # The defensive-flows forces read the flows themselves (sector ETF vs SPY).
+    for sec, theme in (('Consumer Defensive', 'Defensive flows in late-cycle markets'),
                        ('Utilities', 'Defensive yield bid in down markets')):
-        assert FORCE_META[sec][theme][2]['series'] == 'NFCI', theme
+        assert FORCE_META[sec][theme][2] == {'kind': 'flows', 'sector': sec, 'sign': 1}, theme
     assert FORCE_META['Financial Services']['Yield-curve normalisation'][2]['series'] == 'T10Y3M'
+
+
+def test_a_negligible_move_does_not_read_as_building():
+    """In a bunched series a tiny change jumps percentile points; the move
+    only counts past MOVE_NOISE_SD of the window's spread."""
+    vals = [0.0 + (0.3 if k % 2 else -0.3) for k in range(100)] + [-0.02] * 19 + [0.0]
+    f = _force(evaluate_forces('Financial Services', _sidecar('NFCI', vals, fmt='n2'), {}),
+               'Credit cycles and regulatory capital')
+    assert f['evidence']['move'] == 0.0 and f['status'] == 'dormant'
+
+
+@pytest.mark.parametrize('rs,expected', [
+    ({'rs_1m': 0.01, 'rs_3m': 0.04, 'rs_6m': 0.01}, 'active'),
+    ({'rs_1m': 0.08, 'rs_3m': -0.10, 'rs_6m': -0.14}, 'building'),
+    ({'rs_1m': -0.01, 'rs_3m': 0.05, 'rs_6m': -0.02}, 'dormant'),
+])
+def test_defensive_flows_read_the_sector_etf_against_spy(rs, expected):
+    side = {'as_of': '2026-10-21', 'sector_data': {'Utilities': dict(rs, etf='XLU')}}
+    f = _force(evaluate_forces('Utilities', side, {}), 'Defensive yield bid in down markets')
+    assert f['status'] == expected and f['evidence']['etf'] == 'XLU'
+    assert evaluate_forces('Utilities', None, {})['forces'][-1]['status'] == 'no_data'
+
+
+def _semis_rows():
+    """A semis incumbent collapsing (INTC-like) beside a riser that only took
+    off in the last three years, and a steady rest of Technology."""
+    from tests.test_sector_pool import YEARS, _row
+    def row(t, ind, ois):
+        rev = {y: 100.0 + sum(map(ord, t)) * 1e-6 for y in YEARS}
+        return dict(_row(t, rev, dict(zip(YEARS, ois, strict=True))), industry=ind)
+    inc = [30, 30, 30, 30, 30, 30, 20, 10, 5, 1]
+    riser = [3, 3, 3, 3, 3, 3, 5, 15, 40, 80]
+    mid = [5] * 10
+    steady = [20 * 1.08 ** k for k in range(10)]
+    return [row('INC', 'Semiconductors', inc), row('RIS', 'Semiconductors', riser),
+            row('MID', 'Semiconductors', mid),
+            row('SW1', 'Software - Infrastructure', steady),
+            row('SW2', 'Software - Infrastructure', steady),
+            row('HW1', 'Consumer Electronics', steady)]
+
+
+def test_a_cyclical_force_reads_the_current_cycle():
+    """Over 2018-20 -> 2023-25 the incumbent's collapse cancels the riser;
+    the AI capex cycle is the last three years."""
+    from models.sector_pool import industry_pools, sector_pool_history
+    from models.sector_forces import CYCLE_YEARS
+    rows = _semis_rows()
+    entry = {'history': sector_pool_history(rows), 'industries': industry_pools(rows)}
+    f = _force(evaluate_forces('Technology', None, entry, rows), 'AI capex super-cycle')
+    ev = f['evidence']
+    assert ev['window'][2] == 1 and ev['window'][1] - ev['window'][0] == CYCLE_YEARS
+    assert ev['basis'] == 'rest' and f['status'] == 'active'
+
+
+def test_panel_coverage_counts_only_companies_with_history():
+    """A row with no EDGAR history can join no panel, so it must not make a
+    group look as if its earners arrived late."""
+    from models.sector_pool import panel_coverage
+    from tests.test_sector_pool import YEARS, _flat
+    rows = [dict(_flat(t, YEARS, 100, 0.2)) for t in ('A', 'B', 'C')]
+    rows.append({'ticker': 'FOREIGN', 'revenue': 1e4, 'operating_income': 1e4})
+    assert panel_coverage(rows, [2020, 2025, 3]) == pytest.approx(1.0)
+    late = dict(_flat('LATE', list(range(2022, 2026)), 1000, 0.2))
+    assert panel_coverage(rows + [late], [2020, 2025, 3]) < 0.5
+    assert panel_coverage(rows + [late], [2022, 2025, 1]) == pytest.approx(1.0)

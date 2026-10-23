@@ -809,7 +809,26 @@ ruff check .
   tailwind reads 10Y−3M. On the Broad Sector Outlook the groups are the
   macro narrative's view ("Macro view: …") and each row's label is the
   structural balance ("Structural: …"), named apart because they can
-  disagree. Industries are compared with their sector
+  disagree. A year's move counts only past `MOVE_NOISE_SD` (0.25) of the
+  window's spread: in a bunched series NFCI -0.53 -> -0.50 had read
+  "building". The two defensive-flows forces (Consumer Defensive,
+  Utilities) read their SPDR's return against SPY (`sector_data` rs_1m/3m/
+  6m, evidence `flows`): active on +3% over 3 months without trailing over
+  6, building on +3% over the last month.
+  An industry force compares the industry with the REST of its sector
+  (`basis` 'rest'), because one that is much of the sector's pool cannot
+  diverge from a total it dominates (Semiconductors ~38% of Technology's).
+  A cyclical force reads the current cycle, the last `CYCLE_YEARS` (3)
+  complete years: over 2018-20 -> 2023-25 Intel's collapse offset Nvidia
+  and AI capex read dormant (semis 10%/yr; 19% vs 11% over FY2022-25). A
+  secular force keeps the long window unless its panel holds under
+  `PANEL_COVERAGE_MIN` (60%) of the industry's pool today
+  (`sector_pool.panel_coverage`, over companies that file a history), then
+  takes the longest shorter window that reaches it: Constellation, spun off
+  in 2022, is most of Independent Power Producers' pool and in no 2018-20
+  panel. Loose fits no series can fix: cord-cutting reads all of Telecom
+  Services (carriers included), GLP-1 demand all of Drug Manufacturers -
+  General. Industries are compared with their sector
   over the same years (`industry_pools(rows, window)`, `growth_over`).
   Left free, Software - Infrastructure's window ended FY2026, a year only
   early filers had reported.
