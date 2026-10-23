@@ -1204,10 +1204,19 @@ ruff check .
   ~98% LOW to ~13/67/20% HIGH/MEDIUM/LOW. On 09-16..09-24, `mc_cv` added
   nothing over realized vol in predicting |excess return| (partial rank
   correlation 0.02); whether the band sharpens MoS is still unmeasured.
-  Over the store's 111 snapshots (04-20..10-22), CV's rank correlation with
-  the model's own fair-value revision 20 sessions later is ~0 under both
-  regimes, and the band holds that later value 89% (old) / 69% (new) of the
-  time against a nominal 80%. The MoS tempering (`_mos_tempered`) was tested
+  **Calibrate against organic revisions only.** On 14 of the store's 110
+  day-pairs (04-20..10-22) 25-94% of all rows moved >5% at once (07-06, 09-02,
+  09-09, 09-22..25: pipeline changes and data outages; a normal day moves the
+  median fair value 0.8%), and those days dominate raw 20-session revisions
+  (median 29% in Jul-Aug, 5% after). Measured raw, CV's rank correlation with
+  the later revision reads ~0 and coverage 89%/69% (old/new). With those days
+  zeroed it is +0.087 (stored old-regime CV, 16/16 dates positive) and a
+  proxy of the current band covers ~79% against a nominal 80%. A spread
+  built from each stock's own past growth/WACC revisions was tested
+  out-of-sample (60-session lookback, shrunk to the cross-section) and
+  ranked only +0.01..+0.05 better, with an unstable scale (1x-4x): the
+  store spans one or two filings per stock, so it is not wired in. The best
+  single per-stock predictor found was `accruals` (+0.12). The MoS tempering (`_mos_tempered`) was tested
   against ~28-day excess returns on overpriced rows: the old-band rule's
   edge (+2.8pp/date) vanished on rows whose fair value is the DCF (−0.1pp),
   and model-dispersion alternatives did worse (−0.7 to −4.3pp). About six
