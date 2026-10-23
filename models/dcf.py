@@ -378,7 +378,7 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
         # like observed multiples. The floor stays as the pipeline's rule
         # (EXIT_MULT_MIN) and now only binds for genuinely low multiples.
         em_samples = lognormal_from_uniform(u[:, 3], exit_multiple,
-                                            max(exit_mult_sigma or 1.0, 0.5))
+                                            max(exit_mult_sigma, 1e-3))
         n_em_floored = int(np.sum(em_samples < exit_mult_floor))
         exit_floor_rate = n_em_floored / n
         em_samples = np.maximum(em_samples, exit_mult_floor)

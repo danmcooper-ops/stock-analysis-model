@@ -584,7 +584,7 @@ class TestDdmInputValidation:
 # Pipeline wiring
 # ===========================================================================
 
-def _dcf_yf_data(shares=1_000.0, with_ebitda=False):
+def _dcf_yf_data(shares=1_000.0, with_ebitda=False, debt=0.0):
     years = pd.to_datetime([f'{2021 + i}-12-31' for i in range(4)])
     cf = pd.DataFrame({y: {'Free Cash Flow': 1000.0, 'Operating Cash Flow': 1200.0,
                            'Depreciation And Amortization': 300.0,
@@ -595,8 +595,12 @@ def _dcf_yf_data(shares=1_000.0, with_ebitda=False):
         inc_rows['Operating Income'] = 1_500.0
     inc = pd.DataFrame({y: inc_rows for y in years})
     info = {'marketCap': 20_000.0, 'sharesOutstanding': shares,
-            'totalDebt': 0.0, 'totalCash': 0.0, 'currentPrice': 20.0}
-    return {'cash_flow': cf, 'income_statement': inc, 'info': info}
+            'totalDebt': debt, 'totalCash': 0.0, 'currentPrice': 20.0}
+    out = {'cash_flow': cf, 'income_statement': inc, 'info': info}
+    if debt:
+        out['balance_sheet'] = pd.DataFrame({years[-1]: {'Total Debt': debt,
+                                                         'Cash And Cash Equivalents': 0.0}})
+    return out
 
 
 class TestForwardDcfWiring:
@@ -629,6 +633,17 @@ class TestForwardDcfWiring:
         fv, sens_range, _, diag, mc = run_forward_dcf(_dcf_yf_data(shares=None), wacc=0.10)
         assert fv is None and mc is None and sens_range is None
         assert diag['mc_result'] is None
+
+    def test_no_point_fair_value_means_no_band(self):
+        """Debt above the enterprise value: the point DCF returns no fair value,
+        so no Monte Carlo band or sensitivity range may describe it (it would
+        be paired with whichever model became the effective fair value)."""
+        from scripts.analyze_stock import run_forward_dcf
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', RuntimeWarning)
+            fv, sens_range, _, diag, mc = run_forward_dcf(_dcf_yf_data(debt=1e7), wacc=0.10)
+        assert fv is None
+        assert mc is None and sens_range is None and diag['mc_result'] is None
 
     def test_wacc_sigma_override_widens_band(self):
         from scripts.analyze_stock import run_forward_dcf
@@ -832,3 +847,18 @@ class TestDiscountRateSigma:
         wacc_s, _ = self._sig({'shrunk_beta': 1.05, 'se_beta': 0.12, 'shrink_weight': 0.75},
                               wacc=0.085, cost_of_equity=0.095)
         assert 0.01 <= wacc_s < 0.015
+
+
+class TestExitSigmaCollapse:
+    def test_tiny_exit_sigma_really_collapses(self):
+        """The 0.5 floor turned a requested 1e-9 into 0.5 (and 0 into 1.0)."""
+        args = (1e9, 0.08, 0.09, 0.03, 0.0, 1e9)
+        kw = dict(base_ebitda=1.5e9, exit_multiple=12.0, n_iterations=512, **TINY_DCF)
+        tiny = monte_carlo_dcf(*args, exit_mult_sigma=1e-9, **kw)
+        floor = monte_carlo_dcf(*args, exit_mult_sigma=0.5, **kw)
+        # The other sigmas floor at 0.001 inside the simulator, so the tiny run
+        # keeps a residual width; the exit-sigma floor alone added ~40% to it.
+        assert (floor['p90_fv'] - floor['p10_fv']) > 1.25 * (tiny['p90_fv'] - tiny['p10_fv'])
+        zero = monte_carlo_dcf(*args, exit_mult_sigma=0.0, **kw)
+        assert zero['p90_fv'] - zero['p10_fv'] == pytest.approx(
+            tiny['p90_fv'] - tiny['p10_fv'], rel=0.05)

@@ -378,7 +378,7 @@ def _headline(verdict, row, pros, cons, flags, buy_below, blockers, vc=None):
         return f'Avoid: {_lc(flags[0])}.'
     if _mos_tempered(row, vc):
         mos, bear, bull = _num(row, 'mos'), vc.get('bear'), vc['bull']
-        rng = (f'inside its {_price(bear)}–{_price(bull)} range' if bear
+        rng = (f'inside its {_price(bear)}–{_price(bull)} range' if bear is not None
                else f'below its {_price(bull)} bull case')
         return (f'Watch: priced {_pct(-mos)} above its {_price(_fv(row))} fair value, '
                 f'but that value is low-confidence and the price is {rng}.')
@@ -444,9 +444,13 @@ def _valuation_confidence(row):
             low.append(f'DCF is {_pct(abs(gap))} {"above" if gap > 0 else "below"} '
                        f'the other models\' median ({_price(alt_median)})')
         tight.append(abs(gap) <= DCF_GAP_TIGHT)
-    if bear and bull:
+    # A P10 of 0 is a >=10% chance the equity is worth nothing: the widest
+    # band there is, not a missing one.
+    if bear is not None and bull:
         judged += 1
-        if bull / bear > MC_SPREAD_WIDE:
+        if bear == 0:
+            low.append('the bear case is a wipeout')
+        elif bull / bear > MC_SPREAD_WIDE:
             low.append(f'bull case is {bull / bear:.1f}x the bear case')
     if not judged:
         level = None
@@ -458,7 +462,7 @@ def _valuation_confidence(row):
         level = 'MEDIUM'
     return {
         'base': round(base, 2), 'base_src': row.get('_fv_source'),
-        'bear': round(bear, 2) if bear else None, 'bull': round(bull, 2) if bull else None,
+        'bear': round(bear, 2) if bear is not None else None, 'bull': round(bull, 2) if bull else None,
         'alt_median': round(alt_median, 2) if alt_median else None, 'n_alt': len(alts),
         'gap': round(gap, 4) if gap is not None else None,
         'dispersion': round(disp, 4) if disp is not None else None,

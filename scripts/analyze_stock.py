@@ -2274,8 +2274,15 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
             sens_range = (min(vals), max(vals))
 
     # --- Monte Carlo uncertainty quantification ---
+    # Only around a fair value that exists: when the point DCF returns none
+    # (equity <= 0 on the GGM leg, no exit leg) a band would describe a model
+    # the row does not use, and the verdict paired it with the EPV/RIM
+    # consensus that became the effective fair value (17 rows on 2026-10-22,
+    # e.g. CSR: base $35 against a $0-$22 band).
     mc_result = None
-    if base_fcf > 0 and shares and shares > 0:
+    if fv is None:
+        sens_range = None
+    elif base_fcf > 0 and shares and shares > 0:
         g_sigma = growth_sigma(fcf_growth, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR)
         g_sigma *= growth_sigma_mult  # macro overlay: widen in stress
         em_sigma = exit_multiple * MC_EXIT_MULT_SIGMA_RATIO if exit_multiple else None

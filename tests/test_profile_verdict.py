@@ -228,6 +228,16 @@ def _zts(**over):
     return _good(**base)
 
 
+def test_a_zero_bear_case_is_a_wipeout_not_missing():
+    """P10 = 0 means >= 10% of draws wipe out the equity: the widest band."""
+    vc = profile_verdict(_zts(mc_p10_fv=0.0, mc_p90_fv=180.0, _gate_fv_dispersion=0.05,
+                              epv_growth_fv=150.0, rim_fv=145.0, ddm_fv=None,
+                              mc_confidence='MEDIUM (CV 35%)'))['vc']
+    assert vc['bear'] == 0.0 and vc['bull'] == 180.0
+    assert vc['level'] == 'LOW'
+    assert 'the bear case is a wipeout' in vc['why']
+
+
 def test_valuation_confidence_is_low_when_the_dcf_stands_alone():
     vc = profile_verdict(_zts())['vc']
     assert (vc['base'], vc['bear'], vc['bull']) == (148.0, 70.41, 258.0)
