@@ -1562,6 +1562,23 @@ def _load_price_payloads(rows, prices_dir):
                         _indices_found.append({'ticker': _itk, 'label': _ilabel})
                 except Exception:
                     pass
+            # The sector SPDRs ship as ordinary px/ shards (not as indices):
+            # each sector page charts its own fund against SPY. They are
+            # never rows, so nothing else picks them up.
+            for _ftk, _fsec in etf_holdings.SPDR_FUNDS.items():
+                if not _fsec or _ftk in _series:
+                    continue
+                _fpf = os.path.join(prices_dir, f"{_ftk}.parquet")
+                if not os.path.exists(_fpf):
+                    continue
+                try:
+                    _fdf = _pd.read_parquet(_fpf)[['Close']].sort_index()
+                    _fdf.index = _pd.to_datetime(_fdf.index).tz_localize(None).normalize()
+                    _fs = _clean_close(_fdf['Close'].dropna())
+                    if len(_fs) >= 20:
+                        _series[_ftk] = _fs
+                except Exception as _e:
+                    logger.debug('sector ETF %s price load failed: %s', _ftk, _e)
             if _series:
                 _all_dates = sorted(set().union(*[set(s.index.tolist()) for s in _series.values()]))
                 _date_strs = [d.strftime('%Y-%m-%d') for d in _all_dates]

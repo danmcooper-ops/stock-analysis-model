@@ -1326,6 +1326,30 @@ td.ct{font-weight:700;}
 .etf-pull b{font-variant-numeric:tabular-nums;}
 .etf-note{font-size:0.74em;color:var(--ppf-sub);margin-top:8px;line-height:1.5;}
 .etf-st{font-size:0.85em;color:var(--ppf-sub);}
+/* Sector ETF vs SPY price chart (_etfcDraw). Series colours validated for
+   CVD separation on both surfaces; dark mode has its own steps. */
+.etfc{--etfc-f:#3a6ea5;--etfc-s:#c4701f;margin:0 0 14px;}
+[data-theme="dark"] .etfc{--etfc-f:#5b95d4;--etfc-s:#d07a2c;}
+.etfc-top{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;margin-bottom:4px;}
+.etfc-h{font-weight:700;font-size:0.92em;color:var(--ppf-txt);}
+.etfc-rng{display:flex;gap:4px;margin-left:auto;}
+.etfc-key{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:0.8em;color:var(--ppf-sub);margin:4px 0 2px;min-height:1.4em;font-variant-numeric:tabular-nums;}
+.etfc-k i{display:inline-block;width:16px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px;}
+.etfc-kf i{background:var(--etfc-f);}
+.etfc-ks i{background:var(--etfc-s);}
+.etfc-k b{color:var(--ppf-txt);}
+.etfc-kd{margin-left:auto;}
+.etfc-plot{min-height:120px;touch-action:pan-y;}
+.etfc-l{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;}
+path.etfc-f{stroke:var(--etfc-f);}
+path.etfc-spy{stroke:var(--etfc-s);}
+circle.etfc-f{fill:var(--etfc-f);}
+circle.etfc-spy{fill:var(--etfc-s);}
+.etfc-d{stroke:var(--surface,#fff);stroke-width:2;}
+.etfc-x{stroke:var(--ppf-sub);stroke-width:1;stroke-dasharray:3,3;}
+.etfc-zero{stroke:var(--ppf-sub);stroke-width:1;opacity:.5;}
+.etfc-msg{font-size:0.8em;color:var(--ppf-sub);padding:40px 0;text-align:center;}
+.etfc-note{font-size:0.74em;color:var(--ppf-sub);margin-top:4px;}
 @media (max-width:768px){.etf-sm-hide{display:none;}.etf-rel{min-width:120px;}}
 :root{--ppf-tw:#1e7d45;--ppf-hw:#c0392b;--ppf-q:#90a4ae;--ppf-line:#e3e8ee;--ppf-sub:#607d8b;--ppf-bg:#fff;--ppf-txt:#263238;}
 [data-theme="dark"]{--ppf-tw:#3fb950;--ppf-hw:#f85149;--ppf-q:#6e7681;--ppf-line:#30363d;--ppf-sub:#8b949e;--ppf-bg:#1c2128;--ppf-txt:#e6edf3;}
@@ -13516,6 +13540,7 @@ function _pphSvgs(h,W){
   return out;
 }
 function _pphDrawAll(root){
+  _etfcDrawAll(root);
   [].forEach.call((root||document).querySelectorAll('.pph-charts[data-sec]'),function(el){
     var w=el.clientWidth;if(w<50||+el.getAttribute('data-w')===w)return;
     var n=SECTOR_POOL&&SECTOR_POOL[el.getAttribute('data-sec')],h=n&&n.history;if(!h)return;
@@ -13867,7 +13892,110 @@ function renderEtfLookthrough(){
 function renderPoolEtf(sec){
   var t=ETF_LT&&ETF_LT.sector_fund&&ETF_LT.sector_fund[sec];
   var r=t&&ETF_LT.funds[t];
-  return r?_etfDetail(r):'';
+  return r?_etfcBox(t)+_etfDetail(r):'';
+}
+/* The fund's price against SPY, both rebased to 0% at the range start (one
+   axis: a common base, never two scales). Closes come from the px/ shards
+   (the SPDRs ship as shards beside the stocks; SPY rides in prices_meta).
+   Drawn at the box's real width by _etfcDrawAll, which _pphDrawAll calls on
+   render, sub-tab switch and resize. Price only: dividends are left out. */
+var _ETFC_RANGES=[['1y','1Y',365],['3y','3Y',1095],['5y','5Y',1826],['10y','10Y',3652],['max','Max',null]];
+var _etfcRange='5y';
+function _etfcBox(t){
+  if(!_PRICES_AVAILABLE)return '';
+  return '<div class="etfc" data-f="'+_attr(t)+'"><div class="etfc-top"><span class="etfc-h">Price vs SPY</span><span class="etfc-rng">'
+    +_ETFC_RANGES.map(function(r){return '<button type="button" class="pp-range-btn'+(r[0]===_etfcRange?' active':'')+'" data-r="'+r[0]+'" onclick="_etfcPick(this)">'+r[1]+'</button>';}).join('')
+    +'</span></div><div class="etfc-key"></div><div class="etfc-plot"><div class="etfc-msg">Loading prices…</div></div></div>';
+}
+function _etfcPick(btn){
+  _etfcRange=btn.getAttribute('data-r');
+  var box=btn.closest('.etfc');if(!box)return;
+  [].forEach.call(box.querySelectorAll('.etfc-rng .pp-range-btn'),function(b){b.classList.toggle('active',b===btn);});
+  box.removeAttribute('data-w');_etfcDraw(box);
+}
+function _etfcDrawAll(root){
+  [].forEach.call((root||document).querySelectorAll('.etfc[data-f]'),function(box){_etfcDraw(box);});
+}
+function _etfcDraw(box){
+  var plot=box.querySelector('.etfc-plot'),w=plot.clientWidth;
+  if(w<50)return;   /* hidden pane: drawn when its tab opens */
+  var f=box.getAttribute('data-f');
+  if(+box.getAttribute('data-w')===w&&box.getAttribute('data-r')===_etfcRange)return;
+  if(!PRICES||PRICES.prices[f]===undefined||!PRICES.prices.SPY){
+    if(box.getAttribute('data-loading'))return;
+    box.setAttribute('data-loading','1');
+    _pfWithPx([f],function(ok){
+      box.removeAttribute('data-loading');
+      if(!ok||!PRICES||!PRICES.prices[f]||!PRICES.prices.SPY){plot.innerHTML='<div class="etfc-msg">No price history for '+_esc(f)+'.</div>';return;}
+      if(box.isConnected)_etfcDraw(box);
+    });
+    return;
+  }
+  /* Synced to the shared range, whichever box set it. */
+  [].forEach.call(box.querySelectorAll('.etfc-rng .pp-range-btn'),function(b){b.classList.toggle('active',b.getAttribute('data-r')===_etfcRange);});
+  var ds=PRICES.dates,a=PRICES.prices[f],b=PRICES.prices.SPY;
+  var last=ds.length-1;
+  while(last>=0&&(a[last]==null||b[last]==null))last--;
+  if(last<1){plot.innerHTML='<div class="etfc-msg">No price history for '+_esc(f)+'.</div>';return;}
+  var rg=_ETFC_RANGES.filter(function(r){return r[0]===_etfcRange;})[0];
+  var cut=rg[2]?_pfAddDays(ds[last],-rg[2]):'';
+  var i0=0;while(i0<last&&(ds[i0]<cut||a[i0]==null||b[i0]==null))i0++;
+  var idx=[];for(var i=i0;i<=last;i++)if(a[i]!=null&&b[i]!=null)idx.push(i);
+  if(idx.length<2){plot.innerHTML='<div class="etfc-msg">Not enough price history in this range.</div>';return;}
+  /* At most ~one point per 2px; the last bar always kept. */
+  var step=Math.max(1,Math.ceil(idx.length/Math.max(120,w/2))),pts=[];
+  for(var k=0;k<idx.length;k+=step)pts.push(idx[k]);
+  if(pts[pts.length-1]!==idx[idx.length-1])pts.push(idx[idx.length-1]);
+  var a0=a[pts[0]],b0=b[pts[0]];
+  var ra=pts.map(function(i){return a[i]/a0-1;}),rb=pts.map(function(i){return b[i]/b0-1;});
+  var lo=Math.min(0,Math.min.apply(null,ra),Math.min.apply(null,rb)),hi=Math.max(0,Math.max.apply(null,ra),Math.max.apply(null,rb));
+  var ticks=_pphNice(lo*100,hi*100,5),tLo=ticks[0]/100,tHi=ticks[ticks.length-1]/100;
+  var W=Math.round(w),H=W<480?200:230,pL=46,pR=12,pT=8,pB=22,cW=W-pL-pR,cH=H-pT-pB,n=pts.length;
+  function x(j){return pL+cW*j/(n-1);}
+  function y(v){return pT+cH*(1-(v-tLo)/(tHi-tLo));}
+  function pct(v){return (v>=0?'+':'\u2212')+Math.abs(v*100).toFixed(Math.abs(v)<0.1?1:0)+'%';}
+  var g='';
+  ticks.forEach(function(t){var yy=y(t/100).toFixed(1);
+    g+='<line class="'+(t===0?'etfc-zero':'pph-grid')+'" x1="'+pL+'" y1="'+yy+'" x2="'+(W-pR)+'" y2="'+yy+'"/>'
+      +'<text class="pph-tx" x="'+(pL-6)+'" y="'+(+yy+4)+'" text-anchor="end">'+(t===0?'0%':pct(t/100))+'</text>';});
+  /* Year labels, thinned so they never collide. */
+  var yrs=[],span=(Date.parse(ds[pts[n-1]])-Date.parse(ds[pts[0]]))/31557600000,every=Math.max(1,Math.ceil(span/(cW/56)));
+  for(var j=1;j<n;j++){var y1=ds[pts[j]].slice(0,4);if(y1!==ds[pts[j-1]].slice(0,4)&&(+y1)%every===0)yrs.push(j);}
+  if(span<1.5){yrs=[];for(var j2=1;j2<n;j2++){var m=ds[pts[j2]].slice(0,7);if(m!==ds[pts[j2-1]].slice(0,7)&&(+m.slice(5)-1)%3===0)yrs.push(j2);}}
+  yrs.forEach(function(j){var lb=span<1.5?['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+ds[pts[j]].slice(5,7)-1]+" \u2019"+ds[pts[j]].slice(2,4):ds[pts[j]].slice(0,4);
+    g+='<text class="pph-tx" x="'+x(j).toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle">'+lb+'</text>';});
+  function path(r){return r.map(function(v,j){return (j?'L':'M')+x(j).toFixed(1)+','+y(v).toFixed(1);}).join('');}
+  g+='<path class="etfc-l etfc-spy" d="'+path(rb)+'"/><path class="etfc-l etfc-f" d="'+path(ra)+'"/>'
+    +'<line class="etfc-x" x1="0" y1="'+pT+'" x2="0" y2="'+(pT+cH)+'" visibility="hidden"/>'
+    +'<circle class="etfc-d etfc-spy" r="4" visibility="hidden"/><circle class="etfc-d etfc-f" r="4" visibility="hidden"/>';
+  var key=box.querySelector('.etfc-key'),ex=(1+ra[n-1])/(1+rb[n-1])-1;
+  function keyHtml(j){
+    return '<span class="etfc-k etfc-kf"><i></i>'+_esc(f)+' <b>'+pct(ra[j])+'</b></span>'
+      +'<span class="etfc-k etfc-ks"><i></i>SPY <b>'+pct(rb[j])+'</b></span>'
+      +'<span class="etfc-k etfc-kd">'+(j===n-1?'since '+ds[pts[0]]:ds[pts[j]])+'</span>';
+  }
+  var rest=keyHtml(n-1);
+  key.innerHTML=rest;
+  plot.innerHTML='<svg class="pph-svg etfc-svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+_attr(f+' '+pct(ra[n-1])+' against SPY '+pct(rb[n-1])+' since '+ds[pts[0]])+'">'+g+'</svg>'
+    +'<div class="etfc-note">'+_esc(f)+' '+(ex>=0?'leads':'trails')+' SPY by '+pct(Math.abs(ex)).slice(1)+' over this range. Price only; dividends are not included.</div>';
+  box.setAttribute('data-w',w);box.setAttribute('data-r',_etfcRange);
+  /* Crosshair: the key shows the hovered day; leaving restores the range. */
+  var svg=plot.querySelector('svg'),xl=svg.querySelector('.etfc-x'),da=svg.querySelector('circle.etfc-f'),db=svg.querySelector('circle.etfc-spy');
+  function show(cx){
+    var r=svg.getBoundingClientRect(),px=(cx-r.left)*W/r.width;
+    var j=Math.max(0,Math.min(n-1,Math.round((px-pL)/cW*(n-1)))),xx=x(j).toFixed(1);
+    xl.setAttribute('x1',xx);xl.setAttribute('x2',xx);
+    da.setAttribute('cx',xx);da.setAttribute('cy',y(ra[j]).toFixed(1));
+    db.setAttribute('cx',xx);db.setAttribute('cy',y(rb[j]).toFixed(1));
+    [xl,da,db].forEach(function(e){e.setAttribute('visibility','visible');});
+    key.innerHTML=keyHtml(j);
+  }
+  function hide(){[xl,da,db].forEach(function(e){e.setAttribute('visibility','hidden');});key.innerHTML=rest;}
+  svg.addEventListener('mousemove',function(e){show(e.clientX);});
+  svg.addEventListener('mouseleave',hide);
+  svg.addEventListener('touchstart',function(e){show(e.touches[0].clientX);},{passive:true});
+  svg.addEventListener('touchmove',function(e){show(e.touches[0].clientX);},{passive:true});
+  svg.addEventListener('touchend',hide);
 }
 function renderPoolEcon(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec],e=n&&n.economic;
