@@ -7,6 +7,7 @@ from models.montecarlo import (
     DEFAULT_SEED,
     correlate, lognormal_from_uniform, normal_from_uniform, sobol_uniforms,
     truncated_normal_from_uniform,
+    growth_sigma as _default_growth_sigma,
 )
 from models.valuation_types import Valuation, _validate_count, _validate_numeric
 
@@ -313,7 +314,7 @@ def monte_carlo_dcf(base_fcf, growth_rate, discount_rate, terminal_growth,
             has_exit = base_ebitda > 0
 
     if growth_sigma is None:
-        growth_sigma = abs(growth_rate) * 0.30 if growth_rate != 0 else 0.02
+        growth_sigma = _default_growth_sigma(growth_rate)
     if exit_mult_sigma is None and has_exit:
         exit_mult_sigma = exit_multiple * 0.15
 

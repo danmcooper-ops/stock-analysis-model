@@ -6,6 +6,7 @@ import numpy as np
 from models.montecarlo import (
     DEFAULT_SEED,
     correlate, normal_from_uniform, sobol_uniforms, truncated_normal_from_uniform,
+    growth_sigma as _default_growth_sigma,
 )
 from models.valuation_types import Valuation, _validate_count, _validate_numeric
 
@@ -283,7 +284,8 @@ def ddm_h_model(dps, short_g, long_g, re, half_life=5, dps_is_forward=False):
 
 def monte_carlo_ddm(dps, g, re, tg, n=1000,
                     g_sigma=None, re_sigma=0.01, tg_sigma=0.005,
-                    years=5, re_tg_corr=0.5, seed=None, dps_is_forward=False):
+                    years=5, re_tg_corr=0.5, seed=None, dps_is_forward=False,
+                    h_half_life=None):
     """Vectorized quasi-Monte Carlo simulation for DDM fair value.
 
     Same sampling scheme as monte_carlo_dcf (scrambled Sobol; g ~ normal;
@@ -295,6 +297,17 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
     With `dps_is_forward=True` the year-1 dividend is pinned at `dps` in
     every sample (a declared forward rate carries no growth uncertainty);
     the sampled growth applies from year 2 onward.
+
+    With `h_half_life` set, each draw is also valued by the H-model on the
+    same (g, re, tg) and the two legs are averaged, falling back to whichever
+    is positive — the rule the pipeline's headline ddm_fv applies to its two
+    point estimates. Without it the band described the two-stage leg alone,
+    which sits above the blend whenever g > tg, so P10/P90 bracketed a value
+    the row does not report.
+
+    Percentiles and moments are over ALL draws with a non-positive value
+    clamped to 0, as in monte_carlo_dcf, so P10 keeps the wipeout scenarios
+    instead of conditioning on survival.
 
     Returns dict with median_fv, mean_fv, p10_fv, p90_fv, std_fv, cv,
     n_valid, n_iterations, invalid_rate and the constraint diagnostics
@@ -313,6 +326,8 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
         n = _validate_count('n', n)
         years = _validate_count('years', years)
         re_tg_corr = _validate_numeric('re_tg_corr', re_tg_corr, low=-1.0, high=1.0)
+        if h_half_life is not None:
+            h_half_life = _validate_numeric('h_half_life', h_half_life, positive=True)
         if re <= tg:
             raise ValueError(f"re <= tg — Gordon terminal value undefined (re={re}, tg={tg})")
     except ValueError as e:
@@ -320,7 +335,7 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
         return None
 
     if g_sigma is None:
-        g_sigma = abs(g) * 0.30 if g != 0 else 0.02
+        g_sigma = _default_growth_sigma(g)
 
     seed = DEFAULT_SEED if seed is None else int(seed)
     u = sobol_uniforms(n, 3, seed)
@@ -347,7 +362,8 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
     # --- Vectorized dividend projection: shape (n, years) ---
     projected = np.empty((n, years))
     # Per-sample D0 so that D1 == dps exactly when dps is a forward rate.
-    prev = _d0_from_dps(np.full(n, dps), g_samples, dps_is_forward)
+    d0 = _d0_from_dps(np.full(n, dps), g_samples, dps_is_forward)
+    prev = d0
     for yr in range(years):
         prev = prev * (1 + g_samples)
         projected[:, yr] = prev
@@ -365,6 +381,14 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
 
     fv = pv_divs + pv_tv
 
+    if h_half_life is not None:
+        # H-model on the same draw. tg is already clipped to re - MC_MIN_SPREAD,
+        # the clamp ddm_h_model_valuation applies to its long-run growth.
+        fv_h = d0 * ((1 + tg_samples) + h_half_life * (g_samples - tg_samples)) / spreads
+        fv = np.where((fv > 0) & (fv_h > 0), (fv + fv_h) / 2,
+                      np.where(fv_h > 0, fv_h, fv))
+
+    fv = np.where(fv > 0, fv, 0.0)
     valid = fv > 0
     n_valid = int(np.sum(valid))
     invalid_rate = 1.0 - n_valid / n
@@ -373,15 +397,15 @@ def monte_carlo_ddm(dps, g, re, tg, n=1000,
     if n_valid < n * 0.10:
         return None
 
-    fv_valid = fv[valid]
-    mean_fv = float(np.mean(fv_valid))
+    mean_fv = float(np.mean(fv))
+    std_fv = float(np.std(fv))
     return {
-        'median_fv': float(np.median(fv_valid)),
+        'median_fv': float(np.median(fv)),
         'mean_fv': mean_fv,
-        'p10_fv': float(np.percentile(fv_valid, 10)),
-        'p90_fv': float(np.percentile(fv_valid, 90)),
-        'std_fv': float(np.std(fv_valid)),
-        'cv': float(np.std(fv_valid) / mean_fv) if mean_fv > 0 else None,
+        'p10_fv': float(np.percentile(fv, 10)),
+        'p90_fv': float(np.percentile(fv, 90)),
+        'std_fv': std_fv,
+        'cv': float(std_fv / mean_fv) if mean_fv > 0 else None,
         'n_valid': n_valid,
         'n_iterations': n,
         'seed': seed,

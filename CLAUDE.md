@@ -1192,6 +1192,18 @@ ruff check .
   10-19 goes from 21/586/1210/1670 to 130/811/1186/1360 (BUY/LEAN/HOLD/PASS).
   The DDM simulation never fed the rating. ParamSet key `mc_penalty_enabled`,
   part of `scoring_params_hash`.
+  **Calibration (2026-10-23):** the per-ticker WACC sigma was 0.30 × realized
+  equity vol capped at 4pp, which hit the cap on 98.8% of rows, so 88% of DCF
+  rows read MC confidence LOW and the label (which tempers the Summary PDF's
+  MoS AVOID) said nothing. It is now the cost of equity's estimation error
+  (`_mc_discount_sigmas`: beta's posterior SE × ERP with `MC_ERP_SIGMA` × beta,
+  scaled by WACC / Re, floored at `MC_WACC_SIGMA` + macro, capped at
+  `MC_DISCOUNT_SIGMA_MAX`). Growth sigma is `max(0.30·|g|, 2pp)`
+  (`MC_GROWTH_SIGMA_FLOOR`), and the DDM band blends the H-model per draw as
+  the headline `ddm_fv` does. A proxy re-run of 10-22 moves the labels from
+  ~98% LOW to ~13/67/20% HIGH/MEDIUM/LOW. On 09-16..09-24, `mc_cv` added
+  nothing over realized vol in predicting |excess return| (partial rank
+  correlation 0.02); whether the band sharpens MoS is still unmeasured.
 - **Scripts layer (`scripts/`):** `analyze_stock._main()` orchestrates
   13 `_run_*` phase functions (screen → analyze → score → narrate →
   write outputs). A run is resumable: `scripts/run_checkpoint.py`
