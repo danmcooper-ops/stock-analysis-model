@@ -69,6 +69,7 @@ class FREDClient:
             os.path.dirname(os.path.abspath(__file__)), 'cache', 'fred')
         self.max_age_days = max_age_days
         self._memo = {}
+        self._memo_start = {}
         self._throttle = Throttle(request_delay)
         self.history_source = 'keyed' if self.api_key else 'keyless'
         if not self.api_key:
@@ -96,7 +97,10 @@ class FREDClient:
     def _cache_path(self, series_id):
         return os.path.join(self.cache_dir, f'{series_id}.json')
 
-    def _load_cache(self, series_id):
+    def _load_cache(self, series_id, start=None):
+        """Cached observations, or None when missing, stale, or fetched from a
+        later start than *start* asks for (a short fetch must not stand in
+        for a longer one: the cache is keyed by series id alone)."""
         path = self._cache_path(series_id)
         if not os.path.exists(path):
             return None
@@ -107,17 +111,21 @@ class FREDClient:
                 return None
             with open(path, encoding='utf-8') as fh:
                 raw = json.load(fh)
+            cs = raw.get('start')
+            if cs and (start is None or date.fromisoformat(cs) > start):
+                return None
             return {date.fromisoformat(k): v for k, v in raw['obs'].items()}
         except (OSError, ValueError, KeyError, TypeError):
             return None
 
-    def _save_cache(self, series_id, obs):
+    def _save_cache(self, series_id, obs, start=None):
         try:
             os.makedirs(self.cache_dir, exist_ok=True)
             path = self._cache_path(series_id)
             tmp = f'{path}.tmp.{os.getpid()}'
             with open(tmp, 'w', encoding='utf-8') as fh:
                 json.dump({'source': self.history_source,
+                           'start': start.isoformat() if start else None,
                            'obs': {k.isoformat(): v for k, v in obs.items()}},
                           fh)
             os.replace(tmp, path)
@@ -172,10 +180,11 @@ class FREDClient:
 
     def fetch_series(self, series_id, start=None, end=None, force=False):
         """Return {date: raw value} for a FRED series. {} on failure."""
-        if not force and series_id in self._memo:
+        ms = self._memo_start.get(series_id)
+        if not force and series_id in self._memo and not (ms and (start is None or ms > start)):
             return self._memo[series_id]
         if not force:
-            cached = self._load_cache(series_id)
+            cached = self._load_cache(series_id, start)
             if cached is not None:
                 self._memo[series_id] = cached
                 return cached
@@ -192,7 +201,8 @@ class FREDClient:
             return {}
 
         self._memo[series_id] = obs
-        self._save_cache(series_id, obs)
+        self._memo_start[series_id] = start
+        self._save_cache(series_id, obs, start)
         return obs
 
     # -- convenience --------------------------------------------------------

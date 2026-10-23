@@ -158,7 +158,9 @@ SECTIONS = [
 OVERVIEW_IDS = ['DGS10', 'T10Y2Y', 'PCEPILFE', 'UNRATE', 'BAMLH0A0HYM2',
                 'A191RL1Q225SBEA', 'NFCI', 'DTWEXBGS']
 
-DAILY_HISTORY_YEARS = 10
+# 20 so every series the sector forces read has the full window they rank
+# over (models/sector_forces.LEVEL_WINDOW_YEARS).
+DAILY_HISTORY_YEARS = 20
 SPARK_POINTS = 60
 MIN_SERIES_FOR_DASHBOARD = 5
 

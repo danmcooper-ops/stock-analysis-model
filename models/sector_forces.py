@@ -43,6 +43,11 @@ EASING_FLOOR = 0.40
 # Industry evidence: industry pool CAGR minus the sector's, signed.
 INDUSTRY_ACTIVE = 0.03
 INDUSTRY_BUILDING = 0.01
+# Every macro level is ranked over the same trailing window. Ranked over each
+# series' full history they were not comparable: the High Yield spread had 3
+# years (FRED keeps 3 of ICE's), so a tight 3.33% read 82nd percentile, as
+# stress; the 10-year had 65, so 5.12% read mid-pack beside the 1980s.
+LEVEL_WINDOW_YEARS = 20
 SPARK_DAYS = 730
 SPARK_POINTS = 48
 EXPOSURE_LIST_N = 3
@@ -127,7 +132,7 @@ FORCE_META = {
             ('input_costs', 'cyclical', _m('PFOODINDEXM', 1)),
         'GLP-1 and health-trend demand destruction': ('disruption', 'secular', _i('Packaged Foods', -1)),
         'Pricing power durability': ('pricing', 'secular', _c(1)),
-        'Defensive flows in late-cycle markets': ('flows', 'cyclical', _m('BAMLH0A0HYM2', 1)),
+        'Defensive flows in late-cycle markets': ('flows', 'cyclical', _m('NFCI', 1)),
         'Emerging-market demographic and category penetration': ('demographics', 'secular', None),
     },
     'Energy': {
@@ -139,10 +144,10 @@ FORCE_META = {
         'Geopolitical risk premium': ('geopolitics', 'cyclical', None),
     },
     'Financial Services': {
-        'Credit cycles and regulatory capital': ('credit', 'cyclical', _m('BAMLH0A0HYM2', 1)),
+        'Credit cycles and regulatory capital': ('credit', 'cyclical', _m('NFCI', 1)),
         'Fintech disintermediation': ('disruption', 'secular', None),
         'Interest rate regime shifts': ('rates', 'cyclical', _m('DGS10', 1)),
-        'Yield-curve normalisation': ('rates', 'cyclical', _m('T10Y2Y', 1)),
+        'Yield-curve normalisation': ('rates', 'cyclical', _m('T10Y3M', 1)),
         'M&A, IPO, and capital-markets recovery': ('demand', 'cyclical', _i('Capital Markets', 1)),
         'Demographic tailwind for wealth and asset management':
             ('demographics', 'secular', _i('Asset Management', 1)),
@@ -183,7 +188,7 @@ FORCE_META = {
             ('demand', 'secular', _i('Utilities - Independent Power Producers', 1)),
         'Grid modernisation and electrification capex':
             ('capex_cycle', 'secular', _i('Utilities - Regulated Electric', 1)),
-        'Defensive yield bid in down markets': ('flows', 'cyclical', _m('BAMLH0A0HYM2', 1)),
+        'Defensive yield bid in down markets': ('flows', 'cyclical', _m('NFCI', 1)),
     },
     'Real Estate': {
         'Interest-rate sensitivity and tenant-credit risk': ('rates', 'cyclical', _m('DGS10', 1)),
@@ -293,19 +298,20 @@ def _macro_evidence(ind, sidecar):
     if lv is None or ld is None or len(pts) < 12:
         return 'no_data', {'source': 'macro', 'series': ind['series'],
                            'note': 'too little history to judge'}
-    # Level: the series' own percentile, which the builder took over the full
-    # undownsampled history and the Macro tab quotes. Move: both ends ranked
-    # on one evenly weighted weekly grid, so the year-ago reading and today's
-    # are measured against the same history.
-    even = _even_weekly(pts)
+    # Level and move are both ranked on one evenly weighted weekly grid over
+    # the trailing LEVEL_WINDOW_YEARS (or all of a shorter history), so every
+    # force reads its series against the same span of years, and the
+    # year-ago reading and today's against the same history.
+    even = [(d, v) for d, v in _even_weekly(pts)
+            if d >= ld - timedelta(days=round(LEVEL_WINDOW_YEARS * 365.25))]
     values = [v for _, v in even]
     prior = [v for d, v in even if d <= ld - timedelta(days=365)]
-    pctile = series.get('pctile')
-    p_now = pctile if isinstance(pctile, (int, float)) else pctile_rank(values, lv)
+    p_now = pctile_rank(values, lv)
     p_then = pctile_rank(values, prior[-1]) if prior else None
     sign = ind['sign']
     pressure = p_now if sign > 0 else 1 - p_now
-    move = (sign * (pctile_rank(values, lv) - p_then)) if p_then is not None else 0.0
+    move = (sign * (p_now - p_then)) if p_then is not None else 0.0
+    span = (ld - even[0][0]).days / 365.25
     fmt, suffix = series.get('fmt'), series.get('suffix', '')
     cut = ld - timedelta(days=SPARK_DAYS)
     spark = [v for d, v in pts if d >= cut]
@@ -314,7 +320,7 @@ def _macro_evidence(ind, sidecar):
     return _status(pressure, move), {
         'source': 'macro', 'series': ind['series'], 'label': series.get('l'),
         'reading': _fmt_reading(lv, fmt, suffix), 'as_of': latest.get('d'),
-        'pctile': p_now, 'window': series.get('pct_win'),
+        'pctile': p_now, 'window': f'{round(span):d}y' if span >= 1.5 else f'{round(span * 12):d}m',
         'change_1y': _fmt_change(series.get('chg_1y'), fmt),
         'pressure': pressure, 'move': move, 'spark': spark,
     }

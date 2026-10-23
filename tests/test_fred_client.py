@@ -173,3 +173,17 @@ class TestAvailability:
         c = make_client(tmp_path)
         assert c.available is True
         assert c.history_source == 'keyed'
+
+
+def test_a_shorter_cached_fetch_does_not_serve_a_longer_request(tmp_path):
+    """The cache is keyed by series id alone, so a fetch from a later start
+    used to stand in for a later request wanting more history."""
+    from datetime import date
+    from data.fred_client import FREDClient
+    c = FREDClient(cache_dir=str(tmp_path))
+    c._save_cache('NFCI', {date(2016, 1, 1): 1.0}, start=date(2016, 1, 1))
+    assert c._load_cache('NFCI', date(2006, 1, 1)) is None
+    assert c._load_cache('NFCI', None) is None
+    assert c._load_cache('NFCI', date(2020, 1, 1)) == {date(2016, 1, 1): 1.0}
+    c._save_cache('DGS10', {date(1962, 1, 2): 4.0})          # a full-history fetch
+    assert c._load_cache('DGS10', date(2006, 1, 1)) is not None

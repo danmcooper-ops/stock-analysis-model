@@ -14309,7 +14309,11 @@ function renderSectorOutlook(from){
     hl[gk].push([h[1],sec]);
     if(h[0]==='up')cnt.up++;else if(h[0]==='down')cnt.down++;
     function side(f,kind){return '<li><b>'+(kind==='tailwind'?'Tailwind':'Headwind')+':</b> '+(f?_esc(f.theme)+(f.status==='building'?' (building)':''):'none acting')+'.</li>';}
-    grp[gk].push(_windRow({kind:h[0]==='down'?'hw':'tw',st:h[0]==='flat'?(h[1]==='Balanced'?'building':'dormant'):'active',label:h[1],
+    /* Two measures, named apart: the group is the macro narrative's view of
+       the sector today, the row label its own structural forces' balance.
+       Unnamed, "Macro tailwind" over "Headwinds lead" read as a contradiction. */
+    grp[gk].push(_windRow({kind:h[0]==='down'?'hw':'tw',st:h[0]==='flat'?(h[1]==='Balanced'?'building':'dormant'):'active',
+      label:'Structural: '+(h[1]==='No force acting'?'none acting':h[1].toLowerCase()),
       title:_esc(sec),meta:acting+' of '+fz.forces.length+' forces acting',
       items:side(tw,'tailwind')+side(hw,'headwind')
         +(m&&m.row.influence?'<li><b>Macro read:</b> '+(m.row.headline?'<i>'+_esc(m.row.headline)+'.</i> ':'')+_esc(m.row.influence)+'</li>':'')
@@ -14317,7 +14321,7 @@ function renderSectorOutlook(from){
   });
   var body='';
   if(nar){
-    [['up','▲ Macro tailwind'],['','Macro neutral'],['down','▼ Macro headwind']].forEach(function(g){
+    [['up','▲ Macro view: tailwind'],['','Macro view: neutral'],['down','▼ Macro view: headwind']].forEach(function(g){
       if(!grp[g[0]].length)return;
       body+=_windGroup({scope:'outlook',k:g[0]||'flat',dir:g[0],label:g[1],count:grp[g[0]].length,
         sum:_soGroupSummary(hl[g[0]]),body:grp[g[0]].join('')});
@@ -14328,9 +14332,9 @@ function renderSectorOutlook(from){
   body=_windTop({tailwind:cnt.up/cnt.n,headwind:cnt.down/cnt.n,net:(cnt.up-cnt.down)/cnt.n},
     'Across '+cnt.n+' sectors, tailwinds lead in '+cnt.up+' and headwinds in '+cnt.down+'.')+body;
   /* The explainer folds behind a ?, so the bullets lead. */
-  var q=_qHelp('<span class="note-q-t">Each sector’s status weighs its structural forces (acting now, or building at half weight) by the share of its revenue they reach; tap a sector for its strongest tailwind and headwind'
+  var q=_qHelp('<span class="note-q-t">'+(nar?'Two separate reads. The groups are the Macro Outlook’s view of each sector in today’s economy; the label on each row (Structural) is the balance of the sector’s own long-run forces, so the two can disagree. ':'')+'Each sector’s structural status weighs its forces (acting now, or building at half weight) by the share of its revenue they reach; tap a sector for its strongest tailwind and headwind'
     +(nar?' and the Macro Outlook’s read on it':'')+'; Research more opens its companies in Stock Valuations. '
-    +(nar?'Groups are today’s macro stance. ':'')+'The bar weighs sectors where tailwinds lead against those where headwinds do.</span>','How to read the Broad Sector Outlook','corner');
+    +'The bar weighs sectors where tailwinds lead against those where headwinds do.</span>','How to read the Broad Sector Outlook','corner');
   return '<div class="xsect-dashboard so-wrap qh-card">'+q
     +'<div class="sec-label">Broad Sector Outlook</div>'+body+'</div>';
 }
