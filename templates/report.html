@@ -2410,6 +2410,7 @@ html.mz-open,html.mz-open body{overflow:hidden;}
    inline after the last sentence (_rmToggle moves it into the paragraph). */
 .rm.clip:not(.open) .rm-btn{position:absolute;right:0;bottom:0;padding-left:2.2em;line-height:1.65;background:linear-gradient(90deg,transparent,var(--bg) 1.8em);}
 .rm.open .rm-btn{margin-left:6px;}
+.mac-sec-head .rm.clip:not(.open) .rm-btn{background:linear-gradient(90deg,transparent,var(--mac-card) 1.8em);}
 [data-theme="dark"] .rm-btn{color:var(--mac-accent,#5b9cf0) !important;}
 .rm.clip .rm-btn{display:inline-block;}
 .mac-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:14px;}
@@ -12621,8 +12622,8 @@ function renderMacro(){
   /* No sub-tab row here: the six section buttons duplicated the nav
      dropdown's Macro Outlook column, which is where every other view's
      sub-tabs already live (see renderMSubs / renderTSubs). The regime box
-     is now the first thing under the banner. */
-  var h=_macRegimeHTML(curMacSub==='overview');
+     leads the Overview only; a section sub-tab opens on its own title. */
+  var h=curMacSub==='overview'?_macRegimeHTML(true):'';
   if(curMacSub==='overview')h+=_macOverviewHTML();
   else h+=_macSectionHTML(curMacSub);
   el.innerHTML=h;
