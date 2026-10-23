@@ -35,3 +35,9 @@ def test_section_headings_are_boxed():
                   'World MoS Map', 'Stock Price Comparison', 'Market regime',
                   'Your Portfolios', 'Summary'):
         assert re.search(r'class="sec-label"[^>]*>' + re.escape(title) + '<', src), title
+
+
+def test_market_regime_card_is_on_the_macro_overview_only():
+    src = _tpl()
+    body = src.split('function renderMacro(){', 1)[1].split('\n}\n', 1)[0]
+    assert "var h=curMacSub==='overview'?_macRegimeHTML(true):'';" in body
