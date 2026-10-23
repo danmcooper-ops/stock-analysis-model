@@ -1,12 +1,12 @@
 {
  "version": 1,
- "date": "2026-10-21",
- "prev_date": "2026-10-20",
+ "date": "2026-10-22",
+ "prev_date": "2026-10-21",
  "systemic": {
-  "n": 3494,
-  "prev_n": 3494,
-  "changed": 13,
-  "changed_share": 0.0037,
+  "n": 3500,
+  "prev_n": 3492,
+  "changed": 35,
+  "changed_share": 0.01,
   "missing_data": 0,
   "missing_share": 0.0,
   "shrink_share": 0.0,
@@ -29,9 +29,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.6674344156708986,
-    "median_score": 49.25,
-    "median_spread": 0.2280387268106321,
+    "median_mos": -0.5661178075401728,
+    "median_score": 49.349999999999994,
+    "median_spread": 0.2296589322781422,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -59,9 +59,9 @@
      "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.32212990856414186,
+    "median_mos": -0.3009249521201979,
     "median_score": 48.7,
-    "median_spread": 0.2559846051094582,
+    "median_spread": 0.2574965546511137,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -81,6 +81,12 @@
    },
    "alerts": [
     {
+     "ticker": "AMZN",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "AMZN reports earnings on 2026-10-29"
+    },
+    {
      "ticker": "BRK-B",
      "portfolio": "flagged",
      "kind": "joined",
@@ -88,16 +94,16 @@
      "message": "BRK-B joined Flagged (now matches the rule)"
     },
     {
+     "ticker": "BUD",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "BUD reports earnings on 2026-10-29"
+    },
+    {
      "ticker": "CMCSA",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "CMCSA reports earnings on 2026-10-22"
-    },
-    {
-     "ticker": "COKE",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "COKE reports earnings on 2026-10-28"
     },
     {
      "ticker": "F",
@@ -116,6 +122,12 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "FTNT reports earnings on 2026-10-28"
+    },
+    {
+     "ticker": "GM",
+     "kind": "fv_jump",
+     "level": "watch",
+     "message": "GM fair value moved +53% ($202.57 → $310.73)"
     },
     {
      "ticker": "GOOGL",
@@ -142,16 +154,16 @@
      "message": "KLAC reports earnings on 2026-10-28"
     },
     {
-     "ticker": "LRCX",
+     "ticker": "MA",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "LRCX reports earnings on 2026-10-21"
+     "message": "MA reports earnings on 2026-10-29"
     },
     {
-     "ticker": "META",
+     "ticker": "MPWR",
      "kind": "earnings_soon",
      "level": "watch",
-     "message": "META reports earnings on 2026-10-21"
+     "message": "MPWR reports earnings on 2026-10-29"
     },
     {
      "ticker": "MSFT",
@@ -179,9 +191,9 @@
     },
     {
      "ticker": "T",
-     "kind": "earnings_soon",
+     "kind": "fv_jump",
      "level": "watch",
-     "message": "T reports earnings on 2026-10-21"
+     "message": "T fair value moved -60% ($58.73 → $23.63)"
     },
     {
      "ticker": "TSCO",
@@ -194,6 +206,12 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "UVE reports earnings on 2026-10-22"
+    },
+    {
+     "ticker": "XPO",
+     "kind": "earnings_soon",
+     "level": "watch",
+     "message": "XPO reports earnings on 2026-10-29"
     }
    ]
   }
