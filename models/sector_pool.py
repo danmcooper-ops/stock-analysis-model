@@ -340,6 +340,29 @@ def growth_over(rows, window):
     return _window_analysis(hist, tuple(window))[0]
 
 
+def panel_coverage(rows, window):
+    """The share of *rows*' positive operating income today (among those
+    with a current EDGAR history) held by the companies in *window*'s
+    consistent panel (those reporting every year of
+    both endpoint blocks). Low when the group's largest earners arrived
+    late: Constellation, spun off in 2022, is most of Independent Power
+    Producers' pool today and in no 2018-20 panel. None for no pool."""
+    if not window:
+        return None
+    # Over the companies that file a current history: one with none (a
+    # foreign line with no SEC facts) can join no panel over any window, so
+    # counting it would only push every group toward a shorter one.
+    hist, _ = _split_stale(_histories(pool_rows(rows)))
+    tot = sum(max(_num(r.get('operating_income')) or 0.0, 0.0) for r, _oi, _rev in hist)
+    if tot <= 0:
+        return None
+    y0, y1, block = window
+    yrs = _block_years(y0, block) + _block_years(y1, block)
+    inp = sum(max(_num(r.get('operating_income')) or 0.0, 0.0) for r, oi, rev in hist
+              if all(y in oi and (rev.get(y) or 0) > 0 for y in yrs))
+    return inp / tot
+
+
 def sector_pool_history(rows):
     """Everything time-based for one sector's rows, or None when no row
     carries EDGAR history.

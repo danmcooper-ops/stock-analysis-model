@@ -30,7 +30,7 @@ import logging
 from datetime import date, timedelta
 
 from models.narrative import _SECTOR_THESIS_RISKS, _SECTOR_THESIS_TAILWINDS
-from models.sector_pool import (_num, growth_over, is_balance_sheet_financial, pctile_rank,
+from models.sector_pool import (_num, growth_over, is_balance_sheet_financial, panel_coverage, pctile_rank,
                                  pool_rows)
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,24 @@ INDUSTRY_BUILDING = 0.01
 # years (FRED keeps 3 of ICE's), so a tight 3.33% read 82nd percentile, as
 # stress; the 10-year had 65, so 5.12% read mid-pack beside the 1980s.
 LEVEL_WINDOW_YEARS = 20
+# A year's move counts only when the reading itself moved by at least this
+# many standard deviations of its window: in a tightly bunched series a
+# negligible change (NFCI -0.53 -> -0.50) jumped 12 percentile points and
+# read as "building".
+MOVE_NOISE_SD = 0.25
+# Flows evidence (a defensive sector's SPDR against SPY): active when it has
+# outrun the market over 3 months without trailing over 6; building when it
+# has outrun it over the last month.
+FLOWS_ACTIVE_RS_3M = 0.03
+FLOWS_BUILDING_RS_1M = 0.03
+# Industry evidence: a cyclical force is read over the current cycle, the
+# last CYCLE_YEARS complete years (the AI capex cycle is FY2022-25; over
+# 2018-20 -> 2023-25 Intel's collapse offset Nvidia's rise and semis read
+# dormant). A secular one keeps the sector's long window unless its panel
+# holds under PANEL_COVERAGE_MIN of the industry's pool today, then steps
+# to shorter windows (Constellation is in no 2018-20 panel).
+CYCLE_YEARS = 3
+PANEL_COVERAGE_MIN = 0.6
 SPARK_DAYS = 730
 SPARK_POINTS = 48
 EXPOSURE_LIST_N = 3
@@ -94,6 +112,11 @@ def _c(sign):
     return {'kind': 'margin_cycle', 'sign': sign}
 
 
+def _f(sector):
+    """Flows into the sector itself: its SPDR's return against SPY."""
+    return {'kind': 'flows', 'sector': sector, 'sign': 1}
+
+
 # sign: +1 when a higher reading strengthens the force, -1 when a lower one
 # does (falling rates strengthen a rate-cut tailwind; a weak oil price
 # strengthens Energy's commodity headwind).
@@ -132,7 +155,7 @@ FORCE_META = {
             ('input_costs', 'cyclical', _m('PFOODINDEXM', 1)),
         'GLP-1 and health-trend demand destruction': ('disruption', 'secular', _i('Packaged Foods', -1)),
         'Pricing power durability': ('pricing', 'secular', _c(1)),
-        'Defensive flows in late-cycle markets': ('flows', 'cyclical', _m('NFCI', 1)),
+        'Defensive flows in late-cycle markets': ('flows', 'cyclical', _f('Consumer Defensive')),
         'Emerging-market demographic and category penetration': ('demographics', 'secular', None),
     },
     'Energy': {
@@ -188,7 +211,7 @@ FORCE_META = {
             ('demand', 'secular', _i('Utilities - Independent Power Producers', 1)),
         'Grid modernisation and electrification capex':
             ('capex_cycle', 'secular', _i('Utilities - Regulated Electric', 1)),
-        'Defensive yield bid in down markets': ('flows', 'cyclical', _m('NFCI', 1)),
+        'Defensive yield bid in down markets': ('flows', 'cyclical', _f('Utilities')),
     },
     'Real Estate': {
         'Interest-rate sensitivity and tenant-credit risk': ('rates', 'cyclical', _m('DGS10', 1)),
@@ -311,6 +334,11 @@ def _macro_evidence(ind, sidecar):
     sign = ind['sign']
     pressure = p_now if sign > 0 else 1 - p_now
     move = (sign * (p_now - p_then)) if p_then is not None else 0.0
+    if prior and len(values) > 2:
+        mu = sum(values) / len(values)
+        sd = (sum((v - mu) ** 2 for v in values) / (len(values) - 1)) ** 0.5
+        if abs(lv - prior[-1]) < MOVE_NOISE_SD * sd:
+            move = 0.0
     span = (ld - even[0][0]).days / 365.25
     fmt, suffix = series.get('fmt'), series.get('suffix', '')
     cut = ld - timedelta(days=SPARK_DAYS)
@@ -342,18 +370,52 @@ def _industry_evidence(ind, entry, rows=None):
         return 'no_data', {'source': 'industry', 'industry': ind['industry'],
                            'note': 'too few of its companies reported throughout'}
     window = d.get('window')
+    ind_cagr = d['pool_cagr']
+    # Re-measure over the current cycle (cyclical forces), or over a shorter
+    # window when the long one's panel misses most of today's pool.
+    base = window or ([dec['y0'], dec['y1'], dec['block']] if dec else None)
+    ir = [r for r in rows or [] if r.get('industry') == ind['industry']]
+    if base and ir:
+        y1 = base[1]
+        if ind.get('horizon') == 'cyclical':
+            cands = [[y1 - CYCLE_YEARS, y1, 1]]
+        elif (panel_coverage(ir, base) or 0.0) < PANEL_COVERAGE_MIN:
+            cands = [[y1 - n, y1, 1] for n in range(base[1] - base[0] - 1, CYCLE_YEARS - 1, -1)]
+        else:
+            cands = []
+        for w in cands:
+            di = growth_over(ir, w)
+            if not di or di.get('pool_cagr') is None:
+                continue
+            # A shorter window must actually bring the missing earners in;
+            # one that does not is no better than the long one.
+            if (ind.get('horizon') != 'cyclical'
+                    and (panel_coverage(ir, w) or 0.0) < PANEL_COVERAGE_MIN):
+                continue
+            window, ind_cagr = w, di['pool_cagr']
+            break
     if window and (not dec or window != [dec['y0'], dec['y1'], dec['block']]):
         dec = growth_over(rows, window) if rows else None
+    # Against the REST of the sector, not the sector: an industry that is
+    # much of the sector's pool cannot diverge from a total it dominates
+    # (Semiconductors are ~38% of Technology's, Regulated Electric ~60% of
+    # Utilities'), so the comparison read ~0 whatever the industry did.
+    basis = 'sector'
+    if rows and dec:
+        rest = [r for r in rows if r.get('industry') != ind['industry']]
+        dr = growth_over(rest, [dec['y0'], dec['y1'], dec['block']]) if rest else None
+        if dr and dr.get('pool_cagr') is not None:
+            dec, basis = dr, 'rest'
     if not dec:
         return 'no_data', {'source': 'industry', 'industry': ind['industry'],
                            'note': 'no sector growth over the same years to compare with'}
-    diff = d['pool_cagr'] - dec['pool_cagr']
+    diff = ind_cagr - dec['pool_cagr']
     v = ind['sign'] * diff
     status = ('active' if v >= INDUSTRY_ACTIVE
               else 'building' if v >= INDUSTRY_BUILDING else 'dormant')
     return status, {
         'source': 'industry', 'industry': ind['industry'],
-        'industry_cagr': d['pool_cagr'], 'sector_cagr': dec['pool_cagr'],
+        'industry_cagr': ind_cagr, 'sector_cagr': dec['pool_cagr'], 'basis': basis,
         'diff': diff, 'pool_share': d.get('pool_share'),
         'window': [dec['y0'], dec['y1'], dec['block']],
     }
@@ -381,7 +443,24 @@ def _margin_evidence(ind, entry):
     }
 
 
+def _flows_evidence(ind, sidecar):
+    sd = ((sidecar or {}).get('sector_data') or {}).get(ind['sector']) or {}
+    rs1, rs3, rs6 = sd.get('rs_1m'), sd.get('rs_3m'), sd.get('rs_6m')
+    if not isinstance(rs3, (int, float)) or not isinstance(rs6, (int, float)):
+        return 'no_data', {'source': 'flows', 'note': 'no sector ETF data in this run'}
+    if rs3 >= FLOWS_ACTIVE_RS_3M and rs6 >= 0:
+        status = 'active'
+    elif isinstance(rs1, (int, float)) and rs1 >= FLOWS_BUILDING_RS_1M:
+        status = 'building'
+    else:
+        status = 'dormant'
+    return status, {'source': 'flows', 'etf': sd.get('etf'),
+                    'rs_1m': rs1, 'rs_3m': rs3, 'rs_6m': rs6,
+                    'as_of': (sidecar or {}).get('as_of')}
+
+
 _EVIDENCE = {'macro': lambda ind, sc, en, rows: _macro_evidence(ind, sc),
+             'flows': lambda ind, sc, en, rows: _flows_evidence(ind, sc),
              'industry': lambda ind, sc, en, rows: _industry_evidence(ind, en, rows),
              'margin_cycle': lambda ind, sc, en, rows: _margin_evidence(ind, en)}
 
@@ -517,6 +596,8 @@ def evaluate_forces(sector, sidecar, entry, rows=None):
     out = []
     for f in sector_forces(sector):
         ind = f.pop('indicator')
+        if ind is not None:
+            ind = dict(ind, horizon=f.get('horizon'))
         if ind is None:
             status, evidence = 'qualitative', None
         else:

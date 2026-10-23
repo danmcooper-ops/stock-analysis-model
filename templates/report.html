@@ -14056,8 +14056,13 @@ function _ppfEvidence(f){
   }
   if(e.source==='industry'){
     var w=e.window;
-    return _esc(e.industry)+' profit pool '+_ppSgnPct(e.industry_cagr)+'/yr against the sector’s '+_ppSgnPct(e.sector_cagr)+'/yr'
+    return _esc(e.industry)+' profit pool '+_ppSgnPct(e.industry_cagr)+'/yr against '+(e.basis==='rest'?'the rest of the sector’s ':'the sector’s ')+_ppSgnPct(e.sector_cagr)+'/yr'
       +(w?', '+_ppFy({y0:w[0],block:w[2]})+' to '+_ppFy1({y1:w[1],block:w[2]}):'')+'.';
+  }
+  if(e.source==='flows'){
+    var rs=function(v){return v==null?'—':_ppSgnPct(v);};
+    return _esc(e.etf||'The sector ETF')+' against SPY: '+rs(e.rs_1m)+' over 1 month, '+rs(e.rs_3m)+' over 3, '+rs(e.rs_6m)+' over 6'
+      +(e.as_of?' (as of '+_esc(e.as_of)+')':'')+'.';
   }
   if(e.source==='margin_cycle'){
     return 'Sector margin '+_ppPct(e.margin)+' in FY'+e.year+' (from '+_ppPct(e.prev_margin)+'), '+_ppRankOf(e.pctile)+' its '+e.years+'-year range ('+_ppPct(e.low)+' to '+_ppPct(e.high)+').';
