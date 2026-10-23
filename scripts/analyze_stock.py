@@ -54,7 +54,7 @@ from models.quality import (calculate_earnings_quality, calculate_piotroski_f,
                             get_ev_to_equity_bridge,
                             calculate_altman_z, calculate_beneish_m)
 from models.market import compute_relative_multiples, compute_analyst_consensus, extract_next_earnings
-from models.montecarlo import seed_from_ticker
+from models.montecarlo import growth_sigma, seed_from_ticker
 from models.ddm import (ddm_eligibility, estimate_ddm_growth, two_stage_ddm_valuation,
                          ddm_h_model_valuation, monte_carlo_ddm)
 from models.epv import earnings_power_value_valuation, epv_with_growth_premium
@@ -121,7 +121,8 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             EXIT_MULT_DIVERGENCE_THRESHOLD,
                             EXIT_MULT_DEFAULT_EV_EBITDA,
                             EXIT_MULT_MIN, EXIT_MULT_MAX,
-                            MC_ITERATIONS, MC_GROWTH_SIGMA_RATIO, MC_WACC_SIGMA,
+                            MC_ITERATIONS, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR,
+                            MC_WACC_SIGMA,
                             MC_TERMINAL_GROWTH_SIGMA, MC_EXIT_MULT_SIGMA_RATIO,
                             MC_HIGH_DIVERGENCE_SIGMA_MULT, MC_WACC_TG_CORRELATION,
                             DDM_HIGH_GROWTH_YEARS, DDM_BLEND_WEIGHT,
@@ -2245,7 +2246,7 @@ def run_forward_dcf(yf_data, wacc, sector=None, exit_multiple=None, roic_data=No
     # --- Monte Carlo uncertainty quantification ---
     mc_result = None
     if base_fcf > 0 and shares and shares > 0:
-        g_sigma = abs(fcf_growth) * MC_GROWTH_SIGMA_RATIO if fcf_growth != 0 else 0.02
+        g_sigma = growth_sigma(fcf_growth, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR)
         g_sigma *= growth_sigma_mult  # macro overlay: widen in stress
         em_sigma = exit_multiple * MC_EXIT_MULT_SIGMA_RATIO if exit_multiple else None
         # Widen sigma if TV methods diverge significantly
@@ -2463,14 +2464,17 @@ def run_ddm_valuation(yf_data, div_series, cost_of_equity, analyst_ltg=None,
         result['ddm_fv'] = h_fv
 
     # 5. Monte Carlo DDM — same sigma overlay as the DCF's Monte Carlo;
-    #    dividendRate is a forward rate, so year 1 is pinned at dps.
-    g_sigma = (abs(g) * MC_GROWTH_SIGMA_RATIO if g != 0 else 0.02) * growth_sigma_mult
+    #    dividendRate is a forward rate, so year 1 is pinned at dps. Each draw
+    #    blends the H-model like the headline above, so the band brackets
+    #    ddm_fv rather than the two-stage leg alone.
+    g_sigma = growth_sigma(g, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR) * growth_sigma_mult
     mc = monte_carlo_ddm(
         dps, g, re, tg, n=MC_ITERATIONS, years=DDM_HIGH_GROWTH_YEARS,
         g_sigma=g_sigma,
         re_sigma=MC_WACC_SIGMA if re_sigma is None else re_sigma,
         tg_sigma=MC_TERMINAL_GROWTH_SIGMA if tg_sigma is None else tg_sigma,
-        re_tg_corr=MC_WACC_TG_CORRELATION, seed=seed, dps_is_forward=True)
+        re_tg_corr=MC_WACC_TG_CORRELATION, seed=seed, dps_is_forward=True,
+        h_half_life=DDM_HIGH_GROWTH_YEARS / 2.0)
     if mc:
         result['ddm_mc_median'] = mc['median_fv']
         result['ddm_mc_p10'] = mc['p10_fv']

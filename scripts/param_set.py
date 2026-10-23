@@ -26,7 +26,7 @@ from scripts.config import (
     ANALYST_HAIRCUT, FALLBACK_GROWTH, DCF_YEARS, DCF_STAGE1,
     EXIT_MULT_DIVERGENCE_THRESHOLD, EXIT_MULT_DEFAULT_EV_EBITDA,
     EXIT_MULT_MIN, EXIT_MULT_MAX,
-    MC_ITERATIONS, MC_GROWTH_SIGMA_RATIO, MC_WACC_SIGMA,
+    MC_ITERATIONS, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR, MC_WACC_SIGMA,
     MC_TERMINAL_GROWTH_SIGMA, MC_EXIT_MULT_SIGMA_RATIO,
     MC_HIGH_DIVERGENCE_SIGMA_MULT, MC_WACC_TG_CORRELATION,
     DDM_HIGH_GROWTH_YEARS, DDM_BLEND_WEIGHT,
@@ -85,6 +85,7 @@ def default_params():
         # Monte Carlo
         'mc_iterations': MC_ITERATIONS,
         'mc_growth_sigma_ratio': MC_GROWTH_SIGMA_RATIO,
+        'mc_growth_sigma_floor': MC_GROWTH_SIGMA_FLOOR,
         'mc_wacc_sigma': MC_WACC_SIGMA,
         'mc_terminal_growth_sigma': MC_TERMINAL_GROWTH_SIGMA,
         'mc_exit_mult_sigma_ratio': MC_EXIT_MULT_SIGMA_RATIO,

@@ -22,6 +22,11 @@ both describe the same uncertainty regime:
   same rule and agree with the point estimate there.
 - Log-normal exit multiples (lognormal_from_uniform): never negative, so the
   floor only binds for genuinely low multiples.
+- Growth sigma with a floor (growth_sigma): proportional to the point growth,
+  but never below an absolute spread. Proportional alone gave a company at
+  +0.1% growth a 0.03pp sigma, near-certain growth, while one at exactly 0%
+  got the 2pp fallback, so the simulation read stagnant and declining
+  businesses as the most predictable ones.
 """
 import warnings
 import zlib
@@ -31,6 +36,8 @@ from scipy.stats import norm, qmc
 
 DEFAULT_SEED = 42
 _EPS = 1e-10
+GROWTH_SIGMA_RATIO = 0.30
+GROWTH_SIGMA_FLOOR = 0.02
 
 
 def seed_from_ticker(ticker):
@@ -42,6 +49,11 @@ def seed_from_ticker(ticker):
     if ticker is None:
         return DEFAULT_SEED
     return zlib.crc32(str(ticker).strip().upper().encode('utf-8')) & 0xFFFFFFFF
+
+
+def growth_sigma(g, ratio=GROWTH_SIGMA_RATIO, floor=GROWTH_SIGMA_FLOOR):
+    """Growth-rate sigma: `ratio` of |g|, never below `floor` (absolute)."""
+    return max(abs(g) * ratio, floor)
 
 
 def sobol_uniforms(n, dims, seed=None):

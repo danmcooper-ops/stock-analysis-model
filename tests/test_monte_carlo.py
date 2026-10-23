@@ -28,7 +28,8 @@ from models.dcf import (
     monte_carlo_dcf, two_stage_ev, two_stage_ev_exit_multiple,
     fair_value_per_share,
 )
-from models.ddm import monte_carlo_ddm, two_stage_ddm
+from models.ddm import ddm_h_model, monte_carlo_ddm, two_stage_ddm
+from models.montecarlo import growth_sigma
 
 
 # Sigmas are floored at 0.001 inside the simulators, so "tiny" is not zero:
@@ -669,9 +670,14 @@ class TestDdmValuationWiring:
         assert res['ddm_fv'] is not None
         assert res['ddm_mc_p10'] <= res['ddm_mc_median'] <= res['ddm_mc_p90']
         assert res['ddm_mc_cv'] > 0
-        point = two_stage_ddm(2.4, res['ddm_growth'], TERMINAL_GROWTH_RATE, 0.09,
-                              years=DDM_HIGH_GROWTH_YEARS)
-        assert res['ddm_mc_median'] == pytest.approx(point, rel=0.10)
+        # The band brackets the headline (two-stage + H-model average), not
+        # the two-stage leg alone.
+        point = res['ddm_fv']
+        assert point == pytest.approx(
+            (two_stage_ddm(2.4, res['ddm_growth'], TERMINAL_GROWTH_RATE, 0.09,
+                           years=DDM_HIGH_GROWTH_YEARS, dps_is_forward=True)
+             + res['ddm_h_fv']) / 2)
+        assert res['ddm_mc_median'] == pytest.approx(point, rel=0.03)
         assert res['ddm_mc_p10'] < point < res['ddm_mc_p90']
         assert isinstance(res['ddm_mc_clip_rate'], float)
         assert res['ddm_mc_invalid_rate'] == 0.0
@@ -721,3 +727,59 @@ class TestDdmValuationWiring:
         for k in ('ddm_mc_median', 'ddm_mc_p10', 'ddm_mc_p90', 'ddm_mc_cv',
                   'ddm_mc_clip_rate', 'ddm_mc_invalid_rate'):
             assert res[k] is None, k
+
+
+class TestGrowthSigmaFloor:
+    def test_floor_binds_near_zero_and_ratio_above_it(self):
+        assert growth_sigma(0.0) == 0.02
+        assert growth_sigma(0.001) == 0.02
+        assert growth_sigma(-0.001) == 0.02
+        assert growth_sigma(0.15) == pytest.approx(0.045)
+        assert growth_sigma(-0.15) == pytest.approx(0.045)
+        assert growth_sigma(0.10, ratio=0.5, floor=0.01) == pytest.approx(0.05)
+
+    def test_no_jump_in_dcf_band_across_zero_growth(self):
+        """Proportional-only sigma gave +0.1% growth a 0.03pp spread and 0%
+        a 2pp one: the band jumped at zero. With the floor it is continuous."""
+        cvs = [monte_carlo_dcf(100, g, 0.09, 0.03, 0, 10, n_iterations=1024)['cv']
+               for g in (-0.001, 0.0, 0.001)]
+        assert max(cvs) - min(cvs) < 0.005
+
+    def test_default_ddm_sigma_uses_the_floor(self):
+        a = monte_carlo_ddm(2.0, 0.001, 0.09, 0.03, n=1024)
+        b = monte_carlo_ddm(2.0, 0.001, 0.09, 0.03, n=1024, g_sigma=0.02)
+        assert a['p10_fv'] == b['p10_fv'] and a['p90_fv'] == b['p90_fv']
+
+
+class TestDdmHModelBlend:
+    def test_collapsed_sigmas_land_on_the_headline_blend(self):
+        dps, g, re, tg = 2.0, 0.08, 0.09, 0.03
+        two = two_stage_ddm(dps, g, tg, re, years=5, dps_is_forward=True)
+        h = ddm_h_model(dps, g, tg, re, half_life=2.5, dps_is_forward=True)
+        mc = monte_carlo_ddm(dps, g, re, tg, n=512, years=5, dps_is_forward=True,
+                             h_half_life=2.5, **TINY_DDM)
+        assert mc['median_fv'] == pytest.approx((two + h) / 2, rel=0.01)
+
+    def test_collapsed_inside_the_spread_wall(self):
+        """Both legs substitute re - 2% for a too-tight terminal growth."""
+        dps, g, re, tg = 2.0, 0.05, 0.045, 0.035
+        two = two_stage_ddm(dps, g, tg, re, years=5)
+        h = ddm_h_model(dps, g, tg, re, half_life=2.5)
+        mc = monte_carlo_ddm(dps, g, re, tg, n=512, years=5, h_half_life=2.5, **TINY_DDM)
+        assert mc['median_fv'] == pytest.approx((two + h) / 2, rel=0.01)
+
+    def test_without_half_life_is_the_two_stage_band(self):
+        mc = monte_carlo_ddm(*BENIGN_DDM, n=512, **TINY_DDM)
+        assert mc['median_fv'] == pytest.approx(
+            two_stage_ddm(2.0, 0.07, 0.03, 0.10, years=5), rel=0.01)
+
+    def test_invalid_half_life_returns_none(self):
+        with pytest.warns(RuntimeWarning):
+            assert monte_carlo_ddm(*BENIGN_DDM, n=256, h_half_life=0) is None
+
+    def test_percentiles_over_all_draws(self):
+        """A non-positive H-leg on a deep decliner falls back to the two-stage
+        leg; the band keeps every draw, so the bookkeeping adds up."""
+        mc = monte_carlo_ddm(2.0, -0.30, 0.09, 0.03, n=1024, h_half_life=2.5)
+        assert mc['n_valid'] == round(mc['n_iterations'] * (1 - mc['invalid_rate']))
+        assert mc['p10_fv'] <= mc['median_fv'] <= mc['p90_fv']
