@@ -783,3 +783,52 @@ class TestDdmHModelBlend:
         mc = monte_carlo_ddm(2.0, -0.30, 0.09, 0.03, n=1024, h_half_life=2.5)
         assert mc['n_valid'] == round(mc['n_iterations'] * (1 - mc['invalid_rate']))
         assert mc['p10_fv'] <= mc['median_fv'] <= mc['p90_fv']
+
+
+class TestDiscountRateSigma:
+    """_mc_discount_sigmas: the cost of equity's estimation error, not the
+    stock's return volatility (a flat 4pp for 98.8% of rows before)."""
+
+    def _sig(self, beta_diag, **kw):
+        from scripts.analyze_stock import _mc_discount_sigmas
+        return _mc_discount_sigmas(beta_diag, 0.045, 0.01, **kw)
+
+    def test_no_capm_beta_is_the_floor(self):
+        assert self._sig(None) == (0.01, 0.01)
+        assert self._sig({'shrunk_beta': None}) == (0.01, 0.01)
+
+    def test_estimation_error_formula(self):
+        bd = {'shrunk_beta': 1.5, 'se_beta': 0.40, 'shrink_weight': 0.25}
+        wacc_s, re_s = self._sig(bd)
+        beta_sd = 0.5 * 0.40
+        assert re_s == pytest.approx(np.hypot(beta_sd * 0.045, 1.5 * 0.01))
+        assert wacc_s == re_s
+
+    def test_noisier_beta_and_higher_beta_widen(self):
+        quiet = self._sig({'shrunk_beta': 1.6, 'se_beta': 0.05, 'shrink_weight': 0.9})[1]
+        noisy = self._sig({'shrunk_beta': 1.6, 'se_beta': 0.60, 'shrink_weight': 0.9})[1]
+        high = self._sig({'shrunk_beta': 2.2, 'se_beta': 0.05, 'shrink_weight': 0.9})[1]
+        assert noisy > quiet and high > quiet
+
+    def test_missing_se_uses_the_prior_sd(self):
+        from scripts.config import BETA_PRIOR_SD
+        re_s = self._sig({'shrunk_beta': 1.5, 'se_beta': None, 'shrink_weight': 2 / 3})[1]
+        assert re_s == pytest.approx(np.hypot(BETA_PRIOR_SD * 0.045, 1.5 * 0.01))
+
+    def test_wacc_scaled_by_wacc_over_re(self):
+        bd = {'shrunk_beta': 2.0, 'se_beta': 0.3, 'shrink_weight': 1.0}
+        wacc_s, re_s = self._sig(bd, wacc=0.08, cost_of_equity=0.12)
+        assert wacc_s == pytest.approx(max(0.01, re_s * 0.08 / 0.12))
+
+    def test_floor_and_cap(self):
+        from scripts.config import MC_DISCOUNT_SIGMA_MAX
+        lo = self._sig({'shrunk_beta': 0.5, 'se_beta': 0.01, 'shrink_weight': 1.0})
+        assert lo == (0.01, 0.01)
+        hi = self._sig({'shrunk_beta': 2.9, 'se_beta': 5.0, 'shrink_weight': 1.0})
+        assert hi == (MC_DISCOUNT_SIGMA_MAX, MC_DISCOUNT_SIGMA_MAX)
+
+    def test_ordinary_stock_is_not_flat_4pp(self):
+        """A typical market-beta stock lands near the 1pp base, not the old cap."""
+        wacc_s, _ = self._sig({'shrunk_beta': 1.05, 'se_beta': 0.12, 'shrink_weight': 0.75},
+                              wacc=0.085, cost_of_equity=0.095)
+        assert 0.01 <= wacc_s < 0.015

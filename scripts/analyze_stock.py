@@ -122,7 +122,7 @@ from scripts.config import (ERP, TERMINAL_GROWTH_RATE, PHASE2_IO_WORKERS,
                             EXIT_MULT_DEFAULT_EV_EBITDA,
                             EXIT_MULT_MIN, EXIT_MULT_MAX,
                             MC_ITERATIONS, MC_GROWTH_SIGMA_RATIO, MC_GROWTH_SIGMA_FLOOR,
-                            MC_WACC_SIGMA,
+                            MC_WACC_SIGMA, MC_ERP_SIGMA, MC_DISCOUNT_SIGMA_MAX,
                             MC_TERMINAL_GROWTH_SIGMA, MC_EXIT_MULT_SIGMA_RATIO,
                             MC_HIGH_DIVERGENCE_SIGMA_MULT, MC_WACC_TG_CORRELATION,
                             DDM_HIGH_GROWTH_YEARS, DDM_BLEND_WEIGHT,
@@ -497,6 +497,36 @@ def _select_epv_ebit(point_ebit, yf_revenue, op_margin_avg_10y,
     if point_ebit is None:
         return None, None
     return point_ebit, 'point'
+
+
+def _mc_discount_sigmas(beta_diag, erp, floor, wacc=None, cost_of_equity=None):
+    """Monte Carlo sigmas for (WACC, cost of equity): how uncertain the
+    discount rate's ESTIMATE is, not how volatile the stock is.
+
+    Re = rf + beta * ERP, so its estimation error combines beta's posterior
+    standard error (the shrinkage weight times the regression SE; the prior
+    SD when no SE exists, e.g. Yahoo's beta) times ERP with the ERP's own
+    uncertainty times beta. WACC carries Re's error scaled by WACC / Re, an
+    upper bound on E/V (the after-tax cost of debt sits below Re). Both are
+    floored at `floor` (MC_WACC_SIGMA plus the macro adjustment) and capped
+    at MC_DISCOUNT_SIGMA_MAX. Without a CAPM beta (GGM / build-up cost of
+    equity) both are the floor.
+    """
+    beta = (beta_diag or {}).get('shrunk_beta')
+    if not isinstance(beta, (int, float)) or not np.isfinite(beta) or beta <= 0:
+        return floor, floor
+    se, w = beta_diag.get('se_beta'), beta_diag.get('shrink_weight')
+    if isinstance(se, (int, float)) and np.isfinite(se) and se >= 0:
+        w = w if isinstance(w, (int, float)) and 0 <= w <= 1 else 1.0
+        beta_sd = np.sqrt(w) * se
+    else:
+        beta_sd = BETA_PRIOR_SD
+    re_sigma = float(np.hypot(beta_sd * erp, beta * MC_ERP_SIGMA))
+    scale = 1.0
+    if wacc and cost_of_equity and cost_of_equity > 0:
+        scale = min(1.0, max(0.0, wacc / cost_of_equity))
+    clamp = lambda s: min(max(s, floor), max(MC_DISCOUNT_SIGMA_MAX, floor))  # noqa: E731
+    return clamp(re_sigma * scale), clamp(re_sigma)
 
 
 def _rescale_fv_band(row, ratio):
@@ -4038,10 +4068,9 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             _rolling_beta_diag   = (beta_diag or {}).get('rolling_betas') or {}
 
             if _local_close is not None and len(_local_close) > 60:
-                # 1. Realized volatility (252-day) → replaces fixed MC_WACC_SIGMA
-                #    Not staleness-gated: it feeds the MC WACC sigma, and a
-                #    slightly stale vol estimate is better than reverting to
-                #    the fixed default.
+                # 1. Realized volatility (252-day), a reported risk metric.
+                #    Not staleness-gated. It no longer feeds the MC WACC
+                #    sigma (see _mc_discount_sigmas).
                 _ticker_realized_vol = _realized_vol(_local_close)
 
                 # 2. 12-minus-1 month momentum now comes from _price_metrics,
@@ -4064,12 +4093,11 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                         beta_diag['rolling_betas'] = _rolling_beta_diag
                         beta_diag['rolling_source'] = 'parquet'
 
-            # Use ticker realized vol for MC WACC sigma (floor at macro-adjusted base)
-            _effective_wacc_sigma_ticker = effective_wacc_sigma
-            if _ticker_realized_vol is not None:
-                # WACC sigma ≈ 30% of realized equity vol (equity → WACC dampening)
-                _rv_wacc = _ticker_realized_vol * 0.30
-                _effective_wacc_sigma_ticker = max(effective_wacc_sigma, min(_rv_wacc, 0.04))
+            # MC discount-rate sigmas from the cost of equity's estimation
+            # error, floored at the macro-adjusted base (_mc_discount_sigmas).
+            _mc_wacc_sigma, _mc_re_sigma = _mc_discount_sigmas(
+                beta_diag, effective_erp, effective_wacc_sigma,
+                wacc=wacc, cost_of_equity=cost_of_equity)
 
             # Gross margin (moat gate) and ROIC consistency
             gross_margin = _compute_gross_margin(yf_data)
@@ -4229,7 +4257,7 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 exit_multiple=sector_exit_multiples.get(sector, effective_exit_mult_default),
                 roic_data=roic_data,
                 terminal_growth_adj=effective_tg_adj,
-                wacc_sigma=_effective_wacc_sigma_ticker,
+                wacc_sigma=_mc_wacc_sigma,
                 tg_sigma=MC_TERMINAL_GROWTH_SIGMA,
                 growth_sigma_mult=effective_growth_sigma_mult,
                 growth_weight_shift=effective_growth_weight_shift,
@@ -4247,7 +4275,7 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 yf_data, div_series, re_for_models,
                 analyst_ltg=growth_diag.get('analyst_ltg'),
                 terminal_growth_adj=effective_tg_adj,
-                re_sigma=_effective_wacc_sigma_ticker,
+                re_sigma=_mc_re_sigma,
                 tg_sigma=MC_TERMINAL_GROWTH_SIGMA,
                 growth_sigma_mult=effective_growth_sigma_mult,
                 seed=seed_from_ticker(ticker))

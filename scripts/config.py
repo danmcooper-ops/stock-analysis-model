@@ -89,7 +89,16 @@ MC_GROWTH_SIGMA_RATIO = 0.30    # Growth sigma = 30% of point estimate ...
 # and jumped to a 2pp fallback at exactly 0%, so stagnant and declining
 # businesses read as the most predictable ones.
 MC_GROWTH_SIGMA_FLOOR = 0.02
-MC_WACC_SIGMA = 0.01            # WACC sigma = 1 percentage point
+MC_WACC_SIGMA = 0.01            # WACC sigma = 1 percentage point (floor; see below)
+# Per-ticker discount-rate sigma is the cost of equity's ESTIMATION error:
+# beta's posterior standard error x ERP, combined with the ERP's own
+# uncertainty x beta, scaled to WACC by WACC / Re (>= E/V). It replaced
+# 0.30 x realized equity vol capped at 4pp, which hit the cap on 98.8% of
+# rows (2026-10-22): a flat 4pp for everyone that put 88% of DCF rows at MC
+# confidence LOW. A stock's return volatility is not uncertainty about its
+# expected return. MC_WACC_SIGMA (plus the macro adjustment) stays the floor.
+MC_ERP_SIGMA = 0.01
+MC_DISCOUNT_SIGMA_MAX = 0.03
 MC_TERMINAL_GROWTH_SIGMA = 0.005 # Terminal growth sigma = 0.5pp
 MC_EXIT_MULT_SIGMA_RATIO = 0.15 # Exit multiple sigma = 15% of point estimate
 MC_HIGH_DIVERGENCE_SIGMA_MULT = 1.5  # Widen sigma 50% if TV methods diverge >30%
