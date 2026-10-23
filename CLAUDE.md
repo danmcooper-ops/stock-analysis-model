@@ -856,7 +856,10 @@ ruff check .
   INSUFFICIENT; a coverage-degraded run shows nothing. Shown on Financial
   Model › ETF Valuations (all 14; the sub-tab beside Dashboard and Stock
   Valuations, the gate matrix's tab label) and each sector's Overview
-  tab (its own SPDR; lifts, drags and rating mix, no holdings table); written to `output/etfs_<date>.json`. Display only: no fund is
+  tab (its own SPDR; a price chart against SPY, rebased to 0% at the
+  range start, from the SPDRs' `px/` shards, which `build_html` ships beside
+  the stocks' though they are never rows; then lifts, drags and rating mix,
+  no holdings table); written to `output/etfs_<date>.json`. Display only: no fund is
   rated, and an ETF must never reach `profile_verdict` (its −20% MoS AVOID
   flag would fire on nearly every fund). `ETF_HOLDINGS_DIR` overrides the
   archive path. Tests: `tests/test_etf_lookthrough.py`.

@@ -41,3 +41,13 @@ def test_market_regime_card_is_on_the_macro_overview_only():
     src = _tpl()
     body = src.split('function renderMacro(){', 1)[1].split('\n}\n', 1)[0]
     assert "var h=curMacSub==='overview'?_macRegimeHTML(true):'';" in body
+
+
+def test_sector_etf_section_charts_the_fund_against_spy():
+    src = _tpl()
+    fn = src.split('function renderPoolEtf(sec){', 1)[1].split('\n}\n', 1)[0]
+    assert '_etfcBox(t)+_etfDetail(r)' in fn
+    # Redrawn with the pool charts: on render, sub-tab switch and resize.
+    assert src.split('function _pphDrawAll(root){', 1)[1].lstrip().startswith('_etfcDrawAll(root);')
+    py = (Path(__file__).resolve().parents[1] / 'scripts' / 'report_html.py').read_text(encoding='utf-8')
+    assert 'for _ftk, _fsec in etf_holdings.SPDR_FUNDS.items():' in py
