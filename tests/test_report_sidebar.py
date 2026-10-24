@@ -471,3 +471,18 @@ def test_tooltips_stay_until_a_click_elsewhere():
     assert "}else if(_pinEl||_pt.style.display==='block'){_hideTipP();}" in src
     assert "document.addEventListener('click',function(e){if(!dm.contains(e.target))_hideTipP();},true);" in src
     assert "  if(!th){_hideColTip();return;}\n  if(!_isTouchDevice)return;" in src
+
+
+def test_statements_open_full_screen_with_a_close_x():
+    """The statement card's title band has an expand button beside the PDF
+    export; it puts the Finances pane (switch included) full screen above the
+    top bar, and the ×, Escape, another tab or closing the page ends it."""
+    src = (Path(__file__).resolve().parent.parent / 'templates' / 'report.html').read_text(encoding='utf-8')
+    assert 'class="stmt-pdf-btn stmt-fs-btn" onclick="stmtFsToggle(true)"' in src
+    assert 'class="stmt-pdf-btn stmt-fs-x" onclick="stmtFsToggle(false)"' in src
+    assert "if(p)p.classList.toggle('stmt-fs',_stmtFs);" in src
+    assert '#d-pane-stmt.stmt-fs{position:fixed;inset:0;' in src
+    assert 'html.stmt-fs-open #det-modal{z-index:1550;}' in src
+    assert "if(e.key==='Escape'&&_stmtFs){e.preventDefault();stmtFsToggle(false);return;}" in src
+    assert "if(_stmtFs&&k!==DT_FIN.k)stmtFsToggle(false);" in src
+    assert '_detHdrReset();if(_stmtFs)stmtFsToggle(false);' in src
