@@ -810,10 +810,11 @@ ruff check .
   headwind for Financials and "defensive flows" active tailwinds for Consumer
   Defensive and Utilities; the 10-year had 65, so 5.12% read mid-pack. Those
   three credit forces now read the NFCI, and Financials' yield-curve
-  tailwind reads 10Y−3M. On the Broad Sector Outlook the groups are the
-  macro narrative's view ("Macro view: …") and each row's label is the
-  structural balance ("Structural: …"), named apart because they can
-  disagree. A year's move counts only past `MOVE_NOISE_SD` (0.25) of the
+  tailwind reads 10Y−3M. On the Broad Sector Outlook each sector is its
+  own folding group (A–Z), naming the macro narrative's view ("Macro view:
+  …") and the structural balance ("Structural: …") side by side, because
+  they can disagree; grouping sectors under the macro stance put one read
+  as a heading over the other. A year's move counts only past `MOVE_NOISE_SD` (0.25) of the
   window's spread: in a bunched series NFCI -0.53 -> -0.50 had read
   "building". The two defensive-flows forces (Consumer Defensive,
   Utilities) read their SPDR's return against SPY (`sector_data` rs_1m/3m/
@@ -1285,10 +1286,11 @@ by analyze_stock and gitignored):
   tiles (the eight it had repeated Rates, Inflation, Growth and Credit). The narrative's per-sector stances and
   influence paragraphs are read on Sector Analysis › Overview (the first
   sub-tab, key `__performance__`), in the Broad Sector Outlook
-  (`renderSectorOutlook`): sectors grouped by the narrative's stance, each
-  row naming its force balance and dominant structural tailwind/headwind
-  (largest weight × reach, as `force_balance` sums them), its macro read,
-  and Research more into the filtered Stock Valuations. The Macro Overview
+  (`renderSectorOutlook`): one folding group per sector, A–Z, naming its
+  macro view (the narrative's stance) and its structural force balance side
+  by side; open, its macro read, dominant structural tailwind/headwind
+  (largest weight × reach, as `force_balance` sums them) and Research more
+  into the filtered Stock Valuations. The Macro Overview
   does not repeat it. A pre-v7 cache has no
   `bottom_line`/`watch` and shows its headwinds/tailwinds as The balance. The Sector Analysis tabs carry no
   macro narrative; their Sector Headwinds & Tailwinds block is the
