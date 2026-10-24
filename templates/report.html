@@ -8334,8 +8334,12 @@ document.addEventListener('click',function(e){
    fades. Measurements are refreshed when the band's content changes (a new
    ticker, the day change landing), on resize, and on open. Touch only:
    with a mouse the band stays as rendered. */
-var _hdr={on:false,hExp:0,hMin:0,st:0,raf:0};
+var _hdr={on:false,pin:false,hExp:0,hMin:0,st:0,raf:0};
 var _HDR_TOUCH=window.matchMedia?window.matchMedia('(hover:none) and (pointer:coarse)'):null;
+/* A phone on its side: the expanded band is taller than the screen, so
+   .d-body has no room to scroll and the collapse could never start. There
+   the band is pinned collapsed from the moment the page opens. */
+var _HDR_SHORT=window.matchMedia?window.matchMedia('(max-height:520px)'):null;
 function _detHdrEls(){
   var dm=document.getElementById('det-modal');
   return dm?{dm:dm,band:dm.querySelector('.d-header-band'),body:dm.querySelector('.d-body'),
@@ -8367,20 +8371,22 @@ function _detHdrMeasure(){
   e.band.style.height=h;
   _hdr.on=_hdr.hExp-_hdr.hMin>8;
   if(!_hdr.on){_detHdrReset();return;}
+  _hdr.pin=!!(_HDR_SHORT&&_HDR_SHORT.matches);
   _detHdrApply();
 }
 function _detHdrApply(){
   _hdr.raf=0;
   var e=_detHdrEls();if(!e||!_hdr.on)return;
   var d=_hdr.hExp-_hdr.hMin;
-  var c=Math.max(0,Math.min(d,_hdr.st)),p=c/d;
+  var c=_hdr.pin?d:Math.max(0,Math.min(d,_hdr.st)),p=c/d;
   /* Untouched at the top: natural height and no clipping, so the band can
      reflow and its top-row popovers can overhang it. */
   e.band.style.height=c>0?(_hdr.hExp-c)+'px':'';
   e.dm.classList.toggle('hdr-live',c>0);
   /* Only .d-body's own scroll is compensated; a statement table scrolling
      inside its .dtr-wrap is sized to the space left, so it just gains it. */
-  if(e.hc)e.hc.style.height=(_hdr.src==='body'?c:0)+'px';
+  /* Pinned, nothing scrolled to make the room, so nothing to give back. */
+  if(e.hc)e.hc.style.height=(_hdr.src==='body'&&!_hdr.pin?c:0)+'px';
   e.dm.style.setProperty('--hp',p.toFixed(4));
   e.dm.classList.toggle('hdr-min',p>=0.5);
 }
@@ -8426,6 +8432,7 @@ function _detCompactSync(){
   }).observe(e.dm,{attributes:true,attributeFilter:['class']});
   window.addEventListener('resize',later);
   if(_HDR_TOUCH&&_HDR_TOUCH.addEventListener)_HDR_TOUCH.addEventListener('change',later);
+  if(_HDR_SHORT&&_HDR_SHORT.addEventListener)_HDR_SHORT.addEventListener('change',later);
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(later);
 })();
 function _cmSum(k,txt){var s=document.getElementById(k+'-cm-sum');if(s)s.textContent=txt;}
