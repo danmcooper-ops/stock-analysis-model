@@ -1273,14 +1273,14 @@ by analyze_stock and gitignored):
   keyless `fredgraph.csv` endpoint)
 - `MACRO_ANTHROPIC_API_KEY` — optional; enables the Claude-generated macro
   narrative — the story on the Macro Outlook tab's Overview (skipped
-  cleanly when unset: the tab renders without it). The Overview is one
-  card, The Economy, read as one narrative: the call (`bottom_line`, which
-  names the regime, so no separate regime name or gloss unless there is no
-  bottom line), why (the three economy sections, each a lead sentence and
-  bullets ending in a Full charts link to its sub-tab, which charts every
-  number once; the Overview no longer repeats them as figures), what would
-  change it (`watch`), and last the regime model's inputs (Regime signals,
-  with the composite). Each indicator's
+  cleanly when unset: the tab renders without it). The Overview is three
+  cards read top down: The Economy (the call, `bottom_line`, which names the
+  regime, so no separate regime name or gloss unless there is no bottom
+  line; then the regime model's inputs, Regime signals with the composite,
+  and the scoring ?), The Conditions (the three economy sections, each a
+  lead sentence and bullets ending in a Full charts link to its sub-tab,
+  which charts every number once) and What to Watch (`watch`, with the
+  byline). Each indicator's
   card lives once, on its section sub-tab; the Overview has no headline
   tiles (the eight it had repeated Rates, Inflation, Growth and Credit). The narrative's per-sector stances and
   influence paragraphs are read on Sector Analysis › Overview (the first

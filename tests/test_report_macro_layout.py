@@ -127,20 +127,19 @@ def test_macro_overview_reads_top_down():
     inside the regime card."""
     css = _css()
     body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S).group(0)
-    # One card: the regime with the narrative inside it, or the narrative
-    # alone when there is no regime.
-    assert '_macRegimeHTML(true)||_macNarrativeHTML(false)' in body
+    # Three cards: The Economy (the call), The Conditions, What to Watch.
+    assert '_macRegimeHTML(true)+_macNarrativeHTML()' in body
     assert 'Key numbers' not in body and 'mac-tiles' not in body
     reg = re.search(r'function _macRegimeHTML\(full\).*?\n\}\n', css, re.S).group(0)
     assert "if(full&&_nar&&_nar.bottom_line)" in reg
     assert '_esc(_nar.bottom_line)' in reg
     # The call leads; the regime's name shows only without a bottom line;
-    # the signals go last, inside the narrative before its byline.
+    # the regime signals close The Economy card.
     assert '<div class="sec-label">The Economy</div>' in reg
     assert reg.find('mac-lead') < reg.find('mac-regime-name')
-    assert 'h+=full?_macNarrativeHTML(true,sig):sig;' in reg
-    nar = re.search(r'function _macNarrativeHTML\(inner,tail\).*?\n\}\n', css, re.S).group(0)
-    order = [nar.find(x) for x in ('>The Economy<', '>What to watch<', 'min read')]
+    assert 'h+=sig;' in reg and '_macNarrativeHTML(' not in re.sub(r'/\*.*?\*/', '', reg, flags=re.S)
+    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
+    order = [nar.find(x) for x in ('>The Conditions<', '>What to Watch<', 'min read')]
     assert all(i >= 0 for i in order) and order == sorted(order)
     assert 'Broad Sector Outlook<' not in nar, 'the sector read lives on Sector Analysis only'
 
@@ -150,7 +149,7 @@ def test_macro_narrative_escapes_every_model_string():
     interpolation of them must pass through _esc(), and the stance value may
     only reach a class attribute through the whitelist lookup."""
     css = _css()
-    m = re.search(r'function _macNarrativeHTML\(inner,tail\).*?\n\}\n', css, re.S)
+    m = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
     assert m, 'could not find _macNarrativeHTML'
     body = m.group(0)
     # every read of a narrative field that lands in HTML is wrapped in _esc(
@@ -180,7 +179,7 @@ def test_macro_narrative_is_lead_paragraphs_with_bullets():
     The split is done client-side from the model's paragraphs, so cached
     narratives render the same way."""
     css = _css()
-    nar = re.search(r'function _macNarrativeHTML\(inner,tail\).*?\n\}\n', css, re.S)
+    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
     assert nar, 'could not find _macNarrativeHTML'
     nar = nar.group(0)
     assert '_macSentences(p)' in nar
@@ -214,7 +213,7 @@ def test_macro_narrative_sectors_live_on_the_sector_overview():
     opening its influence (escaped, never in an attribute). An older
     narrative without `watch` keeps The balance."""
     css = _css()
-    nar = re.search(r'function _macNarrativeHTML\(inner,tail\).*?\n\}\n', css, re.S).group(0)
+    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
     assert 'renderSectorOutlook(' not in nar
     assert "watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});" in nar
     assert 'The balance' in nar, 'a pre-v7 narrative keeps its winds'
@@ -276,10 +275,10 @@ def test_macro_overview_does_not_repeat_section_charts():
     assert '_mSparkSVG' not in css and '_macZoomAttrs(' not in body, 'no headline tiles on the Overview'
     card = re.search(r'function _macCardHTML\(id,s\).*?\n\}\n', css, re.S).group(0)
     assert '_macZoomAttrs(id,s.l)' in card and '_MAC_EXP' in card, 'so does every section card'
-    nar = re.search(r'function _macNarrativeHTML\(inner,tail\).*?\n\}\n', css, re.S).group(0)
+    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
     assert '_macNarFigure' not in css and 'mac-fig' not in css
     assert 'Full charts' in nar and "navGo(\\'macro\\'" in nar
-    assert nar.find('mac-watch') < nar.find("h+=tail||''") < nar.find('mac-nar-foot')
+    assert nar.find('mac-watch') < nar.find('mac-nar-foot')
     sec = re.search(r'function _macSectionHTML\(k\).*?\n\}\n', css, re.S)
     assert sec and "k==='rates'&&MACRO.curve" in sec.group(0)
 
