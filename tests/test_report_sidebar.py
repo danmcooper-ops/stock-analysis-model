@@ -459,3 +459,15 @@ def test_tab_strips_do_not_rubber_band():
     made the strip 1px taller than its box) and without the bounce."""
     src = (Path(__file__).resolve().parent.parent / 'templates' / 'report.html').read_text(encoding='utf-8')
     assert '.d-tabs,.d-stmt-tabs,.sn-chips,.secondary-nav{overflow-y:hidden;overscroll-behavior:none;}' in src
+
+
+def test_tooltips_stay_until_a_click_elsewhere():
+    """A ticker-page tip (tap on iOS, hover or click on a Mac) and a column
+    header tip stay up until the reader clicks or taps somewhere else: no
+    auto-dismiss timer, and leaving the label does not hide it."""
+    src = (Path(__file__).resolve().parent.parent / 'templates' / 'report.html').read_text(encoding='utf-8')
+    assert '_ptAutoTimer=setTimeout' not in src and '_CT_TAP_MS' not in src
+    assert "dm.addEventListener('mouseout'" not in src
+    assert "}else if(_pinEl||_pt.style.display==='block'){_hideTipP();}" in src
+    assert "document.addEventListener('click',function(e){if(!dm.contains(e.target))_hideTipP();},true);" in src
+    assert "  if(!th){_hideColTip();return;}\n  if(!_isTouchDevice)return;" in src
