@@ -502,3 +502,13 @@ def test_ticker_band_starts_collapsed_on_a_phone_on_its_side():
     assert '_hdr.pin=!!(_HDR_SHORT&&_HDR_SHORT.matches);' in src
     assert 'var c=_hdr.pin?d:Math.max(0,Math.min(d,_hdr.st)),p=c/d;' in src
     assert "if(e.hc)e.hc.style.height=(_hdr.src==='body'&&!_hdr.pin?c:0)+'px';" in src
+
+
+def test_full_screen_statement_is_titled_with_the_company():
+    """Full screen titles the card with the company name (the switch above
+    already names the statement); the normal view keeps the statement name."""
+    src = (Path(__file__).resolve().parent.parent / 'templates' / 'report.html').read_text(encoding='utf-8')
+    assert "+(withPdf&&co?'<span class=\"sec-label stmt-lbl-co\">'+esc(co)+'</span>':'')" in src
+    assert "note+'</div>',true,d.company_name||d.ticker);" in src
+    assert '#det-modal .stmt-lbl-co{display:none;}' in src
+    assert '#d-pane-stmt.stmt-fs .dg-icon+.sec-label:has(+.stmt-lbl-co){display:none;}' in src

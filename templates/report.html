@@ -2915,6 +2915,10 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
    at every width, not only on phones. */
 #det-modal .stmt-fs-btn,#det-modal .stmt-fs-x{margin-left:6px;}
 #det-modal .stmt-fs-x{display:none;}
+#det-modal .stmt-lbl-co{display:none;}
+#d-pane-stmt.stmt-fs .stmt-lbl-co{display:inline-block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  text-transform:none;letter-spacing:0.01em;font-size:0.95rem;}
+#d-pane-stmt.stmt-fs .dg-icon+.sec-label:has(+.stmt-lbl-co){display:none;}
 #d-pane-stmt.stmt-fs .stmt-fs-btn{display:none;}
 #d-pane-stmt.stmt-fs .stmt-fs-x{display:inline-flex;}
 #d-pane-stmt.stmt-fs .stmt-fs-x svg{width:15px;height:15px;}
@@ -10552,12 +10556,15 @@ function _renderDetDataTab(key){
       and spelled out in the footnote. Filed lines are never mixed with
       arithmetic, and nothing is back-solved out of model outputs — an
       "assets" figure inferred from ROA is not a balance sheet. */
-function _stmtShell(meta,inner,withPdf){
+function _stmtShell(meta,inner,withPdf,co){
   /* The export button rides the title band (right-justified via the band's
      flex), only when the tab actually rendered a statement — an empty or
      still-loading pane offers nothing to export. */
   return '<div class="dgroup"><div class="dgroup-title" style="background:linear-gradient(90deg,#0b5351,#12876f)">'
     +'<span class="dg-icon"></span><span class="sec-label">'+esc(meta.l)+'</span>'
+    /* Full screen names the company instead: the switch above already says
+       which statement, and nothing else on screen says whose it is. */
+    +(withPdf&&co?'<span class="sec-label stmt-lbl-co">'+esc(co)+'</span>':'')
     +(withPdf?'<button class="stmt-pdf-btn" onclick="exportStmtPdf()"'
       +' aria-label="Export the Balance Sheet, Income Statement and Cash Flow Statement to PDF"'
       +' title="Export this company’s Balance Sheet, Income Statement and Cash Flow Statement to PDF — opens the print dialog; choose “Save as PDF”. Only these three statements are exported.">'
@@ -10969,7 +10976,7 @@ function _renderDetStmtTab(key){
      phones it is the end of the scrolling pane, not page content below it —
      scrolling the page to reach it would carry the frozen header away. */
   var note='<div class="stmt-note">'+esc(t.note)+'</div>';
-  el.innerHTML=_stmtShell(meta,'<div class="dtr-wrap"><table class="dtr-tbl stmt-tbl">'+t.headRow+t.body+'</table>'+note+'</div>',true);
+  el.innerHTML=_stmtShell(meta,'<div class="dtr-wrap"><table class="dtr-tbl stmt-tbl">'+t.headRow+t.body+'</table>'+note+'</div>',true,d.company_name||d.ticker);
   _stmtFitWrap();
 }
 /* Phones: cap the statement wrap to the popup body's height less the title
