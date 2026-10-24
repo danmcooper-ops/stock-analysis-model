@@ -189,17 +189,18 @@ def test_concentration_tile_stands_on_either_half(tmp_path):
     assert _render(None, _TILES, tmp_path, {}) == ''
 
 
-def _render_signals(entry, tmp_path, stored=None, data=None):
+def _render_signals(entry, tmp_path, stored=None, data=None, macro=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
              '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
              '_ppfThChev', '_ppfCard', '_ppfLive', '_windState', '_windGroup', '_ppfColSum', '_ppfCol', '_qHelp', '_windMatrixLi',
-             '_noteQ', 'renderPoolSectorSignals']
+             '_noteQ', '_ppfMacroRead', 'renderPoolSectorSignals']
     consts = '\n'.join(re.search(r'^var %s=.*$' % v, src, re.M).group(0)
                        for v in ('_PPF_ST', '_PPF_ORDER', '_PPF_TYPE'))
     store = ('var localStorage={getItem:function(){return %s;}};' % json.dumps(json.dumps(stored))
              if stored is not None else '')
-    js = '\n'.join([store + "var RC={'BUY':'#1a9850','PASS':'#de2d26'};var DATA=" + json.dumps(data or []) + ";",
+    js = '\n'.join([store + "var RC={'BUY':'#1a9850','PASS':'#de2d26'};var DATA=" + json.dumps(data or []) + ";"
+                    + 'var MACRO_SUM=' + json.dumps(macro) + ';var MACRO=null;',
                     'function _esc(s){return String(s);}function _attr(s){return String(s);}'
                     'function _linkifyTickers(s){return s;}',
                     consts] + [_fn(src, n) for n in names]
@@ -252,6 +253,26 @@ def test_nothing_is_hidden_behind_expand_or_collapse(tmp_path):
 def test_signals_fall_back_to_the_plain_lists(tmp_path):
     html = _render_signals({'headwinds': ['A — x'], 'tailwinds': ['B — y']}, tmp_path)
     assert '<li' in html and 'ppf' not in html
+
+
+def test_drivers_carry_the_macro_read(tmp_path):
+    """The Macro Outlook's read of the sector sits on its Drivers tab, one
+    line above the structural forces: the stance through the whitelist,
+    the headline and influence escaped. No narrative row, no line."""
+    from models.sector_forces import evaluate_forces
+    from tests.test_sector_forces import _entry
+    entry = {'forces': evaluate_forces('Real Estate', None, _entry(0.14), [])}
+    macro = {'narrative': {'sectors': [
+        {'sector': 'Real Estate', 'stance': 'headwind', 'headline': 'Rates bite.', 'influence': 'Cap rates rise.'},
+        {'sector': 'Energy', 'stance': 'tailwind', 'influence': 'E'}]}}
+    html = _render_signals(entry, tmp_path, macro=macro)
+    line = '<div class="ppf-mkt ppf-macro">Macro read: <b>Headwind</b>. <i>Rates bite.</i> Cap rates rise.</div>'
+    assert line in html and html.index(line) < html.index('<div class="ppf-cols">')
+    macro['narrative']['sectors'][0]['stance'] = '<script>'
+    assert 'Macro read: <b>Neutral</b>.' in _render_signals(entry, tmp_path, macro=macro)
+    assert 'Macro read' not in _render_signals(entry, tmp_path)
+    src = TEMPLATE.read_text(encoding='utf-8')
+    assert "STANCE={tailwind:'Tailwind',headwind:'Headwind'},st=STANCE[row.stance]||'Neutral';" in src
 
 
 def test_market_check_names_the_unit_without_the_3_month_reading(tmp_path):

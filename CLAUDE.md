@@ -1278,11 +1278,12 @@ by analyze_stock and gitignored):
   which charts every number once) and What to Watch (`watch`). No card
   carries a byline or reading-time caption. Each indicator's
   card lives once, on its section sub-tab; the Overview has no headline
-  tiles (the eight it had repeated Rates, Inflation, Growth and Credit). The narrative's per-sector stances and
-  influence paragraphs are not rendered: the Broad Sector Outlook that
-  showed them on Sector Analysis › Overview (key `__performance__`) was
-  removed as noise beside each sector's Drivers tab, so that tab now opens
-  on Sector Price Comparison. A pre-v7 cache has no
+  tiles (the eight it had repeated Rates, Inflation, Growth and Credit). The narrative's per-sector stance, headline
+  and influence paragraph are one "Macro read" line on each sector's
+  Drivers tab (`_ppfMacroRead`, under the Market check, stance through a
+  whitelist). The Broad Sector Outlook that once listed them all on
+  Sector Analysis › Overview (key `__performance__`) was removed as noise,
+  so that tab opens on Sector Price Comparison. A pre-v7 cache has no
   `bottom_line`/`watch` and shows its headwinds/tailwinds as The balance. The Sector Analysis tabs carry no
   macro narrative; their Sector Headwinds & Tailwinds block is the
   sector's own structural read, and each influence paragraph weighs
