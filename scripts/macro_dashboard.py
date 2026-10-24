@@ -1,9 +1,10 @@
 """Builder for the Macro Outlook dashboard tab.
 
-Fetches a curated set of FRED series through data/fred_client.FREDClient,
-applies transforms (YoY, MoM diff, scaling), computes numeric context
-(latest, prior, 1M/1Y change, historical percentile, z-score), downsamples
-long daily histories, and emits:
+Fetches a curated set of FRED series through data/fred_client.FREDClient
+(plus gold and silver, which FRED does not carry, from Yahoo), applies
+transforms (YoY, MoM diff, scaling), computes numeric context (latest,
+prior, 1M/1Y change, historical percentile, z-score), downsamples long
+daily histories, and emits:
 
   - a small inline ``summary`` (regime + headline tiles + sparklines) that
     is Jinja-injected so the tab paints instantly, and
@@ -11,7 +12,7 @@ long daily histories, and emits:
     the tab opens.
 
 All transforms are pure functions on {date: value} dicts so they are
-testable offline; network happens only through the injected client.
+testable offline; network happens only through the injected clients.
 """
 
 import sys
@@ -25,7 +26,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # suffix (display unit appended after the number), good (which direction
 # colors green: up|down|none), scale (multiply raw FRED value before
 # anything else — FRED units vary per series), years (optional history
-# window for a monthly series whose full history is too long to rank on).
+# window for a monthly series whose full history is too long to rank on),
+# yf (optional: a Yahoo symbol fetched through the builder's ``yahoo``
+# client instead of FRED, for the few series FRED does not carry).
 MACRO_SERIES = [
     # --- Rates & Curve ---
     dict(id='DGS10', l='10Y Treasury', sec='rates', freq='d', tr='level',
@@ -97,9 +100,7 @@ MACRO_SERIES = [
     # metal, timber and crop input costs of Utilities, Industrials, airlines,
     # homebuilders, chemicals and Consumer Defensive; the sector page's
     # commodity headwinds and tailwinds read their status from these. Grouped
-    # energy, metals, farm and forest, then the broad index. FRED only: the
-    # dashboard fetches every series through FREDClient, and FRED dropped the
-    # LBMA gold and silver fixes in 2022, so there is no precious-metals card.
+    # energy, metals, farm and forest, then the broad index.
     dict(id='DCOILWTICO', l='WTI Crude ($/bbl)', sec='commodities', freq='d',
          tr='level', fmt='n1', suffix='', good='none', scale=1),
     dict(id='DCOILBRENTEU', l='Brent Crude ($/bbl)', sec='commodities',
@@ -117,6 +118,22 @@ MACRO_SERIES = [
          freq='m', tr='level', fmt='n1', suffix='', good='none', scale=1),
     dict(id='PURANUSDM', l='Uranium ($/lb)', sec='commodities', freq='m',
          tr='level', fmt='n1', suffix='', good='none', scale=1),
+    # BLS average retail price of a kilowatt-hour, US city average: what
+    # households and small businesses pay, and the revenue line of regulated
+    # utilities. Shown in cents (BLS publishes dollars). Its history starts
+    # in 1978, so like the PPIs below it is read over ~35 years of nominal
+    # prices, not the whole span.
+    dict(id='APU000072610', l='Electricity (avg ¢/kWh)', sec='commodities',
+         freq='m', tr='level', fmt='n1', suffix='', good='none', scale=100,
+         years=35),
+    # FRED dropped the LBMA gold and silver fixes in 2022 and carries no other
+    # dollar price for either (its NASDAQ gold FLOWS index is a decaying
+    # futures strategy, not the price), so both are the front COMEX future
+    # from Yahoo.
+    dict(id='GOLD', yf='GC=F', l='Gold ($/oz)', sec='commodities', freq='d',
+         tr='level', fmt='int', suffix='', good='none', scale=1),
+    dict(id='SILVER', yf='SI=F', l='Silver ($/oz)', sec='commodities',
+         freq='d', tr='level', fmt='n2', suffix='', good='none', scale=1),
     dict(id='PCOPPUSDM', l='Copper ($/t)', sec='commodities', freq='m',
          tr='level', fmt='int', suffix='', good='none', scale=1),
     dict(id='PALUMUSDM', l='Aluminum ($/t)', sec='commodities', freq='m',
@@ -415,7 +432,7 @@ def make_narrative_client():
 
 def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
                         sector_data=None, local_rs=None,
-                        narrative_client=None):
+                        narrative_client=None, yahoo=None):
     """Fetch, transform and package everything the Macro Outlook tab needs.
 
     Returns {'summary': small-inline-dict, 'sidecar': macro.json-dict}, or
@@ -426,6 +443,11 @@ def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
     Claude-written narrative of the economy and its per-sector implications
     is attached to the sidecar and summary; any failure there degrades to a
     dashboard without prose, never to no dashboard.
+
+    ``yahoo`` (``fn(symbol, start) -> {date: value}``, e.g.
+    data.macro_client.fetch_yahoo_closes) serves the series that carry a
+    ``yf`` symbol; without it they are skipped, as a FRED series that returns
+    nothing is.
     """
     as_of = as_of or date.today()
     daily_start = as_of - timedelta(days=int(DAILY_HISTORY_YEARS * 365.25))
@@ -437,7 +459,15 @@ def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
                 start = as_of - timedelta(days=int(meta['years'] * 365.25))
             else:
                 start = daily_start if meta['freq'] in ('d', 'w') else None
-            raw = fred.fetch_series(meta['id'], start=start)
+            if meta.get('yf'):
+                raw = yahoo(meta['yf'], start) if yahoo else {}
+            else:
+                raw = fred.fetch_series(meta['id'], start=start)
+            if raw and meta.get('years'):
+                # The client may answer from a cached fuller history (any
+                # earlier fetch without a start), so the window is enforced
+                # here, not left to the request.
+                raw = {d: v for d, v in raw.items() if d >= start}
             if not raw:
                 continue
             entry = _build_series_entry(meta, raw, as_of)

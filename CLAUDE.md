@@ -852,16 +852,23 @@ ruff check .
   a Commodities sub-tab to the Macro tab: energy (`DCOILWTICO` WTI,
   `DCOILBRENTEU` Brent, `GASREGW` retail gasoline, `DJFUELUSGULF` jet fuel,
   `DHHNGSP` Henry Hub and `PNGASEUUSDM` European gas, `PCOALAUUSDM` coal,
-  `PURANUSDM` uranium), metals (`PCOPPUSDM` copper, `PALUMUSDM` aluminum,
+  `PURANUSDM` uranium, `APU000072610` BLS retail electricity in ¢/kWh),
+  metals (gold and silver, `PCOPPUSDM` copper, `PALUMUSDM` aluminum,
   `PNICKUSDM` nickel, `PIORECRUSDM` iron ore, `WPU101` steel PPI), farm and
   forest (`WPU081` lumber PPI, wheat, corn, soybeans, `PFOODINDEXM` IMF food
   index) and `PALLFNFINDEXM` (IMF all-commodity). The two PPIs run back to
-  1926, so a `years=35` key bounds their fetch to the span the IMF series
-  cover rather than ranking against a century of nominal prices. Forces read
+  1926 (electricity to 1978), so a `years=35` key bounds them to the span
+  the IMF series cover rather than ranking against a century of nominal
+  prices; the builder trims to that window itself, because FREDClient
+  answers a later-start request from any fuller cached history. Forces read
   only WTI, copper and food; no force reads gas or the newer series yet
-  (none is themed on them), and there is no gold or silver card: the
-  dashboard fetches only through FREDClient, and FRED dropped the LBMA
-  gold and silver fixes in 2022. `data/fred_client`'s cache is keyed by series id alone but records
+  (none is themed on them). FRED dropped the LBMA gold and silver fixes in
+  2022, so those two cards are the front COMEX futures (`GC=F`, `SI=F`): a
+  `MACRO_SERIES` entry with a `yf` symbol is fetched through
+  `build_macro_payload`'s injected `yahoo` client
+  (`data.macro_client.fetch_yahoo_closes`, one call each per build, after
+  Phase 2); without that client, or on a failed fetch, the card is skipped
+  as an empty FRED series is. `data/fred_client`'s cache is keyed by series id alone but records
   the start it was fetched from, and a request for an earlier start
   misses it, so an ad hoc probe with a later `start` no longer poisons the
   dashboard.

@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from scripts.macro_dashboard import (
     yoy, mom_diff, percentile_rank, zscore, downsample, recession_bands,
     build_macro_payload, make_narrative_client, _sector_facts,
-    MACRO_SERIES, OVERVIEW_IDS,
+    MACRO_SERIES, OVERVIEW_IDS, DAILY_HISTORY_YEARS,
 )
 
 
@@ -156,6 +156,12 @@ def full_stub():
     return StubFRED(table), as_of
 
 
+def _stub_yahoo(fred):
+    """Yahoo client serving each ``yf`` series from the FRED stub's table."""
+    by_symbol = {m['yf']: m['id'] for m in MACRO_SERIES if m.get('yf')}
+    return lambda symbol, start: fred.fetch_series(by_symbol[symbol])
+
+
 class _StartRecordingFRED(StubFRED):
     def __init__(self, table=None):
         super().__init__(table)
@@ -173,17 +179,28 @@ def test_years_window_bounds_long_monthly_histories():
     rec = _StartRecordingFRED(fred.table)
     build_macro_payload(rec, as_of=as_of)
     windowed = [m for m in MACRO_SERIES if m.get('years')]
-    assert {m['id'] for m in windowed} >= {'WPU101', 'WPU081'}
+    assert {m['id'] for m in windowed} >= {'WPU101', 'WPU081', 'APU000072610'}
     for m in windowed:
         assert rec.starts[m['id']] == as_of - timedelta(days=int(m['years'] * 365.25))
     assert rec.starts['PCOPPUSDM'] is None
     assert rec.starts['DCOILWTICO'] is not None
 
 
+def test_years_window_holds_when_the_client_returns_more():
+    # FREDClient serves a cached full history to a later-start request, so
+    # the builder trims to the window itself: electricity's history starts
+    # in 1978 and must not be ranked over all of it.
+    fred, as_of = full_stub()
+    fred.table['APU000072610'] = _monthly(1978, 48 * 12, base=5.0, step=0.02)
+    sc = build_macro_payload(fred, as_of=as_of)['sidecar']
+    first = sc['series']['APU000072610']['hist']['d'][0]
+    assert first >= (as_of - timedelta(days=int(35 * 365.25))).isoformat()
+
+
 class TestBuildMacroPayload:
     def test_schema_and_summary(self):
         fred, as_of = full_stub()
-        p = build_macro_payload(fred, as_of=as_of)
+        p = build_macro_payload(fred, as_of=as_of, yahoo=_stub_yahoo(fred))
         assert p is not None
         sc = p['sidecar']
         assert sc['as_of'] == '2026-08-22'
@@ -209,6 +226,48 @@ class TestBuildMacroPayload:
             hist = sc['series'][t['id']]['hist']
             assert t['spark_d'] == hist['d'][-len(t['spark']):]
             assert t['spark'] == hist['v'][-len(t['spark']):]
+
+    def test_yahoo_series_skipped_without_a_yahoo_client(self):
+        # Gold and silver are not on FRED. Without a Yahoo client their cards
+        # are skipped, and FRED is never asked for an id it does not have.
+        fred, as_of = full_stub()
+        rec = _StartRecordingFRED(fred.table)
+        sc = build_macro_payload(rec, as_of=as_of)['sidecar']
+        yf_ids = {m['id'] for m in MACRO_SERIES if m.get('yf')}
+        assert yf_ids == {'GOLD', 'SILVER'}
+        assert not yf_ids & set(sc['series'])
+        assert not yf_ids & set(rec.starts)
+
+    def test_yahoo_series_fetched_over_the_daily_window(self):
+        fred, as_of = full_stub()
+        asked = {}
+
+        def yahoo(symbol, start):
+            asked[symbol] = start
+            return _stub_yahoo(fred)(symbol, start)
+
+        sc = build_macro_payload(fred, as_of=as_of, yahoo=yahoo)['sidecar']
+        assert set(asked) == {'GC=F', 'SI=F'}
+        assert asked['GC=F'] == as_of - timedelta(
+            days=int(DAILY_HISTORY_YEARS * 365.25))
+        assert {'GOLD', 'SILVER'} <= set(sc['series'])
+        comm = [x for x in sc['sections'] if x['k'] == 'commodities'][0]
+        assert {'GOLD', 'SILVER', 'APU000072610'} <= set(comm['ids'])
+
+    def test_failed_yahoo_fetch_costs_only_its_card(self):
+        fred, as_of = full_stub()
+        sc = build_macro_payload(fred, as_of=as_of,
+                                 yahoo=lambda symbol, start: {})['sidecar']
+        assert 'GOLD' not in sc['series']
+        assert set(sc['series']) == {m['id'] for m in MACRO_SERIES
+                                     if not m.get('yf')}
+
+    def test_electricity_shown_in_cents(self):
+        fred, as_of = full_stub()
+        fred.table['APU000072610'] = {date(2026, m, 1): 0.17 + m / 1000
+                                      for m in range(1, 8)}
+        sc = build_macro_payload(fred, as_of=as_of)['sidecar']
+        assert sc['series']['APU000072610']['latest']['v'] == pytest.approx(17.7)
 
     def test_offline_returns_none(self):
         assert build_macro_payload(StubFRED()) is None
