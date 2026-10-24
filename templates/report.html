@@ -2325,7 +2325,11 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-h>.sec-label{margin:0;}
 /* The Economy: one card, the regime then the narrative (_macOverviewHTML). */
 .mac-narrative.mac-econ-body{flex:1 1 100%;max-width:none;padding:16px 0 0;border-top:1px solid var(--mac-line);margin-top:4px;}
-.mac-econ .mac-regime-main>.sec-label{margin-bottom:12px;}
+.mac-econ .mac-regime-main{flex:1 1 100%;}
+.mac-econ .mac-regime-main>.sec-label{margin-bottom:10px;}
+.mac-lead{font-size:1.05em;line-height:1.6;margin:0;}
+.mac-sig{margin-top:22px;padding-top:14px;border-top:1px solid var(--mac-line);}
+.mac-sig .mac-meters{margin-top:6px;}
 .mac-watch-k{margin-top:22px;padding-top:14px;border-top:1px solid var(--mac-line);}
 .mac-read{flex:1 1 100%;margin:8px 0 0;font-size:0.98em;line-height:1.55;color:inherit;}
 .mac-regime-main{flex:1 1 300px;}
@@ -2351,40 +2355,8 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-nar-neutral b{font-weight:700;}
 .mac-nar-wind.up b{color:var(--mac-up);}.mac-nar-wind.down b{color:var(--mac-down);}
 .mac-nar-foot{font-size:0.72em;color:var(--mac-faint);margin-top:16px;}
-/* --- narrative figures: the indicators each section cites, placed in their own history --- */
-.mac-fig{margin:12px 0 6px;padding:12px 14px 10px;border-radius:10px;background:var(--mac-chip);font-size:0.82em;}
-.mac-fig-head{display:flex;justify-content:space-between;align-items:baseline;gap:4px 12px;flex-wrap:wrap;color:var(--mac-muted);margin-bottom:6px;}
-.mac-fig-key{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
-.mac-fig-k-norm{display:inline-block;width:18px;height:10px;border-radius:3px;background:var(--mac-faint);opacity:0.4;}
-.mac-fig-row,.mac-fig-scale{display:grid;grid-template-columns:minmax(130px,1fr) minmax(0,2.4fr);gap:16px;align-items:center;}
-.mac-fig-row{padding:7px 0;border-top:1px solid var(--mac-line);}
-.mac-fig-scale{color:var(--mac-faint);font-size:0.88em;}
-.mac-fig-lh{display:flex;justify-content:space-between;}
-.mac-fig-viz{display:grid;grid-template-columns:minmax(0,1fr) 168px;gap:14px;align-items:center;}
-.mac-fig-l{display:flex;flex-direction:column;line-height:1.3;min-width:0;}
-.mac-fig-l span{color:var(--mac-muted);}
-.mac-fig-l b{font-size:1.2em;font-variant-numeric:tabular-nums;color:var(--text);}
-.mac-fig-track{position:relative;height:16px;}
-.mac-fig-track::before{content:"";position:absolute;left:0;right:0;top:7px;height:2px;border-radius:1px;background:var(--mac-faint);opacity:0.45;}
-.mac-fig-norm{position:absolute;left:25%;width:50%;top:3px;height:10px;border-radius:3px;background:var(--mac-faint);opacity:0.28;}
-/* The tail fades toward where the reading was a year ago, so it reads as motion. */
-.mac-fig-tail{position:absolute;top:5px;height:6px;border-radius:3px;--c:var(--mac-accent);background:linear-gradient(to right,transparent,var(--c));opacity:0.9;}
-.mac-fig-tail.rev{background:linear-gradient(to left,transparent,var(--c));}
-.mac-fig-ago{position:absolute;top:5px;width:6px;height:6px;margin-left:-3px;border-radius:50%;box-sizing:border-box;border:1.5px solid var(--mac-accent);opacity:0.8;}
-.mac-fig-ago.up{border-color:var(--mac-up);}.mac-fig-ago.down{border-color:var(--mac-down);}
-.mac-fig-now{position:absolute;top:2px;width:12px;height:12px;margin-left:-6px;border-radius:50%;box-sizing:border-box;background:var(--mac-accent);border:2px solid var(--mac-chip);z-index:1;}
-.mac-fig-tail.up{--c:var(--mac-up);}.mac-fig-tail.down{--c:var(--mac-down);}
-.mac-fig-now.up{background:var(--mac-up);}.mac-fig-now.down{background:var(--mac-down);}
-.mac-fig-cap{display:flex;flex-direction:column;align-items:flex-start;gap:3px;line-height:1.25;}
-.mac-fig-cap>span{color:var(--text);font-weight:600;}
-.mac-fig-cap .mac-delta{margin:0;}
-.mac-fig-more{display:inline-block;margin-top:6px;color:var(--mac-accent);font-weight:600;text-decoration:none;}
-.mac-fig-more:hover{text-decoration:underline;}
-@media(max-width:700px){
-  .mac-fig-row,.mac-fig-scale{grid-template-columns:minmax(92px,0.8fr) minmax(0,1.6fr);gap:10px;}
-  .mac-fig-viz{grid-template-columns:1fr;gap:4px;}
-  .mac-fig-scale .mac-fig-viz>span:last-child{display:none;}
-  .mac-fig-cap{flex-direction:row;flex-wrap:wrap;align-items:center;gap:2px 8px;}}
+.mac-more{display:inline-block;margin:4px 0 10px;font-size:0.85em;color:var(--mac-accent);font-weight:600;text-decoration:none;}
+.mac-more:hover{text-decoration:underline;}
 /* --- glance tiles --- */
 .mac-tile{padding:14px 16px;}
 /* Narrative folds (_macFold): phones only; desktop shows it all and no chevron. */
@@ -12732,40 +12704,44 @@ var _MAC_REGIME_NOTE='Each signal scores −1 (warning) to +1 (supportive); its 
 function _macRegimeHTML(full){
   var src=(MACRO&&MACRO.regime)||(MACRO_SUM&&MACRO_SUM.regime);
   if(!src)return '';
-  var col=_MAC_REGIME_STYLE[src.regime]||'#64748b';
-  var name=String(src.regime||'').replace('_',' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
   var comp=src.composite_score;
-  var h='<div class="mac-regime'+(full?' mac-econ':'')+'"><div class="mac-regime-main"><div class="sec-label">The Economy</div>'
-    +'<div class="mac-nar-k">Market regime</div>'
-    +'<div class="mac-regime-name"><span class="mac-regime-dot" style="background:'+col+'"></span>'+_esc(name)+'</div>'
-    +'<div class="mac-regime-gloss">'+(_MAC_REGIME_GLOSS[src.regime]||'')
-    +(comp!=null?' · composite <span>'+(comp>=0?'+':'')+comp.toFixed(2)+'</span>':'')+'</div>';
-  /* The bottom line (narrative schema v7): where the economy is, the tension
-     that matters, and why the signals read as they do. Overview only. */
+  var cs=comp!=null?(comp>=0?'+':'')+comp.toFixed(2):'';
+  /* The Economy reads as one narrative: the call (the bottom line, which
+     names the regime), why (the three sections), what would change it, and
+     last the regime model's inputs. The regime's name, dot and gloss show
+     only when there is no bottom line to say it. */
   var _nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
-  if(full&&_nar&&_nar.bottom_line)h+='<p class="mac-read">'+_esc(_nar.bottom_line)+'</p>';
+  var h='<div class="mac-regime'+(full?' mac-econ':'')+'"><div class="mac-regime-main"><div class="sec-label">The Economy</div>';
+  if(full&&_nar&&_nar.bottom_line){
+    h+='<p class="mac-read mac-lead">'+_esc(_nar.bottom_line)+'</p>';
+  }else{
+    var col=_MAC_REGIME_STYLE[src.regime]||'#64748b';
+    var name=String(src.regime||'').replace('_',' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
+    h+='<div class="mac-regime-name"><span class="mac-regime-dot" style="background:'+col+'"></span>'+_esc(name)+'</div>'
+      +'<div class="mac-regime-gloss">'+(_MAC_REGIME_GLOSS[src.regime]||'')+(cs?' · composite <span>'+cs+'</span>':'')+'</div>';
+  }
   h+='</div>';
   /* Each input scored −1…+1 draws as a bar from the centre line: the
-     direction is the read, the number is there for the curious. Only the
-     Overview carries the meters; the chart sub-tabs get the one-liner. */
+     direction is the read, the number is there for the curious. */
+  var sig='';
   if(full&&src.indicator_scores){
-    h+='<div class="mac-meters">';
+    sig='<div class="mac-sig"><div class="mac-nar-k">Regime signals'+(cs?' · composite '+cs:'')+'</div><div class="mac-meters">';
     Object.keys(src.indicator_scores).forEach(function(k){
       var v=src.indicator_scores[k];
       var lbl=_MAC_IND_LABEL[k]||_esc(k.replace(/_/g,' '));
       var n=(v==null||isNaN(v))?0:Math.max(-1,Math.min(1,v));
       var cls=n>0.05?' up':(n<-0.05?' down':'');
       var w=(Math.abs(n)*50).toFixed(1),left=n>=0?'50%':(50-Math.abs(n)*50).toFixed(1)+'%';
-      h+='<div class="mac-meter"'+(_MAC_IND_TIP[k]?' title="'+_MAC_IND_TIP[k]+'"':'')+'><div class="mac-meter-top"><span>'+lbl+'</span>'
+      sig+='<div class="mac-meter"'+(_MAC_IND_TIP[k]?' title="'+_MAC_IND_TIP[k]+'"':'')+'><div class="mac-meter-top"><span>'+lbl+'</span>'
         +'<span class="mac-meter-v'+cls+'">'+(v==null?'?':(v>=0?'+':'')+v.toFixed(2))+'</span></div>'
         +'<div class="mac-meter-track"><div class="mac-meter-fill'+cls+'" style="left:'+left+';width:'+w+'%"></div></div></div>';
     });
-    /* The explainer sits behind a ? in the card's top-right corner; the
-       meters are the read, the method is there on request. */
-    h+='</div><button type="button" class="mac-regime-help" aria-label="How the regime is scored" aria-expanded="false" onclick="_macRegimeHelp(this,event)">?</button>'
-      +'<p class="mac-regime-note" role="tooltip">'+_MAC_REGIME_NOTE+'</p>';
+    sig+='</div></div>';
   }
-  if(full)h+=_macNarrativeHTML(true);
+  h+=full?_macNarrativeHTML(true,sig):sig;
+  /* The explainer sits behind a ? in the card's top-right corner. */
+  if(src.indicator_scores)h+='<button type="button" class="mac-regime-help" aria-label="How the regime is scored" aria-expanded="false" onclick="_macRegimeHelp(this,event)">?</button>'
+    +'<p class="mac-regime-note" role="tooltip">'+_MAC_REGIME_NOTE+'</p>';
   h+='</div>';
   return h;
 }
@@ -12844,124 +12820,9 @@ function _macSentences(text){
   if(cur)out.push(cur);
   return out;
 }
-/* === NARRATIVE FIGURES ===
-   Each narrative section is followed by the indicators its paragraph
-   actually cites, in the order it cites them, so the reader finds the
-   number they just read. One row answers three questions at a glance:
-     - where it sits: a dot on a track running from the series' lowest to
-       its highest reading in its own history (the percentile the prose
-       quotes), with the middle half of history shaded as "normal";
-     - which way it went: a tail drawn from where it sat a year ago, so the
-       motion reads without a legend;
-     - whether that is good: the tail, dot and 1Y chip are green when the
-       year's move helps the economy (s.good), red when it hurts, blue for
-       series with no good direction (yields, the dollar).
-   The caption says the same in words ("Top 1% of 10 yrs"), because a
-   passing reader trusts words before positions. Drawn from the macro.json
-   sidecar, so the prose paints first and the figures follow when it lands
-   (renderMacro re-renders on load). Ids and patterns are repo-authored; the
-   model text is only searched, never echoed. */
+/* Each narrative section ends in a link to its sub-tab, where every series
+   it cites is charted in full; the Overview repeats none of the numbers. */
 var _MAC_NAR_SEC=['growth','inflation','credit'];
-var _MAC_NAR_DEFAULT=[
-  ['PAYEMS','ICSA','A191RL1Q225SBEA','UNRATE','RSAFS','UMCSENT'],
-  ['PCEPILFE','CPIAUCSL','CPILFESL','DGS10','DFF'],
-  ['BAMLC0A0CM','BAMLH0A0HYM2','NFCI','MORTGAGE30US']
-];
-/* How the prose names each series. `not` is tested on the few characters
-   before a match, so "CPI" does not also claim "core CPI". */
-var _MAC_NAR_CITE={
-  A191RL1Q225SBEA:{re:/\bGDP\b/},PAYEMS:{re:/payroll/i},ICSA:{re:/\bclaims\b/i},
-  UNRATE:{re:/unemployment/i},JTSJOL:{re:/job openings/i},RSAFS:{re:/retail sales/i},
-  UMCSENT:{re:/sentiment/i},INDPRO:{re:/industrial production/i},SAHMREALTIME:{re:/\bSahm\b/i},
-  PCEPILFE:{re:/core PCE/i},PCEPI:{re:/\bPCE\b/,not:/core\s*$/i},
-  CPILFESL:{re:/core CPI/i},CPIAUCSL:{re:/\bCPI\b/,not:/core\s*$/i},
-  T10YIE:{re:/breakeven/i},T5YIFR:{re:/5y5y/i},DFF:{re:/fed funds|policy rate/i},
-  DGS10:{re:/10-year (?:Treasury|yield)|ten-year (?:Treasury|yield)/i},
-  T10Y2Y:{re:/2-year|10Y.2Y|yield curve/i},T10Y3M:{re:/3-month/i},
-  BAMLC0A0CM:{re:/investment-grade|\bIG\b/i},BAMLH0A0HYM2:{re:/high-yield|\bjunk\b|\bHY\b/i},
-  NFCI:{re:/Chicago Fed|\bNFCI\b|financial conditions/i},WALCL:{re:/balance sheet/i},
-  M2SL:{re:/\bM2\b|money supply/i},DTWEXBGS:{re:/dollar/i},HOUST:{re:/housing starts/i},
-  MORTGAGE30US:{re:/mortgage/i},CSUSHPINSA:{re:/home prices|Case.Shiller/i},
-  PSAVERT:{re:/savings rate/i},DCOILBRENTEU:{re:/\bBrent\b/i},DCOILWTICO:{re:/crude|\boil\b|\bWTI\b/i},PCOPPUSDM:{re:/copper/i},
-  GASREGW:{re:/gasoline|\bpump prices?\b/i},DJFUELUSGULF:{re:/jet fuel/i},
-  PNGASEUUSDM:{re:/European (?:natural )?gas|\bTTF\b|\bLNG\b/i},DHHNGSP:{re:/natural gas|Henry Hub/i,not:/pean\s*$/i},
-  PCOALAUUSDM:{re:/\bcoal\b/i},PURANUSDM:{re:/uranium/i},PALUMUSDM:{re:/alumin(?:i)?um/i},PNICKUSDM:{re:/nickel/i},
-  PIORECRUSDM:{re:/iron ore/i},WPU101:{re:/\bsteel\b/i},WPU081:{re:/lumber/i},
-  PWHEAMTUSDM:{re:/\bwheat\b/i},PMAIZMTUSDM:{re:/\bcorn\b|\bmaize\b/i},PSOYBUSDM:{re:/soybean/i},
-  PALLFNFINDEXM:{re:/commodity (?:index|prices broadly)|broad commodit/i},
-  PFOODINDEXM:{re:/food (?:price|cost|inflation)|agricultural|grain/i}
-};
-/* The series a paragraph cites, in the order it first cites them, padded
-   from the section's defaults to at least four rows and capped at six. */
-function _macNarIds(i,text){
-  var t=String(text||''),hits=[];
-  Object.keys(_MAC_NAR_CITE).forEach(function(id){
-    var c=_MAC_NAR_CITE[id],re=new RegExp(c.re.source,c.re.flags.replace('g','')+'g'),m;
-    while((m=re.exec(t))){
-      if(c.not&&c.not.test(t.slice(Math.max(0,m.index-6),m.index)))continue;
-      hits.push({id:id,at:m.index});break;
-    }
-  });
-  hits.sort(function(a,b){return a.at-b.at;});
-  var ids=hits.map(function(h){return h.id;});
-  (_MAC_NAR_DEFAULT[i]||[]).forEach(function(id){if(ids.length<4&&ids.indexOf(id)<0)ids.push(id);});
-  return ids.slice(0,6);
-}
-/* Rank of v among the history the sidecar ships, matching the builder's
-   percentile_rank (share at or below). Daily series arrive downsampled, so
-   the year-ago rank is a close reading, not the builder's exact one. */
-function _macRankIn(s,v){
-  var hv=(s.hist&&s.hist.v)||[],n=0,c=0;
-  for(var i=0;i<hv.length;i++){if(hv[i]==null)continue;n++;if(hv[i]<=v)c++;}
-  return n?c/n:null;
-}
-/* "Top 1% of 10 yrs", "Bottom 2% of 74 yrs", "Mid-range, 54th pctile". */
-function _macRankWords(p,win){
-  var m=/^(\d+)y$/.exec(win||''),w=m?' of '+m[1]+' yrs':'';
-  if(p>=0.995)return 'Highest'+(m?' in '+m[1]+' yrs':'');
-  if(p<=0.005)return 'Lowest'+(m?' in '+m[1]+' yrs':'');
-  if(p>=0.9)return 'Top '+Math.max(1,Math.round((1-p)*100))+'%'+w;
-  if(p<=0.1)return 'Bottom '+Math.max(1,Math.round(p*100))+'%'+w;
-  var pc=_ord(Math.round(p*100));
-  if(p>0.75)return 'High end, '+pc+' pctile';
-  if(p<0.25)return 'Low end, '+pc+' pctile';
-  return 'Mid-range, '+pc+' pctile';
-}
-function _macNarFigure(i,text){
-  if(!MACRO||!MACRO.series)return '';
-  var rows='';
-  _macNarIds(i,text).forEach(function(id){
-    var s=MACRO.series[id];
-    if(!s||!s.latest||s.pctile==null)return;
-    var now=Math.max(0,Math.min(1,s.pctile)),ago=null;
-    if(s.chg_1y!=null)ago=_macRankIn(s,s.latest.v-s.chg_1y);
-    var good=s.good||'none',cls='';
-    if(good!=='none'&&s.chg_1y)cls=((s.chg_1y>0)===(good==='up'))?' up':' down';
-    var L=function(p){return (p*100).toFixed(1)+'%';},words=_macRankWords(now,s.pct_win);
-    var tr='<div class="mac-fig-track" role="img" aria-label="'+s.l+': '+words
-      +(ago!=null?'; '+_macRankWords(ago,s.pct_win).toLowerCase()+' a year ago':'')+'">'
-      +'<div class="mac-fig-norm"></div>';
-    if(ago!=null&&Math.abs(ago-now)>0.004){
-      var a=Math.min(ago,now),b=Math.max(ago,now);
-      tr+='<div class="mac-fig-tail'+cls+(now<ago?' rev':'')+'" style="left:'+L(a)+';width:'+L(b-a)+'"></div>'
-        +'<div class="mac-fig-ago'+cls+'" style="left:'+L(ago)+'"></div>';
-    }
-    tr+='<div class="mac-fig-now'+cls+'" style="left:'+L(now)+'"></div></div>';
-    rows+='<div class="mac-fig-row">'
-      +'<div class="mac-fig-l"><span>'+s.l+'</span><b>'+_mfmt(s.latest.v,s.fmt,s.suffix)+'</b></div>'
-      +'<div class="mac-fig-viz">'+tr+'<div class="mac-fig-cap"><span>'+words+'</span>'+_mdelta(s.chg_1y,s,'1Y')+'</div></div>'
-      +'</div>';
-  });
-  if(!rows)return '';
-  var sec=_MAC_NAR_SEC[i];
-  return '<div class="mac-fig">'
-    +'<div class="mac-fig-head"><span>Where each sits in its own history, and its path over the past year</span>'
-    +'<span class="mac-fig-key"><i class="mac-fig-k-norm"></i>middle half of history</span></div>'
-    +'<div class="mac-fig-scale"><span></span><div class="mac-fig-viz"><span class="mac-fig-lh"><span>◂ Lowest</span><span>Highest ▸</span></span><span></span></div></div>'
-    +rows
-    +(sec?'<a class="mac-fig-more" href="#" onclick="navGo(\'macro\',\''+sec+'\');return false">Full charts ›</a>':'')
-    +'</div>';
-}
 function _macFold(el,e){
   if(e)e.stopPropagation();
   var f=el.closest('.mac-fold');if(!f)return;
@@ -12969,9 +12830,10 @@ function _macFold(el,e){
   var b=f.querySelector('.mac-fold-btn');
   if(b){b.setAttribute('aria-expanded',open?'true':'false');b.setAttribute('aria-label',open?'Show less':'Show more');}
 }
-/* inner: the body only, set inside The Economy card under the regime;
-   otherwise its own card, titled The Economy. */
-function _macNarrativeHTML(inner){
+/* inner: the body only, set inside The Economy card under the call;
+   otherwise its own card, titled The Economy. tail (the regime signals)
+   goes last, after What to watch and before the byline. */
+function _macNarrativeHTML(inner,tail){
   /* Claude-written narrative from the builder (data/claude_narrative.py),
      set part paragraph, part bullets: each kickered section opens with its
      lead sentence as a paragraph and lists the supporting evidence as
@@ -13009,7 +12871,7 @@ function _macNarrativeHTML(inner){
       ss.slice(1).forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
       h+='</ul>';
     }
-    if(KICK[i])h+=_macNarFigure(i,p);
+    if(KICK[i]&&_MAC_NAR_SEC[i])h+='<a class="mac-more" href="#" onclick="navGo(\'macro\',\''+_MAC_NAR_SEC[i]+'\');return false">Full charts ›</a>';
     h+='</div></div>';
   });
   /* What to watch (schema v7): the readings that would change the call.
@@ -13044,6 +12906,7 @@ function _macNarrativeHTML(inner){
   wc(nar.bottom_line);ps.forEach(wc);
   if(watch.length)watch.forEach(wc);else{tw.forEach(wc);hw.forEach(wc);}
   var mins=Math.max(1,Math.round(words/230));
+  h+=tail||'';
   h+='<div class="mac-nar-foot">Written by Claude ('+_esc(nar.model||'')+') from the indicator data · '
     +_esc(nar.generated_at?String(nar.generated_at).slice(0,10):'')+' · '+mins+' min read</div></div>';
   return h;

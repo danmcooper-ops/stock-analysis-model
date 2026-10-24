@@ -180,18 +180,6 @@ def test_years_window_bounds_long_monthly_histories():
     assert rec.starts['DCOILWTICO'] is not None
 
 
-def test_every_series_is_citable_by_the_narrative():
-    # The Overview's paragraphs link the series they name through
-    # _MAC_NAR_CITE; a series with no pattern can never be cited.
-    tpl = os.path.join(os.path.dirname(__file__), '..', 'templates', 'report.html')
-    with open(tpl, encoding='utf-8') as f:
-        src = f.read()
-    block = src[src.index('var _MAC_NAR_CITE={'):]
-    block = block[:block.index('\n};')]
-    missing = [m['id'] for m in MACRO_SERIES if m['id'] + ':{' not in block]
-    assert missing == []
-
-
 class TestBuildMacroPayload:
     def test_schema_and_summary(self):
         fred, as_of = full_stub()
