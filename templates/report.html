@@ -2902,6 +2902,32 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
    (white-on-band by default) takes the chrome colours or it vanishes in light. */
 #det-modal .stmt-pdf-btn{color:var(--chrome-heading);background:var(--chip-bg);border-color:var(--chip-border);}
 #det-modal .stmt-pdf-btn:hover{border-color:var(--chrome-heading);}
+/* Full-screen statement (stmtFsToggle). The expand and close buttons share
+   the PDF button's chip; the pane itself carries .stmt-fs, so the Finances
+   switch comes along and a re-render (another statement, another ticker)
+   stays full screen. The pane becomes a fixed column above the ticker page,
+   the top bar and the AI button; the table wrap takes the rest of the
+   screen and scrolls both ways under its frozen FY row and caption column
+   at every width, not only on phones. */
+#det-modal .stmt-fs-btn{margin-left:6px;}
+#det-modal .stmt-fs-x{display:none;}
+#d-pane-stmt.stmt-fs .stmt-fs-btn{display:none;}
+#d-pane-stmt.stmt-fs .stmt-fs-x{display:inline-flex;}
+#d-pane-stmt.stmt-fs .stmt-fs-x svg{width:15px;height:15px;}
+#d-pane-stmt.stmt-fs{position:fixed;inset:0;z-index:1550;display:flex;flex-direction:column;box-sizing:border-box;
+  background:var(--bg);padding:calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right))
+  calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));}
+#d-pane-stmt.stmt-fs>.d-stmt-tabs{flex:none;margin:0 0 8px !important;}
+#d-pane-stmt.stmt-fs>.dgroup{flex:1;min-height:0;display:flex;flex-direction:column;margin:0 !important;overflow:hidden;}
+#d-pane-stmt.stmt-fs .dgroup-title{flex:none;position:static;}
+#d-pane-stmt.stmt-fs .stmt-body{flex:1;min-height:0;display:flex;flex-direction:column;}
+#d-pane-stmt.stmt-fs .dtr-wrap{flex:1;min-height:0;overflow:auto;max-height:none !important;}
+#d-pane-stmt.stmt-fs .stmt-tbl th{position:-webkit-sticky;position:sticky;top:0;z-index:3;background:var(--surface);}
+#d-pane-stmt.stmt-fs .stmt-tbl th:first-child{z-index:4;}
+html.stmt-fs-open #ai-fab{display:none;}
+/* #det-modal is a stacking context below the fixed top bar (1020), so the
+   pane's own z-index cannot clear it; lift the popup while full screen. */
+html.stmt-fs-open #det-modal{z-index:1550;}
 /* "Summary" beside the ticker symbol: prints the one-page company summary
    (exportProfilePdf). Same chip colours and download glyph as the
    statements' PDF button, so the two exports read as one family; text goes
@@ -8284,6 +8310,7 @@ document.addEventListener('click',function(e){
     sp.addEventListener('scroll',function(e){
       var w=e.target;
       if(!w.classList||!w.classList.contains('dtr-wrap'))return;
+      if(_stmtFs)return;   /* full screen covers the banner */
       if(w!==_wEl){_wEl=w;_wSt=0;}
       var st=w.scrollTop;if(st===_wSt)return;
       _detHdrOnScroll(st,'wrap');
@@ -9838,6 +9865,7 @@ function swDetTab(k){
   closeDetMenus();
   for(var si=0;si<DT_STMTS.length;si++)if(DT_STMTS[si].k===k){_detStmt=k;k=DT_FIN.k;}
   _detTab=k;
+  if(_stmtFs&&k!==DT_FIN.k)stmtFsToggle(false);
   _renderDetTabBar();
   document.querySelectorAll('#det-modal .d-pane').forEach(function(p){p.classList.remove('active');});
   var id=k==='overview'?'d-pane-overview':k==='peers'?'d-pane-peers':k==='news'?'d-pane-news':_detGroupOf(k)==='stmt'?'d-pane-stmt':'d-pane-data';
@@ -10523,6 +10551,13 @@ function _stmtShell(meta,inner,withPdf){
       +' aria-label="Export the Balance Sheet, Income Statement and Cash Flow Statement to PDF"'
       +' title="Export this company’s Balance Sheet, Income Statement and Cash Flow Statement to PDF — opens the print dialog; choose “Save as PDF”. Only these three statements are exported.">'
       +'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 1.2v6.3M3.2 5L6 7.8 8.8 5M1.8 10.6h8.4"/></svg>'
+      +'</button>'
+      /* Expand to full screen, and the × that closes it; CSS shows one. */
+      +'<button type="button" class="stmt-pdf-btn stmt-fs-btn" onclick="stmtFsToggle(true)" aria-label="View statement full screen" title="Full screen">'
+      +'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.2 1.4h3.4v3.4M10.6 1.4L7 5M4.8 10.6H1.4V7.2M1.4 10.6L5 7"/></svg>'
+      +'</button>'
+      +'<button type="button" class="stmt-pdf-btn stmt-fs-x" onclick="stmtFsToggle(false)" aria-label="Close full screen" title="Close full screen">'
+      +'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg>'
       +'</button>':'')
     +'</div>'
     +'<div class="stmt-body">'+inner+'</div></div>';
@@ -10932,9 +10967,22 @@ function _renderDetStmtTab(key){
    collapsing toolbars and rotation change the body height; the .d-body
    ResizeObserver re-fits when the banner collapses or expands. Wider screens
    clear the cap and scroll the page as before. */
+/* Full-screen statement: a class on the pane (CSS "Full-screen statement"),
+   so it survives the pane re-rendering. Escape, the ×, leaving the Finances
+   tab and closing the ticker page all end it. */
+var _stmtFs=false;
+function stmtFsToggle(on){
+  _stmtFs=!!on;
+  var p=document.getElementById('d-pane-stmt');
+  if(p)p.classList.toggle('stmt-fs',_stmtFs);
+  document.documentElement.classList.toggle('stmt-fs-open',_stmtFs);
+  var w=p&&p.querySelector('.dtr-wrap');if(w&&_stmtFs)w.scrollTop=0;
+  _stmtFitWrap();
+}
 var _STMT_PHONE_MQ=window.matchMedia?window.matchMedia('(max-width:600px)'):null;
 function _stmtFitWrap(){
   var w=document.querySelector('#d-pane-stmt .dtr-wrap');if(!w)return;
+  if(_stmtFs){w.style.maxHeight='';return;}   /* full screen: flex sizes it */
   if(!_STMT_PHONE_MQ||!_STMT_PHONE_MQ.matches){w.style.maxHeight='';return;}
   if(!w.offsetParent)return;   /* pane hidden (another tab): nothing to measure */
   var sc=document.querySelector('#det-modal .d-body'),g=w.closest('.dgroup');
@@ -11526,7 +11574,7 @@ function openDet(tk){
   _dm.scrollTop=0;
   _lockBody();
 }
-function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_detHdrReset();_unlockBody();_detOpenState(false);_lqDet(null);}
+function closeDetail(){closeDetMenus();var _dm=document.getElementById('det-modal');_dm.classList.remove('open');_detHdrReset();if(_stmtFs)stmtFsToggle(false);_unlockBody();_detOpenState(false);_lqDet(null);}
 /* Pin the page while the popup is open. body{overflow:hidden} — the old
    lock — is ignored by iOS Safari: the table kept scrolling under the
    popup, and that scroll collapsed/expanded the browser toolbars, thrashing
@@ -11754,6 +11802,7 @@ document.addEventListener('keydown',function(e){
   if(document.getElementById('det-modal').classList.contains('open')){
     /* An open tab-bar dropdown eats the first Escape — closing the whole
        popup because a menu was open loses the user's place. */
+    if(e.key==='Escape'&&_stmtFs){e.preventDefault();stmtFsToggle(false);return;}
     if(e.key==='Escape'&&document.querySelector('#det-modal .dtb-menu.open')){
       e.preventDefault();closeDetMenus();return;
     }
