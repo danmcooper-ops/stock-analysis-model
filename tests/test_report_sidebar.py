@@ -458,7 +458,8 @@ def test_tab_strips_do_not_rubber_band():
     the subnav scroll sideways only (never vertically: the active underline
     made the strip 1px taller than its box) and without the bounce."""
     src = (Path(__file__).resolve().parent.parent / 'templates' / 'report.html').read_text(encoding='utf-8')
-    assert '.d-tabs,.d-stmt-tabs,.sn-chips,.secondary-nav{overflow-y:hidden;overscroll-behavior:none;}' in src
+    assert '.d-tabs,.d-stmt-tabs,.sn-chips,.secondary-nav{overflow-y:hidden;overscroll-behavior:none;touch-action:pan-x;}' in src
+    assert 'margin-bottom:-1.5px' not in src, 'nothing may overhang a strip'
 
 
 def test_tooltips_stay_until_a_click_elsewhere():
