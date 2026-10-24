@@ -841,8 +841,9 @@ ruff check .
   exposed, and why it matters; each force's heading opens its own. Moving
   forces sort first. Tailwinds and Headwinds are the report's one wind
   group (`_windGroup`, also the ticker page's Headwinds & Tailwinds): the header folds the group to just
-  that header (no summary text); groups start open, and a folded one stays
-  folded per browser (`stock_wind_shut_v1`). The colour
+  that header (no summary text); a sector's groups start open and the
+  ticker page's start folded, and the reader's own fold or unfold is kept
+  per browser (`stock_wind_shut_v1`). The colour
   overrides carry `!important` against the blanket dark `body *` text
   rule.
   Forces that no series measures read "qualitative". Without `macro.json`,

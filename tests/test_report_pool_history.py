@@ -422,7 +422,9 @@ def test_wind_group_and_force_toggles():
     tog = _fn(css, '_windToggle')
     assert "localStorage.setItem('stock_wind_shut_v1'" in tog
     # the ticker page uses the same group
-    assert "_windGroup({scope:'ticker',k:'tailwind'" in css and "_windGroup({scope:'ticker',k:'headwind'" in css
+    assert "_windGroup({scope:'ticker',k:'tailwind',dir:'up',shut:true," in css
+    assert "_windGroup({scope:'ticker',k:'headwind',dir:'down',shut:true," in css, 'the ticker page starts folded'
+    assert "shut=st===undefined?!!o.shut:st===true;" in _fn(css, '_windGroup')
 
 
 def _sort_rows(html, col, desc=True, numeric=True):
