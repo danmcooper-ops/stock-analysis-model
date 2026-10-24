@@ -455,6 +455,7 @@ def test_sector_analysis_first_sub_tab_is_overview():
 
 def test_tab_strips_do_not_rubber_band():
     """The ticker page's section tabs, the statement / sector sub-tabs and
-    the subnav scroll sideways without the overscroll bounce."""
+    the subnav scroll sideways only (never vertically: the active underline
+    made the strip 1px taller than its box) and without the bounce."""
     src = (Path(__file__).resolve().parent.parent / 'templates' / 'report.html').read_text(encoding='utf-8')
-    assert '.d-tabs,.d-stmt-tabs,.sn-chips,.secondary-nav{overscroll-behavior-x:none;}' in src
+    assert '.d-tabs,.d-stmt-tabs,.sn-chips,.secondary-nav{overflow-y:hidden;overscroll-behavior:none;}' in src
