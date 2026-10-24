@@ -1739,8 +1739,6 @@ button.wind-h{cursor:pointer;}
    its rows share one layout (.wind-row). */
 .wind-grp+.wind-grp{margin-top:14px;}
 .ppf-cols>.wind-grp,.sig-grid>.wind-grp{margin-top:0;}
-.wind-sum{display:none;font-size:13px;line-height:1.45;color:#64748b;margin:6px 0 2px;}
-.wind-shut .wind-sum{display:block;}
 .wind-shut .wind-body{display:none;}
 .wind-shut .wind-h{margin-bottom:0;}
 .wind-shut .wind-h .ppf-chev{transform:rotate(-90deg);}
@@ -1748,7 +1746,6 @@ button.wind-h{cursor:pointer;}
 .wind-row{padding:10px 0;border-top:1px solid rgba(127,127,127,0.18);}
 .wind-row:first-child{border-top:none;}
 .wind-list .wind-row{font-size:13.5px;line-height:1.5;}
-[data-theme="dark"] .wind-sum{color:#8b949e !important;}
 .xsect-kpi-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
 .xsect-kpi{flex:1;min-width:140px;background:#f8fafd;border-radius:7px;padding:9px 12px;}
 .xsect-kpi-val{font-weight:700;font-size:1.05em;color:#1a252f;margin-bottom:1px;}
@@ -11395,8 +11392,8 @@ function openDet(tk){
     var sh=_windTop({tailwind:_twT.length/_n,headwind:_hwT.length/_n,net:(_twT.length-_hwT.length)/_n},
         _twT.length+' tailwind'+(_twT.length===1?'':'s')+' and '+_hwT.length+' headwind'+(_hwT.length===1?'':'s')+(_hwRed.length?', '+_hwRed.length+' of them '+(_hwRed.length===1?'a red flag':'red flags'):'')+'.')
       +'<div class="ppf-cols">'
-      +_windGroup({scope:'ticker',k:'tailwind',dir:'up',label:'\u25b2 Tailwinds',count:_twT.length,sum:esc(_windListSum(_twT)),body:_twRows||'<p class="ppf-mkt">None identified.</p>'})
-      +_windGroup({scope:'ticker',k:'headwind',dir:'down',label:'\u25bc Headwinds',count:_hwT.length,sum:esc(_windListSum(_hwT)),body:_hwRows||'<p class="ppf-mkt">None identified.</p>'})
+      +_windGroup({scope:'ticker',k:'tailwind',dir:'up',label:'\u25b2 Tailwinds',count:_twT.length,body:_twRows||'<p class="ppf-mkt">None identified.</p>'})
+      +_windGroup({scope:'ticker',k:'headwind',dir:'down',label:'\u25bc Headwinds',count:_hwT.length,body:_hwRows||'<p class="ppf-mkt">None identified.</p>'})
       +'</div>';
     sigEl.innerHTML=sh;sigSec.style.display='';
   }else{sigEl.innerHTML='';sigSec.style.display='none';}
@@ -14042,18 +14039,12 @@ function _ppfToggleOne(hdr){
   var open=hdr.closest('.ppf').classList.toggle('ppf-open');
   hdr.setAttribute('aria-expanded',open?'true':'false');
 }
-function _ppfColSum(list,kind){
-  var live=list.filter(function(f){return f.status==='active'||f.status==='building';});
-  if(!live.length)return 'None of its '+list.length+' '+kind+'s is acting.';
-  var t=live.map(function(f){return _esc(f.theme)+(f.status==='active'?' is acting now':' is building');}).join('; ')+'.';
-  return t.charAt(0).toUpperCase()+t.slice(1);
-}
 function _ppfCol(list,kind,sec,mac){
   var sorted=list.slice().sort(function(a,b){return _PPF_ORDER[a.status]-_PPF_ORDER[b.status];});
   var acting=list.filter(function(f){return f.status==='active'||f.status==='building';}).length;
   var tw=kind==='tailwind',m=mac&&mac.kind===kind?mac:null;
   return _windGroup({scope:'drivers',k:kind,dir:tw?'up':'down',label:tw?'▲ Tailwinds':'▼ Headwinds',
-    count:acting+' of '+list.length+' acting',sum:(m?m.sum+' ':'')+_ppfColSum(list,kind),
+    count:acting+' of '+list.length+' acting',
     body:(m?m.html:'')+sorted.map(function(f){return _ppfCard(f,true,sec);}).join('')});
 }
 /* The Macro Outlook's read of the sector as one more row in the wind group
@@ -14075,8 +14066,7 @@ function _ppfMacroRow(sec){
     +'<span class="ppf-th">'+_ppfThChev(_esc(hl),!!items)+'<span class="ppf-meta">macro outlook</span></span></div>'
     +(items?'<ul class="ppf-ul">'+items+'</ul>':'')
     +'</div>';
-  return {kind:st||'tailwind',html:html,
-    sum:'The Macro Outlook reads '+(st?'a '+st:'it as mixed')+': '+_esc(hl)+'.'};
+  return {kind:st||'tailwind',html:html};
 }
 /* The Macro Outlook's read as one line, for a sector whose forces predate
    the evidence model (no wind groups to carry _ppfMacroRow). */
@@ -14136,26 +14126,24 @@ function renderPoolSectorSignals(sec){
 }
 /* The report's one tailwind/headwind group (a
    sector's Drivers, the ticker page): a .wind-h header that folds the
-   group, a one-sentence summary shown while folded, and the rows. The
-   fold is kept per browser (stock_wind_shut_v1, {"<scope>:<key>": false}
-   once opened); groups start folded, so each reads as its summary. */
+   group, and the rows. Groups start open, and folded show only the
+   header; a fold is kept per browser (stock_wind_shut_v1,
+   {"<scope>:<key>": true} once folded). */
 function _windState(){
   try{return JSON.parse(localStorage.getItem('stock_wind_shut_v1'))||{};}catch(e){return {};}
 }
 function _windGroup(o){
-  var id=o.scope+':'+o.k,shut=_windState()[id]!==false;
+  var id=o.scope+':'+o.k,shut=_windState()[id]===true;
   return '<div class="wind-grp'+(shut?' wind-shut':'')+'" data-wk="'+_attr(id)+'">'
     +'<button type="button" class="wind-h'+(o.dir?' wind-'+o.dir:'')+'" aria-expanded="'+(shut?'false':'true')+'" onclick="_windToggle(this)">'
     +o.label+'<span>· '+o.count+'</span><i class="ppf-chev" aria-hidden="true"></i></button>'
-    +'<div class="wind-sum">'+(o.sum||'')+'</div><div class="wind-body">'+o.body+'</div></div>';
+    +'<div class="wind-body">'+o.body+'</div></div>';
 }
 function _windToggle(btn){
   var g=btn.closest('.wind-grp'),shut=g.classList.toggle('wind-shut');
   btn.setAttribute('aria-expanded',shut?'false':'true');
   try{var st=_windState();st[g.getAttribute('data-wk')]=shut;localStorage.setItem('stock_wind_shut_v1',JSON.stringify(st));}catch(e){}
 }
-/* "Reinvestment rate supports 11% growth, and 6 more.": the first item
-   and how many follow. */
 /* One row of a wind group, laid out as a sector's Drivers force is: a
    status line (dot + plain word), the heading (which opens the bullets),
    a muted meta line, then the bullets. kind 'tw'/'hw' colours the dot;
@@ -14173,11 +14161,6 @@ function _windRow(o){
    one-line context (the Drivers' market check). */
 function _windTop(b,line){
   return '<div class="ppf-top">'+_ppfBalance(b)+'</div>'+(line?'<div class="ppf-mkt">'+line+'</div>':'');
-}
-function _windListSum(items){
-  if(!items.length)return 'None identified.';
-  var t=String(items[0]).replace(/[.\s]+$/,'');
-  return t+(items.length>1?', and '+(items.length-1)+' more.':'.');
 }
 /* === Aggregate Performance chart ================================
    Lives only on the Sector Analysis "Charts" tab. Sectors are
