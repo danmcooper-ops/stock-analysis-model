@@ -127,13 +127,16 @@ def test_macro_overview_reads_top_down():
     inside the regime card."""
     css = _css()
     body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S).group(0)
-    assert '_macNarrativeHTML()' in body
+    # One card: the regime with the narrative inside it, or the narrative
+    # alone when there is no regime.
+    assert '_macRegimeHTML(true)||_macNarrativeHTML(false)' in body
     assert 'Key numbers' not in body and 'mac-tiles' not in body
     reg = re.search(r'function _macRegimeHTML\(full\).*?\n\}\n', css, re.S).group(0)
     assert "if(full&&_nar&&_nar.bottom_line)" in reg
     assert '_esc(_nar.bottom_line)' in reg
-    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
-    order = [nar.find(x) for x in ('>The economy<', '>What to watch<', 'min read')]
+    assert '<div class="sec-label">The Economy</div>' in reg and 'if(full)h+=_macNarrativeHTML(true);' in reg
+    nar = re.search(r'function _macNarrativeHTML\(inner\).*?\n\}\n', css, re.S).group(0)
+    order = [nar.find(x) for x in ('>The Economy<', '>What to watch<', 'min read')]
     assert all(i >= 0 for i in order) and order == sorted(order)
     assert 'Broad Sector Outlook<' not in nar, 'the sector read lives on Sector Analysis only'
 
@@ -143,7 +146,7 @@ def test_macro_narrative_escapes_every_model_string():
     interpolation of them must pass through _esc(), and the stance value may
     only reach a class attribute through the whitelist lookup."""
     css = _css()
-    m = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
+    m = re.search(r'function _macNarrativeHTML\(inner\).*?\n\}\n', css, re.S)
     assert m, 'could not find _macNarrativeHTML'
     body = m.group(0)
     # every read of a narrative field that lands in HTML is wrapped in _esc(
@@ -173,7 +176,7 @@ def test_macro_narrative_is_lead_paragraphs_with_bullets():
     The split is done client-side from the model's paragraphs, so cached
     narratives render the same way."""
     css = _css()
-    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
+    nar = re.search(r'function _macNarrativeHTML\(inner\).*?\n\}\n', css, re.S)
     assert nar, 'could not find _macNarrativeHTML'
     nar = nar.group(0)
     assert '_macSentences(p)' in nar
@@ -207,7 +210,7 @@ def test_macro_narrative_sectors_live_on_the_sector_overview():
     opening its influence (escaped, never in an attribute). An older
     narrative without `watch` keeps The balance."""
     css = _css()
-    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
+    nar = re.search(r'function _macNarrativeHTML\(inner\).*?\n\}\n', css, re.S).group(0)
     assert 'renderSectorOutlook(' not in nar
     assert "watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});" in nar
     assert 'The balance' in nar, 'a pre-v7 narrative keeps its winds'
@@ -309,7 +312,7 @@ def test_macro_narrative_sections_carry_figures():
     order cited), and the sector influences open with a stance strip. The
     model text is searched, never echoed into the figure."""
     css = _css()
-    nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S)
+    nar = re.search(r'function _macNarrativeHTML\(inner\).*?\n\}\n', css, re.S)
     assert nar, 'could not find _macNarrativeHTML'
     nar = nar.group(0)
     assert 'h+=_macNarFigure(i,p)' in nar, \
