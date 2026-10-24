@@ -1073,6 +1073,19 @@ td.ct{font-weight:700;}
 .gv-v.pass{color:#1a9850;}.gv-v.fail{color:#de2d26;}
 .gv-thr{font-size:0.82em;font-weight:400;color:#aaa;white-space:nowrap;}
 .gv-wt{font-size:0.62em;font-style:italic;color:#888;padding:4px 10px;background:#fff;text-align:left;border-top:1px solid #f0f2f6;}
+/* Five columns share whatever the page column leaves: ~150px each on a
+   phone in landscape, ~170px on an iPad, ~225px on a 1440px desktop. The
+   nowrap label, value and threshold note then overran the column and its
+   overflow:hidden cut them mid-word, with the label butting into the value
+   ("Spread79.2%"). So the label and value keep a gap, the threshold note
+   truncates with an ellipsis, and a narrow column drops the note (it is
+   still in the label's tooltip, data-gv-thr). */
+.gv-col{min-width:0;container-type:inline-size;}
+.gv-cat{overflow:hidden;text-overflow:ellipsis;}
+.gv-item{gap:8px;}
+.gv-k{flex:0 0 auto;max-width:62%;overflow:hidden;text-overflow:ellipsis;}
+.gv-v{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+@container (max-width:240px){.gv-thr{display:none;}}
 @media(max-width:900px) and (orientation:portrait){
   .detail-content .d-gate-values{grid-template-columns:1fr!important;gap:6px;}
   .detail-content .gv-cat{font-size:0.78em;padding:6px 12px;text-align:left;}
@@ -1161,6 +1174,10 @@ td.ct{font-weight:700;}
 /* No max-height/inner scroll: since Peers moved to its own popup tab the
    sections can expand to their content — the tab pane is the scroller. */
 .ps-col{background:#f4f7ff;border-radius:9px;padding:10px 13px;border:1px solid #dde4f5;}
+/* Seven columns do not fit a phone's card (~325px): the dgroup's
+   overflow:hidden cut ROIC and MoS off with no way to reach them. The card
+   pans sideways instead, as the Finances statement tables do. */
+.ps-col{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .ps-col h3{font-size:0.70em;text-transform:uppercase;letter-spacing:0.05em;color:#1a3a6b;font-weight:700;margin:0 0 7px;padding-bottom:5px;border-bottom:2px solid #c8d6f0;}
 .pp-bar{height:6px;border-radius:3px;background:#e8e8e8;margin:3px 0;position:relative;overflow:hidden;}.pp-bar-fill{height:100%;border-radius:3px;position:absolute;left:0;top:0;}
 .pp-mult{font-size:0.95em;font-weight:700;letter-spacing:-0.3px;}
@@ -3080,6 +3097,17 @@ html body .cm-panel.cm-uline button:focus-visible{outline:2px solid var(--chrome
   #det-modal .d-kmetrics .km-sub{font-size:.56em;white-space:normal;}
   #det-modal .d-kmetrics .km-v .km-conf{display:inline-block;margin:0 0 0 5px;vertical-align:middle;font-size:.6em;}
   #d-section-snapshot > div:last-child{padding:10px 12px !important;}
+}
+/* Tablets and narrow desktops: the five cells keep one row, but the page
+   column (iPad mini 768px, iPad Air 820px beside the rail, a laptop with
+   the sidebar open) is too narrow for their nowrap figures, and the strip's
+   overflow:hidden cut the 52-week range and the fair-value band off
+   mid-figure. Let each cell shrink and its lines wrap instead (the MoS
+   confidence badge drops under the figure). */
+@media (min-width:601px) and (max-width:1199px){
+  #det-modal .d-kmetrics .km-cell{min-width:0;padding:10px 12px;}
+  #det-modal .d-kmetrics .km-k,#det-modal .d-kmetrics .km-v,#det-modal .d-kmetrics .km-sub{white-space:normal;overflow-wrap:break-word;}
+  #det-modal .d-kmetrics .km-v .km-conf{display:block;width:max-content;margin:3px 0 0;}
 }
 @media(min-width:769px) and (max-width:1023px){
   #det-modal .d-header-band{padding-left:16px !important;padding-right:16px !important;}
