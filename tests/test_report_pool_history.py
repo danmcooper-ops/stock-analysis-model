@@ -194,7 +194,7 @@ def _render_signals(entry, tmp_path, stored=None, data=None, macro=None):
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
              '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
              '_ppfThChev', '_ppfCard', '_ppfLive', '_windState', '_windGroup', '_ppfColSum', '_ppfCol', '_qHelp', '_windMatrixLi',
-             '_noteQ', '_ppfMacroRead', 'renderPoolSectorSignals']
+             '_noteQ', '_ppfMacroRead', '_ppfMacroRow', '_macSentences', 'renderPoolSectorSignals']
     consts = '\n'.join(re.search(r'^var %s=.*$' % v, src, re.M).group(0)
                        for v in ('_PPF_ST', '_PPF_ORDER', '_PPF_TYPE'))
     store = ('var localStorage={getItem:function(){return %s;}};' % json.dumps(json.dumps(stored))
@@ -256,23 +256,34 @@ def test_signals_fall_back_to_the_plain_lists(tmp_path):
 
 
 def test_drivers_carry_the_macro_read(tmp_path):
-    """The Macro Outlook's read of the sector sits on its Drivers tab, one
-    line above the structural forces: the stance through the whitelist,
-    the headline and influence escaped. No narrative row, no line."""
+    """The Macro Outlook's read of the sector is one more row in the wind
+    group its stance names, first: the headline as the heading, the
+    influence's sentences as bullets, escaped; it does not count as an
+    acting force. A stance outside the whitelist reads mixed, with the
+    tailwinds. No narrative row, no row."""
     from models.sector_forces import evaluate_forces
     from tests.test_sector_forces import _entry
     entry = {'forces': evaluate_forces('Real Estate', None, _entry(0.14), [])}
     macro = {'narrative': {'sectors': [
-        {'sector': 'Real Estate', 'stance': 'headwind', 'headline': 'Rates bite.', 'influence': 'Cap rates rise.'},
+        {'sector': 'Real Estate', 'stance': 'headwind', 'headline': 'Rates bite.',
+         'influence': 'Cap rates rise. Refinancing costs 7.3% now.'},
         {'sector': 'Energy', 'stance': 'tailwind', 'influence': 'E'}]}}
+    plain = _render_signals(entry, tmp_path)
     html = _render_signals(entry, tmp_path, macro=macro)
-    line = '<div class="ppf-mkt ppf-macro">Macro read: <b>Headwind</b>. <i>Rates bite.</i> Cap rates rise.</div>'
-    assert line in html and html.index(line) < html.index('<div class="ppf-cols">')
+    hw = html.split('data-wk="drivers:headwind"')[1]
+    assert html.split('data-wk="drivers:headwind"')[0].count('ppf-mac') == 0
+    row = hw.split('<div class="wind-body">')[1]
+    assert row.startswith('<div class="ppf wind-row ppf-hw ppf-mac">')
+    assert '<i class="ppf-dot"></i>Macro view</span>' in row and 'Rates <span class="ppf-nw">bite<i' in row
+    assert '<li>Cap rates rise.</li><li>Refinancing costs 7.3% now.</li>' in row
+    assert 'The Macro Outlook reads a headwind: Rates bite.' in hw.split('<div class="wind-body">')[0]
+    count = re.compile(r'<span>· [^<]*</span>')
+    assert count.findall(html) == count.findall(plain), 'the acting counts are the structural forces only'
     macro['narrative']['sectors'][0]['stance'] = '<script>'
-    assert 'Macro read: <b>Neutral</b>.' in _render_signals(entry, tmp_path, macro=macro)
-    assert 'Macro read' not in _render_signals(entry, tmp_path)
-    src = TEMPLATE.read_text(encoding='utf-8')
-    assert "STANCE={tailwind:'Tailwind',headwind:'Headwind'},st=STANCE[row.stance]||'Neutral';" in src
+    mixed = _render_signals(entry, tmp_path, macro=macro)
+    tw = mixed.split('data-wk="drivers:tailwind"')[1].split('data-wk="drivers:headwind"')[0]
+    assert 'Macro view: mixed' in tw and 'ppf-mac' not in mixed.split('data-wk="drivers:headwind"')[1]
+    assert '<script>' not in mixed and 'ppf-mac' not in plain
 
 
 def test_market_check_names_the_unit_without_the_3_month_reading(tmp_path):
