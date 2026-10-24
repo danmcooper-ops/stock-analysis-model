@@ -134,8 +134,12 @@ def test_macro_overview_reads_top_down():
     reg = re.search(r'function _macRegimeHTML\(full\).*?\n\}\n', css, re.S).group(0)
     assert "if(full&&_nar&&_nar.bottom_line)" in reg
     assert '_esc(_nar.bottom_line)' in reg
-    assert '<div class="sec-label">The Economy</div>' in reg and 'if(full)h+=_macNarrativeHTML(true);' in reg
-    nar = re.search(r'function _macNarrativeHTML\(inner\).*?\n\}\n', css, re.S).group(0)
+    # The call leads; the regime's name shows only without a bottom line;
+    # the signals go last, inside the narrative before its byline.
+    assert '<div class="sec-label">The Economy</div>' in reg
+    assert reg.find('mac-lead') < reg.find('mac-regime-name')
+    assert 'h+=full?_macNarrativeHTML(true,sig):sig;' in reg
+    nar = re.search(r'function _macNarrativeHTML\(inner,tail\).*?\n\}\n', css, re.S).group(0)
     order = [nar.find(x) for x in ('>The Economy<', '>What to watch<', 'min read')]
     assert all(i >= 0 for i in order) and order == sorted(order)
     assert 'Broad Sector Outlook<' not in nar, 'the sector read lives on Sector Analysis only'
@@ -146,7 +150,7 @@ def test_macro_narrative_escapes_every_model_string():
     interpolation of them must pass through _esc(), and the stance value may
     only reach a class attribute through the whitelist lookup."""
     css = _css()
-    m = re.search(r'function _macNarrativeHTML\(inner\).*?\n\}\n', css, re.S)
+    m = re.search(r'function _macNarrativeHTML\(inner,tail\).*?\n\}\n', css, re.S)
     assert m, 'could not find _macNarrativeHTML'
     body = m.group(0)
     # every read of a narrative field that lands in HTML is wrapped in _esc(
@@ -176,7 +180,7 @@ def test_macro_narrative_is_lead_paragraphs_with_bullets():
     The split is done client-side from the model's paragraphs, so cached
     narratives render the same way."""
     css = _css()
-    nar = re.search(r'function _macNarrativeHTML\(inner\).*?\n\}\n', css, re.S)
+    nar = re.search(r'function _macNarrativeHTML\(inner,tail\).*?\n\}\n', css, re.S)
     assert nar, 'could not find _macNarrativeHTML'
     nar = nar.group(0)
     assert '_macSentences(p)' in nar
@@ -210,7 +214,7 @@ def test_macro_narrative_sectors_live_on_the_sector_overview():
     opening its influence (escaped, never in an attribute). An older
     narrative without `watch` keeps The balance."""
     css = _css()
-    nar = re.search(r'function _macNarrativeHTML\(inner\).*?\n\}\n', css, re.S).group(0)
+    nar = re.search(r'function _macNarrativeHTML\(inner,tail\).*?\n\}\n', css, re.S).group(0)
     assert 'renderSectorOutlook(' not in nar
     assert "watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});" in nar
     assert 'The balance' in nar, 'a pre-v7 narrative keeps its winds'
@@ -262,9 +266,9 @@ def test_sector_tabs_carry_no_macro_narrative():
 
 
 def test_macro_overview_does_not_repeat_section_charts():
-    """Every full history is drawn on one of the section sub-tabs, and the
-    Overview repeats none of it: each section's figures end in a Full charts
-    link, and a section card opens its larger chart in a dialog."""
+    """Every number is charted once, on its section sub-tab: the Overview's
+    sections state it in prose and end in a Full charts link, with no
+    figure restating the same readings."""
     css = _css()
     body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S).group(0)
     assert '_macCurveCard' not in body, 'the yield curve lives on Rates & Curve'
@@ -272,8 +276,10 @@ def test_macro_overview_does_not_repeat_section_charts():
     assert '_mSparkSVG' not in css and '_macZoomAttrs(' not in body, 'no headline tiles on the Overview'
     card = re.search(r'function _macCardHTML\(id,s\).*?\n\}\n', css, re.S).group(0)
     assert '_macZoomAttrs(id,s.l)' in card and '_MAC_EXP' in card, 'so does every section card'
-    fig = re.search(r'function _macNarFigure\(.*?\n\}\n', css, re.S).group(0)
-    assert 'Full charts' in fig and "navGo(\\'macro\\'" in fig
+    nar = re.search(r'function _macNarrativeHTML\(inner,tail\).*?\n\}\n', css, re.S).group(0)
+    assert '_macNarFigure' not in css and 'mac-fig' not in css
+    assert 'Full charts' in nar and "navGo(\\'macro\\'" in nar
+    assert nar.find('mac-watch') < nar.find("h+=tail||''") < nar.find('mac-nar-foot')
     sec = re.search(r'function _macSectionHTML\(k\).*?\n\}\n', css, re.S)
     assert sec and "k==='rates'&&MACRO.curve" in sec.group(0)
 
@@ -304,32 +310,6 @@ def test_every_macro_subtab_opens_with_an_explainer():
     # the explainer precedes the data note, so it is the first thing read
     body = sec.group(0)
     assert body.find('_macIntroHTML(k)') < body.find('mac-sec-note')
-
-
-def test_macro_narrative_sections_carry_figures():
-    """Each kickered narrative section is followed by a figure of the
-    indicators its paragraph cites (found by repo-authored patterns, in the
-    order cited), and the sector influences open with a stance strip. The
-    model text is searched, never echoed into the figure."""
-    css = _css()
-    nar = re.search(r'function _macNarrativeHTML\(inner\).*?\n\}\n', css, re.S)
-    assert nar, 'could not find _macNarrativeHTML'
-    nar = nar.group(0)
-    assert 'h+=_macNarFigure(i,p)' in nar, \
-        'each narrative section needs its figure'
-    assert 'renderSectorOutlook(' not in nar, \
-        'the sector influences are on Sector Analysis › Overview'
-    fig = re.search(r'function _macNarFigure\(i,text\)\{.*?\n\}\n', css,
-                    re.S)
-    assert fig, 'could not find _macNarFigure'
-    body = fig.group(0)
-    assert 'text' not in body.replace('_macNarIds(i,text)', '') \
-        .replace('function _macNarFigure(i,text)', ''), \
-        'the paragraph only selects series; it is never written out'
-    assert '_macRankWords(' in body, 'the rank is stated in words'
-    defaults = re.search(r'var _MAC_NAR_DEFAULT=\[(.*?)\];', css, re.S)
-    assert defaults and defaults.group(1).count('[') == 3, \
-        'one default list per narrative paragraph'
 
 
 def test_regime_note_matches_the_model_weights_and_cutoffs():
