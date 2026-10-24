@@ -167,7 +167,7 @@ def test_macro_narrative_escapes_every_model_string():
     so = re.search(r'function renderSectorOutlook\(from\)\{.*?\n\}\n', css, re.S).group(0)
     assert "STANCE={tailwind:'up',headwind:'down'}" in so, \
         'stance must map to CSS classes only through the whitelist'
-    assert "STANCE[m.row.stance]||''" in so
+    assert "STANCE[m.row.stance]||'flat'" in so
     assert '_esc(m.row.influence)' in so and '_esc(m.row.headline)' in so
     assert '[data-theme="dark"] #macro-view{' in css, \
         'the macro tokens need a dark-mode redefinition'
@@ -220,7 +220,7 @@ def test_macro_narrative_sectors_live_on_the_sector_overview():
     assert 'The balance' in nar, 'a pre-v7 narrative keeps its winds'
     so = re.search(r'function renderSectorOutlook\(from\)\{.*?\n\}\n', css, re.S).group(0)
     assert "STANCE={tailwind:'up',headwind:'down'}" in so
-    assert "_windRow({kind:" in so and '_esc(m.row.influence)' in so
+    assert "_windGroup({scope:'sector'" in so and '_esc(m.row.influence)' in so
     assert 'goSectorDrivers' not in css, 'the Drivers link is gone; Research more drills to the matrix'
 
 
