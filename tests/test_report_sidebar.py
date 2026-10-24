@@ -487,3 +487,6 @@ def test_statements_open_full_screen_with_a_close_x():
     assert "if(e.key==='Escape'&&_stmtFs){e.preventDefault();stmtFsToggle(false);return;}" in src
     assert "if(_stmtFs&&k!==DT_FIN.k)stmtFsToggle(false);" in src
     assert '_detHdrReset();if(_stmtFs)stmtFsToggle(false);' in src
+    # iOS traps z-index inside the .d-body scroller: the pane leaves it.
+    assert "document.getElementById('det-modal').appendChild(p);" in src
+    assert '_stmtFsHome.parent.insertBefore(p,_stmtFsHome.next);' in src

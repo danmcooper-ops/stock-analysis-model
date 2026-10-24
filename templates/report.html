@@ -10974,10 +10974,24 @@ function _renderDetStmtTab(key){
 /* Full-screen statement: a class on the pane (CSS "Full-screen statement"),
    so it survives the pane re-rendering. Escape, the ×, leaving the Finances
    tab and closing the ticker page all end it. */
-var _stmtFs=false;
+var _stmtFs=false,_stmtFsHome=null;
 function stmtFsToggle(on){
-  _stmtFs=!!on;
+  on=!!on;
   var p=document.getElementById('d-pane-stmt');
+  /* iOS makes .d-body (a -webkit-overflow-scrolling scroller) a stacking
+     context, so inside it the pane's z-index cannot clear the sticky header
+     band and the tabs, which then cover the ×. Full screen lifts the pane
+     out to #det-modal itself and puts it back where it was on close; the
+     click handlers are on document, so they follow it. */
+  if(p&&on!==_stmtFs){
+    if(on){
+      _stmtFsHome={parent:p.parentNode,next:p.nextSibling};
+      document.getElementById('det-modal').appendChild(p);
+    }else if(_stmtFsHome){
+      _stmtFsHome.parent.insertBefore(p,_stmtFsHome.next);_stmtFsHome=null;
+    }
+  }
+  _stmtFs=on;
   if(p)p.classList.toggle('stmt-fs',_stmtFs);
   document.documentElement.classList.toggle('stmt-fs-open',_stmtFs);
   var w=p&&p.querySelector('.dtr-wrap');if(w&&_stmtFs)w.scrollTop=0;
