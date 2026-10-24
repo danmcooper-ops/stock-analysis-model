@@ -2323,6 +2323,10 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-narrative>.mac-h:first-child{margin-top:0;padding-top:0;border-top:0;}
 .mac-h-out{margin:4px 0 10px;padding-top:0;border-top:0;}
 .mac-h>.sec-label{margin:0;}
+/* The Economy: one card, the regime then the narrative (_macOverviewHTML). */
+.mac-narrative.mac-econ-body{flex:1 1 100%;max-width:none;padding:16px 0 0;border-top:1px solid var(--mac-line);margin-top:4px;}
+.mac-econ .mac-regime-main>.sec-label{margin-bottom:12px;}
+.mac-watch-k{margin-top:22px;padding-top:14px;border-top:1px solid var(--mac-line);}
 .mac-read{flex:1 1 100%;margin:8px 0 0;font-size:0.98em;line-height:1.55;color:inherit;}
 .mac-regime-main{flex:1 1 300px;}
 .mac-watch li{margin:4px 0;}
@@ -2492,7 +2496,7 @@ html.mz-open,html.mz-open body{overflow:hidden;}
    per row — a 369px chart is 125px tall, which is the right size here. */
 @media(max-width:900px) and (orientation:portrait){
   #macro-view{padding:2px 4px 32px;}
-  .mac-regime{padding:8px 11px;margin:7px 0 9px;font-size:0.85em;}
+  .mac-regime:not(.mac-econ){padding:8px 11px;margin:7px 0 9px;font-size:0.85em;}
   .mac-tile{padding:8px 10px;}
   .mac-tile-v{font-size:1.3em;}
   .mac-cards{gap:10px;}
@@ -2516,7 +2520,7 @@ html.mz-open,html.mz-open body{overflow:hidden;}
    horizontal pan here to shift content out from under it. */
 @media(orientation:landscape) and (max-height:500px){
   #macro-view{padding:2px max(6px,env(safe-area-inset-right)) 28px max(6px,env(safe-area-inset-left));}
-  .mac-regime{padding:5px 10px;margin:5px 0 7px;font-size:0.8em;}
+  .mac-regime:not(.mac-econ){padding:5px 10px;margin:5px 0 7px;font-size:0.8em;}
   .mac-regime-chips{margin-top:4px;}
   .mac-sec-note{margin:0 0 6px;}
   .mac-sec-intro{font-size:0.82em;margin:0 0 8px;}
@@ -12671,10 +12675,9 @@ function renderMacro(){
   /* No sub-tab row here: the six section buttons duplicated the nav
      dropdown's Macro Outlook column, which is where every other view's
      sub-tabs already live (see renderMSubs / renderTSubs). The regime box
-     leads the Overview only; a section sub-tab opens on its own title. */
-  var h=curMacSub==='overview'?_macRegimeHTML(true):'';
-  if(curMacSub==='overview')h+=_macOverviewHTML();
-  else h+=_macSectionHTML(curMacSub);
+     leads the Overview only (as part of The Economy card); a section
+     sub-tab opens on its own title. */
+  var h=curMacSub==='overview'?_macOverviewHTML():_macSectionHTML(curMacSub);
   el.innerHTML=h;
   _rmSync(el);
 }
@@ -12732,7 +12735,8 @@ function _macRegimeHTML(full){
   var col=_MAC_REGIME_STYLE[src.regime]||'#64748b';
   var name=String(src.regime||'').replace('_',' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
   var comp=src.composite_score;
-  var h='<div class="mac-regime"><div class="mac-regime-main"><div class="sec-label">Market regime</div>'
+  var h='<div class="mac-regime'+(full?' mac-econ':'')+'"><div class="mac-regime-main"><div class="sec-label">The Economy</div>'
+    +'<div class="mac-nar-k">Market regime</div>'
     +'<div class="mac-regime-name"><span class="mac-regime-dot" style="background:'+col+'"></span>'+_esc(name)+'</div>'
     +'<div class="mac-regime-gloss">'+(_MAC_REGIME_GLOSS[src.regime]||'')
     +(comp!=null?' · composite <span>'+(comp>=0?'+':'')+comp.toFixed(2)+'</span>':'')+'</div>';
@@ -12761,6 +12765,7 @@ function _macRegimeHTML(full){
     h+='</div><button type="button" class="mac-regime-help" aria-label="How the regime is scored" aria-expanded="false" onclick="_macRegimeHelp(this,event)">?</button>'
       +'<p class="mac-regime-note" role="tooltip">'+_MAC_REGIME_NOTE+'</p>';
   }
+  if(full)h+=_macNarrativeHTML(true);
   h+='</div>';
   return h;
 }
@@ -12964,7 +12969,9 @@ function _macFold(el,e){
   var b=f.querySelector('.mac-fold-btn');
   if(b){b.setAttribute('aria-expanded',open?'true':'false');b.setAttribute('aria-label',open?'Show less':'Show more');}
 }
-function _macNarrativeHTML(){
+/* inner: the body only, set inside The Economy card under the regime;
+   otherwise its own card, titled The Economy. */
+function _macNarrativeHTML(inner){
   /* Claude-written narrative from the builder (data/claude_narrative.py),
      set part paragraph, part bullets: each kickered section opens with its
      lead sentence as a paragraph and lists the supporting evidence as
@@ -12985,7 +12992,8 @@ function _macNarrativeHTML(){
      growth_labor, inflation_rates, credit_conditions); an older cache with
      a different count simply runs unkickered. */
   var KICK=ps.length===3?['Growth & labor','Inflation & rates','Credit & conditions']:[];
-  var h='<div class="mac-card mac-narrative"><h3 class="mac-h"><span class="sec-label">The economy</span></h3>';
+  var h=inner?'<div class="mac-narrative mac-econ-body">'
+    :'<div class="mac-card mac-narrative"><h3 class="mac-h"><span class="sec-label">The Economy</span></h3>';
   /* Phones fold each section to its kicker and lead sentence, and each
      sector influence to its name and kicker; the chevron (or a tap on the
      kicker) opens the rest (_macFold). Desktop shows everything. */
@@ -13010,7 +13018,8 @@ function _macNarrativeHTML(){
   var watch=(nar.watch||[]).filter(Boolean);
   var tw=(nar.tailwinds||[]).filter(Boolean),hw=(nar.headwinds||[]).filter(Boolean);
   if(watch.length){
-    h+='<h3 class="mac-h"><span class="sec-label">What to watch</span></h3><ul class="mac-nar-ul mac-watch">';
+    /* A kicker like the sections above it, not a second title box. */
+    h+='<div class="mac-nar-k mac-watch-k">What to watch</div><ul class="mac-nar-ul mac-watch">';
     watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
     h+='</ul>';
   }else if(tw.length||hw.length){
@@ -13045,8 +13054,11 @@ function _macOverviewHTML(){
      and what to watch. Every indicator's card lives once, on its section
      sub-tab (Rates & Curve, Inflation, Growth & Labor, Credit, …); the
      Overview does not repeat any of them as headline tiles. */
+  /* One card, The Economy: the regime, its bottom line and meters, then the
+     narrative inside the same card. Without a regime the narrative stands
+     as the card on its own. */
   var h='<div class="mac-overview">';
-  h+=_macNarrativeHTML();
+  h+=_macRegimeHTML(true)||_macNarrativeHTML(false);
   if(!MACRO)h+=_macStatusNote();
   h+='</div>';
   return h;
