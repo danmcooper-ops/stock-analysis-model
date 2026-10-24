@@ -2862,9 +2862,9 @@ html body #det-modal .d-mini-nav-actions svg,html body #det-modal .d-mini-nav-ac
 html body #det-modal .d-pf-btn{color:var(--chrome-muted);}
 html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 /* Underlined tab bar — Seeking Alpha's Summary · Ratings · … row. */
-.d-tabs{--sac:var(--chrome-muted);display:flex;gap:2px;margin-top:10px;border-bottom:1.5px solid var(--chrome-heading);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.d-tabs{--sac:var(--chrome-muted);display:flex;gap:2px;margin-top:10px;box-shadow:inset 0 -1.5px 0 var(--chrome-heading);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
 .d-tabs::-webkit-scrollbar{display:none;}
-.d-tab{flex-shrink:0;height:34px;padding:0 10px;border:0;background:none;font:inherit;font-size:13.5px;cursor:pointer;white-space:nowrap;margin-bottom:-1.5px;}
+.d-tab{flex-shrink:0;height:34px;padding:0 10px;border:0;background:none;font:inherit;font-size:13.5px;cursor:pointer;white-space:nowrap;}
 .d-tab:hover{--sac:var(--chrome-heading);}
 .d-tab.cur{--sac:var(--chrome-heading);font-weight:700;box-shadow:inset 0 -3px 0 var(--chrome-heading);}
 .d-tab:focus-visible{outline:2px solid var(--chrome-accent);outline-offset:-2px;}
@@ -2873,10 +2873,14 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
    underline style as the #subnav sub-tabs, one size down. */
 .d-stmt-tabs{--sac:var(--chrome-muted);display:flex;gap:20px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--tab-line);}
 /* Tab strips scroll sideways only and never rubber-band. overflow-x:auto
-   makes overflow-y auto too, and the ticker tabs' active underline left
-   the strip 1px taller than its box, so on iOS it was also a vertical
-   scroller: pulled down, the whole row slid out of view and sprang back. */
-.d-tabs,.d-stmt-tabs,.sn-chips,.secondary-nav{overflow-y:hidden;overscroll-behavior:none;}
+   makes overflow-y auto too, and the ticker tabs' active underline used to
+   hang 1.5px below the strip (a negative margin over its border), so on
+   iOS the row was also a vertical scroller: pulled down, it slid out of
+   view and sprang back. iOS Safari can still pan a scroller vertically
+   under overflow-y:hidden, so the strips also take only horizontal
+   gestures (touch-action:pan-x), and the ticker strip's rule is an inset
+   shadow its tabs' underline paints over, so nothing overhangs. */
+.d-tabs,.d-stmt-tabs,.sn-chips,.secondary-nav{overflow-y:hidden;overscroll-behavior:none;touch-action:pan-x;}
 .d-stmt-tabs::-webkit-scrollbar{display:none;}
 .d-stmt-tab{flex-shrink:0;height:32px;padding:0 2px;border:0;border-radius:0;background:none;font:inherit;font-size:13px;font-weight:500;white-space:nowrap;cursor:pointer;}
 .d-stmt-tab:hover{--sac:var(--chrome-heading);box-shadow:inset 0 -2px 0 var(--tab-hover-line);}
