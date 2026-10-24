@@ -44,6 +44,24 @@ def _closes(hist):
     return hist['Close'].dropna()
 
 
+def fetch_yahoo_closes(symbol, start=None):
+    """{date: close} for one Yahoo symbol since ``start`` (default 10 years).
+
+    For the few Macro-tab series FRED does not carry (gold and silver). {} on
+    any failure, so a Yahoo outage costs those cards and nothing else.
+    """
+    try:
+        kwargs = {'start': start.isoformat()} if start else {'period': '10y'}
+        hist = yf.Ticker(symbol, session=_yf_session()).history(**kwargs)
+        closes = _closes(hist)
+        if closes is None:
+            return {}
+        return {ts.date(): float(v) for ts, v in closes.items() if v > 0}
+    except Exception as e:
+        logger.warning('macro: dashboard series fetch failed for %s: %s', symbol, e)
+        return {}
+
+
 # GICS sector → SPDR sector ETF
 SECTOR_ETF_MAP = {
     'Technology': 'XLK',
