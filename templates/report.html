@@ -1715,7 +1715,7 @@ circle.etfc-spy{fill:var(--etfc-s);}
 .wind-btn:hover{text-decoration:underline;}
 [data-theme="dark"] .wind-btn{color:#58a6ff !important;}
 /* One header for every tailwind/headwind section in the report (the
-   Broad Sector Outlook's groups, a sector's Drivers columns, the ticker
+   sector's Drivers columns, the ticker
    page's Headwinds & Tailwinds, the Macro balance): a coloured uppercase
    label, a muted count after a dot, a coloured rule, and a chevron at the
    right edge when it folds. */
@@ -1737,16 +1737,6 @@ button.wind-h{cursor:pointer;}
 .wind-grp+.wind-grp{margin-top:14px;}
 .ppf-cols>.wind-grp,.sig-grid>.wind-grp{margin-top:0;}
 .wind-sum{display:none;font-size:13px;line-height:1.45;color:#64748b;margin:6px 0 2px;}
-/* Broad Sector Outlook: the two reads on each sector, coloured by direction. */
-.so-r{font-weight:600;color:#64748b;}
-.so-r.so-up{color:#1a7a45;}.so-r.so-down{color:#c0392b;}
-.so-dot{color:#94a3b8;}
-.so-reads{font-size:13px;margin:8px 0 2px;}
-.so-wrap .so-ul{margin:6px 0 4px;}
-@media(max-width:520px){.so-wrap .so-ul{margin-left:0;}}
-[data-theme="dark"] .so-r{color:#8b949e !important;}
-[data-theme="dark"] .so-r.so-up{color:#3fb950 !important;}[data-theme="dark"] .so-r.so-down{color:#f85149 !important;}
-[data-theme="dark"] .so-dot{color:#6e7681 !important;}
 .wind-shut .wind-sum{display:block;}
 .wind-shut .wind-body{display:none;}
 .wind-shut .wind-h{margin-bottom:0;}
@@ -12906,9 +12896,6 @@ function _macNarrativeHTML(){
     }
     h+='</div></div>';
   }
-  /* The per-sector read (the narrative's stances and influences) is the
-     Broad Sector Outlook on Sector Analysis › Overview; it is not repeated
-     here. */
   /* No byline or reading-time caption: the cards end on their content. */
   h+='</div>';
   return h;
@@ -14110,7 +14097,7 @@ function renderPoolSectorSignals(sec){
   var hwHtml='<div class="pp-signals-col"><div class="wind-h wind-down">▼ Structural Headwinds<span>· '+hw0.length+'</span></div>'+_list(hw0,'headwinds')+'</div>';
   return '<div class="pp-signals-grid">'+twHtml+hwHtml+'</div>';
 }
-/* The report's one tailwind/headwind group (Broad Sector Outlook, a
+/* The report's one tailwind/headwind group (a
    sector's Drivers, the ticker page): a .wind-h header that folds the
    group, a one-sentence summary shown while folded, and the rows. The
    fold is kept per browser (stock_wind_shut_v1, {"<scope>:<key>": false}
@@ -14154,83 +14141,6 @@ function _windListSum(items){
   if(!items.length)return 'None identified.';
   var t=String(items[0]).replace(/[.\s]+$/,'');
   return t+(items.length>1?', and '+(items.length-1)+' more.':'.');
-}
-/* Broad Sector Outlook: the one sector read, on the Sector Analysis
-   Overview sub-tab above the Sector Price Comparison. Sectors are
-   grouped by the macro narrative's stance (its whitelist picks the group,
-   never the model's text; no narrative, one ungrouped list). Each sector
-   is a short row: its name beside a status with its structural health (the force balance,
-   sector_forces.force_balance), then a ▲ line for its dominant tailwind
-   and a ▼ line for its dominant headwind. Dominant = the live force with
-   the largest weight x reach, the terms the balance sums (building at
-   half, an unmeasured reach as a third of the sector), so the named force
-   is the one that moved the verdict. Macro read opens the narrative's
-   influence in place (addressed by index, never by a model string in an
-   attribute). */
-var _SO_W={active:1,building:0.5};
-function _soDominant(list,kind){
-  var best=null,bw=0;
-  list.forEach(function(f){
-    if(f.kind!==kind)return;
-    var w=_SO_W[f.status];if(!w)return;
-    var r=f.exposure&&f.exposure.reach!=null?f.exposure.reach:1/3;
-    if(w*r>bw){bw=w*r;best=f;}
-  });
-  return best;
-}
-function _soHealth(b){
-  if(!b||(!b.tailwind&&!b.headwind))return ['flat','No force acting'];
-  if(b.net>0.1)return ['up','Tailwinds lead'];
-  if(b.net<-0.1)return ['down','Headwinds lead'];
-  return ['flat','Balanced'];
-}
-function _soNarr(){
-  var nar=(typeof MACRO_SUM!=='undefined'&&MACRO_SUM&&MACRO_SUM.narrative)||(typeof MACRO!=='undefined'&&MACRO&&MACRO.narrative);
-  return nar&&(nar.sectors||[]).length?nar:null;
-}
-/* The sectors are the categories: one folding group per sector, A–Z,
-   each naming its two reads side by side — the Macro Outlook's view of the
-   sector in today's economy and the balance of its own structural forces —
-   so neither is a heading over the other (grouping sectors by the macro
-   stance put "Structural: headwinds lead" under "Macro view: tailwind",
-   which read as a contradiction). Folded, the group shows both reads;
-   open, it adds the macro read, the dominant tailwind and headwind, and
-   Research more. */
-function _soRead(cls,label,val){return '<span class="so-r so-'+cls+'">'+label+': '+val+'</span>';}
-function renderSectorOutlook(from){
-  if(typeof SECTOR_POOL==='undefined'||!SECTOR_POOL)return '';
-  var nar=_soNarr(),byName={};
-  if(nar)nar.sectors.forEach(function(r,i){if(r&&r.sector)byName[r.sector]={row:r,i:i};});
-  var STANCE={tailwind:'up',headwind:'down'},cnt={up:0,down:0,n:0},body='';
-  Object.keys(SECTOR_POOL).sort().forEach(function(sec){
-    var fz=SECTOR_POOL[sec]&&SECTOR_POOL[sec].forces;
-    if(!fz||!fz.forces||!fz.forces.length)return;
-    cnt.n++;
-    var h=_soHealth(fz.balance),tw=_soDominant(fz.forces,'tailwind'),hw=_soDominant(fz.forces,'headwind');
-    var m=byName[sec],mk=m?STANCE[m.row.stance]||'flat':'';
-    var acting=fz.forces.filter(function(f){return f.status==='active'||f.status==='building';}).length;
-    if(h[0]==='up')cnt.up++;else if(h[0]==='down')cnt.down++;
-    var reads=(m?_soRead(mk,'Macro view',mk==='up'?'tailwind':mk==='down'?'headwind':'neutral')+'<span class="so-dot"> · </span>':'')
-      +_soRead(h[0],'Structural',h[1]==='No force acting'?'none acting':h[1].toLowerCase());
-    function side(f,kind){return '<li><b>'+(kind==='tailwind'?'Tailwind':'Headwind')+':</b> '+(f?_esc(f.theme)+(f.status==='building'?' (building)':''):'none acting')+'.</li>';}
-    body+=_windGroup({scope:'sector',k:sec,dir:'',label:_esc(sec),count:acting+' of '+fz.forces.length+' acting',sum:reads,
-      body:'<div class="so-reads">'+reads+'</div><ul class="ppf-ul so-ul">'
-        +(m&&m.row.influence?'<li><b>Macro read:</b> '+(m.row.headline?'<i>'+_esc(m.row.headline)+'.</i> ':'')+_esc(m.row.influence)+'</li>':'')
-        +side(tw,'tailwind')+side(hw,'headwind')
-        +_windMatrixLi(from||'Broad Sector Outlook',sec,'')+'</ul>'});
-  });
-  if(!body)return '';
-  /* The verdict and bar weigh sectors, as the Drivers weigh forces. */
-  body=_windTop({tailwind:cnt.up/cnt.n,headwind:cnt.down/cnt.n,net:(cnt.up-cnt.down)/cnt.n},
-    'Across '+cnt.n+' sectors, tailwinds lead in '+cnt.up+' and headwinds in '+cnt.down+'.')+body;
-  /* The explainer folds behind a ?, so the sectors lead. */
-  var q=_qHelp('<span class="note-q-t">Each sector shows two separate reads, which can disagree. '
-    +(nar?'Macro view is the Macro Outlook’s read of the sector in today’s economy. ':'')
-    +'Structural weighs the sector’s own long-run forces (acting now, or building at half weight) by the share of its revenue they reach. Open a sector for '
-    +(nar?'the macro reasoning, ':'')+'its strongest tailwind and headwind; Research more opens its companies in Stock Valuations. '
-    +'The bar weighs sectors whose structural tailwinds lead against those whose headwinds do.</span>','How to read the Broad Sector Outlook','corner');
-  return '<div class="xsect-dashboard so-wrap qh-card">'+q
-    +'<div class="sec-label">Broad Sector Outlook</div>'+body+'</div>';
 }
 /* === Aggregate Performance chart ================================
    Lives only on the Sector Analysis "Charts" tab. Sectors are
@@ -15531,8 +15441,7 @@ function renderPool(){
        profit-pool chart. */
     var perfBody=renderUniversePriceChart();
     var poolBody=renderCrossSectorProfitPool();
-    chartHtml=renderSectorOutlook()
-      +'<div class="xsect-dashboard">'
+    chartHtml='<div class="xsect-dashboard">'
       +'<div class="sec-label">Sector Price Comparison</div>'
       +'<div class="xsect-sub">Indexed price performance across sectors. Pick any subset to compare.</div>'
       +(perfBody||'<p style="color:#888;padding:20px">No sector data available.</p>')
