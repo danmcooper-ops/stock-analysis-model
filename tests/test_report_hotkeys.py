@@ -176,3 +176,14 @@ def test_shift_brackets_step_the_lower_tab_row_when_there_are_two():
     det = src.split('function _hkDetDispatch(e){')[1].split('\n}\n')[0]
     shift = det.split("k==='}'||k==='{'")[1].split("k==='s'")[0]
     assert '_detTab!==DT_FIN.k' in shift and 'DT_STMTS' in shift
+
+
+def test_popup_close_keys():
+    """q and Backspace close the popup (Esc already does). They live in the
+    popup dispatcher, which only runs past _hkBlocked, so Backspace still
+    deletes text in the membership menu's new-portfolio field."""
+    dispatch = _det_dispatch()
+    line = next(ln for ln in dispatch.splitlines() if "k==='Backspace'" in ln)
+    assert "k==='q'" in line and 'closeDetail()' in line
+    hotkeys = _tpl().split('var HOTKEYS=[')[1].split('\n];')[0]
+    assert "k:['q','Backspace']" in hotkeys
