@@ -344,7 +344,7 @@ def test_ticker_band_collapse_follows_the_scroll():
     src = _tpl()
     apply = _fn(src, '_detHdrApply')
     assert "e.band.style.height=c>0?(_hdr.hExp-c)+'px':'';" in apply
-    assert "e.hc.style.height=(_hdr.src==='body'?c:0)+'px';" in apply
+    assert "e.hc.style.height=(_hdr.src==='body'&&!_hdr.pin?c:0)+'px';" in apply
     assert "e.dm.style.setProperty('--hp',p.toFixed(4));" in apply
     on = _fn(src, '_detHdrOnScroll')
     assert 'requestAnimationFrame(_detHdrApply)' in on
