@@ -1376,6 +1376,9 @@ circle.etfc-spy{fill:var(--etfc-s);}
 .ppf-split i{display:block;height:100%;}
 .ppf-split .tw{background:var(--ppf-tw);}.ppf-split .hw{background:var(--ppf-hw);}
 .ppf-mkt{font-size:0.78em;color:var(--ppf-sub);margin:0 0 10px;}
+.ppf-macro{line-height:1.55;max-width:90ch;}
+.ppf-macro b{font-weight:600;}
+[data-theme="dark"] .ppf-macro b,[data-theme="dark"] .ppf-macro i{color:inherit !important;}
 /* The status key lives in a ? popover at the end of the market-check line. */
 .qhelp{position:relative;flex-shrink:0;}
 .qhelp-btn{width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--ppf-line);background:transparent;
@@ -14053,6 +14056,18 @@ function _ppfCol(list,kind,sec){
     count:acting+' of '+list.length+' acting',sum:_ppfColSum(list,kind),
     body:sorted.map(function(f){return _ppfCard(f,true,sec);}).join('')});
 }
+/* The Macro Outlook's read of this sector (the narrative's stance, one-line
+   headline and influence paragraph), one line above the structural forces.
+   The stance reaches the page only through the whitelist. */
+function _ppfMacroRead(sec){
+  var nar=(typeof MACRO_SUM!=='undefined'&&MACRO_SUM&&MACRO_SUM.narrative)||(typeof MACRO!=='undefined'&&MACRO&&MACRO.narrative);
+  var row=nar&&(nar.sectors||[]).filter(function(r){return r&&r.sector===sec;})[0];
+  if(!row||!(row.influence||row.headline))return '';
+  var STANCE={tailwind:'Tailwind',headwind:'Headwind'},st=STANCE[row.stance]||'Neutral';
+  var hl=row.headline?String(row.headline).replace(/[.\s]+$/,''):'';
+  return '<div class="ppf-mkt ppf-macro">Macro read: <b>'+st+'</b>. '
+    +(hl?'<i>'+_esc(hl)+'.</i> ':'')+(row.influence?_esc(row.influence):'')+'</div>';
+}
 function renderPoolSectorSignals(sec){
   var n=SECTOR_POOL&&SECTOR_POOL[sec];
   if(!n)return '';
@@ -14075,6 +14090,7 @@ function renderPoolSectorSignals(sec){
     /* The status key and the method share the section's one ?, in its
        top-right corner. */
     if(mkt)out+=mkt;
+    out+=_ppfMacroRead(sec);
     var key='<div class="ppf-key">'
       +'<span><i class="ppf-dot" style="background:var(--ppf-sub);border-color:var(--ppf-sub)"></i>Acting now: the evidence is strong and holding</span>'
       +'<span><i class="ppf-dot" style="border-color:var(--ppf-sub);background:linear-gradient(90deg,var(--ppf-sub) 50%,transparent 50%)"></i>Building: moving toward strong</span>'
@@ -14086,7 +14102,7 @@ function renderPoolSectorSignals(sec){
     return out;
   }
   var hw0=n.headwinds||[],tw0=n.tailwinds||[];
-  if(!hw0.length&&!tw0.length)return '';
+  if(!hw0.length&&!tw0.length)return _ppfMacroRead(sec);
   function _list(items,kind){
     if(!items.length)return '<p style="margin:0;color:#94a3b8;font-size:0.82em;font-style:italic">No '+kind+' identified for this sector.</p>';
     var ul='<ul style="margin:0;padding-left:18px;list-style:disc;font-size:0.82em;line-height:1.55">';
@@ -14095,7 +14111,7 @@ function renderPoolSectorSignals(sec){
   }
   var twHtml='<div class="pp-signals-col"><div class="wind-h wind-up">▲ Structural Tailwinds<span>· '+tw0.length+'</span></div>'+_list(tw0,'tailwinds')+'</div>';
   var hwHtml='<div class="pp-signals-col"><div class="wind-h wind-down">▼ Structural Headwinds<span>· '+hw0.length+'</span></div>'+_list(hw0,'headwinds')+'</div>';
-  return '<div class="pp-signals-grid">'+twHtml+hwHtml+'</div>';
+  return _ppfMacroRead(sec)+'<div class="pp-signals-grid">'+twHtml+hwHtml+'</div>';
 }
 /* The report's one tailwind/headwind group (a
    sector's Drivers, the ticker page): a .wind-h header that folds the
