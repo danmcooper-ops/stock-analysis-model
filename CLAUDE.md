@@ -810,11 +810,7 @@ ruff check .
   headwind for Financials and "defensive flows" active tailwinds for Consumer
   Defensive and Utilities; the 10-year had 65, so 5.12% read mid-pack. Those
   three credit forces now read the NFCI, and Financials' yield-curve
-  tailwind reads 10Y−3M. On the Broad Sector Outlook each sector is its
-  own folding group (A–Z), naming the macro narrative's view ("Macro view:
-  …") and the structural balance ("Structural: …") side by side, because
-  they can disagree; grouping sectors under the macro stance put one read
-  as a heading over the other. A year's move counts only past `MOVE_NOISE_SD` (0.25) of the
+  tailwind reads 10Y−3M. A year's move counts only past `MOVE_NOISE_SD` (0.25) of the
   window's spread: in a bunched series NFCI -0.53 -> -0.50 had read
   "building". The two defensive-flows forces (Consumer Defensive,
   Utilities) read their SPDR's return against SPY (`sector_data` rs_1m/3m/
@@ -844,8 +840,7 @@ ruff check .
   Under it are bullets: evidence (with a sparkline), reach, who is
   exposed, and why it matters; each force's heading opens its own. Moving
   forces sort first. Tailwinds and Headwinds are the report's one wind
-  group (`_windGroup`, also the Broad Sector Outlook's groups and the
-  ticker page's Headwinds & Tailwinds): the header folds the group to a
+  group (`_windGroup`, also the ticker page's Headwinds & Tailwinds): the header folds the group to a
   one-sentence summary; groups start folded, and an opened one stays open
   per browser (`stock_wind_shut_v1`). The colour
   overrides carry `!important` against the blanket dark `body *` text
@@ -1284,14 +1279,10 @@ by analyze_stock and gitignored):
   carries a byline or reading-time caption. Each indicator's
   card lives once, on its section sub-tab; the Overview has no headline
   tiles (the eight it had repeated Rates, Inflation, Growth and Credit). The narrative's per-sector stances and
-  influence paragraphs are read on Sector Analysis › Overview (the first
-  sub-tab, key `__performance__`), in the Broad Sector Outlook
-  (`renderSectorOutlook`): one folding group per sector, A–Z, naming its
-  macro view (the narrative's stance) and its structural force balance side
-  by side; open, its macro read, dominant structural tailwind/headwind
-  (largest weight × reach, as `force_balance` sums them) and Research more
-  into the filtered Stock Valuations. The Macro Overview
-  does not repeat it. A pre-v7 cache has no
+  influence paragraphs are not rendered: the Broad Sector Outlook that
+  showed them on Sector Analysis › Overview (key `__performance__`) was
+  removed as noise beside each sector's Drivers tab, so that tab now opens
+  on Sector Price Comparison. A pre-v7 cache has no
   `bottom_line`/`watch` and shows its headwinds/tailwinds as The balance. The Sector Analysis tabs carry no
   macro narrative; their Sector Headwinds & Tailwinds block is the
   sector's own structural read, and each influence paragraph weighs

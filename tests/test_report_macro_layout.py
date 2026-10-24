@@ -163,12 +163,6 @@ def test_macro_narrative_escapes_every_model_string():
             prefix = body[max(0, at - 6):at]
             assert '_esc(' in prefix, \
                 '%s is interpolated without _esc()' % field
-    # the sector stances render through the Sector Outlook
-    so = re.search(r'function renderSectorOutlook\(from\)\{.*?\n\}\n', css, re.S).group(0)
-    assert "STANCE={tailwind:'up',headwind:'down'}" in so, \
-        'stance must map to CSS classes only through the whitelist'
-    assert "STANCE[m.row.stance]||'flat'" in so
-    assert '_esc(m.row.influence)' in so and '_esc(m.row.headline)' in so
     assert '[data-theme="dark"] #macro-view{' in css, \
         'the macro tokens need a dark-mode redefinition'
 
@@ -207,20 +201,16 @@ def test_macro_sentence_split_keeps_decimals_and_abbreviations():
     assert r'\bvs' in fn and r'\b[A-Za-z]' in fn
 
 
-def test_macro_narrative_sectors_live_on_the_sector_overview():
-    """The narrative's per-sector stances and influences are read on Sector
-    Analysis › Overview (the Broad Sector Outlook), not repeated on the
-    Macro Overview: grouped through the stance whitelist, each sector's row
-    opening its influence (escaped, never in an attribute). An older
-    narrative without `watch` keeps The balance."""
+def test_macro_narrative_has_no_sector_outlook():
+    """The narrative's per-sector stances are not rendered: the Macro
+    Overview never carried them, and the Broad Sector Outlook that did is
+    gone (each sector page has its own Drivers). An older narrative without
+    `watch` keeps The balance."""
     css = _css()
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
-    assert 'renderSectorOutlook(' not in nar
+    assert 'renderSectorOutlook' not in css
     assert "watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});" in nar
     assert 'The balance' in nar, 'a pre-v7 narrative keeps its winds'
-    so = re.search(r'function renderSectorOutlook\(from\)\{.*?\n\}\n', css, re.S).group(0)
-    assert "STANCE={tailwind:'up',headwind:'down'}" in so
-    assert "_windGroup({scope:'sector'" in so and '_esc(m.row.influence)' in so
     assert 'goSectorDrivers' not in css, 'the Drivers link is gone; Research more drills to the matrix'
 
 

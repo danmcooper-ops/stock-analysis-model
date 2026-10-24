@@ -494,91 +494,6 @@ def test_both_charts_use_round_ticks_and_label_their_latest_value(tmp_path):
     d = re.search(r'<path class="pph-line" d="([^"]*)"', svg).group(1)
     assert d.count('M') == 1 and d.count('L') == 2
 
-def _render_outlook(pool, tmp_path, macro=None, stored=None, data=None):
-    src = TEMPLATE.read_text(encoding='utf-8')
-    names = ['_soDominant', '_soHealth', '_soNarr', '_qHelp', '_windState', '_windGroup',
-             '_ppfBalance', '_windTop', '_windMatrixLi', '_soRead', 'renderSectorOutlook']
-    js = '\n'.join(['function _esc(s){return String(s);}function _attr(s){return String(s);}',
-                    'var MACRO_SUM=' + json.dumps(macro) + ';var MACRO=null;var DATA=' + json.dumps(data or []) + ';',
-                    'var localStorage={getItem:function(){return %s;}};' % json.dumps(json.dumps(stored)),
-                    re.search(r'^var _SO_W=.*$', src, re.M).group(0)]
-                   + [_fn(src, n) for n in names]
-                   + ['var SECTOR_POOL=' + json.dumps(pool) + ';',
-                      'process.stdout.write(renderSectorOutlook());'])
-    script = tmp_path / 'o.js'
-    script.write_text(js, encoding='utf-8')
-    return subprocess.run(['node', str(script)], capture_output=True, text=True,
-                          check=True).stdout
-
-
-def _sector(html, sec):
-    return html.split('data-wk="sector:%s"' % sec)[1].split('<div class="wind-grp')[0]
-
-
-def test_sector_outlook_names_the_dominant_force_each_way(tmp_path):
-    def f(kind, theme, status, reach):
-        return {'kind': kind, 'theme': theme, 'status': status,
-                'exposure': None if reach is None else {'reach': reach}}
-    pool = {
-        'Energy': {'forces': {'balance': {'tailwind': 0.48, 'headwind': 0.0, 'net': 0.48},
-                              'forces': [f('tailwind', 'Underinvestment', 'active', 0.48),
-                                         f('tailwind', 'Discipline', 'easing', 0.9),
-                                         f('headwind', 'Commodity cycle', 'dormant', 0.48)]}},
-        'Utilities': {'forces': {'balance': {'tailwind': 0.33, 'headwind': 0.29, 'net': 0.04},
-                                 'forces': [f('tailwind', 'Defensive bid', 'active', None),
-                                            f('tailwind', 'Grid capex', 'building', 0.6),
-                                            f('headwind', 'Rate cases', 'active', 0.29)]}},
-        'Healthcare': {'forces': {'balance': {'tailwind': 0, 'headwind': 0, 'net': 0},
-                                  'forces': [f('tailwind', 'Aging', 'qualitative', None)]}},
-        'Bare': {'stats': {}},
-    }
-    html = _render_outlook(pool, tmp_path)
-    # the sectors are the categories, A-Z, one folding group each
-    order = [html.index('data-wk="sector:%s"' % s) for s in ('Energy', 'Healthcare', 'Utilities')]
-    assert order == sorted(order) and 'Bare' not in html
-    assert '>Broad Sector Outlook<' in html
-    assert 'Across 3 sectors, tailwinds lead in 1 and headwinds in 0.' in html
-    energy = _sector(html, 'Energy')
-    assert 'Energy<span>· 1 of 3 acting</span>' in energy
-    assert '<span class="so-r so-up">Structural: tailwinds lead</span>' in energy
-    assert 'Macro view' not in html, 'no narrative, no macro read'
-    assert '<li><b>Tailwind:</b> Underinvestment.</li>' in energy
-    assert '<li><b>Headwind:</b> none acting.</li>' in energy
-    util = _sector(html, 'Utilities')
-    # building at half weight x 0.6 reach (0.30) loses to active x 1/3 (0.33)
-    assert '<b>Tailwind:</b> Defensive bid.' in util and '<b>Headwind:</b> Rate cases.' in util
-    assert 'Grid capex' not in util
-    assert 'Structural: none acting</span>' in _sector(html, 'Healthcare')
-    assert _render_outlook({'X': {}}, tmp_path) == ''
-
-
-def test_sector_outlook_shows_both_reads_side_by_side(tmp_path):
-    """No sector sits under the other read's heading: each sector group names
-    the macro view and the structural balance together, folded or open."""
-    forces = {'balance': {'tailwind': 0, 'headwind': 0.5, 'net': -0.5},
-              'forces': [{'kind': 'headwind', 'theme': 'Costs', 'status': 'active', 'exposure': {'reach': 0.5}}]}
-    pool = {s: {'forces': forces} for s in ('Consumer Defensive', 'Energy', 'Utilities')}
-    macro = {'narrative': {'sectors': [
-        {'sector': 'Consumer Defensive', 'stance': 'tailwind', 'headline': 'H', 'influence': 'Inf'},
-        {'sector': 'Utilities', 'stance': 'headwind', 'influence': 'U'},
-        {'sector': 'Energy', 'stance': '<script>'}]}}
-    html = _render_outlook(pool, tmp_path, macro)
-    assert html.count('onclick="_windToggle(this)"') == 3 and html.count('wind-shut') == 3, 'one group per sector, folded'
-    assert 'Macro view: tailwind<' not in html.split('data-wk')[0], 'no macro-stance headings'
-    cd = _sector(html, 'Consumer Defensive')
-    both = ('<span class="so-r so-up">Macro view: tailwind</span><span class="so-dot"> · </span>'
-            '<span class="so-r so-down">Structural: headwinds lead</span>')
-    assert '<div class="wind-sum">' + both + '</div>' in cd and '<div class="so-reads">' + both + '</div>' in cd
-    assert '<li><b>Macro read:</b> <i>H.</i> Inf</li>' in cd
-    assert '<span class="so-r so-flat">Macro view: neutral</span>' in _sector(html, 'Energy'), 'unknown stance reads neutral'
-    assert 'Macro read' not in _sector(html, 'Energy')
-    assert '<span class="so-r so-down">Macro view: headwind</span>' in _sector(html, 'Utilities')
-    assert '<script>' not in html
-    opened = _render_outlook(pool, tmp_path, macro, stored={'sector:Utilities': False})
-    assert opened.count('wind-shut') == 2 and '<div class="wind-grp" data-wk="sector:Utilities">' in opened
-    assert 'class="qhelp-btn"' in html and 'two separate reads, which can disagree' in html
-
-
 def test_pool_bars_mirror_their_table():
     """Both pool charts are drawn in their table's order (margin first,
     the pooled row last) and every re-sort lays the bars out again in the
@@ -608,9 +523,9 @@ def test_industry_pool_table_opens_on_margin():
 
 
 def test_wind_rows_drill_to_the_gate_matrix(tmp_path):
-    """A Drivers force and an outlook sector each carry a link into the
-    Gate Matrix filtered to who it is about (the industry a force names,
-    else the sector), made as a drill so the matrix offers the way back."""
+    """A Drivers force carries a link into the Gate Matrix filtered to who
+    it is about (the industry a force names, else the sector), made as a
+    drill so the matrix offers the way back."""
     from models.sector_forces import evaluate_forces
     from tests.test_sector_forces import _entry
     from tests.test_sector_pool import YEARS, _flat
@@ -628,12 +543,6 @@ def test_wind_rows_drill_to_the_gate_matrix(tmp_path):
     assert "windMatrixJump(this.dataset.from,this.dataset.sec,this.dataset.ind)" in li
     jump = _fn(src, 'windMatrixJump')
     assert '_drillPush(from);' in jump and "_cfPut('industry',null,null,ind||null);" in jump and '_dashJump();' in jump
-    forces = {'balance': {'tailwind': 0.5, 'headwind': 0, 'net': 0.5},
-              'forces': [{'kind': 'tailwind', 'theme': 'T', 'status': 'active', 'exposure': {'reach': 0.5}}]}
-    out = _render_outlook({'Technology': {'forces': forces}}, tmp_path, data=data)
-    assert '>Research more ›</button></li>' in out
-    assert 'title="Open Stock Valuations filtered to the 4 Technology companies"' in out
-    assert 'data-from="Broad Sector Outlook" data-sec="Technology" data-ind=""' in out
 
 
 def test_stacked_wind_rows_indent_the_heading_under_the_status():
