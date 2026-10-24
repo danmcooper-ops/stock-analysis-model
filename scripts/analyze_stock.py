@@ -1921,6 +1921,26 @@ def _after_tax_interest(yf_data):
     return interest * (1.0 - rate)
 
 
+def _phase2_non_operating(yf_data, data_source):
+    """Why a ticker with no computable ROIC is not an operating company, or None.
+
+    Phase 2 used to skip every ticker without ROIC, which also happened to
+    keep SPACs and closed-end funds out of the snapshot. With that skip gone
+    they are named here instead: Yahoo files SPACs under the "Shell
+    Companies" industry, and closed-end funds under "Asset Management", like
+    BDCs and real asset managers. A fund files N-CSR rather than 10-K/20-F,
+    so it has no SEC statements, and its data source is yfinance alone
+    (ADX, AOD, BBN on 2026-10-23). A BDC files a 10-K and keeps its row.
+    """
+    info = (yf_data or {}).get('info') or {}
+    industry = info.get('industry') or ''
+    if industry == 'Shell Companies':
+        return 'shell company (SPAC), no ROIC'
+    if industry == 'Asset Management' and data_source == 'yfinance':
+        return 'closed-end fund (no SEC statements), no ROIC'
+    return None
+
+
 def _ensure_fundamental_growth(growth_diag, yf_data, roic_data):
     """Fill ``fundamental_growth`` / ``reinvestment_rate`` on a DCF growth
     diagnostic that never reached the growth-signal block.
@@ -4040,18 +4060,27 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             beta_diag = cached.get('beta_diag')
             fx_meta = cached.get('fx_meta') or {}
 
-            # Phase 2 assumes roic_data and wacc are populated. Carry-forward
-            # tickers bypass the Phase-1 spread filter, so we can land here
-            # with either missing — skip the ticker rather than crash.
-            if not roic_data or wacc is None:
-                print(f"  Skipping {ticker}: ROIC or WACC unavailable today")
+            # A missing WACC leaves nothing to discount with, so the ticker is
+            # skipped. A missing ROIC is not: it used to skip too, and on
+            # 2026-10-23 that dropped 549 tickers, ~250 of them operating
+            # companies — filers with no operating-income line (banks, REITs,
+            # NVR, CNX), invested capital <= 0 (HSBC, VRSN, PDD, DBX) or no
+            # equity line (EPD, PAA). Those now get a row whose ROIC, spread
+            # and ROIC gates read N/A. The ROIC requirement was also what
+            # kept SPACs and closed-end funds out, so they are dropped
+            # explicitly instead (_phase2_non_operating).
+            _non_operating = (_phase2_non_operating(yf_data, cached.get('data_source'))
+                              if not roic_data else None)
+            if wacc is None or _non_operating:
+                print(f"  Skipping {ticker}: "
+                      + (_non_operating or "ROIC or WACC unavailable today"))
                 # Recorded, not just printed: this skip silently removed 235
                 # foreign filers from the 2026-09-08 run (a USD-only XBRL read
                 # blanked their statements) and nothing in the run summary or
                 # the gate N/A report could see it — those only describe rows
                 # that made it into the snapshot. A count here is the only
                 # place a whole cohort going missing shows up.
-                _skip_detail = {'reason': 'ROIC or WACC unavailable',
+                _skip_detail = {'reason': _non_operating or 'ROIC or WACC unavailable',
                                 'roic': bool(roic_data), 'wacc': wacc is not None}
                 _prov.record_event('phase2_skip', ticker, 'roic_wacc', _skip_detail)
                 if checkpoint is not None:
@@ -4111,7 +4140,8 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
             # Latest financials for profit pool analysis
             latest_fins = _extract_latest_financials(yf_data)
             roic_cv = None
-            roic_years = roic_data.get('roic_by_year', {})
+            roic_data = roic_data or {}
+            roic_years = roic_data.get('roic_by_year') or {}
             if len(roic_years) >= 2:
                 vals = list(roic_years.values())
                 mean_r = sum(vals) / len(vals)
@@ -4667,9 +4697,10 @@ def _run_phase2_analysis(qualifying, screen_cache, prices_dir,
                 'div_yield': div_yield,
                 'payout_ratio': payout_ratio,
                 # Core screen — trailing five-year median of per-year ROIC
-                'roic': roic_data['roic_median_5y'],
+                'roic': roic_data.get('roic_median_5y'),
                 'wacc': wacc,
-                'spread': roic_data['roic_median_5y'] - wacc,
+                'spread': (roic_data['roic_median_5y'] - wacc
+                           if roic_data.get('roic_median_5y') is not None else None),
                 'mcap': multiples.get('market_cap'),
                 # Time-series cheapness (Valuation: Mult vs Hist gate)
                 'mult_vs_hist': mult_vs_hist,

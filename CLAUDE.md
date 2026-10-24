@@ -432,6 +432,18 @@ ruff check .
   relative ranks shifted for every row on the switch night. The flag
   still exists for ad-hoc runs. Turning it back on nightly would cut rows
   by ~35%, which trips the `MIN_ROW_RATIO` coverage floor (`FORCE=1`).
+  Phase 2 still dropped every ticker whose ROIC could not be computed:
+  549 on 2026-10-23, among them HSBC, TD, Barclays, UBS, NVR, PulteGroup,
+  VeriSign, PDD, EPD and Alexandria. The causes were filing shape, not
+  quality: no operating-income line (banks, REITs, homebuilders, E&Ps),
+  invested capital ≤ 0 (net cash above equity + debt, or a bank's deposit
+  cash) or no equity line (partnerships). Those tickers now get a row with
+  ROIC, spread and the ROIC gates N/A (scored 0 under
+  `NA_GATES_SCORE_ZERO`). Only a missing WACC still skips.
+  `_phase2_non_operating` drops what the ROIC requirement had been
+  filtering by accident: Yahoo's "Shell Companies" (SPACs) and
+  "Asset Management" rows with no SEC statements (closed-end funds, which
+  file N-CSR). BDCs file a 10-K and stay in.
 - **Phase-1 screen skip cache (`data/screen_skip_cache.py`):** remembers the
   ~4.5k tickers a run rejected as far below `--mcap-min` or dead, with a
   staggered 7-14 / 14-28 day TTL, so the next screen skips them without a
