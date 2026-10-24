@@ -11420,7 +11420,7 @@ function openDet(tk){
       if(!gates.length)return;
       var _catScore=d[c.scoreKey];
       var _catScoreTxt=_catScore!=null?Math.round(_catScore)+'%':'—';
-      var _gvShut=!!_gvState()[c.name];
+      var _gvSt=_gvState()[c.name],_gvShut=_gvSt===undefined||_gvSt===true;
       _gvHtml+='<div class="gv-col'+(_gvShut?' gv-shut':'')+'"><div class="gv-cat" role="button" tabindex="0" aria-expanded="'+(_gvShut?'false':'true')+'"'
         +' data-gvc="'+_attr(c.name)+'" onclick="_gvToggle(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_gvToggle(this);}"'
         +' style="background:'+c.dark+'"><span class="gv-cat-t">'+c.name+' - '+_catScoreTxt+'</span><i class="ppf-chev" aria-hidden="true"></i></div><div class="gv-items">';
@@ -14235,16 +14235,17 @@ function renderPoolSectorSignals(sec){
    open unless the caller passes shut (the ticker page's start folded);
    the reader's own fold or unfold is kept per browser
    (stock_wind_shut_v1, {"<scope>:<key>": true|false}). */
-/* The Model's gate categories fold the same way: a header tap hides the
-   category's gates, open by default, and the reader's choice is kept per
-   browser for every ticker (stock_gv_shut_v1, {"<category>": true}). */
+/* The Model's gate categories fold the same way: a header tap shows or
+   hides the category's gates. They start folded, so the card opens as five
+   category scores; the reader's choice is kept per browser for every ticker
+   (stock_gv_shut_v1, {"<category>": true|false}). */
 function _gvState(){
   try{return JSON.parse(localStorage.getItem('stock_gv_shut_v1'))||{};}catch(e){return {};}
 }
 function _gvToggle(h){
   var col=h.closest('.gv-col'),shut=col.classList.toggle('gv-shut');
   h.setAttribute('aria-expanded',shut?'false':'true');
-  try{var st=_gvState();if(shut)st[h.getAttribute('data-gvc')]=true;else delete st[h.getAttribute('data-gvc')];
+  try{var st=_gvState();st[h.getAttribute('data-gvc')]=shut;
     localStorage.setItem('stock_gv_shut_v1',JSON.stringify(st));}catch(e){}
 }
 function _windState(){
