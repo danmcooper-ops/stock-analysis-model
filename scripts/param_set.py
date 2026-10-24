@@ -280,18 +280,27 @@ def scoring_params_hash(params=None):
 
 
 def scoring_fingerprint():
-    """``{'params_hash', 'git_sha'}`` for a snapshot's ``provenance.scoring``.
+    """``{'params_hash', 'git_sha', 'git_dirty'}`` for a snapshot's
+    ``provenance.scoring``.
 
-    git_sha is the checkout the run came from (None outside git); the hash is
-    what the backtest groups by, since a commit that does not touch scoring
-    leaves it unchanged.
+    git_sha is the checkout the run came from (None outside git) and
+    git_dirty whether tracked files had uncommitted changes, so a sha alone
+    is not taken for the code that ran. The hash is what the backtest groups
+    by, since a commit that does not touch scoring leaves it unchanged. Take
+    it when the process starts (analyze_stock._main does): the gate part is
+    read from the source files on disk.
     """
     import subprocess
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    try:
-        sha = subprocess.check_output(['git', '-C', repo, 'rev-parse', 'HEAD'],
-                                      text=True, stderr=subprocess.DEVNULL,
-                                      timeout=10).strip() or None
-    except (OSError, subprocess.SubprocessError):
-        sha = None
-    return {'params_hash': scoring_params_hash(), 'git_sha': sha}
+
+    def _git(*args):
+        try:
+            return subprocess.check_output(['git', '-C', repo, *args], text=True,
+                                           stderr=subprocess.DEVNULL, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            return None
+
+    sha = (_git('rev-parse', 'HEAD') or '').strip() or None
+    status = _git('status', '--porcelain', '--untracked-files=no') if sha else None
+    return {'params_hash': scoring_params_hash(), 'git_sha': sha,
+            'git_dirty': None if status is None else bool(status.strip())}

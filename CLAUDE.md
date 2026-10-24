@@ -657,8 +657,12 @@ ruff check .
   *recorded*, so after a weight or gate change the headline pools two models,
   and nothing used to say so. The corpus already mixes several: gate N/A
   masking on 09-16, the debt-free Int Coverage rule on 09-22. Each snapshot now
-  carries `provenance.scoring = {params_hash, git_sha}`, stamped by
-  `analyze_stock` and restamped by `rescore_and_render`.
+  carries `provenance.scoring = {params_hash, git_sha, git_dirty}`, stamped by
+  `analyze_stock` and restamped by `rescore_and_render`. `analyze_stock._main`
+  takes it at startup, not at write time: the gate part of the hash is read
+  from source on disk, and the checkout can move during a 6-hour run (10-23
+  ran on 9357ad79c and was stamped 386b0005d, merged meanwhile). `git_dirty`
+  says the sha alone is not the code that ran.
   `param_set.scoring_params_hash()` hashes `default_params()` plus every gate's
   field, weight, direction and test/score source, so any change to what rates
   a row changes it, while an unrelated commit does not. `measure` adds:

@@ -35,8 +35,9 @@ def test_params_hash_is_stable_and_tracks_every_input(monkeypatch):
 
 def test_fingerprint_shape():
     fp = param_set.scoring_fingerprint()
-    assert set(fp) == {'params_hash', 'git_sha'}
+    assert set(fp) == {'params_hash', 'git_sha', 'git_dirty'}
     assert fp['params_hash'] == scoring_params_hash()
+    assert fp['git_dirty'] in (True, False, None)
 
 
 def test_snapshot_params_hash_defaults_to_pre_fingerprint():
