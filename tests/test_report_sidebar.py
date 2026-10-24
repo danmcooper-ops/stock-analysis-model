@@ -492,3 +492,13 @@ def test_statements_open_full_screen_with_a_close_x():
     # iOS traps z-index inside the .d-body scroller: the pane leaves it.
     assert "document.getElementById('det-modal').appendChild(p);" in src
     assert '_stmtFsHome.parent.insertBefore(p,_stmtFsHome.next);' in src
+
+
+def test_ticker_band_starts_collapsed_on_a_phone_on_its_side():
+    """In landscape the expanded band is taller than the screen, so nothing
+    could scroll to collapse it: on short screens it is pinned collapsed."""
+    src = (Path(__file__).resolve().parent.parent / 'templates' / 'report.html').read_text(encoding='utf-8')
+    assert "var _HDR_SHORT=window.matchMedia?window.matchMedia('(max-height:520px)'):null;" in src
+    assert '_hdr.pin=!!(_HDR_SHORT&&_HDR_SHORT.matches);' in src
+    assert 'var c=_hdr.pin?d:Math.max(0,Math.min(d,_hdr.st)),p=c/d;' in src
+    assert "if(e.hc)e.hc.style.height=(_hdr.src==='body'&&!_hdr.pin?c:0)+'px';" in src
