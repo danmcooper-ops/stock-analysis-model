@@ -1279,8 +1279,8 @@ by analyze_stock and gitignored):
   line; then the regime model's inputs, Regime signals with the composite,
   and the scoring ?), The Conditions (the three economy sections, each a
   lead sentence and bullets ending in a Full charts link to its sub-tab,
-  which charts every number once) and What to Watch (`watch`, with the
-  byline). Each indicator's
+  which charts every number once) and What to Watch (`watch`). No card
+  carries a byline or reading-time caption. Each indicator's
   card lives once, on its section sub-tab; the Overview has no headline
   tiles (the eight it had repeated Rates, Inflation, Growth and Credit). The narrative's per-sector stances and
   influence paragraphs are read on Sector Analysis › Overview (the first
