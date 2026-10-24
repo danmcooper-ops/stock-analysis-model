@@ -193,7 +193,7 @@ def _render_signals(entry, tmp_path, stored=None, data=None, macro=None):
     src = TEMPLATE.read_text(encoding='utf-8')
     names = ['_ppFy', '_ppFy1', '_ppPct', '_ppSgnPct', '_ord', '_ppRankOf', '_ppWin', '_ppfSpark',
              '_ppfEvidence', '_ppfExpVal', '_ppfChips', '_ppfExposure', '_ppfBalance',
-             '_ppfThChev', '_ppfCard', '_ppfLive', '_windState', '_windGroup', '_ppfColSum', '_ppfCol', '_qHelp', '_windMatrixLi',
+             '_ppfThChev', '_ppfCard', '_ppfLive', '_windState', '_windGroup', '_ppfCol', '_qHelp', '_windMatrixLi',
              '_noteQ', '_ppfMacroRead', '_ppfMacroRow', '_macSentences', 'renderPoolSectorSignals']
     consts = '\n'.join(re.search(r'^var %s=.*$' % v, src, re.M).group(0)
                        for v in ('_PPF_ST', '_PPF_ORDER', '_PPF_TYPE'))
@@ -276,7 +276,6 @@ def test_drivers_carry_the_macro_read(tmp_path):
     assert row.startswith('<div class="ppf wind-row ppf-hw ppf-mac">')
     assert '<i class="ppf-dot"></i>Macro view</span>' in row and 'Rates <span class="ppf-nw">bite<i' in row
     assert '<li>Cap rates rise.</li><li>Refinancing costs 7.3% now.</li>' in row
-    assert 'The Macro Outlook reads a headwind: Rates bite.' in hw.split('<div class="wind-body">')[0]
     count = re.compile(r'<span>· [^<]*</span>')
     assert count.findall(html) == count.findall(plain), 'the acting counts are the structural forces only'
     macro['narrative']['sectors'][0]['stance'] = '<script>'
@@ -395,30 +394,29 @@ def test_company_table_value_over_pool(tmp_path):
 
 def test_drivers_use_the_reports_wind_group_and_each_heading_toggles_its_force(tmp_path):
     """Each Drivers kind is the report's one wind group (_windGroup): open
-    unless this browser folded it, with a one-sentence summary for when it
-    is; every force's heading is a button for its own bullets, closed."""
+    unless this browser folded it, and folded it is only its header; every
+    force's heading is a button for its own bullets, closed."""
     from models.sector_forces import evaluate_forces
     from tests.test_sector_forces import _sidecar
     side = _sidecar('DGS10', [3.0 + 0.02 * k for k in range(120)])
     forces = {'forces': evaluate_forces('Real Estate', side, {})}
     html = _render_signals(forces, tmp_path)
     assert html.count('onclick="_windToggle(this)"') == 2
-    assert '<div class="wind-grp wind-shut" data-wk="drivers:tailwind">' in html
-    assert '<div class="wind-grp wind-shut" data-wk="drivers:headwind">' in html
-    assert '<div class="wind-sum">None of its 3 tailwinds is acting.</div>' in html
-    assert 'Interest-rate sensitivity and tenant-credit risk is acting now.</div>' in html
+    assert '<div class="wind-grp" data-wk="drivers:tailwind">' in html
+    assert '<div class="wind-grp" data-wk="drivers:headwind">' in html
+    assert 'wind-sum' not in html and 'is acting now.' not in html
     heads = html.count('class="ppf-hdr" role="button"')
     assert heads == html.count('<ul class="ppf-ul">') == 6
     assert html.count('aria-expanded="false" onclick="_ppfToggleOne(this)"') == 6
-    opened = _render_signals(forces, tmp_path, stored={'drivers:tailwind': False})
-    assert '<div class="wind-grp wind-shut" data-wk="drivers:headwind">' in opened
-    assert '<div class="wind-grp" data-wk="drivers:tailwind">' in opened
+    folded = _render_signals(forces, tmp_path, stored={'drivers:tailwind': True, 'drivers:headwind': False})
+    assert '<div class="wind-grp wind-shut" data-wk="drivers:tailwind">' in folded
+    assert '<div class="wind-grp" data-wk="drivers:headwind">' in folded
 
 
 def test_wind_group_and_force_toggles():
     css = TEMPLATE.read_text(encoding='utf-8')
     assert '.ppf:not(.ppf-open) .ppf-ul,.ppf:not(.ppf-open) .ppf-meta{display:none;}' in css
-    assert '.wind-shut .wind-body{display:none;}' in css and '.wind-shut .wind-sum{display:block;}' in css
+    assert '.wind-shut .wind-body{display:none;}' in css and 'wind-sum' not in css
     one = _fn(css, '_ppfToggleOne')
     assert "classList.toggle('ppf-open')" in one
     tog = _fn(css, '_windToggle')
