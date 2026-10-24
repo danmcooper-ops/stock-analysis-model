@@ -259,7 +259,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .d-kmetrics .km-v .km-conf{display:block;width:max-content;margin:3px 0 0;font-size:0.52em;padding:1px 5px 2px;}
   .d-kmetrics .km-conf .km-conf-word{display:none;}
   .d-gate-values{grid-template-columns:1fr;gap:6px;}
-  .gv-cat{font-size:0.78em;padding:6px 12px;text-align:left;}
+  .gv-cat{font-size:0.78em;padding:6px 12px;text-align:left;justify-content:space-between;}
   .gv-item{padding:7px 12px;}
   .gv-k{font-size:0.85em;}
   .gv-v{font-size:0.88em;}
@@ -1086,9 +1086,17 @@ td.ct{font-weight:700;}
 .gv-k{flex:0 0 auto;max-width:62%;overflow:hidden;text-overflow:ellipsis;}
 .gv-v{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;}
 @container (max-width:240px){.gv-thr{display:none;}}
+/* Folding header (_gvToggle): title and a chevron that turns when shut. A
+   shut column keeps its own height instead of stretching to the row's. */
+.gv-cat{display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;}
+.gv-cat-t{min-width:0;overflow:hidden;text-overflow:ellipsis;}
+.gv-cat .ppf-chev{flex:none;margin:0 0 1px;}
+.gv-shut .gv-cat .ppf-chev{transform:rotate(-90deg);}
+.gv-shut .gv-items,.gv-shut .gv-wt{display:none;}
+.gv-col.gv-shut{align-self:start;}
 @media(max-width:900px) and (orientation:portrait){
   .detail-content .d-gate-values{grid-template-columns:1fr!important;gap:6px;}
-  .detail-content .gv-cat{font-size:0.78em;padding:6px 12px;text-align:left;}
+  .detail-content .gv-cat{font-size:0.78em;padding:6px 12px;text-align:left;justify-content:space-between;}
   .detail-content .gv-item{padding:7px 12px;}
   .detail-content .gv-k{font-size:0.85em;}
   .detail-content .gv-v{font-size:0.88em;}
@@ -11412,7 +11420,10 @@ function openDet(tk){
       if(!gates.length)return;
       var _catScore=d[c.scoreKey];
       var _catScoreTxt=_catScore!=null?Math.round(_catScore)+'%':'—';
-      _gvHtml+='<div class="gv-col"><div class="gv-cat" style="background:'+c.dark+'">'+c.name+' - '+_catScoreTxt+'</div><div class="gv-items">';
+      var _gvShut=!!_gvState()[c.name];
+      _gvHtml+='<div class="gv-col'+(_gvShut?' gv-shut':'')+'"><div class="gv-cat" role="button" tabindex="0" aria-expanded="'+(_gvShut?'false':'true')+'"'
+        +' data-gvc="'+_attr(c.name)+'" onclick="_gvToggle(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_gvToggle(this);}"'
+        +' style="background:'+c.dark+'"><span class="gv-cat-t">'+c.name+' - '+_catScoreTxt+'</span><i class="ppf-chev" aria-hidden="true"></i></div><div class="gv-items">';
       gates.forEach(function(g){
         var raw=d[g.key];
         var pass=d[g.gpKey];
@@ -14224,6 +14235,18 @@ function renderPoolSectorSignals(sec){
    open unless the caller passes shut (the ticker page's start folded);
    the reader's own fold or unfold is kept per browser
    (stock_wind_shut_v1, {"<scope>:<key>": true|false}). */
+/* The Model's gate categories fold the same way: a header tap hides the
+   category's gates, open by default, and the reader's choice is kept per
+   browser for every ticker (stock_gv_shut_v1, {"<category>": true}). */
+function _gvState(){
+  try{return JSON.parse(localStorage.getItem('stock_gv_shut_v1'))||{};}catch(e){return {};}
+}
+function _gvToggle(h){
+  var col=h.closest('.gv-col'),shut=col.classList.toggle('gv-shut');
+  h.setAttribute('aria-expanded',shut?'false':'true');
+  try{var st=_gvState();if(shut)st[h.getAttribute('data-gvc')]=true;else delete st[h.getAttribute('data-gvc')];
+    localStorage.setItem('stock_gv_shut_v1',JSON.stringify(st));}catch(e){}
+}
 function _windState(){
   try{return JSON.parse(localStorage.getItem('stock_wind_shut_v1'))||{};}catch(e){return {};}
 }
