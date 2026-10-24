@@ -14048,17 +14048,38 @@ function _ppfColSum(list,kind){
   var t=live.map(function(f){return _esc(f.theme)+(f.status==='active'?' is acting now':' is building');}).join('; ')+'.';
   return t.charAt(0).toUpperCase()+t.slice(1);
 }
-function _ppfCol(list,kind,sec){
+function _ppfCol(list,kind,sec,mac){
   var sorted=list.slice().sort(function(a,b){return _PPF_ORDER[a.status]-_PPF_ORDER[b.status];});
   var acting=list.filter(function(f){return f.status==='active'||f.status==='building';}).length;
-  var tw=kind==='tailwind';
+  var tw=kind==='tailwind',m=mac&&mac.kind===kind?mac:null;
   return _windGroup({scope:'drivers',k:kind,dir:tw?'up':'down',label:tw?'▲ Tailwinds':'▼ Headwinds',
-    count:acting+' of '+list.length+' acting',sum:_ppfColSum(list,kind),
-    body:sorted.map(function(f){return _ppfCard(f,true,sec);}).join('')});
+    count:acting+' of '+list.length+' acting',sum:(m?m.sum+' ':'')+_ppfColSum(list,kind),
+    body:(m?m.html:'')+sorted.map(function(f){return _ppfCard(f,true,sec);}).join('')});
 }
-/* The Macro Outlook's read of this sector (the narrative's stance, one-line
-   headline and influence paragraph), one line above the structural forces.
-   The stance reaches the page only through the whitelist. */
+/* The Macro Outlook's read of the sector as one more row in the wind group
+   its stance names (a neutral read sits with the tailwinds, marked mixed),
+   first, since it is today's call: its headline is the heading and the
+   influence paragraph's sentences are the bullets. Not a structural force,
+   so it adds nothing to the acting count. The stance reaches the page only
+   through the whitelist. */
+function _ppfMacroRow(sec){
+  var nar=(typeof MACRO_SUM!=='undefined'&&MACRO_SUM&&MACRO_SUM.narrative)||(typeof MACRO!=='undefined'&&MACRO&&MACRO.narrative);
+  var row=nar&&(nar.sectors||[]).filter(function(r){return r&&r.sector===sec;})[0];
+  if(!row||!(row.influence||row.headline))return null;
+  var STANCE={tailwind:'tailwind',headwind:'headwind'},st=STANCE[row.stance]||'';
+  var hl=row.headline?String(row.headline).replace(/[.\s]+$/,''):'The Macro Outlook’s read';
+  var items=_macSentences(row.influence||'').map(function(x){return '<li>'+_esc(x)+'</li>';}).join('');
+  var html='<div class="ppf wind-row ppf-'+(st==='headwind'?'hw':'tw')+' ppf-mac">'
+    +'<div class="ppf-hdr"'+(items?' role="button" tabindex="0" aria-expanded="false" onclick="_ppfToggleOne(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_ppfToggleOne(this);}"':'')+'>'
+    +'<span class="ppf-st '+(st?'ppf-active':'ppf-easing')+'"><i class="ppf-dot"></i>'+(st?'Macro view':'Macro view: mixed')+'</span>'
+    +'<span class="ppf-th">'+_ppfThChev(_esc(hl),!!items)+'<span class="ppf-meta">macro outlook</span></span></div>'
+    +(items?'<ul class="ppf-ul">'+items+'</ul>':'')
+    +'</div>';
+  return {kind:st||'tailwind',html:html,
+    sum:'The Macro Outlook reads '+(st?'a '+st:'it as mixed')+': '+_esc(hl)+'.'};
+}
+/* The Macro Outlook's read as one line, for a sector whose forces predate
+   the evidence model (no wind groups to carry _ppfMacroRow). */
 function _ppfMacroRead(sec){
   var nar=(typeof MACRO_SUM!=='undefined'&&MACRO_SUM&&MACRO_SUM.narrative)||(typeof MACRO!=='undefined'&&MACRO&&MACRO.narrative);
   var row=nar&&(nar.sectors||[]).filter(function(r){return r&&r.sector===sec;})[0];
@@ -14074,6 +14095,7 @@ function renderPoolSectorSignals(sec){
   var fz=n.forces;
   if(fz&&fz.forces&&fz.forces.length){
     var tw=fz.forces.filter(function(f){return f.kind==='tailwind';}),hw=fz.forces.filter(function(f){return f.kind==='headwind';});
+    var mac=_ppfMacroRow(sec);
     var out='<div class="ppf-top">'+_ppfBalance(fz.balance)+'</div>';
     var m=fz.market,mkt='';
     if(m&&(m.rs_3m!=null||m.rs_6m!=null)){
@@ -14090,14 +14112,13 @@ function renderPoolSectorSignals(sec){
     /* The status key and the method share the section's one ?, in its
        top-right corner. */
     if(mkt)out+=mkt;
-    out+=_ppfMacroRead(sec);
     var key='<div class="ppf-key">'
       +'<span><i class="ppf-dot" style="background:var(--ppf-sub);border-color:var(--ppf-sub)"></i>Acting now: the evidence is strong and holding</span>'
       +'<span><i class="ppf-dot" style="border-color:var(--ppf-sub);background:linear-gradient(90deg,var(--ppf-sub) 50%,transparent 50%)"></i>Building: moving toward strong</span>'
       +'<span><i class="ppf-dot" style="background:var(--ppf-q)"></i>Fading: was strong, weakening</span>'
       +'<span><i class="ppf-dot"></i>Not acting</span>'
       +'<span><i class="ppf-dot" style="border-style:dashed"></i>Not measured: no series tracks it</span></div>';
-    out+='<div class="ppf-cols">'+_ppfCol(tw,'tailwind',sec)+_ppfCol(hw,'headwind',sec)+'</div>';
+    out+='<div class="ppf-cols">'+_ppfCol(tw,'tailwind',sec,mac)+_ppfCol(hw,'headwind',sec,mac)+'</div>';
     out+=_noteQ(key+'Each status reads the force’s evidence in the direction that strengthens it: a macro series by where it sits in its own history and how it moved over the year; an industry by its profit growth against the sector’s; margins by the sector’s own range. The balance weighs forces acting now by the share of sector revenue they reach (building ones at half).'+(fz.as_of?' Macro data as of '+_esc(fz.as_of)+'.':'')+'');
     return out;
   }
