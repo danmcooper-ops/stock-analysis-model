@@ -2324,13 +2324,14 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-h-out{margin:4px 0 10px;padding-top:0;border-top:0;}
 .mac-h>.sec-label{margin:0;}
 /* The Economy: one card, the regime then the narrative (_macOverviewHTML). */
-.mac-narrative.mac-econ-body{flex:1 1 100%;max-width:none;padding:16px 0 0;border-top:1px solid var(--mac-line);margin-top:4px;}
 .mac-econ .mac-regime-main{flex:1 1 100%;}
 .mac-econ .mac-regime-main>.sec-label{margin-bottom:10px;}
 .mac-lead{font-size:1.05em;line-height:1.6;margin:0;}
-.mac-sig{margin-top:22px;padding-top:14px;border-top:1px solid var(--mac-line);}
+.mac-sig{flex:1 1 100%;margin-top:6px;padding-top:14px;border-top:1px solid var(--mac-line);}
+.mac-overview>.mac-card{margin:0 0 16px;}
+.mac-overview .mac-narrative{max-width:none;padding:14px 20px;}
+.mac-cond>.sec-label,.mac-watch-card>.sec-label{margin-bottom:12px;}
 .mac-sig .mac-meters{margin-top:6px;}
-.mac-watch-k{margin-top:22px;padding-top:14px;border-top:1px solid var(--mac-line);}
 .mac-read{flex:1 1 100%;margin:8px 0 0;font-size:0.98em;line-height:1.55;color:inherit;}
 .mac-regime-main{flex:1 1 300px;}
 .mac-watch li{margin:4px 0;}
@@ -12706,9 +12707,9 @@ function _macRegimeHTML(full){
   if(!src)return '';
   var comp=src.composite_score;
   var cs=comp!=null?(comp>=0?'+':'')+comp.toFixed(2):'';
-  /* The Economy reads as one narrative: the call (the bottom line, which
-     names the regime), why (the three sections), what would change it, and
-     last the regime model's inputs. The regime's name, dot and gloss show
+  /* The Economy card: the call (the bottom line, which names the regime)
+     and the regime model's inputs behind it; The Conditions and What to
+     Watch follow as their own cards (_macNarrativeHTML). The regime's name, dot and gloss show
      only when there is no bottom line to say it. */
   var _nar=(MACRO_SUM&&MACRO_SUM.narrative)||(MACRO&&MACRO.narrative);
   var h='<div class="mac-regime'+(full?' mac-econ':'')+'"><div class="mac-regime-main"><div class="sec-label">The Economy</div>';
@@ -12738,7 +12739,7 @@ function _macRegimeHTML(full){
     });
     sig+='</div></div>';
   }
-  h+=full?_macNarrativeHTML(true,sig):sig;
+  h+=sig;
   /* The explainer sits behind a ? in the card's top-right corner. */
   if(src.indicator_scores)h+='<button type="button" class="mac-regime-help" aria-label="How the regime is scored" aria-expanded="false" onclick="_macRegimeHelp(this,event)">?</button>'
     +'<p class="mac-regime-note" role="tooltip">'+_MAC_REGIME_NOTE+'</p>';
@@ -12830,10 +12831,10 @@ function _macFold(el,e){
   var b=f.querySelector('.mac-fold-btn');
   if(b){b.setAttribute('aria-expanded',open?'true':'false');b.setAttribute('aria-label',open?'Show less':'Show more');}
 }
-/* inner: the body only, set inside The Economy card under the call;
-   otherwise its own card, titled The Economy. tail (the regime signals)
-   goes last, after What to watch and before the byline. */
-function _macNarrativeHTML(inner,tail){
+/* The Conditions card (the three economy sections), then the What to
+   Watch card, which carries the byline. The Economy card above them is
+   _macRegimeHTML. */
+function _macNarrativeHTML(){
   /* Claude-written narrative from the builder (data/claude_narrative.py),
      set part paragraph, part bullets: each kickered section opens with its
      lead sentence as a paragraph and lists the supporting evidence as
@@ -12854,8 +12855,7 @@ function _macNarrativeHTML(inner,tail){
      growth_labor, inflation_rates, credit_conditions); an older cache with
      a different count simply runs unkickered. */
   var KICK=ps.length===3?['Growth & labor','Inflation & rates','Credit & conditions']:[];
-  var h=inner?'<div class="mac-narrative mac-econ-body">'
-    :'<div class="mac-card mac-narrative"><h3 class="mac-h"><span class="sec-label">The Economy</span></h3>';
+  var h='<div class="mac-card mac-narrative mac-cond"><div class="sec-label">The Conditions</div>';
   /* Phones fold each section to its kicker and lead sentence, and each
      sector influence to its name and kicker; the chevron (or a tap on the
      kicker) opens the rest (_macFold). Desktop shows everything. */
@@ -12880,8 +12880,7 @@ function _macNarrativeHTML(inner,tail){
   var watch=(nar.watch||[]).filter(Boolean);
   var tw=(nar.tailwinds||[]).filter(Boolean),hw=(nar.headwinds||[]).filter(Boolean);
   if(watch.length){
-    /* A kicker like the sections above it, not a second title box. */
-    h+='<div class="mac-nar-k mac-watch-k">What to watch</div><ul class="mac-nar-ul mac-watch">';
+    h+='</div><div class="mac-card mac-narrative mac-watch-card"><div class="sec-label">What to Watch</div><ul class="mac-nar-ul mac-watch">';
     watch.forEach(function(x){h+='<li>'+_esc(x)+'</li>';});
     h+='</ul>';
   }else if(tw.length||hw.length){
@@ -12906,7 +12905,6 @@ function _macNarrativeHTML(inner,tail){
   wc(nar.bottom_line);ps.forEach(wc);
   if(watch.length)watch.forEach(wc);else{tw.forEach(wc);hw.forEach(wc);}
   var mins=Math.max(1,Math.round(words/230));
-  h+=tail||'';
   h+='<div class="mac-nar-foot">Written by Claude ('+_esc(nar.model||'')+') from the indicator data · '
     +_esc(nar.generated_at?String(nar.generated_at).slice(0,10):'')+' · '+mins+' min read</div></div>';
   return h;
@@ -12917,11 +12915,10 @@ function _macOverviewHTML(){
      and what to watch. Every indicator's card lives once, on its section
      sub-tab (Rates & Curve, Inflation, Growth & Labor, Credit, …); the
      Overview does not repeat any of them as headline tiles. */
-  /* One card, The Economy: the regime, its bottom line and meters, then the
-     narrative inside the same card. Without a regime the narrative stands
-     as the card on its own. */
+  /* Three cards: The Economy (the call and the regime signals), The
+     Conditions (why), What to Watch (what would change the call). */
   var h='<div class="mac-overview">';
-  h+=_macRegimeHTML(true)||_macNarrativeHTML(false);
+  h+=_macRegimeHTML(true)+_macNarrativeHTML();
   if(!MACRO)h+=_macStatusNote();
   h+='</div>';
   return h;
