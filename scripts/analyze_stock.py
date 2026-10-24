@@ -5540,21 +5540,34 @@ def _make_json_safe(val, _depth=0):
         return None
 
 
+def _scoring_fingerprint_now():
+    """param_set.scoring_fingerprint(), or None (logged) if it fails."""
+    try:
+        from scripts.param_set import scoring_fingerprint
+        return scoring_fingerprint()
+    except Exception as e:
+        logger.warning('provenance: scoring fingerprint failed (%s)', e)
+        return None
+
+
 def _write_outputs(results, run_start_date, _prov, risk_free_rate,
                    risk_free_rate_source, macro_regime_result, macro_adj,
-                   local_rs, prices_dir, sector_etf_data=None, coverage=None):
-    """Write the JSON snapshot, provenance events, HTML and Excel reports."""
+                   local_rs, prices_dir, sector_etf_data=None, coverage=None,
+                   scoring_fp=None):
+    """Write the JSON snapshot, provenance events, HTML and Excel reports.
+
+    `scoring_fp` is the fingerprint _main took at startup; None takes it now.
+    """
     os.makedirs("output", exist_ok=True)
     today_str = run_start_date.isoformat()  # pin to run-start so a midnight-spanning run stays single-dated
     _run_prov = _prov.run_block(results)
     # Which scoring model rated these rows: the backtest measures each model
     # on its own snapshots (backtest.build_measure_summary), so a weight
     # change never silently pools two models.
-    try:
-        from scripts.param_set import scoring_fingerprint
-        _run_prov['scoring'] = scoring_fingerprint()
-    except Exception as e:
-        logger.warning('provenance: scoring fingerprint failed (%s)', e)
+    if scoring_fp is None:
+        scoring_fp = _scoring_fingerprint_now()
+    if scoring_fp is not None:
+        _run_prov['scoring'] = scoring_fp
     # How much of the universe this run kept (data/coverage.py): run.sh reads
     # it back to decide whether the night may be published.
     if coverage is not None:
@@ -5739,6 +5752,11 @@ class _PhaseClock:
 def _main():
     """Entry point: screen tickers, run DCF analysis, generate reports."""
     _clock = _PhaseClock()
+    # Fingerprint the code this process loads, now: it is stamped hours later,
+    # and the checkout can move meanwhile. On 2026-10-23 a run that started at
+    # 17:07 on 9357ad79c was stamped 386b0005d, merged while it ran, and the
+    # gate part of params_hash is read from the source files on disk.
+    scoring_fp = _scoring_fingerprint_now()
     setup = _run_setup()
     _clock.tick('setup')
     args = setup['args']
@@ -5867,7 +5885,7 @@ def _main():
     _write_outputs(results, run_start_date, _prov, risk_free_rate,
                    risk_free_rate_source, macro_regime_result, macro_adj,
                    local_rs, prices_dir, sector_etf_data=sector_etf_data,
-                   coverage=coverage)
+                   coverage=coverage, scoring_fp=scoring_fp)
     if checkpoint is not None:
         # The outputs exist now; saved progress for this date is spent.
         checkpoint.clear()
