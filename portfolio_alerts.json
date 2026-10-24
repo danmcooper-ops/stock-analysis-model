@@ -1,15 +1,15 @@
 {
  "version": 1,
- "date": "2026-10-22",
- "prev_date": "2026-10-21",
+ "date": "2026-10-23",
+ "prev_date": "2026-10-22",
  "systemic": {
-  "n": 3500,
-  "prev_n": 3492,
-  "changed": 35,
-  "changed_share": 0.01,
+  "n": 3499,
+  "prev_n": 3500,
+  "changed": 30,
+  "changed_share": 0.0086,
   "missing_data": 0,
   "missing_share": 0.0,
-  "shrink_share": 0.0,
+  "shrink_share": 0.0003,
   "flood": false,
   "cause": null,
   "message": null
@@ -29,9 +29,9 @@
      "HOLD": 0,
      "PASS": 0
     },
-    "median_mos": -0.5661178075401728,
-    "median_score": 49.349999999999994,
-    "median_spread": 0.2296589322781422,
+    "median_mos": -0.5710606222798633,
+    "median_score": 49.4,
+    "median_spread": 0.22936933191500147,
     "sector_weights": {
      "Technology": 1.0
     },
@@ -59,9 +59,9 @@
      "HOLD": 7,
      "PASS": 5
     },
-    "median_mos": -0.3009249521201979,
-    "median_score": 48.7,
-    "median_spread": 0.2574965546511137,
+    "median_mos": -0.3083043845586825,
+    "median_score": 48.1,
+    "median_spread": 0.2571901331278887,
     "sector_weights": {
      "Technology": 0.2641509433962264,
      "Financial Services": 0.11320754716981131,
@@ -101,9 +101,9 @@
     },
     {
      "ticker": "CMCSA",
-     "kind": "earnings_soon",
+     "kind": "fv_jump",
      "level": "watch",
-     "message": "CMCSA reports earnings on 2026-10-22"
+     "message": "CMCSA fair value moved +73% ($61.04 → $105.39)"
     },
     {
      "ticker": "F",
@@ -112,22 +112,10 @@
      "message": "F reports earnings on 2026-10-28"
     },
     {
-     "ticker": "FIX",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "FIX reports earnings on 2026-10-22"
-    },
-    {
      "ticker": "FTNT",
      "kind": "earnings_soon",
      "level": "watch",
      "message": "FTNT reports earnings on 2026-10-28"
-    },
-    {
-     "ticker": "GM",
-     "kind": "fv_jump",
-     "level": "watch",
-     "message": "GM fair value moved +53% ($202.57 → $310.73)"
     },
     {
      "ticker": "GOOGL",
@@ -137,9 +125,9 @@
     },
     {
      "ticker": "HON",
-     "kind": "earnings_soon",
+     "kind": "fv_jump",
      "level": "watch",
-     "message": "HON reports earnings on 2026-10-22"
+     "message": "HON fair value moved -80% ($478.89 → $95.91)"
     },
     {
      "ticker": "ITW",
@@ -172,12 +160,6 @@
      "message": "MSFT reports earnings on 2026-10-28"
     },
     {
-     "ticker": "PG",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "PG reports earnings on 2026-10-22"
-    },
-    {
      "ticker": "STLA",
      "kind": "earnings_soon",
      "level": "watch",
@@ -188,24 +170,6 @@
      "kind": "earnings_soon",
      "level": "watch",
      "message": "STX reports earnings on 2026-10-27"
-    },
-    {
-     "ticker": "T",
-     "kind": "fv_jump",
-     "level": "watch",
-     "message": "T fair value moved -60% ($58.73 → $23.63)"
-    },
-    {
-     "ticker": "TSCO",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "TSCO reports earnings on 2026-10-22"
-    },
-    {
-     "ticker": "UVE",
-     "kind": "earnings_soon",
-     "level": "watch",
-     "message": "UVE reports earnings on 2026-10-22"
     },
     {
      "ticker": "XPO",
