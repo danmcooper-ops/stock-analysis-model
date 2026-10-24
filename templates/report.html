@@ -8856,32 +8856,36 @@ function _hideColTip(){clearTimeout(_ctTimer);clearTimeout(_ctAutoTimer);_ctEl.s
     else if(el.matches('[data-km-tip]')){key=el.getAttribute('data-km-tip');txt=tt(key)||'';label=el.getAttribute('data-km-lbl')||'';if(!txt)return false;_pt.innerHTML='<div class="ct-name">'+esc(label)+'</div><div class="ct-body">'+esc(txt)+'</div>';}
     else return false;
     _posTip(el.getBoundingClientRect());
-    /* No auto-dismiss here — hover relies on mouseout; tap-pinned path
-       arms the safety timer below in _onTap so a stuck pin still expires. */
+    /* No auto-dismiss: a tip stays until the reader clicks or taps
+       somewhere else (or opens another). */
     clearTimeout(_ptAutoTimer);
     return true;
   }
   function _hideTipP(){clearTimeout(_ptAutoTimer);_pt.style.display='none';_pinEl=null;}
-  /* Hover — desktop only (skipped while a tip is pinned). On touch devices,
-     mouseover fires from synthetic mouse events on tap and would flash
-     unwanted tooltips, so suppress hover entirely there. */
+  /* Hover — desktop only (skipped while a tip is pinned): moving onto a
+     label shows its tip, and moving off leaves it up; only a click
+     elsewhere closes it. On touch devices, mouseover fires from synthetic
+     mouse events on tap and would flash unwanted tooltips, so suppress
+     hover entirely there. */
   var _isTouchDeviceP=window.matchMedia&&window.matchMedia('(hover: none)').matches;
   dm.addEventListener('mouseover',function(e){if(_isTouchDeviceP||_pinEl)return;var el=_findEl(e.target);if(el)_showFor(el);});
-  dm.addEventListener('mouseout',function(e){if(_isTouchDeviceP||_pinEl)return;var el=e.target.closest(_SEL);if(el)_pt.style.display='none';});
   /* Tap/click — iOS requires touchend; e.preventDefault() suppresses ghost click */
   function _onTap(e){
-    if(e.target.closest('.detail-close,.det-nav-btn,.flag-star,.rev-chk-det'))return;
+    if(e.target.closest('.detail-close,.det-nav-btn,.flag-star,.rev-chk-det')){_hideTipP();return;}
     var t=e.changedTouches?e.changedTouches[0]:null;
     var target=t?document.elementFromPoint(t.clientX,t.clientY):e.target;
     if(!target)return;
     var el=_findEl(target);
     if(el){
       if(_pinEl===el){_hideTipP();}
-      else{if(_showFor(el)){_pinEl=el;clearTimeout(_ptAutoTimer);_ptAutoTimer=setTimeout(_hideTipP,_TIP_AUTO_MS);}e.preventDefault();e.stopPropagation();}
-    }else if(_pinEl){_hideTipP();}
+      else{if(_showFor(el))_pinEl=el;e.preventDefault();e.stopPropagation();}
+    }else if(_pinEl||_pt.style.display==='block'){_hideTipP();}
   }
   dm.addEventListener('touchend',_onTap,{passive:false});
   dm.addEventListener('click',_onTap);
+  /* A click outside the ticker page (the top bar's ×, the sidebar) closes
+     the tip too, so it never reappears on the next stock. */
+  document.addEventListener('click',function(e){if(!dm.contains(e.target))_hideTipP();},true);
 })();
 /* Suppress hover-triggered tooltips on touch devices (iOS / Android).
    Touch devices fire spurious mouseover events on tap, causing tooltips to
@@ -8913,16 +8917,18 @@ document.addEventListener('mouseover',function(e){
   var rect=th.getBoundingClientRect();
   _ctTimer=setTimeout(function(){_showColTip(c.label,c.body,c.threshold,rect);},180);
 },false);
+/* Leaving a header leaves its tip up (it only cancels one still pending);
+   a click elsewhere closes it, below. */
 document.addEventListener('mouseout',function(e){
   if(_isTouchDevice)return;
   var th=e.target.closest('th[data-col-tip]');
   if(!th)return;
   var to=e.relatedTarget;
   if(to&&th.contains(to))return;
-  _hideColTip();
+  clearTimeout(_ctTimer);
 },false);
 /* Touch devices (iPhone / iPad): tapping a column header both SORTS the
-   column and shows its tooltip for 5 seconds. The header's inline onclick
+   column and shows its tooltip until the next tap elsewhere. The header's inline onclick
    (mSort / tSort / _heatSort) fires during the same click's dispatch \u2014 this
    listener neither preventDefaults nor stops propagation, so ranking is
    unaffected. CAPTURE PHASE is load-bearing: the sort handler re-renders the
@@ -8932,15 +8938,13 @@ document.addEventListener('mouseout',function(e){
    grabs the rect while the th is still attached; the post-sort re-render
    keeps identical column geometry, so the anchor stays correct. #col-tip is
    pointer-events:none, so the visible tip never swallows the next tap.
-   Tapping anywhere that isn't a column header dismisses the tip early. */
-var _CT_TAP_MS=5000;
+   Tapping or clicking anywhere that isn't a column header dismisses it. */
 document.addEventListener('click',function(e){
-  if(!_isTouchDevice)return;
   var th=e.target.closest('th[data-col-tip]');
   if(!th){_hideColTip();return;}
+  if(!_isTouchDevice)return;
   var c=_colTipContent(th);
   _showColTip(c.label,c.body,c.threshold,th.getBoundingClientRect());
-  _ctAutoTimer=setTimeout(_hideColTip,_CT_TAP_MS);
 },true);
 
 document.addEventListener('mouseover',function(e){
