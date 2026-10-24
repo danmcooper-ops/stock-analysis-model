@@ -483,6 +483,8 @@ def test_statements_open_full_screen_with_a_close_x():
     assert 'class="stmt-pdf-btn stmt-fs-x" onclick="stmtFsToggle(false)"' in src
     assert "if(p)p.classList.toggle('stmt-fs',_stmtFs);" in src
     assert '#d-pane-stmt.stmt-fs{position:fixed;inset:0;' in src
+    # The × shares .stmt-pdf-btn's margin-left:auto; it must sit beside the export.
+    assert '#det-modal .stmt-fs-btn,#det-modal .stmt-fs-x{margin-left:6px;}' in src
     assert 'html.stmt-fs-open #det-modal{z-index:1550;}' in src
     assert "if(e.key==='Escape'&&_stmtFs){e.preventDefault();stmtFsToggle(false);return;}" in src
     assert "if(_stmtFs&&k!==DT_FIN.k)stmtFsToggle(false);" in src
