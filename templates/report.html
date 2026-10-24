@@ -2872,10 +2872,11 @@ html body #det-modal .d-pf-btn.on{color:var(--chrome-accent);}
 /* Finances: the statement switch at the top of #d-pane-stmt, in the same
    underline style as the #subnav sub-tabs, one size down. */
 .d-stmt-tabs{--sac:var(--chrome-muted);display:flex;gap:20px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--tab-line);}
-/* Tab strips scroll sideways but never rubber-band: dragged past either
-   end they stop dead instead of springing back (iOS Safari's overscroll
-   bounce), and the drag is not handed on to the page. */
-.d-tabs,.d-stmt-tabs,.sn-chips,.secondary-nav{overscroll-behavior-x:none;}
+/* Tab strips scroll sideways only and never rubber-band. overflow-x:auto
+   makes overflow-y auto too, and the ticker tabs' active underline left
+   the strip 1px taller than its box, so on iOS it was also a vertical
+   scroller: pulled down, the whole row slid out of view and sprang back. */
+.d-tabs,.d-stmt-tabs,.sn-chips,.secondary-nav{overflow-y:hidden;overscroll-behavior:none;}
 .d-stmt-tabs::-webkit-scrollbar{display:none;}
 .d-stmt-tab{flex-shrink:0;height:32px;padding:0 2px;border:0;border-radius:0;background:none;font:inherit;font-size:13px;font-weight:500;white-space:nowrap;cursor:pointer;}
 .d-stmt-tab:hover{--sac:var(--chrome-heading);box-shadow:inset 0 -2px 0 var(--tab-hover-line);}
