@@ -11392,8 +11392,8 @@ function openDet(tk){
     var sh=_windTop({tailwind:_twT.length/_n,headwind:_hwT.length/_n,net:(_twT.length-_hwT.length)/_n},
         _twT.length+' tailwind'+(_twT.length===1?'':'s')+' and '+_hwT.length+' headwind'+(_hwT.length===1?'':'s')+(_hwRed.length?', '+_hwRed.length+' of them '+(_hwRed.length===1?'a red flag':'red flags'):'')+'.')
       +'<div class="ppf-cols">'
-      +_windGroup({scope:'ticker',k:'tailwind',dir:'up',label:'\u25b2 Tailwinds',count:_twT.length,body:_twRows||'<p class="ppf-mkt">None identified.</p>'})
-      +_windGroup({scope:'ticker',k:'headwind',dir:'down',label:'\u25bc Headwinds',count:_hwT.length,body:_hwRows||'<p class="ppf-mkt">None identified.</p>'})
+      +_windGroup({scope:'ticker',k:'tailwind',dir:'up',shut:true,label:'\u25b2 Tailwinds',count:_twT.length,body:_twRows||'<p class="ppf-mkt">None identified.</p>'})
+      +_windGroup({scope:'ticker',k:'headwind',dir:'down',shut:true,label:'\u25bc Headwinds',count:_hwT.length,body:_hwRows||'<p class="ppf-mkt">None identified.</p>'})
       +'</div>';
     sigEl.innerHTML=sh;sigSec.style.display='';
   }else{sigEl.innerHTML='';sigSec.style.display='none';}
@@ -14126,14 +14126,15 @@ function renderPoolSectorSignals(sec){
 }
 /* The report's one tailwind/headwind group (a
    sector's Drivers, the ticker page): a .wind-h header that folds the
-   group, and the rows. Groups start open, and folded show only the
-   header; a fold is kept per browser (stock_wind_shut_v1,
-   {"<scope>:<key>": true} once folded). */
+   group, and the rows. A folded group shows only its header. Groups start
+   open unless the caller passes shut (the ticker page's start folded);
+   the reader's own fold or unfold is kept per browser
+   (stock_wind_shut_v1, {"<scope>:<key>": true|false}). */
 function _windState(){
   try{return JSON.parse(localStorage.getItem('stock_wind_shut_v1'))||{};}catch(e){return {};}
 }
 function _windGroup(o){
-  var id=o.scope+':'+o.k,shut=_windState()[id]===true;
+  var id=o.scope+':'+o.k,st=_windState()[id],shut=st===undefined?!!o.shut:st===true;
   return '<div class="wind-grp'+(shut?' wind-shut':'')+'" data-wk="'+_attr(id)+'">'
     +'<button type="button" class="wind-h'+(o.dir?' wind-'+o.dir:'')+'" aria-expanded="'+(shut?'false':'true')+'" onclick="_windToggle(this)">'
     +o.label+'<span>· '+o.count+'</span><i class="ppf-chev" aria-hidden="true"></i></button>'
