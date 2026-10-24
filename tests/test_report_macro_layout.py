@@ -139,7 +139,8 @@ def test_macro_overview_reads_top_down():
     assert reg.find('mac-lead') < reg.find('mac-regime-name')
     assert 'h+=sig;' in reg and '_macNarrativeHTML(' not in re.sub(r'/\*.*?\*/', '', reg, flags=re.S)
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
-    order = [nar.find(x) for x in ('>The Conditions<', '>What to Watch<', 'min read')]
+    order = [nar.find(x) for x in ('>The Conditions<', '>What to Watch<')]
+    assert 'Written by' not in css and 'min read' not in css, 'no byline captions'
     assert all(i >= 0 for i in order) and order == sorted(order)
     assert 'Broad Sector Outlook<' not in nar, 'the sector read lives on Sector Analysis only'
 
@@ -278,7 +279,7 @@ def test_macro_overview_does_not_repeat_section_charts():
     nar = re.search(r'function _macNarrativeHTML\(\).*?\n\}\n', css, re.S).group(0)
     assert '_macNarFigure' not in css and 'mac-fig' not in css
     assert 'Full charts' in nar and "navGo(\\'macro\\'" in nar
-    assert nar.find('mac-watch') < nar.find('mac-nar-foot')
+    assert 'mac-nar-foot' not in nar
     sec = re.search(r'function _macSectionHTML\(k\).*?\n\}\n', css, re.S)
     assert sec and "k==='rates'&&MACRO.curve" in sec.group(0)
 

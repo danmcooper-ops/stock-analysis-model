@@ -2355,7 +2355,6 @@ body.wide-table .container{padding-left:0;padding-right:0;}
 .mac-nar-neutral{font-size:0.95em;line-height:1.65;margin:8px 0 0;color:var(--mac-muted);}
 .mac-nar-neutral b{font-weight:700;}
 .mac-nar-wind.up b{color:var(--mac-up);}.mac-nar-wind.down b{color:var(--mac-down);}
-.mac-nar-foot{font-size:0.72em;color:var(--mac-faint);margin-top:16px;}
 .mac-more{display:inline-block;margin:4px 0 10px;font-size:0.85em;color:var(--mac-accent);font-weight:600;text-decoration:none;}
 .mac-more:hover{text-decoration:underline;}
 /* --- glance tiles --- */
@@ -12832,7 +12831,7 @@ function _macFold(el,e){
   if(b){b.setAttribute('aria-expanded',open?'true':'false');b.setAttribute('aria-label',open?'Show less':'Show more');}
 }
 /* The Conditions card (the three economy sections), then the What to
-   Watch card, which carries the byline. The Economy card above them is
+   Watch card. The Economy card above them is
    _macRegimeHTML. */
 function _macNarrativeHTML(){
   /* Claude-written narrative from the builder (data/claude_narrative.py),
@@ -12900,13 +12899,8 @@ function _macNarrativeHTML(){
   /* The per-sector read (the narrative's stances and influences) is the
      Broad Sector Outlook on Sector Analysis › Overview; it is not repeated
      here. */
-  /* Reading time for the whole card, at 230 words a minute. */
-  var words=0,wc=function(x){if(x)words+=String(x).split(/\s+/).filter(Boolean).length;};
-  wc(nar.bottom_line);ps.forEach(wc);
-  if(watch.length)watch.forEach(wc);else{tw.forEach(wc);hw.forEach(wc);}
-  var mins=Math.max(1,Math.round(words/230));
-  h+='<div class="mac-nar-foot">Written by Claude ('+_esc(nar.model||'')+') from the indicator data · '
-    +_esc(nar.generated_at?String(nar.generated_at).slice(0,10):'')+' · '+mins+' min read</div></div>';
+  /* No byline or reading-time caption: the cards end on their content. */
+  h+='</div>';
   return h;
 }
 function _macOverviewHTML(){
