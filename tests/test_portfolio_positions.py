@@ -139,9 +139,10 @@ class TestFile:
 
     def test_gitignored(self):
         import subprocess
-        r = subprocess.run(['git', 'check-ignore', 'portfolio/positions.json'],
-                           capture_output=True, text=True, check=False)
-        assert r.returncode == 0
+        for f in ('portfolio/positions.json', 'portfolio/positions_nav.json'):
+            r = subprocess.run(['git', 'check-ignore', f], capture_output=True, text=True,
+                               check=False)
+            assert r.returncode == 0, f"{f} is not gitignored"
 
 
 class TestCli:

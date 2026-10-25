@@ -244,6 +244,23 @@ def _price(row):
     return float(v)
 
 
+def shares_as_of(book, day=None):
+    """{ticker: shares} the book held at the end of *day* (all open lots
+    when None): open lots bought by then, plus lots sold after it (a
+    realized entry with its ``bought`` date). A sale migrated without a
+    purchase date cannot be placed and is left out."""
+    out = {}
+    for t, lots in (book.get('positions') or {}).items():
+        sh = sum(lot['shares'] for lot in lots if day is None or lot['date'] <= day)
+        if sh > 0:
+            out[t] = sh
+    if day is not None:
+        for s in book.get('realized') or ():
+            if s.get('bought') and s['bought'] <= day < s['date']:
+                out[s['ticker']] = out.get(s['ticker'], 0.0) + s['shares']
+    return out
+
+
 def realized_by_year(realized):
     """{year: realized gain} over *realized* entries."""
     out = {}

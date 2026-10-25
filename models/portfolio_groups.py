@@ -547,7 +547,7 @@ def rule_columns(portfolios):
     """Row columns needed to evaluate every rule (plus the ones alerts read),
     for a narrow snapshot-store query of the prior run."""
     cols = {'ticker', 'rating', 'sector', 'country', '_composite_score', 'price',
-            'company_name', '_fv_effective'}
+            'company_name', '_fv_effective', 'position_weight', 'listing_aliases'}
     for p in portfolios:
         for c in (p.get('rule') or {}).get('cf') or ():
             cols.add(c['key'])
