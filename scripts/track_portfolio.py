@@ -7,6 +7,10 @@ Standalone usage:
     python scripts/track_portfolio.py --results output/results_2026-03-22.json
 
 Or called programmatically from analyze_stock.py via run_portfolio_tracker().
+
+Superseded by positions on portfolio groupings (models/portfolio_positions.py):
+``python scripts/portfolios.py migrate-holdings`` copies holdings.json into a
+private book, and ``portfolios.py holdings`` reports its P&L.
 """
 import sys
 import os

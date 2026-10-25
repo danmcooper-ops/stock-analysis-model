@@ -79,3 +79,6 @@ stock-analysis-model-v1/
 
 # Conductor local tooling state
 stock-analysis-model/
+
+# Private holdings (lots, cash, realized sales); never commit or publish
+portfolio/positions.json

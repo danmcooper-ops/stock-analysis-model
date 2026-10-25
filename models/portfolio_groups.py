@@ -1,8 +1,10 @@
 """User-defined portfolio groupings: named sets of tickers, hand-picked,
 rule-driven, or both.
 
-A portfolio is *membership only* (no shares or cost basis — that is
-``portfolio/holdings.json``'s job). A ticker may sit in any number of
+A portfolio is membership first. It may also carry a strategy (target
+weights and a weighting) here, and a private book of lots, cash and sales
+in the gitignored ``portfolio/positions.json`` — see
+``models/portfolio_positions.py``. A ticker may sit in any number of
 portfolios. Definitions live in ``portfolio/portfolios.json``:
 
     {"version": 1,
@@ -40,7 +42,14 @@ import re
 import tempfile
 from datetime import date
 
+from models import portfolio_positions as pp
+
 SCHEMA_VERSION = 1
+# Version 2 adds the optional strategy fields (targets, weighting). A file is
+# written as v2 only when some portfolio uses them, so a plain watchlist file
+# (and its revision) is unchanged, while code that predates them refuses a
+# file it would otherwise silently strip.
+POSITIONS_VERSION = 2
 
 DEFAULT_PORTFOLIOS_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -169,6 +178,14 @@ def normalize_portfolio(p, today=None):
     }
     if out['alerts'] not in ALERT_MODES:
         raise ValueError(f"{pid}: alerts must be one of {', '.join(ALERT_MODES)}")
+    strat = pp.normalize_strategy(p, pid)
+    owned = set(strat.get('targets') or ())
+    clash = sorted(owned & set(out['exclude']))
+    if clash:
+        raise ValueError(f"{pid}: targeted ticker(s) cannot be excluded: " + ', '.join(clash))
+    if owned - set(out['tickers']):
+        out['tickers'] = sorted(set(out['tickers']) | owned)
+    out.update(strat)
     # An empty portfolio (no tickers, no rule) is legitimate: just created,
     # not filled yet.
     return out
@@ -179,7 +196,7 @@ def normalize(doc, today=None):
     if not isinstance(doc, dict):
         raise ValueError("portfolios file must be a JSON object")
     ver = doc.get('version', SCHEMA_VERSION)
-    if ver != SCHEMA_VERSION:
+    if ver not in (SCHEMA_VERSION, POSITIONS_VERSION):
         raise ValueError(f"unsupported portfolios version {ver!r}")
     raw = doc.get('portfolios') or []
     if not isinstance(raw, list):
@@ -190,7 +207,8 @@ def normalize(doc, today=None):
         if p['id'] in seen:
             raise ValueError(f"duplicate portfolio id {p['id']!r}")
         seen.add(p['id'])
-    return {'version': SCHEMA_VERSION, 'portfolios': pfs}
+    ver = POSITIONS_VERSION if any(pp.has_strategy(p) for p in pfs) else SCHEMA_VERSION
+    return {'version': ver, 'portfolios': pfs}
 
 
 def load_portfolios(path=None):
@@ -462,6 +480,11 @@ def diff_portfolios(old, new):
                 lines.append(f"    {fld} -{' -'.join(rem)}")
         if a['rule'] != b['rule']:
             lines.append(f"    rule: {_rule_summary(a['rule'])} -> {_rule_summary(b['rule'])}")
+        for fld in ('alerts', 'weighting'):
+            if a.get(fld) != b.get(fld):
+                lines.append(f"    {fld}: {a.get(fld)!r} -> {b.get(fld)!r}")
+        if (a.get('targets') or {}) != (b.get('targets') or {}):
+            lines.append("    targets changed")
     return lines
 
 

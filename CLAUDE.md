@@ -1107,8 +1107,17 @@ ruff check .
     rule.
 - **Portfolio groupings (`portfolio/portfolios.json`, `models/portfolio_groups.py`):**
   named sets of tickers — hand-picked, rule-driven, or both — and a ticker may
-  sit in any number of them (membership only; `portfolio/holdings.json` stays
-  the P&L tracker). Members = (`tickers` ∪ rule matches) − `exclude`. A rule
+  sit in any number of them. **Positions** (`models/portfolio_positions.py`)
+  are optional and split by privacy, because this repo and its Pages report
+  are public: lots, cash and realized sales live in the gitignored
+  `portfolio/positions.json` (`POSITIONS_FILE`, mode 0600, never shipped in
+  the report), keyed by portfolio id; `targets` and `weighting`
+  (equal/model/target/held) are strategy and stay in `portfolios.json`, which
+  is written as v2 only when one is set, so a plain watchlist file keeps its
+  revision. Lots are stored as bought and sold FIFO, each sale recording its
+  lot's cost and date. CLI: `buy`/`sell`/`cash`/`target`/`holdings`, and
+  `migrate-holdings` copies the old `portfolio/holdings.json`
+  (`scripts/track_portfolio.py`, standalone) into a `held` portfolio. Members = (`tickers` ∪ rule matches) − `exclude`. A rule
   *is* the report's Filters-panel state (`ratings`/`sectors`/`countries`/`cf`),
   so "Save filter as portfolio" and "Edit rule" round-trip through the panel;
   min/max on % columns are stored as fractions. `rule_matches()` mirrors the
