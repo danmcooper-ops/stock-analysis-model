@@ -30,9 +30,13 @@ def test_sector_spdr_map_matches_etf_holdings():
     assert _js_map() == want
 
 
-def test_comparisons_sit_behind_a_dropdown():
+def test_indices_and_funds_sit_in_separate_dropdowns():
     tpl = _tpl()
-    # The indices and funds are rows of one collapsible list, not open chips.
-    assert 'id="sector-bench-list"' in tpl
+    # Two collapsed lists (indices, sector SPDRs), never open chips; the
+    # indices list holds no fund.
+    assert "_sbDDRow('bench','ix','Indices'" in tpl
+    assert "_sbDDRow('etf','etf','Sector ETFs'" in tpl
     assert 'onclick="sectorBenchDD(this)"' in tpl
     assert 'id="sector-bench-btns"' not in tpl
+    fill = re.search(r"\n  list\.innerHTML=('<div class=\"agg-grid\">.*?);\n", tpl).group(1)
+    assert 'ixs.map' in fill and 'funds' not in fill
