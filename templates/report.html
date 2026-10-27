@@ -1374,6 +1374,33 @@ circle.etfc-spy{fill:var(--etfc-s);}
 .etfc-msg{font-size:0.8em;color:var(--ppf-sub);padding:40px 0;text-align:center;}
 .etfc-note{font-size:0.74em;color:var(--ppf-sub);margin-top:4px;}
 @media (max-width:768px){.etf-sm-hide{display:none;}.etf-rel{min-width:120px;}}
+/* Bonds vs Stocks (renderBondsVsStocks). Bond and stock bars reuse the
+   .etfc pair, validated for CVD separation on both surfaces. */
+#bnd-rv{--bnd-b:#c4701f;--bnd-s:#3a6ea5;}
+[data-theme="dark"] #bnd-rv{--bnd-b:#d07a2c;--bnd-s:#5b95d4;}
+.bnd-head{margin:4px 0 14px;color:var(--ppf-txt);}
+.bnd-hl{font-size:1.15em;font-weight:600;margin-bottom:6px;}
+.bnd-facts{margin:0;padding-left:18px;font-size:0.85em;line-height:1.6;}
+.bnd-facts b,.bnd-v,.bnd-tbl td{font-variant-numeric:tabular-nums;}
+.bnd-key{display:flex;gap:16px;font-size:0.8em;color:var(--ppf-sub);margin-bottom:6px;}
+.bnd-key i{display:inline-block;width:12px;height:10px;border-radius:2px;vertical-align:middle;margin-right:5px;}
+.bnd-kb i{background:var(--bnd-b);}.bnd-ks i{background:var(--bnd-s);}
+.bnd-ladder{display:flex;flex-direction:column;gap:8px;margin-bottom:18px;}
+.bnd-row{display:grid;grid-template-columns:minmax(150px,34%) 1fr 60px;align-items:center;gap:10px;}
+.bnd-l{font-size:0.85em;color:var(--ppf-txt);line-height:1.3;}
+.bnd-s .bnd-l{font-weight:600;}
+.bnd-m{display:block;font-size:0.85em;color:var(--ppf-sub);}
+.bnd-bar{position:relative;height:12px;}
+.bnd-bar i{position:absolute;top:0;bottom:0;border-radius:2px;background:var(--bnd-b);}
+.bnd-s .bnd-bar i{background:var(--bnd-s);}
+.bnd-v{text-align:right;font-size:0.85em;color:var(--ppf-txt);}
+.bnd-sl{margin-top:8px;}
+.bnd-pos{color:var(--ppf-tw);}.bnd-neg{color:var(--ppf-hw);}
+/* !important beats the blanket dark `body *{color:#fff !important}` rule. */
+[data-theme="dark"] .bnd-pos{color:var(--ppf-tw) !important;}
+[data-theme="dark"] .bnd-neg{color:var(--ppf-hw) !important;}
+[data-theme="dark"] .bnd-m,[data-theme="dark"] .bnd-key span{color:var(--ppf-sub) !important;}
+@media (max-width:768px){.bnd-row{grid-template-columns:1fr 54px;}.bnd-bar{grid-column:1 / -1;grid-row:2;}}
 :root{--ppf-tw:#1e7d45;--ppf-hw:#c0392b;--ppf-q:#90a4ae;--ppf-line:#e3e8ee;--ppf-sub:#607d8b;--ppf-bg:#fff;--ppf-txt:#263238;}
 [data-theme="dark"]{--ppf-tw:#3fb950;--ppf-hw:#f85149;--ppf-q:#6e7681;--ppf-line:#30363d;--ppf-sub:#8b949e;--ppf-bg:#1c2128;--ppf-txt:#e6edf3;}
 /* Sector forces (renderPoolSectorSignals): one row per force, a plain-word
@@ -3496,6 +3523,7 @@ html.sb-over .sb-scrim,html.sb-drawer .sb-scrim{z-index:1305 !important;}
   <div id="view-matrix" class="view">
     <div id="m-overview-view" style="display:none"></div>
     <div id="m-etf-view" style="display:none"></div>
+    <div id="m-bond-view" style="display:none"></div>
     <div class="matrix-wrap"><table class="matrix-table" id="mtx"><thead id="mtx-h"></thead><tbody id="mtx-b"></tbody></table></div>
   </div>
   <div id="view-table" class="view">
@@ -3964,6 +3992,7 @@ var SECTOR_POOL={{ sector_pool_json }};
    report_html._build_etf_payload): {base, funds:{T:{...}}, sector_fund}.
    null when no holdings are archived or the run is coverage-degraded. */
 var ETF_LT={{ etf_json }};
+var BOND_RV={{ bond_json|default('null') }};
 /* PRICES context lives in prices_meta.json (dates axis, manifests, index
    series, sector composites) with per-ticker closes sharded under px/;
    HIST is sharded per ticker under hist/ (the inline _HIST_TICKERS says
@@ -7455,19 +7484,25 @@ function swMSub(key){
   _syncHash();
   setTimeout(_setTableH,0);
 }
-/* Financial Model's three sub-tabs: Dashboard, Stock Valuations (the gate
-   matrix table) and ETF Valuations (the SPDRs read through the model). One
-   view shows at a time. */
+/* Financial Model's four sub-tabs: Dashboard, Stock Valuations (the gate
+   matrix table), ETF Valuations (the SPDRs read through the model) and
+   Bonds vs Stocks. One view shows at a time. */
 function _mIsMatrix(){return (curMSub||'matrix')==='matrix';}
 function _mShow(){
-  var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view'),ev=document.getElementById('m-etf-view');
+  var mw=document.querySelector('.matrix-wrap'),ov=document.getElementById('m-overview-view'),ev=document.getElementById('m-etf-view'),bv=document.getElementById('m-bond-view');
   var k=curMSub||'matrix';
   if(mw)mw.style.display=k==='matrix'?'':'none';
   if(ov)ov.style.display=k==='dashboard'?'':'none';
   if(ev)ev.style.display=k==='etf'?'':'none';
+  if(bv)bv.style.display=k==='bond'?'':'none';
   if(k==='dashboard')renderOverview();
   else if(k==='etf')renderEtfView();
+  else if(k==='bond')renderBondView();
   else renderMatrix();
+}
+function renderBondView(){
+  var bv=document.getElementById('m-bond-view');if(!bv)return;
+  bv.innerHTML=renderBondsVsStocks()||'<p style="color:#888;padding:20px;font-size:0.9em">No bond data for this run.</p>';
 }
 function renderEtfView(){
   var ev=document.getElementById('m-etf-view');if(!ev)return;
@@ -12495,7 +12530,7 @@ function _navGroups(){
   var groups=[
     {v:'pool',l:'Sector Analysis',cur:_poolTab||'__performance__',items:pool},
     {v:'matrix',l:'Financial Model',cur:curMSub||'matrix',
-     items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stock Valuations'},{k:'etf',l:'ETF Valuations'}]},
+     items:[{k:'dashboard',l:'Dashboard'},{k:'matrix',l:'Stock Valuations'},{k:'etf',l:'ETF Valuations'},{k:'bond',l:'Bonds vs Stocks'}]},
     {v:'table',l:'Financial Data',cur:curTSub,
      items:Object.keys(TL).map(function(k){return{k:k,l:TL[k]};})},
     {v:'pf',l:'Portfolios',cur:curPfSub,
@@ -14309,6 +14344,81 @@ function renderEtfLookthrough(){
   });
   h+='</tbody></table></div>'+_etfDetail(F[_etfSel])+'</div>';
   return h;
+}
+/* Financial Model › Bonds vs Stocks (models/bond_relative.py): what stocks
+   pay over bonds at today's prices. Bonds read at their starting yield, high
+   yield after its expected credit loss; stocks cap-weighted over the
+   universe. Display only — nothing here rates a row. */
+function _bndY(v){return v==null||!isFinite(v)?'—':(v*100).toFixed(2)+'%';}
+function _bndPp(v){return v==null||!isFinite(v)?'—':(v>=0?'+':'−')+Math.abs(v*100).toFixed(1)+'pp';}
+function _bndGap(v){return (Math.abs(v)*100).toFixed(1)+'pp';}
+function _bndOrd(p){var n=Math.round(p*100),s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+/* Every bond line and every stock measure on one % axis, highest first, so
+   the reader sees where stocks sit among bonds. */
+function _bndLadder(R){
+  var S=R.stocks||{},items=(R.bonds||[]).map(function(b){return {l:b.l,y:b.y,k:'b',b:b};});
+  [['earnings_yield','Stocks: earnings yield'],['fcf_yield','Stocks: free cash flow yield'],['shareholder_yield','Stocks: shareholder yield']].forEach(function(x){
+    if(S[x[0]]!=null)items.push({l:x[1],y:S[x[0]],k:'s'});
+  });
+  items=items.filter(function(i){return i.y!=null&&isFinite(i.y);}).sort(function(a,b){return b.y-a.y;});
+  var lo=Math.min(0,Math.min.apply(null,items.map(function(i){return i.y;}))),hi=Math.max.apply(null,items.map(function(i){return i.y;}));
+  var span=(hi-lo)||1,pos=function(v){return (v-lo)/span*100;},z=pos(0);
+  var h='<div class="bnd-key"><span class="bnd-kb"><i></i>Bonds</span><span class="bnd-ks"><i></i>Stocks</span></div><div class="bnd-ladder">';
+  items.forEach(function(i){
+    var a=pos(Math.min(0,i.y)),w=Math.abs(pos(i.y)-z),meta=[];
+    if(i.b){
+      if(i.b.chg_1y!=null)meta.push(_bndPp(i.b.chg_1y)+' in a year');
+      if(i.b.pctile!=null)meta.push(_bndOrd(i.b.pctile)+' percentile, '+_esc(i.b.pct_win||'')+'');
+      if(i.b.note)meta.push(_esc(i.b.note)+' (gross '+_bndY(i.b.gross)+')');
+      if(i.b.derived)meta.push('≈ '+_esc(i.b.derived));
+    }
+    h+='<div class="bnd-row bnd-'+i.k+'"><div class="bnd-l">'+_esc(i.l)+(meta.length?'<span class="bnd-m">'+meta.join(' · ')+'</span>':'')+'</div>'
+      +'<div class="bnd-bar"><i style="left:'+a.toFixed(1)+'%;width:'+Math.max(w,0.5).toFixed(1)+'%"></i></div>'
+      +'<b class="bnd-v">'+_bndY(i.y)+'</b></div>';
+  });
+  return h+'</div>';
+}
+/* A sector row opens its sector page as a drill, so ‹ Bonds vs Stocks and
+   Back return here (drillPoolTab assumes the sector view is already up). */
+function _bndSector(sec){_drillPush('Bonds vs Stocks');showView('pool');showPoolTab(sec);_drillSeal();}
+function renderBondsVsStocks(){
+  var R=BOND_RV;if(!R||!R.bonds||!R.bonds.length)return '';
+  var S=R.stocks||{},P=R.premia||{},by={};
+  R.bonds.forEach(function(b){by[b.id]=b;});
+  var tips=by.tips10,ig=by.ig,pe=S.earnings_yield>0?1/S.earnings_yield:null;
+  var lead=P.vs_real!=null
+    ?'Stocks earn <b>'+_bndGap(P.vs_real)+'</b> '+(P.vs_real>=0?'more':'less')+' than inflation-protected Treasuries'
+    :'Stock and bond yields';
+  var h='<div class="xsect-dashboard" id="bnd-rv">'
+    +_qHelp('<span class="note-q-t">A bond held to maturity returns about its yield today, so each bond is shown at its yield. High yield is shown after a '+_bndY(R.hy_credit_loss).replace('.00','')+' expected loss to defaults. On the stock side, earnings yield is total earnings ÷ total market value across every company the model covers, losses included. Earnings grow with inflation, so earnings yield is compared with the inflation-protected (TIPS) yield, not the ordinary one. Bank and other lender cash flow is left out of the free cash flow yield, because deposits run through it. Corporate yields go back only about 3 years on FRED, so their percentiles cover that span. A line marked ≈ is built from the nearest series when the direct one is missing.</span>','How to read this','corner')
+    +'<div class="sec-label">Bonds vs Stocks</div>'
+    +'<div class="xsect-sub">What stocks pay over bonds at today’s prices. Yields as of '+_esc(R.as_of||'?')+'.</div>'
+    +'<div class="bnd-head"><div class="bnd-hl">'+lead+'.</div><ul class="bnd-facts">';
+  if(S.earnings_yield!=null&&tips)h+='<li>Earnings yield <b>'+_bndY(S.earnings_yield)+'</b>'+(pe?' (P/E '+pe.toFixed(1)+')':'')+' against the 10-year TIPS at <b>'+_bndY(tips.y)+'</b>.</li>';
+  if(P.fcf_vs_ig!=null&&ig)h+='<li>Free cash flow yield <b>'+_bndY(S.fcf_yield)+'</b> is <b>'+_bndGap(P.fcf_vs_ig)+'</b> '+(P.fcf_vs_ig>=0?'above':'below')+' investment-grade corporate bonds at <b>'+_bndY(ig.y)+'</b>.</li>';
+  if(R.model&&R.model.mos!=null)h+='<li>The model’s own fair values put '+(R.model.source==='SPY'?'SPY':'the covered market')+' at <b>'+_etfPct(R.model.mos)+'</b> margin of safety.</li>';
+  h+='</ul></div>'+_bndLadder(R);
+  var sec=(R.sectors||[]);
+  if(sec.length){
+    h+='<div class="sec-label bnd-sl">By Sector</div><div class="xsect-sub">Each sector’s yields against the same bonds. Tap a sector to open its page.</div>'
+      +'<div class="ppi-wrap"><table class="ppi-tbl bnd-tbl"><thead><tr>'+_ppiTh('Sector','s')+'<th data-t="n" class="etf-sm-hide" onclick="_ppiSort(this)">Companies</th>'
+      +_ppiTh('Earnings yield')+'<th data-t="n" class="etf-sm-hide" onclick="_ppiSort(this)">FCF yield</th>'+_ppiTh('vs TIPS','n',true)+_ppiTh('FCF vs IG')+'</tr></thead><tbody>';
+    sec.forEach(function(e){
+      var ok=e.status==='ok';
+      var sg=function(v){return v==null?'—':'<span class="'+(v>=0?'bnd-pos':'bnd-neg')+'">'+_bndPp(v)+'</span>';};
+      h+='<tr class="ppi-co" data-sec="'+_attr(e.sector)+'" onclick="_bndSector(this.dataset.sec)" title="Open the '+_attr(e.sector)+' page">'
+        +'<td data-v="'+_attr(e.sector)+'"><b>'+_esc(e.sector)+'</b></td>'
+        +'<td class="etf-sm-hide" data-v="'+e.n+'">'+e.n+'</td>';
+      if(!ok){h+='<td colspan="4" data-v=""><span class="etf-st">'+_esc(e.reason||'not enough data')+'</span></td></tr>';return;}
+      h+='<td data-v="'+_ppiV(e.earnings_yield)+'">'+_bndY(e.earnings_yield)+'</td>'
+        +'<td class="etf-sm-hide" data-v="'+_ppiV(e.fcf_yield)+'">'+_bndY(e.fcf_yield)+'</td>'
+        +'<td data-v="'+_ppiV(e.vs_real)+'">'+sg(e.vs_real)+'</td>'
+        +'<td data-v="'+_ppiV(e.fcf_vs_ig)+'">'+sg(e.fcf_vs_ig)+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+  }
+  h+='<div class="etf-note">'+(S.n||0)+' companies, $'+((S.mcap||0)/1e12).toFixed(1)+'T of market value. Display only: nothing here changes a rating.</div>';
+  return h+'</div>';
 }
 /* A sector page's Value creation tab: its own SPDR. */
 function renderPoolEtf(sec){

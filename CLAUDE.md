@@ -914,6 +914,24 @@ ruff check .
   rated, and an ETF must never reach `profile_verdict` (its −20% MoS AVOID
   flag would fire on nearly every fund). `ETF_HOLDINGS_DIR` overrides the
   archive path. Tests: `tests/test_etf_lookthrough.py`.
+- **Bonds vs Stocks (`models/bond_relative.py`, 2026-10-27):** Financial
+  Model's fourth sub-tab asks whether stocks pay enough over bonds at today's
+  prices. Built at render time (`report_html._build_bond_payload`, after the
+  ETF payload, whose SPY MoS it shows) from the macro sidecar and the rows,
+  shipped as `BOND_RV` and written to `output/bonds_<date>.json`; skipped on a
+  coverage-degraded run. Bonds read at their starting yield: 3M/2Y/10Y/30Y
+  from `curve`, 10Y TIPS (`DFII10`), IG and HY effective yields
+  (`BAMLC0A0CMEY`/`BAMLH0A0HYM2EY`), HY less `HY_CREDIT_LOSS` (1.5pp, shown).
+  A missing series falls back to an identity, flagged `derived`: real =
+  10Y − breakeven, corporate = 7Y/5Y Treasury + OAS. Stocks are cap-weighted
+  over the rendered universe as Σ flow / Σ mcap, loss-makers kept (no usable
+  P/E → net income), a flow larger than its company dropped, lender FCF
+  excluded (`is_balance_sheet_financial`). The headline premium is earnings
+  yield − TIPS (E/P is a real yield); a second compares FCF yield with IG.
+  Sectors need 5 companies and 80% of cap with earnings. A sector row opens
+  its sector page as a drill (`_bndSector`). Display only: nothing reaches a
+  rating, `DATA` or `profile_verdict`. Tests: `tests/test_bond_relative.py`,
+  `tests/test_report_bond_tab.py`.
 - **Report sidecars and the Pages size limits:** the HTML lazy-loads
   everything heavy from files beside it, through `_loadSidecar` (relative
   paths). Per-ticker shards: `vol/`, `px/` (manifested in `prices_meta.json`)

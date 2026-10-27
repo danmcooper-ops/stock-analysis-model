@@ -30,6 +30,7 @@ from scripts.config import (CARRY_FORWARD_MAX_PRICE_LAG_BARS,
                             PHASE1_LOCAL_PRICE_MAX_AGE_DAYS)
 from data import etf_holdings
 from models.etf_lookthrough import lookthrough as etf_lookthrough, relative_to
+from models.bond_relative import bonds_vs_stocks
 from data.price_store import mass_stop, stopped_trading
 from data.splits import adjust_for_ticker
 from data.news_tags import TAG_LABELS
@@ -2034,6 +2035,29 @@ def _build_etf_payload(rows, out_dir, run_date, prices_dir=None, run_provenance=
     return payload
 
 
+def _build_bond_payload(rows, out_dir, run_date, macro_sidecar, etf_payload=None,
+                        run_provenance=None):
+    """Bonds vs stocks (models/bond_relative.py) over the rendered rows, or
+    None without a yield curve or on a coverage-degraded run (missing rows
+    would move every aggregate). Also written to ``bonds_<date>.json``
+    beside the report, the dated record of the read. Display only."""
+    cov = (run_provenance or {}).get('coverage') or {}
+    if cov.get('degraded'):
+        print("[report_html] Bonds vs stocks skipped: run is coverage-degraded")
+        return None
+    payload = bonds_vs_stocks(rows, macro_sidecar, etf_payload)
+    if payload is None:
+        return None
+    if run_date is not None:
+        path = os.path.join(out_dir, f'bonds_{run_date.isoformat()}.json')
+        tmp = path + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump({'date': run_date.isoformat(), **payload}, f,
+                      default=_json_default, separators=(',', ':'), sort_keys=True)
+        os.replace(tmp, path)
+    return payload
+
+
 def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=None,
                macro_payload=None):
     """Render the interactive HTML report via Jinja2 template."""
@@ -2094,6 +2118,14 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         logger.warning("ETF look-through failed: %s", e, exc_info=True)
         etf_payload = None
 
+    try:
+        bond_payload = _build_bond_payload(rows, _out_dir_early, run_date,
+                                           (macro_payload or {}).get('sidecar'),
+                                           etf_payload, run_provenance)
+    except Exception as e:  # display only: never fail a render over it
+        logger.warning("Bonds vs stocks failed: %s", e, exc_info=True)
+        bond_payload = None
+
     # Sidecar JSON files (PRICES, HIST) live next to the HTML output. The
     # template lazy-fetches them on first chart open, so the embedded HTML
     # stays small enough to publish via GitHub Pages (<100 MB hard cap) and
@@ -2148,6 +2180,7 @@ def build_html(rows, filename, prices_dir=None, run_date=None, run_provenance=No
         portfolios_json=dumps_for_script(portfolios_payload, default=_json_default),
         sector_pool_json=sector_pool_json,
         etf_json=dumps_for_script(_sanitize(etf_payload), default=_json_default),
+        bond_json=dumps_for_script(_sanitize(bond_payload), default=_json_default),
         prices_available=('true' if prices_payload is not None else 'false'),
         prices_size_mb=prices_size_mb,
         hist_available=('true' if hist_tickers else 'false'),

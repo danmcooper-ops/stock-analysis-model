@@ -39,6 +39,10 @@ MACRO_SERIES = [
          fmt='pct2', suffix='', good='up', scale=1, zero_line=True),
     dict(id='DFF', l='Fed Funds (Effective)', sec='rates', freq='d', tr='level',
          fmt='pct2', suffix='', good='none', scale=1),
+    # The real yield Financial Model › Bonds vs Stocks sets earnings yield
+    # against (models/bond_relative.py).
+    dict(id='DFII10', l='10Y TIPS (Real)', sec='rates', freq='d', tr='level',
+         fmt='pct2', suffix='', good='none', scale=1),
     # --- Inflation ---
     dict(id='CPIAUCSL', l='CPI (YoY)', sec='inflation', freq='m', tr='yoy',
          fmt='pct1', suffix='', good='down', scale=1),
@@ -75,6 +79,12 @@ MACRO_SERIES = [
          tr='level', fmt='pct2', suffix='', good='down', scale=1),
     dict(id='BAMLH0A0HYM2', l='High Yield OAS', sec='credit', freq='d',
          tr='level', fmt='pct2', suffix='', good='down', scale=1),
+    # Effective yields of the same ICE indexes, for Bonds vs Stocks. FRED
+    # keeps only ~3 years of ICE data, so their percentiles span that.
+    dict(id='BAMLC0A0CMEY', l='IG Corporate Yield', sec='credit', freq='d',
+         tr='level', fmt='pct2', suffix='', good='none', scale=1),
+    dict(id='BAMLH0A0HYM2EY', l='High Yield Yield', sec='credit', freq='d',
+         tr='level', fmt='pct2', suffix='', good='none', scale=1),
     dict(id='NFCI', l='Chicago Fed NFCI', sec='credit', freq='w', tr='level',
          fmt='n2', suffix='', good='down', scale=1, zero_line=True),
     dict(id='WALCL', l='Fed Balance Sheet ($T)', sec='credit', freq='w',
