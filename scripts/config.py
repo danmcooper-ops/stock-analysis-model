@@ -136,8 +136,10 @@ SCORE_WEIGHT_OWNERSHIP = 0.10
 # data/claude_narrative.py for why the macro-specific name exists.
 CLAUDE_NARRATIVE_ENABLED = True
 CLAUDE_NARRATIVE_MODEL = 'claude-opus-5'
-# Headroom, not a target — above DEFAULT_MAX_TOKENS in
-# data/claude_narrative.py because the reply got wordier. An 11-sector reply
+# Headroom, not a target, and the same as DEFAULT_MAX_TOKENS in
+# data/claude_narrative.py (whose request timeout lets it pass ~21k). The
+# reply keeps getting wordier: the first schema-v8 run (the international
+# block) was truncated at the 16000 this used to be, 2026-10-27. An 11-sector reply
 # ran ~1.9k tokens before each sector gained 3-5 bullets; ~3.5k after. The
 # tail is what sets this number: the grammar cannot pin array lengths at any
 # depth, so an unbounded OUTER array (26 sector entries at 4,959 tokens on
@@ -146,7 +148,7 @@ CLAUDE_NARRATIVE_MODEL = 'claude-opus-5'
 # partial salvage — taking the Macro Outlook story and all eleven sector
 # sections with it, and saying so only in a log line. Cost is per-use, not
 # per-cap, so buying margin here is free.
-CLAUDE_NARRATIVE_MAX_TOKENS = 16000
+CLAUDE_NARRATIVE_MAX_TOKENS = 32000
 
 # Post-processing
 BLEND_TRIGGER = 1.5            # DCF > 1.5× multiples-FV triggers blending

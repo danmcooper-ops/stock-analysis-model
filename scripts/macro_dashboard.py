@@ -17,6 +17,7 @@ testable offline; network happens only through the injected clients.
 
 import sys
 import os
+from bisect import bisect_left
 from datetime import date, timedelta
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -28,7 +29,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # anything else — FRED units vary per series), years (optional history
 # window for a monthly series whose full history is too long to rank on),
 # yf (optional: a Yahoo symbol fetched through the builder's ``yahoo``
-# client instead of FRED, for the few series FRED does not carry).
+# client instead of FRED, for the few series FRED does not carry), region
+# (intl only: ea|uk|jp|cn|em, which the International card groups by).
 MACRO_SERIES = [
     # --- Rates & Curve ---
     dict(id='DGS10', l='10Y Treasury', sec='rates', freq='d', tr='level',
@@ -160,6 +162,56 @@ MACRO_SERIES = [
     dict(id='PALLFNFINDEXM', l='IMF All-Commodity Price Index',
          sec='commodities', freq='m', tr='level', fmt='n1', suffix='',
          good='none', scale=1),
+    # --- International ---
+    # Display only: none of these feeds the regime composite or a rating.
+    # Each region's policy rate, 10-year yield, equity market (1-year price
+    # return, local currency; China and EM are dollar ETFs) and currency.
+    # FRED's OECD MEI CPIs for the UK, Japan and China stopped in 2025 or
+    # return nothing (probed 2026-10-27), so euro-area HICP is the only
+    # foreign inflation series. The OECD rates and yields are monthly and
+    # land a month or two behind; the staleness stamp says when one falls
+    # further behind than that.
+    dict(id='ECBDFR', l='ECB Deposit Rate', sec='intl', region='ea', freq='d',
+         tr='level', fmt='pct2', suffix='', good='none', scale=1),
+    dict(id='IRLTLT01DEM156N', l='German 10Y Bund', sec='intl', region='ea',
+         freq='m', tr='level', fmt='pct2', suffix='', good='none', scale=1),
+    dict(id='CP0000EZ19M086NEST', l='Euro Area HICP (YoY)', sec='intl',
+         region='ea', freq='m', tr='yoy', fmt='pct1', suffix='', good='down',
+         scale=1),
+    dict(id='STOXX50', yf='^STOXX50E', l='Euro Stoxx 50 (1Y return)',
+         sec='intl', region='ea', freq='d', tr='yoy', fmt='pct1', suffix='',
+         good='up', scale=1, zero_line=True),
+    dict(id='DEXUSEU', l='EUR/USD ($ per €)', sec='intl', region='ea',
+         freq='d', tr='level', fmt='n2', suffix='', good='none', scale=1),
+    dict(id='IUDSOIA', l='SONIA (UK overnight)', sec='intl', region='uk',
+         freq='d', tr='level', fmt='pct2', suffix='', good='none', scale=1),
+    dict(id='IRLTLT01GBM156N', l='UK 10Y Gilt', sec='intl', region='uk',
+         freq='m', tr='level', fmt='pct2', suffix='', good='none', scale=1),
+    dict(id='FTSE100', yf='^FTSE', l='FTSE 100 (1Y return)', sec='intl',
+         region='uk', freq='d', tr='yoy', fmt='pct1', suffix='', good='up',
+         scale=1, zero_line=True),
+    dict(id='DEXUSUK', l='GBP/USD ($ per £)', sec='intl', region='uk',
+         freq='d', tr='level', fmt='n2', suffix='', good='none', scale=1),
+    dict(id='IRSTCI01JPM156N', l='Japan Call Rate', sec='intl', region='jp',
+         freq='m', tr='level', fmt='pct2', suffix='', good='none', scale=1,
+         zero_line=True),
+    dict(id='IRLTLT01JPM156N', l='Japan 10Y JGB', sec='intl', region='jp',
+         freq='m', tr='level', fmt='pct2', suffix='', good='none', scale=1),
+    dict(id='NIKKEI', yf='^N225', l='Nikkei 225 (1Y return)', sec='intl',
+         region='jp', freq='d', tr='yoy', fmt='pct1', suffix='', good='up',
+         scale=1, zero_line=True),
+    dict(id='DEXJPUS', l='USD/JPY (¥ per $)', sec='intl', region='jp',
+         freq='d', tr='level', fmt='n1', suffix='', good='none', scale=1),
+    # Yahoo's CSI 300 (000300.SS) returned one bar, so China's market is the
+    # MSCI China ETF, in dollars.
+    dict(id='MCHI', yf='MCHI', l='MSCI China (MCHI, 1Y return)', sec='intl',
+         region='cn', freq='d', tr='yoy', fmt='pct1', suffix='', good='up',
+         scale=1, zero_line=True),
+    dict(id='DEXCHUS', l='USD/CNY (¥ per $)', sec='intl', region='cn',
+         freq='d', tr='level', fmt='n2', suffix='', good='none', scale=1),
+    dict(id='EEM', yf='EEM', l='Emerging Markets (EEM, 1Y return)',
+         sec='intl', region='em', freq='d', tr='yoy', fmt='pct1', suffix='',
+         good='up', scale=1, zero_line=True),
 ]
 
 SECTIONS = [
@@ -169,7 +221,25 @@ SECTIONS = [
     {'k': 'credit', 'l': 'Credit & Conditions'},
     {'k': 'housing', 'l': 'Housing & Consumer'},
     {'k': 'commodities', 'l': 'Commodities'},
+    {'k': 'intl', 'l': 'International'},
 ]
+
+# The International card's regions, in display order.
+REGIONS = [
+    {'k': 'ea', 'l': 'Euro area'},
+    {'k': 'uk', 'l': 'United Kingdom'},
+    {'k': 'jp', 'l': 'Japan'},
+    {'k': 'cn', 'l': 'China'},
+    {'k': 'em', 'l': 'Emerging markets'},
+]
+
+# How far behind the run date a series' last observation may be before it
+# is stamped stale, by frequency. Each is a release cycle or two past the
+# slowest live series of its kind on 2026-10-27: commodity dailies 6 days
+# behind (EIA), Case-Shiller 117 (dated the month it measures, published
+# ~3 months on), real GDP 208 (dated the quarter's first day). Tighter
+# limits would flag series that are merely on schedule.
+STALE_AFTER_DAYS = {'d': 14, 'w': 28, 'm': 150, 'q': 270}
 
 # Headline tiles on the Overview sub-tab, in display order.
 OVERVIEW_IDS = ['DGS10', 'T10Y2Y', 'PCEPILFE', 'UNRATE', 'BAMLH0A0HYM2',
@@ -196,13 +266,15 @@ def yoy(obs, tolerance_days=45):
     out = {}
     for d in dates:
         target = d - timedelta(days=365)
+        # The nearest date on either side of the target; a tie goes to the
+        # earlier one. A bisect rather than a scan, so 20 years of daily
+        # closes (the international equity series) stay linear-ish.
+        i = bisect_left(dates, target)
         best, best_gap = None, tolerance_days + 1
-        for e in dates:
+        for e in dates[max(i - 1, 0):i + 1]:
             gap = abs((e - target).days)
             if gap < best_gap:
                 best, best_gap = e, gap
-            elif e > target + timedelta(days=tolerance_days):
-                break
         if best is None or not obs[best]:
             continue
         out[d] = (obs[d] / obs[best] - 1.0) * 100.0
@@ -357,6 +429,13 @@ def _build_series_entry(meta, raw_obs, as_of):
         entry['zero_line'] = True
     if meta.get('threshold') is not None:
         entry['threshold'] = meta['threshold']
+    if meta.get('region'):
+        entry['region'] = meta['region']
+    # A series that stopped updating is still charted, but says so, and the
+    # narrative is never handed it as a current reading.
+    limit = STALE_AFTER_DAYS.get(meta['freq'])
+    if limit is not None and (as_of - latest_d).days > limit:
+        entry['stale'] = True
     return entry
 
 
@@ -476,7 +555,13 @@ def build_macro_payload(fred, regime_result=None, macro_adj=None, as_of=None,
         except Exception as e:
             print(f"  Macro series {meta['id']} skipped ({e}).")
 
-    if len(series_out) < MIN_SERIES_FOR_DASHBOARD:
+    # Counted over FRED series only: seven come from Yahoo (gold, silver and
+    # the five international markets), enough on their own to clear the bar,
+    # and a Yahoo-only build is a FRED outage, which the re-render answers
+    # with the sidecar it already has rather than a dashboard of seven cards.
+    if sum(1 for m in MACRO_SERIES
+           if m['id'] in series_out and not m.get('yf')) \
+            < MIN_SERIES_FOR_DASHBOARD:
         return None
 
     try:
@@ -553,15 +638,42 @@ def _tile_of(sid, s):
             'spark_d': (hist.get('d') or [])[-SPARK_POINTS:]}
 
 
+def _intl_of(series):
+    """The International card's data grid: per region, each series' latest
+    reading and 1-year change, no history. Inline so the card paints at first
+    render, and what it shows when there is no narrative. Pure."""
+    out = []
+    for r in REGIONS:
+        items = []
+        for meta in MACRO_SERIES:
+            s = series.get(meta['id'])
+            if meta.get('region') != r['k'] or not s:
+                continue
+            # An equity row is already a 1-year return; its change over a
+            # year (MCHI -24.0%, "-57.5% 1Y") reads as a second return.
+            item = {'id': meta['id'], 'l': s['l'], 'fmt': s['fmt'],
+                    'suffix': s.get('suffix', ''), 'good': s['good'],
+                    'latest': s['latest'],
+                    'chg_1y': None if meta.get('yf') else s.get('chg_1y')}
+            if s.get('stale'):
+                item['stale'] = True
+            items.append(item)
+        if items:
+            out.append({'k': r['k'], 'l': r['l'], 'items': items})
+    return out
+
+
 def _summary_of(sidecar):
-    """The small inline summary (regime + Overview tiles) for a sidecar.
+    """The small inline summary (regime, Overview tiles, the International
+    card's grid) for a sidecar.
 
     sector_data stays in the sidecar only: it is narrative input, and the
     sector-tab ETF figures that once read it inline are gone."""
     series = (sidecar or {}).get('series') or {}
     tiles = [_tile_of(sid, series[sid]) for sid in OVERVIEW_IDS if sid in series]
     return {'as_of': sidecar.get('as_of'), 'regime': sidecar.get('regime'),
-            'tiles': tiles, 'narrative': sidecar.get('narrative')}
+            'tiles': tiles, 'intl': _intl_of(series),
+            'narrative': sidecar.get('narrative')}
 
 
 def summary_from_sidecar(sidecar):
