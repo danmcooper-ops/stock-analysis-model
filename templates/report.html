@@ -1663,11 +1663,10 @@ circle.etfc-spy{fill:var(--etfc-s);}
 .sb-dd.open .sb-dd-chev{transform:rotate(-135deg);margin-top:3px;}
 .sb-dd-list{display:none;margin-top:6px !important;}
 .sb-dd.open .sb-dd-list{display:block;}
-.sb-grp{font-size:0.68em;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#7f8c9a;margin:6px 0 2px;}
 .sb-swatch{width:16px;height:0;flex-shrink:0;border-top:2.5px dashed #111827;}
 .sb-sub{font-weight:400;color:#7f8c9a;font-size:0.9em;}
 [data-theme="dark"] .sb-dd-btn{background:#161b22;border-color:#30363d;color:#e6edf3;}
-[data-theme="dark"] .sb-grp,[data-theme="dark"] .sb-sub{color:#8b949e;}
+[data-theme="dark"] .sb-sub{color:#8b949e;}
 [data-theme="dark"] .cm-panel .agg-grid-section{background:none;}
 [data-theme="dark"] .agg-grid-title{color:#e6edf3;}
 [data-theme="dark"] .agg-grid-item{color:#c9d1d9;}
@@ -14313,8 +14312,9 @@ function _windTop(b,line){
    carries survivorship and quality-filter bias. */
 var _sectorPriceRange='20YR';
 /* Comparison lines for the sector chart: the four indices and the eleven
-   sector SPDRs, picked from one "Compare with" dropdown inside the ☰ menu
-   (the index chips used to sit open there, a row of loud outlined buttons).
+   sector SPDRs, each group picked from its own collapsed dropdown inside the
+   ☰ menu (the index chips used to sit open there, a row of loud outlined
+   buttons); the sector list below them is unchanged.
    Indices draw in their own colours; an SPDR takes its sector's colour, so
    a sector's composite and its fund read as a pair (solid vs dashed). */
 var _sectorBench=[];
@@ -14341,35 +14341,40 @@ function sectorBenchDD(btn){
   var open=dd.classList.toggle('open');
   btn.setAttribute('aria-expanded',open?'true':'false');
 }
-function sectorBenchClear(){
-  _sectorBench=[];
-  document.querySelectorAll('#sector-bench-list input[type="checkbox"]').forEach(function(cb){cb.checked=false;});
+/* Clear one dropdown's picks: 'ix' (indices) or 'etf' (sector SPDRs). */
+function sectorBenchClear(kind){
+  var etf=kind==='etf';
+  _sectorBench=_sectorBench.filter(function(t){return !!_spdrSector(t)!==etf;});
+  document.querySelectorAll('#sector-'+(etf?'etf':'bench')+'-list input[type="checkbox"]').forEach(function(cb){cb.checked=false;});
   _sectorBenchSum();
   _priceChartDraw();
 }
-/* The ☰ summary and the dropdown's button text. Called on every draw and
-   toggle; never rebuilds the list (a rebuilt row detaches the clicked
+/* The ☰ summary and each dropdown's button text. Called on every draw and
+   toggle; never rebuilds a list (a rebuilt row detaches the clicked
    checkbox mid-event). */
 function _sectorBenchSum(){
   var picked=_sectorBench.map(_sbLabel).join(', ');
   _cmSum('sector',_sectorPriceRange.replace('YR','Y')
     +(picked?' · vs '+picked:'')
     +(document.getElementById('agg-grid')?' · '+_secListSum('agg-grid'):''));
-  var bt=document.getElementById('sector-bench-btn-t');
-  if(bt)bt.textContent=picked||'None';
+  var ix=_sectorBench.filter(function(t){return !_spdrSector(t);}).map(_sbLabel).join(', ');
+  var etf=_sectorBench.filter(_spdrSector).join(', ');
+  var bt=document.getElementById('sector-bench-btn-t');if(bt)bt.textContent=ix||'None';
+  var be=document.getElementById('sector-etf-btn-t');if(be)be.textContent=etf||'None';
 }
-/* Fill the dropdown once PRICES has landed (PRICES.indices and the shard
-   manifest are unknown at mount): indices first, then the SPDRs present in
-   the px/ manifest, in sector order. */
+/* Fill the two dropdowns once PRICES has landed (PRICES.indices and the
+   shard manifest are unknown at mount): the indices, and the SPDRs present
+   in the px/ manifest in sector order. */
 function _sectorBenchBtns(){
   _sectorBenchSum();
   var list=document.getElementById('sector-bench-list');if(!list)return;
-  var wrap=document.getElementById('sector-bench-wrap');
+  var elist=document.getElementById('sector-etf-list');
   if(list.getAttribute('data-built'))return;
   var ixs=(PRICES&&PRICES.indices)||[];
   var funds=_allSectors().filter(function(s){var t=_SECTOR_SPDR[s];return t&&PRICES&&(PRICES.prices[t]||PRICES.manifest[t]);});
-  if(!ixs.length&&!funds.length){if(wrap)wrap.style.display='none';return;}
-  if(wrap)wrap.style.display='';
+  var wrap=document.getElementById('sector-bench-wrap'),ewrap=document.getElementById('sector-etf-wrap');
+  if(wrap)wrap.style.display=ixs.length?'':'none';
+  if(ewrap)ewrap.style.display=funds.length?'':'none';
   function item(tk,name,sub){
     var on=_sectorBench.indexOf(tk)>=0;
     return '<label class="agg-grid-item sb-item"><input type="checkbox" value="'+_attr(tk)+'"'+(on?' checked':'')+' onchange="toggleSectorBench(this.value)">'
@@ -14377,15 +14382,13 @@ function _sectorBenchBtns(){
       +'<span class="agg-grid-name">'+_esc(name)+(sub?' <span class="sb-sub">'+_esc(sub)+'</span>':'')+'</span>'
       +'<span class="agg-grid-ret" data-sb="'+_attr(tk)+'">—</span></label>';
   }
-  var h='';
-  if(ixs.length)h+='<div class="sb-grp">Indices</div><div class="agg-grid">'+ixs.map(function(ix){return item(ix.ticker,ix.label,ix.ticker);}).join('')+'</div>';
-  if(funds.length)h+='<div class="sb-grp">Sector ETFs (SPDR)</div><div class="agg-grid">'+funds.map(function(s){return item(_SECTOR_SPDR[s],_SECTOR_SPDR[s],s);}).join('')+'</div>';
-  list.innerHTML=h;
+  list.innerHTML='<div class="agg-grid">'+ixs.map(function(ix){return item(ix.ticker,ix.label,ix.ticker);}).join('')+'</div>';
+  if(elist)elist.innerHTML='<div class="agg-grid">'+funds.map(function(s){return item(_SECTOR_SPDR[s],_SECTOR_SPDR[s],s);}).join('')+'</div>';
   list.setAttribute('data-built','1');
 }
 /* Each comparison line's return over the plotted window, beside its row. */
 function _sectorBenchSetRet(retByTk){
-  document.querySelectorAll('#sector-bench-list .agg-grid-ret[data-sb]').forEach(function(sp){
+  document.querySelectorAll('#sector-bench-list .agg-grid-ret[data-sb],#sector-etf-list .agg-grid-ret[data-sb]').forEach(function(sp){
     var tk=sp.getAttribute('data-sb');
     if(retByTk&&tk in retByTk){var r=retByTk[tk];sp.textContent=(r>=0?'+':'')+r.toFixed(1)+'%';sp.setAttribute('style','color:'+(r>=0?'#2e7d48':'#c0392b'));}
     else{sp.textContent='—';sp.removeAttribute('style');}
@@ -14445,10 +14448,8 @@ function renderUniversePriceChart(){
     +'<span class="cm-sum" id="sector-cm-sum"></span>'
     +'<div class="cm-panel cm-list" id="sector-cm-panel">'
     +  '<div class="cm-row"><div class="cm-lbl">Range</div><div style="display:flex;gap:4px;flex-wrap:wrap">'+rangeBtns+'</div></div>'
-    +  '<div class="cm-row cm-sec" id="sector-bench-wrap" style="display:none"><div class="cm-sec-head"><div class="cm-lbl" title="Indices and sector ETFs drawn as dashed lines beside the sectors">Compare with</div>'
-    +    '<div style="display:flex;gap:5px;align-items:center"><button type="button" class="agg-helper-btn" onclick="sectorBenchClear()">Clear</button></div></div>'
-    +    '<div class="sb-dd"><button type="button" class="sb-dd-btn" aria-expanded="false" onclick="sectorBenchDD(this)"><span id="sector-bench-btn-t">None</span><i class="sb-dd-chev" aria-hidden="true"></i></button>'
-    +    '<div class="sb-dd-list agg-grid-section" id="sector-bench-list"></div></div></div>'
+    +  _sbDDRow('bench','ix','Indices','Market indices drawn as dashed lines beside the sectors')
+    +  _sbDDRow('etf','etf','Sector ETFs','Select Sector SPDR funds, drawn dashed in their sector\u2019s colour')
     +  '<div class="cm-row cm-sec"><div class="cm-sec-head"><div class="cm-lbl" title="Ranked by price appreciation over the selected range">Sectors</div>'
     +    '<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">'+helperBtns+'</div></div>'
     +    '<div class="agg-grid-section"><div class="agg-grid" id="agg-grid">'+gridItems+'</div></div></div>'
@@ -14461,6 +14462,14 @@ function renderUniversePriceChart(){
      container. */
   setTimeout(_priceChartDraw,0);
   return out;
+}
+/* One collapsed comparison dropdown in the ☰ panel: a label + Clear, then
+   the button that opens its checkbox list (filled by _sectorBenchBtns). */
+function _sbDDRow(id,kind,label,tip){
+  return '<div class="cm-row cm-sec" id="sector-'+id+'-wrap" style="display:none"><div class="cm-sec-head"><div class="cm-lbl" title="'+_attr(tip)+'">'+label+'</div>'
+    +'<div style="display:flex;gap:5px;align-items:center"><button type="button" class="agg-helper-btn" onclick="sectorBenchClear(\''+kind+'\')">Clear</button></div></div>'
+    +'<div class="sb-dd"><button type="button" class="sb-dd-btn" aria-expanded="false" onclick="sectorBenchDD(this)"><span id="sector-'+id+'-btn-t">None</span><i class="sb-dd-chev" aria-hidden="true"></i></button>'
+    +'<div class="sb-dd-list agg-grid-section" id="sector-'+id+'-list"></div></div></div>';
 }
 function setSectorPriceRange(r,btn){
   _sectorPriceRange=r;
