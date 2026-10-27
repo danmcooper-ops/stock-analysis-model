@@ -280,6 +280,7 @@ def cmd_show(doc, a):
     day, rows = _latest_rows(a.results_dir, a.date)
     by_tk = pg.rows_by_ticker(rows)
     print(f"Snapshot {day} ({len(by_tk)} tickers)")
+    analytics = _analytics(targets, rows, a.results_dir, a.prices_dir, day)
     for p in targets:
         res = pg.resolve_members(p, by_tk)
         print(f"\n{p['name']} [{p['id']}] — {len(res['members'])} members"
@@ -291,6 +292,8 @@ def cmd_show(doc, a):
                     print(f"  warning: no row has a {c['key']!r} field, so this rule matches nothing")
         from scripts.portfolio_digest import stats_line
         print('  ' + stats_line(pg.portfolio_stats(res['members'], by_tk)))
+        for line in _analytics_lines(analytics.get(p['id']) or {}, analytics.get('_universe')):
+            print('  ' + line)
         manual, ruled = set(res['manual']), set(res['ruled'])
         print(f"  {'Ticker':<8} {'Rating':<9} {'MoS':>6} {'Score':>6}  {'Src':<5} Sector")
         for t in res['members']:
@@ -421,6 +424,57 @@ def cmd_migrate_holdings(doc, a):
     return (f"created {pid}: {len(book['positions'])} positions ({n} lots), "
             f"{len(book['realized'])} realized sale(s) in "
             f"{pp.positions_path(a.positions_file)}; {src} is left as it was")
+
+
+def _analytics(portfolios, rows, results_dir, prices_dir, day):
+    from data import portfolio_nav as pn
+    from models import portfolio_analytics as pa
+    prices_dir = prices_dir if prices_dir is not None else os.path.join(results_dir, 'prices')
+    have_px = os.path.isdir(prices_dir)
+    try:
+        return pa.analyze(portfolios, rows, pn.load_ledger(pn.ledger_path(results_dir)),
+                          prices_dir if have_px else None,
+                          pn.prices_closes_fn(prices_dir) if have_px else None, asof=day)
+    except Exception as e:  # the member table still prints
+        logger.warning("portfolios: analytics unavailable (%s)", e)
+        return {}
+
+
+def _analytics_lines(an, uni):
+    """``show``'s valuation / risk / attribution lines for one portfolio."""
+    out = []
+    w = an.get('w')
+    tag = '' if w in (None, 'equal') else f" ({w} weights)"
+    if w == 'held':
+        tag = ' (equal weights: holdings stay private)'
+    v = an.get('val') or {}
+    if v.get('status') == 'ok':
+        out.append(f"look-through{tag}: value/price {v['V']:.2f} (MoS {_fmt_pct(v['mos'])}), "
+                   f"{_fmt_pct(v['rel'])} vs the equal-weighted universe")
+    elif v:
+        out.append(f"look-through: {v.get('reason') or 'insufficient'}")
+    r = an.get('risk') or {}
+    if r.get('status') == 'ok':
+        out.append(f"risk, 1y to {r['to']}: vol {_fmt_pct(r['vol']).lstrip('+')}, beta "
+                   f"{_fmt_num(r['beta'], '.2f')}, Sharpe {_fmt_num(r['sharpe'], '.2f')}, "
+                   f"tracking error {_fmt_pct(r['te']).lstrip('+')}, max drawdown "
+                   f"{_fmt_pct(r['mdd'])}, avg correlation {_fmt_num(r['avg_corr'], '.2f')}")
+        if r.get('pairs'):
+            out.append("most correlated: " + ', '.join(f"{q['a']}/{q['b']} {q['r']:.2f}"
+                                                       for q in r['pairs']))
+        cr = [f"{k} {_fmt_pct(c['dd'])}" for k, c in (r.get('crises') or {}).items() if c]
+        if cr:
+            out.append("crisis drawdowns: " + ', '.join(cr))
+    elif r:
+        out.append(f"risk: only {_fmt_pct(r.get('cov')).lstrip('+')} of the weight has a year "
+                   "of prices")
+    att = an.get('attrib') or {}
+    win = next((k for k in ('3M', '1M', 'All') if k in att), None)
+    if win:
+        x = att[win]
+        out.append(f"contributors {win} ({_fmt_pct(x['ret'])}): "
+                   + ', '.join(f"{e['t']} {e['c'] * 100:+.1f}pp" for e in x['top'][:3] + x['bottom'][:3]))
+    return out
 
 
 def alert_columns(portfolios):
@@ -756,10 +810,11 @@ def build_parser():
     sp.add_argument('--id', default='held')
     sp.add_argument('--name')
 
-    sp = sub.add_parser('show', help='resolve members against a snapshot')
+    sp = sub.add_parser('show', help='members, look-through value, risk and contributors')
     sp.add_argument('id', nargs='?')
     sp.add_argument('--results-dir', default='output')
     sp.add_argument('--date', help='snapshot date (default: latest)')
+    sp.add_argument('--prices-dir', help='price parquets (default: <results-dir>/prices)')
 
     sp = sub.add_parser('alerts', help='per-portfolio stats and change alerts vs the prior run')
     sp.add_argument('--results-dir', default='output')

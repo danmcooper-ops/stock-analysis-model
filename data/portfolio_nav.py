@@ -153,14 +153,16 @@ def _member_return(t, c0, c1, rows0, rows1):
     return None
 
 
-def _step_return(held, m0, m1, closes, rows0, rows1, weights=None):
-    """Return of *held* from market date m0 to m1: equal-weighted, or by
-    *weights* ({ticker: w}, ``CASH`` earning 0) when given.
+def step_contributions(held, m0, m1, closes, rows0, rows1, weights=None):
+    """Each priced member's contribution to the step from m0 to m1, as
+    ``(contribs, ret, coverage)``: equal-weighted, or by *weights*
+    ({ticker: w}, ``CASH`` earning 0) when given. The contributions sum to
+    ``ret``.
 
     An unpriced member's weight is spread over the priced ones (the step
     is measured on what could be measured); coverage is the priced share
-    of the weight. Returns ``(ret, coverage)``; ``(0.0, 1.0)`` for an empty
-    holding (cash) and ``(None, 0.0)`` when no member could be priced.
+    of the weight. An empty holding (cash) is ``({}, 0.0, 1.0)``, and a
+    step where no member could be priced ``({}, None, 0.0)``.
     """
     if weights:
         held = [t for t in weights if t != CASH]
@@ -169,20 +171,27 @@ def _step_return(held, m0, m1, closes, rows0, rows1, weights=None):
         wts = {t: 1.0 for t in held}
     total = sum(wts.values())
     if not held or total <= 0:
-        return 0.0, 1.0
+        return {}, 0.0, 1.0
     c0, c1 = closes.get(m0) or {}, closes.get(m1) or {}
-    num = den = 0.0
+    rets, den = {}, 0.0
     for t in held:
         r = _member_return(t, c0, c1, rows0, rows1)
         if r is not None:
-            num += wts[t] * r
+            rets[t] = r
             den += wts[t]
     cash = wts.get(CASH, 0.0)
     if den <= 0:
-        return (0.0, cash / total) if cash > 0 else (None, 0.0)
+        return ({}, 0.0, cash / total) if cash > 0 else ({}, None, 0.0)
     # Unpriced weight takes the priced members' average; cash stays at 0.
-    risky = total - cash
-    return (num / den) * risky / total, (den + cash) / total
+    scale = (total - cash) / (den * total)
+    contribs = {t: wts[t] * r * scale for t, r in rets.items()}
+    return contribs, sum(contribs.values()), (den + cash) / total
+
+
+def _step_return(held, m0, m1, closes, rows0, rows1, weights=None):
+    """``(ret, coverage)`` of one step (see ``step_contributions``)."""
+    _, ret, cov = step_contributions(held, m0, m1, closes, rows0, rows1, weights)
+    return ret, cov
 
 
 def _norm_weights(w):

@@ -4585,13 +4585,7 @@ function _pfCreate(fields){
   list.push(p);
   return p;
 }
-function pfNewWithTicker(){
-  var tk=_pfDetTk();
-  var name=prompt('Name for the new portfolio:');
-  if(!name||!name.trim())return;
-  _pfCreate({name:name.trim(),tickers:tk?[tk]:[]});
-  _pfCommit();
-}
+function pfNewWithTicker(){var tk=_pfDetTk();pfNewDialog({tickers:tk?[tk]:[]});}
 
 /* --- Save the current filter as a portfolio --- */
 function _pfRuleFromFilters(){
@@ -4627,6 +4621,7 @@ function pfSaveFilterOpen(){
     +'<span><b>Fixed list</b> — the '+shown+' stock'+(shown===1?'':'s')+' shown now</span></label>'
     +(info.ignored.length?'<div class="pf-note">Not part of a rule: '+_pfEsc(info.ignored.join(', '))+'. They still narrow the fixed list.</div>':'')
     +(ed?'<label class="pf-check"><input type="checkbox" id="pf-sf-update" checked> Update “'+_pfEsc(ed.name)+'” instead of creating a new portfolio</label>':'')
+    +'<div class="pf-err" id="pf-sf-err" role="alert"></div>'
     +'<div class="pf-actions"><button class="pf-btn" onclick="pfManageClose()">Cancel</button><button class="pf-btn pf-primary" onclick="pfSaveFilterDo()">Save</button></div></div>';
   _pfOverlayShow('Save filter as portfolio',h);
   var n=document.getElementById('pf-sf-name');if(n)n.focus();
@@ -4636,7 +4631,7 @@ function pfSaveFilterDo(){
   var mode=(document.querySelector('input[name="pf-sf-mode"]:checked')||{}).value;
   var upd=document.getElementById('pf-sf-update');
   var info=_pfRuleFromFilters();
-  if(!name){alert('Give the portfolio a name.');return;}
+  if(!name){document.getElementById('pf-sf-err').textContent='Give the portfolio a name.';document.getElementById('pf-sf-name').focus();return;}
   if(mode==='rule'&&!info.rule)return;
   var tickers=mode==='list'?(FD||[]).map(function(d){return d.ticker;}):[];
   var rule=mode==='rule'?info.rule:null;
@@ -4701,6 +4696,7 @@ function _pfRenderManage(){
     h+='<div class="pf-row">'
       +'<input type="color" class="pf-color" value="'+_pfEsc(p.color||'#888888')+'" onchange="pfSetField(\''+id+'\',\'color\',this.value)" title="Color">'
       +'<div class="pf-row-main"><input type="text" class="pf-name" value="'+_pfEsc(p.name)+'" onchange="pfSetField(\''+id+'\',\'name\',this.value)" aria-label="Name">'
+      +'<input type="text" class="pf-name pf-desc-in" value="'+_pfEsc(p.description||'')+'" placeholder="Add a description" onchange="pfSetField(\''+id+'\',\'description\',this.value)" aria-label="Description">'
       +'<div class="pf-muted">'+n+' stock'+(n===1?'':'s')
       +((p.tickers||[]).length?' · '+p.tickers.length+' picked':'')
       +(p.rule?' · rule: '+_pfEsc(_pfRuleSummary(p.rule)):'')
@@ -4708,6 +4704,10 @@ function _pfRenderManage(){
       +(miss?' · <span title="'+_pfEsc(missL.join(', '))+'">'+miss+' not in today’s universe</span>':'')+'</div></div>'
       +'<div class="pf-row-btns"><select class="pf-btn pf-mode" title="Alerts for this portfolio" onchange="pfSetField(\''+id+'\',\'alerts\',this.value)">'
       +[['buy_line','Alerts: buy line'],['all','Alerts: all changes'],['off','Alerts: off']].map(function(o){return'<option value="'+o[0]+'"'+(((p.alerts||'buy_line')===o[0])?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>'
+      +'<select class="pf-btn pf-mode" title="How stats, performance and risk weigh the members" onchange="pfSetField(\''+id+'\',\'weighting\',this.value)">'
+      +[['equal','Weights: equal'],['model','Weights: model sizing'],['target','Weights: targets'],['held','Weights: holdings']].map(function(o){
+        var dis=o[0]==='target'&&!(p.targets&&Object.keys(p.targets).length);
+        return'<option value="'+o[0]+'"'+(((p.weighting||'equal')===o[0])?' selected':'')+(dis?' disabled title="Set targets with scripts/portfolios.py target"':'')+'>'+o[1]+'</option>';}).join('')+'</select>'
       +'<button class="pf-btn" onclick="pfShowOnly(\''+id+'\')">Show</button>'
       +(p.rule?'<button class="pf-btn" onclick="pfEditRule(\''+id+'\')">Edit rule</button>':'')
       +'<button class="pf-btn" onclick="pfShare(\''+id+'\')">Share link</button>'
@@ -4720,13 +4720,17 @@ function _pfRenderManage(){
     +'<span class="pf-spacer"></span>'
     +'<button class="pf-btn" onclick="pfImportPick()">Import…</button>'
     +'<button class="pf-btn pf-primary" onclick="pfExport()"'+(defs.length||st!=='clean'?'':' disabled')+'>Export</button></div>'
-    +'<input type="file" id="pf-import-file" accept=".json,application/json" style="display:none" onchange="pfImportFile(this)">';
+    +'<input type="file" id="pf-import-file" accept=".json,application/json" style="display:none" onchange="pfImportFile(this)">'
+    +_pfBookManageHtml();
   document.getElementById('pf-ov-body').innerHTML=h;
 }
 function pfSetField(id,field,val){
   if(field==='name'&&!String(val).trim()){_pfRenderManage();return;}
+  if(field==='name'||field==='description')val=String(val).trim();
+  /* Equal is the default and is stored as no weighting, as the file does. */
+  if(field==='weighting'&&val==='equal')val=null;
   var list=_pfBeginEdit();
-  list.forEach(function(p){if(p.id===id)p[field]=field==='name'?String(val).trim():val;});
+  list.forEach(function(p){if(p.id===id)p[field]=val;});
   _pfCommit();
 }
 function pfDelete(id){
@@ -4736,19 +4740,10 @@ function pfDelete(id){
   _pfLocal.portfolios=list.filter(function(q){return q.id!==id;});
   _pfCommit();
 }
-function pfNewEmpty(){
-  var name=prompt('Name for the new portfolio:');
-  if(!name||!name.trim())return;
-  _pfCreate({name:name.trim()});
-  _pfCommit();
-}
+function pfNewEmpty(){pfNewDialog();}
 function pfFromFlags(){
   var tks=Object.keys(_flags||{}).filter(function(t){return _flags[t];});
-  if(!tks.length)return;
-  var name=prompt('Name for a portfolio of your '+tks.length+' flagged stocks:','Flagged');
-  if(!name||!name.trim())return;
-  _pfCreate({name:name.trim(),tickers:tks});
-  _pfCommit();
+  if(tks.length)pfNewDialog({name:'Flagged',tickers:tks});
 }
 function pfDiscardLocal(){
   if(!confirm('Discard every portfolio change made in this browser and go back to the published file?'))return;
@@ -4769,9 +4764,9 @@ function pfImportFile(inp){
   var f=inp.files&&inp.files[0];if(!f)return;
   var rd=new FileReader();
   rd.onload=function(){
-    var doc;try{doc=JSON.parse(rd.result);}catch(e){alert('That file is not valid JSON.');return;}
+    var doc;try{doc=JSON.parse(rd.result);}catch(e){_pfMsg('Import','That file is not valid JSON.');return;}
     var inc=doc&&Array.isArray(doc.portfolios)?doc.portfolios:(doc&&doc.id?[doc]:null);
-    if(!inc){alert('No portfolios found in that file.');return;}
+    if(!inc){_pfMsg('Import','No portfolios found in that file'+(doc&&doc.portfolios&&!Array.isArray(doc.portfolios)?' (it looks like a positions file: use <b>Load holdings…</b>)':'')+'.');return;}
     _pfAddIncoming(inc);
   };
   rd.readAsText(f);inp.value='';
@@ -4796,16 +4791,20 @@ function _pfAddIncoming(inc){
     list.push(p);added++;
   });
   _pfCommit();
-  if(added||replaced)alert('Imported: '+added+' added'+(replaced?', '+replaced+' replaced':'')+'. Export to publish them.');
+  if(added||replaced)_pfMsg('Import','Imported: '+added+' added'+(replaced?', '+replaced+' replaced':'')+'. Export to publish them.');
 }
 function _pfB64Enc(s){return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
 function _pfB64Dec(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return decodeURIComponent(escape(atob(s)));}
 function pfShare(id){
   var p=_pfById[id];if(!p)return;
   var url=location.href.split('#')[0]+'#pf='+_pfB64Enc(JSON.stringify(_pfClean(p)));
-  function done(){alert('Share link for “'+p.name+'” copied. Opening it in any browser offers to add the portfolio.');}
-  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,function(){prompt('Copy this link:',url);});
-  else prompt('Copy this link:',url);
+  /* The link carries the definition only; holdings never leave this browser. */
+  function show(copied){
+    _pfMsg('Share “'+_pfEsc(p.name)+'”',(copied?'Link copied. ':'')+'Opening it in any browser offers to add the portfolio. It carries the definition only, never holdings.'
+      +'<input type="text" class="pf-share-in" readonly value="'+_pfEsc(url)+'" onfocus="this.select()">');
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(function(){show(true);},function(){show(false);});
+  else show(false);
 }
 /* Opening a #pf= share link: offer to add the portfolio, then drop the
    hash so a reload doesn't ask again. */
@@ -5115,6 +5114,8 @@ var _PF_OV_KEY='stock_pf_overview_v1';
 var _PF_OV_COLS=[
   {k:'name',l:'Portfolio',card:'Name',asc:1},{k:'n',l:'Stocks',card:'Size'},{k:'mix',l:'Rating mix'},
   {k:'mos',l:'Med. MoS',card:'Median MoS',pct:1},{k:'score',l:'Med. score'},{k:'spread',l:'ROIC−WACC',pct:1},
+  {k:'rel',l:'Upside',pct:1,card:'Upside vs universe',tip:'Look-through fair value per $1 against the equal-weighted universe (published definitions)'},
+  {k:'beta',l:'Beta',tip:'Two years of weekly returns against SPY, today’s weights'},
   {k:'r1m',l:'1M',ret:1,card:'1M return'},{k:'r3m',l:'3M',ret:1},{k:'since',l:'Since start',ret:1,card:'Since start'},
   {k:'vs',l:'vs SPY',ret:1,tip:'Since-start return minus SPY over the same dates'},{k:'aw',l:'Alerts',card:'Alerts'}];
 var _pfOv=(function(){
@@ -5125,11 +5126,12 @@ var _pfOv=(function(){
 function _pfOvSave(){try{localStorage.setItem(_PF_OV_KEY,JSON.stringify(_pfOv));}catch(e){}}
 function _pfSummary(p){
   var st=_pfStats(p.id),al=_pfAlertsFor(p.id),c=_pfCount(al),perf=_pfPerf(p.id);
-  var since=perf?_pfWin(perf,'pf',null):null,spy=perf?_pfWin(perf,'spy',null):null;
+  var since=perf?_pfWin(perf,'pf',null):null,spy=perf?_pfWin(perf,'spy',null):null,an=_pfAn(p.id);
   return{p:p,st:st,al:al,cnt:c,aw:c.action+c.watch,awKey:c.action*1e4+c.watch,perf:perf,
     name:String(p.name||'').toLowerCase(),n:st.n,mos:st.mos,score:st.score,spread:st.spread,
     r1m:perf?_pfWin(perf,'pf',30):null,r3m:perf?_pfWin(perf,'pf',91):null,since:since,
-    vs:since==null||spy==null?null:since-spy};
+    vs:since==null||spy==null?null:since-spy,
+    rel:an&&an.val&&an.val.status==='ok'?an.val.rel:null,beta:an&&an.risk&&an.risk.status==='ok'?an.risk.beta:null};
 }
 function _pfOvSorted(sums){
   var k=_pfOv.k==='aw'?'awKey':_pfOv.k==='mix'?'mixKey':_pfOv.k,asc=_pfOv.asc;
@@ -5162,6 +5164,8 @@ function _pfOvTable(sums){
       +'<td class="r'+tone(x.mos)+'">'+_pfPct(x.mos,true)+'</td>'
       +'<td class="r">'+(x.score==null?'—':Math.round(x.score))+'</td>'
       +'<td class="r'+tone(x.spread)+'">'+_pfPct(x.spread,true)+'</td>'
+      +'<td class="r'+tone(x.rel)+'">'+_pfPct(x.rel,true)+'</td>'
+      +'<td class="r">'+(x.beta==null?'—':x.beta.toFixed(2))+'</td>'
       +['r1m','r3m','since','vs'].map(function(k){return'<td class="r'+tone(x[k])+'">'+_pfFmtRet(x[k])+'</td>';}).join('')
       +'<td class="r">'+(x.aw?'<span class="pfv-badge'+(x.cnt.action?' hot':'')+'" title="'+x.cnt.action+' action, '+x.cnt.watch+' watch">'+x.aw+'</span>':'<span class="pf-muted">—</span>')+'</td></tr>';
   });
@@ -5203,6 +5207,7 @@ function _pfOverviewHtml(){
         +(joined?' · +'+joined+' joined':'')+(left?' · −'+left+' left':''):'No prior run to compare')+'</div></div>';
   });
   if(_pfOv.mode!=='table')h+='</div>';
+  h+=_pfOverlapHtml(defs);
   var all={},list=[];
   defs.forEach(function(p){_pfAlertsFor(p.id).forEach(function(a){
     var key=a.kind+'|'+a.ticker+'|'+(a.portfolio||'');
@@ -5223,6 +5228,7 @@ function _pfDetailHtml(id){
     +'<div class="pfv-head pfv-detail-head" style="--pf:'+_pfEsc(_pfCol(p.color))+'"><span class="pfv-swatch"></span><h2>'+_pfEsc(p.name)+'</h2>'
     +'<span class="pf-spacer"></span>'
     +'<button class="pf-btn pf-primary" onclick="pfShowOnly(\''+jid+'\')">Open in table</button>'
+    +'<button class="pf-btn" onclick="pfAddDialog(\''+jid+'\')">Add stocks…</button>'
     +(p.rule?'<button class="pf-btn" onclick="pfEditRule(\''+jid+'\')">Edit rule</button>':'')
     +'<button class="pf-btn" onclick="pfShare(\''+jid+'\')">Share link</button>'
     +'<button class="pf-btn" onclick="pfManageOpen()">Manage…</button></div>'+_pfSystemicHtml()+_pfSyncNote()
@@ -5232,12 +5238,16 @@ function _pfDetailHtml(id){
     +(p.rule?' · rule: '+_pfEsc(_pfRuleSummary(p.rule)):'')
     +((p.exclude||[]).length?' · excludes '+_pfEsc(p.exclude.join(', ')):'')
     +(miss.length?' · not in today’s universe: '+_pfEsc(miss.join(', ')):'')
-    +' · created '+_pfEsc(p.created||'')+'</div>';
+    +(p.weighting&&p.weighting!=='equal'?' · weighted '+_pfEsc(_PF_WLBL[p.weighting]||p.weighting):'')
+    +' · created '+_pfEsc(p.created||'')+'</div>'
+    +'<div class="pfv-live" id="pf-live">'+_pfLiveHtml(id)+'</div>';
   var dc=_pfCount(al),mode=p.alerts||'buy_line';
   /* Section jumps are buttons, not #anchors: the hash carries view state. */
-  h+='<nav class="pfv-toc" aria-label="Sections">'+[['pfs-summary','Summary'],['pfs-members','Members'],['pfs-perf','Performance'],
-      ['pfs-alerts','Alerts'+(dc.action+dc.watch?' ('+(dc.action+dc.watch)+')':'')],['pfs-recent','Rating changes']]
-    .map(function(s,i){return'<button type="button" class="pfv-toc-b'+(i>2?' pfv-toc-rail':'')+'" onclick="_pfJump(\''+s[0]+'\')">'+s[1]+'</button>';}).join('')+'</nav>';
+  var hold=_pfHold(id),risk=_pfRiskHtml(id);
+  h+='<nav class="pfv-toc" aria-label="Sections">'+[['pfs-summary','Summary'],hold&&['pfs-hold','Holdings'],risk&&['pfs-risk','Value & risk'],
+      ['pfs-members','Members'],['pfs-perf','Performance'],
+      ['pfs-alerts','Alerts'+(dc.action+dc.watch?' ('+(dc.action+dc.watch)+')':''),1],['pfs-recent','Rating changes',1]]
+    .filter(Boolean).map(function(s){return'<button type="button" class="pfv-toc-b'+(s[2]?' pfv-toc-rail':'')+'" onclick="_pfJump(\''+s[0]+'\')">'+_pfEsc(s[1])+'</button>';}).join('')+'</nav>';
   /* Main column: what the portfolio is (summary, members, performance).
      Side rail (wide screens only): what changed (alerts, rating moves). */
   h+='<div class="pfv-cols"><div class="pfv-main">'
@@ -5245,9 +5255,9 @@ function _pfDetailHtml(id){
     +'<div class="pfv-detail-grid" id="pfs-summary"><div class="pfv-panel">'+_pfMixBar(st)
     +'<div class="pfv-legend">'+Object.keys(st.mix).map(function(r){return'<span><i style="background:'+RC[r]+'"></i>'+r+' '+st.mix[r]+'</span>';}).join('')+'</div>'
     +_pfKpis(st,true)+_pfMosDist(st)+'</div>'
-    +'<div class="pfv-panel"><div class="pfv-kpi-l">Sectors, equal weight <span class="pfv-dist-key"><i></i>universe</span>'
-    +(st.concentrated?' — <span class="warn" title="Top sector over 40% or sector HHI over 0.25">concentrated</span>':'')+'</div>'
-    +_pfSectorsHtml(st)+'</div></div>';
+    +_pfBrkPanel(id,st)+'</div>';
+  if(hold)h+='<h3 class="pfv-h3" id="pfs-hold"><span class="sec-label">Holdings</span> <span class="pf-muted pfv-h3-sub">private to this browser</span></h3><div class="pfv-panel">'+_pfHoldHtml(id)+'</div>';
+  if(risk)h+='<h3 class="pfv-h3" id="pfs-risk"><span class="sec-label">Value &amp; risk</span></h3>'+risk;
   h+='<h3 class="pfv-h3" id="pfs-members"><span class="sec-label">Members</span> <span class="pfv-count">'+st.n+'</span></h3>'+_pfmHtml(id);
   h+='<h3 class="pfv-h3" id="pfs-perf"><span class="sec-label">Performance</span></h3><div class="pfv-panel pfc-panel">'+_pfChartHtml(id)+'</div>';
   h+='</div><aside class="pfv-rail">';
@@ -5305,14 +5315,30 @@ var _PFM_PRESETS=[
   {id:'momentum',l:'Momentum',sort:'_r3m',px:1,cols:[_PFM_R,_PFM_PX,{k:'_r1m',l:'1M',x:'ret',days:30},{k:'_r3m',l:'3M',x:'ret',days:91},
     {k:'momentum_12_1',l:'12−1 mom.',f:'pct',tone:1},{k:'pct_from_52w_high',l:'From 52w high',f:'pct',tone:1},{k:'earnings_next_date',l:'Next earnings',x:'earn'}]}
 ];
+/* Holdings and targets: a column set offered only when this browser holds
+   the portfolio's private book or the definition sets targets. Not in
+   _PFM_PRESETS (whose keys all carry a TT tooltip); these carry their own. */
+var _PFM_HOLD_COLS=[{k:'_h_shares',l:'Shares',x:'hold',hk:'shares',f:'shares'},{k:'_h_cost',l:'Avg cost',x:'hold',hk:'cost',f:'dollar',tip:'Average cost per share over the open lots'},
+  {k:'_h_value',l:'Value',x:'hold',hk:'market_value',f:'money',tip:'Shares × this run’s close'},{k:'_h_pnl',l:'P&L',x:'hold',hk:'pnl',f:'money',tone:1,tip:'Value less cost of the open lots'},
+  {k:'_h_pnlp',l:'P&L %',x:'hold',hk:'pnl_pct',f:'pct',tone:1},{k:'_h_w',l:'Weight',x:'hold',hk:'weight',f:'pct',tip:'Share of the holdings’ value, cash included'},
+  {k:'_h_first',l:'Since',x:'hold',hk:'first',f:'text',tip:'Purchase date of the oldest open lot'}];
+function _pfmPresets(id){
+  var p=id&&_pfById[id],book=!!(id&&_pfBook(id)),tg=!!(p&&p.targets&&Object.keys(p.targets).length);
+  if(!book&&!tg)return _PFM_PRESETS;
+  var cols=[_PFM_R,_PFM_PX].concat(book?_PFM_HOLD_COLS:[]);
+  if(tg)cols.push({k:'_t_w',l:'Target',x:'tgt',f:'pct',tip:'Target weight (scripts/portfolios.py target)'});
+  if(tg&&book)cols.push({k:'_t_d',l:'Drift',x:'drift',f:'pct',tone:1,tip:'Held weight minus target'});
+  return _PFM_PRESETS.concat([{id:'holdings',l:book?'Holdings':'Targets',sort:book?'_h_value':'_t_w',cols:cols}]);
+}
 var _PFM_KEY='stock_pf_members_v1',_PFM_CAP=100;
 var _pfm={id:null,preset:'overview',k:null,asc:false,q:'',all:false,px:false};
-function _pfmPreset(pid){for(var i=0;i<_PFM_PRESETS.length;i++)if(_PFM_PRESETS[i].id===pid)return _PFM_PRESETS[i];return _PFM_PRESETS[0];}
+function _pfmPreset(pid){var ps=_pfmPresets(_pfm.id);for(var i=0;i<ps.length;i++)if(ps[i].id===pid)return ps[i];return ps[0];}
 function _pfmStore(){try{return JSON.parse(sessionStorage.getItem(_PFM_KEY))||{};}catch(e){return{};}}
 function _pfmLoad(id){
   if(_pfm.id===id)return;
   var v=_pfmStore()[id]||{};
-  _pfm={id:id,preset:_pfmPreset(v.preset).id,k:v.k||null,asc:!!v.asc,q:'',all:false,px:false};
+  _pfm={id:id,preset:'overview',k:v.k||null,asc:!!v.asc,q:'',all:false,px:false};
+  _pfm.preset=_pfmPreset(v.preset).id;
 }
 function _pfmSave(){try{var s=_pfmStore();s[_pfm.id]={preset:_pfm.preset,k:_pfm.k,asc:_pfm.asc};sessionStorage.setItem(_PFM_KEY,JSON.stringify(s));}catch(e){}}
 function _pfmCol(pr,k){for(var i=0;i<pr.cols.length;i++)if(pr.cols[i].k===k)return pr.cols[i];return null;}
@@ -5327,7 +5353,7 @@ function _pfmSortState(pr){
 function _pfmCtx(id){
   var p=_pfById[id],picked={},d0=_pfRunDate();
   (p.tickers||[]).forEach(function(t){picked[t]=1;});
-  return{d0:d0,soon:d0?_pfAddDays(d0,7):'',
+  return{d0:d0,soon:d0?_pfAddDays(d0,7):'',hold:_pfHoldMap(id),tgt:p.targets||{},
     via:function(d){return picked[d.ticker]?(p.rule&&_pfRuleMatch(p.rule,d)?'both':'pick'):'rule';},
     gap:function(d){return _num(d.price)==null||!(d.company_name||d.sector);}};
 }
@@ -5336,6 +5362,9 @@ function _pfmVal(c,d,ctx){
   if(c.x==='ret')return _pfPxRet(d.ticker,c.days);
   if(c.x==='rating'||c.x==='prior'){var r=d[c.k];return r in _PF_RANK?_PF_RANK[r]:null;}
   if(c.x==='via')return ctx.via(d);
+  if(c.x==='hold'){var h=ctx.hold[d.ticker];return h&&h[c.hk]!=null?h[c.hk]:null;}
+  if(c.x==='tgt')return ctx.tgt[d.ticker]!=null?ctx.tgt[d.ticker]:null;
+  if(c.x==='drift'){var tg=ctx.tgt[d.ticker];if(tg==null)return null;var hh=ctx.hold[d.ticker];return(hh&&hh.weight!=null?hh.weight:0)-tg;}
   if(c.x==='earn')return String(d[c.k]||'').slice(0,10)||null;
   if(c.f==='text')return d[c.k]==null||d[c.k]===''?null:String(d[c.k]);
   return _num(d[c.k]);
@@ -5370,10 +5399,13 @@ function _pfmCellBase(c,d,v,ctx){
       +'<span class="'+tone(v).trim()+'">'+_pfPct(v,true)+'</span></span></td>';
   }
   if(c.x==='ret')return'<td class="r'+tone(v)+'">'+_pfFmtRet(v)+'</td>';
+  if(c.f==='money')return'<td class="r'+(c.tone?tone(v):'')+'">'+_pfMoney(v,!!c.tone)+'</td>';
+  if(c.f==='shares')return'<td class="r">'+(Math.round(v*1e4)/1e4).toLocaleString('en-US')+'</td>';
   if(c.f==='text')return'<td>'+_pfEsc(v)+'</td>';
   return'<td class="r'+(c.tone?tone(v):'')+'">'+ftc(v,c.f).t+'</td>';
 }
-function _pfmTable(id){
+/* The rows the table shows, filtered and sorted (the table and its CSV). */
+function _pfmRows(id){
   var pr=_pfmPreset(_pfm.preset),ss=_pfmSortState(pr),sc=ss.k==='ticker'?null:_pfmCol(pr,ss.k),ctx=_pfmCtx(id);
   var q=_pfm.q.trim().toUpperCase();
   var rows=_pfMembers(id).map(function(t){return _pfRow[t];}).filter(Boolean);
@@ -5386,16 +5418,21 @@ function _pfmTable(id){
     var c=a.v<b.v?-1:a.v>b.v?1:0;
     return(ss.asc?c:-c)||tk;
   });
-  function th(k,l,num){
+  return{pr:pr,ss:ss,sc:sc,ctx:ctx,vs:vs,total:total,q:q};
+}
+function _pfmTable(id){
+  var m=_pfmRows(id),pr=m.pr,ss=m.ss,sc=m.sc,ctx=m.ctx,vs=m.vs,total=m.total,q=m.q;
+  function th(k,l,num,tip){
     var on=ss.k===k,arrow=on?(ss.asc?'▲':'▼'):'';
     /* data-col-tip/-label feed the document-level column-header tooltip, the
        same one the Financial Data tables use — these columns are the same
        metrics, so they get the same explanation. */
-    return'<th class="pfm-th'+(num?' r':'')+(on?' on':'')+'" tabindex="0" aria-sort="'+(on?(ss.asc?'ascending':'descending'):'none')+'" data-col-tip="'+k+'" data-col-label="'+l+'" onclick="pfmSort(\''+k+'\')">'
+    return'<th class="pfm-th'+(num?' r':'')+(on?' on':'')+'" tabindex="0" aria-sort="'+(on?(ss.asc?'ascending':'descending'):'none')+'"'
+      +(tip?' title="'+_pfEsc(tip)+'"':' data-col-tip="'+k+'" data-col-label="'+l+'"')+' onclick="pfmSort(\''+k+'\')">'
       +l+'<span class="pfm-ar">'+arrow+'</span></th>';
   }
   var h='<thead><tr>'+th('ticker','Stock',false)
-    +pr.cols.map(function(c){return th(c.k,c.l,!(c.f==='text'||c.x==='rating'||c.x==='prior'||c.x==='via'));}).join('')+'</tr></thead><tbody>';
+    +pr.cols.map(function(c){return th(c.k,_pfEsc(c.l),!(c.f==='text'||c.x==='rating'||c.x==='prior'||c.x==='via'),c.tip);}).join('')+'</tr></thead><tbody>';
   var cap=_pfm.all||q?vs.length:Math.min(vs.length,_PFM_CAP);
   for(var i=0;i<cap;i++){
     var d=vs[i].d;
@@ -5413,19 +5450,25 @@ function _pfmTable(id){
 }
 function _pfmHtml(id){
   _pfmLoad(id);
-  var t=_pfmTable(id);
+  var t=_pfmTable(id),hs=_pfHold(id),away='';
+  if(hs){
+    var mem={};_pfMembers(id).forEach(function(x){mem[x]=1;});
+    var out=hs.rows.filter(function(r){return !mem[r.row];}).map(function(r){return r.ticker;});
+    if(out.length)away='<div class="pfc-notes">Held but not a member today (not in the universe, or excluded): '+_pfEsc(out.join(', '))+'. They still count in the holdings totals.</div>';
+  }
   return'<div class="pfm-top"><div class="pfm-seg pfm-cols" role="group" aria-label="Column set">'
-    +_PFM_PRESETS.map(function(pr){var on=pr.id===_pfm.preset;return'<button type="button" class="pfm-seg-b'+(on?' on':'')+'" aria-pressed="'+on+'" onclick="pfmPreset(\''+pr.id+'\')">'+pr.l+'</button>';}).join('')
+    +_pfmPresets(id).map(function(pr){var on=pr.id===_pfm.preset;return'<button type="button" class="pfm-seg-b'+(on?' on':'')+'" aria-pressed="'+on+'" onclick="pfmPreset(\''+pr.id+'\')">'+pr.l+'</button>';}).join('')
     +'</div><input type="search" class="pfm-q" placeholder="Filter by ticker or name" aria-label="Filter members" value="'+_pfEsc(_pfm.q)+'" oninput="pfmQuery(this.value)">'
-    +'<span class="pf-muted pfm-n" id="pfm-n">'+(t.shown<t.total?t.shown+' of '+t.total:'')+'</span></div>'
-    +'<div class="pfv-tbl-wrap pfm-wrap"><table class="pfv-tbl pfm-tbl" id="pfm-tbl">'+t.html+'</table></div>';
+    +'<span class="pf-muted pfm-n" id="pfm-n">'+(t.shown<t.total?t.shown+' of '+t.total:'')+'</span>'
+    +'<button type="button" class="pf-btn pfm-csv" onclick="pfmCsv()" title="Download the rows shown, with this column set, as CSV">CSV</button></div>'
+    +'<div class="pfv-tbl-wrap pfm-wrap"><table class="pfv-tbl pfm-tbl" id="pfm-tbl">'+t.html+'</table></div>'+away;
 }
 function _pfmRedraw(){
   var tb=document.getElementById('pfm-tbl');if(!tb||!_pfm.id||!_pfById[_pfm.id])return;
   var t=_pfmTable(_pfm.id);tb.innerHTML=t.html;
   var n=document.getElementById('pfm-n');if(n)n.textContent=t.shown<t.total?t.shown+' of '+t.total:'';
-  var bs=document.querySelectorAll('.pfm-cols .pfm-seg-b');
-  for(var i=0;i<bs.length;i++){var on=_PFM_PRESETS[i].id===_pfm.preset;bs[i].classList.toggle('on',on);bs[i].setAttribute('aria-pressed',on);}
+  var bs=document.querySelectorAll('.pfm-cols .pfm-seg-b'),ps=_pfmPresets(_pfm.id);
+  for(var i=0;i<bs.length&&i<ps.length;i++){var on=ps[i].id===_pfm.preset;bs[i].classList.toggle('on',on);bs[i].setAttribute('aria-pressed',on);}
 }
 /* Momentum needs closes: fetch the members' px/ shards once, then redraw. */
 function _pfmNeedPx(){
@@ -5587,19 +5630,28 @@ function _pfChartHtml(id){
     +'<div class="pfc-notes">Weighted as the portfolio is set (equal unless chosen otherwise; a portfolio weighted by your holdings shows equal weights here, since holdings are never published) and rebalanced at every run; members are recorded as they stood each day. Returns include dividends (closes are dividend-adjusted).</div>'
     +contrib;
 }
-/* Contributors: today's members' price returns over the chart's range (from
-   the px/ shards), each weighted 1/n as in the equal-weight portfolio. It is
-   an attribution of the current membership, not of the ledger's history. */
+/* Contributors over the chart's range. For a published definition they are
+   the ledger's own attribution (models/portfolio_analytics.attribution): what
+   was held each run, as weighted then, Carino-linked to the range's return.
+   Otherwise (local edits, no analytics) today's members' price returns from
+   the px/ shards, each weighted 1/n, as an approximation. */
 function _pfContribDraw(){
   var el=document.getElementById('pfc-contrib');if(!el)return;
   var id=el.getAttribute('data-id');if(!_pfById[id])return;
-  if(!_PRICES_AVAILABLE){el.innerHTML='';return;}
   var mem=_pfMembers(id);
   if(!mem.length){el.innerHTML='';return;}
   var r=_pfRangeOf(id),days=_pfRangeDays(r),pf=_pfPerf(id),d0=_pfRunDate()||(pf?pf.dates[pf.dates.length-1]:'');
   if(days==='ytd')days=d0?Math.max(1,Math.round((Date.parse(d0+'T00:00:00Z')-Date.parse(d0.slice(0,4)+'-01-01T00:00:00Z'))/864e5)):365;
   else if(days==null)days=pf&&d0?Math.max(1,Math.round((Date.parse(d0+'T00:00:00Z')-Date.parse(pf.dates[0]+'T00:00:00Z'))/864e5)):365;
   var lbl=_PF_RANGES.filter(function(x){return x[0]===r;})[0][1];
+  var att=_pfAttrib(id,r);
+  if(att){
+    var amx=Math.max.apply(null,att.top.concat(att.bottom).map(function(x){return Math.abs(x.c);}).concat([1e-9]));
+    el.innerHTML='<div class="pfv-kpi-l">Contributors · '+lbl+' <span class="pf-muted pfc-c-note">what was held each run, as weighted then; they add up to the range’s '
+      +_pfFmtRet(att.ret)+'</span></div><div class="pfc-cls">'+_pfContribList(att.top,'pos','Top',amx)+_pfContribList(att.bottom,'neg','Bottom',amx)+'</div>';
+    return;
+  }
+  if(!_PRICES_AVAILABLE){el.innerHTML='';return;}
   if(!PRICES||mem.some(function(t){return PRICES.manifest[t]&&PRICES.prices[t]===undefined;})){
     el.innerHTML='<div class="pfv-kpi-l">Contributors</div><div class="pf-empty">Loading prices…</div>';
     _pfWithPx(mem,function(ok){if(ok&&PRICES)_pfContribDraw();else if(el.isConnected)el.innerHTML='';});
@@ -5612,15 +5664,15 @@ function _pfContribDraw(){
   var tot=rs.reduce(function(a,x){return a+x.c;},0),k=Math.min(5,Math.ceil(rs.length/2));
   var top=rs.slice(0,k).filter(function(x){return x.c>0;}),bot=rs.slice(-k).reverse().filter(function(x){return x.c<0;});
   var mx=Math.max.apply(null,rs.map(function(x){return Math.abs(x.c);}))||1;
-  function list(a,cls,title){
-    return'<div class="pfc-cl"><div class="pfc-cl-h">'+title+'</div>'+(a.length?a.map(function(x){
-      return'<div class="pfc-c">'+_pfTkLink(x.t)+'<span class="pfc-c-bar"><i class="'+cls+'" style="width:'+(100*Math.abs(x.c)/mx)+'%"></i></span>'
-        +'<span class="pfc-c-v '+cls+'" title="Price return '+_pfFmtRet(x.r)+'">'+(x.c>0?'+':'')+(x.c*100).toFixed(2)+'pp</span></div>';
-    }).join(''):'<div class="pf-muted">None</div>')+'</div>';
-  }
   el.innerHTML='<div class="pfv-kpi-l">Contributors · '+lbl+' <span class="pf-muted pfc-c-note">today’s members, equal weight: '
     +rs.length+' priced of '+n+', sum '+(tot>0?'+':'')+(tot*100).toFixed(1)+'%</span></div>'
-    +'<div class="pfc-cls">'+list(top,'pos','Top')+list(bot,'neg','Bottom')+'</div>';
+    +'<div class="pfc-cls">'+_pfContribList(top,'pos','Top',mx)+_pfContribList(bot,'neg','Bottom',mx)+'</div>';
+}
+function _pfContribList(a,cls,title,mx){
+  return'<div class="pfc-cl"><div class="pfc-cl-h">'+title+'</div>'+(a.length?a.map(function(x){
+    return'<div class="pfc-c">'+_pfTkLink(x.t)+'<span class="pfc-c-bar"><i class="'+cls+'" style="width:'+(100*Math.abs(x.c)/mx)+'%"></i></span>'
+      +'<span class="pfc-c-v '+cls+'"'+(x.r!=null?' title="Price return '+_pfFmtRet(x.r)+'"':'')+'>'+(x.c>0?'+':'')+(x.c*100).toFixed(2)+'pp</span></div>';
+  }).join(''):'<div class="pf-muted">None</div>')+'</div>';
 }
 /* Drawn after the page's HTML is in place, at the container's real width. */
 function _pfDrawChart(){
@@ -5704,6 +5756,369 @@ function _pfDrawChart(){
     e.preventDefault();showIdx(i);
   };
   wrap.onblur=hide;
+}
+/* --- Private holdings. Lots, cash and realized sales never ship in this
+   page: the repository and its Pages site are public
+   (models/portfolio_positions.py). The reader loads their own
+   portfolio/positions.json (Manage → Load holdings…). It stays in this
+   browser's localStorage, is never exported with the definitions or put in
+   a share link, and Forget removes it. _pfHoldCalc mirrors
+   portfolio_positions.holdings_summary (tests/test_report_portfolio_ui.py
+   runs both on one fixture); prices are this run's closes, as everywhere
+   else in the view. --- */
+var _PF_BOOK_KEY='stock_positions_v1';
+var _pfBooks=(function(){try{var v=JSON.parse(localStorage.getItem(_PF_BOOK_KEY));return v&&v.portfolios&&typeof v.portfolios==='object'?v:null;}catch(e){return null;}})();
+var _pfHoldCache={};
+function _pfBook(id){return(_pfBooks&&_pfBooks.portfolios[id])||null;}
+function _pfHoldCalc(book,byTk,alias,today){
+  var pos=book.positions||{},cash=+book.cash||0,real=book.realized||[];
+  if(!Object.keys(pos).length&&!cash&&!real.length)return null;
+  var rows=[];
+  Object.keys(pos).forEach(function(t){
+    var lots=pos[t]||[],sh=0,cv=0,notes=[];
+    lots.forEach(function(l){sh+=l.shares;cv+=l.shares*l.cost;if(l.note)notes.push(l.note);});
+    var kept=byTk[t]?t:(alias[t]||t),r=byTk[kept],px=r?_num(r.price):null;
+    if(!(px>0))px=null;
+    var mv=px==null?null:sh*px,pnl=mv==null?null:mv-cv;
+    rows.push({ticker:t,row:kept,shares:sh,cost:sh?cv/sh:null,cost_value:cv,first:lots.length?lots[0].date:null,
+      lots:lots.length,price:px,market_value:mv,pnl:pnl,pnl_pct:pnl!=null&&cv>0?pnl/cv:null,
+      note:notes.length?notes[notes.length-1]:''});
+  });
+  var mvT=0,pc=0;
+  rows.forEach(function(r){if(r.market_value!=null){mvT+=r.market_value;pc+=r.cost_value;}});
+  var value=mvT+cash;
+  rows.forEach(function(r){r.weight=r.market_value!=null&&value>0?r.market_value/value:null;});
+  rows.sort(function(a,b){return(b.market_value||0)-(a.market_value||0);});
+  var by={},rall=0;
+  real.forEach(function(s){var y=String(s.date).slice(0,4);by[y]=(by[y]||0)+s.shares*(s.price-s.cost);});
+  Object.keys(by).forEach(function(y){rall+=by[y];});
+  var yr=String(today||_pfToday()).slice(0,4),pnl=rows.length?mvT-pc:null;
+  return{rows:rows,totals:{cost:rows.reduce(function(a,r){return a+r.cost_value;},0),market_value:mvT,
+    unpriced:rows.filter(function(r){return r.market_value==null;}).map(function(r){return r.ticker;}),
+    cash:cash,value:value,pnl:pnl,pnl_pct:pnl!=null&&pc>0?pnl/pc:null,
+    realized:rall,realized_ytd:by[yr]||0,realized_by_year:by}};
+}
+function _pfHold(id){
+  var b=_pfBook(id);if(!b)return null;
+  if(!(id in _pfHoldCache)){
+    var byTk={},alias={};
+    DATA.forEach(function(d){byTk[d.ticker]=d;(d.listing_aliases||[]).forEach(function(a){alias[a]=d.ticker;});});
+    _pfHoldCache[id]=_pfHoldCalc(b,byTk,alias,_pfRunDate());
+  }
+  return _pfHoldCache[id];
+}
+/* {row ticker: holding} for the members table (a folded listing lands on its kept row). */
+function _pfHoldMap(id){var hs=_pfHold(id),m={};if(hs)hs.rows.forEach(function(r){m[r.row]=r;});return m;}
+function _pfBookCheck(doc){
+  if(!doc||typeof doc!=='object'||!doc.portfolios||typeof doc.portfolios!=='object'||Array.isArray(doc.portfolios))
+    return'Expected portfolio/positions.json: {"version": 1, "portfolios": {"<id>": {"positions", "realized", "cash"}}}.';
+  if(doc.version!=null&&doc.version!==1)return'Unsupported positions file version '+doc.version+'.';
+  var bad=null,D=/^\d{4}-\d{2}-\d{2}$/;
+  Object.keys(doc.portfolios).forEach(function(id){
+    var b=doc.portfolios[id]||{};
+    Object.keys(b.positions||{}).forEach(function(t){(b.positions[t]||[]).forEach(function(l){
+      if(!(l&&l.shares>0&&l.cost>=0&&D.test(l.date)))bad=bad||(id+' '+t);});});
+    (b.realized||[]).forEach(function(s){if(!(s&&s.ticker&&s.shares>0&&s.cost>=0&&s.price>=0&&D.test(s.date)))bad=bad||(id+' realized');});
+    if(b.cash!=null&&!(b.cash>=0))bad=bad||(id+' cash');
+  });
+  return bad?'A lot, sale or cash balance is malformed ('+bad+'). Fix it with scripts/portfolios.py and load the file again.':null;
+}
+function pfBookPick(){var f=document.getElementById('pf-book-file');if(f)f.click();}
+function pfBookFile(inp){
+  var f=inp.files&&inp.files[0];if(!f)return;
+  var rd=new FileReader();
+  rd.onload=function(){
+    var doc,err=null;
+    try{doc=JSON.parse(rd.result);}catch(e){err='That file is not valid JSON.';}
+    if(!err)err=_pfBookCheck(doc);
+    if(err){_pfMsg('Load holdings',_pfEsc(err));return;}
+    _pfBooks={loaded:_pfToday(),file:f.name,portfolios:doc.portfolios};
+    try{localStorage.setItem(_PF_BOOK_KEY,JSON.stringify(_pfBooks));}catch(e){}
+    _pfHoldCache={};_pfRefresh();
+  };
+  rd.readAsText(f);inp.value='';
+}
+function pfBookForget(){
+  if(!confirm('Forget the holdings loaded in this browser? Your positions file is not touched.'))return;
+  _pfBooks=null;try{localStorage.removeItem(_PF_BOOK_KEY);}catch(e){}
+  _pfHoldCache={};_pfRefresh();
+}
+function _pfBookManageHtml(){
+  var h='<div class="pf-book">';
+  if(!_pfBooks){
+    h+='<span class="pf-muted">Holdings (shares, cost, cash) live only in your private <code>portfolio/positions.json</code>, never in this published page. '
+      +'Load it to see P&amp;L here; it stays in this browser.</span><button class="pf-btn" onclick="pfBookPick()">Load holdings…</button>';
+  }else{
+    var ids=Object.keys(_pfBooks.portfolios),unknown=ids.filter(function(id){return !_pfById[id];});
+    h+='<span class="pf-muted">Holdings loaded from <b>'+_pfEsc(_pfBooks.file||'positions.json')+'</b> on '+_pfEsc(_pfBooks.loaded||'')
+      +' for '+ids.length+' portfolio'+(ids.length===1?'':'s')+'; kept only in this browser.'
+      +(unknown.length?' No portfolio here has the id'+(unknown.length>1?'s':'')+' '+_pfEsc(unknown.join(', '))+'.':'')+'</span>'
+      +'<button class="pf-btn" onclick="pfBookPick()">Reload…</button><button class="pf-btn pf-danger" onclick="pfBookForget()">Forget</button>';
+  }
+  return h+'<input type="file" id="pf-book-file" accept=".json,application/json" style="display:none" onchange="pfBookFile(this)"></div>';
+}
+function _pfMoney(v,sign){
+  if(v==null)return'—';
+  var s='$'+Math.abs(Math.round(v)).toLocaleString('en-US');
+  return v<0?'−'+s:(sign&&v>0?'+'+s:s);
+}
+function _pfHoldHtml(id){
+  var hs=_pfHold(id);if(!hs)return'';
+  var t=hs.totals;
+  function tone(v){return v==null?'':v>0?'pos':v<0?'neg':'';}
+  function k(l,v,cls,sub,tip){
+    return'<div class="pfv-kpi"'+(tip?' title="'+_pfEsc(tip)+'"':'')+'><div class="pfv-kpi-l">'+l+'</div><div class="pfv-kpi-v'+(cls?' '+cls:'')+'">'+v+'</div>'
+      +'<div class="pfv-kpi-u">'+(sub||'&nbsp;')+'</div></div>';
+  }
+  var h='<div class="pfv-kpis pfv-kpis-full">'
+    +k('Value',_pfMoney(t.value),'',t.cash?_pfMoney(t.cash)+' cash':'','Priced holdings plus cash')
+    +k('Unrealized P&amp;L',_pfMoney(t.pnl,true),tone(t.pnl),_pfPct(t.pnl_pct,true)+' on cost','Priced holdings against what they cost')
+    +k('Cost',_pfMoney(t.cost),'',hs.rows.length+' position'+(hs.rows.length===1?'':'s'))
+    +k('Realized YTD',_pfMoney(t.realized_ytd,true),tone(t.realized_ytd),'all time '+_pfMoney(t.realized,true),'Sales this calendar year, at each lot’s cost')
+    +'</div>';
+  var notes=['From '+_pfEsc(_pfBooks.file||'positions.json')+' loaded '+_pfEsc(_pfBooks.loaded||'')+', kept only in this browser and never published. Prices are this run’s closes.'];
+  if(t.unpriced.length)notes.push('No price today for '+_pfEsc(t.unpriced.join(', '))+': left out of value, P&amp;L and weights.');
+  return h+'<div class="pfc-notes">'+notes.join('<br>')+'</div>';
+}
+
+/* --- Dialogs: the overlay's form mode replaces prompt()/alert(). --- */
+function _pfMsg(title,html){
+  _pfOverlayShow(title,'<div class="pf-form"><div class="pf-msg">'+html+'</div><div class="pf-actions">'
+    +'<button class="pf-btn pf-primary" onclick="pfManageClose()">OK</button></div></div>');
+}
+function _pfParseTickers(s){
+  var seen={},out=[];
+  String(s||'').toUpperCase().split(/[\s,;]+/).forEach(function(t){
+    t=t.replace(/^\$/,'');
+    if(/^[A-Z0-9][A-Z0-9.\-]{0,11}$/.test(t)&&!seen[t]){seen[t]=1;out.push(t);}
+  });
+  return out;
+}
+/* Tickers the run does not carry (folded share classes count as carried). */
+function _pfUnknown(tks){
+  var alias={};DATA.forEach(function(d){(d.listing_aliases||[]).forEach(function(a){alias[a]=1;});});
+  return tks.filter(function(t){return !_pfTk[t]&&!alias[t];});
+}
+function _pfUnknownNote(unk){
+  var one=unk.length===1;
+  return unk.length?'Not in today’s universe: <b>'+_pfEsc(unk.join(', '))+'</b>. '+(one?'It stays':'They stay')
+    +' in the definition and '+(one?'joins':'join')+' on a run that carries '+(one?'it':'them')+'.':'';
+}
+function pfNewDialog(opts){
+  opts=opts||{};
+  closeFiltMenu();pfPopClose();
+  var h='<div class="pf-form">'
+    +'<label class="pf-fl">Name<input type="text" id="pf-nd-name" value="'+_pfEsc(opts.name||'')+'" placeholder="e.g. Dividend core" onkeydown="if(event.key===\'Enter\')pfNewDo()"></label>'
+    +'<label class="pf-fl">Description <span class="pf-muted">optional</span><input type="text" id="pf-nd-desc" value=""></label>'
+    +'<label class="pf-fl">Stocks <span class="pf-muted">optional; paste tickers separated by spaces, commas or new lines</span>'
+    +'<textarea id="pf-nd-tks" rows="3" spellcheck="false">'+_pfEsc((opts.tickers||[]).join(' '))+'</textarea></label>'
+    +'<div class="pf-err" id="pf-nd-err" role="alert"></div>'
+    +'<div class="pf-actions"><button class="pf-btn" onclick="pfManageClose()">Cancel</button><button class="pf-btn pf-primary" onclick="pfNewDo()">Create</button></div></div>';
+  _pfOverlayShow('New portfolio',h);
+  var n=document.getElementById('pf-nd-name');if(n)n.focus();
+}
+function pfNewDo(){
+  var name=(document.getElementById('pf-nd-name').value||'').trim();
+  if(!name){document.getElementById('pf-nd-err').textContent='Give the portfolio a name.';document.getElementById('pf-nd-name').focus();return;}
+  var tks=_pfParseTickers(document.getElementById('pf-nd-tks').value);
+  var p=_pfCreate({name:name,description:(document.getElementById('pf-nd-desc').value||'').trim(),tickers:tks});
+  var unk=_pfUnknown(tks);
+  pfManageClose();
+  _pfCommit();
+  if(curView==='pf')navGo('pf',p.id);
+  if(unk.length)_pfMsg('Portfolio created',_pfUnknownNote(unk));
+}
+function pfAddDialog(id){
+  var p=_pfById[id];if(!p)return;
+  var h='<div class="pf-form">'
+    +'<label class="pf-fl">Tickers to add to “'+_pfEsc(p.name)+'” <span class="pf-muted">separated by spaces, commas or new lines</span>'
+    +'<textarea id="pf-ad-tks" rows="4" spellcheck="false" placeholder="AAPL MSFT BRK-B"></textarea></label>'
+    +'<div class="pf-err" id="pf-ad-err" role="alert"></div>'
+    +'<div class="pf-actions"><button class="pf-btn" onclick="pfManageClose()">Cancel</button><button class="pf-btn pf-primary" onclick="pfAddDo(\''+_pfJsArg(id)+'\')">Add</button></div></div>';
+  _pfOverlayShow('Add stocks',h);
+  var t=document.getElementById('pf-ad-tks');if(t)t.focus();
+}
+function pfAddDo(id){
+  var tks=_pfParseTickers(document.getElementById('pf-ad-tks').value);
+  if(!tks.length){document.getElementById('pf-ad-err').textContent='Paste at least one ticker.';return;}
+  var list=_pfBeginEdit(),p=null;
+  list.forEach(function(q){if(q.id===id)p=q;});
+  if(!p)return;
+  var have={};(p.tickers||[]).forEach(function(t){have[t]=1;});
+  var added=tks.filter(function(t){return !have[t];});
+  p.tickers=(p.tickers||[]).concat(added);
+  p.exclude=(p.exclude||[]).filter(function(t){return tks.indexOf(t)<0;});
+  var unk=_pfUnknown(added);
+  pfManageClose();
+  _pfCommit();
+  if(unk.length)_pfMsg('Stocks added',added.length+' added. '+_pfUnknownNote(unk));
+}
+
+/* --- Value & risk (models/portfolio_analytics.py, PF_PUB.analytics):
+   look-through value against the universe, ex-ante risk of today's weights
+   and attribution of what was held. Computed for the published
+   definitions, so a portfolio edited in this browser shows a note. --- */
+var _PF_WLBL={equal:'equally',model:'by the model’s position sizes',target:'by target weights',held:'equally (holdings are never published)'};
+function _pfAn(id){var a=PF_PUB.analytics;return a&&a[id]&&_pfPubUnchanged(id)?a[id]:null;}
+function _pfRiskHtml(id){
+  var all=PF_PUB.analytics;
+  if(!all||!all[id])return'';
+  var a=_pfAn(id);
+  if(!a)return'<div class="pfv-panel"><div class="pf-muted">Value and risk follow the published definition; your local edits apply from the next run after you publish them.</div></div>';
+  var v=a.val||{},r=a.risk||{},u=all._universe||{};
+  function n2(x){return x==null?'—':x.toFixed(2);}
+  function p1(x){return x==null?'—':(x*100).toFixed(1)+'%';}
+  function k(l,val,cls,sub,tip){
+    return'<div class="pfv-kpi"'+(tip?' title="'+_pfEsc(tip)+'"':'')+'><div class="pfv-kpi-l">'+l+'</div><div class="pfv-kpi-v'+(cls?' '+cls:'')+'">'+val+'</div>'
+      +'<div class="pfv-kpi-u">'+(sub||'&nbsp;')+'</div></div>';
+  }
+  function tone(x){return x==null?'':x>0?'pos':x<0?'neg':'';}
+  var h='<div class="pfv-panel">';
+  if(v.status==='ok'){
+    h+='<div class="pfv-kpis pfv-kpis-full">'
+      +k('Upside vs universe',_pfPct(v.rel,true),tone(v.rel),'look-through',
+        'Fair value per $1 of this portfolio against the equal-weighted universe’s (V / V_universe − 1). On its own the model reads most of the market as over- or underpriced, so the comparison is the headline.')
+      +k('Fair value / price',n2(v.V),'',u.V!=null?'universe '+n2(u.V):'',
+        'Σ weight × fair value ÷ price, each clipped to 1/3–3 (the SPDR look-through). Covers '+_pfPct(v.cov)+' of the weight.')
+      +'</div>';
+    var pulls=[];
+    if((v.lifts||[]).length)pulls.push('Cheapest pull: '+v.lifts.map(function(e){return _pfTkLink(e.t);}).join(', '));
+    if((v.drags||[]).length)pulls.push('Dearest pull: '+v.drags.map(function(e){return _pfTkLink(e.t);}).join(', '));
+    if(pulls.length)h+='<div class="pfv-pulls pf-muted">'+pulls.join(' · ')+'</div>';
+  }else if(v.status){
+    h+='<div class="pf-muted">Look-through value: '+_pfEsc(v.reason||'not enough fair values')+'.</div>';
+  }
+  if(r.status==='ok'){
+    h+='<div class="pfv-kpis pfv-kpis-full">'
+      +k('Beta',n2(r.beta),'','vs SPY','Two years of weekly returns against SPY, as the model measures each stock’s beta')
+      +k('Volatility',p1(r.vol),'','annualised','One year of daily returns')
+      +k('Sharpe',n2(r.sharpe),tone(r.sharpe),r.rf!=null?'over '+p1(r.rf):'','One-year return less the run’s risk-free rate, over volatility')
+      +k('Tracking error',p1(r.te),'','vs SPY','Two years of weekly returns')
+      +k('Max drawdown',p1(r.mdd),'neg','last year')
+      +k('Avg correlation',n2(r.avg_corr),'',r.n_high?r.n_high+' pair'+(r.n_high===1?'':'s')+' ≥ 0.85':'','Average pairwise correlation of weekly returns')
+      +'</div>';
+    if((r.pairs||[]).length)h+='<div class="pfv-pulls pf-muted">Most correlated: '+r.pairs.map(function(q){return _pfTkLink(q.a)+'/'+_pfTkLink(q.b)+' '+n2(q.r);}).join(' · ')+'</div>';
+    var cr=r.crises||{},ys=Object.keys(cr).filter(function(y){return cr[y];});
+    if(ys.length)h+='<div class="pfv-pulls pf-muted">Through past crises: '+ys.map(function(y){
+      var c=cr[y];return'<span'+(c.cov<1?' title="'+_pfPct(c.cov)+' of the weight traded through it"':'')+'>'+y+' <b class="neg">'+p1(c.dd)+'</b></span>';}).join(' · ')+'</div>';
+  }else if(r.status==='insufficient'){
+    h+='<div class="pf-muted">Risk: only '+_pfPct(r.cov)+' of the weight has a year of prices.</div>';
+  }
+  h+='<div class="pfc-notes">Weighted '+_pfEsc(_PF_WLBL[a.w]||'equally')+'. Risk is ex ante: today’s weights over past prices, not what was held then (that is the Performance chart). '
+    +(r.status==='ok'?'Daily data '+_pfEsc(r.from)+' to '+_pfEsc(r.to)+'.':'')+'</div>';
+  return h+'</div>';
+}
+/* Attribution of what was held each run (P3), for the chart's range. */
+var _PF_ATT_W={'1m':'1M','3m':'3M','ytd':'YTD','all':'All'};
+function _pfAttrib(id,r){var a=_pfAn(id);return a&&a.attrib&&a.attrib[_PF_ATT_W[r]]||null;}
+
+/* --- Breakdown: sectors, industries, countries or market-cap size, equal
+   weight, each against the universe's share. --- */
+var _PF_BRK=[['sector','Sectors'],['industry','Industries'],['country','Countries'],['size','Size']];
+var _PF_SIZES=['Mega (≥ $200B)','Large ($10–200B)','Mid ($2–10B)','Small (< $2B)'];
+var _PF_BRK_KEY='stock_pf_brk_v1';
+var _pfBrkSel=(function(){try{var v=localStorage.getItem(_PF_BRK_KEY);return _PF_BRK.some(function(b){return b[0]===v;})?v:'sector';}catch(e){return'sector';}})();
+function _pfSizeBucket(d){var m=_num(d.mcap);if(m==null||m<=0)return null;return m>=2e11?_PF_SIZES[0]:m>=1e10?_PF_SIZES[1]:m>=2e9?_PF_SIZES[2]:_PF_SIZES[3];}
+function _pfBrkKey(d,dim){if(dim==='size')return _pfSizeBucket(d);var v=d[dim];return v?String(v):null;}
+function _pfBrkCount(rows,dim){var c={},n=0;rows.forEach(function(d){var k=_pfBrkKey(d,dim);if(k){c[k]=(c[k]||0)+1;n++;}});return{c:c,n:n,none:rows.length-n};}
+var _pfBrkUni={};
+function _pfBrkU(dim){
+  if(!_pfBrkUni[dim]){var r=_pfBrkCount(DATA,dim),w={};Object.keys(r.c).forEach(function(k){w[k]=r.c[k]/r.n;});_pfBrkUni[dim]={w:w,none:r.none};}
+  return _pfBrkUni[dim];
+}
+function _pfBrkHtml(id,st){
+  if(_pfBrkSel==='sector')return _pfSectorsHtml(st);
+  var dim=_pfBrkSel,rows=_pfMembers(id).map(function(t){return _pfRow[t];}).filter(Boolean);
+  if(!rows.length)return'<div class="pf-empty">No members.</div>';
+  var r=_pfBrkCount(rows,dim),u=_pfBrkU(dim),what={industry:'industry',country:'country',size:'market cap'}[dim];
+  var keys=Object.keys(r.c).sort(dim==='size'?function(a,b){return _PF_SIZES.indexOf(a)-_PF_SIZES.indexOf(b);}:function(a,b){return r.c[b]-r.c[a]||(a<b?-1:1);});
+  var gap=r.none?'<div class="pf-muted pfv-sec-gap">'+r.none+' of '+rows.length+' member'+(r.none===1?' has':'s have')+' no '+what+'; shares are over the rest.</div>':'';
+  if(!keys.length)return gap||'<div class="pf-empty">No '+what+' data.</div>';
+  return gap+'<div class="pfv-secs">'+keys.map(function(k){
+    var w=r.c[k]/r.n,uw=u.w[k]||0,dpp=Math.round((w-uw)*100);
+    return'<div class="pfv-sec" title="'+_pfEsc(k)+': '+r.c[k]+' of '+rows.length+' ('+_pfPct(w)+'); universe '+_pfPct(uw)+'">'
+      +'<span class="pfv-sec-l">'+_pfEsc(k)+'</span>'
+      +'<span class="pfv-sec-bar"><span style="width:'+(100*w)+'%"></span><i style="left:'+(100*uw)+'%"></i></span>'
+      +'<span class="pfv-sec-v">'+_pfPct(w)+'</span>'
+      +'<span class="pfv-sec-d '+(dpp>=5?'pos':dpp<=-5?'neg':'pf-muted')+'">'+(dpp>0?'+':dpp<0?'−':'±')+Math.abs(dpp)+'pp</span></div>';
+  }).join('')+'</div>';
+}
+function _pfBrkPanel(id,st){
+  return'<div class="pfv-panel"><div class="pfv-brk-h"><span class="pfv-kpi-l">Breakdown, equal weight <span class="pfv-dist-key"><i></i>universe</span>'
+    +(st.concentrated&&_pfBrkSel==='sector'?' — <span class="warn" title="Top sector over 40% or sector HHI over 0.25">concentrated</span>':'')+'</span>'
+    +'<div class="pfm-seg pfv-brk-seg" role="group" aria-label="Breakdown">'+_PF_BRK.map(function(b){
+      var on=b[0]===_pfBrkSel;return'<button type="button" class="pfm-seg-b'+(on?' on':'')+'" aria-pressed="'+on+'" onclick="pfBrk(\''+b[0]+'\')">'+b[1]+'</button>';}).join('')
+    +'</div></div><div id="pfv-brk">'+_pfBrkHtml(id,st)+'</div></div>';
+}
+function pfBrk(dim){
+  _pfBrkSel=dim;try{localStorage.setItem(_PF_BRK_KEY,dim);}catch(e){}
+  if(curView==='pf'&&curPfSub!=='overview')renderPfView();
+}
+
+/* --- Overlap between portfolios: shared members, on the overview. --- */
+function _pfOverlapHtml(defs){
+  if(defs.length<2)return'';
+  var ps=defs.map(function(p){return{p:p,m:_pfMembers(p.id)};}).filter(function(x){return x.m.length;})
+    .sort(function(a,b){return b.m.length-a.m.length;}).slice(0,8);
+  if(ps.length<2)return'';
+  var sets=ps.map(function(x){var s={};x.m.forEach(function(t){s[t]=1;});return s;});
+  var any=false,h='<div class="pfv-tbl-wrap"><table class="pfv-tbl pfv-ovl"><thead><tr><th></th>'
+    +ps.map(function(x){return'<th class="r"><span class="pfo-name" style="--pf:'+_pfEsc(_pfCol(x.p.color))+'"><i></i>'+_pfEsc(x.p.name)+'</span></th>';}).join('')+'</tr></thead><tbody>';
+  ps.forEach(function(a,i){
+    h+='<tr><td><span class="pfo-name" style="--pf:'+_pfEsc(_pfCol(a.p.color))+'"><i></i>'+_pfEsc(a.p.name)+'</span></td>';
+    ps.forEach(function(b,j){
+      if(i===j){h+='<td class="r pf-muted" title="'+a.m.length+' members">'+a.m.length+'</td>';return;}
+      var n=a.m.filter(function(t){return sets[j][t];}).length;if(n)any=true;
+      h+='<td class="r'+(n?'':' pf-muted')+'" title="'+_pfEsc(a.p.name)+' and '+_pfEsc(b.p.name)+' share '+n+' ('+_pfPct(n/a.m.length)+' of '+_pfEsc(a.p.name)+', '+_pfPct(n/b.m.length)+' of '+_pfEsc(b.p.name)+')">'+(n||'·')+'</td>';
+    });
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  return'<h3 class="pfv-h3"><span class="sec-label">Overlap</span> <span class="pf-muted pfv-h3-sub">'+(any?'stocks shared; the diagonal is each portfolio’s size':'no stock is in more than one portfolio')+'</span></h3>'+(any?h:'');
+}
+
+/* --- Members table: CSV of the current column set, filter and sort. --- */
+function _pfCsvCell(v){
+  if(v==null)return'';
+  var s=typeof v==='number'?String(Math.round(v*1e8)/1e8):String(v);
+  return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+}
+function pfmCsv(){
+  var id=_pfm.id;if(!id||!_pfById[id])return;
+  var m=_pfmRows(id),pr=m.pr,ctx=m.ctx;
+  var lines=[['Ticker','Company'].concat(pr.cols.map(function(c){return c.l+(c.f==='pct'||c.x==='mos'||c.x==='ret'?' (fraction)':'');})).map(_pfCsvCell).join(',')];
+  m.vs.forEach(function(x){
+    var d=x.d;
+    lines.push([d.ticker,d.company_name||''].concat(pr.cols.map(function(c){
+      if(c.x==='rating'||c.x==='prior')return d[c.k]||'';
+      if(c.x==='via')return ctx.via(d);
+      return _pfmVal(c,d,ctx);
+    })).map(_pfCsvCell).join(','));
+  });
+  var blob=new Blob([lines.join('\r\n')+'\r\n'],{type:'text/csv'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=id+'-'+pr.id+(_pfRunDate()?'-'+_pfRunDate():'')+'.csv';
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);
+}
+
+/* --- Live: the members' move since this run's close, from the quotes the
+   members table is showing. Display only, like every live cell. --- */
+function _pfLiveHtml(id){
+  var n=0,s=0,tot=0;
+  _pfMembers(id).forEach(function(t){
+    var d=_pfRow[t];if(!d)return;tot++;
+    var q=_lqGet(t),c=_num(d.price);
+    if(q&&q.c>0&&c>0){s+=q.c/c-1;n++;}
+  });
+  if(!n)return'';
+  var r=s/n;
+  return'<span class="lq-live" title="Equal-weighted move of the members with a live quote since this run’s close. Display only: stats, alerts and performance use the close.">Live since the close: <b class="'+(r>0?'pos':r<0?'neg':'')+'">'+_pfFmtRet(r)+'</b></span>'
+    +' <span class="pf-muted">'+n+' of '+tot+' quoted</span>';
+}
+function _pfLivePaint(){
+  if(curView!=='pf'||curPfSub==='overview')return;
+  var el=document.getElementById('pf-live');if(el)el.innerHTML=_pfLiveHtml(curPfSub);
 }
 (function(){
   if(_pfLocal&&_pfCanon(_pfLocal.portfolios)===_pfCanon(PF_PUB.portfolios)){
@@ -8681,7 +9096,7 @@ function _lqPaint(){
   if(_lqDetOpen()&&_dpTicker)_lqPaintDet(_dpTicker);
   var has=function(l){return l.some(function(t){return _LQ[t];});};
   if(curView==='table'&&curTSub!=='prices'&&has(_lqTargets.tbl))_renderDtWindow();
-  if(curView==='pf'&&_pfm.id&&has(_lqTargets.pf))_pfmRedraw();
+  if(curView==='pf'&&_pfm.id&&has(_lqTargets.pf)){_pfmRedraw();_pfLivePaint();}
 }
 function _lqDet(tk){_lqSet('det',tk?[tk]:[]);if(tk)_lqPaintDet(tk);}
 function _lqPaintDet(tk){
@@ -16190,6 +16605,21 @@ function ppQuadHide(){document.getElementById('pp-quad-tip').style.display='none
 .pf-radio,.pf-check{display:flex;gap:8px;align-items:flex-start;cursor:pointer;}
 .pf-radio input,.pf-check input{margin-top:3px;accent-color:var(--accent);}
 .pf-note{font-size:12px;color:var(--text-muted);}
+.pf-fl textarea{font:inherit;font-weight:400;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);resize:vertical;}
+.pf-fl .pf-muted{font-weight:400;}
+.pf-err{font-size:12.5px;color:var(--pf-neg);min-height:0;}
+.pf-err:empty{display:none;}
+.pf-msg{font-size:13.5px;line-height:1.5;}
+.pf-share-in{display:block;width:100%;margin-top:10px;font:inherit;font-size:12px;padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);}
+.pf-desc-in{font-size:12.5px;font-weight:400;color:var(--text-muted);margin-top:2px;}
+.pf-book{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);}
+.pf-book .pf-muted{flex:1 1 260px;}
+.pfv-live{font-size:12.5px;margin-top:4px;}
+.pfv-live:empty{display:none;}
+.pfv-brk-h{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.pfv-pulls{font-size:12.5px;}
+.pfv-ovl td,.pfv-ovl th{white-space:nowrap;}
+.pfm-csv{margin-left:auto;}
 @media (max-width:600px){
   .pf-row{flex-wrap:wrap;}
   .pf-row-btns{max-width:none;width:100%;justify-content:flex-start;padding-left:38px;}

@@ -719,6 +719,8 @@ def _load_portfolio_payload(rows, out_dir=None, run_date=None, prices_dir=None,
     if out_dir and pfs:
         payload['nav'] = _portfolio_nav(pfs, rows, prev, out_dir, run_date, prices_dir)
     if pfs:
+        payload['analytics'] = _portfolio_analytics(pfs, rows, out_dir, run_date, prices_dir)
+    if pfs:
         print(f"[report_html] portfolios: {len(pfs)} "
               f"({sum(len(v) for v in index.values())} memberships, "
               f"{len(payload['changes'])} change entries, {len(payload['events'])} membership "
@@ -765,6 +767,24 @@ def _portfolio_nav(pfs, rows, prev, out_dir, run_date, prices_dir):
         return pn.payload(led, [p['id'] for p in pfs])
     except Exception as e:
         logger.warning("portfolios: NAV ledger not updated (%s)", e)
+        return None
+
+
+def _portfolio_analytics(pfs, rows, out_dir, run_date, prices_dir):
+    """Look-through valuation, ex-ante risk and NAV attribution per portfolio
+    (``models.portfolio_analytics``) for the published definitions. Uses only
+    public weights (a ``held`` portfolio is equal-weighted here). Best-effort:
+    a failure costs these panels, never the render."""
+    from data import portfolio_nav as pn
+    from models import portfolio_analytics as pa
+    try:
+        led = pn.load_ledger(pn.ledger_path(out_dir)) if out_dir else None
+        have_px = bool(prices_dir and os.path.isdir(prices_dir))
+        return pa.analyze(pfs, rows, led, prices_dir if have_px else None,
+                          pn.prices_closes_fn(prices_dir) if have_px else None,
+                          asof=run_date.isoformat() if run_date else None)
+    except Exception as e:
+        logger.warning("portfolios: analytics unavailable (%s)", e)
         return None
 
 

@@ -1193,6 +1193,38 @@ ruff check .
   archived snapshots (entries flagged `bf`, hypothetical) and splices them in
   front of the live history, rescaling it. The cloud routine stages the
   ledger from, and writes it back to, `data/snapshots` (SMOKE-guarded).
+  **Analytics** (`models/portfolio_analytics.py`, shipped as
+  `PF_PUB.analytics` and printed by `portfolios.py show`), each weighted as
+  the NAV is but with `held` equal-weighted, since all of it is published:
+  look-through value through `etf_lookthrough.lookthrough` (V per $1, MoS,
+  and the headline `V / V_universe − 1` against the equal-weighted
+  universe, for the same market-wide-bias reason the SPDRs read against
+  SPY); ex-ante risk of today's weights — vol, Sharpe (rows' median
+  `_risk_free_rate`), return and max drawdown on a year of daily returns,
+  beta, tracking error and correlations on two years of weekly returns
+  (one-year daily betas read KO −0.28 and AMD 3.26 on 2026-10-23, against
+  0.07 and 1.87 weekly), the most correlated pairs and the basket's
+  2008/2020/2022 drawdowns (members that traded through the window, ≥ 50%
+  of weight); and attribution from the ledger's own steps
+  (`portfolio_nav.step_contributions`, the same arithmetic as the NAV),
+  Carino-linked so a window's contributions sum to its compounded return
+  (the plain daily sum read +12.5% against +9.3% for `semis`).
+  **Report UI for positions and analytics** (`templates/report.html`, tests
+  `tests/test_report_portfolio_ui.py`): holdings reach the page only from the
+  reader's own `positions.json`, loaded in Manage (`stock_positions_v1`,
+  localStorage only; never in an export, a share link or `PF_PUB` — a render
+  test with a real book checks no output file carries its numbers).
+  `_pfHoldCalc` mirrors `holdings_summary` (node parity test) and feeds a
+  Holdings panel and a Holdings/Targets column set (shares, cost, value,
+  P&L, weight, target, drift). The detail page adds a Value & risk panel
+  from `PF_PUB.analytics` (published definitions only), a breakdown toggle
+  (sectors / industries / countries / market-cap size against the universe,
+  `stock_pf_brk_v1`), a live line (members' move since the close, display
+  only), Add stocks (paste tickers) and CSV of the members table; Manage
+  edits description and weighting; the overview gains Upside and Beta
+  columns and an Overlap table; contributors come from the ledger's
+  attribution when published. `prompt()`/`alert()` flows are overlay
+  dialogs (`pfNewDialog`, `pfAddDialog`, `_pfMsg`).
   Portfolio colors use the dataviz reference categorical palette (validated
   both themes; dark mode swaps in each hue's dark step).
 - **Rating = composite bucket (`scripts/scoring.py`, `RATING_CAPS_ENABLED`):**
