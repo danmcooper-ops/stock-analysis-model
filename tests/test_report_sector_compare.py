@@ -40,3 +40,12 @@ def test_indices_and_funds_sit_in_separate_dropdowns():
     assert 'id="sector-bench-btns"' not in tpl
     fill = re.search(r"\n  list\.innerHTML=('<div class=\"agg-grid\">.*?);\n", tpl).group(1)
     assert 'ixs.map' in fill and 'funds' not in fill
+
+
+def test_dropdowns_collapse_on_their_own():
+    tpl = _tpl()
+    dd = re.search(r"function sectorBenchDD\(btn\)\{.*?\n\}", tpl, re.S).group(0)
+    assert "querySelectorAll('.sb-dd.open').forEach(_sbDDClose)" in dd
+    close = re.search(r"function _cmClose\(p\)\{.*?\n\}", tpl, re.S).group(0)
+    assert "_sbDDClose" in close
+    assert re.search(r"closest\('\.sb-dd'\).*?_sbDDClose\(dd\)", tpl, re.S)
