@@ -1348,10 +1348,13 @@ by analyze_stock and gitignored):
   line; then the regime model's inputs, Regime signals with the composite,
   and the scoring ?), The Conditions (the three economy sections, each a
   lead sentence and bullets ending in a Full charts link to its sub-tab,
-  which charts every number once), What to Watch (`watch`) and The
-  International Economy (`_macIntlHTML`, schema v8 `international`: a lead,
-  one point per region — euro area, UK, Japan, China, emerging markets,
-  the `region` enum — and a For US equities spillover line). The card reads
+  which charts every number once) and What to Watch (`watch`), with The
+  International Economy second, between The US Economy and The Conditions
+  (`_macIntlHTML`, schema v9 `international`: one paragraph of 2-3
+  sentences from the same Claude call, set as the bottom line is — where
+  the world stands, the cross-border tension that matters, and what it
+  means for US equities; v8's lead, per-region points and spillover line
+  read as a list and were cut the same day). The card reads
   the `intl` series family (sub-tab International): policy rate, 10-year
   yield, 1-year equity return and currency per region, plus euro-area
   HICP. FRED's OECD CPIs for the UK, Japan and China are dead (probed
@@ -1375,8 +1378,8 @@ by analyze_stock and gitignored):
   tailwinds as "mixed"), the headline its heading and the influence's
   sentences its bullets; it adds nothing to the acting count. The Broad Sector Outlook that once listed them all on
   Sector Analysis › Overview (key `__performance__`) was removed as noise,
-  so that tab opens on Sector Price Comparison. A pre-v8 cache has no
-  `international` and its International card shows the data grid. A pre-v7 cache has no
+  so that tab opens on Sector Price Comparison. A pre-v9 cache has no
+  `international` paragraph and its International card shows the data grid. A pre-v7 cache has no
   `bottom_line`/`watch` and shows its headwinds/tailwinds as The balance. The Sector Analysis tabs carry no
   macro narrative; their Sector Headwinds & Tailwinds block is the
   sector's own structural read, and each influence paragraph weighs

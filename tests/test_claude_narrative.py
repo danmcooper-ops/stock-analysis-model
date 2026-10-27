@@ -167,18 +167,17 @@ class TestBuildMacroFacts:
         assert overview_word_count({'bottom_line': 'a b c',
                                     'watch': ['d e']}) == 5
 
-    def test_v8_adds_the_international_block(self):
-        assert SCHEMA_VERSION >= 8
-        intl = NARRATIVE_SCHEMA['properties']['international']
-        assert set(intl['required']) == {'lead', 'regions', 'spillover'}
-        region = intl['properties']['regions']['items']['properties']['region']
-        assert region['enum'] == ['ea', 'uk', 'jp', 'cn', 'em']
+    def test_v9_international_is_one_paragraph(self):
+        assert SCHEMA_VERSION >= 9
+        assert NARRATIVE_SCHEMA['properties']['international'] == \
+            {'type': 'string'}
         p = SYSTEM_PROMPT
-        assert '- international:' in p and 'spillover:' in p
+        assert '- international: 2 or 3 sentences' in p
+        assert 'read alone as the bottom line is' in p
         assert 'stale may be cited only with its month' in p
-        assert overview_word_count({'international': {
-            'lead': 'a b', 'regions': [{'region': 'ea', 'point': 'c d e'}],
-            'spillover': 'f'}}) == 6
+        assert 'spillover:' not in p and 'regions: one entry' not in p
+        assert overview_word_count({'bottom_line': 'a b',
+                                    'international': 'c d e'}) == 5
 
     def test_international_series_are_split_out_by_region(self):
         sc = _sidecar()
@@ -209,7 +208,7 @@ class TestBuildMacroFacts:
         rounding rule that keeps '1.5th percentile' off the page."""
         p = SYSTEM_PROMPT
         assert 'influence:' in p and '30 to 40 words in all' in p
-        assert 'total about 860 words' in p
+        assert 'total about 810 words' in p
         assert 'MECHANISM' in p, 'influence explains channels, not bullets'
         assert 'explain it rather than list it' in p
         assert 'lead: ONE sentence' in p and 'points:' in p
@@ -358,22 +357,15 @@ class TestClaudeNarrativeClient:
         assert all(x['influence'] == 'Rates and credit offset.' and
                    x['stance'] == 'neutral' for x in out['sectors'])
 
-    def test_international_regions_are_ordered_and_deduped(self, tmp_path,
-                                                           monkeypatch):
+    def test_international_paragraph_passes_through(self, tmp_path,
+                                                    monkeypatch):
         payload = _narrative()
-        payload['international'] = {
-            'lead': 'The world is slowing.',
-            'regions': [{'region': 'jp', 'point': 'Japan tightens.'},
-                        {'region': 'ea', 'point': 'Europe eases.'},
-                        {'region': 'jp', 'point': 'A second take.'},
-                        {'region': 'cn', 'point': '  '}],
-            'spillover': 'A firm dollar trims overseas earnings.'}
+        payload['international'] = 'The world is slowing while the dollar holds.'
         _install_fake_anthropic(
             monkeypatch, response=_FakeResponse(json.dumps(payload)))
         out = self._client(tmp_path).generate(_sidecar())
-        regs = out['international']['regions']
-        assert [r['region'] for r in regs] == ['ea', 'jp']
-        assert regs[1]['point'] == 'Japan tightens.'
+        assert out['international'] == payload['international']
+        assert out['schema_version'] == SCHEMA_VERSION
 
     def test_partial_sector_list_survives_dedupe(self, tmp_path, monkeypatch):
         """A short list still renders — dedupe must not invent entries."""

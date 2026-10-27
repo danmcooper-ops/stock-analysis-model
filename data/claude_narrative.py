@@ -71,16 +71,15 @@ REQUEST_TIMEOUT_S = 900
 # v8: `international` — a lead, one point per region and a spillover line
 #     for the Overview's International Economy card, read from the `intl`
 #     series family the facts now hand over apart from the US series.
-SCHEMA_VERSION = 8
+# v9: `international` is one paragraph, read alone as the bottom line is,
+#     in place of v8's lead, per-region points and spillover line.
+SCHEMA_VERSION = 9
 
-# Ceilings for the v7 fields, in words; counted post-parse, never enforced.
+# Ceilings for the v7 and v9 fields, in words; counted post-parse, never
+# enforced.
 BOTTOM_LINE_MAX_WORDS = 60
 WATCH_ITEMS = 3
-INTL_SPILLOVER_MAX_WORDS = 25
-
-# The International card's regions, the series' `region` keys, in the order
-# scripts/macro_dashboard.REGIONS draws them (data/ never imports scripts/).
-INTL_REGIONS = ['ea', 'uk', 'jp', 'cn', 'em']
+INTERNATIONAL_MAX_WORDS = 60
 
 # Advisory floor for a sector's influence paragraph, only ever counted:
 # under it the Overview is back to reading like a kicker, which is what
@@ -88,13 +87,13 @@ INTL_REGIONS = ['ea', 'uk', 'jp', 'cn', 'em']
 MIN_INFLUENCE_WORDS = 20
 
 # Target length of the Overview read (bottom line + paragraphs + what to
-# watch + international + sector headlines and influences), ~3.5 minutes.
+# watch + international + sector headlines and influences), ~3 minutes.
 # The per-field ceilings in the prompt sum to it: 60 + 3 x (20 + 3 x 20) +
-# 3 x 20 + (20 + 5 x 20 + 25) + 11 x (4 + 40) ~= 990 at the ceilings, ~860
-# as drawn (v7's ~750 plus ~110 for the international block). Influences are
-# drawn at their ceiling: a 45-word one put the v6 Overview at 820 words.
-# Counted post-parse, never enforced.
-OVERVIEW_WORD_BUDGET = 860
+# 3 x 20 + 60 + 11 x (4 + 40) ~= 904 at the ceilings, ~810 as drawn (v7's
+# ~750 plus the international paragraph). Influences are drawn at their
+# ceiling: a 45-word one put the v6 Overview at 820 words. Counted
+# post-parse, never enforced.
+OVERVIEW_WORD_BUDGET = 810
 
 # The 11 GICS sectors under the yfinance naming this repo uses everywhere
 # (rows, SECTOR_CONFIG, sector ETF maps). The narrative must cover all 11.
@@ -143,31 +142,9 @@ NARRATIVE_SCHEMA = {
             'additionalProperties': False,
         },
         'watch': {'type': 'array', 'items': {'type': 'string'}},
-        # The International Economy card: a verdict, one point per region
-        # (the region an enum, so the page can label it), and what the world
-        # means for US equities.
-        'international': {
-            'type': 'object',
-            'properties': {
-                'lead': {'type': 'string'},
-                'regions': {
-                    'type': 'array',
-                    'items': {
-                        'type': 'object',
-                        'properties': {
-                            'region': {'type': 'string',
-                                       'enum': INTL_REGIONS},
-                            'point': {'type': 'string'},
-                        },
-                        'required': ['region', 'point'],
-                        'additionalProperties': False,
-                    },
-                },
-                'spillover': {'type': 'string'},
-            },
-            'required': ['lead', 'regions', 'spillover'],
-            'additionalProperties': False,
-        },
+        # The International Economy card: one paragraph, set as the bottom
+        # line is.
+        'international': {'type': 'string'},
         'sectors': {
             'type': 'array',
             'items': {
@@ -250,20 +227,16 @@ SYSTEM_PROMPT = (
     "above 250,000 would say layoffs have started, ending the labor "
     "story.' Each on a different indicator family; thresholds may be new "
     'numbers, but never restate a current reading already given.\n'
-    "- international: the global backdrop, read from the data's "
-    "'international' block only (region keys: ea euro area, uk United "
-    'Kingdom, jp Japan, cn China, em emerging markets).\n'
-    '  lead: ONE sentence, 20 words maximum, the verdict on the world '
-    'economy as it bears on the US: where growth and policy are '
-    'diverging or moving together.\n'
-    '  regions: one entry per region in the data, in the order ea, uk, '
-    'jp, cn, em; point is ONE sentence of 20 words or fewer with at most '
-    'two figures, saying what its central bank, bond market, currency or '
-    'equity market says about that economy. Equity series are 1-year price '
-    'returns. A series marked stale may be cited only with its month.\n'
-    f'  spillover: ONE sentence, {INTL_SPILLOVER_MAX_WORDS} words maximum, '
-    'what the world means for US equities now, through the dollar, US '
-    'yields, commodity prices or overseas earnings.\n'
+    f'- international: 2 or 3 sentences, {INTERNATIONAL_MAX_WORDS} words '
+    'maximum, read alone as the bottom line is, written from the data\'s '
+    "'international' block only (regions: ea euro area, uk United Kingdom, "
+    'jp Japan, cn China, em emerging markets): where the world economy '
+    'stands, the one cross-border divergence or tension that matters most, '
+    'and what it means for US equity investors through the dollar, US '
+    'yields, commodity prices or overseas earnings. Name regions rather '
+    'than walking through each one. At most three figures. Equity series '
+    'are 1-year price returns; a series marked stale may be cited only '
+    'with its month.\n'
     '- sectors: one entry for EVERY GICS sector listed in the data (all '
     '11, including any without ETF metrics), each written in this order:\n'
     '  influence: the read a sector\'s chip opens under the Overview\'s '
@@ -376,11 +349,8 @@ def overview_word_count(narrative):
     total += sum(wc(x) for k in ('paragraphs', 'watch', 'tailwinds',
                                  'headwinds')
                  for x in (n.get(k) or []))
-    intl = n.get('international') or {}
-    if isinstance(intl, dict):
-        total += wc(intl.get('lead')) + wc(intl.get('spillover'))
-        total += sum(wc(r.get('point')) for r in intl.get('regions') or []
-                     if isinstance(r, dict))
+    if isinstance(n.get('international'), str):
+        total += wc(n['international'])
     for e in n.get('sectors') or []:
         if isinstance(e, dict):
             total += wc(e.get('headline')) + wc(e.get('influence'))
@@ -560,22 +530,10 @@ class ClaudeNarrativeClient:
         if len(narrative.get('watch') or []) != WATCH_ITEMS:
             logger.warning('macro narrative: %d watch items (expected %d)',
                            len(narrative.get('watch') or []), WATCH_ITEMS)
-        # Regions in the card's order, one entry each (the grammar pins no
-        # array length, so a repeat is possible, as with the sectors).
-        intl = narrative.get('international')
-        if isinstance(intl, dict):
-            by_region = {}
-            for r in intl.get('regions') or []:
-                k = (r or {}).get('region')
-                if k and k not in by_region and str(r.get('point') or '').strip():
-                    by_region[k] = r
-            intl['regions'] = [by_region[k] for k in INTL_REGIONS
-                               if k in by_region]
-            missing = set(facts['international']) & set(INTL_REGIONS) \
-                - set(by_region)
-            if missing:
-                logger.warning('macro narrative: international omits %s',
-                               ', '.join(sorted(missing)))
+        if len(str(narrative.get('international') or '').split()) > \
+                1.25 * INTERNATIONAL_MAX_WORDS:
+            logger.warning('macro narrative: international runs %d words',
+                           len(str(narrative.get('international')).split()))
         if len(str(narrative.get('bottom_line') or '').split()) > \
                 1.25 * BOTTOM_LINE_MAX_WORDS:
             logger.warning('macro narrative: bottom line runs %d words',
