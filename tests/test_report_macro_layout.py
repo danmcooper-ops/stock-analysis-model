@@ -127,9 +127,9 @@ def test_macro_overview_reads_top_down():
     inside the regime card."""
     css = _css()
     body = re.search(r'function _macOverviewHTML\(\).*?\n\}\n', css, re.S).group(0)
-    # Four cards: The US Economy (the call), The Conditions, What to Watch,
-    # The International Economy.
-    assert '_macRegimeHTML(true)+_macNarrativeHTML()+_macIntlHTML()' in body
+    # Four cards: The US Economy (the call), The International Economy
+    # second, then The Conditions and What to Watch.
+    assert '_macRegimeHTML(true)+_macIntlHTML()+_macNarrativeHTML()' in body
     assert 'Key numbers' not in body and 'mac-tiles' not in body
     reg = re.search(r'function _macRegimeHTML\(full\).*?\n\}\n', css, re.S).group(0)
     assert "if(full&&_nar&&_nar.bottom_line)" in reg
@@ -147,17 +147,15 @@ def test_macro_overview_reads_top_down():
 
 
 def test_macro_international_card():
-    """The International Economy card: the narrative's lead, a bullet per
-    region and the spillover, every model string escaped; without a
-    narrative, the inline summary's per-region readings. Both end in the
-    International sub-tab's charts."""
+    """The International Economy card: the narrative's one paragraph, set as
+    The US Economy's bottom line is (mac-lead) and escaped; without one, the
+    inline summary's per-region readings. Both end in the International
+    sub-tab's charts."""
     css = _css()
     body = re.search(r'function _macIntlHTML\(\).*?\n\}\n', css, re.S).group(0)
     assert '<div class="sec-label">The International Economy</div>' in body
-    for field in ('intl.lead', 'r.point', 'intl.spillover'):
-        assert '_esc(%s)' % field in body, '%s must be escaped' % field
-    # a region label comes only from the whitelist, never the model's string
-    assert '_MAC_REGION[r.region]' in body and '_esc(r.region)' not in body
+    assert "typeof nar.international==='string'" in body
+    assert '<p class="mac-read mac-lead">\'+_esc(para)+\'</p>' in body
     assert 'MACRO_SUM.intl' in body and '_mdelta(s.chg_1y' in body
     assert "navGo(\\'macro\\',\\'intl\\')" in body
     assert "{k:'intl',l:'International'}" in css
